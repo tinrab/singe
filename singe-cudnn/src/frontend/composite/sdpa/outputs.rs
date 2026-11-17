@@ -1,9 +1,9 @@
 use crate::{
-    backend::tensor::TensorId,
     error::Result,
     frontend::{
         composite::sdpa::SdpaForwardOutputTensors, error::Error as FrontendError, graph::Graph,
     },
+    tensor::TensorId,
 };
 
 impl Graph {

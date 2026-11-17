@@ -1,131 +1,19 @@
 use std::{borrow::Cow, ffi, result::Result as StdResult};
 
-use singe_core::{static_str_from_c_ptr, status_enum};
 use singe_cuda::error::Error as CudaError;
 use singe_nccl_sys as sys;
 use thiserror::Error;
 
-/// An error from CUDA, NCCL, or validation of wrapper state and arguments.
-#[derive(Error, Debug)]
-#[non_exhaustive]
-pub enum Error {
-    // Its library would not load.
-    #[error(transparent)]
-    Load(#[from] singe_nccl_sys::LoadError),
-
-    /// A CUDA operation failed.
-    #[error(transparent)]
-    Cuda(#[from] CudaError),
-
-    /// An NCCL operation returned a failure status.
-    #[error("nccl error ({code}): {message}")]
-    Nccl {
-        /// The NCCL status code.
-        code: Status,
-        /// A description of the NCCL status.
-        message: String,
-    },
-
-    /// A string contains an interior NUL byte.
-    #[error("string contains interior nul byte")]
-    InteriorNul,
-
-    /// A native communicator handle is null.
-    #[error("unexpected null handle")]
-    NullHandle,
-
-    /// A native API returned or received an unexpected null pointer.
-    #[error("unexpected null pointer")]
-    NullPointer,
-
-    /// An argument or computed quantity is outside its supported range.
-    #[error("`{name}` is out of range")]
-    OutOfRange {
-        /// The argument or quantity outside its supported range.
-        name: Cow<'static, str>,
-    },
-
-    /// Buffer lengths or per-rank counts do not match the operation.
-    #[error("`{name}` length mismatch")]
-    LengthMismatch {
-        /// The buffers or per-rank values with incompatible lengths.
-        name: Cow<'static, str>,
-    },
-
-    /// An allocation cannot be transferred while other owners retain it.
-    #[error("resource is shared and cannot be consumed")]
-    OwnershipShared,
-
-    /// An operation requires the device primary CUDA context.
-    #[error("nccl requires the device primary cuda context")]
-    UnsupportedContext,
-
-    /// Resources belong to different CUDA contexts.
-    #[error("resource belongs to a different cuda context")]
-    ContextMismatch,
-
-    /// An operation cannot run inside an open NCCL group.
-    #[error("operation cannot run inside an open nccl group")]
-    GroupActive,
-
-    /// The stream belongs to another CUDA context.
-    #[error("stream belongs to a different cuda context")]
-    StreamContextMismatch,
-
-    /// The communicator state does not permit the operation.
-    #[error("communicator is in {state} state")]
-    InvalidCommunicatorState {
-        /// The communicator state that prevented the operation.
-        state: String,
-    },
-
-    /// The builder mode does not support the requested creation operation.
-    #[error("communicator builder mode does not support {operation}")]
-    InvalidBuilderMode {
-        /// The operation incompatible with the selected builder mode.
-        operation: String,
-    },
-}
-
-/// An NCCL wrapper result with [`enum@Error`] as its error type.
-pub type Result<T> = StdResult<T, Error>;
-
-impl Error {
-    pub(crate) fn out_of_range(name: impl Into<Cow<'static, str>>) -> Self {
-        Self::OutOfRange { name: name.into() }
-    }
-}
-
-impl From<sys::ncclResult_t> for Error {
-    fn from(code: sys::ncclResult_t) -> Self {
-        if code == sys::ncclResult_t::ncclSystemError
-            && let Err(error) = singe_nccl_sys::load()
-        {
-            return Self::Load(error);
-        }
-
-        Self::from(Status::from(code))
-    }
-}
-
-impl From<Status> for Error {
-    fn from(status: Status) -> Self {
-        Self::Nccl {
-            code: status,
-            message: status.description().to_string(),
-        }
-    }
-}
-
-impl From<ffi::NulError> for Error {
-    fn from(_: ffi::NulError) -> Self {
-        Self::InteriorNul
-    }
-}
-
-status_enum! {
+singe_core::wrapper_status! {
+    library = "nccl",
+    error = Error::Nccl,
+    raw = sys::ncclResult_t,
+    success = ncclSuccess,
+    absence = sys::take_absence,
+    unknown = "UNKNOWN_NCCL_STATUS",
+    description = sys::ncclGetErrorString,
     /// Status codes returned by NCCL operations.
-    pub enum Status: u32 => sys::ncclResult_t, unknown = "UNKNOWN_NCCL_STATUS" {
+    pub enum Status: u32 {
         /// Operation succeeded.
         Success = ncclSuccess,
         /// A call to a CUDA function failed.
@@ -151,51 +39,130 @@ status_enum! {
     }
 }
 
-impl Status {
-    /// Library description of this status.
-    #[must_use]
-    pub fn description(self) -> &'static str {
-        let Ok(raw) = sys::ncclResult_t::try_from(self) else {
-            return "unknown nccl error";
-        };
-        // SAFETY: `ncclGetErrorString` returns null or a static NUL-terminated string.
-        unsafe { static_str_from_c_ptr(sys::ncclGetErrorString(raw), "unknown nccl error") }
+/// An error from CUDA, NCCL, or validation of wrapper state and arguments.
+#[derive(Error, Debug)]
+#[non_exhaustive]
+pub enum Error {
+    /// NCCL or one of its symbols would not load.
+    #[error(transparent)]
+    Load(#[from] sys::LoadError),
+
+    /// A CUDA operation failed.
+    #[error(transparent)]
+    Cuda(#[from] CudaError),
+
+    /// An NCCL operation returned a failure status.
+    #[error("nccl error ({code}): {}", code.description())]
+    Nccl {
+        /// The NCCL status code.
+        code: Status,
+    },
+
+    /// A string contains an interior NUL byte.
+    #[error("string contains interior nul byte")]
+    InteriorNul,
+
+    /// A native communicator handle is null.
+    #[error("unexpected null handle")]
+    NullHandle,
+
+    /// A native API returned or received an unexpected null pointer.
+    #[error("`{name}` is null")]
+    NullPointer {
+        /// Name of the pointer or required value.
+        name: Cow<'static, str>,
+    },
+
+    /// A native enum value has no typed variant in this crate.
+    #[error("unknown `{name}` value {value}")]
+    UnknownEnumValue {
+        /// Name of the typed enum.
+        name: Cow<'static, str>,
+        /// Unrecognized native value.
+        value: i64,
+    },
+
+    /// An argument or computed quantity is outside its supported range.
+    #[error("`{name}` is out of range")]
+    OutOfRange {
+        /// The argument or quantity outside its supported range.
+        name: Cow<'static, str>,
+    },
+
+    /// Buffer lengths or per-rank counts do not match the operation.
+    #[error("`{name}` length mismatch (expected {expected}, got {actual})")]
+    LengthMismatch {
+        /// The buffers or per-rank values with incompatible lengths.
+        name: Cow<'static, str>,
+        /// Required length.
+        expected: usize,
+        /// Supplied length.
+        actual: usize,
+    },
+
+    /// A list of buffers or ranks is empty.
+    #[error("`{name}` is empty")]
+    Empty {
+        /// Name of the list.
+        name: Cow<'static, str>,
+    },
+
+    /// An operation requires the device primary CUDA context.
+    #[error("nccl requires the device primary cuda context")]
+    UnsupportedContext,
+
+    /// An NCCL object belongs to a different communicator.
+    #[error("`{name}` belongs to a different nccl context")]
+    ContextMismatch {
+        /// Name of the object.
+        name: Cow<'static, str>,
+    },
+
+    /// An operation cannot run inside an open NCCL group.
+    #[error("operation cannot run inside an open nccl group")]
+    GroupActive,
+
+    /// The stream belongs to another CUDA context.
+    #[error("stream belongs to a different cuda context")]
+    StreamContextMismatch,
+
+    /// The communicator state does not permit the operation.
+    #[error("communicator is in {state} state")]
+    InvalidCommunicatorState {
+        /// The communicator state that prevented the operation.
+        state: String,
+    },
+}
+
+/// An NCCL wrapper result with [`enum@Error`] as its error type.
+pub type Result<T> = StdResult<T, Error>;
+
+impl Error {
+    pub(crate) fn out_of_range(name: impl Into<Cow<'static, str>>) -> Self {
+        Self::OutOfRange { name: name.into() }
     }
 }
 
-/// Converts a raw NCCL status-returning expression into a crate [`Result`](crate::error::Result).
-#[macro_export]
-macro_rules! try_ffi {
-    ($expr:expr) => {{
-        let status = { $expr };
-        if status != singe_nccl_sys::ncclResult_t::ncclSuccess {
-            Err($crate::error::Error::from(status))
-        } else {
-            Ok(())
+impl From<singe_core::UnknownEnumValue> for Error {
+    fn from(error: singe_core::UnknownEnumValue) -> Self {
+        Self::UnknownEnumValue {
+            name: error.name.into(),
+            value: error.value,
         }
-    }};
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_status_converts_from_raw_code() {
-        let status = Status::from(sys::ncclResult_t::ncclInvalidArgument);
-        assert_eq!(status, Status::InvalidArgument);
-        assert_eq!(status.raw(), sys::ncclResult_t::ncclInvalidArgument as u32);
-    }
-
-    #[test]
-    fn test_status_display_uses_c_name() {
-        assert_eq!(Status::InvalidArgument.to_string(), "ncclInvalidArgument");
-    }
-
-    #[test]
-    fn test_unknown_status_keeps_raw_code() {
-        let status = Status::Unknown(9999);
-        assert_eq!(status.raw(), 9999);
-        assert_eq!(status.to_string(), "UNKNOWN_NCCL_STATUS(9999)");
     }
 }
+
+impl From<ffi::NulError> for Error {
+    fn from(_: ffi::NulError) -> Self {
+        Self::InteriorNul
+    }
+}
+
+// Converts a raw NCCL status into this crate's `Result`.
+macro_rules! try_ffi {
+    ($expr:expr) => {
+        $crate::error::Error::check($expr)
+    };
+}
+
+pub(crate) use try_ffi;

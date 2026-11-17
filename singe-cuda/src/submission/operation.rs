@@ -10,13 +10,14 @@ use crate::{
     context::Context,
     error::{Error, Result},
     graph::owned::{Recordable, Recording},
-    stream::{Stream, StreamFlags},
+    stream::{Stream, StreamFlags, StreamOptions},
     submission::{Completion, Execution, Resources, Submission},
 };
 
 /// Lazy owned CUDA work.
 ///
 /// # Safety
+///
 /// Implementations must register all resources and accesses through [`Execution::enqueue`] before submitting native work, including on error and unwind paths.
 /// Returned pending values must not permit safe initialized reads before successful completion.
 /// Keep capture-incompatible preparation outside implementations intended for graph recording.
@@ -39,6 +40,7 @@ pub unsafe trait Operation: Sized {
     /// Resolves host results after successful native completion and resource retirement.
     ///
     /// # Safety
+    ///
     /// `pending` must come from this operation's enqueue and its execution must have completed successfully.
     ///
     /// # Errors
@@ -103,6 +105,7 @@ pub unsafe trait Operation: Sized {
 /// Host consumers still need checked completion before reading produced values.
 ///
 /// # Safety
+///
 /// Resolution must be the identity function, and pending outputs must uphold [`Operation`]'s contract.
 /// Enqueue must never rely on host resolution to schedule native work or initialize output metadata.
 pub unsafe trait DeviceOperation: Operation<Pending = <Self as Operation>::Output> {}
@@ -116,6 +119,7 @@ pub struct Then<O, F> {
     next: F,
 }
 
+// SAFETY: both stages enqueue through the same execution, so each registers its own resources first, and the pending value is `N`'s, which upholds the contract.
 unsafe impl<O, F, N> Operation for Then<O, F>
 where
     O: DeviceOperation,
@@ -132,7 +136,7 @@ where
     }
 
     unsafe fn resolve(pending: Self::Pending) -> Result<Self::Output> {
-        // SAFETY: the caller upholds this function's safety contract.
+        // SAFETY: the caller guarantees `pending` came from this enqueue, which returns `N`'s pending value, and that execution completed.
         unsafe { N::resolve(pending) }
     }
 }
@@ -143,6 +147,7 @@ where
 #[derive(Debug)]
 pub struct Pair<A, B>(A, B);
 
+// SAFETY: each half enqueues through the same execution and registers its own resources, and the pending pair exposes only the halves' pending values.
 unsafe impl<A: Operation, B: Operation> Operation for Pair<A, B> {
     type Pending = (A::Pending, B::Pending);
 
@@ -153,7 +158,7 @@ unsafe impl<A: Operation, B: Operation> Operation for Pair<A, B> {
     }
 
     unsafe fn resolve(pending: Self::Pending) -> Result<Self::Output> {
-        // SAFETY: the caller upholds this function's safety contract.
+        // SAFETY: the caller guarantees the pair came from this enqueue, whose halves came from `A` and `B`, and that the shared execution completed.
         unsafe { Ok((A::resolve(pending.0)?, B::resolve(pending.1)?)) }
     }
 }
@@ -168,6 +173,7 @@ pub struct Map<O, F> {
     map: F,
 }
 
+// SAFETY: `enqueue` delegates to `O`, and the pending value holds `O`'s pending value beside a host callback that runs only on resolution.
 unsafe impl<O, F, T: 'static> Operation for Map<O, F>
 where
     O: Operation,
@@ -182,7 +188,7 @@ where
     }
 
     unsafe fn resolve((pending, map): Self::Pending) -> Result<T> {
-        // SAFETY: the caller upholds this function's safety contract.
+        // SAFETY: the caller guarantees `pending` came from `O`'s enqueue within this one and that execution completed.
         Ok(map(unsafe { O::resolve(pending)? }))
     }
 }
@@ -221,6 +227,7 @@ impl<O: DeviceOperation> Clone for Shared<O> {
     }
 }
 
+// SAFETY: the producer registers its own resources when first submitted, and each consumer registers the producer's completion and retains its output before ordering on it; `O: DeviceOperation` makes the shared output pending device metadata.
 unsafe impl<O: DeviceOperation> Operation for Shared<O>
 where
     O::Output: Send + Sync,
@@ -234,9 +241,10 @@ where
     }
 
     fn enqueue(self, execution: &mut Execution) -> Result<Self::Output> {
-        let mut state = self.state.lock().map_err(|_| Error::ResourcePoisoned {
-            name: "shared operation",
-        })?;
+        let mut state = self
+            .state
+            .lock()
+            .map_err(|_| Error::lock_poisoned("shared operation"))?;
         if let SharedState::New(operation) = &mut *state {
             let operation = operation.take().expect("shared operation has not executed");
             *state = match operation.submit_on(execution.stream()) {
@@ -276,18 +284,21 @@ impl StreamPool {
     ///
     /// # Errors
     ///
-    /// Returns `Error::ZeroValue` if `streams` is zero.
+    /// Returns `Error::NotPositive` if `streams` is zero.
     /// Also propagates context binding or stream creation errors.
     /// Streams already created are dropped if a later creation fails.
     pub fn create(context: &Arc<Context>, streams: usize) -> Result<Self> {
         if streams == 0 {
-            return Err(Error::ZeroValue {
-                name: "stream pool size".into(),
-            });
+            return Err(Error::not_positive("stream pool size"));
         }
         Ok(Self {
             streams: (0..streams)
-                .map(|_| context.create_stream_with_flags(StreamFlags::NON_BLOCKING))
+                .map(|_| {
+                    context.create_stream(StreamOptions {
+                        flags: StreamFlags::NON_BLOCKING,
+                        ..StreamOptions::default()
+                    })
+                })
                 .collect::<Result<_>>()?,
             next: AtomicUsize::new(0),
         })
@@ -313,6 +324,7 @@ impl StreamPool {
     }
 }
 
+// SAFETY: each half records through the same recording, registering its own owners and accesses, and the output pair exposes only the halves' outputs.
 unsafe impl<A: Recordable, B: Recordable> Recordable for Pair<A, B> {
     type Output = (A::Output, B::Output);
 
@@ -321,6 +333,7 @@ unsafe impl<A: Recordable, B: Recordable> Recordable for Pair<A, B> {
     }
 }
 
+// SAFETY: an `Err` enqueues no native work, and an `Ok` delegates both enqueue and resolution to `O`.
 unsafe impl<O: Operation> Operation for Result<O> {
     type Pending = O::Pending;
 
@@ -331,19 +344,22 @@ unsafe impl<O: Operation> Operation for Result<O> {
     }
 
     unsafe fn resolve(pending: Self::Pending) -> Result<Self::Output> {
-        // SAFETY: the caller upholds this function's safety contract.
+        // SAFETY: the caller guarantees `pending` came from `O`'s enqueue within this one and that execution completed.
         unsafe { O::resolve(pending) }
     }
 }
 
-// SAFETY: these compositions preserve identity resolution and eager device enqueue.
+// SAFETY: `Then` resolves through `N`, whose resolution is the identity, and enqueues both stages eagerly.
 unsafe impl<O: DeviceOperation, F, N: DeviceOperation> DeviceOperation for Then<O, F> where
     F: FnOnce(O::Output) -> N
 {
 }
 
+// SAFETY: both halves resolve by identity, so the pair does too, and both enqueue eagerly.
 unsafe impl<A: DeviceOperation, B: DeviceOperation> DeviceOperation for Pair<A, B> {}
 
+// SAFETY: `Result<O>` resolves through `O`'s identity resolution and enqueues `O` eagerly.
 unsafe impl<O: DeviceOperation> DeviceOperation for Result<O> {}
 
+// SAFETY: `Shared` resolves by returning its pending `Arc` unchanged, and the producer is submitted during enqueue, not on resolution.
 unsafe impl<O: DeviceOperation> DeviceOperation for Shared<O> where O::Output: Send + Sync {}

@@ -16,7 +16,7 @@ use crate::{
 
 /// Attempts to get the CUDA major version, such as `"12"` or `"13"`.
 /// Tries CUDA Runtime first, then falls back to nvcc.
-pub fn cuda_major_version() -> Result<Option<String>> {
+pub(crate) fn cuda_major_version() -> Result<Option<String>> {
     let version_string = find_cuda_runtime()?
         .and_then(|dep| dep.version)
         .or_else(parse_cuda_version_from_nvcc);
@@ -24,7 +24,7 @@ pub fn cuda_major_version() -> Result<Option<String>> {
     Ok(version_string.and_then(|v| v.split('.').next().map(String::from)))
 }
 
-pub fn parse_version_from_header_defines(
+pub(crate) fn parse_version_from_header_defines(
     header_path: &Path,
     major_define: &str,
     minor_define: &str,
@@ -82,7 +82,7 @@ pub fn parse_version_from_header_defines(
     }
 }
 
-pub fn parse_cuda_version_from_header(header_path: &Path) -> Option<String> {
+pub(crate) fn parse_cuda_version_from_header(header_path: &Path) -> Option<String> {
     let content = fs::read_to_string(header_path).ok()?;
     let version_re = Regex::new(r"#define\s+CUDA_VERSION\s+(\d+)").expect("static regex is valid");
 
@@ -101,7 +101,7 @@ pub fn parse_cuda_version_from_header(header_path: &Path) -> Option<String> {
     None
 }
 
-pub fn parse_cublas_version_from_header(header_path: &Path) -> Option<String> {
+pub(crate) fn parse_cublas_version_from_header(header_path: &Path) -> Option<String> {
     parse_version_from_header_defines(
         header_path,
         "CUBLAS_VER_MAJOR",
@@ -110,7 +110,7 @@ pub fn parse_cublas_version_from_header(header_path: &Path) -> Option<String> {
     )
 }
 
-pub fn parse_curand_version_from_header(header_path: &Path) -> Option<String> {
+pub(crate) fn parse_curand_version_from_header(header_path: &Path) -> Option<String> {
     parse_version_from_header_defines(
         header_path,
         "CURAND_VER_MAJOR",
@@ -119,7 +119,7 @@ pub fn parse_curand_version_from_header(header_path: &Path) -> Option<String> {
     )
 }
 
-pub fn parse_cusolver_version_from_header(header_path: &Path) -> Option<String> {
+pub(crate) fn parse_cusolver_version_from_header(header_path: &Path) -> Option<String> {
     parse_version_from_header_defines(
         header_path,
         "CUSOLVER_VER_MAJOR",
@@ -128,7 +128,7 @@ pub fn parse_cusolver_version_from_header(header_path: &Path) -> Option<String> 
     )
 }
 
-pub fn parse_cudss_version_from_header(header_path: &Path) -> Option<String> {
+pub(crate) fn parse_cudss_version_from_header(header_path: &Path) -> Option<String> {
     parse_version_from_header_defines(
         header_path,
         "CUDSS_VERSION_MAJOR",
@@ -137,7 +137,7 @@ pub fn parse_cudss_version_from_header(header_path: &Path) -> Option<String> {
     )
 }
 
-pub fn parse_nvcomp_version_from_header(header_path: &Path) -> Option<String> {
+pub(crate) fn parse_nvcomp_version_from_header(header_path: &Path) -> Option<String> {
     let sibling_version_path = header_path.with_file_name("version.h");
     let nested_version_path = header_path.parent()?.join("nvcomp/version.h");
     let path_to_parse = if sibling_version_path.is_file() {
@@ -156,7 +156,7 @@ pub fn parse_nvcomp_version_from_header(header_path: &Path) -> Option<String> {
     )
 }
 
-pub fn parse_cusparse_version_from_header(header_path: &Path) -> Option<String> {
+pub(crate) fn parse_cusparse_version_from_header(header_path: &Path) -> Option<String> {
     parse_version_from_header_defines(
         header_path,
         "CUSPARSE_VER_MAJOR",
@@ -165,7 +165,7 @@ pub fn parse_cusparse_version_from_header(header_path: &Path) -> Option<String> 
     )
 }
 
-pub fn parse_cudnn_version_from_header(header_path: &Path) -> Option<String> {
+pub(crate) fn parse_cudnn_version_from_header(header_path: &Path) -> Option<String> {
     let version_header_path = header_path.with_file_name("cudnn_version.h");
     let path_to_parse = if version_header_path.is_file() {
         &version_header_path
@@ -181,7 +181,7 @@ pub fn parse_cudnn_version_from_header(header_path: &Path) -> Option<String> {
     )
 }
 
-pub fn parse_cupti_version_from_header(header_path: &Path) -> Option<String> {
+pub(crate) fn parse_cupti_version_from_header(header_path: &Path) -> Option<String> {
     let content = fs::read_to_string(header_path).ok()?;
     let api_version_re =
         Regex::new(r"#define\s+CUPTI_API_VERSION\s+(\d+)").expect("static regex is valid");
@@ -198,7 +198,7 @@ pub fn parse_cupti_version_from_header(header_path: &Path) -> Option<String> {
     )
 }
 
-pub fn parse_cutensor_version_from_header(header_path: &Path) -> Option<String> {
+pub(crate) fn parse_cutensor_version_from_header(header_path: &Path) -> Option<String> {
     parse_version_from_header_defines(
         header_path,
         "CUTENSOR_MAJOR",
@@ -207,7 +207,7 @@ pub fn parse_cutensor_version_from_header(header_path: &Path) -> Option<String> 
     )
 }
 
-pub fn parse_nvimagecodec_version_from_header(header_path: &Path) -> Option<String> {
+pub(crate) fn parse_nvimagecodec_version_from_header(header_path: &Path) -> Option<String> {
     let version_header_path = header_path.with_file_name("nvimgcodec_version.h");
     let path_to_parse = if version_header_path.is_file() {
         &version_header_path
@@ -223,7 +223,7 @@ pub fn parse_nvimagecodec_version_from_header(header_path: &Path) -> Option<Stri
     )
 }
 
-pub fn parse_nvjpeg_version_from_header(header_path: &Path) -> Option<String> {
+pub(crate) fn parse_nvjpeg_version_from_header(header_path: &Path) -> Option<String> {
     parse_version_from_header_defines(
         header_path,
         "NVJPEG_VER_MAJOR",
@@ -232,7 +232,7 @@ pub fn parse_nvjpeg_version_from_header(header_path: &Path) -> Option<String> {
     )
 }
 
-pub fn parse_nvjpeg2k_version_from_header(header_path: &Path) -> Option<String> {
+pub(crate) fn parse_nvjpeg2k_version_from_header(header_path: &Path) -> Option<String> {
     let version_header_path = header_path.with_file_name("nvjpeg2k_version.h");
     let path_to_parse = if version_header_path.is_file() {
         &version_header_path
@@ -248,7 +248,7 @@ pub fn parse_nvjpeg2k_version_from_header(header_path: &Path) -> Option<String> 
     )
 }
 
-pub fn parse_nvtiff_version_from_header(header_path: &Path) -> Option<String> {
+pub(crate) fn parse_nvtiff_version_from_header(header_path: &Path) -> Option<String> {
     let version_header_path = header_path.with_file_name("nvtiff_version.h");
     let path_to_parse = if version_header_path.is_file() {
         &version_header_path
@@ -264,7 +264,7 @@ pub fn parse_nvtiff_version_from_header(header_path: &Path) -> Option<String> {
     )
 }
 
-pub fn parse_cufile_version_from_library_path(header_path: &Path) -> Option<String> {
+pub(crate) fn parse_cufile_version_from_library_path(header_path: &Path) -> Option<String> {
     if let Ok(library_path) = env::var("CUFILE_PATH")
         && let Some(version) = parse_cufile_version_from_library_dir(Path::new(&library_path))
     {
@@ -284,7 +284,7 @@ pub fn parse_cufile_version_from_library_path(header_path: &Path) -> Option<Stri
     None
 }
 
-pub fn parse_cufile_version_from_library_dir(library_path: &Path) -> Option<String> {
+pub(crate) fn parse_cufile_version_from_library_dir(library_path: &Path) -> Option<String> {
     let mut candidates = Vec::new();
 
     let glob_pattern = library_path
@@ -316,11 +316,11 @@ pub fn parse_cufile_version_from_library_dir(library_path: &Path) -> Option<Stri
         .map(|(major, minor, patch)| format!("{major}.{minor}.{patch}"))
 }
 
-pub fn parse_nccl_version_from_header(header_path: &Path) -> Option<String> {
+pub(crate) fn parse_nccl_version_from_header(header_path: &Path) -> Option<String> {
     parse_version_from_header_defines(header_path, "NCCL_MAJOR", "NCCL_MINOR", "NCCL_PATCH")
 }
 
-pub fn parse_npp_version_from_header(header_path: &Path) -> Option<String> {
+pub(crate) fn parse_npp_version_from_header(header_path: &Path) -> Option<String> {
     parse_version_from_header_defines(
         header_path,
         "NPP_VER_MAJOR",
@@ -329,7 +329,7 @@ pub fn parse_npp_version_from_header(header_path: &Path) -> Option<String> {
     )
 }
 
-pub fn parse_cuda_version_from_nvcc() -> Option<String> {
+pub(crate) fn parse_cuda_version_from_nvcc() -> Option<String> {
     let nvcc = find_nvcc().ok()??;
     let output = Command::new(nvcc).arg("--version").output().ok()?;
 

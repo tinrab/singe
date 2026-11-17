@@ -1,30 +1,28 @@
 use std::{
-    env,
-    error::Error as StdError,
-    fs,
+    env, fs,
     io::{Error, ErrorKind, Write},
     path::{Path, PathBuf},
 };
 
-use singe_cuda::context::Context as CudaContext;
-use singe_nvjpeg::prelude::*;
+use singe_cuda::{context::Context as CudaContext, stream::StreamOptions};
+use singe_nvjpeg::{
+    context::{Context, ContextOptions},
+    decode::{BatchedDecoder, BatchedDecoderOptions},
+    types::OutputFormat,
+};
 
-type ExampleResult<T> = Result<T, Box<dyn StdError>>;
-
-fn main() -> ExampleResult<()> {
+fn main() -> anyhow::Result<()> {
     let inputs = input_paths()?;
-    let output_dir = output_dir();
-    fs::create_dir_all(&output_dir)?;
+    let output_dir = env::temp_dir();
 
     let jpeg_data = inputs.iter().map(fs::read).collect::<Result<Vec<_>, _>>()?;
     let jpeg_refs = jpeg_data.iter().map(Vec::as_slice).collect::<Vec<_>>();
 
-    let context = CudaContext::create()?;
-    let stream = context.create_stream()?;
-    let config = BatchConfig::create(jpeg_refs.len(), 1, OutputFormat::RgbInterleaved)?;
-    let mut decoder = BatchedDecoder::builder(config)
-        .backend(Backend::Default)
-        .create(&context)?;
+    let cuda_context = CudaContext::create()?;
+    let stream = cuda_context.create_stream(StreamOptions::default())?;
+    let context = Context::create(&cuda_context, &ContextOptions::default())?;
+    let options = BatchedDecoderOptions::create(jpeg_refs.len(), OutputFormat::RgbInterleaved)?;
+    let mut decoder = BatchedDecoder::create(&context, options)?;
     let outputs = decoder.decode_to_device(&jpeg_refs, &stream)?;
 
     for (index, output) in outputs.iter().enumerate() {
@@ -39,7 +37,7 @@ fn main() -> ExampleResult<()> {
     Ok(())
 }
 
-fn input_paths() -> ExampleResult<Vec<PathBuf>> {
+fn input_paths() -> anyhow::Result<Vec<PathBuf>> {
     let inputs = env::args_os()
         .skip(1)
         .map(PathBuf::from)
@@ -53,13 +51,7 @@ fn input_paths() -> ExampleResult<Vec<PathBuf>> {
     Ok(inputs)
 }
 
-fn output_dir() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("examples")
-        .join("output")
-}
-
-fn write_ppm(path: &Path, width: u32, height: u32, rgb: &[u8]) -> ExampleResult<()> {
+fn write_ppm(path: &Path, width: u32, height: u32, rgb: &[u8]) -> anyhow::Result<()> {
     let mut file = fs::File::create(path)?;
     write!(file, "P6\n{width} {height}\n255\n")?;
     file.write_all(rgb)?;

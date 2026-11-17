@@ -1,4 +1,5 @@
 //! Transfers with owned pinned staging and explicit pending device values.
+
 use std::{mem::MaybeUninit, sync::Arc};
 
 use crate::{
@@ -32,6 +33,7 @@ impl<T: DeviceRepr> DeviceValue<T> {
     /// Adopts storage fully initialized by a previously enqueued producer.
     ///
     /// # Safety
+    ///
     /// The producer on `stream` must write a valid T to every element before consumers read it.
     /// It must retain all other producer resources through completion.
     /// Exclude conflicting accesses outside the submission tracker.
@@ -72,7 +74,7 @@ impl<T: DeviceRepr> DeviceValue<T> {
     /// No initialized memory wrapper is returned on failure.
     pub fn complete(self) -> Result<DeviceMemory<T>> {
         self.region().synchronize()?;
-        // SAFETY: construction establishes full value validity; synchronization establishes completion.
+        // SAFETY: `from_initialized` or the caller of `from_pending` guarantees every element is written with a valid value, and synchronizing the region completed that producer.
         Ok(unsafe { self.memory.assume_init() })
     }
 
@@ -90,10 +92,12 @@ impl<T: DeviceRepr> DeviceValue<T> {
     }
 }
 
+// SAFETY: the region is the owned allocation's own region, optionally tied to the producer stream, so it describes the same live memory and context.
 unsafe impl<T: DeviceRepr> DeviceRegionProvider for DeviceValue<T> {
     fn region(&self) -> DeviceRegion<'_> {
         let region = self.memory.region();
         self.producer.as_ref().map_or(region, |stream| {
+            // SAFETY: `from_pending`'s caller guarantees the producer writes are ordered on `stream`, the stream that establishes readiness.
             unsafe { region.with_stream(stream) }.expect("producer context matches storage")
         })
     }
@@ -128,7 +132,7 @@ impl<T: DeviceRepr> Upload<T> {
     }
 }
 
-// SAFETY: both DMA endpoints are retained before enqueue; the output retains pending validity only.
+// SAFETY: `enqueue` registers both DMA endpoints and the destination write before copying, and the output is a pending `DeviceValue` that exposes no initialized borrow.
 unsafe impl<T: DeviceRepr + Send + Sync> Operation for Upload<T> {
     type Pending = Self::Output;
 
@@ -138,8 +142,7 @@ unsafe impl<T: DeviceRepr + Send + Sync> Operation for Upload<T> {
         let mut resources = Resources::new();
         resources.retain_pinned(&self.staging, AccessMode::Read);
         resources.retain(Arc::clone(self.destination.allocation()));
-        resources.access(self.destination.region(), AccessMode::Write);
-        // SAFETY: the declared resources retain every buffer and the stream orders all access to them.
+        // SAFETY: `resources` retains the staging buffer and destination and declares the destination write, the copy runs only on the execution's stream, and both endpoints hold `self.destination.len()` elements.
         unsafe {
             execution.enqueue(resources, |stream| {
                 DeviceMemory::<T>::copy_async(
@@ -159,7 +162,7 @@ unsafe impl<T: DeviceRepr + Send + Sync> Operation for Upload<T> {
     }
 }
 
-// SAFETY: enqueue returns pending device metadata and resolution is the identity function.
+// SAFETY: `Pending` is `Output`, `resolve` returns it unchanged, and `enqueue` schedules the copy without host resolution.
 unsafe impl<T: DeviceRepr + Send + Sync> DeviceOperation for Upload<T> {}
 
 /// Readback returns initialized host values only after successful DMA completion.
@@ -189,6 +192,7 @@ impl<T: AnyBitPatternDeviceRepr> Readback<T> {
     }
 }
 
+// SAFETY: `enqueue` registers the source, its producer's region, and the staging write before copying, and the pending staging vector stays empty until resolution sets its length.
 unsafe impl<T: AnyBitPatternDeviceRepr + Send + Sync> Operation for Readback<T> {
     type Pending = (Arc<PinnedVec<T>>, usize);
 
@@ -202,7 +206,7 @@ unsafe impl<T: AnyBitPatternDeviceRepr + Send + Sync> Operation for Readback<T> 
         resources.retain(Arc::clone(self.source.memory.allocation()));
         resources.retain_pinned(&staging, AccessMode::Write);
         resources.access(self.source.region(), AccessMode::Read);
-        // SAFETY: the declared resources retain every buffer and the stream orders all access to them.
+        // SAFETY: `resources` retains the source allocation and staging and declares their accesses, `destination` has capacity for `self.source.len()` elements, and the copy runs only on the execution's stream.
         unsafe {
             execution.enqueue(resources, |stream| {
                 DeviceMemory::<T>::copy_async(
@@ -219,7 +223,8 @@ unsafe impl<T: AnyBitPatternDeviceRepr + Send + Sync> Operation for Readback<T> 
 
     unsafe fn resolve((staging, length): Self::Pending) -> Result<Self::Output> {
         // Retirement dropped the ledger's clone before resolution.
-        let mut staging = Arc::into_inner(staging).ok_or(Error::AllocationInUse)?;
+        let mut staging =
+            Arc::into_inner(staging).ok_or_else(|| Error::ownership_shared("staging buffer"))?;
         // SAFETY: the copy filled `length` values, the capacity `with_capacity` reserved, and any bytes are valid values.
         unsafe { staging.set_len(length) };
         Ok(staging)
@@ -256,6 +261,7 @@ impl<T: DeviceRepr> CopyDevice<T> {
     }
 }
 
+// SAFETY: `enqueue` registers both allocations and their read and write accesses before copying, and the output is a pending `DeviceValue`.
 unsafe impl<T: DeviceRepr + Send + Sync> Operation for CopyDevice<T> {
     type Pending = Self::Output;
 
@@ -267,7 +273,7 @@ unsafe impl<T: DeviceRepr + Send + Sync> Operation for CopyDevice<T> {
         resources.retain(Arc::clone(self.destination.allocation()));
         resources.access(self.source.region(), AccessMode::Read);
         resources.access(self.destination.region(), AccessMode::Write);
-        // SAFETY: the declared resources retain every buffer and the stream orders all access to them.
+        // SAFETY: `resources` retains both allocations and declares their accesses, which orders the copy after the source's producer, and `create` sized the destination to the source's length.
         unsafe {
             execution.enqueue(resources, |stream| {
                 DeviceMemory::<T>::copy_async(
@@ -287,9 +293,10 @@ unsafe impl<T: DeviceRepr + Send + Sync> Operation for CopyDevice<T> {
     }
 }
 
-// SAFETY: enqueue returns pending device metadata and resolution is the identity function.
+// SAFETY: `Pending` is `Output`, `resolve` returns it unchanged, and `enqueue` schedules the copy without host resolution.
 unsafe impl<T: DeviceRepr + Send + Sync> DeviceOperation for CopyDevice<T> {}
 
+// SAFETY: `record` registers the staging buffer, destination, and destination write before recording the copy, and returns the destination as uninitialized storage.
 unsafe impl<T: DeviceRepr + Send + Sync> Recordable for Upload<T> {
     type Output = DeviceMemory<MaybeUninit<T>>;
 
@@ -298,7 +305,7 @@ unsafe impl<T: DeviceRepr + Send + Sync> Recordable for Upload<T> {
         resources.retain_pinned(&self.staging, AccessMode::Read);
         resources.retain(Arc::clone(self.destination.allocation()));
         resources.access(self.destination.region(), AccessMode::Write);
-        // SAFETY: the declared resources retain every buffer and the stream orders all access to them.
+        // SAFETY: the recording retains the staging buffer and destination for every replay, the copy is recorded on the capture stream, and both endpoints hold `self.destination.len()` elements.
         unsafe {
             recording.enqueue(resources, |stream| {
                 DeviceMemory::<T>::copy_async(
@@ -314,7 +321,7 @@ unsafe impl<T: DeviceRepr + Send + Sync> Recordable for Upload<T> {
     }
 }
 
-// SAFETY: capture retains both endpoints and returns pending storage without claiming execution.
+// SAFETY: `record` registers both allocations and their accesses before recording the copy, and returns the destination as uninitialized storage.
 unsafe impl<T: DeviceRepr + Send + Sync> Recordable for CopyDevice<T> {
     type Output = DeviceMemory<MaybeUninit<T>>;
 
@@ -324,7 +331,7 @@ unsafe impl<T: DeviceRepr + Send + Sync> Recordable for CopyDevice<T> {
         resources.retain(Arc::clone(self.destination.allocation()));
         resources.access(self.source.region(), AccessMode::Read);
         resources.access(self.destination.region(), AccessMode::Write);
-        // SAFETY: source validity follows DeviceValue construction and replay orders its producer.
+        // SAFETY: the recording retains both equally sized allocations for every replay and declares their accesses, the copy is recorded on the capture stream, and `DeviceValue` construction guarantees the source's validity once its producer runs.
         unsafe {
             recording.enqueue(resources, |stream| {
                 DeviceMemory::<T>::copy_async(

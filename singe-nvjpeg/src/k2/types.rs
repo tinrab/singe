@@ -1,7 +1,21 @@
 //! JPEG 2000 formats, image information, and tile selections.
 
+mod private {
+    #[expect(
+        unnameable_types,
+        reason = "sealed supertrait of ImagePixel; users cannot name or implement it"
+    )]
+    pub trait Sealed {}
+
+    impl Sealed for u8 {}
+
+    impl Sealed for u16 {}
+
+    impl Sealed for i16 {}
+}
+
 use num_enum::{IntoPrimitive, TryFromPrimitive};
-use singe_core::{impl_enum_conversion, impl_enum_display};
+use singe_core::impl_enum_display;
 use singe_cuda::view::AnyBitPatternDeviceRepr;
 use singe_nvjpeg_sys::k2 as sys;
 
@@ -10,50 +24,50 @@ use crate::{
     image::Size,
 };
 
-/// nvJPEG 2000 implementation; only one exists so far.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum Backend {
-    /// The default implementation.
-    Default = sys::nvjpeg2kBackend_t::NVJPEG2K_BACKEND_DEFAULT as _,
+singe_core::native_enum! {
+    /// nvJPEG 2000 implementation; only one exists so far.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum Backend: sys::nvjpeg2kBackend_t {
+        /// The default implementation.
+        Default = NVJPEG2K_BACKEND_DEFAULT,
+    }
 }
 
-impl_enum_conversion!(sys::nvjpeg2kBackend_t, Backend);
-
-/// Color space of a JP2 file, as defined by the JP2 format.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(i32)]
-#[non_exhaustive]
-pub enum ColorSpace {
-    /// A color space nvJPEG 2000 does not support.
-    NotSupported = sys::nvjpeg2kColorSpace_t::NVJPEG2K_COLORSPACE_NOT_SUPPORTED as _,
-    /// Unknown.
-    Unknown = sys::nvjpeg2kColorSpace_t::NVJPEG2K_COLORSPACE_UNKNOWN as _,
-    /// sRGB.
-    Srgb = sys::nvjpeg2kColorSpace_t::NVJPEG2K_COLORSPACE_SRGB as _,
-    /// Grayscale.
-    Gray = sys::nvjpeg2kColorSpace_t::NVJPEG2K_COLORSPACE_GRAY as _,
-    /// sYCC.
-    Sycc = sys::nvjpeg2kColorSpace_t::NVJPEG2K_COLORSPACE_SYCC as _,
+singe_core::native_enum! {
+    /// Color space of a JP2 file, as defined by the JP2 format.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(i32)]
+    #[non_exhaustive]
+    pub enum ColorSpace: sys::nvjpeg2kColorSpace_t {
+        /// A color space nvJPEG 2000 does not support.
+        NotSupported = NVJPEG2K_COLORSPACE_NOT_SUPPORTED,
+        /// Unknown.
+        Unknown = NVJPEG2K_COLORSPACE_UNKNOWN,
+        /// sRGB.
+        Srgb = NVJPEG2K_COLORSPACE_SRGB,
+        /// Grayscale.
+        Gray = NVJPEG2K_COLORSPACE_GRAY,
+        /// sYCC.
+        Sycc = NVJPEG2K_COLORSPACE_SYCC,
+    }
 }
 
-impl_enum_conversion!(i32, sys::nvjpeg2kColorSpace_t, ColorSpace);
-
-/// Type of each sample in a JPEG 2000 image.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum ImageType {
-    /// 8-bit unsigned integer.
-    U8 = sys::nvjpeg2kImageType_t::NVJPEG2K_UINT8 as _,
-    /// 16-bit unsigned integer.
-    U16 = sys::nvjpeg2kImageType_t::NVJPEG2K_UINT16 as _,
-    /// 16-bit signed integer.
-    I16 = sys::nvjpeg2kImageType_t::NVJPEG2K_INT16 as _,
+singe_core::native_enum! {
+    /// Type of each sample in a JPEG 2000 image.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum ImageType: sys::nvjpeg2kImageType_t {
+        /// 8-bit unsigned integer.
+        U8 = NVJPEG2K_UINT8,
+        /// 16-bit unsigned integer.
+        U16 = NVJPEG2K_UINT16,
+        /// 16-bit signed integer.
+        I16 = NVJPEG2K_INT16,
+    }
 }
-
-impl_enum_conversion!(sys::nvjpeg2kImageType_t, ImageType);
 
 /// Rust sample types that JPEG 2000 images can hold: `u8`, `u16`, and `i16`.
 ///
@@ -75,81 +89,71 @@ impl ImagePixel for i16 {
     const IMAGE_TYPE: ImageType = ImageType::I16;
 }
 
-mod private {
-    pub trait Sealed {}
-
-    impl Sealed for u8 {}
-
-    impl Sealed for u16 {}
-
-    impl Sealed for i16 {}
+singe_core::native_enum! {
+    /// How an image's components are laid out in memory.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum ImageFormat: sys::nvjpeg2kImageFormat_t {
+        /// Each component in its own plane.
+        Planar = NVJPEG2K_FORMAT_PLANAR,
+        /// All components interleaved in one plane.
+        ///
+        /// Not supported when the components have different sizes.
+        Interleaved = NVJPEG2K_FORMAT_INTERLEAVED,
+    }
 }
 
-/// How an image's components are laid out in memory.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum ImageFormat {
-    /// Each component in its own plane.
-    Planar = sys::nvjpeg2kImageFormat_t::NVJPEG2K_FORMAT_PLANAR as _,
-    /// All components interleaved in one plane.
-    ///
-    /// Not supported when the components have different sizes.
-    Interleaved = sys::nvjpeg2kImageFormat_t::NVJPEG2K_FORMAT_INTERLEAVED as _,
+singe_core::native_enum! {
+    /// Container for JPEG 2000 data.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum BitstreamType: sys::nvjpeg2kBitstreamType_t {
+        /// A bare JPEG 2000 codestream (`.j2k`).
+        J2k = NVJPEG2K_STREAM_J2K,
+        /// A JP2 file (`.jp2`).
+        Jp2 = NVJPEG2K_STREAM_JP2,
+    }
 }
 
-impl_enum_conversion!(sys::nvjpeg2kImageFormat_t, ImageFormat);
-
-/// Container for JPEG 2000 data.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum BitstreamType {
-    /// A bare JPEG 2000 codestream (`.j2k`).
-    J2k = sys::nvjpeg2kBitstreamType_t::NVJPEG2K_STREAM_J2K as _,
-    /// A JP2 file (`.jp2`).
-    Jp2 = sys::nvjpeg2kBitstreamType_t::NVJPEG2K_STREAM_JP2 as _,
+singe_core::native_enum! {
+    /// Order of packets in a JPEG 2000 codestream, as defined by the standard.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum ProgressionOrder: sys::nvjpeg2kProgOrder_t {
+        /// Layer, resolution, component, position.
+        Lrcp = NVJPEG2K_LRCP,
+        /// Resolution, layer, component, position.
+        Rlcp = NVJPEG2K_RLCP,
+        /// Resolution, position, component, layer.
+        Rpcl = NVJPEG2K_RPCL,
+        /// Position, component, resolution, layer.
+        Pcrl = NVJPEG2K_PCRL,
+        /// Component, position, resolution, layer.
+        Cprl = NVJPEG2K_CPRL,
+    }
 }
 
-impl_enum_conversion!(sys::nvjpeg2kBitstreamType_t, BitstreamType);
-
-/// Order of packets in a JPEG 2000 codestream, as defined by the standard.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum ProgressionOrder {
-    /// Layer, resolution, component, position.
-    Lrcp = sys::nvjpeg2kProgOrder_t::NVJPEG2K_LRCP as _,
-    /// Resolution, layer, component, position.
-    Rlcp = sys::nvjpeg2kProgOrder_t::NVJPEG2K_RLCP as _,
-    /// Resolution, position, component, layer.
-    Rpcl = sys::nvjpeg2kProgOrder_t::NVJPEG2K_RPCL as _,
-    /// Position, component, resolution, layer.
-    Pcrl = sys::nvjpeg2kProgOrder_t::NVJPEG2K_PCRL as _,
-    /// Component, position, resolution, layer.
-    Cprl = sys::nvjpeg2kProgOrder_t::NVJPEG2K_CPRL as _,
+singe_core::native_enum! {
+    /// How lossy encoding interprets its quality value.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum QualityType: sys::nvjpeg2kQualityType_t {
+        /// Target peak signal-to-noise ratio, a positive number; higher values give higher quality.
+        ///
+        /// The high-throughput (HT) encoder does not support it.
+        TargetPsnr = NVJPEG2K_QUALITY_TYPE_TARGET_PSNR,
+        /// Quantization step, the positive amount that pixel data is divided by; higher values give lower quality.
+        QuantizationStep = NVJPEG2K_QUALITY_TYPE_QUANTIZATION_STEP,
+        /// JPEG-style quality from 1.0 (worst) to 100.0 (best).
+        ///
+        /// The input must be YCC, grayscale, or RGB with the multiple-component transform enabled.
+        QFactor = NVJPEG2K_QUALITY_TYPE_Q_FACTOR,
+    }
 }
-
-impl_enum_conversion!(sys::nvjpeg2kProgOrder_t, ProgressionOrder);
-
-/// How lossy encoding interprets its quality value.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum QualityType {
-    /// Target peak signal-to-noise ratio, a positive number; higher values give higher quality.
-    ///
-    /// The high-throughput (HT) encoder does not support it.
-    TargetPsnr = sys::nvjpeg2kQualityType_t::NVJPEG2K_QUALITY_TYPE_TARGET_PSNR as _,
-    /// Quantization step, the positive amount that pixel data is divided by; higher values give lower quality.
-    QuantizationStep = sys::nvjpeg2kQualityType_t::NVJPEG2K_QUALITY_TYPE_QUANTIZATION_STEP as _,
-    /// JPEG-style quality from 1.0 (worst) to 100.0 (best).
-    ///
-    /// The input must be YCC, grayscale, or RGB with the multiple-component transform enabled.
-    QFactor = sys::nvjpeg2kQualityType_t::NVJPEG2K_QUALITY_TYPE_Q_FACTOR as _,
-}
-
-impl_enum_conversion!(sys::nvjpeg2kQualityType_t, QualityType);
 
 /// Size, tiling, and component count of a parsed JPEG 2000 image.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

@@ -10,7 +10,7 @@ use crate::{
 };
 
 impl Engine {
-    pub fn execute_data(&mut self, lane: usize, operation: &DataOperation) -> Result<()> {
+    pub(crate) fn execute_data(&mut self, lane: usize, operation: &DataOperation) -> Result<()> {
         match operation {
             DataOperation::Move {
                 ty,

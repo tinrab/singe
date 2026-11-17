@@ -2,13 +2,12 @@ mod common;
 
 use singe_cuda::{context::Context, memory::DeviceMemory, types::DevicePtr};
 use singe_cudss::{
-    error::Result,
     matrix::{BatchCsrMatrixDescriptor, BatchDenseMatrixDescriptor, Matrix},
     memory::DevicePointerTable,
     types::{IndexBase, Layout, MatrixFormat, MatrixType, MatrixViewType},
 };
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     let cuda = Context::create()?;
     println!("cuDSS example: batch sparse and dense matrix helper APIs");
 

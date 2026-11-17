@@ -1,8 +1,7 @@
-use singe_cuda::{context::Context as CudaContext, memory::DeviceMemory, stream::StreamBinding};
+use singe_cuda::{context::Context as CudaContext, memory::DeviceMemory, stream::StreamOptions};
 
 use singe_cutensor::{
     context::Context,
-    error::Result,
     operation::{ComputeDescriptor, OperationDescriptor, TensorOperand},
     plan::{Plan, PlanPreference},
     tensor::TensorDescriptor,
@@ -14,17 +13,19 @@ fn packed_offset(indices: &[u64], extents: &[u64]) -> usize {
     let mut offset = 0_usize;
 
     for (&index, &extent) in indices.iter().zip(extents) {
-        offset += index as usize * stride;
-        stride *= extent as usize;
+        offset += usize::try_from(index).unwrap() * stride;
+        stride *= usize::try_from(extent).unwrap();
     }
 
     offset
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
+    const ALIGNMENT: u32 = 128;
+
     let cuda_context = CudaContext::create()?;
     let context = Context::create(&cuda_context)?;
-    let stream = cuda_context.create_stream()?;
+    let stream = cuda_context.create_stream(StreamOptions::default())?;
 
     let extent_a = vec![2, 2, 2, 2];
     let extent_c = vec![2, 2, 2, 2];
@@ -42,10 +43,8 @@ fn main() -> Result<()> {
     let device_a = DeviceMemory::from_slice(&cuda_context, &host_a)?;
     let mut device_c = DeviceMemory::<f32>::create_uninit(
         &cuda_context,
-        padded_extent_c.iter().product::<u64>() as usize,
+        usize::try_from(padded_extent_c.iter().product::<u64>())?,
     )?;
-
-    const ALIGNMENT: u32 = 128;
 
     let descriptor_a = TensorDescriptor::create_for::<f32>(&context, &extent_a, ALIGNMENT)?;
     let strides_c = vec![1, 2, 8, 32];
@@ -75,11 +74,9 @@ fn main() -> Result<()> {
     let plan = Plan::create(&context, &operation, &preference, workspace_size)?;
 
     let alpha = 1.0_f32;
-    StreamBinding::Borrowed(stream.to_borrowed()).sync_scope(|| {
-        // SAFETY: these buffers match the descriptors and stay borrowed through scope completion.
-        unsafe { plan.permute(&alpha, &device_a, &mut device_c.output(), &stream) }
-    })?;
-    let mut expected = vec![padding_value; padded_extent_c.iter().product::<u64>() as usize];
+    plan.permute(&alpha, &device_a, &mut device_c.output(), &stream)?;
+    let mut expected =
+        vec![padding_value; usize::try_from(padded_extent_c.iter().product::<u64>())?];
 
     for w in 0..extent_a[0] {
         for h in 0..extent_a[1] {
@@ -87,7 +84,12 @@ fn main() -> Result<()> {
                 for n in 0..extent_a[3] {
                     let a_offset = packed_offset(&[w, h, c, n], &extent_a);
                     let c_offset = packed_offset(
-                        &[c, w + padding_left[1] as u64, h + padding_left[2] as u64, n],
+                        &[
+                            c,
+                            w + u64::from(padding_left[1]),
+                            h + u64::from(padding_left[2]),
+                            n,
+                        ],
                         &padded_extent_c,
                     );
                     expected[c_offset] = alpha * host_a[a_offset];

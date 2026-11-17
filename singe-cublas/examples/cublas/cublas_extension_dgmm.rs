@@ -1,8 +1,7 @@
-use singe_cublas::{blas::level3::ddgmm, context::Context, error::Result, types::SideMode};
-
+use singe_cublas::{blas::level3::dgmm, context::Context, types::SideMode};
 use singe_cuda::{context::Context as CudaContext, device::Device, memory::DeviceMemory};
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     let cuda = CudaContext::create_for_device(Device::new(0))?;
     let cublas = Context::create(&cuda)?;
 
@@ -10,7 +9,7 @@ fn main() -> Result<()> {
     let x = DeviceMemory::from_slice(&cuda, &[5.0_f64, 6.0])?;
     let mut c = DeviceMemory::<f64>::zeroed(&cuda, 4)?;
 
-    ddgmm(&cublas, SideMode::Left, 2, 2, &a, 2, &x, 1, &mut c, 2)?;
+    dgmm(&cublas, SideMode::Left, 2, 2, &a, 2, &x, 1, &mut c, 2)?;
 
     let result = c.copy_to_host_vec()?;
     assert_eq!(result, vec![5.0, 18.0, 10.0, 24.0]);

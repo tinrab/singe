@@ -10,7 +10,7 @@ use crate::{
 /// Owns an aligned native scalar independently of the Rust enum's payload layout.
 #[derive(Debug, Clone)]
 #[repr(C, align(16))]
-pub struct ScalarStorage {
+pub(crate) struct ScalarStorage {
     bytes: [u8; SCALAR_STORAGE_BYTES],
     value: ScalarValue,
     aligned: Option<AlignedScalarBytes>,

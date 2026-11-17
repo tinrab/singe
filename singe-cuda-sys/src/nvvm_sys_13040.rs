@@ -2,44 +2,34 @@
 
 /// Unsigned C `size_t`, used for byte counts and object sizes in the native ABI.
 pub type size_t = ::core::ffi::c_ulong;
-/// NVVM API call result code.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum nvvmResult {
+impl nvvmResult {
     /// The operation completed successfully.
-    NVVM_SUCCESS = 0,
+    pub const NVVM_SUCCESS: nvvmResult = nvvmResult(0);
     /// NVVM could not allocate the required memory.
-    NVVM_ERROR_OUT_OF_MEMORY = 1,
+    pub const NVVM_ERROR_OUT_OF_MEMORY: nvvmResult = nvvmResult(1);
     /// NVVM could not create the program.
-    NVVM_ERROR_PROGRAM_CREATION_FAILURE = 2,
+    pub const NVVM_ERROR_PROGRAM_CREATION_FAILURE: nvvmResult = nvvmResult(2);
     /// The input IR version is incompatible with the NVVM library.
-    NVVM_ERROR_IR_VERSION_MISMATCH = 3,
+    pub const NVVM_ERROR_IR_VERSION_MISMATCH: nvvmResult = nvvmResult(3);
     /// An input argument is invalid.
-    NVVM_ERROR_INVALID_INPUT = 4,
+    pub const NVVM_ERROR_INVALID_INPUT: nvvmResult = nvvmResult(4);
     /// The program handle is invalid.
-    NVVM_ERROR_INVALID_PROGRAM = 5,
+    pub const NVVM_ERROR_INVALID_PROGRAM: nvvmResult = nvvmResult(5);
     /// The input NVVM IR is invalid.
-    NVVM_ERROR_INVALID_IR = 6,
+    pub const NVVM_ERROR_INVALID_IR: nvvmResult = nvvmResult(6);
     /// A compilation option is invalid.
-    NVVM_ERROR_INVALID_OPTION = 7,
+    pub const NVVM_ERROR_INVALID_OPTION: nvvmResult = nvvmResult(7);
     /// The program contains no IR modules.
-    NVVM_ERROR_NO_MODULE_IN_PROGRAM = 8,
+    pub const NVVM_ERROR_NO_MODULE_IN_PROGRAM: nvvmResult = nvvmResult(8);
     /// NVVM compilation failed; the program log contains diagnostics.
-    NVVM_ERROR_COMPILATION = 9,
+    pub const NVVM_ERROR_COMPILATION: nvvmResult = nvvmResult(9);
     /// The operation was cancelled.
-    NVVM_ERROR_CANCELLED = 10,
+    pub const NVVM_ERROR_CANCELLED: nvvmResult = nvvmResult(10);
 }
+/// NVVM API call result code.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct nvvmResult(pub ::core::ffi::c_uint);
 singe_loader::functions! { crate::NVVM;
     /// Get the message string for the given [`nvvmResult`] code.
     ///

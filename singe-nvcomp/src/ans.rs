@@ -2,6 +2,7 @@ use singe_nvcomp_sys as sys;
 
 use crate::{
     codec::impl_nvcomp_batched_codec_module,
+    error::{Error, Result},
     types::{AnsType, DataType, DecompressBackend},
     utility::{bool_from_i32, validate_reserved},
 };
@@ -17,7 +18,8 @@ pub struct CompressOptions {
     pub data_type: DataType,
     /// Maximum number of subchunks per chunk, or 0 for the default of 8.
     ///
-    /// A nonzero value must be a power of two from 4 to 64. Leave it at 0 unless you have measured its effect on your application.
+    /// A nonzero value must be a power of two from 4 to 64.
+    /// Leave it at 0 unless you have measured its effect on your application.
     pub max_sub_chunk_count: u8,
     /// Number of interleaved rANS streams per lane: 1, 2, or 0 to choose automatically.
     ///
@@ -50,8 +52,8 @@ impl TryFrom<sys::nvcompBatchedANSCompressOpts_t> for CompressOptions {
     fn try_from(value: sys::nvcompBatchedANSCompressOpts_t) -> Result<Self> {
         validate_reserved(&value.reserved)?;
         Ok(Self {
-            type_: value.type_.into(),
-            data_type: value.data_type.into(),
+            type_: value.type_.try_into()?,
+            data_type: value.data_type.try_into()?,
             max_sub_chunk_count: value.max_sub_chunk_count,
             states_per_lane: value.states_per_lane,
             histogram_reduction_log2: value.histogram_reduction_log2,
@@ -84,7 +86,8 @@ pub struct DecompressOptions {
     pub data_type: DataType,
     /// Maximum number of subchunks per chunk, or 0 to read it from the compressed data.
     ///
-    /// A nonzero value must be a power of two from 4 to 64. Decompression fails if it is smaller than the count used for compression.
+    /// A nonzero value must be a power of two from 4 to 64.
+    /// Decompression fails if it is smaller than the count used for compression.
     pub max_sub_chunk_count: u8,
     /// Number of interleaved rANS streams per lane used for compression, or 0 to read it from the compressed data.
     ///
@@ -113,8 +116,8 @@ impl TryFrom<sys::nvcompBatchedANSDecompressOpts_t> for DecompressOptions {
     fn try_from(value: sys::nvcompBatchedANSDecompressOpts_t) -> Result<Self> {
         validate_reserved(&value.reserved)?;
         Ok(Self {
-            backend: value.backend.into(),
-            data_type: value.data_type.into(),
+            backend: value.backend.try_into()?,
+            data_type: value.data_type.try_into()?,
             max_sub_chunk_count: value.max_sub_chunk_count,
             states_per_lane: value.states_per_lane,
             skip_validate: bool_from_i32(value.skip_validate.into(), "skip_validate")?,
@@ -145,35 +148,12 @@ impl_nvcomp_batched_codec_module! {
     required_decompression_alignment = nvcompANSRequiredDecompressionAlignment,
     compress_get_required_alignments = nvcompBatchedANSCompressGetRequiredAlignments,
     decompress_get_required_alignments = nvcompBatchedANSDecompressGetRequiredAlignments,
-    compress_get_temporary_size = nvcompBatchedANSCompressGetTempSize,
-    compress_get_temporary_size_sync = nvcompBatchedANSCompressGetTempSizeSync,
-    decompress_get_temporary_size = nvcompBatchedANSDecompressGetTempSize,
-    decompress_get_temporary_size_sync = nvcompBatchedANSDecompressGetTempSizeSync,
+    compress_get_temp_size = nvcompBatchedANSCompressGetTempSize,
+    compress_get_temp_size_sync = nvcompBatchedANSCompressGetTempSizeSync,
+    decompress_get_temp_size = nvcompBatchedANSDecompressGetTempSize,
+    decompress_get_temp_size_sync = nvcompBatchedANSDecompressGetTempSizeSync,
     compress_get_max_output_chunk_size = nvcompBatchedANSCompressGetMaxOutputChunkSize,
-    compress_raw_async = nvcompBatchedANSCompressAsync,
-    decompress_size_raw_async = nvcompBatchedANSGetDecompressSizeAsync,
-    decompress_raw_async = nvcompBatchedANSDecompressAsync,
-}
-
-impl CompressOptions {
-    /// Creates ANS compression options with the given settings.
-    #[must_use]
-    pub fn new(type_: AnsType, data_type: DataType) -> Self {
-        Self {
-            type_,
-            data_type,
-            ..Self::default()
-        }
-    }
-}
-
-impl DecompressOptions {
-    /// Creates ANS decompression options with the given settings.
-    #[must_use]
-    pub fn new(backend: DecompressBackend) -> Self {
-        Self {
-            backend,
-            ..Self::default()
-        }
-    }
+    compress_async = nvcompBatchedANSCompressAsync,
+    get_decompress_size_async = nvcompBatchedANSGetDecompressSizeAsync,
+    decompress_async = nvcompBatchedANSDecompressAsync,
 }

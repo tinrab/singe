@@ -5,7 +5,7 @@ use singe_cuda::types::bf16;
 use singe_cuda::types::f16;
 use singe_cuda::{
     stream::Stream,
-    view::{DeviceInput, DeviceOutput},
+    view::{DeviceOutput, DeviceRange},
 };
 
 use crate::{
@@ -33,9 +33,9 @@ macro_rules! autotuned_rms_norm_add_fn {
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
             residual_out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
-            residual: &impl DeviceInput<$ty>,
-            weight: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
+            residual: &impl DeviceRange<$ty>,
+            weight: &impl DeviceRange<$ty>,
             config: FusedRmsNormConfig<$eps_ty>,
         ) -> Result<()> {
             fused_rms_norm_add(
@@ -71,9 +71,9 @@ macro_rules! autotuned_rms_norm_add_fn {
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
             residual_out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
-            residual: &impl DeviceInput<$ty>,
-            weight: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
+            residual: &impl DeviceRange<$ty>,
+            weight: &impl DeviceRange<$ty>,
             config: FusedRmsNormConfig<$eps_ty>,
             options: TuneOptions,
         ) -> Result<TuneReport<FusedTileTuning>> {
@@ -109,9 +109,9 @@ macro_rules! rms_norm_add_wide_fn {
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
             residual_out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
-            residual: &impl DeviceInput<$ty>,
-            weight: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
+            residual: &impl DeviceRange<$ty>,
+            weight: &impl DeviceRange<$ty>,
             partial_sum: &mut impl DeviceOutput<f32>,
             row_sum: &mut impl DeviceOutput<f32>,
             rows: usize,
@@ -161,9 +161,9 @@ macro_rules! autotuned_rms_norm_silu_mul_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
-            weight: &impl DeviceInput<$ty>,
-            up: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
+            weight: &impl DeviceRange<$ty>,
+            up: &impl DeviceRange<$ty>,
             config: FusedRmsNormConfig<$eps_ty>,
         ) -> Result<()> {
             fused_rms_norm_silu_mul(
@@ -195,9 +195,9 @@ macro_rules! autotuned_rms_norm_silu_mul_fn {
         pub unsafe fn $tune_name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
-            weight: &impl DeviceInput<$ty>,
-            up: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
+            weight: &impl DeviceRange<$ty>,
+            up: &impl DeviceRange<$ty>,
             config: FusedRmsNormConfig<$eps_ty>,
             options: TuneOptions,
         ) -> Result<TuneReport<FusedTileTuning>> {
@@ -234,9 +234,9 @@ macro_rules! rms_norm_gated_silu_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
-            gate: &impl DeviceInput<$ty>,
-            weight: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
+            gate: &impl DeviceRange<$ty>,
+            weight: &impl DeviceRange<$ty>,
             rows: usize,
             cols: usize,
             eps: $eps_ty,
@@ -279,10 +279,10 @@ macro_rules! dual_rms_norm_fn {
             stream: &Stream,
             q_out: &mut impl DeviceOutput<$ty>,
             k_out: &mut impl DeviceOutput<$ty>,
-            q: &impl DeviceInput<$ty>,
-            k: &impl DeviceInput<$ty>,
-            q_weight: &impl DeviceInput<$ty>,
-            k_weight: &impl DeviceInput<$ty>,
+            q: &impl DeviceRange<$ty>,
+            k: &impl DeviceRange<$ty>,
+            q_weight: &impl DeviceRange<$ty>,
+            k_weight: &impl DeviceRange<$ty>,
             rows: usize,
             cols: usize,
             eps: $eps_ty,
@@ -326,9 +326,9 @@ macro_rules! rms_norm_residual_add_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
-            residual: &impl DeviceInput<$ty>,
-            weight: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
+            residual: &impl DeviceRange<$ty>,
+            weight: &impl DeviceRange<$ty>,
             rows: usize,
             cols: usize,
             eps: $eps_ty,

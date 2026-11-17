@@ -7,7 +7,7 @@ use singe_cuda::{
 
 use crate::{
     context::Context,
-    data_type::SolverElement,
+    data_type::private::Element,
     error::Result,
     layout::{
         MatrixMut, MatrixOutput, StridedBatchedMatrixOutput, StridedBatchedMatrixRef,
@@ -16,9 +16,6 @@ use crate::{
     svd::{GesvdjInfo, StridedSvdLayout, SvdLayout, raw},
     types::EigenMode,
 };
-
-/// A supported matrix type for Jacobi and approximate native SVD dispatch.
-pub trait SvdScalar: SolverElement + private::Sealed {}
 
 type JacobiQuery =
     fn(&Context, EigenMode, bool, usize, usize, SvdLayout, &GesvdjInfo) -> Result<usize>;
@@ -36,7 +33,7 @@ type Jacobi<T> = for<'a> unsafe fn(
     usize,
     usize,
     MatrixMut<'a, T>,
-    DeviceOutputView<'a, <T as SolverElement>::Real>,
+    DeviceOutputView<'a, <T as Element>::Real>,
     Option<MatrixOutput<'a, T>>,
     Option<MatrixOutput<'a, T>>,
     DeviceOutputView<'a, T>,
@@ -50,7 +47,7 @@ type Batched<T> = for<'a> unsafe fn(
     usize,
     usize,
     MatrixMut<'a, T>,
-    DeviceOutputView<'a, <T as SolverElement>::Real>,
+    DeviceOutputView<'a, <T as Element>::Real>,
     Option<MatrixOutput<'a, T>>,
     Option<MatrixOutput<'a, T>>,
     DeviceOutputView<'a, T>,
@@ -66,7 +63,7 @@ type Approximate<T> = for<'a> unsafe fn(
     usize,
     usize,
     StridedBatchedMatrixRef<'a, T>,
-    StridedBatchedVectorOutput<'a, <T as SolverElement>::Real>,
+    StridedBatchedVectorOutput<'a, <T as Element>::Real>,
     Option<StridedBatchedMatrixOutput<'a, T>>,
     Option<StridedBatchedMatrixOutput<'a, T>>,
     DeviceOutputView<'a, T>,
@@ -75,33 +72,30 @@ type Approximate<T> = for<'a> unsafe fn(
     usize,
 ) -> Result<()>;
 
-mod private {
-    use crate::{
-        data_type::SolverElement,
-        svd::scalar::{Approximate, ApproximateQuery, Batched, BatchedQuery, Jacobi, JacobiQuery},
-    };
-
-    pub trait Sealed: SolverElement {
-        const JACOBI_QUERY: JacobiQuery;
-        const JACOBI: Jacobi<Self>;
-        const BATCHED_QUERY: BatchedQuery;
-        const BATCHED: Batched<Self>;
-        const APPROXIMATE_QUERY: ApproximateQuery;
-        const APPROXIMATE: Approximate<Self>;
-    }
+// Per-precision native entry points of the SVD operations.
+#[expect(
+    unnameable_types,
+    reason = "sealed supertrait of SolverElement; users cannot name or implement it"
+)]
+pub trait SvdDispatch: Element {
+    const SVD_JACOBI_QUERY: JacobiQuery;
+    const SVD_JACOBI: Jacobi<Self>;
+    const SVD_BATCHED_QUERY: BatchedQuery;
+    const SVD_BATCHED: Batched<Self>;
+    const SVD_APPROXIMATE_QUERY: ApproximateQuery;
+    const SVD_APPROXIMATE: Approximate<Self>;
 }
 
 macro_rules! scalar {
     ($ty:ty, $jq:ident, $j:ident, $bq:ident, $b:ident, $aq:ident, $a:ident) => {
-        impl private::Sealed for $ty {
-            const JACOBI_QUERY: JacobiQuery = raw::$jq;
-            const JACOBI: Jacobi<Self> = raw::$j;
-            const BATCHED_QUERY: BatchedQuery = raw::$bq;
-            const BATCHED: Batched<Self> = raw::$b;
-            const APPROXIMATE_QUERY: ApproximateQuery = raw::$aq;
-            const APPROXIMATE: Approximate<Self> = raw::$a;
+        impl SvdDispatch for $ty {
+            const SVD_JACOBI_QUERY: JacobiQuery = raw::$jq;
+            const SVD_JACOBI: Jacobi<Self> = raw::$j;
+            const SVD_BATCHED_QUERY: BatchedQuery = raw::$bq;
+            const SVD_BATCHED: Batched<Self> = raw::$b;
+            const SVD_APPROXIMATE_QUERY: ApproximateQuery = raw::$aq;
+            const SVD_APPROXIMATE: Approximate<Self> = raw::$a;
         }
-        impl SvdScalar for $ty {}
     };
 }
 

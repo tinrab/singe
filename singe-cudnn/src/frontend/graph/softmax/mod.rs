@@ -2,18 +2,15 @@ mod expand;
 
 use expand::SoftmaxTensors;
 
-pub use crate::backend::execution::attention::SoftmaxOutputs;
 use crate::{
-    backend::{
-        pointwise::PointwiseMode,
-        tensor::{Shape, TensorId, TensorSpec},
-    },
+    backend::operation::{attention::SoftmaxOutputs, pointwise::PointwiseMode},
     error::{Error, Result},
     frontend::{
         error::Error as FrontendError,
         graph::{Graph, TensorOutputConfig, infer_binary_pointwise_dimensions},
         operation::{AttentionPrimitiveOperation, Operation, PointwiseOperation, SoftmaxConfig},
     },
+    tensor::{Shape, TensorId, TensorSpec},
 };
 
 impl Default for SoftmaxOutputs<TensorOutputConfig> {
@@ -169,7 +166,8 @@ impl Graph {
     /// Unrequested Max and `SumExp` remain private virtual intermediates.
     ///
     /// # Errors
-    /// Returns an error for unknown operands or invalid geometry.
+    ///
+    /// Returns an error if an operand is unknown or the geometry is invalid.
     /// Sink dimensions must broadcast to the row summaries without enlarging them.
     /// A rejected request leaves no inferred tensors or operations in the graph.
     pub fn softmax(
@@ -235,7 +233,7 @@ impl Graph {
     }
 }
 
-pub fn reduce_last_axis_dimensions(input: &[i64]) -> Result<Vec<i64>> {
+pub(crate) fn reduce_last_axis_dimensions(input: &[i64]) -> Result<Vec<i64>> {
     let mut dimensions = input.to_vec();
 
     let Some(last_dimension) = dimensions.last_mut() else {
@@ -246,6 +244,6 @@ pub fn reduce_last_axis_dimensions(input: &[i64]) -> Result<Vec<i64>> {
     Ok(dimensions)
 }
 
-pub fn reduce_last_axis(shape: &Shape) -> Result<Shape> {
+pub(crate) fn reduce_last_axis(shape: &Shape) -> Result<Shape> {
     Shape::contiguous(reduce_last_axis_dimensions(shape.dimensions())?)
 }

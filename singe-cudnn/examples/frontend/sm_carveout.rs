@@ -2,19 +2,21 @@ mod common;
 
 use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
-    backend::tensor::{Shape, TensorSpec},
+    backend::operation::normalization::{
+        BatchNormalizationRunningStatistics, BatchNormalizationRunningStats,
+        NormalizationSavedStatistics,
+    },
     data_type::{DataType, f16},
     error::Result,
     frontend::{
         graph::{DataTypePolicy, Graph, GraphConfig},
         operation::{
             BatchNormalizationConfig, BatchNormalizationInputs, BatchNormalizationOutputs,
-            BatchNormalizationRunningStatistics, BatchNormalizationRunningStats,
-            NormalizationSavedStatistics,
         },
         plan::{BuildPlanPolicy, CompileConfig, ExecuteArgs, HeuristicMode},
     },
     scalar::ScalarValue,
+    tensor::{Shape, TensorSpec},
 };
 
 fn named_tensor(name: &str, data_type: DataType, shape: Shape) -> TensorSpec {
@@ -30,7 +32,11 @@ fn scalar_tensor(name: &str, value: f32) -> Result<TensorSpec> {
     .with_name(name))
 }
 
-fn run() -> Result<()> {
+#[expect(
+    clippy::many_single_char_names,
+    reason = "keeps the upstream sample's single-letter dimension names"
+)]
+fn run() -> anyhow::Result<()> {
     let window_size = common::positive_usize_argument("--build-window", 2)?;
     let context = common::ExampleContext::create()?;
 
@@ -168,36 +174,43 @@ fn run() -> Result<()> {
     )?;
     println!(
         "engine planning targets: {:?}",
-        compiled.engine_config().planning_config()?
+        compiled.engine_config().planning_options()?
     );
 
-    let mut x_dev =
-        DeviceMemory::<f16>::zeroed(context.cudnn.cuda_context(), (n * c * h * w) as usize)?;
+    let mut x_dev = DeviceMemory::<f16>::zeroed(
+        context.cudnn.cuda_context(),
+        usize::try_from(n * c * h * w)?,
+    )?;
     let mut prev_running_mean_dev =
-        DeviceMemory::<f32>::zeroed(context.cudnn.cuda_context(), c as usize)?;
+        DeviceMemory::<f32>::zeroed(context.cudnn.cuda_context(), usize::try_from(c)?)?;
     let mut prev_running_var_dev =
-        DeviceMemory::<f32>::zeroed(context.cudnn.cuda_context(), c as usize)?;
-    let mut scale_dev = DeviceMemory::<f32>::zeroed(context.cudnn.cuda_context(), c as usize)?;
-    let mut bias_dev = DeviceMemory::<f32>::zeroed(context.cudnn.cuda_context(), c as usize)?;
-    let mut y_dev =
-        DeviceMemory::<f16>::zeroed(context.cudnn.cuda_context(), (n * c * h * w) as usize)?;
-    let mut mean_dev = DeviceMemory::<f32>::zeroed(context.cudnn.cuda_context(), c as usize)?;
+        DeviceMemory::<f32>::zeroed(context.cudnn.cuda_context(), usize::try_from(c)?)?;
+    let mut scale_dev =
+        DeviceMemory::<f32>::zeroed(context.cudnn.cuda_context(), usize::try_from(c)?)?;
+    let mut bias_dev =
+        DeviceMemory::<f32>::zeroed(context.cudnn.cuda_context(), usize::try_from(c)?)?;
+    let mut y_dev = DeviceMemory::<f16>::zeroed(
+        context.cudnn.cuda_context(),
+        usize::try_from(n * c * h * w)?,
+    )?;
+    let mut mean_dev =
+        DeviceMemory::<f32>::zeroed(context.cudnn.cuda_context(), usize::try_from(c)?)?;
     let mut inv_variance_dev =
-        DeviceMemory::<f32>::zeroed(context.cudnn.cuda_context(), c as usize)?;
+        DeviceMemory::<f32>::zeroed(context.cudnn.cuda_context(), usize::try_from(c)?)?;
     let mut next_running_mean_dev =
-        DeviceMemory::<f32>::zeroed(context.cudnn.cuda_context(), c as usize)?;
+        DeviceMemory::<f32>::zeroed(context.cudnn.cuda_context(), usize::try_from(c)?)?;
     let mut next_running_var_dev =
-        DeviceMemory::<f32>::zeroed(context.cudnn.cuda_context(), c as usize)?;
+        DeviceMemory::<f32>::zeroed(context.cudnn.cuda_context(), usize::try_from(c)?)?;
 
-    let mut peer_stats_0_host = vec![0.0_f32; (2 * 4 * c) as usize];
-    for chunk in peer_stats_0_host.chunks_exact_mut(2) {
+    let mut peer_stats_0_host = vec![0.0_f32; usize::try_from(2 * 4 * c)?];
+    for chunk in peer_stats_0_host.as_chunks_mut::<2>().0 {
         chunk[1] = f32::from_bits(1);
     }
 
     let mut peer_stats_0_dev =
         DeviceMemory::from_slice(context.cudnn.cuda_context(), &peer_stats_0_host)?;
     let mut peer_stats_1_dev =
-        DeviceMemory::<f32>::zeroed(context.cudnn.cuda_context(), (2 * 4 * c) as usize)?;
+        DeviceMemory::<f32>::zeroed(context.cudnn.cuda_context(), usize::try_from(2 * 4 * c)?)?;
     let mut workspace = common::workspace(context.cudnn.cuda_context(), compiled.workspace_size())?;
 
     let mut bindings = compiled.bindings()?;
@@ -215,15 +228,15 @@ fn run() -> Result<()> {
     bindings.set(next_running_var, &mut next_running_var_dev)?;
     // SAFETY: the example retains its plan and buffers through the surrounding completion or replay sequence.
     unsafe {
-        compiled.execute(
+        compiled.execute_async(
             &context.cudnn,
-            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
         )
     }?;
 
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_sm_carveout", run())
 }

@@ -1,7 +1,8 @@
 mod common;
 
 use singe_cudnn::{
-    backend::tensor::{Shape, TensorSpec},
+    LibraryVersion,
+    backend::operation::attention::AttentionSequenceInputs,
     cudart_version,
     data_type::DataType,
     error::{Error, Result, Status},
@@ -12,17 +13,22 @@ use singe_cudnn::{
         graph::{DataTypePolicy, Graph, GraphConfig, TensorOutputConfig},
         operation::{
             AttentionBackwardConfig, AttentionDiagonalAlignment, AttentionDiagonalBand,
-            AttentionMaskMode, AttentionScoreConfig, AttentionSequenceInputs,
+            AttentionMaskMode, AttentionScoreConfig,
         },
         plan::{CompileConfig, HeuristicMode},
     },
+    tensor::{Shape, TensorSpec},
     version,
 };
 
+#[expect(
+    clippy::many_single_char_names,
+    reason = "keeps the upstream sample's single-letter dimension names"
+)]
 fn run() -> Result<()> {
     let context = common::ExampleContext::create()?;
 
-    if cudart_version()? < 12_000 {
+    if cudart_version()?.major() < 12 {
         println!(
             "frontend_fp8_sdpa_backward_bottom_right_causal: skipped, requires CUDA toolkit 12.0+"
         );
@@ -36,7 +42,7 @@ fn run() -> Result<()> {
         return Ok(());
     }
 
-    if version()? < 90_700 {
+    if version()? < LibraryVersion::new(9, 7, 0) {
         println!(
             "frontend_fp8_sdpa_backward_bottom_right_causal: skipped, graph is not supported on this cuDNN/GPU combination"
         );
@@ -105,7 +111,7 @@ fn run() -> Result<()> {
         Shape::contiguous([1, 1, 1, 1])?,
     ));
 
-    let outputs = match graph.sdpa_fp8_backward(
+    let outputs = match graph.sdpa_backward(
         SdpaFp8BackwardInputs::new(
             q,
             k,
@@ -207,6 +213,6 @@ fn run() -> Result<()> {
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_fp8_sdpa_backward_bottom_right_causal", run())
 }

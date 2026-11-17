@@ -7,11 +7,7 @@ use std::{
 
 use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
-    backend::{
-        execution::KernelCache,
-        pointwise::PointwiseMode,
-        tensor::{Shape, TensorId, TensorSpec},
-    },
+    backend::{execution::KernelCache, operation::pointwise::PointwiseMode},
     data_type::{DataType, f16},
     error::Result,
     frontend::{
@@ -20,6 +16,7 @@ use singe_cudnn::{
         plan::{CompileConfig, ExecuteArgs, HeuristicMode},
     },
     math::NanPropagation,
+    tensor::{Shape, TensorId, TensorSpec},
 };
 
 #[derive(Clone, Copy)]
@@ -152,9 +149,9 @@ fn run() -> Result<()> {
         // SAFETY: initialized inputs, destination and workspace cover the declared layouts.
         // Plans, bindings and allocations remain live through completion, including enqueue failure.
         example.execute_and_wait(|context| unsafe {
-            compiled.execute(
+            compiled.execute_async(
                 context,
-                ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+                ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
             )
         })?;
         println!(
@@ -166,6 +163,6 @@ fn run() -> Result<()> {
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_convolution_dynamic_shape_benchmark", run())
 }

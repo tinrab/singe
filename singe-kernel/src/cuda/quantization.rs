@@ -7,7 +7,7 @@ use singe_cuda::types::bf16;
 use singe_cuda::types::f16;
 use singe_cuda::{
     stream::Stream,
-    view::{DeviceInput, DeviceOutput},
+    view::{DeviceOutput, DeviceRange},
 };
 
 #[cfg(feature = "cutile")]
@@ -482,7 +482,7 @@ macro_rules! dequantize_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$out>,
-            input: &impl DeviceInput<$input>,
+            input: &impl DeviceRange<$input>,
             scale: $out,
             zero_point: $out,
         ) -> Result<()> {
@@ -516,7 +516,7 @@ macro_rules! quantize_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$out>,
-            input: &impl DeviceInput<$input>,
+            input: &impl DeviceRange<$input>,
             scale: $input,
             zero_point: $input,
             config: VectorConfig,
@@ -557,7 +557,7 @@ macro_rules! quantize_fn {
         pub unsafe fn $tune_name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$out>,
-            input: &impl DeviceInput<$input>,
+            input: &impl DeviceRange<$input>,
             scale: $input,
             zero_point: $input,
             config: VectorConfig,
@@ -637,7 +637,7 @@ pub unsafe fn quantize_f32_to_f8e4m3_block(
     stream: &Stream,
     out: &mut impl DeviceOutput<u8>,
     scales: &mut impl DeviceOutput<f32>,
-    input: &impl DeviceInput<f32>,
+    input: &impl DeviceRange<f32>,
     block_size: usize,
 ) -> Result<()> {
     let len = input.len();
@@ -673,8 +673,8 @@ pub unsafe fn quantize_f32_to_f8e4m3_block(
 pub unsafe fn dequantize_f8e4m3_block_to_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    input: &impl DeviceInput<u8>,
-    scales: &impl DeviceInput<f32>,
+    input: &impl DeviceRange<u8>,
+    scales: &impl DeviceRange<f32>,
     rows: usize,
     columns: usize,
     block_size: usize,
@@ -713,9 +713,9 @@ pub unsafe fn dequantize_f8e4m3_block_to_f32(
 pub unsafe fn rope_quantize_f8e4m3_f32_interleaved(
     stream: &Stream,
     out: &mut impl DeviceOutput<u8>,
-    input: &impl DeviceInput<f32>,
-    cos_sin_cache: &impl DeviceInput<f32>,
-    pos_ids: &impl DeviceInput<u32>,
+    input: &impl DeviceRange<f32>,
+    cos_sin_cache: &impl DeviceRange<f32>,
+    pos_ids: &impl DeviceRange<u32>,
     config: RopeQuantizeFp8Config,
 ) -> Result<()> {
     validate_rope_quantize_fp8(
@@ -754,7 +754,7 @@ pub unsafe fn rope_quantize_f8e4m3_f32_interleaved(
 pub unsafe fn quantize_f32_to_f8e4m3_scaled(
     stream: &Stream,
     out: &mut impl DeviceOutput<u8>,
-    input: &impl DeviceInput<f32>,
+    input: &impl DeviceRange<f32>,
     quant_scale: f32,
 ) -> Result<()> {
     ensure_len(out.len(), input.len())?;
@@ -794,12 +794,12 @@ pub unsafe fn qk_rope_quantize_f8e4m3_f32_interleaved(
     k_rope_out: &mut impl DeviceOutput<u8>,
     q_nope_out: &mut impl DeviceOutput<u8>,
     k_nope_out: &mut impl DeviceOutput<u8>,
-    q_rope: &impl DeviceInput<f32>,
-    k_rope: &impl DeviceInput<f32>,
-    q_nope: &impl DeviceInput<f32>,
-    k_nope: &impl DeviceInput<f32>,
-    cos_sin_cache: &impl DeviceInput<f32>,
-    pos_ids: &impl DeviceInput<u32>,
+    q_rope: &impl DeviceRange<f32>,
+    k_rope: &impl DeviceRange<f32>,
+    q_nope: &impl DeviceRange<f32>,
+    k_nope: &impl DeviceRange<f32>,
+    cos_sin_cache: &impl DeviceRange<f32>,
+    pos_ids: &impl DeviceRange<u32>,
     config: QkRopeQuantizeFp8Config,
 ) -> Result<()> {
     validate_qk_rope_quantize_fp8(
@@ -878,10 +878,10 @@ pub unsafe fn qk_rope_quantize_f8e4m3_f32_interleaved_rope_only(
     stream: &Stream,
     q_rope_out: &mut impl DeviceOutput<u8>,
     k_rope_out: &mut impl DeviceOutput<u8>,
-    q_rope: &impl DeviceInput<f32>,
-    k_rope: &impl DeviceInput<f32>,
-    cos_sin_cache: &impl DeviceInput<f32>,
-    pos_ids: &impl DeviceInput<u32>,
+    q_rope: &impl DeviceRange<f32>,
+    k_rope: &impl DeviceRange<f32>,
+    cos_sin_cache: &impl DeviceRange<f32>,
+    pos_ids: &impl DeviceRange<u32>,
     config: QkRopeQuantizeFp8Config,
 ) -> Result<()> {
     validate_qk_rope_quantize_fp8_rope_only(
@@ -936,12 +936,12 @@ pub unsafe fn mla_rope_quantize_f8e4m3_f32_interleaved(
     k_rope_out: &mut impl DeviceOutput<u8>,
     q_nope_out: &mut impl DeviceOutput<u8>,
     k_nope_out: &mut impl DeviceOutput<u8>,
-    q_rope: &impl DeviceInput<f32>,
-    k_rope: &impl DeviceInput<f32>,
-    q_nope: &impl DeviceInput<f32>,
-    k_nope: &impl DeviceInput<f32>,
-    cos_sin_cache: &impl DeviceInput<f32>,
-    pos_ids: &impl DeviceInput<u32>,
+    q_rope: &impl DeviceRange<f32>,
+    k_rope: &impl DeviceRange<f32>,
+    q_nope: &impl DeviceRange<f32>,
+    k_nope: &impl DeviceRange<f32>,
+    cos_sin_cache: &impl DeviceRange<f32>,
+    pos_ids: &impl DeviceRange<u32>,
     config: MlaRopeQuantizeFp8Config,
 ) -> Result<()> {
     validate_mla_rope_quantize_fp8(
@@ -1020,10 +1020,10 @@ pub unsafe fn mla_rope_quantize_f8e4m3_f32_interleaved_rope_only(
     stream: &Stream,
     q_rope_out: &mut impl DeviceOutput<u8>,
     k_rope_out: &mut impl DeviceOutput<u8>,
-    q_rope: &impl DeviceInput<f32>,
-    k_rope: &impl DeviceInput<f32>,
-    cos_sin_cache: &impl DeviceInput<f32>,
-    pos_ids: &impl DeviceInput<u32>,
+    q_rope: &impl DeviceRange<f32>,
+    k_rope: &impl DeviceRange<f32>,
+    cos_sin_cache: &impl DeviceRange<f32>,
+    pos_ids: &impl DeviceRange<u32>,
     config: MlaRopeQuantizeFp8Config,
 ) -> Result<()> {
     validate_mla_rope_quantize_fp8_rope_only(
@@ -1068,7 +1068,7 @@ pub unsafe fn mla_rope_quantize_f8e4m3_f32_interleaved_rope_only(
 pub unsafe fn unpack_u4_u8(
     stream: &Stream,
     out: &mut impl DeviceOutput<u8>,
-    packed: &impl DeviceInput<u8>,
+    packed: &impl DeviceRange<u8>,
     packing: Int4Packing,
 ) -> Result<()> {
     let len = validate_unpack_int4(out.len(), packed.len())?;
@@ -1096,7 +1096,7 @@ pub unsafe fn unpack_u4_u8(
 pub unsafe fn unpack_i4_i8(
     stream: &Stream,
     out: &mut impl DeviceOutput<i8>,
-    packed: &impl DeviceInput<u8>,
+    packed: &impl DeviceRange<u8>,
     packing: Int4Packing,
 ) -> Result<()> {
     let len = validate_unpack_int4(out.len(), packed.len())?;
@@ -1124,9 +1124,9 @@ pub unsafe fn unpack_i4_i8(
 pub unsafe fn dequantize_u8_f32_per_channel(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    input: &impl DeviceInput<u8>,
-    scales: &impl DeviceInput<f32>,
-    zero_points: &impl DeviceInput<f32>,
+    input: &impl DeviceRange<u8>,
+    scales: &impl DeviceRange<f32>,
+    zero_points: &impl DeviceRange<f32>,
     channels: usize,
     channel_size: usize,
 ) -> Result<()> {
@@ -1155,9 +1155,9 @@ pub unsafe fn dequantize_u8_f32_per_channel(
 pub unsafe fn dequantize_i8_f32_per_channel(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    input: &impl DeviceInput<i8>,
-    scales: &impl DeviceInput<f32>,
-    zero_points: &impl DeviceInput<f32>,
+    input: &impl DeviceRange<i8>,
+    scales: &impl DeviceRange<f32>,
+    zero_points: &impl DeviceRange<f32>,
     channels: usize,
     channel_size: usize,
 ) -> Result<()> {
@@ -1186,9 +1186,9 @@ pub unsafe fn dequantize_i8_f32_per_channel(
 pub unsafe fn dequantize_u8_f32_grouped(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    input: &impl DeviceInput<u8>,
-    scales: &impl DeviceInput<f32>,
-    zero_points: &impl DeviceInput<f32>,
+    input: &impl DeviceRange<u8>,
+    scales: &impl DeviceRange<f32>,
+    zero_points: &impl DeviceRange<f32>,
     group_size: usize,
     groups: usize,
 ) -> Result<()> {
@@ -1227,9 +1227,9 @@ pub unsafe fn dequantize_u8_f32_grouped(
 pub unsafe fn dequantize_i8_f32_grouped(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    input: &impl DeviceInput<i8>,
-    scales: &impl DeviceInput<f32>,
-    zero_points: &impl DeviceInput<f32>,
+    input: &impl DeviceRange<i8>,
+    scales: &impl DeviceRange<f32>,
+    zero_points: &impl DeviceRange<f32>,
     group_size: usize,
     groups: usize,
 ) -> Result<()> {
@@ -1269,7 +1269,7 @@ pub unsafe fn per_token_group_quant_i8_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<i8>,
     scales: &mut impl DeviceOutput<f32>,
-    input: &impl DeviceInput<f32>,
+    input: &impl DeviceRange<f32>,
     config: PerTokenGroupQuantConfig,
 ) -> Result<()> {
     let groups = validate_per_token_group_quant(out.len(), scales.len(), input.len(), config)?;
@@ -1300,7 +1300,7 @@ pub unsafe fn per_token_group_quant_i8_f32_column_major_scales(
     stream: &Stream,
     out: &mut impl DeviceOutput<i8>,
     scales: &mut impl DeviceOutput<f32>,
-    input: &impl DeviceInput<f32>,
+    input: &impl DeviceRange<f32>,
     config: PerTokenGroupQuantColumnMajorConfig,
 ) -> Result<()> {
     validate_per_token_group_quant_column_major(out.len(), scales.len(), input.len(), config)?;
@@ -1333,7 +1333,7 @@ pub unsafe fn per_token_group_quant_i8_f32_column_major_ue8m0_scales(
     stream: &Stream,
     out: &mut impl DeviceOutput<i8>,
     scales: &mut impl DeviceOutput<f32>,
-    input: &impl DeviceInput<f32>,
+    input: &impl DeviceRange<f32>,
     config: PerTokenGroupQuantColumnMajorConfig,
 ) -> Result<()> {
     validate_per_token_group_quant_column_major(out.len(), scales.len(), input.len(), config)?;
@@ -1366,7 +1366,7 @@ pub unsafe fn per_token_group_quant_f8e4m3_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<u8>,
     scales: &mut impl DeviceOutput<f32>,
-    input: &impl DeviceInput<f32>,
+    input: &impl DeviceRange<f32>,
     config: PerTokenGroupQuantConfig,
 ) -> Result<()> {
     let groups = validate_per_token_group_quant(out.len(), scales.len(), input.len(), config)?;
@@ -1397,7 +1397,7 @@ pub unsafe fn per_token_group_quant_f8e4m3_f32_column_major_scales(
     stream: &Stream,
     out: &mut impl DeviceOutput<u8>,
     scales: &mut impl DeviceOutput<f32>,
-    input: &impl DeviceInput<f32>,
+    input: &impl DeviceRange<f32>,
     config: PerTokenGroupQuantColumnMajorConfig,
 ) -> Result<()> {
     validate_per_token_group_quant_column_major(out.len(), scales.len(), input.len(), config)?;
@@ -1430,7 +1430,7 @@ pub unsafe fn per_token_group_quant_f8e4m3_f32_column_major_ue8m0_scales(
     stream: &Stream,
     out: &mut impl DeviceOutput<u8>,
     scales: &mut impl DeviceOutput<f32>,
-    input: &impl DeviceInput<f32>,
+    input: &impl DeviceRange<f32>,
     config: PerTokenGroupQuantColumnMajorConfig,
 ) -> Result<()> {
     validate_per_token_group_quant_column_major(out.len(), scales.len(), input.len(), config)?;
@@ -1462,8 +1462,8 @@ pub unsafe fn per_token_group_quant_f8e4m3_f32_column_major_ue8m0_scales(
 pub unsafe fn matmul_i8_i8_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    activations: &impl DeviceInput<i8>,
-    weights: &impl DeviceInput<i8>,
+    activations: &impl DeviceRange<i8>,
+    weights: &impl DeviceRange<i8>,
     config: QuantizedMatmulConfig,
 ) -> Result<()> {
     validate_quantized_matmul(out.len(), activations.len(), weights.len(), config)?;
@@ -1499,10 +1499,10 @@ pub unsafe fn matmul_i8_i8_f32(
 pub unsafe fn matmul_f32_i8_dequantize_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    activations: &impl DeviceInput<f32>,
-    weights: &impl DeviceInput<i8>,
-    scales: &impl DeviceInput<f32>,
-    zero_points: &impl DeviceInput<f32>,
+    activations: &impl DeviceRange<f32>,
+    weights: &impl DeviceRange<i8>,
+    scales: &impl DeviceRange<f32>,
+    zero_points: &impl DeviceRange<f32>,
     config: DequantizedWeightMatmulConfig,
 ) -> Result<()> {
     validate_dequantized_weight_matmul(
@@ -1544,10 +1544,10 @@ pub unsafe fn matmul_f32_i8_dequantize_f32(
 pub unsafe fn matmul_f8e4m3_f8e4m3_block_scaled_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    activations: &impl DeviceInput<u8>,
-    weights: &impl DeviceInput<u8>,
-    activation_scales: &impl DeviceInput<f32>,
-    weight_scales: &impl DeviceInput<f32>,
+    activations: &impl DeviceRange<u8>,
+    weights: &impl DeviceRange<u8>,
+    activation_scales: &impl DeviceRange<f32>,
+    weight_scales: &impl DeviceRange<f32>,
     config: BlockScaledFp8MatmulConfig,
 ) -> Result<()> {
     validate_block_scaled_fp8_matmul(
@@ -1588,10 +1588,10 @@ pub unsafe fn matmul_f8e4m3_f8e4m3_block_scaled_f32(
 pub unsafe fn matmul_f8e4m3_f8e4m3_block_scaled_f16(
     stream: &Stream,
     out: &mut impl DeviceOutput<f16>,
-    activations: &impl DeviceInput<u8>,
-    weights: &impl DeviceInput<u8>,
-    activation_scales: &impl DeviceInput<f32>,
-    weight_scales: &impl DeviceInput<f32>,
+    activations: &impl DeviceRange<u8>,
+    weights: &impl DeviceRange<u8>,
+    activation_scales: &impl DeviceRange<f32>,
+    weight_scales: &impl DeviceRange<f32>,
     config: BlockScaledFp8MatmulConfig,
 ) -> Result<()> {
     validate_block_scaled_fp8_matmul(
@@ -1632,10 +1632,10 @@ pub unsafe fn matmul_f8e4m3_f8e4m3_block_scaled_f16(
 pub unsafe fn matmul_f8e4m3_f8e4m3_block_scaled_bf16(
     stream: &Stream,
     out: &mut impl DeviceOutput<bf16>,
-    activations: &impl DeviceInput<u8>,
-    weights: &impl DeviceInput<u8>,
-    activation_scales: &impl DeviceInput<f32>,
-    weight_scales: &impl DeviceInput<f32>,
+    activations: &impl DeviceRange<u8>,
+    weights: &impl DeviceRange<u8>,
+    activation_scales: &impl DeviceRange<f32>,
+    weight_scales: &impl DeviceRange<f32>,
     config: BlockScaledFp8MatmulConfig,
 ) -> Result<()> {
     validate_block_scaled_fp8_matmul(

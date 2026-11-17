@@ -1,12 +1,12 @@
 use crate::{
-    backend::tensor::{Shape, TensorId, TensorSpec},
     data_type::DataType,
     error::{Error, Result},
     frontend::graph::Graph,
+    tensor::{Shape, TensorId, TensorSpec},
     utility::to_usize,
 };
 
-/// Standard `ALiBi` slopes in the head order used by the C++ cuDNN frontend.
+/// Returns the standard `ALiBi` slopes in the head order used by the C++ cuDNN frontend.
 /// The returned FP32 values populate a `[1, heads, 1, 1]` slope tensor for [`SdpaScoreModifiers::with_alibi_slopes`](crate::frontend::operation::SdpaScoreModifiers::with_alibi_slopes).
 /// Non-power-of-two head counts append odd half-steps after the largest power-of-two prefix.
 ///

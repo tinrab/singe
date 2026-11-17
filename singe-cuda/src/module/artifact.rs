@@ -1,7 +1,7 @@
 //! Discovery and selection of producer-authored embedded artifact bundles.
 //! Loading and typed preparation reuse the ordinary context, module and kernel APIs.
 
-use std::{cmp::Reverse, env, ffi::CString, fs, path::Path, sync::Arc};
+use std::{cmp::Reverse, env, fs, path::Path, sync::Arc};
 
 pub use oxide_artifacts::{
     ArtifactCompileOptions, ArtifactDebugPolicy, ArtifactEntryKind, ArtifactPayloadKind,
@@ -12,6 +12,7 @@ use crate::{
     context::Context,
     device::DeviceAttribute,
     error::{Error, Result, Status},
+    jit::JitOptions,
     kernel::launch::{KernelSignature, PreparedLaunch},
     module::{LaunchConfig, Module, ModuleImage},
 };
@@ -72,7 +73,9 @@ pub struct PrecompiledImage<'a> {
 }
 
 impl<'a> PrecompiledImage<'a> {
-    /// Combines the image bytes, declared format, and producer metadata without validating them.
+    /// Combines the image bytes, declared format, and producer metadata.
+    ///
+    /// The image's constructor established that its bytes are loadable; `kind` is not checked against them.
     #[must_use]
     pub fn new(kind: ImageKind, image: ModuleImage<'a>, metadata: ArtifactMetadata) -> Self {
         Self {
@@ -93,8 +96,12 @@ pub struct ArtifactLibrary {
 
 impl ArtifactLibrary {
     /// Stores the supplied artifact bundles without parsing or validating their payloads.
+    ///
+    /// # Safety
+    ///
+    /// Every cubin payload must be a complete device binary whose headers describe sizes and offsets within its bytes, since [`Self::load`] passes it to CUDA's length-less loader.
     #[must_use]
-    pub fn new(bundles: Vec<OwnedArtifactBundle>) -> Self {
+    pub unsafe fn new(bundles: Vec<OwnedArtifactBundle>) -> Self {
         Self { bundles }
     }
 
@@ -104,16 +111,22 @@ impl ArtifactLibrary {
     ///
     /// Returns an error if the current executable path cannot be determined, its contents cannot be read, or object-file or artifact-section parsing fails.
     pub fn from_current_exe() -> Result<Self> {
-        Self::from_binary_path(env::current_exe()?)
+        // SAFETY: the producer embedded these payloads when it built the running executable, whose code the process already trusts.
+        unsafe { Self::from_binary_path(env::current_exe()?) }
     }
 
     /// Reads embedded artifact bundles from the host object file at `path`.
     ///
+    /// # Safety
+    ///
+    /// The same as [`Self::new`], for every cubin payload embedded in the file.
+    ///
     /// # Errors
     ///
     /// Returns an error if the file cannot be read or its object-file or artifact-section contents cannot be parsed.
-    pub fn from_binary_path(path: impl AsRef<Path>) -> Result<Self> {
-        Self::from_binary_bytes(&fs::read(path)?)
+    pub unsafe fn from_binary_path(path: impl AsRef<Path>) -> Result<Self> {
+        // SAFETY: the caller vouches for the payloads embedded in the file.
+        unsafe { Self::from_binary_bytes(&fs::read(path)?) }
     }
 
     /// Reads artifact bundles from the embedded `.oxart` sections of a host object image.
@@ -121,13 +134,17 @@ impl ArtifactLibrary {
     /// A valid object without artifact sections produces an empty library.
     /// Returned bundles own their metadata and payload bytes.
     ///
+    /// # Safety
+    ///
+    /// The same as [`Self::new`], for every cubin payload embedded in `bytes`.
+    ///
     /// # Errors
     ///
     /// Returns an error if the object file, a section name or contents, or an embedded artifact bundle cannot be parsed.
-    pub fn from_binary_bytes(bytes: &[u8]) -> Result<Self> {
-        Ok(Self::new(
-            oxide_artifacts::read_artifact_bundles_from_object_bytes(bytes)?,
-        ))
+    pub unsafe fn from_binary_bytes(bytes: &[u8]) -> Result<Self> {
+        let bundles = oxide_artifacts::read_artifact_bundles_from_object_bytes(bytes)?;
+        // SAFETY: the caller vouches for the payloads embedded in `bytes`.
+        Ok(unsafe { Self::new(bundles) })
     }
 
     /// Parses artifact bundles from the contents of an artifact section.
@@ -135,16 +152,20 @@ impl ArtifactLibrary {
     /// Accepts concatenated bundles and trailing zero padding.
     /// Returned bundles own their metadata and payload bytes.
     ///
+    /// # Safety
+    ///
+    /// The same as [`Self::new`], for every cubin payload in `bytes`.
+    ///
     /// # Errors
     ///
     /// Returns an error for malformed or truncated bundle data, unsupported artifact versions, invalid metadata, or invalid payload descriptions.
-    pub fn from_section(bytes: &[u8]) -> Result<Self> {
-        Ok(Self::new(
-            oxide_artifacts::parse_artifact_section(bytes)?
-                .into_iter()
-                .map(Into::into)
-                .collect(),
-        ))
+    pub unsafe fn from_section(bytes: &[u8]) -> Result<Self> {
+        let bundles = oxide_artifacts::parse_artifact_section(bytes)?
+            .into_iter()
+            .map(Into::into)
+            .collect();
+        // SAFETY: the caller vouches for the payloads in `bytes`.
+        Ok(unsafe { Self::new(bundles) })
     }
 
     /// Borrows all stored bundles in their discovery order.
@@ -189,11 +210,13 @@ impl ArtifactLibrary {
         candidates.sort_by_key(|(score, ..)| Reverse(*score));
         let mut last_error = None;
         for (_, bundle, payload, kind) in candidates {
-            let image = PrecompiledImage::new(
-                kind,
-                ModuleImage::new(&payload.bytes),
-                ArtifactMetadata::from_bundle(bundle),
-            );
+            let image = match kind {
+                ImageKind::Ptx => ModuleImage::from_ptx(&payload.bytes[..])?,
+                // SAFETY: the library's constructor vouched for every cubin payload, and `kind` is cubin only for cubin payloads.
+                _ => unsafe { ModuleImage::from_bytes_unchecked(&payload.bytes[..]) },
+            };
+
+            let image = PrecompiledImage::new(kind, image, ArtifactMetadata::from_bundle(bundle));
             match context.load_precompiled(&image) {
                 Ok(module) => return Ok(module),
                 Err(error) if can_try_next_image(&error) => last_error = Some(error),
@@ -216,8 +239,8 @@ fn capability(context: &Context) -> Result<(u32, u32)> {
         .device()
         .attribute(DeviceAttribute::ComputeCapabilityMinor)?;
     Ok((
-        u32::try_from(major).map_err(|_| Error::InvalidValue)?,
-        u32::try_from(minor).map_err(|_| Error::InvalidValue)?,
+        u32::try_from(major).map_err(|_| Error::out_of_range("compute capability major"))?,
+        u32::try_from(minor).map_err(|_| Error::out_of_range("compute capability minor"))?,
     ))
 }
 
@@ -278,7 +301,6 @@ fn can_try_next_image(error: &Error) -> bool {
                 | Status::InvalidPtx
                 | Status::NoBinaryForGpu
                 | Status::UnsupportedPtxVersion,
-            ..
         } => true,
         #[cfg(feature = "nvjitlink_13_4")]
         Error::NvJitLink { code, .. } => {
@@ -307,29 +329,17 @@ impl Context {
     ///
     /// # Errors
     ///
-    /// Returns `Error::InvalidValue` for an empty image, or a NUL-byte error for PTX with an interior NUL.
-    /// Also propagates context binding and module loading errors.
+    /// Propagates context binding and module loading errors.
     /// PTX with a nondefault compilation policy requires `nvjitlink_13_4`; without it, returns `Error::Compiler`.
     /// With the feature enabled, device capability queries, target architecture parsing, native linker creation or finalization, and artifact-name conversion can also fail.
     pub fn load_precompiled(self: &Arc<Self>, image: &PrecompiledImage<'_>) -> Result<Module> {
-        if image.image.as_bytes().is_empty() {
-            return Err(Error::InvalidValue);
-        }
-
-        let terminated;
-        let bytes = if image.kind == ImageKind::Ptx {
-            let bytes = image.image.as_bytes();
-            terminated = CString::new(bytes.strip_suffix(&[0]).unwrap_or(bytes))?;
-            terminated.as_bytes_with_nul()
-        } else {
-            image.image.as_bytes()
-        };
         let policy = image.metadata.compile_options;
         if image.kind == ImageKind::Ptx && policy != ArtifactCompileOptions::default() {
-            load_with_policy(self, image, bytes)
+            load_with_policy(self, image, image.image.as_bytes())
         } else {
             self.load_module_with_metadata(
-                &ModuleImage::new(bytes),
+                &image.image,
+                JitOptions::default(),
                 Some(Arc::new(image.metadata.clone())),
             )
         }
@@ -367,7 +377,8 @@ fn load_with_policy(
     linker.add_data(InputType::Ptx, bytes, &image.metadata.name)?;
     let binary = linker.complete()?;
     context.load_module_with_metadata(
-        &ModuleImage::new(binary.as_bytes()),
+        &ModuleImage::from_compiler_output(binary.as_bytes())?,
+        JitOptions::default(),
         Some(Arc::new(image.metadata.clone())),
     )
 }
@@ -389,6 +400,7 @@ impl Module {
     /// Binds an existing image entry to the ordinary typed launch contract.
     ///
     /// # Safety
+    ///
     /// `K` must describe this symbol's ABI, indexing and semantic requirements.
     /// Producer entry metadata does not prove field layout, bounds, initialization or alias permission.
     ///
@@ -401,7 +413,7 @@ impl Module {
         symbol: &str,
         config: LaunchConfig,
     ) -> Result<PreparedLaunch<K>> {
-        // SAFETY: the caller upholds this function's safety contract.
+        // SAFETY: the function is `symbol` from this module, and the caller guarantees `K` describes its ABI and semantics, which `PreparedLaunch::create` requires.
         unsafe { PreparedLaunch::create(&self.function(symbol)?, config) }
     }
 }

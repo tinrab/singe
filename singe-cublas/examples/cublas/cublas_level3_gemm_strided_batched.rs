@@ -1,15 +1,9 @@
 use singe_cublas::{
-    blas::level3::gemm_strided_batched_ex,
-    context::Context,
-    error::Result,
-    types::{ComputeType, GemmAlgorithm, Operation},
+    blas::level3::gemm_strided_batched, context::Context, scalar::Scalar, types::Operation,
 };
+use singe_cuda::{context::Context as CudaContext, device::Device, memory::DeviceMemory};
 
-use singe_cuda::{
-    context::Context as CudaContext, data_type::DataType, device::Device, memory::DeviceMemory,
-};
-
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     let cuda = CudaContext::create_for_device(Device::new(0))?;
     let cublas = Context::create(&cuda)?;
 
@@ -17,30 +11,25 @@ fn main() -> Result<()> {
     let b = DeviceMemory::from_slice(&cuda, &[5.0_f64, 7.0, 6.0, 8.0, 9.0, 11.0, 10.0, 12.0])?;
     let mut c = DeviceMemory::<f64>::zeroed(&cuda, 8)?;
 
-    gemm_strided_batched_ex(
+    gemm_strided_batched(
         &cublas,
         Operation::NonTranspose,
         Operation::NonTranspose,
         2,
         2,
         2,
-        &1.0,
+        Scalar::host(&1.0),
         &a,
-        DataType::F64,
         2,
         4,
         &b,
-        DataType::F64,
         2,
         4,
-        &0.0,
+        Scalar::host(&0.0),
         &mut c,
-        DataType::F64,
         2,
         4,
         2,
-        ComputeType::F64,
-        GemmAlgorithm::Default,
     )?;
 
     let result = c.copy_to_host_vec()?;

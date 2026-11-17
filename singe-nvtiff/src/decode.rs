@@ -1,12 +1,13 @@
 //! TIFF decoding into device memory.
 
-use std::{mem::ManuallyDrop, process, ptr, result::Result as StdResult, sync::Arc};
+use std::{mem::ManuallyDrop, ptr, result::Result as StdResult, sync::Arc};
 
+use singe_core::{abort_after_cleanup_failure, report_cleanup_failure};
 use singe_cuda::{
     context::Context,
     error::Error as CudaError,
     memory::DeviceMemory,
-    stream::{BorrowedStream, Stream as CudaStream},
+    stream::{AsStream, BorrowedStream, Stream as CudaStream},
 };
 use singe_nvtiff_sys as sys;
 
@@ -17,19 +18,31 @@ use crate::{
     stream::TiffStream,
     try_ffi,
     types::OutputFormat,
-    utility::{cleanup_stream, to_i32, to_u32},
+    utility::{checked_pitched_extent, to_i32, to_size_t, to_u32, to_usize},
 };
 
 /// TIFF decoder.
 ///
-/// It keeps its CUDA context and stream alive, and creates and destroys its native state on that stream.
+/// It keeps its CUDA context and stream alive, and creates, runs, and destroys its native state on that stream.
 /// The [`DecodeOptions`] set on it select the output format and the images or regions to decode.
+/// It is `Send` and not `Sync`.
 #[derive(Debug)]
 pub struct Decoder {
     owner: Arc<DecoderOwner>,
     params: DecodeParams,
     options: DecodeOptions,
     stream: CudaStream,
+}
+
+/// Native decoder handle with the stream it is destroyed on, from [`Decoder::into_raw`].
+///
+/// Dropping it leaks the native decoder.
+#[derive(Debug)]
+pub struct RawDecoder {
+    /// Native decoder handle, owned exclusively.
+    pub handle: sys::nvtiffDecoder_t,
+    /// Stream that creates and destroys the decoder, retaining its CUDA context.
+    pub stream: CudaStream,
 }
 
 // Capture cleanup retains only the native owner, never the owning stream.
@@ -39,29 +52,29 @@ struct DecoderOwner {
     stream: BorrowedStream,
 }
 
-// SAFETY: native mutation requires an exclusive Decoder borrow. Final cleanup binds
-// the retained context and the stream wrapper keeps this raw stream live.
 #[expect(
     clippy::non_send_fields_in_send_ty,
     reason = "the borrowed cleanup stream is only used to destroy the native owner"
 )]
+// SAFETY: an nvTIFF decoder has no thread affinity and is used through `&mut Decoder` only.
+// The destroying thread binds the retained context first, and the stream wrapper or capture cleanup keeps the borrowed stream live.
 unsafe impl Send for DecoderOwner {}
 
+// SAFETY: shared references reach only the handle value; the native object is used through the owning wrapper's exclusive borrows and destroyed in `Drop`, which needs ownership.
 unsafe impl Sync for DecoderOwner {}
 
 impl Drop for DecoderOwner {
     fn drop(&mut self) {
-        if self.stream.context().bind().is_err() {
+        if let Err(error) = self.stream.context().bind() {
+            report_cleanup_failure("bind the cuda context to destroy", "nvtiff decoder", &error);
             return;
         }
-        // SAFETY: `nvtiffDecoderDestroy` receives live handles owned by the wrappers, and no queued work uses them.
-        if let Err(error) =
-            unsafe { try_ffi!(sys::nvtiffDecoderDestroy(self.raw, self.stream.as_raw())) }
-        {
-            eprintln!(
-                "failed to destroy nvtiff decoder: {}",
-                singe_core::ErrorChain(&error)
-            );
+
+        // SAFETY: the last owner destroys the decoder once, with its context bound; the safe calls waited for their work, raw callers must finish theirs before dropping, and capture cleanup releases this owner only after capture ends.
+        let destroyed =
+            unsafe { try_ffi!(sys::nvtiffDecoderDestroy(self.raw, self.stream.as_raw())) };
+        if let Err(error) = destroyed {
+            report_cleanup_failure("destroy", "nvtiff decoder", &error);
         }
     }
 }
@@ -73,11 +86,14 @@ pub struct DecodeOptions {
     regions: Vec<DecodeRegion>,
 }
 
-/// Native decode settings, kept in sync with a decoder's [`DecodeOptions`].
+// Native decode settings, kept in sync with a decoder's `DecodeOptions`.
 #[derive(Debug)]
 struct DecodeParams {
     raw: sys::nvtiffDecodeParams_t,
 }
+
+// SAFETY: decode settings have no thread affinity, and nvTIFF reads them only during calls made through an exclusive `Decoder` borrow.
+unsafe impl Send for DecodeParams {}
 
 /// Rectangular region of an image, in pixels.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -111,53 +127,27 @@ pub struct DecodeOutputs<'a> {
 }
 
 impl Decoder {
-    /// Creates a decoder on `stream` with the default allocators and options.
+    /// Creates a decoder on `stream` with `allocators` and the default options.
+    ///
+    /// [`AllocatorSet::new`] selects nvTIFF's default allocators.
     ///
     /// # Errors
     ///
     /// Returns an error if stream capture is active or invalidated, the CUDA context cannot be bound, nvTIFF fails to create the decoder, or waiting for `stream` fails.
-    pub fn create(stream: &CudaStream) -> Result<Self> {
-        stream.ensure_not_capturing()?;
+    pub fn create(mut allocators: AllocatorSet, stream: &CudaStream) -> Result<Self> {
         let mut raw = ptr::null_mut();
-        stream.sync_scope(|_| {
-            // SAFETY: `nvtiffDecoderCreateSimple` receives live handles owned by the wrappers and valid output locations.
-            Ok(unsafe {
-                try_ffi!(sys::nvtiffDecoderCreateSimple(
-                    &raw mut raw,
-                    stream.as_raw()
-                ))
-            })
-        })??;
-        Self::from_created_raw(raw, stream)
-    }
-
-    /// Creates a decoder on `stream` with custom allocators and the default options.
-    ///
-    /// # Safety
-    ///
-    /// The callbacks must allocate and free memory in stream order, as nvTIFF expects.
-    /// The callbacks and their context data must stay valid until the decoder has been destroyed.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if stream capture is active or invalidated, the CUDA context cannot be bound, nvTIFF fails to create the decoder, or waiting for `stream` fails.
-    pub unsafe fn create_with_allocators(
-        mut allocators: AllocatorSet,
-        stream: &CudaStream,
-    ) -> Result<Self> {
-        stream.ensure_not_capturing()?;
-        let mut raw = ptr::null_mut();
-        stream.sync_scope(|_| {
-            // SAFETY: `nvtiffDecoderCreate` receives live handles owned by the wrappers and valid output locations.
-            Ok(unsafe {
+        stream.complete(|| {
+            stream.context().bind()?;
+            // SAFETY: `nvtiffDecoderCreate` receives a live stream of the bound context, a writable output location, and allocators that are null for nvTIFF's defaults or come from unsafe constructors that guarantee callbacks following nvTIFF's contract and outliving the decoder.
+            unsafe {
                 try_ffi!(sys::nvtiffDecoderCreate(
                     &raw mut raw,
                     allocators.device_raw(),
                     allocators.pinned_raw(),
                     stream.as_raw()
                 ))
-            })
-        })??;
+            }
+        })?;
         Self::from_created_raw(raw, stream)
     }
 
@@ -168,7 +158,8 @@ impl Decoder {
 
         let owner = Arc::new(DecoderOwner {
             raw,
-            stream: cleanup_stream(stream),
+            // SAFETY: the wrapper retains `stream` until this owner drops, directly or through the stream's capture cleanup.
+            stream: unsafe { stream.to_unretained() },
         });
         Ok(Self {
             owner,
@@ -178,54 +169,64 @@ impl Decoder {
         })
     }
 
-    /// Takes ownership of a native decoder, which is destroyed on `stream`.
+    /// Takes ownership of a native decoder, which is destroyed on `raw.stream`.
+    ///
+    /// The decoder starts with the default [`DecodeOptions`].
     ///
     /// # Safety
     ///
-    /// `raw` must be valid, owned by nobody else, and created in `stream`'s CUDA context.
+    /// `raw.handle` must be valid, owned by nobody else, and created in `raw.stream`'s CUDA context.
     /// All work submitted with it must have finished.
     /// Custom allocator data must stay valid until the decoder has been destroyed.
     ///
     /// # Errors
     ///
-    /// Returns an error if `raw` is null or nvTIFF fails to create the decode settings.
-    pub unsafe fn from_raw(raw: sys::nvtiffDecoder_t, stream: &CudaStream) -> Result<Self> {
-        Self::from_created_raw(raw, stream)
+    /// Returns [`Error::NullHandle`] if `raw.handle` is null.
+    /// Returns an error if nvTIFF fails to create the decode settings.
+    pub unsafe fn from_raw(raw: RawDecoder) -> Result<Self> {
+        let RawDecoder { handle, stream } = raw;
+        Self::from_created_raw(handle, &stream)
     }
 
-    /// Releases the native handle without destroying it.
+    /// Releases the native handle with its stream, without destroying it.
     ///
-    /// After the submitted work finishes, destroy the handle on [`stream`](Self::stream) or pass it back to [`from_raw`](Self::from_raw).
-    /// The handle does not keep the CUDA context or stream alive, so both must outlive it.
+    /// After the submitted work finishes, destroy the handle on `stream` or pass it back to [`from_raw`](Self::from_raw).
+    /// The decode options and native decode settings are released.
     ///
     /// # Errors
     ///
-    /// Returns an error containing the decoder unchanged if something else still shares the native handle, such as cleanup for a captured graph.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the handle becomes shared after the check, which indicates a bug in this crate.
-    pub fn into_raw(self) -> StdResult<sys::nvtiffDecoder_t, Self> {
-        if Arc::strong_count(&self.owner) != 1 {
-            return Err(self);
+    /// Returns the decoder unchanged if something else still shares the native handle, such as cleanup for a captured graph.
+    pub fn into_raw(self) -> StdResult<RawDecoder, Self> {
+        let mut this = ManuallyDrop::new(self);
+        // SAFETY: `this` is never dropped, so the owner moves out once, and the `Err` arm writes it back before `this` is used again.
+        let owner = unsafe { ptr::read(&raw const this.owner) };
+        match Arc::try_unwrap(owner) {
+            Ok(owner) => {
+                let owner = ManuallyDrop::new(owner);
+                // SAFETY: `this` is never dropped, so each remaining field moves out exactly once.
+                let (params, options, stream) = unsafe {
+                    (
+                        ptr::read(&raw const this.params),
+                        ptr::read(&raw const this.options),
+                        ptr::read(&raw const this.stream),
+                    )
+                };
+                drop((params, options));
+                // SAFETY: `owner` is never dropped, so its borrowed stream moves out exactly once.
+                drop(unsafe { ptr::read(&raw const owner.stream) });
+                Ok(RawDecoder {
+                    handle: owner.raw,
+                    stream,
+                })
+            }
+            Err(owner) => {
+                // SAFETY: `this.owner` was moved out above, so writing it back restores the only copy.
+                unsafe {
+                    ptr::write(&raw mut this.owner, owner);
+                }
+                Err(ManuallyDrop::into_inner(this))
+            }
         }
-
-        let this = ManuallyDrop::new(self);
-        // SAFETY: `this` is never dropped, so each field moves out exactly once.
-        let (owner, params, options, stream) = unsafe {
-            (
-                ptr::read(&raw const this.owner),
-                ptr::read(&raw const this.params),
-                ptr::read(&raw const this.options),
-                ptr::read(&raw const this.stream),
-            )
-        };
-        drop((params, options, stream));
-        let owner =
-            ManuallyDrop::new(Arc::into_inner(owner).expect("the native owner is uniquely held"));
-        // SAFETY: the owner is never dropped, so its stream moves out exactly once.
-        drop(unsafe { ptr::read(&raw const owner.stream) });
-        Ok(owner.raw)
     }
 
     /// Returns the native handle, which this decoder still owns.
@@ -240,7 +241,7 @@ impl Decoder {
         self.stream.context()
     }
 
-    /// Returns the stream that creates and destroys the decoder.
+    /// Returns the stream the decoder runs on.
     #[must_use]
     pub fn stream(&self) -> &CudaStream {
         &self.stream
@@ -272,10 +273,10 @@ impl Decoder {
     ///
     /// # Errors
     ///
-    /// Returns an error if stream capture is active or invalidated, the CUDA context cannot be bound, or nvTIFF does not support the image, regions, output format, or compression.
+    /// Returns an error if stream capture is active or invalidated, or nvTIFF does not support the image, regions, output format, or compression.
     pub fn check_supported(&mut self, tiff: &TiffStream<'_>) -> Result<()> {
         self.stream.ensure_not_capturing()?;
-        // SAFETY: `nvtiffDecodeCheckSupported` receives live handles owned by the wrappers.
+        // SAFETY: `tiff`, the decoder, and its settings are live owned handles, and a null output array asks nvTIFF to check the request without outputs.
         unsafe {
             try_ffi!(sys::nvtiffDecodeCheckSupported(
                 tiff.as_raw(),
@@ -291,7 +292,7 @@ impl Decoder {
     /// # Errors
     ///
     /// Returns an error if the outputs are invalid, as described for [`decode_into`](Self::decode_into).
-    /// It also fails if stream capture is active or invalidated, the CUDA context cannot be bound, or nvTIFF does not support the request.
+    /// It also fails if stream capture is active or invalidated, or nvTIFF does not support the request.
     pub fn check_supported_with_outputs(
         &mut self,
         tiff: &TiffStream<'_>,
@@ -300,7 +301,7 @@ impl Decoder {
         self.stream.ensure_not_capturing()?;
         self.validate_outputs(tiff, outputs)?;
         let raw = raw_images(outputs);
-        // SAFETY: `nvtiffDecodeCheckSupported` receives live handles owned by the wrappers and pointers into buffers borrowed for the call.
+        // SAFETY: `tiff`, the decoder, and its settings are live owned handles, and `raw` holds one validated description per region whose arrays `outputs` keeps alive for the call.
         unsafe {
             try_ffi!(sys::nvtiffDecodeCheckSupported(
                 tiff.as_raw(),
@@ -311,29 +312,28 @@ impl Decoder {
         }
     }
 
-    /// Enqueues decoding of the requested images in `tiff` into `outputs` on `stream`.
+    /// Enqueues decoding of the requested images in `tiff` into `outputs` on the decoder's stream.
     ///
-    /// Palette and `YCbCr` images are converted to RGB, and images with several samples per pixel are written planar.
+    /// The work is ordered after the queued writers of the output memory.
+    /// Palette and `YCbCr` images are converted to RGB, and images with several samples per pixel are written in the layout of the selected [`OutputFormat`].
     ///
     /// # Safety
     ///
     /// The output memory must not be used by anything else until the work finishes.
-    /// `outputs`, `tiff`, the output memory, and this decoder must stay alive until the work on `stream` finishes, even on failure, and for every replay of a captured graph.
+    /// `outputs`, `tiff`, the output memory, and this decoder must stay alive until the work on the decoder's stream finishes, even on failure, and for every replay of a captured graph.
     /// Each request must finish before the decoder is reused or destroyed.
     ///
     /// # Errors
     ///
     /// Returns an error if the outputs are invalid, as described for [`decode_into`](Self::decode_into).
-    /// It also fails if `stream` belongs to another CUDA context, the context cannot be bound, or nvTIFF rejects the request.
+    /// It also fails if the context cannot be bound, the ordering after the output writers cannot be enqueued, or nvTIFF rejects the request.
     pub unsafe fn decode_async(
         &mut self,
         tiff: &TiffStream<'_>,
         outputs: &mut DecodeOutputs<'_>,
-        stream: &CudaStream,
     ) -> Result<()> {
-        self.validate_outputs(tiff, &outputs.images)?;
-        // SAFETY: the caller upholds this function's safety contract.
-        unsafe { self.submit(tiff, &mut outputs.raw, stream) }
+        // SAFETY: `outputs.raw` was built from `outputs.images` and describes them, and the caller meets `decode_async`'s exclusivity and lifetime contract, which `enqueue_decode` requires.
+        unsafe { self.enqueue_decode(tiff, &outputs.images, &mut outputs.raw) }
     }
 
     /// Decodes the requested images in `tiff` into `outputs` and waits for the work.
@@ -347,23 +347,12 @@ impl Decoder {
     /// Returns an error if there is not one output per region, an output has more than one plane or is in another CUDA context, a region is invalid, an output is too small, or a pitch or sample is misaligned.
     /// It also fails if reading the image information or computing a size fails, stream capture is active or invalidated, the CUDA context cannot be bound, or decoding or waiting for the stream fails.
     pub fn decode_into(&mut self, tiff: &TiffStream<'_>, outputs: &mut [Image<'_>]) -> Result<()> {
-        self.stream.ensure_not_capturing()?;
-        self.validate_outputs(tiff, outputs)?;
         let mut raw = raw_images(outputs);
-        let regions = outputs
-            .iter()
-            .flat_map(|image| image.planes().iter().map(ImagePlane::region))
-            .collect::<Vec<_>>();
         let stream = self.stream.clone();
-        stream.sync_scope(|_| {
-            Ok((|| -> Result<()> {
-                stream.join_regions(&regions)?;
-                // SAFETY: byte extents and contexts were validated. All host arrays,
-                // exclusive output borrows, and dependencies outlive scope completion.
-                unsafe { self.submit(tiff, &mut raw, &stream) }
-            })())
-        })??;
-        Ok(())
+        stream.complete(|| {
+            // SAFETY: `outputs` are exclusive borrows described by `raw`, and they, `tiff`, and this decoder outlive `complete`, which waits for the stream on every path.
+            unsafe { self.enqueue_decode(tiff, outputs, &mut raw) }
+        })
     }
 
     /// Allocates tightly packed device memory, decodes one image or region of `tiff` into it, and waits for the work.
@@ -377,41 +366,39 @@ impl Decoder {
         let info = tiff.image_info(region.ifd_offset)?;
         let layout = self.options.output_layout(&info, region)?;
         let mut output = DeviceMemory::<u8>::create_uninit(self.context(), layout.size_bytes)?;
-        let pitch = layout.size_bytes / layout.height as usize;
+        let pitch = layout.size_bytes / to_usize(layout.height, "height")?;
         {
             let plane = ImagePlane::from_buffer(&mut output, pitch)?;
             let image = Image::from_planes([plane])?;
             self.decode_into(tiff, &mut [image])?;
         }
-        // SAFETY: successful completed dense decode writes every logical byte,
-        // and this allocation has no inter-row or trailing padding.
+        // SAFETY: `decode_into` returned after the decode finished and wrote every row, and the pitch equals the row size, so the `size_bytes` prefix has no padding left uninitialized.
         Ok(unsafe { output.assume_init_prefix(layout.size_bytes)? })
     }
 
-    /// Enqueues the native decode.
-    ///
-    /// # Safety
-    ///
-    /// The contract of [`decode_async`](Self::decode_async) applies, with `raw` describing validated outputs.
-    unsafe fn submit(
+    // Validates the outputs, orders the decode after their writers, and enqueues it on the decoder's stream.
+    // Safety: the contract of `decode_async` applies, with `raw` describing `images`.
+    unsafe fn enqueue_decode(
         &mut self,
         tiff: &TiffStream<'_>,
+        images: &[Image<'_>],
         raw: &mut [sys::nvtiffImage_t],
-        stream: &CudaStream,
     ) -> Result<()> {
-        if stream.context() != self.context() {
-            return Err(Error::StreamContextMismatch);
-        }
-
+        self.validate_outputs(tiff, images)?;
+        let regions = images
+            .iter()
+            .flat_map(|image| image.planes().iter().map(ImagePlane::region))
+            .collect::<Vec<_>>();
         self.context().bind()?;
-        // SAFETY: `nvtiffDecode` receives live handles owned by the wrappers and valid output locations.
+        self.stream.join_regions(&regions)?;
+        // SAFETY: the outputs were validated against the decoder's options and context, the decode is ordered after their writers, and the caller keeps every participant alive until the work finishes.
         unsafe {
             try_ffi!(sys::nvtiffDecode(
                 tiff.as_raw(),
                 self.as_raw(),
                 self.params.raw,
                 raw.as_mut_ptr(),
-                stream.as_raw()
+                self.stream.as_raw()
             ))
         }
     }
@@ -449,8 +436,9 @@ impl Decoder {
                 return Err(CudaError::MemoryContextMismatch.into());
             }
 
-            let row_bytes = layout.size_bytes / layout.height as usize;
-            let sample_bytes = (layout.bits_per_sample as usize).div_ceil(8).max(1);
+            let height = to_usize(layout.height, "height")?;
+            let row_bytes = layout.size_bytes / height;
+            let sample_bytes = usize::from(layout.bits_per_sample).div_ceil(8).max(1);
             if plane.pitch_bytes() < row_bytes
                 || !plane.pitch_bytes().is_multiple_of(sample_bytes)
                 || !plane.region().as_ptr().addr().is_multiple_of(sample_bytes)
@@ -460,12 +448,12 @@ impl Decoder {
                 });
             }
 
-            let required = (layout.height as usize - 1)
-                .checked_mul(plane.pitch_bytes())
-                .and_then(|bytes| bytes.checked_add(row_bytes))
-                .ok_or_else(|| Error::OutOfRange {
-                    name: "output plane size".into(),
-                })?;
+            let required = checked_pitched_extent(
+                height,
+                plane.pitch_bytes(),
+                row_bytes,
+                "output plane size",
+            )?;
             if required > plane.region().byte_len() {
                 return Err(Error::BufferTooSmall {
                     name: "output plane".into(),
@@ -480,12 +468,11 @@ impl Decoder {
 
 impl Drop for Decoder {
     fn drop(&mut self) {
-        if self
+        if let Err(error) = self
             .stream
             .defer_drop_until_capture_end(Arc::clone(&self.owner))
-            .is_err()
         {
-            process::abort();
+            abort_after_cleanup_failure("retain until capture ends", "nvtiff decoder", &error);
         }
     }
 }
@@ -609,7 +596,7 @@ impl Default for DecodeOptions {
 impl DecodeParams {
     fn create() -> Result<Self> {
         let mut raw = ptr::null_mut();
-        // SAFETY: `nvtiffDecodeParamsCreate` receives valid output locations.
+        // SAFETY: `raw` is a writable handle location that nvTIFF fills on success.
         unsafe {
             try_ffi!(sys::nvtiffDecodeParamsCreate(&raw mut raw))?;
         }
@@ -621,7 +608,7 @@ impl DecodeParams {
     }
 
     fn set_output_format(&self, format: OutputFormat) -> Result<()> {
-        // SAFETY: `nvtiffDecodeParamsSetOutputFormat` receives live handles owned by the wrappers.
+        // SAFETY: `self.raw` is a live settings handle owned by this value, and `format` converts to a valid native format.
         unsafe {
             try_ffi!(sys::nvtiffDecodeParamsSetOutputFormat(
                 self.raw,
@@ -639,8 +626,7 @@ impl DecodeParams {
             .iter()
             .map(|region| region.to_raw())
             .collect::<Result<Vec<_>>>()?;
-        // SAFETY: `nvtiffDecodeParamsSetRegions` receives live handles owned by the wrappers
-        // and copies the borrowed regions.
+        // SAFETY: `self.raw` is a live settings handle owned by this value, and `raw` holds the passed count of regions, which nvTIFF deep-copies before returning.
         unsafe {
             try_ffi!(sys::nvtiffDecodeParamsSetRegions(
                 self.raw,
@@ -653,12 +639,9 @@ impl DecodeParams {
 
 impl Drop for DecodeParams {
     fn drop(&mut self) {
-        // SAFETY: `nvtiffDecodeParamsDestroy` receives live handles owned by the wrappers.
+        // SAFETY: `self.raw` is owned by this value and destroyed once, when the decoder replaces or drops it; safe decodes have finished by then, and raw callers finish each request before reusing or dropping the decoder.
         if let Err(error) = unsafe { try_ffi!(sys::nvtiffDecodeParamsDestroy(self.raw)) } {
-            eprintln!(
-                "failed to destroy nvtiff decode params: {}",
-                singe_core::ErrorChain(&error)
-            );
+            report_cleanup_failure("destroy", "nvtiff decode params", &error);
         }
     }
 }
@@ -713,7 +696,7 @@ impl DecodeRegion {
             height: 0,
         });
         Ok(sys::nvtiffDecodeRegion_t {
-            ifd_offset: self.ifd_offset.raw() as sys::size_t,
+            ifd_offset: to_size_t(self.ifd_offset.raw(), "ifd_offset")?,
             offset_x: to_i32(rectangle.x, "region x")?,
             offset_y: to_i32(rectangle.y, "region y")?,
             width: rectangle.width,

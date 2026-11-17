@@ -1,10 +1,12 @@
 //! Rust take on the CUDA "simpleStreams" idea: split work across several streams, launch a kernel on each, and time the whole submission with events.
 
-use std::error::Error;
-
 use singe_cuda::{
-    context::Context, cuda_module, event::EventRecordFlags, memory::DeviceMemory,
+    context::Context,
+    cuda_module,
+    event::{EventFlags, EventRecordFlags, EventWaitFlags},
+    memory::DeviceMemory,
     module::LaunchConfig,
+    stream::StreamOptions,
 };
 
 const STREAM_COUNT: usize = 4;
@@ -29,39 +31,39 @@ cuda_module! {
     }
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() -> anyhow::Result<()> {
     let context = Context::create()?;
     let module = scale_kernel::Module::create(&context)?;
     let config = LaunchConfig::for_1d_grid(CHUNK, BLOCK_SIZE);
 
     let streams = (0..STREAM_COUNT)
-        .map(|_| context.create_stream())
+        .map(|_| context.create_stream(StreamOptions::default()))
         .collect::<Result<Vec<_>, _>>()?;
     let mut chunks = (0..STREAM_COUNT)
         .map(|index| DeviceMemory::from_slice(&context, &vec![index as f32 + 1.0; CHUNK]))
         .collect::<Result<Vec<_>, _>>()?;
 
-    let start = context.create_event()?;
-    let stop = context.create_event()?;
+    let start = context.create_event(EventFlags::DEFAULT)?;
+    let stop = context.create_event(EventFlags::DEFAULT)?;
     start.record(&streams[0], EventRecordFlags::DEFAULT)?;
     // Every stream waits for the start marker so the timing covers all launches.
     for stream in &streams[1..] {
-        stream.wait_event(&start)?;
+        stream.wait_event(&start, EventWaitFlags::DEFAULT)?;
     }
 
     for (stream, chunk) in streams.iter().zip(&mut chunks) {
         // SAFETY: each chunk holds `CHUNK` elements, is written by exactly one stream,
         // and stays alive until the streams are synchronized below.
         unsafe {
-            module.scale_on(&config, stream, chunk, 2.0, CHUNK as i32)?;
+            module.scale_async(chunk, 2.0, i32::try_from(CHUNK)?, &config, stream)?;
         }
     }
 
     // The first stream records the stop marker after waiting for all other streams.
     for stream in &streams[1..] {
-        let done = context.create_event()?;
+        let done = context.create_event(EventFlags::DEFAULT)?;
         done.record(stream, EventRecordFlags::DEFAULT)?;
-        streams[0].wait_event(&done)?;
+        streams[0].wait_event(&done, EventWaitFlags::DEFAULT)?;
     }
 
     stop.record(&streams[0], EventRecordFlags::DEFAULT)?;
@@ -74,7 +76,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         let values = chunk.copy_to_host_vec()?;
         let expected = (index as f32 + 1.0) * 2.0;
         if values.iter().any(|value| *value != expected) {
-            return Err(format!("stream {index} produced unexpected values").into());
+            anyhow::bail!("stream {index} produced unexpected values");
         }
     }
 

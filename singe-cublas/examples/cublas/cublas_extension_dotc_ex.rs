@@ -1,11 +1,10 @@
-use singe_cublas::{blas::level1::dotc_ex, context::Context, error::Result};
-
+use singe_cublas::{blas::extension::dotc_ex, context::Context, scalar::ScalarMut};
 use singe_cuda::{
     context::Context as CudaContext, data_type::DataType, device::Device, memory::DeviceMemory,
     types::Complex64,
 };
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     let cuda = CudaContext::create_for_device(Device::new(0))?;
     let cublas = Context::create(&cuda)?;
     let x = DeviceMemory::from_slice(
@@ -30,14 +29,12 @@ fn main() -> Result<()> {
 
     dotc_ex(
         &cublas,
+        4,
         &x,
-        DataType::ComplexF64,
         1,
         &y,
-        DataType::ComplexF64,
         1,
-        &mut result,
-        DataType::ComplexF64,
+        ScalarMut::host(&mut result),
         DataType::ComplexF64,
     )?;
 

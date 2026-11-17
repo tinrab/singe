@@ -1,13 +1,19 @@
 [package]
 name = "singe-cuda-macros"
 description = "Derive macros for types that can be copied to the GPU, and `cuda_module!` for typed CUDA kernel launches."
-version = "0.1.0-alpha.10"
+version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 repository.workspace = true
+documentation = "https://docs.rs/singe-cuda-macros"
 license-file.workspace = true
 readme = "README.md"
 keywords = ["singe", "cuda", "ptx", "macros", "nvidia"]
+categories = ["development-tools::procedural-macro-helpers"]
 include.workspace = true
+
+[package.metadata.docs.rs]
+rustdoc-args = ["--cfg", "docsrs", "--html-in-header", "dist/katex_header.html"]
 
 [lib]
 proc-macro = true
@@ -16,7 +22,6 @@ proc-macro = true
 proc-macro2.workspace = true
 quote.workspace = true
 syn.workspace = true
-thiserror.workspace = true
 sha2.workspace = true
 hex.workspace = true
 tree-sitter.workspace = true

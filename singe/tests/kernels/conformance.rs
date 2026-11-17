@@ -48,7 +48,7 @@ use singe::{
     graph::{Graph, GraphCudaOptions},
 };
 #[cfg(all(feature = "testing", feature = "cuda"))]
-use singe_cuda::testing::device_lock;
+use singe_cuda::{device::Device as CudaDevice, testing::device_lock};
 
 const FIXTURE: &str = include_str!("../references/conformance/cases.jsonl");
 
@@ -1053,7 +1053,7 @@ fn test_operations_match_pytorch_on_every_path() {
     )];
     #[cfg(all(feature = "testing", feature = "cuda"))]
     {
-        let _lock = device_lock(0).unwrap();
+        let _lock = device_lock(CudaDevice::new(0)).unwrap();
         for path in [ExecutionPath::Cuda, ExecutionPath::Graph] {
             summaries.push((path, replay(&fixture, path, update)));
         }
@@ -1186,7 +1186,7 @@ fn test_meta_views_match_cpu_layouts_and_share_their_input_storage() {
 fn test_cuda_tile_kernels_match_the_cuda_baseline() {
     let fixture = Fixture::load();
     let baseline = read_baseline(ExecutionPath::Graph.name());
-    let _lock = device_lock(0).unwrap();
+    let _lock = device_lock(CudaDevice::new(0)).unwrap();
     let changes = fixture
         .cases
         .iter()
@@ -1265,7 +1265,7 @@ fn check_program(
 #[test]
 fn test_exported_programs_match_pytorch_on_a_sample_of_cases() {
     let fixture = Fixture::load();
-    let _lock = device_lock(0).unwrap();
+    let _lock = device_lock(CudaDevice::new(0)).unwrap();
     let Some(architecture) = program_target(ExecutionPath::Graph.device()) else {
         return;
     };

@@ -1,14 +1,9 @@
 use serde::{Deserialize, Serialize};
 
-pub use crate::backend::execution::tensor_ops::{
-    ConcatConfig, ConcatInPlaceMode, ReshapeConfig, ReshapeMode, SliceConfig, TransposeConfig,
-};
 use crate::{
-    backend::{
-        execution::tensor_ops::{
-            ConcatOperation, ReshapeOperation, SliceOperation, TransposeOperation,
-        },
-        tensor::TensorId,
+    backend::operation::tensor_ops::{
+        ConcatOperation, ConcatSpec, ReshapeMode, ReshapeOperation, ReshapeSpec, SliceOperation,
+        SliceSpec, TransposeOperation, TransposeSpec,
     },
     error::Result,
     frontend::{
@@ -16,6 +11,7 @@ use crate::{
         graph::Graph,
         lower::{LoweredOperation, LoweringContext, tensor_at, tensor_slice_at},
     },
+    tensor::TensorId,
 };
 
 /// Frontend tensor shape/view operation variants.
@@ -29,7 +25,7 @@ pub enum TensorOperation {
         /// Explicit output tensor identity.
         output: TensorId,
         /// Operation-specific geometry, mode, and diagnostic-name settings.
-        config: ReshapeConfig,
+        config: ReshapeSpec,
     },
     /// Selects an input slice described by the configuration.
     Slice {
@@ -38,7 +34,7 @@ pub enum TensorOperation {
         /// Explicit output tensor identity.
         output: TensorId,
         /// Operation-specific geometry, mode, and diagnostic-name settings.
-        config: SliceConfig,
+        config: SliceSpec,
     },
     /// Permutes input axes into the declared output.
     Transpose {
@@ -47,7 +43,7 @@ pub enum TensorOperation {
         /// Explicit output tensor identity.
         output: TensorId,
         /// Operation-specific geometry, mode, and diagnostic-name settings.
-        config: TransposeConfig,
+        config: TransposeSpec,
     },
     /// Concatenates inputs along the configured axis.
     Concat {
@@ -56,7 +52,7 @@ pub enum TensorOperation {
         /// Explicit output tensor identity.
         output: TensorId,
         /// Operation-specific geometry, mode, and diagnostic-name settings.
-        config: ConcatConfig,
+        config: ConcatSpec,
     },
 }
 

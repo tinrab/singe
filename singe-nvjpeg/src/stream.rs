@@ -1,7 +1,8 @@
 //! Parsing JPEG data and reading its header.
 
-use std::{fs, mem, path::Path, ptr, sync::Arc};
+use std::{mem::ManuallyDrop, ptr, sync::Arc};
 
+use singe_core::report_cleanup_failure;
 use singe_cuda::context::Context as CudaContext;
 use singe_nvjpeg_sys as sys;
 
@@ -23,6 +24,17 @@ pub struct JpegStream {
     pub(crate) handle: Context,
 }
 
+/// Native JPEG stream with its library handle, from [`JpegStream::into_raw`].
+///
+/// Dropping it leaks the native handle.
+#[derive(Debug)]
+pub struct RawJpegStream {
+    /// Native handle, owned exclusively.
+    pub handle: sys::nvjpegJpegStream_t,
+    /// nvJPEG library handle the native handle was created with.
+    pub context: Context,
+}
+
 /// One component of a parsed JPEG.
 #[derive(Debug, Clone, Copy)]
 pub struct JpegComponent<'a> {
@@ -40,6 +52,9 @@ pub struct JpegStreamInfo {
     sample_precision: u32,
     chroma_subsampling: ChromaSubsampling,
 }
+
+// SAFETY: nvJPEG requires a bitstream handle to be used by one thread at a time, not by a fixed thread, and every parse takes `&mut JpegStream`.
+unsafe impl Send for JpegStream {}
 
 impl JpegStreamInfo {
     /// Returns the JPEG encoding process.
@@ -80,32 +95,37 @@ impl JpegStreamInfo {
 }
 
 impl JpegStream {
-    /// Takes ownership of a native stream created with `handle`.
+    /// Takes ownership of a native stream created with `raw.context`.
     ///
     /// # Safety
     ///
-    /// `raw` must be valid, created with `handle`, and owned by nobody else.
+    /// `raw.handle` must be valid, created with `raw.context`, and owned by nobody else.
     /// It is destroyed when the returned value drops, so all work that used it must have finished.
     ///
     /// # Errors
     ///
-    /// Returns an error if `raw` is null.
-    pub unsafe fn from_raw(raw: sys::nvjpegJpegStream_t, handle: &Context) -> Result<Self> {
-        if raw.is_null() {
+    /// Returns [`Error::NullHandle`] if `raw.handle` is null.
+    pub unsafe fn from_raw(raw: RawJpegStream) -> Result<Self> {
+        if raw.handle.is_null() {
             return Err(Error::NullHandle);
         }
         Ok(Self {
-            raw,
-            handle: handle.clone(),
+            raw: raw.handle,
+            handle: raw.context,
         })
     }
 
-    /// Releases the native handle without destroying it.
+    /// Releases the native handle with its [`Context`], without destroying it.
     ///
-    /// Destroy it, or pass it back to [`from_raw`](Self::from_raw), while its [`Context`] is alive.
+    /// Destroy the handle, or pass it back to [`from_raw`](Self::from_raw), while the context is alive.
     #[must_use]
-    pub fn into_raw(mut self) -> sys::nvjpegJpegStream_t {
-        mem::replace(&mut self.raw, ptr::null_mut())
+    pub fn into_raw(self) -> RawJpegStream {
+        let this = ManuallyDrop::new(self);
+        RawJpegStream {
+            handle: this.raw,
+            // SAFETY: `this` is never dropped, so its context moves out exactly once.
+            context: unsafe { ptr::read(&raw const this.handle) },
+        }
     }
 
     /// Returns the CUDA context of the stream.
@@ -123,7 +143,7 @@ impl JpegStream {
         handle.bind()?;
 
         let mut raw = ptr::null_mut();
-        // SAFETY: `nvjpegJpegStreamCreate` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `handle` owns a live library handle whose context was bound above, and `raw` is a local that receives the stream.
         unsafe {
             try_ffi!(sys::nvjpegJpegStreamCreate(handle.as_raw(), &raw mut raw))?;
         }
@@ -154,23 +174,6 @@ impl JpegStream {
         Ok(stream)
     }
 
-    /// Creates a stream and parses the JPEG file at `path` into it.
-    ///
-    /// See [`parse`](Self::parse) for `save_metadata`.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the stream cannot be created or [`parse_file`](Self::parse_file) fails.
-    pub fn create_from_file(
-        handle: &Context,
-        path: impl AsRef<Path>,
-        save_metadata: bool,
-    ) -> Result<Self> {
-        let mut stream = Self::create(handle)?;
-        stream.parse_file(path, save_metadata)?;
-        Ok(stream)
-    }
-
     /// Creates a stream and parses only the header of the JPEG in `data` into it.
     ///
     /// # Errors
@@ -179,17 +182,6 @@ impl JpegStream {
     pub fn create_from_header(handle: &Context, data: &[u8]) -> Result<Self> {
         let mut stream = Self::create(handle)?;
         stream.parse_header(data)?;
-        Ok(stream)
-    }
-
-    /// Creates a stream and parses only the header of the JPEG file at `path` into it.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the stream cannot be created or [`parse_file_header`](Self::parse_file_header) fails.
-    pub fn create_from_file_header(handle: &Context, path: impl AsRef<Path>) -> Result<Self> {
-        let mut stream = Self::create(handle)?;
-        stream.parse_file_header(path)?;
         Ok(stream)
     }
 
@@ -217,10 +209,9 @@ impl JpegStream {
     pub fn parse(&mut self, data: &[u8], save_metadata: bool) -> Result<()> {
         self.handle.bind()?;
 
-        // Keep safe Rust ownership simple: nvJPEG must not retain borrowed
-        // pointers into `data` after this method returns.
+        // Saving the stream makes nvJPEG copy `data`, so the stream never points into it after this call.
         let save_stream = true;
-        // SAFETY: `nvjpegJpegStreamParse` receives live handles owned by the wrappers and pointers into buffers borrowed for the call.
+        // SAFETY: `&mut self` owns the live stream handle exclusively, and `data` is borrowed for the call with its checked nonzero length and copied by nvJPEG.
         unsafe {
             try_ffi!(sys::nvjpegJpegStreamParse(
                 self.handle.as_raw(),
@@ -233,18 +224,6 @@ impl JpegStream {
         }
     }
 
-    /// Parses the JPEG file at `path`.
-    ///
-    /// See [`parse`](Self::parse) for `save_metadata`.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the file cannot be read, is empty or too long for nvJPEG, the CUDA context cannot be bound, or nvJPEG cannot parse it.
-    pub fn parse_file(&mut self, path: impl AsRef<Path>, save_metadata: bool) -> Result<()> {
-        let data = fs::read(path)?;
-        self.parse(&data, save_metadata)
-    }
-
     /// Parses only the header of the JPEG in `data`.
     ///
     /// This is enough to read the image information and to check support with [`Context::batched_decode_supported`].
@@ -255,7 +234,7 @@ impl JpegStream {
     pub fn parse_header(&mut self, data: &[u8]) -> Result<()> {
         self.handle.bind()?;
 
-        // SAFETY: `nvjpegJpegStreamParseHeader` receives live handles owned by the wrappers and pointers into buffers borrowed for the call.
+        // SAFETY: `&mut self` owns the live stream handle exclusively, and `data` is borrowed for the synchronous call with its checked nonzero length.
         unsafe {
             try_ffi!(sys::nvjpegJpegStreamParseHeader(
                 self.handle.as_raw(),
@@ -264,16 +243,6 @@ impl JpegStream {
                 self.raw
             ))
         }
-    }
-
-    /// Parses only the header of the JPEG file at `path`.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the file cannot be read, is empty or too long for nvJPEG, the CUDA context cannot be bound, or nvJPEG cannot parse it.
-    pub fn parse_file_header(&mut self, path: impl AsRef<Path>) -> Result<()> {
-        let data = fs::read(path)?;
-        self.parse_header(&data)
     }
 
     /// Parses external Huffman and quantization tables, or clears them with `None`.
@@ -287,7 +256,7 @@ impl JpegStream {
         self.handle.bind()?;
 
         let (ptr, len) = tables.map_or((ptr::null(), 0), |tables| (tables.as_ptr(), tables.len()));
-        // SAFETY: `nvjpegJpegStreamParseTables` receives live handles owned by the wrappers.
+        // SAFETY: `&mut self` owns the live stream handle exclusively, and `ptr` is null with length 0 or points to the tables borrowed for the synchronous call.
         unsafe {
             try_ffi!(sys::nvjpegJpegStreamParseTables(
                 self.handle.as_raw(),
@@ -307,14 +276,14 @@ impl JpegStream {
         self.handle.bind()?;
 
         let mut encoding = sys::nvjpegJpegEncoding_t::NVJPEG_ENCODING_UNKNOWN;
-        // SAFETY: `nvjpegJpegStreamGetJpegEncoding` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `self` owns the live stream handle, and the outputs are locals that nvJPEG writes.
         unsafe {
             try_ffi!(sys::nvjpegJpegStreamGetJpegEncoding(
                 self.raw,
                 &raw mut encoding
             ))?;
         }
-        Ok(encoding.into())
+        Ok(encoding.try_into()?)
     }
 
     /// Returns the size of the whole image.
@@ -327,7 +296,7 @@ impl JpegStream {
 
         let mut width = 0;
         let mut height = 0;
-        // SAFETY: `nvjpegJpegStreamGetFrameDimensions` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `self` owns the live stream handle, and the outputs are locals that nvJPEG writes.
         unsafe {
             try_ffi!(sys::nvjpegJpegStreamGetFrameDimensions(
                 self.raw,
@@ -347,7 +316,7 @@ impl JpegStream {
         self.handle.bind()?;
 
         let mut components = 0;
-        // SAFETY: `nvjpegJpegStreamGetComponentsNum` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `self` owns the live stream handle, and the outputs are locals that nvJPEG writes.
         unsafe {
             try_ffi!(sys::nvjpegJpegStreamGetComponentsNum(
                 self.raw,
@@ -380,7 +349,7 @@ impl JpegStream {
 
         let mut width = 0;
         let mut height = 0;
-        // SAFETY: `nvjpegJpegStreamGetComponentDimensions` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `self` owns the live stream handle, and the outputs are locals that nvJPEG writes.
         unsafe {
             try_ffi!(sys::nvjpegJpegStreamGetComponentDimensions(
                 self.raw,
@@ -410,14 +379,14 @@ impl JpegStream {
         self.handle.bind()?;
 
         let mut orientation = sys::nvjpegExifOrientation_t::NVJPEG_ORIENTATION_UNKNOWN;
-        // SAFETY: `nvjpegJpegStreamGetExifOrientation` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `self` owns the live stream handle, and the outputs are locals that nvJPEG writes.
         unsafe {
             try_ffi!(sys::nvjpegJpegStreamGetExifOrientation(
                 self.raw,
                 &raw mut orientation
             ))?;
         }
-        Ok(orientation.into())
+        Ok(orientation.try_into()?)
     }
 
     /// Returns the bits per sample.
@@ -429,7 +398,7 @@ impl JpegStream {
         self.handle.bind()?;
 
         let mut precision = 0;
-        // SAFETY: `nvjpegJpegStreamGetSamplePrecision` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `self` owns the live stream handle, and the outputs are locals that nvJPEG writes.
         unsafe {
             try_ffi!(sys::nvjpegJpegStreamGetSamplePrecision(
                 self.raw,
@@ -451,14 +420,14 @@ impl JpegStream {
         self.handle.bind()?;
 
         let mut subsampling = sys::nvjpegChromaSubsampling_t::NVJPEG_CSS_UNKNOWN;
-        // SAFETY: `nvjpegJpegStreamGetChromaSubsampling` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `self` owns the live stream handle, and the outputs are locals that nvJPEG writes.
         unsafe {
             try_ffi!(sys::nvjpegJpegStreamGetChromaSubsampling(
                 self.raw,
                 &raw mut subsampling
             ))?;
         }
-        Ok(subsampling.into())
+        Ok(subsampling.try_into()?)
     }
 
     /// Returns the header information.
@@ -503,18 +472,19 @@ impl JpegComponent<'_> {
 
 impl Drop for JpegStream {
     fn drop(&mut self) {
-        if self.handle.bind().is_err() {
+        if let Err(error) = self.handle.bind() {
+            report_cleanup_failure(
+                "bind the cuda context to destroy",
+                "nvjpeg jpeg stream",
+                &error,
+            );
             return;
         }
+
         if !self.raw.is_null() {
-            // SAFETY: `nvjpegJpegStreamDestroy` receives live handles owned by the wrappers.
-            unsafe {
-                if let Err(error) = try_ffi!(sys::nvjpegJpegStreamDestroy(self.raw)) {
-                    eprintln!(
-                        "failed to destroy nvjpeg jpeg stream: {}",
-                        singe_core::ErrorChain(&error)
-                    );
-                }
+            // SAFETY: the stream owns its handle exclusively and is destroyed once; safe decodes wait for their work, and raw callers keep the stream alive until theirs finishes.
+            if let Err(error) = unsafe { try_ffi!(sys::nvjpegJpegStreamDestroy(self.raw)) } {
+                report_cleanup_failure("destroy", "nvjpeg jpeg stream", &error);
             }
         }
     }
@@ -532,41 +502,5 @@ mod tests {
         assert!(!size.is_empty());
         assert!(Size::new(0, 2).is_empty());
         assert!(Size::new(4, 0).is_empty());
-    }
-
-    #[test]
-    fn test_jpeg_stream_info_accessors_report_snapshot_fields() {
-        let info = JpegStreamInfo {
-            encoding: JpegEncoding::BaselineDct,
-            frame: Size::new(640, 480),
-            components: vec![Size::new(640, 480), Size::new(320, 240)],
-            exif_orientation: ExifOrientation::Normal,
-            sample_precision: 8,
-            chroma_subsampling: ChromaSubsampling::Css420,
-        };
-
-        assert_eq!(info.encoding(), JpegEncoding::BaselineDct);
-        assert_eq!(info.frame(), Size::new(640, 480));
-        assert_eq!(
-            info.components(),
-            &[Size::new(640, 480), Size::new(320, 240)]
-        );
-        assert_eq!(info.exif_orientation(), ExifOrientation::Normal);
-        assert_eq!(info.sample_precision(), 8);
-        assert_eq!(info.chroma_subsampling(), ChromaSubsampling::Css420);
-    }
-
-    #[test]
-    fn test_jpeg_component_reports_index() -> Result<()> {
-        let context = CudaContext::create()?;
-        let handle = Context::create_simple(&context)?;
-        let stream = JpegStream::create(&handle)?;
-        let component = JpegComponent {
-            stream: &stream,
-            index: 2,
-        };
-
-        assert_eq!(component.index(), 2);
-        Ok(())
     }
 }

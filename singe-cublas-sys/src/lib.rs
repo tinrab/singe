@@ -1,15 +1,24 @@
-//! Raw FFI bindings for cuBLAS, cuBLASLt, and cuBLASXt.
+//! Low-level FFI bindings for cuBLAS 13.8 (`cublas_v2.h`), with optional bindings for cuBLASLt (`cublasLt.h`) and cuBLASXt (`cublasXt.h`).
+//! Each library loads at run time through [`singe-loader`](singe_loader), on the first call of one of its functions or up front with [`load`] and [`load_lt`], so building links no NVIDIA library.
+//! If the library or one of its symbols is missing, a function that returns a status returns a failure status, and [`take_absence`] reports what was missing.
+//! Most users want the safe `singe-cublas` crate.
 //!
-//! Prefer the safe `singe-cublas` crate unless direct NVIDIA ABI access is required.
-
+//! # Features
+//!
+//! - `lt`: cuBLASLt, for matrix multiplication with fused epilogues and algorithm selection.
+//! - `xt`: cuBLASXt, for BLAS level 3 routines split across several GPUs.
 #![allow(
     deprecated,
     dead_code,
     non_camel_case_types,
     non_snake_case,
+    non_upper_case_globals,
     unnecessary_transmutes,
     unused_imports,
     unused_qualifications,
+    missing_debug_implementations,
+    unnameable_types,
+    unreachable_pub,
     clippy::correctness,
     clippy::suspicious,
     clippy::complexity,
@@ -18,10 +27,13 @@
     clippy::absolute_paths,
     clippy::pedantic,
     clippy::nursery,
+    clippy::undocumented_unsafe_blocks,
     reason = "generated bindings preserve upstream ABI conventions and documentation"
 )]
 
-use num_enum::{IntoPrimitive, TryFromPrimitive};
+#[cfg(not(feature = "cublas_13_8"))]
+compile_error!("singe-cublas-sys requires a version feature, such as `cublas_13_8`");
+
 #[cfg(feature = "cublas_13_8")]
 use singe_cuda_sys::{
     library_types::{
@@ -36,7 +48,6 @@ include!("sys_130800.rs");
 
 #[cfg(all(feature = "cublas_13_8", feature = "lt"))]
 mod lt_bindings {
-    use num_enum::{IntoPrimitive, TryFromPrimitive};
 
     use crate::{
         cublasComputeType_t, cublasSetWorkspace_v2, cublasStatus_t, cudaDataType, cudaDataType_t,
@@ -51,7 +62,6 @@ pub use self::lt_bindings::*;
 
 #[cfg(all(feature = "cublas_13_8", feature = "xt"))]
 mod xt_bindings {
-    use num_enum::{IntoPrimitive, TryFromPrimitive};
 
     use crate::{
         cuComplex, cuDoubleComplex, cublasDiagType_t, cublasFillMode_t, cublasOperation_t,
@@ -71,29 +81,26 @@ pub use self::{
     cublasSetWorkspace_v2 as cublasSetWorkspace,
 };
 
-pub use singe_loader::LoadError;
-
-// cuBLAS accepts bitwise combinations of `cublasMath_t`, including values absent from bindgen's Rust enum.
-// This declaration passes the enum's 32-bit integer ABI, so no invalid Rust enum value is constructed, and the generated one stays intact.
-#[cfg(feature = "cublas_13_8")]
-pub mod flags {
-    use crate::{cublasHandle_t, cublasStatus_t};
-
-    singe_loader::functions! { crate::LIBRARY;
-        pub fn cublasSetMathMode(handle: cublasHandle_t, mode: u32) -> cublasStatus_t;
-    }
-}
+pub use singe_loader::{Absence, LoadError, take_absence};
 
 static LIBRARY: singe_loader::Library = singe_loader::Library::cublas();
 
-// Loads cuBLAS, which each of its functions otherwise does on first call.
+/// Loads cuBLAS now, instead of on the first call of one of its functions.
+///
+/// # Errors
+///
+/// Returns an error if the library has no files on this platform or one of its files would not load.
 pub fn load() -> Result<(), LoadError> {
     LIBRARY.load()
 }
 
 static LT: singe_loader::Library = singe_loader::Library::cublas_lt();
 
-// Loads cuBLASLt, which each of its functions otherwise does on first call.
+/// Loads cuBLASLt now, instead of on the first call of one of its functions.
+///
+/// # Errors
+///
+/// Returns an error if the library has no files on this platform or one of its files would not load.
 pub fn load_lt() -> Result<(), LoadError> {
     LT.load()
 }

@@ -10,7 +10,7 @@ use crate::emulator::{
 };
 
 impl Engine {
-    pub fn execute_control(
+    pub(crate) fn execute_control(
         &mut self,
         global: &mut Memory,
         lane: usize,

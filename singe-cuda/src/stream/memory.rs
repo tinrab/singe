@@ -16,7 +16,7 @@ use crate::{
     submission::{DeviceOperation, Execution, Operation, Resources},
     try_ffi,
     types::DevicePtr,
-    utility::{driver_enum, to_u32},
+    utility::{check_address, driver_enum, to_u32, to_u64},
 };
 
 driver_enum! {
@@ -30,13 +30,13 @@ driver_enum! {
         And = CU_STREAM_WAIT_VALUE_AND,
         /// Wait until ~(\*addr | value) != 0.
         ///
-        /// Support for this operation can be queried with `cuDeviceGetAttribute` and `CUdevice_attribute_enum::CU_DEVICE_ATTRIBUTE_CAN_USE_STREAM_WAIT_VALUE_NOR`.
+        /// [`DeviceAttribute::CanUseStreamWaitValueNor`](crate::device::DeviceAttribute::CanUseStreamWaitValueNor) reports whether a device supports it.
         Nor = CU_STREAM_WAIT_VALUE_NOR,
     }
 }
 
 bitflags::bitflags! {
-    /// Flags for cuStreamWaitValue32 and cuStreamWaitValue64.
+    /// Flags for 32-bit and 64-bit stream wait-value operations.
     #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
     pub struct WaitFlags: u32 {
         /// Follow the wait operation with a flush of outstanding remote writes.
@@ -44,8 +44,8 @@ bitflags::bitflags! {
         /// This means that, if a remote write operation is guaranteed to have reached the device before the wait can be satisfied, that write is guaranteed to be visible to downstream device work.
         /// The device is permitted to reorder remote writes internally.
         /// For example, this flag would be required if two remote writes arrive in a defined order, the wait is satisfied by the second write, and downstream work needs to observe the first write.
-        /// Support for this operation is restricted to selected platforms and can be queried with `CUdevice_attribute_enum::CU_DEVICE_ATTRIBUTE_CAN_FLUSH_REMOTE_WRITES`.
-        const FLUSH_REMOTE_WRITES = sys::CUstreamWaitValue_flags::CU_STREAM_WAIT_VALUE_FLUSH as _;
+        /// Only selected platforms support it, as [`DeviceAttribute::CanFlushRemoteWrites`](crate::device::DeviceAttribute::CanFlushRemoteWrites) reports.
+        const FLUSH_REMOTE_WRITES = sys::CUstreamWaitValue_flags::CU_STREAM_WAIT_VALUE_FLUSH.0;
     }
 }
 
@@ -123,9 +123,9 @@ impl MemoryOperation {
             } => {
                 check_address(address, 4)?;
                 raw.waitValue.operation = Kind::CU_STREAM_MEM_OP_WAIT_VALUE_32;
-                raw.waitValue.address = address.as_raw() as _;
+                raw.waitValue.address = to_u64(address.addr(), "memory operation address")?;
                 raw.waitValue.__bindgen_anon_1.value = value;
-                raw.waitValue.flags = condition as u32 | flags.bits();
+                raw.waitValue.flags = u32::from(condition) | flags.bits();
             }
             Self::Wait64 {
                 address,
@@ -135,30 +135,30 @@ impl MemoryOperation {
             } => {
                 check_address(address, 8)?;
                 raw.waitValue.operation = Kind::CU_STREAM_MEM_OP_WAIT_VALUE_64;
-                raw.waitValue.address = address.as_raw() as _;
+                raw.waitValue.address = to_u64(address.addr(), "memory operation address")?;
                 raw.waitValue.__bindgen_anon_1.value64 = value;
-                raw.waitValue.flags = condition as u32 | flags.bits();
+                raw.waitValue.flags = u32::from(condition) | flags.bits();
             }
             Self::Write32 { address, value } => {
                 check_address(address, 4)?;
                 raw.writeValue.operation = Kind::CU_STREAM_MEM_OP_WRITE_VALUE_32;
-                raw.writeValue.address = address.as_raw() as _;
+                raw.writeValue.address = to_u64(address.addr(), "memory operation address")?;
                 raw.writeValue.__bindgen_anon_1.value = value;
             }
             Self::Write64 { address, value } => {
                 check_address(address, 8)?;
                 raw.writeValue.operation = Kind::CU_STREAM_MEM_OP_WRITE_VALUE_64;
-                raw.writeValue.address = address.as_raw() as _;
+                raw.writeValue.address = to_u64(address.addr(), "memory operation address")?;
                 raw.writeValue.__bindgen_anon_1.value64 = value;
             }
             Self::Barrier(scope) => {
                 raw.memoryBarrier.operation = Kind::CU_STREAM_MEM_OP_BARRIER;
                 raw.memoryBarrier.flags = match scope {
                     MemoryBarrierScope::System => {
-                        sys::CUstreamMemoryBarrier_flags::CU_STREAM_MEMORY_BARRIER_TYPE_SYS as _
+                        sys::CUstreamMemoryBarrier_flags::CU_STREAM_MEMORY_BARRIER_TYPE_SYS.0
                     }
                     MemoryBarrierScope::Device => {
-                        sys::CUstreamMemoryBarrier_flags::CU_STREAM_MEMORY_BARRIER_TYPE_GPU as _
+                        sys::CUstreamMemoryBarrier_flags::CU_STREAM_MEMORY_BARRIER_TYPE_GPU.0
                     }
                 };
             }
@@ -168,14 +168,6 @@ impl MemoryOperation {
         }
         Ok(raw)
     }
-}
-
-fn check_address(address: DevicePtr, alignment: usize) -> Result<()> {
-    let address = address.as_raw().addr();
-    if address == 0 || !address.is_multiple_of(alignment) {
-        return Err(Error::InvalidMemoryAccess);
-    }
-    Ok(())
 }
 
 pub(crate) fn native_batch(
@@ -196,18 +188,19 @@ impl Stream {
     /// Enqueues an ordered batch of at most 255 memory operations.
     ///
     /// # Safety
+    ///
     /// Addresses must be live, naturally aligned, non-managed memory accessible in this context.
     /// Keep storage live and exclude conflicting accesses until completion or every captured replay.
     /// Waits must be satisfiable without circular dependencies, with event ordering visible to CUDA.
     ///
     /// # Errors
     ///
-    /// Returns `Error::OutOfRange` for 256 or more operations, or `Error::InvalidMemoryAccess` for a null or misaligned wait or write address.
+    /// Returns `Error::OutOfRange` for 256 or more operations, `Error::NullPointer` for a null wait or write address, or `Error::Misaligned` for a misaligned one.
     /// Also propagates context binding and native batch errors, including unsupported operations or device capabilities.
     /// An empty batch succeeds without binding the context or calling CUDA.
     pub unsafe fn memory_operations(&self, operations: &[MemoryOperation]) -> Result<()> {
         let mut native = native_batch(operations)?;
-        // SAFETY: the caller upholds this function's safety contract.
+        // SAFETY: `native_batch` checked the count, nullness, and alignment, and the caller guarantees the addresses' liveness, access exclusion, and progress.
         unsafe { self.enqueue_memory_operations(&mut native) }
     }
 
@@ -221,7 +214,7 @@ impl Stream {
         }
 
         self.context().bind()?;
-        // SAFETY: `cuStreamBatchMemOp_v2` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: the stream is live in the context bound above, and `native` holds the validated descriptors CUDA copies during the call; the caller guarantees the addressed storage.
         unsafe {
             try_ffi!(sys::cuStreamBatchMemOp_v2(
                 self.as_raw(),
@@ -239,10 +232,12 @@ macro_rules! word_operations {
             /// Waits for a naturally aligned device word to satisfy the condition.
             ///
             /// # Safety
+            ///
             /// Follow [`Stream::memory_operations`]'s storage, ordering and progress requirements.
             ///
             /// # Errors
-            /// Returns `Error::InvalidMemoryAccess` for a null address or one not aligned to the native word size.
+            ///
+            /// Returns `Error::NullPointer` for a null address, or `Error::Misaligned` for one not aligned to the native word size.
             /// Also propagates context binding and native wait errors for unsupported conditions, flags, or device capabilities.
             pub unsafe fn $wait(
                 &self,
@@ -253,13 +248,13 @@ macro_rules! word_operations {
             ) -> Result<()> {
                 check_address(address, size_of::<$word>())?;
                 self.context().bind()?;
-                // SAFETY: the caller upholds this function's safety contract.
+                // SAFETY: the address is checked non-null and aligned above, the stream is live in the bound context, and the caller guarantees the word's liveness and that the wait can be satisfied.
                 unsafe {
                     try_ffi!(sys::$native_wait(
                         self.as_raw(),
-                        address.as_raw() as _,
+                        to_u64(address.addr(), "memory operation address")?,
                         value,
-                        condition as u32 | flags.bits()
+                        u32::from(condition) | flags.bits()
                     ))
                 }
             }
@@ -267,19 +262,21 @@ macro_rules! word_operations {
             /// Writes a naturally aligned device word with the native stream memory fence.
             ///
             /// # Safety
+            ///
             /// Follow [`Stream::memory_operations`]'s storage and ordering requirements.
             ///
             /// # Errors
-            /// Returns `Error::InvalidMemoryAccess` for a null address or one not aligned to the native word size.
+            ///
+            /// Returns `Error::NullPointer` for a null address, or `Error::Misaligned` for one not aligned to the native word size.
             /// Also propagates context binding and native write errors, including unsupported memory operations on the device.
             pub unsafe fn $write(&self, address: DevicePtr, value: $word) -> Result<()> {
                 check_address(address, size_of::<$word>())?;
                 self.context().bind()?;
-                // SAFETY: the caller upholds this function's safety contract.
+                // SAFETY: the address is checked non-null and aligned above, the stream is live in the bound context, and the caller guarantees the word's liveness and access exclusion.
                 unsafe {
                     try_ffi!(sys::$native_write(
                         self.as_raw(),
-                        address.as_raw() as _,
+                        to_u64(address.addr(), "memory operation address")?,
                         value,
                         0
                     ))
@@ -324,12 +321,13 @@ impl MemoryOperations {
     /// Validates a batch and binds its retained owners and access declarations.
     ///
     /// # Safety
+    ///
     /// Resources must retain all referenced storage and declare every access.
     /// Uphold [`Stream::memory_operations`]'s progress and native memory restrictions.
     ///
     /// # Errors
     ///
-    /// Returns `Error::OutOfRange` for 256 or more operations, or `Error::InvalidMemoryAccess` for a null or misaligned wait or write address.
+    /// Returns `Error::OutOfRange` for 256 or more operations, `Error::NullPointer` for a null wait or write address, or `Error::Misaligned` for a misaligned one.
     /// Resource ownership, access declarations, and progress guarantees remain the caller's responsibility; no native work is enqueued during construction.
     pub unsafe fn create(operations: &[MemoryOperation], resources: Resources) -> Result<Self> {
         Ok(Self {
@@ -339,14 +337,14 @@ impl MemoryOperations {
     }
 }
 
-// SAFETY: caller-established resources are retained before the native batch is enqueued.
+// SAFETY: `create`'s caller declared every owner and access in `resources`, which `enqueue` registers through `Execution::enqueue` before the batch, and the pending output is `()`.
 unsafe impl Operation for MemoryOperations {
     type Pending = ();
 
     type Output = ();
 
     fn enqueue(mut self, execution: &mut Execution) -> Result<()> {
-        // SAFETY: the declared resources retain every buffer and the stream orders all access to them.
+        // SAFETY: `resources` retain every addressed buffer, as `create` requires, and the batch runs on the stream that orders those accesses.
         unsafe {
             execution.enqueue(self.resources, |stream| {
                 stream.enqueue_memory_operations(&mut self.operations)
@@ -359,15 +357,15 @@ unsafe impl Operation for MemoryOperations {
     }
 }
 
-// SAFETY: unit resolution is the identity and all work is enqueued eagerly.
+// SAFETY: `resolve` returns its `()` input unchanged, and `enqueue` schedules the whole batch without host resolution.
 unsafe impl DeviceOperation for MemoryOperations {}
 
-// SAFETY: only the native graph-compatible batch is recorded, with replay resources retained.
+// SAFETY: `record` registers the declared owners and accesses with `Recording` before recording the batch, which needs no allocation or host wait.
 unsafe impl Recordable for MemoryOperations {
     type Output = ();
 
     fn record(mut self, recording: &mut Recording) -> Result<()> {
-        // SAFETY: the declared resources retain every buffer and the stream orders all access to them.
+        // SAFETY: `resources` retain every addressed buffer for every replay, as `create` requires, and the batch records on the capturing stream.
         unsafe {
             recording.enqueue(self.resources, |stream| {
                 stream.enqueue_memory_operations(&mut self.operations)

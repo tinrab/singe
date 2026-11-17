@@ -50,7 +50,7 @@ fn address_size(input: Input<'_>) -> PResult<'_, AddressSize> {
     }
 }
 
-pub fn module(input: Input<'_>) -> PResult<'_, Module> {
+pub(crate) fn module(input: Input<'_>) -> PResult<'_, Module> {
     let (input, ver) = version(input)?;
     let (input, tgt) = target(input)?;
     let (input, addr) = opt(address_size).parse(input)?;

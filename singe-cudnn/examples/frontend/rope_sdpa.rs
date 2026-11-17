@@ -2,7 +2,7 @@ mod common;
 
 use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
-    backend::tensor::{Shape, TensorSpec},
+    backend::operation::rope::{RopeBackwardInputs, RopeInputs, RopeOptions},
     data_type::{DataType, bf16},
     error::Result,
     frontend::{
@@ -11,11 +11,10 @@ use singe_cudnn::{
         },
         error::Error as FrontendError,
         graph::{DataTypePolicy, Graph, GraphConfig, TensorOutputConfig},
-        operation::{
-            AttentionBackwardConfig, AttentionConfig, RopeBackwardInputs, RopeConfig, RopeInputs,
-        },
+        operation::{AttentionBackwardConfig, AttentionConfig},
         plan::{CompileConfig, ExecuteArgs, HeuristicMode},
     },
+    tensor::{Shape, TensorSpec},
 };
 
 fn run() -> Result<()> {
@@ -26,12 +25,12 @@ fn run() -> Result<()> {
     let rotation_dimension = 64_i64;
     let graph_config = GraphConfig::new().with_data_type_policy(
         DataTypePolicy::new()
-            .with_io(DataType::BF16)
+            .with_io(DataType::Bf16)
             .with_intermediate(DataType::F32)
             .with_compute(DataType::F32),
     );
     let activation = TensorSpec::new(
-        DataType::BF16,
+        DataType::Bf16,
         Shape::contiguous([2, 4, sequence, head_dimension])?,
     );
     let frequency_spec = TensorSpec::new(
@@ -40,15 +39,15 @@ fn run() -> Result<()> {
     );
     // Fold the usual attention scale into Q's rotation, including its unrotated prefix.
     // K keeps unit scale, and both attention graphs use an attention scale of one.
-    let query_rotation = RopeConfig {
+    let query_rotation = RopeOptions {
         rotation_dimension,
         output_scale: 1.0 / (head_dimension as f32).sqrt(),
-        ..RopeConfig::default()
+        ..RopeOptions::default()
     }
     .with_name("query_rotation");
-    let key_rotation = RopeConfig {
+    let key_rotation = RopeOptions {
         rotation_dimension,
-        ..RopeConfig::default()
+        ..RopeOptions::default()
     }
     .with_name("key_rotation");
     let mut forward = Graph::with_config(graph_config.clone());
@@ -67,7 +66,7 @@ fn run() -> Result<()> {
         TensorOutputConfig::new().output_tensor(),
     )?;
     let scale = forward.tensor(TensorSpec::scalar_f32(1.0));
-    let outputs = forward.sdpa_auto(
+    let outputs = forward.sdpa(
         SdpaInputs {
             query: rotated_query,
             key: rotated_key,
@@ -151,9 +150,9 @@ fn run() -> Result<()> {
     // SAFETY: bindings have the declared encodings and capacities, and all owners
     // remain live through stream completion, including when execution returns an error.
     example.execute_and_wait(|context| unsafe {
-        compiled_forward.execute(
+        compiled_forward.execute_async(
             context,
-            ExecuteArgs::new(&forward_bindings).with_workspace(&mut forward_workspace),
+            ExecuteArgs::new(&forward_bindings).with_workspace(forward_workspace.output()),
         )
     })?;
 
@@ -178,8 +177,8 @@ fn run() -> Result<()> {
         },
         AttentionBackwardConfig::new(),
         SdpaGradientOutputConfig {
-            query_gradient: TensorOutputConfig::new().with_data_type(DataType::BF16),
-            key_gradient: TensorOutputConfig::new().with_data_type(DataType::BF16),
+            query_gradient: TensorOutputConfig::new().with_data_type(DataType::Bf16),
+            key_gradient: TensorOutputConfig::new().with_data_type(DataType::Bf16),
             value_gradient: TensorOutputConfig::new().output_tensor(),
             ..Default::default()
         },
@@ -231,14 +230,14 @@ fn run() -> Result<()> {
     // SAFETY: saved tensors contain the completed forward results, gradient inputs are
     // initialized, and buffers and plans remain live through completion on success or error.
     example.execute_and_wait(|context| unsafe {
-        compiled_backward.execute(
+        compiled_backward.execute_async(
             context,
-            ExecuteArgs::new(&backward_bindings).with_workspace(&mut backward_workspace),
+            ExecuteArgs::new(&backward_bindings).with_workspace(backward_workspace.output()),
         )
     })?;
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_rope_sdpa", run())
 }

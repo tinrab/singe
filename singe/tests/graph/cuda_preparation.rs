@@ -7,7 +7,10 @@ use singe::{
     backend::cuda::{CudaGraphProvider, CudaStream, DynamicShapePolicy, LoweringPolicy},
     graph::{Graph, GraphCudaOptions, GraphPrepareOptions},
 };
-use singe_cuda::context::Context as NativeCudaContext;
+use singe_cuda::{
+    context::{Context as NativeCudaContext, ContextFlags},
+    stream::StreamOptions,
+};
 
 fn input(device: Device, batch: i64) -> HashMap<String, Tensor> {
     HashMap::from([(
@@ -130,8 +133,12 @@ fn test_explicit_streams_require_the_actual_context_even_on_the_same_device() {
         .prepare(GraphPrepareOptions::new(Device::Cuda(0)))
         .unwrap();
     let inputs = input(Device::Cuda(0), 2);
-    let foreign = NativeCudaContext::create().unwrap();
-    let stream = CudaStream::new(Arc::new(foreign.create_stream().unwrap()));
+    let primary = NativeCudaContext::create().unwrap();
+    let foreign =
+        NativeCudaContext::create_dedicated(primary.device(), ContextFlags::empty()).unwrap();
+    let stream = CudaStream::new(Arc::new(
+        foreign.create_stream(StreamOptions::default()).unwrap(),
+    ));
     assert_eq!(stream.device(), executor.device());
     let key = executor.specialization_key().clone();
     let stats = executor.cache_stats();

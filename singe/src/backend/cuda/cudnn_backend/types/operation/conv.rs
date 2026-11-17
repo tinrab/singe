@@ -1,5 +1,5 @@
 use singe_cudnn::backend::{
-    execution::{
+    operation::{
         convolution::{
             ConvolutionDescriptor as CudnnConvolutionDescriptor,
             ConvolutionForwardOperation as CudnnConvolutionForwardOperation,

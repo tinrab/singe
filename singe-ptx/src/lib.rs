@@ -1,30 +1,85 @@
-//! PTX parsing, validation, and a CPU emulator for `sm_80` kernels.
+//! A PTX parser, and a CPU emulator that runs `sm_80` PTX kernels without an NVIDIA GPU or CUDA installation.
 //!
-//! [`parser::parse_module`] builds an owned [`ast`] that keeps the source byte span of every node.
-//! [`emulator::ParsedModule::compile`] checks that a kernel can execute, and an [`emulator::Emulator`] runs it.
-//! Emulator commands return submissions that can be waited on or awaited.
+//! This crate provides:
+//!
+//! - **Parser:** [`parser::parse_module`] builds an owned syntax tree ([`ast`]) that keeps the source span of every node, and its [`ParseError`](parser::ParseError) names the offending bytes.
+//! - **Kernel inspection:** [`emulator::ParsedModule`] gives the syntax tree and compiles an entry point into a [`CompiledKernel`](emulator::CompiledKernel), which reports each parameter's name, size, and offset and checks a block shape, without starting an emulator.
+//! - **Emulator:** [`emulator::Emulator`] runs kernels on a worker thread, with buffers, streams, events, and submissions that can be waited on or awaited.
+//! - **Debugging:** errors name the faulting instruction and lane, `brkpt` breakpoints let you read a lane's registers, and [`diagnostic`] prints an error with the source line it points at.
 //!
 //! # Example
 //!
-//! ```
-//! use singe_ptx::emulator::ParsedModule;
+//! Inspect a vector addition kernel, then run it on the emulator and check the output:
 //!
-//! let ptx = r#"
+//! ```rust,no_run
+//! use singe_ptx::emulator::{Emulator, EmulatorOptions, LaunchConfig, ParsedModule, ShutdownMode};
+//!
+//! const PTX: &str = r"
 //! .version 9.4
 //! .target sm_80
 //! .address_size 64
 //!
-//! .visible .entry add(.param .u64 data) {
+//! .visible .entry add(.param .u64 a, .param .u64 b, .param .u64 out, .param .u32 n)
+//! {
+//!     .reg .pred %p;
+//!     .reg .b32 %r<4>;
+//!     .reg .b64 %rd<7>;
+//!
+//!     mov.u32 %r0, %tid.x;
+//!     ld.param.u32 %r1, [n];
+//!     setp.ge.u32 %p, %r0, %r1;
+//!     @%p bra done;
+//!     ld.param.u64 %rd0, [a];
+//!     ld.param.u64 %rd1, [b];
+//!     ld.param.u64 %rd2, [out];
+//!     mul.wide.u32 %rd3, %r0, 4;
+//!     add.u64 %rd4, %rd0, %rd3;
+//!     add.u64 %rd5, %rd1, %rd3;
+//!     add.u64 %rd6, %rd2, %rd3;
+//!     ld.u32 %r2, [%rd4];
+//!     ld.u32 %r3, [%rd5];
+//!     add.u32 %r2, %r2, %r3;
+//!     st.u32 [%rd6], %r2;
+//! done:
 //!     ret;
 //! }
-//! "#;
+//! ";
 //!
-//! let parsed = ParsedModule::parse(ptx)?;
-//! let kernel = parsed.compile("add")?;
-//! assert_eq!(kernel.parameters()[0].storage().byte_len(), 8);
-//! kernel.launch_requirements().validate_block([128, 1, 1])?;
-//! # Ok::<(), Box<dyn std::error::Error>>(())
+//! fn main() -> anyhow::Result<()> {
+//!     let parsed = ParsedModule::parse(PTX)?;
+//!     let compiled = parsed.compile("add")?;
+//!     for parameter in compiled.parameters() {
+//!         println!(
+//!             "{}: {} bytes at offset {}",
+//!             parameter.name(),
+//!             parameter.storage().byte_len(),
+//!             parameter.byte_offset()
+//!         );
+//!     }
+//!     compiled.launch_requirements().validate_block([32, 1, 1])?;
+//!
+//!     let device = Emulator::create(EmulatorOptions::default())?;
+//!     let module = device.load(parsed)?.wait()?;
+//!     let kernel = module.kernel("add")?;
+//!
+//!     let a = device.upload(&[1_u32, 2, 3, 4])?.wait()?;
+//!     let b = device.upload(&[10_u32, 20, 30, 40])?.wait()?;
+//!     let out = device.zeroed::<u32>(4)?.wait()?;
+//!     let config = LaunchConfig::create([1, 1, 1], [32, 1, 1], 0)?;
+//!     kernel
+//!         .launch(
+//!             config,
+//!             [(&a).into(), (&b).into(), (&out).into(), 4_u32.into()],
+//!         )?
+//!         .wait()?;
+//!
+//!     assert_eq!(device.download(&out)?.wait()?, [11, 22, 33, 44]);
+//!     device.shutdown(ShutdownMode::Drain).wait()?;
+//!     Ok(())
+//! }
 //! ```
+//!
+//! Each emulator command returns a submission; [`wait()`](emulator::Submission::wait) blocks until it finishes, and every submission can be awaited instead.
 
 /// Owned PTX syntax tree.
 /// Every node records its source byte range.

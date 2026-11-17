@@ -13,7 +13,7 @@ use crate::{
     },
 };
 
-pub fn encode<T: PtxScalar>(values: &[T]) -> Vec<u8> {
+pub(crate) fn encode<T: PtxScalar>(values: &[T]) -> Vec<u8> {
     let mut bytes = Vec::with_capacity(size_of_val(values));
     for value in values {
         value.encode(&mut bytes);
@@ -21,12 +21,12 @@ pub fn encode<T: PtxScalar>(values: &[T]) -> Vec<u8> {
     bytes
 }
 
-pub fn byte_size<T: PtxScalar>(len: usize) -> Result<usize, SubmitError> {
+pub(crate) fn byte_size<T: PtxScalar>(len: usize) -> Result<usize, SubmitError> {
     len.checked_mul(T::SIZE)
         .ok_or_else(|| SubmitError::InvalidArgument("byte size overflow".into()))
 }
 
-pub fn foreign(a: &Arc<Client>, b: &Arc<Client>) -> Result<(), SubmitError> {
+pub(crate) fn foreign(a: &Arc<Client>, b: &Arc<Client>) -> Result<(), SubmitError> {
     if Arc::ptr_eq(a, b) {
         Ok(())
     } else {
@@ -35,11 +35,11 @@ pub fn foreign(a: &Arc<Client>, b: &Arc<Client>) -> Result<(), SubmitError> {
 }
 
 #[derive(Debug, Clone)]
-pub struct AllocationRef {
-    pub _lease: Arc<Lease>,
-    pub address: u64,
-    pub writable: bool,
-    pub space: StateSpace,
+pub(crate) struct AllocationRef {
+    pub(crate) _lease: Arc<Lease>,
+    pub(crate) address: u64,
+    pub(crate) writable: bool,
+    pub(crate) space: StateSpace,
 }
 
 /// An emulator allocation of `T` elements.
@@ -117,7 +117,7 @@ pub struct KernelArg {
 }
 
 #[derive(Clone)]
-pub enum Argument {
+pub(crate) enum Argument {
     Scalar(ScalarType, Vec<u8>),
     Pointer {
         client: Arc<Client>,

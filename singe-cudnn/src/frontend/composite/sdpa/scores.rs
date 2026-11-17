@@ -1,8 +1,5 @@
 use crate::{
-    backend::{
-        pointwise::PointwiseMode,
-        tensor::{Shape, TensorId},
-    },
+    backend::operation::pointwise::PointwiseMode,
     data_type::DataType,
     error::{Error, Result},
     frontend::{
@@ -11,6 +8,7 @@ use crate::{
         graph::Graph,
         operation::{SdpaScoreModifiers, SdpaScoreSubgraph},
     },
+    tensor::{Shape, TensorId},
 };
 
 impl Graph {
@@ -61,11 +59,11 @@ impl Graph {
 }
 
 /// Attention requires positive head counts and an integral query-to-cache grouping ratio.
-pub fn attention_heads_compatible(query_heads: i64, cache_heads: i64) -> bool {
+pub(crate) fn attention_heads_compatible(query_heads: i64, cache_heads: i64) -> bool {
     query_heads > 0 && cache_heads > 0 && query_heads % cache_heads == 0
 }
 
-pub fn infer_sdpa_scores_shape(q: &Shape, k: &Shape) -> Result<Shape> {
+pub(crate) fn infer_sdpa_scores_shape(q: &Shape, k: &Shape) -> Result<Shape> {
     if q.rank() != 4 || k.rank() != 4 {
         return Err(Error::LengthMismatch {
             name: SDPA_RANK.into(),
@@ -90,7 +88,7 @@ pub fn infer_sdpa_scores_shape(q: &Shape, k: &Shape) -> Result<Shape> {
     Shape::contiguous([q_dims[0], q_dims[1], q_dims[2], k_dims[2]])
 }
 
-pub fn infer_sdpa_output_shape(scores: &Shape, v: &Shape) -> Result<Shape> {
+pub(crate) fn infer_sdpa_output_shape(scores: &Shape, v: &Shape) -> Result<Shape> {
     if scores.rank() != 4 || v.rank() != 4 {
         return Err(Error::LengthMismatch {
             name: SDPA_RANK.into(),

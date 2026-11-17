@@ -1,13 +1,12 @@
 use crate::{
-    backend::{
-        execution::reduction::ReducerAccumulator, reduction::ReduceTensorOperator, tensor::TensorId,
-    },
+    backend::operation::reduction::{ReduceTensorOperator, ReducerAccumulator},
     data_type::DataType,
     error::Result,
     frontend::{
         graph::{Graph, TensorOutputConfig},
         operation::{Operation, ReductionAxes, ReductionConfig, ReductionOperation},
     },
+    tensor::TensorId,
 };
 
 impl Graph {
@@ -35,6 +34,7 @@ impl Graph {
     /// Output geometry in `config` applies only to [`Self::reduction`].
     ///
     /// # Errors
+    ///
     /// Returns an error if an input, output or group-offset tensor is not declared in the graph.
     pub fn reduction_into(
         &mut self,
@@ -98,7 +98,8 @@ impl Graph {
     /// The body retains its own math defaults and passes through normal graph preparation with the enclosing compilation's live context, or deviceless preparation.
     ///
     /// # Errors
-    /// Returns an error for unknown operands or body tensors, incompatible identity encodings, or invalid reduction dimensions and output geometry.
+    ///
+    /// Returns an error if an operand or body tensor is unknown, identity encodings are incompatible, or the reduction dimensions or output geometry are invalid.
     pub fn custom_reduction(
         &mut self,
         inputs: Vec<TensorId>,

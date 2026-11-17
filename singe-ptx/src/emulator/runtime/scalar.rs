@@ -5,9 +5,13 @@ use crate::{
     emulator::runtime::buffer::{Argument, KernelArg},
 };
 
-pub mod sealed {
+mod sealed {
     use crate::ast::ScalarType;
 
+    #[expect(
+        unnameable_types,
+        reason = "the supertrait that seals `PtxScalar` must stay unnameable outside the crate"
+    )]
     pub trait Scalar: Copy + Send + Sync + 'static {
         const TYPE: ScalarType;
         const SIZE: usize;
@@ -20,7 +24,7 @@ pub mod sealed {
 
 /// Element type of a [`Buffer`](super::Buffer), transferred as little-endian bytes.
 ///
-/// Implemented for `i8`, `u8`, `i16`, `u16`, `i32`, `u32`, `i64`, `u64`, `f32`, `f64`, [`F16`](crate::emulator::F16), and [`Bf16`](crate::emulator::Bf16).
+/// Implemented for `i8`, `u8`, `i16`, `u16`, `i32`, `u32`, `i64`, `u64`, `f32`, `f64`, [`f16`](crate::emulator::f16), and [`bf16`](crate::emulator::bf16).
 /// This trait is sealed.
 pub trait PtxScalar: sealed::Scalar {}
 

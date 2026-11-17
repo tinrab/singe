@@ -1,7 +1,77 @@
-//! Safe cuBLAS wrappers for dense GPU linear algebra.
+//! Safe Rust wrappers for cuBLAS, NVIDIA's dense linear algebra library, with optional cuBLASLt and cuBLASXt support.
+//! A [`Context`](crate::context::Context) owns a cuBLAS handle in a [`singe-cuda`](singe_cuda) context, and the BLAS routines take it with their device buffers.
 //!
-//! This crate provides BLAS level routines and cuBLAS context management over the raw `singe-cublas-sys` bindings.
-//! Enable the `lt` feature for cuBLASLt APIs and the `xt` feature for cuBLASXt APIs.
+//! This crate provides:
+//!
+//! - **BLAS routines:** levels 1, 2, and 3 and the cuBLAS extensions in [`blas`], generic over [`f32`], [`f64`], [`Complex32`](singe_cuda::types::Complex32), and [`Complex64`](singe_cuda::types::Complex64).
+//! - **Typed GEMM:** column-major matrix views and strided batches described by a [`GemmShape`](crate::gemm::GemmShape), plus a [`Gemm`](crate::operation::Gemm) operation that owns its buffers and can be recorded into a CUDA graph.
+//! - **Scalars:** [`Scalar`](crate::scalar::Scalar) and [`ScalarMut`](crate::scalar::ScalarMut) hold host or device values and set the cuBLAS pointer mode to match.
+//! - **cuBLASLt:** matmul descriptors, matrix layouts, algorithm heuristics, fused epilogues, and scaled FP8 and FP4 inputs, behind the `lt` feature.
+//! - **cuBLASXt:** level 3 routines on host memory, split across several GPUs, behind the `xt` feature.
+//!
+//! # Example
+//!
+//! Multiply two column-major 2x2 matrices and read the product back:
+//!
+//! ```rust,no_run
+//! use singe_cublas::{blas::level3::gemm, context::Context, scalar::Scalar, types::Operation};
+//! use singe_cuda::{context::Context as CudaContext, memory::DeviceMemory};
+//!
+//! fn main() -> anyhow::Result<()> {
+//!     let cuda = CudaContext::create()?;
+//!     let context = Context::create(&cuda)?;
+//!
+//!     let a = DeviceMemory::from_slice(&cuda, &[1.0_f64, 3.0, 2.0, 4.0])?;
+//!     let b = DeviceMemory::from_slice(&cuda, &[5.0_f64, 7.0, 6.0, 8.0])?;
+//!     let mut c = DeviceMemory::<f64>::zeroed(&cuda, 4)?;
+//!
+//!     gemm(
+//!         &context,
+//!         Operation::NonTranspose,
+//!         Operation::NonTranspose,
+//!         2,
+//!         2,
+//!         2,
+//!         Scalar::host(&1.0),
+//!         &a,
+//!         2,
+//!         &b,
+//!         2,
+//!         Scalar::host(&0.0),
+//!         &mut c,
+//!         2,
+//!     )?;
+//!
+//!     assert_eq!(c.copy_to_host_vec()?, [19.0, 43.0, 22.0, 50.0]);
+//!     Ok(())
+//! }
+//! ```
+//!
+//! [`gemm`](crate::blas::level3::gemm) checks the shape, the leading dimensions, and the CUDA context of every operand, then waits for the handle's stream before it returns.
+//! Each routine also has an `unsafe` `<operation>_async` form that only enqueues the work and can be captured into a CUDA graph; its caller keeps the operands alive until the work finishes.
+//!
+//! # Features
+//!
+//! - `lt`: the `lt` module, for cuBLASLt.
+//! - `xt`: the `xt` module, for cuBLASXt.
+//!
+//! # Raw execution
+//!
+//! Each operation has an `unsafe fn <operation>_async` that checks shapes, leading dimensions, increments, data types, and the CUDA context of every operand and device scalar, orders the handle's stream after the producers of that storage, enqueues the call, and returns without waiting.
+//! It is allowed during stream capture.
+//! The caller must:
+//!
+//! - keep every operand, device scalar, and pointer array alive and unmoved until the work completes, including after an error or unwind, and through every replay of a captured graph;
+//! - give the operation exclusive access to its outputs, and keep other work from writing its inputs until it completes;
+//! - for device arrays of matrix pointers, make every pointer address a matrix of the declared type and shape in the handle's context, with outputs that overlap neither each other nor the inputs.
+//!
+//! Host scalars are read, and host results written, before the call returns.
+//! The safe `fn <operation>` runs the `_async` form inside [`Context::sync_scope`](crate::context::Context::sync_scope), which rejects capture and waits for the stream even when enqueuing fails.
+//! The copies in [`memory`] take a stream per call and also have `_scoped` forms over a [`StreamScope`](singe_cuda::stream::StreamScope).
+//! cuBLASLt's `matmul_async` and `matrix_transform_async` have no safe forms, because a layout descriptor does not establish that its operands hold every element it describes.
+
+#[cfg(not(feature = "cublas_13_8"))]
+compile_error!("singe-cublas requires a version feature, such as `cublas_13_8`");
 
 pub mod blas;
 
@@ -11,7 +81,7 @@ pub mod context;
 /// cuBLAS statuses, wrapper errors, and result types.
 pub mod error;
 
-/// Typed matrix views and general matrix multiplication.
+/// GEMM over typed matrix views.
 pub mod gemm;
 
 pub mod logger;
@@ -38,23 +108,24 @@ pub(crate) mod utility;
 #[cfg(feature = "testing")]
 pub mod testing;
 
-use singe_core::{CudaRuntimeVersion, LibraryVersion};
-use singe_cublas_sys as sys;
+pub use singe_core::{CudaVersion, LibraryVersion};
+pub use singe_cublas_sys as sys;
 use singe_cuda::types::LibraryProperty;
 
-use crate::{error::Result, utility::to_u64};
+use crate::error::{Error, Result, try_ffi};
 
 /// Returns the loaded cuBLAS library version.
 ///
 /// # Errors
 ///
-/// Returns an error if cuBLAS cannot report its version properties.
+/// Returns an error if cuBLAS cannot report its version properties or a property is negative.
 pub fn version() -> Result<LibraryVersion> {
-    Ok(LibraryVersion::new(
-        to_u64(library_property(LibraryProperty::Major)?, "major version")?,
-        to_u64(library_property(LibraryProperty::Minor)?, "minor version")?,
-        to_u64(library_property(LibraryProperty::Patch)?, "patch version")?,
-    ))
+    LibraryVersion::from_properties(
+        library_property(LibraryProperty::Major)?,
+        library_property(LibraryProperty::Minor)?,
+        library_property(LibraryProperty::Patch)?,
+    )
+    .ok_or_else(|| Error::out_of_range("cublas version"))
 }
 
 /// Returns the CUDA runtime version used by cuBLAS.
@@ -63,13 +134,11 @@ pub fn version() -> Result<LibraryVersion> {
 ///
 /// # Errors
 ///
-/// Returns an error if the native runtime version cannot be represented as `u64`.
-pub fn cudart_version() -> Result<CudaRuntimeVersion> {
-    Ok(CudaRuntimeVersion::from_raw(to_u64(
-        // SAFETY: `cublasGetCudartVersion` takes no arguments and only reports a linked version.
-        unsafe { sys::cublasGetCudartVersion() },
-        "cudart version",
-    )?))
+/// Returns an error if the native runtime version does not fit in `u32`.
+pub fn cudart_version() -> Result<CudaVersion> {
+    // SAFETY: `cublasGetCudartVersion` takes no arguments and only reports a linked version.
+    CudaVersion::from_raw(unsafe { sys::cublasGetCudartVersion() })
+        .ok_or_else(|| Error::out_of_range("cublas cudart version"))
 }
 
 /// Returns the requested cuBLAS library property.
@@ -80,7 +149,7 @@ pub fn cudart_version() -> Result<CudaRuntimeVersion> {
 /// Returns an error if cuBLAS cannot report the requested property.
 pub fn library_property(property: LibraryProperty) -> Result<i32> {
     let mut value = 0;
-    // SAFETY: `cublasGetProperty` receives valid output locations.
+    // SAFETY: `cublasGetProperty` writes one `i32` to `value`, a live local.
     unsafe {
         try_ffi!(sys::cublasGetProperty(property.into(), &raw mut value))?;
     }
@@ -94,11 +163,11 @@ mod tests {
 
     #[test]
     fn test_it_works() -> Result<()> {
-        let context = setup_context()?;
-        let version = context.version()?;
+        let _test = setup_context()?;
+        let version = version()?;
         println!("cuBLAS version: {version}");
-        assert_ne!(version, 0);
-        assert_ne!(cudart_version()?, 0);
+        assert_ne!(version.major(), 0);
+        assert_ne!(cudart_version()?.major(), 0);
         assert_ne!(library_property(LibraryProperty::Major)?, 0);
         Ok(())
     }

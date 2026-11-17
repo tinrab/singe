@@ -5,13 +5,13 @@ use std::slice;
 use singe_cuda::{device::Device, memory::DeviceMemory};
 use singe_cudss::{
     config::Config,
-    error::Result,
+    solver_state::SolverState,
     types::{ConfigParameter, Fp64Mp2},
 };
 
 use crate::common::{create_context, dense_matrix, dense_output, mp2, solve, spd_csr_matrix};
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     let (cuda, stream, context) = create_context()?;
     let props = Device::current()?.properties()?;
     let compute_capability = props.major * 10 + props.minor;
@@ -62,13 +62,13 @@ fn main() -> Result<()> {
             mp2(13.0),
         ],
     )?;
-    let mut x_values = DeviceMemory::<Fp64Mp2>::create_uninit(&cuda, (n * nrhs) as usize)?;
+    let mut x_values = DeviceMemory::<Fp64Mp2>::create_uninit(&cuda, usize::try_from(n * nrhs)?)?;
 
     let mut config = Config::create()?;
     let deterministic_mode = 0i32;
     // SAFETY: the value pointer and size describe a local of the parameter type.
     unsafe { config.set_raw(ConfigParameter::DeterministicMode, &deterministic_mode) }?;
-    let mut data = context.create_data()?;
+    let mut data = SolverState::create(&context)?;
 
     let b = dense_matrix(n, nrhs, n, &b_values)?;
     let mut x = dense_output(n, nrhs, n, x_values.output())?;

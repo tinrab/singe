@@ -1,21 +1,28 @@
 [package]
 name = "singe-nvcomp"
-description = "Safe Rust wrappers for the NVIDIA nvCOMP compression library."
-version = "0.1.0-alpha.1"
+description = "Safe Rust wrappers for NVIDIA nvCOMP, for compressing and decompressing data on the GPU."
+version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 repository.workspace = true
+documentation = "https://docs.rs/singe-nvcomp"
 license-file.workspace = true
 readme = "README.md"
 keywords = ["cuda", "nvidia", "nvcomp", "compression"]
+categories = ["api-bindings", "hardware-support", "compression"]
 include.workspace = true
 
 [package.metadata.docs.rs]
-rustdoc-args = ["--html-in-header", "dist/katex_header.html"]
+features = ["manager"]
+rustdoc-args = ["--cfg", "docsrs", "--html-in-header", "dist/katex_header.html"]
 
 [features]
 default = ["nvcomp_6_0"]
 
-nvcomp_6_0 = ["singe-cuda/runtime_13_4", "singe-nvcomp-sys/nvcomp_6_0"]
+nvcomp_6_0 = ["singe-cuda/runtime_13_4", "singe-cuda/macros", "singe-nvcomp-sys/nvcomp_6_0"]
+
+# The managers and streaming interface, through a C++ bridge that links nvCOMP at build time.
+manager = ["nvcomp_6_0", "singe-nvcomp-sys/manager"]
 
 testing = ["singe-cuda/testing"]
 
@@ -26,3 +33,10 @@ singe-nvcomp-sys.workspace = true
 thiserror.workspace = true
 num_enum.workspace = true
 bitflags.workspace = true
+
+[dev-dependencies]
+anyhow.workspace = true
+
+[[test]]
+name = "smoke"
+required-features = ["testing"]

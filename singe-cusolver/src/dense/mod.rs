@@ -1,18 +1,10 @@
 //! Dense cuSOLVER operation wrappers.
 //!
-//! Typed operation families such as [`Potrf`], [`Getrf`], and [`Geqrf`] complete borrowed execution before returning.
+//! Typed operation families such as [`Potrf`], [`Getrf`], and [`Geqrf`] have a waiting `execute` and an unsafe `execute_async` that follows the crate's [raw execution contract](crate#raw-execution).
 //! Workspace queries use [`MatrixLayout`](crate::layout::MatrixLayout) and require no device allocations.
-//! Direct native entry points remain public.
+//! The generic native 64-bit entry points stay public as `x*_async` functions; the per-precision entry points are reached through [`SolverElement`](crate::data_type::SolverElement).
 //!
-//! # Raw solver contracts
-//!
-//! Raw execution is unsafe and queues work on the context's installed stream.
-//! Retain the context, parameter objects, input and output allocations, and both workspaces through completion on every path and throughout captured replay.
-//! Order initialized inputs before use and exclude overlapping writes and reads.
-//! Pointer-table callers must also retain every pointee and establish its extent, actual CUDA context, initialization, and exclusive access where it is written.
-//!
-//! Successful enqueue does not establish initialized outputs or a valid result.
-//! After completion, inspect the produced status before using numerical outputs.
+//! Successful completion does not establish a valid result: inspect the produced status before using numerical outputs.
 //! Scalar status writes produce one element; batched POTRF produces one per matrix, while batched POTRS produces a single status.
 //! LU pivots produce `min(rows, columns)` elements; symmetric factorization pivots produce `n`.
 //! QR coefficients produce `min(rows, columns)` elements.
@@ -26,28 +18,25 @@
 
 mod generic;
 
-/// Scalar-specific dense solver entry points and legacy interfaces.
-pub mod legacy;
-
+mod legacy;
 mod operations;
-mod scalar;
+pub(crate) mod scalar;
 pub(crate) mod validation;
 
 pub use self::{
     generic::{
-        xgetrf, xgetrf_buffer_size, xgetrs, xhetrf, xhetrf_buffer_size, xhetrs, xhetrs_buffer_size,
-        xlarft, xlarft_buffer_size, xpotrf, xpotrf_buffer_size, xpotrs, xsytrf, xsytrf_buffer_size,
-        xsytrs, xsytrs_buffer_size, xtrtri, xtrtri_buffer_size,
+        xgetrf_async, xgetrf_workspace_size, xgetrs_async, xhetrf_async, xhetrf_workspace_size,
+        xhetrs_async, xhetrs_workspace_size, xlarft_async, xlarft_workspace_size, xpotrf_async,
+        xpotrf_workspace_size, xpotrs_async, xsytrf_async, xsytrf_workspace_size, xsytrs_async,
+        xsytrs_workspace_size, xtrtri_async, xtrtri_workspace_size,
     },
+    legacy::qr::{xgeqrf_async, xgeqrf_workspace_size},
     operations::{
-        BatchedPotrf, BatchedPotrfArgs, BatchedPotrs, BatchedPotrsArgs, Gebrd, GebrdArgs, Geqrf,
-        GeqrfArgs, Getrf, GetrfArgs, Getrs, GetrsArgs, Larft, LarftArgs, Orgbr, OrgbrArgs, Orgqr,
-        OrgqrArgs, Orgtr, OrgtrArgs, Ormqr, OrmqrArgs, Ormtr, OrmtrArgs, Potrf, PotrfArgs, Potri,
-        PotriArgs, Potrs, PotrsArgs, Sytrd, SytrdArgs, Sytrf, SytrfArgs, Sytrs, SytrsArgs, Trtri,
-        TrtriArgs,
-    },
-    scalar::{
-        GebrdScalar, OrgbrScalar, OrgqrScalar, OrgtrScalar, OrmqrScalar, OrmtrScalar,
-        PotrfBatchedScalar, PotriScalar, PotrsBatchedScalar, SytrdScalar, SytrfScalar,
+        BatchedPotrf, BatchedPotrfBindings, BatchedPotrs, BatchedPotrsBindings, Gebrd,
+        GebrdBindings, Geqrf, GeqrfBindings, Getrf, GetrfBindings, Getrs, GetrsBindings, Larft,
+        LarftBindings, Orgbr, OrgbrBindings, Orgqr, OrgqrBindings, Orgtr, OrgtrBindings, Ormqr,
+        OrmqrBindings, Ormtr, OrmtrBindings, Potrf, PotrfBindings, Potri, PotriBindings, Potrs,
+        PotrsBindings, Sytrd, SytrdBindings, Sytrf, SytrfBindings, Sytrs, SytrsBindings, Trtri,
+        TrtriBindings,
     },
 };

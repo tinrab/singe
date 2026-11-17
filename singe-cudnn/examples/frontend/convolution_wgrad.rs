@@ -4,10 +4,7 @@ use std::env::args;
 
 use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
-    backend::{
-        pointwise::PointwiseMode,
-        tensor::{Shape, TensorSpec},
-    },
+    backend::operation::pointwise::PointwiseMode,
     data_type::{DataType, f16},
     error::Result,
     frontend::{
@@ -15,6 +12,7 @@ use singe_cudnn::{
         operation::{ConvolutionConfig, PointwiseOperation},
         plan::{CompileConfig, ExecuteArgs, HeuristicMode},
     },
+    tensor::{Shape, TensorSpec},
 };
 
 fn run() -> Result<()> {
@@ -99,7 +97,7 @@ fn run() -> Result<()> {
         cuda,
         &common::init_f16_image(input_elements, &mut half_seed),
     )?;
-    let dy_dev = DeviceMemory::from_slice(
+    let y_grad_dev = DeviceMemory::from_slice(
         cuda,
         &common::init_f16_image(gradient_elements, &mut half_seed),
     )?;
@@ -116,25 +114,25 @@ fn run() -> Result<()> {
     } else {
         None
     };
-    let mut dw_dev = DeviceMemory::from_slice(
+    let mut w_grad_dev = DeviceMemory::from_slice(
         cuda,
         &vec![f16::from_f32(if accumulate { 0.5 } else { 0.0 }); output_elements],
     )?;
     let mut workspace = common::workspace(cuda, compiled.workspace_size())?;
     let mut bindings = compiled.bindings()?;
     bindings.set_input(x, &x_dev)?;
-    bindings.set_input(dy, &dy_dev)?;
+    bindings.set_input(dy, &y_grad_dev)?;
     if let Some((scale, scale_dev, bias, bias_dev)) = &affine_buffers {
         bindings.set_input(*scale, scale_dev)?;
         bindings.set_input(*bias, bias_dev)?;
     }
 
-    bindings.set(dw, &mut dw_dev)?;
+    bindings.set(dw, &mut w_grad_dev)?;
     // SAFETY: initialized inputs, accumulated output and workspace remain live through stream completion.
     example.execute_and_wait(|context| unsafe {
-        compiled.execute(
+        compiled.execute_async(
             context,
-            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
         )
     })?;
 
@@ -148,6 +146,6 @@ fn run() -> Result<()> {
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_convolution_backward_filter", run())
 }

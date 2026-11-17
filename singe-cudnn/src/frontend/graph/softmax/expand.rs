@@ -1,22 +1,20 @@
 use std::f64::consts::LOG2_E;
 
 use crate::{
-    backend::{
-        execution::attention::SoftmaxStatsBase,
-        pointwise::PointwiseMode,
-        reduction::ReduceTensorOperator,
-        tensor::{TensorId, TensorSpec},
+    backend::operation::{
+        attention::SoftmaxStatsBase, pointwise::PointwiseMode, reduction::ReduceTensorOperator,
     },
     error::Result,
     frontend::{
         graph::Graph,
         operation::{PointwiseOperation, ReductionConfig, SoftmaxConfig},
     },
+    tensor::{TensorId, TensorSpec},
 };
 
 /// Complete tensor set after the public constructor resolves private intermediates.
 #[derive(Debug, Clone, Copy)]
-pub struct SoftmaxTensors {
+pub(crate) struct SoftmaxTensors {
     pub(crate) input: TensorId,
     pub(crate) output: TensorId,
     pub(crate) stats: Option<TensorId>,

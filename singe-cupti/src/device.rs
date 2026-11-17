@@ -12,7 +12,7 @@ use crate::{error::Result, try_ffi, types::DeviceVirtualizationMode};
 /// - Returns [`crate::error::Status::InvalidParameter`] if CUPTI rejects the request.
 pub fn supports_compute_capability(major: i32, minor: i32) -> Result<bool> {
     let mut support = 0;
-    // SAFETY: `cuptiComputeCapabilitySupported` receives valid output locations.
+    // SAFETY: the capability is passed by value, and `support` is a local output.
     unsafe {
         try_ffi!(sys::cuptiComputeCapabilitySupported(
             major,
@@ -31,7 +31,7 @@ pub fn supports_compute_capability(major: i32, minor: i32) -> Result<bool> {
 /// - Returns [`crate::error::Status::InvalidParameter`] if CUPTI rejects the request.
 pub fn supports_device(device: Device) -> Result<bool> {
     let mut support = 0;
-    // SAFETY: `cuptiDeviceSupported` receives valid output locations.
+    // SAFETY: CUPTI validates the device ordinal passed by value, and `support` is a local output.
     unsafe {
         try_ffi!(sys::cuptiDeviceSupported(
             device.id() as sys::CUdevice,
@@ -49,12 +49,12 @@ pub fn supports_device(device: Device) -> Result<bool> {
 /// - Returns [`crate::error::Status::InvalidParameter`] if CUPTI rejects the request.
 pub fn device_virtualization_mode(device: Device) -> Result<DeviceVirtualizationMode> {
     let mut mode = sys::CUpti_DeviceVirtualizationMode::CUPTI_DEVICE_VIRTUALIZATION_MODE_NONE;
-    // SAFETY: `cuptiDeviceVirtualizationMode` receives valid output locations.
+    // SAFETY: CUPTI validates the device ordinal passed by value, and `mode` is a local output initialized to a valid enum value.
     unsafe {
         try_ffi!(sys::cuptiDeviceVirtualizationMode(
             device.id() as sys::CUdevice,
             &raw mut mode,
         ))?;
     }
-    Ok(DeviceVirtualizationMode::from(mode))
+    Ok(DeviceVirtualizationMode::try_from(mode)?)
 }

@@ -12,7 +12,7 @@ use singe_cuda::types::bf16;
 use singe_cuda::types::f16;
 use singe_cuda::{
     stream::Stream,
-    view::{DeviceInput, DeviceOutput},
+    view::{DeviceOutput, DeviceRange},
 };
 
 #[cfg(feature = "cutile")]
@@ -2812,9 +2812,9 @@ impl AttentionSinkDecodeSplitKConfig {
 pub unsafe fn sliding_window_attention_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    query: &impl DeviceInput<f32>,
-    key: &impl DeviceInput<f32>,
-    value: &impl DeviceInput<f32>,
+    query: &impl DeviceRange<f32>,
+    key: &impl DeviceRange<f32>,
+    value: &impl DeviceRange<f32>,
     config: SlidingWindowAttentionConfig,
 ) -> Result<()> {
     config.validate_lengths(out.len(), query.len(), key.len(), value.len())?;
@@ -3715,9 +3715,9 @@ macro_rules! fmha_prefill_mma_half_fns {
         pub unsafe fn $plain(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            query: &impl DeviceInput<$ty>,
-            key: &impl DeviceInput<$ty>,
-            value: &impl DeviceInput<$ty>,
+            query: &impl DeviceRange<$ty>,
+            key: &impl DeviceRange<$ty>,
+            value: &impl DeviceRange<$ty>,
             config: FmhaPrefillConfig,
         ) -> Result<()> {
             config.validate_output_lengths(out.len(), query.len(), key.len(), value.len())?;
@@ -3744,9 +3744,9 @@ macro_rules! fmha_prefill_mma_half_fns {
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
             lse: &mut impl DeviceOutput<f32>,
-            query: &impl DeviceInput<$ty>,
-            key: &impl DeviceInput<$ty>,
-            value: &impl DeviceInput<$ty>,
+            query: &impl DeviceRange<$ty>,
+            key: &impl DeviceRange<$ty>,
+            value: &impl DeviceRange<$ty>,
             config: FmhaPrefillConfig,
         ) -> Result<()> {
             config.validate_lengths(out.len(), lse.len(), query.len(), key.len(), value.len())?;

@@ -1,13 +1,14 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    backend::tensor::TensorId,
+    backend::operation::attention::SoftmaxStatsBase,
     data_type::DataType,
     frontend::operation::{
         AttentionDropoutConfig, AttentionDropoutMode, AttentionMaskMode,
         AttentionMaxTotalSequenceLengths, AttentionScoreConfig, SdpaAuxOutputRequest, SdpaConfig,
-        SdpaScoreModifiers, SdpaScoreSubgraph, SoftmaxConfig, SoftmaxStatsBase,
+        SdpaScoreModifiers, SdpaScoreSubgraph, SoftmaxConfig,
     },
+    tensor::TensorId,
 };
 
 /// SDPA implementation selector.

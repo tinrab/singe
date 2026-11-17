@@ -16,11 +16,11 @@ use crate::emulator::{
 };
 
 /// Reserved with each command so a failure can always retain its error report.
-pub const TERMINAL_ERROR_BYTES: usize = 512;
+pub(crate) const TERMINAL_ERROR_BYTES: usize = 512;
 
-pub struct Producer<T> {
-    pub completion: Arc<Completion<Pending<T>>>,
-    pub finished: bool,
+pub(crate) struct Producer<T> {
+    pub(crate) completion: Arc<Completion<Pending<T>>>,
+    pub(crate) finished: bool,
 }
 
 impl<T> Debug for Producer<T> {
@@ -31,13 +31,13 @@ impl<T> Debug for Producer<T> {
 
 /// The fault that stopped an emulator, with the storage that keeps its report reserved.
 #[derive(Clone)]
-pub struct RetainedFailure {
-    pub error: ExecutionError,
+pub(crate) struct RetainedFailure {
+    pub(crate) error: ExecutionError,
     _storage: Option<Arc<Reservation>>,
 }
 
 impl RetainedFailure {
-    pub fn new(error: ExecutionError, storage: Option<Arc<Reservation>>) -> Self {
+    pub(crate) fn new(error: ExecutionError, storage: Option<Arc<Reservation>>) -> Self {
         Self {
             error,
             _storage: storage,
@@ -45,7 +45,7 @@ impl RetainedFailure {
     }
 
     #[cfg(test)]
-    pub fn retained_bytes(&self) -> usize {
+    pub(crate) fn retained_bytes(&self) -> usize {
         let Self {
             _storage: storage, ..
         } = self;
@@ -63,7 +63,7 @@ impl<T> Drop for Producer<T> {
 
 /// Admits a command whose closure, built once its staging token exists, is polled by the worker until it returns a result.
 /// `terminal` carries cancellation or a prior fault.
-pub fn submit_poll<T: Send + 'static, F, B>(
+pub(crate) fn submit_poll<T: Send + 'static, F, B>(
     client: &Arc<Client>,
     stream: u64,
     kind: CommandKind,
@@ -102,7 +102,7 @@ fn command_charge<T, F>() -> Result<usize, SubmitError> {
 }
 
 /// [`submit_poll`] for commands that keep storage alive with their result, such as a launch whose fault report retains diagnostics.
-pub fn submit_retained<T: Send + 'static, F, B>(
+pub(crate) fn submit_retained<T: Send + 'static, F, B>(
     client: &Arc<Client>,
     stream: u64,
     kind: CommandKind,

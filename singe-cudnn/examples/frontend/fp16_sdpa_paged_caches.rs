@@ -4,7 +4,10 @@ use std::env::args;
 
 use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
-    backend::tensor::{Shape, TensorId, TensorSpec},
+    backend::operation::{
+        attention::AttentionSequenceInputs, paged_cache::PagedCacheLoadTensors,
+        rng::RandomNumberSeedSource,
+    },
     data_type::{DataType, bf16},
     error::{Error, Result},
     frontend::{
@@ -14,11 +17,11 @@ use singe_cudnn::{
         operation::{
             AttentionConfig, AttentionDropoutConfig, AttentionDropoutMode, AttentionImplementation,
             AttentionMaskMode, AttentionPagedCache, AttentionPagedKvCache, AttentionScoreConfig,
-            AttentionSequenceInputs, PagedCacheLayout, PagedCacheLoadConfig, PagedCacheLoadTensors,
-            RandomNumberSeedSource,
+            PagedCacheLayout, PagedCacheLoadConfig,
         },
         plan::{CompileConfig, ExecuteArgs, HeuristicMode},
     },
+    tensor::{Shape, TensorId, TensorSpec},
 };
 
 fn init_bf16_image(size: usize, seed: &mut u32) -> Vec<bf16> {
@@ -28,6 +31,10 @@ fn init_bf16_image(size: usize, seed: &mut u32) -> Vec<bf16> {
         .collect()
 }
 
+#[expect(
+    clippy::many_single_char_names,
+    reason = "keeps the upstream sample's single-letter dimension names"
+)]
 fn run() -> Result<()> {
     let example = common::ExampleContext::create()?;
     let save_loaded_value = args().any(|argument| argument == "--save-loaded-value");
@@ -73,26 +80,26 @@ fn run() -> Result<()> {
     let mut graph = Graph::with_config(
         GraphConfig::new().with_data_type_policy(
             DataTypePolicy::new()
-                .with_io(DataType::BF16)
+                .with_io(DataType::Bf16)
                 .with_intermediate(DataType::F32)
                 .with_compute(DataType::F32),
         ),
     );
     let q = graph.insert_tensor(
         TensorId::new(1001),
-        TensorSpec::new(DataType::BF16, Shape::contiguous([b, h_q, s_q, d_qk])?),
+        TensorSpec::new(DataType::Bf16, Shape::contiguous([b, h_q, s_q, d_qk])?),
     )?;
     let k = graph.insert_tensor(
         TensorId::new(1002),
         TensorSpec::new(
-            DataType::BF16,
+            DataType::Bf16,
             Shape::contiguous([num_blocks, h_k, block_size, d_qk])?,
         ),
     )?;
     let v = graph.insert_tensor(
         TensorId::new(1003),
         TensorSpec::new(
-            DataType::BF16,
+            DataType::Bf16,
             Shape::contiguous([num_blocks, h_v, block_size, d_v])?,
         ),
     )?;
@@ -147,7 +154,7 @@ fn run() -> Result<()> {
                 packed.strides()[2],
             ],
         )?;
-        let key = graph.tensor(TensorSpec::new(DataType::BF16, shape).virtual_tensor());
+        let key = graph.tensor(TensorSpec::new(DataType::Bf16, shape).virtual_tensor());
         graph.paged_cache_load_into(
             PagedCacheLoadTensors::new(k, key, sequence_length_key_value, page_table_k),
             PagedCacheLoadConfig::new(PagedCacheLayout::SequenceHidden)
@@ -157,7 +164,7 @@ fn run() -> Result<()> {
         let value_output = if save_loaded_value {
             TensorOutputConfig::new().output_tensor()
         } else {
-            TensorOutputConfig::new().with_data_type(DataType::BF16)
+            TensorOutputConfig::new().with_data_type(DataType::Bf16)
         };
         let value = graph.paged_cache_load(
             v,
@@ -197,7 +204,7 @@ fn run() -> Result<()> {
     };
     let (o, stats, rng_dump) = if rng_length {
         let o = graph.tensor(
-            TensorSpec::new(DataType::BF16, Shape::contiguous([b, h_q, s_q, d_v])?).output_tensor(),
+            TensorSpec::new(DataType::Bf16, Shape::contiguous([b, h_q, s_q, d_v])?).output_tensor(),
         );
         let stats = graph.tensor(
             TensorSpec::new(DataType::F32, Shape::contiguous([b, h_q, s_q, 1])?).output_tensor(),
@@ -218,7 +225,7 @@ fn run() -> Result<()> {
                     },
                 )));
         let config = config.with_score_config(score_config);
-        graph.sdpa_auto_into(
+        graph.sdpa_into(
             inputs,
             SdpaForwardOutputTensors {
                 stats: Some(stats),
@@ -229,7 +236,7 @@ fn run() -> Result<()> {
         )?;
         (o, stats, Some(rng_dump))
     } else {
-        let outputs = graph.sdpa_auto(
+        let outputs = graph.sdpa(
             inputs,
             config,
             SdpaForwardOutputTensors::new(TensorOutputConfig::new().output_tensor())
@@ -243,13 +250,13 @@ fn run() -> Result<()> {
     };
     graph.replace_tensor(
         o,
-        TensorSpec::new(DataType::BF16, Shape::contiguous([b, h_q, s_q, d_v])?).output_tensor(),
+        TensorSpec::new(DataType::Bf16, Shape::contiguous([b, h_q, s_q, d_v])?).output_tensor(),
     )?;
     graph.mark_as_output(stats)?;
 
-    let input_q_elements = graph.shape(q)?.storage_span()?;
-    let input_k_elements = graph.shape(k)?.storage_span()?;
-    let input_v_elements = graph.shape(v)?.storage_span()?;
+    let q_input_elements = graph.shape(q)?.storage_span()?;
+    let k_input_elements = graph.shape(k)?.storage_span()?;
+    let v_input_elements = graph.shape(v)?.storage_span()?;
     let output_elements = graph.shape(o)?.storage_span()?;
     let stats_elements = graph.shape(stats)?.storage_span()?;
     let rng_elements = rng_dump
@@ -284,15 +291,15 @@ fn run() -> Result<()> {
     let mut seed = 123_456_789_u32;
     let q_dev = DeviceMemory::from_slice(
         example.cudnn.cuda_context(),
-        &init_bf16_image(input_q_elements, &mut seed),
+        &init_bf16_image(q_input_elements, &mut seed),
     )?;
     let k_dev = DeviceMemory::from_slice(
         example.cudnn.cuda_context(),
-        &init_bf16_image(input_k_elements, &mut seed),
+        &init_bf16_image(k_input_elements, &mut seed),
     )?;
     let v_dev = DeviceMemory::from_slice(
         example.cudnn.cuda_context(),
-        &init_bf16_image(input_v_elements, &mut seed),
+        &init_bf16_image(v_input_elements, &mut seed),
     )?;
     let seq_len_q_dev = DeviceMemory::from_slice(
         example.cudnn.cuda_context(),
@@ -341,14 +348,14 @@ fn run() -> Result<()> {
 
     // SAFETY: initialized inputs, writable outputs, native plans and workspace remain live through completion.
     example.execute_and_wait(|context| unsafe {
-        compiled.execute(
+        compiled.execute_async(
             context,
-            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
         )
     })?;
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_fp16_sdpa_paged_caches", run())
 }

@@ -1,13 +1,10 @@
 use serde::{Deserialize, Serialize};
 
-pub use crate::backend::execution::moe::MoeGroupedMatmulRouting;
 use crate::{
-    backend::{
-        execution::moe::{
-            MoeGroupedMatmulBackwardOperation, MoeGroupedMatmulBackwardTensors,
-            MoeGroupedMatmulOperation as BackendMoeGroupedMatmulOperation, MoeGroupedMatmulTensors,
-        },
-        tensor::TensorId,
+    backend::operation::moe::{
+        MoeGroupedMatmulBackwardOperation, MoeGroupedMatmulBackwardTensors,
+        MoeGroupedMatmulOperation as BackendMoeGroupedMatmulOperation, MoeGroupedMatmulRouting,
+        MoeGroupedMatmulTensors,
     },
     data_type::DataType,
     error::Result,
@@ -15,6 +12,7 @@ use crate::{
         graph::Graph,
         lower::{LoweredOperation, LoweringContext, tensor_at},
     },
+    tensor::TensorId,
 };
 
 /// Frontend `MoE` grouped matmul operation variants.

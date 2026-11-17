@@ -1,22 +1,24 @@
 [package]
 name = "singe-cufile"
 description = "Safe Rust wrappers for the NVIDIA cuFile library, which moves data directly between files and GPU memory with GPUDirect Storage."
-version = "0.1.0-alpha.8"
+version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 repository.workspace = true
+documentation = "https://docs.rs/singe-cufile"
 license-file.workspace = true
 readme = "README.md"
 keywords = ["cuda", "nvidia", "cufile", "gds"]
+categories = ["api-bindings", "hardware-support", "filesystem"]
 include.workspace = true
 
 [package.metadata.docs.rs]
-rustdoc-args = ["--html-in-header", "dist/katex_header.html"]
+rustdoc-args = ["--cfg", "docsrs", "--html-in-header", "dist/katex_header.html"]
 
 [features]
 default = ["cufile_1_19"]
 
-cufile_1_19 = ["singe-cuda/driver_13_4", "singe-cufile-sys/cufile_1_19"]
-cuda_13_4 = ["cufile_1_19"]
+cufile_1_19 = ["singe-cuda/runtime_13_4", "singe-cufile-sys/cufile_1_19"]
 
 testing = ["singe-cuda/testing"]
 
@@ -30,3 +32,4 @@ bitflags.workspace = true
 
 [dev-dependencies]
 anyhow.workspace = true
+libc.workspace = true

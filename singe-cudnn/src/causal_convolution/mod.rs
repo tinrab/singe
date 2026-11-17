@@ -4,44 +4,13 @@
 
 mod long_fft;
 
-use num_enum::{IntoPrimitive, TryFromPrimitive};
-use singe_core::{impl_enum_conversion, impl_enum_display};
-use singe_cuda::{
-    error::Error as CudaError,
-    stream::Stream,
-    view::{DeviceInput, DeviceOutput, DeviceRepr},
-};
-use singe_cudnn_sys as sys;
-
-pub use self::long_fft::{
-    LongFftBufferSizes, LongFftBuffers, LongFftConvolution, long_fft_backward,
-    long_fft_buffer_sizes, long_fft_forward,
-};
-use crate::{
-    data_type::{DataType, DataTypeLike, bf16, f16},
-    error::{Error, Result},
-    try_ffi,
-    utility::to_i32,
-};
-
-/// Activation mode for causal conv1d operations.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum Activation {
-    /// Identity (no activation).
-    Identity = sys::cudnnCausalConv1dActivation_t::CUDNN_CAUSAL_CONV1D_ACTIVATION_IDENTITY as _,
-    /// `SiLU` (Sigmoid Linear Unit) activation.
-    Silu = sys::cudnnCausalConv1dActivation_t::CUDNN_CAUSAL_CONV1D_ACTIVATION_SILU as _,
-}
-
-impl_enum_conversion!(sys::cudnnCausalConv1dActivation_t, Activation);
-
-impl_enum_display!(Activation, { Self::Identity => "CUDNN_CAUSAL_CONV1D_ACTIVATION_IDENTITY", Self::Silu => "CUDNN_CAUSAL_CONV1D_ACTIVATION_SILU" });
-
 mod sealed {
     use crate::data_type::{bf16, f16};
 
+    #[expect(
+        unnameable_types,
+        reason = "seals `CausalScalar`, so callers cannot name or implement it"
+    )]
     pub trait Sealed {}
 
     impl Sealed for f32 {}
@@ -53,10 +22,45 @@ mod sealed {
     impl Sealed for bf16 {}
 }
 
+use num_enum::{IntoPrimitive, TryFromPrimitive};
+use singe_core::impl_enum_display;
+use singe_cuda::{
+    error::Error as CudaError,
+    stream::Stream,
+    view::{DeviceOutput, DeviceRange, DeviceRepr, DeviceSlice, DeviceSliceMut},
+};
+use singe_cudnn_sys as sys;
+
+pub use self::long_fft::{
+    LongFftBufferSizes, LongFftBuffers, LongFftConvolution, long_fft_backward_async,
+    long_fft_buffer_sizes, long_fft_forward_async,
+};
+use crate::{
+    data_type::{DataType, TensorElement, bf16, f16},
+    error::{Error, Result},
+    try_ffi,
+    utility::to_i32,
+};
+
+singe_core::native_enum! {
+    /// Activation mode for causal conv1d operations.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum Activation: sys::cudnnCausalConv1dActivation_t {
+        /// Identity (no activation).
+        Identity = CUDNN_CAUSAL_CONV1D_ACTIVATION_IDENTITY,
+        /// `SiLU` (Sigmoid Linear Unit) activation.
+        Silu = CUDNN_CAUSAL_CONV1D_ACTIVATION_SILU,
+    }
+}
+
+impl_enum_display!(Activation, { Self::Identity => "CUDNN_CAUSAL_CONV1D_ACTIVATION_IDENTITY", Self::Silu => "CUDNN_CAUSAL_CONV1D_ACTIVATION_SILU" });
+
 /// Supported feature types and their direct-convolution gradient accumulation type.
-pub trait CausalScalar: DataTypeLike + sealed::Sealed {
+pub trait CausalScalar: TensorElement + sealed::Sealed {
     /// Accumulation type for direct filter and bias gradients: `f64` for double inputs and `f32` otherwise.
-    type Gradient: DataTypeLike;
+    type Gradient: TensorElement;
 }
 
 impl CausalScalar for f32 {
@@ -77,7 +81,7 @@ impl CausalScalar for bf16 {
 
 /// Dimensions of a contiguous causal depthwise convolution.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Config {
+pub struct CausalConvolutionShape {
     /// Batch size.
     pub batch: usize,
     /// Number of channels, each convolved independently.
@@ -88,7 +92,7 @@ pub struct Config {
     pub kernel: usize,
 }
 
-impl Config {
+impl CausalConvolutionShape {
     fn dimensions(self) -> Result<[i32; 4]> {
         if [self.batch, self.channels, self.sequence, self.kernel].contains(&0) {
             return Err(Error::InvalidDataShape);
@@ -136,77 +140,57 @@ fn product(values: &[usize]) -> Result<usize> {
 }
 
 fn require<T: DeviceRepr>(
-    memory: &(impl DeviceInput<T> + ?Sized),
+    memory: &(impl DeviceRange<T> + ?Sized),
     count: usize,
     name: &'static str,
 ) -> Result<()> {
     if memory.len() < count {
-        return Err(Error::LengthMismatch {
+        return Err(Error::BufferTooSmall {
             name: name.into(),
-            expected: count,
+            required: count,
             actual: memory.len(),
         });
     }
     Ok(())
 }
 
-fn aligned<T: DeviceRepr>(memory: &(impl DeviceInput<T> + ?Sized)) -> Result<()> {
+fn aligned<T: DeviceRepr>(memory: &(impl DeviceRange<T> + ?Sized)) -> Result<()> {
     if !memory.as_device_ptr().addr().is_multiple_of(16) {
         return Err(Error::out_of_range("16-byte buffer alignment"));
     }
     Ok(())
 }
 
-/// Verifies that the `SubquadraticOps` sub-library version matches the core cuDNN version.
+/// Enqueues a causal depthwise 1D convolution with an optional `SiLU` activation, `y = act(conv1d_causal(x, weight) + bias)`.
 ///
-/// # Errors
-///
-/// Returns an error if cuDNN reports that the subquadratic-operations library is incompatible with the core library.
-pub fn version_check() -> Result<()> {
-    // SAFETY: `cudnnSubquadraticOpsVersionCheck` takes no arguments.
-    unsafe {
-        try_ffi!(sys::cudnnSubquadraticOpsVersionCheck())?;
-    }
-    Ok(())
-}
-
-/// Compute a causal (left-padded) depthwise 1D convolution with optional `SiLU` activation.
-///
-/// Computes: y = Act( `conv1d_causal(x`, weight) + bias )
-///
-/// Causal padding inserts (`kernel_size` - 1) zeros on the left and 0 on the right.
-/// The convolution is depthwise: each channel is convolved independently with its own 1D filter.
-///
-/// For each batch and channel, the non-FFT causal conv1d weight layout is:
+/// Causal padding inserts `kernel - 1` zeros on the left and none on the right.
+/// Each channel is convolved independently with its own filter.
+/// For each batch and channel, the direct weight layout computes:
 /// ```text
-/// y[t] = Act(bias + sum_{j=0}^{kernelSize - 1} x[t - j] * weight[kernelSize - 1 - j])
+/// y[t] = act(bias + sum_{j=0}^{kernel - 1} x[t - j] * weight[kernel - 1 - j])
 /// ```
-/// where `x[t - j]` is treated as zero when t < j. For example, for
-/// ```text
-/// weight = [w0, w1, w2], the non-FFT operation is:
-/// ```
-/// ```text
-/// y[t] = Act(bias + x[t - 2] * w0 + x[t - 1] * w1 + x[t] * w2)
-/// ```
+/// where `x[t - j]` is zero when `t < j`.
+/// For `weight = [w0, w1, w2]`, this is `y[t] = act(bias + x[t - 2] * w0 + x[t - 1] * w1 + x[t] * w2)`.
 ///
 /// # Safety
+///
 /// Retain the context or stream, descriptors and all buffer ranges through completion, submission failure and replay.
 /// Order allocation readiness and input producers before use; values must be valid when read and writes must stay exclusive.
 /// Only the specified tensor elements are produced; padding and tails remain unchanged.
 ///
 /// # Errors
 ///
-/// Returns an error for zero or unrepresentable dimensions, overflowing buffer sizes, insufficient buffer capacity, mismatched CUDA contexts, context binding or stream-dependency failure, or native convolution failure.
-pub unsafe fn forward<T: CausalScalar>(
-    stream: &Stream,
-    config: Config,
-    x: &(impl DeviceInput<T> + ?Sized),
-    weight: &(impl DeviceInput<T> + ?Sized),
-    bias: &(impl DeviceInput<T> + ?Sized),
+/// Returns an error if a dimension is zero or unrepresentable, a buffer size overflows, a buffer is too small, the CUDA contexts differ, binding the context or ordering the streams fails, or the native convolution fails.
+pub unsafe fn forward_async<T: CausalScalar>(
+    x: &(impl DeviceRange<T> + ?Sized),
+    weight: &(impl DeviceRange<T> + ?Sized),
+    bias: &(impl DeviceRange<T> + ?Sized),
     y: &mut (impl DeviceOutput<T> + ?Sized),
     activation: Activation,
+    shape: CausalConvolutionShape,
+    stream: &Stream,
 ) -> Result<()> {
-    let [batch, dim, seq, kernel] = config.dimensions()?;
+    let [batch, dim, seq, kernel] = shape.dimensions()?;
     stream.context().bind()?;
     if [x.region(), weight.region(), bias.region(), y.region()]
         .iter()
@@ -217,11 +201,12 @@ pub unsafe fn forward<T: CausalScalar>(
 
     stream.join_regions(&[x.region(), weight.region(), bias.region(), y.region()])?;
 
-    require(x, config.signal_len()?, "x")?;
-    require(weight, config.weight_len()?, "weight")?;
-    require(bias, config.channels, "bias")?;
-    require(y, config.signal_len()?, "y")?;
-    // SAFETY: `cudnnCausalConv1dForward` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
+    require(x, shape.signal_len()?, "x")?;
+    require(weight, shape.weight_len()?, "weight")?;
+    require(bias, shape.channels, "bias")?;
+    require(y, shape.signal_len()?, "y")?;
+    // SAFETY: every buffer shares the stream's context and `require` checked its length against `shape`.
+    // The caller retains, orders and initializes them through completion, per this function's contract.
     unsafe {
         try_ffi!(sys::cudnnCausalConv1dForward(
             stream.as_raw().cast(),
@@ -240,16 +225,13 @@ pub unsafe fn forward<T: CausalScalar>(
     Ok(())
 }
 
-/// Compute gradients for causal depthwise 1D convolution.
+/// Enqueues the gradients of [`forward_async`].
 ///
-/// Computes:
-/// - dx      = dL/dx       (batch, dim, `seq_len`)
-/// - dweight = dL/dweight   (dim, `kernel_size`) — accumulated via atomicAdd
-/// - dbias   = dL/dbias     (dim,)             — accumulated via atomicAdd
-///
-/// The caller must zero-initialize dweight and dbias before calling this function if accumulation across multiple calls is not desired.
+/// Writes `dx` with layout (batch, channels, sequence), and accumulates `dweight` (channels, kernel) and `dbias` (channels) with atomic adds.
+/// Zero `dweight` and `dbias` before the call unless accumulation across calls is intended.
 ///
 /// # Safety
+///
 /// Retain the context or stream, descriptors and all buffer ranges through completion, submission failure and replay.
 /// Order allocation readiness and input producers before use; values must be valid when read and writes must stay exclusive.
 /// Only the specified tensor elements are produced; padding and tails remain unchanged.
@@ -257,20 +239,20 @@ pub unsafe fn forward<T: CausalScalar>(
 ///
 /// # Errors
 ///
-/// Returns an error for zero or unrepresentable dimensions, overflowing buffer sizes, insufficient buffer capacity, mismatched CUDA contexts, context binding or stream-dependency failure, or native convolution failure.
-pub unsafe fn backward<T: CausalScalar>(
-    stream: &Stream,
-    config: Config,
-    x: &(impl DeviceInput<T> + ?Sized),
-    weight: &(impl DeviceInput<T> + ?Sized),
-    bias: &(impl DeviceInput<T> + ?Sized),
-    dy: &(impl DeviceInput<T> + ?Sized),
+/// Returns an error if a dimension is zero or unrepresentable, a buffer size overflows, a buffer is too small, the CUDA contexts differ, binding the context or ordering the streams fails, or the native convolution fails.
+pub unsafe fn backward_async<T: CausalScalar>(
+    x: &(impl DeviceRange<T> + ?Sized),
+    weight: &(impl DeviceRange<T> + ?Sized),
+    bias: &(impl DeviceRange<T> + ?Sized),
+    dy: &(impl DeviceRange<T> + ?Sized),
     dx: &mut (impl DeviceOutput<T> + ?Sized),
     dweight: &mut (impl DeviceOutput<T::Gradient> + ?Sized),
     dbias: &mut (impl DeviceOutput<T::Gradient> + ?Sized),
     activation: Activation,
+    shape: CausalConvolutionShape,
+    stream: &Stream,
 ) -> Result<()> {
-    let [batch, dim, seq, kernel] = config.dimensions()?;
+    let [batch, dim, seq, kernel] = shape.dimensions()?;
     stream.context().bind()?;
     if [
         x.region(),
@@ -297,14 +279,15 @@ pub unsafe fn backward<T: CausalScalar>(
         dbias.region(),
     ])?;
 
-    require(x, config.signal_len()?, "x")?;
-    require(weight, config.weight_len()?, "weight")?;
-    require(bias, config.channels, "bias")?;
-    require(dy, config.signal_len()?, "dy")?;
-    require(dx, config.signal_len()?, "dx")?;
-    require(dweight, config.weight_len()?, "dweight")?;
-    require(dbias, config.channels, "dbias")?;
-    // SAFETY: `cudnnCausalConv1dBackward` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
+    require(x, shape.signal_len()?, "x")?;
+    require(weight, shape.weight_len()?, "weight")?;
+    require(bias, shape.channels, "bias")?;
+    require(dy, shape.signal_len()?, "dy")?;
+    require(dx, shape.signal_len()?, "dx")?;
+    require(dweight, shape.weight_len()?, "dweight")?;
+    require(dbias, shape.channels, "dbias")?;
+    // SAFETY: every buffer shares the stream's context and `require` checked its length against `shape`.
+    // The caller retains, orders and initializes them, including the gradient accumulators, through completion, per this function's contract.
     unsafe {
         try_ffi!(sys::cudnnCausalConv1dBackward(
             stream.as_raw().cast(),
@@ -327,27 +310,27 @@ pub unsafe fn backward<T: CausalScalar>(
     Ok(())
 }
 
-/// Same as [`forward`] but with NWH input/output layout: x:  (batch, seqLen, dim) y:  (batch, seqLen, dim) The weight layout is (kernelSize, dim); the bias layout is (dim,).
-/// Supported data types are DOUBLE, FLOAT, HALF, and BFLOAT16.
+/// Enqueues [`forward_async`] with NWH layouts: `x` and `y` are (batch, sequence, channels), `weight` is (kernel, channels), and `bias` is (channels).
 ///
 /// # Safety
+///
 /// Retain the context or stream, descriptors and all buffer ranges through completion, submission failure and replay.
 /// Order allocation readiness and input producers before use; values must be valid when read and writes must stay exclusive.
 /// Only the specified tensor elements are produced; padding and tails remain unchanged.
 ///
 /// # Errors
 ///
-/// Returns an error for zero or unrepresentable dimensions, overflowing buffer sizes, insufficient buffer capacity, mismatched CUDA contexts, context binding or stream-dependency failure, or native convolution failure.
-pub unsafe fn nwh_forward<T: CausalScalar>(
-    stream: &Stream,
-    config: Config,
-    x: &(impl DeviceInput<T> + ?Sized),
-    weight: &(impl DeviceInput<T> + ?Sized),
-    bias: &(impl DeviceInput<T> + ?Sized),
+/// Returns an error if a dimension is zero or unrepresentable, a buffer size overflows, a buffer is too small, the CUDA contexts differ, binding the context or ordering the streams fails, or the native convolution fails.
+pub unsafe fn nwh_forward_async<T: CausalScalar>(
+    x: &(impl DeviceRange<T> + ?Sized),
+    weight: &(impl DeviceRange<T> + ?Sized),
+    bias: &(impl DeviceRange<T> + ?Sized),
     y: &mut (impl DeviceOutput<T> + ?Sized),
     activation: Activation,
+    shape: CausalConvolutionShape,
+    stream: &Stream,
 ) -> Result<()> {
-    let [batch, dim, seq, kernel] = config.dimensions()?;
+    let [batch, dim, seq, kernel] = shape.dimensions()?;
     stream.context().bind()?;
     if [x.region(), weight.region(), bias.region(), y.region()]
         .iter()
@@ -358,11 +341,12 @@ pub unsafe fn nwh_forward<T: CausalScalar>(
 
     stream.join_regions(&[x.region(), weight.region(), bias.region(), y.region()])?;
 
-    require(x, config.signal_len()?, "x")?;
-    require(weight, config.weight_len()?, "weight")?;
-    require(bias, config.channels, "bias")?;
-    require(y, config.signal_len()?, "y")?;
-    // SAFETY: `cudnnCausalConv1dNwhForward` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
+    require(x, shape.signal_len()?, "x")?;
+    require(weight, shape.weight_len()?, "weight")?;
+    require(bias, shape.channels, "bias")?;
+    require(y, shape.signal_len()?, "y")?;
+    // SAFETY: every buffer shares the stream's context and `require` checked its length against `shape`.
+    // The caller retains, orders and initializes them through completion, per this function's contract.
     unsafe {
         try_ffi!(sys::cudnnCausalConv1dNwhForward(
             stream.as_raw().cast(),
@@ -381,9 +365,11 @@ pub unsafe fn nwh_forward<T: CausalScalar>(
     Ok(())
 }
 
-/// Same as cudnnCausalConv1dBackward but with NWH tensor layouts: x, dy, dx: (batch, seqLen, dim) weight, dweight: (kernelSize, dim) bias, dbias: (dim,) dweight and dbias use DOUBLE for DOUBLE inputs and FLOAT otherwise.
+/// Enqueues [`backward_async`] with NWH layouts: `x`, `dy` and `dx` are (batch, sequence, channels), `weight` and `dweight` are (kernel, channels), and `bias` and `dbias` are (channels).
+/// The weight and bias gradients use [`CausalScalar::Gradient`].
 ///
 /// # Safety
+///
 /// Retain the context or stream, descriptors and all buffer ranges through completion, submission failure and replay.
 /// Order allocation readiness and input producers before use; values must be valid when read and writes must stay exclusive.
 /// Only the specified tensor elements are produced; padding and tails remain unchanged.
@@ -391,20 +377,20 @@ pub unsafe fn nwh_forward<T: CausalScalar>(
 ///
 /// # Errors
 ///
-/// Returns an error for zero or unrepresentable dimensions, overflowing buffer sizes, insufficient buffer capacity, mismatched CUDA contexts, context binding or stream-dependency failure, or native convolution failure.
-pub unsafe fn nwh_backward<T: CausalScalar>(
-    stream: &Stream,
-    config: Config,
-    x: &(impl DeviceInput<T> + ?Sized),
-    weight: &(impl DeviceInput<T> + ?Sized),
-    bias: &(impl DeviceInput<T> + ?Sized),
-    dy: &(impl DeviceInput<T> + ?Sized),
+/// Returns an error if a dimension is zero or unrepresentable, a buffer size overflows, a buffer is too small, the CUDA contexts differ, binding the context or ordering the streams fails, or the native convolution fails.
+pub unsafe fn nwh_backward_async<T: CausalScalar>(
+    x: &(impl DeviceRange<T> + ?Sized),
+    weight: &(impl DeviceRange<T> + ?Sized),
+    bias: &(impl DeviceRange<T> + ?Sized),
+    dy: &(impl DeviceRange<T> + ?Sized),
     dx: &mut (impl DeviceOutput<T> + ?Sized),
     dweight: &mut (impl DeviceOutput<T::Gradient> + ?Sized),
     dbias: &mut (impl DeviceOutput<T::Gradient> + ?Sized),
     activation: Activation,
+    shape: CausalConvolutionShape,
+    stream: &Stream,
 ) -> Result<()> {
-    let [batch, dim, seq, kernel] = config.dimensions()?;
+    let [batch, dim, seq, kernel] = shape.dimensions()?;
     stream.context().bind()?;
     if [
         x.region(),
@@ -431,14 +417,15 @@ pub unsafe fn nwh_backward<T: CausalScalar>(
         dbias.region(),
     ])?;
 
-    require(x, config.signal_len()?, "x")?;
-    require(weight, config.weight_len()?, "weight")?;
-    require(bias, config.channels, "bias")?;
-    require(dy, config.signal_len()?, "dy")?;
-    require(dx, config.signal_len()?, "dx")?;
-    require(dweight, config.weight_len()?, "dweight")?;
-    require(dbias, config.channels, "dbias")?;
-    // SAFETY: `cudnnCausalConv1dNwhBackward` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
+    require(x, shape.signal_len()?, "x")?;
+    require(weight, shape.weight_len()?, "weight")?;
+    require(bias, shape.channels, "bias")?;
+    require(dy, shape.signal_len()?, "dy")?;
+    require(dx, shape.signal_len()?, "dx")?;
+    require(dweight, shape.weight_len()?, "dweight")?;
+    require(dbias, shape.channels, "dbias")?;
+    // SAFETY: every buffer shares the stream's context and `require` checked its length against `shape`.
+    // The caller retains, orders and initializes them, including the gradient accumulators, through completion, per this function's contract.
     unsafe {
         try_ffi!(sys::cudnnCausalConv1dNwhBackward(
             stream.as_raw().cast(),
@@ -461,48 +448,37 @@ pub unsafe fn nwh_backward<T: CausalScalar>(
     Ok(())
 }
 
-/// Compute a causal depthwise 1D convolution using the medium FFT path.
-///
-/// Computes: y = `conv1d_causal(x`, weight)
+/// Enqueues a causal depthwise 1D convolution, `y = conv1d_causal(x, weight)`, on the medium FFT path.
 ///
 /// For each batch and channel, the causal convolution is:
 /// ```text
-/// y[t] = sum_{j=0}^{kernelSize - 1} x[t - j] * weight[j]
+/// y[t] = sum_{j=0}^{kernel - 1} x[t - j] * weight[j]
 /// ```
-/// where `x[t - j]` is treated as zero when t < j.
+/// where `x[t - j]` is zero when `t < j`.
 ///
-/// This FFT weight layout is reversed relative to the non-FFT causal conv1d weight layout used by [`forward`].
-/// For example, for
-/// ```text
-/// weight = [w0, w1, w2], this FFT operation is:
-/// ```
-/// ```text
-/// y[t] = x[t] * w0 + x[t - 1] * w1 + x[t - 2] * w2
-/// ```
-/// while [`forward`] interprets the same weight tensor as:
-/// ```text
-/// y[t] = x[t - 2] * w0 + x[t - 1] * w1 + x[t] * w2
-/// ```
+/// This FFT weight layout is reversed relative to the direct layout of [`forward_async`].
+/// For `weight = [w0, w1, w2]`, this operation computes `y[t] = x[t] * w0 + x[t - 1] * w1 + x[t - 2] * w2`, while [`forward_async`] computes `y[t] = x[t - 2] * w0 + x[t - 1] * w1 + x[t] * w2`.
 ///
 /// The implementation evaluates this convolution in the frequency domain.
 /// It transforms zero-padded signal and filter tiles with real-to-complex FFTs, multiplies the transformed signal and filter pointwise, and applies a complex-to-real inverse FFT before writing the causal output samples.
 ///
 /// # Safety
+///
 /// Retain the context or stream, descriptors and all buffer ranges through completion, submission failure and replay.
 /// Order allocation readiness and input producers before use; values must be valid when read and writes must stay exclusive.
 /// Only the specified tensor elements are produced; padding and tails remain unchanged.
 ///
 /// # Errors
 ///
-/// Returns an error for invalid or unrepresentable dimensions, unsupported FFT lengths for the element type, overflowing sizes, insufficient capacity, buffers without 16-byte alignment, mismatched CUDA contexts, context binding or stream-dependency failure, or native FFT convolution failure.
-pub unsafe fn fft_forward<T: CausalScalar>(
-    stream: &Stream,
-    config: Config,
-    x: &(impl DeviceInput<T> + ?Sized),
-    weight: &(impl DeviceInput<T> + ?Sized),
+/// Returns an error if a dimension is invalid or unrepresentable, the FFT length is unsupported for the element type, a size overflows, a buffer is too small or not 16-byte aligned, the CUDA contexts differ, binding the context or ordering the streams fails, or the native FFT convolution fails.
+pub unsafe fn fft_forward_async<T: CausalScalar>(
+    x: &(impl DeviceRange<T> + ?Sized),
+    weight: &(impl DeviceRange<T> + ?Sized),
     y: &mut (impl DeviceOutput<T> + ?Sized),
+    shape: CausalConvolutionShape,
+    stream: &Stream,
 ) -> Result<()> {
-    let [batch, dim, seq, kernel] = config.dimensions()?;
+    let [batch, dim, seq, kernel] = shape.dimensions()?;
     stream.context().bind()?;
     if [x.region(), weight.region(), y.region()]
         .iter()
@@ -513,14 +489,15 @@ pub unsafe fn fft_forward<T: CausalScalar>(
 
     stream.join_regions(&[x.region(), weight.region(), y.region()])?;
 
-    config.fft::<T>(false)?;
-    require(x, config.signal_len()?, "x")?;
+    shape.fft::<T>(false)?;
+    require(x, shape.signal_len()?, "x")?;
     aligned(x)?;
-    require(weight, config.weight_len()?, "weight")?;
+    require(weight, shape.weight_len()?, "weight")?;
     aligned(weight)?;
-    require(y, config.signal_len()?, "y")?;
+    require(y, shape.signal_len()?, "y")?;
     aligned(y)?;
-    // SAFETY: `cudnnFFTCausalConv1dForward` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
+    // SAFETY: every buffer shares the stream's context and `require` checked its length against `shape`, and `aligned` checked the 16-byte alignment cuDNN's FFT kernels need.
+    // The caller retains, orders and initializes them through completion, per this function's contract.
     unsafe {
         try_ffi!(sys::cudnnFFTCausalConv1dForward(
             stream.as_raw().cast(),
@@ -537,15 +514,13 @@ pub unsafe fn fft_forward<T: CausalScalar>(
     Ok(())
 }
 
-/// Compute gradients for medium FFT causal depthwise 1D convolution.
+/// Enqueues the gradients `dx` and `dweight` of [`fft_forward_async`].
 ///
-/// Computes gradients for: y = `conv1d_causal(x`, weight)
-///
-/// The gradient kernels use the same FFT formulation as the forward path: signal, filter, and output-gradient tiles are transformed to the frequency domain, combined with pointwise products equivalent to convolution or correlation, and inverse-transformed to produce dx and dweight.
-///
-/// The weight and dweight tensors use the FFT weight layout documented by cudnnFFTCausalConv1dForward, which is reversed relative to the non-FFT causal conv1d weight layout.
+/// The gradient kernels use the same FFT formulation as the forward path: signal, filter, and output-gradient tiles are transformed to the frequency domain, combined with pointwise products equivalent to convolution or correlation, and inverse-transformed to produce `dx` and `dweight`.
+/// `weight` and `dweight` use the FFT weight layout of [`fft_forward_async`], reversed relative to the direct layout.
 ///
 /// # Safety
+///
 /// Retain the context or stream, descriptors and all buffer ranges through completion, submission failure and replay.
 /// Order allocation readiness and input producers before use; values must be valid when read and writes must stay exclusive.
 /// Only the specified tensor elements are produced; padding and tails remain unchanged.
@@ -553,17 +528,17 @@ pub unsafe fn fft_forward<T: CausalScalar>(
 ///
 /// # Errors
 ///
-/// Returns an error for invalid or unrepresentable dimensions, unsupported FFT lengths for the element type, overflowing sizes, insufficient capacity, buffers without 16-byte alignment, mismatched CUDA contexts, context binding or stream-dependency failure, or native FFT convolution failure.
-pub unsafe fn fft_backward<T: CausalScalar>(
-    stream: &Stream,
-    config: Config,
-    x: &(impl DeviceInput<T> + ?Sized),
-    weight: &(impl DeviceInput<T> + ?Sized),
-    dy: &(impl DeviceInput<T> + ?Sized),
+/// Returns an error if a dimension is invalid or unrepresentable, the FFT length is unsupported for the element type, a size overflows, a buffer is too small or not 16-byte aligned, the CUDA contexts differ, binding the context or ordering the streams fails, or the native FFT convolution fails.
+pub unsafe fn fft_backward_async<T: CausalScalar>(
+    x: &(impl DeviceRange<T> + ?Sized),
+    weight: &(impl DeviceRange<T> + ?Sized),
+    dy: &(impl DeviceRange<T> + ?Sized),
     dx: &mut (impl DeviceOutput<T> + ?Sized),
     dweight: &mut (impl DeviceOutput<T> + ?Sized),
+    shape: CausalConvolutionShape,
+    stream: &Stream,
 ) -> Result<()> {
-    let [batch, dim, seq, kernel] = config.dimensions()?;
+    let [batch, dim, seq, kernel] = shape.dimensions()?;
     stream.context().bind()?;
     if [
         x.region(),
@@ -586,18 +561,19 @@ pub unsafe fn fft_backward<T: CausalScalar>(
         dweight.region(),
     ])?;
 
-    config.fft::<T>(false)?;
-    require(x, config.signal_len()?, "x")?;
+    shape.fft::<T>(false)?;
+    require(x, shape.signal_len()?, "x")?;
     aligned(x)?;
-    require(weight, config.weight_len()?, "weight")?;
+    require(weight, shape.weight_len()?, "weight")?;
     aligned(weight)?;
-    require(dy, config.signal_len()?, "dy")?;
+    require(dy, shape.signal_len()?, "dy")?;
     aligned(dy)?;
-    require(dx, config.signal_len()?, "dx")?;
+    require(dx, shape.signal_len()?, "dx")?;
     aligned(dx)?;
-    require(dweight, config.weight_len()?, "dweight")?;
+    require(dweight, shape.weight_len()?, "dweight")?;
     aligned(dweight)?;
-    // SAFETY: `cudnnFFTCausalConv1dBackward` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
+    // SAFETY: every buffer shares the stream's context and `require` checked its length against `shape`, and `aligned` checked the 16-byte alignment cuDNN's FFT kernels need.
+    // The caller retains, orders and initializes them, including the gradient accumulators, through completion, per this function's contract.
     unsafe {
         try_ffi!(sys::cudnnFFTCausalConv1dBackward(
             stream.as_raw().cast(),
@@ -616,36 +592,36 @@ pub unsafe fn fft_backward<T: CausalScalar>(
     Ok(())
 }
 
-/// Fused back-to-back causal conv1d: projection conv → elementwise gating → mixer conv.
-/// No activation is applied to individual conv outputs (identity only).
+/// Enqueues a fused back-to-back causal convolution: a projection convolution, elementwise gating, then a mixer convolution.
+/// The individual convolutions apply no activation.
 ///
-/// x:            (batch, dim, 3, seqLen)   — 3 interleaved channels per dim weightsProj:  (dim, 3, kernelSizeProj)  — projection filters for all 3 channels weightsMixer: (dim, kernelSizeMixer) skipBias:     (dim,) y:            (batch, dim, seqLen) — intermediate mixer + skip output.
-/// Saved and consumed by the backward pass.
-/// yGated:       (batch, dim, seqLen) — final post-gated output = y * projX1.
-/// This is the primary user-facing output of the fused Hyena-SE block.
-///
-/// Supported data types are DOUBLE, FLOAT, HALF, and BFLOAT16.
+/// - `x` is (batch, channels, 3, sequence), three interleaved projection channels per channel.
+/// - `weights_projection` is (channels, 3, kernel), the projection filters of all three.
+/// - `weights_mixer` is (channels, `mixer_kernel`), and `skip_bias` is (channels).
+/// - `y` is (batch, channels, sequence), the mixer and skip output that [`back_to_back_backward_async`] consumes.
+/// - `y_gated` is (batch, channels, sequence), `y` gated by the projection of the second channel, the output of the fused Hyena-SE block.
 ///
 /// # Safety
+///
 /// Retain the context or stream, descriptors and all buffer ranges through completion, submission failure and replay.
 /// Order allocation readiness and input producers before use; values must be valid when read and writes must stay exclusive.
 /// Only the specified tensor elements are produced; padding and tails remain unchanged.
 ///
 /// # Errors
 ///
-/// Returns an error for zero or unrepresentable convolution dimensions or mixer width, overflowing buffer sizes, insufficient capacity, mismatched CUDA contexts, context binding or stream-dependency failure, or native fused convolution failure.
-pub unsafe fn back_to_back_forward<T: CausalScalar>(
-    stream: &Stream,
-    config: Config,
-    mixer_kernel: usize,
-    x: &(impl DeviceInput<T> + ?Sized),
-    weights_projection: &(impl DeviceInput<T> + ?Sized),
-    weights_mixer: &(impl DeviceInput<T> + ?Sized),
-    skip_bias: &(impl DeviceInput<T> + ?Sized),
+/// Returns an error if a convolution dimension or the mixer width is zero or unrepresentable, a buffer size overflows, a buffer is too small, the CUDA contexts differ, binding the context or ordering the streams fails, or the native fused convolution fails.
+pub unsafe fn back_to_back_forward_async<T: CausalScalar>(
+    x: &(impl DeviceRange<T> + ?Sized),
+    weights_projection: &(impl DeviceRange<T> + ?Sized),
+    weights_mixer: &(impl DeviceRange<T> + ?Sized),
+    skip_bias: &(impl DeviceRange<T> + ?Sized),
     y: &mut (impl DeviceOutput<T> + ?Sized),
     y_gated: &mut (impl DeviceOutput<T> + ?Sized),
+    shape: CausalConvolutionShape,
+    mixer_kernel: usize,
+    stream: &Stream,
 ) -> Result<()> {
-    let [batch, dim, seq, kernel] = config.dimensions()?;
+    let [batch, dim, seq, kernel] = shape.dimensions()?;
     let mixer = to_i32(mixer_kernel, "mixer kernel")?;
     if mixer <= 0 {
         return Err(Error::InvalidDataShape);
@@ -675,21 +651,22 @@ pub unsafe fn back_to_back_forward<T: CausalScalar>(
         y_gated.region(),
     ])?;
 
-    require(x, product(&[config.signal_len()?, 3])?, "x")?;
+    require(x, product(&[shape.signal_len()?, 3])?, "x")?;
     require(
         weights_projection,
-        product(&[config.weight_len()?, 3])?,
+        product(&[shape.weight_len()?, 3])?,
         "weights_projection",
     )?;
     require(
         weights_mixer,
-        product(&[config.channels, mixer_kernel])?,
+        product(&[shape.channels, mixer_kernel])?,
         "weights_mixer",
     )?;
-    require(skip_bias, config.channels, "skip_bias")?;
-    require(y, config.signal_len()?, "y")?;
-    require(y_gated, config.signal_len()?, "y_gated")?;
-    // SAFETY: `cudnnB2BCausalConv1dForward` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
+    require(skip_bias, shape.channels, "skip_bias")?;
+    require(y, shape.signal_len()?, "y")?;
+    require(y_gated, shape.signal_len()?, "y_gated")?;
+    // SAFETY: every buffer shares the stream's context and `require` checked its length against `shape` and `mixer_kernel`, and `mixer` is positive.
+    // The caller retains, orders and initializes them through completion, per this function's contract.
     unsafe {
         try_ffi!(sys::cudnnB2BCausalConv1dForward(
             stream.as_raw().cast(),
@@ -710,13 +687,14 @@ pub unsafe fn back_to_back_forward<T: CausalScalar>(
     Ok(())
 }
 
-/// Computes gradients for fused back-to-back causal conv1d.
+/// Enqueues the gradients of [`back_to_back_forward_async`].
 ///
-/// x:            (batch, dim, 3, seqLen)   — saved input from forward weightsProj:  (dim, 3, kernelSizeProj) weightsMixer: (dim, kernelSizeMixer) skipBias:     (dim,) y:            (batch, dim, seqLen)      — saved intermediate from forward dy:           (batch, dim, seqLen)      — gradient of yGated dx:           (batch, dim, 3, seqLen)   — gradient of x dweightsProj: (dim, 3, kernelSizeProj)  — gradient of weightsProj (dwDataType) dweightsMixer:(dim, kernelSizeMixer)    — gradient of weightsMixer (dwDataType) dskipBias:    (dim,)                    — gradient of skipBias (dwDataType)
-///
-/// dwDataType must be DOUBLE when dataType is DOUBLE; otherwise it must be FLOAT.
+/// `x`, the weights, `skip_bias` and `y` are the forward inputs and intermediate output, in the forward layouts, and `dy` is the gradient of `y_gated`.
+/// `dx` is (batch, channels, 3, sequence), `dweights_projection` is (channels, 3, kernel), `dweights_mixer` is (channels, `mixer_kernel`), and `dskip_bias` is (channels).
+/// The weight and bias gradients use [`CausalScalar::Gradient`].
 ///
 /// # Safety
+///
 /// Retain the context or stream, descriptors and all buffer ranges through completion, submission failure and replay.
 /// Order allocation readiness and input producers before use; values must be valid when read and writes must stay exclusive.
 /// Only the specified tensor elements are produced; padding and tails remain unchanged.
@@ -724,23 +702,23 @@ pub unsafe fn back_to_back_forward<T: CausalScalar>(
 ///
 /// # Errors
 ///
-/// Returns an error for zero or unrepresentable convolution dimensions or mixer width, overflowing buffer sizes, insufficient capacity, mismatched CUDA contexts, context binding or stream-dependency failure, or native fused convolution failure.
-pub unsafe fn back_to_back_backward<T: CausalScalar>(
-    stream: &Stream,
-    config: Config,
-    mixer_kernel: usize,
-    x: &(impl DeviceInput<T> + ?Sized),
-    weights_projection: &(impl DeviceInput<T> + ?Sized),
-    weights_mixer: &(impl DeviceInput<T> + ?Sized),
-    skip_bias: &(impl DeviceInput<T> + ?Sized),
-    y: &(impl DeviceInput<T> + ?Sized),
-    dy: &(impl DeviceInput<T> + ?Sized),
+/// Returns an error if a convolution dimension or the mixer width is zero or unrepresentable, a buffer size overflows, a buffer is too small, the CUDA contexts differ, binding the context or ordering the streams fails, or the native fused convolution fails.
+pub unsafe fn back_to_back_backward_async<T: CausalScalar>(
+    x: &(impl DeviceRange<T> + ?Sized),
+    weights_projection: &(impl DeviceRange<T> + ?Sized),
+    weights_mixer: &(impl DeviceRange<T> + ?Sized),
+    skip_bias: &(impl DeviceRange<T> + ?Sized),
+    y: &(impl DeviceRange<T> + ?Sized),
+    dy: &(impl DeviceRange<T> + ?Sized),
     dx: &mut (impl DeviceOutput<T> + ?Sized),
     dweights_projection: &mut (impl DeviceOutput<T::Gradient> + ?Sized),
     dweights_mixer: &mut (impl DeviceOutput<T::Gradient> + ?Sized),
     dskip_bias: &mut (impl DeviceOutput<T::Gradient> + ?Sized),
+    shape: CausalConvolutionShape,
+    mixer_kernel: usize,
+    stream: &Stream,
 ) -> Result<()> {
-    let [batch, dim, seq, kernel] = config.dimensions()?;
+    let [batch, dim, seq, kernel] = shape.dimensions()?;
     let mixer = to_i32(mixer_kernel, "mixer kernel")?;
     if mixer <= 0 {
         return Err(Error::InvalidDataShape);
@@ -778,33 +756,34 @@ pub unsafe fn back_to_back_backward<T: CausalScalar>(
         dskip_bias.region(),
     ])?;
 
-    require(x, product(&[config.signal_len()?, 3])?, "x")?;
+    require(x, product(&[shape.signal_len()?, 3])?, "x")?;
     require(
         weights_projection,
-        product(&[config.weight_len()?, 3])?,
+        product(&[shape.weight_len()?, 3])?,
         "weights_projection",
     )?;
     require(
         weights_mixer,
-        product(&[config.channels, mixer_kernel])?,
+        product(&[shape.channels, mixer_kernel])?,
         "weights_mixer",
     )?;
-    require(skip_bias, config.channels, "skip_bias")?;
-    require(y, config.signal_len()?, "y")?;
-    require(dy, config.signal_len()?, "dy")?;
-    require(dx, product(&[config.signal_len()?, 3])?, "dx")?;
+    require(skip_bias, shape.channels, "skip_bias")?;
+    require(y, shape.signal_len()?, "y")?;
+    require(dy, shape.signal_len()?, "dy")?;
+    require(dx, product(&[shape.signal_len()?, 3])?, "dx")?;
     require(
         dweights_projection,
-        product(&[config.weight_len()?, 3])?,
+        product(&[shape.weight_len()?, 3])?,
         "dweights_projection",
     )?;
     require(
         dweights_mixer,
-        product(&[config.channels, mixer_kernel])?,
+        product(&[shape.channels, mixer_kernel])?,
         "dweights_mixer",
     )?;
-    require(dskip_bias, config.channels, "dskip_bias")?;
-    // SAFETY: `cudnnB2BCausalConv1dBackward` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
+    require(dskip_bias, shape.channels, "dskip_bias")?;
+    // SAFETY: every buffer shares the stream's context and `require` checked its length against `shape` and `mixer_kernel`, and `mixer` is positive.
+    // The caller retains, orders and initializes them, including the gradient accumulators, through completion, per this function's contract.
     unsafe {
         try_ffi!(sys::cudnnB2BCausalConv1dBackward(
             stream.as_raw().cast(),
@@ -828,4 +807,212 @@ pub unsafe fn back_to_back_backward<T: CausalScalar>(
         ))?;
     }
     Ok(())
+}
+
+/// Computes [`forward_async`] and waits for `stream`.
+///
+/// # Errors
+///
+/// Returns an error if `stream` is capturing, [`forward_async`] fails, or the wait fails.
+pub fn forward<T: CausalScalar>(
+    x: &(impl DeviceSlice<T> + ?Sized),
+    weight: &(impl DeviceSlice<T> + ?Sized),
+    bias: &(impl DeviceSlice<T> + ?Sized),
+    y: &mut (impl DeviceOutput<T> + ?Sized),
+    activation: Activation,
+    shape: CausalConvolutionShape,
+    stream: &Stream,
+) -> Result<()> {
+    stream.complete(|| {
+        // SAFETY: the inputs are initialized, and the borrows outlive the wait in `sync_scope`.
+        unsafe { forward_async(x, weight, bias, y, activation, shape, stream) }
+    })
+}
+
+/// Computes [`backward_async`] and waits for `stream`.
+///
+/// # Errors
+///
+/// Returns an error if `stream` is capturing, [`backward_async`] fails, or the wait fails.
+pub fn backward<T: CausalScalar>(
+    x: &(impl DeviceSlice<T> + ?Sized),
+    weight: &(impl DeviceSlice<T> + ?Sized),
+    bias: &(impl DeviceSlice<T> + ?Sized),
+    dy: &(impl DeviceSlice<T> + ?Sized),
+    dx: &mut (impl DeviceOutput<T> + ?Sized),
+    dweight: &mut (impl DeviceSliceMut<T::Gradient> + ?Sized),
+    dbias: &mut (impl DeviceSliceMut<T::Gradient> + ?Sized),
+    activation: Activation,
+    shape: CausalConvolutionShape,
+    stream: &Stream,
+) -> Result<()> {
+    stream.complete(|| {
+        // SAFETY: the inputs and accumulated gradients are initialized, and the borrows outlive the wait in `sync_scope`.
+        unsafe {
+            backward_async(
+                x, weight, bias, dy, dx, dweight, dbias, activation, shape, stream,
+            )
+        }
+    })
+}
+
+/// Computes [`nwh_forward_async`] and waits for `stream`.
+///
+/// # Errors
+///
+/// Returns an error if `stream` is capturing, [`nwh_forward_async`] fails, or the wait fails.
+pub fn nwh_forward<T: CausalScalar>(
+    x: &(impl DeviceSlice<T> + ?Sized),
+    weight: &(impl DeviceSlice<T> + ?Sized),
+    bias: &(impl DeviceSlice<T> + ?Sized),
+    y: &mut (impl DeviceOutput<T> + ?Sized),
+    activation: Activation,
+    shape: CausalConvolutionShape,
+    stream: &Stream,
+) -> Result<()> {
+    stream.complete(|| {
+        // SAFETY: the inputs are initialized, and the borrows outlive the wait in `sync_scope`.
+        unsafe { nwh_forward_async(x, weight, bias, y, activation, shape, stream) }
+    })
+}
+
+/// Computes [`nwh_backward_async`] and waits for `stream`.
+///
+/// # Errors
+///
+/// Returns an error if `stream` is capturing, [`nwh_backward_async`] fails, or the wait fails.
+pub fn nwh_backward<T: CausalScalar>(
+    x: &(impl DeviceSlice<T> + ?Sized),
+    weight: &(impl DeviceSlice<T> + ?Sized),
+    bias: &(impl DeviceSlice<T> + ?Sized),
+    dy: &(impl DeviceSlice<T> + ?Sized),
+    dx: &mut (impl DeviceOutput<T> + ?Sized),
+    dweight: &mut (impl DeviceSliceMut<T::Gradient> + ?Sized),
+    dbias: &mut (impl DeviceSliceMut<T::Gradient> + ?Sized),
+    activation: Activation,
+    shape: CausalConvolutionShape,
+    stream: &Stream,
+) -> Result<()> {
+    stream.complete(|| {
+        // SAFETY: the inputs and accumulated gradients are initialized, and the borrows outlive the wait in `sync_scope`.
+        unsafe {
+            nwh_backward_async(
+                x, weight, bias, dy, dx, dweight, dbias, activation, shape, stream,
+            )
+        }
+    })
+}
+
+/// Computes [`fft_forward_async`] and waits for `stream`.
+///
+/// # Errors
+///
+/// Returns an error if `stream` is capturing, [`fft_forward_async`] fails, or the wait fails.
+pub fn fft_forward<T: CausalScalar>(
+    x: &(impl DeviceSlice<T> + ?Sized),
+    weight: &(impl DeviceSlice<T> + ?Sized),
+    y: &mut (impl DeviceOutput<T> + ?Sized),
+    shape: CausalConvolutionShape,
+    stream: &Stream,
+) -> Result<()> {
+    stream.complete(|| {
+        // SAFETY: the inputs are initialized, and the borrows outlive the wait in `sync_scope`.
+        unsafe { fft_forward_async(x, weight, y, shape, stream) }
+    })
+}
+
+/// Computes [`fft_backward_async`] and waits for `stream`.
+///
+/// # Errors
+///
+/// Returns an error if `stream` is capturing, [`fft_backward_async`] fails, or the wait fails.
+pub fn fft_backward<T: CausalScalar>(
+    x: &(impl DeviceSlice<T> + ?Sized),
+    weight: &(impl DeviceSlice<T> + ?Sized),
+    dy: &(impl DeviceSlice<T> + ?Sized),
+    dx: &mut (impl DeviceOutput<T> + ?Sized),
+    dweight: &mut (impl DeviceSliceMut<T> + ?Sized),
+    shape: CausalConvolutionShape,
+    stream: &Stream,
+) -> Result<()> {
+    stream.complete(|| {
+        // SAFETY: the inputs and `dweight` are initialized, and the borrows outlive the wait in `sync_scope`.
+        unsafe { fft_backward_async(x, weight, dy, dx, dweight, shape, stream) }
+    })
+}
+
+/// Computes [`back_to_back_forward_async`] and waits for `stream`.
+///
+/// # Errors
+///
+/// Returns an error if `stream` is capturing, [`back_to_back_forward_async`] fails, or the wait fails.
+pub fn back_to_back_forward<T: CausalScalar>(
+    x: &(impl DeviceSlice<T> + ?Sized),
+    weights_projection: &(impl DeviceSlice<T> + ?Sized),
+    weights_mixer: &(impl DeviceSlice<T> + ?Sized),
+    skip_bias: &(impl DeviceSlice<T> + ?Sized),
+    y: &mut (impl DeviceOutput<T> + ?Sized),
+    y_gated: &mut (impl DeviceOutput<T> + ?Sized),
+    shape: CausalConvolutionShape,
+    mixer_kernel: usize,
+    stream: &Stream,
+) -> Result<()> {
+    stream.complete(|| {
+        // SAFETY: the inputs are initialized, and the borrows outlive the wait in `sync_scope`.
+        unsafe {
+            back_to_back_forward_async(
+                x,
+                weights_projection,
+                weights_mixer,
+                skip_bias,
+                y,
+                y_gated,
+                shape,
+                mixer_kernel,
+                stream,
+            )
+        }
+    })
+}
+
+/// Computes [`back_to_back_backward_async`] and waits for `stream`.
+///
+/// # Errors
+///
+/// Returns an error if `stream` is capturing, [`back_to_back_backward_async`] fails, or the wait fails.
+pub fn back_to_back_backward<T: CausalScalar>(
+    x: &(impl DeviceSlice<T> + ?Sized),
+    weights_projection: &(impl DeviceSlice<T> + ?Sized),
+    weights_mixer: &(impl DeviceSlice<T> + ?Sized),
+    skip_bias: &(impl DeviceSlice<T> + ?Sized),
+    y: &(impl DeviceSlice<T> + ?Sized),
+    dy: &(impl DeviceSlice<T> + ?Sized),
+    dx: &mut (impl DeviceOutput<T> + ?Sized),
+    dweights_projection: &mut (impl DeviceSliceMut<T::Gradient> + ?Sized),
+    dweights_mixer: &mut (impl DeviceSliceMut<T::Gradient> + ?Sized),
+    dskip_bias: &mut (impl DeviceSliceMut<T::Gradient> + ?Sized),
+    shape: CausalConvolutionShape,
+    mixer_kernel: usize,
+    stream: &Stream,
+) -> Result<()> {
+    stream.complete(|| {
+        // SAFETY: the inputs and accumulated gradients are initialized, and the borrows outlive the wait in `sync_scope`.
+        unsafe {
+            back_to_back_backward_async(
+                x,
+                weights_projection,
+                weights_mixer,
+                skip_bias,
+                y,
+                dy,
+                dx,
+                dweights_projection,
+                dweights_mixer,
+                dskip_bias,
+                shape,
+                mixer_kernel,
+                stream,
+            )
+        }
+    })
 }

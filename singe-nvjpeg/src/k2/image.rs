@@ -16,7 +16,7 @@ use crate::{
         MAX_IMAGE_COMPONENTS,
         types::{ImageFormat, ImagePixel, ImageType},
     },
-    utility::{checked_mul, to_u32, to_u64},
+    utility::{checked_mul, to_u32, to_u64, to_usize},
 };
 
 /// Native JPEG 2000 image description: a pointer and row pitch for each plane.
@@ -58,7 +58,7 @@ impl Image {
             pixel_data.push(plane.as_ptr().cast_mut().cast());
             pitches.push(plane.pitch());
         }
-        // SAFETY: the plane pointers and pitches describe buffers that stay borrowed for the image lifetime.
+        // SAFETY: each pointer and pitch comes from a plane checked against its allocation, and only `unsafe` functions read the description, whose callers keep the memory valid.
         unsafe { Self::from_raw_parts(C, pixel_data, pitches, T::IMAGE_TYPE) }
     }
 
@@ -76,7 +76,7 @@ impl Image {
             .map(|plane| plane.as_ptr().cast_mut().cast())
             .collect::<Vec<_>>();
         let pitch_in_bytes = planes.iter().map(Plane::pitch).collect::<Vec<_>>();
-        // SAFETY: the plane pointers and pitches describe buffers that stay borrowed for the image lifetime.
+        // SAFETY: each pointer and pitch comes from a checked plane, and only `unsafe` functions read the description, whose callers keep the memory valid.
         unsafe { Self::from_raw_parts(C, pixel_data, pitch_in_bytes, T::IMAGE_TYPE) }
     }
 
@@ -96,7 +96,7 @@ impl Image {
             .map(|plane| plane.as_mut_ptr().cast())
             .collect::<Vec<_>>();
         let pitch_in_bytes = planes.iter().map(PlaneMut::pitch).collect::<Vec<_>>();
-        // SAFETY: the plane pointers and pitches describe buffers that stay borrowed for the image lifetime.
+        // SAFETY: each pointer and pitch comes from a checked writable plane, and only `unsafe` functions read the description, whose callers keep the memory valid and unaliased.
         unsafe { Self::from_raw_parts(C, pixel_data, pitch_in_bytes, T::IMAGE_TYPE) }
     }
 
@@ -183,7 +183,8 @@ impl Image {
     /// Returns the number of components.
     #[must_use]
     pub fn component_count(&self) -> usize {
-        self.raw.num_components as usize
+        // `from_raw_parts` sizes the native pointer array to the component count.
+        self.pixel_data.len()
     }
 
     /// Returns the number of planes: one for an interleaved image, and one per component otherwise.
@@ -229,9 +230,8 @@ impl Image {
     }
 
     /// Returns the type of each sample.
-    #[must_use]
-    pub fn pixel_type(&self) -> ImageType {
-        ImageType::from(self.raw.pixel_type)
+    pub fn pixel_type(&self) -> Result<ImageType> {
+        Ok(ImageType::try_from(self.raw.pixel_type)?)
     }
 }
 
@@ -297,7 +297,7 @@ impl<'a> EncodeInput<'a> {
         let image = Image::from_planes(&planes)?;
         let regions = planes.iter().map(Plane::region).collect();
         let sizes = planes.iter().map(Plane::size).collect();
-        // SAFETY: initialized planes preserve the readable source borrows.
+        // SAFETY: each `Plane` holds initialized samples borrowed for `'a`, and its region orders their writers before each encode.
         unsafe { Self::from_raw_parts(image, regions, sizes, ImageFormat::Planar) }
     }
 
@@ -309,7 +309,7 @@ impl<'a> EncodeInput<'a> {
     ///
     /// Returns an error if `component_count` is not between 1 and 4; the plane does not match the layout or the description's pointers; a dimension is zero; a pitch is too small; a size overflows; or the plane's memory is too small.
     pub fn interleaved<T: ImagePixel>(plane: Plane<'a, T>, component_count: usize) -> Result<Self> {
-        // SAFETY: the plane pointers and pitches describe buffers that stay borrowed for the image lifetime.
+        // SAFETY: the pointer and pitch come from `plane`, borrowed for `'a`, which outlives the returned input that holds the description.
         let image = unsafe {
             Image::from_raw_parts(
                 component_count,
@@ -318,7 +318,7 @@ impl<'a> EncodeInput<'a> {
                 T::IMAGE_TYPE,
             )?
         };
-        // SAFETY: the initialized plane preserves the readable source borrow.
+        // SAFETY: `plane` holds initialized samples borrowed for `'a`, and its region orders their writers before each encode.
         unsafe {
             Self::from_raw_parts(
                 image,
@@ -375,8 +375,12 @@ impl<'a> EncodeInput<'a> {
                 1
             };
             let row_bytes = checked_mul(
-                checked_mul(sizes[index].width() as usize, samples, "input samples")?,
-                image.pixel_type().element_size(),
+                checked_mul(
+                    to_usize(sizes[index].width(), "width")?,
+                    samples,
+                    "input samples",
+                )?,
+                image.pixel_type()?.element_size(),
                 "input row bytes",
             )?;
             validate_plane(
@@ -425,7 +429,7 @@ pub(crate) fn validate_plane(
         });
     }
 
-    let required = (size.height() as usize - 1)
+    let required = to_usize(size.height() - 1, "height")?
         .checked_mul(pitch)
         .and_then(|prefix| prefix.checked_add(row_bytes))
         .ok_or(Error::OutOfRange {

@@ -2,7 +2,7 @@ mod schemas;
 
 use std::collections::BTreeMap;
 
-use singe_onnx::{AttributeType, Model, Node};
+use singe_onnx::{AttributeType, AttributeValue, Model, Node};
 
 use self::schemas::SCHEMAS;
 use crate::{
@@ -117,7 +117,7 @@ fn validate_schema(node: &Node, version: i64) -> Result<()> {
     }
 
     for attribute in &node.attributes {
-        if !attribute.ref_attribute_name.is_empty() {
+        if matches!(attribute.value, AttributeValue::Reference(_)) {
             return Err(Error::invalid_attribute(
                 &node.name,
                 &attribute.name,

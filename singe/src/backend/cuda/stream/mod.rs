@@ -5,7 +5,7 @@ mod hold;
 
 use std::sync::Arc;
 
-use singe_cuda::stream::{Stream, StreamFlags};
+use singe_cuda::stream::{Stream, StreamFlags, StreamOptions};
 
 pub use self::{
     cublas::with_cublas_stream,
@@ -44,7 +44,10 @@ impl CudaStream {
     /// Returns an error if `device` is not a valid CUDA device or if CUDA cannot create the stream with `flags`.
     pub fn create_with_flags(device: Device, flags: StreamFlags) -> Result<Self> {
         let runtime = runtime_for_device(device)?;
-        let stream = runtime.context().create_stream_with_flags(flags)?;
+        let stream = runtime.context().create_stream(StreamOptions {
+            flags,
+            ..StreamOptions::default()
+        })?;
         // Eager work does not wait for itself, so a new stream starts after what it has enqueued.
         runtime.order_after_eager(&stream)?;
         Ok(Self::new(Arc::new(stream)))

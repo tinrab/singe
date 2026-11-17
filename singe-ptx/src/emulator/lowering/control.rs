@@ -11,7 +11,7 @@ use crate::{
     },
 };
 
-pub fn branch(
+pub(crate) fn branch(
     compiler: &FunctionCompiler<'_, '_>,
     instruction: &Instruction,
     head: &mut Head<'_>,
@@ -24,7 +24,7 @@ pub fn branch(
 }
 
 /// Lowers a direct `call` with optional return and argument tuples.
-pub fn call(
+pub(crate) fn call(
     compiler: &mut FunctionCompiler<'_, '_>,
     instruction: &Instruction,
     head: &mut Head<'_>,
@@ -65,14 +65,14 @@ pub fn call(
     compiler.call(function, arguments, returns)
 }
 
-pub fn ret(instruction: &Instruction, head: &mut Head<'_>) -> Result<Operation> {
+pub(crate) fn ret(instruction: &Instruction, head: &mut Head<'_>) -> Result<Operation> {
     head.take("uni");
     operands::<0>(instruction)?;
     Ok(Operation::Control(ControlOperation::Return))
 }
 
 /// Lowers `exit`, `trap`, and `brkpt`.
-pub fn terminate(instruction: &Instruction, opcode: Opcode) -> Result<Operation> {
+pub(crate) fn terminate(instruction: &Instruction, opcode: Opcode) -> Result<Operation> {
     operands::<0>(instruction)?;
     Ok(match opcode {
         Opcode::Exit => Operation::Control(ControlOperation::Exit),
@@ -81,7 +81,7 @@ pub fn terminate(instruction: &Instruction, opcode: Opcode) -> Result<Operation>
     })
 }
 
-pub fn barrier(
+pub(crate) fn barrier(
     compiler: &FunctionCompiler<'_, '_>,
     instruction: &Instruction,
     head: &mut Head<'_>,

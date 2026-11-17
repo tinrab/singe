@@ -1,13 +1,17 @@
-//! Raw FFI bindings for cuSOLVER.
-//!
-//! Prefer the safe `singe-cusolver` crate unless direct NVIDIA ABI access is required.
-
+//! Low-level FFI bindings for the dense cuSOLVER 12.3 API (`cusolverDn.h`).
+//! The library loads at run time through [`singe-loader`](singe_loader), on the first call of one of its functions or up front with [`load`], so building links no NVIDIA library.
+//! If the library or one of its symbols is missing, a function that returns a status returns a failure status, and [`take_absence`] reports what was missing.
+//! Most users want the safe `singe-cusolver` crate.
 #![allow(
     non_camel_case_types,
     non_snake_case,
+    non_upper_case_globals,
     unnecessary_transmutes,
     unused_imports,
     unused_qualifications,
+    missing_debug_implementations,
+    unnameable_types,
+    unreachable_pub,
     clippy::correctness,
     clippy::suspicious,
     clippy::complexity,
@@ -16,10 +20,13 @@
     clippy::absolute_paths,
     clippy::pedantic,
     clippy::nursery,
+    clippy::undocumented_unsafe_blocks,
     reason = "generated bindings preserve upstream ABI conventions and documentation"
 )]
 
-use num_enum::{IntoPrimitive, TryFromPrimitive};
+#[cfg(not(feature = "cusolver_12_3"))]
+compile_error!("singe-cusolver-sys requires a version feature, such as `cusolver_12_3`");
+
 use singe_cuda_sys::{
     library_types::{
         cudaDataType, cudaDataType_t, cudaEmulationMantissaControl_t,
@@ -31,11 +38,15 @@ use singe_cuda_sys::{
 #[cfg(feature = "cusolver_12_3")]
 include!("sys_12304.rs");
 
-pub use singe_loader::LoadError;
+pub use singe_loader::{Absence, LoadError, take_absence};
 
 static LIBRARY: singe_loader::Library = singe_loader::Library::cusolver();
 
-// Loads cuSOLVER, which each of its functions otherwise does on first call.
+/// Loads cuSOLVER now, instead of on the first call of one of its functions.
+///
+/// # Errors
+///
+/// Returns an error if the library has no files on this platform or one of its files would not load.
 pub fn load() -> Result<(), LoadError> {
     LIBRARY.load()
 }

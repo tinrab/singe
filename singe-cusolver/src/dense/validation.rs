@@ -11,74 +11,71 @@ use crate::{
     utility::validate_matrix,
 };
 
-pub fn validate_square_matrix(n: usize, len: usize, lda: usize) -> Result<()> {
+pub(crate) fn validate_square_matrix(n: usize, len: usize, lda: usize) -> Result<()> {
     validate_matrix(n, n, len, lda)
 }
 
-pub fn require_workspace(actual: usize, required: usize) -> Result<()> {
+pub(crate) fn require_workspace(actual: usize, required: usize) -> Result<()> {
     if actual < required {
-        return Err(Error::InsufficientWorkspaceSize { required, actual });
+        return Err(Error::BufferTooSmall {
+            name: "workspace".into(),
+            required,
+            actual,
+        });
     }
     Ok(())
 }
 
-pub fn require_info_buffer(len: usize) -> Result<()> {
+pub(crate) fn require_info_buffer(len: usize) -> Result<()> {
     if len == 0 {
         return Err(Error::InvalidVectorShape);
     }
     Ok(())
 }
 
-pub fn require_info_entries(len: usize, required: usize) -> Result<()> {
+pub(crate) fn require_info_entries(len: usize, required: usize) -> Result<()> {
     if len < required {
         return Err(Error::InvalidVectorShape);
     }
     Ok(())
 }
 
-pub fn require_pivot_buffer(len: usize, required: usize) -> Result<()> {
+pub(crate) fn require_pivot64_buffer(len: usize, required: usize) -> Result<()> {
     if len < required {
         return Err(Error::InvalidVectorShape);
     }
     Ok(())
 }
 
-pub fn require_pivot64_buffer(len: usize, required: usize) -> Result<()> {
+pub(crate) fn require_tau_buffer(len: usize, required: usize) -> Result<()> {
     if len < required {
         return Err(Error::InvalidVectorShape);
     }
     Ok(())
 }
 
-pub fn require_tau_buffer(len: usize, required: usize) -> Result<()> {
-    if len < required {
-        return Err(Error::InvalidVectorShape);
-    }
-    Ok(())
-}
-
-pub fn qr_rows(side: SideMode, m: usize, n: usize) -> usize {
+pub(crate) fn qr_rows(side: SideMode, m: usize, n: usize) -> usize {
     match side {
         SideMode::Left => m,
         SideMode::Right => n,
     }
 }
 
-pub fn tridiagonal_order(side: SideMode, m: usize, n: usize) -> usize {
+pub(crate) fn tridiagonal_order(side: SideMode, m: usize, n: usize) -> usize {
     match side {
         SideMode::Left => m,
         SideMode::Right => n,
     }
 }
 
-pub fn validate_bidiagonal_dims(m: usize, n: usize) -> Result<()> {
+pub(crate) fn validate_bidiagonal_dims(m: usize, n: usize) -> Result<()> {
     if m == 0 || n == 0 || m < n {
         return Err(Error::InvalidMatrixShape);
     }
     Ok(())
 }
 
-pub fn validate_bidiagonal_buffers(
+pub(crate) fn validate_bidiagonal_buffers(
     m: usize,
     n: usize,
     a_len: usize,
@@ -96,7 +93,7 @@ pub fn validate_bidiagonal_buffers(
     Ok(())
 }
 
-pub fn validate_orgbr_inputs(
+pub(crate) fn validate_orgbr_inputs(
     side: SideMode,
     m: usize,
     n: usize,
@@ -117,7 +114,7 @@ pub fn validate_orgbr_inputs(
     Ok(())
 }
 
-pub fn validate_orgbr_shape(side: SideMode, m: usize, n: usize, k: usize) -> Result<()> {
+pub(crate) fn validate_orgbr_shape(side: SideMode, m: usize, n: usize, k: usize) -> Result<()> {
     if m == 0 || n == 0 {
         return Err(Error::InvalidMatrixShape);
     }
@@ -128,7 +125,7 @@ pub fn validate_orgbr_shape(side: SideMode, m: usize, n: usize, k: usize) -> Res
     }
 }
 
-pub fn validate_sytrd_inputs(
+pub(crate) fn validate_sytrd_inputs(
     n: usize,
     a_len: usize,
     lda: usize,
@@ -144,7 +141,12 @@ pub fn validate_sytrd_inputs(
     Ok(())
 }
 
-pub fn validate_orgtr_inputs(n: usize, a_len: usize, lda: usize, tau_len: usize) -> Result<()> {
+pub(crate) fn validate_orgtr_inputs(
+    n: usize,
+    a_len: usize,
+    lda: usize,
+    tau_len: usize,
+) -> Result<()> {
     validate_square_matrix(n, a_len, lda)?;
     if tau_len < n.saturating_sub(1) {
         return Err(Error::InvalidVectorShape);
@@ -152,7 +154,7 @@ pub fn validate_orgtr_inputs(n: usize, a_len: usize, lda: usize, tau_len: usize)
     Ok(())
 }
 
-pub fn validate_ormtr_inputs(
+pub(crate) fn validate_ormtr_inputs(
     side: SideMode,
     m: usize,
     n: usize,
@@ -171,7 +173,7 @@ pub fn validate_ormtr_inputs(
     Ok(())
 }
 
-pub fn validate_batched_square_matrix_pointers<T: DeviceRepr>(
+pub(crate) fn validate_batched_square_matrix_pointers<T: DeviceRepr>(
     n: usize,
     matrices: BatchedMatrixRef<'_, T>,
 ) -> Result<()> {
@@ -185,7 +187,7 @@ pub fn validate_batched_square_matrix_pointers<T: DeviceRepr>(
     Ok(())
 }
 
-pub fn validate_batched_vector_pointers<T: DeviceRepr>(
+pub(crate) fn validate_batched_vector_pointers<T: DeviceRepr>(
     n: usize,
     vectors: BatchedVectorRef<'_, T>,
 ) -> Result<()> {
@@ -199,7 +201,7 @@ pub fn validate_batched_vector_pointers<T: DeviceRepr>(
     Ok(())
 }
 
-pub fn validate_x_matrix(
+pub(crate) fn validate_x_matrix(
     rows: usize,
     cols: usize,
     bytes: usize,
@@ -224,7 +226,7 @@ pub fn validate_x_matrix(
     Ok(())
 }
 
-pub fn validate_x_vector(len: usize, bytes: usize, data_type: DataType) -> Result<()> {
+pub(crate) fn validate_x_vector(len: usize, bytes: usize, data_type: DataType) -> Result<()> {
     let required = len
         .checked_mul(data_type.size_of())
         .ok_or(Error::InvalidVectorShape)?;
@@ -234,7 +236,7 @@ pub fn validate_x_vector(len: usize, bytes: usize, data_type: DataType) -> Resul
     Ok(())
 }
 
-pub fn validate_xlarft_inputs(
+pub(crate) fn validate_xlarft_inputs(
     n: usize,
     k: usize,
     storev: StorevMode,

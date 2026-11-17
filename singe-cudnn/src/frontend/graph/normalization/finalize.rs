@@ -1,16 +1,16 @@
 use crate::{
-    backend::tensor::Shape,
+    backend::operation::normalization::{
+        BatchNormalizationFinalizeInputs, BatchNormalizationFinalizeOutputs,
+        NormalizationSavedStatistics,
+    },
     data_type::DataType,
     error::Result,
     frontend::{
         error::Error as FrontendError,
         graph::{Graph, TensorOutputConfig},
-        operation::{
-            BatchNormalizationFinalizeConfig, BatchNormalizationFinalizeInputs,
-            BatchNormalizationFinalizeOutputs, NormalizationOperation,
-            NormalizationSavedStatistics, Operation,
-        },
+        operation::{BatchNormalizationFinalizeConfig, NormalizationOperation, Operation},
     },
+    tensor::Shape,
 };
 
 impl Graph {
@@ -81,7 +81,7 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for unknown tensor identities, mismatched per-channel input or output dimensions, nonscalar accumulation count, epsilon or momentum, or incomplete running-statistic inputs and outputs.
+    /// Returns an error if a tensor identity is unknown, per-channel input or output dimensions mismatch, the accumulation count, epsilon, or momentum is not a scalar, or the running-statistic inputs and outputs are incomplete.
     pub fn batch_normalization_finalize_into(
         &mut self,
         inputs: BatchNormalizationFinalizeInputs,
@@ -105,7 +105,7 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for unknown tensor identities, mismatched per-channel input or output dimensions, nonscalar accumulation count, epsilon or momentum, or incomplete running-statistic inputs and outputs.
+    /// Returns an error if a tensor identity is unknown, per-channel input or output dimensions mismatch, the accumulation count, epsilon, or momentum is not a scalar, or the running-statistic inputs and outputs are incomplete.
     /// Inferred output strides must also be representable.
     pub fn batch_normalization_finalize(
         &mut self,

@@ -4,14 +4,14 @@ use crate::{
 };
 
 /// Validates measured latency and gives numerically equal zero timings the same sort key.
-pub fn normalize_elapsed(elapsed_ms: f32) -> Result<f32> {
+pub(crate) fn normalize_elapsed(elapsed_ms: f32) -> Result<f32> {
     if !elapsed_ms.is_finite() || elapsed_ms < 0.0 {
         return Err(Error::out_of_range("autotune elapsed time"));
     }
     Ok(if elapsed_ms == 0.0 { 0.0 } else { elapsed_ms })
 }
 
-pub struct TimingSamples {
+pub(crate) struct TimingSamples {
     sampling: AutotuneSampling,
     count: usize,
     minimum: f32,
@@ -19,7 +19,7 @@ pub struct TimingSamples {
 }
 
 impl TimingSamples {
-    pub fn new(sampling: AutotuneSampling) -> Self {
+    pub(crate) fn new(sampling: AutotuneSampling) -> Self {
         Self {
             sampling,
             count: 0,
@@ -29,7 +29,7 @@ impl TimingSamples {
     }
 
     /// Records a completed measurement and reports whether sampling should continue.
-    pub fn record(&mut self, elapsed_ms: f32) -> bool {
+    pub(crate) fn record(&mut self, elapsed_ms: f32) -> bool {
         let keep_sampling = match self.sampling {
             AutotuneSampling::UntilStable {
                 improvement_threshold,
@@ -46,7 +46,7 @@ impl TimingSamples {
         keep_sampling
     }
 
-    pub fn finish(mut self, plan: PlanId) -> Option<PlanTiming> {
+    pub(crate) fn finish(mut self, plan: PlanId) -> Option<PlanTiming> {
         if self.count == 0 || (self.sampling == AutotuneSampling::MedianOfThree && self.count != 3)
         {
             return None;

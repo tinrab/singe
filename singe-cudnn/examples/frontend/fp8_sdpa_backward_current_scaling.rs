@@ -4,7 +4,6 @@ use std::env::args;
 
 use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
-    backend::tensor::{Shape, TensorSpec},
     data_type::{DataType, f8e4m3},
     error::{Error, Result},
     frontend::{
@@ -16,15 +15,20 @@ use singe_cudnn::{
         },
         plan::{CompileConfig, ExecuteArgs, HeuristicMode},
     },
+    tensor::{Shape, TensorSpec},
 };
 
+#[expect(
+    clippy::many_single_char_names,
+    reason = "keeps the upstream sample's single-letter dimension names"
+)]
 fn run() -> Result<()> {
     let example = common::ExampleContext::create()?;
 
     let gradient_type = if args().any(|argument| argument == "--fp16-gradients") {
         DataType::F16
     } else {
-        DataType::BF16
+        DataType::Bf16
     };
     let b = 2_i64;
     let h = 2_i64;
@@ -130,7 +134,7 @@ fn run() -> Result<()> {
     } else {
         None
     };
-    graph.sdpa_fp8_backward_into(
+    graph.sdpa_backward_into(
         SdpaFp8BackwardInputs::new(
             q,
             k,
@@ -262,14 +266,14 @@ fn run() -> Result<()> {
 
     // SAFETY: initialized inputs, optional sink and mask, gradients, scales and workspace remain live through completion.
     example.execute_and_wait(|context| unsafe {
-        compiled.execute(
+        compiled.execute_async(
             context,
-            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
         )
     })?;
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_fp8_sdpa_backward_current_scaling", run())
 }

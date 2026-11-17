@@ -6,42 +6,60 @@
 [![Documentation](https://docs.rs/singe-cupti/badge.svg)](https://docs.rs/singe-cupti)
 ![License](https://img.shields.io/crates/l/singe-cupti.svg)
 
-Safe Rust wrappers for NVIDIA CUPTI, for tracing and profiling CUDA applications.
+Safe Rust wrappers for CUPTI, the CUDA Profiling Tools Interface, for tracing and profiling CUDA programs from inside the process.
 
 This crate provides:
 
-- CUDA API callback subscriptions and decoded callback payloads.
-- Activity tracing with owned or borrowed activity buffers.
-- Event and metric collection.
-- Host metric configuration and range profiling.
+- **Callbacks:** `Subscriber` runs a closure on CUDA driver and runtime API calls and other CUPTI callback points, with decoded payloads.
+- **Activity tracing:** records of kernels, memory copies, API calls, and other CUDA activity, collected in owned or borrowed buffers.
+- **Hardware metrics:** metric configuration and range profiling through `ProfilerHost` and `RangeProfiler`.
+- **Identifiers:** context, device, stream, and graph IDs as CUPTI reports them, and the driver and runtime callback IDs.
 
 ## Example
 
-Observe CUDA driver calls made while creating a context:
+Print the CUPTI version, then count the CUDA driver API callbacks made while a context and a stream are created:
 
-```rust
-use singe_cuda::context::Context;
-use singe_cupti::{callback::Subscriber, types::CallbackDomain};
+```rust,no_run
+use std::sync::{
+    Arc,
+    atomic::{AtomicUsize, Ordering},
+};
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-	let subscriber = Subscriber::create(|domain, callback_id, _data| {
-		println!("{domain:?}: {callback_id:?}");
-	})?;
-	subscriber.enable_domain(true, CallbackDomain::DriverApi)?;
-	let context = Context::create()?;
-	drop(context);
-	subscriber.unsubscribe()?;
-	Ok(())
+use singe_cuda::{context::Context, stream::StreamOptions};
+use singe_cupti::{
+    callback::{Subscriber, SubscriberOptions},
+    types::CallbackDomain,
+};
+
+fn main() -> anyhow::Result<()> {
+    println!("CUPTI {}", singe_cupti::version()?);
+
+    let callbacks = Arc::new(AtomicUsize::new(0));
+    let counter = Arc::clone(&callbacks);
+    let subscriber = Subscriber::create(
+        move |_domain, _callback_id, _data| {
+            counter.fetch_add(1, Ordering::Relaxed);
+        },
+        &SubscriberOptions::default(),
+    )?;
+    subscriber.set_domain_enabled(CallbackDomain::DriverApi, true)?;
+
+    let context = Context::create()?;
+    let _stream = context.create_stream(StreamOptions::default())?;
+    subscriber.unsubscribe()?;
+
+    println!("driver API callbacks: {}", callbacks.load(Ordering::Relaxed));
+    Ok(())
 }
 ```
 
-`Subscriber` owns the subscription.
-CUPTI invokes its callback on the thread making the traced call.
-The `activity` module collects activity records, and the `profiler` module collects metrics over code ranges.
+A new `Subscriber` has every callback disabled until a domain or callback ID is enabled.
+CUPTI calls the closure on the thread that makes the traced call, once on entry and once on exit of each API function.
+After `unsubscribe` returns, CUPTI makes no more calls to the closure; dropping the `Subscriber` also unsubscribes.
+CUPTI allows one subscriber per process unless every subscriber sets `SubscriberOptions::allow_multiple_subscribers`, so an attached profiler or debugger can make `Subscriber::create` fail.
+
+Hardware metrics need a GPU that supports them, and the NVIDIA driver restricts performance counters to administrators unless it is configured to allow every user.
 
 ## More examples
 
-- [Callback trace](examples/callback_trace.rs): count named CUDA driver calls during a device transfer.
-
-Some profiling features need elevated driver permissions or particular GPUs.
-See the [API reference](https://docs.rs/singe-cupti).
+- [Callback trace](./examples/callback_trace.rs): count the CUDA driver functions entered during a device transfer, by name.

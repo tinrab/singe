@@ -1,7 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
-    backend::tensor::{TensorId, TensorSpec},
     error::Result,
     frontend::{
         bindings::resolve_binding_source,
@@ -11,11 +10,12 @@ use crate::{
         workspace::WorkspaceLayout,
     },
     scalar::ScalarValue,
+    tensor::{TensorId, TensorSpec},
 };
 
 /// Validated declarations and bindings, independent of native descriptors.
 #[derive(Debug, Clone)]
-pub struct GraphLayout {
+pub(crate) struct GraphLayout {
     pub tensors: BTreeMap<TensorId, TensorRecord>,
     pub native_tensor_ids: BTreeSet<TensorId>,
     pub binding_template_ids: Vec<TensorId>,

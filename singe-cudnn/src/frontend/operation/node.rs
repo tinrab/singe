@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    backend::execution::attention::SdpaSubgraph,
+    backend::operation::attention::SdpaSubgraph,
     error::Result,
     frontend::{
         graph::{DataTypePolicy, ValidatedGraph},

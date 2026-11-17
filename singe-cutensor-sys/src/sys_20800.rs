@@ -404,186 +404,156 @@ pub struct CUstream_st {
     _unused: [u8; 0],
 }
 pub use self::cudaDataType_t as cutensorDataType_t;
-/// This enum captures all unary and binary element-wise operations supported by the cuTENSOR library.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cutensorOperator_t {
+impl cutensorOperator_t {
     /// Identity operator (i.e., elements are not changed).
-    CUTENSOR_OP_IDENTITY = 1,
+    pub const CUTENSOR_OP_IDENTITY: cutensorOperator_t = cutensorOperator_t(1);
     /// Square root.
-    CUTENSOR_OP_SQRT = 2,
+    pub const CUTENSOR_OP_SQRT: cutensorOperator_t = cutensorOperator_t(2);
     /// Rectified linear unit.
-    CUTENSOR_OP_RELU = 8,
+    pub const CUTENSOR_OP_RELU: cutensorOperator_t = cutensorOperator_t(8);
     /// Complex conjugate.
-    CUTENSOR_OP_CONJ = 9,
+    pub const CUTENSOR_OP_CONJ: cutensorOperator_t = cutensorOperator_t(9);
     /// Reciprocal.
-    CUTENSOR_OP_RCP = 10,
+    pub const CUTENSOR_OP_RCP: cutensorOperator_t = cutensorOperator_t(10);
     /// y=1/(1+exp(-x)).
-    CUTENSOR_OP_SIGMOID = 11,
+    pub const CUTENSOR_OP_SIGMOID: cutensorOperator_t = cutensorOperator_t(11);
     /// y=tanh(x).
-    CUTENSOR_OP_TANH = 12,
+    pub const CUTENSOR_OP_TANH: cutensorOperator_t = cutensorOperator_t(12);
     /// Exponentiation.
-    CUTENSOR_OP_EXP = 22,
+    pub const CUTENSOR_OP_EXP: cutensorOperator_t = cutensorOperator_t(22);
     /// Log (base e).
-    CUTENSOR_OP_LOG = 23,
+    pub const CUTENSOR_OP_LOG: cutensorOperator_t = cutensorOperator_t(23);
     /// Absolute value.
-    CUTENSOR_OP_ABS = 24,
+    pub const CUTENSOR_OP_ABS: cutensorOperator_t = cutensorOperator_t(24);
     /// Negation.
-    CUTENSOR_OP_NEG = 25,
+    pub const CUTENSOR_OP_NEG: cutensorOperator_t = cutensorOperator_t(25);
     /// Sine.
-    CUTENSOR_OP_SIN = 26,
+    pub const CUTENSOR_OP_SIN: cutensorOperator_t = cutensorOperator_t(26);
     /// Cosine.
-    CUTENSOR_OP_COS = 27,
+    pub const CUTENSOR_OP_COS: cutensorOperator_t = cutensorOperator_t(27);
     /// Tangent.
-    CUTENSOR_OP_TAN = 28,
+    pub const CUTENSOR_OP_TAN: cutensorOperator_t = cutensorOperator_t(28);
     /// Hyperbolic sine.
-    CUTENSOR_OP_SINH = 29,
+    pub const CUTENSOR_OP_SINH: cutensorOperator_t = cutensorOperator_t(29);
     /// Hyperbolic cosine.
-    CUTENSOR_OP_COSH = 30,
+    pub const CUTENSOR_OP_COSH: cutensorOperator_t = cutensorOperator_t(30);
     /// Inverse sine.
-    CUTENSOR_OP_ASIN = 31,
+    pub const CUTENSOR_OP_ASIN: cutensorOperator_t = cutensorOperator_t(31);
     /// Inverse cosine.
-    CUTENSOR_OP_ACOS = 32,
+    pub const CUTENSOR_OP_ACOS: cutensorOperator_t = cutensorOperator_t(32);
     /// Inverse tangent.
-    CUTENSOR_OP_ATAN = 33,
+    pub const CUTENSOR_OP_ATAN: cutensorOperator_t = cutensorOperator_t(33);
     /// Inverse hyperbolic sine.
-    CUTENSOR_OP_ASINH = 34,
+    pub const CUTENSOR_OP_ASINH: cutensorOperator_t = cutensorOperator_t(34);
     /// Inverse hyperbolic cosine.
-    CUTENSOR_OP_ACOSH = 35,
+    pub const CUTENSOR_OP_ACOSH: cutensorOperator_t = cutensorOperator_t(35);
     /// Inverse hyperbolic tangent.
-    CUTENSOR_OP_ATANH = 36,
+    pub const CUTENSOR_OP_ATANH: cutensorOperator_t = cutensorOperator_t(36);
     /// Ceiling.
-    CUTENSOR_OP_CEIL = 37,
+    pub const CUTENSOR_OP_CEIL: cutensorOperator_t = cutensorOperator_t(37);
     /// Floor.
-    CUTENSOR_OP_FLOOR = 38,
+    pub const CUTENSOR_OP_FLOOR: cutensorOperator_t = cutensorOperator_t(38);
     /// Mish y=x\*tanh(softplus(x)).
-    CUTENSOR_OP_MISH = 39,
+    pub const CUTENSOR_OP_MISH: cutensorOperator_t = cutensorOperator_t(39);
     /// Swish y=x\*sigmoid(x).
-    CUTENSOR_OP_SWISH = 40,
+    pub const CUTENSOR_OP_SWISH: cutensorOperator_t = cutensorOperator_t(40);
     /// Softplus y=log(exp(x)+1).
-    CUTENSOR_OP_SOFT_PLUS = 41,
+    pub const CUTENSOR_OP_SOFT_PLUS: cutensorOperator_t = cutensorOperator_t(41);
     /// Softsign y=x/(abs(x)+1).
-    CUTENSOR_OP_SOFT_SIGN = 42,
+    pub const CUTENSOR_OP_SOFT_SIGN: cutensorOperator_t = cutensorOperator_t(42);
     /// Addition of two elements.
-    CUTENSOR_OP_ADD = 3,
+    pub const CUTENSOR_OP_ADD: cutensorOperator_t = cutensorOperator_t(3);
     /// Multiplication of two elements.
-    CUTENSOR_OP_MUL = 5,
+    pub const CUTENSOR_OP_MUL: cutensorOperator_t = cutensorOperator_t(5);
     /// Maximum of two elements.
-    CUTENSOR_OP_MAX = 6,
+    pub const CUTENSOR_OP_MAX: cutensorOperator_t = cutensorOperator_t(6);
     /// Minimum of two elements.
-    CUTENSOR_OP_MIN = 7,
+    pub const CUTENSOR_OP_MIN: cutensorOperator_t = cutensorOperator_t(7);
     /// reserved for internal use only.
-    CUTENSOR_OP_UNKNOWN = 126,
+    pub const CUTENSOR_OP_UNKNOWN: cutensorOperator_t = cutensorOperator_t(126);
+}
+/// This enum captures all unary and binary element-wise operations supported by the cuTENSOR library.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cutensorOperator_t(pub ::core::ffi::c_uint);
+impl cutensorStatus_t {
+    /// The operation completed successfully.
+    pub const CUTENSOR_STATUS_SUCCESS: cutensorStatus_t = cutensorStatus_t(0);
+    /// The opaque data structure was not initialized.
+    pub const CUTENSOR_STATUS_NOT_INITIALIZED: cutensorStatus_t = cutensorStatus_t(1);
+    /// Resource allocation failed inside the cuTENSOR library.
+    pub const CUTENSOR_STATUS_ALLOC_FAILED: cutensorStatus_t = cutensorStatus_t(3);
+    /// An unsupported value or parameter was passed to the function (indicates an user error).
+    pub const CUTENSOR_STATUS_INVALID_VALUE: cutensorStatus_t = cutensorStatus_t(7);
+    /// Indicates that the device is either not ready, or the target architecture is not supported.
+    pub const CUTENSOR_STATUS_ARCH_MISMATCH: cutensorStatus_t = cutensorStatus_t(8);
+    /// An access to GPU memory space failed, which is usually caused by a failure to bind a texture.
+    pub const CUTENSOR_STATUS_MAPPING_ERROR: cutensorStatus_t = cutensorStatus_t(11);
+    /// The GPU program failed to execute. This is often caused by a launch failure of the kernel on the GPU, which can be caused by multiple reasons.
+    pub const CUTENSOR_STATUS_EXECUTION_FAILED: cutensorStatus_t = cutensorStatus_t(13);
+    /// An internal cuTENSOR error has occurred.
+    pub const CUTENSOR_STATUS_INTERNAL_ERROR: cutensorStatus_t = cutensorStatus_t(14);
+    /// The requested operation is not supported.
+    pub const CUTENSOR_STATUS_NOT_SUPPORTED: cutensorStatus_t = cutensorStatus_t(15);
+    /// The functionality requested requires some license and an error was detected when trying to check the current licensing.
+    pub const CUTENSOR_STATUS_LICENSE_ERROR: cutensorStatus_t = cutensorStatus_t(16);
+    /// A call to CUBLAS did not succeed.
+    pub const CUTENSOR_STATUS_CUBLAS_ERROR: cutensorStatus_t = cutensorStatus_t(17);
+    /// Some unknown CUDA error has occurred.
+    pub const CUTENSOR_STATUS_CUDA_ERROR: cutensorStatus_t = cutensorStatus_t(18);
+    /// The provided workspace was insufficient.
+    pub const CUTENSOR_STATUS_INSUFFICIENT_WORKSPACE: cutensorStatus_t = cutensorStatus_t(
+        19,
+    );
+    /// Indicates that the driver version is insufficient.
+    pub const CUTENSOR_STATUS_INSUFFICIENT_DRIVER: cutensorStatus_t = cutensorStatus_t(
+        20,
+    );
+    /// Indicates an error related to file I/O.
+    pub const CUTENSOR_STATUS_IO_ERROR: cutensorStatus_t = cutensorStatus_t(21);
 }
 /// cuTENSOR status type returns
 ///
 /// The type is used for function status returns. All cuTENSOR library functions return their status, which can have the following values.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cutensorStatus_t {
-    /// The operation completed successfully.
-    CUTENSOR_STATUS_SUCCESS = 0,
-    /// The opaque data structure was not initialized.
-    CUTENSOR_STATUS_NOT_INITIALIZED = 1,
-    /// Resource allocation failed inside the cuTENSOR library.
-    CUTENSOR_STATUS_ALLOC_FAILED = 3,
-    /// An unsupported value or parameter was passed to the function (indicates an user error).
-    CUTENSOR_STATUS_INVALID_VALUE = 7,
-    /// Indicates that the device is either not ready, or the target architecture is not supported.
-    CUTENSOR_STATUS_ARCH_MISMATCH = 8,
-    /// An access to GPU memory space failed, which is usually caused by a failure to bind a texture.
-    CUTENSOR_STATUS_MAPPING_ERROR = 11,
-    /// The GPU program failed to execute. This is often caused by a launch failure of the kernel on the GPU, which can be caused by multiple reasons.
-    CUTENSOR_STATUS_EXECUTION_FAILED = 13,
-    /// An internal cuTENSOR error has occurred.
-    CUTENSOR_STATUS_INTERNAL_ERROR = 14,
-    /// The requested operation is not supported.
-    CUTENSOR_STATUS_NOT_SUPPORTED = 15,
-    /// The functionality requested requires some license and an error was detected when trying to check the current licensing.
-    CUTENSOR_STATUS_LICENSE_ERROR = 16,
-    /// A call to CUBLAS did not succeed.
-    CUTENSOR_STATUS_CUBLAS_ERROR = 17,
-    /// Some unknown CUDA error has occurred.
-    CUTENSOR_STATUS_CUDA_ERROR = 18,
-    /// The provided workspace was insufficient.
-    CUTENSOR_STATUS_INSUFFICIENT_WORKSPACE = 19,
-    /// Indicates that the driver version is insufficient.
-    CUTENSOR_STATUS_INSUFFICIENT_DRIVER = 20,
-    /// Indicates an error related to file I/O.
-    CUTENSOR_STATUS_IO_ERROR = 21,
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cutensorStatus_t(pub ::core::ffi::c_uint);
+impl cutensorAlgo_t {
+    /// More time-consuming than CUTENSOR_DEFAULT, but typically provides a more accurate kernel selection.
+    pub const CUTENSOR_ALGO_DEFAULT_PATIENT: cutensorAlgo_t = cutensorAlgo_t(-6);
+    /// Choose the GETT algorithm (only applicable to contractions).
+    pub const CUTENSOR_ALGO_GETT: cutensorAlgo_t = cutensorAlgo_t(-4);
+    /// Transpose (A or B) + GETT (only applicable to contractions).
+    pub const CUTENSOR_ALGO_TGETT: cutensorAlgo_t = cutensorAlgo_t(-3);
+    /// Transpose-Transpose-GEMM-Transpose (requires additional memory) (only applicable to contractions).
+    pub const CUTENSOR_ALGO_TTGT: cutensorAlgo_t = cutensorAlgo_t(-2);
+    /// A performance model chooses the appropriate algorithm and kernel.
+    pub const CUTENSOR_ALGO_DEFAULT: cutensorAlgo_t = cutensorAlgo_t(-1);
 }
 /// Allows users to specify the algorithm to be used for performing the desired tensor operation.
-#[repr(i32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cutensorAlgo_t {
-    /// More time-consuming than CUTENSOR_DEFAULT, but typically provides a more accurate kernel selection.
-    CUTENSOR_ALGO_DEFAULT_PATIENT = -6,
-    /// Choose the GETT algorithm (only applicable to contractions).
-    CUTENSOR_ALGO_GETT = -4,
-    /// Transpose (A or B) + GETT (only applicable to contractions).
-    CUTENSOR_ALGO_TGETT = -3,
-    /// Transpose-Transpose-GEMM-Transpose (requires additional memory) (only applicable to contractions).
-    CUTENSOR_ALGO_TTGT = -2,
-    /// A performance model chooses the appropriate algorithm and kernel.
-    CUTENSOR_ALGO_DEFAULT = -1,
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cutensorAlgo_t(pub ::core::ffi::c_int);
+impl cutensorWorksizePreference_t {
+    /// Least memory requirement; at least one algorithm will be available.
+    pub const CUTENSOR_WORKSPACE_MIN: cutensorWorksizePreference_t = cutensorWorksizePreference_t(
+        1,
+    );
+    /// Aims to attain high performance while also reducing the workspace requirement.
+    pub const CUTENSOR_WORKSPACE_DEFAULT: cutensorWorksizePreference_t = cutensorWorksizePreference_t(
+        2,
+    );
+    /// Highest memory requirement; all algorithms will be available (choose this option if memory footprint is not a concern).
+    pub const CUTENSOR_WORKSPACE_MAX: cutensorWorksizePreference_t = cutensorWorksizePreference_t(
+        3,
+    );
 }
 /// This enum gives users finer control over the suggested workspace.
 ///
 /// This enum gives users finer control over the amount of workspace that is suggested by [`cutensorEstimateWorkspaceSize`].
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cutensorWorksizePreference_t {
-    /// Least memory requirement; at least one algorithm will be available.
-    CUTENSOR_WORKSPACE_MIN = 1,
-    /// Aims to attain high performance while also reducing the workspace requirement.
-    CUTENSOR_WORKSPACE_DEFAULT = 2,
-    /// Highest memory requirement; all algorithms will be available (choose this option if memory footprint is not a concern).
-    CUTENSOR_WORKSPACE_MAX = 3,
-}
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cutensorWorksizePreference_t(pub ::core::ffi::c_uint);
 /// Incomplete native type used by [`cutensorComputeDescriptor_t`] handles. The native API owns its layout.
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -628,146 +598,122 @@ singe_loader::functions! { crate::LIBRARY;
     ///< floating-point composed of 2x16f for a total of 23 mantissa bits.
     pub static CUTENSOR_COMPUTE_DESC_4X16F: cutensorComputeDescriptor_t;
 }
-/// This enum lists all attributes of a [`cutensorOperationDescriptor_t`] that can be modified (see [`cutensorOperationDescriptorSetAttribute`] and [`cutensorOperationDescriptorGetAttribute`]).
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cutensorOperationDescriptorAttribute_t {
+impl cutensorOperationDescriptorAttribute_t {
     /// int32_t: enables users to distinguish two identical problems with respect to the sw-managed plan-cache. (default value: 0).
-    CUTENSOR_OPERATION_DESCRIPTOR_TAG = 0,
+    pub const CUTENSOR_OPERATION_DESCRIPTOR_TAG: cutensorOperationDescriptorAttribute_t = cutensorOperationDescriptorAttribute_t(
+        0,
+    );
     /// cudaDataType_t: data type of the scaling factors.
-    CUTENSOR_OPERATION_DESCRIPTOR_SCALAR_TYPE = 1,
+    pub const CUTENSOR_OPERATION_DESCRIPTOR_SCALAR_TYPE: cutensorOperationDescriptorAttribute_t = cutensorOperationDescriptorAttribute_t(
+        1,
+    );
     /// float: number of floating-point operations necessary to perform this operation (assuming all scalar are not equal to zero, unless otherwise specified).
-    CUTENSOR_OPERATION_DESCRIPTOR_FLOPS = 2,
+    pub const CUTENSOR_OPERATION_DESCRIPTOR_FLOPS: cutensorOperationDescriptorAttribute_t = cutensorOperationDescriptorAttribute_t(
+        2,
+    );
     /// float: minimal number of bytes transferred from/to global-memory (assuming all scalar are not equal to zero, unless otherwise specified).
-    CUTENSOR_OPERATION_DESCRIPTOR_MOVED_BYTES = 3,
+    pub const CUTENSOR_OPERATION_DESCRIPTOR_MOVED_BYTES: cutensorOperationDescriptorAttribute_t = cutensorOperationDescriptorAttribute_t(
+        3,
+    );
     /// uint32_t[] (of size descOut->numModes): Each entry i holds the number of padded values that should be padded to the left of the ith dimension.
-    CUTENSOR_OPERATION_DESCRIPTOR_PADDING_LEFT = 4,
+    pub const CUTENSOR_OPERATION_DESCRIPTOR_PADDING_LEFT: cutensorOperationDescriptorAttribute_t = cutensorOperationDescriptorAttribute_t(
+        4,
+    );
     /// uint32_t[] (of size descOut->numModes): Each entry i holds the number of padded values that should be padded to the right of the ith dimension.
-    CUTENSOR_OPERATION_DESCRIPTOR_PADDING_RIGHT = 5,
+    pub const CUTENSOR_OPERATION_DESCRIPTOR_PADDING_RIGHT: cutensorOperationDescriptorAttribute_t = cutensorOperationDescriptorAttribute_t(
+        5,
+    );
     /// host-side pointer to element of the same type as the output tensor: Constant padding value.
-    CUTENSOR_OPERATION_DESCRIPTOR_PADDING_VALUE = 6,
+    pub const CUTENSOR_OPERATION_DESCRIPTOR_PADDING_VALUE: cutensorOperationDescriptorAttribute_t = cutensorOperationDescriptorAttribute_t(
+        6,
+    );
     /// int32_t: if non-zero, request bitwise-reproducible results from a block-sparse contraction at a performance cost. See [`cutensorCreateBlockSparseContraction`] for details. (default: 0).
-    CUTENSOR_OPERATION_DESCRIPTOR_BLOCKSPARSE_REPRODUCIBLE = 14,
+    pub const CUTENSOR_OPERATION_DESCRIPTOR_BLOCKSPARSE_REPRODUCIBLE: cutensorOperationDescriptorAttribute_t = cutensorOperationDescriptorAttribute_t(
+        14,
+    );
+}
+/// This enum lists all attributes of a [`cutensorOperationDescriptor_t`] that can be modified (see [`cutensorOperationDescriptorSetAttribute`] and [`cutensorOperationDescriptorGetAttribute`]).
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cutensorOperationDescriptorAttribute_t(pub ::core::ffi::c_uint);
+impl cutensorPlanPreferenceAttribute_t {
+    /// cutensorAutotuneMode_t: Determines if recurrent executions of the plan (e.g., via cutensorContract, cutensorPermute) should autotune (i.e., try different kernels); see section “Plan Cache” for details.
+    pub const CUTENSOR_PLAN_PREFERENCE_AUTOTUNE_MODE: cutensorPlanPreferenceAttribute_t = cutensorPlanPreferenceAttribute_t(
+        0,
+    );
+    /// cutensorCacheMode_t: Determines if the corresponding algorithm/kernel for this plan should be cached and it gives fine control over what is considered a cachehit.
+    pub const CUTENSOR_PLAN_PREFERENCE_CACHE_MODE: cutensorPlanPreferenceAttribute_t = cutensorPlanPreferenceAttribute_t(
+        1,
+    );
+    /// int32_t: Only applicable if [`cutensorPlanPreferenceAttribute_t::CUTENSOR_PLAN_PREFERENCE_CACHE_MODE`] is set to [`cutensorAutotuneMode_t::CUTENSOR_AUTOTUNE_MODE_INCREMENTAL`].
+    pub const CUTENSOR_PLAN_PREFERENCE_INCREMENTAL_COUNT: cutensorPlanPreferenceAttribute_t = cutensorPlanPreferenceAttribute_t(
+        2,
+    );
+    /// cutensorAlgo_t: Fixes a certain [`cutensorAlgo_t`].
+    pub const CUTENSOR_PLAN_PREFERENCE_ALGO: cutensorPlanPreferenceAttribute_t = cutensorPlanPreferenceAttribute_t(
+        3,
+    );
+    /// int32_t: Fixes a kernel (a sub variant of an algo; e.g., kernel_rank==1 while algo == [`cutensorAlgo_t::CUTENSOR_ALGO_TGETT`] would select the second-best GETT kernel/variant according to cuTENSOR’s performance model; kernel_rank==2 would select the third-best).
+    pub const CUTENSOR_PLAN_PREFERENCE_KERNEL_RANK: cutensorPlanPreferenceAttribute_t = cutensorPlanPreferenceAttribute_t(
+        4,
+    );
+    /// cutensorJitMode_t: determines if just-in-time compilation is enabled or disabled (default: [`cutensorJitMode_t::CUTENSOR_JIT_MODE_NONE`]).
+    pub const CUTENSOR_PLAN_PREFERENCE_JIT: cutensorPlanPreferenceAttribute_t = cutensorPlanPreferenceAttribute_t(
+        5,
+    );
+    /// int32_t: Plan for a specific GPU architecture and not one associated with the context. Value should encode SM version via `10 * SM.major + SM.minor`. Currently only SM versions 80, 90 and 100 are supported.
+    pub const CUTENSOR_PLAN_PREFERENCE_GPU_ARCH: cutensorPlanPreferenceAttribute_t = cutensorPlanPreferenceAttribute_t(
+        6,
+    );
 }
 /// This enum lists all attributes of a [`cutensorPlanPreference_t`] object that can be modified.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cutensorPlanPreferenceAttribute_t {
-    /// cutensorAutotuneMode_t: Determines if recurrent executions of the plan (e.g., via cutensorContract, cutensorPermute) should autotune (i.e., try different kernels); see section “Plan Cache” for details.
-    CUTENSOR_PLAN_PREFERENCE_AUTOTUNE_MODE = 0,
-    /// cutensorCacheMode_t: Determines if the corresponding algorithm/kernel for this plan should be cached and it gives fine control over what is considered a cachehit.
-    CUTENSOR_PLAN_PREFERENCE_CACHE_MODE = 1,
-    /// int32_t: Only applicable if [`cutensorPlanPreferenceAttribute_t::CUTENSOR_PLAN_PREFERENCE_CACHE_MODE`] is set to [`cutensorAutotuneMode_t::CUTENSOR_AUTOTUNE_MODE_INCREMENTAL`].
-    CUTENSOR_PLAN_PREFERENCE_INCREMENTAL_COUNT = 2,
-    /// cutensorAlgo_t: Fixes a certain [`cutensorAlgo_t`].
-    CUTENSOR_PLAN_PREFERENCE_ALGO = 3,
-    /// int32_t: Fixes a kernel (a sub variant of an algo; e.g., kernel_rank==1 while algo == [`cutensorAlgo_t::CUTENSOR_ALGO_TGETT`] would select the second-best GETT kernel/variant according to cuTENSOR’s performance model; kernel_rank==2 would select the third-best).
-    CUTENSOR_PLAN_PREFERENCE_KERNEL_RANK = 4,
-    /// cutensorJitMode_t: determines if just-in-time compilation is enabled or disabled (default: [`cutensorJitMode_t::CUTENSOR_JIT_MODE_NONE`]).
-    CUTENSOR_PLAN_PREFERENCE_JIT = 5,
-    /// int32_t: Plan for a specific GPU architecture and not one associated with the context. Value should encode SM version via `10 * SM.major + SM.minor`. Currently only SM versions 80, 90 and 100 are supported.
-    CUTENSOR_PLAN_PREFERENCE_GPU_ARCH = 6,
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cutensorPlanPreferenceAttribute_t(pub ::core::ffi::c_uint);
+impl cutensorAutotuneMode_t {
+    /// Indicates no autotuning (default); in this case the cache will help to reduce the plan-creation overhead. In the case of a cachehit: the cached plan will be reused, otherwise the plancache will be neglected.
+    pub const CUTENSOR_AUTOTUNE_MODE_NONE: cutensorAutotuneMode_t = cutensorAutotuneMode_t(
+        0,
+    );
+    /// Indicates an incremental autotuning (i.e., each invocation of corresponding [`cutensorCreatePlan`] will create a plan based on a different algorithm/kernel; the maximum number of kernels that will be tested is defined by the [`cutensorPlanPreferenceAttribute_t::CUTENSOR_PLAN_PREFERENCE_INCREMENTAL_COUNT`] of [`cutensorPlanPreferenceAttribute_t`]). WARNING: If this autotuning mode is selected, then we cannot guarantee bit-wise identical results (since different algorithms could be executed).
+    pub const CUTENSOR_AUTOTUNE_MODE_INCREMENTAL: cutensorAutotuneMode_t = cutensorAutotuneMode_t(
+        1,
+    );
 }
 /// This enum determines the mode with respect to cuTENSOR’s auto-tuning capability.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cutensorAutotuneMode_t {
-    /// Indicates no autotuning (default); in this case the cache will help to reduce the plan-creation overhead. In the case of a cachehit: the cached plan will be reused, otherwise the plancache will be neglected.
-    CUTENSOR_AUTOTUNE_MODE_NONE = 0,
-    /// Indicates an incremental autotuning (i.e., each invocation of corresponding [`cutensorCreatePlan`] will create a plan based on a different algorithm/kernel; the maximum number of kernels that will be tested is defined by the [`cutensorPlanPreferenceAttribute_t::CUTENSOR_PLAN_PREFERENCE_INCREMENTAL_COUNT`] of [`cutensorPlanPreferenceAttribute_t`]). WARNING: If this autotuning mode is selected, then we cannot guarantee bit-wise identical results (since different algorithms could be executed).
-    CUTENSOR_AUTOTUNE_MODE_INCREMENTAL = 1,
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cutensorAutotuneMode_t(pub ::core::ffi::c_uint);
+impl cutensorJitMode_t {
+    /// Indicates that no kernel will be just-in-time compiled.
+    pub const CUTENSOR_JIT_MODE_NONE: cutensorJitMode_t = cutensorJitMode_t(0);
+    /// Indicates that the corresponding plan will try to compile a dedicated kernel for the given operation. Only supported for GPUs with compute capability >= 8.0 (Ampere or newer).
+    pub const CUTENSOR_JIT_MODE_DEFAULT: cutensorJitMode_t = cutensorJitMode_t(1);
 }
 /// This enum determines the mode with respect to cuTENSOR’s just-in-time compilation capability.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cutensorJitMode_t {
-    /// Indicates that no kernel will be just-in-time compiled.
-    CUTENSOR_JIT_MODE_NONE = 0,
-    /// Indicates that the corresponding plan will try to compile a dedicated kernel for the given operation. Only supported for GPUs with compute capability >= 8.0 (Ampere or newer).
-    CUTENSOR_JIT_MODE_DEFAULT = 1,
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cutensorJitMode_t(pub ::core::ffi::c_uint);
+impl cutensorCacheMode_t {
+    /// Plan will not be cached.
+    pub const CUTENSOR_CACHE_MODE_NONE: cutensorCacheMode_t = cutensorCacheMode_t(0);
+    /// All parameters of the corresponding descriptor must be identical to the cached plan (default).
+    pub const CUTENSOR_CACHE_MODE_PEDANTIC: cutensorCacheMode_t = cutensorCacheMode_t(1);
 }
 /// This enum defines what is considered a cache hit.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cutensorCacheMode_t {
-    /// Plan will not be cached.
-    CUTENSOR_CACHE_MODE_NONE = 0,
-    /// All parameters of the corresponding descriptor must be identical to the cached plan (default).
-    CUTENSOR_CACHE_MODE_PEDANTIC = 1,
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cutensorCacheMode_t(pub ::core::ffi::c_uint);
+impl cutensorPlanAttribute_t {
+    /// uint64_t: exact required workspace in bytes that is needed to execute the plan.
+    pub const CUTENSOR_PLAN_REQUIRED_WORKSPACE: cutensorPlanAttribute_t = cutensorPlanAttribute_t(
+        0,
+    );
 }
 /// This enum lists all attributes of a [`cutensorPlan_t`] object that can be retrieved via [`cutensorPlanGetAttribute`].
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cutensorPlanAttribute_t {
-    /// uint64_t: exact required workspace in bytes that is needed to execute the plan.
-    CUTENSOR_PLAN_REQUIRED_WORKSPACE = 0,
-}
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cutensorPlanAttribute_t(pub ::core::ffi::c_uint);
 /// Incomplete native type used by [`cutensorOperationDescriptor_t`] handles. The native API owns its layout.
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]

@@ -1,33 +1,29 @@
 [package]
 name = "singe-cuda"
 description = "Safe Rust wrappers for the CUDA driver and runtime APIs, including runtime compilation of CUDA C++ and NVTX annotations."
-version = "0.1.0-alpha.10"
+version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 repository.workspace = true
+documentation = "https://docs.rs/singe-cuda"
 license-file.workspace = true
 readme = "README.md"
 keywords = ["cuda", "nvidia", "gpu", "nvtx"]
+categories = ["api-bindings", "hardware-support"]
 include.workspace = true
 
 [package.metadata.docs.rs]
-rustdoc-args = ["--html-in-header", "dist/katex_header.html"]
+features = ["macros", "interop_cudarc"]
+rustdoc-args = ["--cfg", "docsrs", "--html-in-header", "dist/katex_header.html"]
 
 [features]
-default = [
-    "macros",
-    "driver_13_4",
-    "runtime_13_4",
-    "nvrtc_13_4",
-    "nvvm_13_4",
-    "nvtx_3",
-    "nvjitlink_13_4",
-]
+default = ["driver_13_4", "runtime_13_4", "nvrtc_13_4", "nvvm_13_4", "nvtx_3", "nvjitlink_13_4"]
 
 nvjitlink_13_4 = ["singe-cuda-sys/nvjitlink_13_4"]
 
 driver_13_4 = ["singe-cuda-sys/driver_13_4"]
 
-runtime_13_4 = ["singe-cuda-sys/runtime_13_4"]
+runtime_13_4 = ["driver_13_4", "singe-cuda-sys/runtime_13_4"]
 
 nvrtc_13_4 = ["singe-cuda-sys/nvrtc_13_4"]
 
@@ -35,6 +31,7 @@ nvvm_13_4 = ["singe-cuda-sys/nvvm_13_4"]
 
 nvtx_3 = ["singe-cuda-sys/nvtx_3"]
 
+# The `DeviceRepr` derives; `cuda_module!` also needs `nvrtc_13_4`, since its modules compile their source with NVRTC.
 macros = ["dep:singe-cuda-macros"]
 
 testing = []
@@ -57,6 +54,26 @@ cudarc = { workspace = true, optional = true }
 singe-cuda-macros = { workspace = true, optional = true }
 
 [dev-dependencies]
-rand.workspace = true
+anyhow.workspace = true
 singe-cuda-find.workspace = true
 tokio = { workspace = true, features = ["full"] }
+
+[[test]]
+name = "cuda_module"
+required-features = ["macros", "nvrtc_13_4"]
+
+[[test]]
+name = "cuda_async"
+required-features = ["macros", "nvrtc_13_4"]
+
+[[example]]
+name = "graph_replay"
+required-features = ["macros", "nvrtc_13_4"]
+
+[[example]]
+name = "stream_events"
+required-features = ["macros", "nvrtc_13_4"]
+
+[[example]]
+name = "vector_add"
+required-features = ["macros", "nvrtc_13_4"]

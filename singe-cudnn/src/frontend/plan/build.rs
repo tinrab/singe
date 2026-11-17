@@ -12,14 +12,13 @@ use crate::{
     backend::{
         device::DeviceProperties,
         execution::{
-            EngineChoice, EngineConfig, EnginePlanningConfig, ExecutionPlan, KernelCache,
+            EngineChoice, EngineConfig, EnginePlanningOptions, ExecutionPlan, KernelCache,
             KernelCacheJson, OperationGraph,
         },
     },
     context::Context,
     error::{Error, Result},
     frontend::{
-        error::Error as FrontendError,
         graph::Graph,
         logging,
         plan::{
@@ -32,7 +31,7 @@ use crate::{
 
 struct BuildRequest {
     choice: EngineChoice,
-    planning: EnginePlanningConfig,
+    planning: EnginePlanningOptions,
 }
 
 struct BuiltNativePlan {
@@ -58,10 +57,10 @@ fn exclude_plans_over_limit(entries: &mut [BuiltPlanEntry], limit: Option<NonZer
 
 impl BuildRequest {
     fn from_candidate(candidate: &PlanCandidate, config: &CompileConfig) -> Result<Self> {
-        let inherited = candidate.engine_config.planning_config()?;
+        let inherited = candidate.engine_config.planning_options()?;
         Ok(Self {
             choice: candidate.choice(),
-            planning: EnginePlanningConfig {
+            planning: EnginePlanningOptions {
                 sm_count_target: config.sm_count_target().or(inherited.sm_count_target),
                 shared_memory_limit: config
                     .shared_memory_limit()
@@ -160,7 +159,7 @@ fn record_build_result(
     clippy::too_many_lines,
     reason = "plan construction and selection keep the complete native execution lifecycle together"
 )]
-pub fn build_execution_plan_entries(
+pub(crate) fn build_execution_plan_entries(
     context: Option<&Context>,
     operation_graph: &OperationGraph,
     frontend_workspace_bytes: usize,
@@ -299,7 +298,7 @@ pub fn build_execution_plan_entries(
     exclude_plans_over_limit(entries, limit);
 }
 
-pub fn build_execution_plan_entry(
+pub(crate) fn build_execution_plan_entry(
     context: Option<&Context>,
     operation_graph: &OperationGraph,
     entry: &mut BuiltPlanEntry,
@@ -314,7 +313,7 @@ pub fn build_execution_plan_entry(
         let inherited = entry
             .candidate
             .engine_config
-            .planning_config()
+            .planning_options()
             .map_err(|error| (PlanFailureStage::Requirements, error))?;
         if request.planning == inherited {
             return Ok(None);
@@ -379,7 +378,7 @@ fn log_build_result<T>(candidate: &PlanCandidate, result: &BuildResult<T>) {
     }
 }
 
-pub fn materialize_graph_kernel_cache(
+pub(crate) fn materialize_graph_kernel_cache(
     graph: &Graph,
     operation_graph: &OperationGraph,
 ) -> Result<Option<Arc<Mutex<KernelCache>>>> {
@@ -391,7 +390,7 @@ pub fn materialize_graph_kernel_cache(
     )
 }
 
-pub fn materialize_kernel_cache_state(
+pub(crate) fn materialize_kernel_cache_state(
     operation_graph: &OperationGraph,
     kernel_cache_enabled: bool,
     kernel_cache_json: Option<&KernelCacheJson>,
@@ -411,9 +410,9 @@ pub fn materialize_kernel_cache_state(
     };
 
     {
-        let mut kernel_cache_guard = kernel_cache
-            .lock()
-            .map_err(|_| FrontendError::KernelCacheLockPoisoned)?;
+        let mut kernel_cache_guard = kernel_cache.lock().map_err(|_| Error::LockPoisoned {
+            name: "kernel cache".into(),
+        })?;
         if !kernel_cache_guard.is_finalized() {
             kernel_cache_guard.build(Some(operation_graph))?;
         }
@@ -421,14 +420,14 @@ pub fn materialize_kernel_cache_state(
     Ok(Some(kernel_cache))
 }
 
-pub fn lock_kernel_cache(
+pub(crate) fn lock_kernel_cache(
     kernel_cache: Option<&Arc<Mutex<KernelCache>>>,
 ) -> Result<Option<MutexGuard<'_, KernelCache>>> {
     kernel_cache
         .map(|kernel_cache| {
-            kernel_cache
-                .lock()
-                .map_err(|_| FrontendError::KernelCacheLockPoisoned.into())
+            kernel_cache.lock().map_err(|_| Error::LockPoisoned {
+                name: "kernel cache".into(),
+            })
         })
         .transpose()
 }

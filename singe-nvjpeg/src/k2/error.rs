@@ -1,11 +1,19 @@
 //! nvJPEG 2000 status codes.
 
-use singe_core::status_enum;
-use singe_nvjpeg_sys::k2 as k2_sys;
+use singe_nvjpeg_sys::{self as sys, k2 as k2_sys};
 
-status_enum! {
+use crate::error::Error;
+
+singe_core::wrapper_status! {
+    library = "nvjpeg2k",
+    error = Error::Nvjpeg2k,
+    raw = k2_sys::nvjpeg2kStatus_t,
+    success = NVJPEG2K_STATUS_SUCCESS,
+    absence = sys::take_absence,
+    check = check_k2,
+    unknown = "UNKNOWN_NVJPEG2K_STATUS",
     /// Status codes returned by nvJPEG 2000 calls.
-    pub enum Status: u32 => k2_sys::nvjpeg2kStatus_t, unknown = "UNKNOWN_NVJPEG2K_STATUS", unknown_description = "unknown nvjpeg2k error" {
+    pub enum Status: u32 {
         /// The call succeeded.
         ///
         /// Many calls are asynchronous, so some errors appear only after synchronizing.
@@ -31,15 +39,11 @@ status_enum! {
     }
 }
 
-/// Evaluates a native nvJPEG 2000 call and converts its status into a [`Result`](crate::error::Result).
-#[macro_export]
+// Converts a raw nvJPEG 2000 status into this crate's `Result`.
 macro_rules! try_ffi_k2 {
-    ($expr:expr) => {{
-        let status = { $expr };
-        if status != singe_nvjpeg_sys::k2::nvjpeg2kStatus_t::NVJPEG2K_STATUS_SUCCESS {
-            Err($crate::error::Error::from(status))
-        } else {
-            Ok(())
-        }
-    }};
+    ($expr:expr) => {
+        $crate::error::Error::check_k2($expr)
+    };
 }
+
+pub(crate) use try_ffi_k2;

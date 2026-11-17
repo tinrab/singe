@@ -25,7 +25,7 @@ enum Ordering {
     AcquireRelease,
 }
 
-pub fn access(
+pub(crate) fn access(
     compiler: &FunctionCompiler<'_, '_>,
     instruction: &Instruction,
     head: &mut Head<'_>,
@@ -154,7 +154,7 @@ fn access_ordering(head: &mut Head<'_>, write: bool) -> Result<Ordering> {
     Ok(ordering)
 }
 
-pub fn atomic(
+pub(crate) fn atomic(
     compiler: &FunctionCompiler<'_, '_>,
     instruction: &Instruction,
     head: &mut Head<'_>,
@@ -248,7 +248,11 @@ pub fn atomic(
 }
 
 /// Lowers `membar` and `fence`; the interpreter already serializes every access.
-pub fn fence(instruction: &Instruction, head: &mut Head<'_>, opcode: Opcode) -> Result<Operation> {
+pub(crate) fn fence(
+    instruction: &Instruction,
+    head: &mut Head<'_>,
+    opcode: Opcode,
+) -> Result<Operation> {
     operands::<0>(instruction)?;
     if opcode == Opcode::Membar {
         require(

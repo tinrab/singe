@@ -2,24 +2,24 @@ mod common;
 
 use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
-    backend::{
-        pointwise::PointwiseMode,
-        tensor::{Shape, TensorSpec},
+    backend::operation::{
+        normalization::NormalizationSavedStatistics,
+        pointwise::{Activation, PointwiseMode},
     },
     data_type::DataType,
     error::Result,
     frontend::{
         graph::{DataTypePolicy, Graph, GraphConfig},
         operation::{
-            Activation, LayerNormalizationAffine, LayerNormalizationAffineGradients,
+            LayerNormalizationAffine, LayerNormalizationAffineGradients,
             LayerNormalizationBackwardConfig, LayerNormalizationBackwardInputs,
             LayerNormalizationBackwardOutputs, LayerNormalizationConfig, LayerNormalizationInputs,
-            LayerNormalizationOutputs, NormalizationSavedStatistics, NormalizationStatistics,
-            PointwiseOperation,
+            LayerNormalizationOutputs, NormalizationStatistics, PointwiseOperation,
         },
         plan::{CompileConfig, ExecuteArgs, HeuristicMode},
     },
     math::NanPropagation,
+    tensor::{Shape, TensorSpec},
 };
 
 const PROBLEM_DIMENSIONS: [i64; 3] = [4, 1024, 128];
@@ -185,9 +185,9 @@ fn run_forward(example: &common::ExampleContext) -> Result<SavedLayerNormRelu> {
     // SAFETY: matching bindings, buffers and workspace remain live until the helper
     // completes the cuDNN stream, including when native execution returns an error.
     example.execute_and_wait(|context| unsafe {
-        compiled.execute(
+        compiled.execute_async(
             context,
-            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
         )
     })?;
 
@@ -247,7 +247,7 @@ fn run_backward(example: &common::ExampleContext, saved: &SavedLayerNormRelu) ->
         alpha2: 1.0,
     })?;
 
-    let dx = graph.tensor(TensorSpec::new(DataType::F32, hidden_layout.clone()));
+    let dx = graph.tensor(TensorSpec::new(DataType::F32, hidden_layout));
     let dscale = graph.tensor(TensorSpec::new(DataType::F32, scale_layout.clone()));
     let bias_gradient = graph.tensor(TensorSpec::new(DataType::F32, scale_layout));
     graph.layer_normalization_backward_into(
@@ -275,11 +275,11 @@ fn run_backward(example: &common::ExampleContext, saved: &SavedLayerNormRelu) ->
         Some(&example.cudnn),
         &CompileConfig::from_heuristic_modes([HeuristicMode::A, HeuristicMode::Fallback]),
     )?;
-    let dy_dev = DeviceMemory::from_slice(
+    let y_grad_dev = DeviceMemory::from_slice(
         example.cudnn.cuda_context(),
         &vec![1.0_f32; graph.shape(dy)?.storage_span()?],
     )?;
-    let mut dx_dev = DeviceMemory::<f32>::zeroed(
+    let mut x_grad_dev = DeviceMemory::<f32>::zeroed(
         example.cudnn.cuda_context(),
         graph.shape(dx)?.storage_span()?,
     )?;
@@ -295,20 +295,20 @@ fn run_backward(example: &common::ExampleContext, saved: &SavedLayerNormRelu) ->
 
     let mut bindings = compiled.bindings()?;
     bindings.set_input(x, &saved.input)?;
-    bindings.set_input(dy, &dy_dev)?;
+    bindings.set_input(dy, &y_grad_dev)?;
     bindings.set_input(scale, &saved.scale)?;
     bindings.set_input(mean, &saved.mean)?;
     bindings.set_input(inv_variance, &saved.inv_variance)?;
     bindings.set_encoded_input_bytes(mask, &saved.bitmask)?;
-    bindings.set(dx, &mut dx_dev)?;
+    bindings.set(dx, &mut x_grad_dev)?;
     bindings.set(dscale, &mut dscale_dev)?;
     bindings.set(bias_gradient, &mut bias_gradient_dev)?;
     // SAFETY: matching bindings, buffers and workspace remain live until the helper
     // completes the cuDNN stream, including when native execution returns an error.
     example.execute_and_wait(|context| unsafe {
-        compiled.execute(
+        compiled.execute_async(
             context,
-            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
         )
     })?;
 
@@ -322,6 +322,6 @@ fn run() -> Result<()> {
     run_backward(&context, &saved)
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_layer_norm_bitmask_relu", run())
 }

@@ -2,12 +2,11 @@ mod common;
 
 use singe_cuda::{context::Context, memory::DeviceMemory, types::DevicePtr};
 use singe_cudss::{
-    error::Result,
     matrix::{CsrMatrixDescriptor, Matrix},
     types::{DataType, IndexBase, MatrixFormat, MatrixType, MatrixViewType},
 };
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     let cuda = Context::create()?;
     println!("cuDSS example: sparse matrix helper APIs");
     println!("cuDSS version: {}", singe_cudss::version()?);

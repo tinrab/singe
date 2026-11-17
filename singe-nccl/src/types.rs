@@ -7,12 +7,17 @@ use std::{
 
 use bitflags::parser;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
-use singe_core::{impl_enum_conversion, impl_enum_display};
+use singe_core::impl_enum_display;
 use singe_cuda::{
     types::{bf16, f8e4m3, f8e5m2, f16},
     view::{AnyBitPatternDeviceRepr, NoUninitDeviceRepr},
 };
 use singe_nccl_sys as sys;
+
+use crate::{
+    error::{Error, Result},
+    utility::to_usize,
+};
 
 const CONFIG_UNDEF_INT: i32 = i32::MIN;
 const UNIQUE_ID_BYTE_LEN: usize = sys::NCCL_UNIQUE_ID_BYTES as usize;
@@ -52,6 +57,61 @@ impl From<sys::ncclUniqueId> for UniqueId {
             *dst = src as u8;
         }
         Self { bytes }
+    }
+}
+
+/// A nonnegative communicator rank identifier.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct RankId(i32);
+
+/// A nonnegative rank selected as the root of a collective.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct RootRank(RankId);
+
+impl RankId {
+    /// Creates a nonnegative rank identifier.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `value` is negative.
+    pub fn create(value: i32) -> Result<Self> {
+        if value < 0 {
+            return Err(Error::out_of_range("rank"));
+        }
+        Ok(Self(value))
+    }
+
+    /// Returns the native rank number.
+    #[must_use]
+    pub const fn get(self) -> i32 {
+        self.0
+    }
+
+    pub(crate) fn to_index(self) -> Result<usize> {
+        to_usize(self.0, "rank")
+    }
+}
+
+impl RootRank {
+    /// Creates a nonnegative root rank identifier.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `value` is negative.
+    pub fn create(value: i32) -> Result<Self> {
+        Ok(Self(RankId::create(value)?))
+    }
+
+    /// Returns the root as a rank identifier.
+    #[must_use]
+    pub const fn id(self) -> RankId {
+        self.0
+    }
+
+    /// Returns the native root rank number.
+    #[must_use]
+    pub const fn get(self) -> i32 {
+        self.0.get()
     }
 }
 
@@ -116,24 +176,24 @@ impl CommunicatorState {
     }
 }
 
-/// Defines the reduction operation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum ReductionOperator {
-    /// Perform a sum (+) operation.
-    Sum = sys::ncclRedOp_t::ncclSum as _,
-    /// Perform a product (\*) operation.
-    Product = sys::ncclRedOp_t::ncclProd as _,
-    /// Perform a max operation.
-    Maximum = sys::ncclRedOp_t::ncclMax as _,
-    /// Perform a min operation.
-    Minimum = sys::ncclRedOp_t::ncclMin as _,
-    /// Perform an average operation: a sum across all ranks divided by the number of ranks.
-    Average = sys::ncclRedOp_t::ncclAvg as _,
+singe_core::native_enum! {
+    /// Defines the reduction operation.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum ReductionOperator: sys::ncclRedOp_t {
+        /// Perform a sum (+) operation.
+        Sum = ncclSum,
+        /// Perform a product (\*) operation.
+        Product = ncclProd,
+        /// Perform a max operation.
+        Maximum = ncclMax,
+        /// Perform a min operation.
+        Minimum = ncclMin,
+        /// Perform an average operation: a sum across all ranks divided by the number of ranks.
+        Average = ncclAvg,
+    }
 }
-
-impl_enum_conversion!(sys::ncclRedOp_t, ReductionOperator);
 
 /// Participation and group selection for communicator splitting.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -156,18 +216,18 @@ impl SplitColor {
     }
 }
 
-/// Indicates where scalar arguments reside and when they can be dereferenced.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum ScalarResidence {
-    /// The scalar resides in device-visible memory and is dereferenced when needed.
-    Device = sys::ncclScalarResidence_t::ncclScalarDevice as _,
-    /// The scalar resides in host memory and is dereferenced immediately.
-    HostImmediate = sys::ncclScalarResidence_t::ncclScalarHostImmediate as _,
+singe_core::native_enum! {
+    /// Indicates where scalar arguments reside and when they can be dereferenced.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum ScalarResidence: sys::ncclScalarResidence_t {
+        /// The scalar resides in device-visible memory and is dereferenced when needed.
+        Device = ncclScalarDevice,
+        /// The scalar resides in host memory and is dereferenced immediately.
+        HostImmediate = ncclScalarHostImmediate,
+    }
 }
-
-impl_enum_conversion!(sys::ncclScalarResidence_t, ScalarResidence);
 
 /// The policy used to balance communication thread blocks against other GPU work.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
@@ -192,16 +252,11 @@ bitflags::bitflags! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     /// Options controlling communicator shrinking and recovery from pending operations.
     pub struct ShrinkFlags: u32 {
-        /// These flags modify the behavior of the `ncclCommShrink` operation.
-        ///
-        /// Default behavior.
-        /// Shrink the parent communicator without affecting ongoing operations.
-        /// Value: `0x00`.
+        /// Shrinks the parent communicator without affecting ongoing operations.
         const DEFAULT = sys::NCCL_SHRINK_DEFAULT;
-        /// First, terminate ongoing parent communicator operations, and then proceed with shrinking the communicator.
-        /// This is used for error recovery scenarios where the parent communicator might be in a hung state.
-        /// Resources of parent comm are still not freed, users should decide whether to call ncclCommAbort on the parent communicator after shrink.
-        /// Value: `0x01`.
+        /// Terminates ongoing parent communicator operations, then shrinks the communicator.
+        /// Use it to recover when the parent communicator might be hung.
+        /// The parent's resources are not freed; decide whether to call [`Communicator::abort`](crate::communicator::Communicator::abort) on it after the shrink.
         const ABORT = sys::NCCL_SHRINK_ABORT;
     }
 }
@@ -241,38 +296,38 @@ impl Display for WindowFlags {
     }
 }
 
-/// NCCL scalar data types.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum DataType {
-    /// Signed 8-bit integer.
-    I8 = sys::ncclDataType_t::ncclInt8 as _,
-    /// Unsigned 8-bit integer.
-    U8 = sys::ncclDataType_t::ncclUint8 as _,
-    /// Signed 32-bit integer.
-    I32 = sys::ncclDataType_t::ncclInt32 as _,
-    /// Unsigned 32-bit integer.
-    U32 = sys::ncclDataType_t::ncclUint32 as _,
-    /// Signed 64-bit integer.
-    I64 = sys::ncclDataType_t::ncclInt64 as _,
-    /// Unsigned 64-bit integer.
-    U64 = sys::ncclDataType_t::ncclUint64 as _,
-    /// 16-bit floating-point number (half precision).
-    F16 = sys::ncclDataType_t::ncclFloat16 as _,
-    /// 32-bit floating-point number (single precision).
-    F32 = sys::ncclDataType_t::ncclFloat32 as _,
-    /// 64-bit floating-point number (double precision).
-    F64 = sys::ncclDataType_t::ncclFloat64 as _,
-    /// 16-bit floating-point number with truncated bfloat16 precision (CUDA 11 or later).
-    Bf16 = sys::ncclDataType_t::ncclBfloat16 as _,
-    /// 8-bit floating-point number with 4 exponent bits and 3 mantissa bits (CUDA &gt;= 11.8 and SM &gt;= 90).
-    F8E4M3 = sys::ncclDataType_t::ncclFloat8e4m3 as _,
-    /// 8-bit floating-point number with 5 exponent bits and 2 mantissa bits (CUDA &gt;= 11.8 and SM &gt;= 90).
-    F8E5M2 = sys::ncclDataType_t::ncclFloat8e5m2 as _,
+singe_core::native_enum! {
+    /// NCCL scalar data types.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum DataType: sys::ncclDataType_t {
+        /// Signed 8-bit integer.
+        I8 = ncclInt8,
+        /// Unsigned 8-bit integer.
+        U8 = ncclUint8,
+        /// Signed 32-bit integer.
+        I32 = ncclInt32,
+        /// Unsigned 32-bit integer.
+        U32 = ncclUint32,
+        /// Signed 64-bit integer.
+        I64 = ncclInt64,
+        /// Unsigned 64-bit integer.
+        U64 = ncclUint64,
+        /// 16-bit floating-point number (half precision).
+        F16 = ncclFloat16,
+        /// 32-bit floating-point number (single precision).
+        F32 = ncclFloat32,
+        /// 64-bit floating-point number (double precision).
+        F64 = ncclFloat64,
+        /// 16-bit floating-point number with truncated bfloat16 precision (CUDA 11 or later).
+        Bf16 = ncclBfloat16,
+        /// 8-bit floating-point number with 4 exponent bits and 3 mantissa bits (CUDA &gt;= 11.8 and SM &gt;= 90).
+        F8E4M3 = ncclFloat8e4m3,
+        /// 8-bit floating-point number with 5 exponent bits and 2 mantissa bits (CUDA &gt;= 11.8 and SM &gt;= 90).
+        F8E5M2 = ncclFloat8e5m2,
+    }
 }
-
-impl_enum_conversion!(sys::ncclDataType_t, DataType);
 
 impl DataType {
     /// Returns the storage size of one element, in bytes.
@@ -288,6 +343,10 @@ impl DataType {
 }
 
 mod sealed {
+    #[allow(
+        unnameable_types,
+        reason = "sealed supertrait that callers must not name or implement"
+    )]
     pub trait DataType {}
 }
 
@@ -332,23 +391,23 @@ impl_nccl_data_type!(f8e4m3, F8E4M3);
 
 impl_nccl_data_type!(f8e5m2, F8E5M2);
 
-/// Values for the [`Config::host_cft_mode`] communicator configuration.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(i32)]
-#[non_exhaustive]
-pub enum HostCftMode {
-    /// Use the version-specific default.
-    Default = sys::ncclHostCftMode_t::ncclHostCftDefault as _,
-    /// Enable host-side CFT support.
-    Enable = sys::ncclHostCftMode_t::ncclHostCftEnable as _,
-    /// Disable host-side CFT support.
-    Disable = sys::ncclHostCftMode_t::ncclHostCftDisable as _,
-    /// Try to create CFT logical endpoints.
-    /// In case of an error, host-side CFT will be disabled.
-    Fallback = sys::ncclHostCftMode_t::ncclHostCftFallback as _,
+singe_core::native_enum! {
+    /// Values for the [`Config::host_cft_mode`] communicator configuration.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(i32)]
+    #[non_exhaustive]
+    pub enum HostCftMode: sys::ncclHostCftMode_t {
+        /// Use the version-specific default.
+        Default = ncclHostCftDefault,
+        /// Enable host-side CFT support.
+        Enable = ncclHostCftEnable,
+        /// Disable host-side CFT support.
+        Disable = ncclHostCftDisable,
+        /// Try to create CFT logical endpoints.
+        /// In case of an error, host-side CFT will be disabled.
+        Fallback = ncclHostCftFallback,
+    }
 }
-
-impl_enum_conversion!(i32, sys::ncclHostCftMode_t, HostCftMode);
 
 impl_enum_display!(HostCftMode, {
     Self::Default => "ncclHostCftDefault",
@@ -362,11 +421,11 @@ bitflags::bitflags! {
     #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
     pub struct NvlsHostFlags: i32 {
         /// Disable the host NVLS transport.
-        const DISABLE_TRANSPORT = sys::ncclNvlsHostMode_t::ncclNvlsHostModeDisableTransport as _;
+        const DISABLE_TRANSPORT = sys::ncclNvlsHostMode_t::ncclNvlsHostModeDisableTransport.0;
         /// Disable host NVLS symmetric multimemory support.
-        const DISABLE_SYMMETRIC_MULTIMEM = sys::ncclNvlsHostMode_t::ncclNvlsHostModeDisableSymmetricMultimem as _;
+        const DISABLE_SYMMETRIC_MULTIMEM = sys::ncclNvlsHostMode_t::ncclNvlsHostModeDisableSymmetricMultimem.0;
         /// Disable host NVLS support.
-        const DISABLE = sys::ncclNvlsHostMode_t::ncclNvlsHostModeDisable as _;
+        const DISABLE = sys::ncclNvlsHostMode_t::ncclNvlsHostModeDisable.0;
     }
 }
 

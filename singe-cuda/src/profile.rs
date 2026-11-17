@@ -1,5 +1,6 @@
 //! CUDA profiler control helpers.
 
+use singe_core::report_cleanup_failure;
 use singe_cuda_sys::profiler;
 
 use crate::{error::Result, try_ffi};
@@ -37,7 +38,7 @@ impl Profiler {
     /// # Errors
     ///
     /// Returns an error if CUDA cannot stop profiler collection.
-    /// On failure, dropping the consumed guard attempts the stop call again; that cleanup result is discarded.
+    /// On failure, dropping the consumed guard attempts the stop call again and reports a second failure only in debug builds.
     pub fn stop(mut self) -> Result<()> {
         if self.active {
             stop()?;
@@ -50,7 +51,10 @@ impl Profiler {
 impl Drop for Profiler {
     fn drop(&mut self) {
         if self.active {
-            let _ = stop();
+            if let Err(error) = stop() {
+                report_cleanup_failure("stop", "cuda profiler collection", &error);
+            }
+
             self.active = false;
         }
     }

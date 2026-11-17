@@ -1,8 +1,7 @@
-use singe_cuda::{context::Context as CudaContext, memory::DeviceMemory, stream::StreamBinding};
+use singe_cuda::{context::Context as CudaContext, memory::DeviceMemory, stream::StreamOptions};
 
 use singe_cutensor::{
     context::Context,
-    error::Result,
     operation::{ComputeDescriptor, OperationDescriptor, TensorOperand},
     plan::{Plan, PlanPreference},
     tensor::TensorDescriptor,
@@ -14,17 +13,19 @@ fn packed_offset(indices: &[u64], extents: &[u64]) -> usize {
     let mut offset = 0_usize;
 
     for (&index, &extent) in indices.iter().zip(extents) {
-        offset += index as usize * stride;
-        stride *= extent as usize;
+        offset += usize::try_from(index).unwrap() * stride;
+        stride *= usize::try_from(extent).unwrap();
     }
 
     offset
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
+    const ALIGNMENT: u32 = 128;
+
     let cuda_context = CudaContext::create()?;
     let context = Context::create(&cuda_context)?;
-    let stream = cuda_context.create_stream()?;
+    let stream = cuda_context.create_stream(StreamOptions::default())?;
 
     let extent_a = vec![2, 3, 2];
     let extent_c = vec![2, 3, 2];
@@ -41,8 +42,6 @@ fn main() -> Result<()> {
     let device_a = DeviceMemory::from_slice(&cuda_context, &host_a)?;
     let device_c = DeviceMemory::from_slice(&cuda_context, &host_c)?;
     let mut device_d = DeviceMemory::from_slice(&cuda_context, &host_c)?;
-
-    const ALIGNMENT: u32 = 128;
 
     let descriptor_a = TensorDescriptor::create_for::<f32>(&context, &extent_a, ALIGNMENT)?;
     let descriptor_c = TensorDescriptor::create_for::<f32>(&context, &extent_c, ALIGNMENT)?;
@@ -62,12 +61,7 @@ fn main() -> Result<()> {
 
     let alpha = 1.1_f32;
     let gamma = 1.2_f32;
-    StreamBinding::Borrowed(stream.to_borrowed()).sync_scope(|| {
-        // SAFETY: these buffers match the descriptors and stay borrowed through scope completion.
-        unsafe {
-            plan.elementwise_binary(&alpha, &device_a, &gamma, &device_c, &mut device_d, &stream)
-        }
-    })?;
+    plan.elementwise_binary(&alpha, &device_a, &gamma, &device_c, &mut device_d, &stream)?;
 
     let result = device_d.copy_to_host_vec()?;
     let mut expected = vec![0.0_f32; result.len()];
@@ -77,7 +71,7 @@ fn main() -> Result<()> {
             for c in 0..extent_c[2] {
                 let c_offset = packed_offset(&[a, b, c], &extent_c);
                 let a_offset = packed_offset(&[c, b, a], &extent_a);
-                expected[c_offset] = alpha * host_a[a_offset] + gamma * host_c[c_offset];
+                expected[c_offset] = gamma.mul_add(host_c[c_offset], alpha * host_a[a_offset]);
             }
         }
     }

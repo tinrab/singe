@@ -9,13 +9,13 @@ use std::{mem::size_of, ptr, sync::Arc};
 use singe_cuda::{
     error::Error as CudaError,
     stream::{Stream, StreamBinding, StreamScope},
-    view::{DeviceInput, DeviceOutput, DeviceRepr, DeviceSlice, HostSlice, HostSliceMut},
+    view::{DeviceOutput, DeviceRange, DeviceRepr, DeviceSlice, HostSlice, HostSliceMut},
 };
 
 use crate::{
     error::{Error, Result},
     sys, try_ffi,
-    utility::{checked_byte_len, to_i64},
+    utility::{checked_byte_len, checked_pitched_extent, to_i64},
 };
 
 #[derive(Clone, Copy)]
@@ -62,12 +62,7 @@ impl VectorCopy {
             return Err(Error::out_of_range("element size"));
         }
 
-        let span = |stride: usize| {
-            (n - 1)
-                .checked_mul(stride)
-                .and_then(|v| v.checked_add(1))
-                .ok_or_else(|| Error::out_of_range("vector span"))
-        };
+        let span = |stride: usize| checked_pitched_extent(n, stride, 1, "vector span");
         if span(source_stride)? > source_len || span(destination_stride)? > destination_len {
             return Err(Error::InvalidVectorShape);
         }
@@ -101,7 +96,7 @@ impl VectorCopy {
             destination_stride,
         } = *self;
         let stream = stream.map_or(ptr::null_mut(), Stream::as_raw);
-        // SAFETY: the caller upholds this function's safety contract.
+        // SAFETY: `create` checked that both strided spans fit their buffers and their byte sizes fit `i64`, and the caller keeps `source` and `destination` live and exclusive until the copy completes.
         unsafe {
             match direction {
                 Direction::ToDevice => try_ffi!(sys::cublasSetVectorAsync_64(
@@ -157,12 +152,7 @@ impl MatrixCopy {
             return Err(Error::out_of_range("element size"));
         }
 
-        let span = |leading: usize| {
-            (cols - 1)
-                .checked_mul(leading)
-                .and_then(|v| v.checked_add(rows))
-                .ok_or_else(|| Error::out_of_range("matrix span"))
-        };
+        let span = |leading: usize| checked_pitched_extent(cols, leading, rows, "matrix span");
         if span(source_leading)? > source_len || span(destination_leading)? > destination_len {
             return Err(Error::InvalidMatrixShape);
         }
@@ -198,7 +188,7 @@ impl MatrixCopy {
             destination_leading,
         } = *self;
         let stream = stream.map_or(ptr::null_mut(), Stream::as_raw);
-        // SAFETY: the caller upholds this function's safety contract.
+        // SAFETY: `create` checked that both column-major spans fit their buffers and their byte sizes fit `i64`, and the caller keeps `source` and `destination` live and exclusive until the copy completes.
         unsafe {
             match direction {
                 Direction::ToDevice => try_ffi!(sys::cublasSetMatrixAsync_64(
@@ -269,7 +259,7 @@ where
 ///
 /// For a nonempty copy, returns an error if an increment is zero or the selected elements exceed an operand's length, or if element sizes, byte spans, or dimensions exceed the native integer range.
 /// Returns an error if the device operand belongs to another stream context, joining prior accesses or binding the context fails, or cuBLAS cannot enqueue the copy.
-pub fn copy_vector_to_device_async<'env, T, X, Y>(
+pub fn copy_vector_to_device_scoped<'env, T, X, Y>(
     n: usize,
     x: &'env X,
     incx: usize,
@@ -283,7 +273,7 @@ where
     Y: DeviceOutput<T> + ?Sized,
 {
     // SAFETY: both resource borrows are tied to the scope's completion lifetime.
-    unsafe { copy_vector_to_device_async_unchecked(n, x, incx, y, incy, scope.stream()) }
+    unsafe { copy_vector_to_device_async(n, x, incx, y, incy, scope.stream()) }
 }
 
 /// Copies a strided vector from host to device.
@@ -299,7 +289,7 @@ where
 ///
 /// For a nonempty copy, returns an error if an increment is zero or the selected elements exceed an operand's length, or if element sizes, byte spans, or dimensions exceed the native integer range.
 /// Returns an error if the device operand belongs to another stream context, joining prior accesses or binding the context fails, or cuBLAS cannot enqueue the copy.
-pub unsafe fn copy_vector_to_device_async_unchecked<T, X, Y>(
+pub unsafe fn copy_vector_to_device_async<T, X, Y>(
     n: usize,
     x: &X,
     incx: usize,
@@ -382,7 +372,7 @@ where
 ///
 /// For a nonempty copy, returns an error if an increment is zero or the selected elements exceed an operand's length, or if element sizes, byte spans, or dimensions exceed the native integer range.
 /// Returns an error if the device operand belongs to another stream context, joining prior accesses or binding the context fails, or cuBLAS cannot enqueue the copy.
-pub fn copy_vector_to_host_async<'env, T, X, Y>(
+pub fn copy_vector_to_host_scoped<'env, T, X, Y>(
     n: usize,
     x: &'env X,
     incx: usize,
@@ -396,7 +386,7 @@ where
     Y: HostSliceMut<T> + ?Sized,
 {
     // SAFETY: both resource borrows are tied to the scope's completion lifetime.
-    unsafe { copy_vector_to_host_async_unchecked(n, x, incx, y, incy, scope.stream()) }
+    unsafe { copy_vector_to_host_async(n, x, incx, y, incy, scope.stream()) }
 }
 
 /// Copies a strided vector from device to host.
@@ -412,7 +402,7 @@ where
 ///
 /// For a nonempty copy, returns an error if an increment is zero or the selected elements exceed an operand's length, or if element sizes, byte spans, or dimensions exceed the native integer range.
 /// Returns an error if the device operand belongs to another stream context, joining prior accesses or binding the context fails, or cuBLAS cannot enqueue the copy.
-pub unsafe fn copy_vector_to_host_async_unchecked<T, X, Y>(
+pub unsafe fn copy_vector_to_host_async<T, X, Y>(
     n: usize,
     x: &X,
     incx: usize,
@@ -422,7 +412,7 @@ pub unsafe fn copy_vector_to_host_async_unchecked<T, X, Y>(
 ) -> Result<()>
 where
     T: DeviceRepr,
-    X: DeviceInput<T> + ?Sized,
+    X: DeviceRange<T> + ?Sized,
     Y: HostSliceMut<T> + ?Sized,
 {
     if x.region().context() != stream.context() {
@@ -491,7 +481,7 @@ where
 ///
 /// For a nonempty copy, returns an error if a leading dimension is smaller than the row count or the selected matrix exceeds an operand's length, or if element sizes, byte spans, or dimensions exceed the native integer range.
 /// Returns an error if the device operand belongs to another stream context, joining prior accesses or binding the context fails, or cuBLAS cannot enqueue the copy.
-pub fn copy_matrix_to_device_async<'env, T, X, Y>(
+pub fn copy_matrix_to_device_scoped<'env, T, X, Y>(
     rows: usize,
     cols: usize,
     a: &'env X,
@@ -506,7 +496,7 @@ where
     Y: DeviceOutput<T> + ?Sized,
 {
     // SAFETY: both resource borrows are tied to the scope's completion lifetime.
-    unsafe { copy_matrix_to_device_async_unchecked(rows, cols, a, lda, b, ldb, scope.stream()) }
+    unsafe { copy_matrix_to_device_async(rows, cols, a, lda, b, ldb, scope.stream()) }
 }
 
 /// Copies a strided matrix from host to device.
@@ -524,7 +514,7 @@ where
 ///
 /// For a nonempty copy, returns an error if a leading dimension is smaller than the row count or the selected matrix exceeds an operand's length, or if element sizes, byte spans, or dimensions exceed the native integer range.
 /// Returns an error if the device operand belongs to another stream context, joining prior accesses or binding the context fails, or cuBLAS cannot enqueue the copy.
-pub unsafe fn copy_matrix_to_device_async_unchecked<T, X, Y>(
+pub unsafe fn copy_matrix_to_device_async<T, X, Y>(
     rows: usize,
     cols: usize,
     a: &X,
@@ -611,7 +601,7 @@ where
 ///
 /// For a nonempty copy, returns an error if a leading dimension is smaller than the row count or the selected matrix exceeds an operand's length, or if element sizes, byte spans, or dimensions exceed the native integer range.
 /// Returns an error if the device operand belongs to another stream context, joining prior accesses or binding the context fails, or cuBLAS cannot enqueue the copy.
-pub fn copy_matrix_to_host_async<'env, T, X, Y>(
+pub fn copy_matrix_to_host_scoped<'env, T, X, Y>(
     rows: usize,
     cols: usize,
     a: &'env X,
@@ -626,7 +616,7 @@ where
     Y: HostSliceMut<T> + ?Sized,
 {
     // SAFETY: both resource borrows are tied to the scope's completion lifetime.
-    unsafe { copy_matrix_to_host_async_unchecked(rows, cols, a, lda, b, ldb, scope.stream()) }
+    unsafe { copy_matrix_to_host_async(rows, cols, a, lda, b, ldb, scope.stream()) }
 }
 
 /// Copies a strided matrix from device to host.
@@ -644,7 +634,7 @@ where
 ///
 /// For a nonempty copy, returns an error if a leading dimension is smaller than the row count or the selected matrix exceeds an operand's length, or if element sizes, byte spans, or dimensions exceed the native integer range.
 /// Returns an error if the device operand belongs to another stream context, joining prior accesses or binding the context fails, or cuBLAS cannot enqueue the copy.
-pub unsafe fn copy_matrix_to_host_async_unchecked<T, X, Y>(
+pub unsafe fn copy_matrix_to_host_async<T, X, Y>(
     rows: usize,
     cols: usize,
     a: &X,
@@ -655,7 +645,7 @@ pub unsafe fn copy_matrix_to_host_async_unchecked<T, X, Y>(
 ) -> Result<()>
 where
     T: DeviceRepr,
-    X: DeviceInput<T> + ?Sized,
+    X: DeviceRange<T> + ?Sized,
     Y: HostSliceMut<T> + ?Sized,
 {
     if a.region().context() != stream.context() {
@@ -680,15 +670,18 @@ where
 
 #[cfg(all(test, feature = "testing"))]
 mod tests {
-    use singe_cuda::memory::DeviceMemory;
+    use singe_cuda::{memory::DeviceMemory, stream::StreamOptions};
 
     use super::*;
     use crate::testing::setup_context;
 
     #[test]
     fn test_vector_transfer_round_trip() -> Result<()> {
-        let context = setup_context()?;
-        let stream = context.cuda_context().create_stream()?;
+        let test = setup_context()?;
+        let context = test.context();
+        let stream = context
+            .cuda_context()
+            .create_stream(StreamOptions::default())?;
 
         let host = vec![1_i32, 2, 3, 4, 5, 6];
         let mut device = DeviceMemory::<i32>::create_uninit(context.cuda_context(), host.len())?;
@@ -703,11 +696,11 @@ mod tests {
 
         let host_async = vec![6_i32, 5, 4, 3, 2, 1];
         let mut async_result = vec![0_i32; host_async.len()];
-        StreamBinding::Borrowed(stream.to_borrowed()).sync_scope(|| -> Result<()> {
+        stream.complete(|| -> Result<()> {
             // SAFETY: the upload precedes readback on the same stream; every
             // initialized range and host destination stays live until completion.
             unsafe {
-                copy_vector_to_device_async_unchecked(
+                copy_vector_to_device_async(
                     host_async.len(),
                     &host_async,
                     1,
@@ -715,7 +708,7 @@ mod tests {
                     1,
                     &stream,
                 )?;
-                copy_vector_to_host_async_unchecked(
+                copy_vector_to_host_async(
                     host_async.len(),
                     &device,
                     1,
@@ -734,14 +727,14 @@ mod tests {
 
     #[test]
     fn test_matrix_transfer_round_trip() -> Result<()> {
-        let _context = setup_context()?;
+        let test = setup_context()?;
 
         let rows = 2;
         let cols = 3;
         let lda = 2;
         let ldb = 2;
         let host = vec![1.0_f32, 2.0, 3.0, 4.0, 5.0, 6.0];
-        let mut device = DeviceMemory::<f32>::create_uninit(_context.cuda_context(), host.len())?;
+        let mut device = DeviceMemory::<f32>::create_uninit(test.cuda_context(), host.len())?;
 
         copy_matrix_to_device(rows, cols, &host, lda, &mut device, ldb)?;
         // SAFETY: this contiguous tile covers every element after completion.
@@ -757,8 +750,11 @@ mod tests {
 
     #[test]
     fn test_matrix_transfer_async_round_trip() -> Result<()> {
-        let context = setup_context()?;
-        let stream = context.cuda_context().create_stream()?;
+        let test = setup_context()?;
+        let context = test.context();
+        let stream = context
+            .cuda_context()
+            .create_stream(StreamOptions::default())?;
 
         let rows = 2;
         let cols = 3;
@@ -768,28 +764,12 @@ mod tests {
         let mut device = DeviceMemory::<f32>::create_uninit(context.cuda_context(), host.len())?;
 
         let mut result = vec![0.0_f32; host.len()];
-        StreamBinding::Borrowed(stream.to_borrowed()).sync_scope(|| -> Result<()> {
+        stream.complete(|| -> Result<()> {
             // SAFETY: the upload precedes readback on the same stream; every
             // initialized range and host destination stays live until completion.
             unsafe {
-                copy_matrix_to_device_async_unchecked(
-                    rows,
-                    cols,
-                    &host,
-                    lda,
-                    &mut device,
-                    ldb,
-                    &stream,
-                )?;
-                copy_matrix_to_host_async_unchecked(
-                    rows,
-                    cols,
-                    &device,
-                    lda,
-                    &mut result,
-                    ldb,
-                    &stream,
-                )?;
+                copy_matrix_to_device_async(rows, cols, &host, lda, &mut device, ldb, &stream)?;
+                copy_matrix_to_host_async(rows, cols, &device, lda, &mut result, ldb, &stream)?;
             }
             Ok(())
         })?;

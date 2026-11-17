@@ -7,9 +7,7 @@ use singe_cuda::device::Device;
 
 use singe_nccl::local::LocalCommunicatorGroup;
 
-pub type ExampleResult<T = ()> = Result<T>;
-
-pub fn create_rank_contexts(min_rank_count: usize) -> ExampleResult<LocalCommunicatorGroup> {
+pub(crate) fn create_rank_contexts(min_rank_count: usize) -> Result<LocalCommunicatorGroup> {
     let count = usize::try_from(Device::count()?)?;
     if count < min_rank_count {
         return Err(io::Error::other(format!(
@@ -17,12 +15,12 @@ pub fn create_rank_contexts(min_rank_count: usize) -> ExampleResult<LocalCommuni
         ))
         .into());
     }
-    Ok(LocalCommunicatorGroup::create_all_visible(count)?)
+    Ok(LocalCommunicatorGroup::create(&first_devices(count)?)?)
 }
 
-pub fn create_power_of_two_rank_contexts(
+pub(crate) fn create_power_of_two_rank_contexts(
     min_rank_count: usize,
-) -> ExampleResult<LocalCommunicatorGroup> {
+) -> Result<LocalCommunicatorGroup> {
     let count = usize::try_from(Device::count()?)?;
     if count < min_rank_count {
         return Err(io::Error::other(format!(
@@ -31,16 +29,24 @@ pub fn create_power_of_two_rank_contexts(
         .into());
     }
 
-    let rank_count = 1usize << (usize::BITS - count.leading_zeros() - 1);
-    Ok(LocalCommunicatorGroup::create_all_visible(rank_count)?)
+    let rank_count = 1usize << (count.bit_width() - 1);
+    Ok(LocalCommunicatorGroup::create(&first_devices(rank_count)?)?)
 }
 
-pub fn rank_indexed_values(rank: i32, len: usize) -> Vec<f32> {
+pub(crate) fn first_devices(count: usize) -> Result<Vec<Device>> {
+    (0..count)
+        .map(|id| -> Result<Device> { Ok(Device::new(i32::try_from(id)?)) })
+        .collect()
+}
+
+pub(crate) fn rank_indexed_values(rank: i32, len: usize) -> Vec<f32> {
     let rank = rank as f32;
-    (0..len).map(|index| rank * 1000.0 + index as f32).collect()
+    (0..len)
+        .map(|index| rank.mul_add(1000.0, index as f32))
+        .collect()
 }
 
-pub fn check_all_equal(actual: &[f32], expected: &[f32], label: &str) -> ExampleResult {
+pub(crate) fn check_all_equal(actual: &[f32], expected: &[f32], label: &str) -> Result<()> {
     if actual.len() != expected.len() {
         return Err(io::Error::other(format!(
             "{label} length mismatch: expected {}, got {}",

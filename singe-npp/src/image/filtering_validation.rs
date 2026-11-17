@@ -324,7 +324,10 @@ pub fn validate_distance_transform_outputs(
         .or(destination_voronoi_manhattan)
         .or(destination_transform)
         .ok_or_else(|| Error::out_of_range("distance transform destination"))?;
-    validate_positive_size(roi)?;
+    // NPP's PBA distance transforms accept ROI widths and heights in `64..=32767` only.
+    if !(64..=32767).contains(&roi.width) || !(64..=32767).contains(&roi.height) {
+        return Err(Error::out_of_range("distance transform size"));
+    }
 
     for destination in [
         destination_voronoi,
@@ -725,3 +728,28 @@ pub fn roi_area(roi: Size) -> Result<i32> {
 }
 
 pub type AdvancedMarkerBuffers = (usize, Vec<DeviceMemory<MaybeUninit<u8>>>, BufferDescriptors);
+
+pub fn validate_border_roi(source: Size, source_offset: Point, roi: Size) -> Result<()> {
+    if source_offset.x < 0 || source_offset.y < 0 {
+        return Err(Error::out_of_range("source offset"));
+    }
+
+    let right = source_offset
+        .x
+        .checked_add(roi.width)
+        .ok_or_else(|| Error::out_of_range("source offset"))?;
+    let bottom = source_offset
+        .y
+        .checked_add(roi.height)
+        .ok_or_else(|| Error::out_of_range("source offset"))?;
+
+    if right <= source.width && bottom <= source.height {
+        return Ok(());
+    }
+
+    Err(Error::SizeMismatch {
+        name: "border roi".into(),
+        expected: source,
+        actual: roi,
+    })
+}

@@ -1,3 +1,5 @@
+//! CUDA GPU architecture names and target parsing.
+
 use std::{
     fmt::{self, Display, Formatter},
     str::FromStr,

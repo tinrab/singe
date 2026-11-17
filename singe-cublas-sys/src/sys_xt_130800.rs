@@ -78,26 +78,20 @@ singe_loader::functions! { crate::LIBRARY;
         blockDim: *mut ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-/// Whether cuBLASXt automatically registers and unregisters eligible host matrix storage as pinned memory around computations.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cublasXtPinnedMemMode_t {
+impl cublasXtPinnedMemMode_t {
     /// the Pinning Memory mode is disabled
-    CUBLASXT_PINNING_DISABLED = 0,
+    pub const CUBLASXT_PINNING_DISABLED: cublasXtPinnedMemMode_t = cublasXtPinnedMemMode_t(
+        0,
+    );
     /// the Pinning Memory mode is enabled
-    CUBLASXT_PINNING_ENABLED = 1,
+    pub const CUBLASXT_PINNING_ENABLED: cublasXtPinnedMemMode_t = cublasXtPinnedMemMode_t(
+        1,
+    );
 }
+/// Whether cuBLASXt automatically registers and unregisters eligible host matrix storage as pinned memory around computations.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cublasXtPinnedMemMode_t(pub ::core::ffi::c_uint);
 singe_loader::functions! { crate::LIBRARY;
     /// This function allows the user to query the Pinning Memory mode. By default, the Pinning Memory mode is disabled.
     ///
@@ -121,72 +115,52 @@ singe_loader::functions! { crate::LIBRARY;
         mode: cublasXtPinnedMemMode_t,
     ) -> cublasStatus_t;
 }
-/// The `cublasOpType_t` enumerates the four possible types supported by BLAS routines. This enum is used as parameters of the routines [`cublasXtSetCpuRoutine`] and [`cublasXtSetCpuRatio`] to setup the hybrid configuration.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cublasXtOpType_t {
+impl cublasXtOpType_t {
     /// float or single precision type.
-    CUBLASXT_FLOAT = 0,
+    pub const CUBLASXT_FLOAT: cublasXtOpType_t = cublasXtOpType_t(0);
     /// double precision type.
-    CUBLASXT_DOUBLE = 1,
+    pub const CUBLASXT_DOUBLE: cublasXtOpType_t = cublasXtOpType_t(1);
     /// single precision complex.
-    CUBLASXT_COMPLEX = 2,
+    pub const CUBLASXT_COMPLEX: cublasXtOpType_t = cublasXtOpType_t(2);
     /// double precision complex.
-    CUBLASXT_DOUBLECOMPLEX = 3,
+    pub const CUBLASXT_DOUBLECOMPLEX: cublasXtOpType_t = cublasXtOpType_t(3);
+}
+/// The `cublasOpType_t` enumerates the four possible types supported by BLAS routines. This enum is used as parameters of the routines [`cublasXtSetCpuRoutine`] and [`cublasXtSetCpuRatio`] to setup the hybrid configuration.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cublasXtOpType_t(pub ::core::ffi::c_uint);
+impl cublasXtBlasOp_t {
+    /// GEMM routine.
+    pub const CUBLASXT_GEMM: cublasXtBlasOp_t = cublasXtBlasOp_t(0);
+    /// SYRK routine.
+    pub const CUBLASXT_SYRK: cublasXtBlasOp_t = cublasXtBlasOp_t(1);
+    /// HERK routine.
+    pub const CUBLASXT_HERK: cublasXtBlasOp_t = cublasXtBlasOp_t(2);
+    /// SYMM routine.
+    pub const CUBLASXT_SYMM: cublasXtBlasOp_t = cublasXtBlasOp_t(3);
+    /// HEMM routine.
+    pub const CUBLASXT_HEMM: cublasXtBlasOp_t = cublasXtBlasOp_t(4);
+    /// TRSM routine.
+    pub const CUBLASXT_TRSM: cublasXtBlasOp_t = cublasXtBlasOp_t(5);
+    /// SYR2K routine.
+    pub const CUBLASXT_SYR2K: cublasXtBlasOp_t = cublasXtBlasOp_t(6);
+    /// HER2K routine.
+    pub const CUBLASXT_HER2K: cublasXtBlasOp_t = cublasXtBlasOp_t(7);
+    /// SPMM routine.
+    pub const CUBLASXT_SPMM: cublasXtBlasOp_t = cublasXtBlasOp_t(8);
+    /// SYRKX routine.
+    pub const CUBLASXT_SYRKX: cublasXtBlasOp_t = cublasXtBlasOp_t(9);
+    /// HERKX routine.
+    pub const CUBLASXT_HERKX: cublasXtBlasOp_t = cublasXtBlasOp_t(10);
+    /// Selects triangular matrix-matrix multiplication when identifying a cuBLASXt BLAS operation.
+    pub const CUBLASXT_TRMM: cublasXtBlasOp_t = cublasXtBlasOp_t(11);
+    /// One past the last cuBLASXt BLAS operation identifier; used for bounds checks.
+    pub const CUBLASXT_ROUTINE_MAX: cublasXtBlasOp_t = cublasXtBlasOp_t(12);
 }
 /// The [`cublasXtBlasOp_t`] type enumerates the BLAS3 or BLAS-like routine supported by cuBLASXt API. This enum is used as parameters of the routines [`cublasXtSetCpuRoutine`] and [`cublasXtSetCpuRatio`] to setup the hybrid configuration.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cublasXtBlasOp_t {
-    /// GEMM routine.
-    CUBLASXT_GEMM = 0,
-    /// SYRK routine.
-    CUBLASXT_SYRK = 1,
-    /// HERK routine.
-    CUBLASXT_HERK = 2,
-    /// SYMM routine.
-    CUBLASXT_SYMM = 3,
-    /// HEMM routine.
-    CUBLASXT_HEMM = 4,
-    /// TRSM routine.
-    CUBLASXT_TRSM = 5,
-    /// SYR2K routine.
-    CUBLASXT_SYR2K = 6,
-    /// HER2K routine.
-    CUBLASXT_HER2K = 7,
-    /// SPMM routine.
-    CUBLASXT_SPMM = 8,
-    /// SYRKX routine.
-    CUBLASXT_SYRKX = 9,
-    /// HERKX routine.
-    CUBLASXT_HERKX = 10,
-    /// Selects triangular matrix-matrix multiplication when identifying a cuBLASXt BLAS operation.
-    CUBLASXT_TRMM = 11,
-    /// One past the last cuBLASXt BLAS operation identifier; used for bounds checks.
-    CUBLASXT_ROUTINE_MAX = 12,
-}
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cublasXtBlasOp_t(pub ::core::ffi::c_uint);
 singe_loader::functions! { crate::LIBRARY;
     /// This function allows the user to provide a CPU implementation of the corresponding BLAS routine. This function can be used with the function [`cublasXtSetCpuRatio`] to define an hybrid computation between the CPU and the GPUs. Currently the hybrid feature is only supported for the xGEMM routines.
     ///

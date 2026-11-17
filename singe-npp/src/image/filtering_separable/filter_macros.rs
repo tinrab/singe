@@ -171,7 +171,7 @@ macro_rules! impl_filter_integer_border {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            $crate::utility::validate_border_roi(source.size(), source_offset, destination.size())?;
+            $crate::image::validate_border_roi(source.size(), source_offset, destination.size())?;
             validate_filter_kernel_2d(kernel, kernel_size, anchor)?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
@@ -246,7 +246,7 @@ macro_rules! impl_filter_float_typed_border {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            $crate::utility::validate_border_roi(source.size(), source_offset, destination.size())?;
+            $crate::image::validate_border_roi(source.size(), source_offset, destination.size())?;
             validate_filter_kernel_2d(kernel, kernel_size, anchor)?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
@@ -859,7 +859,7 @@ macro_rules! impl_filter32f_border {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            $crate::utility::validate_border_roi(source.size(), source_offset, destination.size())?;
+            $crate::image::validate_border_roi(source.size(), source_offset, destination.size())?;
             validate_filter_kernel_2d(kernel, kernel_size, anchor)?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
@@ -992,7 +992,7 @@ macro_rules! impl_filter_separable_border {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            $crate::utility::validate_border_roi(source.size(), source_offset, destination.size())?;
+            $crate::image::validate_border_roi(source.size(), source_offset, destination.size())?;
             validate_filter_kernel(kernel, anchor)?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
@@ -1066,7 +1066,7 @@ macro_rules! impl_filter_separable_border_kernel_f32 {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            $crate::utility::validate_border_roi(source.size(), source_offset, destination.size())?;
+            $crate::image::validate_border_roi(source.size(), source_offset, destination.size())?;
             validate_filter_kernel_f32(kernel, anchor)?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
@@ -1139,7 +1139,7 @@ macro_rules! impl_filter_separable_border_float {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            $crate::utility::validate_border_roi(source.size(), source_offset, destination.size())?;
+            $crate::image::validate_border_roi(source.size(), source_offset, destination.size())?;
             validate_filter_kernel_f32(kernel, anchor)?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {

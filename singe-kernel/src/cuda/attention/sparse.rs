@@ -4,7 +4,7 @@ use singe_cuda::types::bf16;
 use singe_cuda::types::f16;
 use singe_cuda::{
     stream::Stream,
-    view::{DeviceInput, DeviceOutput},
+    view::{DeviceOutput, DeviceRange},
 };
 
 #[cfg(any(feature = "dtype_bf16", feature = "dtype_f16"))]
@@ -33,10 +33,10 @@ use crate::{
 pub unsafe fn heavily_compressed_attention_compress_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    hidden: &impl DeviceInput<f32>,
-    weight_kv: &impl DeviceInput<f32>,
-    weight_z: &impl DeviceInput<f32>,
-    bias: &impl DeviceInput<f32>,
+    hidden: &impl DeviceRange<f32>,
+    weight_kv: &impl DeviceRange<f32>,
+    weight_z: &impl DeviceRange<f32>,
+    bias: &impl DeviceRange<f32>,
     config: HeavilyCompressedAttentionConfig,
 ) -> Result<()> {
     config.validate_compress_lengths(
@@ -73,13 +73,13 @@ pub unsafe fn heavily_compressed_attention_compress_f32(
 pub unsafe fn compressed_sparse_attention_compress_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    hidden: &impl DeviceInput<f32>,
-    weight_a_kv: &impl DeviceInput<f32>,
-    weight_b_kv: &impl DeviceInput<f32>,
-    weight_a_z: &impl DeviceInput<f32>,
-    weight_b_z: &impl DeviceInput<f32>,
-    bias_a: &impl DeviceInput<f32>,
-    bias_b: &impl DeviceInput<f32>,
+    hidden: &impl DeviceRange<f32>,
+    weight_a_kv: &impl DeviceRange<f32>,
+    weight_b_kv: &impl DeviceRange<f32>,
+    weight_a_z: &impl DeviceRange<f32>,
+    weight_b_z: &impl DeviceRange<f32>,
+    bias_a: &impl DeviceRange<f32>,
+    bias_b: &impl DeviceRange<f32>,
     config: CompressedSparseAttentionCompressConfig,
 ) -> Result<()> {
     config.validate_lengths(
@@ -122,9 +122,9 @@ pub unsafe fn compressed_sparse_attention_compress_f32(
 pub unsafe fn compressed_sparse_attention_lightning_indexer_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    indexer_query: &impl DeviceInput<f32>,
-    indexer_key: &impl DeviceInput<f32>,
-    indexer_weight: &impl DeviceInput<f32>,
+    indexer_query: &impl DeviceRange<f32>,
+    indexer_key: &impl DeviceRange<f32>,
+    indexer_weight: &impl DeviceRange<f32>,
     config: CompressedSparseAttentionLightningIndexerConfig,
 ) -> Result<()> {
     config.validate_lengths(
@@ -160,9 +160,9 @@ pub unsafe fn compressed_sparse_attention_topk_selector_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
     selected_indices: &mut impl DeviceOutput<i32>,
-    scores: &impl DeviceInput<f32>,
-    compressed_kv: &impl DeviceInput<f32>,
-    query_positions: &impl DeviceInput<i32>,
+    scores: &impl DeviceRange<f32>,
+    compressed_kv: &impl DeviceRange<f32>,
+    query_positions: &impl DeviceRange<i32>,
     config: CompressedSparseAttentionTopkSelectorConfig,
 ) -> Result<()> {
     config.validate_lengths(
@@ -200,10 +200,10 @@ pub unsafe fn compressed_sparse_attention_topk_selector_f32(
 pub unsafe fn compressed_sparse_attention_shared_mqa_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    query: &impl DeviceInput<f32>,
-    kv_entries: &impl DeviceInput<f32>,
-    valid_mask: &impl DeviceInput<i32>,
-    sink: &impl DeviceInput<f32>,
+    query: &impl DeviceRange<f32>,
+    kv_entries: &impl DeviceRange<f32>,
+    valid_mask: &impl DeviceRange<i32>,
+    sink: &impl DeviceRange<f32>,
     config: CompressedSparseAttentionSharedMqaConfig,
 ) -> Result<()> {
     config.validate_lengths(
@@ -241,7 +241,7 @@ pub unsafe fn compressed_sparse_attention_shared_mqa_f32(
 pub unsafe fn minimax_sparse_attention_block_max_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    scores: &impl DeviceInput<f32>,
+    scores: &impl DeviceRange<f32>,
     config: MiniMaxSparseAttentionBlockMaxConfig,
 ) -> Result<()> {
     config.validate_lengths(out.len(), scores.len())?;
@@ -268,8 +268,8 @@ pub unsafe fn minimax_sparse_attention_selected_token_positions_i32(
     stream: &Stream,
     positions: &mut impl DeviceOutput<i32>,
     valid_mask: &mut impl DeviceOutput<i32>,
-    selected_blocks: &impl DeviceInput<i32>,
-    query_positions: &impl DeviceInput<i32>,
+    selected_blocks: &impl DeviceRange<i32>,
+    query_positions: &impl DeviceRange<i32>,
     config: MiniMaxSparseAttentionSelectedTokenPositionsConfig,
 ) -> Result<()> {
     config.validate_lengths(
@@ -304,8 +304,8 @@ pub unsafe fn minimax_sparse_attention_selected_token_positions_i32(
 pub unsafe fn minimax_sparse_attention_select_topk_blocks_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<i32>,
-    block_scores: &impl DeviceInput<f32>,
-    local_blocks: &impl DeviceInput<i32>,
+    block_scores: &impl DeviceRange<f32>,
+    local_blocks: &impl DeviceRange<i32>,
     config: MiniMaxSparseAttentionSelectTopkBlocksConfig,
 ) -> Result<()> {
     config.validate_lengths(out.len(), block_scores.len(), local_blocks.len())?;
@@ -333,11 +333,11 @@ pub unsafe fn minimax_sparse_attention_select_topk_blocks_f32(
 pub unsafe fn minimax_sparse_attention_gathered_gqa_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    query: &impl DeviceInput<f32>,
-    key: &impl DeviceInput<f32>,
-    value: &impl DeviceInput<f32>,
-    positions: &impl DeviceInput<i32>,
-    valid_mask: &impl DeviceInput<i32>,
+    query: &impl DeviceRange<f32>,
+    key: &impl DeviceRange<f32>,
+    value: &impl DeviceRange<f32>,
+    positions: &impl DeviceRange<i32>,
+    valid_mask: &impl DeviceRange<i32>,
     config: MiniMaxSparseAttentionGatheredGqaConfig,
 ) -> Result<()> {
     config.validate_lengths(
@@ -379,10 +379,10 @@ pub unsafe fn minimax_sparse_attention_gathered_gqa_f32(
 pub unsafe fn heavily_compressed_attention_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    query: &impl DeviceInput<f32>,
-    compressed_kv: &impl DeviceInput<f32>,
-    weight_group: &impl DeviceInput<f32>,
-    weight_final: &impl DeviceInput<f32>,
+    query: &impl DeviceRange<f32>,
+    compressed_kv: &impl DeviceRange<f32>,
+    weight_group: &impl DeviceRange<f32>,
+    weight_final: &impl DeviceRange<f32>,
     config: HeavilyCompressedAttentionConfig,
 ) -> Result<()> {
     config.validate_attention_lengths(
@@ -423,9 +423,9 @@ pub unsafe fn heavily_compressed_attention_f32(
 pub unsafe fn fused_neighborhood_attention_f16(
     stream: &Stream,
     out: &mut impl DeviceOutput<f16>,
-    query: &impl DeviceInput<f16>,
-    key: &impl DeviceInput<f16>,
-    value: &impl DeviceInput<f16>,
+    query: &impl DeviceRange<f16>,
+    key: &impl DeviceRange<f16>,
+    value: &impl DeviceRange<f16>,
     config: FusedNeighborhoodAttentionConfig,
 ) -> Result<()> {
     config.validate_lengths(out.len(), query.len(), key.len(), value.len())?;
@@ -457,9 +457,9 @@ pub unsafe fn fused_neighborhood_attention_f16(
 pub unsafe fn fused_neighborhood_attention_bf16(
     stream: &Stream,
     out: &mut impl DeviceOutput<bf16>,
-    query: &impl DeviceInput<bf16>,
-    key: &impl DeviceInput<bf16>,
-    value: &impl DeviceInput<bf16>,
+    query: &impl DeviceRange<bf16>,
+    key: &impl DeviceRange<bf16>,
+    value: &impl DeviceRange<bf16>,
     config: FusedNeighborhoodAttentionConfig,
 ) -> Result<()> {
     config.validate_lengths(out.len(), query.len(), key.len(), value.len())?;

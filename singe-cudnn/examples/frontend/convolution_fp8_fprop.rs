@@ -2,11 +2,7 @@ mod common;
 
 use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
-    backend::{
-        pointwise::PointwiseMode,
-        reduction::ReduceTensorOperator,
-        tensor::{Shape, TensorSpec},
-    },
+    backend::operation::{pointwise::PointwiseMode, reduction::ReduceTensorOperator},
     data_type::{DataType, f8e4m3},
     error::Result,
     frontend::{
@@ -14,8 +10,13 @@ use singe_cudnn::{
         operation::{ConvolutionConfig, PointwiseOperation, ReductionAxes, ReductionConfig},
         plan::{CompileConfig, ExecuteArgs, HeuristicMode},
     },
+    tensor::{Shape, TensorSpec},
 };
 
+#[expect(
+    clippy::many_single_char_names,
+    reason = "keeps the upstream sample's single-letter dimension names"
+)]
 fn run() -> Result<()> {
     let example = common::ExampleContext::create()?;
 
@@ -113,8 +114,8 @@ fn run() -> Result<()> {
         &common::init_f8e4m3_image(graph.shape(w_tensor)?.storage_span()?, &mut seed),
     )?;
     let mut y_dev = DeviceMemory::<f8e4m3>::zeroed(cuda, graph.shape(y)?.storage_span()?)?;
-    let descale_x_dev = DeviceMemory::from_slice(cuda, &[0.5_f32])?;
-    let descale_w_dev = DeviceMemory::from_slice(cuda, &[0.5_f32])?;
+    let x_descale_dev = DeviceMemory::from_slice(cuda, &[0.5_f32])?;
+    let w_descale_dev = DeviceMemory::from_slice(cuda, &[0.5_f32])?;
     let scale_y_dev = DeviceMemory::from_slice(cuda, &[2.0_f32])?;
     let mut absolute_max_dev =
         DeviceMemory::<f32>::zeroed(cuda, graph.shape(absolute_max)?.storage_span()?)?;
@@ -123,16 +124,16 @@ fn run() -> Result<()> {
     let mut bindings = compiled.bindings()?;
     bindings.set_input(x, &x_dev)?;
     bindings.set_input(w_tensor, &w_dev)?;
-    bindings.set_input(descale_x, &descale_x_dev)?;
-    bindings.set_input(descale_w, &descale_w_dev)?;
+    bindings.set_input(descale_x, &x_descale_dev)?;
+    bindings.set_input(descale_w, &w_descale_dev)?;
     bindings.set_input(scale_y, &scale_y_dev)?;
     bindings.set(y, &mut y_dev)?;
     bindings.set(absolute_max, &mut absolute_max_dev)?;
     // SAFETY: initialized inputs and scales, writable outputs and workspace remain live through stream completion.
     example.execute_and_wait(|context| unsafe {
-        compiled.execute(
+        compiled.execute_async(
             context,
-            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
         )
     })?;
     println!("executed fp8 convolution with fp32 intermediates and pre-quantization amax");
@@ -140,6 +141,6 @@ fn run() -> Result<()> {
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_convolution_fp8_fprop", run())
 }

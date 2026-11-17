@@ -35,7 +35,7 @@ macro_rules! impl_distance_transform_pba_u16 {
         /// # Errors
         ///
         /// Returns an error if CUDA context binding fails, a participating image belongs to another CUDA context, or NPP rejects the transform parameters.
-        /// At least one output must have positive dimensions; all supplied outputs must have the source image size.
+        /// At least one output must be supplied, every supplied output must have the source image size, and that size must have a width and height in `64..=32767`.
         /// Workspace-size queries, device allocation, capture checks, and stream synchronization can also fail.
         ///
         /// # Safety
@@ -45,7 +45,6 @@ macro_rules! impl_distance_transform_pba_u16 {
         /// NPP receives a mutable source pointer; provide exclusive access to source storage during native use.
         /// Keep each destination exclusively writable and disjoint from the source and all other destinations during native use.
         /// Keep image allocations valid until this call completes its native work.
-        /// Native PBA requires ROI width and height in `64..=32767`; this wrapper checks positive dimensions but does not enforce that range.
         /// The source must contain at least one site pixel; the wrapper does not inspect pixel values or validate the site interval.
         /// Image layouts, byte strides, alignment, and allocation bounds must satisfy the native routine.
         pub unsafe fn $name(
@@ -153,7 +152,7 @@ macro_rules! impl_distance_transform_pba_f64 {
         /// # Errors
         ///
         /// Returns an error if CUDA context binding fails, a participating image belongs to another CUDA context, or NPP rejects the transform parameters.
-        /// At least one output must have positive dimensions; all supplied outputs must have the source image size.
+        /// At least one output must be supplied, every supplied output must have the source image size, and that size must have a width and height in `64..=32767`.
         /// Workspace-size queries, device allocation, capture checks, and stream synchronization can also fail.
         ///
         /// # Safety
@@ -163,7 +162,6 @@ macro_rules! impl_distance_transform_pba_f64 {
         /// NPP receives a mutable source pointer; provide exclusive access to source storage during native use.
         /// Keep each destination exclusively writable and disjoint from the source and all other destinations during native use.
         /// Keep image allocations valid until this call completes its native work.
-        /// Native PBA requires ROI width and height in `64..=32767`; this wrapper checks positive dimensions but does not enforce that range.
         /// The source must contain at least one site pixel; the wrapper does not inspect pixel values or validate the site interval.
         /// Image layouts, byte strides, alignment, and allocation bounds must satisfy the native routine.
         pub unsafe fn $name(
@@ -272,7 +270,7 @@ macro_rules! impl_distance_transform_pba_f64_antialiasing {
         /// # Errors
         ///
         /// Returns an error if CUDA context binding fails, a participating image belongs to another CUDA context, or NPP rejects the transform parameters.
-        /// At least one output must have positive dimensions; all supplied outputs must have the source image size.
+        /// At least one output must be supplied, every supplied output must have the source image size, and that size must have a width and height in `64..=32767`.
         /// Workspace-size queries, device allocation, capture checks, and stream synchronization can also fail.
         ///
         /// # Safety
@@ -282,7 +280,6 @@ macro_rules! impl_distance_transform_pba_f64_antialiasing {
         /// NPP receives a mutable source pointer; provide exclusive access to source storage during native use.
         /// Keep each destination exclusively writable and disjoint from the source and all other destinations during native use.
         /// Keep image allocations valid until this call completes its native work.
-        /// Native PBA requires ROI width and height in `64..=32767`; this wrapper checks positive dimensions but does not enforce that range.
         /// The source must contain at least one site pixel; the wrapper does not inspect pixel values or validate the site interval.
         /// Image layouts, byte strides, alignment, and allocation bounds must satisfy the native routine.
         pub unsafe fn $name(
@@ -395,7 +392,7 @@ macro_rules! impl_signed_distance_transform_pba_f32 {
         /// # Errors
         ///
         /// Returns an error if CUDA context binding fails, a participating image belongs to another CUDA context, or NPP rejects the transform parameters.
-        /// At least one output must have positive dimensions; all supplied outputs must have the source image size.
+        /// At least one output must be supplied, every supplied output must have the source image size, and that size must have a width and height in `64..=32767`.
         /// Workspace-size queries, device allocation, capture checks, and stream synchronization can also fail.
         ///
         /// # Safety
@@ -405,7 +402,6 @@ macro_rules! impl_signed_distance_transform_pba_f32 {
         /// NPP receives a mutable source pointer; provide exclusive access to source storage during native use.
         /// Keep each destination exclusively writable and disjoint from the source and all other destinations during native use.
         /// Keep image allocations valid until this call completes its native work.
-        /// Native PBA requires ROI width and height in `64..=32767`; this wrapper checks positive dimensions but does not enforce that range.
         /// Source classification and subpixel parameters must satisfy the native signed-distance input requirements; this wrapper does not validate their values.
         /// Image layouts, byte strides, alignment, and allocation bounds must satisfy the native routine.
         pub unsafe fn $name(
@@ -515,7 +511,7 @@ macro_rules! impl_signed_distance_transform_pba_f64 {
         /// # Errors
         ///
         /// Returns an error if CUDA context binding fails, a participating image belongs to another CUDA context, or NPP rejects the transform parameters.
-        /// At least one output must have positive dimensions; all supplied outputs must have the source image size.
+        /// At least one output must be supplied, every supplied output must have the source image size, and that size must have a width and height in `64..=32767`.
         /// Workspace-size queries, device allocation, capture checks, and stream synchronization can also fail.
         ///
         /// # Safety
@@ -525,7 +521,6 @@ macro_rules! impl_signed_distance_transform_pba_f64 {
         /// NPP receives a mutable source pointer; provide exclusive access to source storage during native use.
         /// Keep each destination exclusively writable and disjoint from the source and all other destinations during native use.
         /// Keep image allocations valid until this call completes its native work.
-        /// Native PBA requires ROI width and height in `64..=32767`; this wrapper checks positive dimensions but does not enforce that range.
         /// Source classification and subpixel parameters must satisfy the native signed-distance input requirements; this wrapper does not validate their values.
         /// Image layouts, byte strides, alignment, and allocation bounds must satisfy the native routine.
         pub unsafe fn $name(
@@ -636,7 +631,7 @@ macro_rules! impl_signed_distance_transform_pba_f64_antialiasing {
         /// # Errors
         ///
         /// Returns an error if CUDA context binding fails, a participating image belongs to another CUDA context, or NPP rejects the transform parameters.
-        /// At least one output must have positive dimensions; all supplied outputs must have the source image size.
+        /// At least one output must be supplied, every supplied output must have the source image size, and that size must have a width and height in `64..=32767`.
         /// Workspace-size queries, device allocation, capture checks, and stream synchronization can also fail.
         ///
         /// # Safety
@@ -646,7 +641,6 @@ macro_rules! impl_signed_distance_transform_pba_f64_antialiasing {
         /// NPP receives a mutable source pointer; provide exclusive access to source storage during native use.
         /// Keep each destination exclusively writable and disjoint from the source and all other destinations during native use.
         /// Keep image allocations valid until this call completes its native work.
-        /// Native PBA requires ROI width and height in `64..=32767`; this wrapper checks positive dimensions but does not enforce that range.
         /// Source classification and subpixel parameters must satisfy the native signed-distance input requirements; this wrapper does not validate their values.
         /// Image layouts, byte strides, alignment, and allocation bounds must satisfy the native routine.
         pub unsafe fn $name(

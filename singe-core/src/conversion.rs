@@ -18,7 +18,10 @@ macro_rules! checked_conversions {
 ///
 /// - `checked_add(lhs, rhs, name)` and `checked_mul(lhs, rhs, name)` over `usize`;
 /// - `checked_byte_len::<T>(count, name)` for `count * size_of::<T>()`;
-/// - `checked_element_count(dimensions, name)` for a product of non-negative `i64` dimensions.
+/// - `checked_element_count(dimensions, name)` for a product of dimensions of any integer type, each converted to `usize`, so a negative dimension is out of range;
+/// - `checked_pitched_extent(rows, pitch, row_len, name)` for the `(rows - 1) * pitch + row_len` elements or bytes that `rows` rows of `row_len` span when consecutive rows start `pitch` apart, which is zero when `rows` or `row_len` is;
+/// - `validate_same_len(expected, actual, name)`, which reports a difference as `Error::LengthMismatch { name, expected, actual }`, so it needs that variant;
+/// - `validate_min_len(required, actual, name)`, which reports an `actual` length below `required` as `Error::BufferTooSmall { name, required, actual }`, so it needs that variant.
 #[macro_export]
 macro_rules! checked_arithmetic {
     ($error:ty { $($helper:ident),* $(,)? }) => {
@@ -42,14 +45,72 @@ macro_rules! checked_arithmetic {
         }
     };
     (@helper $error:ty, checked_element_count) => {
-        pub(crate) fn checked_element_count(dimensions: &[i64], name: &str) -> ::core::result::Result<usize, $error> {
+        pub(crate) fn checked_element_count<D: ::core::convert::TryInto<usize> + Copy>(
+            dimensions: &[D],
+            name: &str,
+        ) -> ::core::result::Result<usize, $error> {
             dimensions.iter().try_fold(1_usize, |count, &dimension| {
-                let dimension = usize::try_from(dimension)
+                let dimension: usize = dimension
+                    .try_into()
                     .map_err(|_| <$error>::out_of_range(name.to_owned()))?;
                 count
                     .checked_mul(dimension)
                     .ok_or_else(|| <$error>::out_of_range(name.to_owned()))
             })
+        }
+    };
+    (@helper $error:ty, checked_pitched_extent) => {
+        pub(crate) fn checked_pitched_extent(
+            rows: usize,
+            pitch: usize,
+            row_len: usize,
+            name: &str,
+        ) -> ::core::result::Result<usize, $error> {
+            if rows == 0 || row_len == 0 {
+                return ::core::result::Result::Ok(0);
+            }
+            (rows - 1)
+                .checked_mul(pitch)
+                .and_then(|offset| offset.checked_add(row_len))
+                .ok_or_else(|| <$error>::out_of_range(name.to_owned()))
+        }
+    };
+    (@helper $error:ty, validate_same_len) => {
+        pub(crate) fn validate_same_len(
+            expected: usize,
+            actual: usize,
+            name: &str,
+        ) -> ::core::result::Result<(), $error> {
+            // A struct expression cannot name a variant through a type fragment, but it can through an alias.
+            type SameLenError = $error;
+            if expected == actual {
+                ::core::result::Result::Ok(())
+            } else {
+                ::core::result::Result::Err(SameLenError::LengthMismatch {
+                    name: name.to_owned().into(),
+                    expected,
+                    actual,
+                })
+            }
+        }
+    };
+    (@helper $error:ty, validate_min_len) => {
+        pub(crate) fn validate_min_len(
+            required: usize,
+            actual: usize,
+            name: &str,
+        ) -> ::core::result::Result<(), $error> {
+            // A struct expression cannot name a variant through a type fragment, but it can through an alias.
+            type MinLenError = $error;
+            if actual >= required {
+                ::core::result::Result::Ok(())
+            } else {
+                ::core::result::Result::Err(MinLenError::BufferTooSmall {
+                    name: name.to_owned().into(),
+                    required,
+                    actual,
+                })
+            }
         }
     };
 }

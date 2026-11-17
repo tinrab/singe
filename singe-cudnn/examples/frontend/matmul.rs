@@ -3,14 +3,17 @@ mod common;
 use singe_core::assert_close;
 use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
-    backend::tensor::{Shape, TensorId, TensorSpec},
     data_type::{DataType, bf16},
-    error::{Error, Result},
+    error::Error,
     frontend::{
         graph::{DataTypePolicy, Graph, GraphConfig, TensorOutputConfig},
         operation::MatmulConfig,
-        plan::{BuildPlanPolicy, CompileConfig, EngineConfigFilter, ExecuteArgs, HeuristicMode},
+        plan::{
+            BuildPlanPolicy, CompileConfig, EngineConfigFilter, ExecuteArgs, HeuristicMode,
+            WorkspacePlans,
+        },
     },
+    tensor::{Shape, TensorId, TensorSpec},
 };
 
 fn init_f32_image(size: usize, seed: &mut u32) -> Vec<f32> {
@@ -33,7 +36,11 @@ fn count_nonfinite_f32(values: &[f32]) -> usize {
     values.iter().filter(|value| !value.is_finite()).count()
 }
 
-fn run() -> Result<()> {
+#[expect(
+    clippy::many_single_char_names,
+    reason = "keeps the upstream sample's single-letter dimension names"
+)]
+fn run() -> anyhow::Result<()> {
     let example = common::ExampleContext::create()?;
 
     let b = 16;
@@ -47,7 +54,7 @@ fn run() -> Result<()> {
     let a = graph.insert_tensor(
         TensorId::new(1000),
         TensorSpec::new(
-            DataType::BF16,
+            DataType::Bf16,
             Shape::with_strides([b, m, k], [m * k, k, 1])?,
         )
         .with_name("A"),
@@ -55,7 +62,7 @@ fn run() -> Result<()> {
     let b_tensor = graph.insert_tensor(
         TensorId::new(1001),
         TensorSpec::new(
-            DataType::BF16,
+            DataType::Bf16,
             Shape::with_strides([b, k, n], [k * n, n, 1])?,
         )
         .with_name("B"),
@@ -72,11 +79,12 @@ fn run() -> Result<()> {
         println!("named result {id}: {:?}", tensor.shape.dimensions());
     }
 
-    let input_a_elements = graph.shape(a)?.storage_span()?;
-    let input_b_elements = graph.shape(b_tensor)?.storage_span()?;
+    let a_input_elements = graph.shape(a)?.storage_span()?;
+    let b_input_elements = graph.shape(b_tensor)?.storage_span()?;
     let output_elements = graph.shape(c)?.storage_span()?;
 
     let candidates = graph
+        .prepare(Some(&example.cudnn))?
         .plan_candidates(
             Some(&example.cudnn),
             &CompileConfig::from_heuristic_modes([HeuristicMode::A]),
@@ -99,16 +107,18 @@ fn run() -> Result<()> {
     let compiled = built_candidates.compile_selected(&winner)?;
 
     let mut half_seed = 123_456_789_u32;
-    let a_host = init_bf16_image(input_a_elements, &mut half_seed);
-    let b_host = init_bf16_image(input_b_elements, &mut half_seed);
+    let a_host = init_bf16_image(a_input_elements, &mut half_seed);
+    let b_host = init_bf16_image(b_input_elements, &mut half_seed);
     let a_dev = DeviceMemory::from_slice(example.cudnn.cuda_context(), &a_host)?;
     let b_dev = DeviceMemory::from_slice(example.cudnn.cuda_context(), &b_host)?;
     let mut c_dev = DeviceMemory::from_slice(
         example.cudnn.cuda_context(),
         &init_f32_image(output_elements, &mut half_seed),
     )?;
-    let mut workspace =
-        common::workspace(example.cudnn.cuda_context(), compiled.max_workspace_size())?;
+    let mut workspace = common::workspace(
+        example.cudnn.cuda_context(),
+        compiled.workspace_size_for(WorkspacePlans::All, None)?,
+    )?;
     let mut bindings = compiled.bindings()?;
     bindings.set_input(a, &a_dev.view())?;
     bindings.set_input(b_tensor, &b_dev.view())?;
@@ -116,9 +126,9 @@ fn run() -> Result<()> {
     // SAFETY: initialized inputs, writable output, workspace and native plan remain
     // live through stream completion, including an enqueue failure.
     example.execute_and_wait(|context| unsafe {
-        compiled.execute(
+        compiled.execute_async(
             context,
-            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
         )
     })?;
 
@@ -126,16 +136,18 @@ fn run() -> Result<()> {
     assert_eq!(count_nonfinite_f32(&c_host), 0, "c.nonfinite mismatch");
 
     // Reference: each batch is an [m, k] x [k, n] product accumulated in f32.
-    for batch in 0..b as usize {
-        for row in 0..m as usize {
-            for column in 0..n as usize {
-                let expected: f32 = (0..k as usize)
+    let [batches, rows, columns, depth] = [b, m, n, k].map(usize::try_from);
+    let (batches, rows, columns, depth) = (batches?, rows?, columns?, depth?);
+    for batch in 0..batches {
+        for row in 0..rows {
+            for column in 0..columns {
+                let expected: f32 = (0..depth)
                     .map(|inner| {
-                        a_host[(batch * m as usize + row) * k as usize + inner].to_f32()
-                            * b_host[(batch * k as usize + inner) * n as usize + column].to_f32()
+                        a_host[(batch * rows + row) * depth + inner].to_f32()
+                            * b_host[(batch * depth + inner) * columns + column].to_f32()
                     })
                     .sum();
-                let actual = c_host[(batch * m as usize + row) * n as usize + column];
+                let actual = c_host[(batch * rows + row) * columns + column];
                 assert_close!(actual, expected, 1.0e-2, "c");
             }
         }
@@ -144,6 +156,6 @@ fn run() -> Result<()> {
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_matmul", run())
 }

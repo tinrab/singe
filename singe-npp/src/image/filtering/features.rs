@@ -9,9 +9,9 @@ use crate::{
     error::Result,
     image::{
         filtering_validation::{
-            validate_canny_thresholds, validate_harris_corners_border_parameters,
-            validate_hough_line_destination_roi, validate_hough_line_io,
-            validate_hough_line_parameters, validate_positive_size,
+            validate_border_roi, validate_canny_thresholds,
+            validate_harris_corners_border_parameters, validate_hough_line_destination_roi,
+            validate_hough_line_io, validate_hough_line_parameters, validate_positive_size,
         },
         view::{C1, C3, ImageOutputView, ImageView},
     },
@@ -20,7 +20,7 @@ use crate::{
         BorderType, DataTypeLike, DifferentialKernel, ImageNormalization, MaskSize, Point,
         PointPolar, Rectangle, Size,
     },
-    utility::{to_i32, to_usize, validate_border_roi},
+    utility::{to_i32, to_usize},
 };
 
 /// Returns the scratch capacity in bytes for Canny edge detection.

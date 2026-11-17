@@ -4,7 +4,7 @@ use std::{
 };
 
 use crate::{
-    backend::tensor::{BackendTensorUid, TensorId, TensorSpec},
+    backend::tensor::BackendTensorUid,
     error::Result,
     frontend::{
         error::Error as FrontendError,
@@ -12,6 +12,7 @@ use crate::{
         operation::TensorAccess,
         plan::{BuiltPlanCandidates, CompiledGraph, PlanCandidates},
     },
+    tensor::{TensorId, TensorSpec},
 };
 
 /// Tensor metadata retained before or after compilation, including restored graphs.
@@ -135,15 +136,16 @@ fn by_uid(
 macro_rules! impl_native_tensor_queries {
     ($graph:ty, $($records:ident).+) => {
         impl $graph {
-            /// All retained specifications, including lowered intermediates and score-subgraph tensors.
+            /// Returns all retained specifications, including lowered intermediates and score-subgraph tensors.
             /// Unused declarations and storage-only sources have no native UID.
             pub fn tensors(&self) -> TensorInfoIter<'_> {
                 TensorInfoIter::native(&self.$($records).+)
             }
 
-            /// Retained tensor attributes and access metadata by frontend identity.
+            /// Returns the retained tensor attributes and access metadata by frontend identity.
             ///
             /// # Errors
+            ///
             /// Returns an error if the frontend identity is absent from the retained tensor declarations.
             pub fn tensor_info(&self, id: TensorId) -> Result<TensorInfo<'_>> {
                 self.$($records).+
@@ -152,10 +154,11 @@ macro_rules! impl_native_tensor_queries {
                     .ok_or(FrontendError::TensorNotFound(id).into())
             }
 
-            /// Retained attributes by native UID, matching the C++ graph lookup workflow.
+            /// Returns the retained attributes by native UID, matching the C++ graph lookup workflow.
             /// Does not query cuDNN, discover engines or build execution plans.
             ///
             /// # Errors
+            ///
             /// Returns an error if no retained tensor participating in native execution or addressing metadata has this native UID.
             pub fn tensor_by_uid(&self, uid: BackendTensorUid) -> Result<TensorInfo<'_>> {
                 by_uid(&self.$($records).+, uid)

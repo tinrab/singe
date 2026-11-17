@@ -20,12 +20,12 @@ where
     /// Computes Euclidean distances to the nearest site with the parallel banding algorithm.
     ///
     /// Source values in the inclusive interval `minimum_site_value..=maximum_site_value` are sites.
-    /// NPP requires at least one site and width and height in `64..=32767`; the wrapper checks positive dimensions but does not inspect pixels or validate that native range or the site interval.
+    /// NPP requires at least one site; the wrapper does not inspect pixels or validate the site interval.
+    /// The wrapper rejects a width or height outside NPP's `64..=32767` range.
     /// `u16` output truncates distances; floating output retains the native floating-point result.
     /// Requests only the Euclidean distance image; optional Manhattan and Voronoi outputs are disabled.
     /// Source and destination dimensions must match.
     /// Owns temporary device scratch through native completion.
-    /// NPP receives a mutable source pointer; source storage must be exclusively available during native use.
     /// Writes every logical output sample; row padding remains unwritten.
     /// Prepares image regions and waits for producers on other streams.
     /// Rejects stream capture and returns after successful stream completion.
@@ -58,13 +58,13 @@ where
     /// Computes Euclidean distances to the nearest site with the parallel banding algorithm.
     ///
     /// Source values in the inclusive interval `minimum_site_value..=maximum_site_value` are sites.
-    /// NPP requires at least one site and width and height in `64..=32767`; the wrapper checks positive dimensions but does not inspect pixels or validate that native range or the site interval.
+    /// NPP requires at least one site; the wrapper does not inspect pixels or validate the site interval.
+    /// The wrapper rejects a width or height outside NPP's `64..=32767` range.
     /// `u16` output truncates distances; floating output retains the native floating-point result.
     /// Uses the native absolute-Manhattan variant, but requests only the Euclidean distance image.
     /// The optional Manhattan and Voronoi outputs are disabled.
     /// Source and destination dimensions must match.
     /// Owns temporary device scratch through native completion.
-    /// NPP receives a mutable source pointer; source storage must be exclusively available during native use.
     /// Writes every logical output sample; row padding remains unwritten.
     /// Prepares image regions and waits for producers on other streams.
     /// Rejects stream capture and returns after successful stream completion.
@@ -97,12 +97,12 @@ where
     /// Computes Euclidean distances to the nearest site with the parallel banding algorithm.
     ///
     /// Source values in the inclusive interval `minimum_site_value..=maximum_site_value` are sites.
-    /// NPP requires at least one site and width and height in `64..=32767`; the wrapper checks positive dimensions but does not inspect pixels or validate that native range or the site interval.
+    /// NPP requires at least one site; the wrapper does not inspect pixels or validate the site interval.
+    /// The wrapper rejects a width or height outside NPP's `64..=32767` range.
     /// `u16` output truncates distances; floating output retains the native floating-point result.
     /// Requests only the Euclidean distance image; optional Manhattan and Voronoi outputs are disabled.
     /// Allocates a new source-sized, owned C1 image of type `D`.
     /// Owns temporary device scratch through native completion.
-    /// NPP receives a mutable source pointer; source storage must be exclusively available during native use.
     /// Writes every logical output sample; row padding remains unwritten.
     /// Prepares image regions and waits for producers on other streams.
     /// Rejects stream capture and returns after successful stream completion.
@@ -132,13 +132,13 @@ where
     /// Computes Euclidean distances to the nearest site with the parallel banding algorithm.
     ///
     /// Source values in the inclusive interval `minimum_site_value..=maximum_site_value` are sites.
-    /// NPP requires at least one site and width and height in `64..=32767`; the wrapper checks positive dimensions but does not inspect pixels or validate that native range or the site interval.
+    /// NPP requires at least one site; the wrapper does not inspect pixels or validate the site interval.
+    /// The wrapper rejects a width or height outside NPP's `64..=32767` range.
     /// `u16` output truncates distances; floating output retains the native floating-point result.
     /// Uses the native absolute-Manhattan variant, but requests only the Euclidean distance image.
     /// The optional Manhattan and Voronoi outputs are disabled.
     /// Allocates a new source-sized, owned C1 image of type `D`.
     /// Owns temporary device scratch through native completion.
-    /// NPP receives a mutable source pointer; source storage must be exclusively available during native use.
     /// Writes every logical output sample; row padding remains unwritten.
     /// Prepares image regions and waits for producers on other streams.
     /// Rejects stream capture and returns after successful stream completion.

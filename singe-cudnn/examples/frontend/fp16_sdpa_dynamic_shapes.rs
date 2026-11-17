@@ -4,22 +4,20 @@ use std::sync::{Arc, Mutex};
 
 use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
-    backend::{
-        execution::KernelCache,
-        tensor::{Shape, TensorId, TensorSpec},
-    },
+    backend::{execution::KernelCache, operation::attention::AttentionSequenceInputs},
     data_type::{DataType, bf16},
-    error::{Error, Result, Status},
+    error::{Error, Status},
     frontend::{
         composite::sdpa::{SdpaForwardOutputTensors, SdpaInputs},
         error::Error as FrontendError,
         graph::{DataTypePolicy, Graph, GraphConfig, TensorOutputConfig},
         operation::{
             AttentionConfig, AttentionDiagonalAlignment, AttentionDiagonalBand, AttentionMaskMode,
-            AttentionScoreConfig, AttentionSequenceInputs,
+            AttentionScoreConfig,
         },
         plan::{CompileConfig, ExecuteArgs, HeuristicMode},
     },
+    tensor::{Shape, TensorId, TensorSpec},
 };
 
 fn init_bf16_image(size: usize, seed: &mut u32) -> Vec<bf16> {
@@ -41,7 +39,11 @@ fn is_not_supported(error: &Error) -> bool {
     )
 }
 
-fn run() -> Result<()> {
+#[expect(
+    clippy::many_single_char_names,
+    reason = "keeps the upstream sample's single-letter dimension names"
+)]
+fn run() -> anyhow::Result<()> {
     let context = common::ExampleContext::create()?;
 
     let b = 2_i64;
@@ -61,7 +63,7 @@ fn run() -> Result<()> {
             .with_override_shape(true)
             .with_data_type_policy(
                 DataTypePolicy::new()
-                    .with_io(DataType::BF16)
+                    .with_io(DataType::Bf16)
                     .with_intermediate(DataType::F32)
                     .with_compute(DataType::F32),
             ),
@@ -71,7 +73,7 @@ fn run() -> Result<()> {
     let q = graph.insert_tensor(
         TensorId::new(1001),
         TensorSpec::new(
-            DataType::BF16,
+            DataType::Bf16,
             Shape::with_strides(
                 [b, h_q, s_q, d_qk],
                 vec![h_q * s_q * d_qk, s_q * d_qk, d_qk, 1],
@@ -81,7 +83,7 @@ fn run() -> Result<()> {
     let k = graph.insert_tensor(
         TensorId::new(1002),
         TensorSpec::new(
-            DataType::BF16,
+            DataType::Bf16,
             Shape::with_strides(
                 [b, h_k, s_kv, d_qk],
                 vec![h_k * s_kv * d_qk, s_kv * d_qk, d_qk, 1],
@@ -91,7 +93,7 @@ fn run() -> Result<()> {
     let v = graph.insert_tensor(
         TensorId::new(1003),
         TensorSpec::new(
-            DataType::BF16,
+            DataType::Bf16,
             Shape::with_strides(
                 [b, h_v, s_kv, d_v],
                 vec![h_v * s_kv * d_v, s_kv * d_v, d_v, 1],
@@ -114,12 +116,12 @@ fn run() -> Result<()> {
         graph.tensor_like(sequence_length_query, Some("sequence_length_key_value"))?;
     let scale = graph.tensor(TensorSpec::scalar_f32(0.123));
 
-    let outputs = graph.sdpa_auto(
+    let outputs = graph.sdpa(
         SdpaInputs {
             query: q,
             key: k,
             value: v,
-            scale: scale,
+            scale,
         },
         AttentionConfig::new()
             .with_compute_type(DataType::F32)
@@ -143,7 +145,7 @@ fn run() -> Result<()> {
     graph.replace_tensor(
         o,
         TensorSpec::new(
-            DataType::BF16,
+            DataType::Bf16,
             Shape::with_strides([b, h_q, s_q, d_v], vec![h_q * d_v, d_v, b * h_q * d_v, 1])?,
         )
         .output_tensor(),
@@ -175,30 +177,38 @@ fn run() -> Result<()> {
             );
             return Ok(());
         }
-        Err(error) => return Err(error),
+        Err(error) => return Err(error.into()),
     };
 
     let mut seed = 123_456_789_u32;
     let mut q_dev = DeviceMemory::from_slice(
         context.cudnn.cuda_context(),
-        &init_bf16_image((b * h_q * s_q * d_qk) as usize, &mut seed),
+        &init_bf16_image(usize::try_from(b * h_q * s_q * d_qk)?, &mut seed),
     )?;
     let mut k_dev = DeviceMemory::from_slice(
         context.cudnn.cuda_context(),
-        &init_bf16_image((b * h_k * s_kv * d_qk) as usize, &mut seed),
+        &init_bf16_image(usize::try_from(b * h_k * s_kv * d_qk)?, &mut seed),
     )?;
     let mut v_dev = DeviceMemory::from_slice(
         context.cudnn.cuda_context(),
-        &init_bf16_image((b * h_v * s_kv * d_v) as usize, &mut seed),
+        &init_bf16_image(usize::try_from(b * h_v * s_kv * d_v)?, &mut seed),
     )?;
-    let mut seq_len_q_dev =
-        DeviceMemory::from_slice(context.cudnn.cuda_context(), &vec![20_i32; b as usize])?;
-    let mut seq_len_kv_dev =
-        DeviceMemory::from_slice(context.cudnn.cuda_context(), &vec![20_i32; b as usize])?;
-    let mut o_dev =
-        DeviceMemory::<bf16>::zeroed(context.cudnn.cuda_context(), (b * h_q * s_q * d_v) as usize)?;
-    let mut stats_dev =
-        DeviceMemory::<f32>::zeroed(context.cudnn.cuda_context(), (b * h_q * s_q) as usize)?;
+    let mut seq_len_q_dev = DeviceMemory::from_slice(
+        context.cudnn.cuda_context(),
+        &vec![20_i32; usize::try_from(b)?],
+    )?;
+    let mut seq_len_kv_dev = DeviceMemory::from_slice(
+        context.cudnn.cuda_context(),
+        &vec![20_i32; usize::try_from(b)?],
+    )?;
+    let mut o_dev = DeviceMemory::<bf16>::zeroed(
+        context.cudnn.cuda_context(),
+        usize::try_from(b * h_q * s_q * d_v)?,
+    )?;
+    let mut stats_dev = DeviceMemory::<f32>::zeroed(
+        context.cudnn.cuda_context(),
+        usize::try_from(b * h_q * s_q)?,
+    )?;
     let mut workspace = common::workspace(
         context.cudnn.cuda_context(),
         compiled.workspace_size().max(256 * 1024),
@@ -214,9 +224,9 @@ fn run() -> Result<()> {
     bindings.set(stats, &mut stats_dev)?;
     // SAFETY: the example retains its plan and buffers through the surrounding completion or replay sequence.
     if let Err(error) = unsafe {
-        compiled.execute(
+        compiled.execute_async(
             &context.cudnn,
-            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
         )
     } {
         if is_not_supported(&error) {
@@ -225,36 +235,36 @@ fn run() -> Result<()> {
             );
             return Ok(());
         }
-        return Err(error);
+        return Err(error.into());
     }
 
     let mut q_dev_2 = DeviceMemory::from_slice(
         context.cudnn.cuda_context(),
-        &init_bf16_image((override_b * h_q * s_q * d_qk) as usize, &mut seed),
+        &init_bf16_image(usize::try_from(override_b * h_q * s_q * d_qk)?, &mut seed),
     )?;
     let mut k_dev_2 = DeviceMemory::from_slice(
         context.cudnn.cuda_context(),
-        &init_bf16_image((override_b * h_k * s_kv * d_qk) as usize, &mut seed),
+        &init_bf16_image(usize::try_from(override_b * h_k * s_kv * d_qk)?, &mut seed),
     )?;
     let mut v_dev_2 = DeviceMemory::from_slice(
         context.cudnn.cuda_context(),
-        &init_bf16_image((override_b * h_v * s_kv * d_v) as usize, &mut seed),
+        &init_bf16_image(usize::try_from(override_b * h_v * s_kv * d_v)?, &mut seed),
     )?;
     let mut seq_len_q_dev_2 = DeviceMemory::from_slice(
         context.cudnn.cuda_context(),
-        &vec![20_i32; override_b as usize],
+        &vec![20_i32; usize::try_from(override_b)?],
     )?;
     let mut seq_len_kv_dev_2 = DeviceMemory::from_slice(
         context.cudnn.cuda_context(),
-        &vec![20_i32; override_b as usize],
+        &vec![20_i32; usize::try_from(override_b)?],
     )?;
     let mut o_dev_2 = DeviceMemory::<bf16>::zeroed(
         context.cudnn.cuda_context(),
-        (override_b * h_q * s_q * d_v) as usize,
+        usize::try_from(override_b * h_q * s_q * d_v)?,
     )?;
     let mut stats_dev_2 = DeviceMemory::<f32>::zeroed(
         context.cudnn.cuda_context(),
-        (override_b * h_q * s_q) as usize,
+        usize::try_from(override_b * h_q * s_q)?,
     )?;
 
     let mut bindings_2 = compiled.bindings()?;
@@ -310,10 +320,10 @@ fn run() -> Result<()> {
     let overrides = overrides.build();
     // SAFETY: the example retains its plan and buffers through the surrounding completion or replay sequence.
     if let Err(error) = unsafe {
-        compiled.execute(
+        compiled.execute_async(
             &context.cudnn,
             ExecuteArgs::new(&bindings_2)
-                .with_workspace(&mut workspace)
+                .with_workspace(workspace.output())
                 .with_overrides(&overrides),
         )
     } {
@@ -323,12 +333,12 @@ fn run() -> Result<()> {
             );
             return Ok(());
         }
-        return Err(error);
+        return Err(error.into());
     }
 
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_fp16_sdpa_dynamic_shapes", run())
 }

@@ -2,7 +2,7 @@
 use singe_cuda::types::f16;
 use singe_cuda::{
     stream::Stream,
-    view::{DeviceInput, DeviceOutput, DeviceSliceMut},
+    view::{DeviceOutput, DeviceRange, DeviceSliceMut},
 };
 
 #[cfg(feature = "dtype_f16")]
@@ -35,9 +35,9 @@ use crate::{
 pub unsafe fn mhc_apply_residual_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    x: &impl DeviceInput<f32>,
-    f_out: &impl DeviceInput<f32>,
-    y: &impl DeviceInput<f32>,
+    x: &impl DeviceRange<f32>,
+    f_out: &impl DeviceRange<f32>,
+    y: &impl DeviceRange<f32>,
     config: MhcApplyResidualConfig,
 ) -> Result<()> {
     validate_mhc_apply_residual(out.len(), x.len(), f_out.len(), y.len(), config)?;
@@ -83,9 +83,9 @@ pub unsafe fn mhc_gemm_rms_scale_f32(
     stream: &Stream,
     y: &mut impl DeviceOutput<f32>,
     r: &mut impl DeviceOutput<f32>,
-    x: &impl DeviceInput<f32>,
-    w: &impl DeviceInput<f32>,
-    bias: &impl DeviceInput<f32>,
+    x: &impl DeviceRange<f32>,
+    w: &impl DeviceRange<f32>,
+    bias: &impl DeviceRange<f32>,
     config: MhcGemmRmsScaleConfig,
 ) -> Result<()> {
     validate_mhc_gemm_rms_scale(y.len(), r.len(), x.len(), w.len(), bias.len(), config)?;
@@ -119,8 +119,8 @@ pub unsafe fn mhc_split_gemm_rms_f32(
     stream: &Stream,
     y_acc: &mut impl DeviceOutput<f32>,
     r_acc: &mut impl DeviceOutput<f32>,
-    x: &impl DeviceInput<f32>,
-    w: &impl DeviceInput<f32>,
+    x: &impl DeviceRange<f32>,
+    w: &impl DeviceRange<f32>,
     config: MhcSplitGemmRmsScaleConfig,
 ) -> Result<()> {
     validate_mhc_split_gemm_rms(y_acc.len(), r_acc.len(), x.len(), w.len(), config)?;
@@ -150,9 +150,9 @@ pub unsafe fn mhc_finalize_scale_bias_sigmoid_f32(
     stream: &Stream,
     y: &mut impl DeviceOutput<f32>,
     r: &mut impl DeviceOutput<f32>,
-    y_acc: &impl DeviceInput<f32>,
-    r_acc: &impl DeviceInput<f32>,
-    bias: &impl DeviceInput<f32>,
+    y_acc: &impl DeviceRange<f32>,
+    r_acc: &impl DeviceRange<f32>,
+    bias: &impl DeviceRange<f32>,
     config: MhcSplitGemmRmsScaleConfig,
 ) -> Result<()> {
     validate_mhc_finalize_scale_bias_sigmoid(
@@ -195,8 +195,8 @@ macro_rules! kv_cache_update_fn {
             stream: &Stream,
             k_cache: &mut impl DeviceOutput<$ty>,
             v_cache: &mut impl DeviceOutput<$ty>,
-            new_k: &impl DeviceInput<$ty>,
-            new_v: &impl DeviceInput<$ty>,
+            new_k: &impl DeviceRange<$ty>,
+            new_v: &impl DeviceRange<$ty>,
             seq_len: usize,
             heads: usize,
             head_dim: usize,
@@ -244,11 +244,11 @@ pub unsafe fn bshd_rope_qk_cache_update_f16(
     k_out: &mut impl DeviceOutput<f16>,
     k_cache: &mut impl DeviceOutput<f16>,
     v_cache: &mut impl DeviceOutput<f16>,
-    q_input: &impl DeviceInput<f16>,
-    k_input: &impl DeviceInput<f16>,
-    v_input: &impl DeviceInput<f16>,
-    cos: &impl DeviceInput<f32>,
-    sin: &impl DeviceInput<f32>,
+    q_input: &impl DeviceRange<f16>,
+    k_input: &impl DeviceRange<f16>,
+    v_input: &impl DeviceRange<f16>,
+    cos: &impl DeviceRange<f32>,
+    sin: &impl DeviceRange<f32>,
     config: BshdRopeQkCacheUpdateConfig,
 ) -> Result<()> {
     validate_bshd_rope_qk_cache_update(
@@ -312,8 +312,8 @@ macro_rules! kv_cache_append_sliding_window_fn {
             stream: &Stream,
             k_cache: &mut impl DeviceSliceMut<$ty>,
             v_cache: &mut impl DeviceSliceMut<$ty>,
-            new_k: &impl DeviceInput<$ty>,
-            new_v: &impl DeviceInput<$ty>,
+            new_k: &impl DeviceRange<$ty>,
+            new_v: &impl DeviceRange<$ty>,
             seq_len: usize,
             config: KvCacheSlidingWindowAppendConfig,
         ) -> Result<KvCacheSlidingWindowAppendState> {

@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use singe_cuda::stream::Stream;
+use singe_cuda::{event::EventWaitFlags, stream::Stream};
 
 use crate::{
     backend::cuda::{
@@ -14,7 +14,7 @@ impl CudaCachingAllocator {
     // Orders this allocator's stream after the block's last use: the event a caller's stream recorded, and on any stream but the eager one, the eager work a block returns to the cache without.
     pub(crate) fn wait_for_block(&self, block: &CudaCachedBlock) -> Result<()> {
         if let Some(event) = &block.ready_event {
-            self.stream.wait_event(event)?;
+            self.stream.wait_event(event, EventWaitFlags::DEFAULT)?;
         }
 
         if !self.eager {

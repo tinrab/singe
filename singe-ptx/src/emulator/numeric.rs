@@ -15,31 +15,31 @@ use crate::{
 
 /// Selects the low 16 bits of a PTX register or packed word.
 #[must_use]
-pub fn low_u16(value: impl Into<u128>) -> u16 {
+pub(crate) fn low_u16(value: impl Into<u128>) -> u16 {
     u16::try_from(value.into() & u128::from(u16::MAX)).expect("masked to 16 bits")
 }
 
 /// Selects the low 32 bits of a PTX register or packed word.
 #[must_use]
-pub fn low_u32(value: impl Into<u128>) -> u32 {
+pub(crate) fn low_u32(value: impl Into<u128>) -> u32 {
     u32::try_from(value.into() & u128::from(u32::MAX)).expect("masked to 32 bits")
 }
 
 /// Selects the low 64 bits of a PTX register or packed word.
 #[must_use]
-pub fn low_u64(value: impl Into<u128>) -> u64 {
+pub(crate) fn low_u64(value: impl Into<u128>) -> u64 {
     u64::try_from(value.into() & u128::from(u64::MAX)).expect("masked to 64 bits")
 }
 
-pub fn mask(bits: u32) -> u128 {
+pub(crate) fn mask(bits: u32) -> u128 {
     u128::MAX >> (128 - bits)
 }
 
-pub fn sign(value: u128, bits: u32) -> i128 {
+pub(crate) fn sign(value: u128, bits: u32) -> i128 {
     (value << (128 - bits)).cast_signed() >> (128 - bits)
 }
 
-pub fn extend(value: u128, ty: ScalarType) -> u128 {
+pub(crate) fn extend(value: u128, ty: ScalarType) -> u128 {
     if ty.is_signed() {
         sign(value, ty.bit_width()) as u128
     } else {
@@ -47,7 +47,7 @@ pub fn extend(value: u128, ty: ScalarType) -> u128 {
     }
 }
 
-pub fn rounding(mode: FloatRoundingMode) -> Round {
+pub(crate) fn rounding(mode: FloatRoundingMode) -> Round {
     match mode {
         FloatRoundingMode::Rn => Round::NearestTiesToEven,
         FloatRoundingMode::Rna => Round::NearestTiesToAway,
@@ -70,7 +70,7 @@ fn conversion_rounding(mode: ConversionRounding) -> Round {
     }
 }
 
-pub fn flush<F: Float>(value: F, ftz: bool) -> F {
+pub(crate) fn flush<F: Float>(value: F, ftz: bool) -> F {
     if ftz && value.is_denormal() {
         F::ZERO.copy_sign(value)
     } else {
@@ -131,7 +131,7 @@ fn binary<F: Float>(op: FloatBinary, a: u128, b: u128, control: FloatControl) ->
     result(value, control.ftz, control.clamp == Clamp::Saturate)
 }
 
-pub fn float_binary(
+pub(crate) fn float_binary(
     op: FloatBinary,
     format: FloatFormat,
     a: u128,
@@ -166,7 +166,7 @@ fn fused<F: Float>(a: u128, b: u128, c: u128, control: FloatControl) -> u128 {
     result(value, control.ftz, control.clamp == Clamp::Saturate)
 }
 
-pub fn fma(format: FloatFormat, a: u128, b: u128, c: u128, control: FloatControl) -> u128 {
+pub(crate) fn fma(format: FloatFormat, a: u128, b: u128, c: u128, control: FloatControl) -> u128 {
     lanes(format, |shift| match format {
         FloatFormat::F16 | FloatFormat::F16x2 => fused::<Half>(
             (a >> shift) & 65535,
@@ -185,7 +185,7 @@ pub fn fma(format: FloatFormat, a: u128, b: u128, c: u128, control: FloatControl
     })
 }
 
-pub fn float_unary(op: Unary, format: FloatFormat, value: u128, ftz: bool) -> u128 {
+pub(crate) fn float_unary(op: Unary, format: FloatFormat, value: u128, ftz: bool) -> u128 {
     // PTX neg/abs operate on the sign bit and preserve NaN payloads.
     let bits = if format.half() {
         16
@@ -224,7 +224,7 @@ fn property<F: Float>(property: FloatProperty, value: u128) -> bool {
     }
 }
 
-pub fn test_float(p: FloatProperty, ty: ScalarType, value: u128) -> bool {
+pub(crate) fn test_float(p: FloatProperty, ty: ScalarType, value: u128) -> bool {
     if ty == ScalarType::F64 {
         property::<Double>(p, value)
     } else {
@@ -301,7 +301,12 @@ where
     saturate_float(value, clamp == Clamp::Saturate)
 }
 
-pub fn convert(value: u128, from: ScalarType, to: ScalarType, control: ConversionControl) -> u128 {
+pub(crate) fn convert(
+    value: u128,
+    from: ScalarType,
+    to: ScalarType,
+    control: ConversionControl,
+) -> u128 {
     let ConversionControl {
         rounding: mode,
         ftz,
@@ -345,7 +350,7 @@ pub fn convert(value: u128, from: ScalarType, to: ScalarType, control: Conversio
     }
 }
 
-pub fn compare(op: CompareOp, ty: ScalarType, a: u128, b: u128, ftz: bool) -> bool {
+pub(crate) fn compare(op: CompareOp, ty: ScalarType, a: u128, b: u128, ftz: bool) -> bool {
     use CompareOp::{
         Eq, Equ, Ge, Geu, Gt, Gtu, Hi, Hs, Le, Leu, Lo, Ls, Lt, Ltu, Nan, Ne, Neu, Num,
     };

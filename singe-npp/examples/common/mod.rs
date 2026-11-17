@@ -13,7 +13,7 @@ use image::{GrayImage, ImageBuffer};
 use singe_cuda::{
     context::Context,
     memory::DeviceMemory,
-    stream::Stream,
+    stream::{Stream, StreamOptions},
     view::{AnyBitPatternDeviceRepr, DeviceRepr},
 };
 use singe_npp::{context::StreamContext, types::Size};
@@ -22,7 +22,7 @@ pub type Result<T> = StdResult<T, Box<dyn Error>>;
 
 pub fn create_stream() -> Result<(Stream, StreamContext)> {
     let context = Context::create()?;
-    let stream = context.create_stream()?;
+    let stream = context.create_stream(StreamOptions::default())?;
     let stream_context = StreamContext::create(&stream)?;
     Ok((stream, stream_context))
 }

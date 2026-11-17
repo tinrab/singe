@@ -1,33 +1,40 @@
-use std::ops::{Deref, DerefMut};
+//! Serialized GPU test contexts.
+
+use std::sync::Arc;
 
 use singe_cuda::{
-    error::{Error as CudaError, Status},
-    testing::{DeviceLock, bootstrap_for_device},
+    context::Context as CudaContext,
+    device::Device,
+    testing::{TestDevice, bootstrap_for_device},
 };
 
-use crate::{
-    context::Context,
-    error::{Error, Result},
-};
+use crate::{context::Context, error::Result};
 
-/// A cuSOLVER handle retaining the device lock for serialized GPU tests.
+/// A cuSOLVER context on a locked test device.
+///
+/// The cuSOLVER context drops before the device's CUDA context and lock.
 #[derive(Debug)]
 pub struct TestContext {
     context: Context,
-    _lock: DeviceLock,
+    device: TestDevice,
 }
 
-impl Deref for TestContext {
-    type Target = Context;
-
-    fn deref(&self) -> &Self::Target {
+impl TestContext {
+    /// Returns the cuSOLVER context.
+    #[must_use]
+    pub fn context(&self) -> &Context {
         &self.context
     }
-}
 
-impl DerefMut for TestContext {
-    fn deref_mut(&mut self) -> &mut Self::Target {
+    /// Returns the cuSOLVER context for its persistent setters.
+    pub fn context_mut(&mut self) -> &mut Context {
         &mut self.context
+    }
+
+    /// Returns the CUDA context of the locked device.
+    #[must_use]
+    pub fn cuda_context(&self) -> &Arc<CudaContext> {
+        self.device.context()
     }
 }
 
@@ -37,28 +44,7 @@ impl DerefMut for TestContext {
 ///
 /// Returns an error if device initialization, locking, CUDA context creation or binding, or cuSOLVER handle creation fails.
 pub fn setup_context() -> Result<TestContext> {
-    let device_id: i32 = 0;
-    let (lock, cuda_context) = bootstrap_for_device(device_id)?;
-    let context = Context::create(&cuda_context)?;
-
-    Ok(TestContext {
-        context,
-        _lock: lock,
-    })
-}
-
-/// Creates a serialized GPU test context, or returns `None` when CUDA reports a stub library.
-///
-/// # Errors
-///
-/// Returns errors from [`setup_context`] other than the CUDA stub-library status.
-pub fn setup_context_if_available() -> Result<Option<TestContext>> {
-    match setup_context() {
-        Ok(context) => Ok(Some(context)),
-        Err(Error::Cuda(CudaError::Cuda {
-            code: Status::StubLibrary,
-            ..
-        })) => Ok(None),
-        Err(error) => Err(error),
-    }
+    let device = bootstrap_for_device(Device::new(0))?;
+    let context = Context::create(device.context())?;
+    Ok(TestContext { context, device })
 }

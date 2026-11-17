@@ -1,18 +1,18 @@
-pub use crate::backend::execution::moe::{
-    MoeGroupedMatmulBackwardInputs, MoeGroupedMatmulBackwardTensors, MoeGroupedMatmulInputs,
-    MoeGroupedMatmulTensors,
-};
 use crate::{
-    backend::tensor::{Shape, TensorId},
+    backend::operation::moe::{
+        MoeGroupedMatmulBackwardInputs, MoeGroupedMatmulBackwardTensors, MoeGroupedMatmulInputs,
+        MoeGroupedMatmulRouting, MoeGroupedMatmulTensors,
+    },
     data_type::DataType,
     error::{Error, Result},
     frontend::{
         graph::{Graph, TensorOutputConfig},
         operation::{
             MoeGroupedMatmulBackwardConfig, MoeGroupedMatmulConfig, MoeGroupedMatmulOperation,
-            MoeGroupedMatmulRouting, Operation,
+            Operation,
         },
     },
+    tensor::{Shape, TensorId},
     utility::check_range,
 };
 
@@ -21,7 +21,7 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for unknown operands or routing tensors, non-3D token or weight layouts, incompatible contracted dimensions, unsupported integer routing encodings or ranks, an invalid scatter top-k count, or an output-dimension mismatch.
+    /// Returns an error if an operand or routing tensor is unknown, a token or weight layout is not three-dimensional, the contracted dimensions are incompatible, a routing tensor's integer encoding or rank is unsupported, the scatter top-k count is invalid, or an output dimension mismatches.
     pub fn moe_grouped_matmul_into(
         &mut self,
         tensors: MoeGroupedMatmulTensors,
@@ -38,7 +38,7 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for unknown operands or routing tensors, non-3D token or weight layouts, incompatible contracted dimensions, unsupported integer routing encodings or ranks, an invalid scatter top-k count, or an output-dimension mismatch.
+    /// Returns an error if an operand or routing tensor is unknown, a token or weight layout is not three-dimensional, the contracted dimensions are incompatible, a routing tensor's integer encoding or rank is unsupported, the scatter top-k count is invalid, or an output dimension mismatches.
     /// Inferred output strides must also fit the native layout representation.
     pub fn moe_grouped_matmul(
         &mut self,
@@ -125,7 +125,7 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for unknown tensors, invalid activation, gradient, or offset ranks, unsupported offset encoding, mismatched token counts, a nonpositive expert count, or a weight-gradient shape mismatch.
+    /// Returns an error if a tensor is unknown, an activation, gradient, or offset rank is invalid, the offset encoding is unsupported, token counts mismatch, the expert count is not positive, or the weight-gradient shape mismatches.
     pub fn moe_grouped_matmul_backward_into(
         &mut self,
         tensors: MoeGroupedMatmulBackwardTensors,
@@ -145,7 +145,7 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for unknown tensors, invalid activation, gradient, or offset ranks, unsupported offset encoding, mismatched token counts, a nonpositive expert count, or a weight-gradient shape mismatch.
+    /// Returns an error if a tensor is unknown, an activation, gradient, or offset rank is invalid, the offset encoding is unsupported, token counts mismatch, the expert count is not positive, or the weight-gradient shape mismatches.
     /// Inferred column-major gradient strides must also be representable.
     pub fn moe_grouped_matmul_backward(
         &mut self,

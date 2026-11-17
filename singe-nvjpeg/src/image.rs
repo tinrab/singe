@@ -1,7 +1,6 @@
 //! Images in device memory and their native descriptions.
 
 use std::{
-    ffi::c_void,
     marker::PhantomData,
     mem::{MaybeUninit, align_of, size_of},
     sync::Arc,
@@ -9,6 +8,7 @@ use std::{
 
 use singe_cuda::{
     context::Context as CudaContext,
+    error::Error as CudaError,
     memory::DeviceMemory,
     view::{DeviceOutputView, DeviceRegion, DeviceRepr, DeviceView},
 };
@@ -287,7 +287,7 @@ impl OutputPlaneSpec {
         }
         checked_mul(
             self.row_bytes,
-            self.size.height as usize,
+            to_usize(self.size.height, "height")?,
             "output plane byte length",
         )
     }
@@ -388,13 +388,21 @@ impl OutputSpec {
                 ));
                 planes[1] = Some(OutputPlaneSpec::from_parts(
                     uv_size,
-                    checked_mul(ceil_div_u32(image_size.width, 2) as usize, 2, "row bytes")?,
+                    checked_mul(
+                        to_usize(ceil_div_u32(image_size.width, 2), "width")?,
+                        2,
+                        "row bytes",
+                    )?,
                 ));
             }
             OutputFormat::Yuy2 => {
                 planes[0] = Some(OutputPlaneSpec::from_parts(
                     image_size,
-                    checked_mul(ceil_div_u32(image_size.width, 2) as usize, 4, "row bytes")?,
+                    checked_mul(
+                        to_usize(ceil_div_u32(image_size.width, 2), "width")?,
+                        4,
+                        "row bytes",
+                    )?,
                 ));
             }
         }
@@ -482,7 +490,7 @@ impl<'a, T> Plane<'a, T> {
     where
         T: DeviceRepr,
     {
-        // SAFETY: the initialized view retains readable storage for this lifetime.
+        // SAFETY: a `DeviceView<T>` holds initialized, valid `T` values borrowed for `'a`, and its region orders their writers before each use.
         unsafe { Self::from_raw_parts(view.region(), size, pitch) }
     }
 
@@ -572,7 +580,7 @@ impl<'a, T> PlaneMut<'a, T> {
     where
         T: DeviceRepr,
     {
-        // SAFETY: consuming the output view preserves its exclusive borrow.
+        // SAFETY: the output view is consumed, so the plane takes over its exclusive borrow of the memory for `'a`.
         unsafe { Self::from_raw_parts(view.into_region(), size, pitch) }
     }
 
@@ -668,7 +676,7 @@ impl<'a, T, const C: usize> ImageViewMut<'a, T, C> {
             }
 
             if plane.context().as_ref() != context.as_ref() {
-                return Err(Error::StreamContextMismatch);
+                return Err(CudaError::MemoryContextMismatch.into());
             }
 
             let minimum_row_bytes = required.row_bytes;
@@ -683,7 +691,7 @@ impl<'a, T, const C: usize> ImageViewMut<'a, T, C> {
 
             let prefix = checked_mul(
                 plane.pitch,
-                required.size.height.saturating_sub(1) as usize,
+                to_usize(required.size.height.saturating_sub(1), "height")?,
                 "output plane pitch",
             )?;
             let bytes = prefix
@@ -735,15 +743,6 @@ impl<'a, T, const C: usize> ImageViewMut<'a, T, C> {
     pub fn descriptor(&mut self) -> Result<Image> {
         Image::from_view_mut(self)
     }
-}
-
-/// Converts a typed pointer to the untyped pointer that nvJPEG 2000 image descriptions use.
-///
-/// # Safety
-///
-/// If the pointer goes into a device image description, it must point to device-accessible memory.
-pub unsafe fn erase_device_ptr<T>(ptr: *mut T) -> *mut c_void {
-    ptr.cast()
 }
 
 fn validate_component_count(count: usize) -> Result<()> {
@@ -830,7 +829,7 @@ fn required_plane_bytes(size: Size, pitch: usize, element_size: usize) -> Result
     }
 
     validate_plane_pitch(size, pitch, element_size)?;
-    let rows_before_last = (size.height - 1) as usize;
+    let rows_before_last = to_usize(size.height - 1, "height")?;
     let prefix_bytes = pitch
         .checked_mul(rows_before_last)
         .ok_or(Error::OutOfRange {

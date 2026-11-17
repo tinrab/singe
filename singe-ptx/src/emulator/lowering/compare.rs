@@ -11,7 +11,7 @@ use crate::{
     },
 };
 
-pub fn compare(
+pub(crate) fn compare(
     compiler: &FunctionCompiler<'_, '_>,
     instruction: &Instruction,
     head: &mut Head<'_>,
@@ -54,7 +54,7 @@ pub fn compare(
     }))
 }
 
-pub fn set(
+pub(crate) fn set(
     compiler: &FunctionCompiler<'_, '_>,
     instruction: &Instruction,
     head: &mut Head<'_>,
@@ -114,7 +114,7 @@ pub fn set(
 }
 
 /// Lowers `selp`.
-pub fn select(
+pub(crate) fn select(
     compiler: &FunctionCompiler<'_, '_>,
     instruction: &Instruction,
     head: &mut Head<'_>,
@@ -131,7 +131,7 @@ pub fn select(
     }))
 }
 
-pub fn select_sign(
+pub(crate) fn select_sign(
     compiler: &FunctionCompiler<'_, '_>,
     instruction: &Instruction,
     head: &mut Head<'_>,

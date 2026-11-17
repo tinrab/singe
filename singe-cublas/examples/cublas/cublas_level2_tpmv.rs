@@ -1,20 +1,18 @@
 use singe_cublas::{
-    blas::level2::dtpmv,
+    blas::level2::tpmv,
     context::Context,
-    error::Result,
     types::{DiagonalType, FillMode, Operation},
 };
-
 use singe_cuda::{context::Context as CudaContext, device::Device, memory::DeviceMemory};
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     let cuda = CudaContext::create_for_device(Device::new(0))?;
     let cublas = Context::create(&cuda)?;
 
     let ap = DeviceMemory::from_slice(&cuda, &[1.0_f64, 2.0, 4.0])?;
     let mut x = DeviceMemory::from_slice(&cuda, &[5.0_f64, 6.0])?;
 
-    dtpmv(
+    tpmv(
         &cublas,
         FillMode::Upper,
         Operation::NonTranspose,

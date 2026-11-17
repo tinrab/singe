@@ -1,8 +1,8 @@
 use crate::{
-    backend::{
-        execution::tensor_ops::ReshapeMode,
+    backend::operation::{
+        attention::SdpaForwardQuantization,
         pointwise::PointwiseMode,
-        tensor::{Shape, TensorId, TensorSpec},
+        tensor_ops::{ReshapeMode, ReshapeSpec},
     },
     data_type::DataType,
     error::Result,
@@ -17,24 +17,21 @@ use crate::{
             },
         },
         error::{Error as FrontendError, SdpaRequirement},
-        graph::{DataTypePolicy, Graph, TensorOutputConfig, reduce_last_axis},
+        graph::{Graph, TensorOutputConfig, reduce_last_axis},
         operation::{
-            AttentionConfig, AttentionDiagonalAlignment, AttentionDiagonalBand,
-            AttentionDropoutMask, AttentionForwardInputs, AttentionMaskMode,
-            AttentionSequenceInputs, DirectSdpaForwardConfig, PagedCacheLayout,
-            PagedCacheLoadConfig, PointwiseOperation, ReshapeConfig, SdpaConfig,
-            SdpaForwardQuantization, SdpaFusedMaskMode, SdpaQuantizedAuxOutputRequest,
-            SdpaScoreModifiers, SoftmaxConfig,
+            AttentionConfig, AttentionDropoutMask, AttentionForwardInputs, PagedCacheLayout,
+            PagedCacheLoadConfig, PointwiseOperation, SdpaConfig,
         },
     },
     math::NanPropagation,
     scalar::ScalarValue,
+    tensor::{Shape, TensorId, TensorSpec},
     utility::{check_range, to_i64},
 };
 
 /// Prepared K/V operands in logical `[batch, heads, sequence, hidden]` order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct PreparedAttentionKv {
+pub(crate) struct PreparedAttentionKv {
     pub key: TensorId,
     pub value: TensorId,
 }
@@ -46,7 +43,7 @@ struct SdpaScoreIndices {
 }
 
 impl PreparedAttentionKv {
-    pub fn new(key: TensorId, value: TensorId) -> Self {
+    pub(crate) fn new(key: TensorId, value: TensorId) -> Self {
         Self { key, value }
     }
 }
@@ -144,7 +141,7 @@ impl Graph {
         let checkpoint = self.mutation_checkpoint();
         let output = self.tensor(tensor);
         if let Err(error) =
-            self.reshape_into(input, output, ReshapeConfig::new(ReshapeMode::ViewOnly))
+            self.reshape_into(input, output, ReshapeSpec::new(ReshapeMode::ViewOnly))
         {
             self.rollback_to(checkpoint);
             return Err(error);
@@ -426,7 +423,7 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for negative window bounds, unknown or incompatible query/key geometry, or failure to construct mask index, comparison, or pointwise operations.
+    /// Returns an error if a window bound is negative, the query/key geometry is unknown or incompatible, or building the mask index, comparison, or pointwise operations fails.
     pub fn sdpa_sliding_window_mask(
         &mut self,
         q: TensorId,
@@ -447,184 +444,8 @@ impl Graph {
         result
     }
 
-    /// Adds scaled dot product attention with explicit output and optional softmax summaries.
-    ///
-    /// SDPA computes `softmax(QK^T / sqrt(d))V` and may generate stats for backward training computation.
-    /// Records direct attention, or composes the configured fused mask.
-    /// Rejected requests discard tentative scale tensors and operations.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error for invalid direct-attention operands or summaries, unknown or incompatible tensor layouts, or failure to construct configured masks, attention scaling, or constituent composite operations.
-    pub fn sdpa_into(
-        &mut self,
-        inputs: SdpaInputs,
-        outputs: SdpaOutputTensors,
-        config: &SdpaConfig,
-    ) -> Result<()> {
-        if !matches!(config.mask(), SdpaFusedMaskMode::None) {
-            return self.sdpa_composite(inputs, outputs, config);
-        }
-
-        let checkpoint = self.mutation_checkpoint();
-        let result = self.sdpa_direct(
-            inputs,
-            outputs,
-            SdpaScoreModifiers::new(),
-            None,
-            config,
-            &DirectSdpaForwardConfig::new().with_stats_base(config.stats_base()),
-        );
-        if result.is_err() {
-            self.rollback_to(checkpoint);
-        }
-        result
-    }
-
-    /// Composes SDPA from matmul, softmax and configured masking operations.
-    /// Unlike the unmasked `sdpa` path, this always expands the composite implementation.
-    /// Supplied outputs determine which auxiliary results are produced.
-    /// Rejected composition preserves existing declarations and removes all tentative mask/scale work.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error for unknown or incompatible attention operands or output dimensions, unsupported cumulative sequence lengths, invalid mask or sequence metadata, incompatible score modifiers or softmax summaries, or failure to construct constituent matrix, pointwise, reduction, or dropout operations.
-    pub fn sdpa_composite(
-        &mut self,
-        inputs: SdpaInputs,
-        outputs: SdpaOutputTensors,
-        config: &SdpaConfig,
-    ) -> Result<()> {
-        let SdpaInputs {
-            query: q,
-            key: k,
-            value: v,
-            scale,
-        } = inputs;
-        let mut composed = self.clone();
-        let modifiers = match config.mask() {
-            SdpaFusedMaskMode::None => SdpaScoreModifiers::new(),
-            SdpaFusedMaskMode::CausalTopLeft => {
-                let causal_mask = composed.sdpa_causal_mask(q, k)?;
-                SdpaScoreModifiers::new().with_additive_mask(causal_mask)
-            }
-            SdpaFusedMaskMode::CausalBottomRight {
-                sequence_length_query,
-                sequence_length_key_value,
-            } => SdpaScoreModifiers::new()
-                .with_sequence_inputs(AttentionSequenceInputs::per_batch(
-                    sequence_length_query,
-                    sequence_length_key_value,
-                ))
-                .with_mask_mode(AttentionMaskMode::DiagonalBand(
-                    AttentionDiagonalBand::causal(AttentionDiagonalAlignment::BottomRight),
-                )),
-        };
-        let compute_type = composed.effective_compute_data_type(DataType::F32);
-        let scale = composed.sdpa_effective_scale(scale, config.attention_scale(), compute_type)?;
-
-        composed.sdpa_with_modifiers_internal(
-            SdpaInputs {
-                query: q,
-                key: k,
-                value: v,
-                scale,
-            },
-            outputs,
-            modifiers,
-            None,
-            SdpaQuantizedAuxOutputRequest::default(),
-            SoftmaxConfig::new().with_stats_base(config.stats_base()),
-        )?;
-        *self = composed;
-        Ok(())
-    }
-
-    /// Composes SDPA with independently configured result and auxiliary tensors.
-    /// Uses the same composite implementation as [`Self::sdpa_composite`].
-    /// Each output selects placement and encoding; saved Stats defaults to FP32.
-    /// Result placement selects I/O or intermediate encoding unless explicitly overridden.
-    /// Rejected construction leaves the graph unchanged.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error for unknown or incompatible attention operands or output dimensions, unsupported cumulative sequence lengths, invalid mask or sequence metadata, incompatible score modifiers or softmax summaries, or failure to construct constituent matrix, pointwise, reduction, or dropout operations.
-    /// Inferred result and auxiliary layouts must also be representable.
-    pub fn sdpa(
-        &mut self,
-        inputs: SdpaInputs,
-        config: &SdpaConfig,
-        outputs: SdpaOutputTensors<TensorOutputConfig>,
-    ) -> Result<SdpaForwardOutputTensors> {
-        let SdpaInputs {
-            query: q,
-            key: k,
-            value: v,
-            scale: _,
-        } = inputs;
-        let q_tensor = self.tensor_spec(q)?;
-        let k_tensor = self.tensor_spec(k)?;
-        let v_tensor = self.tensor_spec(v)?;
-        let scores_shape = infer_sdpa_scores_shape(&q_tensor.shape, &k_tensor.shape)?;
-        let output_shape = infer_sdpa_output_shape(&scores_shape, &v_tensor.shape)?;
-        let aux_data_type = q_tensor.data_type;
-        let aux_shape = reduce_last_axis(&q_tensor.shape)?;
-        let output_spec =
-            outputs
-                .output
-                .into_spec(self.config.data_type_policy, aux_data_type, output_shape);
-        let checkpoint = self.mutation_checkpoint();
-        let output = self.inferred_tensor(output_spec, config.name(), "O");
-        let outputs = SdpaOutputTensors {
-            output,
-            stats: outputs.stats.map(|request| {
-                self.inferred_tensor(
-                    request.into_spec(DataTypePolicy::default(), DataType::F32, aux_shape.clone()),
-                    config.name(),
-                    "Stats",
-                )
-            }),
-            logit_max: outputs.logit_max.map(|request| {
-                self.inferred_tensor(
-                    request.into_spec(
-                        self.config.data_type_policy,
-                        aux_data_type,
-                        aux_shape.clone(),
-                    ),
-                    config.name(),
-                    "Max",
-                )
-            }),
-            score_sum_exp: outputs.score_sum_exp.map(|request| {
-                self.inferred_tensor(
-                    request.into_spec(
-                        self.config.data_type_policy,
-                        aux_data_type,
-                        aux_shape.clone(),
-                    ),
-                    config.name(),
-                    "Sum_exp",
-                )
-            }),
-        };
-
-        if let Err(error) = self.sdpa_composite(inputs, outputs, config) {
-            self.rollback_to(checkpoint);
-            return Err(error);
-        }
-
-        Ok(SdpaForwardOutputTensors {
-            output,
-            stats: outputs.stats,
-            logit_max: outputs.logit_max,
-            score_sum_exp: outputs.score_sum_exp,
-            rng_dump: None,
-            absolute_max_probabilities: None,
-            absolute_max_output: None,
-        })
-    }
-
-    /// Records floating attention with caller-declared result tensors and the complete attention configuration.
+    /// Records attention with caller-declared result tensors and the complete attention configuration.
+    /// The input type selects floating ([`SdpaInputs`]), FP8 ([`SdpaFp8Inputs`](crate::frontend::composite::sdpa::SdpaFp8Inputs)) or MXFP8 ([`SdpaMxfp8Inputs`](crate::frontend::composite::sdpa::SdpaMxfp8Inputs)) attention.
     /// Supplied auxiliary tensors enable their requests without duplicate configuration flags.
     /// Explicit configuration requests still require corresponding output tensors.
     /// Preparation selects the configured automatic, unified or composite implementation for the target.
@@ -632,22 +453,21 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for unknown or incompatible query/key/value or paged-cache geometry, invalid sequence-length combinations, an RNG dump requested without dropout, or unrepresentable inferred score, result, or auxiliary layouts.
+    /// Returns an error if the query/key/value or paged-cache geometry is unknown or incompatible, the sequence-length combination is invalid, an RNG dump is requested without dropout, or an inferred score, result, or auxiliary layout is unrepresentable.
+    /// MXFP8 attention cannot use paged caches.
     /// Caller-declared outputs must exist and match inferred output requirements.
-    pub fn sdpa_auto_into(
+    pub fn sdpa_into(
         &mut self,
-        inputs: SdpaInputs,
+        inputs: impl Into<AttentionForwardInputs>,
         outputs: SdpaForwardOutputTensors,
         config: &AttentionConfig,
     ) -> Result<()> {
-        self.record_explicit_attention_forward(
-            AttentionForwardInputs::Floating(inputs),
-            outputs,
-            config,
-        )
+        self.record_explicit_attention_forward(inputs.into(), outputs, config)
     }
 
     /// Records attention with independent placement and encoding for every requested result.
+    /// The input type selects floating ([`SdpaInputs`]), FP8 ([`SdpaFp8Inputs`](crate::frontend::composite::sdpa::SdpaFp8Inputs)) or MXFP8 ([`SdpaMxfp8Inputs`](crate::frontend::composite::sdpa::SdpaMxfp8Inputs)) attention.
+    /// FP8 attention takes explicit descale and scale tensors for the query, key, value, scores and output, and MXFP8 attention takes per-block scales.
     /// Stats, RNG dumps and Amax outputs default to FP32 independently of graph policies.
     /// Preparation resolves the implementation against the live or explicitly declared target.
     /// Caller changes to result tensor layouts are retained during expansion.
@@ -656,14 +476,15 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for unknown or incompatible query/key/value or paged-cache geometry, invalid sequence-length combinations, an RNG dump requested without dropout, or unrepresentable inferred score, result, or auxiliary layouts.
-    pub fn sdpa_auto(
+    /// Returns an error if the query/key/value or paged-cache geometry is unknown or incompatible, the sequence-length combination is invalid, an RNG dump is requested without dropout, or an inferred score, result, or auxiliary layout is unrepresentable.
+    /// MXFP8 attention cannot use paged caches.
+    pub fn sdpa(
         &mut self,
-        inputs: SdpaInputs,
+        inputs: impl Into<AttentionForwardInputs>,
         config: AttentionConfig,
         outputs: SdpaForwardOutputTensors<TensorOutputConfig>,
     ) -> Result<SdpaForwardOutputTensors> {
-        self.record_attention_forward(AttentionForwardInputs::Floating(inputs), outputs, config)
+        self.record_attention_forward(inputs.into(), outputs, config)
     }
 
     pub(crate) fn expand_floating_attention(
@@ -757,39 +578,5 @@ impl Graph {
             absolute_max_probabilities: computed.absolute_max_probabilities,
             absolute_max_output: computed.absolute_max_output,
         })
-    }
-
-    /// Composes attention with a scalar attention scale and an additive bias, writing caller-declared output and optional statistics.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error for unknown or incompatible attention operands or output dimensions, unsupported cumulative sequence lengths, invalid mask or sequence metadata, incompatible score modifiers or softmax summaries, or failure to construct constituent matrix, pointwise, reduction, or dropout operations.
-    pub fn sdpa_bias(
-        &mut self,
-        q: TensorId,
-        k: TensorId,
-        v: TensorId,
-        scale: TensorId,
-        bias: TensorId,
-        output: TensorId,
-        stats: Option<TensorId>,
-        config: SoftmaxConfig,
-    ) -> Result<()> {
-        self.sdpa_with_modifiers(
-            SdpaInputs {
-                query: q,
-                key: k,
-                value: v,
-                scale,
-            },
-            SdpaOutputTensors {
-                output,
-                stats,
-                logit_max: None,
-                score_sum_exp: None,
-            },
-            SdpaScoreModifiers::new().with_bias(bias),
-            config,
-        )
     }
 }

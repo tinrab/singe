@@ -57,7 +57,7 @@ pub unsafe trait DistanceTransformPbaToU16C1: DataTypeLike {
     /// # Errors
     ///
     /// The provided implementations return an error if CUDA context binding fails, a participating image belongs to another CUDA context, or NPP rejects the transform parameters.
-    /// At least one output must have positive dimensions; all supplied outputs must have the source image size.
+    /// At least one output must be supplied, every supplied output must have the source image size, and that size must have a width and height in `64..=32767`.
     /// Workspace-size queries, device allocation, capture checks, and stream synchronization can also fail.
     ///
     /// # Safety
@@ -67,7 +67,6 @@ pub unsafe trait DistanceTransformPbaToU16C1: DataTypeLike {
     /// NPP receives a mutable source pointer; provide exclusive access to source storage during native use.
     /// Keep each destination exclusively writable and disjoint from the source and all other destinations during native use.
     /// Keep image allocations valid until this call completes its native work.
-    /// Native PBA requires ROI width and height in `64..=32767`; the provided implementations check positive dimensions but do not enforce that range.
     /// The source must contain at least one site pixel; the provided implementations do not inspect pixel values or validate the site interval.
     /// Image layouts, byte strides, alignment, and allocation bounds must satisfy the native routine.
     unsafe fn distance_transform_pba_to_u16(
@@ -136,7 +135,7 @@ impl_distance_transform_pba_to_u16!(i16, i16, distance_transform_pba_i16_to_u16_
 /// # Errors
 ///
 /// The provided implementations return an error if CUDA context binding fails, a participating image belongs to another CUDA context, or NPP rejects the transform parameters.
-/// At least one output must have positive dimensions; all supplied outputs must have the source image size.
+/// At least one output must be supplied, every supplied output must have the source image size, and that size must have a width and height in `64..=32767`.
 /// Workspace-size queries, device allocation, capture checks, and stream synchronization can also fail.
 ///
 /// # Safety
@@ -146,7 +145,6 @@ impl_distance_transform_pba_to_u16!(i16, i16, distance_transform_pba_i16_to_u16_
 /// NPP receives a mutable source pointer; provide exclusive access to source storage during native use.
 /// Keep each destination exclusively writable and disjoint from the source and all other destinations during native use.
 /// Keep image allocations valid until this call completes its native work.
-/// Native PBA requires ROI width and height in `64..=32767`; the provided implementations check positive dimensions but do not enforce that range.
 /// The source must contain at least one site pixel; the provided implementations do not inspect pixel values or validate the site interval.
 /// Image layouts, byte strides, alignment, and allocation bounds must satisfy the native routine.
 pub unsafe fn distance_transform_pba_to_u16<T: DistanceTransformPbaToU16C1>(
@@ -195,7 +193,7 @@ pub unsafe trait DistanceTransformAbsPbaToU16C1: DataTypeLike {
     /// # Errors
     ///
     /// The provided implementations return an error if CUDA context binding fails, a participating image belongs to another CUDA context, or NPP rejects the transform parameters.
-    /// At least one output must have positive dimensions; all supplied outputs must have the source image size.
+    /// At least one output must be supplied, every supplied output must have the source image size, and that size must have a width and height in `64..=32767`.
     /// Workspace-size queries, device allocation, capture checks, and stream synchronization can also fail.
     ///
     /// # Safety
@@ -205,7 +203,6 @@ pub unsafe trait DistanceTransformAbsPbaToU16C1: DataTypeLike {
     /// NPP receives a mutable source pointer; provide exclusive access to source storage during native use.
     /// Keep each destination exclusively writable and disjoint from the source and all other destinations during native use.
     /// Keep image allocations valid until this call completes its native work.
-    /// Native PBA requires ROI width and height in `64..=32767`; the provided implementations check positive dimensions but do not enforce that range.
     /// The source must contain at least one site pixel; the provided implementations do not inspect pixel values or validate the site interval.
     /// Image layouts, byte strides, alignment, and allocation bounds must satisfy the native routine.
     unsafe fn distance_transform_abs_pba_to_u16(
@@ -274,7 +271,7 @@ impl_distance_transform_abs_pba_to_u16!(i16, u16, distance_transform_abs_pba_i16
 /// # Errors
 ///
 /// The provided implementations return an error if CUDA context binding fails, a participating image belongs to another CUDA context, or NPP rejects the transform parameters.
-/// At least one output must have positive dimensions; all supplied outputs must have the source image size.
+/// At least one output must be supplied, every supplied output must have the source image size, and that size must have a width and height in `64..=32767`.
 /// Workspace-size queries, device allocation, capture checks, and stream synchronization can also fail.
 ///
 /// # Safety
@@ -284,7 +281,6 @@ impl_distance_transform_abs_pba_to_u16!(i16, u16, distance_transform_abs_pba_i16
 /// NPP receives a mutable source pointer; provide exclusive access to source storage during native use.
 /// Keep each destination exclusively writable and disjoint from the source and all other destinations during native use.
 /// Keep image allocations valid until this call completes its native work.
-/// Native PBA requires ROI width and height in `64..=32767`; the provided implementations check positive dimensions but do not enforce that range.
 /// The source must contain at least one site pixel; the provided implementations do not inspect pixel values or validate the site interval.
 /// Image layouts, byte strides, alignment, and allocation bounds must satisfy the native routine.
 pub unsafe fn distance_transform_abs_pba_to_u16<T: DistanceTransformAbsPbaToU16C1>(
@@ -333,7 +329,7 @@ pub unsafe trait DistanceTransformPbaToF32C1: DataTypeLike {
     /// # Errors
     ///
     /// The provided implementations return an error if CUDA context binding fails, a participating image belongs to another CUDA context, or NPP rejects the transform parameters.
-    /// At least one output must have positive dimensions; all supplied outputs must have the source image size.
+    /// At least one output must be supplied, every supplied output must have the source image size, and that size must have a width and height in `64..=32767`.
     /// Workspace-size queries, device allocation, capture checks, and stream synchronization can also fail.
     ///
     /// # Safety
@@ -343,7 +339,6 @@ pub unsafe trait DistanceTransformPbaToF32C1: DataTypeLike {
     /// NPP receives a mutable source pointer; provide exclusive access to source storage during native use.
     /// Keep each destination exclusively writable and disjoint from the source and all other destinations during native use.
     /// Keep image allocations valid until this call completes its native work.
-    /// Native PBA requires ROI width and height in `64..=32767`; the provided implementations check positive dimensions but do not enforce that range.
     /// The source must contain at least one site pixel; the provided implementations do not inspect pixel values or validate the site interval.
     /// Image layouts, byte strides, alignment, and allocation bounds must satisfy the native routine.
     unsafe fn distance_transform_pba_to_f32(
@@ -412,7 +407,7 @@ impl_distance_transform_pba_to_f32!(i16, i16, distance_transform_pba_i16_to_f32_
 /// # Errors
 ///
 /// The provided implementations return an error if CUDA context binding fails, a participating image belongs to another CUDA context, or NPP rejects the transform parameters.
-/// At least one output must have positive dimensions; all supplied outputs must have the source image size.
+/// At least one output must be supplied, every supplied output must have the source image size, and that size must have a width and height in `64..=32767`.
 /// Workspace-size queries, device allocation, capture checks, and stream synchronization can also fail.
 ///
 /// # Safety
@@ -422,7 +417,6 @@ impl_distance_transform_pba_to_f32!(i16, i16, distance_transform_pba_i16_to_f32_
 /// NPP receives a mutable source pointer; provide exclusive access to source storage during native use.
 /// Keep each destination exclusively writable and disjoint from the source and all other destinations during native use.
 /// Keep image allocations valid until this call completes its native work.
-/// Native PBA requires ROI width and height in `64..=32767`; the provided implementations check positive dimensions but do not enforce that range.
 /// The source must contain at least one site pixel; the provided implementations do not inspect pixel values or validate the site interval.
 /// Image layouts, byte strides, alignment, and allocation bounds must satisfy the native routine.
 pub unsafe fn distance_transform_pba_to_f32<T: DistanceTransformPbaToF32C1>(
@@ -471,7 +465,7 @@ pub unsafe trait DistanceTransformAbsPbaToF32C1: DataTypeLike {
     /// # Errors
     ///
     /// The provided implementations return an error if CUDA context binding fails, a participating image belongs to another CUDA context, or NPP rejects the transform parameters.
-    /// At least one output must have positive dimensions; all supplied outputs must have the source image size.
+    /// At least one output must be supplied, every supplied output must have the source image size, and that size must have a width and height in `64..=32767`.
     /// Workspace-size queries, device allocation, capture checks, and stream synchronization can also fail.
     ///
     /// # Safety
@@ -481,7 +475,6 @@ pub unsafe trait DistanceTransformAbsPbaToF32C1: DataTypeLike {
     /// NPP receives a mutable source pointer; provide exclusive access to source storage during native use.
     /// Keep each destination exclusively writable and disjoint from the source and all other destinations during native use.
     /// Keep image allocations valid until this call completes its native work.
-    /// Native PBA requires ROI width and height in `64..=32767`; the provided implementations check positive dimensions but do not enforce that range.
     /// The source must contain at least one site pixel; the provided implementations do not inspect pixel values or validate the site interval.
     /// Image layouts, byte strides, alignment, and allocation bounds must satisfy the native routine.
     unsafe fn distance_transform_abs_pba_to_f32(
@@ -550,7 +543,7 @@ impl_distance_transform_abs_pba_to_f32!(i16, u16, distance_transform_abs_pba_i16
 /// # Errors
 ///
 /// The provided implementations return an error if CUDA context binding fails, a participating image belongs to another CUDA context, or NPP rejects the transform parameters.
-/// At least one output must have positive dimensions; all supplied outputs must have the source image size.
+/// At least one output must be supplied, every supplied output must have the source image size, and that size must have a width and height in `64..=32767`.
 /// Workspace-size queries, device allocation, capture checks, and stream synchronization can also fail.
 ///
 /// # Safety
@@ -560,7 +553,6 @@ impl_distance_transform_abs_pba_to_f32!(i16, u16, distance_transform_abs_pba_i16
 /// NPP receives a mutable source pointer; provide exclusive access to source storage during native use.
 /// Keep each destination exclusively writable and disjoint from the source and all other destinations during native use.
 /// Keep image allocations valid until this call completes its native work.
-/// Native PBA requires ROI width and height in `64..=32767`; the provided implementations check positive dimensions but do not enforce that range.
 /// The source must contain at least one site pixel; the provided implementations do not inspect pixel values or validate the site interval.
 /// Image layouts, byte strides, alignment, and allocation bounds must satisfy the native routine.
 pub unsafe fn distance_transform_abs_pba_to_f32<T: DistanceTransformAbsPbaToF32C1>(
@@ -609,7 +601,7 @@ pub unsafe trait DistanceTransformPbaToF64C1: DataTypeLike {
     /// # Errors
     ///
     /// The provided implementations return an error if CUDA context binding fails, a participating image belongs to another CUDA context, or NPP rejects the transform parameters.
-    /// At least one output must have positive dimensions; all supplied outputs must have the source image size.
+    /// At least one output must be supplied, every supplied output must have the source image size, and that size must have a width and height in `64..=32767`.
     /// Workspace-size queries, device allocation, capture checks, and stream synchronization can also fail.
     ///
     /// # Safety
@@ -619,7 +611,6 @@ pub unsafe trait DistanceTransformPbaToF64C1: DataTypeLike {
     /// NPP receives a mutable source pointer; provide exclusive access to source storage during native use.
     /// Keep each destination exclusively writable and disjoint from the source and all other destinations during native use.
     /// Keep image allocations valid until this call completes its native work.
-    /// Native PBA requires ROI width and height in `64..=32767`; the provided implementations check positive dimensions but do not enforce that range.
     /// The source must contain at least one site pixel; the provided implementations do not inspect pixel values or validate the site interval.
     /// Image layouts, byte strides, alignment, and allocation bounds must satisfy the native routine.
     unsafe fn distance_transform_pba_to_f64(
@@ -645,7 +636,7 @@ pub unsafe trait DistanceTransformPbaToF64C1: DataTypeLike {
     /// # Errors
     ///
     /// The provided implementations return an error if CUDA context binding fails, a participating image belongs to another CUDA context, or NPP rejects the transform parameters.
-    /// At least one output must have positive dimensions; all supplied outputs must have the source image size.
+    /// At least one output must be supplied, every supplied output must have the source image size, and that size must have a width and height in `64..=32767`.
     /// Workspace-size queries, device allocation, capture checks, and stream synchronization can also fail.
     ///
     /// # Safety
@@ -655,7 +646,6 @@ pub unsafe trait DistanceTransformPbaToF64C1: DataTypeLike {
     /// NPP receives a mutable source pointer; provide exclusive access to source storage during native use.
     /// Keep each destination exclusively writable and disjoint from the source and all other destinations during native use.
     /// Keep image allocations valid until this call completes its native work.
-    /// Native PBA requires ROI width and height in `64..=32767`; the provided implementations check positive dimensions but do not enforce that range.
     /// The source must contain at least one site pixel; the provided implementations do not inspect pixel values or validate the site interval.
     /// Image layouts, byte strides, alignment, and allocation bounds must satisfy the native routine.
     unsafe fn distance_transform_pba_to_f64_antialiasing(
@@ -785,7 +775,7 @@ impl_distance_transform_pba_to_f64!(
 /// # Errors
 ///
 /// The provided implementations return an error if CUDA context binding fails, a participating image belongs to another CUDA context, or NPP rejects the transform parameters.
-/// At least one output must have positive dimensions; all supplied outputs must have the source image size.
+/// At least one output must be supplied, every supplied output must have the source image size, and that size must have a width and height in `64..=32767`.
 /// Workspace-size queries, device allocation, capture checks, and stream synchronization can also fail.
 ///
 /// # Safety
@@ -795,7 +785,6 @@ impl_distance_transform_pba_to_f64!(
 /// NPP receives a mutable source pointer; provide exclusive access to source storage during native use.
 /// Keep each destination exclusively writable and disjoint from the source and all other destinations during native use.
 /// Keep image allocations valid until this call completes its native work.
-/// Native PBA requires ROI width and height in `64..=32767`; the provided implementations check positive dimensions but do not enforce that range.
 /// The source must contain at least one site pixel; the provided implementations do not inspect pixel values or validate the site interval.
 /// Image layouts, byte strides, alignment, and allocation bounds must satisfy the native routine.
 pub unsafe fn distance_transform_pba_to_f64<T: DistanceTransformPbaToF64C1>(
@@ -835,7 +824,7 @@ pub unsafe fn distance_transform_pba_to_f64<T: DistanceTransformPbaToF64C1>(
 /// # Errors
 ///
 /// The provided implementations return an error if CUDA context binding fails, a participating image belongs to another CUDA context, or NPP rejects the transform parameters.
-/// At least one output must have positive dimensions; all supplied outputs must have the source image size.
+/// At least one output must be supplied, every supplied output must have the source image size, and that size must have a width and height in `64..=32767`.
 /// Workspace-size queries, device allocation, capture checks, and stream synchronization can also fail.
 ///
 /// # Safety
@@ -845,7 +834,6 @@ pub unsafe fn distance_transform_pba_to_f64<T: DistanceTransformPbaToF64C1>(
 /// NPP receives a mutable source pointer; provide exclusive access to source storage during native use.
 /// Keep each destination exclusively writable and disjoint from the source and all other destinations during native use.
 /// Keep image allocations valid until this call completes its native work.
-/// Native PBA requires ROI width and height in `64..=32767`; the provided implementations check positive dimensions but do not enforce that range.
 /// The source must contain at least one site pixel; the provided implementations do not inspect pixel values or validate the site interval.
 /// Image layouts, byte strides, alignment, and allocation bounds must satisfy the native routine.
 pub unsafe fn distance_transform_pba_to_f64_antialiasing<T: DistanceTransformPbaToF64C1>(
@@ -894,7 +882,7 @@ pub unsafe trait DistanceTransformAbsPbaToF64C1: DataTypeLike {
     /// # Errors
     ///
     /// The provided implementations return an error if CUDA context binding fails, a participating image belongs to another CUDA context, or NPP rejects the transform parameters.
-    /// At least one output must have positive dimensions; all supplied outputs must have the source image size.
+    /// At least one output must be supplied, every supplied output must have the source image size, and that size must have a width and height in `64..=32767`.
     /// Workspace-size queries, device allocation, capture checks, and stream synchronization can also fail.
     ///
     /// # Safety
@@ -904,7 +892,6 @@ pub unsafe trait DistanceTransformAbsPbaToF64C1: DataTypeLike {
     /// NPP receives a mutable source pointer; provide exclusive access to source storage during native use.
     /// Keep each destination exclusively writable and disjoint from the source and all other destinations during native use.
     /// Keep image allocations valid until this call completes its native work.
-    /// Native PBA requires ROI width and height in `64..=32767`; the provided implementations check positive dimensions but do not enforce that range.
     /// The source must contain at least one site pixel; the provided implementations do not inspect pixel values or validate the site interval.
     /// Image layouts, byte strides, alignment, and allocation bounds must satisfy the native routine.
     unsafe fn distance_transform_abs_pba_to_f64(
@@ -930,7 +917,7 @@ pub unsafe trait DistanceTransformAbsPbaToF64C1: DataTypeLike {
     /// # Errors
     ///
     /// The provided implementations return an error if CUDA context binding fails, a participating image belongs to another CUDA context, or NPP rejects the transform parameters.
-    /// At least one output must have positive dimensions; all supplied outputs must have the source image size.
+    /// At least one output must be supplied, every supplied output must have the source image size, and that size must have a width and height in `64..=32767`.
     /// Workspace-size queries, device allocation, capture checks, and stream synchronization can also fail.
     ///
     /// # Safety
@@ -940,7 +927,6 @@ pub unsafe trait DistanceTransformAbsPbaToF64C1: DataTypeLike {
     /// NPP receives a mutable source pointer; provide exclusive access to source storage during native use.
     /// Keep each destination exclusively writable and disjoint from the source and all other destinations during native use.
     /// Keep image allocations valid until this call completes its native work.
-    /// Native PBA requires ROI width and height in `64..=32767`; the provided implementations check positive dimensions but do not enforce that range.
     /// The source must contain at least one site pixel; the provided implementations do not inspect pixel values or validate the site interval.
     /// Image layouts, byte strides, alignment, and allocation bounds must satisfy the native routine.
     unsafe fn distance_transform_abs_pba_to_f64_antialiasing(
@@ -1070,7 +1056,7 @@ impl_distance_transform_abs_pba_to_f64!(
 /// # Errors
 ///
 /// The provided implementations return an error if CUDA context binding fails, a participating image belongs to another CUDA context, or NPP rejects the transform parameters.
-/// At least one output must have positive dimensions; all supplied outputs must have the source image size.
+/// At least one output must be supplied, every supplied output must have the source image size, and that size must have a width and height in `64..=32767`.
 /// Workspace-size queries, device allocation, capture checks, and stream synchronization can also fail.
 ///
 /// # Safety
@@ -1080,7 +1066,6 @@ impl_distance_transform_abs_pba_to_f64!(
 /// NPP receives a mutable source pointer; provide exclusive access to source storage during native use.
 /// Keep each destination exclusively writable and disjoint from the source and all other destinations during native use.
 /// Keep image allocations valid until this call completes its native work.
-/// Native PBA requires ROI width and height in `64..=32767`; the provided implementations check positive dimensions but do not enforce that range.
 /// The source must contain at least one site pixel; the provided implementations do not inspect pixel values or validate the site interval.
 /// Image layouts, byte strides, alignment, and allocation bounds must satisfy the native routine.
 pub unsafe fn distance_transform_abs_pba_to_f64<T: DistanceTransformAbsPbaToF64C1>(
@@ -1120,7 +1105,7 @@ pub unsafe fn distance_transform_abs_pba_to_f64<T: DistanceTransformAbsPbaToF64C
 /// # Errors
 ///
 /// The provided implementations return an error if CUDA context binding fails, a participating image belongs to another CUDA context, or NPP rejects the transform parameters.
-/// At least one output must have positive dimensions; all supplied outputs must have the source image size.
+/// At least one output must be supplied, every supplied output must have the source image size, and that size must have a width and height in `64..=32767`.
 /// Workspace-size queries, device allocation, capture checks, and stream synchronization can also fail.
 ///
 /// # Safety
@@ -1130,7 +1115,6 @@ pub unsafe fn distance_transform_abs_pba_to_f64<T: DistanceTransformAbsPbaToF64C
 /// NPP receives a mutable source pointer; provide exclusive access to source storage during native use.
 /// Keep each destination exclusively writable and disjoint from the source and all other destinations during native use.
 /// Keep image allocations valid until this call completes its native work.
-/// Native PBA requires ROI width and height in `64..=32767`; the provided implementations check positive dimensions but do not enforce that range.
 /// The source must contain at least one site pixel; the provided implementations do not inspect pixel values or validate the site interval.
 /// Image layouts, byte strides, alignment, and allocation bounds must satisfy the native routine.
 pub unsafe fn distance_transform_abs_pba_to_f64_antialiasing<T: DistanceTransformAbsPbaToF64C1>(
@@ -1181,7 +1165,7 @@ where
     /// # Errors
     ///
     /// The provided implementations return an error if CUDA context binding fails, a participating image belongs to another CUDA context, or NPP rejects the transform parameters.
-    /// At least one output must have positive dimensions; all supplied outputs must have the source image size.
+    /// At least one output must be supplied, every supplied output must have the source image size, and that size must have a width and height in `64..=32767`.
     /// Workspace-size queries, device allocation, capture checks, and stream synchronization can also fail.
     ///
     /// # Safety
@@ -1191,7 +1175,6 @@ where
     /// NPP receives a mutable source pointer; provide exclusive access to source storage during native use.
     /// Keep each destination exclusively writable and disjoint from the source and all other destinations during native use.
     /// Keep image allocations valid until this call completes its native work.
-    /// Native PBA requires ROI width and height in `64..=32767`; the provided implementations check positive dimensions but do not enforce that range.
     /// The source must contain at least one site pixel; the provided implementations do not inspect pixel values or validate the site interval.
     /// Image layouts, byte strides, alignment, and allocation bounds must satisfy the native routine.
     unsafe fn distance_transform_pba_c1(
@@ -1272,7 +1255,7 @@ impl_distance_transform_pba_c1!(
 /// # Errors
 ///
 /// The provided implementations return an error if CUDA context binding fails, a participating image belongs to another CUDA context, or NPP rejects the transform parameters.
-/// At least one output must have positive dimensions; all supplied outputs must have the source image size.
+/// At least one output must be supplied, every supplied output must have the source image size, and that size must have a width and height in `64..=32767`.
 /// Workspace-size queries, device allocation, capture checks, and stream synchronization can also fail.
 ///
 /// # Safety
@@ -1282,7 +1265,6 @@ impl_distance_transform_pba_c1!(
 /// NPP receives a mutable source pointer; provide exclusive access to source storage during native use.
 /// Keep each destination exclusively writable and disjoint from the source and all other destinations during native use.
 /// Keep image allocations valid until this call completes its native work.
-/// Native PBA requires ROI width and height in `64..=32767`; the provided implementations check positive dimensions but do not enforce that range.
 /// The source must contain at least one site pixel; the provided implementations do not inspect pixel values or validate the site interval.
 /// Image layouts, byte strides, alignment, and allocation bounds must satisfy the native routine.
 pub unsafe fn distance_transform_pba<T, Destination>(
@@ -1326,7 +1308,7 @@ where
 /// # Errors
 ///
 /// The provided implementations return an error if CUDA context binding fails, a participating image belongs to another CUDA context, or NPP rejects the transform parameters.
-/// At least one output must have positive dimensions; all supplied outputs must have the source image size.
+/// At least one output must be supplied, every supplied output must have the source image size, and that size must have a width and height in `64..=32767`.
 /// Workspace-size queries, device allocation, capture checks, and stream synchronization can also fail.
 ///
 /// # Safety
@@ -1336,7 +1318,6 @@ where
 /// NPP receives a mutable source pointer; provide exclusive access to source storage during native use.
 /// Keep each destination exclusively writable and disjoint from the source and all other destinations during native use.
 /// Keep image allocations valid until this call completes its native work.
-/// Native PBA requires ROI width and height in `64..=32767`; the provided implementations check positive dimensions but do not enforce that range.
 /// The source must contain at least one site pixel; the provided implementations do not inspect pixel values or validate the site interval.
 /// Image layouts, byte strides, alignment, and allocation bounds must satisfy the native routine.
 pub unsafe fn distance_transform_pba_antialiasing<T>(
@@ -1390,7 +1371,7 @@ where
     /// # Errors
     ///
     /// The provided implementations return an error if CUDA context binding fails, a participating image belongs to another CUDA context, or NPP rejects the transform parameters.
-    /// At least one output must have positive dimensions; all supplied outputs must have the source image size.
+    /// At least one output must be supplied, every supplied output must have the source image size, and that size must have a width and height in `64..=32767`.
     /// Workspace-size queries, device allocation, capture checks, and stream synchronization can also fail.
     ///
     /// # Safety
@@ -1400,7 +1381,6 @@ where
     /// NPP receives a mutable source pointer; provide exclusive access to source storage during native use.
     /// Keep each destination exclusively writable and disjoint from the source and all other destinations during native use.
     /// Keep image allocations valid until this call completes its native work.
-    /// Native PBA requires ROI width and height in `64..=32767`; the provided implementations check positive dimensions but do not enforce that range.
     /// The source must contain at least one site pixel; the provided implementations do not inspect pixel values or validate the site interval.
     /// Image layouts, byte strides, alignment, and allocation bounds must satisfy the native routine.
     unsafe fn distance_transform_abs_pba_c1(
@@ -1481,7 +1461,7 @@ impl_distance_transform_abs_pba_c1!(
 /// # Errors
 ///
 /// The provided implementations return an error if CUDA context binding fails, a participating image belongs to another CUDA context, or NPP rejects the transform parameters.
-/// At least one output must have positive dimensions; all supplied outputs must have the source image size.
+/// At least one output must be supplied, every supplied output must have the source image size, and that size must have a width and height in `64..=32767`.
 /// Workspace-size queries, device allocation, capture checks, and stream synchronization can also fail.
 ///
 /// # Safety
@@ -1491,7 +1471,6 @@ impl_distance_transform_abs_pba_c1!(
 /// NPP receives a mutable source pointer; provide exclusive access to source storage during native use.
 /// Keep each destination exclusively writable and disjoint from the source and all other destinations during native use.
 /// Keep image allocations valid until this call completes its native work.
-/// Native PBA requires ROI width and height in `64..=32767`; the provided implementations check positive dimensions but do not enforce that range.
 /// The source must contain at least one site pixel; the provided implementations do not inspect pixel values or validate the site interval.
 /// Image layouts, byte strides, alignment, and allocation bounds must satisfy the native routine.
 pub unsafe fn distance_transform_abs_pba<T, Destination>(
@@ -1535,7 +1514,7 @@ where
 /// # Errors
 ///
 /// The provided implementations return an error if CUDA context binding fails, a participating image belongs to another CUDA context, or NPP rejects the transform parameters.
-/// At least one output must have positive dimensions; all supplied outputs must have the source image size.
+/// At least one output must be supplied, every supplied output must have the source image size, and that size must have a width and height in `64..=32767`.
 /// Workspace-size queries, device allocation, capture checks, and stream synchronization can also fail.
 ///
 /// # Safety
@@ -1545,7 +1524,6 @@ where
 /// NPP receives a mutable source pointer; provide exclusive access to source storage during native use.
 /// Keep each destination exclusively writable and disjoint from the source and all other destinations during native use.
 /// Keep image allocations valid until this call completes its native work.
-/// Native PBA requires ROI width and height in `64..=32767`; the provided implementations check positive dimensions but do not enforce that range.
 /// The source must contain at least one site pixel; the provided implementations do not inspect pixel values or validate the site interval.
 /// Image layouts, byte strides, alignment, and allocation bounds must satisfy the native routine.
 pub unsafe fn distance_transform_abs_pba_antialiasing<T>(

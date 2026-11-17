@@ -1,12 +1,14 @@
 use std::{cell::RefCell, marker::PhantomData, rc::Rc};
 
+use singe_core::report_cleanup_failure;
+
 use crate::{
     error::{Error, Result},
     sys, try_ffi,
     types::SimulationInfo,
 };
 
-/// Start a group call.
+/// Starts a group call.
 ///
 /// Subsequent NCCL calls do not block on inter-CPU synchronization until [`end`].
 ///
@@ -14,7 +16,7 @@ use crate::{
 ///
 /// Returns an error if NCCL rejects the group start.
 pub fn start() -> Result<()> {
-    // SAFETY: `ncclGroupStart` takes no arguments.
+    // SAFETY: `ncclGroupStart` takes no arguments and only opens a thread-local group.
     unsafe {
         try_ffi!(sys::ncclGroupStart())?;
     }
@@ -23,18 +25,18 @@ pub fn start() -> Result<()> {
     Ok(())
 }
 
-/// End a group call.
+/// Ends a group call.
 ///
 /// Returns when all operations since [`start`] have been processed.
 /// This means the communication primitives have been enqueued to the provided streams, but are not necessarily complete.
 ///
-/// When used with the [`Communicator::create_rank`](crate::communicator::Communicator::create_rank) call, the [`end`] call waits for all communicators to be initialized.
+/// When ranks are created with [`Communicator::create_rank`](crate::communicator::Communicator::create_rank) inside the group, [`end`] waits for all of them to be initialized.
 ///
 /// # Errors
 ///
 /// Returns an error if any grouped NCCL operation fails or if NCCL rejects the group end.
 pub fn end() -> Result<()> {
-    // SAFETY: `ncclGroupEnd` takes no arguments.
+    // SAFETY: `ncclGroupEnd` takes no arguments; the buffers of grouped calls are kept alive by their callers per the raw execution contract.
     let result = unsafe { try_ffi!(sys::ncclGroupEnd()) };
     track_end();
     result
@@ -90,7 +92,7 @@ impl Group {
     pub fn simulate_end(mut self) -> Result<SimulationInfo> {
         let mut value = SimulationInfo::default().into_raw();
         self.closed = true;
-        // SAFETY: `ncclGroupSimulateEnd` receives valid output locations.
+        // SAFETY: `value` is a local simulation structure initialized by `SimulationInfo::default`, and NCCL only writes its fields.
         let result = unsafe { try_ffi!(sys::ncclGroupSimulateEnd(&raw mut value)) };
         track_end();
         result?;
@@ -128,10 +130,7 @@ impl Drop for Group {
         }
 
         if let Err(error) = end() {
-            eprintln!(
-                "failed to end nccl group: {}",
-                singe_core::ErrorChain(&error)
-            );
+            report_cleanup_failure("end", "nccl group", &error);
         }
     }
 }
@@ -175,14 +174,14 @@ pub(crate) fn validate_collective(
         }
 
         if config.cluster_size.is_some_and(|old| old != cluster_size)
-            || event && config.event_communicators.contains(&(comm as usize))
+            || event && config.event_communicators.contains(&comm.addr())
         {
             return Err(Error::out_of_range("group collective configuration"));
         }
 
         config.cluster_size = Some(cluster_size);
         if event {
-            config.event_communicators.push(comm as usize);
+            config.event_communicators.push(comm.addr());
         }
         Ok(())
     })

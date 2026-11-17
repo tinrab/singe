@@ -21,7 +21,7 @@ use singe::{
     nn::{DecoderModel, Model},
 };
 use singe_cupti::{
-    activity::{ActivityBufferCallbackConfig, ActivityCollector},
+    activity::{ActivityBufferOptions, ActivityCollector},
     types::{ActivityFlushFlag, ActivityKind},
 };
 use singe_model::{
@@ -143,7 +143,7 @@ fn main() -> Result<()> {
         step(decoder.as_mut(), profiled)?;
     }
 
-    let collector = ActivityCollector::create(ActivityBufferCallbackConfig::new(8 << 20))?;
+    let collector = ActivityCollector::create(&ActivityBufferOptions::default())?;
     collector.enable(ActivityKind::ConcurrentKernel)?;
     let started = Instant::now();
     for _ in 0..steps {
@@ -156,7 +156,7 @@ fn main() -> Result<()> {
     let mut kernels = HashMap::<String, (u64, u64)>::new();
     for buffer in collector.take_buffers()? {
         for record in buffer.records() {
-            let Some(kernel) = record?.kernel() else {
+            let Some(kernel) = record?.kernel()? else {
                 continue;
             };
             let name = kernel.name.map_or_else(

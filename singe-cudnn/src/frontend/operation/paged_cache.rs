@@ -1,16 +1,14 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    backend::{
-        execution::paged_cache::PagedCacheLoadOperation as BackendPagedCacheLoadOperation,
-        tensor::TensorId,
-    },
+    backend::operation::paged_cache::PagedCacheLoadOperation as BackendPagedCacheLoadOperation,
     data_type::DataType,
     error::Result,
     frontend::{
         graph::{Graph, infer_paged_cache_dimensions},
         lower::{LoweredOperation, LoweringContext, tensor_at},
     },
+    tensor::TensorId,
 };
 
 /// Logical axes of the reconstructed cache.
@@ -68,7 +66,7 @@ impl PagedCacheLoadConfig {
     }
 }
 
-pub use crate::backend::execution::paged_cache::PagedCacheLoadTensors;
+use crate::backend::operation::paged_cache::PagedCacheLoadTensors;
 
 /// A cache load retaining logical geometry and scope independently of physical strides.
 #[derive(Debug, Clone, Serialize, Deserialize)]

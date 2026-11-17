@@ -1,265 +1,150 @@
-use crate::{
-    communicator::{
-        Arc, AtomicU8, Communicator, CommunicatorBuilder, CommunicatorBuilderMode,
-        CommunicatorState, Config, CudaContext, Device, Error, Handle, RefCell, Result, UniqueId,
-        ensure_primary_context, ptr, sys, to_i32, try_ffi,
-    },
-    group::{is_active, with_group},
+use std::sync::{
+    Mutex, PoisonError,
+    atomic::{AtomicPtr, Ordering},
 };
 
-impl<'a> CommunicatorBuilder<'a> {
-    /// Selects devices for local clique creation.
-    #[must_use]
-    pub fn for_devices(devices: &[Device]) -> Self {
-        Self {
-            mode: CommunicatorBuilderMode::Devices(
-                devices.iter().map(|device| device.id()).collect(),
-            ),
-            config: None,
+use crate::{
+    communicator::{
+        Arc, Communicator, CommunicatorState, Config, CudaContext, Device, Error, HandleState,
+        Result, UniqueId, ensure_primary_context, ptr, sys, to_i32, try_ffi,
+    },
+    group::{is_active, with_group},
+    types::RankId,
+};
+
+impl Communicator {
+    /// Creates a blocking communicator clique within one process, with one rank per device in `devices`, in order.
+    ///
+    /// Each rank retains its device's primary CUDA context, as NCCL requires.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an NCCL group is already open, a primary CUDA context cannot be retained, the rank count cannot be represented for NCCL, NCCL rejects initialization, or NCCL returns a null communicator handle.
+    pub fn create_all(devices: &[Device]) -> Result<Vec<Self>> {
+        if is_active() {
+            return Err(Error::GroupActive);
         }
+
+        let contexts = devices
+            .iter()
+            .map(|&device| CudaContext::create_for_device(device).map_err(Error::from))
+            .collect::<Result<Vec<_>>>()?;
+        let rank_count = to_i32(contexts.len(), "devices")?;
+        let unique_id = crate::unique_id()?.into_raw();
+        // Stable output slots stay live through the outermost group end.
+        let mut handles = vec![ptr::null_mut(); contexts.len()];
+        let result = with_group(|| {
+            for (rank, (context, handle)) in contexts.iter().zip(&mut handles).enumerate() {
+                context.bind()?;
+                // SAFETY: `handle` is a valid output slot that outlives the group, and each rank initializes in its own retained primary context.
+                unsafe {
+                    try_ffi!(sys::ncclCommInitRank(
+                        handle,
+                        rank_count,
+                        unique_id,
+                        to_i32(rank, "rank")?
+                    ))?;
+                }
+            }
+            Ok(())
+        });
+        if let Err(error) = result {
+            for (context, handle) in contexts.iter().zip(&handles) {
+                if !handle.is_null() && context.bind().is_ok() {
+                    // SAFETY: a failed grouped initialization still transfers ownership of each non-null handle, which nothing else owns.
+                    unsafe {
+                        sys::ncclCommAbort(*handle);
+                    }
+                }
+            }
+            return Err(error);
+        }
+        handles
+            .into_iter()
+            .zip(contexts)
+            .map(|(handle, context)| {
+                // SAFETY: each handle comes from the successful `ncclCommInitRank` above in its own retained context, and nothing else owns it.
+                unsafe { communicator_from_raw(handle, context) }
+            })
+            .collect()
     }
 
-    /// Selects CUDA device IDs for local clique creation.
-    #[must_use]
-    pub fn for_device_ids(device_ids: &[i32]) -> Self {
-        Self {
-            mode: CommunicatorBuilderMode::Devices(device_ids.to_vec()),
-            config: None,
-        }
-    }
-
-    /// Configures one rank using its CUDA context and a shared unique identifier.
-    #[must_use]
-    pub fn rank(
-        cuda_context: &'a Arc<CudaContext>,
-        rank: i32,
-        rank_count: i32,
-        unique_id: UniqueId,
-    ) -> Self {
-        Self {
-            mode: CommunicatorBuilderMode::Rank {
-                cuda_context,
-                rank,
-                rank_count,
-                unique_id,
-            },
-            config: None,
-        }
-    }
-
-    /// Configures one rank using multiple shared unique identifiers.
-    #[must_use]
-    pub fn scalable_rank(
-        cuda_context: &'a Arc<CudaContext>,
-        rank: i32,
+    /// Creates the communicator for `rank` in a clique of `rank_count` ranks.
+    ///
+    /// Every rank passes the same `unique_ids`, generated once with [`unique_id`](crate::unique_id) and distributed to all ranks.
+    /// Passing more than one identifier selects NCCL's scalable initialization.
+    /// `cuda_context` must be the primary context of the rank's device.
+    /// The call synchronizes with the other ranks, so each rank calls it from its own thread or process, or all ranks call it inside one [`Group`](crate::group::Group).
+    /// With a nonblocking `config`, poll [`Self::async_error`] until it returns `None` before using the communicator.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `unique_ids` is empty or its length cannot be represented, `cuda_context` is not the device primary context or cannot be bound, `rank` or `rank_count` is invalid for the clique, NCCL rejects initialization or `config`, or NCCL returns a null communicator handle.
+    pub fn create_rank(
+        cuda_context: &Arc<CudaContext>,
+        rank: RankId,
         rank_count: i32,
         unique_ids: &[UniqueId],
-    ) -> Self {
-        Self {
-            mode: CommunicatorBuilderMode::ScalableRank {
-                cuda_context,
-                rank,
-                rank_count,
-                unique_ids: unique_ids.to_vec(),
-            },
-            config: None,
-        }
-    }
-
-    /// Sets optional communicator initialization overrides.
-    #[must_use]
-    pub fn with_config(mut self, config: Config<'a>) -> Self {
-        self.config = Some(config);
-        self
-    }
-
-    /// Creates the rank selected by a single-rank builder.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if rank arguments or identifier counts are invalid, the CUDA context is not the device primary context, CUDA setup fails, or NCCL cannot initialize the communicator.
-    /// Returns [`Error::InvalidBuilderMode`] for a device-list builder.
-    pub fn create(self) -> Result<Communicator> {
-        match self.mode {
-            CommunicatorBuilderMode::Rank {
-                cuda_context,
-                rank,
-                rank_count,
-                unique_id,
-            } => create_rank_impl(cuda_context, rank_count, unique_id, rank, self.config),
-            CommunicatorBuilderMode::ScalableRank {
-                cuda_context,
-                rank,
-                rank_count,
-                unique_ids,
-            } => {
-                create_rank_scalable_impl(cuda_context, rank_count, rank, &unique_ids, self.config)
-            }
-            CommunicatorBuilderMode::Devices(_) => Err(Error::InvalidBuilderMode {
-                operation: "single communicator creation".into(),
-            }),
-        }
-    }
-
-    /// Creates all communicators selected by a device-list builder.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`Error::InvalidBuilderMode`] if the builder selects a single rank or contains a communicator configuration.
-    /// Also returns an error if a group is already open, the device count exceeds the native integer range, CUDA primary-context setup fails, or NCCL initialization fails.
-    pub fn create_all(self) -> Result<Vec<Communicator>> {
-        if self.config.is_some() {
-            return Err(Error::InvalidBuilderMode {
-                operation: "configured communicator clique creation".into(),
+        config: Option<Config<'_>>,
+    ) -> Result<Self> {
+        if unique_ids.is_empty() {
+            return Err(Error::Empty {
+                name: "unique_ids".into(),
             });
         }
 
-        match self.mode {
-            CommunicatorBuilderMode::Devices(device_ids) => create_all_impl(&device_ids),
-            CommunicatorBuilderMode::Rank { .. } | CommunicatorBuilderMode::ScalableRank { .. } => {
-                Err(Error::InvalidBuilderMode {
-                    operation: "communicator clique creation".into(),
-                })
-            }
+        ensure_primary_context(cuda_context)?;
+        cuda_context.bind()?;
+
+        let mut raw_ids: Vec<_> = unique_ids.iter().copied().map(UniqueId::into_raw).collect();
+        let raw_id_count = to_i32(raw_ids.len(), "unique_ids")?;
+        let mut config = config.map(Config::into_raw);
+        // A nonblocking or grouped initialization writes this slot again from its job, so it must not move or be freed while that job may run.
+        let output = Box::new(AtomicPtr::new(ptr::null_mut()));
+        // SAFETY: `output` is boxed so it stays put for an asynchronous write, the identifier array is valid for the call, the configuration is null or a valid native configuration, and the primary context is bound.
+        let status = unsafe {
+            sys::ncclCommInitRankScalable(
+                output.as_ptr(),
+                rank_count,
+                rank.get(),
+                raw_id_count,
+                raw_ids.as_mut_ptr(),
+                config.as_mut().map_or(ptr::null_mut(), ptr::from_mut),
+            )
+        };
+        let handle = output.load(Ordering::Acquire);
+        // SAFETY: `handle` and `status` come from `ncclCommInitRankScalable` above in `cuda_context`, nothing else owns the handle, and `output` is the slot its initialization writes.
+        unsafe {
+            communicator_from_initialization(handle, Arc::clone(cuda_context), status, Some(output))
         }
     }
 }
 
-fn create_all_impl(device_ids: &[i32]) -> Result<Vec<Communicator>> {
-    if is_active() {
-        return Err(Error::GroupActive);
-    }
+// Initialization output slots that a pending NCCL job may still write after initialization returned no handle.
+// No communicator owns them, so they stay allocated for the life of the process.
+#[expect(
+    clippy::vec_box,
+    reason = "NCCL writes through each slot's address, which must not move when the vector grows"
+)]
+static ORPHANED_OUTPUTS: Mutex<Vec<Box<AtomicPtr<sys::ncclComm>>>> = Mutex::new(Vec::new());
 
-    let contexts = device_ids
-        .iter()
-        .map(|&device_id| {
-            CudaContext::retain_primary_for_device(Device::new(device_id)).map_err(Error::from)
-        })
-        .collect::<Result<Vec<_>>>()?;
-    let rank_count = to_i32(contexts.len(), "device_ids")?;
-    let unique_id = crate::unique_id()?.into_raw();
-    // Stable output slots stay live through the outermost group end.
-    let mut handles = vec![ptr::null_mut(); contexts.len()];
-    let result = with_group(|| {
-        for (rank, (context, handle)) in contexts.iter().zip(&mut handles).enumerate() {
-            context.bind()?;
-            // SAFETY: every rank is initialized in its actual retained context.
-            unsafe {
-                try_ffi!(sys::ncclCommInitRank(
-                    handle,
-                    rank_count,
-                    unique_id,
-                    to_i32(rank, "rank")?
-                ))?;
-            }
-        }
-        Ok(())
-    });
-    if let Err(error) = result {
-        for (context, handle) in contexts.iter().zip(&handles) {
-            if !handle.is_null() && context.bind().is_ok() {
-                // SAFETY: the failed initialization still transfers native ownership.
-                unsafe {
-                    sys::ncclCommAbort(*handle);
-                }
-            }
-        }
-        return Err(error);
-    }
-    handles
-        .into_iter()
-        .zip(contexts)
-        .map(|(handle, context)| communicator_from_raw(handle, context))
-        .collect()
-}
-
-fn create_rank_impl(
-    cuda_context: &Arc<CudaContext>,
-    rank_count: i32,
-    unique_id: UniqueId,
-    rank: i32,
-    config: Option<Config<'_>>,
-) -> Result<Communicator> {
-    ensure_primary_context(cuda_context)?;
-    cuda_context.bind()?;
-
-    let mut handle = ptr::null_mut();
-    let status = match config {
-        Some(config) => {
-            let mut config = config.into_raw();
-            // SAFETY: `ncclCommInitRankConfig` receives valid output locations.
-            unsafe {
-                sys::ncclCommInitRankConfig(
-                    &raw mut handle,
-                    rank_count,
-                    unique_id.into_raw(),
-                    rank,
-                    &raw mut config,
-                )
-            }
-        }
-        // SAFETY: `ncclCommInitRank` receives valid output locations.
-        None => unsafe {
-            sys::ncclCommInitRank(&raw mut handle, rank_count, unique_id.into_raw(), rank)
-        },
-    };
-    communicator_from_initialization(handle, Arc::clone(cuda_context), status)
-}
-
-fn create_rank_scalable_impl(
-    cuda_context: &Arc<CudaContext>,
-    rank_count: i32,
-    rank: i32,
-    unique_ids: &[UniqueId],
-    config: Option<Config<'_>>,
-) -> Result<Communicator> {
-    ensure_primary_context(cuda_context)?;
-    cuda_context.bind()?;
-
-    let mut raw_ids: Vec<_> = unique_ids.iter().copied().map(UniqueId::into_raw).collect();
-    let raw_id_count = to_i32(raw_ids.len(), "unique_ids")?;
-
-    let mut handle = ptr::null_mut();
-    let mut config = config.map(Config::into_raw);
-    // SAFETY: `ncclCommInitRankScalable` receives valid output locations.
-    let status = unsafe {
-        sys::ncclCommInitRankScalable(
-            &raw mut handle,
-            rank_count,
-            rank,
-            raw_id_count,
-            raw_ids.as_mut_ptr(),
-            config.as_mut().map_or(ptr::null_mut(), ptr::from_mut),
-        )
-    };
-
-    communicator_from_initialization(handle, Arc::clone(cuda_context), status)
-}
-
-pub fn communicator_from_raw(
+// Callers must pass a null handle or one NCCL created in `cuda_context` that no other owner destroys or aborts.
+pub(crate) unsafe fn communicator_from_raw(
     raw: sys::ncclComm_t,
     cuda_context: Arc<CudaContext>,
 ) -> Result<Communicator> {
-    if raw.is_null() {
-        return Err(Error::NullHandle);
-    }
-
-    Ok(Communicator {
-        handle: Handle {
-            raw,
-            cuda_context,
-            state: AtomicU8::new(CommunicatorState::Active.into_raw()),
-            initialization_output: None,
-            launch_events: RefCell::new(Vec::new()),
-        },
-    })
+    let state = HandleState::new(CommunicatorState::Active, None, Vec::new(), Vec::new());
+    // SAFETY: the caller's contract, with an active lifecycle state and no output slot.
+    unsafe { Communicator::adopt(raw, cuda_context, state) }
 }
 
 // Nonblocking initialization transfers ownership even while work is in progress.
-pub fn communicator_from_initialization(
+// Callers must pass the handle and status of one NCCL initialization call made in `cuda_context`, whose handle no other owner destroys or aborts, and the output slot that call may still write.
+pub(crate) unsafe fn communicator_from_initialization(
     raw: sys::ncclComm_t,
     cuda_context: Arc<CudaContext>,
     status: sys::ncclResult_t,
+    initialization_output: Option<Box<AtomicPtr<sys::ncclComm>>>,
 ) -> Result<Communicator> {
     if !matches!(
         status,
@@ -267,15 +152,31 @@ pub fn communicator_from_initialization(
     ) {
         if !raw.is_null() {
             // NCCL can return an initialization failure with an owned handle.
-            // SAFETY: `ncclCommAbort` receives only plain values.
+            // SAFETY: the failed initialization transferred this handle, which nothing else owns.
             unsafe { sys::ncclCommAbort(raw) };
         }
         return Err(status.into());
     }
 
-    let communicator = communicator_from_raw(raw, cuda_context)?;
-    if status == sys::ncclResult_t::ncclInProgress {
-        communicator.set_state(CommunicatorState::Initializing);
+    if raw.is_null() {
+        if let Some(output) = initialization_output
+            && (status == sys::ncclResult_t::ncclInProgress || is_active())
+        {
+            // NCCL stores the handle before it returns, so this path only follows a contract violation; a pending job may still write the slot, and no communicator owns it.
+            ORPHANED_OUTPUTS
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .push(output);
+        }
+        return Err(Error::NullHandle);
     }
-    Ok(communicator)
+
+    let lifecycle = if status == sys::ncclResult_t::ncclInProgress {
+        CommunicatorState::Initializing
+    } else {
+        CommunicatorState::Active
+    };
+    let state = HandleState::new(lifecycle, initialization_output, Vec::new(), Vec::new());
+    // SAFETY: the caller passes a handle from a successful or in-progress initialization in `cuda_context` with no other owner, and the output slot that initialization writes.
+    unsafe { Communicator::adopt(raw, cuda_context, state) }
 }

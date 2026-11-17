@@ -1,12 +1,11 @@
 use singe_cuda::{
     context::Context as CudaContext,
     memory::DeviceMemory,
-    stream::{Stream, StreamBinding},
+    stream::{Stream, StreamOptions},
 };
 
 use singe_cutensor::{
     context::Context,
-    error::Result,
     operation::{ComputeDescriptor, OperationDescriptor, TensorOperand},
     plan::{Plan, PlanPreference},
     tensor::TensorDescriptor,
@@ -62,15 +61,19 @@ fn extents_for_binary_output(
     modes
         .iter()
         .map(|mode| {
-            if let Some(index) = lhs_labels.iter().position(|candidate| candidate == mode) {
-                lhs_extents[index]
-            } else {
-                let index = rhs_labels
-                    .iter()
-                    .position(|candidate| candidate == mode)
-                    .unwrap();
-                rhs_extents[index]
-            }
+            lhs_labels
+                .iter()
+                .position(|candidate| candidate == mode)
+                .map_or_else(
+                    || {
+                        let index = rhs_labels
+                            .iter()
+                            .position(|candidate| candidate == mode)
+                            .unwrap();
+                        rhs_extents[index]
+                    },
+                    |index| lhs_extents[index],
+                )
         })
         .collect()
 }
@@ -81,15 +84,16 @@ fn run_binary_einsum(
     equation: &str,
     lhs_shape: &[u64],
     rhs_shape: &[u64],
-) -> Result<usize> {
+) -> anyhow::Result<usize> {
+    const ALIGNMENT: u32 = 128;
+
     let (lhs_text, Some(rhs_text), output_text) = parse_equation(equation) else {
         unreachable!()
     };
     let lhs_modes = modes_from_text(lhs_text);
     let rhs_modes = modes_from_text(rhs_text);
-    let output_modes = output_text
-        .map(modes_from_text)
-        .unwrap_or_else(|| infer_output(&lhs_modes, &rhs_modes));
+    let output_modes =
+        output_text.map_or_else(|| infer_output(&lhs_modes, &rhs_modes), modes_from_text);
 
     let lhs_extent = lhs_shape.to_vec();
     let rhs_extent = rhs_shape.to_vec();
@@ -105,16 +109,14 @@ fn run_binary_einsum(
         .map(|index| index as f32 + 1.0)
         .collect::<Vec<_>>();
     let rhs_values = (0..rhs_extent.iter().product::<u64>())
-        .map(|index| 0.5_f32 * (index as f32 + 1.0))
+        .map(|index| f32::midpoint(index as f32, 1.0))
         .collect::<Vec<_>>();
-    let output_values = vec![0.0_f32; output_extent.iter().product::<u64>() as usize];
+    let output_values = vec![0.0_f32; usize::try_from(output_extent.iter().product::<u64>())?];
 
     let device_lhs = DeviceMemory::from_slice(stream.context(), &lhs_values)?;
     let device_rhs = DeviceMemory::from_slice(stream.context(), &rhs_values)?;
     let device_output_input = DeviceMemory::from_slice(stream.context(), &output_values)?;
     let mut device_output = DeviceMemory::from_slice(stream.context(), &output_values)?;
-
-    const ALIGNMENT: u32 = 128;
 
     let lhs_descriptor = TensorDescriptor::create_for::<f32>(context, &lhs_extent, ALIGNMENT)?;
     let rhs_descriptor = TensorDescriptor::create_for::<f32>(context, &rhs_extent, ALIGNMENT)?;
@@ -153,10 +155,10 @@ fn run_binary_einsum(
         WorkspacePreference::Default,
     )?;
     let plan = Plan::create(context, &operation, &preference, workspace_size)?;
-    let mut workspace = if plan.required_workspace_size() > 0 {
+    let mut workspace = if plan.workspace_size() > 0 {
         Some(DeviceMemory::<u8>::create_uninit(
             stream.context(),
-            plan.required_workspace_size_bytes()?,
+            plan.workspace_size(),
         )?)
     } else {
         None
@@ -164,19 +166,16 @@ fn run_binary_einsum(
 
     let alpha = 1.0_f32;
     let beta = 0.0_f32;
-    // SAFETY: descriptors match these buffers; all resources remain live until stream synchronization below.
-    unsafe {
-        plan.contract(
-            &alpha,
-            &device_lhs,
-            &device_rhs,
-            &beta,
-            &device_output_input,
-            &mut device_output,
-            workspace.as_mut(),
-            stream,
-        )
-    }?;
+    plan.contract(
+        &alpha,
+        &device_lhs,
+        &device_rhs,
+        &beta,
+        &device_output_input,
+        &mut device_output,
+        workspace.as_mut().map(|memory| memory.output()),
+        stream,
+    )?;
     stream.synchronize()?;
     Ok(device_output.len())
 }
@@ -186,29 +185,32 @@ fn run_unary_einsum(
     stream: &Stream,
     equation: &str,
     input_shape: &[u64],
-) -> Result<usize> {
+) -> anyhow::Result<usize> {
+    const ALIGNMENT: u32 = 128;
+
     let (input_text, None, output_text) = parse_equation(equation) else {
         unreachable!()
     };
     let input_modes = modes_from_text(input_text);
-    let output_modes = output_text.map(modes_from_text).unwrap_or_else(|| {
-        let mut modes = input_modes.clone();
-        modes.sort_unstable();
-        modes
-    });
+    let output_modes = output_text.map_or_else(
+        || {
+            let mut modes = input_modes.clone();
+            modes.sort_unstable();
+            modes
+        },
+        modes_from_text,
+    );
 
     let input_extent = input_shape.to_vec();
     let output_extent = extents_for_modes(&output_modes, &input_modes, &input_extent);
     let input_values = (0..input_extent.iter().product::<u64>())
         .map(|index| index as f32 + 1.0)
         .collect::<Vec<_>>();
-    let output_values = vec![0.0_f32; output_extent.iter().product::<u64>() as usize];
+    let output_values = vec![0.0_f32; usize::try_from(output_extent.iter().product::<u64>())?];
 
     let device_input = DeviceMemory::from_slice(stream.context(), &input_values)?;
     let device_output_input = DeviceMemory::from_slice(stream.context(), &output_values)?;
     let mut device_output = DeviceMemory::from_slice(stream.context(), &output_values)?;
-
-    const ALIGNMENT: u32 = 128;
 
     let input_descriptor = TensorDescriptor::create_for::<f32>(context, &input_extent, ALIGNMENT)?;
     let output_descriptor =
@@ -242,10 +244,7 @@ fn run_unary_einsum(
             WorkspacePreference::Min,
         )?;
         let plan = Plan::create(context, &operation, &preference, workspace_size)?;
-        StreamBinding::Borrowed(stream.to_borrowed()).sync_scope(|| {
-            // SAFETY: these buffers match the descriptors and stay borrowed through scope completion.
-            unsafe { plan.permute(&alpha, &device_input, &mut device_output, stream) }
-        })?;
+        plan.permute(&alpha, &device_input, &mut device_output, stream)?;
     } else {
         let operation = OperationDescriptor::reduction(
             context,
@@ -262,38 +261,33 @@ fn run_unary_einsum(
             WorkspacePreference::Default,
         )?;
         let plan = Plan::create(context, &operation, &preference, workspace_size)?;
-        let mut workspace = if plan.required_workspace_size() > 0 {
+        let mut workspace = if plan.workspace_size() > 0 {
             Some(DeviceMemory::<u8>::create_uninit(
                 stream.context(),
-                plan.required_workspace_size_bytes()?,
+                plan.workspace_size(),
             )?)
         } else {
             None
         };
-        StreamBinding::Borrowed(stream.to_borrowed()).sync_scope(|| {
-            // SAFETY: these buffers match the descriptors and stay borrowed through scope completion.
-            unsafe {
-                plan.reduce(
-                    &alpha,
-                    &device_input,
-                    &0.0_f32,
-                    &device_output_input,
-                    &mut device_output,
-                    workspace.as_mut(),
-                    stream,
-                )
-            }
-        })?;
+        plan.reduce(
+            &alpha,
+            &device_input,
+            &0.0_f32,
+            &device_output_input,
+            &mut device_output,
+            workspace.as_mut().map(|memory| memory.output()),
+            stream,
+        )?;
     }
 
     stream.synchronize()?;
     Ok(device_output.len())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     let cuda_context = CudaContext::create()?;
     let context = Context::create(&cuda_context)?;
-    let stream = cuda_context.create_stream()?;
+    let stream = cuda_context.create_stream(StreamOptions::default())?;
 
     let contraction_explicit =
         run_binary_einsum(&context, &stream, "ijn,jmk->inkm", &[2, 3, 2], &[3, 2, 2])?;

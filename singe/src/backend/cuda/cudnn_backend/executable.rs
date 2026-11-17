@@ -10,7 +10,7 @@ use std::{
 use singe_cuda::{
     graph::Graph as NativeCudaGraph,
     memory::DeviceMemory,
-    stream::{StreamCaptureMode, StreamFlags},
+    stream::{StreamCaptureMode, StreamOptions},
     submission::{AccessMode, Resources},
     view::DeviceRegionProvider,
 };
@@ -186,7 +186,11 @@ impl CudnnBackendExecutable {
             bindings.push((*id, unsafe { device_ptr(ptr::from_ref(bits)) }));
         }
         // SAFETY: every binding points into a live tensor allocation that the caller retains through execution.
-        Ok(unsafe { CudnnVariantPack::create(&context, &bindings, Some(&mut self.workspace))? })
+        Ok(
+            unsafe {
+                CudnnVariantPack::create(&context, &bindings, Some(self.workspace.output()))?
+            },
+        )
     }
 
     /// Populates a native graph with the addresses in `variant_pack`.
@@ -303,16 +307,19 @@ unsafe fn capture_plan(
     let stream = CudaStream::new(Arc::new(
         cudnn
             .cuda_context()
-            .create_stream_with_flags(StreamFlags::DEFAULT)?,
+            .create_stream(StreamOptions::default())?,
     ));
-    cudnn.with_stream(Some(stream.raw()), |cudnn| {
-        let (graph, ()) = stream.capture(StreamCaptureMode::Relaxed, || {
-            // SAFETY: the caller retains the plan, bindings and workspace through every replay.
-            unsafe { plan.execute(cudnn, variant_pack) }?;
-            Ok(())
-        })?;
-        Ok(graph.into_native())
-    })
+    let previous = cudnn.stream().cloned();
+    cudnn.set_stream(Some(stream.raw()))?;
+    let captured = stream.capture(StreamCaptureMode::Relaxed, || {
+        // SAFETY: the caller retains the plan, bindings and workspace through every replay.
+        unsafe { plan.execute_async(&*cudnn, variant_pack) }?;
+        Ok(())
+    });
+    let restored = cudnn.set_stream(previous.as_ref());
+    let (graph, ()) = captured?;
+    restored?;
+    Ok(graph.into_native())
 }
 
 impl CudnnGraphBinding {

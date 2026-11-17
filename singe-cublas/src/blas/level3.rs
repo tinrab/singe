@@ -1,2687 +1,1494 @@
-#![expect(
+#![allow(
+    clippy::too_many_arguments,
     clippy::many_single_char_names,
-    clippy::similar_names,
-    reason = "BLAS and factorization operand names follow the standard mathematical API"
+    reason = "BLAS operations take each operand, dimension, and scalar separately, named as in BLAS"
 )]
-use std::ptr;
 
 use singe_cuda::{
-    data_type::DataType,
-    error::Error as CudaError,
     memory::DeviceMemory,
-    types::{Complex32, Complex64, DevicePtr},
-    view::{DeviceInput, DeviceOutput, DeviceRepr},
+    stream::AsStream,
+    types::DevicePtr,
+    view::{DeviceInputView, DeviceOutput, DeviceOutputView, DeviceRange, DeviceRegionProvider},
 };
 
 use crate::{
+    blas::{
+        ComplexElement, Element, RealElement,
+        shape::{
+            ensure_matrix, ensure_packed, ensure_strided, ensure_vector, matrix_span, side_order,
+            stored,
+        },
+    },
     context::Context,
     error::{Error, Result},
+    gemm::GemmShape,
     scalar::Scalar,
     sys, try_ffi,
-    types::{ComputeType, DiagonalType, FillMode, GemmAlgorithm, Operation, PointerMode, SideMode},
-    utility::{
-        required_matrix_len, required_packed_triangular_len, required_vector_len, to_i32, to_i64,
-        to_usize,
-    },
+    types::{DiagonalType, FillMode, Operation, PointerMode, SideMode},
+    utility::{to_i32, to_i64, validate_min_len, validate_same_len},
 };
 
-/// Supports the 64-bit integer interface.
+// Checks the operands of `C = alpha * op(A) * op(B) + beta * C` against the shape.
+fn ensure_gemm(
+    shape: GemmShape,
+    a_len: usize,
+    lda: usize,
+    b_len: usize,
+    ldb: usize,
+    c_len: usize,
+    ldc: usize,
+) -> Result<()> {
+    let (a_rows, a_cols) = stored(shape.transpose_a(), shape.m(), shape.k());
+    let (b_rows, b_cols) = stored(shape.transpose_b(), shape.k(), shape.n());
+    ensure_matrix("a", a_len, a_rows, a_cols, lda)?;
+    ensure_matrix("b", b_len, b_rows, b_cols, ldb)?;
+    ensure_matrix("c", c_len, shape.m(), shape.n(), ldc)
+}
+
+/// Enqueues `C = alpha * op(A) * op(B) + beta * C`, with `op(A)` `m` x `k`, `op(B)` `k` x `n`, and `C` `m` x `n`.
 ///
-/// Performs the matrix-matrix multiplication:
+/// Matrices are column-major, and leading dimensions count elements.
+/// `C` is read only when `beta` is nonzero.
 ///
-/// $$ C = \alpha\text{op}(A)\text{op}(B) + \beta C $$
+/// # Safety
 ///
-/// Here $\alpha$ and $\beta$ are scalars, and $A$, $B$ and $C$ are matrices stored in column-major format with dimensions $\text{op}(A)$ $m \times k$, $\text{op}(B)$ $k \times n$ and $C$ $m \times n$, respectively.
-/// `a`, `b`, and `c` are device allocations; leading dimensions are element strides in cuBLAS column-major layout.
-/// `alpha` and `beta` may be host values or device scalar pointers, but both must use the same pointer mode.
-/// For matrix $A$:
-///
-/// $$ \text{op}(A) = \left\\{ \begin{matrix} A & {\text{if } \`texttt{transpose_a` = `Operation::NonTranspose`}} \\\\ A^{T} & {\text{if } \`texttt{transpose_a` = `Operation::Transpose`}} \\\\ A^{H} & {\text{if } \`texttt{transpose_a` = `Operation::ConjugateTranspose`}} \\\\ \end{matrix} \right. $$
-///
-/// $\text{op}(B)$ is defined similarly for matrix $B$.
-///
-/// See NETLIB documentation:
-///
-/// [sgemm()](https://www.netlib.org/blas/sgemm.f), [dgemm()](https://www.netlib.org/blas/dgemm.f), [cgemm()](https://www.netlib.org/blas/cgemm.f), [zgemm()](https://www.netlib.org/blas/zgemm.f).
+/// The caller upholds the [raw execution contract](crate#raw-execution).
 ///
 /// # Errors
 ///
-/// Returns an error if the context is not usable, scalar pointer modes do not match, dimensions or leading dimensions are invalid, device allocations are too small for the requested matrix shapes, or cuBLAS rejects or fails the operation.
-/// # Safety
-///
-/// The matrix ranges and device scalar pointers must stay live and correctly ordered until the context's stream completes.
-/// Writes to `c` must not conflict with other access, including work submitted on another stream.
-/// Accessed input elements must be valid when the operation reads them.
-/// If `beta` is nonzero, accessed elements of `c` must be valid when read.
-/// Uninitialized output is permitted when `beta` is zero.
-#[allow(
-    clippy::doc_markdown,
-    reason = "upstream LaTeX formulas contain identifiers that are not Markdown code spans"
-)]
-pub unsafe fn sgemm<'alpha, 'beta>(
+/// Returns an error if a matrix is too small or a leading dimension is invalid for the shape, a value exceeds the native integer range, the scalars use different pointer modes, an operand belongs to another CUDA context, or cuBLAS rejects the call.
+pub unsafe fn gemm_async<T: Element>(
     context: &Context,
     transpose_a: Operation,
     transpose_b: Operation,
     m: usize,
     n: usize,
     k: usize,
-    alpha: impl Into<Scalar<'alpha, f32>>,
-    a: &(impl DeviceInput<f32> + ?Sized),
+    alpha: Scalar<'_, T>,
+    a: &(impl DeviceRange<T> + ?Sized),
     lda: usize,
-    b: &(impl DeviceInput<f32> + ?Sized),
+    b: &(impl DeviceRange<T> + ?Sized),
     ldb: usize,
-    beta: impl Into<Scalar<'beta, f32>>,
-    c: &mut impl DeviceOutput<f32>,
+    beta: Scalar<'_, T>,
+    c: &mut (impl DeviceOutput<T> + ?Sized),
     ldc: usize,
 ) -> Result<()> {
     context.bind()?;
-    if a.region().context() != context.cuda_context()
-        || b.region().context() != context.cuda_context()
-        || c.region().context() != context.cuda_context()
-    {
-        return Err(CudaError::MemoryContextMismatch.into());
-    }
-
-    let alpha = alpha.into();
-    let beta = beta.into();
-    let pointer_mode = scalar_pointer_mode(&alpha, &beta)?;
-    validate_gemm_parameters(transpose_a, transpose_b, m, n, k, lda, ldb, ldc)?;
-    validate_gemm_shapes(
-        transpose_a,
-        transpose_b,
-        m,
-        n,
-        k,
-        a.len(),
-        lda,
-        b.len(),
-        ldb,
-        c.len(),
-        ldc,
+    let shape = GemmShape::new(m, n, k)
+        .with_transpose_a(transpose_a)
+        .with_transpose_b(transpose_b);
+    ensure_gemm(shape, a.len(), lda, b.len(), ldb, c.len(), ldc)?;
+    context.prepare_operands(
+        &[a.region(), b.region(), c.region()],
+        &[alpha.region(), beta.region()],
     )?;
-
-    // SAFETY: the caller upholds this function's safety contract.
-    context.with_pointer_mode(pointer_mode, || unsafe {
-        try_ffi!(sys::cublasSgemm_v2_64(
+    context.use_pointer_mode(&[alpha.pointer_mode(), beta.pointer_mode()])?;
+    // SAFETY: the matrices hold the checked shapes in this context, ordered after their producers; the caller upholds the raw execution contract.
+    unsafe {
+        try_ffi!(T::gemm(
             context.as_raw(),
             transpose_a.into(),
             transpose_b.into(),
             to_i64(m, "m")?,
             to_i64(n, "n")?,
             to_i64(k, "k")?,
-            alpha.as_ptr(),
+            alpha.ptr(),
             a.as_device_ptr(),
             to_i64(lda, "lda")?,
             b.as_device_ptr(),
             to_i64(ldb, "ldb")?,
-            beta.as_ptr(),
+            beta.ptr(),
             c.as_mut_ptr(),
             to_i64(ldc, "ldc")?,
-        ))?;
-        Ok(())
-    })?;
-
-    Ok(())
+        ))
+    }
 }
 
-/// Supports the 64-bit integer interface.
+waiting! {
+    /// Computes `C = alpha * op(A) * op(B) + beta * C` and waits for it.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the handle's stream is capturing, waiting fails, or for the reasons [`gemm_async`] lists.
+    gemm = gemm_async<T: Element>(
+        transpose_a: Operation,
+        transpose_b: Operation,
+        m: usize,
+        n: usize,
+        k: usize,
+        alpha: Scalar<'_, T>,
+        a: &(impl DeviceRange<T> + ?Sized),
+        lda: usize,
+        b: &(impl DeviceRange<T> + ?Sized),
+        ldb: usize,
+        beta: Scalar<'_, T>,
+        c: &mut (impl DeviceOutput<T> + ?Sized),
+        ldc: usize,
+    )
+}
+
+/// Enqueues the complex product `C = alpha * op(A) * op(B) + beta * C` with the Gauss three-multiplication method.
 ///
-/// Performs the matrix-matrix multiplication:
+/// # Safety
 ///
-/// $$ C = \alpha\text{op}(A)\text{op}(B) + \beta C $$
-///
-/// Here $\alpha$ and $\beta$ are scalars, and $A$, $B$ and $C$ are matrices stored in column-major format with dimensions $\text{op}(A)$ $m \times k$, $\text{op}(B)$ $k \times n$ and $C$ $m \times n$, respectively.
-/// `a`, `b`, and `c` are device allocations; leading dimensions are element strides in cuBLAS column-major layout.
-/// `alpha` and `beta` may be host values or device scalar pointers, but both must use the same pointer mode.
-/// For matrix $A$:
-///
-/// $$ \text{op}(A) = \left\\{ \begin{matrix} A & {\text{if } \`texttt{transpose_a` = `Operation::NonTranspose`}} \\\\ A^{T} & {\text{if } \`texttt{transpose_a` = `Operation::Transpose`}} \\\\ A^{H} & {\text{if } \`texttt{transpose_a` = `Operation::ConjugateTranspose`}} \\\\ \end{matrix} \right. $$
-///
-/// $\text{op}(B)$ is defined similarly for matrix $B$.
-///
-/// See NETLIB documentation:
-///
-/// [sgemm()](https://www.netlib.org/blas/sgemm.f), [dgemm()](https://www.netlib.org/blas/dgemm.f), [cgemm()](https://www.netlib.org/blas/cgemm.f), [zgemm()](https://www.netlib.org/blas/zgemm.f).
+/// The caller upholds the [raw execution contract](crate#raw-execution).
 ///
 /// # Errors
 ///
-/// Returns an error if the context is not usable, scalar pointer modes do not match, dimensions or leading dimensions are invalid, device allocations are too small for the requested matrix shapes, or cuBLAS rejects or fails the operation.
-#[allow(
-    clippy::doc_markdown,
-    reason = "upstream LaTeX formulas contain identifiers that are not Markdown code spans"
-)]
-pub fn dgemm<'alpha, 'beta>(
+/// Returns an error for the reasons [`gemm_async`] lists.
+pub unsafe fn gemm3m_async<T: ComplexElement>(
     context: &Context,
     transpose_a: Operation,
     transpose_b: Operation,
     m: usize,
     n: usize,
     k: usize,
-    alpha: impl Into<Scalar<'alpha, f64>>,
-    a: &DeviceMemory<f64>,
+    alpha: Scalar<'_, T>,
+    a: &(impl DeviceRange<T> + ?Sized),
     lda: usize,
-    b: &DeviceMemory<f64>,
+    b: &(impl DeviceRange<T> + ?Sized),
     ldb: usize,
-    beta: impl Into<Scalar<'beta, f64>>,
-    c: &mut DeviceMemory<f64>,
+    beta: Scalar<'_, T>,
+    c: &mut (impl DeviceOutput<T> + ?Sized),
     ldc: usize,
 ) -> Result<()> {
     context.bind()?;
-    let alpha = alpha.into();
-    let beta = beta.into();
-    let pointer_mode = scalar_pointer_mode(&alpha, &beta)?;
-    validate_gemm_parameters(transpose_a, transpose_b, m, n, k, lda, ldb, ldc)?;
-    validate_gemm_shapes(
-        transpose_a,
-        transpose_b,
-        m,
-        n,
-        k,
-        a.len(),
-        lda,
-        b.len(),
-        ldb,
-        c.len(),
-        ldc,
+    let shape = GemmShape::new(m, n, k)
+        .with_transpose_a(transpose_a)
+        .with_transpose_b(transpose_b);
+    ensure_gemm(shape, a.len(), lda, b.len(), ldb, c.len(), ldc)?;
+    context.prepare_operands(
+        &[a.region(), b.region(), c.region()],
+        &[alpha.region(), beta.region()],
     )?;
-
-    let m = to_i64(m, "m")?;
-    let n = to_i64(n, "n")?;
-    let k = to_i64(k, "k")?;
-    let lda = to_i64(lda, "lda")?;
-    let ldb = to_i64(ldb, "ldb")?;
-    let ldc = to_i64(ldc, "ldc")?;
-
-    // SAFETY: `cublasDgemm_v2_64` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
-    context.with_pointer_mode(pointer_mode, || unsafe {
-        try_ffi!(sys::cublasDgemm_v2_64(
+    context.use_pointer_mode(&[alpha.pointer_mode(), beta.pointer_mode()])?;
+    // SAFETY: the matrices hold the checked shapes in this context, ordered after their producers; the caller upholds the raw execution contract.
+    unsafe {
+        try_ffi!(T::gemm3m(
             context.as_raw(),
             transpose_a.into(),
             transpose_b.into(),
-            m,
-            n,
-            k,
-            alpha.as_ptr(),
-            a.as_ptr(),
-            lda,
-            b.as_ptr(),
-            ldb,
-            beta.as_ptr(),
+            to_i64(m, "m")?,
+            to_i64(n, "n")?,
+            to_i64(k, "k")?,
+            alpha.ptr(),
+            a.as_device_ptr(),
+            to_i64(lda, "lda")?,
+            b.as_device_ptr(),
+            to_i64(ldb, "ldb")?,
+            beta.ptr(),
             c.as_mut_ptr(),
-            ldc,
-        ))?;
-        Ok(())
-    })?;
-
-    Ok(())
+            to_i64(ldc, "ldc")?,
+        ))
+    }
 }
 
-/// Computes `C = alpha * op(A) * op(B) + beta * C` in complex double precision.
+waiting! {
+    /// Computes the complex product with the Gauss three-multiplication method and waits for it.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the handle's stream is capturing, waiting fails, or for the reasons [`gemm3m_async`] lists.
+    gemm3m = gemm3m_async<T: ComplexElement>(
+        transpose_a: Operation,
+        transpose_b: Operation,
+        m: usize,
+        n: usize,
+        k: usize,
+        alpha: Scalar<'_, T>,
+        a: &(impl DeviceRange<T> + ?Sized),
+        lda: usize,
+        b: &(impl DeviceRange<T> + ?Sized),
+        ldb: usize,
+        beta: Scalar<'_, T>,
+        c: &mut (impl DeviceOutput<T> + ?Sized),
+        ldc: usize,
+    )
+}
+
+// Declares the symmetric or Hermitian matrix-matrix products.
+macro_rules! symmetric_product {
+    ($operation:ident, $name:ident, $method:ident, $bound:ident, $summary:literal, $waiting:literal) => {
+        #[doc = $summary]
+        ///
+        /// # Safety
+        ///
+        /// The caller upholds the [raw execution contract](crate#raw-execution).
+        ///
+        /// # Errors
+        ///
+        /// Returns an error if a matrix is too small or a leading dimension is invalid, a value exceeds the native integer range, the scalars use different pointer modes, an operand belongs to another CUDA context, or cuBLAS rejects the call.
+        pub unsafe fn $operation<T: $bound>(
+            context: &Context,
+            side: SideMode,
+            fill_mode: FillMode,
+            m: usize,
+            n: usize,
+            alpha: Scalar<'_, T>,
+            a: &(impl DeviceRange<T> + ?Sized),
+            lda: usize,
+            b: &(impl DeviceRange<T> + ?Sized),
+            ldb: usize,
+            beta: Scalar<'_, T>,
+            c: &mut (impl DeviceOutput<T> + ?Sized),
+            ldc: usize,
+        ) -> Result<()> {
+            context.bind()?;
+            let order = side_order(side, m, n);
+            ensure_matrix("a", a.len(), order, order, lda)?;
+            ensure_matrix("b", b.len(), m, n, ldb)?;
+            ensure_matrix("c", c.len(), m, n, ldc)?;
+            context.prepare_operands(
+                &[a.region(), b.region(), c.region()],
+                &[alpha.region(), beta.region()],
+            )?;
+            context.use_pointer_mode(&[alpha.pointer_mode(), beta.pointer_mode()])?;
+            // SAFETY: the matrices hold the checked shapes in this context, ordered after their producers; the caller upholds the raw execution contract.
+            unsafe {
+                try_ffi!(T::$method(
+                    context.as_raw(),
+                    side.into(),
+                    fill_mode.into(),
+                    to_i64(m, "m")?,
+                    to_i64(n, "n")?,
+                    alpha.ptr(),
+                    a.as_device_ptr(),
+                    to_i64(lda, "lda")?,
+                    b.as_device_ptr(),
+                    to_i64(ldb, "ldb")?,
+                    beta.ptr(),
+                    c.as_mut_ptr(),
+                    to_i64(ldc, "ldc")?,
+                ))
+            }
+        }
+
+        waiting! {
+            #[doc = $waiting]
+            ///
+            /// # Errors
+            ///
+            /// Returns an error if the handle's stream is capturing, waiting fails, or for the reasons the `_async` form lists.
+            $name = $operation<T: $bound>(
+                side: SideMode,
+                fill_mode: FillMode,
+                m: usize,
+                n: usize,
+                alpha: Scalar<'_, T>,
+                a: &(impl DeviceRange<T> + ?Sized),
+                lda: usize,
+                b: &(impl DeviceRange<T> + ?Sized),
+                ldb: usize,
+                beta: Scalar<'_, T>,
+                c: &mut (impl DeviceOutput<T> + ?Sized),
+                ldc: usize,
+            )
+        }
+    };
+}
+
+symmetric_product!(
+    symm_async,
+    symm,
+    symm,
+    Element,
+    "Enqueues `C = alpha * A * B + beta * C` (left side) or `C = alpha * B * A + beta * C` (right side) for a symmetric matrix `A` stored in the `fill_mode` triangle.",
+    "Computes the symmetric matrix-matrix product and waits for it."
+);
+
+symmetric_product!(
+    hemm_async,
+    hemm,
+    hemm,
+    ComplexElement,
+    "Enqueues `C = alpha * A * B + beta * C` (left side) or `C = alpha * B * A + beta * C` (right side) for a Hermitian matrix `A` stored in the `fill_mode` triangle.",
+    "Computes the Hermitian matrix-matrix product and waits for it."
+);
+
+// Declares the symmetric or Hermitian rank-k updates.
+macro_rules! rank_k {
+    ($operation:ident, $name:ident, $method:ident, $bound:ident, $scalar:ty, $summary:literal, $waiting:literal) => {
+        #[doc = $summary]
+        ///
+        /// # Safety
+        ///
+        /// The caller upholds the [raw execution contract](crate#raw-execution).
+        ///
+        /// # Errors
+        ///
+        /// Returns an error if a matrix is too small or a leading dimension is invalid, a value exceeds the native integer range, the scalars use different pointer modes, an operand belongs to another CUDA context, or cuBLAS rejects the call.
+        pub unsafe fn $operation<T: $bound>(
+            context: &Context,
+            fill_mode: FillMode,
+            trans: Operation,
+            n: usize,
+            k: usize,
+            alpha: Scalar<'_, $scalar>,
+            a: &(impl DeviceRange<T> + ?Sized),
+            lda: usize,
+            beta: Scalar<'_, $scalar>,
+            c: &mut (impl DeviceOutput<T> + ?Sized),
+            ldc: usize,
+        ) -> Result<()> {
+            context.bind()?;
+            let (a_rows, a_cols) = stored(trans, n, k);
+            ensure_matrix("a", a.len(), a_rows, a_cols, lda)?;
+            ensure_matrix("c", c.len(), n, n, ldc)?;
+            context
+                .prepare_operands(&[a.region(), c.region()], &[alpha.region(), beta.region()])?;
+            context.use_pointer_mode(&[alpha.pointer_mode(), beta.pointer_mode()])?;
+            // SAFETY: the matrices hold the checked shapes in this context, ordered after their producers, and the scalars have the type the routine reads; the caller upholds the raw execution contract.
+            unsafe {
+                try_ffi!(T::$method(
+                    context.as_raw(),
+                    fill_mode.into(),
+                    trans.into(),
+                    to_i64(n, "n")?,
+                    to_i64(k, "k")?,
+                    alpha.ptr().cast(),
+                    a.as_device_ptr(),
+                    to_i64(lda, "lda")?,
+                    beta.ptr().cast(),
+                    c.as_mut_ptr(),
+                    to_i64(ldc, "ldc")?,
+                ))
+            }
+        }
+
+        waiting! {
+            #[doc = $waiting]
+            ///
+            /// # Errors
+            ///
+            /// Returns an error if the handle's stream is capturing, waiting fails, or for the reasons the `_async` form lists.
+            $name = $operation<T: $bound>(
+                fill_mode: FillMode,
+                trans: Operation,
+                n: usize,
+                k: usize,
+                alpha: Scalar<'_, $scalar>,
+                a: &(impl DeviceRange<T> + ?Sized),
+                lda: usize,
+                beta: Scalar<'_, $scalar>,
+                c: &mut (impl DeviceOutput<T> + ?Sized),
+                ldc: usize,
+            )
+        }
+    };
+}
+
+rank_k!(
+    syrk_async,
+    syrk,
+    syrk,
+    Element,
+    T,
+    "Enqueues the symmetric rank-k update `C = alpha * op(A) * op(A)^T + beta * C` of the `fill_mode` triangle, with `op(A)` `n` x `k`.",
+    "Computes the symmetric rank-k update and waits for it."
+);
+
+rank_k!(
+    herk_async,
+    herk,
+    herk,
+    ComplexElement,
+    T::Real,
+    "Enqueues the Hermitian rank-k update `C = alpha * op(A) * op(A)^H + beta * C` of the `fill_mode` triangle, with real scalars and `op(A)` `n` x `k`.",
+    "Computes the Hermitian rank-k update and waits for it."
+);
+
+// Declares the symmetric or Hermitian rank-2k updates and their two-input rank-k variants.
+macro_rules! rank_2k {
+    ($operation:ident, $name:ident, $method:ident, $bound:ident, $beta:ty, $summary:literal, $waiting:literal) => {
+        #[doc = $summary]
+        ///
+        /// # Safety
+        ///
+        /// The caller upholds the [raw execution contract](crate#raw-execution).
+        ///
+        /// # Errors
+        ///
+        /// Returns an error if a matrix is too small or a leading dimension is invalid, a value exceeds the native integer range, the scalars use different pointer modes, an operand belongs to another CUDA context, or cuBLAS rejects the call.
+        pub unsafe fn $operation<T: $bound>(
+            context: &Context,
+            fill_mode: FillMode,
+            trans: Operation,
+            n: usize,
+            k: usize,
+            alpha: Scalar<'_, T>,
+            a: &(impl DeviceRange<T> + ?Sized),
+            lda: usize,
+            b: &(impl DeviceRange<T> + ?Sized),
+            ldb: usize,
+            beta: Scalar<'_, $beta>,
+            c: &mut (impl DeviceOutput<T> + ?Sized),
+            ldc: usize,
+        ) -> Result<()> {
+            context.bind()?;
+            let (rows, cols) = stored(trans, n, k);
+            ensure_matrix("a", a.len(), rows, cols, lda)?;
+            ensure_matrix("b", b.len(), rows, cols, ldb)?;
+            ensure_matrix("c", c.len(), n, n, ldc)?;
+            context.prepare_operands(
+                &[a.region(), b.region(), c.region()],
+                &[alpha.region(), beta.region()],
+            )?;
+            context.use_pointer_mode(&[alpha.pointer_mode(), beta.pointer_mode()])?;
+            // SAFETY: the matrices hold the checked shapes in this context, ordered after their producers, and the scalars have the types the routine reads; the caller upholds the raw execution contract.
+            unsafe {
+                try_ffi!(T::$method(
+                    context.as_raw(),
+                    fill_mode.into(),
+                    trans.into(),
+                    to_i64(n, "n")?,
+                    to_i64(k, "k")?,
+                    alpha.ptr(),
+                    a.as_device_ptr(),
+                    to_i64(lda, "lda")?,
+                    b.as_device_ptr(),
+                    to_i64(ldb, "ldb")?,
+                    beta.ptr().cast(),
+                    c.as_mut_ptr(),
+                    to_i64(ldc, "ldc")?,
+                ))
+            }
+        }
+
+        waiting! {
+            #[doc = $waiting]
+            ///
+            /// # Errors
+            ///
+            /// Returns an error if the handle's stream is capturing, waiting fails, or for the reasons the `_async` form lists.
+            $name = $operation<T: $bound>(
+                fill_mode: FillMode,
+                trans: Operation,
+                n: usize,
+                k: usize,
+                alpha: Scalar<'_, T>,
+                a: &(impl DeviceRange<T> + ?Sized),
+                lda: usize,
+                b: &(impl DeviceRange<T> + ?Sized),
+                ldb: usize,
+                beta: Scalar<'_, $beta>,
+                c: &mut (impl DeviceOutput<T> + ?Sized),
+                ldc: usize,
+            )
+        }
+    };
+}
+
+rank_2k!(
+    syr2k_async,
+    syr2k,
+    syr2k,
+    Element,
+    T,
+    "Enqueues the symmetric rank-2k update `C = alpha * (op(A) * op(B)^T + op(B) * op(A)^T) + beta * C` of the `fill_mode` triangle.",
+    "Computes the symmetric rank-2k update and waits for it."
+);
+
+rank_2k!(
+    her2k_async,
+    her2k,
+    her2k,
+    ComplexElement,
+    T::Real,
+    "Enqueues the Hermitian rank-2k update `C = alpha * op(A) * op(B)^H + conj(alpha) * op(B) * op(A)^H + beta * C` of the `fill_mode` triangle, with a real `beta`.",
+    "Computes the Hermitian rank-2k update and waits for it."
+);
+
+rank_2k!(
+    syrkx_async,
+    syrkx,
+    syrkx,
+    Element,
+    T,
+    "Enqueues `C = alpha * op(A) * op(B)^T + beta * C` on the `fill_mode` triangle, for products known to be symmetric.",
+    "Computes the symmetric rank-k update with two inputs and waits for it."
+);
+
+rank_2k!(
+    herkx_async,
+    herkx,
+    herkx,
+    ComplexElement,
+    T::Real,
+    "Enqueues `C = alpha * op(A) * op(B)^H + beta * C` on the `fill_mode` triangle, for products known to be Hermitian, with a real `beta`.",
+    "Computes the Hermitian rank-k update with two inputs and waits for it."
+);
+
+/// Enqueues `C = alpha * op(A) * B` (left side) or `C = alpha * B * op(A)` (right side) for a triangular matrix `A`.
 ///
-/// Matrices use column-major storage; leading dimensions are measured in elements.
+/// # Safety
+///
+/// The caller upholds the [raw execution contract](crate#raw-execution).
 ///
 /// # Errors
 ///
-/// Returns an error if dimensions, leading dimensions, or storage lengths are invalid, or a computed size exceeds the native integer range.
-/// Returns an error if `alpha` and `beta` use different pointer modes or the handle's pointer mode cannot be queried, changed, or restored.
-/// CUDA context binding and cuBLAS operation errors are propagated.
-pub fn zgemm<'alpha, 'beta>(
-    context: &Context,
-    transpose_a: Operation,
-    transpose_b: Operation,
-    m: usize,
-    n: usize,
-    k: usize,
-    alpha: impl Into<Scalar<'alpha, Complex64>>,
-    a: &DeviceMemory<Complex64>,
-    lda: usize,
-    b: &DeviceMemory<Complex64>,
-    ldb: usize,
-    beta: impl Into<Scalar<'beta, Complex64>>,
-    c: &mut DeviceMemory<Complex64>,
-    ldc: usize,
-) -> Result<()> {
-    context.bind()?;
-    let alpha = alpha.into();
-    let beta = beta.into();
-    let pointer_mode = scalar_pointer_mode(&alpha, &beta)?;
-    validate_gemm_parameters(transpose_a, transpose_b, m, n, k, lda, ldb, ldc)?;
-    validate_gemm_shapes(
-        transpose_a,
-        transpose_b,
-        m,
-        n,
-        k,
-        a.len(),
-        lda,
-        b.len(),
-        ldb,
-        c.len(),
-        ldc,
-    )?;
-
-    let m = to_i64(m, "m")?;
-    let n = to_i64(n, "n")?;
-    let k = to_i64(k, "k")?;
-    let lda = to_i64(lda, "lda")?;
-    let ldb = to_i64(ldb, "ldb")?;
-    let ldc = to_i64(ldc, "ldc")?;
-
-    // SAFETY: `cublasZgemm_v2_64` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
-    context.with_pointer_mode(pointer_mode, || unsafe {
-        try_ffi!(sys::cublasZgemm_v2_64(
-            context.as_raw(),
-            transpose_a.into(),
-            transpose_b.into(),
-            m,
-            n,
-            k,
-            alpha.as_ptr().cast(),
-            a.as_ptr().cast(),
-            lda,
-            b.as_ptr().cast(),
-            ldb,
-            beta.as_ptr().cast(),
-            c.as_mut_ptr().cast(),
-            ldc,
-        ))?;
-        Ok(())
-    })?;
-
-    Ok(())
-}
-
-/// Computes complex single-precision GEMM using three real matrix products.
-///
-/// Matrices use column-major storage; leading dimensions are measured in elements.
-///
-/// # Errors
-///
-/// Returns an error if dimensions, leading dimensions, or storage lengths are invalid, or a computed size exceeds the native integer range.
-/// Returns an error if `alpha` and `beta` use different pointer modes or the handle's pointer mode cannot be queried, changed, or restored.
-/// CUDA context binding and cuBLAS operation errors are propagated.
-pub fn cgemm3m<'alpha, 'beta>(
-    context: &Context,
-    transpose_a: Operation,
-    transpose_b: Operation,
-    m: usize,
-    n: usize,
-    k: usize,
-    alpha: impl Into<Scalar<'alpha, Complex32>>,
-    a: &DeviceMemory<Complex32>,
-    lda: usize,
-    b: &DeviceMemory<Complex32>,
-    ldb: usize,
-    beta: impl Into<Scalar<'beta, Complex32>>,
-    c: &mut DeviceMemory<Complex32>,
-    ldc: usize,
-) -> Result<()> {
-    context.bind()?;
-    let alpha = alpha.into();
-    let beta = beta.into();
-    let pointer_mode = scalar_pointer_mode(&alpha, &beta)?;
-    validate_gemm_parameters(transpose_a, transpose_b, m, n, k, lda, ldb, ldc)?;
-    validate_gemm_shapes(
-        transpose_a,
-        transpose_b,
-        m,
-        n,
-        k,
-        a.len(),
-        lda,
-        b.len(),
-        ldb,
-        c.len(),
-        ldc,
-    )?;
-
-    let m = to_i64(m, "m")?;
-    let n = to_i64(n, "n")?;
-    let k = to_i64(k, "k")?;
-    let lda = to_i64(lda, "lda")?;
-    let ldb = to_i64(ldb, "ldb")?;
-    let ldc = to_i64(ldc, "ldc")?;
-
-    // SAFETY: `cublasCgemm3m_64` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
-    context.with_pointer_mode(pointer_mode, || unsafe {
-        try_ffi!(sys::cublasCgemm3m_64(
-            context.as_raw(),
-            transpose_a.into(),
-            transpose_b.into(),
-            m,
-            n,
-            k,
-            alpha.as_ptr().cast(),
-            a.as_ptr().cast(),
-            lda,
-            b.as_ptr().cast(),
-            ldb,
-            beta.as_ptr().cast(),
-            c.as_mut_ptr().cast(),
-            ldc,
-        ))?;
-        Ok(())
-    })?;
-
-    Ok(())
-}
-
-/// Computes a double-precision matrix product with a symmetric matrix on the selected side.
-///
-/// Matrices use column-major storage; leading dimensions are measured in elements.
-///
-/// # Errors
-///
-/// Returns an error if dimensions, leading dimensions, or storage lengths are invalid, or a computed size exceeds the native integer range.
-/// Returns an error if the handle is not in host pointer mode.
-/// CUDA context binding and cuBLAS operation errors are propagated.
-pub fn dsymm(
+/// Returns an error if a matrix is too small or a leading dimension is invalid, a value exceeds the native integer range, an operand belongs to another CUDA context, or cuBLAS rejects the call.
+pub unsafe fn trmm_async<T: Element>(
     context: &Context,
     side: SideMode,
     fill_mode: FillMode,
+    trans: Operation,
+    diagonal: DiagonalType,
     m: usize,
     n: usize,
-    alpha: &f64,
-    a: &DeviceMemory<f64>,
+    alpha: Scalar<'_, T>,
+    a: &(impl DeviceRange<T> + ?Sized),
     lda: usize,
-    b: &DeviceMemory<f64>,
+    b: &(impl DeviceRange<T> + ?Sized),
     ldb: usize,
-    beta: &f64,
-    c: &mut DeviceMemory<f64>,
+    c: &mut (impl DeviceOutput<T> + ?Sized),
     ldc: usize,
 ) -> Result<()> {
     context.bind()?;
-    context.require_host_pointer_mode()?;
-    validate_symmetric_matrix_multiply_shapes(
-        side,
-        m,
-        n,
-        a.len(),
-        lda,
-        b.len(),
-        ldb,
-        c.len(),
-        ldc,
-    )?;
-
-    let m = to_i64(m, "m")?;
-    let n = to_i64(n, "n")?;
-    let lda = to_i64(lda, "lda")?;
-    let ldb = to_i64(ldb, "ldb")?;
-    let ldc = to_i64(ldc, "ldc")?;
-
-    // SAFETY: `cublasDsymm_v2_64` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
+    let order = side_order(side, m, n);
+    ensure_matrix("a", a.len(), order, order, lda)?;
+    ensure_matrix("b", b.len(), m, n, ldb)?;
+    ensure_matrix("c", c.len(), m, n, ldc)?;
+    context.prepare_operands(&[a.region(), b.region(), c.region()], &[alpha.region()])?;
+    context.use_pointer_mode(&[alpha.pointer_mode()])?;
+    // SAFETY: the matrices hold the checked shapes in this context, ordered after their producers; the caller upholds the raw execution contract.
     unsafe {
-        try_ffi!(sys::cublasDsymm_v2_64(
+        try_ffi!(T::trmm(
             context.as_raw(),
             side.into(),
             fill_mode.into(),
-            m,
-            n,
-            alpha,
-            a.as_ptr(),
-            lda,
-            b.as_ptr(),
-            ldb,
-            beta,
+            trans.into(),
+            diagonal.into(),
+            to_i64(m, "m")?,
+            to_i64(n, "n")?,
+            alpha.ptr(),
+            a.as_device_ptr(),
+            to_i64(lda, "lda")?,
+            b.as_device_ptr(),
+            to_i64(ldb, "ldb")?,
             c.as_mut_ptr(),
-            ldc,
-        ))?;
+            to_i64(ldc, "ldc")?,
+        ))
     }
-
-    Ok(())
 }
 
-/// Computes a complex double-precision matrix product with a Hermitian matrix on the selected side.
+waiting! {
+    /// Computes the triangular matrix-matrix product and waits for it.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the handle's stream is capturing, waiting fails, or for the reasons [`trmm_async`] lists.
+    trmm = trmm_async<T: Element>(
+        side: SideMode,
+        fill_mode: FillMode,
+        trans: Operation,
+        diagonal: DiagonalType,
+        m: usize,
+        n: usize,
+        alpha: Scalar<'_, T>,
+        a: &(impl DeviceRange<T> + ?Sized),
+        lda: usize,
+        b: &(impl DeviceRange<T> + ?Sized),
+        ldb: usize,
+        c: &mut (impl DeviceOutput<T> + ?Sized),
+        ldc: usize,
+    )
+}
+
+/// Enqueues the solution of `op(A) * X = alpha * B` (left side) or `X * op(A) = alpha * B` (right side) for a triangular matrix `A`, overwriting `B` with `X`.
 ///
-/// Matrices use column-major storage; leading dimensions are measured in elements.
+/// # Safety
+///
+/// The caller upholds the [raw execution contract](crate#raw-execution).
 ///
 /// # Errors
 ///
-/// Returns an error if dimensions, leading dimensions, or storage lengths are invalid, or a computed size exceeds the native integer range.
-/// Returns an error if the handle is not in host pointer mode.
-/// CUDA context binding and cuBLAS operation errors are propagated.
-pub fn zhemm(
+/// Returns an error if a matrix is too small or a leading dimension is invalid, a value exceeds the native integer range, an operand belongs to another CUDA context, or cuBLAS rejects the call.
+pub unsafe fn trsm_async<T: Element>(
     context: &Context,
     side: SideMode,
     fill_mode: FillMode,
+    trans: Operation,
+    diagonal: DiagonalType,
     m: usize,
     n: usize,
-    alpha: &Complex64,
-    a: &DeviceMemory<Complex64>,
+    alpha: Scalar<'_, T>,
+    a: &(impl DeviceRange<T> + ?Sized),
     lda: usize,
-    b: &DeviceMemory<Complex64>,
+    b: &mut (impl DeviceOutput<T> + ?Sized),
     ldb: usize,
-    beta: &Complex64,
-    c: &mut DeviceMemory<Complex64>,
-    ldc: usize,
 ) -> Result<()> {
     context.bind()?;
-    context.require_host_pointer_mode()?;
-    validate_symmetric_matrix_multiply_shapes(
-        side,
-        m,
-        n,
-        a.len(),
-        lda,
-        b.len(),
-        ldb,
-        c.len(),
-        ldc,
-    )?;
-
-    let m = to_i64(m, "m")?;
-    let n = to_i64(n, "n")?;
-    let lda = to_i64(lda, "lda")?;
-    let ldb = to_i64(ldb, "ldb")?;
-    let ldc = to_i64(ldc, "ldc")?;
-
-    // SAFETY: `cublasZhemm_v2_64` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
+    let order = side_order(side, m, n);
+    ensure_matrix("a", a.len(), order, order, lda)?;
+    ensure_matrix("b", b.len(), m, n, ldb)?;
+    context.prepare_operands(&[a.region(), b.region()], &[alpha.region()])?;
+    context.use_pointer_mode(&[alpha.pointer_mode()])?;
+    // SAFETY: the matrices hold the checked shapes in this context, ordered after their producers; the caller upholds the raw execution contract.
     unsafe {
-        try_ffi!(sys::cublasZhemm_v2_64(
+        try_ffi!(T::trsm(
             context.as_raw(),
             side.into(),
             fill_mode.into(),
-            m,
-            n,
-            ptr::from_ref(alpha).cast(),
-            a.as_ptr().cast(),
-            lda,
-            b.as_ptr().cast(),
-            ldb,
-            ptr::from_ref(beta).cast(),
-            c.as_mut_ptr().cast(),
-            ldc,
-        ))?;
-    }
-
-    Ok(())
-}
-
-/// Updates the selected triangle of `C` with `alpha * op(A) * op(A)^T + beta * C` in double precision.
-///
-/// Matrices use column-major storage; leading dimensions are measured in elements.
-///
-/// # Errors
-///
-/// Returns an error if dimensions, leading dimensions, or storage lengths are invalid, or a computed size exceeds the native integer range.
-/// Returns an error if the handle is not in host pointer mode.
-/// CUDA context binding and cuBLAS operation errors are propagated.
-pub fn dsyrk(
-    context: &Context,
-    fill_mode: FillMode,
-    transpose_a: Operation,
-    n: usize,
-    k: usize,
-    alpha: &f64,
-    a: &DeviceMemory<f64>,
-    lda: usize,
-    beta: &f64,
-    c: &mut DeviceMemory<f64>,
-    ldc: usize,
-) -> Result<()> {
-    context.bind()?;
-    context.require_host_pointer_mode()?;
-    validate_syrk_shapes(transpose_a, n, k, a.len(), lda, c.len(), ldc)?;
-
-    let n = to_i64(n, "n")?;
-    let k = to_i64(k, "k")?;
-    let lda = to_i64(lda, "lda")?;
-    let ldc = to_i64(ldc, "ldc")?;
-
-    // SAFETY: `cublasDsyrk_v2_64` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
-    unsafe {
-        try_ffi!(sys::cublasDsyrk_v2_64(
-            context.as_raw(),
-            fill_mode.into(),
-            transpose_a.into(),
-            n,
-            k,
-            alpha,
-            a.as_ptr(),
-            lda,
-            beta,
-            c.as_mut_ptr(),
-            ldc,
-        ))?;
-    }
-
-    Ok(())
-}
-
-/// Updates the selected triangle of `C` with `alpha * op(A) * op(A)^H + beta * C` in complex double precision.
-///
-/// Matrices use column-major storage; leading dimensions are measured in elements.
-///
-/// # Errors
-///
-/// Returns an error if dimensions, leading dimensions, or storage lengths are invalid, or a computed size exceeds the native integer range.
-/// Returns an error if the handle is not in host pointer mode.
-/// CUDA context binding and cuBLAS operation errors are propagated.
-pub fn zherk(
-    context: &Context,
-    fill_mode: FillMode,
-    transpose_a: Operation,
-    n: usize,
-    k: usize,
-    alpha: &f64,
-    a: &DeviceMemory<Complex64>,
-    lda: usize,
-    beta: &f64,
-    c: &mut DeviceMemory<Complex64>,
-    ldc: usize,
-) -> Result<()> {
-    context.bind()?;
-    context.require_host_pointer_mode()?;
-    validate_syrk_shapes(transpose_a, n, k, a.len(), lda, c.len(), ldc)?;
-
-    let n = to_i64(n, "n")?;
-    let k = to_i64(k, "k")?;
-    let lda = to_i64(lda, "lda")?;
-    let ldc = to_i64(ldc, "ldc")?;
-
-    // SAFETY: `cublasZherk_v2_64` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
-    unsafe {
-        try_ffi!(sys::cublasZherk_v2_64(
-            context.as_raw(),
-            fill_mode.into(),
-            transpose_a.into(),
-            n,
-            k,
-            alpha,
-            a.as_ptr().cast(),
-            lda,
-            beta,
-            c.as_mut_ptr().cast(),
-            ldc,
-        ))?;
-    }
-
-    Ok(())
-}
-
-/// Applies a double-precision symmetric rank-2k update using matrices `A` and `B`.
-///
-/// Matrices use column-major storage; leading dimensions are measured in elements.
-///
-/// # Errors
-///
-/// Returns an error if dimensions, leading dimensions, or storage lengths are invalid, or a computed size exceeds the native integer range.
-/// Returns an error if the handle is not in host pointer mode.
-/// CUDA context binding and cuBLAS operation errors are propagated.
-pub fn dsyr2k(
-    context: &Context,
-    fill_mode: FillMode,
-    transpose_a: Operation,
-    n: usize,
-    k: usize,
-    alpha: &f64,
-    a: &DeviceMemory<f64>,
-    lda: usize,
-    b: &DeviceMemory<f64>,
-    ldb: usize,
-    beta: &f64,
-    c: &mut DeviceMemory<f64>,
-    ldc: usize,
-) -> Result<()> {
-    context.bind()?;
-    context.require_host_pointer_mode()?;
-    validate_syr2k_shapes(transpose_a, n, k, a.len(), lda, b.len(), ldb, c.len(), ldc)?;
-
-    let n = to_i64(n, "n")?;
-    let k = to_i64(k, "k")?;
-    let lda = to_i64(lda, "lda")?;
-    let ldb = to_i64(ldb, "ldb")?;
-    let ldc = to_i64(ldc, "ldc")?;
-
-    // SAFETY: `cublasDsyr2k_v2_64` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
-    unsafe {
-        try_ffi!(sys::cublasDsyr2k_v2_64(
-            context.as_raw(),
-            fill_mode.into(),
-            transpose_a.into(),
-            n,
-            k,
-            alpha,
-            a.as_ptr(),
-            lda,
-            b.as_ptr(),
-            ldb,
-            beta,
-            c.as_mut_ptr(),
-            ldc,
-        ))?;
-    }
-
-    Ok(())
-}
-
-/// Applies a complex double-precision Hermitian rank-2k update using matrices `A` and `B`.
-///
-/// Matrices use column-major storage; leading dimensions are measured in elements.
-///
-/// # Errors
-///
-/// Returns an error if dimensions, leading dimensions, or storage lengths are invalid, or a computed size exceeds the native integer range.
-/// Returns an error if the handle is not in host pointer mode.
-/// CUDA context binding and cuBLAS operation errors are propagated.
-pub fn zher2k(
-    context: &Context,
-    fill_mode: FillMode,
-    transpose_a: Operation,
-    n: usize,
-    k: usize,
-    alpha: &Complex64,
-    a: &DeviceMemory<Complex64>,
-    lda: usize,
-    b: &DeviceMemory<Complex64>,
-    ldb: usize,
-    beta: &f64,
-    c: &mut DeviceMemory<Complex64>,
-    ldc: usize,
-) -> Result<()> {
-    context.bind()?;
-    context.require_host_pointer_mode()?;
-    validate_syr2k_shapes(transpose_a, n, k, a.len(), lda, b.len(), ldb, c.len(), ldc)?;
-
-    let n = to_i64(n, "n")?;
-    let k = to_i64(k, "k")?;
-    let lda = to_i64(lda, "lda")?;
-    let ldb = to_i64(ldb, "ldb")?;
-    let ldc = to_i64(ldc, "ldc")?;
-
-    // SAFETY: `cublasZher2k_v2_64` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
-    unsafe {
-        try_ffi!(sys::cublasZher2k_v2_64(
-            context.as_raw(),
-            fill_mode.into(),
-            transpose_a.into(),
-            n,
-            k,
-            ptr::from_ref(alpha).cast(),
-            a.as_ptr().cast(),
-            lda,
-            b.as_ptr().cast(),
-            ldb,
-            beta,
-            c.as_mut_ptr().cast(),
-            ldc,
-        ))?;
-    }
-
-    Ok(())
-}
-
-/// Updates one triangle of `C` with `alpha * op(A) * op(B)^T + beta * C`.
-///
-/// The double-precision inputs must produce a symmetric result.
-///
-/// Matrices use column-major storage; leading dimensions are measured in elements.
-///
-/// # Errors
-///
-/// Returns an error if dimensions, leading dimensions, or storage lengths are invalid, or a computed size exceeds the native integer range.
-/// Returns an error if the handle is not in host pointer mode.
-/// CUDA context binding and cuBLAS operation errors are propagated.
-pub fn dsyrkx(
-    context: &Context,
-    fill_mode: FillMode,
-    transpose_a: Operation,
-    n: usize,
-    k: usize,
-    alpha: &f64,
-    a: &DeviceMemory<f64>,
-    lda: usize,
-    b: &DeviceMemory<f64>,
-    ldb: usize,
-    beta: &f64,
-    c: &mut DeviceMemory<f64>,
-    ldc: usize,
-) -> Result<()> {
-    context.bind()?;
-    context.require_host_pointer_mode()?;
-    validate_syr2k_shapes(transpose_a, n, k, a.len(), lda, b.len(), ldb, c.len(), ldc)?;
-
-    let n = to_i64(n, "n")?;
-    let k = to_i64(k, "k")?;
-    let lda = to_i64(lda, "lda")?;
-    let ldb = to_i64(ldb, "ldb")?;
-    let ldc = to_i64(ldc, "ldc")?;
-
-    // SAFETY: `cublasDsyrkx_64` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
-    unsafe {
-        try_ffi!(sys::cublasDsyrkx_64(
-            context.as_raw(),
-            fill_mode.into(),
-            transpose_a.into(),
-            n,
-            k,
-            alpha,
-            a.as_ptr(),
-            lda,
-            b.as_ptr(),
-            ldb,
-            beta,
-            c.as_mut_ptr(),
-            ldc,
-        ))?;
-    }
-
-    Ok(())
-}
-
-/// Updates one triangle of `C` with `alpha * op(A) * op(B)^H + beta * C`.
-///
-/// The complex double-precision inputs must produce a Hermitian result.
-///
-/// Matrices use column-major storage; leading dimensions are measured in elements.
-///
-/// # Errors
-///
-/// Returns an error if dimensions, leading dimensions, or storage lengths are invalid, or a computed size exceeds the native integer range.
-/// Returns an error if the handle is not in host pointer mode.
-/// CUDA context binding and cuBLAS operation errors are propagated.
-pub fn zherkx(
-    context: &Context,
-    fill_mode: FillMode,
-    transpose_a: Operation,
-    n: usize,
-    k: usize,
-    alpha: &Complex64,
-    a: &DeviceMemory<Complex64>,
-    lda: usize,
-    b: &DeviceMemory<Complex64>,
-    ldb: usize,
-    beta: &f64,
-    c: &mut DeviceMemory<Complex64>,
-    ldc: usize,
-) -> Result<()> {
-    context.bind()?;
-    context.require_host_pointer_mode()?;
-    validate_syr2k_shapes(transpose_a, n, k, a.len(), lda, b.len(), ldb, c.len(), ldc)?;
-
-    let n = to_i64(n, "n")?;
-    let k = to_i64(k, "k")?;
-    let lda = to_i64(lda, "lda")?;
-    let ldb = to_i64(ldb, "ldb")?;
-    let ldc = to_i64(ldc, "ldc")?;
-
-    // SAFETY: `cublasZherkx_64` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
-    unsafe {
-        try_ffi!(sys::cublasZherkx_64(
-            context.as_raw(),
-            fill_mode.into(),
-            transpose_a.into(),
-            n,
-            k,
-            ptr::from_ref(alpha).cast(),
-            a.as_ptr().cast(),
-            lda,
-            b.as_ptr().cast(),
-            ldb,
-            beta,
-            c.as_mut_ptr().cast(),
-            ldc,
-        ))?;
-    }
-
-    Ok(())
-}
-
-/// Multiplies a double-precision matrix by a triangular matrix on the selected side, writing the scaled result to `C`.
-///
-/// Matrices use column-major storage; leading dimensions are measured in elements.
-///
-/// # Errors
-///
-/// Returns an error if dimensions, leading dimensions, or storage lengths are invalid, or a computed size exceeds the native integer range.
-/// Returns an error if the handle is not in host pointer mode.
-/// CUDA context binding and cuBLAS operation errors are propagated.
-pub fn dtrmm(
-    context: &Context,
-    side: SideMode,
-    fill_mode: FillMode,
-    transpose_a: Operation,
-    diagonal_type: DiagonalType,
-    m: usize,
-    n: usize,
-    alpha: &f64,
-    a: &DeviceMemory<f64>,
-    lda: usize,
-    b: &DeviceMemory<f64>,
-    ldb: usize,
-    c: &mut DeviceMemory<f64>,
-    ldc: usize,
-) -> Result<()> {
-    context.bind()?;
-    context.require_host_pointer_mode()?;
-    validate_triangular_matrix_multiply_shapes(
-        side,
-        m,
-        n,
-        a.len(),
-        lda,
-        b.len(),
-        ldb,
-        c.len(),
-        ldc,
-    )?;
-
-    let m = to_i64(m, "m")?;
-    let n = to_i64(n, "n")?;
-    let lda = to_i64(lda, "lda")?;
-    let ldb = to_i64(ldb, "ldb")?;
-    let ldc = to_i64(ldc, "ldc")?;
-
-    // SAFETY: `cublasDtrmm_v2_64` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
-    unsafe {
-        try_ffi!(sys::cublasDtrmm_v2_64(
-            context.as_raw(),
-            side.into(),
-            fill_mode.into(),
-            transpose_a.into(),
-            diagonal_type.into(),
-            m,
-            n,
-            alpha,
-            a.as_ptr(),
-            lda,
-            b.as_ptr(),
-            ldb,
-            c.as_mut_ptr(),
-            ldc,
-        ))?;
-    }
-
-    Ok(())
-}
-
-/// Solves a double-precision triangular matrix equation, overwriting `B` with the solution.
-///
-/// Matrices use column-major storage; leading dimensions are measured in elements.
-///
-/// # Errors
-///
-/// Returns an error if dimensions, leading dimensions, or storage lengths are invalid, or a computed size exceeds the native integer range.
-/// Returns an error if the handle is not in host pointer mode.
-/// CUDA context binding and cuBLAS operation errors are propagated.
-pub fn dtrsm(
-    context: &Context,
-    side: SideMode,
-    fill_mode: FillMode,
-    transpose_a: Operation,
-    diagonal_type: DiagonalType,
-    m: usize,
-    n: usize,
-    alpha: &f64,
-    a: &DeviceMemory<f64>,
-    lda: usize,
-    b: &mut DeviceMemory<f64>,
-    ldb: usize,
-) -> Result<()> {
-    context.bind()?;
-    context.require_host_pointer_mode()?;
-    validate_triangular_solve_shapes(side, m, n, a.len(), lda, b.len(), ldb)?;
-
-    let m = to_i64(m, "m")?;
-    let n = to_i64(n, "n")?;
-    let lda = to_i64(lda, "lda")?;
-    let ldb = to_i64(ldb, "ldb")?;
-
-    // SAFETY: `cublasDtrsm_v2_64` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
-    unsafe {
-        try_ffi!(sys::cublasDtrsm_v2_64(
-            context.as_raw(),
-            side.into(),
-            fill_mode.into(),
-            transpose_a.into(),
-            diagonal_type.into(),
-            m,
-            n,
-            alpha,
-            a.as_ptr(),
-            lda,
+            trans.into(),
+            diagonal.into(),
+            to_i64(m, "m")?,
+            to_i64(n, "n")?,
+            alpha.ptr(),
+            a.as_device_ptr(),
+            to_i64(lda, "lda")?,
             b.as_mut_ptr(),
-            ldb,
-        ))?;
+            to_i64(ldb, "ldb")?,
+        ))
     }
-
-    Ok(())
 }
 
-/// Multiplies groups of double-precision matrix pairs.
-///
-/// Dimensions, transpose modes, leading dimensions, and scalars are specified per group; device matrix pointers are flattened in group order.
-///
-/// Matrices use column-major storage; leading dimensions are measured in elements.
-///
-/// # Errors
-///
-/// Returns an error if dimensions, leading dimensions, or storage lengths are invalid, or a computed size exceeds the native integer range.
-/// Per-group argument lengths must match, at least one group is required, and the flattened matrix-pointer arrays must match the total group size.
-/// Returns an error if the handle is not in host pointer mode.
-/// Allocation or copying of device pointer arrays can also fail.
-/// CUDA context binding and cuBLAS operation errors are propagated.
-#[expect(
-    clippy::too_many_lines,
-    reason = "grouped BLAS calls validate each group and build one native pointer batch"
-)]
-pub fn dgemm_grouped_batched(
-    context: &Context,
-    transpose_a: &[Operation],
-    transpose_b: &[Operation],
-    m: &[usize],
-    n: &[usize],
-    k: &[usize],
-    alpha: &[f64],
-    a: &[DevicePtr],
-    lda: &[usize],
-    b: &[DevicePtr],
-    ldb: &[usize],
-    beta: &[f64],
-    c: &mut [DevicePtr],
-    ldc: &[usize],
-    group_size: &[usize],
-) -> Result<()> {
-    context.bind()?;
-    context.require_host_pointer_mode()?;
-
-    let group_count = transpose_a.len();
-    if group_count == 0
-        || transpose_b.len() != group_count
-        || m.len() != group_count
-        || n.len() != group_count
-        || k.len() != group_count
-        || alpha.len() != group_count
-        || lda.len() != group_count
-        || b.len() != a.len()
-        || ldb.len() != group_count
-        || beta.len() != group_count
-        || ldc.len() != group_count
-        || group_size.len() != group_count
-    {
-        return Err(Error::InvalidMatrixShape);
-    }
-
-    let gemm_count = group_size
-        .iter()
-        .try_fold(0usize, |acc, &size| acc.checked_add(size))
-        .ok_or_else(|| Error::out_of_range("grouped batch size"))?;
-    if a.len() != gemm_count || c.len() != gemm_count {
-        return Err(Error::InvalidMatrixShape);
-    }
-
-    for index in 0..group_count {
-        validate_gemm_parameters(
-            transpose_a[index],
-            transpose_b[index],
-            m[index],
-            n[index],
-            k[index],
-            lda[index],
-            ldb[index],
-            ldc[index],
-        )?;
-    }
-
-    let transpose_a = transpose_a
-        .iter()
-        .copied()
-        .map(Into::into)
-        .collect::<Vec<_>>();
-    let transpose_b = transpose_b
-        .iter()
-        .copied()
-        .map(Into::into)
-        .collect::<Vec<_>>();
-    let m = m
-        .iter()
-        .copied()
-        .map(|value| to_i64(value, "m"))
-        .collect::<Result<Vec<_>>>()?;
-    let n = n
-        .iter()
-        .copied()
-        .map(|value| to_i64(value, "n"))
-        .collect::<Result<Vec<_>>>()?;
-    let k = k
-        .iter()
-        .copied()
-        .map(|value| to_i64(value, "k"))
-        .collect::<Result<Vec<_>>>()?;
-    let lda = lda
-        .iter()
-        .copied()
-        .map(|value| to_i64(value, "lda"))
-        .collect::<Result<Vec<_>>>()?;
-    let ldb = ldb
-        .iter()
-        .copied()
-        .map(|value| to_i64(value, "ldb"))
-        .collect::<Result<Vec<_>>>()?;
-    let ldc = ldc
-        .iter()
-        .copied()
-        .map(|value| to_i64(value, "ldc"))
-        .collect::<Result<Vec<_>>>()?;
-    let group_size = group_size
-        .iter()
-        .copied()
-        .map(|value| to_i64(value, "group_size"))
-        .collect::<Result<Vec<_>>>()?;
-    let group_count = to_i64(group_count, "group_count")?;
-
-    let a_device = DeviceMemory::from_slice(context.cuda_context(), a)?;
-    let b_device = DeviceMemory::from_slice(context.cuda_context(), b)?;
-    let c_device = DeviceMemory::from_slice(context.cuda_context(), c)?;
-
-    // SAFETY: `cublasDgemmGroupedBatched_64` receives live handles owned by the wrappers and pointers into buffers borrowed for the call.
-    unsafe {
-        try_ffi!(sys::cublasDgemmGroupedBatched_64(
-            context.as_raw(),
-            transpose_a.as_ptr(),
-            transpose_b.as_ptr(),
-            m.as_ptr(),
-            n.as_ptr(),
-            k.as_ptr(),
-            alpha.as_ptr(),
-            a_device.as_ptr().cast(),
-            lda.as_ptr(),
-            b_device.as_ptr().cast(),
-            ldb.as_ptr(),
-            beta.as_ptr(),
-            c_device.as_ptr().cast(),
-            ldc.as_ptr(),
-            group_count,
-            group_size.as_ptr(),
-        ))?;
-    }
-
-    Ok(())
+waiting! {
+    /// Solves the triangular system with multiple right-hand sides in place and waits for it.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the handle's stream is capturing, waiting fails, or for the reasons [`trsm_async`] lists.
+    trsm = trsm_async<T: Element>(
+        side: SideMode,
+        fill_mode: FillMode,
+        trans: Operation,
+        diagonal: DiagonalType,
+        m: usize,
+        n: usize,
+        alpha: Scalar<'_, T>,
+        a: &(impl DeviceRange<T> + ?Sized),
+        lda: usize,
+        b: &mut (impl DeviceOutput<T> + ?Sized),
+        ldb: usize,
+    )
 }
 
-/// Solves a batch of double-precision triangular matrix equations in place.
-///
-/// All matrix pairs share dimensions, leading dimensions, and operation settings.
-///
-/// Matrices use column-major storage; leading dimensions are measured in elements.
-///
-/// # Errors
-///
-/// Returns an error if dimensions, leading dimensions, or storage lengths are invalid, or a computed size exceeds the native integer range.
-/// The two matrix-pointer arrays must have equal lengths.
-/// Returns an error if the handle is not in host pointer mode.
-/// Allocation or copying of device pointer arrays can also fail.
-/// CUDA context binding and cuBLAS operation errors are propagated.
-pub fn dtrsm_batched(
-    context: &Context,
-    side: SideMode,
-    fill_mode: FillMode,
-    transpose_a: Operation,
-    diagonal_type: DiagonalType,
-    m: usize,
-    n: usize,
-    alpha: &f64,
-    a: &[DevicePtr],
-    lda: usize,
-    b: &mut [DevicePtr],
-    ldb: usize,
-) -> Result<()> {
-    context.bind()?;
-    context.require_host_pointer_mode()?;
-
-    if a.len() != b.len() {
-        return Err(Error::InvalidMatrixShape);
-    }
-
-    validate_triangular_solve_parameters(side, m, n, lda, ldb)?;
-
-    let batch_count = to_i64(a.len(), "batch_count")?;
-    let m = to_i64(m, "m")?;
-    let n = to_i64(n, "n")?;
-    let lda = to_i64(lda, "lda")?;
-    let ldb = to_i64(ldb, "ldb")?;
-
-    let a_device = DeviceMemory::from_slice(context.cuda_context(), a)?;
-    let b_device = DeviceMemory::from_slice(context.cuda_context(), b)?;
-
-    // SAFETY: `cublasDtrsmBatched_64` receives live handles owned by the wrappers and pointers into buffers borrowed for the call.
-    unsafe {
-        try_ffi!(sys::cublasDtrsmBatched_64(
-            context.as_raw(),
-            side.into(),
-            fill_mode.into(),
-            transpose_a.into(),
-            diagonal_type.into(),
-            m,
-            n,
-            alpha,
-            a_device.as_ptr().cast(),
-            lda,
-            b_device.as_ptr().cast(),
-            ldb,
-            batch_count,
-        ))?;
-    }
-
-    Ok(())
-}
-
-/// Supports the 64-bit integer interface.
-///
-/// Extends the typed cuBLAS GEMM routines by allowing separate data types for the A, B, and C matrices, the compute precision, and the GEMM algorithm.
-/// This operation is only supported on devices with compute capability 5.0 or later.
-///
-/// $$ C = \alpha\text{op}(A)\text{op}(B) + \beta C $$
-///
-/// Here $\alpha$ and $\beta$ are scalars, and $A$, $B$ and $C$ are matrices stored in column-major format with dimensions $\text{op}(A)$ $m \times k$, $\text{op}(B)$ $k \times n$ and $C$ $m \times n$, respectively.
-/// For matrix $A$:
-///
-/// $$ \text{op}(A) = \left\\{ \begin{matrix} A & {\text{if } \`texttt{transpose_a` = `Operation::NonTranspose`}} \\\\ A^{T} & {\text{if } \`texttt{transpose_a` = `Operation::Transpose`}} \\\\ A^{H} & {\text{if } \`texttt{transpose_a` = `Operation::ConjugateTranspose`}} \\\\ \end{matrix} \right. $$
-///
-/// $\text{op}(B)$ is defined similarly for matrix $B$.
-///
-/// Starting with cuBLAS 11.2, using typed functions instead of extension functions such as `cublasGemmEx` helps reduce binary size when linking to the static cuBLAS library.
-///
-/// See [sgemm()](https://www.netlib.org/blas/sgemm.f).
-///
-/// For more information about the numerical behavior of some GEMM algorithms, refer to the GEMM Algorithms Numerical Behavior section.
-///
-/// # Errors
-///
-/// Returns an error if the context cannot be used with host pointer mode, the device does not support GEMM Ex, dimensions or leading dimensions are invalid, device allocations are too small, a data type or algorithm combination is unsupported, or cuBLAS rejects or fails the operation.
-#[allow(
-    clippy::doc_markdown,
-    reason = "upstream LaTeX formulas contain identifiers that are not Markdown code spans"
-)]
-pub fn gemm_ex<TAlpha, TA, TB, TBeta, TC>(
-    context: &Context,
-    transpose_a: Operation,
-    transpose_b: Operation,
-    m: usize,
-    n: usize,
-    k: usize,
-    alpha: &TAlpha,
-    a: &DeviceMemory<TA>,
-    a_type: DataType,
-    lda: usize,
-    b: &DeviceMemory<TB>,
-    b_type: DataType,
-    ldb: usize,
-    beta: &TBeta,
-    c: &mut DeviceMemory<TC>,
-    c_type: DataType,
-    ldc: usize,
-    compute_type: ComputeType,
-    algorithm: GemmAlgorithm,
-) -> Result<()> {
-    context.bind()?;
-    context.require_host_pointer_mode()?;
-    validate_gemm_parameters(transpose_a, transpose_b, m, n, k, lda, ldb, ldc)?;
-    validate_gemm_shapes(
-        transpose_a,
-        transpose_b,
-        m,
-        n,
-        k,
-        a.len(),
-        lda,
-        b.len(),
-        ldb,
-        c.len(),
-        ldc,
-    )?;
-
-    let m = to_i64(m, "m")?;
-    let n = to_i64(n, "n")?;
-    let k = to_i64(k, "k")?;
-    let lda = to_i64(lda, "lda")?;
-    let ldb = to_i64(ldb, "ldb")?;
-    let ldc = to_i64(ldc, "ldc")?;
-
-    // SAFETY: `cublasGemmEx_64` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
-    unsafe {
-        try_ffi!(sys::cublasGemmEx_64(
-            context.as_raw(),
-            transpose_a.into(),
-            transpose_b.into(),
-            m,
-            n,
-            k,
-            ptr::from_ref(alpha).cast(),
-            a.as_ptr().cast(),
-            a_type.into(),
-            lda,
-            b.as_ptr().cast(),
-            b_type.into(),
-            ldb,
-            ptr::from_ref(beta).cast(),
-            c.as_mut_ptr().cast(),
-            c_type.into(),
-            ldc,
-            compute_type.into(),
-            algorithm.into(),
-        ))?;
-    }
-
-    Ok(())
-}
-
-/// Performs [`gemm_ex`] on device views, so callers can multiply typed views of larger allocations.
-///
-/// `alpha` and `beta` are host values of the type `compute_type` expects.
-/// The element types of the views only size them; `a_type`, `b_type`, and `c_type` give the matrix encodings.
+/// Enqueues `C = alpha * op(A) + beta * op(B)` for `m` x `n` results.
 ///
 /// # Safety
 ///
-/// The views must hold values valid for their declared data types, `alpha` and `beta` must have the type `compute_type` reads, and the caller must order the work on `context`'s stream against other users of the memory until it completes.
+/// The caller upholds the [raw execution contract](crate#raw-execution).
 ///
 /// # Errors
 ///
-/// Returns an error if a view belongs to another CUDA context, the context cannot use host pointer mode, dimensions or leading dimensions are invalid, views are too small for the matrix shapes, a data type or algorithm combination is unsupported, or cuBLAS rejects or fails the operation.
-pub unsafe fn gemm_ex_views<TAlpha, TA: DeviceRepr, TB: DeviceRepr, TBeta, TC: DeviceRepr>(
+/// Returns an error if a matrix is too small or a leading dimension is invalid, a value exceeds the native integer range, the scalars use different pointer modes, an operand belongs to another CUDA context, or cuBLAS rejects the call.
+pub unsafe fn geam_async<T: Element>(
     context: &Context,
     transpose_a: Operation,
     transpose_b: Operation,
     m: usize,
     n: usize,
-    k: usize,
-    alpha: &TAlpha,
-    a: &(impl DeviceInput<TA> + ?Sized),
-    a_type: DataType,
+    alpha: Scalar<'_, T>,
+    a: &(impl DeviceRange<T> + ?Sized),
     lda: usize,
-    b: &(impl DeviceInput<TB> + ?Sized),
-    b_type: DataType,
+    beta: Scalar<'_, T>,
+    b: &(impl DeviceRange<T> + ?Sized),
     ldb: usize,
-    beta: &TBeta,
-    c: &mut impl DeviceOutput<TC>,
-    c_type: DataType,
+    c: &mut (impl DeviceOutput<T> + ?Sized),
     ldc: usize,
-    compute_type: ComputeType,
-    algorithm: GemmAlgorithm,
 ) -> Result<()> {
     context.bind()?;
-    if a.region().context() != context.cuda_context()
-        || b.region().context() != context.cuda_context()
-        || c.region().context() != context.cuda_context()
-    {
-        return Err(CudaError::MemoryContextMismatch.into());
-    }
-
-    context.require_host_pointer_mode()?;
-    validate_gemm_parameters(transpose_a, transpose_b, m, n, k, lda, ldb, ldc)?;
-    validate_gemm_shapes(
-        transpose_a,
-        transpose_b,
-        m,
-        n,
-        k,
-        a.len(),
-        lda,
-        b.len(),
-        ldb,
-        c.len(),
-        ldc,
+    let (a_rows, a_cols) = stored(transpose_a, m, n);
+    let (b_rows, b_cols) = stored(transpose_b, m, n);
+    ensure_matrix("a", a.len(), a_rows, a_cols, lda)?;
+    ensure_matrix("b", b.len(), b_rows, b_cols, ldb)?;
+    ensure_matrix("c", c.len(), m, n, ldc)?;
+    context.prepare_operands(
+        &[a.region(), b.region(), c.region()],
+        &[alpha.region(), beta.region()],
     )?;
-    // SAFETY: the views address live allocations in this context, sized by the validated shapes; the caller upholds the value and ordering contract.
+    context.use_pointer_mode(&[alpha.pointer_mode(), beta.pointer_mode()])?;
+    // SAFETY: the matrices hold the checked shapes in this context, ordered after their producers; the caller upholds the raw execution contract.
     unsafe {
-        try_ffi!(sys::cublasGemmEx_64(
+        try_ffi!(T::geam(
             context.as_raw(),
             transpose_a.into(),
             transpose_b.into(),
             to_i64(m, "m")?,
             to_i64(n, "n")?,
-            to_i64(k, "k")?,
-            ptr::from_ref(alpha).cast(),
-            a.as_device_ptr().cast(),
-            a_type.into(),
+            alpha.ptr(),
+            a.as_device_ptr(),
             to_i64(lda, "lda")?,
-            b.as_device_ptr().cast(),
-            b_type.into(),
+            beta.ptr(),
+            b.as_device_ptr(),
             to_i64(ldb, "ldb")?,
-            ptr::from_ref(beta).cast(),
-            c.as_mut_ptr().cast(),
-            c_type.into(),
-            to_i64(ldc, "ldc")?,
-            compute_type.into(),
-            algorithm.into(),
-        ))?;
-    }
-    Ok(())
-}
-
-/// Supports the 64-bit integer interface.
-///
-/// Extends the typed cuBLAS batched GEMM routines by performing batched matrix multiplication with separate data types for the A, B, and C matrix arrays, the compute precision, and the GEMM algorithm.
-/// Like the typed cuBLAS batched GEMM routines, the batch is uniform: all instances have the same dimensions (`m`, `n`, `k`), leading dimensions (`lda`, `ldb`, `ldc`), and transpositions (`transpose_a`, `transpose_b`) for their A, B, and C matrices.
-/// `a`, `b`, and `c` provide one matrix pointer per batch instance. $$ C\lbrack i\rbrack = \alpha\text{op}(A\lbrack i\rbrack)\text{op}(B\lbrack i\rbrack) + \beta C\lbrack i\rbrack,\text{ for i } \in \lbrack `0,\text{batch_count`} - 1\rbrack $$
-///
-/// Here $\alpha$ and $\beta$ are scalars.
-/// `a`, `b`, and `c` are arrays of pointers to column-major matrices with dimensions $\text{op}(A\lbrack i\rbrack)$ $m \times k$, $\text{op}(B\lbrack i\rbrack)$ $k \times n$, and $C\lbrack i\rbrack$ $m \times n$, respectively.
-/// For matrix $A$:
-///
-/// $$ \text{op}(A) = \left\\{ \begin{matrix} A & {\text{if } \`texttt{transpose_a` = `Operation::NonTranspose`}} \\\\ A^{T} & {\text{if } \`texttt{transpose_a` = `Operation::Transpose`}} \\\\ A^{H} & {\text{if } \`texttt{transpose_a` = `Operation::ConjugateTranspose`}} \\\\ \end{matrix} \right. $$
-///
-/// $\text{op}(B\lbrack i\rbrack)$ is defined similarly for matrix $B\lbrack i\rbrack$.
-///
-/// For some problem sizes, multiple typed cuBLAS GEMM calls in different CUDA streams may be faster than this batched routine.
-///
-/// If `a_type` is [`DataType::F16`] or [`DataType::Bf16`], or `compute_type` is any of the `FAST` options, or when math mode or `algorithm` enable fast math modes, pointers (not the pointer arrays) placed in the GPU memory must be properly aligned to avoid misaligned memory access errors.
-/// Ideally all matrix pointers are aligned to at least 16 bytes.
-///
-/// See [sgemm()](https://www.netlib.org/blas/sgemm.f).
-///
-/// # Errors
-///
-/// Returns an error if the context cannot be used with host pointer mode, the device does not support batched GEMM Ex, batch pointer slices have different lengths, dimensions or leading dimensions are invalid, a data type or algorithm combination is unsupported, or cuBLAS rejects or fails the operation.
-#[allow(
-    clippy::doc_markdown,
-    reason = "upstream LaTeX formulas contain identifiers that are not Markdown code spans"
-)]
-pub fn gemm_batched_ex<TAlpha, TBeta>(
-    context: &Context,
-    transpose_a: Operation,
-    transpose_b: Operation,
-    m: usize,
-    n: usize,
-    k: usize,
-    alpha: &TAlpha,
-    a: &[DevicePtr],
-    a_type: DataType,
-    lda: usize,
-    b: &[DevicePtr],
-    b_type: DataType,
-    ldb: usize,
-    beta: &TBeta,
-    c: &mut [DevicePtr],
-    c_type: DataType,
-    ldc: usize,
-    compute_type: ComputeType,
-    algorithm: GemmAlgorithm,
-) -> Result<()> {
-    context.bind()?;
-    context.require_host_pointer_mode()?;
-
-    if a.len() != b.len() || a.len() != c.len() {
-        return Err(Error::InvalidMatrixShape);
-    }
-
-    validate_gemm_parameters(transpose_a, transpose_b, m, n, k, lda, ldb, ldc)?;
-
-    let batch_count = to_i64(a.len(), "batch count")?;
-    let m = to_i64(m, "m")?;
-    let n = to_i64(n, "n")?;
-    let k = to_i64(k, "k")?;
-    let lda = to_i64(lda, "lda")?;
-    let ldb = to_i64(ldb, "ldb")?;
-    let ldc = to_i64(ldc, "ldc")?;
-
-    let a = a.iter().map(|ptr| ptr.as_const_ptr()).collect::<Vec<_>>();
-    let b = b.iter().map(|ptr| ptr.as_const_ptr()).collect::<Vec<_>>();
-    let mut c = c.iter().map(|ptr| ptr.as_ptr()).collect::<Vec<_>>();
-
-    // SAFETY: `cublasGemmBatchedEx_64` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
-    unsafe {
-        try_ffi!(sys::cublasGemmBatchedEx_64(
-            context.as_raw(),
-            transpose_a.into(),
-            transpose_b.into(),
-            m,
-            n,
-            k,
-            ptr::from_ref(alpha).cast(),
-            a.as_ptr().cast(),
-            a_type.into(),
-            lda,
-            b.as_ptr().cast(),
-            b_type.into(),
-            ldb,
-            ptr::from_ref(beta).cast(),
-            c.as_mut_ptr() as _,
-            c_type.into(),
-            ldc,
-            batch_count,
-            compute_type.into(),
-            algorithm.into(),
-        ))?;
-    }
-
-    Ok(())
-}
-
-/// Supports the 64-bit integer interface.
-///
-/// Extends the typed cuBLAS strided-batched GEMM routines by performing strided batched matrix multiplication with separate data types for the A, B, and C matrices, the compute precision, and the GEMM algorithm.
-/// Like the typed cuBLAS strided-batched GEMM routines, the batch is uniform: all instances have the same dimensions (`m`, `n`, `k`), leading dimensions (`lda`, `ldb`, `ldc`), and transpositions (`transpose_a`, `transpose_b`) for their A, B, and C matrices.
-/// Each batch instance is located at a fixed element offset from the previous instance.
-/// The first A, B, and C matrices are passed with element strides `stride_a`, `stride_b`, and `stride_c`, which determine the locations of later batch instances.
-///
-/// $$ C + i\cdot {\`text{stride_c`}} = \alpha\text{op}(A + i\cdot {\`text{stride_a}})\text{op}(B` + i\cdot {\`text{stride_b`}}) + \beta(C + i\cdot {\`text{stride_c}}),\text`{ for i } \in \lbrack `0,\text{batch_count`} - 1\rbrack $$
-///
-/// Here $\alpha$ and $\beta$ are scalars.
-/// `a`, `b`, and `c` are strided column-major matrix batches with dimensions $\text{op}(A\lbrack i\rbrack)$ $m \times k$, $\text{op}(B\lbrack i\rbrack)$ $k \times n$, and $C\lbrack i\rbrack$ $m \times n$, respectively.
-/// For matrix $A$:
-///
-/// $$ \text{op}(A) = \left\\{ \begin{matrix} A & {\text{if } \`texttt{transpose_a` = `Operation::NonTranspose`}} \\\\ A^{T} & {\text{if } \`texttt{transpose_a` = `Operation::Transpose`}} \\\\ A^{H} & {\text{if } \`texttt{transpose_a` = `Operation::ConjugateTranspose`}} \\\\ \end{matrix} \right. $$
-///
-/// $\text{op}(B\lbrack i\rbrack)$ is defined similarly for matrix $B\lbrack i\rbrack$.
-///
-/// For some problem sizes, multiple typed cuBLAS GEMM calls in different CUDA streams may be faster than this batched routine.
-///
-/// See [sgemm()](https://www.netlib.org/blas/sgemm.f).
-///
-/// # Errors
-///
-/// Returns an error if the context cannot be used with host pointer mode, the device does not support strided-batched GEMM Ex, dimensions, leading dimensions, or strides are invalid, device allocations are too small, a data type or algorithm combination is unsupported, or cuBLAS rejects or fails the operation.
-#[allow(
-    clippy::doc_markdown,
-    reason = "upstream LaTeX formulas contain identifiers that are not Markdown code spans"
-)]
-pub fn gemm_strided_batched_ex<TAlpha, TA, TB, TBeta, TC>(
-    context: &Context,
-    transpose_a: Operation,
-    transpose_b: Operation,
-    m: usize,
-    n: usize,
-    k: usize,
-    alpha: &TAlpha,
-    a: &DeviceMemory<TA>,
-    a_type: DataType,
-    lda: usize,
-    stride_a: i64,
-    b: &DeviceMemory<TB>,
-    b_type: DataType,
-    ldb: usize,
-    stride_b: i64,
-    beta: &TBeta,
-    c: &mut DeviceMemory<TC>,
-    c_type: DataType,
-    ldc: usize,
-    stride_c: i64,
-    batch_count: usize,
-    compute_type: ComputeType,
-    algorithm: GemmAlgorithm,
-) -> Result<()> {
-    context.bind()?;
-    context.require_host_pointer_mode()?;
-    validate_gemm_parameters(transpose_a, transpose_b, m, n, k, lda, ldb, ldc)?;
-    validate_gemm_shapes(
-        transpose_a,
-        transpose_b,
-        m,
-        n,
-        k,
-        a.len(),
-        lda,
-        b.len(),
-        ldb,
-        c.len(),
-        ldc,
-    )?;
-    validate_strided_batched_gemm_shapes(
-        transpose_a,
-        transpose_b,
-        m,
-        n,
-        k,
-        a.len(),
-        lda,
-        stride_a,
-        b.len(),
-        ldb,
-        stride_b,
-        c.len(),
-        ldc,
-        stride_c,
-        batch_count,
-    )?;
-
-    let m = to_i64(m, "m")?;
-    let n = to_i64(n, "n")?;
-    let k = to_i64(k, "k")?;
-    let lda = to_i64(lda, "lda")?;
-    let ldb = to_i64(ldb, "ldb")?;
-    let ldc = to_i64(ldc, "ldc")?;
-    let batch_count = to_i64(batch_count, "batch_count")?;
-
-    // SAFETY: `cublasGemmStridedBatchedEx_64` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
-    unsafe {
-        try_ffi!(sys::cublasGemmStridedBatchedEx_64(
-            context.as_raw(),
-            transpose_a.into(),
-            transpose_b.into(),
-            m,
-            n,
-            k,
-            ptr::from_ref(alpha).cast(),
-            a.as_ptr().cast(),
-            a_type.into(),
-            lda,
-            stride_a,
-            b.as_ptr().cast(),
-            b_type.into(),
-            ldb,
-            stride_b,
-            ptr::from_ref(beta).cast(),
-            c.as_mut_ptr().cast(),
-            c_type.into(),
-            ldc,
-            stride_c,
-            batch_count,
-            compute_type.into(),
-            algorithm.into(),
-        ))?;
-    }
-
-    Ok(())
-}
-
-/// Performs [`gemm_strided_batched_ex`] on device views, so callers can multiply strided batches inside larger allocations.
-///
-/// `alpha` and `beta` are host values of the type `compute_type` expects.
-/// The element types of the views only size them; `a_type`, `b_type`, and `c_type` give the matrix encodings.
-/// Input strides may be zero, which multiplies the same matrix in every batch instance.
-///
-/// # Safety
-///
-/// The views must hold values valid for their declared data types, `alpha` and `beta` must have the type `compute_type` reads, and the caller must order the work on `context`'s stream against other users of the memory until it completes.
-///
-/// # Errors
-///
-/// Returns an error if a view belongs to another CUDA context, the context cannot use host pointer mode, dimensions, leading dimensions, or strides are invalid, views are too small for the batches, output batches overlap, a data type or algorithm combination is unsupported, or cuBLAS rejects or fails the operation.
-pub unsafe fn gemm_strided_batched_ex_views<
-    TAlpha,
-    TA: DeviceRepr,
-    TB: DeviceRepr,
-    TBeta,
-    TC: DeviceRepr,
->(
-    context: &Context,
-    transpose_a: Operation,
-    transpose_b: Operation,
-    m: usize,
-    n: usize,
-    k: usize,
-    alpha: &TAlpha,
-    a: &(impl DeviceInput<TA> + ?Sized),
-    a_type: DataType,
-    lda: usize,
-    stride_a: i64,
-    b: &(impl DeviceInput<TB> + ?Sized),
-    b_type: DataType,
-    ldb: usize,
-    stride_b: i64,
-    beta: &TBeta,
-    c: &mut impl DeviceOutput<TC>,
-    c_type: DataType,
-    ldc: usize,
-    stride_c: i64,
-    batch_count: usize,
-    compute_type: ComputeType,
-    algorithm: GemmAlgorithm,
-) -> Result<()> {
-    context.bind()?;
-    if a.region().context() != context.cuda_context()
-        || b.region().context() != context.cuda_context()
-        || c.region().context() != context.cuda_context()
-    {
-        return Err(CudaError::MemoryContextMismatch.into());
-    }
-
-    context.require_host_pointer_mode()?;
-    validate_gemm_parameters(transpose_a, transpose_b, m, n, k, lda, ldb, ldc)?;
-    validate_gemm_shapes(
-        transpose_a,
-        transpose_b,
-        m,
-        n,
-        k,
-        a.len(),
-        lda,
-        b.len(),
-        ldb,
-        c.len(),
-        ldc,
-    )?;
-    validate_strided_batched_gemm_shapes(
-        transpose_a,
-        transpose_b,
-        m,
-        n,
-        k,
-        a.len(),
-        lda,
-        stride_a,
-        b.len(),
-        ldb,
-        stride_b,
-        c.len(),
-        ldc,
-        stride_c,
-        batch_count,
-    )?;
-    // SAFETY: the views address live allocations in this context, sized by the validated batches; the caller upholds the value and ordering contract.
-    unsafe {
-        try_ffi!(sys::cublasGemmStridedBatchedEx_64(
-            context.as_raw(),
-            transpose_a.into(),
-            transpose_b.into(),
-            to_i64(m, "m")?,
-            to_i64(n, "n")?,
-            to_i64(k, "k")?,
-            ptr::from_ref(alpha).cast(),
-            a.as_device_ptr().cast(),
-            a_type.into(),
-            to_i64(lda, "lda")?,
-            stride_a,
-            b.as_device_ptr().cast(),
-            b_type.into(),
-            to_i64(ldb, "ldb")?,
-            stride_b,
-            ptr::from_ref(beta).cast(),
-            c.as_mut_ptr().cast(),
-            c_type.into(),
-            to_i64(ldc, "ldc")?,
-            stride_c,
-            to_i64(batch_count, "batch_count")?,
-            compute_type.into(),
-            algorithm.into(),
-        ))?;
-    }
-    Ok(())
-}
-
-/// Multiplies groups of matrix pairs using explicit matrix and compute types.
-///
-/// Dimensions, transpose modes, leading dimensions, and scalars are specified per group; device matrix pointers are flattened in group order.
-///
-/// Matrices use column-major storage; leading dimensions are measured in elements.
-///
-/// # Errors
-///
-/// Returns an error if dimensions, leading dimensions, or storage lengths are invalid, or a computed size exceeds the native integer range.
-/// Per-group argument lengths must match, at least one group is required, and the flattened matrix-pointer arrays must match the total group size.
-/// Returns an error if the handle is not in host pointer mode.
-/// Allocation or copying of device pointer arrays can also fail.
-/// CUDA context binding and cuBLAS operation errors are propagated.
-#[expect(
-    clippy::too_many_lines,
-    reason = "grouped BLAS calls validate each group and build one native pointer batch"
-)]
-pub fn gemm_grouped_batched_ex<TAlpha, TBeta>(
-    context: &Context,
-    transpose_a: &[Operation],
-    transpose_b: &[Operation],
-    m: &[usize],
-    n: &[usize],
-    k: &[usize],
-    alpha: &[TAlpha],
-    a: &[DevicePtr],
-    a_type: DataType,
-    lda: &[usize],
-    b: &[DevicePtr],
-    b_type: DataType,
-    ldb: &[usize],
-    beta: &[TBeta],
-    c: &mut [DevicePtr],
-    c_type: DataType,
-    ldc: &[usize],
-    group_size: &[usize],
-    compute_type: ComputeType,
-) -> Result<()> {
-    context.bind()?;
-    context.require_host_pointer_mode()?;
-
-    let group_count = transpose_a.len();
-    if group_count == 0
-        || transpose_b.len() != group_count
-        || m.len() != group_count
-        || n.len() != group_count
-        || k.len() != group_count
-        || alpha.len() != group_count
-        || lda.len() != group_count
-        || b.len() != a.len()
-        || ldb.len() != group_count
-        || beta.len() != group_count
-        || ldc.len() != group_count
-        || group_size.len() != group_count
-    {
-        return Err(Error::InvalidMatrixShape);
-    }
-
-    let gemm_count = group_size
-        .iter()
-        .try_fold(0usize, |acc, &size| acc.checked_add(size))
-        .ok_or_else(|| Error::out_of_range("grouped batch size"))?;
-    if a.len() != gemm_count || c.len() != gemm_count {
-        return Err(Error::InvalidMatrixShape);
-    }
-
-    for index in 0..group_count {
-        validate_gemm_parameters(
-            transpose_a[index],
-            transpose_b[index],
-            m[index],
-            n[index],
-            k[index],
-            lda[index],
-            ldb[index],
-            ldc[index],
-        )?;
-    }
-
-    let transpose_a = transpose_a
-        .iter()
-        .copied()
-        .map(Into::into)
-        .collect::<Vec<_>>();
-    let transpose_b = transpose_b
-        .iter()
-        .copied()
-        .map(Into::into)
-        .collect::<Vec<_>>();
-    let m = m
-        .iter()
-        .copied()
-        .map(|value| to_i64(value, "m"))
-        .collect::<Result<Vec<_>>>()?;
-    let n = n
-        .iter()
-        .copied()
-        .map(|value| to_i64(value, "n"))
-        .collect::<Result<Vec<_>>>()?;
-    let k = k
-        .iter()
-        .copied()
-        .map(|value| to_i64(value, "k"))
-        .collect::<Result<Vec<_>>>()?;
-    let lda = lda
-        .iter()
-        .copied()
-        .map(|value| to_i64(value, "lda"))
-        .collect::<Result<Vec<_>>>()?;
-    let ldb = ldb
-        .iter()
-        .copied()
-        .map(|value| to_i64(value, "ldb"))
-        .collect::<Result<Vec<_>>>()?;
-    let ldc = ldc
-        .iter()
-        .copied()
-        .map(|value| to_i64(value, "ldc"))
-        .collect::<Result<Vec<_>>>()?;
-    let group_size = group_size
-        .iter()
-        .copied()
-        .map(|value| to_i64(value, "group_size"))
-        .collect::<Result<Vec<_>>>()?;
-    let group_count = to_i64(group_count, "group_count")?;
-
-    let a_device = DeviceMemory::from_slice(context.cuda_context(), a)?;
-    let b_device = DeviceMemory::from_slice(context.cuda_context(), b)?;
-    let c_device = DeviceMemory::from_slice(context.cuda_context(), c)?;
-
-    // SAFETY: `cublasGemmGroupedBatchedEx_64` receives live handles owned by the wrappers and pointers into buffers borrowed for the call.
-    unsafe {
-        try_ffi!(sys::cublasGemmGroupedBatchedEx_64(
-            context.as_raw(),
-            transpose_a.as_ptr(),
-            transpose_b.as_ptr(),
-            m.as_ptr(),
-            n.as_ptr(),
-            k.as_ptr(),
-            alpha.as_ptr().cast(),
-            a_device.as_ptr().cast(),
-            a_type.into(),
-            lda.as_ptr(),
-            b_device.as_ptr().cast(),
-            b_type.into(),
-            ldb.as_ptr(),
-            beta.as_ptr().cast(),
-            c_device.as_ptr().cast(),
-            c_type.into(),
-            ldc.as_ptr(),
-            group_count,
-            group_size.as_ptr(),
-            compute_type.into(),
-        ))?;
-    }
-
-    Ok(())
-}
-
-/// Computes `C = alpha * op(A) + beta * op(B)` in double precision.
-///
-/// Matrices use column-major storage; leading dimensions are measured in elements.
-///
-/// # Errors
-///
-/// Returns an error if dimensions, leading dimensions, or storage lengths are invalid, or a computed size exceeds the native integer range.
-/// Returns an error if the handle is not in host pointer mode.
-/// CUDA context binding and cuBLAS operation errors are propagated.
-pub fn dgeam(
-    context: &Context,
-    transpose_a: Operation,
-    transpose_b: Operation,
-    m: usize,
-    n: usize,
-    alpha: &f64,
-    a: &DeviceMemory<f64>,
-    lda: usize,
-    beta: &f64,
-    b: &DeviceMemory<f64>,
-    ldb: usize,
-    c: &mut DeviceMemory<f64>,
-    ldc: usize,
-) -> Result<()> {
-    context.bind()?;
-    context.require_host_pointer_mode()?;
-    validate_geam_shapes(
-        transpose_a,
-        transpose_b,
-        m,
-        n,
-        a.len(),
-        lda,
-        b.len(),
-        ldb,
-        c.len(),
-        ldc,
-    )?;
-
-    let m = to_i64(m, "m")?;
-    let n = to_i64(n, "n")?;
-    let lda = to_i64(lda, "lda")?;
-    let ldb = to_i64(ldb, "ldb")?;
-    let ldc = to_i64(ldc, "ldc")?;
-
-    // SAFETY: `cublasDgeam_64` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
-    unsafe {
-        try_ffi!(sys::cublasDgeam_64(
-            context.as_raw(),
-            transpose_a.into(),
-            transpose_b.into(),
-            m,
-            n,
-            alpha,
-            a.as_ptr(),
-            lda,
-            beta,
-            b.as_ptr(),
-            ldb,
             c.as_mut_ptr(),
-            ldc,
-        ))?;
+            to_i64(ldc, "ldc")?,
+        ))
     }
-
-    Ok(())
 }
 
-/// Multiplies a double-precision matrix by the diagonal matrix formed from `x`, on the selected side.
+waiting! {
+    /// Computes `C = alpha * op(A) + beta * op(B)` and waits for it.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the handle's stream is capturing, waiting fails, or for the reasons [`geam_async`] lists.
+    geam = geam_async<T: Element>(
+        transpose_a: Operation,
+        transpose_b: Operation,
+        m: usize,
+        n: usize,
+        alpha: Scalar<'_, T>,
+        a: &(impl DeviceRange<T> + ?Sized),
+        lda: usize,
+        beta: Scalar<'_, T>,
+        b: &(impl DeviceRange<T> + ?Sized),
+        ldb: usize,
+        c: &mut (impl DeviceOutput<T> + ?Sized),
+        ldc: usize,
+    )
+}
+
+/// Enqueues `C = A * diag(x)` (right side) or `C = diag(x) * A` (left side) for `m` x `n` matrices.
 ///
-/// Matrices use column-major storage; leading dimensions and vector increments are measured in elements.
+/// # Safety
+///
+/// The caller upholds the [raw execution contract](crate#raw-execution).
 ///
 /// # Errors
 ///
-/// Returns an error if dimensions, leading dimensions, vector increments, or storage lengths are invalid, or a computed size exceeds the native integer range.
-/// CUDA context binding and cuBLAS operation errors are propagated.
-pub fn ddgmm(
+/// Returns an error if an operand is too small, a leading dimension or the increment is invalid, a value exceeds the native integer range, an operand belongs to another CUDA context, or cuBLAS rejects the call.
+pub unsafe fn dgmm_async<T: Element>(
     context: &Context,
     side: SideMode,
     m: usize,
     n: usize,
-    a: &DeviceMemory<f64>,
+    a: &(impl DeviceRange<T> + ?Sized),
     lda: usize,
-    x: &DeviceMemory<f64>,
+    x: &(impl DeviceRange<T> + ?Sized),
     incx: usize,
-    c: &mut DeviceMemory<f64>,
+    c: &mut (impl DeviceOutput<T> + ?Sized),
     ldc: usize,
 ) -> Result<()> {
     context.bind()?;
-    validate_dgmm_shapes(side, m, n, a.len(), lda, x.len(), incx, c.len(), ldc)?;
-
-    let m = to_i64(m, "m")?;
-    let n = to_i64(n, "n")?;
-    let lda = to_i64(lda, "lda")?;
-    let incx = to_i64(incx, "incx")?;
-    let ldc = to_i64(ldc, "ldc")?;
-
-    // SAFETY: `cublasDdgmm_64` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
+    ensure_matrix("a", a.len(), m, n, lda)?;
+    ensure_vector("x", x.len(), side_order(side, m, n), incx)?;
+    ensure_matrix("c", c.len(), m, n, ldc)?;
+    context.prepare_operands(&[a.region(), x.region(), c.region()], &[])?;
+    // SAFETY: the operands hold the checked extents in this context, ordered after their producers; the caller upholds the raw execution contract.
     unsafe {
-        try_ffi!(sys::cublasDdgmm_64(
+        try_ffi!(T::dgmm(
             context.as_raw(),
             side.into(),
-            m,
-            n,
-            a.as_ptr(),
-            lda,
-            x.as_ptr(),
-            incx,
+            to_i64(m, "m")?,
+            to_i64(n, "n")?,
+            a.as_device_ptr(),
+            to_i64(lda, "lda")?,
+            x.as_device_ptr(),
+            to_i64(incx, "incx")?,
             c.as_mut_ptr(),
-            ldc,
-        ))?;
+            to_i64(ldc, "ldc")?,
+        ))
     }
-
-    Ok(())
 }
 
-/// Unpacks a double-precision triangular matrix into the selected triangle of column-major storage.
+waiting! {
+    /// Scales the rows or columns of `A` by `x` into `C` and waits for it.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the handle's stream is capturing, waiting fails, or for the reasons [`dgmm_async`] lists.
+    dgmm = dgmm_async<T: Element>(
+        side: SideMode,
+        m: usize,
+        n: usize,
+        a: &(impl DeviceRange<T> + ?Sized),
+        lda: usize,
+        x: &(impl DeviceRange<T> + ?Sized),
+        incx: usize,
+        c: &mut (impl DeviceOutput<T> + ?Sized),
+        ldc: usize,
+    )
+}
+
+/// Enqueues the unpacking of the `fill_mode` triangle of packed `ap` into the full-storage matrix `a`.
 ///
-/// Matrices use column-major storage; leading dimensions are measured in elements.
+/// Elements of `a` outside the triangle are left unchanged.
+///
+/// # Safety
+///
+/// The caller upholds the [raw execution contract](crate#raw-execution).
 ///
 /// # Errors
 ///
-/// Returns an error if dimensions, leading dimensions, or storage lengths are invalid, or a computed size exceeds the native integer range.
-/// CUDA context binding and cuBLAS operation errors are propagated.
-pub fn dtpttr(
+/// Returns an error if an operand is too small, the leading dimension is invalid, a value exceeds `i32`, an operand belongs to another CUDA context, or cuBLAS rejects the call.
+pub unsafe fn tpttr_async<T: Element>(
     context: &Context,
     fill_mode: FillMode,
     n: usize,
-    ap: &DeviceMemory<f64>,
-    a: &mut DeviceMemory<f64>,
+    ap: &(impl DeviceRange<T> + ?Sized),
+    a: &mut (impl DeviceOutput<T> + ?Sized),
     lda: usize,
 ) -> Result<()> {
     context.bind()?;
-    validate_tpttr_shapes(n, ap.len(), a.len(), lda)?;
-
-    let n = to_i32(n, "n")?;
-    let lda = to_i32(lda, "lda")?;
-
-    // SAFETY: `cublasDtpttr` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
+    ensure_packed("ap", ap.len(), n)?;
+    ensure_matrix("a", a.len(), n, n, lda)?;
+    context.prepare_operands(&[ap.region(), a.region()], &[])?;
+    // SAFETY: the operands hold the checked extents in this context, ordered after their producers; the caller upholds the raw execution contract.
     unsafe {
-        try_ffi!(sys::cublasDtpttr(
+        try_ffi!(T::tpttr(
             context.as_raw(),
             fill_mode.into(),
-            n,
-            ap.as_ptr(),
+            to_i32(n, "n")?,
+            ap.as_device_ptr(),
             a.as_mut_ptr(),
-            lda,
-        ))?;
+            to_i32(lda, "lda")?,
+        ))
     }
-
-    Ok(())
 }
 
-/// Packs the selected triangle of a double-precision column-major matrix.
+waiting! {
+    /// Unpacks a packed triangle into full storage and waits for it.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the handle's stream is capturing, waiting fails, or for the reasons [`tpttr_async`] lists.
+    tpttr = tpttr_async<T: Element>(
+        fill_mode: FillMode,
+        n: usize,
+        ap: &(impl DeviceRange<T> + ?Sized),
+        a: &mut (impl DeviceOutput<T> + ?Sized),
+        lda: usize,
+    )
+}
+
+/// Enqueues the packing of the `fill_mode` triangle of the full-storage matrix `a` into `ap`.
 ///
-/// Matrices use column-major storage; leading dimensions are measured in elements.
+/// # Safety
+///
+/// The caller upholds the [raw execution contract](crate#raw-execution).
 ///
 /// # Errors
 ///
-/// Returns an error if dimensions, leading dimensions, or storage lengths are invalid, or a computed size exceeds the native integer range.
-/// CUDA context binding and cuBLAS operation errors are propagated.
-pub fn dtrttp(
+/// Returns an error if an operand is too small, the leading dimension is invalid, a value exceeds `i32`, an operand belongs to another CUDA context, or cuBLAS rejects the call.
+pub unsafe fn trttp_async<T: Element>(
     context: &Context,
     fill_mode: FillMode,
     n: usize,
-    a: &DeviceMemory<f64>,
+    a: &(impl DeviceRange<T> + ?Sized),
     lda: usize,
-    ap: &mut DeviceMemory<f64>,
+    ap: &mut (impl DeviceOutput<T> + ?Sized),
 ) -> Result<()> {
     context.bind()?;
-    validate_tpttr_shapes(n, ap.len(), a.len(), lda)?;
-
-    let n = to_i32(n, "n")?;
-    let lda = to_i32(lda, "lda")?;
-
-    // SAFETY: `cublasDtrttp` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
+    ensure_matrix("a", a.len(), n, n, lda)?;
+    ensure_packed("ap", ap.len(), n)?;
+    context.prepare_operands(&[a.region(), ap.region()], &[])?;
+    // SAFETY: the operands hold the checked extents in this context, ordered after their producers; the caller upholds the raw execution contract.
     unsafe {
-        try_ffi!(sys::cublasDtrttp(
+        try_ffi!(T::trttp(
             context.as_raw(),
             fill_mode.into(),
-            n,
-            a.as_ptr(),
-            lda,
+            to_i32(n, "n")?,
+            a.as_device_ptr(),
+            to_i32(lda, "lda")?,
             ap.as_mut_ptr(),
-        ))?;
+        ))
     }
-
-    Ok(())
 }
 
-/// Applies a complex single-precision symmetric rank-k update using explicit matrix data types.
+waiting! {
+    /// Packs a triangle of full storage and waits for it.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the handle's stream is capturing, waiting fails, or for the reasons [`trttp_async`] lists.
+    trttp = trttp_async<T: Element>(
+        fill_mode: FillMode,
+        n: usize,
+        a: &(impl DeviceRange<T> + ?Sized),
+        lda: usize,
+        ap: &mut (impl DeviceOutput<T> + ?Sized),
+    )
+}
+
+/// Enqueues `batch_count` products `C[i] = alpha * op(A[i]) * op(B[i]) + beta * C[i]` of matrices `stride_*` elements apart.
 ///
-/// Matrices use column-major storage; leading dimensions are measured in elements.
+/// A zero input stride repeats one matrix for every product; output matrices may not overlap.
+///
+/// # Safety
+///
+/// The caller upholds the [raw execution contract](crate#raw-execution).
 ///
 /// # Errors
 ///
-/// Returns an error if dimensions, leading dimensions, or storage lengths are invalid, or a computed size exceeds the native integer range.
-/// Returns an error if the handle is not in host pointer mode.
-/// CUDA context binding and cuBLAS operation errors are propagated.
-pub fn csyrk_ex<TA, TC>(
+/// Returns an error if a buffer cannot hold its batch, a leading dimension or stride is invalid, output matrices overlap, a value exceeds the native integer range, the scalars use different pointer modes, an operand belongs to another CUDA context, or cuBLAS rejects the call.
+pub unsafe fn gemm_strided_batched_async<T: Element>(
     context: &Context,
-    fill_mode: FillMode,
-    transpose_a: Operation,
-    n: usize,
-    k: usize,
-    alpha: &Complex32,
-    a: &DeviceMemory<TA>,
-    a_type: DataType,
-    lda: usize,
-    beta: &Complex32,
-    c: &mut DeviceMemory<TC>,
-    c_type: DataType,
-    ldc: usize,
-) -> Result<()> {
-    context.bind()?;
-    context.require_host_pointer_mode()?;
-    validate_syrk_shapes(transpose_a, n, k, a.len(), lda, c.len(), ldc)?;
-
-    let n = to_i64(n, "n")?;
-    let k = to_i64(k, "k")?;
-    let lda = to_i64(lda, "lda")?;
-    let ldc = to_i64(ldc, "ldc")?;
-
-    // SAFETY: `cublasCsyrkEx_64` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
-    unsafe {
-        try_ffi!(sys::cublasCsyrkEx_64(
-            context.as_raw(),
-            fill_mode.into(),
-            transpose_a.into(),
-            n,
-            k,
-            ptr::from_ref(alpha).cast(),
-            a.as_ptr().cast(),
-            a_type.into(),
-            lda,
-            ptr::from_ref(beta).cast(),
-            c.as_mut_ptr().cast(),
-            c_type.into(),
-            ldc,
-        ))?;
-    }
-
-    Ok(())
-}
-
-/// Applies a complex single-precision symmetric rank-k update using three real matrix products and explicit matrix data types.
-///
-/// Matrices use column-major storage; leading dimensions are measured in elements.
-///
-/// # Errors
-///
-/// Returns an error if dimensions, leading dimensions, or storage lengths are invalid, or a computed size exceeds the native integer range.
-/// Returns an error if the handle is not in host pointer mode.
-/// CUDA context binding and cuBLAS operation errors are propagated.
-pub fn csyrk3m_ex<TA, TC>(
-    context: &Context,
-    fill_mode: FillMode,
-    transpose_a: Operation,
-    n: usize,
-    k: usize,
-    alpha: &Complex32,
-    a: &DeviceMemory<TA>,
-    a_type: DataType,
-    lda: usize,
-    beta: &Complex32,
-    c: &mut DeviceMemory<TC>,
-    c_type: DataType,
-    ldc: usize,
-) -> Result<()> {
-    context.bind()?;
-    context.require_host_pointer_mode()?;
-    validate_syrk_shapes(transpose_a, n, k, a.len(), lda, c.len(), ldc)?;
-
-    let n = to_i64(n, "n")?;
-    let k = to_i64(k, "k")?;
-    let lda = to_i64(lda, "lda")?;
-    let ldc = to_i64(ldc, "ldc")?;
-
-    // SAFETY: `cublasCsyrk3mEx_64` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
-    unsafe {
-        try_ffi!(sys::cublasCsyrk3mEx_64(
-            context.as_raw(),
-            fill_mode.into(),
-            transpose_a.into(),
-            n,
-            k,
-            ptr::from_ref(alpha).cast(),
-            a.as_ptr().cast(),
-            a_type.into(),
-            lda,
-            ptr::from_ref(beta).cast(),
-            c.as_mut_ptr().cast(),
-            c_type.into(),
-            ldc,
-        ))?;
-    }
-
-    Ok(())
-}
-
-/// Applies a complex single-precision Hermitian rank-k update using explicit matrix data types.
-///
-/// Matrices use column-major storage; leading dimensions are measured in elements.
-///
-/// # Errors
-///
-/// Returns an error if dimensions, leading dimensions, or storage lengths are invalid, or a computed size exceeds the native integer range.
-/// Returns an error if the handle is not in host pointer mode.
-/// CUDA context binding and cuBLAS operation errors are propagated.
-pub fn cherk_ex<TA, TC>(
-    context: &Context,
-    fill_mode: FillMode,
-    transpose_a: Operation,
-    n: usize,
-    k: usize,
-    alpha: &f32,
-    a: &DeviceMemory<TA>,
-    a_type: DataType,
-    lda: usize,
-    beta: &f32,
-    c: &mut DeviceMemory<TC>,
-    c_type: DataType,
-    ldc: usize,
-) -> Result<()> {
-    context.bind()?;
-    context.require_host_pointer_mode()?;
-    validate_syrk_shapes(transpose_a, n, k, a.len(), lda, c.len(), ldc)?;
-
-    let n = to_i64(n, "n")?;
-    let k = to_i64(k, "k")?;
-    let lda = to_i64(lda, "lda")?;
-    let ldc = to_i64(ldc, "ldc")?;
-
-    // SAFETY: `cublasCherkEx_64` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
-    unsafe {
-        try_ffi!(sys::cublasCherkEx_64(
-            context.as_raw(),
-            fill_mode.into(),
-            transpose_a.into(),
-            n,
-            k,
-            alpha,
-            a.as_ptr().cast(),
-            a_type.into(),
-            lda,
-            beta,
-            c.as_mut_ptr().cast(),
-            c_type.into(),
-            ldc,
-        ))?;
-    }
-
-    Ok(())
-}
-
-/// Applies a complex single-precision Hermitian rank-k update using three real matrix products and explicit matrix data types.
-///
-/// Matrices use column-major storage; leading dimensions are measured in elements.
-///
-/// # Errors
-///
-/// Returns an error if dimensions, leading dimensions, or storage lengths are invalid, or a computed size exceeds the native integer range.
-/// Returns an error if the handle is not in host pointer mode.
-/// CUDA context binding and cuBLAS operation errors are propagated.
-pub fn cherk3m_ex<TA, TC>(
-    context: &Context,
-    fill_mode: FillMode,
-    transpose_a: Operation,
-    n: usize,
-    k: usize,
-    alpha: &f32,
-    a: &DeviceMemory<TA>,
-    a_type: DataType,
-    lda: usize,
-    beta: &f32,
-    c: &mut DeviceMemory<TC>,
-    c_type: DataType,
-    ldc: usize,
-) -> Result<()> {
-    context.bind()?;
-    context.require_host_pointer_mode()?;
-    validate_syrk_shapes(transpose_a, n, k, a.len(), lda, c.len(), ldc)?;
-
-    let n = to_i64(n, "n")?;
-    let k = to_i64(k, "k")?;
-    let lda = to_i64(lda, "lda")?;
-    let ldc = to_i64(ldc, "ldc")?;
-
-    // SAFETY: `cublasCherk3mEx_64` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
-    unsafe {
-        try_ffi!(sys::cublasCherk3mEx_64(
-            context.as_raw(),
-            fill_mode.into(),
-            transpose_a.into(),
-            n,
-            k,
-            alpha,
-            a.as_ptr().cast(),
-            a_type.into(),
-            lda,
-            beta,
-            c.as_mut_ptr().cast(),
-            c_type.into(),
-            ldc,
-        ))?;
-    }
-
-    Ok(())
-}
-
-fn required_matrix_span(rows: usize, cols: usize, leading_dimension: usize) -> Result<usize> {
-    if rows == 0 || cols == 0 {
-        return Ok(0);
-    }
-    (cols - 1)
-        .checked_mul(leading_dimension)
-        .and_then(|prefix| prefix.checked_add(rows))
-        .ok_or_else(|| Error::out_of_range("matrix span"))
-}
-
-fn validate_gemm_shapes(
     transpose_a: Operation,
     transpose_b: Operation,
     m: usize,
     n: usize,
     k: usize,
-    a_len: usize,
+    alpha: Scalar<'_, T>,
+    a: &(impl DeviceRange<T> + ?Sized),
     lda: usize,
-    b_len: usize,
+    stride_a: i64,
+    b: &(impl DeviceRange<T> + ?Sized),
     ldb: usize,
-    c_len: usize,
+    stride_b: i64,
+    beta: Scalar<'_, T>,
+    c: &mut (impl DeviceOutput<T> + ?Sized),
     ldc: usize,
+    stride_c: i64,
+    batch_count: usize,
 ) -> Result<()> {
-    if m == 0 || n == 0 {
-        return Ok(());
+    context.bind()?;
+    let shape = GemmShape::new(m, n, k)
+        .with_transpose_a(transpose_a)
+        .with_transpose_b(transpose_b);
+    ensure_strided_gemm(
+        shape,
+        (a.len(), lda, stride_a),
+        (b.len(), ldb, stride_b),
+        (c.len(), ldc, stride_c),
+        batch_count,
+    )?;
+    context.prepare_operands(
+        &[a.region(), b.region(), c.region()],
+        &[alpha.region(), beta.region()],
+    )?;
+    context.use_pointer_mode(&[alpha.pointer_mode(), beta.pointer_mode()])?;
+    // SAFETY: the buffers hold the checked batches in this context, ordered after their producers; the caller upholds the raw execution contract.
+    unsafe {
+        try_ffi!(T::gemm_strided_batched(
+            context.as_raw(),
+            transpose_a.into(),
+            transpose_b.into(),
+            to_i64(m, "m")?,
+            to_i64(n, "n")?,
+            to_i64(k, "k")?,
+            alpha.ptr(),
+            a.as_device_ptr(),
+            to_i64(lda, "lda")?,
+            stride_a,
+            b.as_device_ptr(),
+            to_i64(ldb, "ldb")?,
+            stride_b,
+            beta.ptr(),
+            c.as_mut_ptr(),
+            to_i64(ldc, "ldc")?,
+            stride_c,
+            to_i64(batch_count, "batch count")?,
+        ))
     }
-
-    let (a_rows, a_cols) = if transpose_a == Operation::NonTranspose {
-        (m, k)
-    } else {
-        (k, m)
-    };
-    let (b_rows, b_cols) = if transpose_b == Operation::NonTranspose {
-        (k, n)
-    } else {
-        (n, k)
-    };
-    if a_len < required_matrix_span(a_rows, a_cols, lda)?
-        || b_len < required_matrix_span(b_rows, b_cols, ldb)?
-        || c_len < required_matrix_span(m, n, ldc)?
-    {
-        return Err(Error::InvalidMatrixShape);
-    }
-    Ok(())
 }
 
-fn validate_gemm_parameters(
+waiting! {
+    /// Computes a strided batch of matrix products and waits for it.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the handle's stream is capturing, waiting fails, or for the reasons [`gemm_strided_batched_async`] lists.
+    gemm_strided_batched = gemm_strided_batched_async<T: Element>(
+        transpose_a: Operation,
+        transpose_b: Operation,
+        m: usize,
+        n: usize,
+        k: usize,
+        alpha: Scalar<'_, T>,
+        a: &(impl DeviceRange<T> + ?Sized),
+        lda: usize,
+        stride_a: i64,
+        b: &(impl DeviceRange<T> + ?Sized),
+        ldb: usize,
+        stride_b: i64,
+        beta: Scalar<'_, T>,
+        c: &mut (impl DeviceOutput<T> + ?Sized),
+        ldc: usize,
+        stride_c: i64,
+        batch_count: usize,
+    )
+}
+
+// Checks strided batches of `(length, leading dimension, stride)` against the shape.
+pub(crate) fn ensure_strided_gemm(
+    shape: GemmShape,
+    a: (usize, usize, i64),
+    b: (usize, usize, i64),
+    c: (usize, usize, i64),
+    batch_count: usize,
+) -> Result<()> {
+    let (a_rows, a_cols) = stored(shape.transpose_a(), shape.m(), shape.k());
+    let (b_rows, b_cols) = stored(shape.transpose_b(), shape.k(), shape.n());
+    ensure_matrix("a", a.0, a_rows, a_cols, a.1)?;
+    ensure_matrix("b", b.0, b_rows, b_cols, b.1)?;
+    ensure_matrix("c", c.0, shape.m(), shape.n(), c.1)?;
+    let a_span = matrix_span(a_rows, a_cols, a.1)?;
+    let b_span = matrix_span(b_rows, b_cols, b.1)?;
+    let c_span = matrix_span(shape.m(), shape.n(), c.1)?;
+    ensure_strided("a", a.0, a_span, a.2, batch_count, false)?;
+    ensure_strided("b", b.0, b_span, b.2, batch_count, false)?;
+    ensure_strided("c", c.0, c_span, c.2, batch_count, true)
+}
+
+// Copies the device addresses of the matrices into a device array that cuBLAS can read.
+fn device_pointers(context: &Context, pointers: &[DevicePtr]) -> Result<DeviceMemory<DevicePtr>> {
+    Ok(DeviceMemory::from_slice(context.cuda_context(), pointers)?)
+}
+
+fn input_pointers<T: Element>(matrices: &[DeviceInputView<'_, T>]) -> Vec<DevicePtr> {
+    matrices
+        .iter()
+        // SAFETY: wrapping the address of a borrowed allocation does not dereference it.
+        .map(|matrix| unsafe { DevicePtr::from_raw(matrix.as_ptr().cast_mut().cast()) })
+        .collect()
+}
+
+fn output_pointers<T: Element>(matrices: &mut [DeviceOutputView<'_, T>]) -> Vec<DevicePtr> {
+    matrices
+        .iter_mut()
+        // SAFETY: wrapping the address of a borrowed allocation does not dereference it.
+        .map(|matrix| unsafe { DevicePtr::from_raw(matrix.as_mut_ptr().cast()) })
+        .collect()
+}
+
+/// Enqueues `batch_count` products `C[i] = alpha * op(A[i]) * op(B[i]) + beta * C[i]` whose matrices are listed in device arrays of pointers.
+///
+/// # Safety
+///
+/// The caller upholds the [raw execution contract](crate#raw-execution) for the pointer arrays and for every matrix they address.
+/// Each pointer must address a matrix of `T` in this context with the shape the dimensions and leading dimensions describe, and the `c` matrices must not overlap each other or the inputs.
+///
+/// # Errors
+///
+/// Returns an error if a pointer array holds fewer than `batch_count` entries, a leading dimension is invalid, a value exceeds the native integer range, the scalars use different pointer modes, an operand belongs to another CUDA context, or cuBLAS rejects the call.
+pub unsafe fn gemm_batched_async<T: Element>(
+    context: &Context,
     transpose_a: Operation,
     transpose_b: Operation,
     m: usize,
     n: usize,
     k: usize,
+    alpha: Scalar<'_, T>,
+    a: &(impl DeviceRange<DevicePtr> + ?Sized),
     lda: usize,
+    b: &(impl DeviceRange<DevicePtr> + ?Sized),
     ldb: usize,
+    beta: Scalar<'_, T>,
+    c: &(impl DeviceRange<DevicePtr> + ?Sized),
     ldc: usize,
+    batch_count: usize,
 ) -> Result<()> {
-    let a_rows = if transpose_a == Operation::NonTranspose {
-        m
-    } else {
-        k
-    };
-    let b_rows = if transpose_b == Operation::NonTranspose {
-        k
-    } else {
-        n
-    };
-
+    context.bind()?;
+    let (a_rows, a_cols) = stored(transpose_a, m, k);
+    let (b_rows, b_cols) = stored(transpose_b, k, n);
     if lda < a_rows.max(1) || ldb < b_rows.max(1) || ldc < m.max(1) {
         return Err(Error::InvalidLeadingDimension);
     }
 
-    Ok(())
+    matrix_span(a_rows, a_cols, lda)?;
+    matrix_span(b_rows, b_cols, ldb)?;
+    validate_min_len(batch_count, a.len(), "a")?;
+    validate_min_len(batch_count, b.len(), "b")?;
+    validate_min_len(batch_count, c.len(), "c")?;
+    context.prepare_operands(
+        &[a.region(), b.region(), c.region()],
+        &[alpha.region(), beta.region()],
+    )?;
+    context.use_pointer_mode(&[alpha.pointer_mode(), beta.pointer_mode()])?;
+    // SAFETY: the pointer arrays hold `batch_count` entries in this context, ordered after their producers; the caller upholds the matrix contract.
+    unsafe {
+        try_ffi!(T::gemm_batched(
+            context.as_raw(),
+            transpose_a.into(),
+            transpose_b.into(),
+            to_i64(m, "m")?,
+            to_i64(n, "n")?,
+            to_i64(k, "k")?,
+            alpha.ptr(),
+            a.as_device_ptr().cast(),
+            to_i64(lda, "lda")?,
+            b.as_device_ptr().cast(),
+            to_i64(ldb, "ldb")?,
+            beta.ptr(),
+            c.as_device_ptr().cast(),
+            to_i64(ldc, "ldc")?,
+            to_i64(batch_count, "batch count")?,
+        ))
+    }
 }
 
-fn validate_strided_batched_gemm_shapes(
+/// Computes the products `C[i] = alpha * op(A[i]) * op(B[i]) + beta * C[i]` of corresponding matrices and waits for them.
+///
+/// It copies the matrix addresses to device pointer arrays, which live until the work completes.
+///
+/// # Errors
+///
+/// Returns an error if the batches have different lengths, a matrix is too small or a leading dimension is invalid, the handle's stream is capturing, copying the pointer arrays or waiting fails, or for the reasons [`gemm_batched_async`] lists.
+pub fn gemm_batched<T: Element>(
+    context: &Context,
     transpose_a: Operation,
     transpose_b: Operation,
     m: usize,
     n: usize,
     k: usize,
-    a_len: usize,
+    alpha: Scalar<'_, T>,
+    a: &[DeviceInputView<'_, T>],
     lda: usize,
-    stride_a: i64,
-    b_len: usize,
+    b: &[DeviceInputView<'_, T>],
     ldb: usize,
-    stride_b: i64,
-    c_len: usize,
+    beta: Scalar<'_, T>,
+    c: &mut [DeviceOutputView<'_, T>],
     ldc: usize,
-    stride_c: i64,
-    batch_count: usize,
 ) -> Result<()> {
-    if batch_count == 0 {
+    let shape = GemmShape::new(m, n, k)
+        .with_transpose_a(transpose_a)
+        .with_transpose_b(transpose_b);
+    validate_same_len(a.len(), b.len(), "b")?;
+    validate_same_len(a.len(), c.len(), "c")?;
+    if a.is_empty() {
         return Ok(());
     }
 
-    let (a_rows, a_cols) = if transpose_a == Operation::NonTranspose {
-        (m, k)
-    } else {
-        (k, m)
-    };
-    let (b_rows, b_cols) = if transpose_b == Operation::NonTranspose {
-        (k, n)
-    } else {
-        (n, k)
-    };
+    for ((a, b), c) in a.iter().zip(b).zip(c.iter()) {
+        ensure_gemm(shape, a.len(), lda, b.len(), ldb, c.len(), ldc)?;
+    }
 
-    // Inputs need only the elements their matrices address; outputs keep whole columns apart.
-    validate_strided_buffer_len(
-        a_len,
-        required_matrix_span(a_rows, a_cols, lda)?,
-        stride_a,
-        batch_count,
-        true,
-    )?;
-    validate_strided_buffer_len(
-        b_len,
-        required_matrix_span(b_rows, b_cols, ldb)?,
-        stride_b,
-        batch_count,
-        true,
-    )?;
-    validate_strided_buffer_len(
-        c_len,
-        required_matrix_len(ldc, n)?,
-        stride_c,
-        batch_count,
-        false,
-    )?;
-
-    Ok(())
+    let regions = a
+        .iter()
+        .map(DeviceInputView::region)
+        .chain(b.iter().map(DeviceInputView::region))
+        .chain(c.iter().map(DeviceRegionProvider::region))
+        .collect::<Vec<_>>();
+    context.bind()?;
+    context.stream_binding().ensure_not_capturing()?;
+    context.prepare_regions(&regions)?;
+    let a_pointers = device_pointers(context, &input_pointers(a))?;
+    let b_pointers = device_pointers(context, &input_pointers(b))?;
+    let c_pointers = device_pointers(context, &output_pointers(c))?;
+    // SAFETY: the pointers address the checked matrices, whose borrows and pointer arrays outlive the scope, which waits for the handle's stream; the `c` views are exclusive borrows, so they overlap neither each other nor the inputs.
+    context.sync_scope(|| unsafe {
+        gemm_batched_async(
+            context,
+            transpose_a,
+            transpose_b,
+            m,
+            n,
+            k,
+            alpha,
+            &a_pointers,
+            lda,
+            &b_pointers,
+            ldb,
+            beta,
+            &c_pointers,
+            ldc,
+            c_pointers.len(),
+        )
+    })
 }
 
-/// Checks that `length` elements hold `batch_count` matrices of `matrix_len` elements, `stride` apart.
+/// Enqueues `batch_count` triangular solves `op(A[i]) * X[i] = alpha * B[i]` (left side) or `X[i] * op(A[i]) = alpha * B[i]` (right side) whose matrices are listed in device arrays of pointers.
 ///
-/// Input batches may overlap, so a zero stride broadcasts one matrix to every batch instance; output batches may not.
-fn validate_strided_buffer_len(
-    length: usize,
-    matrix_len: usize,
-    stride: i64,
+/// # Safety
+///
+/// The caller upholds the [raw execution contract](crate#raw-execution) for the pointer arrays and for every matrix they address.
+/// Each pointer must address a matrix of `T` in this context with the shape the dimensions and leading dimensions describe, and the `b` matrices must not overlap each other or the `a` matrices.
+///
+/// # Errors
+///
+/// Returns an error if a pointer array holds fewer than `batch_count` entries, a leading dimension is invalid, a value exceeds the native integer range, an operand belongs to another CUDA context, or cuBLAS rejects the call.
+pub unsafe fn trsm_batched_async<T: Element>(
+    context: &Context,
+    side: SideMode,
+    fill_mode: FillMode,
+    trans: Operation,
+    diagonal: DiagonalType,
+    m: usize,
+    n: usize,
+    alpha: Scalar<'_, T>,
+    a: &(impl DeviceRange<DevicePtr> + ?Sized),
+    lda: usize,
+    b: &(impl DeviceRange<DevicePtr> + ?Sized),
+    ldb: usize,
     batch_count: usize,
-    overlap_allowed: bool,
 ) -> Result<()> {
-    let stride = to_usize(stride, "stride")?;
-    if !overlap_allowed && batch_count > 1 && stride < matrix_len {
-        return Err(Error::InvalidMatrixShape);
-    }
-
-    let total = if batch_count == 0 {
-        0
-    } else {
-        batch_count
-            .checked_sub(1)
-            .and_then(|count| count.checked_mul(stride))
-            .and_then(|offset| offset.checked_add(matrix_len))
-            .ok_or_else(|| Error::out_of_range("strided batch length"))?
-    };
-
-    if length < total {
-        return Err(Error::InvalidMatrixShape);
-    }
-
-    Ok(())
-}
-
-fn validate_geam_shapes(
-    transpose_a: Operation,
-    transpose_b: Operation,
-    m: usize,
-    n: usize,
-    a_len: usize,
-    lda: usize,
-    b_len: usize,
-    ldb: usize,
-    c_len: usize,
-    ldc: usize,
-) -> Result<()> {
-    let a_rows = if transpose_a == Operation::NonTranspose {
-        m
-    } else {
-        n
-    };
-    let a_cols = if transpose_a == Operation::NonTranspose {
-        n
-    } else {
-        m
-    };
-    let b_rows = if transpose_b == Operation::NonTranspose {
-        m
-    } else {
-        n
-    };
-    let b_cols = if transpose_b == Operation::NonTranspose {
-        n
-    } else {
-        m
-    };
-
-    if lda < a_rows || ldb < b_rows || ldc < m {
+    context.bind()?;
+    if lda < side_order(side, m, n).max(1) || ldb < m.max(1) {
         return Err(Error::InvalidLeadingDimension);
     }
 
-    if a_len < required_matrix_len(lda, a_cols)?
-        || b_len < required_matrix_len(ldb, b_cols)?
-        || c_len < required_matrix_len(ldc, n)?
-    {
-        return Err(Error::InvalidMatrixShape);
+    validate_min_len(batch_count, a.len(), "a")?;
+    validate_min_len(batch_count, b.len(), "b")?;
+    context.prepare_operands(&[a.region(), b.region()], &[alpha.region()])?;
+    context.use_pointer_mode(&[alpha.pointer_mode()])?;
+    // SAFETY: the pointer arrays hold `batch_count` entries in this context, ordered after their producers; the caller upholds the matrix contract.
+    unsafe {
+        try_ffi!(T::trsm_batched(
+            context.as_raw(),
+            side.into(),
+            fill_mode.into(),
+            trans.into(),
+            diagonal.into(),
+            to_i64(m, "m")?,
+            to_i64(n, "n")?,
+            alpha.ptr(),
+            a.as_device_ptr().cast(),
+            to_i64(lda, "lda")?,
+            b.as_device_ptr().cast(),
+            to_i64(ldb, "ldb")?,
+            to_i64(batch_count, "batch count")?,
+        ))
     }
-
-    Ok(())
 }
 
-fn validate_dgmm_shapes(
+/// Solves corresponding triangular systems in place and waits for them.
+///
+/// It copies the matrix addresses to device pointer arrays, which live until the work completes.
+///
+/// # Errors
+///
+/// Returns an error if the batches have different lengths, a matrix is too small or a leading dimension is invalid, the handle's stream is capturing, copying the pointer arrays or waiting fails, or for the reasons [`trsm_batched_async`] lists.
+pub fn trsm_batched<T: Element>(
+    context: &Context,
     side: SideMode,
+    fill_mode: FillMode,
+    trans: Operation,
+    diagonal: DiagonalType,
     m: usize,
     n: usize,
-    a_len: usize,
+    alpha: Scalar<'_, T>,
+    a: &[DeviceInputView<'_, T>],
     lda: usize,
-    x_len: usize,
-    incx: usize,
-    c_len: usize,
-    ldc: usize,
-) -> Result<()> {
-    if lda < m || ldc < m || incx == 0 {
-        return Err(Error::InvalidIncrement);
-    }
-
-    let x_size = match side {
-        SideMode::Left => m,
-        SideMode::Right => n,
-    };
-    if a_len < required_matrix_len(lda, n)?
-        || c_len < required_matrix_len(ldc, n)?
-        || x_len < required_vector_len(x_size, incx)?
-    {
-        return Err(Error::InvalidMatrixShape);
-    }
-
-    Ok(())
-}
-
-fn validate_tpttr_shapes(n: usize, ap_len: usize, a_len: usize, lda: usize) -> Result<()> {
-    if lda < n {
-        return Err(Error::InvalidLeadingDimension);
-    }
-
-    let packed_len = required_packed_triangular_len(n)?;
-    if ap_len < packed_len || a_len < required_matrix_len(lda, n)? {
-        return Err(Error::InvalidMatrixShape);
-    }
-
-    Ok(())
-}
-
-fn validate_symmetric_matrix_multiply_shapes(
-    side: SideMode,
-    m: usize,
-    n: usize,
-    a_len: usize,
-    lda: usize,
-    b_len: usize,
-    ldb: usize,
-    c_len: usize,
-    ldc: usize,
-) -> Result<()> {
-    let a_dimension = match side {
-        SideMode::Left => m,
-        SideMode::Right => n,
-    };
-    if lda < a_dimension || ldb < m || ldc < m {
-        return Err(Error::InvalidLeadingDimension);
-    }
-
-    if a_len < required_matrix_len(lda, a_dimension)? {
-        return Err(Error::InvalidMatrixShape);
-    }
-
-    if b_len < required_matrix_len(ldb, n)? || c_len < required_matrix_len(ldc, n)? {
-        return Err(Error::InvalidMatrixShape);
-    }
-
-    Ok(())
-}
-
-fn validate_syrk_shapes(
-    transpose_a: Operation,
-    n: usize,
-    k: usize,
-    a_len: usize,
-    lda: usize,
-    c_len: usize,
-    ldc: usize,
-) -> Result<()> {
-    let a_rows = if transpose_a == Operation::NonTranspose {
-        n
-    } else {
-        k
-    };
-    let a_cols = if transpose_a == Operation::NonTranspose {
-        k
-    } else {
-        n
-    };
-    if lda < a_rows || ldc < n {
-        return Err(Error::InvalidLeadingDimension);
-    }
-
-    if a_len < required_matrix_len(lda, a_cols)? || c_len < required_matrix_len(ldc, n)? {
-        return Err(Error::InvalidMatrixShape);
-    }
-
-    Ok(())
-}
-
-fn validate_syr2k_shapes(
-    transpose_a: Operation,
-    n: usize,
-    k: usize,
-    a_len: usize,
-    lda: usize,
-    b_len: usize,
-    ldb: usize,
-    c_len: usize,
-    ldc: usize,
-) -> Result<()> {
-    validate_syrk_shapes(transpose_a, n, k, a_len, lda, c_len, ldc)?;
-
-    let b_rows = if transpose_a == Operation::NonTranspose {
-        n
-    } else {
-        k
-    };
-    let b_cols = if transpose_a == Operation::NonTranspose {
-        k
-    } else {
-        n
-    };
-    if ldb < b_rows {
-        return Err(Error::InvalidLeadingDimension);
-    }
-
-    if b_len < required_matrix_len(ldb, b_cols)? {
-        return Err(Error::InvalidMatrixShape);
-    }
-
-    Ok(())
-}
-
-fn validate_triangular_matrix_multiply_shapes(
-    side: SideMode,
-    m: usize,
-    n: usize,
-    a_len: usize,
-    lda: usize,
-    b_len: usize,
-    ldb: usize,
-    c_len: usize,
-    ldc: usize,
-) -> Result<()> {
-    validate_triangular_solve_parameters(side, m, n, lda, ldb)?;
-    if ldc < m {
-        return Err(Error::InvalidLeadingDimension);
-    }
-
-    let a_dimension = match side {
-        SideMode::Left => m,
-        SideMode::Right => n,
-    };
-    if a_len < required_matrix_len(lda, a_dimension)?
-        || b_len < required_matrix_len(ldb, n)?
-        || c_len < required_matrix_len(ldc, n)?
-    {
-        return Err(Error::InvalidMatrixShape);
-    }
-
-    Ok(())
-}
-
-fn validate_triangular_solve_shapes(
-    side: SideMode,
-    m: usize,
-    n: usize,
-    a_len: usize,
-    lda: usize,
-    b_len: usize,
+    b: &mut [DeviceOutputView<'_, T>],
     ldb: usize,
 ) -> Result<()> {
-    validate_triangular_solve_parameters(side, m, n, lda, ldb)?;
-
-    let a_dimension = match side {
-        SideMode::Left => m,
-        SideMode::Right => n,
-    };
-    if a_len < required_matrix_len(lda, a_dimension)? || b_len < required_matrix_len(ldb, n)? {
-        return Err(Error::InvalidMatrixShape);
+    validate_same_len(a.len(), b.len(), "b")?;
+    if a.is_empty() {
+        return Ok(());
     }
 
-    Ok(())
+    let order = side_order(side, m, n);
+    for (a, b) in a.iter().zip(b.iter()) {
+        ensure_matrix("a", a.len(), order, order, lda)?;
+        ensure_matrix("b", b.len(), m, n, ldb)?;
+    }
+
+    let regions = a
+        .iter()
+        .map(DeviceInputView::region)
+        .chain(b.iter().map(DeviceRegionProvider::region))
+        .collect::<Vec<_>>();
+    context.bind()?;
+    context.stream_binding().ensure_not_capturing()?;
+    context.prepare_regions(&regions)?;
+    let a_pointers = device_pointers(context, &input_pointers(a))?;
+    let b_pointers = device_pointers(context, &output_pointers(b))?;
+    // SAFETY: the pointers address the checked matrices, whose borrows and pointer arrays outlive the scope, which waits for the handle's stream; the `b` views are exclusive borrows, so they overlap neither each other nor the `a` matrices.
+    context.sync_scope(|| unsafe {
+        trsm_batched_async(
+            context,
+            side,
+            fill_mode,
+            trans,
+            diagonal,
+            m,
+            n,
+            alpha,
+            &a_pointers,
+            lda,
+            &b_pointers,
+            ldb,
+            b_pointers.len(),
+        )
+    })
 }
 
-fn validate_triangular_solve_parameters(
-    side: SideMode,
-    m: usize,
-    n: usize,
-    lda: usize,
-    ldb: usize,
+/// One group of a grouped batched GEMM: `count` products of one shape, scalars, and leading dimensions.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct GemmGroup<T> {
+    /// Dimensions and transpositions of each product.
+    pub shape: GemmShape,
+    /// Scale of each product.
+    pub alpha: T,
+    /// Scale of each `C` matrix.
+    pub beta: T,
+    /// Leading dimension of each `A` matrix.
+    pub lda: usize,
+    /// Leading dimension of each `B` matrix.
+    pub ldb: usize,
+    /// Leading dimension of each `C` matrix.
+    pub ldc: usize,
+    /// Number of products in the group.
+    pub count: usize,
+}
+
+/// Enqueues the products of every group, whose matrices are listed group by group in device arrays of pointers.
+///
+/// The group scalars are read from host memory.
+///
+/// # Safety
+///
+/// The caller upholds the [raw execution contract](crate#raw-execution) for the pointer arrays and for every matrix they address.
+/// Each pointer must address a matrix of `T` in this context with the shape of its group, and the `c` matrices must not overlap each other or the inputs.
+///
+/// # Errors
+///
+/// Returns an error if `groups` is empty, a pointer array holds fewer entries than the groups' total count, a leading dimension is invalid, a value exceeds the native integer range, an operand belongs to another CUDA context, or cuBLAS rejects the call.
+pub unsafe fn gemm_grouped_batched_async<T: RealElement>(
+    context: &Context,
+    groups: &[GemmGroup<T>],
+    a: &(impl DeviceRange<DevicePtr> + ?Sized),
+    b: &(impl DeviceRange<DevicePtr> + ?Sized),
+    c: &(impl DeviceRange<DevicePtr> + ?Sized),
 ) -> Result<()> {
-    let a_dimension = match side {
-        SideMode::Left => m,
-        SideMode::Right => n,
-    };
-    if lda < a_dimension || ldb < m {
-        return Err(Error::InvalidLeadingDimension);
+    context.bind()?;
+    let arrays = GroupArrays::create(groups)?;
+    validate_min_len(arrays.total, a.len(), "a")?;
+    validate_min_len(arrays.total, b.len(), "b")?;
+    validate_min_len(arrays.total, c.len(), "c")?;
+    context.prepare_operands(&[a.region(), b.region(), c.region()], &[])?;
+    context.use_pointer_mode(&[PointerMode::Host])?;
+    // SAFETY: the per-group host arrays hold one entry per group, and the pointer arrays hold the total count in this context, ordered after their producers; the caller upholds the matrix contract.
+    unsafe {
+        try_ffi!(T::gemm_grouped_batched(
+            context.as_raw(),
+            arrays.transpose_a.as_ptr(),
+            arrays.transpose_b.as_ptr(),
+            arrays.m.as_ptr(),
+            arrays.n.as_ptr(),
+            arrays.k.as_ptr(),
+            arrays.alpha.as_ptr(),
+            a.as_device_ptr().cast(),
+            arrays.lda.as_ptr(),
+            b.as_device_ptr().cast(),
+            arrays.ldb.as_ptr(),
+            arrays.beta.as_ptr(),
+            c.as_device_ptr().cast(),
+            arrays.ldc.as_ptr(),
+            to_i64(groups.len(), "group count")?,
+            arrays.count.as_ptr(),
+        ))
     }
-
-    Ok(())
 }
 
-fn scalar_pointer_mode<T>(alpha: &Scalar<'_, T>, beta: &Scalar<'_, T>) -> Result<PointerMode> {
-    let pointer_mode = alpha.pointer_mode();
-    if pointer_mode != beta.pointer_mode() {
-        return Err(Error::ScalarPointerModeMismatch);
+/// Computes the products of every group and waits for them.
+///
+/// `a`, `b`, and `c` list the matrices group by group.
+/// It copies the matrix addresses to device pointer arrays, which live until the work completes.
+///
+/// # Errors
+///
+/// Returns an error if the matrix lists do not hold the groups' total count, a matrix is too small for its group, the handle's stream is capturing, copying the pointer arrays or waiting fails, or for the reasons [`gemm_grouped_batched_async`] lists.
+pub fn gemm_grouped_batched<T: RealElement>(
+    context: &Context,
+    groups: &[GemmGroup<T>],
+    a: &[DeviceInputView<'_, T>],
+    b: &[DeviceInputView<'_, T>],
+    c: &mut [DeviceOutputView<'_, T>],
+) -> Result<()> {
+    let total = GroupArrays::create(groups)?.total;
+    validate_same_len(total, a.len(), "a")?;
+    validate_same_len(total, b.len(), "b")?;
+    validate_same_len(total, c.len(), "c")?;
+    if total == 0 {
+        return Ok(());
     }
-    Ok(pointer_mode)
+
+    let mut index = 0;
+    for group in groups {
+        for _ in 0..group.count {
+            ensure_gemm(
+                group.shape,
+                a[index].len(),
+                group.lda,
+                b[index].len(),
+                group.ldb,
+                c[index].len(),
+                group.ldc,
+            )?;
+            index += 1;
+        }
+    }
+
+    let regions = a
+        .iter()
+        .map(DeviceInputView::region)
+        .chain(b.iter().map(DeviceInputView::region))
+        .chain(c.iter().map(DeviceRegionProvider::region))
+        .collect::<Vec<_>>();
+    context.bind()?;
+    context.stream_binding().ensure_not_capturing()?;
+    context.prepare_regions(&regions)?;
+    let a_pointers = device_pointers(context, &input_pointers(a))?;
+    let b_pointers = device_pointers(context, &input_pointers(b))?;
+    let c_pointers = device_pointers(context, &output_pointers(c))?;
+    // SAFETY: the pointers address the checked matrices, whose borrows and pointer arrays outlive the scope, which waits for the handle's stream; the `c` views are exclusive borrows, so they overlap neither each other nor the inputs.
+    context.sync_scope(|| unsafe {
+        gemm_grouped_batched_async(context, groups, &a_pointers, &b_pointers, &c_pointers)
+    })
+}
+
+// Per-group host arrays in the layout cuBLAS reads.
+pub(crate) struct GroupArrays<T> {
+    pub(crate) transpose_a: Vec<sys::cublasOperation_t>,
+    pub(crate) transpose_b: Vec<sys::cublasOperation_t>,
+    pub(crate) m: Vec<i64>,
+    pub(crate) n: Vec<i64>,
+    pub(crate) k: Vec<i64>,
+    pub(crate) alpha: Vec<T>,
+    pub(crate) beta: Vec<T>,
+    pub(crate) lda: Vec<i64>,
+    pub(crate) ldb: Vec<i64>,
+    pub(crate) ldc: Vec<i64>,
+    pub(crate) count: Vec<i64>,
+    pub(crate) total: usize,
+}
+
+impl<T: Copy> GroupArrays<T> {
+    pub(crate) fn create(groups: &[GemmGroup<T>]) -> Result<Self> {
+        if groups.is_empty() {
+            return Err(Error::LengthMismatch {
+                name: "groups".into(),
+                expected: 1,
+                actual: 0,
+            });
+        }
+
+        let mut arrays = Self {
+            transpose_a: Vec::with_capacity(groups.len()),
+            transpose_b: Vec::with_capacity(groups.len()),
+            m: Vec::with_capacity(groups.len()),
+            n: Vec::with_capacity(groups.len()),
+            k: Vec::with_capacity(groups.len()),
+            alpha: Vec::with_capacity(groups.len()),
+            beta: Vec::with_capacity(groups.len()),
+            lda: Vec::with_capacity(groups.len()),
+            ldb: Vec::with_capacity(groups.len()),
+            ldc: Vec::with_capacity(groups.len()),
+            count: Vec::with_capacity(groups.len()),
+            total: 0,
+        };
+        for group in groups {
+            let shape = group.shape;
+            let (a_rows, _) = stored(shape.transpose_a(), shape.m(), shape.k());
+            let (b_rows, _) = stored(shape.transpose_b(), shape.k(), shape.n());
+            if group.lda < a_rows.max(1)
+                || group.ldb < b_rows.max(1)
+                || group.ldc < shape.m().max(1)
+            {
+                return Err(Error::InvalidLeadingDimension);
+            }
+
+            arrays.transpose_a.push(shape.transpose_a().into());
+            arrays.transpose_b.push(shape.transpose_b().into());
+            arrays.m.push(to_i64(shape.m(), "m")?);
+            arrays.n.push(to_i64(shape.n(), "n")?);
+            arrays.k.push(to_i64(shape.k(), "k")?);
+            arrays.alpha.push(group.alpha);
+            arrays.beta.push(group.beta);
+            arrays.lda.push(to_i64(group.lda, "lda")?);
+            arrays.ldb.push(to_i64(group.ldb, "ldb")?);
+            arrays.ldc.push(to_i64(group.ldc, "ldc")?);
+            arrays.count.push(to_i64(group.count, "group size")?);
+            arrays.total = arrays
+                .total
+                .checked_add(group.count)
+                .ok_or_else(|| Error::out_of_range("grouped batch size"))?;
+        }
+        Ok(arrays)
+    }
 }
 
 #[cfg(all(test, feature = "testing"))]
@@ -2690,68 +1497,33 @@ mod tests {
     use crate::testing::setup_context;
 
     #[test]
-    fn test_sgemm_matches_cpu_reference() -> Result<()> {
-        let context = setup_context()?;
+    fn test_gemm_matches_cpu_reference() -> Result<()> {
+        let test = setup_context()?;
+        let context = test.context();
 
         let a = DeviceMemory::from_slice(context.cuda_context(), &[1.0_f32, 2.0, 3.0, 4.0])?;
         let b = DeviceMemory::from_slice(context.cuda_context(), &[5.0_f32, 6.0, 7.0, 8.0])?;
         let mut c = DeviceMemory::<f32>::create_uninit(context.cuda_context(), 4)?;
 
-        // SAFETY: layouts match the retained buffers and scalars; the default stream is drained below.
-        unsafe {
-            sgemm(
-                &context,
-                Operation::NonTranspose,
-                Operation::NonTranspose,
-                2,
-                2,
-                2,
-                &1.0,
-                &a,
-                2,
-                &b,
-                2,
-                &0.0,
-                &mut c,
-                2,
-            )
-        }?;
-        context.cuda_context().synchronize()?;
-
-        // SAFETY: beta is zero and the completed packed 2x2 GEMM wrote every element.
-        let c = unsafe { c.assume_init() };
-        let result = c.copy_to_host_vec()?;
-        assert_eq!(result, vec![23.0, 34.0, 31.0, 46.0]);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_dgemm_matches_cpu_reference() -> Result<()> {
-        let context = setup_context()?;
-
-        let a = DeviceMemory::from_slice(context.cuda_context(), &[1.0_f64, 2.0, 3.0, 4.0])?;
-        let b = DeviceMemory::from_slice(context.cuda_context(), &[5.0_f64, 6.0, 7.0, 8.0])?;
-        // SAFETY: the buffer is fully written by the operation before it is read.
-        let mut c = unsafe { DeviceMemory::create_unchecked(context.cuda_context(), 4) }?;
-
-        dgemm(
-            &context,
+        gemm(
+            context,
             Operation::NonTranspose,
             Operation::NonTranspose,
             2,
             2,
             2,
-            &1.0,
+            Scalar::host(&1.0),
             &a,
             2,
             &b,
             2,
-            &0.0,
+            Scalar::host(&0.0),
             &mut c,
             2,
         )?;
 
+        // SAFETY: beta is zero and the completed packed 2x2 GEMM wrote every element.
+        let c = unsafe { c.assume_init() };
         let result = c.copy_to_host_vec()?;
         assert_eq!(result, vec![23.0, 34.0, 31.0, 46.0]);
 

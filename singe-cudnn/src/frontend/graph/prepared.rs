@@ -5,7 +5,7 @@ use crate::{
         engine::{Engine, EngineIndex},
         execution::{
             EngineChoice, EngineConfig, EngineHeuristics, EngineHeuristicsResult,
-            EnginePlanningConfig, OperationGraph,
+            EnginePlanningOptions, OperationGraph,
         },
         heuristic::{BackendHeuristicMode, HeuristicQueryPolicy},
     },
@@ -23,25 +23,25 @@ use crate::{
 };
 
 impl PreparedGraph {
-    /// Original recipe, before target-specific expansion and native lowering.
+    /// Returns the original recipe, before target-specific expansion and native lowering.
     #[must_use]
     pub fn recipe(&self) -> &Graph {
         &self.recipe
     }
 
-    /// Expanded graph whose operations and layouts produced the native descriptors.
+    /// Returns the expanded graph whose operations and layouts produced the native descriptors.
     #[must_use]
     pub fn graph(&self) -> &Graph {
         &self.expanded
     }
 
-    /// Finalized native operation graph shared by engine queries and candidate construction.
+    /// Returns the finalized native operation graph shared by engine queries and candidate construction.
     #[must_use]
     pub fn operation_graph(&self) -> &OperationGraph {
         &self.operation_graph
     }
 
-    /// Caller storage and native uses resolved during preparation, before engine discovery.
+    /// Returns the caller storage and native uses resolved during preparation, before engine discovery.
     /// Includes alias offsets, access roles and addressing dependencies.
     /// Virtual tensors, constants, host scalars and frontend workspace do not require device bindings.
     #[must_use]
@@ -49,7 +49,7 @@ impl PreparedGraph {
         &self.lowered.layout.required_tensors
     }
 
-    /// Global native engine count for this prepared graph and target.
+    /// Returns the global native engine count for this prepared graph and target.
     ///
     /// # Errors
     ///
@@ -58,7 +58,7 @@ impl PreparedGraph {
         self.operation_graph.engine_count()
     }
 
-    /// Global native engine indices for this prepared graph and target.
+    /// Returns the global native engine indices for this prepared graph and target.
     ///
     /// # Errors
     ///
@@ -73,9 +73,9 @@ impl PreparedGraph {
     /// # Errors
     ///
     /// Returns an error if target properties cannot be resolved, resource targets are invalid, targets disagree or are unavailable, context binding fails, or native engine creation, configuration, or finalization fails.
-    pub fn engine(&self, index: EngineIndex, planning: EnginePlanningConfig) -> Result<Engine> {
+    pub fn engine(&self, index: EngineIndex, planning: EnginePlanningOptions) -> Result<Engine> {
         let properties = self.expanded.resolved_device_properties()?;
-        let planning = EnginePlanningConfig {
+        let planning = EnginePlanningOptions {
             sm_count_target: planning
                 .sm_count_target
                 .or_else(|| self.expanded.sm_count_target()),
@@ -166,7 +166,8 @@ impl PreparedGraph {
     /// Use `candidates_with_engine_configs` to turn returned configurations into filtered candidates.
     ///
     /// # Errors
-    /// Returns target-property resolution errors before querying modes.
+    ///
+    /// Returns an error if target properties cannot be resolved, before any mode is queried.
     /// Native mode failures remain available in the returned statuses alongside successful configurations.
     pub fn query_heuristics(
         &self,
@@ -183,7 +184,7 @@ impl PreparedGraph {
                 .map(BackendHeuristicMode::from)
                 .collect(),
         };
-        let planning = EnginePlanningConfig {
+        let planning = EnginePlanningOptions {
             sm_count_target: compile_config
                 .sm_count_target()
                 .or_else(|| self.expanded.sm_count_target()),
@@ -206,7 +207,7 @@ impl PreparedGraph {
     ) -> Result<Vec<PreparedEngineConfig>> {
         let device_properties = self.expanded.resolved_device_properties()?;
         let frontend_workspace_bytes = self.lowered.layout.workspace_layout.byte_len();
-        let planning = EnginePlanningConfig {
+        let planning = EnginePlanningOptions {
             sm_count_target: compile_config
                 .sm_count_target()
                 .or_else(|| self.expanded.sm_count_target()),
@@ -298,7 +299,7 @@ impl PreparedGraph {
         compile_config: &CompileConfig,
     ) -> Result<PlanCandidates> {
         let device_properties = self.expanded.resolved_device_properties()?;
-        let planning = EnginePlanningConfig {
+        let planning = EnginePlanningOptions {
             sm_count_target: compile_config
                 .sm_count_target()
                 .or_else(|| self.expanded.sm_count_target()),
@@ -355,8 +356,8 @@ impl PreparedGraph {
             .map(|engine_config| {
                 let engine_config: &EngineConfig = engine_config.borrow();
                 let choice = engine_config.choice()?;
-                let inherited = engine_config.planning_config()?;
-                let planning = EnginePlanningConfig {
+                let inherited = engine_config.planning_options()?;
+                let planning = EnginePlanningOptions {
                     sm_count_target: compile_config
                         .sm_count_target()
                         .or(inherited.sm_count_target)

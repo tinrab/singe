@@ -2,9 +2,12 @@ mod common;
 
 use singe_cuda::{memory::DeviceMemory, view::OwnedDeviceRegion};
 use singe_cudnn::{
-    backend::{
-        pointwise::PointwiseMode,
-        tensor::{Shape, TensorSpec},
+    backend::operation::{
+        normalization::{
+            BatchNormalizationBackwardWeightsInputs, BatchNormalizationBackwardWeightsOutputs,
+            NormalizationSavedStatistics,
+        },
+        pointwise::{Activation, PointwiseMode},
     },
     data_type::{DataType, f16},
     error::Result,
@@ -12,14 +15,17 @@ use singe_cudnn::{
         bindings::BindingAccess,
         graph::{DataTypePolicy, Graph, GraphConfig, TensorOutputConfig},
         operation::{
-            Activation, BatchNormalizationBackwardWeightsConfig,
-            BatchNormalizationBackwardWeightsInputs, BatchNormalizationBackwardWeightsOutputs,
-            ConvolutionConfig, NormalizationSavedStatistics, PointwiseOperation,
+            BatchNormalizationBackwardWeightsConfig, ConvolutionConfig, PointwiseOperation,
         },
         plan::{BuildPlanPolicy, CompileConfig, ExecuteArgs, HeuristicMode},
     },
+    tensor::{Shape, TensorSpec},
 };
 
+#[expect(
+    clippy::many_single_char_names,
+    reason = "keeps the upstream sample's single-letter dimension names"
+)]
 fn run() -> Result<()> {
     let example = common::ExampleContext::create()?;
     let n = 4;
@@ -182,9 +188,9 @@ fn run() -> Result<()> {
     // Convolution and pointwise intermediates need no caller storage, and all resources
     // remain live through stream completion, including an enqueue failure.
     example.execute_and_wait(|context| unsafe {
-        compiled.execute(
+        compiled.execute_async(
             context,
-            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
         )
     })?;
     for id in output_ids {
@@ -198,6 +204,6 @@ fn run() -> Result<()> {
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_batch_normalization_backward_weights", run())
 }

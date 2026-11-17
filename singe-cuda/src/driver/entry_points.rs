@@ -1,5 +1,6 @@
 use std::{ffi, ffi::CStr, mem, ptr};
 
+use singe_core::CudaVersion;
 use singe_cuda_sys::driver::{
     CUcheckpointOperationHandle, CUcliqueInfo, CUdevice, CUdeviceptr,
     CUdriverProcAddressQueryResult, CUgraph, CUgraphEdgeData, CUgraphNode, CUgraphNodeParams,
@@ -10,19 +11,21 @@ use singe_cuda_sys::driver::{
 
 use crate::{
     driver::version as driver_version,
-    error::{Result, Status},
+    error::{Error, Result, Status},
     try_ffi,
 };
 
 // Entry points introduced in CUDA 13.3 and 13.4 may be absent in the installed driver.
 // Resolve their exact ABI; no older entry point is substituted.
 
-pub fn ensure_supported() -> Result<()> {
+pub(crate) fn ensure_supported() -> Result<()> {
     ensure_version(13040)
 }
 
 fn ensure_version(version: i32) -> Result<()> {
-    if driver_version()? < version {
+    let required =
+        CudaVersion::from_raw(version).ok_or_else(|| Error::out_of_range("cuda driver version"))?;
+    if driver_version()? < required {
         return Err(Status::CallRequiresNewerDriver.into());
     }
     Ok(())
@@ -50,51 +53,51 @@ fn address(name: &CStr, version: i32) -> Result<*mut ffi::c_void> {
 }
 
 #[expect(non_snake_case, reason = "names mirror the upstream C API")]
-pub unsafe fn cuDeviceGetFabricClusterUuid(uuid: *mut CUuuid, dev: CUdevice) -> Result<()> {
+pub(crate) unsafe fn cuDeviceGetFabricClusterUuid(uuid: *mut CUuuid, dev: CUdevice) -> Result<()> {
     let pointer = address(c"cuDeviceGetFabricClusterUuid", 13040)?;
-    // SAFETY: the caller upholds this function's safety contract.
+    // SAFETY: `pointer` is the driver's `cuDeviceGetFabricClusterUuid` entry point resolved for this exact ABI version, so it has this function type.
     let function = unsafe {
         mem::transmute::<*mut ffi::c_void, unsafe extern "C" fn(*mut CUuuid, CUdevice) -> CUresult>(
             pointer,
         )
     };
-    // SAFETY: the caller upholds this function's safety contract.
+    // SAFETY: the caller passes `uuid` valid for `cuDeviceGetFabricClusterUuid` to read or write, as this function's call sites state.
     unsafe { try_ffi!(function(uuid, dev)) }
 }
 
 #[expect(non_snake_case, reason = "names mirror the upstream C API")]
-pub unsafe fn cuDeviceGetCliqueCount(count: *mut size_t, dev: CUdevice) -> Result<()> {
+pub(crate) unsafe fn cuDeviceGetCliqueCount(count: *mut size_t, dev: CUdevice) -> Result<()> {
     let pointer = address(c"cuDeviceGetCliqueCount", 13040)?;
-    // SAFETY: the caller upholds this function's safety contract.
+    // SAFETY: `pointer` is the driver's `cuDeviceGetCliqueCount` entry point resolved for this exact ABI version, so it has this function type.
     let function = unsafe {
         mem::transmute::<*mut ffi::c_void, unsafe extern "C" fn(*mut size_t, CUdevice) -> CUresult>(
             pointer,
         )
     };
-    // SAFETY: the caller upholds this function's safety contract.
+    // SAFETY: the caller passes `count` valid for `cuDeviceGetCliqueCount` to read or write, as this function's call sites state.
     unsafe { try_ffi!(function(count, dev)) }
 }
 
 #[expect(non_snake_case, reason = "names mirror the upstream C API")]
-pub unsafe fn cuDeviceGetCliqueInfo(
+pub(crate) unsafe fn cuDeviceGetCliqueInfo(
     cliqueInfo: *mut CUcliqueInfo,
     count: *mut size_t,
     dev: CUdevice,
 ) -> Result<()> {
     let pointer = address(c"cuDeviceGetCliqueInfo", 13040)?;
-    // SAFETY: the caller upholds this function's safety contract.
+    // SAFETY: `pointer` is the driver's `cuDeviceGetCliqueInfo` entry point resolved for this exact ABI version, so it has this function type.
     let function = unsafe {
         mem::transmute::<
             *mut ffi::c_void,
             unsafe extern "C" fn(*mut CUcliqueInfo, *mut size_t, CUdevice) -> CUresult,
         >(pointer)
     };
-    // SAFETY: the caller upholds this function's safety contract.
+    // SAFETY: the caller passes `cliqueInfo`, `count` valid for `cuDeviceGetCliqueInfo` to read or write, as this function's call sites state.
     unsafe { try_ffi!(function(cliqueInfo, count, dev)) }
 }
 
 #[expect(non_snake_case, reason = "names mirror the upstream C API")]
-pub unsafe fn cuMemGetLocationInfo(
+pub(crate) unsafe fn cuMemGetLocationInfo(
     ptr: CUdeviceptr,
     size: size_t,
     summaryGranularity: size_t,
@@ -102,7 +105,7 @@ pub unsafe fn cuMemGetLocationInfo(
     location_out: *mut CUmemLocation,
 ) -> Result<()> {
     let pointer = address(c"cuMemGetLocationInfo", 13040)?;
-    // SAFETY: the caller upholds this function's safety contract.
+    // SAFETY: `pointer` is the driver's `cuMemGetLocationInfo` entry point resolved for this exact ABI version, so it has this function type.
     let function = unsafe {
         mem::transmute::<
             *mut ffi::c_void,
@@ -115,7 +118,7 @@ pub unsafe fn cuMemGetLocationInfo(
             ) -> CUresult,
         >(pointer)
     };
-    // SAFETY: the caller upholds this function's safety contract.
+    // SAFETY: the caller passes `location_out` valid for `cuMemGetLocationInfo` to read or write, as this function's call sites state.
     unsafe {
         try_ffi!(function(
             ptr,
@@ -128,7 +131,7 @@ pub unsafe fn cuMemGetLocationInfo(
 }
 
 #[expect(non_snake_case, reason = "names mirror the upstream C API")]
-pub unsafe fn cuGraphAddNode_v3(
+pub(crate) unsafe fn cuGraphAddNode_v3(
     phGraphNode: *mut CUgraphNode,
     hGraph: CUgraph,
     dependencies: *const CUgraphNode,
@@ -137,7 +140,7 @@ pub unsafe fn cuGraphAddNode_v3(
     nodeParams: *mut CUgraphNodeParams,
 ) -> Result<()> {
     let pointer = address(c"cuGraphAddNode", 13040)?;
-    // SAFETY: the caller upholds this function's safety contract.
+    // SAFETY: `pointer` is the driver's `cuGraphAddNode` entry point resolved for this exact ABI version, so it has this function type.
     let function = unsafe {
         mem::transmute::<
             *mut ffi::c_void,
@@ -151,7 +154,7 @@ pub unsafe fn cuGraphAddNode_v3(
             ) -> CUresult,
         >(pointer)
     };
-    // SAFETY: the caller upholds this function's safety contract.
+    // SAFETY: the caller passes `phGraphNode`, `dependencies`, `dependencyData`, `nodeParams` valid for `cuGraphAddNode` to read or write, as this function's call sites state.
     unsafe {
         try_ffi!(function(
             phGraphNode,
@@ -165,116 +168,121 @@ pub unsafe fn cuGraphAddNode_v3(
 }
 
 #[expect(non_snake_case, reason = "names mirror the upstream C API")]
-pub unsafe fn cuGraphNodeSetParams_v2(
+pub(crate) unsafe fn cuGraphNodeSetParams_v2(
     hNode: CUgraphNode,
     nodeParams: *mut CUgraphNodeParams,
 ) -> Result<()> {
     let pointer = address(c"cuGraphNodeSetParams", 13040)?;
-    // SAFETY: the caller upholds this function's safety contract.
+    // SAFETY: `pointer` is the driver's `cuGraphNodeSetParams` entry point resolved for this exact ABI version, so it has this function type.
     let function = unsafe {
         mem::transmute::<
             *mut ffi::c_void,
             unsafe extern "C" fn(CUgraphNode, *mut CUgraphNodeParams) -> CUresult,
         >(pointer)
     };
-    // SAFETY: the caller upholds this function's safety contract.
+    // SAFETY: the caller passes `nodeParams` valid for `cuGraphNodeSetParams` to read or write, as this function's call sites state.
     unsafe { try_ffi!(function(hNode, nodeParams)) }
 }
 
 #[expect(non_snake_case, reason = "names mirror the upstream C API")]
-pub unsafe fn cuCheckpointOperationComplete(handle: CUcheckpointOperationHandle) -> Result<()> {
+pub(crate) unsafe fn cuCheckpointOperationComplete(
+    handle: CUcheckpointOperationHandle,
+) -> Result<()> {
     let pointer = address(c"cuCheckpointOperationComplete", 13040)?;
-    // SAFETY: the caller upholds this function's safety contract.
+    // SAFETY: `pointer` is the driver's `cuCheckpointOperationComplete` entry point resolved for this exact ABI version, so it has this function type.
     let function = unsafe {
         mem::transmute::<
             *mut ffi::c_void,
             unsafe extern "C" fn(CUcheckpointOperationHandle) -> CUresult,
         >(pointer)
     };
-    // SAFETY: the caller upholds this function's safety contract.
+    // SAFETY: `cuCheckpointOperationComplete` receives only values, and the caller passes identifiers and handles that are live for the call.
     unsafe { try_ffi!(function(handle)) }
 }
 
 #[expect(non_snake_case, reason = "names mirror the upstream C API")]
-pub unsafe fn cuLogicalEndpointIdReserve(
+pub(crate) unsafe fn cuLogicalEndpointIdReserve(
     baseLeId: *mut CUlogicalEndpointId,
     count: cuuint32_t,
 ) -> Result<()> {
     let pointer = address(c"cuLogicalEndpointIdReserve", 13030)?;
-    // SAFETY: the caller upholds this function's safety contract.
+    // SAFETY: `pointer` is the driver's `cuLogicalEndpointIdReserve` entry point resolved for this exact ABI version, so it has this function type.
     let function = unsafe {
         mem::transmute::<
             *mut ffi::c_void,
             unsafe extern "C" fn(*mut CUlogicalEndpointId, cuuint32_t) -> CUresult,
         >(pointer)
     };
-    // SAFETY: the caller upholds this function's safety contract.
+    // SAFETY: the caller passes `baseLeId` valid for `cuLogicalEndpointIdReserve` to read or write, as this function's call sites state.
     unsafe { try_ffi!(function(baseLeId, count)) }
 }
 
 #[expect(non_snake_case, reason = "names mirror the upstream C API")]
-pub unsafe fn cuLogicalEndpointIdRelease(
+pub(crate) unsafe fn cuLogicalEndpointIdRelease(
     baseLeId: CUlogicalEndpointId,
     count: cuuint32_t,
 ) -> Result<()> {
     let pointer = address(c"cuLogicalEndpointIdRelease", 13030)?;
-    // SAFETY: the caller upholds this function's safety contract.
+    // SAFETY: `pointer` is the driver's `cuLogicalEndpointIdRelease` entry point resolved for this exact ABI version, so it has this function type.
     let function = unsafe {
         mem::transmute::<
             *mut ffi::c_void,
             unsafe extern "C" fn(CUlogicalEndpointId, cuuint32_t) -> CUresult,
         >(pointer)
     };
-    // SAFETY: the caller upholds this function's safety contract.
+    // SAFETY: `cuLogicalEndpointIdRelease` receives only values, and the caller passes identifiers and handles that are live for the call.
     unsafe { try_ffi!(function(baseLeId, count)) }
 }
 
 #[expect(non_snake_case, reason = "names mirror the upstream C API")]
-pub unsafe fn cuLogicalEndpointCreate(
+pub(crate) unsafe fn cuLogicalEndpointCreate(
     leId: CUlogicalEndpointId,
     prop: *const CUlogicalEndpointProp,
 ) -> Result<()> {
     let pointer = address(c"cuLogicalEndpointCreate", 13030)?;
-    // SAFETY: the caller upholds this function's safety contract.
+    // SAFETY: `pointer` is the driver's `cuLogicalEndpointCreate` entry point resolved for this exact ABI version, so it has this function type.
     let function = unsafe {
         mem::transmute::<
             *mut ffi::c_void,
             unsafe extern "C" fn(CUlogicalEndpointId, *const CUlogicalEndpointProp) -> CUresult,
         >(pointer)
     };
-    // SAFETY: the caller upholds this function's safety contract.
+    // SAFETY: the caller passes `prop` valid for `cuLogicalEndpointCreate` to read or write, as this function's call sites state.
     unsafe { try_ffi!(function(leId, prop)) }
 }
 
 #[expect(non_snake_case, reason = "names mirror the upstream C API")]
-pub unsafe fn cuLogicalEndpointAddDevice(leId: CUlogicalEndpointId, dev: CUdevice) -> Result<()> {
+pub(crate) unsafe fn cuLogicalEndpointAddDevice(
+    leId: CUlogicalEndpointId,
+    dev: CUdevice,
+) -> Result<()> {
     let pointer = address(c"cuLogicalEndpointAddDevice", 13030)?;
-    // SAFETY: the caller upholds this function's safety contract.
+    // SAFETY: `pointer` is the driver's `cuLogicalEndpointAddDevice` entry point resolved for this exact ABI version, so it has this function type.
     let function = unsafe {
         mem::transmute::<
             *mut ffi::c_void,
             unsafe extern "C" fn(CUlogicalEndpointId, CUdevice) -> CUresult,
         >(pointer)
     };
-    // SAFETY: the caller upholds this function's safety contract.
+    // SAFETY: `cuLogicalEndpointAddDevice` receives only values, and the caller passes identifiers and handles that are live for the call.
     unsafe { try_ffi!(function(leId, dev)) }
 }
 
 #[expect(non_snake_case, reason = "names mirror the upstream C API")]
-pub unsafe fn cuLogicalEndpointDestroy(leId: CUlogicalEndpointId) -> Result<()> {
+pub(crate) unsafe fn cuLogicalEndpointDestroy(leId: CUlogicalEndpointId) -> Result<()> {
     let pointer = address(c"cuLogicalEndpointDestroy", 13030)?;
-    // SAFETY: the caller upholds this function's safety contract.
+    // SAFETY: `pointer` is the driver's `cuLogicalEndpointDestroy` entry point resolved for this exact ABI version, so it has this function type.
     let function = unsafe {
         mem::transmute::<*mut ffi::c_void, unsafe extern "C" fn(CUlogicalEndpointId) -> CUresult>(
             pointer,
         )
     };
-    // SAFETY: the caller upholds this function's safety contract.
+    // SAFETY: `cuLogicalEndpointDestroy` receives only values, and the caller passes identifiers and handles that are live for the call.
     unsafe { try_ffi!(function(leId)) }
 }
 
 #[expect(non_snake_case, reason = "names mirror the upstream C API")]
-pub unsafe fn cuLogicalEndpointBindAddr(
+pub(crate) unsafe fn cuLogicalEndpointBindAddr(
     leId: CUlogicalEndpointId,
     dev: CUdevice,
     offset: cuuint64_t,
@@ -283,7 +291,7 @@ pub unsafe fn cuLogicalEndpointBindAddr(
     flags: ffi::c_ulonglong,
 ) -> Result<()> {
     let pointer = address(c"cuLogicalEndpointBindAddr", 13030)?;
-    // SAFETY: the caller upholds this function's safety contract.
+    // SAFETY: `pointer` is the driver's `cuLogicalEndpointBindAddr` entry point resolved for this exact ABI version, so it has this function type.
     let function = unsafe {
         mem::transmute::<
             *mut ffi::c_void,
@@ -297,12 +305,12 @@ pub unsafe fn cuLogicalEndpointBindAddr(
             ) -> CUresult,
         >(pointer)
     };
-    // SAFETY: the caller upholds this function's safety contract.
+    // SAFETY: the caller passes `ptr` valid for `cuLogicalEndpointBindAddr` to read or write, as this function's call sites state.
     unsafe { try_ffi!(function(leId, dev, offset, ptr, size, flags)) }
 }
 
 #[expect(non_snake_case, reason = "names mirror the upstream C API")]
-pub unsafe fn cuLogicalEndpointBindMem(
+pub(crate) unsafe fn cuLogicalEndpointBindMem(
     leId: CUlogicalEndpointId,
     dev: CUdevice,
     offset: cuuint64_t,
@@ -312,7 +320,7 @@ pub unsafe fn cuLogicalEndpointBindMem(
     flags: ffi::c_ulonglong,
 ) -> Result<()> {
     let pointer = address(c"cuLogicalEndpointBindMem", 13030)?;
-    // SAFETY: the caller upholds this function's safety contract.
+    // SAFETY: `pointer` is the driver's `cuLogicalEndpointBindMem` entry point resolved for this exact ABI version, so it has this function type.
     let function = unsafe {
         mem::transmute::<
             *mut ffi::c_void,
@@ -327,7 +335,7 @@ pub unsafe fn cuLogicalEndpointBindMem(
             ) -> CUresult,
         >(pointer)
     };
-    // SAFETY: the caller upholds this function's safety contract.
+    // SAFETY: `cuLogicalEndpointBindMem` receives only values, and the caller passes identifiers and handles that are live for the call.
     unsafe {
         try_ffi!(function(
             leId, dev, offset, memHandle, memOffset, size, flags
@@ -336,32 +344,32 @@ pub unsafe fn cuLogicalEndpointBindMem(
 }
 
 #[expect(non_snake_case, reason = "names mirror the upstream C API")]
-pub unsafe fn cuLogicalEndpointUnbind(
+pub(crate) unsafe fn cuLogicalEndpointUnbind(
     leId: CUlogicalEndpointId,
     dev: CUdevice,
     offset: cuuint64_t,
     size: cuuint64_t,
 ) -> Result<()> {
     let pointer = address(c"cuLogicalEndpointUnbind", 13030)?;
-    // SAFETY: the caller upholds this function's safety contract.
+    // SAFETY: `pointer` is the driver's `cuLogicalEndpointUnbind` entry point resolved for this exact ABI version, so it has this function type.
     let function = unsafe {
         mem::transmute::<
             *mut ffi::c_void,
             unsafe extern "C" fn(CUlogicalEndpointId, CUdevice, cuuint64_t, cuuint64_t) -> CUresult,
         >(pointer)
     };
-    // SAFETY: the caller upholds this function's safety contract.
+    // SAFETY: `cuLogicalEndpointUnbind` receives only values, and the caller passes identifiers and handles that are live for the call.
     unsafe { try_ffi!(function(leId, dev, offset, size)) }
 }
 
 #[expect(non_snake_case, reason = "names mirror the upstream C API")]
-pub unsafe fn cuLogicalEndpointExport(
+pub(crate) unsafe fn cuLogicalEndpointExport(
     handle: *mut ffi::c_void,
     leId: CUlogicalEndpointId,
     handleType: CUlogicalEndpointIpcHandleType,
 ) -> Result<()> {
     let pointer = address(c"cuLogicalEndpointExport", 13030)?;
-    // SAFETY: the caller upholds this function's safety contract.
+    // SAFETY: `pointer` is the driver's `cuLogicalEndpointExport` entry point resolved for this exact ABI version, so it has this function type.
     let function = unsafe {
         mem::transmute::<
             *mut ffi::c_void,
@@ -372,18 +380,18 @@ pub unsafe fn cuLogicalEndpointExport(
             ) -> CUresult,
         >(pointer)
     };
-    // SAFETY: the caller upholds this function's safety contract.
+    // SAFETY: the caller passes `handle` valid for `cuLogicalEndpointExport` to read or write, as this function's call sites state.
     unsafe { try_ffi!(function(handle, leId, handleType)) }
 }
 
 #[expect(non_snake_case, reason = "names mirror the upstream C API")]
-pub unsafe fn cuLogicalEndpointImport(
+pub(crate) unsafe fn cuLogicalEndpointImport(
     leId: CUlogicalEndpointId,
     handle: *const ffi::c_void,
     handleType: CUlogicalEndpointIpcHandleType,
 ) -> Result<()> {
     let pointer = address(c"cuLogicalEndpointImport", 13030)?;
-    // SAFETY: the caller upholds this function's safety contract.
+    // SAFETY: `pointer` is the driver's `cuLogicalEndpointImport` entry point resolved for this exact ABI version, so it has this function type.
     let function = unsafe {
         mem::transmute::<
             *mut ffi::c_void,
@@ -394,18 +402,18 @@ pub unsafe fn cuLogicalEndpointImport(
             ) -> CUresult,
         >(pointer)
     };
-    // SAFETY: the caller upholds this function's safety contract.
+    // SAFETY: the caller passes `handle` valid for `cuLogicalEndpointImport` to read or write, as this function's call sites state.
     unsafe { try_ffi!(function(leId, handle, handleType)) }
 }
 
 #[expect(non_snake_case, reason = "names mirror the upstream C API")]
-pub unsafe fn cuLogicalEndpointGetLimits(
+pub(crate) unsafe fn cuLogicalEndpointGetLimits(
     bindAlignment: *mut cuuint64_t,
     maxSize: *mut cuuint64_t,
     prop: *const CUlogicalEndpointProp,
 ) -> Result<()> {
     let pointer = address(c"cuLogicalEndpointGetLimits", 13030)?;
-    // SAFETY: the caller upholds this function's safety contract.
+    // SAFETY: `pointer` is the driver's `cuLogicalEndpointGetLimits` entry point resolved for this exact ABI version, so it has this function type.
     let function = unsafe {
         mem::transmute::<
             *mut ffi::c_void,
@@ -416,24 +424,24 @@ pub unsafe fn cuLogicalEndpointGetLimits(
             ) -> CUresult,
         >(pointer)
     };
-    // SAFETY: the caller upholds this function's safety contract.
+    // SAFETY: the caller passes `bindAlignment`, `maxSize`, `prop` valid for `cuLogicalEndpointGetLimits` to read or write, as this function's call sites state.
     unsafe { try_ffi!(function(bindAlignment, maxSize, prop)) }
 }
 
 #[expect(non_snake_case, reason = "names mirror the upstream C API")]
-pub unsafe fn cuLogicalEndpointQuery(
+pub(crate) unsafe fn cuLogicalEndpointQuery(
     leId: CUlogicalEndpointId,
     count: cuuint32_t,
     queryStatus: *mut ffi::c_int,
 ) -> Result<()> {
     let pointer = address(c"cuLogicalEndpointQuery", 13030)?;
-    // SAFETY: the caller upholds this function's safety contract.
+    // SAFETY: `pointer` is the driver's `cuLogicalEndpointQuery` entry point resolved for this exact ABI version, so it has this function type.
     let function = unsafe {
         mem::transmute::<
             *mut ffi::c_void,
             unsafe extern "C" fn(CUlogicalEndpointId, cuuint32_t, *mut ffi::c_int) -> CUresult,
         >(pointer)
     };
-    // SAFETY: the caller upholds this function's safety contract.
+    // SAFETY: the caller passes `queryStatus` valid for `cuLogicalEndpointQuery` to read or write, as this function's call sites state.
     unsafe { try_ffi!(function(leId, count, queryStatus)) }
 }

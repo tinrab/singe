@@ -1,5 +1,8 @@
+//! Scaled dot-product attention graph recipes, quantization operands, masks, and score subgraphs.
+
 mod alibi;
 mod backward;
+mod backward_operands;
 mod backward_policy;
 mod backward_request;
 mod backward_softmax;
@@ -15,20 +18,19 @@ use std::{collections::BTreeMap, result::Result as StdResult};
 
 use serde::{Deserialize, Serialize};
 
-pub use crate::frontend::composite::sdpa::alibi::alibi_slopes;
-pub(crate) use crate::frontend::composite::sdpa::scores::{
+pub(crate) use self::scores::{
     attention_heads_compatible, infer_sdpa_output_shape, infer_sdpa_scores_shape,
 };
+pub use self::{alibi::alibi_slopes, backward_operands::SdpaBackwardOperands};
 use crate::{
-    backend::tensor::{TensorId, TensorSpec},
-    error::Result,
+    error::{Error, Result, SdpaFeature},
     frontend::{
-        error::{Error as FrontendError, SdpaFeature},
         graph::{Graph, TensorOutputConfig},
         operation::{
             SdpaAuxOutputRequest, SdpaQuantizedAuxOutputRequest, SdpaSoftmaxAuxOutputRequest,
         },
     },
+    tensor::{TensorId, TensorSpec},
 };
 
 /// Attention operands with positive query, key and value head counts.
@@ -171,21 +173,19 @@ impl SdpaGradientOutputConfig {
 
     pub(crate) fn validate_quantized(self, operation: &'static str) -> Result<()> {
         if self.bias_gradient.is_some() {
-            return Err(FrontendError::SdpaUnsupported {
+            return Err(Error::SdpaUnsupported {
                 feature: SdpaFeature::BiasGradient,
                 operation: "quantized sdpa backward",
                 sm_version: None,
-            }
-            .into());
+            });
         }
 
         if self.rng_dump.is_some() {
-            return Err(FrontendError::SdpaUnsupported {
+            return Err(Error::SdpaUnsupported {
                 operation,
                 feature: SdpaFeature::RngDump,
                 sm_version: None,
-            }
-            .into());
+            });
         }
         Ok(())
     }
@@ -491,7 +491,7 @@ impl<T> SdpaForwardOutputTensors<T> {
     ///
     /// # Errors
     ///
-    /// Returns the first error from the supplied output mapping; absent auxiliary outputs are not mapped.
+    /// Returns an error if the supplied output mapping fails, stopping at the first failure; absent auxiliary outputs are not mapped.
     pub fn try_map<U, E>(
         self,
         mut map_tensor: impl FnMut(T) -> StdResult<U, E>,
@@ -577,9 +577,9 @@ impl SdpaMxfp8Inputs {
 /// Quantization scales broadcast at their point of use in the composite graph.
 /// The attention-scale operand remains scalar.
 /// Its encoding reaches native support selection, with `F64` preserved when combining a numeric factor.
-/// Fixed scalar scales with `F16` or `BF16` gradients express C++ current scaling.
+/// Fixed scalar scales with `F16` or `Bf16` gradients express C++ current scaling.
 /// Input and gradient encodings reach native support selection, matching the C++ per-tensor composition.
-/// `F16` and `BF16` gradients retain the C++ Blackwell-or-newer requirement.
+/// `F16` and `Bf16` gradients retain the C++ Blackwell-or-newer requirement.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SdpaFp8BackwardInputs {
     /// Query tensor in logical batch, head, sequence, hidden order.

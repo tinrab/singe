@@ -5,15 +5,13 @@ use std::slice;
 use singe_cuda::{memory::DeviceMemory, view::DeviceOutputView};
 use singe_cudss::{
     config::Config,
-    error::Result,
+    solver_state::SolverState,
     types::{ConfigParameter, Phase},
 };
 
-use crate::common::{
-    create_context, dense_matrix, dense_output, execute, ptr_at, solve, spd_csr_matrix,
-};
+use crate::common::{create_context, dense_matrix, dense_output, execute, solve, spd_csr_matrix};
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     let (cuda, stream, context) = create_context()?;
     println!("cuDSS example: solving a uniform batch of two SPD systems");
 
@@ -34,11 +32,13 @@ fn main() -> Result<()> {
         &cuda,
         &[7.0f64, 12.0, 25.0, 4.0, 13.0, 13.0, 15.0, 29.0, 8.0, 14.0],
     )?;
-    let mut x_values =
-        DeviceMemory::<f64>::create_uninit(&cuda, (batch_size as i64 * n * nrhs) as usize)?;
+    let mut x_values = DeviceMemory::<f64>::create_uninit(
+        &cuda,
+        usize::try_from(i64::from(batch_size) * n * nrhs)?,
+    )?;
 
     let mut config = Config::create()?;
-    let mut data = context.create_data()?;
+    let mut data = SolverState::create(&context)?;
     // SAFETY: the value pointer and size describe a local of the parameter type.
     unsafe { config.set_raw(ConfigParameter::UniformBatchSize, &batch_size) }?;
 
@@ -69,7 +69,7 @@ fn main() -> Result<()> {
         .enumerate()
     {
         for (index, expected) in expected_values.into_iter().enumerate() {
-            let value = x_host[batch * n as usize + index];
+            let value = x_host[batch * usize::try_from(n)? + index];
             println!("batch {batch}: x[{index}] = {value:.4}, expected {expected:.4}");
             assert!((value - expected).abs() <= 2.0e-15);
         }
@@ -78,21 +78,17 @@ fn main() -> Result<()> {
     let batch_index = 1i32;
     // SAFETY: the value pointer and size describe a local of the parameter type.
     unsafe { config.set_raw(ConfigParameter::UniformBatchIndex, &batch_index) }?;
-    // SAFETY: the example keeps these buffers alive and synchronizes before reading the results.
-    unsafe {
-        a.set_values_raw(ptr_at(&a_values, batch_index as usize * nnz as usize))?;
-    }
+    let batch = usize::try_from(batch_index)?;
+    a.set_values(a_values.view().slice(batch * usize::try_from(nnz)?..)?)?;
 
     let mut x = dense_output::<f64>(n, nrhs, n, DeviceOutputView::from_output(&mut x_values))?;
 
     let mut b_one = b;
-    // SAFETY: the example keeps these buffers alive and synchronizes before reading the results.
-    unsafe {
-        b_one.set_values_raw(ptr_at(
-            &b_values,
-            batch_index as usize * (n * nrhs) as usize,
-        ))?;
-    }
+    b_one.set_values(
+        b_values
+            .view()
+            .slice(batch * usize::try_from(n * nrhs)?..)?,
+    )?;
 
     // SAFETY: the example keeps these buffers alive and synchronizes before reading the results.
     unsafe {

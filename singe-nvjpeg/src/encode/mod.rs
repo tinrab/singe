@@ -14,14 +14,17 @@ use singe_cuda::{
 };
 
 pub use self::{
-    encoder::{Encoder, EncoderBuilder},
-    staged::{EncodeParams, EncoderState},
+    encoder::Encoder,
+    staged::{EncodeParams, EncoderState, RawEncodeParams, RawEncoderState},
 };
 use crate::{
+    context::Context,
     error::{Error, Result},
     image::{Image, ImageView, MAX_COMPONENTS, Plane, Size},
     types::{ChromaSubsampling, InputFormat, JpegEncoding},
-    utility::{ceil_div_u32, ceil_to_multiple_u32, to_i32, to_quality},
+    utility::{
+        ceil_div_u32, ceil_to_multiple_u32, checked_mul, checked_pitched_extent, to_i32, to_usize,
+    },
 };
 
 /// Settings for an [`Encoder`]; unset values keep nvJPEG's defaults.
@@ -133,13 +136,10 @@ impl EncodeOptions {
     }
 
     /// Sets the quality.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if `quality` is not a valid [`Quality`].
-    pub fn with_quality(mut self, quality: impl TryInto<Quality>) -> Result<Self> {
-        self.quality = Some(to_quality(quality, "quality")?);
-        Ok(self)
+    #[must_use]
+    pub const fn with_quality(mut self, quality: Quality) -> Self {
+        self.quality = Some(quality);
+        self
     }
 
     /// Sets the JPEG encoding process, such as baseline or progressive.
@@ -200,7 +200,8 @@ impl EncodeOptions {
         self.restart_interval
     }
 
-    fn apply_to(self, params: &mut EncodeParams, stream: &CudaStream) -> Result<()> {
+    fn create_params(self, context: &Context, stream: &CudaStream) -> Result<EncodeParams> {
+        let mut params = EncodeParams::create(context, stream)?;
         if let Some(quality) = self.quality {
             params.set_quality(quality, stream)?;
         }
@@ -220,7 +221,7 @@ impl EncodeOptions {
         if let Some(interval) = self.restart_interval {
             params.set_restart_interval(interval, stream)?;
         }
-        Ok(())
+        Ok(params)
     }
 }
 
@@ -274,21 +275,24 @@ impl<'a> EncodeInput<'a> {
                 });
             }
 
-            let height = match input_format {
-                InputFormat::Yuv | InputFormat::Nv12 => {
-                    expected_encode_plane_size(index, size, input_format, input_subsampling)?
-                        .height()
-                }
-                _ => size.height(),
-            } as usize;
+            let height = to_usize(
+                match input_format {
+                    InputFormat::Yuv | InputFormat::Nv12 => {
+                        expected_encode_plane_size(index, size, input_format, input_subsampling)?
+                            .height()
+                    }
+                    _ => size.height(),
+                },
+                "input plane height",
+            )?;
             let row_bytes =
                 expected_encode_channel_row_bytes(index, size, input_format, input_subsampling)?;
-            let required = (height - 1)
-                .checked_mul(source.channel_pitch(index)?)
-                .and_then(|prefix| prefix.checked_add(row_bytes))
-                .ok_or(Error::OutOfRange {
-                    name: "input plane extent".into(),
-                })?;
+            let required = checked_pitched_extent(
+                height,
+                source.channel_pitch(index)?,
+                row_bytes,
+                "input plane extent",
+            )?;
             if region.byte_len() < required {
                 return Err(Error::BufferTooSmall {
                     name: "input plane".into(),
@@ -327,7 +331,7 @@ impl<'a> EncodeInput<'a> {
         }
 
         let regions = view.planes().iter().map(Plane::region).collect();
-        // SAFETY: read-only planes establish initialized pixels and source borrows.
+        // SAFETY: an `ImageView` holds initialized planes borrowed for `'a`, whose writers its regions order before each encode.
         unsafe {
             Self::from_raw_parts(
                 view.descriptor()?,
@@ -371,10 +375,10 @@ impl<'a> EncodeInput<'a> {
             pitches[index] = row_bytes[index];
         }
 
-        // SAFETY: the plane pointers and pitches describe buffers that stay borrowed for the image lifetime.
+        // SAFETY: each pointer and pitch comes from a `DeviceView` borrowed for `'a`, which outlives the returned input that holds the description.
         let source = unsafe { Image::from_raw_parts(channels, pitches)? };
         let regions = planes.iter().map(DeviceView::region).collect();
-        // SAFETY: initialized views retain every source allocation borrow.
+        // SAFETY: `DeviceView`s hold initialized bytes borrowed for `'a`, and their regions order the writers before each encode.
         unsafe { Self::from_raw_parts(source, regions, size, input_subsampling, input_format) }
     }
 
@@ -428,7 +432,7 @@ impl<'a> EncodeInput<'a> {
             });
         }
 
-        // SAFETY: the plane pointers and pitches describe buffers that stay borrowed for the image lifetime.
+        // SAFETY: the pointer comes from `view`, borrowed for `'a`, which outlives the returned input that holds the description.
         let source = unsafe {
             Image::from_raw_parts(
                 [
@@ -440,7 +444,7 @@ impl<'a> EncodeInput<'a> {
                 [row_bytes, 0, 0, 0],
             )?
         };
-        // SAFETY: the view grants initialized readable bytes for the full source borrow.
+        // SAFETY: `view` holds initialized bytes borrowed for `'a`, and its region orders the writers before each encode.
         unsafe { Self::image(source, vec![view.region()], size, input_format) }
     }
 
@@ -464,7 +468,7 @@ impl<'a> EncodeInput<'a> {
                 reason: "RGB input helper requires an RGB or BGR format".into(),
             });
         }
-        // SAFETY: the caller upholds this function's safety contract.
+        // SAFETY: this function's caller meets `from_raw_parts`'s requirements, which this function's contract repeats.
         unsafe {
             Self::from_raw_parts(
                 source,
@@ -491,7 +495,7 @@ impl<'a> EncodeInput<'a> {
         size: Size,
         subsampling: ChromaSubsampling,
     ) -> Result<Self> {
-        // SAFETY: the caller upholds this function's safety contract.
+        // SAFETY: this function's caller meets `from_raw_parts`'s requirements, which this function's contract repeats.
         unsafe { Self::from_raw_parts(source, regions, size, subsampling, InputFormat::Yuv) }
     }
 
@@ -559,7 +563,7 @@ impl EncodedDeviceBitstream {
             });
         }
         Ok(Self {
-            // SAFETY: the caller upholds this function's safety contract.
+            // SAFETY: the caller guarantees finished work wrote the first `len` bytes, and `len` was checked against the allocation above.
             data: unsafe { data.assume_init_prefix(len)? },
         })
     }
@@ -709,18 +713,14 @@ fn expected_encode_channel_row_bytes(
     input_subsampling: ChromaSubsampling,
 ) -> Result<usize> {
     match input_format {
-        InputFormat::Rgb | InputFormat::Bgr => Ok(size.width() as usize),
-        InputFormat::RgbInterleaved | InputFormat::BgrInterleaved => (size.width() as usize)
-            .checked_mul(3)
-            .ok_or(Error::OutOfRange {
-                name: "row byte length".into(),
-            }),
-        InputFormat::Yuv | InputFormat::Nv12 => {
-            Ok(
-                expected_encode_plane_size(index, size, input_format, input_subsampling)?.width()
-                    as usize,
-            )
+        InputFormat::Rgb | InputFormat::Bgr => to_usize(size.width(), "width"),
+        InputFormat::RgbInterleaved | InputFormat::BgrInterleaved => {
+            checked_mul(to_usize(size.width(), "width")?, 3, "row byte length")
         }
+        InputFormat::Yuv | InputFormat::Nv12 => to_usize(
+            expected_encode_plane_size(index, size, input_format, input_subsampling)?.width(),
+            "plane width",
+        ),
     }
 }
 

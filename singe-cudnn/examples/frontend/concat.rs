@@ -4,15 +4,15 @@ use std::env::args;
 
 use singe_cuda::{memory::DeviceMemory, view::OwnedDeviceRegion};
 use singe_cudnn::{
-    backend::tensor::{Shape, TensorSpec},
+    backend::operation::tensor_ops::{ConcatInPlaceMode, ConcatSpec},
     data_type::DataType,
     error::Result,
     frontend::{
         bindings::BindingAccess,
         graph::{DataTypePolicy, Graph, GraphConfig, TensorOutputConfig},
-        operation::{ConcatConfig, ConcatInPlaceMode},
         plan::{CompileConfig, ExecuteArgs, HeuristicMode},
     },
+    tensor::{Shape, TensorSpec},
 };
 
 fn run() -> Result<()> {
@@ -42,9 +42,7 @@ fn run() -> Result<()> {
     } else {
         ConcatInPlaceMode::None
     };
-    let config = ConcatConfig::new(1)
-        .with_name("channels")
-        .with_in_place(mode);
+    let config = ConcatSpec::new(1).with_name("channels").with_in_place(mode);
     let output = if explicit_output {
         let shape = config.infer_output_shape([graph.shape(first)?, graph.shape(second)?])?;
         let output =
@@ -93,15 +91,15 @@ fn run() -> Result<()> {
     // The selected in-place input aliases its final output region with matching strides.
     // Bindings retain every allocation, and all resources remain live through stream completion.
     example.execute_and_wait(|context| unsafe {
-        compiled.execute(
+        compiled.execute_async(
             context,
-            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
         )
     })?;
     println!("concatenated NHWC channels into {output_name} with mode {mode:?}");
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_concat", run())
 }

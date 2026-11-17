@@ -10,7 +10,7 @@ use singe_codegen::{
 };
 use singe_cuda::{
     device::Device as NativeCudaDevice,
-    graph::ExecutableGraph,
+    graph::{ExecutableGraph, GraphInstantiateFlags},
     module::{KernelFunction, LaunchConfig},
     stream::StreamCaptureMode,
 };
@@ -189,7 +189,7 @@ impl KernelBench {
             start.record(&self.stream)?;
             // SAFETY: the graph's launches address the bench's buffers, which outlive it, and the replay is synchronized before the next one or any read.
             unsafe {
-                graph.launch(self.stream.raw())?;
+                graph.launch_async(self.stream.raw())?;
             }
 
             end.record(&self.stream)?;
@@ -242,7 +242,7 @@ impl KernelBench {
         let enqueued = (0..count).try_for_each(|_| body());
         let graph = stream.end_capture();
         enqueued?;
-        Ok(graph?.instantiate()?)
+        Ok(graph?.instantiate(GraphInstantiateFlags::empty())?)
     }
 
     fn launch(&self, generated: &KernelArtifact) -> Result<()> {
@@ -297,7 +297,7 @@ impl KernelBench {
             .arguments(&buffers.0, &buffers.1, &[], ptr::null_mut())?;
         // SAFETY: the buffers span every element the kernel's accesses address, as `operand_lengths` computed them, and they outlive the launch, which the bench synchronizes before reading or dropping them.
         unsafe {
-            function.launch_on(config, arguments, self.stream.raw())?;
+            function.launch_async(config, arguments, self.stream.raw())?;
         }
         Ok(())
     }

@@ -1,7 +1,7 @@
 #![cfg(all(feature = "testing", feature = "cuda"))]
 
 use singe::{Device, Shape, Tensor};
-use singe_cuda::testing::device_lock;
+use singe_cuda::{device::Device as CudaDevice, testing::device_lock};
 
 fn gradients(device: Device) -> Vec<Vec<f32>> {
     let tensor = |dimensions: &[i64], values: Vec<f32>| {
@@ -53,7 +53,7 @@ fn gradients(device: Device) -> Vec<Vec<f32>> {
 
 #[test]
 fn test_cuda_backward_matches_cpu_gradients() {
-    let _lock = device_lock(0).unwrap();
+    let _lock = device_lock(CudaDevice::new(0)).unwrap();
     for (cuda, cpu) in gradients(Device::Cuda(0))
         .iter()
         .zip(gradients(Device::Cpu))

@@ -3,7 +3,7 @@ mod support;
 use std::{array, error::Error, fmt::Write, result::Result as StdResult};
 
 use singe_ptx::emulator::{
-    Emulator, EmulatorOptions, F16, LaunchConfig, ParsedModule, ShutdownMode,
+    Emulator, EmulatorOptions, LaunchConfig, ParsedModule, ShutdownMode, f16,
 };
 use support::Observe;
 
@@ -352,9 +352,9 @@ fn test_fp16_masks_and_predicates_handle_nan_ftz_and_independent_packed_lanes() 
                 .load(ParsedModule::parse(&source)?)?
                 .observe(asynchronous)?;
             for n in [1usize, 3, 17, 31, 32, 33, 127, 128, 129, 257] {
-                let values: Vec<F16> = (0..n)
+                let values: Vec<f16> = (0..n)
                     .map(|i| {
-                        F16::from_bits(
+                        f16::from_bits(
                             [
                                 0, 0x8000, 1, 0x8001, 0x3c00, 0x4000, 0xbc00, 0x7e01, 0x7c00,
                                 0xfc00,
@@ -366,7 +366,7 @@ fn test_fp16_masks_and_predicates_handle_nan_ftz_and_independent_packed_lanes() 
                     .chunks(2)
                     .map(|v| {
                         u32::from(v[0].to_bits())
-                            | (u32::from(v.get(1).copied().unwrap_or(F16::ZERO).to_bits()) << 16)
+                            | (u32::from(v.get(1).copied().unwrap_or(f16::ZERO).to_bits()) << 16)
                     })
                     .collect();
                 let input = device.upload(&words)?.observe(asynchronous)?;
@@ -384,7 +384,7 @@ fn test_fp16_masks_and_predicates_handle_nan_ftz_and_independent_packed_lanes() 
                         ],
                     )?
                     .observe(asynchronous)?;
-                let truth = |v: F16| v.to_f32() > 0. && !(ftz && v.to_bits() & 0x7c00 == 0);
+                let truth = |v: f16| v.to_f32() > 0. && !(ftz && v.to_bits() & 0x7c00 == 0);
                 let expected: Vec<u32> = values
                     .chunks(2)
                     .map(|v| {

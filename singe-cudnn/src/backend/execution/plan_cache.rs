@@ -254,9 +254,9 @@ impl<K: Eq + Hash> ExecutionPlanCache<K> {
     }
 
     fn lock(&self) -> Result<MutexGuard<'_, CacheState<K>>> {
-        self.state
-            .lock()
-            .map_err(|_| Error::ExecutionPlanCacheLockPoisoned)
+        self.state.lock().map_err(|_| Error::LockPoisoned {
+            name: "execution plan cache".into(),
+        })
     }
 }
 

@@ -1,14 +1,15 @@
 mod add;
 
 use singe_cudnn::{
-    backend::execution::{
-        EngineChoice, OperationGraph as CudnnOperationGraph,
-        OperationGraphConfig as CudnnOperationGraphConfig,
-        matmul::{
+    backend::{
+        execution::{
+            EngineChoice, OperationGraph as CudnnOperationGraph,
+            OperationGraphOptions as CudnnOperationGraphOptions,
+        },
+        operation::matmul::{
             MatmulDescriptor as CudnnMatmulDescriptor,
-            MatmulDescriptorConfig as CudnnMatmulDescriptorConfig,
-            MatmulOperation as CudnnMatmulOperation,
-            MatmulOperationConfig as CudnnMatmulOperationConfig,
+            MatmulDescriptorSpec as CudnnMatmulDescriptorSpec,
+            MatmulOperation as CudnnMatmulOperation, MatmulSpec as CudnnMatmulSpec,
         },
     },
     context::Context as CudnnContext,
@@ -52,19 +53,18 @@ pub fn build_cudnn_matmul_template(
     let a_descriptor = cudnn_backend_tensor(CUDNN_GRAPH_INPUT0_TENSOR_ID, &a)?;
     let b_descriptor = cudnn_backend_tensor(CUDNN_GRAPH_INPUT1_TENSOR_ID, &b)?;
     let output_descriptor = cudnn_backend_tensor(CUDNN_GRAPH_OUTPUT_TENSOR_ID, &output)?;
-    let matmul =
-        CudnnMatmulDescriptor::create(CudnnMatmulDescriptorConfig::new(a.compute_type()?))?;
+    let matmul = CudnnMatmulDescriptor::create(CudnnMatmulDescriptorSpec::new(a.compute_type()?))?;
     let operation = CudnnMatmulOperation::create(
         &matmul,
         &a_descriptor,
         &b_descriptor,
         &output_descriptor,
-        CudnnMatmulOperationConfig::default(),
+        CudnnMatmulSpec::default(),
     )?;
     let operation_graph = CudnnOperationGraph::create(
         cudnn,
         &[operation.descriptor()],
-        CudnnOperationGraphConfig::default(),
+        CudnnOperationGraphOptions::default(),
     )?;
     let plan = match engine {
         Some(choice) => {

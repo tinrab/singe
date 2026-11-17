@@ -820,7 +820,7 @@ pub fn find_nvimagecodec() -> Result<Option<Dependency>> {
 ///
 /// Returns [`FindError`] if a library search path produces an invalid glob pattern.
 /// Missing headers or libraries produce `Ok(None)`.
-pub fn find_dependency_from_explicit_paths(
+pub(crate) fn find_dependency_from_explicit_paths(
     primary_header: &str,
     lib_patterns: &[&str],
     version_parser: fn(&Path) -> Option<String>,

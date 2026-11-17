@@ -1,15 +1,20 @@
 use std::{borrow::Cow, ffi::NulError, result::Result as StdResult};
 
-use singe_core::status_enum;
 use singe_cuda::error::Error as CudaError;
 use singe_nvimagecodec_sys as sys;
 use thiserror::Error;
 
 use crate::types::ProcessingStatus;
 
-status_enum! {
+singe_core::wrapper_status! {
+    library = "nvimagecodec",
+    error = Error::Nvimagecodec,
+    raw = sys::nvimgcodecStatus_t,
+    success = NVIMGCODEC_STATUS_SUCCESS,
+    absence = sys::take_absence,
+    unknown = "UNKNOWN_NVIMGCODEC_STATUS",
     /// Status codes returned by nvImageCodec calls.
-    pub enum Status: u32 => sys::nvimgcodecStatus_t, unknown = "UNKNOWN_NVIMGCODEC_STATUS", unknown_description = "unknown nvimagecodec error" {
+    pub enum Status: u32 {
         /// The operation succeeded.
         Success = NVIMGCODEC_STATUS_SUCCESS => "success",
         /// The library has not been initialized.
@@ -61,9 +66,9 @@ status_enum! {
 #[derive(Error, Debug)]
 #[non_exhaustive]
 pub enum Error {
-    // Its library would not load.
+    /// nvImageCodec or one of its symbols would not load.
     #[error(transparent)]
-    Load(#[from] singe_nvimagecodec_sys::LoadError),
+    Load(#[from] sys::LoadError),
 
     /// An operation needs to write an image whose pixels are read-only.
     #[error("image samples are read-only")]
@@ -77,21 +82,22 @@ pub enum Error {
     #[error("stream belongs to a different cuda context")]
     StreamContextMismatch,
 
-    /// Values used together belong to different nvImageCodec instances.
-    #[error("resources belong to different nvimagecodec instances")]
-    InstanceMismatch,
+    /// An nvImageCodec object belongs to a different instance.
+    #[error("`{name}` belongs to a different nvimagecodec context")]
+    ContextMismatch {
+        /// Name of the object.
+        name: Cow<'static, str>,
+    },
 
     /// A CUDA operation failed.
     #[error(transparent)]
     Cuda(#[from] CudaError),
 
     /// nvImageCodec returned an error status.
-    #[error("nvimagecodec error ({code}): {message}")]
+    #[error("nvimagecodec error ({code}): {}", code.description())]
     Nvimagecodec {
         /// Status returned by nvImageCodec.
         code: Status,
-        /// Description of the status.
-        message: String,
     },
 
     /// A string passed to nvImageCodec contains a NUL byte.
@@ -103,19 +109,20 @@ pub enum Error {
     NullHandle,
 
     /// A required pointer is null.
-    #[error("unexpected null pointer for `{name}`")]
+    #[error("`{name}` is null")]
     NullPointer {
         /// Name of the argument or value.
         name: Cow<'static, str>,
     },
 
-    /// A value cannot be consumed while something else still shares it.
-    #[error("resource is shared and cannot be consumed")]
-    OwnershipShared,
-
-    /// nvImageCodec reported a version that cannot be decoded.
-    #[error("invalid version number")]
-    InvalidVersion,
+    /// A native enum value has no typed variant in this crate.
+    #[error("unknown `{name}` value {value}")]
+    UnknownEnumValue {
+        /// Name of the typed enum.
+        name: Cow<'static, str>,
+        /// Unrecognized native value.
+        value: i64,
+    },
 
     /// A value, or a size computed from it, is out of range.
     #[error("`{name}` is out of range")]
@@ -156,11 +163,22 @@ pub enum Error {
         actual: usize,
     },
 
+    /// A buffer or stride is smaller than the extent the operation reads or writes.
+    #[error("`{name}` is too small (requires {required}, got {actual})")]
+    BufferTooSmall {
+        /// Name of the buffer or stride.
+        name: Cow<'static, str>,
+        /// Required size in bytes.
+        required: usize,
+        /// Supplied size in bytes.
+        actual: usize,
+    },
+
     /// nvImageCodec processed a batch but reported a failure for one image.
-    #[error("image {index} failed with nvimagecodec processing status {status}")]
-    ImageStatus {
-        /// Index of the image in the batch.
-        index: usize,
+    #[error("`{operation}` failed with {status}")]
+    OperationFailed {
+        /// The failed image, named by its index in the batch.
+        operation: Cow<'static, str>,
         /// Status reported for the image.
         status: ProcessingStatus,
     },
@@ -175,23 +193,11 @@ impl Error {
     }
 }
 
-impl From<sys::nvimgcodecStatus_t> for Error {
-    fn from(status: sys::nvimgcodecStatus_t) -> Self {
-        if status == sys::nvimgcodecStatus_t::NVIMGCODEC_STATUS_NOT_INITIALIZED
-            && let Err(error) = singe_nvimagecodec_sys::load()
-        {
-            return Self::Load(error);
-        }
-
-        Self::from(Status::from(status))
-    }
-}
-
-impl From<Status> for Error {
-    fn from(code: Status) -> Self {
-        Self::Nvimagecodec {
-            code,
-            message: code.description().to_string(),
+impl From<singe_core::UnknownEnumValue> for Error {
+    fn from(error: singe_core::UnknownEnumValue) -> Self {
+        Self::UnknownEnumValue {
+            name: error.name.into(),
+            value: error.value,
         }
     }
 }
@@ -202,15 +208,11 @@ impl From<NulError> for Error {
     }
 }
 
-/// Evaluates a native nvImageCodec call and converts its status into a [`Result`](crate::error::Result).
-#[macro_export]
+// Converts a raw nvImageCodec status into this crate's `Result`.
 macro_rules! try_ffi {
-    ($expr:expr) => {{
-        let status = { $expr };
-        if status != singe_nvimagecodec_sys::nvimgcodecStatus_t::NVIMGCODEC_STATUS_SUCCESS {
-            Err($crate::error::Error::from(status))
-        } else {
-            Ok(())
-        }
-    }};
+    ($expr:expr) => {
+        $crate::error::Error::check($expr)
+    };
 }
+
+pub(crate) use try_ffi;

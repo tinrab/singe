@@ -1,7 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use singe_cublas::context::Context as CublasContext;
-use singe_cuda::{stream::Stream, testing::device_lock};
+use singe_cuda::{device::Device as CudaDevice, testing::device_lock};
 use singe_cudnn::error::{Error as CudnnError, Status as CudnnStatus};
 
 use crate::{
@@ -48,7 +48,8 @@ fn bounded_runtime() -> ResetCaches {
 
 #[test]
 fn test_rejected_cudnn_preparations_are_bounded_after_instances_drop() {
-    let _lock = device_lock(0).expect("provider cache verification requires CUDA device 0");
+    let _lock = device_lock(CudaDevice::new(0))
+        .expect("provider cache verification requires CUDA device 0");
     let runtime = bounded_runtime();
     let before = runtime.0.provider_cache_stats().unwrap().cudnn;
     for rows in 2..18 {
@@ -108,7 +109,8 @@ fn test_rejected_cudnn_preparations_are_bounded_after_instances_drop() {
 
 #[test]
 fn test_transient_cudnn_failures_are_retried_and_stable_diagnostics_survive_hits() {
-    let _lock = device_lock(0).expect("provider cache verification requires CUDA device 0");
+    let _lock = device_lock(CudaDevice::new(0))
+        .expect("provider cache verification requires CUDA device 0");
     let runtime = bounded_runtime();
     let shape = Shape::create([1]).unwrap();
     let key = CudnnBackendGraphKey::new(
@@ -127,7 +129,7 @@ fn test_transient_cudnn_failures_are_retried_and_stable_diagnostics_survive_hits
             let result = cached_cudnn_backend_graph_template(&runtime.0, key.clone(), |_| {
                 Err(Error::Cudnn(CudnnError::Cudnn {
                     code: status,
-                    message: "resource diagnostic".into(),
+                    diagnostic: "resource diagnostic".into(),
                 }))
             });
             assert!(matches!(result, Err(Error::Cudnn(_))));
@@ -184,7 +186,8 @@ fn contraction(rows: i64) -> (Graph, HashMap<String, Tensor>) {
 
 #[test]
 fn test_successful_native_plans_and_pending_outputs_survive_provider_eviction() {
-    let _lock = device_lock(0).expect("provider cache verification requires CUDA device 0");
+    let _lock = device_lock(CudaDevice::new(0))
+        .expect("provider cache verification requires CUDA device 0");
     let runtime = bounded_runtime();
     let (graph, inputs) = contraction(2);
     let mut first = cuda::compile_graph(
@@ -242,7 +245,8 @@ fn test_successful_native_plans_and_pending_outputs_survive_provider_eviction() 
 
 #[test]
 fn test_compiled_modules_survive_eviction_while_their_graph_is_pending() {
-    let _lock = device_lock(0).expect("provider cache verification requires CUDA device 0");
+    let _lock = device_lock(CudaDevice::new(0))
+        .expect("provider cache verification requires CUDA device 0");
     let runtime = bounded_runtime();
     let before = runtime.0.provider_cache_stats().unwrap().generated_kernels;
     let mut first = None;
@@ -299,7 +303,8 @@ fn test_compiled_modules_survive_eviction_while_their_graph_is_pending() {
 
 #[test]
 fn test_cublaslt_algorithm_fingerprints_use_native_attribute_widths() {
-    let _lock = device_lock(0).expect("provider cache verification requires CUDA device 0");
+    let _lock = device_lock(CudaDevice::new(0))
+        .expect("provider cache verification requires CUDA device 0");
     let runtime = bounded_runtime();
     let shape = Shape::create([64, 64]).unwrap();
     let a = Tensor::full(Device::Cuda(0), &shape, 1_f32).unwrap();
@@ -331,20 +336,21 @@ fn test_cublaslt_algorithm_fingerprints_use_native_attribute_widths() {
 
 #[test]
 fn test_legacy_cublas_capture_keeps_only_the_current_stream() {
-    let _lock = device_lock(0).expect("provider cache verification requires CUDA device 0");
+    let _lock = device_lock(CudaDevice::new(0))
+        .expect("provider cache verification requires CUDA device 0");
     let runtime = bounded_runtime();
-    let context = CublasContext::create(runtime.0.context()).unwrap();
+    let mut context = CublasContext::create(runtime.0.context()).unwrap();
     for _ in 0..16 {
         let stream = CudaStream::create(Device::Cuda(0)).unwrap();
         context.set_stream(Some(stream.raw())).unwrap();
     }
     let raw = context.into_raw();
-    assert_eq!(raw.streams.len(), 1);
+    assert!(raw.stream.is_some());
     // SAFETY: this record was just transferred from the same unique native owner.
-    let context = unsafe { CublasContext::from_raw(raw) }.unwrap();
+    let mut context = unsafe { CublasContext::from_raw(raw) }.unwrap();
     context.set_stream(None).unwrap();
     let raw = context.into_raw();
-    assert_eq!(raw.streams, [] as [Stream; 0]);
+    assert!(raw.stream.is_none());
     // SAFETY: this record still carries the unique native handle and its CUDA context.
     drop(unsafe { CublasContext::from_raw(raw) }.unwrap());
 

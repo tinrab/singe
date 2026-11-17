@@ -1,11 +1,12 @@
 //! Batched Bitcomp compression and decompression.
 //!
 //! Batched Bitcomp decompression is not fully asynchronous: nvCOMP synchronizes the stream to read the compressed data, then launches decompression.
-//! As with other codecs, synchronize again and check [`DeviceStatuses`] before reading the results.
+//! As with other codecs, synchronize again and check [`DeviceStatuses`](crate::batch::DeviceStatuses) before reading the results.
 use singe_nvcomp_sys as sys;
 
 use crate::{
     codec::impl_nvcomp_batched_codec_module,
+    error::{Error, Result},
     types::{BitcompAlgorithm, BitcompMode, DataType, DecompressBackend},
     utility::validate_reserved,
 };
@@ -50,14 +51,15 @@ impl TryFrom<sys::nvcompBatchedBitcompCompressOpts_t> for CompressOptions {
         let algorithm = value
             .algorithm
             .try_into()
-            .map_err(|_| Error::InvalidValue {
+            .map_err(|_| Error::UnknownEnumValue {
                 name: "algorithm".into(),
+                value: i64::from(value.algorithm),
             })?;
         Ok(Self {
             algorithm,
-            data_type: value.data_type.into(),
+            data_type: value.data_type.try_into()?,
             delta: value.delta,
-            mode: value.mode.into(),
+            mode: value.mode.try_into()?,
         })
     }
 }
@@ -95,7 +97,7 @@ impl TryFrom<sys::nvcompBatchedBitcompDecompressOpts_t> for DecompressOptions {
     fn try_from(value: sys::nvcompBatchedBitcompDecompressOpts_t) -> Result<Self> {
         validate_reserved(&value.reserved)?;
         Ok(Self {
-            backend: value.backend.into(),
+            backend: value.backend.try_into()?,
         })
     }
 }
@@ -119,32 +121,12 @@ impl_nvcomp_batched_codec_module! {
     required_decompression_alignment = nvcompBitcompRequiredDecompressionAlignment,
     compress_get_required_alignments = nvcompBatchedBitcompCompressGetRequiredAlignments,
     decompress_get_required_alignments = nvcompBatchedBitcompDecompressGetRequiredAlignments,
-    compress_get_temporary_size = nvcompBatchedBitcompCompressGetTempSize,
-    compress_get_temporary_size_sync = nvcompBatchedBitcompCompressGetTempSizeSync,
-    decompress_get_temporary_size = nvcompBatchedBitcompDecompressGetTempSize,
-    decompress_get_temporary_size_sync = nvcompBatchedBitcompDecompressGetTempSizeSync,
+    compress_get_temp_size = nvcompBatchedBitcompCompressGetTempSize,
+    compress_get_temp_size_sync = nvcompBatchedBitcompCompressGetTempSizeSync,
+    decompress_get_temp_size = nvcompBatchedBitcompDecompressGetTempSize,
+    decompress_get_temp_size_sync = nvcompBatchedBitcompDecompressGetTempSizeSync,
     compress_get_max_output_chunk_size = nvcompBatchedBitcompCompressGetMaxOutputChunkSize,
-    compress_raw_async = nvcompBatchedBitcompCompressAsync,
-    decompress_size_raw_async = nvcompBatchedBitcompGetDecompressSizeAsync,
-    decompress_raw_async = nvcompBatchedBitcompDecompressAsync,
-}
-
-impl CompressOptions {
-    /// Creates Bitcomp compression options with the given settings.
-    #[must_use]
-    pub fn new(algorithm: BitcompAlgorithm, data_type: DataType) -> Self {
-        Self {
-            algorithm,
-            data_type,
-            ..Self::default()
-        }
-    }
-}
-
-impl DecompressOptions {
-    /// Creates Bitcomp decompression options with the given settings.
-    #[must_use]
-    pub fn new(backend: DecompressBackend) -> Self {
-        Self { backend }
-    }
+    compress_async = nvcompBatchedBitcompCompressAsync,
+    get_decompress_size_async = nvcompBatchedBitcompGetDecompressSizeAsync,
+    decompress_async = nvcompBatchedBitcompDecompressAsync,
 }

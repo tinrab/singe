@@ -5,10 +5,11 @@
 
 use std::{
     mem::{MaybeUninit, size_of},
-    process, ptr, slice,
+    ptr, slice,
     sync::Arc,
 };
 
+use singe_core::abort_after_cleanup_failure;
 use singe_cuda_sys::runtime;
 
 use crate::{
@@ -16,14 +17,15 @@ use crate::{
     memory::{DeviceMemory, MemoryCopyKind},
     stream::Stream,
     try_ffi,
-    view::{AnyBitPatternDeviceRepr, DeviceOutput, DeviceRepr, DeviceSlice, ranges_overlap},
+    utility::ranges_overlap,
+    view::{AnyBitPatternDeviceRepr, DeviceOutput, DeviceRepr, DeviceSlice},
 };
 
 /// Copies host values into an initialized or uninitialized device output range.
 ///
 /// # Errors
 ///
-/// Returns `Error::InvalidMemoryAccess` for unequal element counts, or `Error::InvalidMemoryAllocationRequest` if the byte count overflows.
+/// Returns `Error::LengthMismatch` for unequal element counts, or `Error::OutOfRange` if the byte count overflows.
 /// Also propagates access-tracking, readiness synchronization, context binding, capture-state query, native copy, and stream synchronization errors.
 /// A nonempty synchronous transfer is rejected during stream capture.
 pub fn copy_from_host<T, B>(destination: &mut B, source: &[T]) -> Result<()>
@@ -33,7 +35,11 @@ where
 {
     let () = T::LAYOUT;
     if destination.len() != source.len() {
-        return Err(Error::InvalidMemoryAccess);
+        return Err(Error::length_mismatch(
+            "host source",
+            destination.len(),
+            source.len(),
+        ));
     }
 
     let context = Arc::clone(destination.context());
@@ -66,9 +72,11 @@ where
 }
 
 /// Completes a readback into uninitialized host storage and returns its initialized borrow.
+///
 /// Errors leave the destination as `MaybeUninit<T>`; no initialized values are exposed.
 ///
 /// # Errors
+///
 /// Returns an error for mismatched lengths, capture, context binding, or CUDA transfer failure.
 pub fn copy_to_host_uninit<'destination, T, B>(
     source: &B,
@@ -80,7 +88,11 @@ where
 {
     let () = T::LAYOUT;
     if source.len() != destination.len() {
-        return Err(Error::InvalidMemoryAccess);
+        return Err(Error::length_mismatch(
+            "host destination",
+            source.len(),
+            destination.len(),
+        ));
     }
 
     let context = Arc::clone(source.region().context());
@@ -111,7 +123,7 @@ where
 ///
 /// # Errors
 ///
-/// Returns `Error::InvalidMemoryAccess` for unequal element counts, or `Error::InvalidMemoryAllocationRequest` if the byte count overflows.
+/// Returns `Error::LengthMismatch` for unequal element counts, or `Error::OutOfRange` if the byte count overflows.
 /// Also propagates access-tracking, readiness synchronization, context binding, capture-state query, native copy, and stream synchronization errors.
 /// A nonempty synchronous transfer is rejected during stream capture.
 pub unsafe fn copy_to_host_unchecked<T, B>(source: &B, destination: &mut [T]) -> Result<()>
@@ -121,13 +133,17 @@ where
 {
     let () = T::LAYOUT;
     if source.len() != destination.len() {
-        return Err(Error::InvalidMemoryAccess);
+        return Err(Error::length_mismatch(
+            "host destination",
+            source.len(),
+            destination.len(),
+        ));
     }
 
     let context = Arc::clone(source.region().context());
     let _access = context.acquire_host_access(&[source.region()])?;
     source.region().context().bind()?;
-    // SAFETY: the caller upholds this function's safety contract.
+    // SAFETY: the lengths match, the access guard orders tracked producers, the context is bound, and the caller vouches for the source values.
     unsafe {
         copy_synchronous(
             destination.as_mut_ptr(),
@@ -168,6 +184,7 @@ where
 /// Completes a vector readback with caller-established source value validity.
 ///
 /// # Safety
+///
 /// The source must contain `length` valid, transferable values of T. Bind its owning context and order producers before the transfer.
 pub(crate) unsafe fn copy_to_host_vec_unchecked<T>(
     source: *const T,
@@ -175,7 +192,7 @@ pub(crate) unsafe fn copy_to_host_vec_unchecked<T>(
     stream: Option<&Stream>,
 ) -> Result<Vec<T>> {
     if size_of::<T>() == 0 {
-        return Err(Error::InvalidMemoryAllocationRequest);
+        return Err(Error::not_positive("element size"));
     }
 
     let mut values = Vec::<T>::with_capacity(length);
@@ -198,7 +215,7 @@ pub(crate) unsafe fn copy_to_host_vec_unchecked<T>(
 ///
 /// # Errors
 ///
-/// Returns `Error::MemoryContextMismatch` if the ranges belong to different contexts, or `Error::InvalidMemoryAccess` for unequal element counts or overlapping ranges in the same allocation.
+/// Returns `Error::MemoryContextMismatch` if the ranges belong to different contexts, `Error::LengthMismatch` for unequal element counts, or `Error::OutOfRange` for overlapping ranges in the same allocation.
 /// Also rejects byte-size overflow.
 /// Also propagates access-tracking, readiness synchronization, context binding, capture-state query, native copy, and stream synchronization errors.
 /// A nonempty synchronous transfer is rejected during stream capture.
@@ -217,7 +234,11 @@ where
     }
 
     if source.len() != destination.len() {
-        return Err(Error::InvalidMemoryAccess);
+        return Err(Error::length_mismatch(
+            "device source",
+            destination.len(),
+            source.len(),
+        ));
     }
 
     let source_range = source_region.byte_range();
@@ -225,7 +246,7 @@ where
     if source_region.allocation_id() == destination_region.allocation_id()
         && ranges_overlap(&source_range, &destination_range)
     {
-        return Err(Error::InvalidMemoryAccess);
+        return Err(Error::out_of_range("overlapping device ranges"));
     }
 
     let context = Arc::clone(source_region.context());
@@ -252,9 +273,9 @@ where
 ///
 /// # Errors
 ///
-/// Returns `Error::MemoryContextMismatch` for different allocation contexts, `Error::StreamContextMismatch` for a stream from another context, or `Error::InvalidMemoryAccess` for unequal counts or overlapping ranges in the same allocation.
+/// Returns `Error::MemoryContextMismatch` for different allocation contexts, `Error::StreamContextMismatch` for a stream from another context, `Error::LengthMismatch` for unequal counts, or `Error::OutOfRange` for overlapping ranges in the same allocation.
 /// Also propagates context binding, byte-size overflow, and native asynchronous copy errors.
-pub unsafe fn copy_device_async_unchecked<T, S, D>(
+pub unsafe fn copy_device_async<T, S, D>(
     destination: &mut D,
     source: &S,
     stream: &Stream,
@@ -277,7 +298,11 @@ where
     }
 
     if source.len() != destination.len() {
-        return Err(Error::InvalidMemoryAccess);
+        return Err(Error::length_mismatch(
+            "device source",
+            destination.len(),
+            source.len(),
+        ));
     }
 
     let source_range = source_region.byte_range();
@@ -285,11 +310,11 @@ where
     if source_region.allocation_id() == destination_region.allocation_id()
         && ranges_overlap(&source_range, &destination_range)
     {
-        return Err(Error::InvalidMemoryAccess);
+        return Err(Error::out_of_range("overlapping device ranges"));
     }
 
     stream.context().bind()?;
-    // SAFETY: the caller upholds this function's safety contract.
+    // SAFETY: contexts and lengths match, the ranges are disjoint, and the caller keeps both live and ordered until `stream` completes.
     unsafe {
         DeviceMemory::<T>::copy_async(
             destination_pointer,
@@ -316,14 +341,14 @@ pub(crate) unsafe fn copy_synchronous<T>(
 ) -> Result<()> {
     let bytes = length
         .checked_mul(size_of::<T>())
-        .ok_or(Error::InvalidMemoryAllocationRequest)?;
+        .ok_or_else(|| Error::out_of_range("copy byte size"))?;
     if bytes == 0 {
         return Ok(());
     }
 
     let handle = stream.map_or(ptr::null_mut(), Stream::as_raw);
     let mut capture_status = runtime::cudaStreamCaptureStatus::CU_STREAM_CAPTURE_STATUS_NONE;
-    // SAFETY: `cudaStreamIsCapturing` receives valid output locations.
+    // SAFETY: `capture_status` is a local output, and `handle` is null or a stream the caller borrows.
     unsafe {
         try_ffi!(runtime::cudaStreamIsCapturing(
             handle,
@@ -339,7 +364,7 @@ pub(crate) unsafe fn copy_synchronous<T>(
         handle,
         drained: false,
     };
-    // SAFETY: the caller upholds this function's safety contract.
+    // SAFETY: the caller passes disjoint ranges of `length` elements for `kind` with the context bound, and `drain` waits for the copy even on failure.
     unsafe {
         try_ffi!(runtime::cudaMemcpyAsync(
             destination.cast(),
@@ -364,10 +389,9 @@ impl Drop for CopyDrain {
         if !self.drained {
             // Borrowed host/device storage cannot be retained after this call.
             // A failed enqueue can also report earlier asynchronous work.
-            // SAFETY: `cudaStreamSynchronize` receives live handles owned by the wrappers.
-            let status = unsafe { runtime::cudaStreamSynchronize(self.handle) };
-            if status != runtime::cudaError_t::CUDA_SUCCESS {
-                process::abort();
+            // SAFETY: `handle` is null or a stream borrowed by the enclosing `copy_synchronous` call, which has not returned yet.
+            if let Err(error) = unsafe { try_ffi!(runtime::cudaStreamSynchronize(self.handle)) } {
+                abort_after_cleanup_failure("synchronize", "cuda stream", &error);
             }
         }
     }

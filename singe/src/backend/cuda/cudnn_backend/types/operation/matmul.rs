@@ -1,5 +1,5 @@
 use singe_cudnn::backend::{
-    execution::{
+    operation::{
         matmul::{
             MatmulDescriptor as CudnnMatmulDescriptor, MatmulOperation as CudnnMatmulOperation,
         },

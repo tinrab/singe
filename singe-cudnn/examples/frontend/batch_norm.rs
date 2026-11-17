@@ -4,9 +4,12 @@ use std::env::args;
 
 use singe_cuda::{memory::DeviceMemory, view::OwnedDeviceRegion};
 use singe_cudnn::{
-    backend::{
+    backend::operation::{
+        normalization::{
+            BatchNormalizationRunningStatistics, BatchNormalizationRunningStats,
+            NormalizationSavedStatistics,
+        },
         pointwise::PointwiseMode,
-        tensor::{Shape, TensorSpec},
     },
     data_type::{DataType, f16},
     error::Result,
@@ -15,14 +18,18 @@ use singe_cudnn::{
         graph::{DataTypePolicy, Graph, GraphConfig, TensorOutputConfig},
         operation::{
             BatchNormalizationConfig, BatchNormalizationInputs, BatchNormalizationOutputs,
-            BatchNormalizationRunningStatistics, BatchNormalizationRunningStats,
-            NormalizationSavedStatistics, PointwiseOperation,
+            PointwiseOperation,
         },
         plan::{BuildPlanPolicy, CompileConfig, ExecuteArgs, HeuristicMode},
     },
     math::NanPropagation,
+    tensor::{Shape, TensorSpec},
 };
 
+#[expect(
+    clippy::many_single_char_names,
+    reason = "keeps the upstream sample's single-letter dimension names"
+)]
 fn run() -> Result<()> {
     let example = common::ExampleContext::create()?;
     let with_running = !args().any(|argument| argument == "--without-running");
@@ -184,9 +191,9 @@ fn run() -> Result<()> {
     // SAFETY: bindings retain all initialized operands, peer buffers and writable results.
     // The plan and workspace remain live through stream completion, including enqueue failure.
     example.execute_and_wait(|context| unsafe {
-        compiled.execute(
+        compiled.execute_async(
             context,
-            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
         )
     })?;
     for id in channel_outputs {
@@ -200,6 +207,6 @@ fn run() -> Result<()> {
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_batch_norm", run())
 }

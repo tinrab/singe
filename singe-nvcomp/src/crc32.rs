@@ -1,54 +1,20 @@
 use std::ffi::c_void;
 
-use singe_cuda::{stream::Stream, types::DevicePtr, view::DeviceOutput};
+use singe_cuda::{error::Error as CudaError, stream::Stream, types::DevicePtr, view::DeviceOutput};
 use singe_nvcomp_sys as sys;
 
 use crate::{
-    batch::{AsyncBatchResult, DeviceChunkTable, DeviceChunkTableView, DeviceStatuses},
+    batch::{
+        AsyncBatchResult, DeviceChunkTable, DeviceChunkTableView, DeviceStatuses, join_operands,
+    },
     error::{Error, Result},
     try_ffi,
     types::{Crc32KernelKind, Crc32SegmentKind},
     utility::{codec_size, to_i32, to_u64, validate_same_len},
 };
 
-/// Value of `max_input_chunk_bytes` that makes [`heuristic_conf`] read the largest chunk size from the device size table.
-///
-/// It is 0.
-pub const DEDUCED_MAX_INPUT_CHUNK_BYTES: usize =
-    codec_size(sys::nvcompCRC32DeducedMaxInputChunkBytes);
-
-/// Chunk sizes that a heuristic kernel-configuration query uses.
-#[derive(Debug, Clone, Copy)]
-pub enum HeuristicInput<'a> {
-    /// Known chunk count and largest chunk size, so nvCOMP reads no device memory.
-    MaxChunkBytes {
-        /// Number of chunks to compute checksums of.
-        num_chunks: usize,
-        /// Size of the largest chunk in bytes.
-        ///
-        /// It must not be [`DEDUCED_MAX_INPUT_CHUNK_BYTES`].
-        max_input_chunk_bytes: usize,
-    },
-    /// Chunk table whose device size array nvCOMP reads.
-    ChunkSizes(DeviceChunkTableView<'a>),
-}
-
-impl<'a> HeuristicInput<'a> {
-    /// Creates a [`MaxChunkBytes`](Self::MaxChunkBytes) input.
-    #[must_use]
-    pub const fn max_chunk_bytes(num_chunks: usize, max_input_chunk_bytes: usize) -> Self {
-        Self::MaxChunkBytes {
-            num_chunks,
-            max_input_chunk_bytes,
-        }
-    }
-
-    /// Creates a [`ChunkSizes`](Self::ChunkSizes) input.
-    #[must_use]
-    pub const fn chunk_sizes(input: DeviceChunkTableView<'a>) -> Self {
-        Self::ChunkSizes(input)
-    }
-}
+// Passing this as the largest chunk size makes nvCOMP read the sizes from the device size array.
+const DEDUCED_MAX_INPUT_CHUNK_BYTES: usize = codec_size(sys::nvcompCRC32DeducedMaxInputChunkBytes);
 
 /// CRC32 parameters: polynomial, initial value, reflections, and final XOR.
 ///
@@ -128,12 +94,6 @@ impl Spec {
             reserved: [0; 16],
         }
     }
-
-    /// Converts into the native nvCOMP struct.
-    #[must_use]
-    pub const fn into_raw(self) -> sys::nvcompCRC32Spec_t {
-        self.as_raw()
-    }
 }
 
 impl Default for Spec {
@@ -150,7 +110,7 @@ impl From<sys::nvcompCRC32Spec_t> for Spec {
 
 impl From<Spec> for sys::nvcompCRC32Spec_t {
     fn from(value: Spec) -> Self {
-        value.into_raw()
+        value.as_raw()
     }
 }
 
@@ -186,13 +146,16 @@ impl KernelConf {
     }
 
     /// Creates a value from the native nvCOMP struct.
-    #[must_use]
-    pub fn from_raw(raw: sys::nvcompCRC32KernelConf_t) -> Self {
-        Self {
-            kernel_kind: raw.kernel_kind.into(),
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `raw` holds a kernel kind this crate does not name.
+    pub fn from_raw(raw: sys::nvcompCRC32KernelConf_t) -> Result<Self> {
+        Ok(Self {
+            kernel_kind: raw.kernel_kind.try_into()?,
             bytes_per_read: raw.bytes_per_read,
             blocks_per_msg: raw.blocks_per_msg,
-        }
+        })
     }
 
     /// Returns how the kernel divides work among threads.
@@ -228,23 +191,19 @@ impl KernelConf {
             reserved: [0; 20],
         }
     }
-
-    /// Converts into the native nvCOMP struct.
-    #[must_use]
-    pub const fn into_raw(self) -> sys::nvcompCRC32KernelConf_t {
-        self.as_raw()
-    }
 }
 
-impl From<sys::nvcompCRC32KernelConf_t> for KernelConf {
-    fn from(raw: sys::nvcompCRC32KernelConf_t) -> Self {
+impl TryFrom<sys::nvcompCRC32KernelConf_t> for KernelConf {
+    type Error = Error;
+
+    fn try_from(raw: sys::nvcompCRC32KernelConf_t) -> Result<Self> {
         Self::from_raw(raw)
     }
 }
 
 impl From<KernelConf> for sys::nvcompCRC32KernelConf_t {
     fn from(value: KernelConf) -> Self {
-        value.into_raw()
+        value.as_raw()
     }
 }
 
@@ -265,12 +224,15 @@ impl Options {
     }
 
     /// Creates a value from the native nvCOMP struct.
-    #[must_use]
-    pub fn from_raw(raw: sys::nvcompBatchedCRC32Opts_t) -> Self {
-        Self {
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the library reports a value this crate does not name.
+    pub fn from_raw(raw: sys::nvcompBatchedCRC32Opts_t) -> Result<Self> {
+        Ok(Self {
             spec: raw.spec.into(),
-            kernel_conf: raw.kernel_conf.into(),
-        }
+            kernel_conf: raw.kernel_conf.try_into()?,
+        })
     }
 
     /// Returns the native nvCOMP struct.
@@ -282,23 +244,19 @@ impl Options {
             reserved: [0; 64],
         }
     }
-
-    /// Converts into the native nvCOMP struct.
-    #[must_use]
-    pub const fn into_raw(self) -> sys::nvcompBatchedCRC32Opts_t {
-        self.as_raw()
-    }
 }
 
-impl From<sys::nvcompBatchedCRC32Opts_t> for Options {
-    fn from(raw: sys::nvcompBatchedCRC32Opts_t) -> Self {
+impl TryFrom<sys::nvcompBatchedCRC32Opts_t> for Options {
+    type Error = Error;
+
+    fn try_from(raw: sys::nvcompBatchedCRC32Opts_t) -> Result<Self> {
         Self::from_raw(raw)
     }
 }
 
 impl From<Options> for sys::nvcompBatchedCRC32Opts_t {
     fn from(value: Options) -> Self {
-        value.into_raw()
+        value.as_raw()
     }
 }
 
@@ -310,24 +268,20 @@ impl From<Options> for sys::nvcompBatchedCRC32Opts_t {
 ///
 /// # Errors
 ///
-/// Returns an error if `max_input_chunk_bytes` is [`DEDUCED_MAX_INPUT_CHUNK_BYTES`], a size does not fit nvCOMP's integer types, or nvCOMP rejects the query.
+/// Returns an error if `max_input_chunk_bytes` is zero, a size does not fit nvCOMP's integer types, or nvCOMP rejects the query.
 pub fn heuristic_conf_for_max_chunk_size(
     num_chunks: usize,
     max_input_chunk_bytes: usize,
     stream: &Stream,
 ) -> Result<KernelConf> {
     if max_input_chunk_bytes == DEDUCED_MAX_INPUT_CHUNK_BYTES {
-        return Err(Error::InvalidValue {
+        return Err(Error::NotPositive {
             name: "max_input_chunk_bytes".into(),
         });
     }
-    // SAFETY: this branch provides host bounds and no device-side size pointer.
-    unsafe {
-        heuristic_conf_for_input(
-            HeuristicInput::max_chunk_bytes(num_chunks, max_input_chunk_bytes),
-            stream,
-        )
-    }
+
+    // SAFETY: a nonzero largest chunk size makes nvCOMP read no device memory, so the null size array is never dereferenced.
+    unsafe { heuristic_conf(DevicePtr::null(), num_chunks, max_input_chunk_bytes, stream) }
 }
 
 /// Returns a kernel configuration suited to the chunk count and largest chunk of `input`.
@@ -346,86 +300,43 @@ pub fn heuristic_conf_for_chunks(
 
 /// Returns a kernel configuration suited to `input`, with the largest chunk size read from its device size array.
 ///
-/// The query synchronizes `stream`, or the whole device if it does not support stream-ordered memory allocation.
+/// The query waits for `stream`, and nvCOMP may synchronize the whole device if it does not support stream-ordered memory allocation.
 ///
 /// # Safety
 ///
-/// The device size array of `input` must be initialized, with any writes to it ordered before this call.
+/// The device size array of `input` must be initialized.
 ///
 /// # Errors
 ///
-/// Returns an error if `input` belongs to another CUDA context, a size does not fit nvCOMP's integer types, or nvCOMP rejects the query.
+/// Returns an error if `input` belongs to another CUDA context, stream capture is active, a size does not fit nvCOMP's integer types, or nvCOMP rejects the query.
 pub unsafe fn heuristic_conf_from_sizes(
     input: DeviceChunkTableView<'_>,
     stream: &Stream,
 ) -> Result<KernelConf> {
-    // SAFETY: caller establishes initialized, ordered device-side sizes.
-    unsafe { heuristic_conf_for_input(HeuristicInput::chunk_sizes(input), stream) }
-}
-
-/// Returns a kernel configuration suited to `input`.
-///
-/// See [`heuristic_conf_for_max_chunk_size`] and [`heuristic_conf_from_sizes`] for the two kinds of input.
-///
-/// # Safety
-///
-/// For [`ChunkSizes`](HeuristicInput::ChunkSizes), the device size array must be initialized, with any writes to it ordered before this call.
-/// For [`MaxChunkBytes`](HeuristicInput::MaxChunkBytes), the largest chunk size must not be [`DEDUCED_MAX_INPUT_CHUNK_BYTES`].
-///
-/// # Errors
-///
-/// Returns an error if a [`ChunkSizes`](HeuristicInput::ChunkSizes) table belongs to another CUDA context, a size does not fit nvCOMP's integer types, or nvCOMP rejects the query.
-pub unsafe fn heuristic_conf_for_input(
-    input: HeuristicInput<'_>,
-    stream: &Stream,
-) -> Result<KernelConf> {
-    match input {
-        HeuristicInput::MaxChunkBytes {
-            num_chunks,
-            max_input_chunk_bytes,
-            // SAFETY: the caller upholds this function's safety contract.
-        } => unsafe {
-            heuristic_conf(DevicePtr::null(), num_chunks, max_input_chunk_bytes, stream)
-        },
-        HeuristicInput::ChunkSizes(input) => {
-            input.validate_context(stream)?;
-            // SAFETY: table construction establishes the size array's bounds.
-            // The shared draining scope retains its borrow on native errors.
-            stream.sync_scope(|_| {
-                Ok(unsafe {
-                    heuristic_conf(
-                        input.device_chunk_bytes(),
-                        input.len(),
-                        DEDUCED_MAX_INPUT_CHUNK_BYTES,
-                        stream,
-                    )
-                })
-            })?
+    stream.complete(|| {
+        input.join_regions(stream)?;
+        // SAFETY: the table's size array has `input.len()` entries in the stream's context, the caller guarantees they are initialized, and `complete` waits for the stream before the borrow ends.
+        unsafe {
+            heuristic_conf(
+                input.device_chunk_bytes(),
+                input.len(),
+                DEDUCED_MAX_INPUT_CHUNK_BYTES,
+                stream,
+            )
         }
-    }
+    })
 }
 
-/// Returns a kernel configuration suited to chunks of similar size.
-///
-/// Pass either the largest chunk size in `max_input_chunk_bytes` and a null `device_input_chunk_bytes`, or [`DEDUCED_MAX_INPUT_CHUNK_BYTES`] and a device array of `num_chunks` chunk sizes.
-/// The query blocks the host.
-/// With a device array, it synchronizes `stream`, or the whole device if it does not support stream-ordered memory allocation; otherwise it ignores `stream`.
-///
-/// # Safety
-///
-/// When `max_input_chunk_bytes` is [`DEDUCED_MAX_INPUT_CHUNK_BYTES`], `device_input_chunk_bytes` must point to `num_chunks` initialized `size_t` values in device-accessible memory.
-///
-/// # Errors
-///
-/// Returns an error if a size does not fit nvCOMP's integer types or nvCOMP rejects the query.
-pub unsafe fn heuristic_conf(
+// When `max_input_chunk_bytes` is the deduced value, nvCOMP reads `num_chunks` sizes from `device_input_chunk_bytes`.
+unsafe fn heuristic_conf(
     device_input_chunk_bytes: DevicePtr,
     num_chunks: usize,
     max_input_chunk_bytes: usize,
     stream: &Stream,
 ) -> Result<KernelConf> {
+    stream.context().bind()?;
     let mut raw = sys::nvcompCRC32KernelConf_t::default();
-    // SAFETY: `nvcompBatchedCRC32GetHeuristicConf` receives live handles owned by the wrappers and valid output locations.
+    // SAFETY: the caller passes a size array that matches `max_input_chunk_bytes`, and the output location is a live local.
     unsafe {
         try_ffi!(sys::nvcompBatchedCRC32GetHeuristicConf(
             device_input_chunk_bytes.cast(),
@@ -435,130 +346,78 @@ pub unsafe fn heuristic_conf(
             stream.as_raw(),
         ))?;
     }
-    Ok(raw.into())
+    raw.try_into()
 }
 
-/// Arguments for [`search_conf`].
-#[derive(Debug, Clone, Copy)]
-pub struct SearchConf<'a> {
-    /// Device array of `num_chunks` pointers to the input chunks, which need no particular alignment.
-    pub device_input_chunk_ptrs: DevicePtr,
-    /// Device array of `num_chunks` `size_t` sizes, in bytes, of the input chunks.
-    pub device_input_chunk_bytes: DevicePtr,
-    /// Number of chunks, which is also the length of every device array.
-    pub num_chunks: usize,
-    /// Device array of `num_chunks` checksums that the benchmark writes to.
-    pub device_crc32: DevicePtr,
-    /// CRC32 variant to benchmark with.
-    pub spec: Spec,
-    /// Stream that runs the work.
-    pub stream: &'a Stream,
-}
-
-/// Benchmarks kernel configurations on the given chunks and returns the fastest.
+/// Benchmarks kernel configurations on the chunks of `input` and returns the fastest.
 ///
-/// [`heuristic_conf`] is usually fast enough and much cheaper.
+/// [`heuristic_conf_for_chunks`] is usually fast enough and much cheaper.
 /// Searching pays off only over many batches whose chunk counts and sizes stay similar, so one configuration fits them all.
-/// The search blocks the host and synchronizes `params.stream`, or the whole device if it does not support stream-ordered memory allocation.
+/// The benchmark writes scratch checksums to `crc32_values`, and the search waits for `stream`.
 ///
 /// # Safety
 ///
-/// Every pointer must reference initialized device-accessible memory that stays valid until this returns.
-/// `device_crc32` must have `num_chunks` entries writable by the device.
+/// Every chunk of `input` must be initialized.
 ///
 /// # Errors
 ///
-/// Returns an error if a size does not fit nvCOMP's integer types or nvCOMP rejects the query.
-pub unsafe fn search_conf(params: SearchConf<'_>) -> Result<KernelConf> {
-    let mut raw = sys::nvcompCRC32KernelConf_t::default();
-    // SAFETY: `nvcompBatchedCRC32SearchConf` receives live handles owned by the wrappers and valid output locations.
-    unsafe {
-        try_ffi!(sys::nvcompBatchedCRC32SearchConf(
-            params
-                .device_input_chunk_ptrs
-                .cast::<*const c_void>()
-                .cast_const(),
-            params.device_input_chunk_bytes.cast(),
-            to_u64(params.num_chunks, "num_chunks")?,
-            params.device_crc32.cast(),
-            params.spec.into(),
-            &raw mut raw,
-            params.stream.as_raw(),
-        ))?;
+/// Returns an error if `crc32_values` does not have one entry per chunk, an operand belongs to another CUDA context, stream capture is active, a size does not fit nvCOMP's integer types, or nvCOMP rejects the query.
+pub unsafe fn search_conf<S>(
+    input: DeviceChunkTableView<'_>,
+    crc32_values: &mut S,
+    spec: Spec,
+    stream: &Stream,
+) -> Result<KernelConf>
+where
+    S: DeviceOutput<u32> + ?Sized,
+{
+    input.validate_context(stream)?;
+    if crc32_values.context() != stream.context() {
+        return Err(CudaError::MemoryContextMismatch.into());
     }
-    Ok(raw.into())
-}
 
-/// Arguments for [`compute_raw_async`].
-#[derive(Debug, Clone, Copy)]
-pub struct ComputeRawAsync<'a> {
-    /// Device array of `num_chunks` pointers to the input chunks, which need no particular alignment.
-    pub device_input_chunk_ptrs: DevicePtr,
-    /// Device array of `num_chunks` `size_t` sizes, in bytes, of the input chunks.
-    pub device_input_chunk_bytes: DevicePtr,
-    /// Number of chunks, which is also the length of every device array.
-    pub num_chunks: usize,
-    /// Device array of `num_chunks` checksums.
-    ///
-    /// For middle and last segments, it must hold the checksums from the previous segment, which nvCOMP updates.
-    pub device_crc32: DevicePtr,
-    /// CRC32 variant and kernel launch configuration.
-    pub options: Options,
-    /// Where the chunks fall within their messages.
-    pub segment_kind: Crc32SegmentKind,
-    /// Device array of `num_chunks` statuses that receive each chunk's result, or null to skip status reporting.
-    pub device_statuses: DevicePtr,
-    /// Stream that runs the work.
-    pub stream: &'a Stream,
-}
-
-/// Enqueues CRC32 computation for each chunk on `params.stream`.
-///
-/// A message can be checksummed in segments over several calls; `segment_kind` says where each segment falls.
-/// If a segment turns out to be the last one after it was processed as a first or middle segment, finish the checksum by calling again with a null `device_input_chunk_ptrs` and [`Crc32SegmentKind::Last`].
-/// Chunks may have length zero, which helps when messages have different numbers of segments.
-/// nvCOMP does not synchronize the stream.
-///
-/// # Safety
-///
-/// Every pointer must reference device-accessible memory that stays valid until the work finishes.
-/// The input arrays must be initialized, and `device_crc32` and, unless null, `device_statuses` must have `num_chunks` entries writable by the device.
-/// For middle and last segments, `device_crc32` must hold the checksums from the previous segment.
-///
-/// # Errors
-///
-/// Returns an error if a size does not fit nvCOMP's integer types or nvCOMP rejects the launch.
-pub unsafe fn compute_raw_async(params: ComputeRawAsync<'_>) -> Result<()> {
-    // SAFETY: `nvcompBatchedCRC32Async` receives live handles owned by the wrappers.
-    unsafe {
-        try_ffi!(sys::nvcompBatchedCRC32Async(
-            params
-                .device_input_chunk_ptrs
-                .cast::<*const c_void>()
-                .cast_const(),
-            params.device_input_chunk_bytes.cast(),
-            to_u64(params.num_chunks, "num_chunks")?,
-            params.device_crc32.cast(),
-            params.options.into(),
-            params.segment_kind.into(),
-            params.device_statuses.cast(),
-            params.stream.as_raw(),
-        ))
-    }
+    validate_same_len(input.len(), crc32_values.len(), "crc32 values")?;
+    stream.complete(|| {
+        join_operands(
+            stream,
+            input.regions(),
+            &[crc32_values.region()],
+            None,
+            None,
+        )?;
+        stream.context().bind()?;
+        let mut raw = sys::nvcompCRC32KernelConf_t::default();
+        // SAFETY: the table and `crc32_values` have one entry per chunk in the stream's context, the caller guarantees initialized chunks, and `complete` waits for the stream before the borrows end.
+        unsafe {
+            try_ffi!(sys::nvcompBatchedCRC32SearchConf(
+                input
+                    .device_chunk_ptrs()
+                    .cast::<*const c_void>()
+                    .cast_const(),
+                input.device_chunk_bytes().cast(),
+                to_u64(input.len(), "num_chunks")?,
+                crc32_values.as_mut_ptr().cast(),
+                spec.into(),
+                &raw mut raw,
+                stream.as_raw(),
+            ))?;
+        }
+        raw.try_into()
+    })
 }
 
 /// Enqueues CRC32 computation for each chunk of `input`, written to `crc32_values`.
 ///
-/// Before launching, this checks that `crc32_values` and `statuses` have one entry per chunk and share the stream's CUDA context.
+/// A message can be checksummed in segments over several calls; `segment_kind` says where each segment falls.
+/// Chunks may have length zero, which helps when messages have different numbers of segments.
+/// Before launching, this checks that `crc32_values` and `statuses` have one entry per chunk and share the stream's CUDA context, then orders the work after the operands' producers.
 /// CRC32 has no alignment requirements.
-/// Call [`AsyncBatchResult::check`](crate::batch::AsyncBatchResult::check) on the result to wait for the work and read the statuses.
+/// Call [`AsyncBatchResult::check`] on the result to wait for the work and read the statuses.
 ///
 /// # Safety
 ///
-/// The chunks and their tables must be initialized.
-/// `input`, `crc32_values`, `statuses`, and the memory they reference must stay alive until the work finishes, including every replay of a captured graph.
-/// Nothing else may write to them, or read `crc32_values` or `statuses`, until then.
-/// For [`Crc32SegmentKind::Mid`] and [`Crc32SegmentKind::Last`], `crc32_values` must hold the checksums from the previous segment, written before this work runs.
+/// The chunks must be initialized, and the crate's raw execution contract applies to every operand.
+/// For [`Crc32SegmentKind::Mid`] and [`Crc32SegmentKind::Last`], `crc32_values` must hold the checksums from the previous segment.
 ///
 /// # Errors
 ///
@@ -575,30 +434,39 @@ where
     S: DeviceOutput<u32> + ?Sized,
 {
     input.validate_context(stream)?;
-    if crc32_values.context() != stream.context() || statuses.context() != stream.context() {
-        return Err(Error::StreamContextMismatch);
+    statuses.validate_context(stream)?;
+    if crc32_values.context() != stream.context() {
+        return Err(CudaError::MemoryContextMismatch.into());
     }
 
-    validate_same_len("crc32 values", input.len(), crc32_values.len())?;
+    validate_same_len(input.len(), crc32_values.len(), "crc32 values")?;
     statuses.require(input.len())?;
+    join_operands(
+        stream,
+        input.regions(),
+        &[crc32_values.region()],
+        None,
+        Some(&*statuses),
+    )?;
+    stream.context().bind()?;
 
-    // SAFETY: the caller upholds this function's safety contract.
-    let crc32_values = unsafe { DevicePtr::from_raw(crc32_values.as_mut_ptr().cast()) };
-
-    // SAFETY: the caller upholds this function's safety contract.
+    // SAFETY: the table, `crc32_values`, and `statuses` have one entry per chunk in the stream's context, and the operands are ordered after their producers; the caller keeps them alive and unaliased until the work finishes.
     unsafe {
-        compute_raw_async(ComputeRawAsync {
-            device_input_chunk_ptrs: input.device_chunk_ptrs(),
-            device_input_chunk_bytes: input.device_chunk_bytes(),
-            num_chunks: input.len(),
-            device_crc32: crc32_values,
-            options,
-            segment_kind,
-            device_statuses: statuses.as_device_ptr(),
-            stream,
-        })?;
+        try_ffi!(sys::nvcompBatchedCRC32Async(
+            input
+                .device_chunk_ptrs()
+                .cast::<*const c_void>()
+                .cast_const(),
+            input.device_chunk_bytes().cast(),
+            to_u64(input.len(), "num_chunks")?,
+            crc32_values.as_mut_ptr().cast(),
+            options.into(),
+            segment_kind.into(),
+            statuses.as_device_ptr().cast(),
+            stream.as_raw(),
+        ))?;
     }
 
-    // SAFETY: the caller upholds this function's safety contract.
+    // SAFETY: the launch above writes every status slot on `stream`, and the caller keeps the operands alive until it finishes.
     Ok(unsafe { AsyncBatchResult::from_submission(statuses, stream) })
 }

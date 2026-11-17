@@ -1,30 +1,26 @@
 use std::{
-    error::Error as StdError,
-    fs,
+    env, fs,
     io::{Error, ErrorKind},
-    path::PathBuf,
 };
 
-use singe_cuda::{context::Context as CudaContext, memory::DeviceMemory};
-use singe_nvjpeg::prelude::*;
-
-type ExampleResult<T> = Result<T, Box<dyn StdError>>;
+use singe_cuda::{context::Context as CudaContext, memory::DeviceMemory, stream::StreamOptions};
+use singe_nvjpeg::{
+    context::{Context, ContextOptions},
+    encode::{EncodeInput, EncodeOptions, Encoder, Quality},
+    image::Size,
+    types::{ChromaSubsampling, EncoderBackend, InputFormat},
+};
 
 const WIDTH: u32 = 256;
 const HEIGHT: u32 = 160;
 
-fn main() -> ExampleResult<()> {
-    let output = output_path();
-    fs::create_dir_all(
-        output
-            .parent()
-            .ok_or_else(|| invalid_input("missing output parent"))?,
-    )?;
-
+fn main() -> anyhow::Result<()> {
+    let output = env::temp_dir().join("encode.jpg");
     let host = rgb_gradient(WIDTH, HEIGHT)?;
 
-    let context = CudaContext::create()?;
-    let stream = context.create_stream()?;
+    let cuda_context = CudaContext::create()?;
+    let stream = cuda_context.create_stream(StreamOptions::default())?;
+    let context = Context::create(&cuda_context, &ContextOptions::default())?;
     let device = DeviceMemory::<u8>::from_slice(stream.context(), &host)?;
     let row_bytes = checked_row_bytes(WIDTH)?;
     let input = EncodeInput::from_interleaved(
@@ -35,26 +31,16 @@ fn main() -> ExampleResult<()> {
     )?;
 
     let options = EncodeOptions::new()
-        .with_quality(90)?
+        .with_quality(Quality::create(90)?)
         .with_sampling(ChromaSubsampling::Css420);
-    let mut encoder = Encoder::builder()
-        .encoder_backend(EncoderBackend::Default)
-        .options(options)
-        .create(&stream)?;
+    let mut encoder = Encoder::create(&context, EncoderBackend::Default, options, &stream)?;
     let jpeg = encoder.encode_to_device(&input, &stream)?;
     fs::write(&output, jpeg.copy_to_host_vec()?)?;
     println!("wrote {}", output.display());
     Ok(())
 }
 
-fn output_path() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("examples")
-        .join("output")
-        .join("encode.jpg")
-}
-
-fn rgb_gradient(width: u32, height: u32) -> ExampleResult<Vec<u8>> {
+fn rgb_gradient(width: u32, height: u32) -> anyhow::Result<Vec<u8>> {
     let row_bytes = checked_row_bytes(width)?;
     let len = row_bytes
         .checked_mul(height as usize)
@@ -73,7 +59,7 @@ fn rgb_gradient(width: u32, height: u32) -> ExampleResult<Vec<u8>> {
     Ok(pixels)
 }
 
-fn checked_row_bytes(width: u32) -> ExampleResult<usize> {
+fn checked_row_bytes(width: u32) -> anyhow::Result<usize> {
     (width as usize)
         .checked_mul(3)
         .ok_or_else(|| invalid_input("row byte count overflow").into())

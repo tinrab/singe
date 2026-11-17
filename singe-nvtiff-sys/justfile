@@ -5,36 +5,7 @@ generate:
     #!/usr/bin/env bash
     set -euxo pipefail
 
-    num_enums=(
-        "nvtiffStatus_t"
-        "nvtiffVariant"
-        "nvtiffVariant_t"
-        "nvtiffGeoKeys"
-        "nvtiffGeoKey_t"
-        "nvtiffGeoKeyDataType"
-        "nvtiffGeoKeyDataType_t"
-        "nvtiffTagDataType"
-        "nvtiffTagDataType_t"
-        "nvtiffTag"
-        "nvtiffTag_t"
-        "nvtiffSampleFormat"
-        "nvtiffSampleFormat_t"
-        "nvtiffPhotometricInt"
-        "nvtiffPhotometricInt_t"
-        "nvtiffPlanarConfig"
-        "nvtiffPlanarConfig_t"
-        "nvtiffCompression"
-        "nvtiffCompression_t"
-        "nvtiffImageType"
-        "nvtiffImageGeometryType"
-        "nvtiffImageGeometryType_t"
-        "nvtiffOutputFormat"
-        "nvtiffOutputFormat_t"
-    )
-    enum_args=$(for enum in "${num_enums[@]}"; do echo -n "--with-derive-custom $enum=TryFromPrimitive,IntoPrimitive "; done)
-
     bindgen {{nvtiff_include_path}}/nvtiff.h \
-        $enum_args \
         --allowlist-item "^nvtiff.*" \
         --allowlist-item "^NVTIFF.*" \
         --allowlist-item "^MAX_NUM_SAMPLES$" \
@@ -51,7 +22,7 @@ generate:
         --with-derive-hash \
         --with-derive-ord \
         --use-core \
-        --default-enum-style=rust \
+        --default-enum-style=newtype \
         -- \
             -x c++ \
             -I {{nvtiff_include_path}} \

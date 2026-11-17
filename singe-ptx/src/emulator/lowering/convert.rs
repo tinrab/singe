@@ -13,7 +13,7 @@ use crate::{
 };
 
 /// Lowers `mov`, including the `mov.b32` forms that pack or unpack two half words.
-pub fn mov(
+pub(crate) fn mov(
     compiler: &FunctionCompiler<'_, '_>,
     instruction: &Instruction,
     head: &mut Head<'_>,
@@ -57,7 +57,7 @@ pub fn mov(
     }))
 }
 
-pub fn convert(
+pub(crate) fn convert(
     compiler: &FunctionCompiler<'_, '_>,
     instruction: &Instruction,
     head: &mut Head<'_>,
@@ -266,7 +266,7 @@ fn validate_scalar(
 }
 
 /// Lowers `cvta` and `cvta.to`.
-pub fn address(
+pub(crate) fn address(
     compiler: &FunctionCompiler<'_, '_>,
     instruction: &Instruction,
     head: &mut Head<'_>,

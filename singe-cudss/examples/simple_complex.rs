@@ -3,11 +3,11 @@ mod common;
 use std::slice;
 
 use singe_cuda::{memory::DeviceMemory, types::Complex32};
-use singe_cudss::{config::Config, error::Result};
+use singe_cudss::{config::Config, solver_state::SolverState};
 
 use crate::common::{create_context, dense_matrix, dense_output, solve, spd_csr_matrix};
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     let (cuda, stream, context) = create_context()?;
     println!("cuDSS example: solving a complex symmetric positive-definite 5x5 system");
 
@@ -40,10 +40,10 @@ fn main() -> Result<()> {
             Complex32::new(13.0, 0.0),
         ],
     )?;
-    let mut x_values = DeviceMemory::<Complex32>::create_uninit(&cuda, (n * nrhs) as usize)?;
+    let mut x_values = DeviceMemory::<Complex32>::create_uninit(&cuda, usize::try_from(n * nrhs)?)?;
 
     let config = Config::create()?;
-    let mut data = context.create_data()?;
+    let mut data = SolverState::create(&context)?;
 
     let b = dense_matrix(n, nrhs, n, &b_values)?;
     let mut x = dense_output(n, nrhs, n, x_values.output())?;

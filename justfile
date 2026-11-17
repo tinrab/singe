@@ -1,5 +1,5 @@
-TEST_FEATURES := "testing,cuda_13_4,onnx,cutile,k2,nvtiff_0_8"
-LINT_FEATURES := "testing,cuda_13_4,onnx,k2,nvtiff_0_8"
+TEST_FEATURES := "testing,cuda_13_4,onnx,cutile,k2,nvtiff_0_8,lt,xt,mg,mp,manager,macros,interop_cuda_core,interop_cudarc,singe-core/serde"
+LINT_FEATURES := "testing,cuda_13_4,onnx,k2,nvtiff_0_8,lt,xt,mg,mp,manager,macros,interop_cuda_core,interop_cudarc,singe-core/serde"
 SINGE_TEST_FEATURES := "testing,cuda_13_4,onnx"
 export RUSTFLAGS := "-Awarnings"
 export CUDNN_LOGLEVEL_DBG := "0"
@@ -61,6 +61,7 @@ generate:
     cargo xtask document
     cargo xtask gen-cutile-dtype-kernels
     cargo xtask gen-cutile-fused
+    cargo xtask gen-onnx-proto
 
     cargo fmt
 
@@ -154,7 +155,6 @@ lint fix="false" package="" features=LINT_FEATURES: prepare-tests
         missing_docs
         clippy::missing_errors_doc
         clippy::missing_panics_doc
-        clippy::missing_safety_doc
         trivial_casts
         trivial_numeric_casts
         clippy::cast_sign_loss
@@ -165,8 +165,8 @@ lint fix="false" package="" features=LINT_FEATURES: prepare-tests
         clippy::too_long_first_doc_paragraph
         clippy::too_many_arguments
         clippy::missing_const_for_fn
+        clippy::redundant_pub_crate
     )
-
 
     if [ "{{ fix }}" = "true" ]; then
         cargo clippy --no-deps "${scope[@]}" --features "{{ features }}" --fix --allow-dirty \

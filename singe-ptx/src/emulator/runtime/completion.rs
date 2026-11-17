@@ -15,13 +15,13 @@ use crate::emulator::{
 };
 
 /// A published result plus the storage that keeps its diagnostics alive until it is observed.
-pub struct Retained<T> {
-    pub result: Result<T, ExecutionError>,
-    pub storage: Option<Arc<Reservation>>,
+pub(crate) struct Retained<T> {
+    pub(crate) result: Result<T, ExecutionError>,
+    pub(crate) storage: Option<Arc<Reservation>>,
 }
 
 impl<T> Retained<T> {
-    pub fn new(result: Result<T, ExecutionError>) -> Self {
+    pub(crate) fn new(result: Result<T, ExecutionError>) -> Self {
         Self {
             result,
             storage: None,
@@ -51,7 +51,7 @@ struct State<T> {
     storage: Option<Reservation>,
 }
 
-pub struct Completion<T> {
+pub(crate) struct Completion<T> {
     state: Mutex<State<T>>,
     ready: Condvar,
     retain_status: bool,
@@ -59,11 +59,11 @@ pub struct Completion<T> {
 
 impl<T> Completion<T> {
     #[cfg(test)]
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self::create(None, false)
     }
 
-    pub fn create(storage: Option<Reservation>, retain_status: bool) -> Self {
+    pub(crate) fn create(storage: Option<Reservation>, retain_status: bool) -> Self {
         Self {
             state: Mutex::new(State {
                 cell: Cell::Waiting { waker: None },
@@ -75,11 +75,11 @@ impl<T> Completion<T> {
         }
     }
 
-    pub fn publish(&self, result: Result<T, ExecutionError>) {
+    pub(crate) fn publish(&self, result: Result<T, ExecutionError>) {
         self.publish_retained(Retained::new(result));
     }
 
-    pub fn publish_retained(&self, retained: Retained<T>) {
+    pub(crate) fn publish_retained(&self, retained: Retained<T>) {
         let mut state = lock(&self.state);
         let waker = match &mut state.cell {
             Cell::Waiting { waker } => waker.take(),
@@ -111,7 +111,7 @@ impl<T> Completion<T> {
         }
     }
 
-    pub fn take(&self) -> Result<T, ExecutionError> {
+    pub(crate) fn take(&self) -> Result<T, ExecutionError> {
         let mut state = lock(&self.state);
         loop {
             match self.consume(&mut state) {
@@ -126,7 +126,7 @@ impl<T> Completion<T> {
         }
     }
 
-    pub fn poll(&self, cx: &Context<'_>) -> Poll<Result<T, ExecutionError>> {
+    pub(crate) fn poll(&self, cx: &Context<'_>) -> Poll<Result<T, ExecutionError>> {
         let replacement = cx.waker().clone();
         let mut state = lock(&self.state);
         if let Some(result) = self.consume(&mut state) {
@@ -159,7 +159,7 @@ impl<T> Completion<T> {
         }
     }
 
-    pub fn abandon(&self) {
+    pub(crate) fn abandon(&self) {
         let mut state = lock(&self.state);
         let previous = match mem::replace(&mut state.cell, Cell::Discarded) {
             Cell::Waiting { waker } => {
@@ -191,16 +191,16 @@ impl<T> Completion<T> {
         }
     }
 
-    pub fn status(&self) -> Option<Result<(), ExecutionError>> {
+    pub(crate) fn status(&self) -> Option<Result<(), ExecutionError>> {
         lock(&self.state).terminal.clone()
     }
 
-    pub fn is_abandoned(&self) -> bool {
+    pub(crate) fn is_abandoned(&self) -> bool {
         matches!(lock(&self.state).cell, Cell::Abandoned | Cell::Discarded)
     }
 
     #[cfg(test)]
-    pub fn is_published(&self) -> bool {
+    pub(crate) fn is_published(&self) -> bool {
         !matches!(
             lock(&self.state).cell,
             Cell::Waiting { .. } | Cell::Abandoned
@@ -208,7 +208,7 @@ impl<T> Completion<T> {
     }
 }
 
-pub type Pending<T> = Box<dyn FnOnce(Arc<Client>) -> T + Send>;
+pub(crate) type Pending<T> = Box<dyn FnOnce(Arc<Client>) -> T + Send>;
 
 /// The pending result of a command.
 ///

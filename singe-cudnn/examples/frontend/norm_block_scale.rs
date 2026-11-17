@@ -4,18 +4,22 @@ use std::env::args;
 
 use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
-    backend::tensor::{Shape, TensorSpec},
+    backend::operation::{
+        block_scale::BlockScaleQuantizeOutputs,
+        normalization::NormalizationSavedStatistics,
+        tensor_ops::{ReshapeMode, ReshapeSpec},
+    },
     data_type::{DataType, f8e5m2, f8ue8m0, f16},
     error::Result,
     frontend::{
-        graph::{BlockScaleQuantizeOutputs, DataTypePolicy, Graph, TensorOutputConfig},
+        graph::{DataTypePolicy, Graph, TensorOutputConfig},
         operation::{
             BlockScaleQuantizeConfig, LayerNormalizationAffine, LayerNormalizationConfig,
-            LayerNormalizationInputs, LayerNormalizationOutputs, NormalizationSavedStatistics,
-            NormalizationStatistics, ReshapeConfig, ReshapeMode,
+            LayerNormalizationInputs, LayerNormalizationOutputs, NormalizationStatistics,
         },
         plan::{CompileConfig, ExecuteArgs, HeuristicMode},
     },
+    tensor::{Shape, TensorSpec},
 };
 
 fn run() -> Result<()> {
@@ -83,7 +87,7 @@ fn run() -> Result<()> {
     let y_ln_2d = graph.reshape(
         y_ln,
         [batch_size * seq_length, hidden_size],
-        ReshapeConfig::new(ReshapeMode::ViewOnly).with_name("normalized_matrix"),
+        ReshapeSpec::new(ReshapeMode::ViewOnly).with_name("normalized_matrix"),
         TensorOutputConfig::new().with_data_type(DataType::F16),
     )?;
 
@@ -183,15 +187,15 @@ fn run() -> Result<()> {
     // SAFETY: the plan, input buffers, outputs and workspace remain live through stream
     // completion, including when native execution returns an enqueue error.
     example.execute_and_wait(|context| unsafe {
-        compiled.execute(
+        compiled.execute_async(
             context,
-            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
         )
     })?;
 
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_norm_block_scale", run())
 }

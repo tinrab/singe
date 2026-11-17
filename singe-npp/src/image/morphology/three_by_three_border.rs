@@ -50,7 +50,7 @@ macro_rules! impl_morphology_3x3_border {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            $crate::utility::validate_border_roi(source.size(), source_offset, destination.size())?;
+            $crate::image::validate_border_roi(source.size(), source_offset, destination.size())?;
 
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {

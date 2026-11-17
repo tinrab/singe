@@ -1,31 +1,46 @@
 #![allow(dead_code)]
 
 use std::{
+    env,
     fs::{self, File},
-    io::{self, Write},
+    io::Write,
     path::{Path, PathBuf},
 };
 
 use anyhow::{Error, Result, anyhow};
-use singe_nvtiff::image::{DecodeOutputLayout, IfdOffset, ImageInfo};
+use singe_nvtiff::{
+    image::{DecodeOutputLayout, IfdOffset, ImageInfo},
+    stream::TiffStream,
+};
 
-pub type ExampleResult<T> = Result<T>;
-
-pub fn sample_tiff_path() -> PathBuf {
+pub(crate) fn sample_tiff_path() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("examples/images/bali_notiles.tif")
 }
 
-pub fn output_dir_path() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("examples/output")
+pub(crate) fn output_dir_path() -> PathBuf {
+    env::temp_dir()
 }
 
-pub fn write_decoded_pnm(
+pub(crate) fn print_stream_metadata(tiff: &TiffStream<'_>) -> Result<()> {
+    let header = tiff.header()?;
+    println!(
+        "{:?} TIFF, first image directory at {}",
+        header.variant, header.first_ifd_offset
+    );
+    for image in tiff.images()? {
+        let image = image?;
+        println!("image at {}: {:?}", image.ifd_offset(), image.info()?);
+    }
+    Ok(())
+}
+
+pub(crate) fn write_decoded_pnm(
     input_path: &Path,
     output_dir: &Path,
     ifd_offset: IfdOffset,
     data: &[u8],
     layout: DecodeOutputLayout,
-) -> ExampleResult<PathBuf> {
+) -> Result<PathBuf> {
     let samples_to_write = samples_to_write(layout)?;
     if layout.bits_per_sample != 8 && layout.bits_per_sample != 16 {
         return Err(invalid_input(format!(
@@ -45,7 +60,7 @@ pub fn write_decoded_pnm(
     Ok(path)
 }
 
-pub fn compatible_for_single_encode_params(infos: &[ImageInfo]) -> bool {
+pub(crate) fn compatible_for_single_encode_params(infos: &[ImageInfo]) -> bool {
     let Some(first) = infos.first() else {
         return false;
     };
@@ -55,16 +70,16 @@ pub fn compatible_for_single_encode_params(infos: &[ImageInfo]) -> bool {
             && info.height() == first.height()
             && info.bits_per_pixel() == first.bits_per_pixel()
             && info.samples_per_pixel() == first.samples_per_pixel()
-            && info.photometric_interpretation() == first.photometric_interpretation()
-            && info.planar_config() == first.planar_config()
-            && (0..first.samples_per_pixel() as usize).all(|index| {
+            && info.photometric_interpretation().ok() == first.photometric_interpretation().ok()
+            && info.planar_config().ok() == first.planar_config().ok()
+            && (0..usize::from(first.samples_per_pixel())).all(|index| {
                 info.bits_per_sample(index) == first.bits_per_sample(index)
-                    && info.sample_format(index) == first.sample_format(index)
+                    && info.sample_format(index).ok() == first.sample_format(index).ok()
             })
     })
 }
 
-pub fn parse_roi(value: &str) -> ExampleResult<(i32, i32, i32, i32)> {
+pub(crate) fn parse_roi(value: &str) -> Result<(i32, i32, i32, i32)> {
     let parts = value
         .split(',')
         .map(str::trim)
@@ -76,15 +91,15 @@ pub fn parse_roi(value: &str) -> ExampleResult<(i32, i32, i32, i32)> {
     Ok((parts[0], parts[1], parts[2], parts[3]))
 }
 
-pub fn invalid_input(message: impl Into<String>) -> Error {
+pub(crate) fn invalid_input(message: impl Into<String>) -> Error {
     anyhow!(message.into())
 }
 
-fn write_pnm(path: &Path, data: &[u8], layout: DecodeOutputLayout) -> ExampleResult<()> {
+fn write_pnm(path: &Path, data: &[u8], layout: DecodeOutputLayout) -> Result<()> {
     let samples_to_write = samples_to_write(layout)?;
     let bytes_per_sample = usize::from(layout.bits_per_sample / 8);
     let expected = checked_pixels(layout.width, layout.height)?
-        .checked_mul(layout.samples_per_pixel as usize)
+        .checked_mul(usize::from(layout.samples_per_pixel))
         .and_then(|size| size.checked_mul(bytes_per_sample))
         .ok_or_else(|| invalid_input("decoded image size overflow"))?;
     if data.len() < expected {
@@ -101,10 +116,13 @@ fn write_pnm(path: &Path, data: &[u8], layout: DecodeOutputLayout) -> ExampleRes
     let height = layout.height;
     write!(file, "{magic}\n# nvTIFF\n{width} {height}\n{max_value}\n")?;
 
-    for y in 0..height as usize {
-        for x in 0..width as usize {
-            let pixel = (y * width as usize + x) * layout.samples_per_pixel as usize;
-            for channel in 0..samples_to_write as usize {
+    let width = usize::try_from(width)?;
+    let height = usize::try_from(height)?;
+    let samples_per_pixel = usize::from(layout.samples_per_pixel);
+    for y in 0..height {
+        for x in 0..width {
+            let pixel = (y * width + x) * samples_per_pixel;
+            for channel in 0..usize::from(samples_to_write) {
                 let sample = (pixel + channel) * bytes_per_sample;
                 if layout.bits_per_sample == 8 {
                     file.write_all(&data[sample..=sample])?;
@@ -119,7 +137,7 @@ fn write_pnm(path: &Path, data: &[u8], layout: DecodeOutputLayout) -> ExampleRes
     Ok(())
 }
 
-fn samples_to_write(layout: DecodeOutputLayout) -> ExampleResult<u16> {
+fn samples_to_write(layout: DecodeOutputLayout) -> Result<u16> {
     match layout.samples_per_pixel {
         1 => Ok(1),
         3 | 4 => Ok(3),
@@ -129,17 +147,17 @@ fn samples_to_write(layout: DecodeOutputLayout) -> ExampleResult<u16> {
     }
 }
 
-fn checked_pixels(width: u32, height: u32) -> ExampleResult<usize> {
+fn checked_pixels(width: u32, height: u32) -> Result<usize> {
     usize::try_from(width)?
         .checked_mul(usize::try_from(height)?)
         .ok_or_else(|| invalid_input("image dimensions overflow"))
 }
 
-pub fn next_path(args: &mut impl Iterator<Item = String>, name: &str) -> ExampleResult<PathBuf> {
+pub(crate) fn next_path(args: &mut impl Iterator<Item = String>, name: &str) -> Result<PathBuf> {
     Ok(PathBuf::from(next_value(args, name)?))
 }
 
-pub fn next_value(args: &mut impl Iterator<Item = String>, name: &str) -> ExampleResult<String> {
+pub(crate) fn next_value(args: &mut impl Iterator<Item = String>, name: &str) -> Result<String> {
     args.next()
         .ok_or_else(|| invalid_input(format!("missing value for `{name}`")))
 }

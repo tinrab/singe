@@ -1,5 +1,6 @@
-use std::{mem::ManuallyDrop, ptr};
+use std::{ffi::c_void, mem::ManuallyDrop, ptr};
 
+use singe_core::report_cleanup_failure;
 use singe_cublas_sys as sys;
 use singe_cuda::device::Device;
 
@@ -7,7 +8,7 @@ use crate::{
     error::{Error, Result},
     try_ffi,
     utility::{to_i32, to_usize},
-    xt::types::{BlasOperation, OperationType, PinningMemoryMode},
+    xt::types::{BlasOperation, CpuRoutine, OperationType, PinningMemoryMode},
 };
 
 /// A stateful cuBLASXt handle with a fixed device selection.
@@ -23,7 +24,7 @@ struct Handle {
     raw: sys::cublasXtHandle_t,
 }
 
-// SAFETY: cuBLASXt handles are stateful and not exposed for shared concurrent use.
+// SAFETY: a cuBLASXt handle may be used from any host thread one call at a time, and `Handle` is not `Sync`, so moving it keeps calls serialized.
 unsafe impl Send for Handle {}
 
 impl Context {
@@ -58,7 +59,7 @@ impl Context {
         }
 
         let mut handle = ptr::null_mut();
-        // SAFETY: `cublasXtCreate` receives valid output locations.
+        // SAFETY: `cublasXtCreate` writes the new handle to `handle`, a live local.
         unsafe {
             try_ffi!(sys::cublasXtCreate(&raw mut handle))?;
         }
@@ -78,8 +79,8 @@ impl Context {
     ///
     /// # Safety
     ///
-    /// `handle` must be a valid cuBLASXt handle whose devices have already been selected exactly once with `cublasXtDeviceSelect`.
-    /// It must not be destroyed elsewhere or reconfigured with `cublasXtDeviceSelect` after calling this function.
+    /// `handle` must be a live cuBLASXt handle whose devices were selected exactly once.
+    /// It must not be destroyed elsewhere or have its devices selected again.
     ///
     /// # Errors
     ///
@@ -99,7 +100,7 @@ impl Context {
             .iter()
             .map(|device| to_i32(device.id(), "device id"))
             .collect::<Result<Vec<i32>>>()?;
-        // SAFETY: `cublasXtDeviceSelect` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: the handle this context owns is live, and `device_ids` holds the count passed with it.
         unsafe {
             try_ffi!(sys::cublasXtDeviceSelect(
                 self.as_raw(),
@@ -115,12 +116,12 @@ impl Context {
     /// # Errors
     ///
     /// Returns an error if `block_dim` is zero, too large for cuBLASXt, or rejected by the library.
-    pub fn set_block_dim(&self, block_dim: usize) -> Result<()> {
+    pub fn set_block_dim(&mut self, block_dim: usize) -> Result<()> {
         if block_dim == 0 {
             return Err(Error::InvalidMatrixShape);
         }
 
-        // SAFETY: `cublasXtSetBlockDim` receives live handles owned by the wrappers.
+        // SAFETY: the handle this context owns is live, and the block dimension is passed by value.
         unsafe {
             try_ffi!(sys::cublasXtSetBlockDim(
                 self.as_raw(),
@@ -137,7 +138,7 @@ impl Context {
     /// Returns an error if cuBLASXt cannot report the value.
     pub fn block_dim(&self) -> Result<usize> {
         let mut block_dim = 0;
-        // SAFETY: `cublasXtGetBlockDim` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: the handle this context owns is live, and `block_dim` is a live local.
         unsafe {
             try_ffi!(sys::cublasXtGetBlockDim(self.as_raw(), &raw mut block_dim,))?;
         }
@@ -149,8 +150,8 @@ impl Context {
     /// # Errors
     ///
     /// Returns an error if cuBLASXt rejects the mode.
-    pub fn set_pinning_memory_mode(&self, mode: PinningMemoryMode) -> Result<()> {
-        // SAFETY: `cublasXtSetPinningMemMode` receives live handles owned by the wrappers.
+    pub fn set_pinning_memory_mode(&mut self, mode: PinningMemoryMode) -> Result<()> {
+        // SAFETY: the handle this context owns is live, and the mode is passed by value.
         unsafe {
             try_ffi!(sys::cublasXtSetPinningMemMode(self.as_raw(), mode.into(),))?;
         }
@@ -164,11 +165,11 @@ impl Context {
     /// Returns an error if cuBLASXt cannot report the mode.
     pub fn pinning_memory_mode(&self) -> Result<PinningMemoryMode> {
         let mut mode = sys::cublasXtPinnedMemMode_t::CUBLASXT_PINNING_DISABLED;
-        // SAFETY: `cublasXtGetPinningMemMode` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: the handle this context owns is live, and `mode` is a live local.
         unsafe {
             try_ffi!(sys::cublasXtGetPinningMemMode(self.as_raw(), &raw mut mode,))?;
         }
-        Ok(mode.into())
+        Ok(mode.try_into()?)
     }
 
     /// Sets the fraction of work cuBLASXt should offload to a caller-provided CPU BLAS routine for the selected operation and type.
@@ -177,12 +178,12 @@ impl Context {
     ///
     /// Returns an error if cuBLASXt rejects the operation/type combination or ratio.
     pub fn set_cpu_ratio(
-        &self,
+        &mut self,
         operation: BlasOperation,
         operation_type: OperationType,
         ratio: f32,
     ) -> Result<()> {
-        // SAFETY: `cublasXtSetCpuRatio` receives live handles owned by the wrappers.
+        // SAFETY: the handle this context owns is live, and the selectors and ratio are passed by value.
         unsafe {
             try_ffi!(sys::cublasXtSetCpuRatio(
                 self.as_raw(),
@@ -194,40 +195,37 @@ impl Context {
         Ok(())
     }
 
-    /// Sets the CPU BLAS routine used by cuBLASXt hybrid CPU/GPU execution.
-    ///
-    /// cuBLASXt uses the routine together with [`Context::set_cpu_ratio`].
-    /// NVIDIA currently documents hybrid execution as supported for GEMM.
+    /// Sets the host GEMM routine that cuBLASXt runs for the share of GEMM work set by [`Context::set_cpu_ratio`].
     ///
     /// # Safety
     ///
-    /// `routine` must point to a CPU BLAS function with the ABI, signature, and lifetime expected by cuBLASXt for `operation` and `operation_type`.
-    /// cuBLASXt may call it during subsequent operations on this context.
+    /// The routine must implement the Fortran BLAS GEMM of its element type, and cuBLASXt may call it from its own threads during later operations on this context.
     ///
     /// # Errors
     ///
-    /// Returns an error if cuBLASXt rejects the operation/type combination or routine pointer.
-    pub unsafe fn set_cpu_routine(
-        &self,
-        operation: BlasOperation,
-        operation_type: OperationType,
-        routine: *mut (),
-    ) -> Result<()> {
-        // SAFETY: `cublasXtSetCpuRoutine` receives live handles owned by the wrappers.
+    /// Returns an error if cuBLASXt rejects the routine.
+    pub unsafe fn set_cpu_routine(&mut self, routine: CpuRoutine) -> Result<()> {
+        let (operation_type, routine): (OperationType, *mut c_void) = match routine {
+            CpuRoutine::Sgemm(routine) => (OperationType::F32, routine as *mut c_void),
+            CpuRoutine::Dgemm(routine) => (OperationType::F64, routine as *mut c_void),
+            CpuRoutine::Cgemm(routine) => (OperationType::Complex32, routine as *mut c_void),
+            CpuRoutine::Zgemm(routine) => (OperationType::Complex64, routine as *mut c_void),
+        };
+        // SAFETY: the handle is live, and the caller guarantees the routine follows the GEMM contract of its element type.
         unsafe {
             try_ffi!(sys::cublasXtSetCpuRoutine(
                 self.as_raw(),
-                operation.into(),
+                BlasOperation::Gemm.into(),
                 operation_type.into(),
-                routine as _,
-            ))?;
+                routine,
+            ))
         }
-        Ok(())
     }
 
     /// Returns the raw cuBLASXt handle.
     ///
     /// The returned handle is borrowed and remains valid only while this context is alive.
+    #[must_use]
     pub fn as_raw(&self) -> sys::cublasXtHandle_t {
         self.handle.raw
     }
@@ -235,6 +233,7 @@ impl Context {
     /// Consumes this context and returns the owned raw cuBLASXt handle.
     ///
     /// The caller becomes responsible for eventually destroying the handle.
+    #[must_use]
     pub fn into_raw(self) -> sys::cublasXtHandle_t {
         let this = ManuallyDrop::new(self);
         this.handle.raw
@@ -243,13 +242,10 @@ impl Context {
 
 impl Drop for Handle {
     fn drop(&mut self) {
-        // SAFETY: `cublasXtDestroy` receives live handles owned by the wrappers.
+        // SAFETY: `Handle` owns `self.raw`, and `drop` destroys it exactly once.
         unsafe {
             if let Err(error) = try_ffi!(sys::cublasXtDestroy(self.raw)) {
-                eprintln!(
-                    "failed to destroy cublasxt context: {}",
-                    singe_core::ErrorChain(&error)
-                );
+                report_cleanup_failure("destroy", "cublasxt context", &error);
             }
         }
     }

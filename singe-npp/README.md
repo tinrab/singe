@@ -6,48 +6,48 @@
 [![Documentation](https://docs.rs/singe-npp/badge.svg)](https://docs.rs/singe-npp)
 ![License](https://img.shields.io/crates/l/singe-npp.svg)
 
-Safe Rust wrappers for NVIDIA Performance Primitives (NPP), for image and signal processing on the GPU.
+Safe Rust wrappers for NPP, the NVIDIA Performance Primitives, for image and signal processing on the GPU.
 
 This crate provides:
 
-- Typed device images, channel layouts, pixel views, and signal buffers.
-- Image pipelines for resizing, color conversion, filtering, and segmentation.
-- Signal processing, statistics, geometry, and labeling operations.
-- Stream contexts and reusable temporary workspaces.
+- **Images and signals:** device images typed by element and channel layout, such as `Image<u8, C3>`, borrowed views of device memory, and signal buffers.
+- **Image pipelines:** `ImagePipeline` chains resizing, color conversion, thresholding, filtering, and segmentation, and its type tracks the element type and channel layout after each step.
+- **Signal pipelines:** `SignalPipeline` chains arithmetic, conversion, filtering, and statistics over device signals.
+- **Execution:** `StreamContext` runs NPP on a CUDA stream, and `Workspace` reuses scratch memory between calls.
 
 ## Example
 
 Create an RGB image and convert it to grayscale:
 
-```rust
-use singe_cuda::context::Context;
+```rust,no_run
+use singe_cuda::{context::Context, stream::StreamOptions};
 use singe_npp::{C3, Image, ImagePipeline, StreamContext, Workspace, types::Size};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-	let context = Context::create()?;
-	let stream = context.create_stream()?;
-	let stream_context = StreamContext::create(&stream)?;
-	let mut workspace = Workspace::create();
-	let image = Image::<u8, C3>::filled(&stream_context, Size::new(16, 16), 128)?;
-	let gray = ImagePipeline::from_owned(&stream_context, &mut workspace, image)?
-		.rgb_to_gray()?
-		.finish()?;
-	let pixels = gray.copy_to_host_vec()?;
-	assert_eq!(pixels.len(), 16 * 16);
-	Ok(())
+    let context = Context::create()?;
+    let stream = context.create_stream(StreamOptions::default())?;
+    let stream_context = StreamContext::create(&stream)?;
+    let mut workspace = Workspace::create();
+
+    let image = Image::<u8, C3>::filled(&stream_context, Size::new(16, 16), 128)?;
+    let gray = ImagePipeline::from_owned(&stream_context, &mut workspace, image)?
+        .rgb_to_gray()?
+        .finish()?;
+    assert_eq!(gray.copy_to_host_vec()?.len(), 16 * 16);
+    Ok(())
 }
 ```
 
-`C3` describes three channels per pixel.
-Pipeline methods carry the element type and channel layout in the image's type, and `Workspace` reuses scratch memory between calls.
-Each method waits for its GPU work before returning.
+`C3` is a layout with three channels per pixel, and `rgb_to_gray` returns a pipeline over a one-channel `C1` image.
+Each pipeline step waits for its GPU work before returning.
 
 ## More examples
 
-- [Image pipeline](examples/pipeline.rs): crop, resize, convert, filter, and segment an image.
-- [Canny edges](examples/npp_canny.rs): detect image edges.
-- [Distance transform](examples/distance_transform.rs): compute distances from image features.
-- [Contours](examples/find_contour.rs): label regions and extract contour geometry.
-- [Watershed](examples/watershed_segmentation.rs): segment an image into regions.
+- [Image pipeline](./examples/pipeline.rs): crop, resize, convert, filter, and segment an image.
+- [Canny edges](./examples/npp_canny.rs): detect edges in an image.
+- [Distance transform](./examples/distance_transform.rs): compute each pixel's distance to the nearest feature.
+- [Contours](./examples/find_contour.rs): label regions and extract contour geometry.
+- [Watershed](./examples/watershed_segmentation.rs): segment an image into regions.
+- [Batched labeling](./examples/batched_label_markers_and_compression.rs): label connected regions in several images in one batch and compress the labels.
 
-See the [API reference](https://docs.rs/singe-npp).
+The examples write their results under `examples/output`.

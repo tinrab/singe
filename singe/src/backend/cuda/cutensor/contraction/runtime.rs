@@ -42,7 +42,7 @@ pub fn cached_cutensor_contraction_plan(
             &cutensor, a, a_mode, b, b_mode, c, c_mode, d_mode, output,
         )?
     };
-    let workspace_size = plan.required_workspace_size_bytes()?;
+    let workspace_size = plan.workspace_size();
     let cached = CachedCutensorContractionPlan::new(plan, workspace_size);
 
     let mut cache = runtime

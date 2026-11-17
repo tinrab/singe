@@ -11,7 +11,7 @@ use crate::{
 };
 
 /// Lowers `shfl.sync`.
-pub fn shuffle(
+pub(crate) fn shuffle(
     compiler: &FunctionCompiler<'_, '_>,
     instruction: &Instruction,
     head: &mut Head<'_>,
@@ -44,7 +44,7 @@ pub fn shuffle(
 }
 
 /// Lowers `vote.sync`.
-pub fn vote(
+pub(crate) fn vote(
     compiler: &FunctionCompiler<'_, '_>,
     instruction: &Instruction,
     head: &mut Head<'_>,
@@ -82,7 +82,7 @@ pub fn vote(
     }))
 }
 
-pub fn active_mask(
+pub(crate) fn active_mask(
     compiler: &FunctionCompiler<'_, '_>,
     instruction: &Instruction,
     head: &mut Head<'_>,
@@ -99,7 +99,7 @@ pub fn active_mask(
 }
 
 /// Lowers `redux.sync.add.u32`.
-pub fn reduce(
+pub(crate) fn reduce(
     compiler: &FunctionCompiler<'_, '_>,
     instruction: &Instruction,
     head: &mut Head<'_>,

@@ -54,7 +54,8 @@ where
     Self: AlphaCompColorKeyImage,
 {
     /// Performs native complement color-key replacement of `source` by `other` with alpha blending.
-    /// `alpha` and `other_alpha` are constant source opacities from zero through 255. `color_key` supplies four native key components.
+    /// `alpha` and `other_alpha` are constant source opacities from zero through 255.
+    /// `color_key` supplies four native key components.
     /// `operation` selects native composition; the native API excludes premultiplied-alpha operations, and the wrapper forwards the selector without validating it.
     /// Writes the native composition into the supplied destination.
     /// Prepares participating image regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
@@ -93,7 +94,8 @@ where
     Self: AlphaCompColorKeyImage,
 {
     /// Performs native complement color-key replacement of the pipeline image by `other` with alpha blending.
-    /// `alpha` and `other_alpha` are constant source opacities from zero through 255. `color_key` supplies four native key components.
+    /// `alpha` and `other_alpha` are constant source opacities from zero through 255.
+    /// `color_key` supplies four native key components.
     /// `operation` selects native composition; the native API excludes premultiplied-alpha operations, and the wrapper forwards the selector without validating it.
     /// Always allocates a new owned image with the pipeline image dimensions.
     /// Prepares participating image regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.

@@ -1,5 +1,18 @@
 //! CUDA arrays, mipmapped arrays and borrowed mip levels.
 
+mod sealed {
+    use crate::memory::array::ArrayFormat;
+
+    #[expect(
+        unnameable_types,
+        reason = "sealed supertrait that other crates must not name or implement"
+    )]
+    pub trait Pixel {
+        const FORMAT: ArrayFormat;
+        const CHANNELS: u32;
+    }
+}
+
 use std::{
     ffi::c_void,
     fmt,
@@ -13,20 +26,21 @@ use std::{
 
 use bitflags::parser;
 use half::f16;
+use singe_core::report_cleanup_failure;
 use singe_cuda_sys::driver as sys;
 
 use crate::{
     context::Context,
     error::{Error, Result},
-    stream::{StreamBinding, StreamScope},
+    stream::{AsStream, StreamBinding, StreamScope},
     submission::{Access, AccessMode},
     try_ffi,
-    utility::{driver_enum, to_u64},
+    utility::{driver_enum, to_u64, to_usize},
     view::{AllocationId, AnyBitPatternDeviceRepr, DeviceOutput, DeviceSlice, DeviceViewMut},
 };
 
 driver_enum! {
-    /// Array formats
+    /// Element formats of CUDA arrays.
     pub enum ArrayFormat: sys::CUarray_format {
         /// Unsigned 8-bit integers.
         U8 = CU_AD_FORMAT_UNSIGNED_INT8,
@@ -44,15 +58,6 @@ driver_enum! {
         F16 = CU_AD_FORMAT_HALF,
         /// 32-bit floating point.
         F32 = CU_AD_FORMAT_FLOAT,
-    }
-}
-
-mod sealed {
-    use crate::memory::array::ArrayFormat;
-
-    pub trait Pixel {
-        const FORMAT: ArrayFormat;
-        const CHANNELS: u32;
     }
 }
 
@@ -196,7 +201,7 @@ impl ArrayShape {
                     edge,
                     cubes
                         .checked_mul(6)
-                        .ok_or(Error::InvalidMemoryAllocationRequest)?,
+                        .ok_or_else(|| Error::out_of_range("cube layer count"))?,
                 ],
                 sys::CUDA_ARRAY3D_CUBEMAP | sys::CUDA_ARRAY3D_LAYERED,
             ),
@@ -219,9 +224,7 @@ impl ArrayShape {
             Self::CubeArray { edge, cubes } => edge != 0 && cubes != 0,
         };
         if !valid {
-            return Err(Error::ZeroValue {
-                name: "array dimension".into(),
-            });
+            return Err(Error::not_positive("array dimension"));
         }
         Ok((dimensions, flags))
     }
@@ -330,8 +333,11 @@ impl ArrayRegion {
             .zip(self.extent)
             .zip(shape.extent()?)
         {
-            if origin.checked_add(extent).is_none_or(|end| end > bound) {
-                return Err(Error::InvalidMemoryAccess);
+            let end = origin
+                .checked_add(extent)
+                .ok_or_else(|| Error::out_of_range("array region end"))?;
+            if end > bound {
+                return Err(Error::buffer_too_small("array", end, bound));
             }
         }
 
@@ -344,7 +350,7 @@ fn volume(extent: [usize; 3]) -> Result<usize> {
     extent.into_iter().try_fold(1usize, |count, dimension| {
         count
             .checked_mul(dimension)
-            .ok_or(Error::InvalidMemoryAllocationRequest)
+            .ok_or_else(|| Error::out_of_range("array element count"))
     })
 }
 
@@ -362,9 +368,10 @@ pub struct ArrayAllocation {
     parent: Option<Arc<MipmappedAllocation>>,
 }
 
-// SAFETY: CUDA addresses are opaque to host code; typed borrows and raw caller contracts govern access.
+// SAFETY: `handle` is a driver array handle that CUDA lets any thread use once `context` is bound, the fields never change after construction, and `Drop` destroys the handle once.
 unsafe impl Send for ArrayAllocation {}
 
+// SAFETY: `&self` methods only read immutable fields, the driver API is thread-safe for concurrent calls on one array, and texel access is ordered by the context's access tracker.
 unsafe impl Sync for ArrayAllocation {}
 
 impl ArrayAllocation {
@@ -431,18 +438,32 @@ impl Drop for ArrayAllocation {
         if self.handle.is_null() || self.parent.is_some() {
             return;
         }
-        if let Err(error) = self
-            .context
-            .bind()
-            // SAFETY: `cuArrayDestroy` receives live handles owned by the wrappers.
-            .and_then(|()| unsafe { try_ffi!(sys::cuArrayDestroy(self.handle)) })
-        {
-            eprintln!(
-                "failed to destroy cuda array: {}",
-                singe_core::ErrorChain(&error)
-            );
+
+        if let Err(error) = self.context.bind() {
+            report_cleanup_failure("bind the cuda context to destroy", "cuda array", &error);
+            return;
+        }
+
+        // SAFETY: `handle` is a standalone array this allocation owns, its context is bound, and no `Array` can still use it once the last `Arc` drops.
+        if let Err(error) = unsafe { try_ffi!(sys::cuArrayDestroy(self.handle)) } {
+            report_cleanup_failure("destroy", "cuda array", &error);
         }
     }
+}
+
+/// Raw ownership of a CUDA array, its context, and the descriptor it was created with.
+///
+/// Destroy `handle` while `context` is alive, or re-adopt the value with [`Array::from_raw`].
+#[derive(Debug)]
+pub struct RawArray {
+    /// Native array handle.
+    pub handle: sys::CUarray,
+    /// Context the array belongs to.
+    pub context: Arc<Context>,
+    /// Array extent.
+    pub shape: ArrayShape,
+    /// Array creation flags.
+    pub flags: ArrayFlags,
 }
 
 /// Typed array storage with explicit whole-array initialization state.
@@ -503,7 +524,7 @@ impl<T: ArrayElement, S> Array<T, S> {
                 to_u64(
                     region.origin[0]
                         .checked_mul(size_of::<T>())
-                        .ok_or(Error::InvalidMemoryAccess)?,
+                        .ok_or_else(|| Error::out_of_range("array x offset"))?,
                     "array x offset",
                 )?,
                 to_u64(region.origin[1], "array y offset")?,
@@ -516,7 +537,7 @@ impl<T: ArrayElement, S> Array<T, S> {
         let _guard = self.context().acquire_accesses(accesses)?;
         self.context().bind()?;
         let binding = StreamBinding::Default(Arc::clone(self.context()));
-        // SAFETY: `cuMemcpy3DAsync_v2` receives live handles owned by the wrappers.
+        // SAFETY: `transfer` built `raw` from an array region validated against the shape and operands whose lengths match it, the guard holds the declared accesses, the context is bound, and `sync_scope` waits for the copy before the borrows end.
         binding.sync_scope(|| unsafe { try_ffi!(sys::cuMemcpy3DAsync_v2(raw, binding.as_raw())) })
     }
 
@@ -525,10 +546,15 @@ impl<T: ArrayElement, S> Array<T, S> {
     /// # Errors
     ///
     /// Returns an error if the region is outside the array, the element count does not match the region volume, or transfer size or offset calculations overflow.
-    /// Also propagates access-tracking, context-binding, and CUDA copy or synchronization errors.
+    /// Returns an error if access tracking fails, the context cannot be bound, or CUDA cannot copy or synchronize.
     pub fn copy_from_host(&mut self, region: ArrayRegion, source: &[T]) -> Result<()> {
-        if source.len() != region.len()? {
-            return Err(Error::InvalidMemoryAccess);
+        let expected = region.len()?;
+        if source.len() != expected {
+            return Err(Error::length_mismatch(
+                "host source",
+                expected,
+                source.len(),
+            ));
         }
 
         let raw = transfer::<T>(
@@ -547,8 +573,8 @@ impl<T: ArrayElement, S> Array<T, S> {
     /// # Errors
     ///
     /// Returns an error if the scope belongs to another context, the source length does not match the region, the region is out of bounds, or size calculations overflow.
-    /// Also propagates scope submission and CUDA copy errors.
-    pub fn copy_from_host_async<'env>(
+    /// Returns an error if the scope cannot order the copy or CUDA cannot enqueue it.
+    pub fn copy_from_host_scoped<'env>(
         &'env mut self,
         region: ArrayRegion,
         source: &'env [T],
@@ -558,8 +584,13 @@ impl<T: ArrayElement, S> Array<T, S> {
             return Err(Error::MemoryContextMismatch);
         }
 
-        if source.len() != region.len()? {
-            return Err(Error::InvalidMemoryAccess);
+        let expected = region.len()?;
+        if source.len() != expected {
+            return Err(Error::length_mismatch(
+                "host source",
+                expected,
+                source.len(),
+            ));
         }
 
         let raw = transfer::<T>(
@@ -568,7 +599,7 @@ impl<T: ArrayElement, S> Array<T, S> {
             CopyDestination::Array(self.endpoint(region)?),
         )?;
         let accesses = [self.allocation.access(AccessMode::Write)];
-        // SAFETY: `cuMemcpy3DAsync_v2` receives only plain values.
+        // SAFETY: `raw` describes a validated array region and a `source` of matching length, the `'env` borrows keep both live until the scope drains, the declared write orders tracked work on the array, and the contexts match.
         unsafe {
             scope.enqueue(&accesses, || {
                 try_ffi!(sys::cuMemcpy3DAsync_v2(
@@ -584,7 +615,7 @@ impl<T: ArrayElement, S> Array<T, S> {
     /// # Errors
     ///
     /// Returns an error if the source belongs to another context, its length does not match the region, the region is out of bounds, or size calculations overflow.
-    /// Also propagates access-tracking, context-binding, and CUDA copy or synchronization errors.
+    /// Returns an error if access tracking fails, the context cannot be bound, or CUDA cannot copy or synchronize.
     pub fn copy_from_device<B: DeviceSlice<T> + ?Sized>(
         &mut self,
         region: ArrayRegion,
@@ -594,13 +625,19 @@ impl<T: ArrayElement, S> Array<T, S> {
             return Err(Error::MemoryContextMismatch);
         }
 
-        if source.len() != region.len()? {
-            return Err(Error::InvalidMemoryAccess);
+        let expected = region.len()?;
+        if source.len() != expected {
+            return Err(Error::length_mismatch(
+                "device source",
+                expected,
+                source.len(),
+            ));
         }
 
+        let source_address = to_u64(source.as_device_ptr().addr(), "device source address")?;
         let raw = transfer::<T>(
             region.extent,
-            CopySource::Device(source.as_device_ptr() as _),
+            CopySource::Device(source_address),
             CopyDestination::Array(self.endpoint(region)?),
         )?;
         self.run_copy(
@@ -617,7 +654,7 @@ impl<T: ArrayElement, S> Array<T, S> {
     /// # Errors
     ///
     /// Returns an error if the arrays belong to different contexts, either region is out of bounds, the regions overlap within the same array, or size calculations overflow.
-    /// Also propagates access-tracking, context-binding, and CUDA copy or synchronization errors.
+    /// Returns an error if access tracking fails, the context cannot be bound, or CUDA cannot copy or synchronize.
     pub fn copy_from_array(
         &mut self,
         destination: [usize; 3],
@@ -637,7 +674,7 @@ impl<T: ArrayElement, S> Array<T, S> {
                     && source_region.origin[axis] < destination[axis] + region.extent[axis]
             })
         {
-            return Err(Error::InvalidMemoryAccess);
+            return Err(Error::out_of_range("overlapping array regions"));
         }
 
         let raw = transfer::<T>(
@@ -658,16 +695,21 @@ impl<T: ArrayElement, S> Array<T, S> {
     ///
     /// # Errors
     ///
-    /// Returns the original array if it is a borrowed mip level or another owner retains its allocation.
-    pub fn into_raw(self) -> StdResult<(sys::CUarray, Arc<Context>), Self> {
+    /// Returns the array unchanged as the error if it is a borrowed mip level or another owner retains its allocation.
+    pub fn into_raw(self) -> StdResult<RawArray, Self> {
         if self.allocation.parent.is_some() || Arc::strong_count(&self.allocation) != 1 {
             return Err(self);
         }
+
+        let shape = self.shape();
+        let flags = self.flags();
         match Arc::try_unwrap(self.allocation) {
-            Ok(mut allocation) => Ok((
-                mem::replace(&mut allocation.handle, ptr::null_mut()),
-                Arc::clone(&allocation.context),
-            )),
+            Ok(mut allocation) => Ok(RawArray {
+                handle: mem::replace(&mut allocation.handle, ptr::null_mut()),
+                context: Arc::clone(&allocation.context),
+                shape,
+                flags,
+            }),
             Err(allocation) => Err(Self {
                 allocation,
                 marker: PhantomData,
@@ -700,13 +742,12 @@ fn transfer<T: ArrayElement>(
 ) -> Result<sys::CUDA_MEMCPY3D> {
     let row_bytes = extent[0]
         .checked_mul(size_of::<T>())
-        .ok_or(Error::InvalidMemoryAllocationRequest)?;
+        .ok_or_else(|| Error::out_of_range("array row bytes"))?;
     volume(extent)?
         .checked_mul(size_of::<T>())
-        .ok_or(Error::InvalidMemoryAllocationRequest)?;
+        .ok_or_else(|| Error::out_of_range("array transfer bytes"))?;
     let mut raw = MaybeUninit::<sys::CUDA_MEMCPY3D>::zeroed();
-    // SAFETY: all fields except the two memory-type enums accept zero.
-    // Write valid discriminants before constructing a Rust value.
+    // SAFETY: every field except the two memory-type enums is an integer or pointer that accepts zero, and both enums get valid discriminants before `assume_init`.
     let mut raw = unsafe {
         (*raw.as_mut_ptr()).srcMemoryType = sys::CUmemorytype::CU_MEMORYTYPE_HOST;
         (*raw.as_mut_ptr()).dstMemoryType = sys::CUmemorytype::CU_MEMORYTYPE_HOST;
@@ -762,7 +803,7 @@ fn descriptor<T: ArrayElement>(
     let (dimensions, shape_flags) = shape.native_dimensions()?;
     let bytes = volume(shape.extent()?)?
         .checked_mul(size_of::<T>())
-        .ok_or(Error::InvalidMemoryAllocationRequest)?;
+        .ok_or_else(|| Error::out_of_range("array byte size"))?;
     let descriptor = sys::CUDA_ARRAY3D_DESCRIPTOR {
         Width: to_u64(dimensions[0], "array width")?,
         Height: to_u64(dimensions[1], "array height")?,
@@ -774,7 +815,7 @@ fn descriptor<T: ArrayElement>(
     Ok((descriptor, bytes))
 }
 
-impl<T: ArrayElement> Array<T, Uninitialized> {
+impl<T: ArrayElement> Array<T> {
     /// Allocates an array without initializing its texels.
     ///
     /// `T` determines the scalar format and number of channels.
@@ -782,17 +823,20 @@ impl<T: ArrayElement> Array<T, Uninitialized> {
     ///
     /// # Errors
     ///
-    /// Returns an error if dimensions are zero, size calculations overflow, flags contain unknown bits, or CUDA rejects the requested format, dimensions, flags, or allocation.
-    /// Also propagates context-binding errors and rejects a null returned handle.
-    pub fn create(context: &Arc<Context>, shape: ArrayShape, flags: ArrayFlags) -> Result<Self> {
+    /// Returns an error if dimensions are zero, size calculations overflow, flags contain unknown bits, the context cannot be bound, CUDA rejects the requested format, dimensions, flags, or allocation, or CUDA returns a null handle.
+    pub fn create_uninit(
+        context: &Arc<Context>,
+        shape: ArrayShape,
+        flags: ArrayFlags,
+    ) -> Result<Array<T, Uninitialized>> {
         if flags.bits() & !ArrayFlags::all().bits() != 0 {
-            return Err(Error::InvalidValue);
+            return Err(Error::out_of_range("array flags"));
         }
 
         let (descriptor, bytes) = descriptor::<T>(shape, flags)?;
         context.bind()?;
         let mut handle = ptr::null_mut();
-        // SAFETY: `cuArray3DCreate_v2` receives valid output locations and pointers into buffers borrowed for the call.
+        // SAFETY: `handle` is a writable local, `descriptor` is a local that outlives the call, and `context` is bound.
         unsafe {
             try_ffi!(sys::cuArray3DCreate_v2(
                 &raw mut handle,
@@ -803,7 +847,7 @@ impl<T: ArrayElement> Array<T, Uninitialized> {
         if handle.is_null() {
             return Err(Error::NullHandle);
         }
-        Ok(Self {
+        Ok(Array {
             allocation: Arc::new(ArrayAllocation {
                 context: Arc::clone(context),
                 handle,
@@ -818,7 +862,9 @@ impl<T: ArrayElement> Array<T, Uninitialized> {
             marker: PhantomData,
         })
     }
+}
 
+impl<T: ArrayElement> Array<T, Uninitialized> {
     /// Copies all host texels into the array and returns it as initialized.
     ///
     /// The source is contiguous in x, then y, then z, layer, or cube-face order.
@@ -829,13 +875,14 @@ impl<T: ArrayElement> Array<T, Uninitialized> {
     /// See [`Array::copy_from_host`].
     pub fn initialize(mut self, source: &[T]) -> Result<Array<T>> {
         self.copy_from_host(ArrayRegion::full(self.shape())?, source)?;
-        // SAFETY: the completed full-array copy wrote valid values to every texel.
+        // SAFETY: the synchronized full-region copy wrote a valid `T` from `source` to every texel.
         Ok(unsafe { self.assume_init() })
     }
 
     /// Marks the complete array initialized after external producers complete.
     ///
     /// # Safety
+    ///
     /// All texels must contain valid values of `T`, with producer and subsequent consumer order established.
     #[must_use]
     pub unsafe fn assume_init(self) -> Array<T> {
@@ -848,18 +895,19 @@ impl<T: ArrayElement> Array<T, Uninitialized> {
     /// Adopts an independently owned array with an explicit format and shape contract.
     ///
     /// # Safety
-    /// The handle must belong to `context`, match this exact typed descriptor, and transfer destruction responsibility.
+    ///
+    /// `raw.handle` must belong to `raw.context`, match this exact typed descriptor, and transfer destruction responsibility.
     ///
     /// # Errors
     ///
-    /// Returns an error if the handle is null, the expected shape or size is invalid, or the native descriptor differs from the expected typed descriptor.
-    /// Also propagates context-binding and CUDA descriptor-query errors.
-    pub unsafe fn from_raw(
-        handle: sys::CUarray,
-        context: Arc<Context>,
-        shape: ArrayShape,
-        flags: ArrayFlags,
-    ) -> Result<Self> {
+    /// Returns an error if the handle is null, the expected shape or size is invalid, the context cannot be bound, CUDA cannot report the descriptor, or it differs from the expected typed descriptor.
+    pub unsafe fn from_raw(raw: RawArray) -> Result<Self> {
+        let RawArray {
+            handle,
+            context,
+            shape,
+            flags,
+        } = raw;
         if handle.is_null() {
             return Err(Error::NullHandle);
         }
@@ -867,7 +915,7 @@ impl<T: ArrayElement> Array<T, Uninitialized> {
         let (expected, bytes) = descriptor::<T>(shape, flags)?;
         context.bind()?;
         let mut actual = MaybeUninit::<sys::CUDA_ARRAY3D_DESCRIPTOR>::uninit();
-        // SAFETY: `cuArray3DGetDescriptor_v2` receives valid output locations.
+        // SAFETY: `actual` is a writable local, the caller guarantees `handle` is a live array of the bound `context`, and it is non-null.
         unsafe {
             try_ffi!(sys::cuArray3DGetDescriptor_v2(actual.as_mut_ptr(), handle))?;
         }
@@ -875,7 +923,7 @@ impl<T: ArrayElement> Array<T, Uninitialized> {
         // SAFETY: `cuArray3DGetDescriptor_v2` succeeded, so it wrote the whole descriptor.
         let actual = unsafe { actual.assume_init() };
         if expected != actual {
-            return Err(Error::InvalidMemoryAccess);
+            return Err(Error::out_of_range("array descriptor"));
         }
         Ok(Self {
             allocation: Arc::new(ArrayAllocation {
@@ -900,14 +948,14 @@ impl<T: ArrayElement> Array<T> {
     /// # Errors
     ///
     /// Returns an error if allocation fails or `source` does not match the full array volume.
-    /// See [`Array::create`] and [`Array::initialize`].
+    /// See [`Array::create_uninit`] and [`Array::initialize`].
     pub fn from_slice(
         context: &Arc<Context>,
         shape: ArrayShape,
         flags: ArrayFlags,
         source: &[T],
     ) -> Result<Self> {
-        Array::<T, Uninitialized>::create(context, shape, flags)?.initialize(source)
+        Self::create_uninit(context, shape, flags)?.initialize(source)
     }
 
     /// Copies an initialized array region into a contiguous host slice and waits for completion.
@@ -915,10 +963,15 @@ impl<T: ArrayElement> Array<T> {
     /// # Errors
     ///
     /// Returns an error if the region is outside the array, the element count does not match the region volume, or transfer size or offset calculations overflow.
-    /// Also propagates access-tracking, context-binding, and CUDA copy or synchronization errors.
+    /// Returns an error if access tracking fails, the context cannot be bound, or CUDA cannot copy or synchronize.
     pub fn copy_to_host(&self, region: ArrayRegion, destination: &mut [T]) -> Result<()> {
-        if destination.len() != region.len()? {
-            return Err(Error::InvalidMemoryAccess);
+        let expected = region.len()?;
+        if destination.len() != expected {
+            return Err(Error::length_mismatch(
+                "host destination",
+                expected,
+                destination.len(),
+            ));
         }
 
         let raw = transfer::<T>(
@@ -934,7 +987,7 @@ impl<T: ArrayElement> Array<T> {
     /// # Errors
     ///
     /// Returns an error if the region is out of bounds or size calculations overflow.
-    /// Also propagates access-tracking, context-binding, and CUDA copy or synchronization errors.
+    /// Returns an error if access tracking fails, the context cannot be bound, or CUDA cannot copy or synchronize.
     pub fn to_vec(&self, region: ArrayRegion) -> Result<Vec<T>> {
         region.validate(self.shape())?;
         let mut values = vec![MaybeUninit::<T>::uninit(); region.len()?];
@@ -945,7 +998,7 @@ impl<T: ArrayElement> Array<T> {
         )?;
         self.run_copy(&raw, &[self.allocation.access(AccessMode::Read)])?;
         let mut values = ManuallyDrop::new(values);
-        // SAFETY: every element was copied from valid initialized texels; layout and allocation are unchanged.
+        // SAFETY: the synchronized copy wrote every element from initialized texels of `T`, and `MaybeUninit<T>` has `T`'s layout, so the length, capacity, and allocation carry over.
         Ok(unsafe {
             Vec::from_raw_parts(values.as_mut_ptr().cast(), values.len(), values.capacity())
         })
@@ -958,7 +1011,7 @@ impl<T: ArrayElement> Array<T> {
     /// # Errors
     ///
     /// Returns an error if the destination belongs to another context, its length does not match the region, the region is out of bounds, or size calculations overflow.
-    /// Also propagates access-tracking, context-binding, CUDA copy or synchronization, and destination-view validation errors.
+    /// Returns an error if access tracking fails, the context cannot be bound, CUDA cannot copy or synchronize, or the destination view fails validation.
     pub fn copy_to_device<'a, B: DeviceOutput<T> + ?Sized>(
         &self,
         region: ArrayRegion,
@@ -968,14 +1021,23 @@ impl<T: ArrayElement> Array<T> {
             return Err(Error::MemoryContextMismatch);
         }
 
-        if destination.len() != region.len()? {
-            return Err(Error::InvalidMemoryAccess);
+        let expected = region.len()?;
+        if destination.len() != expected {
+            return Err(Error::length_mismatch(
+                "device destination",
+                expected,
+                destination.len(),
+            ));
         }
 
+        let destination_address = to_u64(
+            destination.as_mut_ptr().addr(),
+            "device destination address",
+        )?;
         let raw = transfer::<T>(
             region.extent,
             CopySource::Array(self.endpoint(region)?),
-            CopyDestination::Device(destination.as_mut_ptr() as _),
+            CopyDestination::Device(destination_address),
         )?;
         self.run_copy(
             &raw,
@@ -984,7 +1046,7 @@ impl<T: ArrayElement> Array<T> {
                 Access::new(destination.region(), AccessMode::Write),
             ],
         )?;
-        // SAFETY: the view covers exactly the elements of the borrowed allocation and lives no longer than the borrow.
+        // SAFETY: the synchronized copy wrote a valid `T` to each of the destination's elements, and the view lives no longer than the exclusive borrow.
         unsafe { DeviceViewMut::from_raw_parts(destination.region(), destination.len()) }
     }
 
@@ -995,8 +1057,8 @@ impl<T: ArrayElement> Array<T> {
     /// # Errors
     ///
     /// Returns an error if the scope belongs to another context, the destination length does not match the region, the region is out of bounds, or size calculations overflow.
-    /// Also propagates scope submission and CUDA copy errors.
-    pub fn copy_to_host_async<'env>(
+    /// Returns an error if the scope cannot order the copy or CUDA cannot enqueue it.
+    pub fn copy_to_host_scoped<'env>(
         &'env self,
         region: ArrayRegion,
         destination: &'env mut [T],
@@ -1006,8 +1068,13 @@ impl<T: ArrayElement> Array<T> {
             return Err(Error::MemoryContextMismatch);
         }
 
-        if destination.len() != region.len()? {
-            return Err(Error::InvalidMemoryAccess);
+        let expected = region.len()?;
+        if destination.len() != expected {
+            return Err(Error::length_mismatch(
+                "host destination",
+                expected,
+                destination.len(),
+            ));
         }
 
         let raw = transfer::<T>(
@@ -1016,7 +1083,7 @@ impl<T: ArrayElement> Array<T> {
             CopyDestination::Host(destination.as_mut_ptr().cast()),
         )?;
         let accesses = [self.allocation.access(AccessMode::Read)];
-        // SAFETY: `cuMemcpy3DAsync_v2` receives only plain values.
+        // SAFETY: `raw` describes a validated array region and a `destination` of matching length, the `'env` borrows keep both live until the scope drains, the declared read orders tracked work on the array, and the contexts match.
         unsafe {
             scope.enqueue(&accesses, || {
                 try_ffi!(sys::cuMemcpy3DAsync_v2(
@@ -1040,9 +1107,10 @@ pub struct MipmappedAllocation {
     ranges: Vec<Range<usize>>,
 }
 
-// SAFETY: immutable descriptors and raw handles are shareable; typed borrows govern mutation.
+// SAFETY: `handle` is a driver mipmapped-array handle that CUDA lets any thread use once `context` is bound, the fields never change after construction, and `Drop` destroys the handle once.
 unsafe impl Send for MipmappedAllocation {}
 
+// SAFETY: `&self` methods only read immutable fields, the driver API is thread-safe for concurrent calls on one mipmapped array, and texel access is ordered by the context's access tracker.
 unsafe impl Sync for MipmappedAllocation {}
 
 impl MipmappedAllocation {
@@ -1099,18 +1167,38 @@ impl Drop for MipmappedAllocation {
         if self.handle.is_null() {
             return;
         }
-        if let Err(error) = self
-            .context
-            .bind()
-            // SAFETY: `cuMipmappedArrayDestroy` receives live handles owned by the wrappers.
-            .and_then(|()| unsafe { try_ffi!(sys::cuMipmappedArrayDestroy(self.handle)) })
-        {
-            eprintln!(
-                "failed to destroy cuda mipmapped array: {}",
-                singe_core::ErrorChain(&error)
+
+        if let Err(error) = self.context.bind() {
+            report_cleanup_failure(
+                "bind the cuda context to destroy",
+                "cuda mipmapped array",
+                &error,
             );
+            return;
+        }
+
+        // SAFETY: `handle` is the mipmapped array this allocation owns, its context is bound, and every level `Array` retains this allocation, so none outlives the destroy.
+        if let Err(error) = unsafe { try_ffi!(sys::cuMipmappedArrayDestroy(self.handle)) } {
+            report_cleanup_failure("destroy", "cuda mipmapped array", &error);
         }
     }
+}
+
+/// Raw ownership of a mipmapped CUDA array, its context, and the descriptor it was created with.
+///
+/// Destroy `handle` while `context` is alive, or re-adopt the value with [`MipmappedArray::from_raw`].
+#[derive(Debug)]
+pub struct RawMipmappedArray {
+    /// Native mipmapped array handle.
+    pub handle: sys::CUmipmappedArray,
+    /// Context the array belongs to.
+    pub context: Arc<Context>,
+    /// Extent of level zero.
+    pub shape: ArrayShape,
+    /// Array creation flags.
+    pub flags: ArrayFlags,
+    /// Number of mip levels.
+    pub levels: u32,
 }
 
 /// Owns a typed mipmap chain with one initialization state covering every level.
@@ -1152,7 +1240,7 @@ impl<T: ArrayElement, S> MipmappedArray<T, S> {
 
         self.context().bind()?;
         let mut handle = ptr::null_mut();
-        // SAFETY: `cuMipmappedArrayGetLevel` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `handle` is a writable local, the mipmapped array is live for `&self`, its context is bound, and `level` is below the level count.
         unsafe {
             try_ffi!(sys::cuMipmappedArrayGetLevel(
                 &raw mut handle,
@@ -1165,7 +1253,7 @@ impl<T: ArrayElement, S> MipmappedArray<T, S> {
                 context: Arc::clone(self.context()),
                 handle,
                 id: self.allocation.id,
-                range: self.allocation.ranges[level as usize].clone(),
+                range: self.allocation.ranges[to_usize(level, "mipmap level")?].clone(),
                 shape: self.allocation.shape.at_level(level),
                 flags: self.allocation.flags,
                 format: T::FORMAT,
@@ -1204,13 +1292,19 @@ impl<T: ArrayElement, S> MipmappedArray<T, S> {
     ///
     /// # Errors
     ///
-    /// Returns the original mipmapped array if another owner retains the allocation, including a retained mip level.
-    pub fn into_raw(self) -> StdResult<(sys::CUmipmappedArray, Arc<Context>), Self> {
+    /// Returns the mipmapped array unchanged as the error if another owner retains the allocation, including a retained mip level.
+    pub fn into_raw(self) -> StdResult<RawMipmappedArray, Self> {
+        let shape = self.allocation.shape();
+        let flags = self.allocation.flags();
+        let levels = self.levels();
         match Arc::try_unwrap(self.allocation) {
-            Ok(mut allocation) => Ok((
-                mem::replace(&mut allocation.handle, ptr::null_mut()),
-                Arc::clone(&allocation.context),
-            )),
+            Ok(mut allocation) => Ok(RawMipmappedArray {
+                handle: mem::replace(&mut allocation.handle, ptr::null_mut()),
+                context: Arc::clone(&allocation.context),
+                shape,
+                flags,
+                levels,
+            }),
             Err(allocation) => Err(Self {
                 allocation,
                 marker: PhantomData,
@@ -1223,19 +1317,21 @@ impl<T: ArrayElement> MipmappedArray<T, Uninitialized> {
     /// Adopts a complete mip chain with independently owned destruction responsibility.
     ///
     /// # Safety
-    /// The handle must belong to `context`, match the exact descriptor and level count, and have dense mapped storage before any transfer or sampling operation.
+    ///
+    /// `raw.handle` must belong to `raw.context`, match the exact descriptor and level count, and have dense mapped storage before any transfer or sampling operation.
     ///
     /// # Errors
     ///
     /// Returns an error if the handle is null, the shape or byte ranges are invalid, the requested level count is zero or exceeds the shape maximum, or level zero has a different typed descriptor.
-    /// Also propagates context-binding and CUDA level or descriptor-query errors.
-    pub unsafe fn from_raw(
-        handle: sys::CUmipmappedArray,
-        context: Arc<Context>,
-        shape: ArrayShape,
-        flags: ArrayFlags,
-        levels: u32,
-    ) -> Result<Self> {
+    /// Returns an error if the context cannot be bound or CUDA cannot report a level or its descriptor.
+    pub unsafe fn from_raw(raw: RawMipmappedArray) -> Result<Self> {
+        let RawMipmappedArray {
+            handle,
+            context,
+            shape,
+            flags,
+            levels,
+        } = raw;
         if handle.is_null() {
             return Err(Error::NullHandle);
         }
@@ -1244,23 +1340,23 @@ impl<T: ArrayElement> MipmappedArray<T, Uninitialized> {
         let ranges = mip_level_ranges::<T>(shape, levels)?;
         context.bind()?;
         let mut level = ptr::null_mut();
-        // SAFETY: `cuMipmappedArrayGetLevel` receives valid output locations.
+        // SAFETY: `level` is a writable local, the caller guarantees `handle` is a live mipmapped array of the bound `context`, and level 0 always exists.
         unsafe {
             try_ffi!(sys::cuMipmappedArrayGetLevel(&raw mut level, handle, 0))?;
         }
 
         let mut actual = MaybeUninit::<sys::CUDA_ARRAY3D_DESCRIPTOR>::uninit();
-        // SAFETY: `cuArray3DGetDescriptor_v2` receives valid output locations.
+        // SAFETY: `actual` is a writable local, and `level` is the live level-zero array CUDA just returned.
         unsafe {
             try_ffi!(sys::cuArray3DGetDescriptor_v2(actual.as_mut_ptr(), level))?;
         }
 
         // SAFETY: `cuArray3DGetDescriptor_v2` succeeded, so it wrote the whole descriptor.
         if expected != unsafe { actual.assume_init() } {
-            return Err(Error::InvalidMemoryAccess);
+            return Err(Error::out_of_range("mipmap level descriptor"));
         }
 
-        // SAFETY: `cuMipmappedArrayGetLevel` receives valid output locations.
+        // SAFETY: `level` is a writable local, `handle` is the live mipmapped array, and `levels` is nonzero, as `mip_level_ranges` checked; CUDA rejects a last level the chain lacks.
         unsafe {
             try_ffi!(sys::cuMipmappedArrayGetLevel(
                 &raw mut level,
@@ -1281,30 +1377,31 @@ impl<T: ArrayElement> MipmappedArray<T, Uninitialized> {
             marker: PhantomData,
         })
     }
+}
 
+impl<T: ArrayElement> MipmappedArray<T> {
     /// Allocates a mipmap chain without initializing its texels.
     ///
     /// Each level halves spatial dimensions, rounded down to a minimum of one; layer and cube counts remain constant.
     ///
     /// # Errors
     ///
-    /// Returns an error if dimensions are zero, size calculations overflow, flags contain unknown bits, or `levels` is zero or exceeds the shape maximum.
-    /// Also propagates context-binding and CUDA allocation errors and rejects a null returned handle.
-    pub fn create(
+    /// Returns an error if dimensions are zero, size calculations overflow, flags contain unknown bits, `levels` is zero or exceeds the shape maximum, the context cannot be bound, CUDA cannot allocate the chain, or CUDA returns a null handle.
+    pub fn create_uninit(
         context: &Arc<Context>,
         shape: ArrayShape,
         flags: ArrayFlags,
         levels: u32,
-    ) -> Result<Self> {
+    ) -> Result<MipmappedArray<T, Uninitialized>> {
         if flags.bits() & !ArrayFlags::all().bits() != 0 {
-            return Err(Error::InvalidValue);
+            return Err(Error::out_of_range("array flags"));
         }
 
         let (desc, _) = descriptor::<T>(shape, flags)?;
         let ranges = mip_level_ranges::<T>(shape, levels)?;
         context.bind()?;
         let mut handle = ptr::null_mut();
-        // SAFETY: `cuMipmappedArrayCreate` receives valid output locations and pointers into buffers borrowed for the call.
+        // SAFETY: `handle` is a writable local, `desc` is a local that outlives the call, and `context` is bound.
         unsafe {
             try_ffi!(sys::cuMipmappedArrayCreate(
                 &raw mut handle,
@@ -1316,7 +1413,7 @@ impl<T: ArrayElement> MipmappedArray<T, Uninitialized> {
         if handle.is_null() {
             return Err(Error::NullHandle);
         }
-        Ok(Self {
+        Ok(MipmappedArray {
             allocation: Arc::new(MipmappedAllocation {
                 context: Arc::clone(context),
                 handle,
@@ -1329,7 +1426,9 @@ impl<T: ArrayElement> MipmappedArray<T, Uninitialized> {
             marker: PhantomData,
         })
     }
+}
 
+impl<T: ArrayElement> MipmappedArray<T, Uninitialized> {
     /// Initializes every mip level from one contiguous host slice per level.
     ///
     /// `levels[0]` supplies the largest level.
@@ -1344,8 +1443,13 @@ impl<T: ArrayElement> MipmappedArray<T, Uninitialized> {
     /// Panics if a level index cannot fit in `u32`.
     /// Construction bounds the level count by `u32`, so this condition cannot occur for a valid mipmapped array.
     pub fn initialize(mut self, levels: &[&[T]]) -> Result<MipmappedArray<T>> {
-        if levels.len() != self.levels() as usize {
-            return Err(Error::InvalidMemoryAccess);
+        let level_count = to_usize(self.levels(), "mipmap level count")?;
+        if levels.len() != level_count {
+            return Err(Error::length_mismatch(
+                "mipmap levels",
+                level_count,
+                levels.len(),
+            ));
         }
 
         for (level, values) in levels.iter().enumerate() {
@@ -1355,13 +1459,14 @@ impl<T: ArrayElement> MipmappedArray<T, Uninitialized> {
             let region = ArrayRegion::full(array.shape())?;
             array.copy_from_host(region, values)?;
         }
-        // SAFETY: the copy above wrote every element.
+        // SAFETY: the loop ran one synchronized full-region copy per level, so every texel of every level holds a valid `T`.
         Ok(unsafe { self.assume_init() })
     }
 
     /// Marks every mip level initialized after external producers complete.
     ///
     /// # Safety
+    ///
     /// Every texel in every level must be initialized and all producers must be ordered before readers.
     #[must_use]
     pub unsafe fn assume_init(self) -> MipmappedArray<T> {
@@ -1382,11 +1487,11 @@ fn mip_level_ranges<T: ArrayElement>(shape: ArrayShape, levels: u32) -> Result<V
         .map(|level| {
             let bytes = volume(shape.at_level(level).extent()?)?
                 .checked_mul(size_of::<T>())
-                .ok_or(Error::InvalidMemoryAllocationRequest)?;
+                .ok_or_else(|| Error::out_of_range("mipmap level bytes"))?;
             let start = end;
             end = end
                 .checked_add(bytes)
-                .ok_or(Error::InvalidMemoryAllocationRequest)?;
+                .ok_or_else(|| Error::out_of_range("mipmap byte size"))?;
             Ok(start..end)
         })
         .collect()

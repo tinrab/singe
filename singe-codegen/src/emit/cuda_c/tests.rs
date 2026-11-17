@@ -498,7 +498,7 @@ fn test_32_bit_indices_narrow_argument_sizes_and_write_32_bit_literals() {
 }
 
 // The emitter's version and the FNV-1a hash of the text it writes for `emitted_corpus`; both change together.
-const RECORDED_EMISSION: (u32, u64) = (7, 520_183_809_769_659_205);
+const RECORDED_EMISSION: (u32, u64) = (8, 520_183_809_769_659_205);
 
 // Every kernel above under every candidate schedule and both index widths, so a change to any emitted text changes the corpus.
 fn emitted_corpus() -> String {

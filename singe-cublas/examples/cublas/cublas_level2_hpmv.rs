@@ -1,10 +1,9 @@
-use singe_cublas::{blas::level2::zhpmv, context::Context, error::Result, types::FillMode};
-
+use singe_cublas::{blas::level2::hpmv, context::Context, scalar::Scalar, types::FillMode};
 use singe_cuda::{
     context::Context as CudaContext, device::Device, memory::DeviceMemory, types::Complex64,
 };
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     let cuda = CudaContext::create_for_device(Device::new(0))?;
     let cublas = Context::create(&cuda)?;
 
@@ -19,15 +18,15 @@ fn main() -> Result<()> {
     let x = DeviceMemory::from_slice(&cuda, &[Complex64::new(5.1, 6.2), Complex64::new(7.3, 8.4)])?;
     let mut y = DeviceMemory::<Complex64>::zeroed(&cuda, 2)?;
 
-    zhpmv(
+    hpmv(
         &cublas,
         FillMode::Upper,
         2,
-        &Complex64::new(1.0, 1.0),
+        Scalar::host(&Complex64::new(1.0, 1.0)),
         &ap,
         &x,
         1,
-        &Complex64::new(0.0, 0.0),
+        Scalar::host(&Complex64::new(0.0, 0.0)),
         &mut y,
         1,
     )?;

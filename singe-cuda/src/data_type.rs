@@ -1,7 +1,9 @@
+//! CUDA scalar data types and native type mappings.
+
 use std::fmt::Debug;
 
 use num_enum::{IntoPrimitive, TryFromPrimitive};
-use singe_core::{impl_enum_conversion, impl_enum_display};
+use singe_core::impl_enum_display;
 use singe_cuda_sys::library_types::cudaDataType_t;
 
 use crate::{
@@ -12,84 +14,84 @@ use crate::{
     view::{AnyBitPatternDeviceRepr, NoUninitDeviceRepr},
 };
 
-/// Rust wrapper for CUDA's data type enum.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[non_exhaustive]
-#[repr(u32)]
-pub enum DataType {
-    /// Real as an unsigned `nv_fp8_ue5m3`.
-    F8UE5M3 = cudaDataType_t::CUDA_R_8F_UE5M3 as _,
-    /// 16-bit real half precision floating-point (IEEE 754-2008 binary16).
-    F16 = cudaDataType_t::CUDA_R_16F as _,
-    /// 32-bit complex (2x16-bit half precision floats).
-    ComplexF16 = cudaDataType_t::CUDA_C_16F as _,
-    /// 16-bit real bfloat16 floating-point.
-    Bf16 = cudaDataType_t::CUDA_R_16BF as _,
-    /// 32-bit complex (2x16-bit bfloat16 floats).
-    ComplexBf16 = cudaDataType_t::CUDA_C_16BF as _,
-    /// 32-bit real single precision floating-point (IEEE 754 binary32).
-    F32 = cudaDataType_t::CUDA_R_32F as _,
-    /// 64-bit complex (2x32-bit single precision floats).
-    ComplexF32 = cudaDataType_t::CUDA_C_32F as _,
-    /// 64-bit real double precision floating-point (IEEE 754 binary64).
-    F64 = cudaDataType_t::CUDA_R_64F as _,
-    /// 128-bit complex (2x64-bit double precision floats).
-    ComplexF64 = cudaDataType_t::CUDA_C_64F as _,
-    /// 4-bit real signed integer.
-    I4 = cudaDataType_t::CUDA_R_4I as _,
-    /// 8-bit complex (2x4-bit signed integers).
-    ComplexI4 = cudaDataType_t::CUDA_C_4I as _,
-    /// 4-bit real unsigned integer.
-    U4 = cudaDataType_t::CUDA_R_4U as _,
-    /// 8-bit complex (2x4-bit unsigned integers).
-    ComplexU4 = cudaDataType_t::CUDA_C_4U as _,
-    /// 8-bit real signed integer.
-    I8 = cudaDataType_t::CUDA_R_8I as _,
-    /// 16-bit complex (2x8-bit signed integers).
-    ComplexI8 = cudaDataType_t::CUDA_C_8I as _,
-    /// 8-bit real unsigned integer.
-    U8 = cudaDataType_t::CUDA_R_8U as _,
-    /// 16-bit complex (2x8-bit unsigned integers).
-    ComplexU8 = cudaDataType_t::CUDA_C_8U as _,
-    /// 16-bit real signed integer.
-    I16 = cudaDataType_t::CUDA_R_16I as _,
-    /// 32-bit complex (2x16-bit signed integers).
-    ComplexI16 = cudaDataType_t::CUDA_C_16I as _,
-    /// 16-bit real unsigned integer.
-    U16 = cudaDataType_t::CUDA_R_16U as _,
-    /// 32-bit complex (2x16-bit unsigned integers).
-    ComplexU16 = cudaDataType_t::CUDA_C_16U as _,
-    /// 32-bit real signed integer.
-    I32 = cudaDataType_t::CUDA_R_32I as _,
-    /// 64-bit complex (2x32-bit signed integers).
-    ComplexI32 = cudaDataType_t::CUDA_C_32I as _,
-    /// 32-bit real unsigned integer.
-    U32 = cudaDataType_t::CUDA_R_32U as _,
-    /// 64-bit complex (2x32-bit unsigned integers).
-    ComplexU32 = cudaDataType_t::CUDA_C_32U as _,
-    /// 64-bit real signed integer.
-    I64 = cudaDataType_t::CUDA_R_64I as _,
-    /// 128-bit complex (2x64-bit signed integers).
-    ComplexI64 = cudaDataType_t::CUDA_C_64I as _,
-    /// 64-bit real unsigned integer.
-    U64 = cudaDataType_t::CUDA_R_64U as _,
-    /// 128-bit complex (2x64-bit unsigned integers).
-    ComplexU64 = cudaDataType_t::CUDA_C_64U as _,
-    /// 8-bit real floating point in E4M3 format.
-    F8E4M3 = cudaDataType_t::CUDA_R_8F_E4M3 as _,
-    /// 8-bit real floating point in E5M2 format.
-    F8E5M2 = cudaDataType_t::CUDA_R_8F_E5M2 as _,
-    /// 8-bit real floating point in E8M0 format (unsigned exponent, zero mantissa bits).
-    F8UE8M0 = cudaDataType_t::CUDA_R_8F_UE8M0 as _,
-    /// 6-bit real floating point in E2M3 format (2-bit exponent, 3-bit mantissa).
-    F6E2M3 = cudaDataType_t::CUDA_R_6F_E2M3 as _,
-    /// 6-bit real floating point in E3M2 format (3-bit exponent, 2-bit mantissa).
-    F6E3M2 = cudaDataType_t::CUDA_R_6F_E3M2 as _,
-    /// 4-bit real floating point in E2M1 format (2-bit exponent, 1-bit mantissa).
-    F4E2M1 = cudaDataType_t::CUDA_R_4F_E2M1 as _,
+singe_core::native_enum! {
+    /// Rust wrapper for CUDA's data type enum.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[non_exhaustive]
+    #[repr(u32)]
+    pub enum DataType: cudaDataType_t {
+        /// Real as an unsigned `nv_fp8_ue5m3`.
+        F8UE5M3 = CUDA_R_8F_UE5M3,
+        /// 16-bit real half precision floating-point (IEEE 754-2008 binary16).
+        F16 = CUDA_R_16F,
+        /// 32-bit complex (2x16-bit half precision floats).
+        ComplexF16 = CUDA_C_16F,
+        /// 16-bit real bfloat16 floating-point.
+        Bf16 = CUDA_R_16BF,
+        /// 32-bit complex (2x16-bit bfloat16 floats).
+        ComplexBf16 = CUDA_C_16BF,
+        /// 32-bit real single precision floating-point (IEEE 754 binary32).
+        F32 = CUDA_R_32F,
+        /// 64-bit complex (2x32-bit single precision floats).
+        ComplexF32 = CUDA_C_32F,
+        /// 64-bit real double precision floating-point (IEEE 754 binary64).
+        F64 = CUDA_R_64F,
+        /// 128-bit complex (2x64-bit double precision floats).
+        ComplexF64 = CUDA_C_64F,
+        /// 4-bit real signed integer.
+        I4 = CUDA_R_4I,
+        /// 8-bit complex (2x4-bit signed integers).
+        ComplexI4 = CUDA_C_4I,
+        /// 4-bit real unsigned integer.
+        U4 = CUDA_R_4U,
+        /// 8-bit complex (2x4-bit unsigned integers).
+        ComplexU4 = CUDA_C_4U,
+        /// 8-bit real signed integer.
+        I8 = CUDA_R_8I,
+        /// 16-bit complex (2x8-bit signed integers).
+        ComplexI8 = CUDA_C_8I,
+        /// 8-bit real unsigned integer.
+        U8 = CUDA_R_8U,
+        /// 16-bit complex (2x8-bit unsigned integers).
+        ComplexU8 = CUDA_C_8U,
+        /// 16-bit real signed integer.
+        I16 = CUDA_R_16I,
+        /// 32-bit complex (2x16-bit signed integers).
+        ComplexI16 = CUDA_C_16I,
+        /// 16-bit real unsigned integer.
+        U16 = CUDA_R_16U,
+        /// 32-bit complex (2x16-bit unsigned integers).
+        ComplexU16 = CUDA_C_16U,
+        /// 32-bit real signed integer.
+        I32 = CUDA_R_32I,
+        /// 64-bit complex (2x32-bit signed integers).
+        ComplexI32 = CUDA_C_32I,
+        /// 32-bit real unsigned integer.
+        U32 = CUDA_R_32U,
+        /// 64-bit complex (2x32-bit unsigned integers).
+        ComplexU32 = CUDA_C_32U,
+        /// 64-bit real signed integer.
+        I64 = CUDA_R_64I,
+        /// 128-bit complex (2x64-bit signed integers).
+        ComplexI64 = CUDA_C_64I,
+        /// 64-bit real unsigned integer.
+        U64 = CUDA_R_64U,
+        /// 128-bit complex (2x64-bit unsigned integers).
+        ComplexU64 = CUDA_C_64U,
+        /// 8-bit real floating point in E4M3 format.
+        F8E4M3 = CUDA_R_8F_E4M3,
+        /// 8-bit real floating point in E5M2 format.
+        F8E5M2 = CUDA_R_8F_E5M2,
+        /// 8-bit real floating point in E8M0 format (unsigned exponent, zero mantissa bits).
+        F8UE8M0 = CUDA_R_8F_UE8M0,
+        /// 6-bit real floating point in E2M3 format (2-bit exponent, 3-bit mantissa).
+        F6E2M3 = CUDA_R_6F_E2M3,
+        /// 6-bit real floating point in E3M2 format (3-bit exponent, 2-bit mantissa).
+        F6E3M2 = CUDA_R_6F_E3M2,
+        /// 4-bit real floating point in E2M1 format (2-bit exponent, 1-bit mantissa).
+        F4E2M1 = CUDA_R_4F_E2M1,
+    }
 }
-
-impl_enum_conversion!(DataType, cudaDataType_t);
 
 impl DataType {
     /// Returns the whole-byte storage size of one element.
@@ -191,6 +193,7 @@ pub unsafe trait DataTypeLike:
 
 macro_rules! impl_data_type {
     ($ty:ty, $data_type:ident, $is_complex:expr) => {
+        // SAFETY: each invocation below pairs a Rust storage type with the CUDA data type of the same size, alignment, and encoding, and the trait bounds supply the initialization and bit-validity requirements.
         unsafe impl DataTypeLike for $ty {
             fn data_type() -> DataType {
                 DataType::$data_type

@@ -4,7 +4,6 @@ use std::env::args;
 
 use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
-    backend::tensor::{Shape, TensorId, TensorSpec},
     data_type::{DataType, bf16},
     error::Result,
     frontend::{
@@ -15,6 +14,7 @@ use singe_cudnn::{
         },
         plan::{CompileConfig, ExecuteArgs, HeuristicMode},
     },
+    tensor::{Shape, TensorId, TensorSpec},
 };
 
 fn init_bf16_image(size: usize, seed: &mut u32) -> Vec<bf16> {
@@ -24,6 +24,10 @@ fn init_bf16_image(size: usize, seed: &mut u32) -> Vec<bf16> {
         .collect()
 }
 
+#[expect(
+    clippy::many_single_char_names,
+    reason = "keeps the upstream sample's single-letter dimension names"
+)]
 fn run() -> Result<()> {
     let example = common::ExampleContext::create()?;
 
@@ -52,7 +56,7 @@ fn run() -> Result<()> {
     let mut graph = Graph::with_config(
         GraphConfig::new().with_data_type_policy(
             DataTypePolicy::new()
-                .with_io(DataType::BF16)
+                .with_io(DataType::Bf16)
                 .with_intermediate(DataType::F32)
                 .with_compute(DataType::F32),
         ),
@@ -60,15 +64,15 @@ fn run() -> Result<()> {
 
     let q = graph.insert_tensor(
         TensorId::new(1001),
-        TensorSpec::new(DataType::BF16, Shape::contiguous([b, h_q, s_q, d_qk])?),
+        TensorSpec::new(DataType::Bf16, Shape::contiguous([b, h_q, s_q, d_qk])?),
     )?;
     let k = graph.insert_tensor(
         TensorId::new(1002),
-        TensorSpec::new(DataType::BF16, Shape::contiguous([b, h_k, s_kv, d_qk])?),
+        TensorSpec::new(DataType::Bf16, Shape::contiguous([b, h_k, s_kv, d_qk])?),
     )?;
     let v = graph.insert_tensor(
         TensorId::new(1003),
-        TensorSpec::new(DataType::BF16, Shape::contiguous([b, h_v, s_kv, d_v])?),
+        TensorSpec::new(DataType::Bf16, Shape::contiguous([b, h_v, s_kv, d_v])?),
     )?;
     let scale = graph.tensor(TensorSpec::scalar_f32(0.123));
 
@@ -90,7 +94,7 @@ fn run() -> Result<()> {
         ),
     )?;
 
-    let outputs = graph.sdpa_auto(
+    let outputs = graph.sdpa(
         SdpaInputs {
             query: q,
             key: k,
@@ -111,7 +115,7 @@ fn run() -> Result<()> {
     graph.replace_tensor(
         o,
         TensorSpec::new(
-            DataType::BF16,
+            DataType::Bf16,
             Shape::with_strides([b, h_q, s_q, d_v], vec![h_q * d_v, d_v, b * h_q * d_v, 1])?,
         )
         .output_tensor(),
@@ -168,14 +172,14 @@ fn run() -> Result<()> {
 
     // SAFETY: initialized inputs, writable outputs, native plan and workspace remain live through completion.
     example.execute_and_wait(|context| unsafe {
-        compiled.execute(
+        compiled.execute_async(
             context,
-            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
         )
     })?;
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_fp16_sdpa_block_mask", run())
 }

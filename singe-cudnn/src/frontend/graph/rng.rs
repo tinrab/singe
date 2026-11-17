@@ -1,11 +1,11 @@
 use crate::{
-    backend::tensor::{Shape, TensorId},
     data_type::DataType,
     error::Result,
     frontend::{
         graph::{Graph, TensorOutputConfig},
         operation::{Operation, RandomNumberGeneratorConfig, RandomNumberGeneratorOperation},
     },
+    tensor::{Shape, TensorId},
 };
 
 impl Graph {

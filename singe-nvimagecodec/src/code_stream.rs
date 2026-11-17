@@ -2,11 +2,12 @@ use std::{
     ffi::c_void,
     fmt::{self, Debug, Formatter},
     marker::PhantomData,
+    mem::ManuallyDrop,
     path::Path,
     ptr,
 };
 
-use singe_core::{path_to_cstring, string_from_c_chars};
+use singe_core::{path_to_cstring, report_cleanup_failure, string_from_c_chars};
 use singe_nvimagecodec_sys as sys;
 
 use crate::{
@@ -14,10 +15,8 @@ use crate::{
     image::ImageInfo,
     instance::{Instance, InstanceRef},
     try_ffi,
-    types::OutOfBoundsPolicy,
-    utility::{
-        HostOutputBuffer, NativeStruct, resize_host_output_buffer, to_i32, to_u64, to_usize,
-    },
+    types::{NativeStruct, OutOfBoundsPolicy},
+    utility::{to_i32, to_u64, to_usize},
 };
 
 /// Rectangular region of an image, with the fill used for pixels outside the image.
@@ -56,11 +55,7 @@ impl Region {
         }
 
         if start.len() > sys::NVIMGCODEC_MAX_NUM_DIM as usize {
-            return Err(Error::LengthMismatch {
-                name: "region".into(),
-                expected: sys::NVIMGCODEC_MAX_NUM_DIM as usize,
-                actual: start.len(),
-            });
+            return Err(Error::out_of_range("region"));
         }
 
         let mut raw = sys::nvimgcodecRegion_t::init();
@@ -127,11 +122,7 @@ impl Region {
         convert: impl Fn(&T) -> sys::nvimgcodecOutOfBoundsSample_t,
     ) -> Result<&mut Self> {
         if samples.len() > sys::NVIMGCODEC_MAX_ROI_FILL_CHANNELS as usize {
-            return Err(Error::LengthMismatch {
-                name: "out_of_bounds_samples".into(),
-                expected: sys::NVIMGCODEC_MAX_ROI_FILL_CHANNELS as usize,
-                actual: samples.len(),
-            });
+            return Err(Error::out_of_range("out_of_bounds_samples"));
         }
 
         self.raw.out_of_bounds_policy = OutOfBoundsPolicy::Constant.into();
@@ -267,30 +258,39 @@ pub struct CodeStream<'a> {
     instance: InstanceRef,
     host_output: Option<Box<HostOutputBuffer>>,
     writable: bool,
-    _metadata: Option<Box<ImageInfo<'static>>>,
+    metadata: Option<Box<ImageInfo<'static>>>,
     _source: PhantomData<&'a [u8]>,
 }
 
-// SAFETY: moving a code stream moves its source borrow and the stable callback allocation.
-// Safe encoding borrows the sink exclusively and completes callbacks before returning.
 #[expect(
     clippy::non_send_fields_in_send_ty,
     reason = "native owners transfer their handles and storage borrows under the adjacent safety contract"
 )]
+// SAFETY: nvImageCodec does not bind a code stream to its creating thread, and without `Sync` one thread uses it at a time; its source borrow and the boxed callback and metadata allocations move with it, and safe encoding finishes every resize callback before returning.
 unsafe impl Send for CodeStream<'_> {}
+
+/// Host memory that a code stream encodes into, grown by nvImageCodec through a resize callback.
+#[derive(Debug, Default)]
+pub struct HostOutputBuffer {
+    pub(crate) data: Vec<u8>,
+}
 
 /// Native code-stream handle with the values that keep it valid, from [`CodeStream::into_raw`].
 ///
 /// Destroy the handle before dropping this value, or pass it back to [`CodeStream::from_raw`].
 #[derive(Debug)]
-pub struct RawCodeStream<'a> {
-    /// Native code-stream handle.
+pub struct RawCodeStream {
+    /// Native code-stream handle, owned exclusively.
     pub handle: sys::nvimgcodecCodeStream_t,
-    owner: CodeStream<'a>,
+    /// Instance the handle was created with.
+    pub instance: Instance,
+    /// Host output whose address the handle was given for its resize callback, or `None`.
+    pub host_output: Option<Box<HostOutputBuffer>>,
+    /// Whether the code stream can be encoded into.
+    pub writable: bool,
+    /// Image information whose address the handle was given for encoding, or `None`.
+    pub metadata: Option<Box<ImageInfo<'static>>>,
 }
-
-// SAFETY: the transfer carries the same source borrow and exclusive callback storage as CodeStream.
-unsafe impl Send for RawCodeStream<'_> {}
 
 impl<'a> CodeStream<'a> {
     pub(crate) fn instance(&self) -> &InstanceRef {
@@ -322,7 +322,7 @@ impl<'a> CodeStream<'a> {
     ) -> Result<CodeStream<'static>> {
         let path = path_to_cstring(path.as_ref())?;
         let mut raw = ptr::null_mut();
-        // SAFETY: `nvimgcodecCodeStreamCreateFromFile` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
+        // SAFETY: `instance` is live, `path` is a NUL-terminated string alive through the call, `view` is null or points to a live view, and `raw` is a writable local.
         unsafe {
             try_ffi!(sys::nvimgcodecCodeStreamCreateFromFile(
                 instance.as_raw(),
@@ -341,7 +341,7 @@ impl<'a> CodeStream<'a> {
             instance: instance.as_instance_ref(),
             host_output: None,
             writable: false,
-            _metadata: None,
+            metadata: None,
             _source: PhantomData,
         })
     }
@@ -360,7 +360,7 @@ impl<'a> CodeStream<'a> {
         view: Option<&CodeStreamView>,
     ) -> Result<Self> {
         let mut raw = ptr::null_mut();
-        // SAFETY: `nvimgcodecCodeStreamCreateFromHostMem` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
+        // SAFETY: `instance` is live, `data` stays borrowed for `'a`, which the returned stream carries, its length fits `u64`, `view` is null or points to a live view, and `raw` is a writable local.
         unsafe {
             try_ffi!(sys::nvimgcodecCodeStreamCreateFromHostMem(
                 instance.as_raw(),
@@ -380,7 +380,7 @@ impl<'a> CodeStream<'a> {
             instance: instance.as_instance_ref(),
             host_output: None,
             writable: false,
-            _metadata: None,
+            metadata: None,
             _source: PhantomData,
         })
     }
@@ -390,7 +390,7 @@ impl<'a> CodeStream<'a> {
     /// # Errors
     ///
     /// Returns an error if `path` contains a NUL byte or nvImageCodec fails to create the stream.
-    pub fn to_file(
+    pub fn create_file_output(
         instance: &Instance,
         path: impl AsRef<Path>,
         image_info: &ImageInfo<'_>,
@@ -398,7 +398,7 @@ impl<'a> CodeStream<'a> {
         let path = path_to_cstring(path.as_ref())?;
         let metadata = Box::new(image_info.metadata());
         let mut raw = ptr::null_mut();
-        // SAFETY: `nvimgcodecCodeStreamCreateToFile` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
+        // SAFETY: `instance` is live, `path` is a NUL-terminated string alive through the call, `metadata` is boxed and kept by the stream so its address stays valid, and `raw` is a writable local.
         unsafe {
             try_ffi!(sys::nvimgcodecCodeStreamCreateToFile(
                 instance.as_raw(),
@@ -417,7 +417,7 @@ impl<'a> CodeStream<'a> {
             instance: instance.as_instance_ref(),
             host_output: None,
             writable: true,
-            _metadata: Some(metadata),
+            metadata: Some(metadata),
             _source: PhantomData,
         })
     }
@@ -429,14 +429,14 @@ impl<'a> CodeStream<'a> {
     /// # Errors
     ///
     /// Returns an error if nvImageCodec fails to create the stream.
-    pub fn to_host_memory(
+    pub fn create_host_output(
         instance: &Instance,
         image_info: &ImageInfo<'_>,
     ) -> Result<CodeStream<'static>> {
         let mut output = Box::<HostOutputBuffer>::default();
         let metadata = Box::new(image_info.metadata());
         let mut raw = ptr::null_mut();
-        // SAFETY: `nvimgcodecCodeStreamCreateToHostMem` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `instance` is live, `output` and `metadata` are boxed and kept by the stream, so the callback context and image information stay at stable addresses, and `raw` is a writable local.
         unsafe {
             try_ffi!(sys::nvimgcodecCodeStreamCreateToHostMem(
                 instance.as_raw(),
@@ -456,7 +456,7 @@ impl<'a> CodeStream<'a> {
             instance: instance.as_instance_ref(),
             host_output: Some(output),
             writable: true,
-            _metadata: Some(metadata),
+            metadata: Some(metadata),
             _source: PhantomData,
         })
     }
@@ -471,7 +471,7 @@ impl<'a> CodeStream<'a> {
         view: &CodeStreamView,
     ) -> Result<CodeStream<'parent>> {
         let mut raw = ptr::null_mut();
-        // SAFETY: `nvimgcodecCodeStreamGetSubCodeStream` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `self.raw` is a live code stream, the returned stream borrows `self` so it cannot outlive its parent, `view` points to a live view, and `raw` is a writable local.
         unsafe {
             try_ffi!(sys::nvimgcodecCodeStreamGetSubCodeStream(
                 self.raw,
@@ -489,7 +489,7 @@ impl<'a> CodeStream<'a> {
             instance: self.instance.clone(),
             host_output: None,
             writable: false,
-            _metadata: None,
+            metadata: None,
             _source: PhantomData,
         })
     }
@@ -501,7 +501,7 @@ impl<'a> CodeStream<'a> {
     /// Returns an error if nvImageCodec fails the query.
     pub fn info(&self) -> Result<CodeStreamInfo> {
         let mut info = sys::nvimgcodecCodeStreamInfo_t::init();
-        // SAFETY: `nvimgcodecCodeStreamGetCodeStreamInfo` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `self.raw` is a live code stream, and `info` is a writable local with its structure header initialized.
         unsafe {
             try_ffi!(sys::nvimgcodecCodeStreamGetCodeStreamInfo(
                 self.raw,
@@ -518,7 +518,7 @@ impl<'a> CodeStream<'a> {
     /// Returns an error if nvImageCodec cannot read the image information.
     pub fn image_info(&self) -> Result<ImageInfo<'static>> {
         let mut image_info = ImageInfo::empty();
-        // SAFETY: `nvimgcodecCodeStreamGetImageInfo` receives live handles owned by the wrappers.
+        // SAFETY: `self.raw` is a live code stream, and `image_info` is an owned, empty image information whose structure header is initialized.
         unsafe {
             try_ffi!(sys::nvimgcodecCodeStreamGetImageInfo(
                 self.raw,
@@ -534,7 +534,7 @@ impl<'a> CodeStream<'a> {
         self.raw
     }
 
-    /// Returns the encoded bytes of a stream from [`to_host_memory`](Self::to_host_memory).
+    /// Returns the encoded bytes of a stream from [`create_host_output`](Self::create_host_output).
     ///
     /// Call it after encoding finishes.
     ///
@@ -552,14 +552,14 @@ impl<'a> CodeStream<'a> {
         output
             .data
             .get(..length)
-            .ok_or_else(|| Error::LengthMismatch {
-                name: "bitstream_size".into(),
-                expected: length,
+            .ok_or_else(|| Error::BufferTooSmall {
+                name: "host_output".into(),
+                required: length,
                 actual: output.data.len(),
             })
     }
 
-    /// Destroys the stream and returns the encoded bytes of a stream from [`to_host_memory`](Self::to_host_memory).
+    /// Destroys the stream and returns the encoded bytes of a stream from [`create_host_output`](Self::create_host_output).
     ///
     /// Call it after encoding finishes.
     ///
@@ -582,64 +582,60 @@ impl<'a> CodeStream<'a> {
         Ok(output)
     }
 
-    /// Takes ownership of a native code stream created outside this crate.
+    /// Takes ownership of a native code stream, from [`into_raw`](Self::into_raw) or created outside this crate.
     ///
     /// # Safety
     ///
-    /// `raw` must be owned by nobody else and created with `instance`.
+    /// `raw.handle` must be valid, owned by nobody else, and created with `raw.instance`.
+    /// `raw.host_output` and `raw.metadata` must be the allocations the handle was given, or `None` if it was given none.
     /// The buffers, callbacks, and callback data it uses must stay valid for `'a`.
-    /// `writable` must be `true` only for a stream that can be encoded into.
-    /// All work that used `raw` must have finished.
+    /// `raw.writable` must be `true` only for a stream that can be encoded into.
+    /// All work that used the handle outside this crate must have finished.
     ///
     /// # Errors
     ///
-    /// Returns an error if `raw` is null.
-    pub unsafe fn from_raw_parts(
-        instance: &Instance,
-        raw: sys::nvimgcodecCodeStream_t,
-        writable: bool,
-    ) -> Result<Self> {
-        if raw.is_null() {
+    /// Returns [`Error::NullHandle`] if `raw.handle` is null.
+    pub unsafe fn from_raw(raw: RawCodeStream) -> Result<Self> {
+        if raw.handle.is_null() {
             return Err(Error::NullHandle);
         }
         Ok(Self {
-            raw,
-            instance: instance.as_instance_ref(),
-            host_output: None,
-            writable,
-            _metadata: None,
+            raw: raw.handle,
+            instance: raw.instance.into_instance_ref(),
+            host_output: raw.host_output,
+            writable: raw.writable,
+            metadata: raw.metadata,
             _source: PhantomData,
         })
     }
 
-    /// Takes back ownership of a handle from [`into_raw`](Self::into_raw).
-    ///
-    /// # Safety
-    ///
-    /// The handle must still be valid and owned by nobody else, with its metadata unchanged.
-    /// All work that used it outside this crate must have finished.
-    #[must_use]
-    pub unsafe fn from_raw(mut raw: RawCodeStream<'a>) -> Self {
-        raw.owner.raw = raw.handle;
-        raw.owner
-    }
-
     /// Releases the native handle with the values that keep it valid.
     ///
+    /// The returned value does not borrow the code stream's source; the handle still reads it.
     /// Destroy the handle or pass it back to [`from_raw`](Self::from_raw).
     #[must_use]
-    pub fn into_raw(mut self) -> RawCodeStream<'a> {
-        let handle = self.raw;
-        self.raw = ptr::null_mut();
+    pub fn into_raw(self) -> RawCodeStream {
+        let this = ManuallyDrop::new(self);
+        // SAFETY: `this` is never dropped, so each owning field moves out exactly once.
+        let (instance, host_output, metadata) = unsafe {
+            (
+                ptr::read(&raw const this.instance),
+                ptr::read(&raw const this.host_output),
+                ptr::read(&raw const this.metadata),
+            )
+        };
         RawCodeStream {
-            handle,
-            owner: self,
+            handle: this.raw,
+            instance: instance.into_instance(),
+            host_output,
+            writable: this.writable,
+            metadata,
         }
     }
 
     fn destroy(&mut self) -> Result<()> {
         if !self.raw.is_null() {
-            // SAFETY: `nvimgcodecCodeStreamDestroy` receives live handles owned by the wrappers.
+            // SAFETY: `self.raw` is the live code stream this value owns, and it is nulled afterwards so it is destroyed once.
             unsafe {
                 try_ffi!(sys::nvimgcodecCodeStreamDestroy(self.raw))?;
             }
@@ -653,11 +649,38 @@ impl<'a> CodeStream<'a> {
 impl Drop for CodeStream<'_> {
     fn drop(&mut self) {
         if let Err(error) = self.destroy() {
-            eprintln!(
-                "failed to free nvimagecodec code stream: {}",
-                singe_core::ErrorChain(&error)
-            );
+            report_cleanup_failure("destroy", "nvimagecodec code stream", &error);
         }
+    }
+}
+
+unsafe extern "C" fn resize_host_output_buffer(
+    context: *mut c_void,
+    req_size: sys::size_t,
+) -> *mut u8 {
+    if context.is_null() {
+        return ptr::null_mut();
+    }
+
+    // SAFETY: nvImageCodec passes back the `HostOutputBuffer` registered for this call, which outlives it.
+    let output = unsafe { &mut *context.cast::<HostOutputBuffer>() };
+    let Ok(req_size) = usize::try_from(req_size) else {
+        return ptr::null_mut();
+    };
+    if req_size > output.data.capacity()
+        && output
+            .data
+            .try_reserve_exact(req_size - output.data.len())
+            .is_err()
+    {
+        return ptr::null_mut();
+    }
+
+    output.data.resize(req_size, 0);
+    if output.data.is_empty() {
+        ptr::NonNull::<u8>::dangling().as_ptr()
+    } else {
+        output.data.as_mut_ptr()
     }
 }
 
@@ -674,7 +697,7 @@ mod tests {
 
         assert!(matches!(
             result,
-            Err(Error::LengthMismatch { name, .. }) if name == "region"
+            Err(Error::OutOfRange { name }) if name == "region"
         ));
     }
 }

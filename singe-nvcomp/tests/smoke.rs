@@ -1,12 +1,15 @@
 use singe_cuda::{
-    context::Context,
+    error::Error as CudaError,
     memory::DeviceMemory,
     stream::Stream,
     view::{DeviceSlice, DeviceSliceMut},
 };
 use singe_nvcomp::{
     ans,
-    batch::{DeviceChunkTable, DeviceChunkTableMut, DeviceStatuses},
+    batch::{
+        AsyncBatchResult, DeviceChunkTable, DeviceChunkTableMut, DeviceChunkTableView,
+        DeviceStatuses,
+    },
     bitcomp, cascaded,
     compressed::{CompressedBatch, CompressedBatchParts, CompressedChunk, CompressedChunkParts},
     crc32::{self, Options, Spec},
@@ -16,9 +19,8 @@ use singe_nvcomp::{
         Ans, BatchedCodec, Bitcomp, Cascaded, Codec, Deflate, Gdeflate, Gzip, Lz4, Snappy, Zstd,
     },
     gdeflate, gzip, lz4, snappy,
-    testing::cpu_crc32,
+    testing::setup_context,
     types::*,
-    workspace::TemporaryBuffer,
     zstd,
 };
 use singe_nvcomp_sys as sys;
@@ -94,18 +96,36 @@ fn test_generated_option_defaults_match_raw_defaults() {
 
 #[test]
 fn test_typed_option_setters_preserve_reserved_zeroes() {
-    let ans = ans::CompressOptions::new(AnsType::Rans, DataType::F16).as_raw();
+    let ans = ans::CompressOptions {
+        type_: AnsType::Rans,
+        data_type: DataType::F16,
+        ..Default::default()
+    }
+    .as_raw();
     assert_eq!(ans.type_, sys::nvcompANSType_t::nvcomp_rANS);
     assert_eq!(ans.data_type, sys::nvcompType_t::NVCOMP_TYPE_FLOAT16);
     assert_eq!(ans.max_sub_chunk_count, 0);
     assert_eq!(ans.reserved, [0; 53]);
 
-    let bitcomp = bitcomp::CompressOptions::new(BitcompAlgorithm::Sparse, DataType::U32).as_raw();
+    let bitcomp = bitcomp::CompressOptions {
+        algorithm: BitcompAlgorithm::Sparse,
+        data_type: DataType::U32,
+        ..Default::default()
+    }
+    .as_raw();
     assert_eq!(bitcomp.algorithm, 1);
     assert_eq!(bitcomp.data_type, sys::nvcompType_t::NVCOMP_TYPE_UINT);
     assert_eq!(bitcomp.reserved, [0; 44]);
 
-    let cascaded = cascaded::CompressOptions::new(DataType::I64).as_raw();
+    let cascaded_default = cascaded::CompressOptions::default();
+    let cascaded = cascaded::CompressOptions {
+        common: cascaded::CommonOptions {
+            data_type: DataType::I64,
+            ..cascaded_default.common
+        },
+        ..cascaded_default
+    }
+    .as_raw();
     assert_eq!(
         cascaded.common_opts.data_type,
         sys::nvcompType_t::NVCOMP_TYPE_LONGLONG
@@ -117,16 +137,25 @@ fn test_typed_option_setters_preserve_reserved_zeroes() {
     assert_eq!(cascaded.compression_level, 3);
     assert_eq!(cascaded.reserved, [0; 31]);
 
-    let deflate = deflate::CompressOptions::new(CompressionAlgorithm::HighCompression).as_raw();
+    let deflate = deflate::CompressOptions {
+        algorithm: CompressionAlgorithm::HighCompression,
+    }
+    .as_raw();
     assert_eq!(deflate.algorithm, 4);
     assert_eq!(deflate.reserved, [0; 60]);
 
-    let gdeflate =
-        gdeflate::CompressOptions::new(CompressionAlgorithm::HighestCompression).as_raw();
+    let gdeflate = gdeflate::CompressOptions {
+        algorithm: CompressionAlgorithm::HighestCompression,
+    }
+    .as_raw();
     assert_eq!(gdeflate.algorithm, 5);
     assert_eq!(gdeflate.reserved, [0; 60]);
 
-    let snappy = snappy::DecompressOptions::new(DecompressBackend::Hardware, true).as_raw();
+    let snappy = snappy::DecompressOptions {
+        backend: DecompressBackend::Hardware,
+        sort_before_hw_decompress: true,
+    }
+    .as_raw();
     assert_eq!(
         snappy.backend,
         sys::nvcompDecompressBackend_t::NVCOMP_DECOMPRESS_BACKEND_HARDWARE
@@ -150,7 +179,10 @@ fn test_typed_option_setters_preserve_reserved_zeroes() {
     assert_eq!(gzip.sort_before_hw_decompress, 1);
     assert_eq!(gzip.reserved, [0; 52]);
 
-    let zstd = zstd::DecompressOptions::new(DecompressBackend::Cuda).as_raw();
+    let zstd = zstd::DecompressOptions {
+        backend: DecompressBackend::Cuda,
+    }
+    .as_raw();
     assert_eq!(
         zstd.backend,
         sys::nvcompDecompressBackend_t::NVCOMP_DECOMPRESS_BACKEND_CUDA
@@ -164,14 +196,14 @@ fn test_raw_option_imports_reject_invalid_values() {
     invalid_algorithm.algorithm = 99;
     assert!(matches!(
         bitcomp::CompressOptions::try_from(invalid_algorithm),
-        Err(Error::InvalidValue { name }) if name == "algorithm"
+        Err(Error::UnknownEnumValue { name, value: 99 }) if name == "algorithm"
     ));
 
     let mut nonzero_reserved = sys::nvcompBatchedANSCompressDefaultOpts;
     nonzero_reserved.reserved[0] = 1;
     assert!(matches!(
         ans::CompressOptions::try_from(nonzero_reserved),
-        Err(Error::InvalidValue { name }) if name == "reserved option bytes"
+        Err(Error::OutOfRange { name }) if name == "reserved option bytes"
     ));
 }
 
@@ -268,7 +300,7 @@ fn test_codec_derives_format_metadata_for_decoding() {
         ..Default::default()
     };
 
-    let decoding = <Lz4 as BatchedCodec>::decoding_options(compress, configured);
+    let decoding = Codec::<Lz4>::new(compress, configured).decoding_options();
     assert_eq!(decoding.backend, DecompressBackend::Cuda);
     assert_eq!(decoding.data_type, compress.data_type);
     assert_eq!(decoding.bitshuffle_mode, compress.bitshuffle_mode);
@@ -276,16 +308,16 @@ fn test_codec_derives_format_metadata_for_decoding() {
 
 #[test]
 fn test_compressed_chunk_reports_lengths() -> Result<()> {
-    let allocation_context = Context::create()?;
-    let memory = DeviceMemory::<u8>::zeroed(&allocation_context, 64)?;
-    // SAFETY: the chunk is only inspected, never decompressed, so the zeroed bytes need not be valid LZ4 data.
+    let test = setup_context()?;
+    let allocation_context = test.cuda_context();
+    let memory = DeviceMemory::<u8>::zeroed(allocation_context, 64)?;
+    // SAFETY: the zeroed bytes are initialized, and the chunk is only inspected, never decompressed, so they need not be valid LZ4 data.
     let chunk = unsafe {
-        CompressedChunk::<Lz4>::create(
-            memory.into_uninit(),
-            17,
-            42,
-            lz4::DecompressOptions::default(),
-        )?
+        CompressedChunk::<Lz4>::from_parts(CompressedChunkParts {
+            memory: memory.into_uninit().assume_init_prefix(17)?,
+            uncompressed_bytes: 42,
+            decoding_options: lz4::DecompressOptions::default(),
+        })
     };
 
     assert_eq!(chunk.len(), 17);
@@ -298,29 +330,10 @@ fn test_compressed_chunk_reports_lengths() -> Result<()> {
 }
 
 #[test]
-fn test_compressed_chunk_rejects_oversized_valid_length() -> Result<()> {
-    let allocation_context = Context::create()?;
-    let memory = DeviceMemory::<u8>::zeroed(&allocation_context, 64)?;
-    // SAFETY: construction rejects the oversized length before adopting the memory.
-    let error = unsafe {
-        CompressedChunk::<Lz4>::create(
-            memory.into_uninit(),
-            65,
-            42,
-            lz4::DecompressOptions::default(),
-        )
-        .unwrap_err()
-    };
-
-    assert_length_mismatch(error, "compressed chunk bytes", 65, 64);
-
-    Ok(())
-}
-
-#[test]
 fn test_compressed_batch_reports_metadata() -> Result<()> {
-    let allocation_context = Context::create()?;
-    let memory = DeviceMemory::<u8>::zeroed(&allocation_context, 32)?;
+    let test = setup_context()?;
+    let allocation_context = test.cuda_context();
+    let memory = DeviceMemory::<u8>::zeroed(allocation_context, 32)?;
     // SAFETY: the batch is only inspected, never decompressed, so the zeroed bytes need not be valid LZ4 data.
     let batch = unsafe {
         CompressedBatch::<Lz4>::create(CompressedBatchParts {
@@ -346,8 +359,9 @@ fn test_compressed_batch_reports_metadata() -> Result<()> {
 
 #[test]
 fn test_compressed_batch_rejects_mismatched_metadata_lengths() -> Result<()> {
-    let allocation_context = Context::create()?;
-    let memory = DeviceMemory::<u8>::zeroed(&allocation_context, 32)?;
+    let test = setup_context()?;
+    let allocation_context = test.cuda_context();
+    let memory = DeviceMemory::<u8>::zeroed(allocation_context, 32)?;
     // SAFETY: construction rejects the mismatched length lists before adopting the memory.
     let error = unsafe {
         CompressedBatch::<Lz4>::create(CompressedBatchParts {
@@ -367,8 +381,9 @@ fn test_compressed_batch_rejects_mismatched_metadata_lengths() -> Result<()> {
 
 #[test]
 fn test_compressed_batch_rejects_nonempty_zero_stride() -> Result<()> {
-    let allocation_context = Context::create()?;
-    let memory = DeviceMemory::<u8>::zeroed(&allocation_context, 0)?;
+    let test = setup_context()?;
+    let allocation_context = test.cuda_context();
+    let memory = DeviceMemory::<u8>::zeroed(allocation_context, 0)?;
     // SAFETY: construction rejects the zero stride before adopting the memory.
     let error = unsafe {
         CompressedBatch::<Lz4>::create(CompressedBatchParts {
@@ -383,7 +398,7 @@ fn test_compressed_batch_rejects_nonempty_zero_stride() -> Result<()> {
 
     assert!(matches!(
         error,
-        Error::InvalidValue { name } if name == "stride bytes"
+        Error::NotPositive { name } if name == "stride bytes"
     ));
 
     Ok(())
@@ -391,8 +406,9 @@ fn test_compressed_batch_rejects_nonempty_zero_stride() -> Result<()> {
 
 #[test]
 fn test_compressed_batch_rejects_chunk_larger_than_stride() -> Result<()> {
-    let allocation_context = Context::create()?;
-    let memory = DeviceMemory::<u8>::zeroed(&allocation_context, 16)?;
+    let test = setup_context()?;
+    let allocation_context = test.cuda_context();
+    let memory = DeviceMemory::<u8>::zeroed(allocation_context, 16)?;
     // SAFETY: construction rejects the chunk that exceeds its stride before adopting the memory.
     let error = unsafe {
         CompressedBatch::<Lz4>::create(CompressedBatchParts {
@@ -405,39 +421,38 @@ fn test_compressed_batch_rejects_chunk_larger_than_stride() -> Result<()> {
         .unwrap_err()
     };
 
-    assert_length_mismatch(error, "compressed chunk bytes", 8, 9);
+    assert_buffer_too_small(error, "stride bytes", 9, 8);
 
     Ok(())
 }
 
 #[test]
 fn test_oversize_chunk_queries_fail_before_nvcomp() {
-    let cuda = Context::create().unwrap();
-    let stream = cuda.create_stream().unwrap();
+    let test = setup_context().unwrap();
+    let stream = test.stream();
     let lz4_actual = one_past(lz4::COMPRESSION_MAX_ALLOWED_CHUNK_SIZE);
     assert_size_limit(
-        Lz4::max_output_chunk_size(lz4_actual, lz4::CompressOptions::default()).unwrap_err(),
+        Codec::<Lz4>::default()
+            .max_output_chunk_size(lz4_actual)
+            .unwrap_err(),
         lz4::COMPRESSION_MAX_ALLOWED_CHUNK_SIZE,
         lz4_actual,
     );
 
     let zstd_actual = one_past(zstd::COMPRESSION_MAX_ALLOWED_CHUNK_SIZE);
     assert_size_limit(
-        Zstd::max_output_chunk_size(zstd_actual, zstd::CompressOptions).unwrap_err(),
+        Codec::<Zstd>::default()
+            .max_output_chunk_size(zstd_actual)
+            .unwrap_err(),
         zstd::COMPRESSION_MAX_ALLOWED_CHUNK_SIZE,
         zstd_actual,
     );
 
     let gzip_naive_actual = one_past(gzip::NAIVE_DECOMPRESSION_MAX_ALLOWED_CHUNK_SIZE);
     assert_size_limit(
-        Gzip::decompression_temporary_size(
-            1,
-            gzip_naive_actual,
-            gzip::DecompressOptions::default(),
-            gzip_naive_actual,
-            &stream,
-        )
-        .unwrap_err(),
+        Codec::<Gzip>::default()
+            .decompression_workspace_size(1, gzip_naive_actual, gzip_naive_actual, stream)
+            .unwrap_err(),
         gzip::NAIVE_DECOMPRESSION_MAX_ALLOWED_CHUNK_SIZE,
         gzip_naive_actual,
     );
@@ -445,26 +460,25 @@ fn test_oversize_chunk_queries_fail_before_nvcomp() {
 
 #[test]
 fn test_checked_chunk_apis_reject_mismatched_lengths_before_nvcomp() -> Result<()> {
-    let cuda = Context::create()?;
-    let stream = cuda.create_stream()?;
+    let test = setup_context()?;
+    let cuda = test.cuda_context();
+    let stream = test.stream();
 
     let input_buffers: [&dyn DeviceSlice<u8>; 0] = [];
-    let input_chunks = DeviceChunkTable::from_device_slices(&cuda, &input_buffers)?;
+    let input_chunks = DeviceChunkTable::from_device_slices(cuda, &input_buffers)?;
     let mut output_memory = DeviceMemory::<u8>::create_uninit(stream.context(), 16)?;
-    let mut output_chunks = DeviceChunkTableMut::from_contiguous(&cuda, &mut output_memory)?;
-    let mut temp = TemporaryBuffer::create(&cuda, 0)?;
-    let mut statuses = DeviceStatuses::create(&cuda, input_chunks.len())?;
+    let mut output_chunks = DeviceChunkTableMut::from_contiguous(cuda, &mut output_memory)?;
+    let mut statuses = DeviceStatuses::create(cuda, input_chunks.len())?;
 
     assert_length_mismatch(
-        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        // SAFETY: validation rejects the mismatched lengths before any work is enqueued.
         unsafe {
-            Lz4::compress_chunks_async(
+            Codec::<Lz4>::default().compress_chunks_async(
                 &input_chunks,
                 &mut output_chunks,
-                &mut temp,
+                None,
                 &mut statuses,
-                lz4::CompressOptions::default(),
-                &stream,
+                stream,
             )
         }
         .unwrap_err(),
@@ -474,15 +488,14 @@ fn test_checked_chunk_apis_reject_mismatched_lengths_before_nvcomp() -> Result<(
     );
 
     assert_length_mismatch(
-        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        // SAFETY: validation rejects the mismatched lengths before any work is enqueued.
         unsafe {
-            Zstd::compress_chunks_async(
+            Codec::<Zstd>::default().compress_chunks_async(
                 &input_chunks,
                 &mut output_chunks,
-                &mut temp,
+                None,
                 &mut statuses,
-                zstd::CompressOptions,
-                &stream,
+                stream,
             )
         }
         .unwrap_err(),
@@ -497,10 +510,10 @@ fn test_checked_chunk_apis_reject_mismatched_lengths_before_nvcomp() -> Result<(
             .sync_scope(|_| {
                 // SAFETY: the enclosing draining scope keeps the chunk table and output alive until the work completes.
                 Ok(unsafe {
-                    Lz4::decompress_size_chunks_async(
+                    Codec::<Lz4>::default().decompressed_sizes_async(
                         input_chunks.view(),
                         &mut queried_decompressed_sizes,
-                        &stream,
+                        stream,
                     )
                 })
             })?
@@ -513,13 +526,12 @@ fn test_checked_chunk_apis_reject_mismatched_lengths_before_nvcomp() -> Result<(
     assert_length_mismatch(
         // SAFETY: validation rejects the mismatched lengths before any work is enqueued.
         unsafe {
-            Gzip::decompress_chunks_async(
+            Codec::<Gzip>::default().decompress_chunks_async(
                 input_chunks.view(),
                 &mut output_chunks,
-                &mut temp,
+                None,
                 &mut statuses,
-                gzip::DecompressOptions::default(),
-                &stream,
+                stream,
             )
         }
         .unwrap_err(),
@@ -533,34 +545,33 @@ fn test_checked_chunk_apis_reject_mismatched_lengths_before_nvcomp() -> Result<(
 
 #[test]
 fn test_checked_compression_rejects_smallest_output_chunk_capacity() -> Result<()> {
-    let cuda = Context::create()?;
-    let stream = cuda.create_stream()?;
+    let test = setup_context()?;
+    let cuda = test.cuda_context();
+    let stream = test.stream();
 
     let input_a = DeviceMemory::<u8>::zeroed(stream.context(), 16)?;
     let input_b = DeviceMemory::<u8>::zeroed(stream.context(), 16)?;
     let input_buffers: [&dyn DeviceSlice<u8>; 2] = [&input_a, &input_b];
-    let input_chunks = DeviceChunkTable::from_device_slices(&cuda, &input_buffers)?;
-    let required_output_bytes =
-        Zstd::max_output_chunk_size(input_chunks.max_chunk_bytes(), zstd::CompressOptions)?;
+    let input_chunks = DeviceChunkTable::from_device_slices(cuda, &input_buffers)?;
+    let codec = Codec::<Zstd>::default();
+    let required_output_bytes = codec.max_output_chunk_size(input_chunks.max_chunk_bytes())?;
 
     let mut small_output = DeviceMemory::<u8>::zeroed(stream.context(), required_output_bytes - 1)?;
     let mut large_output = DeviceMemory::<u8>::zeroed(stream.context(), required_output_bytes)?;
     let mut output_buffers: [&mut dyn DeviceSliceMut<u8>; 2] =
         [&mut small_output, &mut large_output];
-    let mut output_chunks = DeviceChunkTableMut::from_device_slices(&cuda, &mut output_buffers)?;
-    let mut temp = TemporaryBuffer::create(&cuda, 0)?;
-    let mut statuses = DeviceStatuses::create(&cuda, input_chunks.len())?;
+    let mut output_chunks = DeviceChunkTableMut::from_device_slices(cuda, &mut output_buffers)?;
+    let mut statuses = DeviceStatuses::create(cuda, input_chunks.len())?;
 
-    assert_length_mismatch(
-        // SAFETY: validation rejects the mismatched lengths before any work is enqueued.
+    assert_buffer_too_small(
+        // SAFETY: validation rejects the undersized output chunk before any work is enqueued.
         unsafe {
-            Zstd::compress_chunks_async(
+            codec.compress_chunks_async(
                 &input_chunks,
                 &mut output_chunks,
-                &mut temp,
+                None,
                 &mut statuses,
-                zstd::CompressOptions,
-                &stream,
+                stream,
             )
         }
         .unwrap_err(),
@@ -574,37 +585,37 @@ fn test_checked_compression_rejects_smallest_output_chunk_capacity() -> Result<(
 
 #[test]
 fn test_standard_codecs_roundtrip_checked_batched_api() -> Result<()> {
-    let cuda = Context::create()?;
-    let stream = cuda.create_stream()?;
+    let test = setup_context()?;
+    let stream = test.stream();
     let input = b"nvCOMP checked batched roundtrip through Singe tests. ".repeat(256);
 
-    roundtrip_codec::<Ans>(&stream, &input)?;
-    roundtrip_codec::<Bitcomp>(&stream, &input)?;
-    roundtrip_codec::<Cascaded>(&stream, &input)?;
-    roundtrip_codec::<Deflate>(&stream, &input)?;
-    roundtrip_codec::<Gdeflate>(&stream, &input)?;
-    roundtrip_codec::<Gzip>(&stream, &input)?;
-    roundtrip_codec::<Lz4>(&stream, &input)?;
-    roundtrip_codec::<Snappy>(&stream, &input)?;
-    roundtrip_codec::<Zstd>(&stream, &input)?;
+    roundtrip_codec::<Ans>(stream, &input)?;
+    roundtrip_codec::<Bitcomp>(stream, &input)?;
+    roundtrip_codec::<Cascaded>(stream, &input)?;
+    roundtrip_codec::<Deflate>(stream, &input)?;
+    roundtrip_codec::<Gdeflate>(stream, &input)?;
+    roundtrip_codec::<Gzip>(stream, &input)?;
+    roundtrip_codec::<Lz4>(stream, &input)?;
+    roundtrip_codec::<Snappy>(stream, &input)?;
+    roundtrip_codec::<Zstd>(stream, &input)?;
 
     Ok(())
 }
 
 #[test]
 fn test_gzip_decompression_algorithms_decode_known_fixture() -> Result<()> {
-    let cuda = Context::create()?;
-    let stream = cuda.create_stream()?;
+    let test = setup_context()?;
+    let stream = test.stream();
 
     gzip_decompress_fixture(
-        &stream,
+        stream,
         gzip::DecompressOptions {
             algorithm: GzipDecompressAlgorithm::Naive,
             ..Default::default()
         },
     )?;
     gzip_decompress_fixture(
-        &stream,
+        stream,
         gzip::DecompressOptions {
             algorithm: GzipDecompressAlgorithm::Lookahead,
             ..Default::default()
@@ -616,31 +627,19 @@ fn test_gzip_decompression_algorithms_decode_known_fixture() -> Result<()> {
 
 #[test]
 fn test_codec_decompresses_rewrapped_compressed_chunk() -> Result<()> {
-    let cuda = Context::create()?;
-    let stream = cuda.create_stream()?;
+    let test = setup_context()?;
+    let stream = test.stream();
     let input = b"nvCOMP rewrapped compressed chunk through Singe tests. ".repeat(256);
     let device_input = DeviceMemory::from_slice(stream.context(), &input)?;
     let codec = Codec::<Lz4>::default();
 
-    let compressed = codec.compress_one(&device_input, &stream)?;
-    let CompressedChunkParts {
-        memory,
-        uncompressed_bytes,
-        decoding_options: options,
-    } = compressed.into_parts();
-    let compressed_bytes = memory.len();
-    // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
-    let compressed = unsafe {
-        CompressedChunk::<Lz4>::create(
-            memory.into_uninit(),
-            compressed_bytes,
-            uncompressed_bytes,
-            options,
-        )?
-    };
+    let compressed = codec.compress_one(&device_input, stream)?;
+    let parts = compressed.into_parts();
+    // SAFETY: the parts come unchanged from a completed compression.
+    let compressed = unsafe { CompressedChunk::<Lz4>::from_parts(parts) };
 
     let mut output = DeviceMemory::<u8>::create_uninit(stream.context(), input.len())?;
-    let output_bytes = codec.decompress_one(&compressed, &mut output, &stream)?;
+    let output_bytes = codec.decompress_one(&compressed, &mut output, stream)?;
     assert_eq!(output_bytes, input.len());
     // SAFETY: the completed helper produced exactly the reported prefix.
     let output = unsafe { output.assume_init_prefix(output_bytes)? };
@@ -651,36 +650,30 @@ fn test_codec_decompresses_rewrapped_compressed_chunk() -> Result<()> {
 
 #[test]
 fn test_codec_decompresses_strided_compressed_chunk_view() -> Result<()> {
-    let cuda = Context::create()?;
-    let stream = cuda.create_stream()?;
+    let test = setup_context()?;
+    let cuda = test.cuda_context();
+    let stream = test.stream();
     let input = b"nvCOMP strided compressed chunk through Singe tests. ".repeat(256);
     let device_input = DeviceMemory::from_slice(stream.context(), &input)?;
     let codec = Codec::<Lz4>::default();
 
-    let compressed = codec.compress_one(&device_input, &stream)?;
+    let compressed = codec.compress_one(&device_input, stream)?;
     let compressed_bytes = compressed.len();
     let compressed_stride = compressed.capacity();
     let compressed_chunks = DeviceChunkTable::from_contiguous_strided_chunks(
-        &cuda,
+        cuda,
         compressed.memory(),
         compressed_stride,
         &[compressed_bytes],
     )?;
     let mut output = DeviceMemory::<u8>::create_uninit(stream.context(), input.len())?;
-    let mut output_chunks = DeviceChunkTableMut::from_contiguous(&cuda, &mut output)?;
+    let mut output_chunks = DeviceChunkTableMut::from_contiguous(cuda, &mut output)?;
+
+    // SAFETY: the chunk holds completed LZ4 data from `compress_one`.
+    unsafe { decompress_chunks(codec, compressed_chunks.view(), &mut output_chunks, stream)? };
 
     // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
-    unsafe {
-        codec.decompress_chunks_alloc_async(
-            compressed_chunks.view(),
-            &mut output_chunks,
-            &stream,
-        )?
-    }
-    .check()?;
-
-    // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
-    let output_sizes = unsafe { output_chunks.copy_written_bytes(&stream) }?;
+    let output_sizes = unsafe { output_chunks.copy_written_bytes(stream) }?;
     assert_eq!(output_sizes[0], input.len());
     drop(output_chunks);
     // SAFETY: the checked raw producer completed this reported prefix.
@@ -692,18 +685,18 @@ fn test_codec_decompresses_strided_compressed_chunk_view() -> Result<()> {
 
 #[test]
 fn test_codec_roundtrips_chunked_contiguous_batch() -> Result<()> {
-    let cuda = Context::create()?;
-    let stream = cuda.create_stream()?;
+    let test = setup_context()?;
+    let stream = test.stream();
     let input = b"nvCOMP chunked contiguous batch through Singe tests. ".repeat(512);
     let device_input = DeviceMemory::from_slice(stream.context(), &input)?;
     let codec = Codec::<Lz4>::default();
 
-    let compressed = codec.compress_contiguous(&device_input, 1024, &stream)?;
+    let compressed = codec.compress_contiguous(&device_input, 1024, stream)?;
     assert!(compressed.len() > 1);
     assert_eq!(compressed.total_uncompressed_len(), input.len());
 
     let mut output = DeviceMemory::<u8>::create_uninit(stream.context(), input.len())?;
-    let output_bytes = codec.decompress_contiguous(&compressed, &mut output, &stream)?;
+    let output_bytes = codec.decompress_contiguous(&compressed, &mut output, stream)?;
     assert_eq!(output_bytes, input.len());
     // SAFETY: the completed helper produced exactly the reported prefix.
     let output = unsafe { output.assume_init_prefix(output_bytes)? };
@@ -714,13 +707,13 @@ fn test_codec_roundtrips_chunked_contiguous_batch() -> Result<()> {
 
 #[test]
 fn test_codec_reports_chunked_batch_wrong_uncompressed_chunk_length() -> Result<()> {
-    let cuda = Context::create()?;
-    let stream = cuda.create_stream()?;
+    let test = setup_context()?;
+    let stream = test.stream();
     let input = b"nvCOMP chunked batch wrong metadata through Singe tests. ".repeat(512);
     let device_input = DeviceMemory::from_slice(stream.context(), &input)?;
     let codec = Codec::<Lz4>::default();
 
-    let compressed = codec.compress_contiguous(&device_input, 1024, &stream)?;
+    let compressed = codec.compress_contiguous(&device_input, 1024, stream)?;
     let mut parts = compressed.into_parts();
     let expected = parts.uncompressed_chunk_bytes[1] + 1;
     parts.uncompressed_chunk_bytes[1] = expected;
@@ -730,7 +723,7 @@ fn test_codec_reports_chunked_batch_wrong_uncompressed_chunk_length() -> Result<
     let mut output =
         DeviceMemory::<u8>::create_uninit(stream.context(), compressed.total_uncompressed_len())?;
     let error = codec
-        .decompress_contiguous(&compressed, &mut output, &stream)
+        .decompress_contiguous(&compressed, &mut output, stream)
         .unwrap_err();
 
     assert!(matches!(
@@ -750,33 +743,26 @@ fn test_codec_reports_chunked_batch_wrong_uncompressed_chunk_length() -> Result<
 
 #[test]
 fn test_codec_rejects_rewrapped_chunk_with_wrong_uncompressed_length() -> Result<()> {
-    let cuda = Context::create()?;
-    let stream = cuda.create_stream()?;
+    let test = setup_context()?;
+    let stream = test.stream();
     let input = b"nvCOMP wrong chunk metadata through Singe tests. ".repeat(256);
     let device_input = DeviceMemory::from_slice(stream.context(), &input)?;
     let codec = Codec::<Lz4>::default();
 
-    let compressed = codec.compress_one(&device_input, &stream)?;
-    let CompressedChunkParts {
-        memory,
-        decoding_options: options,
-        ..
-    } = compressed.into_parts();
-    let compressed_bytes = memory.len();
+    let compressed = codec.compress_one(&device_input, stream)?;
+    let parts = compressed.into_parts();
     let wrong_uncompressed_bytes = input.len() + 1;
     // SAFETY: the bytes come from a completed compression; the uncompressed size is wrong on purpose, to check that decompression reports the mismatch.
     let compressed = unsafe {
-        CompressedChunk::<Lz4>::create(
-            memory.into_uninit(),
-            compressed_bytes,
-            wrong_uncompressed_bytes,
-            options,
-        )?
+        CompressedChunk::<Lz4>::from_parts(CompressedChunkParts {
+            uncompressed_bytes: wrong_uncompressed_bytes,
+            ..parts
+        })
     };
 
     let mut output = DeviceMemory::<u8>::create_uninit(stream.context(), wrong_uncompressed_bytes)?;
     let error = codec
-        .decompress_one(&compressed, &mut output, &stream)
+        .decompress_one(&compressed, &mut output, stream)
         .unwrap_err();
     assert!(matches!(
         error,
@@ -794,18 +780,18 @@ fn test_codec_rejects_rewrapped_chunk_with_wrong_uncompressed_length() -> Result
 
 #[test]
 fn test_codec_one_shot_empty_chunk_is_noop() -> Result<()> {
-    let cuda = Context::create()?;
-    let stream = cuda.create_stream()?;
+    let test = setup_context()?;
+    let stream = test.stream();
     let input = DeviceMemory::<u8>::zeroed(stream.context(), 0)?;
     let codec = Codec::<Lz4>::default();
 
-    let compressed = codec.compress_one(&input, &stream)?;
+    let compressed = codec.compress_one(&input, stream)?;
     assert!(compressed.is_empty());
     assert_eq!(compressed.uncompressed_len(), 0);
     assert_eq!(compressed.capacity(), 0);
 
     let mut output = DeviceMemory::<u8>::create_uninit(stream.context(), 0)?;
-    let output_bytes = codec.decompress_one(&compressed, &mut output, &stream)?;
+    let output_bytes = codec.decompress_one(&compressed, &mut output, stream)?;
     assert_eq!(output_bytes, 0);
 
     Ok(())
@@ -813,26 +799,25 @@ fn test_codec_one_shot_empty_chunk_is_noop() -> Result<()> {
 
 #[test]
 fn test_codec_rejects_empty_compressed_chunk_with_nonzero_output_metadata() -> Result<()> {
-    let cuda = Context::create()?;
-    let stream = cuda.create_stream()?;
+    let test = setup_context()?;
+    let stream = test.stream();
     let codec = Codec::<Lz4>::default();
-    // SAFETY: an empty chunk has no bytes to initialize.
+    // SAFETY: an empty allocation has no bytes to initialize, and decompression rejects the chunk before nvCOMP reads it.
     let compressed = unsafe {
-        CompressedChunk::<Lz4>::create(
-            DeviceMemory::<u8>::create_uninit(stream.context(), 0)?,
-            0,
-            1,
-            lz4::DecompressOptions::default(),
-        )?
+        CompressedChunk::<Lz4>::from_parts(CompressedChunkParts {
+            memory: DeviceMemory::<u8>::create_uninit(stream.context(), 0)?.assume_init(),
+            uncompressed_bytes: 1,
+            decoding_options: lz4::DecompressOptions::default(),
+        })
     };
     let mut output = DeviceMemory::<u8>::create_uninit(stream.context(), 1)?;
 
     let error = codec
-        .decompress_one(&compressed, &mut output, &stream)
+        .decompress_one(&compressed, &mut output, stream)
         .unwrap_err();
     assert!(matches!(
         error,
-        Error::InvalidValue { name } if name == "compressed chunk bytes"
+        Error::Empty { name } if name == "compressed chunk bytes"
     ));
 
     Ok(())
@@ -840,35 +825,34 @@ fn test_codec_rejects_empty_compressed_chunk_with_nonzero_output_metadata() -> R
 
 #[test]
 fn test_checked_zstd_compress_rejects_misaligned_input() -> Result<()> {
-    let cuda = Context::create()?;
-    let stream = cuda.create_stream()?;
+    let test = setup_context()?;
+    let cuda = test.cuda_context();
+    let stream = test.stream();
     let input = DeviceMemory::<u8>::zeroed(stream.context(), 256)?;
     let misaligned_input = input.view().slice(1..)?;
-    let input_chunks = DeviceChunkTable::from_contiguous(&cuda, &misaligned_input)?;
+    let input_chunks = DeviceChunkTable::from_contiguous(cuda, &misaligned_input)?;
     let mut output = DeviceMemory::<u8>::create_uninit(stream.context(), 1024)?;
-    let mut output_chunks = DeviceChunkTableMut::from_contiguous(&cuda, &mut output)?;
-    let mut temp = TemporaryBuffer::create(&cuda, 0)?;
-    let mut statuses = DeviceStatuses::create(&cuda, input_chunks.len())?;
-    let options = zstd::CompressOptions;
+    let mut output_chunks = DeviceChunkTableMut::from_contiguous(cuda, &mut output)?;
+    let mut statuses = DeviceStatuses::create(cuda, input_chunks.len())?;
+    let codec = Codec::<Zstd>::default();
 
     // SAFETY: validation rejects the arguments before any work is enqueued.
     let error = unsafe {
-        Zstd::compress_chunks_async(
+        codec.compress_chunks_async(
             &input_chunks,
             &mut output_chunks,
-            &mut temp,
+            None,
             &mut statuses,
-            options,
-            &stream,
+            stream,
         )
     }
     .unwrap_err();
 
-    let expected_alignment = Zstd::compression_alignments(options)?.input;
+    let expected_alignment = codec.compression_alignments()?.input;
     assert!(expected_alignment > 1);
     assert!(matches!(
         error,
-        Error::AlignmentMismatch { name, alignment }
+        Error::Cuda(CudaError::Misaligned { name, alignment })
             if name == "input chunks" && alignment == expected_alignment
     ));
 
@@ -876,49 +860,43 @@ fn test_checked_zstd_compress_rejects_misaligned_input() -> Result<()> {
 }
 
 #[test]
-fn test_codec_temp_size_queries_accept_sync_and_async_paths() -> Result<()> {
-    let cuda = Context::create()?;
-    let stream = cuda.create_stream()?;
+fn test_codec_workspace_size_queries_accept_host_and_device_sizes() -> Result<()> {
+    let test = setup_context()?;
+    let cuda = test.cuda_context();
+    let stream = test.stream();
     let input = b"nvCOMP temp-size query coverage through Singe tests. ".repeat(256);
     let device_input = DeviceMemory::from_slice(stream.context(), &input)?;
-    let input_chunks = DeviceChunkTable::from_contiguous(&cuda, &device_input)?;
+    let input_chunks = DeviceChunkTable::from_contiguous(cuda, &device_input)?;
     let codec = Codec::<Lz4>::default();
 
-    let async_compress_temp_bytes =
-        codec.compression_temporary_size(input_chunks.len(), input.len(), input.len(), &stream)?;
-    // SAFETY: the synchronous size query completes before returning, while the test keeps the chunk table alive.
-    let sync_compress_temp_bytes =
-        unsafe { codec.compression_temporary_size_sync(&input_chunks, &stream) }?;
-    TemporaryBuffer::create(&cuda, async_compress_temp_bytes)?
-        .require(async_compress_temp_bytes)?;
-    TemporaryBuffer::create(&cuda, sync_compress_temp_bytes)?.require(sync_compress_temp_bytes)?;
+    codec.compression_workspace_size(input_chunks.len(), input.len(), input.len(), stream)?;
+    codec.compression_workspace_size_for_chunks(&input_chunks, stream)?;
 
-    let compressed = codec.compress_one(&device_input, &stream)?;
-    let compressed_chunks =
-        DeviceChunkTable::from_contiguous_prefix(&cuda, compressed.memory(), compressed.len())?;
+    let compressed = codec.compress_one(&device_input, stream)?;
+    let compressed_chunks = DeviceChunkTable::from_contiguous_chunk_sizes(
+        cuda,
+        compressed.memory(),
+        &[compressed.len()],
+    )?;
     let mut output = DeviceMemory::<u8>::create_uninit(stream.context(), input.len())?;
-    let output_chunks = DeviceChunkTableMut::from_contiguous(&cuda, &mut output)?;
-    let mut statuses = DeviceStatuses::create(&cuda, compressed_chunks.len())?;
+    let output_chunks = DeviceChunkTableMut::from_contiguous(cuda, &mut output)?;
+    let mut statuses = DeviceStatuses::create(cuda, compressed_chunks.len())?;
 
-    let async_decompress_temp_bytes = codec.decompression_temporary_size(
+    codec.decompression_workspace_size(
         compressed_chunks.len(),
         input.len(),
         input.len(),
-        &stream,
+        stream,
     )?;
-    // SAFETY: the size query only reads chunk metadata, and the test keeps the chunks alive past the stream work.
-    let sync_decompress_temp_bytes = unsafe {
-        codec.decompression_temporary_size_for_output_sync(
+    // SAFETY: the compressed chunk holds completed data from `compress_one`.
+    unsafe {
+        codec.decompression_workspace_size_for_chunks(
             compressed_chunks.view(),
             &output_chunks,
             &mut statuses,
-            &stream,
+            stream,
         )
     }?;
-    TemporaryBuffer::create(&cuda, async_decompress_temp_bytes)?
-        .require(async_decompress_temp_bytes)?;
-    TemporaryBuffer::create(&cuda, sync_decompress_temp_bytes)?
-        .require(sync_decompress_temp_bytes)?;
 
     Ok(())
 }
@@ -947,17 +925,32 @@ where
     let mut compressed_chunks =
         DeviceChunkTableMut::from_contiguous(stream.context(), &mut compressed)?;
 
-    // SAFETY: initialized input, codec-sized output slots, and all table owners
-    // remain live through check(); the owning result drains native errors too.
-    unsafe { codec.compress_chunks_alloc_async(&input_chunks, &mut compressed_chunks, stream)? }
-        .check()?;
+    let workspace_bytes = codec.compression_workspace_size(
+        input_chunks.len(),
+        input_chunks.max_chunk_bytes(),
+        input_chunks.total_bytes(),
+        stream,
+    )?;
+    let mut workspace = DeviceMemory::<u8>::create_uninit(stream.context(), workspace_bytes)?;
+    let mut statuses = DeviceStatuses::create(stream.context(), input_chunks.len())?;
+    stream.sync_scope(|scope| {
+        Ok(codec
+            .compress_chunks_scoped(
+                &input_chunks,
+                &mut compressed_chunks,
+                Some(workspace.output()),
+                &mut statuses,
+                scope,
+            )
+            .and_then(AsyncBatchResult::check))
+    })??;
 
     let mut queried_decompressed_sizes =
         DeviceMemory::<usize>::zeroed(stream.context(), input_chunks.len())?;
     stream.sync_scope(|_| {
         // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
         Ok(unsafe {
-            codec.decompress_size_chunks_async(
+            codec.decompressed_sizes_async(
                 compressed_chunks.written_chunks(),
                 &mut queried_decompressed_sizes,
                 stream,
@@ -968,15 +961,15 @@ where
     let mut output = DeviceMemory::<u8>::create_uninit(stream.context(), input.len())?;
     let mut output_chunks = DeviceChunkTableMut::from_contiguous(stream.context(), &mut output)?;
 
-    // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+    // SAFETY: the scoped compression completed the compressed chunks with the same codec.
     unsafe {
-        codec.decompress_chunks_alloc_async(
+        decompress_chunks(
+            codec,
             compressed_chunks.written_chunks(),
             &mut output_chunks,
             stream,
-        )?
+        )?;
     }
-    .check()?;
 
     let queried_decompressed_sizes = queried_decompressed_sizes.copy_to_host_vec()?;
     // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
@@ -995,13 +988,14 @@ fn gzip_decompress_fixture(stream: &Stream, options: gzip::DecompressOptions) ->
     let expected = gzip_fixture_bytes();
     let compressed = DeviceMemory::from_slice(stream.context(), GZIP_COMPRESSED_FIXTURE)?;
     let input_chunks = DeviceChunkTable::from_contiguous(stream.context(), &compressed)?;
+    let codec = Codec::<Gzip>::default().with_decompress_options(options);
 
     let mut queried_decompressed_sizes =
         DeviceMemory::<usize>::zeroed(stream.context(), input_chunks.len())?;
     stream.sync_scope(|_| {
         // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
         Ok(unsafe {
-            Gzip::decompress_size_chunks_async(
+            codec.decompressed_sizes_async(
                 input_chunks.view(),
                 &mut queried_decompressed_sizes,
                 stream,
@@ -1012,16 +1006,8 @@ fn gzip_decompress_fixture(stream: &Stream, options: gzip::DecompressOptions) ->
     let mut output = DeviceMemory::<u8>::create_uninit(stream.context(), expected.len())?;
     let mut output_chunks = DeviceChunkTableMut::from_contiguous(stream.context(), &mut output)?;
 
-    // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
-    unsafe {
-        gzip::decompress_chunks_alloc_async(
-            input_chunks.view(),
-            &mut output_chunks,
-            options,
-            stream,
-        )?
-    }
-    .check()?;
+    // SAFETY: the fixture is valid gzip data.
+    unsafe { decompress_chunks(codec, input_chunks.view(), &mut output_chunks, stream)? };
 
     let queried_decompressed_sizes = queried_decompressed_sizes.copy_to_host_vec()?;
     // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
@@ -1040,12 +1026,12 @@ fn gzip_decompress_fixture(stream: &Stream, options: gzip::DecompressOptions) ->
 
 #[test]
 fn test_crc32_single_segment_matches_cpu() -> Result<()> {
-    let cuda = Context::create()?;
-    let stream = cuda.create_stream()?;
+    let test = setup_context()?;
+    let stream = test.stream();
     let input = b"nvCOMP CRC32 single segment through Singe tests. ".repeat(512);
     let spec = Spec::CRC32;
 
-    let actual = device_crc32_segment(&stream, spec, Crc32SegmentKind::Only, &input)?;
+    let actual = device_crc32_segment(stream, spec, Crc32SegmentKind::Only, &input)?;
     assert_eq!(actual, cpu_crc32(spec, &input));
 
     Ok(())
@@ -1053,17 +1039,18 @@ fn test_crc32_single_segment_matches_cpu() -> Result<()> {
 
 #[test]
 fn test_crc32_heuristic_conf_from_device_sizes_matches_cpu() -> Result<()> {
-    let cuda = Context::create()?;
-    let stream = cuda.create_stream()?;
+    let test = setup_context()?;
+    let cuda = test.cuda_context();
+    let stream = test.stream();
     let input = b"nvCOMP CRC32 device-size heuristic through Singe tests. ".repeat(512);
     let spec = Spec::CRC32_C;
 
     let device_input = DeviceMemory::from_slice(stream.context(), &input)?;
-    let input_chunks = DeviceChunkTable::from_contiguous(&cuda, &device_input)?;
+    let input_chunks = DeviceChunkTable::from_contiguous(cuda, &device_input)?;
     let mut crc32_values = DeviceMemory::<u32>::zeroed(stream.context(), input_chunks.len())?;
-    let mut statuses = DeviceStatuses::create(&cuda, input_chunks.len())?;
+    let mut statuses = DeviceStatuses::create(cuda, input_chunks.len())?;
     // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
-    let kernel_conf = unsafe { crc32::heuristic_conf_from_sizes(input_chunks.view(), &stream) }?;
+    let kernel_conf = unsafe { crc32::heuristic_conf_from_sizes(input_chunks.view(), stream) }?;
     let options = Options::new(spec, kernel_conf);
 
     stream
@@ -1076,7 +1063,7 @@ fn test_crc32_heuristic_conf_from_device_sizes_matches_cpu() -> Result<()> {
                     &mut statuses,
                     options,
                     Crc32SegmentKind::Only,
-                    &stream,
+                    stream,
                 )
             })
         })??
@@ -1090,8 +1077,9 @@ fn test_crc32_heuristic_conf_from_device_sizes_matches_cpu() -> Result<()> {
 
 #[test]
 fn test_crc32_accepts_misaligned_input_chunk() -> Result<()> {
-    let cuda = Context::create()?;
-    let stream = cuda.create_stream()?;
+    let test = setup_context()?;
+    let cuda = test.cuda_context();
+    let stream = test.stream();
     let input = b"nvCOMP CRC32 misaligned input through Singe tests. ".repeat(512);
     let spec = Spec::CRC32_C;
     let mut padded = Vec::with_capacity(input.len() + 1);
@@ -1100,12 +1088,12 @@ fn test_crc32_accepts_misaligned_input_chunk() -> Result<()> {
 
     let device_input = DeviceMemory::from_slice(stream.context(), &padded)?;
     let misaligned_input = device_input.view().slice(1..)?;
-    let input_chunks = DeviceChunkTable::from_contiguous(&cuda, &misaligned_input)?;
+    let input_chunks = DeviceChunkTable::from_contiguous(cuda, &misaligned_input)?;
     assert!(!input_chunks.is_aligned_to(2));
 
     let mut crc32_values = DeviceMemory::<u32>::zeroed(stream.context(), input_chunks.len())?;
-    let mut statuses = DeviceStatuses::create(&cuda, input_chunks.len())?;
-    let kernel_conf = crc32::heuristic_conf_for_chunks(&input_chunks, &stream)?;
+    let mut statuses = DeviceStatuses::create(cuda, input_chunks.len())?;
+    let kernel_conf = crc32::heuristic_conf_for_chunks(&input_chunks, stream)?;
     let options = Options::new(spec, kernel_conf);
 
     stream
@@ -1118,7 +1106,7 @@ fn test_crc32_accepts_misaligned_input_chunk() -> Result<()> {
                     &mut statuses,
                     options,
                     Crc32SegmentKind::Only,
-                    &stream,
+                    stream,
                 )
             })
         })??
@@ -1132,8 +1120,9 @@ fn test_crc32_accepts_misaligned_input_chunk() -> Result<()> {
 
 #[test]
 fn test_crc32_streaming_segments_match_cpu() -> Result<()> {
-    let cuda = Context::create()?;
-    let stream = cuda.create_stream()?;
+    let test = setup_context()?;
+    let cuda = test.cuda_context();
+    let stream = test.stream();
     let first = b"nvCOMP CRC32 first streaming segment. ".repeat(256);
     let last = b"nvCOMP CRC32 last streaming segment. ".repeat(256);
     let mut input = first.clone();
@@ -1141,14 +1130,14 @@ fn test_crc32_streaming_segments_match_cpu() -> Result<()> {
     let spec = Spec::CRC32;
 
     let first_device = DeviceMemory::from_slice(stream.context(), &first)?;
-    let first_chunks = DeviceChunkTable::from_contiguous(&cuda, &first_device)?;
+    let first_chunks = DeviceChunkTable::from_contiguous(cuda, &first_device)?;
     let mut crc32_values =
         DeviceMemory::<u32>::create_uninit(stream.context(), first_chunks.len())?;
-    let mut statuses = DeviceStatuses::create(&cuda, first_chunks.len())?;
+    let mut statuses = DeviceStatuses::create(cuda, first_chunks.len())?;
     let kernel_conf = crc32::heuristic_conf_for_max_chunk_size(
         first_chunks.len(),
         first.len().max(last.len()),
-        &stream,
+        stream,
     )?;
     let options = Options::new(spec, kernel_conf);
 
@@ -1162,14 +1151,14 @@ fn test_crc32_streaming_segments_match_cpu() -> Result<()> {
                     &mut statuses,
                     options,
                     Crc32SegmentKind::First,
-                    &stream,
+                    stream,
                 )
             })
         })??
         .check()?;
 
     let last_device = DeviceMemory::from_slice(stream.context(), &last)?;
-    let last_chunks = DeviceChunkTable::from_contiguous(&cuda, &last_device)?;
+    let last_chunks = DeviceChunkTable::from_contiguous(cuda, &last_device)?;
     stream
         .sync_scope(|_| {
             // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
@@ -1180,7 +1169,7 @@ fn test_crc32_streaming_segments_match_cpu() -> Result<()> {
                     &mut statuses,
                     options,
                     Crc32SegmentKind::Last,
-                    &stream,
+                    stream,
                 )
             })
         })??
@@ -1226,6 +1215,61 @@ fn device_crc32_segment(
     Ok(crc32_values.copy_to_host_vec()?[0])
 }
 
+// Safety: every chunk of `input` must be valid compressed data for `codec`.
+unsafe fn decompress_chunks<C>(
+    codec: Codec<C>,
+    input: DeviceChunkTableView<'_>,
+    output: &mut DeviceChunkTableMut<'_>,
+    stream: &Stream,
+) -> Result<()>
+where
+    C: BatchedCodec,
+{
+    let workspace_bytes = codec.decompression_workspace_size(
+        input.len(),
+        output.max_buffer_bytes(),
+        output.total_buffer_bytes(),
+        stream,
+    )?;
+    let mut workspace = DeviceMemory::<u8>::create_uninit(stream.context(), workspace_bytes)?;
+    let mut statuses = DeviceStatuses::create(stream.context(), input.len())?;
+    stream
+        .sync_scope(|_| {
+            // SAFETY: the caller guarantees valid compressed input, and the scope waits for the stream before the operands are released.
+            Ok(unsafe {
+                codec.decompress_chunks_async(
+                    input,
+                    output,
+                    Some(workspace.output()),
+                    &mut statuses,
+                    stream,
+                )
+            })
+        })??
+        .check()?;
+    Ok(())
+}
+
+// Bitwise CRC32 on the host, to check the GPU results.
+fn cpu_crc32(spec: Spec, input: &[u8]) -> u32 {
+    let mut crc = spec.init;
+    for &byte in input {
+        crc ^= if spec.ref_in {
+            u32::from(byte).reverse_bits()
+        } else {
+            u32::from(byte) << 24
+        };
+        for _ in 0..8 {
+            crc = (crc << 1) ^ if crc & 0x8000_0000 != 0 { spec.poly } else { 0 };
+        }
+    }
+
+    if spec.ref_out {
+        crc = crc.reverse_bits();
+    }
+    crc ^ spec.xorout
+}
+
 fn gzip_fixture_bytes() -> Vec<u8> {
     b"nvCOMP gzip decompression fixture through Singe tests. ".repeat(64)
 }
@@ -1265,5 +1309,20 @@ fn assert_length_mismatch(error: Error, expected_name: &str, expected: usize, ac
             assert_eq!(error_actual, actual);
         }
         other => panic!("expected length-mismatch error, got {other:?}"),
+    }
+}
+
+fn assert_buffer_too_small(error: Error, expected_name: &str, required: usize, actual: usize) {
+    match error {
+        Error::BufferTooSmall {
+            name,
+            required: error_required,
+            actual: error_actual,
+        } => {
+            assert_eq!(name, expected_name);
+            assert_eq!(error_required, required);
+            assert_eq!(error_actual, actual);
+        }
+        other => panic!("expected buffer-too-small error, got {other:?}"),
     }
 }

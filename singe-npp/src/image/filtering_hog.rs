@@ -126,7 +126,7 @@ macro_rules! impl_histogram_of_gradients_border {
             stream_context.validate_region(descriptors)?;
             stream_context.validate_region(scratch)?;
 
-            $crate::utility::validate_border_roi(source.size(), source_offset, roi)?;
+            $crate::image::validate_border_roi(source.size(), source_offset, roi)?;
             let descriptor_bytes =
                 histogram_of_gradients_border_descriptors_size(config, locations.len())?;
             if descriptors.region().byte_len() < descriptor_bytes {

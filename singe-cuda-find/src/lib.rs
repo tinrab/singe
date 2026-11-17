@@ -1,30 +1,42 @@
-//! CUDA Toolkit and NVIDIA library discovery helpers for Singe build scripts and wrapper crates.
+//! Finds the headers, libraries, and tools of the CUDA Toolkit and the NVIDIA libraries, for build scripts that compile against them.
+//! The `*-sys` crates load their libraries at run time through `singe-loader` and do not need this crate.
 //!
-//! This crate centralizes the path probing used by the Singe CUDA ecosystem.
-//! It looks for headers, libraries, and tools through explicit environment variables, the active `PATH` or dynamic library path, and common CUDA installation roots.
-//! The result is a small [`Dependency`] value containing include and library directories plus a detected version when the header exposes one.
+//! This crate provides:
 //!
-//! # Discovery
-//!
-//! Toolkit components prefer component-specific roots such as `CUBLAS_PATH` or `CUSOLVER_ROOT`, then fall back to `CUDA_PATH` or `CUDA_HOME`, then common platform locations.
-//! Driver-owned libraries such as CUDA Driver and NVML are searched in driver library paths because they are not necessarily installed inside the CUDA Toolkit.
+//! - **`find_*` functions:** one per component, from the CUDA runtime, NVRTC, and nvJitLink to cuBLAS, cuDNN, NCCL, nvCOMP, and nvTIFF, each returning [`Result<Option<Dependency>>`].
+//! - **[`Dependency`]:** the include and library directories that were found, and the version the header reports, such as `"13.0.0"`.
+//! - **Driver and tool paths:** [`find_cuda_driver_path`], [`find_nvml`], and [`find_nvcc`].
+//! - **Cargo directives:** [`emit_dependency_metadata`], [`emit_library_path_metadata`], [`emit_link_libraries`], and [`emit_static_link_libraries`] print the directives for what was found, and [`emit_rerun_if_env_changed`] prints one for every environment variable the search reads.
 //!
 //! # Example
 //!
-//! ```no_run
-//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! let cuda = singe_cuda_find::find_cuda_runtime()?
-//!     .expect("CUDA runtime headers and library were not found");
+//! A build script that finds the CUDA runtime and prints the Cargo directives for it:
 //!
-//! println!("cargo:include={}", cuda.include_path.display());
-//! println!("cargo:rustc-link-search=native={}", cuda.library_path.display());
-//!
-//! if let Some(version) = cuda.version {
-//!     println!("cargo:warning=found CUDA runtime {version}");
+//! ```rust,no_run
+//! fn main() -> anyhow::Result<()> {
+//!     singe_cuda_find::emit_rerun_if_env_changed();
+//!     let cuda = singe_cuda_find::find_cuda_runtime()?.ok_or_else(|| {
+//!         anyhow::anyhow!("the CUDA runtime headers and library were not found")
+//!     })?;
+//!     println!("cargo:include={}", cuda.include_path.display());
+//!     println!(
+//!         "cargo:rustc-link-search=native={}",
+//!         cuda.library_path.display()
+//!     );
+//!     if let Some(version) = &cuda.version {
+//!         println!("cargo:warning=found CUDA runtime {version}");
+//!     }
+//!     Ok(())
 //! }
-//! # Ok(())
-//! # }
 //! ```
+//!
+//! A `find_*` function returns `Ok(None)` when the component is not installed, and an error only when the search itself fails, such as on an invalid glob pattern.
+//! The caller chooses which libraries to link.
+//!
+//! # Search order
+//!
+//! A toolkit component checks its own root variables first, such as `CUBLAS_PATH` or `CUSOLVER_ROOT`, then `CUDA_PATH` or `CUDA_HOME`, then common installation locations, `PATH`, and the dynamic library search path.
+//! The CUDA driver and NVML are searched in the driver's library paths, since they are often installed outside the toolkit.
 
 mod dependency;
 mod environment;

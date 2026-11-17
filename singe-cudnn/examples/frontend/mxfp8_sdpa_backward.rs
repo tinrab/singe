@@ -1,7 +1,6 @@
 mod common;
 
 use singe_cudnn::{
-    backend::tensor::{Shape, TensorSpec},
     data_type::DataType,
     error::Result,
     frontend::{
@@ -13,6 +12,7 @@ use singe_cudnn::{
         },
         plan::{CompileConfig, HeuristicMode},
     },
+    tensor::{Shape, TensorSpec},
 };
 
 fn run() -> Result<()> {
@@ -54,11 +54,11 @@ fn run() -> Result<()> {
         Shape::contiguous([2, 2, 512, 128])?,
     ));
     let o = graph.tensor(TensorSpec::new(
-        DataType::BF16,
+        DataType::Bf16,
         Shape::contiguous([2, 2, 512, 128])?,
     ));
     let d_o = graph.tensor(TensorSpec::new(
-        DataType::BF16,
+        DataType::Bf16,
         Shape::contiguous([2, 2, 512, 128])?,
     ));
     let d_o_quantized = graph.tensor(TensorSpec::new(
@@ -77,7 +77,7 @@ fn run() -> Result<()> {
         TensorSpec::new(DataType::F8UE8M0, Shape::contiguous([2, 2, 512, 4])?)
             .with_f8_128x4_reordering(),
     );
-    let scale_q_t = graph.tensor(
+    let q_sequence_scale = graph.tensor(
         TensorSpec::new(DataType::F8UE8M0, Shape::contiguous([2, 2, 16, 128])?)
             .with_f8_128x4_reordering(),
     );
@@ -85,7 +85,7 @@ fn run() -> Result<()> {
         TensorSpec::new(DataType::F8UE8M0, Shape::contiguous([2, 2, 512, 4])?)
             .with_f8_128x4_reordering(),
     );
-    let scale_k_t = graph.tensor(
+    let k_sequence_scale = graph.tensor(
         TensorSpec::new(DataType::F8UE8M0, Shape::contiguous([2, 2, 16, 128])?)
             .with_f8_128x4_reordering(),
     );
@@ -111,7 +111,7 @@ fn run() -> Result<()> {
         Shape::contiguous([1, 2, 1, 1])?,
     ));
 
-    let gradient = TensorSpec::new(DataType::BF16, Shape::contiguous([2, 2, 512, 128])?);
+    let gradient = TensorSpec::new(DataType::Bf16, Shape::contiguous([2, 2, 512, 128])?);
     let d_q = graph.tensor(gradient.clone());
     let d_k = graph.tensor(gradient.clone());
     let d_v = graph.tensor(gradient);
@@ -119,7 +119,7 @@ fn run() -> Result<()> {
         DataType::F32,
         Shape::contiguous([1, 1, 1, 1])?,
     ));
-    graph.sdpa_mxfp8_backward_into(
+    graph.sdpa_backward_into(
         SdpaMxfp8BackwardInputs {
             query: q,
             sequence_scaled_query: q_t,
@@ -132,9 +132,9 @@ fn run() -> Result<()> {
             sequence_scaled_output_gradient: d_o_t,
             stats,
             scale_query: scale_q,
-            sequence_scale_query: scale_q_t,
+            sequence_scale_query: q_sequence_scale,
             scale_key: scale_k,
-            sequence_scale_key: scale_k_t,
+            sequence_scale_key: k_sequence_scale,
             scale_value: scale_v,
             scale_output_gradient: scale_d_o,
             sequence_scale_output_gradient: scale_d_o_t,
@@ -165,6 +165,6 @@ fn run() -> Result<()> {
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_mxfp8_sdpa_backward", run())
 }

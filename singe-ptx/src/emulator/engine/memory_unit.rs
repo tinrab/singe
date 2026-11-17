@@ -13,7 +13,7 @@ use crate::{
 };
 
 impl Engine {
-    pub fn execute_memory(
+    pub(crate) fn execute_memory(
         &mut self,
         global: &mut Memory,
         lane: usize,

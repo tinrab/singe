@@ -2,12 +2,11 @@ mod common;
 
 use singe_cuda::{context::Context, memory::DeviceMemory, types::DevicePtr};
 use singe_cudss::{
-    error::Result,
     matrix::{DenseMatrixDescriptor, Matrix},
     types::{DataType, Layout, MatrixFormat},
 };
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     let cuda = Context::create()?;
     println!("cuDSS example: dense matrix helper APIs");
     println!("cuDSS version: {}", singe_cudss::version()?);
@@ -15,7 +14,7 @@ fn main() -> Result<()> {
     let rows = 6i64;
     let cols = rows / 2;
     let leading_dim = 2 * rows;
-    let len = (leading_dim * cols) as usize;
+    let len = usize::try_from(leading_dim * cols)?;
 
     let host_values: Vec<_> = (1..=len).map(|value| value as f64).collect();
     let values = DeviceMemory::from_slice(&cuda, &host_values)?;

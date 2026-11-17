@@ -1,13 +1,19 @@
 [package]
 name = "singe-cuda-find"
 description = "Discovery tools for the CUDA Toolkit and NVIDIA libraries."
-version = "0.1.0-alpha.9"
+version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 repository.workspace = true
+documentation = "https://docs.rs/singe-cuda-find"
 license-file.workspace = true
 readme = "README.md"
 keywords = ["cuda", "nvidia", "build-script"]
+categories = ["development-tools::build-utils"]
 include.workspace = true
+
+[package.metadata.docs.rs]
+rustdoc-args = ["--cfg", "docsrs", "--html-in-header", "dist/katex_header.html"]
 
 [dependencies]
 anyhow.workspace = true

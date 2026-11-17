@@ -5,16 +5,15 @@ use singe_cuda::{
     data_type::DataType,
     device::Device,
     error::Result as CudaResult,
-    stream::{Stream, StreamBinding},
+    stream::{Stream, StreamBinding, StreamOptions},
 };
 use singe_cutensor::{
-    error::Result,
     mg::{
         context::Context,
         contraction::{ContractionDescriptor, ContractionFind, ContractionPlan},
         memory::DistributedDeviceMemory,
         tensor::{
-            DevicePartition, TensorDescriptor, TensorDescriptorConfig, TensorDevice, TensorMode,
+            DevicePartition, TensorDescriptor, TensorDescriptorOptions, TensorDevice, TensorMode,
         },
         types::Algorithm,
     },
@@ -54,7 +53,7 @@ fn collect_i32(map: &HashMap<i32, i32>, modes: &[i32]) -> Vec<i32> {
     modes.iter().map(|mode| map[mode]).collect()
 }
 
-fn fill_up(devices: &[i32], count: i32) -> Vec<TensorDevice> {
+fn fill_up(devices: &[Device], count: i32) -> Vec<TensorDevice> {
     (0..count as usize)
         .map(|index| TensorDevice::Device(devices[index % devices.len()]))
         .collect()
@@ -64,11 +63,11 @@ fn mode_vec(modes: &[i32]) -> Vec<Mode> {
     modes.iter().copied().map(Mode::new).collect()
 }
 
-fn create_streams_for_devices(devices: &[i32]) -> CudaResult<(Vec<Stream>, Vec<StreamBinding>)> {
+fn create_streams_for_devices(devices: &[Device]) -> CudaResult<(Vec<Stream>, Vec<StreamBinding>)> {
     let mut streams = Vec::with_capacity(devices.len());
     for &device in devices {
-        let cuda_context = CudaContext::retain_primary_for_device(Device::new(device))?;
-        streams.push(cuda_context.create_stream()?);
+        let cuda_context = CudaContext::create_for_device(device)?;
+        streams.push(cuda_context.create_stream(StreamOptions::default())?);
     }
 
     let bindings = streams
@@ -78,13 +77,13 @@ fn create_streams_for_devices(devices: &[i32]) -> CudaResult<(Vec<Stream>, Vec<S
     Ok((streams, bindings))
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     let args = env::args().skip(1).collect::<Vec<_>>();
     let devices = if args.is_empty() {
-        (0..Device::count()?).collect::<Vec<_>>()
+        (0..Device::count()?).map(Device::new).collect::<Vec<_>>()
     } else {
         args.iter()
-            .map(|arg| arg.parse::<i32>().expect("device id must be an integer"))
+            .map(|arg| Device::new(arg.parse::<i32>().expect("device id must be an integer")))
             .collect::<Vec<_>>()
     };
 
@@ -159,7 +158,7 @@ fn main() -> Result<()> {
 
     let descriptor_a = TensorDescriptor::create(
         &context,
-        TensorDescriptorConfig {
+        TensorDescriptorOptions {
             modes: &tensor_modes_a,
             partition: DevicePartition {
                 devices: &devices_a,
@@ -170,7 +169,7 @@ fn main() -> Result<()> {
     )?;
     let descriptor_b = TensorDescriptor::create(
         &context,
-        TensorDescriptorConfig {
+        TensorDescriptorOptions {
             modes: &tensor_modes_b,
             partition: DevicePartition {
                 devices: &devices_b,
@@ -181,7 +180,7 @@ fn main() -> Result<()> {
     )?;
     let descriptor_c = TensorDescriptor::create(
         &context,
-        TensorDescriptorConfig {
+        TensorDescriptorOptions {
             modes: &tensor_modes_c,
             partition: DevicePartition {
                 devices: &devices_c,
@@ -221,13 +220,13 @@ fn main() -> Result<()> {
     )) / i64::from(product(&device_count_c));
 
     let memory_a =
-        DistributedDeviceMemory::<f32>::zeroed(&context, &devices_a, elements_a as usize)?;
+        DistributedDeviceMemory::<f32>::zeroed(&context, &devices_a, usize::try_from(elements_a)?)?;
     let memory_b =
-        DistributedDeviceMemory::<f32>::zeroed(&context, &devices_b, elements_b as usize)?;
+        DistributedDeviceMemory::<f32>::zeroed(&context, &devices_b, usize::try_from(elements_b)?)?;
     let mut memory_c =
-        DistributedDeviceMemory::<f32>::zeroed(&context, &devices_c, elements_c as usize)?;
+        DistributedDeviceMemory::<f32>::zeroed(&context, &devices_c, usize::try_from(elements_c)?)?;
     let mut workspace = plan.create_workspace_memory()?;
-    let (streams, stream_bindings) = create_streams_for_devices(&devices)?;
+    let (_streams, stream_bindings) = create_streams_for_devices(&devices)?;
 
     let alpha = 1.0_f32;
     let beta = 0.0_f32;
@@ -244,10 +243,6 @@ fn main() -> Result<()> {
             &mut workspace,
             &stream_bindings,
         )?;
-
-        for stream in &streams {
-            stream.synchronize()?;
-        }
 
         best_ms = best_ms.min(start.elapsed().as_secs_f64() * 1.0e3);
     }

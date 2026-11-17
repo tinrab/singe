@@ -67,8 +67,14 @@ pub struct AllocatorSet {
 
 impl DeviceAllocator {
     /// Creates a device allocator from its callbacks and context pointer.
+    ///
+    /// # Safety
+    ///
+    /// `malloc` must either store a pointer to at least `size` bytes of device memory, usable in stream order on the given stream, and return 0, or return a nonzero value; `free` must release only memory that `malloc` returned, in stream order.
+    /// nvTIFF may call both from any thread, passing `context` unchanged.
+    /// The callbacks and the data behind `context` must stay valid until every decoder and encoder created with this allocator has been destroyed.
     #[must_use]
-    pub const fn new(
+    pub const unsafe fn new(
         malloc: DeviceMallocCallback,
         free: DeviceFreeCallback,
         context: *mut c_void,
@@ -85,8 +91,14 @@ impl DeviceAllocator {
 
 impl PinnedAllocator {
     /// Creates a pinned host allocator from its callbacks and context pointer.
+    ///
+    /// # Safety
+    ///
+    /// `malloc` must either store a pointer to at least `size` bytes of pinned host memory, usable in stream order on the given stream, and return 0, or return a nonzero value; `free` must release only memory that `malloc` returned, in stream order.
+    /// nvTIFF may call both from any thread, passing `context` unchanged.
+    /// The callbacks and the data behind `context` must stay valid until every decoder and encoder created with this allocator has been destroyed.
     #[must_use]
-    pub const fn new(
+    pub const unsafe fn new(
         malloc: PinnedMallocCallback,
         free: PinnedFreeCallback,
         context: *mut c_void,

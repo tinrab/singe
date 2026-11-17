@@ -1,5 +1,8 @@
+//! CUDA libraries, kernel lookup, and library-owned globals.
+
 use std::{ffi::CString, ptr, result::Result as StdResult, sync::Arc};
 
+use singe_core::report_cleanup_failure;
 use singe_cuda_sys::driver;
 
 use crate::{
@@ -10,8 +13,19 @@ use crate::{
     module::{KernelFunction, KernelLaunchArgs, LaunchConfig, LaunchGeometry, Module},
     try_ffi,
     types::{DeviceFunction, FunctionAttribute, FunctionCache, SharedMemoryMode},
-    utility::to_usize,
+    utility::{to_i32, to_usize},
 };
+
+/// Raw ownership of a CUDA library and its lookup context.
+///
+/// Unload `handle` while `context` is alive, or re-adopt the value with [`Library::from_raw`].
+#[derive(Debug)]
+pub struct RawLibrary {
+    /// Native library handle.
+    pub handle: driver::CUlibrary,
+    /// Context used for lookups in the library.
+    pub context: Arc<Context>,
+}
 
 /// A shared CUDA library and its retained lookup context.
 ///
@@ -60,22 +74,22 @@ impl Library {
     /// Takes ownership of a CUDA library, retaining its lookup context.
     ///
     /// # Safety
-    /// `handle` must be live and must not be unloaded elsewhere.
-    /// `context` must support the library's device code.
+    ///
+    /// `raw.handle` must be live and must not be unloaded elsewhere.
+    /// `raw.context` must support the library's device code.
     ///
     /// # Errors
     ///
-    /// Returns `Error::NullHandle` if `handle` is null.
-    /// The caller is responsible for the remaining handle validity and ownership requirements.
-    pub unsafe fn from_raw(handle: driver::CUlibrary, context: Arc<Context>) -> Result<Self> {
-        if handle.is_null() {
+    /// Returns `Error::NullHandle` if the handle is null.
+    pub unsafe fn from_raw(raw: RawLibrary) -> Result<Self> {
+        if raw.handle.is_null() {
             return Err(Error::NullHandle);
         }
 
         Ok(Self {
             inner: Arc::new(LibraryInner {
-                handle,
-                context,
+                handle: raw.handle,
+                context: raw.context,
                 owns_handle: true,
             }),
         })
@@ -91,7 +105,7 @@ impl Library {
         let c_name = CString::new(name)?;
         let mut handle = ptr::null_mut();
         self.inner.context.bind()?;
-        // SAFETY: `cuLibraryGetKernel` receives valid output locations and pointers into buffers borrowed for the call.
+        // SAFETY: `handle` is a writable local, `self.inner.handle` is the live library this owner retains, and `c_name` is NUL-terminated for the call.
         unsafe {
             try_ffi!(driver::cuLibraryGetKernel(
                 &raw mut handle,
@@ -117,14 +131,14 @@ impl Library {
     pub fn kernel_count(&self) -> Result<usize> {
         let mut count = 0;
         self.inner.context.bind()?;
-        // SAFETY: `cuLibraryGetKernelCount` receives valid output locations.
+        // SAFETY: `count` is a writable local, and `self.inner.handle` is the live library this owner retains.
         unsafe {
             try_ffi!(driver::cuLibraryGetKernelCount(
                 &raw mut count,
                 self.inner.handle
             ))?;
         }
-        Ok(count as usize)
+        to_usize(count, "library kernel count")
     }
 
     /// Returns the module handle associated with the current context located in this library.
@@ -136,7 +150,7 @@ impl Library {
     pub fn module(&self) -> Result<Module> {
         let mut handle = ptr::null_mut();
         self.inner.context.bind()?;
-        // SAFETY: `cuLibraryGetModule` receives valid output locations.
+        // SAFETY: `handle` is a writable local, and `self.inner.handle` is the live library this owner retains.
         unsafe {
             try_ffi!(driver::cuLibraryGetModule(
                 &raw mut handle,
@@ -165,7 +179,7 @@ impl Library {
         let mut ptr = 0;
         let mut size = 0;
         self.inner.context.bind()?;
-        // SAFETY: `cuLibraryGetGlobal` receives valid output locations and pointers into buffers borrowed for the call.
+        // SAFETY: `ptr` and `size` are writable locals, `self.inner.handle` is the live library this owner retains, and `c_name` is NUL-terminated for the call.
         unsafe {
             try_ffi!(driver::cuLibraryGetGlobal(
                 &raw mut ptr,
@@ -193,7 +207,7 @@ impl Library {
         let mut ptr = 0;
         let mut size = 0;
         self.inner.context.bind()?;
-        // SAFETY: `cuLibraryGetManaged` receives valid output locations and pointers into buffers borrowed for the call.
+        // SAFETY: `ptr` and `size` are writable locals, `self.inner.handle` is the live library this owner retains, and `c_name` is NUL-terminated for the call.
         unsafe {
             try_ffi!(driver::cuLibraryGetManaged(
                 &raw mut ptr,
@@ -207,32 +221,6 @@ impl Library {
             size: to_usize(size, "library byte count")?,
             _library: self,
         })
-    }
-
-    /// Returns the pointer to the unified function named by `symbol`.
-    /// If no unified function with that name exists, the call returns [`crate::error::Status::NotFound`].
-    /// If no device in the system supports unified function pointers, the call may return [`crate::error::Status::NotFound`].
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if `symbol` contains an interior NUL byte, if the CUDA context cannot be bound, or if CUDA Driver cannot find the unified function.
-    pub fn unified_function(&self, symbol: &str) -> Result<*mut ()> {
-        let c_symbol = CString::new(symbol)?;
-        let mut ptr = ptr::null_mut();
-        self.inner.context.bind()?;
-        // SAFETY: `cuLibraryGetUnifiedFunction` receives valid output locations and pointers into buffers borrowed for the call.
-        unsafe {
-            try_ffi!(driver::cuLibraryGetUnifiedFunction(
-                &raw mut ptr,
-                self.inner.handle,
-                c_symbol.as_ptr(),
-            ))?;
-        }
-
-        if ptr.is_null() {
-            return Err(Error::NullHandle);
-        }
-        Ok(ptr.cast())
     }
 
     /// Returns the borrowed native library handle without transferring ownership.
@@ -250,18 +238,21 @@ impl Library {
     ///
     /// Returns `Err(self)` if another library clone, kernel, module, or retained graph owner still shares the library.
     /// The returned wrapper remains usable and retains ownership.
-    pub fn into_raw(self) -> StdResult<(driver::CUlibrary, Arc<Context>), Self> {
+    pub fn into_raw(self) -> StdResult<RawLibrary, Self> {
         match Arc::try_unwrap(self.inner) {
             Ok(mut inner) => {
                 inner.owns_handle = false;
-                Ok((inner.handle, Arc::clone(&inner.context)))
+                Ok(RawLibrary {
+                    handle: inner.handle,
+                    context: Arc::clone(&inner.context),
+                })
             }
             Err(inner) => Err(Self { inner }),
         }
     }
 
     pub(crate) fn code_owner_id(&self) -> usize {
-        Arc::as_ptr(&self.inner) as usize
+        Arc::as_ptr(&self.inner).addr()
     }
 
     /// Returns the context used for library lookups and device attributes.
@@ -278,28 +269,21 @@ impl Drop for LibraryInner {
         }
 
         if let Err(error) = self.context.bind() {
-            eprintln!(
-                "failed to bind context before unloading library: {}",
-                singe_core::ErrorChain(&error)
-            );
+            report_cleanup_failure("bind the cuda context to unload", "cuda library", &error);
             return;
         }
 
-        // SAFETY: `cuLibraryUnload` receives live handles owned by the wrappers.
-        unsafe {
-            if let Err(error) = try_ffi!(driver::cuLibraryUnload(self.handle)) {
-                eprintln!(
-                    "failed to unload cuda library: {}",
-                    singe_core::ErrorChain(&error)
-                );
-            }
+        // SAFETY: the last owner of `self.handle` unloads it once, with its lookup context bound, and no kernel or module that uses it remains.
+        if let Err(error) = unsafe { try_ffi!(driver::cuLibraryUnload(self.handle)) } {
+            report_cleanup_failure("unload", "cuda library", &error);
         }
     }
 }
 
-// SAFETY: CUDA serializes library handle access; the retained context stays alive until unload.
+// SAFETY: a CUDA library handle may be used and unloaded from any thread once its context is bound, and the retained context is `Send`.
 unsafe impl Send for LibraryInner {}
 
+// SAFETY: shared access only passes the immutable handle to thread-safe driver lookups; `owns_handle` changes only on an owned value.
 unsafe impl Sync for LibraryInner {}
 
 impl LibraryGlobal<'_> {
@@ -318,9 +302,10 @@ impl LibraryGlobal<'_> {
     }
 }
 
-// SAFETY: each handle retains its library and lookup context; CUDA serializes native kernel access.
+// SAFETY: a CUDA kernel handle is usable from any thread while its library is loaded, which the retained `library` guarantees.
 unsafe impl Send for LibraryKernel {}
 
+// SAFETY: `&self` methods only pass the immutable kernel handle to thread-safe driver calls; attribute setters race only as CUDA documents for concurrent configuration.
 unsafe impl Sync for LibraryKernel {}
 
 impl LibraryKernel {
@@ -345,7 +330,7 @@ impl LibraryKernel {
     pub fn function(&self) -> Result<KernelFunction> {
         self.library.inner.context.bind()?;
         let mut handle = ptr::null_mut();
-        // SAFETY: `cuKernelGetFunction` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `handle` is a writable local, and `self.handle` is a live kernel of the library `self` retains, with its context bound above.
         unsafe {
             try_ffi!(driver::cuKernelGetFunction(&raw mut handle, self.handle))?;
         }
@@ -383,7 +368,7 @@ impl LibraryKernel {
         P: KernelLaunchArgs<'a>,
     {
         let function = self.function()?;
-        // SAFETY: the caller upholds this function's safety contract.
+        // SAFETY: `function` is this kernel's function, and the caller guarantees the argument validity, exclusivity, and code-owner lifetime that `KernelFunction::add_to_graph` requires.
         unsafe { function.add_to_graph(graph, dependencies, config, params) }
     }
 
@@ -412,7 +397,7 @@ impl LibraryKernel {
         P: KernelLaunchArgs<'a>,
     {
         let function = self.function()?;
-        // SAFETY: the caller upholds this function's safety contract.
+        // SAFETY: `function` is this kernel's function, and the caller guarantees the argument validity, exclusivity, code-owner lifetime, and attribute compatibility that `KernelFunction::set_graph_node_params` requires.
         unsafe { function.set_graph_node_params(executable, node, geometry, params) }
     }
 
@@ -438,7 +423,10 @@ impl LibraryKernel {
     ///
     /// Propagates errors from setting [`FunctionAttribute::SharedMemoryMode`], including a context binding failure or a mode unsupported by the kernel or device.
     pub fn set_shared_memory_mode(&self, mode: SharedMemoryMode) -> Result<()> {
-        self.set_attribute(FunctionAttribute::SharedMemoryMode, mode as i32)
+        self.set_attribute(
+            FunctionAttribute::SharedMemoryMode,
+            to_i32(u32::from(mode), "shared memory mode")?,
+        )
     }
 
     /// Returns the shared memory mode configured for this kernel.
@@ -446,10 +434,16 @@ impl LibraryKernel {
     /// # Errors
     ///
     /// Propagates errors from querying [`FunctionAttribute::SharedMemoryMode`].
-    /// Returns `Error::InvalidValue` if the returned native value is not a recognized [`SharedMemoryMode`].
+    /// Returns `Error::UnknownEnumValue` if the returned native value is not a recognized [`SharedMemoryMode`].
     pub fn shared_memory_mode(&self) -> Result<SharedMemoryMode> {
-        SharedMemoryMode::try_from(self.attribute(FunctionAttribute::SharedMemoryMode)? as u32)
-            .map_err(|_| Error::InvalidValue)
+        let value = self.attribute(FunctionAttribute::SharedMemoryMode)?;
+        u32::try_from(value)
+            .ok()
+            .and_then(|raw| SharedMemoryMode::try_from(raw).ok())
+            .ok_or_else(|| Error::UnknownEnumValue {
+                name: "shared memory mode".into(),
+                value: i64::from(value),
+            })
     }
 
     /// Sets `attribute` to `value` for this kernel on the library's lookup device.
@@ -497,12 +491,12 @@ impl LibraryKernel {
     /// Returns an error if the CUDA context cannot be bound or if CUDA Driver rejects the cache configuration.
     pub fn set_cache_config(&self, config: FunctionCache) -> Result<()> {
         self.library.inner.context.bind()?;
-        // SAFETY: `cuKernelSetCacheConfig` receives live handles owned by the wrappers.
+        // SAFETY: `self.handle` is a live kernel of the library `self` retains, with its context bound above.
         unsafe {
             try_ffi!(driver::cuKernelSetCacheConfig(
                 self.handle,
                 config.into(),
-                self.library.inner.context.device().id() as _,
+                self.library.inner.context.device().id(),
             ))?;
         }
         Ok(())
@@ -519,11 +513,14 @@ impl LibraryKernel {
         self.library.inner.context.bind()?;
         let mut offset = 0;
         let mut size = 0;
-        // SAFETY: `cuKernelGetParamInfo` receives live handles owned by the wrappers and valid output locations.
+        let index = index
+            .try_into()
+            .map_err(|_| Error::out_of_range("kernel parameter index"))?;
+        // SAFETY: `offset` and `size` are writable locals, and `self.handle` is a live kernel of the library `self` retains.
         unsafe {
             try_ffi!(driver::cuKernelGetParamInfo(
                 self.handle,
-                index as _,
+                index,
                 &raw mut offset,
                 &raw mut size,
             ))?;

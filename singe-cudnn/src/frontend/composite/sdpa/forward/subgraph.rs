@@ -5,8 +5,15 @@ use std::{
 
 use crate::{
     backend::{
-        pointwise::PointwiseMode,
-        tensor::{BackendTensorReordering, Shape, TensorId, TensorSpec},
+        operation::{
+            attention::{
+                AttentionSequenceInputs, DiagonalBandMaskBound, DiagonalBandMaskSpec,
+                SequenceLength,
+            },
+            pointwise::PointwiseMode,
+            rng::RandomNumberDistribution,
+        },
+        tensor::BackendTensorReordering,
     },
     data_type::DataType,
     error::{Error, Result},
@@ -19,12 +26,12 @@ use crate::{
         graph::{Graph, RuntimeShapeConstraints, StorageView, TensorOutputConfig},
         operation::{
             AlibiBias, AttentionBackwardHeuristicOverride, AttentionDiagonalAlignment,
-            AttentionDiagonalBand, AttentionDropoutConfig, AttentionSequenceInputs,
-            DiagonalBandMaskBound, DiagonalBandMaskConfig, DirectSdpaDropout,
-            DirectSdpaForwardConfig, Operation, PointwiseOperation, RandomNumberDistribution,
-            RandomNumberGeneratorConfig, SdpaScoreModifiers, SdpaScoreSubgraph, SequenceLength,
+            AttentionDiagonalBand, AttentionDropoutConfig, DirectSdpaDropout,
+            DirectSdpaForwardConfig, Operation, PointwiseOperation, RandomNumberGeneratorConfig,
+            SdpaScoreModifiers, SdpaScoreSubgraph,
         },
     },
+    tensor::{Shape, TensorId, TensorSpec},
     utility::to_i32,
 };
 
@@ -143,7 +150,7 @@ impl Graph {
             let tensor = self.tensor_spec(scores)?.clone();
             let negative_inf = self.tensor(sdpa_mask_scalar(tensor.data_type, f32::NEG_INFINITY)?);
             let mut config =
-                DiagonalBandMaskConfig::new(PointwiseMode::CmpGe).with_sequence_inputs(sequence);
+                DiagonalBandMaskSpec::new(PointwiseMode::CmpGe).with_sequence_inputs(sequence);
             if right != 0 {
                 let shift = self
                     .tensor(TensorSpec::scalar(right).with_shape(Shape::contiguous([1, 1, 1, 1])?));
@@ -169,7 +176,7 @@ impl Graph {
                 scores,
                 negative_inf,
                 output,
-                DiagonalBandMaskConfig::new(PointwiseMode::CmpGt)
+                DiagonalBandMaskSpec::new(PointwiseMode::CmpGt)
                     .with_sequence_inputs(sequence)
                     .with_bound(DiagonalBandMaskBound::Left(bound)),
             )?;

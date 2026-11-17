@@ -26,205 +26,186 @@ pub const NVJPEG_FLAGS_REDUCED_MEMORY_DECODE_ZERO_COPY: u32 = 16;
 pub const NVJPEG_FLAGS_UPSAMPLING_WITH_INTERPOLATION: u32 = 32;
 /// Unsigned C `size_t`, used for byte counts and object sizes in the native ABI.
 pub type size_t = ::core::ffi::c_ulong;
+impl nvjpegStatus_t {
+    /// The API call has finished successfully. Note that many of the calls are asynchronous and some of the errors may be seen only after synchronization.
+    pub const NVJPEG_STATUS_SUCCESS: nvjpegStatus_t = nvjpegStatus_t(0);
+    /// The library handle was not initialized. A call to [`nvjpegCreate`] is required to initialize the handle.
+    pub const NVJPEG_STATUS_NOT_INITIALIZED: nvjpegStatus_t = nvjpegStatus_t(1);
+    /// Wrong parameter was passed. For example, a null pointer as input data, or an image index not in the allowed range.
+    pub const NVJPEG_STATUS_INVALID_PARAMETER: nvjpegStatus_t = nvjpegStatus_t(2);
+    /// Cannot parse the JPEG stream. Check that the encoded JPEG stream and its size parameters are correct.
+    pub const NVJPEG_STATUS_BAD_JPEG: nvjpegStatus_t = nvjpegStatus_t(3);
+    /// Attempting to decode a JPEG stream that is not supported by the nvJPEG library.
+    pub const NVJPEG_STATUS_JPEG_NOT_SUPPORTED: nvjpegStatus_t = nvjpegStatus_t(4);
+    /// The user-provided allocator functions, for either memory allocation or for releasing the memory, returned a non-zero code.
+    pub const NVJPEG_STATUS_ALLOCATOR_FAILURE: nvjpegStatus_t = nvjpegStatus_t(5);
+    /// Error during the execution of the device tasks.
+    pub const NVJPEG_STATUS_EXECUTION_FAILED: nvjpegStatus_t = nvjpegStatus_t(6);
+    /// The device capabilities are not enough for the set of input parameters provided (input parameters such as backend, encoded stream parameters, output format).
+    pub const NVJPEG_STATUS_ARCH_MISMATCH: nvjpegStatus_t = nvjpegStatus_t(7);
+    /// Error during the execution of the device tasks.
+    pub const NVJPEG_STATUS_INTERNAL_ERROR: nvjpegStatus_t = nvjpegStatus_t(8);
+    /// Not supported.
+    pub const NVJPEG_STATUS_IMPLEMENTATION_NOT_SUPPORTED: nvjpegStatus_t = nvjpegStatus_t(
+        9,
+    );
+    /// Bitstream input data incomplete.
+    pub const NVJPEG_STATUS_INCOMPLETE_BITSTREAM: nvjpegStatus_t = nvjpegStatus_t(10);
+}
 /// The nvJPEG API adheres to the following return codes and their indicators:
 ///
 /// **Description of the returned error codes:**.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum nvjpegStatus_t {
-    /// The API call has finished successfully. Note that many of the calls are asynchronous and some of the errors may be seen only after synchronization.
-    NVJPEG_STATUS_SUCCESS = 0,
-    /// The library handle was not initialized. A call to [`nvjpegCreate`] is required to initialize the handle.
-    NVJPEG_STATUS_NOT_INITIALIZED = 1,
-    /// Wrong parameter was passed. For example, a null pointer as input data, or an image index not in the allowed range.
-    NVJPEG_STATUS_INVALID_PARAMETER = 2,
-    /// Cannot parse the JPEG stream. Check that the encoded JPEG stream and its size parameters are correct.
-    NVJPEG_STATUS_BAD_JPEG = 3,
-    /// Attempting to decode a JPEG stream that is not supported by the nvJPEG library.
-    NVJPEG_STATUS_JPEG_NOT_SUPPORTED = 4,
-    /// The user-provided allocator functions, for either memory allocation or for releasing the memory, returned a non-zero code.
-    NVJPEG_STATUS_ALLOCATOR_FAILURE = 5,
-    /// Error during the execution of the device tasks.
-    NVJPEG_STATUS_EXECUTION_FAILED = 6,
-    /// The device capabilities are not enough for the set of input parameters provided (input parameters such as backend, encoded stream parameters, output format).
-    NVJPEG_STATUS_ARCH_MISMATCH = 7,
-    /// Error during the execution of the device tasks.
-    NVJPEG_STATUS_INTERNAL_ERROR = 8,
-    /// Not supported.
-    NVJPEG_STATUS_IMPLEMENTATION_NOT_SUPPORTED = 9,
-    /// Bitstream input data incomplete.
-    NVJPEG_STATUS_INCOMPLETE_BITSTREAM = 10,
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct nvjpegStatus_t(pub ::core::ffi::c_uint);
+impl nvjpegExifOrientation {
+    /// Exif orientation information is not available in the bitstream.
+    pub const NVJPEG_ORIENTATION_UNKNOWN: nvjpegExifOrientation = nvjpegExifOrientation(
+        0,
+    );
+    /// Decode output remains unchanged.
+    pub const NVJPEG_ORIENTATION_NORMAL: nvjpegExifOrientation = nvjpegExifOrientation(
+        1,
+    );
+    /// Decoded output should be mirrored/flipped horizontally.
+    pub const NVJPEG_ORIENTATION_FLIP_HORIZONTAL: nvjpegExifOrientation = nvjpegExifOrientation(
+        2,
+    );
+    /// Decoded output should be rotated 180 degrees.
+    pub const NVJPEG_ORIENTATION_ROTATE_180: nvjpegExifOrientation = nvjpegExifOrientation(
+        3,
+    );
+    /// Decoded output should be mirrored/flipped vertically.
+    pub const NVJPEG_ORIENTATION_FLIP_VERTICAL: nvjpegExifOrientation = nvjpegExifOrientation(
+        4,
+    );
+    /// Decoded output should be flipped/mirrored horizontally followed by a 90 degrees counter-clockwise rotation.
+    pub const NVJPEG_ORIENTATION_TRANSPOSE: nvjpegExifOrientation = nvjpegExifOrientation(
+        5,
+    );
+    /// Decoded output should be rotated 90 degrees counter-clockwise.
+    pub const NVJPEG_ORIENTATION_ROTATE_90: nvjpegExifOrientation = nvjpegExifOrientation(
+        6,
+    );
+    /// Decoded output should be flipped/mirrored horizontally followed by a 270 degrees counter-clockwise rotation.
+    pub const NVJPEG_ORIENTATION_TRANSVERSE: nvjpegExifOrientation = nvjpegExifOrientation(
+        7,
+    );
+    /// Decoded output should be rotated 270 degrees counter-clockwise.
+    pub const NVJPEG_ORIENTATION_ROTATE_270: nvjpegExifOrientation = nvjpegExifOrientation(
+        8,
+    );
 }
 /// Enums for EXIF Orientation
-#[repr(u32)]
+#[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum nvjpegExifOrientation {
-    /// Exif orientation information is not available in the bitstream.
-    NVJPEG_ORIENTATION_UNKNOWN = 0,
-    /// Decode output remains unchanged.
-    NVJPEG_ORIENTATION_NORMAL = 1,
-    /// Decoded output should be mirrored/flipped horizontally.
-    NVJPEG_ORIENTATION_FLIP_HORIZONTAL = 2,
-    /// Decoded output should be rotated 180 degrees.
-    NVJPEG_ORIENTATION_ROTATE_180 = 3,
-    /// Decoded output should be mirrored/flipped vertically.
-    NVJPEG_ORIENTATION_FLIP_VERTICAL = 4,
-    /// Decoded output should be flipped/mirrored horizontally followed by a 90 degrees counter-clockwise rotation.
-    NVJPEG_ORIENTATION_TRANSPOSE = 5,
-    /// Decoded output should be rotated 90 degrees counter-clockwise.
-    NVJPEG_ORIENTATION_ROTATE_90 = 6,
-    /// Decoded output should be flipped/mirrored horizontally followed by a 270 degrees counter-clockwise rotation.
-    NVJPEG_ORIENTATION_TRANSVERSE = 7,
-    /// Decoded output should be rotated 270 degrees counter-clockwise.
-    NVJPEG_ORIENTATION_ROTATE_270 = 8,
-}
+pub struct nvjpegExifOrientation(pub ::core::ffi::c_uint);
 pub use self::nvjpegExifOrientation as nvjpegExifOrientation_t;
-/// One of the outputs of the [`nvjpegGetImageInfo`] API is [`nvjpegChromaSubsampling_t`]. This parameter is an `enum` type, and its enumerator list comprises of the chroma subsampling property retrieved from the encoded JPEG image. The [`nvjpegGetImageInfo`] function currently supports the following chroma subsampling types.
-#[repr(i32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum nvjpegChromaSubsampling_t {
+impl nvjpegChromaSubsampling_t {
     /// No chroma subsampling; chroma and luma have the same dimensions.
-    NVJPEG_CSS_444 = 0,
+    pub const NVJPEG_CSS_444: nvjpegChromaSubsampling_t = nvjpegChromaSubsampling_t(0);
     /// Chroma has half the luma width and the same height.
-    NVJPEG_CSS_422 = 1,
+    pub const NVJPEG_CSS_422: nvjpegChromaSubsampling_t = nvjpegChromaSubsampling_t(1);
     /// Chroma has half the luma width and half its height.
-    NVJPEG_CSS_420 = 2,
+    pub const NVJPEG_CSS_420: nvjpegChromaSubsampling_t = nvjpegChromaSubsampling_t(2);
     /// Chroma has the luma width and half its height.
-    NVJPEG_CSS_440 = 3,
+    pub const NVJPEG_CSS_440: nvjpegChromaSubsampling_t = nvjpegChromaSubsampling_t(3);
     /// Chroma has one quarter of the luma width and the same height.
-    NVJPEG_CSS_411 = 4,
+    pub const NVJPEG_CSS_411: nvjpegChromaSubsampling_t = nvjpegChromaSubsampling_t(4);
     /// Chroma has one quarter of the luma width and half its height.
-    NVJPEG_CSS_410 = 5,
+    pub const NVJPEG_CSS_410: nvjpegChromaSubsampling_t = nvjpegChromaSubsampling_t(5);
     /// Only the luminance component is encoded; there are no chroma planes.
-    NVJPEG_CSS_GRAY = 6,
+    pub const NVJPEG_CSS_GRAY: nvjpegChromaSubsampling_t = nvjpegChromaSubsampling_t(6);
     /// Vertical variant of 4:1:0 chroma subsampling.
-    NVJPEG_CSS_410V = 7,
+    pub const NVJPEG_CSS_410V: nvjpegChromaSubsampling_t = nvjpegChromaSubsampling_t(7);
     /// The bitstream's chroma subsampling is unknown or unsupported.
-    NVJPEG_CSS_UNKNOWN = -1,
+    pub const NVJPEG_CSS_UNKNOWN: nvjpegChromaSubsampling_t = nvjpegChromaSubsampling_t(
+        -1,
+    );
 }
+/// One of the outputs of the [`nvjpegGetImageInfo`] API is [`nvjpegChromaSubsampling_t`]. This parameter is an `enum` type, and its enumerator list comprises of the chroma subsampling property retrieved from the encoded JPEG image. The [`nvjpegGetImageInfo`] function currently supports the following chroma subsampling types.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct nvjpegChromaSubsampling_t(pub ::core::ffi::c_int);
 impl nvjpegOutputFormat_t {
+    /// Return the decoded image planar format.
+    pub const NVJPEG_OUTPUT_UNCHANGED: nvjpegOutputFormat_t = nvjpegOutputFormat_t(0);
+    /// Return in the YUV planar format.
+    pub const NVJPEG_OUTPUT_YUV: nvjpegOutputFormat_t = nvjpegOutputFormat_t(1);
+    /// Return the Y component only.
+    pub const NVJPEG_OUTPUT_Y: nvjpegOutputFormat_t = nvjpegOutputFormat_t(2);
+    /// Convert to planar RGB.
+    pub const NVJPEG_OUTPUT_RGB: nvjpegOutputFormat_t = nvjpegOutputFormat_t(3);
+    /// Convert to planar BGR.
+    pub const NVJPEG_OUTPUT_BGR: nvjpegOutputFormat_t = nvjpegOutputFormat_t(4);
+    /// Convert to interleaved RGB.
+    pub const NVJPEG_OUTPUT_RGBI: nvjpegOutputFormat_t = nvjpegOutputFormat_t(5);
+    /// Convert to interleaved BGR.
+    pub const NVJPEG_OUTPUT_BGRI: nvjpegOutputFormat_t = nvjpegOutputFormat_t(6);
+    /// Return the decoded image in uint16 interleaved format.
+    pub const NVJPEG_OUTPUT_UNCHANGEDI_U16: nvjpegOutputFormat_t = nvjpegOutputFormat_t(
+        7,
+    );
+    /// Return in the NV12 format (separate Y and interleaved UV). **Requires chroma subsampling 4:2:0.**
+    pub const NVJPEG_OUTPUT_NV12: nvjpegOutputFormat_t = nvjpegOutputFormat_t(8);
+    /// Return in the YUY2 format (interleaved YUYV). **Requires chroma subsampling is 4:2:2.**
+    pub const NVJPEG_OUTPUT_YUY2: nvjpegOutputFormat_t = nvjpegOutputFormat_t(9);
+    /// Return the decoded image in uint8 interleaved format.
+    pub const NVJPEG_OUTPUT_UNCHANGEDI: nvjpegOutputFormat_t = nvjpegOutputFormat_t(10);
     /// maximum allowed value
-    pub const NVJPEG_OUTPUT_FORMAT_MAX: nvjpegOutputFormat_t = nvjpegOutputFormat_t::NVJPEG_OUTPUT_UNCHANGEDI;
+    pub const NVJPEG_OUTPUT_FORMAT_MAX: nvjpegOutputFormat_t = nvjpegOutputFormat_t(10);
 }
 /// Parameter of this type specifies what type of output user wants for image decoding
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum nvjpegOutputFormat_t {
-    /// Return the decoded image planar format.
-    NVJPEG_OUTPUT_UNCHANGED = 0,
-    /// Return in the YUV planar format.
-    NVJPEG_OUTPUT_YUV = 1,
-    /// Return the Y component only.
-    NVJPEG_OUTPUT_Y = 2,
-    /// Convert to planar RGB.
-    NVJPEG_OUTPUT_RGB = 3,
-    /// Convert to planar BGR.
-    NVJPEG_OUTPUT_BGR = 4,
-    /// Convert to interleaved RGB.
-    NVJPEG_OUTPUT_RGBI = 5,
-    /// Convert to interleaved BGR.
-    NVJPEG_OUTPUT_BGRI = 6,
-    /// Return the decoded image in uint16 interleaved format.
-    NVJPEG_OUTPUT_UNCHANGEDI_U16 = 7,
-    /// Return in the NV12 format (separate Y and interleaved UV). **Requires chroma subsampling 4:2:0.**
-    NVJPEG_OUTPUT_NV12 = 8,
-    /// Return in the YUY2 format (interleaved YUYV). **Requires chroma subsampling is 4:2:2.**
-    NVJPEG_OUTPUT_YUY2 = 9,
-    /// Return the decoded image in uint8 interleaved format.
-    NVJPEG_OUTPUT_UNCHANGEDI = 10,
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct nvjpegOutputFormat_t(pub ::core::ffi::c_uint);
+impl nvjpegInputFormat_t {
+    /// Input image is in YUV color model. Pixel format is planar YUV.
+    pub const NVJPEG_INPUT_YUV: nvjpegInputFormat_t = nvjpegInputFormat_t(1);
+    /// Input image is in RGB color model. Pixel format is planar RGB.
+    pub const NVJPEG_INPUT_RGB: nvjpegInputFormat_t = nvjpegInputFormat_t(3);
+    /// Input image is in RGB color model. Pixel format is planar BGR.
+    pub const NVJPEG_INPUT_BGR: nvjpegInputFormat_t = nvjpegInputFormat_t(4);
+    /// Input image is in RGB color model. Pixel format is interleaved RGB.
+    pub const NVJPEG_INPUT_RGBI: nvjpegInputFormat_t = nvjpegInputFormat_t(5);
+    /// Input image is in RGB color model. Pixel format is interleaved BGR.
+    pub const NVJPEG_INPUT_BGRI: nvjpegInputFormat_t = nvjpegInputFormat_t(6);
+    /// Input image is in YUV color model. Pixel format is NV12 with separated Y and interleaved UV.
+    pub const NVJPEG_INPUT_NV12: nvjpegInputFormat_t = nvjpegInputFormat_t(8);
 }
 /// The [`nvjpegInputFormat_t`] enum is used to select the color model and pixel format of the input image.
 ///
 /// If the input format is [`nvjpegInputFormat_t::NVJPEG_INPUT_NV12`], the input subsampling (parameter to the `nvjpegEncode*` functions) and the subsampling factor set by [`nvjpegEncoderParamsSetSamplingFactors`] must both be [`nvjpegChromaSubsampling_t::NVJPEG_CSS_420`]. If this condition is not met, the `nvjpegEncode*` functions will return [`nvjpegStatus_t::NVJPEG_STATUS_INVALID_PARAMETER`].
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum nvjpegInputFormat_t {
-    /// Input image is in YUV color model. Pixel format is planar YUV.
-    NVJPEG_INPUT_YUV = 1,
-    /// Input image is in RGB color model. Pixel format is planar RGB.
-    NVJPEG_INPUT_RGB = 3,
-    /// Input image is in RGB color model. Pixel format is planar BGR.
-    NVJPEG_INPUT_BGR = 4,
-    /// Input image is in RGB color model. Pixel format is interleaved RGB.
-    NVJPEG_INPUT_RGBI = 5,
-    /// Input image is in RGB color model. Pixel format is interleaved BGR.
-    NVJPEG_INPUT_BGRI = 6,
-    /// Input image is in YUV color model. Pixel format is NV12 with separated Y and interleaved UV.
-    NVJPEG_INPUT_NV12 = 8,
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct nvjpegInputFormat_t(pub ::core::ffi::c_uint);
+impl nvjpegBackend_t {
+    /// Back-end is selected internally.
+    pub const NVJPEG_BACKEND_DEFAULT: nvjpegBackend_t = nvjpegBackend_t(0);
+    /// Uses CPU for Huffman decoding.
+    pub const NVJPEG_BACKEND_HYBRID: nvjpegBackend_t = nvjpegBackend_t(1);
+    /// Uses GPU for Huffman decoding. [`nvjpegDecodeBatched`] will use GPU decoding for baseline JPEG images with interleaved scan when batch size is greater than 50. The [Decode API—Decoupled Decoding](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-decoupled-decode-api) will use GPU assisted Huffman decoding.
+    pub const NVJPEG_BACKEND_GPU_HYBRID: nvjpegBackend_t = nvjpegBackend_t(2);
+    /// Uses [Hardware Acceleration](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-hardware-accelaration) for decode. Supports baseline JPEG images with single scan with 1 or 3 channels. 410 and 411 chroma subsamplings are not supported.
+    pub const NVJPEG_BACKEND_HARDWARE: nvjpegBackend_t = nvjpegBackend_t(3);
+    /// Supports input bitstream on device memory. Can be used only with batched decode APIs for baseline JPEG images without restart intervals.
+    pub const NVJPEG_BACKEND_GPU_HYBRID_DEVICE: nvjpegBackend_t = nvjpegBackend_t(4);
+    /// Supports input bitstream on device memory. Can be used only with batched decode APIs. Uses [Hardware Acceleration](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-hardware-accelaration) for decode. Supports baseline JPEG images with single scan with 1 or 3 channels. 410 and 411 chroma subsamplings are not supported.
+    pub const NVJPEG_BACKEND_HARDWARE_DEVICE: nvjpegBackend_t = nvjpegBackend_t(5);
+    /// Supports lossless jpeg bitstreams as defined in the jpeg 92 standard. Bitstreams with up to 2 channels and prediction mode 1 are supported.
+    pub const NVJPEG_BACKEND_LOSSLESS_JPEG: nvjpegBackend_t = nvjpegBackend_t(6);
 }
 /// The [`nvjpegBackend_t`] enum is used to select either default back-end by default, or use GPU decoding for baseline JPEG images, or use CPU for Huffman decoding.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum nvjpegBackend_t {
-    /// Back-end is selected internally.
-    NVJPEG_BACKEND_DEFAULT = 0,
-    /// Uses CPU for Huffman decoding.
-    NVJPEG_BACKEND_HYBRID = 1,
-    /// Uses GPU for Huffman decoding. [`nvjpegDecodeBatched`] will use GPU decoding for baseline JPEG images with interleaved scan when batch size is greater than 50. The [Decode API—Decoupled Decoding](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-decoupled-decode-api) will use GPU assisted Huffman decoding.
-    NVJPEG_BACKEND_GPU_HYBRID = 2,
-    /// Uses [Hardware Acceleration](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-hardware-accelaration) for decode. Supports baseline JPEG images with single scan with 1 or 3 channels. 410 and 411 chroma subsamplings are not supported.
-    NVJPEG_BACKEND_HARDWARE = 3,
-    /// Supports input bitstream on device memory. Can be used only with batched decode APIs for baseline JPEG images without restart intervals.
-    NVJPEG_BACKEND_GPU_HYBRID_DEVICE = 4,
-    /// Supports input bitstream on device memory. Can be used only with batched decode APIs. Uses [Hardware Acceleration](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-hardware-accelaration) for decode. Supports baseline JPEG images with single scan with 1 or 3 channels. 410 and 411 chroma subsamplings are not supported.
-    NVJPEG_BACKEND_HARDWARE_DEVICE = 5,
-    /// Supports lossless jpeg bitstreams as defined in the jpeg 92 standard. Bitstreams with up to 2 channels and prediction mode 1 are supported.
-    NVJPEG_BACKEND_LOSSLESS_JPEG = 6,
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct nvjpegBackend_t(pub ::core::ffi::c_uint);
+impl nvjpegEncBackend_t {
+    /// Use hardware engine if possible. If not, fallback to CUDA encoder.
+    pub const NVJPEG_ENC_BACKEND_DEFAULT: nvjpegEncBackend_t = nvjpegEncBackend_t(0);
+    /// Always use CUDA encoder.
+    pub const NVJPEG_ENC_BACKEND_GPU: nvjpegEncBackend_t = nvjpegEncBackend_t(1);
+    /// Always use hardware engine. Do not fallback to CUDA.
+    pub const NVJPEG_ENC_BACKEND_HARDWARE: nvjpegEncBackend_t = nvjpegEncBackend_t(2);
 }
 /// The [`nvjpegEncBackend_t`] enum is used to select the encoder backend.
 ///
@@ -240,77 +221,47 @@ pub enum nvjpegBackend_t {
 /// When at least one condition is not met, nvJPEG will either
 /// - Fallback to use CUDA encoder if [`nvjpegEncBackend_t::NVJPEG_ENC_BACKEND_DEFAULT`] is used.
 /// - Return [`nvjpegStatus_t::NVJPEG_STATUS_INVALID_PARAMETER`] if [`nvjpegEncBackend_t::NVJPEG_ENC_BACKEND_HARDWARE`] is used.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum nvjpegEncBackend_t {
-    /// Use hardware engine if possible. If not, fallback to CUDA encoder.
-    NVJPEG_ENC_BACKEND_DEFAULT = 0,
-    /// Always use CUDA encoder.
-    NVJPEG_ENC_BACKEND_GPU = 1,
-    /// Always use hardware engine. Do not fallback to CUDA.
-    NVJPEG_ENC_BACKEND_HARDWARE = 2,
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct nvjpegEncBackend_t(pub ::core::ffi::c_uint);
+impl nvjpegJpegEncoding_t {
+    /// This value is returned for all the JPEG markers not supported by the nvJPEG library.
+    pub const NVJPEG_ENCODING_UNKNOWN: nvjpegJpegEncoding_t = nvjpegJpegEncoding_t(0);
+    /// Corresponds to the JPEG marker 0xc0, refer to the JPEG spec for more details.
+    pub const NVJPEG_ENCODING_BASELINE_DCT: nvjpegJpegEncoding_t = nvjpegJpegEncoding_t(
+        192,
+    );
+    /// Corresponds to the JPEG marker 0xc1, refer to the JPEG spec for more details.
+    pub const NVJPEG_ENCODING_EXTENDED_SEQUENTIAL_DCT_HUFFMAN: nvjpegJpegEncoding_t = nvjpegJpegEncoding_t(
+        193,
+    );
+    /// Corresponds to the JPEG marker 0xc2, refer to the JPEG spec for more details.
+    pub const NVJPEG_ENCODING_PROGRESSIVE_DCT_HUFFMAN: nvjpegJpegEncoding_t = nvjpegJpegEncoding_t(
+        194,
+    );
+    /// Corresponds to the JPEG marker 0xc3, refer to the JPEG spec for more details.
+    pub const NVJPEG_ENCODING_LOSSLESS_HUFFMAN: nvjpegJpegEncoding_t = nvjpegJpegEncoding_t(
+        195,
+    );
 }
 /// The [`nvjpegJpegEncoding_t`] enum lists the JPEG encoding types that are supported by the nvJPEG library The enum values are based on the markers defined in the JPEG specification.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum nvjpegJpegEncoding_t {
-    /// This value is returned for all the JPEG markers not supported by the nvJPEG library.
-    NVJPEG_ENCODING_UNKNOWN = 0,
-    /// Corresponds to the JPEG marker 0xc0, refer to the JPEG spec for more details.
-    NVJPEG_ENCODING_BASELINE_DCT = 192,
-    /// Corresponds to the JPEG marker 0xc1, refer to the JPEG spec for more details.
-    NVJPEG_ENCODING_EXTENDED_SEQUENTIAL_DCT_HUFFMAN = 193,
-    /// Corresponds to the JPEG marker 0xc2, refer to the JPEG spec for more details.
-    NVJPEG_ENCODING_PROGRESSIVE_DCT_HUFFMAN = 194,
-    /// Corresponds to the JPEG marker 0xc3, refer to the JPEG spec for more details.
-    NVJPEG_ENCODING_LOSSLESS_HUFFMAN = 195,
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct nvjpegJpegEncoding_t(pub ::core::ffi::c_uint);
+impl nvjpegScaleFactor_t {
+    /// Decoded output is not scaled.
+    pub const NVJPEG_SCALE_NONE: nvjpegScaleFactor_t = nvjpegScaleFactor_t(0);
+    /// Decoded output width and height are scaled by a factor of 1/2.
+    pub const NVJPEG_SCALE_1_BY_2: nvjpegScaleFactor_t = nvjpegScaleFactor_t(1);
+    /// Decoded output width and height are scaled by a factor of 1/4.
+    pub const NVJPEG_SCALE_1_BY_4: nvjpegScaleFactor_t = nvjpegScaleFactor_t(2);
+    /// Decoded output width and height are scaled by a factor of 1/8.
+    pub const NVJPEG_SCALE_1_BY_8: nvjpegScaleFactor_t = nvjpegScaleFactor_t(3);
 }
 /// The [`nvjpegScaleFactor_t`] enum lists all the scale factors supported by the library. This feature is supported when nvjpeg handles are intstaniated using [`nvjpegBackend_t::NVJPEG_BACKEND_HARDWARE`].
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum nvjpegScaleFactor_t {
-    /// Decoded output is not scaled.
-    NVJPEG_SCALE_NONE = 0,
-    /// Decoded output width and height are scaled by a factor of 1/2.
-    NVJPEG_SCALE_1_BY_2 = 1,
-    /// Decoded output width and height are scaled by a factor of 1/4.
-    NVJPEG_SCALE_1_BY_4 = 2,
-    /// Decoded output width and height are scaled by a factor of 1/8.
-    NVJPEG_SCALE_1_BY_8 = 3,
-}
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct nvjpegScaleFactor_t(pub ::core::ffi::c_uint);
 /// The [`nvjpegImage_t`] structure (or structures, in the case of batched decode) is used to fill with the pointers and pitches of allocated buffers. The [`nvjpegImage_t`] structure that holds the output pointers.
 #[repr(C)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]

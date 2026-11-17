@@ -1,16 +1,14 @@
-use singe_cuda::{context::Context as CudaContext, memory::DeviceMemory};
+use singe_cuda::{context::Context as CudaContext, memory::DeviceMemory, stream::StreamOptions};
 use singe_nvcomp::{
     batch::{DeviceChunkTable, DeviceStatuses},
     crc32,
     crc32::{Options, Spec},
-    error::Result,
-    testing::cpu_crc32,
     types::Crc32SegmentKind,
 };
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     let cuda = CudaContext::create()?;
-    let stream = cuda.create_stream()?;
+    let stream = cuda.create_stream(StreamOptions::default())?;
 
     let input = b"nvCOMP CRC32 through Singe wrappers. ".repeat(4096);
     let chunk_bytes = input.len();
@@ -26,7 +24,7 @@ fn main() -> Result<()> {
 
     stream
         .sync_scope(|_| {
-            // SAFETY: the example keeps these buffers alive and synchronizes before reading the results.
+            // SAFETY: the scope waits for the stream before the input, checksums, and statuses are released.
             Ok(unsafe {
                 crc32::compute_chunks_async(
                     input_chunks.view(),
@@ -40,7 +38,7 @@ fn main() -> Result<()> {
         })??
         .check()?;
 
-    // SAFETY: Only completed every checksum; unused capacity is not promoted.
+    // SAFETY: the completed `Only` segment wrote every checksum.
     let crc32_values =
         unsafe { crc32_values.assume_init_prefix(input_chunks.len())? }.copy_to_host_vec()?;
     let expected = cpu_crc32(spec, &input);
@@ -49,4 +47,24 @@ fn main() -> Result<()> {
     println!("CRC32 passed: {chunk_bytes} input bytes, checksum {expected:#010x}");
 
     Ok(())
+}
+
+// Bitwise CRC32 on the host, to check the GPU result.
+fn cpu_crc32(spec: Spec, input: &[u8]) -> u32 {
+    let mut crc = spec.init;
+    for &byte in input {
+        crc ^= if spec.ref_in {
+            u32::from(byte).reverse_bits()
+        } else {
+            u32::from(byte) << 24
+        };
+        for _ in 0..8 {
+            crc = (crc << 1) ^ if crc & 0x8000_0000 != 0 { spec.poly } else { 0 };
+        }
+    }
+
+    if spec.ref_out {
+        crc = crc.reverse_bits();
+    }
+    crc ^ spec.xorout
 }

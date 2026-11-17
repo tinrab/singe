@@ -1,8 +1,7 @@
-use singe_cublas::{blas::level3::dgemm, context::Context, error::Result, types::Operation};
-
+use singe_cublas::{blas::level3::gemm, context::Context, scalar::Scalar, types::Operation};
 use singe_cuda::{context::Context as CudaContext, device::Device, memory::DeviceMemory};
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     let cuda = CudaContext::create_for_device(Device::new(0))?;
     let cublas = Context::create(&cuda)?;
 
@@ -10,19 +9,19 @@ fn main() -> Result<()> {
     let b = DeviceMemory::from_slice(&cuda, &[5.0_f64, 7.0, 6.0, 8.0])?;
     let mut c = DeviceMemory::<f64>::zeroed(&cuda, 4)?;
 
-    dgemm(
+    gemm(
         &cublas,
         Operation::NonTranspose,
         Operation::NonTranspose,
         2,
         2,
         2,
-        &1.0,
+        Scalar::host(&1.0),
         &a,
         2,
         &b,
         2,
-        &0.0,
+        Scalar::host(&0.0),
         &mut c,
         2,
     )?;

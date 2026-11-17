@@ -50,7 +50,8 @@ impl<'a> CublasLtMatmulDescriptors<'a> {
         let bias_memory = if let Some(bias) = bias {
             let memory = tensor_input_view::<f32>(bias, DataType::F32, "cuBLASLt bias")?;
             descriptor.set_bias_data_type(CudaDataType::F32)?;
-            descriptor.set_bias_pointer(&memory)?;
+            // SAFETY: the returned descriptors keep `memory`, which borrows `bias` for `'a`, so the address stays valid for every matmul that uses `descriptor`.
+            unsafe { descriptor.set_bias_pointer(&memory) }?;
             Some(memory)
         } else {
             None

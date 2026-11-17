@@ -1,13 +1,12 @@
 //! JPEG 2000 parsing and decoding.
 
 use std::{
-    ffi::CString,
-    mem::{self, MaybeUninit},
-    path::Path,
+    mem::{ManuallyDrop, MaybeUninit},
     ptr,
     sync::Arc,
 };
 
+use singe_core::report_cleanup_failure;
 use singe_cuda::{
     context::Context as CudaContext, error::Error as CudaError, memory::DeviceMemory,
     stream::Stream as CudaStream, view::DeviceRegionProvider,
@@ -15,16 +14,14 @@ use singe_cuda::{
 use singe_nvjpeg_sys::k2 as sys;
 
 use crate::{
-    allocator::AllocatorSet,
     error::{Error, Result},
     image::{PlaneMut, Size},
     k2::{
-        Backend, ColorSpace, Context, Image, ImageComponentInfo, ImageFormat, ImageInfo,
-        ImagePixel, ImageType, decode_pixel_type, image::validate_plane,
-        validate_image_component_count,
+        ColorSpace, Context, Image, ImageComponentInfo, ImageFormat, ImageInfo, ImagePixel,
+        ImageType, decode_pixel_type, image::validate_plane, validate_image_component_count,
     },
     try_ffi_k2,
-    utility::{checked_mul, complete, to_non_zero_u64},
+    utility::{checked_mul, to_non_zero_u64, to_usize},
 };
 
 /// Region of a JPEG 2000 image or tile to decode, in pixels, with exclusive ends.
@@ -51,52 +48,61 @@ pub struct DecodeState {
     pub(crate) handle: Context,
 }
 
+/// Native JPEG 2000 decoder state with its library handle, from [`DecodeState::into_raw`].
+///
+/// Dropping it leaks the native handle.
+#[derive(Debug)]
+pub struct RawDecodeState {
+    /// Native handle, owned exclusively.
+    pub handle: sys::nvjpeg2kDecodeState_t,
+    /// nvJPEG 2000 library handle the native handle was created with.
+    pub context: Context,
+}
+
 impl DecodeState {
-    /// Takes ownership of native decoder state created with `handle`.
+    /// Takes ownership of native decoder state created with `raw.context`.
     ///
     /// # Safety
     ///
-    /// `raw` must be valid, created with `handle`, and owned by nobody else.
+    /// `raw.handle` must be valid, created with `raw.context`, and owned by nobody else.
     /// It is destroyed when the returned value drops, so all work that used it must have finished.
     ///
     /// # Errors
     ///
-    /// Returns an error if `raw` is null.
-    pub unsafe fn from_raw(raw: sys::nvjpeg2kDecodeState_t, handle: &Context) -> Result<Self> {
-        if raw.is_null() {
+    /// Returns [`Error::NullHandle`] if `raw.handle` is null.
+    pub unsafe fn from_raw(raw: RawDecodeState) -> Result<Self> {
+        if raw.handle.is_null() {
             return Err(Error::NullHandle);
         }
         Ok(Self {
-            raw,
-            handle: handle.clone(),
+            raw: raw.handle,
+            handle: raw.context,
         })
     }
 
-    /// Releases the native handle without destroying it.
+    /// Releases the native handle with its [`Context`], without destroying it.
     ///
-    /// Destroy it, or pass it back to [`from_raw`](Self::from_raw), while its [`Context`] is alive.
+    /// Destroy the handle, or pass it back to [`from_raw`](Self::from_raw), while the context is alive.
     #[must_use]
-    pub fn into_raw(mut self) -> sys::nvjpeg2kDecodeState_t {
-        mem::replace(&mut self.raw, ptr::null_mut())
+    pub fn into_raw(self) -> RawDecodeState {
+        let this = ManuallyDrop::new(self);
+        RawDecodeState {
+            handle: this.raw,
+            // SAFETY: `this` is never dropped, so its context moves out exactly once.
+            context: unsafe { ptr::read(&raw const this.handle) },
+        }
     }
 }
 
 /// JPEG 2000 decoder.
 ///
-/// It owns its [`Context`] and decoder state, and reuses them across calls.
+/// It keeps its [`Context`], decoder state, and decode settings, and reuses them across calls.
 #[derive(Debug)]
 pub struct Decoder {
-    pub(crate) handle: Context,
-    pub(crate) state: DecodeState,
-    pub(crate) options: DecodeOptions,
-}
-
-/// Builder for a JPEG 2000 [`Decoder`] with a custom backend, options, or allocators.
-#[derive(Debug, Clone, Copy)]
-pub struct DecoderBuilder {
-    pub(crate) backend: Backend,
-    pub(crate) options: DecodeOptions,
-    pub(crate) allocators: Option<AllocatorSet>,
+    context: Context,
+    params: DecodeParams,
+    state: DecodeState,
+    options: DecodeOptions,
 }
 
 /// Size and row pitch of the memory for one decoded component.
@@ -138,6 +144,26 @@ pub struct DecodeParams {
     pub(crate) raw: sys::nvjpeg2kDecodeParams_t,
     pub(crate) handle: Context,
 }
+
+/// Native JPEG 2000 decode settings with their library handle, from [`DecodeParams::into_raw`].
+///
+/// Dropping it leaks the native handle.
+#[derive(Debug)]
+pub struct RawDecodeParams {
+    /// Native handle, owned exclusively.
+    pub handle: sys::nvjpeg2kDecodeParams_t,
+    /// nvJPEG 2000 library handle the native handle was created with.
+    pub context: Context,
+}
+
+// SAFETY: nvJPEG 2000 requires decode state to be used by one thread at a time, not by a fixed thread, and every decode takes `&mut DecodeState`.
+unsafe impl Send for DecodeState {}
+
+// SAFETY: nvJPEG 2000 requires a bitstream handle to be used by one thread at a time, not by a fixed thread, and every parse takes `&mut CodeStream`.
+unsafe impl Send for CodeStream {}
+
+// SAFETY: nvJPEG 2000 decode settings are used by one thread at a time, and every change takes `&mut DecodeParams`.
+unsafe impl Send for DecodeParams {}
 
 impl DecodeArea {
     /// Creates a region from (`start_x`, `start_y`) up to, but not including, (`end_x`, `end_y`).
@@ -269,7 +295,7 @@ impl DecodeOptions {
     /// Returns the size each output component must cover for the region and layout.
     fn output_sizes(self, code_stream: &CodeStream) -> Result<Vec<Size>> {
         let image = code_stream.image_info()?;
-        validate_image_component_count(image.component_count() as usize)?;
+        validate_image_component_count(to_usize(image.component_count(), "components")?)?;
         let full = image.size();
         if full.is_empty() {
             return Err(Error::OutOfRange {
@@ -366,18 +392,12 @@ impl DecodedComponentSpec {
         }
 
         let element_size = pixel_type.element_size();
-        let pitch_in_bytes =
-            (size.width as usize)
-                .checked_mul(element_size)
-                .ok_or(Error::OutOfRange {
-                    name: "pitch_in_bytes".into(),
-                })?;
-        let byte_len =
-            pitch_in_bytes
-                .checked_mul(size.height as usize)
-                .ok_or(Error::OutOfRange {
-                    name: "byte_len".into(),
-                })?;
+        let pitch_in_bytes = checked_mul(
+            to_usize(size.width, "width")?,
+            element_size,
+            "pitch_in_bytes",
+        )?;
+        let byte_len = checked_mul(pitch_in_bytes, to_usize(size.height, "height")?, "byte_len")?;
         Ok(Self {
             info,
             pitch_in_bytes,
@@ -524,7 +544,7 @@ impl<T> DecodedImage<T> {
             .iter()
             .map(|component| component.spec.pitch_in_bytes)
             .collect::<Vec<_>>();
-        // SAFETY: the plane pointers and pitches describe buffers that stay borrowed for the image lifetime.
+        // SAFETY: each pointer and pitch describes one of the image's own component allocations, which the caller keeps alive while the description is used.
         unsafe {
             Image::from_raw_parts(
                 self.components.len(),
@@ -537,46 +557,18 @@ impl<T> DecodedImage<T> {
 }
 
 impl Decoder {
-    /// Returns a builder for a decoder with a custom backend, options, or allocators.
-    #[must_use]
-    pub const fn builder() -> DecoderBuilder {
-        DecoderBuilder::new()
-    }
-
-    /// Creates a decoder in `cuda_context` that uses `backend` and the default options.
+    /// Creates a decoder for `context` with `options`.
     ///
     /// # Errors
     ///
-    /// Returns an error if the CUDA context cannot be bound or nvJPEG 2000 fails to create the handle or state.
-    pub fn create(cuda_context: &Arc<CudaContext>, backend: Backend) -> Result<Self> {
-        Self::builder().backend(backend).create(cuda_context)
-    }
-
-    /// Creates a decoder in `cuda_context` that uses `backend` and `options`.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the CUDA context cannot be bound or nvJPEG 2000 fails to create the handle or state.
-    pub fn create_with_options(
-        cuda_context: &Arc<CudaContext>,
-        backend: Backend,
-        options: DecodeOptions,
-    ) -> Result<Self> {
-        Self::builder()
-            .backend(backend)
-            .options(options)
-            .create(cuda_context)
-    }
-
-    /// Creates a decoder that uses an existing `handle` and `options`.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the CUDA context cannot be bound or nvJPEG 2000 fails to create the state.
-    pub fn from_handle(handle: Context, options: DecodeOptions) -> Result<Self> {
-        let state = handle.create_decode_state()?;
+    /// Returns an error if the CUDA context cannot be bound, or nvJPEG 2000 fails to create the state or settings or rejects an option.
+    pub fn create(context: &Context, options: DecodeOptions) -> Result<Self> {
+        let state = context.create_decode_state()?;
+        let mut params = DecodeParams::create(context)?;
+        options.apply_to(&mut params)?;
         Ok(Self {
-            handle,
+            context: context.clone(),
+            params,
             state,
             options,
         })
@@ -584,8 +576,8 @@ impl Decoder {
 
     /// Returns the nvJPEG 2000 handle.
     #[must_use]
-    pub const fn handle(&self) -> &Context {
-        &self.handle
+    pub const fn context(&self) -> &Context {
+        &self.context
     }
 
     /// Returns the decode options.
@@ -595,8 +587,18 @@ impl Decoder {
     }
 
     /// Replaces the decode options.
-    pub fn set_options(&mut self, options: DecodeOptions) {
+    ///
+    /// The options change only if nvJPEG 2000 accepts every value.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the CUDA context cannot be bound, or nvJPEG 2000 fails to create the settings or rejects an option.
+    pub fn set_options(&mut self, options: DecodeOptions) -> Result<()> {
+        let mut params = DecodeParams::create(&self.context)?;
+        options.apply_to(&mut params)?;
+        self.params = params;
         self.options = options;
+        Ok(())
     }
 
     /// Parses the JPEG 2000 data in `data`.
@@ -605,19 +607,8 @@ impl Decoder {
     ///
     /// Returns an error if the stream cannot be created, the CUDA context cannot be bound, `data` is empty or too long for nvJPEG 2000, or nvJPEG 2000 cannot parse it.
     pub fn parse(&self, data: &[u8]) -> Result<CodeStream> {
-        let mut code_stream = CodeStream::create(&self.handle)?;
+        let mut code_stream = CodeStream::create(&self.context)?;
         code_stream.parse(data)?;
-        Ok(code_stream)
-    }
-
-    /// Parses the JPEG 2000 file at `path`.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the stream cannot be created, the CUDA context cannot be bound, `path` contains a NUL byte, or nvJPEG 2000 cannot read or parse the file.
-    pub fn parse_file(&self, path: impl AsRef<Path>) -> Result<CodeStream> {
-        let mut code_stream = CodeStream::create(&self.handle)?;
-        code_stream.parse_file(path)?;
         Ok(code_stream)
     }
 
@@ -627,7 +618,7 @@ impl Decoder {
     ///
     /// Returns an error if the CUDA context cannot be bound, or nvJPEG 2000 fails to create the settings or rejects an option.
     pub fn create_params(&self) -> Result<DecodeParams> {
-        let mut params = DecodeParams::create(&self.handle)?;
+        let mut params = DecodeParams::create(&self.context)?;
         self.options.apply_to(&mut params)?;
         Ok(params)
     }
@@ -648,8 +639,9 @@ impl Decoder {
         stream: &CudaStream,
     ) -> Result<()> {
         stream.ensure_not_capturing()?;
-        self.handle.ensure_stream(stream)?;
-        self.handle.ensure_context(code_stream.cuda_context())?;
+        self.context.ensure_stream(stream)?;
+        self.context
+            .ensure_context(code_stream.cuda_context(), "code_stream")?;
         let sizes = self.options.output_sizes(code_stream)?;
         if C != sizes.len() {
             return Err(Error::LengthMismatch {
@@ -659,7 +651,7 @@ impl Decoder {
             });
         }
 
-        let components = code_stream.image_info()?.component_count() as usize;
+        let components = to_usize(code_stream.image_info()?.component_count(), "components")?;
         for (plane, size) in planes.iter().zip(&sizes) {
             if plane.context() != stream.context() {
                 return Err(CudaError::MemoryContextMismatch.into());
@@ -677,7 +669,7 @@ impl Decoder {
                 1
             };
             let row_bytes = checked_mul(
-                checked_mul(size.width() as usize, samples, "output samples")?,
+                checked_mul(to_usize(size.width(), "width")?, samples, "output samples")?,
                 T::IMAGE_TYPE.element_size(),
                 "output row bytes",
             )?;
@@ -689,22 +681,21 @@ impl Decoder {
             .map(|plane| plane.as_mut_ptr().cast())
             .collect();
         let pitches = planes.iter().map(PlaneMut::pitch).collect();
-        // SAFETY: output views and selected layout establish capacities and exclusive borrows.
+        // SAFETY: each pointer comes from a `PlaneMut` borrowed exclusively for this call, and `validate_plane` checked its capacity for the output size and layout above.
         let mut output =
             unsafe { Image::from_raw_parts(components, pointers, pitches, T::IMAGE_TYPE)? };
         let regions = planes
             .iter()
             .map(|plane| plane.region())
             .collect::<Vec<_>>();
-        let params = self.create_params()?;
-        complete(stream, || {
+        stream.complete(|| {
             stream.join_regions(&regions)?;
-            // SAFETY: every owner and descriptor remains live through checked completion.
+            // SAFETY: the planes were checked against the image and stay borrowed, and `complete` waits for the work on every path.
             unsafe {
-                self.handle.decode_image_async(
+                self.context.decode_image_async(
                     &mut self.state,
                     code_stream,
-                    &params,
+                    &self.params,
                     &mut output,
                     stream,
                 )
@@ -729,27 +720,26 @@ impl Decoder {
         self.options.validate_device_allocation()?;
         let component_infos = code_stream.component_infos()?;
         let mut output = DecodedImage::create_uninit(stream.context(), &component_infos)?;
-        let params = self.create_params()?;
         let mut image = output.descriptor()?;
         let regions = output
             .components
             .iter()
             .map(|component| component.data.region())
             .collect::<Vec<_>>();
-        complete(stream, || {
+        stream.complete(|| {
             stream.join_regions(&regions)?;
-            // SAFETY: `complete` drains the stream before returning, so every borrowed buffer outlives the queued work.
+            // SAFETY: the output was allocated for the image and stays owned here, and `complete` waits for the work on every path.
             unsafe {
-                self.handle.decode_image_async(
+                self.context.decode_image_async(
                     &mut self.state,
                     code_stream,
-                    &params,
+                    &self.params,
                     &mut image,
                     stream,
                 )
             }
         })?;
-        // SAFETY: the completed planar decode writes every tightly packed component byte.
+        // SAFETY: the planar decode above finished and wrote every byte of the tightly packed components.
         Ok(unsafe { output.assume_init() })
     }
 
@@ -769,21 +759,6 @@ impl Decoder {
         self.decode_code_stream_into(&code_stream, planes, stream)
     }
 
-    /// Parses the JPEG 2000 file at `path` and decodes it into `planes`, waiting for `stream`.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if [`parse_file`](Self::parse_file) or [`decode_code_stream_into`](Self::decode_code_stream_into) fails.
-    pub fn decode_file_into<T: ImagePixel, const C: usize>(
-        &mut self,
-        path: impl AsRef<Path>,
-        planes: &mut [PlaneMut<'_, T>; C],
-        stream: &CudaStream,
-    ) -> Result<()> {
-        let code_stream = self.parse_file(path)?;
-        self.decode_code_stream_into(&code_stream, planes, stream)
-    }
-
     /// Parses `data`, allocates planar output, and decodes into it, waiting for `stream`.
     ///
     /// # Errors
@@ -793,74 +768,6 @@ impl Decoder {
         stream.ensure_not_capturing()?;
         let code_stream = self.parse(data)?;
         self.decode_code_stream_to_device(&code_stream, stream)
-    }
-
-    /// Parses the JPEG 2000 file at `path`, allocates planar output, and decodes into it, waiting for `stream`.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if [`parse_file`](Self::parse_file) or [`decode_code_stream_to_device`](Self::decode_code_stream_to_device) fails.
-    pub fn decode_file_to_device(
-        &mut self,
-        path: impl AsRef<Path>,
-        stream: &CudaStream,
-    ) -> Result<DecodedImage> {
-        let code_stream = self.parse_file(path)?;
-        self.decode_code_stream_to_device(&code_stream, stream)
-    }
-}
-
-impl DecoderBuilder {
-    /// Creates a builder with nvJPEG 2000's defaults.
-    #[must_use]
-    pub const fn new() -> Self {
-        Self {
-            backend: Backend::Default,
-            options: DecodeOptions::new(),
-            allocators: None,
-        }
-    }
-
-    /// Sets the backend.
-    #[must_use]
-    pub const fn backend(mut self, backend: Backend) -> Self {
-        self.backend = backend;
-        self
-    }
-
-    /// Sets the decode options.
-    #[must_use]
-    pub const fn options(mut self, options: DecodeOptions) -> Self {
-        self.options = options;
-        self
-    }
-
-    /// Sets custom device and pinned host allocators.
-    #[must_use]
-    pub const fn allocators(mut self, allocators: AllocatorSet) -> Self {
-        self.allocators = Some(allocators);
-        self
-    }
-
-    /// Creates the decoder in `cuda_context`.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the CUDA context cannot be bound, or nvJPEG 2000 rejects the settings or fails to create the handle or state.
-    pub fn create(self, cuda_context: &Arc<CudaContext>) -> Result<Decoder> {
-        let mut builder = Context::builder().backend(self.backend);
-        if let Some(allocators) = self.allocators {
-            builder = builder.allocators(allocators);
-        }
-
-        let handle = builder.create(cuda_context)?;
-        Decoder::from_handle(handle, self.options)
-    }
-}
-
-impl Default for DecoderBuilder {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
@@ -893,7 +800,7 @@ impl CodeStream {
         handle.bind()?;
 
         let mut raw = ptr::null_mut();
-        // SAFETY: `nvjpeg2kStreamCreate` receives valid output locations.
+        // SAFETY: `raw` is a local that receives the new stream handle.
         unsafe {
             try_ffi_k2!(sys::nvjpeg2kStreamCreate(&raw mut raw))?;
         }
@@ -924,7 +831,7 @@ impl CodeStream {
         // Register backing storage before the native parser can retain it or fail.
         self.backing.push(data);
         self.parsed = false;
-        // SAFETY: `nvjpeg2kStreamParse` receives live handles owned by the wrappers.
+        // SAFETY: `&mut self` owns the live stream handle exclusively, and `ptr` points to `length` bytes in `self.backing`, which keeps them alive for as long as the stream can read them.
         unsafe {
             try_ffi_k2!(sys::nvjpeg2kStreamParse(
                 self.handle.as_raw(),
@@ -936,35 +843,10 @@ impl CodeStream {
             ))?;
         }
 
-        // Successful parsing replaces the previous bitstream. Failed parsing keeps both.
+        // Successful parsing replaces the previous bitstream.
+        // Failed parsing keeps both.
         let previous = self.backing.len() - 1;
         self.backing.drain(..previous);
-        self.parsed = true;
-        Ok(())
-    }
-
-    /// Parses the header of the JPEG 2000 file at `path`.
-    ///
-    /// The image information can be read afterwards.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the CUDA context cannot be bound, `path` contains a NUL byte, or nvJPEG 2000 cannot read or parse the file.
-    pub fn parse_file(&mut self, path: impl AsRef<Path>) -> Result<()> {
-        self.handle.bind()?;
-
-        let path = CString::new(path.as_ref().as_os_str().as_encoded_bytes())
-            .map_err(|_| Error::InteriorNul)?;
-        self.parsed = false;
-        // SAFETY: `nvjpeg2kStreamParseFile` receives live handles owned by the wrappers and pointers into buffers borrowed for the call.
-        unsafe {
-            try_ffi_k2!(sys::nvjpeg2kStreamParseFile(
-                self.handle.as_raw(),
-                path.as_ptr(),
-                self.raw
-            ))
-        }?;
-        self.backing.clear();
         self.parsed = true;
         Ok(())
     }
@@ -979,7 +861,7 @@ impl CodeStream {
         self.handle.bind()?;
 
         let mut info = sys::nvjpeg2kImageInfo_t::default();
-        // SAFETY: `nvjpeg2kStreamGetImageInfo` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `self` owns the live, successfully parsed stream handle, and the outputs are locals that nvJPEG 2000 writes.
         unsafe {
             try_ffi_k2!(sys::nvjpeg2kStreamGetImageInfo(self.raw, &raw mut info))?;
         }
@@ -998,7 +880,7 @@ impl CodeStream {
         self.handle.bind()?;
 
         let mut info = sys::nvjpeg2kImageComponentInfo_t::default();
-        // SAFETY: `nvjpeg2kStreamGetImageComponentInfo` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `self` owns the live, successfully parsed stream handle, and the outputs are locals that nvJPEG 2000 writes.
         unsafe {
             try_ffi_k2!(sys::nvjpeg2kStreamGetImageComponentInfo(
                 self.raw,
@@ -1033,14 +915,14 @@ impl CodeStream {
         self.handle.bind()?;
 
         let mut color_space = sys::nvjpeg2kColorSpace_t::NVJPEG2K_COLORSPACE_UNKNOWN;
-        // SAFETY: `nvjpeg2kStreamGetColorSpace` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `self` owns the live, successfully parsed stream handle, and the outputs are locals that nvJPEG 2000 writes.
         unsafe {
             try_ffi_k2!(sys::nvjpeg2kStreamGetColorSpace(
                 self.raw,
                 &raw mut color_space
             ))?;
         }
-        Ok(color_space.into())
+        Ok(color_space.try_into()?)
     }
 
     /// Returns the number of resolution levels in tile `tile_id`: the number of wavelet decomposition levels plus one.
@@ -1055,7 +937,7 @@ impl CodeStream {
         self.handle.bind()?;
 
         let mut resolutions = 0;
-        // SAFETY: `nvjpeg2kStreamGetResolutionsInTile` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `self` owns the live, successfully parsed stream handle, and the outputs are locals that nvJPEG 2000 writes.
         unsafe {
             try_ffi_k2!(sys::nvjpeg2kStreamGetResolutionsInTile(
                 self.raw,
@@ -1079,7 +961,7 @@ impl CodeStream {
 
         let mut width = 0;
         let mut height = 0;
-        // SAFETY: `nvjpeg2kStreamGetTileComponentDim` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `self` owns the live, successfully parsed stream handle, and the outputs are locals that nvJPEG 2000 writes.
         unsafe {
             try_ffi_k2!(sys::nvjpeg2kStreamGetTileComponentDim(
                 self.raw,
@@ -1110,7 +992,7 @@ impl CodeStream {
 
         let mut width = 0;
         let mut height = 0;
-        // SAFETY: `nvjpeg2kStreamGetResolutionComponentDim` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `self` owns the live, successfully parsed stream handle, and the outputs are locals that nvJPEG 2000 writes.
         unsafe {
             try_ffi_k2!(sys::nvjpeg2kStreamGetResolutionComponentDim(
                 self.raw,
@@ -1134,32 +1016,37 @@ impl CodeStream {
 }
 
 impl DecodeParams {
-    /// Takes ownership of native decode settings created with `handle`.
+    /// Takes ownership of native decode settings created with `raw.context`.
     ///
     /// # Safety
     ///
-    /// `raw` must be valid, created with `handle`, and owned by nobody else.
+    /// `raw.handle` must be valid, created with `raw.context`, and owned by nobody else.
     /// It is destroyed when the returned value drops, so all work that used it must have finished.
     ///
     /// # Errors
     ///
-    /// Returns an error if `raw` is null.
-    pub unsafe fn from_raw(raw: sys::nvjpeg2kDecodeParams_t, handle: &Context) -> Result<Self> {
-        if raw.is_null() {
+    /// Returns [`Error::NullHandle`] if `raw.handle` is null.
+    pub unsafe fn from_raw(raw: RawDecodeParams) -> Result<Self> {
+        if raw.handle.is_null() {
             return Err(Error::NullHandle);
         }
         Ok(Self {
-            raw,
-            handle: handle.clone(),
+            raw: raw.handle,
+            handle: raw.context,
         })
     }
 
-    /// Releases the native handle without destroying it.
+    /// Releases the native handle with its [`Context`], without destroying it.
     ///
-    /// Destroy it, or pass it back to [`from_raw`](Self::from_raw), while its [`Context`] is alive.
+    /// Destroy the handle, or pass it back to [`from_raw`](Self::from_raw), while the context is alive.
     #[must_use]
-    pub fn into_raw(mut self) -> sys::nvjpeg2kDecodeParams_t {
-        mem::replace(&mut self.raw, ptr::null_mut())
+    pub fn into_raw(self) -> RawDecodeParams {
+        let this = ManuallyDrop::new(self);
+        RawDecodeParams {
+            handle: this.raw,
+            // SAFETY: `this` is never dropped, so its context moves out exactly once.
+            context: unsafe { ptr::read(&raw const this.handle) },
+        }
     }
 
     /// Returns the CUDA context of the decode settings.
@@ -1177,7 +1064,7 @@ impl DecodeParams {
         handle.bind()?;
 
         let mut raw = ptr::null_mut();
-        // SAFETY: `nvjpeg2kDecodeParamsCreate` receives valid output locations.
+        // SAFETY: `raw` is a local that receives the new settings handle.
         unsafe {
             try_ffi_k2!(sys::nvjpeg2kDecodeParamsCreate(&raw mut raw))?;
         }
@@ -1212,7 +1099,7 @@ impl DecodeParams {
             DecodeArea::create(start_x, end_x, start_y, end_y)?;
         }
 
-        // SAFETY: `nvjpeg2kDecodeParamsSetDecodeArea` receives live handles owned by the wrappers.
+        // SAFETY: `&mut self` owns the live settings handle exclusively, and the region is all zeros or was checked by `DecodeArea::create`.
         unsafe {
             try_ffi_k2!(sys::nvjpeg2kDecodeParamsSetDecodeArea(
                 self.raw, start_x, end_x, start_y, end_y
@@ -1241,7 +1128,7 @@ impl DecodeParams {
     pub fn set_rgb_output(&mut self, force_rgb: bool) -> Result<&mut Self> {
         self.handle.bind()?;
 
-        // SAFETY: `nvjpeg2kDecodeParamsSetRGBOutput` receives live handles owned by the wrappers.
+        // SAFETY: `&mut self` owns the live settings handle exclusively.
         unsafe {
             try_ffi_k2!(sys::nvjpeg2kDecodeParamsSetRGBOutput(
                 self.raw,
@@ -1262,7 +1149,7 @@ impl DecodeParams {
     pub fn set_output_format(&mut self, format: ImageFormat) -> Result<&mut Self> {
         self.handle.bind()?;
 
-        // SAFETY: `nvjpeg2kDecodeParamsSetOutputFormat` receives live handles owned by the wrappers.
+        // SAFETY: `&mut self` owns the live settings handle exclusively, and the format is a valid enum value.
         unsafe {
             try_ffi_k2!(sys::nvjpeg2kDecodeParamsSetOutputFormat(
                 self.raw,
@@ -1281,18 +1168,19 @@ impl DecodeParams {
 
 impl Drop for DecodeState {
     fn drop(&mut self) {
-        if self.handle.bind().is_err() {
+        if let Err(error) = self.handle.bind() {
+            report_cleanup_failure(
+                "bind the cuda context to destroy",
+                "nvjpeg2k decode state",
+                &error,
+            );
             return;
         }
+
         if !self.raw.is_null() {
-            // SAFETY: `nvjpeg2kDecodeStateDestroy` receives live handles owned by the wrappers.
-            unsafe {
-                if let Err(error) = try_ffi_k2!(sys::nvjpeg2kDecodeStateDestroy(self.raw)) {
-                    eprintln!(
-                        "failed to destroy nvjpeg2k decode state: {}",
-                        singe_core::ErrorChain(&error)
-                    );
-                }
+            // SAFETY: the state owns its handle exclusively and is destroyed once; safe decodes wait for their work, and raw callers keep the state alive until theirs finishes.
+            if let Err(error) = unsafe { try_ffi_k2!(sys::nvjpeg2kDecodeStateDestroy(self.raw)) } {
+                report_cleanup_failure("destroy", "nvjpeg2k decode state", &error);
             }
         }
     }
@@ -1300,18 +1188,19 @@ impl Drop for DecodeState {
 
 impl Drop for CodeStream {
     fn drop(&mut self) {
-        if self.handle.bind().is_err() {
+        if let Err(error) = self.handle.bind() {
+            report_cleanup_failure(
+                "bind the cuda context to destroy",
+                "nvjpeg2k stream",
+                &error,
+            );
             return;
         }
+
         if !self.raw.is_null() {
-            // SAFETY: `nvjpeg2kStreamDestroy` receives live handles owned by the wrappers.
-            unsafe {
-                if let Err(error) = try_ffi_k2!(sys::nvjpeg2kStreamDestroy(self.raw)) {
-                    eprintln!(
-                        "failed to destroy nvjpeg2k stream: {}",
-                        singe_core::ErrorChain(&error)
-                    );
-                }
+            // SAFETY: the stream owns its handle exclusively and is destroyed once, before `backing` releases the parsed data; safe decodes wait for their work.
+            if let Err(error) = unsafe { try_ffi_k2!(sys::nvjpeg2kStreamDestroy(self.raw)) } {
+                report_cleanup_failure("destroy", "nvjpeg2k stream", &error);
             }
         }
     }
@@ -1319,18 +1208,19 @@ impl Drop for CodeStream {
 
 impl Drop for DecodeParams {
     fn drop(&mut self) {
-        if self.handle.bind().is_err() {
+        if let Err(error) = self.handle.bind() {
+            report_cleanup_failure(
+                "bind the cuda context to destroy",
+                "nvjpeg2k decode params",
+                &error,
+            );
             return;
         }
+
         if !self.raw.is_null() {
-            // SAFETY: `nvjpeg2kDecodeParamsDestroy` receives live handles owned by the wrappers.
-            unsafe {
-                if let Err(error) = try_ffi_k2!(sys::nvjpeg2kDecodeParamsDestroy(self.raw)) {
-                    eprintln!(
-                        "failed to destroy nvjpeg2k decode params: {}",
-                        singe_core::ErrorChain(&error)
-                    );
-                }
+            // SAFETY: the settings own their handle exclusively and are destroyed once; safe decodes wait for their work, and raw callers keep the settings alive until theirs finishes.
+            if let Err(error) = unsafe { try_ffi_k2!(sys::nvjpeg2kDecodeParamsDestroy(self.raw)) } {
+                report_cleanup_failure("destroy", "nvjpeg2k decode params", &error);
             }
         }
     }
@@ -1345,7 +1235,7 @@ impl DecodedComponent<MaybeUninit<u8>> {
     #[must_use]
     pub unsafe fn assume_init(self) -> DecodedComponent {
         DecodedComponent {
-            // SAFETY: the caller upholds this function's safety contract.
+            // SAFETY: the caller guarantees every byte was written by finished work.
             data: unsafe { self.data.assume_init() },
             spec: self.spec,
         }
@@ -1365,7 +1255,7 @@ impl DecodedImage<MaybeUninit<u8>> {
             components: self
                 .components
                 .into_iter()
-                // SAFETY: the caller upholds this function's safety contract.
+                // SAFETY: the caller guarantees every byte of every component was written by finished work.
                 .map(|component| unsafe { component.assume_init() })
                 .collect(),
         }

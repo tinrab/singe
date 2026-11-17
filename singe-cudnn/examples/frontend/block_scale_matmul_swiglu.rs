@@ -2,19 +2,15 @@ mod common;
 
 use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
-    backend::{
-        pointwise::PointwiseMode,
-        tensor::{Shape, TensorSpec},
-    },
+    backend::operation::{block_scale::BlockScaleDequantizeInputs, pointwise::PointwiseMode},
     data_type::DataType,
     error::Result,
     frontend::{
-        graph::{
-            BlockScaleDequantizeInputs, DataTypePolicy, Graph, GraphConfig, TensorOutputConfig,
-        },
+        graph::{DataTypePolicy, Graph, GraphConfig, TensorOutputConfig},
         operation::{BlockScaleDequantizeConfig, MatmulConfig, PointwiseOperation},
         plan::{CompileConfig, ExecuteArgs, HeuristicMode},
     },
+    tensor::{Shape, TensorSpec},
 };
 
 fn run() -> Result<()> {
@@ -135,15 +131,15 @@ fn run() -> Result<()> {
     bindings.set_encoded_bytes(output, &mut output_device)?;
     // SAFETY: initialized packed inputs/scales, writable output and workspace remain live through stream completion.
     example.execute_and_wait(|context| unsafe {
-        compiled.execute(
+        compiled.execute_async(
             context,
-            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
         )
     })?;
     println!("executed block-scale matmul with swiglu and packed fp4 output");
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_block_scale_matmul_swiglu", run())
 }

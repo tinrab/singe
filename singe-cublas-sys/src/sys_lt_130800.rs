@@ -621,1624 +621,3078 @@ pub struct cublasLtEmulationDescOpaque_t {
 }
 /// cublasLtEmulationDesc_t is a pointer to an opaque structure holding the emulation descriptor. Use [`cublasLtEmulationDescCreate`] to create a new emulation descriptor, and [`cublasLtEmulationDescDestroy`] to destroy it and release the resources.
 pub type cublasLtEmulationDesc_t = *mut cublasLtEmulationDescOpaque_t;
-/// [`cublasLtMatmulTile_t`] is an enumerated type used to set the tile size in `rows x columns.` See also [CUTLASS: Fast Linear Algebra in CUDA C++](https://www.google.com/url?q=https://devblogs.nvidia.com/cutlass-linear-algebra-cuda/&sa=D&ust=1543610995532000&usg=AFQjCNE3tHlNsXDOnOhbVeeH1uXWQFLzLA).
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cublasLtMatmulTile_t {
+impl cublasLtMatmulTile_t {
     /// Tile size is undefined.
-    CUBLASLT_MATMUL_TILE_UNDEFINED = 0,
+    pub const CUBLASLT_MATMUL_TILE_UNDEFINED: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        0,
+    );
     /// Tile size is 8 rows x 8 columns.
-    CUBLASLT_MATMUL_TILE_8x8 = 1,
+    pub const CUBLASLT_MATMUL_TILE_8x8: cublasLtMatmulTile_t = cublasLtMatmulTile_t(1);
     /// Tile size is 8 rows x 16 columns.
-    CUBLASLT_MATMUL_TILE_8x16 = 2,
+    pub const CUBLASLT_MATMUL_TILE_8x16: cublasLtMatmulTile_t = cublasLtMatmulTile_t(2);
     /// Tile size is 16 rows x 8 columns.
-    CUBLASLT_MATMUL_TILE_16x8 = 3,
+    pub const CUBLASLT_MATMUL_TILE_16x8: cublasLtMatmulTile_t = cublasLtMatmulTile_t(3);
     /// Tile size is 8 rows x 32 columns.
-    CUBLASLT_MATMUL_TILE_8x32 = 4,
+    pub const CUBLASLT_MATMUL_TILE_8x32: cublasLtMatmulTile_t = cublasLtMatmulTile_t(4);
     /// Tile size is 16 rows x 16 columns.
-    CUBLASLT_MATMUL_TILE_16x16 = 5,
+    pub const CUBLASLT_MATMUL_TILE_16x16: cublasLtMatmulTile_t = cublasLtMatmulTile_t(5);
     /// Tile size is 32 rows x 8 columns.
-    CUBLASLT_MATMUL_TILE_32x8 = 6,
+    pub const CUBLASLT_MATMUL_TILE_32x8: cublasLtMatmulTile_t = cublasLtMatmulTile_t(6);
     /// Tile size is 8 rows x 64 columns.
-    CUBLASLT_MATMUL_TILE_8x64 = 7,
+    pub const CUBLASLT_MATMUL_TILE_8x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(7);
     /// Tile size is 16 rows x 32 columns.
-    CUBLASLT_MATMUL_TILE_16x32 = 8,
+    pub const CUBLASLT_MATMUL_TILE_16x32: cublasLtMatmulTile_t = cublasLtMatmulTile_t(8);
     /// Tile size is 32 rows x 16 columns.
-    CUBLASLT_MATMUL_TILE_32x16 = 9,
+    pub const CUBLASLT_MATMUL_TILE_32x16: cublasLtMatmulTile_t = cublasLtMatmulTile_t(9);
     /// Tile size is 64 rows x 8 columns.
-    CUBLASLT_MATMUL_TILE_64x8 = 10,
+    pub const CUBLASLT_MATMUL_TILE_64x8: cublasLtMatmulTile_t = cublasLtMatmulTile_t(10);
     /// Tile size is 32 rows x 32 columns.
-    CUBLASLT_MATMUL_TILE_32x32 = 11,
+    pub const CUBLASLT_MATMUL_TILE_32x32: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        11,
+    );
     /// Tile size is 32 rows x 64 columns.
-    CUBLASLT_MATMUL_TILE_32x64 = 12,
+    pub const CUBLASLT_MATMUL_TILE_32x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        12,
+    );
     /// Tile size is 64 rows x 32 columns.
-    CUBLASLT_MATMUL_TILE_64x32 = 13,
+    pub const CUBLASLT_MATMUL_TILE_64x32: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        13,
+    );
     /// Tile size is 32 rows x 128 columns.
-    CUBLASLT_MATMUL_TILE_32x128 = 14,
+    pub const CUBLASLT_MATMUL_TILE_32x128: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        14,
+    );
     /// Tile size is 64 rows x 64 columns.
-    CUBLASLT_MATMUL_TILE_64x64 = 15,
+    pub const CUBLASLT_MATMUL_TILE_64x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        15,
+    );
     /// Tile size is 128 rows x 32 columns.
-    CUBLASLT_MATMUL_TILE_128x32 = 16,
+    pub const CUBLASLT_MATMUL_TILE_128x32: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        16,
+    );
     /// Tile size is 64 rows x 128 columns.
-    CUBLASLT_MATMUL_TILE_64x128 = 17,
+    pub const CUBLASLT_MATMUL_TILE_64x128: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        17,
+    );
     /// Tile size is 128 rows x 64 columns.
-    CUBLASLT_MATMUL_TILE_128x64 = 18,
+    pub const CUBLASLT_MATMUL_TILE_128x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        18,
+    );
     /// Tile size is 64 rows x 256 columns.
-    CUBLASLT_MATMUL_TILE_64x256 = 19,
+    pub const CUBLASLT_MATMUL_TILE_64x256: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        19,
+    );
     /// Tile size is 128 rows x 128 columns.
-    CUBLASLT_MATMUL_TILE_128x128 = 20,
+    pub const CUBLASLT_MATMUL_TILE_128x128: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        20,
+    );
     /// Tile size is 256 rows x 64 columns.
-    CUBLASLT_MATMUL_TILE_256x64 = 21,
+    pub const CUBLASLT_MATMUL_TILE_256x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        21,
+    );
     /// Tile size is 64 rows x 512 columns.
-    CUBLASLT_MATMUL_TILE_64x512 = 22,
+    pub const CUBLASLT_MATMUL_TILE_64x512: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        22,
+    );
     /// Tile size is 128 rows x 256 columns.
-    CUBLASLT_MATMUL_TILE_128x256 = 23,
+    pub const CUBLASLT_MATMUL_TILE_128x256: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        23,
+    );
     /// Tile size is 256 rows x 128 columns.
-    CUBLASLT_MATMUL_TILE_256x128 = 24,
+    pub const CUBLASLT_MATMUL_TILE_256x128: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        24,
+    );
     /// Tile size is 512 rows x 64 columns.
-    CUBLASLT_MATMUL_TILE_512x64 = 25,
+    pub const CUBLASLT_MATMUL_TILE_512x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        25,
+    );
     /// Tile size is 64 rows x 96 columns.
-    CUBLASLT_MATMUL_TILE_64x96 = 26,
+    pub const CUBLASLT_MATMUL_TILE_64x96: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        26,
+    );
     /// Tile size is 96 rows x 64 columns.
-    CUBLASLT_MATMUL_TILE_96x64 = 27,
+    pub const CUBLASLT_MATMUL_TILE_96x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        27,
+    );
     /// Tile size is 96 rows x 128 columns.
-    CUBLASLT_MATMUL_TILE_96x128 = 28,
+    pub const CUBLASLT_MATMUL_TILE_96x128: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        28,
+    );
     /// Tile size is 128 rows x 160 columns.
-    CUBLASLT_MATMUL_TILE_128x160 = 29,
+    pub const CUBLASLT_MATMUL_TILE_128x160: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        29,
+    );
     /// Tile size is 160 rows x 128 columns.
-    CUBLASLT_MATMUL_TILE_160x128 = 30,
+    pub const CUBLASLT_MATMUL_TILE_160x128: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        30,
+    );
     /// Tile size is 192 rows x 128 columns.
-    CUBLASLT_MATMUL_TILE_192x128 = 31,
+    pub const CUBLASLT_MATMUL_TILE_192x128: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        31,
+    );
     /// Tile size is 128 rows x 192 columns.
-    CUBLASLT_MATMUL_TILE_128x192 = 32,
+    pub const CUBLASLT_MATMUL_TILE_128x192: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        32,
+    );
     /// Tile size is 128 rows x 96 columns.
-    CUBLASLT_MATMUL_TILE_128x96 = 33,
+    pub const CUBLASLT_MATMUL_TILE_128x96: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        33,
+    );
     /// Tile covering 32 rows and 256 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_32x256 = 34,
+    pub const CUBLASLT_MATMUL_TILE_32x256: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        34,
+    );
     /// Tile covering 256 rows and 32 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_256x32 = 35,
+    pub const CUBLASLT_MATMUL_TILE_256x32: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        35,
+    );
     /// Tile covering 8 rows and 128 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_8x128 = 36,
+    pub const CUBLASLT_MATMUL_TILE_8x128: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        36,
+    );
     /// Tile covering 8 rows and 192 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_8x192 = 37,
+    pub const CUBLASLT_MATMUL_TILE_8x192: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        37,
+    );
     /// Tile covering 8 rows and 256 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_8x256 = 38,
+    pub const CUBLASLT_MATMUL_TILE_8x256: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        38,
+    );
     /// Tile covering 8 rows and 320 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_8x320 = 39,
+    pub const CUBLASLT_MATMUL_TILE_8x320: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        39,
+    );
     /// Tile covering 8 rows and 384 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_8x384 = 40,
+    pub const CUBLASLT_MATMUL_TILE_8x384: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        40,
+    );
     /// Tile covering 8 rows and 448 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_8x448 = 41,
+    pub const CUBLASLT_MATMUL_TILE_8x448: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        41,
+    );
     /// Tile covering 8 rows and 512 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_8x512 = 42,
+    pub const CUBLASLT_MATMUL_TILE_8x512: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        42,
+    );
     /// Tile covering 8 rows and 576 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_8x576 = 43,
+    pub const CUBLASLT_MATMUL_TILE_8x576: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        43,
+    );
     /// Tile covering 8 rows and 640 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_8x640 = 44,
+    pub const CUBLASLT_MATMUL_TILE_8x640: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        44,
+    );
     /// Tile covering 8 rows and 704 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_8x704 = 45,
+    pub const CUBLASLT_MATMUL_TILE_8x704: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        45,
+    );
     /// Tile covering 8 rows and 768 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_8x768 = 46,
+    pub const CUBLASLT_MATMUL_TILE_8x768: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        46,
+    );
     /// Tile covering 16 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_16x64 = 47,
+    pub const CUBLASLT_MATMUL_TILE_16x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        47,
+    );
     /// Tile covering 16 rows and 128 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_16x128 = 48,
+    pub const CUBLASLT_MATMUL_TILE_16x128: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        48,
+    );
     /// Tile covering 16 rows and 192 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_16x192 = 49,
+    pub const CUBLASLT_MATMUL_TILE_16x192: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        49,
+    );
     /// Tile covering 16 rows and 256 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_16x256 = 50,
+    pub const CUBLASLT_MATMUL_TILE_16x256: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        50,
+    );
     /// Tile covering 16 rows and 320 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_16x320 = 51,
+    pub const CUBLASLT_MATMUL_TILE_16x320: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        51,
+    );
     /// Tile covering 16 rows and 384 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_16x384 = 52,
+    pub const CUBLASLT_MATMUL_TILE_16x384: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        52,
+    );
     /// Tile covering 16 rows and 448 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_16x448 = 53,
+    pub const CUBLASLT_MATMUL_TILE_16x448: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        53,
+    );
     /// Tile covering 16 rows and 512 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_16x512 = 54,
+    pub const CUBLASLT_MATMUL_TILE_16x512: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        54,
+    );
     /// Tile covering 16 rows and 576 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_16x576 = 55,
+    pub const CUBLASLT_MATMUL_TILE_16x576: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        55,
+    );
     /// Tile covering 16 rows and 640 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_16x640 = 56,
+    pub const CUBLASLT_MATMUL_TILE_16x640: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        56,
+    );
     /// Tile covering 16 rows and 704 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_16x704 = 57,
+    pub const CUBLASLT_MATMUL_TILE_16x704: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        57,
+    );
     /// Tile covering 16 rows and 768 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_16x768 = 58,
+    pub const CUBLASLT_MATMUL_TILE_16x768: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        58,
+    );
     /// Tile covering 24 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_24x64 = 59,
+    pub const CUBLASLT_MATMUL_TILE_24x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        59,
+    );
     /// Tile covering 24 rows and 128 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_24x128 = 60,
+    pub const CUBLASLT_MATMUL_TILE_24x128: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        60,
+    );
     /// Tile covering 24 rows and 192 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_24x192 = 61,
+    pub const CUBLASLT_MATMUL_TILE_24x192: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        61,
+    );
     /// Tile covering 24 rows and 256 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_24x256 = 62,
+    pub const CUBLASLT_MATMUL_TILE_24x256: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        62,
+    );
     /// Tile covering 24 rows and 320 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_24x320 = 63,
+    pub const CUBLASLT_MATMUL_TILE_24x320: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        63,
+    );
     /// Tile covering 24 rows and 384 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_24x384 = 64,
+    pub const CUBLASLT_MATMUL_TILE_24x384: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        64,
+    );
     /// Tile covering 24 rows and 448 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_24x448 = 65,
+    pub const CUBLASLT_MATMUL_TILE_24x448: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        65,
+    );
     /// Tile covering 24 rows and 512 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_24x512 = 66,
+    pub const CUBLASLT_MATMUL_TILE_24x512: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        66,
+    );
     /// Tile covering 24 rows and 576 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_24x576 = 67,
+    pub const CUBLASLT_MATMUL_TILE_24x576: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        67,
+    );
     /// Tile covering 24 rows and 640 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_24x640 = 68,
+    pub const CUBLASLT_MATMUL_TILE_24x640: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        68,
+    );
     /// Tile covering 24 rows and 704 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_24x704 = 69,
+    pub const CUBLASLT_MATMUL_TILE_24x704: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        69,
+    );
     /// Tile covering 24 rows and 768 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_24x768 = 70,
+    pub const CUBLASLT_MATMUL_TILE_24x768: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        70,
+    );
     /// Tile covering 32 rows and 192 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_32x192 = 71,
+    pub const CUBLASLT_MATMUL_TILE_32x192: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        71,
+    );
     /// Tile covering 32 rows and 320 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_32x320 = 72,
+    pub const CUBLASLT_MATMUL_TILE_32x320: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        72,
+    );
     /// Tile covering 32 rows and 384 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_32x384 = 73,
+    pub const CUBLASLT_MATMUL_TILE_32x384: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        73,
+    );
     /// Tile covering 32 rows and 448 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_32x448 = 74,
+    pub const CUBLASLT_MATMUL_TILE_32x448: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        74,
+    );
     /// Tile covering 32 rows and 512 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_32x512 = 75,
+    pub const CUBLASLT_MATMUL_TILE_32x512: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        75,
+    );
     /// Tile covering 32 rows and 576 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_32x576 = 76,
+    pub const CUBLASLT_MATMUL_TILE_32x576: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        76,
+    );
     /// Tile covering 32 rows and 640 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_32x640 = 77,
+    pub const CUBLASLT_MATMUL_TILE_32x640: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        77,
+    );
     /// Tile covering 32 rows and 704 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_32x704 = 78,
+    pub const CUBLASLT_MATMUL_TILE_32x704: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        78,
+    );
     /// Tile covering 32 rows and 768 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_32x768 = 79,
+    pub const CUBLASLT_MATMUL_TILE_32x768: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        79,
+    );
     /// Tile covering 40 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_40x64 = 80,
+    pub const CUBLASLT_MATMUL_TILE_40x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        80,
+    );
     /// Tile covering 40 rows and 128 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_40x128 = 81,
+    pub const CUBLASLT_MATMUL_TILE_40x128: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        81,
+    );
     /// Tile covering 40 rows and 192 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_40x192 = 82,
+    pub const CUBLASLT_MATMUL_TILE_40x192: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        82,
+    );
     /// Tile covering 40 rows and 256 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_40x256 = 83,
+    pub const CUBLASLT_MATMUL_TILE_40x256: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        83,
+    );
     /// Tile covering 40 rows and 320 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_40x320 = 84,
+    pub const CUBLASLT_MATMUL_TILE_40x320: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        84,
+    );
     /// Tile covering 40 rows and 384 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_40x384 = 85,
+    pub const CUBLASLT_MATMUL_TILE_40x384: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        85,
+    );
     /// Tile covering 40 rows and 448 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_40x448 = 86,
+    pub const CUBLASLT_MATMUL_TILE_40x448: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        86,
+    );
     /// Tile covering 40 rows and 512 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_40x512 = 87,
+    pub const CUBLASLT_MATMUL_TILE_40x512: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        87,
+    );
     /// Tile covering 40 rows and 576 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_40x576 = 88,
+    pub const CUBLASLT_MATMUL_TILE_40x576: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        88,
+    );
     /// Tile covering 40 rows and 640 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_40x640 = 89,
+    pub const CUBLASLT_MATMUL_TILE_40x640: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        89,
+    );
     /// Tile covering 40 rows and 704 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_40x704 = 90,
+    pub const CUBLASLT_MATMUL_TILE_40x704: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        90,
+    );
     /// Tile covering 40 rows and 768 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_40x768 = 91,
+    pub const CUBLASLT_MATMUL_TILE_40x768: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        91,
+    );
     /// Tile covering 48 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_48x64 = 92,
+    pub const CUBLASLT_MATMUL_TILE_48x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        92,
+    );
     /// Tile covering 48 rows and 128 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_48x128 = 93,
+    pub const CUBLASLT_MATMUL_TILE_48x128: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        93,
+    );
     /// Tile covering 48 rows and 192 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_48x192 = 94,
+    pub const CUBLASLT_MATMUL_TILE_48x192: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        94,
+    );
     /// Tile covering 48 rows and 256 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_48x256 = 95,
+    pub const CUBLASLT_MATMUL_TILE_48x256: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        95,
+    );
     /// Tile covering 48 rows and 320 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_48x320 = 96,
+    pub const CUBLASLT_MATMUL_TILE_48x320: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        96,
+    );
     /// Tile covering 48 rows and 384 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_48x384 = 97,
+    pub const CUBLASLT_MATMUL_TILE_48x384: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        97,
+    );
     /// Tile covering 48 rows and 448 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_48x448 = 98,
+    pub const CUBLASLT_MATMUL_TILE_48x448: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        98,
+    );
     /// Tile covering 48 rows and 512 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_48x512 = 99,
+    pub const CUBLASLT_MATMUL_TILE_48x512: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        99,
+    );
     /// Tile covering 48 rows and 576 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_48x576 = 100,
+    pub const CUBLASLT_MATMUL_TILE_48x576: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        100,
+    );
     /// Tile covering 48 rows and 640 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_48x640 = 101,
+    pub const CUBLASLT_MATMUL_TILE_48x640: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        101,
+    );
     /// Tile covering 48 rows and 704 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_48x704 = 102,
+    pub const CUBLASLT_MATMUL_TILE_48x704: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        102,
+    );
     /// Tile covering 48 rows and 768 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_48x768 = 103,
+    pub const CUBLASLT_MATMUL_TILE_48x768: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        103,
+    );
     /// Tile covering 56 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_56x64 = 104,
+    pub const CUBLASLT_MATMUL_TILE_56x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        104,
+    );
     /// Tile covering 56 rows and 128 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_56x128 = 105,
+    pub const CUBLASLT_MATMUL_TILE_56x128: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        105,
+    );
     /// Tile covering 56 rows and 192 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_56x192 = 106,
+    pub const CUBLASLT_MATMUL_TILE_56x192: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        106,
+    );
     /// Tile covering 56 rows and 256 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_56x256 = 107,
+    pub const CUBLASLT_MATMUL_TILE_56x256: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        107,
+    );
     /// Tile covering 56 rows and 320 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_56x320 = 108,
+    pub const CUBLASLT_MATMUL_TILE_56x320: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        108,
+    );
     /// Tile covering 56 rows and 384 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_56x384 = 109,
+    pub const CUBLASLT_MATMUL_TILE_56x384: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        109,
+    );
     /// Tile covering 56 rows and 448 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_56x448 = 110,
+    pub const CUBLASLT_MATMUL_TILE_56x448: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        110,
+    );
     /// Tile covering 56 rows and 512 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_56x512 = 111,
+    pub const CUBLASLT_MATMUL_TILE_56x512: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        111,
+    );
     /// Tile covering 56 rows and 576 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_56x576 = 112,
+    pub const CUBLASLT_MATMUL_TILE_56x576: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        112,
+    );
     /// Tile covering 56 rows and 640 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_56x640 = 113,
+    pub const CUBLASLT_MATMUL_TILE_56x640: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        113,
+    );
     /// Tile covering 56 rows and 704 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_56x704 = 114,
+    pub const CUBLASLT_MATMUL_TILE_56x704: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        114,
+    );
     /// Tile covering 56 rows and 768 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_56x768 = 115,
+    pub const CUBLASLT_MATMUL_TILE_56x768: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        115,
+    );
     /// Tile covering 64 rows and 192 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x192 = 116,
+    pub const CUBLASLT_MATMUL_TILE_64x192: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        116,
+    );
     /// Tile covering 64 rows and 320 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x320 = 117,
+    pub const CUBLASLT_MATMUL_TILE_64x320: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        117,
+    );
     /// Tile covering 64 rows and 384 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x384 = 118,
+    pub const CUBLASLT_MATMUL_TILE_64x384: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        118,
+    );
     /// Tile covering 64 rows and 448 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x448 = 119,
+    pub const CUBLASLT_MATMUL_TILE_64x448: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        119,
+    );
     /// Tile covering 64 rows and 576 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x576 = 120,
+    pub const CUBLASLT_MATMUL_TILE_64x576: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        120,
+    );
     /// Tile covering 64 rows and 640 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x640 = 121,
+    pub const CUBLASLT_MATMUL_TILE_64x640: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        121,
+    );
     /// Tile covering 64 rows and 704 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x704 = 122,
+    pub const CUBLASLT_MATMUL_TILE_64x704: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        122,
+    );
     /// Tile covering 64 rows and 768 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x768 = 123,
+    pub const CUBLASLT_MATMUL_TILE_64x768: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        123,
+    );
     /// Tile covering 72 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_72x64 = 124,
+    pub const CUBLASLT_MATMUL_TILE_72x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        124,
+    );
     /// Tile covering 72 rows and 128 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_72x128 = 125,
+    pub const CUBLASLT_MATMUL_TILE_72x128: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        125,
+    );
     /// Tile covering 72 rows and 192 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_72x192 = 126,
+    pub const CUBLASLT_MATMUL_TILE_72x192: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        126,
+    );
     /// Tile covering 72 rows and 256 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_72x256 = 127,
+    pub const CUBLASLT_MATMUL_TILE_72x256: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        127,
+    );
     /// Tile covering 72 rows and 320 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_72x320 = 128,
+    pub const CUBLASLT_MATMUL_TILE_72x320: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        128,
+    );
     /// Tile covering 72 rows and 384 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_72x384 = 129,
+    pub const CUBLASLT_MATMUL_TILE_72x384: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        129,
+    );
     /// Tile covering 72 rows and 448 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_72x448 = 130,
+    pub const CUBLASLT_MATMUL_TILE_72x448: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        130,
+    );
     /// Tile covering 72 rows and 512 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_72x512 = 131,
+    pub const CUBLASLT_MATMUL_TILE_72x512: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        131,
+    );
     /// Tile covering 72 rows and 576 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_72x576 = 132,
+    pub const CUBLASLT_MATMUL_TILE_72x576: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        132,
+    );
     /// Tile covering 72 rows and 640 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_72x640 = 133,
+    pub const CUBLASLT_MATMUL_TILE_72x640: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        133,
+    );
     /// Tile covering 80 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_80x64 = 134,
+    pub const CUBLASLT_MATMUL_TILE_80x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        134,
+    );
     /// Tile covering 80 rows and 128 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_80x128 = 135,
+    pub const CUBLASLT_MATMUL_TILE_80x128: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        135,
+    );
     /// Tile covering 80 rows and 192 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_80x192 = 136,
+    pub const CUBLASLT_MATMUL_TILE_80x192: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        136,
+    );
     /// Tile covering 80 rows and 256 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_80x256 = 137,
+    pub const CUBLASLT_MATMUL_TILE_80x256: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        137,
+    );
     /// Tile covering 80 rows and 320 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_80x320 = 138,
+    pub const CUBLASLT_MATMUL_TILE_80x320: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        138,
+    );
     /// Tile covering 80 rows and 384 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_80x384 = 139,
+    pub const CUBLASLT_MATMUL_TILE_80x384: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        139,
+    );
     /// Tile covering 80 rows and 448 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_80x448 = 140,
+    pub const CUBLASLT_MATMUL_TILE_80x448: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        140,
+    );
     /// Tile covering 80 rows and 512 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_80x512 = 141,
+    pub const CUBLASLT_MATMUL_TILE_80x512: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        141,
+    );
     /// Tile covering 80 rows and 576 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_80x576 = 142,
+    pub const CUBLASLT_MATMUL_TILE_80x576: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        142,
+    );
     /// Tile covering 88 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_88x64 = 143,
+    pub const CUBLASLT_MATMUL_TILE_88x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        143,
+    );
     /// Tile covering 88 rows and 128 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_88x128 = 144,
+    pub const CUBLASLT_MATMUL_TILE_88x128: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        144,
+    );
     /// Tile covering 88 rows and 192 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_88x192 = 145,
+    pub const CUBLASLT_MATMUL_TILE_88x192: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        145,
+    );
     /// Tile covering 88 rows and 256 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_88x256 = 146,
+    pub const CUBLASLT_MATMUL_TILE_88x256: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        146,
+    );
     /// Tile covering 88 rows and 320 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_88x320 = 147,
+    pub const CUBLASLT_MATMUL_TILE_88x320: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        147,
+    );
     /// Tile covering 88 rows and 384 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_88x384 = 148,
+    pub const CUBLASLT_MATMUL_TILE_88x384: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        148,
+    );
     /// Tile covering 88 rows and 448 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_88x448 = 149,
+    pub const CUBLASLT_MATMUL_TILE_88x448: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        149,
+    );
     /// Tile covering 88 rows and 512 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_88x512 = 150,
+    pub const CUBLASLT_MATMUL_TILE_88x512: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        150,
+    );
     /// Tile covering 96 rows and 192 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_96x192 = 151,
+    pub const CUBLASLT_MATMUL_TILE_96x192: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        151,
+    );
     /// Tile covering 96 rows and 256 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_96x256 = 152,
+    pub const CUBLASLT_MATMUL_TILE_96x256: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        152,
+    );
     /// Tile covering 96 rows and 320 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_96x320 = 153,
+    pub const CUBLASLT_MATMUL_TILE_96x320: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        153,
+    );
     /// Tile covering 96 rows and 384 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_96x384 = 154,
+    pub const CUBLASLT_MATMUL_TILE_96x384: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        154,
+    );
     /// Tile covering 96 rows and 448 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_96x448 = 155,
+    pub const CUBLASLT_MATMUL_TILE_96x448: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        155,
+    );
     /// Tile covering 96 rows and 512 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_96x512 = 156,
+    pub const CUBLASLT_MATMUL_TILE_96x512: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        156,
+    );
     /// Tile covering 104 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_104x64 = 157,
+    pub const CUBLASLT_MATMUL_TILE_104x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        157,
+    );
     /// Tile covering 104 rows and 128 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_104x128 = 158,
+    pub const CUBLASLT_MATMUL_TILE_104x128: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        158,
+    );
     /// Tile covering 104 rows and 192 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_104x192 = 159,
+    pub const CUBLASLT_MATMUL_TILE_104x192: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        159,
+    );
     /// Tile covering 104 rows and 256 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_104x256 = 160,
+    pub const CUBLASLT_MATMUL_TILE_104x256: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        160,
+    );
     /// Tile covering 104 rows and 320 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_104x320 = 161,
+    pub const CUBLASLT_MATMUL_TILE_104x320: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        161,
+    );
     /// Tile covering 104 rows and 384 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_104x384 = 162,
+    pub const CUBLASLT_MATMUL_TILE_104x384: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        162,
+    );
     /// Tile covering 104 rows and 448 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_104x448 = 163,
+    pub const CUBLASLT_MATMUL_TILE_104x448: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        163,
+    );
     /// Tile covering 112 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_112x64 = 164,
+    pub const CUBLASLT_MATMUL_TILE_112x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        164,
+    );
     /// Tile covering 112 rows and 128 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_112x128 = 165,
+    pub const CUBLASLT_MATMUL_TILE_112x128: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        165,
+    );
     /// Tile covering 112 rows and 192 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_112x192 = 166,
+    pub const CUBLASLT_MATMUL_TILE_112x192: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        166,
+    );
     /// Tile covering 112 rows and 256 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_112x256 = 167,
+    pub const CUBLASLT_MATMUL_TILE_112x256: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        167,
+    );
     /// Tile covering 112 rows and 320 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_112x320 = 168,
+    pub const CUBLASLT_MATMUL_TILE_112x320: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        168,
+    );
     /// Tile covering 112 rows and 384 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_112x384 = 169,
+    pub const CUBLASLT_MATMUL_TILE_112x384: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        169,
+    );
     /// Tile covering 120 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_120x64 = 170,
+    pub const CUBLASLT_MATMUL_TILE_120x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        170,
+    );
     /// Tile covering 120 rows and 128 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_120x128 = 171,
+    pub const CUBLASLT_MATMUL_TILE_120x128: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        171,
+    );
     /// Tile covering 120 rows and 192 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_120x192 = 172,
+    pub const CUBLASLT_MATMUL_TILE_120x192: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        172,
+    );
     /// Tile covering 120 rows and 256 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_120x256 = 173,
+    pub const CUBLASLT_MATMUL_TILE_120x256: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        173,
+    );
     /// Tile covering 120 rows and 320 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_120x320 = 174,
+    pub const CUBLASLT_MATMUL_TILE_120x320: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        174,
+    );
     /// Tile covering 120 rows and 384 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_120x384 = 175,
+    pub const CUBLASLT_MATMUL_TILE_120x384: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        175,
+    );
     /// Tile covering 128 rows and 320 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_128x320 = 176,
+    pub const CUBLASLT_MATMUL_TILE_128x320: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        176,
+    );
     /// Tile covering 128 rows and 384 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_128x384 = 177,
+    pub const CUBLASLT_MATMUL_TILE_128x384: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        177,
+    );
     /// Tile covering 136 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_136x64 = 178,
+    pub const CUBLASLT_MATMUL_TILE_136x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        178,
+    );
     /// Tile covering 136 rows and 128 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_136x128 = 179,
+    pub const CUBLASLT_MATMUL_TILE_136x128: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        179,
+    );
     /// Tile covering 136 rows and 192 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_136x192 = 180,
+    pub const CUBLASLT_MATMUL_TILE_136x192: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        180,
+    );
     /// Tile covering 136 rows and 256 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_136x256 = 181,
+    pub const CUBLASLT_MATMUL_TILE_136x256: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        181,
+    );
     /// Tile covering 136 rows and 320 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_136x320 = 182,
+    pub const CUBLASLT_MATMUL_TILE_136x320: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        182,
+    );
     /// Tile covering 144 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_144x64 = 183,
+    pub const CUBLASLT_MATMUL_TILE_144x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        183,
+    );
     /// Tile covering 144 rows and 128 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_144x128 = 184,
+    pub const CUBLASLT_MATMUL_TILE_144x128: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        184,
+    );
     /// Tile covering 144 rows and 192 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_144x192 = 185,
+    pub const CUBLASLT_MATMUL_TILE_144x192: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        185,
+    );
     /// Tile covering 144 rows and 256 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_144x256 = 186,
+    pub const CUBLASLT_MATMUL_TILE_144x256: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        186,
+    );
     /// Tile covering 144 rows and 320 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_144x320 = 187,
+    pub const CUBLASLT_MATMUL_TILE_144x320: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        187,
+    );
     /// Tile covering 152 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_152x64 = 188,
+    pub const CUBLASLT_MATMUL_TILE_152x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        188,
+    );
     /// Tile covering 152 rows and 128 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_152x128 = 189,
+    pub const CUBLASLT_MATMUL_TILE_152x128: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        189,
+    );
     /// Tile covering 152 rows and 192 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_152x192 = 190,
+    pub const CUBLASLT_MATMUL_TILE_152x192: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        190,
+    );
     /// Tile covering 152 rows and 256 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_152x256 = 191,
+    pub const CUBLASLT_MATMUL_TILE_152x256: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        191,
+    );
     /// Tile covering 152 rows and 320 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_152x320 = 192,
+    pub const CUBLASLT_MATMUL_TILE_152x320: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        192,
+    );
     /// Tile covering 160 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_160x64 = 193,
+    pub const CUBLASLT_MATMUL_TILE_160x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        193,
+    );
     /// Tile covering 160 rows and 192 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_160x192 = 194,
+    pub const CUBLASLT_MATMUL_TILE_160x192: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        194,
+    );
     /// Tile covering 160 rows and 256 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_160x256 = 195,
+    pub const CUBLASLT_MATMUL_TILE_160x256: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        195,
+    );
     /// Tile covering 168 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_168x64 = 196,
+    pub const CUBLASLT_MATMUL_TILE_168x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        196,
+    );
     /// Tile covering 168 rows and 128 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_168x128 = 197,
+    pub const CUBLASLT_MATMUL_TILE_168x128: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        197,
+    );
     /// Tile covering 168 rows and 192 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_168x192 = 198,
+    pub const CUBLASLT_MATMUL_TILE_168x192: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        198,
+    );
     /// Tile covering 168 rows and 256 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_168x256 = 199,
+    pub const CUBLASLT_MATMUL_TILE_168x256: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        199,
+    );
     /// Tile covering 176 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_176x64 = 200,
+    pub const CUBLASLT_MATMUL_TILE_176x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        200,
+    );
     /// Tile covering 176 rows and 128 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_176x128 = 201,
+    pub const CUBLASLT_MATMUL_TILE_176x128: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        201,
+    );
     /// Tile covering 176 rows and 192 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_176x192 = 202,
+    pub const CUBLASLT_MATMUL_TILE_176x192: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        202,
+    );
     /// Tile covering 176 rows and 256 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_176x256 = 203,
+    pub const CUBLASLT_MATMUL_TILE_176x256: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        203,
+    );
     /// Tile covering 184 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_184x64 = 204,
+    pub const CUBLASLT_MATMUL_TILE_184x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        204,
+    );
     /// Tile covering 184 rows and 128 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_184x128 = 205,
+    pub const CUBLASLT_MATMUL_TILE_184x128: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        205,
+    );
     /// Tile covering 184 rows and 192 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_184x192 = 206,
+    pub const CUBLASLT_MATMUL_TILE_184x192: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        206,
+    );
     /// Tile covering 184 rows and 256 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_184x256 = 207,
+    pub const CUBLASLT_MATMUL_TILE_184x256: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        207,
+    );
     /// Tile covering 192 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_192x64 = 208,
+    pub const CUBLASLT_MATMUL_TILE_192x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        208,
+    );
     /// Tile covering 192 rows and 192 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_192x192 = 209,
+    pub const CUBLASLT_MATMUL_TILE_192x192: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        209,
+    );
     /// Tile covering 192 rows and 256 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_192x256 = 210,
+    pub const CUBLASLT_MATMUL_TILE_192x256: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        210,
+    );
     /// Tile covering 200 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_200x64 = 211,
+    pub const CUBLASLT_MATMUL_TILE_200x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        211,
+    );
     /// Tile covering 200 rows and 128 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_200x128 = 212,
+    pub const CUBLASLT_MATMUL_TILE_200x128: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        212,
+    );
     /// Tile covering 200 rows and 192 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_200x192 = 213,
+    pub const CUBLASLT_MATMUL_TILE_200x192: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        213,
+    );
     /// Tile covering 208 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_208x64 = 214,
+    pub const CUBLASLT_MATMUL_TILE_208x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        214,
+    );
     /// Tile covering 208 rows and 128 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_208x128 = 215,
+    pub const CUBLASLT_MATMUL_TILE_208x128: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        215,
+    );
     /// Tile covering 208 rows and 192 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_208x192 = 216,
+    pub const CUBLASLT_MATMUL_TILE_208x192: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        216,
+    );
     /// Tile covering 216 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_216x64 = 217,
+    pub const CUBLASLT_MATMUL_TILE_216x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        217,
+    );
     /// Tile covering 216 rows and 128 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_216x128 = 218,
+    pub const CUBLASLT_MATMUL_TILE_216x128: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        218,
+    );
     /// Tile covering 216 rows and 192 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_216x192 = 219,
+    pub const CUBLASLT_MATMUL_TILE_216x192: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        219,
+    );
     /// Tile covering 224 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_224x64 = 220,
+    pub const CUBLASLT_MATMUL_TILE_224x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        220,
+    );
     /// Tile covering 224 rows and 128 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_224x128 = 221,
+    pub const CUBLASLT_MATMUL_TILE_224x128: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        221,
+    );
     /// Tile covering 224 rows and 192 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_224x192 = 222,
+    pub const CUBLASLT_MATMUL_TILE_224x192: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        222,
+    );
     /// Tile covering 232 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_232x64 = 223,
+    pub const CUBLASLT_MATMUL_TILE_232x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        223,
+    );
     /// Tile covering 232 rows and 128 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_232x128 = 224,
+    pub const CUBLASLT_MATMUL_TILE_232x128: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        224,
+    );
     /// Tile covering 232 rows and 192 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_232x192 = 225,
+    pub const CUBLASLT_MATMUL_TILE_232x192: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        225,
+    );
     /// Tile covering 240 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_240x64 = 226,
+    pub const CUBLASLT_MATMUL_TILE_240x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        226,
+    );
     /// Tile covering 240 rows and 128 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_240x128 = 227,
+    pub const CUBLASLT_MATMUL_TILE_240x128: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        227,
+    );
     /// Tile covering 240 rows and 192 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_240x192 = 228,
+    pub const CUBLASLT_MATMUL_TILE_240x192: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        228,
+    );
     /// Tile covering 248 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_248x64 = 229,
+    pub const CUBLASLT_MATMUL_TILE_248x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        229,
+    );
     /// Tile covering 248 rows and 128 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_248x128 = 230,
+    pub const CUBLASLT_MATMUL_TILE_248x128: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        230,
+    );
     /// Tile covering 248 rows and 192 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_248x192 = 231,
+    pub const CUBLASLT_MATMUL_TILE_248x192: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        231,
+    );
     /// Tile covering 256 rows and 192 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_256x192 = 232,
+    pub const CUBLASLT_MATMUL_TILE_256x192: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        232,
+    );
     /// Tile covering 264 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_264x64 = 233,
+    pub const CUBLASLT_MATMUL_TILE_264x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        233,
+    );
     /// Tile covering 264 rows and 128 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_264x128 = 234,
+    pub const CUBLASLT_MATMUL_TILE_264x128: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        234,
+    );
     /// Tile covering 272 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_272x64 = 235,
+    pub const CUBLASLT_MATMUL_TILE_272x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        235,
+    );
     /// Tile covering 272 rows and 128 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_272x128 = 236,
+    pub const CUBLASLT_MATMUL_TILE_272x128: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        236,
+    );
     /// Tile covering 280 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_280x64 = 237,
+    pub const CUBLASLT_MATMUL_TILE_280x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        237,
+    );
     /// Tile covering 280 rows and 128 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_280x128 = 238,
+    pub const CUBLASLT_MATMUL_TILE_280x128: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        238,
+    );
     /// Tile covering 288 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_288x64 = 239,
+    pub const CUBLASLT_MATMUL_TILE_288x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        239,
+    );
     /// Tile covering 288 rows and 128 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_288x128 = 240,
+    pub const CUBLASLT_MATMUL_TILE_288x128: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        240,
+    );
     /// Tile covering 296 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_296x64 = 241,
+    pub const CUBLASLT_MATMUL_TILE_296x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        241,
+    );
     /// Tile covering 296 rows and 128 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_296x128 = 242,
+    pub const CUBLASLT_MATMUL_TILE_296x128: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        242,
+    );
     /// Tile covering 304 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_304x64 = 243,
+    pub const CUBLASLT_MATMUL_TILE_304x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        243,
+    );
     /// Tile covering 304 rows and 128 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_304x128 = 244,
+    pub const CUBLASLT_MATMUL_TILE_304x128: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        244,
+    );
     /// Tile covering 312 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_312x64 = 245,
+    pub const CUBLASLT_MATMUL_TILE_312x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        245,
+    );
     /// Tile covering 312 rows and 128 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_312x128 = 246,
+    pub const CUBLASLT_MATMUL_TILE_312x128: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        246,
+    );
     /// Tile covering 320 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_320x64 = 247,
+    pub const CUBLASLT_MATMUL_TILE_320x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        247,
+    );
     /// Tile covering 320 rows and 128 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_320x128 = 248,
+    pub const CUBLASLT_MATMUL_TILE_320x128: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        248,
+    );
     /// Tile covering 328 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_328x64 = 249,
+    pub const CUBLASLT_MATMUL_TILE_328x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        249,
+    );
     /// Tile covering 328 rows and 128 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_328x128 = 250,
+    pub const CUBLASLT_MATMUL_TILE_328x128: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        250,
+    );
     /// Tile covering 336 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_336x64 = 251,
+    pub const CUBLASLT_MATMUL_TILE_336x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        251,
+    );
     /// Tile covering 336 rows and 128 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_336x128 = 252,
+    pub const CUBLASLT_MATMUL_TILE_336x128: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        252,
+    );
     /// Tile covering 344 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_344x64 = 253,
+    pub const CUBLASLT_MATMUL_TILE_344x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        253,
+    );
     /// Tile covering 344 rows and 128 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_344x128 = 254,
+    pub const CUBLASLT_MATMUL_TILE_344x128: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        254,
+    );
     /// Tile covering 352 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_352x64 = 255,
+    pub const CUBLASLT_MATMUL_TILE_352x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        255,
+    );
     /// Tile covering 352 rows and 128 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_352x128 = 256,
+    pub const CUBLASLT_MATMUL_TILE_352x128: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        256,
+    );
     /// Tile covering 360 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_360x64 = 257,
+    pub const CUBLASLT_MATMUL_TILE_360x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        257,
+    );
     /// Tile covering 360 rows and 128 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_360x128 = 258,
+    pub const CUBLASLT_MATMUL_TILE_360x128: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        258,
+    );
     /// Tile covering 368 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_368x64 = 259,
+    pub const CUBLASLT_MATMUL_TILE_368x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        259,
+    );
     /// Tile covering 368 rows and 128 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_368x128 = 260,
+    pub const CUBLASLT_MATMUL_TILE_368x128: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        260,
+    );
     /// Tile covering 376 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_376x64 = 261,
+    pub const CUBLASLT_MATMUL_TILE_376x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        261,
+    );
     /// Tile covering 376 rows and 128 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_376x128 = 262,
+    pub const CUBLASLT_MATMUL_TILE_376x128: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        262,
+    );
     /// Tile covering 384 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_384x64 = 263,
+    pub const CUBLASLT_MATMUL_TILE_384x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        263,
+    );
     /// Tile covering 384 rows and 128 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_384x128 = 264,
+    pub const CUBLASLT_MATMUL_TILE_384x128: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        264,
+    );
     /// Tile covering 392 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_392x64 = 265,
+    pub const CUBLASLT_MATMUL_TILE_392x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        265,
+    );
     /// Tile covering 400 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_400x64 = 266,
+    pub const CUBLASLT_MATMUL_TILE_400x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        266,
+    );
     /// Tile covering 408 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_408x64 = 267,
+    pub const CUBLASLT_MATMUL_TILE_408x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        267,
+    );
     /// Tile covering 416 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_416x64 = 268,
+    pub const CUBLASLT_MATMUL_TILE_416x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        268,
+    );
     /// Tile covering 424 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_424x64 = 269,
+    pub const CUBLASLT_MATMUL_TILE_424x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        269,
+    );
     /// Tile covering 432 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_432x64 = 270,
+    pub const CUBLASLT_MATMUL_TILE_432x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        270,
+    );
     /// Tile covering 440 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_440x64 = 271,
+    pub const CUBLASLT_MATMUL_TILE_440x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        271,
+    );
     /// Tile covering 448 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_448x64 = 272,
+    pub const CUBLASLT_MATMUL_TILE_448x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        272,
+    );
     /// Tile covering 456 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_456x64 = 273,
+    pub const CUBLASLT_MATMUL_TILE_456x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        273,
+    );
     /// Tile covering 464 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_464x64 = 274,
+    pub const CUBLASLT_MATMUL_TILE_464x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        274,
+    );
     /// Tile covering 472 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_472x64 = 275,
+    pub const CUBLASLT_MATMUL_TILE_472x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        275,
+    );
     /// Tile covering 480 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_480x64 = 276,
+    pub const CUBLASLT_MATMUL_TILE_480x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        276,
+    );
     /// Tile covering 488 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_488x64 = 277,
+    pub const CUBLASLT_MATMUL_TILE_488x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        277,
+    );
     /// Tile covering 496 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_496x64 = 278,
+    pub const CUBLASLT_MATMUL_TILE_496x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        278,
+    );
     /// Tile covering 504 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_504x64 = 279,
+    pub const CUBLASLT_MATMUL_TILE_504x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        279,
+    );
     /// Tile covering 520 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_520x64 = 280,
+    pub const CUBLASLT_MATMUL_TILE_520x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        280,
+    );
     /// Tile covering 528 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_528x64 = 281,
+    pub const CUBLASLT_MATMUL_TILE_528x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        281,
+    );
     /// Tile covering 536 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_536x64 = 282,
+    pub const CUBLASLT_MATMUL_TILE_536x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        282,
+    );
     /// Tile covering 544 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_544x64 = 283,
+    pub const CUBLASLT_MATMUL_TILE_544x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        283,
+    );
     /// Tile covering 552 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_552x64 = 284,
+    pub const CUBLASLT_MATMUL_TILE_552x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        284,
+    );
     /// Tile covering 560 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_560x64 = 285,
+    pub const CUBLASLT_MATMUL_TILE_560x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        285,
+    );
     /// Tile covering 568 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_568x64 = 286,
+    pub const CUBLASLT_MATMUL_TILE_568x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        286,
+    );
     /// Tile covering 576 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_576x64 = 287,
+    pub const CUBLASLT_MATMUL_TILE_576x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        287,
+    );
     /// Tile covering 584 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_584x64 = 288,
+    pub const CUBLASLT_MATMUL_TILE_584x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        288,
+    );
     /// Tile covering 592 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_592x64 = 289,
+    pub const CUBLASLT_MATMUL_TILE_592x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        289,
+    );
     /// Tile covering 600 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_600x64 = 290,
+    pub const CUBLASLT_MATMUL_TILE_600x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        290,
+    );
     /// Tile covering 608 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_608x64 = 291,
+    pub const CUBLASLT_MATMUL_TILE_608x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        291,
+    );
     /// Tile covering 616 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_616x64 = 292,
+    pub const CUBLASLT_MATMUL_TILE_616x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        292,
+    );
     /// Tile covering 624 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_624x64 = 293,
+    pub const CUBLASLT_MATMUL_TILE_624x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        293,
+    );
     /// Tile covering 632 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_632x64 = 294,
+    pub const CUBLASLT_MATMUL_TILE_632x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        294,
+    );
     /// Tile covering 640 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_640x64 = 295,
+    pub const CUBLASLT_MATMUL_TILE_640x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        295,
+    );
     /// Tile covering 648 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_648x64 = 296,
+    pub const CUBLASLT_MATMUL_TILE_648x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        296,
+    );
     /// Tile covering 656 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_656x64 = 297,
+    pub const CUBLASLT_MATMUL_TILE_656x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        297,
+    );
     /// Tile covering 664 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_664x64 = 298,
+    pub const CUBLASLT_MATMUL_TILE_664x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        298,
+    );
     /// Tile covering 672 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_672x64 = 299,
+    pub const CUBLASLT_MATMUL_TILE_672x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        299,
+    );
     /// Tile covering 680 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_680x64 = 300,
+    pub const CUBLASLT_MATMUL_TILE_680x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        300,
+    );
     /// Tile covering 688 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_688x64 = 301,
+    pub const CUBLASLT_MATMUL_TILE_688x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        301,
+    );
     /// Tile covering 696 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_696x64 = 302,
+    pub const CUBLASLT_MATMUL_TILE_696x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        302,
+    );
     /// Tile covering 704 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_704x64 = 303,
+    pub const CUBLASLT_MATMUL_TILE_704x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        303,
+    );
     /// Tile covering 712 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_712x64 = 304,
+    pub const CUBLASLT_MATMUL_TILE_712x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        304,
+    );
     /// Tile covering 720 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_720x64 = 305,
+    pub const CUBLASLT_MATMUL_TILE_720x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        305,
+    );
     /// Tile covering 728 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_728x64 = 306,
+    pub const CUBLASLT_MATMUL_TILE_728x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        306,
+    );
     /// Tile covering 736 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_736x64 = 307,
+    pub const CUBLASLT_MATMUL_TILE_736x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        307,
+    );
     /// Tile covering 744 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_744x64 = 308,
+    pub const CUBLASLT_MATMUL_TILE_744x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        308,
+    );
     /// Tile covering 752 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_752x64 = 309,
+    pub const CUBLASLT_MATMUL_TILE_752x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        309,
+    );
     /// Tile covering 760 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_760x64 = 310,
+    pub const CUBLASLT_MATMUL_TILE_760x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        310,
+    );
     /// Tile covering 768 rows and 64 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_768x64 = 311,
+    pub const CUBLASLT_MATMUL_TILE_768x64: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        311,
+    );
     /// Tile covering 64 rows and 16 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x16 = 312,
+    pub const CUBLASLT_MATMUL_TILE_64x16: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        312,
+    );
     /// Tile covering 64 rows and 24 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x24 = 313,
+    pub const CUBLASLT_MATMUL_TILE_64x24: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        313,
+    );
     /// Tile covering 64 rows and 40 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x40 = 314,
+    pub const CUBLASLT_MATMUL_TILE_64x40: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        314,
+    );
     /// Tile covering 64 rows and 48 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x48 = 315,
+    pub const CUBLASLT_MATMUL_TILE_64x48: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        315,
+    );
     /// Tile covering 64 rows and 56 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x56 = 316,
+    pub const CUBLASLT_MATMUL_TILE_64x56: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        316,
+    );
     /// Tile covering 64 rows and 72 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x72 = 317,
+    pub const CUBLASLT_MATMUL_TILE_64x72: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        317,
+    );
     /// Tile covering 64 rows and 80 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x80 = 318,
+    pub const CUBLASLT_MATMUL_TILE_64x80: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        318,
+    );
     /// Tile covering 64 rows and 88 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x88 = 319,
+    pub const CUBLASLT_MATMUL_TILE_64x88: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        319,
+    );
     /// Tile covering 64 rows and 104 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x104 = 320,
+    pub const CUBLASLT_MATMUL_TILE_64x104: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        320,
+    );
     /// Tile covering 64 rows and 112 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x112 = 321,
+    pub const CUBLASLT_MATMUL_TILE_64x112: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        321,
+    );
     /// Tile covering 64 rows and 120 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x120 = 322,
+    pub const CUBLASLT_MATMUL_TILE_64x120: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        322,
+    );
     /// Tile covering 64 rows and 136 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x136 = 323,
+    pub const CUBLASLT_MATMUL_TILE_64x136: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        323,
+    );
     /// Tile covering 64 rows and 144 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x144 = 324,
+    pub const CUBLASLT_MATMUL_TILE_64x144: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        324,
+    );
     /// Tile covering 64 rows and 152 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x152 = 325,
+    pub const CUBLASLT_MATMUL_TILE_64x152: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        325,
+    );
     /// Tile covering 64 rows and 160 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x160 = 326,
+    pub const CUBLASLT_MATMUL_TILE_64x160: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        326,
+    );
     /// Tile covering 64 rows and 168 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x168 = 327,
+    pub const CUBLASLT_MATMUL_TILE_64x168: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        327,
+    );
     /// Tile covering 64 rows and 176 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x176 = 328,
+    pub const CUBLASLT_MATMUL_TILE_64x176: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        328,
+    );
     /// Tile covering 64 rows and 184 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x184 = 329,
+    pub const CUBLASLT_MATMUL_TILE_64x184: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        329,
+    );
     /// Tile covering 64 rows and 200 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x200 = 330,
+    pub const CUBLASLT_MATMUL_TILE_64x200: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        330,
+    );
     /// Tile covering 64 rows and 208 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x208 = 331,
+    pub const CUBLASLT_MATMUL_TILE_64x208: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        331,
+    );
     /// Tile covering 64 rows and 216 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x216 = 332,
+    pub const CUBLASLT_MATMUL_TILE_64x216: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        332,
+    );
     /// Tile covering 64 rows and 224 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x224 = 333,
+    pub const CUBLASLT_MATMUL_TILE_64x224: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        333,
+    );
     /// Tile covering 64 rows and 232 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x232 = 334,
+    pub const CUBLASLT_MATMUL_TILE_64x232: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        334,
+    );
     /// Tile covering 64 rows and 240 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x240 = 335,
+    pub const CUBLASLT_MATMUL_TILE_64x240: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        335,
+    );
     /// Tile covering 64 rows and 248 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x248 = 336,
+    pub const CUBLASLT_MATMUL_TILE_64x248: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        336,
+    );
     /// Tile covering 64 rows and 264 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x264 = 337,
+    pub const CUBLASLT_MATMUL_TILE_64x264: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        337,
+    );
     /// Tile covering 64 rows and 272 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x272 = 338,
+    pub const CUBLASLT_MATMUL_TILE_64x272: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        338,
+    );
     /// Tile covering 64 rows and 280 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x280 = 339,
+    pub const CUBLASLT_MATMUL_TILE_64x280: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        339,
+    );
     /// Tile covering 64 rows and 288 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x288 = 340,
+    pub const CUBLASLT_MATMUL_TILE_64x288: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        340,
+    );
     /// Tile covering 64 rows and 296 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x296 = 341,
+    pub const CUBLASLT_MATMUL_TILE_64x296: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        341,
+    );
     /// Tile covering 64 rows and 304 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x304 = 342,
+    pub const CUBLASLT_MATMUL_TILE_64x304: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        342,
+    );
     /// Tile covering 64 rows and 312 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x312 = 343,
+    pub const CUBLASLT_MATMUL_TILE_64x312: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        343,
+    );
     /// Tile covering 64 rows and 328 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x328 = 344,
+    pub const CUBLASLT_MATMUL_TILE_64x328: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        344,
+    );
     /// Tile covering 64 rows and 336 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x336 = 345,
+    pub const CUBLASLT_MATMUL_TILE_64x336: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        345,
+    );
     /// Tile covering 64 rows and 344 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x344 = 346,
+    pub const CUBLASLT_MATMUL_TILE_64x344: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        346,
+    );
     /// Tile covering 64 rows and 352 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x352 = 347,
+    pub const CUBLASLT_MATMUL_TILE_64x352: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        347,
+    );
     /// Tile covering 64 rows and 360 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x360 = 348,
+    pub const CUBLASLT_MATMUL_TILE_64x360: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        348,
+    );
     /// Tile covering 64 rows and 368 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x368 = 349,
+    pub const CUBLASLT_MATMUL_TILE_64x368: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        349,
+    );
     /// Tile covering 64 rows and 376 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x376 = 350,
+    pub const CUBLASLT_MATMUL_TILE_64x376: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        350,
+    );
     /// Tile covering 64 rows and 392 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x392 = 351,
+    pub const CUBLASLT_MATMUL_TILE_64x392: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        351,
+    );
     /// Tile covering 64 rows and 400 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x400 = 352,
+    pub const CUBLASLT_MATMUL_TILE_64x400: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        352,
+    );
     /// Tile covering 64 rows and 408 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x408 = 353,
+    pub const CUBLASLT_MATMUL_TILE_64x408: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        353,
+    );
     /// Tile covering 64 rows and 416 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x416 = 354,
+    pub const CUBLASLT_MATMUL_TILE_64x416: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        354,
+    );
     /// Tile covering 64 rows and 424 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x424 = 355,
+    pub const CUBLASLT_MATMUL_TILE_64x424: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        355,
+    );
     /// Tile covering 64 rows and 432 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x432 = 356,
+    pub const CUBLASLT_MATMUL_TILE_64x432: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        356,
+    );
     /// Tile covering 64 rows and 440 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x440 = 357,
+    pub const CUBLASLT_MATMUL_TILE_64x440: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        357,
+    );
     /// Tile covering 64 rows and 456 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x456 = 358,
+    pub const CUBLASLT_MATMUL_TILE_64x456: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        358,
+    );
     /// Tile covering 64 rows and 464 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x464 = 359,
+    pub const CUBLASLT_MATMUL_TILE_64x464: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        359,
+    );
     /// Tile covering 64 rows and 472 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x472 = 360,
+    pub const CUBLASLT_MATMUL_TILE_64x472: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        360,
+    );
     /// Tile covering 64 rows and 480 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x480 = 361,
+    pub const CUBLASLT_MATMUL_TILE_64x480: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        361,
+    );
     /// Tile covering 64 rows and 488 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x488 = 362,
+    pub const CUBLASLT_MATMUL_TILE_64x488: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        362,
+    );
     /// Tile covering 64 rows and 496 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x496 = 363,
+    pub const CUBLASLT_MATMUL_TILE_64x496: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        363,
+    );
     /// Tile covering 64 rows and 504 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x504 = 364,
+    pub const CUBLASLT_MATMUL_TILE_64x504: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        364,
+    );
     /// Tile covering 64 rows and 520 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x520 = 365,
+    pub const CUBLASLT_MATMUL_TILE_64x520: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        365,
+    );
     /// Tile covering 64 rows and 528 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x528 = 366,
+    pub const CUBLASLT_MATMUL_TILE_64x528: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        366,
+    );
     /// Tile covering 64 rows and 536 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x536 = 367,
+    pub const CUBLASLT_MATMUL_TILE_64x536: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        367,
+    );
     /// Tile covering 64 rows and 544 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x544 = 368,
+    pub const CUBLASLT_MATMUL_TILE_64x544: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        368,
+    );
     /// Tile covering 64 rows and 552 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x552 = 369,
+    pub const CUBLASLT_MATMUL_TILE_64x552: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        369,
+    );
     /// Tile covering 64 rows and 560 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x560 = 370,
+    pub const CUBLASLT_MATMUL_TILE_64x560: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        370,
+    );
     /// Tile covering 64 rows and 568 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x568 = 371,
+    pub const CUBLASLT_MATMUL_TILE_64x568: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        371,
+    );
     /// Tile covering 64 rows and 584 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x584 = 372,
+    pub const CUBLASLT_MATMUL_TILE_64x584: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        372,
+    );
     /// Tile covering 64 rows and 592 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x592 = 373,
+    pub const CUBLASLT_MATMUL_TILE_64x592: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        373,
+    );
     /// Tile covering 64 rows and 600 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x600 = 374,
+    pub const CUBLASLT_MATMUL_TILE_64x600: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        374,
+    );
     /// Tile covering 64 rows and 608 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x608 = 375,
+    pub const CUBLASLT_MATMUL_TILE_64x608: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        375,
+    );
     /// Tile covering 64 rows and 616 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x616 = 376,
+    pub const CUBLASLT_MATMUL_TILE_64x616: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        376,
+    );
     /// Tile covering 64 rows and 624 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x624 = 377,
+    pub const CUBLASLT_MATMUL_TILE_64x624: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        377,
+    );
     /// Tile covering 64 rows and 632 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x632 = 378,
+    pub const CUBLASLT_MATMUL_TILE_64x632: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        378,
+    );
     /// Tile covering 64 rows and 648 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x648 = 379,
+    pub const CUBLASLT_MATMUL_TILE_64x648: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        379,
+    );
     /// Tile covering 64 rows and 656 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x656 = 380,
+    pub const CUBLASLT_MATMUL_TILE_64x656: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        380,
+    );
     /// Tile covering 64 rows and 664 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x664 = 381,
+    pub const CUBLASLT_MATMUL_TILE_64x664: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        381,
+    );
     /// Tile covering 64 rows and 672 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x672 = 382,
+    pub const CUBLASLT_MATMUL_TILE_64x672: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        382,
+    );
     /// Tile covering 64 rows and 680 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x680 = 383,
+    pub const CUBLASLT_MATMUL_TILE_64x680: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        383,
+    );
     /// Tile covering 64 rows and 688 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x688 = 384,
+    pub const CUBLASLT_MATMUL_TILE_64x688: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        384,
+    );
     /// Tile covering 64 rows and 696 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x696 = 385,
+    pub const CUBLASLT_MATMUL_TILE_64x696: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        385,
+    );
     /// Tile covering 64 rows and 712 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x712 = 386,
+    pub const CUBLASLT_MATMUL_TILE_64x712: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        386,
+    );
     /// Tile covering 64 rows and 720 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x720 = 387,
+    pub const CUBLASLT_MATMUL_TILE_64x720: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        387,
+    );
     /// Tile covering 64 rows and 728 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x728 = 388,
+    pub const CUBLASLT_MATMUL_TILE_64x728: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        388,
+    );
     /// Tile covering 64 rows and 736 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x736 = 389,
+    pub const CUBLASLT_MATMUL_TILE_64x736: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        389,
+    );
     /// Tile covering 64 rows and 744 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x744 = 390,
+    pub const CUBLASLT_MATMUL_TILE_64x744: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        390,
+    );
     /// Tile covering 64 rows and 752 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x752 = 391,
+    pub const CUBLASLT_MATMUL_TILE_64x752: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        391,
+    );
     /// Tile covering 64 rows and 760 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x760 = 392,
+    pub const CUBLASLT_MATMUL_TILE_64x760: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        392,
+    );
     /// Tile covering 128 rows and 8 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_128x8 = 393,
+    pub const CUBLASLT_MATMUL_TILE_128x8: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        393,
+    );
     /// Tile covering 128 rows and 16 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_128x16 = 394,
+    pub const CUBLASLT_MATMUL_TILE_128x16: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        394,
+    );
     /// Tile covering 128 rows and 24 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_128x24 = 395,
+    pub const CUBLASLT_MATMUL_TILE_128x24: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        395,
+    );
     /// Tile covering 128 rows and 40 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_128x40 = 396,
+    pub const CUBLASLT_MATMUL_TILE_128x40: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        396,
+    );
     /// Tile covering 128 rows and 48 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_128x48 = 397,
+    pub const CUBLASLT_MATMUL_TILE_128x48: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        397,
+    );
     /// Tile covering 128 rows and 56 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_128x56 = 398,
+    pub const CUBLASLT_MATMUL_TILE_128x56: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        398,
+    );
     /// Tile covering 128 rows and 72 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_128x72 = 399,
+    pub const CUBLASLT_MATMUL_TILE_128x72: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        399,
+    );
     /// Tile covering 128 rows and 80 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_128x80 = 400,
+    pub const CUBLASLT_MATMUL_TILE_128x80: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        400,
+    );
     /// Tile covering 128 rows and 88 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_128x88 = 401,
+    pub const CUBLASLT_MATMUL_TILE_128x88: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        401,
+    );
     /// Tile covering 128 rows and 104 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_128x104 = 402,
+    pub const CUBLASLT_MATMUL_TILE_128x104: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        402,
+    );
     /// Tile covering 128 rows and 112 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_128x112 = 403,
+    pub const CUBLASLT_MATMUL_TILE_128x112: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        403,
+    );
     /// Tile covering 128 rows and 120 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_128x120 = 404,
+    pub const CUBLASLT_MATMUL_TILE_128x120: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        404,
+    );
     /// Tile covering 128 rows and 136 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_128x136 = 405,
+    pub const CUBLASLT_MATMUL_TILE_128x136: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        405,
+    );
     /// Tile covering 128 rows and 144 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_128x144 = 406,
+    pub const CUBLASLT_MATMUL_TILE_128x144: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        406,
+    );
     /// Tile covering 128 rows and 152 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_128x152 = 407,
+    pub const CUBLASLT_MATMUL_TILE_128x152: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        407,
+    );
     /// Tile covering 128 rows and 168 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_128x168 = 408,
+    pub const CUBLASLT_MATMUL_TILE_128x168: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        408,
+    );
     /// Tile covering 128 rows and 176 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_128x176 = 409,
+    pub const CUBLASLT_MATMUL_TILE_128x176: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        409,
+    );
     /// Tile covering 128 rows and 184 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_128x184 = 410,
+    pub const CUBLASLT_MATMUL_TILE_128x184: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        410,
+    );
     /// Tile covering 128 rows and 200 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_128x200 = 411,
+    pub const CUBLASLT_MATMUL_TILE_128x200: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        411,
+    );
     /// Tile covering 128 rows and 208 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_128x208 = 412,
+    pub const CUBLASLT_MATMUL_TILE_128x208: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        412,
+    );
     /// Tile covering 128 rows and 216 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_128x216 = 413,
+    pub const CUBLASLT_MATMUL_TILE_128x216: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        413,
+    );
     /// Tile covering 128 rows and 224 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_128x224 = 414,
+    pub const CUBLASLT_MATMUL_TILE_128x224: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        414,
+    );
     /// Tile covering 128 rows and 232 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_128x232 = 415,
+    pub const CUBLASLT_MATMUL_TILE_128x232: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        415,
+    );
     /// Tile covering 128 rows and 240 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_128x240 = 416,
+    pub const CUBLASLT_MATMUL_TILE_128x240: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        416,
+    );
     /// Tile covering 128 rows and 248 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_128x248 = 417,
+    pub const CUBLASLT_MATMUL_TILE_128x248: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        417,
+    );
     /// Tile covering 128 rows and 264 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_128x264 = 418,
+    pub const CUBLASLT_MATMUL_TILE_128x264: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        418,
+    );
     /// Tile covering 128 rows and 272 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_128x272 = 419,
+    pub const CUBLASLT_MATMUL_TILE_128x272: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        419,
+    );
     /// Tile covering 128 rows and 280 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_128x280 = 420,
+    pub const CUBLASLT_MATMUL_TILE_128x280: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        420,
+    );
     /// Tile covering 128 rows and 288 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_128x288 = 421,
+    pub const CUBLASLT_MATMUL_TILE_128x288: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        421,
+    );
     /// Tile covering 128 rows and 296 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_128x296 = 422,
+    pub const CUBLASLT_MATMUL_TILE_128x296: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        422,
+    );
     /// Tile covering 128 rows and 304 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_128x304 = 423,
+    pub const CUBLASLT_MATMUL_TILE_128x304: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        423,
+    );
     /// Tile covering 128 rows and 312 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_128x312 = 424,
+    pub const CUBLASLT_MATMUL_TILE_128x312: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        424,
+    );
     /// Tile covering 128 rows and 328 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_128x328 = 425,
+    pub const CUBLASLT_MATMUL_TILE_128x328: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        425,
+    );
     /// Tile covering 128 rows and 336 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_128x336 = 426,
+    pub const CUBLASLT_MATMUL_TILE_128x336: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        426,
+    );
     /// Tile covering 128 rows and 344 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_128x344 = 427,
+    pub const CUBLASLT_MATMUL_TILE_128x344: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        427,
+    );
     /// Tile covering 128 rows and 352 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_128x352 = 428,
+    pub const CUBLASLT_MATMUL_TILE_128x352: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        428,
+    );
     /// Tile covering 128 rows and 360 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_128x360 = 429,
+    pub const CUBLASLT_MATMUL_TILE_128x360: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        429,
+    );
     /// Tile covering 128 rows and 368 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_128x368 = 430,
+    pub const CUBLASLT_MATMUL_TILE_128x368: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        430,
+    );
     /// Tile covering 128 rows and 376 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_128x376 = 431,
+    pub const CUBLASLT_MATMUL_TILE_128x376: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        431,
+    );
     /// Tile covering 128 rows and 392 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_128x392 = 432,
+    pub const CUBLASLT_MATMUL_TILE_128x392: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        432,
+    );
     /// Tile covering 128 rows and 400 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_128x400 = 433,
+    pub const CUBLASLT_MATMUL_TILE_128x400: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        433,
+    );
     /// Tile covering 128 rows and 408 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_128x408 = 434,
+    pub const CUBLASLT_MATMUL_TILE_128x408: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        434,
+    );
     /// Tile covering 128 rows and 416 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_128x416 = 435,
+    pub const CUBLASLT_MATMUL_TILE_128x416: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        435,
+    );
     /// Tile covering 128 rows and 424 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_128x424 = 436,
+    pub const CUBLASLT_MATMUL_TILE_128x424: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        436,
+    );
     /// Tile covering 128 rows and 432 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_128x432 = 437,
+    pub const CUBLASLT_MATMUL_TILE_128x432: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        437,
+    );
     /// Tile covering 128 rows and 440 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_128x440 = 438,
+    pub const CUBLASLT_MATMUL_TILE_128x440: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        438,
+    );
     /// Tile covering 128 rows and 448 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_128x448 = 439,
+    pub const CUBLASLT_MATMUL_TILE_128x448: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        439,
+    );
     /// Tile covering 128 rows and 456 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_128x456 = 440,
+    pub const CUBLASLT_MATMUL_TILE_128x456: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        440,
+    );
     /// Tile covering 128 rows and 464 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_128x464 = 441,
+    pub const CUBLASLT_MATMUL_TILE_128x464: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        441,
+    );
     /// Tile covering 128 rows and 472 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_128x472 = 442,
+    pub const CUBLASLT_MATMUL_TILE_128x472: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        442,
+    );
     /// Tile covering 128 rows and 480 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_128x480 = 443,
+    pub const CUBLASLT_MATMUL_TILE_128x480: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        443,
+    );
     /// Tile covering 128 rows and 488 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_128x488 = 444,
+    pub const CUBLASLT_MATMUL_TILE_128x488: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        444,
+    );
     /// Tile covering 128 rows and 496 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_128x496 = 445,
+    pub const CUBLASLT_MATMUL_TILE_128x496: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        445,
+    );
     /// Tile covering 128 rows and 504 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_128x504 = 446,
+    pub const CUBLASLT_MATMUL_TILE_128x504: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        446,
+    );
     /// Tile covering 128 rows and 512 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_128x512 = 447,
+    pub const CUBLASLT_MATMUL_TILE_128x512: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        447,
+    );
     /// Tile covering 192 rows and 8 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_192x8 = 448,
+    pub const CUBLASLT_MATMUL_TILE_192x8: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        448,
+    );
     /// Tile covering 192 rows and 16 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_192x16 = 449,
+    pub const CUBLASLT_MATMUL_TILE_192x16: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        449,
+    );
     /// Tile covering 192 rows and 24 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_192x24 = 450,
+    pub const CUBLASLT_MATMUL_TILE_192x24: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        450,
+    );
     /// Tile covering 192 rows and 32 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_192x32 = 451,
+    pub const CUBLASLT_MATMUL_TILE_192x32: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        451,
+    );
     /// Tile covering 192 rows and 40 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_192x40 = 452,
+    pub const CUBLASLT_MATMUL_TILE_192x40: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        452,
+    );
     /// Tile covering 192 rows and 48 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_192x48 = 453,
+    pub const CUBLASLT_MATMUL_TILE_192x48: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        453,
+    );
     /// Tile covering 192 rows and 56 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_192x56 = 454,
+    pub const CUBLASLT_MATMUL_TILE_192x56: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        454,
+    );
     /// Tile covering 192 rows and 72 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_192x72 = 455,
+    pub const CUBLASLT_MATMUL_TILE_192x72: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        455,
+    );
     /// Tile covering 192 rows and 80 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_192x80 = 456,
+    pub const CUBLASLT_MATMUL_TILE_192x80: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        456,
+    );
     /// Tile covering 192 rows and 88 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_192x88 = 457,
+    pub const CUBLASLT_MATMUL_TILE_192x88: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        457,
+    );
     /// Tile covering 192 rows and 96 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_192x96 = 458,
+    pub const CUBLASLT_MATMUL_TILE_192x96: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        458,
+    );
     /// Tile covering 192 rows and 104 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_192x104 = 459,
+    pub const CUBLASLT_MATMUL_TILE_192x104: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        459,
+    );
     /// Tile covering 192 rows and 112 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_192x112 = 460,
+    pub const CUBLASLT_MATMUL_TILE_192x112: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        460,
+    );
     /// Tile covering 192 rows and 120 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_192x120 = 461,
+    pub const CUBLASLT_MATMUL_TILE_192x120: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        461,
+    );
     /// Tile covering 192 rows and 136 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_192x136 = 462,
+    pub const CUBLASLT_MATMUL_TILE_192x136: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        462,
+    );
     /// Tile covering 192 rows and 144 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_192x144 = 463,
+    pub const CUBLASLT_MATMUL_TILE_192x144: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        463,
+    );
     /// Tile covering 192 rows and 152 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_192x152 = 464,
+    pub const CUBLASLT_MATMUL_TILE_192x152: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        464,
+    );
     /// Tile covering 192 rows and 160 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_192x160 = 465,
+    pub const CUBLASLT_MATMUL_TILE_192x160: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        465,
+    );
     /// Tile covering 192 rows and 168 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_192x168 = 466,
+    pub const CUBLASLT_MATMUL_TILE_192x168: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        466,
+    );
     /// Tile covering 192 rows and 176 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_192x176 = 467,
+    pub const CUBLASLT_MATMUL_TILE_192x176: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        467,
+    );
     /// Tile covering 192 rows and 184 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_192x184 = 468,
+    pub const CUBLASLT_MATMUL_TILE_192x184: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        468,
+    );
     /// Tile covering 192 rows and 200 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_192x200 = 469,
+    pub const CUBLASLT_MATMUL_TILE_192x200: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        469,
+    );
     /// Tile covering 192 rows and 208 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_192x208 = 470,
+    pub const CUBLASLT_MATMUL_TILE_192x208: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        470,
+    );
     /// Tile covering 192 rows and 216 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_192x216 = 471,
+    pub const CUBLASLT_MATMUL_TILE_192x216: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        471,
+    );
     /// Tile covering 192 rows and 224 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_192x224 = 472,
+    pub const CUBLASLT_MATMUL_TILE_192x224: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        472,
+    );
     /// Tile covering 192 rows and 232 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_192x232 = 473,
+    pub const CUBLASLT_MATMUL_TILE_192x232: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        473,
+    );
     /// Tile covering 192 rows and 240 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_192x240 = 474,
+    pub const CUBLASLT_MATMUL_TILE_192x240: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        474,
+    );
     /// Tile covering 192 rows and 248 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_192x248 = 475,
+    pub const CUBLASLT_MATMUL_TILE_192x248: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        475,
+    );
     /// Tile covering 192 rows and 264 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_192x264 = 476,
+    pub const CUBLASLT_MATMUL_TILE_192x264: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        476,
+    );
     /// Tile covering 192 rows and 272 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_192x272 = 477,
+    pub const CUBLASLT_MATMUL_TILE_192x272: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        477,
+    );
     /// Tile covering 192 rows and 280 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_192x280 = 478,
+    pub const CUBLASLT_MATMUL_TILE_192x280: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        478,
+    );
     /// Tile covering 192 rows and 288 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_192x288 = 479,
+    pub const CUBLASLT_MATMUL_TILE_192x288: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        479,
+    );
     /// Tile covering 192 rows and 296 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_192x296 = 480,
+    pub const CUBLASLT_MATMUL_TILE_192x296: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        480,
+    );
     /// Tile covering 192 rows and 304 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_192x304 = 481,
+    pub const CUBLASLT_MATMUL_TILE_192x304: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        481,
+    );
     /// Tile covering 192 rows and 312 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_192x312 = 482,
+    pub const CUBLASLT_MATMUL_TILE_192x312: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        482,
+    );
     /// Tile covering 192 rows and 320 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_192x320 = 483,
+    pub const CUBLASLT_MATMUL_TILE_192x320: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        483,
+    );
     /// Tile covering 192 rows and 328 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_192x328 = 484,
+    pub const CUBLASLT_MATMUL_TILE_192x328: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        484,
+    );
     /// Tile covering 192 rows and 336 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_192x336 = 485,
+    pub const CUBLASLT_MATMUL_TILE_192x336: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        485,
+    );
     /// Tile covering 256 rows and 8 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_256x8 = 486,
+    pub const CUBLASLT_MATMUL_TILE_256x8: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        486,
+    );
     /// Tile covering 256 rows and 16 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_256x16 = 487,
+    pub const CUBLASLT_MATMUL_TILE_256x16: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        487,
+    );
     /// Tile covering 256 rows and 24 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_256x24 = 488,
+    pub const CUBLASLT_MATMUL_TILE_256x24: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        488,
+    );
     /// Tile covering 256 rows and 40 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_256x40 = 489,
+    pub const CUBLASLT_MATMUL_TILE_256x40: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        489,
+    );
     /// Tile covering 256 rows and 48 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_256x48 = 490,
+    pub const CUBLASLT_MATMUL_TILE_256x48: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        490,
+    );
     /// Tile covering 256 rows and 56 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_256x56 = 491,
+    pub const CUBLASLT_MATMUL_TILE_256x56: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        491,
+    );
     /// Tile covering 256 rows and 72 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_256x72 = 492,
+    pub const CUBLASLT_MATMUL_TILE_256x72: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        492,
+    );
     /// Tile covering 256 rows and 80 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_256x80 = 493,
+    pub const CUBLASLT_MATMUL_TILE_256x80: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        493,
+    );
     /// Tile covering 256 rows and 88 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_256x88 = 494,
+    pub const CUBLASLT_MATMUL_TILE_256x88: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        494,
+    );
     /// Tile covering 256 rows and 96 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_256x96 = 495,
+    pub const CUBLASLT_MATMUL_TILE_256x96: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        495,
+    );
     /// Tile covering 256 rows and 104 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_256x104 = 496,
+    pub const CUBLASLT_MATMUL_TILE_256x104: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        496,
+    );
     /// Tile covering 256 rows and 112 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_256x112 = 497,
+    pub const CUBLASLT_MATMUL_TILE_256x112: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        497,
+    );
     /// Tile covering 256 rows and 120 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_256x120 = 498,
+    pub const CUBLASLT_MATMUL_TILE_256x120: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        498,
+    );
     /// Tile covering 256 rows and 136 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_256x136 = 499,
+    pub const CUBLASLT_MATMUL_TILE_256x136: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        499,
+    );
     /// Tile covering 256 rows and 144 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_256x144 = 500,
+    pub const CUBLASLT_MATMUL_TILE_256x144: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        500,
+    );
     /// Tile covering 256 rows and 152 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_256x152 = 501,
+    pub const CUBLASLT_MATMUL_TILE_256x152: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        501,
+    );
     /// Tile covering 256 rows and 160 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_256x160 = 502,
+    pub const CUBLASLT_MATMUL_TILE_256x160: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        502,
+    );
     /// Tile covering 256 rows and 168 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_256x168 = 503,
+    pub const CUBLASLT_MATMUL_TILE_256x168: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        503,
+    );
     /// Tile covering 256 rows and 176 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_256x176 = 504,
+    pub const CUBLASLT_MATMUL_TILE_256x176: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        504,
+    );
     /// Tile covering 256 rows and 184 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_256x184 = 505,
+    pub const CUBLASLT_MATMUL_TILE_256x184: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        505,
+    );
     /// Tile covering 256 rows and 200 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_256x200 = 506,
+    pub const CUBLASLT_MATMUL_TILE_256x200: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        506,
+    );
     /// Tile covering 256 rows and 208 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_256x208 = 507,
+    pub const CUBLASLT_MATMUL_TILE_256x208: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        507,
+    );
     /// Tile covering 256 rows and 216 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_256x216 = 508,
+    pub const CUBLASLT_MATMUL_TILE_256x216: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        508,
+    );
     /// Tile covering 256 rows and 224 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_256x224 = 509,
+    pub const CUBLASLT_MATMUL_TILE_256x224: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        509,
+    );
     /// Tile covering 256 rows and 232 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_256x232 = 510,
+    pub const CUBLASLT_MATMUL_TILE_256x232: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        510,
+    );
     /// Tile covering 256 rows and 240 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_256x240 = 511,
+    pub const CUBLASLT_MATMUL_TILE_256x240: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        511,
+    );
     /// Tile covering 256 rows and 248 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_256x248 = 512,
+    pub const CUBLASLT_MATMUL_TILE_256x248: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        512,
+    );
     /// Tile covering 256 rows and 256 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_256x256 = 513,
+    pub const CUBLASLT_MATMUL_TILE_256x256: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        513,
+    );
     /// Tile covering 320 rows and 8 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_320x8 = 514,
+    pub const CUBLASLT_MATMUL_TILE_320x8: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        514,
+    );
     /// Tile covering 320 rows and 16 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_320x16 = 515,
+    pub const CUBLASLT_MATMUL_TILE_320x16: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        515,
+    );
     /// Tile covering 320 rows and 24 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_320x24 = 516,
+    pub const CUBLASLT_MATMUL_TILE_320x24: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        516,
+    );
     /// Tile covering 320 rows and 32 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_320x32 = 517,
+    pub const CUBLASLT_MATMUL_TILE_320x32: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        517,
+    );
     /// Tile covering 320 rows and 40 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_320x40 = 518,
+    pub const CUBLASLT_MATMUL_TILE_320x40: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        518,
+    );
     /// Tile covering 320 rows and 48 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_320x48 = 519,
+    pub const CUBLASLT_MATMUL_TILE_320x48: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        519,
+    );
     /// Tile covering 320 rows and 56 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_320x56 = 520,
+    pub const CUBLASLT_MATMUL_TILE_320x56: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        520,
+    );
     /// Tile covering 320 rows and 72 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_320x72 = 521,
+    pub const CUBLASLT_MATMUL_TILE_320x72: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        521,
+    );
     /// Tile covering 320 rows and 80 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_320x80 = 522,
+    pub const CUBLASLT_MATMUL_TILE_320x80: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        522,
+    );
     /// Tile covering 320 rows and 88 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_320x88 = 523,
+    pub const CUBLASLT_MATMUL_TILE_320x88: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        523,
+    );
     /// Tile covering 320 rows and 96 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_320x96 = 524,
+    pub const CUBLASLT_MATMUL_TILE_320x96: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        524,
+    );
     /// Tile covering 320 rows and 104 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_320x104 = 525,
+    pub const CUBLASLT_MATMUL_TILE_320x104: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        525,
+    );
     /// Tile covering 320 rows and 112 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_320x112 = 526,
+    pub const CUBLASLT_MATMUL_TILE_320x112: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        526,
+    );
     /// Tile covering 320 rows and 120 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_320x120 = 527,
+    pub const CUBLASLT_MATMUL_TILE_320x120: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        527,
+    );
     /// Tile covering 320 rows and 136 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_320x136 = 528,
+    pub const CUBLASLT_MATMUL_TILE_320x136: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        528,
+    );
     /// Tile covering 320 rows and 144 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_320x144 = 529,
+    pub const CUBLASLT_MATMUL_TILE_320x144: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        529,
+    );
     /// Tile covering 320 rows and 152 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_320x152 = 530,
+    pub const CUBLASLT_MATMUL_TILE_320x152: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        530,
+    );
     /// Tile covering 320 rows and 160 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_320x160 = 531,
+    pub const CUBLASLT_MATMUL_TILE_320x160: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        531,
+    );
     /// Tile covering 320 rows and 168 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_320x168 = 532,
+    pub const CUBLASLT_MATMUL_TILE_320x168: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        532,
+    );
     /// Tile covering 320 rows and 176 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_320x176 = 533,
+    pub const CUBLASLT_MATMUL_TILE_320x176: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        533,
+    );
     /// Tile covering 320 rows and 184 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_320x184 = 534,
+    pub const CUBLASLT_MATMUL_TILE_320x184: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        534,
+    );
     /// Tile covering 320 rows and 192 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_320x192 = 535,
+    pub const CUBLASLT_MATMUL_TILE_320x192: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        535,
+    );
     /// Tile covering 320 rows and 200 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_320x200 = 536,
+    pub const CUBLASLT_MATMUL_TILE_320x200: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        536,
+    );
     /// Tile covering 384 rows and 8 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_384x8 = 537,
+    pub const CUBLASLT_MATMUL_TILE_384x8: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        537,
+    );
     /// Tile covering 384 rows and 16 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_384x16 = 538,
+    pub const CUBLASLT_MATMUL_TILE_384x16: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        538,
+    );
     /// Tile covering 384 rows and 24 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_384x24 = 539,
+    pub const CUBLASLT_MATMUL_TILE_384x24: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        539,
+    );
     /// Tile covering 384 rows and 32 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_384x32 = 540,
+    pub const CUBLASLT_MATMUL_TILE_384x32: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        540,
+    );
     /// Tile covering 384 rows and 40 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_384x40 = 541,
+    pub const CUBLASLT_MATMUL_TILE_384x40: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        541,
+    );
     /// Tile covering 384 rows and 48 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_384x48 = 542,
+    pub const CUBLASLT_MATMUL_TILE_384x48: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        542,
+    );
     /// Tile covering 384 rows and 56 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_384x56 = 543,
+    pub const CUBLASLT_MATMUL_TILE_384x56: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        543,
+    );
     /// Tile covering 384 rows and 72 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_384x72 = 544,
+    pub const CUBLASLT_MATMUL_TILE_384x72: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        544,
+    );
     /// Tile covering 384 rows and 80 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_384x80 = 545,
+    pub const CUBLASLT_MATMUL_TILE_384x80: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        545,
+    );
     /// Tile covering 384 rows and 88 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_384x88 = 546,
+    pub const CUBLASLT_MATMUL_TILE_384x88: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        546,
+    );
     /// Tile covering 384 rows and 96 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_384x96 = 547,
+    pub const CUBLASLT_MATMUL_TILE_384x96: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        547,
+    );
     /// Tile covering 384 rows and 104 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_384x104 = 548,
+    pub const CUBLASLT_MATMUL_TILE_384x104: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        548,
+    );
     /// Tile covering 384 rows and 112 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_384x112 = 549,
+    pub const CUBLASLT_MATMUL_TILE_384x112: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        549,
+    );
     /// Tile covering 384 rows and 120 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_384x120 = 550,
+    pub const CUBLASLT_MATMUL_TILE_384x120: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        550,
+    );
     /// Tile covering 384 rows and 136 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_384x136 = 551,
+    pub const CUBLASLT_MATMUL_TILE_384x136: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        551,
+    );
     /// Tile covering 384 rows and 144 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_384x144 = 552,
+    pub const CUBLASLT_MATMUL_TILE_384x144: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        552,
+    );
     /// Tile covering 384 rows and 152 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_384x152 = 553,
+    pub const CUBLASLT_MATMUL_TILE_384x152: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        553,
+    );
     /// Tile covering 384 rows and 160 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_384x160 = 554,
+    pub const CUBLASLT_MATMUL_TILE_384x160: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        554,
+    );
     /// Tile covering 384 rows and 168 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_384x168 = 555,
+    pub const CUBLASLT_MATMUL_TILE_384x168: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        555,
+    );
     /// Tile covering 448 rows and 8 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_448x8 = 556,
+    pub const CUBLASLT_MATMUL_TILE_448x8: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        556,
+    );
     /// Tile covering 448 rows and 16 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_448x16 = 557,
+    pub const CUBLASLT_MATMUL_TILE_448x16: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        557,
+    );
     /// Tile covering 448 rows and 24 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_448x24 = 558,
+    pub const CUBLASLT_MATMUL_TILE_448x24: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        558,
+    );
     /// Tile covering 448 rows and 32 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_448x32 = 559,
+    pub const CUBLASLT_MATMUL_TILE_448x32: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        559,
+    );
     /// Tile covering 448 rows and 40 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_448x40 = 560,
+    pub const CUBLASLT_MATMUL_TILE_448x40: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        560,
+    );
     /// Tile covering 448 rows and 48 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_448x48 = 561,
+    pub const CUBLASLT_MATMUL_TILE_448x48: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        561,
+    );
     /// Tile covering 448 rows and 56 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_448x56 = 562,
+    pub const CUBLASLT_MATMUL_TILE_448x56: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        562,
+    );
     /// Tile covering 448 rows and 72 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_448x72 = 563,
+    pub const CUBLASLT_MATMUL_TILE_448x72: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        563,
+    );
     /// Tile covering 448 rows and 80 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_448x80 = 564,
+    pub const CUBLASLT_MATMUL_TILE_448x80: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        564,
+    );
     /// Tile covering 448 rows and 88 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_448x88 = 565,
+    pub const CUBLASLT_MATMUL_TILE_448x88: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        565,
+    );
     /// Tile covering 448 rows and 96 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_448x96 = 566,
+    pub const CUBLASLT_MATMUL_TILE_448x96: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        566,
+    );
     /// Tile covering 448 rows and 104 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_448x104 = 567,
+    pub const CUBLASLT_MATMUL_TILE_448x104: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        567,
+    );
     /// Tile covering 448 rows and 112 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_448x112 = 568,
+    pub const CUBLASLT_MATMUL_TILE_448x112: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        568,
+    );
     /// Tile covering 448 rows and 120 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_448x120 = 569,
+    pub const CUBLASLT_MATMUL_TILE_448x120: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        569,
+    );
     /// Tile covering 448 rows and 128 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_448x128 = 570,
+    pub const CUBLASLT_MATMUL_TILE_448x128: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        570,
+    );
     /// Tile covering 448 rows and 136 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_448x136 = 571,
+    pub const CUBLASLT_MATMUL_TILE_448x136: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        571,
+    );
     /// Tile covering 448 rows and 144 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_448x144 = 572,
+    pub const CUBLASLT_MATMUL_TILE_448x144: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        572,
+    );
     /// Tile covering 512 rows and 8 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_512x8 = 573,
+    pub const CUBLASLT_MATMUL_TILE_512x8: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        573,
+    );
     /// Tile covering 512 rows and 16 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_512x16 = 574,
+    pub const CUBLASLT_MATMUL_TILE_512x16: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        574,
+    );
     /// Tile covering 512 rows and 24 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_512x24 = 575,
+    pub const CUBLASLT_MATMUL_TILE_512x24: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        575,
+    );
     /// Tile covering 512 rows and 32 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_512x32 = 576,
+    pub const CUBLASLT_MATMUL_TILE_512x32: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        576,
+    );
     /// Tile covering 512 rows and 40 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_512x40 = 577,
+    pub const CUBLASLT_MATMUL_TILE_512x40: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        577,
+    );
     /// Tile covering 512 rows and 48 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_512x48 = 578,
+    pub const CUBLASLT_MATMUL_TILE_512x48: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        578,
+    );
     /// Tile covering 512 rows and 56 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_512x56 = 579,
+    pub const CUBLASLT_MATMUL_TILE_512x56: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        579,
+    );
     /// Tile covering 512 rows and 72 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_512x72 = 580,
+    pub const CUBLASLT_MATMUL_TILE_512x72: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        580,
+    );
     /// Tile covering 512 rows and 80 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_512x80 = 581,
+    pub const CUBLASLT_MATMUL_TILE_512x80: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        581,
+    );
     /// Tile covering 512 rows and 88 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_512x88 = 582,
+    pub const CUBLASLT_MATMUL_TILE_512x88: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        582,
+    );
     /// Tile covering 512 rows and 96 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_512x96 = 583,
+    pub const CUBLASLT_MATMUL_TILE_512x96: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        583,
+    );
     /// Tile covering 512 rows and 104 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_512x104 = 584,
+    pub const CUBLASLT_MATMUL_TILE_512x104: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        584,
+    );
     /// Tile covering 512 rows and 112 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_512x112 = 585,
+    pub const CUBLASLT_MATMUL_TILE_512x112: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        585,
+    );
     /// Tile covering 512 rows and 120 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_512x120 = 586,
+    pub const CUBLASLT_MATMUL_TILE_512x120: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        586,
+    );
     /// Tile covering 512 rows and 128 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_512x128 = 587,
+    pub const CUBLASLT_MATMUL_TILE_512x128: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        587,
+    );
     /// Tile covering 576 rows and 8 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_576x8 = 588,
+    pub const CUBLASLT_MATMUL_TILE_576x8: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        588,
+    );
     /// Tile covering 576 rows and 16 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_576x16 = 589,
+    pub const CUBLASLT_MATMUL_TILE_576x16: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        589,
+    );
     /// Tile covering 576 rows and 24 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_576x24 = 590,
+    pub const CUBLASLT_MATMUL_TILE_576x24: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        590,
+    );
     /// Tile covering 576 rows and 32 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_576x32 = 591,
+    pub const CUBLASLT_MATMUL_TILE_576x32: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        591,
+    );
     /// Tile covering 576 rows and 40 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_576x40 = 592,
+    pub const CUBLASLT_MATMUL_TILE_576x40: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        592,
+    );
     /// Tile covering 576 rows and 48 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_576x48 = 593,
+    pub const CUBLASLT_MATMUL_TILE_576x48: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        593,
+    );
     /// Tile covering 576 rows and 56 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_576x56 = 594,
+    pub const CUBLASLT_MATMUL_TILE_576x56: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        594,
+    );
     /// Tile covering 576 rows and 72 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_576x72 = 595,
+    pub const CUBLASLT_MATMUL_TILE_576x72: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        595,
+    );
     /// Tile covering 576 rows and 80 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_576x80 = 596,
+    pub const CUBLASLT_MATMUL_TILE_576x80: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        596,
+    );
     /// Tile covering 576 rows and 88 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_576x88 = 597,
+    pub const CUBLASLT_MATMUL_TILE_576x88: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        597,
+    );
     /// Tile covering 576 rows and 96 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_576x96 = 598,
+    pub const CUBLASLT_MATMUL_TILE_576x96: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        598,
+    );
     /// Tile covering 576 rows and 104 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_576x104 = 599,
+    pub const CUBLASLT_MATMUL_TILE_576x104: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        599,
+    );
     /// Tile covering 576 rows and 112 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_576x112 = 600,
+    pub const CUBLASLT_MATMUL_TILE_576x112: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        600,
+    );
     /// Tile covering 640 rows and 8 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_640x8 = 601,
+    pub const CUBLASLT_MATMUL_TILE_640x8: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        601,
+    );
     /// Tile covering 640 rows and 16 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_640x16 = 602,
+    pub const CUBLASLT_MATMUL_TILE_640x16: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        602,
+    );
     /// Tile covering 640 rows and 24 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_640x24 = 603,
+    pub const CUBLASLT_MATMUL_TILE_640x24: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        603,
+    );
     /// Tile covering 640 rows and 32 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_640x32 = 604,
+    pub const CUBLASLT_MATMUL_TILE_640x32: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        604,
+    );
     /// Tile covering 640 rows and 40 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_640x40 = 605,
+    pub const CUBLASLT_MATMUL_TILE_640x40: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        605,
+    );
     /// Tile covering 640 rows and 48 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_640x48 = 606,
+    pub const CUBLASLT_MATMUL_TILE_640x48: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        606,
+    );
     /// Tile covering 640 rows and 56 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_640x56 = 607,
+    pub const CUBLASLT_MATMUL_TILE_640x56: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        607,
+    );
     /// Tile covering 640 rows and 72 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_640x72 = 608,
+    pub const CUBLASLT_MATMUL_TILE_640x72: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        608,
+    );
     /// Tile covering 640 rows and 80 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_640x80 = 609,
+    pub const CUBLASLT_MATMUL_TILE_640x80: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        609,
+    );
     /// Tile covering 640 rows and 88 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_640x88 = 610,
+    pub const CUBLASLT_MATMUL_TILE_640x88: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        610,
+    );
     /// Tile covering 640 rows and 96 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_640x96 = 611,
+    pub const CUBLASLT_MATMUL_TILE_640x96: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        611,
+    );
     /// Tile covering 704 rows and 8 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_704x8 = 612,
+    pub const CUBLASLT_MATMUL_TILE_704x8: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        612,
+    );
     /// Tile covering 704 rows and 16 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_704x16 = 613,
+    pub const CUBLASLT_MATMUL_TILE_704x16: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        613,
+    );
     /// Tile covering 704 rows and 24 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_704x24 = 614,
+    pub const CUBLASLT_MATMUL_TILE_704x24: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        614,
+    );
     /// Tile covering 704 rows and 32 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_704x32 = 615,
+    pub const CUBLASLT_MATMUL_TILE_704x32: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        615,
+    );
     /// Tile covering 704 rows and 40 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_704x40 = 616,
+    pub const CUBLASLT_MATMUL_TILE_704x40: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        616,
+    );
     /// Tile covering 704 rows and 48 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_704x48 = 617,
+    pub const CUBLASLT_MATMUL_TILE_704x48: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        617,
+    );
     /// Tile covering 704 rows and 56 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_704x56 = 618,
+    pub const CUBLASLT_MATMUL_TILE_704x56: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        618,
+    );
     /// Tile covering 704 rows and 72 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_704x72 = 619,
+    pub const CUBLASLT_MATMUL_TILE_704x72: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        619,
+    );
     /// Tile covering 704 rows and 80 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_704x80 = 620,
+    pub const CUBLASLT_MATMUL_TILE_704x80: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        620,
+    );
     /// Tile covering 704 rows and 88 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_704x88 = 621,
+    pub const CUBLASLT_MATMUL_TILE_704x88: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        621,
+    );
     /// Tile covering 768 rows and 8 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_768x8 = 622,
+    pub const CUBLASLT_MATMUL_TILE_768x8: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        622,
+    );
     /// Tile covering 768 rows and 16 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_768x16 = 623,
+    pub const CUBLASLT_MATMUL_TILE_768x16: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        623,
+    );
     /// Tile covering 768 rows and 24 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_768x24 = 624,
+    pub const CUBLASLT_MATMUL_TILE_768x24: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        624,
+    );
     /// Tile covering 768 rows and 32 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_768x32 = 625,
+    pub const CUBLASLT_MATMUL_TILE_768x32: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        625,
+    );
     /// Tile covering 768 rows and 40 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_768x40 = 626,
+    pub const CUBLASLT_MATMUL_TILE_768x40: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        626,
+    );
     /// Tile covering 768 rows and 48 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_768x48 = 627,
+    pub const CUBLASLT_MATMUL_TILE_768x48: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        627,
+    );
     /// Tile covering 768 rows and 56 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_768x56 = 628,
+    pub const CUBLASLT_MATMUL_TILE_768x56: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        628,
+    );
     /// Tile covering 768 rows and 72 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_768x72 = 629,
+    pub const CUBLASLT_MATMUL_TILE_768x72: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        629,
+    );
     /// Tile covering 768 rows and 80 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_768x80 = 630,
+    pub const CUBLASLT_MATMUL_TILE_768x80: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        630,
+    );
     /// Tile covering 256 rows and 512 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_256x512 = 631,
+    pub const CUBLASLT_MATMUL_TILE_256x512: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        631,
+    );
     /// Tile covering 256 rows and 1024 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_256x1024 = 632,
+    pub const CUBLASLT_MATMUL_TILE_256x1024: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        632,
+    );
     /// Tile covering 512 rows and 512 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_512x512 = 633,
+    pub const CUBLASLT_MATMUL_TILE_512x512: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        633,
+    );
     /// Tile covering 512 rows and 1024 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_512x1024 = 634,
+    pub const CUBLASLT_MATMUL_TILE_512x1024: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        634,
+    );
     /// Tile covering 4 rows and 1 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_4x1 = 635,
+    pub const CUBLASLT_MATMUL_TILE_4x1: cublasLtMatmulTile_t = cublasLtMatmulTile_t(635);
     /// Tile covering 8 rows and 1 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_8x1 = 636,
+    pub const CUBLASLT_MATMUL_TILE_8x1: cublasLtMatmulTile_t = cublasLtMatmulTile_t(636);
     /// Tile covering 16 rows and 1 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_16x1 = 637,
+    pub const CUBLASLT_MATMUL_TILE_16x1: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        637,
+    );
     /// Tile covering 24 rows and 1 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_24x1 = 638,
+    pub const CUBLASLT_MATMUL_TILE_24x1: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        638,
+    );
     /// Tile covering 32 rows and 1 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_32x1 = 639,
+    pub const CUBLASLT_MATMUL_TILE_32x1: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        639,
+    );
     /// Tile covering 40 rows and 1 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_40x1 = 640,
+    pub const CUBLASLT_MATMUL_TILE_40x1: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        640,
+    );
     /// Tile covering 48 rows and 1 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_48x1 = 641,
+    pub const CUBLASLT_MATMUL_TILE_48x1: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        641,
+    );
     /// Tile covering 64 rows and 1 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_64x1 = 642,
+    pub const CUBLASLT_MATMUL_TILE_64x1: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        642,
+    );
     /// Tile covering 128 rows and 1 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_128x1 = 643,
+    pub const CUBLASLT_MATMUL_TILE_128x1: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        643,
+    );
     /// Tile covering 192 rows and 1 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_192x1 = 644,
+    pub const CUBLASLT_MATMUL_TILE_192x1: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        644,
+    );
     /// Tile covering 256 rows and 1 columns of the C/D matrices.
-    CUBLASLT_MATMUL_TILE_256x1 = 645,
+    pub const CUBLASLT_MATMUL_TILE_256x1: cublasLtMatmulTile_t = cublasLtMatmulTile_t(
+        645,
+    );
     /// One past the last native matrix multiplication tile identifier. Used as a bound when enumerating supported tile IDs.
-    CUBLASLT_MATMUL_TILE_END = 646,
+    pub const CUBLASLT_MATMUL_TILE_END: cublasLtMatmulTile_t = cublasLtMatmulTile_t(646);
+}
+/// [`cublasLtMatmulTile_t`] is an enumerated type used to set the tile size in `rows x columns.` See also [CUTLASS: Fast Linear Algebra in CUDA C++](https://www.google.com/url?q=https://devblogs.nvidia.com/cutlass-linear-algebra-cuda/&sa=D&ust=1543610995532000&usg=AFQjCNE3tHlNsXDOnOhbVeeH1uXWQFLzLA).
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cublasLtMatmulTile_t(pub ::core::ffi::c_uint);
+impl cublasLtMatmulStages_t {
+    /// Stage size is undefined.
+    pub const CUBLASLT_MATMUL_STAGES_UNDEFINED: cublasLtMatmulStages_t = cublasLtMatmulStages_t(
+        0,
+    );
+    /// Stage size is 16, number of stages is 1.
+    pub const CUBLASLT_MATMUL_STAGES_16x1: cublasLtMatmulStages_t = cublasLtMatmulStages_t(
+        1,
+    );
+    /// Stage size is 16, number of stages is 2.
+    pub const CUBLASLT_MATMUL_STAGES_16x2: cublasLtMatmulStages_t = cublasLtMatmulStages_t(
+        2,
+    );
+    /// Stage size is 16, number of stages is 3.
+    pub const CUBLASLT_MATMUL_STAGES_16x3: cublasLtMatmulStages_t = cublasLtMatmulStages_t(
+        3,
+    );
+    /// Stage size is 16, number of stages is 4.
+    pub const CUBLASLT_MATMUL_STAGES_16x4: cublasLtMatmulStages_t = cublasLtMatmulStages_t(
+        4,
+    );
+    /// Stage size is 16, number of stages is 5.
+    pub const CUBLASLT_MATMUL_STAGES_16x5: cublasLtMatmulStages_t = cublasLtMatmulStages_t(
+        5,
+    );
+    /// Stage size is 16, number of stages is 6.
+    pub const CUBLASLT_MATMUL_STAGES_16x6: cublasLtMatmulStages_t = cublasLtMatmulStages_t(
+        6,
+    );
+    /// Stage size is 32, number of stages is 1.
+    pub const CUBLASLT_MATMUL_STAGES_32x1: cublasLtMatmulStages_t = cublasLtMatmulStages_t(
+        7,
+    );
+    /// Stage size is 32, number of stages is 2.
+    pub const CUBLASLT_MATMUL_STAGES_32x2: cublasLtMatmulStages_t = cublasLtMatmulStages_t(
+        8,
+    );
+    /// Stage size is 32, number of stages is 3.
+    pub const CUBLASLT_MATMUL_STAGES_32x3: cublasLtMatmulStages_t = cublasLtMatmulStages_t(
+        9,
+    );
+    /// Stage size is 32, number of stages is 4.
+    pub const CUBLASLT_MATMUL_STAGES_32x4: cublasLtMatmulStages_t = cublasLtMatmulStages_t(
+        10,
+    );
+    /// Stage size is 32, number of stages is 5.
+    pub const CUBLASLT_MATMUL_STAGES_32x5: cublasLtMatmulStages_t = cublasLtMatmulStages_t(
+        11,
+    );
+    /// Stage size is 32, number of stages is 6.
+    pub const CUBLASLT_MATMUL_STAGES_32x6: cublasLtMatmulStages_t = cublasLtMatmulStages_t(
+        12,
+    );
+    /// Stage size is 64, number of stages is 1.
+    pub const CUBLASLT_MATMUL_STAGES_64x1: cublasLtMatmulStages_t = cublasLtMatmulStages_t(
+        13,
+    );
+    /// Stage size is 64, number of stages is 2.
+    pub const CUBLASLT_MATMUL_STAGES_64x2: cublasLtMatmulStages_t = cublasLtMatmulStages_t(
+        14,
+    );
+    /// Stage size is 64, number of stages is 3.
+    pub const CUBLASLT_MATMUL_STAGES_64x3: cublasLtMatmulStages_t = cublasLtMatmulStages_t(
+        15,
+    );
+    /// Stage size is 64, number of stages is 4.
+    pub const CUBLASLT_MATMUL_STAGES_64x4: cublasLtMatmulStages_t = cublasLtMatmulStages_t(
+        16,
+    );
+    /// Stage size is 64, number of stages is 5.
+    pub const CUBLASLT_MATMUL_STAGES_64x5: cublasLtMatmulStages_t = cublasLtMatmulStages_t(
+        17,
+    );
+    /// Stage size is 64, number of stages is 6.
+    pub const CUBLASLT_MATMUL_STAGES_64x6: cublasLtMatmulStages_t = cublasLtMatmulStages_t(
+        18,
+    );
+    /// Stage size is 128, number of stages is 1.
+    pub const CUBLASLT_MATMUL_STAGES_128x1: cublasLtMatmulStages_t = cublasLtMatmulStages_t(
+        19,
+    );
+    /// Stage size is 128, number of stages is 2.
+    pub const CUBLASLT_MATMUL_STAGES_128x2: cublasLtMatmulStages_t = cublasLtMatmulStages_t(
+        20,
+    );
+    /// Stage size is 128, number of stages is 3.
+    pub const CUBLASLT_MATMUL_STAGES_128x3: cublasLtMatmulStages_t = cublasLtMatmulStages_t(
+        21,
+    );
+    /// Stage size is 128, number of stages is 4.
+    pub const CUBLASLT_MATMUL_STAGES_128x4: cublasLtMatmulStages_t = cublasLtMatmulStages_t(
+        22,
+    );
+    /// Stage size is 128, number of stages is 5.
+    pub const CUBLASLT_MATMUL_STAGES_128x5: cublasLtMatmulStages_t = cublasLtMatmulStages_t(
+        23,
+    );
+    /// Stage size is 128, number of stages is 6.
+    pub const CUBLASLT_MATMUL_STAGES_128x6: cublasLtMatmulStages_t = cublasLtMatmulStages_t(
+        24,
+    );
+    /// Stage size is 32, number of stages is 10.
+    pub const CUBLASLT_MATMUL_STAGES_32x10: cublasLtMatmulStages_t = cublasLtMatmulStages_t(
+        25,
+    );
+    /// Stage size is 8, number of stages is 4.
+    pub const CUBLASLT_MATMUL_STAGES_8x4: cublasLtMatmulStages_t = cublasLtMatmulStages_t(
+        26,
+    );
+    /// Stage size is 16, number of stages is 10.
+    pub const CUBLASLT_MATMUL_STAGES_16x10: cublasLtMatmulStages_t = cublasLtMatmulStages_t(
+        27,
+    );
+    /// Stage size is 8, number of stages is 5.
+    pub const CUBLASLT_MATMUL_STAGES_8x5: cublasLtMatmulStages_t = cublasLtMatmulStages_t(
+        28,
+    );
+    /// Stage size is 8, number of stages is 3.
+    pub const CUBLASLT_MATMUL_STAGES_8x3: cublasLtMatmulStages_t = cublasLtMatmulStages_t(
+        31,
+    );
+    /// Stage size is 8, number of stages is selected automatically.
+    pub const CUBLASLT_MATMUL_STAGES_8xAUTO: cublasLtMatmulStages_t = cublasLtMatmulStages_t(
+        32,
+    );
+    /// Stage size is 16, number of stages is selected automatically.
+    pub const CUBLASLT_MATMUL_STAGES_16xAUTO: cublasLtMatmulStages_t = cublasLtMatmulStages_t(
+        33,
+    );
+    /// Stage size is 32, number of stages is selected automatically.
+    pub const CUBLASLT_MATMUL_STAGES_32xAUTO: cublasLtMatmulStages_t = cublasLtMatmulStages_t(
+        34,
+    );
+    /// Stage size is 64, number of stages is selected automatically.
+    pub const CUBLASLT_MATMUL_STAGES_64xAUTO: cublasLtMatmulStages_t = cublasLtMatmulStages_t(
+        35,
+    );
+    /// Stage size is 128, number of stages is selected automatically.
+    pub const CUBLASLT_MATMUL_STAGES_128xAUTO: cublasLtMatmulStages_t = cublasLtMatmulStages_t(
+        36,
+    );
+    /// Stage size is 256, number of stages is selected automatically.
+    pub const CUBLASLT_MATMUL_STAGES_256xAUTO: cublasLtMatmulStages_t = cublasLtMatmulStages_t(
+        37,
+    );
+    /// Stage size is 768, number of stages is selected automatically.
+    pub const CUBLASLT_MATMUL_STAGES_768xAUTO: cublasLtMatmulStages_t = cublasLtMatmulStages_t(
+        38,
+    );
+    /// End marker for the native shared-memory pipeline-stage identifiers.
+    pub const CUBLASLT_MATMUL_STAGES_END: cublasLtMatmulStages_t = cublasLtMatmulStages_t(
+        39,
+    );
 }
 /// [`cublasLtMatmulStages_t`] is an enumerated type used to configure the size and number of shared memory buffers where input elements are staged. Number of staging buffers defines kernel’s pipeline depth.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cublasLtMatmulStages_t {
-    /// Stage size is undefined.
-    CUBLASLT_MATMUL_STAGES_UNDEFINED = 0,
-    /// Stage size is 16, number of stages is 1.
-    CUBLASLT_MATMUL_STAGES_16x1 = 1,
-    /// Stage size is 16, number of stages is 2.
-    CUBLASLT_MATMUL_STAGES_16x2 = 2,
-    /// Stage size is 16, number of stages is 3.
-    CUBLASLT_MATMUL_STAGES_16x3 = 3,
-    /// Stage size is 16, number of stages is 4.
-    CUBLASLT_MATMUL_STAGES_16x4 = 4,
-    /// Stage size is 16, number of stages is 5.
-    CUBLASLT_MATMUL_STAGES_16x5 = 5,
-    /// Stage size is 16, number of stages is 6.
-    CUBLASLT_MATMUL_STAGES_16x6 = 6,
-    /// Stage size is 32, number of stages is 1.
-    CUBLASLT_MATMUL_STAGES_32x1 = 7,
-    /// Stage size is 32, number of stages is 2.
-    CUBLASLT_MATMUL_STAGES_32x2 = 8,
-    /// Stage size is 32, number of stages is 3.
-    CUBLASLT_MATMUL_STAGES_32x3 = 9,
-    /// Stage size is 32, number of stages is 4.
-    CUBLASLT_MATMUL_STAGES_32x4 = 10,
-    /// Stage size is 32, number of stages is 5.
-    CUBLASLT_MATMUL_STAGES_32x5 = 11,
-    /// Stage size is 32, number of stages is 6.
-    CUBLASLT_MATMUL_STAGES_32x6 = 12,
-    /// Stage size is 64, number of stages is 1.
-    CUBLASLT_MATMUL_STAGES_64x1 = 13,
-    /// Stage size is 64, number of stages is 2.
-    CUBLASLT_MATMUL_STAGES_64x2 = 14,
-    /// Stage size is 64, number of stages is 3.
-    CUBLASLT_MATMUL_STAGES_64x3 = 15,
-    /// Stage size is 64, number of stages is 4.
-    CUBLASLT_MATMUL_STAGES_64x4 = 16,
-    /// Stage size is 64, number of stages is 5.
-    CUBLASLT_MATMUL_STAGES_64x5 = 17,
-    /// Stage size is 64, number of stages is 6.
-    CUBLASLT_MATMUL_STAGES_64x6 = 18,
-    /// Stage size is 128, number of stages is 1.
-    CUBLASLT_MATMUL_STAGES_128x1 = 19,
-    /// Stage size is 128, number of stages is 2.
-    CUBLASLT_MATMUL_STAGES_128x2 = 20,
-    /// Stage size is 128, number of stages is 3.
-    CUBLASLT_MATMUL_STAGES_128x3 = 21,
-    /// Stage size is 128, number of stages is 4.
-    CUBLASLT_MATMUL_STAGES_128x4 = 22,
-    /// Stage size is 128, number of stages is 5.
-    CUBLASLT_MATMUL_STAGES_128x5 = 23,
-    /// Stage size is 128, number of stages is 6.
-    CUBLASLT_MATMUL_STAGES_128x6 = 24,
-    /// Stage size is 32, number of stages is 10.
-    CUBLASLT_MATMUL_STAGES_32x10 = 25,
-    /// Stage size is 8, number of stages is 4.
-    CUBLASLT_MATMUL_STAGES_8x4 = 26,
-    /// Stage size is 16, number of stages is 10.
-    CUBLASLT_MATMUL_STAGES_16x10 = 27,
-    /// Stage size is 8, number of stages is 5.
-    CUBLASLT_MATMUL_STAGES_8x5 = 28,
-    /// Stage size is 8, number of stages is 3.
-    CUBLASLT_MATMUL_STAGES_8x3 = 31,
-    /// Stage size is 8, number of stages is selected automatically.
-    CUBLASLT_MATMUL_STAGES_8xAUTO = 32,
-    /// Stage size is 16, number of stages is selected automatically.
-    CUBLASLT_MATMUL_STAGES_16xAUTO = 33,
-    /// Stage size is 32, number of stages is selected automatically.
-    CUBLASLT_MATMUL_STAGES_32xAUTO = 34,
-    /// Stage size is 64, number of stages is selected automatically.
-    CUBLASLT_MATMUL_STAGES_64xAUTO = 35,
-    /// Stage size is 128, number of stages is selected automatically.
-    CUBLASLT_MATMUL_STAGES_128xAUTO = 36,
-    /// Stage size is 256, number of stages is selected automatically.
-    CUBLASLT_MATMUL_STAGES_256xAUTO = 37,
-    /// Stage size is 768, number of stages is selected automatically.
-    CUBLASLT_MATMUL_STAGES_768xAUTO = 38,
-    /// End marker for the native shared-memory pipeline-stage identifiers.
-    CUBLASLT_MATMUL_STAGES_END = 39,
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cublasLtMatmulStages_t(pub ::core::ffi::c_uint);
+impl cublasLtClusterShape_t {
+    /// Cluster shape is automatically selected.
+    pub const CUBLASLT_CLUSTER_SHAPE_AUTO: cublasLtClusterShape_t = cublasLtClusterShape_t(
+        0,
+    );
+    /// Cluster shape is 1 x 1 x 1.
+    pub const CUBLASLT_CLUSTER_SHAPE_1x1x1: cublasLtClusterShape_t = cublasLtClusterShape_t(
+        2,
+    );
+    /// Cluster shape is 2 x 1 x 1.
+    pub const CUBLASLT_CLUSTER_SHAPE_2x1x1: cublasLtClusterShape_t = cublasLtClusterShape_t(
+        3,
+    );
+    /// Cluster shape is 4 x 1 x 1.
+    pub const CUBLASLT_CLUSTER_SHAPE_4x1x1: cublasLtClusterShape_t = cublasLtClusterShape_t(
+        4,
+    );
+    /// Cluster shape is 1 x 2 x 1.
+    pub const CUBLASLT_CLUSTER_SHAPE_1x2x1: cublasLtClusterShape_t = cublasLtClusterShape_t(
+        5,
+    );
+    /// Cluster shape is 2 x 2 x 1.
+    pub const CUBLASLT_CLUSTER_SHAPE_2x2x1: cublasLtClusterShape_t = cublasLtClusterShape_t(
+        6,
+    );
+    /// Cluster shape is 4 x 2 x 1.
+    pub const CUBLASLT_CLUSTER_SHAPE_4x2x1: cublasLtClusterShape_t = cublasLtClusterShape_t(
+        7,
+    );
+    /// Cluster shape is 1 x 4 x 1.
+    pub const CUBLASLT_CLUSTER_SHAPE_1x4x1: cublasLtClusterShape_t = cublasLtClusterShape_t(
+        8,
+    );
+    /// Cluster shape is 2 x 4 x 1.
+    pub const CUBLASLT_CLUSTER_SHAPE_2x4x1: cublasLtClusterShape_t = cublasLtClusterShape_t(
+        9,
+    );
+    /// Cluster shape is 4 x 4 x 1.
+    pub const CUBLASLT_CLUSTER_SHAPE_4x4x1: cublasLtClusterShape_t = cublasLtClusterShape_t(
+        10,
+    );
+    /// Cluster shape is 8 x 1 x 1.
+    pub const CUBLASLT_CLUSTER_SHAPE_8x1x1: cublasLtClusterShape_t = cublasLtClusterShape_t(
+        11,
+    );
+    /// Cluster shape is 1 x 8 x 1.
+    pub const CUBLASLT_CLUSTER_SHAPE_1x8x1: cublasLtClusterShape_t = cublasLtClusterShape_t(
+        12,
+    );
+    /// Cluster shape is 8 x 2 x 1.
+    pub const CUBLASLT_CLUSTER_SHAPE_8x2x1: cublasLtClusterShape_t = cublasLtClusterShape_t(
+        13,
+    );
+    /// Cluster shape is 2 x 8 x 1.
+    pub const CUBLASLT_CLUSTER_SHAPE_2x8x1: cublasLtClusterShape_t = cublasLtClusterShape_t(
+        14,
+    );
+    /// Cluster shape is 16 x 1 x 1.
+    pub const CUBLASLT_CLUSTER_SHAPE_16x1x1: cublasLtClusterShape_t = cublasLtClusterShape_t(
+        15,
+    );
+    /// Cluster shape is 1 x 16 x 1.
+    pub const CUBLASLT_CLUSTER_SHAPE_1x16x1: cublasLtClusterShape_t = cublasLtClusterShape_t(
+        16,
+    );
+    /// Cluster shape is 3 x 1 x 1.
+    pub const CUBLASLT_CLUSTER_SHAPE_3x1x1: cublasLtClusterShape_t = cublasLtClusterShape_t(
+        17,
+    );
+    /// Cluster shape is 5 x 1 x 1.
+    pub const CUBLASLT_CLUSTER_SHAPE_5x1x1: cublasLtClusterShape_t = cublasLtClusterShape_t(
+        18,
+    );
+    /// Cluster shape is 6 x 1 x 1.
+    pub const CUBLASLT_CLUSTER_SHAPE_6x1x1: cublasLtClusterShape_t = cublasLtClusterShape_t(
+        19,
+    );
+    /// Cluster shape is 7 x 1 x 1.
+    pub const CUBLASLT_CLUSTER_SHAPE_7x1x1: cublasLtClusterShape_t = cublasLtClusterShape_t(
+        20,
+    );
+    /// Cluster shape is 9 x 1 x 1.
+    pub const CUBLASLT_CLUSTER_SHAPE_9x1x1: cublasLtClusterShape_t = cublasLtClusterShape_t(
+        21,
+    );
+    /// Cluster shape is 10 x 1 x 1.
+    pub const CUBLASLT_CLUSTER_SHAPE_10x1x1: cublasLtClusterShape_t = cublasLtClusterShape_t(
+        22,
+    );
+    /// Cluster shape is 11 x 1 x 1.
+    pub const CUBLASLT_CLUSTER_SHAPE_11x1x1: cublasLtClusterShape_t = cublasLtClusterShape_t(
+        23,
+    );
+    /// Cluster shape is 12 x 1 x 1.
+    pub const CUBLASLT_CLUSTER_SHAPE_12x1x1: cublasLtClusterShape_t = cublasLtClusterShape_t(
+        24,
+    );
+    /// Cluster shape is 13 x 1 x 1.
+    pub const CUBLASLT_CLUSTER_SHAPE_13x1x1: cublasLtClusterShape_t = cublasLtClusterShape_t(
+        25,
+    );
+    /// Cluster shape is 14 x 1 x 1.
+    pub const CUBLASLT_CLUSTER_SHAPE_14x1x1: cublasLtClusterShape_t = cublasLtClusterShape_t(
+        26,
+    );
+    /// Cluster shape is 15 x 1 x 1.
+    pub const CUBLASLT_CLUSTER_SHAPE_15x1x1: cublasLtClusterShape_t = cublasLtClusterShape_t(
+        27,
+    );
+    /// Cluster shape is 3 x 2 x 1.
+    pub const CUBLASLT_CLUSTER_SHAPE_3x2x1: cublasLtClusterShape_t = cublasLtClusterShape_t(
+        28,
+    );
+    /// Cluster shape is 5 x 2 x 1.
+    pub const CUBLASLT_CLUSTER_SHAPE_5x2x1: cublasLtClusterShape_t = cublasLtClusterShape_t(
+        29,
+    );
+    /// Cluster shape is 6 x 2 x 1.
+    pub const CUBLASLT_CLUSTER_SHAPE_6x2x1: cublasLtClusterShape_t = cublasLtClusterShape_t(
+        30,
+    );
+    /// Cluster shape is 7 x 2 x 1.
+    pub const CUBLASLT_CLUSTER_SHAPE_7x2x1: cublasLtClusterShape_t = cublasLtClusterShape_t(
+        31,
+    );
+    /// Cluster shape is 1 x 3 x 1.
+    pub const CUBLASLT_CLUSTER_SHAPE_1x3x1: cublasLtClusterShape_t = cublasLtClusterShape_t(
+        32,
+    );
+    /// Cluster shape is 2 x 3 x 1.
+    pub const CUBLASLT_CLUSTER_SHAPE_2x3x1: cublasLtClusterShape_t = cublasLtClusterShape_t(
+        33,
+    );
+    /// Cluster shape is 3 x 3 x 1.
+    pub const CUBLASLT_CLUSTER_SHAPE_3x3x1: cublasLtClusterShape_t = cublasLtClusterShape_t(
+        34,
+    );
+    /// Cluster shape is 4 x 3 x 1.
+    pub const CUBLASLT_CLUSTER_SHAPE_4x3x1: cublasLtClusterShape_t = cublasLtClusterShape_t(
+        35,
+    );
+    /// Cluster shape is 5 x 3 x 1.
+    pub const CUBLASLT_CLUSTER_SHAPE_5x3x1: cublasLtClusterShape_t = cublasLtClusterShape_t(
+        36,
+    );
+    /// Cluster shape is 3 x 4 x 1.
+    pub const CUBLASLT_CLUSTER_SHAPE_3x4x1: cublasLtClusterShape_t = cublasLtClusterShape_t(
+        37,
+    );
+    /// Cluster shape is 1 x 5 x 1.
+    pub const CUBLASLT_CLUSTER_SHAPE_1x5x1: cublasLtClusterShape_t = cublasLtClusterShape_t(
+        38,
+    );
+    /// Cluster shape is 2 x 5 x 1.
+    pub const CUBLASLT_CLUSTER_SHAPE_2x5x1: cublasLtClusterShape_t = cublasLtClusterShape_t(
+        39,
+    );
+    /// Cluster shape is 3 x 5 x 1.
+    pub const CUBLASLT_CLUSTER_SHAPE_3x5x1: cublasLtClusterShape_t = cublasLtClusterShape_t(
+        40,
+    );
+    /// Cluster shape is 1 x 6 x 1.
+    pub const CUBLASLT_CLUSTER_SHAPE_1x6x1: cublasLtClusterShape_t = cublasLtClusterShape_t(
+        41,
+    );
+    /// Cluster shape is 2 x 6 x 1.
+    pub const CUBLASLT_CLUSTER_SHAPE_2x6x1: cublasLtClusterShape_t = cublasLtClusterShape_t(
+        42,
+    );
+    /// Cluster shape is 1 x 7 x 1.
+    pub const CUBLASLT_CLUSTER_SHAPE_1x7x1: cublasLtClusterShape_t = cublasLtClusterShape_t(
+        43,
+    );
+    /// Cluster shape is 2 x 7 x 1.
+    pub const CUBLASLT_CLUSTER_SHAPE_2x7x1: cublasLtClusterShape_t = cublasLtClusterShape_t(
+        44,
+    );
+    /// Cluster shape is 1 x 9 x 1.
+    pub const CUBLASLT_CLUSTER_SHAPE_1x9x1: cublasLtClusterShape_t = cublasLtClusterShape_t(
+        45,
+    );
+    /// Cluster shape is 1 x 10 x 1.
+    pub const CUBLASLT_CLUSTER_SHAPE_1x10x1: cublasLtClusterShape_t = cublasLtClusterShape_t(
+        46,
+    );
+    /// Cluster shape is 1 x 11 x 1.
+    pub const CUBLASLT_CLUSTER_SHAPE_1x11x1: cublasLtClusterShape_t = cublasLtClusterShape_t(
+        47,
+    );
+    /// Cluster shape is 1 x 12 x 1.
+    pub const CUBLASLT_CLUSTER_SHAPE_1x12x1: cublasLtClusterShape_t = cublasLtClusterShape_t(
+        48,
+    );
+    /// Cluster shape is 1 x 13 x 1.
+    pub const CUBLASLT_CLUSTER_SHAPE_1x13x1: cublasLtClusterShape_t = cublasLtClusterShape_t(
+        49,
+    );
+    /// Cluster shape is 1 x 14 x 1.
+    pub const CUBLASLT_CLUSTER_SHAPE_1x14x1: cublasLtClusterShape_t = cublasLtClusterShape_t(
+        50,
+    );
+    /// Cluster shape is 1 x 15 x 1.
+    pub const CUBLASLT_CLUSTER_SHAPE_1x15x1: cublasLtClusterShape_t = cublasLtClusterShape_t(
+        51,
+    );
+    /// Let library pick cluster shape automatically
+    pub const CUBLASLT_CLUSTER_SHAPE_END: cublasLtClusterShape_t = cublasLtClusterShape_t(
+        52,
+    );
 }
 /// [`cublasLtClusterShape_t`] is an enumerated type used to configure thread block cluster dimensions. Thread block clusters add an optional hierarchical level and are made up of thread blocks. Similar to thread blocks, these can be one, two, or three-dimensional. See also [Thread Block Clusters](https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#thread-block-clusters).
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cublasLtClusterShape_t {
-    /// Cluster shape is automatically selected.
-    CUBLASLT_CLUSTER_SHAPE_AUTO = 0,
-    /// Cluster shape is 1 x 1 x 1.
-    CUBLASLT_CLUSTER_SHAPE_1x1x1 = 2,
-    /// Cluster shape is 2 x 1 x 1.
-    CUBLASLT_CLUSTER_SHAPE_2x1x1 = 3,
-    /// Cluster shape is 4 x 1 x 1.
-    CUBLASLT_CLUSTER_SHAPE_4x1x1 = 4,
-    /// Cluster shape is 1 x 2 x 1.
-    CUBLASLT_CLUSTER_SHAPE_1x2x1 = 5,
-    /// Cluster shape is 2 x 2 x 1.
-    CUBLASLT_CLUSTER_SHAPE_2x2x1 = 6,
-    /// Cluster shape is 4 x 2 x 1.
-    CUBLASLT_CLUSTER_SHAPE_4x2x1 = 7,
-    /// Cluster shape is 1 x 4 x 1.
-    CUBLASLT_CLUSTER_SHAPE_1x4x1 = 8,
-    /// Cluster shape is 2 x 4 x 1.
-    CUBLASLT_CLUSTER_SHAPE_2x4x1 = 9,
-    /// Cluster shape is 4 x 4 x 1.
-    CUBLASLT_CLUSTER_SHAPE_4x4x1 = 10,
-    /// Cluster shape is 8 x 1 x 1.
-    CUBLASLT_CLUSTER_SHAPE_8x1x1 = 11,
-    /// Cluster shape is 1 x 8 x 1.
-    CUBLASLT_CLUSTER_SHAPE_1x8x1 = 12,
-    /// Cluster shape is 8 x 2 x 1.
-    CUBLASLT_CLUSTER_SHAPE_8x2x1 = 13,
-    /// Cluster shape is 2 x 8 x 1.
-    CUBLASLT_CLUSTER_SHAPE_2x8x1 = 14,
-    /// Cluster shape is 16 x 1 x 1.
-    CUBLASLT_CLUSTER_SHAPE_16x1x1 = 15,
-    /// Cluster shape is 1 x 16 x 1.
-    CUBLASLT_CLUSTER_SHAPE_1x16x1 = 16,
-    /// Cluster shape is 3 x 1 x 1.
-    CUBLASLT_CLUSTER_SHAPE_3x1x1 = 17,
-    /// Cluster shape is 5 x 1 x 1.
-    CUBLASLT_CLUSTER_SHAPE_5x1x1 = 18,
-    /// Cluster shape is 6 x 1 x 1.
-    CUBLASLT_CLUSTER_SHAPE_6x1x1 = 19,
-    /// Cluster shape is 7 x 1 x 1.
-    CUBLASLT_CLUSTER_SHAPE_7x1x1 = 20,
-    /// Cluster shape is 9 x 1 x 1.
-    CUBLASLT_CLUSTER_SHAPE_9x1x1 = 21,
-    /// Cluster shape is 10 x 1 x 1.
-    CUBLASLT_CLUSTER_SHAPE_10x1x1 = 22,
-    /// Cluster shape is 11 x 1 x 1.
-    CUBLASLT_CLUSTER_SHAPE_11x1x1 = 23,
-    /// Cluster shape is 12 x 1 x 1.
-    CUBLASLT_CLUSTER_SHAPE_12x1x1 = 24,
-    /// Cluster shape is 13 x 1 x 1.
-    CUBLASLT_CLUSTER_SHAPE_13x1x1 = 25,
-    /// Cluster shape is 14 x 1 x 1.
-    CUBLASLT_CLUSTER_SHAPE_14x1x1 = 26,
-    /// Cluster shape is 15 x 1 x 1.
-    CUBLASLT_CLUSTER_SHAPE_15x1x1 = 27,
-    /// Cluster shape is 3 x 2 x 1.
-    CUBLASLT_CLUSTER_SHAPE_3x2x1 = 28,
-    /// Cluster shape is 5 x 2 x 1.
-    CUBLASLT_CLUSTER_SHAPE_5x2x1 = 29,
-    /// Cluster shape is 6 x 2 x 1.
-    CUBLASLT_CLUSTER_SHAPE_6x2x1 = 30,
-    /// Cluster shape is 7 x 2 x 1.
-    CUBLASLT_CLUSTER_SHAPE_7x2x1 = 31,
-    /// Cluster shape is 1 x 3 x 1.
-    CUBLASLT_CLUSTER_SHAPE_1x3x1 = 32,
-    /// Cluster shape is 2 x 3 x 1.
-    CUBLASLT_CLUSTER_SHAPE_2x3x1 = 33,
-    /// Cluster shape is 3 x 3 x 1.
-    CUBLASLT_CLUSTER_SHAPE_3x3x1 = 34,
-    /// Cluster shape is 4 x 3 x 1.
-    CUBLASLT_CLUSTER_SHAPE_4x3x1 = 35,
-    /// Cluster shape is 5 x 3 x 1.
-    CUBLASLT_CLUSTER_SHAPE_5x3x1 = 36,
-    /// Cluster shape is 3 x 4 x 1.
-    CUBLASLT_CLUSTER_SHAPE_3x4x1 = 37,
-    /// Cluster shape is 1 x 5 x 1.
-    CUBLASLT_CLUSTER_SHAPE_1x5x1 = 38,
-    /// Cluster shape is 2 x 5 x 1.
-    CUBLASLT_CLUSTER_SHAPE_2x5x1 = 39,
-    /// Cluster shape is 3 x 5 x 1.
-    CUBLASLT_CLUSTER_SHAPE_3x5x1 = 40,
-    /// Cluster shape is 1 x 6 x 1.
-    CUBLASLT_CLUSTER_SHAPE_1x6x1 = 41,
-    /// Cluster shape is 2 x 6 x 1.
-    CUBLASLT_CLUSTER_SHAPE_2x6x1 = 42,
-    /// Cluster shape is 1 x 7 x 1.
-    CUBLASLT_CLUSTER_SHAPE_1x7x1 = 43,
-    /// Cluster shape is 2 x 7 x 1.
-    CUBLASLT_CLUSTER_SHAPE_2x7x1 = 44,
-    /// Cluster shape is 1 x 9 x 1.
-    CUBLASLT_CLUSTER_SHAPE_1x9x1 = 45,
-    /// Cluster shape is 1 x 10 x 1.
-    CUBLASLT_CLUSTER_SHAPE_1x10x1 = 46,
-    /// Cluster shape is 1 x 11 x 1.
-    CUBLASLT_CLUSTER_SHAPE_1x11x1 = 47,
-    /// Cluster shape is 1 x 12 x 1.
-    CUBLASLT_CLUSTER_SHAPE_1x12x1 = 48,
-    /// Cluster shape is 1 x 13 x 1.
-    CUBLASLT_CLUSTER_SHAPE_1x13x1 = 49,
-    /// Cluster shape is 1 x 14 x 1.
-    CUBLASLT_CLUSTER_SHAPE_1x14x1 = 50,
-    /// Cluster shape is 1 x 15 x 1.
-    CUBLASLT_CLUSTER_SHAPE_1x15x1 = 51,
-    /// Let library pick cluster shape automatically
-    CUBLASLT_CLUSTER_SHAPE_END = 52,
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cublasLtClusterShape_t(pub ::core::ffi::c_uint);
+impl cublasLtMatmulInnerShape_t {
+    /// Inner shape is undefined.
+    pub const CUBLASLT_MATMUL_INNER_SHAPE_UNDEFINED: cublasLtMatmulInnerShape_t = cublasLtMatmulInnerShape_t(
+        0,
+    );
+    /// Inner shape is MMA884.
+    pub const CUBLASLT_MATMUL_INNER_SHAPE_MMA884: cublasLtMatmulInnerShape_t = cublasLtMatmulInnerShape_t(
+        1,
+    );
+    /// Inner shape is MMA1684.
+    pub const CUBLASLT_MATMUL_INNER_SHAPE_MMA1684: cublasLtMatmulInnerShape_t = cublasLtMatmulInnerShape_t(
+        2,
+    );
+    /// Inner shape is MMA1688.
+    pub const CUBLASLT_MATMUL_INNER_SHAPE_MMA1688: cublasLtMatmulInnerShape_t = cublasLtMatmulInnerShape_t(
+        3,
+    );
+    /// Inner shape is MMA16816.
+    pub const CUBLASLT_MATMUL_INNER_SHAPE_MMA16816: cublasLtMatmulInnerShape_t = cublasLtMatmulInnerShape_t(
+        4,
+    );
+    /// End marker for the native inner-computation shape identifiers.
+    pub const CUBLASLT_MATMUL_INNER_SHAPE_END: cublasLtMatmulInnerShape_t = cublasLtMatmulInnerShape_t(
+        5,
+    );
 }
 /// [`cublasLtMatmulInnerShape_t`] is an enumerated type used to configure various aspects of the internal kernel design. This does not impact the CUDA grid size.
-#[repr(u32)]
+#[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum cublasLtMatmulInnerShape_t {
-    /// Inner shape is undefined.
-    CUBLASLT_MATMUL_INNER_SHAPE_UNDEFINED = 0,
-    /// Inner shape is MMA884.
-    CUBLASLT_MATMUL_INNER_SHAPE_MMA884 = 1,
-    /// Inner shape is MMA1684.
-    CUBLASLT_MATMUL_INNER_SHAPE_MMA1684 = 2,
-    /// Inner shape is MMA1688.
-    CUBLASLT_MATMUL_INNER_SHAPE_MMA1688 = 3,
-    /// Inner shape is MMA16816.
-    CUBLASLT_MATMUL_INNER_SHAPE_MMA16816 = 4,
-    /// End marker for the native inner-computation shape identifiers.
-    CUBLASLT_MATMUL_INNER_SHAPE_END = 5,
+pub struct cublasLtMatmulInnerShape_t(pub ::core::ffi::c_uint);
+impl cublasLtMatmulMatrixScale_t {
+    /// Scaling factors are single-precision scalars applied to the whole tensors (this mode is the default for fp8). This is the only value valid for [`cublasLtMatmulDescAttributes_t::CUBLASLT_MATMUL_DESC_D_SCALE_MODE`] when the D tensor uses a narrow precision data type.
+    pub const CUBLASLT_MATMUL_MATRIX_SCALE_SCALAR_32F: cublasLtMatmulMatrixScale_t = cublasLtMatmulMatrixScale_t(
+        0,
+    );
+    /// Scaling factors are tensors that contain a dedicated scaling factor stored as an 8-bit `CUDA_R_8F_UE4M3` value for each 16-element block in the innermost dimension of the corresponding data tensor.
+    pub const CUBLASLT_MATMUL_MATRIX_SCALE_VEC16_UE4M3: cublasLtMatmulMatrixScale_t = cublasLtMatmulMatrixScale_t(
+        1,
+    );
+    /// Scaling factors are tensors that contain a dedicated scaling factor stored as an 8-bit `CUDA_R_8F_UE8M0` value for each 32-element block in the innermost dimension of the corresponding data tensor.
+    pub const CUBLASLT_MATMUL_MATRIX_SCALE_VEC32_UE8M0: cublasLtMatmulMatrixScale_t = cublasLtMatmulMatrixScale_t(
+        2,
+    );
+    /// Scaling factors are vectors of CUDA_R_32F values. This mode is only applicable to matrices A and B, in which case the vectors are expected to have M and N elements respectively, and each (i, j)-th element of product of A and B is multiplied by i-th element of A scale and j-th element of B scale.
+    pub const CUBLASLT_MATMUL_MATRIX_SCALE_OUTER_VEC_32F: cublasLtMatmulMatrixScale_t = cublasLtMatmulMatrixScale_t(
+        3,
+    );
+    /// Scaling factors are tensors that contain a dedicated CUDA_R_32F scaling factor for each 128-element block in the innermost dimension of the corresponding data tensor.
+    pub const CUBLASLT_MATMUL_MATRIX_SCALE_VEC128_32F: cublasLtMatmulMatrixScale_t = cublasLtMatmulMatrixScale_t(
+        4,
+    );
+    /// Scaling factors are tensors that contain a dedicated CUDA_R_32F scaling factor for each 128x128-element block in the the corresponding data tensor.
+    pub const CUBLASLT_MATMUL_MATRIX_SCALE_BLK128x128_32F: cublasLtMatmulMatrixScale_t = cublasLtMatmulMatrixScale_t(
+        5,
+    );
+    /// Scaling factors are single-precision scalars applied successively to each matrix in a batch. This mode is only applicable to matrices A and B, in which case the scales are expected to have BATCH_COUNT elements.
+    pub const CUBLASLT_MATMUL_MATRIX_SCALE_PER_BATCH_SCALAR_32F: cublasLtMatmulMatrixScale_t = cublasLtMatmulMatrixScale_t(
+        6,
+    );
+    /// Same as above but a single scaling factor is used for a 128-element block.
+    pub const CUBLASLT_MATMUL_MATRIX_SCALE_VEC128_MN_K4_UE8M0: cublasLtMatmulMatrixScale_t = cublasLtMatmulMatrixScale_t(
+        12,
+    );
+    /// Same as above but using an alternative MN-major layout with 4 elements packed along the K dimension. See [1D Block Scaling Factors MN x K4 Layout (Experimental)](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#d-block-scaling-factors-mn-x-k4-layout-experimental) for more details.
+    pub const CUBLASLT_MATMUL_MATRIX_SCALE_VEC32_MN_K4_UE8M0: cublasLtMatmulMatrixScale_t = cublasLtMatmulMatrixScale_t(
+        13,
+    );
+    /// Upper-bound sentinel for matrix scaling modes.
+    pub const CUBLASLT_MATMUL_MATRIX_SCALE_END: cublasLtMatmulMatrixScale_t = cublasLtMatmulMatrixScale_t(
+        14,
+    );
+    /// Reserved enumerator, do not use
+    pub const CUBLASLT_MATMUL_MATRIX_SCALE_RESERVED: cublasLtMatmulMatrixScale_t = cublasLtMatmulMatrixScale_t(
+        127,
+    );
 }
 /// [`cublasLtMatmulMatrixScale_t`] is an enumerated type used to specify scaling mode that defines how scaling factor pointers are interpreted.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cublasLtMatmulMatrixScale_t {
-    /// Scaling factors are single-precision scalars applied to the whole tensors (this mode is the default for fp8). This is the only value valid for [`cublasLtMatmulDescAttributes_t::CUBLASLT_MATMUL_DESC_D_SCALE_MODE`] when the D tensor uses a narrow precision data type.
-    CUBLASLT_MATMUL_MATRIX_SCALE_SCALAR_32F = 0,
-    /// Scaling factors are tensors that contain a dedicated scaling factor stored as an 8-bit `CUDA_R_8F_UE4M3` value for each 16-element block in the innermost dimension of the corresponding data tensor.
-    CUBLASLT_MATMUL_MATRIX_SCALE_VEC16_UE4M3 = 1,
-    /// Scaling factors are tensors that contain a dedicated scaling factor stored as an 8-bit `CUDA_R_8F_UE8M0` value for each 32-element block in the innermost dimension of the corresponding data tensor.
-    CUBLASLT_MATMUL_MATRIX_SCALE_VEC32_UE8M0 = 2,
-    /// Scaling factors are vectors of CUDA_R_32F values. This mode is only applicable to matrices A and B, in which case the vectors are expected to have M and N elements respectively, and each (i, j)-th element of product of A and B is multiplied by i-th element of A scale and j-th element of B scale.
-    CUBLASLT_MATMUL_MATRIX_SCALE_OUTER_VEC_32F = 3,
-    /// Scaling factors are tensors that contain a dedicated CUDA_R_32F scaling factor for each 128-element block in the innermost dimension of the corresponding data tensor.
-    CUBLASLT_MATMUL_MATRIX_SCALE_VEC128_32F = 4,
-    /// Scaling factors are tensors that contain a dedicated CUDA_R_32F scaling factor for each 128x128-element block in the the corresponding data tensor.
-    CUBLASLT_MATMUL_MATRIX_SCALE_BLK128x128_32F = 5,
-    /// Scaling factors are single-precision scalars applied successively to each matrix in a batch. This mode is only applicable to matrices A and B, in which case the scales are expected to have BATCH_COUNT elements.
-    CUBLASLT_MATMUL_MATRIX_SCALE_PER_BATCH_SCALAR_32F = 6,
-    /// Same as above but a single scaling factor is used for a 128-element block.
-    CUBLASLT_MATMUL_MATRIX_SCALE_VEC128_MN_K4_UE8M0 = 12,
-    /// Same as above but using an alternative MN-major layout with 4 elements packed along the K dimension. See [1D Block Scaling Factors MN x K4 Layout (Experimental)](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#d-block-scaling-factors-mn-x-k4-layout-experimental) for more details.
-    CUBLASLT_MATMUL_MATRIX_SCALE_VEC32_MN_K4_UE8M0 = 13,
-    /// Upper-bound sentinel for matrix scaling modes.
-    CUBLASLT_MATMUL_MATRIX_SCALE_END = 14,
-    /// Reserved enumerator, do not use
-    CUBLASLT_MATMUL_MATRIX_SCALE_RESERVED = 127,
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cublasLtMatmulMatrixScale_t(pub ::core::ffi::c_uint);
+impl cublasLtPointerMode_t {
+    /// matches CUBLAS_POINTER_MODE_HOST, pointer targets a single value host memory
+    pub const CUBLASLT_POINTER_MODE_HOST: cublasLtPointerMode_t = cublasLtPointerMode_t(
+        0,
+    );
+    /// matches CUBLAS_POINTER_MODE_DEVICE, pointer targets a single value device memory
+    pub const CUBLASLT_POINTER_MODE_DEVICE: cublasLtPointerMode_t = cublasLtPointerMode_t(
+        1,
+    );
+    /// pointer targets an array in device memory
+    pub const CUBLASLT_POINTER_MODE_DEVICE_VECTOR: cublasLtPointerMode_t = cublasLtPointerMode_t(
+        2,
+    );
+    /// alpha pointer targets an array in device memory, beta is zero. Note: CUBLASLT_MATMUL_DESC_ALPHA_VECTOR_BATCH_STRIDE is not supported, must be 0.
+    pub const CUBLASLT_POINTER_MODE_ALPHA_DEVICE_VECTOR_BETA_ZERO: cublasLtPointerMode_t = cublasLtPointerMode_t(
+        3,
+    );
+    /// alpha pointer targets an array in device memory, beta is a single value in host memory.
+    pub const CUBLASLT_POINTER_MODE_ALPHA_DEVICE_VECTOR_BETA_HOST: cublasLtPointerMode_t = cublasLtPointerMode_t(
+        4,
+    );
 }
 /// [`cublasLtPointerMode_t`] is an enumerated type used to set the pointer mode for the scaling factors `alpha` and `beta`.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cublasLtPointerMode_t {
-    /// matches CUBLAS_POINTER_MODE_HOST, pointer targets a single value host memory
-    CUBLASLT_POINTER_MODE_HOST = 0,
-    /// matches CUBLAS_POINTER_MODE_DEVICE, pointer targets a single value device memory
-    CUBLASLT_POINTER_MODE_DEVICE = 1,
-    /// pointer targets an array in device memory
-    CUBLASLT_POINTER_MODE_DEVICE_VECTOR = 2,
-    /// alpha pointer targets an array in device memory, beta is zero. Note: CUBLASLT_MATMUL_DESC_ALPHA_VECTOR_BATCH_STRIDE is not supported, must be 0.
-    CUBLASLT_POINTER_MODE_ALPHA_DEVICE_VECTOR_BETA_ZERO = 3,
-    /// alpha pointer targets an array in device memory, beta is a single value in host memory.
-    CUBLASLT_POINTER_MODE_ALPHA_DEVICE_VECTOR_BETA_HOST = 4,
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cublasLtPointerMode_t(pub ::core::ffi::c_uint);
+impl cublasLtPointerModeMask_t {
+    /// see CUBLASLT_POINTER_MODE_HOST
+    pub const CUBLASLT_POINTER_MODE_MASK_HOST: cublasLtPointerModeMask_t = cublasLtPointerModeMask_t(
+        1,
+    );
+    /// see CUBLASLT_POINTER_MODE_DEVICE
+    pub const CUBLASLT_POINTER_MODE_MASK_DEVICE: cublasLtPointerModeMask_t = cublasLtPointerModeMask_t(
+        2,
+    );
+    /// see CUBLASLT_POINTER_MODE_DEVICE_VECTOR
+    pub const CUBLASLT_POINTER_MODE_MASK_DEVICE_VECTOR: cublasLtPointerModeMask_t = cublasLtPointerModeMask_t(
+        4,
+    );
+    /// see CUBLASLT_POINTER_MODE_ALPHA_DEVICE_VECTOR_BETA_ZERO
+    pub const CUBLASLT_POINTER_MODE_MASK_ALPHA_DEVICE_VECTOR_BETA_ZERO: cublasLtPointerModeMask_t = cublasLtPointerModeMask_t(
+        8,
+    );
+    /// see CUBLASLT_POINTER_MODE_ALPHA_DEVICE_VECTOR_BETA_HOST
+    pub const CUBLASLT_POINTER_MODE_MASK_ALPHA_DEVICE_VECTOR_BETA_HOST: cublasLtPointerModeMask_t = cublasLtPointerModeMask_t(
+        16,
+    );
 }
 /// [`cublasLtPointerModeMask_t`] is an enumerated type used to define and query the pointer mode capability.
-#[repr(u32)]
+#[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum cublasLtPointerModeMask_t {
-    /// see CUBLASLT_POINTER_MODE_HOST
-    CUBLASLT_POINTER_MODE_MASK_HOST = 1,
-    /// see CUBLASLT_POINTER_MODE_DEVICE
-    CUBLASLT_POINTER_MODE_MASK_DEVICE = 2,
-    /// see CUBLASLT_POINTER_MODE_DEVICE_VECTOR
-    CUBLASLT_POINTER_MODE_MASK_DEVICE_VECTOR = 4,
-    /// see CUBLASLT_POINTER_MODE_ALPHA_DEVICE_VECTOR_BETA_ZERO
-    CUBLASLT_POINTER_MODE_MASK_ALPHA_DEVICE_VECTOR_BETA_ZERO = 8,
-    /// see CUBLASLT_POINTER_MODE_ALPHA_DEVICE_VECTOR_BETA_HOST
-    CUBLASLT_POINTER_MODE_MASK_ALPHA_DEVICE_VECTOR_BETA_HOST = 16,
-}
+pub struct cublasLtPointerModeMask_t(pub ::core::ffi::c_uint);
 /// [cublasLtNumericalImplFlags_t](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#cublasltnumericalimplflags-t): a set of bit-flags that can be specified to select implementation details that may affect numerical behavior of algorithms.
 ///
 /// Flags below can be combined using the bit OR operator “|”.
@@ -2349,118 +3803,112 @@ singe_loader::functions! { crate::LT;
         stream: cudaStream_t,
     ) -> cublasStatus_t;
 }
-/// [`cublasLtOrder_t`] is an enumerated type used to indicate the data ordering of the matrix.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cublasLtOrder_t {
+impl cublasLtOrder_t {
     /// Data is ordered in column-major format. The leading dimension is the stride (in elements) to the beginning of next column in memory.
-    CUBLASLT_ORDER_COL = 0,
+    pub const CUBLASLT_ORDER_COL: cublasLtOrder_t = cublasLtOrder_t(0);
     /// Data is ordered in row-major format. The leading dimension is the stride (in elements) to the beginning of next row in memory.
-    CUBLASLT_ORDER_ROW = 1,
+    pub const CUBLASLT_ORDER_ROW: cublasLtOrder_t = cublasLtOrder_t(1);
     /// Data is ordered in column-major ordered tiles of 32 columns. The leading dimension is the stride (in elements) to the beginning of next group of 32-columns. For example, if the matrix has 33 columns and 2 rows, then the leading dimension must be at least `32 * 2 = 64`.
-    CUBLASLT_ORDER_COL32 = 2,
+    pub const CUBLASLT_ORDER_COL32: cublasLtOrder_t = cublasLtOrder_t(2);
     /// Data is ordered in column-major ordered tiles of composite tiles with total 32 columns and 8 rows. A tile is composed of interleaved inner tiles of 4 columns within 4 even or odd rows in an alternating pattern. The leading dimension is the stride (in elements) to the beginning of the first 32 column x 8 row tile for the next 32-wide group of columns. For example, if the matrix has 33 columns and 1 row, the leading dimension must be at least `(32 * 8) * 1 = 256`.
-    CUBLASLT_ORDER_COL4_4R2_8C = 3,
+    pub const CUBLASLT_ORDER_COL4_4R2_8C: cublasLtOrder_t = cublasLtOrder_t(3);
     /// Data is ordered in column-major ordered tiles of composite tiles with total 32 columns ands 32 rows. Element offset within the tile is calculated as `(((row % 8) / 2 * 4 + row / 8) * 2 + row % 2) * 32 + col`. Leading dimension is the stride (in elements) to the beginning of the first 32 column x 32 row tile for the next 32-wide group of columns. E.g. if matrix has 33 columns and 1 row, then its leading dimensions must be at least `(32 * 32) * 1 = 1024`.
-    CUBLASLT_ORDER_COL32_2R_4R4 = 4,
+    pub const CUBLASLT_ORDER_COL32_2R_4R4: cublasLtOrder_t = cublasLtOrder_t(4);
+}
+/// [`cublasLtOrder_t`] is an enumerated type used to indicate the data ordering of the matrix.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cublasLtOrder_t(pub ::core::ffi::c_uint);
+impl cublasLtBatchMode_t {
+    /// The matrices of each instance of the batch are located at fixed offsets in number of elements from their locations in the previous instance.
+    pub const CUBLASLT_BATCH_MODE_STRIDED: cublasLtBatchMode_t = cublasLtBatchMode_t(0);
+    /// The address of the matrix of each instance of the batch are read from device arrays of pointers.
+    pub const CUBLASLT_BATCH_MODE_POINTER_ARRAY: cublasLtBatchMode_t = cublasLtBatchMode_t(
+        1,
+    );
+    /// Experimental: The address of the matrix of each instance of the group are read from device arrays of pointers. Each group can have different columns, rows, and leading dimensions. See [`cublasLtMatrixLayout_t`] for more details.
+    pub const CUBLASLT_BATCH_MODE_GROUPED: cublasLtBatchMode_t = cublasLtBatchMode_t(2);
 }
 /// Enum for batch mode
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cublasLtBatchMode_t {
-    /// The matrices of each instance of the batch are located at fixed offsets in number of elements from their locations in the previous instance.
-    CUBLASLT_BATCH_MODE_STRIDED = 0,
-    /// The address of the matrix of each instance of the batch are read from device arrays of pointers.
-    CUBLASLT_BATCH_MODE_POINTER_ARRAY = 1,
-    /// Experimental: The address of the matrix of each instance of the group are read from device arrays of pointers. Each group can have different columns, rows, and leading dimensions. See [`cublasLtMatrixLayout_t`] for more details.
-    CUBLASLT_BATCH_MODE_GROUPED = 2,
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cublasLtBatchMode_t(pub ::core::ffi::c_uint);
+impl cublasLtIntegerWidth_t {
+    /// 32-bit integer width.
+    pub const CUBLASLT_INTEGER_WIDTH_32: cublasLtIntegerWidth_t = cublasLtIntegerWidth_t(
+        0,
+    );
+    /// 64-bit integer width.
+    pub const CUBLASLT_INTEGER_WIDTH_64: cublasLtIntegerWidth_t = cublasLtIntegerWidth_t(
+        1,
+    );
 }
 /// Experimental: [`cublasLtIntegerWidth_t`] is an enumerated type used to indicate the width of integers in the dimensions arrays of a grouped matrix.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cublasLtIntegerWidth_t {
-    /// 32-bit integer width.
-    CUBLASLT_INTEGER_WIDTH_32 = 0,
-    /// 64-bit integer width.
-    CUBLASLT_INTEGER_WIDTH_64 = 1,
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cublasLtIntegerWidth_t(pub ::core::ffi::c_uint);
+impl cublasLtMatrixLayoutAttribute_t {
+    /// Specifies the data precision type. See [`cudaDataType_t`].
+    pub const CUBLASLT_MATRIX_LAYOUT_TYPE: cublasLtMatrixLayoutAttribute_t = cublasLtMatrixLayoutAttribute_t(
+        0,
+    );
+    /// Specifies the memory order of the data of the matrix. Default value is [`cublasLtOrder_t::CUBLASLT_ORDER_COL`]. See [`cublasLtOrder_t`].
+    pub const CUBLASLT_MATRIX_LAYOUT_ORDER: cublasLtMatrixLayoutAttribute_t = cublasLtMatrixLayoutAttribute_t(
+        1,
+    );
+    /// Describes the number of rows in the matrix. Normally only values that can be expressed as `int32_t` are supported.
+    pub const CUBLASLT_MATRIX_LAYOUT_ROWS: cublasLtMatrixLayoutAttribute_t = cublasLtMatrixLayoutAttribute_t(
+        2,
+    );
+    /// Describes the number of columns in the matrix. Normally only values that can be expressed as `int32_t` are supported.
+    pub const CUBLASLT_MATRIX_LAYOUT_COLS: cublasLtMatrixLayoutAttribute_t = cublasLtMatrixLayoutAttribute_t(
+        3,
+    );
+    /// The leading dimension of the matrix. For [`cublasLtOrder_t::CUBLASLT_ORDER_COL`] this is the stride (in elements) of matrix column. See also [`cublasLtOrder_t`]. * Currently only non-negative values are supported. * Must be large enough so that matrix memory locations are not overlapping (e.g., greater or equal to [`cublasLtMatrixLayoutAttribute_t::CUBLASLT_MATRIX_LAYOUT_ROWS`] in case of [`cublasLtOrder_t::CUBLASLT_ORDER_COL`]).
+    pub const CUBLASLT_MATRIX_LAYOUT_LD: cublasLtMatrixLayoutAttribute_t = cublasLtMatrixLayoutAttribute_t(
+        4,
+    );
+    /// Number of matmul operations to perform in the batch. Default value is 1. See also [`cublasLtMatmulAlgoCapAttributes_t::CUBLASLT_ALGO_CAP_STRIDED_BATCH_SUPPORT`], [`cublasLtMatmulAlgoCapAttributes_t::CUBLASLT_ALGO_CAP_POINTER_ARRAY_BATCH_SUPPORT`] and [`cublasLtMatmulAlgoCapAttributes_t::CUBLASLT_ALGO_CAP_POINTER_ARRAY_GROUPED_SUPPORT`] in [`cublasLtMatmulAlgoCapAttributes_t`].
+    pub const CUBLASLT_MATRIX_LAYOUT_BATCH_COUNT: cublasLtMatrixLayoutAttribute_t = cublasLtMatrixLayoutAttribute_t(
+        5,
+    );
+    /// Stride (in elements) to the next matrix for the strided batch operation. Default value is 0. When matrix type is planar-complex ([`cublasLtMatrixLayoutAttribute_t::CUBLASLT_MATRIX_LAYOUT_PLANE_OFFSET`] != 0), batch stride is interpreted by [`cublasLtMatmul`] in number of real valued sub-elements. E.g. for data of type CUDA_C_16F, offset of 1024B is encoded as a stride of value 512 (since each element of the real and imaginary matrices is a 2B (16bit) floating point type). NOTE: A bug in [`cublasLtMatrixTransform`] causes it to interpret the batch stride for a planar-complex matrix as if it was specified in number of complex elements. Therefore an offset of 1024B must be encoded as stride value 256 when calling [`cublasLtMatrixTransform`] (each complex element is 4B with real and imaginary values 2B each). This behavior is expected to be corrected in the next major cuBLAS version.
+    pub const CUBLASLT_MATRIX_LAYOUT_STRIDED_BATCH_OFFSET: cublasLtMatrixLayoutAttribute_t = cublasLtMatrixLayoutAttribute_t(
+        6,
+    );
+    /// Stride (in bytes) to the imaginary plane for planar-complex layout. Default value is 0, indicating that the layout is regular (real and imaginary parts of complex numbers are interleaved in memory for each element).
+    pub const CUBLASLT_MATRIX_LAYOUT_PLANE_OFFSET: cublasLtMatrixLayoutAttribute_t = cublasLtMatrixLayoutAttribute_t(
+        7,
+    );
+    /// The batch mode of the matrix. Default value is [`cublasLtBatchMode_t::CUBLASLT_BATCH_MODE_STRIDED`]. See [`cublasLtBatchMode_t`].
+    pub const CUBLASLT_MATRIX_LAYOUT_BATCH_MODE: cublasLtMatrixLayoutAttribute_t = cublasLtMatrixLayoutAttribute_t(
+        8,
+    );
+    /// Experimental: a device pointer to the array of rows in a grouped matrix. The length of the array must be equal to [`cublasLtMatrixLayoutAttribute_t::CUBLASLT_MATRIX_LAYOUT_BATCH_COUNT`]. The width of each element in the array is determined by [`cublasLtMatrixLayoutAttribute_t::CUBLASLT_GROUPED_MATRIX_LAYOUT_ROWS_COLS_ARRAY_INTEGER_WIDTH`]. Default value is NULL.
+    pub const CUBLASLT_GROUPED_MATRIX_LAYOUT_ROWS_ARRAY: cublasLtMatrixLayoutAttribute_t = cublasLtMatrixLayoutAttribute_t(
+        9,
+    );
+    /// Experimental: a device pointer to the array of columns in a grouped matrix. The length of the array must be equal to [`cublasLtMatrixLayoutAttribute_t::CUBLASLT_MATRIX_LAYOUT_BATCH_COUNT`]. The width of each element in the array is determined by [`cublasLtMatrixLayoutAttribute_t::CUBLASLT_GROUPED_MATRIX_LAYOUT_ROWS_COLS_ARRAY_INTEGER_WIDTH`]. Default value is NULL.
+    pub const CUBLASLT_GROUPED_MATRIX_LAYOUT_COLS_ARRAY: cublasLtMatrixLayoutAttribute_t = cublasLtMatrixLayoutAttribute_t(
+        10,
+    );
+    /// Experimental: a device pointer to the array of leading dimensions in a grouped matrix. The length of the array must be equal to [`cublasLtMatrixLayoutAttribute_t::CUBLASLT_MATRIX_LAYOUT_BATCH_COUNT`]. The width of each element in the array is determined by [`cublasLtMatrixLayoutAttribute_t::CUBLASLT_GROUPED_MATRIX_LAYOUT_LD_ARRAY_INTEGER_WIDTH`]. Default value is NULL.
+    pub const CUBLASLT_GROUPED_MATRIX_LAYOUT_LD_ARRAY: cublasLtMatrixLayoutAttribute_t = cublasLtMatrixLayoutAttribute_t(
+        11,
+    );
+    /// Experimental: [`cublasLtIntegerWidth_t`] is an enumerated type used to indicate the width of integers in the rows and columns arrays of a grouped matrix. Default value is [`cublasLtIntegerWidth_t::CUBLASLT_INTEGER_WIDTH_32`]. See [`cublasLtIntegerWidth_t`].
+    pub const CUBLASLT_GROUPED_MATRIX_LAYOUT_ROWS_COLS_ARRAY_INTEGER_WIDTH: cublasLtMatrixLayoutAttribute_t = cublasLtMatrixLayoutAttribute_t(
+        12,
+    );
+    /// Experimental: [`cublasLtIntegerWidth_t`] is an enumerated type used to indicate the width of integers in the leading dimensions array of a grouped matrix. Default value is [`cublasLtIntegerWidth_t::CUBLASLT_INTEGER_WIDTH_32`]. See [`cublasLtIntegerWidth_t`].
+    pub const CUBLASLT_GROUPED_MATRIX_LAYOUT_LD_ARRAY_INTEGER_WIDTH: cublasLtMatrixLayoutAttribute_t = cublasLtMatrixLayoutAttribute_t(
+        13,
+    );
 }
 /// [`cublasLtMatrixLayoutAttribute_t`] is a descriptor structure containing the attributes that define the details of the matrix operation. Use [`cublasLtMatrixLayoutGetAttribute`] and [`cublasLtMatrixLayoutSetAttribute`] to get and set the attribute value of a matrix layout descriptor.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cublasLtMatrixLayoutAttribute_t {
-    /// Specifies the data precision type. See [`cudaDataType_t`].
-    CUBLASLT_MATRIX_LAYOUT_TYPE = 0,
-    /// Specifies the memory order of the data of the matrix. Default value is [`cublasLtOrder_t::CUBLASLT_ORDER_COL`]. See [`cublasLtOrder_t`].
-    CUBLASLT_MATRIX_LAYOUT_ORDER = 1,
-    /// Describes the number of rows in the matrix. Normally only values that can be expressed as `int32_t` are supported.
-    CUBLASLT_MATRIX_LAYOUT_ROWS = 2,
-    /// Describes the number of columns in the matrix. Normally only values that can be expressed as `int32_t` are supported.
-    CUBLASLT_MATRIX_LAYOUT_COLS = 3,
-    /// The leading dimension of the matrix. For [`cublasLtOrder_t::CUBLASLT_ORDER_COL`] this is the stride (in elements) of matrix column. See also [`cublasLtOrder_t`]. * Currently only non-negative values are supported. * Must be large enough so that matrix memory locations are not overlapping (e.g., greater or equal to [`cublasLtMatrixLayoutAttribute_t::CUBLASLT_MATRIX_LAYOUT_ROWS`] in case of [`cublasLtOrder_t::CUBLASLT_ORDER_COL`]).
-    CUBLASLT_MATRIX_LAYOUT_LD = 4,
-    /// Number of matmul operations to perform in the batch. Default value is 1. See also [`cublasLtMatmulAlgoCapAttributes_t::CUBLASLT_ALGO_CAP_STRIDED_BATCH_SUPPORT`], [`cublasLtMatmulAlgoCapAttributes_t::CUBLASLT_ALGO_CAP_POINTER_ARRAY_BATCH_SUPPORT`] and [`cublasLtMatmulAlgoCapAttributes_t::CUBLASLT_ALGO_CAP_POINTER_ARRAY_GROUPED_SUPPORT`] in [`cublasLtMatmulAlgoCapAttributes_t`].
-    CUBLASLT_MATRIX_LAYOUT_BATCH_COUNT = 5,
-    /// Stride (in elements) to the next matrix for the strided batch operation. Default value is 0. When matrix type is planar-complex ([`cublasLtMatrixLayoutAttribute_t::CUBLASLT_MATRIX_LAYOUT_PLANE_OFFSET`] != 0), batch stride is interpreted by [`cublasLtMatmul`] in number of real valued sub-elements. E.g. for data of type CUDA_C_16F, offset of 1024B is encoded as a stride of value 512 (since each element of the real and imaginary matrices is a 2B (16bit) floating point type). NOTE: A bug in [`cublasLtMatrixTransform`] causes it to interpret the batch stride for a planar-complex matrix as if it was specified in number of complex elements. Therefore an offset of 1024B must be encoded as stride value 256 when calling [`cublasLtMatrixTransform`] (each complex element is 4B with real and imaginary values 2B each). This behavior is expected to be corrected in the next major cuBLAS version.
-    CUBLASLT_MATRIX_LAYOUT_STRIDED_BATCH_OFFSET = 6,
-    /// Stride (in bytes) to the imaginary plane for planar-complex layout. Default value is 0, indicating that the layout is regular (real and imaginary parts of complex numbers are interleaved in memory for each element).
-    CUBLASLT_MATRIX_LAYOUT_PLANE_OFFSET = 7,
-    /// The batch mode of the matrix. Default value is [`cublasLtBatchMode_t::CUBLASLT_BATCH_MODE_STRIDED`]. See [`cublasLtBatchMode_t`].
-    CUBLASLT_MATRIX_LAYOUT_BATCH_MODE = 8,
-    /// Experimental: a device pointer to the array of rows in a grouped matrix. The length of the array must be equal to [`cublasLtMatrixLayoutAttribute_t::CUBLASLT_MATRIX_LAYOUT_BATCH_COUNT`]. The width of each element in the array is determined by [`cublasLtMatrixLayoutAttribute_t::CUBLASLT_GROUPED_MATRIX_LAYOUT_ROWS_COLS_ARRAY_INTEGER_WIDTH`]. Default value is NULL.
-    CUBLASLT_GROUPED_MATRIX_LAYOUT_ROWS_ARRAY = 9,
-    /// Experimental: a device pointer to the array of columns in a grouped matrix. The length of the array must be equal to [`cublasLtMatrixLayoutAttribute_t::CUBLASLT_MATRIX_LAYOUT_BATCH_COUNT`]. The width of each element in the array is determined by [`cublasLtMatrixLayoutAttribute_t::CUBLASLT_GROUPED_MATRIX_LAYOUT_ROWS_COLS_ARRAY_INTEGER_WIDTH`]. Default value is NULL.
-    CUBLASLT_GROUPED_MATRIX_LAYOUT_COLS_ARRAY = 10,
-    /// Experimental: a device pointer to the array of leading dimensions in a grouped matrix. The length of the array must be equal to [`cublasLtMatrixLayoutAttribute_t::CUBLASLT_MATRIX_LAYOUT_BATCH_COUNT`]. The width of each element in the array is determined by [`cublasLtMatrixLayoutAttribute_t::CUBLASLT_GROUPED_MATRIX_LAYOUT_LD_ARRAY_INTEGER_WIDTH`]. Default value is NULL.
-    CUBLASLT_GROUPED_MATRIX_LAYOUT_LD_ARRAY = 11,
-    /// Experimental: [`cublasLtIntegerWidth_t`] is an enumerated type used to indicate the width of integers in the rows and columns arrays of a grouped matrix. Default value is [`cublasLtIntegerWidth_t::CUBLASLT_INTEGER_WIDTH_32`]. See [`cublasLtIntegerWidth_t`].
-    CUBLASLT_GROUPED_MATRIX_LAYOUT_ROWS_COLS_ARRAY_INTEGER_WIDTH = 12,
-    /// Experimental: [`cublasLtIntegerWidth_t`] is an enumerated type used to indicate the width of integers in the leading dimensions array of a grouped matrix. Default value is [`cublasLtIntegerWidth_t::CUBLASLT_INTEGER_WIDTH_32`]. See [`cublasLtIntegerWidth_t`].
-    CUBLASLT_GROUPED_MATRIX_LAYOUT_LD_ARRAY_INTEGER_WIDTH = 13,
-}
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cublasLtMatrixLayoutAttribute_t(pub ::core::ffi::c_uint);
 singe_loader::functions! { crate::LT;
     /// Internal. Do not use directly.
     pub fn cublasLtMatrixLayoutInit_internal(
@@ -2598,113 +4046,190 @@ singe_loader::functions! { crate::LT;
         sizeWritten: *mut size_t,
     ) -> cublasStatus_t;
 }
-/// [`cublasLtMatmulDescAttributes_t`] is a descriptor structure containing the attributes that define the specifics of the matrix multiply operation. Use [`cublasLtMatmulDescGetAttribute`] and [`cublasLtMatmulDescSetAttribute`] to get and set the attribute value of a matmul descriptor.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cublasLtMatmulDescAttributes_t {
+impl cublasLtMatmulDescAttributes_t {
     /// Compute type. Defines the data type used for multiply and accumulate operations, and the accumulator during the matrix multiplication. See [`cublasComputeType_t`].
-    CUBLASLT_MATMUL_DESC_COMPUTE_TYPE = 0,
+    pub const CUBLASLT_MATMUL_DESC_COMPUTE_TYPE: cublasLtMatmulDescAttributes_t = cublasLtMatmulDescAttributes_t(
+        0,
+    );
     /// Scale type. Defines the data type of the scaling factors `alpha` and `beta`. The accumulator value and the value from matrix `C` are typically converted to scale type before final scaling. The value is then converted from scale type to the type of matrix `D` before storing in memory. The default value depends on [`cublasLtMatmulDescAttributes_t::CUBLASLT_MATMUL_DESC_COMPUTE_TYPE`]. See [`cudaDataType_t`].
-    CUBLASLT_MATMUL_DESC_SCALE_TYPE = 1,
+    pub const CUBLASLT_MATMUL_DESC_SCALE_TYPE: cublasLtMatmulDescAttributes_t = cublasLtMatmulDescAttributes_t(
+        1,
+    );
     /// Specifies `alpha` and `beta` are passed by reference, whether they are scalars on the host or on the device, or device vectors. Default value is: [`cublasLtPointerMode_t::CUBLASLT_POINTER_MODE_HOST`] (i.e., on the host). See [`cublasLtPointerMode_t`].
-    CUBLASLT_MATMUL_DESC_POINTER_MODE = 2,
+    pub const CUBLASLT_MATMUL_DESC_POINTER_MODE: cublasLtMatmulDescAttributes_t = cublasLtMatmulDescAttributes_t(
+        2,
+    );
     /// Specifies the type of transformation operation that should be performed on matrix A. Default value is: [`cublasOperation_t::CUBLAS_OP_N`](super::cublasOperation_t::CUBLAS_OP_N) (i.e., non-transpose operation). See [`cublasOperation_t`](super::cublasOperation_t).
-    CUBLASLT_MATMUL_DESC_TRANSA = 3,
+    pub const CUBLASLT_MATMUL_DESC_TRANSA: cublasLtMatmulDescAttributes_t = cublasLtMatmulDescAttributes_t(
+        3,
+    );
     /// Specifies the type of transformation operation that should be performed on matrix B. Default value is: [`cublasOperation_t::CUBLAS_OP_N`](super::cublasOperation_t::CUBLAS_OP_N) (i.e., non-transpose operation). See [`cublasOperation_t`](super::cublasOperation_t).
-    CUBLASLT_MATMUL_DESC_TRANSB = 4,
+    pub const CUBLASLT_MATMUL_DESC_TRANSB: cublasLtMatmulDescAttributes_t = cublasLtMatmulDescAttributes_t(
+        4,
+    );
     /// Specifies the type of transformation operation that should be performed on matrix C. Currently only [`cublasOperation_t::CUBLAS_OP_N`](super::cublasOperation_t::CUBLAS_OP_N) is supported. Default value is: [`cublasOperation_t::CUBLAS_OP_N`](super::cublasOperation_t::CUBLAS_OP_N) (i.e., non-transpose operation). See [`cublasOperation_t`](super::cublasOperation_t).
-    CUBLASLT_MATMUL_DESC_TRANSC = 5,
+    pub const CUBLASLT_MATMUL_DESC_TRANSC: cublasLtMatmulDescAttributes_t = cublasLtMatmulDescAttributes_t(
+        5,
+    );
     /// Indicates whether the lower or upper part of the dense matrix was filled, and consequently should be used by the function. Currently this flag is not supported for bfloat16 or FP8 data types and is not supported on the following GPUs: Hopper, Blackwell. Default value is: [`cublasFillMode_t::CUBLAS_FILL_MODE_FULL`](super::cublasFillMode_t::CUBLAS_FILL_MODE_FULL). See [`cublasFillMode_t`](super::cublasFillMode_t).
-    CUBLASLT_MATMUL_DESC_FILL_MODE = 6,
+    pub const CUBLASLT_MATMUL_DESC_FILL_MODE: cublasLtMatmulDescAttributes_t = cublasLtMatmulDescAttributes_t(
+        6,
+    );
     /// Epilogue function. See [`cublasLtEpilogue_t`]. Default value is: [`cublasLtEpilogue_t::CUBLASLT_EPILOGUE_DEFAULT`].
-    CUBLASLT_MATMUL_DESC_EPILOGUE = 7,
+    pub const CUBLASLT_MATMUL_DESC_EPILOGUE: cublasLtMatmulDescAttributes_t = cublasLtMatmulDescAttributes_t(
+        7,
+    );
     /// Bias or Bias gradient vector pointer in the device memory. * Input vector with length that matches the number of rows of matrix D when one of the following epilogues is used: [`cublasLtEpilogue_t::CUBLASLT_EPILOGUE_BIAS`], [`cublasLtEpilogue_t::CUBLASLT_EPILOGUE_RELU_BIAS`], [`cublasLtEpilogue_t::CUBLASLT_EPILOGUE_RELU_AUX_BIAS`], [`cublasLtEpilogue_t::CUBLASLT_EPILOGUE_GELU_BIAS`], [`cublasLtEpilogue_t::CUBLASLT_EPILOGUE_GELU_AUX_BIAS`]. * Output vector with length that matches the number of rows of matrix D when one of the following epilogues is used: [`cublasLtEpilogue_t::CUBLASLT_EPILOGUE_DRELU_BGRAD`], [`cublasLtEpilogue_t::CUBLASLT_EPILOGUE_DGELU_BGRAD`], [`cublasLtEpilogue_t::CUBLASLT_EPILOGUE_BGRADA`]. * Output vector with length that matches the number of columns of matrix D when one of the following epilogues is used: [`cublasLtEpilogue_t::CUBLASLT_EPILOGUE_BGRADB`]. Bias vector elements are the same type as `alpha` and `beta` (see [`cublasLtMatmulDescAttributes_t::CUBLASLT_MATMUL_DESC_SCALE_TYPE`] in this table) when matrix D datatype is `CUDA_R_8I` and same as matrix D datatype otherwise. See the datatypes table under [`cublasLtMatmul`] for detailed mapping. Default value is: NULL.
-    CUBLASLT_MATMUL_DESC_BIAS_POINTER = 8,
+    pub const CUBLASLT_MATMUL_DESC_BIAS_POINTER: cublasLtMatmulDescAttributes_t = cublasLtMatmulDescAttributes_t(
+        8,
+    );
     /// Stride (in elements) to the next bias or bias gradient vector for strided batch operations. If cublasLtBatchMode_t of any matrix is set to [`cublasLtBatchMode_t::CUBLASLT_BATCH_MODE_GROUPED`] and [`cublasLtMatmulDescAttributes_t::CUBLASLT_MATMUL_DESC_EPILOGUE`] includes [`cublasLtEpilogue_t::CUBLASLT_EPILOGUE_BIAS`] then [`cublasLtMatmulDescAttributes_t::CUBLASLT_MATMUL_DESC_BIAS_BATCH_STRIDE`] must be set to 1. The default value is 0.
-    CUBLASLT_MATMUL_DESC_BIAS_BATCH_STRIDE = 10,
+    pub const CUBLASLT_MATMUL_DESC_BIAS_BATCH_STRIDE: cublasLtMatmulDescAttributes_t = cublasLtMatmulDescAttributes_t(
+        10,
+    );
     /// Pointer for epilogue auxiliary buffer. * Output vector for ReLu bit-mask in forward pass when [`cublasLtEpilogue_t::CUBLASLT_EPILOGUE_RELU_AUX`] or [`cublasLtEpilogue_t::CUBLASLT_EPILOGUE_RELU_AUX_BIAS`] epilogue is used. * Input vector for ReLu bit-mask in backward pass when [`cublasLtEpilogue_t::CUBLASLT_EPILOGUE_DRELU`] or [`cublasLtEpilogue_t::CUBLASLT_EPILOGUE_DRELU_BGRAD`] epilogue is used. * Output of GELU input matrix in forward pass when [`cublasLtEpilogue_t::CUBLASLT_EPILOGUE_GELU_AUX_BIAS`] epilogue is used. * Input of GELU input matrix for backward pass when [`cublasLtEpilogue_t::CUBLASLT_EPILOGUE_DGELU`] or [`cublasLtEpilogue_t::CUBLASLT_EPILOGUE_DGELU_BGRAD`] epilogue is used. For aux data type, see [`cublasLtMatmulDescAttributes_t::CUBLASLT_MATMUL_DESC_EPILOGUE_AUX_DATA_TYPE`]. Routines that don’t dereference this pointer, like [`cublasLtMatmulAlgoGetHeuristic`] depend on its value to determine expected pointer alignment. Requires setting the [`cublasLtMatmulDescAttributes_t::CUBLASLT_MATMUL_DESC_EPILOGUE_AUX_LD`] attribute.
-    CUBLASLT_MATMUL_DESC_EPILOGUE_AUX_POINTER = 11,
+    pub const CUBLASLT_MATMUL_DESC_EPILOGUE_AUX_POINTER: cublasLtMatmulDescAttributes_t = cublasLtMatmulDescAttributes_t(
+        11,
+    );
     /// Leading dimension for epilogue auxiliary buffer. * ReLu bit-mask matrix leading dimension in elements (i.e. bits) when [`cublasLtEpilogue_t::CUBLASLT_EPILOGUE_RELU_AUX`], [`cublasLtEpilogue_t::CUBLASLT_EPILOGUE_RELU_AUX_BIAS`], [`cublasLtEpilogue_t::CUBLASLT_EPILOGUE_DRELU_BGRAD`], or [`cublasLtEpilogue_t::CUBLASLT_EPILOGUE_DRELU_BGRAD`] epilogue is used. Must be divisible by 128 and be no less than the number of rows in the output matrix. * GELU input matrix leading dimension in elements when [`cublasLtEpilogue_t::CUBLASLT_EPILOGUE_GELU_AUX_BIAS`], [`cublasLtEpilogue_t::CUBLASLT_EPILOGUE_DGELU`], or [`cublasLtEpilogue_t::CUBLASLT_EPILOGUE_DGELU_BGRAD`] epilogue used. Must be divisible by 8 and be no less than the number of rows in the output matrix.
-    CUBLASLT_MATMUL_DESC_EPILOGUE_AUX_LD = 12,
+    pub const CUBLASLT_MATMUL_DESC_EPILOGUE_AUX_LD: cublasLtMatmulDescAttributes_t = cublasLtMatmulDescAttributes_t(
+        12,
+    );
     /// Batch stride for epilogue auxiliary buffer. * ReLu bit-mask matrix batch stride in elements (i.e. bits) when [`cublasLtEpilogue_t::CUBLASLT_EPILOGUE_RELU_AUX`], [`cublasLtEpilogue_t::CUBLASLT_EPILOGUE_RELU_AUX_BIAS`] or [`cublasLtEpilogue_t::CUBLASLT_EPILOGUE_DRELU_BGRAD`] epilogue is used. Must be divisible by 128. * GELU input matrix batch stride in elements when [`cublasLtEpilogue_t::CUBLASLT_EPILOGUE_GELU_AUX_BIAS`], [`cublasLtEpilogue_t::CUBLASLT_EPILOGUE_DRELU`], or [`cublasLtEpilogue_t::CUBLASLT_EPILOGUE_DGELU_BGRAD`] epilogue used. Must be divisible by 8. Default value: 0.
-    CUBLASLT_MATMUL_DESC_EPILOGUE_AUX_BATCH_STRIDE = 13,
+    pub const CUBLASLT_MATMUL_DESC_EPILOGUE_AUX_BATCH_STRIDE: cublasLtMatmulDescAttributes_t = cublasLtMatmulDescAttributes_t(
+        13,
+    );
     /// Batch stride for alpha vector. Used together with [`cublasLtPointerMode_t::CUBLASLT_POINTER_MODE_ALPHA_DEVICE_VECTOR_BETA_HOST`] when matrix D’s [`cublasLtMatrixLayoutAttribute_t::CUBLASLT_MATRIX_LAYOUT_BATCH_COUNT`] is greater than 1. If [`cublasLtPointerMode_t::CUBLASLT_POINTER_MODE_ALPHA_DEVICE_VECTOR_BETA_ZERO`] is set then [`cublasLtMatmulDescAttributes_t::CUBLASLT_MATMUL_DESC_ALPHA_VECTOR_BATCH_STRIDE`] must be set to 0 as this mode doesn’t support batched alpha vector. If cublasLtBatchMode_t of any matrix is not set to [`cublasLtBatchMode_t::CUBLASLT_BATCH_MODE_STRIDED`] then [`cublasLtMatmulDescAttributes_t::CUBLASLT_MATMUL_DESC_ALPHA_VECTOR_BATCH_STRIDE`] must be set to 0. Default value: 0.
-    CUBLASLT_MATMUL_DESC_ALPHA_VECTOR_BATCH_STRIDE = 14,
+    pub const CUBLASLT_MATMUL_DESC_ALPHA_VECTOR_BATCH_STRIDE: cublasLtMatmulDescAttributes_t = cublasLtMatmulDescAttributes_t(
+        14,
+    );
     /// Number of SMs to target for parallel execution. Optimizes heuristics for execution on a different number of SMs when user expects a concurrent stream to be using some of the device resources. Default value: 0.
-    CUBLASLT_MATMUL_DESC_SM_COUNT_TARGET = 15,
+    pub const CUBLASLT_MATMUL_DESC_SM_COUNT_TARGET: cublasLtMatmulDescAttributes_t = cublasLtMatmulDescAttributes_t(
+        15,
+    );
     /// Device pointer to the scale factor value that converts data in matrix A to the compute data type range. The scaling factor must have the same type as the compute type. If not specified, or set to NULL, the scaling factor is assumed to be 1. If set for an unsupported matrix data, scale, and compute type combination, calling [`cublasLtMatmul`] will return `CUBLAS_INVALID_VALUE`. Default value: NULL
-    CUBLASLT_MATMUL_DESC_A_SCALE_POINTER = 17,
+    pub const CUBLASLT_MATMUL_DESC_A_SCALE_POINTER: cublasLtMatmulDescAttributes_t = cublasLtMatmulDescAttributes_t(
+        17,
+    );
     /// Equivalent to [`cublasLtMatmulDescAttributes_t::CUBLASLT_MATMUL_DESC_A_SCALE_POINTER`] for matrix B. Default value: NULL
-    CUBLASLT_MATMUL_DESC_B_SCALE_POINTER = 18,
+    pub const CUBLASLT_MATMUL_DESC_B_SCALE_POINTER: cublasLtMatmulDescAttributes_t = cublasLtMatmulDescAttributes_t(
+        18,
+    );
     /// Equivalent to [`cublasLtMatmulDescAttributes_t::CUBLASLT_MATMUL_DESC_A_SCALE_POINTER`] for matrix C. Default value: NULL
-    CUBLASLT_MATMUL_DESC_C_SCALE_POINTER = 19,
+    pub const CUBLASLT_MATMUL_DESC_C_SCALE_POINTER: cublasLtMatmulDescAttributes_t = cublasLtMatmulDescAttributes_t(
+        19,
+    );
     /// Equivalent to [`cublasLtMatmulDescAttributes_t::CUBLASLT_MATMUL_DESC_A_SCALE_POINTER`] for matrix D. Default value: NULL
-    CUBLASLT_MATMUL_DESC_D_SCALE_POINTER = 20,
+    pub const CUBLASLT_MATMUL_DESC_D_SCALE_POINTER: cublasLtMatmulDescAttributes_t = cublasLtMatmulDescAttributes_t(
+        20,
+    );
     /// Device pointer to the memory location that on completion will be set to the maximum of absolute values in the output matrix. The computed value has the same type as the compute type. If not specified, or set to NULL, the maximum absolute value is not computed. If set for an unsupported matrix data, scale, and compute type combination, calling [`cublasLtMatmul`] will return `CUBLAS_INVALID_VALUE`. Default value: NULL
-    CUBLASLT_MATMUL_DESC_AMAX_D_POINTER = 21,
+    pub const CUBLASLT_MATMUL_DESC_AMAX_D_POINTER: cublasLtMatmulDescAttributes_t = cublasLtMatmulDescAttributes_t(
+        21,
+    );
     /// The type of the data that will be stored in [`cublasLtMatmulDescAttributes_t::CUBLASLT_MATMUL_DESC_EPILOGUE_AUX_POINTER`]. If unset (or set to the default value of -1), the data type is set to be the output matrix element data type (DType) with some exceptions: * ReLu uses a bit-mask. * For FP8 kernels with an output type (DType) of `CUDA_R_8F_E4M3`, the data type can be set to a non-default value if: 1. AType and BType are `CUDA_R_8F_E4M3`. 2. Bias Type is `CUDA_R_16F`. 3. CType is `CUDA_R_16BF` or `CUDA_R_16F` 4. [`cublasLtMatmulDescAttributes_t::CUBLASLT_MATMUL_DESC_EPILOGUE`] is set to [`cublasLtEpilogue_t::CUBLASLT_EPILOGUE_GELU_AUX`] When CType is `CUDA_R_16F`, the data type may be set to `CUDA_R_16F` or `CUDA_R_8F_E4M3`. When CType is `CUDA_R_16BF`, the data type may be set to `CUDA_R_16BF`. Otherwise, the data type should be left unset or set to the default value of -1. If set for an unsupported matrix data, scale, and compute type combination, calling [`cublasLtMatmul`] will return `CUBLAS_INVALID_VALUE`. Default value: -1
-    CUBLASLT_MATMUL_DESC_EPILOGUE_AUX_DATA_TYPE = 22,
+    pub const CUBLASLT_MATMUL_DESC_EPILOGUE_AUX_DATA_TYPE: cublasLtMatmulDescAttributes_t = cublasLtMatmulDescAttributes_t(
+        22,
+    );
     /// Device pointer to the scaling factor value to convert results from compute type data range to storage data range in the auxiliary matrix that is set via [`cublasLtMatmulDescAttributes_t::CUBLASLT_MATMUL_DESC_EPILOGUE_AUX_POINTER`]. The scaling factor value must have the same type as the compute type. If not specified, or set to NULL, the scaling factor is assumed to be 1. If set for an unsupported matrix data, scale, and compute type combination, calling [`cublasLtMatmul`] will return `CUBLAS_INVALID_VALUE`. Default value: NULL
-    CUBLASLT_MATMUL_DESC_EPILOGUE_AUX_SCALE_POINTER = 23,
+    pub const CUBLASLT_MATMUL_DESC_EPILOGUE_AUX_SCALE_POINTER: cublasLtMatmulDescAttributes_t = cublasLtMatmulDescAttributes_t(
+        23,
+    );
     /// Device pointer to the memory location that on completion will be set to the maximum of absolute values in the buffer that is set via [`cublasLtMatmulDescAttributes_t::CUBLASLT_MATMUL_DESC_EPILOGUE_AUX_POINTER`]. The computed value has the same type as the compute type. If not specified, or set to NULL, the maximum absolute value is not computed. If set for an unsupported matrix data, scale, and compute type combination, calling [`cublasLtMatmul`] will return `CUBLAS_INVALID_VALUE`. Default value: NULL
-    CUBLASLT_MATMUL_DESC_EPILOGUE_AUX_AMAX_POINTER = 24,
+    pub const CUBLASLT_MATMUL_DESC_EPILOGUE_AUX_AMAX_POINTER: cublasLtMatmulDescAttributes_t = cublasLtMatmulDescAttributes_t(
+        24,
+    );
     /// Flag for managing FP8 fast accumulation mode. When enabled, on some GPUs problem execution might be faster but at the cost of lower accuracy because intermediate results will not periodically be promoted to a higher precision. Currently this flag has an effect on the following GPUs: Ada, Hopper. Default value: 0 - fast accumulation mode is disabled
-    CUBLASLT_MATMUL_DESC_FAST_ACCUM = 25,
+    pub const CUBLASLT_MATMUL_DESC_FAST_ACCUM: cublasLtMatmulDescAttributes_t = cublasLtMatmulDescAttributes_t(
+        25,
+    );
     /// Type of the bias or bias gradient vector in the device memory. Bias case: see [`cublasLtEpilogue_t::CUBLASLT_EPILOGUE_BIAS`]. If unset (or set to the default value of -1), the bias vector elements are the same type as the elements of the output matrix (Dtype) with the following exceptions: * IMMA kernels with computeType=`CUDA_R_32I` and `Ctype=CUDA_R_8I` where the bias vector elements are the same type as alpha, beta (`CUBLASLT_MATMUL_DESC_SCALE_TYPE=CUDA_R_32F`) * For FP8 kernels with an output type of `CUDA_R_32F`, `CUDA_R_8F_E4M3` or `CUDA_R_8F_E5M2`. See [`cublasLtMatmul`] for more details. Default value: -1
-    CUBLASLT_MATMUL_DESC_BIAS_DATA_TYPE = 26,
+    pub const CUBLASLT_MATMUL_DESC_BIAS_DATA_TYPE: cublasLtMatmulDescAttributes_t = cublasLtMatmulDescAttributes_t(
+        26,
+    );
     /// Scaling mode that defines how the matrix scaling factor for matrix A is interpreted. Default value: 0. See [`cublasLtMatmulMatrixScale_t`].
-    CUBLASLT_MATMUL_DESC_A_SCALE_MODE = 31,
+    pub const CUBLASLT_MATMUL_DESC_A_SCALE_MODE: cublasLtMatmulDescAttributes_t = cublasLtMatmulDescAttributes_t(
+        31,
+    );
     /// Scaling mode that defines how the matrix scaling factor for matrix B is interpreted. Default value: 0. See [`cublasLtMatmulMatrixScale_t`].
-    CUBLASLT_MATMUL_DESC_B_SCALE_MODE = 32,
+    pub const CUBLASLT_MATMUL_DESC_B_SCALE_MODE: cublasLtMatmulDescAttributes_t = cublasLtMatmulDescAttributes_t(
+        32,
+    );
     /// Scaling mode that defines how the matrix scaling factor for matrix C is interpreted. Default value: 0. See [`cublasLtMatmulMatrixScale_t`].
-    CUBLASLT_MATMUL_DESC_C_SCALE_MODE = 33,
+    pub const CUBLASLT_MATMUL_DESC_C_SCALE_MODE: cublasLtMatmulDescAttributes_t = cublasLtMatmulDescAttributes_t(
+        33,
+    );
     /// Scaling mode that defines how the matrix scaling factor for matrix D is interpreted. Default value: 0. See [`cublasLtMatmulMatrixScale_t`].
-    CUBLASLT_MATMUL_DESC_D_SCALE_MODE = 34,
+    pub const CUBLASLT_MATMUL_DESC_D_SCALE_MODE: cublasLtMatmulDescAttributes_t = cublasLtMatmulDescAttributes_t(
+        34,
+    );
     /// Scaling mode that defines how the matrix scaling factor for the auxiliary matrix is interpreted. Default value: 0. See [`cublasLtMatmulMatrixScale_t`].
-    CUBLASLT_MATMUL_DESC_EPILOGUE_AUX_SCALE_MODE = 35,
+    pub const CUBLASLT_MATMUL_DESC_EPILOGUE_AUX_SCALE_MODE: cublasLtMatmulDescAttributes_t = cublasLtMatmulDescAttributes_t(
+        35,
+    );
     /// Device pointer to the scale factors that are used to convert data in matrix D to the compute data type range. The scaling factor value type is defined by the scaling mode (see [`cublasLtMatmulDescAttributes_t::CUBLASLT_MATMUL_DESC_D_OUT_SCALE_MODE`]). If set for an unsupported matrix data, scale, scale mode, and compute type combination, or missing for a supported combination, then calling [`cublasLtMatmul`] will return `CUBLAS_INVALID_VALUE`. Default value: NULL.
-    CUBLASLT_MATMUL_DESC_D_OUT_SCALE_POINTER = 36,
+    pub const CUBLASLT_MATMUL_DESC_D_OUT_SCALE_POINTER: cublasLtMatmulDescAttributes_t = cublasLtMatmulDescAttributes_t(
+        36,
+    );
     /// Scaling mode that defines how the output matrix scaling factor for matrix D is interpreted. Default value: 0. See [`cublasLtMatmulMatrixScale_t`].
-    CUBLASLT_MATMUL_DESC_D_OUT_SCALE_MODE = 37,
+    pub const CUBLASLT_MATMUL_DESC_D_OUT_SCALE_MODE: cublasLtMatmulDescAttributes_t = cublasLtMatmulDescAttributes_t(
+        37,
+    );
     /// Emulation descriptor to configure floating point emulation parameters. Default value: NULL.
-    CUBLASLT_MATMUL_DESC_EMULATION_DESCRIPTOR = 38,
+    pub const CUBLASLT_MATMUL_DESC_EMULATION_DESCRIPTOR: cublasLtMatmulDescAttributes_t = cublasLtMatmulDescAttributes_t(
+        38,
+    );
     /// Experimental: Batch stride for alpha. Applicable when matrix D’s [`cublasLtMatrixLayoutAttribute_t::CUBLASLT_MATRIX_LAYOUT_BATCH_COUNT`] is greater than 1. Supported values are 0 and 1. Default value is 0. When the value is set to 1, the parameter `alpha` of [`cublasLtMatmul`] must contain a device array of pointers of length [`cublasLtMatrixLayoutAttribute_t::CUBLASLT_MATRIX_LAYOUT_BATCH_COUNT`]. This setting is currently only supported if cublasLtBatchMode_t of all matrices is set to [`cublasLtBatchMode_t::CUBLASLT_BATCH_MODE_GROUPED`] and [`cublasLtMatmulDescAttributes_t::CUBLASLT_MATMUL_DESC_POINTER_MODE`] is set to [`cublasLtPointerMode_t::CUBLASLT_POINTER_MODE_DEVICE`].
-    CUBLASLT_MATMUL_DESC_ALPHA_BATCH_STRIDE = 39,
+    pub const CUBLASLT_MATMUL_DESC_ALPHA_BATCH_STRIDE: cublasLtMatmulDescAttributes_t = cublasLtMatmulDescAttributes_t(
+        39,
+    );
     /// Experimental: Batch stride for beta. Applicable when matrix D’s [`cublasLtMatrixLayoutAttribute_t::CUBLASLT_MATRIX_LAYOUT_BATCH_COUNT`] is greater than 1. Supported values are 0 and 1. Default value is 0. When the value is set to 1, the parameter `beta` of [`cublasLtMatmul`] must contain a device array of pointers of length [`cublasLtMatrixLayoutAttribute_t::CUBLASLT_MATRIX_LAYOUT_BATCH_COUNT`]. This setting is currently only supported if cublasLtBatchMode_t of all matrices is set to [`cublasLtBatchMode_t::CUBLASLT_BATCH_MODE_GROUPED`] and [`cublasLtMatmulDescAttributes_t::CUBLASLT_MATMUL_DESC_POINTER_MODE`] is set to [`cublasLtPointerMode_t::CUBLASLT_POINTER_MODE_DEVICE`].
-    CUBLASLT_MATMUL_DESC_BETA_BATCH_STRIDE = 40,
+    pub const CUBLASLT_MATMUL_DESC_BETA_BATCH_STRIDE: cublasLtMatmulDescAttributes_t = cublasLtMatmulDescAttributes_t(
+        40,
+    );
     /// Experimental: Batch invariance flags. When set to one of the `CUBLASLT_BATCH_INVARIANCE_ALIGN_*` values, constrains algorithm selection so that matmul results do not depend on how the problem is split along the M and N dimensions. Currently only supported on GPUs with compute capabilities 10.x. Default value is [`cublasLtMatmulBatchInvarianceFlags_t::CUBLASLT_BATCH_INVARIANCE_UNSET`]. See [`cublasLtMatmulBatchInvarianceFlags_t`] and [Experimental: Batch Invariance](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#experimental-batch-invariance).
-    CUBLASLT_MATMUL_DESC_BATCH_INVARIANCE_FLAGS = 41,
+    pub const CUBLASLT_MATMUL_DESC_BATCH_INVARIANCE_FLAGS: cublasLtMatmulDescAttributes_t = cublasLtMatmulDescAttributes_t(
+        41,
+    );
+}
+/// [`cublasLtMatmulDescAttributes_t`] is a descriptor structure containing the attributes that define the specifics of the matrix multiply operation. Use [`cublasLtMatmulDescGetAttribute`] and [`cublasLtMatmulDescSetAttribute`] to get and set the attribute value of a matmul descriptor.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cublasLtMatmulDescAttributes_t(pub ::core::ffi::c_uint);
+impl cublasLtMatmulBatchInvarianceFlags_t {
+    /// Batch invariance is disabled.
+    pub const CUBLASLT_BATCH_INVARIANCE_DISABLED: cublasLtMatmulBatchInvarianceFlags_t = cublasLtMatmulBatchInvarianceFlags_t(
+        0,
+    );
+    /// Batch invariance is enabled. All tensor pointers, leading dimensions, and batch offsets are assumed to be multiples of 2 bytes. This is the most conservative assumption and results in the most conservative kernel selection.
+    pub const CUBLASLT_BATCH_INVARIANCE_ALIGN_2B: cublasLtMatmulBatchInvarianceFlags_t = cublasLtMatmulBatchInvarianceFlags_t(
+        1,
+    );
+    /// Batch invariance is enabled. All tensor pointers, leading dimensions, and batch offsets are assumed to be multiples of 4 bytes.
+    pub const CUBLASLT_BATCH_INVARIANCE_ALIGN_4B: cublasLtMatmulBatchInvarianceFlags_t = cublasLtMatmulBatchInvarianceFlags_t(
+        2,
+    );
+    /// Batch invariance is enabled. All tensor pointers, leading dimensions, and batch offsets are assumed to be multiples of 8 bytes.
+    pub const CUBLASLT_BATCH_INVARIANCE_ALIGN_8B: cublasLtMatmulBatchInvarianceFlags_t = cublasLtMatmulBatchInvarianceFlags_t(
+        3,
+    );
+    /// Batch invariance is enabled. All tensor pointers, leading dimensions, and batch offsets are assumed to be multiples of 16 bytes. This assumption allows the library to select the fastest kernels.
+    pub const CUBLASLT_BATCH_INVARIANCE_ALIGN_16B: cublasLtMatmulBatchInvarianceFlags_t = cublasLtMatmulBatchInvarianceFlags_t(
+        4,
+    );
+    /// The alignment class is detected from the shape, the pointers, and the minimum alignment preference attributes of each call. Results are batch invariant only if every call detects the same class.
+    pub const CUBLASLT_BATCH_INVARIANCE_AUTO: cublasLtMatmulBatchInvarianceFlags_t = cublasLtMatmulBatchInvarianceFlags_t(
+        8,
+    );
+    /// The value is not set through the attribute; batch invariance is controlled by the temporary, experimental `CUBLAS_BATCH_INVARIANCE_FLAGS` environment variable instead.
+    pub const CUBLASLT_BATCH_INVARIANCE_UNSET: cublasLtMatmulBatchInvarianceFlags_t = cublasLtMatmulBatchInvarianceFlags_t(
+        32768,
+    );
 }
 /// [`cublasLtMatmulBatchInvarianceFlags_t`] is an experimental enumerated type used to request batch-invariant matmul results via the [`cublasLtMatmulDescAttributes_t::CUBLASLT_MATMUL_DESC_BATCH_INVARIANCE_FLAGS`] attribute of [`cublasLtMatmulDescAttributes_t`]. See [Experimental: Batch Invariance](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#experimental-batch-invariance).
-#[repr(u32)]
+#[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum cublasLtMatmulBatchInvarianceFlags_t {
-    /// Batch invariance is disabled.
-    CUBLASLT_BATCH_INVARIANCE_DISABLED = 0,
-    /// Batch invariance is enabled. All tensor pointers, leading dimensions, and batch offsets are assumed to be multiples of 2 bytes. This is the most conservative assumption and results in the most conservative kernel selection.
-    CUBLASLT_BATCH_INVARIANCE_ALIGN_2B = 1,
-    /// Batch invariance is enabled. All tensor pointers, leading dimensions, and batch offsets are assumed to be multiples of 4 bytes.
-    CUBLASLT_BATCH_INVARIANCE_ALIGN_4B = 2,
-    /// Batch invariance is enabled. All tensor pointers, leading dimensions, and batch offsets are assumed to be multiples of 8 bytes.
-    CUBLASLT_BATCH_INVARIANCE_ALIGN_8B = 3,
-    /// Batch invariance is enabled. All tensor pointers, leading dimensions, and batch offsets are assumed to be multiples of 16 bytes. This assumption allows the library to select the fastest kernels.
-    CUBLASLT_BATCH_INVARIANCE_ALIGN_16B = 4,
-    /// The alignment class is detected from the shape, the pointers, and the minimum alignment preference attributes of each call. Results are batch invariant only if every call detects the same class.
-    CUBLASLT_BATCH_INVARIANCE_AUTO = 8,
-    /// The value is not set through the attribute; batch invariance is controlled by the temporary, experimental `CUBLAS_BATCH_INVARIANCE_FLAGS` environment variable instead.
-    CUBLASLT_BATCH_INVARIANCE_UNSET = 32768,
-}
+pub struct cublasLtMatmulBatchInvarianceFlags_t(pub ::core::ffi::c_uint);
 singe_loader::functions! { crate::LT;
     /// Internal. Do not use directly.
     pub fn cublasLtMatmulDescInit_internal(
@@ -2797,30 +4322,28 @@ singe_loader::functions! { crate::LT;
         sizeWritten: *mut size_t,
     ) -> cublasStatus_t;
 }
-/// [`cublasLtMatrixTransformDescAttributes_t`] is a descriptor structure containing the attributes that define the specifics of the matrix transform operation. Use [`cublasLtMatrixTransformDescGetAttribute`] and [`cublasLtMatrixTransformDescSetAttribute`] to set the attribute value of a matrix transform descriptor.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cublasLtMatrixTransformDescAttributes_t {
+impl cublasLtMatrixTransformDescAttributes_t {
     /// Scale type. Inputs are converted to the scale type for scaling and summation, and results are then converted to the output type to store in the memory. For the supported data types see [`cudaDataType_t`].
-    CUBLASLT_MATRIX_TRANSFORM_DESC_SCALE_TYPE = 0,
+    pub const CUBLASLT_MATRIX_TRANSFORM_DESC_SCALE_TYPE: cublasLtMatrixTransformDescAttributes_t = cublasLtMatrixTransformDescAttributes_t(
+        0,
+    );
     /// Specifies the scalars alpha and beta are passed by reference whether on the host or on the device. Default value is: [`cublasLtPointerMode_t::CUBLASLT_POINTER_MODE_HOST`] (i.e., on the host). See [`cublasLtPointerMode_t`].
-    CUBLASLT_MATRIX_TRANSFORM_DESC_POINTER_MODE = 1,
+    pub const CUBLASLT_MATRIX_TRANSFORM_DESC_POINTER_MODE: cublasLtMatrixTransformDescAttributes_t = cublasLtMatrixTransformDescAttributes_t(
+        1,
+    );
     /// Specifies the type of operation that should be performed on the matrix A. Default value is: [`cublasOperation_t::CUBLAS_OP_N`](super::cublasOperation_t::CUBLAS_OP_N) (i.e., non-transpose operation). See [`cublasOperation_t`](super::cublasOperation_t).
-    CUBLASLT_MATRIX_TRANSFORM_DESC_TRANSA = 2,
+    pub const CUBLASLT_MATRIX_TRANSFORM_DESC_TRANSA: cublasLtMatrixTransformDescAttributes_t = cublasLtMatrixTransformDescAttributes_t(
+        2,
+    );
     /// Specifies the type of operation that should be performed on the matrix B. Default value is: [`cublasOperation_t::CUBLAS_OP_N`](super::cublasOperation_t::CUBLAS_OP_N) (i.e., non-transpose operation). See [`cublasOperation_t`](super::cublasOperation_t).
-    CUBLASLT_MATRIX_TRANSFORM_DESC_TRANSB = 3,
+    pub const CUBLASLT_MATRIX_TRANSFORM_DESC_TRANSB: cublasLtMatrixTransformDescAttributes_t = cublasLtMatrixTransformDescAttributes_t(
+        3,
+    );
 }
+/// [`cublasLtMatrixTransformDescAttributes_t`] is a descriptor structure containing the attributes that define the specifics of the matrix transform operation. Use [`cublasLtMatrixTransformDescGetAttribute`] and [`cublasLtMatrixTransformDescSetAttribute`] to set the attribute value of a matrix transform descriptor.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cublasLtMatrixTransformDescAttributes_t(pub ::core::ffi::c_uint);
 singe_loader::functions! { crate::LT;
     /// Internal. Do not use directly.
     pub fn cublasLtMatrixTransformDescInit_internal(
@@ -2912,34 +4435,36 @@ singe_loader::functions! { crate::LT;
         sizeWritten: *mut size_t,
     ) -> cublasStatus_t;
 }
-/// cublasLtEmulationDescAttributes_t is an enumerated type used to configure floating point emulation parameters. See [Floating Point Emulation](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#floating-point-emulation) documentation for more details.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cublasLtEmulationDescAttributes_t {
+impl cublasLtEmulationDescAttributes_t {
     /// Strategy, see [`cublasEmulationStrategy_t`](super::cublasEmulationStrategy_t). Defines when to use floating point emulation algorithms. Default: EMULATION_STRATEGY_DEFAULT.
-    CUBLASLT_EMULATION_DESC_STRATEGY = 0,
+    pub const CUBLASLT_EMULATION_DESC_STRATEGY: cublasLtEmulationDescAttributes_t = cublasLtEmulationDescAttributes_t(
+        0,
+    );
     /// Special values support, see [cudaEmulationSpecialValuesSupport_t](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#cudaemulationspecialvaluessupport-t). Defines a bit mask of special cases in floating-point representations that must be supported. Default: EMULATION_SPECIAL_VALUES_SUPPORT_DEFAULT.
-    CUBLASLT_EMULATION_DESC_SPECIAL_VALUES_SUPPORT = 1,
+    pub const CUBLASLT_EMULATION_DESC_SPECIAL_VALUES_SUPPORT: cublasLtEmulationDescAttributes_t = cublasLtEmulationDescAttributes_t(
+        1,
+    );
     /// Mantissa control, see [cudaEmulationMantissaControl_t](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#cudaemulationmantissacontrol-t). For fixed-point emulation, defines how to compute the number of retained mantissa bits. See [Floating Point Emulation](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#floating-point-emulation) documentation for more details.
-    CUBLASLT_EMULATION_DESC_FIXEDPOINT_MANTISSA_CONTROL = 2,
+    pub const CUBLASLT_EMULATION_DESC_FIXEDPOINT_MANTISSA_CONTROL: cublasLtEmulationDescAttributes_t = cublasLtEmulationDescAttributes_t(
+        2,
+    );
     /// For fixed-point emulation only. An int32_t representing the maximum (up to quantization) number of mantissa bits to retain during fixed-point emulation. A default value of 0 allows the library to select a reasonable value based on device properties. Default: 0.
-    CUBLASLT_EMULATION_DESC_FIXEDPOINT_MAX_MANTISSA_BIT_COUNT = 3,
+    pub const CUBLASLT_EMULATION_DESC_FIXEDPOINT_MAX_MANTISSA_BIT_COUNT: cublasLtEmulationDescAttributes_t = cublasLtEmulationDescAttributes_t(
+        3,
+    );
     /// This parameter is for fixed-point emulation with `CUDA_EMULATION_MANTISSA_CONTROL_DYNAMIC` mantissa control (see [cudaEmulationMantissaControl_t](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#cudaemulationmantissacontrol-t)). An integer which can be used to bias the number of recommended mantissa bits. Default: 0.
-    CUBLASLT_EMULATION_DESC_FIXEDPOINT_MANTISSA_BIT_OFFSET = 4,
+    pub const CUBLASLT_EMULATION_DESC_FIXEDPOINT_MANTISSA_BIT_OFFSET: cublasLtEmulationDescAttributes_t = cublasLtEmulationDescAttributes_t(
+        4,
+    );
     /// This parameter is for fixed-point emulation. A device pointer which will contain the number of mantissa bits that were retained. If emulation is not used, the pointer will contain -1. Default: nullptr.
-    CUBLASLT_EMULATION_DESC_FIXEDPOINT_MANTISSA_BIT_COUNT_POINTER = 5,
+    pub const CUBLASLT_EMULATION_DESC_FIXEDPOINT_MANTISSA_BIT_COUNT_POINTER: cublasLtEmulationDescAttributes_t = cublasLtEmulationDescAttributes_t(
+        5,
+    );
 }
+/// cublasLtEmulationDescAttributes_t is an enumerated type used to configure floating point emulation parameters. See [Floating Point Emulation](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#floating-point-emulation) documentation for more details.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cublasLtEmulationDescAttributes_t(pub ::core::ffi::c_uint);
 singe_loader::functions! { crate::LT;
     /// Internal. Do not use directly.
     pub fn cublasLtEmulationDescInit_internal(
@@ -3026,182 +4551,204 @@ singe_loader::functions! { crate::LT;
         sizeWritten: *mut size_t,
     ) -> cublasStatus_t;
 }
-/// [`cublasLtReductionScheme_t`] is an enumerated type used to specify a reduction scheme for the portions of the dot-product calculated in parallel (i.e., “split - K”).
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cublasLtReductionScheme_t {
+impl cublasLtReductionScheme_t {
     /// Do not apply reduction. The dot-product will be performed in one sequence.
-    CUBLASLT_REDUCTION_SCHEME_NONE = 0,
+    pub const CUBLASLT_REDUCTION_SCHEME_NONE: cublasLtReductionScheme_t = cublasLtReductionScheme_t(
+        0,
+    );
     /// Reduction is performed “in place” using the output buffer, parts are added up in the output data type. Workspace is only used for counters that guarantee sequentiality.
-    CUBLASLT_REDUCTION_SCHEME_INPLACE = 1,
+    pub const CUBLASLT_REDUCTION_SCHEME_INPLACE: cublasLtReductionScheme_t = cublasLtReductionScheme_t(
+        1,
+    );
     /// Reduction done out of place in a user-provided workspace. The intermediate results are stored in the compute type in the workspace and reduced in a separate step.
-    CUBLASLT_REDUCTION_SCHEME_COMPUTE_TYPE = 2,
+    pub const CUBLASLT_REDUCTION_SCHEME_COMPUTE_TYPE: cublasLtReductionScheme_t = cublasLtReductionScheme_t(
+        2,
+    );
     /// Reduction done out of place in a user-provided workspace. The intermediate results are stored in the output type in the workspace and reduced in a separate step.
-    CUBLASLT_REDUCTION_SCHEME_OUTPUT_TYPE = 4,
+    pub const CUBLASLT_REDUCTION_SCHEME_OUTPUT_TYPE: cublasLtReductionScheme_t = cublasLtReductionScheme_t(
+        4,
+    );
     /// Allows all reduction schemes.
-    CUBLASLT_REDUCTION_SCHEME_MASK = 7,
+    pub const CUBLASLT_REDUCTION_SCHEME_MASK: cublasLtReductionScheme_t = cublasLtReductionScheme_t(
+        7,
+    );
 }
-/// The [`cublasLtEpilogue_t`] is an enum type to set the postprocessing options for the epilogue.
-///
-/// **NOTES:**.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cublasLtEpilogue_t {
+/// [`cublasLtReductionScheme_t`] is an enumerated type used to specify a reduction scheme for the portions of the dot-product calculated in parallel (i.e., “split - K”).
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cublasLtReductionScheme_t(pub ::core::ffi::c_uint);
+impl cublasLtEpilogue_t {
     /// No special postprocessing, just scale and quantize results if necessary.
-    CUBLASLT_EPILOGUE_DEFAULT = 1,
+    pub const CUBLASLT_EPILOGUE_DEFAULT: cublasLtEpilogue_t = cublasLtEpilogue_t(1);
     /// ReLu, apply ReLu point-wise transform to the results (x:=max(x, 0)).
-    CUBLASLT_EPILOGUE_RELU = 2,
+    pub const CUBLASLT_EPILOGUE_RELU: cublasLtEpilogue_t = cublasLtEpilogue_t(2);
     /// ReLu, apply ReLu point-wise transform to the results (x:=max(x, 0)).
     ///
     /// This epilogue mode produces an extra output, a ReLu bit-mask matrix, see CUBLASLT_MATMUL_DESC_EPILOGUE_AUX_POINTER.
-    CUBLASLT_EPILOGUE_RELU_AUX = 130,
+    pub const CUBLASLT_EPILOGUE_RELU_AUX: cublasLtEpilogue_t = cublasLtEpilogue_t(130);
     /// Bias, apply (broadcasted) Bias from bias vector. Bias vector length must match matrix D rows, it must be packed (stride between vector elements is 1). Bias vector is broadcasted to all columns and added before applying final postprocessing.
-    CUBLASLT_EPILOGUE_BIAS = 4,
+    pub const CUBLASLT_EPILOGUE_BIAS: cublasLtEpilogue_t = cublasLtEpilogue_t(4);
     /// ReLu and Bias, apply Bias and then ReLu transform
-    CUBLASLT_EPILOGUE_RELU_BIAS = 6,
+    pub const CUBLASLT_EPILOGUE_RELU_BIAS: cublasLtEpilogue_t = cublasLtEpilogue_t(6);
     /// ReLu and Bias, apply Bias and then ReLu transform
     ///
     /// This epilogue mode produces an extra output, a ReLu bit-mask matrix, see CUBLASLT_MATMUL_DESC_EPILOGUE_AUX_POINTER.
-    CUBLASLT_EPILOGUE_RELU_AUX_BIAS = 134,
+    pub const CUBLASLT_EPILOGUE_RELU_AUX_BIAS: cublasLtEpilogue_t = cublasLtEpilogue_t(
+        134,
+    );
     /// ReLu gradient. Apply ReLu gradient to matmul output. Store ReLu gradient in the output matrix.
     ///
     /// This epilogue mode requires an extra input, see CUBLASLT_MATMUL_DESC_EPILOGUE_AUX_POINTER.
-    CUBLASLT_EPILOGUE_DRELU = 136,
+    pub const CUBLASLT_EPILOGUE_DRELU: cublasLtEpilogue_t = cublasLtEpilogue_t(136);
     /// ReLu and Bias gradients. Apply independently ReLu and Bias gradient to matmul output. Store ReLu gradient in the output matrix, and Bias gradient in the auxiliary output (see CUBLASLT_MATMUL_DESC_BIAS_POINTER).
     ///
     /// This epilogue mode requires an extra input, see CUBLASLT_MATMUL_DESC_EPILOGUE_AUX_POINTER.
-    CUBLASLT_EPILOGUE_DRELU_BGRAD = 152,
+    pub const CUBLASLT_EPILOGUE_DRELU_BGRAD: cublasLtEpilogue_t = cublasLtEpilogue_t(
+        152,
+    );
     /// GELU, apply GELU point-wise transform to the results (x:=GELU(x)).
-    CUBLASLT_EPILOGUE_GELU = 32,
+    pub const CUBLASLT_EPILOGUE_GELU: cublasLtEpilogue_t = cublasLtEpilogue_t(32);
     /// GELU, apply GELU point-wise transform to the results (x:=GELU(x)).
     ///
     /// This epilogue mode outputs GELU input as a separate matrix (useful for training). See CUBLASLT_MATMUL_DESC_EPILOGUE_AUX_POINTER.
-    CUBLASLT_EPILOGUE_GELU_AUX = 160,
+    pub const CUBLASLT_EPILOGUE_GELU_AUX: cublasLtEpilogue_t = cublasLtEpilogue_t(160);
     /// GELU and Bias, apply Bias and then GELU transform
-    CUBLASLT_EPILOGUE_GELU_BIAS = 36,
+    pub const CUBLASLT_EPILOGUE_GELU_BIAS: cublasLtEpilogue_t = cublasLtEpilogue_t(36);
     /// GELU and Bias, apply Bias and then GELU transform
     ///
     /// This epilogue mode outputs GELU input as a separate matrix (useful for training). See CUBLASLT_MATMUL_DESC_EPILOGUE_AUX_POINTER.
-    CUBLASLT_EPILOGUE_GELU_AUX_BIAS = 164,
+    pub const CUBLASLT_EPILOGUE_GELU_AUX_BIAS: cublasLtEpilogue_t = cublasLtEpilogue_t(
+        164,
+    );
     /// GELU gradient. Apply GELU gradient to matmul output. Store GELU gradient in the output matrix.
     ///
     /// This epilogue mode requires an extra input, see CUBLASLT_MATMUL_DESC_EPILOGUE_AUX_POINTER.
-    CUBLASLT_EPILOGUE_DGELU = 192,
+    pub const CUBLASLT_EPILOGUE_DGELU: cublasLtEpilogue_t = cublasLtEpilogue_t(192);
     /// GELU and Bias gradients. Apply independently GELU and Bias gradient to matmul output. Store GELU gradient in the output matrix, and Bias gradient in the auxiliary output (see CUBLASLT_MATMUL_DESC_BIAS_POINTER).
     ///
     /// This epilogue mode requires an extra input, see CUBLASLT_MATMUL_DESC_EPILOGUE_AUX_POINTER.
-    CUBLASLT_EPILOGUE_DGELU_BGRAD = 208,
+    pub const CUBLASLT_EPILOGUE_DGELU_BGRAD: cublasLtEpilogue_t = cublasLtEpilogue_t(
+        208,
+    );
     /// Bias gradient based on the input matrix A.
     ///
     /// The bias size corresponds to the number of rows of the matrix D. The reduction happens over the GEMM's "k" dimension.
     ///
     /// Stores Bias gradient in the auxiliary output (see CUBLASLT_MATMUL_DESC_BIAS_POINTER).
-    CUBLASLT_EPILOGUE_BGRADA = 256,
+    pub const CUBLASLT_EPILOGUE_BGRADA: cublasLtEpilogue_t = cublasLtEpilogue_t(256);
     /// Bias gradient based on the input matrix B.
     ///
     /// The bias size corresponds to the number of columns of the matrix D. The reduction happens over the GEMM's "k" dimension.
     ///
     /// Stores Bias gradient in the auxiliary output (see CUBLASLT_MATMUL_DESC_BIAS_POINTER).
-    CUBLASLT_EPILOGUE_BGRADB = 512,
+    pub const CUBLASLT_EPILOGUE_BGRADB: cublasLtEpilogue_t = cublasLtEpilogue_t(512);
+}
+/// The [`cublasLtEpilogue_t`] is an enum type to set the postprocessing options for the epilogue.
+///
+/// **NOTES:**.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cublasLtEpilogue_t(pub ::core::ffi::c_uint);
+impl cublasLtMatmulSearch_t {
+    /// Request heuristics for the best algorithm for the given use case.
+    pub const CUBLASLT_SEARCH_BEST_FIT: cublasLtMatmulSearch_t = cublasLtMatmulSearch_t(
+        0,
+    );
+    /// Request heuristics only for the pre-configured algo id.
+    pub const CUBLASLT_SEARCH_LIMITED_BY_ALGO_ID: cublasLtMatmulSearch_t = cublasLtMatmulSearch_t(
+        1,
+    );
+    /// reserved for future use
+    pub const CUBLASLT_SEARCH_RESERVED_02: cublasLtMatmulSearch_t = cublasLtMatmulSearch_t(
+        2,
+    );
+    /// reserved for future use
+    pub const CUBLASLT_SEARCH_RESERVED_03: cublasLtMatmulSearch_t = cublasLtMatmulSearch_t(
+        3,
+    );
+    /// reserved for future use
+    pub const CUBLASLT_SEARCH_RESERVED_04: cublasLtMatmulSearch_t = cublasLtMatmulSearch_t(
+        4,
+    );
+    /// reserved for future use
+    pub const CUBLASLT_SEARCH_RESERVED_05: cublasLtMatmulSearch_t = cublasLtMatmulSearch_t(
+        5,
+    );
+    /// reserved for future use
+    pub const CUBLASLT_SEARCH_RESERVED_06: cublasLtMatmulSearch_t = cublasLtMatmulSearch_t(
+        6,
+    );
+    /// reserved for future use
+    pub const CUBLASLT_SEARCH_RESERVED_07: cublasLtMatmulSearch_t = cublasLtMatmulSearch_t(
+        7,
+    );
+    /// reserved for future use
+    pub const CUBLASLT_SEARCH_RESERVED_08: cublasLtMatmulSearch_t = cublasLtMatmulSearch_t(
+        8,
+    );
+    /// reserved for future use
+    pub const CUBLASLT_SEARCH_RESERVED_09: cublasLtMatmulSearch_t = cublasLtMatmulSearch_t(
+        9,
+    );
 }
 /// [`cublasLtMatmulSearch_t`] is an enumerated type that contains the attributes for heuristics search type.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cublasLtMatmulSearch_t {
-    /// Request heuristics for the best algorithm for the given use case.
-    CUBLASLT_SEARCH_BEST_FIT = 0,
-    /// Request heuristics only for the pre-configured algo id.
-    CUBLASLT_SEARCH_LIMITED_BY_ALGO_ID = 1,
-    /// reserved for future use
-    CUBLASLT_SEARCH_RESERVED_02 = 2,
-    /// reserved for future use
-    CUBLASLT_SEARCH_RESERVED_03 = 3,
-    /// reserved for future use
-    CUBLASLT_SEARCH_RESERVED_04 = 4,
-    /// reserved for future use
-    CUBLASLT_SEARCH_RESERVED_05 = 5,
-    /// reserved for future use
-    CUBLASLT_SEARCH_RESERVED_06 = 6,
-    /// reserved for future use
-    CUBLASLT_SEARCH_RESERVED_07 = 7,
-    /// reserved for future use
-    CUBLASLT_SEARCH_RESERVED_08 = 8,
-    /// reserved for future use
-    CUBLASLT_SEARCH_RESERVED_09 = 9,
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cublasLtMatmulSearch_t(pub ::core::ffi::c_uint);
+impl cublasLtMatmulPreferenceAttributes_t {
+    /// Search mode. See [`cublasLtMatmulSearch_t`]. Default is [`cublasLtMatmulSearch_t::CUBLASLT_SEARCH_BEST_FIT`].
+    pub const CUBLASLT_MATMUL_PREF_SEARCH_MODE: cublasLtMatmulPreferenceAttributes_t = cublasLtMatmulPreferenceAttributes_t(
+        0,
+    );
+    /// Maximum allowed workspace memory. Default is 0 (no workspace memory allowed).
+    pub const CUBLASLT_MATMUL_PREF_MAX_WORKSPACE_BYTES: cublasLtMatmulPreferenceAttributes_t = cublasLtMatmulPreferenceAttributes_t(
+        1,
+    );
+    /// Reduction scheme mask. See [`cublasLtReductionScheme_t`]. Only algorithm configurations specifying [`cublasLtMatmulAlgoConfigAttributes_t::CUBLASLT_ALGO_CONFIG_REDUCTION_SCHEME`] that is not masked out by this attribute are allowed. For example, a mask value of 0x03 will allow only `INPLACE` and `COMPUTE_TYPE` reduction schemes. Default is [`cublasLtReductionScheme_t::CUBLASLT_REDUCTION_SCHEME_MASK`] (i.e., allows all reduction schemes).
+    pub const CUBLASLT_MATMUL_PREF_REDUCTION_SCHEME_MASK: cublasLtMatmulPreferenceAttributes_t = cublasLtMatmulPreferenceAttributes_t(
+        3,
+    );
+    /// Minimum buffer alignment for matrix A (in bytes). Selecting a smaller value will exclude algorithms that can not work with matrix A, which is not as strictly aligned as the algorithms need. Default is 256 bytes.
+    pub const CUBLASLT_MATMUL_PREF_MIN_ALIGNMENT_A_BYTES: cublasLtMatmulPreferenceAttributes_t = cublasLtMatmulPreferenceAttributes_t(
+        5,
+    );
+    /// Minimum buffer alignment for matrix B (in bytes). Selecting a smaller value will exclude algorithms that can not work with matrix B, which is not as strictly aligned as the algorithms need. Default is 256 bytes.
+    pub const CUBLASLT_MATMUL_PREF_MIN_ALIGNMENT_B_BYTES: cublasLtMatmulPreferenceAttributes_t = cublasLtMatmulPreferenceAttributes_t(
+        6,
+    );
+    /// Minimum buffer alignment for matrix C (in bytes). Selecting a smaller value will exclude algorithms that can not work with matrix C, which is not as strictly aligned as the algorithms need. Default is 256 bytes.
+    pub const CUBLASLT_MATMUL_PREF_MIN_ALIGNMENT_C_BYTES: cublasLtMatmulPreferenceAttributes_t = cublasLtMatmulPreferenceAttributes_t(
+        7,
+    );
+    /// Minimum buffer alignment for matrix D (in bytes). Selecting a smaller value will exclude algorithms that can not work with matrix D, which is not as strictly aligned as the algorithms need. Default is 256 bytes.
+    pub const CUBLASLT_MATMUL_PREF_MIN_ALIGNMENT_D_BYTES: cublasLtMatmulPreferenceAttributes_t = cublasLtMatmulPreferenceAttributes_t(
+        8,
+    );
+    /// Maximum wave count. See [`cublasLtMatmulHeuristicResult_t`]`::wavesCount.` Selecting a non-zero value will exclude algorithms that report device utilization higher than specified. Default is `0.0f.`
+    pub const CUBLASLT_MATMUL_PREF_MAX_WAVES_COUNT: cublasLtMatmulPreferenceAttributes_t = cublasLtMatmulPreferenceAttributes_t(
+        9,
+    );
+    /// Numerical implementation details mask. See [cublasLtNumericalImplFlags_t](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#cublasltnumericalimplflags-t). Filters heuristic result to only include algorithms that use the allowed implementations. default: uint64_t(-1) (allow everything)
+    pub const CUBLASLT_MATMUL_PREF_IMPL_MASK: cublasLtMatmulPreferenceAttributes_t = cublasLtMatmulPreferenceAttributes_t(
+        12,
+    );
+    /// Experimental: Average reduction dimension. This is only supported when all matrix descriptors have [`cublasLtMatrixLayoutAttribute_t::CUBLASLT_MATRIX_LAYOUT_BATCH_MODE`] set to [`cublasLtBatchMode_t::CUBLASLT_BATCH_MODE_GROUPED`]. Default value is 0.
+    pub const CUBLASLT_MATMUL_PREF_GROUPED_AVERAGE_REDUCTION_DIM: cublasLtMatmulPreferenceAttributes_t = cublasLtMatmulPreferenceAttributes_t(
+        13,
+    );
+    /// Experimental: Average rows of matrix D. This is only supported when all matrix descriptors have [`cublasLtMatrixLayoutAttribute_t::CUBLASLT_MATRIX_LAYOUT_BATCH_MODE`] set to [`cublasLtBatchMode_t::CUBLASLT_BATCH_MODE_GROUPED`]. Default value is 0.
+    pub const CUBLASLT_MATMUL_PREF_GROUPED_DESC_D_AVERAGE_ROWS: cublasLtMatmulPreferenceAttributes_t = cublasLtMatmulPreferenceAttributes_t(
+        14,
+    );
+    /// Experimental: Average columns of matrix D. This is only supported when all matrix descriptors have [`cublasLtMatrixLayoutAttribute_t::CUBLASLT_MATRIX_LAYOUT_BATCH_MODE`] set to [`cublasLtBatchMode_t::CUBLASLT_BATCH_MODE_GROUPED`]. Default value is 0.
+    pub const CUBLASLT_MATMUL_PREF_GROUPED_DESC_D_AVERAGE_COLS: cublasLtMatmulPreferenceAttributes_t = cublasLtMatmulPreferenceAttributes_t(
+        15,
+    );
 }
 /// [`cublasLtMatmulPreferenceAttributes_t`] is an enumerated type used to apply algorithm search preferences while fine-tuning the heuristic function. Use [`cublasLtMatmulPreferenceGetAttribute`] and [`cublasLtMatmulPreferenceSetAttribute`] to get and set the attribute value of a matmul preference descriptor.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cublasLtMatmulPreferenceAttributes_t {
-    /// Search mode. See [`cublasLtMatmulSearch_t`]. Default is [`cublasLtMatmulSearch_t::CUBLASLT_SEARCH_BEST_FIT`].
-    CUBLASLT_MATMUL_PREF_SEARCH_MODE = 0,
-    /// Maximum allowed workspace memory. Default is 0 (no workspace memory allowed).
-    CUBLASLT_MATMUL_PREF_MAX_WORKSPACE_BYTES = 1,
-    /// Reduction scheme mask. See [`cublasLtReductionScheme_t`]. Only algorithm configurations specifying [`cublasLtMatmulAlgoConfigAttributes_t::CUBLASLT_ALGO_CONFIG_REDUCTION_SCHEME`] that is not masked out by this attribute are allowed. For example, a mask value of 0x03 will allow only `INPLACE` and `COMPUTE_TYPE` reduction schemes. Default is [`cublasLtReductionScheme_t::CUBLASLT_REDUCTION_SCHEME_MASK`] (i.e., allows all reduction schemes).
-    CUBLASLT_MATMUL_PREF_REDUCTION_SCHEME_MASK = 3,
-    /// Minimum buffer alignment for matrix A (in bytes). Selecting a smaller value will exclude algorithms that can not work with matrix A, which is not as strictly aligned as the algorithms need. Default is 256 bytes.
-    CUBLASLT_MATMUL_PREF_MIN_ALIGNMENT_A_BYTES = 5,
-    /// Minimum buffer alignment for matrix B (in bytes). Selecting a smaller value will exclude algorithms that can not work with matrix B, which is not as strictly aligned as the algorithms need. Default is 256 bytes.
-    CUBLASLT_MATMUL_PREF_MIN_ALIGNMENT_B_BYTES = 6,
-    /// Minimum buffer alignment for matrix C (in bytes). Selecting a smaller value will exclude algorithms that can not work with matrix C, which is not as strictly aligned as the algorithms need. Default is 256 bytes.
-    CUBLASLT_MATMUL_PREF_MIN_ALIGNMENT_C_BYTES = 7,
-    /// Minimum buffer alignment for matrix D (in bytes). Selecting a smaller value will exclude algorithms that can not work with matrix D, which is not as strictly aligned as the algorithms need. Default is 256 bytes.
-    CUBLASLT_MATMUL_PREF_MIN_ALIGNMENT_D_BYTES = 8,
-    /// Maximum wave count. See [`cublasLtMatmulHeuristicResult_t`]`::wavesCount.` Selecting a non-zero value will exclude algorithms that report device utilization higher than specified. Default is `0.0f.`
-    CUBLASLT_MATMUL_PREF_MAX_WAVES_COUNT = 9,
-    /// Numerical implementation details mask. See [cublasLtNumericalImplFlags_t](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#cublasltnumericalimplflags-t). Filters heuristic result to only include algorithms that use the allowed implementations. default: uint64_t(-1) (allow everything)
-    CUBLASLT_MATMUL_PREF_IMPL_MASK = 12,
-    /// Experimental: Average reduction dimension. This is only supported when all matrix descriptors have [`cublasLtMatrixLayoutAttribute_t::CUBLASLT_MATRIX_LAYOUT_BATCH_MODE`] set to [`cublasLtBatchMode_t::CUBLASLT_BATCH_MODE_GROUPED`]. Default value is 0.
-    CUBLASLT_MATMUL_PREF_GROUPED_AVERAGE_REDUCTION_DIM = 13,
-    /// Experimental: Average rows of matrix D. This is only supported when all matrix descriptors have [`cublasLtMatrixLayoutAttribute_t::CUBLASLT_MATRIX_LAYOUT_BATCH_MODE`] set to [`cublasLtBatchMode_t::CUBLASLT_BATCH_MODE_GROUPED`]. Default value is 0.
-    CUBLASLT_MATMUL_PREF_GROUPED_DESC_D_AVERAGE_ROWS = 14,
-    /// Experimental: Average columns of matrix D. This is only supported when all matrix descriptors have [`cublasLtMatrixLayoutAttribute_t::CUBLASLT_MATRIX_LAYOUT_BATCH_MODE`] set to [`cublasLtBatchMode_t::CUBLASLT_BATCH_MODE_GROUPED`]. Default value is 0.
-    CUBLASLT_MATMUL_PREF_GROUPED_DESC_D_AVERAGE_COLS = 15,
-}
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cublasLtMatmulPreferenceAttributes_t(pub ::core::ffi::c_uint);
 singe_loader::functions! { crate::LT;
     /// Internal. Do not use directly.
     pub fn cublasLtMatmulPreferenceInit_internal(
@@ -3517,64 +5064,96 @@ singe_loader::functions! { crate::LT;
         stream: cudaStream_t,
     ) -> cublasStatus_t;
 }
-/// [`cublasLtMatmulAlgoCapAttributes_t`] enumerates matrix multiplication algorithm capability attributes that can be retrieved from an initialized [`cublasLtMatmulAlgo_t`] descriptor using [`cublasLtMatmulAlgoCapGetAttribute`].
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cublasLtMatmulAlgoCapAttributes_t {
+impl cublasLtMatmulAlgoCapAttributes_t {
     /// Support for split-K. Boolean (0 or 1) to express if split-K implementation is supported. 0 means no support, and supported otherwise. See [`cublasLtMatmulAlgoConfigAttributes_t::CUBLASLT_ALGO_CONFIG_SPLITK_NUM`] of [`cublasLtMatmulAlgoConfigAttributes_t`].
-    CUBLASLT_ALGO_CAP_SPLITK_SUPPORT = 0,
+    pub const CUBLASLT_ALGO_CAP_SPLITK_SUPPORT: cublasLtMatmulAlgoCapAttributes_t = cublasLtMatmulAlgoCapAttributes_t(
+        0,
+    );
     /// Mask to express the types of reduction schemes supported, see [`cublasLtReductionScheme_t`]. If the reduction scheme is not masked out then it is supported. For example: `int isReductionSchemeComputeTypeSupported ? (reductionSchemeMask & CUBLASLT_REDUCTION_SCHEME_COMPUTE_TYPE) == CUBLASLT_REDUCTION_SCHEME_COMPUTE_TYPE ? 1 : 0;`
-    CUBLASLT_ALGO_CAP_REDUCTION_SCHEME_MASK = 1,
+    pub const CUBLASLT_ALGO_CAP_REDUCTION_SCHEME_MASK: cublasLtMatmulAlgoCapAttributes_t = cublasLtMatmulAlgoCapAttributes_t(
+        1,
+    );
     /// Support for CTA-swizzling. Boolean (0 or 1) to express if CTA-swizzling implementation is supported. 0 means no support, and 1 means supported value of 1; other values are reserved. See also [`cublasLtMatmulAlgoConfigAttributes_t::CUBLASLT_ALGO_CONFIG_CTA_SWIZZLING`] of [`cublasLtMatmulAlgoConfigAttributes_t`].
-    CUBLASLT_ALGO_CAP_CTA_SWIZZLING_SUPPORT = 2,
+    pub const CUBLASLT_ALGO_CAP_CTA_SWIZZLING_SUPPORT: cublasLtMatmulAlgoCapAttributes_t = cublasLtMatmulAlgoCapAttributes_t(
+        2,
+    );
     /// Support strided batch. 0 means no support, supported otherwise.
-    CUBLASLT_ALGO_CAP_STRIDED_BATCH_SUPPORT = 3,
+    pub const CUBLASLT_ALGO_CAP_STRIDED_BATCH_SUPPORT: cublasLtMatmulAlgoCapAttributes_t = cublasLtMatmulAlgoCapAttributes_t(
+        3,
+    );
     /// Support results out of place (D != C in D = alpha.A.B + beta.C). 0 means no support, supported otherwise.
-    CUBLASLT_ALGO_CAP_OUT_OF_PLACE_RESULT_SUPPORT = 4,
+    pub const CUBLASLT_ALGO_CAP_OUT_OF_PLACE_RESULT_SUPPORT: cublasLtMatmulAlgoCapAttributes_t = cublasLtMatmulAlgoCapAttributes_t(
+        4,
+    );
     /// Syrk (symmetric rank k update)/herk (Hermitian rank k update) support (on top of regular gemm). 0 means no support, supported otherwise.
-    CUBLASLT_ALGO_CAP_UPLO_SUPPORT = 5,
+    pub const CUBLASLT_ALGO_CAP_UPLO_SUPPORT: cublasLtMatmulAlgoCapAttributes_t = cublasLtMatmulAlgoCapAttributes_t(
+        5,
+    );
     /// The tile ids possible to use. See [`cublasLtMatmulTile_t`]. If no tile ids are supported then use [`cublasLtMatmulTile_t::CUBLASLT_MATMUL_TILE_UNDEFINED`]. Use [`cublasLtMatmulAlgoCapGetAttribute`] with `sizeInBytes = 0` to query the actual count.
-    CUBLASLT_ALGO_CAP_TILE_IDS = 6,
+    pub const CUBLASLT_ALGO_CAP_TILE_IDS: cublasLtMatmulAlgoCapAttributes_t = cublasLtMatmulAlgoCapAttributes_t(
+        6,
+    );
     /// Custom option range is from 0 to [`cublasLtMatmulAlgoCapAttributes_t::CUBLASLT_ALGO_CAP_CUSTOM_OPTION_MAX`] (inclusive). See [`cublasLtMatmulAlgoConfigAttributes_t::CUBLASLT_ALGO_CONFIG_CUSTOM_OPTION`] of [`cublasLtMatmulAlgoConfigAttributes_t`].
-    CUBLASLT_ALGO_CAP_CUSTOM_OPTION_MAX = 7,
+    pub const CUBLASLT_ALGO_CAP_CUSTOM_OPTION_MAX: cublasLtMatmulAlgoCapAttributes_t = cublasLtMatmulAlgoCapAttributes_t(
+        7,
+    );
     /// Indicates whether the algorithm supports custom (not COL or ROW memory order). 0 means only COL and ROW memory order is allowed, non-zero means that algo might have different requirements. See [`cublasLtOrder_t`].
-    CUBLASLT_ALGO_CAP_CUSTOM_MEMORY_ORDER = 10,
+    pub const CUBLASLT_ALGO_CAP_CUSTOM_MEMORY_ORDER: cublasLtMatmulAlgoCapAttributes_t = cublasLtMatmulAlgoCapAttributes_t(
+        10,
+    );
     /// Bitmask enumerating the pointer modes the algorithm supports. See [`cublasLtPointerModeMask_t`].
-    CUBLASLT_ALGO_CAP_POINTER_MODE_MASK = 11,
+    pub const CUBLASLT_ALGO_CAP_POINTER_MODE_MASK: cublasLtMatmulAlgoCapAttributes_t = cublasLtMatmulAlgoCapAttributes_t(
+        11,
+    );
     /// Bitmask enumerating the kinds of postprocessing algorithm supported in the epilogue. See [`cublasLtEpilogue_t`].
-    CUBLASLT_ALGO_CAP_EPILOGUE_MASK = 12,
+    pub const CUBLASLT_ALGO_CAP_EPILOGUE_MASK: cublasLtMatmulAlgoCapAttributes_t = cublasLtMatmulAlgoCapAttributes_t(
+        12,
+    );
     /// The stages ids possible to use. See [`cublasLtMatmulStages_t`]. If no stages ids are supported then use [`cublasLtMatmulStages_t::CUBLASLT_MATMUL_STAGES_UNDEFINED`]. Use [`cublasLtMatmulAlgoCapGetAttribute`] with `sizeInBytes = 0` to query the actual count.
-    CUBLASLT_ALGO_CAP_STAGES_IDS = 13,
+    pub const CUBLASLT_ALGO_CAP_STAGES_IDS: cublasLtMatmulAlgoCapAttributes_t = cublasLtMatmulAlgoCapAttributes_t(
+        13,
+    );
     /// Support for negative leading dimension for all of the matrices. 0 means no support, supported otherwise.
-    CUBLASLT_ALGO_CAP_LD_NEGATIVE = 14,
+    pub const CUBLASLT_ALGO_CAP_LD_NEGATIVE: cublasLtMatmulAlgoCapAttributes_t = cublasLtMatmulAlgoCapAttributes_t(
+        14,
+    );
     /// Details about algorithm’s implementation that affect it’s numerical behavior. See [cublasLtNumericalImplFlags_t](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#cublasltnumericalimplflags-t).
-    CUBLASLT_ALGO_CAP_NUMERICAL_IMPL_FLAGS = 15,
+    pub const CUBLASLT_ALGO_CAP_NUMERICAL_IMPL_FLAGS: cublasLtMatmulAlgoCapAttributes_t = cublasLtMatmulAlgoCapAttributes_t(
+        15,
+    );
     /// Minimum alignment required for A matrix in bytes.
-    CUBLASLT_ALGO_CAP_MIN_ALIGNMENT_A_BYTES = 16,
+    pub const CUBLASLT_ALGO_CAP_MIN_ALIGNMENT_A_BYTES: cublasLtMatmulAlgoCapAttributes_t = cublasLtMatmulAlgoCapAttributes_t(
+        16,
+    );
     /// Minimum alignment required for B matrix in bytes.
-    CUBLASLT_ALGO_CAP_MIN_ALIGNMENT_B_BYTES = 17,
+    pub const CUBLASLT_ALGO_CAP_MIN_ALIGNMENT_B_BYTES: cublasLtMatmulAlgoCapAttributes_t = cublasLtMatmulAlgoCapAttributes_t(
+        17,
+    );
     /// Minimum alignment required for C matrix in bytes.
-    CUBLASLT_ALGO_CAP_MIN_ALIGNMENT_C_BYTES = 18,
+    pub const CUBLASLT_ALGO_CAP_MIN_ALIGNMENT_C_BYTES: cublasLtMatmulAlgoCapAttributes_t = cublasLtMatmulAlgoCapAttributes_t(
+        18,
+    );
     /// Minimum alignment required for D matrix in bytes.
-    CUBLASLT_ALGO_CAP_MIN_ALIGNMENT_D_BYTES = 19,
+    pub const CUBLASLT_ALGO_CAP_MIN_ALIGNMENT_D_BYTES: cublasLtMatmulAlgoCapAttributes_t = cublasLtMatmulAlgoCapAttributes_t(
+        19,
+    );
     /// Support pointer array batch. 0 means no support, supported otherwise.
-    CUBLASLT_ALGO_CAP_POINTER_ARRAY_BATCH_SUPPORT = 21,
+    pub const CUBLASLT_ALGO_CAP_POINTER_ARRAY_BATCH_SUPPORT: cublasLtMatmulAlgoCapAttributes_t = cublasLtMatmulAlgoCapAttributes_t(
+        21,
+    );
     /// Support for for floating point emulation. See [Floating Point Emulation](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#floating-point-emulation).
-    CUBLASLT_ALGO_CAP_FLOATING_POINT_EMULATION_SUPPORT = 22,
+    pub const CUBLASLT_ALGO_CAP_FLOATING_POINT_EMULATION_SUPPORT: cublasLtMatmulAlgoCapAttributes_t = cublasLtMatmulAlgoCapAttributes_t(
+        22,
+    );
     /// Experimental: Support pointer array grouped batch. 0 means no support, supported otherwise. See [`cublasLtBatchMode_t::CUBLASLT_BATCH_MODE_GROUPED`] of [`cublasLtBatchMode_t`].
-    CUBLASLT_ALGO_CAP_POINTER_ARRAY_GROUPED_SUPPORT = 23,
+    pub const CUBLASLT_ALGO_CAP_POINTER_ARRAY_GROUPED_SUPPORT: cublasLtMatmulAlgoCapAttributes_t = cublasLtMatmulAlgoCapAttributes_t(
+        23,
+    );
 }
+/// [`cublasLtMatmulAlgoCapAttributes_t`] enumerates matrix multiplication algorithm capability attributes that can be retrieved from an initialized [`cublasLtMatmulAlgo_t`] descriptor using [`cublasLtMatmulAlgoCapGetAttribute`].
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cublasLtMatmulAlgoCapAttributes_t(pub ::core::ffi::c_uint);
 singe_loader::functions! { crate::LT;
     /// This function returns the value of the queried capability attribute for an initialized [`cublasLtMatmulAlgo_t`] descriptor structure. The capability attribute value is retrieved from the enumerated type [`cublasLtMatmulAlgoCapAttributes_t`].
     ///
@@ -3602,40 +5181,48 @@ singe_loader::functions! { crate::LT;
         sizeWritten: *mut size_t,
     ) -> cublasStatus_t;
 }
-/// [`cublasLtMatmulAlgoConfigAttributes_t`] is an enumerated type that contains the configuration attributes for cuBLASLt matrix multiply algorithms. The configuration attributes are algorithm-specific, and can be set. The attributes configuration of a given algorithm should agree with its capability attributes. Use [`cublasLtMatmulAlgoConfigGetAttribute`] and [`cublasLtMatmulAlgoConfigSetAttribute`] to get and set the attribute value of a matmul algorithm descriptor.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cublasLtMatmulAlgoConfigAttributes_t {
+impl cublasLtMatmulAlgoConfigAttributes_t {
     /// Read-only attribute. Algorithm index. See [`cublasLtMatmulAlgoGetIds`]. Set by [`cublasLtMatmulAlgoInit`].
-    CUBLASLT_ALGO_CONFIG_ID = 0,
+    pub const CUBLASLT_ALGO_CONFIG_ID: cublasLtMatmulAlgoConfigAttributes_t = cublasLtMatmulAlgoConfigAttributes_t(
+        0,
+    );
     /// Tile id. See [`cublasLtMatmulTile_t`]. Default: [`cublasLtMatmulTile_t::CUBLASLT_MATMUL_TILE_UNDEFINED`].
-    CUBLASLT_ALGO_CONFIG_TILE_ID = 1,
+    pub const CUBLASLT_ALGO_CONFIG_TILE_ID: cublasLtMatmulAlgoConfigAttributes_t = cublasLtMatmulAlgoConfigAttributes_t(
+        1,
+    );
     /// Number of K splits. If the number of K splits is greater than one, SPLITK_NUM parts of matrix multiplication will be computed in parallel. The results will be accumulated according to [`cublasLtMatmulAlgoConfigAttributes_t::CUBLASLT_ALGO_CONFIG_REDUCTION_SCHEME`].
-    CUBLASLT_ALGO_CONFIG_SPLITK_NUM = 2,
+    pub const CUBLASLT_ALGO_CONFIG_SPLITK_NUM: cublasLtMatmulAlgoConfigAttributes_t = cublasLtMatmulAlgoConfigAttributes_t(
+        2,
+    );
     /// Reduction scheme to use when splitK value > 1. Default: [`cublasLtReductionScheme_t::CUBLASLT_REDUCTION_SCHEME_NONE`]. See [`cublasLtReductionScheme_t`].
-    CUBLASLT_ALGO_CONFIG_REDUCTION_SCHEME = 3,
+    pub const CUBLASLT_ALGO_CONFIG_REDUCTION_SCHEME: cublasLtMatmulAlgoConfigAttributes_t = cublasLtMatmulAlgoConfigAttributes_t(
+        3,
+    );
     /// Enable/Disable CTA swizzling. Change mapping from CUDA grid coordinates to parts of the matrices. Possible values: 0 and 1; other values reserved.
-    CUBLASLT_ALGO_CONFIG_CTA_SWIZZLING = 4,
+    pub const CUBLASLT_ALGO_CONFIG_CTA_SWIZZLING: cublasLtMatmulAlgoConfigAttributes_t = cublasLtMatmulAlgoConfigAttributes_t(
+        4,
+    );
     /// Custom option value. Each algorithm can support some custom options that don’t fit the description of the other configuration attributes. See the [`cublasLtMatmulAlgoCapAttributes_t::CUBLASLT_ALGO_CAP_CUSTOM_OPTION_MAX`] of [`cublasLtMatmulAlgoCapAttributes_t`] for the accepted range for a specific case.
-    CUBLASLT_ALGO_CONFIG_CUSTOM_OPTION = 5,
+    pub const CUBLASLT_ALGO_CONFIG_CUSTOM_OPTION: cublasLtMatmulAlgoConfigAttributes_t = cublasLtMatmulAlgoConfigAttributes_t(
+        5,
+    );
     /// stages id, see [`cublasLtMatmulStages_t`]. Default: [`cublasLtMatmulStages_t::CUBLASLT_MATMUL_STAGES_UNDEFINED`].
-    CUBLASLT_ALGO_CONFIG_STAGES_ID = 6,
+    pub const CUBLASLT_ALGO_CONFIG_STAGES_ID: cublasLtMatmulAlgoConfigAttributes_t = cublasLtMatmulAlgoConfigAttributes_t(
+        6,
+    );
     /// Inner shape ID. Refer to `cublasLtMatmulInnerShape_t.` Default: [`cublasLtMatmulInnerShape_t::CUBLASLT_MATMUL_INNER_SHAPE_UNDEFINED`].
-    CUBLASLT_ALGO_CONFIG_INNER_SHAPE_ID = 7,
+    pub const CUBLASLT_ALGO_CONFIG_INNER_SHAPE_ID: cublasLtMatmulAlgoConfigAttributes_t = cublasLtMatmulAlgoConfigAttributes_t(
+        7,
+    );
     /// Cluster shape ID. Refer to `cublasLtClusterShape_t.` Default: [`cublasLtClusterShape_t::CUBLASLT_CLUSTER_SHAPE_AUTO`].
-    CUBLASLT_ALGO_CONFIG_CLUSTER_SHAPE_ID = 8,
+    pub const CUBLASLT_ALGO_CONFIG_CLUSTER_SHAPE_ID: cublasLtMatmulAlgoConfigAttributes_t = cublasLtMatmulAlgoConfigAttributes_t(
+        8,
+    );
 }
+/// [`cublasLtMatmulAlgoConfigAttributes_t`] is an enumerated type that contains the configuration attributes for cuBLASLt matrix multiply algorithms. The configuration attributes are algorithm-specific, and can be set. The attributes configuration of a given algorithm should agree with its capability attributes. Use [`cublasLtMatmulAlgoConfigGetAttribute`] and [`cublasLtMatmulAlgoConfigSetAttribute`] to get and set the attribute value of a matmul algorithm descriptor.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cublasLtMatmulAlgoConfigAttributes_t(pub ::core::ffi::c_uint);
 singe_loader::functions! { crate::LT;
     /// This function sets the value of the specified configuration attribute for an initialized [`cublasLtMatmulAlgo_t`] descriptor. The configuration attribute is an enumerant of the type [`cublasLtMatmulAlgoConfigAttributes_t`].
     ///

@@ -6,8 +6,9 @@ use singe_cuda::{
     types::{Complex32, Complex64},
 };
 use singe_cufft::{
-    plan::{Plan, PlanBuilder},
-    types::TransformType,
+    error::Result as CufftResult,
+    plan::Plan,
+    types::{Direction, TransformType},
 };
 
 use crate::{
@@ -48,15 +49,14 @@ fn with_plan(
     kind: TransformType,
     length: usize,
     batch: usize,
-    transform: impl FnOnce(&Plan, Option<&Stream>) -> Result<()>,
+    transform: impl FnOnce(&Plan, &Stream) -> Result<()>,
 ) -> Result<()> {
-    let create = || {
-        PlanBuilder::new(context.allocator().context())
-            .one_dimensional(length, kind)
-            .batch(batch)
-            .create()
+    let create = || -> CufftResult<Plan> {
+        let mut plan = Plan::create(context.allocator().context())?;
+        plan.plan_1d(length, kind, batch)?;
+        Ok(plan)
     };
-    let run = |plan: &Plan| context.sync_scope(|| transform(plan, Some(context.stream().raw())));
+    let run = |plan: &Plan| context.sync_scope(|| transform(plan, context.stream().raw()));
     let runtime = context.runtime();
     // A plan's work area serves one transform at a time, so a caller holds the lock until its transform finishes.
     let mut plans = runtime.fft_plans().locked("cuda fft plans")?;
@@ -124,7 +124,7 @@ pub fn rfft(input: &Tensor) -> Result<Tensor> {
             // SAFETY: the plan transforms `batch` contiguous signals of `length` points into as many half spectra, which the input and output hold, and the scope waits for it.
             unsafe {
                 if data_type == DataType::F64 {
-                    plan.execute_d2z_f64_async(
+                    plan.execute_async(
                         &tensor_input_view::<f64>(&input, DataType::F64, "cuda rfft input")?,
                         tensor_output_view_with_len::<Complex64>(
                             output.region(),
@@ -132,10 +132,11 @@ pub fn rfft(input: &Tensor) -> Result<Tensor> {
                             pairs,
                             "cuda rfft output",
                         )?,
+                        Direction::Forward,
                         stream,
                     )?;
                 } else {
-                    plan.execute_r2c_f32_async(
+                    plan.execute_async(
                         &tensor_input_view::<f32>(&input, DataType::F32, "cuda rfft input")?,
                         tensor_output_view_with_len::<Complex32>(
                             output.region(),
@@ -143,6 +144,7 @@ pub fn rfft(input: &Tensor) -> Result<Tensor> {
                             pairs,
                             "cuda rfft output",
                         )?,
+                        Direction::Forward,
                         stream,
                     )?;
                 }
@@ -212,8 +214,8 @@ pub fn irfft(input: &Tensor, length: i64) -> Result<Tensor> {
             // SAFETY: the plan transforms `batch` half spectra, which the copy holds and no one else reads, into as many signals of `length` points, which the output holds, and the scope waits for it.
             unsafe {
                 if data_type == DataType::F64 {
-                    plan.execute_z2d_f64_async(
-                        tensor_output_view_with_len::<Complex64>(
+                    plan.execute_async(
+                        &tensor_output_view_with_len::<Complex64>(
                             region,
                             DataType::F64,
                             pairs,
@@ -225,11 +227,12 @@ pub fn irfft(input: &Tensor, length: i64) -> Result<Tensor> {
                             points,
                             "cuda irfft output",
                         )?,
+                        Direction::Inverse,
                         stream,
                     )?;
                 } else {
-                    plan.execute_c2r_f32_async(
-                        tensor_output_view_with_len::<Complex32>(
+                    plan.execute_async(
+                        &tensor_output_view_with_len::<Complex32>(
                             region,
                             DataType::F32,
                             pairs,
@@ -241,6 +244,7 @@ pub fn irfft(input: &Tensor, length: i64) -> Result<Tensor> {
                             points,
                             "cuda irfft output",
                         )?,
+                        Direction::Inverse,
                         stream,
                     )?;
                 }

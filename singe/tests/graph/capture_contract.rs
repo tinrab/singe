@@ -10,7 +10,7 @@ use singe::{
     graph::{CaptureBindings, CaptureOptions, Graph, GraphPrepareOptions, StateBindingKind},
 };
 #[cfg(all(feature = "testing", feature = "cuda"))]
-use singe_cuda::testing::device_lock;
+use singe_cuda::{device::Device as CudaDevice, testing::device_lock};
 
 fn vector(values: &[f32]) -> Tensor {
     Tensor::from_vec(
@@ -308,6 +308,6 @@ fn test_cpu_graphs_return_value_dependent_results_narrowed_on_each_run() {
 #[cfg(all(feature = "testing", feature = "cuda"))]
 #[test]
 fn test_cuda_graphs_return_value_dependent_results_narrowed_on_each_run() {
-    let _lock = device_lock(0).unwrap();
+    let _lock = device_lock(CudaDevice::new(0)).unwrap();
     assert_value_dependent_outputs_narrow_on_each_run(Device::Cuda(0));
 }

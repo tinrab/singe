@@ -13,13 +13,13 @@ pub fn with_cublas_stream<T>(
     f: impl FnOnce(&CublasContext) -> Result<T>,
 ) -> Result<T> {
     let stream = current_stream(device)?;
-    let cublas = runtime.cublas().locked("cuda runtime cache")?;
+    let mut cublas = runtime.cublas().locked("cuda runtime cache")?;
     cublas.set_stream(stream.as_deref())?;
     // Captured GEMMs must not borrow the handle's mutable default workspace pool.
     // SAFETY: no external workspace is installed; restoring the stream restores the default pool.
     let result = unsafe { cublas.set_workspace(None) }
         .map_err(Error::from)
-        .and_then(|()| with_cublas_numerics(&cublas, f));
+        .and_then(|()| with_cublas_numerics(&mut cublas, f));
     let reset = cublas.set_stream(None);
     drop(cublas);
 

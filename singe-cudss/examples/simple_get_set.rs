@@ -5,13 +5,13 @@ use std::slice;
 use singe_cuda::memory::DeviceMemory;
 use singe_cudss::{
     config::Config,
-    error::Result,
+    solver_state::SolverState,
     types::{ConfigParameter, DataParameter, MatchingAlgorithm, Phase, ReorderingAlgorithm},
 };
 
 use crate::common::{create_context, dense_matrix, dense_output, execute, spd_csr_matrix};
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     let (cuda, stream, context) = create_context()?;
     println!("cuDSS example: solver settings and extra solver data");
     println!("cuDSS version: {}", singe_cudss::version()?);
@@ -24,14 +24,14 @@ fn main() -> Result<()> {
     let col_indices = DeviceMemory::from_slice(&cuda, &[0_i32, 2, 1, 2, 2, 4, 3, 4])?;
     let a_values = DeviceMemory::from_slice(&cuda, &[4.0f64, 1.0, 3.0, 2.0, 5.0, 1.0, 1.0, 2.0])?;
     let b_values = DeviceMemory::from_slice(&cuda, &[7.0f64, 12.0, 25.0, 4.0, 13.0])?;
-    let mut x_values = DeviceMemory::<f64>::create_uninit(&cuda, (n * nrhs) as usize)?;
+    let mut x_values = DeviceMemory::<f64>::create_uninit(&cuda, usize::try_from(n * nrhs)?)?;
 
-    let mut diag = DeviceMemory::<f64>::create_uninit(&cuda, n as usize)?;
-    let mut row_scale = DeviceMemory::<f64>::create_uninit(&cuda, n as usize)?;
-    let mut col_scale = DeviceMemory::<f64>::create_uninit(&cuda, n as usize)?;
+    let mut diag = DeviceMemory::<f64>::create_uninit(&cuda, usize::try_from(n)?)?;
+    let mut row_scale = DeviceMemory::<f64>::create_uninit(&cuda, usize::try_from(n)?)?;
+    let mut col_scale = DeviceMemory::<f64>::create_uninit(&cuda, usize::try_from(n)?)?;
 
     let mut config = Config::create()?;
-    let mut data = context.create_data()?;
+    let mut data = SolverState::create(&context)?;
 
     let reordering = ReorderingAlgorithm::Default;
     let matching = MatchingAlgorithm::Auto;
@@ -113,7 +113,7 @@ fn main() -> Result<()> {
         // SAFETY: this f64 parameter output remains exclusive through completion.
         Ok(unsafe { data.get_device::<f64>(DataParameter::Diagonal, &mut diag) })
     })??;
-    assert_eq!(written, n as usize * size_of::<f64>());
+    assert_eq!(written, usize::try_from(n)? * size_of::<f64>());
     // SAFETY: the completed copy produced the full compact f64 range.
     let diag = unsafe { diag.assume_init() };
     let diag = diag.copy_to_host_vec()?;
@@ -127,7 +127,7 @@ fn main() -> Result<()> {
             // SAFETY: this f64 parameter output remains exclusive through completion.
             Ok(unsafe { data.get_device::<f64>(DataParameter::ScaleRow, &mut row_scale) })
         })??;
-        assert_eq!(written, n as usize * size_of::<f64>());
+        assert_eq!(written, usize::try_from(n)? * size_of::<f64>());
         // SAFETY: the completed copy produced the full compact f64 range.
         let row_scale = unsafe { row_scale.assume_init() };
         let written = stream.sync_scope(|_| {
@@ -136,7 +136,7 @@ fn main() -> Result<()> {
                 data.get_device::<f64>(DataParameter::ScaleColumn, &mut col_scale)
             })
         })??;
-        assert_eq!(written, n as usize * size_of::<f64>());
+        assert_eq!(written, usize::try_from(n)? * size_of::<f64>());
         // SAFETY: the completed copy produced the full compact f64 range.
         let col_scale = unsafe { col_scale.assume_init() };
         println!("row scale: {:?}", row_scale.copy_to_host_vec()?);

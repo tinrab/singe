@@ -310,7 +310,7 @@ where
     /// Uses the native low conversion routine.
     ///
     /// Allocates destination storage through the workspace and waits for successful stream completion.
-    /// The source must already be ready on the selected stream; this method does not wait for a producer on another stream.
+    /// Waits for a producer of the source on another stream.
     ///
     /// # Errors
     ///
@@ -356,7 +356,7 @@ where
     /// Uses the source and destination representations selected by the arithmetic dispatch trait.
     ///
     /// Allocates destination storage through the workspace and waits for successful stream completion.
-    /// The source must already be ready on the selected stream; this method does not wait for a producer on another stream.
+    /// Waits for a producer of the source on another stream.
     ///
     /// # Errors
     ///

@@ -1,24 +1,23 @@
 //! Allocate, fill and free stream-ordered buffers from an explicit memory pool.
 
-use std::error::Error;
-
 use singe_cuda::{
     context::Context,
     memory::{
-        AsyncDeviceMemory, MemoryAllocationHandleType, MemoryAllocationType, MemoryLocation,
-        MemoryPool, MemoryPoolAttribute, MemoryPoolAttributeValue, MemoryPoolProps,
-        MemoryPoolUsage, transfer,
+        DeviceMemory, MemoryAllocationType, MemoryLocation, MemoryPool, MemoryPoolAttribute,
+        MemoryPoolAttributeValue, MemoryPoolProps, MemoryPoolUsage, transfer,
     },
+    stream::StreamOptions,
+    virtual_memory::AllocationHandleTypes,
 };
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() -> anyhow::Result<()> {
     let context = Context::create()?;
-    let stream = context.create_stream()?;
+    let stream = context.create_stream(StreamOptions::default())?;
     let mut pool = MemoryPool::create(
         &context,
         MemoryPoolProps {
             alloc_type: MemoryAllocationType::Pinned,
-            handle_type: MemoryAllocationHandleType::None,
+            handle_types: AllocationHandleTypes::empty(),
             location: MemoryLocation::Device(context.device().id()),
             max_size: 0,
             usage: MemoryPoolUsage::empty(),
@@ -33,12 +32,12 @@ fn main() -> Result<(), Box<dyn Error>> {
     )?;
 
     for value in [7_u8, 42] {
-        let mut buffer = AsyncDeviceMemory::<u8>::zeroed_in_pool(4096, &pool, &stream)?;
-        buffer.set_value_async(value)?;
+        let mut buffer = DeviceMemory::<u8>::zeroed_in_pool(4096, &pool, &stream)?;
+        buffer.set_value(value)?;
         let output = transfer::copy_to_host_vec(&buffer)?;
         assert_eq!(output, vec![value; 4096]);
         // Enqueue the free on the allocation's stream before the next allocation.
-        buffer.free_async()?;
+        buffer.release()?;
     }
 
     stream.synchronize()?;

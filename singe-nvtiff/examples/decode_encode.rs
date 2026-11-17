@@ -7,9 +7,14 @@ use std::{
     time::Instant,
 };
 
-use common::{ExampleResult, invalid_input};
-use singe_cuda::{context::Context, memory::DeviceMemory, stream::Stream};
+use common::invalid_input;
+use singe_cuda::{
+    context::Context,
+    memory::DeviceMemory,
+    stream::{Stream, StreamOptions},
+};
 use singe_nvtiff::{
+    allocator::AllocatorSet,
     decode::{DecodeOptions, DecodeRegion, Decoder},
     encode::{EncodeParams, Encoder},
     error::Result,
@@ -29,11 +34,11 @@ struct Options {
     verbose: bool,
 }
 
-fn main() -> ExampleResult<()> {
+fn main() -> anyhow::Result<()> {
     let options = Options::parse()?;
 
     let context = Context::create()?;
-    let stream = context.create_stream()?;
+    let stream = context.create_stream(StreamOptions::default())?;
 
     let parse_start = Instant::now();
     let tiff = TiffStream::open_file(&options.file)?;
@@ -43,7 +48,7 @@ fn main() -> ExampleResult<()> {
         parse_start.elapsed()
     );
     if options.verbose {
-        tiff.print()?;
+        common::print_stream_metadata(&tiff)?;
     }
 
     let all_images = tiff.images()?.collect::<Result<Vec<_>>>()?;
@@ -56,19 +61,19 @@ fn main() -> ExampleResult<()> {
     let images = all_images
         .iter()
         .copied()
-        .skip(frame_begin as usize)
-        .take((frame_end - frame_begin + 1) as usize)
+        .skip(usize::try_from(frame_begin)?)
+        .take(usize::try_from(frame_end - frame_begin + 1)?)
         .collect::<Vec<_>>();
     let ifd_offsets = images.iter().map(TiffImage::ifd_offset).collect::<Vec<_>>();
     let image_infos = images
         .iter()
         .map(|image| Ok(image.info()?))
-        .collect::<ExampleResult<Vec<_>>>()?;
+        .collect::<anyhow::Result<Vec<_>>>()?;
     let layouts = image_infos
         .iter()
         .map(|info| Ok(info.default_decode_layout()?))
-        .collect::<ExampleResult<Vec<_>>>()?;
-    let mut decoder = Decoder::create(&stream)?;
+        .collect::<anyhow::Result<Vec<_>>>()?;
+    let mut decoder = Decoder::create(AllocatorSet::new(), &stream)?;
     println!(
         "decoding {} image(s), range [{frame_begin}, {frame_end}]",
         ifd_offsets.len()
@@ -112,7 +117,7 @@ fn main() -> ExampleResult<()> {
 }
 
 impl Options {
-    fn parse() -> ExampleResult<Self> {
+    fn parse() -> anyhow::Result<Self> {
         let mut file = None;
         let mut frame_begin = None;
         let mut frame_end = None;
@@ -155,14 +160,14 @@ fn encode_decoded_images(
     outputs: &[DeviceMemory<u8>],
     stream: &Stream,
     image_count: usize,
-) -> ExampleResult<()> {
+) -> anyhow::Result<()> {
     if !common::compatible_for_single_encode_params(image_infos) {
         return Err(invalid_input(
             "encoding this range requires identical image metadata",
         ));
     }
 
-    let mut encoder = Encoder::create(stream)?;
+    let mut encoder = Encoder::create(AllocatorSet::new(), stream)?;
     let mut params = EncodeParams::create(stream)?;
     let image_info = image_infos[0].to_encode_info()?;
     params.set_image_info(&image_info)?;
@@ -186,7 +191,7 @@ fn encode_decoded_images(
     Ok(())
 }
 
-fn frame_range(options: &Options, image_count: usize) -> ExampleResult<(u32, u32)> {
+fn frame_range(options: &Options, image_count: usize) -> anyhow::Result<(u32, u32)> {
     let image_count = u32::try_from(image_count)?;
     let begin = options.frame_begin.unwrap_or(0).min(image_count - 1);
     let end = options

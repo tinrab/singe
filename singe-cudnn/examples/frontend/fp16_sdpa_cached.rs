@@ -7,19 +7,20 @@ use std::{
 
 use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
-    backend::tensor::{Shape, TensorId, TensorSpec},
+    backend::operation::attention::AttentionSequenceInputs,
     data_type::{DataType, bf16},
-    error::Result,
+    error::{Error, Result},
     frontend::{
         composite::sdpa::{SdpaForwardOutputTensors, SdpaInputs},
         error::Error as FrontendError,
         graph::{DataTypePolicy, Graph, GraphConfig, TensorOutputConfig},
         operation::{
             AttentionConfig, AttentionDiagonalAlignment, AttentionDiagonalBand, AttentionMaskMode,
-            AttentionScoreConfig, AttentionSequenceInputs,
+            AttentionScoreConfig,
         },
         plan::{BuildPlanPolicy, CompileConfig, ExecuteArgs, HeuristicMode, PlanCache},
     },
+    tensor::{Shape, TensorId, TensorSpec},
 };
 
 fn init_bf16_image(size: usize, seed: &mut u32) -> Vec<bf16> {
@@ -41,6 +42,10 @@ struct SdpaGraph {
     stats: TensorId,
 }
 
+#[expect(
+    clippy::many_single_char_names,
+    reason = "keeps the upstream sample's single-letter dimension names"
+)]
 fn create_sdpa_forward_graph() -> Result<SdpaGraph> {
     let b = 3_i64;
     let h = 4_i64;
@@ -54,22 +59,22 @@ fn create_sdpa_forward_graph() -> Result<SdpaGraph> {
             .with_name("cached-sdpa-forward")
             .with_data_type_policy(
                 DataTypePolicy::new()
-                    .with_io(DataType::BF16)
+                    .with_io(DataType::Bf16)
                     .with_intermediate(DataType::F32)
                     .with_compute(DataType::F32),
             ),
     );
 
     let q = graph.tensor(TensorSpec::new(
-        DataType::BF16,
+        DataType::Bf16,
         Shape::contiguous([b, h, s_q, d_qk])?,
     ));
     let k = graph.tensor(TensorSpec::new(
-        DataType::BF16,
+        DataType::Bf16,
         Shape::contiguous([b, h, s_kv, d_qk])?,
     ));
     let v = graph.tensor(TensorSpec::new(
-        DataType::BF16,
+        DataType::Bf16,
         Shape::contiguous([b, h, s_kv, d_v])?,
     ));
     let scale = graph.tensor(TensorSpec::scalar_f32(0.123));
@@ -82,7 +87,7 @@ fn create_sdpa_forward_graph() -> Result<SdpaGraph> {
         Shape::contiguous([b, 1, 1, 1])?,
     ));
 
-    let outputs = graph.sdpa_auto(
+    let outputs = graph.sdpa(
         SdpaInputs {
             query: q,
             key: k,
@@ -109,7 +114,7 @@ fn create_sdpa_forward_graph() -> Result<SdpaGraph> {
     graph.replace_tensor(
         o,
         TensorSpec::new(
-            DataType::BF16,
+            DataType::Bf16,
             Shape::with_strides(
                 [b, h, s_q, d_v],
                 [strides[1], strides[2], strides[0], strides[3]],
@@ -156,7 +161,9 @@ fn run() -> Result<()> {
 
         cache
             .lock()
-            .map_err(|_| FrontendError::PlanCacheLockPoisoned)?
+            .map_err(|_| Error::LockPoisoned {
+                name: "plan cache".into(),
+            })?
             .insert(first_key.clone(), first.cached_plan_choices());
     }
 
@@ -194,7 +201,9 @@ fn run() -> Result<()> {
     drop(first);
     let cached_graphs = cache
         .lock()
-        .map_err(|_| FrontendError::PlanCacheLockPoisoned)?
+        .map_err(|_| Error::LockPoisoned {
+            name: "plan cache".into(),
+        })?
         .len();
     println!("first key={first_key}, second key={second_key}, cached graphs={cached_graphs}");
 
@@ -265,9 +274,9 @@ fn run() -> Result<()> {
         // SAFETY: inputs and sequence metadata are initialized, and all bindings cover the retained layouts.
         // Plans, scalars, outputs and workspace remain live through completion, including enqueue failure.
         example.execute_and_wait(|context| unsafe {
-            compiled.execute(
+            compiled.execute_async(
                 context,
-                ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+                ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
             )
         })?;
     }
@@ -275,6 +284,6 @@ fn run() -> Result<()> {
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_fp16_sdpa_cached", run())
 }

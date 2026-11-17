@@ -1,21 +1,20 @@
-use std::error::Error;
-
 use singe_cublas::{
     lt::{
         context::Context as LtContext,
         descriptor::MatrixLayout,
-        matmul::{MatmulDescriptor, MatmulPreference, matmul, matmul_algorithm_heuristics},
+        matmul::{MatmulDescriptor, MatmulPreference, matmul_algorithm_heuristics, matmul_async},
         types::MatrixScale,
     },
+    scalar::Scalar,
     types::{ComputeType, Operation},
 };
-
 use singe_cuda::{
     context::Context as CudaContext,
     data_type::DataType,
     device::Device,
     memory::DeviceMemory,
     types::{bf16, f8e4m3},
+    view::DeviceInputView,
 };
 
 const M: u64 = 128;
@@ -23,30 +22,33 @@ const N: u64 = 128;
 const K: u64 = 128;
 const WORKSPACE_BYTES: usize = 1 << 20;
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() -> anyhow::Result<()> {
     let cuda = CudaContext::create_for_device(Device::new(0))?;
     let lt = LtContext::create(&cuda)?;
 
-    let a = DeviceMemory::from_slice(&cuda, &vec![f8e4m3::from_bits(1); (M * K) as usize])?;
-    let b = DeviceMemory::from_slice(&cuda, &vec![f8e4m3::from_bits(1); (K * N) as usize])?;
-    let c = DeviceMemory::<bf16>::zeroed(&cuda, (M * N) as usize)?;
-    let mut d = DeviceMemory::<bf16>::zeroed(&cuda, (M * N) as usize)?;
+    let a = DeviceMemory::from_slice(&cuda, &vec![f8e4m3::from_bits(1); usize::try_from(M * K)?])?;
+    let b = DeviceMemory::from_slice(&cuda, &vec![f8e4m3::from_bits(1); usize::try_from(K * N)?])?;
+    let c = DeviceMemory::<bf16>::zeroed(&cuda, usize::try_from(M * N)?)?;
+    let mut d = DeviceMemory::<bf16>::zeroed(&cuda, usize::try_from(M * N)?)?;
 
     let a_scale = DeviceMemory::from_slice(&cuda, &[1.0_f32])?;
     let b_scale = DeviceMemory::from_slice(&cuda, &[1.0_f32])?;
 
-    let a_layout = MatrixLayout::create(DataType::F8E4M3, M, K, M as i64)?;
-    let b_layout = MatrixLayout::create(DataType::F8E4M3, K, N, K as i64)?;
-    let c_layout = MatrixLayout::create(DataType::Bf16, M, N, M as i64)?;
-    let d_layout = MatrixLayout::create(DataType::Bf16, M, N, M as i64)?;
+    let a_layout = MatrixLayout::create(DataType::F8E4M3, M, K, i64::try_from(M)?)?;
+    let b_layout = MatrixLayout::create(DataType::F8E4M3, K, N, i64::try_from(K)?)?;
+    let c_layout = MatrixLayout::create(DataType::Bf16, M, N, i64::try_from(M)?)?;
+    let d_layout = MatrixLayout::create(DataType::Bf16, M, N, i64::try_from(M)?)?;
 
     let mut desc = MatmulDescriptor::create(ComputeType::F32, DataType::F32)?;
     desc.set_transpose_a(Operation::NonTranspose)?;
     desc.set_transpose_b(Operation::NonTranspose)?;
     desc.set_a_scale_mode(MatrixScale::Block128x12832F)?;
     desc.set_b_scale_mode(MatrixScale::Block128x12832F)?;
-    desc.set_a_scale_pointer(&a_scale)?;
-    desc.set_b_scale_pointer(&b_scale)?;
+    // SAFETY: each scale is one `f32` for the single 128x128 block of its matrix, and both outlive the matmul, which `cuda.synchronize()` drains before they drop.
+    unsafe {
+        desc.set_a_scale_pointer(&a_scale)?;
+        desc.set_b_scale_pointer(&b_scale)?;
+    }
 
     let mut preference = MatmulPreference::create()?;
     preference.set_max_workspace_bytes(WORKSPACE_BYTES)?;
@@ -66,21 +68,21 @@ fn main() -> Result<(), Box<dyn Error>> {
     let beta = 0.0_f32;
     // SAFETY: layouts match the retained buffers and scalars; the default stream is drained below.
     unsafe {
-        matmul(
+        matmul_async(
             &lt,
             &desc,
-            &alpha,
+            Scalar::host(&alpha),
             &a,
             &a_layout,
             &b,
             &b_layout,
-            &beta,
-            &c,
+            Scalar::host(&beta),
+            Some(DeviceInputView::from_buffer(&c)),
             &c_layout,
             &mut d,
             &d_layout,
             Some(&heuristics[0].algorithm),
-            Some(&mut workspace),
+            Some(workspace.output()),
             None,
         )
     }?;

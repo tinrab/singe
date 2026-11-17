@@ -1,3 +1,5 @@
+//! Declarative tensor graphs with validation, target-specific preparation, and compilation.
+
 mod attention_stats;
 mod block_scale;
 mod captures;
@@ -38,27 +40,21 @@ use std::{
 };
 
 pub use crate::frontend::graph::{
-    block_scale::{BlockScaleDequantizeInputs, BlockScaleQuantizeOutputs},
     config::GraphConfig,
     data_type_policy::DataTypePolicy,
-    genstats::GenStatsOutputs,
     matmul::{
         BlockScaleMatmulInputs, MatmulFp8Inputs, MatmulFp8QuantizeOutputs,
         MatmulFp8QuantizeTensors, MatmulFp8Tensors,
     },
-    moe::{
-        MoeGroupedMatmulBackwardInputs, MoeGroupedMatmulBackwardTensors, MoeGroupedMatmulInputs,
-        MoeGroupedMatmulTensors,
-    },
     output::TensorOutputConfig,
     prepared::PreparedGraph,
-    resample::{ResampleIndexOutput, ResampleOutputs},
+    resample::ResampleIndexOutput,
     serialization::GraphKeyShapePolicy,
     shape_constraints::RuntimeShapeConstraints,
-    softmax::SoftmaxOutputs,
     state::{Graph, StorageView},
     validation::ValidatedGraph,
 };
+
 pub(crate) use crate::frontend::graph::{
     captures::TensorCaptureTarget,
     layout::GraphLayout,
@@ -69,15 +65,12 @@ pub(crate) use crate::frontend::graph::{
     },
     paged_cache::{infer_paged_cache_dimensions, infer_paged_cache_output},
     pointwise::infer_binary_pointwise_dimensions,
+    requirements::validate_vector_stride_alignment,
     softmax::reduce_last_axis,
     state::TensorRecord,
 };
 use crate::{
-    backend::{
-        device::DeviceProperties,
-        execution::KernelCache,
-        tensor::{Shape, TensorId, TensorPlacement, TensorSpec},
-    },
+    backend::{device::DeviceProperties, execution::KernelCache},
     data_type::DataType,
     error::{Error, Result},
     frontend::{
@@ -85,6 +78,7 @@ use crate::{
         graph::state::GraphMutationCheckpoint,
         operation::Operation,
     },
+    tensor::{Shape, TensorId, TensorPlacement, TensorSpec},
     utility::to_i64,
 };
 
@@ -155,6 +149,7 @@ impl Graph {
     /// Use [`TensorId::try_new`] to parse runtime integers before inserting them.
     ///
     /// # Errors
+    ///
     /// Returns an error if this graph already contains the identity.
     pub fn insert_tensor(&mut self, id: TensorId, tensor: TensorSpec) -> Result<TensorId> {
         let Entry::Vacant(entry) = self.tensors.entry(id) else {
@@ -218,7 +213,7 @@ impl Graph {
             .ok_or(FrontendError::TensorNotFound(id).into())
     }
 
-    /// Declared tensors in graph identity order, including unused declarations and virtual intermediates.
+    /// Returns the declared tensors in graph identity order, including unused declarations and virtual intermediates.
     pub fn tensors(&self) -> impl ExactSizeIterator<Item = (TensorId, &TensorSpec)> {
         self.tensors.iter().map(|(&id, tensor)| (id, tensor))
     }
@@ -238,7 +233,7 @@ impl Graph {
         &self.operations
     }
 
-    /// Explicit byte-offset storage views, separate from native reshape/slice/transpose operations.
+    /// Returns the explicit byte-offset storage views, separate from native reshape/slice/transpose operations.
     #[must_use]
     pub fn storage_views(&self) -> &[StorageView] {
         &self.storage_views
@@ -449,6 +444,7 @@ impl Graph {
     /// This does not alias device storage or copy the source's producer operations.
     ///
     /// # Errors
+    ///
     /// Returns an error if the source is unknown or its runtime shape bounds no longer match its declaration.
     pub fn tensor_like(&mut self, id: TensorId, name: Option<&str>) -> Result<TensorId> {
         let mut cloned = self.tensor_spec(id)?.clone();
@@ -668,7 +664,10 @@ pub(crate) fn validate_storage_view_byte_range(
     }
 
     let source_bits = source.storage_bit_len()?;
-    let start_bits = start as u128 * 8;
+    let start_bits = u128::try_from(start)
+        .ok()
+        .and_then(|start| start.checked_mul(8))
+        .ok_or_else(|| Error::out_of_range("storage view bits"))?;
     let end_bits = start_bits
         .checked_add(target.storage_bit_len()?)
         .ok_or_else(|| Error::out_of_range("storage view bits"))?;

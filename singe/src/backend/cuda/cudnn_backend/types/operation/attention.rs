@@ -1,8 +1,6 @@
 use singe_cudnn::backend::{
-    execution::{
-        OperationGraph as CudnnOperationGraph,
-        attention::{DiagonalBandMaskOperation, SdpaForwardOperation},
-    },
+    execution::OperationGraph as CudnnOperationGraph,
+    operation::attention::{DiagonalBandMaskOperation, SdpaForwardOperation},
     tensor::{BackendTensorUid as CudnnTensorUid, Tensor as CudnnBackendTensor},
 };
 

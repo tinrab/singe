@@ -11,12 +11,13 @@ use std::{
     },
 };
 
+use singe_core::report_cleanup_failure;
 use singe_cuda_sys::{driver, runtime};
 
 use crate::{
     error::{Error, Result, Status},
     graph::Graph,
-    stream::{StreamBinding, StreamCaptureStatus},
+    stream::{AsStream, StreamBinding, StreamCaptureStatus},
     try_ffi,
     utility::lock_for_cleanup,
 };
@@ -93,6 +94,9 @@ impl<T: Any + Send + Sync> GraphRetainedResource<T> {
                 collect_graph_resources(stream)
             }
             runtime::cudaStreamCaptureStatus::CU_STREAM_CAPTURE_STATUS_INVALIDATED => Ok(()),
+            status => {
+                Err(singe_core::UnknownEnumValue::new("cudaStreamCaptureStatus", status.0).into())
+            }
         }
     }
 
@@ -100,9 +104,7 @@ impl<T: Any + Send + Sync> GraphRetainedResource<T> {
         let mut object = self
             .user_object
             .lock()
-            .map_err(|_| Error::ResourcePoisoned {
-                name: "graph retained resource",
-            })?;
+            .map_err(|_| Error::lock_poisoned("graph retained resource"))?;
         if object.is_none() {
             let owner: ErasedOwner = Arc::<T>::clone(&self.resource);
             let payload = Box::into_raw(Box::new(owner));
@@ -122,9 +124,7 @@ impl<T: Any + Send + Sync> GraphRetainedResource<T> {
         }
         object
             .as_ref()
-            .ok_or(Error::ResourcePoisoned {
-                name: "graph retained resource",
-            })?
+            .ok_or_else(|| Error::lock_poisoned("graph retained resource"))?
             .retain_on_graph(graph)
     }
 }
@@ -138,9 +138,9 @@ impl<T: Any + Send + Sync> Deref for GraphRetainedResource<T> {
 }
 
 #[derive(Debug)]
-pub struct UserObject(runtime::cudaUserObject_t);
+pub(crate) struct UserObject(runtime::cudaUserObject_t);
 
-// SAFETY: native retain/release supports cross-thread ownership; callers serialize lazy creation with a mutex.
+// SAFETY: a CUDA user object is a reference-counted driver handle that may be retained and released from any thread, and this owner holds exactly one reference.
 unsafe impl Send for UserObject {}
 
 impl UserObject {
@@ -150,14 +150,14 @@ impl UserObject {
         destroy: runtime::cudaHostFn_t,
     ) -> Result<Self> {
         let mut handle = ptr::null_mut();
-        // SAFETY: `cudaUserObjectCreate` receives valid output locations.
+        // SAFETY: `handle` is a local output, and the caller hands `payload` to `destroy`, which CUDA calls once after the last reference is released.
         unsafe {
             try_ffi!(runtime::cudaUserObjectCreate(
                 &raw mut handle,
                 payload,
                 destroy,
                 1,
-                driver::CUuserObject_flags::CU_USER_OBJECT_NO_DESTRUCTOR_SYNC as u32,
+                driver::CUuserObject_flags::CU_USER_OBJECT_NO_DESTRUCTOR_SYNC.0,
             ))?;
         }
         Ok(Self(handle))
@@ -176,10 +176,7 @@ impl Drop for UserObject {
     fn drop(&mut self) {
         // SAFETY: release only this owner's reference; captured graphs and launches retain their own references.
         if let Err(error) = unsafe { try_ffi!(runtime::cudaUserObjectRelease(self.0, 1)) } {
-            eprintln!(
-                "failed to release cuda graph user object: {}",
-                singe_core::ErrorChain(&error)
-            );
+            report_cleanup_failure("release", "cuda graph user object", &error);
         }
     }
 }
@@ -273,14 +270,11 @@ struct CaptureModeRestore(runtime::cudaStreamCaptureMode);
 impl Drop for CaptureModeRestore {
     fn drop(&mut self) {
         let mut mode = self.0;
-        // SAFETY: restore this thread's previous capture mode on every exit path.
-        if let Err(error) =
-            unsafe { try_ffi!(runtime::cudaThreadExchangeStreamCaptureMode(&raw mut mode)) }
-        {
-            eprintln!(
-                "failed to restore cuda thread capture mode: {}",
-                singe_core::ErrorChain(&error)
-            );
+        // SAFETY: `mode` is a local holding the mode saved when this guard was created, which the call swaps back in.
+        let restored =
+            unsafe { try_ffi!(runtime::cudaThreadExchangeStreamCaptureMode(&raw mut mode)) };
+        if let Err(error) = restored {
+            report_cleanup_failure("restore", "cuda thread capture mode", &error);
         }
     }
 }

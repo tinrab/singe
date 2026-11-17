@@ -322,12 +322,13 @@ fn sentences_of(text: &str) -> Vec<usize> {
                     .find(|&(_, c)| !(c.is_alphanumeric() || c == '_' || c == '.'))
                     .map_or(0, |(p, c)| p + c.len_utf8());
                 let word = &text[word_start..index];
-                // A single letter or number before a period is an initial or list number.
+                // A single letter before a period is an initial, and a number that opens the text is a list number.
+                let initial = word.chars().count() == 1 && word.chars().all(char::is_alphabetic);
+                let list_number =
+                    word_start == 0 && !word.is_empty() && word.bytes().all(|b| b.is_ascii_digit());
                 let abbreviation = ABBREVIATIONS.contains(&word)
                     || word.ends_with('.')
-                    || (byte == b'.'
-                        && (word.chars().count() == 1
-                            || (!word.is_empty() && word.bytes().all(|b| b.is_ascii_digit()))));
+                    || (byte == b'.' && (initial || list_number));
                 if starts_sentence && !abbreviation {
                     starts.push(next);
                 }
@@ -348,5 +349,14 @@ mod tests {
         let starts = sentences_of(text);
         assert_eq!(starts.len(), 1);
         assert!(text[starts[0]..].starts_with("Then"));
+    }
+
+    #[test]
+    fn test_sentences_split_after_a_number_inside_the_text() {
+        let text = "The default is 1. Larger values batch more.";
+        let starts = sentences_of(text);
+        assert_eq!(starts.len(), 1);
+        assert!(text[starts[0]..].starts_with("Larger"));
+        assert!(sentences_of("2. Second step.").is_empty());
     }
 }

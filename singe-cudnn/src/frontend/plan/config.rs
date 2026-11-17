@@ -4,17 +4,18 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::{
-    backend::{heuristic::BackendHeuristicMode, tensor::TensorId},
+    backend::heuristic::BackendHeuristicMode,
     error::Result,
     frontend::{
         graph::{Graph, RuntimeShapeConstraints},
         plan::{EngineConfigFilter, EngineConfigMetadata, PlanExclusion, PlanId},
     },
+    tensor::TensorId,
 };
 
 /// Execution-time shape policy, independent of the optional structural graph.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RuntimeShapePolicy {
+pub(crate) struct RuntimeShapePolicy {
     pub overrides_enabled: bool,
     pub bounds: BTreeMap<TensorId, RuntimeShapeConstraints>,
 }
@@ -121,7 +122,7 @@ impl CompileConfig {
         }
     }
 
-    /// Default configuration with the requested heuristic modes.
+    /// Creates a default configuration with the requested heuristic modes.
     pub fn from_heuristic_modes(heuristic_modes: impl Into<Vec<HeuristicMode>>) -> Self {
         Self::new().with_heuristic_modes(heuristic_modes)
     }
@@ -204,7 +205,7 @@ impl CompileConfig {
         self.build_policy
     }
 
-    /// Optional batch selection limit, independent of autotuning's measurement limit.
+    /// Returns the optional batch selection limit, independent of autotuning's measurement limit.
     #[must_use]
     pub fn max_plans(&self) -> Option<NonZeroUsize> {
         self.max_plans

@@ -6,7 +6,7 @@ use crate::{
 };
 
 /// Resolves a nonempty selection before any entries or handle state change.
-pub fn plan_positions<'a>(
+pub(crate) fn plan_positions<'a>(
     available: impl IntoIterator<Item = &'a PlanId>,
     requested: &[PlanId],
 ) -> Result<Vec<usize>> {
@@ -36,7 +36,7 @@ pub fn plan_positions<'a>(
 }
 
 /// Moves complete entries together, preserving native owners and associated metadata.
-pub fn reorder_plan_entries<T>(
+pub(crate) fn reorder_plan_entries<T>(
     entries: &mut Vec<T>,
     requested: &[PlanId],
     id: impl Fn(&T) -> &PlanId,

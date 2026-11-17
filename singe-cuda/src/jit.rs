@@ -1,3 +1,5 @@
+//! CUDA driver JIT options and device-code linking.
+
 #![expect(
     deprecated,
     reason = "wraps deprecated upstream API values that remain part of the supported surface"
@@ -8,7 +10,7 @@ use std::{marker::PhantomData, ptr};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use singe_cuda_sys::{driver, runtime};
 
-use singe_core::{impl_enum_conversion, impl_enum_display};
+use singe_core::impl_enum_display;
 
 /// CUDA driver JIT compilation and loading options with borrowed diagnostic outputs.
 ///
@@ -186,7 +188,7 @@ impl<'a> JitOptions<'a> {
     /// CUDA returns elapsed time in its value slot, which is copied to `wall_time` when the artifact drops.
     /// Moving the artifact preserves its encoded values and pointers.
     /// Keep the arrays and their borrowed storage live for the native operation.
-    /// Output options passed to `cuLinkCreate` must remain live until the native link state is destroyed.
+    /// Output options passed to a native link state must remain live until that link state is destroyed.
     pub fn build(&mut self) -> JitOptionsArtifact<'_> {
         let mut artifact = JitOptionsArtifact {
             names: Vec::new(),
@@ -291,251 +293,248 @@ impl<'a> JitOptions<'a> {
     }
 }
 
-/// CUDA JIT option selectors for native compilation, linking, and module loading.
-///
-/// Each selector defines the type and direction of its corresponding native value slot.
-/// The selected native operation determines which options it accepts.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum JitOption {
-    /// Max number of registers that a thread may use.
-    ///
-    /// Native value type: unsigned int
-    ///
-    /// Applies to: compiler only
-    MaxRegisters = runtime::cudaJitOption::CU_JIT_MAX_REGISTERS as _,
-    /// Input: Specifies minimum number of threads per block to target compilation for Output: Returns the number of threads the compiler actually targeted.
-    /// This restricts the resource utilization of the compiler (e.g. max registers) such that a block with the given number of threads should be able to launch based on register limitations.
-    /// Note, this option does not currently take into account any other resource limitations, such as shared memory utilization.
-    /// Cannot be combined with [`Self::Target`].
-    ///
-    /// Native value type: unsigned int
-    ///
-    /// Applies to: compiler only
-    ThreadsPerBlock = runtime::cudaJitOption::CU_JIT_THREADS_PER_BLOCK as _,
-    /// Overwrites the option value with the total wall clock time, in milliseconds, spent in the compiler and linker
-    ///
-    /// Native value type: float
-    ///
-    /// Applies to: compiler and linker
-    WallTime = runtime::cudaJitOption::CU_JIT_WALL_TIME as _,
-    /// Pointer to a buffer in which to print any log messages that are informational in nature (the buffer size is specified via option [`Self::InfoLogBufferSizeBytes`])
-    ///
-    /// Native value type: char *
-    ///
-    /// Applies to: compiler and linker
-    InfoLogBuffer = runtime::cudaJitOption::CU_JIT_INFO_LOG_BUFFER as _,
-    /// Input: Log buffer size in bytes.
-    /// Log messages will be capped at this size (including null terminator) Output: Amount of log buffer filled with messages
-    ///
-    /// Native value type: unsigned int
-    ///
-    /// Applies to: compiler and linker
-    InfoLogBufferSizeBytes = runtime::cudaJitOption::CU_JIT_INFO_LOG_BUFFER_SIZE_BYTES as _,
-    /// Pointer to a buffer in which to print any log messages that reflect errors (the buffer size is specified via option [`Self::ErrorLogBufferSizeBytes`])
-    ///
-    /// Native value type: char *
-    ///
-    /// Applies to: compiler and linker
-    ErrorLogBuffer = runtime::cudaJitOption::CU_JIT_ERROR_LOG_BUFFER as _,
-    /// Input: Log buffer size in bytes.
-    /// Log messages will be capped at this size (including null terminator) Output: Amount of log buffer filled with messages
-    ///
-    /// Native value type: unsigned int
-    ///
-    /// Applies to: compiler and linker
-    ErrorLogBufferSizeBytes = runtime::cudaJitOption::CU_JIT_ERROR_LOG_BUFFER_SIZE_BYTES as _,
-    /// Level of optimizations to apply to generated code (0 - 4), with 4 being the default and highest level of optimizations.
-    ///
-    /// Native value type: unsigned int
-    ///
-    /// Applies to: compiler only
-    OptimizationLevel = runtime::cudaJitOption::CU_JIT_OPTIMIZATION_LEVEL as _,
-    /// No option value required.
-    /// Determines the target based on the current attached context (default)
-    ///
-    /// Native value type: No option value needed
-    ///
-    /// Applies to: compiler and linker
-    TargetFromCudaContext = runtime::cudaJitOption::CU_JIT_TARGET_FROM_CUCONTEXT as _,
-    /// Target is chosen based on supplied [`JitTarget`].
-    /// Cannot be combined with [`Self::ThreadsPerBlock`].
-    ///
-    /// Native value type: unsigned int for enumerated type [`JitTarget`]
-    ///
-    /// Applies to: compiler and linker
-    Target = runtime::cudaJitOption::CU_JIT_TARGET as _,
-    /// Specifies choice of fallback strategy if matching cubin is not found.
-    /// Choice is based on supplied [`JitFallback`].
-    /// This option cannot be used with native linker APIs as the linker requires exact matches.
-    ///
-    /// Native value type: unsigned int for enumerated type [`JitFallback`]
-    ///
-    /// Applies to: compiler only
-    FallbackStrategy = runtime::cudaJitOption::CU_JIT_FALLBACK_STRATEGY as _,
-    /// Specifies whether to create debug information in output (-g) (0: false, default)
-    ///
-    /// Native value type: int
-    ///
-    /// Applies to: compiler and linker
-    GenerateDebugInfo = runtime::cudaJitOption::CU_JIT_GENERATE_DEBUG_INFO as _,
-    /// Generate verbose log messages (0: false, default)
-    ///
-    /// Native value type: int
-    ///
-    /// Applies to: compiler and linker
-    LogVerbose = runtime::cudaJitOption::CU_JIT_LOG_VERBOSE as _,
-    /// Generate line number information (-lineinfo) (0: false, default)
-    ///
-    /// Native value type: int
-    ///
-    /// Applies to: compiler only
-    GenerateLineInfo = runtime::cudaJitOption::CU_JIT_GENERATE_LINE_INFO as _,
-    /// Specifies whether to enable caching explicitly (-dlcm) Choice is based on supplied [`JitCacheMode`].
-    ///
-    /// Native value type: unsigned int for enumerated type [`JitCacheMode`]
-    ///
-    /// Applies to: compiler only
-    CacheMode = runtime::cudaJitOption::CU_JIT_CACHE_MODE as _,
-    /// Deprecated: This jit option is deprecated and should not be used.
-    #[deprecated]
-    NewSm3xOpt = runtime::cudaJitOption::CU_JIT_NEW_SM3X_OPT as _,
-    /// This jit option is used for internal purpose only.
-    FastCompile = runtime::cudaJitOption::CU_JIT_FAST_COMPILE as _,
-    /// Array of device symbol names that will be relocated to the corresponding host addresses stored in [`Self::GlobalSymbolAddresses`].
-    /// Must contain [`Self::GlobalSymbolCount`] entries.
-    /// When loading a device module, driver will relocate all encountered unresolved symbols to the host addresses.
-    /// It is only allowed to register symbols that correspond to unresolved global variables.
-    /// It is illegal to register the same device symbol at multiple addresses.
-    ///
-    /// Native value type: const char **
-    ///
-    /// Applies to: dynamic linker only
-    GlobalSymbolNames = runtime::cudaJitOption::CU_JIT_GLOBAL_SYMBOL_NAMES as _,
-    /// Array of host addresses that will be used to relocate corresponding device symbols stored in [`Self::GlobalSymbolNames`].
-    /// Must contain [`Self::GlobalSymbolCount`] entries.
-    ///
-    /// Native value type: void **
-    ///
-    /// Applies to: dynamic linker only
-    GlobalSymbolAddresses = runtime::cudaJitOption::CU_JIT_GLOBAL_SYMBOL_ADDRESSES as _,
-    /// Number of entries in [`Self::GlobalSymbolNames`] and [`Self::GlobalSymbolAddresses`] arrays.
-    ///
-    /// Native value type: unsigned int
-    ///
-    /// Applies to: dynamic linker only
-    GlobalSymbolCount = runtime::cudaJitOption::CU_JIT_GLOBAL_SYMBOL_COUNT as _,
-    /// Deprecated: Enable link-time optimization (-dlto) for device code (Disabled by default).
-    /// This option is not supported on 32-bit platforms.
-    ///
-    /// Native value type: int
-    ///
-    /// Applies to: compiler and linker
-    ///
-    /// Only valid with LTO-IR compiled with toolkits prior to CUDA 12.0
-    #[deprecated]
-    Lto = runtime::cudaJitOption::CU_JIT_LTO as _,
-    /// Deprecated: Control single-precision denormals (-ftz) support (0: false, default). 1 : flushes denormal values to zero 0 : preserves denormal values
-    ///
-    /// Native value type: int
-    ///
-    /// Applies to: link-time optimization specified with [`Self::Lto`]
-    ///
-    /// Only valid with LTO-IR compiled with toolkits prior to CUDA 12.0
-    #[deprecated]
-    Ftz = runtime::cudaJitOption::CU_JIT_FTZ as _,
-    /// Deprecated: Control single-precision floating-point division and reciprocals (-prec-div) support (1: true, default). 1 : Enables the IEEE round-to-nearest mode 0 : Enables the fast approximation mode
-    ///
-    /// Native value type: int
-    ///
-    /// Applies to: link-time optimization specified with [`Self::Lto`]
-    ///
-    /// Only valid with LTO-IR compiled with toolkits prior to CUDA 12.0
-    #[deprecated]
-    PrecDiv = runtime::cudaJitOption::CU_JIT_PREC_DIV as _,
-    /// Deprecated: Control single-precision floating-point square root (-prec-sqrt) support (1: true, default). 1 : Enables the IEEE round-to-nearest mode 0 : Enables the fast approximation mode
-    ///
-    /// Native value type: int
-    ///
-    /// Applies to: link-time optimization specified with [`Self::Lto`]
-    ///
-    /// Only valid with LTO-IR compiled with toolkits prior to CUDA 12.0
-    #[deprecated]
-    PrecSqrt = runtime::cudaJitOption::CU_JIT_PREC_SQRT as _,
-    /// Deprecated: Enable/Disable the contraction of floating-point multiplies and adds/subtracts into floating-point multiply-add (-fma) operations (1: Enable, default; 0: Disable).
-    ///
-    /// Native value type: int
-    ///
-    /// Applies to: link-time optimization specified with [`Self::Lto`]
-    ///
-    /// Only valid with LTO-IR compiled with toolkits prior to CUDA 12.0
-    #[deprecated]
-    Fma = runtime::cudaJitOption::CU_JIT_FMA as _,
-    /// Deprecated: Array of kernel names that should be preserved at link time while others can be removed.
-    /// Must contain [`Self::ReferencedKernelCount`] entries.
-    /// Note that kernel names can be mangled by the compiler in which case the mangled name needs to be specified.
-    /// Wildcard "*" can be used to represent zero or more characters instead of specifying the full or mangled name.
-    /// It is important to note that the wildcard "*" is also added implicitly.
-    /// For example, specifying "foo" will match "foobaz", "barfoo", "barfoobaz" and thus preserve all kernels with those names.
-    /// This can be avoided by providing a more specific name like "barfoobaz".
-    ///
-    /// Native value type: const char **
-    ///
-    /// Applies to: dynamic linker only
-    ///
-    /// Only valid with LTO-IR compiled with toolkits prior to CUDA 12.0
-    #[deprecated]
-    ReferencedKernelNames = runtime::cudaJitOption::CU_JIT_REFERENCED_KERNEL_NAMES as _,
-    /// Deprecated: Number of entries in [`Self::ReferencedKernelNames`] array.
-    ///
-    /// Native value type: unsigned int
-    ///
-    /// Applies to: dynamic linker only
-    ///
-    /// Only valid with LTO-IR compiled with toolkits prior to CUDA 12.0
-    #[deprecated]
-    ReferencedKernelCount = runtime::cudaJitOption::CU_JIT_REFERENCED_KERNEL_COUNT as _,
-    /// Deprecated: Array of variable names (__device__ and/or __constant__) that should be preserved at link time while others can be removed.
-    /// Must contain [`Self::ReferencedVariableCount`] entries.
-    /// Note that variable names can be mangled by the compiler in which case the mangled name needs to be specified.
-    /// Wildcard "*" can be used to represent zero or more characters instead of specifying the full or mangled name.
-    /// It is important to note that the wildcard "*" is also added implicitly.
-    /// For example, specifying "foo" will match "foobaz", "barfoo", "barfoobaz" and thus preserve all variables with those names.
-    /// This can be avoided by providing a more specific name like "barfoobaz".
-    ///
-    /// Native value type: const char **
-    ///
-    /// Applies to: link-time optimization specified with [`Self::Lto`]
-    ///
-    /// Only valid with LTO-IR compiled with toolkits prior to CUDA 12.0
-    #[deprecated]
-    ReferencedVariableNames = runtime::cudaJitOption::CU_JIT_REFERENCED_VARIABLE_NAMES as _,
-    /// Deprecated: Number of entries in [`Self::ReferencedVariableNames`] array.
-    ///
-    /// Native value type: unsigned int
-    ///
-    /// Applies to: link-time optimization specified with [`Self::Lto`]
-    ///
-    /// Only valid with LTO-IR compiled with toolkits prior to CUDA 12.0
-    #[deprecated]
-    ReferencedVariableCount = runtime::cudaJitOption::CU_JIT_REFERENCED_VARIABLE_COUNT as _,
-    /// Deprecated: This option serves as a hint to enable the JIT compiler/linker to remove constant (__constant__) and device (__device__) variables unreferenced in device code (Disabled by default).
-    /// Note that host references to constant and device variables using APIs like `cuModuleGetGlobal`() with this option specified may result in undefined behavior unless the variables are explicitly specified using [`Self::ReferencedVariableNames`].
-    ///
-    /// Native value type: int
-    ///
-    /// Applies to: link-time optimization specified with [`Self::Lto`]
-    ///
-    /// Only valid with LTO-IR compiled with toolkits prior to CUDA 12.0
-    #[deprecated]
-    OptimizeUnusedDeviceVariables =
-        runtime::cudaJitOption::CU_JIT_OPTIMIZE_UNUSED_DEVICE_VARIABLES as _,
-    /// Upper-bound sentinel for native CUDA JIT option selectors.
-    NumOptions = runtime::cudaJitOption::CU_JIT_NUM_OPTIONS as _,
+singe_core::native_enum! {
+    /// CUDA JIT option selectors for native compilation, linking, and module loading.
+    ///
+    /// Each selector defines the type and direction of its corresponding native value slot.
+    /// The selected native operation determines which options it accepts.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum JitOption: runtime::cudaJitOption {
+        /// Max number of registers that a thread may use.
+        ///
+        /// Native value type: unsigned int
+        ///
+        /// Applies to: compiler only
+        MaxRegisters = CU_JIT_MAX_REGISTERS,
+        /// Input: Specifies minimum number of threads per block to target compilation for Output: Returns the number of threads the compiler actually targeted.
+        /// This restricts the resource utilization of the compiler (e.g. max registers) such that a block with the given number of threads should be able to launch based on register limitations.
+        /// Note, this option does not currently take into account any other resource limitations, such as shared memory utilization.
+        /// Cannot be combined with [`Self::Target`].
+        ///
+        /// Native value type: unsigned int
+        ///
+        /// Applies to: compiler only
+        ThreadsPerBlock = CU_JIT_THREADS_PER_BLOCK,
+        /// Overwrites the option value with the total wall clock time, in milliseconds, spent in the compiler and linker
+        ///
+        /// Native value type: float
+        ///
+        /// Applies to: compiler and linker
+        WallTime = CU_JIT_WALL_TIME,
+        /// Pointer to a buffer in which to print any log messages that are informational in nature (the buffer size is specified via option [`Self::InfoLogBufferSizeBytes`])
+        ///
+        /// Native value type: char *
+        ///
+        /// Applies to: compiler and linker
+        InfoLogBuffer = CU_JIT_INFO_LOG_BUFFER,
+        /// Input: Log buffer size in bytes.
+        /// Log messages will be capped at this size (including null terminator) Output: Amount of log buffer filled with messages
+        ///
+        /// Native value type: unsigned int
+        ///
+        /// Applies to: compiler and linker
+        InfoLogBufferSizeBytes = CU_JIT_INFO_LOG_BUFFER_SIZE_BYTES,
+        /// Pointer to a buffer in which to print any log messages that reflect errors (the buffer size is specified via option [`Self::ErrorLogBufferSizeBytes`])
+        ///
+        /// Native value type: char *
+        ///
+        /// Applies to: compiler and linker
+        ErrorLogBuffer = CU_JIT_ERROR_LOG_BUFFER,
+        /// Input: Log buffer size in bytes.
+        /// Log messages will be capped at this size (including null terminator) Output: Amount of log buffer filled with messages
+        ///
+        /// Native value type: unsigned int
+        ///
+        /// Applies to: compiler and linker
+        ErrorLogBufferSizeBytes = CU_JIT_ERROR_LOG_BUFFER_SIZE_BYTES,
+        /// Level of optimizations to apply to generated code (0 - 4), with 4 being the default and highest level of optimizations.
+        ///
+        /// Native value type: unsigned int
+        ///
+        /// Applies to: compiler only
+        OptimizationLevel = CU_JIT_OPTIMIZATION_LEVEL,
+        /// No option value required.
+        /// Determines the target based on the current attached context (default)
+        ///
+        /// Native value type: No option value needed
+        ///
+        /// Applies to: compiler and linker
+        TargetFromCudaContext = CU_JIT_TARGET_FROM_CUCONTEXT,
+        /// Target is chosen based on supplied [`JitTarget`].
+        /// Cannot be combined with [`Self::ThreadsPerBlock`].
+        ///
+        /// Native value type: unsigned int for enumerated type [`JitTarget`]
+        ///
+        /// Applies to: compiler and linker
+        Target = CU_JIT_TARGET,
+        /// Specifies choice of fallback strategy if matching cubin is not found.
+        /// Choice is based on supplied [`JitFallback`].
+        /// This option cannot be used with native linker APIs as the linker requires exact matches.
+        ///
+        /// Native value type: unsigned int for enumerated type [`JitFallback`]
+        ///
+        /// Applies to: compiler only
+        FallbackStrategy = CU_JIT_FALLBACK_STRATEGY,
+        /// Specifies whether to create debug information in output (-g) (0: false, default)
+        ///
+        /// Native value type: int
+        ///
+        /// Applies to: compiler and linker
+        GenerateDebugInfo = CU_JIT_GENERATE_DEBUG_INFO,
+        /// Generate verbose log messages (0: false, default)
+        ///
+        /// Native value type: int
+        ///
+        /// Applies to: compiler and linker
+        LogVerbose = CU_JIT_LOG_VERBOSE,
+        /// Generate line number information (-lineinfo) (0: false, default)
+        ///
+        /// Native value type: int
+        ///
+        /// Applies to: compiler only
+        GenerateLineInfo = CU_JIT_GENERATE_LINE_INFO,
+        /// Specifies whether to enable caching explicitly (-dlcm) Choice is based on supplied [`JitCacheMode`].
+        ///
+        /// Native value type: unsigned int for enumerated type [`JitCacheMode`]
+        ///
+        /// Applies to: compiler only
+        CacheMode = CU_JIT_CACHE_MODE,
+        /// Deprecated: This jit option is deprecated and should not be used.
+        #[deprecated]
+        NewSm3xOpt = CU_JIT_NEW_SM3X_OPT,
+        /// This jit option is used for internal purpose only.
+        FastCompile = CU_JIT_FAST_COMPILE,
+        /// Array of device symbol names that will be relocated to the corresponding host addresses stored in [`Self::GlobalSymbolAddresses`].
+        /// Must contain [`Self::GlobalSymbolCount`] entries.
+        /// When loading a device module, driver will relocate all encountered unresolved symbols to the host addresses.
+        /// It is only allowed to register symbols that correspond to unresolved global variables.
+        /// It is illegal to register the same device symbol at multiple addresses.
+        ///
+        /// Native value type: const char **
+        ///
+        /// Applies to: dynamic linker only
+        GlobalSymbolNames = CU_JIT_GLOBAL_SYMBOL_NAMES,
+        /// Array of host addresses that will be used to relocate corresponding device symbols stored in [`Self::GlobalSymbolNames`].
+        /// Must contain [`Self::GlobalSymbolCount`] entries.
+        ///
+        /// Native value type: void **
+        ///
+        /// Applies to: dynamic linker only
+        GlobalSymbolAddresses = CU_JIT_GLOBAL_SYMBOL_ADDRESSES,
+        /// Number of entries in [`Self::GlobalSymbolNames`] and [`Self::GlobalSymbolAddresses`] arrays.
+        ///
+        /// Native value type: unsigned int
+        ///
+        /// Applies to: dynamic linker only
+        GlobalSymbolCount = CU_JIT_GLOBAL_SYMBOL_COUNT,
+        /// Deprecated: Enable link-time optimization (-dlto) for device code (Disabled by default).
+        /// This option is not supported on 32-bit platforms.
+        ///
+        /// Native value type: int
+        ///
+        /// Applies to: compiler and linker
+        ///
+        /// Only valid with LTO-IR compiled with toolkits prior to CUDA 12.0
+        #[deprecated]
+        Lto = CU_JIT_LTO,
+        /// Deprecated: Control single-precision denormals (-ftz) support (0: false, default). 1 : flushes denormal values to zero 0 : preserves denormal values
+        ///
+        /// Native value type: int
+        ///
+        /// Applies to: link-time optimization specified with [`Self::Lto`]
+        ///
+        /// Only valid with LTO-IR compiled with toolkits prior to CUDA 12.0
+        #[deprecated]
+        Ftz = CU_JIT_FTZ,
+        /// Deprecated: Control single-precision floating-point division and reciprocals (-prec-div) support (1: true, default). 1 : Enables the IEEE round-to-nearest mode 0 : Enables the fast approximation mode
+        ///
+        /// Native value type: int
+        ///
+        /// Applies to: link-time optimization specified with [`Self::Lto`]
+        ///
+        /// Only valid with LTO-IR compiled with toolkits prior to CUDA 12.0
+        #[deprecated]
+        PrecDiv = CU_JIT_PREC_DIV,
+        /// Deprecated: Control single-precision floating-point square root (-prec-sqrt) support (1: true, default). 1 : Enables the IEEE round-to-nearest mode 0 : Enables the fast approximation mode
+        ///
+        /// Native value type: int
+        ///
+        /// Applies to: link-time optimization specified with [`Self::Lto`]
+        ///
+        /// Only valid with LTO-IR compiled with toolkits prior to CUDA 12.0
+        #[deprecated]
+        PrecSqrt = CU_JIT_PREC_SQRT,
+        /// Deprecated: Enable/Disable the contraction of floating-point multiplies and adds/subtracts into floating-point multiply-add (-fma) operations (1: Enable, default; 0: Disable).
+        ///
+        /// Native value type: int
+        ///
+        /// Applies to: link-time optimization specified with [`Self::Lto`]
+        ///
+        /// Only valid with LTO-IR compiled with toolkits prior to CUDA 12.0
+        #[deprecated]
+        Fma = CU_JIT_FMA,
+        /// Deprecated: Array of kernel names that should be preserved at link time while others can be removed.
+        /// Must contain [`Self::ReferencedKernelCount`] entries.
+        /// Note that kernel names can be mangled by the compiler in which case the mangled name needs to be specified.
+        /// Wildcard "*" can be used to represent zero or more characters instead of specifying the full or mangled name.
+        /// It is important to note that the wildcard "*" is also added implicitly.
+        /// For example, specifying "foo" will match "foobaz", "barfoo", "barfoobaz" and thus preserve all kernels with those names.
+        /// This can be avoided by providing a more specific name like "barfoobaz".
+        ///
+        /// Native value type: const char **
+        ///
+        /// Applies to: dynamic linker only
+        ///
+        /// Only valid with LTO-IR compiled with toolkits prior to CUDA 12.0
+        #[deprecated]
+        ReferencedKernelNames = CU_JIT_REFERENCED_KERNEL_NAMES,
+        /// Deprecated: Number of entries in [`Self::ReferencedKernelNames`] array.
+        ///
+        /// Native value type: unsigned int
+        ///
+        /// Applies to: dynamic linker only
+        ///
+        /// Only valid with LTO-IR compiled with toolkits prior to CUDA 12.0
+        #[deprecated]
+        ReferencedKernelCount = CU_JIT_REFERENCED_KERNEL_COUNT,
+        /// Deprecated: Array of variable names (__device__ and/or __constant__) that should be preserved at link time while others can be removed.
+        /// Must contain [`Self::ReferencedVariableCount`] entries.
+        /// Note that variable names can be mangled by the compiler in which case the mangled name needs to be specified.
+        /// Wildcard "*" can be used to represent zero or more characters instead of specifying the full or mangled name.
+        /// It is important to note that the wildcard "*" is also added implicitly.
+        /// For example, specifying "foo" will match "foobaz", "barfoo", "barfoobaz" and thus preserve all variables with those names.
+        /// This can be avoided by providing a more specific name like "barfoobaz".
+        ///
+        /// Native value type: const char **
+        ///
+        /// Applies to: link-time optimization specified with [`Self::Lto`]
+        ///
+        /// Only valid with LTO-IR compiled with toolkits prior to CUDA 12.0
+        #[deprecated]
+        ReferencedVariableNames = CU_JIT_REFERENCED_VARIABLE_NAMES,
+        /// Deprecated: Number of entries in [`Self::ReferencedVariableNames`] array.
+        ///
+        /// Native value type: unsigned int
+        ///
+        /// Applies to: link-time optimization specified with [`Self::Lto`]
+        ///
+        /// Only valid with LTO-IR compiled with toolkits prior to CUDA 12.0
+        #[deprecated]
+        ReferencedVariableCount = CU_JIT_REFERENCED_VARIABLE_COUNT,
+        /// Deprecated: This option serves as a hint to enable the JIT compiler/linker to remove constant (__constant__) and device (__device__) variables unreferenced in device code (Disabled by default).
+        /// Note that host references to constant and device variables through APIs such as [`Module::global`](crate::module::Module::global) with this option specified may result in undefined behavior unless the variables are explicitly specified using [`Self::ReferencedVariableNames`].
+        ///
+        /// Native value type: int
+        ///
+        /// Applies to: link-time optimization specified with [`Self::Lto`]
+        ///
+        /// Only valid with LTO-IR compiled with toolkits prior to CUDA 12.0
+        #[deprecated]
+        OptimizeUnusedDeviceVariables = CU_JIT_OPTIMIZE_UNUSED_DEVICE_VARIABLES,
+    }
 }
-
-impl_enum_conversion!(u32, runtime::cudaJitOption, JitOption);
 
 impl_enum_display!(JitOption, {
     Self::MaxRegisters => "CU_JIT_MAX_REGISTERS",
@@ -568,91 +567,90 @@ impl_enum_display!(JitOption, {
     Self::ReferencedVariableNames => "CU_JIT_REFERENCED_VARIABLE_NAMES",
     Self::ReferencedVariableCount => "CU_JIT_REFERENCED_VARIABLE_COUNT",
     Self::OptimizeUnusedDeviceVariables => "CU_JIT_OPTIMIZE_UNUSED_DEVICE_VARIABLES",
-    Self::NumOptions => "CU_JIT_NUM_OPTIONS",
 });
 
-/// Online compilation targets
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum JitTarget {
-    /// Compute capability 12.1 target with architecture-family features.
-    Compute121f = driver::CUjit_target::CU_TARGET_COMPUTE_121F as _,
-    /// Compute capability 12.0 target with architecture-family features.
-    Compute120f = driver::CUjit_target::CU_TARGET_COMPUTE_120F as _,
-    /// Compute capability 10.7 target with architecture-family features.
-    Compute107f = driver::CUjit_target::CU_TARGET_COMPUTE_107F as _,
-    /// Compute capability 10.3 target with architecture-family features.
-    Compute103f = driver::CUjit_target::CU_TARGET_COMPUTE_103F as _,
-    /// Compute capability 11.0 target with architecture-family features.
-    Compute110f = driver::CUjit_target::CU_TARGET_COMPUTE_110F as _,
-    /// Compute capability 10.0 target with architecture-family features.
-    Compute100f = driver::CUjit_target::CU_TARGET_COMPUTE_100F as _,
-    /// Compute capability 12.1 target with architecture-specific accelerated features.
-    Compute121a = driver::CUjit_target::CU_TARGET_COMPUTE_121A as _,
-    /// Compute capability 12.0 target with architecture-specific accelerated features.
-    Compute120a = driver::CUjit_target::CU_TARGET_COMPUTE_120A as _,
-    /// Compute capability 10.7 target with architecture-specific accelerated features.
-    Compute107a = driver::CUjit_target::CU_TARGET_COMPUTE_107A as _,
-    /// Compute capability 10.3 target with architecture-specific accelerated features.
-    Compute103a = driver::CUjit_target::CU_TARGET_COMPUTE_103A as _,
-    /// Compute capability 11.0 target with architecture-specific accelerated features.
-    Compute110a = driver::CUjit_target::CU_TARGET_COMPUTE_110A as _,
-    /// Compute capability 10.0 target with architecture-specific accelerated features.
-    Compute100a = driver::CUjit_target::CU_TARGET_COMPUTE_100A as _,
-    /// Compute capability 9.0 target with architecture-specific accelerated features.
-    Compute90a = driver::CUjit_target::CU_TARGET_COMPUTE_90A as _,
-    /// Compute capability 12.1 target without architecture-specific or architecture-family extensions.
-    Compute121 = driver::CUjit_target::CU_TARGET_COMPUTE_121 as _,
-    /// Compute device class 12.0.
-    Compute120 = driver::CUjit_target::CU_TARGET_COMPUTE_120 as _,
-    /// Compute device class 10.7.
-    Compute107 = driver::CUjit_target::CU_TARGET_COMPUTE_107 as _,
-    /// Compute device class 10.3.
-    Compute103 = driver::CUjit_target::CU_TARGET_COMPUTE_103 as _,
-    /// Compute device class 11.0.
-    Compute110 = driver::CUjit_target::CU_TARGET_COMPUTE_110 as _,
-    /// Compute device class 10.0.
-    Compute100 = driver::CUjit_target::CU_TARGET_COMPUTE_100 as _,
-    /// Compute device class 3.0.
-    Compute30 = driver::CUjit_target_enum::CU_TARGET_COMPUTE_30 as _,
-    /// Compute device class 3.2.
-    Compute32 = driver::CUjit_target_enum::CU_TARGET_COMPUTE_32 as _,
-    /// Compute device class 3.5.
-    Compute35 = driver::CUjit_target_enum::CU_TARGET_COMPUTE_35 as _,
-    /// Compute device class 3.7.
-    Compute37 = driver::CUjit_target_enum::CU_TARGET_COMPUTE_37 as _,
-    /// Compute device class 5.0.
-    Compute50 = driver::CUjit_target_enum::CU_TARGET_COMPUTE_50 as _,
-    /// Compute device class 5.2.
-    Compute52 = driver::CUjit_target_enum::CU_TARGET_COMPUTE_52 as _,
-    /// Compute device class 5.3.
-    Compute53 = driver::CUjit_target_enum::CU_TARGET_COMPUTE_53 as _,
-    /// Compute device class 6.0.
-    Compute60 = driver::CUjit_target_enum::CU_TARGET_COMPUTE_60 as _,
-    /// Compute device class 6.1.
-    Compute61 = driver::CUjit_target_enum::CU_TARGET_COMPUTE_61 as _,
-    /// Compute device class 6.2.
-    Compute62 = driver::CUjit_target_enum::CU_TARGET_COMPUTE_62 as _,
-    /// Compute device class 7.0.
-    Compute70 = driver::CUjit_target_enum::CU_TARGET_COMPUTE_70 as _,
-    /// Compute device class 7.2.
-    Compute72 = driver::CUjit_target_enum::CU_TARGET_COMPUTE_72 as _,
-    /// Compute device class 7.5.
-    Compute75 = driver::CUjit_target_enum::CU_TARGET_COMPUTE_75 as _,
-    /// Compute device class 8.0.
-    Compute80 = driver::CUjit_target_enum::CU_TARGET_COMPUTE_80 as _,
-    /// Compute device class 8.6.
-    Compute86 = driver::CUjit_target_enum::CU_TARGET_COMPUTE_86 as _,
-    /// Compute device class 8.7.
-    Compute87 = driver::CUjit_target_enum::CU_TARGET_COMPUTE_87 as _,
-    /// Compute device class 8.9.
-    Compute89 = driver::CUjit_target_enum::CU_TARGET_COMPUTE_89 as _,
-    /// Compute device class 9.0.
-    Compute90 = driver::CUjit_target_enum::CU_TARGET_COMPUTE_90 as _,
+singe_core::native_enum! {
+    /// Online compilation targets
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum JitTarget: driver::CUjit_target {
+        /// Compute capability 12.1 target with architecture-family features.
+        Compute121f = CU_TARGET_COMPUTE_121F,
+        /// Compute capability 12.0 target with architecture-family features.
+        Compute120f = CU_TARGET_COMPUTE_120F,
+        /// Compute capability 10.7 target with architecture-family features.
+        Compute107f = CU_TARGET_COMPUTE_107F,
+        /// Compute capability 10.3 target with architecture-family features.
+        Compute103f = CU_TARGET_COMPUTE_103F,
+        /// Compute capability 11.0 target with architecture-family features.
+        Compute110f = CU_TARGET_COMPUTE_110F,
+        /// Compute capability 10.0 target with architecture-family features.
+        Compute100f = CU_TARGET_COMPUTE_100F,
+        /// Compute capability 12.1 target with architecture-specific accelerated features.
+        Compute121a = CU_TARGET_COMPUTE_121A,
+        /// Compute capability 12.0 target with architecture-specific accelerated features.
+        Compute120a = CU_TARGET_COMPUTE_120A,
+        /// Compute capability 10.7 target with architecture-specific accelerated features.
+        Compute107a = CU_TARGET_COMPUTE_107A,
+        /// Compute capability 10.3 target with architecture-specific accelerated features.
+        Compute103a = CU_TARGET_COMPUTE_103A,
+        /// Compute capability 11.0 target with architecture-specific accelerated features.
+        Compute110a = CU_TARGET_COMPUTE_110A,
+        /// Compute capability 10.0 target with architecture-specific accelerated features.
+        Compute100a = CU_TARGET_COMPUTE_100A,
+        /// Compute capability 9.0 target with architecture-specific accelerated features.
+        Compute90a = CU_TARGET_COMPUTE_90A,
+        /// Compute capability 12.1 target without architecture-specific or architecture-family extensions.
+        Compute121 = CU_TARGET_COMPUTE_121,
+        /// Compute device class 12.0.
+        Compute120 = CU_TARGET_COMPUTE_120,
+        /// Compute device class 10.7.
+        Compute107 = CU_TARGET_COMPUTE_107,
+        /// Compute device class 10.3.
+        Compute103 = CU_TARGET_COMPUTE_103,
+        /// Compute device class 11.0.
+        Compute110 = CU_TARGET_COMPUTE_110,
+        /// Compute device class 10.0.
+        Compute100 = CU_TARGET_COMPUTE_100,
+        /// Compute device class 3.0.
+        Compute30 = CU_TARGET_COMPUTE_30,
+        /// Compute device class 3.2.
+        Compute32 = CU_TARGET_COMPUTE_32,
+        /// Compute device class 3.5.
+        Compute35 = CU_TARGET_COMPUTE_35,
+        /// Compute device class 3.7.
+        Compute37 = CU_TARGET_COMPUTE_37,
+        /// Compute device class 5.0.
+        Compute50 = CU_TARGET_COMPUTE_50,
+        /// Compute device class 5.2.
+        Compute52 = CU_TARGET_COMPUTE_52,
+        /// Compute device class 5.3.
+        Compute53 = CU_TARGET_COMPUTE_53,
+        /// Compute device class 6.0.
+        Compute60 = CU_TARGET_COMPUTE_60,
+        /// Compute device class 6.1.
+        Compute61 = CU_TARGET_COMPUTE_61,
+        /// Compute device class 6.2.
+        Compute62 = CU_TARGET_COMPUTE_62,
+        /// Compute device class 7.0.
+        Compute70 = CU_TARGET_COMPUTE_70,
+        /// Compute device class 7.2.
+        Compute72 = CU_TARGET_COMPUTE_72,
+        /// Compute device class 7.5.
+        Compute75 = CU_TARGET_COMPUTE_75,
+        /// Compute device class 8.0.
+        Compute80 = CU_TARGET_COMPUTE_80,
+        /// Compute device class 8.6.
+        Compute86 = CU_TARGET_COMPUTE_86,
+        /// Compute device class 8.7.
+        Compute87 = CU_TARGET_COMPUTE_87,
+        /// Compute device class 8.9.
+        Compute89 = CU_TARGET_COMPUTE_89,
+        /// Compute device class 9.0.
+        Compute90 = CU_TARGET_COMPUTE_90,
+    }
 }
-
-impl_enum_conversion!(u32, driver::CUjit_target, JitTarget);
 
 impl_enum_display!(JitTarget, {
     Self::Compute121f => "CU_TARGET_COMPUTE_121F",
@@ -694,38 +692,38 @@ impl_enum_display!(JitTarget, {
     Self::Compute90 => "CU_TARGET_COMPUTE_90",
 });
 
-/// Cubin matching fallback strategies
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum JitFallback {
-    /// Prefer to compile ptx if exact binary match not found.
-    PreferPtx = driver::CUjit_fallback_enum::CU_PREFER_PTX as _,
-    /// Prefer to fall back to compatible binary code if exact match not found.
-    PreferBinary = driver::CUjit_fallback_enum::CU_PREFER_BINARY as _,
+singe_core::native_enum! {
+    /// Cubin matching fallback strategies
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum JitFallback: driver::CUjit_fallback {
+        /// Prefer to compile ptx if exact binary match not found.
+        PreferPtx = CU_PREFER_PTX,
+        /// Prefer to fall back to compatible binary code if exact match not found.
+        PreferBinary = CU_PREFER_BINARY,
+    }
 }
-
-impl_enum_conversion!(u32, driver::CUjit_fallback, JitFallback);
 
 impl_enum_display!(JitFallback, {
     Self::PreferPtx => "CU_PREFER_PTX",
     Self::PreferBinary => "CU_PREFER_BINARY",
 });
 
-/// Caching modes for dlcm
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum JitCacheMode {
-    /// Compile with no -dlcm flag specified.
-    OptionNone = driver::CUjit_cacheMode_enum::CU_JIT_CACHE_OPTION_NONE as _,
-    /// Compile with L1 cache disabled.
-    OptionCg = driver::CUjit_cacheMode_enum::CU_JIT_CACHE_OPTION_CG as _,
-    /// Compile with L1 cache enabled.
-    OptionCa = driver::CUjit_cacheMode_enum::CU_JIT_CACHE_OPTION_CA as _,
+singe_core::native_enum! {
+    /// Caching modes for dlcm
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum JitCacheMode: driver::CUjit_cacheMode {
+        /// Compile with no -dlcm flag specified.
+        OptionNone = CU_JIT_CACHE_OPTION_NONE,
+        /// Compile with L1 cache disabled.
+        OptionCg = CU_JIT_CACHE_OPTION_CG,
+        /// Compile with L1 cache enabled.
+        OptionCa = CU_JIT_CACHE_OPTION_CA,
+    }
 }
-
-impl_enum_conversion!(u32, driver::CUjit_cacheMode, JitCacheMode);
 
 impl_enum_display!(JitCacheMode, {
     Self::OptionNone => "CU_JIT_CACHE_OPTION_NONE",
@@ -733,65 +731,25 @@ impl_enum_display!(JitCacheMode, {
     Self::OptionCa => "CU_JIT_CACHE_OPTION_CA",
 });
 
-/// Device code formats
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum JitInputType {
-    /// Compiled device-class-specific device code
-    ///
-    /// Applicable options: none.
-    Cubin = driver::CUjitInputType_enum::CU_JIT_INPUT_CUBIN as _,
-    /// PTX source code
-    ///
-    /// Applicable options: PTX compiler options.
-    Ptx = driver::CUjitInputType_enum::CU_JIT_INPUT_PTX as _,
-    /// Bundle of multiple cubins and/or PTX of some device code
-    ///
-    /// Applicable options: PTX compiler options,.
-    Fatbinary = driver::CUjitInputType_enum::CU_JIT_INPUT_FATBINARY as _,
-    /// Host object with embedded device code
-    ///
-    /// Applicable options: PTX compiler options,.
-    Object = driver::CUjitInputType_enum::CU_JIT_INPUT_OBJECT as _,
-    /// Archive of host objects with embedded device code
-    ///
-    /// Applicable options: PTX compiler options,.
-    Library = driver::CUjitInputType_enum::CU_JIT_INPUT_LIBRARY as _,
-    /// Only valid with LTO-IR compiled with toolkits prior to CUDA 12.0.
-    #[deprecated]
-    Nvvm = driver::CUjitInputType_enum::CU_JIT_INPUT_NVVM as _,
-    /// Upper-bound sentinel for CUDA linker input formats.
-    NumInputTypes = driver::CUjitInputType_enum::CU_JIT_NUM_INPUT_TYPES as _,
-}
-
-impl_enum_conversion!(u32, driver::CUjitInputType, JitInputType);
-
-impl_enum_display!(JitInputType, {
-    Self::Cubin => "CU_JIT_INPUT_CUBIN",
-    Self::Ptx => "CU_JIT_INPUT_PTX",
-    Self::Fatbinary => "CU_JIT_INPUT_FATBINARY",
-    Self::Object => "CU_JIT_INPUT_OBJECT",
-    Self::Library => "CU_JIT_INPUT_LIBRARY",
-    Self::Nvvm => "CU_JIT_INPUT_NVVM",
-    Self::NumInputTypes => "CU_JIT_NUM_INPUT_TYPES",
-});
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(all(feature = "testing", feature = "nvrtc_13_4"))]
+    use crate::error::Result;
 
-    #[cfg(feature = "testing")]
+    #[cfg(all(feature = "testing", feature = "nvrtc_13_4"))]
     #[test]
-    fn test_native_ptx_load_with_scalar_options_and_output_buffers() -> crate::error::Result<()> {
+    fn test_native_ptx_load_with_scalar_options_and_output_buffers() -> Result<()> {
         use crate::{
             device::DeviceAttribute,
             module::LaunchConfig,
-            nvrtc::{OutputKind, Program},
+            nvrtc::{CompileOptions, OutputKind, Program},
+            stream::StreamOptions,
             testing,
         };
 
-        let (_lock, context) = testing::bootstrap()?;
+        let test_device = testing::bootstrap()?;
+        let context = test_device.context();
         let major = context
             .device()
             .attribute(DeviceAttribute::ComputeCapabilityMajor)?;
@@ -800,7 +758,7 @@ mod tests {
             .attribute(DeviceAttribute::ComputeCapabilityMinor)?;
         let target = format!("--gpu-architecture=compute_{major}{minor}");
         let program = Program::from_source("extern \"C\" __global__ void noop() {}");
-        program.compile(&[&target])?;
+        program.compile(&CompileOptions::new().raw_option(&target))?;
 
         let mut wall_time = -1.0_f32;
         let mut info_log = [0xa5_u8; 258];
@@ -814,12 +772,13 @@ mod tests {
             .with_wall_time(&mut wall_time)
             .with_info_log(&mut info_log[1..257])
             .with_error_log(&mut error_log[1..257]);
-        let module = context.load_nvrtc_module_with_options(&program, OutputKind::Ptx, options)?;
+        let module = context.load_nvrtc_module(&program, OutputKind::Ptx, options)?;
         let function = module.function("noop")?;
         let config = LaunchConfig::try_for_1d_grid(128, 128)?;
+        let stream = context.create_stream(StreamOptions::default())?;
         // SAFETY: this no-argument kernel accesses no storage and remains loaded through synchronization.
-        unsafe { function.launch(&config, ())? };
-        context.synchronize()?;
+        unsafe { function.launch_async(&config, (), &stream)? };
+        stream.synchronize()?;
 
         assert!(wall_time >= 0.0);
         assert_eq!([info_log[0], info_log[257]], [0xa5; 2]);
@@ -898,7 +857,6 @@ mod tests {
             .unwrap();
         artifact.values[index] = ptr::without_provenance_mut(2.5_f32.to_bits() as usize);
         drop(artifact);
-        drop(options);
         assert_eq!(wall_time, 2.5);
     }
 }

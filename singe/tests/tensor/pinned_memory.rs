@@ -1,7 +1,7 @@
 #![cfg(all(feature = "testing", feature = "cuda"))]
 
 use singe::{DataType, Device, Shape, Tensor, backend::cuda::CudaStream};
-use singe_cuda::testing::device_lock;
+use singe_cuda::{device::Device as CudaDevice, testing::device_lock};
 
 fn values(count: usize) -> Vec<f32> {
     (0..count)
@@ -11,7 +11,7 @@ fn values(count: usize) -> Vec<f32> {
 
 #[test]
 fn test_pinned_tensors_round_trip_through_cuda() {
-    let _lock = device_lock(0).unwrap();
+    let _lock = device_lock(CudaDevice::new(0)).unwrap();
     let shape = Shape::create([3, 5]).unwrap();
     let pinned = Tensor::from_vec(Device::Cpu, &shape, values(15))
         .unwrap()
@@ -52,7 +52,7 @@ fn test_pinned_tensors_round_trip_through_cuda() {
 
 #[test]
 fn test_non_blocking_copies_return_their_tensors_after_waiting() {
-    let _lock = device_lock(0).unwrap();
+    let _lock = device_lock(CudaDevice::new(0)).unwrap();
     let device = Device::Cuda(0);
     let stream = CudaStream::create(device).unwrap();
     let shape = Shape::create([64, 64]).unwrap();
@@ -121,7 +121,7 @@ fn test_non_blocking_copies_return_their_tensors_after_waiting() {
 
 #[test]
 fn test_non_blocking_copies_reject_unsafe_host_buffers() {
-    let _lock = device_lock(0).unwrap();
+    let _lock = device_lock(CudaDevice::new(0)).unwrap();
     let device = Device::Cuda(0);
     let stream = CudaStream::create(device).unwrap();
     let shape = Shape::create([8]).unwrap();

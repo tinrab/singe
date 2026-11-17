@@ -1,6 +1,8 @@
-use std::mem::MaybeUninit;
-
-use singe_cuda::{memory::DeviceMemory, stream::StreamCaptureStatus};
+use singe_cuda::{
+    memory::DeviceMemory,
+    stream::{AsStream, StreamCaptureStatus},
+    view::DeviceOutputView,
+};
 
 use crate::{
     backend::{
@@ -16,7 +18,7 @@ use crate::{
         plan::CompiledGraph,
     },
     scalar::ScalarValue,
-    utility::to_usize,
+    utility::{aligned_pointer, to_usize},
 };
 
 impl CompiledGraph {
@@ -31,7 +33,7 @@ impl CompiledGraph {
     /// Returns an error if stream or capture-state queries fail, placeholder allocation or scalar preparation fails, binding metadata or alignment is invalid, native variant-pack construction fails, execution-context retention fails, or stream configuration or capture fails.
     /// A native execution rejection during completed capture is retained in the returned outcome.
     pub fn warmup(&self, context: &mut Context) -> Result<WarmupOutcome> {
-        if context.stream()?.capture_status()? != StreamCaptureStatus::None {
+        if context.stream_binding().capture_status()? != StreamCaptureStatus::None {
             return Ok(WarmupOutcome::SkippedActiveCapture);
         }
 
@@ -45,21 +47,23 @@ impl CompiledGraph {
     /// Uses the normal bindings, frontend scratch and optional runtime overrides.
     /// Skips warmup if the handle's current stream is already capturing.
     ///
-    /// # Errors
-    /// Returns binding, workspace, stream configuration or capture errors.
-    ///
     /// # Safety
+    ///
     /// Keep borrowed device buffers, workspace and by-value host arguments valid through this call.
     /// Host values must be initialized with their declared native encodings.
     /// Device inputs need not be initialized because the captured graph is discarded without launching its reads or writes.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if a binding, the workspace, the stream configuration, or capture fails.
     pub unsafe fn warmup_with_bindings(
         &self,
         context: &mut Context,
         bindings: &Bindings<'_>,
-        workspace: Option<&mut DeviceMemory<MaybeUninit<u8>>>,
+        workspace: Option<DeviceOutputView<'_, u8>>,
         overrides: &RuntimeOverrides,
     ) -> Result<WarmupOutcome> {
-        if context.stream()?.capture_status()? != StreamCaptureStatus::None {
+        if context.stream_binding().capture_status()? != StreamCaptureStatus::None {
             return Ok(WarmupOutcome::SkippedActiveCapture);
         }
 
@@ -69,8 +73,7 @@ impl CompiledGraph {
             workspace,
             overrides,
         )?;
-        // SAFETY: the caller retains the supplied storage and initialized host arguments;
-        // pack metadata and owned scalar storage remain live until capture is discarded.
+        // SAFETY: the caller retains the supplied storage and initialized host arguments; pack metadata and owned scalar storage remain live until capture is discarded.
         unsafe { self.execution_plan().warmup(context, &pack) }
     }
 }
@@ -118,7 +121,8 @@ impl<'a> CaptureOnlyPack<'a> {
             .checked_add(alignment - 1)
             .ok_or_else(|| Error::out_of_range("warmup storage bytes"))?;
         let device = DeviceMemory::<u8>::zeroed(context.cuda_context(), device_bytes)?;
-        let device_pointer = aligned_pointer(device.as_mut_ptr(), alignment)?;
+        let device_pointer =
+            aligned_pointer(device.as_mut_ptr(), alignment, "warmup storage bytes")?;
         let mut scalars = compiled.bindings()?;
         let mut pointers = Vec::with_capacity(records.len());
         let mut ids = Vec::with_capacity(records.len());
@@ -179,12 +183,4 @@ impl<'a> CaptureOnlyPack<'a> {
             _ids: ids,
         })
     }
-}
-
-fn aligned_pointer(pointer: *mut u8, alignment: usize) -> Result<*mut u8> {
-    let address = pointer.addr();
-    let aligned = address
-        .checked_next_multiple_of(alignment)
-        .ok_or_else(|| Error::out_of_range("warmup storage bytes"))?;
-    Ok(pointer.wrapping_add(aligned - address))
 }

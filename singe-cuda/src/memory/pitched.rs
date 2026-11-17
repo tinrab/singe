@@ -5,14 +5,11 @@ use singe_cuda_sys::runtime;
 use crate::{
     context::Context,
     error::{Error, Result},
-    memory::{
-        DeviceAllocation, DeviceDeallocation, DeviceMemory, MemoryCopyKind, PitchedDeviceMemory,
-        PitchedDeviceVolume,
-    },
-    stream::{StreamBinding, StreamScope},
+    memory::{DeviceAllocation, DeviceDeallocation, DeviceMemory, MemoryCopyKind},
+    stream::{AsStream, StreamBinding, StreamScope},
     submission::{Access, AccessMode},
     types::DevicePtr,
-    utility::{checked_bytes, checked_len, checked_volume, to_usize},
+    utility::{checked_bytes, checked_element_count, to_usize},
     view::{
         AllocationId, AnyBitPatternDeviceRepr, DeviceRegion, DeviceRegionProvider, DeviceRepr,
         DeviceView, DeviceViewMut, NoUninitDeviceRepr, ZeroableDeviceRepr,
@@ -26,26 +23,37 @@ fn checked_pitched_bytes<T>(
     depth: usize,
     pitch: usize,
 ) -> Result<usize> {
-    let row_bytes = checked_bytes::<T>(width)?;
-    checked_volume(row_bytes, height, depth)?;
+    let row_bytes = checked_bytes::<T>(width, "row bytes")?;
+    checked_element_count(&[row_bytes, height, depth], "logical bytes")?;
     if width == 0 || height == 0 || depth == 0 {
         return Ok(0);
     }
 
-    let bytes = checked_volume(pitch, height, depth)?;
-    if ptr.is_null()
-        || pitch < row_bytes
-        || !(ptr as usize).is_multiple_of(align_of::<T>())
-        || !pitch.is_multiple_of(align_of::<T>())
-        || (ptr as usize).checked_add(bytes).is_none()
-    {
-        return Err(Error::InvalidMemoryAccess);
+    let bytes = checked_element_count(&[pitch, height, depth], "pitched bytes")?;
+    if ptr.is_null() {
+        return Err(Error::null_pointer("pitched pointer"));
     }
+
+    if pitch < row_bytes {
+        return Err(Error::buffer_too_small("pitch", row_bytes, pitch));
+    }
+
+    if !ptr.addr().is_multiple_of(align_of::<T>()) {
+        return Err(Error::misaligned("pitched pointer", align_of::<T>()));
+    }
+
+    if !pitch.is_multiple_of(align_of::<T>()) {
+        return Err(Error::misaligned("pitch", align_of::<T>()));
+    }
+
+    if ptr.addr().checked_add(bytes).is_none() {
+        return Err(Error::out_of_range("pitched allocation end"));
+    }
+
     Ok(bytes)
 }
 
-// Adopt a newly allocated pointer before checking CUDA's returned pitch, so a
-// rejected layout still frees the allocation in its owning context.
+// Adopt a newly allocated pointer before checking CUDA's returned pitch, so a rejected layout still frees the allocation in its owning context.
 fn own_pitched_allocation<T>(
     context: &Arc<Context>,
     ptr: *mut T,
@@ -69,8 +77,8 @@ impl<T: DeviceRepr> PitchedDeviceMemory<T> {
     fn allocate(context: &Arc<Context>, width: usize, height: usize) -> Result<Self> {
         let () = T::LAYOUT;
         context.bind()?;
-        // SAFETY: the context is bound above, and the returned allocation is owned by the new value.
-        let (ptr, pitch) = unsafe { DeviceMemory::<T>::alloc_pitched(width, height)? };
+        // SAFETY: the context is bound above, and `own_pitched_allocation` adopts the returned pointer before anything can fail, so it is freed in this context.
+        let (ptr, pitch) = unsafe { DeviceMemory::<T>::alloc_pitched(context, width, height)? };
         let allocation = own_pitched_allocation(context, ptr, width, height, 1, pitch)?;
         Ok(Self {
             allocation,
@@ -86,8 +94,8 @@ impl<T: DeviceRepr> PitchedDeviceMemory<T> {
     ///
     /// # Errors
     ///
-    /// Returns an error if size calculations overflow, a nonempty zero-sized element range is requested, context binding fails, or CUDA cannot allocate pitched storage.
-    /// Also rejects a returned pointer or pitch that violates the requested row size, alignment, or address-range bounds.
+    /// Returns an error if size calculations overflow, a nonempty zero-sized element range is requested, the context cannot be bound, or CUDA cannot allocate pitched storage.
+    /// Returns an error if CUDA returns a pointer or pitch that violates the requested row size, alignment, or address-range bounds.
     pub fn create_uninit(
         context: &Arc<Context>,
         width: usize,
@@ -96,37 +104,33 @@ impl<T: DeviceRepr> PitchedDeviceMemory<T> {
         PitchedDeviceMemory::<MaybeUninit<T>>::allocate(context, width, height)
     }
 
-    /// Allocates pitched storage with caller-established initialization.
-    ///
-    /// # Safety
-    ///
-    /// Initialize every logical element before reading it.
-    /// CUDA row padding remains uninitialized and must not be exposed as initialized bytes.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if size calculations overflow, a nonempty zero-sized element range is requested, context binding fails, or CUDA cannot allocate pitched storage.
-    /// Also rejects a returned pointer or pitch that violates the requested row size, alignment, or address-range bounds.
-    pub unsafe fn create_unchecked(
-        context: &Arc<Context>,
-        width: usize,
-        height: usize,
-    ) -> Result<Self> {
-        Self::allocate(context, width, height)
-    }
-
     /// Allocates pitched storage and completes zero initialization of its logical elements.
     ///
     /// # Errors
     ///
-    /// Propagates pitched allocation, size-validation, access-tracking, context-binding, CUDA fill, and synchronization errors.
+    /// Returns an error if allocation fails for the reasons `create_uninit` gives, access tracking fails, or CUDA cannot fill or synchronize.
     pub fn zeroed(context: &Arc<Context>, width: usize, height: usize) -> Result<Self>
     where
         T: ZeroableDeviceRepr,
     {
         let mut memory = Self::create_uninit(context, width, height)?;
         memory.set_zeroes()?;
-        // SAFETY: the completed fill initializes every logical element with a valid zero value.
+        // SAFETY: `set_zeroes` completed a zero fill of every logical element, and an all-zero `T` is valid.
+        Ok(unsafe { memory.assume_init() })
+    }
+
+    /// Allocates pitched storage and completes a repeated byte fill of its logical elements.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if allocation fails for the reasons `create_uninit` gives, access tracking fails, or CUDA cannot fill or synchronize.
+    pub fn filled(context: &Arc<Context>, width: usize, height: usize, value: u8) -> Result<Self>
+    where
+        T: AnyBitPatternDeviceRepr,
+    {
+        let mut memory = Self::create_uninit(context, width, height)?;
+        memory.set_value(value)?;
+        // SAFETY: `set_value` completed a fill of every logical element, and every bit pattern is a valid `T`.
         Ok(unsafe { memory.assume_init() })
     }
 
@@ -134,8 +138,7 @@ impl<T: DeviceRepr> PitchedDeviceMemory<T> {
     ///
     /// # Errors
     ///
-    /// Returns an error if the source length differs from the logical element count.
-    /// Also propagates pitched allocation, size-validation, context-binding, CUDA copy, and synchronization errors.
+    /// Returns an error if the source length differs from the logical element count, allocation fails for the reasons `create_uninit` gives, or CUDA cannot copy or synchronize.
     pub fn from_slice(
         context: &Arc<Context>,
         width: usize,
@@ -145,11 +148,11 @@ impl<T: DeviceRepr> PitchedDeviceMemory<T> {
         Self::create_uninit(context, width, height)?.initialize_from_host(values)
     }
 
-    /// Takes ownership of a pitched allocation in `context`.
+    /// Takes ownership of a pitched allocation in `raw.context`.
     ///
     /// # Safety
     ///
-    /// `ptr` must be the base of a live CUDA allocation compatible with `cudaFree`, with no other destruction owner.
+    /// `raw.ptr` must be the base of a live CUDA allocation compatible with `cudaFree`, with no other destruction owner.
     /// It must contain initialized, valid `T` values at every logical element.
     /// The pitch and dimensions must describe its storage, and previous accesses must be ordered before future consumers.
     /// A null pointer is accepted for an empty shape.
@@ -157,19 +160,20 @@ impl<T: DeviceRepr> PitchedDeviceMemory<T> {
     /// # Errors
     ///
     /// Returns an error if row or volume size calculations overflow or a nonempty zero-sized element range is requested.
-    /// For nonempty storage, also rejects a null or misaligned pointer, a pitch smaller than the row width or not aligned for `T`, or an overflowing ending address.
-    pub unsafe fn from_raw_parts(
-        context: &Arc<Context>,
-        ptr: *mut T,
-        width: usize,
-        height: usize,
-        pitch: usize,
-    ) -> Result<Self> {
+    /// Returns an error if nonempty storage has a null or misaligned pointer, a pitch smaller than the row width or not aligned for `T`, or an overflowing ending address.
+    pub unsafe fn from_raw(raw: RawPitchedDeviceMemory<T>) -> Result<Self> {
+        let RawPitchedDeviceMemory {
+            ptr,
+            width,
+            height,
+            pitch,
+            context,
+        } = raw;
         let () = T::LAYOUT;
         let bytes = checked_pitched_bytes(ptr, width, height, 1, pitch)?;
         Ok(Self {
             allocation: DeviceAllocation::from_parts(
-                context,
+                &context,
                 ptr.cast(),
                 bytes,
                 DeviceDeallocation::Immediate,
@@ -188,8 +192,8 @@ impl<T: DeviceRepr> PitchedDeviceMemory<T> {
     ///
     /// # Errors
     ///
-    /// Returns the original wrapper if another owner, submission, graph, or foreign handle retains the allocation.
-    pub fn into_raw_parts(self) -> StdResult<(*mut T, usize, usize, usize, Arc<Context>), Self> {
+    /// Returns the wrapper unchanged as the error if another owner, submission, graph, or foreign handle retains the allocation.
+    pub fn into_raw(self) -> StdResult<RawPitchedDeviceMemory<T>, Self> {
         let Self {
             allocation,
             ptr,
@@ -202,7 +206,13 @@ impl<T: DeviceRepr> PitchedDeviceMemory<T> {
             Ok(mut allocation) => {
                 let context = Arc::clone(allocation.context());
                 allocation.ptr = ptr::null_mut();
-                Ok((ptr, width, height, pitch, context))
+                Ok(RawPitchedDeviceMemory {
+                    ptr,
+                    width,
+                    height,
+                    pitch,
+                    context,
+                })
             }
             Err(allocation) => Err(Self {
                 allocation,
@@ -233,7 +243,7 @@ impl<T: DeviceRepr> PitchedDeviceMemory<T> {
     ///
     /// # Errors
     ///
-    /// Returns the original allocation if `U` is zero-sized, its size does not divide the logical row byte width, or nonempty storage has a base pointer or pitch not aligned for `U`.
+    /// Returns the allocation unchanged as the error if `U` is zero-sized, its size does not divide the logical row byte width, or nonempty storage has a base pointer or pitch not aligned for `U`.
     ///
     /// # Panics
     ///
@@ -252,7 +262,7 @@ impl<T: DeviceRepr> PitchedDeviceMemory<T> {
         if size == 0
             || !row_bytes.is_multiple_of(size)
             || (!self.is_empty()
-                && (!(self.ptr as usize).is_multiple_of(align_of::<U>())
+                && (!self.ptr.addr().is_multiple_of(align_of::<U>())
                     || !self.pitch.is_multiple_of(align_of::<U>())))
         {
             return Err(self);
@@ -312,7 +322,7 @@ impl<T: DeviceRepr> PitchedDeviceMemory<T> {
     /// Returns the base pointer as a CUDA device pointer wrapper.
     #[must_use]
     pub const fn as_device_ptr(&self) -> DevicePtr {
-        // SAFETY: the address belongs to a live device allocation that stays borrowed for the operation that uses it.
+        // SAFETY: `self.ptr` is the base of the pitched allocation that `allocation` keeps live, and `DevicePtr` only carries the address.
         unsafe { DevicePtr::from_raw(self.ptr.cast()) }
     }
 
@@ -322,7 +332,7 @@ impl<T: DeviceRepr> PitchedDeviceMemory<T> {
     ///
     /// Returns an error if `width * height` overflows.
     pub fn len(&self) -> Result<usize> {
-        checked_len(self.width, self.height)
+        checked_element_count(&[self.width, self.height], "element count")
     }
 
     /// Returns the logical row width in bytes.
@@ -331,7 +341,7 @@ impl<T: DeviceRepr> PitchedDeviceMemory<T> {
     ///
     /// Returns an error if `width * size_of::<T>()` overflows or `T` is a non-empty zero-sized element type.
     pub fn row_byte_width(&self) -> Result<usize> {
-        checked_bytes::<T>(self.width)
+        checked_bytes::<T>(self.width, "row bytes")
     }
 
     /// Returns the physical allocation span described by `pitch * height`.
@@ -360,14 +370,16 @@ impl<T: DeviceRepr> PitchedDeviceMemory<T> {
         let context = Arc::clone(self.context());
         let _access = context.acquire_host_access(&[self.region()])?;
         self.context().bind()?;
-        if src.len() != self.len()? {
-            return Err(Error::InvalidMemoryAccess);
+        let len = self.len()?;
+        if src.len() != len {
+            return Err(Error::length_mismatch("host source", len, src.len()));
         }
 
         let row_bytes = self.row_byte_width()?;
-        // SAFETY: the shape and lengths were checked above, so the copy stays inside both allocations.
+        // SAFETY: `src` holds exactly `width * height` values at a `row_bytes` pitch, construction validated this allocation's pitch and rows, the host access excludes tracked GPU work, and the context is bound.
         unsafe {
             DeviceMemory::<T>::copy_2d(
+                self.context(),
                 self.ptr,
                 self.pitch,
                 src.as_ptr(),
@@ -404,20 +416,21 @@ impl<T: DeviceRepr> PitchedDeviceMemory<T> {
     ///
     /// # Errors
     ///
-    /// Returns an error if the destination length differs from the logical element count or transfer size calculations overflow.
-    /// Also propagates access-tracking, context-binding, CUDA copy, and default-stream synchronization errors.
+    /// Returns an error if the destination length differs from the logical element count, transfer size calculations overflow, access tracking fails, the context cannot be bound, or CUDA cannot copy or synchronize.
     pub unsafe fn copy_to_host_unchecked(&self, dst: &mut [T]) -> Result<()> {
         let context = Arc::clone(self.context());
         let _access = context.acquire_host_access(&[self.region()])?;
         self.context().bind()?;
-        if dst.len() != self.len()? {
-            return Err(Error::InvalidMemoryAccess);
+        let len = self.len()?;
+        if dst.len() != len {
+            return Err(Error::length_mismatch("host destination", len, dst.len()));
         }
 
         let row_bytes = self.row_byte_width()?;
-        // SAFETY: the caller upholds this function's safety contract.
+        // SAFETY: `dst` holds exactly `width * height` writable values at a `row_bytes` pitch, the host access waited for tracked GPU work, and the caller guarantees the copied elements are valid `T` values.
         unsafe {
             DeviceMemory::<T>::copy_2d(
+                self.context(),
                 dst.as_mut_ptr(),
                 row_bytes,
                 self.ptr,
@@ -438,16 +451,29 @@ impl<T: DeviceRepr> PitchedDeviceMemory<T> {
     pub fn copy_from_pitched(&mut self, src: &Self) -> Result<()> {
         self.context().bind()?;
         if self.context() != src.context() {
-            return Err(Error::InvalidValue);
+            return Err(Error::MemoryContextMismatch);
         }
 
-        if self.width != src.width || self.height != src.height {
-            return Err(Error::InvalidMemoryAccess);
+        if self.width != src.width {
+            return Err(Error::length_mismatch(
+                "source width",
+                self.width,
+                src.width,
+            ));
         }
 
-        // SAFETY: the shape and lengths were checked above, so the copy stays inside both allocations.
+        if self.height != src.height {
+            return Err(Error::length_mismatch(
+                "source height",
+                self.height,
+                src.height,
+            ));
+        }
+
+        // SAFETY: both allocations are in this bound context and have the same validated width and height, so each row copy stays inside both, and `&mut self` excludes aliasing with `src`.
         unsafe {
             DeviceMemory::<T>::copy_2d(
+                self.context(),
                 self.ptr,
                 self.pitch,
                 src.ptr,
@@ -468,23 +494,24 @@ impl<T: DeviceRepr> PitchedDeviceMemory<T> {
     /// # Errors
     ///
     /// Returns an error if `src` has the wrong length, byte-size arithmetic overflows, or CUDA cannot enqueue the copy.
-    pub fn copy_from_host_async<'env>(
+    pub fn copy_from_host_scoped<'env>(
         &'env mut self,
         src: &'env [T],
         stream: &StreamScope<'_, 'env>,
     ) -> Result<()> {
         let accesses = [Access::new(self.region(), AccessMode::Write)];
         if self.context() != stream.stream().context() {
-            return Err(Error::InvalidValue);
+            return Err(Error::StreamContextMismatch);
         }
 
         self.context().bind()?;
-        if src.len() != self.len()? {
-            return Err(Error::InvalidMemoryAccess);
+        let len = self.len()?;
+        if src.len() != len {
+            return Err(Error::length_mismatch("host source", len, src.len()));
         }
 
         let row_bytes = self.row_byte_width()?;
-        // SAFETY: the declared accesses retain both regions, and the stream orders every access to them.
+        // SAFETY: `src` holds exactly the logical element count, the `'env` borrows keep it and this allocation live until the scope drains, the declared write orders tracked work, and the contexts match.
         unsafe {
             stream.enqueue(&accesses, || {
                 DeviceMemory::<T>::copy_2d_async(
@@ -509,7 +536,7 @@ impl<T: DeviceRepr> PitchedDeviceMemory<T> {
     /// # Errors
     ///
     /// Returns an error if `dst` has the wrong length, byte-size arithmetic overflows, or CUDA cannot enqueue the copy.
-    pub fn copy_to_host_async<'env>(
+    pub fn copy_to_host_scoped<'env>(
         &'env self,
         dst: &'env mut [T],
         stream: &StreamScope<'_, 'env>,
@@ -519,17 +546,18 @@ impl<T: DeviceRepr> PitchedDeviceMemory<T> {
     {
         let accesses = [Access::new(self.region(), AccessMode::Read)];
         if self.context() != stream.stream().context() {
-            return Err(Error::InvalidValue);
+            return Err(Error::StreamContextMismatch);
         }
 
         self.context().bind()?;
         let () = T::LAYOUT;
-        if dst.len() != self.len()? {
-            return Err(Error::InvalidMemoryAccess);
+        let len = self.len()?;
+        if dst.len() != len {
+            return Err(Error::length_mismatch("host destination", len, dst.len()));
         }
 
         let row_bytes = self.row_byte_width()?;
-        // SAFETY: the declared accesses retain both regions, and the stream orders every access to them.
+        // SAFETY: `dst` holds exactly the logical element count, the `'env` borrows keep it and this allocation live until the scope drains, the declared read orders tracked work, and `T: AnyBitPatternDeviceRepr` makes any copied bytes valid.
         unsafe {
             stream.enqueue(&accesses, || {
                 DeviceMemory::<T>::copy_2d_async(
@@ -581,13 +609,22 @@ impl<T: DeviceRepr> PitchedDeviceMemory<T> {
     ///
     /// # Errors
     ///
-    /// Propagates access-tracking, context-binding, transfer-size validation, CUDA fill, and default-stream synchronization errors.
+    /// Returns an error if access tracking fails, the context cannot be bound, the transfer size overflows, or CUDA cannot fill the memory or synchronize the default stream.
     pub unsafe fn set_value_unchecked(&mut self, value: u8) -> Result<()> {
         let context = Arc::clone(self.context());
         let _access = context.acquire_host_access(&[self.region()])?;
         self.context().bind()?;
-        // SAFETY: the caller upholds this function's safety contract.
-        unsafe { DeviceMemory::<T>::set_2d(self.ptr, self.pitch, value, self.width, self.height) }?;
+        // SAFETY: the validated pitch and shape keep the fill inside the allocation, the host access excludes tracked GPU work, and the caller guarantees the repeated byte is a valid `T` pattern.
+        unsafe {
+            DeviceMemory::<T>::set_2d(
+                self.context(),
+                self.ptr,
+                self.pitch,
+                value,
+                self.width,
+                self.height,
+            )?;
+        }
         StreamBinding::Default(Arc::clone(self.context())).synchronize()
     }
 
@@ -596,7 +633,7 @@ impl<T: DeviceRepr> PitchedDeviceMemory<T> {
     /// # Errors
     ///
     /// Returns an error if CUDA cannot enqueue the 2D memset.
-    pub fn set_value_async<'env>(
+    pub fn set_value_scoped<'env>(
         &'env mut self,
         value: u8,
         stream: &StreamScope<'_, 'env>,
@@ -606,13 +643,13 @@ impl<T: DeviceRepr> PitchedDeviceMemory<T> {
     {
         let accesses = [Access::new(self.region(), AccessMode::Write)];
         if self.context() != stream.stream().context() {
-            return Err(Error::InvalidValue);
+            return Err(Error::StreamContextMismatch);
         }
 
         self.context().bind()?;
         let () = T::LAYOUT;
-        checked_len(self.row_byte_width()?, self.height)?;
-        // SAFETY: the declared accesses retain both regions, and the stream orders every access to them.
+        checked_element_count(&[self.row_byte_width()?, self.height], "logical bytes")?;
+        // SAFETY: the `'env` borrow keeps this allocation live until the scope drains, the declared write orders tracked work, the contexts match, and `T: AnyBitPatternDeviceRepr` makes any repeated byte valid.
         unsafe {
             stream.enqueue(&accesses, || {
                 DeviceMemory::<T>::set_2d_async(
@@ -629,7 +666,7 @@ impl<T: DeviceRepr> PitchedDeviceMemory<T> {
 
     fn row_region(&self, row: usize) -> Result<DeviceRegion<'_>> {
         if row >= self.height {
-            return Err(Error::InvalidMemoryAccess);
+            return Err(Error::out_of_range("row"));
         }
 
         if self.width == 0 {
@@ -638,10 +675,10 @@ impl<T: DeviceRepr> PitchedDeviceMemory<T> {
 
         let start = row
             .checked_mul(self.pitch)
-            .ok_or(Error::InvalidMemoryAccess)?;
+            .ok_or_else(|| Error::out_of_range("row offset"))?;
         let end = start
             .checked_add(self.row_byte_width()?)
-            .ok_or(Error::InvalidMemoryAccess)?;
+            .ok_or_else(|| Error::out_of_range("row end"))?;
         self.region().slice(start..end)
     }
 
@@ -651,7 +688,7 @@ impl<T: DeviceRepr> PitchedDeviceMemory<T> {
     ///
     /// Returns an error if the row index is out of bounds, row offset calculations overflow, or the resulting range fails byte-length or alignment validation.
     pub fn row(&self, row: usize) -> Result<DeviceView<'_, T>> {
-        // SAFETY: construction or promotion establishes initialized logical elements.
+        // SAFETY: a `T`-typed pitched owner only exists once every logical element is initialized, and the row region excludes the padding.
         unsafe { DeviceView::from_raw_parts(self.row_region(row)?, self.width) }
     }
 
@@ -661,7 +698,7 @@ impl<T: DeviceRepr> PitchedDeviceMemory<T> {
     ///
     /// Returns an error if the row index is out of bounds, row offset calculations overflow, or the resulting range fails byte-length or alignment validation.
     pub fn row_mut(&mut self, row: usize) -> Result<DeviceViewMut<'_, T>> {
-        // SAFETY: the exclusive buffer borrow covers this exact row and its initialized element type.
+        // SAFETY: the row region excludes the padding and holds initialized `T` values, and `&mut self` makes the view the only access to them.
         unsafe { DeviceViewMut::from_raw_parts(self.row_region(row)?, self.width) }
     }
 }
@@ -671,17 +708,18 @@ impl<T: DeviceRepr> PitchedDeviceMemory<MaybeUninit<T>> {
     ///
     /// # Errors
     ///
-    /// Returns an error if the source length differs from the logical element count or transfer size calculations overflow.
-    /// Also propagates context-binding, CUDA copy, and default-stream synchronization errors.
+    /// Returns an error if the source length differs from the logical element count, transfer size calculations overflow, the context cannot be bound, or CUDA cannot copy or synchronize.
     pub fn initialize_from_host(self, values: &[T]) -> Result<PitchedDeviceMemory<T>> {
-        if values.len() != self.len()? {
-            return Err(Error::InvalidMemoryAccess);
+        let len = self.len()?;
+        if values.len() != len {
+            return Err(Error::length_mismatch("host values", len, values.len()));
         }
 
         self.context().bind()?;
-        // SAFETY: the allocation has writable storage for the complete logical rectangle.
+        // SAFETY: `values` holds exactly `width * height` values, the validated pitch and rows make the allocation writable for the whole rectangle, `self` is owned so nothing else accesses it, and the context is bound.
         unsafe {
             DeviceMemory::<T>::copy_2d(
+                self.context(),
                 self.ptr.cast(),
                 self.pitch,
                 values.as_ptr(),
@@ -693,7 +731,7 @@ impl<T: DeviceRepr> PitchedDeviceMemory<MaybeUninit<T>> {
         }
 
         StreamBinding::Default(Arc::clone(self.context())).synchronize()?;
-        // SAFETY: the completed full copy initializes all logical elements to valid T values.
+        // SAFETY: the synchronized copy wrote every logical element from initialized host values of `T`.
         Ok(unsafe { self.assume_init() })
     }
 
@@ -701,7 +739,7 @@ impl<T: DeviceRepr> PitchedDeviceMemory<MaybeUninit<T>> {
     ///
     /// # Safety
     ///
-    /// Every logical element must contain an initialized valid T value.
+    /// Every logical element must contain an initialized valid `T` value.
     /// Producers must be ordered before subsequent consumers and complete before host readback.
     /// Row padding remains uninitialized.
     #[must_use]
@@ -718,23 +756,26 @@ impl<T: DeviceRepr> PitchedDeviceMemory<MaybeUninit<T>> {
     }
 }
 
+// SAFETY: the region is the whole pitched allocation, padding included, which `allocation` retains with its context for as long as `self` lives.
 unsafe impl<T: DeviceRepr> DeviceRegionProvider for PitchedDeviceMemory<T> {
     fn region(&self) -> DeviceRegion<'_> {
         self.allocation.region()
     }
 }
 
-// SAFETY: device pointers are not dereferenced on the host; all operations bind the retained context.
+// SAFETY: `ptr` is a device address that the host never dereferences, the allocation behind it is owned through the `Send` `Arc<DeviceAllocation>`, and CUDA driver calls on it are thread-safe once the retained context is bound.
 unsafe impl<T: DeviceRepr + Send> Send for PitchedDeviceMemory<T> {}
 
+// SAFETY: `&self` methods only read the address and shape and enqueue CUDA work under the context's access tracker, and the driver API is thread-safe, so shared use from several threads performs no unsynchronized host access.
 unsafe impl<T: DeviceRepr + Sync> Sync for PitchedDeviceMemory<T> {}
 
 impl<T: DeviceRepr> PitchedDeviceVolume<T> {
     fn allocate(context: &Arc<Context>, width: usize, height: usize, depth: usize) -> Result<Self> {
         let () = T::LAYOUT;
         context.bind()?;
-        // SAFETY: the context is bound above, and the returned allocation is owned by the new value.
-        let pitched = unsafe { DeviceMemory::<T>::alloc_pitched_3d(width, height, depth)? };
+        // SAFETY: the context is bound above, and `own_pitched_allocation` adopts the returned pointer, so it is freed in this context.
+        let pitched =
+            unsafe { DeviceMemory::<T>::alloc_pitched_3d(context, width, height, depth)? };
         let ptr = pitched.ptr.cast();
         let pitch = to_usize(pitched.pitch, "allocation pitch")?;
         let allocation = own_pitched_allocation(context, ptr, width, height, depth, pitch)?;
@@ -753,8 +794,8 @@ impl<T: DeviceRepr> PitchedDeviceVolume<T> {
     ///
     /// # Errors
     ///
-    /// Returns an error if size calculations overflow, a nonempty zero-sized element range is requested, context binding fails, or CUDA cannot allocate pitched storage.
-    /// Also rejects a returned pointer or pitch that violates the requested row size, alignment, or address-range bounds.
+    /// Returns an error if size calculations overflow, a nonempty zero-sized element range is requested, the context cannot be bound, or CUDA cannot allocate pitched storage.
+    /// Returns an error if CUDA returns a pointer or pitch that violates the requested row size, alignment, or address-range bounds.
     pub fn create_uninit(
         context: &Arc<Context>,
         width: usize,
@@ -764,38 +805,39 @@ impl<T: DeviceRepr> PitchedDeviceVolume<T> {
         PitchedDeviceVolume::<MaybeUninit<T>>::allocate(context, width, height, depth)
     }
 
-    /// Allocates pitched storage with caller-established initialization.
-    ///
-    /// # Safety
-    ///
-    /// Initialize every logical element before reading it.
-    /// CUDA row padding remains uninitialized and must not be exposed as initialized bytes.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if size calculations overflow, a nonempty zero-sized element range is requested, context binding fails, or CUDA cannot allocate pitched storage.
-    /// Also rejects a returned pointer or pitch that violates the requested row size, alignment, or address-range bounds.
-    pub unsafe fn create_unchecked(
-        context: &Arc<Context>,
-        width: usize,
-        height: usize,
-        depth: usize,
-    ) -> Result<Self> {
-        Self::allocate(context, width, height, depth)
-    }
-
     /// Allocates pitched storage and completes zero initialization of its logical elements.
     ///
     /// # Errors
     ///
-    /// Propagates pitched allocation, size-validation, access-tracking, context-binding, CUDA fill, and synchronization errors.
+    /// Returns an error if allocation fails for the reasons `create_uninit` gives, access tracking fails, or CUDA cannot fill or synchronize.
     pub fn zeroed(context: &Arc<Context>, width: usize, height: usize, depth: usize) -> Result<Self>
     where
         T: ZeroableDeviceRepr,
     {
         let mut memory = Self::create_uninit(context, width, height, depth)?;
         memory.set_zeroes()?;
-        // SAFETY: the completed fill initializes every logical element with a valid zero value.
+        // SAFETY: `set_zeroes` completed a zero fill of every logical element, and an all-zero `T` is valid.
+        Ok(unsafe { memory.assume_init() })
+    }
+
+    /// Allocates pitched storage and completes a repeated byte fill of its logical elements.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if allocation fails for the reasons `create_uninit` gives, access tracking fails, or CUDA cannot fill or synchronize.
+    pub fn filled(
+        context: &Arc<Context>,
+        width: usize,
+        height: usize,
+        depth: usize,
+        value: u8,
+    ) -> Result<Self>
+    where
+        T: AnyBitPatternDeviceRepr,
+    {
+        let mut memory = Self::create_uninit(context, width, height, depth)?;
+        memory.set_value(value)?;
+        // SAFETY: `set_value` completed a fill of every logical element, and every bit pattern is a valid `T`.
         Ok(unsafe { memory.assume_init() })
     }
 
@@ -803,8 +845,7 @@ impl<T: DeviceRepr> PitchedDeviceVolume<T> {
     ///
     /// # Errors
     ///
-    /// Returns an error if the source length differs from the logical element count.
-    /// Also propagates pitched allocation, size-validation, context-binding, CUDA copy, and synchronization errors.
+    /// Returns an error if the source length differs from the logical element count, allocation fails for the reasons `create_uninit` gives, or CUDA cannot copy or synchronize.
     pub fn from_slice(
         context: &Arc<Context>,
         width: usize,
@@ -815,11 +856,11 @@ impl<T: DeviceRepr> PitchedDeviceVolume<T> {
         Self::create_uninit(context, width, height, depth)?.initialize_from_host(values)
     }
 
-    /// Takes ownership of a pitched allocation in `context`.
+    /// Takes ownership of a pitched allocation in `raw.context`.
     ///
     /// # Safety
     ///
-    /// `ptr` must be the base of a live CUDA allocation compatible with `cudaFree`, with no other destruction owner.
+    /// `raw.ptr` must be the base of a live CUDA allocation compatible with `cudaFree`, with no other destruction owner.
     /// It must contain initialized, valid `T` values at every logical element.
     /// The pitch and dimensions must describe its storage, and previous accesses must be ordered before future consumers.
     /// A null pointer is accepted for an empty shape.
@@ -827,20 +868,21 @@ impl<T: DeviceRepr> PitchedDeviceVolume<T> {
     /// # Errors
     ///
     /// Returns an error if row or volume size calculations overflow or a nonempty zero-sized element range is requested.
-    /// For nonempty storage, also rejects a null or misaligned pointer, a pitch smaller than the row width or not aligned for `T`, or an overflowing ending address.
-    pub unsafe fn from_raw_parts(
-        context: &Arc<Context>,
-        ptr: *mut T,
-        width: usize,
-        height: usize,
-        depth: usize,
-        pitch: usize,
-    ) -> Result<Self> {
+    /// Returns an error if nonempty storage has a null or misaligned pointer, a pitch smaller than the row width or not aligned for `T`, or an overflowing ending address.
+    pub unsafe fn from_raw(raw: RawPitchedDeviceVolume<T>) -> Result<Self> {
+        let RawPitchedDeviceVolume {
+            ptr,
+            width,
+            height,
+            depth,
+            pitch,
+            context,
+        } = raw;
         let () = T::LAYOUT;
         let bytes = checked_pitched_bytes(ptr, width, height, depth, pitch)?;
         Ok(Self {
             allocation: DeviceAllocation::from_parts(
-                context,
+                &context,
                 ptr.cast(),
                 bytes,
                 DeviceDeallocation::Immediate,
@@ -860,14 +902,8 @@ impl<T: DeviceRepr> PitchedDeviceVolume<T> {
     ///
     /// # Errors
     ///
-    /// Returns the original wrapper if another owner, submission, graph, or foreign handle retains the allocation.
-    #[expect(
-        clippy::type_complexity,
-        reason = "raw volume ownership includes its pointer, dimensions, pitch, and CUDA context"
-    )]
-    pub fn into_raw_parts(
-        self,
-    ) -> StdResult<(*mut T, usize, usize, usize, usize, Arc<Context>), Self> {
+    /// Returns the wrapper unchanged as the error if another owner, submission, graph, or foreign handle retains the allocation.
+    pub fn into_raw(self) -> StdResult<RawPitchedDeviceVolume<T>, Self> {
         let Self {
             allocation,
             ptr,
@@ -881,7 +917,14 @@ impl<T: DeviceRepr> PitchedDeviceVolume<T> {
             Ok(mut allocation) => {
                 let context = Arc::clone(allocation.context());
                 allocation.ptr = ptr::null_mut();
-                Ok((ptr, width, height, depth, pitch, context))
+                Ok(RawPitchedDeviceVolume {
+                    ptr,
+                    width,
+                    height,
+                    depth,
+                    pitch,
+                    context,
+                })
             }
             Err(allocation) => Err(Self {
                 allocation,
@@ -913,7 +956,7 @@ impl<T: DeviceRepr> PitchedDeviceVolume<T> {
     ///
     /// # Errors
     ///
-    /// Returns the original allocation if `U` is zero-sized, its size does not divide the logical row byte width, or nonempty storage has a base pointer or pitch not aligned for `U`.
+    /// Returns the allocation unchanged as the error if `U` is zero-sized, its size does not divide the logical row byte width, or nonempty storage has a base pointer or pitch not aligned for `U`.
     ///
     /// # Panics
     ///
@@ -932,7 +975,7 @@ impl<T: DeviceRepr> PitchedDeviceVolume<T> {
         if size == 0
             || !row_bytes.is_multiple_of(size)
             || (!self.is_empty()
-                && (!(self.ptr as usize).is_multiple_of(align_of::<U>())
+                && (!self.ptr.addr().is_multiple_of(align_of::<U>())
                     || !self.pitch.is_multiple_of(align_of::<U>())))
         {
             return Err(self);
@@ -1000,7 +1043,7 @@ impl<T: DeviceRepr> PitchedDeviceVolume<T> {
     /// Returns the base pointer as a CUDA device pointer wrapper.
     #[must_use]
     pub const fn as_device_ptr(&self) -> DevicePtr {
-        // SAFETY: the address belongs to a live device allocation that stays borrowed for the operation that uses it.
+        // SAFETY: `self.ptr` is the base of the pitched allocation that `allocation` keeps live, and `DevicePtr` only carries the address.
         unsafe { DevicePtr::from_raw(self.ptr.cast()) }
     }
 
@@ -1010,7 +1053,7 @@ impl<T: DeviceRepr> PitchedDeviceVolume<T> {
     ///
     /// Returns an error if `width * height * depth` overflows.
     pub fn len(&self) -> Result<usize> {
-        checked_volume(self.width, self.height, self.depth)
+        checked_element_count(&[self.width, self.height, self.depth], "element count")
     }
 
     /// Returns the logical row width in bytes.
@@ -1019,7 +1062,7 @@ impl<T: DeviceRepr> PitchedDeviceVolume<T> {
     ///
     /// Returns an error if `width * size_of::<T>()` overflows or `T` is a non-empty zero-sized element type.
     pub fn row_byte_width(&self) -> Result<usize> {
-        checked_bytes::<T>(self.width)
+        checked_bytes::<T>(self.width, "row bytes")
     }
 
     /// Returns the physical allocation span described by `pitch * height * depth`.
@@ -1039,7 +1082,7 @@ impl<T: DeviceRepr> PitchedDeviceVolume<T> {
 
     /// Returns a CUDA pitched pointer descriptor for this volume.
     ///
-    /// The descriptor is suitable for `cudaMemcpy3D` and `cudaMemset3D`.
+    /// The descriptor suits CUDA's 3D copies and fills.
     /// CUDA expects the `xsize` field in bytes for linear memory, so this method reports the typed row width converted to bytes.
     #[must_use]
     pub fn pitched_ptr(&self) -> runtime::cudaPitchedPtr {
@@ -1056,7 +1099,7 @@ impl<T: DeviceRepr> PitchedDeviceVolume<T> {
         width: usize,
         height: usize,
     ) -> Result<runtime::cudaPitchedPtr> {
-        let row_bytes = checked_bytes::<T>(width)?;
+        let row_bytes = checked_bytes::<T>(width, "row bytes")?;
         Ok(runtime::cudaPitchedPtr {
             ptr: ptr.cast(),
             pitch: row_bytes as _,
@@ -1076,13 +1119,15 @@ impl<T: DeviceRepr> PitchedDeviceVolume<T> {
         let context = Arc::clone(self.context());
         let _access = context.acquire_host_access(&[self.region()])?;
         self.context().bind()?;
-        if src.len() != self.len()? {
-            return Err(Error::InvalidMemoryAccess);
+        let len = self.len()?;
+        if src.len() != len {
+            return Err(Error::length_mismatch("host source", len, src.len()));
         }
 
-        // SAFETY: the shape and lengths were checked above, so the copy stays inside both allocations.
+        // SAFETY: `src` holds exactly `width * height * depth` values in a linear layout, construction validated this allocation's pitch and shape, the host access excludes tracked GPU work, and the context is bound.
         unsafe {
             DeviceMemory::<T>::copy_3d(
+                self.context(),
                 self.pitched_ptr(),
                 Self::linear_host_ptr(src.as_ptr().cast_mut(), self.width, self.height)?,
                 self.width,
@@ -1118,19 +1163,20 @@ impl<T: DeviceRepr> PitchedDeviceVolume<T> {
     ///
     /// # Errors
     ///
-    /// Returns an error if the destination length differs from the logical element count or transfer size calculations overflow.
-    /// Also propagates access-tracking, context-binding, CUDA copy, and default-stream synchronization errors.
+    /// Returns an error if the destination length differs from the logical element count, transfer size calculations overflow, access tracking fails, the context cannot be bound, or CUDA cannot copy or synchronize.
     pub unsafe fn copy_to_host_unchecked(&self, dst: &mut [T]) -> Result<()> {
         let context = Arc::clone(self.context());
         let _access = context.acquire_host_access(&[self.region()])?;
         self.context().bind()?;
-        if dst.len() != self.len()? {
-            return Err(Error::InvalidMemoryAccess);
+        let len = self.len()?;
+        if dst.len() != len {
+            return Err(Error::length_mismatch("host destination", len, dst.len()));
         }
 
-        // SAFETY: the caller upholds this function's safety contract.
+        // SAFETY: `dst` holds exactly `width * height * depth` writable values in a linear layout, the host access waited for tracked GPU work, and the caller guarantees the copied elements are valid `T` values.
         unsafe {
             DeviceMemory::<T>::copy_3d(
+                self.context(),
                 Self::linear_host_ptr(dst.as_mut_ptr(), self.width, self.height)?,
                 self.pitched_ptr(),
                 self.width,
@@ -1150,16 +1196,37 @@ impl<T: DeviceRepr> PitchedDeviceVolume<T> {
     pub fn copy_from_volume(&mut self, src: &Self) -> Result<()> {
         self.context().bind()?;
         if self.context() != src.context() {
-            return Err(Error::InvalidValue);
+            return Err(Error::MemoryContextMismatch);
         }
 
-        if self.width != src.width || self.height != src.height || self.depth != src.depth {
-            return Err(Error::InvalidMemoryAccess);
+        if self.width != src.width {
+            return Err(Error::length_mismatch(
+                "source width",
+                self.width,
+                src.width,
+            ));
         }
 
-        // SAFETY: the shape and lengths were checked above, so the copy stays inside both allocations.
+        if self.height != src.height {
+            return Err(Error::length_mismatch(
+                "source height",
+                self.height,
+                src.height,
+            ));
+        }
+
+        if self.depth != src.depth {
+            return Err(Error::length_mismatch(
+                "source depth",
+                self.depth,
+                src.depth,
+            ));
+        }
+
+        // SAFETY: both volumes are in this bound context and have the same validated width, height, and depth, so the copy stays inside both, and `&mut self` excludes aliasing with `src`.
         unsafe {
             DeviceMemory::<T>::copy_3d(
+                self.context(),
                 self.pitched_ptr(),
                 src.pitched_ptr(),
                 self.width,
@@ -1179,24 +1246,28 @@ impl<T: DeviceRepr> PitchedDeviceVolume<T> {
     /// # Errors
     ///
     /// Returns an error if `src` has the wrong length, byte-size arithmetic overflows, or CUDA cannot enqueue the copy.
-    pub fn copy_from_host_async<'env>(
+    pub fn copy_from_host_scoped<'env>(
         &'env mut self,
         src: &'env [T],
         stream: &StreamScope<'_, 'env>,
     ) -> Result<()> {
         let accesses = [Access::new(self.region(), AccessMode::Write)];
         if self.context() != stream.stream().context() {
-            return Err(Error::InvalidValue);
+            return Err(Error::StreamContextMismatch);
         }
 
         self.context().bind()?;
-        if src.len() != self.len()? {
-            return Err(Error::InvalidMemoryAccess);
+        let len = self.len()?;
+        if src.len() != len {
+            return Err(Error::length_mismatch("host source", len, src.len()));
         }
 
         let host = Self::linear_host_ptr(src.as_ptr().cast_mut(), self.width, self.height)?;
-        checked_volume(self.row_byte_width()?, self.height, self.depth)?;
-        // SAFETY: the declared accesses retain both regions, and the stream orders every access to them.
+        checked_element_count(
+            &[self.row_byte_width()?, self.height, self.depth],
+            "logical bytes",
+        )?;
+        // SAFETY: `src` holds exactly the logical element count, the `'env` borrows keep it and this volume live until the scope drains, the declared write orders tracked work, and the contexts match.
         unsafe {
             stream.enqueue(&accesses, || {
                 DeviceMemory::<T>::copy_3d_async(
@@ -1220,7 +1291,7 @@ impl<T: DeviceRepr> PitchedDeviceVolume<T> {
     /// # Errors
     ///
     /// Returns an error if `dst` has the wrong length, byte-size arithmetic overflows, or CUDA cannot enqueue the copy.
-    pub fn copy_to_host_async<'env>(
+    pub fn copy_to_host_scoped<'env>(
         &'env self,
         dst: &'env mut [T],
         stream: &StreamScope<'_, 'env>,
@@ -1230,18 +1301,22 @@ impl<T: DeviceRepr> PitchedDeviceVolume<T> {
     {
         let accesses = [Access::new(self.region(), AccessMode::Read)];
         if self.context() != stream.stream().context() {
-            return Err(Error::InvalidValue);
+            return Err(Error::StreamContextMismatch);
         }
 
         self.context().bind()?;
         let () = T::LAYOUT;
-        if dst.len() != self.len()? {
-            return Err(Error::InvalidMemoryAccess);
+        let len = self.len()?;
+        if dst.len() != len {
+            return Err(Error::length_mismatch("host destination", len, dst.len()));
         }
 
         let host = Self::linear_host_ptr(dst.as_mut_ptr(), self.width, self.height)?;
-        checked_volume(self.row_byte_width()?, self.height, self.depth)?;
-        // SAFETY: the declared accesses retain both regions, and the stream orders every access to them.
+        checked_element_count(
+            &[self.row_byte_width()?, self.height, self.depth],
+            "logical bytes",
+        )?;
+        // SAFETY: `dst` holds exactly the logical element count, the `'env` borrows keep it and this volume live until the scope drains, the declared read orders tracked work, and `T: AnyBitPatternDeviceRepr` makes any copied bytes valid.
         unsafe {
             stream.enqueue(&accesses, || {
                 DeviceMemory::<T>::copy_3d_async(
@@ -1292,14 +1367,15 @@ impl<T: DeviceRepr> PitchedDeviceVolume<T> {
     ///
     /// # Errors
     ///
-    /// Propagates access-tracking, context-binding, transfer-size validation, CUDA fill, and default-stream synchronization errors.
+    /// Returns an error if access tracking fails, the context cannot be bound, the transfer size overflows, or CUDA cannot fill the memory or synchronize the default stream.
     pub unsafe fn set_value_unchecked(&mut self, value: u8) -> Result<()> {
         let context = Arc::clone(self.context());
         let _access = context.acquire_host_access(&[self.region()])?;
         self.context().bind()?;
-        // SAFETY: the caller upholds this function's safety contract.
+        // SAFETY: the validated pitch and shape keep the fill inside the volume, the host access excludes tracked GPU work, and the caller guarantees the repeated byte is a valid `T` pattern.
         unsafe {
             DeviceMemory::<T>::set_3d(
+                self.context(),
                 self.pitched_ptr(),
                 value,
                 self.width,
@@ -1315,7 +1391,7 @@ impl<T: DeviceRepr> PitchedDeviceVolume<T> {
     /// # Errors
     ///
     /// Returns an error if CUDA cannot enqueue the 3D memset.
-    pub fn set_value_async<'env>(
+    pub fn set_value_scoped<'env>(
         &'env mut self,
         value: u8,
         stream: &StreamScope<'_, 'env>,
@@ -1325,13 +1401,16 @@ impl<T: DeviceRepr> PitchedDeviceVolume<T> {
     {
         let accesses = [Access::new(self.region(), AccessMode::Write)];
         if self.context() != stream.stream().context() {
-            return Err(Error::InvalidValue);
+            return Err(Error::StreamContextMismatch);
         }
 
         self.context().bind()?;
         let () = T::LAYOUT;
-        checked_volume(self.row_byte_width()?, self.height, self.depth)?;
-        // SAFETY: the declared accesses retain both regions, and the stream orders every access to them.
+        checked_element_count(
+            &[self.row_byte_width()?, self.height, self.depth],
+            "logical bytes",
+        )?;
+        // SAFETY: the `'env` borrow keeps this volume live until the scope drains, the declared write orders tracked work, the contexts match, and `T: AnyBitPatternDeviceRepr` makes any repeated byte valid.
         unsafe {
             stream.enqueue(&accesses, || {
                 DeviceMemory::<T>::set_3d_async(
@@ -1347,8 +1426,12 @@ impl<T: DeviceRepr> PitchedDeviceVolume<T> {
     }
 
     fn row_region(&self, slice: usize, row: usize) -> Result<DeviceRegion<'_>> {
-        if slice >= self.depth || row >= self.height {
-            return Err(Error::InvalidMemoryAccess);
+        if slice >= self.depth {
+            return Err(Error::out_of_range("slice"));
+        }
+
+        if row >= self.height {
+            return Err(Error::out_of_range("row"));
         }
 
         if self.width == 0 {
@@ -1359,10 +1442,10 @@ impl<T: DeviceRepr> PitchedDeviceVolume<T> {
             .checked_mul(self.height)
             .and_then(|offset| offset.checked_add(row))
             .and_then(|offset| offset.checked_mul(self.pitch))
-            .ok_or(Error::InvalidMemoryAccess)?;
+            .ok_or_else(|| Error::out_of_range("row offset"))?;
         let end = start
             .checked_add(self.row_byte_width()?)
-            .ok_or(Error::InvalidMemoryAccess)?;
+            .ok_or_else(|| Error::out_of_range("row end"))?;
         self.region().slice(start..end)
     }
 
@@ -1372,7 +1455,7 @@ impl<T: DeviceRepr> PitchedDeviceVolume<T> {
     ///
     /// Returns an error if the slice or row index is out of bounds, row offset calculations overflow, or the resulting range fails byte-length or alignment validation.
     pub fn row(&self, slice: usize, row: usize) -> Result<DeviceView<'_, T>> {
-        // SAFETY: construction or promotion establishes initialized logical elements.
+        // SAFETY: a `T`-typed pitched owner only exists once every logical element is initialized, and the row region excludes the padding.
         unsafe { DeviceView::from_raw_parts(self.row_region(slice, row)?, self.width) }
     }
 
@@ -1382,7 +1465,7 @@ impl<T: DeviceRepr> PitchedDeviceVolume<T> {
     ///
     /// Returns an error if the slice or row index is out of bounds, row offset calculations overflow, or the resulting range fails byte-length or alignment validation.
     pub fn row_mut(&mut self, slice: usize, row: usize) -> Result<DeviceViewMut<'_, T>> {
-        // SAFETY: the exclusive buffer borrow covers this exact row and its initialized element type.
+        // SAFETY: the row region excludes the padding and holds initialized `T` values, and `&mut self` makes the view the only access to them.
         unsafe { DeviceViewMut::from_raw_parts(self.row_region(slice, row)?, self.width) }
     }
 }
@@ -1392,11 +1475,11 @@ impl<T: DeviceRepr> PitchedDeviceVolume<MaybeUninit<T>> {
     ///
     /// # Errors
     ///
-    /// Returns an error if the source length differs from the logical element count or transfer size calculations overflow.
-    /// Also propagates context-binding, CUDA copy, and default-stream synchronization errors.
+    /// Returns an error if the source length differs from the logical element count, transfer size calculations overflow, the context cannot be bound, or CUDA cannot copy or synchronize.
     pub fn initialize_from_host(self, values: &[T]) -> Result<PitchedDeviceVolume<T>> {
-        if values.len() != self.len()? {
-            return Err(Error::InvalidMemoryAccess);
+        let len = self.len()?;
+        if values.len() != len {
+            return Err(Error::length_mismatch("host values", len, values.len()));
         }
 
         self.context().bind()?;
@@ -1407,9 +1490,10 @@ impl<T: DeviceRepr> PitchedDeviceVolume<MaybeUninit<T>> {
             xsize: row_bytes as _,
             ysize: self.height as _,
         };
-        // SAFETY: both operands cover the complete logical volume, with matching element sizes.
+        // SAFETY: `values` holds exactly `width * height * depth` values in a linear layout, the validated pitch and shape make the volume writable throughout, `self` is owned so nothing else accesses it, and the context is bound.
         unsafe {
             DeviceMemory::<T>::copy_3d(
+                self.context(),
                 self.pitched_ptr(),
                 source,
                 self.width,
@@ -1420,7 +1504,7 @@ impl<T: DeviceRepr> PitchedDeviceVolume<MaybeUninit<T>> {
         }
 
         StreamBinding::Default(Arc::clone(self.context())).synchronize()?;
-        // SAFETY: the completed full copy initializes all logical elements to valid T values.
+        // SAFETY: the synchronized copy wrote every logical element from initialized host values of `T`.
         Ok(unsafe { self.assume_init() })
     }
 
@@ -1428,7 +1512,7 @@ impl<T: DeviceRepr> PitchedDeviceVolume<MaybeUninit<T>> {
     ///
     /// # Safety
     ///
-    /// Every logical element must contain an initialized valid T value.
+    /// Every logical element must contain an initialized valid `T` value.
     /// Producers must be ordered before subsequent consumers and complete before host readback.
     /// Row padding remains uninitialized.
     #[must_use]
@@ -1445,3 +1529,79 @@ impl<T: DeviceRepr> PitchedDeviceVolume<MaybeUninit<T>> {
         }
     }
 }
+
+/// Raw ownership of a pitched two-dimensional allocation and its context.
+///
+/// Free `ptr` while `context` is alive, or re-adopt the value with [`PitchedDeviceMemory::from_raw`].
+#[derive(Debug)]
+pub struct RawPitchedDeviceMemory<T> {
+    /// Base of the allocation, or null for an empty shape.
+    pub ptr: *mut T,
+    /// Row width in elements.
+    pub width: usize,
+    /// Number of rows.
+    pub height: usize,
+    /// Byte stride between rows.
+    pub pitch: usize,
+    /// Context the allocation belongs to.
+    pub context: Arc<Context>,
+}
+
+/// Raw ownership of a pitched three-dimensional allocation and its context.
+///
+/// Free `ptr` while `context` is alive, or re-adopt the value with [`PitchedDeviceVolume::from_raw`].
+#[derive(Debug)]
+pub struct RawPitchedDeviceVolume<T> {
+    /// Base of the allocation, or null for an empty shape.
+    pub ptr: *mut T,
+    /// Row width in elements.
+    pub width: usize,
+    /// Number of rows per slice.
+    pub height: usize,
+    /// Number of slices.
+    pub depth: usize,
+    /// Byte stride between rows.
+    pub pitch: usize,
+    /// Context the allocation belongs to.
+    pub context: Arc<Context>,
+}
+
+/// Owned 2D pitched CUDA device memory.
+///
+/// The logical dimensions are expressed in elements of `T`; the CUDA pitch is stored as a byte stride between rows.
+#[derive(Debug)]
+pub struct PitchedDeviceMemory<T: DeviceRepr> {
+    allocation: Arc<DeviceAllocation>,
+    ptr: *mut T,
+    width: usize,
+    height: usize,
+    pitch: usize,
+    _phantom: PhantomData<T>,
+}
+
+/// Owned 3D pitched CUDA device memory.
+///
+/// The logical dimensions are expressed in elements of `T`; the CUDA pitch is stored as a byte stride between rows inside each slice.
+#[derive(Debug)]
+pub struct PitchedDeviceVolume<T: DeviceRepr> {
+    allocation: Arc<DeviceAllocation>,
+    ptr: *mut T,
+    width: usize,
+    height: usize,
+    depth: usize,
+    pitch: usize,
+    _phantom: PhantomData<T>,
+}
+
+// SAFETY: the volume owns its whole retained allocation, so the allocation's region describes its pointers.
+unsafe impl<T: DeviceRepr> DeviceRegionProvider for PitchedDeviceVolume<T> {
+    fn region(&self) -> DeviceRegion<'_> {
+        self.allocation.region()
+    }
+}
+
+// SAFETY: the host never dereferences `ptr`, the owner holds `T` values like a `Vec<T>`, and every operation binds the retained context.
+unsafe impl<T: DeviceRepr + Send> Send for PitchedDeviceVolume<T> {}
+
+// SAFETY: `&PitchedDeviceVolume<T>` exposes only device pointers and metadata, and device writes need `&mut` or an unsafe raw API.
+unsafe impl<T: DeviceRepr + Sync> Sync for PitchedDeviceVolume<T> {}

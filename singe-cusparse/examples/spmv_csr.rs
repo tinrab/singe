@@ -1,7 +1,5 @@
 //! Port of the cuSPARSE `spmv_csr` sample: `y = alpha * A * x + beta * y` with a 4x4 CSR matrix.
 
-use std::error::Error;
-
 use singe_cuda::{
     context::Context as CudaContext, device::Device, memory::DeviceMemory, view::DeviceOutputView,
 };
@@ -9,7 +7,7 @@ use singe_cusparse::{
     context::Context,
     matrix::SparseMatrixDescriptor,
     scalar::Scalar,
-    spmv::{spmv, spmv_buffer_size},
+    spmv::{spmv_async, spmv_workspace_size},
     types::{IndexBase, Operation, SpMvAlgorithm},
     vector::DenseVectorDescriptor,
 };
@@ -17,7 +15,7 @@ use singe_cusparse::{
 const ROWS: usize = 4;
 const COLS: usize = 4;
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() -> anyhow::Result<()> {
     let cuda_context = CudaContext::create_for_device(Device::new(0))?;
     let context = Context::create(&cuda_context)?;
 
@@ -61,8 +59,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     let alpha = 1.0_f32;
     let beta = 0.0_f32;
     // SAFETY: the descriptors describe the complete device buffers above.
-    let buffer_size = unsafe {
-        spmv_buffer_size::<f32>(
+    let workspace_size = unsafe {
+        spmv_workspace_size::<f32>(
             &context,
             Operation::NonTranspose,
             Scalar::host(&alpha),
@@ -73,12 +71,12 @@ fn main() -> Result<(), Box<dyn Error>> {
             SpMvAlgorithm::Default,
         )?
     };
-    let mut buffer = DeviceMemory::<u8>::zeroed(&cuda_context, buffer_size.max(1))?;
-    context.stream()?.sync_scope(|| {
+    let mut workspace = DeviceMemory::<u8>::zeroed(&cuda_context, workspace_size.max(1))?;
+    context.sync_scope(|| {
         // SAFETY: the descriptors cover the complete device buffers above, the CSR indices
         // are in bounds, and every buffer stays borrowed until the scope drains.
         unsafe {
-            spmv::<f32>(
+            spmv_async::<f32>(
                 &context,
                 Operation::NonTranspose,
                 Scalar::host(&alpha),
@@ -87,7 +85,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 Scalar::host(&beta),
                 &mut y_vector,
                 SpMvAlgorithm::Default,
-                Some(DeviceOutputView::from_output(&mut buffer)),
+                Some(DeviceOutputView::from_output(&mut workspace)),
             )
         }
     })?;

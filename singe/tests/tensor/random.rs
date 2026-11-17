@@ -5,7 +5,7 @@ use singe::graph::GraphPrepareOptions;
 use singe::{DataType, Device, Shape, Tensor, graph::Graph, random::Generator};
 
 #[cfg(all(feature = "testing", feature = "cuda"))]
-use singe_cuda::testing::device_lock;
+use singe_cuda::{device::Device as CudaDevice, testing::device_lock};
 
 fn uniform(device: Device, count: i64, generator: &Generator) -> Vec<f32> {
     Tensor::rand(
@@ -129,7 +129,7 @@ fn test_captured_random_operations_continue_the_generator_on_each_run() {
 #[cfg(all(feature = "testing", feature = "cuda"))]
 #[test]
 fn test_cuda_matches_cpu_for_the_same_generator_state() {
-    let _lock = device_lock(0).unwrap();
+    let _lock = device_lock(CudaDevice::new(0)).unwrap();
     let cuda = Device::Cuda(0);
     let cpu_generator = Generator::new(3);
     let cuda_generator = Generator::new(3);
@@ -189,7 +189,7 @@ fn test_cuda_matches_cpu_for_the_same_generator_state() {
 #[cfg(all(feature = "testing", feature = "cuda"))]
 #[test]
 fn test_compiled_cuda_graphs_replay_random_operations_natively() {
-    let _lock = device_lock(0).unwrap();
+    let _lock = device_lock(CudaDevice::new(0)).unwrap();
     let device = Device::Cuda(0);
     let generator = Generator::new(19);
     let weights = Tensor::from_vec(

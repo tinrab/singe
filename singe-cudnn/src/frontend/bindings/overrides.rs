@@ -1,18 +1,16 @@
 use std::collections::{BTreeMap, HashSet};
 
 use crate::{
-    backend::{
-        execution::VariantPackOverride,
-        tensor::{Shape, TensorId},
-    },
+    backend::execution::VariantPackOverride,
     error::{Error, Result},
     frontend::{
         bindings::{RuntimeOverrideBuilder, RuntimeOverrides},
         error::Error as FrontendError,
-        graph::{RuntimeShapeConstraints, TensorRecord},
+        graph::{RuntimeShapeConstraints, TensorRecord, validate_vector_stride_alignment},
         operation::ConvolutionOperation,
         plan::{AliasTensorKind, BindingReplacement},
     },
+    tensor::{Shape, TensorId},
 };
 
 impl RuntimeOverrides {
@@ -56,7 +54,7 @@ impl RuntimeOverrides {
         self.overrides.remove(&tensor)
     }
 
-    /// Caller-specified layouts in tensor identity order, before capture propagation.
+    /// Returns the caller-specified layouts in tensor identity order, before capture propagation.
     pub fn iter(&self) -> impl ExactSizeIterator<Item = (TensorId, &Shape)> {
         self.overrides.iter().map(|(&id, shape)| (id, shape))
     }
@@ -198,9 +196,7 @@ fn validate_runtime_override(
     }
 
     if record.requires_vector_alignment {
-        record
-            .tensor
-            .validate_vector_stride_alignment(tensor_id, shape)?;
+        validate_vector_stride_alignment(&record.tensor, tensor_id, shape)?;
     }
 
     if record.requires_int32_filter_offsets {

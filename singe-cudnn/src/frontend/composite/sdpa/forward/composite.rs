@@ -1,23 +1,23 @@
 use crate::{
-    backend::{
-        pointwise::PointwiseMode,
-        tensor::{TensorId, TensorSpec},
-    },
+    backend::operation::{attention::SoftmaxOutputs, pointwise::PointwiseMode},
     data_type::DataType,
-    error::{Error, Result},
+    error::{Error, Result, SdpaFeature},
     frontend::{
         composite::sdpa::{
             SdpaForwardOutputTensors, SdpaInputs, SdpaOutputTensors, infer_sdpa_output_shape,
-            infer_sdpa_scores_shape, support,
-            support::{SDPA_OUTPUT_SHAPE, SDPA_RANK, SDPA_SCORE_SUBGRAPH, SDPA_STATS_DATA_TYPE},
+            infer_sdpa_scores_shape,
+            support::{
+                self, SDPA_OUTPUT_SHAPE, SDPA_RANK, SDPA_SCORE_SUBGRAPH, SDPA_STATS_DATA_TYPE,
+            },
         },
-        error::{Error as FrontendError, RankExpectation, SdpaFeature},
-        graph::{Graph, SoftmaxOutputs, TensorOutputConfig},
+        error::{Error as FrontendError, RankExpectation},
+        graph::{Graph, TensorOutputConfig},
         operation::{
             AlibiBias, MatmulConfig, PointwiseOperation, SdpaQuantizedAuxOutputRequest,
             SdpaScoreModifiers, SdpaScoreSubgraph, SoftmaxConfig,
         },
     },
+    tensor::{TensorId, TensorSpec},
 };
 
 struct SdpaForwardInputTensors {
@@ -56,12 +56,11 @@ impl Graph {
         let (score_matmul, output_matmul) =
             Self::sdpa_forward_matmul_configs(&modifiers, compute_type);
         if modifiers.sequence_inputs().has_cumulative() {
-            return Err(FrontendError::SdpaUnsupported {
+            return Err(Error::SdpaUnsupported {
                 operation: "composite sdpa",
                 feature: SdpaFeature::CumulativeSequenceLengths,
                 sm_version: None,
-            }
-            .into());
+            });
         }
 
         self.promote_index_tensors(modifiers.sequence_inputs().tensors())?;
@@ -340,32 +339,5 @@ impl Graph {
                 .with_m_override(query_length)
                 .with_k_override(key_value_length),
         )
-    }
-
-    /// Composes attention with explicit score modifiers and result tensors.
-    /// Rejected composition preserves existing tensor metadata, bounds and operations.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error for unknown or incompatible attention operands or output dimensions, unsupported cumulative sequence lengths, invalid mask or sequence metadata, incompatible score modifiers or softmax summaries, or failure to construct constituent matrix, pointwise, reduction, or dropout operations.
-    pub fn sdpa_with_modifiers(
-        &mut self,
-        inputs: SdpaInputs,
-        outputs: SdpaOutputTensors,
-        modifiers: SdpaScoreModifiers,
-        config: SoftmaxConfig,
-    ) -> Result<()> {
-        modifiers.sequence_inputs().validate_forward()?;
-        let mut composed = self.clone();
-        composed.sdpa_with_modifiers_internal(
-            inputs,
-            outputs,
-            modifiers,
-            None,
-            SdpaQuantizedAuxOutputRequest::default(),
-            config,
-        )?;
-        *self = composed;
-        Ok(())
     }
 }

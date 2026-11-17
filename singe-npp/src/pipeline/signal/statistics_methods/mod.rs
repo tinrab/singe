@@ -118,7 +118,7 @@ where
     /// Returns an owned one-element pipeline using the same stream context and workspace.
     /// Obtains scratch from the workspace and waits for successful stream completion.
     /// Passes both range bounds to NPP without checking their order.
-    /// The source must already be ready on the selected stream; this path does not synchronize its producer.
+    /// Waits for a producer of the source on another stream.
     ///
     /// # Errors
     ///

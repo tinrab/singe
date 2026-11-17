@@ -7,7 +7,7 @@ use singe::{
     backend::cuda::{CudaGraphProvider, LoweringPolicy},
     graph::{Graph, GraphCudaOptions, GraphPrepareOptions},
 };
-use singe_cuda::testing::device_lock;
+use singe_cuda::{device::Device as CudaDevice, testing::device_lock};
 
 fn bf16(device: Device, dimensions: &[i64]) -> Tensor {
     let count = dimensions.iter().product::<i64>();
@@ -32,7 +32,7 @@ fn host_values(tensor: &Tensor) -> Vec<f32> {
 
 #[test]
 fn test_copies_of_misaligned_views_fall_back_to_element_copies() {
-    let _lock = device_lock(0).unwrap();
+    let _lock = device_lock(CudaDevice::new(0)).unwrap();
     for start in [0, 1, 3] {
         let input = bf16(Device::Cuda(0), &[4, 16]).narrow(1, start, 8).unwrap();
         let expected = bf16(Device::Cpu, &[4, 16]).narrow(1, start, 8).unwrap();
@@ -48,7 +48,7 @@ fn test_copies_of_misaligned_views_fall_back_to_element_copies() {
 
 #[test]
 fn test_compiled_graphs_copy_strided_views_without_cudnn() {
-    let _lock = device_lock(0).unwrap();
+    let _lock = device_lock(CudaDevice::new(0)).unwrap();
     let device = Device::Cuda(0);
     let x = bf16(device, &[2, 3, 5, 8]);
     let function = |x: &Tensor| x.transpose(1, 2)?.contiguous()?.reshape([2, 5, 24]);

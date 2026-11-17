@@ -1,40 +1,33 @@
 use std::sync::Arc;
 
-use singe_core::{checked_arithmetic, checked_conversions};
+use singe_core::{checked_arithmetic, checked_conversions, report_cleanup_failure};
 use singe_cuda::context::Context as CudaContext;
 use singe_cudnn_sys as sys;
 
-use crate::error::{Error, Result};
+use crate::{
+    backend::descriptor::BackendDescriptor,
+    error::{Error, Result},
+};
 
 checked_conversions!(Error {
     to_usize -> usize,
     to_i32 -> i32,
     to_u32 -> u32,
     to_i64 -> i64,
-    to_u64 -> u64,
     to_size_t -> sys::size_t,
 });
 
-checked_arithmetic!(Error { checked_byte_len });
+checked_arithmetic!(Error {
+    checked_byte_len,
+    checked_element_count,
+});
 
-pub fn to_i32_vec<T: TryInto<i32> + Copy>(values: &[T], name: &str) -> Result<Vec<i32>> {
+pub(crate) fn to_i32_vec<T: TryInto<i32> + Copy>(values: &[T], name: &str) -> Result<Vec<i32>> {
     values
         .iter()
         .copied()
         .map(|value| to_i32(value, name))
         .collect()
-}
-
-pub fn checked_element_count<T: TryInto<usize> + Copy>(dimensions: &[T]) -> Result<usize> {
-    dimensions
-        .iter()
-        .copied()
-        .try_fold(1usize, |count, dimension| {
-            let dimension: usize = dimension.try_into().map_err(|_| Error::InvalidDataShape)?;
-            count
-                .checked_mul(dimension)
-                .ok_or_else(|| Error::out_of_range("tensor shape"))
-        })
 }
 
 macro_rules! check_range {
@@ -52,7 +45,7 @@ macro_rules! check_range {
 pub(crate) use check_range;
 
 /// Compares known live targets while preserving deviceless and externally managed contexts.
-pub fn validate_context_pair(
+pub(crate) fn validate_context_pair(
     expected: Option<&Arc<CudaContext>>,
     actual: Option<&Arc<CudaContext>>,
     name: &str,
@@ -67,18 +60,29 @@ pub fn validate_context_pair(
     }
 }
 
-pub fn bind_context(context: Option<&Arc<CudaContext>>) -> Result<()> {
+pub(crate) fn bind_context(context: Option<&Arc<CudaContext>>) -> Result<()> {
     if let Some(context) = context {
         context.bind()?;
     }
     Ok(())
 }
 
-pub fn bind_for_drop(context: Option<&Arc<CudaContext>>, resource: &str) {
+pub(crate) fn bind_for_drop(
+    context: Option<&Arc<CudaContext>>,
+    descriptor: &mut BackendDescriptor,
+    object: &str,
+) {
     if let Err(error) = bind_context(context) {
-        eprintln!(
-            "failed to bind cuda context before destroying {resource}: {}",
-            singe_core::ErrorChain(&error)
-        );
+        report_cleanup_failure("bind the cuda context to destroy", object, &error);
+        descriptor.leak();
     }
+}
+
+// Rounds `pointer` up to the next multiple of `alignment`, which must be nonzero.
+pub(crate) fn aligned_pointer(pointer: *mut u8, alignment: usize, name: &str) -> Result<*mut u8> {
+    let address = pointer.addr();
+    let aligned = address
+        .checked_next_multiple_of(alignment)
+        .ok_or_else(|| Error::out_of_range(name.to_owned()))?;
+    Ok(pointer.wrapping_add(aligned - address))
 }

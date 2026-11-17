@@ -1,21 +1,28 @@
 [package]
 name = "singe-nvtiff-sys"
 description = "Low-level FFI bindings for the NVIDIA nvTIFF library."
-version = "0.1.0-alpha.1"
+version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 repository.workspace = true
+documentation = "https://docs.rs/singe-nvtiff-sys"
 license-file.workspace = true
 readme = "README.md"
-keywords = ["cuda", "nvtiff", "tiff", "bindings", "ffi"]
+keywords = ["cuda", "nvidia", "nvtiff", "ffi", "bindings"]
+categories = ["external-ffi-bindings", "hardware-support"]
 include.workspace = true
+
+[package.metadata.docs.rs]
+rustdoc-args = ["--cfg", "docsrs", "--html-in-header", "dist/katex_header.html"]
 
 [features]
 default = ["nvtiff_0_8"]
 
 nvtiff_0_8 = ["singe-cuda-sys/runtime_13_4"]
-testing = []
 
 [dependencies]
 singe-loader.workspace = true
 singe-cuda-sys.workspace = true
-num_enum.workspace = true
+
+[dev-dependencies]
+anyhow.workspace = true

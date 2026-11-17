@@ -6,23 +6,7 @@ generate:
     #!/usr/bin/env bash
     set -euxo pipefail
 
-    num_enums=(
-        "CUfileOpError"
-        "CUfileDriverStatusFlags"
-        "CUfileDriverControlFlags"
-        "CUfileFeatureFlags"
-        "CUfileOpcode"
-        "CUfileFileHandleType"
-        "CUFILEStatus_enum"
-        "cufileBatchMode"
-        "CUFileSizeTConfigParameter_t"
-        "CUFileBoolConfigParameter_t"
-        "CUFileStringConfigParameter_t"
-    )
-    enum_args=$(for enum in "${num_enums[@]}"; do echo -n "--with-derive-custom $enum=TryFromPrimitive,IntoPrimitive "; done)
-
     bindgen {{cufile_include_path}}/cufile.h \
-        $enum_args \
         --allowlist-item "^cuFile.*" \
         --allowlist-item "^CUfile.*" \
         --allowlist-item "^CUFILE.*" \
@@ -37,9 +21,8 @@ generate:
         --with-derive-eq \
         --with-derive-hash \
         --with-derive-ord \
-        --newtype-enum "CUfileP2PFlags" \
         --use-core \
-        --default-enum-style=rust \
+        --default-enum-style=newtype \
         -- \
             -fparse-all-comments \
             -x c++ \

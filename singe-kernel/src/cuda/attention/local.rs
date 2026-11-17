@@ -5,7 +5,7 @@ use singe_cuda::types::f16;
 #[cfg(any(feature = "dtype_bf16", feature = "dtype_f16", feature = "dtype_f32"))]
 use singe_cuda::{
     stream::Stream,
-    view::{DeviceInput, DeviceOutput},
+    view::{DeviceOutput, DeviceRange},
 };
 
 #[cfg(feature = "dtype_f32")]
@@ -32,9 +32,9 @@ use crate::{
 pub unsafe fn sliding_window_attention_f16(
     stream: &Stream,
     out: &mut impl DeviceOutput<f16>,
-    query: &impl DeviceInput<f16>,
-    key: &impl DeviceInput<f16>,
-    value: &impl DeviceInput<f16>,
+    query: &impl DeviceRange<f16>,
+    key: &impl DeviceRange<f16>,
+    value: &impl DeviceRange<f16>,
     config: SlidingWindowAttentionConfig,
 ) -> Result<()> {
     config.validate_lengths(out.len(), query.len(), key.len(), value.len())?;
@@ -85,9 +85,9 @@ pub unsafe fn sliding_window_attention_f16(
 pub unsafe fn sliding_window_attention_bf16(
     stream: &Stream,
     out: &mut impl DeviceOutput<bf16>,
-    query: &impl DeviceInput<bf16>,
-    key: &impl DeviceInput<bf16>,
-    value: &impl DeviceInput<bf16>,
+    query: &impl DeviceRange<bf16>,
+    key: &impl DeviceRange<bf16>,
+    value: &impl DeviceRange<bf16>,
     config: SlidingWindowAttentionConfig,
 ) -> Result<()> {
     config.validate_lengths(out.len(), query.len(), key.len(), value.len())?;
@@ -135,9 +135,9 @@ pub unsafe fn sliding_window_attention_bf16(
 pub unsafe fn swa_attention_f16(
     stream: &Stream,
     out: &mut impl DeviceOutput<f16>,
-    query: &impl DeviceInput<f16>,
-    key: &impl DeviceInput<f16>,
-    value: &impl DeviceInput<f16>,
+    query: &impl DeviceRange<f16>,
+    key: &impl DeviceRange<f16>,
+    value: &impl DeviceRange<f16>,
     config: SwaAttentionConfig,
 ) -> Result<()> {
     config.validate_lengths(out.len(), query.len(), key.len(), value.len())?;
@@ -170,9 +170,9 @@ pub unsafe fn swa_attention_f16(
 pub unsafe fn swa_attention_bf16(
     stream: &Stream,
     out: &mut impl DeviceOutput<bf16>,
-    query: &impl DeviceInput<bf16>,
-    key: &impl DeviceInput<bf16>,
-    value: &impl DeviceInput<bf16>,
+    query: &impl DeviceRange<bf16>,
+    key: &impl DeviceRange<bf16>,
+    value: &impl DeviceRange<bf16>,
     config: SwaAttentionConfig,
 ) -> Result<()> {
     config.validate_lengths(out.len(), query.len(), key.len(), value.len())?;
@@ -205,9 +205,9 @@ pub unsafe fn swa_attention_bf16(
 pub unsafe fn fused_neighborhood_attention_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    query: &impl DeviceInput<f32>,
-    key: &impl DeviceInput<f32>,
-    value: &impl DeviceInput<f32>,
+    query: &impl DeviceRange<f32>,
+    key: &impl DeviceRange<f32>,
+    value: &impl DeviceRange<f32>,
     config: FusedNeighborhoodAttentionConfig,
 ) -> Result<()> {
     config.validate_lengths(out.len(), query.len(), key.len(), value.len())?;

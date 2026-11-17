@@ -1,13 +1,13 @@
 //! Port of the cuSOLVER `getrf` sample: LU-factorize a 3x3 matrix with partial pivoting and solve `A * x = b`.
 
-use std::{error::Error, mem::MaybeUninit};
+use std::mem::MaybeUninit;
 
 use singe_cuda::{
     context::Context as CudaContext, device::Device, memory::DeviceMemory, view::DeviceOutputView,
 };
 use singe_cusolver::{
     context::Context,
-    dense::{Getrf, GetrfArgs, Getrs, GetrsArgs},
+    dense::{Getrf, GetrfBindings, Getrs, GetrsBindings},
     layout::{ByteWorkspaceMut, MatrixLayout, MatrixMut},
     params::Params,
     types::Operation,
@@ -15,7 +15,7 @@ use singe_cusolver::{
 
 const N: usize = 3;
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() -> anyhow::Result<()> {
     let cuda_context = CudaContext::create_for_device(Device::new(0))?;
     let context = Context::create(&cuda_context)?;
     let params = Params::create()?;
@@ -37,29 +37,29 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut device_workspace = DeviceMemory::<u8>::zeroed(&cuda_context, sizes.device_bytes)?;
     let mut host_workspace = vec![MaybeUninit::<u8>::uninit(); sizes.host_bytes];
 
-    getrf.run(
+    getrf.execute(
         &context,
-        &params,
-        GetrfArgs {
+        GetrfBindings {
             a: MatrixMut::new(&mut a_device, N),
             pivots: Some(DeviceOutputView::from_output(&mut pivots)),
             workspace: ByteWorkspaceMut::new(&mut device_workspace, &mut host_workspace),
             dev_info: DeviceOutputView::from_output(&mut info),
         },
+        &params,
     )?;
     let factor_info = info.copy_to_host_vec()?[0];
     assert_eq!(factor_info, 0, "getrf reported info = {factor_info}");
 
     let factor = MatrixMut::new(&mut a_device, N);
-    Getrs::<f64>::new(Operation::NonTranspose, N, 1).run(
+    Getrs::<f64>::new(Operation::NonTranspose, N, 1).execute(
         &context,
-        &params,
-        GetrsArgs {
+        GetrsBindings {
             factor: factor.as_ref(),
             pivots: pivots.view(),
             rhs: MatrixMut::new(&mut b_device, N),
             dev_info: DeviceOutputView::from_output(&mut info),
         },
+        &params,
     )?;
     let solve_info = info.copy_to_host_vec()?[0];
     assert_eq!(solve_info, 0, "getrs reported info = {solve_info}");

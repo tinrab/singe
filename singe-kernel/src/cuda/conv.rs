@@ -7,7 +7,7 @@ use singe_cuda::types::bf16;
 use singe_cuda::types::f16;
 use singe_cuda::{
     stream::Stream,
-    view::{DeviceInput, DeviceOutput, DeviceSliceMut},
+    view::{DeviceOutput, DeviceRange, DeviceSliceMut},
 };
 
 #[cfg(feature = "cutile")]
@@ -256,9 +256,9 @@ macro_rules! causal_conv1d_update_silu_fn {
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
             conv_state: &mut impl DeviceSliceMut<$ty>,
-            input: &impl DeviceInput<$ty>,
-            weight: &impl DeviceInput<$ty>,
-            bias: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
+            weight: &impl DeviceRange<$ty>,
+            bias: &impl DeviceRange<$ty>,
             batch: usize,
             channels: usize,
             kernel_size: usize,
@@ -310,9 +310,9 @@ macro_rules! causal_conv1d_prefill_silu_fn {
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
             conv_state: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
-            weight: &impl DeviceInput<$ty>,
-            bias: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
+            weight: &impl DeviceRange<$ty>,
+            bias: &impl DeviceRange<$ty>,
             batch: usize,
             channels: usize,
             kernel_size: usize,
@@ -383,9 +383,9 @@ causal_conv1d_prefill_silu_fn!(causal_conv1d_prefill_silu_bf16, bf16);
 pub unsafe fn conv2d_bias_gelu_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    input: &impl DeviceInput<f32>,
-    weight: &impl DeviceInput<f32>,
-    bias: &impl DeviceInput<f32>,
+    input: &impl DeviceRange<f32>,
+    weight: &impl DeviceRange<f32>,
+    bias: &impl DeviceRange<f32>,
     config: Conv2dConfig,
 ) -> Result<()> {
     let (output_h, output_w) =
@@ -436,9 +436,9 @@ macro_rules! conv2d_bias_gelu_half_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
-            weight: &impl DeviceInput<$ty>,
-            bias: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
+            weight: &impl DeviceRange<$ty>,
+            bias: &impl DeviceRange<$ty>,
             config: Conv2dConfig,
         ) -> Result<()> {
             let (output_h, output_w) =
@@ -644,8 +644,8 @@ impl CausalConv1dWindowConfig {
 pub unsafe fn conv1d_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    input: &impl DeviceInput<f32>,
-    weight: &impl DeviceInput<f32>,
+    input: &impl DeviceRange<f32>,
+    weight: &impl DeviceRange<f32>,
     config: Conv1dConfig,
 ) -> Result<()> {
     let output_length = config.validate_lengths(out.len(), input.len(), weight.len())?;
@@ -683,8 +683,8 @@ pub unsafe fn conv1d_f32(
 pub unsafe fn conv1d_batched_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    input: &impl DeviceInput<f32>,
-    weight: &impl DeviceInput<f32>,
+    input: &impl DeviceRange<f32>,
+    weight: &impl DeviceRange<f32>,
     config: BatchedConv1dConfig,
 ) -> Result<()> {
     let output_length = config.validate_lengths(out.len(), input.len(), weight.len())?;
@@ -725,8 +725,8 @@ pub unsafe fn conv1d_batched_f32(
 pub unsafe fn conv1d_f16_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    input: &impl DeviceInput<f16>,
-    weight: &impl DeviceInput<f16>,
+    input: &impl DeviceRange<f16>,
+    weight: &impl DeviceRange<f16>,
     config: Conv1dConfig,
 ) -> Result<()> {
     let output_length = config.validate_lengths(out.len(), input.len(), weight.len())?;
@@ -765,8 +765,8 @@ pub unsafe fn conv1d_f16_f32(
 pub unsafe fn conv1d_batched_f16_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    input: &impl DeviceInput<f16>,
-    weight: &impl DeviceInput<f16>,
+    input: &impl DeviceRange<f16>,
+    weight: &impl DeviceRange<f16>,
     config: BatchedConv1dConfig,
 ) -> Result<()> {
     let output_length = config.validate_lengths(out.len(), input.len(), weight.len())?;
@@ -807,8 +807,8 @@ pub unsafe fn conv1d_batched_f16_f32(
 pub unsafe fn conv1d_bf16_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    input: &impl DeviceInput<bf16>,
-    weight: &impl DeviceInput<bf16>,
+    input: &impl DeviceRange<bf16>,
+    weight: &impl DeviceRange<bf16>,
     config: Conv1dConfig,
 ) -> Result<()> {
     let output_length = config.validate_lengths(out.len(), input.len(), weight.len())?;
@@ -847,8 +847,8 @@ pub unsafe fn conv1d_bf16_f32(
 pub unsafe fn conv1d_batched_bf16_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    input: &impl DeviceInput<bf16>,
-    weight: &impl DeviceInput<bf16>,
+    input: &impl DeviceRange<bf16>,
+    weight: &impl DeviceRange<bf16>,
     config: BatchedConv1dConfig,
 ) -> Result<()> {
     let output_length = config.validate_lengths(out.len(), input.len(), weight.len())?;
@@ -888,7 +888,7 @@ pub unsafe fn conv1d_batched_bf16_f32(
 pub unsafe fn conv1d_im2col_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    input: &impl DeviceInput<f32>,
+    input: &impl DeviceRange<f32>,
     config: Conv1dConfig,
 ) -> Result<()> {
     let input_values = checked_element_count(config.channels_in, config.input_length)?;
@@ -921,7 +921,7 @@ pub unsafe fn conv1d_im2col_f32(
 pub unsafe fn conv1d_batched_im2col_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    input: &impl DeviceInput<f32>,
+    input: &impl DeviceRange<f32>,
     config: Conv1dIm2colConfig,
 ) -> Result<()> {
     let output_length = config.validate_lengths(out.len(), input.len())?;
@@ -958,9 +958,9 @@ pub unsafe fn conv1d_batched_im2col_f32(
 pub unsafe fn conv1d_bias_activation_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    input: &impl DeviceInput<f32>,
-    weight: &impl DeviceInput<f32>,
-    bias: &impl DeviceInput<f32>,
+    input: &impl DeviceRange<f32>,
+    weight: &impl DeviceRange<f32>,
+    bias: &impl DeviceRange<f32>,
     config: Conv1dConfig,
     activation: Conv1dActivation,
 ) -> Result<()> {
@@ -1021,8 +1021,8 @@ pub unsafe fn conv1d_bias_activation_f32(
 pub unsafe fn conv1d_causal_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    input: &impl DeviceInput<f32>,
-    weight: &impl DeviceInput<f32>,
+    input: &impl DeviceRange<f32>,
+    weight: &impl DeviceRange<f32>,
     config: CausalConv1dConfig,
 ) -> Result<()> {
     let output_length = config.validate_lengths(out.len(), input.len(), weight.len())?;
@@ -1059,9 +1059,9 @@ pub unsafe fn conv1d_causal_f32(
 pub unsafe fn conv1d_causal_bias_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    input: &impl DeviceInput<f32>,
-    weight: &impl DeviceInput<f32>,
-    bias: &impl DeviceInput<f32>,
+    input: &impl DeviceRange<f32>,
+    weight: &impl DeviceRange<f32>,
+    bias: &impl DeviceRange<f32>,
     config: CausalConv1dConfig,
 ) -> Result<()> {
     // SAFETY: the caller establishes the queued convolution contract.
@@ -1090,9 +1090,9 @@ pub unsafe fn conv1d_causal_bias_f32(
 pub unsafe fn conv1d_causal_bias_activation_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    input: &impl DeviceInput<f32>,
-    weight: &impl DeviceInput<f32>,
-    bias: &impl DeviceInput<f32>,
+    input: &impl DeviceRange<f32>,
+    weight: &impl DeviceRange<f32>,
+    bias: &impl DeviceRange<f32>,
     config: CausalConv1dConfig,
     activation: Conv1dActivation,
 ) -> Result<()> {
@@ -1153,9 +1153,9 @@ pub unsafe fn conv1d_causal_bias_activation_f32(
 pub unsafe fn conv1d_causal_bias_gelu_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    input: &impl DeviceInput<f32>,
-    weight: &impl DeviceInput<f32>,
-    bias: &impl DeviceInput<f32>,
+    input: &impl DeviceRange<f32>,
+    weight: &impl DeviceRange<f32>,
+    bias: &impl DeviceRange<f32>,
     config: CausalConv1dConfig,
 ) -> Result<()> {
     // SAFETY: the caller establishes the queued convolution contract.
@@ -1184,9 +1184,9 @@ pub unsafe fn conv1d_causal_bias_gelu_f32(
 pub unsafe fn conv1d_causal_bias_gelu_f32_window(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    input: &impl DeviceInput<f32>,
-    weight: &impl DeviceInput<f32>,
-    bias: &impl DeviceInput<f32>,
+    input: &impl DeviceRange<f32>,
+    weight: &impl DeviceRange<f32>,
+    bias: &impl DeviceRange<f32>,
     config: CausalConv1dWindowConfig,
 ) -> Result<()> {
     config.validate_lengths(out.len(), input.len(), weight.len())?;

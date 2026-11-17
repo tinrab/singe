@@ -7,7 +7,7 @@ use singe_cuda::types::bf16;
 use singe_cuda::types::f16;
 use singe_cuda::{
     stream::Stream,
-    view::{DeviceInput, DeviceOutput, DeviceSliceMut},
+    view::{DeviceOutput, DeviceRange, DeviceSliceMut},
 };
 
 #[cfg(feature = "cutile")]
@@ -754,8 +754,8 @@ where
 unsafe fn launch_matmul_f32_default(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    lhs: &impl DeviceInput<f32>,
-    rhs: &impl DeviceInput<f32>,
+    lhs: &impl DeviceRange<f32>,
+    rhs: &impl DeviceRange<f32>,
     config: MatmulConfig,
 ) -> Result<()> {
     let stream = stream.to_cuda_core()?;
@@ -783,8 +783,8 @@ unsafe fn launch_matmul_f32_default(
 unsafe fn launch_matmul_f32_with_tuning(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    lhs: &impl DeviceInput<f32>,
-    rhs: &impl DeviceInput<f32>,
+    lhs: &impl DeviceRange<f32>,
+    rhs: &impl DeviceRange<f32>,
     config: MatmulConfig,
     tuning: MatmulTuning,
 ) -> Result<()> {
@@ -820,8 +820,8 @@ unsafe fn launch_matmul_f32_with_tuning(
 pub unsafe fn matmul_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    lhs: &impl DeviceInput<f32>,
-    rhs: &impl DeviceInput<f32>,
+    lhs: &impl DeviceRange<f32>,
+    rhs: &impl DeviceRange<f32>,
     config: MatmulConfig,
 ) -> Result<()> {
     validate_matmul(out.len(), lhs.len(), rhs.len(), config)?;
@@ -876,8 +876,8 @@ pub unsafe fn matmul_f32(
 pub unsafe fn tune_matmul_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    lhs: &impl DeviceInput<f32>,
-    rhs: &impl DeviceInput<f32>,
+    lhs: &impl DeviceRange<f32>,
+    rhs: &impl DeviceRange<f32>,
     config: MatmulConfig,
     options: TuneOptions,
 ) -> Result<TuneReport<MatmulTuning>> {
@@ -915,8 +915,8 @@ pub unsafe fn tune_matmul_f32(
 pub unsafe fn matmul_mma_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    lhs: &impl DeviceInput<f32>,
-    rhs: &impl DeviceInput<f32>,
+    lhs: &impl DeviceRange<f32>,
+    rhs: &impl DeviceRange<f32>,
     config: MatmulConfig,
 ) -> Result<()> {
     validate_matmul(out.len(), lhs.len(), rhs.len(), config)?;
@@ -955,8 +955,8 @@ pub unsafe fn matmul_mma_f32(
 pub unsafe fn matmul_f64(
     stream: &Stream,
     out: &mut impl DeviceOutput<f64>,
-    lhs: &impl DeviceInput<f64>,
-    rhs: &impl DeviceInput<f64>,
+    lhs: &impl DeviceRange<f64>,
+    rhs: &impl DeviceRange<f64>,
     config: MatmulConfig,
 ) -> Result<()> {
     validate_matmul(out.len(), lhs.len(), rhs.len(), config)?;
@@ -986,8 +986,8 @@ pub unsafe fn matmul_f64(
 unsafe fn launch_matmul_f16_f32_default(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    lhs: &impl DeviceInput<f16>,
-    rhs: &impl DeviceInput<f16>,
+    lhs: &impl DeviceRange<f16>,
+    rhs: &impl DeviceRange<f16>,
     config: MatmulConfig,
 ) -> Result<()> {
     let stream = stream.to_cuda_core()?;
@@ -1016,8 +1016,8 @@ unsafe fn launch_matmul_f16_f32_default(
 unsafe fn launch_matmul_f16_f32_with_tuning(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    lhs: &impl DeviceInput<f16>,
-    rhs: &impl DeviceInput<f16>,
+    lhs: &impl DeviceRange<f16>,
+    rhs: &impl DeviceRange<f16>,
     config: MatmulConfig,
     tuning: MatmulTuning,
 ) -> Result<()> {
@@ -1074,8 +1074,8 @@ unsafe fn launch_matmul_f16_f32_with_tuning(
 pub unsafe fn matmul_f16_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    lhs: &impl DeviceInput<f16>,
-    rhs: &impl DeviceInput<f16>,
+    lhs: &impl DeviceRange<f16>,
+    rhs: &impl DeviceRange<f16>,
     config: MatmulConfig,
 ) -> Result<()> {
     validate_matmul(out.len(), lhs.len(), rhs.len(), config)?;
@@ -1142,8 +1142,8 @@ pub unsafe fn matmul_f16_f32(
 pub unsafe fn tune_matmul_f16_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    lhs: &impl DeviceInput<f16>,
-    rhs: &impl DeviceInput<f16>,
+    lhs: &impl DeviceRange<f16>,
+    rhs: &impl DeviceRange<f16>,
     config: MatmulConfig,
     options: TuneOptions,
 ) -> Result<TuneReport<MatmulTuning>> {
@@ -1182,8 +1182,8 @@ pub unsafe fn tune_matmul_f16_f32(
 pub unsafe fn matvec_transposed_rhs_f16_f32_1024(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    lhs: &impl DeviceInput<f16>,
-    rhs: &impl DeviceInput<f16>,
+    lhs: &impl DeviceRange<f16>,
+    rhs: &impl DeviceRange<f16>,
     config: MatmulConfig,
 ) -> Result<()> {
     validate_matmul(out.len(), lhs.len(), rhs.len(), config)?;
@@ -1222,8 +1222,8 @@ pub unsafe fn matvec_transposed_rhs_f16_f32_1024(
 pub unsafe fn matvec_transposed_rhs_f16_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    lhs: &impl DeviceInput<f16>,
-    rhs: &impl DeviceInput<f16>,
+    lhs: &impl DeviceRange<f16>,
+    rhs: &impl DeviceRange<f16>,
     config: MatmulConfig,
 ) -> Result<()> {
     validate_matmul(out.len(), lhs.len(), rhs.len(), config)?;
@@ -1262,8 +1262,8 @@ pub unsafe fn matvec_transposed_rhs_f16_f32(
 pub unsafe fn matmul_mma_f16_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    lhs: &impl DeviceInput<f16>,
-    rhs: &impl DeviceInput<f16>,
+    lhs: &impl DeviceRange<f16>,
+    rhs: &impl DeviceRange<f16>,
     config: MatmulConfig,
 ) -> Result<()> {
     validate_matmul(out.len(), lhs.len(), rhs.len(), config)?;
@@ -1302,8 +1302,8 @@ pub unsafe fn matmul_mma_f16_f32(
 pub unsafe fn matmul_bf16_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    lhs: &impl DeviceInput<bf16>,
-    rhs: &impl DeviceInput<bf16>,
+    lhs: &impl DeviceRange<bf16>,
+    rhs: &impl DeviceRange<bf16>,
     config: MatmulConfig,
 ) -> Result<()> {
     validate_matmul(out.len(), lhs.len(), rhs.len(), config)?;
@@ -1341,8 +1341,8 @@ pub unsafe fn matmul_bf16_f32(
 pub unsafe fn matmul_mma_bf16_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    lhs: &impl DeviceInput<bf16>,
-    rhs: &impl DeviceInput<bf16>,
+    lhs: &impl DeviceRange<bf16>,
+    rhs: &impl DeviceRange<bf16>,
     config: MatmulConfig,
 ) -> Result<()> {
     validate_matmul(out.len(), lhs.len(), rhs.len(), config)?;
@@ -1381,8 +1381,8 @@ pub unsafe fn matmul_mma_bf16_f32(
 pub unsafe fn matmul_alpha_beta_f32(
     stream: &Stream,
     out: &mut impl DeviceSliceMut<f32>,
-    lhs: &impl DeviceInput<f32>,
-    rhs: &impl DeviceInput<f32>,
+    lhs: &impl DeviceRange<f32>,
+    rhs: &impl DeviceRange<f32>,
     config: MatmulConfig,
     alpha: f32,
     beta: f32,
@@ -1425,8 +1425,8 @@ pub unsafe fn matmul_alpha_beta_f32(
 pub unsafe fn matmul_alpha_beta_f16_f32(
     stream: &Stream,
     out: &mut impl DeviceSliceMut<f32>,
-    lhs: &impl DeviceInput<f16>,
-    rhs: &impl DeviceInput<f16>,
+    lhs: &impl DeviceRange<f16>,
+    rhs: &impl DeviceRange<f16>,
     config: MatmulConfig,
     alpha: f32,
     beta: f32,
@@ -1469,8 +1469,8 @@ pub unsafe fn matmul_alpha_beta_f16_f32(
 pub unsafe fn matmul_alpha_beta_bf16_f32(
     stream: &Stream,
     out: &mut impl DeviceSliceMut<f32>,
-    lhs: &impl DeviceInput<bf16>,
-    rhs: &impl DeviceInput<bf16>,
+    lhs: &impl DeviceRange<bf16>,
+    rhs: &impl DeviceRange<bf16>,
     config: MatmulConfig,
     alpha: f32,
     beta: f32,
@@ -1513,8 +1513,8 @@ pub unsafe fn matmul_alpha_beta_bf16_f32(
 pub unsafe fn matmul_alpha_beta_f64(
     stream: &Stream,
     out: &mut impl DeviceSliceMut<f64>,
-    lhs: &impl DeviceInput<f64>,
-    rhs: &impl DeviceInput<f64>,
+    lhs: &impl DeviceRange<f64>,
+    rhs: &impl DeviceRange<f64>,
     config: MatmulConfig,
     alpha: f64,
     beta: f64,
@@ -1633,8 +1633,8 @@ where
 unsafe fn launch_bmm_f32_default(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    lhs: &impl DeviceInput<f32>,
-    rhs: &impl DeviceInput<f32>,
+    lhs: &impl DeviceRange<f32>,
+    rhs: &impl DeviceRange<f32>,
     config: BmmConfig,
 ) -> Result<()> {
     let stream = stream.to_cuda_core()?;
@@ -1666,8 +1666,8 @@ unsafe fn launch_bmm_f32_default(
 unsafe fn launch_bmm_f32_with_tuning(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    lhs: &impl DeviceInput<f32>,
-    rhs: &impl DeviceInput<f32>,
+    lhs: &impl DeviceRange<f32>,
+    rhs: &impl DeviceRange<f32>,
     config: BmmConfig,
     tuning: BmmTuning,
 ) -> Result<()> {
@@ -1727,8 +1727,8 @@ unsafe fn launch_bmm_f32_with_tuning(
 pub unsafe fn bmm_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    lhs: &impl DeviceInput<f32>,
-    rhs: &impl DeviceInput<f32>,
+    lhs: &impl DeviceRange<f32>,
+    rhs: &impl DeviceRange<f32>,
     config: BmmConfig,
 ) -> Result<()> {
     validate_bmm(out.len(), lhs.len(), rhs.len(), config)?;
@@ -1783,8 +1783,8 @@ pub unsafe fn bmm_f32(
 pub unsafe fn tune_bmm_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    lhs: &impl DeviceInput<f32>,
-    rhs: &impl DeviceInput<f32>,
+    lhs: &impl DeviceRange<f32>,
+    rhs: &impl DeviceRange<f32>,
     config: BmmConfig,
     options: TuneOptions,
 ) -> Result<TuneReport<BmmTuning>> {
@@ -1822,8 +1822,8 @@ pub unsafe fn tune_bmm_f32(
 pub unsafe fn bmm_mma_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    lhs: &impl DeviceInput<f32>,
-    rhs: &impl DeviceInput<f32>,
+    lhs: &impl DeviceRange<f32>,
+    rhs: &impl DeviceRange<f32>,
     config: BmmConfig,
 ) -> Result<()> {
     validate_bmm(out.len(), lhs.len(), rhs.len(), config)?;
@@ -1866,8 +1866,8 @@ pub unsafe fn bmm_mma_f32(
 pub unsafe fn bmm_mma_f16_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    lhs: &impl DeviceInput<f16>,
-    rhs: &impl DeviceInput<f16>,
+    lhs: &impl DeviceRange<f16>,
+    rhs: &impl DeviceRange<f16>,
     config: BmmConfig,
 ) -> Result<()> {
     validate_bmm(out.len(), lhs.len(), rhs.len(), config)?;
@@ -1910,8 +1910,8 @@ pub unsafe fn bmm_mma_f16_f32(
 pub unsafe fn bmm_mma_transposed_rhs_f16_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    lhs: &impl DeviceInput<f16>,
-    rhs: &impl DeviceInput<f16>,
+    lhs: &impl DeviceRange<f16>,
+    rhs: &impl DeviceRange<f16>,
     config: BmmConfig,
 ) -> Result<()> {
     validate_bmm(out.len(), lhs.len(), rhs.len(), config)?;
@@ -1954,8 +1954,8 @@ pub unsafe fn bmm_mma_transposed_rhs_f16_f32(
 pub unsafe fn bmm_mma_transposed_inputs_f16_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    lhs: &impl DeviceInput<f16>,
-    rhs: &impl DeviceInput<f16>,
+    lhs: &impl DeviceRange<f16>,
+    rhs: &impl DeviceRange<f16>,
     config: BmmConfig,
 ) -> Result<()> {
     validate_bmm(out.len(), lhs.len(), rhs.len(), config)?;
@@ -1998,8 +1998,8 @@ pub unsafe fn bmm_mma_transposed_inputs_f16_f32(
 pub unsafe fn bmm_mma_bf16_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    lhs: &impl DeviceInput<bf16>,
-    rhs: &impl DeviceInput<bf16>,
+    lhs: &impl DeviceRange<bf16>,
+    rhs: &impl DeviceRange<bf16>,
     config: BmmConfig,
 ) -> Result<()> {
     validate_bmm(out.len(), lhs.len(), rhs.len(), config)?;
@@ -2042,8 +2042,8 @@ pub unsafe fn bmm_mma_bf16_f32(
 pub unsafe fn bmm_mma_transposed_inputs_bf16_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    lhs: &impl DeviceInput<bf16>,
-    rhs: &impl DeviceInput<bf16>,
+    lhs: &impl DeviceRange<bf16>,
+    rhs: &impl DeviceRange<bf16>,
     config: BmmConfig,
 ) -> Result<()> {
     validate_bmm(out.len(), lhs.len(), rhs.len(), config)?;
@@ -2087,9 +2087,9 @@ pub unsafe fn bmm_mma_transposed_inputs_bf16_f32(
 pub unsafe fn masked_bmm_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    lhs: &impl DeviceInput<f32>,
-    rhs: &impl DeviceInput<f32>,
-    masked_rows: &impl DeviceInput<i32>,
+    lhs: &impl DeviceRange<f32>,
+    rhs: &impl DeviceRange<f32>,
+    masked_rows: &impl DeviceRange<i32>,
     config: BmmConfig,
 ) -> Result<()> {
     validate_masked_bmm(out.len(), lhs.len(), rhs.len(), masked_rows.len(), config)?;
@@ -2134,9 +2134,9 @@ pub unsafe fn masked_bmm_f32(
 pub unsafe fn masked_bmm_f16(
     stream: &Stream,
     out: &mut impl DeviceOutput<f16>,
-    lhs: &impl DeviceInput<f16>,
-    rhs: &impl DeviceInput<f16>,
-    masked_rows: &impl DeviceInput<i32>,
+    lhs: &impl DeviceRange<f16>,
+    rhs: &impl DeviceRange<f16>,
+    masked_rows: &impl DeviceRange<i32>,
     config: BmmConfig,
 ) -> Result<()> {
     validate_masked_bmm(out.len(), lhs.len(), rhs.len(), masked_rows.len(), config)?;
@@ -2181,9 +2181,9 @@ pub unsafe fn masked_bmm_f16(
 pub unsafe fn masked_bmm_bf16(
     stream: &Stream,
     out: &mut impl DeviceOutput<bf16>,
-    lhs: &impl DeviceInput<bf16>,
-    rhs: &impl DeviceInput<bf16>,
-    masked_rows: &impl DeviceInput<i32>,
+    lhs: &impl DeviceRange<bf16>,
+    rhs: &impl DeviceRange<bf16>,
+    masked_rows: &impl DeviceRange<i32>,
     config: BmmConfig,
 ) -> Result<()> {
     validate_masked_bmm(out.len(), lhs.len(), rhs.len(), masked_rows.len(), config)?;
@@ -2226,9 +2226,9 @@ pub unsafe fn masked_bmm_bf16(
 pub unsafe fn ragged_bmm_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    lhs: &impl DeviceInput<f32>,
-    rhs: &impl DeviceInput<f32>,
-    row_indptr: &impl DeviceInput<i32>,
+    lhs: &impl DeviceRange<f32>,
+    rhs: &impl DeviceRange<f32>,
+    row_indptr: &impl DeviceRange<i32>,
     config: RaggedBmmConfig,
 ) -> Result<()> {
     validate_ragged_bmm(out.len(), lhs.len(), rhs.len(), row_indptr.len(), config)?;
@@ -2270,9 +2270,9 @@ pub unsafe fn ragged_bmm_f32(
 pub unsafe fn ragged_bmm_f16(
     stream: &Stream,
     out: &mut impl DeviceOutput<f16>,
-    lhs: &impl DeviceInput<f16>,
-    rhs: &impl DeviceInput<f16>,
-    row_indptr: &impl DeviceInput<i32>,
+    lhs: &impl DeviceRange<f16>,
+    rhs: &impl DeviceRange<f16>,
+    row_indptr: &impl DeviceRange<i32>,
     config: RaggedBmmConfig,
 ) -> Result<()> {
     validate_ragged_bmm(out.len(), lhs.len(), rhs.len(), row_indptr.len(), config)?;
@@ -2314,9 +2314,9 @@ pub unsafe fn ragged_bmm_f16(
 pub unsafe fn ragged_bmm_bf16(
     stream: &Stream,
     out: &mut impl DeviceOutput<bf16>,
-    lhs: &impl DeviceInput<bf16>,
-    rhs: &impl DeviceInput<bf16>,
-    row_indptr: &impl DeviceInput<i32>,
+    lhs: &impl DeviceRange<bf16>,
+    rhs: &impl DeviceRange<bf16>,
+    row_indptr: &impl DeviceRange<i32>,
     config: RaggedBmmConfig,
 ) -> Result<()> {
     validate_ragged_bmm(out.len(), lhs.len(), rhs.len(), row_indptr.len(), config)?;
@@ -2357,14 +2357,14 @@ pub unsafe fn ragged_bmm_bf16(
 pub unsafe fn group_gemm_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    lhs: &impl DeviceInput<f32>,
-    rhs: &impl DeviceInput<f32>,
-    rows: &impl DeviceInput<i32>,
-    columns: &impl DeviceInput<i32>,
-    reductions: &impl DeviceInput<i32>,
-    lhs_offsets: &impl DeviceInput<i32>,
-    rhs_offsets: &impl DeviceInput<i32>,
-    output_offsets: &impl DeviceInput<i32>,
+    lhs: &impl DeviceRange<f32>,
+    rhs: &impl DeviceRange<f32>,
+    rows: &impl DeviceRange<i32>,
+    columns: &impl DeviceRange<i32>,
+    reductions: &impl DeviceRange<i32>,
+    lhs_offsets: &impl DeviceRange<i32>,
+    rhs_offsets: &impl DeviceRange<i32>,
+    output_offsets: &impl DeviceRange<i32>,
     config: GroupGemmConfig,
 ) -> Result<()> {
     validate_group_gemm(
@@ -2414,14 +2414,14 @@ pub unsafe fn group_gemm_f32(
 pub unsafe fn group_gemm_f16(
     stream: &Stream,
     out: &mut impl DeviceOutput<f16>,
-    lhs: &impl DeviceInput<f16>,
-    rhs: &impl DeviceInput<f16>,
-    rows: &impl DeviceInput<i32>,
-    columns: &impl DeviceInput<i32>,
-    reductions: &impl DeviceInput<i32>,
-    lhs_offsets: &impl DeviceInput<i32>,
-    rhs_offsets: &impl DeviceInput<i32>,
-    output_offsets: &impl DeviceInput<i32>,
+    lhs: &impl DeviceRange<f16>,
+    rhs: &impl DeviceRange<f16>,
+    rows: &impl DeviceRange<i32>,
+    columns: &impl DeviceRange<i32>,
+    reductions: &impl DeviceRange<i32>,
+    lhs_offsets: &impl DeviceRange<i32>,
+    rhs_offsets: &impl DeviceRange<i32>,
+    output_offsets: &impl DeviceRange<i32>,
     config: GroupGemmConfig,
 ) -> Result<()> {
     validate_group_gemm(
@@ -2471,14 +2471,14 @@ pub unsafe fn group_gemm_f16(
 pub unsafe fn group_gemm_bf16(
     stream: &Stream,
     out: &mut impl DeviceOutput<bf16>,
-    lhs: &impl DeviceInput<bf16>,
-    rhs: &impl DeviceInput<bf16>,
-    rows: &impl DeviceInput<i32>,
-    columns: &impl DeviceInput<i32>,
-    reductions: &impl DeviceInput<i32>,
-    lhs_offsets: &impl DeviceInput<i32>,
-    rhs_offsets: &impl DeviceInput<i32>,
-    output_offsets: &impl DeviceInput<i32>,
+    lhs: &impl DeviceRange<bf16>,
+    rhs: &impl DeviceRange<bf16>,
+    rows: &impl DeviceRange<i32>,
+    columns: &impl DeviceRange<i32>,
+    reductions: &impl DeviceRange<i32>,
+    lhs_offsets: &impl DeviceRange<i32>,
+    rhs_offsets: &impl DeviceRange<i32>,
+    output_offsets: &impl DeviceRange<i32>,
     config: GroupGemmConfig,
 ) -> Result<()> {
     validate_group_gemm(
@@ -2527,10 +2527,10 @@ pub unsafe fn group_gemm_bf16(
 pub unsafe fn grouped_gemm_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    input: &impl DeviceInput<f32>,
-    weights: &impl DeviceInput<f32>,
-    m_sizes: &impl DeviceInput<i32>,
-    gather_indices: &impl DeviceInput<i32>,
+    input: &impl DeviceRange<f32>,
+    weights: &impl DeviceRange<f32>,
+    m_sizes: &impl DeviceRange<i32>,
+    gather_indices: &impl DeviceRange<i32>,
     config: GroupedGemmConfig,
 ) -> Result<()> {
     validate_grouped_gemm(
@@ -2581,10 +2581,10 @@ pub unsafe fn grouped_gemm_f32(
 pub unsafe fn grouped_gemm_f16(
     stream: &Stream,
     out: &mut impl DeviceOutput<f16>,
-    input: &impl DeviceInput<f16>,
-    weights: &impl DeviceInput<f16>,
-    m_sizes: &impl DeviceInput<i32>,
-    gather_indices: &impl DeviceInput<i32>,
+    input: &impl DeviceRange<f16>,
+    weights: &impl DeviceRange<f16>,
+    m_sizes: &impl DeviceRange<i32>,
+    gather_indices: &impl DeviceRange<i32>,
     config: GroupedGemmConfig,
 ) -> Result<()> {
     validate_grouped_gemm(
@@ -2635,10 +2635,10 @@ pub unsafe fn grouped_gemm_f16(
 pub unsafe fn grouped_gemm_bf16(
     stream: &Stream,
     out: &mut impl DeviceOutput<bf16>,
-    input: &impl DeviceInput<bf16>,
-    weights: &impl DeviceInput<bf16>,
-    m_sizes: &impl DeviceInput<i32>,
-    gather_indices: &impl DeviceInput<i32>,
+    input: &impl DeviceRange<bf16>,
+    weights: &impl DeviceRange<bf16>,
+    m_sizes: &impl DeviceRange<i32>,
+    gather_indices: &impl DeviceRange<i32>,
     config: GroupedGemmConfig,
 ) -> Result<()> {
     validate_grouped_gemm(
@@ -2689,11 +2689,11 @@ pub unsafe fn grouped_gemm_bf16(
 pub unsafe fn ragged_block_scaled_bmm_f8e4m3_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    lhs: &impl DeviceInput<u8>,
-    rhs: &impl DeviceInput<u8>,
-    lhs_scale: &impl DeviceInput<f32>,
-    rhs_scale: &impl DeviceInput<f32>,
-    row_indptr: &impl DeviceInput<i32>,
+    lhs: &impl DeviceRange<u8>,
+    rhs: &impl DeviceRange<u8>,
+    lhs_scale: &impl DeviceRange<f32>,
+    rhs_scale: &impl DeviceRange<f32>,
+    row_indptr: &impl DeviceRange<i32>,
     config: RaggedBlockScaledBmmConfig,
 ) -> Result<()> {
     validate_ragged_block_scaled_bmm(
@@ -2746,11 +2746,11 @@ pub unsafe fn ragged_block_scaled_bmm_f8e4m3_f32(
 pub unsafe fn ragged_block_scaled_bmm_f8e4m3_f16(
     stream: &Stream,
     out: &mut impl DeviceOutput<f16>,
-    lhs: &impl DeviceInput<u8>,
-    rhs: &impl DeviceInput<u8>,
-    lhs_scale: &impl DeviceInput<f32>,
-    rhs_scale: &impl DeviceInput<f32>,
-    row_indptr: &impl DeviceInput<i32>,
+    lhs: &impl DeviceRange<u8>,
+    rhs: &impl DeviceRange<u8>,
+    lhs_scale: &impl DeviceRange<f32>,
+    rhs_scale: &impl DeviceRange<f32>,
+    row_indptr: &impl DeviceRange<i32>,
     config: RaggedBlockScaledBmmConfig,
 ) -> Result<()> {
     validate_ragged_block_scaled_bmm(
@@ -2803,11 +2803,11 @@ pub unsafe fn ragged_block_scaled_bmm_f8e4m3_f16(
 pub unsafe fn ragged_block_scaled_bmm_f8e4m3_bf16(
     stream: &Stream,
     out: &mut impl DeviceOutput<bf16>,
-    lhs: &impl DeviceInput<u8>,
-    rhs: &impl DeviceInput<u8>,
-    lhs_scale: &impl DeviceInput<f32>,
-    rhs_scale: &impl DeviceInput<f32>,
-    row_indptr: &impl DeviceInput<i32>,
+    lhs: &impl DeviceRange<u8>,
+    rhs: &impl DeviceRange<u8>,
+    lhs_scale: &impl DeviceRange<f32>,
+    rhs_scale: &impl DeviceRange<f32>,
+    row_indptr: &impl DeviceRange<i32>,
     config: RaggedBlockScaledBmmConfig,
 ) -> Result<()> {
     validate_ragged_block_scaled_bmm(
@@ -2859,8 +2859,8 @@ pub unsafe fn ragged_block_scaled_bmm_f8e4m3_bf16(
 pub unsafe fn bmm_f64(
     stream: &Stream,
     out: &mut impl DeviceOutput<f64>,
-    lhs: &impl DeviceInput<f64>,
-    rhs: &impl DeviceInput<f64>,
+    lhs: &impl DeviceRange<f64>,
+    rhs: &impl DeviceRange<f64>,
     config: BmmConfig,
 ) -> Result<()> {
     validate_bmm(out.len(), lhs.len(), rhs.len(), config)?;
@@ -2902,8 +2902,8 @@ pub unsafe fn bmm_f64(
 pub unsafe fn bmm_f16_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    lhs: &impl DeviceInput<f16>,
-    rhs: &impl DeviceInput<f16>,
+    lhs: &impl DeviceRange<f16>,
+    rhs: &impl DeviceRange<f16>,
     config: BmmConfig,
 ) -> Result<()> {
     validate_bmm(out.len(), lhs.len(), rhs.len(), config)?;
@@ -2945,8 +2945,8 @@ pub unsafe fn bmm_f16_f32(
 pub unsafe fn bmm_bf16_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    lhs: &impl DeviceInput<bf16>,
-    rhs: &impl DeviceInput<bf16>,
+    lhs: &impl DeviceRange<bf16>,
+    rhs: &impl DeviceRange<bf16>,
     config: BmmConfig,
 ) -> Result<()> {
     validate_bmm(out.len(), lhs.len(), rhs.len(), config)?;

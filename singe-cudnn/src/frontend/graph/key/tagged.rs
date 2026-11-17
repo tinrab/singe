@@ -7,22 +7,22 @@ use serde::{
 
 use serde_json::Value;
 
-use crate::{backend::tensor::TENSOR_ID_SERDE_NAME, error::Result};
+use crate::{error::Result, tensor::TENSOR_ID_SERDE_NAME};
 
-pub const GRAPH: &str = "\0singe:graph";
+pub(crate) const GRAPH: &str = "\0singe:graph";
 const PREFIX: &str = "\0singe:";
 const TENSOR: &str = "\0singe:tensor:";
 const TEXT: &str = "\0singe:text:";
 
-pub fn is_tensor_id(value: &str) -> bool {
+pub(crate) fn is_tensor_id(value: &str) -> bool {
     value.starts_with(TENSOR)
 }
 
-pub fn unescape(value: &str) -> Option<&str> {
+pub(crate) fn unescape(value: &str) -> Option<&str> {
     value.strip_prefix(TEXT)
 }
 
-pub fn to_value(value: &impl Serialize) -> Result<Value> {
+pub(crate) fn to_value(value: &impl Serialize) -> Result<Value> {
     Ok(serde_json::to_value(Tagged(value))?)
 }
 

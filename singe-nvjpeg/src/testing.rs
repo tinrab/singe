@@ -1,24 +1,43 @@
-//! Shared setup for tests that need a GPU.
+//! Serialized GPU test contexts.
 
-use std::ops::Deref;
+use std::sync::Arc;
 
-use singe_cuda::testing::{DeviceLock, bootstrap_for_device};
+use singe_cuda::{
+    context::Context as CudaContext,
+    device::Device,
+    testing::{TestDevice, bootstrap_for_device},
+};
 
-use crate::{context::Context, error::Result};
+use crate::{
+    context::{Context, ContextOptions},
+    error::Result,
+};
 
-/// nvJPEG handle for a test, with a lock that keeps GPU tests from running at the same time.
+/// An nvJPEG handle on a locked test device.
+///
+/// The handle drops before the device's CUDA context and lock.
 #[derive(Debug)]
 pub struct TestContext {
-    /// nvJPEG handle on the locked device.
-    pub context: Context,
-    _lock: DeviceLock,
+    context: Context,
+    device: TestDevice,
 }
 
-impl Deref for TestContext {
-    type Target = Context;
-
-    fn deref(&self) -> &Self::Target {
+impl TestContext {
+    /// Returns the nvJPEG handle.
+    #[must_use]
+    pub fn context(&self) -> &Context {
         &self.context
+    }
+
+    /// Returns the nvJPEG handle for its persistent setters.
+    pub fn context_mut(&mut self) -> &mut Context {
+        &mut self.context
+    }
+
+    /// Returns the CUDA context of the locked device.
+    #[must_use]
+    pub fn cuda_context(&self) -> &Arc<CudaContext> {
+        self.device.context()
     }
 }
 
@@ -28,12 +47,7 @@ impl Deref for TestContext {
 ///
 /// Returns an error if device 0 cannot be initialized or locked, its CUDA context cannot be created or bound, or nvJPEG fails to create the handle.
 pub fn setup_context() -> Result<TestContext> {
-    let device_id: i32 = 0;
-    let (lock, cuda_context) = bootstrap_for_device(device_id)?;
-    let context = Context::create_simple(&cuda_context)?;
-
-    Ok(TestContext {
-        context,
-        _lock: lock,
-    })
+    let device = bootstrap_for_device(Device::new(0))?;
+    let context = Context::create(device.context(), &ContextOptions::default())?;
+    Ok(TestContext { context, device })
 }

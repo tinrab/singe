@@ -2,13 +2,9 @@ mod common;
 
 use std::env::args;
 
-use singe_cuda::memory::DeviceMemory;
+use singe_cuda::{graph::GraphInstantiateFlags, memory::DeviceMemory};
 use singe_cudnn::{
-    backend::{
-        behavior::BackendBehaviorNote,
-        pointwise::PointwiseMode,
-        tensor::{Shape, TensorId, TensorSpec},
-    },
+    backend::{behavior::BackendBehaviorNote, operation::pointwise::PointwiseMode},
     data_type::{DataType, f16},
     error::Result,
     frontend::{
@@ -18,8 +14,13 @@ use singe_cudnn::{
         plan::{CompileConfig, CompiledGraph, EngineConfigFilter, ExecuteArgs, HeuristicMode},
     },
     scalar::ScalarValue,
+    tensor::{Shape, TensorId, TensorSpec},
 };
 
+#[expect(
+    clippy::many_single_char_names,
+    reason = "keeps the upstream sample's single-letter dimension names"
+)]
 fn build_graph(
     workspace_initializers: bool,
     workspace_fill: bool,
@@ -125,30 +126,31 @@ fn run() -> Result<()> {
     let workspace_initializers =
         workspace_fill || args().any(|argument| argument == "--workspace-initializers");
     let (graph, a, b_tensor, bias, d) = build_graph(workspace_initializers, workspace_fill)?;
-    let input_a_elements = graph.shape(a)?.storage_span()?;
-    let input_b_elements = graph.shape(b_tensor)?.storage_span()?;
+    let a_input_elements = graph.shape(a)?.storage_span()?;
+    let b_input_elements = graph.shape(b_tensor)?.storage_span()?;
     let output_elements = graph.shape(d)?.storage_span()?;
 
     let compiled = graph
+        .prepare(Some(&context.cudnn))?
         .plan_candidates(
             Some(&context.cudnn),
             &CompileConfig::from_heuristic_modes([HeuristicMode::A]),
         )?
         .filter(
             &EngineConfigFilter::new()
-                .with_included_behavior_notes(&[BackendBehaviorNote::SupportsCudaGraphNativeApi]),
+                .with_included_behavior_notes([BackendBehaviorNote::SupportsCudaGraphNativeApi]),
         )
         .compile(Some(&context.cudnn), &CompileConfig::new())?;
 
     let a_dev = DeviceMemory::from_slice(
         context.cudnn.cuda_context(),
-        &vec![f16::from_f32(1.0); input_a_elements],
+        &vec![f16::from_f32(1.0); a_input_elements],
     )?;
     let b_dev = (!workspace_initializers)
         .then(|| {
             DeviceMemory::from_slice(
                 context.cudnn.cuda_context(),
-                &vec![f16::from_f32(1.0); input_b_elements],
+                &vec![f16::from_f32(1.0); b_input_elements],
             )
         })
         .transpose()?;
@@ -171,28 +173,28 @@ fn run() -> Result<()> {
     let child_node = unsafe {
         compiled.append_to_cuda_graph(
             &context.cudnn,
-            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
             &mut main_graph,
             &[],
         )
     }?;
-    let mut main_exec = main_graph.instantiate()?;
+    let mut main_exec = main_graph.instantiate(GraphInstantiateFlags::empty())?;
     // SAFETY: the example keeps these buffers alive and synchronizes before reading the results.
     unsafe {
-        main_exec.launch(&context.stream)?;
+        main_exec.launch_async(&context.stream)?;
     }
 
     context.stream.synchronize()?;
 
     let a_dev_new = DeviceMemory::from_slice(
         context.cudnn.cuda_context(),
-        &vec![f16::from_f32(1.0); input_a_elements],
+        &vec![f16::from_f32(1.0); a_input_elements],
     )?;
     let b_dev_new = (!workspace_initializers)
         .then(|| {
             DeviceMemory::from_slice(
                 context.cudnn.cuda_context(),
-                &vec![f16::from_f32(1.0); input_b_elements],
+                &vec![f16::from_f32(1.0); b_input_elements],
             )
         })
         .transpose()?;
@@ -214,7 +216,8 @@ fn run() -> Result<()> {
     unsafe {
         compiled.update_cuda_graph_node(
             &context.cudnn,
-            ExecuteArgs::new(&bindings_new).with_workspace(&mut workspace_new),
+            ExecuteArgs::new(&bindings_new).with_workspace(workspace_new.output()),
+            &mut main_graph,
             &child_node,
             Some(&mut main_exec),
         )
@@ -226,7 +229,7 @@ fn run() -> Result<()> {
     drop(compiled);
     // SAFETY: the example keeps these buffers alive and synchronizes before reading the results.
     unsafe {
-        main_exec.launch(&context.stream)?;
+        main_exec.launch_async(&context.stream)?;
     }
 
     context.stream.synchronize()?;
@@ -234,6 +237,6 @@ fn run() -> Result<()> {
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_cudagraphs", run())
 }

@@ -1,19 +1,29 @@
 [package]
 name = "singe-nvtiff"
-description = "Safe Rust wrappers for the NVIDIA nvTIFF library."
-version = "0.1.0-alpha.1"
+description = "Safe Rust wrappers for NVIDIA nvTIFF, for decoding and encoding TIFF images on the GPU."
+version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 repository.workspace = true
+documentation = "https://docs.rs/singe-nvtiff"
 license-file.workspace = true
 readme = "README.md"
 keywords = ["cuda", "nvidia", "nvtiff", "tiff", "image"]
+categories = ["api-bindings", "hardware-support", "multimedia::images"]
 include.workspace = true
+
+[package.metadata.docs.rs]
+rustdoc-args = ["--cfg", "docsrs", "--html-in-header", "dist/katex_header.html"]
 
 [features]
 default = ["nvtiff_0_8"]
 
-nvtiff_0_8 = ["singe-cuda/runtime_13_4", "singe-nvtiff-sys/nvtiff_0_8"]
-testing = ["singe-cuda/testing", "singe-nvtiff-sys/testing"]
+nvtiff_0_8 = [
+    "singe-cuda/runtime_13_4",
+    "singe-cuda-sys/runtime_13_4",
+    "singe-nvtiff-sys/nvtiff_0_8",
+]
+testing = ["singe-cuda/testing"]
 
 [dependencies]
 singe-core.workspace = true

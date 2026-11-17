@@ -6,183 +6,8 @@ generate:
     #!/usr/bin/env bash
     set -euxo pipefail
 
-    num_enums=(
-        "cudaRoundMode"
-        "cudaError"
-        "cudaChannelFormatKind"
-        "cudaMemoryType"
-        "cudaMemcpyKind"
-        "cudaAccessProperty"
-        "cudaStreamCaptureStatus"
-        "cudaStreamCaptureMode"
-        "cudaSynchronizationPolicy"
-        "cudaClusterSchedulingPolicy"
-        "cudaStreamUpdateCaptureDependenciesFlags"
-        "cudaUserObjectFlags"
-        "cudaUserObjectRetainFlags"
-        "cudaGraphicsRegisterFlags"
-        "cudaGraphicsMapFlags"
-        "cudaGraphicsCubeFace"
-        "cudaResourceType"
-        "cudaResourceViewFormat"
-        "cudaFuncAttribute"
-        "cudaFuncCache"
-        "cudaSharedMemConfig"
-        "cudaSharedCarveout"
-        "cudaComputeMode"
-        "cudaDevResourceType"
-        "cudaLimit"
-        "cudaMemoryAdvise"
-        "cudaMemRangeAttribute"
-        "cudaFlushGPUDirectRDMAWritesOptions"
-        "cudaGPUDirectRDMAWritesOrdering"
-        "cudaFlushGPUDirectRDMAWritesScope"
-        "cudaFlushGPUDirectRDMAWritesTarget"
-        "cudaDeviceAttr"
-        "cudaMemPoolAttr"
-        "cudaMemLocationType"
-        "cudaMemAccessFlags"
-        "cudaMemAllocationType"
-        "cudaMemAllocationHandleType"
-        "cudaGraphMemAttributeType"
-        "cudaMemcpyFlags"
-        "cudaMemcpySrcAccessOrder"
-        "cudaMemcpy3DOperandType"
-        "cudaDeviceP2PAttr"
-        "cudaExternalMemoryHandleType"
-        "cudaExternalSemaphoreHandleType"
-        "cudaGraphConditionalHandleFlags"
-        "cudaGraphConditionalNodeType"
-        "cudaGraphNodeType"
-        "cudaGraphDependencyType_enum"
-        "cudaGraphExecUpdateResult"
-        "cudaGraphInstantiateResult"
-        "cudaGraphKernelNodeField"
-        "cudaGetDriverEntryPointFlags"
-        "cudaDriverEntryPointQueryResult"
-        "cudaGraphDebugDotFlags"
-        "cudaGraphInstantiateFlags"
-        "cudaLaunchMemSyncDomain"
-        "cudaLaunchAttributeID"
-        "cudaDeviceNumaConfig"
-        "cudaAsyncNotificationType_enum"
-        "cudaSurfaceBoundaryMode"
-        "cudaSurfaceFormatMode"
-        "cudaTextureAddressMode"
-        "cudaTextureFilterMode"
-        "cudaTextureReadMode"
-        "cudaJitOption"
-        "cudaLibraryOption"
-        "cudaJit_CacheMode"
-        "cudaJit_Fallback"
-        "cudaCGScope"
-        "CUipcMem_flags_enum"
-        "CUmemAttach_flags_enum"
-        "CUctx_flags_enum"
-        "CUevent_sched_flags_enum"
-        "CUstream_flags_enum"
-        "CUevent_flags_enum"
-        "CUevent_record_flags_enum"
-        "CUevent_wait_flags_enum"
-        "CUstreamWaitValue_flags_enum"
-        "CUstreamWriteValue_flags_enum"
-        "CUstreamBatchMemOpType_enum"
-        "CUstreamMemoryBarrier_flags_enum"
-        "CUoccupancy_flags_enum"
-        "CUstreamUpdateCaptureDependencies_flags_enum"
-        "CUasyncNotificationType_enum"
-        "CUarray_format_enum"
-        "CUaddress_mode_enum"
-        "CUfilter_mode_enum"
-        "CUdevice_attribute_enum"
-        "CUpointer_attribute_enum"
-        "CUfunction_attribute_enum"
-        "CUfunc_cache_enum"
-        "CUsharedconfig_enum"
-        "CUshared_carveout_enum"
-        "CUmemorytype_enum"
-        "CUcomputemode_enum"
-        "CUmem_advise_enum"
-        "CUmem_range_attribute_enum"
-        "CUjit_option_enum"
-        "CUjit_target_enum"
-        "CUjit_fallback_enum"
-        "CUjit_cacheMode_enum"
-        "CUjitInputType_enum"
-        "CUgraphicsRegisterFlags_enum"
-        "CUgraphicsMapResourceFlags_enum"
-        "CUarray_cubemap_face_enum"
-        "CUlimit_enum"
-        "CUresourcetype_enum"
-        "CUaccessProperty_enum"
-        "CUgraphConditionalNodeType_enum"
-        "CUgraphNodeType_enum"
-        "CUgraphDependencyType_enum"
-        "CUgraphInstantiateResult_enum"
-        "CUsynchronizationPolicy_enum"
-        "CUclusterSchedulingPolicy_enum"
-        "CUlaunchMemSyncDomain_enum"
-        "CUlaunchAttributeID_enum"
-        "CUstreamCaptureStatus_enum"
-        "CUstreamCaptureMode_enum"
-        "CUdriverProcAddress_flags_enum"
-        "CUdriverProcAddressQueryResult_enum"
-        "CUexecAffinityType_enum"
-        "CUcigDataType_enum"
-        "CUlibraryOption_enum"
-        "cudaError_enum"
-        "CUdevice_P2PAttribute_enum"
-        "CUresourceViewFormat_enum"
-        "CUtensorMapDataType_enum"
-        "CUtensorMapInterleave_enum"
-        "CUtensorMapSwizzle_enum"
-        "CUtensorMapL2promotion_enum"
-        "CUtensorMapFloatOOBfill_enum"
-        "CUtensorMapIm2ColWideMode_enum"
-        "CUDA_POINTER_ATTRIBUTE_ACCESS_FLAGS_enum"
-        "CUexternalMemoryHandleType_enum"
-        "CUexternalSemaphoreHandleType_enum"
-        "CUmemAllocationHandleType_enum"
-        "CUmemAccess_flags_enum"
-        "CUmemLocationType_enum"
-        "CUmemAllocationType_enum"
-        "CUmemAllocationGranularity_flags_enum"
-        "CUmemRangeHandleType_enum"
-        "CUmemRangeFlags_enum"
-        "CUarraySparseSubresourceType_enum"
-        "CUmemOperationType_enum"
-        "CUmemHandleType_enum"
-        "CUmemAllocationCompType_enum"
-        "CUmulticastGranularity_flags_enum"
-        "CUgraphExecUpdateResult_enum"
-        "CUmemPool_attribute_enum"
-        "CUgraphMem_attribute_enum"
-        "CUflushGPUDirectRDMAWritesOptions_enum"
-        "CUGPUDirectRDMAWritesOrdering_enum"
-        "CUflushGPUDirectRDMAWritesScope_enum"
-        "CUflushGPUDirectRDMAWritesTarget_enum"
-        "CUgraphDebugDot_flags_enum"
-        "CUuserObject_flags_enum"
-        "CUuserObjectRetain_flags_enum"
-        "CUgraphInstantiate_flags_enum"
-        "CUdeviceNumaConfig_enum"
-        "CUprocessState_enum"
-        "CUmemcpyFlags_enum"
-        "CUmemcpySrcAccessOrder_enum"
-        "CUmemcpy3DOperandType_enum"
-        "CUfunctionLoadingState_enum"
-        "CUmoduleLoadingMode_enum"
-        "CUcoredumpSettings_enum"
-        "CUCoredumpGenerationFlags"
-        "CUgreenCtxCreate_flags"
-        "CUdevSmResourceSplit_flags"
-        "CUdevResourceType"
-    )
-    num_enums_args=$(for enum in "${num_enums[@]}"; do echo -n "--with-derive-custom $enum=TryFromPrimitive,IntoPrimitive "; done)
-
     # Runtime
     bindgen {{ cuda_path }}/include/cuda_runtime_api.h \
-        $num_enums_args \
         --allowlist-item "^cu.*" \
         --allowlist-item "^CU.*" \
         --blocklist-item "(dim3|cudaPos|cudaExtent)" \
@@ -196,7 +21,7 @@ generate:
         --with-derive-hash \
         --with-derive-ord \
         --use-core \
-        --default-enum-style=rust \
+        --default-enum-style=newtype \
         -- \
             -I {{ cuda_path }}/include \
         > bindings.rs
@@ -211,7 +36,6 @@ generate:
 
     # Driver
     bindgen {{ cuda_path }}/include/cuda.h \
-        $num_enums_args \
         --allowlist-item "^cu.*" \
         --allowlist-item "^CU.*" \
         --no-doc-comments \
@@ -222,7 +46,7 @@ generate:
         --with-derive-hash \
         --with-derive-ord \
         --use-core \
-        --default-enum-style=rust \
+        --default-enum-style=newtype \
         > bindings.rs
 
     CUDA_VERSION=$(cat bindings.rs | grep "CUDA_VERSION" | awk '{ print $6 }' | sed 's/.$//')
@@ -247,7 +71,7 @@ generate:
         --with-derive-hash \
         --with-derive-ord \
         --use-core \
-        --default-enum-style=rust \
+        --default-enum-style=newtype \
         -- \
             -I {{ cuda_path }}/include \
         > bindings.rs
@@ -324,7 +148,6 @@ generate:
     item_blocks_args=$(for item in "${driver_type_ignored_items[@]}"; do echo -n "--blocklist-item $item "; done)
 
     bindgen {{ cuda_path }}/include/driver_types.h \
-        $num_enums_args \
         $item_allows_args \
         $item_blocks_args \
         --no-doc-comments \
@@ -334,20 +157,14 @@ generate:
         --with-derive-eq \
         --with-derive-hash \
         --with-derive-ord \
-        --default-enum-style=rust \
+        --default-enum-style=newtype \
         --use-core \
         > bindings.rs
 
     mv bindings.rs ./src/driver_types_sys_${CUDA_VERSION}.rs
 
     # library_types
-    num_enums=(
-        "cudaDataType_t"
-        "libraryPropertyType_t"
-    )
-    enum_args=$(for enum in "${num_enums[@]}"; do echo -n "--with-derive-custom $enum=TryFromPrimitive,IntoPrimitive "; done)
     bindgen {{ cuda_path }}/include/library_types.h \
-        $enum_args \
         --bitfield-enum "cudaEmulationSpecialValuesSupport_t" \
         --allowlist-item "cuda.*" \
         --allowlist-item "CUDA.*" \
@@ -360,18 +177,13 @@ generate:
         --with-derive-hash \
         --with-derive-ord \
         --use-core \
-        --default-enum-style=rust \
+        --default-enum-style=newtype \
         > bindings.rs
     mv bindings.rs ./src/library_types_sys_${CUDA_VERSION}.rs
 
     # NVRTC
-    nvrtc_num_enums=(
-        "nvrtcResult"
-    )
-    nvrtc_enum_args=$(for enum in "${nvrtc_num_enums[@]}"; do echo -n "--with-derive-custom $enum=TryFromPrimitive,IntoPrimitive "; done)
 
     bindgen {{ cuda_path }}/include/nvrtc.h \
-        $nvrtc_enum_args \
         --allowlist-item "^nvrtc.*" \
         --allowlist-item "^NVRTC.*" \
         --no-doc-comments \
@@ -382,7 +194,7 @@ generate:
         --with-derive-hash \
         --with-derive-ord \
         --use-core \
-        --default-enum-style=rust \
+        --default-enum-style=newtype \
         -- \
             -I {{ cuda_path }}/include \
         > bindings.rs
@@ -402,13 +214,7 @@ generate:
         exit 1
     fi
 
-    nvvm_num_enums=(
-        "nvvmResult"
-    )
-    nvvm_enum_args=$(for enum in "${nvvm_num_enums[@]}"; do echo -n "--with-derive-custom $enum=TryFromPrimitive,IntoPrimitive "; done)
-
     bindgen "${nvvm_header}" \
-        $nvvm_enum_args \
         --allowlist-item "^nvvm.*" \
         --allowlist-item "^NVVM.*" \
         --no-doc-comments \
@@ -419,7 +225,7 @@ generate:
         --with-derive-hash \
         --with-derive-ord \
         --use-core \
-        --default-enum-style=rust \
+        --default-enum-style=newtype \
         -- \
             -I "${nvvm_include}" \
             -I {{ cuda_path }}/include \
@@ -449,16 +255,7 @@ generate:
         exit 1
     fi
 
-    nvtx_num_enums=(
-        "nvtxColorType_t"
-        "nvtxMessageType_t"
-        "nvtxPayloadType_t"
-        "nvtxResourceGenericType_t"
-    )
-    nvtx_enum_args=$(for enum in "${nvtx_num_enums[@]}"; do echo -n "--with-derive-custom $enum=TryFromPrimitive,IntoPrimitive "; done)
-
     bindgen "${nvtx_header}" \
-        $nvtx_enum_args \
         --allowlist-item "^nvtx.*" \
         --allowlist-item "^NVTX.*" \
         --blocklist-item "^nvtxExt.*" \
@@ -470,7 +267,7 @@ generate:
         --with-derive-hash \
         --with-derive-ord \
         --use-core \
-        --default-enum-style=rust \
+        --default-enum-style=newtype \
         -- \
             -DNVTX_NO_IMPL \
             -I "${nvtx_include}" \
@@ -482,7 +279,7 @@ generate:
     bindgen {{ cuda_path }}/include/nvJitLink.h \
         --allowlist-item '(__)?nvJitLink.*|NVJITLINK.*' \
         --no-layout-tests \
-        --default-enum-style=rust \
+        --default-enum-style=newtype \
         --use-core \
         -- \
             -DNVJITLINK_NO_INLINE \

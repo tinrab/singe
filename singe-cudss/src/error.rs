@@ -1,51 +1,39 @@
 use std::{borrow::Cow, ffi::NulError, result::Result as StdResult};
 
-use singe_core::status_enum;
 use singe_cuda::error::Error as CudaError;
-use singe_cudss_sys as sys;
 use thiserror::Error;
 
-status_enum! {
+use crate::sys;
+
+singe_core::wrapper_status! {
+    library = "cudss",
+    error = Error::Cudss,
+    raw = sys::cudssStatus_t,
+    success = CUDSS_STATUS_SUCCESS,
+    absence = sys::take_absence,
+    unknown = "UNKNOWN_CUDSS_STATUS",
     /// Host-side cuDSS status code.
     ///
     /// Device-side asynchronous failures are reported through [`DataParameter::Info`](crate::types::DataParameter::Info) rather than this status type.
-    pub enum Status: u32 => sys::cudssStatus_t, unknown = "UNKNOWN_CUDSS_STATUS" {
+    pub enum Status: u32 {
         /// Operation completed successfully.
-        Success = CUDSS_STATUS_SUCCESS,
+        Success = CUDSS_STATUS_SUCCESS => "success",
         /// A required cuDSS object was not initialized.
-        NotInitialized = CUDSS_STATUS_NOT_INITIALIZED,
+        NotInitialized = CUDSS_STATUS_NOT_INITIALIZED => "library not initialized",
         /// Resource allocation failed.
-        AllocFailed = CUDSS_STATUS_ALLOC_FAILED,
+        AllocFailed = CUDSS_STATUS_ALLOC_FAILED => "allocation failed",
         /// An invalid value was passed to cuDSS.
-        InvalidValue = CUDSS_STATUS_INVALID_VALUE,
+        InvalidValue = CUDSS_STATUS_INVALID_VALUE => "invalid value",
         /// The requested operation or parameter is not supported.
-        NotSupported = CUDSS_STATUS_NOT_SUPPORTED,
+        NotSupported = CUDSS_STATUS_NOT_SUPPORTED => "not supported",
         /// GPU program execution failed.
-        ExecutionFailed = CUDSS_STATUS_EXECUTION_FAILED,
+        ExecutionFailed = CUDSS_STATUS_EXECUTION_FAILED => "execution failed",
         /// An internal cuDSS operation failed.
-        InternalError = CUDSS_STATUS_INTERNAL_ERROR,
+        InternalError = CUDSS_STATUS_INTERNAL_ERROR => "internal error",
         /// Iterative refinement did not reach the requested tolerance.
         ///
         /// The refined solution remains available.
-        IrFailed = CUDSS_STATUS_IR_FAILED,
-    }
-}
-
-impl Status {
-    /// Returns a short lowercase description of the status.
-    #[must_use]
-    pub const fn description(self) -> &'static str {
-        match self {
-            Self::Success => "success",
-            Self::NotInitialized => "library not initialized",
-            Self::AllocFailed => "allocation failed",
-            Self::InvalidValue => "invalid value",
-            Self::NotSupported => "not supported",
-            Self::ExecutionFailed => "execution failed",
-            Self::InternalError => "internal error",
-            Self::IrFailed => "iterative refinement failed",
-            Self::Unknown(_) => "unknown cudss error",
-        }
+        IrFailed = CUDSS_STATUS_IR_FAILED => "iterative refinement failed",
     }
 }
 
@@ -53,28 +41,19 @@ impl Status {
 #[derive(Error, Debug)]
 #[non_exhaustive]
 pub enum Error {
-    // Its library would not load.
+    /// cuDSS or one of its symbols would not load.
     #[error(transparent)]
-    Load(#[from] singe_cudss_sys::LoadError),
-
-    /// A lock was poisoned by a thread that panicked while holding it.
-    #[error("`{name}` lock is poisoned")]
-    LockPoisoned {
-        /// What the lock guards.
-        name: &'static str,
-    },
+    Load(#[from] sys::LoadError),
 
     /// CUDA wrapper error.
     #[error(transparent)]
     Cuda(#[from] CudaError),
 
     /// cuDSS returned a non-success status.
-    #[error("cudss error ({code}): {message}")]
+    #[error("cudss error ({code}): {}", code.description())]
     Cudss {
-        /// Raw cuDSS status mapped into the wrapper status type.
+        /// Native cuDSS status.
         code: Status,
-        /// Human-readable status description.
-        message: String,
     },
 
     /// A string passed to a C API contained an interior NUL byte.
@@ -96,7 +75,27 @@ pub enum Error {
         actual: usize,
     },
 
-    /// A numeric value could not be represented by the target API type.
+    /// A buffer or table is shorter than the operation requires.
+    #[error("`{name}` is too small (requires {required}, got {actual})")]
+    BufferTooSmall {
+        /// Name of the buffer or table.
+        name: Cow<'static, str>,
+        /// Required length.
+        required: usize,
+        /// Supplied length.
+        actual: usize,
+    },
+
+    /// A native enum value has no typed variant in this crate.
+    #[error("unknown `{name}` value {value}")]
+    UnknownEnumValue {
+        /// Name of the typed enum or parameter.
+        name: Cow<'static, str>,
+        /// Unrecognized native value.
+        value: i64,
+    },
+
+    /// A value is outside the range the target API type or operation accepts.
     #[error("`{name}` is out of range")]
     OutOfRange {
         /// Name of the argument or field with the invalid value.
@@ -104,7 +103,7 @@ pub enum Error {
     },
 
     /// A byte count returned by cuDSS did not match the destination size.
-    #[error("`{name}` size mismatch (expected {expected}, got {actual})")]
+    #[error("`{name}` size mismatch (expected {expected} bytes, got {actual})")]
     SizeMismatch {
         /// Name of the queried value.
         name: Cow<'static, str>,
@@ -114,23 +113,12 @@ pub enum Error {
         actual: usize,
     },
 
-    /// A descriptor dimension is negative or otherwise invalid.
-    #[error("invalid matrix dimension `{name}`")]
-    InvalidMatrixDimension {
-        /// Name of the invalid dimension.
-        name: Cow<'static, str>,
-    },
-
     /// A data type is not valid for the requested operation.
     #[error("unsupported data type for `{name}`")]
     UnsupportedDataType {
         /// Name of the operation or field with the unsupported type.
         name: Cow<'static, str>,
     },
-
-    /// A dense matrix leading dimension is invalid for its shape and layout.
-    #[error("invalid leading dimension")]
-    InvalidLeadingDimension,
 
     /// Device memory handler allocator name exceeded cuDSS' fixed buffer.
     #[error("allocator name is too long (max {max} bytes, got {actual})")]
@@ -141,31 +129,27 @@ pub enum Error {
         actual: usize,
     },
 
-    /// A numeric value returned by cuDSS could not be represented by the target Rust type.
-    #[error("integer conversion failed for `{0}`")]
-    IntegerConversion(String),
-
-    /// A native enum parameter value is not recognized by this version.
-    #[error("unknown value {value} for `{name}`")]
-    UnknownParameterValue {
-        /// Name of the parameter whose enum value was not recognized.
+    /// A device list does not match the CUDA device an operation runs on.
+    #[error("`{name}` does not match the cuda device")]
+    DeviceMismatch {
+        /// Name of the device list or device.
         name: Cow<'static, str>,
-        /// Unrecognized native enum discriminant.
-        value: u32,
     },
 
-    /// A raw handle cannot be extracted because wrapper objects still share it.
-    #[error("resource is shared and cannot be consumed")]
-    OwnershipShared,
-
-    /// A buffer, matrix, or stream belongs to another CUDA context.
-    #[error("resource belongs to a different cuda context")]
+    /// A library object belongs to a different cuDSS context.
+    #[error("object belongs to a different cudss context")]
     ContextMismatch,
 
-    /// A completed numeric solver phase reported a matrix failure.
-    #[error("numerical solver failure (info {info})")]
-    NumericalFailure {
-        /// Nonzero cuDSS `Info` value reported after the numerical phase.
+    /// A supplied stream is associated with a different CUDA context.
+    #[error("stream belongs to a different cuda context")]
+    StreamContextMismatch,
+
+    /// A completed solver phase reported a nonzero `Info` value.
+    #[error("`{operation}` failed with {info}")]
+    OperationFailed {
+        /// Name of the solver operation.
+        operation: Cow<'static, str>,
+        /// Nonzero cuDSS `Info` value reported after the operation.
         info: i32,
     },
 }
@@ -179,18 +163,11 @@ impl Error {
     }
 }
 
-impl From<sys::cudssStatus_t> for Error {
-    fn from(status: sys::cudssStatus_t) -> Self {
-        if status == sys::cudssStatus_t::CUDSS_STATUS_NOT_INITIALIZED
-            && let Err(error) = singe_cudss_sys::load()
-        {
-            return Self::Load(error);
-        }
-
-        let code = Status::from(status);
-        Self::Cudss {
-            code,
-            message: code.description().to_string(),
+impl From<singe_core::UnknownEnumValue> for Error {
+    fn from(error: singe_core::UnknownEnumValue) -> Self {
+        Self::UnknownEnumValue {
+            name: error.name.into(),
+            value: error.value,
         }
     }
 }
@@ -201,45 +178,11 @@ impl From<NulError> for Error {
     }
 }
 
-/// Converts a raw cuDSS status-returning expression into a crate [`Result`](crate::error::Result).
-#[macro_export]
+// Converts a raw cuDSS status into this crate's `Result`.
 macro_rules! try_ffi {
-    ($expr:expr) => {{
-        let status = { $expr };
-        if status != singe_cudss_sys::cudssStatus_t::CUDSS_STATUS_SUCCESS {
-            Err($crate::error::Error::from(status))
-        } else {
-            Ok(())
-        }
-    }};
+    ($expr:expr) => {
+        $crate::error::Error::check($expr)
+    };
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_status_converts_from_raw_code() {
-        let status = Status::from(sys::cudssStatus_t::CUDSS_STATUS_INVALID_VALUE);
-        assert_eq!(status, Status::InvalidValue);
-        assert_eq!(
-            status.raw(),
-            sys::cudssStatus_t::CUDSS_STATUS_INVALID_VALUE as u32
-        );
-    }
-
-    #[test]
-    fn test_status_display_uses_c_name() {
-        assert_eq!(
-            Status::InvalidValue.to_string(),
-            "CUDSS_STATUS_INVALID_VALUE"
-        );
-    }
-
-    #[test]
-    fn test_unknown_status_keeps_raw_code() {
-        let status = Status::Unknown(9999);
-        assert_eq!(status.raw(), 9999);
-        assert_eq!(status.to_string(), "UNKNOWN_CUDSS_STATUS(9999)");
-    }
-}
+pub(crate) use try_ffi;

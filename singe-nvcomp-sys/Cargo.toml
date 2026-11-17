@@ -1,12 +1,15 @@
 [package]
 name = "singe-nvcomp-sys"
 description = "Low-level FFI bindings for the NVIDIA nvCOMP compression library."
-version = "0.1.0-alpha.1"
+version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 repository.workspace = true
+documentation = "https://docs.rs/singe-nvcomp-sys"
 license-file.workspace = true
 readme = "README.md"
-keywords = ["cuda", "nvcomp", "compression", "bindings", "ffi"]
+keywords = ["cuda", "nvidia", "nvcomp", "ffi", "bindings"]
+categories = ["external-ffi-bindings", "hardware-support"]
 include = [
     "src/**/*.rs",
     "/build.rs",
@@ -19,17 +22,23 @@ include = [
 ]
 
 [package.metadata.docs.rs]
-rustdoc-args = ["--html-in-header", "dist/katex_header.html"]
+features = ["manager"]
+rustdoc-args = ["--cfg", "docsrs", "--html-in-header", "dist/katex_header.html"]
 
 [features]
 default = ["nvcomp_6_0"]
 
 nvcomp_6_0 = ["singe-cuda-sys/runtime_13_4"]
 
+# Builds the C++ manager bridge, which links nvCOMP at build time.
+manager = ["nvcomp_6_0"]
+
 [dependencies]
 singe-loader.workspace = true
 singe-cuda-sys.workspace = true
-num_enum.workspace = true
+
+[dev-dependencies]
+anyhow.workspace = true
 
 [build-dependencies]
 cc.workspace = true

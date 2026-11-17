@@ -1,7 +1,8 @@
 //! Pinned host and device buffers that decoders reuse for intermediate data.
 
-use std::{ffi::c_void, mem, ptr, sync::Arc};
+use std::{ffi::c_void, mem::ManuallyDrop, ptr, sync::Arc};
 
+use singe_core::report_cleanup_failure;
 use singe_cuda::{context::Context as CudaContext, stream::Stream as CudaStream};
 use singe_nvjpeg_sys as sys;
 
@@ -9,7 +10,7 @@ use crate::{
     context::{Context, JpegState},
     error::{Error, Result},
     try_ffi,
-    utility::{complete, to_u64, to_usize},
+    utility::{to_u64, to_usize},
 };
 
 /// Pinned host buffer that a decoder uses for intermediate data.
@@ -21,6 +22,17 @@ pub struct PinnedBuffer {
     pub(crate) handle: Context,
 }
 
+/// Native pinned host buffer with its library handle, from [`PinnedBuffer::into_raw`].
+///
+/// Dropping it leaks the native handle.
+#[derive(Debug)]
+pub struct RawPinnedBuffer {
+    /// Native handle, owned exclusively.
+    pub handle: sys::nvjpegBufferPinned_t,
+    /// nvJPEG library handle the native handle was created with.
+    pub context: Context,
+}
+
 /// Device buffer that a decoder uses for intermediate data.
 ///
 /// Attach it to a [`JpegState`] with [`JpegState::attach_device_buffer`].
@@ -30,14 +42,31 @@ pub struct DeviceBuffer {
     pub(crate) handle: Context,
 }
 
+/// Native device buffer with its library handle, from [`DeviceBuffer::into_raw`].
+///
+/// Dropping it leaks the native handle.
+#[derive(Debug)]
+pub struct RawDeviceBuffer {
+    /// Native handle, owned exclusively.
+    pub handle: sys::nvjpegBufferDevice_t,
+    /// nvJPEG library handle the native handle was created with.
+    pub context: Context,
+}
+
 /// Memory and size of a buffer, from [`PinnedBuffer::retrieve`] or [`DeviceBuffer::retrieve`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct RawBuffer {
+pub struct BufferMemory {
     ptr: *mut c_void,
     byte_len: usize,
 }
 
-impl RawBuffer {
+// SAFETY: nvJPEG requires a pinned buffer to be used by one thread at a time, not by a fixed thread, and every resize takes `&mut PinnedBuffer`.
+unsafe impl Send for PinnedBuffer {}
+
+// SAFETY: nvJPEG requires a device buffer to be used by one thread at a time, not by a fixed thread, and every resize takes `&mut DeviceBuffer`.
+unsafe impl Send for DeviceBuffer {}
+
+impl BufferMemory {
     fn create(ptr: *mut c_void, byte_len: usize) -> Result<Self> {
         if ptr.is_null() && byte_len != 0 {
             return Err(Error::NullPointer {
@@ -73,32 +102,37 @@ impl RawBuffer {
 }
 
 impl PinnedBuffer {
-    /// Takes ownership of a native pinned host buffer created with `handle`.
+    /// Takes ownership of a native pinned host buffer created with `raw.context`.
     ///
     /// # Safety
     ///
-    /// `raw` must be valid, created with `handle`, and owned by nobody else.
+    /// `raw.handle` must be valid, created with `raw.context`, and owned by nobody else.
     /// It is destroyed when the returned value drops, so all work that used it must have finished.
     ///
     /// # Errors
     ///
-    /// Returns an error if `raw` is null.
-    pub unsafe fn from_raw(raw: sys::nvjpegBufferPinned_t, handle: &Context) -> Result<Self> {
-        if raw.is_null() {
+    /// Returns [`Error::NullHandle`] if `raw.handle` is null.
+    pub unsafe fn from_raw(raw: RawPinnedBuffer) -> Result<Self> {
+        if raw.handle.is_null() {
             return Err(Error::NullHandle);
         }
         Ok(Self {
-            raw,
-            handle: handle.clone(),
+            raw: raw.handle,
+            handle: raw.context,
         })
     }
 
-    /// Releases the native handle without destroying it.
+    /// Releases the native handle with its [`Context`], without destroying it.
     ///
-    /// Destroy it, or pass it back to [`from_raw`](Self::from_raw), while its [`Context`] is alive.
+    /// Destroy the handle, or pass it back to [`from_raw`](Self::from_raw), while the context is alive.
     #[must_use]
-    pub fn into_raw(mut self) -> sys::nvjpegBufferPinned_t {
-        mem::replace(&mut self.raw, ptr::null_mut())
+    pub fn into_raw(self) -> RawPinnedBuffer {
+        let this = ManuallyDrop::new(self);
+        RawPinnedBuffer {
+            handle: this.raw,
+            // SAFETY: `this` is never dropped, so its context moves out exactly once.
+            context: unsafe { ptr::read(&raw const this.handle) },
+        }
     }
 
     /// Returns the CUDA context of the buffer.
@@ -116,7 +150,7 @@ impl PinnedBuffer {
         handle.bind()?;
 
         let mut raw = ptr::null_mut();
-        // SAFETY: `nvjpegBufferPinnedCreate` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `handle` owns a live library handle whose context was bound above, null selects its allocator, and `raw` is a local that receives the buffer.
         unsafe {
             try_ffi!(sys::nvjpegBufferPinnedCreate(
                 handle.as_raw(),
@@ -142,8 +176,8 @@ impl PinnedBuffer {
     ///
     /// Returns an error if `stream` belongs to another CUDA context, the context cannot be bound, `size` does not fit nvJPEG's integer types, nvJPEG fails to resize the buffer, or waiting for `stream` fails.
     pub fn resize(&mut self, size: usize, stream: &CudaStream) -> Result<()> {
-        // SAFETY: `complete` drains the stream before returning, so every borrowed buffer outlives the queued work.
-        complete(stream, || unsafe { self.resize_async(size, stream) })
+        // SAFETY: `complete` waits for `stream` on every path, so the buffer is not used or dropped while the resize is queued.
+        stream.complete(|| unsafe { self.resize_async(size, stream) })
     }
 
     /// Resizes the buffer to `size` bytes, without waiting for `stream`.
@@ -163,7 +197,7 @@ impl PinnedBuffer {
     pub unsafe fn resize_async(&mut self, size: usize, stream: &CudaStream) -> Result<()> {
         self.handle.ensure_stream(stream)?;
 
-        // SAFETY: `nvjpegBufferPinnedResize` receives live handles owned by the wrappers.
+        // SAFETY: `&mut self` owns the live buffer and `stream` belongs to its context, as checked above; the caller keeps the buffer unused until the resize finishes.
         unsafe {
             try_ffi!(sys::nvjpegBufferPinnedResize(
                 self.raw,
@@ -180,12 +214,12 @@ impl PinnedBuffer {
     /// # Errors
     ///
     /// Returns an error if the CUDA context cannot be bound, nvJPEG fails the query, the size does not fit `usize`, or a nonempty buffer has a null pointer.
-    pub fn retrieve(&self) -> Result<RawBuffer> {
+    pub fn retrieve(&self) -> Result<BufferMemory> {
         self.handle.bind()?;
 
         let mut size = 0;
         let mut ptr = ptr::null_mut();
-        // SAFETY: `nvjpegBufferPinnedRetrieve` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `self` owns the live buffer, and `size` and `ptr` are locals that receive its memory.
         unsafe {
             try_ffi!(sys::nvjpegBufferPinnedRetrieve(
                 self.raw,
@@ -193,7 +227,7 @@ impl PinnedBuffer {
                 &raw mut ptr
             ))?;
         }
-        RawBuffer::create(ptr, to_usize(size, "size")?)
+        BufferMemory::create(ptr, to_usize(size, "size")?)
     }
 
     /// Returns the native handle, which this buffer still owns.
@@ -204,32 +238,37 @@ impl PinnedBuffer {
 }
 
 impl DeviceBuffer {
-    /// Takes ownership of a native device buffer created with `handle`.
+    /// Takes ownership of a native device buffer created with `raw.context`.
     ///
     /// # Safety
     ///
-    /// `raw` must be valid, created with `handle`, and owned by nobody else.
+    /// `raw.handle` must be valid, created with `raw.context`, and owned by nobody else.
     /// It is destroyed when the returned value drops, so all work that used it must have finished.
     ///
     /// # Errors
     ///
-    /// Returns an error if `raw` is null.
-    pub unsafe fn from_raw(raw: sys::nvjpegBufferDevice_t, handle: &Context) -> Result<Self> {
-        if raw.is_null() {
+    /// Returns [`Error::NullHandle`] if `raw.handle` is null.
+    pub unsafe fn from_raw(raw: RawDeviceBuffer) -> Result<Self> {
+        if raw.handle.is_null() {
             return Err(Error::NullHandle);
         }
         Ok(Self {
-            raw,
-            handle: handle.clone(),
+            raw: raw.handle,
+            handle: raw.context,
         })
     }
 
-    /// Releases the native handle without destroying it.
+    /// Releases the native handle with its [`Context`], without destroying it.
     ///
-    /// Destroy it, or pass it back to [`from_raw`](Self::from_raw), while its [`Context`] is alive.
+    /// Destroy the handle, or pass it back to [`from_raw`](Self::from_raw), while the context is alive.
     #[must_use]
-    pub fn into_raw(mut self) -> sys::nvjpegBufferDevice_t {
-        mem::replace(&mut self.raw, ptr::null_mut())
+    pub fn into_raw(self) -> RawDeviceBuffer {
+        let this = ManuallyDrop::new(self);
+        RawDeviceBuffer {
+            handle: this.raw,
+            // SAFETY: `this` is never dropped, so its context moves out exactly once.
+            context: unsafe { ptr::read(&raw const this.handle) },
+        }
     }
 
     /// Returns the CUDA context of the buffer.
@@ -247,7 +286,7 @@ impl DeviceBuffer {
         handle.bind()?;
 
         let mut raw = ptr::null_mut();
-        // SAFETY: `nvjpegBufferDeviceCreate` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `handle` owns a live library handle whose context was bound above, null selects its allocator, and `raw` is a local that receives the buffer.
         unsafe {
             try_ffi!(sys::nvjpegBufferDeviceCreate(
                 handle.as_raw(),
@@ -273,8 +312,8 @@ impl DeviceBuffer {
     ///
     /// Returns an error if `stream` belongs to another CUDA context, the context cannot be bound, `size` does not fit nvJPEG's integer types, nvJPEG fails to resize the buffer, or waiting for `stream` fails.
     pub fn resize(&mut self, size: usize, stream: &CudaStream) -> Result<()> {
-        // SAFETY: `complete` drains the stream before returning, so every borrowed buffer outlives the queued work.
-        complete(stream, || unsafe { self.resize_async(size, stream) })
+        // SAFETY: `complete` waits for `stream` on every path, so the buffer is not used or dropped while the resize is queued.
+        stream.complete(|| unsafe { self.resize_async(size, stream) })
     }
 
     /// Resizes the buffer to `size` bytes, without waiting for `stream`.
@@ -294,7 +333,7 @@ impl DeviceBuffer {
     pub unsafe fn resize_async(&mut self, size: usize, stream: &CudaStream) -> Result<()> {
         self.handle.ensure_stream(stream)?;
 
-        // SAFETY: `nvjpegBufferDeviceResize` receives live handles owned by the wrappers.
+        // SAFETY: `&mut self` owns the live buffer and `stream` belongs to its context, as checked above; the caller keeps the buffer unused until the resize finishes.
         unsafe {
             try_ffi!(sys::nvjpegBufferDeviceResize(
                 self.raw,
@@ -311,12 +350,12 @@ impl DeviceBuffer {
     /// # Errors
     ///
     /// Returns an error if the CUDA context cannot be bound, nvJPEG fails the query, the size does not fit `usize`, or a nonempty buffer has a null pointer.
-    pub fn retrieve(&self) -> Result<RawBuffer> {
+    pub fn retrieve(&self) -> Result<BufferMemory> {
         self.handle.bind()?;
 
         let mut size = 0;
         let mut ptr = ptr::null_mut();
-        // SAFETY: `nvjpegBufferDeviceRetrieve` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `self` owns the live buffer, and `size` and `ptr` are locals that receive its memory.
         unsafe {
             try_ffi!(sys::nvjpegBufferDeviceRetrieve(
                 self.raw,
@@ -324,7 +363,7 @@ impl DeviceBuffer {
                 &raw mut ptr
             ))?;
         }
-        RawBuffer::create(ptr, to_usize(size, "size")?)
+        BufferMemory::create(ptr, to_usize(size, "size")?)
     }
 
     /// Returns the native handle, which this buffer still owns.
@@ -346,11 +385,11 @@ impl JpegState {
     /// The state keeps `buffer` even if nvJPEG rejects it.
     pub fn attach_pinned_buffer(&mut self, buffer: PinnedBuffer) -> Result<()> {
         self.handle.bind()?;
-        self.handle.ensure_handle(&buffer.handle)?;
+        self.handle.ensure_handle(&buffer.handle, "buffer")?;
         let raw = buffer.raw;
         self.pinned_buffers.push(buffer);
 
-        // SAFETY: `nvjpegStateAttachPinnedBuffer` receives live handles owned by the wrappers.
+        // SAFETY: the state and the buffer are live handles of the same context, and the state now keeps the buffer alive for as long as it can use it.
         unsafe { try_ffi!(sys::nvjpegStateAttachPinnedBuffer(self.as_raw(), raw)) }
     }
 
@@ -365,29 +404,30 @@ impl JpegState {
     /// The state keeps `buffer` even if nvJPEG rejects it.
     pub fn attach_device_buffer(&mut self, buffer: DeviceBuffer) -> Result<()> {
         self.handle.bind()?;
-        self.handle.ensure_handle(&buffer.handle)?;
+        self.handle.ensure_handle(&buffer.handle, "buffer")?;
         let raw = buffer.raw;
         self.device_buffers.push(buffer);
 
-        // SAFETY: `nvjpegStateAttachDeviceBuffer` receives live handles owned by the wrappers.
+        // SAFETY: the state and the buffer are live handles of the same context, and the state now keeps the buffer alive for as long as it can use it.
         unsafe { try_ffi!(sys::nvjpegStateAttachDeviceBuffer(self.as_raw(), raw)) }
     }
 }
 
 impl Drop for PinnedBuffer {
     fn drop(&mut self) {
-        if self.handle.bind().is_err() {
+        if let Err(error) = self.handle.bind() {
+            report_cleanup_failure(
+                "bind the cuda context to destroy",
+                "nvjpeg pinned buffer",
+                &error,
+            );
             return;
         }
+
         if !self.raw.is_null() {
-            // SAFETY: `nvjpegBufferPinnedDestroy` receives live handles owned by the wrappers.
-            unsafe {
-                if let Err(error) = try_ffi!(sys::nvjpegBufferPinnedDestroy(self.raw)) {
-                    eprintln!(
-                        "failed to destroy nvjpeg pinned buffer: {}",
-                        singe_core::ErrorChain(&error)
-                    );
-                }
+            // SAFETY: the buffer owns its handle exclusively and is destroyed once; a state it was attached to holds it, so it drops after the state stops using it.
+            if let Err(error) = unsafe { try_ffi!(sys::nvjpegBufferPinnedDestroy(self.raw)) } {
+                report_cleanup_failure("destroy", "nvjpeg pinned buffer", &error);
             }
         }
     }
@@ -395,18 +435,19 @@ impl Drop for PinnedBuffer {
 
 impl Drop for DeviceBuffer {
     fn drop(&mut self) {
-        if self.handle.bind().is_err() {
+        if let Err(error) = self.handle.bind() {
+            report_cleanup_failure(
+                "bind the cuda context to destroy",
+                "nvjpeg device buffer",
+                &error,
+            );
             return;
         }
+
         if !self.raw.is_null() {
-            // SAFETY: `nvjpegBufferDeviceDestroy` receives live handles owned by the wrappers.
-            unsafe {
-                if let Err(error) = try_ffi!(sys::nvjpegBufferDeviceDestroy(self.raw)) {
-                    eprintln!(
-                        "failed to destroy nvjpeg device buffer: {}",
-                        singe_core::ErrorChain(&error)
-                    );
-                }
+            // SAFETY: the buffer owns its handle exclusively and is destroyed once; a state it was attached to holds it, so it drops after the state stops using it.
+            if let Err(error) = unsafe { try_ffi!(sys::nvjpegBufferDeviceDestroy(self.raw)) } {
+                report_cleanup_failure("destroy", "nvjpeg device buffer", &error);
             }
         }
     }
@@ -417,19 +458,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_raw_buffer_accessors_report_pointer_and_byte_len() {
-        let mut value = 42u8;
-        let buffer = RawBuffer::create((&raw mut value).cast(), 1).unwrap();
-
-        assert_eq!(buffer.as_ptr(), (&raw const value).cast());
-        assert_eq!(buffer.as_mut_ptr(), (&raw mut value).cast());
-        assert_eq!(buffer.byte_len(), 1);
-        assert!(!buffer.is_empty());
-    }
-
-    #[test]
-    fn test_raw_buffer_is_empty_when_byte_len_is_zero() {
-        let buffer = RawBuffer::create(ptr::null_mut(), 0).unwrap();
+    fn test_buffer_memory_is_empty_when_byte_len_is_zero() {
+        let buffer = BufferMemory::create(ptr::null_mut(), 0).unwrap();
 
         assert!(buffer.is_empty());
     }

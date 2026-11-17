@@ -1,12 +1,15 @@
 use std::{
     mem::{ManuallyDrop, MaybeUninit},
     ptr,
+    sync::Arc,
 };
 
+use singe_core::report_cleanup_failure;
 use singe_cuda::{
     data_type::{DataType, DataTypeLike},
     memory::DeviceMemory,
-    stream::Stream,
+    stream::{AsStream, Stream, StreamBinding},
+    view::DeviceRegionProvider,
 };
 use singe_cutensor_sys as sys;
 
@@ -21,7 +24,7 @@ use crate::{
     operation::ComputeDescriptor,
     try_ffi,
     types::{Mode, Operator},
-    utility::{modes_to_i32_vec, to_i32},
+    utility::{modes_to_i32_vec, to_i32, to_usize},
 };
 
 /// Owns a distributed operation and optional checked local-shard signature.
@@ -49,6 +52,54 @@ pub struct Plan<'comm> {
     stream: Option<Stream>,
     handle: sys::cutensorMpPlan_t,
     context: ContextRef<'comm>,
+}
+
+/// Transferred native operation descriptor with its checked signature and retained multi-process context.
+///
+/// Destroy `handle` before releasing this record, or reclaim it with [`OperationDescriptor::from_raw`].
+/// Dropping this record does not destroy the native handle.
+#[derive(Debug)]
+pub struct RawOperationDescriptor<'comm> {
+    /// Transferred native descriptor handle; destroy it before releasing the retained context.
+    pub handle: sys::cutensorMpOperationDescriptor_t,
+    // The checked signature is wrapper state, so only `into_raw` can produce this record.
+    signature: Option<Signature>,
+    /// Multi-process context the descriptor was created in.
+    pub context: Context<'comm>,
+}
+
+/// Transferred native plan preference with its settings and retained multi-process context.
+///
+/// Destroy `handle` before releasing this record, or reclaim it with [`PlanPreference::from_raw`].
+/// Dropping this record does not destroy the native handle.
+#[derive(Debug)]
+pub struct RawPlanPreference<'comm> {
+    /// Transferred native preference handle; destroy it before releasing the retained context.
+    pub handle: sys::cutensorMpPlanPreference_t,
+    /// Multi-process context the preference was created in.
+    pub context: Context<'comm>,
+    /// Algorithm the preference selects.
+    pub algorithm: Algorithm,
+    /// Device workspace byte limit for this rank.
+    pub device_workspace_limit: u64,
+    /// Host workspace byte limit for this rank.
+    pub host_workspace_limit: u64,
+}
+
+/// Transferred native plan with its checked signature, stream, and retained multi-process context.
+///
+/// Destroy `handle` before releasing this record, or reclaim it with [`Plan::from_raw`].
+/// Dropping this record does not destroy the native handle.
+#[derive(Debug)]
+pub struct RawPlan<'comm> {
+    /// Transferred native plan handle; destroy it before releasing the retained context and stream.
+    pub handle: sys::cutensorMpPlan_t,
+    // The checked signature is wrapper state, so only `into_raw` can produce this record.
+    signature: Option<Signature>,
+    /// Stream retained by the plan, or `None` to use the handle stream.
+    pub stream: Option<Stream>,
+    /// Multi-process context the plan was created in.
+    pub context: Context<'comm>,
 }
 
 /// Required device and host workspace capacities in bytes for the calling rank.
@@ -108,7 +159,7 @@ impl<'comm> OperationDescriptor<'comm> {
         });
         let mut handle = ptr::null_mut();
         context.bind()?;
-        // SAFETY: `cutensorMpCreateContraction` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
+        // SAFETY: `context` and the operand descriptors (checked to share it above) are live, each mode array has its descriptor's rank (`validate_modes`), and `handle` is a local output.
         unsafe {
             try_ffi!(sys::cutensorMpCreateContraction(
                 context.as_raw(),
@@ -139,31 +190,6 @@ impl<'comm> OperationDescriptor<'comm> {
         })
     }
 
-    /// Wraps an existing cuTENSORMp operation descriptor.
-    ///
-    /// # Safety
-    ///
-    /// `handle` must be a valid cuTENSORMp operation descriptor associated with `context`.
-    /// The returned value takes ownership of `handle` and destroys it on drop.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if `handle` is null.
-    pub unsafe fn from_raw(
-        handle: sys::cutensorMpOperationDescriptor_t,
-        context: &Context<'comm>,
-    ) -> Result<Self> {
-        if handle.is_null() {
-            return Err(Error::NullHandle);
-        }
-
-        Ok(Self {
-            signature: None,
-            handle,
-            context: context.as_context_ref(),
-        })
-    }
-
     pub(crate) fn context(&self) -> &ContextRef<'comm> {
         &self.context
     }
@@ -174,13 +200,42 @@ impl<'comm> OperationDescriptor<'comm> {
         self.handle
     }
 
-    /// Consumes this descriptor and returns the owned raw cuTENSORMp operation descriptor.
+    /// Consumes this descriptor and returns the native handle without destroying it.
     ///
-    /// The caller becomes responsible for destroying the descriptor.
+    /// The returned record retains the multi-process context and the checked signature.
+    /// Destroy its handle before releasing the record, or reclaim it with `from_raw`.
     #[must_use]
-    pub fn into_raw(self) -> sys::cutensorMpOperationDescriptor_t {
-        let this = ManuallyDrop::new(self);
-        this.handle
+    pub fn into_raw(self) -> RawOperationDescriptor<'comm> {
+        let owner = ManuallyDrop::new(self);
+        // SAFETY: `owner` is never dropped, so each field is read out exactly once.
+        unsafe {
+            RawOperationDescriptor {
+                handle: owner.handle,
+                signature: ptr::read(&raw const owner.signature),
+                context: ptr::read(&raw const owner.context).into_context(),
+            }
+        }
+    }
+
+    /// Reclaims a transferred native operation descriptor with its signature and multi-process context.
+    ///
+    /// # Safety
+    ///
+    /// `raw.handle` must remain valid and uniquely owned.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `raw.handle` is null.
+    pub unsafe fn from_raw(raw: RawOperationDescriptor<'comm>) -> Result<Self> {
+        if raw.handle.is_null() {
+            return Err(Error::NullHandle);
+        }
+
+        Ok(Self {
+            signature: raw.signature,
+            handle: raw.handle,
+            context: raw.context.into_context_ref(),
+        })
     }
 }
 
@@ -198,7 +253,7 @@ impl<'comm> PlanPreference<'comm> {
     ) -> Result<Self> {
         let mut handle = ptr::null_mut();
         context.bind()?;
-        // SAFETY: `cutensorMpCreatePlanPreference` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `context` keeps the multi-process handle live, `algorithm` is a valid enum value, and `handle` is a local output.
         unsafe {
             try_ffi!(sys::cutensorMpCreatePlanPreference(
                 context.as_raw(),
@@ -209,37 +264,6 @@ impl<'comm> PlanPreference<'comm> {
             ))?;
         }
 
-        if handle.is_null() {
-            return Err(Error::NullHandle);
-        }
-
-        Ok(Self {
-            handle,
-            context: context.as_context_ref(),
-            algorithm,
-            device_workspace_limit,
-            host_workspace_limit,
-        })
-    }
-
-    /// Wraps an existing cuTENSORMp plan preference.
-    ///
-    /// # Safety
-    ///
-    /// `handle` must be a valid cuTENSORMp plan preference associated with `context`.
-    /// Metadata arguments must describe the raw preference.
-    /// The returned value takes ownership of `handle` and destroys it on drop.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if `handle` is null.
-    pub unsafe fn from_raw(
-        handle: sys::cutensorMpPlanPreference_t,
-        context: &Context<'comm>,
-        algorithm: Algorithm,
-        device_workspace_limit: u64,
-        host_workspace_limit: u64,
-    ) -> Result<Self> {
         if handle.is_null() {
             return Err(Error::NullHandle);
         }
@@ -281,13 +305,47 @@ impl<'comm> PlanPreference<'comm> {
         self.handle
     }
 
-    /// Consumes this preference and returns the owned raw cuTENSORMp plan preference.
+    /// Consumes this preference and returns the native handle without destroying it.
     ///
-    /// The caller becomes responsible for destroying the preference.
+    /// The returned record retains the multi-process context and the recorded settings.
+    /// Destroy its handle before releasing the record, or reclaim it with `from_raw`.
     #[must_use]
-    pub fn into_raw(self) -> sys::cutensorMpPlanPreference_t {
-        let this = ManuallyDrop::new(self);
-        this.handle
+    pub fn into_raw(self) -> RawPlanPreference<'comm> {
+        let owner = ManuallyDrop::new(self);
+        // SAFETY: `owner` is never dropped, so each field is read out exactly once.
+        unsafe {
+            RawPlanPreference {
+                handle: owner.handle,
+                context: ptr::read(&raw const owner.context).into_context(),
+                algorithm: owner.algorithm,
+                device_workspace_limit: owner.device_workspace_limit,
+                host_workspace_limit: owner.host_workspace_limit,
+            }
+        }
+    }
+
+    /// Takes ownership of a native cuTENSORMp plan preference with its settings and multi-process context.
+    ///
+    /// # Safety
+    ///
+    /// `raw.handle` must be a valid plan preference created in `raw.context` with the record's algorithm and workspace limits, and uniquely owned.
+    /// The handle must not be destroyed elsewhere afterward.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `raw.handle` is null.
+    pub unsafe fn from_raw(raw: RawPlanPreference<'comm>) -> Result<Self> {
+        if raw.handle.is_null() {
+            return Err(Error::NullHandle);
+        }
+
+        Ok(Self {
+            handle: raw.handle,
+            context: raw.context.into_context_ref(),
+            algorithm: raw.algorithm,
+            device_workspace_limit: raw.device_workspace_limit,
+            host_workspace_limit: raw.host_workspace_limit,
+        })
     }
 }
 
@@ -296,7 +354,6 @@ impl<'comm> Plan<'comm> {
     ///
     /// All communicator ranks must provide matching operation descriptions and algorithm choices.
     /// Workspace limits are local resource budgets and may differ by rank.
-    /// Plans created from raw descriptors without tracked signatures require explicit raw execution.
     ///
     /// # Errors
     ///
@@ -314,7 +371,7 @@ impl<'comm> Plan<'comm> {
 
         let mut handle = ptr::null_mut();
         context.bind()?;
-        // SAFETY: `cutensorMpCreatePlan` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `context`, `desc`, and `preference` (checked to share one handle above) are live, and `handle` is a local output.
         unsafe {
             try_ffi!(sys::cutensorMpCreatePlan(
                 context.as_raw(),
@@ -330,32 +387,6 @@ impl<'comm> Plan<'comm> {
 
         Ok(Self {
             signature: desc.signature.clone(),
-            stream: None,
-            handle,
-            context: context.as_context_ref(),
-        })
-    }
-
-    /// Wraps an existing cuTENSORMp plan.
-    ///
-    /// # Safety
-    ///
-    /// `handle` must be a valid cuTENSORMp plan associated with `context`.
-    /// The returned value takes ownership of `handle` and destroys it on drop.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if `handle` is null.
-    pub unsafe fn from_raw(
-        handle: sys::cutensorMpPlan_t,
-        context: &Context<'comm>,
-    ) -> Result<Self> {
-        if handle.is_null() {
-            return Err(Error::NullHandle);
-        }
-
-        Ok(Self {
-            signature: None,
             stream: None,
             handle,
             context: context.as_context_ref(),
@@ -383,15 +414,64 @@ impl<'comm> Plan<'comm> {
         WorkspaceMemory::create(self.context.cuda_context(), self.workspace()?)
     }
 
-    /// Submits a distributed contraction using checked local device allocations.
+    /// Enqueues a distributed contraction over checked local device allocations.
     ///
-    /// Execution uses the plan's configured stream or the handle stream and may leave CUDA work pending.
+    /// Execution uses the plan's stream, the handle's stream, or the legacy default stream, in that order.
     /// All participating communicator ranks must issue matching operations.
-    /// Preserve input readiness and retain allocations, plans, and workspace through host and device completion on every path.
+    ///
+    /// # Safety
+    ///
+    /// Follow the crate's [raw execution contract](crate#raw-execution); the host workspace is part of the workspace it covers.
     ///
     /// # Errors
     ///
-    /// Returns an error if no tracked contraction signature is available, a tensor sample type differs from the signature or its storage span is too small, scalar types differ, workspace belongs to another context or has insufficient capacity, a workspace byte count cannot fit `usize`, CUDA context binding or workspace querying fails, or native contraction submission fails.
+    /// Returns an error if no tracked contraction signature is available, a tensor sample type differs from the signature or its storage span is too small, scalar types differ, an operand or the workspace belongs to another context, the workspace has insufficient capacity, a workspace byte count cannot fit `usize`, CUDA context binding or workspace querying fails, or native contraction submission fails.
+    pub unsafe fn contract_async<
+        TA: DataTypeLike,
+        TB: DataTypeLike,
+        TC: DataTypeLike,
+        TD: DataTypeLike,
+        TScalar: DataTypeLike,
+    >(
+        &self,
+        alpha: &TScalar,
+        a: &DeviceMemory<TA>,
+        b: &DeviceMemory<TB>,
+        beta: &TScalar,
+        c: &DeviceMemory<TC>,
+        d: &mut DeviceMemory<TD>,
+        workspace: &mut WorkspaceMemory<'comm>,
+    ) -> Result<()> {
+        self.validate_contraction::<TA, TB, TC, TD, TScalar>(a, b, c, d)?;
+        workspace.prepare(&self.context, self.workspace()?)?;
+        self.stream_binding().join_regions(&[
+            a.region(),
+            b.region(),
+            c.region(),
+            d.region(),
+            workspace.device_region(),
+        ])?;
+        // SAFETY: the tensors, scalars, and workspace were checked against this plan above; the caller keeps them alive through completion.
+        unsafe {
+            self.enqueue_contraction(
+                ptr::from_ref(alpha).cast(),
+                a.as_ptr().cast(),
+                b.as_ptr().cast(),
+                ptr::from_ref(beta).cast(),
+                c.as_ptr().cast(),
+                d.as_mut_ptr().cast(),
+                workspace,
+            )
+        }
+    }
+
+    /// Computes a distributed contraction over checked local device allocations and waits for it.
+    ///
+    /// All participating communicator ranks must issue matching operations.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the execution stream is capturing, the checks of [`Self::contract_async`] fail, native contraction submission fails, or the stream reports an error.
     pub fn contract<
         TA: DataTypeLike,
         TB: DataTypeLike,
@@ -407,6 +487,111 @@ impl<'comm> Plan<'comm> {
         c: &DeviceMemory<TC>,
         d: &mut DeviceMemory<TD>,
         workspace: &mut WorkspaceMemory<'comm>,
+    ) -> Result<()> {
+        self.stream_binding().sync_scope(|| {
+            // SAFETY: every operand and the workspace stay borrowed until `sync_scope` has drained the execution stream, and the output borrows are exclusive.
+            unsafe { self.contract_async(alpha, a, b, beta, c, d, workspace) }
+        })
+    }
+
+    /// Enqueues a distributed contraction with C and D sharing the same local storage.
+    ///
+    /// Execution uses the plan's stream, the handle's stream, or the legacy default stream, in that order.
+    /// All participating communicator ranks must issue matching operations.
+    ///
+    /// # Safety
+    ///
+    /// Follow the crate's [raw execution contract](crate#raw-execution); the host workspace is part of the workspace it covers.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error under the conditions of [`Self::contract_async`].
+    pub unsafe fn contract_in_place_async<
+        TA: DataTypeLike,
+        TB: DataTypeLike,
+        TC: DataTypeLike,
+        TScalar: DataTypeLike,
+    >(
+        &self,
+        alpha: &TScalar,
+        a: &DeviceMemory<TA>,
+        b: &DeviceMemory<TB>,
+        beta: &TScalar,
+        c_and_d: &mut DeviceMemory<TC>,
+        workspace: &mut WorkspaceMemory<'comm>,
+    ) -> Result<()> {
+        self.validate_contraction::<TA, TB, TC, TC, TScalar>(a, b, c_and_d, c_and_d)?;
+        workspace.prepare(&self.context, self.workspace()?)?;
+        self.stream_binding().join_regions(&[
+            a.region(),
+            b.region(),
+            c_and_d.region(),
+            workspace.device_region(),
+        ])?;
+        // SAFETY: the tensors, scalars, and workspace were checked against this plan above; the caller keeps them alive through completion.
+        unsafe {
+            self.enqueue_contraction(
+                ptr::from_ref(alpha).cast(),
+                a.as_ptr().cast(),
+                b.as_ptr().cast(),
+                ptr::from_ref(beta).cast(),
+                c_and_d.as_ptr().cast(),
+                c_and_d.as_mut_ptr().cast(),
+                workspace,
+            )
+        }
+    }
+
+    /// Computes a distributed contraction with C and D sharing the same local storage and waits for it.
+    ///
+    /// All participating communicator ranks must issue matching operations.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the execution stream is capturing, the checks of [`Self::contract_async`] fail, native contraction submission fails, or the stream reports an error.
+    pub fn contract_in_place<
+        TA: DataTypeLike,
+        TB: DataTypeLike,
+        TC: DataTypeLike,
+        TScalar: DataTypeLike,
+    >(
+        &self,
+        alpha: &TScalar,
+        a: &DeviceMemory<TA>,
+        b: &DeviceMemory<TB>,
+        beta: &TScalar,
+        c_and_d: &mut DeviceMemory<TC>,
+        workspace: &mut WorkspaceMemory<'comm>,
+    ) -> Result<()> {
+        self.stream_binding().sync_scope(|| {
+            // SAFETY: every operand and the workspace stay borrowed until `sync_scope` has drained the execution stream, and the output borrow is exclusive.
+            unsafe { self.contract_in_place_async(alpha, a, b, beta, c_and_d, workspace) }
+        })
+    }
+
+    // Returns the stream executions run on: the plan's, the handle's, or the legacy default stream.
+    fn stream_binding(&self) -> StreamBinding {
+        self.stream
+            .as_ref()
+            .or_else(|| self.context.stream())
+            .map_or_else(
+                || StreamBinding::Default(Arc::clone(self.context.cuda_context())),
+                |stream| StreamBinding::Borrowed(stream.to_borrowed()),
+            )
+    }
+
+    fn validate_contraction<
+        TA: DataTypeLike,
+        TB: DataTypeLike,
+        TC: DataTypeLike,
+        TD: DataTypeLike,
+        TScalar: DataTypeLike,
+    >(
+        &self,
+        a: &DeviceMemory<TA>,
+        b: &DeviceMemory<TB>,
+        c: &DeviceMemory<TC>,
+        d: &DeviceMemory<TD>,
     ) -> Result<()> {
         let Some(Signature::Contraction {
             a: sa,
@@ -428,99 +613,11 @@ impl<'comm> Plan<'comm> {
                 memory: TScalar::data_type(),
             });
         }
-
-        workspace.prepare(&self.context, self.workspace()?)?;
-        // SAFETY: the tensors, scalars and workspace were validated against this plan context above and stay borrowed for the call.
-        unsafe {
-            self.contract_raw(
-                ptr::from_ref(alpha).cast(),
-                a.as_ptr().cast(),
-                b.as_ptr().cast(),
-                ptr::from_ref(beta).cast(),
-                c.as_ptr().cast(),
-                d.as_mut_ptr().cast(),
-                workspace.device_mut_ptr(),
-                workspace.host_mut_ptr(),
-            )
-        }
+        Ok(())
     }
 
-    /// Submits a distributed contraction with C and D sharing the same local storage.
-    ///
-    /// Execution uses the plan's configured stream or the handle stream and may leave CUDA work pending.
-    /// All participating communicator ranks must issue matching operations.
-    /// Preserve input readiness and retain allocations, plans, and workspace through host and device completion on every path.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if no tracked contraction signature is available, a tensor sample type differs from the signature or its storage span is too small, scalar types differ, workspace belongs to another context or has insufficient capacity, a workspace byte count cannot fit `usize`, CUDA context binding or workspace querying fails, or native contraction submission fails.
-    pub fn contract_in_place<
-        TA: DataTypeLike,
-        TB: DataTypeLike,
-        TC: DataTypeLike,
-        TScalar: DataTypeLike,
-    >(
-        &self,
-        alpha: &TScalar,
-        a: &DeviceMemory<TA>,
-        b: &DeviceMemory<TB>,
-        beta: &TScalar,
-        c_and_d: &mut DeviceMemory<TC>,
-        workspace: &mut WorkspaceMemory<'comm>,
-    ) -> Result<()> {
-        let Some(Signature::Contraction {
-            a: sa,
-            b: sb,
-            c: sc,
-            d: sd,
-            scalar_type,
-        }) = &self.signature
-        else {
-            return Err(operation_mismatch("contraction"));
-        };
-        sa.validate(a, "a")?;
-        sb.validate(b, "b")?;
-        sc.validate(c_and_d, "c")?;
-        sd.validate(c_and_d, "d")?;
-        if TScalar::data_type() != *scalar_type {
-            return Err(Error::ScalarDataTypeMismatch {
-                descriptor: *scalar_type,
-                memory: TScalar::data_type(),
-            });
-        }
-
-        workspace.prepare(&self.context, self.workspace()?)?;
-        // SAFETY: the tensors, scalars and workspace were validated against this plan context above and stay borrowed for the call.
-        unsafe {
-            self.contract_raw(
-                ptr::from_ref(alpha).cast(),
-                a.as_ptr().cast(),
-                b.as_ptr().cast(),
-                ptr::from_ref(beta).cast(),
-                c_and_d.as_ptr().cast(),
-                c_and_d.as_mut_ptr().cast(),
-                workspace.device_mut_ptr(),
-                workspace.host_mut_ptr(),
-            )
-        }
-    }
-
-    /// Executes this distributed contraction with raw local tensor pointers.
-    ///
-    /// # Safety
-    ///
-    /// Pointers must refer to the local rank's tensor shards and workspaces matching the descriptors and plan.
-    /// Scalars must have the type expected by cuTENSORMp for the data-type combination.
-    /// All pointers must remain valid for the duration of the launched operation, and `d`, `device_workspace`, and `host_workspace` must be writable according to the plan's workspace requirements.
-    ///
-    /// Execution uses the plan's configured stream or the handle stream and may leave CUDA work pending.
-    /// All participating communicator ranks must issue matching operations.
-    /// Preserve input readiness and retain allocations, plans, and workspace through host and device completion on every path.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if CUDA context binding or native contraction submission fails.
-    pub unsafe fn contract_raw(
+    // Submits the native contraction over checked pointers.
+    unsafe fn enqueue_contraction(
         &self,
         alpha: *const (),
         a: *const (),
@@ -528,12 +625,11 @@ impl<'comm> Plan<'comm> {
         beta: *const (),
         c: *const (),
         d: *mut (),
-        device_workspace: *mut (),
-        host_workspace: *mut (),
+        workspace: &mut WorkspaceMemory<'comm>,
     ) -> Result<()> {
         let _lock = self.context.lock_execution()?;
         self.context.bind()?;
-        // SAFETY: `cutensorMpContract` receives live handles owned by the wrappers.
+        // SAFETY: the caller passes pointers and a workspace checked against this plan.
         unsafe {
             try_ffi!(sys::cutensorMpContract(
                 self.context.as_raw(),
@@ -544,11 +640,10 @@ impl<'comm> Plan<'comm> {
                 beta.cast(),
                 c.cast(),
                 d.cast(),
-                device_workspace.cast(),
-                host_workspace.cast(),
-            ))?;
+                workspace.device_mut_ptr().cast(),
+                workspace.host_mut_ptr().cast(),
+            ))
         }
-        Ok(())
     }
 
     /// Returns the borrowed native execution plan handle.
@@ -557,19 +652,50 @@ impl<'comm> Plan<'comm> {
         self.handle
     }
 
-    /// Consumes this plan and returns the owned raw cuTENSORMp plan.
+    /// Consumes this plan and returns the native handle without destroying it.
     ///
-    /// The caller becomes responsible for destroying the plan.
+    /// The returned record retains the multi-process context, the checked signature, and the plan's stream.
+    /// Destroy its handle before releasing the record, or reclaim it with `from_raw`.
     #[must_use]
-    pub fn into_raw(self) -> sys::cutensorMpPlan_t {
-        let this = ManuallyDrop::new(self);
-        this.handle
+    pub fn into_raw(self) -> RawPlan<'comm> {
+        let owner = ManuallyDrop::new(self);
+        // SAFETY: `owner` is never dropped, so each field is read out exactly once.
+        unsafe {
+            RawPlan {
+                handle: owner.handle,
+                signature: ptr::read(&raw const owner.signature),
+                stream: ptr::read(&raw const owner.stream),
+                context: ptr::read(&raw const owner.context).into_context(),
+            }
+        }
+    }
+
+    /// Reclaims a transferred native plan with its signature, stream, and multi-process context.
+    ///
+    /// # Safety
+    ///
+    /// `raw.handle` must remain valid and uniquely owned.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `raw.handle` is null.
+    pub unsafe fn from_raw(raw: RawPlan<'comm>) -> Result<Self> {
+        if raw.handle.is_null() {
+            return Err(Error::NullHandle);
+        }
+
+        Ok(Self {
+            signature: raw.signature,
+            stream: raw.stream,
+            handle: raw.handle,
+            context: raw.context.into_context_ref(),
+        })
     }
 
     fn attribute<T: Copy>(&self, attr: PlanAttribute) -> Result<T> {
         let mut value = MaybeUninit::<T>::uninit();
         self.context.bind()?;
-        // SAFETY: the library wrote exactly `size_of::<T>()` bytes, checked above, initializing `value`.
+        // SAFETY: `self.handle` is live, both callers read `u64` workspace attributes into a `u64` `value`, and a successful call fills it.
         unsafe {
             try_ffi!(sys::cutensorMpPlanGetAttribute(
                 self.context.as_raw(),
@@ -600,18 +726,18 @@ impl Workspace {
 impl Drop for OperationDescriptor<'_> {
     fn drop(&mut self) {
         if let Err(error) = self.context.bind() {
-            eprintln!(
-                "failed to bind cutensormp context before destroying operation descriptor: {error}"
+            report_cleanup_failure(
+                "bind the cuda context to destroy",
+                "cutensormp operation descriptor",
+                &error,
             );
+            return;
         }
 
-        // SAFETY: `cutensorMpDestroyOperationDescriptor` receives live handles owned by the wrappers.
+        // SAFETY: the descriptor exclusively owns its non-null handle, and `self.context` keeps the multi-process handle live.
         unsafe {
             if let Err(error) = try_ffi!(sys::cutensorMpDestroyOperationDescriptor(self.handle)) {
-                eprintln!(
-                    "failed to destroy cutensormp operation descriptor: {}",
-                    singe_core::ErrorChain(&error)
-                );
+                report_cleanup_failure("destroy", "cutensormp operation descriptor", &error);
             }
         }
     }
@@ -620,18 +746,18 @@ impl Drop for OperationDescriptor<'_> {
 impl Drop for PlanPreference<'_> {
     fn drop(&mut self) {
         if let Err(error) = self.context.bind() {
-            eprintln!(
-                "failed to bind cutensormp context before destroying plan preference: {error}"
+            report_cleanup_failure(
+                "bind the cuda context to destroy",
+                "cutensormp plan preference",
+                &error,
             );
+            return;
         }
 
-        // SAFETY: `cutensorMpDestroyPlanPreference` receives live handles owned by the wrappers.
+        // SAFETY: the preference exclusively owns its non-null handle, and `self.context` keeps the multi-process handle live.
         unsafe {
             if let Err(error) = try_ffi!(sys::cutensorMpDestroyPlanPreference(self.handle)) {
-                eprintln!(
-                    "failed to destroy cutensormp plan preference: {}",
-                    singe_core::ErrorChain(&error)
-                );
+                report_cleanup_failure("destroy", "cutensormp plan preference", &error);
             }
         }
     }
@@ -640,19 +766,18 @@ impl Drop for PlanPreference<'_> {
 impl Drop for Plan<'_> {
     fn drop(&mut self) {
         if let Err(error) = self.context.bind() {
-            eprintln!(
-                "failed to bind cutensormp context before destroying plan: {}",
-                singe_core::ErrorChain(&error)
+            report_cleanup_failure(
+                "bind the cuda context to destroy",
+                "cutensormp plan",
+                &error,
             );
+            return;
         }
 
-        // SAFETY: `cutensorMpDestroyPlan` receives live handles owned by the wrappers.
+        // SAFETY: the plan exclusively owns its non-null handle, and `self.context` keeps the multi-process handle live.
         unsafe {
             if let Err(error) = try_ffi!(sys::cutensorMpDestroyPlan(self.handle)) {
-                eprintln!(
-                    "failed to destroy cutensormp plan: {}",
-                    singe_core::ErrorChain(&error)
-                );
+                report_cleanup_failure("destroy", "cutensormp plan", &error);
             }
         }
     }
@@ -682,7 +807,11 @@ impl Shard {
         })
     }
 
-    fn validate<T: DataTypeLike>(&self, memory: &DeviceMemory<T>, _name: &str) -> Result<()> {
+    fn validate<T: DataTypeLike>(
+        &self,
+        memory: &DeviceMemory<T>,
+        name: &'static str,
+    ) -> Result<()> {
         if self.data_type != T::data_type() {
             return Err(Error::TensorMemoryDataTypeMismatch {
                 descriptor: self.data_type,
@@ -690,10 +819,12 @@ impl Shard {
             });
         }
 
-        if (memory.byte_len() as u64) < self.bytes {
-            return Err(Error::InsufficientWorkspaceSize {
-                required: self.bytes,
-                actual: memory.byte_len() as u64,
+        let required = to_usize(self.bytes, "local storage size")?;
+        if memory.byte_len() < required {
+            return Err(Error::BufferTooSmall {
+                name: name.into(),
+                required,
+                actual: memory.byte_len(),
             });
         }
         Ok(())
@@ -705,6 +836,21 @@ enum TransferKind {
     Redistribute,
     Unfold,
     Fold,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum ReshapeKind {
+    Unfold,
+    Fold,
+}
+
+impl ReshapeKind {
+    const fn transfer(self) -> TransferKind {
+        match self {
+            Self::Unfold => TransferKind::Unfold,
+            Self::Fold => TransferKind::Fold,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -723,7 +869,7 @@ enum Signature {
     },
 }
 
-fn operation_mismatch(expected: &str) -> Error {
+fn operation_mismatch(expected: &'static str) -> Error {
     Error::PlanOperationMismatch {
         expected: expected.into(),
         actual: "different operation or unknown raw metadata".into(),
@@ -770,7 +916,7 @@ impl<'comm> OperationDescriptor<'comm> {
         });
         let mut handle = ptr::null_mut();
         context.bind()?;
-        // SAFETY: `cutensorMpCreateRedistribution` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
+        // SAFETY: `context` and both descriptors (checked to share it above) are live, each mode array has its descriptor's rank (`validate_modes`), and `handle` is a local output.
         unsafe {
             try_ffi!(sys::cutensorMpCreateRedistribution(
                 context.as_raw(),
@@ -806,7 +952,7 @@ impl<'comm> OperationDescriptor<'comm> {
         destination: &TensorDescriptor<'comm>,
         groups: ModeGroups<'_>,
     ) -> Result<Self> {
-        Self::create_reshape(context, source, destination, groups, TransferKind::Unfold)
+        Self::create_reshape(context, source, destination, groups, ReshapeKind::Unfold)
     }
 
     /// Creates an operation descriptor for a distributed tensor folding (matrix -> tensor).
@@ -822,7 +968,7 @@ impl<'comm> OperationDescriptor<'comm> {
         destination: &TensorDescriptor<'comm>,
         groups: ModeGroups<'_>,
     ) -> Result<Self> {
-        Self::create_reshape(context, source, destination, groups, TransferKind::Fold)
+        Self::create_reshape(context, source, destination, groups, ReshapeKind::Fold)
     }
 
     fn create_reshape(
@@ -830,7 +976,7 @@ impl<'comm> OperationDescriptor<'comm> {
         source: &TensorDescriptor<'comm>,
         destination: &TensorDescriptor<'comm>,
         groups: ModeGroups<'_>,
-        kind: TransferKind,
+        kind: ReshapeKind,
     ) -> Result<Self> {
         validate_same_context(&context.as_context_ref(), source.context(), "source")?;
         validate_same_context(
@@ -838,10 +984,9 @@ impl<'comm> OperationDescriptor<'comm> {
             destination.context(),
             "destination",
         )?;
-        let (tensor, matrix) = if kind == TransferKind::Unfold {
-            (source, destination)
-        } else {
-            (destination, source)
+        let (tensor, matrix) = match kind {
+            ReshapeKind::Unfold => (source, destination),
+            ReshapeKind::Fold => (destination, source),
         };
         let indices = groups
             .rows
@@ -874,16 +1019,16 @@ impl<'comm> OperationDescriptor<'comm> {
             i64::try_from(groups.columns.len()).expect("matrix group rank fits native i64"),
         ];
         let signature = Some(Signature::Transfer {
-            kind,
+            kind: kind.transfer(),
             source: Shard::create(source)?,
             destination: Shard::create(destination)?,
         });
         let mut handle = ptr::null_mut();
         context.bind()?;
-        // SAFETY: `cutensorMpCreateUnfolding`, `cutensorMpCreateFolding` receive live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
+        // SAFETY: `context` and both descriptors (checked to share it above) are live, `indices` holds every tensor mode once (checked above), `sizes` has two group lengths, and `handle` is a local output.
         unsafe {
             match kind {
-                TransferKind::Unfold => try_ffi!(sys::cutensorMpCreateUnfolding(
+                ReshapeKind::Unfold => try_ffi!(sys::cutensorMpCreateUnfolding(
                     context.as_raw(),
                     &raw mut handle,
                     source.as_raw(),
@@ -892,7 +1037,7 @@ impl<'comm> OperationDescriptor<'comm> {
                     sizes.as_ptr(),
                     destination.as_raw()
                 ))?,
-                TransferKind::Fold => try_ffi!(sys::cutensorMpCreateFolding(
+                ReshapeKind::Fold => try_ffi!(sys::cutensorMpCreateFolding(
                     context.as_raw(),
                     &raw mut handle,
                     source.as_raw(),
@@ -901,7 +1046,6 @@ impl<'comm> OperationDescriptor<'comm> {
                     indices.as_ptr(),
                     sizes.as_ptr()
                 ))?,
-                TransferKind::Redistribute => unreachable!(),
             }
         }
 
@@ -932,7 +1076,7 @@ impl<'comm> Plan<'comm> {
         let _lock = self.context.lock_execution()?;
         self.context.bind()?;
         self.context.cuda_context().synchronize()?;
-        // SAFETY: `cutensorMpSetStream` receives live handles owned by the wrappers.
+        // SAFETY: `self.handle` is live, `stream` was checked to share its CUDA context, and the lock and synchronization above leave no execution in flight.
         unsafe {
             try_ffi!(sys::cutensorMpSetStream(
                 self.context.as_raw(),
@@ -945,61 +1089,124 @@ impl<'comm> Plan<'comm> {
         Ok(())
     }
 
-    /// Performs a distributed tensor redistribution across multiple processes.
+    /// Enqueues a distributed tensor redistribution across multiple processes.
     ///
-    /// Execution uses the plan's configured stream or the handle stream and may leave CUDA work pending.
+    /// Execution uses the plan's stream, the handle's stream, or the legacy default stream, in that order.
     /// All participating communicator ranks must issue matching operations.
-    /// Preserve input readiness and retain allocations, plans, and workspace through host and device completion on every path.
+    ///
+    /// # Safety
+    ///
+    /// Follow the crate's [raw execution contract](crate#raw-execution); the host workspace is part of the workspace it covers.
     ///
     /// # Errors
     ///
-    /// Returns an error if the tracked plan operation does not match this transfer, source or destination sample type or local storage capacity is incompatible, workspace context or capacity is invalid, workspace byte conversion or queries fail, CUDA context binding fails, or native transfer submission fails.
+    /// Returns an error if the tracked plan operation does not match this transfer, source or destination sample type or local storage capacity is incompatible, an operand or the workspace belongs to another context, workspace capacity is insufficient, workspace byte conversion or queries fail, CUDA context binding fails, or native transfer submission fails.
+    pub unsafe fn redistribute_async<T: DataTypeLike>(
+        &self,
+        source: &DeviceMemory<T>,
+        destination: &mut DeviceMemory<T>,
+        workspace: &mut WorkspaceMemory<'comm>,
+    ) -> Result<()> {
+        // SAFETY: the caller keeps `source`, `destination`, and `workspace` alive, initialized, and unshared until the transfer completes.
+        unsafe { self.transfer_async(TransferKind::Redistribute, source, destination, workspace) }
+    }
+
+    /// Performs a distributed tensor redistribution across multiple processes and waits for it.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the execution stream is capturing, the checks of [`Self::redistribute_async`] fail, native transfer submission fails, or the stream reports an error.
     pub fn redistribute<T: DataTypeLike>(
         &self,
         source: &DeviceMemory<T>,
         destination: &mut DeviceMemory<T>,
         workspace: &mut WorkspaceMemory<'comm>,
     ) -> Result<()> {
-        self.transfer(TransferKind::Redistribute, source, destination, workspace)
+        self.stream_binding().sync_scope(|| {
+            // SAFETY: the operands and workspace stay borrowed until `sync_scope` has drained the execution stream, and the destination borrow is exclusive.
+            unsafe { self.redistribute_async(source, destination, workspace) }
+        })
     }
 
-    /// Performs a distributed tensor unfolding (tensor -> matrix) across multiple processes.
+    /// Enqueues a distributed tensor unfolding (tensor -> matrix) across multiple processes.
     ///
-    /// Execution uses the plan's configured stream or the handle stream and may leave CUDA work pending.
+    /// Execution uses the plan's stream, the handle's stream, or the legacy default stream, in that order.
     /// All participating communicator ranks must issue matching operations.
-    /// Preserve input readiness and retain allocations, plans, and workspace through host and device completion on every path.
+    ///
+    /// # Safety
+    ///
+    /// Follow the crate's [raw execution contract](crate#raw-execution); the host workspace is part of the workspace it covers.
     ///
     /// # Errors
     ///
-    /// Returns an error if the tracked plan operation does not match this transfer, source or destination sample type or local storage capacity is incompatible, workspace context or capacity is invalid, workspace byte conversion or queries fail, CUDA context binding fails, or native transfer submission fails.
+    /// Returns an error under the conditions of [`Self::redistribute_async`].
+    pub unsafe fn unfold_async<T: DataTypeLike>(
+        &self,
+        source: &DeviceMemory<T>,
+        destination: &mut DeviceMemory<T>,
+        workspace: &mut WorkspaceMemory<'comm>,
+    ) -> Result<()> {
+        // SAFETY: the caller keeps `source`, `destination`, and `workspace` alive, initialized, and unshared until the transfer completes.
+        unsafe { self.transfer_async(TransferKind::Unfold, source, destination, workspace) }
+    }
+
+    /// Performs a distributed tensor unfolding (tensor -> matrix) across multiple processes and waits for it.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the execution stream is capturing, the checks of [`Self::unfold_async`] fail, native transfer submission fails, or the stream reports an error.
     pub fn unfold<T: DataTypeLike>(
         &self,
         source: &DeviceMemory<T>,
         destination: &mut DeviceMemory<T>,
         workspace: &mut WorkspaceMemory<'comm>,
     ) -> Result<()> {
-        self.transfer(TransferKind::Unfold, source, destination, workspace)
+        self.stream_binding().sync_scope(|| {
+            // SAFETY: the operands and workspace stay borrowed until `sync_scope` has drained the execution stream, and the destination borrow is exclusive.
+            unsafe { self.unfold_async(source, destination, workspace) }
+        })
     }
 
-    /// Performs a distributed tensor folding (matrix -> tensor) across multiple processes.
+    /// Enqueues a distributed tensor folding (matrix -> tensor) across multiple processes.
     ///
-    /// Execution uses the plan's configured stream or the handle stream and may leave CUDA work pending.
+    /// Execution uses the plan's stream, the handle's stream, or the legacy default stream, in that order.
     /// All participating communicator ranks must issue matching operations.
-    /// Preserve input readiness and retain allocations, plans, and workspace through host and device completion on every path.
+    ///
+    /// # Safety
+    ///
+    /// Follow the crate's [raw execution contract](crate#raw-execution); the host workspace is part of the workspace it covers.
     ///
     /// # Errors
     ///
-    /// Returns an error if the tracked plan operation does not match this transfer, source or destination sample type or local storage capacity is incompatible, workspace context or capacity is invalid, workspace byte conversion or queries fail, CUDA context binding fails, or native transfer submission fails.
+    /// Returns an error under the conditions of [`Self::redistribute_async`].
+    pub unsafe fn fold_async<T: DataTypeLike>(
+        &self,
+        source: &DeviceMemory<T>,
+        destination: &mut DeviceMemory<T>,
+        workspace: &mut WorkspaceMemory<'comm>,
+    ) -> Result<()> {
+        // SAFETY: the caller keeps `source`, `destination`, and `workspace` alive, initialized, and unshared until the transfer completes.
+        unsafe { self.transfer_async(TransferKind::Fold, source, destination, workspace) }
+    }
+
+    /// Performs a distributed tensor folding (matrix -> tensor) across multiple processes and waits for it.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the execution stream is capturing, the checks of [`Self::fold_async`] fail, native transfer submission fails, or the stream reports an error.
     pub fn fold<T: DataTypeLike>(
         &self,
         source: &DeviceMemory<T>,
         destination: &mut DeviceMemory<T>,
         workspace: &mut WorkspaceMemory<'comm>,
     ) -> Result<()> {
-        self.transfer(TransferKind::Fold, source, destination, workspace)
+        self.stream_binding().sync_scope(|| {
+            // SAFETY: the operands and workspace stay borrowed until `sync_scope` has drained the execution stream, and the destination borrow is exclusive.
+            unsafe { self.fold_async(source, destination, workspace) }
+        })
     }
 
-    fn transfer<T: DataTypeLike>(
+    unsafe fn transfer_async<T: DataTypeLike>(
         &self,
         kind: TransferKind,
         source: &DeviceMemory<T>,
@@ -1021,9 +1228,14 @@ impl<'comm> Plan<'comm> {
         src.validate(source, "source")?;
         dst.validate(destination, "destination")?;
         workspace.prepare(&self.context, self.workspace()?)?;
+        self.stream_binding().join_regions(&[
+            source.region(),
+            destination.region(),
+            workspace.device_region(),
+        ])?;
         let _lock = self.context.lock_execution()?;
         self.context.bind()?;
-        // SAFETY: `cutensorMpRedistribute`, `cutensorMpUnfold`, `cutensorMpFold` receive live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
+        // SAFETY: the operands and workspace were checked against this plan above; the caller keeps them alive through completion.
         unsafe {
             match kind {
                 TransferKind::Redistribute => try_ffi!(sys::cutensorMpRedistribute(

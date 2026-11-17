@@ -1,85 +1,135 @@
-use std::{hash::Hash, mem::ManuallyDrop, ops::Deref, ptr};
+use std::{
+    hash::{Hash, Hasher},
+    mem::ManuallyDrop,
+    ops::Deref,
+    ptr,
+};
 
+use singe_core::report_cleanup_failure;
 use singe_nvml_sys as sys;
 
 use crate::{
-    compute_instance::{ComputeInstance, OwnedComputeInstance},
+    compute_instance::{ComputeInstance, OwnedComputeInstance, RawComputeInstance},
     device::Device,
-    error::Result,
+    error::{Error, Result, Status},
+    library::Library,
     try_ffi,
     types::{
         ComputeInstanceEngineProfile, ComputeInstancePlacement, ComputeInstanceProfileInfo,
         EnableState, GpuInstanceInfo, VgpuInstanceId, VgpuPlacementId, VgpuSchedulerEngine,
-        VgpuSchedulerLog, VgpuSchedulerState, VgpuTypeId, try_from_nvml_enum,
+        VgpuSchedulerLog, VgpuSchedulerState, VgpuTypeId,
     },
-    utility::{struct_version, to_u32},
+    utility::{struct_version, to_u32, to_usize},
     vgpu_instance::VgpuInstance,
+    vgpu_type::VgpuType,
 };
 
-/// Borrowed NVML GPU instance handle.
+/// NVML GPU instance handle that does not own the instance.
 ///
-/// Clones refer to the same native instance.
-/// Destruction responsibility remains with the owner, such as [`OwnedGpuInstance`].
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-#[repr(transparent)]
-pub struct GpuInstance(sys::nvmlGpuInstance_t);
+/// It keeps NVML initialized.
+/// Queries such as [`Device::gpu_instances`] return handles to instances the caller may not own, so the instance can be destroyed while a handle exists, by an [`OwnedGpuInstance`], another process, or a device reset.
+/// NVML treats such a handle as invalid and rejects calls through it.
+/// Equality and hashing compare the native handle.
+#[derive(Debug)]
+pub struct GpuInstance {
+    raw: sys::nvmlGpuInstance_t,
+    library: Library,
+}
 
-// SAFETY: NVML is thread-safe, and a GPU instance handle is an opaque identifier that the wrapper never
-// dereferences.
+// SAFETY: NVML documents its API as thread-safe, the handle is an opaque identifier the wrapper never dereferences, and the retained `Library` is `Send`.
 unsafe impl Send for GpuInstance {}
 
+// SAFETY: NVML documents its API as thread-safe, and every `&self` method only passes the opaque handle to NVML.
 unsafe impl Sync for GpuInstance {}
+
+impl PartialEq for GpuInstance {
+    fn eq(&self, other: &Self) -> bool {
+        self.raw == other.raw
+    }
+}
+
+impl Eq for GpuInstance {}
+
+impl Hash for GpuInstance {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.raw.hash(state);
+    }
+}
 
 /// Owns an NVML GPU instance and requests its destruction on drop.
 ///
+/// It lends out its instance's methods as a borrowed [`GpuInstance`].
 /// [`Self::into_inner`] and [`Self::into_raw`] transfer destruction responsibility to the caller.
 #[derive(Debug)]
-pub struct OwnedGpuInstance(GpuInstance);
+pub struct OwnedGpuInstance {
+    instance: GpuInstance,
+}
+
+/// A transferred NVML GPU instance handle with the initialization it was created under.
+#[derive(Debug)]
+pub struct RawGpuInstance {
+    /// The owned native GPU instance handle.
+    pub handle: sys::nvmlGpuInstance_t,
+    /// The NVML initialization kept alive until `handle` is destroyed.
+    pub library: Library,
+}
+
+// SAFETY: the record owns its handle exclusively, NVML documents its API as thread-safe, and the retained `Library` is `Send`.
+unsafe impl Send for RawGpuInstance {}
 
 impl GpuInstance {
-    /// Wraps a borrowed NVML GPU instance handle.
+    /// Wraps an NVML GPU instance handle and keeps `library`'s initialization alive.
     ///
     /// # Safety
     ///
-    /// `handle` must be a valid `nvmlGpuInstance_t` for the duration of any calls made through the returned wrapper.
-    pub const unsafe fn from_raw(handle: sys::nvmlGpuInstance_t) -> Self {
-        Self(handle)
+    /// `handle` must be a valid `nvmlGpuInstance_t` obtained while `library`'s initialization was alive, and it must stay valid for the duration of any calls made through the returned wrapper.
+    pub unsafe fn from_raw(handle: sys::nvmlGpuInstance_t, library: &Library) -> Self {
+        Self {
+            raw: handle,
+            library: library.clone(),
+        }
     }
 
     /// Returns the borrowed native instance handle.
     #[must_use]
     pub const fn as_raw(&self) -> sys::nvmlGpuInstance_t {
-        self.0
+        self.raw
     }
 
     /// Returns whether the stored native handle is null.
     #[must_use]
     pub const fn is_null(&self) -> bool {
-        self.0.is_null()
+        self.raw.is_null()
+    }
+
+    /// Returns the NVML initialization that this instance keeps alive.
+    #[must_use]
+    pub const fn library(&self) -> &Library {
+        &self.library
     }
 
     /// Returns GPU instance information.
     ///
-    /// For Ampere or newer fully supported devices.
-    /// Supported on Linux only.
+    /// Requires an Ampere or newer GPU on Linux.
     ///
     /// # Errors
     ///
     /// Returns an error if the handle or output arguments are rejected by NVML, if the current process does not have permission to query the instance, or if NVML has not been initialized.
     pub fn info(&self) -> Result<GpuInstanceInfo> {
         let mut info = sys::nvmlGpuInstanceInfo_t::default();
-        // SAFETY: `nvmlGpuInstanceGetInfo` receives valid output locations.
+        // SAFETY: `self.raw` is a GPU instance handle valid per `from_raw`'s contract, and `info` is a writable local struct.
         unsafe {
-            try_ffi!(sys::nvmlGpuInstanceGetInfo(self.0, &raw mut info))?;
+            try_ffi!(sys::nvmlGpuInstanceGetInfo(self.raw, &raw mut info))?;
         }
-        Ok(info.into())
+        // SAFETY: NVML filled `info` above, and its device handle stays valid while `self.library` keeps NVML initialized.
+        Ok(unsafe { GpuInstanceInfo::from_raw(info, &self.library) })
     }
 
     /// Returns the physical GPU containing this GPU instance.
     ///
     /// # Errors
     ///
-    /// Propagates instance-info query errors from [`Self::info`], including an invalid or unavailable instance handle.
+    /// Returns an error if [`Self::info`] fails.
     pub fn parent_device(&self) -> Result<Device> {
         Ok(self.info()?.device)
     }
@@ -88,7 +138,7 @@ impl GpuInstance {
     ///
     /// # Errors
     ///
-    /// Propagates instance-info query errors from [`Self::info`], including an invalid or unavailable instance handle.
+    /// Returns an error if [`Self::info`] fails.
     pub fn id(&self) -> Result<u32> {
         Ok(self.info()?.id)
     }
@@ -97,17 +147,14 @@ impl GpuInstance {
     ///
     /// # Errors
     ///
-    /// Propagates instance-info query errors from [`Self::info`], including an invalid or unavailable instance handle.
+    /// Returns an error if [`Self::info`] fails.
     pub fn profile_id(&self) -> Result<u32> {
         Ok(self.info()?.profile_id)
     }
 
-    /// Versioned wrapper that requests compute-instance profile information using the latest supported NVML output layout.
+    /// Returns information about compute instance profile `profile` with engine profile `engine_profile`.
     ///
-    /// This wrapper sets the version field on the output structure before calling NVML.
-    ///
-    /// For Ampere or newer fully supported devices.
-    /// Supported on Linux only.
+    /// Requires an Ampere or newer GPU on Linux.
     ///
     /// # Errors
     ///
@@ -121,10 +168,10 @@ impl GpuInstance {
             version: struct_version::<sys::nvmlComputeInstanceProfileInfo_v3_t>(3),
             ..Default::default()
         };
-        // SAFETY: `nvmlGpuInstanceGetComputeInstanceProfileInfoV` receives valid output locations.
+        // SAFETY: `self.raw` is a live GPU instance handle, and `info` is a writable local struct of the version it declares.
         unsafe {
             try_ffi!(sys::nvmlGpuInstanceGetComputeInstanceProfileInfoV(
-                self.0,
+                self.raw,
                 profile,
                 engine_profile.into(),
                 (&raw mut info).cast(),
@@ -133,21 +180,19 @@ impl GpuInstance {
         Ok(info.into())
     }
 
-    /// Returns compute instance profile capacity.
+    /// Returns how many more compute instances of profile `profile_id` this GPU instance can create.
     ///
-    /// For Ampere or newer fully supported devices.
-    /// Supported on Linux only.
-    /// Requires privileged access.
+    /// Requires an Ampere or newer GPU on Linux, and privileged access.
     ///
     /// # Errors
     ///
     /// Returns an error if the GPU instance or `profile_id` is invalid, if the profile is not supported, if the current process does not have permission to perform the operation, or if NVML has not been initialized.
     pub fn compute_instance_remaining_capacity(&self, profile_id: u32) -> Result<u32> {
         let mut count = 0;
-        // SAFETY: `nvmlGpuInstanceGetComputeInstanceRemainingCapacity` receives valid output locations.
+        // SAFETY: `self.raw` is a live GPU instance handle, and `count` is a writable local integer.
         unsafe {
             try_ffi!(sys::nvmlGpuInstanceGetComputeInstanceRemainingCapacity(
-                self.0,
+                self.raw,
                 profile_id,
                 &raw mut count,
             ))?;
@@ -155,16 +200,11 @@ impl GpuInstance {
         Ok(count)
     }
 
-    /// Returns compute instance placements.
+    /// Returns every placement a compute instance of profile `profile_id` can take within this GPU instance.
     ///
-    /// For Ampere or newer fully supported devices.
-    /// Supported on Linux only.
-    /// Requires privileged access.
+    /// Requires an Ampere or newer GPU on Linux, and privileged access.
     ///
-    /// A placement represents the location of a compute instance within a GPU instance.
-    /// Returns all possible placements for the given profile.
-    /// A created compute instance occupies compute slices described by its placement.
-    /// Creating a compute instance fails if its placement overlaps already occupied compute slices.
+    /// Creating a compute instance fails if its placement overlaps occupied compute slices.
     ///
     /// # Errors
     ///
@@ -174,10 +214,10 @@ impl GpuInstance {
         profile_id: u32,
     ) -> Result<Vec<ComputeInstancePlacement>> {
         let mut count = 0;
-        // SAFETY: `nvmlGpuInstanceGetComputeInstancePossiblePlacements` receives valid output locations.
+        // SAFETY: `self.raw` is a live GPU instance handle, and a null array asks NVML only for the count, written to the local `count`.
         let status = unsafe {
             sys::nvmlGpuInstanceGetComputeInstancePossiblePlacements(
-                self.0,
+                self.raw,
                 profile_id,
                 ptr::null_mut(),
                 &raw mut count,
@@ -187,80 +227,82 @@ impl GpuInstance {
             return Ok(Vec::new());
         }
 
-        if status != sys::nvmlReturn_t::NVML_ERROR_INSUFFICIENT_SIZE {
+        if status != sys::nvmlReturn_t::NVML_SUCCESS
+            && status != sys::nvmlReturn_t::NVML_ERROR_INSUFFICIENT_SIZE
+        {
             return Err(status.into());
         }
 
-        let mut placements = vec![sys::nvmlComputeInstancePlacement_t::default(); count as usize];
-        // SAFETY: `nvmlGpuInstanceGetComputeInstancePossiblePlacements` receives valid output locations.
+        let mut placements = vec![
+            sys::nvmlComputeInstancePlacement_t::default();
+            to_usize(count, "placement count")?
+        ];
+        // SAFETY: `self.raw` is a live GPU instance handle, and `placements` holds the `count` writable entries passed as its length.
         unsafe {
             try_ffi!(sys::nvmlGpuInstanceGetComputeInstancePossiblePlacements(
-                self.0,
+                self.raw,
                 profile_id,
                 placements.as_mut_ptr(),
                 &raw mut count,
             ))?;
         }
 
-        placements.truncate(count as usize);
+        placements.truncate(to_usize(count, "placement count")?);
         Ok(placements.into_iter().map(Into::into).collect())
     }
 
-    /// Returns compute instance for the given instance ID.
+    /// Returns the compute instance with ID `id`.
     ///
-    /// For Ampere or newer fully supported devices.
-    /// Supported on Linux only.
-    /// Requires privileged access.
+    /// Requires an Ampere or newer GPU on Linux, and privileged access.
     ///
     /// # Errors
     ///
     /// Returns an error if the GPU instance or ID is invalid, if the compute instance is not found, if MIG mode is not enabled, if the current process lacks permission, or if NVML has not been initialized.
     pub fn compute_instance_by_id(&self, id: u32) -> Result<ComputeInstance> {
         let mut instance = ptr::null_mut();
-        // SAFETY: `nvmlGpuInstanceGetComputeInstanceById` writes a valid handle on success, and `try_ffi!` returns before it is wrapped otherwise.
+        // SAFETY: `self.raw` is a live GPU instance handle, and NVML writes a valid compute instance handle on success, before it is wrapped with `self.library`.
         unsafe {
             try_ffi!(sys::nvmlGpuInstanceGetComputeInstanceById(
-                self.0,
+                self.raw,
                 id,
                 &raw mut instance,
             ))?;
-            Ok(ComputeInstance::from_raw(instance))
+            Ok(ComputeInstance::from_raw(instance, &self.library))
         }
     }
 
-    /// Creates a compute instance.
+    /// Creates a compute instance of profile `profile_id`, which is destroyed when the returned owner drops.
+    /// The owner borrows this GPU instance, so the GPU instance cannot be destroyed first.
     ///
-    /// For Ampere or newer fully supported devices.
-    /// Supported on Linux only.
-    /// Requires privileged access.
+    /// Requires an Ampere or newer GPU on Linux, and privileged access.
     ///
-    /// If the parent device is unbound or reset, or if the parent GPU instance or compute instance is destroyed, the compute instance handle becomes invalid.
-    /// The compute instance must be recreated to acquire a valid handle.
+    /// The handle becomes invalid if the parent GPU is unbound or reset or the parent GPU instance is destroyed.
     ///
     /// # Errors
     ///
     /// Returns an error if the requested compute instance cannot be created, if the GPU instance or `profile_id` is invalid, if the profile is not supported, if the current process lacks permission, or if NVML has not been initialized.
-    pub fn create_compute_instance(&self, profile_id: u32) -> Result<OwnedComputeInstance> {
+    pub fn create_compute_instance(&self, profile_id: u32) -> Result<OwnedComputeInstance<'_>> {
         let mut instance = ptr::null_mut();
-        // SAFETY: `nvmlGpuInstanceCreateComputeInstance` writes a valid handle on success, and `try_ffi!` returns before it is wrapped otherwise.
+        // SAFETY: `self.raw` is a live GPU instance handle, and NVML writes a new owned compute instance handle on success, before it is wrapped.
         unsafe {
             try_ffi!(sys::nvmlGpuInstanceCreateComputeInstance(
-                self.0,
+                self.raw,
                 profile_id,
                 &raw mut instance,
             ))?;
-            Ok(OwnedComputeInstance::from_raw(instance))
+            OwnedComputeInstance::from_raw(RawComputeInstance {
+                handle: instance,
+                library: self.library.clone(),
+            })
         }
     }
 
-    /// Creates a compute instance with the specified placement.
+    /// Creates a compute instance of profile `profile_id` at `placement`, which is destroyed when the returned owner drops.
+    /// The owner borrows this GPU instance, so the GPU instance cannot be destroyed first.
     ///
-    /// For Ampere or newer fully supported devices.
-    /// Supported on Linux only.
-    /// Requires privileged access.
+    /// Requires an Ampere or newer GPU on Linux, and privileged access.
     ///
-    /// If the parent device is unbound or reset, or if the parent GPU instance or compute instance is destroyed, the compute instance handle becomes invalid.
-    /// The compute instance must be recreated to acquire a valid handle.
+    /// The handle becomes invalid if the parent GPU is unbound or reset or the parent GPU instance is destroyed.
     ///
     /// # Errors
     ///
@@ -269,107 +311,117 @@ impl GpuInstance {
         &self,
         profile_id: u32,
         placement: ComputeInstancePlacement,
-    ) -> Result<OwnedComputeInstance> {
+    ) -> Result<OwnedComputeInstance<'_>> {
         let placement = sys::nvmlComputeInstancePlacement_t::from(placement);
         let mut instance = ptr::null_mut();
-        // SAFETY: `nvmlGpuInstanceCreateComputeInstanceWithPlacement` writes a valid handle on success, and `try_ffi!` returns before it is wrapped otherwise.
+        // SAFETY: `self.raw` is a live GPU instance handle, `placement` is a local struct, and NVML writes a new owned compute instance handle on success, before it is wrapped.
         unsafe {
             try_ffi!(sys::nvmlGpuInstanceCreateComputeInstanceWithPlacement(
-                self.0,
+                self.raw,
                 profile_id,
                 &raw const placement,
                 &raw mut instance,
             ))?;
-            Ok(OwnedComputeInstance::from_raw(instance))
+            OwnedComputeInstance::from_raw(RawComputeInstance {
+                handle: instance,
+                library: self.library.clone(),
+            })
         }
     }
 
-    /// Returns compute instances for the given profile ID.
+    /// Returns the compute instances of profile `profile_id`.
     ///
-    /// For Ampere or newer fully supported devices.
-    /// Supported on Linux only.
-    /// Requires privileged access.
+    /// Requires an Ampere or newer GPU on Linux, and privileged access.
     ///
     /// # Errors
     ///
     /// Returns an error if the GPU instance or `profile_id` is invalid, if the profile is not supported, if the current process lacks permission, or if NVML has not been initialized.
     pub fn compute_instances(&self, profile_id: u32) -> Result<Vec<ComputeInstance>> {
-        let mut count = 0;
-        // SAFETY: `nvmlGpuInstanceGetComputeInstances` receives valid output locations.
-        let status = unsafe {
-            sys::nvmlGpuInstanceGetComputeInstances(
-                self.0,
-                profile_id,
-                ptr::null_mut(),
-                &raw mut count,
-            )
-        };
-        if status == sys::nvmlReturn_t::NVML_SUCCESS && count == 0 {
+        // NVML rejects a null array, and requires room for every instance the profile allows.
+        let capacity = self.compute_instance_capacity(profile_id)?;
+        let mut instances = vec![ptr::null_mut(); to_usize(capacity, "compute instance count")?];
+        if instances.is_empty() {
             return Ok(Vec::new());
         }
 
-        if status != sys::nvmlReturn_t::NVML_ERROR_INSUFFICIENT_SIZE {
-            return Err(status.into());
-        }
-
-        let mut instances = vec![ptr::null_mut(); count as usize];
-        // SAFETY: `nvmlGpuInstanceGetComputeInstances` receives valid output locations.
+        let mut count = 0;
+        // SAFETY: `self.raw` is a live GPU instance handle, and `instances` holds the profile's `instanceCount` writable handle slots.
         unsafe {
             try_ffi!(sys::nvmlGpuInstanceGetComputeInstances(
-                self.0,
+                self.raw,
                 profile_id,
                 instances.as_mut_ptr(),
                 &raw mut count,
             ))?;
         }
 
-        instances.truncate(count as usize);
+        instances.truncate(to_usize(count, "compute instance count")?);
         Ok(instances
             .into_iter()
-            // SAFETY: NVML filled these handles, truncated to the reported count.
-            .map(|instance| unsafe { ComputeInstance::from_raw(instance) })
+            // SAFETY: NVML filled these handles, truncated to the reported count, and each wrapper retains `self.library`.
+            .map(|instance| unsafe { ComputeInstance::from_raw(instance, &self.library) })
             .collect())
     }
 
-    /// Query the currently creatable vGPU types on a specific GPU instance.
+    // NVML looks compute instance profiles up only by index, so this finds the one with ID `profile_id`.
+    fn compute_instance_capacity(&self, profile_id: u32) -> Result<u32> {
+        for profile in 0..sys::NVML_COMPUTE_INSTANCE_PROFILE_COUNT {
+            match self.compute_instance_profile_info(profile, ComputeInstanceEngineProfile::Shared)
+            {
+                Ok(info) if info.id == profile_id => return Ok(info.instance_count),
+                Ok(_)
+                | Err(Error::Nvml {
+                    code: Status::NotSupported,
+                }) => {}
+                Err(error) => return Err(error),
+            }
+        }
+
+        Err(Error::out_of_range("profile_id"))
+    }
+
+    /// Returns the vGPU types that can currently be created on this GPU instance.
     ///
-    /// Returns the vGPU types that can currently be created for this GPU instance.
-    /// This wrapper performs the NVML size query internally and returns the results as a [`Vec`].
-    ///
-    /// The creatable vGPU types may differ over time, as there may be restrictions on what type of vGPUs can concurrently run on the device.
+    /// The set changes over time, since some vGPU types cannot run concurrently.
     ///
     /// # Errors
     ///
     /// Returns an error if NVML rejects the versioned request, if the intermediate size query reports a larger buffer requirement than expected, if this GPU instance or query arguments are invalid, if the host or GPU does not support vGPU creation, if NVML has not been initialized, or if NVML reports an unexpected failure.
-    pub fn creatable_vgpus(&self) -> Result<Vec<VgpuTypeId>> {
+    pub fn creatable_vgpus(&self) -> Result<Vec<VgpuType>> {
         let mut info = sys::nvmlVgpuTypeIdInfo_t {
             vgpuCount: 0,
             ..Default::default()
         };
-        // SAFETY: `nvmlGpuInstanceGetCreatableVgpus` receives valid output locations.
-        let status = unsafe { sys::nvmlGpuInstanceGetCreatableVgpus(self.0, &raw mut info) };
+        // SAFETY: `self.raw` is a live GPU instance handle, and `info` has a zero count and null array, so NVML only writes the count.
+        let status = unsafe { sys::nvmlGpuInstanceGetCreatableVgpus(self.raw, &raw mut info) };
         if status == sys::nvmlReturn_t::NVML_SUCCESS && info.vgpuCount == 0 {
             return Ok(Vec::new());
         }
 
-        if status != sys::nvmlReturn_t::NVML_ERROR_INSUFFICIENT_SIZE {
+        if status != sys::nvmlReturn_t::NVML_SUCCESS
+            && status != sys::nvmlReturn_t::NVML_ERROR_INSUFFICIENT_SIZE
+        {
             return Err(status.into());
         }
 
-        let mut types = vec![0u32; info.vgpuCount as usize];
+        let mut types = vec![0u32; to_usize(info.vgpuCount, "vGPU type count")?];
         info.vgpuTypeIds = types.as_mut_ptr();
-        // SAFETY: `nvmlGpuInstanceGetCreatableVgpus` receives valid output locations.
+        // SAFETY: `self.raw` is a live GPU instance handle, and `info.vgpuTypeIds` points to the `info.vgpuCount` writable entries of `types`.
         unsafe {
-            try_ffi!(sys::nvmlGpuInstanceGetCreatableVgpus(self.0, &raw mut info))?;
+            try_ffi!(sys::nvmlGpuInstanceGetCreatableVgpus(
+                self.raw,
+                &raw mut info
+            ))?;
         }
 
-        types.truncate(info.vgpuCount as usize);
-        Ok(types.into_iter().map(VgpuTypeId).collect())
+        types.truncate(to_usize(info.vgpuCount, "vGPU type count")?);
+        Ok(types
+            .into_iter()
+            .map(|id| VgpuType::from_id(VgpuTypeId(id), &self.library))
+            .collect())
     }
 
-    /// Returns the active vGPU instances within a GPU instance.
-    ///
-    /// This wrapper performs the NVML size query internally and returns the active vGPU instances as a [`Vec`].
+    /// Returns the active vGPU instances on this GPU instance.
     ///
     /// # Errors
     ///
@@ -380,37 +432,36 @@ impl GpuInstance {
             ..Default::default()
         };
 
-        // SAFETY: `nvmlGpuInstanceGetActiveVgpus` receives valid output locations.
-        let status = unsafe { sys::nvmlGpuInstanceGetActiveVgpus(self.0, &raw mut info) };
+        // SAFETY: `self.raw` is a live GPU instance handle, and `info` has a zero count and null array, so NVML only writes the count.
+        let status = unsafe { sys::nvmlGpuInstanceGetActiveVgpus(self.raw, &raw mut info) };
         if status == sys::nvmlReturn_t::NVML_SUCCESS && info.vgpuCount == 0 {
             return Ok(Vec::new());
         }
 
-        if status != sys::nvmlReturn_t::NVML_ERROR_INSUFFICIENT_SIZE {
+        if status != sys::nvmlReturn_t::NVML_SUCCESS
+            && status != sys::nvmlReturn_t::NVML_ERROR_INSUFFICIENT_SIZE
+        {
             return Err(status.into());
         }
 
-        let mut instances = vec![0u32; info.vgpuCount as usize];
+        let mut instances = vec![0u32; to_usize(info.vgpuCount, "vGPU instance count")?];
         info.vgpuInstances = instances.as_mut_ptr();
-        // SAFETY: `nvmlGpuInstanceGetActiveVgpus` receives valid output locations.
+        // SAFETY: `self.raw` is a live GPU instance handle, and `info.vgpuInstances` points to the `info.vgpuCount` writable entries of `instances`.
         unsafe {
-            try_ffi!(sys::nvmlGpuInstanceGetActiveVgpus(self.0, &raw mut info))?;
+            try_ffi!(sys::nvmlGpuInstanceGetActiveVgpus(self.raw, &raw mut info))?;
         }
 
-        instances.truncate(info.vgpuCount as usize);
+        instances.truncate(to_usize(info.vgpuCount, "vGPU instance count")?);
         Ok(instances
             .into_iter()
-            .map(|instance| VgpuInstance::from_id(VgpuInstanceId(instance)))
+            .map(|instance| VgpuInstance::from_id(VgpuInstanceId(instance), &self.library))
             .collect())
     }
 
-    /// Returns the vGPU heterogeneous mode for the GPU instance.
+    /// Returns whether vGPU heterogeneous mode is enabled on this GPU instance.
     ///
-    /// When in heterogeneous mode, a vGPU can concurrently host timesliced vGPUs with differing framebuffer sizes.
-    ///
-    /// On success, returns the current vGPU heterogeneous mode as [`EnableState::Enabled`] or [`EnableState::Disabled`].
-    ///
-    /// For Blackwell &tm `GB20x`; or newer fully supported devices.
+    /// In heterogeneous mode, time-sliced vGPUs with different framebuffer sizes run concurrently.
+    /// Requires a Blackwell `GB20x` or newer GPU.
     ///
     /// # Errors
     ///
@@ -420,23 +471,20 @@ impl GpuInstance {
             version: struct_version::<sys::nvmlVgpuHeterogeneousMode_t>(1),
             ..Default::default()
         };
-        // SAFETY: `nvmlGpuInstanceGetVgpuHeterogeneousMode` receives valid output locations.
+        // SAFETY: `self.raw` is a live GPU instance handle, and `mode` is a writable local struct with its version set.
         unsafe {
             try_ffi!(sys::nvmlGpuInstanceGetVgpuHeterogeneousMode(
-                self.0,
+                self.raw,
                 &raw mut mode,
             ))?;
         }
-        try_from_nvml_enum("enable state", mode.mode)
+        Ok(EnableState::from(sys::nvmlEnableState_t(mode.mode)))
     }
 
-    /// Query the creatable vGPU placement ID of the vGPU type within a GPU instance.
+    /// Returns the placement IDs where a vGPU of type `vgpu_type_id` can currently be created on this GPU instance.
     ///
-    /// For Blackwell &tm `GB20x`; or newer fully supported devices.
-    ///
-    /// The returned placement IDs correspond to the given `vgpu_type_id`.
-    /// This wrapper performs the NVML size query internally and returns the placement IDs as a [`Vec`].
-    /// The creatable vGPU placement IDs may differ over time, as there may be restrictions on what type of vGPU the vGPU instance is running.
+    /// The set changes over time with the vGPUs already running.
+    /// Requires a Blackwell `GB20x` or newer GPU.
     ///
     /// # Errors
     ///
@@ -453,72 +501,72 @@ impl GpuInstance {
         };
 
         let status =
-            // SAFETY: `nvmlGpuInstanceGetVgpuTypeCreatablePlacements` receives valid output locations.
-            unsafe { sys::nvmlGpuInstanceGetVgpuTypeCreatablePlacements(self.0, &raw mut info) };
+            // SAFETY: `self.raw` is a live GPU instance handle, and `info` has a zero count and null array, so NVML only writes the count.
+            unsafe { sys::nvmlGpuInstanceGetVgpuTypeCreatablePlacements(self.raw, &raw mut info) };
         if status == sys::nvmlReturn_t::NVML_SUCCESS && info.count == 0 {
             return Ok(Vec::new());
         }
 
-        if status != sys::nvmlReturn_t::NVML_ERROR_INSUFFICIENT_SIZE {
+        if status != sys::nvmlReturn_t::NVML_SUCCESS
+            && status != sys::nvmlReturn_t::NVML_ERROR_INSUFFICIENT_SIZE
+        {
             return Err(status.into());
         }
 
-        let mut placements = vec![0u32; info.count as usize];
+        let mut placements = vec![0u32; to_usize(info.count, "placement count")?];
         info.placementIds = placements.as_mut_ptr();
-        // SAFETY: `nvmlGpuInstanceGetVgpuTypeCreatablePlacements` receives valid output locations.
+        // SAFETY: `self.raw` is a live GPU instance handle, and `info.placementIds` points to the `info.count` writable entries of `placements`.
         unsafe {
             try_ffi!(sys::nvmlGpuInstanceGetVgpuTypeCreatablePlacements(
-                self.0,
+                self.raw,
                 &raw mut info,
             ))?;
         }
 
-        placements.truncate(info.count as usize);
+        placements.truncate(to_usize(info.count, "placement count")?);
         Ok(placements.into_iter().map(VgpuPlacementId).collect())
     }
 
-    /// Returns the vGPU scheduler state for the given GPU instance.
-    /// The returned scheduler-state details are not relevant when the scheduler policy is best effort.
+    /// Returns the vGPU scheduler state of `engine` on this GPU instance.
     ///
-    /// For Blackwell &tm `GB20x`; or newer fully supported devices.
+    /// The details do not apply under the best-effort scheduler policy.
+    /// Requires a Blackwell `GB20x` or newer GPU.
     ///
     /// # Errors
     ///
     /// Returns an error if this GPU instance or query arguments are invalid, if the host or GPU does not support vGPU scheduler queries, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn vgpu_scheduler_state(&self, engine: VgpuSchedulerEngine) -> Result<VgpuSchedulerState> {
         let mut info = sys::nvmlVgpuSchedulerStateInfo_v2_t {
-            engineId: engine as u32,
+            engineId: engine.into(),
             ..Default::default()
         };
-        // SAFETY: `nvmlGpuInstanceGetVgpuSchedulerState_v2` receives valid output locations.
+        // SAFETY: `self.raw` is a live GPU instance handle, and `info` is a writable local struct.
         unsafe {
             try_ffi!(sys::nvmlGpuInstanceGetVgpuSchedulerState_v2(
-                self.0,
+                self.raw,
                 &raw mut info,
             ))?;
         }
         VgpuSchedulerState::from_raw(info)
     }
 
-    /// Returns the vGPU scheduler logs for this GPU instance.
-    /// The number of returned elements never exceeds `NVML_SCHEDULER_SW_MAX_LOG_ENTRIES`.
+    /// Returns the recent vGPU scheduler log entries of `engine` on this GPU instance.
     ///
-    /// To get the entire logs, call this method at least 5 times a second.
-    ///
-    /// For Blackwell &tm `GB20x`; or newer fully supported devices.
+    /// NVML keeps a bounded number of entries, so reading the whole log takes at least five calls a second.
+    /// Requires a Blackwell `GB20x` or newer GPU.
     ///
     /// # Errors
     ///
     /// Returns an error if this GPU instance or query arguments are invalid, if the host or GPU does not support vGPU scheduler queries, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn vgpu_scheduler_log(&self, engine: VgpuSchedulerEngine) -> Result<VgpuSchedulerLog> {
         let mut info = sys::nvmlVgpuSchedulerLogInfo_v2_t {
-            engineId: engine as u32,
+            engineId: engine.into(),
             ..Default::default()
         };
-        // SAFETY: `nvmlGpuInstanceGetVgpuSchedulerLog_v2` receives valid output locations.
+        // SAFETY: `self.raw` is a live GPU instance handle, and `info` is a writable local struct.
         unsafe {
             try_ffi!(sys::nvmlGpuInstanceGetVgpuSchedulerLog_v2(
-                self.0,
+                self.raw,
                 &raw mut info,
             ))?;
         }
@@ -527,39 +575,57 @@ impl GpuInstance {
 }
 
 impl OwnedGpuInstance {
-    /// Wraps an owned NVML GPU instance handle.
+    /// Wraps an owned NVML GPU instance handle and keeps `raw.library`'s initialization alive.
     ///
     /// # Safety
     ///
-    /// `handle` must be a valid `nvmlGpuInstance_t` owned by the caller, and ownership must not be used elsewhere after constructing this wrapper.
+    /// `raw.handle` must be a valid `nvmlGpuInstance_t` created while `raw.library`'s initialization was alive and owned by the caller, and ownership must not be used elsewhere after constructing this wrapper.
     /// The wrapper destroys the GPU instance with `nvmlGpuInstanceDestroy` unless ownership is transferred with [`OwnedGpuInstance::into_raw`].
-    pub const unsafe fn from_raw(handle: sys::nvmlGpuInstance_t) -> Self {
-        Self(GpuInstance(handle))
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::NullHandle`] if `raw.handle` is null.
+    pub unsafe fn from_raw(raw: RawGpuInstance) -> Result<Self> {
+        if raw.handle.is_null() {
+            return Err(Error::NullHandle);
+        }
+
+        Ok(Self {
+            instance: GpuInstance {
+                raw: raw.handle,
+                library: raw.library,
+            },
+        })
     }
 
-    /// Borrows the instance handle without transferring destruction responsibility.
+    /// Borrows the instance without transferring destruction responsibility.
     #[must_use]
     pub const fn as_gpu_instance(&self) -> &GpuInstance {
-        &self.0
+        &self.instance
     }
 
-    /// Transfers destruction responsibility and returns the borrowed GPU instance wrapper.
+    /// Transfers destruction responsibility and returns the GPU instance wrapper.
     ///
     /// The caller must eventually destroy the native instance or place it in another owner.
     #[must_use]
     pub fn into_inner(self) -> GpuInstance {
         let this = ManuallyDrop::new(self);
-        // SAFETY: `this` is never dropped, so the field moves out exactly once.
-        unsafe { ptr::read(&raw const this.0) }
+        // SAFETY: `this` is never dropped, so its only field moves out exactly once.
+        unsafe { ptr::read(&raw const this.instance) }
     }
 
     /// Transfers this owned GPU instance handle to the caller.
     ///
     /// After this call, the wrapper will not destroy the GPU instance.
     /// The caller becomes responsible for eventually passing the handle to `nvmlGpuInstanceDestroy` or otherwise transferring ownership.
+    /// The returned [`Library`] keeps NVML initialized; drop it only after the handle is destroyed.
     #[must_use]
-    pub fn into_raw(self) -> sys::nvmlGpuInstance_t {
-        self.into_inner().0
+    pub fn into_raw(self) -> RawGpuInstance {
+        let GpuInstance { raw, library } = self.into_inner();
+        RawGpuInstance {
+            handle: raw,
+            library,
+        }
     }
 }
 
@@ -567,19 +633,16 @@ impl Deref for OwnedGpuInstance {
     type Target = GpuInstance;
 
     fn deref(&self) -> &Self::Target {
-        &self.0
+        &self.instance
     }
 }
 
 impl Drop for OwnedGpuInstance {
     fn drop(&mut self) {
-        // SAFETY: `nvmlGpuInstanceDestroy` receives only plain values.
+        // SAFETY: `self` owns the non-null instance and destroys it once, while its retained library keeps NVML initialized.
         unsafe {
-            if let Err(error) = try_ffi!(sys::nvmlGpuInstanceDestroy(self.0.0)) {
-                eprintln!(
-                    "failed to destroy nvml gpu instance: {}",
-                    singe_core::ErrorChain(&error)
-                );
+            if let Err(error) = try_ffi!(sys::nvmlGpuInstanceDestroy(self.instance.raw)) {
+                report_cleanup_failure("destroy", "nvml gpu instance", &error);
             }
         }
     }

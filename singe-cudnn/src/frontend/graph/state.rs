@@ -10,20 +10,20 @@ use crate::{
     backend::{
         device::{DeviceProperties, DevicePropertiesJson},
         execution::{KernelCache, KernelCacheJson},
-        tensor::{TensorId, TensorSpec},
     },
     frontend::{
         graph::{GraphConfig, RuntimeShapeConstraints},
         operation::{AttentionBackwardHeuristicOverride, Operation, TensorAccess},
         plan::PlanCache,
     },
+    tensor::{TensorId, TensorSpec},
 };
 
 /// Runtime-only state attached to a frontend graph.
 ///
 /// Stores construction bookkeeping and process-local objects such as a shared kernel cache or device properties alongside the serializable graph description.
 #[derive(Debug, Clone, Default)]
-pub struct GraphRuntimeState {
+pub(crate) struct GraphRuntimeState {
     /// New declaration identities, allowing inference checkpoints to record a count instead of copying all IDs.
     pub(crate) tensor_insertions: Vec<TensorId>,
     /// Operations whose nested score-graph identities have been reserved for automatic allocation.
@@ -78,7 +78,7 @@ pub struct StorageView {
     clippy::struct_excessive_bools,
     reason = "native capabilities and tensor properties are independent flags"
 )]
-pub struct TensorRecord {
+pub(crate) struct TensorRecord {
     pub access: Option<TensorAccess>,
     pub reads_initial_state: bool,
     pub indexes_memory: bool,
@@ -89,7 +89,7 @@ pub struct TensorRecord {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct GraphMutationCheckpoint {
+pub(crate) struct GraphMutationCheckpoint {
     pub(crate) tensor_insertions: usize,
     pub(crate) operations: usize,
     pub(crate) storage_views: usize,

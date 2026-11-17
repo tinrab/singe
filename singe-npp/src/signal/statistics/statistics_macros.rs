@@ -78,12 +78,12 @@ macro_rules! impl_statistic {
         #[doc = concat!("Calls [`sys::", stringify!($statistic), "`].")]
         ///
         /// Writes the scalar result into the single element of `destination`.
-        /// Allocates temporary scratch storage for this call.
+        /// Allocates temporary scratch storage that is freed when the call returns, so stream capture is rejected.
         ///
         /// # Errors
         ///
         /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA context, `destination` does not contain exactly one element, a length or queried size exceeds its native integer range, or NPP reports a failure.
-        /// Scratch allocation errors are propagated.
+        /// Returns an error if the stream is being captured; scratch allocation errors are propagated.
         ///
         /// # Safety
         ///
@@ -98,6 +98,7 @@ macro_rules! impl_statistic {
             stream_context.cuda_context().bind()?;
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
+            stream_context.stream().ensure_not_capturing()?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 let required_bytes = $buffer_size_name(stream_context, source)?;
@@ -190,12 +191,12 @@ macro_rules! impl_mixed_statistic {
         #[doc = concat!("Calls [`sys::", stringify!($statistic), "`].")]
         ///
         /// Writes the scalar result into the single element of `destination`.
-        /// Allocates temporary scratch storage for this call.
+        /// Allocates temporary scratch storage that is freed when the call returns, so stream capture is rejected.
         ///
         /// # Errors
         ///
         /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA context, `destination` does not contain exactly one element, a length or queried size exceeds its native integer range, or NPP reports a failure.
-        /// Scratch allocation errors are propagated.
+        /// Returns an error if the stream is being captured; scratch allocation errors are propagated.
         ///
         /// # Safety
         ///
@@ -210,6 +211,7 @@ macro_rules! impl_mixed_statistic {
             stream_context.cuda_context().bind()?;
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
+            stream_context.stream().ensure_not_capturing()?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 let required_bytes = $buffer_size_name(stream_context, source)?;
@@ -312,7 +314,7 @@ macro_rules! impl_binary_statistic {
         ///
         /// Each result view must contain exactly one element.
         /// Writes the result to `destination`.
-        /// Allocates temporary scratch storage for this call.
+        /// Allocates temporary scratch storage that is freed when the call returns, so stream capture is rejected.
         ///
         /// # Errors
         ///
@@ -320,7 +322,7 @@ macro_rules! impl_binary_statistic {
         /// The two sources must have equal lengths.
         /// Each result view must contain one element; other lengths return an error.
         /// Returns an error if a required length or scratch-size conversion fails, or NPP reports a failure.
-        /// Scratch allocation errors are propagated.
+        /// Returns an error if the stream is being captured; scratch allocation errors are propagated.
         ///
         /// # Safety
         ///
@@ -338,6 +340,7 @@ macro_rules! impl_binary_statistic {
             stream_context.validate_region(source_1)?;
             stream_context.validate_region(source_2)?;
             stream_context.validate_region(destination)?;
+            stream_context.stream().ensure_not_capturing()?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 let required_bytes = $buffer_size_name(stream_context, source_1)?;
@@ -447,7 +450,7 @@ macro_rules! impl_mixed_binary_statistic {
         ///
         /// Each result view must contain exactly one element.
         /// Writes the result to `destination`.
-        /// Allocates temporary scratch storage for this call.
+        /// Allocates temporary scratch storage that is freed when the call returns, so stream capture is rejected.
         ///
         /// # Errors
         ///
@@ -455,7 +458,7 @@ macro_rules! impl_mixed_binary_statistic {
         /// The two sources must have equal lengths.
         /// Each result view must contain one element; other lengths return an error.
         /// Returns an error if a required length or scratch-size conversion fails, or NPP reports a failure.
-        /// Scratch allocation errors are propagated.
+        /// Returns an error if the stream is being captured; scratch allocation errors are propagated.
         ///
         /// # Safety
         ///
@@ -473,6 +476,7 @@ macro_rules! impl_mixed_binary_statistic {
             stream_context.validate_region(source_1)?;
             stream_context.validate_region(source_2)?;
             stream_context.validate_region(destination)?;
+            stream_context.stream().ensure_not_capturing()?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 let required_bytes = $buffer_size_name(stream_context, source_1)?;
@@ -583,7 +587,7 @@ macro_rules! impl_heterogeneous_binary_statistic {
         ///
         /// Each result view must contain exactly one element.
         /// Writes the result to `destination`.
-        /// Allocates temporary scratch storage for this call.
+        /// Allocates temporary scratch storage that is freed when the call returns, so stream capture is rejected.
         ///
         /// # Errors
         ///
@@ -591,7 +595,7 @@ macro_rules! impl_heterogeneous_binary_statistic {
         /// The two sources must have equal lengths.
         /// Each result view must contain one element; other lengths return an error.
         /// Returns an error if a required length or scratch-size conversion fails, or NPP reports a failure.
-        /// Scratch allocation errors are propagated.
+        /// Returns an error if the stream is being captured; scratch allocation errors are propagated.
         ///
         /// # Safety
         ///
@@ -609,6 +613,7 @@ macro_rules! impl_heterogeneous_binary_statistic {
             stream_context.validate_region(source_1)?;
             stream_context.validate_region(source_2)?;
             stream_context.validate_region(destination)?;
+            stream_context.stream().ensure_not_capturing()?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 let required_bytes = $buffer_size_name(stream_context, source_1)?;
@@ -721,7 +726,7 @@ macro_rules! impl_scaled_binary_statistic {
         ///
         /// Each result view must contain exactly one element.
         /// Writes the result to `destination`.
-        /// Allocates temporary scratch storage for this call.
+        /// Allocates temporary scratch storage that is freed when the call returns, so stream capture is rejected.
         /// Applies native fixed-point scaling using `scale_factor`.
         ///
         /// # Errors
@@ -730,7 +735,7 @@ macro_rules! impl_scaled_binary_statistic {
         /// The two sources must have equal lengths.
         /// Each result view must contain one element; other lengths return an error.
         /// Returns an error if a required length or scratch-size conversion fails, or NPP reports a failure.
-        /// Scratch allocation errors are propagated.
+        /// Returns an error if the stream is being captured; scratch allocation errors are propagated.
         ///
         /// # Safety
         ///
@@ -749,6 +754,7 @@ macro_rules! impl_scaled_binary_statistic {
             stream_context.validate_region(source_1)?;
             stream_context.validate_region(source_2)?;
             stream_context.validate_region(destination)?;
+            stream_context.stream().ensure_not_capturing()?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 let required_bytes = $buffer_size_name(stream_context, source_1)?;
@@ -863,7 +869,7 @@ macro_rules! impl_scaled_heterogeneous_binary_statistic {
         ///
         /// Each result view must contain exactly one element.
         /// Writes the result to `destination`.
-        /// Allocates temporary scratch storage for this call.
+        /// Allocates temporary scratch storage that is freed when the call returns, so stream capture is rejected.
         /// Applies native fixed-point scaling using `scale_factor`.
         ///
         /// # Errors
@@ -872,7 +878,7 @@ macro_rules! impl_scaled_heterogeneous_binary_statistic {
         /// The two sources must have equal lengths.
         /// Each result view must contain one element; other lengths return an error.
         /// Returns an error if a required length or scratch-size conversion fails, or NPP reports a failure.
-        /// Scratch allocation errors are propagated.
+        /// Returns an error if the stream is being captured; scratch allocation errors are propagated.
         ///
         /// # Safety
         ///
@@ -891,6 +897,7 @@ macro_rules! impl_scaled_heterogeneous_binary_statistic {
             stream_context.validate_region(source_1)?;
             stream_context.validate_region(source_2)?;
             stream_context.validate_region(destination)?;
+            stream_context.stream().ensure_not_capturing()?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 let required_bytes = $buffer_size_name(stream_context, source_1)?;
@@ -993,13 +1000,13 @@ macro_rules! impl_scaled_statistic {
         #[doc = concat!("Calls [`sys::", stringify!($statistic), "`].")]
         ///
         /// Writes the scalar result into the single element of `destination`.
-        /// Allocates temporary scratch storage for this call.
+        /// Allocates temporary scratch storage that is freed when the call returns, so stream capture is rejected.
         /// Applies native fixed-point scaling using `scale_factor`.
         ///
         /// # Errors
         ///
         /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA context, `destination` does not contain exactly one element, a length or queried size exceeds its native integer range, or NPP reports a failure.
-        /// Scratch allocation errors are propagated.
+        /// Returns an error if the stream is being captured; scratch allocation errors are propagated.
         ///
         /// # Safety
         ///
@@ -1015,6 +1022,7 @@ macro_rules! impl_scaled_statistic {
             stream_context.cuda_context().bind()?;
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
+            stream_context.stream().ensure_not_capturing()?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 let required_bytes = $buffer_size_name(stream_context, source)?;
@@ -1123,7 +1131,7 @@ macro_rules! impl_error_metric {
         ///
         /// Each result view must contain exactly one element.
         /// Writes the result to `destination`.
-        /// Allocates temporary scratch storage for this call.
+        /// Allocates temporary scratch storage that is freed when the call returns, so stream capture is rejected.
         ///
         /// # Errors
         ///
@@ -1131,7 +1139,7 @@ macro_rules! impl_error_metric {
         /// The two sources must have equal lengths.
         /// Each result view must contain one element; other lengths return an error.
         /// Returns an error if a required length or scratch-size conversion fails, or NPP reports a failure.
-        /// Scratch allocation errors are propagated.
+        /// Returns an error if the stream is being captured; scratch allocation errors are propagated.
         ///
         /// # Safety
         ///
@@ -1149,6 +1157,7 @@ macro_rules! impl_error_metric {
             stream_context.validate_region(source_1)?;
             stream_context.validate_region(source_2)?;
             stream_context.validate_region(destination)?;
+            stream_context.stream().ensure_not_capturing()?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 let required_bytes = $buffer_size_name(stream_context, source_1)?;
@@ -1256,14 +1265,14 @@ macro_rules! impl_mean_stddev {
         ///
         /// Each result view must contain exactly one element.
         /// Writes the results to `mean`, `standard_deviation`.
-        /// Allocates temporary scratch storage for this call.
+        /// Allocates temporary scratch storage that is freed when the call returns, so stream capture is rejected.
         ///
         /// # Errors
         ///
         /// Returns an error if CUDA context binding fails or a signal belongs to another CUDA context.
         /// Each result view must contain one element; other lengths return an error.
         /// Returns an error if a required length or scratch-size conversion fails, or NPP reports a failure.
-        /// Scratch allocation errors are propagated.
+        /// Returns an error if the stream is being captured; scratch allocation errors are propagated.
         ///
         /// # Safety
         ///
@@ -1281,6 +1290,7 @@ macro_rules! impl_mean_stddev {
             stream_context.validate_region(source)?;
             stream_context.validate_region(mean)?;
             stream_context.validate_region(standard_deviation)?;
+            stream_context.stream().ensure_not_capturing()?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 let required_bytes = $buffer_size_name(stream_context, source)?;
@@ -1392,7 +1402,7 @@ macro_rules! impl_scaled_mean_stddev {
         ///
         /// Each result view must contain exactly one element.
         /// Writes the results to `mean`, `standard_deviation`.
-        /// Allocates temporary scratch storage for this call.
+        /// Allocates temporary scratch storage that is freed when the call returns, so stream capture is rejected.
         /// Applies native fixed-point scaling using `scale_factor`.
         ///
         /// # Errors
@@ -1400,7 +1410,7 @@ macro_rules! impl_scaled_mean_stddev {
         /// Returns an error if CUDA context binding fails or a signal belongs to another CUDA context.
         /// Each result view must contain one element; other lengths return an error.
         /// Returns an error if a required length or scratch-size conversion fails, or NPP reports a failure.
-        /// Scratch allocation errors are propagated.
+        /// Returns an error if the stream is being captured; scratch allocation errors are propagated.
         ///
         /// # Safety
         ///
@@ -1419,6 +1429,7 @@ macro_rules! impl_scaled_mean_stddev {
             stream_context.validate_region(source)?;
             stream_context.validate_region(mean)?;
             stream_context.validate_region(standard_deviation)?;
+            stream_context.stream().ensure_not_capturing()?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 let required_bytes = $buffer_size_name(stream_context, source)?;
@@ -1527,14 +1538,14 @@ macro_rules! impl_indexed_statistic {
         ///
         /// Each result view must contain exactly one element.
         /// Writes the results to `value`, `index`.
-        /// Allocates temporary scratch storage for this call.
+        /// Allocates temporary scratch storage that is freed when the call returns, so stream capture is rejected.
         ///
         /// # Errors
         ///
         /// Returns an error if CUDA context binding fails or a signal belongs to another CUDA context.
         /// Each result view must contain one element; other lengths return an error.
         /// Returns an error if a required length or scratch-size conversion fails, or NPP reports a failure.
-        /// Scratch allocation errors are propagated.
+        /// Returns an error if the stream is being captured; scratch allocation errors are propagated.
         ///
         /// # Safety
         ///
@@ -1552,6 +1563,7 @@ macro_rules! impl_indexed_statistic {
             stream_context.validate_region(source)?;
             stream_context.validate_region(value)?;
             stream_context.validate_region(index)?;
+            stream_context.stream().ensure_not_capturing()?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 let required_bytes = $buffer_size_name(stream_context, source)?;
@@ -1653,14 +1665,14 @@ macro_rules! impl_pair_statistic {
         ///
         /// Each result view must contain exactly one element.
         /// Writes the results to `min`, `max`.
-        /// Allocates temporary scratch storage for this call.
+        /// Allocates temporary scratch storage that is freed when the call returns, so stream capture is rejected.
         ///
         /// # Errors
         ///
         /// Returns an error if CUDA context binding fails or a signal belongs to another CUDA context.
         /// Each result view must contain one element; other lengths return an error.
         /// Returns an error if a required length or scratch-size conversion fails, or NPP reports a failure.
-        /// Scratch allocation errors are propagated.
+        /// Returns an error if the stream is being captured; scratch allocation errors are propagated.
         ///
         /// # Safety
         ///
@@ -1678,6 +1690,7 @@ macro_rules! impl_pair_statistic {
             stream_context.validate_region(source)?;
             stream_context.validate_region(min)?;
             stream_context.validate_region(max)?;
+            stream_context.stream().ensure_not_capturing()?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 let required_bytes = $buffer_size_name(stream_context, source)?;
@@ -1787,14 +1800,14 @@ macro_rules! impl_indexed_pair_statistic {
         ///
         /// Each result view must contain exactly one element.
         /// Writes the results to `min`, `min_index`, `max`, `max_index`.
-        /// Allocates temporary scratch storage for this call.
+        /// Allocates temporary scratch storage that is freed when the call returns, so stream capture is rejected.
         ///
         /// # Errors
         ///
         /// Returns an error if CUDA context binding fails or a signal belongs to another CUDA context.
         /// Each result view must contain one element; other lengths return an error.
         /// Returns an error if a required length or scratch-size conversion fails, or NPP reports a failure.
-        /// Scratch allocation errors are propagated.
+        /// Returns an error if the stream is being captured; scratch allocation errors are propagated.
         ///
         /// # Safety
         ///
@@ -1816,6 +1829,7 @@ macro_rules! impl_indexed_pair_statistic {
             stream_context.validate_region(min_index)?;
             stream_context.validate_region(max)?;
             stream_context.validate_region(max_index)?;
+            stream_context.stream().ensure_not_capturing()?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 let required_bytes = $buffer_size_name(stream_context, source)?;
@@ -1966,14 +1980,14 @@ macro_rules! impl_zero_crossing {
         ///
         /// Each result view must contain exactly one element.
         /// Writes the result to `destination`.
-        /// Allocates temporary scratch storage for this call.
+        /// Allocates temporary scratch storage that is freed when the call returns, so stream capture is rejected.
         ///
         /// # Errors
         ///
         /// Returns an error if CUDA context binding fails or a signal belongs to another CUDA context.
         /// Each result view must contain one element; other lengths return an error.
         /// Returns an error if a required length or scratch-size conversion fails, or NPP reports a failure.
-        /// Scratch allocation errors are propagated.
+        /// Returns an error if the stream is being captured; scratch allocation errors are propagated.
         ///
         /// # Safety
         ///
@@ -1990,6 +2004,7 @@ macro_rules! impl_zero_crossing {
             stream_context.cuda_context().bind()?;
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
+            stream_context.stream().ensure_not_capturing()?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 let required_bytes = $buffer_size_name(stream_context, source)?;

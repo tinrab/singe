@@ -1,98 +1,70 @@
+//! Native statuses and checked solver errors.
+
 use std::{borrow::Cow, ffi::NulError, result::Result as StdResult};
 
-use singe_core::status_enum;
 use singe_cuda::error::Error as CudaError;
 use singe_cusolver_sys as sys;
 use thiserror::Error;
 
-status_enum! {
+singe_core::wrapper_status! {
+    library = "cusolver",
+    error = Error::Cusolver,
+    raw = sys::cusolverStatus_t,
+    success = CUSOLVER_STATUS_SUCCESS,
+    absence = sys::take_absence,
+    unknown = "UNKNOWN_CUSOLVER_STATUS",
     /// This is a status type returned by the library functions and it can have the following values.
-    pub enum Status: u32 => sys::cusolverStatus_t, unknown = "UNKNOWN_CUSOLVER_STATUS" {
+    pub enum Status: u32 {
         /// The operation completed successfully.
-        Success = CUSOLVER_STATUS_SUCCESS,
+        Success = CUSOLVER_STATUS_SUCCESS => "success",
         /// The cuSOLVER library was not initialized.
-        NotInitialized = CUSOLVER_STATUS_NOT_INITIALIZED,
+        NotInitialized = CUSOLVER_STATUS_NOT_INITIALIZED => "library not initialized",
         /// Resource allocation failed.
-        AllocFailed = CUSOLVER_STATUS_ALLOC_FAILED,
+        AllocFailed = CUSOLVER_STATUS_ALLOC_FAILED => "allocation failed",
         /// An invalid value was provided.
-        InvalidValue = CUSOLVER_STATUS_INVALID_VALUE,
+        InvalidValue = CUSOLVER_STATUS_INVALID_VALUE => "invalid value",
         /// The current device architecture is not supported.
-        ArchitectureMismatch = CUSOLVER_STATUS_ARCH_MISMATCH,
+        ArchitectureMismatch = CUSOLVER_STATUS_ARCH_MISMATCH => "architecture mismatch",
         /// Memory or resource mapping failed.
-        MappingError = CUSOLVER_STATUS_MAPPING_ERROR,
+        MappingError = CUSOLVER_STATUS_MAPPING_ERROR => "mapping error",
         /// Kernel execution failed.
-        ExecutionFailed = CUSOLVER_STATUS_EXECUTION_FAILED,
+        ExecutionFailed = CUSOLVER_STATUS_EXECUTION_FAILED => "execution failed",
         /// An internal cuSOLVER error occurred.
-        InternalError = CUSOLVER_STATUS_INTERNAL_ERROR,
+        InternalError = CUSOLVER_STATUS_INTERNAL_ERROR => "internal error",
         /// The matrix type is not supported by the operation.
-        MatrixTypeNotSupported = CUSOLVER_STATUS_MATRIX_TYPE_NOT_SUPPORTED,
+        MatrixTypeNotSupported = CUSOLVER_STATUS_MATRIX_TYPE_NOT_SUPPORTED => "matrix type not supported",
         /// The requested operation is not supported.
-        NotSupported = CUSOLVER_STATUS_NOT_SUPPORTED,
+        NotSupported = CUSOLVER_STATUS_NOT_SUPPORTED => "not supported",
         /// A zero pivot was encountered.
-        ZeroPivot = CUSOLVER_STATUS_ZERO_PIVOT,
+        ZeroPivot = CUSOLVER_STATUS_ZERO_PIVOT => "zero pivot",
         /// The cuSOLVER license is invalid.
-        InvalidLicense = CUSOLVER_STATUS_INVALID_LICENSE,
+        InvalidLicense = CUSOLVER_STATUS_INVALID_LICENSE => "invalid license",
         /// IRS parameters were not initialized.
-        IrsParamsNotInitialized = CUSOLVER_STATUS_IRS_PARAMS_NOT_INITIALIZED,
+        IrsParamsNotInitialized = CUSOLVER_STATUS_IRS_PARAMS_NOT_INITIALIZED => "irs params not initialized",
         /// IRS parameters are invalid.
-        IrsParamsInvalid = CUSOLVER_STATUS_IRS_PARAMS_INVALID,
+        IrsParamsInvalid = CUSOLVER_STATUS_IRS_PARAMS_INVALID => "irs params invalid",
         /// IRS precision parameters are invalid.
-        IrsParamsInvalidPrec = CUSOLVER_STATUS_IRS_PARAMS_INVALID_PREC,
+        IrsParamsInvalidPrec = CUSOLVER_STATUS_IRS_PARAMS_INVALID_PREC => "irs params invalid precision",
         /// IRS refinement parameters are invalid.
-        IrsParamsInvalidRefine = CUSOLVER_STATUS_IRS_PARAMS_INVALID_REFINE,
+        IrsParamsInvalidRefine = CUSOLVER_STATUS_IRS_PARAMS_INVALID_REFINE => "irs params invalid refinement",
         /// IRS max-iteration parameters are invalid.
-        IrsParamsInvalidMaxIter = CUSOLVER_STATUS_IRS_PARAMS_INVALID_MAXITER,
+        IrsParamsInvalidMaxIter = CUSOLVER_STATUS_IRS_PARAMS_INVALID_MAXITER => "irs params invalid maxiter",
         /// An internal IRS error occurred.
-        IrsInternalError = CUSOLVER_STATUS_IRS_INTERNAL_ERROR,
+        IrsInternalError = CUSOLVER_STATUS_IRS_INTERNAL_ERROR => "irs internal error",
         /// The requested IRS configuration is not supported.
-        IrsNotSupported = CUSOLVER_STATUS_IRS_NOT_SUPPORTED,
+        IrsNotSupported = CUSOLVER_STATUS_IRS_NOT_SUPPORTED => "irs not supported",
         /// IRS configuration values are out of range.
-        IrsOutOfRange = CUSOLVER_STATUS_IRS_OUT_OF_RANGE,
+        IrsOutOfRange = CUSOLVER_STATUS_IRS_OUT_OF_RANGE => "irs out of range",
         /// GMRES refinement does not support the requested number of right-hand sides.
-        IrsNrhsNotSupportedForRefineGmres = CUSOLVER_STATUS_IRS_NRHS_NOT_SUPPORTED_FOR_REFINE_GMRES,
+        IrsNrhsNotSupportedForRefineGmres = CUSOLVER_STATUS_IRS_NRHS_NOT_SUPPORTED_FOR_REFINE_GMRES => "irs nrhs not supported for refine gmres",
         /// IRS info structures were not initialized.
-        IrsInfosNotInitialized = CUSOLVER_STATUS_IRS_INFOS_NOT_INITIALIZED,
+        IrsInfosNotInitialized = CUSOLVER_STATUS_IRS_INFOS_NOT_INITIALIZED => "irs infos not initialized",
         /// IRS info structures were not destroyed before reuse.
-        IrsInfosNotDestroyed = CUSOLVER_STATUS_IRS_INFOS_NOT_DESTROYED,
+        IrsInfosNotDestroyed = CUSOLVER_STATUS_IRS_INFOS_NOT_DESTROYED => "irs infos not destroyed",
         /// The IRS system matrix is singular.
-        IrsMatrixSingular = CUSOLVER_STATUS_IRS_MATRIX_SINGULAR,
+        IrsMatrixSingular = CUSOLVER_STATUS_IRS_MATRIX_SINGULAR => "irs matrix singular",
         /// The provided workspace is invalid.
-        InvalidWorkspace = CUSOLVER_STATUS_INVALID_WORKSPACE,
-    }
-}
-
-impl Status {
-    /// Returns a lowercase description of the native status.
-    #[must_use]
-    pub const fn description(self) -> &'static str {
-        match self {
-            Self::Success => "success",
-            Self::NotInitialized => "library not initialized",
-            Self::AllocFailed => "allocation failed",
-            Self::InvalidValue => "invalid value",
-            Self::ArchitectureMismatch => "architecture mismatch",
-            Self::MappingError => "mapping error",
-            Self::ExecutionFailed => "execution failed",
-            Self::InternalError => "internal error",
-            Self::MatrixTypeNotSupported => "matrix type not supported",
-            Self::NotSupported => "not supported",
-            Self::ZeroPivot => "zero pivot",
-            Self::InvalidLicense => "invalid license",
-            Self::IrsParamsNotInitialized => "irs params not initialized",
-            Self::IrsParamsInvalid => "irs params invalid",
-            Self::IrsParamsInvalidPrec => "irs params invalid precision",
-            Self::IrsParamsInvalidRefine => "irs params invalid refinement",
-            Self::IrsParamsInvalidMaxIter => "irs params invalid maxiter",
-            Self::IrsInternalError => "irs internal error",
-            Self::IrsNotSupported => "irs not supported",
-            Self::IrsOutOfRange => "irs out of range",
-            Self::IrsNrhsNotSupportedForRefineGmres => "irs nrhs not supported for refine gmres",
-            Self::IrsInfosNotInitialized => "irs infos not initialized",
-            Self::IrsInfosNotDestroyed => "irs infos not destroyed",
-            Self::IrsMatrixSingular => "irs matrix singular",
-            Self::InvalidWorkspace => "invalid workspace",
-            Self::Unknown(_) => "unknown cusolver error",
-        }
+        InvalidWorkspace = CUSOLVER_STATUS_INVALID_WORKSPACE => "invalid workspace",
     }
 }
 
@@ -100,21 +72,19 @@ impl Status {
 #[derive(Error, Debug)]
 #[non_exhaustive]
 pub enum Error {
-    // Its library would not load.
+    /// cuSOLVER or one of its symbols would not load.
     #[error(transparent)]
-    Load(#[from] singe_cusolver_sys::LoadError),
+    Load(#[from] sys::LoadError),
 
     /// A CUDA operation failed.
     #[error(transparent)]
-    Cuda(#[from] CudaError),
+    Cuda(CudaError),
 
     /// cuSOLVER returned a non-success native status.
-    #[error("cusolver error ({code}): {message}")]
+    #[error("cusolver error ({code}): {}", code.description())]
     Cusolver {
         /// Native status returned by cuSOLVER.
         code: Status,
-        /// Description of the native status.
-        message: String,
     },
 
     /// A native string argument contains an interior nul byte.
@@ -124,6 +94,15 @@ pub enum Error {
     /// A native resource handle is unexpectedly null.
     #[error("unexpected null handle")]
     NullHandle,
+
+    /// A native enum value has no typed variant in this crate.
+    #[error("unknown `{name}` value {value}")]
+    UnknownEnumValue {
+        /// Name of the typed enum.
+        name: Cow<'static, str>,
+        /// Unrecognized native value.
+        value: i64,
+    },
 
     /// An argument or checked conversion is outside the supported range.
     #[error("`{name}` is out of range")]
@@ -156,12 +135,14 @@ pub enum Error {
     #[error("invalid precision configuration")]
     InvalidPrecisionConfiguration,
 
-    /// The supplied workspace is smaller than the required capacity.
-    #[error("insufficient workspace size: {actual} provided (required {required})")]
-    InsufficientWorkspaceSize {
-        /// Required workspace capacity in the units used by the operation.
+    /// A buffer or workspace is smaller than the operation requires.
+    #[error("`{name}` is too small (requires {required}, got {actual})")]
+    BufferTooSmall {
+        /// Name of the buffer.
+        name: Cow<'static, str>,
+        /// Required capacity in the units used by the operation.
         required: usize,
-        /// Supplied workspace capacity in the units used by the operation.
+        /// Supplied capacity in the units used by the operation.
         actual: usize,
     },
 
@@ -169,17 +150,19 @@ pub enum Error {
     #[error("invalid residual history")]
     InvalidResidualHistory,
 
+    /// Residual history was read from a report that did not request it before the solve.
+    #[error("residual history was not requested")]
+    ResidualHistoryNotRequested,
+
     /// A stream belongs to another CUDA context.
     #[error("stream belongs to a different cuda context")]
     StreamContextMismatch,
 
-    /// A device allocation belongs to another CUDA context.
-    #[error("memory belongs to a different cuda context")]
-    MemoryContextMismatch,
-
     /// A completed solver operation reported a nonzero device status.
-    #[error("solver failed with device status {info}")]
-    ComputationFailed {
+    #[error("`{operation}` failed with {info}")]
+    OperationFailed {
+        /// Name of the solver operation.
+        operation: Cow<'static, str>,
         /// Nonzero solver device status; its interpretation depends on the routine.
         info: i32,
     },
@@ -203,24 +186,20 @@ impl Error {
     }
 }
 
-impl From<sys::cusolverStatus_t> for Error {
-    fn from(code: sys::cusolverStatus_t) -> Self {
-        if code == sys::cusolverStatus_t::CUSOLVER_STATUS_NOT_INITIALIZED
-            && let Err(error) = singe_cusolver_sys::load()
-        {
-            return Self::Load(error);
+impl From<CudaError> for Error {
+    fn from(error: CudaError) -> Self {
+        match error {
+            CudaError::StreamContextMismatch => Self::StreamContextMismatch,
+            error => Self::Cuda(error),
         }
-
-        let status = Status::from(code);
-        Self::from(status)
     }
 }
 
-impl From<Status> for Error {
-    fn from(code: Status) -> Self {
-        Self::Cusolver {
-            code,
-            message: code.description().to_string(),
+impl From<singe_core::UnknownEnumValue> for Error {
+    fn from(error: singe_core::UnknownEnumValue) -> Self {
+        Self::UnknownEnumValue {
+            name: error.name.into(),
+            value: error.value,
         }
     }
 }
@@ -231,45 +210,11 @@ impl From<NulError> for Error {
     }
 }
 
-/// Converts a raw cuSOLVER status-returning expression into a crate [`Result`](crate::error::Result).
-#[macro_export]
+// Converts a raw cuSOLVER status into this crate's `Result`.
 macro_rules! try_ffi {
-    ($expr:expr) => {{
-        let status = { $expr };
-        if status != singe_cusolver_sys::cusolverStatus_t::CUSOLVER_STATUS_SUCCESS {
-            Err($crate::error::Error::from(status))
-        } else {
-            Ok(())
-        }
-    }};
+    ($expr:expr) => {
+        $crate::error::Error::check($expr)
+    };
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_status_converts_from_raw_code() {
-        let status = Status::from(sys::cusolverStatus_t::CUSOLVER_STATUS_INVALID_VALUE);
-        assert_eq!(status, Status::InvalidValue);
-        assert_eq!(
-            status.raw(),
-            sys::cusolverStatus_t::CUSOLVER_STATUS_INVALID_VALUE as u32
-        );
-    }
-
-    #[test]
-    fn test_status_display_uses_c_name() {
-        assert_eq!(
-            Status::InvalidValue.to_string(),
-            "CUSOLVER_STATUS_INVALID_VALUE"
-        );
-    }
-
-    #[test]
-    fn test_unknown_status_keeps_raw_code() {
-        let status = Status::Unknown(9999);
-        assert_eq!(status.raw(), 9999);
-        assert_eq!(status.to_string(), "UNKNOWN_CUSOLVER_STATUS(9999)");
-    }
-}
+pub(crate) use try_ffi;

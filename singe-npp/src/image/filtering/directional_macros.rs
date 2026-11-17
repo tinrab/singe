@@ -88,7 +88,7 @@ macro_rules! impl_filter_directional_border {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            $crate::utility::validate_border_roi(source.size(), source_offset, destination.size())?;
+            $crate::image::validate_border_roi(source.size(), source_offset, destination.size())?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 try_ffi!(sys::$ffi_name(
@@ -198,7 +198,7 @@ macro_rules! impl_filter_directional_typed_border {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            $crate::utility::validate_border_roi(source.size(), source_offset, destination.size())?;
+            $crate::image::validate_border_roi(source.size(), source_offset, destination.size())?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 try_ffi!(sys::$ffi_name(

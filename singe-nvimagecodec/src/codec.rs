@@ -1,15 +1,17 @@
-use std::{mem::size_of, process, ptr, sync::Arc};
+use std::{mem::size_of, ptr, sync::Arc};
 
+use singe_core::{abort_after_cleanup_failure, report_cleanup_failure};
 use singe_cuda::{context::Context as CudaContext, stream::Stream};
 use singe_nvimagecodec_sys as sys;
 
 use crate::{
     error::{Error, Result},
+    future::Future,
     image::Image,
     instance::InstanceRef,
     try_ffi,
-    types::{BackendKind, LoadHintPolicy, ProcessingStatus},
-    utility::{NativeStruct, to_i32, to_usize},
+    types::{BackendKind, LoadHintPolicy, NativeStruct, ProcessingStatus},
+    utility::{to_i32, to_u64, to_usize},
 };
 
 /// Where decoders and encoders run: CPU threads, backends, and the CUDA context for GPU work.
@@ -213,7 +215,7 @@ pub(crate) fn prepare_images(
 
     let mut streams = Vec::new();
     for image in images {
-        instance.require_same(image.instance())?;
+        instance.require_same(image.instance(), "image")?;
         image.prepare(default_stream, output)?;
         if let Some(stream) = image.stream()
             && !streams.contains(stream)
@@ -241,7 +243,7 @@ impl Completion {
     fn wait(&mut self) -> Result<()> {
         if !self.host_completed {
             if !self.future.is_null() {
-                // SAFETY: `nvimgcodecFutureWaitForAll` receives only plain values.
+                // SAFETY: `self.future` is the non-null future the submission wrote, owned by this completion and not yet destroyed.
                 unsafe {
                     try_ffi!(sys::nvimgcodecFutureWaitForAll(self.future))?;
                 }
@@ -264,16 +266,14 @@ impl Completion {
 impl Drop for Completion {
     fn drop(&mut self) {
         // A failed host wait or device fence cannot release borrowed stack storage.
-        if self.wait().is_err() {
-            process::abort();
+        if let Err(error) = self.wait() {
+            abort_after_cleanup_failure("wait for", "nvimagecodec submission", &error);
         }
+
         if !self.future.is_null() {
-            // SAFETY: `nvimgcodecFutureDestroy` receives only plain values.
+            // SAFETY: `self.future` is the future this completion owns, its host work finished in `wait` above, and it is destroyed only here.
             if let Err(error) = unsafe { try_ffi!(sys::nvimgcodecFutureDestroy(self.future)) } {
-                eprintln!(
-                    "failed to destroy nvimagecodec future: {}",
-                    singe_core::ErrorChain(&error)
-                );
+                report_cleanup_failure("destroy", "nvimagecodec future", &error);
             }
         }
     }
@@ -299,8 +299,8 @@ pub(crate) fn complete_submission(
     }
 
     let mut statuses = vec![0; count];
-    let mut actual = count as sys::size_t;
-    // SAFETY: `nvimgcodecFutureGetProcessingStatus` receives valid output locations.
+    let mut actual = to_u64(count, "batch_size")?;
+    // SAFETY: `completion.future` is a live, completed future, `statuses` has room for the `actual` entries passed in, and `actual` is a writable local.
     unsafe {
         try_ffi!(sys::nvimgcodecFutureGetProcessingStatus(
             completion.future,
@@ -309,7 +309,7 @@ pub(crate) fn complete_submission(
         ))?;
     }
 
-    if actual != count as sys::size_t {
+    if to_usize(actual, "result count")? != count {
         return Err(Error::LengthMismatch {
             name: "processing_status_count".into(),
             expected: count,
@@ -317,6 +317,45 @@ pub(crate) fn complete_submission(
         });
     }
     Ok(statuses.into_iter().map(ProcessingStatus::from).collect())
+}
+
+// Native handles of one submitted batch, kept alive with its future.
+#[derive(Debug)]
+pub(crate) struct RawBatch {
+    pub(crate) code_streams: Vec<sys::nvimgcodecCodeStream_t>,
+    pub(crate) images: Vec<sys::nvimgcodecImage_t>,
+}
+
+impl RawBatch {
+    pub(crate) fn len(&self) -> usize {
+        self.images.len()
+    }
+}
+
+// Submits a prepared batch and returns its future without waiting.
+//
+// Safety:
+//
+// `submit` must pass the batch's handles to one native decode or encode call that writes its future to the given location.
+// Everything the submission uses must stay valid until the future and the GPU work on `streams` finish.
+pub(crate) unsafe fn submit_async<'a>(
+    instance: &InstanceRef,
+    streams: Vec<Stream>,
+    batch: RawBatch,
+    submit: impl FnOnce(&RawBatch, *mut sys::nvimgcodecFuture_t, i32) -> sys::nvimgcodecStatus_t,
+) -> Result<Future<'a>> {
+    let batch_size = to_i32(batch.len(), "batch_size")?;
+    let mut raw = ptr::null_mut();
+    let status = submit(&batch, &raw mut raw, batch_size);
+    if let Err(error) = try_ffi!(status) {
+        if !raw.is_null() {
+            // Dropping the future waits for the CPU work that started before the failure.
+            drop(Future::create(raw, instance.clone(), streams, batch)?);
+        }
+        return Err(error);
+    }
+
+    Future::create(raw, instance.clone(), streams, batch)
 }
 
 #[cfg(test)]

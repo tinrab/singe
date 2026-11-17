@@ -48,10 +48,14 @@ macro_rules! impl_color_convert_batch_planar_to_packed_image {
             destinations: &mut [ImageOutputView<'_, u8, C3>],
         ) -> Result<()> {
             stream_context.stream().ensure_not_capturing()?;
+            for plane in sources.iter().flat_map(PlanarImageView::planes) {
+                stream_context.prepare_region(plane)?;
+            }
             for image in destinations.iter() {
                 stream_context.prepare_region(image)?;
             }
-            // SAFETY: the regions were prepared on this stream above, and `sync_scope` completes the work before the borrows end.
+            // SAFETY: every source plane and destination was checked against this stream's context and its producers were awaited above.
+            // `sync_scope` completes the work before the borrows end.
             stream_context.sync_scope(|| unsafe { $convert(stream_context, sources, destinations) })
         }
 
@@ -63,11 +67,15 @@ macro_rules! impl_color_convert_batch_planar_to_packed_image {
             destinations: &mut [ImageOutputView<'_, u8, C3>],
         ) -> Result<()> {
             stream_context.stream().ensure_not_capturing()?;
+            for plane in sources.iter().flat_map(PlanarImageView::planes) {
+                stream_context.prepare_region(plane)?;
+            }
             for image in destinations.iter() {
                 stream_context.prepare_region(image)?;
             }
             stream_context
-                // SAFETY: the regions were prepared on this stream above, and `sync_scope` completes the work before the borrows end.
+                // SAFETY: every source plane and destination was checked against this stream's context and its producers were awaited above.
+                // `sync_scope` completes the work before the borrows end.
                 .sync_scope(|| unsafe { $convert_advanced(stream_context, sources, destinations) })
         }
     };

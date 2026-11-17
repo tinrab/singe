@@ -1,15 +1,14 @@
 use serde::{Deserialize, Serialize};
 
-pub use crate::backend::execution::resample::ResampleBackwardInputs;
 use crate::{
     backend::{
-        execution::resample::{
-            PaddingMode, ResampleBackwardOperation as BackendResampleBackwardOperation,
-            ResampleDescriptor, ResampleDescriptorConfig,
-            ResampleForwardOperation as BackendResampleForwardOperation, ResampleGeometry,
-            ResampleMode, ResampleOutputs,
+        operation::resample::{
+            PaddingMode, ResampleBackwardInputs,
+            ResampleBackwardOperation as BackendResampleBackwardOperation, ResampleDescriptor,
+            ResampleDescriptorSpec, ResampleForwardOperation as BackendResampleForwardOperation,
+            ResampleGeometry, ResampleMode, ResampleOutputs,
         },
-        tensor::{Tensor, TensorId},
+        tensor::Tensor,
     },
     data_type::DataType,
     error::{Error, Result},
@@ -18,6 +17,7 @@ use crate::{
         lower::{LoweredOperation, LoweringContext, tensor_at},
     },
     math::{Fraction, NanPropagation},
+    tensor::TensorId,
 };
 
 /// Frontend resample operation variants.
@@ -168,7 +168,7 @@ fn resample_descriptor(
         .checked_sub(2)
         .filter(|&rank| rank > 0)
         .ok_or(Error::InvalidDataShape)?;
-    ResampleDescriptor::create(ResampleDescriptorConfig {
+    ResampleDescriptor::create(ResampleDescriptorSpec {
         mode: config.mode(),
         compute_type,
         nan_propagation: config.nan_propagation(),
@@ -205,7 +205,8 @@ impl ResampleConfig {
     /// The result can be used directly by native descriptor construction or inspected without a CUDA handle.
     ///
     /// # Errors
-    /// Returns an error for zero spatial rank, mismatched array lengths or invalid fractions.
+    ///
+    /// Returns an error if the spatial rank is zero, array lengths mismatch, or a fraction is invalid.
     pub fn resolve_geometry(&self, spatial_dims: usize) -> Result<ResampleGeometry> {
         ResampleGeometry::create(
             self.effective_pre_paddings(spatial_dims)?,

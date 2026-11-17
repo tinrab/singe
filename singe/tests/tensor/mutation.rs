@@ -5,7 +5,7 @@ use singe::graph::GraphPrepareOptions;
 use singe::{Device, Shape, Tensor, graph::Graph};
 
 #[cfg(all(feature = "testing", feature = "cuda"))]
-use singe_cuda::testing::device_lock;
+use singe_cuda::{device::Device as CudaDevice, testing::device_lock};
 
 fn matrix(device: Device) -> Tensor {
     Tensor::from_vec(
@@ -79,7 +79,7 @@ fn test_cpu_writes_are_visible_through_views_and_bump_versions() {
 #[cfg(all(feature = "testing", feature = "cuda"))]
 #[test]
 fn test_cuda_writes_are_visible_through_views_and_bump_versions() {
-    let _lock = device_lock(0).unwrap();
+    let _lock = device_lock(CudaDevice::new(0)).unwrap();
     assert_writes(Device::Cuda(0));
 }
 
@@ -149,7 +149,7 @@ fn test_cpu_capture_records_writes_and_replay_writes_back() {
 #[cfg(all(feature = "testing", feature = "cuda"))]
 #[test]
 fn test_cuda_capture_records_writes_and_replay_writes_back() {
-    let _lock = device_lock(0).unwrap();
+    let _lock = device_lock(CudaDevice::new(0)).unwrap();
     assert_capture_replays_writes(Device::Cuda(0));
 }
 
@@ -163,7 +163,7 @@ fn decoder_step(cache: &Tensor, x: &Tensor, position: i64) -> singe::Result<Tens
 #[cfg(all(feature = "testing", feature = "cuda"))]
 #[test]
 fn test_compiled_cuda_graphs_write_inputs_back_natively() {
-    let _lock = device_lock(0).unwrap();
+    let _lock = device_lock(CudaDevice::new(0)).unwrap();
     let device = Device::Cuda(0);
     let cache = Tensor::from_vec(device, Shape::create([4, 3]).unwrap(), vec![0_f32; 12]).unwrap();
     let x = Tensor::from_vec(device, Shape::create([1, 3]).unwrap(), vec![1_f32, 2., 3.]).unwrap();

@@ -1,78 +1,58 @@
 use std::{borrow::Cow, ffi::NulError, result::Result as StdResult};
 
-use singe_core::status_enum;
-use singe_cuda::error::Error as CudaError;
+use singe_cuda::{data_type::DataType, error::Error as CudaError};
 use singe_cufft_sys as sys;
 use thiserror::Error;
 
-status_enum! {
-    /// All cuFFT Library return values except for `cufftResult::CUFFT_SUCCESS` indicate that the current API call failed and the user should reconfigure to correct the problem.
-    /// The possible return values are defined as follows.
-    pub enum Status: u32 => sys::cufftResult_t, unknown = "UNKNOWN_CUFFT_STATUS" {
-        /// The cuFFT operation was successful.
-        Success = CUFFT_SUCCESS,
-        /// cuFFT was passed an invalid plan handle.
-        InvalidPlan = CUFFT_INVALID_PLAN,
-        /// cuFFT failed to allocate GPU or CPU memory.
-        AllocFailed = CUFFT_ALLOC_FAILED,
-        /// The cuFFT type provided is unsupported.
-        InvalidType = CUFFT_INVALID_TYPE,
-        /// User specified an invalid pointer or parameter.
-        InvalidValue = CUFFT_INVALID_VALUE,
-        /// Driver or internal cuFFT library error.
-        InternalError = CUFFT_INTERNAL_ERROR,
-        /// Failed to execute an FFT on the GPU.
-        ExecFailed = CUFFT_EXEC_FAILED,
-        /// The cuFFT library failed to initialize.
-        SetupFailed = CUFFT_SETUP_FAILED,
-        /// User specified an invalid transform size.
-        InvalidSize = CUFFT_INVALID_SIZE,
-        /// Not currently in use.
-        UnalignedData = CUFFT_UNALIGNED_DATA,
-        /// Execution of a plan was on different GPU than plan creation.
-        InvalidDevice = CUFFT_INVALID_DEVICE,
-        /// No workspace has been provided prior to plan execution.
-        NoWorkspace = CUFFT_NO_WORKSPACE,
-        /// Function does not implement functionality for parameters given.
-        NotImplemented = CUFFT_NOT_IMPLEMENTED,
-        /// Operation is not supported for parameters given.
-        NotSupported = CUFFT_NOT_SUPPORTED,
-        /// cuFFT is unable to find a dependency.
-        MissingDependency = CUFFT_MISSING_DEPENDENCY,
-        /// An NVRTC failure was encountered during a cuFFT operation.
-        NvrtcFailure = CUFFT_NVRTC_FAILURE,
-        /// An nvJitLink failure was encountered during a cuFFT operation.
-        NvjitlinkFailure = CUFFT_NVJITLINK_FAILURE,
-        /// An NVSHMEM failure was encountered during a cuFFT operation.
-        NvshmemFailure = CUFFT_NVSHMEM_FAILURE,
-    }
-}
+use crate::types::{Direction, TransformType};
 
-impl Status {
-    /// Returns a short description of this status, including unrecognized native codes.
-    #[must_use]
-    pub const fn description(self) -> &'static str {
-        match self {
-            Self::Success => "success",
-            Self::InvalidPlan => "invalid plan",
-            Self::AllocFailed => "allocation failed",
-            Self::InvalidType => "invalid transform type",
-            Self::InvalidValue => "invalid value",
-            Self::InternalError => "internal error",
-            Self::ExecFailed => "execution failed",
-            Self::SetupFailed => "library setup failed",
-            Self::InvalidSize => "invalid size",
-            Self::UnalignedData => "unaligned data",
-            Self::InvalidDevice => "invalid device",
-            Self::NoWorkspace => "insufficient workspace",
-            Self::NotImplemented => "not implemented",
-            Self::NotSupported => "not supported",
-            Self::MissingDependency => "missing dependency",
-            Self::NvrtcFailure => "nvrtc failure",
-            Self::NvjitlinkFailure => "nvjitlink failure",
-            Self::NvshmemFailure => "nvshmem failure",
-            Self::Unknown(_) => "unknown cufft error",
-        }
+singe_core::wrapper_status! {
+    library = "cufft",
+    error = Error::Cufft,
+    raw = sys::cufftResult_t,
+    success = CUFFT_SUCCESS,
+    absence = sys::take_absence,
+    unknown = "UNKNOWN_CUFFT_STATUS",
+    /// Status returned by a cuFFT call.
+    ///
+    /// Every status except [`Status::Success`] means the call failed.
+    pub enum Status: u32 {
+        /// The cuFFT operation was successful.
+        Success = CUFFT_SUCCESS => "success",
+        /// cuFFT was passed an invalid plan handle.
+        InvalidPlan = CUFFT_INVALID_PLAN => "invalid plan",
+        /// cuFFT failed to allocate GPU or CPU memory.
+        AllocFailed = CUFFT_ALLOC_FAILED => "allocation failed",
+        /// The cuFFT type provided is unsupported.
+        InvalidType = CUFFT_INVALID_TYPE => "invalid transform type",
+        /// User specified an invalid pointer or parameter.
+        InvalidValue = CUFFT_INVALID_VALUE => "invalid value",
+        /// Driver or internal cuFFT library error.
+        InternalError = CUFFT_INTERNAL_ERROR => "internal error",
+        /// Failed to execute an FFT on the GPU.
+        ExecFailed = CUFFT_EXEC_FAILED => "execution failed",
+        /// The cuFFT library failed to initialize.
+        SetupFailed = CUFFT_SETUP_FAILED => "library setup failed",
+        /// User specified an invalid transform size.
+        InvalidSize = CUFFT_INVALID_SIZE => "invalid size",
+        /// Not currently in use.
+        UnalignedData = CUFFT_UNALIGNED_DATA => "unaligned data",
+        /// Execution of a plan was on different GPU than plan creation.
+        InvalidDevice = CUFFT_INVALID_DEVICE => "invalid device",
+        /// No workspace has been provided prior to plan execution.
+        NoWorkspace = CUFFT_NO_WORKSPACE => "insufficient workspace",
+        /// Function does not implement functionality for parameters given.
+        NotImplemented = CUFFT_NOT_IMPLEMENTED => "not implemented",
+        /// Operation is not supported for parameters given.
+        NotSupported = CUFFT_NOT_SUPPORTED => "not supported",
+        /// cuFFT is unable to find a dependency.
+        MissingDependency = CUFFT_MISSING_DEPENDENCY => "missing dependency",
+        /// An NVRTC failure was encountered during a cuFFT operation.
+        NvrtcFailure = CUFFT_NVRTC_FAILURE => "nvrtc failure",
+        /// An nvJitLink failure was encountered during a cuFFT operation.
+        NvjitlinkFailure = CUFFT_NVJITLINK_FAILURE => "nvjitlink failure",
+        /// An NVSHMEM failure was encountered during a cuFFT operation.
+        NvshmemFailure = CUFFT_NVSHMEM_FAILURE => "nvshmem failure",
     }
 }
 
@@ -80,31 +60,33 @@ impl Status {
 #[derive(Error, Debug)]
 #[non_exhaustive]
 pub enum Error {
-    // Its library would not load.
+    /// cuFFT or one of its symbols would not load.
     #[error(transparent)]
-    Load(#[from] singe_cufft_sys::LoadError),
+    Load(#[from] sys::LoadError),
 
     /// A lock was poisoned by a thread that panicked while holding it.
     #[error("`{name}` lock is poisoned")]
     LockPoisoned {
         /// What the lock guards.
-        name: &'static str,
+        name: Cow<'static, str>,
     },
 
     /// A distributed allocation still retains the plan, preventing configuration changes.
-    #[error("resource is shared and cannot be consumed")]
-    OwnershipShared,
+    #[error("`{name}` is still shared")]
+    OwnershipShared {
+        /// Name of the shared resource.
+        name: Cow<'static, str>,
+    },
+
     /// A CUDA operation failed.
     #[error(transparent)]
     Cuda(#[from] CudaError),
 
     /// cuFFT returned a failure status.
-    #[error("cufft error ({code}): {message}")]
+    #[error("cufft error ({code}): {}", code.description())]
     Cufft {
         /// Native cuFFT status, preserving unrecognized status codes.
         code: Status,
-        /// Text describing the native status.
-        message: String,
     },
 
     /// A callback symbol or linker input name contains an interior NUL byte.
@@ -114,6 +96,15 @@ pub enum Error {
     /// The native API returned a null handle or descriptor.
     #[error("unexpected null handle")]
     NullHandle,
+
+    /// A native enum value has no typed variant in this crate.
+    #[error("unknown `{name}` value {value}")]
+    UnknownEnumValue {
+        /// Name of the typed enum.
+        name: Cow<'static, str>,
+        /// Unrecognized native value.
+        value: i64,
+    },
 
     /// A value, storage extent, or configuration is outside the supported range.
     #[error("`{name}` is out of range")]
@@ -133,13 +124,57 @@ pub enum Error {
         actual: usize,
     },
 
-    /// A stream or memory region belongs to a different CUDA context from the plan.
+    /// A buffer or work area is smaller than the configured transform requires.
+    #[error("`{name}` is too small (requires {required}, got {actual})")]
+    BufferTooSmall {
+        /// Name of the buffer.
+        name: Cow<'static, str>,
+        /// Required number of elements, or bytes for a work area or distributed storage.
+        required: usize,
+        /// Supplied number of elements, or bytes for a work area or distributed storage.
+        actual: usize,
+    },
+
+    /// A buffer's element type differs from the data type the layout configures.
+    #[error("`{name}` data type mismatch (expected `{expected}`, got `{actual}`)")]
+    DataTypeMismatch {
+        /// Name of the buffer.
+        name: Cow<'static, str>,
+        /// Data type the layout configures.
+        expected: DataType,
+        /// Element type of the supplied buffer.
+        actual: DataType,
+    },
+
+    /// A distributed allocation belongs to another native plan.
+    #[error("distributed allocation belongs to another plan")]
+    PlanMismatch,
+
+    /// A stream belongs to a different CUDA context from the plan.
     #[error("stream belongs to a different cuda context")]
     StreamContextMismatch,
 
-    /// The builder has no transform shape.
-    #[error("plan builder is missing a transform definition")]
-    MissingPlanDefinition,
+    /// The plan has no transform recorded by one of its planning methods.
+    #[error("plan has no configured transform")]
+    PlanNotConfigured,
+
+    /// The operand element types select a different transform from the configured one.
+    #[error("operands select a `{actual}` transform, but the plan is configured for `{expected}`")]
+    TransformTypeMismatch {
+        /// Transform the plan is configured for.
+        expected: TransformType,
+        /// Transform the operand element types select.
+        actual: TransformType,
+    },
+
+    /// A real transform was asked to run in the direction it does not support.
+    #[error("`{kind}` transforms do not run in direction `{direction}`")]
+    UnsupportedDirection {
+        /// Transform the operand element types select.
+        kind: TransformType,
+        /// Requested direction.
+        direction: Direction,
+    },
 }
 
 /// Result of a cuFFT wrapper operation.
@@ -151,18 +186,11 @@ impl Error {
     }
 }
 
-impl From<sys::cufftResult_t> for Error {
-    fn from(status: sys::cufftResult_t) -> Self {
-        if status == sys::cufftResult_t::CUFFT_SETUP_FAILED
-            && let Err(error) = singe_cufft_sys::load()
-        {
-            return Self::Load(error);
-        }
-
-        let code = Status::from(status);
-        Self::Cufft {
-            code,
-            message: code.description().to_string(),
+impl From<singe_core::UnknownEnumValue> for Error {
+    fn from(error: singe_core::UnknownEnumValue) -> Self {
+        Self::UnknownEnumValue {
+            name: error.name.into(),
+            value: error.value,
         }
     }
 }
@@ -173,39 +201,11 @@ impl From<NulError> for Error {
     }
 }
 
-/// Converts a raw cuFFT status-returning expression into a crate [`Result`](crate::error::Result).
-#[macro_export]
+// Converts a raw cuFFT status into this crate's `Result`.
 macro_rules! try_ffi {
-    ($expr:expr) => {{
-        let status = { $expr };
-        if status != singe_cufft_sys::cufftResult_t::CUFFT_SUCCESS {
-            Err($crate::error::Error::from(status))
-        } else {
-            Ok(())
-        }
-    }};
+    ($expr:expr) => {
+        $crate::error::Error::check($expr)
+    };
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_status_converts_from_raw_code() {
-        let status = Status::from(sys::cufftResult_t::CUFFT_INVALID_VALUE);
-        assert_eq!(status, Status::InvalidValue);
-        assert_eq!(status.raw(), sys::cufftResult_t::CUFFT_INVALID_VALUE as u32);
-    }
-
-    #[test]
-    fn test_status_display_uses_c_name() {
-        assert_eq!(Status::InvalidValue.to_string(), "CUFFT_INVALID_VALUE");
-    }
-
-    #[test]
-    fn test_unknown_status_keeps_raw_code() {
-        let status = Status::Unknown(9999);
-        assert_eq!(status.raw(), 9999);
-        assert_eq!(status.to_string(), "UNKNOWN_CUFFT_STATUS(9999)");
-    }
-}
+pub(crate) use try_ffi;

@@ -4,14 +4,16 @@ use std::{
     marker::PhantomData,
     mem::{ManuallyDrop, MaybeUninit, align_of, size_of},
     ptr,
+    result::Result as StdResult,
     sync::Arc,
 };
 
+use singe_core::report_cleanup_failure;
 use singe_cuda::{
     context::Context,
     memory::transfer,
     view::{
-        AllocationId, DeviceInput, DeviceOutput, DeviceOutputView, DeviceRegion,
+        AllocationId, DeviceOutput, DeviceOutputView, DeviceRange, DeviceRegion,
         DeviceRegionProvider, DeviceRepr, DeviceSlice, DeviceSliceMut, DeviceView, DeviceViewMut,
     },
 };
@@ -34,9 +36,10 @@ pub struct Allocation {
     id: AllocationId,
 }
 
-// SAFETY: the owner exposes metadata only; typed access remains borrowed from Memory.
+// SAFETY: the pointer is a device address never dereferenced on the host, and `Drop` binds the retained context before `ncclMemFree`, which may run on any thread.
 unsafe impl Send for Allocation {}
 
+// SAFETY: `&self` methods only read metadata and describe regions; none calls into NCCL.
 unsafe impl Sync for Allocation {}
 
 /// A uniquely accessible typed range in an NCCL allocation.
@@ -50,7 +53,7 @@ pub struct Memory<T: DeviceRepr> {
 }
 
 /// Native allocation ownership transferred with its bounds, identity, and context.
-/// Free `pointer` with `ncclMemFree` before releasing the context, or transfer the complete value through [`Memory::from_raw`].
+/// Free `pointer` with [`sys::ncclMemFree`] before releasing the context, or transfer the complete value through [`Memory::from_raw`].
 #[derive(Debug)]
 pub struct RawMemory<T: DeviceRepr> {
     /// The transferred native allocation pointer.
@@ -93,12 +96,14 @@ impl<T: DeviceRepr> Memory<T> {
         context.bind()?;
         let mut pointer = ptr::NonNull::<T>::dangling().as_ptr().cast();
         if bytes != 0 {
-            // SAFETY: NCCL writes one allocation pointer and no typed values.
+            // SAFETY: `pointer` is a local output slot, and the context bound above is the device's primary context.
             unsafe {
                 try_ffi!(sys::ncclMemAlloc(&raw mut pointer, native_bytes))?;
             }
             if pointer.is_null() {
-                return Err(Error::NullPointer);
+                return Err(Error::NullPointer {
+                    name: "nccl allocation".into(),
+                });
             }
         }
 
@@ -133,7 +138,8 @@ impl<T: DeviceRepr> Memory<T> {
     /// Takes ownership of an NCCL allocation and its typed range.
     ///
     /// # Safety
-    /// `parts.pointer` must be the base of a uniquely owned NCCL allocation in `parts.context`, covering `parts.allocation_bytes` bytes.
+    ///
+    /// `raw.pointer` must be the base of a uniquely owned NCCL allocation in `raw.context`, covering `raw.allocation_bytes` bytes.
     /// Every exposed element must be a valid T, with pending writes ordered before consumers.
     /// Reuse the allocation identity for all aliases and retain those aliases' owners through their accesses.
     /// Empty allocations may use a null pointer.
@@ -141,60 +147,72 @@ impl<T: DeviceRepr> Memory<T> {
     /// # Errors
     ///
     /// Returns an error if the context is not the device primary CUDA context, the typed size overflows or exceeds the allocation, the nonempty allocation pointer is null or misaligned, or the device-region metadata is invalid.
-    pub unsafe fn from_raw(parts: RawMemory<T>) -> Result<Self> {
+    pub unsafe fn from_raw(raw: RawMemory<T>) -> Result<Self> {
         let () = T::LAYOUT;
-        ensure_primary_context(&parts.context)?;
-        let bytes = checked_byte_len::<T>(parts.length, "nccl allocation size")?;
-        if bytes > parts.allocation_bytes
-            || parts.allocation_bytes != 0 && parts.pointer.is_null()
-            || !parts.pointer.addr().is_multiple_of(align_of::<T>())
+        ensure_primary_context(&raw.context)?;
+        let bytes = checked_byte_len::<T>(raw.length, "nccl allocation size")?;
+        if bytes > raw.allocation_bytes
+            || raw.allocation_bytes != 0 && raw.pointer.is_null()
+            || !raw.pointer.addr().is_multiple_of(align_of::<T>())
         {
             return Err(Error::out_of_range("nccl allocation range"));
         }
 
-        let pointer = if parts.allocation_bytes == 0 {
+        let pointer = if raw.allocation_bytes == 0 {
             ptr::NonNull::<T>::dangling().as_ptr()
         } else {
-            parts.pointer
+            raw.pointer
         };
         // Check address arithmetic once at the native ownership boundary.
-        // SAFETY: the caller upholds this function's safety contract.
+        // SAFETY: the caller guarantees `raw.pointer` is the base of a live NCCL allocation of `raw.allocation_bytes` bytes in `raw.context`, and that every alias shares `raw.allocation_id`.
         unsafe {
             DeviceRegion::from_raw_parts(
-                &parts.context,
-                parts.allocation_id,
+                &raw.context,
+                raw.allocation_id,
                 pointer.cast(),
-                parts.allocation_bytes,
+                raw.allocation_bytes,
             )?;
         }
         Ok(Self {
             allocation: Arc::new(Allocation {
                 pointer: pointer.cast(),
-                bytes: parts.allocation_bytes,
-                context: parts.context,
-                id: parts.allocation_id,
+                bytes: raw.allocation_bytes,
+                context: raw.context,
+                id: raw.allocation_id,
             }),
-            length: parts.length,
+            length: raw.length,
             _t: PhantomData,
         })
     }
 
     /// Transfers unique native allocation ownership without freeing it.
-    /// Returns an error while retained regions still share the allocation owner.
     ///
     /// # Errors
     ///
-    /// Returns [`Error::OwnershipShared`] if another owner retains the allocation.
-    pub fn into_raw(self) -> Result<RawMemory<T>> {
-        let allocation = Arc::try_unwrap(self.allocation).map_err(|_| Error::OwnershipShared)?;
-        let allocation = ManuallyDrop::new(allocation);
+    /// Returns the original memory as `Err` if retained regions or another owner still share the allocation.
+    pub fn into_raw(self) -> StdResult<RawMemory<T>, Self> {
+        let Self {
+            allocation, length, ..
+        } = self;
+        let allocation = match Arc::try_unwrap(allocation) {
+            Ok(allocation) => ManuallyDrop::new(allocation),
+            Err(allocation) => {
+                return Err(Self {
+                    allocation,
+                    length,
+                    _t: PhantomData,
+                });
+            }
+        };
+
+        // SAFETY: `allocation` is never dropped, so its only owned field, the context reference, is read out exactly once.
+        let context = unsafe { ptr::read(&raw const allocation.context) };
         Ok(RawMemory {
             pointer: allocation.pointer.cast(),
-            length: self.length,
+            length,
             allocation_bytes: allocation.bytes,
             allocation_id: allocation.id,
-            // SAFETY: native ownership and the only owned context reference are transferred together.
-            context: unsafe { ptr::read(&raw const allocation.context) },
+            context,
         })
     }
 
@@ -261,6 +279,7 @@ impl<T: DeviceRepr> Memory<MaybeUninit<T>> {
     /// Exposes every element after caller-established initialization.
     ///
     /// # Safety
+    ///
     /// Every element must contain a valid T, with producer writes ordered before every consumer and host readback.
     /// Enqueue success alone is insufficient.
     #[must_use]
@@ -275,6 +294,7 @@ impl<T: DeviceRepr> Memory<MaybeUninit<T>> {
     /// Exposes an initialized prefix while retaining the complete allocation.
     ///
     /// # Safety
+    ///
     /// The first `length` elements must contain valid T values.
     /// Producing work must be ordered before every consumer and host readback.
     ///
@@ -295,6 +315,7 @@ impl<T: DeviceRepr> Memory<MaybeUninit<T>> {
 // SAFETY: the owner retains exactly the checked native allocation and its context.
 unsafe impl DeviceRegionProvider for Allocation {
     fn region(&self) -> DeviceRegion<'_> {
+        // SAFETY: `pointer` and `bytes` come from `ncclMemAlloc` or a checked `Memory::from_raw` import in `context`, `self` keeps them allocated, and `id` names only this allocation.
         unsafe { DeviceRegion::from_raw_parts(&self.context, self.id, self.pointer, self.bytes) }
             .expect("owned nccl allocation metadata is valid")
     }
@@ -311,7 +332,7 @@ unsafe impl<T: DeviceRepr> DeviceRegionProvider for Memory<T> {
 }
 
 // SAFETY: initialized constructors and explicit promotion establish valid T values.
-unsafe impl<T: DeviceRepr> DeviceInput<T> for Memory<T> {
+unsafe impl<T: DeviceRepr> DeviceRange<T> for Memory<T> {
     fn as_device_ptr(&self) -> *const T {
         self.as_ptr()
     }
@@ -334,14 +355,14 @@ unsafe impl<T: DeviceRepr> DeviceOutput<T> for Memory<T> {
     }
 }
 
-// SAFETY: MaybeUninit has T's layout and grants no initialized input access to T.
-// SAFETY: output metadata describes the same live typed range without initialized reads.
-unsafe impl<T: DeviceRepr> DeviceInput<T> for Memory<MaybeUninit<T>> {
+// SAFETY: `MaybeUninit<T>` has `T`'s layout, and the range reports the same live checked allocation without granting initialized reads.
+unsafe impl<T: DeviceRepr> DeviceRange<T> for Memory<MaybeUninit<T>> {
     fn len(&self) -> usize {
         self.length
     }
 }
 
+// SAFETY: the pointer is the aligned base of a live allocation sized for `length` elements, and `&mut self` makes write access exclusive.
 unsafe impl<T: DeviceRepr> DeviceOutput<T> for Memory<MaybeUninit<T>> {
     fn as_mut_ptr(&mut self) -> *mut T {
         self.allocation.pointer.cast()
@@ -354,16 +375,15 @@ impl Drop for Allocation {
             return;
         }
 
-        if self.context.bind().is_err() {
+        if let Err(error) = self.context.bind() {
+            report_cleanup_failure("bind the cuda context to free", "nccl memory", &error);
             return;
         }
-        // SAFETY: the last owner releases the native base in its actual context.
+
+        // SAFETY: this is the last owner of a nonempty `ncclMemAlloc` base, and its context was bound above.
         unsafe {
             if let Err(error) = try_ffi!(sys::ncclMemFree(self.pointer.cast())) {
-                eprintln!(
-                    "failed to free nccl memory: {}",
-                    singe_core::ErrorChain(&error)
-                );
+                report_cleanup_failure("free", "nccl memory", &error);
             }
         }
     }

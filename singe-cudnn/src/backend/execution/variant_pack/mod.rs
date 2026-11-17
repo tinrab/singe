@@ -1,18 +1,21 @@
 mod workspace;
 
-use std::{mem::MaybeUninit, ptr, ptr::null_mut, sync::Arc};
+use std::{ptr, ptr::null_mut, sync::Arc};
 
-use singe_cuda::{context::Context as CudaContext, memory::DeviceMemory, types::DevicePtr};
+use singe_cuda::{
+    context::Context as CudaContext, error::Error as CudaError, types::DevicePtr,
+    view::DeviceOutputView,
+};
 
-pub use self::workspace::WorkspaceInitialization;
+pub(crate) use self::workspace::WorkspaceInitialization;
 use crate::{
     backend::{
         attribute::BackendAttributeName,
         descriptor::{BackendDescriptor, BackendDescriptorType},
-        tensor::{BackendTensorUid, Shape},
+        tensor::BackendTensorUid,
     },
     error::{Error, Result},
-    frontend::error::Error as FrontendError,
+    tensor::Shape,
 };
 
 /// Owns a finalized native binding descriptor, runtime-layout metadata, and retained allocation context.
@@ -69,13 +72,12 @@ struct VariantPackStorage {
     override_strides_root: Option<Box<StdVectorHeader<StdVectorHeader<i64>>>>,
 }
 
-// SAFETY: the descriptor and all override metadata own stable storage and may move between threads.
-// Data pointers are opaque CUDA addresses whose liveness and access remain the constructor's contract.
-// Shared use is serialized by the owned execution adapter; no Sync implementation is needed.
 #[expect(
     clippy::non_send_fields_in_send_ty,
     reason = "the variant pack retains the exclusive native pointer storage and its allocation owners"
 )]
+// SAFETY: the pack exclusively owns its descriptor, which has no thread affinity, and its boxed override metadata, whose addresses stay stable when moved.
+// The raw data pointers are CUDA addresses with no thread affinity; the type is not `Sync`.
 unsafe impl Send for VariantPack {}
 
 impl VariantPack {
@@ -93,9 +95,9 @@ impl VariantPack {
     pub unsafe fn create(
         allocation_context: &Arc<CudaContext>,
         bindings: &[(BackendTensorUid, DevicePtr)],
-        workspace: Option<&mut DeviceMemory<MaybeUninit<u8>>>,
+        workspace: Option<DeviceOutputView<'_, u8>>,
     ) -> Result<Self> {
-        // SAFETY: the caller upholds this function's safety contract.
+        // SAFETY: the caller keeps `bindings` and `workspace` valid for every use of the pack, which is what `create_with_overrides` requires without overrides.
         unsafe { Self::create_with_overrides(allocation_context, bindings, workspace, &[]) }
     }
 
@@ -114,10 +116,10 @@ impl VariantPack {
     pub unsafe fn create_with_overrides(
         allocation_context: &Arc<CudaContext>,
         bindings: &[(BackendTensorUid, DevicePtr)],
-        workspace: Option<&mut DeviceMemory<MaybeUninit<u8>>>,
+        workspace: Option<DeviceOutputView<'_, u8>>,
         overrides: &[VariantPackOverride],
     ) -> Result<Self> {
-        // SAFETY: the caller upholds this function's safety contract.
+        // SAFETY: the caller keeps `bindings` and `workspace` valid for every use of the pack and matches `overrides` to the plan, as `create_with_workspace_prefix` requires; a zero prefix reserves nothing.
         unsafe {
             Self::create_with_workspace_prefix(
                 allocation_context,
@@ -138,7 +140,7 @@ impl VariantPack {
     pub(crate) unsafe fn create_with_workspace_prefix(
         allocation_context: &Arc<CudaContext>,
         bindings: &[(BackendTensorUid, DevicePtr)],
-        workspace: Option<&mut DeviceMemory<MaybeUninit<u8>>>,
+        mut workspace: Option<DeviceOutputView<'_, u8>>,
         workspace_prefix_bytes: usize,
         overrides: &[VariantPackOverride],
     ) -> Result<Self> {
@@ -146,14 +148,13 @@ impl VariantPack {
         if let Some(workspace) = workspace.as_ref()
             && workspace.context().as_ref() != allocation_context.as_ref()
         {
-            return Err(Error::ContextMismatch {
-                name: "workspace".into(),
-            });
+            return Err(CudaError::MemoryContextMismatch.into());
         }
 
-        let total_capacity = workspace.as_ref().map_or(0, |workspace| workspace.len());
+        let total_capacity = workspace.as_ref().map_or(0, DeviceOutputView::len);
         if total_capacity < workspace_prefix_bytes {
-            return Err(Error::InsufficientWorkspaceSize {
+            return Err(Error::BufferTooSmall {
+                name: "workspace".into(),
                 required: workspace_prefix_bytes,
                 actual: total_capacity,
             });
@@ -171,16 +172,16 @@ impl VariantPack {
         };
         let workspace_capacity = total_capacity - workspace_prefix_bytes;
         let workspace_base = workspace
-            .as_ref()
-            .map_or(null_mut(), |workspace| workspace.as_mut_ptr().cast::<u8>());
-        let workspace_ptr = workspace.map_or(null_mut(), |workspace| {
-            workspace
-                .as_mut_ptr()
-                .wrapping_add(workspace_prefix_bytes)
-                .cast()
-        });
+            .as_mut()
+            .map_or(null_mut(), DeviceOutputView::as_mut_ptr);
+        let workspace_ptr = if workspace_base.is_null() {
+            null_mut()
+        } else {
+            workspace_base.wrapping_add(workspace_prefix_bytes).cast()
+        };
 
-        // SAFETY: the raw constructor contract retains workspace storage independently of tensor bindings.
+        // SAFETY: `workspace_ptr` is null or lies `workspace_prefix_bytes` into the checked workspace allocation.
+        // The caller keeps that allocation valid for every use of the pack, per `# Safety`.
         unsafe {
             descriptor.set_attribute_void_ptr(
                 BackendAttributeName::VariantPackWorkspace,
@@ -189,7 +190,7 @@ impl VariantPack {
         }
 
         if !bindings.is_empty() {
-            // SAFETY: the raw constructor contract retains buffer pointees; storage owns argument metadata.
+            // SAFETY: cuDNN copies the pointer array; the caller keeps every bound device pointer valid for every use of the pack, per `# Safety`.
             unsafe {
                 descriptor.set_attribute_void_ptr_slice(
                     BackendAttributeName::VariantPackDataPointers,
@@ -223,38 +224,34 @@ impl VariantPack {
                 BackendAttributeName::VariantPackOverrideUniqueIds,
                 &override_ids,
             )?;
-            storage.override_shapes_root = Some(Box::new(StdVectorHeader::from_slice(
-                &storage.override_shape_headers,
-            )));
-            storage.override_strides_root = Some(Box::new(StdVectorHeader::from_slice(
-                &storage.override_stride_headers,
-            )));
 
             // cuDNN expects the same payload shape as the upstream C++ frontend helper:
             // a pointer to `std::vector<std::vector<int64_t>>`, not a flat array of data pointers.
-            let override_shapes_root_ptr = ptr::from_mut::<StdVectorHeader<StdVectorHeader<i64>>>(
-                storage.override_shapes_root.as_deref_mut().ok_or(
-                    FrontendError::InternalStateMissing {
-                        name: "override_shapes_root",
-                    },
-                )?,
-            );
-            let override_strides_root_ptr = ptr::from_mut::<StdVectorHeader<StdVectorHeader<i64>>>(
-                storage.override_strides_root.as_deref_mut().ok_or(
-                    FrontendError::InternalStateMissing {
-                        name: "override_strides_root",
-                    },
-                )?,
-            );
+            let override_shapes_root =
+                storage
+                    .override_shapes_root
+                    .insert(Box::new(StdVectorHeader::from_slice(
+                        &storage.override_shape_headers,
+                    )));
+            let override_shapes_root_ptr =
+                ptr::from_mut::<StdVectorHeader<StdVectorHeader<i64>>>(override_shapes_root);
+            let override_strides_root =
+                storage
+                    .override_strides_root
+                    .insert(Box::new(StdVectorHeader::from_slice(
+                        &storage.override_stride_headers,
+                    )));
+            let override_strides_root_ptr =
+                ptr::from_mut::<StdVectorHeader<StdVectorHeader<i64>>>(override_strides_root);
 
-            // SAFETY: the raw constructor contract retains buffer pointees; storage owns override metadata.
+            // SAFETY: the root points into `storage`, a boxed vector-of-vectors header whose rows the returned pack owns for its whole life.
             unsafe {
                 descriptor.set_attribute_void_ptr_payload(
                     BackendAttributeName::VariantPackOverrideShapes,
                     override_shapes_root_ptr.cast(),
                 )
             }?;
-            // SAFETY: the raw constructor contract retains buffer pointees; storage owns override metadata.
+            // SAFETY: the root points into `storage`, a boxed vector-of-vectors header whose rows the returned pack owns for its whole life.
             unsafe {
                 descriptor.set_attribute_void_ptr_payload(
                     BackendAttributeName::VariantPackOverrideStrides,
@@ -295,7 +292,7 @@ impl VariantPack {
         if self.workspace_base.is_null() {
             return None;
         }
-        // SAFETY: pack creation checked the scratch prefix against the supplied allocation's byte capacity.
+        // SAFETY: creation checked that the prefix fits the workspace allocation, so the address is inside it; the value grants no access by itself.
         Some(unsafe {
             DevicePtr::from_raw(
                 self.workspace_base
@@ -329,7 +326,7 @@ impl VariantPack {
             .iter()
             .copied()
             .zip(&self.storage.data_pointers)
-            // SAFETY: the address belongs to a live device allocation that stays borrowed for the operation that uses it.
+            // SAFETY: each address came from a `DevicePtr` passed to the unsafe constructor, and the value grants no access by itself.
             .map(|(id, &pointer)| (id, unsafe { DevicePtr::from_raw(pointer) }))
     }
 

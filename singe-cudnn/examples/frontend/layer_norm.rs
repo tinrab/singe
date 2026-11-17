@@ -3,17 +3,17 @@ mod common;
 use singe_core::assert_close;
 use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
-    backend::tensor::{Shape, TensorSpec},
+    backend::operation::normalization::NormalizationSavedStatistics,
     data_type::{DataType, f16 as half_f16},
-    error::Result,
     frontend::{
         graph::{DataTypePolicy, Graph, GraphConfig},
         operation::{
             LayerNormalizationAffine, LayerNormalizationConfig, LayerNormalizationInputs,
-            LayerNormalizationOutputs, NormalizationSavedStatistics, NormalizationStatistics,
+            LayerNormalizationOutputs, NormalizationStatistics,
         },
         plan::{CompileConfig, ExecuteArgs, HeuristicMode},
     },
+    tensor::{Shape, TensorSpec},
 };
 
 fn init_f32_image(size: usize, seed: &mut u32) -> Vec<f32> {
@@ -32,7 +32,7 @@ fn init_f16_image(size: usize, seed: &mut u32) -> Vec<half_f16> {
         .collect()
 }
 
-fn run() -> Result<()> {
+fn run() -> anyhow::Result<()> {
     let example = common::ExampleContext::create()?;
 
     let batch_size = 4;
@@ -97,60 +97,55 @@ fn run() -> Result<()> {
     graph.layer_normalization_into(
         LayerNormalizationInputs {
             input: x,
-            affine: LayerNormalizationAffine::ScaleBias {
-                scale: scale,
-                bias: bias,
-            },
+            affine: LayerNormalizationAffine::ScaleBias { scale, bias },
         },
         LayerNormalizationOutputs {
             output: y,
             statistics: NormalizationStatistics::Training(NormalizationSavedStatistics {
-                mean: mean,
-                inv_variance: inv_variance,
+                mean,
+                inv_variance,
             }),
         },
         LayerNormalizationConfig::new(epsilon),
     )?;
 
-    let compiled = match graph.compile(
+    let compiled = graph.compile(
         Some(&example.cudnn),
         &CompileConfig::from_heuristic_modes([HeuristicMode::A, HeuristicMode::Fallback]),
-    ) {
-        Ok(compiled) => compiled,
-        Err(error) => return Err(error),
-    };
+    )?;
 
     let mut half_seed = 123_456_789_u32;
     let mut float_seed = 123_456_789_u32;
     let mut x_dev = DeviceMemory::from_slice(
         example.cudnn.cuda_context(),
         &init_f16_image(
-            (batch_size * seq_length * hidden_size) as usize,
+            usize::try_from(batch_size * seq_length * hidden_size)?,
             &mut half_seed,
         ),
     )?;
-    let _mean_host_init = init_f32_image((batch_size * seq_length) as usize, &mut float_seed);
+    let _mean_host_init =
+        init_f32_image(usize::try_from(batch_size * seq_length)?, &mut float_seed);
     let _inv_variance_host_init =
-        init_f32_image((batch_size * seq_length) as usize, &mut float_seed);
+        init_f32_image(usize::try_from(batch_size * seq_length)?, &mut float_seed);
     let mut scale_dev = DeviceMemory::from_slice(
         example.cudnn.cuda_context(),
-        &init_f32_image(hidden_size as usize, &mut float_seed),
+        &init_f32_image(usize::try_from(hidden_size)?, &mut float_seed),
     )?;
     let mut bias_dev = DeviceMemory::from_slice(
         example.cudnn.cuda_context(),
-        &init_f32_image(hidden_size as usize, &mut float_seed),
+        &init_f32_image(usize::try_from(hidden_size)?, &mut float_seed),
     )?;
     let mut y_dev = DeviceMemory::<half_f16>::zeroed(
         example.cudnn.cuda_context(),
-        (batch_size * seq_length * hidden_size) as usize,
+        usize::try_from(batch_size * seq_length * hidden_size)?,
     )?;
     let mut mean_dev = DeviceMemory::<f32>::zeroed(
         example.cudnn.cuda_context(),
-        (batch_size * seq_length) as usize,
+        usize::try_from(batch_size * seq_length)?,
     )?;
     let mut inv_variance_dev = DeviceMemory::<f32>::zeroed(
         example.cudnn.cuda_context(),
-        (batch_size * seq_length) as usize,
+        usize::try_from(batch_size * seq_length)?,
     )?;
     let mut workspace = common::workspace(example.cudnn.cuda_context(), compiled.workspace_size())?;
     let mut bindings = compiled.bindings()?;
@@ -163,9 +158,9 @@ fn run() -> Result<()> {
     // SAFETY: matching bindings, buffers and workspace remain live until the helper
     // completes the cuDNN stream, including when native execution returns an error.
     example.execute_and_wait(|context| unsafe {
-        compiled.execute(
+        compiled.execute_async(
             context,
-            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
         )
     })?;
 
@@ -196,11 +191,11 @@ fn run() -> Result<()> {
         inv_variance_host.len()
     );
 
-    assert_close!(y_first, -0.533203, 1.0e-3, "y.first");
-    assert_close!(y_last, 0.421387, 1.0e-3, "y.last");
-    assert_close!(y_checksum, 246493.0, 200.0, "y.checksum");
-    assert_close!(mean_first, 0.506307, 1.0e-5, "mean.first");
-    assert_close!(mean_last, 0.546668, 1.0e-5, "mean.last");
+    assert_close!(y_first, -0.533_203, 1.0e-3, "y.first");
+    assert_close!(y_last, 0.421_387, 1.0e-3, "y.last");
+    assert_close!(y_checksum, 246_493.0, 200.0, "y.checksum");
+    assert_close!(mean_first, 0.506_307, 1.0e-5, "mean.first");
+    assert_close!(mean_last, 0.546_668, 1.0e-5, "mean.last");
     assert_close!(mean_checksum, 2049.33, 0.05, "mean.checksum");
     assert_close!(inv_variance_first, 3.4069, 1.0e-4, "inv_variance.first");
     assert_close!(inv_variance_last, 3.57143, 1.0e-4, "inv_variance.last");
@@ -209,6 +204,6 @@ fn run() -> Result<()> {
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_layer_norm", run())
 }

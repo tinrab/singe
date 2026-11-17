@@ -1,13 +1,19 @@
-//! Raw FFI bindings for NPP.
-//!
-//! Prefer the safe `singe-npp` crate unless direct NVIDIA ABI access is required.
-
+//! Low-level FFI bindings for NPP 13.2, the NVIDIA Performance Primitives, generated from `npp.h`.
+//! NPP is split into several libraries, such as `nppc` for core functions, `nppi*` for image processing, and `npps` for signal processing.
+//! [`singe-loader`](singe_loader) loads each library at run time, on the first call or through [`load`], so building links no NVIDIA library.
+//! Most users want the safe `singe-npp` crate.
 #![allow(
+    deprecated,
+    dead_code,
     non_camel_case_types,
     non_snake_case,
+    non_upper_case_globals,
     unnecessary_transmutes,
     unused_imports,
     unused_qualifications,
+    missing_debug_implementations,
+    unnameable_types,
+    unreachable_pub,
     clippy::correctness,
     clippy::suspicious,
     clippy::complexity,
@@ -16,20 +22,27 @@
     clippy::absolute_paths,
     clippy::pedantic,
     clippy::nursery,
+    clippy::undocumented_unsafe_blocks,
     reason = "generated bindings preserve upstream ABI conventions and documentation"
 )]
 
-use num_enum::{IntoPrimitive, TryFromPrimitive};
+#[cfg(not(feature = "npp_13_2"))]
+compile_error!("singe-npp-sys requires a version feature, such as `npp_13_2`");
+
 use singe_cuda_sys::runtime::cudaStream_t;
 
 #[cfg(feature = "npp_13_2")]
 include!("sys_13200.rs");
 
-pub use singe_loader::LoadError;
+pub use singe_loader::{Absence, LoadError, take_absence};
 
 static LIBRARY: singe_loader::Library = singe_loader::Library::npp();
 
-// Loads NPP, which each of its functions otherwise does on first call.
+/// Loads NPP now, instead of on the first call of one of its functions.
+///
+/// # Errors
+///
+/// Returns an error if the library has no files on this platform or one of its files would not load.
 pub fn load() -> Result<(), LoadError> {
     LIBRARY.load()
 }

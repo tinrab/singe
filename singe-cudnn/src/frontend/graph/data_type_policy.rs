@@ -66,10 +66,6 @@ impl DataTypePolicy {
         self.compute
     }
 
-    pub(crate) fn effective_compute(self, default: DataType) -> DataType {
-        self.compute.unwrap_or(default)
-    }
-
     pub(crate) fn resolve_compute(self, requested: Option<DataType>) -> DataType {
         requested.or(self.compute).unwrap_or(DataType::F32)
     }

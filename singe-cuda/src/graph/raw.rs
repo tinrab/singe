@@ -1,3 +1,5 @@
+//! Raw CUDA graph node parameters and pointer-based operations.
+
 use std::ptr;
 
 use singe_cuda_sys::{driver, runtime};

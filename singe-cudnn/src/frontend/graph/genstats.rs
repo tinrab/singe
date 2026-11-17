@@ -1,12 +1,12 @@
-pub use crate::backend::execution::normalization::GenStatsOutputs;
 use crate::{
-    backend::tensor::{Shape, TensorId},
+    backend::operation::normalization::GenStatsOutputs,
     data_type::DataType,
     error::Result,
     frontend::{
         graph::{Graph, TensorOutputConfig, infer_normalization_channel_dimensions},
         operation::{GenStatsConfig, GenStatsOperation, Operation},
     },
+    tensor::{Shape, TensorId},
 };
 
 impl Graph {
@@ -18,7 +18,7 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for unknown tensor identities, input rank below two, or sum and square-sum dimensions that differ from the inferred per-channel shape.
+    /// Returns an error if a tensor identity is unknown, the input rank is below two, or the sum and square-sum dimensions differ from the inferred per-channel shape.
     pub fn genstats_into(
         &mut self,
         input: TensorId,

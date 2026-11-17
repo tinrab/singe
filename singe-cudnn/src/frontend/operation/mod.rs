@@ -44,18 +44,15 @@ use std::collections::BTreeSet;
 
 use serde::{Deserialize, Serialize};
 
-use crate::backend::tensor::TensorId;
 pub use crate::frontend::operation::{
     attention::{
         AlibiBias, AttentionBackwardAuxGradients, AttentionBackwardConfig, AttentionConfig,
         AttentionDiagonalAlignment, AttentionDiagonalBand, AttentionDropoutConfig,
         AttentionDropoutMask, AttentionDropoutMode, AttentionImplementation, AttentionMaskMode,
         AttentionMaxTotalSequenceLengths, AttentionPagedCache, AttentionPagedKvCache,
-        AttentionPrimitiveOperation, AttentionScoreConfig, AttentionSequenceInputs,
-        DiagonalBandMaskBound, DiagonalBandMaskConfig, DirectSdpaBackwardConfig, DirectSdpaDropout,
-        DirectSdpaForwardConfig, SdpaBackwardSink, SdpaBackwardTensors, SdpaConfig,
-        SdpaForwardQuantization, SdpaForwardTensors, SdpaFusedMaskMode, SdpaOperation,
-        SdpaScoreModifiers, SdpaScoreSubgraph, SequenceLength, SoftmaxStatsBase,
+        AttentionPrimitiveOperation, AttentionScoreConfig, DirectSdpaBackwardConfig,
+        DirectSdpaDropout, DirectSdpaForwardConfig, SdpaConfig, SdpaOperation, SdpaScoreModifiers,
+        SdpaScoreSubgraph,
     },
     attention_request::{AttentionForwardInputs, AttentionForwardRequest},
     attention_workspace::AttentionBackwardWorkspaceLimit,
@@ -63,50 +60,38 @@ pub use crate::frontend::operation::{
     block_scale::{BlockScaleDequantizeConfig, BlockScaleOperation, BlockScaleQuantizeConfig},
     convolution::{ConvolutionConfig, ConvolutionOperation},
     matmul::{MatmulConfig, MatmulOperation},
-    moe::{
-        MoeGroupedMatmulBackwardConfig, MoeGroupedMatmulConfig, MoeGroupedMatmulOperation,
-        MoeGroupedMatmulRouting,
-    },
+    moe::{MoeGroupedMatmulBackwardConfig, MoeGroupedMatmulConfig, MoeGroupedMatmulOperation},
     node::Operation,
     normalization::{
         AdaptiveLayerNormalizationBackwardInputs, AdaptiveLayerNormalizationBackwardOutputs,
         AdaptiveLayerNormalizationConfig, AdaptiveLayerNormalizationInputs,
         AdaptiveLayerNormalizationOutputs, BatchNormalizationBackwardConfig,
         BatchNormalizationBackwardInputs, BatchNormalizationBackwardOutputs,
-        BatchNormalizationBackwardWeightsConfig, BatchNormalizationBackwardWeightsInputs,
-        BatchNormalizationBackwardWeightsOutputs, BatchNormalizationConfig,
-        BatchNormalizationFinalizeConfig, BatchNormalizationFinalizeInputs,
-        BatchNormalizationFinalizeOutputs, BatchNormalizationInferenceInputs,
-        BatchNormalizationInputs, BatchNormalizationOutputs, BatchNormalizationRunningStatistics,
-        BatchNormalizationRunningStats, InstanceNormalizationBackwardInputs,
+        BatchNormalizationBackwardWeightsConfig, BatchNormalizationConfig,
+        BatchNormalizationFinalizeConfig, BatchNormalizationInferenceInputs,
+        BatchNormalizationInputs, BatchNormalizationOutputs, InstanceNormalizationBackwardInputs,
         InstanceNormalizationBackwardOutputs, InstanceNormalizationConfig,
         InstanceNormalizationInputs, InstanceNormalizationOutputs, LayerNormalizationAffine,
         LayerNormalizationAffineGradients, LayerNormalizationBackwardConfig,
         LayerNormalizationBackwardInputs, LayerNormalizationBackwardOutputs,
         LayerNormalizationConfig, LayerNormalizationInputs, LayerNormalizationOutputs,
-        NormalizationConfig, NormalizationOperation, NormalizationSavedStatistics,
-        NormalizationStatistics, RmsNormalizationAffineGradients, RmsNormalizationBackwardConfig,
+        NormalizationConfig, NormalizationOperation, NormalizationStatistics,
+        RmsNormalizationAffineGradients, RmsNormalizationBackwardConfig,
         RmsNormalizationBackwardInputs, RmsNormalizationBackwardOutputs, RmsNormalizationConfig,
         RmsNormalizationInputs, RmsNormalizationOutputs, RmsNormalizationStatistics,
     },
-    paged_cache::{
-        PagedCacheLayout, PagedCacheLoadConfig, PagedCacheLoadOperation, PagedCacheLoadTensors,
-    },
-    pointwise::{Activation, PointwiseOperation},
+    paged_cache::{PagedCacheLayout, PagedCacheLoadConfig, PagedCacheLoadOperation},
+    pointwise::PointwiseOperation,
     reduction::{ReductionAxes, ReductionConfig, ReductionOperation, ReductionOutput},
-    resample::{ResampleBackwardInputs, ResampleConfig, ResampleOperation},
-    rng::{
-        RandomNumberDistribution, RandomNumberGeneratorConfig, RandomNumberGeneratorOperation,
-        RandomNumberSeedSource,
-    },
-    rope::{RopeBackwardInputs, RopeConfig, RopeInputs, RopeOperation},
+    resample::{ResampleConfig, ResampleOperation},
+    rng::{RandomNumberGeneratorConfig, RandomNumberGeneratorOperation},
+    rope::RopeOperation,
     softmax::SoftmaxConfig,
     stats::{GenStatsConfig, GenStatsOperation},
-    tensor_ops::{
-        ConcatConfig, ConcatInPlaceMode, ReshapeConfig, ReshapeMode, SliceConfig, TensorOperation,
-        TransposeConfig,
-    },
+    tensor_ops::TensorOperation,
 };
+use crate::tensor::TensorId;
+
 pub(crate) use crate::frontend::operation::{
     attention::{SdpaAuxOutputRequest, SdpaQuantizedAuxOutputRequest, SdpaSoftmaxAuxOutputRequest},
     backward_request::AttentionBackwardHeuristicOverride,
@@ -151,16 +136,16 @@ pub(crate) struct TensorUses {
 }
 
 impl TensorUses {
-    pub fn read(&mut self, ids: impl IntoIterator<Item = TensorId>) {
+    pub(crate) fn read(&mut self, ids: impl IntoIterator<Item = TensorId>) {
         self.reads.extend(ids);
     }
 
-    pub fn write(&mut self, ids: impl IntoIterator<Item = TensorId>) {
+    pub(crate) fn write(&mut self, ids: impl IntoIterator<Item = TensorId>) {
         self.writes.extend(ids);
     }
 
     /// Marks index, offset and extent tensors as reads that control memory addressing.
-    pub fn read_indices(&mut self, ids: impl IntoIterator<Item = TensorId>) {
+    pub(crate) fn read_indices(&mut self, ids: impl IntoIterator<Item = TensorId>) {
         for id in ids {
             self.reads.insert(id);
             self.indexing.insert(id);

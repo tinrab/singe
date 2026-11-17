@@ -4,21 +4,19 @@ use std::env::args;
 
 use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
-    backend::{
+    backend::operation::{
         pointwise::PointwiseMode,
-        tensor::{Shape, TensorSpec},
+        rng::{RandomNumberDistribution, RandomNumberSeedSource},
     },
     data_type::DataType,
     error::Result,
     frontend::{
         error::Error as FrontendError,
         graph::{DataTypePolicy, Graph, GraphConfig, TensorOutputConfig},
-        operation::{
-            PointwiseOperation, RandomNumberDistribution, RandomNumberGeneratorConfig,
-            RandomNumberSeedSource,
-        },
+        operation::{PointwiseOperation, RandomNumberGeneratorConfig},
         plan::{CompileConfig, ExecuteArgs, HeuristicMode},
     },
+    tensor::{Shape, TensorSpec},
 };
 
 fn run() -> Result<()> {
@@ -108,15 +106,15 @@ fn run() -> Result<()> {
     bindings.set(output, &mut output_device)?;
     // SAFETY: inputs, RNG state, writable output and workspace remain live through stream completion.
     ctx.execute_and_wait(|context| unsafe {
-        compiled.execute(
+        compiled.execute_async(
             context,
-            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
         )
     })?;
     println!("executed {distribution:?} with device seed: {device_seed}");
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_random_number_generator", run())
 }

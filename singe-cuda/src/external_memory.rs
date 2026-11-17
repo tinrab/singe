@@ -12,7 +12,7 @@ use std::{
 
 use bitflags::parser;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
-use singe_core::{impl_enum_conversion, impl_enum_display};
+use singe_core::{impl_enum_display, report_cleanup_failure};
 use singe_cuda_sys::driver;
 
 use crate::{
@@ -20,35 +20,30 @@ use crate::{
     error::{Error, Result},
     module::{KernelParameters, PushKernelArg},
     try_ffi,
-    utility::checked_bytes,
+    utility::{checked_bytes, to_u64, to_usize},
     view::{
-        AllocationId, AnyBitPatternDeviceRepr, DeviceInput, DeviceOutput, DeviceOutputView,
+        AllocationId, AnyBitPatternDeviceRepr, DeviceOutput, DeviceOutputView, DeviceRange,
         DeviceRegion, DeviceRegionProvider, DeviceRepr, DeviceSlice, DeviceSliceMut, DeviceView,
         DeviceViewMut, NoUninitDeviceRepr,
     },
 };
 
-/// External memory handle types
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum ExternalMemoryHandleType {
-    /// Handle is an opaque file descriptor.
-    OpaqueFileDescriptor =
-        driver::CUexternalMemoryHandleType_enum::CU_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD as _,
-    /// Handle is an opaque shared NT handle.
-    OpaqueWin32 =
-        driver::CUexternalMemoryHandleType_enum::CU_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32 as _,
-    /// Handle is an opaque, globally shared handle.
-    OpaqueWin32Kmt =
-        driver::CUexternalMemoryHandleType_enum::CU_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_KMT
-            as _,
-    /// Handle is a `dma_buf` file descriptor.
-    DmaBufferFileDescriptor =
-        driver::CUexternalMemoryHandleType_enum::CU_EXTERNAL_MEMORY_HANDLE_TYPE_DMABUF_FD as _,
+singe_core::native_enum! {
+    /// Kind of operating-system handle an external memory import receives.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum ExternalMemoryHandleType: driver::CUexternalMemoryHandleType {
+        /// Handle is an opaque file descriptor.
+        OpaqueFileDescriptor = CU_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD,
+        /// Handle is an opaque shared NT handle.
+        OpaqueWin32 = CU_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32,
+        /// Handle is an opaque, globally shared handle.
+        OpaqueWin32Kmt = CU_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_KMT,
+        /// Handle is a `dma_buf` file descriptor.
+        DmaBufferFileDescriptor = CU_EXTERNAL_MEMORY_HANDLE_TYPE_DMABUF_FD,
+    }
 }
-
-impl_enum_conversion!(driver::CUexternalMemoryHandleType, ExternalMemoryHandleType);
 
 bitflags::bitflags! {
     /// Flags describing the external allocation imported into CUDA.
@@ -63,6 +58,19 @@ impl Display for ExternalMemoryFlags {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         parser::to_writer(self, f)
     }
+}
+
+/// Raw ownership of an unmapped external-memory import and its context.
+///
+/// Destroy `handle` while `context` is alive, or re-adopt the value with [`ExternalMemory::from_raw`].
+#[derive(Debug)]
+pub struct RawExternalMemory {
+    /// Native external-memory handle.
+    pub handle: driver::CUexternalMemory,
+    /// Imported size in bytes.
+    pub size: usize,
+    /// Context the memory was imported into.
+    pub context: Arc<Context>,
 }
 
 /// Owns an imported external-memory object in an explicit CUDA context.
@@ -99,6 +107,7 @@ impl ExternalMemory {
     /// Imports an opaque file descriptor in `context`.
     ///
     /// # Safety
+    ///
     /// `fd` must reference a compatible memory object of `size` bytes on this context's device.
     /// CUDA takes descriptor ownership on success.
     /// Do not use it afterward.
@@ -107,8 +116,7 @@ impl ExternalMemory {
     ///
     /// # Errors
     ///
-    /// Returns `Error::InvalidMemoryAllocationRequest` for a zero byte size.
-    /// Also propagates context binding and native import errors, or `Error::NullHandle` for a null imported CUDA handle.
+    /// Returns an error if `size` is zero, the context cannot be bound, CUDA rejects the import, or CUDA returns a null handle.
     /// Descriptor ownership remains with the caller if the native import fails.
     #[cfg(unix)]
     pub unsafe fn import_opaque_file_descriptor(
@@ -119,22 +127,21 @@ impl ExternalMemory {
     ) -> Result<Self> {
         let mut desc = handle_desc(ExternalMemoryHandleType::OpaqueFileDescriptor, size, flags)?;
         desc.handle.fd = fd;
-        // SAFETY: the caller upholds this function's safety contract.
+        // SAFETY: the caller guarantees `fd` references a compatible object of `size` bytes and hands its ownership to CUDA.
         unsafe { Self::import(context, &desc, size) }
     }
 
     /// Imports an opaque Win32 shared handle in `context`.
     ///
     /// # Safety
+    ///
     /// The handle must reference a compatible live external allocation of the stated size on this device.
     /// Ownership of the Win32 handle remains with the caller.
     /// Retain foreign backing resources, coordinate every foreign access, and prevent independently mutable aliases.
     ///
     /// # Errors
     ///
-    /// Returns `Error::NullHandle` if `handle` is null.
-    /// Returns `Error::InvalidMemoryAllocationRequest` for a zero byte size.
-    /// Also propagates context binding and native import errors, or `Error::NullHandle` for a null imported CUDA handle.
+    /// Returns an error if `handle` is null, `size` is zero, the context cannot be bound, CUDA rejects the import, or CUDA returns a null handle.
     pub unsafe fn import_opaque_win32_handle(
         context: &Arc<Context>,
         handle: *mut c_void,
@@ -148,22 +155,21 @@ impl ExternalMemory {
         let mut desc = handle_desc(ExternalMemoryHandleType::OpaqueWin32, size, flags)?;
         desc.handle.win32.handle = handle;
         desc.handle.win32.name = ptr::null();
-        // SAFETY: the caller upholds this function's safety contract.
+        // SAFETY: `handle` is non-null, and the caller guarantees it references a compatible live allocation of `size` bytes.
         unsafe { Self::import(context, &desc, size) }
     }
 
     /// Imports a named Win32 external memory object in `context`.
     ///
     /// # Safety
+    ///
     /// `name` must reference a valid null-terminated UTF-16 object name throughout import.
     /// The object must be compatible with this device and have the stated size.
     /// Retain foreign backing resources, coordinate every foreign access, and prevent independently mutable aliases.
     ///
     /// # Errors
     ///
-    /// Returns `Error::NullHandle` if `name` is null.
-    /// Returns `Error::InvalidMemoryAllocationRequest` for a zero byte size.
-    /// Also propagates context binding and native import errors, or `Error::NullHandle` for a null imported CUDA handle.
+    /// Returns an error if `name` is null, `size` is zero, the context cannot be bound, CUDA rejects the import, or CUDA returns a null handle.
     pub unsafe fn import_opaque_win32_name(
         context: &Arc<Context>,
         name: *const c_void,
@@ -177,7 +183,7 @@ impl ExternalMemory {
         let mut desc = handle_desc(ExternalMemoryHandleType::OpaqueWin32, size, flags)?;
         desc.handle.win32.handle = ptr::null_mut();
         desc.handle.win32.name = name;
-        // SAFETY: the caller upholds this function's safety contract.
+        // SAFETY: `name` is non-null, and the caller guarantees it is a NUL-terminated UTF-16 name of a compatible object of `size` bytes.
         unsafe { Self::import(context, &desc, size) }
     }
 
@@ -188,12 +194,18 @@ impl ExternalMemory {
     ) -> Result<Self> {
         context.bind()?;
         let mut handle = ptr::null_mut();
-        // SAFETY: the caller establishes external-handle validity and ownership.
+        // SAFETY: `handle` is a local output, `desc` comes from `handle_desc` with a nonzero size, and the importing function's caller guarantees the external handle is valid.
         unsafe {
             try_ffi!(driver::cuImportExternalMemory(&raw mut handle, desc))?;
         }
-        // SAFETY: CUDA returned ownership in the context just bound.
-        unsafe { Self::from_raw(context, handle, size) }
+        // SAFETY: CUDA returned a new import of `size` bytes in `context`, which was bound for the call, and nothing else owns it; `from_raw` rejects a null handle.
+        unsafe {
+            Self::from_raw(RawExternalMemory {
+                handle,
+                size,
+                context: Arc::clone(context),
+            })
+        }
     }
 
     /// Consumes this import and maps uninitialized typed storage.
@@ -219,24 +231,24 @@ impl ExternalMemory {
         length: usize,
     ) -> Result<MappedBuffer<MaybeUninit<T>>> {
         let () = T::LAYOUT;
-        let bytes = checked_bytes::<T>(length)?;
+        let bytes = checked_bytes::<T>(length, "mapped buffer byte size")?;
         let end = offset_bytes
             .checked_add(bytes)
-            .ok_or(Error::InvalidMemoryAllocationRequest)?;
+            .ok_or_else(|| Error::out_of_range("mapped buffer end"))?;
         if end > self.size {
-            return Err(Error::InvalidMemoryAccess);
+            return Err(Error::buffer_too_small("external memory", end, self.size));
         }
 
         self.context.bind()?;
         let mut pointer = 0;
         if bytes != 0 {
             let desc = driver::CUDA_EXTERNAL_MEMORY_BUFFER_DESC {
-                offset: offset_bytes as _,
-                size: bytes as _,
+                offset: to_u64(offset_bytes, "mapped buffer offset")?,
+                size: to_u64(bytes, "mapped buffer byte size")?,
                 flags: 0,
                 reserved: [0; 16],
             };
-            // SAFETY: the import owns this compatible handle and the checked range fits its backing object.
+            // SAFETY: `self` owns the live import, `offset_bytes + bytes` was checked against its size above, and `pointer` is a local output.
             unsafe {
                 try_ffi!(driver::cuExternalMemoryGetMappedBuffer(
                     &raw mut pointer,
@@ -249,14 +261,15 @@ impl ExternalMemory {
             }
         }
 
+        let address = to_usize(pointer, "mapped buffer address")?;
         let allocation = Arc::new(MappedAllocation {
             memory: ManuallyDrop::new(self),
-            ptr: pointer as *mut u8,
+            ptr: ptr::without_provenance_mut(address),
             bytes,
             offset: offset_bytes,
             id: AllocationId::create(),
         });
-        // SAFETY: CUDA returned this live mapping; validate its address range before exposing a provider.
+        // SAFETY: `allocation.ptr` is the mapping CUDA just returned for `bytes` bytes in the import's context, and `from_raw_parts` validates the address range.
         unsafe {
             DeviceRegion::from_raw_parts(
                 allocation.context(),
@@ -271,11 +284,11 @@ impl ExternalMemory {
                 u64::try_from(align_of::<T>()).expect("alignment fits a device address"),
             )
         {
-            return Err(Error::InvalidMemoryAccess);
+            return Err(Error::misaligned("mapped buffer address", align_of::<T>()));
         }
         Ok(MappedBuffer {
             allocation,
-            ptr: pointer as *mut MaybeUninit<T>,
+            ptr: ptr::without_provenance_mut(address),
             length,
         })
     }
@@ -301,67 +314,71 @@ impl ExternalMemory {
     /// Takes ownership of an unmapped native external-memory import.
     ///
     /// # Safety
-    /// The handle must be live in `context`, have the stated size, and have no other destroying owner or mapped buffers.
+    ///
+    /// `raw.handle` must be live in `raw.context`, have the stated size, and have no other destroying owner or mapped buffers.
     /// Retain external backing resources, coordinate foreign accesses, and prevent independently mutable aliases.
     ///
     /// # Errors
     ///
-    /// Returns `Error::NullHandle` for a null handle or `Error::InvalidMemoryAllocationRequest` for a zero byte size.
-    /// The caller must satisfy the remaining handle validity and ownership requirements.
-    pub unsafe fn from_raw(
-        context: &Arc<Context>,
-        handle: driver::CUexternalMemory,
-        size: usize,
-    ) -> Result<Self> {
-        if handle.is_null() {
+    /// Returns an error if `raw.handle` is null or `raw.size` is zero.
+    pub unsafe fn from_raw(raw: RawExternalMemory) -> Result<Self> {
+        if raw.handle.is_null() {
             return Err(Error::NullHandle);
         }
 
-        if size == 0 {
-            return Err(Error::InvalidMemoryAllocationRequest);
+        if raw.size == 0 {
+            return Err(Error::not_positive("external memory size"));
         }
         Ok(Self {
-            handle,
-            size,
-            context: Arc::clone(context),
+            handle: raw.handle,
+            size: raw.size,
+            context: raw.context,
         })
     }
 
-    /// Transfers the unmapped native handle, byte size, and retained context to its next owner.
+    /// Transfers the unmapped native handle, byte size, and context to its next owner.
     ///
     /// Bind the returned context before use and retain it through native destruction.
     #[must_use]
-    pub fn into_raw(self) -> (driver::CUexternalMemory, usize, Arc<Context>) {
+    pub fn into_raw(self) -> RawExternalMemory {
         let memory = ManuallyDrop::new(self);
-        // SAFETY: ManuallyDrop prevents destruction, and the context owner is transferred exactly once.
-        (memory.handle, memory.size, unsafe {
-            ptr::read(&raw const memory.context)
-        })
+        RawExternalMemory {
+            handle: memory.handle,
+            size: memory.size,
+            // SAFETY: ManuallyDrop prevents destruction, and the context owner is transferred exactly once.
+            context: unsafe { ptr::read(&raw const memory.context) },
+        }
     }
 }
 
 impl Drop for ExternalMemory {
     fn drop(&mut self) {
-        if let Err(error) = self.context.bind().and_then(|()| {
-            // SAFETY: this wrapper owns the live unmapped import in the bound context.
-            unsafe { try_ffi!(driver::cuDestroyExternalMemory(self.handle)) }
-        }) {
-            eprintln!(
-                "failed to destroy cuda external memory: {}",
-                singe_core::ErrorChain(&error)
+        if let Err(error) = self.context.bind() {
+            report_cleanup_failure(
+                "bind the cuda context to destroy",
+                "cuda external memory",
+                &error,
             );
+            return;
+        }
+
+        // SAFETY: this wrapper owns the live unmapped import in the bound context.
+        if let Err(error) = unsafe { try_ffi!(driver::cuDestroyExternalMemory(self.handle)) } {
+            report_cleanup_failure("destroy", "cuda external memory", &error);
         }
     }
 }
 
-// SAFETY: imports expose only raw handles and immutable metadata and bind their retained context for native operations.
+// SAFETY: a `CUexternalMemory` may be used and destroyed from any thread, since driver calls are thread-safe and the owner binds its retained context before each call.
 unsafe impl Send for ExternalMemory {}
 
+// SAFETY: shared references only read the handle and immutable metadata; mapping consumes the owner and destruction needs `&mut`.
 unsafe impl Sync for ExternalMemory {}
 
-// The owner exposes raw addresses and metadata; typed borrows or unsafe contracts govern access.
+// SAFETY: the mapping is a device address with no host-thread affinity, and its import owner is `Send`; drop binds the retained context before freeing it.
 unsafe impl Send for MappedAllocation {}
 
+// SAFETY: shared references expose only the immutable address, size, and identity; access to the device bytes goes through typed borrows or unsafe contracts.
 unsafe impl Sync for MappedAllocation {}
 
 impl MappedAllocation {
@@ -413,18 +430,24 @@ unsafe impl DeviceRegionProvider for MappedAllocation {
 
 impl Drop for MappedAllocation {
     fn drop(&mut self) {
-        if !self.ptr.is_null()
-            && let Err(error) = self.context().bind().and_then(|()| {
-                // SAFETY: this is the last owner of this mapping, allocated by CUDA in the retained context.
-                unsafe { try_ffi!(driver::cuMemFree_v2(self.ptr as driver::CUdeviceptr)) }
-            })
-        {
-            // Preserve the imported memory and its context if the native mapping could still be live.
-            eprintln!(
-                "failed to free cuda mapped external memory buffer: {}",
-                singe_core::ErrorChain(&error)
-            );
-            return;
+        // Preserve the imported memory and its context if the native mapping could still be live.
+        if !self.ptr.is_null() {
+            if let Err(error) = self.context().bind() {
+                report_cleanup_failure(
+                    "bind the cuda context to free",
+                    "cuda mapped external memory buffer",
+                    &error,
+                );
+                return;
+            }
+
+            let address = self.ptr.addr() as driver::CUdeviceptr;
+            // SAFETY: this is the last owner of the mapping CUDA returned for this import, and its context was bound above.
+            let result = unsafe { try_ffi!(driver::cuMemFree_v2(address)) };
+            if let Err(error) = result {
+                report_cleanup_failure("free", "cuda mapped external memory buffer", &error);
+                return;
+            }
         }
 
         // SAFETY: native mapping destruction completed before destroying its sole imported-memory owner.
@@ -463,7 +486,8 @@ impl<T: DeviceRepr> MappedBuffer<T> {
     /// Panics if the stored length violates the byte-size invariant checked during construction and casts.
     #[must_use]
     pub fn byte_len(&self) -> usize {
-        checked_bytes::<T>(self.length).expect("mapped byte length validated during construction")
+        checked_bytes::<T>(self.length, "mapped buffer byte size")
+            .expect("mapped byte length validated during construction")
     }
 
     /// Returns the CUDA context owning the retained external-memory mapping.
@@ -493,8 +517,7 @@ impl<T: DeviceRepr> MappedBuffer<T> {
     ///
     /// # Errors
     ///
-    /// Returns `Err(self)` if the target type has zero size, the byte count is not a multiple of its size, or a nonempty mapping address is not aligned for it.
-    /// The returned original buffer retains its mapping unchanged.
+    /// Returns an error holding `self` if the target type has zero size, the byte count is not a multiple of its size, or a nonempty mapping address is not aligned for it.
     pub fn cast<U: AnyBitPatternDeviceRepr>(self) -> StdResult<MappedBuffer<U>, Self>
     where
         T: NoUninitDeviceRepr,
@@ -504,7 +527,7 @@ impl<T: DeviceRepr> MappedBuffer<T> {
         let bytes = self.byte_len();
         if size_of::<U>() == 0
             || !bytes.is_multiple_of(size_of::<U>())
-            || (bytes != 0 && !(self.ptr as usize).is_multiple_of(align_of::<U>()))
+            || (bytes != 0 && !self.ptr.addr().is_multiple_of(align_of::<U>()))
         {
             return Err(self);
         }
@@ -536,14 +559,13 @@ impl<T: DeviceRepr> MappedBuffer<MaybeUninit<T>> {
     ///
     /// # Errors
     ///
-    /// Returns `Err(self)` if the target type has zero size, the byte count is not a multiple of its size, or a nonempty mapping address is not aligned for it.
-    /// The returned original buffer retains its mapping unchanged.
+    /// Returns an error holding `self` if the target type has zero size, the byte count is not a multiple of its size, or a nonempty mapping address is not aligned for it.
     pub fn cast_uninit<U: DeviceRepr>(self) -> StdResult<MappedBuffer<MaybeUninit<U>>, Self> {
         let () = U::LAYOUT;
         let bytes = self.byte_len();
         if size_of::<U>() == 0
             || !bytes.is_multiple_of(size_of::<U>())
-            || (bytes != 0 && !(self.ptr as usize).is_multiple_of(align_of::<U>()))
+            || (bytes != 0 && !self.ptr.addr().is_multiple_of(align_of::<U>()))
         {
             return Err(self);
         }
@@ -557,6 +579,7 @@ impl<T: DeviceRepr> MappedBuffer<MaybeUninit<T>> {
     /// Marks every element initialized after external or CUDA production.
     ///
     /// # Safety
+    ///
     /// All elements must contain valid T values and all producers must complete or be ordered before every consumer.
     /// Synchronize foreign runtime accesses and retain exclusive access until production completes.
     #[must_use]
@@ -572,26 +595,31 @@ impl<T: DeviceRepr> MappedBuffer<MaybeUninit<T>> {
     /// Exposes only a produced prefix, retaining the complete native mapping for deallocation.
     ///
     /// # Safety
+    ///
     /// Prefix values must be valid and producer completion and foreign access must satisfy `assume_init`.
     ///
     /// # Errors
     ///
-    /// Returns `Error::InvalidMemoryAccess` if `length` exceeds the buffer's element count.
-    /// Value validity and producer ordering remain the caller's responsibility.
+    /// Returns an error if `length` exceeds the buffer's element count.
     pub unsafe fn assume_init_prefix(mut self, length: usize) -> Result<MappedBuffer<T>> {
         if length > self.length {
-            return Err(Error::InvalidMemoryAccess);
+            return Err(Error::buffer_too_small(
+                "mapped buffer",
+                length,
+                self.length,
+            ));
         }
 
         self.length = length;
-        // SAFETY: the caller upholds this function's safety contract.
+        // SAFETY: the caller guarantees the first `length` elements, now the whole buffer, are valid and their producers are ordered before consumers.
         unsafe { Ok(self.assume_init()) }
     }
 }
 
-// SAFETY: typed access follows T's thread-safety requirements; native owners bind their actual context on destruction.
+// SAFETY: the buffer holds a device pointer and an `Arc` of a `Send + Sync` mapping owner, so moving it is as safe as moving `T`.
 unsafe impl<T: DeviceRepr + Send> Send for MappedBuffer<T> {}
 
+// SAFETY: shared references expose only the pointer and length; writes need `&mut self`, so sharing is as safe as sharing `T`.
 unsafe impl<T: DeviceRepr + Sync> Sync for MappedBuffer<T> {}
 
 // SAFETY: typed handles preserve the owner's identity and expose only their validated leading byte range.
@@ -604,7 +632,8 @@ unsafe impl<T: DeviceRepr> DeviceRegionProvider for MappedBuffer<T> {
     }
 }
 
-unsafe impl<T: DeviceRepr> DeviceInput<T> for MappedBuffer<T> {
+// SAFETY: `ptr` and `length` describe the typed range validated by `map_buffer` or a checked cast, inside the retained mapping.
+unsafe impl<T: DeviceRepr> DeviceRange<T> for MappedBuffer<T> {
     fn as_device_ptr(&self) -> *const T {
         self.ptr
     }
@@ -617,8 +646,10 @@ unsafe impl<T: DeviceRepr> DeviceInput<T> for MappedBuffer<T> {
 // SAFETY: the typed owner or view preserves initialized values for its borrow.
 unsafe impl<T: DeviceRepr> DeviceSlice<T> for MappedBuffer<T> {}
 
+// SAFETY: `&mut self` gives exclusive access to the owned range, and writes keep `T` values valid.
 unsafe impl<T: DeviceRepr> DeviceSliceMut<T> for MappedBuffer<T> {}
 
+// SAFETY: the owned range is writable device storage for `length` elements of `T`, borrowed exclusively through `&mut self`.
 unsafe impl<T: DeviceRepr> DeviceOutput<T> for MappedBuffer<T> {
     fn as_mut_ptr(&mut self) -> *mut T {
         self.ptr
@@ -626,12 +657,13 @@ unsafe impl<T: DeviceRepr> DeviceOutput<T> for MappedBuffer<T> {
 }
 
 // SAFETY: output metadata describes the same live typed range without initialized reads.
-unsafe impl<T: DeviceRepr> DeviceInput<T> for MappedBuffer<MaybeUninit<T>> {
+unsafe impl<T: DeviceRepr> DeviceRange<T> for MappedBuffer<MaybeUninit<T>> {
     fn len(&self) -> usize {
         self.length
     }
 }
 
+// SAFETY: `MaybeUninit<T>` has the layout of `T`, so the owned range is writable storage for `length` elements of `T`, borrowed exclusively through `&mut self`.
 unsafe impl<T: DeviceRepr> DeviceOutput<T> for MappedBuffer<MaybeUninit<T>> {
     fn as_mut_ptr(&mut self) -> *mut T {
         self.ptr.cast()
@@ -656,13 +688,13 @@ fn handle_desc(
     flags: ExternalMemoryFlags,
 ) -> Result<driver::CUDA_EXTERNAL_MEMORY_HANDLE_DESC> {
     if size == 0 {
-        return Err(Error::InvalidMemoryAllocationRequest);
+        return Err(Error::not_positive("external memory size"));
     }
 
     Ok(driver::CUDA_EXTERNAL_MEMORY_HANDLE_DESC {
         type_: handle_type.into(),
         handle: driver::CUDA_EXTERNAL_MEMORY_HANDLE_DESC_st__bindgen_ty_1::default(),
-        size: size as _,
+        size: to_u64(size, "external memory size")?,
         flags: flags.bits(),
         reserved: [0; 16],
     })

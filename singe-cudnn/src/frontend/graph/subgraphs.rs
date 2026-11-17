@@ -1,7 +1,6 @@
 use std::collections::BTreeMap;
 
 use crate::{
-    backend::tensor::{TensorId, TensorSpec},
     context::Context,
     error::Result,
     frontend::{
@@ -12,10 +11,11 @@ use crate::{
             DirectSdpaForwardConfig, Operation, SdpaOperation, SdpaScoreModifiers,
         },
     },
+    tensor::{TensorId, TensorSpec},
 };
 
 #[derive(Debug, Clone)]
-pub struct ScoreSubgraph<G> {
+pub(crate) struct ScoreSubgraph<G> {
     pub(crate) graph: G,
     pub(crate) input: TensorId,
     pub(crate) output: TensorId,

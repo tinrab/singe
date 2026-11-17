@@ -1,21 +1,24 @@
 [package]
 name = "singe-nvml"
 description = "Safe Rust wrappers for the NVIDIA Management Library (NVML), for monitoring and managing GPUs."
-version = "0.1.0-alpha.10"
+version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 repository.workspace = true
+documentation = "https://docs.rs/singe-nvml"
 license-file.workspace = true
 readme = "README.md"
 keywords = ["nvidia", "nvml", "gpu", "monitoring"]
+categories = ["api-bindings", "hardware-support"]
 include.workspace = true
 
 [package.metadata.docs.rs]
-rustdoc-args = ["--html-in-header", "dist/katex_header.html"]
+rustdoc-args = ["--cfg", "docsrs", "--html-in-header", "dist/katex_header.html"]
 
 [features]
-default = ["nvml_615"]
+default = ["nvml_13"]
 
-nvml_615 = ["singe-nvml-sys/nvml_615"]
+nvml_13 = ["singe-nvml-sys/nvml_13"]
 
 [dependencies]
 singe-core.workspace = true
@@ -24,3 +27,5 @@ thiserror.workspace = true
 num_enum.workspace = true
 bitflags.workspace = true
 
+[dev-dependencies]
+anyhow.workspace = true

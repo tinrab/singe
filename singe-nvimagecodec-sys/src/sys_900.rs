@@ -96,96 +96,158 @@ pub struct nvimgcodecFuture {
 }
 /// Handle to opaque Future type.
 pub type nvimgcodecFuture_t = *mut nvimgcodecFuture;
+impl nvimgcodecStructureType_t {
+    /// No recognized native structure type is selected.
+    pub const NVIMGCODEC_STRUCTURE_TYPE_UNKNOWN: nvimgcodecStructureType_t = nvimgcodecStructureType_t(
+        0,
+    );
+    /// Native type identifier for [`nvimgcodecProperties_t`] in the nvImageCodec type registry.
+    pub const NVIMGCODEC_STRUCTURE_TYPE_PROPERTIES: nvimgcodecStructureType_t = nvimgcodecStructureType_t(
+        1,
+    );
+    /// Native type identifier for [`nvimgcodecInstanceCreateInfo_t`] in the nvImageCodec type registry.
+    pub const NVIMGCODEC_STRUCTURE_TYPE_INSTANCE_CREATE_INFO: nvimgcodecStructureType_t = nvimgcodecStructureType_t(
+        2,
+    );
+    /// Native type identifier for [`nvimgcodecDeviceAllocator_t`] in the nvImageCodec type registry.
+    pub const NVIMGCODEC_STRUCTURE_TYPE_DEVICE_ALLOCATOR: nvimgcodecStructureType_t = nvimgcodecStructureType_t(
+        3,
+    );
+    /// Native type identifier for [`nvimgcodecPinnedAllocator_t`] in the nvImageCodec type registry.
+    pub const NVIMGCODEC_STRUCTURE_TYPE_PINNED_ALLOCATOR: nvimgcodecStructureType_t = nvimgcodecStructureType_t(
+        4,
+    );
+    /// Native type identifier for [`nvimgcodecDecodeParams_t`] in the nvImageCodec type registry.
+    pub const NVIMGCODEC_STRUCTURE_TYPE_DECODE_PARAMS: nvimgcodecStructureType_t = nvimgcodecStructureType_t(
+        5,
+    );
+    /// Native type identifier for [`nvimgcodecEncodeParams_t`] in the nvImageCodec type registry.
+    pub const NVIMGCODEC_STRUCTURE_TYPE_ENCODE_PARAMS: nvimgcodecStructureType_t = nvimgcodecStructureType_t(
+        6,
+    );
+    /// Native type identifier for [`nvimgcodecOrientation_t`] in the nvImageCodec type registry.
+    pub const NVIMGCODEC_STRUCTURE_TYPE_ORIENTATION: nvimgcodecStructureType_t = nvimgcodecStructureType_t(
+        7,
+    );
+    /// Native type identifier for [`nvimgcodecRegion_t`] in the nvImageCodec type registry.
+    pub const NVIMGCODEC_STRUCTURE_TYPE_REGION: nvimgcodecStructureType_t = nvimgcodecStructureType_t(
+        8,
+    );
+    /// Native type identifier for [`nvimgcodecCodeStreamView_t`] in the nvImageCodec type registry.
+    pub const NVIMGCODEC_STRUCTURE_TYPE_CODE_STREAM_VIEW: nvimgcodecStructureType_t = nvimgcodecStructureType_t(
+        9,
+    );
+    /// Native type identifier for [`nvimgcodecCodeStreamInfo_t`] in the nvImageCodec type registry.
+    pub const NVIMGCODEC_STRUCTURE_TYPE_CODE_STREAM_INFO: nvimgcodecStructureType_t = nvimgcodecStructureType_t(
+        10,
+    );
+    /// Native type identifier for [`nvimgcodecImageInfo_t`] in the nvImageCodec type registry.
+    pub const NVIMGCODEC_STRUCTURE_TYPE_IMAGE_INFO: nvimgcodecStructureType_t = nvimgcodecStructureType_t(
+        11,
+    );
+    /// Native type identifier for [`nvimgcodecImagePlaneInfo_t`] in the nvImageCodec type registry.
+    pub const NVIMGCODEC_STRUCTURE_TYPE_IMAGE_PLANE_INFO: nvimgcodecStructureType_t = nvimgcodecStructureType_t(
+        12,
+    );
+    /// Native type identifier for [`nvimgcodecJpegImageInfo_t`] in the nvImageCodec type registry.
+    pub const NVIMGCODEC_STRUCTURE_TYPE_JPEG_IMAGE_INFO: nvimgcodecStructureType_t = nvimgcodecStructureType_t(
+        13,
+    );
+    /// Native type identifier for [`nvimgcodecJpegEncodeParams_t`] in the nvImageCodec type registry.
+    pub const NVIMGCODEC_STRUCTURE_TYPE_JPEG_ENCODE_PARAMS: nvimgcodecStructureType_t = nvimgcodecStructureType_t(
+        14,
+    );
+    /// Native type identifier for [`nvimgcodecTileGeometryInfo_t`] in the nvImageCodec type registry.
+    pub const NVIMGCODEC_STRUCTURE_TYPE_TILE_GEOMETRY_INFO: nvimgcodecStructureType_t = nvimgcodecStructureType_t(
+        15,
+    );
+    /// Native type identifier for [`nvimgcodecJpeg2kEncodeParams_t`] in the nvImageCodec type registry.
+    pub const NVIMGCODEC_STRUCTURE_TYPE_JPEG2K_ENCODE_PARAMS: nvimgcodecStructureType_t = nvimgcodecStructureType_t(
+        16,
+    );
+    /// Native type identifier for [`nvimgcodecBackend_t`] in the nvImageCodec type registry.
+    pub const NVIMGCODEC_STRUCTURE_TYPE_BACKEND: nvimgcodecStructureType_t = nvimgcodecStructureType_t(
+        17,
+    );
+    /// Native type identifier for [`nvimgcodecIoStreamDesc_t`] in the nvImageCodec type registry.
+    pub const NVIMGCODEC_STRUCTURE_TYPE_IO_STREAM_DESC: nvimgcodecStructureType_t = nvimgcodecStructureType_t(
+        18,
+    );
+    /// Native type identifier for [`nvimgcodecFrameworkDesc_t`] in the nvImageCodec type registry.
+    pub const NVIMGCODEC_STRUCTURE_TYPE_FRAMEWORK_DESC: nvimgcodecStructureType_t = nvimgcodecStructureType_t(
+        19,
+    );
+    /// Native type identifier for [`nvimgcodecDecoderDesc_t`] in the nvImageCodec type registry.
+    pub const NVIMGCODEC_STRUCTURE_TYPE_DECODER_DESC: nvimgcodecStructureType_t = nvimgcodecStructureType_t(
+        20,
+    );
+    /// Native type identifier for [`nvimgcodecEncoderDesc_t`] in the nvImageCodec type registry.
+    pub const NVIMGCODEC_STRUCTURE_TYPE_ENCODER_DESC: nvimgcodecStructureType_t = nvimgcodecStructureType_t(
+        21,
+    );
+    /// Native type identifier for [`nvimgcodecParserDesc_t`] in the nvImageCodec type registry.
+    pub const NVIMGCODEC_STRUCTURE_TYPE_PARSER_DESC: nvimgcodecStructureType_t = nvimgcodecStructureType_t(
+        22,
+    );
+    /// Native type identifier for [`nvimgcodecImageDesc_t`] in the nvImageCodec type registry.
+    pub const NVIMGCODEC_STRUCTURE_TYPE_IMAGE_DESC: nvimgcodecStructureType_t = nvimgcodecStructureType_t(
+        23,
+    );
+    /// Native type identifier for [`nvimgcodecCodeStreamDesc_t`] in the nvImageCodec type registry.
+    pub const NVIMGCODEC_STRUCTURE_TYPE_CODE_STREAM_DESC: nvimgcodecStructureType_t = nvimgcodecStructureType_t(
+        24,
+    );
+    /// Native type identifier for [`nvimgcodecDebugMessengerDesc_t`] in the nvImageCodec type registry.
+    pub const NVIMGCODEC_STRUCTURE_TYPE_DEBUG_MESSENGER_DESC: nvimgcodecStructureType_t = nvimgcodecStructureType_t(
+        25,
+    );
+    /// Native type identifier for [`nvimgcodecDebugMessageData_t`] in the nvImageCodec type registry.
+    pub const NVIMGCODEC_STRUCTURE_TYPE_DEBUG_MESSAGE_DATA: nvimgcodecStructureType_t = nvimgcodecStructureType_t(
+        26,
+    );
+    /// Native type identifier for [`nvimgcodecExtensionDesc_t`] in the nvImageCodec type registry.
+    pub const NVIMGCODEC_STRUCTURE_TYPE_EXTENSION_DESC: nvimgcodecStructureType_t = nvimgcodecStructureType_t(
+        27,
+    );
+    /// Native type identifier for [`nvimgcodecExecutorDesc_t`] in the nvImageCodec type registry.
+    pub const NVIMGCODEC_STRUCTURE_TYPE_EXECUTOR_DESC: nvimgcodecStructureType_t = nvimgcodecStructureType_t(
+        28,
+    );
+    /// Native type identifier for [`nvimgcodecBackendParams_t`] in the nvImageCodec type registry.
+    pub const NVIMGCODEC_STRUCTURE_TYPE_BACKEND_PARAMS: nvimgcodecStructureType_t = nvimgcodecStructureType_t(
+        29,
+    );
+    /// Native type identifier for [`nvimgcodecExecutionParams_t`] in the nvImageCodec type registry.
+    pub const NVIMGCODEC_STRUCTURE_TYPE_EXECUTION_PARAMS: nvimgcodecStructureType_t = nvimgcodecStructureType_t(
+        30,
+    );
+    /// Native type identifier for [`nvimgcodecMetadata_t`] in the nvImageCodec type registry.
+    pub const NVIMGCODEC_STRUCTURE_TYPE_METADATA: nvimgcodecStructureType_t = nvimgcodecStructureType_t(
+        31,
+    );
+    /// Native type identifier for [`nvimgcodecMetadataKind_t`] in the nvImageCodec type registry.
+    pub const NVIMGCODEC_STRUCTURE_TYPE_METADATA_KIND: nvimgcodecStructureType_t = nvimgcodecStructureType_t(
+        32,
+    );
+    /// Native type identifier for [`nvimgcodecMetadataFormat_t`] in the nvImageCodec type registry.
+    pub const NVIMGCODEC_STRUCTURE_TYPE_METADATA_FORMAT: nvimgcodecStructureType_t = nvimgcodecStructureType_t(
+        33,
+    );
+    /// Native type identifier for [`nvimgcodecCodeStreamInfoTiffExt_t`] in the nvImageCodec type registry.
+    pub const NVIMGCODEC_STRUCTURE_TYPE_TIFF_CODE_STREAM_INFO: nvimgcodecStructureType_t = nvimgcodecStructureType_t(
+        34,
+    );
+    /// Reserved sentinel fixing the integer representation of the native C enum.
+    pub const NVIMGCODEC_STRUCTURE_TYPE_ENUM_FORCE_INT: nvimgcodecStructureType_t = nvimgcodecStructureType_t(
+        2147483647,
+    );
+}
 /// Structure types supported by the nvImageCodec API.
 ///
 /// Each value corresponds to a particular structure with a type member and matching structure name.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum nvimgcodecStructureType_t {
-    /// No recognized native structure type is selected.
-    NVIMGCODEC_STRUCTURE_TYPE_UNKNOWN = 0,
-    /// Native type identifier for [`nvimgcodecProperties_t`] in the nvImageCodec type registry.
-    NVIMGCODEC_STRUCTURE_TYPE_PROPERTIES = 1,
-    /// Native type identifier for [`nvimgcodecInstanceCreateInfo_t`] in the nvImageCodec type registry.
-    NVIMGCODEC_STRUCTURE_TYPE_INSTANCE_CREATE_INFO = 2,
-    /// Native type identifier for [`nvimgcodecDeviceAllocator_t`] in the nvImageCodec type registry.
-    NVIMGCODEC_STRUCTURE_TYPE_DEVICE_ALLOCATOR = 3,
-    /// Native type identifier for [`nvimgcodecPinnedAllocator_t`] in the nvImageCodec type registry.
-    NVIMGCODEC_STRUCTURE_TYPE_PINNED_ALLOCATOR = 4,
-    /// Native type identifier for [`nvimgcodecDecodeParams_t`] in the nvImageCodec type registry.
-    NVIMGCODEC_STRUCTURE_TYPE_DECODE_PARAMS = 5,
-    /// Native type identifier for [`nvimgcodecEncodeParams_t`] in the nvImageCodec type registry.
-    NVIMGCODEC_STRUCTURE_TYPE_ENCODE_PARAMS = 6,
-    /// Native type identifier for [`nvimgcodecOrientation_t`] in the nvImageCodec type registry.
-    NVIMGCODEC_STRUCTURE_TYPE_ORIENTATION = 7,
-    /// Native type identifier for [`nvimgcodecRegion_t`] in the nvImageCodec type registry.
-    NVIMGCODEC_STRUCTURE_TYPE_REGION = 8,
-    /// Native type identifier for [`nvimgcodecCodeStreamView_t`] in the nvImageCodec type registry.
-    NVIMGCODEC_STRUCTURE_TYPE_CODE_STREAM_VIEW = 9,
-    /// Native type identifier for [`nvimgcodecCodeStreamInfo_t`] in the nvImageCodec type registry.
-    NVIMGCODEC_STRUCTURE_TYPE_CODE_STREAM_INFO = 10,
-    /// Native type identifier for [`nvimgcodecImageInfo_t`] in the nvImageCodec type registry.
-    NVIMGCODEC_STRUCTURE_TYPE_IMAGE_INFO = 11,
-    /// Native type identifier for [`nvimgcodecImagePlaneInfo_t`] in the nvImageCodec type registry.
-    NVIMGCODEC_STRUCTURE_TYPE_IMAGE_PLANE_INFO = 12,
-    /// Native type identifier for [`nvimgcodecJpegImageInfo_t`] in the nvImageCodec type registry.
-    NVIMGCODEC_STRUCTURE_TYPE_JPEG_IMAGE_INFO = 13,
-    /// Native type identifier for [`nvimgcodecJpegEncodeParams_t`] in the nvImageCodec type registry.
-    NVIMGCODEC_STRUCTURE_TYPE_JPEG_ENCODE_PARAMS = 14,
-    /// Native type identifier for [`nvimgcodecTileGeometryInfo_t`] in the nvImageCodec type registry.
-    NVIMGCODEC_STRUCTURE_TYPE_TILE_GEOMETRY_INFO = 15,
-    /// Native type identifier for [`nvimgcodecJpeg2kEncodeParams_t`] in the nvImageCodec type registry.
-    NVIMGCODEC_STRUCTURE_TYPE_JPEG2K_ENCODE_PARAMS = 16,
-    /// Native type identifier for [`nvimgcodecBackend_t`] in the nvImageCodec type registry.
-    NVIMGCODEC_STRUCTURE_TYPE_BACKEND = 17,
-    /// Native type identifier for [`nvimgcodecIoStreamDesc_t`] in the nvImageCodec type registry.
-    NVIMGCODEC_STRUCTURE_TYPE_IO_STREAM_DESC = 18,
-    /// Native type identifier for [`nvimgcodecFrameworkDesc_t`] in the nvImageCodec type registry.
-    NVIMGCODEC_STRUCTURE_TYPE_FRAMEWORK_DESC = 19,
-    /// Native type identifier for [`nvimgcodecDecoderDesc_t`] in the nvImageCodec type registry.
-    NVIMGCODEC_STRUCTURE_TYPE_DECODER_DESC = 20,
-    /// Native type identifier for [`nvimgcodecEncoderDesc_t`] in the nvImageCodec type registry.
-    NVIMGCODEC_STRUCTURE_TYPE_ENCODER_DESC = 21,
-    /// Native type identifier for [`nvimgcodecParserDesc_t`] in the nvImageCodec type registry.
-    NVIMGCODEC_STRUCTURE_TYPE_PARSER_DESC = 22,
-    /// Native type identifier for [`nvimgcodecImageDesc_t`] in the nvImageCodec type registry.
-    NVIMGCODEC_STRUCTURE_TYPE_IMAGE_DESC = 23,
-    /// Native type identifier for [`nvimgcodecCodeStreamDesc_t`] in the nvImageCodec type registry.
-    NVIMGCODEC_STRUCTURE_TYPE_CODE_STREAM_DESC = 24,
-    /// Native type identifier for [`nvimgcodecDebugMessengerDesc_t`] in the nvImageCodec type registry.
-    NVIMGCODEC_STRUCTURE_TYPE_DEBUG_MESSENGER_DESC = 25,
-    /// Native type identifier for [`nvimgcodecDebugMessageData_t`] in the nvImageCodec type registry.
-    NVIMGCODEC_STRUCTURE_TYPE_DEBUG_MESSAGE_DATA = 26,
-    /// Native type identifier for [`nvimgcodecExtensionDesc_t`] in the nvImageCodec type registry.
-    NVIMGCODEC_STRUCTURE_TYPE_EXTENSION_DESC = 27,
-    /// Native type identifier for [`nvimgcodecExecutorDesc_t`] in the nvImageCodec type registry.
-    NVIMGCODEC_STRUCTURE_TYPE_EXECUTOR_DESC = 28,
-    /// Native type identifier for [`nvimgcodecBackendParams_t`] in the nvImageCodec type registry.
-    NVIMGCODEC_STRUCTURE_TYPE_BACKEND_PARAMS = 29,
-    /// Native type identifier for [`nvimgcodecExecutionParams_t`] in the nvImageCodec type registry.
-    NVIMGCODEC_STRUCTURE_TYPE_EXECUTION_PARAMS = 30,
-    /// Native type identifier for [`nvimgcodecMetadata_t`] in the nvImageCodec type registry.
-    NVIMGCODEC_STRUCTURE_TYPE_METADATA = 31,
-    /// Native type identifier for [`nvimgcodecMetadataKind_t`] in the nvImageCodec type registry.
-    NVIMGCODEC_STRUCTURE_TYPE_METADATA_KIND = 32,
-    /// Native type identifier for [`nvimgcodecMetadataFormat_t`] in the nvImageCodec type registry.
-    NVIMGCODEC_STRUCTURE_TYPE_METADATA_FORMAT = 33,
-    /// Native type identifier for [`nvimgcodecCodeStreamInfoTiffExt_t`] in the nvImageCodec type registry.
-    NVIMGCODEC_STRUCTURE_TYPE_TIFF_CODE_STREAM_INFO = 34,
-    /// Reserved sentinel fixing the integer representation of the native C enum.
-    NVIMGCODEC_STRUCTURE_TYPE_ENUM_FORCE_INT = 2147483647,
-}
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct nvimgcodecStructureType_t(pub ::core::ffi::c_uint);
 /// The nvImageCodec properties.
 ///
 /// See also
@@ -306,270 +368,373 @@ impl Default for nvimgcodecPinnedAllocator_t {
         }
     }
 }
-/// The return status codes of the nvImageCodec API.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum nvimgcodecStatus_t {
+impl nvimgcodecStatus_t {
     /// The operation succeeded.
-    NVIMGCODEC_STATUS_SUCCESS = 0,
+    pub const NVIMGCODEC_STATUS_SUCCESS: nvimgcodecStatus_t = nvimgcodecStatus_t(0);
     /// The library has not been initialized.
-    NVIMGCODEC_STATUS_NOT_INITIALIZED = 1,
+    pub const NVIMGCODEC_STATUS_NOT_INITIALIZED: nvimgcodecStatus_t = nvimgcodecStatus_t(
+        1,
+    );
     /// An argument is invalid.
-    NVIMGCODEC_STATUS_INVALID_PARAMETER = 2,
+    pub const NVIMGCODEC_STATUS_INVALID_PARAMETER: nvimgcodecStatus_t = nvimgcodecStatus_t(
+        2,
+    );
     /// The compressed image stream is malformed.
-    NVIMGCODEC_STATUS_BAD_CODESTREAM = 3,
+    pub const NVIMGCODEC_STATUS_BAD_CODESTREAM: nvimgcodecStatus_t = nvimgcodecStatus_t(
+        3,
+    );
     /// The compressed image stream uses unsupported features.
-    NVIMGCODEC_STATUS_CODESTREAM_UNSUPPORTED = 4,
+    pub const NVIMGCODEC_STATUS_CODESTREAM_UNSUPPORTED: nvimgcodecStatus_t = nvimgcodecStatus_t(
+        4,
+    );
     /// A required allocation failed.
-    NVIMGCODEC_STATUS_ALLOCATOR_FAILURE = 5,
+    pub const NVIMGCODEC_STATUS_ALLOCATOR_FAILURE: nvimgcodecStatus_t = nvimgcodecStatus_t(
+        5,
+    );
     /// The requested operation failed during execution.
-    NVIMGCODEC_STATUS_EXECUTION_FAILED = 6,
+    pub const NVIMGCODEC_STATUS_EXECUTION_FAILED: nvimgcodecStatus_t = nvimgcodecStatus_t(
+        6,
+    );
     /// The device architecture does not support this operation.
-    NVIMGCODEC_STATUS_ARCH_MISMATCH = 7,
+    pub const NVIMGCODEC_STATUS_ARCH_MISMATCH: nvimgcodecStatus_t = nvimgcodecStatus_t(
+        7,
+    );
     /// An internal implementation error occurred.
-    NVIMGCODEC_STATUS_INTERNAL_ERROR = 8,
+    pub const NVIMGCODEC_STATUS_INTERNAL_ERROR: nvimgcodecStatus_t = nvimgcodecStatus_t(
+        8,
+    );
     /// No supported implementation is available for the requested operation.
-    NVIMGCODEC_STATUS_IMPLEMENTATION_UNSUPPORTED = 9,
+    pub const NVIMGCODEC_STATUS_IMPLEMENTATION_UNSUPPORTED: nvimgcodecStatus_t = nvimgcodecStatus_t(
+        9,
+    );
     /// A dependency required by the operation is unavailable.
-    NVIMGCODEC_STATUS_MISSED_DEPENDENCIES = 10,
+    pub const NVIMGCODEC_STATUS_MISSED_DEPENDENCIES: nvimgcodecStatus_t = nvimgcodecStatus_t(
+        10,
+    );
     /// An extension reported this status: The library has not been initialized.
-    NVIMGCODEC_STATUS_EXTENSION_NOT_INITIALIZED = 11,
+    pub const NVIMGCODEC_STATUS_EXTENSION_NOT_INITIALIZED: nvimgcodecStatus_t = nvimgcodecStatus_t(
+        11,
+    );
     /// An extension reported this status: An argument is invalid.
-    NVIMGCODEC_STATUS_EXTENSION_INVALID_PARAMETER = 12,
+    pub const NVIMGCODEC_STATUS_EXTENSION_INVALID_PARAMETER: nvimgcodecStatus_t = nvimgcodecStatus_t(
+        12,
+    );
     /// An extension reported this status: The compressed image stream is malformed.
-    NVIMGCODEC_STATUS_EXTENSION_BAD_CODE_STREAM = 13,
+    pub const NVIMGCODEC_STATUS_EXTENSION_BAD_CODE_STREAM: nvimgcodecStatus_t = nvimgcodecStatus_t(
+        13,
+    );
     /// An extension reported this status: The compressed image stream uses unsupported features.
-    NVIMGCODEC_STATUS_EXTENSION_CODESTREAM_UNSUPPORTED = 14,
+    pub const NVIMGCODEC_STATUS_EXTENSION_CODESTREAM_UNSUPPORTED: nvimgcodecStatus_t = nvimgcodecStatus_t(
+        14,
+    );
     /// An extension reported this status: A required allocation failed.
-    NVIMGCODEC_STATUS_EXTENSION_ALLOCATOR_FAILURE = 15,
+    pub const NVIMGCODEC_STATUS_EXTENSION_ALLOCATOR_FAILURE: nvimgcodecStatus_t = nvimgcodecStatus_t(
+        15,
+    );
     /// An extension reported this status: The device architecture does not support this operation.
-    NVIMGCODEC_STATUS_EXTENSION_ARCH_MISMATCH = 16,
+    pub const NVIMGCODEC_STATUS_EXTENSION_ARCH_MISMATCH: nvimgcodecStatus_t = nvimgcodecStatus_t(
+        16,
+    );
     /// An extension reported this status: An internal implementation error occurred.
-    NVIMGCODEC_STATUS_EXTENSION_INTERNAL_ERROR = 17,
+    pub const NVIMGCODEC_STATUS_EXTENSION_INTERNAL_ERROR: nvimgcodecStatus_t = nvimgcodecStatus_t(
+        17,
+    );
     /// An extension reported this status: No supported implementation is available for the requested operation.
-    NVIMGCODEC_STATUS_EXTENSION_IMPLEMENTATION_NOT_SUPPORTED = 18,
+    pub const NVIMGCODEC_STATUS_EXTENSION_IMPLEMENTATION_NOT_SUPPORTED: nvimgcodecStatus_t = nvimgcodecStatus_t(
+        18,
+    );
     /// An extension reported this status: The compressed image stream is incomplete.
-    NVIMGCODEC_STATUS_EXTENSION_INCOMPLETE_BITSTREAM = 19,
+    pub const NVIMGCODEC_STATUS_EXTENSION_INCOMPLETE_BITSTREAM: nvimgcodecStatus_t = nvimgcodecStatus_t(
+        19,
+    );
     /// An extension reported this status: The requested operation failed during execution.
-    NVIMGCODEC_STATUS_EXTENSION_EXECUTION_FAILED = 20,
+    pub const NVIMGCODEC_STATUS_EXTENSION_EXECUTION_FAILED: nvimgcodecStatus_t = nvimgcodecStatus_t(
+        20,
+    );
     /// An extension reported this status: A CUDA API call failed.
-    NVIMGCODEC_STATUS_EXTENSION_CUDA_CALL_ERROR = 21,
+    pub const NVIMGCODEC_STATUS_EXTENSION_CUDA_CALL_ERROR: nvimgcodecStatus_t = nvimgcodecStatus_t(
+        21,
+    );
     /// Reserved sentinel fixing the integer representation of the native C enum.
-    NVIMGCODEC_STATUS_ENUM_FORCE_INT = 2147483647,
+    pub const NVIMGCODEC_STATUS_ENUM_FORCE_INT: nvimgcodecStatus_t = nvimgcodecStatus_t(
+        2147483647,
+    );
+}
+/// The return status codes of the nvImageCodec API.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct nvimgcodecStatus_t(pub ::core::ffi::c_uint);
+impl nvimgcodecSampleDataType_t {
+    /// The image sample representation is unknown.
+    pub const NVIMGCODEC_SAMPLE_DATA_TYPE_UNKNOWN: nvimgcodecSampleDataType_t = nvimgcodecSampleDataType_t(
+        0,
+    );
+    /// Signed 8-bit integer samples.
+    pub const NVIMGCODEC_SAMPLE_DATA_TYPE_INT8: nvimgcodecSampleDataType_t = nvimgcodecSampleDataType_t(
+        2049,
+    );
+    /// Unsigned 8-bit integer samples.
+    pub const NVIMGCODEC_SAMPLE_DATA_TYPE_UINT8: nvimgcodecSampleDataType_t = nvimgcodecSampleDataType_t(
+        2050,
+    );
+    /// Signed 16-bit integer samples.
+    pub const NVIMGCODEC_SAMPLE_DATA_TYPE_INT16: nvimgcodecSampleDataType_t = nvimgcodecSampleDataType_t(
+        4099,
+    );
+    /// Unsigned 16-bit integer samples.
+    pub const NVIMGCODEC_SAMPLE_DATA_TYPE_UINT16: nvimgcodecSampleDataType_t = nvimgcodecSampleDataType_t(
+        4100,
+    );
+    /// Signed 32-bit integer samples.
+    pub const NVIMGCODEC_SAMPLE_DATA_TYPE_INT32: nvimgcodecSampleDataType_t = nvimgcodecSampleDataType_t(
+        8197,
+    );
+    /// Unsigned 32-bit integer samples.
+    pub const NVIMGCODEC_SAMPLE_DATA_TYPE_UINT32: nvimgcodecSampleDataType_t = nvimgcodecSampleDataType_t(
+        8198,
+    );
+    /// Signed 64-bit integer samples.
+    pub const NVIMGCODEC_SAMPLE_DATA_TYPE_INT64: nvimgcodecSampleDataType_t = nvimgcodecSampleDataType_t(
+        16391,
+    );
+    /// Unsigned 64-bit integer samples.
+    pub const NVIMGCODEC_SAMPLE_DATA_TYPE_UINT64: nvimgcodecSampleDataType_t = nvimgcodecSampleDataType_t(
+        16392,
+    );
+    /// Half-precision floating-point samples.
+    pub const NVIMGCODEC_SAMPLE_DATA_TYPE_FLOAT16: nvimgcodecSampleDataType_t = nvimgcodecSampleDataType_t(
+        4105,
+    );
+    /// Single-precision floating-point samples.
+    pub const NVIMGCODEC_SAMPLE_DATA_TYPE_FLOAT32: nvimgcodecSampleDataType_t = nvimgcodecSampleDataType_t(
+        8203,
+    );
+    /// Double-precision floating-point samples.
+    pub const NVIMGCODEC_SAMPLE_DATA_TYPE_FLOAT64: nvimgcodecSampleDataType_t = nvimgcodecSampleDataType_t(
+        16397,
+    );
+    /// The image sample representation is unsupported.
+    pub const NVIMGCODEC_SAMPLE_DATA_TYPE_UNSUPPORTED: nvimgcodecSampleDataType_t = nvimgcodecSampleDataType_t(
+        -1,
+    );
+    /// Reserved sentinel fixing the integer representation of the native C enum.
+    pub const NVIMGCODEC_SAMPLE_ENUM_FORCE_INT: nvimgcodecSampleDataType_t = nvimgcodecSampleDataType_t(
+        2147483647,
+    );
 }
 /// Describes type sample of data.
 ///
 /// Meaning of bits: 0 bit -> 0 - unsigned, 1- signed 1..7 bits -> define type 8..15 bits -> type bitdepth.
-#[repr(i32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum nvimgcodecSampleDataType_t {
-    /// The image sample representation is unknown.
-    NVIMGCODEC_SAMPLE_DATA_TYPE_UNKNOWN = 0,
-    /// Signed 8-bit integer samples.
-    NVIMGCODEC_SAMPLE_DATA_TYPE_INT8 = 2049,
-    /// Unsigned 8-bit integer samples.
-    NVIMGCODEC_SAMPLE_DATA_TYPE_UINT8 = 2050,
-    /// Signed 16-bit integer samples.
-    NVIMGCODEC_SAMPLE_DATA_TYPE_INT16 = 4099,
-    /// Unsigned 16-bit integer samples.
-    NVIMGCODEC_SAMPLE_DATA_TYPE_UINT16 = 4100,
-    /// Signed 32-bit integer samples.
-    NVIMGCODEC_SAMPLE_DATA_TYPE_INT32 = 8197,
-    /// Unsigned 32-bit integer samples.
-    NVIMGCODEC_SAMPLE_DATA_TYPE_UINT32 = 8198,
-    /// Signed 64-bit integer samples.
-    NVIMGCODEC_SAMPLE_DATA_TYPE_INT64 = 16391,
-    /// Unsigned 64-bit integer samples.
-    NVIMGCODEC_SAMPLE_DATA_TYPE_UINT64 = 16392,
-    /// Half-precision floating-point samples.
-    NVIMGCODEC_SAMPLE_DATA_TYPE_FLOAT16 = 4105,
-    /// Single-precision floating-point samples.
-    NVIMGCODEC_SAMPLE_DATA_TYPE_FLOAT32 = 8203,
-    /// Double-precision floating-point samples.
-    NVIMGCODEC_SAMPLE_DATA_TYPE_FLOAT64 = 16397,
-    /// The image sample representation is unsupported.
-    NVIMGCODEC_SAMPLE_DATA_TYPE_UNSUPPORTED = -1,
-    /// Reserved sentinel fixing the integer representation of the native C enum.
-    NVIMGCODEC_SAMPLE_ENUM_FORCE_INT = 2147483647,
-}
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct nvimgcodecSampleDataType_t(pub ::core::ffi::c_int);
 impl nvimgcodecChromaSubsampling_t {
-    /// Alias for [`nvimgcodecChromaSubsampling_t::NVIMGCODEC_SAMPLING_NONE`].
-    pub const NVIMGCODEC_SAMPLING_444: nvimgcodecChromaSubsampling_t = nvimgcodecChromaSubsampling_t::NVIMGCODEC_SAMPLING_NONE;
+    /// No chroma subsampling; chroma and luma have the same dimensions.
+    pub const NVIMGCODEC_SAMPLING_NONE: nvimgcodecChromaSubsampling_t = nvimgcodecChromaSubsampling_t(
+        0,
+    );
+    pub const NVIMGCODEC_SAMPLING_444: nvimgcodecChromaSubsampling_t = nvimgcodecChromaSubsampling_t(
+        0,
+    );
+    /// Chroma has half the luma width and the same height.
+    pub const NVIMGCODEC_SAMPLING_422: nvimgcodecChromaSubsampling_t = nvimgcodecChromaSubsampling_t(
+        2,
+    );
+    /// Chroma has half the luma width and half its height.
+    pub const NVIMGCODEC_SAMPLING_420: nvimgcodecChromaSubsampling_t = nvimgcodecChromaSubsampling_t(
+        3,
+    );
+    /// Chroma has the luma width and half its height.
+    pub const NVIMGCODEC_SAMPLING_440: nvimgcodecChromaSubsampling_t = nvimgcodecChromaSubsampling_t(
+        4,
+    );
+    /// Chroma has one quarter of the luma width and the same height.
+    pub const NVIMGCODEC_SAMPLING_411: nvimgcodecChromaSubsampling_t = nvimgcodecChromaSubsampling_t(
+        5,
+    );
+    /// Chroma has one quarter of the luma width and half its height.
+    pub const NVIMGCODEC_SAMPLING_410: nvimgcodecChromaSubsampling_t = nvimgcodecChromaSubsampling_t(
+        6,
+    );
+    /// Only the luminance component is present.
+    pub const NVIMGCODEC_SAMPLING_GRAY: nvimgcodecChromaSubsampling_t = nvimgcodecChromaSubsampling_t(
+        7,
+    );
+    /// Vertical variant of 4:1:0 chroma subsampling.
+    pub const NVIMGCODEC_SAMPLING_410V: nvimgcodecChromaSubsampling_t = nvimgcodecChromaSubsampling_t(
+        8,
+    );
+    /// The chroma subsampling is unsupported.
+    pub const NVIMGCODEC_SAMPLING_UNSUPPORTED: nvimgcodecChromaSubsampling_t = nvimgcodecChromaSubsampling_t(
+        -1,
+    );
+    /// Reserved sentinel fixing the integer representation of the native C enum.
+    pub const NVIMGCODEC_SAMPLING_ENUM_FORCE_INT: nvimgcodecChromaSubsampling_t = nvimgcodecChromaSubsampling_t(
+        2147483647,
+    );
 }
 /// Chroma subsampling.
-#[repr(i32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum nvimgcodecChromaSubsampling_t {
-    /// No chroma subsampling; chroma and luma have the same dimensions.
-    NVIMGCODEC_SAMPLING_NONE = 0,
-    /// Chroma has half the luma width and the same height.
-    NVIMGCODEC_SAMPLING_422 = 2,
-    /// Chroma has half the luma width and half its height.
-    NVIMGCODEC_SAMPLING_420 = 3,
-    /// Chroma has the luma width and half its height.
-    NVIMGCODEC_SAMPLING_440 = 4,
-    /// Chroma has one quarter of the luma width and the same height.
-    NVIMGCODEC_SAMPLING_411 = 5,
-    /// Chroma has one quarter of the luma width and half its height.
-    NVIMGCODEC_SAMPLING_410 = 6,
-    /// Only the luminance component is present.
-    NVIMGCODEC_SAMPLING_GRAY = 7,
-    /// Vertical variant of 4:1:0 chroma subsampling.
-    NVIMGCODEC_SAMPLING_410V = 8,
-    /// The chroma subsampling is unsupported.
-    NVIMGCODEC_SAMPLING_UNSUPPORTED = -1,
-    /// Reserved sentinel fixing the integer representation of the native C enum.
-    NVIMGCODEC_SAMPLING_ENUM_FORCE_INT = 2147483647,
-}
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct nvimgcodecChromaSubsampling_t(pub ::core::ffi::c_int);
 impl nvimgcodecSampleFormat_t {
+    /// The mapping of image components to channels and planes is unknown.
+    pub const NVIMGCODEC_SAMPLEFORMAT_UNKNOWN: nvimgcodecSampleFormat_t = nvimgcodecSampleFormat_t(
+        0,
+    );
+    /// Unchanged planar.
+    pub const NVIMGCODEC_SAMPLEFORMAT_P_UNCHANGED: nvimgcodecSampleFormat_t = nvimgcodecSampleFormat_t(
+        1,
+    );
+    /// Unchanged interleaved.
+    pub const NVIMGCODEC_SAMPLEFORMAT_I_UNCHANGED: nvimgcodecSampleFormat_t = nvimgcodecSampleFormat_t(
+        2,
+    );
     /// Alias of P_UNCHANGED for callers that want to pin only the channel interleaving (planar) and let color_spec choose the components. Preferred over P_UNCHANGED whenever color_spec is concrete; the two names produce identical behaviour.
-    pub const NVIMGCODEC_SAMPLEFORMAT_P_AUTO_COMPONENTS: nvimgcodecSampleFormat_t = nvimgcodecSampleFormat_t::NVIMGCODEC_SAMPLEFORMAT_P_UNCHANGED;
-}
-impl nvimgcodecSampleFormat_t {
+    pub const NVIMGCODEC_SAMPLEFORMAT_P_AUTO_COMPONENTS: nvimgcodecSampleFormat_t = nvimgcodecSampleFormat_t(
+        1,
+    );
     /// Alias of I_UNCHANGED for callers that want to pin only the channel interleaving (interleaved) and let color_spec choose the components. Preferred over I_UNCHANGED whenever color_spec is concrete; the two names produce identical behaviour.
-    pub const NVIMGCODEC_SAMPLEFORMAT_I_AUTO_COMPONENTS: nvimgcodecSampleFormat_t = nvimgcodecSampleFormat_t::NVIMGCODEC_SAMPLEFORMAT_I_UNCHANGED;
-}
-impl nvimgcodecSampleFormat_t {
+    pub const NVIMGCODEC_SAMPLEFORMAT_I_AUTO_COMPONENTS: nvimgcodecSampleFormat_t = nvimgcodecSampleFormat_t(
+        2,
+    );
+    /// Planar Y component only. For 3-dimensional shape is defined as (1, H, W) and this is only difference with I_Y.
+    pub const NVIMGCODEC_SAMPLEFORMAT_P_Y: nvimgcodecSampleFormat_t = nvimgcodecSampleFormat_t(
+        3,
+    );
+    /// Interleaved Y component only. For 3-dimensional shape is defined as (H, W, 1) and this is only difference with P_Y.
+    pub const NVIMGCODEC_SAMPLEFORMAT_I_Y: nvimgcodecSampleFormat_t = nvimgcodecSampleFormat_t(
+        4,
+    );
+    /// Planar Y component with alpha.
+    pub const NVIMGCODEC_SAMPLEFORMAT_P_YA: nvimgcodecSampleFormat_t = nvimgcodecSampleFormat_t(
+        5,
+    );
+    /// Interleaved Y component with alpha.
+    pub const NVIMGCODEC_SAMPLEFORMAT_I_YA: nvimgcodecSampleFormat_t = nvimgcodecSampleFormat_t(
+        6,
+    );
+    /// Planar RGB.
+    pub const NVIMGCODEC_SAMPLEFORMAT_P_RGB: nvimgcodecSampleFormat_t = nvimgcodecSampleFormat_t(
+        7,
+    );
+    /// Interleaved RGB.
+    pub const NVIMGCODEC_SAMPLEFORMAT_I_RGB: nvimgcodecSampleFormat_t = nvimgcodecSampleFormat_t(
+        8,
+    );
+    /// Planar BGR.
+    pub const NVIMGCODEC_SAMPLEFORMAT_P_BGR: nvimgcodecSampleFormat_t = nvimgcodecSampleFormat_t(
+        9,
+    );
+    /// Interleaved BGR.
+    pub const NVIMGCODEC_SAMPLEFORMAT_I_BGR: nvimgcodecSampleFormat_t = nvimgcodecSampleFormat_t(
+        10,
+    );
+    /// Planar YUV format.
+    pub const NVIMGCODEC_SAMPLEFORMAT_P_YUV: nvimgcodecSampleFormat_t = nvimgcodecSampleFormat_t(
+        11,
+    );
     /// Planar YCC format.
-    pub const NVIMGCODEC_SAMPLEFORMAT_P_YCC: nvimgcodecSampleFormat_t = nvimgcodecSampleFormat_t::NVIMGCODEC_SAMPLEFORMAT_P_YUV;
-}
-impl nvimgcodecSampleFormat_t {
+    pub const NVIMGCODEC_SAMPLEFORMAT_P_YCC: nvimgcodecSampleFormat_t = nvimgcodecSampleFormat_t(
+        11,
+    );
+    /// Interleaved YUV format.
+    pub const NVIMGCODEC_SAMPLEFORMAT_I_YUV: nvimgcodecSampleFormat_t = nvimgcodecSampleFormat_t(
+        12,
+    );
     /// Interleaved YCC format.
-    pub const NVIMGCODEC_SAMPLEFORMAT_I_YCC: nvimgcodecSampleFormat_t = nvimgcodecSampleFormat_t::NVIMGCODEC_SAMPLEFORMAT_I_YUV;
+    pub const NVIMGCODEC_SAMPLEFORMAT_I_YCC: nvimgcodecSampleFormat_t = nvimgcodecSampleFormat_t(
+        12,
+    );
+    /// Planar RGBA.
+    pub const NVIMGCODEC_SAMPLEFORMAT_P_RGBA: nvimgcodecSampleFormat_t = nvimgcodecSampleFormat_t(
+        13,
+    );
+    /// Interleaved RGBA.
+    pub const NVIMGCODEC_SAMPLEFORMAT_I_RGBA: nvimgcodecSampleFormat_t = nvimgcodecSampleFormat_t(
+        14,
+    );
+    /// Planar YCCK.
+    pub const NVIMGCODEC_SAMPLEFORMAT_P_YCCK: nvimgcodecSampleFormat_t = nvimgcodecSampleFormat_t(
+        15,
+    );
+    /// Interleaved YCCK.
+    pub const NVIMGCODEC_SAMPLEFORMAT_I_YCCK: nvimgcodecSampleFormat_t = nvimgcodecSampleFormat_t(
+        16,
+    );
+    /// Planar CMYK.
+    pub const NVIMGCODEC_SAMPLEFORMAT_P_CMYK: nvimgcodecSampleFormat_t = nvimgcodecSampleFormat_t(
+        17,
+    );
+    /// Interleaved CMYK.
+    pub const NVIMGCODEC_SAMPLEFORMAT_I_CMYK: nvimgcodecSampleFormat_t = nvimgcodecSampleFormat_t(
+        18,
+    );
+    /// The mapping of image components to channels and planes is unsupported.
+    pub const NVIMGCODEC_SAMPLEFORMAT_UNSUPPORTED: nvimgcodecSampleFormat_t = nvimgcodecSampleFormat_t(
+        -1,
+    );
+    /// Reserved sentinel fixing the integer representation of the native C enum.
+    pub const NVIMGCODEC_SAMPLEFORMAT_ENUM_FORCE_INT: nvimgcodecSampleFormat_t = nvimgcodecSampleFormat_t(
+        2147483647,
+    );
 }
 /// Provides information how color components are matched to channels in given order and channels are matched to planes.
-#[repr(i32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum nvimgcodecSampleFormat_t {
-    /// The mapping of image components to channels and planes is unknown.
-    NVIMGCODEC_SAMPLEFORMAT_UNKNOWN = 0,
-    /// Unchanged planar.
-    NVIMGCODEC_SAMPLEFORMAT_P_UNCHANGED = 1,
-    /// Unchanged interleaved.
-    NVIMGCODEC_SAMPLEFORMAT_I_UNCHANGED = 2,
-    /// Planar Y component only. For 3-dimensional shape is defined as (1, H, W) and this is only difference with I_Y.
-    NVIMGCODEC_SAMPLEFORMAT_P_Y = 3,
-    /// Interleaved Y component only. For 3-dimensional shape is defined as (H, W, 1) and this is only difference with P_Y.
-    NVIMGCODEC_SAMPLEFORMAT_I_Y = 4,
-    /// Planar Y component with alpha.
-    NVIMGCODEC_SAMPLEFORMAT_P_YA = 5,
-    /// Interleaved Y component with alpha.
-    NVIMGCODEC_SAMPLEFORMAT_I_YA = 6,
-    /// Planar RGB.
-    NVIMGCODEC_SAMPLEFORMAT_P_RGB = 7,
-    /// Interleaved RGB.
-    NVIMGCODEC_SAMPLEFORMAT_I_RGB = 8,
-    /// Planar BGR.
-    NVIMGCODEC_SAMPLEFORMAT_P_BGR = 9,
-    /// Interleaved BGR.
-    NVIMGCODEC_SAMPLEFORMAT_I_BGR = 10,
-    /// Planar YUV format.
-    NVIMGCODEC_SAMPLEFORMAT_P_YUV = 11,
-    /// Interleaved YUV format.
-    NVIMGCODEC_SAMPLEFORMAT_I_YUV = 12,
-    /// Planar RGBA.
-    NVIMGCODEC_SAMPLEFORMAT_P_RGBA = 13,
-    /// Interleaved RGBA.
-    NVIMGCODEC_SAMPLEFORMAT_I_RGBA = 14,
-    /// Planar YCCK.
-    NVIMGCODEC_SAMPLEFORMAT_P_YCCK = 15,
-    /// Interleaved YCCK.
-    NVIMGCODEC_SAMPLEFORMAT_I_YCCK = 16,
-    /// Planar CMYK.
-    NVIMGCODEC_SAMPLEFORMAT_P_CMYK = 17,
-    /// Interleaved CMYK.
-    NVIMGCODEC_SAMPLEFORMAT_I_CMYK = 18,
-    /// The mapping of image components to channels and planes is unsupported.
-    NVIMGCODEC_SAMPLEFORMAT_UNSUPPORTED = -1,
-    /// Reserved sentinel fixing the integer representation of the native C enum.
-    NVIMGCODEC_SAMPLEFORMAT_ENUM_FORCE_INT = 2147483647,
-}
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct nvimgcodecSampleFormat_t(pub ::core::ffi::c_int);
 impl nvimgcodecColorSpec_t {
+    /// The color specification is unknown or not specified.
+    pub const NVIMGCODEC_COLORSPEC_UNKNOWN: nvimgcodecColorSpec_t = nvimgcodecColorSpec_t(
+        0,
+    );
     /// The color specification should be left unchanged; equivalent to UNKNOWN.
-    pub const NVIMGCODEC_COLORSPEC_UNCHANGED: nvimgcodecColorSpec_t = nvimgcodecColorSpec_t::NVIMGCODEC_COLORSPEC_UNKNOWN;
+    pub const NVIMGCODEC_COLORSPEC_UNCHANGED: nvimgcodecColorSpec_t = nvimgcodecColorSpec_t(
+        0,
+    );
+    /// The image uses the standard RGB (sRGB) color space.
+    pub const NVIMGCODEC_COLORSPEC_SRGB: nvimgcodecColorSpec_t = nvimgcodecColorSpec_t(
+        1,
+    );
+    /// The image is grayscale (single channel, no color).
+    pub const NVIMGCODEC_COLORSPEC_GRAY: nvimgcodecColorSpec_t = nvimgcodecColorSpec_t(
+        2,
+    );
+    /// The image uses the sYCC color space (YCbCr with sRGB primaries).
+    pub const NVIMGCODEC_COLORSPEC_SYCC: nvimgcodecColorSpec_t = nvimgcodecColorSpec_t(
+        3,
+    );
+    /// The image uses the CMYK color space (Cyan, Magenta, Yellow, Black).
+    pub const NVIMGCODEC_COLORSPEC_CMYK: nvimgcodecColorSpec_t = nvimgcodecColorSpec_t(
+        4,
+    );
+    /// The image uses the YCCK color space (YCbCr plus Black channel).
+    pub const NVIMGCODEC_COLORSPEC_YCCK: nvimgcodecColorSpec_t = nvimgcodecColorSpec_t(
+        5,
+    );
+    /// Sample data is represented using a palette color map.
+    pub const NVIMGCODEC_COLORSPEC_PALETTE: nvimgcodecColorSpec_t = nvimgcodecColorSpec_t(
+        6,
+    );
+    /// Precise color space is provided in an ICC profile.
+    pub const NVIMGCODEC_COLORSPEC_ICC_PROFILE: nvimgcodecColorSpec_t = nvimgcodecColorSpec_t(
+        7,
+    );
+    /// The color specification is unsupported by the library.
+    pub const NVIMGCODEC_COLORSPEC_UNSUPPORTED: nvimgcodecColorSpec_t = nvimgcodecColorSpec_t(
+        -1,
+    );
+    /// Forces the enum to be represented as a 32-bit integer.
+    pub const NVIMGCODEC_COLORSPEC_ENUM_FORCE_INT: nvimgcodecColorSpec_t = nvimgcodecColorSpec_t(
+        2147483647,
+    );
 }
 /// Defines color specification.
 ///
 /// This enumeration specifies how the color information in image samples should be interpreted.
-#[repr(i32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum nvimgcodecColorSpec_t {
-    /// The color specification is unknown or not specified.
-    NVIMGCODEC_COLORSPEC_UNKNOWN = 0,
-    /// The image uses the standard RGB (sRGB) color space.
-    NVIMGCODEC_COLORSPEC_SRGB = 1,
-    /// The image is grayscale (single channel, no color).
-    NVIMGCODEC_COLORSPEC_GRAY = 2,
-    /// The image uses the sYCC color space (YCbCr with sRGB primaries).
-    NVIMGCODEC_COLORSPEC_SYCC = 3,
-    /// The image uses the CMYK color space (Cyan, Magenta, Yellow, Black).
-    NVIMGCODEC_COLORSPEC_CMYK = 4,
-    /// The image uses the YCCK color space (YCbCr plus Black channel).
-    NVIMGCODEC_COLORSPEC_YCCK = 5,
-    /// Sample data is represented using a palette color map.
-    NVIMGCODEC_COLORSPEC_PALETTE = 6,
-    /// Precise color space is provided in an ICC profile.
-    NVIMGCODEC_COLORSPEC_ICC_PROFILE = 7,
-    /// The color specification is unsupported by the library.
-    NVIMGCODEC_COLORSPEC_UNSUPPORTED = -1,
-    /// Forces the enum to be represented as a 32-bit integer.
-    NVIMGCODEC_COLORSPEC_ENUM_FORCE_INT = 2147483647,
-}
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct nvimgcodecColorSpec_t(pub ::core::ffi::c_int);
 /// Defines orientation of an image.
 #[repr(C)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
@@ -672,26 +837,20 @@ impl Default for nvimgcodecOutOfBoundsSample_t {
         }
     }
 }
-/// Defines buffer kind in which image data is stored.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum nvimgcodecOutOfBoundsPolicy_t {
+impl nvimgcodecOutOfBoundsPolicy_t {
     /// Each of ouf bounds pixel will be set to sample specified in `out_of_bounds_samples` in [`nvimgcodecRegion_t`].
-    NVIMGCODEC_OUT_OF_BOUNDS_POLICY_CONSTANT = 0,
+    pub const NVIMGCODEC_OUT_OF_BOUNDS_POLICY_CONSTANT: nvimgcodecOutOfBoundsPolicy_t = nvimgcodecOutOfBoundsPolicy_t(
+        0,
+    );
     /// Reserved sentinel fixing the integer representation of the native C enum.
-    NVIMGCODEC_OUT_OF_BOUNDS_POLICY_ENUM_FORCE_INT = 2147483647,
+    pub const NVIMGCODEC_OUT_OF_BOUNDS_POLICY_ENUM_FORCE_INT: nvimgcodecOutOfBoundsPolicy_t = nvimgcodecOutOfBoundsPolicy_t(
+        2147483647,
+    );
 }
+/// Defines buffer kind in which image data is stored.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct nvimgcodecOutOfBoundsPolicy_t(pub ::core::ffi::c_uint);
 /// Defines region of an image.
 #[repr(C)]
 #[derive(Copy, Clone)]
@@ -724,32 +883,32 @@ impl Default for nvimgcodecRegion_t {
         }
     }
 }
-/// Defines buffer kind in which image data is stored.
-#[repr(i32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum nvimgcodecImageBufferKind_t {
+impl nvimgcodecImageBufferKind_t {
     /// The image buffer memory kind is unknown.
-    NVIMGCODEC_IMAGE_BUFFER_KIND_UNKNOWN = 0,
+    pub const NVIMGCODEC_IMAGE_BUFFER_KIND_UNKNOWN: nvimgcodecImageBufferKind_t = nvimgcodecImageBufferKind_t(
+        0,
+    );
     /// GPU-accessible with planes in pitch-linear layout.
-    NVIMGCODEC_IMAGE_BUFFER_KIND_STRIDED_DEVICE = 1,
+    pub const NVIMGCODEC_IMAGE_BUFFER_KIND_STRIDED_DEVICE: nvimgcodecImageBufferKind_t = nvimgcodecImageBufferKind_t(
+        1,
+    );
     /// Host-accessible with planes in pitch-linear layout.
-    NVIMGCODEC_IMAGE_BUFFER_KIND_STRIDED_HOST = 2,
+    pub const NVIMGCODEC_IMAGE_BUFFER_KIND_STRIDED_HOST: nvimgcodecImageBufferKind_t = nvimgcodecImageBufferKind_t(
+        2,
+    );
     /// The image buffer memory kind is unsupported.
-    NVIMGCODEC_IMAGE_BUFFER_KIND_UNSUPPORTED = -1,
+    pub const NVIMGCODEC_IMAGE_BUFFER_KIND_UNSUPPORTED: nvimgcodecImageBufferKind_t = nvimgcodecImageBufferKind_t(
+        -1,
+    );
     /// Reserved sentinel fixing the integer representation of the native C enum.
-    NVIMGCODEC_IMAGE_BUFFER_KIND_ENUM_FORCE_INT = 2147483647,
+    pub const NVIMGCODEC_IMAGE_BUFFER_KIND_ENUM_FORCE_INT: nvimgcodecImageBufferKind_t = nvimgcodecImageBufferKind_t(
+        2147483647,
+    );
 }
+/// Defines buffer kind in which image data is stored.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct nvimgcodecImageBufferKind_t(pub ::core::ffi::c_int);
 /// Defines information about an image.
 #[repr(C)]
 pub struct nvimgcodecImageInfo_t {
@@ -873,56 +1032,78 @@ impl Default for nvimgcodecCodeStreamInfoTiffExt_t {
         }
     }
 }
+impl nvimgcodecJpegEncoding_t {
+    /// The JPEG encoding process is unknown.
+    pub const NVIMGCODEC_JPEG_ENCODING_UNKNOWN: nvimgcodecJpegEncoding_t = nvimgcodecJpegEncoding_t(
+        0,
+    );
+    /// Baseline sequential DCT with Huffman entropy coding.
+    pub const NVIMGCODEC_JPEG_ENCODING_BASELINE_DCT: nvimgcodecJpegEncoding_t = nvimgcodecJpegEncoding_t(
+        192,
+    );
+    /// Extended sequential DCT with Huffman entropy coding.
+    pub const NVIMGCODEC_JPEG_ENCODING_EXTENDED_SEQUENTIAL_DCT_HUFFMAN: nvimgcodecJpegEncoding_t = nvimgcodecJpegEncoding_t(
+        193,
+    );
+    /// Progressive DCT with Huffman entropy coding.
+    pub const NVIMGCODEC_JPEG_ENCODING_PROGRESSIVE_DCT_HUFFMAN: nvimgcodecJpegEncoding_t = nvimgcodecJpegEncoding_t(
+        194,
+    );
+    /// Lossless predictive JPEG with Huffman entropy coding.
+    pub const NVIMGCODEC_JPEG_ENCODING_LOSSLESS_HUFFMAN: nvimgcodecJpegEncoding_t = nvimgcodecJpegEncoding_t(
+        195,
+    );
+    /// Differential sequential DCT with Huffman entropy coding.
+    pub const NVIMGCODEC_JPEG_ENCODING_DIFFERENTIAL_SEQUENTIAL_DCT_HUFFMAN: nvimgcodecJpegEncoding_t = nvimgcodecJpegEncoding_t(
+        197,
+    );
+    /// Differential progressive DCT with Huffman entropy coding.
+    pub const NVIMGCODEC_JPEG_ENCODING_DIFFERENTIAL_PROGRESSIVE_DCT_HUFFMAN: nvimgcodecJpegEncoding_t = nvimgcodecJpegEncoding_t(
+        198,
+    );
+    /// Differential lossless JPEG with Huffman entropy coding.
+    pub const NVIMGCODEC_JPEG_ENCODING_DIFFERENTIAL_LOSSLESS_HUFFMAN: nvimgcodecJpegEncoding_t = nvimgcodecJpegEncoding_t(
+        199,
+    );
+    /// JPEG start-of-frame marker reserved for JPEG extensions.
+    pub const NVIMGCODEC_JPEG_ENCODING_RESERVED_FOR_JPEG_EXTENSIONS: nvimgcodecJpegEncoding_t = nvimgcodecJpegEncoding_t(
+        200,
+    );
+    /// Extended sequential DCT with arithmetic entropy coding.
+    pub const NVIMGCODEC_JPEG_ENCODING_EXTENDED_SEQUENTIAL_DCT_ARITHMETIC: nvimgcodecJpegEncoding_t = nvimgcodecJpegEncoding_t(
+        201,
+    );
+    /// Progressive DCT with arithmetic entropy coding.
+    pub const NVIMGCODEC_JPEG_ENCODING_PROGRESSIVE_DCT_ARITHMETIC: nvimgcodecJpegEncoding_t = nvimgcodecJpegEncoding_t(
+        202,
+    );
+    /// Lossless predictive JPEG with arithmetic entropy coding.
+    pub const NVIMGCODEC_JPEG_ENCODING_LOSSLESS_ARITHMETIC: nvimgcodecJpegEncoding_t = nvimgcodecJpegEncoding_t(
+        203,
+    );
+    /// Differential sequential DCT with arithmetic entropy coding.
+    pub const NVIMGCODEC_JPEG_ENCODING_DIFFERENTIAL_SEQUENTIAL_DCT_ARITHMETIC: nvimgcodecJpegEncoding_t = nvimgcodecJpegEncoding_t(
+        205,
+    );
+    /// Differential progressive DCT with arithmetic entropy coding.
+    pub const NVIMGCODEC_JPEG_ENCODING_DIFFERENTIAL_PROGRESSIVE_DCT_ARITHMETIC: nvimgcodecJpegEncoding_t = nvimgcodecJpegEncoding_t(
+        206,
+    );
+    /// Differential lossless JPEG with arithmetic entropy coding.
+    pub const NVIMGCODEC_JPEG_ENCODING_DIFFERENTIAL_LOSSLESS_ARITHMETIC: nvimgcodecJpegEncoding_t = nvimgcodecJpegEncoding_t(
+        207,
+    );
+    /// Reserved sentinel fixing the integer representation of the native C enum.
+    pub const NVIMGCODEC_JPEG_ENCODING_ENUM_FORCE_INT: nvimgcodecJpegEncoding_t = nvimgcodecJpegEncoding_t(
+        2147483647,
+    );
+}
 /// JPEG Encoding.
 ///
 /// Currently parseable JPEG encodings (SOF markers) <https://www.w3.org/Graphics/JPEG/itu-t81.pdf> Table B.1 Start of Frame markers.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum nvimgcodecJpegEncoding_t {
-    /// The JPEG encoding process is unknown.
-    NVIMGCODEC_JPEG_ENCODING_UNKNOWN = 0,
-    /// Baseline sequential DCT with Huffman entropy coding.
-    NVIMGCODEC_JPEG_ENCODING_BASELINE_DCT = 192,
-    /// Extended sequential DCT with Huffman entropy coding.
-    NVIMGCODEC_JPEG_ENCODING_EXTENDED_SEQUENTIAL_DCT_HUFFMAN = 193,
-    /// Progressive DCT with Huffman entropy coding.
-    NVIMGCODEC_JPEG_ENCODING_PROGRESSIVE_DCT_HUFFMAN = 194,
-    /// Lossless predictive JPEG with Huffman entropy coding.
-    NVIMGCODEC_JPEG_ENCODING_LOSSLESS_HUFFMAN = 195,
-    /// Differential sequential DCT with Huffman entropy coding.
-    NVIMGCODEC_JPEG_ENCODING_DIFFERENTIAL_SEQUENTIAL_DCT_HUFFMAN = 197,
-    /// Differential progressive DCT with Huffman entropy coding.
-    NVIMGCODEC_JPEG_ENCODING_DIFFERENTIAL_PROGRESSIVE_DCT_HUFFMAN = 198,
-    /// Differential lossless JPEG with Huffman entropy coding.
-    NVIMGCODEC_JPEG_ENCODING_DIFFERENTIAL_LOSSLESS_HUFFMAN = 199,
-    /// JPEG start-of-frame marker reserved for JPEG extensions.
-    NVIMGCODEC_JPEG_ENCODING_RESERVED_FOR_JPEG_EXTENSIONS = 200,
-    /// Extended sequential DCT with arithmetic entropy coding.
-    NVIMGCODEC_JPEG_ENCODING_EXTENDED_SEQUENTIAL_DCT_ARITHMETIC = 201,
-    /// Progressive DCT with arithmetic entropy coding.
-    NVIMGCODEC_JPEG_ENCODING_PROGRESSIVE_DCT_ARITHMETIC = 202,
-    /// Lossless predictive JPEG with arithmetic entropy coding.
-    NVIMGCODEC_JPEG_ENCODING_LOSSLESS_ARITHMETIC = 203,
-    /// Differential sequential DCT with arithmetic entropy coding.
-    NVIMGCODEC_JPEG_ENCODING_DIFFERENTIAL_SEQUENTIAL_DCT_ARITHMETIC = 205,
-    /// Differential progressive DCT with arithmetic entropy coding.
-    NVIMGCODEC_JPEG_ENCODING_DIFFERENTIAL_PROGRESSIVE_DCT_ARITHMETIC = 206,
-    /// Differential lossless JPEG with arithmetic entropy coding.
-    NVIMGCODEC_JPEG_ENCODING_DIFFERENTIAL_LOSSLESS_ARITHMETIC = 207,
-    /// Reserved sentinel fixing the integer representation of the native C enum.
-    NVIMGCODEC_JPEG_ENCODING_ENUM_FORCE_INT = 2147483647,
-}
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct nvimgcodecJpegEncoding_t(pub ::core::ffi::c_uint);
 /// Defines image information related to JPEG format.
 ///
 /// This structure extends information provided in [`nvimgcodecImageInfo_t`].
@@ -981,52 +1162,46 @@ impl Default for nvimgcodecTileGeometryInfo_t {
         }
     }
 }
-/// Defines decoding/encoding backend kind.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum nvimgcodecBackendKind_t {
+impl nvimgcodecBackendKind_t {
     /// Decoding/encoding is executed only on CPU.
-    NVIMGCODEC_BACKEND_KIND_CPU_ONLY = 1,
+    pub const NVIMGCODEC_BACKEND_KIND_CPU_ONLY: nvimgcodecBackendKind_t = nvimgcodecBackendKind_t(
+        1,
+    );
     /// Decoding/encoding is executed only on GPU.
-    NVIMGCODEC_BACKEND_KIND_GPU_ONLY = 2,
+    pub const NVIMGCODEC_BACKEND_KIND_GPU_ONLY: nvimgcodecBackendKind_t = nvimgcodecBackendKind_t(
+        2,
+    );
     /// Decoding/encoding is executed on both CPU and GPU.
-    NVIMGCODEC_BACKEND_KIND_HYBRID_CPU_GPU = 3,
+    pub const NVIMGCODEC_BACKEND_KIND_HYBRID_CPU_GPU: nvimgcodecBackendKind_t = nvimgcodecBackendKind_t(
+        3,
+    );
     /// Decoding/encoding is executed on GPU dedicated hardware engine.
-    NVIMGCODEC_BACKEND_KIND_HW_GPU_ONLY = 4,
+    pub const NVIMGCODEC_BACKEND_KIND_HW_GPU_ONLY: nvimgcodecBackendKind_t = nvimgcodecBackendKind_t(
+        4,
+    );
+}
+/// Defines decoding/encoding backend kind.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct nvimgcodecBackendKind_t(pub ::core::ffi::c_uint);
+impl nvimgcodecLoadHintPolicy_t {
+    /// Load hint is not taken into account.
+    pub const NVIMGCODEC_LOAD_HINT_POLICY_IGNORE: nvimgcodecLoadHintPolicy_t = nvimgcodecLoadHintPolicy_t(
+        1,
+    );
+    /// Load hint is used to calculate the backend batch size once.
+    pub const NVIMGCODEC_LOAD_HINT_POLICY_FIXED: nvimgcodecLoadHintPolicy_t = nvimgcodecLoadHintPolicy_t(
+        2,
+    );
+    /// Load hint is used as an initial hint, and it is recalculated on every iteration to reduce the idle time of threads.
+    pub const NVIMGCODEC_LOAD_HINT_POLICY_ADAPTIVE_MINIMIZE_IDLE_TIME: nvimgcodecLoadHintPolicy_t = nvimgcodecLoadHintPolicy_t(
+        3,
+    );
 }
 /// Defines how to interpret the load hint parameter.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum nvimgcodecLoadHintPolicy_t {
-    /// Load hint is not taken into account.
-    NVIMGCODEC_LOAD_HINT_POLICY_IGNORE = 1,
-    /// Load hint is used to calculate the backend batch size once.
-    NVIMGCODEC_LOAD_HINT_POLICY_FIXED = 2,
-    /// Load hint is used as an initial hint, and it is recalculated on every iteration to reduce the idle time of threads.
-    NVIMGCODEC_LOAD_HINT_POLICY_ADAPTIVE_MINIMIZE_IDLE_TIME = 3,
-}
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct nvimgcodecLoadHintPolicy_t(pub ::core::ffi::c_uint);
 /// Defines decoding/encoding backend parameters.
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialOrd, PartialEq)]
@@ -1075,72 +1250,108 @@ impl Default for nvimgcodecBackend_t {
         }
     }
 }
-/// Processing status bitmask for decoding or encoding .
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum nvimgcodecProcessingStatus {
+impl nvimgcodecProcessingStatus {
     /// The processing outcome is unknown.
-    NVIMGCODEC_PROCESSING_STATUS_UNKNOWN = 0,
+    pub const NVIMGCODEC_PROCESSING_STATUS_UNKNOWN: nvimgcodecProcessingStatus = nvimgcodecProcessingStatus(
+        0,
+    );
     /// Processing finished with success.
-    NVIMGCODEC_PROCESSING_STATUS_SUCCESS = 1,
+    pub const NVIMGCODEC_PROCESSING_STATUS_SUCCESS: nvimgcodecProcessingStatus = nvimgcodecProcessingStatus(
+        1,
+    );
     /// Decoder/encoder could potentially process image but is saturated.
     ///
     /// See also
     ///
     /// [`nvimgcodecBackendParams_t`] load_hint.
-    NVIMGCODEC_PROCESSING_STATUS_SATURATED = 2,
+    pub const NVIMGCODEC_PROCESSING_STATUS_SATURATED: nvimgcodecProcessingStatus = nvimgcodecProcessingStatus(
+        2,
+    );
     /// Processing failed because unknown reason.
-    NVIMGCODEC_PROCESSING_STATUS_FAIL = 3,
+    pub const NVIMGCODEC_PROCESSING_STATUS_FAIL: nvimgcodecProcessingStatus = nvimgcodecProcessingStatus(
+        3,
+    );
     /// Processing failed because compressed image stream is corrupted.
-    NVIMGCODEC_PROCESSING_STATUS_IMAGE_CORRUPTED = 7,
+    pub const NVIMGCODEC_PROCESSING_STATUS_IMAGE_CORRUPTED: nvimgcodecProcessingStatus = nvimgcodecProcessingStatus(
+        7,
+    );
     /// Processing failed because codec is unsupported.
-    NVIMGCODEC_PROCESSING_STATUS_CODEC_UNSUPPORTED = 11,
+    pub const NVIMGCODEC_PROCESSING_STATUS_CODEC_UNSUPPORTED: nvimgcodecProcessingStatus = nvimgcodecProcessingStatus(
+        11,
+    );
     /// Processing failed because no one from allowed backends is supported.
-    NVIMGCODEC_PROCESSING_STATUS_BACKEND_UNSUPPORTED = 19,
+    pub const NVIMGCODEC_PROCESSING_STATUS_BACKEND_UNSUPPORTED: nvimgcodecProcessingStatus = nvimgcodecProcessingStatus(
+        19,
+    );
     /// Processing failed because codec encoding is unsupported.
-    NVIMGCODEC_PROCESSING_STATUS_ENCODING_UNSUPPORTED = 35,
+    pub const NVIMGCODEC_PROCESSING_STATUS_ENCODING_UNSUPPORTED: nvimgcodecProcessingStatus = nvimgcodecProcessingStatus(
+        35,
+    );
     /// Processing failed because image resolution is unsupported.
-    NVIMGCODEC_PROCESSING_STATUS_RESOLUTION_UNSUPPORTED = 67,
+    pub const NVIMGCODEC_PROCESSING_STATUS_RESOLUTION_UNSUPPORTED: nvimgcodecProcessingStatus = nvimgcodecProcessingStatus(
+        67,
+    );
     /// Processing failed because some feature of compressed stream is unsupported.
-    NVIMGCODEC_PROCESSING_STATUS_CODESTREAM_UNSUPPORTED = 131,
+    pub const NVIMGCODEC_PROCESSING_STATUS_CODESTREAM_UNSUPPORTED: nvimgcodecProcessingStatus = nvimgcodecProcessingStatus(
+        131,
+    );
     /// Color specification unsupported.
-    NVIMGCODEC_PROCESSING_STATUS_COLOR_SPEC_UNSUPPORTED = 5,
+    pub const NVIMGCODEC_PROCESSING_STATUS_COLOR_SPEC_UNSUPPORTED: nvimgcodecProcessingStatus = nvimgcodecProcessingStatus(
+        5,
+    );
     /// Apply orientation was enabled but it is unsupported.
-    NVIMGCODEC_PROCESSING_STATUS_ORIENTATION_UNSUPPORTED = 9,
+    pub const NVIMGCODEC_PROCESSING_STATUS_ORIENTATION_UNSUPPORTED: nvimgcodecProcessingStatus = nvimgcodecProcessingStatus(
+        9,
+    );
     /// Decoding region of interest is unsupported.
-    NVIMGCODEC_PROCESSING_STATUS_ROI_UNSUPPORTED = 17,
+    pub const NVIMGCODEC_PROCESSING_STATUS_ROI_UNSUPPORTED: nvimgcodecProcessingStatus = nvimgcodecProcessingStatus(
+        17,
+    );
     /// Selected unsupported chroma subsampling .
-    NVIMGCODEC_PROCESSING_STATUS_SAMPLING_UNSUPPORTED = 33,
+    pub const NVIMGCODEC_PROCESSING_STATUS_SAMPLING_UNSUPPORTED: nvimgcodecProcessingStatus = nvimgcodecProcessingStatus(
+        33,
+    );
     /// Selected unsupported sample type.
-    NVIMGCODEC_PROCESSING_STATUS_SAMPLE_TYPE_UNSUPPORTED = 65,
+    pub const NVIMGCODEC_PROCESSING_STATUS_SAMPLE_TYPE_UNSUPPORTED: nvimgcodecProcessingStatus = nvimgcodecProcessingStatus(
+        65,
+    );
     /// Selected unsupported sample format.
-    NVIMGCODEC_PROCESSING_STATUS_SAMPLE_FORMAT_UNSUPPORTED = 129,
+    pub const NVIMGCODEC_PROCESSING_STATUS_SAMPLE_FORMAT_UNSUPPORTED: nvimgcodecProcessingStatus = nvimgcodecProcessingStatus(
+        129,
+    );
     /// Unsupported number of images to decode/encode.
-    NVIMGCODEC_PROCESSING_STATUS_NUM_IMAGES_UNSUPPORTED = 257,
+    pub const NVIMGCODEC_PROCESSING_STATUS_NUM_IMAGES_UNSUPPORTED: nvimgcodecProcessingStatus = nvimgcodecProcessingStatus(
+        257,
+    );
     /// Unsupported number of planes to decode/encode.
-    NVIMGCODEC_PROCESSING_STATUS_NUM_PLANES_UNSUPPORTED = 513,
+    pub const NVIMGCODEC_PROCESSING_STATUS_NUM_PLANES_UNSUPPORTED: nvimgcodecProcessingStatus = nvimgcodecProcessingStatus(
+        513,
+    );
     /// Unsupported number of channels to decode/encode.
-    NVIMGCODEC_PROCESSING_STATUS_NUM_CHANNELS_UNSUPPORTED = 1025,
+    pub const NVIMGCODEC_PROCESSING_STATUS_NUM_CHANNELS_UNSUPPORTED: nvimgcodecProcessingStatus = nvimgcodecProcessingStatus(
+        1025,
+    );
     /// Unsupported quality type to encode.
-    NVIMGCODEC_PROCESSING_STATUS_QUALITY_TYPE_UNSUPPORTED = 2049,
+    pub const NVIMGCODEC_PROCESSING_STATUS_QUALITY_TYPE_UNSUPPORTED: nvimgcodecProcessingStatus = nvimgcodecProcessingStatus(
+        2049,
+    );
     /// Unsupported quality value to encode.
-    NVIMGCODEC_PROCESSING_STATUS_QUALITY_VALUE_UNSUPPORTED = 4097,
+    pub const NVIMGCODEC_PROCESSING_STATUS_QUALITY_VALUE_UNSUPPORTED: nvimgcodecProcessingStatus = nvimgcodecProcessingStatus(
+        4097,
+    );
     /// Unsupported tiling to encode.
-    NVIMGCODEC_PROCESSING_STATUS_TILING_UNSUPPORTED = 8193,
+    pub const NVIMGCODEC_PROCESSING_STATUS_TILING_UNSUPPORTED: nvimgcodecProcessingStatus = nvimgcodecProcessingStatus(
+        8193,
+    );
     /// Reserved sentinel fixing the integer representation of the native C enum.
-    NVIMGCODEC_PROCESSING_STATUS_ENUM_FORCE_INT = 2147483647,
+    pub const NVIMGCODEC_PROCESSING_STATUS_ENUM_FORCE_INT: nvimgcodecProcessingStatus = nvimgcodecProcessingStatus(
+        2147483647,
+    );
 }
+/// Processing status bitmask for decoding or encoding .
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct nvimgcodecProcessingStatus(pub ::core::ffi::c_uint);
 /// Processing status type which combine processing status bitmasks.
 pub type nvimgcodecProcessingStatus_t = u32;
 /// Decode parameters.
@@ -1165,39 +1376,43 @@ impl Default for nvimgcodecDecodeParams_t {
         }
     }
 }
-/// Supported quality types (algorithms), which determines how `quality_value` is interpreted.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum nvimgcodecQualityType_t {
+impl nvimgcodecQualityType_t {
     /// Each plugin decides what is best quality setting to use. `quality_value `is ignored.
-    NVIMGCODEC_QUALITY_TYPE_DEFAULT = 0,
+    pub const NVIMGCODEC_QUALITY_TYPE_DEFAULT: nvimgcodecQualityType_t = nvimgcodecQualityType_t(
+        0,
+    );
     /// Image encoding is reversible and keeps original image quality. `quality_value` is ignored except for:
     ///
     /// * the CUDA TIFF encoder backend, for which `quality_value = 0` means no compression, and `quality_value = 1` means LZW compression,
     /// * the CPU PNG encoder backend, for which `quality_value` can be in range from 0 (lowest compression ratio, fastest) to 9 (highest compression ratio, slowest).
-    NVIMGCODEC_QUALITY_TYPE_LOSSLESS = 1,
+    pub const NVIMGCODEC_QUALITY_TYPE_LOSSLESS: nvimgcodecQualityType_t = nvimgcodecQualityType_t(
+        1,
+    );
     /// `quality_value` is interpreted as JPEG-like quality in range from 1 (worst) to 100 (best).
-    NVIMGCODEC_QUALITY_TYPE_QUALITY = 2,
+    pub const NVIMGCODEC_QUALITY_TYPE_QUALITY: nvimgcodecQualityType_t = nvimgcodecQualityType_t(
+        2,
+    );
     /// `quality_value` is interpreted as quantization step (by how much pixel data will be divided). The higher the value, the worse quality image is produced.
-    NVIMGCODEC_QUALITY_TYPE_QUANTIZATION_STEP = 3,
+    pub const NVIMGCODEC_QUALITY_TYPE_QUANTIZATION_STEP: nvimgcodecQualityType_t = nvimgcodecQualityType_t(
+        3,
+    );
     /// `quality_value` is interpreted as desired Peak Signal-to-Noise Ratio (PSNR) target for the encoded image. The higher the value, the better quality image is produced. Value should be positive.
-    NVIMGCODEC_QUALITY_TYPE_PSNR = 4,
+    pub const NVIMGCODEC_QUALITY_TYPE_PSNR: nvimgcodecQualityType_t = nvimgcodecQualityType_t(
+        4,
+    );
     /// `quality_value` is interpreted as desired encoded image size ratio compared to original size, should be floating in range (0.0, 1.0). E.g. value 0.1 means target size of 10% of original image.
-    NVIMGCODEC_QUALITY_TYPE_SIZE_RATIO = 5,
+    pub const NVIMGCODEC_QUALITY_TYPE_SIZE_RATIO: nvimgcodecQualityType_t = nvimgcodecQualityType_t(
+        5,
+    );
     /// Reserved sentinel fixing the integer representation of the native C enum.
-    NVIMGCODEC_QUALITY_TYPE_ENUM_FORCE_INT = 2147483647,
+    pub const NVIMGCODEC_QUALITY_TYPE_ENUM_FORCE_INT: nvimgcodecQualityType_t = nvimgcodecQualityType_t(
+        2147483647,
+    );
 }
+/// Supported quality types (algorithms), which determines how `quality_value` is interpreted.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct nvimgcodecQualityType_t(pub ::core::ffi::c_uint);
 /// Encode parameters.
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialOrd, PartialEq)]
@@ -1222,56 +1437,54 @@ impl Default for nvimgcodecEncodeParams_t {
         }
     }
 }
-/// Progression orders defined in the JPEG2000 standard.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum nvimgcodecJpeg2kProgOrder_t {
+impl nvimgcodecJpeg2kProgOrder_t {
     /// **&lt; Layer-Resolution-Component-Position progression order. */
-    NVIMGCODEC_JPEG2K_PROG_ORDER_LRCP = 0,
+    pub const NVIMGCODEC_JPEG2K_PROG_ORDER_LRCP: nvimgcodecJpeg2kProgOrder_t = nvimgcodecJpeg2kProgOrder_t(
+        0,
+    );
     /// **&lt; Resolution-Layer-Component-Position progression order. */
-    NVIMGCODEC_JPEG2K_PROG_ORDER_RLCP = 1,
+    pub const NVIMGCODEC_JPEG2K_PROG_ORDER_RLCP: nvimgcodecJpeg2kProgOrder_t = nvimgcodecJpeg2kProgOrder_t(
+        1,
+    );
     /// **&lt; Resolution-Position-Component-Layer progression order. */
-    NVIMGCODEC_JPEG2K_PROG_ORDER_RPCL = 2,
+    pub const NVIMGCODEC_JPEG2K_PROG_ORDER_RPCL: nvimgcodecJpeg2kProgOrder_t = nvimgcodecJpeg2kProgOrder_t(
+        2,
+    );
     /// **&lt; Position-Component-Resolution-Layer progression order. */
-    NVIMGCODEC_JPEG2K_PROG_ORDER_PCRL = 3,
+    pub const NVIMGCODEC_JPEG2K_PROG_ORDER_PCRL: nvimgcodecJpeg2kProgOrder_t = nvimgcodecJpeg2kProgOrder_t(
+        3,
+    );
     /// **&lt; Component-Position-Resolution-Layer progression order. */
-    NVIMGCODEC_JPEG2K_PROG_ORDER_CPRL = 4,
+    pub const NVIMGCODEC_JPEG2K_PROG_ORDER_CPRL: nvimgcodecJpeg2kProgOrder_t = nvimgcodecJpeg2kProgOrder_t(
+        4,
+    );
     /// Reserved sentinel fixing the integer representation of the native C enum.
-    NVIMGCODEC_JPEG2K_PROG_ORDER_ENUM_FORCE_INT = 2147483647,
+    pub const NVIMGCODEC_JPEG2K_PROG_ORDER_ENUM_FORCE_INT: nvimgcodecJpeg2kProgOrder_t = nvimgcodecJpeg2kProgOrder_t(
+        2147483647,
+    );
+}
+/// Progression orders defined in the JPEG2000 standard.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct nvimgcodecJpeg2kProgOrder_t(pub ::core::ffi::c_uint);
+impl nvimgcodecJpeg2kBitstreamType_t {
+    /// Corresponds to the JPEG2000 code stream.
+    pub const NVIMGCODEC_JPEG2K_STREAM_J2K: nvimgcodecJpeg2kBitstreamType_t = nvimgcodecJpeg2kBitstreamType_t(
+        0,
+    );
+    /// Corresponds to the .jp2 container.
+    pub const NVIMGCODEC_JPEG2K_STREAM_JP2: nvimgcodecJpeg2kBitstreamType_t = nvimgcodecJpeg2kBitstreamType_t(
+        1,
+    );
+    /// Reserved sentinel fixing the integer representation of the native C enum.
+    pub const NVIMGCODEC_JPEG2K_STREAM_ENUM_FORCE_INT: nvimgcodecJpeg2kBitstreamType_t = nvimgcodecJpeg2kBitstreamType_t(
+        2147483647,
+    );
 }
 /// JPEG2000 code stream type.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum nvimgcodecJpeg2kBitstreamType_t {
-    /// Corresponds to the JPEG2000 code stream.
-    NVIMGCODEC_JPEG2K_STREAM_J2K = 0,
-    /// Corresponds to the .jp2 container.
-    NVIMGCODEC_JPEG2K_STREAM_JP2 = 1,
-    /// Reserved sentinel fixing the integer representation of the native C enum.
-    NVIMGCODEC_JPEG2K_STREAM_ENUM_FORCE_INT = 2147483647,
-}
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct nvimgcodecJpeg2kBitstreamType_t(pub ::core::ffi::c_uint);
 /// JPEG2000 Encode parameters.
 #[repr(C)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
@@ -1332,126 +1545,168 @@ impl Default for nvimgcodecJpegEncodeParams_t {
         }
     }
 }
-/// Specifies the kind of metadata contained in an image.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum nvimgcodecMetadataKind_t {
+impl nvimgcodecMetadataKind_t {
     /// Unknown metadata kind.
-    NVIMGCODEC_METADATA_KIND_UNKNOWN = 0,
+    pub const NVIMGCODEC_METADATA_KIND_UNKNOWN: nvimgcodecMetadataKind_t = nvimgcodecMetadataKind_t(
+        0,
+    );
     /// TIFF tag metadata.
-    NVIMGCODEC_METADATA_KIND_TIFF_TAG = 1,
+    pub const NVIMGCODEC_METADATA_KIND_TIFF_TAG: nvimgcodecMetadataKind_t = nvimgcodecMetadataKind_t(
+        1,
+    );
     /// ICC profile metadata.
-    NVIMGCODEC_METADATA_KIND_ICC_PROFILE = 2,
+    pub const NVIMGCODEC_METADATA_KIND_ICC_PROFILE: nvimgcodecMetadataKind_t = nvimgcodecMetadataKind_t(
+        2,
+    );
     /// EXIF metadata (reserved for future use).
-    NVIMGCODEC_METADATA_KIND_EXIF = 3,
+    pub const NVIMGCODEC_METADATA_KIND_EXIF: nvimgcodecMetadataKind_t = nvimgcodecMetadataKind_t(
+        3,
+    );
     /// Geographic metadata.
-    NVIMGCODEC_METADATA_KIND_GEO = 4,
+    pub const NVIMGCODEC_METADATA_KIND_GEO: nvimgcodecMetadataKind_t = nvimgcodecMetadataKind_t(
+        4,
+    );
     /// Medical metadata - Aperio format.
-    NVIMGCODEC_METADATA_KIND_MED_APERIO = 5,
+    pub const NVIMGCODEC_METADATA_KIND_MED_APERIO: nvimgcodecMetadataKind_t = nvimgcodecMetadataKind_t(
+        5,
+    );
     /// Medical metadata - Philips format.
-    NVIMGCODEC_METADATA_KIND_MED_PHILIPS = 6,
+    pub const NVIMGCODEC_METADATA_KIND_MED_PHILIPS: nvimgcodecMetadataKind_t = nvimgcodecMetadataKind_t(
+        6,
+    );
     /// Medical metadata - Ventana format.
-    NVIMGCODEC_METADATA_KIND_MED_VENTANA = 7,
+    pub const NVIMGCODEC_METADATA_KIND_MED_VENTANA: nvimgcodecMetadataKind_t = nvimgcodecMetadataKind_t(
+        7,
+    );
     /// Medical metadata - Leica format.
-    NVIMGCODEC_METADATA_KIND_MED_LEICA = 8,
+    pub const NVIMGCODEC_METADATA_KIND_MED_LEICA: nvimgcodecMetadataKind_t = nvimgcodecMetadataKind_t(
+        8,
+    );
     /// Medical metadata - Trestle format.
-    NVIMGCODEC_METADATA_KIND_MED_TRESTLE = 9,
+    pub const NVIMGCODEC_METADATA_KIND_MED_TRESTLE: nvimgcodecMetadataKind_t = nvimgcodecMetadataKind_t(
+        9,
+    );
     /// List of available TIFF tag IDs.
-    NVIMGCODEC_METADATA_KIND_TIFF_TAG_LIST = 10,
+    pub const NVIMGCODEC_METADATA_KIND_TIFF_TAG_LIST: nvimgcodecMetadataKind_t = nvimgcodecMetadataKind_t(
+        10,
+    );
     /// Reserved sentinel fixing the integer representation of the native C enum.
-    NVIMGCODEC_METADATA_KIND_ENUM_FORCE_INT = 2147483647,
+    pub const NVIMGCODEC_METADATA_KIND_ENUM_FORCE_INT: nvimgcodecMetadataKind_t = nvimgcodecMetadataKind_t(
+        2147483647,
+    );
+}
+/// Specifies the kind of metadata contained in an image.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct nvimgcodecMetadataKind_t(pub ::core::ffi::c_uint);
+impl nvimgcodecMetadataFormat_t {
+    /// Unknown metadata format.
+    pub const NVIMGCODEC_METADATA_FORMAT_UNKNOWN: nvimgcodecMetadataFormat_t = nvimgcodecMetadataFormat_t(
+        0,
+    );
+    /// Raw binary metadata format.
+    pub const NVIMGCODEC_METADATA_FORMAT_RAW: nvimgcodecMetadataFormat_t = nvimgcodecMetadataFormat_t(
+        1,
+    );
+    /// JSON metadata format.
+    pub const NVIMGCODEC_METADATA_FORMAT_JSON: nvimgcodecMetadataFormat_t = nvimgcodecMetadataFormat_t(
+        2,
+    );
+    /// XML metadata format.
+    pub const NVIMGCODEC_METADATA_FORMAT_XML: nvimgcodecMetadataFormat_t = nvimgcodecMetadataFormat_t(
+        3,
+    );
+    /// XMP metadata format.
+    pub const NVIMGCODEC_METADATA_FORMAT_XMP: nvimgcodecMetadataFormat_t = nvimgcodecMetadataFormat_t(
+        4,
+    );
+    /// Reserved sentinel fixing the integer representation of the native C enum.
+    pub const NVIMGCODEC_METADATA_FORMAT_ENUM_FORCE_INT: nvimgcodecMetadataFormat_t = nvimgcodecMetadataFormat_t(
+        2147483647,
+    );
 }
 /// Specifies the format of metadata contained in an image.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum nvimgcodecMetadataFormat_t {
-    /// Unknown metadata format.
-    NVIMGCODEC_METADATA_FORMAT_UNKNOWN = 0,
-    /// Raw binary metadata format.
-    NVIMGCODEC_METADATA_FORMAT_RAW = 1,
-    /// JSON metadata format.
-    NVIMGCODEC_METADATA_FORMAT_JSON = 2,
-    /// XML metadata format.
-    NVIMGCODEC_METADATA_FORMAT_XML = 3,
-    /// XMP metadata format.
-    NVIMGCODEC_METADATA_FORMAT_XMP = 4,
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct nvimgcodecMetadataFormat_t(pub ::core::ffi::c_uint);
+impl nvimgcodecMetadataValueType_t {
+    /// Unknown metadata type.
+    pub const NVIMGCODEC_METADATA_VALUE_TYPE_UNKNOWN: nvimgcodecMetadataValueType_t = nvimgcodecMetadataValueType_t(
+        0,
+    );
+    /// 8-bit unsigned integer.
+    pub const NVIMGCODEC_METADATA_VALUE_TYPE_BYTE: nvimgcodecMetadataValueType_t = nvimgcodecMetadataValueType_t(
+        1,
+    );
+    /// 8-bit byte containing 7-bit ASCII code; last byte must be NUL.
+    pub const NVIMGCODEC_METADATA_VALUE_TYPE_ASCII: nvimgcodecMetadataValueType_t = nvimgcodecMetadataValueType_t(
+        2,
+    );
+    /// 16-bit (2-byte) unsigned integer.
+    pub const NVIMGCODEC_METADATA_VALUE_TYPE_SHORT: nvimgcodecMetadataValueType_t = nvimgcodecMetadataValueType_t(
+        3,
+    );
+    /// 32-bit (4-byte) unsigned integer.
+    pub const NVIMGCODEC_METADATA_VALUE_TYPE_LONG: nvimgcodecMetadataValueType_t = nvimgcodecMetadataValueType_t(
+        4,
+    );
+    /// Two LONGs: numerator and denominator.
+    pub const NVIMGCODEC_METADATA_VALUE_TYPE_RATIONAL: nvimgcodecMetadataValueType_t = nvimgcodecMetadataValueType_t(
+        5,
+    );
+    /// 8-bit signed (twos-complement) integer.
+    pub const NVIMGCODEC_METADATA_VALUE_TYPE_SBYTE: nvimgcodecMetadataValueType_t = nvimgcodecMetadataValueType_t(
+        6,
+    );
+    /// 8-bit byte, value depends on field definition.
+    pub const NVIMGCODEC_METADATA_VALUE_TYPE_UNDEFINED: nvimgcodecMetadataValueType_t = nvimgcodecMetadataValueType_t(
+        7,
+    );
+    /// 16-bit (2-byte) signed (twos-complement) integer.
+    pub const NVIMGCODEC_METADATA_VALUE_TYPE_SSHORT: nvimgcodecMetadataValueType_t = nvimgcodecMetadataValueType_t(
+        8,
+    );
+    /// 32-bit (4-byte) signed (twos-complement) integer.
+    pub const NVIMGCODEC_METADATA_VALUE_TYPE_SLONG: nvimgcodecMetadataValueType_t = nvimgcodecMetadataValueType_t(
+        9,
+    );
+    /// Two SLONGs: numerator and denominator.
+    pub const NVIMGCODEC_METADATA_VALUE_TYPE_SRATIONAL: nvimgcodecMetadataValueType_t = nvimgcodecMetadataValueType_t(
+        10,
+    );
+    /// 4-byte IEEE floating point value.
+    pub const NVIMGCODEC_METADATA_VALUE_TYPE_FLOAT: nvimgcodecMetadataValueType_t = nvimgcodecMetadataValueType_t(
+        11,
+    );
+    /// 8-byte IEEE floating point value.
+    pub const NVIMGCODEC_METADATA_VALUE_TYPE_DOUBLE: nvimgcodecMetadataValueType_t = nvimgcodecMetadataValueType_t(
+        12,
+    );
+    /// 4-byte (32-bit) unsigned integer used for IFD offsets.
+    pub const NVIMGCODEC_METADATA_VALUE_TYPE_IFD: nvimgcodecMetadataValueType_t = nvimgcodecMetadataValueType_t(
+        13,
+    );
+    /// 8-byte (64-bit) unsigned integer (BigTIFF).
+    pub const NVIMGCODEC_METADATA_VALUE_TYPE_LONG8: nvimgcodecMetadataValueType_t = nvimgcodecMetadataValueType_t(
+        16,
+    );
+    /// 8-byte (64-bit) signed integer (BigTIFF).
+    pub const NVIMGCODEC_METADATA_VALUE_TYPE_SLONG8: nvimgcodecMetadataValueType_t = nvimgcodecMetadataValueType_t(
+        17,
+    );
+    /// 8-byte (64-bit) unsigned integer used for IFD offsets (BigTIFF).
+    pub const NVIMGCODEC_METADATA_VALUE_TYPE_IFD8: nvimgcodecMetadataValueType_t = nvimgcodecMetadataValueType_t(
+        18,
+    );
     /// Reserved sentinel fixing the integer representation of the native C enum.
-    NVIMGCODEC_METADATA_FORMAT_ENUM_FORCE_INT = 2147483647,
+    pub const NVIMGCODEC_METADATA_VALUE_TYPE_ENUM_FORCE_INT: nvimgcodecMetadataValueType_t = nvimgcodecMetadataValueType_t(
+        2147483647,
+    );
 }
 /// Metadata types as defined for TIFF tag types in TIFF specification.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum nvimgcodecMetadataValueType_t {
-    /// Unknown metadata type.
-    NVIMGCODEC_METADATA_VALUE_TYPE_UNKNOWN = 0,
-    /// 8-bit unsigned integer.
-    NVIMGCODEC_METADATA_VALUE_TYPE_BYTE = 1,
-    /// 8-bit byte containing 7-bit ASCII code; last byte must be NUL.
-    NVIMGCODEC_METADATA_VALUE_TYPE_ASCII = 2,
-    /// 16-bit (2-byte) unsigned integer.
-    NVIMGCODEC_METADATA_VALUE_TYPE_SHORT = 3,
-    /// 32-bit (4-byte) unsigned integer.
-    NVIMGCODEC_METADATA_VALUE_TYPE_LONG = 4,
-    /// Two LONGs: numerator and denominator.
-    NVIMGCODEC_METADATA_VALUE_TYPE_RATIONAL = 5,
-    /// 8-bit signed (twos-complement) integer.
-    NVIMGCODEC_METADATA_VALUE_TYPE_SBYTE = 6,
-    /// 8-bit byte, value depends on field definition.
-    NVIMGCODEC_METADATA_VALUE_TYPE_UNDEFINED = 7,
-    /// 16-bit (2-byte) signed (twos-complement) integer.
-    NVIMGCODEC_METADATA_VALUE_TYPE_SSHORT = 8,
-    /// 32-bit (4-byte) signed (twos-complement) integer.
-    NVIMGCODEC_METADATA_VALUE_TYPE_SLONG = 9,
-    /// Two SLONGs: numerator and denominator.
-    NVIMGCODEC_METADATA_VALUE_TYPE_SRATIONAL = 10,
-    /// 4-byte IEEE floating point value.
-    NVIMGCODEC_METADATA_VALUE_TYPE_FLOAT = 11,
-    /// 8-byte IEEE floating point value.
-    NVIMGCODEC_METADATA_VALUE_TYPE_DOUBLE = 12,
-    /// 4-byte (32-bit) unsigned integer used for IFD offsets.
-    NVIMGCODEC_METADATA_VALUE_TYPE_IFD = 13,
-    /// 8-byte (64-bit) unsigned integer (BigTIFF).
-    NVIMGCODEC_METADATA_VALUE_TYPE_LONG8 = 16,
-    /// 8-byte (64-bit) signed integer (BigTIFF).
-    NVIMGCODEC_METADATA_VALUE_TYPE_SLONG8 = 17,
-    /// 8-byte (64-bit) unsigned integer used for IFD offsets (BigTIFF).
-    NVIMGCODEC_METADATA_VALUE_TYPE_IFD8 = 18,
-    /// Reserved sentinel fixing the integer representation of the native C enum.
-    NVIMGCODEC_METADATA_VALUE_TYPE_ENUM_FORCE_INT = 2147483647,
-}
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct nvimgcodecMetadataValueType_t(pub ::core::ffi::c_uint);
 /// Defines metadata information for an image.
 ///
 /// This structure contains information about image metadata, such as EXIF. The metadata is stored in a buffer with a specified format and kind.
@@ -1488,70 +1743,82 @@ impl Default for nvimgcodecMetadata_t {
         }
     }
 }
-/// Bitmask specifying which severities of events cause a debug messenger callback.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum nvimgcodecDebugMessageSeverity_t {
+impl nvimgcodecDebugMessageSeverity_t {
     /// Does not select any debug-message severity.
-    NVIMGCODEC_DEBUG_MESSAGE_SEVERITY_NONE = 0,
+    pub const NVIMGCODEC_DEBUG_MESSAGE_SEVERITY_NONE: nvimgcodecDebugMessageSeverity_t = nvimgcodecDebugMessageSeverity_t(
+        0,
+    );
     /// Diagnostic message useful for developers.
-    NVIMGCODEC_DEBUG_MESSAGE_SEVERITY_TRACE = 1,
+    pub const NVIMGCODEC_DEBUG_MESSAGE_SEVERITY_TRACE: nvimgcodecDebugMessageSeverity_t = nvimgcodecDebugMessageSeverity_t(
+        1,
+    );
     /// Diagnostic message useful for developers.
-    NVIMGCODEC_DEBUG_MESSAGE_SEVERITY_DEBUG = 16,
+    pub const NVIMGCODEC_DEBUG_MESSAGE_SEVERITY_DEBUG: nvimgcodecDebugMessageSeverity_t = nvimgcodecDebugMessageSeverity_t(
+        16,
+    );
     /// Informational message like the creation of a resource.
-    NVIMGCODEC_DEBUG_MESSAGE_SEVERITY_INFO = 256,
+    pub const NVIMGCODEC_DEBUG_MESSAGE_SEVERITY_INFO: nvimgcodecDebugMessageSeverity_t = nvimgcodecDebugMessageSeverity_t(
+        256,
+    );
     /// Message about behavior that is not necessarily an error, but very likely a bug in your application.
-    NVIMGCODEC_DEBUG_MESSAGE_SEVERITY_WARNING = 4096,
+    pub const NVIMGCODEC_DEBUG_MESSAGE_SEVERITY_WARNING: nvimgcodecDebugMessageSeverity_t = nvimgcodecDebugMessageSeverity_t(
+        4096,
+    );
     /// Message about behavior that is invalid and may cause improper execution or result of operation (e.g. can’t open file) but not application.
-    NVIMGCODEC_DEBUG_MESSAGE_SEVERITY_ERROR = 65536,
+    pub const NVIMGCODEC_DEBUG_MESSAGE_SEVERITY_ERROR: nvimgcodecDebugMessageSeverity_t = nvimgcodecDebugMessageSeverity_t(
+        65536,
+    );
     /// Message about behavior that is invalid and may cause crashes and forcing to shutdown application.
-    NVIMGCODEC_DEBUG_MESSAGE_SEVERITY_FATAL = 1048576,
+    pub const NVIMGCODEC_DEBUG_MESSAGE_SEVERITY_FATAL: nvimgcodecDebugMessageSeverity_t = nvimgcodecDebugMessageSeverity_t(
+        1048576,
+    );
     /// Used in case filtering out by message severity.
-    NVIMGCODEC_DEBUG_MESSAGE_SEVERITY_ALL = 268435455,
+    pub const NVIMGCODEC_DEBUG_MESSAGE_SEVERITY_ALL: nvimgcodecDebugMessageSeverity_t = nvimgcodecDebugMessageSeverity_t(
+        268435455,
+    );
     /// Selects warning, error, and fatal debug messages.
-    NVIMGCODEC_DEBUG_MESSAGE_SEVERITY_DEFAULT = 1118208,
+    pub const NVIMGCODEC_DEBUG_MESSAGE_SEVERITY_DEFAULT: nvimgcodecDebugMessageSeverity_t = nvimgcodecDebugMessageSeverity_t(
+        1118208,
+    );
     /// Reserved sentinel fixing the integer representation of the native C enum.
-    NVIMGCODEC_DEBUG_MESSAGE_SEVERITY_ENUM_FORCE_INT = 2147483647,
+    pub const NVIMGCODEC_DEBUG_MESSAGE_SEVERITY_ENUM_FORCE_INT: nvimgcodecDebugMessageSeverity_t = nvimgcodecDebugMessageSeverity_t(
+        2147483647,
+    );
+}
+/// Bitmask specifying which severities of events cause a debug messenger callback.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct nvimgcodecDebugMessageSeverity_t(pub ::core::ffi::c_uint);
+impl nvimgcodecDebugMessageCategory_t {
+    /// Does not select any debug-message category.
+    pub const NVIMGCODEC_DEBUG_MESSAGE_CATEGORY_NONE: nvimgcodecDebugMessageCategory_t = nvimgcodecDebugMessageCategory_t(
+        0,
+    );
+    /// Some event has happened that is unrelated to the specification or performance.
+    pub const NVIMGCODEC_DEBUG_MESSAGE_CATEGORY_GENERAL: nvimgcodecDebugMessageCategory_t = nvimgcodecDebugMessageCategory_t(
+        1,
+    );
+    /// Something has happened that indicates a possible mistake.
+    pub const NVIMGCODEC_DEBUG_MESSAGE_CATEGORY_VALIDATION: nvimgcodecDebugMessageCategory_t = nvimgcodecDebugMessageCategory_t(
+        16,
+    );
+    /// Potential non-optimal use.
+    pub const NVIMGCODEC_DEBUG_MESSAGE_CATEGORY_PERFORMANCE: nvimgcodecDebugMessageCategory_t = nvimgcodecDebugMessageCategory_t(
+        256,
+    );
+    /// Used in case filtering out by message category.
+    pub const NVIMGCODEC_DEBUG_MESSAGE_CATEGORY_ALL: nvimgcodecDebugMessageCategory_t = nvimgcodecDebugMessageCategory_t(
+        268435455,
+    );
+    /// Reserved sentinel fixing the integer representation of the native C enum.
+    pub const NVIMGCODEC_DEBUG_MESSAGE_CATEGORY_ENUM_FORCE_INT: nvimgcodecDebugMessageCategory_t = nvimgcodecDebugMessageCategory_t(
+        2147483647,
+    );
 }
 /// Bitmask specifying which category of events cause a debug messenger callback.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum nvimgcodecDebugMessageCategory_t {
-    /// Does not select any debug-message category.
-    NVIMGCODEC_DEBUG_MESSAGE_CATEGORY_NONE = 0,
-    /// Some event has happened that is unrelated to the specification or performance.
-    NVIMGCODEC_DEBUG_MESSAGE_CATEGORY_GENERAL = 1,
-    /// Something has happened that indicates a possible mistake.
-    NVIMGCODEC_DEBUG_MESSAGE_CATEGORY_VALIDATION = 16,
-    /// Potential non-optimal use.
-    NVIMGCODEC_DEBUG_MESSAGE_CATEGORY_PERFORMANCE = 256,
-    /// Used in case filtering out by message category.
-    NVIMGCODEC_DEBUG_MESSAGE_CATEGORY_ALL = 268435455,
-    /// Reserved sentinel fixing the integer representation of the native C enum.
-    NVIMGCODEC_DEBUG_MESSAGE_CATEGORY_ENUM_FORCE_INT = 2147483647,
-}
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct nvimgcodecDebugMessageCategory_t(pub ::core::ffi::c_uint);
 /// Describing debug message passed to debug callback function.
 #[repr(C)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
@@ -2118,40 +2385,42 @@ impl Default for nvimgcodecDecoderDesc_t {
         }
     }
 }
+impl nvimgcodecPriority_t {
+    /// Highest plugin-selection priority. Lower numeric values are tried before higher values; ties follow registration order.
+    pub const NVIMGCODEC_PRIORITY_HIGHEST: nvimgcodecPriority_t = nvimgcodecPriority_t(
+        0,
+    );
+    /// Very high plugin-selection priority. Lower numeric values are tried before higher values; ties follow registration order.
+    pub const NVIMGCODEC_PRIORITY_VERY_HIGH: nvimgcodecPriority_t = nvimgcodecPriority_t(
+        100,
+    );
+    /// High plugin-selection priority. Lower numeric values are tried before higher values; ties follow registration order.
+    pub const NVIMGCODEC_PRIORITY_HIGH: nvimgcodecPriority_t = nvimgcodecPriority_t(200);
+    /// Normal plugin-selection priority. Lower numeric values are tried before higher values; ties follow registration order.
+    pub const NVIMGCODEC_PRIORITY_NORMAL: nvimgcodecPriority_t = nvimgcodecPriority_t(
+        300,
+    );
+    /// Low plugin-selection priority. Lower numeric values are tried before higher values; ties follow registration order.
+    pub const NVIMGCODEC_PRIORITY_LOW: nvimgcodecPriority_t = nvimgcodecPriority_t(400);
+    /// Very low plugin-selection priority. Lower numeric values are tried before higher values; ties follow registration order.
+    pub const NVIMGCODEC_PRIORITY_VERY_LOW: nvimgcodecPriority_t = nvimgcodecPriority_t(
+        500,
+    );
+    /// Lowest plugin-selection priority. Lower numeric values are tried before higher values; ties follow registration order.
+    pub const NVIMGCODEC_PRIORITY_LOWEST: nvimgcodecPriority_t = nvimgcodecPriority_t(
+        1000,
+    );
+    /// Reserved sentinel fixing the integer representation of the native C enum.
+    pub const NVIMGCODEC_PRIORITY_ENUM_FORCE_INT: nvimgcodecPriority_t = nvimgcodecPriority_t(
+        2147483647,
+    );
+}
 /// Defines decoder or encoder priority in codec.
 ///
 /// For each codec there can be more decoders and encoders registered. Every decoder and encoder is registered with defined priority. Decoding process starts with selecting highest priority decoder and checks whether it can decode particular code stream. In case decoding could not be handled by selected decoder, there is fallback mechanism which selects next in priority decoder. There can be more decoders registered with the same priority. In such case decoders with the same priority are selected in order of registration.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum nvimgcodecPriority_t {
-    /// Highest plugin-selection priority. Lower numeric values are tried before higher values; ties follow registration order.
-    NVIMGCODEC_PRIORITY_HIGHEST = 0,
-    /// Very high plugin-selection priority. Lower numeric values are tried before higher values; ties follow registration order.
-    NVIMGCODEC_PRIORITY_VERY_HIGH = 100,
-    /// High plugin-selection priority. Lower numeric values are tried before higher values; ties follow registration order.
-    NVIMGCODEC_PRIORITY_HIGH = 200,
-    /// Normal plugin-selection priority. Lower numeric values are tried before higher values; ties follow registration order.
-    NVIMGCODEC_PRIORITY_NORMAL = 300,
-    /// Low plugin-selection priority. Lower numeric values are tried before higher values; ties follow registration order.
-    NVIMGCODEC_PRIORITY_LOW = 400,
-    /// Very low plugin-selection priority. Lower numeric values are tried before higher values; ties follow registration order.
-    NVIMGCODEC_PRIORITY_VERY_LOW = 500,
-    /// Lowest plugin-selection priority. Lower numeric values are tried before higher values; ties follow registration order.
-    NVIMGCODEC_PRIORITY_LOWEST = 1000,
-    /// Reserved sentinel fixing the integer representation of the native C enum.
-    NVIMGCODEC_PRIORITY_ENUM_FORCE_INT = 2147483647,
-}
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct nvimgcodecPriority_t(pub ::core::ffi::c_uint);
 /// Pointer to logging function.
 pub type nvimgcodecLogFunc_t = ::core::option::Option<
     unsafe extern "C" fn(

@@ -67,8 +67,7 @@ pub fn cuda_context_for_device(device_id: i32) -> Result<Arc<CudaContext>> {
     }
 
     let device = CudaDevice::new(device_id);
-    let context_ref =
-        CudaContext::retain_primary_for_device(device).map_err(map_cuda_device_error)?;
+    let context_ref = CudaContext::create_for_device(device).map_err(map_cuda_device_error)?;
     contexts.insert(device_id, Arc::clone(&context_ref));
     drop(contexts);
 

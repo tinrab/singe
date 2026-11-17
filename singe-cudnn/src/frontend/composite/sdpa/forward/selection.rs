@@ -1,10 +1,13 @@
 use std::borrow::Cow;
 
 use crate::{
-    backend::tensor::{Shape, TensorId, TensorSpec},
+    backend::operation::{
+        attention::{SdpaForwardQuantization, SdpaForwardTensors},
+        rng::RandomNumberSeedSource,
+    },
     context::Context,
     data_type::DataType,
-    error::{Error, Result},
+    error::{Error, Result, SdpaFeature},
     frontend::{
         composite::sdpa::{
             SdpaForwardOutputTensors, SdpaInputs, SdpaOutputTensors, attention_heads_compatible,
@@ -16,23 +19,23 @@ use crate::{
                 SDPA_STATS_DATA_TYPE, SDPA_STATS_SHAPE,
             },
         },
-        error::{Error as FrontendError, SdpaFeature, SdpaRequirement},
+        error::{Error as FrontendError, SdpaRequirement},
         graph::{Graph, infer_paged_cache_output, reduce_last_axis},
         operation::{
             AttentionConfig, AttentionForwardRequest, AttentionImplementation, DirectSdpaDropout,
-            DirectSdpaForwardConfig, Operation, PagedCacheLayout, PagedCacheLoadConfig,
-            RandomNumberSeedSource, SdpaConfig, SdpaForwardQuantization, SdpaForwardTensors,
+            DirectSdpaForwardConfig, Operation, PagedCacheLayout, PagedCacheLoadConfig, SdpaConfig,
             SdpaOperation, SdpaScoreModifiers, SdpaScoreSubgraph,
         },
         require_baseline,
     },
+    tensor::{Shape, TensorId, TensorSpec},
     utility::check_range,
     version,
 };
 
 /// Forward expansion only accepts a concrete choice made from the complete request.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ResolvedAttentionImplementation {
+pub(crate) enum ResolvedAttentionImplementation {
     Unified,
     Composite,
 }
@@ -47,13 +50,13 @@ impl From<ResolvedAttentionImplementation> for AttentionImplementation {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DirectSdpaKvShapes {
+pub(crate) struct DirectSdpaKvShapes {
     pub key: Shape,
     pub value: Shape,
 }
 
 impl DirectSdpaKvShapes {
-    pub fn new(key: Shape, value: Shape) -> Self {
+    pub(crate) fn new(key: Shape, value: Shape) -> Self {
         Self { key, value }
     }
 }
@@ -78,7 +81,7 @@ impl Graph {
         if !tensors.iter().all(|tensor| {
             matches!(
                 tensor.data_type,
-                DataType::F16 | DataType::BF16 | DataType::F8E4M3 | DataType::F8E5M2
+                DataType::F16 | DataType::Bf16 | DataType::F8E4M3 | DataType::F8E5M2
             )
         }) {
             return Ok(false);
@@ -98,7 +101,8 @@ impl Graph {
     /// Auxiliary presence follows the actual outputs, including caller-built or restored requests.
     ///
     /// # Errors
-    /// Returns an error when the target architecture is unavailable or the requested implementation is unsupported.
+    ///
+    /// Returns an error if the target architecture is unavailable or the requested implementation is unsupported.
     pub fn resolve_attention_implementation(
         &self,
         request: &AttentionForwardRequest,
@@ -157,11 +161,11 @@ impl Graph {
             .into());
         }
 
-        require_baseline(version()?.raw())?;
+        require_baseline(version()?)?;
         self.validate_attention_config(q, k, v, &config)?;
         let native_output = matches!(
             output_data_type,
-            DataType::F16 | DataType::BF16 | DataType::F8E4M3 | DataType::F8E5M2
+            DataType::F16 | DataType::Bf16 | DataType::F8E4M3 | DataType::F8E5M2
         );
         match config.implementation() {
             AttentionImplementation::Auto => {
@@ -195,32 +199,23 @@ impl Graph {
 
     fn unified_attention_config_error(&self, config: &AttentionConfig) -> Option<Error> {
         if self.dynamic_shape_enabled() {
-            Some(
-                FrontendError::SdpaUnsupported {
-                    feature: SdpaFeature::DynamicShape,
-                    operation: "unified sdpa",
-                    sm_version: None,
-                }
-                .into(),
-            )
+            Some(Error::SdpaUnsupported {
+                feature: SdpaFeature::DynamicShape,
+                operation: "unified sdpa",
+                sm_version: None,
+            })
         } else if config.modifiers().has_custom_dropout() {
-            Some(
-                FrontendError::SdpaUnsupported {
-                    feature: SdpaFeature::CustomDropout,
-                    operation: "unified sdpa",
-                    sm_version: None,
-                }
-                .into(),
-            )
+            Some(Error::SdpaUnsupported {
+                feature: SdpaFeature::CustomDropout,
+                operation: "unified sdpa",
+                sm_version: None,
+            })
         } else if config.dropout().is_some() && config.fused().aux_outputs().stats() {
-            Some(
-                FrontendError::SdpaUnsupported {
-                    feature: SdpaFeature::DropoutWithGeneratedStats,
-                    operation: "unified sdpa",
-                    sm_version: None,
-                }
-                .into(),
-            )
+            Some(Error::SdpaUnsupported {
+                feature: SdpaFeature::DropoutWithGeneratedStats,
+                operation: "unified sdpa",
+                sm_version: None,
+            })
         } else {
             None
         }
@@ -228,12 +223,11 @@ impl Graph {
 
     fn validate_composite_attention_config(config: &AttentionConfig) -> Result<()> {
         if config.modifiers().sequence_inputs().has_cumulative() {
-            return Err(FrontendError::SdpaUnsupported {
+            return Err(Error::SdpaUnsupported {
                 operation: "composite sdpa",
                 feature: SdpaFeature::CumulativeSequenceLengths,
                 sm_version: None,
-            }
-            .into());
+            });
         }
 
         if config.block_mask().is_some() {
@@ -556,7 +550,7 @@ impl Graph {
             o,
             &[
                 DataType::F16,
-                DataType::BF16,
+                DataType::Bf16,
                 DataType::F8E4M3,
                 DataType::F8E5M2,
             ],

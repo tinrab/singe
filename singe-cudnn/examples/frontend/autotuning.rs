@@ -7,14 +7,17 @@ use singe_cuda::{
     memory::DeviceMemory,
 };
 use singe_cudnn::{
-    backend::tensor::{Shape, TensorSpec},
     data_type::{DataType, bf16},
     error::{Error, Result},
     frontend::{
         graph::{Graph, TensorOutputConfig},
         operation::MatmulConfig,
-        plan::{BuildPlanPolicy, CompileConfig, EngineConfigFilter, ExecuteArgs, HeuristicMode},
+        plan::{
+            BuildPlanPolicy, CompileConfig, EngineConfigFilter, ExecuteArgs, HeuristicMode,
+            WorkspacePlans,
+        },
     },
+    tensor::{Shape, TensorSpec},
 };
 
 fn init_bf16_image(size: usize, seed: &mut u32) -> Vec<bf16> {
@@ -28,9 +31,9 @@ fn run() -> Result<()> {
     let example = common::ExampleContext::create()?;
     let mut graph = Graph::new();
     let a = graph
-        .tensor(TensorSpec::new(DataType::BF16, Shape::contiguous([16, 32, 128])?).with_name("A"));
+        .tensor(TensorSpec::new(DataType::Bf16, Shape::contiguous([16, 32, 128])?).with_name("A"));
     let b = graph
-        .tensor(TensorSpec::new(DataType::BF16, Shape::contiguous([16, 128, 64])?).with_name("B"));
+        .tensor(TensorSpec::new(DataType::Bf16, Shape::contiguous([16, 128, 64])?).with_name("B"));
     let c = graph.matmul(
         a,
         b,
@@ -38,7 +41,7 @@ fn run() -> Result<()> {
             .with_name("projection")
             .with_compute_type(DataType::F32),
         TensorOutputConfig::new()
-            .with_data_type(DataType::BF16)
+            .with_data_type(DataType::Bf16)
             .output_tensor(),
     )?;
     let plan_limit = if args().any(|argument| argument == "--all-builds") {
@@ -52,6 +55,7 @@ fn run() -> Result<()> {
         Some(1024_usize * 1024)
     };
     let built_candidates = graph
+        .prepare(Some(&example.cudnn))?
         .plan_candidates(
             Some(&example.cudnn),
             &CompileConfig::from_heuristic_modes([HeuristicMode::A]),
@@ -76,31 +80,34 @@ fn run() -> Result<()> {
         &init_bf16_image(graph.shape(b)?.storage_span()?, &mut seed),
     )?;
     let mut c_dev = DeviceMemory::<bf16>::zeroed(cuda, graph.shape(c)?.storage_span()?)?;
-    let mut workspace = common::workspace(cuda, built_candidates.max_workspace_size())?;
+    let mut workspace = common::workspace(
+        cuda,
+        built_candidates.workspace_size_for(WorkspacePlans::All, None)?,
+    )?;
     let mut bindings = built_candidates.bindings()?;
     bindings.set_input(a, &a_dev)?;
     bindings.set_input(b, &b_dev)?;
     bindings.set(c, &mut c_dev)?;
-    let start = cuda.create_event_with_flags(EventFlags::DEFAULT)?;
-    let stop = cuda.create_event_with_flags(EventFlags::DEFAULT)?;
+    let start = cuda.create_event(EventFlags::DEFAULT)?;
+    let stop = cuda.create_event(EventFlags::DEFAULT)?;
     let mut execution_times = Vec::new();
 
     for plan in built_candidates.available_plan_ids() {
         // SAFETY: initialized inputs, writable output, workspace and events remain live through completion.
         // The helper drains the stream even after an enqueue or event-recording failure.
         let execution = example.execute_and_wait(|context| unsafe {
-            built_candidates.execute(
+            built_candidates.execute_async(
                 context,
                 ExecuteArgs::new(&bindings)
-                    .with_workspace(&mut workspace)
+                    .with_workspace(workspace.output())
                     .with_plan(&plan),
             )?;
             start.record(&example.stream, EventRecordFlags::DEFAULT)?;
             for _ in 0..10 {
-                built_candidates.execute(
+                built_candidates.execute_async(
                     context,
                     ExecuteArgs::new(&bindings)
-                        .with_workspace(&mut workspace)
+                        .with_workspace(workspace.output())
                         .with_plan(&plan),
                 )?;
             }
@@ -132,9 +139,9 @@ fn run() -> Result<()> {
     bindings.set(c, &mut c_dev)?;
     // SAFETY: all bindings and workspace remain live through execution and stream completion.
     example.execute_and_wait(|context| unsafe {
-        compiled.execute(
+        compiled.execute_async(
             context,
-            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
         )
     })?;
     println!(
@@ -144,6 +151,6 @@ fn run() -> Result<()> {
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_autotuning", run())
 }

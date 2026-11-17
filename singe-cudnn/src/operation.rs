@@ -40,6 +40,7 @@ impl<T: 'static> FrontendExecution<T> {
     /// Prepares an execution from established tensor bindings and owned replay resources.
     ///
     /// # Safety
+    ///
     /// Retain borrowed and raw tensor allocations in `resources` through completion or replay.
     /// Typed, encoded-byte and retained-region bindings derive graph access declarations automatically.
     /// Raw pointers require complete access declarations and producer dependencies in `resources`.
@@ -62,10 +63,8 @@ impl<T: 'static> FrontendExecution<T> {
         output: T,
     ) -> Result<Self> {
         let invocation = {
-            let context = context.lock().map_err(|_| {
-                Error::Cuda(CudaError::ResourcePoisoned {
-                    name: "cudnn context",
-                })
+            let context = context.lock().map_err(|_| Error::LockPoisoned {
+                name: "cudnn context".into(),
             })?;
             validate_context_pair(
                 Some(context.cuda_context()),
@@ -75,7 +74,7 @@ impl<T: 'static> FrontendExecution<T> {
             let pack = graph.variant_pack_with_overrides(
                 context.cuda_context(),
                 &bindings,
-                Some(&mut workspace),
+                Some(workspace.output()),
                 overrides,
             )?;
             let invocation = RetainedExecution::create(graph.execution_plan(), &context, pack)?;
@@ -99,12 +98,9 @@ impl<T: 'static> FrontendExecution<T> {
     }
 
     fn execute_on(&self, stream: &Stream) -> CudaResult<()> {
-        let mut context = self
-            .context
-            .lock()
-            .map_err(|_| CudaError::ResourcePoisoned {
-                name: "cudnn context",
-            })?;
+        let mut context = self.context.lock().map_err(|_| CudaError::LockPoisoned {
+            name: "cudnn context".into(),
+        })?;
         if context.cuda_context() != stream.context() {
             return Err(CudaError::StreamContextMismatch);
         }
@@ -112,12 +108,12 @@ impl<T: 'static> FrontendExecution<T> {
         let invocation = self
             .invocation
             .lock()
-            .map_err(|_| CudaError::ResourcePoisoned {
-                name: "cudnn prepared execution",
+            .map_err(|_| CudaError::LockPoisoned {
+                name: "cudnn prepared execution".into(),
             })?;
         context
             .with_stream(Some(stream), |context| {
-                // SAFETY: creation retained the bindings, scalar values, layout metadata and all declared replay resources.
+                // SAFETY: logging reads the variant pack that `create` built from these bindings, and the retained invocation keeps its scalar storage alive.
                 unsafe {
                     self.graph.log_execution(
                         context,
@@ -125,13 +121,15 @@ impl<T: 'static> FrontendExecution<T> {
                         self.graph.default_plan(),
                     )?;
                 }
-                // SAFETY: prepared execution retains native state, scalar storage and declared buffers through completion or replay.
+                // SAFETY: `create` validated the plan's context against this handle, the stream context matches it, and `resources` keeps every buffer alive through completion or replay, per `create`'s contract.
                 unsafe { invocation.execute(context) }
             })
             .map_err(|error| CudaError::Operation(Box::new(error)))
     }
 }
 
+// SAFETY: `enqueue` hands every retained owner and declared access in `resources` to `Execution::enqueue` before cuDNN runs, and `create` already allocated the workspace and built the variant pack, so nothing capture-incompatible runs here.
+// The pending output is the caller's `T`, whose own contract under `create` keeps it uninitialized until completion.
 unsafe impl<T: 'static> Operation for FrontendExecution<T> {
     type Pending = Self::Output;
 
@@ -139,7 +137,7 @@ unsafe impl<T: 'static> Operation for FrontendExecution<T> {
 
     fn enqueue(mut self, execution: &mut Execution) -> CudaResult<T> {
         let resources = take(&mut self.resources);
-        // SAFETY: the declared resources retain every buffer and the stream orders all access to them.
+        // SAFETY: `resources` holds the bindings, workspace, context, graph and invocation that `create` retained and the accesses it declared, and `execute_on` enqueues only on the supplied stream.
         unsafe {
             execution.enqueue(resources, |stream| self.execute_on(stream))?;
         }
@@ -151,15 +149,16 @@ unsafe impl<T: 'static> Operation for FrontendExecution<T> {
     }
 }
 
-// SAFETY: enqueue returns pending device metadata and resolution is the identity function.
+// SAFETY: `resolve` returns `pending` unchanged, and `enqueue` schedules the native work without host resolution.
 unsafe impl<T: 'static> DeviceOperation for FrontendExecution<T> {}
 
+// SAFETY: `record` registers the owners and accesses that `create` collected before recording, the retained invocation and workspace stay valid for every replay, and the output exposes only pending storage.
 unsafe impl<T: 'static> Recordable for FrontendExecution<T> {
     type Output = T;
 
     fn record(mut self, recording: &mut Recording) -> CudaResult<T> {
         let resources = take(&mut self.resources);
-        // SAFETY: the declared resources retain every buffer and the stream orders all access to them.
+        // SAFETY: `resources` retains every binding owner, the workspace and the invocation for replay, and `execute_on` only enqueues the prepared plan on the supplied stream, which is graph-safe.
         unsafe {
             recording.enqueue(resources, |stream| self.execute_on(stream))?;
         }

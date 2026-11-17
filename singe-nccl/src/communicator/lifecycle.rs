@@ -12,7 +12,7 @@ use crate::{
     communicator::{Communicator, create},
     error::{Error, Result, Status},
     sys, try_ffi,
-    types::{CommunicatorState, Config, UniqueId},
+    types::{CommunicatorState, Config, RankId, UniqueId},
     utility::ensure_primary_context,
 };
 
@@ -21,7 +21,7 @@ use crate::{
 pub struct MemoryStatistics {
     /// Allocated GPU memory that can be suspended (bytes).
     pub suspendable_bytes: u64,
-    /// GPU memory suspended?
+    /// Whether the suspendable GPU memory is currently suspended.
     pub suspended: bool,
     /// Allocated GPU memory that cannot be suspended (bytes).
     pub persistent_bytes: u64,
@@ -57,7 +57,7 @@ impl CommunicatorGrowth<'_> {
 }
 
 impl Communicator {
-    /// Suspend communicator operations to free dynamic GPU memory allocations.
+    /// Suspends communicator operations to free dynamic GPU memory allocations.
     /// The communicator cannot be used for collective operations while suspended.
     /// This method synchronizes its CUDA context before releasing resources.
     ///
@@ -70,7 +70,7 @@ impl Communicator {
         self.require_state(CommunicatorState::Active)?;
         self.cuda_context().synchronize()?;
         self.cuda_context().bind()?;
-        // SAFETY: `ncclCommSuspend` receives live handles owned by the wrappers.
+        // SAFETY: `self` owns the handle, checked active above, its context is bound, and its pending CUDA work was synchronized.
         unsafe {
             try_ffi!(sys::ncclCommSuspend(
                 self.as_raw(),
@@ -82,7 +82,7 @@ impl Communicator {
         Ok(())
     }
 
-    /// Resume all previously suspended resources.
+    /// Resumes all previously suspended resources.
     /// After this call returns successfully, the communicator is fully operational.
     ///
     /// # Errors
@@ -92,7 +92,7 @@ impl Communicator {
     pub fn resume(&self) -> Result<()> {
         self.require_state(CommunicatorState::Suspended)?;
         self.cuda_context().bind()?;
-        // SAFETY: `ncclCommResume` receives live handles owned by the wrappers.
+        // SAFETY: `self` owns the handle, checked suspended above, and its context is bound.
         unsafe {
             try_ffi!(sys::ncclCommResume(self.as_raw()))?;
         }
@@ -101,7 +101,7 @@ impl Communicator {
         Ok(())
     }
 
-    /// Query communicator memory statistics.
+    /// Queries communicator memory statistics.
     ///
     /// # Errors
     ///
@@ -119,7 +119,7 @@ impl Communicator {
         self.cuda_context().bind()?;
         let query = |stat| -> Result<u64> {
             let mut value = 0;
-            // SAFETY: `ncclCommMemStats` receives live handles owned by the wrappers and valid output locations.
+            // SAFETY: `self` owns the handle, checked active or suspended above, its context is bound, and `value` is a local output slot.
             unsafe {
                 try_ffi!(sys::ncclCommMemStats(self.as_raw(), stat, &raw mut value))?;
             }
@@ -147,7 +147,7 @@ impl Communicator {
         self.bind()?;
         self.cuda_context().synchronize()?;
         let mut id = sys::ncclUniqueId::default();
-        // SAFETY: `ncclCommGetUniqueId` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `self` owns the handle, checked active above, its context is bound, and `id` is a local output slot.
         unsafe {
             try_ffi!(sys::ncclCommGetUniqueId(self.as_raw(), &raw mut id))?;
         }
@@ -179,7 +179,9 @@ impl Communicator {
         }
 
         if parent_rank_count == 1 && unique_id.is_none() {
-            return Err(Error::NullPointer);
+            return Err(Error::NullPointer {
+                name: "unique_id".into(),
+            });
         }
 
         let id = unique_id.map(UniqueId::into_raw);
@@ -205,15 +207,15 @@ impl Communicator {
     ///
     /// # Errors
     ///
-    /// Returns an error if `rank` is outside `0..rank_count`, the context is not the device primary CUDA context, context binding fails, or NCCL initialization fails.
+    /// Returns an error if `rank` is not less than `rank_count`, the context is not the device primary CUDA context, context binding fails, or NCCL initialization fails.
     pub fn join_growing(
         context: &Arc<Context>,
+        rank: RankId,
         rank_count: i32,
-        rank: i32,
         unique_id: UniqueId,
         config: Option<Config<'_>>,
     ) -> Result<Self> {
-        if rank < 0 || rank >= rank_count {
+        if rank.get() >= rank_count {
             return Err(Error::out_of_range("rank"));
         }
 
@@ -223,7 +225,7 @@ impl Communicator {
             ptr::null_mut(),
             rank_count,
             &raw const id,
-            rank,
+            rank.get(),
             config,
         )
     }
@@ -243,7 +245,7 @@ fn grow(
     // Keep its address stable until the owned communicator is destroyed or aborted.
     let output = Box::new(AtomicPtr::new(ptr::null_mut()));
     let mut config = config.map(Config::into_raw);
-    // SAFETY: `ncclCommGrow` receives pointers into buffers borrowed for the call.
+    // SAFETY: `parent` is null or the live handle of the borrowed parent, `id` is null or points to a local identifier, `output` is boxed so it stays put for the asynchronous write, and `config` is null or a local native configuration.
     let status = unsafe {
         sys::ncclCommGrow(
             parent,
@@ -255,9 +257,10 @@ fn grow(
         )
     };
     let raw = output.load(Ordering::Acquire);
-    let mut communicator =
-        create::communicator_from_initialization(raw, Arc::clone(context), status)?;
-    communicator.handle.initialization_output = Some(output);
+    // SAFETY: `raw` and `status` come from `ncclCommGrow` above in `context`, nothing else owns the new handle, and `output` is the slot its initialization writes.
+    let communicator = unsafe {
+        create::communicator_from_initialization(raw, Arc::clone(context), status, Some(output))
+    }?;
     communicator.set_state(CommunicatorState::Initializing);
     Ok(communicator)
 }

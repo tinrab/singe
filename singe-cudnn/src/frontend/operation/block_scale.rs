@@ -1,15 +1,12 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    backend::{
-        execution::block_scale::{
-            BlockScaleDequantizeInputs,
-            BlockScaleDequantizeOperation as BackendBlockScaleDequantizeOperation,
-            BlockScaleDequantizeOperationConfig,
-            BlockScaleQuantizeOperation as BackendBlockScaleQuantizeOperation,
-            BlockScaleQuantizeOperationConfig, BlockScaleQuantizeOutputs,
-        },
-        tensor::{Shape, TensorId},
+    backend::operation::block_scale::{
+        BlockScaleDequantizeInputs,
+        BlockScaleDequantizeOperation as BackendBlockScaleDequantizeOperation,
+        BlockScaleDequantizeSpec,
+        BlockScaleQuantizeOperation as BackendBlockScaleQuantizeOperation,
+        BlockScaleQuantizeOutputs, BlockScaleQuantizeSpec,
     },
     data_type::DataType,
     error::{Error, Result},
@@ -18,6 +15,7 @@ use crate::{
         graph::Graph,
         lower::{LoweredOperation, LoweringContext, tensor_at},
     },
+    tensor::{Shape, TensorId},
     utility::{check_range, to_i32, to_i64, to_usize},
 };
 
@@ -108,7 +106,7 @@ impl BlockScaleOperation {
                     tensor_at(tensors, *input)?,
                     BlockScaleQuantizeOutputs::new(*output, *scale)
                         .try_map(|id| tensor_at(tensors, id))?,
-                    BlockScaleQuantizeOperationConfig::new(
+                    BlockScaleQuantizeSpec::new(
                         context.compute_data_type(config.compute_type()),
                         config.native_block_size()?,
                     ),
@@ -124,7 +122,7 @@ impl BlockScaleOperation {
                     BlockScaleDequantizeInputs::new(*input, *scale)
                         .try_map(|id| tensor_at(tensors, id))?,
                     tensor_at(tensors, *output)?,
-                    BlockScaleDequantizeOperationConfig::new(
+                    BlockScaleDequantizeSpec::new(
                         context.compute_data_type(config.compute_type()),
                         config.block_sizes().to_vec(),
                     )
@@ -217,7 +215,8 @@ impl BlockScaleQuantizeConfig {
     /// Encoding-specific padding and reordering remain separate tensor declaration choices.
     ///
     /// # Errors
-    /// Returns an error for an invalid native block size, out-of-range axis or unrepresentable layout.
+    ///
+    /// Returns an error if the native block size is invalid, an axis is out of range, or the layout is unrepresentable.
     pub fn infer_shapes(&self, input: &Shape) -> Result<BlockScaleQuantizeOutputs<Shape>> {
         let block_size = i64::from(self.native_block_size()?);
         let rank = to_i64(input.rank(), "rank")?;
@@ -257,7 +256,7 @@ impl BlockScaleQuantizeConfig {
         Ok(size)
     }
 
-    /// An omitted axis reduces the last logical dimension without forcing stride rotation.
+    /// Returns the reduction axis; `None` reduces the last logical dimension without forcing stride rotation.
     #[must_use]
     pub fn axis(&self) -> Option<i64> {
         self.axis
@@ -285,7 +284,7 @@ pub struct BlockScaleDequantizeConfig {
 impl BlockScaleDequantizeConfig {
     pub(crate) fn validate_block_sizes(&self) -> Result<()> {
         if self.block_sizes.is_empty() {
-            return Err(Error::EmptyList {
+            return Err(Error::Empty {
                 name: "block_sizes".into(),
             });
         }
@@ -364,7 +363,8 @@ impl BlockScaleDequantizeConfig {
     /// This helper does not restrict the layouts accepted by explicit dequantization construction.
     ///
     /// # Errors
-    /// Returns an error for empty or nonpositive block sizes, or more block axes than input axes.
+    ///
+    /// Returns an error if the block sizes are empty or not positive, or name more block axes than the input has.
     pub fn infer_scale_dimensions(&self, input: &Shape) -> Result<Vec<i64>> {
         self.validate_block_sizes()?;
         let mut dimensions = input.dimensions().to_vec();

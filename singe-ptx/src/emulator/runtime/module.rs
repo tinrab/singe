@@ -20,10 +20,10 @@ use crate::{
 };
 
 #[derive(Debug)]
-pub struct Loaded {
-    pub layout: ModuleLayout,
-    pub addresses: Vec<u64>,
-    pub lease: Arc<Lease>,
+pub(crate) struct Loaded {
+    pub(crate) layout: ModuleLayout,
+    pub(crate) addresses: Vec<u64>,
+    pub(crate) lease: Arc<Lease>,
 }
 
 /// A module loaded on an emulator, with its own global and constant variables.
@@ -291,7 +291,7 @@ impl Kernel {
     }
 }
 
-pub fn representation(actual: ScalarType, expected: ScalarType) -> bool {
+pub(crate) fn representation(actual: ScalarType, expected: ScalarType) -> bool {
     actual == expected
         || matches!(
             (actual, expected),

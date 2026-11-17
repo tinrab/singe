@@ -520,163 +520,187 @@ pub struct pruneInfo {
 }
 /// Opaque state for percentage-based pruning state. Created by [`cusparseCreatePruneInfo`] and released by [`cusparseDestroyPruneInfo`].
 pub type pruneInfo_t = *mut pruneInfo;
-/// This data type represents the status returned by the library functions and it can have the following values.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cusparseStatus_t {
+impl cusparseStatus_t {
     /// The operation completed successfully.
-    CUSPARSE_STATUS_SUCCESS = 0,
+    pub const CUSPARSE_STATUS_SUCCESS: cusparseStatus_t = cusparseStatus_t(0);
     /// The cuSPARSE library was not initialized. This is usually caused by the lack of a prior call, an error in the CUDA Runtime API called by the cuSPARSE routine, or an error in the hardware setup
     ///
     /// **To correct:** call [`cusparseCreate`] prior to the function call; and check that the hardware, an appropriate version of the driver, and the cuSPARSE library are correctly installed  The error also applies to generic APIs ([cuSPARSE Generic APIs](https://docs.nvidia.com/cuda/archive/13.4.2/cusparse/index.html#cusparse-generic-api-reference)) for indicating a matrix/vector descriptor not initialized.
-    CUSPARSE_STATUS_NOT_INITIALIZED = 1,
+    pub const CUSPARSE_STATUS_NOT_INITIALIZED: cusparseStatus_t = cusparseStatus_t(1);
     /// Resource allocation failed inside the cuSPARSE library. This is usually caused by a device memory allocation (`cudaMalloc()`) or by a host memory allocation failure
     ///
     /// **To correct:** prior to the function call, deallocate previously allocated memory as much as possible.
-    CUSPARSE_STATUS_ALLOC_FAILED = 2,
+    pub const CUSPARSE_STATUS_ALLOC_FAILED: cusparseStatus_t = cusparseStatus_t(2);
     /// An unsupported value or parameter was passed to the function (a negative vector size, for example)
     ///
     /// **To correct:** ensure that all the parameters being passed have valid values.
-    CUSPARSE_STATUS_INVALID_VALUE = 3,
+    pub const CUSPARSE_STATUS_INVALID_VALUE: cusparseStatus_t = cusparseStatus_t(3);
     /// The function requires a feature absent from the device architecture
     ///
     /// **To correct:** compile and run the application on a device with appropriate compute capability.
-    CUSPARSE_STATUS_ARCH_MISMATCH = 4,
+    pub const CUSPARSE_STATUS_ARCH_MISMATCH: cusparseStatus_t = cusparseStatus_t(4);
     /// A required GPU memory mapping or access failed.
-    CUSPARSE_STATUS_MAPPING_ERROR = 5,
+    pub const CUSPARSE_STATUS_MAPPING_ERROR: cusparseStatus_t = cusparseStatus_t(5);
     /// The GPU program failed to execute. This is often caused by a launch failure of the kernel on the GPU, which can be caused by multiple reasons
     ///
     /// **To correct:** check that the hardware, an appropriate version of the driver, and the cuSPARSE library are correctly installed.
-    CUSPARSE_STATUS_EXECUTION_FAILED = 6,
+    pub const CUSPARSE_STATUS_EXECUTION_FAILED: cusparseStatus_t = cusparseStatus_t(6);
     /// An internal cuSPARSE operation failed
     ///
     /// **To correct:** check that the hardware, an appropriate version of the driver, and the cuSPARSE library are correctly installed. Also, check that the memory passed as a parameter to the routine is not being deallocated prior to the routine completion.
-    CUSPARSE_STATUS_INTERNAL_ERROR = 7,
+    pub const CUSPARSE_STATUS_INTERNAL_ERROR: cusparseStatus_t = cusparseStatus_t(7);
     /// The matrix type is not supported by this function. This is usually caused by passing an invalid matrix descriptor to the function
     ///
     /// **To correct:** check that the fields in `cusparseMatDescr_t descrA` were set correctly.
-    CUSPARSE_STATUS_MATRIX_TYPE_NOT_SUPPORTED = 8,
+    pub const CUSPARSE_STATUS_MATRIX_TYPE_NOT_SUPPORTED: cusparseStatus_t = cusparseStatus_t(
+        8,
+    );
     /// A zero pivot was encountered in a factorization or triangular solve.
-    CUSPARSE_STATUS_ZERO_PIVOT = 9,
+    pub const CUSPARSE_STATUS_ZERO_PIVOT: cusparseStatus_t = cusparseStatus_t(9);
     /// The operation or data type combination is currently not supported by the function.
-    CUSPARSE_STATUS_NOT_SUPPORTED = 10,
+    pub const CUSPARSE_STATUS_NOT_SUPPORTED: cusparseStatus_t = cusparseStatus_t(10);
     /// The resources for the computation, such as GPU global or shared memory, are not sufficient to complete the operation. The error can also indicate that the current computation mode (e.g. bit size of sparse matrix indices) does not allow to handle the given input.
-    CUSPARSE_STATUS_INSUFFICIENT_RESOURCES = 11,
+    pub const CUSPARSE_STATUS_INSUFFICIENT_RESOURCES: cusparseStatus_t = cusparseStatus_t(
+        11,
+    );
+}
+/// This data type represents the status returned by the library functions and it can have the following values.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cusparseStatus_t(pub ::core::ffi::c_uint);
+impl cusparsePointerMode_t {
+    /// The scalars are passed by reference on the host.
+    pub const CUSPARSE_POINTER_MODE_HOST: cusparsePointerMode_t = cusparsePointerMode_t(
+        0,
+    );
+    /// The scalars are passed by reference on the device.
+    pub const CUSPARSE_POINTER_MODE_DEVICE: cusparsePointerMode_t = cusparsePointerMode_t(
+        1,
+    );
 }
 /// This type indicates whether the scalar values are passed by reference on the host or device. It is important to point out that if several scalar values are passed by reference in the function call, all of them will conform to the same single pointer mode. The pointer mode can be set and retrieved using [`cusparseSetPointerMode`] and [`cusparseGetPointerMode`] routines, respectively.
-#[repr(u32)]
+#[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum cusparsePointerMode_t {
-    /// The scalars are passed by reference on the host.
-    CUSPARSE_POINTER_MODE_HOST = 0,
-    /// The scalars are passed by reference on the device.
-    CUSPARSE_POINTER_MODE_DEVICE = 1,
+pub struct cusparsePointerMode_t(pub ::core::ffi::c_uint);
+impl cusparseAction_t {
+    /// the operation is performed only on indices.
+    pub const CUSPARSE_ACTION_SYMBOLIC: cusparseAction_t = cusparseAction_t(0);
+    /// the operation is performed on data and indices.
+    pub const CUSPARSE_ACTION_NUMERIC: cusparseAction_t = cusparseAction_t(1);
 }
 /// This type indicates whether the operation is performed only on indices or on data and indices.
-#[repr(u32)]
+#[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum cusparseAction_t {
-    /// the operation is performed only on indices.
-    CUSPARSE_ACTION_SYMBOLIC = 0,
-    /// the operation is performed on data and indices.
-    CUSPARSE_ACTION_NUMERIC = 1,
+pub struct cusparseAction_t(pub ::core::ffi::c_uint);
+impl cusparseMatrixType_t {
+    /// the matrix is general.
+    pub const CUSPARSE_MATRIX_TYPE_GENERAL: cusparseMatrixType_t = cusparseMatrixType_t(
+        0,
+    );
+    /// the matrix is symmetric.
+    pub const CUSPARSE_MATRIX_TYPE_SYMMETRIC: cusparseMatrixType_t = cusparseMatrixType_t(
+        1,
+    );
+    /// the matrix is Hermitian.
+    pub const CUSPARSE_MATRIX_TYPE_HERMITIAN: cusparseMatrixType_t = cusparseMatrixType_t(
+        2,
+    );
+    /// the matrix is triangular.
+    pub const CUSPARSE_MATRIX_TYPE_TRIANGULAR: cusparseMatrixType_t = cusparseMatrixType_t(
+        3,
+    );
 }
 /// This type indicates the type of matrix stored in sparse storage. Notice that for symmetric, Hermitian and triangular matrices only their lower or upper part is assumed to be stored.
 ///
 /// The whole idea of matrix type and fill mode is to keep minimum storage for symmetric/Hermitian matrix, and also to take advantage of symmetric property on SpMV (Sparse Matrix Vector multiplication). To compute `y=A*x` when `A` is symmetric and only lower triangular part is stored, two steps are needed. First step is to compute `y=(L+D)*x` and second step is to compute `y=L^T*x + y`. Given the fact that the transpose operation `y=L^T*x` is 10x slower than non-transpose version `y=L*x`, the symmetric property does not show up any performance gain. It is better for the user to extend the symmetric matrix to a general matrix and apply `y=A*x` with matrix type [`cusparseMatrixType_t::CUSPARSE_MATRIX_TYPE_GENERAL`].
 ///
 /// In general, SpMV, preconditioners (incomplete Cholesky or incomplete LU) and triangular solver are combined together in iterative solvers, for example PCG and GMRES. If the user always uses general matrix (instead of symmetric matrix), there is no need to support other than general matrix in preconditioners. Therefore the new routines, `\[bsr|csr\]sv2` (triangular solver), `\[bsr|csr\]ilu02` (incomplete LU) and `\[bsr|csr\]ic02` (incomplete Cholesky), only support matrix type [`cusparseMatrixType_t::CUSPARSE_MATRIX_TYPE_GENERAL`].
-#[repr(u32)]
+#[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum cusparseMatrixType_t {
-    /// the matrix is general.
-    CUSPARSE_MATRIX_TYPE_GENERAL = 0,
-    /// the matrix is symmetric.
-    CUSPARSE_MATRIX_TYPE_SYMMETRIC = 1,
-    /// the matrix is Hermitian.
-    CUSPARSE_MATRIX_TYPE_HERMITIAN = 2,
-    /// the matrix is triangular.
-    CUSPARSE_MATRIX_TYPE_TRIANGULAR = 3,
+pub struct cusparseMatrixType_t(pub ::core::ffi::c_uint);
+impl cusparseFillMode_t {
+    /// The lower triangular part is stored.
+    pub const CUSPARSE_FILL_MODE_LOWER: cusparseFillMode_t = cusparseFillMode_t(0);
+    /// The upper triangular part is stored.
+    pub const CUSPARSE_FILL_MODE_UPPER: cusparseFillMode_t = cusparseFillMode_t(1);
 }
 /// This type indicates if the lower or upper part of a matrix is stored in sparse storage.
-#[repr(u32)]
+#[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum cusparseFillMode_t {
-    /// The lower triangular part is stored.
-    CUSPARSE_FILL_MODE_LOWER = 0,
-    /// The upper triangular part is stored.
-    CUSPARSE_FILL_MODE_UPPER = 1,
+pub struct cusparseFillMode_t(pub ::core::ffi::c_uint);
+impl cusparseDiagType_t {
+    /// The matrix diagonal has non-unit elements.
+    pub const CUSPARSE_DIAG_TYPE_NON_UNIT: cusparseDiagType_t = cusparseDiagType_t(0);
+    /// The matrix diagonal has unit elements.
+    pub const CUSPARSE_DIAG_TYPE_UNIT: cusparseDiagType_t = cusparseDiagType_t(1);
 }
 /// This type indicates if the matrix diagonal entries are unity. The diagonal elements are always assumed to be present, but if [`cusparseDiagType_t::CUSPARSE_DIAG_TYPE_UNIT`] is passed to an API routine, then the routine assumes that all diagonal entries are unity and will not read or modify those entries. Note that in this case the routine assumes the diagonal entries are equal to one, regardless of what those entries are actually set to in memory.
-#[repr(u32)]
+#[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum cusparseDiagType_t {
-    /// The matrix diagonal has non-unit elements.
-    CUSPARSE_DIAG_TYPE_NON_UNIT = 0,
-    /// The matrix diagonal has unit elements.
-    CUSPARSE_DIAG_TYPE_UNIT = 1,
+pub struct cusparseDiagType_t(pub ::core::ffi::c_uint);
+impl cusparseIndexBase_t {
+    /// The base index is zero (C compatibility).
+    pub const CUSPARSE_INDEX_BASE_ZERO: cusparseIndexBase_t = cusparseIndexBase_t(0);
+    /// The base index is one (Fortran compatibility).
+    pub const CUSPARSE_INDEX_BASE_ONE: cusparseIndexBase_t = cusparseIndexBase_t(1);
 }
 /// This type indicates if the base of the matrix indices is zero or one.
-#[repr(u32)]
+#[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum cusparseIndexBase_t {
-    /// The base index is zero (C compatibility).
-    CUSPARSE_INDEX_BASE_ZERO = 0,
-    /// The base index is one (Fortran compatibility).
-    CUSPARSE_INDEX_BASE_ONE = 1,
+pub struct cusparseIndexBase_t(pub ::core::ffi::c_uint);
+impl cusparseOperation_t {
+    /// The non-transpose operation is selected.
+    pub const CUSPARSE_OPERATION_NON_TRANSPOSE: cusparseOperation_t = cusparseOperation_t(
+        0,
+    );
+    /// The transpose operation is selected.
+    pub const CUSPARSE_OPERATION_TRANSPOSE: cusparseOperation_t = cusparseOperation_t(1);
+    /// The conjugate transpose operation is selected.
+    pub const CUSPARSE_OPERATION_CONJUGATE_TRANSPOSE: cusparseOperation_t = cusparseOperation_t(
+        2,
+    );
 }
 /// This type indicates which operations is applied to the related input (e.g. sparse matrix, or vector).
-#[repr(u32)]
+#[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum cusparseOperation_t {
-    /// The non-transpose operation is selected.
-    CUSPARSE_OPERATION_NON_TRANSPOSE = 0,
-    /// The transpose operation is selected.
-    CUSPARSE_OPERATION_TRANSPOSE = 1,
-    /// The conjugate transpose operation is selected.
-    CUSPARSE_OPERATION_CONJUGATE_TRANSPOSE = 2,
+pub struct cusparseOperation_t(pub ::core::ffi::c_uint);
+impl cusparseDirection_t {
+    /// The matrix should be parsed by rows.
+    pub const CUSPARSE_DIRECTION_ROW: cusparseDirection_t = cusparseDirection_t(0);
+    /// The matrix should be parsed by columns.
+    pub const CUSPARSE_DIRECTION_COLUMN: cusparseDirection_t = cusparseDirection_t(1);
 }
 /// This type indicates whether the elements of a dense matrix should be parsed by rows or by columns (assuming column-major storage in memory of the dense matrix) in function cusparse\[S|D|C|Z\]nnz. Besides storage format of blocks in BSR format is also controlled by this type.
-#[repr(u32)]
+#[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum cusparseDirection_t {
-    /// The matrix should be parsed by rows.
-    CUSPARSE_DIRECTION_ROW = 0,
-    /// The matrix should be parsed by columns.
-    CUSPARSE_DIRECTION_COLUMN = 1,
+pub struct cusparseDirection_t(pub ::core::ffi::c_uint);
+impl cusparseSolvePolicy_t {
+    /// no level information is generated and used.
+    #[deprecated]
+    pub const CUSPARSE_SOLVE_POLICY_NO_LEVEL: cusparseSolvePolicy_t = cusparseSolvePolicy_t(
+        0,
+    );
+    /// generate and use level information.
+    #[deprecated]
+    pub const CUSPARSE_SOLVE_POLICY_USE_LEVEL: cusparseSolvePolicy_t = cusparseSolvePolicy_t(
+        1,
+    );
 }
 /// This type indicates whether level information is generated and used in `csrsv2, csric02, csrilu02, bsrsv2, bsric02 and bsrilu02`.
 #[deprecated]
-#[repr(u32)]
+#[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum cusparseSolvePolicy_t {
-    /// no level information is generated and used.
-    #[deprecated]
-    CUSPARSE_SOLVE_POLICY_NO_LEVEL = 0,
-    /// generate and use level information.
-    #[deprecated]
-    CUSPARSE_SOLVE_POLICY_USE_LEVEL = 1,
+pub struct cusparseSolvePolicy_t(pub ::core::ffi::c_uint);
+impl cusparseColorAlg_t {
+    /// default
+    pub const CUSPARSE_COLOR_ALG0: cusparseColorAlg_t = cusparseColorAlg_t(0);
+    /// Selects native coloring algorithm variant 1.
+    pub const CUSPARSE_COLOR_ALG1: cusparseColorAlg_t = cusparseColorAlg_t(1);
 }
 /// Native sparse graph-coloring algorithm selection.
-#[repr(u32)]
+#[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum cusparseColorAlg_t {
-    /// default
-    CUSPARSE_COLOR_ALG0 = 0,
-    /// Selects native coloring algorithm variant 1.
-    CUSPARSE_COLOR_ALG1 = 1,
-}
+pub struct cusparseColorAlg_t(pub ::core::ffi::c_uint);
 singe_loader::functions! { crate::LIBRARY;
     /// This function initializes the cuSPARSE library and creates a handle on the cuSPARSE context. It must be called before any other cuSPARSE API function is invoked. It allocates hardware resources necessary for accessing the GPU.
     ///
@@ -9737,16 +9761,16 @@ singe_loader::functions! { crate::LIBRARY;
     ) -> cusparseStatus_t;
 }
 impl cusparseCsr2CscAlg_t {
-    /// Alias for [`cusparseCsr2CscAlg_t::CUSPARSE_CSR2CSC_ALG_DEFAULT`].
-    pub const CUSPARSE_CSR2CSC_ALG1: cusparseCsr2CscAlg_t = cusparseCsr2CscAlg_t::CUSPARSE_CSR2CSC_ALG_DEFAULT;
+    /// Uses the native default CSR-to-CSC conversion algorithm.
+    pub const CUSPARSE_CSR2CSC_ALG_DEFAULT: cusparseCsr2CscAlg_t = cusparseCsr2CscAlg_t(
+        1,
+    );
+    pub const CUSPARSE_CSR2CSC_ALG1: cusparseCsr2CscAlg_t = cusparseCsr2CscAlg_t(1);
 }
 /// ############################################################################## # CSR2CSC ##############################################################################
-#[repr(u32)]
+#[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum cusparseCsr2CscAlg_t {
-    /// Uses the native default CSR-to-CSC conversion algorithm.
-    CUSPARSE_CSR2CSC_ALG_DEFAULT = 1,
-}
+pub struct cusparseCsr2CscAlg_t(pub ::core::ffi::c_uint);
 singe_loader::functions! { crate::LIBRARY;
     /// This function converts a sparse matrix in CSR format (that is defined by the three arrays `csrVal`, `csrRowPtr`, and `csrColInd`) into a sparse matrix in CSC format (that is defined by arrays `cscVal`, `cscRowInd`, and `cscColPtr`). The resulting matrix can also be seen as the transpose of the original sparse matrix. Notice that this routine can also be used to convert a matrix in CSC format into a matrix in CSR format.
     ///
@@ -9854,44 +9878,47 @@ singe_loader::functions! { crate::LIBRARY;
         bufferSize: *mut size_t,
     ) -> cusparseStatus_t;
 }
+impl cusparseFormat_t {
+    /// The matrix is stored in Compressed Sparse Row (CSR) format.
+    pub const CUSPARSE_FORMAT_CSR: cusparseFormat_t = cusparseFormat_t(1);
+    /// The matrix is stored in Compressed Sparse Column (CSC) format.
+    pub const CUSPARSE_FORMAT_CSC: cusparseFormat_t = cusparseFormat_t(2);
+    /// The matrix is stored in Coordinate (COO) format organized in *Structure of Arrays (SoA)* layout.
+    pub const CUSPARSE_FORMAT_COO: cusparseFormat_t = cusparseFormat_t(3);
+    /// The matrix is stored in Blocked-Ellpack (Blocked-ELL) format.
+    pub const CUSPARSE_FORMAT_BLOCKED_ELL: cusparseFormat_t = cusparseFormat_t(5);
+    /// The matrix is stored in Block Sparse Row (BSR) format.
+    pub const CUSPARSE_FORMAT_BSR: cusparseFormat_t = cusparseFormat_t(6);
+    /// Sliced ELL
+    pub const CUSPARSE_FORMAT_SLICED_ELLPACK: cusparseFormat_t = cusparseFormat_t(7);
+}
 /// This type indicates the format of the sparse matrix.
 /// See [cuSPARSE Storage Formats](https://docs.nvidia.com/cuda/archive/13.4.2/cusparse/index.html#cusparse-storage-formats) for their description.
-#[repr(u32)]
+#[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum cusparseFormat_t {
-    /// The matrix is stored in Compressed Sparse Row (CSR) format.
-    CUSPARSE_FORMAT_CSR = 1,
-    /// The matrix is stored in Compressed Sparse Column (CSC) format.
-    CUSPARSE_FORMAT_CSC = 2,
-    /// The matrix is stored in Coordinate (COO) format organized in *Structure of Arrays (SoA)* layout.
-    CUSPARSE_FORMAT_COO = 3,
-    /// The matrix is stored in Blocked-Ellpack (Blocked-ELL) format.
-    CUSPARSE_FORMAT_BLOCKED_ELL = 5,
-    /// The matrix is stored in Block Sparse Row (BSR) format.
-    CUSPARSE_FORMAT_BSR = 6,
-    /// Sliced ELL
-    CUSPARSE_FORMAT_SLICED_ELLPACK = 7,
+pub struct cusparseFormat_t(pub ::core::ffi::c_uint);
+impl cusparseOrder_t {
+    /// The matrix is stored in column-major.
+    pub const CUSPARSE_ORDER_COL: cusparseOrder_t = cusparseOrder_t(1);
+    /// The matrix is stored in row-major.
+    pub const CUSPARSE_ORDER_ROW: cusparseOrder_t = cusparseOrder_t(2);
 }
 /// This type indicates the memory layout of a dense matrix.
-#[repr(u32)]
+#[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum cusparseOrder_t {
-    /// The matrix is stored in column-major.
-    CUSPARSE_ORDER_COL = 1,
-    /// The matrix is stored in row-major.
-    CUSPARSE_ORDER_ROW = 2,
+pub struct cusparseOrder_t(pub ::core::ffi::c_uint);
+impl cusparseIndexType_t {
+    /// 16-bit unsigned integer for matrix/vector indices
+    pub const CUSPARSE_INDEX_16U: cusparseIndexType_t = cusparseIndexType_t(1);
+    /// 32-bit signed integer \[0, 2^31 - 1\].
+    pub const CUSPARSE_INDEX_32I: cusparseIndexType_t = cusparseIndexType_t(2);
+    /// 64-bit signed integer \[0, 2^63 - 1\].
+    pub const CUSPARSE_INDEX_64I: cusparseIndexType_t = cusparseIndexType_t(3);
 }
 /// This type indicates the index type for representing the sparse matrix indices.
-#[repr(u32)]
+#[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum cusparseIndexType_t {
-    /// 16-bit unsigned integer for matrix/vector indices
-    CUSPARSE_INDEX_16U = 1,
-    /// 32-bit signed integer \[0, 2^31 - 1\].
-    CUSPARSE_INDEX_32I = 2,
-    /// 64-bit signed integer \[0, 2^63 - 1\].
-    CUSPARSE_INDEX_64I = 3,
-}
+pub struct cusparseIndexType_t(pub ::core::ffi::c_uint);
 /// ------------------------------------------------------------------------------
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -10310,15 +10337,20 @@ singe_loader::functions! { crate::LIBRARY;
         ValuesBatchStride: i64,
     ) -> cusparseStatus_t;
 }
-/// Sparse matrix attributes configuring the stored triangle and implicit unit diagonal.
-#[repr(u32)]
-#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum cusparseSpMatAttribute_t {
+impl cusparseSpMatAttribute_t {
     /// Indicates if the lower or upper part of a matrix is stored in sparse storage
-    CUSPARSE_SPMAT_FILL_MODE = 0,
+    pub const CUSPARSE_SPMAT_FILL_MODE: cusparseSpMatAttribute_t = cusparseSpMatAttribute_t(
+        0,
+    );
     /// Indicates if the matrix diagonal entries are unity
-    CUSPARSE_SPMAT_DIAG_TYPE = 1,
+    pub const CUSPARSE_SPMAT_DIAG_TYPE: cusparseSpMatAttribute_t = cusparseSpMatAttribute_t(
+        1,
+    );
 }
+/// Sparse matrix attributes configuring the stored triangle and implicit unit diagonal.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cusparseSpMatAttribute_t(pub ::core::ffi::c_uint);
 singe_loader::functions! { crate::LIBRARY;
     /// The function gets the attributes of the sparse matrix descriptor `spMatDescr`.
     ///
@@ -11401,13 +11433,16 @@ singe_loader::functions! { crate::LIBRARY;
         externalBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-/// ############################################################################# # SPARSE TO DENSE #############################################################################
-#[repr(u32)]
-#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum cusparseSparseToDenseAlg_t {
+impl cusparseSparseToDenseAlg_t {
     /// Uses the default sparse-to-dense conversion algorithm.
-    CUSPARSE_SPARSETODENSE_ALG_DEFAULT = 0,
+    pub const CUSPARSE_SPARSETODENSE_ALG_DEFAULT: cusparseSparseToDenseAlg_t = cusparseSparseToDenseAlg_t(
+        0,
+    );
 }
+/// ############################################################################# # SPARSE TO DENSE #############################################################################
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cusparseSparseToDenseAlg_t(pub ::core::ffi::c_uint);
 singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for sparse-to-dense matrix conversion. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
@@ -11480,13 +11515,16 @@ singe_loader::functions! { crate::LIBRARY;
         externalBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-/// ############################################################################# # DENSE TO SPARSE #############################################################################
-#[repr(u32)]
-#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum cusparseDenseToSparseAlg_t {
+impl cusparseDenseToSparseAlg_t {
     /// Uses the default dense-to-sparse conversion algorithm.
-    CUSPARSE_DENSETOSPARSE_ALG_DEFAULT = 0,
+    pub const CUSPARSE_DENSETOSPARSE_ALG_DEFAULT: cusparseDenseToSparseAlg_t = cusparseDenseToSparseAlg_t(
+        0,
+    );
 }
+/// ############################################################################# # DENSE TO SPARSE #############################################################################
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cusparseDenseToSparseAlg_t(pub ::core::ffi::c_uint);
 singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for the analysis phase of dense-to-sparse matrix conversion. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
@@ -11521,25 +11559,26 @@ singe_loader::functions! { crate::LIBRARY;
         externalBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-/// ############################################################################# # SPARSE MATRIX-VECTOR MULTIPLICATION #############################################################################
-#[repr(u32)]
-#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum cusparseSpMVAlg_t {
+impl cusparseSpMVAlg_t {
     /// Default algorithm for any sparse matrix format.
-    CUSPARSE_SPMV_ALG_DEFAULT = 0,
+    pub const CUSPARSE_SPMV_ALG_DEFAULT: cusparseSpMVAlg_t = cusparseSpMVAlg_t(0);
     /// Default algorithm for CSR/CSC sparse matrix format. May produce slightly different results during different runs with the same input parameters.
-    CUSPARSE_SPMV_CSR_ALG1 = 2,
+    pub const CUSPARSE_SPMV_CSR_ALG1: cusparseSpMVAlg_t = cusparseSpMVAlg_t(2);
     /// Provides deterministic (bit-wise) results for each run. If `opA != CUSPARSE_OPERATION_NON_TRANSPOSE`, it is identical to [`cusparseSpMVAlg_t::CUSPARSE_SPMV_CSR_ALG1`].
-    CUSPARSE_SPMV_CSR_ALG2 = 3,
+    pub const CUSPARSE_SPMV_CSR_ALG2: cusparseSpMVAlg_t = cusparseSpMVAlg_t(3);
     /// Default algorithm for COO sparse matrix format. May produce slightly different results during different runs with the same input parameters.
-    CUSPARSE_SPMV_COO_ALG1 = 1,
+    pub const CUSPARSE_SPMV_COO_ALG1: cusparseSpMVAlg_t = cusparseSpMVAlg_t(1);
     /// Provides deterministic (bit-wise) results for each run. If `opA != CUSPARSE_OPERATION_NON_TRANSPOSE`, it is identical to [`cusparseSpMVAlg_t::CUSPARSE_SPMV_COO_ALG1`].
-    CUSPARSE_SPMV_COO_ALG2 = 4,
+    pub const CUSPARSE_SPMV_COO_ALG2: cusparseSpMVAlg_t = cusparseSpMVAlg_t(4);
     /// Default algorithm for Sliced Ellpack sparse matrix format. Provides deterministic (bit-wise) results for each run.
-    CUSPARSE_SPMV_SELL_ALG1 = 5,
+    pub const CUSPARSE_SPMV_SELL_ALG1: cusparseSpMVAlg_t = cusparseSpMVAlg_t(5);
     /// Default algorithm for BSR sparse matrix format. Provides deterministic (bit-wise) results for each run. Supports only `opA == CUSPARSE_OPERATION_NON_TRANSPOSE`. Supports both row-major and column-major block layouts in `A`.
-    CUSPARSE_SPMV_BSR_ALG1 = 6,
+    pub const CUSPARSE_SPMV_BSR_ALG1: cusparseSpMVAlg_t = cusparseSpMVAlg_t(6);
 }
+/// ############################################################################# # SPARSE MATRIX-VECTOR MULTIPLICATION #############################################################################
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cusparseSpMVAlg_t(pub ::core::ffi::c_uint);
 singe_loader::functions! { crate::LIBRARY;
     /// This function performs the multiplication of a sparse matrix `matA` and a dense vector `vecX`
     ///
@@ -11729,22 +11768,28 @@ singe_loader::functions! { crate::LIBRARY;
         externalBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-/// ############################################################################# # SPARSE TRIANGULAR VECTOR SOLVE #############################################################################
-#[repr(u32)]
-#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum cusparseSpSVAlg_t {
+impl cusparseSpSVAlg_t {
     /// Uses the default sparse triangular vector-solve algorithm.
-    CUSPARSE_SPSV_ALG_DEFAULT = 0,
+    pub const CUSPARSE_SPSV_ALG_DEFAULT: cusparseSpSVAlg_t = cusparseSpSVAlg_t(0);
+}
+/// ############################################################################# # SPARSE TRIANGULAR VECTOR SOLVE #############################################################################
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cusparseSpSVAlg_t(pub ::core::ffi::c_uint);
+impl cusparseSpSVUpdate_t {
+    /// Updates the sparse matrix values with values of `newValues` array
+    pub const CUSPARSE_SPSV_UPDATE_GENERAL: cusparseSpSVUpdate_t = cusparseSpSVUpdate_t(
+        0,
+    );
+    /// Updates the diagonal part of the matrix with diagonal values stored in `newValues` array. That is, `newValues` has the new diagonal values only
+    pub const CUSPARSE_SPSV_UPDATE_DIAGONAL: cusparseSpSVUpdate_t = cusparseSpSVUpdate_t(
+        1,
+    );
 }
 /// Selects whether a sparse triangular vector-solve update replaces all matrix values or only diagonal values.
-#[repr(u32)]
+#[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum cusparseSpSVUpdate_t {
-    /// Updates the sparse matrix values with values of `newValues` array
-    CUSPARSE_SPSV_UPDATE_GENERAL = 0,
-    /// Updates the diagonal part of the matrix with diagonal values stored in `newValues` array. That is, `newValues` has the new diagonal values only
-    CUSPARSE_SPSV_UPDATE_DIAGONAL = 1,
-}
+pub struct cusparseSpSVUpdate_t(pub ::core::ffi::c_uint);
 /// Incomplete native type used by [`cusparseSpSVDescr_t`] handles. The native API owns its layout.
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -11818,22 +11863,28 @@ singe_loader::functions! { crate::LIBRARY;
         updatePart: cusparseSpSVUpdate_t,
     ) -> cusparseStatus_t;
 }
-/// ############################################################################# # SPARSE TRIANGULAR MATRIX SOLVE #############################################################################
-#[repr(u32)]
-#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum cusparseSpSMAlg_t {
+impl cusparseSpSMAlg_t {
     /// Uses the default sparse triangular matrix-solve algorithm.
-    CUSPARSE_SPSM_ALG_DEFAULT = 0,
+    pub const CUSPARSE_SPSM_ALG_DEFAULT: cusparseSpSMAlg_t = cusparseSpSMAlg_t(0);
+}
+/// ############################################################################# # SPARSE TRIANGULAR MATRIX SOLVE #############################################################################
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cusparseSpSMAlg_t(pub ::core::ffi::c_uint);
+impl cusparseSpSMUpdate_t {
+    /// Updates the sparse matrix values with values of `newValues` array
+    pub const CUSPARSE_SPSM_UPDATE_GENERAL: cusparseSpSMUpdate_t = cusparseSpSMUpdate_t(
+        0,
+    );
+    /// Updates the diagonal part of the matrix with diagonal values stored in `newValues` array. That is, `newValues` has the new diagonal values only
+    pub const CUSPARSE_SPSM_UPDATE_DIAGONAL: cusparseSpSMUpdate_t = cusparseSpSMUpdate_t(
+        1,
+    );
 }
 /// Selects whether a sparse triangular matrix-solve update replaces all matrix values or only diagonal values.
-#[repr(u32)]
+#[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum cusparseSpSMUpdate_t {
-    /// Updates the sparse matrix values with values of `newValues` array
-    CUSPARSE_SPSM_UPDATE_GENERAL = 0,
-    /// Updates the diagonal part of the matrix with diagonal values stored in `newValues` array. That is, `newValues` has the new diagonal values only
-    CUSPARSE_SPSM_UPDATE_DIAGONAL = 1,
-}
+pub struct cusparseSpSMUpdate_t(pub ::core::ffi::c_uint);
 /// Incomplete native type used by [`cusparseSpSMDescr_t`] handles. The native API owns its layout.
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -11910,31 +11961,32 @@ singe_loader::functions! { crate::LIBRARY;
         updatePart: cusparseSpSMUpdate_t,
     ) -> cusparseStatus_t;
 }
-/// ############################################################################# # SPARSE MATRIX-MATRIX MULTIPLICATION #############################################################################
-#[repr(u32)]
-#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum cusparseSpMMAlg_t {
+impl cusparseSpMMAlg_t {
     /// Default algorithm for any sparse matrix format
-    CUSPARSE_SPMM_ALG_DEFAULT = 0,
+    pub const CUSPARSE_SPMM_ALG_DEFAULT: cusparseSpMMAlg_t = cusparseSpMMAlg_t(0);
     /// Algorithm 1 for COO sparse matrix format * May provide better performance for small number of nnz * Provides the best performance with column-major layout * It supports batched computation * May produce slightly different results during different runs with the same input parameters
-    CUSPARSE_SPMM_COO_ALG1 = 1,
+    pub const CUSPARSE_SPMM_COO_ALG1: cusparseSpMMAlg_t = cusparseSpMMAlg_t(1);
     /// Algorithm 2 for COO sparse matrix format * It provides deterministic result * Provides the best performance with column-major layout * In general, slower than Algorithm 1 * It supports batched computation * It requires additional memory * If `opA != CUSPARSE_OPERATION_NON_TRANSPOSE`, it is identical to [`cusparseSpMMAlg_t::CUSPARSE_SPMM_COO_ALG1`]
-    CUSPARSE_SPMM_COO_ALG2 = 2,
+    pub const CUSPARSE_SPMM_COO_ALG2: cusparseSpMMAlg_t = cusparseSpMMAlg_t(2);
     /// Algorithm 3 for COO sparse matrix format * May provide better performance for large number of nnz * May produce slightly different results during different runs with the same input parameters
-    CUSPARSE_SPMM_COO_ALG3 = 3,
+    pub const CUSPARSE_SPMM_COO_ALG3: cusparseSpMMAlg_t = cusparseSpMMAlg_t(3);
     /// Algorithm 4 for COO sparse matrix format * Provides better performance with row-major layout * It supports batched computation * May produce slightly different results during different runs with the same input parameters
-    CUSPARSE_SPMM_COO_ALG4 = 5,
+    pub const CUSPARSE_SPMM_COO_ALG4: cusparseSpMMAlg_t = cusparseSpMMAlg_t(5);
     /// Algorithm 1 for CSR/CSC sparse matrix format * Provides the best performance with column-major layout * It supports batched computation * It requires additional memory * May produce slightly different results during different runs with the same input parameters
-    CUSPARSE_SPMM_CSR_ALG1 = 4,
+    pub const CUSPARSE_SPMM_CSR_ALG1: cusparseSpMMAlg_t = cusparseSpMMAlg_t(4);
     /// Algorithm 2 for CSR/CSC sparse matrix format * Provides the best performance with row-major layout * It supports batched computation * It requires additional memory * May produce slightly different results during different runs with the same input parameters
-    CUSPARSE_SPMM_CSR_ALG2 = 6,
+    pub const CUSPARSE_SPMM_CSR_ALG2: cusparseSpMMAlg_t = cusparseSpMMAlg_t(6);
     /// Algorithm 3 for CSR sparse matrix format * It provides deterministic result * It requires additional memory * It supports only CSR matrix and `opA == CUSPARSE_OPERATION_NON_TRANSPOSE` * It does not support `opB == CUSPARSE_OPERATION_CONJUGATE_TRANSPOSE` * It does not support `CUDA_C_16F and CUDA_C_16BF` data types
-    CUSPARSE_SPMM_CSR_ALG3 = 12,
+    pub const CUSPARSE_SPMM_CSR_ALG3: cusparseSpMMAlg_t = cusparseSpMMAlg_t(12);
     /// Default algorithm for Blocked-ELL format
-    CUSPARSE_SPMM_BLOCKED_ELL_ALG1 = 13,
+    pub const CUSPARSE_SPMM_BLOCKED_ELL_ALG1: cusparseSpMMAlg_t = cusparseSpMMAlg_t(13);
     /// Algorithm 1 for BSR sparse matrix format * It provides deterministic result * It requires no additional memory * It supports only `opA == CUSPARSE_OPERATION_NON_TRANSPOSE` * It does not support `CUDA_C_16F` and `CUDA_C_16BF` data types * It does not support column-major blocks in `A`
-    CUSPARSE_SPMM_BSR_ALG1 = 14,
+    pub const CUSPARSE_SPMM_BSR_ALG1: cusparseSpMMAlg_t = cusparseSpMMAlg_t(14);
 }
+/// ############################################################################# # SPARSE MATRIX-MATRIX MULTIPLICATION #############################################################################
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cusparseSpMMAlg_t(pub ::core::ffi::c_uint);
 singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for sparse-dense matrix multiplication and optional preprocessing. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
@@ -12223,23 +12275,28 @@ singe_loader::functions! { crate::LIBRARY;
         externalBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-/// ############################################################################# # SPARSE MATRIX - SPARSE MATRIX MULTIPLICATION (SpGEMM) #############################################################################
-#[repr(u32)]
-#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum cusparseSpGEMMAlg_t {
+impl cusparseSpGEMMAlg_t {
     /// Default algorithm. Currently, it is [`cusparseSpGEMMAlg_t::CUSPARSE_SPGEMM_ALG1`].
-    CUSPARSE_SPGEMM_DEFAULT = 0,
+    pub const CUSPARSE_SPGEMM_DEFAULT: cusparseSpGEMMAlg_t = cusparseSpGEMMAlg_t(0);
     /// Provides deterministic (bit-wise) structure for the output matrix and value computation for each run.
-    CUSPARSE_SPGEMM_CSR_ALG_DETERMINITIC = 1,
+    pub const CUSPARSE_SPGEMM_CSR_ALG_DETERMINITIC: cusparseSpGEMMAlg_t = cusparseSpGEMMAlg_t(
+        1,
+    );
     /// Selects the native non-deterministic CSR sparse matrix multiplication algorithm.
-    CUSPARSE_SPGEMM_CSR_ALG_NONDETERMINITIC = 2,
+    pub const CUSPARSE_SPGEMM_CSR_ALG_NONDETERMINITIC: cusparseSpGEMMAlg_t = cusparseSpGEMMAlg_t(
+        2,
+    );
     /// Algorithm 1 * Invokes [`cusparseSpGEMM_compute`] twice. The first invocation provides an upper bound of the memory required for the computation. * The required memory is generally several times larger of the actual memory used. * The user can provide an arbitrary buffer size bufferSize2 in the second invocation. If it is not sufficient, the routine will returns [`cusparseStatus_t::CUSPARSE_STATUS_INSUFFICIENT_RESOURCES`] status. * Provides better performance than other algorithms. * Provides deterministic (bit-wise) results for each run.
-    CUSPARSE_SPGEMM_ALG1 = 3,
+    pub const CUSPARSE_SPGEMM_ALG1: cusparseSpGEMMAlg_t = cusparseSpGEMMAlg_t(3);
     /// Algorithm 2 * Invokes [`cusparseSpGEMM_estimateMemory`] to get the amount of the memory required for the computation. * Requires less memory for the computation than Algorithm 1. * Performance is lower than Algorithm 1, higher than Algorithm 3. * Provides deterministic (bit-wise) results for each run.
-    CUSPARSE_SPGEMM_ALG2 = 4,
+    pub const CUSPARSE_SPGEMM_ALG2: cusparseSpGEMMAlg_t = cusparseSpGEMMAlg_t(4);
     /// Algorithm 3 * Computes the intermediate products in chunks, one chunk at a time. * Invokes [`cusparseSpGEMM_estimateMemory`] to get the amount of the memory required for the computation. * The user can control the amount of required memory by changing the chunk size via `chunk_fraction`. * The chunk size is a fraction of total intermediate products: `chunk_fraction * (*num_prods)`. * Provides deterministic (bit-wise) results for each run.
-    CUSPARSE_SPGEMM_ALG3 = 5,
+    pub const CUSPARSE_SPGEMM_ALG3: cusparseSpGEMMAlg_t = cusparseSpGEMMAlg_t(5);
 }
+/// ############################################################################# # SPARSE MATRIX - SPARSE MATRIX MULTIPLICATION (SpGEMM) #############################################################################
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cusparseSpGEMMAlg_t(pub ::core::ffi::c_uint);
 /// Incomplete native type used by [`cusparseSpGEMMDescr_t`] handles. The native API owns its layout.
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -12406,15 +12463,16 @@ singe_loader::functions! { crate::LIBRARY;
         spgemmDescr: cusparseSpGEMMDescr_t,
     ) -> cusparseStatus_t;
 }
-/// ############################################################################# # SPARSE MATRIX - SPARSE MATRIX ADDITION (SpGEAM) #############################################################################
-#[repr(u32)]
-#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum cusparseSpGEAMAlg_t {
+impl cusparseSpGEAMAlg_t {
     /// Uses the default sparse matrix addition algorithm.
-    CUSPARSE_SPGEAM_ALG_DEFAULT = 0,
+    pub const CUSPARSE_SPGEAM_ALG_DEFAULT: cusparseSpGEAMAlg_t = cusparseSpGEAMAlg_t(0);
     /// Selects sparse matrix addition algorithm variant 1.
-    CUSPARSE_SPGEAM_ALG1 = 1,
+    pub const CUSPARSE_SPGEAM_ALG1: cusparseSpGEAMAlg_t = cusparseSpGEAMAlg_t(1);
 }
+/// ############################################################################# # SPARSE MATRIX - SPARSE MATRIX ADDITION (SpGEAM) #############################################################################
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cusparseSpGEAMAlg_t(pub ::core::ffi::c_uint);
 /// Incomplete native type used by [`cusparseSpGEAMDescr_t`] handles. The native API owns its layout.
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -12556,13 +12614,14 @@ singe_loader::functions! { crate::LIBRARY;
         externalBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-/// ############################################################################# # SAMPLED DENSE-DENSE MATRIX MULTIPLICATION #############################################################################
-#[repr(u32)]
-#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum cusparseSDDMMAlg_t {
+impl cusparseSDDMMAlg_t {
     /// Default algorithm. It supports batched computation.
-    CUSPARSE_SDDMM_ALG_DEFAULT = 0,
+    pub const CUSPARSE_SDDMM_ALG_DEFAULT: cusparseSDDMMAlg_t = cusparseSDDMMAlg_t(0);
 }
+/// ############################################################################# # SAMPLED DENSE-DENSE MATRIX MULTIPLICATION #############################################################################
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cusparseSDDMMAlg_t(pub ::core::ffi::c_uint);
 singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for sampled dense-dense matrix multiplication and optional preprocessing. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
@@ -12785,13 +12844,14 @@ pub struct cusparseSpMMOpPlan {
 }
 /// Opaque compiled plan for sparse-dense multiplication with custom operators. Created by [`cusparseSpMMOp_createPlan`] and released by [`cusparseSpMMOp_destroyPlan`].
 pub type cusparseSpMMOpPlan_t = *mut cusparseSpMMOpPlan;
-/// Algorithm selection for sparse-dense multiplication with custom device operators.
-#[repr(u32)]
-#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum cusparseSpMMOpAlg_t {
+impl cusparseSpMMOpAlg_t {
     /// Default algorithm for any sparse matrix format
-    CUSPARSE_SPMM_OP_ALG_DEFAULT = 0,
+    pub const CUSPARSE_SPMM_OP_ALG_DEFAULT: cusparseSpMMOpAlg_t = cusparseSpMMOpAlg_t(0);
 }
+/// Algorithm selection for sparse-dense multiplication with custom device operators.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cusparseSpMMOpAlg_t(pub ::core::ffi::c_uint);
 singe_loader::functions! { crate::LIBRARY;
     /// Creates and compiles a sparse-dense matrix multiplication plan using the supplied addition, multiplication, and epilogue device operators in LTO IR. Writes the plan to `plan` and its workspace byte count to `SpMMWorkspaceSize`. Release the plan with [`cusparseSpMMOp_destroyPlan`].
     pub fn cusparseSpMMOp_createPlan(

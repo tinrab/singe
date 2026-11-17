@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use singe_cuda::{
     event::{Event, EventRecordFlags},
-    stream::StreamBinding,
+    stream::{AsStream, StreamBinding},
 };
 
 use crate::{
@@ -15,8 +15,8 @@ use crate::{
         plan::{
             AutotuneConfig, CompiledGraph, PlanFailure, PlanFailureStage, PlanId, PlanTiming,
             autotune::{
-                AutotuneState,
                 sampling::{TimingSamples, normalize_elapsed},
+                state::AutotuneState,
             },
         },
     },
@@ -48,7 +48,7 @@ impl<'a> AutotuneSession<'a, '_> {
         &self.plans
     }
 
-    /// Retained compilation and metadata used to choose the trial order or exclude plans.
+    /// Returns the retained compilation and metadata used to choose the trial order or exclude plans.
     #[must_use]
     pub fn compiled_graph(&self) -> &CompiledGraph {
         self.graph
@@ -60,7 +60,7 @@ impl<'a> AutotuneSession<'a, '_> {
         self.context
     }
 
-    /// Stream used by baseline restoration, workspace initialization and trial helpers.
+    /// Returns the stream used by baseline restoration, workspace initialization and trial helpers.
     #[must_use]
     pub fn stream(&self) -> &StreamBinding {
         self.stream
@@ -72,13 +72,13 @@ impl<'a> AutotuneSession<'a, '_> {
         self.overrides
     }
 
-    /// Private trial bindings, including writable scratch allocations and retained scalar owners.
+    /// Returns the private trial bindings, including writable scratch allocations and retained scalar owners.
     #[must_use]
     pub fn bindings(&self) -> &Bindings<'_> {
         &self.state.bindings
     }
 
-    /// Native bindings, concrete layouts and workspace for custom native execution.
+    /// Returns the native bindings, concrete layouts and workspace for custom native execution.
     /// Pointer inspection does not grant permission to access pointees or retain them beyond the callback.
     #[must_use]
     pub fn variant_pack(&self) -> &VariantPack {
@@ -98,7 +98,7 @@ impl<'a> AutotuneSession<'a, '_> {
         Ok(execution_plan)
     }
 
-    /// Preparation and recoverable execution failures recorded so far.
+    /// Returns the preparation and recoverable execution failures recorded so far.
     #[must_use]
     pub fn failures(&self) -> &[PlanFailure] {
         &self.failures
@@ -220,8 +220,7 @@ impl<'a> AutotuneSession<'a, '_> {
             }
         };
         if timed {
-            self.start
-                .record_on(self.stream, EventRecordFlags::DEFAULT)?;
+            self.start.record(self.stream, EventRecordFlags::DEFAULT)?;
         }
 
         // SAFETY: the enclosing tuning scope retains plans, scratch, scalars and workspace through completion.
@@ -237,8 +236,7 @@ impl<'a> AutotuneSession<'a, '_> {
             return Ok(Some(0.0));
         }
 
-        self.stop
-            .record_on(self.stream, EventRecordFlags::DEFAULT)?;
+        self.stop.record(self.stream, EventRecordFlags::DEFAULT)?;
         self.stop.synchronize()?;
         let elapsed_ms = self.stop.elapsed_time_since(self.start)?;
         let elapsed_ms = match normalize_elapsed(elapsed_ms) {

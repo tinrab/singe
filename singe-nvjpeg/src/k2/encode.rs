@@ -1,16 +1,9 @@
 //! JPEG 2000 encoding.
 
-use std::{
-    fs,
-    mem::MaybeUninit,
-    path::Path,
-    ptr, slice,
-    sync::{Arc, Mutex},
-};
+use std::{mem::MaybeUninit, ptr, slice, sync::Arc};
 
-use singe_cuda::{
-    context::Context as CudaContext, error::Error as CudaError, stream::Stream as CudaStream,
-};
+use singe_core::report_cleanup_failure;
+use singe_cuda::{context::Context as CudaContext, stream::Stream as CudaStream};
 use singe_nvjpeg_sys::k2 as sys;
 
 use crate::{
@@ -24,7 +17,7 @@ use crate::{
         validate_resolutions,
     },
     try_ffi_k2,
-    utility::{checked_mul, complete, to_u32, to_u64, to_usize},
+    utility::{checked_mul, to_u32, to_u64, to_usize},
 };
 
 /// Quality setting for lossy JPEG 2000 encoding: how to interpret the value, and the value.
@@ -436,27 +429,19 @@ pub struct EncoderHandle {
 
 #[derive(Debug)]
 struct EncoderHandleInner {
-    pub(crate) raw: sys::nvjpeg2kEncoder_t,
+    raw: sys::nvjpeg2kEncoder_t,
     cuda_context: Arc<CudaContext>,
-    streams: Mutex<Vec<CudaStream>>,
 }
 
 /// JPEG 2000 encoder.
 ///
-/// It owns its handle, state, and settings, and reuses them across calls.
+/// It keeps its handle, state, and settings, and reuses them across calls.
 #[derive(Debug)]
 pub struct Encoder {
-    pub(crate) handle: EncoderHandle,
-    pub(crate) state: EncodeState,
-    pub(crate) params: EncodeParams,
-    pub(crate) options: EncodeOptions,
-}
-
-/// Builder for a JPEG 2000 [`Encoder`] with custom options or a configuration.
-#[derive(Debug)]
-pub struct EncoderBuilder {
-    pub(crate) options: EncodeOptions,
-    pub(crate) config: Option<EncodeConfig>,
+    handle: EncoderHandle,
+    state: EncodeState,
+    params: EncodeParams,
+    options: EncodeOptions,
 }
 
 /// State that a JPEG 2000 encoder keeps, including the last encoded data.
@@ -489,11 +474,20 @@ pub struct EncodeConfig {
     pub(crate) component_info: Vec<sys::nvjpeg2kImageComponentInfo_t>,
 }
 
-// SAFETY: native encoder handles can be shared while per-operation state stays
-// exclusive. Native calls and destruction bind their retained actual context.
+// SAFETY: nvJPEG 2000 documents encoder handles as shareable by several threads, and every native call binds the retained CUDA context.
 unsafe impl Send for EncoderHandleInner {}
 
+// SAFETY: nothing changes the encoder handle's configuration through `&EncoderHandleInner`.
 unsafe impl Sync for EncoderHandleInner {}
+
+// SAFETY: nvJPEG 2000 requires encode state to be used by one thread at a time, not by a fixed thread, and every encode takes `&mut EncodeState`.
+unsafe impl Send for EncodeState {}
+
+// SAFETY: nvJPEG 2000 encode settings are used by one thread at a time, every change takes `&mut EncodeParams`, and the boxed configurations they point into move with them.
+unsafe impl Send for EncodeParams {}
+
+// SAFETY: the native configuration points only into the owned component list, which moves with it.
+unsafe impl Send for EncodeConfig {}
 
 impl EncoderHandle {
     /// Returns the CUDA context of the handle.
@@ -511,7 +505,7 @@ impl EncoderHandle {
         Ok(self.cuda_context().bind()?)
     }
 
-    /// Checks that `stream` belongs to the handle's CUDA context, makes the context current, and keeps `stream` alive until the handle and its resources are destroyed.
+    /// Checks that `stream` belongs to the handle's CUDA context and makes the context current.
     ///
     /// # Errors
     ///
@@ -521,44 +515,36 @@ impl EncoderHandle {
             return Err(Error::StreamContextMismatch);
         }
 
-        self.bind()?;
-        let mut streams = self.inner.streams.lock().map_err(|_| Error::LockPoisoned {
-            name: "nvjpeg streams",
-        })?;
-        if !streams
-            .iter()
-            .any(|owner| owner.as_raw() == stream.as_raw())
-        {
-            streams.push(stream.clone());
-        }
-
-        drop(streams);
-        Ok(())
+        self.bind()
     }
 
-    pub(crate) fn ensure_handle(&self, other: &Self) -> Result<()> {
+    pub(crate) fn ensure_handle(&self, other: &Self, name: &'static str) -> Result<()> {
         if !Arc::ptr_eq(&self.inner, &other.inner) {
-            return Err(Error::HandleMismatch);
+            return Err(Error::ContextMismatch { name: name.into() });
         }
         Ok(())
     }
 
-    pub(crate) fn ensure_context(&self, context: &Arc<CudaContext>) -> Result<()> {
+    pub(crate) fn ensure_context(
+        &self,
+        context: &Arc<CudaContext>,
+        name: &'static str,
+    ) -> Result<()> {
         if self.cuda_context() != context {
-            return Err(CudaError::MemoryContextMismatch.into());
+            return Err(Error::ContextMismatch { name: name.into() });
         }
         Ok(())
     }
 
-    /// Creates an encoder handle in `cuda_context` with default settings.
+    /// Creates an encoder handle in `cuda_context` with nvJPEG 2000's own allocators.
     ///
     /// # Errors
     ///
     /// Returns an error if the CUDA context cannot be bound or nvJPEG 2000 fails to create the handle.
-    pub fn create_simple(cuda_context: &Arc<CudaContext>) -> Result<Self> {
+    pub fn create(cuda_context: &Arc<CudaContext>) -> Result<Self> {
         cuda_context.bind()?;
         let mut raw = ptr::null_mut();
-        // SAFETY: `nvjpeg2kEncoderCreateSimple` receives valid output locations.
+        // SAFETY: the CUDA context was bound above, and `raw` is a local that receives the new encoder handle.
         unsafe {
             try_ffi_k2!(sys::nvjpeg2kEncoderCreateSimple(&raw mut raw))?;
         }
@@ -570,7 +556,6 @@ impl EncoderHandle {
             inner: Arc::new(EncoderHandleInner {
                 raw,
                 cuda_context: Arc::clone(cuda_context),
-                streams: Mutex::new(Vec::new()),
             }),
         })
     }
@@ -584,7 +569,7 @@ impl EncoderHandle {
         self.bind()?;
 
         let mut raw = ptr::null_mut();
-        // SAFETY: `nvjpeg2kEncodeStateCreate` receives valid output locations.
+        // SAFETY: `self` owns a live encoder handle whose context was bound above, and `raw` is a local that receives the state.
         unsafe {
             try_ffi_k2!(sys::nvjpeg2kEncodeStateCreate(self.inner.raw, &raw mut raw))?;
         }
@@ -618,10 +603,10 @@ impl EncoderHandle {
         stream: &CudaStream,
     ) -> Result<()> {
         self.ensure_stream(stream)?;
-        self.ensure_handle(&state.handle)?;
-        self.ensure_context(params.cuda_context())?;
+        self.ensure_handle(&state.handle, "state")?;
+        self.ensure_context(params.cuda_context(), "params")?;
 
-        // SAFETY: `nvjpeg2kEncode` receives live handles owned by the wrappers.
+        // SAFETY: `state`, `params`, and `stream` belong to this live handle's context, as checked above; the caller keeps the pixels `input` describes valid until the work finishes.
         unsafe {
             try_ffi_k2!(sys::nvjpeg2kEncode(
                 self.inner.raw,
@@ -649,9 +634,9 @@ impl EncoderHandle {
     ) -> Result<Vec<u8>> {
         self.ensure_stream(stream)?;
         params.validate_input(input)?;
-        complete(stream, || {
+        stream.complete(|| {
             stream.join_regions(&input.regions)?;
-            // SAFETY: initialized views and checked configuration establish the native layout.
+            // SAFETY: `validate_input` checked `input` against the configuration, an `EncodeInput` holds initialized borrowed pixels whose writers were just joined, and `complete` waits for `stream` on every path.
             unsafe { self.encode_async(state, params, &input.image, stream) }
         })?;
         let length = self.bitstream_size(state, stream)?;
@@ -659,28 +644,11 @@ impl EncoderHandle {
         let produced = self
             .retrieve_bitstream(state, output.spare_capacity_mut(), stream)?
             .len();
-        // SAFETY: checked completed retrieval produced this prefix of spare capacity.
+        // SAFETY: the finished copy initialized the first `produced` bytes of the spare capacity, and `retrieve_bitstream` checked `produced` against it.
         unsafe {
             output.set_len(produced);
         }
         Ok(output)
-    }
-
-    /// Encodes `input` with `params` and writes the JPEG 2000 data to the file at `path`.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if [`encode_to_vec`](Self::encode_to_vec) fails or the file cannot be written.
-    pub fn encode_to_file(
-        &self,
-        state: &mut EncodeState,
-        params: &EncodeParams,
-        input: &EncodeInput<'_>,
-        path: impl AsRef<Path>,
-        stream: &CudaStream,
-    ) -> Result<()> {
-        fs::write(path, self.encode_to_vec(state, params, input, stream)?)?;
-        Ok(())
     }
 
     /// Returns the size, in bytes, of the encoded data in `state`, after waiting for `stream`.
@@ -690,8 +658,8 @@ impl EncoderHandle {
     /// Returns an error if `stream` belongs to another CUDA context or is being captured, the context cannot be bound, `state` was created with another handle, nvJPEG 2000 fails, the size does not fit `usize`, or waiting for `stream` fails.
     pub fn bitstream_size(&self, state: &mut EncodeState, stream: &CudaStream) -> Result<usize> {
         let mut length = 0;
-        // SAFETY: `complete` drains the stream before returning, so every borrowed buffer outlives the queued work.
-        complete(stream, || unsafe {
+        // SAFETY: `complete` waits for `stream` on every path, so `state` and `length` outlive the queued work, and no output buffer is passed.
+        stream.complete(|| unsafe {
             self.retrieve_bitstream_async(state, None, &mut length, stream)
         })?;
         to_usize(length, "bitstream length")
@@ -711,8 +679,8 @@ impl EncoderHandle {
         stream: &CudaStream,
     ) -> Result<&'a mut [u8]> {
         let mut length = to_u64(output.len(), "output length")?;
-        // SAFETY: `complete` drains the stream before returning, so every borrowed buffer outlives the queued work.
-        complete(stream, || unsafe {
+        // SAFETY: `complete` waits for `stream` on every path, so `state`, the exclusively borrowed `output`, and `length` outlive the queued copy.
+        stream.complete(|| unsafe {
             self.retrieve_bitstream_async(state, Some(output), &mut length, stream)
         })?;
         let length = to_usize(length, "bitstream length")?;
@@ -723,13 +691,14 @@ impl EncoderHandle {
                 actual: output.len(),
             });
         }
-        // SAFETY: native retrieval and checked completion establish these initialized bytes.
+        // SAFETY: the finished copy initialized the first `length` bytes of `output`, and `length` was checked against its size above.
         Ok(unsafe { slice::from_raw_parts_mut(output.as_mut_ptr().cast(), length) })
     }
 
     /// Enqueues a copy of the encoded data in `state` into `output`, and sets `length` to its size.
     ///
-    /// This sets `length` to the size of `output`, or 0 for `None`, before calling nvJPEG 2000. With `None`, nvJPEG 2000 only reports the size, and does so before returning.
+    /// This sets `length` to the size of `output`, or 0 for `None`, before calling nvJPEG 2000.
+    /// With `None`, nvJPEG 2000 only reports the size, and does so before returning.
     /// With `Some`, the copy fails if `output` is too small, and the bytes are ready only after the work on `stream` finishes.
     ///
     /// # Safety
@@ -748,7 +717,7 @@ impl EncoderHandle {
         stream: &CudaStream,
     ) -> Result<()> {
         self.ensure_stream(stream)?;
-        self.ensure_handle(&state.handle)?;
+        self.ensure_handle(&state.handle, "state")?;
         if let Some(buffer) = &output {
             *length = to_u64(buffer.len(), "output length")?;
         } else {
@@ -756,7 +725,7 @@ impl EncoderHandle {
         }
 
         let data = output.map_or(ptr::null_mut(), |buffer| buffer.as_mut_ptr().cast());
-        // SAFETY: `nvjpeg2kEncodeRetrieveBitstream` receives live handles owned by the wrappers.
+        // SAFETY: `state` and `stream` belong to this live handle's context, as checked above; `data` is null or points to `*length` writable bytes, and the caller keeps `output` and `length` alive and exclusive until the work finishes.
         unsafe {
             try_ffi_k2!(sys::nvjpeg2kEncodeRetrieveBitstream(
                 self.as_raw(),
@@ -776,53 +745,23 @@ impl EncoderHandle {
 }
 
 impl Encoder {
-    /// Returns a builder for an encoder with custom options or a configuration.
-    #[must_use]
-    pub const fn builder() -> EncoderBuilder {
-        EncoderBuilder::new()
-    }
-
-    /// Creates an encoder in `cuda_context` with the default options.
+    /// Creates an encoder for `handle` with `config` and `options`.
     ///
     /// # Errors
     ///
-    /// Returns an error if the CUDA context cannot be bound, nvJPEG 2000 fails to create the handle, state, or settings, or it rejects the input layout.
-    pub fn create(cuda_context: &Arc<CudaContext>) -> Result<Self> {
-        Self::builder().create(cuda_context)
-    }
-
-    /// Creates an encoder in `cuda_context` with `options`.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the CUDA context cannot be bound, nvJPEG 2000 fails to create the handle, state, or settings, or it rejects the input layout.
-    pub fn create_with_options(
-        cuda_context: &Arc<CudaContext>,
+    /// Returns an error if the CUDA context cannot be bound, nvJPEG 2000 fails to create the state or settings, or it rejects the input layout, configuration, or quality.
+    pub fn create(
+        handle: &EncoderHandle,
+        config: EncodeConfig,
         options: EncodeOptions,
     ) -> Result<Self> {
-        Self::builder().options(options).create(cuda_context)
-    }
-
-    /// Creates an encoder that uses an existing `handle` and the default options.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the CUDA context cannot be bound, nvJPEG 2000 fails to create the handle, state, or settings, or it rejects the input layout.
-    pub fn from_handle(handle: EncoderHandle) -> Result<Self> {
-        Self::from_handle_with_options(handle, EncodeOptions::new())
-    }
-
-    /// Creates an encoder that uses an existing `handle` and `options`.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the CUDA context cannot be bound, nvJPEG 2000 fails to create the handle, state, or settings, or it rejects the input layout.
-    pub fn from_handle_with_options(handle: EncoderHandle, options: EncodeOptions) -> Result<Self> {
         let state = handle.create_state()?;
-        let mut params = EncodeParams::create(&handle)?;
+        let mut params = EncodeParams::create(handle)?;
         options.apply_without_config(&mut params)?;
+        params.set_encode_config(config)?;
+        options.apply_after_config(&mut params)?;
         Ok(Self {
-            handle,
+            handle: handle.clone(),
             state,
             params,
             options,
@@ -847,77 +786,31 @@ impl Encoder {
         self.options
     }
 
-    /// Returns the encode settings mutably.
-    pub fn params_mut(&mut self) -> &mut EncodeParams {
-        &mut self.params
-    }
-
     /// Sets the encode configuration, then applies the current quality again.
     ///
     /// # Errors
     ///
     /// Returns an error if the CUDA context cannot be bound, nvJPEG 2000 rejects the configuration, or applying the quality fails.
     /// If only the quality fails, the new configuration stays in effect.
-    pub fn set_encode_config(&mut self, config: EncodeConfig) -> Result<&mut Self> {
+    pub fn set_encode_config(&mut self, config: EncodeConfig) -> Result<()> {
         self.params.set_encode_config(config)?;
-        self.options.apply_after_config(&mut self.params)?;
-        Ok(self)
+        self.options.apply_after_config(&mut self.params)
     }
 
-    /// Sets whether the input is planar or interleaved.
+    /// Applies `options`; values it leaves unset keep their current settings.
     ///
     /// # Errors
     ///
-    /// Returns an error if the CUDA context cannot be bound or nvJPEG 2000 rejects the layout.
-    /// After a rejection, the layout is unset and safe encoding fails until it is set again.
-    pub fn set_input_format(&mut self, format: ImageFormat) -> Result<&mut Self> {
-        self.params.set_input_format(format)?;
-        self.options = self.options.with_input_format(format);
-        Ok(self)
-    }
-
-    /// Sets the quality for lossy encoding.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if [`EncodeQuality::create`] rejects the value, the CUDA context cannot be bound, or nvJPEG 2000 rejects the quality for the current configuration.
-    pub fn specify_quality(
-        &mut self,
-        quality_type: QualityType,
-        quality_value: f64,
-    ) -> Result<&mut Self> {
-        let quality = EncodeQuality::create(quality_type, quality_value)?;
-        self.params
-            .specify_quality(quality.quality_type(), quality.value())?;
-        self.options.quality = Some(quality);
-        Ok(self)
-    }
-
-    /// Sets a JPEG-style quality from 1 to 100.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if [`EncodeQuality::create`] rejects the value, the CUDA context cannot be bound, or nvJPEG 2000 rejects the quality for the current configuration.
-    pub fn set_q_factor(&mut self, value: f64) -> Result<&mut Self> {
-        self.specify_quality(QualityType::QFactor, value)
-    }
-
-    /// Sets a target peak signal-to-noise ratio.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if [`EncodeQuality::create`] rejects the value, the CUDA context cannot be bound, or nvJPEG 2000 rejects the quality for the current configuration.
-    pub fn set_target_psnr(&mut self, value: f64) -> Result<&mut Self> {
-        self.specify_quality(QualityType::TargetPsnr, value)
-    }
-
-    /// Sets a quantization step.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if [`EncodeQuality::create`] rejects the value, the CUDA context cannot be bound, or nvJPEG 2000 rejects the quality for the current configuration.
-    pub fn set_quantization_step(&mut self, value: f64) -> Result<&mut Self> {
-        self.specify_quality(QualityType::QuantizationStep, value)
+    /// Returns an error if the CUDA context cannot be bound or nvJPEG 2000 rejects the input layout or the quality for the current configuration.
+    /// After a rejected input layout, safe encoding fails until a layout is set again.
+    pub fn set_options(&mut self, options: EncodeOptions) -> Result<()> {
+        options.apply_without_config(&mut self.params)?;
+        options.apply_after_config(&mut self.params)?;
+        self.options = EncodeOptions {
+            input_format: options.input_format.or(self.options.input_format),
+            quality: options.quality.or(self.options.quality),
+        };
+        Ok(())
     }
 
     /// Enqueues encoding of `input` on `stream` with the current settings.
@@ -931,7 +824,7 @@ impl Encoder {
     ///
     /// Returns an error if `stream` or the settings belong to another CUDA context, the context cannot be bound, or nvJPEG 2000 fails.
     pub unsafe fn encode_async(&mut self, input: &Image, stream: &CudaStream) -> Result<()> {
-        // SAFETY: the caller upholds this function's safety contract.
+        // SAFETY: this function's caller guarantees the pixels `input` describes stay valid until the work finishes, and the state and settings were created by this encoder's handle.
         unsafe {
             self.handle
                 .encode_async(&mut self.state, &self.params, input, stream)
@@ -944,7 +837,7 @@ impl Encoder {
     ///
     /// # Errors
     ///
-    /// Returns an error if the configuration or input layout has not been set, `input` does not match the configuration in layout, component count, size, pitch, or memory size, interleaved components differ in size, a size overflows, the CUDA contexts differ, `state` was created with another [`EncoderHandle`], `stream` is being captured, the CUDA context cannot be bound, or encoding, copying the data, or waiting for `stream` fails.
+    /// Returns an error if the input layout has not been set, `input` does not match the configuration in layout, component count, size, pitch, or memory size, interleaved components differ in size, a size overflows, the CUDA contexts differ, `stream` is being captured, the CUDA context cannot be bound, or encoding, copying the data, or waiting for `stream` fails.
     pub fn encode_to_vec(
         &mut self,
         input: &EncodeInput<'_>,
@@ -952,66 +845,6 @@ impl Encoder {
     ) -> Result<Vec<u8>> {
         self.handle
             .encode_to_vec(&mut self.state, &self.params, input, stream)
-    }
-
-    /// Encodes `input` and writes the JPEG 2000 data to the file at `path`.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if [`encode_to_vec`](Self::encode_to_vec) fails or the file cannot be written.
-    pub fn encode_to_file(
-        &mut self,
-        input: &EncodeInput<'_>,
-        path: impl AsRef<Path>,
-        stream: &CudaStream,
-    ) -> Result<()> {
-        self.handle
-            .encode_to_file(&mut self.state, &self.params, input, path, stream)
-    }
-}
-
-impl EncoderBuilder {
-    /// Creates a builder with nvJPEG 2000's defaults.
-    #[must_use]
-    pub const fn new() -> Self {
-        Self {
-            options: EncodeOptions::new(),
-            config: None,
-        }
-    }
-
-    /// Sets the encode options.
-    #[must_use]
-    pub const fn options(mut self, options: EncodeOptions) -> Self {
-        self.options = options;
-        self
-    }
-
-    /// Sets the encode configuration to apply when the encoder is created.
-    #[must_use]
-    pub fn encode_config(mut self, config: EncodeConfig) -> Self {
-        self.config = Some(config);
-        self
-    }
-
-    /// Creates the encoder in `cuda_context`.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the CUDA context cannot be bound, nvJPEG 2000 fails to create the handle, state, or settings, or it rejects the input layout, configuration, or quality.
-    pub fn create(mut self, cuda_context: &Arc<CudaContext>) -> Result<Encoder> {
-        let handle = EncoderHandle::create_simple(cuda_context)?;
-        let mut encoder = Encoder::from_handle_with_options(handle, self.options)?;
-        if let Some(config) = self.config.take() {
-            encoder.set_encode_config(config)?;
-        }
-        Ok(encoder)
-    }
-}
-
-impl Default for EncoderBuilder {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
@@ -1031,7 +864,7 @@ impl EncodeParams {
         handle.bind()?;
 
         let mut raw = ptr::null_mut();
-        // SAFETY: `nvjpeg2kEncodeParamsCreate` receives valid output locations.
+        // SAFETY: `raw` is a local that receives the new settings handle.
         unsafe {
             try_ffi_k2!(sys::nvjpeg2kEncodeParamsCreate(&raw mut raw))?;
         }
@@ -1063,7 +896,7 @@ impl EncodeParams {
         let raw = config.as_raw_mut();
         self.configs.push(config);
         self.active_config = None;
-        // SAFETY: `nvjpeg2kEncodeParamsSetEncodeConfig` receives live handles owned by the wrappers.
+        // SAFETY: `&mut self` owns the live settings handle exclusively, and `raw` points into the boxed configuration that `self.configs` keeps at a stable address for as long as the settings can read it.
         unsafe {
             try_ffi_k2!(sys::nvjpeg2kEncodeParamsSetEncodeConfig(self.raw, raw))?;
         }
@@ -1086,7 +919,7 @@ impl EncodeParams {
     ) -> Result<&mut Self> {
         self.handle.bind()?;
 
-        // SAFETY: `nvjpeg2kEncodeParamsSpecifyQuality` receives live handles owned by the wrappers.
+        // SAFETY: `&mut self` owns the live settings handle exclusively, and the quality type is a valid enum value.
         unsafe {
             try_ffi_k2!(sys::nvjpeg2kEncodeParamsSpecifyQuality(
                 self.raw,
@@ -1109,7 +942,7 @@ impl EncodeParams {
         self.handle.bind()?;
 
         self.input_format = None;
-        // SAFETY: `nvjpeg2kEncodeParamsSetInputFormat` receives live handles owned by the wrappers.
+        // SAFETY: `&mut self` owns the live settings handle exclusively, and the format is a valid enum value.
         unsafe {
             try_ffi_k2!(sys::nvjpeg2kEncodeParamsSetInputFormat(
                 self.raw,
@@ -1173,8 +1006,12 @@ impl EncodeParams {
                 1
             };
             let row_bytes = checked_mul(
-                checked_mul(expected.width() as usize, samples, "input samples")?,
-                input.image.pixel_type().element_size(),
+                checked_mul(
+                    to_usize(expected.width(), "width")?,
+                    samples,
+                    "input samples",
+                )?,
+                input.image.pixel_type()?.element_size(),
                 "input row bytes",
             )?;
             validate_plane(
@@ -1346,15 +1183,21 @@ impl EncodeConfig {
     }
 
     /// Returns the container.
-    #[must_use]
-    pub fn stream_type(&self) -> BitstreamType {
-        BitstreamType::from(self.raw.stream_type)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the library reports a value this crate does not name.
+    pub fn stream_type(&self) -> Result<BitstreamType> {
+        Ok(BitstreamType::try_from(self.raw.stream_type)?)
     }
 
     /// Returns the color space.
-    #[must_use]
-    pub fn color_space(&self) -> ColorSpace {
-        ColorSpace::from(self.raw.color_space)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the library reports a value this crate does not name.
+    pub fn color_space(&self) -> Result<ColorSpace> {
+        Ok(ColorSpace::try_from(self.raw.color_space)?)
     }
 
     /// Returns the number of components.
@@ -1382,9 +1225,12 @@ impl EncodeConfig {
     }
 
     /// Returns the progression order.
-    #[must_use]
-    pub fn progression_order(&self) -> ProgressionOrder {
-        ProgressionOrder::from(self.raw.prog_order)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the library reports a value this crate does not name.
+    pub fn progression_order(&self) -> Result<ProgressionOrder> {
+        Ok(ProgressionOrder::try_from(self.raw.prog_order)?)
     }
 
     /// Returns the number of quality layers.
@@ -1444,18 +1290,19 @@ impl Clone for EncodeConfig {
 
 impl Drop for EncoderHandleInner {
     fn drop(&mut self) {
-        if self.cuda_context.bind().is_err() {
+        if let Err(error) = self.cuda_context.bind() {
+            report_cleanup_failure(
+                "bind the cuda context to destroy",
+                "nvjpeg2k encoder",
+                &error,
+            );
             return;
         }
+
         if !self.raw.is_null() {
-            // SAFETY: `nvjpeg2kEncoderDestroy` receives live handles owned by the wrappers.
-            unsafe {
-                if let Err(error) = try_ffi_k2!(sys::nvjpeg2kEncoderDestroy(self.raw)) {
-                    eprintln!(
-                        "failed to destroy nvjpeg2k encoder: {}",
-                        singe_core::ErrorChain(&error)
-                    );
-                }
+            // SAFETY: the last owner drops `EncoderHandleInner`, after every state and settings value that holds the handle, and destroys it once.
+            if let Err(error) = unsafe { try_ffi_k2!(sys::nvjpeg2kEncoderDestroy(self.raw)) } {
+                report_cleanup_failure("destroy", "nvjpeg2k encoder", &error);
             }
         }
     }
@@ -1463,18 +1310,19 @@ impl Drop for EncoderHandleInner {
 
 impl Drop for EncodeState {
     fn drop(&mut self) {
-        if self.handle.bind().is_err() {
+        if let Err(error) = self.handle.bind() {
+            report_cleanup_failure(
+                "bind the cuda context to destroy",
+                "nvjpeg2k encode state",
+                &error,
+            );
             return;
         }
+
         if !self.raw.is_null() {
-            // SAFETY: `nvjpeg2kEncodeStateDestroy` receives live handles owned by the wrappers.
-            unsafe {
-                if let Err(error) = try_ffi_k2!(sys::nvjpeg2kEncodeStateDestroy(self.raw)) {
-                    eprintln!(
-                        "failed to destroy nvjpeg2k encode state: {}",
-                        singe_core::ErrorChain(&error)
-                    );
-                }
+            // SAFETY: the state owns its handle exclusively and is destroyed once; safe encodes wait for their work, and raw callers keep the state alive until theirs finishes.
+            if let Err(error) = unsafe { try_ffi_k2!(sys::nvjpeg2kEncodeStateDestroy(self.raw)) } {
+                report_cleanup_failure("destroy", "nvjpeg2k encode state", &error);
             }
         }
     }
@@ -1482,18 +1330,19 @@ impl Drop for EncodeState {
 
 impl Drop for EncodeParams {
     fn drop(&mut self) {
-        if self.handle.bind().is_err() {
+        if let Err(error) = self.handle.bind() {
+            report_cleanup_failure(
+                "bind the cuda context to destroy",
+                "nvjpeg2k encode params",
+                &error,
+            );
             return;
         }
+
         if !self.raw.is_null() {
-            // SAFETY: `nvjpeg2kEncodeParamsDestroy` receives live handles owned by the wrappers.
-            unsafe {
-                if let Err(error) = try_ffi_k2!(sys::nvjpeg2kEncodeParamsDestroy(self.raw)) {
-                    eprintln!(
-                        "failed to destroy nvjpeg2k encode params: {}",
-                        singe_core::ErrorChain(&error)
-                    );
-                }
+            // SAFETY: the settings own their handle exclusively and are destroyed once, before `configs` releases the configurations they point into.
+            if let Err(error) = unsafe { try_ffi_k2!(sys::nvjpeg2kEncodeParamsDestroy(self.raw)) } {
+                report_cleanup_failure("destroy", "nvjpeg2k encode params", &error);
             }
         }
     }

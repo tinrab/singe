@@ -78,7 +78,7 @@ struct Observer {
 }
 
 #[derive(Debug, Default)]
-pub struct State {
+pub(crate) struct State {
     next: u64,
     pauses: BTreeMap<u64, Paused>,
     notifications: ChargedQueue<Notification>,
@@ -95,7 +95,7 @@ impl State {
     }
 }
 
-pub struct Registration {
+pub(crate) struct Registration {
     sequence: u64,
     shared: Weak<Shared>,
 }
@@ -353,7 +353,7 @@ impl Emulator {
     }
 }
 
-pub fn register(
+pub(crate) fn register(
     shared: &Arc<Shared>,
     engine: &Engine,
     control: &Arc<CommandControl>,
@@ -432,13 +432,13 @@ pub fn register(
 /// Debug queue entries whose observers are gone.
 /// They are removed under the admission lock and dropped after it is released, since dropping them releases charged storage.
 #[derive(Debug, Default)]
-pub struct Reclaimed {
+pub(crate) struct Reclaimed {
     observers: ChargedQueue<Observer>,
     notifications: ChargedQueue<Notification>,
 }
 
 impl Reclaimed {
-    pub fn take(debug: &mut State) -> Self {
+    pub(crate) fn take(debug: &mut State) -> Self {
         let observers = debug
             .observers
             .extract(|observer| observer.producer.completion.is_abandoned());
@@ -452,12 +452,12 @@ impl Reclaimed {
         }
     }
 
-    pub fn is_empty(&self) -> bool {
+    pub(crate) fn is_empty(&self) -> bool {
         self.observers.is_empty() && self.notifications.is_empty()
     }
 }
 
-pub fn finish_observers(shared: &Shared, error: &ExecutionError) {
+pub(crate) fn finish_observers(shared: &Shared, error: &ExecutionError) {
     let (observers, inspections) = {
         let mut state = lock(&shared.admission);
         let mut inspections = ChargedQueue::new();
@@ -482,7 +482,7 @@ pub fn finish_observers(shared: &Shared, error: &ExecutionError) {
     }
 }
 
-pub fn close(shared: &Shared, error: &ExecutionError) {
+pub(crate) fn close(shared: &Shared, error: &ExecutionError) {
     finish_observers(shared, error);
     let state = mem::take(&mut lock(&shared.admission).debug);
     drop(state);

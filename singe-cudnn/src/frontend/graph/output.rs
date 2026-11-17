@@ -1,11 +1,11 @@
 use crate::{
-    backend::tensor::{Shape, TensorId, TensorSpec},
     data_type::DataType,
     error::Result,
     frontend::{
         error::Error as FrontendError,
         graph::{DataTypePolicy, Graph},
     },
+    tensor::{Shape, TensorId, TensorSpec},
 };
 
 impl Graph {

@@ -4,8 +4,11 @@ use std::{
 };
 
 use singe_cuda::{
-    context::Context as CudaContext, error::Error as CudaError, graph::Graph as CudaGraph,
-    memory::DeviceMemory, submission::Resources, view::DeviceRegionProvider,
+    context::Context as CudaContext,
+    graph::Graph as CudaGraph,
+    memory::DeviceMemory,
+    submission::Resources,
+    view::{DeviceOutputView, DeviceRegionProvider},
 };
 
 use crate::{
@@ -14,7 +17,7 @@ use crate::{
     error::{Error, Result},
     frontend::{
         bindings::{Bindings, RuntimeOverrides},
-        plan::{CompiledGraph, ExecuteArgs, PlanId},
+        plan::{CompiledGraph, ExecuteArgs, PlanId, WorkspacePlans},
     },
     operation::FrontendExecution,
     utility::validate_context_pair,
@@ -50,7 +53,7 @@ impl TunedPlan {
         self.graph.default_plan()
     }
 
-    /// The retained selection handle and candidate metadata for the measured compilation.
+    /// Returns the retained selection handle and candidate metadata for the measured compilation.
     /// Cloning this handle permits an explicit independent selection without changing this winner.
     #[must_use]
     pub fn compiled_graph(&self) -> &CompiledGraph {
@@ -63,14 +66,14 @@ impl TunedPlan {
         &self.context
     }
 
-    /// Runtime overrides used for every operation on this winner.
+    /// Returns the runtime overrides used for every operation on this winner.
     /// Empty overrides refer to the retained graph's immutable base layouts.
     #[must_use]
     pub fn overrides(&self) -> &RuntimeOverrides {
         &self.overrides
     }
 
-    /// The raw native plan, whose low-level use retains its separate layout and lifetime contracts.
+    /// Returns the raw native plan, whose low-level use retains its separate layout and lifetime contracts.
     #[must_use]
     pub fn execution_plan(&self) -> &ExecutionPlan {
         self.graph.execution_plan()
@@ -85,7 +88,7 @@ impl TunedPlan {
         self.graph.bindings()
     }
 
-    /// Workspace for this winner's measured layouts, including frontend scratch.
+    /// Returns the workspace for this winner's measured layouts, including frontend scratch.
     ///
     /// # Errors
     ///
@@ -93,29 +96,29 @@ impl TunedPlan {
     pub fn workspace_size(&self, context: &Context) -> Result<usize> {
         self.require_context(context)?;
         self.graph
-            .workspace_size_with_runtime_overrides(context, &self.overrides)
+            .workspace_size_for(WorkspacePlans::Default, Some((context, &self.overrides)))
     }
 
     /// Executes with the measured layouts.
     ///
     /// # Safety
+    ///
     /// Retain this winner, bindings and workspace through completion or every captured replay.
     /// Buffers must satisfy native initialization, aliasing and producer-ordering contracts.
     ///
     /// # Errors
     ///
     /// Returns an error if the context differs from the measured target, bindings or measured layouts are invalid, workspace is insufficient, resource retention or diagnostic logging fails, workspace initialization fails, or native execution fails.
-    pub unsafe fn execute(
+    pub unsafe fn execute_async(
         &self,
         context: &Context,
         bindings: &Bindings<'_>,
-        workspace: Option<&mut DeviceMemory<MaybeUninit<u8>>>,
+        workspace: Option<DeviceOutputView<'_, u8>>,
     ) -> Result<()> {
         self.require_context(context)?;
-        // SAFETY: the caller upholds this function's safety contract.
-        // SAFETY: the caller guarantees valid bindings, ordered accesses and retained storage through completion or replay.
+        // SAFETY: this function's contract retains the winner, which owns `self.graph`, and supplies the `Bindings` initialization, ordering and lifetime that `CompiledGraph::execute_async` requires for the measured layouts.
         unsafe {
-            self.graph.execute(
+            self.graph.execute_async(
                 context,
                 ExecuteArgs::new(bindings)
                     .with_workspace(workspace)
@@ -127,21 +130,21 @@ impl TunedPlan {
     /// Populates a native CUDA graph using this winner and its measured layouts.
     ///
     /// # Safety
+    ///
     /// Retain this winner, bindings and workspace through every replay and satisfy the native execution contract.
     ///
     /// # Errors
     ///
-    /// Returns an error for a context mismatch, invalid bindings or measured layouts, insufficient workspace, a nonempty destination graph, resource-retention or workspace-initializer preparation failure, or CUDA graph query or native population failure.
+    /// Returns an error if the context mismatches, bindings or measured layouts are invalid, the workspace is too small, the destination graph is not empty, retaining resources or preparing workspace initializers fails, or the CUDA graph query or native population fails.
     pub unsafe fn populate_cuda_graph(
         &self,
         context: &Context,
         bindings: &Bindings<'_>,
-        workspace: Option<&mut DeviceMemory<MaybeUninit<u8>>>,
+        workspace: Option<DeviceOutputView<'_, u8>>,
         graph: &mut CudaGraph,
     ) -> Result<()> {
         self.require_context(context)?;
-        // SAFETY: the caller upholds this function's safety contract.
-        // SAFETY: the caller guarantees valid bindings, ordered accesses and retained storage through completion or replay.
+        // SAFETY: this function's contract retains the winner, bindings and workspace through every replay, which is the `Bindings` contract `CompiledGraph::populate_cuda_graph` requires.
         unsafe {
             self.graph.populate_cuda_graph(
                 context,
@@ -156,22 +159,22 @@ impl TunedPlan {
     /// Updates a populated CUDA graph using the measured layouts.
     ///
     /// # Safety
+    ///
     /// Retain this winner and new binding/workspace storage through their replays.
     /// Previous bindings remain valid through any executable snapshots or pending launches that still use them.
     ///
     /// # Errors
     ///
-    /// Returns an error for a context mismatch, invalid bindings or measured layouts, insufficient workspace, resource-retention or workspace-initializer preparation failure, or CUDA graph operations or native update failure.
+    /// Returns an error if the context mismatches, bindings or measured layouts are invalid, the workspace is too small, retaining resources or preparing workspace initializers fails, or a CUDA graph operation or the native update fails.
     pub unsafe fn update_cuda_graph(
         &self,
         context: &Context,
         bindings: &Bindings<'_>,
-        workspace: Option<&mut DeviceMemory<MaybeUninit<u8>>>,
-        graph: &CudaGraph,
+        workspace: Option<DeviceOutputView<'_, u8>>,
+        graph: &mut CudaGraph,
     ) -> Result<()> {
         self.require_context(context)?;
-        // SAFETY: the caller upholds this function's safety contract.
-        // SAFETY: the caller guarantees valid bindings, ordered accesses and retained storage through completion or replay.
+        // SAFETY: this function's contract retains the winner and new storage through replays and the previous storage through older executables, which is the `Bindings` contract `CompiledGraph::update_cuda_graph` requires.
         unsafe {
             self.graph.update_cuda_graph(
                 context,
@@ -187,6 +190,7 @@ impl TunedPlan {
     /// The prepared operation remains valid after this winner is dropped.
     ///
     /// # Safety
+    ///
     /// Retain borrowed and raw allocations in `resources` through completion or replay.
     /// Typed, encoded-byte and retained-region bindings derive graph access declarations automatically.
     /// Raw pointers require explicit access declarations and producer dependencies.
@@ -207,10 +211,8 @@ impl TunedPlan {
         output: T,
     ) -> Result<FrontendExecution<T>> {
         {
-            let context = context.lock().map_err(|_| {
-                Error::Cuda(CudaError::ResourcePoisoned {
-                    name: "cudnn context",
-                })
+            let context = context.lock().map_err(|_| Error::LockPoisoned {
+                name: "cudnn context".into(),
             })?;
             self.require_context(&context)?;
         }
@@ -220,7 +222,7 @@ impl TunedPlan {
             Some(workspace.region().context()),
             "autotuned workspace",
         )?;
-        // SAFETY: this method's caller establishes the ordinary owned-execution resource contract.
+        // SAFETY: this function's `# Safety` section repeats `FrontendExecution::create`'s resource, access and layout obligations, and the workspace context was checked against the measured target above.
         unsafe {
             FrontendExecution::create(
                 context,

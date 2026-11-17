@@ -38,7 +38,7 @@ impl Window<'_> {
     pub fn user_pointer(&self) -> Result<*mut u8> {
         self.communicator.bind()?;
         let mut pointer = ptr::null_mut();
-        // SAFETY: `ncclWinGetUserPtr` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: the window borrows its communicator, so both handles are live, the context is bound, and `pointer` is a local output slot.
         unsafe {
             try_ffi!(sys::ncclWinGetUserPtr(
                 self.communicator.as_raw(),
@@ -49,11 +49,12 @@ impl Window<'_> {
         Ok(pointer.cast())
     }
 
-    /// One-sided communication operation that writes data from the local buffer to a remote peer's registered memory window without explicit participation from the target process.
+    /// Enqueues a one-sided write from this window to a peer's registered window, followed by a signal, without the peer's participation.
     ///
     /// `source` is a byte range in this registered window; `offset` is the byte offset in the peer's corresponding registration of `destination`.
     ///
     /// # Safety
+    ///
     /// The remote window must cover the destination range.
     /// The caller must coordinate remote access, keep both windows registered until all peers finish, and keep signal and context indices within the communicator's configured limits.
     /// CUDA graph executions using these windows must finish before deregistration.
@@ -62,7 +63,7 @@ impl Window<'_> {
     ///
     /// Returns an error if the windows belong to different communicators, the source byte range exceeds the local window, a byte offset overflows, or the peer, signal, or context index is invalid.
     /// Communicator-state checks, stream ownership, CUDA context binding, and NCCL transfer errors are propagated.
-    pub unsafe fn put_signal(
+    pub unsafe fn put_signal_async(
         &self,
         source: Range<u64>,
         destination: &Window<'_>,
@@ -73,8 +74,8 @@ impl Window<'_> {
         stream: &Stream,
     ) -> Result<()> {
         if !ptr::eq(self.communicator, destination.communicator) {
-            return Err(Error::LengthMismatch {
-                name: "window communicator".into(),
+            return Err(Error::ContextMismatch {
+                name: "destination window".into(),
             });
         }
 
@@ -89,7 +90,8 @@ impl Window<'_> {
         self.communicator.validate_signal(peer, signal, context)?;
         self.communicator.ensure_stream(stream)?;
         let start = to_usize(source.start, "window offset")?;
-        // SAFETY: `ncclPutSignal` receives live handles owned by the wrappers.
+        // SAFETY: `source` was checked within `byte_len`, so `pointer.add(start)` stays in the registered window, both windows share this live communicator, and `ensure_stream` matched the stream context.
+        // The caller guarantees the remote range and the signal and context limits.
         unsafe {
             try_ffi!(sys::ncclPutSignal(
                 self.pointer.add(start).cast(),
@@ -117,16 +119,27 @@ impl Communicator {
         Ok(())
     }
 
-    /// Sends a signal to the specified peer without transferring data.
-    /// `signal` and `context` must refer to resources configured on every rank.
+    /// Queues a signal to the specified peer on `stream` without transferring data, and returns before it completes.
+    ///
+    /// # Safety
+    ///
+    /// `signal` and `context` must be within the limits configured on every rank.
+    /// The caller must order this signal with the peer's matching wait and keep the communicator alive until the signal completes, including in CUDA graph replays.
     ///
     /// # Errors
     ///
-    /// Returns an error if the peer, signal, or context index is invalid, the communicator is not active, the stream belongs to another CUDA context, CUDA context binding fails, or NCCL rejects the signal.
-    pub fn signal(&self, peer: i32, signal: i32, context: i32, stream: &Stream) -> Result<()> {
+    /// Returns an error if the peer, signal, or context index is negative or the peer is out of range, the communicator is not active, the stream belongs to another CUDA context, CUDA context binding fails, or NCCL rejects the signal.
+    pub unsafe fn signal_async(
+        &self,
+        peer: i32,
+        signal: i32,
+        context: i32,
+        stream: &Stream,
+    ) -> Result<()> {
         self.ensure_stream(stream)?;
         self.validate_signal(peer, signal, context)?;
-        // SAFETY: `ncclSignal` receives live handles owned by the wrappers.
+        // SAFETY: `ncclSignal` receives the live communicator and a stream checked to share its context.
+        // The caller guarantees the signal and context indices are configured.
         unsafe {
             try_ffi!(sys::ncclSignal(
                 peer,
@@ -140,14 +153,20 @@ impl Communicator {
         Ok(())
     }
 
-    /// Waits for signals as described in the signal descriptor array.
+    /// Queues a wait on `stream` for the signals the descriptors describe, and returns before they arrive.
     /// Each descriptor indicates how many signals to expect from a specific peer on a particular signal index and context.
+    ///
+    /// # Safety
+    ///
+    /// Every signal and context index must be within the limits configured on every rank.
+    /// The peers must eventually send the expected signals, or work queued on `stream` after the wait never runs.
+    /// Keep the communicator alive until the wait completes, including in CUDA graph replays.
     ///
     /// # Errors
     ///
     /// Returns an error if a wait count is not positive, a peer, signal, or context index is invalid, or the number of waits exceeds the native integer range.
     /// Communicator-state checks, stream ownership, CUDA context binding, and NCCL wait errors are propagated.
-    pub fn wait_signals(&self, signals: &[WaitSignal], stream: &Stream) -> Result<()> {
+    pub unsafe fn wait_signals_async(&self, signals: &[WaitSignal], stream: &Stream) -> Result<()> {
         self.ensure_stream(stream)?;
         let count = to_i32(signals.len(), "signal descriptors")?;
         let mut descriptors = signals
@@ -165,7 +184,8 @@ impl Communicator {
                 })
             })
             .collect::<Result<Vec<_>>>()?;
-        // SAFETY: `ncclWaitSignal` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `ncclWaitSignal` receives the live communicator, a stream checked to share its context, and `count` descriptors that outlive the call.
+        // The caller guarantees the signal and context indices are configured.
         unsafe {
             try_ffi!(sys::ncclWaitSignal(
                 count,

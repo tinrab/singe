@@ -2,9 +2,13 @@ mod common;
 
 use std::{env, path::PathBuf, process, time::Instant};
 
-use common::{ExampleResult, invalid_input};
-use singe_cuda::{context::Context, stream::Stream};
+use common::invalid_input;
+use singe_cuda::{
+    context::Context,
+    stream::{Stream, StreamOptions},
+};
 use singe_nvtiff::{
+    allocator::AllocatorSet,
     decode::{DecodeOptions, DecodeRegion, Decoder},
     error::Result,
     image::IfdOffset,
@@ -23,11 +27,11 @@ struct Options {
     verbose: bool,
 }
 
-fn main() -> ExampleResult<()> {
+fn main() -> anyhow::Result<()> {
     let options = Options::parse()?;
 
     let context = Context::create()?;
-    let stream = context.create_stream()?;
+    let stream = context.create_stream(StreamOptions::default())?;
 
     let parse_start = Instant::now();
     let tiff = TiffStream::open_file(&options.file)?;
@@ -37,7 +41,7 @@ fn main() -> ExampleResult<()> {
         parse_start.elapsed()
     );
     if options.verbose {
-        tiff.print()?;
+        common::print_stream_metadata(&tiff)?;
     }
 
     print_geotiff_metadata(&tiff)?;
@@ -47,7 +51,7 @@ fn main() -> ExampleResult<()> {
 }
 
 impl Options {
-    fn parse() -> ExampleResult<Self> {
+    fn parse() -> anyhow::Result<Self> {
         let mut file = None;
         let mut frame_begin = None;
         let mut frame_end = None;
@@ -85,7 +89,7 @@ impl Options {
     }
 }
 
-fn print_geotiff_metadata(tiff: &TiffStream<'_>) -> ExampleResult<()> {
+fn print_geotiff_metadata(tiff: &TiffStream<'_>) -> anyhow::Result<()> {
     for tag in [
         Tag::ModelPixelScale,
         Tag::ModelTiePoint,
@@ -122,7 +126,7 @@ fn print_geotiff_metadata(tiff: &TiffStream<'_>) -> ExampleResult<()> {
     Ok(())
 }
 
-fn decode_images(options: &Options, tiff: &TiffStream<'_>, stream: &Stream) -> ExampleResult<()> {
+fn decode_images(options: &Options, tiff: &TiffStream<'_>, stream: &Stream) -> anyhow::Result<()> {
     let images = tiff.images()?.collect::<Result<Vec<_>>>()?;
     let image_count = u32::try_from(images.len())?;
     if image_count == 0 {
@@ -140,20 +144,20 @@ fn decode_images(options: &Options, tiff: &TiffStream<'_>, stream: &Stream) -> E
         ));
     }
 
-    let ifd_offsets = images[begin as usize..=end as usize]
+    let ifd_offsets = images[usize::try_from(begin)?..=usize::try_from(end)?]
         .iter()
         .map(TiffImage::ifd_offset)
         .collect::<Vec<_>>();
     let image_infos = ifd_offsets
         .iter()
         .map(|ifd_offset| Ok(tiff.image_info(*ifd_offset)?))
-        .collect::<ExampleResult<Vec<_>>>()?;
+        .collect::<anyhow::Result<Vec<_>>>()?;
     let layouts = image_infos
         .iter()
         .map(|info| Ok(info.default_decode_layout()?))
-        .collect::<ExampleResult<Vec<_>>>()?;
+        .collect::<anyhow::Result<Vec<_>>>()?;
 
-    let mut decoder = Decoder::create(stream)?;
+    let mut decoder = Decoder::create(AllocatorSet::new(), stream)?;
     println!(
         "decoding {} image(s), range [{begin}, {end}]",
         ifd_offsets.len()

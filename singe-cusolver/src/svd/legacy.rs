@@ -57,7 +57,7 @@ impl StridedSvdLayout {
     }
 }
 
-pub fn jacobi_columns(m: usize, n: usize, economy: bool) -> (usize, usize) {
+pub(crate) fn jacobi_columns(m: usize, n: usize, economy: bool) -> (usize, usize) {
     if economy {
         (m.min(n), m.min(n))
     } else {
@@ -65,7 +65,7 @@ pub fn jacobi_columns(m: usize, n: usize, economy: bool) -> (usize, usize) {
     }
 }
 
-pub fn jacobi_layout(
+pub(crate) fn jacobi_layout(
     m: usize,
     n: usize,
     mode: EigenMode,
@@ -102,7 +102,7 @@ pub fn jacobi_layout(
     ))
 }
 
-pub fn output_parts<T: DeviceRepr>(
+pub(crate) fn output_parts<T: DeviceRepr>(
     matrix: Option<MatrixOutput<'_, T>>,
     rows: usize,
     columns: usize,
@@ -124,7 +124,12 @@ pub fn output_parts<T: DeviceRepr>(
     ))
 }
 
-pub fn require_matrix(rows: usize, columns: usize, leading: usize, len: usize) -> Result<()> {
+pub(crate) fn require_matrix(
+    rows: usize,
+    columns: usize,
+    leading: usize,
+    len: usize,
+) -> Result<()> {
     MatrixLayout::new(leading).validate(rows, columns)?;
     let required = leading
         .checked_mul(columns)
@@ -167,7 +172,7 @@ fn strided_layout(
     Ok(())
 }
 
-pub fn approximate_layout(
+pub(crate) fn approximate_layout(
     rank: usize,
     m: usize,
     n: usize,
@@ -213,14 +218,14 @@ pub fn approximate_layout(
     ))
 }
 
-pub fn require_strided(len: usize, stride: usize, batch_size: usize) -> Result<()> {
+pub(crate) fn require_strided(len: usize, stride: usize, batch_size: usize) -> Result<()> {
     if len < strided_capacity(stride, batch_size)? {
         return Err(Error::InvalidMatrixShape);
     }
     Ok(())
 }
 
-pub fn strided_output_parts<T: DeviceRepr>(
+pub(crate) fn strided_output_parts<T: DeviceRepr>(
     matrix: Option<StridedBatchedMatrixOutput<'_, T>>,
     rows: usize,
     rank: usize,
@@ -247,7 +252,7 @@ pub fn strided_output_parts<T: DeviceRepr>(
     ))
 }
 
-pub fn validate_output<T: DeviceRepr>(
+pub(crate) fn validate_output<T: DeviceRepr>(
     output: &DeviceOutputView<'_, T>,
     required: usize,
 ) -> Result<()> {

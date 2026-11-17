@@ -2,9 +2,10 @@ mod common;
 
 use std::{env, path::PathBuf, process, time::Instant};
 
-use common::{ExampleResult, invalid_input};
-use singe_cuda::context::Context;
+use common::invalid_input;
+use singe_cuda::{context::Context, stream::StreamOptions};
 use singe_nvtiff::{
+    allocator::AllocatorSet,
     decode::{DecodeOptions, DecodeRegion, Decoder, Rectangle},
     image::{IfdOffset, ImageInfo},
     stream::TiffStream,
@@ -20,13 +21,13 @@ struct Options {
     output_dir: PathBuf,
 }
 
-fn main() -> ExampleResult<()> {
+fn main() -> anyhow::Result<()> {
     let options = Options::parse()?;
     let tiff = TiffStream::open_file(&options.file)?;
     let image_info = tiff.image_info(options.ifd_offset)?;
 
     let context = Context::create()?;
-    let stream = context.create_stream()?;
+    let stream = context.create_stream(StreamOptions::default())?;
 
     let roi = normalized_roi(
         &image_info,
@@ -48,7 +49,7 @@ fn main() -> ExampleResult<()> {
         options.ifd_offset,
         options.file.display()
     );
-    let mut decoder = Decoder::create(&stream)?;
+    let mut decoder = Decoder::create(AllocatorSet::new(), &stream)?;
     decoder.set_options(decode_options)?;
     let start = Instant::now();
     let output = decoder.decode_to_device(&tiff)?;
@@ -68,7 +69,7 @@ fn main() -> ExampleResult<()> {
 }
 
 impl Options {
-    fn parse() -> ExampleResult<Self> {
+    fn parse() -> anyhow::Result<Self> {
         let mut file = None;
         let mut ifd_offset = IfdOffset::new(0);
         let mut roi = None;
@@ -105,7 +106,7 @@ impl Options {
     }
 }
 
-fn normalized_roi(image_info: &ImageInfo, roi: (i32, i32, i32, i32)) -> ExampleResult<Rectangle> {
+fn normalized_roi(image_info: &ImageInfo, roi: (i32, i32, i32, i32)) -> anyhow::Result<Rectangle> {
     let (x, y, width, height) = roi;
     if x < 0 || y < 0 {
         return Err(invalid_input("ROI offsets must be non-negative"));

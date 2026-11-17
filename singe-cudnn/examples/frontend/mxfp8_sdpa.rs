@@ -3,23 +3,26 @@ mod common;
 use std::env::args;
 
 use singe_cudnn::{
-    backend::tensor::{Shape, TensorSpec},
+    backend::operation::{attention::SoftmaxStatsBase, block_scale::BlockScaleQuantizeOutputs},
     data_type::DataType,
     error::Result,
     frontend::{
         composite::sdpa::{SdpaForwardOutputTensors, SdpaMxfp8Inputs},
-        graph::{
-            BlockScaleQuantizeOutputs, DataTypePolicy, Graph, GraphConfig, TensorOutputConfig,
-        },
+        graph::{DataTypePolicy, Graph, GraphConfig, TensorOutputConfig},
         operation::{
             AttentionConfig, AttentionDiagonalAlignment, AttentionDiagonalBand,
             AttentionImplementation, AttentionMaskMode, AttentionPagedKvCache,
-            AttentionScoreConfig, BlockScaleQuantizeConfig, MatmulConfig, SoftmaxStatsBase,
+            AttentionScoreConfig, BlockScaleQuantizeConfig, MatmulConfig,
         },
         plan::{CompileConfig, HeuristicMode},
     },
+    tensor::{Shape, TensorSpec},
 };
 
+#[expect(
+    clippy::many_single_char_names,
+    reason = "keeps the upstream sample's single-letter dimension names"
+)]
 fn run() -> Result<()> {
     let context = common::ExampleContext::create()?;
 
@@ -33,7 +36,7 @@ fn run() -> Result<()> {
     let output_type = if args().any(|argument| argument == "--fp16-output") {
         DataType::F16
     } else {
-        DataType::BF16
+        DataType::Bf16
     };
     let b = 2_i64;
     let h = 2_i64;
@@ -141,9 +144,9 @@ fn run() -> Result<()> {
         .then_some(s);
     let output = TensorOutputConfig::new().with_data_type(output_type);
     let stats_base = SoftmaxStatsBase::Log2;
-    let outputs = graph.sdpa_mxfp8(
+    let outputs = graph.sdpa(
         SdpaMxfp8Inputs::new(q, k, v, scale_q, scale_k, scale_v, attention_scale),
-        &AttentionConfig::new()
+        AttentionConfig::new()
             .with_implementation(if generated_scales {
                 AttentionImplementation::Composite
             } else {
@@ -185,7 +188,7 @@ fn run() -> Result<()> {
     };
     let stats = outputs.stats;
     let absolute_max_o = outputs.absolute_max_output;
-    println!("MXFP8 statistics encoding: {:?}", stats_base);
+    println!("MXFP8 statistics encoding: {stats_base:?}");
 
     for output in [Some(o), stats, absolute_max_o].into_iter().flatten() {
         graph.mark_as_output(output)?;
@@ -198,6 +201,6 @@ fn run() -> Result<()> {
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_mxfp8_sdpa", run())
 }

@@ -1,8 +1,13 @@
-use std::{fmt, marker::PhantomData, mem::MaybeUninit, ptr, slice};
+use std::{
+    fmt,
+    marker::PhantomData,
+    mem::{ManuallyDrop, MaybeUninit},
+    ptr, slice,
+};
 
-use singe_core::string_from_c_chars;
+use singe_core::{report_cleanup_failure, string_from_c_chars};
 use singe_cuda::{
-    stream::Stream,
+    stream::{Stream, StreamOptions},
     view::{DeviceOutputView, DeviceRegion, DeviceSlice, DeviceSliceMut},
 };
 use singe_nvimagecodec_sys as sys;
@@ -12,9 +17,10 @@ use crate::{
     instance::{Instance, InstanceRef},
     try_ffi,
     types::{
-        ChromaSubsampling, ColorSpec, ImageBufferKind, JpegEncoding, SampleDataType, SampleFormat,
+        ChromaSubsampling, ColorSpec, ImageBufferKind, JpegEncoding, NativeStruct, SampleDataType,
+        SampleFormat,
     },
-    utility::{NativeStruct, to_u32, to_u64, to_usize, validate_host_buffer_len},
+    utility::{to_u32, to_u64, to_usize},
 };
 
 /// Rotation in quarter turns clockwise, and horizontal and vertical flips.
@@ -164,9 +170,12 @@ impl ImagePlaneInfo {
     }
 
     /// Returns the type of each sample.
-    #[must_use]
-    pub fn sample_type(&self) -> SampleDataType {
-        self.raw.sample_type.into()
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the library reports a value this crate does not name.
+    pub fn sample_type(&self) -> Result<SampleDataType> {
+        Ok(self.raw.sample_type.try_into()?)
     }
 
     /// Returns the number of significant bits per sample, or 0 for the full bit depth of the sample type.
@@ -262,7 +271,7 @@ impl<'a> ImageInfo<'a> {
         sample_format: SampleFormat,
         planes: &[ImagePlaneInfo],
     ) -> Result<Self> {
-        // SAFETY: the host buffer stays borrowed for the image lifetime and covers `byte_len` bytes.
+        // SAFETY: `buffer` is initialized and borrowed exclusively for `'a`, as `InputOutput` requires, and `byte_len` is its length.
         unsafe {
             Self::from_buffer(
                 ImageBuffer::Host {
@@ -286,7 +295,7 @@ impl<'a> ImageInfo<'a> {
         sample_format: SampleFormat,
         planes: &[ImagePlaneInfo],
     ) -> Result<Self> {
-        // SAFETY: the host buffer stays borrowed for the image lifetime and covers `byte_len` bytes.
+        // SAFETY: `buffer` is initialized and borrowed for `'a`, `Input` lets nvImageCodec only read it, and `byte_len` is its length.
         unsafe {
             Self::from_buffer(
                 ImageBuffer::Host {
@@ -310,7 +319,7 @@ impl<'a> ImageInfo<'a> {
         sample_format: SampleFormat,
         planes: &[ImagePlaneInfo],
     ) -> Result<Self> {
-        // SAFETY: the host buffer stays borrowed for the image lifetime and covers `byte_len` bytes.
+        // SAFETY: `buffer` is borrowed exclusively for `'a`, `Output` marks it uninitialized, and `byte_len` is its length.
         unsafe {
             Self::from_buffer(
                 ImageBuffer::Host {
@@ -336,7 +345,7 @@ impl<'a> ImageInfo<'a> {
         sample_format: SampleFormat,
         planes: &[ImagePlaneInfo],
     ) -> Result<Self> {
-        // SAFETY: the device region stays borrowed for the image lifetime with the access mode declared here.
+        // SAFETY: `DeviceSliceMut` gives an initialized region of its own context, borrowed exclusively for `'a`, as `InputOutput` requires.
         unsafe {
             Self::from_buffer(
                 ImageBuffer::Device(buffer.region()),
@@ -359,7 +368,7 @@ impl<'a> ImageInfo<'a> {
         sample_format: SampleFormat,
         planes: &[ImagePlaneInfo],
     ) -> Result<Self> {
-        // SAFETY: the device region stays borrowed for the image lifetime with the access mode declared here.
+        // SAFETY: `DeviceSlice` gives an initialized region of its own context, borrowed for `'a`, and `Input` lets nvImageCodec only read it.
         unsafe {
             Self::from_buffer(
                 ImageBuffer::Device(buffer.region()),
@@ -384,7 +393,7 @@ impl<'a> ImageInfo<'a> {
         sample_format: SampleFormat,
         planes: &[ImagePlaneInfo],
     ) -> Result<Self> {
-        // SAFETY: the device region stays borrowed for the image lifetime with the access mode declared here.
+        // SAFETY: the output view is borrowed exclusively for `'a` in its own context, and `Output` marks it uninitialized.
         unsafe {
             Self::from_buffer(
                 ImageBuffer::Device(buffer.into_region()),
@@ -432,15 +441,18 @@ impl<'a> ImageInfo<'a> {
         let mut offset = 0_usize;
         for plane in planes {
             let alignment = plane
-                .sample_type()
+                .sample_type()?
                 .byte_size()
                 .ok_or_else(|| Error::Unsupported {
                     name: "sample_type".into(),
                 })?;
-            if !(pointer as usize)
+            if !pointer
+                .addr()
                 .wrapping_add(offset)
                 .is_multiple_of(alignment)
-                || !plane.row_stride().is_multiple_of(alignment as u64)
+                || !plane
+                    .row_stride()
+                    .is_multiple_of(to_u64(alignment, "sample_alignment")?)
             {
                 return Err(Error::out_of_range("sample_alignment"));
             }
@@ -448,7 +460,7 @@ impl<'a> ImageInfo<'a> {
             offset = offset
                 .checked_add(
                     (to_usize(plane.row_stride(), "plane row stride")?)
-                        .checked_mul(plane.height() as usize)
+                        .checked_mul(to_usize(plane.height(), "plane height")?)
                         .ok_or_else(|| Error::out_of_range("plane_size"))?,
                 )
                 .ok_or_else(|| Error::out_of_range("buffer"))?;
@@ -464,7 +476,7 @@ impl<'a> ImageInfo<'a> {
         }
 
         if let ImageBuffer::Device(region) = &buffer {
-            let stream = region.context().create_stream()?;
+            let stream = region.context().create_stream(StreamOptions::default())?;
             info.set_stream(&stream)?;
         }
 
@@ -561,21 +573,30 @@ impl<'a> ImageInfo<'a> {
     }
 
     /// Returns how the codec interprets the color channels.
-    #[must_use]
-    pub fn color_spec(&self) -> ColorSpec {
-        self.raw.color_spec.into()
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the library reports a value this crate does not name.
+    pub fn color_spec(&self) -> Result<ColorSpec> {
+        Ok(self.raw.color_spec.try_into()?)
     }
 
     /// Returns the chroma subsampling.
-    #[must_use]
-    pub fn chroma_subsampling(&self) -> ChromaSubsampling {
-        self.raw.chroma_subsampling.into()
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the library reports a value this crate does not name.
+    pub fn chroma_subsampling(&self) -> Result<ChromaSubsampling> {
+        Ok(self.raw.chroma_subsampling.try_into()?)
     }
 
     /// Returns how color channels are arranged in channels and planes.
-    #[must_use]
-    pub fn sample_format(&self) -> SampleFormat {
-        self.raw.sample_format.into()
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the library reports a value this crate does not name.
+    pub fn sample_format(&self) -> Result<SampleFormat> {
+        Ok(self.raw.sample_format.try_into()?)
     }
 
     /// Returns the number of planes.
@@ -590,23 +611,30 @@ impl<'a> ImageInfo<'a> {
         self.raw
             .plane_info
             .get(index)
-            .filter(|_| index < self.raw.num_planes as usize)
+            .filter(|_| usize::try_from(self.raw.num_planes).is_ok_and(|count| index < count))
             .copied()
             .map(|raw| ImagePlaneInfo { raw })
     }
 
     /// Returns an iterator over the planes.
     pub fn planes(&self) -> impl Iterator<Item = ImagePlaneInfo> + '_ {
-        self.raw.plane_info[..(self.raw.num_planes as usize).min(self.raw.plane_info.len())]
+        let count = usize::try_from(self.raw.num_planes)
+            .map_or(self.raw.plane_info.len(), |count| {
+                count.min(self.raw.plane_info.len())
+            });
+        self.raw.plane_info[..count]
             .iter()
             .copied()
             .map(|raw| ImagePlaneInfo { raw })
     }
 
     /// Returns whether the pixels are in host or device memory.
-    #[must_use]
-    pub fn buffer_kind(&self) -> ImageBufferKind {
-        self.raw.buffer_kind.into()
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the library reports a value this crate does not name.
+    pub fn buffer_kind(&self) -> Result<ImageBufferKind> {
+        Ok(self.raw.buffer_kind.try_into()?)
     }
 
     fn rebuild_extension_chain(&mut self) {
@@ -661,21 +689,20 @@ pub struct Image<'a> {
 /// Destroy the handle before dropping this value, or pass it back to [`Image::from_raw`].
 #[derive(Debug)]
 pub struct RawImage<'a> {
-    /// Native image handle.
+    /// Native image handle, owned exclusively.
     pub handle: sys::nvimgcodecImage_t,
-    owner: Image<'a>,
+    /// Instance the handle was created with.
+    pub instance: Instance,
+    /// Description of the image and the pixel memory it borrows.
+    pub info: ImageInfo<'a>,
 }
 
-// SAFETY: native images are exclusively owned, and safe submissions finish before returning.
-// Moving the owner also moves its backing-storage borrow and retained stream.
 #[expect(
     clippy::non_send_fields_in_send_ty,
     reason = "native owners transfer their handles and storage borrows under the adjacent safety contract"
 )]
+// SAFETY: nvImageCodec does not bind an image to its creating thread, and without `Sync` one thread uses it at a time; the pixel-memory borrow, which is `Send` as a byte slice, and the retained stream move with it, and safe submissions finish before returning.
 unsafe impl Send for Image<'_> {}
-
-// SAFETY: the transfer carries the same exclusive image ownership and sample borrow.
-unsafe impl Send for RawImage<'_> {}
 
 impl<'a> Image<'a> {
     pub(crate) fn instance(&self) -> &InstanceRef {
@@ -695,7 +722,7 @@ impl<'a> Image<'a> {
         }
 
         let mut raw = ptr::null_mut();
-        // SAFETY: `nvimgcodecImageCreate` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `instance` is live, `image_info` describes pixel memory its constructor validated and that stays borrowed for `'a` in the returned image, and `raw` is a writable local.
         unsafe {
             try_ffi!(sys::nvimgcodecImageCreate(
                 instance.as_raw(),
@@ -713,111 +740,6 @@ impl<'a> Image<'a> {
             instance: instance.as_instance_ref(),
             info: image_info,
         })
-    }
-
-    /// Creates an image for `instance` from initialized, writable host pixels in `buffer`.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if [`ImageInfo::from_host_buffer`] fails or nvImageCodec fails to create the image.
-    pub fn from_host_buffer(
-        instance: &Instance,
-        buffer: &'a mut [u8],
-        sample_format: SampleFormat,
-        planes: &[ImagePlaneInfo],
-    ) -> Result<Self> {
-        Self::create(
-            instance,
-            ImageInfo::from_host_buffer(buffer, sample_format, planes)?,
-        )
-    }
-
-    /// Creates an image for `instance` from initialized, read-only host pixels in `buffer`, for encoding.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if [`ImageInfo::from_host_input`] fails or nvImageCodec fails to create the image.
-    pub fn from_host_input(
-        instance: &Instance,
-        buffer: &'a [u8],
-        sample_format: SampleFormat,
-        planes: &[ImagePlaneInfo],
-    ) -> Result<Self> {
-        Self::create(
-            instance,
-            ImageInfo::from_host_input(buffer, sample_format, planes)?,
-        )
-    }
-
-    /// Creates an image for `instance` that decodes into uninitialized host memory in `buffer`.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if [`ImageInfo::from_host_output`] fails or nvImageCodec fails to create the image.
-    pub fn from_host_output(
-        instance: &Instance,
-        buffer: &'a mut [MaybeUninit<u8>],
-        sample_format: SampleFormat,
-        planes: &[ImagePlaneInfo],
-    ) -> Result<Self> {
-        Self::create(
-            instance,
-            ImageInfo::from_host_output(buffer, sample_format, planes)?,
-        )
-    }
-
-    /// Creates an image for `instance` from initialized, writable device pixels in `buffer`.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if [`ImageInfo::from_device_buffer_mut`] fails or nvImageCodec fails to create the image.
-    pub fn from_device_buffer_mut<B>(
-        instance: &Instance,
-        buffer: &'a mut B,
-        sample_format: SampleFormat,
-        planes: &[ImagePlaneInfo],
-    ) -> Result<Self>
-    where
-        B: DeviceSliceMut<u8> + ?Sized,
-    {
-        Self::create(
-            instance,
-            ImageInfo::from_device_buffer_mut(buffer, sample_format, planes)?,
-        )
-    }
-
-    /// Creates an image for `instance` from initialized, read-only device pixels in `buffer`, for encoding.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if [`ImageInfo::from_device_buffer`] fails or nvImageCodec fails to create the image.
-    pub fn from_device_buffer<B: DeviceSlice<u8> + ?Sized>(
-        instance: &Instance,
-        buffer: &'a B,
-        sample_format: SampleFormat,
-        planes: &[ImagePlaneInfo],
-    ) -> Result<Self> {
-        Self::create(
-            instance,
-            ImageInfo::from_device_buffer(buffer, sample_format, planes)?,
-        )
-    }
-
-    /// Creates an image for `instance` that decodes into uninitialized device memory in `buffer`.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if [`ImageInfo::from_device_output`] fails or nvImageCodec fails to create the image.
-    pub fn from_device_output(
-        instance: &Instance,
-        buffer: DeviceOutputView<'a, u8>,
-        sample_format: SampleFormat,
-        planes: &[ImagePlaneInfo],
-    ) -> Result<Self> {
-        Self::create(
-            instance,
-            ImageInfo::from_device_output(buffer, sample_format, planes)?,
-        )
     }
 
     /// Returns how the image may use its pixel memory.
@@ -865,24 +787,28 @@ impl<'a> Image<'a> {
         let current = planes
             .get(plane)
             .ok_or_else(|| Error::out_of_range("plane"))?;
-        if row >= current.height() as usize {
+        if row >= to_usize(current.height(), "height")? {
             return Err(Error::out_of_range("row"));
         }
 
         // Construction validated the full plane extents and sample alignment.
         let mut offset = row * to_usize(current.row_stride(), "row stride")?;
         for previous in &planes[..plane] {
-            offset += to_usize(previous.row_stride(), "row stride")? * previous.height() as usize;
+            offset += to_usize(previous.row_stride(), "row stride")?
+                * to_usize(previous.height(), "height")?;
         }
 
-        let sample_bytes = current
-            .sample_type()
-            .byte_size()
-            .ok_or_else(|| Error::Unsupported {
-                name: "sample type".into(),
-            })?;
-        let bytes = current.width() as usize * current.num_channels() as usize * sample_bytes;
-        // SAFETY: the plane lies inside the host buffer that this image borrows.
+        let sample_bytes =
+            current
+                .sample_type()?
+                .byte_size()
+                .ok_or_else(|| Error::Unsupported {
+                    name: "sample type".into(),
+                })?;
+        let bytes = to_usize(current.width(), "width")?
+            * to_usize(current.num_channels(), "num_channels")?
+            * sample_bytes;
+        // SAFETY: construction checked every plane against the length of the host buffer this image borrows, and `row` is below the plane height, so the row lies inside it; the access check above means the bytes are initialized.
         Ok(unsafe { slice::from_raw_parts(pointer.cast::<u8>().add(offset), bytes) })
     }
 
@@ -904,7 +830,7 @@ impl<'a> Image<'a> {
             if self.info.stream.is_none() {
                 self.info.set_stream(default)?;
                 // nvImageCodec explicitly supports reusing an existing image handle.
-                // SAFETY: `nvimgcodecImageCreate` receives live handles owned by the wrappers and valid output locations.
+                // SAFETY: `self.raw` is this image's live handle, `self.instance` is live, and `self.info` describes the same validated pixel memory with the new stream.
                 unsafe {
                     try_ffi!(sys::nvimgcodecImageCreate(
                         self.instance.as_raw(),
@@ -946,59 +872,51 @@ impl<'a> Image<'a> {
         self.raw
     }
 
-    /// Takes ownership of a native image created outside this crate, described by `info`.
+    /// Takes ownership of a native image, from [`into_raw`](Self::into_raw) or created outside this crate.
     ///
     /// # Safety
     ///
-    /// `raw` must be owned by nobody else, created with `instance`, and match `info` exactly.
-    /// All CPU and GPU work that used it must have finished.
+    /// `raw.handle` must be valid, owned by nobody else, created with `raw.instance`, and match `raw.info` exactly.
+    /// All CPU and GPU work that used it outside this crate must have finished.
     ///
     /// # Errors
     ///
-    /// Returns an error if `raw` is null or `info` has no pixel memory.
-    pub unsafe fn from_raw_parts(
-        instance: &Instance,
-        raw: sys::nvimgcodecImage_t,
-        info: ImageInfo<'a>,
-    ) -> Result<Self> {
-        if raw.is_null() {
+    /// Returns [`Error::NullHandle`] if `raw.handle` is null.
+    /// Returns an error if `raw.info` has no pixel memory.
+    pub unsafe fn from_raw(raw: RawImage<'a>) -> Result<Self> {
+        if raw.handle.is_null() {
             return Err(Error::NullHandle);
         }
 
-        if info.binding.is_none() {
+        if raw.info.binding.is_none() {
             return Err(Error::Unsupported {
                 name: "image_without_sample_storage".into(),
             });
         }
         Ok(Self {
-            raw,
-            instance: instance.as_instance_ref(),
-            info,
+            raw: raw.handle,
+            instance: raw.instance.into_instance_ref(),
+            info: raw.info,
         })
-    }
-
-    /// Takes back ownership of a handle from [`into_raw`](Self::into_raw).
-    ///
-    /// # Safety
-    ///
-    /// The handle must still be valid and owned by nobody else, with its metadata unchanged.
-    /// All work that used it outside this crate must have finished.
-    #[must_use]
-    pub unsafe fn from_raw(mut raw: RawImage<'a>) -> Self {
-        raw.owner.raw = raw.handle;
-        raw.owner
     }
 
     /// Releases the native handle with the values that keep it valid.
     ///
     /// Destroy the handle or pass it back to [`from_raw`](Self::from_raw).
     #[must_use]
-    pub fn into_raw(mut self) -> RawImage<'a> {
-        let handle = self.raw;
-        self.raw = ptr::null_mut();
+    pub fn into_raw(self) -> RawImage<'a> {
+        let this = ManuallyDrop::new(self);
+        // SAFETY: `this` is never dropped, so each owning field moves out exactly once.
+        let (instance, info) = unsafe {
+            (
+                ptr::read(&raw const this.instance),
+                ptr::read(&raw const this.info),
+            )
+        };
         RawImage {
-            handle,
-            owner: self,
+            handle: this.raw,
+            instance: instance.into_instance(),
+            info,
         }
     }
 }
@@ -1006,25 +924,96 @@ impl<'a> Image<'a> {
 impl Drop for Image<'_> {
     fn drop(&mut self) {
         if !self.raw.is_null() {
-            // SAFETY: `nvimgcodecImageDestroy` receives live handles owned by the wrappers.
-            unsafe {
-                if let Err(error) = try_ffi!(sys::nvimgcodecImageDestroy(self.raw)) {
-                    eprintln!(
-                        "failed to free nvimagecodec image: {}",
-                        singe_core::ErrorChain(&error)
-                    );
-                }
+            // SAFETY: `self.raw` is the live image this value owns, and safe submissions finished before returning, while raw ones must finish first under the crate's raw execution contract.
+            if let Err(error) = unsafe { try_ffi!(sys::nvimgcodecImageDestroy(self.raw)) } {
+                report_cleanup_failure("destroy", "nvimagecodec image", &error);
             }
         }
     }
 }
 
-#[cfg(test)]
+fn validate_host_buffer_len(buffer_len: usize, planes: &[ImagePlaneInfo]) -> Result<()> {
+    validate_image_planes(planes)?;
+    let required = host_buffer_len(planes)?;
+    if buffer_len < required {
+        return Err(Error::BufferTooSmall {
+            name: "buffer".into(),
+            required,
+            actual: buffer_len,
+        });
+    }
+
+    Ok(())
+}
+
+fn validate_image_planes(planes: &[ImagePlaneInfo]) -> Result<()> {
+    if planes.is_empty() {
+        return Err(Error::Empty {
+            name: "planes".into(),
+        });
+    }
+
+    if planes.len() > sys::NVIMGCODEC_MAX_NUM_PLANES as usize {
+        return Err(Error::out_of_range("planes"));
+    }
+
+    Ok(())
+}
+
+fn host_buffer_len(planes: &[ImagePlaneInfo]) -> Result<usize> {
+    let mut len = 0_usize;
+    for (index, plane) in planes.iter().enumerate() {
+        len = len
+            .checked_add(host_plane_len(index, *plane)?)
+            .ok_or_else(|| Error::out_of_range("buffer"))?;
+    }
+
+    Ok(len)
+}
+
+fn host_plane_len(index: usize, plane: ImagePlaneInfo) -> Result<usize> {
+    let width = to_usize(plane.width(), &format!("planes[{index}].width"))?;
+    let height = to_usize(plane.height(), &format!("planes[{index}].height"))?;
+    let channels = to_usize(
+        plane.num_channels(),
+        &format!("planes[{index}].num_channels"),
+    )?;
+    if width == 0 || height == 0 || channels == 0 {
+        return Err(Error::Empty {
+            name: format!("planes[{index}]").into(),
+        });
+    }
+
+    let sample_bytes = plane
+        .sample_type()?
+        .byte_size()
+        .ok_or_else(|| Error::Unsupported {
+            name: format!("planes[{index}].sample_type").into(),
+        })?;
+    let row_bytes = width
+        .checked_mul(channels)
+        .and_then(|value| value.checked_mul(sample_bytes))
+        .ok_or_else(|| Error::out_of_range(format!("planes[{index}].row_bytes")))?;
+    let row_stride = to_usize(plane.row_stride(), &format!("planes[{index}].row_stride"))?;
+    if row_stride < row_bytes {
+        return Err(Error::BufferTooSmall {
+            name: format!("planes[{index}].row_stride").into(),
+            required: row_bytes,
+            actual: row_stride,
+        });
+    }
+
+    row_stride
+        .checked_mul(height)
+        .ok_or_else(|| Error::out_of_range(format!("planes[{index}]")))
+}
+
+#[cfg(all(test, feature = "testing"))]
 mod tests {
-    use singe_cuda::{memory::DeviceMemory, testing::bootstrap_for_device};
+    use singe_cuda::memory::DeviceMemory;
 
     use super::*;
-    use crate::types::JpegEncoding;
+    use crate::{testing::setup_context, types::JpegEncoding};
 
     #[test]
     fn test_image_info_from_host_buffer_rejects_short_buffer() -> Result<()> {
@@ -1035,8 +1024,8 @@ mod tests {
 
         assert!(matches!(
             result,
-            Err(Error::LengthMismatch { name, expected, actual })
-                if name == "buffer" && expected == 8 && actual == 7
+            Err(Error::BufferTooSmall { name, required, actual })
+                if name == "buffer" && required == 8 && actual == 7
         ));
         Ok(())
     }
@@ -1048,25 +1037,30 @@ mod tests {
 
         let image_info = ImageInfo::from_host_buffer(&mut buffer, SampleFormat::PlanarY, &planes)?;
 
-        assert_eq!(image_info.buffer_kind(), ImageBufferKind::StridedHost);
-        assert_eq!(image_info.sample_format(), SampleFormat::PlanarY);
+        assert_eq!(
+            image_info.buffer_kind().unwrap(),
+            ImageBufferKind::StridedHost
+        );
+        assert_eq!(image_info.sample_format().unwrap(), SampleFormat::PlanarY);
         assert_eq!(image_info.num_planes(), 1);
         Ok(())
     }
 
-    #[cfg(feature = "testing")]
     #[test]
     fn test_image_info_from_device_buffer_accepts_declared_layout() -> Result<()> {
         let planes = [ImagePlaneInfo::create(4, 2, 4, 1, SampleDataType::U8)?];
-        let (_lock, context) = bootstrap_for_device(0)?;
-        let mut buffer = DeviceMemory::from_slice(&context, &[1_u8; 8])?;
+        let test = setup_context()?;
+        let mut buffer = DeviceMemory::from_slice(test.cuda_context(), &[1_u8; 8])?;
         let mut view = buffer.view_mut();
 
         let image_info =
             ImageInfo::from_device_buffer_mut(&mut view, SampleFormat::PlanarY, &planes)?;
 
-        assert_eq!(image_info.buffer_kind(), ImageBufferKind::StridedDevice);
-        assert_eq!(image_info.sample_format(), SampleFormat::PlanarY);
+        assert_eq!(
+            image_info.buffer_kind().unwrap(),
+            ImageBufferKind::StridedDevice
+        );
+        assert_eq!(image_info.sample_format().unwrap(), SampleFormat::PlanarY);
         assert_eq!(image_info.num_planes(), 1);
         Ok(())
     }

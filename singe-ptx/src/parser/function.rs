@@ -76,7 +76,7 @@ fn has_return_param_list(input: Input<'_>) -> PResult<'_, ()> {
     Ok((input, ()))
 }
 
-pub fn function(input: Input<'_>) -> PResult<'_, Function> {
+pub(crate) fn function(input: Input<'_>) -> PResult<'_, Function> {
     let (input, ()) = lexical::ws(input)?;
     let start = input.location_offset();
     let (input, linkage) = opt(lexeme(linking_directive)).parse(input)?;

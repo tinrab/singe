@@ -5,7 +5,7 @@ use singe_cuda::types::f16;
 #[cfg(any(feature = "dtype_bf16", feature = "dtype_f16", feature = "dtype_f32"))]
 use singe_cuda::{
     stream::Stream,
-    view::{DeviceInput, DeviceOutput},
+    view::{DeviceOutput, DeviceRange},
 };
 
 #[cfg(any(feature = "dtype_bf16", feature = "dtype_f16"))]
@@ -29,9 +29,9 @@ pub unsafe fn softcapped_window_decode_splitk_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
     lse: &mut impl DeviceOutput<f32>,
-    query: &impl DeviceInput<f32>,
-    key: &impl DeviceInput<f32>,
-    value: &impl DeviceInput<f32>,
+    query: &impl DeviceRange<f32>,
+    key: &impl DeviceRange<f32>,
+    value: &impl DeviceRange<f32>,
     config: SoftcappedWindowDecodeSplitKConfig,
 ) -> Result<()> {
     config.validate_lengths(out.len(), lse.len(), query.len(), key.len(), value.len())?;
@@ -82,9 +82,9 @@ pub unsafe fn softcapped_window_decode_splitk_f16(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
     lse: &mut impl DeviceOutput<f32>,
-    query: &impl DeviceInput<f16>,
-    key: &impl DeviceInput<f16>,
-    value: &impl DeviceInput<f16>,
+    query: &impl DeviceRange<f16>,
+    key: &impl DeviceRange<f16>,
+    value: &impl DeviceRange<f16>,
     config: SoftcappedWindowDecodeSplitKConfig,
 ) -> Result<()> {
     config.validate_lengths(out.len(), lse.len(), query.len(), key.len(), value.len())?;
@@ -135,9 +135,9 @@ pub unsafe fn softcapped_window_decode_splitk_bf16(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
     lse: &mut impl DeviceOutput<f32>,
-    query: &impl DeviceInput<bf16>,
-    key: &impl DeviceInput<bf16>,
-    value: &impl DeviceInput<bf16>,
+    query: &impl DeviceRange<bf16>,
+    key: &impl DeviceRange<bf16>,
+    value: &impl DeviceRange<bf16>,
     config: SoftcappedWindowDecodeSplitKConfig,
 ) -> Result<()> {
     config.validate_lengths(out.len(), lse.len(), query.len(), key.len(), value.len())?;
@@ -188,9 +188,9 @@ pub unsafe fn fmha_decode_splitk_f16(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
     lse: &mut impl DeviceOutput<f32>,
-    query: &impl DeviceInput<f16>,
-    key: &impl DeviceInput<f16>,
-    value: &impl DeviceInput<f16>,
+    query: &impl DeviceRange<f16>,
+    key: &impl DeviceRange<f16>,
+    value: &impl DeviceRange<f16>,
     config: FmhaDecodeSplitKConfig,
 ) -> Result<()> {
     config.validate_lengths(out.len(), lse.len(), query.len(), key.len(), value.len())?;
@@ -238,9 +238,9 @@ pub unsafe fn fmha_decode_splitk_bf16(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
     lse: &mut impl DeviceOutput<f32>,
-    query: &impl DeviceInput<bf16>,
-    key: &impl DeviceInput<bf16>,
-    value: &impl DeviceInput<bf16>,
+    query: &impl DeviceRange<bf16>,
+    key: &impl DeviceRange<bf16>,
+    value: &impl DeviceRange<bf16>,
     config: FmhaDecodeSplitKConfig,
 ) -> Result<()> {
     config.validate_lengths(out.len(), lse.len(), query.len(), key.len(), value.len())?;
@@ -288,10 +288,10 @@ pub unsafe fn attention_sink_decode_splitk_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
     lse: &mut impl DeviceOutput<f32>,
-    query: &impl DeviceInput<f32>,
-    key: &impl DeviceInput<f32>,
-    value: &impl DeviceInput<f32>,
-    sinks: &impl DeviceInput<f32>,
+    query: &impl DeviceRange<f32>,
+    key: &impl DeviceRange<f32>,
+    value: &impl DeviceRange<f32>,
+    sinks: &impl DeviceRange<f32>,
     config: AttentionSinkDecodeSplitKConfig,
 ) -> Result<()> {
     config.validate_lengths(
@@ -349,10 +349,10 @@ pub unsafe fn attention_sink_decode_splitk_f16(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
     lse: &mut impl DeviceOutput<f32>,
-    query: &impl DeviceInput<f16>,
-    key: &impl DeviceInput<f16>,
-    value: &impl DeviceInput<f16>,
-    sinks: &impl DeviceInput<f32>,
+    query: &impl DeviceRange<f16>,
+    key: &impl DeviceRange<f16>,
+    value: &impl DeviceRange<f16>,
+    sinks: &impl DeviceRange<f32>,
     config: AttentionSinkDecodeSplitKConfig,
 ) -> Result<()> {
     config.validate_lengths(
@@ -411,10 +411,10 @@ pub unsafe fn attention_sink_decode_splitk_bf16(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
     lse: &mut impl DeviceOutput<f32>,
-    query: &impl DeviceInput<bf16>,
-    key: &impl DeviceInput<bf16>,
-    value: &impl DeviceInput<bf16>,
-    sinks: &impl DeviceInput<f32>,
+    query: &impl DeviceRange<bf16>,
+    key: &impl DeviceRange<bf16>,
+    value: &impl DeviceRange<bf16>,
+    sinks: &impl DeviceRange<f32>,
     config: AttentionSinkDecodeSplitKConfig,
 ) -> Result<()> {
     config.validate_lengths(

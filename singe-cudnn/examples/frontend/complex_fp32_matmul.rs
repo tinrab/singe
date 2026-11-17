@@ -2,7 +2,6 @@ mod common;
 
 use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
-    backend::tensor::{Shape, TensorSpec},
     data_type::{Complex32, DataType},
     error::Result,
     frontend::{
@@ -10,6 +9,7 @@ use singe_cudnn::{
         operation::MatmulConfig,
         plan::{CompileConfig, ExecuteArgs, HeuristicMode},
     },
+    tensor::{Shape, TensorSpec},
 };
 
 fn init_complex_image(size: usize, seed: &mut u32) -> Vec<Complex32> {
@@ -22,6 +22,10 @@ fn init_complex_image(size: usize, seed: &mut u32) -> Vec<Complex32> {
         .collect()
 }
 
+#[expect(
+    clippy::many_single_char_names,
+    reason = "keeps the upstream sample's single-letter dimension names"
+)]
 fn run() -> Result<()> {
     let example = common::ExampleContext::create()?;
 
@@ -53,8 +57,8 @@ fn run() -> Result<()> {
             .with_data_type(DataType::ComplexF32)
             .output_tensor(),
     )?;
-    let input_a_elements = graph.shape(a)?.storage_span()?;
-    let input_b_elements = graph.shape(b_tensor)?.storage_span()?;
+    let a_input_elements = graph.shape(a)?.storage_span()?;
+    let b_input_elements = graph.shape(b_tensor)?.storage_span()?;
     let output_elements = graph.shape(c)?.storage_span()?;
     let compiled = graph.compile(
         Some(&example.cudnn),
@@ -64,11 +68,11 @@ fn run() -> Result<()> {
     let mut seed = 123_456_789;
     let a_dev = DeviceMemory::<Complex32>::from_slice(
         cuda,
-        &init_complex_image(input_a_elements, &mut seed),
+        &init_complex_image(a_input_elements, &mut seed),
     )?;
     let b_dev = DeviceMemory::<Complex32>::from_slice(
         cuda,
-        &init_complex_image(input_b_elements, &mut seed),
+        &init_complex_image(b_input_elements, &mut seed),
     )?;
     let mut c_dev = DeviceMemory::<Complex32>::zeroed(cuda, output_elements)?;
     let mut workspace = common::workspace(cuda, compiled.workspace_size())?;
@@ -78,9 +82,9 @@ fn run() -> Result<()> {
     bindings.set(c, &mut c_dev)?;
     // SAFETY: initialized inputs, writable output and workspace remain live through stream completion.
     example.execute_and_wait(|context| unsafe {
-        compiled.execute(
+        compiled.execute_async(
             context,
-            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
         )
     })?;
 
@@ -92,6 +96,6 @@ fn run() -> Result<()> {
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_complex_fp32_matmul", run())
 }

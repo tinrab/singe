@@ -1,18 +1,18 @@
 use singe_cublas::{
-    blas::level3::gemm_ex,
+    blas::extension::gemm_ex,
     context::Context,
-    error::Result,
+    scalar::Scalar,
     types::{ComputeType, EmulationStrategy, GemmAlgorithm, Operation},
 };
 use singe_cuda::{
-    context::Context as CudaContext, data_type::DataType, device::Device, memory::DeviceMemory,
+    context::Context as CudaContext, device::Device, memory::DeviceMemory,
     types::EmulationMantissaControl,
 };
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     let cuda = CudaContext::create_for_device(Device::new(0))?;
     let mut workspace = DeviceMemory::<u8>::create_uninit(&cuda, 1 << 20)?;
-    let cublas = Context::create(&cuda)?;
+    let mut cublas = Context::create(&cuda)?;
     // The workspace precedes the handle, so it survives handle destruction on every path.
     // The completed GEMM below releases its borrowed operands only after CUDA completion.
     // SAFETY: the example keeps these buffers alive and synchronizes before reading the results.
@@ -36,16 +36,13 @@ fn main() -> Result<()> {
         2,
         2,
         2,
-        &1.0_f64,
+        Scalar::host(&1.0_f64),
         &a,
-        DataType::F64,
         2,
         &b,
-        DataType::F64,
         2,
-        &0.0_f64,
+        Scalar::host(&0.0_f64),
         &mut c,
-        DataType::F64,
         2,
         ComputeType::F64EmulatedFixedPoint,
         GemmAlgorithm::Default,

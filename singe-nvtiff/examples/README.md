@@ -1,7 +1,7 @@
 # Examples
 
-Usage examples for `singe-nvtiff`.
+Examples for `singe-nvtiff`.
 
 ## Credit
 
-- `bali_notiles.tif`: Image from [https://github.com/nvidia/cudalibrarysamples](https://github.com/nvidia/cudalibrarysamples).
+- `images/bali_notiles.tif` comes from NVIDIA's [CUDALibrarySamples](https://github.com/NVIDIA/CUDALibrarySamples).

@@ -1,123 +1,131 @@
-use std::{mem, ptr, sync::Arc};
+use std::{convert::Infallible, ptr, sync::Arc};
 
-use singe_core::LibraryVersion;
 use singe_cublas_sys as sys;
-use singe_cuda::{context::Context as CudaContext, stream::Stream};
+use singe_cuda::{
+    context::Context as CudaContext,
+    handle::{CreateHandle, Handle, NativeHandle, RawHandle},
+    stream::{Stream, StreamBinding},
+};
 use singe_cuda_sys::runtime;
 
-use crate::{
-    error::{Error, Result},
-    lt::version,
-    try_ffi,
-};
+use crate::error::{Error, Result, try_ffi};
+
+/// Marker type for the native cuBLASLt handle owned by [`Context`].
+#[derive(Debug)]
+pub struct CublasLtHandle(Infallible);
+
+// SAFETY: cuBLASLt handles may be used and destroyed from any thread, one call at a time.
+unsafe impl NativeHandle for CublasLtHandle {
+    type Raw = sys::cublasLtHandle_t;
+
+    type State = ();
+
+    type Error = Error;
+
+    const OBJECT: &'static str = "cublaslt context";
+
+    fn null_handle() -> Error {
+        Error::NullHandle
+    }
+
+    fn is_null(raw: Self::Raw) -> bool {
+        raw.is_null()
+    }
+
+    unsafe fn destroy(raw: Self::Raw, (): ()) -> Result<()> {
+        // SAFETY: `NativeHandle::destroy` requires a live, uniquely owned handle with its context bound, so nothing uses it afterwards.
+        unsafe { try_ffi!(sys::cublasLtDestroy(raw)) }
+    }
+}
+
+// SAFETY: `cublasLtCreate` binds to the current context.
+unsafe impl CreateHandle for CublasLtHandle {
+    unsafe fn create(raw: *mut Self::Raw) -> Result<()> {
+        // SAFETY: `CreateHandle::create` requires a writable `raw` and a bound CUDA context, which is all handle creation needs.
+        unsafe { try_ffi!(sys::cublasLtCreate(raw)) }
+    }
+}
+
+/// Raw ownership of a cuBLASLt handle and its CUDA context.
+///
+/// cuBLASLt takes a stream per call, so the transferred `stream` is always `None`.
+pub type RawContext = RawHandle<CublasLtHandle>;
 
 /// An owned cuBLASLt handle tied to a retained CUDA context.
+///
+/// Operations take their stream per call.
+/// The handle is movable between threads, but it is not `Clone` or `Sync`.
 #[derive(Debug)]
 pub struct Context {
-    handle: Handle,
+    handle: Handle<CublasLtHandle>,
 }
-
-#[derive(Debug)]
-struct Handle {
-    raw: sys::cublasLtHandle_t,
-    cuda_context: Arc<CudaContext>,
-}
-
-// SAFETY: cuBLASLt handles are stateful library contexts. They may move between
-// threads, but shared concurrent use is not exposed by this wrapper.
-unsafe impl Send for Handle {}
-
-/// A transferred native context with its actual CUDA context.
-///
-/// Destroy `handle` before releasing these owners, or reclaim it with `Context::from_raw`.
-/// External workspaces, callbacks, queued buffers and graph replays remain caller obligations.
-#[derive(Debug)]
-pub struct RawContext {
-    /// The owned native cuBLASLt handle.
-    pub handle: sys::cublasLtHandle_t,
-    /// The CUDA context associated with the native handle.
-    pub cuda_context: Arc<CudaContext>,
-}
-
-// SAFETY: transfer carries exclusive native ownership and the resources needed for cross-thread cleanup.
-unsafe impl Send for RawContext {}
 
 impl Context {
-    /// Creates a cuBLASLt context for the current CUDA device.
+    /// Creates a cuBLASLt handle in `cuda_context`.
     ///
-    /// The handle is tied to the device associated with `cuda_context`.
-    /// To use cuBLASLt on multiple devices, create one [`Context`] per device.
+    /// To use cuBLASLt on several devices, create one context per device.
     ///
     /// # Errors
     ///
-    /// Returns an error if cuBLASLt initialization fails, if binding `cuda_context` fails, or if the library does not return a valid handle.
+    /// Returns an error if the CUDA context cannot be bound, cuBLASLt cannot create the handle, or it returns a null handle.
     pub fn create(cuda_context: &Arc<CudaContext>) -> Result<Self> {
-        cuda_context.bind()?;
-
-        let mut handle = ptr::null_mut();
-        // SAFETY: `cublasLtCreate` receives valid output locations.
-        unsafe {
-            try_ffi!(sys::cublasLtCreate(&raw mut handle))?;
-        }
-
-        if handle.is_null() {
-            return Err(Error::NullHandle);
-        }
-
         Ok(Self {
-            handle: Handle {
-                raw: handle,
-                cuda_context: Arc::clone(cuda_context),
-            },
+            handle: Handle::create(cuda_context)?,
         })
     }
 
-    /// Wraps an existing cuBLASLt handle.
+    /// Adopts a cuBLASLt handle with its CUDA context.
     ///
     /// # Safety
     ///
-    /// `handle` must be a valid cuBLASLt handle associated with `cuda_context`.
-    /// The returned context takes ownership of `handle` and destroys it on drop.
+    /// `raw.handle` must be a uniquely owned cuBLASLt handle created in `raw.cuda_context`.
     ///
     /// # Errors
     ///
-    /// Returns [`Error::NullHandle`] if `handle` is null.
-    pub unsafe fn from_raw_parts(
-        handle: sys::cublasLtHandle_t,
-        cuda_context: Arc<CudaContext>,
-    ) -> Result<Self> {
-        if handle.is_null() {
-            return Err(Error::NullHandle);
-        }
-
+    /// Returns an error if the handle is null or `raw.stream` belongs to another CUDA context.
+    pub unsafe fn from_raw(raw: RawContext) -> Result<Self> {
         Ok(Self {
-            handle: Handle {
-                raw: handle,
-                cuda_context,
-            },
+            // SAFETY: the caller guarantees `raw.handle` is a uniquely owned cuBLASLt handle created in `raw.cuda_context`.
+            handle: unsafe { Handle::from_raw(raw)? },
         })
     }
 
-    /// Returns the underlying CUDA context used by this cuBLASLt handle.
+    /// Transfers the native handle and its CUDA context to the caller.
+    ///
+    /// Destroy the transferred handle before releasing its context, or re-adopt the complete [`RawContext`].
     #[must_use]
-    pub fn cuda_context(&self) -> &Arc<CudaContext> {
-        &self.handle.cuda_context
+    pub fn into_raw(self) -> RawContext {
+        self.handle.into_raw()
     }
 
-    /// Binds the underlying CUDA context associated with this handle.
+    /// Returns the raw cuBLASLt handle.
+    ///
+    /// The returned handle is borrowed and remains valid only while this context is alive.
+    #[must_use]
+    pub fn as_raw(&self) -> sys::cublasLtHandle_t {
+        self.handle.as_raw()
+    }
+
+    /// Returns the CUDA context of this handle.
+    #[must_use]
+    pub fn cuda_context(&self) -> &Arc<CudaContext> {
+        self.handle.cuda_context()
+    }
+
+    /// Makes the handle's CUDA context current on the calling thread.
     ///
     /// # Errors
     ///
     /// Returns an error if the CUDA context cannot be bound.
     pub fn bind(&self) -> Result<()> {
-        Ok(self.cuda_context().bind()?)
+        self.handle.bind()
     }
 
-    /// Ensures `stream` belongs to the same CUDA context as this handle.
+    /// Checks that `stream` belongs to this handle's CUDA context, then binds the context.
     ///
     /// # Errors
     ///
-    /// Returns [`Error::StreamContextMismatch`] if `stream` belongs to another CUDA context, or a CUDA error if binding the context fails.
+    /// Returns [`Error::StreamContextMismatch`] if `stream` belongs to another CUDA context, or an error if binding the context fails.
     pub fn ensure_stream(&self, stream: &Stream) -> Result<()> {
         if self.cuda_context() != stream.context() {
             return Err(Error::StreamContextMismatch);
@@ -126,20 +134,8 @@ impl Context {
         self.bind()
     }
 
-    /// Returns the loaded cuBLASLt library version.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if binding the CUDA context fails or the native version cannot be represented as `u64`.
-    pub fn version(&self) -> Result<LibraryVersion> {
-        self.bind()?;
-        version()
-    }
-
-    pub(crate) unsafe fn stream_raw(
-        &self,
-        stream: Option<&Stream>,
-    ) -> Result<runtime::cudaStream_t> {
+    // Binds the context and returns the native stream for `stream`, or the legacy default stream for `None`.
+    pub(crate) fn native_stream(&self, stream: Option<&Stream>) -> Result<runtime::cudaStream_t> {
         if let Some(stream) = stream {
             self.ensure_stream(stream)?;
             Ok(stream.as_raw())
@@ -149,62 +145,11 @@ impl Context {
         }
     }
 
-    /// Returns the raw cuBLASLt handle.
-    ///
-    /// The returned handle is borrowed and remains valid only while this context and its underlying CUDA context are alive.
-    #[must_use]
-    pub fn as_raw(&self) -> sys::cublasLtHandle_t {
-        self.handle.raw
-    }
-
-    /// Reclaims a native context transferred together with its dependent owners.
-    ///
-    /// # Safety
-    ///
-    /// `handle` must remain valid, uniquely owned, and associated with `cuda_context`.
-    /// Retained streams must cover all streams still referenced by native state or queued work.
-    /// Complete all borrowed work before releasing or replacing its resources.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the transferred handle is null.
-    pub unsafe fn from_raw(raw: RawContext) -> Result<Self> {
-        // SAFETY: the caller upholds this function's safety contract.
-        unsafe { Self::from_raw_parts(raw.handle, raw.cuda_context) }
-    }
-
-    /// Transfers the native handle together with its actual CUDA context.
-    #[must_use]
-    pub fn into_raw(mut self) -> RawContext {
-        let handle = mem::replace(&mut self.handle.raw, ptr::null_mut());
-        RawContext {
-            handle,
-            cuda_context: Arc::clone(&self.handle.cuda_context),
-        }
-    }
-}
-
-impl Drop for Handle {
-    fn drop(&mut self) {
-        if self.raw.is_null() {
-            return;
-        }
-
-        if let Err(error) = self.cuda_context.bind() {
-            eprintln!(
-                "failed to bind cuda context before destroying cublaslt handle: {}",
-                singe_core::ErrorChain(&error)
-            );
-        }
-
-        // SAFETY: `cublasLtDestroy` receives live handles owned by the wrappers.
-        unsafe {
-            if let Err(error) = try_ffi!(sys::cublasLtDestroy(self.raw)) {
-                eprintln!(
-                    "failed to destroy cublaslt context: {}",
-                    singe_core::ErrorChain(&error)
-                );
-            }
-        }
+    // Returns the selection that work on `stream`, or on the legacy default stream for `None`, is ordered on.
+    pub(crate) fn stream_binding(&self, stream: Option<&Stream>) -> StreamBinding {
+        stream.map_or_else(
+            || StreamBinding::Default(Arc::clone(self.cuda_context())),
+            |stream| StreamBinding::Borrowed(stream.to_borrowed()),
+        )
     }
 }

@@ -1,6 +1,6 @@
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 
-use singe_core::{CudaRuntimeVersion, LibraryVersion, impl_enum_conversion, impl_enum_display};
+use singe_core::{CudaVersion, LibraryVersion, PackedVersion, impl_enum_display};
 
 use singe_nvcomp_sys as sys;
 
@@ -15,16 +15,19 @@ pub struct Properties {
     /// nvCOMP library version.
     pub version: LibraryVersion,
     /// CUDA runtime version that nvCOMP was built with.
-    pub cudart_version: CudaRuntimeVersion,
+    pub cudart_version: CudaVersion,
 }
 
-impl From<sys::nvcompProperties_t> for Properties {
-    fn from(value: sys::nvcompProperties_t) -> Self {
-        let version = u64::from(value.version);
-        Self {
-            version: LibraryVersion::new(version / 1000, (version % 1000) / 100, version % 100),
-            cudart_version: CudaRuntimeVersion::from(value.cudart_version),
-        }
+impl TryFrom<sys::nvcompProperties_t> for Properties {
+    type Error = Error;
+
+    fn try_from(value: sys::nvcompProperties_t) -> Result<Self> {
+        Ok(Self {
+            version: LibraryVersion::from_packed(value.version, PackedVersion::Major1000Minor100)
+                .ok_or_else(|| Error::out_of_range("nvcomp version"))?,
+            cudart_version: CudaVersion::from_raw(value.cudart_version)
+                .ok_or_else(|| Error::out_of_range("nvcomp cudart version"))?,
+        })
     }
 }
 
@@ -65,39 +68,41 @@ impl From<AlignmentRequirements> for sys::nvcompAlignmentRequirements_t {
     }
 }
 
-/// Element type that a codec interprets the input as.
-///
-/// Multi-byte types are little-endian.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum DataType {
-    /// 8-bit signed integer.
-    I8 = sys::nvcompType_t::NVCOMP_TYPE_CHAR as _,
-    /// 8-bit unsigned integer.
-    U8 = sys::nvcompType_t::NVCOMP_TYPE_UCHAR as _,
-    /// 16-bit signed integer.
-    I16 = sys::nvcompType_t::NVCOMP_TYPE_SHORT as _,
-    /// 16-bit unsigned integer.
-    U16 = sys::nvcompType_t::NVCOMP_TYPE_USHORT as _,
-    /// 32-bit signed integer.
-    I32 = sys::nvcompType_t::NVCOMP_TYPE_INT as _,
-    /// 32-bit unsigned integer.
-    U32 = sys::nvcompType_t::NVCOMP_TYPE_UINT as _,
-    /// 64-bit signed integer.
-    I64 = sys::nvcompType_t::NVCOMP_TYPE_LONGLONG as _,
-    /// 64-bit unsigned integer.
-    U64 = sys::nvcompType_t::NVCOMP_TYPE_ULONGLONG as _,
-    /// 16-bit floating-point number.
-    F16 = sys::nvcompType_t::NVCOMP_TYPE_FLOAT16 as _,
-    /// IEEE 754 single-precision floating-point number.
-    F32 = sys::nvcompType_t::NVCOMP_TYPE_FLOAT32 as _,
-    /// IEEE 754 double-precision floating-point number.
-    F64 = sys::nvcompType_t::NVCOMP_TYPE_FLOAT64 as _,
-    /// 8-bit floating-point number in E4M3 layout: 1 sign bit, 4 exponent bits, and 3 mantissa bits.
-    F8E4M3 = sys::nvcompType_t::NVCOMP_TYPE_FLOAT8_E4M3 as _,
-    /// Untyped bit stream.
-    Bits = sys::nvcompType_t::NVCOMP_TYPE_BITS as _,
+singe_core::native_enum! {
+    /// Element type that a codec interprets the input as.
+    ///
+    /// Multi-byte types are little-endian.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum DataType: sys::nvcompType_t {
+        /// 8-bit signed integer.
+        I8 = NVCOMP_TYPE_CHAR,
+        /// 8-bit unsigned integer.
+        U8 = NVCOMP_TYPE_UCHAR,
+        /// 16-bit signed integer.
+        I16 = NVCOMP_TYPE_SHORT,
+        /// 16-bit unsigned integer.
+        U16 = NVCOMP_TYPE_USHORT,
+        /// 32-bit signed integer.
+        I32 = NVCOMP_TYPE_INT,
+        /// 32-bit unsigned integer.
+        U32 = NVCOMP_TYPE_UINT,
+        /// 64-bit signed integer.
+        I64 = NVCOMP_TYPE_LONGLONG,
+        /// 64-bit unsigned integer.
+        U64 = NVCOMP_TYPE_ULONGLONG,
+        /// 16-bit floating-point number.
+        F16 = NVCOMP_TYPE_FLOAT16,
+        /// IEEE 754 single-precision floating-point number.
+        F32 = NVCOMP_TYPE_FLOAT32,
+        /// IEEE 754 double-precision floating-point number.
+        F64 = NVCOMP_TYPE_FLOAT64,
+        /// 8-bit floating-point number in E4M3 layout: 1 sign bit, 4 exponent bits, and 3 mantissa bits.
+        F8E4M3 = NVCOMP_TYPE_FLOAT8_E4M3,
+        /// Untyped bit stream.
+        Bits = NVCOMP_TYPE_BITS,
+    }
 }
 
 impl DataType {
@@ -112,8 +117,6 @@ impl DataType {
         }
     }
 }
-
-impl_enum_conversion!(sys::nvcompType_t, DataType);
 
 impl_enum_display!(DataType, {
     Self::I8 => "NVCOMP_TYPE_CHAR",
@@ -131,24 +134,24 @@ impl_enum_display!(DataType, {
     Self::Bits => "NVCOMP_TYPE_BITS",
 });
 
-/// Engine that runs decompression.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum DecompressBackend {
-    /// Lets nvCOMP choose between the hardware engine and a CUDA implementation.
-    Default = sys::nvcompDecompressBackend_t::NVCOMP_DECOMPRESS_BACKEND_DEFAULT as _,
-    /// Uses the dedicated hardware decompression engine.
-    ///
-    /// nvCOMP does not check buffer sizes against the engine's limit.
-    /// A buffer over the limit makes decompression fail asynchronously.
-    /// The limit is currently 4 MB and may change; query it with `Device::attribute` and `DeviceAttribute::MemDecompressMaximumLength` from `singe-cuda`.
-    Hardware = sys::nvcompDecompressBackend_t::NVCOMP_DECOMPRESS_BACKEND_HARDWARE as _,
-    /// Uses the CUDA implementation.
-    Cuda = sys::nvcompDecompressBackend_t::NVCOMP_DECOMPRESS_BACKEND_CUDA as _,
+singe_core::native_enum! {
+    /// Engine that runs decompression.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum DecompressBackend: sys::nvcompDecompressBackend_t {
+        /// Lets nvCOMP choose between the hardware engine and a CUDA implementation.
+        Default = NVCOMP_DECOMPRESS_BACKEND_DEFAULT,
+        /// Uses the dedicated hardware decompression engine.
+        ///
+        /// nvCOMP does not check buffer sizes against the engine's limit.
+        /// A buffer over the limit makes decompression fail asynchronously.
+        /// The limit is currently 4 MB and may change; query it with `Device::attribute` and `DeviceAttribute::MemDecompressMaximumLength` from `singe-cuda`.
+        Hardware = NVCOMP_DECOMPRESS_BACKEND_HARDWARE,
+        /// Uses the CUDA implementation.
+        Cuda = NVCOMP_DECOMPRESS_BACKEND_CUDA,
+    }
 }
-
-impl_enum_conversion!(sys::nvcompDecompressBackend_t, DecompressBackend);
 
 impl_enum_display!(DecompressBackend, {
     Self::Default => "NVCOMP_DECOMPRESS_BACKEND_DEFAULT",
@@ -156,16 +159,16 @@ impl_enum_display!(DecompressBackend, {
     Self::Cuda => "NVCOMP_DECOMPRESS_BACKEND_CUDA",
 });
 
-/// ANS coding variant.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum AnsType {
-    /// Uses range asymmetric numeral systems (rANS) coding.
-    Rans = sys::nvcompANSType_t::nvcomp_rANS as _,
+singe_core::native_enum! {
+    /// ANS coding variant.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum AnsType: sys::nvcompANSType_t {
+        /// Uses range asymmetric numeral systems (rANS) coding.
+        Rans = nvcomp_rANS,
+    }
 }
-
-impl_enum_conversion!(sys::nvcompANSType_t, AnsType);
 
 impl_enum_display!(AnsType, {
     Self::Rans => "nvcomp_rANS",
@@ -188,20 +191,20 @@ impl_enum_display!(BitcompAlgorithm, {
     Self::Sparse => "Sparse",
 });
 
-/// Whether Bitcomp compresses losslessly or quantizes floating-point input.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum BitcompMode {
-    /// Preserves the input exactly.
-    Lossless = sys::bitcompMode_t::BITCOMP_LOSSLESS as _,
-    /// Lossy compression of floating-point data quantized to signed integers.
-    LossyFloatToSigned = sys::bitcompMode_t::BITCOMP_LOSSY_FP_TO_SIGNED as _,
-    /// Lossy compression of floating-point data quantized to unsigned integers.
-    LossyFloatToUnsigned = sys::bitcompMode_t::BITCOMP_LOSSY_FP_TO_UNSIGNED as _,
+singe_core::native_enum! {
+    /// Whether Bitcomp compresses losslessly or quantizes floating-point input.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum BitcompMode: sys::bitcompMode_t {
+        /// Preserves the input exactly.
+        Lossless = BITCOMP_LOSSLESS,
+        /// Lossy compression of floating-point data quantized to signed integers.
+        LossyFloatToSigned = BITCOMP_LOSSY_FP_TO_SIGNED,
+        /// Lossy compression of floating-point data quantized to unsigned integers.
+        LossyFloatToUnsigned = BITCOMP_LOSSY_FP_TO_UNSIGNED,
+    }
 }
-
-impl_enum_conversion!(sys::bitcompMode_t, BitcompMode);
 
 impl_enum_display!(BitcompMode, {
     Self::Lossless => "BITCOMP_LOSSLESS",
@@ -240,20 +243,20 @@ impl_enum_display!(CompressionAlgorithm, {
     Self::HighestCompression => "HighestCompression",
 });
 
-/// Bit-transposition step applied before compression.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum BitshuffleMode {
-    /// Does not shuffle bits.
-    None = sys::nvcompBitshuffleMode_t::NVCOMP_BITSHUFFLE_NONE as _,
-    /// Shuffles bits, writing the most significant bits first.
-    MsbFirst = sys::nvcompBitshuffleMode_t::NVCOMP_BITSHUFFLE_MSB_FIRST as _,
-    /// Shuffles bits, writing the least significant bits first.
-    LsbFirst = sys::nvcompBitshuffleMode_t::NVCOMP_BITSHUFFLE_LSB_FIRST as _,
+singe_core::native_enum! {
+    /// Bit-transposition step applied before compression.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum BitshuffleMode: sys::nvcompBitshuffleMode_t {
+        /// Does not shuffle bits.
+        None = NVCOMP_BITSHUFFLE_NONE,
+        /// Shuffles bits, writing the most significant bits first.
+        MsbFirst = NVCOMP_BITSHUFFLE_MSB_FIRST,
+        /// Shuffles bits, writing the least significant bits first.
+        LsbFirst = NVCOMP_BITSHUFFLE_LSB_FIRST,
+    }
 }
-
-impl_enum_conversion!(sys::nvcompBitshuffleMode_t, BitshuffleMode);
 
 impl_enum_display!(BitshuffleMode, {
     Self::None => "NVCOMP_BITSHUFFLE_NONE",
@@ -261,67 +264,60 @@ impl_enum_display!(BitshuffleMode, {
     Self::LsbFirst => "NVCOMP_BITSHUFFLE_LSB_FIRST",
 });
 
-/// CUDA algorithm for Gzip decompression.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum GzipDecompressAlgorithm {
-    /// Uses the baseline algorithm.
-    Naive =
-        sys::nvcompBatchedGzipDecompressAlgorithm_t::NVCOMP_GZIP_DECOMPRESS_ALGORITHM_NAIVE as _,
-    /// Uses the lookahead algorithm.
-    Lookahead =
-        sys::nvcompBatchedGzipDecompressAlgorithm_t::NVCOMP_GZIP_DECOMPRESS_ALGORITHM_LOOKAHEAD
-            as _,
+singe_core::native_enum! {
+    /// CUDA algorithm for Gzip decompression.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum GzipDecompressAlgorithm: sys::nvcompBatchedGzipDecompressAlgorithm_t {
+        /// Uses the baseline algorithm.
+        Naive = NVCOMP_GZIP_DECOMPRESS_ALGORITHM_NAIVE,
+        /// Uses the lookahead algorithm.
+        Lookahead = NVCOMP_GZIP_DECOMPRESS_ALGORITHM_LOOKAHEAD,
+    }
 }
-
-impl_enum_conversion!(
-    sys::nvcompBatchedGzipDecompressAlgorithm_t,
-    GzipDecompressAlgorithm
-);
 
 impl_enum_display!(GzipDecompressAlgorithm, {
     Self::Naive => "NVCOMP_GZIP_DECOMPRESS_ALGORITHM_NAIVE",
     Self::Lookahead => "NVCOMP_GZIP_DECOMPRESS_ALGORITHM_LOOKAHEAD",
 });
 
-/// How the CRC32 kernel divides work among GPU threads.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum Crc32KernelKind {
-    /// Each warp processes its own chunk.
-    Warp = sys::nvcompCRC32KernelKind_t::nvcompCRC32WarpKernel as _,
-    /// One or more thread blocks process each chunk.
-    Block = sys::nvcompCRC32KernelKind_t::nvcompCRC32BlockKernel as _,
+singe_core::native_enum! {
+    /// How the CRC32 kernel divides work among GPU threads.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum Crc32KernelKind: sys::nvcompCRC32KernelKind_t {
+        /// Each warp processes its own chunk.
+        Warp = nvcompCRC32WarpKernel,
+        /// One or more thread blocks process each chunk.
+        Block = nvcompCRC32BlockKernel,
+    }
 }
-
-impl_enum_conversion!(sys::nvcompCRC32KernelKind_t, Crc32KernelKind);
 
 impl_enum_display!(Crc32KernelKind, {
     Self::Warp => "nvcompCRC32WarpKernel",
     Self::Block => "nvcompCRC32BlockKernel",
 });
 
-/// Position of a segment within a message when computing CRC32 over several calls.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum Crc32SegmentKind {
-    /// The segment is the complete message.
-    Only = sys::nvcompCRC32SegmentKind_t::nvcompCRC32OnlySegment as _,
-    /// First segment of a message, possibly followed by more.
-    First = sys::nvcompCRC32SegmentKind_t::nvcompCRC32FirstSegment as _,
-    /// Segment after the first, possibly followed by more.
-    Mid = sys::nvcompCRC32SegmentKind_t::nvcompCRC32MidSegment as _,
-    /// Last segment of a message.
-    ///
-    /// Use [`Only`](Self::Only) when the segment is also the first one.
-    /// `Last` can also mark an already processed segment as the end of its message; see [`compute_raw_async`](crate::crc32::compute_raw_async).
-    Last = sys::nvcompCRC32SegmentKind_t::nvcompCRC32LastSegment as _,
+singe_core::native_enum! {
+    /// Position of a segment within a message when computing CRC32 over several calls.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum Crc32SegmentKind: sys::nvcompCRC32SegmentKind_t {
+        /// The segment is the complete message.
+        Only = nvcompCRC32OnlySegment,
+        /// First segment of a message, possibly followed by more.
+        First = nvcompCRC32FirstSegment,
+        /// Segment after the first, possibly followed by more.
+        Mid = nvcompCRC32MidSegment,
+        /// Last segment of a message.
+        ///
+        /// Use [`Only`](Self::Only) when the segment is also the first one.
+        Last = nvcompCRC32LastSegment,
+    }
 }
-
-impl_enum_conversion!(sys::nvcompCRC32SegmentKind_t, Crc32SegmentKind);
 
 impl_enum_display!(Crc32SegmentKind, {
     Self::Only => "nvcompCRC32OnlySegment",

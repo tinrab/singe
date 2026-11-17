@@ -7,11 +7,10 @@ mod staged;
 use std::{mem::MaybeUninit, ptr, sync::Arc};
 
 use singe_cuda::{context::Context as CudaContext, memory::DeviceMemory};
-use singe_nvjpeg_sys as sys;
 
 pub use self::{
-    batched::{BatchConfig, BatchPrealloc, BatchedDecoder, BatchedDecoderBuilder},
-    single::{Decoder, DecoderBuilder},
+    batched::{BatchPrealloc, BatchedDecoder, BatchedDecoderOptions},
+    single::Decoder,
     staged::DecodeParams,
 };
 use crate::{
@@ -419,18 +418,6 @@ impl<T> DecodedOutput<T> {
     }
 }
 
-fn validate_batch(expected: usize, actual: usize, name: &'static str) -> Result<()> {
-    if expected == actual {
-        Ok(())
-    } else {
-        Err(Error::LengthMismatch {
-            name: name.into(),
-            expected,
-            actual,
-        })
-    }
-}
-
 fn image_descriptors_from_views<T, const C: usize>(
     destinations: &mut [&mut ImageViewMut<'_, T, C>],
 ) -> Result<Vec<Image>> {
@@ -443,7 +430,7 @@ fn image_descriptors_from_views<T, const C: usize>(
 fn image_descriptors_from_decoded_images<T>(outputs: &mut [DecodedImage<T>]) -> Result<Vec<Image>> {
     outputs
         .iter_mut()
-        // SAFETY: the plane pointers and pitches describe buffers that stay borrowed for the image lifetime.
+        // SAFETY: the pointer and row pitch describe the output's own device allocation, which the caller keeps alive while the descriptor is used.
         .map(|output| unsafe {
             Image::from_raw_parts(
                 [
@@ -477,7 +464,7 @@ fn image_descriptor_from_decoded_output<T>(output: &mut DecodedOutput<T>) -> Res
         channels[index] = plane.data.as_mut_ptr().cast();
         pitches[index] = plane.spec.row_bytes();
     }
-    // SAFETY: the plane pointers and pitches describe buffers that stay borrowed for the image lifetime.
+    // SAFETY: each pointer and row pitch describes one of the output's own plane allocations, which the caller keeps alive while the descriptor is used.
     unsafe { Image::from_raw_parts(channels, pitches) }
 }
 
@@ -506,8 +493,8 @@ fn roi_output_spec(info: &JpegInfo, format: OutputFormat, roi: Rectangle) -> Res
         | OutputFormat::UnchangedInterleavedU16
         | OutputFormat::Nv12
         | OutputFormat::Yuy2 => {
-            let mut widths = [0; sys::NVJPEG_MAX_COMPONENT as usize];
-            let mut heights = [0; sys::NVJPEG_MAX_COMPONENT as usize];
+            let mut widths = [0; MAX_COMPONENTS];
+            let mut heights = [0; MAX_COMPONENTS];
             let width = to_i32(size.width(), "roi width")?;
             let height = to_i32(size.height(), "roi height")?;
             for index in 0..component_count {
@@ -551,13 +538,17 @@ impl Rectangle {
             });
         }
 
-        let end_x = (self.x as u32)
-            .checked_add(self.width as u32)
+        let end_x = self
+            .x
+            .unsigned_abs()
+            .checked_add(self.width.unsigned_abs())
             .ok_or(Error::OutOfRange {
                 name: "roi width".into(),
             })?;
-        let end_y = (self.y as u32)
-            .checked_add(self.height as u32)
+        let end_y = self
+            .y
+            .unsigned_abs()
+            .checked_add(self.height.unsigned_abs())
             .ok_or(Error::OutOfRange {
                 name: "roi height".into(),
             })?;
@@ -572,7 +563,10 @@ impl Rectangle {
                 name: "roi height".into(),
             });
         }
-        Ok(Size::new(self.width as u32, self.height as u32))
+        Ok(Size::new(
+            self.width.unsigned_abs(),
+            self.height.unsigned_abs(),
+        ))
     }
 }
 
@@ -586,7 +580,7 @@ impl DecodedImage<MaybeUninit<u8>> {
     #[must_use]
     pub unsafe fn assume_init(self) -> DecodedImage {
         DecodedImage {
-            // SAFETY: the caller upholds this function's safety contract.
+            // SAFETY: the caller guarantees every byte of the plane was written by finished work.
             data: unsafe { self.data.assume_init() },
             plane: self.plane,
         }
@@ -603,7 +597,7 @@ impl DecodedPlane<MaybeUninit<u8>> {
     #[must_use]
     pub unsafe fn assume_init(self) -> DecodedPlane {
         DecodedPlane {
-            // SAFETY: the caller upholds this function's safety contract.
+            // SAFETY: the caller guarantees every byte of the plane was written by finished work.
             data: unsafe { self.data.assume_init() },
             spec: self.spec,
         }
@@ -624,7 +618,7 @@ impl DecodedOutput<MaybeUninit<u8>> {
             planes: self
                 .planes
                 .into_iter()
-                // SAFETY: the caller upholds this function's safety contract.
+                // SAFETY: the caller guarantees every byte of every plane was written by finished work.
                 .map(|plane| unsafe { plane.assume_init() })
                 .collect(),
         }

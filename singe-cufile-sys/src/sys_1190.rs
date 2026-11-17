@@ -66,6 +66,108 @@ pub struct sockaddr {
     /// Address bytes whose format depends on the address family.
     pub sa_data: [::core::ffi::c_char; 14usize],
 }
+impl CUfileOpError {
+    /// The cufile is successful.
+    pub const CU_FILE_SUCCESS: CUfileOpError = CUfileOpError(0);
+    /// The nvidia-fs driver is not loaded.
+    pub const CU_FILE_DRIVER_NOT_INITIALIZED: CUfileOpError = CUfileOpError(5001);
+    /// An invalid property.
+    pub const CU_FILE_DRIVER_INVALID_PROPS: CUfileOpError = CUfileOpError(5002);
+    /// A property range error.
+    pub const CU_FILE_DRIVER_UNSUPPORTED_LIMIT: CUfileOpError = CUfileOpError(5003);
+    /// An nvidia-fs driver version mismatch.
+    pub const CU_FILE_DRIVER_VERSION_MISMATCH: CUfileOpError = CUfileOpError(5004);
+    /// An nvidia-fs driver version read error.
+    pub const CU_FILE_DRIVER_VERSION_READ_ERROR: CUfileOpError = CUfileOpError(5005);
+    /// Driver shutdown in progress.
+    pub const CU_FILE_DRIVER_CLOSING: CUfileOpError = CUfileOpError(5006);
+    /// GDS is not supported on the current platform.
+    pub const CU_FILE_PLATFORM_NOT_SUPPORTED: CUfileOpError = CUfileOpError(5007);
+    /// GDS is not supported on the current file.
+    pub const CU_FILE_IO_NOT_SUPPORTED: CUfileOpError = CUfileOpError(5008);
+    /// GDS is not supported on the current GPU.
+    pub const CU_FILE_DEVICE_NOT_SUPPORTED: CUfileOpError = CUfileOpError(5009);
+    /// An nvidia-fs driver ioctl error.
+    pub const CU_FILE_NVFS_DRIVER_ERROR: CUfileOpError = CUfileOpError(5010);
+    /// A CUDA Driver API error. This error indicates a CUDA driver-api error. If this is set, a CUDA-specific error code is set in the cu_err field for cuFileError.
+    pub const CU_FILE_CUDA_DRIVER_ERROR: CUfileOpError = CUfileOpError(5011);
+    /// An invalid device pointer.
+    pub const CU_FILE_CUDA_POINTER_INVALID: CUfileOpError = CUfileOpError(5012);
+    /// An invalid pointer memory type.
+    pub const CU_FILE_CUDA_MEMORY_TYPE_INVALID: CUfileOpError = CUfileOpError(5013);
+    /// The pointer range exceeds the allocated address range.
+    pub const CU_FILE_CUDA_POINTER_RANGE_ERROR: CUfileOpError = CUfileOpError(5014);
+    /// A CUDA context mismatch.
+    pub const CU_FILE_CUDA_CONTEXT_MISMATCH: CUfileOpError = CUfileOpError(5015);
+    /// Access beyond the maximum pinned memory size.
+    pub const CU_FILE_INVALID_MAPPING_SIZE: CUfileOpError = CUfileOpError(5016);
+    /// Access beyond the mapped size.
+    pub const CU_FILE_INVALID_MAPPING_RANGE: CUfileOpError = CUfileOpError(5017);
+    /// An unsupported file type.
+    pub const CU_FILE_INVALID_FILE_TYPE: CUfileOpError = CUfileOpError(5018);
+    /// Unsupported file open flags.
+    pub const CU_FILE_INVALID_FILE_OPEN_FLAG: CUfileOpError = CUfileOpError(5019);
+    /// The fd direct IO is not set.
+    pub const CU_FILE_DIO_NOT_SET: CUfileOpError = CUfileOpError(5020);
+    /// Invalid API arguments.
+    pub const CU_FILE_INVALID_VALUE: CUfileOpError = CUfileOpError(5022);
+    /// Device pointer is already registered.
+    pub const CU_FILE_MEMORY_ALREADY_REGISTERED: CUfileOpError = CUfileOpError(5023);
+    /// A device pointer lookup failure has occurred.
+    pub const CU_FILE_MEMORY_NOT_REGISTERED: CUfileOpError = CUfileOpError(5024);
+    /// A driver or file access error.
+    pub const CU_FILE_PERMISSION_DENIED: CUfileOpError = CUfileOpError(5025);
+    /// The driver is already open.
+    pub const CU_FILE_DRIVER_ALREADY_OPEN: CUfileOpError = CUfileOpError(5026);
+    /// The file descriptor is not registered.
+    pub const CU_FILE_HANDLE_NOT_REGISTERED: CUfileOpError = CUfileOpError(5027);
+    /// The file descriptor is already registered.
+    pub const CU_FILE_HANDLE_ALREADY_REGISTERED: CUfileOpError = CUfileOpError(5028);
+    /// The GPU device cannot be not found.
+    pub const CU_FILE_DEVICE_NOT_FOUND: CUfileOpError = CUfileOpError(5029);
+    /// An internal error has occurred. Refer to `cufile.log` for more details.
+    pub const CU_FILE_INTERNAL_ERROR: CUfileOpError = CUfileOpError(5030);
+    /// Failed to obtain a new file descriptor.
+    pub const CU_FILE_GETNEWFD_FAILED: CUfileOpError = CUfileOpError(5031);
+    /// An NVFS driver initialization error has occurred.
+    pub const CU_FILE_NVFS_SETUP_ERROR: CUfileOpError = CUfileOpError(5033);
+    /// GDS is disabled by config on the current file.
+    pub const CU_FILE_IO_DISABLED: CUfileOpError = CUfileOpError(5034);
+    /// Failed to submit a batch operation.
+    pub const CU_FILE_BATCH_SUBMIT_FAILED: CUfileOpError = CUfileOpError(5035);
+    /// Failed to allocate pinned GPU memory.
+    pub const CU_FILE_GPU_MEMORY_PINNING_FAILED: CUfileOpError = CUfileOpError(5036);
+    /// Queue full for batch operation.
+    pub const CU_FILE_BATCH_FULL: CUfileOpError = CUfileOpError(5037);
+    /// cuFile stream operation is not supported.
+    pub const CU_FILE_ASYNC_NOT_SUPPORTED: CUfileOpError = CUfileOpError(5038);
+    /// batch setup internal error - retry later
+    pub const CU_FILE_INTERNAL_BATCH_SETUP_ERROR: CUfileOpError = CUfileOpError(5039);
+    /// batch submit internal error - retry later
+    pub const CU_FILE_INTERNAL_BATCH_SUBMIT_ERROR: CUfileOpError = CUfileOpError(5040);
+    /// batch get status internal error - retry later
+    pub const CU_FILE_INTERNAL_BATCH_GETSTATUS_ERROR: CUfileOpError = CUfileOpError(
+        5041,
+    );
+    /// batch cancel internal error - retry later
+    pub const CU_FILE_INTERNAL_BATCH_CANCEL_ERROR: CUfileOpError = CUfileOpError(5042);
+    /// cufile no memory error - retry later
+    pub const CU_FILE_NOMEM_ERROR: CUfileOpError = CUfileOpError(5043);
+    /// cufile io error
+    pub const CU_FILE_IO_ERROR: CUfileOpError = CUfileOpError(5044);
+    /// cufile buf registration error
+    pub const CU_FILE_INTERNAL_BUF_REGISTER_ERROR: CUfileOpError = CUfileOpError(5045);
+    /// cufile hash operation error
+    pub const CU_FILE_HASH_OPR_ERROR: CUfileOpError = CUfileOpError(5046);
+    /// cufile invalid context error
+    pub const CU_FILE_INVALID_CONTEXT_ERROR: CUfileOpError = CUfileOpError(5047);
+    /// nvfs internal driver error
+    pub const CU_FILE_NVFS_INTERNAL_DRIVER_ERROR: CUfileOpError = CUfileOpError(5048);
+    /// compat mode off error
+    pub const CU_FILE_BATCH_NOCOMPAT_ERROR: CUfileOpError = CUfileOpError(5049);
+    /// Upper marker of the cuFile operation error-code range.
+    pub const CU_FILE_IO_MAX_ERROR: CUfileOpError = CUfileOpError(5050);
+}
 /// cufileop status enum
 ///
 ///
@@ -77,119 +179,9 @@ pub struct sockaddr {
 /// Note: The error code if set to [`CUfileOpError::CU_FILE_CUDA_DRIVER_ERROR`], then cuda error can be inspected using `IS_CUDA_ERR` and `CU_FILE_CUDA_ERR`.
 ///
 /// Note: Data path errors are captured via standard error codes
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUfileOpError {
-    /// The cufile is successful.
-    CU_FILE_SUCCESS = 0,
-    /// The nvidia-fs driver is not loaded.
-    CU_FILE_DRIVER_NOT_INITIALIZED = 5001,
-    /// An invalid property.
-    CU_FILE_DRIVER_INVALID_PROPS = 5002,
-    /// A property range error.
-    CU_FILE_DRIVER_UNSUPPORTED_LIMIT = 5003,
-    /// An nvidia-fs driver version mismatch.
-    CU_FILE_DRIVER_VERSION_MISMATCH = 5004,
-    /// An nvidia-fs driver version read error.
-    CU_FILE_DRIVER_VERSION_READ_ERROR = 5005,
-    /// Driver shutdown in progress.
-    CU_FILE_DRIVER_CLOSING = 5006,
-    /// GDS is not supported on the current platform.
-    CU_FILE_PLATFORM_NOT_SUPPORTED = 5007,
-    /// GDS is not supported on the current file.
-    CU_FILE_IO_NOT_SUPPORTED = 5008,
-    /// GDS is not supported on the current GPU.
-    CU_FILE_DEVICE_NOT_SUPPORTED = 5009,
-    /// An nvidia-fs driver ioctl error.
-    CU_FILE_NVFS_DRIVER_ERROR = 5010,
-    /// A CUDA Driver API error. This error indicates a CUDA driver-api error. If this is set, a CUDA-specific error code is set in the cu_err field for cuFileError.
-    CU_FILE_CUDA_DRIVER_ERROR = 5011,
-    /// An invalid device pointer.
-    CU_FILE_CUDA_POINTER_INVALID = 5012,
-    /// An invalid pointer memory type.
-    CU_FILE_CUDA_MEMORY_TYPE_INVALID = 5013,
-    /// The pointer range exceeds the allocated address range.
-    CU_FILE_CUDA_POINTER_RANGE_ERROR = 5014,
-    /// A CUDA context mismatch.
-    CU_FILE_CUDA_CONTEXT_MISMATCH = 5015,
-    /// Access beyond the maximum pinned memory size.
-    CU_FILE_INVALID_MAPPING_SIZE = 5016,
-    /// Access beyond the mapped size.
-    CU_FILE_INVALID_MAPPING_RANGE = 5017,
-    /// An unsupported file type.
-    CU_FILE_INVALID_FILE_TYPE = 5018,
-    /// Unsupported file open flags.
-    CU_FILE_INVALID_FILE_OPEN_FLAG = 5019,
-    /// The fd direct IO is not set.
-    CU_FILE_DIO_NOT_SET = 5020,
-    /// Invalid API arguments.
-    CU_FILE_INVALID_VALUE = 5022,
-    /// Device pointer is already registered.
-    CU_FILE_MEMORY_ALREADY_REGISTERED = 5023,
-    /// A device pointer lookup failure has occurred.
-    CU_FILE_MEMORY_NOT_REGISTERED = 5024,
-    /// A driver or file access error.
-    CU_FILE_PERMISSION_DENIED = 5025,
-    /// The driver is already open.
-    CU_FILE_DRIVER_ALREADY_OPEN = 5026,
-    /// The file descriptor is not registered.
-    CU_FILE_HANDLE_NOT_REGISTERED = 5027,
-    /// The file descriptor is already registered.
-    CU_FILE_HANDLE_ALREADY_REGISTERED = 5028,
-    /// The GPU device cannot be not found.
-    CU_FILE_DEVICE_NOT_FOUND = 5029,
-    /// An internal error has occurred. Refer to `cufile.log` for more details.
-    CU_FILE_INTERNAL_ERROR = 5030,
-    /// Failed to obtain a new file descriptor.
-    CU_FILE_GETNEWFD_FAILED = 5031,
-    /// An NVFS driver initialization error has occurred.
-    CU_FILE_NVFS_SETUP_ERROR = 5033,
-    /// GDS is disabled by config on the current file.
-    CU_FILE_IO_DISABLED = 5034,
-    /// Failed to submit a batch operation.
-    CU_FILE_BATCH_SUBMIT_FAILED = 5035,
-    /// Failed to allocate pinned GPU memory.
-    CU_FILE_GPU_MEMORY_PINNING_FAILED = 5036,
-    /// Queue full for batch operation.
-    CU_FILE_BATCH_FULL = 5037,
-    /// cuFile stream operation is not supported.
-    CU_FILE_ASYNC_NOT_SUPPORTED = 5038,
-    /// batch setup internal error - retry later
-    CU_FILE_INTERNAL_BATCH_SETUP_ERROR = 5039,
-    /// batch submit internal error - retry later
-    CU_FILE_INTERNAL_BATCH_SUBMIT_ERROR = 5040,
-    /// batch get status internal error - retry later
-    CU_FILE_INTERNAL_BATCH_GETSTATUS_ERROR = 5041,
-    /// batch cancel internal error - retry later
-    CU_FILE_INTERNAL_BATCH_CANCEL_ERROR = 5042,
-    /// cufile no memory error - retry later
-    CU_FILE_NOMEM_ERROR = 5043,
-    /// cufile io error
-    CU_FILE_IO_ERROR = 5044,
-    /// cufile buf registration error
-    CU_FILE_INTERNAL_BUF_REGISTER_ERROR = 5045,
-    /// cufile hash operation error
-    CU_FILE_HASH_OPR_ERROR = 5046,
-    /// cufile invalid context error
-    CU_FILE_INVALID_CONTEXT_ERROR = 5047,
-    /// nvfs internal driver error
-    CU_FILE_NVFS_INTERNAL_DRIVER_ERROR = 5048,
-    /// compat mode off error
-    CU_FILE_BATCH_NOCOMPAT_ERROR = 5049,
-    /// Upper marker of the cuFile operation error-code range.
-    CU_FILE_IO_MAX_ERROR = 5050,
-}
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUfileOpError(pub ::core::ffi::c_uint);
 /// cufileop status string
 #[repr(C)]
 pub struct CUfileError {
@@ -209,109 +201,117 @@ impl Default for CUfileError {
 }
 /// cufileop status string
 pub type CUfileError_t = CUfileError;
-/// driver properties
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUfileDriverStatusFlags {
+impl CUfileDriverStatusFlags {
     /// Support for DDN LUSTRE
-    CU_FILE_LUSTRE_SUPPORTED = 0,
+    pub const CU_FILE_LUSTRE_SUPPORTED: CUfileDriverStatusFlags = CUfileDriverStatusFlags(
+        0,
+    );
     /// Support for WEKAFS
-    CU_FILE_WEKAFS_SUPPORTED = 1,
+    pub const CU_FILE_WEKAFS_SUPPORTED: CUfileDriverStatusFlags = CUfileDriverStatusFlags(
+        1,
+    );
     /// Support for NFS
-    CU_FILE_NFS_SUPPORTED = 2,
+    pub const CU_FILE_NFS_SUPPORTED: CUfileDriverStatusFlags = CUfileDriverStatusFlags(
+        2,
+    );
     /// Bit position indicating GPFS support in the driver status flags.
-    CU_FILE_GPFS_SUPPORTED = 3,
+    pub const CU_FILE_GPFS_SUPPORTED: CUfileDriverStatusFlags = CUfileDriverStatusFlags(
+        3,
+    );
     /// Support for NVMe
-    CU_FILE_NVME_SUPPORTED = 4,
+    pub const CU_FILE_NVME_SUPPORTED: CUfileDriverStatusFlags = CUfileDriverStatusFlags(
+        4,
+    );
     /// Support for NVMeOF
-    CU_FILE_NVMEOF_SUPPORTED = 5,
+    pub const CU_FILE_NVMEOF_SUPPORTED: CUfileDriverStatusFlags = CUfileDriverStatusFlags(
+        5,
+    );
     /// Support for SCSI
-    CU_FILE_SCSI_SUPPORTED = 6,
+    pub const CU_FILE_SCSI_SUPPORTED: CUfileDriverStatusFlags = CUfileDriverStatusFlags(
+        6,
+    );
     /// Support for Scaleflux CSD
-    CU_FILE_SCALEFLUX_CSD_SUPPORTED = 7,
+    pub const CU_FILE_SCALEFLUX_CSD_SUPPORTED: CUfileDriverStatusFlags = CUfileDriverStatusFlags(
+        7,
+    );
     /// Support for NVMesh Block Dev
-    CU_FILE_NVMESH_SUPPORTED = 8,
+    pub const CU_FILE_NVMESH_SUPPORTED: CUfileDriverStatusFlags = CUfileDriverStatusFlags(
+        8,
+    );
     /// Support for BeeGFS
-    CU_FILE_BEEGFS_SUPPORTED = 9,
+    pub const CU_FILE_BEEGFS_SUPPORTED: CUfileDriverStatusFlags = CUfileDriverStatusFlags(
+        9,
+    );
     /// Do not use this macro. This is deprecated now
-    CU_FILE_NVME_P2P_SUPPORTED = 11,
+    pub const CU_FILE_NVME_P2P_SUPPORTED: CUfileDriverStatusFlags = CUfileDriverStatusFlags(
+        11,
+    );
     /// Support for ScateFS
-    CU_FILE_SCATEFS_SUPPORTED = 12,
+    pub const CU_FILE_SCATEFS_SUPPORTED: CUfileDriverStatusFlags = CUfileDriverStatusFlags(
+        12,
+    );
     /// Support for VirtioFS
-    CU_FILE_VIRTIOFS_SUPPORTED = 13,
+    pub const CU_FILE_VIRTIOFS_SUPPORTED: CUfileDriverStatusFlags = CUfileDriverStatusFlags(
+        13,
+    );
     /// Support for PanFS
-    CU_FILE_PANFS_SUPPORTED = 14,
+    pub const CU_FILE_PANFS_SUPPORTED: CUfileDriverStatusFlags = CUfileDriverStatusFlags(
+        14,
+    );
     /// Maximum FS supported
-    CU_FILE_MAX_TARGET_TYPES = 15,
+    pub const CU_FILE_MAX_TARGET_TYPES: CUfileDriverStatusFlags = CUfileDriverStatusFlags(
+        15,
+    );
 }
+/// driver properties
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUfileDriverStatusFlags(pub ::core::ffi::c_uint);
 /// driver properties
 pub use self::CUfileDriverStatusFlags as CUfileDriverStatusFlags_t;
 impl CUfileDriverControlFlags {
+    /// use POLL mode. properties.use_poll_mode
+    pub const CU_FILE_USE_POLL_MODE: CUfileDriverControlFlags = CUfileDriverControlFlags(
+        0,
+    );
+    /// allow COMPATIBILITY mode. properties.allow_compat_mode
+    pub const CU_FILE_ALLOW_COMPAT_MODE: CUfileDriverControlFlags = CUfileDriverControlFlags(
+        1,
+    );
+    /// Vanilla posix io mode. properties.vanilla_posix_io_mode
+    pub const CU_FILE_VANILLA_POSIX_IO_MODE: CUfileDriverControlFlags = CUfileDriverControlFlags(
+        2,
+    );
     /// alias for backward compatibility
-    pub const CU_FILE_POSIX_IO_MODE: CUfileDriverControlFlags = CUfileDriverControlFlags::CU_FILE_VANILLA_POSIX_IO_MODE;
+    pub const CU_FILE_POSIX_IO_MODE: CUfileDriverControlFlags = CUfileDriverControlFlags(
+        2,
+    );
+    /// Fallback io mode. properties.gds_fallback_io
+    pub const CU_FILE_FALLBACK_IO_MODE: CUfileDriverControlFlags = CUfileDriverControlFlags(
+        4,
+    );
 }
 /// Bit positions describing enabled driver modes in `CUfileDrvProps::nvfs` control flags.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUfileDriverControlFlags {
-    /// use POLL mode. properties.use_poll_mode
-    CU_FILE_USE_POLL_MODE = 0,
-    /// allow COMPATIBILITY mode. properties.allow_compat_mode
-    CU_FILE_ALLOW_COMPAT_MODE = 1,
-    /// Vanilla posix io mode. properties.vanilla_posix_io_mode
-    CU_FILE_VANILLA_POSIX_IO_MODE = 2,
-    /// Fallback io mode. properties.gds_fallback_io
-    CU_FILE_FALLBACK_IO_MODE = 4,
-}
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUfileDriverControlFlags(pub ::core::ffi::c_uint);
 pub use self::CUfileDriverControlFlags as CUfileDriverControlFlags_t;
-/// Bit positions identifying supported library features in `CUfileDrvProps::fflags`.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUfileFeatureFlags {
+impl CUfileFeatureFlags {
     /// Support for Dynamic routing to handle devices across the PCIe bridges
-    CU_FILE_DYN_ROUTING_SUPPORTED = 0,
+    pub const CU_FILE_DYN_ROUTING_SUPPORTED: CUfileFeatureFlags = CUfileFeatureFlags(0);
     /// Supported
-    CU_FILE_BATCH_IO_SUPPORTED = 1,
+    pub const CU_FILE_BATCH_IO_SUPPORTED: CUfileFeatureFlags = CUfileFeatureFlags(1);
     /// Supported
-    CU_FILE_STREAMS_SUPPORTED = 2,
+    pub const CU_FILE_STREAMS_SUPPORTED: CUfileFeatureFlags = CUfileFeatureFlags(2);
     /// Supported
-    CU_FILE_PARALLEL_IO_SUPPORTED = 3,
+    pub const CU_FILE_PARALLEL_IO_SUPPORTED: CUfileFeatureFlags = CUfileFeatureFlags(3);
     /// Support for PCI P2PDMA
-    CU_FILE_P2P_SUPPORTED = 4,
+    pub const CU_FILE_P2P_SUPPORTED: CUfileFeatureFlags = CUfileFeatureFlags(4);
 }
+/// Bit positions identifying supported library features in `CUfileDrvProps::fflags`.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUfileFeatureFlags(pub ::core::ffi::c_uint);
 pub use self::CUfileFeatureFlags as CUfileFeatureFlags_t;
 impl CUfileP2PFlags {
     /// Support for PCI P2PDMA
@@ -330,26 +330,16 @@ impl CUfileP2PFlags {
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
 pub struct CUfileP2PFlags(pub ::core::ffi::c_uint);
 pub use self::CUfileP2PFlags as CUfileP2PFlags_t;
-/// Direction of a cuFile batch I/O request.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUfileOpcode {
+impl CUfileOpcode {
     /// Reads from the registered file into the request buffer.
-    CUFILE_READ = 0,
+    pub const CUFILE_READ: CUfileOpcode = CUfileOpcode(0);
     /// Writes from the request buffer to the registered file.
-    CUFILE_WRITE = 1,
+    pub const CUFILE_WRITE: CUfileOpcode = CUfileOpcode(1);
 }
+/// Direction of a cuFile batch I/O request.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUfileOpcode(pub ::core::ffi::c_uint);
 pub use self::CUfileOpcode as CUfileOpcode_t;
 /// Driver and library properties returned by [`cuFileDriverGetProperties`].
 #[repr(C)]
@@ -463,28 +453,24 @@ pub struct CUfileFSOps {
 }
 /// Filesystem callback table for a userspace filesystem handle registered with cuFile.
 pub type CUfileFSOps_t = CUfileFSOps;
-/// File Handle
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUfileFileHandleType {
+impl CUfileFileHandleType {
     /// Linux based fd
-    CU_FILE_HANDLE_TYPE_OPAQUE_FD = 1,
+    pub const CU_FILE_HANDLE_TYPE_OPAQUE_FD: CUfileFileHandleType = CUfileFileHandleType(
+        1,
+    );
     /// Windows based handle (unsupported)
-    CU_FILE_HANDLE_TYPE_OPAQUE_WIN32 = 2,
+    pub const CU_FILE_HANDLE_TYPE_OPAQUE_WIN32: CUfileFileHandleType = CUfileFileHandleType(
+        2,
+    );
     /// Userspace based FS
-    CU_FILE_HANDLE_TYPE_USERSPACE_FS = 3,
+    pub const CU_FILE_HANDLE_TYPE_USERSPACE_FS: CUfileFileHandleType = CUfileFileHandleType(
+        3,
+    );
 }
+/// File Handle
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUfileFileHandleType(pub ::core::ffi::c_uint);
 /// File descriptor and optional filesystem callbacks passed to [`cuFileHandleRegister`].
 #[repr(C)]
 #[derive(Copy, Clone)]
@@ -960,56 +946,36 @@ singe_loader::functions! { crate::LIBRARY;
     /// - [`CUfileOpError::CU_FILE_SUCCESS`]: [`CUfileOpError::CU_FILE_SUCCESS`] on successful completion.
     pub fn cuFileDriverSetMaxPinnedMemSize(max_pinned_size: size_t) -> CUfileError_t;
 }
-/// Experimental Batch API's
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUFILEStatus_enum {
+impl CUFILEStatus_enum {
     /// The initial value.
-    CUFILE_WAITING = 1,
+    pub const CUFILE_WAITING: CUFILEStatus_enum = CUFILEStatus_enum(1);
     /// Set once enqueued into the driver.
-    CUFILE_PENDING = 2,
+    pub const CUFILE_PENDING: CUFILEStatus_enum = CUFILEStatus_enum(2);
     /// request was ill-formed or could not be enqueued
-    CUFILE_INVALID = 4,
+    pub const CUFILE_INVALID: CUFILEStatus_enum = CUFILEStatus_enum(4);
     /// Request successfully canceled.
-    CUFILE_CANCELED = 8,
+    pub const CUFILE_CANCELED: CUFILEStatus_enum = CUFILEStatus_enum(8);
     /// request successfully completed
-    CUFILE_COMPLETE = 16,
+    pub const CUFILE_COMPLETE: CUFILEStatus_enum = CUFILEStatus_enum(16);
     /// The operation has timed out.
-    CUFILE_TIMEOUT = 32,
+    pub const CUFILE_TIMEOUT: CUFILEStatus_enum = CUFILEStatus_enum(32);
     /// IO has failed.
-    CUFILE_FAILED = 64,
+    pub const CUFILE_FAILED: CUFILEStatus_enum = CUFILEStatus_enum(64);
 }
+/// Experimental Batch API's
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUFILEStatus_enum(pub ::core::ffi::c_uint);
 ///Experimental Batch API's
 pub use self::CUFILEStatus_enum as CUfileStatus_t;
-/// Mode selector for a batch I/O parameter block.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cufileBatchMode {
+impl cufileBatchMode {
     /// Selects the batch parameters stored in the request union.
-    CUFILE_BATCH = 1,
+    pub const CUFILE_BATCH: cufileBatchMode = cufileBatchMode(1);
 }
+/// Mode selector for a batch I/O parameter block.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cufileBatchMode(pub ::core::ffi::c_uint);
 pub use self::cufileBatchMode as CUfileBatchMode_t;
 /// Parameter block for one request submitted by [`cuFileBatchIOSubmit`].
 #[repr(C)]
@@ -1595,114 +1561,144 @@ singe_loader::functions! { crate::LIBRARY;
         filename: *const ::core::ffi::c_char,
     ) -> CUfileError_t;
 }
-/// Selectors for numeric configuration values passed to [`cuFileGetParameterSizeT`] and [`cuFileSetParameterSizeT`]. Size parameters with a `_KB` suffix are expressed in KB.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUFileSizeTConfigParameter_t {
+impl CUFileSizeTConfigParameter_t {
     /// Selects the profiling statistics level.
-    CUFILE_PARAM_PROFILE_STATS = 0,
+    pub const CUFILE_PARAM_PROFILE_STATS: CUFileSizeTConfigParameter_t = CUFileSizeTConfigParameter_t(
+        0,
+    );
     /// Selects the maximum queued I/O request count.
-    CUFILE_PARAM_EXECUTION_MAX_IO_QUEUE_DEPTH = 1,
+    pub const CUFILE_PARAM_EXECUTION_MAX_IO_QUEUE_DEPTH: CUFileSizeTConfigParameter_t = CUFileSizeTConfigParameter_t(
+        1,
+    );
     /// Selects the maximum number of I/O worker threads.
-    CUFILE_PARAM_EXECUTION_MAX_IO_THREADS = 2,
+    pub const CUFILE_PARAM_EXECUTION_MAX_IO_THREADS: CUFileSizeTConfigParameter_t = CUFileSizeTConfigParameter_t(
+        2,
+    );
     /// Selects the minimum I/O size threshold for execution, in KB.
-    CUFILE_PARAM_EXECUTION_MIN_IO_THRESHOLD_SIZE_KB = 3,
+    pub const CUFILE_PARAM_EXECUTION_MIN_IO_THRESHOLD_SIZE_KB: CUFileSizeTConfigParameter_t = CUFileSizeTConfigParameter_t(
+        3,
+    );
     /// Selects the maximum parallelism for an I/O request.
-    CUFILE_PARAM_EXECUTION_MAX_REQUEST_PARALLELISM = 4,
+    pub const CUFILE_PARAM_EXECUTION_MAX_REQUEST_PARALLELISM: CUFileSizeTConfigParameter_t = CUFileSizeTConfigParameter_t(
+        4,
+    );
     /// Selects the maximum direct I/O transfer size sent to the filesystem, in KB.
-    CUFILE_PARAM_PROPERTIES_MAX_DIRECT_IO_SIZE_KB = 5,
+    pub const CUFILE_PARAM_PROPERTIES_MAX_DIRECT_IO_SIZE_KB: CUFileSizeTConfigParameter_t = CUFileSizeTConfigParameter_t(
+        5,
+    );
     /// Selects the maximum internal GPU cache space per device, in KB.
-    CUFILE_PARAM_PROPERTIES_MAX_DEVICE_CACHE_SIZE_KB = 6,
+    pub const CUFILE_PARAM_PROPERTIES_MAX_DEVICE_CACHE_SIZE_KB: CUFileSizeTConfigParameter_t = CUFileSizeTConfigParameter_t(
+        6,
+    );
     /// Selects the size of an internal bounce buffer, in KB.
-    CUFILE_PARAM_PROPERTIES_PER_BUFFER_CACHE_SIZE_KB = 7,
+    pub const CUFILE_PARAM_PROPERTIES_PER_BUFFER_CACHE_SIZE_KB: CUFileSizeTConfigParameter_t = CUFileSizeTConfigParameter_t(
+        7,
+    );
     /// Selects the maximum pinned device-memory space, in KB.
-    CUFILE_PARAM_PROPERTIES_MAX_DEVICE_PINNED_MEM_SIZE_KB = 8,
+    pub const CUFILE_PARAM_PROPERTIES_MAX_DEVICE_PINNED_MEM_SIZE_KB: CUFileSizeTConfigParameter_t = CUFileSizeTConfigParameter_t(
+        8,
+    );
     /// Selects the batch I/O request count.
-    CUFILE_PARAM_PROPERTIES_IO_BATCHSIZE = 9,
+    pub const CUFILE_PARAM_PROPERTIES_IO_BATCHSIZE: CUFileSizeTConfigParameter_t = CUFileSizeTConfigParameter_t(
+        9,
+    );
     /// Selects the maximum I/O size handled in polling mode, in KB.
-    CUFILE_PARAM_POLLTHRESHOLD_SIZE_KB = 10,
+    pub const CUFILE_PARAM_POLLTHRESHOLD_SIZE_KB: CUFileSizeTConfigParameter_t = CUFileSizeTConfigParameter_t(
+        10,
+    );
     /// Selects the batch I/O timeout, in milliseconds.
-    CUFILE_PARAM_PROPERTIES_BATCH_IO_TIMEOUT_MS = 11,
+    pub const CUFILE_PARAM_PROPERTIES_BATCH_IO_TIMEOUT_MS: CUFileSizeTConfigParameter_t = CUFileSizeTConfigParameter_t(
+        11,
+    );
+}
+/// Selectors for numeric configuration values passed to [`cuFileGetParameterSizeT`] and [`cuFileSetParameterSizeT`]. Size parameters with a `_KB` suffix are expressed in KB.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUFileSizeTConfigParameter_t(pub ::core::ffi::c_uint);
+impl CUFileBoolConfigParameter_t {
+    /// Selects whether polling mode is enabled.
+    pub const CUFILE_PARAM_PROPERTIES_USE_POLL_MODE: CUFileBoolConfigParameter_t = CUFileBoolConfigParameter_t(
+        0,
+    );
+    /// Selects whether compatibility I/O is allowed when GDS is unavailable.
+    pub const CUFILE_PARAM_PROPERTIES_ALLOW_COMPAT_MODE: CUFileBoolConfigParameter_t = CUFileBoolConfigParameter_t(
+        1,
+    );
+    /// Selects whether compatibility I/O is forced.
+    pub const CUFILE_PARAM_FORCE_COMPAT_MODE: CUFileBoolConfigParameter_t = CUFileBoolConfigParameter_t(
+        2,
+    );
+    /// Selects whether aggressive filesystem API checking is enabled.
+    pub const CUFILE_PARAM_FS_MISC_API_CHECK_AGGRESSIVE: CUFileBoolConfigParameter_t = CUFileBoolConfigParameter_t(
+        3,
+    );
+    /// Selects whether parallel I/O execution is enabled.
+    pub const CUFILE_PARAM_EXECUTION_PARALLEL_IO: CUFileBoolConfigParameter_t = CUFileBoolConfigParameter_t(
+        4,
+    );
+    /// Do not use this macro. This is deprecated now.
+    pub const CUFILE_PARAM_PROFILE_NVTX: CUFileBoolConfigParameter_t = CUFileBoolConfigParameter_t(
+        5,
+    );
+    /// Selects whether system-memory buffers are allowed for I/O.
+    pub const CUFILE_PARAM_PROPERTIES_ALLOW_SYSTEM_MEMORY: CUFileBoolConfigParameter_t = CUFileBoolConfigParameter_t(
+        6,
+    );
+    /// Selects whether PCI peer-to-peer DMA is enabled.
+    pub const CUFILE_PARAM_USE_PCIP2PDMA: CUFileBoolConfigParameter_t = CUFileBoolConfigParameter_t(
+        7,
+    );
+    /// Selects whether the io_uring I/O backend is preferred.
+    pub const CUFILE_PARAM_PREFER_IO_URING: CUFileBoolConfigParameter_t = CUFileBoolConfigParameter_t(
+        8,
+    );
+    /// Selects whether direct I/O mode is forced.
+    pub const CUFILE_PARAM_FORCE_ODIRECT_MODE: CUFileBoolConfigParameter_t = CUFileBoolConfigParameter_t(
+        9,
+    );
+    /// Selects whether storage and GPU topology detection is skipped.
+    pub const CUFILE_PARAM_SKIP_TOPOLOGY_DETECTION: CUFileBoolConfigParameter_t = CUFileBoolConfigParameter_t(
+        10,
+    );
+    /// Selects whether stream memory operations are bypassed.
+    pub const CUFILE_PARAM_STREAM_MEMOPS_BYPASS: CUFileBoolConfigParameter_t = CUFileBoolConfigParameter_t(
+        11,
+    );
+    /// Selects whether POSIX I/O mode is enabled.
+    pub const CUFILE_PARAM_PROPERTIES_POSIX_IO_MODE: CUFileBoolConfigParameter_t = CUFileBoolConfigParameter_t(
+        12,
+    );
+    /// Selects whether GDS fallback I/O is enabled.
+    pub const CUFILE_PARAM_GDS_FALLBACK_IO: CUFileBoolConfigParameter_t = CUFileBoolConfigParameter_t(
+        13,
+    );
 }
 /// Selectors for boolean configuration values passed to [`cuFileGetParameterBool`] and [`cuFileSetParameterBool`].
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUFileBoolConfigParameter_t {
-    /// Selects whether polling mode is enabled.
-    CUFILE_PARAM_PROPERTIES_USE_POLL_MODE = 0,
-    /// Selects whether compatibility I/O is allowed when GDS is unavailable.
-    CUFILE_PARAM_PROPERTIES_ALLOW_COMPAT_MODE = 1,
-    /// Selects whether compatibility I/O is forced.
-    CUFILE_PARAM_FORCE_COMPAT_MODE = 2,
-    /// Selects whether aggressive filesystem API checking is enabled.
-    CUFILE_PARAM_FS_MISC_API_CHECK_AGGRESSIVE = 3,
-    /// Selects whether parallel I/O execution is enabled.
-    CUFILE_PARAM_EXECUTION_PARALLEL_IO = 4,
-    /// Do not use this macro. This is deprecated now.
-    CUFILE_PARAM_PROFILE_NVTX = 5,
-    /// Selects whether system-memory buffers are allowed for I/O.
-    CUFILE_PARAM_PROPERTIES_ALLOW_SYSTEM_MEMORY = 6,
-    /// Selects whether PCI peer-to-peer DMA is enabled.
-    CUFILE_PARAM_USE_PCIP2PDMA = 7,
-    /// Selects whether the io_uring I/O backend is preferred.
-    CUFILE_PARAM_PREFER_IO_URING = 8,
-    /// Selects whether direct I/O mode is forced.
-    CUFILE_PARAM_FORCE_ODIRECT_MODE = 9,
-    /// Selects whether storage and GPU topology detection is skipped.
-    CUFILE_PARAM_SKIP_TOPOLOGY_DETECTION = 10,
-    /// Selects whether stream memory operations are bypassed.
-    CUFILE_PARAM_STREAM_MEMOPS_BYPASS = 11,
-    /// Selects whether POSIX I/O mode is enabled.
-    CUFILE_PARAM_PROPERTIES_POSIX_IO_MODE = 12,
-    /// Selects whether GDS fallback I/O is enabled.
-    CUFILE_PARAM_GDS_FALLBACK_IO = 13,
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUFileBoolConfigParameter_t(pub ::core::ffi::c_uint);
+impl CUFileStringConfigParameter_t {
+    /// Selects the logging verbosity string.
+    pub const CUFILE_PARAM_LOGGING_LEVEL: CUFileStringConfigParameter_t = CUFileStringConfigParameter_t(
+        0,
+    );
+    /// Selects the log file path string.
+    pub const CUFILE_PARAM_ENV_LOGFILE_PATH: CUFileStringConfigParameter_t = CUFileStringConfigParameter_t(
+        1,
+    );
+    /// Selects the directory used for log files.
+    pub const CUFILE_PARAM_LOG_DIR: CUFileStringConfigParameter_t = CUFileStringConfigParameter_t(
+        2,
+    );
+    /// Selects the RDMA transport string.
+    pub const CUFILE_PARAM_RDMA_TRANSPORT: CUFileStringConfigParameter_t = CUFileStringConfigParameter_t(
+        3,
+    );
 }
 /// Selectors for string configuration values passed to [`cuFileGetParameterString`] and [`cuFileSetParameterString`].
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUFileStringConfigParameter_t {
-    /// Selects the logging verbosity string.
-    CUFILE_PARAM_LOGGING_LEVEL = 0,
-    /// Selects the log file path string.
-    CUFILE_PARAM_ENV_LOGFILE_PATH = 1,
-    /// Selects the directory used for log files.
-    CUFILE_PARAM_LOG_DIR = 2,
-    /// Selects the RDMA transport string.
-    CUFILE_PARAM_RDMA_TRANSPORT = 3,
-}
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUFileStringConfigParameter_t(pub ::core::ffi::c_uint);
 singe_loader::functions! { crate::LIBRARY;
     /// Fetch cuFile configuration parameters in a program.
     /// * Based on the parameter type, the corresponding API can be chosen.

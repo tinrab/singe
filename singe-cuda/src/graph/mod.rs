@@ -1,9 +1,9 @@
+//! CUDA graph construction, instantiation, update, and execution.
+
 pub mod contextual;
 mod host_data;
 pub mod memory;
 pub mod owned;
-
-/// Raw CUDA graph node parameters and pointer-based operations.
 pub mod raw;
 
 mod retained_resource;
@@ -20,9 +20,10 @@ use std::{
     fmt::{self, Display, Formatter},
     hash::{Hash, Hasher},
     marker::PhantomData,
-    mem::{ManuallyDrop, MaybeUninit},
+    mem::MaybeUninit,
     ops::Deref,
     ptr,
+    result::Result as StdResult,
     sync::{
         Arc, Mutex,
         atomic::{AtomicU64, Ordering},
@@ -31,7 +32,7 @@ use std::{
 
 use bitflags::parser;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
-use singe_core::{impl_enum_conversion, impl_enum_display};
+use singe_core::{impl_enum_display, report_cleanup_failure};
 use singe_cuda_sys::{driver, runtime};
 
 pub use self::{
@@ -44,39 +45,35 @@ use crate::{
     context::Context,
     dim::Dim3,
     error::{Error, Result},
+    event::Event,
     memory::{DeviceMemory, MemoryAccessDescriptor, MemoryPoolProps},
     module::{CodeOwnerId, Module},
     try_ffi,
     types::DevicePtr,
     view::{
-        DeviceInput, DeviceOutput, DeviceRegion, DeviceRegionProvider, DeviceRepr, DeviceSlice,
+        DeviceOutput, DeviceRange, DeviceRegion, DeviceRegionProvider, DeviceRepr, DeviceSlice,
         DeviceSliceMut,
     },
 };
 
-/// Identifiers for [`GraphKernelNodeAttribute`] values used by CUDA graph kernel nodes.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum GraphKernelNodeAttributeId {
-    /// Identifies [`GraphKernelNodeAttribute::Cooperative`].
-    Cooperative = runtime::cudaLaunchAttributeID::cudaLaunchAttributeCooperative as _,
-    /// Identifies [`GraphKernelNodeAttribute::ClusterDimension`].
-    ClusterDimension = runtime::cudaLaunchAttributeID::cudaLaunchAttributeClusterDimension as _,
-    /// Identifies [`GraphKernelNodeAttribute::Priority`].
-    Priority = runtime::cudaLaunchAttributeID::cudaLaunchAttributePriority as _,
-    /// Identifies [`GraphKernelNodeAttribute::PreferredSharedMemoryCarveout`].
-    /// The value is a percentage in the range `0..=100` describing the preferred shared-memory carveout for the launch.
-    /// This is a hint, and the driver may choose a different configuration if required.
-    PreferredSharedMemoryCarveout =
-        runtime::cudaLaunchAttributeID::cudaLaunchAttributePreferredSharedMemoryCarveout as _,
+singe_core::native_enum! {
+    /// Identifiers for [`GraphKernelNodeAttribute`] values used by CUDA graph kernel nodes.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum GraphKernelNodeAttributeId: runtime::cudaLaunchAttributeID {
+        /// Identifies [`GraphKernelNodeAttribute::Cooperative`].
+        Cooperative = cudaLaunchAttributeCooperative,
+        /// Identifies [`GraphKernelNodeAttribute::ClusterDimension`].
+        ClusterDimension = cudaLaunchAttributeClusterDimension,
+        /// Identifies [`GraphKernelNodeAttribute::Priority`].
+        Priority = cudaLaunchAttributePriority,
+        /// Identifies [`GraphKernelNodeAttribute::PreferredSharedMemoryCarveout`].
+        /// The value is a percentage in the range `0..=100` describing the preferred shared-memory carveout for the launch.
+        /// This is a hint, and the driver may choose a different configuration if required.
+        PreferredSharedMemoryCarveout = cudaLaunchAttributePreferredSharedMemoryCarveout,
+    }
 }
-
-impl_enum_conversion!(
-    u32,
-    runtime::cudaLaunchAttributeID,
-    GraphKernelNodeAttributeId
-);
 
 /// Typed launch attributes stored on a CUDA graph kernel node.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -123,19 +120,18 @@ bitflags::bitflags! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct GraphInstantiateFlags: u64 {
         /// Automatically free memory allocated in a graph before relaunching.
-        const AUTO_FREE_ON_LAUNCH = driver::CUgraphInstantiate_flags::CUDA_GRAPH_INSTANTIATE_FLAG_AUTO_FREE_ON_LAUNCH as _;
+        const AUTO_FREE_ON_LAUNCH = driver::CUgraphInstantiate_flags::CUDA_GRAPH_INSTANTIATE_FLAG_AUTO_FREE_ON_LAUNCH.0 as u64;
         /// Automatically upload the graph after instantiation.
         ///
-        /// Only supported by `cuGraphInstantiateWithParams`.
-        /// The upload will be performed using the stream provided in `instantiateParams`.
-        const UPLOAD = driver::CUgraphInstantiate_flags::CUDA_GRAPH_INSTANTIATE_FLAG_UPLOAD as _;
+        /// Only supported when instantiating with parameters, which name the stream the upload uses.
+        const UPLOAD = driver::CUgraphInstantiate_flags::CUDA_GRAPH_INSTANTIATE_FLAG_UPLOAD.0 as u64;
         /// Instantiate the graph to be launchable from the device.
         ///
         /// This flag can only be used on platforms which support unified addressing.
         /// This flag cannot be used in conjunction with `CUgraphInstantiate_flags::CUDA_GRAPH_INSTANTIATE_FLAG_AUTO_FREE_ON_LAUNCH`.
-        const DEVICE_LAUNCH = driver::CUgraphInstantiate_flags::CUDA_GRAPH_INSTANTIATE_FLAG_DEVICE_LAUNCH as _;
+        const DEVICE_LAUNCH = driver::CUgraphInstantiate_flags::CUDA_GRAPH_INSTANTIATE_FLAG_DEVICE_LAUNCH.0 as u64;
         /// Run the graph using the per-node priority attributes rather than the priority of the stream it is launched into.
-        const USE_NODE_PRIORITY = driver::CUgraphInstantiate_flags::CUDA_GRAPH_INSTANTIATE_FLAG_USE_NODE_PRIORITY as _;
+        const USE_NODE_PRIORITY = driver::CUgraphInstantiate_flags::CUDA_GRAPH_INSTANTIATE_FLAG_USE_NODE_PRIORITY.0 as u64;
     }
 }
 
@@ -146,41 +142,41 @@ impl Display for GraphInstantiateFlags {
 }
 
 bitflags::bitflags! {
-    /// The additional write options for ::cuGraphDebugDotPrint
+    /// Options that select what [`Graph::write_dot`] includes in its DOT output.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct GraphDebugDotFlags: u32 {
         /// Output all debug data as if every debug flag is enabled.
-        const VERBOSE = driver::CUgraphDebugDot_flags::CU_GRAPH_DEBUG_DOT_FLAGS_VERBOSE as _;
+        const VERBOSE = driver::CUgraphDebugDot_flags::CU_GRAPH_DEBUG_DOT_FLAGS_VERBOSE.0;
         /// Use CUDA Runtime structures for output.
-        const RUNTIME_TYPES = driver::CUgraphDebugDot_flags::CU_GRAPH_DEBUG_DOT_FLAGS_RUNTIME_TYPES as _;
+        const RUNTIME_TYPES = driver::CUgraphDebugDot_flags::CU_GRAPH_DEBUG_DOT_FLAGS_RUNTIME_TYPES.0;
         /// Adds CUDA_KERNEL_NODE_PARAMS values to output.
-        const KERNEL_NODE_PARAMS = driver::CUgraphDebugDot_flags::CU_GRAPH_DEBUG_DOT_FLAGS_KERNEL_NODE_PARAMS as _;
+        const KERNEL_NODE_PARAMS = driver::CUgraphDebugDot_flags::CU_GRAPH_DEBUG_DOT_FLAGS_KERNEL_NODE_PARAMS.0;
         /// Adds CUDA_MEMCPY3D values to output.
-        const MEMCPY_NODE_PARAMS = driver::CUgraphDebugDot_flags::CU_GRAPH_DEBUG_DOT_FLAGS_MEMCPY_NODE_PARAMS as _;
+        const MEMCPY_NODE_PARAMS = driver::CUgraphDebugDot_flags::CU_GRAPH_DEBUG_DOT_FLAGS_MEMCPY_NODE_PARAMS.0;
         /// Adds CUDA_MEMSET_NODE_PARAMS values to output.
-        const MEMSET_NODE_PARAMS = driver::CUgraphDebugDot_flags::CU_GRAPH_DEBUG_DOT_FLAGS_MEMSET_NODE_PARAMS as _;
+        const MEMSET_NODE_PARAMS = driver::CUgraphDebugDot_flags::CU_GRAPH_DEBUG_DOT_FLAGS_MEMSET_NODE_PARAMS.0;
         /// Adds CUDA_HOST_NODE_PARAMS values to output.
-        const HOST_NODE_PARAMS = driver::CUgraphDebugDot_flags::CU_GRAPH_DEBUG_DOT_FLAGS_HOST_NODE_PARAMS as _;
+        const HOST_NODE_PARAMS = driver::CUgraphDebugDot_flags::CU_GRAPH_DEBUG_DOT_FLAGS_HOST_NODE_PARAMS.0;
         /// Adds CUevent handle from record and wait nodes to output.
-        const EVENT_NODE_PARAMS = driver::CUgraphDebugDot_flags::CU_GRAPH_DEBUG_DOT_FLAGS_EVENT_NODE_PARAMS as _;
+        const EVENT_NODE_PARAMS = driver::CUgraphDebugDot_flags::CU_GRAPH_DEBUG_DOT_FLAGS_EVENT_NODE_PARAMS.0;
         /// Adds CUDA_EXT_SEM_SIGNAL_NODE_PARAMS values to output.
-        const EXTERNAL_SEMAPHORE_SIGNAL_NODE_PARAMS = driver::CUgraphDebugDot_flags::CU_GRAPH_DEBUG_DOT_FLAGS_EXT_SEMAS_SIGNAL_NODE_PARAMS as _;
+        const EXTERNAL_SEMAPHORE_SIGNAL_NODE_PARAMS = driver::CUgraphDebugDot_flags::CU_GRAPH_DEBUG_DOT_FLAGS_EXT_SEMAS_SIGNAL_NODE_PARAMS.0;
         /// Adds CUDA_EXT_SEM_WAIT_NODE_PARAMS values to output.
-        const EXTERNAL_SEMAPHORE_WAIT_NODE_PARAMS = driver::CUgraphDebugDot_flags::CU_GRAPH_DEBUG_DOT_FLAGS_EXT_SEMAS_WAIT_NODE_PARAMS as _;
+        const EXTERNAL_SEMAPHORE_WAIT_NODE_PARAMS = driver::CUgraphDebugDot_flags::CU_GRAPH_DEBUG_DOT_FLAGS_EXT_SEMAS_WAIT_NODE_PARAMS.0;
         /// Adds CUkernelNodeAttrValue values to output.
-        const KERNEL_NODE_ATTRIBUTES = driver::CUgraphDebugDot_flags::CU_GRAPH_DEBUG_DOT_FLAGS_KERNEL_NODE_ATTRIBUTES as _;
+        const KERNEL_NODE_ATTRIBUTES = driver::CUgraphDebugDot_flags::CU_GRAPH_DEBUG_DOT_FLAGS_KERNEL_NODE_ATTRIBUTES.0;
         /// Adds node handles and every kernel function handle to output.
-        const HANDLES = driver::CUgraphDebugDot_flags::CU_GRAPH_DEBUG_DOT_FLAGS_HANDLES as _;
+        const HANDLES = driver::CUgraphDebugDot_flags::CU_GRAPH_DEBUG_DOT_FLAGS_HANDLES.0;
         /// Adds memory alloc node parameters to output.
-        const MEMORY_ALLOC_NODE_PARAMS = driver::CUgraphDebugDot_flags::CU_GRAPH_DEBUG_DOT_FLAGS_MEM_ALLOC_NODE_PARAMS as _;
+        const MEMORY_ALLOC_NODE_PARAMS = driver::CUgraphDebugDot_flags::CU_GRAPH_DEBUG_DOT_FLAGS_MEM_ALLOC_NODE_PARAMS.0;
         /// Adds memory free node parameters to output.
-        const MEMORY_FREE_NODE_PARAMS = driver::CUgraphDebugDot_flags::CU_GRAPH_DEBUG_DOT_FLAGS_MEM_FREE_NODE_PARAMS as _;
+        const MEMORY_FREE_NODE_PARAMS = driver::CUgraphDebugDot_flags::CU_GRAPH_DEBUG_DOT_FLAGS_MEM_FREE_NODE_PARAMS.0;
         /// Adds batch mem op node parameters to output.
-        const BATCH_MEM_OP_NODE_PARAMS = driver::CUgraphDebugDot_flags::CU_GRAPH_DEBUG_DOT_FLAGS_BATCH_MEM_OP_NODE_PARAMS as _;
+        const BATCH_MEM_OP_NODE_PARAMS = driver::CUgraphDebugDot_flags::CU_GRAPH_DEBUG_DOT_FLAGS_BATCH_MEM_OP_NODE_PARAMS.0;
         /// Adds edge numbering information.
-        const EXTRA_TOPOLOGY_INFO = driver::CUgraphDebugDot_flags::CU_GRAPH_DEBUG_DOT_FLAGS_EXTRA_TOPO_INFO as _;
+        const EXTRA_TOPOLOGY_INFO = driver::CUgraphDebugDot_flags::CU_GRAPH_DEBUG_DOT_FLAGS_EXTRA_TOPO_INFO.0;
         /// Adds conditional node parameters to output.
-        const CONDITIONAL_NODE_PARAMS = driver::CUgraphDebugDot_flags::CU_GRAPH_DEBUG_DOT_FLAGS_CONDITIONAL_NODE_PARAMS as _;
+        const CONDITIONAL_NODE_PARAMS = driver::CUgraphDebugDot_flags::CU_GRAPH_DEBUG_DOT_FLAGS_CONDITIONAL_NODE_PARAMS.0;
     }
 }
 
@@ -196,67 +192,77 @@ impl Display for GraphDebugDotFlags {
 #[non_exhaustive]
 pub enum GraphNodeType {
     /// GPU kernel node.
-    Kernel = driver::CUgraphNodeType::CU_GRAPH_NODE_TYPE_KERNEL as _,
+    Kernel = driver::CUgraphNodeType::CU_GRAPH_NODE_TYPE_KERNEL.0,
     /// Memcpy node.
-    Memcpy = driver::CUgraphNodeType::CU_GRAPH_NODE_TYPE_MEMCPY as _,
+    Memcpy = driver::CUgraphNodeType::CU_GRAPH_NODE_TYPE_MEMCPY.0,
     /// Memset node.
-    Memset = driver::CUgraphNodeType::CU_GRAPH_NODE_TYPE_MEMSET as _,
+    Memset = driver::CUgraphNodeType::CU_GRAPH_NODE_TYPE_MEMSET.0,
     /// Host (executable) node.
-    Host = driver::CUgraphNodeType::CU_GRAPH_NODE_TYPE_HOST as _,
+    Host = driver::CUgraphNodeType::CU_GRAPH_NODE_TYPE_HOST.0,
     /// Node which executes an embedded graph.
-    Graph = driver::CUgraphNodeType::CU_GRAPH_NODE_TYPE_GRAPH as _,
+    Graph = driver::CUgraphNodeType::CU_GRAPH_NODE_TYPE_GRAPH.0,
     /// Empty (no-op) node.
-    Empty = driver::CUgraphNodeType::CU_GRAPH_NODE_TYPE_EMPTY as _,
+    Empty = driver::CUgraphNodeType::CU_GRAPH_NODE_TYPE_EMPTY.0,
     /// External event wait node.
-    WaitEvent = driver::CUgraphNodeType::CU_GRAPH_NODE_TYPE_WAIT_EVENT as _,
+    WaitEvent = driver::CUgraphNodeType::CU_GRAPH_NODE_TYPE_WAIT_EVENT.0,
     /// External event record node.
-    EventRecord = driver::CUgraphNodeType::CU_GRAPH_NODE_TYPE_EVENT_RECORD as _,
+    EventRecord = driver::CUgraphNodeType::CU_GRAPH_NODE_TYPE_EVENT_RECORD.0,
     /// External semaphore signal node.
-    ExternalSemaphoresSignal = driver::CUgraphNodeType::CU_GRAPH_NODE_TYPE_EXT_SEMAS_SIGNAL as _,
+    ExternalSemaphoresSignal = driver::CUgraphNodeType::CU_GRAPH_NODE_TYPE_EXT_SEMAS_SIGNAL.0,
     /// External semaphore wait node.
-    ExternalSemaphoresWait = driver::CUgraphNodeType::CU_GRAPH_NODE_TYPE_EXT_SEMAS_WAIT as _,
+    ExternalSemaphoresWait = driver::CUgraphNodeType::CU_GRAPH_NODE_TYPE_EXT_SEMAS_WAIT.0,
     /// Memory Allocation Node.
-    MemoryAlloc = driver::CUgraphNodeType::CU_GRAPH_NODE_TYPE_MEM_ALLOC as _,
+    MemoryAlloc = driver::CUgraphNodeType::CU_GRAPH_NODE_TYPE_MEM_ALLOC.0,
     /// Memory Free Node.
-    MemoryFree = driver::CUgraphNodeType::CU_GRAPH_NODE_TYPE_MEM_FREE as _,
-    /// Batch `MemOp` Node See cuStreamBatchMemOp and [CUstreamBatchMemOpType](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-driver-api/cuda_driver_api/group__CUDA__TYPES.html#group__cuda__types_1gab257b534afdb704b6ebdb99c16a5b292) for what these nodes can do.
-    BatchMemOp = driver::CUgraphNodeType::CU_GRAPH_NODE_TYPE_BATCH_MEM_OP as _,
+    MemoryFree = driver::CUgraphNodeType::CU_GRAPH_NODE_TYPE_MEM_FREE.0,
+    /// Batch memory-operation node; see [`Stream::memory_operations`](crate::stream::Stream::memory_operations) for what these nodes can do.
+    BatchMemOp = driver::CUgraphNodeType::CU_GRAPH_NODE_TYPE_BATCH_MEM_OP.0,
     /// Conditional Node.
-    Conditional = driver::CUgraphNodeType::CU_GRAPH_NODE_TYPE_CONDITIONAL as _,
+    Conditional = driver::CUgraphNodeType::CU_GRAPH_NODE_TYPE_CONDITIONAL.0,
 }
 
-impl_enum_conversion!(u32, runtime::cudaGraphNodeType, GraphNodeType);
+impl TryFrom<runtime::cudaGraphNodeType> for GraphNodeType {
+    type Error = Error;
 
-/// Dependency types applied to CUDA graph edges.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u8)]
-#[non_exhaustive]
-pub enum GraphDependencyType {
-    /// This is an ordinary dependency.
-    Default = driver::CUgraphDependencyType::CU_GRAPH_DEPENDENCY_TYPE_DEFAULT as _,
-    /// This dependency type allows the downstream node to use `cudaGridDependencySynchronize()`.
-    ///
-    /// It may only be used between kernel nodes, and must be used with either the `CU_GRAPH_KERNEL_NODE_PORT_PROGRAMMATIC` or `CU_GRAPH_KERNEL_NODE_PORT_LAUNCH_ORDER` outgoing port.
-    Programmatic = driver::CUgraphDependencyType::CU_GRAPH_DEPENDENCY_TYPE_PROGRAMMATIC as _,
+    fn try_from(value: runtime::cudaGraphNodeType) -> Result<Self> {
+        Self::try_from(value.0)
+            .map_err(|_| singe_core::UnknownEnumValue::new("GraphNodeType", value.0).into())
+    }
 }
 
-impl From<driver::CUgraphDependencyType> for GraphDependencyType {
-    fn from(value: driver::CUgraphDependencyType) -> Self {
+impl From<GraphNodeType> for runtime::cudaGraphNodeType {
+    fn from(value: GraphNodeType) -> Self {
         match value {
-            driver::CUgraphDependencyType::CU_GRAPH_DEPENDENCY_TYPE_DEFAULT => Self::Default,
-            driver::CUgraphDependencyType::CU_GRAPH_DEPENDENCY_TYPE_PROGRAMMATIC => {
-                Self::Programmatic
-            }
+            GraphNodeType::Kernel => Self::CU_GRAPH_NODE_TYPE_KERNEL,
+            GraphNodeType::Memcpy => Self::CU_GRAPH_NODE_TYPE_MEMCPY,
+            GraphNodeType::Memset => Self::CU_GRAPH_NODE_TYPE_MEMSET,
+            GraphNodeType::Host => Self::CU_GRAPH_NODE_TYPE_HOST,
+            GraphNodeType::Graph => Self::CU_GRAPH_NODE_TYPE_GRAPH,
+            GraphNodeType::Empty => Self::CU_GRAPH_NODE_TYPE_EMPTY,
+            GraphNodeType::WaitEvent => Self::CU_GRAPH_NODE_TYPE_WAIT_EVENT,
+            GraphNodeType::EventRecord => Self::CU_GRAPH_NODE_TYPE_EVENT_RECORD,
+            GraphNodeType::ExternalSemaphoresSignal => Self::CU_GRAPH_NODE_TYPE_EXT_SEMAS_SIGNAL,
+            GraphNodeType::ExternalSemaphoresWait => Self::CU_GRAPH_NODE_TYPE_EXT_SEMAS_WAIT,
+            GraphNodeType::MemoryAlloc => Self::CU_GRAPH_NODE_TYPE_MEM_ALLOC,
+            GraphNodeType::MemoryFree => Self::CU_GRAPH_NODE_TYPE_MEM_FREE,
+            GraphNodeType::BatchMemOp => Self::CU_GRAPH_NODE_TYPE_BATCH_MEM_OP,
+            GraphNodeType::Conditional => Self::CU_GRAPH_NODE_TYPE_CONDITIONAL,
         }
     }
 }
 
-impl From<GraphDependencyType> for driver::CUgraphDependencyType {
-    fn from(value: GraphDependencyType) -> Self {
-        match value {
-            GraphDependencyType::Default => Self::CU_GRAPH_DEPENDENCY_TYPE_DEFAULT,
-            GraphDependencyType::Programmatic => Self::CU_GRAPH_DEPENDENCY_TYPE_PROGRAMMATIC,
-        }
+singe_core::native_enum! {
+    /// Dependency types applied to CUDA graph edges.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u8)]
+    #[non_exhaustive]
+    pub enum GraphDependencyType: driver::CUgraphDependencyType {
+        /// This is an ordinary dependency.
+        Default = CU_GRAPH_DEPENDENCY_TYPE_DEFAULT,
+        /// This dependency type allows the downstream kernel to synchronize on the upstream grid from device code.
+        ///
+        /// It may only be used between kernel nodes, with the programmatic or launch-order outgoing port.
+        Programmatic = CU_GRAPH_DEPENDENCY_TYPE_PROGRAMMATIC,
     }
 }
 
@@ -277,40 +283,32 @@ impl_enum_display!(GraphNodeType, {
     Self::Conditional => "cudaGraphNodeTypeConditional",
 });
 
-/// CUDA Graph Update error types
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum GraphExecUpdateResult {
-    /// The update succeeded.
-    Success = driver::CUgraphExecUpdateResult::CU_GRAPH_EXEC_UPDATE_SUCCESS as _,
-    /// The update failed for an unexpected reason which is described in the return value of the function.
-    Error = driver::CUgraphExecUpdateResult::CU_GRAPH_EXEC_UPDATE_ERROR as _,
-    /// The update failed because the topology changed.
-    ErrorTopologyChanged =
-        driver::CUgraphExecUpdateResult::CU_GRAPH_EXEC_UPDATE_ERROR_TOPOLOGY_CHANGED as _,
-    /// The update failed because a node type changed.
-    ErrorNodeTypeChanged =
-        driver::CUgraphExecUpdateResult::CU_GRAPH_EXEC_UPDATE_ERROR_NODE_TYPE_CHANGED as _,
-    /// The update failed because the function of a kernel node changed (CUDA driver &lt; 11.2).
-    ErrorFunctionChanged =
-        driver::CUgraphExecUpdateResult::CU_GRAPH_EXEC_UPDATE_ERROR_FUNCTION_CHANGED as _,
-    /// The update failed because the parameters changed in a way that is not supported.
-    ErrorParametersChanged =
-        driver::CUgraphExecUpdateResult::CU_GRAPH_EXEC_UPDATE_ERROR_PARAMETERS_CHANGED as _,
-    /// The update failed because something about the node is not supported.
-    ErrorNotSupported =
-        driver::CUgraphExecUpdateResult::CU_GRAPH_EXEC_UPDATE_ERROR_NOT_SUPPORTED as _,
-    /// The update failed because the function of a kernel node changed in an unsupported way.
-    ErrorUnsupportedFunctionChange =
-        driver::CUgraphExecUpdateResult::CU_GRAPH_EXEC_UPDATE_ERROR_UNSUPPORTED_FUNCTION_CHANGE
-            as _,
-    /// The update failed because the node attributes changed in a way that is not supported.
-    ErrorAttributesChanged =
-        driver::CUgraphExecUpdateResult::CU_GRAPH_EXEC_UPDATE_ERROR_ATTRIBUTES_CHANGED as _,
+singe_core::native_enum! {
+    /// CUDA Graph Update error types
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum GraphExecUpdateResult: driver::CUgraphExecUpdateResult {
+        /// The update succeeded.
+        Success = CU_GRAPH_EXEC_UPDATE_SUCCESS,
+        /// The update failed for an unexpected reason which is described in the return value of the function.
+        Error = CU_GRAPH_EXEC_UPDATE_ERROR,
+        /// The update failed because the topology changed.
+        ErrorTopologyChanged = CU_GRAPH_EXEC_UPDATE_ERROR_TOPOLOGY_CHANGED,
+        /// The update failed because a node type changed.
+        ErrorNodeTypeChanged = CU_GRAPH_EXEC_UPDATE_ERROR_NODE_TYPE_CHANGED,
+        /// The update failed because the function of a kernel node changed (CUDA driver &lt; 11.2).
+        ErrorFunctionChanged = CU_GRAPH_EXEC_UPDATE_ERROR_FUNCTION_CHANGED,
+        /// The update failed because the parameters changed in a way that is not supported.
+        ErrorParametersChanged = CU_GRAPH_EXEC_UPDATE_ERROR_PARAMETERS_CHANGED,
+        /// The update failed because something about the node is not supported.
+        ErrorNotSupported = CU_GRAPH_EXEC_UPDATE_ERROR_NOT_SUPPORTED,
+        /// The update failed because the function of a kernel node changed in an unsupported way.
+        ErrorUnsupportedFunctionChange = CU_GRAPH_EXEC_UPDATE_ERROR_UNSUPPORTED_FUNCTION_CHANGE,
+        /// The update failed because the node attributes changed in a way that is not supported.
+        ErrorAttributesChanged = CU_GRAPH_EXEC_UPDATE_ERROR_ATTRIBUTES_CHANGED,
+    }
 }
-
-impl_enum_conversion!(driver::CUgraphExecUpdateResult, GraphExecUpdateResult);
 
 impl_enum_display!(GraphExecUpdateResult, {
     Self::Success => "CU_GRAPH_EXEC_UPDATE_SUCCESS",
@@ -324,9 +322,10 @@ impl_enum_display!(GraphExecUpdateResult, {
     Self::ErrorAttributesChanged => "CU_GRAPH_EXEC_UPDATE_ERROR_ATTRIBUTES_CHANGED",
 });
 
-/// CUDA graph node handle with optional retained graph and context metadata.
+/// Identifies a node of a CUDA graph.
 ///
-/// Nodes returned by a [`Graph`] retain their source graph and carry its identity so methods can reject nodes from another graph.
+/// Nodes returned by a [`Graph`] keep their source graph alive and carry its identity, so graph methods can reject nodes from another graph.
+/// Queries and changes of a node go through its [`Graph`].
 #[derive(Debug, Clone)]
 pub struct GraphNode {
     handle: runtime::cudaGraphNode_t,
@@ -600,7 +599,7 @@ impl GraphTopologySummary {
 pub struct Graph {
     inner: Arc<GraphInner>,
     id: GraphId,
-    context: Option<Arc<Context>>,
+    context: Arc<Context>,
     _not_sync: PhantomData<Cell<()>>,
 }
 
@@ -608,66 +607,59 @@ pub struct Graph {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct GraphId(u64);
 
-/// Owns a CUDA graph handle without requiring an associated Singe context.
+/// Owns a CUDA graph handle that is not bound to a Singe context.
 ///
 /// The caller must establish the CUDA context required for raw native operations.
 #[derive(Debug)]
-pub struct RawGraph {
+pub struct UnboundGraph {
     inner: Arc<GraphInner>,
 }
 
-/// Raw graph ownership, including context and every graph-retained resource.
+/// Raw ownership of a graph, its context, and every graph-retained resource.
 ///
-/// Keep this value alive until the native handle is destroyed or re-adopt the complete value with `Graph::from_raw_parts`.
+/// Keep this value alive until the native handle is destroyed, or re-adopt it with [`Graph::from_raw`].
 /// Bind its context before native use and complete graph work before releasing these owners.
 #[derive(Debug)]
-pub struct RawGraphParts {
-    /// Native graph handle whose ownership accompanies the retained metadata.
+pub struct RawGraph {
+    /// Native graph handle.
     pub handle: runtime::cudaGraph_t,
-    context: Option<Arc<Context>>,
-    retained: RetainedResources,
-    id: GraphId,
+    /// Context the graph belongs to.
+    pub context: Arc<Context>,
+    /// Allocations, modules, and events the graph's nodes depend on.
+    pub retained: RetainedResources,
+    /// Identity that the graph's nodes record.
+    pub id: GraphId,
 }
 
-impl RawGraphParts {
-    /// Returns the context retained alongside the raw graph, when present.
-    #[must_use]
-    pub fn context(&self) -> Option<&Arc<Context>> {
-        self.context.as_ref()
-    }
-}
-
-/// Raw executable ownership retaining its context, source graph, and resource dependencies.
+/// Raw ownership of an executable graph, its context, source graph, and resource dependencies.
 ///
-/// Keep this value alive until native destruction or re-adopt it with `ExecutableGraph::from_raw_parts`.
+/// Keep this value alive until native destruction, or re-adopt it with [`ExecutableGraph::from_raw`].
 /// Bind its context before native use and complete all launches before releasing these owners.
 #[derive(Debug)]
-pub struct RawExecutableGraphParts {
-    /// Native executable handle whose ownership accompanies the retained metadata.
+pub struct RawExecutableGraph {
+    /// Native executable graph handle.
     pub handle: runtime::cudaGraphExec_t,
-    context: Option<Arc<Context>>,
-    retained: RetainedResources,
-    source_graph: Option<Arc<GraphInner>>,
-    source_graph_id: Option<GraphId>,
+    /// Context the executable graph belongs to.
+    pub context: Arc<Context>,
+    /// Allocations, modules, and events the executable graph's nodes depend on.
+    pub retained: RetainedResources,
+    /// Graph the executable was instantiated from, if it retains one.
+    pub source_graph: Option<UnboundGraph>,
+    /// Identity of the source graph, which node updates check.
+    pub source_graph_id: Option<GraphId>,
 }
 
-impl RawExecutableGraphParts {
-    /// Returns the context retained alongside the raw executable, when present.
-    #[must_use]
-    pub fn context(&self) -> Option<&Arc<Context>> {
-        self.context.as_ref()
-    }
-}
+// SAFETY: the graph handle is a plain value whose every native use is `unsafe` and binds `context`, and the retained owners are `Send` (`Arc<dyn Any + Send + Sync>` and modules).
+unsafe impl Send for RawGraph {}
 
-// SAFETY: these values expose only native handles and retained metadata.
-// Native use remains unsafe, and all retained resources support thread-bound destruction.
-unsafe impl Send for RawGraphParts {}
+// SAFETY: a shared `RawGraph` only exposes the handle value and `Sync` owners; it makes no native call, so concurrent use is the caller's documented obligation.
+unsafe impl Sync for RawGraph {}
 
-unsafe impl Sync for RawGraphParts {}
+// SAFETY: the executable handle is a plain value whose every native use is `unsafe` and binds `context`, and the retained owners and source graph are `Send`.
+unsafe impl Send for RawExecutableGraph {}
 
-unsafe impl Send for RawExecutableGraphParts {}
-
-unsafe impl Sync for RawExecutableGraphParts {}
+// SAFETY: a shared `RawExecutableGraph` only exposes the handle value and `Sync` owners; it makes no native call, so concurrent launches are the caller's obligation.
+unsafe impl Sync for RawExecutableGraph {}
 
 #[derive(Debug)]
 pub(crate) struct GraphInner {
@@ -678,10 +670,10 @@ pub(crate) struct GraphInner {
     parent: Option<Arc<Self>>,
 }
 
-// SAFETY: CUDA graph handles can be retained and destroyed from any host thread after
-// binding the associated context. Mutating graph APIs require `&mut Graph`.
+// SAFETY: CUDA graph handles may be destroyed from any host thread once the owning context is bound, which `Drop` does first.
 unsafe impl Send for GraphInner {}
 
+// SAFETY: through `&GraphInner` only the handle value and the `Mutex`-guarded retained set are reachable; native graph calls go through `Graph`, which is `!Sync` and takes `&mut self` to mutate.
 unsafe impl Sync for GraphInner {}
 
 #[derive(Clone)]
@@ -695,13 +687,23 @@ impl fmt::Debug for RetainedAllocation {
     }
 }
 
+/// Owners that a graph retains for its nodes: device allocations, modules, and events.
+///
+/// Keep it alive until every graph and executable graph whose nodes refer to these owners is destroyed.
 #[derive(Debug, Clone, Default)]
-pub(crate) struct RetainedResources {
+pub struct RetainedResources {
     allocations: HashMap<usize, RetainedAllocation>,
     modules: HashMap<CodeOwnerId, Module>,
+    events: HashMap<usize, Arc<Event>>,
 }
 
 impl RetainedResources {
+    fn retain_event(&mut self, event: &Arc<Event>) {
+        self.events
+            .entry(Arc::as_ptr(event).addr())
+            .or_insert_with(|| Arc::clone(event));
+    }
+
     fn retain_allocation(&mut self, allocation: RetainedAllocation) {
         let identity = Arc::as_ptr(&allocation.0).cast::<()>().addr();
         self.allocations.entry(identity).or_insert(allocation);
@@ -716,16 +718,17 @@ impl RetainedResources {
     fn extend(&mut self, other: Self) {
         self.allocations.extend(other.allocations);
         self.modules.extend(other.modules);
+        self.events.extend(other.events);
     }
 }
 
-/// Borrowed graph view tied to the graph node that exposes it.
+/// Borrowed graph view tied to the graph whose child graph node embeds it.
 ///
 /// Dropping the view does not destroy the borrowed native graph.
 #[derive(Debug)]
-pub struct BorrowedGraph<'node> {
+pub struct BorrowedGraph<'graph> {
     graph: Graph,
-    _node: PhantomData<&'node GraphNode>,
+    _graph: PhantomData<&'graph Graph>,
 }
 
 /// Device memory whose allocation is retained by CUDA graph objects.
@@ -745,7 +748,8 @@ unsafe impl<T: DeviceRepr> DeviceRegionProvider for GraphBuffer<T> {
     }
 }
 
-unsafe impl<T: DeviceRepr> DeviceInput<T> for GraphBuffer<T> {
+// SAFETY: the pointer and length come from the owned `DeviceMemory<T>`, which `region` also describes.
+unsafe impl<T: DeviceRepr> DeviceRange<T> for GraphBuffer<T> {
     fn as_device_ptr(&self) -> *const T {
         self.memory.as_ptr()
     }
@@ -755,37 +759,40 @@ unsafe impl<T: DeviceRepr> DeviceInput<T> for GraphBuffer<T> {
     }
 }
 
-// SAFETY: the typed owner or view preserves initialized values for its borrow.
+// SAFETY: a `GraphBuffer<T>` is built zeroed, copied from host values, or by `assume_init`, whose caller guarantees initialization, so its values are initialized for the borrow.
 unsafe impl<T: DeviceRepr> DeviceSlice<T> for GraphBuffer<T> {}
 
+// SAFETY: `&mut GraphBuffer<T>` is the only path to mutable access of the owned allocation.
 unsafe impl<T: DeviceRepr> DeviceSliceMut<T> for GraphBuffer<T> {}
 
+// SAFETY: the mutable pointer covers the same `len()` elements of the owned allocation, and `&mut self` makes the access exclusive.
 unsafe impl<T: DeviceRepr> DeviceOutput<T> for GraphBuffer<T> {
     fn as_mut_ptr(&mut self) -> *mut T {
         self.memory.as_mut_ptr()
     }
 }
 
-// SAFETY: output metadata describes the same live typed range without initialized reads.
-unsafe impl<T: DeviceRepr> DeviceInput<T> for GraphBuffer<MaybeUninit<T>> {
+// SAFETY: the length is the owned allocation's element count, and `MaybeUninit<T>` has the layout of `T`, so the range describes the same bytes as `region`.
+unsafe impl<T: DeviceRepr> DeviceRange<T> for GraphBuffer<MaybeUninit<T>> {
     fn len(&self) -> usize {
         self.memory.len()
     }
 }
 
+// SAFETY: the cast pointer addresses the same owned elements with `T`'s layout, and `&mut self` makes the access exclusive.
 unsafe impl<T: DeviceRepr> DeviceOutput<T> for GraphBuffer<MaybeUninit<T>> {
     fn as_mut_ptr(&mut self) -> *mut T {
         self.memory.as_mut_ptr().cast()
     }
 }
 
-impl RawGraph {
+impl UnboundGraph {
     /// Wraps an existing CUDA graph handle and takes ownership of it.
     ///
     /// # Safety
     ///
     /// `handle` must be a valid CUDA graph handle.
-    /// Ownership of `handle` is transferred to the returned [`RawGraph`], and the handle must not be destroyed elsewhere after calling this function.
+    /// Ownership of `handle` is transferred to the returned [`UnboundGraph`], and the handle must not be destroyed elsewhere after calling this function.
     ///
     /// # Errors
     ///
@@ -806,10 +813,10 @@ impl RawGraph {
         })
     }
 
-    /// Creates an empty raw graph without a Singe context association.
+    /// Creates an empty graph without a Singe context association.
     ///
     /// Prefer [`Context::create_graph`] for ordinary Singe code.
-    /// Raw graphs do not model context association, so the caller must keep CUDA context, node, executable update, upload, and launch relationships coherent.
+    /// Unbound graphs do not model context association, so the caller must keep CUDA context, node, executable update, upload, and launch relationships coherent.
     ///
     /// # Safety
     ///
@@ -821,11 +828,11 @@ impl RawGraph {
     /// Propagates CUDA graph creation errors and rejects a null returned graph handle.
     pub unsafe fn create() -> Result<Self> {
         let mut handle = ptr::null_mut();
-        // SAFETY: `cudaGraphCreate` receives valid output locations.
+        // SAFETY: `handle` is a local that `cudaGraphCreate` writes through an exclusive pointer.
         unsafe {
             try_ffi!(runtime::cudaGraphCreate(&raw mut handle, 0))?;
         }
-        // SAFETY: the caller upholds this function's safety contract.
+        // SAFETY: CUDA just created `handle`, nothing else owns it, and `from_raw` rejects null.
         unsafe { Self::from_raw(handle) }
     }
 
@@ -835,19 +842,21 @@ impl RawGraph {
         self.inner.handle
     }
 
-    /// Consumes the graph and returns the raw CUDA graph handle without destroying it.
+    /// Consumes the graph and returns its native handle without destroying it.
     ///
     /// The caller becomes responsible for eventually destroying the returned handle with CUDA.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics if another owner still retains the graph handle.
-    #[must_use]
-    pub fn into_raw(self) -> runtime::cudaGraph_t {
-        let inner = Arc::try_unwrap(self.inner)
-            .unwrap_or_else(|_| panic!("cannot take raw graph handle while it is still shared"));
-        let inner = ManuallyDrop::new(inner);
-        inner.handle
+    /// Returns the unchanged graph if a node or another owner still retains its native graph storage.
+    pub fn into_raw(self) -> StdResult<runtime::cudaGraph_t, Self> {
+        match Arc::try_unwrap(self.inner) {
+            Ok(mut inner) => {
+                inner.owns_handle = false;
+                Ok(inner.handle)
+            }
+            Err(inner) => Err(Self { inner }),
+        }
     }
 }
 
@@ -881,62 +890,38 @@ impl Drop for GraphInner {
         if let Some(context) = &self.context
             && let Err(error) = context.bind()
         {
-            eprintln!(
-                "failed to bind cuda graph context for destruction: {}",
-                singe_core::ErrorChain(&error)
-            );
+            report_cleanup_failure("bind the cuda context to destroy", "cuda graph", &error);
             return;
         }
-        // SAFETY: `cudaGraphDestroy` receives live handles owned by the wrappers.
+        // SAFETY: `owns_handle` says this value owns the live graph, every node and executable holding it has dropped its `Arc`, and its context is bound above.
         unsafe {
             if let Err(error) = try_ffi!(runtime::cudaGraphDestroy(self.handle)) {
-                eprintln!(
-                    "failed to destroy cuda graph: {}",
-                    singe_core::ErrorChain(&error)
-                );
+                report_cleanup_failure("destroy", "cuda graph", &error);
             }
         }
     }
 }
 
 impl BorrowedGraph<'_> {
-    /// Wraps an existing CUDA graph handle without taking ownership.
+    /// Wraps an existing CUDA graph handle of `context` without taking ownership.
     ///
     /// # Safety
     ///
-    /// `handle` must be a valid CUDA graph handle for the returned lifetime.
+    /// `handle` must be a valid CUDA graph handle of `context` for the returned lifetime.
     /// The returned graph view will not destroy `handle` when dropped.
     ///
     /// # Errors
     ///
     /// Returns an error if the native handle is null.
-    pub unsafe fn from_raw(handle: runtime::cudaGraph_t) -> Result<Self> {
-        // SAFETY: the caller upholds this function's safety contract.
-        unsafe { Self::from_raw_in_context(handle, None) }
-    }
-
-    /// Wraps an existing CUDA graph handle without taking ownership and keeps a modeled context association for safe graph operations through the borrowed view.
-    ///
-    /// # Safety
-    ///
-    /// `handle` must be a valid CUDA graph handle for the returned lifetime, and it must be associated with `context` when `context` is present.
-    /// The returned graph view will not destroy `handle` when dropped.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the native handle is null.
-    pub unsafe fn from_raw_in_context(
-        handle: runtime::cudaGraph_t,
-        context: Option<Arc<Context>>,
-    ) -> Result<Self> {
+    pub unsafe fn from_raw(handle: runtime::cudaGraph_t, context: Arc<Context>) -> Result<Self> {
         if handle.is_null() {
             return Err(Error::NullHandle);
         }
 
         Ok(Self {
-            // SAFETY: the caller upholds this function's safety contract.
+            // SAFETY: the caller guarantees `handle` is a live graph of `context` for the view's lifetime, which is what the borrowed constructor requires.
             graph: unsafe { Graph::from_raw_borrowed_in_context(handle, context) },
-            _node: PhantomData,
+            _graph: PhantomData,
         })
     }
 
@@ -967,72 +952,68 @@ impl Deref for BorrowedGraph<'_> {
 #[derive(Debug)]
 pub struct ExecutableGraph {
     handle: runtime::cudaGraphExec_t,
-    context: Option<Arc<Context>>,
+    context: Arc<Context>,
     source_graph_id: Option<GraphId>,
     source_graph: Option<Arc<GraphInner>>,
     retained: RetainedResources,
 }
 
-/// Borrowed executable-graph launch descriptor for stream capture.
-#[derive(Debug, Clone, Copy)]
-pub struct ExecutableGraphLaunchOperation<'graph> {
-    graph: &'graph ExecutableGraph,
-}
-
-/// Owns a native executable-graph handle without retained context or resource metadata.
+/// Owns a native executable-graph handle that is not bound to a Singe context or retained resources.
 #[derive(Debug)]
-pub struct RawExecutableGraph {
+pub struct UnboundExecutableGraph {
     handle: runtime::cudaGraphExec_t,
 }
 
-impl Drop for RawExecutableGraph {
+impl Drop for UnboundExecutableGraph {
     fn drop(&mut self) {
-        // SAFETY: `cudaGraphExecDestroy` receives live handles owned by the wrappers.
+        // SAFETY: this value owns the live executable handle, and its constructor's caller keeps the right context current for native use.
         unsafe {
             if let Err(error) = try_ffi!(runtime::cudaGraphExecDestroy(self.handle)) {
-                eprintln!(
-                    "failed to destroy cuda graph exec: {}",
-                    singe_core::ErrorChain(&error)
-                );
+                report_cleanup_failure("destroy", "cuda executable graph", &error);
             }
         }
     }
 }
 
-// SAFETY: native executable ownership may move between host threads.
-// Mutation requires exclusive access; shared owned replay serializes native calls with a mutex.
+// SAFETY: an executable graph may be launched and destroyed from any host thread once its context is bound, which every method and `Drop` do; it is not `Sync`, so native calls on one executable never run concurrently.
 unsafe impl Send for ExecutableGraph {}
 
 impl Drop for ExecutableGraph {
     fn drop(&mut self) {
         if let Err(error) = self.bind_context() {
-            eprintln!(
-                "failed to bind cuda executable graph context for destruction: {}",
-                singe_core::ErrorChain(&error)
+            report_cleanup_failure(
+                "bind the cuda context to destroy",
+                "cuda executable graph",
+                &error,
             );
             return;
         }
-        // SAFETY: `cudaGraphExecDestroy` receives live handles owned by the wrappers.
+        // SAFETY: this value owns the live executable handle, its context is bound above, and the retained resources drop only after destruction.
         unsafe {
             if let Err(error) = try_ffi!(runtime::cudaGraphExecDestroy(self.handle)) {
-                eprintln!(
-                    "failed to destroy cuda graph exec: {}",
-                    singe_core::ErrorChain(&error)
-                );
+                report_cleanup_failure("destroy", "cuda executable graph", &error);
             }
         }
     }
 }
 
-/// CUDA graph update result and nodes associated with an update failure.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ExecutableGraphUpdate {
-    /// CUDA’s classification of the update outcome.
-    pub result: GraphExecUpdateResult,
-    /// Node associated with an update failure, when CUDA reports one.
-    pub error_node: Option<GraphNode>,
-    /// Source node of an edge associated with an update failure, when CUDA reports one.
-    pub error_from_node: Option<GraphNode>,
+/// Failure of [`ExecutableGraph::update`].
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum GraphUpdateError {
+    /// CUDA did not perform the update because it violates the constraints of executable graph updates.
+    #[error("cuda rejected the executable graph update ({result})")]
+    Rejected {
+        /// CUDA's classification of the failure.
+        result: GraphExecUpdateResult,
+        /// Node of the source graph that caused the failure, when CUDA reports one.
+        error_node: Option<GraphNode>,
+        /// Source node of the edge that caused the failure, when CUDA reports one.
+        error_from_node: Option<GraphNode>,
+    },
+    /// A context mismatch or another CUDA failure.
+    #[error(transparent)]
+    Cuda(#[from] Error),
 }
 
 /// Raw destination, geometry, and fill value for a graph memset node.
@@ -1129,7 +1110,7 @@ impl MemorySetNodeParams {
 impl From<&MemorySetNodeParams> for driver::CUDA_MEMSET_NODE_PARAMS {
     fn from(value: &MemorySetNodeParams) -> Self {
         Self {
-            dst: value.dst().as_ptr() as _,
+            dst: value.dst().addr() as _,
             pitch: value.pitch() as _,
             value: value.value(),
             elementSize: value.element_size(),

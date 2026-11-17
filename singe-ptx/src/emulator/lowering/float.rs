@@ -11,7 +11,7 @@ use crate::{
 };
 
 /// Lowers `add`, `sub`, `mul`, `div`, `min`, and `max` on a floating format.
-pub fn binary(
+pub(crate) fn binary(
     compiler: &FunctionCompiler<'_, '_>,
     instruction: &Instruction,
     head: &mut Head<'_>,
@@ -44,7 +44,7 @@ pub fn binary(
 }
 
 /// Lowers `neg` and `abs` on a floating format.
-pub fn unary(
+pub(crate) fn unary(
     compiler: &FunctionCompiler<'_, '_>,
     instruction: &Instruction,
     head: &mut Head<'_>,
@@ -73,7 +73,7 @@ pub fn unary(
     }))
 }
 
-pub fn fma(
+pub(crate) fn fma(
     compiler: &FunctionCompiler<'_, '_>,
     instruction: &Instruction,
     head: &mut Head<'_>,
@@ -90,7 +90,7 @@ pub fn fma(
     }))
 }
 
-pub fn exponential(
+pub(crate) fn exponential(
     compiler: &FunctionCompiler<'_, '_>,
     instruction: &Instruction,
     head: &mut Head<'_>,
@@ -108,7 +108,7 @@ pub fn exponential(
 }
 
 /// Lowers `rcp`, `sqrt`, and `rsqrt`.
-pub fn math(
+pub(crate) fn math(
     compiler: &FunctionCompiler<'_, '_>,
     instruction: &Instruction,
     head: &mut Head<'_>,
@@ -162,7 +162,7 @@ pub fn math(
 }
 
 /// Lowers `testp`.
-pub fn test(
+pub(crate) fn test(
     compiler: &FunctionCompiler<'_, '_>,
     instruction: &Instruction,
     head: &mut Head<'_>,
@@ -188,7 +188,7 @@ pub fn test(
     }))
 }
 
-pub fn copy_sign(
+pub(crate) fn copy_sign(
     compiler: &FunctionCompiler<'_, '_>,
     instruction: &Instruction,
     head: &mut Head<'_>,

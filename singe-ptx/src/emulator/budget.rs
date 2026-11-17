@@ -11,37 +11,37 @@ use std::{
 use crate::emulator::ExecutionError;
 
 /// Charged on top of each heap allocation (a `Box`, an `Arc`, a `Vec` buffer) for the allocator header and rounding.
-pub const ALLOCATION_OVERHEAD: usize = 64;
+pub(crate) const ALLOCATION_OVERHEAD: usize = 64;
 
 /// Charged on top of each entry of a [`ChargedQueue`] or ordered map.
 /// It covers a map node's links and allocation, and a queue slot plus the spare capacity the queue keeps before shrinking.
-pub const NODE_OVERHEAD: usize = 128;
+pub(crate) const NODE_OVERHEAD: usize = 128;
 
 /// Returns the charge for one heap-allocated `T`.
-pub const fn allocation<T>() -> usize {
+pub(crate) const fn allocation<T>() -> usize {
     size_of::<T>() + ALLOCATION_OVERHEAD
 }
 
 /// Returns the charge for one `T` stored as a queue or map entry.
-pub const fn node<T>() -> usize {
+pub(crate) const fn node<T>() -> usize {
     size_of::<T>() + NODE_OVERHEAD
 }
 
 #[derive(Debug)]
-pub struct Budget {
+pub(crate) struct Budget {
     limit: usize,
     used: AtomicUsize,
 }
 
 impl Budget {
-    pub fn new(limit: usize) -> Self {
+    pub(crate) fn new(limit: usize) -> Self {
         Self {
             limit,
             used: AtomicUsize::new(0),
         }
     }
 
-    pub fn reserve(self: &Arc<Self>, bytes: usize) -> Result<Reservation, ExecutionError> {
+    pub(crate) fn reserve(self: &Arc<Self>, bytes: usize) -> Result<Reservation, ExecutionError> {
         self.used
             .try_update(Ordering::AcqRel, Ordering::Acquire, |used| {
                 used.checked_add(bytes).filter(|total| *total <= self.limit)
@@ -53,31 +53,31 @@ impl Budget {
         })
     }
 
-    pub fn release(&self, bytes: usize) {
+    pub(crate) fn release(&self, bytes: usize) {
         let previous = self.used.fetch_sub(bytes, Ordering::AcqRel);
         debug_assert!(previous >= bytes);
     }
 
     #[cfg(test)]
-    pub fn used(&self) -> usize {
+    pub(crate) fn used(&self) -> usize {
         self.used.load(Ordering::Acquire)
     }
 }
 
 #[derive(Debug)]
-pub struct Reservation {
+pub(crate) struct Reservation {
     budget: Arc<Budget>,
     bytes: usize,
 }
 
 impl Reservation {
     #[cfg(test)]
-    pub fn bytes(&self) -> usize {
+    pub(crate) fn bytes(&self) -> usize {
         self.bytes
     }
 
     /// Divides an existing charge without changing the aggregate budget.
-    pub fn split(&mut self, bytes: usize) -> Self {
+    pub(crate) fn split(&mut self, bytes: usize) -> Self {
         assert!(bytes <= self.bytes);
         self.bytes -= bytes;
         Self {
@@ -87,12 +87,12 @@ impl Reservation {
     }
 
     /// Takes responsibility for bytes already charged by a grid.
-    pub fn from_charged(budget: Arc<Budget>, bytes: usize) -> Self {
+    pub(crate) fn from_charged(budget: Arc<Budget>, bytes: usize) -> Self {
         Self { budget, bytes }
     }
 
     /// Transfers release responsibility to the worker's grid accounting.
-    pub fn commit(mut self) -> usize {
+    pub(crate) fn commit(mut self) -> usize {
         let bytes = self.bytes;
         self.bytes = 0;
         bytes
@@ -110,7 +110,7 @@ impl Drop for Reservation {
 /// A plain `VecDeque` keeps its buffer after entries leave, so memory would stay allocated after their charges were released.
 /// This queue gives its buffer back once it is at most a quarter full, which keeps the memory it holds proportional to its charged entries.
 #[derive(Debug)]
-pub struct ChargedQueue<T>(VecDeque<T>);
+pub(crate) struct ChargedQueue<T>(VecDeque<T>);
 
 impl<T> Default for ChargedQueue<T> {
     fn default() -> Self {
@@ -119,42 +119,42 @@ impl<T> Default for ChargedQueue<T> {
 }
 
 impl<T> ChargedQueue<T> {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self::default()
     }
 
-    pub fn len(&self) -> usize {
+    pub(crate) fn len(&self) -> usize {
         self.0.len()
     }
 
-    pub fn is_empty(&self) -> bool {
+    pub(crate) fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
 
-    pub fn front(&self) -> Option<&T> {
+    pub(crate) fn front(&self) -> Option<&T> {
         self.0.front()
     }
 
-    pub fn iter(&self) -> vec_deque::Iter<'_, T> {
+    pub(crate) fn iter(&self) -> vec_deque::Iter<'_, T> {
         self.0.iter()
     }
 
-    pub fn push_back(&mut self, entry: T) {
+    pub(crate) fn push_back(&mut self, entry: T) {
         self.0.push_back(entry);
     }
 
-    pub fn append(&mut self, other: &mut Self) {
+    pub(crate) fn append(&mut self, other: &mut Self) {
         self.0.append(&mut other.0);
         other.shrink();
     }
 
-    pub fn pop_front(&mut self) -> Option<T> {
+    pub(crate) fn pop_front(&mut self) -> Option<T> {
         let entry = self.0.pop_front();
         self.shrink();
         entry
     }
 
-    pub fn remove(&mut self, index: usize) -> Option<T> {
+    pub(crate) fn remove(&mut self, index: usize) -> Option<T> {
         let entry = self.0.remove(index);
         self.shrink();
         entry
@@ -162,7 +162,7 @@ impl<T> ChargedQueue<T> {
 
     /// Moves every entry for which `remove` returns true into a new queue, keeping the order of both.
     /// Rotates entries within the existing buffer instead of allocating.
-    pub fn extract(&mut self, mut remove: impl FnMut(&T) -> bool) -> Self {
+    pub(crate) fn extract(&mut self, mut remove: impl FnMut(&T) -> bool) -> Self {
         let mut removed = Self::new();
         for _ in 0..self.0.len() {
             let Some(entry) = self.0.pop_front() else {

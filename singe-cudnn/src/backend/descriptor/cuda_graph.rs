@@ -23,16 +23,16 @@ impl BackendDescriptor {
     /// Only a limited number of engines currently support this method (with more to be added in future releases of cuDNN).
     /// Engines that support it have the behavior note [`BackendBehaviorNote::SupportsCudaGraphNativeApi`](crate::backend::behavior::BackendBehaviorNote::SupportsCudaGraphNativeApi).
     ///
-    /// # Errors
-    ///
-    /// Returns an error if required descriptors are not finalized or have the wrong type, if required data pointers are invalid, if `graph` is not initially empty, if CUDA graph creation fails, if the engine does not support the native CUDA graph API, if this cuDNN build uses an incompatible CUDA runtime, or if cuDNN reports an internal failure.
-    /// A known graph context must match the supplied cuDNN context.
-    ///
     /// # Safety
+    ///
     /// All native accesses require live plan code and valid, initialized inputs or writable outputs, with compatible layouts, permitted aliases and established producer dependencies.
     /// Keep device storage and code alive through completion and every captured replay.
     /// Host argument storage must remain valid while cuDNN consumes it.
     /// Retain previous device bindings and workspace through executable snapshots and pending launches that still reference them.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if required descriptors are not finalized or have the wrong type, if `graph` belongs to another CUDA context, if required data pointers are invalid, if `graph` is not initially empty, if CUDA graph creation fails, if the engine does not support the native CUDA graph API, if this cuDNN build uses an incompatible CUDA runtime, or if cuDNN reports an internal failure.
     pub unsafe fn populate_graph(
         &self,
         context: &Context,
@@ -61,9 +61,14 @@ impl BackendDescriptor {
             return Err(Error::DescriptorRequiredFinalized);
         }
 
-        validate_context_pair(Some(context.cuda_context()), graph.context(), "cuda graph")?;
+        validate_context_pair(
+            Some(context.cuda_context()),
+            Some(graph.context()),
+            "cuda graph",
+        )?;
         context.bind()?;
-        // SAFETY: `cudnnBackendPopulateCudaGraph` receives live handles owned by the wrappers.
+        // SAFETY: `self` and `varpack` are finalized descriptors of the checked types, `graph` belongs to the bound context, and all are borrowed for the call.
+        // The caller keeps the bound storage and plan code alive through every replay, per `# Safety`.
         unsafe {
             try_ffi!(sys::cudnnBackendPopulateCudaGraph(
                 context.as_raw(),
@@ -81,16 +86,16 @@ impl BackendDescriptor {
     /// Only a limited number of engines currently support this method (with more to be added in future releases of cuDNN).
     /// Engines that support it have the behavior note [`BackendBehaviorNote::SupportsCudaGraphNativeApi`](crate::backend::behavior::BackendBehaviorNote::SupportsCudaGraphNativeApi).
     ///
-    /// # Errors
-    ///
-    /// Returns an error if required descriptors are not finalized or have the wrong type, if required data pointers are invalid, if `graph` was not populated by [`BackendDescriptor::populate_graph`] for this execution plan or contains unexpected additional nodes, if CUDA graph update fails, if the engine does not support the native CUDA graph API, if this cuDNN build uses an incompatible CUDA runtime, or if cuDNN reports an internal failure.
-    /// A known graph context must match the supplied cuDNN context.
-    ///
     /// # Safety
+    ///
     /// All native accesses require live plan code and valid, initialized inputs or writable outputs, with compatible layouts, permitted aliases and established producer dependencies.
     /// Keep device storage and code alive through completion and every captured replay.
     /// Host argument storage must remain valid while cuDNN consumes it.
     /// Retain previous device bindings and workspace through executable snapshots and pending launches that still reference them.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if required descriptors are not finalized or have the wrong type, if `graph` belongs to another CUDA context, if required data pointers are invalid, if `graph` was not populated by [`BackendDescriptor::populate_graph`] for this execution plan or contains unexpected additional nodes, if CUDA graph update fails, if the engine does not support the native CUDA graph API, if this cuDNN build uses an incompatible CUDA runtime, or if cuDNN reports an internal failure.
     pub unsafe fn update_graph(
         &self,
         context: &Context,
@@ -119,9 +124,14 @@ impl BackendDescriptor {
             return Err(Error::DescriptorRequiredFinalized);
         }
 
-        validate_context_pair(Some(context.cuda_context()), graph.context(), "cuda graph")?;
+        validate_context_pair(
+            Some(context.cuda_context()),
+            Some(graph.context()),
+            "cuda graph",
+        )?;
         context.bind()?;
-        // SAFETY: `cudnnBackendUpdateCudaGraph` receives live handles owned by the wrappers.
+        // SAFETY: `self` and `new_varpack` are finalized descriptors of the checked types, `graph` belongs to the bound context, and all are borrowed for the call.
+        // The caller retains the new and previous bindings through pending launches, per `# Safety`.
         unsafe {
             try_ffi!(sys::cudnnBackendUpdateCudaGraph(
                 context.as_raw(),

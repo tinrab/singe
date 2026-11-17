@@ -11,7 +11,7 @@ use crate::{
     },
 };
 
-pub fn copy(
+pub(crate) fn copy(
     compiler: &FunctionCompiler<'_, '_>,
     instruction: &Instruction,
     head: &mut Head<'_>,
@@ -150,7 +150,7 @@ fn transfer(
     })))
 }
 
-pub fn barrier(
+pub(crate) fn barrier(
     compiler: &FunctionCompiler<'_, '_>,
     instruction: &Instruction,
     head: &mut Head<'_>,

@@ -4,21 +4,24 @@ use std::env::args;
 
 use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
-    backend::tensor::{Shape, TensorSpec},
+    LibraryVersion,
+    backend::operation::{
+        block_scale::BlockScaleDequantizeInputs,
+        moe::{
+            MoeGroupedMatmulBackwardInputs, MoeGroupedMatmulBackwardTensors,
+            MoeGroupedMatmulInputs, MoeGroupedMatmulRouting,
+        },
+    },
     data_type::{DataType, bf16, f16},
     error::{Error, Result},
     frontend::{
-        graph::{
-            BlockScaleDequantizeInputs, DataTypePolicy, Graph, GraphConfig,
-            MoeGroupedMatmulBackwardInputs, MoeGroupedMatmulBackwardTensors,
-            MoeGroupedMatmulInputs, TensorOutputConfig,
-        },
+        graph::{DataTypePolicy, Graph, GraphConfig, TensorOutputConfig},
         operation::{
             BlockScaleDequantizeConfig, MoeGroupedMatmulBackwardConfig, MoeGroupedMatmulConfig,
-            MoeGroupedMatmulRouting,
         },
         plan::{CompileConfig, ExecuteArgs, HeuristicMode},
     },
+    tensor::{Shape, TensorSpec},
     version,
 };
 
@@ -27,7 +30,7 @@ fn named_tensor(name: &str, data_type: DataType, shape: Shape) -> TensorSpec {
 }
 
 fn offsets_for_runtime(mut starts: Vec<i32>, end: i32) -> Result<Vec<i32>> {
-    if version()?.raw() >= 92800 {
+    if version()? >= LibraryVersion::new(9, 28, 0) {
         starts.push(end);
     }
     Ok(starts)
@@ -39,7 +42,7 @@ fn offset_count(offsets: &[i32]) -> Result<i64> {
     })
 }
 
-fn run_forward() -> Result<()> {
+fn run_forward() -> anyhow::Result<()> {
     let example = common::ExampleContext::create()?;
 
     let batch_size = 2_i64;
@@ -104,7 +107,7 @@ fn run_forward() -> Result<()> {
 
     let dequantized_weight = graph.block_scale_dequantize(
         BlockScaleDequantizeInputs::new(weight, block_scale),
-        BlockScaleDequantizeConfig::new(vec![block_size as i32, 1])
+        BlockScaleDequantizeConfig::new(vec![i32::try_from(block_size)?, 1])
             .with_compute_type(DataType::F16),
     )?;
     let output = graph.moe_grouped_matmul(
@@ -141,15 +144,15 @@ fn run_forward() -> Result<()> {
 
     // SAFETY: initialized encoded inputs, writable output and workspace remain live through stream completion.
     example.execute_and_wait(|context| unsafe {
-        compiled.execute(
+        compiled.execute_async(
             context,
-            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
         )
     })?;
     Ok(())
 }
 
-fn run_backward() -> Result<()> {
+fn run_backward() -> anyhow::Result<()> {
     let example = common::ExampleContext::create()?;
     let experts = 36_i64;
     let token_count = 2000_i64;
@@ -162,7 +165,7 @@ fn run_backward() -> Result<()> {
         ],
         2000,
     )?;
-    let (offset_type, offset_bytes) = if version()?.raw() >= 92800 {
+    let (offset_type, offset_bytes) = if version()? >= LibraryVersion::new(9, 28, 0) {
         (
             DataType::I64,
             offsets
@@ -182,16 +185,16 @@ fn run_backward() -> Result<()> {
     let mut graph = Graph::with_config(
         GraphConfig::new().with_data_type_policy(
             DataTypePolicy::new()
-                .with_io(DataType::BF16)
+                .with_io(DataType::Bf16)
                 .with_compute(DataType::F32),
         ),
     );
     let token_spec = TensorSpec::new(
-        DataType::BF16,
+        DataType::Bf16,
         Shape::contiguous([1, token_count, hidden_size])?,
     );
     let gradient_spec = TensorSpec::new(
-        DataType::BF16,
+        DataType::Bf16,
         Shape::contiguous([1, token_count, output_size])?,
     );
     let token = graph.tensor(token_spec.clone().with_name("token"));
@@ -208,7 +211,7 @@ fn run_backward() -> Result<()> {
         .with_expert_count((offset_entries != experts).then_some(experts));
     let weight_gradient = if args().any(|argument| argument == "--row-major-gradient") {
         let output = graph.tensor(TensorSpec::new(
-            DataType::BF16,
+            DataType::Bf16,
             Shape::contiguous([experts, hidden_size, output_size])?,
         ));
         graph.moe_grouped_matmul_backward_into(
@@ -247,15 +250,15 @@ fn run_backward() -> Result<()> {
     bindings.set(weight_gradient, &mut weight_device)?;
     // SAFETY: native encodings match the graph, offsets describe the routed rows, and owners remain live through completion.
     example.execute_and_wait(|context| unsafe {
-        compiled.execute(
+        compiled.execute_async(
             context,
-            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
         )
     })?;
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     let result = if args().any(|argument| argument == "--backward") {
         run_backward()
     } else {

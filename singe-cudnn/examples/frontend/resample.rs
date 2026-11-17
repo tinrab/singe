@@ -4,20 +4,17 @@ use std::env::args;
 
 use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
-    backend::{
-        execution::resample::{PaddingMode, ResampleMode},
-        tensor::{Shape, TensorSpec},
+    backend::operation::resample::{
+        PaddingMode, ResampleBackwardInputs, ResampleMode, ResampleOutputs,
     },
     data_type::{DataType, f16},
     error::Result,
     frontend::{
-        graph::{
-            DataTypePolicy, Graph, GraphConfig, ResampleIndexOutput, ResampleOutputs,
-            TensorOutputConfig,
-        },
-        operation::{ResampleBackwardInputs, ResampleConfig},
+        graph::{DataTypePolicy, Graph, GraphConfig, ResampleIndexOutput, TensorOutputConfig},
+        operation::ResampleConfig,
         plan::{CompileConfig, ExecuteArgs, HeuristicMode},
     },
+    tensor::{Shape, TensorSpec},
 };
 
 fn init_f16_image(size: usize, seed: &mut u32) -> Vec<f16> {
@@ -27,6 +24,10 @@ fn init_f16_image(size: usize, seed: &mut u32) -> Vec<f16> {
         .collect()
 }
 
+#[expect(
+    clippy::many_single_char_names,
+    reason = "keeps the upstream sample's single-letter dimension names"
+)]
 fn run() -> Result<()> {
     let example = common::ExampleContext::create()?;
 
@@ -129,9 +130,9 @@ fn run() -> Result<()> {
 
     // SAFETY: initialized input, writable outputs and workspace remain live through stream completion.
     example.execute_and_wait(|context| unsafe {
-        compiled.execute(
+        compiled.execute_async(
             context,
-            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
         )
     })?;
     drop(bindings);
@@ -170,17 +171,17 @@ fn run() -> Result<()> {
         Some(&example.cudnn),
         &CompileConfig::from_heuristic_modes([HeuristicMode::A]),
     )?;
-    let dy_dev = DeviceMemory::from_slice(
+    let y_grad_dev = DeviceMemory::from_slice(
         example.cudnn.cuda_context(),
         &vec![f16::from_f32(1.0); y_elements],
     )?;
-    let mut dx_dev = DeviceMemory::<f16>::zeroed(example.cudnn.cuda_context(), input_elements)?;
+    let mut x_grad_dev = DeviceMemory::<f16>::zeroed(example.cudnn.cuda_context(), input_elements)?;
     let mut backward_workspace = common::workspace(
         example.cudnn.cuda_context(),
         compiled_backward.workspace_size(),
     )?;
     let mut backward_bindings = compiled_backward.bindings()?;
-    backward_bindings.set_input(dy, &dy_dev.view())?;
+    backward_bindings.set_input(dy, &y_grad_dev.view())?;
     if let (Some(indices), Some((_, memory))) = (saved_indices, &index_buffer) {
         backward_bindings.set_input(indices, &memory.view())?;
     }
@@ -190,18 +191,18 @@ fn run() -> Result<()> {
         backward_bindings.set_input(output, &y_dev.view())?;
     }
 
-    backward_bindings.set(dx, &mut dx_dev)?;
+    backward_bindings.set(dx, &mut x_grad_dev)?;
     // SAFETY: saved state and gradient inputs are initialized, and all buffers remain live through completion.
     example.execute_and_wait(|context| unsafe {
-        compiled_backward.execute(
+        compiled_backward.execute_async(
             context,
-            ExecuteArgs::new(&backward_bindings).with_workspace(&mut backward_workspace),
+            ExecuteArgs::new(&backward_bindings).with_workspace(backward_workspace.output()),
         )
     })?;
 
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_resample", run())
 }

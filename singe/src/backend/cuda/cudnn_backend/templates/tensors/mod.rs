@@ -7,6 +7,7 @@ use singe_cudnn::{
         execution::{
             EngineChoice, EngineConfig as CudnnEngineConfig,
             EngineHeuristics as CudnnEngineHeuristics, EngineKnobInfo,
+            EnginePlanningOptions as CudnnEnginePlanningOptions,
             ExecutionPlan as CudnnExecutionPlan, KnobChoiceInfo,
             OperationGraph as CudnnOperationGraph,
         },
@@ -289,8 +290,13 @@ fn heuristic_configs(
 ) -> Vec<CudnnEngineConfig> {
     let mut configs = Vec::new();
     for mode in HEURISTIC_MODES {
-        if let Ok(heuristics) = CudnnEngineHeuristics::create(cudnn, operation_graph, mode, None)
-            && let Ok(offered) = heuristics.engine_configs(None)
+        if let Ok(heuristics) = CudnnEngineHeuristics::create(
+            cudnn,
+            operation_graph,
+            mode,
+            None,
+            CudnnEnginePlanningOptions::default(),
+        ) && let Ok(offered) = heuristics.engine_configs(None)
         {
             configs.extend(offered);
         }
@@ -324,12 +330,18 @@ pub fn cudnn_forced_execution_plan(
     };
     let config = match offered {
         Some(config) => config,
-        None => CudnnEngineConfig::create(cudnn, operation_graph, choice)?,
+        None => CudnnEngineConfig::create(
+            cudnn,
+            operation_graph,
+            choice,
+            None,
+            CudnnEnginePlanningOptions::default(),
+        )?,
     };
     if let Some(refusal) = engine_refusal(&config, storage_data_type, matmul)? {
         return Err(refusal);
     }
-    Ok(CudnnExecutionPlan::create(cudnn, &config)?)
+    Ok(CudnnExecutionPlan::create(cudnn, &config, None, None)?)
 }
 
 // How many of one graph's engine and knob choices tuning times, a bound the budget also limits.
@@ -358,7 +370,14 @@ pub fn cudnn_engine_choices(
         .into_iter()
         .filter_map(|index| {
             let base = EngineChoice::new(index, Vec::new());
-            CudnnEngineConfig::create(cudnn, operation_graph, &base).ok()
+            CudnnEngineConfig::create(
+                cudnn,
+                operation_graph,
+                &base,
+                None,
+                CudnnEnginePlanningOptions::default(),
+            )
+            .ok()
         });
     for config in offered.into_iter().chain(built) {
         let index = config.engine()?.index();
@@ -389,8 +408,13 @@ pub fn cudnn_engine_choices(
                 let choice =
                     EngineChoice::new(index, vec![KnobChoiceInfo::new(knob.knob_type, value)]);
                 // cuDNN refuses many values, and only trying one says which.
-                if let Ok(config) = CudnnEngineConfig::create(cudnn, operation_graph, &choice)
-                    && engine_refusal(&config, storage_data_type, matmul)?.is_none()
+                if let Ok(config) = CudnnEngineConfig::create(
+                    cudnn,
+                    operation_graph,
+                    &choice,
+                    None,
+                    CudnnEnginePlanningOptions::default(),
+                ) && engine_refusal(&config, storage_data_type, matmul)?.is_none()
                 {
                     choices.push(choice);
                     of_knob += 1;
@@ -417,7 +441,13 @@ fn cudnn_execution_plan(
     let mut captured_fallback = None;
 
     for mode in HEURISTIC_MODES {
-        let heuristics = match CudnnEngineHeuristics::create(cudnn, operation_graph, mode, None) {
+        let heuristics = match CudnnEngineHeuristics::create(
+            cudnn,
+            operation_graph,
+            mode,
+            None,
+            CudnnEnginePlanningOptions::default(),
+        ) {
             Ok(heuristics) => heuristics,
             Err(error) => {
                 last_error = Some(Error::from(error));
@@ -457,7 +487,7 @@ fn cudnn_execution_plan(
             if !native && captured_fallback.is_some() {
                 continue;
             }
-            match CudnnExecutionPlan::create(cudnn, &config) {
+            match CudnnExecutionPlan::create(cudnn, &config, None, None) {
                 Ok(plan) if native => return Ok(plan),
                 Ok(plan) => captured_fallback = Some(plan),
                 Err(error) => last_error = Some(Error::from(error)),

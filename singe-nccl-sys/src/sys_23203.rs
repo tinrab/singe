@@ -117,92 +117,81 @@ impl Default for ncclUniqueId {
         }
     }
 }
-/// Return values for all NCCL functions. Possible values are.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum ncclResult_t {
+impl ncclResult_t {
     /// (`0`)
     /// Function succeeded.
-    ncclSuccess = 0,
+    pub const ncclSuccess: ncclResult_t = ncclResult_t(0);
     /// (`1`)
     /// A call to a CUDA function failed.
-    ncclUnhandledCudaError = 1,
+    pub const ncclUnhandledCudaError: ncclResult_t = ncclResult_t(1);
     /// (`2`)
     /// A call to the system failed.
-    ncclSystemError = 2,
+    pub const ncclSystemError: ncclResult_t = ncclResult_t(2);
     /// (`3`)
     /// An internal check failed. This is due to either a bug in NCCL or a memory corruption.
-    ncclInternalError = 3,
+    pub const ncclInternalError: ncclResult_t = ncclResult_t(3);
     /// (`4`)
     /// An argument has an invalid value.
-    ncclInvalidArgument = 4,
+    pub const ncclInvalidArgument: ncclResult_t = ncclResult_t(4);
     /// (`5`)
     /// The call to NCCL is incorrect. This is usually reflecting a programming error.
-    ncclInvalidUsage = 5,
+    pub const ncclInvalidUsage: ncclResult_t = ncclResult_t(5);
     /// (`6`)
     /// A call failed possibly due to a network error or a remote process exiting prematurely.
-    ncclRemoteError = 6,
+    pub const ncclRemoteError: ncclResult_t = ncclResult_t(6);
     /// (`7`)
     /// A NCCL operation on the communicator is being enqueued and is being progressed in the background.
     ///
     /// Whenever a function returns an error (neither ncclSuccess nor ncclInProgress), NCCL should print a more detailed message when the environment variable [NCCL_DEBUG](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/env.html#nccl-debug) is set to “WARN”.
-    ncclInProgress = 7,
+    pub const ncclInProgress: ncclResult_t = ncclResult_t(7);
     /// The operation exceeded its timeout.
-    ncclTimeout = 8,
+    pub const ncclTimeout: ncclResult_t = ncclResult_t(8);
     /// One past the last NCCL result code; used for bounds checking.
-    ncclNumResults = 9,
+    pub const ncclNumResults: ncclResult_t = ncclResult_t(9);
 }
-/// Values for the `hostCftMode` communicator configuration.
-#[repr(i32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum ncclHostCftMode_t {
+/// Return values for all NCCL functions. Possible values are.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct ncclResult_t(pub ::core::ffi::c_uint);
+impl ncclHostCftMode_t {
     /// Use the version-specific default.
-    ncclHostCftDefault = -2147483648,
+    pub const ncclHostCftDefault: ncclHostCftMode_t = ncclHostCftMode_t(-2147483648);
     /// Enable host-side CFT support.
-    ncclHostCftEnable = 1,
+    pub const ncclHostCftEnable: ncclHostCftMode_t = ncclHostCftMode_t(1);
     /// Disable host-side CFT support.
-    ncclHostCftDisable = 2,
+    pub const ncclHostCftDisable: ncclHostCftMode_t = ncclHostCftMode_t(2);
     /// Try to create CFT logical endpoints. In case of an error, host-side CFT will be
     /// disabled.
-    ncclHostCftFallback = 3,
+    pub const ncclHostCftFallback: ncclHostCftMode_t = ncclHostCftMode_t(3);
+}
+/// Values for the `hostCftMode` communicator configuration.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct ncclHostCftMode_t(pub ::core::ffi::c_int);
+impl ncclNvlsHostMode_t {
+    /// library default
+    pub const ncclNvlsHostModeDefault: ncclNvlsHostMode_t = ncclNvlsHostMode_t(
+        -2147483648,
+    );
+    /// enable all host NVLS components
+    pub const ncclNvlsHostModeEnable: ncclNvlsHostMode_t = ncclNvlsHostMode_t(0);
+    /// disable NVLS transport and registered-buffer optimization
+    pub const ncclNvlsHostModeDisableTransport: ncclNvlsHostMode_t = ncclNvlsHostMode_t(
+        1,
+    );
+    /// disable multimem in internal symmetric kernels and CE
+    pub const ncclNvlsHostModeDisableSymmetricMultimem: ncclNvlsHostMode_t = ncclNvlsHostMode_t(
+        2,
+    );
+    /// disable all present and future host NVLS components
+    pub const ncclNvlsHostModeDisable: ncclNvlsHostMode_t = ncclNvlsHostMode_t(
+        2147483647,
+    );
 }
 /// Host NVLS component-disable flags. Individual component flags may be combined.
-#[repr(i32)]
+#[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum ncclNvlsHostMode_t {
-    /// library default
-    ncclNvlsHostModeDefault = -2147483648,
-    /// enable all host NVLS components
-    ncclNvlsHostModeEnable = 0,
-    /// disable NVLS transport and registered-buffer optimization
-    ncclNvlsHostModeDisableTransport = 1,
-    /// disable multimem in internal symmetric kernels and CE
-    ncclNvlsHostModeDisableSymmetricMultimem = 2,
-    /// disable all present and future host NVLS components
-    ncclNvlsHostModeDisable = 2147483647,
-}
+pub struct ncclNvlsHostMode_t(pub ::core::ffi::c_int);
 /// Communicator configuration. Users can assign value to attributes to specify the behavior of a communicator.
 #[repr(C)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
@@ -822,19 +811,20 @@ singe_loader::functions! { crate::LIBRARY;
     /// communicator is fully operational and can be used for NCCL operations again.
     pub fn ncclCommResume(comm: ncclComm_t) -> ncclResult_t;
 }
-/// Memory statistic selectors for [`ncclCommMemStats`].
-#[repr(u32)]
-#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum ncclCommMemStat_t {
+impl ncclCommMemStat_t {
     /// Communicator allocated GPU memory that can be released via suspend (bytes).
-    ncclStatGpuMemSuspend = 0,
+    pub const ncclStatGpuMemSuspend: ncclCommMemStat_t = ncclCommMemStat_t(0);
     /// Whether communicator allocated GPU memory is currently suspended (`0` = active, `1` = suspended).
-    ncclStatGpuMemSuspended = 1,
+    pub const ncclStatGpuMemSuspended: ncclCommMemStat_t = ncclCommMemStat_t(1);
     /// Communicator allocated GPU memory that cannot be suspended (bytes).
-    ncclStatGpuMemPersist = 2,
+    pub const ncclStatGpuMemPersist: ncclCommMemStat_t = ncclCommMemStat_t(2);
     /// Total communicator allocated GPU memory that is tracked by NCCL (bytes).
-    ncclStatGpuMemTotal = 3,
+    pub const ncclStatGpuMemTotal: ncclCommMemStat_t = ncclCommMemStat_t(3);
 }
+/// Memory statistic selectors for [`ncclCommMemStats`].
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct ncclCommMemStat_t(pub ::core::ffi::c_uint);
 singe_loader::functions! { crate::LIBRARY;
     /// Query communicator memory statistics. The `stat` parameter selects which statistic to retrieve, and the
     /// result is written to *\*value*. See [`ncclCommMemStat_t`] for the list of available statistics.
@@ -874,128 +864,89 @@ singe_loader::functions! { crate::LIBRARY;
         outUserPtr: *mut *mut ::core::ffi::c_void,
     ) -> ncclResult_t;
 }
-/// Reduction operation selector
-#[repr(u32)]
-#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum ncclRedOp_dummy_t {
+impl ncclRedOp_dummy_t {
     /// End marker for the built-in reduction-operation identifiers.
-    ncclNumOps_dummy = 5,
+    pub const ncclNumOps_dummy: ncclRedOp_dummy_t = ncclRedOp_dummy_t(5);
+}
+/// Reduction operation selector
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct ncclRedOp_dummy_t(pub ::core::ffi::c_uint);
+impl ncclRedOp_t {
+    /// Perform a sum (+) operation.
+    pub const ncclSum: ncclRedOp_t = ncclRedOp_t(0);
+    /// Perform a product (\*) operation.
+    pub const ncclProd: ncclRedOp_t = ncclRedOp_t(1);
+    /// Perform a max operation.
+    pub const ncclMax: ncclRedOp_t = ncclRedOp_t(2);
+    /// Perform a min operation.
+    pub const ncclMin: ncclRedOp_t = ncclRedOp_t(3);
+    /// Perform an average operation, i.e. a sum across all ranks, divided by the number of ranks.
+    pub const ncclAvg: ncclRedOp_t = ncclRedOp_t(4);
+    /// ncclNumOps: The number of built-in ncclRedOp_t values. Also serves as the least possible value for dynamic ncclRedOp_t's as constructed by ncclRedOpCreate*** functions.
+    pub const ncclNumOps: ncclRedOp_t = ncclRedOp_t(5);
+    /// ncclMaxRedOp: The largest valid value for ncclRedOp_t. It is defined to be the largest signed value (since compilers are permitted to use signed enums) that won't grow sizeof(ncclRedOp_t) when compared to previous NCCL versions to maintain ABI compatibility.
+    pub const ncclMaxRedOp: ncclRedOp_t = ncclRedOp_t(2147483647);
 }
 /// Defines the reduction operation.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum ncclRedOp_t {
-    /// Perform a sum (+) operation.
-    ncclSum = 0,
-    /// Perform a product (\*) operation.
-    ncclProd = 1,
-    /// Perform a max operation.
-    ncclMax = 2,
-    /// Perform a min operation.
-    ncclMin = 3,
-    /// Perform an average operation, i.e. a sum across all ranks, divided by the number of ranks.
-    ncclAvg = 4,
-    /// ncclNumOps: The number of built-in ncclRedOp_t values. Also serves as the least possible value for dynamic ncclRedOp_t's as constructed by ncclRedOpCreate*** functions.
-    ncclNumOps = 5,
-    /// ncclMaxRedOp: The largest valid value for ncclRedOp_t. It is defined to be the largest signed value (since compilers are permitted to use signed enums) that won't grow sizeof(ncclRedOp_t) when compared to previous NCCL versions to maintain ABI compatibility.
-    ncclMaxRedOp = 2147483647,
-}
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct ncclRedOp_t(pub ::core::ffi::c_uint);
 impl ncclDataType_t {
     /// Signed 8-bits integer.
-    pub const ncclChar: ncclDataType_t = ncclDataType_t::ncclInt8;
-}
-impl ncclDataType_t {
+    pub const ncclInt8: ncclDataType_t = ncclDataType_t(0);
+    /// Signed 8-bits integer.
+    pub const ncclChar: ncclDataType_t = ncclDataType_t(0);
+    /// Unsigned 8-bits integer.
+    pub const ncclUint8: ncclDataType_t = ncclDataType_t(1);
     /// Signed 32-bits integer.
-    pub const ncclInt: ncclDataType_t = ncclDataType_t::ncclInt32;
-}
-impl ncclDataType_t {
+    pub const ncclInt32: ncclDataType_t = ncclDataType_t(2);
+    /// Signed 32-bits integer.
+    pub const ncclInt: ncclDataType_t = ncclDataType_t(2);
+    /// Unsigned 32-bits integer.
+    pub const ncclUint32: ncclDataType_t = ncclDataType_t(3);
+    /// Signed 64-bits integer.
+    pub const ncclInt64: ncclDataType_t = ncclDataType_t(4);
+    /// Unsigned 64-bits integer.
+    pub const ncclUint64: ncclDataType_t = ncclDataType_t(5);
     /// 16-bits floating point number (half precision).
-    pub const ncclHalf: ncclDataType_t = ncclDataType_t::ncclFloat16;
-}
-impl ncclDataType_t {
+    pub const ncclFloat16: ncclDataType_t = ncclDataType_t(6);
+    /// 16-bits floating point number (half precision).
+    pub const ncclHalf: ncclDataType_t = ncclDataType_t(6);
     /// 32-bits floating point number (single precision).
-    pub const ncclFloat: ncclDataType_t = ncclDataType_t::ncclFloat32;
-}
-impl ncclDataType_t {
+    pub const ncclFloat32: ncclDataType_t = ncclDataType_t(7);
+    /// 32-bits floating point number (single precision).
+    pub const ncclFloat: ncclDataType_t = ncclDataType_t(7);
     /// 64-bits floating point number (double precision).
-    pub const ncclDouble: ncclDataType_t = ncclDataType_t::ncclFloat64;
+    pub const ncclFloat64: ncclDataType_t = ncclDataType_t(8);
+    /// 64-bits floating point number (double precision).
+    pub const ncclDouble: ncclDataType_t = ncclDataType_t(8);
+    /// 16-bits floating point number (truncated precision in bfloat16 format, CUDA 11 or later).
+    pub const ncclBfloat16: ncclDataType_t = ncclDataType_t(9);
+    /// 8-bits floating point number, 4 exponent bits, 3 mantissa bits (CUDA >= 11.8 and SM >= 90).
+    pub const ncclFloat8e4m3: ncclDataType_t = ncclDataType_t(10);
+    /// 8-bits floating point number, 5 exponent bits, 2 mantissa bits (CUDA >= 11.8 and SM >= 90).
+    pub const ncclFloat8e5m2: ncclDataType_t = ncclDataType_t(11);
+    /// One past the last NCCL data-type identifier; used for bounds checking.
+    pub const ncclNumTypes: ncclDataType_t = ncclDataType_t(12);
 }
 /// NCCL defines the following integral and floating data-types.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum ncclDataType_t {
-    /// Signed 8-bits integer.
-    ncclInt8 = 0,
-    /// Unsigned 8-bits integer.
-    ncclUint8 = 1,
-    /// Signed 32-bits integer.
-    ncclInt32 = 2,
-    /// Unsigned 32-bits integer.
-    ncclUint32 = 3,
-    /// Signed 64-bits integer.
-    ncclInt64 = 4,
-    /// Unsigned 64-bits integer.
-    ncclUint64 = 5,
-    /// 16-bits floating point number (half precision).
-    ncclFloat16 = 6,
-    /// 32-bits floating point number (single precision).
-    ncclFloat32 = 7,
-    /// 64-bits floating point number (double precision).
-    ncclFloat64 = 8,
-    /// 16-bits floating point number (truncated precision in bfloat16 format, CUDA 11 or later).
-    ncclBfloat16 = 9,
-    /// 8-bits floating point number, 4 exponent bits, 3 mantissa bits (CUDA >= 11.8 and SM >= 90).
-    ncclFloat8e4m3 = 10,
-    /// 8-bits floating point number, 5 exponent bits, 2 mantissa bits (CUDA >= 11.8 and SM >= 90).
-    ncclFloat8e5m2 = 11,
-    /// One past the last NCCL data-type identifier; used for bounds checking.
-    ncclNumTypes = 12,
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct ncclDataType_t(pub ::core::ffi::c_uint);
+impl ncclScalarResidence_t {
+    /// The scalar resides on device visible memory and should be dereferenced once
+    /// needed.
+    pub const ncclScalarDevice: ncclScalarResidence_t = ncclScalarResidence_t(0);
+    /// The scalar resides in host memory and should be dereferenced in the most immediate
+    /// way.
+    pub const ncclScalarHostImmediate: ncclScalarResidence_t = ncclScalarResidence_t(1);
 }
 /// Indicates where (memory space) scalar arguments reside and when they can be
 /// dereferenced.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum ncclScalarResidence_t {
-    /// The scalar resides on device visible memory and should be dereferenced once
-    /// needed.
-    ncclScalarDevice = 0,
-    /// The scalar resides in host memory and should be dereferenced in the most immediate
-    /// way.
-    ncclScalarHostImmediate = 1,
-}
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct ncclScalarResidence_t(pub ::core::ffi::c_uint);
 singe_loader::functions! { crate::LIBRARY;
     /// Creates a new reduction operator which pre-multiplies input values by a given
     /// scalar locally before reducing them with peer values via summation. Both the
@@ -1445,17 +1396,18 @@ singe_loader::functions! { crate::LIBRARY;
     /// Simulate a ncclGroupEnd() call and return NCCL’s simulation info in a structure passed as an argument.
     pub fn ncclGroupSimulateEnd(simInfo: *mut ncclSimInfo_t) -> ncclResult_t;
 }
+impl ncclEncryptionMode_t {
+    /// plaintext
+    pub const NCCL_ENCRYPTION_MODE_NONE: ncclEncryptionMode_t = ncclEncryptionMode_t(0);
+    /// Request TLS encryption for NCCL-owned TCP sockets using a pre-shared key.
+    pub const NCCL_ENCRYPTION_MODE_PSK: ncclEncryptionMode_t = ncclEncryptionMode_t(1);
+}
 /// Encryption
 ///
 /// Request encryption of NCCL TCP sockets via user code.
-#[repr(u32)]
+#[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum ncclEncryptionMode_t {
-    /// plaintext
-    NCCL_ENCRYPTION_MODE_NONE = 0,
-    /// Request TLS encryption for NCCL-owned TCP sockets using a pre-shared key.
-    NCCL_ENCRYPTION_MODE_PSK = 1,
-}
+pub struct ncclEncryptionMode_t(pub ::core::ffi::c_uint);
 /// Versioned process-global network encryption configuration.
 #[repr(C)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
@@ -1634,104 +1586,134 @@ pub struct ncclTeam {
     /// Distance between adjacent team ranks in the containing rank space.
     pub stride: ::core::ffi::c_int,
 }
-/// Topology of ranks connected through the GPU-initiated networking interface.
-#[repr(u32)]
-#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum ncclGinConnectionType_t {
+impl ncclGinConnectionType_t {
     /// Requests no GIN connections.
-    NCCL_GIN_CONNECTION_NONE = 0,
+    pub const NCCL_GIN_CONNECTION_NONE: ncclGinConnectionType_t = ncclGinConnectionType_t(
+        0,
+    );
     /// Connects the full communicator rank set through GIN.
-    NCCL_GIN_CONNECTION_FULL = 1,
+    pub const NCCL_GIN_CONNECTION_FULL: ncclGinConnectionType_t = ncclGinConnectionType_t(
+        1,
+    );
     /// Connects ranks on the same rail through GIN.
-    NCCL_GIN_CONNECTION_RAIL = 2,
+    pub const NCCL_GIN_CONNECTION_RAIL: ncclGinConnectionType_t = ncclGinConnectionType_t(
+        2,
+    );
     /// Connects communicator ranks according to the custom rank stride in the device requirements.
-    NCCL_GIN_CONNECTION_CUSTOM_STRIDE = 3,
+    pub const NCCL_GIN_CONNECTION_CUSTOM_STRIDE: ncclGinConnectionType_t = ncclGinConnectionType_t(
+        3,
+    );
+}
+/// Topology of ranks connected through the GPU-initiated networking interface.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct ncclGinConnectionType_t(pub ::core::ffi::c_uint);
+impl ncclGinType_t {
+    /// Sentinel: accept any available backend (used in ncclDevCommRequirements)
+    pub const NCCL_GIN_TYPE_NONE: ncclGinType_t = ncclGinType_t(0);
+    /// intentionally not 1. Must match NCCL_NET_DEVICE_GIN_PROXY for backward compatibility
+    pub const NCCL_GIN_TYPE_PROXY: ncclGinType_t = ncclGinType_t(2);
+    /// intentionally not 2. Must match NCCL_NET_DEVICE_GIN_GDAKI for backward compatibility
+    pub const NCCL_GIN_TYPE_GDAKI: ncclGinType_t = ncclGinType_t(3);
+    /// Must match NCCL_NET_DEVICE_GIN_GPI
+    pub const NCCL_GIN_TYPE_GPI: ncclGinType_t = ncclGinType_t(4);
+    /// Must match NCCL_NET_DEVICE_GIN_EFA_GDA for backward compatibility
+    pub const NCCL_GIN_TYPE_EFA_GDA: ncclGinType_t = ncclGinType_t(5);
+    /// One past the largest native GIN backend identifier.
+    pub const NCCL_GIN_MAX_TYPES: ncclGinType_t = ncclGinType_t(6);
 }
 /// Backend selection for GPU-initiated networking.
-#[repr(u32)]
+#[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum ncclGinType_t {
-    /// Sentinel: accept any available backend (used in ncclDevCommRequirements)
-    NCCL_GIN_TYPE_NONE = 0,
-    /// intentionally not 1. Must match NCCL_NET_DEVICE_GIN_PROXY for backward compatibility
-    NCCL_GIN_TYPE_PROXY = 2,
-    /// intentionally not 2. Must match NCCL_NET_DEVICE_GIN_GDAKI for backward compatibility
-    NCCL_GIN_TYPE_GDAKI = 3,
-    /// Must match NCCL_NET_DEVICE_GIN_GPI
-    NCCL_GIN_TYPE_GPI = 4,
-    /// Must match NCCL_NET_DEVICE_GIN_EFA_GDA for backward compatibility
-    NCCL_GIN_TYPE_EFA_GDA = 5,
-    /// One past the largest native GIN backend identifier.
-    NCCL_GIN_MAX_TYPES = 6,
+pub struct ncclGinType_t(pub ::core::ffi::c_uint);
+impl ncclCftTeamMode_t {
+    /// Uses the complete flat CFT team with unit rank stride.
+    pub const NCCL_CFT_TEAM_FLAT: ncclCftTeamMode_t = ncclCftTeamMode_t(0);
+    /// Uses the outer CFT team after factoring by the multimem team size.
+    pub const NCCL_CFT_TEAM_HIER_MULTIMEM: ncclCftTeamMode_t = ncclCftTeamMode_t(1);
+    /// Uses the outer CFT team after factoring by the local shared-address-space team size.
+    pub const NCCL_CFT_TEAM_HIER_LSA: ncclCftTeamMode_t = ncclCftTeamMode_t(2);
 }
 /// Selection of a flat or factored CFT team.
-#[repr(u32)]
+#[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum ncclCftTeamMode_t {
-    /// Uses the complete flat CFT team with unit rank stride.
-    NCCL_CFT_TEAM_FLAT = 0,
-    /// Uses the outer CFT team after factoring by the multimem team size.
-    NCCL_CFT_TEAM_HIER_MULTIMEM = 1,
-    /// Uses the outer CFT team after factoring by the local shared-address-space team size.
-    NCCL_CFT_TEAM_HIER_LSA = 2,
+pub struct ncclCftTeamMode_t(pub ::core::ffi::c_uint);
+impl ncclCftCap_t {
+    /// Requests no CFT capabilities.
+    pub const NCCL_CFT_NONE: ncclCftCap_t = ncclCftCap_t(0);
+    /// Requests CFT unicast support.
+    pub const NCCL_CFT: ncclCftCap_t = ncclCftCap_t(1);
+    /// Requests CFT multicast support.
+    pub const NCCL_CFT_MULTIMEM: ncclCftCap_t = ncclCftCap_t(2);
 }
 /// Capability bits requested for CFT operations when creating a device communicator.
-#[repr(u32)]
+#[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum ncclCftCap_t {
-    /// Requests no CFT capabilities.
-    NCCL_CFT_NONE = 0,
-    /// Requests CFT unicast support.
-    NCCL_CFT = 1,
-    /// Requests CFT multicast support.
-    NCCL_CFT_MULTIMEM = 2,
-}
+pub struct ncclCftCap_t(pub ::core::ffi::c_uint);
 impl CUmemLocationType_enum {
+    /// No valid native memory location is selected.
+    pub const CU_MEM_LOCATION_TYPE_INVALID: CUmemLocationType_enum = CUmemLocationType_enum(
+        0,
+    );
     /// Location is unspecified.
     ///
     /// This is used when creating a managed memory pool to indicate no preferred location for the pool.
-    pub const CU_MEM_LOCATION_TYPE_NONE: CUmemLocationType_enum = CUmemLocationType_enum::CU_MEM_LOCATION_TYPE_INVALID;
+    pub const CU_MEM_LOCATION_TYPE_NONE: CUmemLocationType_enum = CUmemLocationType_enum(
+        0,
+    );
+    /// Location is a device location, thus id is a device ordinal.
+    pub const CU_MEM_LOCATION_TYPE_DEVICE: CUmemLocationType_enum = CUmemLocationType_enum(
+        1,
+    );
+    /// Location is host, id is ignored.
+    pub const CU_MEM_LOCATION_TYPE_HOST: CUmemLocationType_enum = CUmemLocationType_enum(
+        2,
+    );
+    /// Location is a host NUMA node, thus id is a host NUMA node id.
+    pub const CU_MEM_LOCATION_TYPE_HOST_NUMA: CUmemLocationType_enum = CUmemLocationType_enum(
+        3,
+    );
+    /// Location is a host NUMA node of the current thread, id is ignored.
+    pub const CU_MEM_LOCATION_TYPE_HOST_NUMA_CURRENT: CUmemLocationType_enum = CUmemLocationType_enum(
+        4,
+    );
+    /// Location is not visible but device is accessible, id is always CU_DEVICE_INVALID.
+    pub const CU_MEM_LOCATION_TYPE_INVISIBLE: CUmemLocationType_enum = CUmemLocationType_enum(
+        5,
+    );
+    /// Location is a portion of device memory, specified by the locality domain ID.
+    pub const CU_MEM_LOCATION_TYPE_DEVICE_LOCALITY_DOMAIN: CUmemLocationType_enum = CUmemLocationType_enum(
+        6,
+    );
+    /// Reserved upper-bound sentinel for native memory location types.
+    pub const CU_MEM_LOCATION_TYPE_MAX: CUmemLocationType_enum = CUmemLocationType_enum(
+        2147483647,
+    );
 }
 /// Specifies the type of location
-#[repr(u32)]
+#[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum CUmemLocationType_enum {
-    /// No valid native memory location is selected.
-    CU_MEM_LOCATION_TYPE_INVALID = 0,
-    /// Location is a device location, thus id is a device ordinal.
-    CU_MEM_LOCATION_TYPE_DEVICE = 1,
-    /// Location is host, id is ignored.
-    CU_MEM_LOCATION_TYPE_HOST = 2,
-    /// Location is a host NUMA node, thus id is a host NUMA node id.
-    CU_MEM_LOCATION_TYPE_HOST_NUMA = 3,
-    /// Location is a host NUMA node of the current thread, id is ignored.
-    CU_MEM_LOCATION_TYPE_HOST_NUMA_CURRENT = 4,
-    /// Location is not visible but device is accessible, id is always CU_DEVICE_INVALID.
-    CU_MEM_LOCATION_TYPE_INVISIBLE = 5,
-    /// Location is a portion of device memory, specified by the locality domain ID.
-    CU_MEM_LOCATION_TYPE_DEVICE_LOCALITY_DOMAIN = 6,
-    /// Reserved upper-bound sentinel for native memory location types.
-    CU_MEM_LOCATION_TYPE_MAX = 2147483647,
-}
+pub struct CUmemLocationType_enum(pub ::core::ffi::c_uint);
 /// Specifies the type of location
 pub use self::CUmemLocationType_enum as CUmemLocationType;
-/// Native network-device offload or GIN backend type.
-#[repr(u32)]
-#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum ncclNetDeviceType {
+impl ncclNetDeviceType {
     /// Uses the host network interface.
-    NCCL_NET_DEVICE_HOST = 0,
+    pub const NCCL_NET_DEVICE_HOST: ncclNetDeviceType = ncclNetDeviceType(0);
     /// Uses device-side unpack offload.
-    NCCL_NET_DEVICE_UNPACK = 1,
+    pub const NCCL_NET_DEVICE_UNPACK: ncclNetDeviceType = ncclNetDeviceType(1);
     /// Uses the proxy GIN backend.
-    NCCL_NET_DEVICE_GIN_PROXY = 2,
+    pub const NCCL_NET_DEVICE_GIN_PROXY: ncclNetDeviceType = ncclNetDeviceType(2);
     /// Uses the GDAKI GIN backend.
-    NCCL_NET_DEVICE_GIN_GDAKI = 3,
+    pub const NCCL_NET_DEVICE_GIN_GDAKI: ncclNetDeviceType = ncclNetDeviceType(3);
     /// Uses the GPI GIN backend.
-    NCCL_NET_DEVICE_GIN_GPI = 4,
+    pub const NCCL_NET_DEVICE_GIN_GPI: ncclNetDeviceType = ncclNetDeviceType(4);
     /// Uses the EFA GDA GIN backend.
-    NCCL_NET_DEVICE_GIN_EFA_GDA = 5,
+    pub const NCCL_NET_DEVICE_GIN_EFA_GDA: ncclNetDeviceType = ncclNetDeviceType(5);
 }
+/// Native network-device offload or GIN backend type.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct ncclNetDeviceType(pub ::core::ffi::c_uint);
 /// Network-device plugin handle, interface version, and proxy progress requirements.
 #[repr(C)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
@@ -1778,15 +1760,16 @@ pub struct ncclGinGpuCtx {
 pub type ncclGinGpuCtx_t = *mut ncclGinGpuCtx;
 /// Opaque GIN backend memory-window registration handle.
 pub type ncclGinWindow_t = *mut ::core::ffi::c_void;
-/// Atomic update applied to a remote GIN signal.
-#[repr(u32)]
-#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum ncclGinSignalOp_t {
+impl ncclGinSignalOp_t {
     /// Increments the remote signal.
-    ncclGinSignalInc = 0,
+    pub const ncclGinSignalInc: ncclGinSignalOp_t = ncclGinSignalOp_t(0);
     /// Adds the supplied value to the remote signal.
-    ncclGinSignalAdd = 1,
+    pub const ncclGinSignalAdd: ncclGinSignalOp_t = ncclGinSignalOp_t(1);
 }
+/// Atomic update applied to a remote GIN signal.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct ncclGinSignalOp_t(pub ::core::ffi::c_uint);
 /// GIN registrations and memory type for one segment of a registered window.
 #[repr(C)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
@@ -1903,17 +1886,18 @@ pub struct ncclLsaBarrierHandle {
     /// Number of barrier instances represented by this handle.
     pub nBarriers: ::core::ffi::c_int,
 }
-/// Backend optimization hints for GPU-initiated networking operations.
-#[repr(u32)]
-#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum ncclGinOptFlags {
+impl ncclGinOptFlags {
     /// Applies no additional GIN optimization hints.
-    ncclGinOptFlagsDefault = 0,
+    pub const ncclGinOptFlagsDefault: ncclGinOptFlags = ncclGinOptFlags(0);
     /// Allows the backend to omit queue-credit checks when its credit requirements are otherwise satisfied.
-    ncclGinOptFlagsMaySkipCreditCheck = 1,
+    pub const ncclGinOptFlagsMaySkipCreditCheck: ncclGinOptFlags = ncclGinOptFlags(1);
     /// Allows the backend to aggregate request submission, including deferring a doorbell until a later non-aggregated request.
-    ncclGinOptFlagsAggregateRequests = 2,
+    pub const ncclGinOptFlagsAggregateRequests: ncclGinOptFlags = ncclGinOptFlags(2);
 }
+/// Backend optimization hints for GPU-initiated networking operations.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct ncclGinOptFlags(pub ::core::ffi::c_uint);
 /// Device handle for GIN barriers backed by remote signals.
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
@@ -2225,6 +2209,7 @@ pub struct ncclCommProperties {
     ///
     /// Multiple GIN backends can be used at once by creating two device communicators, each with a different ginType.
     /// See [Multiple GIN Backends](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/usage/deviceapi.html#deviceapi-gin-multi-backend) for a worked example. Available since NCCL 2.31.
+    #[deprecated]
     pub ginType: ncclGinType_t,
     /// The number of [LSA](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/usage/bufferreg.html#device-api-lsa) teams across the entire communicator. Available since NCCL 2.29.7.
     pub nLsaTeams: ::core::ffi::c_int,
@@ -2235,6 +2220,7 @@ pub struct ncclCommProperties {
     /// Available since NCCL 2.29.7, deprecated since NCCL 2.31.
     /// This field only reports a single GIN type and predates multi-backend GIN support. New code should use
     /// [`ginConnectionType`](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_setup.html#c.ncclCommProperties_t.ginConnectionType "ginConnectionType") together with [`ginSupport`](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_setup.html#c.ncclCommProperties_t.ginSupport "ginSupport") instead.
+    #[deprecated]
     pub railedGinType: ncclGinType_t,
     /// Communicator hash identifier shared across all ranks in the communicator. Available since NCCL 2.31.
     pub commHash: u64,

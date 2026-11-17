@@ -1,5 +1,7 @@
 use crate::{
-    backend::tensor::{Shape, TensorSpec},
+    backend::operation::normalization::{
+        BatchNormalizationRunningStatistics, NormalizationSavedStatistics,
+    },
     data_type::DataType,
     error::Result,
     frontend::{
@@ -10,12 +12,12 @@ use crate::{
         },
         operation::{
             AdaptiveLayerNormalizationConfig, AdaptiveLayerNormalizationInputs,
-            AdaptiveLayerNormalizationOutputs, BatchNormalizationRunningStatistics,
-            InstanceNormalizationConfig, InstanceNormalizationInputs, InstanceNormalizationOutputs,
-            NormalizationOperation, NormalizationSavedStatistics, NormalizationStatistics,
-            Operation,
+            AdaptiveLayerNormalizationOutputs, InstanceNormalizationConfig,
+            InstanceNormalizationInputs, InstanceNormalizationOutputs, NormalizationOperation,
+            NormalizationStatistics, Operation,
         },
     },
+    tensor::{Shape, TensorSpec},
 };
 
 impl Graph {

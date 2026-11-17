@@ -1,23 +1,26 @@
 mod common;
 
-use std::env::args;
+use std::{
+    env::{args, var_os},
+    path::Path,
+};
 
 use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
     backend::{
         device::{DeviceProperties, DevicePropertiesSource},
-        errata::{Errata, ErrataPlan},
-        execution::{EngineChoice, EnginePlanningConfig, KnobChoiceInfo},
+        execution::{EngineChoice, EnginePlanningOptions, KnobChoiceInfo},
         heuristic::HeuristicQueryPolicy,
-        tensor::{Shape, TensorId, TensorSpec},
     },
     data_type::{DataType, bf16},
     error::Result,
     frontend::{
+        errata::{Errata, ErrataPlan},
         graph::Graph,
         operation::MatmulConfig,
-        plan::{BuildPlanPolicy, CompileConfig, ExecuteArgs, HeuristicMode},
+        plan::{BuildPlanPolicy, CompileConfig, ExecuteArgs, HeuristicMode, WorkspacePlans},
     },
+    tensor::{Shape, TensorId, TensorSpec},
     version,
 };
 
@@ -28,6 +31,10 @@ fn init_bf16_image(size: usize, seed: &mut u32) -> Vec<bf16> {
         .collect()
 }
 
+#[expect(
+    clippy::many_single_char_names,
+    reason = "keeps the upstream sample's single-letter dimension names"
+)]
 fn run() -> Result<()> {
     let plan_limit = common::positive_usize_argument("--plans", 2)?;
     let example = common::ExampleContext::create()?;
@@ -40,15 +47,15 @@ fn run() -> Result<()> {
     let mut graph = Graph::new();
     let a = graph.insert_tensor(
         TensorId::new(1000),
-        TensorSpec::new(DataType::BF16, Shape::contiguous([b, m, k])?).with_name("A"),
+        TensorSpec::new(DataType::Bf16, Shape::contiguous([b, m, k])?).with_name("A"),
     )?;
     let b_tensor = graph.insert_tensor(
         TensorId::new(1001),
-        TensorSpec::new(DataType::BF16, Shape::contiguous([b, k, n])?).with_name("B"),
+        TensorSpec::new(DataType::Bf16, Shape::contiguous([b, k, n])?).with_name("B"),
     )?;
     let c = graph.insert_tensor(
         TensorId::new(1002),
-        TensorSpec::new(DataType::BF16, Shape::contiguous([b, m, n])?),
+        TensorSpec::new(DataType::Bf16, Shape::contiguous([b, m, n])?),
     )?;
     graph.matmul_into(
         a,
@@ -57,8 +64,8 @@ fn run() -> Result<()> {
         MatmulConfig::new().with_compute_type(DataType::F32),
     )?;
 
-    let input_a_elements = graph.shape(a)?.storage_span()?;
-    let input_b_elements = graph.shape(b_tensor)?.storage_span()?;
+    let a_input_elements = graph.shape(a)?.storage_span()?;
+    let b_input_elements = graph.shape(b_tensor)?.storage_span()?;
     let output_elements = graph.shape(c)?.storage_span()?;
     let deviceless = args().any(|argument| argument == "--deviceless-preparation");
     if deviceless {
@@ -148,7 +155,7 @@ fn run() -> Result<()> {
         let engine_indices = prepared.engine_indices()?;
         let mut explicit_configs = Vec::new();
         for engine_index in engine_indices {
-            let engine = match prepared.engine(engine_index, EnginePlanningConfig::default()) {
+            let engine = match prepared.engine(engine_index, EnginePlanningOptions::default()) {
                 Ok(engine) => engine,
                 Err(error) => {
                     println!("engine {engine_index} skipped: {error}");
@@ -176,12 +183,16 @@ fn run() -> Result<()> {
 
         prepared.candidates_with_engines(query_context, &explicit_configs, &compile_config)?
     };
-    let mut candidates = if let Some(errata) = Errata::load_from_config(None)? {
+    // The C++ sample reads its errata file from `CUDNN_ERRATA_JSON_FILE`.
+    let errata = var_os("CUDNN_ERRATA_JSON_FILE")
+        .map(|path| Errata::from_file(Path::new(&path)))
+        .transpose()?;
+    let mut candidates = if let Some(errata) = errata {
         if args().any(|argument| argument == "--print-errata") {
             println!("{}", errata.to_json()?);
         }
 
-        let cudnn_version = version()?.raw();
+        let cudnn_version = version()?;
         candidates.filter_by(|candidate| {
             let plan = ErrataPlan::from_engine(
                 "Matmul",
@@ -253,11 +264,11 @@ fn run() -> Result<()> {
     let mut half_seed = 123_456_789_u32;
     let a_dev = DeviceMemory::from_slice(
         example.cudnn.cuda_context(),
-        &init_bf16_image(input_a_elements, &mut half_seed),
+        &init_bf16_image(a_input_elements, &mut half_seed),
     )?;
     let b_dev = DeviceMemory::from_slice(
         example.cudnn.cuda_context(),
-        &init_bf16_image(input_b_elements, &mut half_seed),
+        &init_bf16_image(b_input_elements, &mut half_seed),
     )?;
     let mut c_dev = DeviceMemory::<bf16>::zeroed(example.cudnn.cuda_context(), output_elements)?;
     let mut bindings = compiled.bindings()?;
@@ -268,14 +279,14 @@ fn run() -> Result<()> {
     for plan in available_plans {
         let mut workspace = common::workspace(
             example.cudnn.cuda_context(),
-            compiled.workspace_size_for(&plan)?,
+            compiled.workspace_size_for(WorkspacePlans::Plan(&plan), None)?,
         )?;
         // SAFETY: inputs, output, workspace and native plan remain live through stream completion.
         example.execute_and_wait(|context| unsafe {
-            compiled.execute(
+            compiled.execute_async(
                 context,
                 ExecuteArgs::new(&bindings)
-                    .with_workspace(&mut workspace)
+                    .with_workspace(workspace.output())
                     .with_plan(&plan),
             )
         })?;
@@ -285,6 +296,6 @@ fn run() -> Result<()> {
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_custom_plan", run())
 }

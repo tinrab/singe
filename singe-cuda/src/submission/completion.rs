@@ -13,9 +13,11 @@ use std::{
     time::Duration,
 };
 
+use singe_core::report_cleanup_failure;
+
 use crate::{
     error::{Error, Result},
-    event::Event,
+    event::{Event, EventWaitFlags},
     stream::Stream,
     submission::Resources,
     utility::lock_for_cleanup,
@@ -103,6 +105,7 @@ impl Completion {
     /// Blocks for CUDA completion and resource retirement, observing the shared checked result.
     ///
     /// # Errors
+    ///
     /// Returns a CUDA, dependency or resource-retirement error.
     pub fn wait(&self) -> Result<()> {
         if self.query()? {
@@ -146,9 +149,8 @@ impl Completion {
                 match pending.stream.synchronize() {
                     Ok(()) => retirement.native_complete = true,
                     Err(error) => {
-                        eprintln!(
-                            "cuda completion failed; retaining live submission resources: {error}"
-                        );
+                        // Live submission resources stay retained.
+                        report_cleanup_failure("synchronize", "cuda submission", &error);
                         return Ok(());
                     }
                 }
@@ -191,7 +193,7 @@ impl Completion {
     /// Propagates context binding and CUDA event-wait errors from [`Stream::wait_event`].
     /// This establishes device ordering without propagating the producer's checked host result; use [`Resources::depend_on`] to propagate it.
     pub fn order_on(&self, stream: &Stream) -> Result<()> {
-        stream.wait_event(&self.event)
+        stream.wait_event(&self.event, EventWaitFlags::DEFAULT)
     }
 }
 
@@ -269,9 +271,9 @@ impl Drop for Work {
 
 fn submit(work: Work) -> Result<()> {
     static WORKER: Mutex<Option<Sender<Work>>> = Mutex::new(None);
-    let mut worker = WORKER.lock().map_err(|_| Error::ResourcePoisoned {
-        name: "completion worker",
-    })?;
+    let mut worker = WORKER
+        .lock()
+        .map_err(|_| Error::lock_poisoned("completion worker"))?;
     if worker.is_none() {
         let (sender, receiver) = mpsc::channel();
         thread::Builder::new()

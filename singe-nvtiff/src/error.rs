@@ -2,18 +2,61 @@
 
 use std::{borrow::Cow, ffi::NulError, io, result::Result as StdResult};
 
-use singe_core::status_enum;
 use singe_cuda::error::Error as CudaError;
 use singe_nvtiff_sys as sys;
 use thiserror::Error;
+
+singe_core::wrapper_status! {
+    library = "nvtiff",
+    error = Error::Nvtiff,
+    raw = sys::nvtiffStatus_t,
+    success = NVTIFF_STATUS_SUCCESS,
+    absence = sys::take_absence,
+    unknown = "UNKNOWN_NVTIFF_STATUS",
+    /// Status returned by nvTIFF functions.
+    pub enum Status: u32 {
+        /// The call succeeded.
+        ///
+        /// Asynchronous work can still fail later and report the error on a later call.
+        Success = NVTIFF_STATUS_SUCCESS => "success",
+        /// The handle was not initialized.
+        NotInitialized = NVTIFF_STATUS_NOT_INITIALIZED => "not initialized",
+        /// An argument was invalid, such as a null pointer or an unknown enum value.
+        InvalidParameter = NVTIFF_STATUS_INVALID_PARAMETER => "invalid parameter",
+        /// The TIFF data is corrupt and cannot be parsed.
+        BadTiff = NVTIFF_STATUS_BAD_TIFF => "bad tiff",
+        /// nvTIFF does not support decoding this TIFF file.
+        TiffNotSupported = NVTIFF_STATUS_TIFF_NOT_SUPPORTED => "tiff not supported",
+        /// A custom allocator failed.
+        AllocatorFailure = NVTIFF_STATUS_ALLOCATOR_FAILURE => "allocator failure",
+        /// GPU work failed.
+        ExecutionFailed = NVTIFF_STATUS_EXECUTION_FAILED => "execution failed",
+        /// The device does not support the requested work.
+        ArchitectureMismatch = NVTIFF_STATUS_ARCH_MISMATCH => "architecture mismatch",
+        /// nvTIFF hit an internal error.
+        InternalError = NVTIFF_STATUS_INTERNAL_ERROR => "internal error",
+        /// nvTIFF cannot load nvCOMP.
+        NvcompNotFound = NVTIFF_STATUS_NVCOMP_NOT_FOUND => "nvcomp not found",
+        /// nvTIFF cannot load nvJPEG.
+        NvjpegNotFound = NVTIFF_STATUS_NVJPEG_NOT_FOUND => "nvjpeg not found",
+        /// The tag or `GeoTIFF` key is absent.
+        TagNotFound = NVTIFF_STATUS_TAG_NOT_FOUND => "tag not found",
+        /// An argument is out of range.
+        ParameterOutOfBounds = NVTIFF_STATUS_PARAMETER_OUT_OF_BOUNDS => "parameter out of bounds",
+        /// nvTIFF cannot load nvJPEG 2000.
+        Nvjpeg2kNotFound = NVTIFF_STATUS_NVJPEG2K_NOT_FOUND => "nvjpeg2k not found",
+        /// Each region can be decoded alone, but not together in one batch.
+        BatchIncompatible = NVTIFF_STATUS_BATCH_INCOMPATIBLE => "batch incompatible",
+    }
+}
 
 /// Error returned by nvTIFF wrappers.
 #[derive(Error, Debug)]
 #[non_exhaustive]
 pub enum Error {
-    // Its library would not load.
+    /// nvTIFF or one of its symbols would not load.
     #[error(transparent)]
-    Load(#[from] singe_nvtiff_sys::LoadError),
+    Load(#[from] sys::LoadError),
 
     /// CUDA call failed.
     #[error(transparent)]
@@ -24,28 +67,31 @@ pub enum Error {
     Io(#[from] io::Error),
 
     /// nvTIFF call failed.
-    #[error("nvtiff error ({code}): {message}")]
+    #[error("nvtiff error ({code}): {}", code.description())]
     Nvtiff {
         /// Status returned by nvTIFF.
         code: Status,
-        /// Description of the status.
-        message: String,
     },
 
     /// nvTIFF returned a null handle.
     #[error("unexpected null handle")]
     NullHandle,
 
-    /// Pointer was null.
-    #[error("unexpected null pointer in `{name}`")]
-    NullPointer {
-        /// Name of the argument or field.
+    /// An nvTIFF object belongs to a different CUDA context.
+    #[error("`{name}` belongs to a different cuda context")]
+    ContextMismatch {
+        /// Name of the object.
         name: Cow<'static, str>,
     },
 
-    /// A stream belongs to a different CUDA context.
-    #[error("stream belongs to a different cuda context")]
-    StreamContextMismatch,
+    /// A native enum value has no typed variant in this crate.
+    #[error("unknown `{name}` value {value}")]
+    UnknownEnumValue {
+        /// Name of the typed enum.
+        name: Cow<'static, str>,
+        /// Unrecognized native value.
+        value: i64,
+    },
 
     /// Value does not fit the type nvTIFF expects.
     #[error("`{name}` is out of range")]
@@ -66,7 +112,7 @@ pub enum Error {
     },
 
     /// Buffer is smaller than the data written to it.
-    #[error("`{name}` buffer too small (required {required} bytes, got {actual} bytes)")]
+    #[error("`{name}` is too small (requires {required}, got {actual})")]
     BufferTooSmall {
         /// Name of the buffer.
         name: Cow<'static, str>,
@@ -110,41 +156,12 @@ impl Error {
     }
 }
 
-status_enum! {
-    /// Status returned by nvTIFF functions.
-    pub enum Status: u32 => sys::nvtiffStatus_t, unknown = "UNKNOWN_NVTIFF_STATUS", unknown_description = "unknown nvtiff error" {
-        /// The call succeeded.
-        ///
-        /// Asynchronous work can still fail later and report the error on a later call.
-        Success = NVTIFF_STATUS_SUCCESS => "success",
-        /// The handle was not initialized.
-        NotInitialized = NVTIFF_STATUS_NOT_INITIALIZED => "not initialized",
-        /// An argument was invalid, such as a null pointer or an unknown enum value.
-        InvalidParameter = NVTIFF_STATUS_INVALID_PARAMETER => "invalid parameter",
-        /// The TIFF data is corrupt and cannot be parsed.
-        BadTiff = NVTIFF_STATUS_BAD_TIFF => "bad tiff",
-        /// nvTIFF does not support decoding this TIFF file.
-        TiffNotSupported = NVTIFF_STATUS_TIFF_NOT_SUPPORTED => "tiff not supported",
-        /// A custom allocator failed.
-        AllocatorFailure = NVTIFF_STATUS_ALLOCATOR_FAILURE => "allocator failure",
-        /// GPU work failed.
-        ExecutionFailed = NVTIFF_STATUS_EXECUTION_FAILED => "execution failed",
-        /// The device does not support the requested work.
-        ArchitectureMismatch = NVTIFF_STATUS_ARCH_MISMATCH => "architecture mismatch",
-        /// nvTIFF hit an internal error.
-        InternalError = NVTIFF_STATUS_INTERNAL_ERROR => "internal error",
-        /// nvTIFF cannot load nvCOMP.
-        NvcompNotFound = NVTIFF_STATUS_NVCOMP_NOT_FOUND => "nvcomp not found",
-        /// nvTIFF cannot load nvJPEG.
-        NvjpegNotFound = NVTIFF_STATUS_NVJPEG_NOT_FOUND => "nvjpeg not found",
-        /// The tag or `GeoTIFF` key is absent.
-        TagNotFound = NVTIFF_STATUS_TAG_NOT_FOUND => "tag not found",
-        /// An argument is out of range.
-        ParameterOutOfBounds = NVTIFF_STATUS_PARAMETER_OUT_OF_BOUNDS => "parameter out of bounds",
-        /// nvTIFF cannot load nvJPEG 2000.
-        Nvjpeg2kNotFound = NVTIFF_STATUS_NVJPEG2K_NOT_FOUND => "nvjpeg2k not found",
-        /// Each region can be decoded alone, but not together in one batch.
-        BatchIncompatible = NVTIFF_STATUS_BATCH_INCOMPATIBLE => "batch incompatible",
+impl From<singe_core::UnknownEnumValue> for Error {
+    fn from(error: singe_core::UnknownEnumValue) -> Self {
+        Self::UnknownEnumValue {
+            name: error.name.into(),
+            value: error.value,
+        }
     }
 }
 
@@ -160,66 +177,11 @@ impl Error {
     }
 }
 
-impl From<sys::nvtiffStatus_t> for Error {
-    fn from(status: sys::nvtiffStatus_t) -> Self {
-        if status == sys::nvtiffStatus_t::NVTIFF_STATUS_NOT_INITIALIZED
-            && let Err(error) = singe_nvtiff_sys::load()
-        {
-            return Self::Load(error);
-        }
-
-        Self::from(Status::from(status))
-    }
-}
-
-impl From<Status> for Error {
-    fn from(status: Status) -> Self {
-        Self::Nvtiff {
-            code: status,
-            message: status.description().into(),
-        }
-    }
-}
-
-/// Converts an nvTIFF status into a [`Result`].
-#[macro_export]
+// Converts a raw nvTIFF status into this crate's `Result`.
 macro_rules! try_ffi {
-    ($expr:expr) => {{
-        let status = { $expr };
-        if status != singe_nvtiff_sys::nvtiffStatus_t::NVTIFF_STATUS_SUCCESS {
-            Err($crate::error::Error::from(status))
-        } else {
-            Ok(())
-        }
-    }};
+    ($expr:expr) => {
+        $crate::error::Error::check($expr)
+    };
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_status_converts_from_raw_code() {
-        let status = Status::from(sys::nvtiffStatus_t::NVTIFF_STATUS_INVALID_PARAMETER);
-        assert_eq!(status, Status::InvalidParameter);
-        assert_eq!(
-            status.raw(),
-            sys::nvtiffStatus_t::NVTIFF_STATUS_INVALID_PARAMETER as u32
-        );
-    }
-
-    #[test]
-    fn test_status_display_uses_c_name() {
-        assert_eq!(
-            Status::InvalidParameter.to_string(),
-            "NVTIFF_STATUS_INVALID_PARAMETER"
-        );
-    }
-
-    #[test]
-    fn test_unknown_status_keeps_raw_code() {
-        let status = Status::Unknown(9999);
-        assert_eq!(status.raw(), 9999);
-        assert_eq!(status.to_string(), "UNKNOWN_NVTIFF_STATUS(9999)");
-    }
-}
+pub(crate) use try_ffi;

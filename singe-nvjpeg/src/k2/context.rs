@@ -1,13 +1,9 @@
 //! The nvJPEG 2000 library handle and raw decoding.
 
-use std::{
-    ptr,
-    sync::{Arc, Mutex},
-};
+use std::{ptr, sync::Arc};
 
-use singe_cuda::{
-    context::Context as CudaContext, error::Error as CudaError, stream::Stream as CudaStream,
-};
+use singe_core::report_cleanup_failure;
+use singe_cuda::{context::Context as CudaContext, stream::Stream as CudaStream};
 use singe_nvjpeg_sys::k2 as sys;
 
 use crate::{
@@ -21,6 +17,7 @@ use crate::{
 /// nvJPEG 2000 library handle, which decoders, encoders, and their state are created from.
 ///
 /// It keeps its CUDA context alive.
+/// nvJPEG 2000 documents the handle as shareable by several threads, so clones share one handle.
 #[derive(Debug, Clone)]
 pub struct Context {
     inner: Arc<HandleInner>,
@@ -28,64 +25,40 @@ pub struct Context {
 
 #[derive(Debug)]
 struct HandleInner {
-    pub(crate) raw: sys::nvjpeg2kHandle_t,
+    raw: sys::nvjpeg2kHandle_t,
     cuda_context: Arc<CudaContext>,
-    streams: Mutex<Vec<CudaStream>>,
-    pub(crate) _allocators: Option<AllocatorSet>,
+    _allocators: Option<AllocatorSet>,
 }
 
-/// Builder for a [`Context`] with a custom backend or allocators.
+/// Settings for creating a JPEG 2000 [`Context`].
 #[derive(Debug, Clone, Copy)]
-pub struct ContextBuilder {
-    pub(crate) backend: Backend,
-    pub(crate) allocators: Option<AllocatorSet>,
+pub struct ContextOptions {
+    /// Decoding implementation; nvJPEG 2000 currently has only [`Backend::Default`].
+    pub backend: Backend,
+    /// Custom device and pinned host allocators, or `None` for nvJPEG 2000's own.
+    pub allocators: Option<AllocatorSet>,
+    /// Multiple that every device allocation is rounded up to, in bytes, which reduces reallocations.
+    pub device_memory_padding: Option<usize>,
+    /// Multiple that every pinned host allocation is rounded up to, in bytes, which reduces reallocations.
+    pub pinned_memory_padding: Option<usize>,
 }
 
-impl ContextBuilder {
-    /// Creates a builder with nvJPEG 2000's defaults.
-    #[must_use]
-    pub const fn new() -> Self {
+impl Default for ContextOptions {
+    fn default() -> Self {
         Self {
             backend: Backend::Default,
             allocators: None,
+            device_memory_padding: None,
+            pinned_memory_padding: None,
         }
     }
-
-    /// Sets the backend.
-    #[must_use]
-    pub const fn backend(mut self, backend: Backend) -> Self {
-        self.backend = backend;
-        self
-    }
-
-    /// Sets custom device and pinned host allocators.
-    #[must_use]
-    pub const fn allocators(mut self, allocators: AllocatorSet) -> Self {
-        self.allocators = Some(allocators);
-        self
-    }
-
-    /// Creates the handle in `cuda_context`.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the CUDA context cannot be bound, or nvJPEG 2000 rejects the backend or allocators or fails to create the handle.
-    pub fn create(self, cuda_context: &Arc<CudaContext>) -> Result<Context> {
-        Context::create_with_builder(self, cuda_context)
-    }
 }
 
-impl Default for ContextBuilder {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-// SAFETY: native library handles support sharing; decoder state and parsed streams
-// remain separate per task, and native calls bind their retained actual context.
-// Custom allocator callbacks must uphold their threading contract.
+// SAFETY: nvJPEG 2000 documents the library handle as shareable by several threads.
+// The unsafe allocator constructors require callbacks that may be called from any thread, and every native call binds the retained CUDA context.
 unsafe impl Send for HandleInner {}
 
+// SAFETY: the padding, which the library reads without synchronization, is set in `Context::create` before the handle is shared and never changed afterwards.
 unsafe impl Sync for HandleInner {}
 
 impl Context {
@@ -104,7 +77,7 @@ impl Context {
         Ok(self.cuda_context().bind()?)
     }
 
-    /// Checks that `stream` belongs to the handle's CUDA context, makes the context current, and keeps `stream` alive until the handle and its resources are destroyed.
+    /// Checks that `stream` belongs to the handle's CUDA context and makes the context current.
     ///
     /// # Errors
     ///
@@ -114,131 +87,94 @@ impl Context {
             return Err(Error::StreamContextMismatch);
         }
 
-        self.bind()?;
-        let mut streams = self.inner.streams.lock().map_err(|_| Error::LockPoisoned {
-            name: "nvjpeg streams",
-        })?;
-        if !streams
-            .iter()
-            .any(|owner| owner.as_raw() == stream.as_raw())
-        {
-            streams.push(stream.clone());
-        }
-
-        drop(streams);
-        Ok(())
+        self.bind()
     }
 
-    pub(crate) fn ensure_handle(&self, other: &Self) -> Result<()> {
+    pub(crate) fn ensure_handle(&self, other: &Self, name: &'static str) -> Result<()> {
         if !Arc::ptr_eq(&self.inner, &other.inner) {
-            return Err(Error::HandleMismatch);
+            return Err(Error::ContextMismatch { name: name.into() });
         }
         Ok(())
     }
 
-    pub(crate) fn ensure_context(&self, context: &Arc<CudaContext>) -> Result<()> {
+    pub(crate) fn ensure_context(
+        &self,
+        context: &Arc<CudaContext>,
+        name: &'static str,
+    ) -> Result<()> {
         if self.cuda_context() != context {
-            return Err(CudaError::MemoryContextMismatch.into());
+            return Err(Error::ContextMismatch { name: name.into() });
         }
         Ok(())
     }
 
-    /// Returns a builder for a handle with a custom backend or allocators.
-    #[must_use]
-    pub const fn builder() -> ContextBuilder {
-        ContextBuilder::new()
-    }
-
-    /// Creates a handle in `cuda_context` with the default backend and allocators.
+    /// Creates a handle in `cuda_context` with `options`.
+    ///
+    /// The padding is set before the handle is shared, since nvJPEG 2000 reads it without synchronization.
     ///
     /// # Errors
     ///
-    /// Returns an error if the CUDA context cannot be bound, or nvJPEG 2000 rejects the backend or fails to create the handle.
-    pub fn create_simple(cuda_context: &Arc<CudaContext>) -> Result<Self> {
+    /// Returns an error if the CUDA context cannot be bound, a padding does not fit nvJPEG 2000's integer type, or nvJPEG 2000 rejects the settings or fails to create the handle.
+    pub fn create(cuda_context: &Arc<CudaContext>, options: &ContextOptions) -> Result<Self> {
         cuda_context.bind()?;
         let mut raw = ptr::null_mut();
-        // SAFETY: `nvjpeg2kCreateSimple` receives valid output locations.
-        unsafe {
-            try_ffi_k2!(sys::nvjpeg2kCreateSimple(&raw mut raw))?;
-        }
-
-        if raw.is_null() {
-            return Err(Error::NullHandle);
-        }
-        Ok(Self {
-            inner: Arc::new(HandleInner {
-                raw,
-                cuda_context: Arc::clone(cuda_context),
-                streams: Mutex::new(Vec::new()),
-                _allocators: None,
-            }),
-        })
-    }
-
-    /// Creates a handle in `cuda_context` that uses `backend` and the default allocators.
-    ///
-    /// nvJPEG 2000 currently has only [`Backend::Default`].
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the CUDA context cannot be bound, or nvJPEG 2000 rejects the backend or fails to create the handle.
-    pub fn create(cuda_context: &Arc<CudaContext>, backend: Backend) -> Result<Self> {
-        Self::builder().backend(backend).create(cuda_context)
-    }
-
-    fn create_with_builder(
-        builder: ContextBuilder,
-        cuda_context: &Arc<CudaContext>,
-    ) -> Result<Self> {
-        cuda_context.bind()?;
-        let mut raw = ptr::null_mut();
-        if let Some(allocators) = builder.allocators {
+        if let Some(allocators) = options.allocators {
             let mut device_allocator = allocators.device().to_nvjpeg2k_raw();
             let mut pinned_allocator = allocators.pinned().to_nvjpeg2k_raw();
-            // SAFETY: `nvjpeg2kCreateV2` receives valid output locations.
+            // SAFETY: the allocator structs and `raw` are locals that outlive the call, and the `unsafe` allocator constructors made their callers promise callbacks that meet the native contract.
             unsafe {
                 try_ffi_k2!(sys::nvjpeg2kCreateV2(
-                    builder.backend.into(),
+                    options.backend.into(),
                     &raw mut device_allocator,
                     &raw mut pinned_allocator,
                     &raw mut raw
                 ))?;
             }
-
-            if raw.is_null() {
-                return Err(Error::NullHandle);
-            }
-            Ok(Self {
-                inner: Arc::new(HandleInner {
-                    raw,
-                    cuda_context: Arc::clone(cuda_context),
-                    streams: Mutex::new(Vec::new()),
-                    _allocators: Some(allocators),
-                }),
-            })
         } else {
-            // SAFETY: `nvjpeg2kCreate` receives valid output locations.
+            // SAFETY: null allocators select nvJPEG 2000's own, and `raw` is a local that receives the new handle.
             unsafe {
                 try_ffi_k2!(sys::nvjpeg2kCreate(
-                    builder.backend.into(),
+                    options.backend.into(),
                     ptr::null_mut(),
                     ptr::null_mut(),
                     &raw mut raw
                 ))?;
             }
-
-            if raw.is_null() {
-                return Err(Error::NullHandle);
-            }
-            Ok(Self {
-                inner: Arc::new(HandleInner {
-                    raw,
-                    cuda_context: Arc::clone(cuda_context),
-                    streams: Mutex::new(Vec::new()),
-                    _allocators: None,
-                }),
-            })
         }
+
+        if raw.is_null() {
+            return Err(Error::NullHandle);
+        }
+
+        let context = Self {
+            inner: Arc::new(HandleInner {
+                raw,
+                cuda_context: Arc::clone(cuda_context),
+                _allocators: options.allocators,
+            }),
+        };
+
+        if let Some(padding) = options.device_memory_padding {
+            // SAFETY: the handle is live, its context is bound, and no other thread can reach it yet.
+            unsafe {
+                try_ffi_k2!(sys::nvjpeg2kSetDeviceMemoryPadding(
+                    to_u64(padding, "device memory padding")?,
+                    context.inner.raw
+                ))?;
+            }
+        }
+
+        if let Some(padding) = options.pinned_memory_padding {
+            // SAFETY: the handle is live, its context is bound, and no other thread can reach it yet.
+            unsafe {
+                try_ffi_k2!(sys::nvjpeg2kSetPinnedMemoryPadding(
+                    to_u64(padding, "pinned memory padding")?,
+                    context.inner.raw
+                ))?;
+            }
+        }
+
+        Ok(context)
     }
 
     /// Returns the native handle, which this value still owns.
@@ -256,7 +192,7 @@ impl Context {
         self.bind()?;
 
         let mut raw = ptr::null_mut();
-        // SAFETY: `nvjpeg2kDecodeStateCreate` receives valid output locations.
+        // SAFETY: `self` owns a live handle whose context was bound above, and `raw` is a local that receives the state.
         unsafe {
             try_ffi_k2!(sys::nvjpeg2kDecodeStateCreate(self.inner.raw, &raw mut raw))?;
         }
@@ -270,23 +206,6 @@ impl Context {
         })
     }
 
-    /// Rounds every later device allocation up to a multiple of `padding` bytes, which reduces reallocations.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the CUDA context cannot be bound, `padding` does not fit nvJPEG 2000's integer types, or nvJPEG 2000 rejects it.
-    pub fn set_device_memory_padding(&self, padding: usize) -> Result<()> {
-        self.bind()?;
-
-        // SAFETY: `nvjpeg2kSetDeviceMemoryPadding` receives only plain values.
-        unsafe {
-            try_ffi_k2!(sys::nvjpeg2kSetDeviceMemoryPadding(
-                to_u64(padding, "padding")?,
-                self.inner.raw
-            ))
-        }
-    }
-
     /// Returns the multiple that device allocations are rounded up to, in bytes.
     ///
     /// # Errors
@@ -296,7 +215,7 @@ impl Context {
         self.bind()?;
 
         let mut padding = 0;
-        // SAFETY: `nvjpeg2kGetDeviceMemoryPadding` receives valid output locations.
+        // SAFETY: `self` owns a live handle whose context was bound above, and `padding` is a local that receives the value.
         unsafe {
             try_ffi_k2!(sys::nvjpeg2kGetDeviceMemoryPadding(
                 &raw mut padding,
@@ -304,23 +223,6 @@ impl Context {
             ))?;
         }
         to_usize(padding, "padding")
-    }
-
-    /// Rounds every later pinned host allocation up to a multiple of `padding` bytes, which reduces reallocations.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the CUDA context cannot be bound, `padding` does not fit nvJPEG 2000's integer types, or nvJPEG 2000 rejects it.
-    pub fn set_pinned_memory_padding(&self, padding: usize) -> Result<()> {
-        self.bind()?;
-
-        // SAFETY: `nvjpeg2kSetPinnedMemoryPadding` receives only plain values.
-        unsafe {
-            try_ffi_k2!(sys::nvjpeg2kSetPinnedMemoryPadding(
-                to_u64(padding, "padding")?,
-                self.inner.raw
-            ))
-        }
     }
 
     /// Returns the multiple that pinned host allocations are rounded up to, in bytes.
@@ -332,7 +234,7 @@ impl Context {
         self.bind()?;
 
         let mut padding = 0;
-        // SAFETY: `nvjpeg2kGetPinnedMemoryPadding` receives valid output locations.
+        // SAFETY: `self` owns a live handle whose context was bound above, and `padding` is a local that receives the value.
         unsafe {
             try_ffi_k2!(sys::nvjpeg2kGetPinnedMemoryPadding(
                 &raw mut padding,
@@ -360,10 +262,10 @@ impl Context {
         stream: &CudaStream,
     ) -> Result<()> {
         self.ensure_stream(stream)?;
-        self.ensure_handle(&state.handle)?;
-        self.ensure_context(code_stream.cuda_context())?;
+        self.ensure_handle(&state.handle, "state")?;
+        self.ensure_context(code_stream.cuda_context(), "code_stream")?;
 
-        // SAFETY: `nvjpeg2kDecode` receives live handles owned by the wrappers.
+        // SAFETY: `state`, `code_stream`, and `stream` belong to this live handle's context, as checked above; the caller guarantees `output` is large enough and that the operands outlive the queued work.
         unsafe {
             try_ffi_k2!(sys::nvjpeg2kDecode(
                 self.inner.raw,
@@ -394,11 +296,11 @@ impl Context {
         stream: &CudaStream,
     ) -> Result<()> {
         self.ensure_stream(stream)?;
-        self.ensure_handle(&state.handle)?;
-        self.ensure_context(code_stream.cuda_context())?;
-        self.ensure_context(params.cuda_context())?;
+        self.ensure_handle(&state.handle, "state")?;
+        self.ensure_context(code_stream.cuda_context(), "code_stream")?;
+        self.ensure_context(params.cuda_context(), "params")?;
 
-        // SAFETY: `nvjpeg2kDecodeImage` receives live handles owned by the wrappers.
+        // SAFETY: `state`, `code_stream`, `params`, and `stream` belong to this live handle's context, as checked above; the caller guarantees `output` is large enough and that the operands outlive the queued work.
         unsafe {
             try_ffi_k2!(sys::nvjpeg2kDecodeImage(
                 self.inner.raw,
@@ -431,13 +333,13 @@ impl Context {
         stream: &CudaStream,
     ) -> Result<()> {
         self.ensure_stream(stream)?;
-        self.ensure_handle(&state.handle)?;
-        self.ensure_context(code_stream.cuda_context())?;
+        self.ensure_handle(&state.handle, "state")?;
+        self.ensure_context(code_stream.cuda_context(), "code_stream")?;
         if let Some(params) = params {
-            self.ensure_context(params.cuda_context())?;
+            self.ensure_context(params.cuda_context(), "params")?;
         }
 
-        // SAFETY: `nvjpeg2kDecodeTile` receives live handles owned by the wrappers.
+        // SAFETY: `state`, `code_stream`, `stream`, and any `params` belong to this live handle's context, as checked above, and null selects default settings; the caller guarantees `output` is large enough and that the operands outlive the queued work.
         unsafe {
             try_ffi_k2!(sys::nvjpeg2kDecodeTile(
                 self.inner.raw,
@@ -455,18 +357,19 @@ impl Context {
 
 impl Drop for HandleInner {
     fn drop(&mut self) {
-        if self.cuda_context.bind().is_err() {
+        if let Err(error) = self.cuda_context.bind() {
+            report_cleanup_failure(
+                "bind the cuda context to destroy",
+                "nvjpeg2k handle",
+                &error,
+            );
             return;
         }
+
         if !self.raw.is_null() {
-            // SAFETY: `nvjpeg2kDestroy` receives live handles owned by the wrappers.
-            unsafe {
-                if let Err(error) = try_ffi_k2!(sys::nvjpeg2kDestroy(self.raw)) {
-                    eprintln!(
-                        "failed to destroy nvjpeg2k handle: {}",
-                        singe_core::ErrorChain(&error)
-                    );
-                }
+            // SAFETY: the last owner drops `HandleInner`, so no state, stream, or encoder still uses the handle, and it is destroyed once.
+            if let Err(error) = unsafe { try_ffi_k2!(sys::nvjpeg2kDestroy(self.raw)) } {
+                report_cleanup_failure("destroy", "nvjpeg2k handle", &error);
             }
         }
     }

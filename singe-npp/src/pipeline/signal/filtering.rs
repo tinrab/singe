@@ -87,7 +87,7 @@ where
     ///
     /// Obtains a new buffer of length `self.len() + 1` and scratch from the workspace.
     /// Rejects capture, executes the native cumulative sum, waits for stream completion, and returns scratch to the workspace before exposing initialized output.
-    /// The source must already be ready for the selected stream: this path validates its CUDA context but does not insert producer waits.
+    /// Waits for a producer of the source on another stream.
     ///
     /// # Errors
     ///

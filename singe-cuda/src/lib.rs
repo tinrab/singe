@@ -1,132 +1,450 @@
-//! CUDA resources, typed memory, and public raw submission APIs.
+//! Safe Rust wrappers for the CUDA driver and runtime APIs, including runtime compilation of CUDA C++ and NVTX annotations.
+//! The other Singe wrapper crates take their contexts, streams, and device memory from this crate.
 //!
-//! This crate wraps CUDA Driver, CUDA Runtime, NVRTC, NVVM, NVTX, contexts, streams, events, device memory, modules, kernels, graphs, IPC, and JIT helpers.
-//! It keeps unsafe FFI calls at the boundary while still exposing enough low-level control for inference runtimes and NVIDIA library wrappers.
+//! This crate provides:
 //!
-//! # Examples
+//! - **CUDA resources:** devices, shared contexts, green contexts, streams, and events.
+//! - **Typed memory:** device buffers and views, a pooled pinned host allocator, managed memory, stream-ordered allocations, peer copies, and virtual memory mappings.
+//! - **Kernel execution:** runtime compilation with NVRTC and NVVM, module loading, JIT linking with nvJitLink, and typed launch methods through [`cuda_module!`](crate::cuda_module).
+//! - **Asynchronous work:** composable operations with blocking or async completion, plus CUDA graph capture, construction, and replay.
+//! - **Sharing:** interprocess memory and event handles, external memory and semaphores, and fabric multicast allocations.
+//! - **Profiling and interoperability:** NVTX annotations, profiler control, and optional adapters for `cuda-core` and `cudarc`.
 //!
-//! ```no_run
-//! use singe_cuda::{
-//!     context::Context,
-//!     memory::DeviceMemory,
-//! };
+//! # Example
 //!
-//! let context = Context::create()?;
-//! let memory = DeviceMemory::from_slice(&context, &[1.0_f32; 1024])?;
-//! assert_eq!(memory.copy_to_host_vec()?, vec![1.0_f32; 1024]);
+//! Copy values to the GPU, read them back, and print the CUDA runtime version:
 //!
-//! println!("CUDA runtime v{}", singe_cuda::version()?);
-//! # Ok::<(), singe_cuda::error::Error>(())
+//! ```rust,no_run
+//! use singe_cuda::{context::Context, memory::DeviceMemory};
+//!
+//! fn main() -> anyhow::Result<()> {
+//!     let context = Context::create()?;
+//!     let input = [1.0_f32, 2.0, 3.0, 4.0];
+//!     let memory = DeviceMemory::from_slice(&context, &input)?;
+//!     assert_eq!(memory.copy_to_host_vec()?, input);
+//!     println!("CUDA runtime {}", singe_cuda::version()?);
+//!     Ok(())
+//! }
 //! ```
+//!
+//! [`DeviceMemory`](crate::memory::DeviceMemory) owns the allocation and keeps its context alive.
+//! [`from_slice`](crate::memory::DeviceMemory::from_slice) waits for the upload, and [`copy_to_host_vec`](crate::memory::DeviceMemory::copy_to_host_vec) waits for the readback.
+//! The `unsafe` forms that only enqueue work are named `*_async`, such as [`DeviceMemory::set_value_async`](crate::memory::DeviceMemory::set_value_async) and the launch methods [`cuda_module!`](crate::cuda_module) generates.
+//!
+//! # Device information
+//!
+//! Query the installed CUDA versions and the properties of each GPU:
+//!
+//! ```rust,ignore
+//! use singe_cuda::{device::Device, driver, runtime};
+//!
+//! println!("driver {}, runtime {}", driver::version()?, runtime::version()?);
+//! for ordinal in 0..Device::count()? {
+//!     let properties = Device::new(ordinal).properties()?;
+//!     println!(
+//!         "{ordinal}: {} (compute {}.{}, {} MiB, {} SMs)",
+//!         properties.name,
+//!         properties.major,
+//!         properties.minor,
+//!         properties.total_global_mem / (1024 * 1024),
+//!         properties.multi_processor_count,
+//!     );
+//! }
+//! ```
+//!
+//! `device_query` prints the full list of properties.
+//!
+//! # Streams and events
+//!
+//! Split work across streams and time it with events.
+//! The kernel launches come from [`cuda_module!`](crate::cuda_module), which needs the `macros` feature:
+//!
+//! ```rust,ignore
+//! use singe_cuda::event::{EventFlags, EventRecordFlags, EventWaitFlags};
+//!
+//! let streams = [
+//!     context.create_stream(StreamOptions::default())?,
+//!     context.create_stream(StreamOptions::default())?,
+//! ];
+//! let start = context.create_event(EventFlags::DEFAULT)?;
+//! let stop = context.create_event(EventFlags::DEFAULT)?;
+//! start.record(&streams[0], EventRecordFlags::DEFAULT)?;
+//! streams[1].wait_event(&start, EventWaitFlags::DEFAULT)?;
+//!
+//! for (stream, chunk) in streams.iter().zip(&mut chunks) {
+//!     // SAFETY: each chunk is written by one stream and outlives the synchronization below.
+//!     unsafe { module.scale_async(chunk, 2.0, len, &config, stream)? };
+//! }
+//!
+//! let done = context.create_event(EventFlags::DEFAULT)?;
+//! done.record(&streams[1], EventRecordFlags::DEFAULT)?;
+//! streams[0].wait_event(&done, EventWaitFlags::DEFAULT)?;
+//! stop.record(&streams[0], EventRecordFlags::DEFAULT)?;
+//! stop.synchronize()?;
+//! println!("{:.3} ms", stop.elapsed_time_since(&start)?);
+//! ```
+//!
+//! [`wait_event`](crate::stream::Stream::wait_event) orders one stream after another without blocking the host.
+//!
+//! [`sync_scope`](crate::stream::Stream::sync_scope) runs a closure and waits for the stream to finish before returning, even when the closure fails.
+//! Asynchronous copies inside the closure can borrow ordinary host arrays, because the borrow checker keeps them alive and unchanged until the scope ends:
+//!
+//! ```rust,ignore
+//! let a = [1.0_f32, 2.0, 3.0, 4.0];
+//! let b = [10.0_f32; 4];
+//! let mut a_device = DeviceMemory::<f32>::zeroed(&context, 4)?;
+//! let mut b_device = DeviceMemory::<f32>::zeroed(&context, 4)?;
+//!
+//! stream.sync_scope(|scope| {
+//!     a_device.copy_from_host_scoped(&a, scope)?;
+//!     b_device.copy_from_host_scoped(&b, scope)
+//! })?;
+//!
+//! let mut result = [0.0_f32; 4];
+//! stream.sync_scope(|scope| b_device.copy_to_host_scoped(&mut result, scope))?;
+//! assert_eq!(result, b);
+//! ```
+//!
+//! To run host code once a stream reaches a point, enqueue a closure with [`launch_host_func`](crate::stream::Stream::launch_host_func):
+//!
+//! ```rust,ignore
+//! use std::sync::mpsc;
+//!
+//! let (sender, receiver) = mpsc::channel();
+//! stream.launch_host_func(move || sender.send("done").unwrap())?;
+//! assert_eq!(receiver.recv()?, "done");
+//! ```
+//!
+//! The closure runs on a CUDA thread and must not call CUDA itself.
+//!
+//! # Asynchronous work
+//!
+//! Compose an upload and a readback into one operation, then await it:
+//!
+//! ```rust,ignore
+//! use singe_cuda::submission::{Operation, transfer::{DeviceValue, Upload}};
+//!
+//! let upload = Upload::create(&context, &input)?;
+//! drop(input); // the upload already copied it into pinned staging memory
+//! let output = upload.then(DeviceValue::readback).submit_on(&stream)?.await?;
+//! ```
+//!
+//! The operation owns its staging and device buffers until the result is ready.
+//! To spread independent jobs over several streams, submit them to a [`StreamPool`](crate::submission::StreamPool):
+//!
+//! ```rust,ignore
+//! use singe_cuda::submission::StreamPool;
+//!
+//! let pool = StreamPool::create(&context, 2)?;
+//! let mut submissions = Vec::new();
+//! for job in 0..8_u32 {
+//!     let operation = Upload::create(&context, &vec![job; 4096])?.then(DeviceValue::readback);
+//!     submissions.push((job, pool.submit(operation)?));
+//! }
+//! // Every job is submitted before the first wait, so the streams run them concurrently.
+//! for (job, submission) in submissions {
+//!     assert_eq!(submission.wait()?, vec![job; 4096]);
+//! }
+//! ```
+//!
+//! # CUDA graphs
+//!
+//! Record kernel launches once and replay them with little CPU overhead.
+//! The generated `_record` method takes the capture scope first, then the same arguments as the `_async` launch without its stream:
+//!
+//! ```rust,ignore
+//! use singe_cuda::{graph::GraphInstantiateFlags, stream::StreamCaptureMode};
+//!
+//! let graph = stream.capture(StreamCaptureMode::ThreadLocal, |scope| {
+//!     // SAFETY: the kernel checks bounds, and `values` outlives every replay.
+//!     unsafe { module.increment_record(&mut values, len, &config, scope) }
+//! })?;
+//! let executable = graph.instantiate(GraphInstantiateFlags::empty())?;
+//!
+//! for _ in 0..5 {
+//!     // SAFETY: every replay runs on one stream, so they cannot overlap.
+//!     unsafe { executable.launch_async(&stream)? };
+//! }
+//! stream.synchronize()?;
+//! ```
+//!
+//! Capturing records the work without running it.
+//! See `graph_replay` for the complete program.
+//!
+//! # Memory pools
+//!
+//! Allocate and free on a stream from a memory pool, so repeated allocations reuse the pool's memory.
+//! Assume `pool` is a [`MemoryPool`](crate::memory::MemoryPool) created for the device:
+//!
+//! ```rust,ignore
+//! use singe_cuda::memory::{DeviceMemory, transfer};
+//!
+//! let mut buffer = DeviceMemory::<u8>::zeroed_in_pool(4096, &pool, &stream)?;
+//! buffer.set_value(7)?;
+//! assert_eq!(transfer::copy_to_host_vec(&buffer)?, vec![7; 4096]);
+//! buffer.release()?;
+//! ```
+//!
+//! The `memory_pool` example also creates the pool, keeps memory reserved between allocations, and trims it at the end.
+//!
+//! # Pinned host memory
+//!
+//! Ordinary host memory is pageable.
+//! The OS may move it or swap it out, so the GPU cannot read it directly.
+//! CUDA copies pageable memory through a pinned staging buffer of its own, and an asynchronous copy from pageable memory may block the calling thread until the data is staged.
+//!
+//! Pinned (or page-locked) memory stays in physical memory at a fixed address, so the GPU reads and writes it directly.
+//! Copies to and from it run at higher bandwidth, and an asynchronous copy returns at once, overlapping with other work.
+//! The OS can't page pinned memory, so use it for buffers that move data to and from the GPU, not for everything.
+//! Allocating it is also slower than ordinary allocation, which is why each context keeps a pool of it.
+//!
+//! [`Context::pinned_host`](crate::context::Context::pinned_host) returns the allocator for that pool, a [`std::alloc::Allocator`].
+//! A [`Vec`] that uses it is a [`PinnedVec`](crate::memory::PinnedVec), which pinned copies accept:
+//!
+//! ```rust,ignore
+//! use singe_cuda::memory::{DeviceMemory, PinnedVec};
+//!
+//! let pinned = context.pinned_host();
+//! let mut input: PinnedVec<f32> = Vec::new_in(pinned.clone());
+//! input.extend((0..4096_u16).map(f32::from));
+//!
+//! let mut device = DeviceMemory::<f32>::zeroed(&context, input.len())?;
+//! stream.sync_scope(|scope| device.copy_from_pinned_scoped(&input, scope))?;
+//!
+//! let mut output = pinned.zeroed::<f32>(input.len())?;
+//! device.copy_to_pinned(&mut output)?;
+//! assert_eq!(output, input);
+//! ```
+//!
+//! A [`PinnedVec`](crate::memory::PinnedVec) is an ordinary [`Vec`] otherwise.
+//! Dropping one returns its memory to the pool without a CUDA call, so short-lived buffers are cheap, and [`release_cached`](crate::memory::PinnedHost::release_cached) gives memory nothing uses back to CUDA.
+//! A [`Vec`] that fails to grow aborts the process, as with any allocator.
+//! [`with_capacity`](crate::memory::PinnedHost::with_capacity), [`from_slice`](crate::memory::PinnedHost::from_slice), and [`zeroed`](crate::memory::PinnedHost::zeroed) return an error instead, so use them when the size is known up front.
+//! The pool does not know which buffers queued GPU work still uses, so keep a buffer alive until that work finishes; [`sync_scope`](crate::stream::Stream::sync_scope) and submissions do this for you.
+//!
+//! The pool's memory is also mapped into the device's address space.
+//! [`PinnedVecExt::mapped_device_view`](crate::memory::PinnedVecExt::mapped_device_view) and [`mapped_device_view_mut`](crate::memory::PinnedVecExt::mapped_device_view_mut) give a kernel or copy direct access to a [`PinnedVec`](crate::memory::PinnedVec), with no copy to device memory first.
+//! Every such access crosses the bus, so a view suits data the device touches once, such as a few values a kernel reports back.
+//!
+//! See `pinned_memory` for the complete program.
+//!
+//! # Typed kernels
+//!
+//! With the `macros` feature, [`cuda_module!`](crate::cuda_module) reads the kernel's parameter list and generates Rust methods with matching argument types.
+//! Marking a pointer `read`, `write`, or `read_write` decides how the methods borrow the buffer:
+//!
+//! ```rust,ignore
+//! cuda_module! {
+//!     pub mod kernels {
+//!         source: r#"
+//!             extern "C" __global__ void saxpy(float a, const float* x, float* y, int len) {
+//!                 int i = static_cast<int>(blockIdx.x * blockDim.x + threadIdx.x);
+//!                 if (i < len) y[i] = a * x[i] + y[i];
+//!             }
+//!         "#,
+//!         exports: {
+//!             saxpy { parameters: { x: read, y: read_write } },
+//!         },
+//!     }
+//! }
+//!
+//! let x = DeviceMemory::from_slice(&context, &[1.0_f32, 2.0, 3.0, 4.0])?;
+//! let mut y = DeviceMemory::from_slice(&context, &[10.0_f32; 4])?;
+//! let module = kernels::Module::create(&context)?;
+//! let config = LaunchConfig::for_1d_grid(x.len(), 128);
+//!
+//! // SAFETY: the kernel checks bounds, and `stream.synchronize` waits for it.
+//! unsafe { module.saxpy_async(2.0, &x, &mut y, 4, &config, &stream)? };
+//! stream.synchronize()?;
+//! assert_eq!(y.copy_to_host_vec()?, [12.0, 14.0, 16.0, 18.0]);
+//! ```
+//!
+//! Here `x` is borrowed immutably and `y` mutably, so passing a [`DeviceMemory<f64>`](crate::memory::DeviceMemory) or the same buffer twice fails to compile.
+//! A `write` parameter also accepts uninitialized memory, such as [`DeviceMemory<MaybeUninit<f32>>`](crate::memory::DeviceMemory), which cannot be read back until it is marked initialized.
+//! Each kernel gets `unsafe` launch methods with the same kernel arguments: `saxpy_async` for a chosen stream, `saxpy_record` for graph capture, `saxpy_node` for graph construction, and `saxpy_set_node_params` for updating an executable graph's node.
+//! A pointer parameter without an element type, such as `void*`, takes a raw pointer instead of a view.
+//!
+//! # Custom types
+//!
+//! With the `macros` feature, derive the device representation traits for a `#[repr(C)]` struct to copy it to the GPU and pass it to kernels.
+//! [`DeviceRepr`] fails to compile for a struct with implicit padding, and every derive requires each field to implement the same trait:
+//!
+//! ```rust,ignore
+//! use singe_cuda::{AnyBitPatternDeviceRepr, DeviceRepr, NoUninitDeviceRepr, ZeroableDeviceRepr};
+//!
+//! #[repr(C)]
+//! #[derive(Clone, Copy, DeviceRepr, NoUninitDeviceRepr, ZeroableDeviceRepr, AnyBitPatternDeviceRepr)]
+//! pub struct Particle {
+//!     pub position: [f32; 2],
+//!     pub velocity: [f32; 2],
+//! }
+//!
+//! cuda_module! {
+//!     pub mod physics {
+//!         source: r#"
+//!             struct Particle { float position[2]; float velocity[2]; };
+//!
+//!             extern "C" __global__ void step(Particle* particles, float dt, int len) {
+//!                 int i = static_cast<int>(blockIdx.x * blockDim.x + threadIdx.x);
+//!                 if (i < len) {
+//!                     particles[i].position[0] += particles[i].velocity[0] * dt;
+//!                     particles[i].position[1] += particles[i].velocity[1] * dt;
+//!                 }
+//!             }
+//!         "#,
+//!         exports: {
+//!             step { parameters: { particles: read_write(super::Particle) } },
+//!         },
+//!     }
+//! }
+//!
+//! let particles = [Particle { position: [0.0, 0.0], velocity: [1.0, 2.0] }; 3];
+//! let mut device_particles = DeviceMemory::from_slice(&context, &particles)?;
+//! let physics = physics::Module::create(&context)?;
+//! let config = LaunchConfig::for_1d_grid(particles.len(), 128);
+//!
+//! // SAFETY: the kernel checks bounds, and `stream.synchronize` waits for it.
+//! unsafe { physics.step_async(&mut device_particles, 0.5, 3, &config, &stream)? };
+//! stream.synchronize()?;
+//! assert_eq!(device_particles.copy_to_host_vec()?[0].position, [0.5, 1.0]);
+//! ```
+//!
+//! The type in `read_write(...)` is resolved inside the generated module, hence `super::`.
+//!
+//! # Interoperability
+//!
+//! Enable the `interop_cuda_core` or `interop_cudarc` feature to use singe-cuda alongside those crates.
+//! The snippet uses both features:
+//!
+//! ```rust,ignore
+//! // Hand a singe-cuda context and stream to cuda-core.
+//! let device = context.to_cuda_core()?;
+//! let foreign_stream = stream.to_cuda_core()?;
+//!
+//! // Wrap a cudarc context in a singe-cuda context.
+//! let context = Context::from_cudarc(cudarc_context)?;
+//! ```
+//!
+//! The adapters keep the original owner alive, so neither side releases a context or stream the other is still using.
+//!
+//! # Memory and safety
+//!
+//! Every resource keeps its CUDA context alive.
+//! Safe calls wait for their GPU work, [`sync_scope`](crate::stream::Stream::sync_scope) borrows its buffers until the stream finishes, and a submitted operation owns its buffers until its result is ready.
+//! Nothing keeps a buffer alive for an `unsafe` `*_async` call, a generated kernel launch, or a graph launch: the caller keeps every buffer valid, and conflicting accesses ordered, until that work finishes, including every graph replay.
+//! Only types that implement [`DeviceRepr`] can be transferred, and its derive checks the layout of your own structs.
+//!
+//! Raw kernel launches and external pointers are `unsafe`.
+//! The caller must make sure every access stays in bounds.
+//!
+//! # Features
+//!
+//! - `macros`: re-exports the [`DeviceRepr`] derives and [`cuda_module!`](crate::cuda_module) from `singe-cuda-macros`; `cuda_module!` also needs the default `nvrtc_13_4` feature.
+//! - `interop_cuda_core`: adapters between this crate's contexts and streams and `cuda-core`'s.
+//! - `interop_cudarc`: adapters between this crate's contexts and streams and `cudarc`'s.
 
-/// CUDA GPU architecture names and target parsing.
+#[cfg(not(feature = "runtime_13_4"))]
+compile_error!("singe-cuda requires a version feature, such as `runtime_13_4`");
+
 pub mod architecture;
 
-/// CUDA process checkpoint, restore, and checkpoint storage APIs.
 pub mod checkpoint;
 
-/// Shared CUDA contexts, primary-context retention, and code loading.
 pub mod context;
 
-/// CUDA scalar data types and native type mappings.
 pub mod data_type;
 
-/// Device enumeration, properties, attributes, and peer capabilities.
 pub mod device;
 
-/// Three-dimensional CUDA grid, block, and cluster dimensions.
 pub mod dim;
 
-/// CUDA driver version queries.
 pub mod driver;
 
-/// Typed CUDA errors, native status values, and FFI status conversion.
 pub mod error;
 
-/// CUDA events, timing, and stream ordering.
 pub mod event;
 
 pub mod external_memory;
+
 pub mod fabric;
 
-/// Asynchronous stream, event, and graph completion futures.
 pub mod future;
 
-/// CUDA graph construction, instantiation, update, and execution.
 pub mod graph;
 
 pub mod green;
 
-/// CUDA runtime version queries.
+pub mod handle;
+
 pub mod runtime;
 
 #[cfg(any(feature = "interop_cuda_core", feature = "interop_cudarc"))]
 pub mod interop;
 
-/// Interprocess CUDA memory and event handle exchange.
 pub mod ipc;
 
-/// CUDA driver JIT options and device-code linking.
 pub mod jit;
 
-/// Raw kernel handle adapters and typed launch preparation.
 pub mod kernel;
 
-/// CUDA libraries, kernel lookup, and library-owned globals.
 pub mod library;
 
-/// Device, managed, pinned host, and CUDA array memory.
 pub mod memory;
 
-/// CUDA modules, device-code images, kernel arguments, and launch configuration.
 pub mod module;
 
 #[cfg(feature = "nvjitlink_13_4")]
 pub mod nvjitlink;
 
-/// Runtime compilation of CUDA source and retrieval of compilation artifacts.
+#[cfg(feature = "nvrtc_13_4")]
 pub mod nvrtc;
 
-/// NVTX annotations, ranges, markers, and profiling resources.
+#[cfg(feature = "nvtx_3")]
 pub mod nvtx;
 
-/// NVVM IR compilation and compiler options.
+#[cfg(feature = "nvvm_13_4")]
 pub mod nvvm;
 
 pub mod profile;
+
 pub mod semaphore;
 
-/// CUDA streams, capture scopes, synchronization, and ordered operations.
 pub mod stream;
 
 pub mod submission;
-pub mod tensor_map;
-pub mod texture;
-pub mod tile_ir;
 
-/// CUDA handle, pointer, scalar-storage, and configuration types.
+pub mod tensor_map;
+
+pub mod texture;
+
 pub mod types;
 
 pub(crate) mod utility;
+
 pub mod view;
+
 pub mod virtual_memory;
 
 #[cfg(feature = "testing")]
-/// Device locks and context setup for CUDA tests.
 pub mod testing;
 
-use singe_core::CudaRuntimeVersion;
-#[cfg(feature = "macros")]
+pub use singe_core::{CudaVersion, LibraryVersion};
+#[cfg(all(feature = "macros", feature = "nvrtc_13_4"))]
 pub use singe_cuda_macros::cuda_module;
+pub use singe_cuda_sys as sys;
 
 pub use self::view::{AnyBitPatternDeviceRepr, DeviceRepr, NoUninitDeviceRepr, ZeroableDeviceRepr};
-use crate::error::Result;
+#[cfg(feature = "nvrtc_13_4")]
+use crate::error::try_nvrtc;
+#[cfg(feature = "nvvm_13_4")]
+use crate::error::try_nvvm;
+use crate::error::{Result, try_ffi};
 
 /// Returns the CUDA Runtime version.
 ///
 /// # Errors
 ///
 /// Returns an error if the CUDA Runtime cannot report its version.
-pub fn version() -> Result<CudaRuntimeVersion> {
+pub fn version() -> Result<CudaVersion> {
     runtime::version()
 }

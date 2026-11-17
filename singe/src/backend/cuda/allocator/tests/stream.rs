@@ -37,9 +37,7 @@ fn test_caching_allocator_reuses_blocks_with_cross_stream_wait_dependency() {
     for _ in 0..1024 {
         // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
         unsafe {
-            memory
-                .set_value_async_unchecked(0x11, stream1.as_ref())
-                .unwrap();
+            memory.set_value_async(0x11, stream1.as_ref()).unwrap();
         }
     }
 
@@ -55,7 +53,7 @@ fn test_caching_allocator_reuses_blocks_with_cross_stream_wait_dependency() {
     // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
     unsafe {
         reused_memory
-            .set_value_async_unchecked(0x22, stream2.as_ref())
+            .set_value_async(0x22, stream2.as_ref())
             .unwrap();
     }
     let consumer_done = record_disabled_timing_event(&context, &stream2);

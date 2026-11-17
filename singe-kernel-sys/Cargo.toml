@@ -1,12 +1,14 @@
 [package]
 name = "singe-kernel-sys"
 description = "Reserved crate for future low-level Singe custom-kernel bindings."
-version = "0.1.0-alpha.3"
+version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 repository.workspace = true
 license-file.workspace = true
 readme = "README.md"
 keywords = ["singe", "cuda", "ffi", "placeholder"]
+categories = ["external-ffi-bindings"]
 include.workspace = true
 publish = false
 

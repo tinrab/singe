@@ -1,13 +1,13 @@
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 use crate::{
-    backend::tensor::{TensorId, TensorSpec},
     error::{Error, Result},
     frontend::{
         error::Error as FrontendError,
         graph::{Graph, TensorRecord, validate_storage_view_byte_range},
         operation::{ConvolutionOperation, Operation, SdpaOperation, TensorAccess},
     },
+    tensor::{Shape, TensorId, TensorSpec},
 };
 
 impl Graph {
@@ -231,9 +231,7 @@ impl Graph {
                 .get_mut(&id)
                 .ok_or(FrontendError::TensorNotFound(id))?;
             if record.access.is_some() {
-                record
-                    .tensor
-                    .validate_vector_stride_alignment(id, &record.tensor.shape)?;
+                validate_vector_stride_alignment(&record.tensor, id, &record.tensor.shape)?;
                 record.requires_vector_alignment = true;
             }
         }
@@ -257,5 +255,43 @@ fn record_use(
             .map_or(access, |previous| previous.merge(access)),
     );
     record.indexes_memory |= indexes_memory;
+    Ok(())
+}
+
+pub(crate) fn validate_vector_stride_alignment(
+    tensor: &TensorSpec,
+    id: TensorId,
+    shape: &Shape,
+) -> Result<()> {
+    if tensor.byte_alignment <= 1 {
+        return Ok(());
+    }
+
+    let lanes = u128::try_from(tensor.vectorization()?.map_or(1, |(count, _)| count))
+        .map_err(|_| Error::out_of_range("tensor vector count"))?;
+    let alignment_bits = u128::try_from(tensor.byte_alignment)
+        .ok()
+        .and_then(|alignment| alignment.checked_mul(8))
+        .ok_or_else(|| Error::out_of_range("tensor alignment"))?;
+    let element_bits = u128::try_from(tensor.data_type.storage_bits())
+        .map_err(|_| Error::out_of_range("tensor storage bits"))?;
+    shape.validate_metadata()?;
+    for (axis, (&extent, &stride)) in shape.dimensions().iter().zip(shape.strides()).enumerate() {
+        if extent <= 1 || stride == 1 {
+            continue;
+        }
+
+        let stride_bits = u128::try_from(stride)
+            .ok()
+            .and_then(|stride| stride.checked_mul(lanes))
+            .and_then(|stride| stride.checked_mul(element_bits))
+            .ok_or_else(|| Error::out_of_range("attention byte stride"))?;
+        if stride_bits % alignment_bits != 0 {
+            return Err(FrontendError::TensorLayoutMismatch { tensor_id: id, operation: "native attention operand alignment", reason: format!(
+                    "stride of dimension {axis} is not a multiple of the tensor's {}-byte alignment",
+                    tensor.byte_alignment
+                ).into() }.into());
+        }
+    }
     Ok(())
 }

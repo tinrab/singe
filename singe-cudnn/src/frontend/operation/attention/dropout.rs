@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{backend::tensor::TensorId, frontend::operation::RandomNumberSeedSource};
+use crate::{backend::operation::rng::RandomNumberSeedSource, tensor::TensorId};
 
 /// Dropout configuration for scaled dot product attention.
 ///
@@ -26,19 +26,19 @@ impl AttentionDropoutConfig {
         self.probability
     }
 
-    /// Bernoulli probability in native descriptor precision, without an intermediate FP32 subtraction.
+    /// Returns the Bernoulli probability in native descriptor precision, without an intermediate FP32 subtraction.
     #[must_use]
     pub fn keep_probability(&self) -> f64 {
         1.0 - f64::from(self.probability)
     }
 
-    /// Scale applied to surviving values, using the C++ frontend's FP32 arithmetic.
+    /// Returns the scale applied to surviving values, using the C++ frontend's FP32 arithmetic.
     #[must_use]
     pub fn scale(&self) -> f32 {
         1.0 / self.inverse_scale()
     }
 
-    /// FP32 inverse scale used by attention backward's softmax correction.
+    /// Returns the FP32 inverse scale used by attention backward's softmax correction.
     #[must_use]
     pub fn inverse_scale(&self) -> f32 {
         1.0 - self.probability

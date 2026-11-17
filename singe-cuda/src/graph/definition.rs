@@ -7,6 +7,7 @@ use std::{
     sync::{Arc, Mutex, MutexGuard, PoisonError},
 };
 
+use singe_core::report_cleanup_failure;
 use singe_cuda_sys::{driver, runtime};
 
 use crate::{
@@ -16,7 +17,7 @@ use crate::{
     graph::{
         ExecutableGraph, Graph, GraphBuffer, GraphDebugDotFlags, GraphEdge, GraphEdgeAttributes,
         GraphId, GraphInner, GraphInstantiateFlags, GraphNode, GraphTopologySummary,
-        MemoryAllocationNodeInfo, MemoryAllocationNodeParams, MemorySetNodeParams, RawGraphParts,
+        MemoryAllocationNodeInfo, MemoryAllocationNodeParams, MemorySetNodeParams, RawGraph,
         RetainedResources,
         raw::{
             HostNodeParams, MemoryCopy1DNodeParams, MemoryCopy3DNodeParams,
@@ -28,28 +29,16 @@ use crate::{
     try_ffi,
     types::{DeviceFunction, DevicePtr},
     utility::to_usize,
-    view::{ByteBuffer, ByteBufferMut, DeviceOutput, DeviceRepr, ZeroableDeviceRepr},
+    view::{DeviceOutput, DeviceRepr, DeviceSlice, DeviceSliceMut, ZeroableDeviceRepr},
 };
 
 impl Graph {
     pub(crate) fn bind_context(&self) -> Result<()> {
-        if let Some(context) = &self.context {
-            context.bind()?;
-        }
-        Ok(())
+        self.context.bind()
     }
 
-    /// Wraps an existing CUDA graph handle associated with `context` and takes ownership of it.
-    ///
-    /// # Safety
-    ///
-    /// `handle` must be a valid CUDA graph handle associated with `context`.
-    /// Ownership of `handle` is transferred to the returned [`Graph`], and the handle must not be destroyed elsewhere after calling this function.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the native handle is null.
-    pub unsafe fn from_raw_in_context(
+    // The caller transfers ownership of a live graph handle of `context`.
+    pub(crate) unsafe fn from_raw_in_context(
         handle: runtime::cudaGraph_t,
         context: Arc<Context>,
     ) -> Result<Self> {
@@ -66,20 +55,20 @@ impl Graph {
                 parent: None,
             }),
             id: GraphId::generate(),
-            context: Some(context),
+            context,
             _not_sync: PhantomData,
         })
     }
 
     pub(crate) unsafe fn from_raw_borrowed_in_context(
         handle: runtime::cudaGraph_t,
-        context: Option<Arc<Context>>,
+        context: Arc<Context>,
     ) -> Self {
         Self {
             inner: Arc::new(GraphInner {
                 handle,
                 owns_handle: false,
-                context: context.clone(),
+                context: Some(Arc::clone(&context)),
                 retained: Mutex::new(RetainedResources::default()),
                 parent: None,
             }),
@@ -92,7 +81,7 @@ impl Graph {
     pub(crate) fn create_in_context(context: Arc<Context>) -> Result<Self> {
         context.bind()?;
         let mut handle = ptr::null_mut();
-        // SAFETY: `cudaGraphCreate` receives valid output locations.
+        // SAFETY: `handle` is a local that `cudaGraphCreate` writes through an exclusive pointer, and `context` is bound above.
         unsafe {
             try_ffi!(runtime::cudaGraphCreate(&raw mut handle, 0))?;
         }
@@ -105,7 +94,7 @@ impl Graph {
                 parent: None,
             }),
             id: GraphId::generate(),
-            context: Some(context),
+            context,
             _not_sync: PhantomData,
         })
     }
@@ -114,13 +103,11 @@ impl Graph {
         Ok(self.retained_lock()?.clone())
     }
 
-    fn retained_lock(&self) -> Result<MutexGuard<'_, RetainedResources>> {
+    pub(crate) fn retained_lock(&self) -> Result<MutexGuard<'_, RetainedResources>> {
         self.inner
             .retained
             .lock()
-            .map_err(|_| Error::ResourcePoisoned {
-                name: "graph resources",
-            })
+            .map_err(|_| Error::lock_poisoned("graph resources"))
     }
 
     pub(crate) fn retain_module(&self, module: &Module) -> Result<()> {
@@ -140,10 +127,8 @@ impl Graph {
     where
         T: DeviceRepr,
     {
-        if let Some(graph_context) = &self.context
-            && graph_context != buffer.context()
-        {
-            return Err(Error::GraphContextMismatch);
+        if &self.context != buffer.context() {
+            return Err(Error::MemoryContextMismatch);
         }
         Ok(())
     }
@@ -171,29 +156,8 @@ impl Graph {
         T: DeviceRepr,
     {
         self.bind_context()?;
-        let context = self.context.as_ref().ok_or(Error::GraphContextMismatch)?;
+        let context = &self.context;
         let buffer = GraphBuffer::from_memory(DeviceMemory::<T>::create_uninit(context, length)?);
-        self.retain_buffer(&buffer)?;
-        Ok(buffer)
-    }
-
-    /// Allocates graph storage that raw graph kernels initialize before reading.
-    ///
-    /// # Safety
-    ///
-    /// Every element must be initialized to a valid `T` before any graph or host consumer reads it.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the graph has no associated context, the byte count overflows, a nonempty zero-sized allocation is requested, context binding fails, or CUDA cannot allocate the buffer.
-    pub unsafe fn create_buffer_unchecked<T>(&mut self, length: usize) -> Result<GraphBuffer<T>>
-    where
-        T: DeviceRepr,
-    {
-        let context = self.context.as_ref().ok_or(Error::GraphContextMismatch)?;
-        let buffer =
-            // SAFETY: the caller upholds this function's safety contract.
-            GraphBuffer::from_memory(unsafe { DeviceMemory::create_unchecked(context, length)? });
         self.retain_buffer(&buffer)?;
         Ok(buffer)
     }
@@ -208,7 +172,7 @@ impl Graph {
         T: ZeroableDeviceRepr,
     {
         self.bind_context()?;
-        let context = self.context.as_ref().ok_or(Error::GraphContextMismatch)?;
+        let context = &self.context;
         let buffer = GraphBuffer::from_memory(DeviceMemory::zeroed(context, length)?);
         self.retain_buffer(&buffer)?;
         Ok(buffer)
@@ -224,20 +188,10 @@ impl Graph {
         T: DeviceRepr,
     {
         self.bind_context()?;
-        let context = self.context.as_ref().ok_or(Error::GraphContextMismatch)?;
+        let context = &self.context;
         let buffer = GraphBuffer::from_memory(DeviceMemory::from_slice(context, values)?);
         self.retain_buffer(&buffer)?;
         Ok(buffer)
-    }
-
-    /// Validates and instantiates this graph with the default instantiation flags.
-    ///
-    /// # Errors
-    ///
-    /// Propagates context-binding and CUDA instantiation errors, including invalid graph structure, unsupported node parameters, or native restrictions on simultaneous executable instances.
-    /// See [`Graph::instantiate_with_flags`].
-    pub fn instantiate(&self) -> Result<ExecutableGraph> {
-        self.instantiate_with_flags(GraphInstantiateFlags::empty())
     }
 
     /// Instantiates graph as an executable graph.
@@ -261,7 +215,7 @@ impl Graph {
     /// An attempt to instantiate a second executable graph before dropping the first results in an error.
     /// The same also applies if the graph contains any device-updatable kernel nodes.
     ///
-    /// If the graph contains kernels which call device-side [`ExecutableGraph::launch`] from multiple devices, this results in an error.
+    /// If the graph contains kernels which call device-side [`ExecutableGraph::launch_async`] from multiple devices, this results in an error.
     ///
     /// Graphs instantiated for launch on the device have additional restrictions which do not apply to host graphs:
     ///
@@ -281,12 +235,12 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error if CUDA rejects the graph operation, if a previous asynchronous launch reported an error, or if CUDA reports runtime initialization diagnostics.
-    /// Callbacks must not call CUDA functions; see [`Stream::add_callback`](crate::stream::Stream::add_callback).
-    pub fn instantiate_with_flags(&self, flags: GraphInstantiateFlags) -> Result<ExecutableGraph> {
+    /// Returns an error if the context cannot be bound or CUDA rejects instantiation, including for invalid graph structure, unsupported node parameters or flags, or native restrictions on simultaneous executable instances.
+    /// CUDA may also report errors from previous asynchronous launches or runtime initialization diagnostics.
+    pub fn instantiate(&self, flags: GraphInstantiateFlags) -> Result<ExecutableGraph> {
         self.bind_context()?;
         let mut handle = ptr::null_mut();
-        // SAFETY: `cudaGraphInstantiateWithFlags` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `self.inner` owns the live graph, `Graph` is not `Sync` so no other thread uses it, `handle` is a local output, and the context is bound above.
         unsafe {
             try_ffi!(runtime::cudaGraphInstantiateWithFlags(
                 &raw mut handle,
@@ -298,7 +252,7 @@ impl Graph {
         unsafe {
             ExecutableGraph::from_raw_with_graph(
                 handle,
-                self.context.clone(),
+                Arc::clone(&self.context),
                 Some(self.id),
                 Some(Arc::clone(&self.inner)),
                 self.retained_resources()?,
@@ -323,7 +277,7 @@ impl Graph {
     pub fn try_clone(&self) -> Result<Self> {
         self.bind_context()?;
         let mut handle = ptr::null_mut();
-        // SAFETY: `cudaGraphClone` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `self.inner` owns the live graph, `handle` is a local output, and the context is bound above.
         unsafe {
             try_ffi!(runtime::cudaGraphClone(&raw mut handle, self.as_raw()))?;
         }
@@ -331,12 +285,12 @@ impl Graph {
             inner: Arc::new(GraphInner {
                 handle,
                 owns_handle: true,
-                context: self.context.clone(),
+                context: Some(Arc::clone(&self.context)),
                 retained: Mutex::new(self.retained_resources()?),
                 parent: None,
             }),
             id: GraphId::generate(),
-            context: self.context.clone(),
+            context: Arc::clone(&self.context),
             _not_sync: PhantomData,
         })
     }
@@ -346,7 +300,7 @@ impl Graph {
             handle,
             self.id,
             Arc::clone(&self.inner),
-            self.context.clone(),
+            Some(Arc::clone(&self.context)),
         )
     }
 
@@ -369,19 +323,15 @@ impl Graph {
     }
 
     fn check_child_graph_context(&self, child_graph: &Self) -> Result<()> {
-        if let (Some(parent_context), Some(child_context)) = (&self.context, &child_graph.context)
-            && parent_context.as_ref() != child_context.as_ref()
-        {
-            return Err(Error::GraphContextMismatch);
+        if self.context.as_ref() != child_graph.context.as_ref() {
+            return Err(Error::context_mismatch("child graph"));
         }
         Ok(())
     }
 
     fn check_event_record_context(&self, event: &Event) -> Result<()> {
-        if let Some(context) = &self.context
-            && context != event.context()
-        {
-            return Err(Error::GraphContextMismatch);
+        if &self.context != event.context() {
+            return Err(Error::context_mismatch("event"));
         }
         Ok(())
     }
@@ -404,22 +354,11 @@ impl Graph {
     /// Also propagates CUDA dependency-update errors.
     /// Source and destination slices must have equal lengths.
     pub fn add_dependencies(&mut self, from: &[GraphNode], to: &[GraphNode]) -> Result<()> {
-        self.add_dependencies_with_data(from, to, &[])
+        self.add_dependency_edges(from, to, &[])
     }
 
-    /// Elements in `from` and `to` at corresponding indices define each dependency to add.
-    /// Each node in `from` and `to` must belong to this graph.
-    ///
-    /// If `from` and `to` are empty, the call returns without modifying the graph.
-    /// Specifying an existing dependency returns an error.
-    ///
-    /// Graph objects are not threadsafe.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if CUDA rejects the graph operation, if a previous asynchronous launch reported an error, or if CUDA reports runtime initialization diagnostics.
-    /// Callbacks must not call CUDA functions; see [`Stream::add_callback`](crate::stream::Stream::add_callback).
-    pub fn add_dependencies_with_data(
+    // Empty `edge_data` uses default attributes for every edge; empty `from` and `to` leave the graph unchanged.
+    fn add_dependency_edges(
         &mut self,
         from: &[GraphNode],
         to: &[GraphNode],
@@ -443,7 +382,7 @@ impl Graph {
         let from_raw: Vec<_> = from.iter().map(GraphNode::as_raw).collect();
         let to_raw: Vec<_> = to.iter().map(GraphNode::as_raw).collect();
         let edge_data_raw: Vec<_> = edge_data.iter().copied().map(Into::into).collect();
-        // SAFETY: `cudaGraphAddDependencies` receives live handles owned by the wrappers and pointers into buffers borrowed for the call.
+        // SAFETY: the nodes were checked to belong to this exclusively borrowed graph, and the `from`, `to`, and edge arrays are locals of equal, validated length that outlive the call.
         unsafe {
             try_ffi!(runtime::cudaGraphAddDependencies(
                 self.as_raw(),
@@ -478,23 +417,11 @@ impl Graph {
     /// Also propagates CUDA dependency-update errors.
     /// Source and destination slices must have equal lengths.
     pub fn remove_dependencies(&mut self, from: &[GraphNode], to: &[GraphNode]) -> Result<()> {
-        self.remove_dependencies_with_data(from, to, &[])
+        self.remove_dependency_edges(from, to, &[])
     }
 
-    /// Elements in `from` and `to` at corresponding indices define each dependency to remove.
-    /// Each node in `from` and `to` must belong to this graph.
-    ///
-    /// If `from` and `to` are empty, the call returns without modifying the graph.
-    /// Specifying an edge that does not exist in the graph, with data matching `edge_data`, results in an error.
-    /// Passing an empty `edge_data` slice is equivalent to passing default edge data for each edge.
-    ///
-    /// Graph objects are not threadsafe.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if CUDA rejects the graph operation, if a previous asynchronous launch reported an error, or if CUDA reports runtime initialization diagnostics.
-    /// Callbacks must not call CUDA functions; see [`Stream::add_callback`](crate::stream::Stream::add_callback).
-    pub fn remove_dependencies_with_data(
+    // Empty `edge_data` matches default attributes for every edge; empty `from` and `to` leave the graph unchanged.
+    fn remove_dependency_edges(
         &mut self,
         from: &[GraphNode],
         to: &[GraphNode],
@@ -518,7 +445,7 @@ impl Graph {
         let from_raw: Vec<_> = from.iter().map(GraphNode::as_raw).collect();
         let to_raw: Vec<_> = to.iter().map(GraphNode::as_raw).collect();
         let edge_data_raw: Vec<_> = edge_data.iter().copied().map(Into::into).collect();
-        // SAFETY: `cudaGraphRemoveDependencies` receives live handles owned by the wrappers and pointers into buffers borrowed for the call.
+        // SAFETY: the nodes were checked to belong to this exclusively borrowed graph, and the `from`, `to`, and edge arrays are locals of equal, validated length that outlive the call.
         unsafe {
             try_ffi!(runtime::cudaGraphRemoveDependencies(
                 self.as_raw(),
@@ -549,7 +476,7 @@ impl Graph {
         let from: Vec<_> = edges.iter().map(|edge| edge.from.clone()).collect();
         let to: Vec<_> = edges.iter().map(|edge| edge.to.clone()).collect();
         let data: Vec<_> = edges.iter().map(|edge| edge.data).collect();
-        self.add_dependencies_with_data(&from, &to, &data)
+        self.add_dependency_edges(&from, &to, &data)
     }
 
     /// Removes directed edges matching the supplied nodes and attributes.
@@ -566,7 +493,7 @@ impl Graph {
         let from: Vec<_> = edges.iter().map(|edge| edge.from.clone()).collect();
         let to: Vec<_> = edges.iter().map(|edge| edge.to.clone()).collect();
         let data: Vec<_> = edges.iter().map(|edge| edge.data).collect();
-        self.remove_dependencies_with_data(&from, &to, &data)
+        self.remove_dependency_edges(&from, &to, &data)
     }
 
     /// Creates a node that performs no operation and adds it to the graph with the given dependencies.
@@ -603,6 +530,7 @@ impl Graph {
     /// It may not contain duplicate entries.
     ///
     /// Each graph launch records `event` to capture execution of the node's dependencies.
+    /// The graph and executables instantiated from it retain `event`.
     ///
     /// These nodes may not be used in loops or conditionals.
     ///
@@ -615,10 +543,12 @@ impl Graph {
     pub fn add_event_record_node(
         &mut self,
         dependencies: &[GraphNode],
-        event: &Event,
+        event: &Arc<Event>,
     ) -> Result<GraphNode> {
         self.check_nodes(dependencies)?;
         self.check_event_record_context(event)?;
+        // Retain first, so a node CUDA created never references an unretained event.
+        self.retained_lock()?.retain_event(event);
         let mut handle = ptr::null_mut();
         let dependencies_raw: Vec<_> = dependencies.iter().map(GraphNode::as_raw).collect();
         // SAFETY: the graph and dependency handles are live, and the dependency array length matches.
@@ -639,9 +569,10 @@ impl Graph {
     /// It may not contain duplicate entries.
     ///
     /// The graph node waits for all work captured in `event`.
-    /// See [`sys::cuEventRecord`](singe_cuda_sys::driver::cuEventRecord) for details on what is captured by an event.
+    /// See [`Event::record`] for what an event captures.
     /// Synchronization is performed efficiently on the device when applicable.
     /// `event` may come from a different context or device than the launch stream.
+    /// The graph and executables instantiated from it retain `event`.
     ///
     /// These nodes may not be used in loops or conditionals.
     ///
@@ -654,9 +585,11 @@ impl Graph {
     pub fn add_event_wait_node(
         &mut self,
         dependencies: &[GraphNode],
-        event: &Event,
+        event: &Arc<Event>,
     ) -> Result<GraphNode> {
         self.check_nodes(dependencies)?;
+        // Retain first, so a node CUDA created never references an unretained event.
+        self.retained_lock()?.retain_event(event);
         let mut handle = ptr::null_mut();
         let dependencies_raw: Vec<_> = dependencies.iter().map(GraphNode::as_raw).collect();
         // SAFETY: the graph and dependency handles are live, and the dependency array length matches.
@@ -699,7 +632,7 @@ impl Graph {
         let mut handle = ptr::null_mut();
         let dependencies_raw: Vec<_> = dependencies.iter().map(GraphNode::as_raw).collect();
         let params = params.into();
-        // SAFETY: the caller upholds this function's safety contract.
+        // SAFETY: `handle` is a local output, `check_nodes` confirmed the dependencies belong to this exclusively borrowed graph, and the dependency array is passed with its length; the caller keeps the callback and user data valid for every launch.
         unsafe {
             try_ffi!(runtime::cudaGraphAddHostNode(
                 &raw mut handle,
@@ -724,8 +657,7 @@ impl Graph {
     /// Reading or writing through any texture or surface reference is undefined behavior.
     /// This restriction does not apply to texture and surface objects.
     ///
-    /// Runtime kernel handles queried via [`sys::cudaLibraryGetKernel`](singe_cuda_sys::runtime::cudaLibraryGetKernel) or [`sys::cudaGetKernel`](singe_cuda_sys::runtime::cudaGetKernel) may be used.
-    /// The symbol passed to [`sys::cudaGetKernel`](singe_cuda_sys::runtime::cudaGetKernel) must be registered with the same CUDA Runtime instance.
+    /// A runtime kernel handle passed as a raw function must come from the same CUDA Runtime instance.
     /// Passing a symbol that belongs to a different runtime instance results in undefined behavior.
     ///
     /// Graph objects are not threadsafe.
@@ -757,7 +689,7 @@ impl Graph {
         self.check_nodes(dependencies)?;
         let mut handle = ptr::null_mut();
         let dependencies_raw: Vec<_> = dependencies.iter().map(GraphNode::as_raw).collect();
-        // SAFETY: the caller upholds this function's safety contract.
+        // SAFETY: `handle` is a local output, `check_nodes` confirmed the dependencies belong to this exclusively borrowed graph, and the dependency array is passed with its length; CUDA copies `arguments` during the call, and the caller guarantees they match `function` and point to storage valid for every launch.
         params.with_encoded_arguments(|mut arguments| unsafe {
             let params = runtime::cudaKernelNodeParams {
                 func: function.as_raw().cast(),
@@ -776,8 +708,11 @@ impl Graph {
             ))?;
             let node = self.node_from_raw(handle);
             for attribute in config.attributes() {
-                if let Err(error) = node.set_launch_attribute(*attribute) {
-                    let _ = driver::cuGraphDestroyNode(handle);
+                if let Err(error) = self.set_launch_attribute(&node, *attribute) {
+                    if let Err(destroy_error) = try_ffi!(driver::cuGraphDestroyNode(handle)) {
+                        report_cleanup_failure("destroy", "cuda graph node", &destroy_error);
+                    }
+
                     return Err(error);
                 }
             }
@@ -814,7 +749,7 @@ impl Graph {
         self.check_nodes(dependencies)?;
         let mut handle = ptr::null_mut();
         let dependencies_raw: Vec<_> = dependencies.iter().map(GraphNode::as_raw).collect();
-        // SAFETY: the caller upholds this function's safety contract.
+        // SAFETY: `handle` is a local output, `check_nodes` confirmed the dependencies belong to this exclusively borrowed graph, and the dependency array is passed with its length; the caller keeps the copy's addresses valid for every launch.
         unsafe {
             try_ffi!(runtime::cudaGraphAddMemcpyNode1D(
                 &raw mut handle,
@@ -830,9 +765,9 @@ impl Graph {
         }
     }
 
-    /// Creates a device-to-device memcpy node from typed byte buffers.
+    /// Creates a device-to-device memcpy node between byte slices.
     ///
-    /// The node copies `src.byte_len()` bytes.
+    /// The node copies `src.len()` bytes.
     /// `dst` must have at least that many bytes.
     ///
     /// # Safety
@@ -851,24 +786,24 @@ impl Graph {
         src: &S,
     ) -> Result<GraphNode>
     where
-        D: ByteBufferMut + ?Sized,
-        S: ByteBuffer + ?Sized,
+        D: DeviceSliceMut<u8> + ?Sized,
+        S: DeviceSlice<u8> + ?Sized,
     {
-        let count = src.byte_len();
-        if dst.byte_len() < count {
-            return Err(Error::InvalidMemoryAccess);
+        let count = src.len();
+        if dst.len() < count {
+            return Err(Error::buffer_too_small("destination", count, dst.len()));
         }
 
-        // SAFETY: the caller upholds this function's safety contract.
+        // SAFETY: `dst` holds at least `count` bytes (checked above) and `src` exactly `count`; the caller keeps both valid for every launch.
         let params = unsafe {
             MemoryCopy1DNodeParams::new(
-                dst.as_byte_mut_ptr().cast(),
-                src.as_byte_ptr().cast(),
+                dst.as_mut_ptr().cast(),
+                src.as_device_ptr().cast(),
                 count,
                 MemoryCopyKind::DeviceToDevice,
             )
         };
-        // SAFETY: the caller upholds this function's safety contract.
+        // SAFETY: the caller keeps `dst` and `src`, the addresses in `params`, valid and exclusive for every launch.
         unsafe { self.add_memory_copy_node_1d(dependencies, &params) }
     }
 
@@ -878,15 +813,15 @@ impl Graph {
     /// `dst` must have at least that many bytes.
     /// The graph retains both allocations so the baked CUDA graph pointers remain live for future instantiation and replay.
     ///
-    /// # Errors
-    ///
-    /// Returns an error if `dst` is smaller than `src`, if CUDA rejects the graph operation, if a previous asynchronous launch reported an error, or if CUDA reports runtime initialization diagnostics.
-    ///
     /// # Safety
+    ///
     /// Keep source elements valid for every launch, and order their producers before replay.
     /// Keep destination accesses exclusive through completion, including failed submissions.
     /// Allocation retention preserves addresses; initialization and access ordering remain caller obligations.
-    /// Serialize host updates with other operations on this graph executable.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `dst` is smaller than `src`, if CUDA rejects the graph operation, if a previous asynchronous launch reported an error, or if CUDA reports runtime initialization diagnostics.
     pub unsafe fn add_buffer_memory_copy_node_1d_device_to_device<T, D>(
         &mut self,
         dependencies: &[GraphNode],
@@ -901,10 +836,14 @@ impl Graph {
         self.check_buffer_contexts(dst, src)?;
         let count = src.byte_len();
         if dst.byte_len() < count {
-            return Err(Error::InvalidMemoryAccess);
+            return Err(Error::buffer_too_small(
+                "destination",
+                count,
+                dst.byte_len(),
+            ));
         }
 
-        // SAFETY: the caller upholds this function's safety contract.
+        // SAFETY: `dst` holds at least `count` bytes (checked above) and `src` exactly `count`, and both allocations are retained by this graph below.
         let params = unsafe {
             MemoryCopy1DNodeParams::new(
                 dst.as_mut_ptr().cast(),
@@ -913,7 +852,7 @@ impl Graph {
                 MemoryCopyKind::DeviceToDevice,
             )
         };
-        // SAFETY: the caller upholds this function's safety contract.
+        // SAFETY: the graph retains both allocations below, so the addresses stay valid; the caller orders producers and keeps destination access exclusive.
         let node = unsafe { self.add_memory_copy_node_1d(dependencies, &params)? };
         self.retain_buffer(dst)?;
         self.retain_buffer(src)?;
@@ -925,7 +864,7 @@ impl Graph {
     /// It may not contain duplicate entries.
     ///
     /// When the graph is launched, the node performs the memcpy described by `params`.
-    /// See [`sys::cudaMemcpy3D`](singe_cuda_sys::runtime::cudaMemcpy3D) for a description of the structure and its restrictions.
+    /// [`MemoryCopy3DNodeParams`] describes the copy and its restrictions.
     ///
     /// Memcpy nodes have additional restrictions for managed memory if any device in the system does not support concurrent managed access.
     ///
@@ -949,7 +888,7 @@ impl Graph {
         let mut handle = ptr::null_mut();
         let dependencies_raw: Vec<_> = dependencies.iter().map(GraphNode::as_raw).collect();
         let params = params.into();
-        // SAFETY: the caller upholds this function's safety contract.
+        // SAFETY: `handle` is a local output, `check_nodes` confirmed the dependencies belong to this exclusively borrowed graph, and the dependency array is passed with its length; the caller keeps the 3D copy's addresses valid for every launch.
         unsafe {
             try_ffi!(runtime::cudaGraphAddMemcpyNode(
                 &raw mut handle,
@@ -962,6 +901,8 @@ impl Graph {
         }
     }
 
+    /// Adds a node that copies host or device memory into a module symbol, as described by `params`.
+    ///
     /// # Safety
     ///
     /// CUDA stores the raw symbol and source pointer in the graph node for later replay.
@@ -978,7 +919,7 @@ impl Graph {
         self.check_nodes(dependencies)?;
         let mut handle = ptr::null_mut();
         let dependencies_raw: Vec<_> = dependencies.iter().map(GraphNode::as_raw).collect();
-        // SAFETY: the caller upholds this function's safety contract.
+        // SAFETY: `handle` is a local output, `check_nodes` confirmed the dependencies belong to this exclusively borrowed graph, and the dependency array is passed with its length; the caller keeps the symbol and source pointer valid for every launch.
         unsafe {
             try_ffi!(runtime::cudaGraphAddMemcpyNodeToSymbol(
                 &raw mut handle,
@@ -995,6 +936,8 @@ impl Graph {
         }
     }
 
+    /// Adds a node that copies a module symbol into host or device memory, as described by `params`.
+    ///
     /// # Safety
     ///
     /// CUDA stores the raw destination and symbol pointer in the graph node for later replay.
@@ -1011,7 +954,7 @@ impl Graph {
         self.check_nodes(dependencies)?;
         let mut handle = ptr::null_mut();
         let dependencies_raw: Vec<_> = dependencies.iter().map(GraphNode::as_raw).collect();
-        // SAFETY: the caller upholds this function's safety contract.
+        // SAFETY: `handle` is a local output, `check_nodes` confirmed the dependencies belong to this exclusively borrowed graph, and the dependency array is passed with its length; the caller keeps the symbol and destination pointer valid for every launch.
         unsafe {
             try_ffi!(runtime::cudaGraphAddMemcpyNodeFromSymbol(
                 &raw mut handle,
@@ -1054,7 +997,7 @@ impl Graph {
         let mut handle = ptr::null_mut();
         let dependencies_raw: Vec<_> = dependencies.iter().map(GraphNode::as_raw).collect();
         let params = params.into();
-        // SAFETY: the caller upholds this function's safety contract.
+        // SAFETY: `handle` is a local output, `check_nodes` confirmed the dependencies belong to this exclusively borrowed graph, and the dependency array is passed with its length; the caller keeps the destination valid for every launch.
         unsafe {
             try_ffi!(runtime::cudaGraphAddMemsetNode(
                 &raw mut handle,
@@ -1135,7 +1078,7 @@ impl Graph {
         if allocation.graph_id != Some(self.id) {
             return Err(Error::GraphNodeMismatch);
         }
-        // SAFETY: `allocation` is a graph allocation consumed here, so it is freed exactly once.
+        // SAFETY: the graph id check above proves `allocation` came from an allocation node of this graph, and CUDA rejects a second free of it in the same graph.
         unsafe { self.add_memory_free_node_raw(dependencies, allocation.ptr) }
     }
 
@@ -1157,7 +1100,7 @@ impl Graph {
         self.check_nodes(dependencies)?;
         let mut handle = ptr::null_mut();
         let dependencies_raw: Vec<_> = dependencies.iter().map(GraphNode::as_raw).collect();
-        // SAFETY: the caller upholds this function's safety contract.
+        // SAFETY: `handle` is a local output, `check_nodes` confirmed the dependencies belong to this exclusively borrowed graph, and the dependency array is passed with its length; the caller guarantees `ptr` is this graph's allocation, ordered after its allocation node and freed once.
         unsafe {
             try_ffi!(runtime::cudaGraphAddMemFreeNode(
                 &raw mut handle,
@@ -1239,11 +1182,14 @@ impl Graph {
 
             let node = self.node_from_raw(handle);
             let allocation = MemoryAllocationNodeInfo::from_raw_in_graph(
-                DevicePtr::new(params_raw.dptr as *mut ()),
+                DevicePtr::new(ptr::without_provenance_mut(to_usize(
+                    params_raw.dptr,
+                    "memory allocation address",
+                )?)),
                 params.byte_size,
                 self.id,
                 Arc::clone(&self.inner),
-                self.context.clone(),
+                Some(Arc::clone(&self.context)),
             );
             Ok((node, allocation))
         }
@@ -1379,7 +1325,7 @@ impl Graph {
     /// Returns a compact summary of this graph's native CUDA topology.
     ///
     /// The summary is computed from CUDA graph introspection APIs and counts node kinds, root nodes, and dependency edges in this graph.
-    /// Child graph nodes are counted as child nodes here; callers that need recursive details can query the child graph returned by [`GraphNode::child_graph`].
+    /// Child graph nodes are counted as child nodes here; callers that need recursive details can query the child graph returned by [`Graph::child_graph`].
     ///
     /// Graph objects are not threadsafe.
     ///
@@ -1395,7 +1341,7 @@ impl Graph {
             ..GraphTopologySummary::default()
         };
         for node in nodes {
-            summary.record_node_type(node.node_type()?);
+            summary.record_node_type(self.node_type(&node)?);
         }
         Ok(summary)
     }
@@ -1409,7 +1355,7 @@ impl Graph {
     /// Returns an error if `path` contains an interior NUL byte or if CUDA Runtime cannot write the DOT file.
     pub fn write_dot(&self, path: &str, flags: GraphDebugDotFlags) -> Result<()> {
         let path = CString::new(path)?;
-        // SAFETY: `cudaGraphDebugDotPrint` receives live handles owned by the wrappers and pointers into buffers borrowed for the call.
+        // SAFETY: `self.inner` owns the live graph, and `path` is a NUL-terminated local that outlives the call.
         unsafe {
             try_ffi!(runtime::cudaGraphDebugDotPrint(
                 self.as_raw(),
@@ -1426,10 +1372,10 @@ impl Graph {
         self.inner.handle
     }
 
-    /// Returns the retained graph context, when present.
+    /// Returns the context this graph belongs to.
     #[must_use]
-    pub fn context(&self) -> Option<&Arc<Context>> {
-        self.context.as_ref()
+    pub fn context(&self) -> &Arc<Context> {
+        &self.context
     }
 
     /// Transfers the native graph, context, and retained resources without destruction.
@@ -1440,7 +1386,7 @@ impl Graph {
     /// # Errors
     ///
     /// Returns the original graph if a node, executable, child view, or another owner still retains its native graph storage.
-    pub fn into_raw(self) -> StdResult<RawGraphParts, Self> {
+    pub fn into_raw(self) -> StdResult<RawGraph, Self> {
         let Self {
             inner,
             id,
@@ -1450,7 +1396,7 @@ impl Graph {
         match Arc::try_unwrap(inner) {
             Ok(mut inner) => {
                 inner.owns_handle = false;
-                Ok(RawGraphParts {
+                Ok(RawGraph {
                     handle: inner.handle,
                     context,
                     // The caller takes over keeping these alive through native work, whatever a panic left here.
@@ -1472,28 +1418,29 @@ impl Graph {
         }
     }
 
-    /// Re-adopts a native graph together with its original context and resource owners.
+    /// Adopts a native graph together with its original context and resource owners.
     ///
     /// # Safety
+    ///
     /// The native handle must still be live and unchanged, with no other destroying owner or unretained dependencies.
     ///
     /// # Errors
     ///
     /// Returns an error if the native handle is null.
-    pub unsafe fn from_raw_parts(parts: RawGraphParts) -> Result<Self> {
-        if parts.handle.is_null() {
+    pub unsafe fn from_raw(raw: RawGraph) -> Result<Self> {
+        if raw.handle.is_null() {
             return Err(Error::NullHandle);
         }
         Ok(Self {
             inner: Arc::new(GraphInner {
-                handle: parts.handle,
+                handle: raw.handle,
                 owns_handle: true,
-                context: parts.context.clone(),
-                retained: Mutex::new(parts.retained),
+                context: Some(Arc::clone(&raw.context)),
+                retained: Mutex::new(raw.retained),
                 parent: None,
             }),
-            id: parts.id,
-            context: parts.context,
+            id: raw.id,
+            context: raw.context,
             _not_sync: PhantomData,
         })
     }

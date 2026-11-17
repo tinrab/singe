@@ -8,7 +8,7 @@ use crate::{
     error::{Error, Result},
     try_ffi,
     types::{BoolConfigParameter, SizeConfigParameter, StringConfigParameter},
-    utility::{to_i32, to_usize},
+    utility::{to_i32, to_u64, to_usize},
 };
 
 /// Returns a size-valued configuration parameter.
@@ -18,11 +18,11 @@ use crate::{
 /// # Errors
 ///
 /// Returns an error if cuFile cannot query `param` or the reported value cannot be represented as `usize`.
-pub fn usize_value(param: SizeConfigParameter) -> Result<usize> {
+pub fn size_value(param: SizeConfigParameter) -> Result<usize> {
     let mut value = 0;
-    // SAFETY: `cuFileGetParameterSizeT` receives valid output locations.
+    // SAFETY: `value` is a local `size_t` output.
     unsafe {
-        try_ffi!(sys::cuFileGetParameterSizeT(param.into(), &raw mut value,))?;
+        try_ffi!(sys::cuFileGetParameterSizeT(param.into(), &raw mut value))?;
     }
     to_usize(value, "configuration size")
 }
@@ -34,10 +34,11 @@ pub fn usize_value(param: SizeConfigParameter) -> Result<usize> {
 /// # Errors
 ///
 /// Returns an error if the driver is already open or cuFile rejects the parameter or value.
-pub fn set_usize_value(param: SizeConfigParameter, value: usize) -> Result<()> {
-    // SAFETY: `cuFileSetParameterSizeT` receives only plain values.
+pub fn set_size_value(param: SizeConfigParameter, value: usize) -> Result<()> {
+    let value = to_u64(value, "configuration size")?;
+    // SAFETY: the selector and value are passed by value, and the call touches no Rust-owned memory.
     unsafe {
-        try_ffi!(sys::cuFileSetParameterSizeT(param.into(), value as _))?;
+        try_ffi!(sys::cuFileSetParameterSizeT(param.into(), value))?;
     }
     Ok(())
 }
@@ -49,7 +50,7 @@ pub fn set_usize_value(param: SizeConfigParameter, value: usize) -> Result<()> {
 /// Returns an error if cuFile cannot query `param`.
 pub fn bool_value(param: BoolConfigParameter) -> Result<bool> {
     let mut value = false;
-    // SAFETY: `cuFileGetParameterBool` receives valid output locations.
+    // SAFETY: `value` is a local `bool` output, matching the native `bool`.
     unsafe {
         try_ffi!(sys::cuFileGetParameterBool(param.into(), &raw mut value))?;
     }
@@ -61,8 +62,8 @@ pub fn bool_value(param: BoolConfigParameter) -> Result<bool> {
 /// # Errors
 ///
 /// Returns an error if the driver is already open or cuFile rejects the parameter or value.
-pub fn set_bool(param: BoolConfigParameter, value: bool) -> Result<()> {
-    // SAFETY: `cuFileSetParameterBool` receives only plain values.
+pub fn set_bool_value(param: BoolConfigParameter, value: bool) -> Result<()> {
+    // SAFETY: the selector and value are passed by value, and the call touches no Rust-owned memory.
     unsafe {
         try_ffi!(sys::cuFileSetParameterBool(param.into(), value))?;
     }
@@ -77,13 +78,13 @@ pub fn set_bool(param: BoolConfigParameter, value: bool) -> Result<()> {
 /// # Errors
 ///
 /// Returns an error if `capacity` is zero or exceeds the `i32` range, or cuFile rejects the parameter or buffer size.
-pub fn string_with_capacity(param: StringConfigParameter, capacity: usize) -> Result<String> {
+pub fn string_value(param: StringConfigParameter, capacity: usize) -> Result<String> {
     if capacity == 0 {
         return Err(Error::out_of_range("capacity"));
     }
 
     let mut buffer = vec![0; capacity];
-    // SAFETY: `cuFileGetParameterString` receives valid output locations.
+    // SAFETY: `buffer` holds `capacity` writable `c_char`s, and that length is passed as the buffer size.
     unsafe {
         try_ffi!(sys::cuFileGetParameterString(
             param.into(),
@@ -99,9 +100,9 @@ pub fn string_with_capacity(param: StringConfigParameter, capacity: usize) -> Re
 /// # Errors
 ///
 /// Returns an error if `value` contains an interior NUL byte, the driver is already open, or cuFile rejects the parameter or value.
-pub fn set_string(param: StringConfigParameter, value: impl AsRef<str>) -> Result<()> {
+pub fn set_string_value(param: StringConfigParameter, value: impl AsRef<str>) -> Result<()> {
     let value = CString::new(value.as_ref())?;
-    // SAFETY: `cuFileSetParameterString` receives pointers into buffers borrowed for the call.
+    // SAFETY: `value` is a NUL-terminated `CString` that outlives the call.
     unsafe {
         try_ffi!(sys::cuFileSetParameterString(param.into(), value.as_ptr()))?;
     }
@@ -115,10 +116,10 @@ pub fn set_string(param: StringConfigParameter, value: impl AsRef<str>) -> Resul
 /// # Errors
 ///
 /// Returns an error if cuFile cannot query the limits or either limit cannot be represented as `usize`.
-pub fn usize_value_min_max(param: SizeConfigParameter) -> Result<(usize, usize)> {
+pub fn size_value_limits(param: SizeConfigParameter) -> Result<(usize, usize)> {
     let mut min = 0;
     let mut max = 0;
-    // SAFETY: `cuFileGetParameterMinMaxValue` receives valid output locations.
+    // SAFETY: `min` and `max` are local `size_t` outputs.
     unsafe {
         try_ffi!(sys::cuFileGetParameterMinMaxValue(
             param.into(),
@@ -142,7 +143,7 @@ pub fn usize_value_min_max(param: SizeConfigParameter) -> Result<(usize, usize)>
 /// Returns an error if the slab count exceeds the `i32` range, the driver is already open, or cuFile rejects the size/count pairs.
 pub fn set_posix_pool_slab_array(slabs: &[Slab]) -> Result<()> {
     let (sizes, counts, len) = split_slabs(slabs)?;
-    // SAFETY: `cuFileSetParameterPosixPoolSlabArray` receives pointers into buffers borrowed for the call.
+    // SAFETY: `split_slabs` returns `sizes` and `counts` with `len` elements each, and both outlive the call.
     unsafe {
         try_ffi!(sys::cuFileSetParameterPosixPoolSlabArray(
             sizes.as_ptr(),
@@ -174,7 +175,7 @@ pub fn posix_pool_slab_array(len: usize) -> Result<Vec<Slab>> {
 /// Returns an error if the slab count exceeds the `i32` range, the driver is already open, or cuFile rejects the size/count pairs.
 pub fn set_gpu_bounce_buffer_slab_array(slabs: &[Slab]) -> Result<()> {
     let (sizes, counts, len) = split_slabs(slabs)?;
-    // SAFETY: `cuFileSetParameterGpuBounceBufferSlabArray` receives pointers into buffers borrowed for the call.
+    // SAFETY: `split_slabs` returns `sizes` and `counts` with `len` elements each, and both outlive the call.
     unsafe {
         try_ffi!(sys::cuFileSetParameterGpuBounceBufferSlabArray(
             sizes.as_ptr(),
@@ -203,7 +204,7 @@ fn slab_array(
     let raw_len = to_i32(len, "len")?;
     let mut sizes = vec![0; len];
     let mut counts = vec![0; len];
-    // SAFETY: `get` receives two output buffers of `len` elements each.
+    // SAFETY: `get` is one of cuFile's slab-array getters, and `sizes` and `counts` hold `len` writable elements each, matching `raw_len`.
     unsafe {
         try_ffi!(get(sizes.as_mut_ptr(), counts.as_mut_ptr(), raw_len))?;
     }

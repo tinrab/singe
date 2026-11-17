@@ -4,19 +4,20 @@ use std::env::args;
 
 use singe_cuda::{memory::DeviceMemory, view::OwnedDeviceRegion};
 use singe_cudnn::{
-    backend::tensor::{Shape, TensorSpec},
+    backend::operation::normalization::{
+        BatchNormalizationFinalizeInputs, BatchNormalizationFinalizeOutputs,
+        BatchNormalizationRunningStatistics, BatchNormalizationRunningStats,
+        NormalizationSavedStatistics,
+    },
     data_type::DataType,
     error::Result,
     frontend::{
         bindings::BindingAccess,
         graph::{DataTypePolicy, Graph, GraphConfig, TensorOutputConfig},
-        operation::{
-            BatchNormalizationFinalizeConfig, BatchNormalizationFinalizeInputs,
-            BatchNormalizationFinalizeOutputs, BatchNormalizationRunningStatistics,
-            BatchNormalizationRunningStats, NormalizationSavedStatistics,
-        },
+        operation::BatchNormalizationFinalizeConfig,
         plan::{CompileConfig, ExecuteArgs, HeuristicMode},
     },
+    tensor::{Shape, TensorSpec},
 };
 
 fn run() -> Result<()> {
@@ -130,9 +131,9 @@ fn run() -> Result<()> {
     // Scalars retain their native encodings, all ranges are independent, and buffers
     // and plan remain live through stream completion, including an enqueue failure.
     example.execute_and_wait(|context| unsafe {
-        compiled.execute(
+        compiled.execute_async(
             context,
-            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
         )
     })?;
     println!(
@@ -142,6 +143,6 @@ fn run() -> Result<()> {
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_batch_norm_finalize", run())
 }

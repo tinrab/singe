@@ -1,15 +1,12 @@
 //! Capture a kernel once and replay it against the same device allocation.
 
-#![expect(
-    clippy::significant_drop_tightening,
-    reason = "cuda_module! generates the kernel cache lock scope"
-)]
-
-use std::error::Error;
-
 use singe_cuda::{
-    context::Context, cuda_module, memory::DeviceMemory, module::LaunchConfig,
-    stream::StreamCaptureMode,
+    context::Context,
+    cuda_module,
+    graph::GraphInstantiateFlags,
+    memory::DeviceMemory,
+    module::LaunchConfig,
+    stream::{StreamCaptureMode, StreamOptions},
 };
 
 const REPLAYS: u32 = 5;
@@ -28,25 +25,23 @@ cuda_module! {
     }
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() -> anyhow::Result<()> {
     let context = Context::create()?;
-    let stream = context.create_stream()?;
+    let stream = context.create_stream(StreamOptions::default())?;
     // Allocate and compile before capture; capture records work without executing it.
     let mut values = DeviceMemory::<u32>::zeroed(&context, 1024)?;
     let module = kernels::Module::create(&context)?;
     let config = LaunchConfig::for_1d_grid(values.len(), 128);
     let len = i32::try_from(values.len())?;
     let graph = stream.capture(StreamCaptureMode::ThreadLocal, |scope| {
-        // SAFETY: the kernel checks bounds and has exclusive access to initialized
-        // values. The allocation stays alive through every replay and synchronization.
-        unsafe { module.increment_record(scope, &config, &mut values, len) }
+        // SAFETY: the kernel checks `i < len` and has exclusive access to the initialized `values`, which stay alive through every replay and the final synchronization.
+        unsafe { module.increment_record(&mut values, len, &config, scope) }
     })?;
-    let executable = graph.instantiate()?;
+    let executable = graph.instantiate(GraphInstantiateFlags::empty())?;
 
     for _ in 0..REPLAYS {
-        // SAFETY: all launches use one stream, with no concurrent buffer access.
-        // The allocation, module and executable outlive completion below.
-        unsafe { executable.launch(&stream)? };
+        // SAFETY: every launch runs on one stream with no concurrent access to `values`, and the allocation, module, and executable outlive the synchronization below.
+        unsafe { executable.launch_async(&stream)? };
     }
 
     stream.synchronize()?;

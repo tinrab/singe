@@ -1,9 +1,8 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    backend::{execution::attention::SoftmaxStatsBase, tensor::TensorId},
-    data_type::DataType,
-    math::NanPropagation,
+    backend::operation::attention::SoftmaxStatsBase, data_type::DataType, math::NanPropagation,
+    tensor::TensorId,
 };
 
 /// Naming, math and sink attributes for composite softmax and SDPA score computation.

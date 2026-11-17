@@ -1,9 +1,10 @@
 use std::{
-    mem::{self, MaybeUninit},
+    mem::{ManuallyDrop, MaybeUninit},
     ptr, slice,
     sync::Arc,
 };
 
+use singe_core::report_cleanup_failure;
 use singe_cuda::{
     context::Context as CudaContext,
     stream::Stream as CudaStream,
@@ -18,7 +19,7 @@ use crate::{
     stream::JpegStream,
     try_ffi,
     types::{ChromaSubsampling, EncoderBackend, JpegEncoding},
-    utility::{complete, to_positive_i32, to_quality, to_u64, to_usize},
+    utility::{to_positive_i32, to_u64, to_usize},
 };
 
 /// State that an encoder keeps, including the intermediate buffers and the last encoded bitstream.
@@ -28,6 +29,17 @@ pub struct EncoderState {
     pub(crate) handle: Context,
 }
 
+/// Native encoder state with its library handle, from [`EncoderState::into_raw`].
+///
+/// Dropping it leaks the native handle.
+#[derive(Debug)]
+pub struct RawEncoderState {
+    /// Native handle, owned exclusively.
+    pub handle: sys::nvjpegEncoderState_t,
+    /// nvJPEG library handle the native handle was created with.
+    pub context: Context,
+}
+
 /// Encode settings: quality, encoding process, Huffman tables, chroma subsampling, and restart interval.
 #[derive(Debug)]
 pub struct EncodeParams {
@@ -35,33 +47,55 @@ pub struct EncodeParams {
     pub(crate) handle: Context,
 }
 
+/// Native encode settings with their library handle, from [`EncodeParams::into_raw`].
+///
+/// Dropping it leaks the native handle.
+#[derive(Debug)]
+pub struct RawEncodeParams {
+    /// Native handle, owned exclusively.
+    pub handle: sys::nvjpegEncoderParams_t,
+    /// nvJPEG library handle the native handle was created with.
+    pub context: Context,
+}
+
+// SAFETY: nvJPEG requires encoder state to be used by one thread at a time, not by a fixed thread, and every encode takes `&mut EncoderState`.
+unsafe impl Send for EncoderState {}
+
+// SAFETY: nvJPEG requires encode settings to be used by one thread at a time, not by a fixed thread, and every change takes `&mut EncodeParams`.
+unsafe impl Send for EncodeParams {}
+
 impl EncoderState {
-    /// Takes ownership of native encoder state created with `handle`.
+    /// Takes ownership of native encoder state created with `raw.context`.
     ///
     /// # Safety
     ///
-    /// `raw` must be valid, created with `handle`, and owned by nobody else.
+    /// `raw.handle` must be valid, created with `raw.context`, and owned by nobody else.
     /// It is destroyed when the returned value drops, so all work that used it must have finished.
     ///
     /// # Errors
     ///
-    /// Returns an error if `raw` is null.
-    pub unsafe fn from_raw(raw: sys::nvjpegEncoderState_t, handle: &Context) -> Result<Self> {
-        if raw.is_null() {
+    /// Returns [`Error::NullHandle`] if `raw.handle` is null.
+    pub unsafe fn from_raw(raw: RawEncoderState) -> Result<Self> {
+        if raw.handle.is_null() {
             return Err(Error::NullHandle);
         }
         Ok(Self {
-            raw,
-            handle: handle.clone(),
+            raw: raw.handle,
+            handle: raw.context,
         })
     }
 
-    /// Releases the native handle without destroying it.
+    /// Releases the native handle with its [`Context`], without destroying it.
     ///
-    /// Destroy it, or pass it back to [`from_raw`](Self::from_raw), while its [`Context`] is alive.
+    /// Destroy the handle, or pass it back to [`from_raw`](Self::from_raw), while the context is alive.
     #[must_use]
-    pub fn into_raw(mut self) -> sys::nvjpegEncoderState_t {
-        mem::replace(&mut self.raw, ptr::null_mut())
+    pub fn into_raw(self) -> RawEncoderState {
+        let this = ManuallyDrop::new(self);
+        RawEncoderState {
+            handle: this.raw,
+            // SAFETY: `this` is never dropped, so its context moves out exactly once.
+            context: unsafe { ptr::read(&raw const this.handle) },
+        }
     }
 
     /// Returns the CUDA context of the encoder state.
@@ -70,50 +104,17 @@ impl EncoderState {
         self.handle.cuda_context()
     }
 
-    /// Creates encoder state for `handle` with the default encoder backend, and waits for `stream`.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if `stream` belongs to another CUDA context or is being captured, the CUDA context cannot be bound, nvJPEG fails to create the state, or waiting for `stream` fails.
-    pub fn create(handle: &Context, stream: &CudaStream) -> Result<Self> {
-        handle.ensure_stream(stream)?;
-
-        let mut raw = ptr::null_mut();
-        complete(stream, || {
-            // SAFETY: `nvjpegEncoderStateCreate` receives live handles owned by the wrappers and valid output locations.
-            unsafe {
-                try_ffi!(sys::nvjpegEncoderStateCreate(
-                    handle.as_raw(),
-                    &raw mut raw,
-                    stream.as_raw()
-                ))?;
-            }
-            Ok(())
-        })?;
-        if raw.is_null() {
-            return Err(Error::NullHandle);
-        }
-        Ok(Self {
-            raw,
-            handle: handle.clone(),
-        })
-    }
-
     /// Creates encoder state for `handle` that uses `backend`, and waits for `stream`.
     ///
     /// # Errors
     ///
     /// Returns an error if `stream` belongs to another CUDA context or is being captured, the CUDA context cannot be bound, nvJPEG rejects the backend or fails to create the state, or waiting for `stream` fails.
-    pub fn create_with_backend(
-        handle: &Context,
-        backend: EncoderBackend,
-        stream: &CudaStream,
-    ) -> Result<Self> {
+    pub fn create(handle: &Context, backend: EncoderBackend, stream: &CudaStream) -> Result<Self> {
         handle.ensure_stream(stream)?;
 
         let mut raw = ptr::null_mut();
-        complete(stream, || {
-            // SAFETY: `nvjpegEncoderStateCreateWithBackend` receives live handles owned by the wrappers and valid output locations.
+        stream.complete(|| -> Result<()> {
+            // SAFETY: `handle` owns a live library handle and `stream` belongs to its bound context, as checked above, and `raw` is a local that receives the state.
             unsafe {
                 try_ffi!(sys::nvjpegEncoderStateCreateWithBackend(
                     handle.as_raw(),
@@ -141,32 +142,37 @@ impl EncoderState {
 }
 
 impl EncodeParams {
-    /// Takes ownership of native encode settings created with `handle`.
+    /// Takes ownership of native encode settings created with `raw.context`.
     ///
     /// # Safety
     ///
-    /// `raw` must be valid, created with `handle`, and owned by nobody else.
+    /// `raw.handle` must be valid, created with `raw.context`, and owned by nobody else.
     /// It is destroyed when the returned value drops, so all work that used it must have finished.
     ///
     /// # Errors
     ///
-    /// Returns an error if `raw` is null.
-    pub unsafe fn from_raw(raw: sys::nvjpegEncoderParams_t, handle: &Context) -> Result<Self> {
-        if raw.is_null() {
+    /// Returns [`Error::NullHandle`] if `raw.handle` is null.
+    pub unsafe fn from_raw(raw: RawEncodeParams) -> Result<Self> {
+        if raw.handle.is_null() {
             return Err(Error::NullHandle);
         }
         Ok(Self {
-            raw,
-            handle: handle.clone(),
+            raw: raw.handle,
+            handle: raw.context,
         })
     }
 
-    /// Releases the native handle without destroying it.
+    /// Releases the native handle with its [`Context`], without destroying it.
     ///
-    /// Destroy it, or pass it back to [`from_raw`](Self::from_raw), while its [`Context`] is alive.
+    /// Destroy the handle, or pass it back to [`from_raw`](Self::from_raw), while the context is alive.
     #[must_use]
-    pub fn into_raw(mut self) -> sys::nvjpegEncoderParams_t {
-        mem::replace(&mut self.raw, ptr::null_mut())
+    pub fn into_raw(self) -> RawEncodeParams {
+        let this = ManuallyDrop::new(self);
+        RawEncodeParams {
+            handle: this.raw,
+            // SAFETY: `this` is never dropped, so its context moves out exactly once.
+            context: unsafe { ptr::read(&raw const this.handle) },
+        }
     }
 
     /// Returns the CUDA context of the encode settings.
@@ -184,8 +190,8 @@ impl EncodeParams {
         handle.ensure_stream(stream)?;
 
         let mut raw = ptr::null_mut();
-        complete(stream, || {
-            // SAFETY: `nvjpegEncoderParamsCreate` receives live handles owned by the wrappers and valid output locations.
+        stream.complete(|| -> Result<()> {
+            // SAFETY: `handle` owns a live library handle and `stream` belongs to its bound context, as checked above, and `raw` is a local that receives the settings.
             unsafe {
                 try_ffi!(sys::nvjpegEncoderParamsCreate(
                     handle.as_raw(),
@@ -213,17 +219,11 @@ impl EncodeParams {
     /// # Errors
     ///
     /// Returns an error if `stream` belongs to another CUDA context or is being captured, the CUDA context cannot be bound, nvJPEG rejects the setting, or waiting for `stream` fails.
-    /// It also fails if `quality` is not a valid [`Quality`].
-    pub fn set_quality(
-        &mut self,
-        quality: impl TryInto<Quality>,
-        stream: &CudaStream,
-    ) -> Result<&mut Self> {
+    pub fn set_quality(&mut self, quality: Quality, stream: &CudaStream) -> Result<&mut Self> {
         self.handle.ensure_stream(stream)?;
 
-        let quality = to_quality(quality, "quality")?;
-        complete(stream, || {
-            // SAFETY: `nvjpegEncoderParamsSetQuality` receives live handles owned by the wrappers.
+        stream.complete(|| -> Result<()> {
+            // SAFETY: `&mut self` owns the live settings handle, `stream` belongs to its context, as checked above, and `complete` waits for `stream`.
             unsafe {
                 try_ffi!(sys::nvjpegEncoderParamsSetQuality(
                     self.raw,
@@ -248,8 +248,8 @@ impl EncodeParams {
     ) -> Result<&mut Self> {
         self.handle.ensure_stream(stream)?;
 
-        complete(stream, || {
-            // SAFETY: `nvjpegEncoderParamsSetEncoding` receives live handles owned by the wrappers.
+        stream.complete(|| -> Result<()> {
+            // SAFETY: `&mut self` owns the live settings handle, `stream` belongs to its context, as checked above, and `complete` waits for `stream`.
             unsafe {
                 try_ffi!(sys::nvjpegEncoderParamsSetEncoding(
                     self.raw,
@@ -274,8 +274,8 @@ impl EncodeParams {
     ) -> Result<&mut Self> {
         self.handle.ensure_stream(stream)?;
 
-        complete(stream, || {
-            // SAFETY: `nvjpegEncoderParamsSetOptimizedHuffman` receives live handles owned by the wrappers.
+        stream.complete(|| -> Result<()> {
+            // SAFETY: `&mut self` owns the live settings handle, `stream` belongs to its context, as checked above, and `complete` waits for `stream`.
             unsafe {
                 try_ffi!(sys::nvjpegEncoderParamsSetOptimizedHuffman(
                     self.raw,
@@ -300,8 +300,8 @@ impl EncodeParams {
     ) -> Result<&mut Self> {
         self.handle.ensure_stream(stream)?;
 
-        complete(stream, || {
-            // SAFETY: `nvjpegEncoderParamsSetSamplingFactors` receives live handles owned by the wrappers.
+        stream.complete(|| -> Result<()> {
+            // SAFETY: `&mut self` owns the live settings handle, `stream` belongs to its context, as checked above, and `complete` waits for `stream`.
             unsafe {
                 try_ffi!(sys::nvjpegEncoderParamsSetSamplingFactors(
                     self.raw,
@@ -328,8 +328,8 @@ impl EncodeParams {
     ) -> Result<&mut Self> {
         self.handle.ensure_stream(stream)?;
 
-        complete(stream, || {
-            // SAFETY: `nvjpegEncoderParamsSetRestartInterval` receives live handles owned by the wrappers.
+        stream.complete(|| -> Result<()> {
+            // SAFETY: `&mut self` owns the live settings handle, `stream` belongs to its context, as checked above, and `complete` waits for `stream`.
             unsafe {
                 try_ffi!(sys::nvjpegEncoderParamsSetRestartInterval(
                     self.raw,
@@ -354,11 +354,12 @@ impl EncodeParams {
         stream: &CudaStream,
     ) -> Result<&mut Self> {
         self.handle.ensure_stream(stream)?;
-        self.handle.ensure_handle(&state.handle)?;
-        self.handle.ensure_handle(&stream_info.handle)?;
+        self.handle.ensure_handle(&state.handle, "state")?;
+        self.handle
+            .ensure_handle(&stream_info.handle, "stream_info")?;
 
-        complete(stream, || {
-            // SAFETY: `nvjpegEncoderParamsCopyMetadata` receives live handles owned by the wrappers.
+        stream.complete(|| -> Result<()> {
+            // SAFETY: `&mut self`, `state`, and `stream_info` own live handles of one context and `stream` belongs to it, as checked above, and `complete` waits for `stream`.
             unsafe {
                 try_ffi!(sys::nvjpegEncoderParamsCopyMetadata(
                     state.as_raw(),
@@ -383,10 +384,11 @@ impl EncodeParams {
         stream: &CudaStream,
     ) -> Result<&mut Self> {
         self.handle.ensure_stream(stream)?;
-        self.handle.ensure_handle(&stream_info.handle)?;
+        self.handle
+            .ensure_handle(&stream_info.handle, "stream_info")?;
 
-        complete(stream, || {
-            // SAFETY: `nvjpegEncoderParamsCopyQuantizationTables` receives live handles owned by the wrappers.
+        stream.complete(|| -> Result<()> {
+            // SAFETY: `&mut self` owns the live settings handle, `stream_info` and `stream` belong to its context, as checked above, and `complete` waits for `stream`.
             unsafe {
                 try_ffi!(sys::nvjpegEncoderParamsCopyQuantizationTables(
                     self.raw,
@@ -419,12 +421,12 @@ impl Context {
         height: impl TryInto<i32>,
     ) -> Result<usize> {
         self.bind()?;
-        self.ensure_handle(&params.handle)?;
+        self.ensure_handle(&params.handle, "params")?;
 
         let width = to_positive_i32(width, "width")?;
         let height = to_positive_i32(height, "height")?;
         let mut length = 0;
-        // SAFETY: `nvjpegEncodeGetBufferSize` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `params` belongs to this live handle, as checked above, the dimensions are positive, and `length` is a local that receives the size.
         unsafe {
             try_ffi!(sys::nvjpegEncodeGetBufferSize(
                 self.as_raw(),
@@ -437,98 +439,19 @@ impl Context {
         to_usize(length, "length")
     }
 
-    /// Enqueues encoding of an RGB or BGR `input` on `stream`, with `params`, and keeps the result in `state`.
-    ///
-    /// Read the result with [`retrieve_bitstream`](Self::retrieve_bitstream).
-    ///
-    /// # Safety
-    ///
-    /// `input` must describe initialized, device-accessible RGB or BGR pixels, which must stay valid until the work on `stream` finishes.
-    /// The [raw execution rules](crate#raw-execution) apply, including on failure and for every replay of a captured graph.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if `stream` belongs to another CUDA context, the CUDA context cannot be bound, `state` or `params` was created with another [`Context`], a dimension does not fit an `i32`, the input's memory is in another context, or nvJPEG fails.
-    pub unsafe fn encode_image_async(
-        &self,
-        state: &mut EncoderState,
-        params: &EncodeParams,
-        input: &EncodeInput<'_>,
-        stream: &CudaStream,
-    ) -> Result<()> {
-        self.ensure_stream(stream)?;
-        input.prepare(stream)?;
-        self.ensure_handle(&state.handle)?;
-        self.ensure_handle(&params.handle)?;
-
-        // SAFETY: `nvjpegEncodeImage` receives live handles owned by the wrappers.
-        unsafe {
-            try_ffi!(sys::nvjpegEncodeImage(
-                self.as_raw(),
-                state.as_raw(),
-                params.as_raw(),
-                input.source.as_raw(),
-                input.input_format.into(),
-                input.width_i32()?,
-                input.height_i32()?,
-                stream.as_raw()
-            ))
-        }
-    }
-
-    /// Enqueues encoding of a YUV `input` on `stream`, with `params`, and keeps the result in `state`.
-    ///
-    /// Read the result with [`retrieve_bitstream`](Self::retrieve_bitstream).
-    ///
-    /// # Safety
-    ///
-    /// `input` must describe initialized, device-accessible YUV pixels with its subsampling and size, which must stay valid until the work on `stream` finishes.
-    /// The [raw execution rules](crate#raw-execution) apply, including on failure and for every replay of a captured graph.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if `stream` belongs to another CUDA context, the CUDA context cannot be bound, `state` or `params` was created with another [`Context`], a dimension does not fit an `i32`, the input's memory is in another context, or nvJPEG fails.
-    pub unsafe fn encode_yuv_async(
-        &self,
-        state: &mut EncoderState,
-        params: &EncodeParams,
-        input: &EncodeInput<'_>,
-        stream: &CudaStream,
-    ) -> Result<()> {
-        self.ensure_stream(stream)?;
-        input.prepare(stream)?;
-        self.ensure_handle(&state.handle)?;
-        self.ensure_handle(&params.handle)?;
-
-        // SAFETY: `nvjpegEncodeYUV` receives live handles owned by the wrappers.
-        unsafe {
-            try_ffi!(sys::nvjpegEncodeYUV(
-                self.as_raw(),
-                state.as_raw(),
-                params.as_raw(),
-                input.source.as_raw(),
-                input.input_subsampling.into(),
-                input.width_i32()?,
-                input.height_i32()?,
-                stream.as_raw()
-            ))
-        }
-    }
-
     /// Enqueues encoding of `input` in any [`InputFormat`](crate::types::InputFormat) on `stream`, with `params`, and keeps the result in `state`.
     ///
-    /// It can replace [`encode_image_async`](Self::encode_image_async) and [`encode_yuv_async`](Self::encode_yuv_async), and is the only one that accepts [`InputFormat::Nv12`](crate::types::InputFormat::Nv12).
+    /// Work that writes the pixels is ordered before the encoding on `stream`.
     /// Read the result with [`retrieve_bitstream`](Self::retrieve_bitstream).
     ///
     /// # Safety
     ///
-    /// `input` must describe initialized, device-accessible pixels with its format, subsampling, and size.
-    /// Work that writes the pixels must be ordered before this on `stream`, and the pixels must stay valid until the work finishes.
+    /// `input` must describe initialized, device-accessible pixels with its format, subsampling, and size, which must stay valid until the work on `stream` finishes.
     /// The [raw execution rules](crate#raw-execution) apply, including on failure and for every replay of a captured graph.
     ///
     /// # Errors
     ///
-    /// Returns an error if `stream` belongs to another CUDA context, the CUDA context cannot be bound, `state` or `params` was created with another [`Context`], a dimension does not fit an `i32`, or nvJPEG fails.
+    /// Returns an error if `stream` belongs to another CUDA context, the CUDA context cannot be bound, `state` or `params` was created with another [`Context`], the input's memory is in another CUDA context, a dimension does not fit an `i32`, or nvJPEG fails.
     pub unsafe fn encode_async(
         &self,
         state: &mut EncoderState,
@@ -537,10 +460,11 @@ impl Context {
         stream: &CudaStream,
     ) -> Result<()> {
         self.ensure_stream(stream)?;
-        self.ensure_handle(&state.handle)?;
-        self.ensure_handle(&params.handle)?;
+        input.prepare(stream)?;
+        self.ensure_handle(&state.handle, "state")?;
+        self.ensure_handle(&params.handle, "params")?;
 
-        // SAFETY: `nvjpegEncode` receives live handles owned by the wrappers.
+        // SAFETY: `state`, `params`, `stream`, and the input's memory belong to this context, as checked above, and the input's writers are ordered before the call; the caller keeps the pixels valid until the work finishes.
         unsafe {
             try_ffi!(sys::nvjpegEncode(
                 self.as_raw(),
@@ -562,10 +486,8 @@ impl Context {
     ///
     /// Returns an error if `stream` belongs to another CUDA context or is being captured, the CUDA context cannot be bound, `state` was created with another [`Context`], nvJPEG fails, the size does not fit `usize`, or waiting for `stream` fails.
     pub fn bitstream_size(&self, state: &mut EncoderState, stream: &CudaStream) -> Result<usize> {
-        // SAFETY: `complete` drains the stream before returning, so every borrowed buffer outlives the queued work.
-        complete(stream, || unsafe {
-            self.retrieve_bitstream_async(state, None, stream)
-        })
+        // SAFETY: `complete` waits for `stream` on every path, so `state` outlives the queued work, and no output buffer is passed.
+        stream.complete(|| unsafe { self.retrieve_bitstream_async(state, None, stream) })
     }
 
     /// Copies the encoded data in `state` into `output` and returns the written part, after waiting for `stream`.
@@ -581,10 +503,9 @@ impl Context {
         output: &'a mut [MaybeUninit<u8>],
         stream: &CudaStream,
     ) -> Result<&'a mut [u8]> {
-        // SAFETY: `complete` drains the stream before returning, so every borrowed buffer outlives the queued work.
-        let length = complete(stream, || unsafe {
-            self.retrieve_bitstream_async(state, Some(output), stream)
-        })?;
+        // SAFETY: `complete` waits for `stream` on every path, so `state` and the exclusively borrowed `output` outlive the queued copy.
+        let length = stream
+            .complete(|| unsafe { self.retrieve_bitstream_async(state, Some(output), stream) })?;
         if length > output.len() {
             return Err(Error::BufferTooSmall {
                 name: "host bitstream".into(),
@@ -592,7 +513,7 @@ impl Context {
                 actual: output.len(),
             });
         }
-        // SAFETY: the completed native call produced exactly this byte prefix.
+        // SAFETY: the finished copy initialized the first `length` bytes of `output`, and `length` was checked against its size above.
         Ok(unsafe { slice::from_raw_parts_mut(output.as_mut_ptr().cast(), length) })
     }
 
@@ -617,13 +538,13 @@ impl Context {
         stream: &CudaStream,
     ) -> Result<usize> {
         self.ensure_stream(stream)?;
-        self.ensure_handle(&state.handle)?;
+        self.ensure_handle(&state.handle, "state")?;
         let mut length = to_u64(
             output.as_ref().map_or(0, |buffer| buffer.len()),
             "output length",
         )?;
         let data = output.map_or(ptr::null_mut(), |buffer| buffer.as_mut_ptr().cast());
-        // SAFETY: `nvjpegEncodeRetrieveBitstream` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `state` and `stream` belong to this context, as checked above; `data` is null or points to `length` writable bytes the caller keeps exclusive until the copy finishes, and `length` is a local.
         unsafe {
             try_ffi!(sys::nvjpegEncodeRetrieveBitstream(
                 self.as_raw(),
@@ -656,7 +577,7 @@ impl Context {
         stream: &CudaStream,
     ) -> Result<usize> {
         self.ensure_stream(stream)?;
-        self.ensure_handle(&state.handle)?;
+        self.ensure_handle(&state.handle, "state")?;
         if let Some(view) = &output {
             stream.join_regions(&[view.region()])?;
         }
@@ -666,7 +587,7 @@ impl Context {
             "output length",
         )?;
         let data = output.map_or(ptr::null_mut(), |mut view| view.as_mut_ptr());
-        // SAFETY: `nvjpegEncodeRetrieveBitstreamDevice` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `state`, `stream`, and the output's memory belong to this context, as checked above; `data` is null or points to `length` writable device bytes the caller keeps exclusive until the copy finishes.
         unsafe {
             try_ffi!(sys::nvjpegEncodeRetrieveBitstreamDevice(
                 self.as_raw(),
@@ -682,18 +603,19 @@ impl Context {
 
 impl Drop for EncoderState {
     fn drop(&mut self) {
-        if self.handle.bind().is_err() {
+        if let Err(error) = self.handle.bind() {
+            report_cleanup_failure(
+                "bind the cuda context to destroy",
+                "nvjpeg encoder state",
+                &error,
+            );
             return;
         }
+
         if !self.raw.is_null() {
-            // SAFETY: `nvjpegEncoderStateDestroy` receives live handles owned by the wrappers.
-            unsafe {
-                if let Err(error) = try_ffi!(sys::nvjpegEncoderStateDestroy(self.raw)) {
-                    eprintln!(
-                        "failed to destroy nvjpeg encoder state: {}",
-                        singe_core::ErrorChain(&error)
-                    );
-                }
+            // SAFETY: the state owns its handle exclusively and is destroyed once; safe encodes wait for their work, and raw callers keep the state alive until theirs finishes.
+            if let Err(error) = unsafe { try_ffi!(sys::nvjpegEncoderStateDestroy(self.raw)) } {
+                report_cleanup_failure("destroy", "nvjpeg encoder state", &error);
             }
         }
     }
@@ -701,18 +623,19 @@ impl Drop for EncoderState {
 
 impl Drop for EncodeParams {
     fn drop(&mut self) {
-        if self.handle.bind().is_err() {
+        if let Err(error) = self.handle.bind() {
+            report_cleanup_failure(
+                "bind the cuda context to destroy",
+                "nvjpeg encoder params",
+                &error,
+            );
             return;
         }
+
         if !self.raw.is_null() {
-            // SAFETY: `nvjpegEncoderParamsDestroy` receives live handles owned by the wrappers.
-            unsafe {
-                if let Err(error) = try_ffi!(sys::nvjpegEncoderParamsDestroy(self.raw)) {
-                    eprintln!(
-                        "failed to destroy nvjpeg encoder params: {}",
-                        singe_core::ErrorChain(&error)
-                    );
-                }
+            // SAFETY: the settings own their handle exclusively and are destroyed once; safe encodes wait for their work, and raw callers keep the settings alive until theirs finishes.
+            if let Err(error) = unsafe { try_ffi!(sys::nvjpegEncoderParamsDestroy(self.raw)) } {
+                report_cleanup_failure("destroy", "nvjpeg encoder params", &error);
             }
         }
     }

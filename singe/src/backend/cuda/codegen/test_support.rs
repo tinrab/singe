@@ -82,7 +82,7 @@ pub fn on_gpu(
         // SAFETY: the kernel addresses only elements its accesses cover, which the interpreter checks fit these buffers, and the stream finishes before the tensors drop.
         unsafe {
             function
-                .launch_on(&generated.launch_config().unwrap(), arguments, stream.raw())
+                .launch_async(&generated.launch_config().unwrap(), arguments, stream.raw())
                 .unwrap();
         }
     }

@@ -7,8 +7,8 @@ mod pointwise;
 mod reduction;
 
 use singe_cudnn::backend::{
-    execution::{
-        OperationGraph as CudnnOperationGraph,
+    execution::OperationGraph as CudnnOperationGraph,
+    operation::{
         attention::{DiagonalBandMaskOperation, SdpaForwardOperation},
         convolution::{
             ConvolutionDescriptor as CudnnConvolutionDescriptor,

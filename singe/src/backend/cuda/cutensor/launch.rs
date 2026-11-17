@@ -41,14 +41,14 @@ pub unsafe fn launch_cutensor_contraction_f32(
     };
     // SAFETY: the caller establishes the plan, storage lifetime, and stream access contract.
     unsafe {
-        plan.contract(
+        plan.contract_async(
             &alpha,
             &a_memory,
             &b_memory,
             &beta,
             &c_memory,
             &mut output_memory,
-            workspace,
+            workspace.map(|memory| memory.output()),
             stream.raw(),
         )?;
     };

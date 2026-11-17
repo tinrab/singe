@@ -1,24 +1,18 @@
 use std::{
-    borrow::Cow,
-    ffi::CStr,
+    ffi::{c_char, c_int},
     fmt::{self, Display, Formatter},
-    os::raw::c_char,
     path::Path,
-    sync::{
-        Arc, Mutex, PoisonError,
-        atomic::{AtomicU64, Ordering},
-    },
 };
 
 use bitflags::parser;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
-use singe_core::{impl_enum_display, path_to_cstring};
-use singe_cudss_sys as sys;
-
-use crate::{
-    error::{Error, Result},
-    try_ffi,
+use singe_core::{
+    impl_enum_display,
+    logger::{self, CallbackSlot},
+    path_to_cstring, report_cleanup_failure,
 };
+
+use crate::{error::Result, sys, try_ffi};
 
 /// cuDSS logger verbosity level.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
@@ -39,14 +33,6 @@ pub enum LogLevel {
     ApiTrace = 5,
 }
 
-impl LogLevel {
-    /// Returns the raw cuDSS log level value.
-    #[must_use]
-    pub const fn raw(self) -> i32 {
-        self as i32
-    }
-}
-
 impl_enum_display!(LogLevel, {
     Self::Off => "off",
     Self::Error => "error",
@@ -60,8 +46,6 @@ bitflags::bitflags! {
     /// cuDSS logger message class mask.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct LogMask: i32 {
-        /// Disable all message classes.
-        const OFF = 0;
         /// Error messages.
         const ERROR = 1;
         /// Internal trace messages.
@@ -81,175 +65,81 @@ impl Display for LogMask {
     }
 }
 
-/// A borrowed cuDSS logger message.
-///
-/// The string data is only valid for the duration of the callback.
-/// Store an owned copy if the message must outlive the callback invocation.
-#[derive(Debug, Clone)]
-pub struct LogRecord<'a> {
-    raw_level: i32,
-    function: Cow<'a, str>,
-    message: Cow<'a, str>,
-}
+/// A cuDSS log message, borrowed for the duration of the callback.
+pub type LogRecord<'a> = logger::LogRecord<'a, LogLevel>;
 
-impl LogRecord<'_> {
-    /// Returns the raw cuDSS log level value.
-    #[must_use]
-    pub const fn raw_level(&self) -> i32 {
-        self.raw_level
-    }
+/// A cuDSS log message that owns its strings.
+pub type OwnedLogRecord = logger::OwnedLogRecord<LogLevel>;
 
-    /// Returns the typed log level, or `None` for an unknown raw level.
-    #[must_use]
-    pub fn level(&self) -> Option<LogLevel> {
-        LogLevel::try_from(self.raw_level).ok()
-    }
+static CALLBACK: CallbackSlot<LogLevel> = CallbackSlot::new("cudss");
 
-    /// Returns the cuDSS function name associated with this message.
-    #[must_use]
-    pub fn function(&self) -> &str {
-        &self.function
-    }
-
-    /// Returns the logger message text.
-    #[must_use]
-    pub fn message(&self) -> &str {
-        &self.message
-    }
-
-    /// Copies this borrowed record into an owned record.
-    #[must_use]
-    pub fn into_owned(self) -> OwnedLogRecord {
-        self.into()
-    }
-}
-
-/// An owned cuDSS logger message.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct OwnedLogRecord {
-    raw_level: i32,
-    function: String,
-    message: String,
-}
-
-impl OwnedLogRecord {
-    /// Returns the raw cuDSS log level value.
-    #[must_use]
-    pub const fn raw_level(&self) -> i32 {
-        self.raw_level
-    }
-
-    /// Returns the typed log level, or `None` for an unknown raw level.
-    #[must_use]
-    pub fn level(&self) -> Option<LogLevel> {
-        LogLevel::try_from(self.raw_level).ok()
-    }
-
-    /// Returns the cuDSS function name associated with this message.
-    #[must_use]
-    pub fn function(&self) -> &str {
-        &self.function
-    }
-
-    /// Returns the logger message text.
-    #[must_use]
-    pub fn message(&self) -> &str {
-        &self.message
-    }
-}
-
-impl From<LogRecord<'_>> for OwnedLogRecord {
-    fn from(record: LogRecord<'_>) -> Self {
-        Self {
-            raw_level: record.raw_level,
-            function: record.function.into_owned(),
-            message: record.message.into_owned(),
-        }
-    }
-}
-
-/// RAII guard for a logger callback installed through [`set_callback`].
-///
-/// Dropping the guard clears the callback if it is still the active callback.
+/// Keeps a callback installed by [`set_callback`]; dropping it removes the callback unless a newer one replaced it.
 #[derive(Debug)]
+#[must_use = "dropping the guard removes the callback"]
 pub struct CallbackGuard {
     generation: u64,
 }
 
-type Callback = Arc<dyn for<'a> Fn(LogRecord<'a>) + Send + Sync + 'static>;
+impl Drop for CallbackGuard {
+    fn drop(&mut self) {
+        // SAFETY: clearing the native callback passes no pointers.
+        let result = CALLBACK.release(self.generation, || unsafe {
+            try_ffi!(sys::cudssLoggerSetCallback(None))
+        });
+        if let Err(error) = result {
+            report_cleanup_failure("clear", "cudss logger callback", &error);
+        }
+    }
+}
 
-static CALLBACK: Mutex<Option<(u64, Callback)>> = Mutex::new(None);
-static CALLBACK_GENERATION: AtomicU64 = AtomicU64::new(1);
-
-/// Sets a custom callback function to receive log messages.
+/// Sends cuDSS's log messages to `callback` until the returned guard drops.
 ///
-/// The callback is invoked synchronously from the calling thread.
-/// It must not call cuDSS APIs because doing so may deadlock.
+/// cuDSS calls it on the thread that logs, and it must not call cuDSS.
+/// A panic in `callback` is caught, and the message it was handling is lost.
 ///
 /// Logger state is process-wide.
 /// In MGMN mode, each process has independent logger state and must install its own callback if needed.
 ///
 /// # Errors
 ///
-/// Returns an error if cuDSS cannot install the callback.
+/// Returns an error if cuDSS rejects the callback.
 pub fn set_callback(
     callback: impl for<'a> Fn(LogRecord<'a>) + Send + Sync + 'static,
 ) -> Result<CallbackGuard> {
-    let generation = CALLBACK_GENERATION.fetch_add(1, Ordering::Relaxed);
-    {
-        let mut current = CALLBACK.lock().map_err(|_| Error::LockPoisoned {
-            name: "cudss logger callback",
-        })?;
-        *current = Some((generation, Arc::new(callback)));
-    }
-
-    // SAFETY: `cudssLoggerSetCallback` receives only plain values.
-    unsafe {
-        if let Err(error) = try_ffi!(sys::cudssLoggerSetCallback(Some(callback_trampoline))) {
-            let mut current = CALLBACK.lock().map_err(|_| Error::LockPoisoned {
-                name: "cudss logger callback",
-            })?;
-            if current
-                .as_ref()
-                .is_some_and(|(current_generation, _)| *current_generation == generation)
-            {
-                *current = None;
-            }
-
-            drop(current);
-            return Err(error);
-        }
-    }
-
+    // SAFETY: the trampoline has the signature cuDSS expects and only reads `CALLBACK`.
+    let generation = CALLBACK.install(callback, || unsafe {
+        try_ffi!(sys::cudssLoggerSetCallback(Some(trampoline)))
+    })?;
     Ok(CallbackGuard { generation })
 }
 
-/// Clears the currently installed logger callback.
-///
-/// Logger state is process-wide.
-/// In MGMN mode, this only clears the callback in the current process.
+unsafe extern "C" fn trampoline(level: c_int, function: *const c_char, message: *const c_char) {
+    // SAFETY: cuDSS passes strings that stay valid for the duration of the callback.
+    unsafe { CALLBACK.dispatch(level, function, message) };
+}
+
+/// Sets the most verbose level cuDSS logs.
 ///
 /// # Errors
 ///
-/// Returns an error if cuDSS cannot clear the callback.
-pub fn clear_callback() -> Result<()> {
-    {
-        let mut current = CALLBACK.lock().map_err(|_| Error::LockPoisoned {
-            name: "cudss logger callback",
-        })?;
-        *current = None;
-    }
-
-    // SAFETY: `cudssLoggerSetCallback` receives only plain values.
-    unsafe {
-        try_ffi!(sys::cudssLoggerSetCallback(None))?;
-    }
-    Ok(())
+/// Returns an error if cuDSS rejects the level.
+pub fn set_level(level: LogLevel) -> Result<()> {
+    // SAFETY: the level is a `#[repr(i32)]` value cuDSS defines, and setting it touches no Rust-owned memory.
+    unsafe { try_ffi!(sys::cudssLoggerSetLevel(level.into())) }
 }
 
-/// Opens a file and redirects log output to it.
+/// Sets which message classes cuDSS logs.
 ///
-/// The file is opened in write mode, truncating any existing content.
+/// # Errors
+///
+/// Returns an error if cuDSS rejects the mask.
+pub fn set_mask(mask: LogMask) -> Result<()> {
+    // SAFETY: the mask is an integer built from cuDSS's mask bits, and setting it touches no Rust-owned memory.
+    unsafe { try_ffi!(sys::cudssLoggerSetMask(mask.bits())) }
+}
+
+/// Writes cuDSS's log to the file at `path`, replacing its contents.
+///
 /// Multiple calls close the previous file.
 /// Parent directories must already exist.
 ///
@@ -258,40 +148,11 @@ pub fn clear_callback() -> Result<()> {
 ///
 /// # Errors
 ///
-/// Returns an error if `path` cannot be converted to a C string or if cuDSS cannot open the file.
-pub fn open_file(path: impl AsRef<Path>) -> Result<()> {
-    let path = path_to_cstring(path.as_ref())?;
-    // SAFETY: `cudssLoggerOpenFile` receives pointers into buffers borrowed for the call.
-    unsafe {
-        try_ffi!(sys::cudssLoggerOpenFile(path.as_ptr()))?;
-    }
-    Ok(())
-}
-
-/// Sets the logger verbosity level.
-///
-/// # Errors
-///
-/// Returns an error if cuDSS rejects the level.
-pub fn set_level(level: LogLevel) -> Result<()> {
-    // SAFETY: `cudssLoggerSetLevel` receives only plain values.
-    unsafe {
-        try_ffi!(sys::cudssLoggerSetLevel(level.raw()))?;
-    }
-    Ok(())
-}
-
-/// Sets the logger message class mask.
-///
-/// # Errors
-///
-/// Returns an error if cuDSS rejects the mask.
-pub fn set_mask(mask: LogMask) -> Result<()> {
-    // SAFETY: `cudssLoggerSetMask` receives only plain values.
-    unsafe {
-        try_ffi!(sys::cudssLoggerSetMask(mask.bits()))?;
-    }
-    Ok(())
+/// Returns an error if `path` contains an interior NUL byte or cuDSS cannot open the file.
+pub fn open_file(path: &Path) -> Result<()> {
+    let path = path_to_cstring(path)?;
+    // SAFETY: `cudssLoggerOpenFile` reads the path only during the call.
+    unsafe { try_ffi!(sys::cudssLoggerOpenFile(path.as_ptr())) }
 }
 
 /// Permanently and irreversibly disables all logging for the entire process.
@@ -304,97 +165,5 @@ pub fn set_mask(mask: LogMask) -> Result<()> {
 /// Returns an error if cuDSS cannot disable logging.
 pub fn disable() -> Result<()> {
     // SAFETY: `cudssLoggerForceDisable` takes no arguments.
-    unsafe {
-        try_ffi!(sys::cudssLoggerForceDisable())?;
-    }
-    Ok(())
-}
-
-impl CallbackGuard {
-    /// Returns the callback generation guarded by this value.
-    #[must_use]
-    pub const fn generation(&self) -> u64 {
-        self.generation
-    }
-
-    /// Clears the callback guarded by this value.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if cuDSS cannot clear the callback.
-    pub fn clear(mut self) -> Result<()> {
-        let result = clear_callback_generation(self.generation);
-        self.generation = 0;
-        result
-    }
-}
-
-impl Drop for CallbackGuard {
-    fn drop(&mut self) {
-        let should_clear = {
-            // Cleanup must stop native code calling a dropped callback whatever a panic left here.
-            let current = CALLBACK.lock().unwrap_or_else(PoisonError::into_inner);
-            current
-                .as_ref()
-                .is_some_and(|(generation, _)| *generation == self.generation)
-        };
-
-        if should_clear {
-            let _ = clear_callback_generation(self.generation);
-        }
-    }
-}
-
-fn clear_callback_generation(generation: u64) -> Result<()> {
-    let should_clear = {
-        // Only `Drop` calls this, for the same cleanup.
-        let mut current = CALLBACK.lock().unwrap_or_else(PoisonError::into_inner);
-        if current
-            .as_ref()
-            .is_some_and(|(current_generation, _)| *current_generation == generation)
-        {
-            *current = None;
-            true
-        } else {
-            false
-        }
-    };
-
-    if should_clear {
-        // SAFETY: `cudssLoggerSetCallback` receives only plain values.
-        unsafe {
-            try_ffi!(sys::cudssLoggerSetCallback(None))?;
-        }
-    }
-    Ok(())
-}
-
-extern "C" fn callback_trampoline(
-    raw_level: i32,
-    function_name: *const c_char,
-    message: *const c_char,
-) {
-    // A panic must not unwind into native code, so a poisoned callback loses this record.
-    let Ok(current) = CALLBACK.lock() else {
-        return;
-    };
-    let callback = current.as_ref().map(|(_, callback)| Arc::clone(callback));
-    drop(current);
-
-    if let Some(callback) = callback {
-        callback(LogRecord {
-            raw_level,
-            function: c_string_lossy(function_name),
-            message: c_string_lossy(message),
-        });
-    }
-}
-
-fn c_string_lossy<'a>(ptr: *const c_char) -> Cow<'a, str> {
-    if ptr.is_null() {
-        Cow::Borrowed("")
-    } else {
-        // SAFETY: the pointer was checked for null, and the library keeps the NUL-terminated string alive while this value is borrowed.
-        unsafe { CStr::from_ptr(ptr).to_string_lossy() }
-    }
+    unsafe { try_ffi!(sys::cudssLoggerForceDisable()) }
 }

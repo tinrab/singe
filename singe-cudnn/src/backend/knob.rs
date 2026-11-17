@@ -1,3 +1,5 @@
+//! Native engine tuning-knob types and their integer value ranges.
+
 use singe_cudnn_sys as sys;
 
 use crate::metadata::backend_metadata_enum;

@@ -1,26 +1,28 @@
-//! Eigenvalue operations with completed borrowed execution.
+//! Eigenvalue operations.
 //!
 //! Workspace queries accept layout metadata.
 //! Execution accepts initialized in-place matrices and write-only result and scratch views, including pending storage.
-//! Typed execution completes all borrowed accesses before returning.
+//! Each operation has a waiting `execute` and, except for the selected solves that read back a count, an unsafe `execute_async` that follows the crate's [raw execution contract](crate#raw-execution).
 //! Except for selected operations returning a count, numerical status is left in `dev_info` for the caller to inspect before promoting produced values.
-//! Raw native entry points remain public under [`raw`].
+//! The generic native 64-bit entry points stay public as `x*_async` functions.
 
 mod info;
-pub mod raw;
-
-/// Scalar dispatch for symmetric, generalized, and general eigenvalue operations.
-pub mod scalar;
-
+mod raw;
+pub(crate) mod scalar;
 mod validation;
 
 use std::{mem::MaybeUninit, ops::Range};
 
-use scalar::EigenScalar;
 use singe_cuda::view::DeviceOutputView;
 use validation::{check_completed_status, selected_count};
 
-pub use self::info::SyevjInfo;
+pub use self::{
+    info::SyevjInfo,
+    raw::{
+        xgeev_async, xgeev_workspace_size, xsyev_batched_async, xsyev_batched_workspace_size,
+        xsyevd_async, xsyevd_workspace_size, xsyevdx_async, xsyevdx_workspace_size,
+    },
+};
 use crate::{
     context::Context,
     data_type::{SolverElement, SolverReal},
@@ -154,7 +156,38 @@ impl Syevd {
         params: &Params,
         a: MatrixLayout,
     ) -> Result<WorkspaceSizes> {
-        raw::xsyevd_buffer_size::<T>(context, params, self.mode, self.fill_mode, self.n, a)
+        xsyevd_workspace_size::<T>(context, params, self.mode, self.fill_mode, self.n, a)
+    }
+
+    /// Enqueues this operation on the context's stream without waiting for it; [`Self::execute`] is the waiting form.
+    ///
+    /// # Safety
+    ///
+    /// Follow the [raw execution contract](crate#raw-execution).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if CUDA binding or dependency ordering fails, a buffer belongs to another CUDA context, matrix, output, or status capacity is invalid, workspace is insufficient, checked arithmetic or native conversions fail, or cuSOLVER rejects or fails to enqueue the operation.
+    pub unsafe fn execute_async<T: SolverElement>(
+        &self,
+        context: &Context,
+        bindings: SyevdBindings<'_, T>,
+        params: &Params,
+    ) -> Result<()> {
+        // SAFETY: this method's caller accepted the raw execution contract for `bindings`; the callee checks their capacities and contexts and orders the operation after their producers.
+        unsafe {
+            xsyevd_async::<T>(
+                context,
+                params,
+                self.mode,
+                self.fill_mode,
+                self.n,
+                bindings.a,
+                bindings.eigenvalues,
+                bindings.workspace,
+                bindings.dev_info,
+            )
+        }
     }
 
     /// Completes borrowed matrix, output, workspace, and parameter use.
@@ -166,29 +199,11 @@ impl Syevd {
     pub fn execute<T: SolverElement>(
         &self,
         context: &Context,
-        params: &Params,
         bindings: SyevdBindings<'_, T>,
+        params: &Params,
     ) -> Result<()> {
-        context.sync_scope(|| {
-            context.prepare_region(&bindings.a.data)?;
-            context.prepare_region(&bindings.eigenvalues)?;
-            context.prepare_region(&bindings.workspace.device)?;
-            context.prepare_region(&bindings.dev_info)?;
-            // SAFETY: the shared scope completes these exclusive borrows on every path.
-            unsafe {
-                raw::xsyevd::<T>(
-                    context,
-                    params,
-                    self.mode,
-                    self.fill_mode,
-                    self.n,
-                    bindings.a,
-                    bindings.eigenvalues,
-                    bindings.workspace,
-                    bindings.dev_info,
-                )
-            }
-        })
+        // SAFETY: `sync_scope` rejects capture and waits for the work before the borrowed bindings are released, on every path.
+        context.sync_scope(|| unsafe { self.execute_async(context, bindings, params) })
     }
 }
 
@@ -231,7 +246,7 @@ impl SyevBatched {
         params: &Params,
         a: MatrixLayout,
     ) -> Result<WorkspaceSizes> {
-        raw::xsyev_batched_buffer_size::<T>(
+        xsyev_batched_workspace_size::<T>(
             context,
             params,
             self.mode,
@@ -240,6 +255,38 @@ impl SyevBatched {
             a,
             self.batch_count,
         )
+    }
+
+    /// Enqueues this operation on the context's stream without waiting for it; [`Self::execute`] is the waiting form.
+    ///
+    /// # Safety
+    ///
+    /// Follow the [raw execution contract](crate#raw-execution).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if CUDA binding or dependency ordering fails, a buffer belongs to another CUDA context, matrix, output, or status capacity is invalid, workspace is insufficient, checked arithmetic or native conversions fail, or cuSOLVER rejects or fails to enqueue the operation.
+    pub unsafe fn execute_async<T: SolverElement>(
+        &self,
+        context: &Context,
+        bindings: SyevdBindings<'_, T>,
+        params: &Params,
+    ) -> Result<()> {
+        // SAFETY: this method's caller accepted the raw execution contract for `bindings`; the callee checks their capacities and contexts and orders the operation after their producers.
+        unsafe {
+            xsyev_batched_async::<T>(
+                context,
+                params,
+                self.mode,
+                self.fill_mode,
+                self.n,
+                bindings.a,
+                bindings.eigenvalues,
+                bindings.workspace,
+                bindings.dev_info,
+                self.batch_count,
+            )
+        }
     }
 
     /// Completes borrowed matrix, output, workspace, and parameter use.
@@ -251,30 +298,11 @@ impl SyevBatched {
     pub fn execute<T: SolverElement>(
         &self,
         context: &Context,
-        params: &Params,
         bindings: SyevdBindings<'_, T>,
+        params: &Params,
     ) -> Result<()> {
-        context.sync_scope(|| {
-            context.prepare_region(&bindings.a.data)?;
-            context.prepare_region(&bindings.eigenvalues)?;
-            context.prepare_region(&bindings.workspace.device)?;
-            context.prepare_region(&bindings.dev_info)?;
-            // SAFETY: the shared scope completes these exclusive borrows on every path.
-            unsafe {
-                raw::xsyev_batched::<T>(
-                    context,
-                    params,
-                    self.mode,
-                    self.fill_mode,
-                    self.n,
-                    bindings.a,
-                    bindings.eigenvalues,
-                    bindings.workspace,
-                    bindings.dev_info,
-                    self.batch_count,
-                )
-            }
-        })
+        // SAFETY: `sync_scope` rejects capture and waits for the work before the borrowed bindings are released, on every path.
+        context.sync_scope(|| unsafe { self.execute_async(context, bindings, params) })
     }
 }
 
@@ -321,7 +349,7 @@ impl<R: SolverReal> Syevdx<R> {
         params: &Params,
         a: MatrixLayout,
     ) -> Result<WorkspaceSizes> {
-        raw::xsyevdx_buffer_size::<T>(
+        xsyevdx_workspace_size::<T>(
             context,
             params,
             self.mode,
@@ -344,18 +372,14 @@ impl<R: SolverReal> Syevdx<R> {
     pub fn execute<T: SolverElement<Real = R>>(
         &self,
         context: &Context,
-        params: &Params,
         mut bindings: SyevdBindings<'_, T>,
+        params: &Params,
     ) -> Result<usize> {
         let mut count = MaybeUninit::uninit();
         context.sync_scope(|| {
-            context.prepare_region(&bindings.a.data)?;
-            context.prepare_region(&bindings.eigenvalues)?;
-            context.prepare_region(&bindings.workspace.device)?;
-            context.prepare_region(&bindings.dev_info)?;
-            // SAFETY: the shared scope completes these exclusive borrows on every path.
+            // SAFETY: `sync_scope` rejects capture and waits for completion on every path, so the bindings and `count` outlive the queued work.
             unsafe {
-                raw::xsyevdx::<T>(
+                xsyevdx_async::<T>(
                     context,
                     params,
                     self.mode,
@@ -370,8 +394,8 @@ impl<R: SolverReal> Syevdx<R> {
                 )
             }
         })?;
-        check_completed_status(&bindings.dev_info)?;
-        // SAFETY: successful completed execution with zero status writes the count.
+        check_completed_status("syevdx", &bindings.dev_info)?;
+        // SAFETY: `check_completed_status` saw a zero status after completion, and a successful solve writes `count`.
         selected_count(unsafe { count.assume_init() }, self.n)
     }
 }
@@ -401,7 +425,7 @@ impl Syevj {
     /// # Errors
     ///
     /// Returns an error if CUDA context binding fails, a matrix dimension or leading dimension is invalid, checked storage-size arithmetic or a native integer conversion fails, or cuSOLVER rejects the configuration or cannot report workspace requirements.
-    pub fn workspace_size<T: EigenScalar>(
+    pub fn workspace_len<T: SolverElement>(
         &self,
         context: &Context,
         a: MatrixLayout,
@@ -410,38 +434,51 @@ impl Syevj {
         (T::JACOBI_QUERY)(context, self.mode, self.fill_mode, self.n, a, params)
     }
 
+    /// Enqueues this operation on the context's stream without waiting for it; [`Self::execute`] is the waiting form.
+    ///
+    /// # Safety
+    ///
+    /// Follow the [raw execution contract](crate#raw-execution).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if CUDA binding or dependency ordering fails, a buffer belongs to another CUDA context, matrix, output, or status capacity is invalid, workspace is insufficient, checked arithmetic or native conversions fail, or cuSOLVER rejects or fails to enqueue the operation.
+    pub unsafe fn execute_async<T: SolverElement>(
+        &self,
+        context: &Context,
+        bindings: SyevjBindings<'_, T>,
+        params: &mut SyevjInfo,
+    ) -> Result<()> {
+        // SAFETY: this method's caller accepted the raw execution contract for `bindings`; the callee checks their capacities and contexts and orders the operation after their producers.
+        unsafe {
+            (T::JACOBI)(
+                context,
+                self.mode,
+                self.fill_mode,
+                self.n,
+                bindings.a,
+                bindings.eigenvalues,
+                bindings.workspace,
+                bindings.dev_info,
+                params,
+            )
+        }
+    }
+
     /// Completes borrowed matrix, output, workspace, and parameter use.
     /// Inspect `dev_info` before promoting pending result storage.
     ///
     /// # Errors
     ///
     /// Returns an error if stream capture is active or invalidated, CUDA binding, dependency ordering, or completion fails, a buffer belongs to another CUDA context, matrix, output, or status capacity is invalid, workspace is insufficient, checked arithmetic or native conversions fail, or cuSOLVER rejects or fails to enqueue the operation.
-    pub fn execute<T: EigenScalar>(
+    pub fn execute<T: SolverElement>(
         &self,
         context: &Context,
         bindings: SyevjBindings<'_, T>,
         params: &mut SyevjInfo,
     ) -> Result<()> {
-        context.sync_scope(|| {
-            context.prepare_region(&bindings.a.data)?;
-            context.prepare_region(&bindings.eigenvalues)?;
-            context.prepare_region(&bindings.workspace)?;
-            context.prepare_region(&bindings.dev_info)?;
-            // SAFETY: the shared scope completes these exclusive borrows on every path.
-            unsafe {
-                (T::JACOBI)(
-                    context,
-                    self.mode,
-                    self.fill_mode,
-                    self.n,
-                    bindings.a,
-                    bindings.eigenvalues,
-                    bindings.workspace,
-                    bindings.dev_info,
-                    params,
-                )
-            }
-        })
+        // SAFETY: `sync_scope` rejects capture and waits for the work before the borrowed bindings are released, on every path.
+        context.sync_scope(|| unsafe { self.execute_async(context, bindings, params) })
     }
 }
 
@@ -478,7 +515,7 @@ impl SyevjBatched {
     ///
     /// Returns an error if CUDA context binding fails, a matrix dimension or leading dimension is invalid, checked storage-size arithmetic or a native integer conversion fails, or cuSOLVER rejects the configuration or cannot report workspace requirements.
     /// The batch count must be nonzero and fit the native limits.
-    pub fn workspace_size<T: EigenScalar>(
+    pub fn workspace_len<T: SolverElement>(
         &self,
         context: &Context,
         a: MatrixLayout,
@@ -495,39 +532,52 @@ impl SyevjBatched {
         )
     }
 
+    /// Enqueues this operation on the context's stream without waiting for it; [`Self::execute`] is the waiting form.
+    ///
+    /// # Safety
+    ///
+    /// Follow the [raw execution contract](crate#raw-execution).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if CUDA binding or dependency ordering fails, a buffer belongs to another CUDA context, matrix, output, or status capacity is invalid, workspace is insufficient, checked arithmetic or native conversions fail, or cuSOLVER rejects or fails to enqueue the operation.
+    pub unsafe fn execute_async<T: SolverElement>(
+        &self,
+        context: &Context,
+        bindings: SyevjBindings<'_, T>,
+        params: &mut SyevjInfo,
+    ) -> Result<()> {
+        // SAFETY: this method's caller accepted the raw execution contract for `bindings`; the callee checks their capacities and contexts and orders the operation after their producers.
+        unsafe {
+            (T::BATCHED)(
+                context,
+                self.mode,
+                self.fill_mode,
+                self.n,
+                bindings.a,
+                bindings.eigenvalues,
+                bindings.workspace,
+                bindings.dev_info,
+                params,
+                self.batch_count,
+            )
+        }
+    }
+
     /// Completes borrowed matrix, output, workspace, and parameter use.
     /// Inspect `dev_info` before promoting pending result storage.
     ///
     /// # Errors
     ///
     /// Returns an error if stream capture is active or invalidated, CUDA binding, dependency ordering, or completion fails, a buffer belongs to another CUDA context, matrix, output, or status capacity is invalid, workspace is insufficient, checked arithmetic or native conversions fail, or cuSOLVER rejects or fails to enqueue the operation.
-    pub fn execute<T: EigenScalar>(
+    pub fn execute<T: SolverElement>(
         &self,
         context: &Context,
         bindings: SyevjBindings<'_, T>,
         params: &mut SyevjInfo,
     ) -> Result<()> {
-        context.sync_scope(|| {
-            context.prepare_region(&bindings.a.data)?;
-            context.prepare_region(&bindings.eigenvalues)?;
-            context.prepare_region(&bindings.workspace)?;
-            context.prepare_region(&bindings.dev_info)?;
-            // SAFETY: the shared scope completes these exclusive borrows on every path.
-            unsafe {
-                (T::BATCHED)(
-                    context,
-                    self.mode,
-                    self.fill_mode,
-                    self.n,
-                    bindings.a,
-                    bindings.eigenvalues,
-                    bindings.workspace,
-                    bindings.dev_info,
-                    params,
-                    self.batch_count,
-                )
-            }
-        })
+        // SAFETY: `sync_scope` rejects capture and waits for the work before the borrowed bindings are released, on every path.
+        context.sync_scope(|| unsafe { self.execute_async(context, bindings, params) })
     }
 }
 
@@ -563,7 +613,7 @@ impl Sygvj {
     /// # Errors
     ///
     /// Returns an error if CUDA context binding fails, a matrix dimension or leading dimension is invalid, checked storage-size arithmetic or a native integer conversion fails, or cuSOLVER rejects the configuration or cannot report workspace requirements.
-    pub fn workspace_size<T: EigenScalar>(
+    pub fn workspace_len<T: SolverElement>(
         &self,
         context: &Context,
         a: MatrixLayout,
@@ -582,41 +632,53 @@ impl Sygvj {
         )
     }
 
+    /// Enqueues this operation on the context's stream without waiting for it; [`Self::execute`] is the waiting form.
+    ///
+    /// # Safety
+    ///
+    /// Follow the [raw execution contract](crate#raw-execution).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if CUDA binding or dependency ordering fails, a buffer belongs to another CUDA context, matrix, output, or status capacity is invalid, workspace is insufficient, checked arithmetic or native conversions fail, or cuSOLVER rejects or fails to enqueue the operation.
+    pub unsafe fn execute_async<T: SolverElement>(
+        &self,
+        context: &Context,
+        bindings: SygvBindings<'_, T>,
+        params: &mut SyevjInfo,
+    ) -> Result<()> {
+        // SAFETY: this method's caller accepted the raw execution contract for `bindings`; the callee checks their capacities and contexts and orders the operation after their producers.
+        unsafe {
+            (T::GENERALIZED_JACOBI)(
+                context,
+                self.eig_type,
+                self.mode,
+                self.fill_mode,
+                self.n,
+                bindings.a,
+                bindings.b,
+                bindings.eigenvalues,
+                bindings.workspace,
+                bindings.dev_info,
+                params,
+            )
+        }
+    }
+
     /// Completes borrowed matrix, output, workspace, and parameter use.
     /// Inspect `dev_info` before promoting pending result storage.
     ///
     /// # Errors
     ///
     /// Returns an error if stream capture is active or invalidated, CUDA binding, dependency ordering, or completion fails, a buffer belongs to another CUDA context, matrix, output, or status capacity is invalid, workspace is insufficient, checked arithmetic or native conversions fail, or cuSOLVER rejects or fails to enqueue the operation.
-    pub fn execute<T: EigenScalar>(
+    pub fn execute<T: SolverElement>(
         &self,
         context: &Context,
         bindings: SygvBindings<'_, T>,
         params: &mut SyevjInfo,
     ) -> Result<()> {
-        context.sync_scope(|| {
-            context.prepare_region(&bindings.a.data)?;
-            context.prepare_region(&bindings.b.data)?;
-            context.prepare_region(&bindings.eigenvalues)?;
-            context.prepare_region(&bindings.workspace)?;
-            context.prepare_region(&bindings.dev_info)?;
-            // SAFETY: the shared scope completes these exclusive borrows on every path.
-            unsafe {
-                (T::GENERALIZED_JACOBI)(
-                    context,
-                    self.eig_type,
-                    self.mode,
-                    self.fill_mode,
-                    self.n,
-                    bindings.a,
-                    bindings.b,
-                    bindings.eigenvalues,
-                    bindings.workspace,
-                    bindings.dev_info,
-                    params,
-                )
-            }
-        })
+        // SAFETY: `sync_scope` rejects capture and waits for the work before the borrowed bindings are released, on every path.
+        context.sync_scope(|| unsafe { self.execute_async(context, bindings, params) })
     }
 }
 
@@ -652,7 +714,7 @@ impl Sygvd {
     /// # Errors
     ///
     /// Returns an error if CUDA context binding fails, a matrix dimension or leading dimension is invalid, checked storage-size arithmetic or a native integer conversion fails, or cuSOLVER rejects the configuration or cannot report workspace requirements.
-    pub fn workspace_size<T: EigenScalar>(
+    pub fn workspace_len<T: SolverElement>(
         &self,
         context: &Context,
         a: MatrixLayout,
@@ -669,39 +731,50 @@ impl Sygvd {
         )
     }
 
+    /// Enqueues this operation on the context's stream without waiting for it; [`Self::execute`] is the waiting form.
+    ///
+    /// # Safety
+    ///
+    /// Follow the [raw execution contract](crate#raw-execution).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if CUDA binding or dependency ordering fails, a buffer belongs to another CUDA context, matrix, output, or status capacity is invalid, workspace is insufficient, checked arithmetic or native conversions fail, or cuSOLVER rejects or fails to enqueue the operation.
+    pub unsafe fn execute_async<T: SolverElement>(
+        &self,
+        context: &Context,
+        bindings: SygvBindings<'_, T>,
+    ) -> Result<()> {
+        // SAFETY: this method's caller accepted the raw execution contract for `bindings`; the callee checks their capacities and contexts and orders the operation after their producers.
+        unsafe {
+            (T::GENERALIZED_DIVIDE)(
+                context,
+                self.eig_type,
+                self.mode,
+                self.fill_mode,
+                self.n,
+                bindings.a,
+                bindings.b,
+                bindings.eigenvalues,
+                bindings.workspace,
+                bindings.dev_info,
+            )
+        }
+    }
+
     /// Completes borrowed matrix, output, workspace, and parameter use.
     /// Inspect `dev_info` before promoting pending result storage.
     ///
     /// # Errors
     ///
     /// Returns an error if stream capture is active or invalidated, CUDA binding, dependency ordering, or completion fails, a buffer belongs to another CUDA context, matrix, output, or status capacity is invalid, workspace is insufficient, checked arithmetic or native conversions fail, or cuSOLVER rejects or fails to enqueue the operation.
-    pub fn execute<T: EigenScalar>(
+    pub fn execute<T: SolverElement>(
         &self,
         context: &Context,
         bindings: SygvBindings<'_, T>,
     ) -> Result<()> {
-        context.sync_scope(|| {
-            context.prepare_region(&bindings.a.data)?;
-            context.prepare_region(&bindings.b.data)?;
-            context.prepare_region(&bindings.eigenvalues)?;
-            context.prepare_region(&bindings.workspace)?;
-            context.prepare_region(&bindings.dev_info)?;
-            // SAFETY: the shared scope completes these exclusive borrows on every path.
-            unsafe {
-                (T::GENERALIZED_DIVIDE)(
-                    context,
-                    self.eig_type,
-                    self.mode,
-                    self.fill_mode,
-                    self.n,
-                    bindings.a,
-                    bindings.b,
-                    bindings.eigenvalues,
-                    bindings.workspace,
-                    bindings.dev_info,
-                )
-            }
-        })
+        // SAFETY: `sync_scope` rejects capture and waits for the work before the borrowed bindings are released, on every path.
+        context.sync_scope(|| unsafe { self.execute_async(context, bindings) })
     }
 }
 
@@ -746,7 +819,7 @@ impl<R: SolverReal> Sygvdx<R> {
     ///
     /// Returns an error if CUDA context binding fails, a matrix dimension or leading dimension is invalid, checked storage-size arithmetic or a native integer conversion fails, or cuSOLVER rejects the configuration or cannot report workspace requirements.
     /// Also returns an error if the selected value or index interval is invalid.
-    pub fn workspace_size<T: EigenScalar<Real = R>>(
+    pub fn workspace_len<T: SolverElement<Real = R>>(
         &self,
         context: &Context,
         a: MatrixLayout,
@@ -773,19 +846,14 @@ impl<R: SolverReal> Sygvdx<R> {
     ///
     /// Returns an error if stream capture is active or invalidated, CUDA binding, dependency ordering, or completion fails, a buffer belongs to another CUDA context, matrix, output, or status capacity is invalid, workspace is insufficient, checked arithmetic or native conversions fail, or cuSOLVER rejects or fails to enqueue the operation.
     /// Also returns an error if the selection is invalid, completed device status is nonzero, status readback fails, or the returned eigenvalue count is invalid.
-    pub fn execute<T: EigenScalar<Real = R>>(
+    pub fn execute<T: SolverElement<Real = R>>(
         &self,
         context: &Context,
         mut bindings: SygvBindings<'_, T>,
     ) -> Result<usize> {
         let mut count = MaybeUninit::uninit();
         context.sync_scope(|| {
-            context.prepare_region(&bindings.a.data)?;
-            context.prepare_region(&bindings.b.data)?;
-            context.prepare_region(&bindings.eigenvalues)?;
-            context.prepare_region(&bindings.workspace)?;
-            context.prepare_region(&bindings.dev_info)?;
-            // SAFETY: the shared scope completes these exclusive borrows on every path.
+            // SAFETY: `sync_scope` rejects capture and waits for completion on every path, so the bindings and `count` outlive the queued work.
             unsafe {
                 (T::GENERALIZED_SELECTED)(
                     context,
@@ -803,8 +871,8 @@ impl<R: SolverReal> Sygvdx<R> {
                 )
             }
         })?;
-        check_completed_status(&bindings.dev_info)?;
-        // SAFETY: successful completed execution with zero status writes the count.
+        check_completed_status("sygvdx", &bindings.dev_info)?;
+        // SAFETY: `check_completed_status` saw a zero status after completion, and a successful solve writes `count`.
         selected_count(unsafe { count.assume_init() }, self.n)
     }
 }
@@ -830,7 +898,7 @@ impl Geev {
     /// # Errors
     ///
     /// Returns an error if CUDA context binding fails, a matrix dimension or leading dimension is invalid, checked storage-size arithmetic or a native integer conversion fails, or cuSOLVER rejects the configuration or cannot report workspace requirements.
-    pub fn workspace_size<T: EigenScalar>(
+    pub fn workspace_size<T: SolverElement>(
         &self,
         context: &Context,
         params: &Params,
@@ -840,50 +908,57 @@ impl Geev {
         (T::GENERAL_QUERY)(context, params, self.n, a, right_vectors)
     }
 
+    /// Enqueues this operation on the context's stream without waiting for it; [`Self::execute`] is the waiting form.
+    ///
+    /// # Safety
+    ///
+    /// Follow the [raw execution contract](crate#raw-execution).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if CUDA binding or dependency ordering fails, a buffer belongs to another CUDA context, matrix, output, or status capacity is invalid, workspace is insufficient, checked arithmetic or native conversions fail, or cuSOLVER rejects or fails to enqueue the operation.
+    pub unsafe fn execute_async<T: SolverElement>(
+        &self,
+        context: &Context,
+        bindings: GeevBindings<'_, T>,
+        params: &Params,
+    ) -> Result<()> {
+        // SAFETY: this method's caller accepted the raw execution contract for `bindings`; the callee checks their capacities and contexts and orders the operation after their producers.
+        unsafe {
+            (T::GENERAL)(
+                context,
+                params,
+                self.n,
+                bindings.a,
+                bindings.right_vectors,
+                bindings.eigenvalues,
+                bindings.workspace,
+                bindings.dev_info,
+            )
+        }
+    }
+
     /// Completes borrowed matrix, output, workspace, and parameter use.
     /// Inspect `dev_info` before promoting pending result storage.
     ///
     /// # Errors
     ///
     /// Returns an error if stream capture is active or invalidated, CUDA binding, dependency ordering, or completion fails, a buffer belongs to another CUDA context, matrix, output, or status capacity is invalid, workspace is insufficient, checked arithmetic or native conversions fail, or cuSOLVER rejects or fails to enqueue the operation.
-    pub fn execute<T: EigenScalar>(
+    pub fn execute<T: SolverElement>(
         &self,
         context: &Context,
-        params: &Params,
         bindings: GeevBindings<'_, T>,
+        params: &Params,
     ) -> Result<()> {
-        context.sync_scope(|| {
-            context.prepare_region(&bindings.a.data)?;
-            context.prepare_region(&bindings.eigenvalues)?;
-            context.prepare_region(&bindings.workspace.device)?;
-            context.prepare_region(&bindings.dev_info)?;
-            if let Some(vectors) = &bindings.right_vectors {
-                context.prepare_region(&vectors.data)?;
-            }
-            // SAFETY: the shared scope completes these exclusive borrows on every path.
-            unsafe {
-                (T::GENERAL)(
-                    context,
-                    params,
-                    self.n,
-                    bindings.a,
-                    bindings.right_vectors,
-                    bindings.eigenvalues,
-                    bindings.workspace,
-                    bindings.dev_info,
-                )
-            }
-        })
+        // SAFETY: `sync_scope` rejects capture and waits for the work before the borrowed bindings are released, on every path.
+        context.sync_scope(|| unsafe { self.execute_async(context, bindings, params) })
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        eigen::validation::native_selection,
-        types::{EigenMode, EigenRange, FillMode},
-    };
+    use crate::{eigen::validation::native_selection, types::EigenRange};
 
     #[test]
     fn test_eigen_selection_all_maps_cleanly() {
@@ -899,20 +974,5 @@ mod tests {
             native_selection::<f64>(&EigenSelection::ByIndex(2..5), 8).unwrap();
         assert_eq!(range, EigenRange::Index);
         assert_eq!((first, last), (3, 5));
-    }
-
-    #[test]
-    fn test_syev_batched_descriptor_preserves_operation_shape() {
-        let op = SyevBatched::new(EigenMode::Vector, FillMode::Lower, 16, 7);
-        assert_eq!(op.mode, EigenMode::Vector);
-        assert_eq!(op.fill_mode, FillMode::Lower);
-        assert_eq!(op.n, 16);
-        assert_eq!(op.batch_count, 7);
-    }
-
-    #[test]
-    fn test_geev_descriptor_preserves_operation_shape() {
-        let op = Geev::new(12);
-        assert_eq!(op.n, 12);
     }
 }

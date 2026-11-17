@@ -153,14 +153,14 @@ pub unsafe fn count_in_range_to_device_with_scratch<T: CountInRange>(
 /// Counts source values in the range selected by `lower_bound` and `upper_bound`.
 ///
 /// Writes the result into the single element of `count`.
-/// Allocates temporary scratch storage for this call.
+/// Allocates temporary scratch storage that is freed when the call returns, so stream capture is rejected.
 ///
 /// # Errors
 ///
 /// Returns an error if CUDA context binding fails or the signals belong to another CUDA context.
 /// The count view must contain one element; other lengths return an error.
 /// Returns an error if a length or scratch-size conversion fails, or NPP reports a failure.
-/// Scratch allocation errors are propagated.
+/// Returns an error if the stream is being captured; scratch allocation errors are propagated.
 ///
 /// # Safety
 ///
@@ -178,6 +178,7 @@ pub unsafe fn count_in_range_to_device<T: CountInRange>(
     stream_context.cuda_context().bind()?;
     stream_context.validate_region(source)?;
     stream_context.validate_region(count)?;
+    stream_context.stream().ensure_not_capturing()?;
     // SAFETY: the caller upholds this function's safety contract.
     unsafe {
         let required_bytes = count_in_range_buffer_size(stream_context, source)?;

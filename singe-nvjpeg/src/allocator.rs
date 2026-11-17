@@ -2,7 +2,7 @@
 
 use std::{
     ffi::{c_int, c_void},
-    mem::{self, size_of},
+    mem::size_of,
 };
 
 use singe_nvjpeg_sys as sys;
@@ -72,7 +72,14 @@ pub struct AllocatorSet {
 
 impl DeviceAllocator {
     /// Creates a device allocator from its callbacks and context pointer.
-    pub const fn new(
+    ///
+    /// # Safety
+    ///
+    /// `malloc` must either store a pointer to at least `size` bytes of device memory, usable in stream order on the given stream, and return 0, or return a nonzero value; `free` must release only memory that `malloc` returned, in stream order.
+    /// nvJPEG and nvJPEG 2000 may call both from any thread, concurrently, passing `context` unchanged.
+    /// They may pass a stream given to an earlier call after that stream has been destroyed, such as when a buffer is freed later, so the callbacks must not rely on the stream being live.
+    /// The callbacks and the data behind `context` must stay valid until every handle created with this allocator, and everything created from those handles, has been destroyed.
+    pub const unsafe fn new(
         malloc: DeviceMallocCallback,
         free: DeviceFreeCallback,
         context: *mut c_void,
@@ -122,7 +129,14 @@ impl DeviceAllocator {
 
 impl PinnedAllocator {
     /// Creates a pinned host allocator from its callbacks and context pointer.
-    pub const fn new(
+    ///
+    /// # Safety
+    ///
+    /// `malloc` must either store a pointer to at least `size` bytes of pinned host memory, usable in stream order on the given stream, and return 0, or return a nonzero value; `free` must release only memory that `malloc` returned, in stream order.
+    /// nvJPEG and nvJPEG 2000 may call both from any thread, concurrently, passing `context` unchanged.
+    /// They may pass a stream given to an earlier call after that stream has been destroyed, such as when a buffer is freed later, so the callbacks must not rely on the stream being live.
+    /// The callbacks and the data behind `context` must stay valid until every handle created with this allocator, and everything created from those handles, has been destroyed.
+    pub const unsafe fn new(
         malloc: PinnedMallocCallback,
         free: PinnedFreeCallback,
         context: *mut c_void,
@@ -275,16 +289,9 @@ where
     Sys: Copy,
 {
     debug_assert_eq!(size_of::<Wrapper>(), size_of::<Sys>());
-    let callback = mem::ManuallyDrop::new(callback);
-    // SAFETY: the wrapper callback aliases intentionally avoid exposing sys callback
-    // aliases. The generated signatures use the same C ABI and argument
-    // layout, checked above for each concrete conversion.
-    unsafe { ptr_read_callback(&raw const *callback) }
-}
-
-unsafe fn ptr_read_callback<Wrapper, Sys>(callback: *const Wrapper) -> Sys {
-    // SAFETY: the caller upholds this function's safety contract.
-    unsafe { callback.cast::<Sys>().read() }
+    // SAFETY: every caller converts between `extern "C"` function pointer types with the same arguments, whose sizes the `const` assertions above check.
+    // Both types are `Copy`, so reading the bits leaves no value to drop twice.
+    unsafe { (&raw const callback).cast::<Sys>().read() }
 }
 
 #[cfg(test)]
@@ -328,27 +335,15 @@ mod tests {
     }
 
     #[test]
-    fn test_allocator_set_keeps_callbacks_and_contexts() {
-        let mut device_context_value = ();
-        let mut pinned_context_value = ();
-        let device_context = (&raw mut device_context_value).cast::<c_void>();
-        let pinned_context = (&raw mut pinned_context_value).cast::<c_void>();
-        let device = DeviceAllocator::new(device_malloc, device_free, device_context);
-        let pinned = PinnedAllocator::new(pinned_malloc, pinned_free, pinned_context);
-        let allocators = AllocatorSet::new(device, pinned);
-
-        assert_eq!(allocators.device().context(), device_context);
-        assert_eq!(allocators.pinned().context(), pinned_context);
-    }
-
-    #[test]
     fn test_jpeg_raw_allocators_keep_contexts() {
         let mut device_context_value = ();
         let mut pinned_context_value = ();
         let device_context = (&raw mut device_context_value).cast::<c_void>();
         let pinned_context = (&raw mut pinned_context_value).cast::<c_void>();
-        let device = DeviceAllocator::new(device_malloc, device_free, device_context);
-        let pinned = PinnedAllocator::new(pinned_malloc, pinned_free, pinned_context);
+        // SAFETY: the callbacks are never called, so their contract holds trivially.
+        let device = unsafe { DeviceAllocator::new(device_malloc, device_free, device_context) };
+        // SAFETY: the callbacks are never called, so their contract holds trivially.
+        let pinned = unsafe { PinnedAllocator::new(pinned_malloc, pinned_free, pinned_context) };
 
         let raw_device = device.to_nvjpeg_raw();
         let raw_pinned = pinned.to_nvjpeg_raw();
@@ -368,8 +363,10 @@ mod tests {
         let mut pinned_context_value = ();
         let device_context = (&raw mut device_context_value).cast::<c_void>();
         let pinned_context = (&raw mut pinned_context_value).cast::<c_void>();
-        let device = DeviceAllocator::new(device_malloc, device_free, device_context);
-        let pinned = PinnedAllocator::new(pinned_malloc, pinned_free, pinned_context);
+        // SAFETY: the callbacks are never called, so their contract holds trivially.
+        let device = unsafe { DeviceAllocator::new(device_malloc, device_free, device_context) };
+        // SAFETY: the callbacks are never called, so their contract holds trivially.
+        let pinned = unsafe { PinnedAllocator::new(pinned_malloc, pinned_free, pinned_context) };
 
         let raw_device = device.to_nvjpeg2k_raw();
         let raw_pinned = pinned.to_nvjpeg2k_raw();

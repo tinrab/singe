@@ -1,4 +1,4 @@
-//! Compiles the C++ manager bridge, which calls nvCOMP's C++ API and so links nvCOMP at build time.
+//! Compiles the C++ manager bridge under the `manager` feature; the bridge calls nvCOMP's C++ API and so links nvCOMP at build time.
 //! nvCOMP's C API loads at run time like every other NVIDIA library.
 
 use std::env;
@@ -12,7 +12,7 @@ fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     emit_rerun_if_env_changed();
 
-    if env::var_os("CARGO_FEATURE_NVCOMP_6_0").is_none() || env::var_os("DOCS_RS").is_some() {
+    if env::var_os("CARGO_FEATURE_MANAGER").is_none() || env::var_os("DOCS_RS").is_some() {
         return;
     }
 

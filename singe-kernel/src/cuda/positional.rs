@@ -7,7 +7,7 @@ use singe_cuda::types::bf16;
 use singe_cuda::types::f16;
 use singe_cuda::{
     stream::Stream,
-    view::{DeviceInput, DeviceOutput, DeviceSliceMut},
+    view::{DeviceOutput, DeviceRange, DeviceSliceMut},
 };
 
 pub use crate::cpu::positional::{
@@ -97,9 +97,9 @@ macro_rules! rotary_embedding_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
-            cos: &impl DeviceInput<$ty>,
-            sin: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
+            cos: &impl DeviceRange<$ty>,
+            sin: &impl DeviceRange<$ty>,
             config: RotaryEmbeddingConfig,
         ) -> Result<()> {
             validate_rotary(out.len(), input.len(), cos.len(), sin.len(), config)?;
@@ -133,9 +133,9 @@ macro_rules! rotary_embedding_positioned_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
-            cos: &impl DeviceInput<$ty>,
-            sin: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
+            cos: &impl DeviceRange<$ty>,
+            sin: &impl DeviceRange<$ty>,
             config: RotaryEmbeddingConfig,
             position_start: usize,
         ) -> Result<()> {
@@ -179,10 +179,10 @@ macro_rules! rotary_embedding_dynpos_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
-            cos: &impl DeviceInput<$ty>,
-            sin: &impl DeviceInput<$ty>,
-            position_start: &impl DeviceInput<u32>,
+            input: &impl DeviceRange<$ty>,
+            cos: &impl DeviceRange<$ty>,
+            sin: &impl DeviceRange<$ty>,
+            position_start: &impl DeviceRange<u32>,
             config: RotaryEmbeddingConfig,
         ) -> Result<()> {
             validate_rotary_dynpos(
@@ -224,9 +224,9 @@ macro_rules! rotary_embedding_batched_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
-            cos: &impl DeviceInput<$ty>,
-            sin: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
+            cos: &impl DeviceRange<$ty>,
+            sin: &impl DeviceRange<$ty>,
             config: BatchedRotaryEmbeddingConfig,
         ) -> Result<()> {
             validate_rotary_batched(out.len(), input.len(), cos.len(), sin.len(), config)?;
@@ -261,10 +261,10 @@ macro_rules! rotary_embedding_qk_fn {
             stream: &Stream,
             q_out: &mut impl DeviceOutput<$ty>,
             k_out: &mut impl DeviceOutput<$ty>,
-            q_input: &impl DeviceInput<$ty>,
-            k_input: &impl DeviceInput<$ty>,
-            cos: &impl DeviceInput<$ty>,
-            sin: &impl DeviceInput<$ty>,
+            q_input: &impl DeviceRange<$ty>,
+            k_input: &impl DeviceRange<$ty>,
+            cos: &impl DeviceRange<$ty>,
+            sin: &impl DeviceRange<$ty>,
             config: QkRotaryEmbeddingConfig,
         ) -> Result<()> {
             validate_rotary_qk(
@@ -309,10 +309,10 @@ macro_rules! rotary_embedding_qk_batched_fn {
             stream: &Stream,
             q_out: &mut impl DeviceOutput<$ty>,
             k_out: &mut impl DeviceOutput<$ty>,
-            q_input: &impl DeviceInput<$ty>,
-            k_input: &impl DeviceInput<$ty>,
-            cos: &impl DeviceInput<$ty>,
-            sin: &impl DeviceInput<$ty>,
+            q_input: &impl DeviceRange<$ty>,
+            k_input: &impl DeviceRange<$ty>,
+            cos: &impl DeviceRange<$ty>,
+            sin: &impl DeviceRange<$ty>,
             config: QkBatchedRotaryEmbeddingConfig,
         ) -> Result<()> {
             validate_rotary_qk_batched(
@@ -358,8 +358,8 @@ macro_rules! rotary_embedding_qk_batched_in_place_fn {
             stream: &Stream,
             q: &mut impl DeviceSliceMut<$ty>,
             k: &mut impl DeviceSliceMut<$ty>,
-            cos: &impl DeviceInput<$ty>,
-            sin: &impl DeviceInput<$ty>,
+            cos: &impl DeviceRange<$ty>,
+            sin: &impl DeviceRange<$ty>,
             config: QkBatchedRotaryEmbeddingConfig,
         ) -> Result<()> {
             validate_rotary_qk_batched(
@@ -403,8 +403,8 @@ macro_rules! rotary_embedding_qk_in_place_fn {
             stream: &Stream,
             q: &mut impl DeviceSliceMut<$ty>,
             k: &mut impl DeviceSliceMut<$ty>,
-            cos: &impl DeviceInput<$ty>,
-            sin: &impl DeviceInput<$ty>,
+            cos: &impl DeviceRange<$ty>,
+            sin: &impl DeviceRange<$ty>,
             config: QkRotaryEmbeddingConfig,
         ) -> Result<()> {
             validate_rotary_qk(
@@ -446,9 +446,9 @@ macro_rules! rope_bshd_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
-            cos: &impl DeviceInput<f32>,
-            sin: &impl DeviceInput<f32>,
+            input: &impl DeviceRange<$ty>,
+            cos: &impl DeviceRange<f32>,
+            sin: &impl DeviceRange<f32>,
             config: BshdRopeConfig,
         ) -> Result<()> {
             validate_rope_bshd(out.len(), input.len(), cos.len(), sin.len(), config)?;
@@ -482,10 +482,10 @@ pub unsafe fn rotary_embedding_qk_bnsd_bf16(
     stream: &Stream,
     q_out: &mut impl DeviceOutput<bf16>,
     k_out: &mut impl DeviceOutput<bf16>,
-    q_input: &impl DeviceInput<bf16>,
-    k_input: &impl DeviceInput<bf16>,
-    cos: &impl DeviceInput<f32>,
-    sin: &impl DeviceInput<f32>,
+    q_input: &impl DeviceRange<bf16>,
+    k_input: &impl DeviceRange<bf16>,
+    cos: &impl DeviceRange<f32>,
+    sin: &impl DeviceRange<f32>,
     config: BnsdQkRopeConfig,
 ) -> Result<()> {
     validate_rope_qk_bnsd(
@@ -527,10 +527,10 @@ pub unsafe fn rotary_embedding_qk_bnsd_f32(
     stream: &Stream,
     q_out: &mut impl DeviceOutput<f32>,
     k_out: &mut impl DeviceOutput<f32>,
-    q_input: &impl DeviceInput<f32>,
-    k_input: &impl DeviceInput<f32>,
-    cos: &impl DeviceInput<f32>,
-    sin: &impl DeviceInput<f32>,
+    q_input: &impl DeviceRange<f32>,
+    k_input: &impl DeviceRange<f32>,
+    cos: &impl DeviceRange<f32>,
+    sin: &impl DeviceRange<f32>,
     config: BnsdQkRopeConfig,
 ) -> Result<()> {
     validate_rope_qk_bnsd(
@@ -572,10 +572,10 @@ pub unsafe fn rotary_embedding_qk_bnsd_f16(
     stream: &Stream,
     q_out: &mut impl DeviceOutput<f16>,
     k_out: &mut impl DeviceOutput<f16>,
-    q_input: &impl DeviceInput<f16>,
-    k_input: &impl DeviceInput<f16>,
-    cos: &impl DeviceInput<f32>,
-    sin: &impl DeviceInput<f32>,
+    q_input: &impl DeviceRange<f16>,
+    k_input: &impl DeviceRange<f16>,
+    cos: &impl DeviceRange<f32>,
+    sin: &impl DeviceRange<f32>,
     config: BnsdQkRopeConfig,
 ) -> Result<()> {
     validate_rope_qk_bnsd(
@@ -617,8 +617,8 @@ pub unsafe fn rotary_embedding_qk_bnsd_in_place_f32(
     stream: &Stream,
     q: &mut impl DeviceSliceMut<f32>,
     k: &mut impl DeviceSliceMut<f32>,
-    cos: &impl DeviceInput<f32>,
-    sin: &impl DeviceInput<f32>,
+    cos: &impl DeviceRange<f32>,
+    sin: &impl DeviceRange<f32>,
     config: BnsdQkRopeConfig,
 ) -> Result<()> {
     validate_rope_qk_bnsd(
@@ -658,8 +658,8 @@ pub unsafe fn rotary_embedding_qk_bnsd_in_place_f16(
     stream: &Stream,
     q: &mut impl DeviceSliceMut<f16>,
     k: &mut impl DeviceSliceMut<f16>,
-    cos: &impl DeviceInput<f32>,
-    sin: &impl DeviceInput<f32>,
+    cos: &impl DeviceRange<f32>,
+    sin: &impl DeviceRange<f32>,
     config: BnsdQkRopeConfig,
 ) -> Result<()> {
     validate_rope_qk_bnsd(
@@ -699,8 +699,8 @@ pub unsafe fn rotary_embedding_qk_bnsd_in_place_bf16(
     stream: &Stream,
     q: &mut impl DeviceSliceMut<bf16>,
     k: &mut impl DeviceSliceMut<bf16>,
-    cos: &impl DeviceInput<f32>,
-    sin: &impl DeviceInput<f32>,
+    cos: &impl DeviceRange<f32>,
+    sin: &impl DeviceRange<f32>,
     config: BnsdQkRopeConfig,
 ) -> Result<()> {
     validate_rope_qk_bnsd(
@@ -743,10 +743,10 @@ pub unsafe fn rope_embedding_qk_bnsd_bf16(
     stream: &Stream,
     q_out: &mut impl DeviceOutput<bf16>,
     k_out: &mut impl DeviceOutput<bf16>,
-    q_input: &impl DeviceInput<bf16>,
-    k_input: &impl DeviceInput<bf16>,
-    cos: &impl DeviceInput<f32>,
-    sin: &impl DeviceInput<f32>,
+    q_input: &impl DeviceRange<bf16>,
+    k_input: &impl DeviceRange<bf16>,
+    cos: &impl DeviceRange<f32>,
+    sin: &impl DeviceRange<f32>,
     config: BnsdQkRopeConfig,
 ) -> Result<()> {
     // SAFETY: the caller upholds this function's safety contract.
@@ -772,10 +772,10 @@ pub unsafe fn rope_embedding_qk_bnsd_f32(
     stream: &Stream,
     q_out: &mut impl DeviceOutput<f32>,
     k_out: &mut impl DeviceOutput<f32>,
-    q_input: &impl DeviceInput<f32>,
-    k_input: &impl DeviceInput<f32>,
-    cos: &impl DeviceInput<f32>,
-    sin: &impl DeviceInput<f32>,
+    q_input: &impl DeviceRange<f32>,
+    k_input: &impl DeviceRange<f32>,
+    cos: &impl DeviceRange<f32>,
+    sin: &impl DeviceRange<f32>,
     config: BnsdQkRopeConfig,
 ) -> Result<()> {
     // SAFETY: the caller upholds this function's safety contract.
@@ -801,10 +801,10 @@ pub unsafe fn rope_embedding_qk_bnsd_f16(
     stream: &Stream,
     q_out: &mut impl DeviceOutput<f16>,
     k_out: &mut impl DeviceOutput<f16>,
-    q_input: &impl DeviceInput<f16>,
-    k_input: &impl DeviceInput<f16>,
-    cos: &impl DeviceInput<f32>,
-    sin: &impl DeviceInput<f32>,
+    q_input: &impl DeviceRange<f16>,
+    k_input: &impl DeviceRange<f16>,
+    cos: &impl DeviceRange<f32>,
+    sin: &impl DeviceRange<f32>,
     config: BnsdQkRopeConfig,
 ) -> Result<()> {
     // SAFETY: the caller upholds this function's safety contract.
@@ -827,10 +827,10 @@ pub unsafe fn rope_qk_half_split_bnsd_bf16(
     stream: &Stream,
     q_out: &mut impl DeviceOutput<bf16>,
     k_out: &mut impl DeviceOutput<bf16>,
-    q_input: &impl DeviceInput<bf16>,
-    k_input: &impl DeviceInput<bf16>,
-    cos: &impl DeviceInput<f32>,
-    sin: &impl DeviceInput<f32>,
+    q_input: &impl DeviceRange<bf16>,
+    k_input: &impl DeviceRange<bf16>,
+    cos: &impl DeviceRange<f32>,
+    sin: &impl DeviceRange<f32>,
     config: BnsdQkRopeConfig,
 ) -> Result<()> {
     // SAFETY: the caller upholds this function's safety contract.
@@ -853,10 +853,10 @@ pub unsafe fn rope_qk_half_split_bnsd_f32(
     stream: &Stream,
     q_out: &mut impl DeviceOutput<f32>,
     k_out: &mut impl DeviceOutput<f32>,
-    q_input: &impl DeviceInput<f32>,
-    k_input: &impl DeviceInput<f32>,
-    cos: &impl DeviceInput<f32>,
-    sin: &impl DeviceInput<f32>,
+    q_input: &impl DeviceRange<f32>,
+    k_input: &impl DeviceRange<f32>,
+    cos: &impl DeviceRange<f32>,
+    sin: &impl DeviceRange<f32>,
     config: BnsdQkRopeConfig,
 ) -> Result<()> {
     // SAFETY: the caller upholds this function's safety contract.
@@ -879,10 +879,10 @@ pub unsafe fn rope_qk_half_split_bnsd_f16(
     stream: &Stream,
     q_out: &mut impl DeviceOutput<f16>,
     k_out: &mut impl DeviceOutput<f16>,
-    q_input: &impl DeviceInput<f16>,
-    k_input: &impl DeviceInput<f16>,
-    cos: &impl DeviceInput<f32>,
-    sin: &impl DeviceInput<f32>,
+    q_input: &impl DeviceRange<f16>,
+    k_input: &impl DeviceRange<f16>,
+    cos: &impl DeviceRange<f32>,
+    sin: &impl DeviceRange<f32>,
     config: BnsdQkRopeConfig,
 ) -> Result<()> {
     // SAFETY: the caller upholds this function's safety contract.
@@ -905,8 +905,8 @@ pub unsafe fn rope_embedding_qk_bnsd_in_place_f32(
     stream: &Stream,
     q: &mut impl DeviceSliceMut<f32>,
     k: &mut impl DeviceSliceMut<f32>,
-    cos: &impl DeviceInput<f32>,
-    sin: &impl DeviceInput<f32>,
+    cos: &impl DeviceRange<f32>,
+    sin: &impl DeviceRange<f32>,
     config: BnsdQkRopeConfig,
 ) -> Result<()> {
     // SAFETY: the caller upholds this function's safety contract.
@@ -927,8 +927,8 @@ pub unsafe fn rope_embedding_qk_bnsd_in_place_f16(
     stream: &Stream,
     q: &mut impl DeviceSliceMut<f16>,
     k: &mut impl DeviceSliceMut<f16>,
-    cos: &impl DeviceInput<f32>,
-    sin: &impl DeviceInput<f32>,
+    cos: &impl DeviceRange<f32>,
+    sin: &impl DeviceRange<f32>,
     config: BnsdQkRopeConfig,
 ) -> Result<()> {
     // SAFETY: the caller upholds this function's safety contract.
@@ -949,8 +949,8 @@ pub unsafe fn rope_embedding_qk_bnsd_in_place_bf16(
     stream: &Stream,
     q: &mut impl DeviceSliceMut<bf16>,
     k: &mut impl DeviceSliceMut<bf16>,
-    cos: &impl DeviceInput<f32>,
-    sin: &impl DeviceInput<f32>,
+    cos: &impl DeviceRange<f32>,
+    sin: &impl DeviceRange<f32>,
     config: BnsdQkRopeConfig,
 ) -> Result<()> {
     // SAFETY: the caller upholds this function's safety contract.
@@ -971,8 +971,8 @@ pub unsafe fn rope_qk_half_split_bnsd_in_place_f32(
     stream: &Stream,
     q: &mut impl DeviceSliceMut<f32>,
     k: &mut impl DeviceSliceMut<f32>,
-    cos: &impl DeviceInput<f32>,
-    sin: &impl DeviceInput<f32>,
+    cos: &impl DeviceRange<f32>,
+    sin: &impl DeviceRange<f32>,
     config: BnsdQkRopeConfig,
 ) -> Result<()> {
     // SAFETY: the caller upholds this function's safety contract.
@@ -993,8 +993,8 @@ pub unsafe fn rope_qk_half_split_bnsd_in_place_f16(
     stream: &Stream,
     q: &mut impl DeviceSliceMut<f16>,
     k: &mut impl DeviceSliceMut<f16>,
-    cos: &impl DeviceInput<f32>,
-    sin: &impl DeviceInput<f32>,
+    cos: &impl DeviceRange<f32>,
+    sin: &impl DeviceRange<f32>,
     config: BnsdQkRopeConfig,
 ) -> Result<()> {
     // SAFETY: the caller upholds this function's safety contract.
@@ -1015,8 +1015,8 @@ pub unsafe fn rope_qk_half_split_bnsd_in_place_bf16(
     stream: &Stream,
     q: &mut impl DeviceSliceMut<bf16>,
     k: &mut impl DeviceSliceMut<bf16>,
-    cos: &impl DeviceInput<f32>,
-    sin: &impl DeviceInput<f32>,
+    cos: &impl DeviceRange<f32>,
+    sin: &impl DeviceRange<f32>,
     config: BnsdQkRopeConfig,
 ) -> Result<()> {
     // SAFETY: the caller upholds this function's safety contract.
@@ -1274,10 +1274,10 @@ rope_bshd_fn!(rope_bshd_bf16, bf16);
 pub unsafe fn rope_bshd_dynpos_f16(
     stream: &Stream,
     out: &mut impl DeviceOutput<f16>,
-    input: &impl DeviceInput<f16>,
-    cos: &impl DeviceInput<f32>,
-    sin: &impl DeviceInput<f32>,
-    position_start: &impl DeviceInput<u32>,
+    input: &impl DeviceRange<f16>,
+    cos: &impl DeviceRange<f32>,
+    sin: &impl DeviceRange<f32>,
+    position_start: &impl DeviceRange<u32>,
     config: BshdRopeConfig,
 ) -> Result<()> {
     if config.batch == 0
@@ -1330,8 +1330,8 @@ pub unsafe fn multiaxis_rope_qk_f32(
     stream: &Stream,
     query: &mut impl DeviceSliceMut<f32>,
     key: &mut impl DeviceSliceMut<f32>,
-    cos: &impl DeviceInput<f32>,
-    sin: &impl DeviceInput<f32>,
+    cos: &impl DeviceRange<f32>,
+    sin: &impl DeviceRange<f32>,
     config: MultiaxisRopeConfig,
 ) -> Result<()> {
     validate_multiaxis_rope_qk(query.len(), key.len(), cos.len(), sin.len(), config)?;
@@ -1363,8 +1363,8 @@ pub unsafe fn multiaxis_rope_qk_f16(
     stream: &Stream,
     query: &mut impl DeviceSliceMut<f16>,
     key: &mut impl DeviceSliceMut<f16>,
-    cos: &impl DeviceInput<f32>,
-    sin: &impl DeviceInput<f32>,
+    cos: &impl DeviceRange<f32>,
+    sin: &impl DeviceRange<f32>,
     config: MultiaxisRopeConfig,
 ) -> Result<()> {
     validate_multiaxis_rope_qk(query.len(), key.len(), cos.len(), sin.len(), config)?;
@@ -1396,8 +1396,8 @@ pub unsafe fn multiaxis_rope_qk_bf16(
     stream: &Stream,
     query: &mut impl DeviceSliceMut<bf16>,
     key: &mut impl DeviceSliceMut<bf16>,
-    cos: &impl DeviceInput<f32>,
-    sin: &impl DeviceInput<f32>,
+    cos: &impl DeviceRange<f32>,
+    sin: &impl DeviceRange<f32>,
     config: MultiaxisRopeConfig,
 ) -> Result<()> {
     validate_multiaxis_rope_qk(query.len(), key.len(), cos.len(), sin.len(), config)?;
@@ -1429,7 +1429,7 @@ pub unsafe fn interleaved_complex_rope_qk_f32(
     stream: &Stream,
     query: &mut impl DeviceSliceMut<f32>,
     key: &mut impl DeviceSliceMut<f32>,
-    freqs: &impl DeviceInput<f32>,
+    freqs: &impl DeviceRange<f32>,
     config: InterleavedComplexRopeConfig,
 ) -> Result<()> {
     validate_interleaved_complex_rope_qk(query.len(), key.len(), freqs.len(), config)?;
@@ -1460,7 +1460,7 @@ pub unsafe fn interleaved_complex_rope_qk_f16(
     stream: &Stream,
     query: &mut impl DeviceSliceMut<f16>,
     key: &mut impl DeviceSliceMut<f16>,
-    freqs: &impl DeviceInput<f32>,
+    freqs: &impl DeviceRange<f32>,
     config: InterleavedComplexRopeConfig,
 ) -> Result<()> {
     validate_interleaved_complex_rope_qk(query.len(), key.len(), freqs.len(), config)?;
@@ -1491,7 +1491,7 @@ pub unsafe fn interleaved_complex_rope_qk_bf16(
     stream: &Stream,
     query: &mut impl DeviceSliceMut<bf16>,
     key: &mut impl DeviceSliceMut<bf16>,
-    freqs: &impl DeviceInput<f32>,
+    freqs: &impl DeviceRange<f32>,
     config: InterleavedComplexRopeConfig,
 ) -> Result<()> {
     validate_interleaved_complex_rope_qk(query.len(), key.len(), freqs.len(), config)?;

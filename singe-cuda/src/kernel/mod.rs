@@ -1,6 +1,11 @@
+//! Raw kernel handle adapters and typed launch preparation.
+
 pub mod launch;
 
-use std::{ffi::CStr, ptr};
+use std::{
+    ffi::{CStr, c_char},
+    ptr,
+};
 
 use singe_cuda_sys::driver;
 
@@ -25,7 +30,7 @@ pub trait KernelHandle {
     /// `raw` must be a valid kernel handle for `device_id`, and `name` must be valid for CUDA to write a pointer-sized result.
     unsafe fn raw_name(
         raw: Self::RawHandle,
-        name: *mut *const i8,
+        name: *mut *const c_char,
         device_id: i32,
     ) -> driver::CUresult;
 
@@ -63,10 +68,10 @@ impl KernelHandle for ModuleKernelHandle {
 
     unsafe fn raw_name(
         raw: Self::RawHandle,
-        name: *mut *const i8,
+        name: *mut *const c_char,
         _device_id: i32,
     ) -> driver::CUresult {
-        // SAFETY: `cuFuncGetName` receives only plain values.
+        // SAFETY: the caller guarantees `raw` is a valid function handle and `name` is writable.
         unsafe { driver::cuFuncGetName(name, raw) }
     }
 
@@ -76,7 +81,7 @@ impl KernelHandle for ModuleKernelHandle {
         raw: Self::RawHandle,
         _device_id: i32,
     ) -> driver::CUresult {
-        // SAFETY: `cuFuncGetAttribute` receives only plain values.
+        // SAFETY: the caller guarantees `raw` is a valid function handle and `value` is writable.
         unsafe { driver::cuFuncGetAttribute(value, attribute, raw) }
     }
 
@@ -86,7 +91,7 @@ impl KernelHandle for ModuleKernelHandle {
         value: i32,
         _device_id: i32,
     ) -> driver::CUresult {
-        // SAFETY: `cuFuncSetAttribute` receives only plain values.
+        // SAFETY: the caller guarantees `raw` is a valid function handle; CUDA validates the attribute and value.
         unsafe { driver::cuFuncSetAttribute(raw, attribute, value) }
     }
 }
@@ -100,10 +105,10 @@ impl KernelHandle for LibraryKernelHandle {
 
     unsafe fn raw_name(
         raw: Self::RawHandle,
-        name: *mut *const i8,
+        name: *mut *const c_char,
         _device_id: i32,
     ) -> driver::CUresult {
-        // SAFETY: `cuKernelGetName` receives only plain values.
+        // SAFETY: the caller guarantees `raw` is a valid kernel handle and `name` is writable.
         unsafe { driver::cuKernelGetName(name, raw) }
     }
 
@@ -113,7 +118,7 @@ impl KernelHandle for LibraryKernelHandle {
         raw: Self::RawHandle,
         device_id: i32,
     ) -> driver::CUresult {
-        // SAFETY: `cuKernelGetAttribute` receives only plain values.
+        // SAFETY: the caller guarantees `raw` is a valid kernel handle for `device_id` and `value` is writable.
         unsafe { driver::cuKernelGetAttribute(value, attribute, raw, device_id) }
     }
 
@@ -123,7 +128,7 @@ impl KernelHandle for LibraryKernelHandle {
         value: i32,
         device_id: i32,
     ) -> driver::CUresult {
-        // SAFETY: `cuKernelSetAttribute` receives only plain values.
+        // SAFETY: the caller guarantees `raw` is a valid kernel handle for `device_id`; CUDA validates the attribute and value.
         unsafe { driver::cuKernelSetAttribute(attribute, value, raw, device_id) }
     }
 }
@@ -131,6 +136,7 @@ impl KernelHandle for LibraryKernelHandle {
 /// Returns the name of a raw CUDA kernel handle.
 ///
 /// # Safety
+///
 /// `raw` must be a live handle associated with `context` for the entire call.
 ///
 /// # Errors
@@ -140,7 +146,7 @@ impl KernelHandle for LibraryKernelHandle {
 pub unsafe fn name<H: KernelHandle>(context: &Context, raw: H::RawHandle) -> Result<String> {
     context.bind()?;
     let mut name = ptr::null();
-    // SAFETY: the caller upholds this function's safety contract.
+    // SAFETY: the caller guarantees `raw` is live in `context`, which is bound above, and `name` is a writable local; a non-null result is a NUL-terminated string CUDA owns.
     unsafe {
         try_ffi!(H::raw_name(raw, &raw mut name, context.device().id()))?;
         if name.is_null() {
@@ -153,6 +159,7 @@ pub unsafe fn name<H: KernelHandle>(context: &Context, raw: H::RawHandle) -> Res
 /// Returns an attribute of a raw CUDA kernel handle.
 ///
 /// # Safety
+///
 /// `raw` must be a live handle associated with `context` for the entire call.
 ///
 /// # Errors
@@ -165,7 +172,7 @@ pub unsafe fn attribute<H: KernelHandle>(
 ) -> Result<i32> {
     context.bind()?;
     let mut value = 0;
-    // SAFETY: the caller upholds this function's safety contract.
+    // SAFETY: the caller guarantees `raw` is live in `context`, which is bound above, and `value` is a writable local.
     unsafe {
         try_ffi!(H::raw_attribute(
             &raw mut value,
@@ -180,6 +187,7 @@ pub unsafe fn attribute<H: KernelHandle>(
 /// Sets an attribute on a raw CUDA kernel handle.
 ///
 /// # Safety
+///
 /// `raw` must be a live handle associated with `context` for the entire call.
 ///
 /// # Errors
@@ -192,7 +200,7 @@ pub unsafe fn set_attribute<H: KernelHandle>(
     value: i32,
 ) -> Result<()> {
     context.bind()?;
-    // SAFETY: the caller upholds this function's safety contract.
+    // SAFETY: the caller guarantees `raw` is live in `context`, which is bound above.
     unsafe {
         try_ffi!(H::set_attribute(
             raw,

@@ -4,18 +4,19 @@ use std::env::args;
 
 use singe_cuda::{memory::DeviceMemory, view::OwnedDeviceRegion};
 use singe_cudnn::{
-    backend::{
+    backend::operation::{
+        attention::{DiagonalBandMaskSpec, SoftmaxOutputs, SoftmaxStatsBase},
         pointwise::PointwiseMode,
-        tensor::{Shape, TensorSpec},
     },
     data_type::{DataType, f16},
     error::Result,
     frontend::{
         bindings::BindingAccess,
-        graph::{DataTypePolicy, Graph, GraphConfig, SoftmaxOutputs, TensorOutputConfig},
-        operation::{DiagonalBandMaskConfig, SoftmaxConfig, SoftmaxStatsBase},
+        graph::{DataTypePolicy, Graph, GraphConfig, TensorOutputConfig},
+        operation::SoftmaxConfig,
         plan::{CompileConfig, ExecuteArgs, HeuristicMode},
     },
+    tensor::{Shape, TensorSpec},
 };
 
 fn run() -> Result<()> {
@@ -67,7 +68,7 @@ fn run() -> Result<()> {
         let masked = graph.diagonal_band_mask(
             input,
             fill,
-            DiagonalBandMaskConfig::new(PointwiseMode::CmpGe).with_name("causal"),
+            DiagonalBandMaskSpec::new(PointwiseMode::CmpGe).with_name("causal"),
             TensorOutputConfig::new().with_data_type(DataType::F16),
         )?;
         println!(
@@ -175,9 +176,9 @@ fn run() -> Result<()> {
     // SAFETY: initialized inputs, retained writable outputs, plan and workspace remain
     // live until the stream completes, including when execution returns an enqueue error.
     example.execute_and_wait(|context| unsafe {
-        compiled.execute(
+        compiled.execute_async(
             context,
-            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
         )
     })?;
     println!(
@@ -187,6 +188,6 @@ fn run() -> Result<()> {
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_softmax", run())
 }

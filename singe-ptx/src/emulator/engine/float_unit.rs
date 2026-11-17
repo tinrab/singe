@@ -11,7 +11,7 @@ use crate::{
 };
 
 impl Engine {
-    pub fn execute_float(&mut self, lane: usize, operation: &FloatOperation) -> Result<()> {
+    pub(crate) fn execute_float(&mut self, lane: usize, operation: &FloatOperation) -> Result<()> {
         match operation {
             FloatOperation::Unary {
                 op,

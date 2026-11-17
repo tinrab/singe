@@ -1,7 +1,10 @@
 use singe_nvcomp_sys as sys;
 
 use crate::{
-    codec::impl_nvcomp_batched_codec_module, types::DecompressBackend, utility::validate_reserved,
+    codec::impl_nvcomp_batched_codec_module,
+    error::{Error, Result},
+    types::DecompressBackend,
+    utility::validate_reserved,
 };
 
 /// Zstd compression options.
@@ -46,7 +49,7 @@ impl TryFrom<sys::nvcompBatchedZstdDecompressOpts_t> for DecompressOptions {
     fn try_from(value: sys::nvcompBatchedZstdDecompressOpts_t) -> Result<Self> {
         validate_reserved(&value.reserved)?;
         Ok(Self {
-            backend: value.backend.into(),
+            backend: value.backend.try_into()?,
         })
     }
 }
@@ -70,28 +73,12 @@ impl_nvcomp_batched_codec_module! {
     required_decompression_alignment = nvcompZstdRequiredDecompressionAlignment,
     compress_get_required_alignments = nvcompBatchedZstdCompressGetRequiredAlignments,
     decompress_get_required_alignments = nvcompBatchedZstdDecompressGetRequiredAlignments,
-    compress_get_temporary_size = nvcompBatchedZstdCompressGetTempSize,
-    compress_get_temporary_size_sync = nvcompBatchedZstdCompressGetTempSizeSync,
-    decompress_get_temporary_size = nvcompBatchedZstdDecompressGetTempSize,
-    decompress_get_temporary_size_sync = nvcompBatchedZstdDecompressGetTempSizeSync,
+    compress_get_temp_size = nvcompBatchedZstdCompressGetTempSize,
+    compress_get_temp_size_sync = nvcompBatchedZstdCompressGetTempSizeSync,
+    decompress_get_temp_size = nvcompBatchedZstdDecompressGetTempSize,
+    decompress_get_temp_size_sync = nvcompBatchedZstdDecompressGetTempSizeSync,
     compress_get_max_output_chunk_size = nvcompBatchedZstdCompressGetMaxOutputChunkSize,
-    compress_raw_async = nvcompBatchedZstdCompressAsync,
-    decompress_size_raw_async = nvcompBatchedZstdGetDecompressSizeAsync,
-    decompress_raw_async = nvcompBatchedZstdDecompressAsync,
-}
-
-impl CompressOptions {
-    /// Creates Zstd compression options.
-    #[must_use]
-    pub fn new() -> Self {
-        Self
-    }
-}
-
-impl DecompressOptions {
-    /// Creates Zstd decompression options with the given settings.
-    #[must_use]
-    pub fn new(backend: DecompressBackend) -> Self {
-        Self { backend }
-    }
+    compress_async = nvcompBatchedZstdCompressAsync,
+    get_decompress_size_async = nvcompBatchedZstdGetDecompressSizeAsync,
+    decompress_async = nvcompBatchedZstdDecompressAsync,
 }

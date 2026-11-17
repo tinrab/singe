@@ -44,6 +44,10 @@ pub use self::{
     },
 };
 
+pub(crate) use self::{
+    filtering_validation::validate_border_roi, statistics_validation::histogram_range_bins,
+};
+
 /// Low-level image wrappers that keep upstream NPP operation names and shapes.
 ///
 /// Prefer `Image`, `ImageView`, and `crate::pipeline::ImagePipeline` for the typed Rust API.

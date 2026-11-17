@@ -2,7 +2,7 @@ mod common;
 
 use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
-    backend::tensor::{Shape, TensorSpec},
+    backend::operation::attention::AttentionSequenceInputs,
     data_type::{DataType, bf16},
     error::{Error, Result},
     frontend::{
@@ -12,10 +12,11 @@ use singe_cudnn::{
         operation::{
             AttentionConfig, AttentionDiagonalAlignment, AttentionDiagonalBand, AttentionMaskMode,
             AttentionMaxTotalSequenceLengths, AttentionPagedCache, AttentionPagedKvCache,
-            AttentionScoreConfig, AttentionSequenceInputs,
+            AttentionScoreConfig,
         },
         plan::{CompileConfig, ExecuteArgs, HeuristicMode},
     },
+    tensor::{Shape, TensorSpec},
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -36,6 +37,10 @@ fn index_value(value: i64) -> Result<i32> {
     })
 }
 
+#[expect(
+    clippy::many_single_char_names,
+    reason = "keeps the upstream sample's single-letter dimension names"
+)]
 fn run_phase(example: &common::ExampleContext, phase: Phase, block_size: i64) -> Result<()> {
     let is_ragged_prefill = matches!(phase, Phase::Prefill);
     let [b, h_q, h_k, h_v, s_kv, d_qk, d_v] = [8_i64, 8, 1, 1, 32 * 1024, 128, 128];
@@ -64,13 +69,13 @@ fn run_phase(example: &common::ExampleContext, phase: Phase, block_size: i64) ->
     let mut graph = Graph::with_config(
         GraphConfig::new().with_data_type_policy(
             DataTypePolicy::new()
-                .with_io(DataType::BF16)
+                .with_io(DataType::Bf16)
                 .with_intermediate(DataType::F32)
                 .with_compute(DataType::F32),
         ),
     );
     let mut query_spec =
-        TensorSpec::new(DataType::BF16, Shape::contiguous([b, h_q, s_q, d_qk])?).with_name("Q");
+        TensorSpec::new(DataType::Bf16, Shape::contiguous([b, h_q, s_q, d_qk])?).with_name("Q");
     if is_ragged_prefill {
         let capacity = query_spec.storage_byte_len(None)?;
         query_spec = query_spec.with_ragged_byte_capacity(capacity);
@@ -89,14 +94,14 @@ fn run_phase(example: &common::ExampleContext, phase: Phase, block_size: i64) ->
     };
     let k = graph.tensor(
         TensorSpec::new(
-            DataType::BF16,
+            DataType::Bf16,
             Shape::contiguous([num_blocks, h_k, block_size, d_qk])?,
         )
         .with_name("container_K"),
     );
     let v = graph.tensor(
         TensorSpec::new(
-            DataType::BF16,
+            DataType::Bf16,
             Shape::contiguous([num_blocks, h_v, block_size, d_v])?,
         )
         .with_name("container_V"),
@@ -116,7 +121,7 @@ fn run_phase(example: &common::ExampleContext, phase: Phase, block_size: i64) ->
     } else {
         None
     };
-    let outputs = graph.sdpa_auto(
+    let outputs = graph.sdpa(
         SdpaInputs {
             query: q,
             key: k,
@@ -160,7 +165,7 @@ fn run_phase(example: &common::ExampleContext, phase: Phase, block_size: i64) ->
     graph.replace_tensor(
         o,
         TensorSpec::new(
-            DataType::BF16,
+            DataType::Bf16,
             Shape::with_strides(
                 [b, h_q, s_q, d_v],
                 [strides[1], strides[2], strides[0], strides[3]],
@@ -193,8 +198,8 @@ fn run_phase(example: &common::ExampleContext, phase: Phase, block_size: i64) ->
     let mut o_dev = DeviceMemory::<bf16>::zeroed(cuda, graph.shape(o)?.storage_span()?)?;
     let seq_len_q_dev = DeviceMemory::from_slice(cuda, &query_lengths)?;
     let seq_len_kv_dev = DeviceMemory::from_slice(cuda, &kv_lengths)?;
-    let page_table_k_dev = DeviceMemory::from_slice(cuda, &page_indices_k)?;
-    let page_table_v_dev = DeviceMemory::from_slice(cuda, &page_indices_v)?;
+    let k_page_table_dev = DeviceMemory::from_slice(cuda, &page_indices_k)?;
+    let v_page_table_dev = DeviceMemory::from_slice(cuda, &page_indices_v)?;
     let mut stats_dev = DeviceMemory::<f32>::zeroed(cuda, graph.shape(stats)?.storage_span()?)?;
     let q_offsets_dev = if let Some(id) = q_offsets {
         let token_elements = h_q.checked_mul(d_qk).ok_or_else(dimension_overflow)?;
@@ -220,8 +225,8 @@ fn run_phase(example: &common::ExampleContext, phase: Phase, block_size: i64) ->
     bindings.set_input(v, &v_dev)?;
     bindings.set_input(sequence_length_query, &seq_len_q_dev)?;
     bindings.set_input(sequence_length_key_value, &seq_len_kv_dev)?;
-    bindings.set_input(page_table_k, &page_table_k_dev)?;
-    bindings.set_input(page_table_v, &page_table_v_dev)?;
+    bindings.set_input(page_table_k, &k_page_table_dev)?;
+    bindings.set_input(page_table_v, &v_page_table_dev)?;
     if let Some((id, memory)) = &q_offsets_dev {
         bindings.set_input(*id, memory)?;
     }
@@ -230,9 +235,9 @@ fn run_phase(example: &common::ExampleContext, phase: Phase, block_size: i64) ->
     bindings.set(stats, &mut stats_dev)?;
     // SAFETY: initialized cache/index inputs, writable results and workspace remain live through stream completion.
     example.execute_and_wait(|context| unsafe {
-        compiled.execute(
+        compiled.execute_async(
             context,
-            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
         )
     })?;
     println!("executed paged attention {phase:?}, block size: {block_size}");
@@ -247,6 +252,6 @@ fn run() -> Result<()> {
     run_phase(&context, Phase::Decode, block_size)
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_fp16_sdpa_paged_decode_and_prefill", run())
 }

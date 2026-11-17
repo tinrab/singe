@@ -1,7 +1,5 @@
 //! Distribute independent transfer jobs over a pool of CUDA streams.
 
-use std::error::Error;
-
 use singe_cuda::{
     context::Context,
     submission::{
@@ -10,7 +8,7 @@ use singe_cuda::{
     },
 };
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() -> anyhow::Result<()> {
     let context = Context::create()?;
     let pool = StreamPool::create(&context, 2)?;
     let mut submissions = Vec::new();

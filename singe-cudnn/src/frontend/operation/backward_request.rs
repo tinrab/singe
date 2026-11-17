@@ -3,7 +3,7 @@ use std::borrow::Cow;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    backend::{execution::EngineChoice, tensor::TensorId},
+    backend::execution::EngineChoice,
     error::Result,
     frontend::{
         composite::sdpa::{
@@ -14,6 +14,7 @@ use crate::{
         lower::{LoweredOperation, LoweringContext},
         operation::{AttentionBackwardAuxGradients, AttentionBackwardConfig},
     },
+    tensor::TensorId,
 };
 
 /// An attention backward request resolved against the compilation target.
@@ -52,7 +53,7 @@ pub enum AttentionBackwardRequest {
 /// Automatic engine choice supplied by an attention backward implementation.
 /// Explicit custom planning remains independent of these heuristic overrides.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct AttentionBackwardHeuristicOverride {
+pub(crate) struct AttentionBackwardHeuristicOverride {
     /// Engine index and knob constraints supplied to automatic backward-attention planning.
     #[serde(flatten)]
     pub choice: EngineChoice,

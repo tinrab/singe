@@ -48,7 +48,7 @@ pub fn concrete_shape(
                     name: name.into(),
                     reason: format!("unresolved symbolic dimension `{parameter}` at axis {axis}"),
                 })?,
-            None => override_shape
+            _ => override_shape
                 .and_then(|shape| shape.get(axis).copied())
                 .ok_or_else(|| Error::UnsupportedShape {
                     name: name.into(),

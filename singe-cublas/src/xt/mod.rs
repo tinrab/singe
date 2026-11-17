@@ -11,7 +11,7 @@ use singe_cuda::device::Device;
 
 use crate::{
     error::Result,
-    try_ffi,
+    sys, try_ffi,
     utility::{to_i32, to_usize},
 };
 
@@ -22,9 +22,9 @@ use crate::{
 /// Returns an error if cuBLASXt cannot report the value.
 pub fn max_boards() -> Result<usize> {
     let mut boards = 0;
-    // SAFETY: `cublasXtMaxBoards` receives valid output locations.
+    // SAFETY: `cublasXtMaxBoards` writes one `int` to `boards`, a live local.
     unsafe {
-        try_ffi!(singe_cublas_sys::cublasXtMaxBoards(&raw mut boards))?;
+        try_ffi!(sys::cublasXtMaxBoards(&raw mut boards))?;
     }
     to_usize(boards, "maximum GPU boards")
 }
@@ -40,9 +40,9 @@ pub fn board_count(devices: &[Device]) -> Result<usize> {
         .map(|device| to_i32(device.id(), "device id"))
         .collect::<Result<Vec<i32>>>()?;
     let mut boards = 0;
-    // SAFETY: `cublasXtGetNumBoards` receives valid output locations.
+    // SAFETY: `device_ids` holds the count passed with it, and `boards` is a live local.
     unsafe {
-        try_ffi!(singe_cublas_sys::cublasXtGetNumBoards(
+        try_ffi!(sys::cublasXtGetNumBoards(
             to_i32(device_ids.len(), "device count")?,
             device_ids.as_mut_ptr(),
             &raw mut boards,

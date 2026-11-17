@@ -347,9 +347,9 @@ impl From<sys::CUfileStatsLevel3_t> for StatisticsLevel3 {
 ///
 /// Returns an error if cuFile rejects the statistics level.
 pub fn set_level(level: StatisticsLevel) -> Result<()> {
-    // SAFETY: `cuFileSetStatsLevel` receives only plain values.
+    // SAFETY: the level is passed by value as its `#[repr(i32)]` discriminant, and the call touches no Rust-owned memory.
     unsafe {
-        try_ffi!(sys::cuFileSetStatsLevel(level as i32))?;
+        try_ffi!(sys::cuFileSetStatsLevel(level.into()))?;
     }
     Ok(())
 }
@@ -362,7 +362,7 @@ pub fn set_level(level: StatisticsLevel) -> Result<()> {
 /// Also returns an error if the native level is not a recognized [`StatisticsLevel`].
 pub fn level() -> Result<StatisticsLevel> {
     let mut level = 0;
-    // SAFETY: `cuFileGetStatsLevel` receives valid output locations.
+    // SAFETY: `level` is a local `c_int` output.
     unsafe {
         try_ffi!(sys::cuFileGetStatsLevel(&raw mut level))?;
     }
@@ -375,7 +375,7 @@ pub fn level() -> Result<StatisticsLevel> {
 ///
 /// Returns an error if cuFile cannot start statistics collection.
 pub fn start() -> Result<()> {
-    // SAFETY: `cuFileStatsStart` takes no arguments.
+    // SAFETY: the call takes no arguments and touches no Rust-owned memory.
     unsafe {
         try_ffi!(sys::cuFileStatsStart())?;
     }
@@ -388,7 +388,7 @@ pub fn start() -> Result<()> {
 ///
 /// Returns an error if cuFile cannot stop statistics collection.
 pub fn stop() -> Result<()> {
-    // SAFETY: `cuFileStatsStop` takes no arguments.
+    // SAFETY: the call takes no arguments and touches no Rust-owned memory.
     unsafe {
         try_ffi!(sys::cuFileStatsStop())?;
     }
@@ -401,7 +401,7 @@ pub fn stop() -> Result<()> {
 ///
 /// Returns an error if cuFile cannot reset the collected statistics.
 pub fn reset() -> Result<()> {
-    // SAFETY: `cuFileStatsReset` takes no arguments.
+    // SAFETY: the call takes no arguments and touches no Rust-owned memory.
     unsafe {
         try_ffi!(sys::cuFileStatsReset())?;
     }
@@ -416,7 +416,7 @@ pub fn reset() -> Result<()> {
 /// The driver must be initialized and the requested statistics level must be enabled.
 pub fn level1() -> Result<StatisticsLevel1> {
     let mut stats = sys::CUfileStatsLevel1_t::default();
-    // SAFETY: `cuFileGetStatsL1` receives valid output locations.
+    // SAFETY: `stats` is a local `CUfileStatsLevel1_t` that cuFile fills.
     unsafe {
         try_ffi!(sys::cuFileGetStatsL1(&raw mut stats))?;
     }
@@ -431,7 +431,7 @@ pub fn level1() -> Result<StatisticsLevel1> {
 /// The driver must be initialized and the requested statistics level must be enabled.
 pub fn level2() -> Result<StatisticsLevel2> {
     let mut stats = sys::CUfileStatsLevel2_t::default();
-    // SAFETY: `cuFileGetStatsL2` receives valid output locations.
+    // SAFETY: `stats` is a local `CUfileStatsLevel2_t` that cuFile fills.
     unsafe {
         try_ffi!(sys::cuFileGetStatsL2(&raw mut stats))?;
     }
@@ -446,7 +446,7 @@ pub fn level2() -> Result<StatisticsLevel2> {
 /// The driver must be initialized and the requested statistics level must be enabled.
 pub fn level3() -> Result<StatisticsLevel3> {
     let mut stats = sys::CUfileStatsLevel3_t::default();
-    // SAFETY: `cuFileGetStatsL3` receives valid output locations.
+    // SAFETY: `stats` is a local `CUfileStatsLevel3_t` that cuFile fills.
     unsafe {
         try_ffi!(sys::cuFileGetStatsL3(&raw mut stats))?;
     }

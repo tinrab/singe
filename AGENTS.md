@@ -44,7 +44,7 @@ Use `uv` for Python helpers.
 - `just lint --package` uses `--no-default-features` and all targets, so name the crate's version feature too.
   Feature names differ per crate, such as `nvjpeg_13_2,k2,testing`, `nvtiff_0_8,testing`, or `testing`; check the crate's `Cargo.toml`.
 - The `justfile` defines the recipe feature sets in `TEST_FEATURES`, `LINT_FEATURES`, and `SINGE_TEST_FEATURES`.
-- A focused CUDA test runs as `RUST_TEST_THREADS=1 cargo test -p <crate> --features testing,cuda_13_4 -- --nocapture`, adding the features the tested path needs.
+- A focused CUDA test runs as `RUST_TEST_THREADS=1 cargo test -p <crate> --features testing -- --nocapture`, adding the features the tested path needs, such as `cuda_13_4` for `singe`.
   GPU tests depend on hardware and driver state and must run serialized.
 - Build one crate's docs with warnings denied using `RUSTDOCFLAGS="-D warnings" cargo doc -p <crate> --no-deps --all-features`, and again with default features when a module is feature-gated.
 - Do not run several cargo commands at once against the shared `target/` directory; concurrent builds delete each other's artifacts.
@@ -54,12 +54,12 @@ Use `uv` for Python helpers.
 
 - `singe`: the framework: tensors, graphs, ONNX import, the CPU and CUDA backends, layers, caches, generation, and exported CUDA C++ programs.
 - `singe-model`: model configs and architectures built on `singe`; its README gives the steps for adding a model.
-- `singe-core`: shared low-level macros and helpers, such as `status_enum!`, `impl_enum_conversion!`, and `checked_conversions!`.
+- `singe-core`: shared low-level macros and helpers, such as `wrapper_status!`, `native_enum!`, `checked_conversions!`, and the `logger` callback slot.
 - `singe-kernel`, `singe-codegen`: reusable kernels, with generated cuTile kernels under `singe-kernel/src/-generated/`, and the kernel IR with its emitters.
 - `singe-testing`: comparing with PyTorch's references, and the benchmark runner; see its README.
 - `singe-onnx`, `singe-ptx`: ONNX utilities, and a PTX parser and CPU emulator.
 - NVIDIA wrapper crates (`singe-cuda`, `singe-cudnn`, `singe-cublas`, and the rest), each over a raw `*-sys` crate whose bindings are generated and checked in, while its `src/lib.rs` and `justfile` are handwritten.
-- `singe-loader` loads every NVIDIA library at run time, so no `*-sys` crate links one at build time, except nvCOMP's C++ manager bridge.
+- `singe-loader` loads every NVIDIA library at run time, so no `*-sys` crate links one at build time, except nvCOMP's C++ manager bridge behind its opt-in `manager` feature.
 - `singe-macros` and `singe-cuda-macros` are proc-macro crates, and `singe-cuda-find` discovers CUDA installations.
 - `xtask`: documentation injection, kernel generation, and the `no-slop` checker.
 - Dependency versions are declared only in the root `[workspace.dependencies]`, and members use `x.workspace = true`; lints and profiles also live at the root.
@@ -82,8 +82,8 @@ Use `uv` for Python helpers.
 
 - Do not hand-edit generated FFI declarations, generated kernels, or generated rustdoc unless the task targets them; change the recipe or its inputs and regenerate.
 - Bindgen recipes live in the `*-sys/justfile`s, and each ends by rewriting the bindings' `unsafe extern "C"` blocks into `singe_loader::functions!` blocks, whose functions keep their names and load their symbols on first call.
-- A `*-sys` crate declares each library it loads through `singe_loader::Library`'s constructor for it, such as `Library::cusparse()`; it adds a `load` function per library, and `singe_loader::missing_status!` for each status type, which is what a function returns when its library or symbol is missing.
-  Its safe crate returns `Error::Load` where a status says the library is missing and it would not load.
+- A `*-sys` crate declares each library it loads through `singe_loader::Library`'s constructor for it, such as `Library::cusparse()`; it adds a `load` function per library, `singe_loader::missing_status!` for each status type, which is what a function returns when its library or symbol is missing, and `missing_value!` for other returned values.
+  A missing status-returning function records which library or symbol was missing, and the `-sys` crate re-exports `take_absence`, which its safe crate's `wrapper_status!` conversion reads to return `Error::Load`.
 - Injected NVIDIA documentation comes from `xtask/docs/` through `xtask/src/document.rs`; fix the inputs or the injection logic, then regenerate, and use `jq` for the large JSON files.
 - Generated binding filenames do not always match documentation versions; check the crate's `justfile`, `src/lib.rs`, and the generated filename together.
 
@@ -91,11 +91,14 @@ Use `uv` for Python helpers.
 
 Follow the nearest existing wrapper; the style guide covers the details.
 
-- Each wrapper has `error.rs` with a `#[non_exhaustive]` `Error`, a `Result` alias, a `Status` declared with `singe_core::status_enum!`, and a `try_ffi!` macro.
+- Each wrapper has `error.rs` with a `#[non_exhaustive]` `Error`, a `Result` alias, a `Status` declared with `singe_core::wrapper_status!`, and a crate-private `try_ffi!` over the generated `Error::check`; `lib.rs` keeps `pub use singe_<lib>_sys as sys;`.
   Libraries without an error-string function write `Variant = CONSTANT => "description"` so the macro generates `description()`.
+  The library variant is `<Lib> { code: Status }`, and shared failures use the shared variants (`OutOfRange`, `LengthMismatch`, `BufferTooSmall`, `ContextMismatch`, and the rest) listed in the style guide.
+- A process-wide native logger keeps a `singe_core::logger::CallbackSlot` in a `static`, with `set_callback` taking a closure and returning a `CallbackGuard`.
 - Use typed enums and `bitflags` wrappers, checked conversions for C integer types, and narrow `unsafe` blocks with `// SAFETY:` comments.
 - Plain settings values are `*Options`, with public fields when every combination is valid and `with_*` setters otherwise; wrappers of native parameter structs or handles are `*Params`, with `set_*` methods.
 - Safe calls wait for their GPU work; `unsafe` functions that only enqueue work are named `<operation>_async` and take wrapper types, never raw `sys` handles.
+  A safe, lifetime-checked asynchronous form takes a `StreamScope` and is named `<operation>_scoped`; `_unchecked` only means a validity check is skipped, and an `async fn` carries no `_async` suffix.
 - A stream in another CUDA context is the crate's `Error::StreamContextMismatch`; memory in another context is `CudaError::MemoryContextMismatch`.
 - GPU work goes through `singe-cuda`'s stream machinery:
     - `Stream::sync_scope` runs eager work and waits for it even on failure;
@@ -128,7 +131,7 @@ The rules include:
 - error contracts name a type instead of `String` or `Box<dyn Error>`, which only `main` and trait implementations may return;
 - modules are named for a responsibility, never `utils`, `helpers`, or `common`.
 
-Inside a private module, Clippy's `redundant_pub_crate` wants plain `pub` rather than `pub(crate)`.
+In the released crates, `unreachable_pub` decides visibility: an item the crate root cannot reach is `pub(crate)`, never plain `pub`, and Clippy's `redundant_pub_crate` is off.
 Re-export a private child module's items as `pub use self::child::…`, so rustfmt and no-slop agree on import grouping.
 Exceptions take the form `// no-slop-allow: <rule> -- <reason>` on the line before the target.
 
@@ -160,8 +163,8 @@ Keep these out of commits:
     - Rust tests are named `test_*`.
     - Use `pub(crate)`, never `pub(super)`.
     - Use typed errors (thiserror) with lowercase messages, not `String` errors.
-- **No doc comments unless asked:** don't write new doc comments (`///`, `//!`) unless a task asks for them; they come at the end, before the crates are released.
-  This holds even where surrounding code has them, such as the operation table's entries: write a `//` comment there instead.
+- **Doc comments on public items only:** in the released crates (`singe-core`, `singe-loader`, `singe-cuda` and its `-sys` and macros crates, the NVIDIA wrappers and their `-sys` crates, `singe-ptx`, `singe-onnx`), give public items short doc comments that follow the Documentation section; private items get none.
+  The unreleased crates (`singe`, `singe-codegen`, `singe-macros`, `singe-model`, `singe-kernel`, `singe-testing`) get no new doc comments, even where surrounding code has them, such as the operation table's entries: write a `//` comment there instead.
   Existing doc comments stay as they are; update one only when the code it describes changes, and move it with its code.
   Write an inline `//` comment only where the code cannot say something itself, such as why a non-obvious rule holds.
 - **One sentence per line:** write Markdown prose and comments with each sentence on its own line, as the style guide describes.
@@ -171,7 +174,7 @@ Keep these out of commits:
 
 ## Documentation
 
-These rules apply when doc comments are written, before release; until then, see the constraints above.
+These rules apply to doc comments on the released crates' public items.
 
 - Seed a safe crate's doc comments from its `*-sys` bindings, then rewrite the result in Rust terms instead of keeping C names, `# Parameters`, or return-value sections.
 - Summaries start with a third-person verb, `# Errors` sentences start with "Returns an error if", and `# Safety` comes before `# Errors`.

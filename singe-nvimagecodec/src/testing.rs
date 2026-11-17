@@ -1,22 +1,38 @@
-use std::ops::Deref;
+//! Serialized GPU test contexts.
 
-use singe_cuda::testing::{DeviceLock, bootstrap_for_device};
+use std::sync::Arc;
 
-use crate::{error::Result, instance::Instance};
+use singe_cuda::{
+    context::Context as CudaContext,
+    device::Device,
+    testing::{TestDevice, bootstrap_for_device},
+};
 
-/// nvImageCodec instance for a test, with a lock that keeps GPU tests from running at the same time.
+use crate::{
+    error::Result,
+    instance::{Instance, InstanceOptions},
+};
+
+/// An nvImageCodec instance on a locked test device.
+///
+/// The instance drops before the device's CUDA context and lock.
 #[derive(Debug)]
 pub struct TestContext {
-    /// The nvImageCodec instance used by the test.
-    pub instance: Instance,
-    _lock: DeviceLock,
+    instance: Instance,
+    device: TestDevice,
 }
 
-impl Deref for TestContext {
-    type Target = Instance;
-
-    fn deref(&self) -> &Self::Target {
+impl TestContext {
+    /// Returns the nvImageCodec instance.
+    #[must_use]
+    pub fn instance(&self) -> &Instance {
         &self.instance
+    }
+
+    /// Returns the CUDA context of the locked device.
+    #[must_use]
+    pub fn cuda_context(&self) -> &Arc<CudaContext> {
+        self.device.context()
     }
 }
 
@@ -26,12 +42,7 @@ impl Deref for TestContext {
 ///
 /// Returns an error if device initialization, context creation, device locking, or native instance creation fails.
 pub fn setup_context() -> Result<TestContext> {
-    let device_id: i32 = 0;
-    let (lock, _cuda_context) = bootstrap_for_device(device_id)?;
-    let instance = Instance::create_default()?;
-
-    Ok(TestContext {
-        instance,
-        _lock: lock,
-    })
+    let device = bootstrap_for_device(Device::new(0))?;
+    let instance = Instance::create(&InstanceOptions::default())?;
+    Ok(TestContext { instance, device })
 }

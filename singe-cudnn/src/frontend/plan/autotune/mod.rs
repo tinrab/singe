@@ -3,21 +3,19 @@ mod sampling;
 mod session;
 mod state;
 
-use std::{collections::HashSet, mem::MaybeUninit, sync::Arc};
+use std::{collections::HashSet, sync::Arc};
 
 use singe_cuda::{
     error::{Error as CudaError, Status as CudaStatus},
     event::EventFlags,
-    memory::DeviceMemory,
-    stream::StreamCaptureStatus,
+    stream::{AsStream, StreamCaptureStatus},
     submission::{Access, AccessMode},
-    view::DeviceRegionProvider,
+    view::{DeviceOutputView, DeviceRegionProvider},
 };
 
 pub use crate::frontend::plan::autotune::{
     config::{AutotuneConfig, AutotuneResult, AutotuneSampling, PlanTiming},
     session::AutotuneSession,
-    state::AutotuneState,
 };
 use crate::{
     context::Context,
@@ -27,7 +25,7 @@ use crate::{
         error::Error as FrontendError,
         plan::{
             CompiledGraph, PlanFailure, PlanFailureStage, TunedPlan,
-            autotune::sampling::normalize_elapsed,
+            autotune::{sampling::normalize_elapsed, state::AutotuneState},
         },
     },
 };
@@ -45,6 +43,7 @@ impl CompiledGraph {
     /// Typed bindings and workspace use the CUDA range tracker to wait for producers and prevent conflicting tracked submissions until tuning completes.
     ///
     /// # Safety
+    ///
     /// Bound memory and workspace must remain valid and satisfy native access and aliasing rules through completion.
     /// Untracked raw inputs must be ready on the context's stream, including producer dependencies.
     /// Concurrent untracked access must not modify inputs or workspace during tuning.
@@ -53,17 +52,17 @@ impl CompiledGraph {
     ///
     /// # Errors
     ///
-    /// Returns an error for invalid sampling parameters, active or invalidated CUDA graph capture, invalid overrides or bindings, insufficient workspace, private trial-buffer or timing-event preparation failure, CUDA or synchronization failure, or an all-failed result with no valid candidate timing.
+    /// Returns an error if the sampling parameters are invalid, the stream is capturing or its capture was invalidated, overrides or bindings are invalid, the workspace is too small, preparing private trial buffers or timing events fails, a CUDA call or synchronization fails, or every candidate fails without a valid timing.
     pub unsafe fn autotune(
         &self,
         context: &Context,
         bindings: &Bindings<'_>,
-        workspace: Option<&mut DeviceMemory<MaybeUninit<u8>>>,
+        workspace: Option<DeviceOutputView<'_, u8>>,
         overrides: &RuntimeOverrides,
         config: &AutotuneConfig,
     ) -> Result<AutotuneResult> {
         let sample_limit = config.sampling.sample_limit()?;
-        // SAFETY: this method requires the same binding and lifetime contracts as the shared tuning session.
+        // SAFETY: `autotune_with` requires the binding, workspace and ordering contract of `autotune`, which this caller upholds, and the sampling strategy only runs plans through the session's stream, which completes before it returns.
         unsafe {
             self.autotune_with(context, bindings, workspace, overrides, |session| {
                 session.sample(config, sample_limit)
@@ -81,15 +80,17 @@ impl CompiledGraph {
     /// Caller outputs and read/write operands remain unchanged by those trials.
     /// Recoverable trial failures remain in the result even when later measurements succeed.
     ///
-    /// # Errors
-    /// Returns preparation, workspace, CUDA or strategy errors, invalid or duplicate timings, or an all-failed result when the strategy returns no timings.
-    ///
     /// # Safety
+    ///
     /// Bindings and workspace must satisfy the lifetime, initialization, aliasing and producer-ordering contracts of [`Self::autotune`].
     /// Custom native execution must obey the variant pack and execution plan contracts.
     /// Report custom native execution failures through [`AutotuneSession::record_failure`].
     /// Use the session's stream or complete work on other streams before the strategy returns or unwinds.
     /// Do not retain trial pointers, captured graphs or other users of private trial storage beyond this call.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if preparation, the workspace, CUDA, or the strategy fails, timings are invalid or duplicated, or the strategy returns no timings.
     #[expect(
         clippy::too_many_lines,
         reason = "plan construction and selection keep the complete native execution lifecycle together"
@@ -98,11 +99,11 @@ impl CompiledGraph {
         &self,
         context: &Context,
         bindings: &Bindings<'_>,
-        mut workspace: Option<&mut DeviceMemory<MaybeUninit<u8>>>,
+        mut workspace: Option<DeviceOutputView<'_, u8>>,
         overrides: &RuntimeOverrides,
         strategy: impl FnOnce(&mut AutotuneSession<'_, '_>) -> Result<Vec<PlanTiming>>,
     ) -> Result<AutotuneResult> {
-        let stream = context.stream()?;
+        let stream = context.stream_binding();
         match stream.capture_status()? {
             StreamCaptureStatus::None => {}
             StreamCaptureStatus::Invalidated => {
@@ -114,7 +115,7 @@ impl CompiledGraph {
         let pack = self.variant_pack_with_overrides(
             context.cuda_context(),
             bindings,
-            workspace.as_deref_mut(),
+            workspace.as_mut().map(DeviceOutputView::reborrow),
             overrides,
         )?;
         let mut failures = Vec::new();
@@ -146,7 +147,8 @@ impl CompiledGraph {
             let required = required
                 .checked_add(pack.workspace_prefix_bytes())
                 .ok_or_else(|| Error::out_of_range("autotune workspace bytes"))?;
-            return Err(Error::InsufficientWorkspaceSize {
+            return Err(Error::BufferTooSmall {
+                name: "workspace".into(),
                 required,
                 actual: pack.total_workspace_capacity(),
             });
@@ -165,16 +167,12 @@ impl CompiledGraph {
             workspace,
             overrides,
         )?;
-        let start = context
-            .cuda_context()
-            .create_event_with_flags(EventFlags::DEFAULT)?;
-        let stop = context
-            .cuda_context()
-            .create_event_with_flags(EventFlags::DEFAULT)?;
+        let start = context.cuda_context().create_event(EventFlags::DEFAULT)?;
+        let stop = context.cuda_context().create_event(EventFlags::DEFAULT)?;
         // Owners outlive the completion scope, including failed enqueues and unwinding strategies.
         let run_trials = || {
             stream.sync_scope(|| {
-                // SAFETY: tracked producers are synchronized and locked; the caller orders raw inputs and retains their storage.
+                // SAFETY: `with_synchronized_accesses` waited for tracked producers, this function's contract orders untracked inputs before the stream, and `state` outlives this `sync_scope`, which waits even when an enqueue fails.
                 unsafe { state.snapshot(&stream) }?;
                 let mut session = AutotuneSession {
                     graph: self,
@@ -225,7 +223,7 @@ impl CompiledGraph {
                 })
             })
         };
-        // SAFETY: caller storage remains live; the completion scope drains trial work before releasing access guards.
+        // SAFETY: this function's contract keeps the bound storage live, `state.accesses` declares its access modes, and `run_trials` runs inside `sync_scope`, so all trial work completes before the callback returns.
         unsafe {
             context
                 .cuda_context()

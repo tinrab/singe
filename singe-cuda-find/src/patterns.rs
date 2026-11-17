@@ -4,7 +4,7 @@ pub(crate) fn cuda_runtime_lib_patterns() -> Vec<&'static str> {
 }
 
 #[cfg(target_os = "linux")]
-pub fn cuda_runtime_lib_patterns() -> Vec<&'static str> {
+pub(crate) fn cuda_runtime_lib_patterns() -> Vec<&'static str> {
     vec!["libcudart.so", "libcudart.so.*"]
 }
 
@@ -14,7 +14,7 @@ pub(crate) fn nvrtc_lib_patterns() -> Vec<&'static str> {
 }
 
 #[cfg(target_os = "linux")]
-pub fn nvrtc_lib_patterns() -> Vec<&'static str> {
+pub(crate) fn nvrtc_lib_patterns() -> Vec<&'static str> {
     vec!["libnvrtc.so", "libnvrtc.so.*"]
 }
 
@@ -24,7 +24,7 @@ pub(crate) fn nvvm_lib_patterns() -> Vec<&'static str> {
 }
 
 #[cfg(target_os = "linux")]
-pub fn nvvm_lib_patterns() -> Vec<&'static str> {
+pub(crate) fn nvvm_lib_patterns() -> Vec<&'static str> {
     vec!["libnvvm.so", "libnvvm.so.*"]
 }
 
@@ -34,7 +34,7 @@ pub(crate) fn nvml_lib_patterns() -> Vec<&'static str> {
 }
 
 #[cfg(target_os = "linux")]
-pub fn nvml_lib_patterns() -> Vec<&'static str> {
+pub(crate) fn nvml_lib_patterns() -> Vec<&'static str> {
     vec!["libnvidia-ml.so", "libnvidia-ml.so.*"]
 }
 
@@ -44,7 +44,7 @@ pub(crate) fn cuda_driver_lib_patterns() -> Vec<&'static str> {
 }
 
 #[cfg(target_os = "linux")]
-pub fn cuda_driver_lib_patterns() -> Vec<&'static str> {
+pub(crate) fn cuda_driver_lib_patterns() -> Vec<&'static str> {
     vec!["libcuda.so", "libcuda.so.*"]
 }
 
@@ -54,7 +54,7 @@ pub(crate) fn cublas_lib_patterns() -> Vec<&'static str> {
 }
 
 #[cfg(target_os = "linux")]
-pub fn cublas_lib_patterns() -> Vec<&'static str> {
+pub(crate) fn cublas_lib_patterns() -> Vec<&'static str> {
     vec!["libcublas.so", "libcublas.so.*"]
 }
 
@@ -64,7 +64,7 @@ pub(crate) fn curand_lib_patterns() -> Vec<&'static str> {
 }
 
 #[cfg(target_os = "linux")]
-pub fn curand_lib_patterns() -> Vec<&'static str> {
+pub(crate) fn curand_lib_patterns() -> Vec<&'static str> {
     vec!["libcurand.so", "libcurand.so.*"]
 }
 
@@ -74,7 +74,7 @@ pub(crate) fn cusolver_lib_patterns() -> Vec<&'static str> {
 }
 
 #[cfg(target_os = "linux")]
-pub fn cusolver_lib_patterns() -> Vec<&'static str> {
+pub(crate) fn cusolver_lib_patterns() -> Vec<&'static str> {
     vec!["libcusolver.so", "libcusolver.so.*"]
 }
 
@@ -84,7 +84,7 @@ pub(crate) fn cudss_lib_patterns() -> Vec<&'static str> {
 }
 
 #[cfg(target_os = "linux")]
-pub fn cudss_lib_patterns() -> Vec<&'static str> {
+pub(crate) fn cudss_lib_patterns() -> Vec<&'static str> {
     vec!["libcudss.so", "libcudss.so.*"]
 }
 
@@ -94,7 +94,7 @@ pub(crate) fn nvcomp_lib_patterns() -> Vec<&'static str> {
 }
 
 #[cfg(target_os = "linux")]
-pub fn nvcomp_lib_patterns() -> Vec<&'static str> {
+pub(crate) fn nvcomp_lib_patterns() -> Vec<&'static str> {
     vec!["libnvcomp.so", "libnvcomp.so.*"]
 }
 
@@ -104,7 +104,7 @@ pub(crate) fn nvjpeg_lib_patterns() -> Vec<&'static str> {
 }
 
 #[cfg(target_os = "linux")]
-pub fn nvjpeg_lib_patterns() -> Vec<&'static str> {
+pub(crate) fn nvjpeg_lib_patterns() -> Vec<&'static str> {
     vec!["libnvjpeg.so", "libnvjpeg.so.*"]
 }
 
@@ -114,7 +114,7 @@ pub(crate) fn nvjpeg2k_lib_patterns() -> Vec<&'static str> {
 }
 
 #[cfg(target_os = "linux")]
-pub fn nvjpeg2k_lib_patterns() -> Vec<&'static str> {
+pub(crate) fn nvjpeg2k_lib_patterns() -> Vec<&'static str> {
     vec!["libnvjpeg2k.so", "libnvjpeg2k.so.*"]
 }
 
@@ -124,7 +124,7 @@ pub(crate) fn cusparse_lib_patterns() -> Vec<&'static str> {
 }
 
 #[cfg(target_os = "linux")]
-pub fn cusparse_lib_patterns() -> Vec<&'static str> {
+pub(crate) fn cusparse_lib_patterns() -> Vec<&'static str> {
     vec!["libcusparse.so", "libcusparse.so.*"]
 }
 
@@ -134,7 +134,7 @@ pub(crate) fn cutensor_lib_patterns() -> Vec<&'static str> {
 }
 
 #[cfg(target_os = "linux")]
-pub fn cutensor_lib_patterns() -> Vec<&'static str> {
+pub(crate) fn cutensor_lib_patterns() -> Vec<&'static str> {
     vec!["libcutensor.so", "libcutensor.so.*"]
 }
 
@@ -144,7 +144,7 @@ pub(crate) fn cufile_lib_patterns() -> Vec<&'static str> {
 }
 
 #[cfg(target_os = "linux")]
-pub fn cufile_lib_patterns() -> Vec<&'static str> {
+pub(crate) fn cufile_lib_patterns() -> Vec<&'static str> {
     vec!["libcufile.so", "libcufile.so.*"]
 }
 
@@ -154,7 +154,7 @@ pub(crate) fn cudnn_lib_patterns() -> Vec<&'static str> {
 }
 
 #[cfg(target_os = "linux")]
-pub fn cudnn_lib_patterns() -> Vec<&'static str> {
+pub(crate) fn cudnn_lib_patterns() -> Vec<&'static str> {
     vec!["libcudnn.so", "libcudnn.so.*"]
 }
 
@@ -164,7 +164,7 @@ pub(crate) fn cupti_lib_patterns() -> Vec<&'static str> {
 }
 
 #[cfg(target_os = "linux")]
-pub fn cupti_lib_patterns() -> Vec<&'static str> {
+pub(crate) fn cupti_lib_patterns() -> Vec<&'static str> {
     vec!["libcupti.so", "libcupti.so.*"]
 }
 
@@ -174,7 +174,7 @@ pub(crate) fn nccl_lib_patterns() -> Vec<&'static str> {
 }
 
 #[cfg(target_os = "linux")]
-pub fn nccl_lib_patterns() -> Vec<&'static str> {
+pub(crate) fn nccl_lib_patterns() -> Vec<&'static str> {
     vec!["libnccl.so", "libnccl.so.*"]
 }
 
@@ -184,7 +184,7 @@ pub(crate) fn npp_lib_patterns() -> Vec<&'static str> {
 }
 
 #[cfg(target_os = "linux")]
-pub fn npp_lib_patterns() -> Vec<&'static str> {
+pub(crate) fn npp_lib_patterns() -> Vec<&'static str> {
     vec!["libnppc.so", "libnppc.so.*"]
 }
 
@@ -194,7 +194,7 @@ pub(crate) fn nvimagecodec_lib_patterns() -> Vec<&'static str> {
 }
 
 #[cfg(target_os = "linux")]
-pub fn nvimagecodec_lib_patterns() -> Vec<&'static str> {
+pub(crate) fn nvimagecodec_lib_patterns() -> Vec<&'static str> {
     vec!["libnvimgcodec.so", "libnvimgcodec.so.*"]
 }
 
@@ -204,6 +204,6 @@ pub(crate) fn nvtiff_lib_patterns() -> Vec<&'static str> {
 }
 
 #[cfg(target_os = "linux")]
-pub fn nvtiff_lib_patterns() -> Vec<&'static str> {
+pub(crate) fn nvtiff_lib_patterns() -> Vec<&'static str> {
     vec!["libnvtiff.so", "libnvtiff.so.*"]
 }

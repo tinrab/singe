@@ -1,10 +1,12 @@
+//! Native status codes and checked cuDNN wrapper errors.
+
 use std::{
-    borrow::Cow, collections::TryReserveError, hash::Hash, io::Error as IoError,
+    borrow::Cow, collections::TryReserveError, fmt, hash::Hash, io::Error as IoError,
     num::ParseIntError, path::PathBuf, result::Result as StdResult,
 };
 
 use serde_json::Error as JsonError;
-use singe_core::{static_str_from_c_ptr, status_enum};
+use singe_core::LibraryVersion;
 use singe_cuda::error::Error as CudaError;
 use singe_cudnn_sys as sys;
 use thiserror::Error;
@@ -19,14 +21,21 @@ use crate::{
     frontend::error::Error as FrontendError,
 };
 
-status_enum! {
+singe_core::wrapper_status! {
+    library = "cudnn",
+    error = Error::Cudnn,
+    raw = sys::cudnnStatus_t,
+    success = CUDNN_STATUS_SUCCESS,
+    absence = sys::take_absence,
+    diagnostic = last_error_string,
+    unknown = "UNKNOWN_CUDNN_STATUS",
+    description = sys::cudnnGetErrorString,
     /// Status returned by cuDNN operations.
-    pub enum Status: u32 => sys::cudnnStatus_t, unknown = "UNKNOWN_CUDNN_STATUS" {
+    pub enum Status: u32 {
         /// The operation was completed successfully.
         Success = CUDNN_STATUS_SUCCESS,
         /// The cuDNN library was not initialized properly.
-        /// This error is usually returned when a call to `cudnnCreate` fails or when `cudnnCreate` has not been called prior to calling another cuDNN routine.
-        /// In the former case, it is usually due to an error in the CUDA Runtime API called by `cudnnCreate` or by an error in the hardware setup.
+        /// Handle creation failed, usually through a CUDA runtime or hardware setup error, or a call ran without a handle.
         NotInitialized = CUDNN_STATUS_NOT_INITIALIZED,
         /// Some cuDNN sub libraries have different versions, indicative of an installation issue.
         SublibraryVersionMismatch = CUDNN_STATUS_SUBLIBRARY_VERSION_MISMATCH,
@@ -57,7 +66,7 @@ status_enum! {
         BadParamAttributeType = CUDNN_STATUS_BAD_PARAM_ATTRIBUTE_TYPE,
         /// The cuDNN API has received an unexpected CUDA graph.
         BadParamCudaGraphMismatch = CUDNN_STATUS_BAD_PARAM_CUDA_GRAPH_MISMATCH,
-        ///< Wrong descriptor type. @since cuDNN 9.6.0
+        /// Wrong descriptor type.
         BadParamDescriptorType = CUDNN_STATUS_BAD_PARAM_DESCRIPTOR_TYPE,
         /// This is an error category code.
         /// An internal cuDNN operation failed.
@@ -76,7 +85,8 @@ status_enum! {
         /// To correct, prior to the function call, unbind any previously bound textures.
         /// Otherwise, this may indicate an internal error/bug in the library.
         InternalErrorTextureCreationFailed = CUDNN_STATUS_INTERNAL_ERROR_TEXTURE_CREATION_FAILED,
-        /// please transition to CUDNN_STATUS_BAD_PARAM instead
+        /// An invalid value.
+        /// Deprecated by cuDNN in favor of [`Status::BadParam`].
         InvalidValue = CUDNN_STATUS_INVALID_VALUE,
         /// This is an error category code.
         /// The GPU program failed to execute.
@@ -121,35 +131,26 @@ status_enum! {
         NotSupportedPadding = CUDNN_STATUS_NOT_SUPPORTED_PADDING,
         /// The requested functionality is not available because they lead to invalid kernel launch parameters.
         NotSupportedBadLaunchParam = CUDNN_STATUS_NOT_SUPPORTED_BAD_LAUNCH_PARAM,
-        /// The requested functionality is not available because this particular engine does not support the native CUDA graph API. (The engines that do support that API have the behavior note `cudnnBackendBehaviorNote_t::CUDNN_BEHAVIOR_NOTE_SUPPORTS_CUDA_GRAPH_NATIVE_API`.)
+        /// The requested functionality is not available because this engine does not support the native CUDA graph API.
+        /// Engines that support it report [`BackendBehaviorNote::SupportsCudaGraphNativeApi`](crate::backend::behavior::BackendBehaviorNote::SupportsCudaGraphNativeApi).
         NotSupportedCudaGraphNativeApi = CUDNN_STATUS_NOT_SUPPORTED_CUDA_GRAPH_NATIVE_API,
-        ///< Invalid dynamic shape. @since cuDNN 9.18.0
+        /// Invalid dynamic shape.
         NotSupportedInvalidDynamicShape = CUDNN_STATUS_NOT_SUPPORTED_INVALID_DYNAMIC_SHAPE,
         /// Some tasks in the user stream are not completed.
         RuntimeInProgress = CUDNN_STATUS_RUNTIME_IN_PROGRESS,
         /// Numerical overflow occurred during the GPU kernel execution.
         RuntimeFpOverflow = CUDNN_STATUS_RUNTIME_FP_OVERFLOW,
-        ///< Sub-library loading failed. @since cuDNN 9.2.0
+        /// Sub-library loading failed.
         SublibraryLoadingFailed = CUDNN_STATUS_SUBLIBRARY_LOADING_FAILED,
     }
 }
 
 impl Status {
-    /// Library description of this status.
-    #[must_use]
-    pub fn description(self) -> &'static str {
-        let Ok(raw) = sys::cudnnStatus_t::try_from(self) else {
-            return "unknown cudnn error";
-        };
-        // SAFETY: `cudnnGetErrorString` returns null or a static NUL-terminated string.
-        unsafe { static_str_from_c_ptr(sys::cudnnGetErrorString(raw), "unknown cudnn error") }
-    }
-
-    /// Whether this is `CUDNN_STATUS_NOT_SUPPORTED` or one of its sub-statuses.
+    /// Returns whether this is [`Status::NotSupported`] or one of its `NotSupported*` sub-statuses.
     #[must_use]
     pub const fn is_not_supported(self) -> bool {
         let raw = self.raw();
-        raw >= sys::cudnnStatus_t::CUDNN_STATUS_NOT_SUPPORTED as u32 && raw < 4000
+        raw >= sys::cudnnStatus_t::CUDNN_STATUS_NOT_SUPPORTED.0 && raw < 4000
     }
 }
 
@@ -157,9 +158,9 @@ impl Status {
 #[derive(Error, Debug)]
 #[non_exhaustive]
 pub enum Error {
-    // Its library would not load.
+    /// cuDNN or one of its symbols would not load.
     #[error(transparent)]
-    Load(#[from] singe_cudnn_sys::LoadError),
+    Load(#[from] sys::LoadError),
 
     /// Frontend graph construction, preparation, planning, or execution failed.
     #[error(transparent)]
@@ -201,6 +202,13 @@ pub enum Error {
     #[error("invalid tensor id integer")]
     TensorIdParse(#[from] ParseIntError),
 
+    /// A tensor identifier is negative.
+    #[error("tensor id {value} must be non-negative")]
+    TensorIdInvalid {
+        /// Negative tensor identifier supplied by the caller.
+        value: i64,
+    },
+
     /// An errata rule has an empty operation name.
     #[error("errata operation cannot be empty")]
     ErrataOperationEmpty,
@@ -216,9 +224,9 @@ pub enum Error {
     #[error("errata version end {end} must exceed version start {start}")]
     ErrataVersionRangeInvalid {
         /// Start of the invalid cuDNN version interval.
-        start: u64,
+        start: LibraryVersion,
         /// End of the invalid cuDNN version interval.
-        end: u64,
+        end: LibraryVersion,
     },
 
     /// An errata shape contains a negative dimension.
@@ -243,17 +251,32 @@ pub enum Error {
     #[error("sdpa forward query and key/value sequence lengths must be supplied together")]
     SdpaSequenceLengthsIncomplete,
 
+    /// An SDPA implementation does not support a requested capability.
+    #[error("{operation} does not support {feature}{}", on_sm(*.sm_version))]
+    SdpaUnsupported {
+        /// Operation whose requirements failed validation.
+        operation: &'static str,
+        /// Requested feature that is unavailable or requires a newer runtime.
+        feature: SdpaFeature,
+        /// Target SM architecture version, or `None` when unavailable.
+        sm_version: Option<i32>,
+    },
+
     /// A CUDA operation failed.
     #[error(transparent)]
-    Cuda(#[from] CudaError),
+    Cuda(CudaError),
 
-    /// Native status, its description and any captured current-thread cuDNN diagnostic.
-    #[error("cudnn error ({code}): {message}")]
+    /// cuDNN returned a failure status, with the diagnostic it recorded for the calling thread.
+    #[error(
+        "cudnn error ({code}): {}{}{diagnostic}",
+        code.description(),
+        diagnostic_separator(diagnostic)
+    )]
     Cudnn {
         /// Native cuDNN status returned by the failed call.
         code: Status,
-        /// Status description, optionally followed by a captured thread-local cuDNN diagnostic.
-        message: String,
+        /// cuDNN's last error message for the calling thread, empty when it recorded none or the error was built from a [`Status`].
+        diagnostic: String,
     },
 
     /// JSON serialization or deserialization failed.
@@ -263,6 +286,15 @@ pub enum Error {
     /// A native resource handle is unexpectedly null.
     #[error("unexpected null handle")]
     NullHandle,
+
+    /// A native enum value has no typed variant in this crate.
+    #[error("unknown `{name}` value {value}")]
+    UnknownEnumValue {
+        /// Name of the typed enum.
+        name: Cow<'static, str>,
+        /// Unrecognized native value.
+        value: i64,
+    },
 
     /// An argument or checked conversion is outside the supported range.
     #[error("`{name}` is out of range")]
@@ -293,9 +325,9 @@ pub enum Error {
     },
 
     /// A required list is empty.
-    #[error("`{name}` must not be empty")]
-    EmptyList {
-        /// Name of the invalid argument, attribute, or related resource.
+    #[error("`{name}` is empty")]
+    Empty {
+        /// Name of the empty list.
         name: Cow<'static, str>,
     },
 
@@ -333,15 +365,6 @@ pub enum Error {
         actual: DataType,
     },
 
-    /// A native enum value is invalid for the requested wrapper type.
-    #[error("invalid enum value for `{name}`: {value}")]
-    InvalidEnumValue {
-        /// Name of the invalid argument, attribute, or related resource.
-        name: Cow<'static, str>,
-        /// Invalid native integer enum value.
-        value: u32,
-    },
-
     /// A scalar value and its tensor descriptor have different data types.
     #[error("scalar data type {actual} does not match tensor data type {expected}")]
     TensorScalarDataTypeMismatch {
@@ -362,45 +385,41 @@ pub enum Error {
         actual: DataType,
     },
 
-    /// A native tensor binding has insufficient byte capacity.
-    #[error("native tensor `{tensor_id}` requires {required} bytes, but binding has {actual}")]
-    BackendTensorBindingCapacityMismatch {
-        /// Identifier of the native tensor whose binding is invalid.
-        tensor_id: BackendTensorUid,
-        /// Required binding capacity in bytes.
-        required: usize,
-        /// Supplied binding capacity in bytes.
-        actual: usize,
-    },
-
-    /// A native tensor binding does not satisfy its byte alignment.
-    #[error("native tensor `{tensor_id}` requires {required}-byte binding alignment")]
-    BackendTensorBindingAlignmentMismatch {
-        /// Identifier of the native tensor whose binding is invalid.
-        tensor_id: BackendTensorUid,
-        /// Required device-address alignment in bytes.
-        required: usize,
-    },
-
     /// A pointwise axis was supplied for an operation that does not generate indices.
     #[error("pointwise axis requires index generation")]
     PointwiseAxisRequiresIndexGeneration,
 
-    /// The execution-plan cache mutex is poisoned.
-    #[error("execution plan cache lock poisoned")]
-    ExecutionPlanCacheLockPoisoned,
-
-    /// The heuristic-mode B mutex is poisoned.
-    #[error("heuristic mode b lock poisoned")]
-    EngineHeuristicsLockPoisoned,
-
-    /// An operation requires an explicitly configured cuDNN stream.
-    #[error("context stream is not set")]
-    ContextStreamNotSet,
+    /// A mutex was poisoned by a panic while it was held.
+    #[error("`{name}` lock is poisoned")]
+    LockPoisoned {
+        /// Name of the locked resource.
+        name: Cow<'static, str>,
+    },
 
     /// No compatible native execution engine is available.
     #[error("no available engines")]
     NoAvailableEngines,
+
+    /// Planning without a live context requires explicit target-device properties.
+    #[error("deviceless planning requires device properties")]
+    DevicelessRequiresDeviceProperties,
+
+    /// Native CUDA graph population requires an empty destination graph.
+    #[error("cuda graph provided to populate must be empty")]
+    CudaGraphPopulateRequiresEmptyGraph,
+
+    /// Input, filter, and output channel counts cannot form valid convolution groups.
+    #[error(
+        "convolution channels cannot form groups: input={input_channels}, filter={filter_channels}, output={output_channels}"
+    )]
+    ConvolutionGroupChannelsMismatch {
+        /// Number of input channels.
+        input_channels: i64,
+        /// Number of input channels per convolution filter.
+        filter_channels: i64,
+        /// Number of output channels.
+        output_channels: i64,
+    },
 
     /// Related descriptors do not describe the same required operation or resource.
     #[error("descriptor mismatch for `{name}`")]
@@ -413,19 +432,21 @@ pub enum Error {
     #[error("stream belongs to a different cuda context")]
     StreamContextMismatch,
 
-    /// Resources that must share one cuDNN handle belong to different handles.
-    #[error("cudnn contexts must match for `{name}`")]
+    /// A cuDNN object belongs to a different cuDNN context.
+    #[error("`{name}` belongs to a different cudnn context")]
     ContextMismatch {
-        /// Name of the invalid argument, attribute, or related resource.
+        /// Name of the object.
         name: Cow<'static, str>,
     },
 
-    /// The supplied workspace has insufficient byte capacity.
-    #[error("insufficient workspace size: {actual} bytes provided (required {required} bytes)")]
-    InsufficientWorkspaceSize {
-        /// Required workspace capacity in bytes.
+    /// A buffer or workspace is smaller than the operation requires.
+    #[error("`{name}` is too small (requires {required}, got {actual})")]
+    BufferTooSmall {
+        /// Name of the buffer.
+        name: Cow<'static, str>,
+        /// Required size in bytes.
         required: usize,
-        /// Supplied workspace capacity in bytes.
+        /// Supplied size in bytes.
         actual: usize,
     },
 
@@ -499,78 +520,135 @@ impl Error {
     }
 }
 
-/// Captures the current thread's native diagnostic before any later cuDNN call can replace it.
-/// Consumes that diagnostic, unlike conversion from a plain [`Status`].
-impl From<sys::cudnnStatus_t> for Error {
-    fn from(status: sys::cudnnStatus_t) -> Self {
-        if status == sys::cudnnStatus_t::CUDNN_STATUS_NOT_INITIALIZED
-            && let Err(error) = singe_cudnn_sys::load()
-        {
-            return Self::Load(error);
-        }
-
-        let diagnostic = last_error_string();
-        let code = Status::from(status);
-        let mut message = code.description().to_owned();
-        if !diagnostic.is_empty() {
-            message.push_str(": ");
-            message.push_str(&diagnostic);
-        }
-        Self::Cudnn { code, message }
-    }
-}
-
-impl From<Status> for Error {
-    fn from(code: Status) -> Self {
-        Self::Cudnn {
-            code,
-            message: code.description().to_string(),
+impl From<CudaError> for Error {
+    fn from(error: CudaError) -> Self {
+        match error {
+            CudaError::StreamContextMismatch => Self::StreamContextMismatch,
+            error => Self::Cuda(error),
         }
     }
 }
 
-/// Converts a raw cuDNN status-returning expression into a crate [`Result`](crate::error::Result).
-#[macro_export]
+impl From<singe_core::UnknownEnumValue> for Error {
+    fn from(error: singe_core::UnknownEnumValue) -> Self {
+        Self::UnknownEnumValue {
+            name: error.name.into(),
+            value: error.value,
+        }
+    }
+}
+
+/// SDPA capability rejected by [`Error::SdpaUnsupported`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum SdpaFeature {
+    /// Auxiliary attention gradients.
+    AuxiliaryGradients,
+    /// An attention-bias gradient.
+    BiasGradient,
+    /// Bias gradients, dropout, or attention with linear biases (`ALiBi`).
+    BiasDropoutOrAlibi,
+    /// Causal masking aligned to the bottom-right corner of the attention matrix.
+    CausalBottomRight,
+    /// Cumulative sequence-length tensors.
+    CumulativeSequenceLengths,
+    /// Caller-supplied dropout mask and scale tensors.
+    CustomDropout,
+    /// Attention dropout.
+    Dropout,
+    /// Dropout combined with generated softmax statistics.
+    DropoutWithGeneratedStats,
+    /// Dynamic-shape compilation rather than runtime shape overrides.
+    DynamicShape,
+    /// Internally generated dropout.
+    GeneratedDropout,
+    /// A bias tensor with a nonnumeric data type.
+    NonNumericBias,
+    /// Paged key/value caches.
+    PagedCaches,
+    /// Ragged attention outputs.
+    RaggedOutputs,
+    /// Ragged tensor storage.
+    RaggedTensors,
+    /// Dumping generated random numbers.
+    RngDump,
+    /// A sequence containing one token.
+    SingleTokenSequence,
+    /// The selected target architecture.
+    TargetArchitecture,
+    /// `ALiBi` slopes without causal top-left or right-aligned sliding-window masking.
+    UnalignedAlibi,
+}
+
+impl fmt::Display for SdpaFeature {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::AuxiliaryGradients => "auxiliary gradients",
+            Self::BiasGradient => "bias gradients",
+            Self::BiasDropoutOrAlibi => "bias gradients, dropout, or alibi",
+            Self::CausalBottomRight => "causal bottom-right masking",
+            Self::CumulativeSequenceLengths => "cumulative sequence lengths",
+            Self::CustomDropout => "custom dropout mask and scale tensors",
+            Self::Dropout => "dropout",
+            Self::DropoutWithGeneratedStats => "dropout with generated stats",
+            Self::DynamicShape => "dynamic-shape compilation; use runtime shape overrides",
+            Self::GeneratedDropout => "generated dropout",
+            Self::NonNumericBias => "a bias tensor with a non-numeric data type",
+            Self::PagedCaches => "paged key/value caches",
+            Self::RaggedOutputs => "ragged outputs",
+            Self::RaggedTensors => "ragged tensors",
+            Self::RngDump => "rng dump",
+            Self::SingleTokenSequence => "sequence length one",
+            Self::TargetArchitecture => "this target architecture",
+            Self::UnalignedAlibi => {
+                "alibi slopes without causal top-left or right-aligned sliding-window masking"
+            }
+        })
+    }
+}
+
+// Separates a non-empty thread diagnostic from the status description.
+fn diagnostic_separator(diagnostic: &str) -> &'static str {
+    if diagnostic.is_empty() { "" } else { ": " }
+}
+
+// Names the target architecture in an SDPA error when it is known.
+pub(crate) fn on_sm(sm_version: Option<i32>) -> String {
+    sm_version.map_or_default(|sm_version| format!(" on SM {sm_version}"))
+}
+
+// Converts a raw cuDNN status into this crate's `Result`.
 macro_rules! try_ffi {
-    ($expr:expr) => {{
-        let status = { $expr };
-        if status != singe_cudnn_sys::cudnnStatus_t::CUDNN_STATUS_SUCCESS {
-            Err($crate::error::Error::from(status))
-        } else {
-            Ok(())
-        }
-    }};
+    ($expr:expr) => {
+        $crate::error::Error::check($expr)
+    };
 }
+
+pub(crate) use try_ffi;
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn test_unknown_status_is_preserved_as_typed_cudnn_status() {
-        let error = Error::from(Status::Unknown(12345));
-
-        match error {
-            Error::Cudnn {
-                code: Status::Unknown(code),
-                message,
-            } => {
-                assert_eq!(code, 12345);
-                assert_eq!(message, "unknown cudnn error");
-            }
-            error => panic!("unexpected error: {error:?}"),
-        }
-    }
-
-    #[test]
-    fn test_known_status_round_trips_to_raw_status() {
+    fn test_sdpa_unsupported_mentions_architecture_only_when_known() {
+        let with_sm = Error::SdpaUnsupported {
+            operation: "sdpa backward",
+            feature: SdpaFeature::RaggedTensors,
+            sm_version: Some(90),
+        };
         assert_eq!(
-            sys::cudnnStatus_t::try_from(Status::NotSupported).unwrap(),
-            sys::cudnnStatus_t::CUDNN_STATUS_NOT_SUPPORTED
+            with_sm.to_string(),
+            "sdpa backward does not support ragged tensors on SM 90"
         );
+        let without_sm = Error::SdpaUnsupported {
+            operation: "mxfp8 sdpa",
+            feature: SdpaFeature::PagedCaches,
+            sm_version: None,
+        };
         assert_eq!(
-            Status::try_from(sys::cudnnStatus_t::CUDNN_STATUS_RUNTIME_FP_OVERFLOW as u32).unwrap(),
-            Status::RuntimeFpOverflow
+            without_sm.to_string(),
+            "mxfp8 sdpa does not support paged key/value caches"
         );
     }
 }

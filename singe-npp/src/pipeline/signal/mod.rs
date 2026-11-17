@@ -168,10 +168,8 @@ where
         }
 
         self.stream_context.stream().ensure_not_capturing()?;
-        if let Some(producer) = self.view().region().stream() {
-            producer.ensure_not_capturing()?;
-        }
-        Ok(())
+        // Every pipeline operation reads the current backing, so wait for its producer on another stream here.
+        self.stream_context.prepare_region(&self.view())
     }
 
     /// Returns the number of samples in the current backing.
@@ -221,7 +219,7 @@ where
     ///
     /// Transfers existing owned storage directly.
     /// For borrowed storage, allocates through the workspace, prepares source and destination regions, waits for producers on other streams, and completes the copy before returning.
-    /// The direct ownership-transfer path does not synchronize a pending producer.
+    /// Both paths first wait for a producer on another stream.
     ///
     /// # Errors
     ///

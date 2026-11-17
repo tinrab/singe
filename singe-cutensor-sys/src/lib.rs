@@ -1,13 +1,22 @@
-//! Raw FFI bindings for cuTENSOR and cuTENSORMg.
+//! Low-level FFI bindings for cuTENSOR 2.8 (`cutensor.h`), with optional bindings for cuTENSORMg (`cutensorMg.h`) and cuTENSORMp (`cutensorMp.h`).
+//! Each library loads at run time through [`singe-loader`](singe_loader), on the first call of one of its functions or up front with [`load`], `load_mg`, and `load_mp`, so building links no NVIDIA library.
+//! If the library or one of its symbols is missing, a function that returns a status returns a failure status, and [`take_absence`] reports what was missing.
+//! Most users want the safe `singe-cutensor` crate.
 //!
-//! Prefer the safe `singe-cutensor` crate unless direct NVIDIA ABI access is required.
-
+//! # Features
+//!
+//! - `mg`: cuTENSORMg, for tensor operations across several GPUs in one process.
+//! - `mp`: cuTENSORMp, for tensor operations across processes over NCCL; adds a dependency on `singe-nccl-sys`.
 #![allow(
     non_camel_case_types,
     non_snake_case,
+    non_upper_case_globals,
     unnecessary_transmutes,
     unused_imports,
     unused_qualifications,
+    missing_debug_implementations,
+    unnameable_types,
+    unreachable_pub,
     clippy::correctness,
     clippy::suspicious,
     clippy::complexity,
@@ -16,12 +25,18 @@
     clippy::absolute_paths,
     clippy::pedantic,
     clippy::nursery,
+    clippy::undocumented_unsafe_blocks,
     reason = "generated bindings preserve upstream ABI conventions and documentation"
 )]
 
-use num_enum::{IntoPrimitive, TryFromPrimitive};
+#[cfg(not(feature = "cutensor_2_8"))]
+compile_error!("singe-cutensor-sys requires a version feature, such as `cutensor_2_8`");
+
+#[cfg(feature = "cutensor_2_8")]
 use singe_cuda_sys::driver::CUstream as cudaStream_t;
+#[cfg(feature = "cutensor_2_8")]
 pub use singe_cuda_sys::library_types::cudaDataType as cudaDataType_t;
+#[cfg(feature = "mp")]
 use singe_nccl_sys::ncclComm_t;
 
 #[cfg(feature = "cutensor_2_8")]
@@ -33,25 +48,41 @@ include!("mg_20800.rs");
 #[cfg(all(feature = "cutensor_2_8", feature = "mp"))]
 include!("mp_20800.rs");
 
-pub use singe_loader::LoadError;
+pub use singe_loader::{Absence, LoadError, take_absence};
 
 static LIBRARY: singe_loader::Library = singe_loader::Library::cutensor();
 
-// Loads cuTENSOR, which each of its functions otherwise does on first call.
+/// Loads cuTENSOR now, instead of on the first call of one of its functions.
+///
+/// # Errors
+///
+/// Returns an error if the library has no files on this platform or one of its files would not load.
 pub fn load() -> Result<(), LoadError> {
     LIBRARY.load()
 }
 
+#[cfg(feature = "mg")]
 static MG: singe_loader::Library = singe_loader::Library::cutensor_mg();
 
-// Loads cuTENSORMg, which each of its functions otherwise does on first call.
+/// Loads cuTENSORMg now, instead of on the first call of one of its functions.
+///
+/// # Errors
+///
+/// Returns an error if the library has no files on this platform or one of its files would not load.
+#[cfg(feature = "mg")]
 pub fn load_mg() -> Result<(), LoadError> {
     MG.load()
 }
 
+#[cfg(feature = "mp")]
 static MP: singe_loader::Library = singe_loader::Library::cutensor_mp();
 
-// Loads cuTENSORMp, which each of its functions otherwise does on first call.
+/// Loads cuTENSORMp now, instead of on the first call of one of its functions.
+///
+/// # Errors
+///
+/// Returns an error if the library has no files on this platform or one of its files would not load.
+#[cfg(feature = "mp")]
 pub fn load_mp() -> Result<(), LoadError> {
     MP.load()
 }

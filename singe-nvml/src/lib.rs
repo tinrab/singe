@@ -1,39 +1,45 @@
-//! Safe NVIDIA Management Library wrappers for monitoring, device management, MIG, and vGPU APIs.
+//! Safe Rust wrappers for NVML, the NVIDIA Management Library, for monitoring and managing GPUs.
+//! NVML ships with the NVIDIA driver and needs no CUDA Toolkit or CUDA runtime.
 //!
-//! This crate wraps NVML initialization and shutdown, system queries, device and unit handles, MIG GPU and compute instances, vGPU types and instances, event sets, clocks, power, thermals, memory, utilization, and other management interfaces exposed by NVIDIA drivers.
+//! This crate provides:
 //!
-//! # Setup
-//!
-//! NVML is supplied by the NVIDIA driver rather than the CUDA Toolkit.
-//! The build and runtime environment must be able to locate the driver NVML library, for example through the platform library path.
-//!
-//! # Thread safety
-//!
-//! NVML is thread-safe, so handles such as [`device::Device`] are `Send` and `Sync`.
-//! APIs that write into caller-owned objects, such as GPM samples, take `&mut`.
-//!
-//! # Testing
-//!
-//! Tests query the installed NVIDIA driver and any devices it reports.
-//! This crate has no `testing` feature.
+//! - **Library:** [`Library`](library::Library) owns an NVML initialization and reports driver and CUDA driver versions, enumerates devices and units, and creates event sets and GPM samples.
+//! - **Devices:** [`Device`](device::Device) queries memory, utilization, temperature, fans, clocks, power, ECC, PCI, topology, and processes, and changes the settings NVML exposes for them.
+//! - **MIG:** GPU instances and compute instances on partitioned GPUs.
+//! - **vGPU:** vGPU types and instances.
+//! - **Operational events:** subscriptions to GPU operational events.
 //!
 //! # Example
 //!
-//! ```
-//! use singe_nvml::library::Library;
+//! Print each GPU's name and free memory, then the NVML version:
 //!
-//! let nvml = Library::create()?;
-//! let count = nvml.device_count()?;
+//! ```rust,no_run
+//! use singe_nvml::{library::Library, types::InitFlags};
 //!
-//! for index in 0..count {
-//!     let device = nvml.device(index)?;
-//!     let memory = device.memory_info()?;
-//!     println!("{}: {} MiB free", device.name()?, memory.free / 1_048_576);
+//! fn main() -> anyhow::Result<()> {
+//!     let nvml = Library::create(InitFlags::empty())?;
+//!     for index in 0..nvml.device_count()? {
+//!         let device = nvml.device(index)?;
+//!         let memory = device.memory_info()?;
+//!         println!("{}: {} MiB free", device.name()?, memory.free / 1_048_576);
+//!     }
+//!
+//!     println!("NVML version: {}", singe_nvml::version()?);
+//!     Ok(())
 //! }
-//!
-//! println!("NVML version: {}", singe_nvml::version()?);
-//! # Ok::<(), singe_nvml::error::Error>(())
 //! ```
+//!
+//! [`Library::create`](library::Library::create) initializes NVML without initializing any GPU; NVML initializes a GPU when a handle to it is first requested.
+//! Devices and other objects keep their [`Library`](library::Library) alive, and NVML shuts down after the last [`Library`](library::Library) clone and every object that holds one are dropped.
+//! The queries and settings available depend on the GPU and driver, and changing a setting needs root or administrator permissions.
+//!
+//! # Thread safety
+//!
+//! NVML is thread-safe, so handles such as [`device::Device`] are [`Send`] and [`Sync`].
+//! APIs that write into caller-owned objects, such as GPM samples, take `&mut`.
+
+#[cfg(not(feature = "nvml_13"))]
+compile_error!("singe-nvml requires a version feature, such as `nvml_13`");
 
 /// MIG compute-instance handles, profiles, and placement queries.
 pub mod compute_instance;
@@ -49,9 +55,6 @@ pub mod gpu_instance;
 
 /// NVML initialization, reference-counted shutdown, and system queries.
 pub mod library;
-
-/// Device power, memory partitioning, and telemetry controls.
-pub mod management;
 
 /// Owned event records and structured GPU Operational Event subscriptions.
 pub mod operational_event;
@@ -70,21 +73,25 @@ pub mod vgpu_type;
 
 pub(crate) mod utility;
 
+pub use singe_core::CudaVersion;
 use singe_core::string_from_c_chars;
-use singe_nvml_sys as sys;
+pub use singe_nvml_sys as sys;
 
-use crate::{error::Result, utility::to_u32};
+use crate::{
+    error::{Result, try_ffi},
+    utility::to_u32,
+};
 
 /// Returns the version of the NVML library.
 ///
-/// The version identifier is an alphanumeric string and does not require an initialized [`library::Library`] handle.
+/// The version is an alphanumeric string, and the query does not need an initialized [`library::Library`].
 ///
 /// # Errors
 ///
 /// Returns an error if the internal version buffer is too small or if NVML rejects the output argument.
 pub fn version() -> Result<String> {
-    let mut buffer = [0i8; sys::NVML_SYSTEM_NVML_VERSION_BUFFER_SIZE as usize];
-    // SAFETY: `nvmlSystemGetNVMLVersion` receives valid output locations.
+    let mut buffer = [0; sys::NVML_SYSTEM_NVML_VERSION_BUFFER_SIZE as usize];
+    // SAFETY: `buffer` holds the `buffer.len()` writable bytes passed as its length.
     unsafe {
         try_ffi!(sys::nvmlSystemGetNVMLVersion(
             buffer.as_mut_ptr(),
@@ -96,37 +103,14 @@ pub fn version() -> Result<String> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        error::{Error, Status},
-        library::Library,
-        types::{InitFlags, SystemEventTypes},
-    };
+    use crate::{error::Result, library::Library, types::InitFlags};
 
     #[test]
-    fn test_system_info_is_available_when_nvml_initializes() {
-        match Library::create_with_flags(InitFlags::NO_GPUS) {
-            Ok(nvml) => {
-                assert!(!crate::version().unwrap().is_empty());
-                assert!(!nvml.driver_version().unwrap().is_empty());
-                assert_ne!(nvml.cuda_driver_version().unwrap().raw, 0);
-                assert_ne!(nvml.cuda_driver_version_fallback().unwrap().raw, 0);
-                let _ = nvml.vgpu_version();
-                let _ = nvml.excluded_devices();
-                let _ = nvml.system_event_set().and_then(|set| {
-                    let _ = set.register_events(
-                        SystemEventTypes::GPU_DRIVER_BIND | SystemEventTypes::GPU_DRIVER_UNBIND,
-                    );
-                    match set.wait(0, 4) {
-                        Ok(_) => Ok(()),
-                        Err(Error::Nvml {
-                            code: Status::Timeout,
-                            ..
-                        }) => Ok(()),
-                        Err(error) => Err(error),
-                    }
-                });
-            }
-            Err(error) => eprintln!("error initializing nvml: {error:?}"),
-        }
+    fn test_system_info_is_available_when_nvml_initializes() -> Result<()> {
+        let nvml = Library::create(InitFlags::NO_GPUS)?;
+        assert!(!crate::version()?.is_empty());
+        assert!(!nvml.driver_version()?.is_empty());
+        assert_ne!(nvml.cuda_driver_version()?.major(), 0);
+        Ok(())
     }
 }

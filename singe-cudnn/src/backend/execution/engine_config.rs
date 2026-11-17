@@ -20,13 +20,12 @@ use crate::{
     },
     context::Context,
     error::{Error, Result, Status},
-    frontend::error::Error as FrontendError,
     utility::{bind_context, bind_for_drop, to_i32, to_usize, validate_context_pair},
 };
 
 /// Native resource targets used during engine selection and reconstruction.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct EnginePlanningConfig {
+pub struct EnginePlanningOptions {
     /// Number of SMs to target.
     /// Zero uses every SM; `None` leaves the target unset.
     pub sm_count_target: Option<u32>,
@@ -39,7 +38,7 @@ pub struct EnginePlanningConfig {
 /// Returned configurations retain that target even when the operation graph was prepared deviceless.
 #[derive(Debug)]
 pub struct EngineHeuristics<'a> {
-    planning: EnginePlanningConfig,
+    planning: EnginePlanningOptions,
     descriptor: BackendDescriptor,
     cuda_context: Option<Arc<CudaContext>>,
     _operation_graph: &'a OperationGraph,
@@ -149,7 +148,7 @@ pub struct LayoutInfo {
 /// Live configurations retain their actual CUDA context through native destruction.
 #[derive(Debug)]
 pub struct EngineConfig {
-    planning: OnceLock<EnginePlanningConfig>,
+    planning: OnceLock<EnginePlanningOptions>,
     descriptor: BackendDescriptor,
     cuda_context: Option<Arc<CudaContext>>,
     engine: OnceLock<Engine>,
@@ -166,7 +165,7 @@ impl EngineConfig {
     /// # Errors
     ///
     /// Returns an error if the retained CUDA context cannot be bound, the engine cannot be extracted, or a native resource-target query fails for a reason other than an absent or unsupported attribute.
-    pub fn planning_config(&self) -> Result<EnginePlanningConfig> {
+    pub fn planning_options(&self) -> Result<EnginePlanningOptions> {
         if let Some(planning) = self.planning.get() {
             return Ok(*planning);
         }
@@ -184,7 +183,7 @@ impl EngineConfig {
             ) => Ok(None),
             Err(error) => Err(error),
         };
-        let planning = EnginePlanningConfig {
+        let planning = EnginePlanningOptions {
             // cuDNN reports an unset target as a negative value.
             sm_count_target: attribute(BackendAttributeName::EngineSmCountTarget)?
                 .and_then(|count| u32::try_from(count).ok()),
@@ -208,9 +207,9 @@ impl EngineConfig {
         }
     }
 
-    /// Creates an explicit engine configuration for a live context using default resource targets.
+    /// Creates an explicit engine configuration with optional device properties and resource targets.
     ///
-    /// Obtains device properties from the retained live target.
+    /// When `device_properties` is `None`, queries properties from the retained live target.
     /// Empty knob choices use engine defaults.
     ///
     /// # Errors
@@ -221,30 +220,8 @@ impl EngineConfig {
         context: &Context,
         operation_graph: &OperationGraph,
         choice: &EngineChoice,
-    ) -> Result<Self> {
-        Self::create_with_config(
-            context,
-            operation_graph,
-            choice,
-            None,
-            EnginePlanningConfig::default(),
-        )
-    }
-
-    /// Creates an explicit engine configuration with optional device properties and resource targets.
-    ///
-    /// When `device_properties` is `None`, queries properties from the retained live target.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if live contexts disagree or cannot be bound, target properties cannot be obtained, a resource target does not fit `i32`, knob choices repeat a knob type, or native descriptor creation, attribute assignment, or finalization fails.
-    /// cuDNN validates engine and knob support for the selected graph and target.
-    pub fn create_with_config(
-        context: &Context,
-        operation_graph: &OperationGraph,
-        choice: &EngineChoice,
         device_properties: Option<&DeviceProperties>,
-        planning: EnginePlanningConfig,
+        planning: EnginePlanningOptions,
     ) -> Result<Self> {
         Self::create_for_target(
             Some(context),
@@ -267,7 +244,7 @@ impl EngineConfig {
         operation_graph: &OperationGraph,
         choice: &EngineChoice,
         device_properties: &DeviceProperties,
-        planning: EnginePlanningConfig,
+        planning: EnginePlanningOptions,
     ) -> Result<Self> {
         Self::create_for_target(
             None,
@@ -283,7 +260,7 @@ impl EngineConfig {
         operation_graph: &OperationGraph,
         choice: &EngineChoice,
         device_properties: Option<&DeviceProperties>,
-        planning: EnginePlanningConfig,
+        planning: EnginePlanningOptions,
     ) -> Result<Self> {
         let knob_choices = &choice.knob_choices;
         let mut knob_types = HashSet::with_capacity(knob_choices.len());
@@ -362,7 +339,8 @@ impl EngineConfig {
     /// A reported zero-byte requirement is `Some(0)`.
     ///
     /// # Errors
-    /// Returns native query errors other than an unavailable attribute, or an error if the reported size cannot be represented as a byte count.
+    ///
+    /// Returns an error if the native query fails for a reason other than an unavailable attribute, or the reported size cannot be represented as a byte count.
     pub fn shared_memory_size(&self) -> Result<Option<usize>> {
         bind_context(self.cuda_context())?;
         match self
@@ -402,7 +380,7 @@ impl EngineConfig {
 
     fn read_native_knob_choices(&self) -> Result<Vec<KnobChoiceInfo>> {
         bind_context(self.cuda_context())?;
-        // SAFETY: this attribute returns objects of the explicitly selected native class.
+        // SAFETY: `EngineCfgKnobChoices` holds knob-choice descriptors, so `KnobChoice` is the class cuDNN writes.
         let descriptors = unsafe {
             self.descriptor.attribute_descriptor_slice(
                 BackendAttributeName::EngineCfgKnobChoices,
@@ -433,7 +411,7 @@ impl EngineConfig {
     /// Missing or unsupported attribute-dependency metadata is returned as `None`.
     pub fn intermediate_infos(&self) -> Result<Vec<IntermediateInfo>> {
         bind_context(self.cuda_context())?;
-        // SAFETY: this attribute returns objects of the explicitly selected native class.
+        // SAFETY: `EngineCfgIntermediateInfo` holds intermediate-information descriptors, so `IntermediateInfo` is the class cuDNN writes.
         let descriptors = unsafe {
             self.descriptor.attribute_descriptor_slice(
                 BackendAttributeName::EngineCfgIntermediateInfo,
@@ -529,14 +507,15 @@ impl EngineConfig {
     /// Native queries complete before installing the cached owner.
     ///
     /// # Errors
-    /// Returns native extraction or engine-index errors when the engine has not been retained yet.
+    ///
+    /// Returns an error if the engine has not been retained yet and native extraction or the engine-index query fails.
     pub fn engine(&self) -> Result<&Engine> {
         if let Some(engine) = self.engine.get() {
             return Ok(engine);
         }
 
         bind_context(self.cuda_context())?;
-        // SAFETY: the named attribute requires the explicitly selected native class.
+        // SAFETY: `EngineCfgEngine` holds one engine descriptor, so `Engine` is the class cuDNN writes.
         let descriptor = unsafe {
             self.descriptor.attribute_descriptor(
                 BackendAttributeName::EngineCfgEngine,
@@ -573,7 +552,7 @@ impl<'a> EngineHeuristics<'a> {
         graph: &'a OperationGraph,
         modes: &[BackendHeuristicMode],
         device_properties: Option<&DeviceProperties>,
-        planning: EnginePlanningConfig,
+        planning: EnginePlanningOptions,
         policy: HeuristicQueryPolicy,
     ) -> EngineHeuristicsResult {
         let mut result = EngineHeuristicsResult {
@@ -601,22 +580,6 @@ impl<'a> EngineHeuristics<'a> {
         result
     }
 
-    /// Creates a heuristic query for a live context with an optional SM-count target.
-    ///
-    /// Queries device properties from the live target and leaves the shared-memory limit unset.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if live contexts disagree or cannot be bound, target properties cannot be obtained, a resource target does not fit `i32`, native descriptor creation, attribute assignment, or finalization fails, or the mutex serializing mode B finalization is poisoned.
-    pub fn create(
-        context: &Context,
-        graph: &'a OperationGraph,
-        mode: BackendHeuristicMode,
-        sm_count_target: Option<u32>,
-    ) -> Result<Self> {
-        Self::create_with_config(context, graph, mode, sm_count_target, None, None)
-    }
-
     /// Creates a heuristic query with optional device properties and resource targets.
     ///
     /// An absent device-property argument queries the live target.
@@ -625,24 +588,14 @@ impl<'a> EngineHeuristics<'a> {
     /// # Errors
     ///
     /// Returns an error if live contexts disagree or cannot be bound, target properties cannot be obtained, a resource target does not fit `i32`, native descriptor creation, attribute assignment, or finalization fails, or the mutex serializing mode B finalization is poisoned.
-    pub fn create_with_config(
+    pub fn create(
         context: &Context,
         graph: &'a OperationGraph,
         mode: BackendHeuristicMode,
-        sm_count_target: Option<u32>,
         device_properties: Option<&DeviceProperties>,
-        shared_memory_limit: Option<u32>,
+        planning: EnginePlanningOptions,
     ) -> Result<Self> {
-        Self::create_for_target(
-            Some(context),
-            graph,
-            mode,
-            device_properties,
-            EnginePlanningConfig {
-                sm_count_target,
-                shared_memory_limit,
-            },
-        )
+        Self::create_for_target(Some(context), graph, mode, device_properties, planning)
     }
 
     /// Creates a heuristic query using explicit device properties without a cuDNN handle.
@@ -665,7 +618,7 @@ impl<'a> EngineHeuristics<'a> {
             graph,
             mode,
             Some(device_properties),
-            EnginePlanningConfig {
+            EnginePlanningOptions {
                 sm_count_target,
                 shared_memory_limit,
             },
@@ -677,7 +630,7 @@ impl<'a> EngineHeuristics<'a> {
         graph: &'a OperationGraph,
         mode: BackendHeuristicMode,
         device_properties: Option<&DeviceProperties>,
-        planning: EnginePlanningConfig,
+        planning: EnginePlanningOptions,
     ) -> Result<Self> {
         validate_context_pair(
             context.map(Context::cuda_context),
@@ -699,7 +652,7 @@ impl<'a> EngineHeuristics<'a> {
         };
         let properties = device_properties
             .or(automatic_properties.as_ref())
-            .ok_or(FrontendError::DevicelessRequiresDeviceProperties)?;
+            .ok_or(Error::DevicelessRequiresDeviceProperties)?;
 
         let mut descriptor = BackendDescriptor::create(BackendDescriptorType::EngineHeur)?;
         descriptor.set_attribute_enum(BackendAttributeName::EngineHeurMode, mode)?;
@@ -731,7 +684,9 @@ impl<'a> EngineHeuristics<'a> {
                 Some(
                     MODE_B_FINALIZATION
                         .lock()
-                        .map_err(|_| Error::EngineHeuristicsLockPoisoned)?,
+                        .map_err(|_| Error::LockPoisoned {
+                            name: "engine heuristics".into(),
+                        })?,
                 )
             } else {
                 None
@@ -750,7 +705,8 @@ impl<'a> EngineHeuristics<'a> {
     /// Queries the number of available engine configurations without materializing their descriptors.
     ///
     /// # Errors
-    /// Returns context-binding, native query or unrepresentable-count errors.
+    ///
+    /// Returns an error if the CUDA context cannot be bound, cuDNN rejects the query, or the count does not fit `usize`.
     pub fn engine_config_count(&self) -> Result<usize> {
         bind_context(self.cuda_context())?;
         self.descriptor.attribute_count(
@@ -765,10 +721,11 @@ impl<'a> EngineHeuristics<'a> {
     /// The configurations remain usable after the heuristic query is released.
     ///
     /// # Errors
-    /// Returns context-binding, native attribute-query or descriptor-count errors.
+    ///
+    /// Returns an error if the CUDA context cannot be bound, a destination descriptor cannot be created, cuDNN rejects the query, or the result count keeps growing.
     pub fn engine_configs(&self, maximum: impl Into<Option<usize>>) -> Result<Vec<EngineConfig>> {
         bind_context(self.cuda_context())?;
-        // SAFETY: heuristic results populate owned engine-configuration descriptors.
+        // SAFETY: `EngineHeurResults` holds engine-configuration descriptors, so `EngineCfg` is the class cuDNN writes.
         let descriptors = unsafe {
             self.descriptor.attribute_descriptor_slice(
                 BackendAttributeName::EngineHeurResults,
@@ -802,12 +759,20 @@ impl<'a> EngineHeuristics<'a> {
 
 impl Drop for EngineConfig {
     fn drop(&mut self) {
-        bind_for_drop(self.cuda_context(), "cudnn engine configuration");
+        bind_for_drop(
+            self.cuda_context.as_ref(),
+            &mut self.descriptor,
+            "cudnn engine configuration",
+        );
     }
 }
 
 impl Drop for EngineHeuristics<'_> {
     fn drop(&mut self) {
-        bind_for_drop(self.cuda_context(), "cudnn engine heuristics");
+        bind_for_drop(
+            self.cuda_context.as_ref(),
+            &mut self.descriptor,
+            "cudnn engine heuristics",
+        );
     }
 }

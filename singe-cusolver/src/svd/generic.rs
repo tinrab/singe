@@ -17,8 +17,8 @@ use crate::{
     params::Params,
     svd::validation::validate_x_matrix,
     sys, try_ffi,
-    types::{EigenMode, SvdMode, TruncatedSvdMode},
-    utility::{require_workspace_bytes, to_i64, to_usize},
+    types::{EigenMode, SvdMode, SvdVectorColumns, TruncatedSvdMode},
+    utility::{require_workspace_bytes, to_i64, to_size_t, to_usize},
 };
 
 /// Column-major leading dimensions for an allocation-free SVD workspace query.
@@ -163,7 +163,7 @@ fn validate_outputs<S: DeviceRepr>(
 /// # Errors
 ///
 /// Returns an error if CUDA context binding fails, matrix dimensions or leading dimensions are invalid, a required singular-vector output layout is missing or its mode is unsupported, a dimension or returned workspace size cannot be represented by the required integer type, checked layout-size arithmetic overflows, or cuSOLVER rejects the configuration or fails to report workspace requirements.
-pub fn xgesvd_buffer_size<T: SolverElement>(
+pub fn xgesvd_workspace_size<T: SolverElement>(
     context: &Context,
     params: &Params,
     job_u: SvdMode,
@@ -177,7 +177,7 @@ pub fn xgesvd_buffer_size<T: SolverElement>(
     context.bind()?;
     let mut device = 0;
     let mut host = 0;
-    // SAFETY: workspace queries use dimensions and datatypes, not device contents.
+    // SAFETY: `context` and `params` are live handles, the size query reads no device data so its matrix pointers may be null, and `device` and `host` are writable locals.
     unsafe {
         try_ffi!(sys::cusolverDnXgesvd_bufferSize(
             context.as_raw(),
@@ -223,8 +223,8 @@ pub fn xgesvd_buffer_size<T: SolverElement>(
 ///
 /// # Errors
 ///
-/// Returns an error if CUDA context binding fails, matrix dimensions, leading dimensions, or storage capacities are invalid, checked size arithmetic or native integer conversion fails, the status output capacity is insufficient, a pivot, reflector, or numerical output buffer is too small, device or host workspace is smaller than the queried requirement, a required singular-vector output is missing or its mode is invalid, or cuSOLVER rejects the configuration or returns an error while querying workspace or submitting execution.
-pub unsafe fn xgesvd<T: SolverElement>(
+/// Returns an error if CUDA context binding fails, matrix dimensions, leading dimensions, or storage capacities are invalid, checked size arithmetic or native integer conversion fails, a singular-value or status output is too small, device or host workspace is smaller than the queried requirement, a required singular-vector output is missing or its mode is invalid, or cuSOLVER rejects the configuration or returns an error while querying workspace or submitting execution.
+pub unsafe fn xgesvd_async<T: SolverElement>(
     context: &Context,
     params: &Params,
     job_u: SvdMode,
@@ -238,7 +238,16 @@ pub unsafe fn xgesvd<T: SolverElement>(
     mut workspace: ByteWorkspaceMut<'_>,
     dev_info: &mut impl DeviceOutput<i32>,
 ) -> Result<()> {
-    let sizes = xgesvd_buffer_size::<T>(
+    context.bind()?;
+    context.prepare_region(&a.data)?;
+    context.prepare_region(&*s)?;
+    for matrix in [u.as_ref(), vt.as_ref()].into_iter().flatten() {
+        context.prepare_region(&matrix.data)?;
+    }
+
+    context.prepare_region(&workspace.device)?;
+    context.prepare_region(&*dev_info)?;
+    let sizes = xgesvd_workspace_size::<T>(
         context,
         params,
         job_u,
@@ -255,8 +264,12 @@ pub unsafe fn xgesvd<T: SolverElement>(
         T::data_type(),
     )?;
     validate_outputs(s, m.min(n), dev_info)?;
-    require_workspace_bytes(workspace.device.len(), sizes.device_bytes)?;
-    require_workspace_bytes(workspace.host.len(), sizes.host_bytes)?;
+    require_workspace_bytes(
+        "device workspace",
+        workspace.device.len(),
+        sizes.device_bytes,
+    )?;
+    require_workspace_bytes("host workspace", workspace.host.len(), sizes.host_bytes)?;
     let (left, right) = classic_modes(m, n, job_u, job_vt)?;
     let (u_ptr, ldu) = output_parts(
         u,
@@ -278,7 +291,8 @@ pub unsafe fn xgesvd<T: SolverElement>(
         n,
         right,
     )?;
-    // SAFETY: the caller retains and orders the checked input and write-only ranges.
+    // SAFETY: `a`, `s`, `dev_info`, and the enabled vector outputs were validated above, and both workspaces cover the queried byte sizes.
+    // The caller retains and orders every operand through completion per the crate's raw execution contract.
     unsafe {
         try_ffi!(sys::cusolverDnXgesvd(
             context.as_raw(),
@@ -300,9 +314,9 @@ pub unsafe fn xgesvd<T: SolverElement>(
             ldvt,
             T::data_type().into(),
             workspace.device.as_mut_ptr().cast(),
-            sizes.device_bytes as _,
+            to_size_t(sizes.device_bytes, "device workspace size")?,
             workspace.host.as_mut_ptr().cast(),
-            sizes.host_bytes as _,
+            to_size_t(sizes.host_bytes, "host workspace size")?,
             dev_info.as_mut_ptr().cast(),
         ))?;
     }
@@ -314,11 +328,11 @@ pub unsafe fn xgesvd<T: SolverElement>(
 /// # Errors
 ///
 /// Returns an error if CUDA context binding fails, matrix dimensions or leading dimensions are invalid, a required singular-vector output layout is missing or its mode is unsupported, a dimension or returned workspace size cannot be represented by the required integer type, checked layout-size arithmetic overflows, or cuSOLVER rejects the configuration or fails to report workspace requirements.
-pub fn xgesvdp_buffer_size<T: SolverElement>(
+pub fn xgesvdp_workspace_size<T: SolverElement>(
     context: &Context,
     params: &Params,
     jobz: EigenMode,
-    econ: bool,
+    vector_columns: SvdVectorColumns,
     m: usize,
     n: usize,
     layout: SvdLayout,
@@ -328,13 +342,13 @@ pub fn xgesvdp_buffer_size<T: SolverElement>(
     context.bind()?;
     let mut device = 0;
     let mut host = 0;
-    // SAFETY: the query uses only dimensions, leading dimensions, and datatypes.
+    // SAFETY: `context` and `params` are live handles, the size query reads no device data so its matrix pointers may be null, and `device` and `host` are writable locals.
     unsafe {
         try_ffi!(sys::cusolverDnXgesvdp_bufferSize(
             context.as_raw(),
             params.as_raw(),
             jobz.into(),
-            i32::from(econ),
+            i32::from(vector_columns.is_economy()),
             to_i64(m, "m")?,
             to_i64(n, "n")?,
             T::data_type().into(),
@@ -362,24 +376,24 @@ pub fn xgesvdp_buffer_size<T: SolverElement>(
 /// Queues polar-decomposition SVD, returning right vectors as V.
 ///
 /// Vector allocations must accommodate square m-by-m U and n-by-n V as specified by cuSOLVER.
-/// With `econ`, only the first min(m,n) columns are produced.
+/// With [`SvdVectorColumns::Economy`], only the first min(m,n) columns are produced.
 /// `err_sigma`, when present, receives the perturbation magnitude.
 ///
 /// # Safety
 ///
-/// Follow [`xgesvd`]'s context, ordering, aliasing, and retention contract.
+/// Follow [`xgesvd_async`]'s context, ordering, aliasing, and retention contract.
 /// Retain `err_sigma` through completion as well.
 /// Only requested logical vector columns, min(m,n) singular values, and the first status element are produced.
 /// Workspace, matrix padding, and unused output tails do not become initialized results.
 ///
 /// # Errors
 ///
-/// Returns an error if CUDA context binding fails, matrix dimensions, leading dimensions, or storage capacities are invalid, checked size arithmetic or native integer conversion fails, the status output capacity is insufficient, a pivot, reflector, or numerical output buffer is too small, device or host workspace is smaller than the queried requirement, a required singular-vector output is missing or its mode is invalid, or cuSOLVER rejects the configuration or returns an error while querying workspace or submitting execution.
-pub unsafe fn xgesvdp<T: SolverElement>(
+/// Returns an error if CUDA context binding fails, matrix dimensions, leading dimensions, or storage capacities are invalid, checked size arithmetic or native integer conversion fails, a singular-value or status output is too small, device or host workspace is smaller than the queried requirement, a required singular-vector output is missing or its mode is invalid, or cuSOLVER rejects the configuration or returns an error while querying workspace or submitting execution.
+pub unsafe fn xgesvdp_async<T: SolverElement>(
     context: &Context,
     params: &Params,
     jobz: EigenMode,
-    econ: bool,
+    vector_columns: SvdVectorColumns,
     m: usize,
     n: usize,
     mut a: MatrixMut<'_, T>,
@@ -390,11 +404,20 @@ pub unsafe fn xgesvdp<T: SolverElement>(
     dev_info: &mut impl DeviceOutput<i32>,
     err_sigma: Option<&mut f64>,
 ) -> Result<()> {
-    let sizes = xgesvdp_buffer_size::<T>(
+    context.bind()?;
+    context.prepare_region(&a.data)?;
+    context.prepare_region(&*s)?;
+    for matrix in [u.as_ref(), v.as_ref()].into_iter().flatten() {
+        context.prepare_region(&matrix.data)?;
+    }
+
+    context.prepare_region(&workspace.device)?;
+    context.prepare_region(&*dev_info)?;
+    let sizes = xgesvdp_workspace_size::<T>(
         context,
         params,
         jobz,
-        econ,
+        vector_columns,
         m,
         n,
         output_layout(&a, u.as_ref(), v.as_ref()),
@@ -407,18 +430,23 @@ pub unsafe fn xgesvdp<T: SolverElement>(
         T::data_type(),
     )?;
     validate_outputs(s, m.min(n), dev_info)?;
-    require_workspace_bytes(workspace.device.len(), sizes.device_bytes)?;
-    require_workspace_bytes(workspace.host.len(), sizes.host_bytes)?;
+    require_workspace_bytes(
+        "device workspace",
+        workspace.device.len(),
+        sizes.device_bytes,
+    )?;
+    require_workspace_bytes("host workspace", workspace.host.len(), sizes.host_bytes)?;
     let vectors = matches!(jobz, EigenMode::Vector);
     let (u_ptr, ldu) = output_parts(u, m, m, vectors)?;
     let (v_ptr, ldv) = output_parts(v, n, n, vectors)?;
-    // SAFETY: the caller upholds the raw SVD lifetime and access contract.
+    // SAFETY: `a`, `s`, `dev_info`, and the enabled vector outputs were validated above, and both workspaces cover the queried byte sizes.
+    // The caller retains and orders every operand, including `err_sigma`, through completion per the crate's raw execution contract.
     unsafe {
         try_ffi!(sys::cusolverDnXgesvdp(
             context.as_raw(),
             params.as_raw(),
             jobz.into(),
-            i32::from(econ),
+            i32::from(vector_columns.is_economy()),
             to_i64(m, "m")?,
             to_i64(n, "n")?,
             T::data_type().into(),
@@ -434,9 +462,9 @@ pub unsafe fn xgesvdp<T: SolverElement>(
             ldv,
             T::data_type().into(),
             workspace.device.as_mut_ptr().cast(),
-            sizes.device_bytes as _,
+            to_size_t(sizes.device_bytes, "device workspace size")?,
             workspace.host.as_mut_ptr().cast(),
-            sizes.host_bytes as _,
+            to_size_t(sizes.host_bytes, "host workspace size")?,
             dev_info.as_mut_ptr().cast(),
             err_sigma.map_or(ptr::null_mut(), ptr::from_mut::<f64>),
         ))?;
@@ -449,7 +477,7 @@ pub unsafe fn xgesvdp<T: SolverElement>(
 /// # Errors
 ///
 /// Returns an error if CUDA context binding fails, matrix dimensions or leading dimensions are invalid, rank is zero or rank plus oversampling is not smaller than `min(m, n)`, a required singular-vector output layout is missing or its mode is unsupported, a dimension or returned workspace size cannot be represented by the required integer type, checked layout-size arithmetic overflows, or cuSOLVER rejects the configuration or fails to report workspace requirements.
-pub fn xgesvdr_buffer_size<T: SolverElement>(
+pub fn xgesvdr_workspace_size<T: SolverElement>(
     context: &Context,
     params: &Params,
     job_u: TruncatedSvdMode,
@@ -472,7 +500,7 @@ pub fn xgesvdr_buffer_size<T: SolverElement>(
     context.bind()?;
     let mut device = 0;
     let mut host = 0;
-    // SAFETY: the workspace query does not access device matrix contents.
+    // SAFETY: `context` and `params` are live handles, the size query reads no device data so its matrix pointers may be null, and `device` and `host` are writable locals.
     unsafe {
         try_ffi!(sys::cusolverDnXgesvdr_bufferSize(
             context.as_raw(),
@@ -512,14 +540,14 @@ pub fn xgesvdr_buffer_size<T: SolverElement>(
 ///
 /// # Safety
 ///
-/// Follow [`xgesvd`]'s context, ordering, aliasing, and lifetime contract.
+/// Follow [`xgesvd_async`]'s context, ordering, aliasing, and lifetime contract.
 /// After completion and a zero first status element, only the leading k singular values and requested vector columns may be treated as produced results.
 /// Allocation padding, unused tails, and scratch remain outside that guarantee.
 ///
 /// # Errors
 ///
-/// Returns an error if CUDA context binding fails, matrix dimensions, leading dimensions, or storage capacities are invalid, checked size arithmetic or native integer conversion fails, the status output capacity is insufficient, a pivot, reflector, or numerical output buffer is too small, device or host workspace is smaller than the queried requirement, a required singular-vector output is missing or its mode is invalid, or cuSOLVER rejects the configuration or returns an error while querying workspace or submitting execution.
-pub unsafe fn xgesvdr<T: SolverElement>(
+/// Returns an error if CUDA context binding fails, matrix dimensions, leading dimensions, or storage capacities are invalid, checked size arithmetic or native integer conversion fails, a singular-value or status output is too small, device or host workspace is smaller than the queried requirement, a required singular-vector output is missing or its mode is invalid, or cuSOLVER rejects the configuration or returns an error while querying workspace or submitting execution.
+pub unsafe fn xgesvdr_async<T: SolverElement>(
     context: &Context,
     params: &Params,
     job_u: TruncatedSvdMode,
@@ -536,7 +564,16 @@ pub unsafe fn xgesvdr<T: SolverElement>(
     mut workspace: ByteWorkspaceMut<'_>,
     dev_info: &mut impl DeviceOutput<i32>,
 ) -> Result<()> {
-    let sizes = xgesvdr_buffer_size::<T>(
+    context.bind()?;
+    context.prepare_region(&a.data)?;
+    context.prepare_region(&*s)?;
+    for matrix in [u.as_ref(), v.as_ref()].into_iter().flatten() {
+        context.prepare_region(&matrix.data)?;
+    }
+
+    context.prepare_region(&workspace.device)?;
+    context.prepare_region(&*dev_info)?;
+    let sizes = xgesvdr_workspace_size::<T>(
         context,
         params,
         job_u,
@@ -556,11 +593,16 @@ pub unsafe fn xgesvdr<T: SolverElement>(
         T::data_type(),
     )?;
     validate_outputs(s, m.min(n), dev_info)?;
-    require_workspace_bytes(workspace.device.len(), sizes.device_bytes)?;
-    require_workspace_bytes(workspace.host.len(), sizes.host_bytes)?;
+    require_workspace_bytes(
+        "device workspace",
+        workspace.device.len(),
+        sizes.device_bytes,
+    )?;
+    require_workspace_bytes("host workspace", workspace.host.len(), sizes.host_bytes)?;
     let (u_ptr, ldu) = output_parts(u, m, m, matches!(job_u, TruncatedSvdMode::Some))?;
     let (v_ptr, ldv) = output_parts(v, n, n, matches!(job_v, TruncatedSvdMode::Some))?;
-    // SAFETY: the caller retains the checked resources through completed execution.
+    // SAFETY: `a`, `s`, `dev_info`, and the enabled vector outputs were validated above, and both workspaces cover the queried byte sizes.
+    // The caller retains and orders every operand through completion per the crate's raw execution contract.
     unsafe {
         try_ffi!(sys::cusolverDnXgesvdr(
             context.as_raw(),
@@ -585,9 +627,9 @@ pub unsafe fn xgesvdr<T: SolverElement>(
             ldv,
             T::data_type().into(),
             workspace.device.as_mut_ptr().cast(),
-            sizes.device_bytes as _,
+            to_size_t(sizes.device_bytes, "device workspace size")?,
             workspace.host.as_mut_ptr().cast(),
-            sizes.host_bytes as _,
+            to_size_t(sizes.host_bytes, "host workspace size")?,
             dev_info.as_mut_ptr().cast(),
         ))?;
     }

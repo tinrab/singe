@@ -652,7 +652,7 @@ impl<'a> SignalPipeline<'a, f32> {
     /// Passes `parameter` as the constant in the native Cauchy formula for the provided Cauchy operations.
     ///
     /// Reuses owned signal storage, or copies a borrowed signal into workspace storage before the in-place operation.
-    /// A borrowed source must already be ready on the selected stream; the copy does not wait for a producer on another stream.
+    /// Waits for a producer of the source on another stream before the copy.
     /// Prepares the in-place region and completes native work before returning successfully.
     ///
     /// # Errors
@@ -670,7 +670,7 @@ impl<'a> SignalPipeline<'a, f32> {
     /// Passes `parameter` as the constant in the native Cauchy formula for the provided Cauchy operations.
     ///
     /// Reuses owned signal storage, or copies a borrowed signal into workspace storage before the in-place operation.
-    /// A borrowed source must already be ready on the selected stream; the copy does not wait for a producer on another stream.
+    /// Waits for a producer of the source on another stream before the copy.
     /// Prepares the in-place region and completes native work before returning successfully.
     ///
     /// # Errors
@@ -1199,7 +1199,7 @@ where
     /// Returns an owned pipeline containing the result.
     ///
     /// Allocates output through the workspace and waits for successful stream completion.
-    /// The source must already be ready on the selected stream; this method does not wait for a producer on another stream.
+    /// Waits for a producer of the source on another stream.
     ///
     /// # Errors
     ///
@@ -1238,7 +1238,7 @@ where
     /// Returns an owned pipeline containing the result.
     ///
     /// Allocates output through the workspace and waits for successful stream completion.
-    /// The source must already be ready on the selected stream; this method does not wait for a producer on another stream.
+    /// Waits for a producer of the source on another stream.
     ///
     /// # Errors
     ///
@@ -1282,7 +1282,7 @@ where
     /// Applies the selected native operation's scaling with `scale_factor`.
     ///
     /// Allocates output through the workspace and waits for successful stream completion.
-    /// The source must already be ready on the selected stream; this method does not wait for a producer on another stream.
+    /// Waits for a producer of the source on another stream.
     ///
     /// # Errors
     ///
@@ -1327,7 +1327,7 @@ where
     /// Applies the selected native operation's scaling with `scale_factor`.
     ///
     /// Allocates output through the workspace and waits for successful stream completion.
-    /// The source must already be ready on the selected stream; this method does not wait for a producer on another stream.
+    /// Waits for a producer of the source on another stream.
     ///
     /// # Errors
     ///
@@ -1348,7 +1348,7 @@ where
     /// Applies the selected native operation's scaling with `scale_factor`.
     ///
     /// Allocates output through the workspace and waits for successful stream completion.
-    /// The source must already be ready on the selected stream; this method does not wait for a producer on another stream.
+    /// Waits for a producer of the source on another stream.
     ///
     /// # Errors
     ///
@@ -1393,7 +1393,7 @@ where
     /// Applies the selected native operation's scaling with `scale_factor`.
     ///
     /// Allocates output through the workspace and waits for successful stream completion.
-    /// The source must already be ready on the selected stream; this method does not wait for a producer on another stream.
+    /// Waits for a producer of the source on another stream.
     ///
     /// # Errors
     ///
@@ -1414,7 +1414,7 @@ where
     /// Applies the selected native operation's scaling with `scale_factor`.
     ///
     /// Allocates output through the workspace and waits for successful stream completion.
-    /// The source must already be ready on the selected stream; this method does not wait for a producer on another stream.
+    /// Waits for a producer of the source on another stream.
     ///
     /// # Errors
     ///
@@ -1459,7 +1459,7 @@ where
     /// Applies the selected native operation's scaling with `scale_factor`.
     ///
     /// Allocates output through the workspace and waits for successful stream completion.
-    /// The source must already be ready on the selected stream; this method does not wait for a producer on another stream.
+    /// Waits for a producer of the source on another stream.
     ///
     /// # Errors
     ///

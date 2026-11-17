@@ -4,18 +4,16 @@ use std::sync::{Arc, Mutex};
 
 use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
-    backend::{
-        execution::KernelCache,
-        tensor::{Shape, TensorId, TensorSpec},
-    },
+    backend::execution::KernelCache,
     data_type::{DataType, bf16},
-    error::Result,
+    error::{Error, Result},
     frontend::{
         error::Error as FrontendError,
         graph::{DataTypePolicy, Graph, GraphConfig, GraphKeyShapePolicy},
         operation::MatmulConfig,
-        plan::{CompileConfig, ExecuteArgs, HeuristicMode},
+        plan::{CompileConfig, ExecuteArgs, HeuristicMode, WorkspacePlans},
     },
+    tensor::{Shape, TensorId, TensorSpec},
 };
 
 #[derive(Clone, Copy)]
@@ -67,17 +65,17 @@ fn run() -> Result<()> {
             .with_name("matmul-dynamic-shapes")
             .with_data_type_policy(
                 DataTypePolicy::new()
-                    .with_io(DataType::BF16)
+                    .with_io(DataType::Bf16)
                     .with_compute(DataType::F32),
             ),
     );
     let lhs = graph.insert_tensor(
         TensorId::new(1000),
-        TensorSpec::new(DataType::BF16, lhs_shape(base)?).with_name("lhs"),
+        TensorSpec::new(DataType::Bf16, lhs_shape(base)?).with_name("lhs"),
     )?;
     let rhs = graph.insert_tensor(
         TensorId::new(1001),
-        TensorSpec::new(DataType::BF16, rhs_shape(base)?).with_name("rhs"),
+        TensorSpec::new(DataType::Bf16, rhs_shape(base)?).with_name("rhs"),
     )?;
     let output = graph.insert_tensor(
         TensorId::new(1002),
@@ -116,7 +114,7 @@ fn run() -> Result<()> {
         graph.key(GraphKeyShapePolicy::Include)?,
     );
 
-    let candidates = graph.plan_candidates(
+    let candidates = graph.prepare(Some(&example.cudnn))?.plan_candidates(
         Some(&example.cudnn),
         &CompileConfig::from_heuristic_modes([HeuristicMode::A]),
     )?;
@@ -138,9 +136,9 @@ fn run() -> Result<()> {
     graph.set_dynamic_shape_enabled(false);
     graph.set_override_shape_enabled(false);
     let (cache_bytes, revision, entries) = {
-        let cache = kernel_cache
-            .lock()
-            .map_err(|_| FrontendError::KernelCacheLockPoisoned)?;
+        let cache = kernel_cache.lock().map_err(|_| Error::LockPoisoned {
+            name: "kernel cache".into(),
+        })?;
         (cache.serialize()?, cache.revision()?, cache.entry_count()?)
     };
     let mut restored_cache = KernelCache::deserialize(&cache_bytes)?;
@@ -166,7 +164,7 @@ fn run() -> Result<()> {
     )?;
     let mut workspace = common::workspace(
         example.cudnn.cuda_context(),
-        built.workspace_size_for(&selected)?,
+        built.workspace_size_for(WorkspacePlans::Plan(&selected), None)?,
     )?;
 
     let mut bindings = built.bindings()?;
@@ -176,10 +174,10 @@ fn run() -> Result<()> {
     // SAFETY: inputs, writable output, plan and workspace remain live through stream
     // completion, including when native execution returns an enqueue error.
     example.execute_and_wait(|context| unsafe {
-        built.execute(
+        built.execute_async(
             context,
             ExecuteArgs::new(&bindings)
-                .with_workspace(&mut workspace)
+                .with_workspace(workspace.output())
                 .with_plan(&selected),
         )
     })?;
@@ -210,16 +208,19 @@ fn run() -> Result<()> {
     let runtime_overrides = runtime_overrides.build();
     let mut runtime_workspace = common::workspace(
         example.cudnn.cuda_context(),
-        built.max_workspace_size_with_runtime_overrides(&example.cudnn, &runtime_overrides)?,
+        built.workspace_size_for(
+            WorkspacePlans::All,
+            Some((&example.cudnn, &runtime_overrides)),
+        )?,
     )?;
 
     // SAFETY: runtime layouts match these initialized inputs and writable output;
     // all buffers, plan and workspace remain live through completion on success or error.
     example.execute_and_wait(|context| unsafe {
-        built.execute(
+        built.execute_async(
             context,
             ExecuteArgs::new(&runtime_bindings)
-                .with_workspace(&mut runtime_workspace)
+                .with_workspace(runtime_workspace.output())
                 .with_plan(&selected)
                 .with_overrides(&runtime_overrides),
         )
@@ -229,12 +230,15 @@ fn run() -> Result<()> {
     let compiled = built.compile_selected(&selected)?;
     println!(
         "selected {selected}: {} runtime workspace bytes",
-        compiled.workspace_size_with_runtime_overrides(&example.cudnn, &runtime_overrides)?,
+        compiled.workspace_size_for(
+            WorkspacePlans::Default,
+            Some((&example.cudnn, &runtime_overrides)),
+        )?,
     );
 
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_matmul_dynamic_shapes", run())
 }

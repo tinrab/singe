@@ -4,13 +4,7 @@ generate:
     #!/usr/bin/env bash
     set -euxo pipefail
 
-    num_enums=(
-        "CUptiResult"
-    )
-    enum_args=$(for enum in "${num_enums[@]}"; do echo -n "--with-derive-custom $enum=TryFromPrimitive,IntoPrimitive "; done)
-
     bindgen {{cupti_include_path}}/cupti_target.h \
-        $enum_args \
         --allowlist-item "^cupti.*" \
         --allowlist-item "^CUpti.*" \
         --allowlist-item "^CUPTI.*" \
@@ -23,7 +17,7 @@ generate:
         --with-derive-hash \
         --with-derive-ord \
         --use-core \
-        --default-enum-style=rust \
+        --default-enum-style=newtype \
         -- \
             -fparse-all-comments \
             -fretain-comments-from-system-headers \

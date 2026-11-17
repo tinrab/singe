@@ -1,12 +1,9 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    backend::{
-        execution::matmul::{
-            MatmulDescriptor, MatmulDescriptorConfig, MatmulOperation as BackendMatmulOperation,
-            MatmulOperationConfig,
-        },
-        tensor::TensorId,
+    backend::operation::matmul::{
+        MatmulDescriptor, MatmulDescriptorSpec, MatmulOperation as BackendMatmulOperation,
+        MatmulSpec,
     },
     data_type::DataType,
     error::Result,
@@ -14,6 +11,7 @@ use crate::{
         graph::Graph,
         lower::{LoweredOperation, LoweringContext, tensor_at},
     },
+    tensor::TensorId,
 };
 
 /// One native matmul operation with its logical operand layouts.
@@ -46,7 +44,7 @@ impl MatmulOperation {
         let tensors = context.backend_tensors();
         let padding_value = self.config.padding_value();
         let descriptor = MatmulDescriptor::create(
-            MatmulDescriptorConfig::new(context.compute_data_type(self.config.compute_type()))
+            MatmulDescriptorSpec::new(context.compute_data_type(self.config.compute_type()))
                 .with_padding_value((padding_value != 0.0).then_some(padding_value)),
         )?;
         Ok(LoweredOperation::Matmul(BackendMatmulOperation::create(
@@ -54,7 +52,7 @@ impl MatmulOperation {
             tensor_at(tensors, self.a)?,
             tensor_at(tensors, self.b)?,
             tensor_at(tensors, self.c)?,
-            MatmulOperationConfig {
+            MatmulSpec {
                 m_override: self.config.m_override(),
                 n_override: self.config.n_override(),
                 k_override: self.config.k_override(),

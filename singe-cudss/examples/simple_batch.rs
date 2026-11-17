@@ -8,6 +8,7 @@ use singe_cudss::{
     error::Result,
     matrix::{BatchCsrMatrixDescriptor, BatchDenseMatrixDescriptor, Matrix},
     memory::DevicePointerTable,
+    solver_state::SolverState,
     types::{IndexBase, Layout, MatrixType, MatrixViewType},
 };
 
@@ -17,7 +18,7 @@ fn step<T>(name: &str, result: Result<T>) -> Result<T> {
     result.inspect_err(|error| eprintln!("{name} failed: {error}"))
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     let (cuda, stream, context) = create_context()?;
     println!("cuDSS example: solving a non-uniform batch of two SPD systems");
 
@@ -99,7 +100,7 @@ fn main() -> Result<()> {
     let x_value_table = unsafe { DevicePointerTable::<f64>::from_device_memory(&x_value_ptrs) }?;
 
     let config = Config::create()?;
-    let mut data = context.create_data()?;
+    let mut data = SolverState::create(&context)?;
 
     let b = step(
         "create batch dense b",

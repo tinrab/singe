@@ -10,7 +10,7 @@ use crate::{
     error::{Error, Result, Status},
     graph::{Graph, retained_resource::UserObject},
     memory::MemoryCopyKind,
-    stream::{StreamBinding, StreamCaptureStatus},
+    stream::{AsStream, StreamBinding, StreamCaptureStatus},
     try_ffi,
     types::DevicePtr,
 };
@@ -66,9 +66,7 @@ impl GraphHostBuffer {
         let mut object = self
             .user_object
             .lock()
-            .map_err(|_| Error::ResourcePoisoned {
-                name: "graph host data",
-            })?;
+            .map_err(|_| Error::lock_poisoned("graph host data"))?;
         if object.is_none() {
             let payload = Box::into_raw(Box::new(Arc::clone(&self.bytes)));
             // SAFETY: successful creation transfers this Box to a destructor that only releases ordinary host bytes.
@@ -84,9 +82,9 @@ impl GraphHostBuffer {
             }
         }
 
-        let user_object = object.as_ref().ok_or(Error::ResourcePoisoned {
-            name: "graph host data",
-        })?;
+        let user_object = object
+            .as_ref()
+            .ok_or_else(|| Error::lock_poisoned("graph host data"))?;
         let result = user_object.retain_on_graph(graph);
         drop(object);
         result
@@ -96,6 +94,7 @@ impl GraphHostBuffer {
     /// Sources remain live through completion even if this object is dropped immediately afterward.
     ///
     /// # Safety
+    ///
     /// `destination` must permit exclusive writes of `as_bytes().len()` bytes in the stream's context.
     /// Retain destination storage through completion and every replay of a captured copy.
     ///

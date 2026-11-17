@@ -1,8 +1,8 @@
 /// Toolkit root variables, checked in this order when no component-specific root matches.
-pub const COMMON_CUDA_ENV_VARS: [&str; 2] = ["CUDA_PATH", "CUDA_HOME"];
+pub(crate) const COMMON_CUDA_ENV_VARS: [&str; 2] = ["CUDA_PATH", "CUDA_HOME"];
 
 /// Environment variables whose changes can affect CUDA dependency discovery or linking.
-pub const CUDA_DISCOVERY_ENV_VARS: [&str; 69] = [
+pub(crate) const CUDA_DISCOVERY_ENV_VARS: [&str; 69] = [
     "CUDA_PATH",
     "CUDA_HOME",
     "CUBLAS_PATH",

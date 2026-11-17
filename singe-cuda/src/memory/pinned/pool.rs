@@ -7,6 +7,7 @@ use std::{
     sync::{Arc, Mutex, MutexGuard, PoisonError},
 };
 
+use singe_core::report_cleanup_failure;
 use singe_cuda_sys::runtime;
 
 use crate::{
@@ -24,11 +25,11 @@ const LARGEST_ALIGNMENT: usize = 4096;
 const CHUNK_BYTES: usize = 2 << 20;
 
 #[derive(Default)]
-pub struct PinnedPool {
+pub(crate) struct PinnedPool {
     state: Mutex<PoolState>,
 }
 
-/// Stats for context's pinned host memory pool.
+/// Byte and chunk counts of a context's pinned host memory pool.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct PinnedStats {
     /// Bytes the pool holds from CUDA, in free and live blocks.
@@ -55,11 +56,11 @@ struct Chunk {
     free_blocks: usize,
 }
 
-// SAFETY: the pool's mutex guards this state, and the pool never dereferences its pointers.
 #[expect(
     clippy::non_send_fields_in_send_ty,
     reason = "block pointers are addresses the pool hands out, never dereferenced"
 )]
+// SAFETY: the block pointers are addresses into portable page-locked chunks that any thread may hand out or free, the pool never dereferences them, and the pool's mutex serializes every access to this state.
 unsafe impl Send for PoolState {}
 
 impl Debug for PinnedPool {
@@ -84,12 +85,18 @@ impl PinnedPool {
         context.bind()?;
         // A failed free leaves the chunk out of the pool, and this allocation does not depend on it.
         let dedicated = self.lock().take_idle(Chunk::is_dedicated);
-        let _ = free_chunks(dedicated);
+        if let Err(error) = free_chunks(dedicated) {
+            report_cleanup_failure("free", "cuda pinned host memory", &error);
+        }
+
         let chunk = if let Ok(chunk) = Chunk::allocate(class) {
             chunk
         } else {
             let idle = self.lock().take_idle(|_| true);
-            let _ = free_chunks(idle);
+            if let Err(error) = free_chunks(idle) {
+                report_cleanup_failure("free", "cuda pinned host memory", &error);
+            }
+
             Chunk::allocate(class)?
         };
 
@@ -97,7 +104,7 @@ impl PinnedPool {
         state.insert(chunk);
         state
             .take(class)
-            .ok_or(Error::InvalidMemoryAllocationRequest)
+            .ok_or_else(|| Error::out_of_range("pinned size class"))
     }
 
     pub(crate) fn deallocate(&self, block: NonNull<u8>, layout: Layout) {
@@ -217,7 +224,7 @@ impl PoolState {
     fn insert(&mut self, chunk: Chunk) {
         let blocks = self.free.entry(chunk.class).or_default();
         blocks.extend((0..chunk.free_blocks).map(|index| {
-            // SAFETY: every block offset lies inside the chunk.
+            // SAFETY: `index` is below `bytes / class`, so each block starts inside the chunk's allocation.
             unsafe { chunk.base.add(index * chunk.class) }
         }));
         self.chunks.insert(chunk.base.addr().get(), chunk);
@@ -252,7 +259,7 @@ impl Chunk {
     fn allocate(class: usize) -> Result<Self> {
         let bytes = class.max(CHUNK_BYTES);
         let mut pointer = ptr::null_mut();
-        // SAFETY: `cudaHostAlloc` receives a valid output location and a nonzero size.
+        // SAFETY: `pointer` is a writable local, and `bytes` is at least `SMALLEST_BLOCK`, since every class is.
         unsafe {
             try_ffi!(runtime::cudaHostAlloc(
                 &raw mut pointer,
@@ -307,7 +314,7 @@ fn free_chunks(chunks: Vec<Chunk>) -> Result<()> {
     result
 }
 
-pub fn same_class(first: Layout, second: Layout) -> bool {
+pub(crate) fn same_class(first: Layout, second: Layout) -> bool {
     matches!((class(first), class(second)), (Ok(first), Ok(second)) if first == second)
 }
 
@@ -326,5 +333,5 @@ fn class(layout: Layout) -> Result<usize> {
     } else {
         bytes.checked_next_power_of_two()
     }
-    .ok_or(Error::InvalidMemoryAllocationRequest)
+    .ok_or_else(|| Error::out_of_range("pinned block size"))
 }

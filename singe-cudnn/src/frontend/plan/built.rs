@@ -8,7 +8,6 @@ use crate::{
             EngineConfig, EngineKnobInfo, ExecutionPlan, IntermediateInfo, KernelCache,
             KnobChoiceInfo, OperationGraph,
         },
-        tensor::TensorId,
     },
     context::Context,
     error::{Error, Result},
@@ -22,9 +21,9 @@ use crate::{
         logging,
         lower::LoweredGraph,
         plan::{
-            AliasTensorBinding, BuildPlanPolicy, CompileConfig, CompiledGraph, EngineChoice,
-            EngineConfigFilter, EngineConfigMetadata, ExecuteArgs, PlanArtifacts, PlanBuildReport,
-            PlanExclusion, PlanId, PlanSupport, RequiredTensor,
+            AliasTensorBinding, BuildPlanPolicy, CompileConfig, CompiledGraph, EngineConfigFilter,
+            EngineConfigMetadata, ExecuteArgs, PlanArtifacts, PlanBuildReport, PlanExclusion,
+            PlanId, PlanSupport, RequiredTensor,
             bindings::alias_tensor_bindings,
             build::{build_execution_plan_entries, build_execution_plan_entry},
             compiled::{CompiledGraphCore, CompiledGraphStructure},
@@ -33,6 +32,7 @@ use crate::{
             ordering::reorder_plan_entries,
         },
     },
+    tensor::TensorId,
 };
 
 /// Build outcomes for every candidate, including failed, excluded and unattempted entries.
@@ -92,7 +92,8 @@ impl BuiltPlanCandidates {
     /// Compilation selects the first available entry in this order.
     ///
     /// # Errors
-    /// Returns an error for an empty order, duplicate identities or identities absent from this collection.
+    ///
+    /// Returns an error if the order is empty, repeats an identity, or names an identity absent from this collection.
     /// An invalid order leaves the collection unchanged.
     pub fn reorder_plans(&mut self, plans: &[PlanId]) -> Result<()> {
         reorder_plan_entries(&mut self.entries, plans, |entry| &entry.candidate.id)
@@ -131,7 +132,8 @@ impl BuiltPlanCandidates {
     /// Reports eligibility for one retained identity without compiling it or clearing exclusions.
     ///
     /// # Errors
-    /// Returns an error when this collection does not contain the plan identity.
+    ///
+    /// Returns an error if this collection does not contain the plan identity.
     pub fn support_for(
         &self,
         plan: &PlanId,
@@ -148,6 +150,7 @@ impl BuiltPlanCandidates {
     /// Pass `Some(context)` for a live build or `None` for deviceless compilation.
     ///
     /// # Errors
+    ///
     /// Returns an error if target device properties cannot be resolved or no unexcluded plan is built.
     /// Individual candidate failures do not abort the batch while other candidates remain.
     /// A batch with no usable plan reports [`FrontendError::NoAvailablePlans`] with all build reports.
@@ -248,21 +251,13 @@ impl BuiltPlanCandidates {
         self.entry_for(plan)?.execution_plan(self.graph_name())
     }
 
-    /// Returns the available candidate’s cached static workspace size in bytes, including frontend scratch.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the identity is absent or its candidate is excluded, unbuilt, or failed.
-    pub fn workspace_size_for(&self, plan: &PlanId) -> Result<usize> {
+    pub(crate) fn static_workspace_size(&self, plan: &PlanId) -> Result<usize> {
         let entry = self.entry_for(plan)?;
         entry.execution_plan(self.graph_name())?;
         Ok(entry.candidate.metadata.workspace_size)
     }
 
-    /// Maximum cached static requirement among built, non-excluded plans.
-    /// Returns zero when no executable plan is available.
-    #[must_use]
-    pub fn max_workspace_size(&self) -> usize {
+    pub(crate) fn max_static_workspace_size(&self) -> usize {
         self.entries
             .iter()
             .filter(|entry| entry.is_available())
@@ -275,12 +270,13 @@ impl BuiltPlanCandidates {
     /// Built collections have no default plan, so `args.plan` is required.
     ///
     /// # Safety
+    ///
     /// Uphold the allocation, initialization, access and lifetime requirements on [`Bindings`].
     ///
     /// # Errors
     ///
     /// Returns an error if `args.plan` is absent or unavailable, runtime overrides are disabled or invalid, binding or workspace requirements are not met, or CUDA context binding, diagnostic reads, or native preparation or execution fails.
-    pub unsafe fn execute(&self, context: &Context, args: ExecuteArgs<'_, '_>) -> Result<()> {
+    pub unsafe fn execute_async(&self, context: &Context, args: ExecuteArgs<'_, '_>) -> Result<()> {
         let plan = args.plan.ok_or(FrontendError::OperationFieldMissing {
             operation: "built candidate execution",
             field: "plan",
@@ -303,12 +299,12 @@ impl BuiltPlanCandidates {
             &self.lowered.layout.workspace_layout,
         )?;
         logging::diagnostic!("executing candidate {plan}");
-        // SAFETY: diagnostics read the same initialized metadata and binding ranges as native execution.
+        // SAFETY: `pack` holds `args.bindings`, whose storage this function's `Bindings` contract keeps live and initialized at entry, and the log reads only entry metadata that no graph operation writes.
         unsafe {
             logging::log_variant_pack(context, &pack, &self.artifacts.tensors)?;
         }
-        // SAFETY: the caller guarantees valid bindings, ordered accesses and retained storage through completion or replay.
-        unsafe { execution_plan.execute(context, &pack) }
+        // SAFETY: `prepare_variant_pack` checked contexts, capacities and alignment, and this function's `Bindings` contract supplies the initialization, producer ordering and lifetime that `ExecutionPlan::execute_async` requires.
+        unsafe { execution_plan.execute_async(context, &pack) }
     }
 
     /// Builds validated runtime overrides using this collection's tensors and dynamic bounds.
@@ -343,7 +339,7 @@ impl BuiltPlanCandidates {
         Ok(bindings)
     }
 
-    /// Caller storage and actual native uses shared by candidate execution and compiled plans.
+    /// Returns the caller storage and actual native uses shared by candidate execution and compiled plans.
     #[must_use]
     pub fn required_tensor_bindings(&self) -> &[RequiredTensor] {
         &self.artifacts.required_tensors

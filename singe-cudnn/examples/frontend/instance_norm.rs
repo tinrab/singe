@@ -2,7 +2,7 @@ mod common;
 
 use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
-    backend::tensor::{Shape, TensorSpec},
+    backend::operation::normalization::NormalizationSavedStatistics,
     data_type::{DataType, f16},
     error::Result,
     frontend::{
@@ -10,10 +10,11 @@ use singe_cudnn::{
         graph::{Graph, TensorOutputConfig},
         operation::{
             InstanceNormalizationConfig, InstanceNormalizationInputs, InstanceNormalizationOutputs,
-            NormalizationSavedStatistics, NormalizationStatistics,
+            NormalizationStatistics,
         },
         plan::{CompileConfig, ExecuteArgs, HeuristicMode},
     },
+    tensor::{Shape, TensorSpec},
 };
 
 fn run() -> Result<()> {
@@ -82,9 +83,9 @@ fn run() -> Result<()> {
     // SAFETY: matching initialized operands, output storage and workspace remain live
     // until the helper completes the stream, including on enqueue failure.
     example.execute_and_wait(|context| unsafe {
-        compiled.execute(
+        compiled.execute_async(
             context,
-            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
         )
     })?;
     for tensor in [outputs.output, statistics.mean, statistics.inv_variance] {
@@ -98,6 +99,6 @@ fn run() -> Result<()> {
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_instance_norm", run())
 }

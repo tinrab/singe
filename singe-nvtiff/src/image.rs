@@ -165,37 +165,52 @@ impl ImageInfo {
     pub fn bits_per_sample(&self, index: usize) -> Option<u16> {
         self.raw
             .bits_per_sample
-            .get(..self.samples_per_pixel() as usize)
+            .get(..usize::from(self.samples_per_pixel()))
             .and_then(|samples| samples.get(index))
             .copied()
     }
 
     /// Returns the format of sample `index`, or `None` if there is no such sample.
-    pub fn sample_format(&self, index: usize) -> Option<SampleFormat> {
-        self.raw
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the library reports a format this crate does not name.
+    pub fn sample_format(&self, index: usize) -> Result<Option<SampleFormat>> {
+        Ok(self
+            .raw
             .sample_format
-            .get(..self.samples_per_pixel() as usize)
+            .get(..usize::from(self.samples_per_pixel()))
             .and_then(|formats| formats.get(index))
             .copied()
-            .map(SampleFormat::from)
+            .map(SampleFormat::try_from)
+            .transpose()?)
     }
 
     /// Returns the color space of the pixel values.
-    #[must_use]
-    pub fn photometric_interpretation(&self) -> PhotometricInterpretation {
-        self.raw.photometric_int.into()
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the library reports a value this crate does not name.
+    pub fn photometric_interpretation(&self) -> Result<PhotometricInterpretation> {
+        Ok(self.raw.photometric_int.try_into()?)
     }
 
     /// Returns the planar configuration.
-    #[must_use]
-    pub fn planar_config(&self) -> PlanarConfig {
-        self.raw.planar_config.into()
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the library reports a value this crate does not name.
+    pub fn planar_config(&self) -> Result<PlanarConfig> {
+        Ok(self.raw.planar_config.try_into()?)
     }
 
     /// Returns the compression.
-    #[must_use]
-    pub fn compression(&self) -> Compression {
-        self.raw.compression.into()
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the library reports a value this crate does not name.
+    pub fn compression(&self) -> Result<Compression> {
+        Ok(self.raw.compression.try_into()?)
     }
 
     /// Returns the output layout that [`Decoder::decode_to_device`](crate::decode::Decoder::decode_to_device) uses for the whole image.
@@ -206,7 +221,7 @@ impl ImageInfo {
     ///
     /// Returns an error if the width or height is 0, the size overflows `usize`, or unchanged output is requested for an image without sample sizes.
     pub fn default_decode_layout(&self) -> Result<DecodeOutputLayout> {
-        let format = match (self.photometric_interpretation(), self.compression()) {
+        let format = match (self.photometric_interpretation()?, self.compression()?) {
             (PhotometricInterpretation::Palette, _) => OutputFormat::RgbInterleavedU16,
             (PhotometricInterpretation::Ycbcr, Compression::Jpeg) => OutputFormat::RgbInterleavedU8,
             _ => OutputFormat::UnchangedInterleaved,
@@ -237,14 +252,14 @@ impl ImageInfo {
         let pixels = checked_pixels(width, height)?;
         let (size_bytes, samples_per_pixel, bits_per_sample) = match format {
             OutputFormat::UnchangedInterleaved => {
-                let row_bits = (width as usize)
-                    .checked_mul(self.bits_per_pixel() as usize)
+                let row_bits = to_usize(width, "width")?
+                    .checked_mul(usize::from(self.bits_per_pixel()))
                     .ok_or_else(|| Error::OutOfRange {
                         name: "decoded row size".into(),
                     })?;
                 let size_bytes = row_bits
                     .div_ceil(8)
-                    .checked_mul(height as usize)
+                    .checked_mul(to_usize(height, "height")?)
                     .ok_or_else(|| Error::OutOfRange {
                         name: "decoded image size".into(),
                     })?;
@@ -324,18 +339,18 @@ impl TryFrom<&ImageInfo> for EncodeImageInfo {
         }
 
         checked_pixels(value.width(), value.height())?;
-        if value.planar_config() != PlanarConfig::Contiguous {
+        if value.planar_config()? != PlanarConfig::Contiguous {
             return Err(Error::OutOfRange {
                 name: "encoder planar configuration".into(),
             });
         }
 
         let mut pixel_bits = 0_u16;
-        for index in 0..samples as usize {
+        for index in 0..usize::from(samples) {
             let bits = value.bits_per_sample(index).unwrap_or(0);
             if bits == 0
                 || value
-                    .sample_format(index)
+                    .sample_format(index)?
                     .is_none_or(|format| format == SampleFormat::Unknown)
             {
                 return Err(Error::OutOfRange {
@@ -375,9 +390,12 @@ impl ImageGeometry {
     }
 
     /// Returns whether the image is stored in strips or tiles.
-    #[must_use]
-    pub fn geometry_type(&self) -> ImageGeometryType {
-        self.raw.type_.into()
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the library reports a value this crate does not name.
+    pub fn geometry_type(&self) -> Result<ImageGeometryType> {
+        Ok(self.raw.type_.try_into()?)
     }
 
     /// Returns the number of strips or tiles.
@@ -465,7 +483,7 @@ impl<'a> ImagePlane<'a> {
         buffer: &'a mut B,
         pitch_bytes: impl TryInto<usize>,
     ) -> Result<Self> {
-        // SAFETY: DeviceOutput and the exclusive borrow establish write access.
+        // SAFETY: `DeviceOutput` guarantees the region is writable device memory, and `buffer` stays exclusively borrowed for `'a`, the plane's lifetime.
         unsafe { Self::from_raw_parts(buffer.region().slice(..buffer.len())?, pitch_bytes) }
     }
 
@@ -511,7 +529,7 @@ impl<'a> ImagePlane<'a> {
     /// Returns a pointer to the plane memory.
     #[must_use]
     pub fn data(&self) -> NonNull<c_void> {
-        // SAFETY: construction rejects null output pointers.
+        // SAFETY: `from_raw_parts`, the only constructor, rejects a null region pointer.
         unsafe { NonNull::new_unchecked(self.region.as_ptr().cast()) }
     }
 

@@ -1,6 +1,5 @@
 use std::{
     env,
-    error::Error,
     fs::{self, File, OpenOptions},
     io::Result as IoResult,
     os::unix::fs::OpenOptionsExt,
@@ -10,13 +9,15 @@ use std::{
 
 use singe_cuda::{context::Context, device::Device, memory::DeviceMemory};
 use singe_cufile::{
-    buffer::RegisteredBuffer, driver::Driver, file::FileHandle, types::BufferRegisterFlags,
+    buffer::{IoSlice, RegisteredBuffer},
+    driver::Driver,
+    file::FileHandle,
+    types::BufferRegisterFlags,
 };
 
 const SIZE: usize = 128 * 1024;
-const O_DIRECT: i32 = 0o40000;
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() -> anyhow::Result<()> {
     let args: Vec<_> = env::args().collect();
     if args.len() != 3 {
         eprintln!("usage: {} <output-file> <gpu-id>", args[0]);
@@ -26,7 +27,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let output_path = Path::new(&args[1]);
     let gpu_id = args[2].parse()?;
 
-    let context = Context::retain_primary_for_device(Device::new(gpu_id))?;
+    let context = Context::create_for_device(Device::new(gpu_id))?;
     context.bind()?;
     let driver = Driver::create()?;
 
@@ -41,16 +42,16 @@ fn main() -> Result<(), Box<dyn Error>> {
     let registered =
         unsafe { RegisteredBuffer::register(&driver, &device, BufferRegisterFlags::empty())? };
 
-    let written = output.write(&registered, SIZE, 0, 0)?;
+    let written = output.write(IoSlice::create(&registered, ..)?, 0)?;
     drop(output);
 
     if written != SIZE {
-        return Err(format!("short write: wrote {written} of {SIZE} bytes").into());
+        anyhow::bail!("short write: wrote {written} of {SIZE} bytes");
     }
 
     let contents = fs::read(output_path)?;
     if contents.len() != SIZE || contents.iter().any(|byte| *byte != 0xab) {
-        return Err("output file does not contain the expected 0xab pattern".into());
+        anyhow::bail!("output file does not contain the expected 0xab pattern");
     }
 
     println!("wrote {written} bytes from registered GPU memory");
@@ -63,6 +64,6 @@ fn open_direct_write(path: &Path) -> IoResult<File> {
         .write(true)
         .create(true)
         .truncate(true)
-        .custom_flags(O_DIRECT)
+        .custom_flags(libc::O_DIRECT)
         .open(path)
 }

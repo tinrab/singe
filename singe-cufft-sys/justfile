@@ -5,17 +5,7 @@ generate:
     #!/usr/bin/env bash
     set -euxo pipefail
 
-    num_enums=(
-        "libraryPropertyType_t"
-        "cufftResult_t"
-        "cufftType_t"
-        "cufftCompatibility_t"
-        "cufftProperty_t"
-    )
-    enum_args=$(for enum in "${num_enums[@]}"; do echo -n "--with-derive-custom $enum=TryFromPrimitive,IntoPrimitive "; done)
-
     bindgen {{cufft_include_path}}/cufft.h \
-        $enum_args \
         --allowlist-item "^cufft.*" \
         --allowlist-item "^CUFFT.*" \
         --blocklist-item "^cuda.*" \
@@ -28,7 +18,7 @@ generate:
         --with-derive-hash \
         --with-derive-ord \
         --use-core \
-        --default-enum-style=rust \
+        --default-enum-style=newtype \
         -- \
             -I {{cuda_path}}/include \
             -I {{cufft_include_path}} \
@@ -48,7 +38,7 @@ generate:
         --blocklist-item "^cuda(Stream|DataType).*" \
         --blocklist-item "^libraryPropertyType.*" \
         --no-size_t-is-usize --no-layout-tests --with-derive-default \
-        --with-derive-eq --with-derive-hash --use-core --default-enum-style=rust \
+        --with-derive-eq --with-derive-hash --use-core --default-enum-style=newtype \
         -- -x c++ -DCUFFT_ENABLE_EXPERIMENTAL_API -I {{cuda_path}}/include -I {{cufft_include_path}} \
         > ./src/device_${CUFFT_VERSION}.rs
 
@@ -58,7 +48,7 @@ generate:
         --blocklist-item "^cuda(Stream|DataType).*" \
         --blocklist-item "^libraryPropertyType.*" \
         --no-size_t-is-usize --no-layout-tests --with-derive-default \
-        --with-derive-eq --with-derive-hash --use-core --default-enum-style=rust \
+        --with-derive-eq --with-derive-hash --use-core --default-enum-style=newtype \
         --  -I {{cuda_path}}/include -I {{cufft_include_path}} \
         > ./src/xt_${CUFFT_VERSION}.rs
 

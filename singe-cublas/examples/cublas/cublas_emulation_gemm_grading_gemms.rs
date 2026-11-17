@@ -1,16 +1,14 @@
 use singe_cublas::{
-    blas::level3::{dgemm, gemm_ex, zgemm},
+    blas::{extension::gemm_ex, level3::gemm},
     context::Context,
-    error::Result,
+    scalar::Scalar,
     types::{ComputeType, GemmAlgorithm, Operation},
 };
-
 use singe_cuda::{
-    context::Context as CudaContext, data_type::DataType, device::Device, memory::DeviceMemory,
-    types::Complex64,
+    context::Context as CudaContext, device::Device, memory::DeviceMemory, types::Complex64,
 };
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     let cuda = CudaContext::create_for_device(Device::new(0))?;
     let cublas = Context::create(&cuda)?;
 
@@ -22,19 +20,19 @@ fn main() -> Result<()> {
     let b_device = DeviceMemory::from_slice(&cuda, &b)?;
 
     let mut c_dgemm = DeviceMemory::<f64>::zeroed(&cuda, 4)?;
-    dgemm(
+    gemm(
         &cublas,
         Operation::NonTranspose,
         Operation::NonTranspose,
         2,
         2,
         2,
-        &1.0,
+        Scalar::host(&1.0),
         &a_device,
         2,
         &b_device,
         2,
-        &0.0,
+        Scalar::host(&0.0),
         &mut c_dgemm,
         2,
     )?;
@@ -47,16 +45,13 @@ fn main() -> Result<()> {
         2,
         2,
         2,
-        &1.0,
+        Scalar::host(&1.0_f64),
         &a_device,
-        DataType::F64,
         2,
         &b_device,
-        DataType::F64,
         2,
-        &0.0,
+        Scalar::host(&0.0_f64),
         &mut c_gemm_ex,
-        DataType::F64,
         2,
         ComputeType::F64,
         GemmAlgorithm::Default,
@@ -81,19 +76,19 @@ fn main() -> Result<()> {
         ],
     )?;
     let mut zc = DeviceMemory::<Complex64>::zeroed(&cuda, 4)?;
-    zgemm(
+    gemm(
         &cublas,
         Operation::NonTranspose,
         Operation::NonTranspose,
         2,
         2,
         2,
-        &Complex64::new(1.0, 0.0),
+        Scalar::host(&Complex64::new(1.0, 0.0)),
         &za,
         2,
         &zb,
         2,
-        &Complex64::new(0.0, 0.0),
+        Scalar::host(&Complex64::new(0.0, 0.0)),
         &mut zc,
         2,
     )?;
@@ -122,7 +117,7 @@ fn cpu_gemm_f64(n: usize, a: &[f64], b: &[f64]) -> Vec<f64> {
         for row in 0..n {
             let mut sum = 0.0;
             for inner in 0..n {
-                sum += a[row + inner * n] * b[inner + col * n];
+                sum = a[row + inner * n].mul_add(b[inner + col * n], sum);
             }
 
             c[row + col * n] = sum;

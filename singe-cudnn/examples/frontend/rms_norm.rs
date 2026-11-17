@@ -3,9 +3,7 @@ mod common;
 use singe_core::assert_close;
 use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
-    backend::tensor::{Shape, TensorSpec},
     data_type::DataType,
-    error::Result,
     frontend::{
         graph::{DataTypePolicy, Graph, GraphConfig},
         operation::{
@@ -14,6 +12,7 @@ use singe_cudnn::{
         },
         plan::{CompileConfig, ExecuteArgs, HeuristicMode},
     },
+    tensor::{Shape, TensorSpec},
 };
 
 fn init_f32_image(size: usize, seed: &mut u32) -> Vec<f32> {
@@ -25,7 +24,7 @@ fn init_f32_image(size: usize, seed: &mut u32) -> Vec<f32> {
     values
 }
 
-fn run() -> Result<()> {
+fn run() -> anyhow::Result<()> {
     let example = common::ExampleContext::create()?;
 
     let batch_size = 4;
@@ -80,45 +79,40 @@ fn run() -> Result<()> {
         },
         RmsNormalizationOutputs {
             output: y,
-            statistics: RmsNormalizationStatistics::Training {
-                inv_variance: inv_variance,
-            },
+            statistics: RmsNormalizationStatistics::Training { inv_variance },
         },
         RmsNormalizationConfig::new(epsilon).with_name("rms_norm"),
     )?;
 
-    let compiled = match graph.compile(
+    let compiled = graph.compile(
         Some(&example.cudnn),
         &CompileConfig::from_heuristic_modes([HeuristicMode::A, HeuristicMode::Fallback]),
-    ) {
-        Ok(compiled) => compiled,
-        Err(error) => return Err(error),
-    };
+    )?;
 
     let mut float_seed = 123_456_789_u32;
     let mut x_dev = DeviceMemory::from_slice(
         example.cudnn.cuda_context(),
         &init_f32_image(
-            (batch_size * seq_length * hidden_size) as usize,
+            usize::try_from(batch_size * seq_length * hidden_size)?,
             &mut float_seed,
         ),
     )?;
     let _inv_variance_host_init =
-        init_f32_image((batch_size * seq_length) as usize, &mut float_seed);
+        init_f32_image(usize::try_from(batch_size * seq_length)?, &mut float_seed);
     let mut scale_dev = DeviceMemory::from_slice(
         example.cudnn.cuda_context(),
-        &init_f32_image(hidden_size as usize, &mut float_seed),
+        &init_f32_image(usize::try_from(hidden_size)?, &mut float_seed),
     )?;
     let mut y_dev = DeviceMemory::from_slice(
         example.cudnn.cuda_context(),
         &init_f32_image(
-            (batch_size * seq_length * hidden_size) as usize,
+            usize::try_from(batch_size * seq_length * hidden_size)?,
             &mut float_seed,
         ),
     )?;
     let mut inv_variance_dev = DeviceMemory::from_slice(
         example.cudnn.cuda_context(),
-        &init_f32_image((batch_size * seq_length) as usize, &mut float_seed),
+        &init_f32_image(usize::try_from(batch_size * seq_length)?, &mut float_seed),
     )?;
     let mut workspace = common::workspace(example.cudnn.cuda_context(), compiled.workspace_size())?;
     let mut bindings = compiled.bindings()?;
@@ -129,9 +123,9 @@ fn run() -> Result<()> {
     // SAFETY: matching bindings, buffers and workspace remain live until the helper
     // completes the cuDNN stream, including when native execution returns an error.
     example.execute_and_wait(|context| unsafe {
-        compiled.execute(
+        compiled.execute_async(
             context,
-            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
         )
     })?;
 
@@ -154,9 +148,9 @@ fn run() -> Result<()> {
         inv_variance_host.len()
     );
 
-    assert_close!(y_first, 0.0791731, 1.0e-5, "y.first");
-    assert_close!(y_last, 0.571149, 1.0e-5, "y.last");
-    assert_close!(y_checksum, 227946.0, 0.5, "y.checksum");
+    assert_close!(y_first, 0.079_173_1, 1.0e-5, "y.first");
+    assert_close!(y_last, 0.571_149, 1.0e-5, "y.last");
+    assert_close!(y_checksum, 227_946.0, 0.5, "y.checksum");
     assert_close!(inv_variance_first, 1.70869, 1.0e-5, "inv_variance.first");
     assert_close!(inv_variance_last, 1.62816, 1.0e-5, "inv_variance.last");
     assert_close!(
@@ -169,6 +163,6 @@ fn run() -> Result<()> {
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_rms_norm", run())
 }

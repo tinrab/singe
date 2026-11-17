@@ -7,7 +7,7 @@ use singe_cuda::types::f16;
 ))]
 use singe_cuda::{
     stream::Stream,
-    view::{DeviceInput, DeviceOutput},
+    view::{DeviceOutput, DeviceRange},
 };
 
 #[cfg(any(

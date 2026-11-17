@@ -1,5 +1,4 @@
 use crate::{
-    backend::tensor::Shape,
     error::Result,
     frontend::{
         graph::{
@@ -13,6 +12,7 @@ use crate::{
             NormalizationConfig, NormalizationOperation, Operation,
         },
     },
+    tensor::Shape,
 };
 
 impl Graph {

@@ -21,14 +21,14 @@ pub struct Parameter {
 macro_rules! integer_getters {
     ($($name:ident: $ty:ty => $ffi:ident),+ $(,)?) => {
         $(
-            /// Read the value of the bound parameter as the requested integer type.
+            /// Reads the value of the bound parameter as the requested integer type.
             ///
             /// # Errors
             ///
             /// Returns an error if NCCL cannot read this parameter using the requested integer type.
             pub fn $name(&self) -> Result<$ty> {
                 let mut value = 0;
-                // SAFETY: the `ffi` entry point receives live handles owned by the wrappers and valid output locations.
+                // SAFETY: `self.handle` is a non-null handle from `ncclParamBind` that NCCL never frees, and `value` is a local output slot of the getter's type.
                 unsafe { try_ffi!(sys::$ffi(self.handle, &raw mut value))?; }
                 Ok(value)
             }
@@ -37,14 +37,14 @@ macro_rules! integer_getters {
 }
 
 impl Parameter {
-    /// Look up the parameter identified by `key` and return a handle to it.
+    /// Looks up the parameter identified by `key` and returns a handle to it.
     ///
     /// # Errors
     ///
     /// Returns an error if NCCL cannot bind `key` or returns a null parameter handle.
     pub fn create(key: &CStr) -> Result<Self> {
         let mut handle = ptr::null_mut();
-        // SAFETY: `ncclParamBind` receives valid output locations and pointers into buffers borrowed for the call.
+        // SAFETY: `key` is a borrowed NUL-terminated string, and `handle` is a local output slot.
         unsafe {
             try_ffi!(sys::ncclParamBind(&raw mut handle, key.as_ptr()))?;
         }
@@ -66,7 +66,7 @@ impl Parameter {
         u64: u64 => ncclParamGetU64,
     }
 
-    /// Read the value of the bound parameter as a string.
+    /// Reads the value of the bound parameter as a string.
     /// The returned string is copied before another NCCL call can invalidate its storage.
     ///
     /// # Errors
@@ -74,20 +74,22 @@ impl Parameter {
     /// Returns an error if NCCL cannot retrieve the string value or returns a null string pointer.
     pub fn string(&self) -> Result<CString> {
         let mut value = ptr::null();
-        // SAFETY: `ncclParamGetStr` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `self.handle` is a non-null handle from `ncclParamBind` that NCCL never frees, and `value` is a local output slot.
         unsafe {
             try_ffi!(sys::ncclParamGetStr(self.handle, &raw mut value))?;
         }
 
         if value.is_null() {
-            return Err(Error::NullPointer);
+            return Err(Error::NullPointer {
+                name: "parameter string".into(),
+            });
         }
         // SAFETY: the pointer was checked for null, and the library keeps the NUL-terminated string alive while this value is borrowed.
         Ok(unsafe { CStr::from_ptr(value) }.to_owned())
     }
 }
 
-/// Get all registered parameter keys.
+/// Returns all registered parameter keys.
 /// By default, the results include only parameters published in NCCL documentation.
 /// Setting `NCCL_PARAM_DUMP_ALL=true` will include all parameters.
 /// The returned strings are owned copies of NCCL's thread-local table.
@@ -98,7 +100,7 @@ impl Parameter {
 pub fn keys() -> Result<Vec<CString>> {
     let mut table = ptr::null_mut();
     let mut len = 0;
-    // SAFETY: `ncclParamGetAllParameterKeys` receives valid output locations.
+    // SAFETY: `table` and `len` are local output slots.
     unsafe {
         try_ffi!(sys::ncclParamGetAllParameterKeys(
             &raw mut table,
@@ -112,14 +114,18 @@ pub fn keys() -> Result<Vec<CString>> {
     }
 
     if table.is_null() {
-        return Err(Error::NullPointer);
+        return Err(Error::NullPointer {
+            name: "parameter table".into(),
+        });
     }
     // SAFETY: NCCL returned a non-null table of `len` entries that it keeps alive.
     unsafe { slice::from_raw_parts(table, len) }
         .iter()
         .map(|&key| {
             if key.is_null() {
-                return Err(Error::NullPointer);
+                return Err(Error::NullPointer {
+                    name: "parameter key".into(),
+                });
             }
             // SAFETY: the pointer was checked for null, and the library keeps the NUL-terminated string alive while this value is borrowed.
             Ok(unsafe { CStr::from_ptr(key) }.to_owned())

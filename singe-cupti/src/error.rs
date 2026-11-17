@@ -5,100 +5,26 @@
 
 use std::{
     borrow::Cow,
-    ffi::{CStr, NulError},
+    ffi::{NulError, c_char},
     ptr,
     result::Result as StdResult,
 };
 
-use singe_core::{static_str_from_c_ptr, status_enum};
 use singe_cuda::error::Error as CudaError;
 use singe_cupti_sys as sys;
 use thiserror::Error;
 
-/// Errors from CUDA, CUPTI, and checked profiling argument or result validation.
-#[derive(Error, Debug)]
-#[non_exhaustive]
-pub enum Error {
-    // Its library would not load.
-    #[error(transparent)]
-    Load(#[from] singe_cupti_sys::LoadError),
-
-    /// A CUDA operation failed.
-    #[error(transparent)]
-    Cuda(#[from] CudaError),
-
-    /// CUPTI returned a non-success status.
-    #[error("cupti error ({code}): {message}")]
-    Cupti {
-        /// Native CUPTI status returned by the failed call.
-        code: Status,
-        /// Description of the native CUPTI status.
-        message: String,
-    },
-
-    /// A string passed to a native API contains an interior nul byte.
-    #[error("string contains interior nul byte")]
-    InteriorNul,
-
-    /// A native handle, returned string, or required table pointer is unexpectedly null.
-    #[error("unexpected null handle")]
-    NullHandle,
-
-    /// An argument or checked conversion is outside the supported range.
-    #[error("`{name}` is out of range")]
-    OutOfRange {
-        /// Name of the invalid argument, conversion, attribute, or shared state.
-        name: Cow<'static, str>,
-    },
-
-    /// An argument or native result has an unexpected length.
-    #[error("unexpected length for `{name}`: expected {expected}, got {actual}")]
-    LengthMismatch {
-        /// Name of the invalid argument, conversion, attribute, or shared state.
-        name: Cow<'static, str>,
-        /// Required length in the units named by the failing operation.
-        expected: usize,
-        /// Observed length in the units named by the failing operation.
-        actual: usize,
-    },
-
-    /// A decoded native enum value is unrecognized.
-    #[error("unknown `{name}` value ({value})")]
-    UnknownEnumValue {
-        /// Name of the invalid argument, conversion, attribute, or shared state.
-        name: Cow<'static, str>,
-        /// Unrecognized native enum value.
-        value: u32,
-    },
-
-    /// An attribute is unsupported by the typed accessor or does not match its supplied value type.
-    #[error("invalid attribute: `{name}`")]
-    InvalidAttribute {
-        /// Name of the invalid argument, conversion, attribute, or shared state.
-        name: Cow<'static, str>,
-    },
-
-    /// Shared profiling or callback state is protected by a poisoned mutex.
-    #[error("`{name}` lock poisoned")]
-    LockPoisoned {
-        /// Name of the invalid argument, conversion, attribute, or shared state.
-        name: Cow<'static, str>,
-    },
-}
-
-/// Result of a CUPTI wrapper operation.
-pub type Result<T> = StdResult<T, Error>;
-
-impl Error {
-    pub(crate) fn out_of_range(name: impl Into<Cow<'static, str>>) -> Self {
-        Self::OutOfRange { name: name.into() }
-    }
-}
-
-status_enum! {
+singe_core::wrapper_status! {
+    library = "cupti",
+    error = Error::Cupti,
+    raw = sys::CUptiResult,
+    success = CUPTI_SUCCESS,
+    absence = sys::take_absence,
+    unknown = "UNKNOWN_CUPTI_STATUS",
+    description = error_message,
     /// Result codes returned by CUPTI.
     /// Codes from newer CUPTI releases are preserved in [`Status::Unknown`].
-    pub enum Status: u32 => sys::CUptiResult, unknown = "UNKNOWN_CUPTI_STATUS" {
+    pub enum Status: u32 {
         /// No error.
         Success = CUPTI_SUCCESS,
         /// One or more of the parameters is invalid.
@@ -180,23 +106,19 @@ status_enum! {
         /// User doesn't have sufficient privileges which are required to start the profiling session.
         ///
         /// One possible reason for this may be that the NVIDIA driver or your system administrator may have restricted access to the NVIDIA GPU performance counters.
-        /// To learn how to resolve this issue and find more information, please visit <https://developer.nvidia.com/`CUptiResult::CUPTI_ERROR_INSUFFICIENT_PRIVILEGES`>.
+        /// To learn how to resolve this issue and find more information, please visit <https://developer.nvidia.com/ERR_NVGPUCTRPERM>.
         InsufficientPrivileges = CUPTI_ERROR_INSUFFICIENT_PRIVILEGES,
-        /// Legacy CUPTI Profiling API i.e.
-        ///
-        /// event API from the header cupti_events.h and metric API from the header cupti_metrics.h are not compatible with the Profiling API in the header cupti_profiler_target.h and Perfworks metrics API in the headers nvperf_host.h and nvperf_target.h.
+        /// The legacy event and metric APIs are active in this process, and they cannot be used together with the range profiler and host metric APIs in [`crate::profiler`].
         OldProfilerApiInitialized = CUPTI_ERROR_OLD_PROFILER_API_INITIALIZED,
         /// Missing definition of the OpenACC API routine in the linked OpenACC library.
         ///
         /// One possible reason is that OpenACC library is linked statically in the user application, which might not have the definition of all the OpenACC API routines needed for the OpenACC profiling, as compiler might ignore definitions for the functions not used in the application.
         /// This issue can be mitigated by linking the OpenACC library dynamically.
         OpenAccUndefinedRoutine = CUPTI_ERROR_OPENACC_UNDEFINED_ROUTINE,
-        /// Legacy CUPTI Profiling API i.e.
+        /// The legacy event and metric APIs are not supported on devices with compute capability 7.5 and higher.
         ///
-        /// event API from the header cupti_events.h and metric API from the header cupti_metrics.h are not supported on devices with compute capability 7.5 and higher (i.e. Turing and later GPU architectures).
-        /// These APIs were deprecated in CUDA 12.8 and removed in CUDA 13.0.
-        /// These are replaced by the host profiling API in the header cupti_profiler_host.h and target profiling API in the header cupti_range_profiler.h which are supported on devices with compute capability 7.5 and higher (i.e. Turing and later GPU architectures).
-        /// Further, the PC Sampling Activity API and the source/SASS level metrics from the header cupti_activity.h are removed in CUDA 13.0.
+        /// These APIs were deprecated in CUDA 12.8 and removed in CUDA 13.0, replaced by the host metric and range profiler APIs in [`crate::profiler`].
+        /// CUDA 13.0 also removed PC sampling activity and source-level and SASS-level metrics.
         LegacyProfilerNotSupported = CUPTI_ERROR_LEGACY_PROFILER_NOT_SUPPORTED,
         /// CUPTI doesn't allow multiple callback subscribers.
         ///
@@ -217,7 +139,7 @@ status_enum! {
         SliDeviceNotSupported = CUPTI_ERROR_SLI_DEVICE_NOT_SUPPORTED,
         /// Profiling on WSL device is not supported.
         WslDeviceNotSupported = CUPTI_ERROR_WSL_DEVICE_NOT_SUPPORTED,
-        /// For invalid or unsupported chip name passed to cuptiProfilerHostInitialize.
+        /// The chip name passed to [`ProfilerHost::create_for_chip`](crate::profiler::ProfilerHost::create_for_chip) is invalid or unsupported.
         InvalidChipName = CUPTI_ERROR_INVALID_CHIP_NAME,
         /// Hardware Event System (HES) trace is not supported on MPS.
         HesTraceNotSupportedOnMultiProcessService = CUPTI_ERROR_HES_TRACE_NOT_SUPPORTED_ON_MPS,
@@ -228,59 +150,100 @@ status_enum! {
     }
 }
 
-impl From<sys::CUptiResult> for Error {
-    fn from(code: sys::CUptiResult) -> Self {
-        if code == sys::CUptiResult::CUPTI_ERROR_NOT_INITIALIZED
-            && let Err(error) = singe_cupti_sys::load()
-        {
-            return Self::Load(error);
-        }
+/// Errors from CUDA, CUPTI, and checked profiling argument or result validation.
+#[derive(Error, Debug)]
+#[non_exhaustive]
+pub enum Error {
+    /// CUPTI or one of its symbols would not load.
+    #[error(transparent)]
+    Load(#[from] sys::LoadError),
 
-        let status = Status::from(code);
-        // SAFETY: `cuptiGetErrorMessage` writes a static NUL-terminated string on success; the pointer is checked before use.
-        let message = unsafe {
-            let mut message_ptr = ptr::null();
-            let error_result = sys::cuptiGetErrorMessage(code, &raw mut message_ptr);
-            if error_result == sys::CUptiResult::CUPTI_SUCCESS && !message_ptr.is_null() {
-                CStr::from_ptr(message_ptr).to_string_lossy().into_owned()
-            } else {
-                format!("cupti error code {code:?}")
-            }
-        };
+    /// A CUDA operation failed.
+    #[error(transparent)]
+    Cuda(#[from] CudaError),
 
-        Self::Cupti {
-            code: status,
-            message,
-        }
+    /// CUPTI returned a failure status.
+    #[error("cupti error ({code}): {}", code.description())]
+    Cupti {
+        /// Native CUPTI status returned by the failed call.
+        code: Status,
+    },
+
+    /// A string passed to a native API contains an interior nul byte.
+    #[error("string contains interior nul byte")]
+    InteriorNul,
+
+    /// A native handle, returned string, or required table pointer is unexpectedly null.
+    #[error("unexpected null handle")]
+    NullHandle,
+
+    /// A native enum value has no typed variant in this crate.
+    #[error("unknown `{name}` value {value}")]
+    UnknownEnumValue {
+        /// Name of the typed enum.
+        name: Cow<'static, str>,
+        /// Unrecognized native value.
+        value: i64,
+    },
+
+    /// An argument or checked conversion is outside the supported range.
+    #[error("`{name}` is out of range")]
+    OutOfRange {
+        /// Name of the invalid argument, conversion, attribute, or shared state.
+        name: Cow<'static, str>,
+    },
+
+    /// A native value has a byte size other than the one its type requires.
+    #[error("`{name}` size mismatch (expected {expected} bytes, got {actual})")]
+    SizeMismatch {
+        /// Name of the value whose size is checked.
+        name: Cow<'static, str>,
+        /// Required size in bytes.
+        expected: usize,
+        /// Reported size in bytes.
+        actual: usize,
+    },
+
+    /// An attribute is unsupported by the typed accessor or does not match its supplied value type.
+    #[error("invalid attribute: `{name}`")]
+    InvalidAttribute {
+        /// Name of the invalid argument, conversion, attribute, or shared state.
+        name: Cow<'static, str>,
+    },
+
+    /// CUPTI rejected a subscription because another subscriber is active.
+    #[error("cupti subscriber `{existing}` is already active")]
+    SubscriberActive {
+        /// Name the active subscriber registered with CUPTI.
+        existing: String,
+    },
+
+    /// Activity buffer callbacks are registered for the process or another subscriber, and CUPTI's buffer callbacks cannot tell the two apart.
+    #[error("activity buffer callbacks are registered for another subscriber")]
+    ActivityCallbacksInUse,
+
+    /// Shared profiling or callback state is protected by a poisoned mutex.
+    #[error("`{name}` lock is poisoned")]
+    LockPoisoned {
+        /// Name of the invalid argument, conversion, attribute, or shared state.
+        name: Cow<'static, str>,
+    },
+}
+
+/// Result of a CUPTI wrapper operation.
+pub type Result<T> = StdResult<T, Error>;
+
+impl Error {
+    pub(crate) fn out_of_range(name: impl Into<Cow<'static, str>>) -> Self {
+        Self::OutOfRange { name: name.into() }
     }
 }
 
-impl From<Status> for Error {
-    fn from(status: Status) -> Self {
-        match sys::CUptiResult::try_from(status) {
-            Ok(code) => code.into(),
-            Err(status) => Self::Cupti {
-                code: status,
-                message: format!("unknown cupti result code {}", status.raw()),
-            },
-        }
-    }
-}
-
-impl Status {
-    /// CUPTI's description of this status.
-    #[must_use]
-    pub fn description(self) -> &'static str {
-        let Ok(raw) = sys::CUptiResult::try_from(self) else {
-            return "unknown cupti error";
-        };
-        let mut message = ptr::null();
-        // SAFETY: `message` is a valid output location, and CUPTI returns a static string.
-        unsafe {
-            if sys::cuptiGetErrorMessage(raw, &raw mut message) != sys::CUptiResult::CUPTI_SUCCESS {
-                return "unknown cupti error";
-            }
-            static_str_from_c_ptr(message, "unknown cupti error")
+impl From<singe_core::UnknownEnumValue> for Error {
+    fn from(error: singe_core::UnknownEnumValue) -> Self {
+        Self::UnknownEnumValue {
+            name: error.name.into(),
+            value: error.value,
         }
     }
 }
@@ -291,15 +254,25 @@ impl From<NulError> for Error {
     }
 }
 
-/// Converts a raw CUPTI status-returning expression into a crate [`Result`](crate::error::Result).
-#[macro_export]
-macro_rules! try_ffi {
-    ($expr:expr) => {{
-        let status = { $expr };
-        if status != singe_cupti_sys::CUptiResult::CUPTI_SUCCESS {
-            Err($crate::error::Error::from(status))
-        } else {
-            Ok(())
-        }
-    }};
+// Adapts `cuptiGetErrorMessage`, which writes its string through an out-parameter, to the error-string shape `wrapper_status!` expects.
+fn error_message(status: sys::CUptiResult) -> *const c_char {
+    let mut message = ptr::null();
+    // SAFETY: `message` is a valid output location, and CUPTI writes a static NUL-terminated string to it.
+    let result = unsafe { sys::cuptiGetErrorMessage(status, &raw mut message) };
+    if result == sys::CUptiResult::CUPTI_SUCCESS {
+        message
+    } else {
+        // A missing CUPTI records an absence that belongs to no wrapper call, so it must not reach the next status conversion.
+        let _ = sys::take_absence();
+        ptr::null()
+    }
 }
+
+// Converts a raw CUPTI status into this crate's `Result`.
+macro_rules! try_ffi {
+    ($expr:expr) => {
+        $crate::error::Error::check($expr)
+    };
+}
+
+pub(crate) use try_ffi;

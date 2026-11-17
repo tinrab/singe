@@ -1,27 +1,28 @@
 use std::{
-    env,
-    error::Error as StdError,
-    fs,
+    env, fs,
     io::{Error, ErrorKind, Write},
     path::{Path, PathBuf},
 };
 
-use singe_cuda::context::Context as CudaContext;
-use singe_nvjpeg::{image::Size, k2::prelude::*};
+use singe_cuda::{context::Context as CudaContext, stream::StreamOptions};
+use singe_nvjpeg::{
+    image::Size,
+    k2::{
+        context::{Context, ContextOptions},
+        decode::{DecodeOptions, DecodedComponent, Decoder},
+        types::{ImageComponentInfo, ImageFormat},
+    },
+};
 
-type ExampleResult<T> = Result<T, Box<dyn StdError>>;
+fn main() -> anyhow::Result<()> {
+    let input = fs::read(input_path()?)?;
 
-fn main() -> ExampleResult<()> {
-    let input = input_path()?;
-
-    let context = CudaContext::create()?;
-    let stream = context.create_stream()?;
+    let cuda_context = CudaContext::create()?;
+    let stream = cuda_context.create_stream(StreamOptions::default())?;
+    let context = Context::create(&cuda_context, &ContextOptions::default())?;
     let options = DecodeOptions::new().with_output_format(ImageFormat::Planar);
-    let mut decoder = Decoder::builder()
-        .backend(Backend::Default)
-        .options(options)
-        .create(&context)?;
-    let image = decoder.decode_file_to_device(&input, &stream)?;
+    let mut decoder = Decoder::create(&context, options)?;
+    let image = decoder.decode_to_device(&input, &stream)?;
 
     match image.components() {
         [gray] => decode_gray(gray)?,
@@ -34,17 +35,12 @@ fn main() -> ExampleResult<()> {
     Ok(())
 }
 
-fn decode_gray(component: &DecodedComponent) -> ExampleResult<()> {
+fn decode_gray(component: &DecodedComponent) -> anyhow::Result<()> {
     let info = component.spec().info();
     ensure_u8_unsigned(&info)?;
     let size = component_size(&info);
 
-    let output = output_path("jpeg2k_decode.pgm");
-    fs::create_dir_all(
-        output
-            .parent()
-            .ok_or_else(|| invalid_input("missing output parent"))?,
-    )?;
+    let output = env::temp_dir().join("jpeg2k_decode.pgm");
     let gray = component.data().copy_to_host_vec()?;
     write_pgm(&output, size.width(), size.height(), &gray)?;
     println!("wrote {}", output.display());
@@ -55,7 +51,7 @@ fn decode_rgb(
     red: &DecodedComponent,
     green: &DecodedComponent,
     blue: &DecodedComponent,
-) -> ExampleResult<()> {
+) -> anyhow::Result<()> {
     let red_info = red.spec().info();
     let green_info = green.spec().info();
     let blue_info = blue.spec().info();
@@ -72,18 +68,13 @@ fn decode_rgb(
     let blue = blue.data().copy_to_host_vec()?;
     let rgb = interleave_rgb(&red, &green, &blue)?;
 
-    let output = output_path("jpeg2k_decode.ppm");
-    fs::create_dir_all(
-        output
-            .parent()
-            .ok_or_else(|| invalid_input("missing output parent"))?,
-    )?;
+    let output = env::temp_dir().join("jpeg2k_decode.ppm");
     write_ppm(&output, size.width(), size.height(), &rgb)?;
     println!("wrote {}", output.display());
     Ok(())
 }
 
-fn input_path() -> ExampleResult<PathBuf> {
+fn input_path() -> anyhow::Result<PathBuf> {
     env::args_os()
         .nth(1)
         .map(PathBuf::from)
@@ -93,14 +84,7 @@ fn input_path() -> ExampleResult<PathBuf> {
         .map_err(Into::into)
 }
 
-fn output_path(filename: &str) -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("examples")
-        .join("output")
-        .join(filename)
-}
-
-fn ensure_u8_unsigned(component: &ImageComponentInfo) -> ExampleResult<()> {
+fn ensure_u8_unsigned(component: &ImageComponentInfo) -> anyhow::Result<()> {
     if component.precision() <= 8 && !component.signed() {
         Ok(())
     } else {
@@ -113,7 +97,7 @@ fn component_size(component: &ImageComponentInfo) -> Size {
     Size::new(size.width(), size.height())
 }
 
-fn interleave_rgb(red: &[u8], green: &[u8], blue: &[u8]) -> ExampleResult<Vec<u8>> {
+fn interleave_rgb(red: &[u8], green: &[u8], blue: &[u8]) -> anyhow::Result<Vec<u8>> {
     if red.len() != green.len() || red.len() != blue.len() {
         return Err(invalid_input("RGB component lengths differ").into());
     }
@@ -133,14 +117,14 @@ fn interleave_rgb(red: &[u8], green: &[u8], blue: &[u8]) -> ExampleResult<Vec<u8
     Ok(rgb)
 }
 
-fn write_pgm(path: &Path, width: u32, height: u32, gray: &[u8]) -> ExampleResult<()> {
+fn write_pgm(path: &Path, width: u32, height: u32, gray: &[u8]) -> anyhow::Result<()> {
     let mut file = fs::File::create(path)?;
     write!(file, "P5\n{width} {height}\n255\n")?;
     file.write_all(gray)?;
     Ok(())
 }
 
-fn write_ppm(path: &Path, width: u32, height: u32, rgb: &[u8]) -> ExampleResult<()> {
+fn write_ppm(path: &Path, width: u32, height: u32, rgb: &[u8]) -> anyhow::Result<()> {
     let mut file = fs::File::create(path)?;
     write!(file, "P6\n{width} {height}\n255\n")?;
     file.write_all(rgb)?;

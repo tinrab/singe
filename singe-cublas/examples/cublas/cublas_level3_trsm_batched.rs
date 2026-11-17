@@ -1,36 +1,26 @@
 use singe_cublas::{
-    blas::level3::dtrsm_batched,
+    blas::level3::trsm_batched,
     context::Context,
-    error::Result,
+    scalar::Scalar,
     types::{DiagonalType, FillMode, Operation, SideMode},
 };
 use singe_cuda::{
-    context::Context as CudaContext, device::Device, memory::DeviceMemory, types::DevicePtr,
+    context::Context as CudaContext,
+    device::Device,
+    memory::DeviceMemory,
+    view::{DeviceInputView, DeviceOutputView},
 };
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     let cuda = CudaContext::create_for_device(Device::new(0))?;
     let cublas = Context::create(&cuda)?;
 
     let a0 = DeviceMemory::from_slice(&cuda, &[1.0_f64, 3.0, 2.0, 4.0])?;
     let a1 = DeviceMemory::from_slice(&cuda, &[5.0_f64, 7.0, 6.0, 8.0])?;
-    let b0 = DeviceMemory::from_slice(&cuda, &[5.0_f64, 7.0, 6.0, 8.0])?;
-    let b1 = DeviceMemory::from_slice(&cuda, &[9.0_f64, 11.0, 10.0, 12.0])?;
+    let mut b0 = DeviceMemory::from_slice(&cuda, &[5.0_f64, 7.0, 6.0, 8.0])?;
+    let mut b1 = DeviceMemory::from_slice(&cuda, &[9.0_f64, 11.0, 10.0, 12.0])?;
 
-    let a = [
-        // SAFETY: the address comes from a live allocation; wrapping it does not dereference it.
-        unsafe { DevicePtr::from_raw(a0.as_ptr().cast_mut().cast::<()>()) },
-        // SAFETY: the address comes from a live allocation; wrapping it does not dereference it.
-        unsafe { DevicePtr::from_raw(a1.as_ptr().cast_mut().cast::<()>()) },
-    ];
-    let mut b = [
-        // SAFETY: the address comes from a live allocation; wrapping it does not dereference it.
-        unsafe { DevicePtr::from_raw(b0.as_ptr().cast_mut().cast::<()>()) },
-        // SAFETY: the address comes from a live allocation; wrapping it does not dereference it.
-        unsafe { DevicePtr::from_raw(b1.as_ptr().cast_mut().cast::<()>()) },
-    ];
-
-    dtrsm_batched(
+    trsm_batched(
         &cublas,
         SideMode::Left,
         FillMode::Upper,
@@ -38,10 +28,16 @@ fn main() -> Result<()> {
         DiagonalType::NonUnit,
         2,
         2,
-        &1.0,
-        &a,
+        Scalar::host(&1.0),
+        &[
+            DeviceInputView::from_buffer(&a0),
+            DeviceInputView::from_buffer(&a1),
+        ],
         2,
-        &mut b,
+        &mut [
+            DeviceOutputView::from_output(&mut b0),
+            DeviceOutputView::from_output(&mut b1),
+        ],
         2,
     )?;
 

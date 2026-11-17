@@ -1,36 +1,45 @@
-use crate::crc32::Spec;
+//! Serialized GPU test contexts.
 
-/// Computes the CRC32 of `input` for `spec` on the CPU.
+use std::sync::Arc;
+
+use singe_cuda::{
+    context::Context as CudaContext,
+    stream::{Stream, StreamOptions},
+    testing::{TestDevice, bootstrap},
+};
+
+use crate::error::Result;
+
+/// A CUDA stream on a locked test device.
 ///
-/// Use it to check results from the GPU.
-#[must_use]
-pub fn cpu_crc32(spec: Spec, input: &[u8]) -> u32 {
-    let mut crc = spec.init;
-
-    for byte in input {
-        crc ^= if spec.ref_in {
-            reverse(u32::from(*byte))
-        } else {
-            u32::from(*byte) << 24
-        };
-
-        for _ in 0..8 {
-            crc = (crc << 1) ^ if crc & 0x8000_0000 != 0 { spec.poly } else { 0 };
-        }
-    }
-
-    if spec.ref_out {
-        crc = reverse(crc);
-    }
-
-    crc ^ spec.xorout
+/// The stream drops before the device's CUDA context and lock.
+#[derive(Debug)]
+pub struct TestContext {
+    stream: Stream,
+    device: TestDevice,
 }
 
-fn reverse(mut x: u32) -> u32 {
-    x = ((x & 0xaaaa_aaaa) >> 1) | ((x & 0x5555_5555) << 1);
-    x = ((x & 0xcccc_cccc) >> 2) | ((x & 0x3333_3333) << 2);
-    x = ((x & 0xf0f0_f0f0) >> 4) | ((x & 0x0f0f_0f0f) << 4);
-    x = ((x & 0xff00_ff00) >> 8) | ((x & 0x00ff_00ff) << 8);
+impl TestContext {
+    /// Returns the stream.
+    #[must_use]
+    pub fn stream(&self) -> &Stream {
+        &self.stream
+    }
 
-    x.rotate_left(16)
+    /// Returns the CUDA context of the locked device.
+    #[must_use]
+    pub fn cuda_context(&self) -> &Arc<CudaContext> {
+        self.device.context()
+    }
+}
+
+/// Locks CUDA device 0 and creates a stream on its CUDA context.
+///
+/// # Errors
+///
+/// Returns an error if locking the device, initializing CUDA, or creating the context or stream fails.
+pub fn setup_context() -> Result<TestContext> {
+    let device = bootstrap()?;
+    let stream = device.context().create_stream(StreamOptions::default())?;
+    Ok(TestContext { stream, device })
 }

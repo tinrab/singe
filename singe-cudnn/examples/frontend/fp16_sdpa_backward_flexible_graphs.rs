@@ -1,10 +1,7 @@
 mod common;
 
 use singe_cudnn::{
-    backend::{
-        pointwise::PointwiseMode,
-        tensor::{Shape, TensorSpec},
-    },
+    backend::operation::pointwise::PointwiseMode,
     data_type::DataType,
     error::Result,
     frontend::{
@@ -16,8 +13,13 @@ use singe_cudnn::{
         plan::{CompileConfig, HeuristicMode},
     },
     math::NanPropagation,
+    tensor::{Shape, TensorSpec},
 };
 
+#[expect(
+    clippy::many_single_char_names,
+    reason = "keeps the upstream sample's single-letter dimension names"
+)]
 fn run() -> Result<()> {
     let context = common::ExampleContext::create()?;
     let properties = context.cudnn.cuda_context().device().properties()?;
@@ -67,7 +69,7 @@ fn run() -> Result<()> {
         DataType::F16,
         Shape::contiguous([b, h, s_q, d_v])?,
     ));
-    let d_o = graph.tensor(TensorSpec::new(
+    let o_grad = graph.tensor(TensorSpec::new(
         DataType::F16,
         Shape::contiguous([b, h, s_q, d_v])?,
     ));
@@ -139,7 +141,7 @@ fn run() -> Result<()> {
             key: k,
             value: v,
             output: o,
-            output_gradient: d_o,
+            output_gradient: o_grad,
             stats,
             scale,
         },
@@ -154,11 +156,11 @@ fn run() -> Result<()> {
             )),
         SdpaGradientOutputConfig::new(TensorOutputConfig::new().output_tensor()),
     )?;
-    let d_q = outputs.query_gradient;
-    let d_k = outputs.key_gradient;
-    let d_v = outputs.value_gradient;
+    let q_grad = outputs.query_gradient;
+    let k_grad = outputs.key_gradient;
+    let v_grad = outputs.value_gradient;
 
-    for output in [d_q, d_k, d_v] {
+    for output in [q_grad, k_grad, v_grad] {
         graph.mark_as_output(output)?;
     }
 
@@ -169,6 +171,6 @@ fn run() -> Result<()> {
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_fp16_sdpa_backward_flexible_graphs", run())
 }

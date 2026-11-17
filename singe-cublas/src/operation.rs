@@ -13,12 +13,14 @@ use singe_cuda::{
     submission::{
         AccessMode, DeviceOperation, Execution, Operation, Resources, transfer::DeviceValue,
     },
-    view::{DeviceRegionProvider, DeviceRepr},
+    view::DeviceRegionProvider,
 };
 
 use crate::{
+    blas::Element,
     context::Context,
-    gemm::{self, DeviceMatrix, DeviceMatrixMut, GemmConfig, GemmElement},
+    gemm::{self, GemmShape, MatrixMut, MatrixRef},
+    scalar::Scalar,
 };
 
 /// An owned initialized column-major matrix, including its leading dimension.
@@ -58,7 +60,7 @@ impl<T> Matrix<T> {
 #[derive(Debug)]
 pub struct Gemm<T> {
     context: Arc<Mutex<Context>>,
-    config: GemmConfig,
+    shape: GemmShape,
     alpha: T,
     a: Matrix<T>,
     b: Matrix<T>,
@@ -72,7 +74,7 @@ impl<T> Gemm<T> {
     /// Construction does not submit GPU work.
     pub fn new(
         context: Arc<Mutex<Context>>,
-        config: GemmConfig,
+        shape: GemmShape,
         alpha: T,
         a: Matrix<T>,
         b: Matrix<T>,
@@ -81,7 +83,7 @@ impl<T> Gemm<T> {
     ) -> Self {
         Self {
             context,
-            config,
+            shape,
             alpha,
             a,
             b,
@@ -91,7 +93,7 @@ impl<T> Gemm<T> {
     }
 }
 
-impl<T: GemmElement + DeviceRepr + Send + Sync> Gemm<T> {
+impl<T: Element + Send + Sync> Gemm<T> {
     fn resources(&self) -> Resources {
         let mut resources = Resources::new();
         resources.retain(Arc::clone(&self.context));
@@ -105,12 +107,9 @@ impl<T: GemmElement + DeviceRepr + Send + Sync> Gemm<T> {
     }
 
     fn execute_on(&mut self, stream: &Stream) -> CudaResult<()> {
-        let context = self
-            .context
-            .lock()
-            .map_err(|_| CudaError::ResourcePoisoned {
-                name: "cublas context",
-            })?;
+        let mut context = self.context.lock().map_err(|_| CudaError::LockPoisoned {
+            name: "cublas context".into(),
+        })?;
         if context.cuda_context() != stream.context() {
             return Err(CudaError::StreamContextMismatch);
         }
@@ -120,14 +119,14 @@ impl<T: GemmElement + DeviceRepr + Send + Sync> Gemm<T> {
             .map_err(|error| CudaError::Operation(Box::new(error)))?;
         // SAFETY: the operation owns its matrices, and the stream set above orders every access to them.
         let result = unsafe {
-            gemm::gemm(
+            gemm::gemm_async(
                 &context,
-                self.config,
-                &self.alpha,
-                DeviceMatrix::new(&self.a.memory, self.a.leading_dimension),
-                DeviceMatrix::new(&self.b.memory, self.b.leading_dimension),
-                &self.beta,
-                DeviceMatrixMut::new(&mut self.c.memory, self.c.leading_dimension),
+                self.shape,
+                Scalar::host(&self.alpha),
+                MatrixRef::new(&self.a.memory, self.a.leading_dimension),
+                MatrixRef::new(&self.b.memory, self.b.leading_dimension),
+                Scalar::host(&self.beta),
+                MatrixMut::new(&mut self.c.memory, self.c.leading_dimension),
             )
             .map_err(|error| CudaError::Operation(Box::new(error)))
         };
@@ -136,7 +135,8 @@ impl<T: GemmElement + DeviceRepr + Send + Sync> Gemm<T> {
     }
 }
 
-unsafe impl<T: GemmElement + DeviceRepr + Send + Sync> Operation for Gemm<T> {
+// SAFETY: `enqueue` declares every buffer the GEMM reads or writes and retains its owners until the work completes.
+unsafe impl<T: Element + Send + Sync> Operation for Gemm<T> {
     type Pending = Self::Output;
 
     type Output = DeviceValue<T>;
@@ -156,9 +156,10 @@ unsafe impl<T: GemmElement + DeviceRepr + Send + Sync> Operation for Gemm<T> {
 }
 
 // SAFETY: enqueue returns pending device metadata and resolution is the identity function.
-unsafe impl<T: GemmElement + DeviceRepr + Send + Sync> DeviceOperation for Gemm<T> {}
+unsafe impl<T: Element + Send + Sync> DeviceOperation for Gemm<T> {}
 
-unsafe impl<T: GemmElement + DeviceRepr + Send + Sync> Recordable for Gemm<T> {
+// SAFETY: `record` declares every buffer the GEMM reads or writes, and the recording retains their owners for every replay.
+unsafe impl<T: Element + Send + Sync> Recordable for Gemm<T> {
     type Output = DeviceMemory<MaybeUninit<T>>;
 
     fn record(mut self, recording: &mut Recording) -> CudaResult<Self::Output> {

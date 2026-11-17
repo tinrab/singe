@@ -5,7 +5,7 @@ use singe_cuda::types::f16;
 #[cfg(any(feature = "dtype_bf16", feature = "dtype_f16", feature = "dtype_f32"))]
 use singe_cuda::{
     stream::Stream,
-    view::{DeviceInput, DeviceOutput},
+    view::{DeviceOutput, DeviceRange},
 };
 
 #[cfg(any(feature = "dtype_bf16", feature = "dtype_f16", feature = "dtype_f32"))]
@@ -26,13 +26,13 @@ use crate::{
 pub unsafe fn multi_token_attention_f32<B>(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    scores: &impl DeviceInput<f32>,
-    weight: &impl DeviceInput<f32>,
+    scores: &impl DeviceRange<f32>,
+    weight: &impl DeviceRange<f32>,
     bias: Option<&B>,
     config: MultiTokenAttentionConfig,
 ) -> Result<()>
 where
-    B: DeviceInput<f32>,
+    B: DeviceRange<f32>,
 {
     config.validate_lengths(
         out.len(),
@@ -77,13 +77,13 @@ where
 pub unsafe fn multi_token_attention_sparse_f32<B>(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    scores: &impl DeviceInput<f32>,
-    weight: &impl DeviceInput<f32>,
+    scores: &impl DeviceRange<f32>,
+    weight: &impl DeviceRange<f32>,
     bias: Option<&B>,
     config: MultiTokenAttentionConfig,
 ) -> Result<()>
 where
-    B: DeviceInput<f32>,
+    B: DeviceRange<f32>,
 {
     config.validate_lengths(
         out.len(),
@@ -128,13 +128,13 @@ where
 pub unsafe fn multi_token_attention_f16<B>(
     stream: &Stream,
     out: &mut impl DeviceOutput<f16>,
-    scores: &impl DeviceInput<f16>,
-    weight: &impl DeviceInput<f16>,
+    scores: &impl DeviceRange<f16>,
+    weight: &impl DeviceRange<f16>,
     bias: Option<&B>,
     config: MultiTokenAttentionConfig,
 ) -> Result<()>
 where
-    B: DeviceInput<f16>,
+    B: DeviceRange<f16>,
 {
     config.validate_lengths(
         out.len(),
@@ -178,13 +178,13 @@ where
 pub unsafe fn multi_token_attention_sparse_f16<B>(
     stream: &Stream,
     out: &mut impl DeviceOutput<f16>,
-    scores: &impl DeviceInput<f16>,
-    weight: &impl DeviceInput<f16>,
+    scores: &impl DeviceRange<f16>,
+    weight: &impl DeviceRange<f16>,
     bias: Option<&B>,
     config: MultiTokenAttentionConfig,
 ) -> Result<()>
 where
-    B: DeviceInput<f16>,
+    B: DeviceRange<f16>,
 {
     config.validate_lengths(
         out.len(),
@@ -228,13 +228,13 @@ where
 pub unsafe fn multi_token_attention_bf16<B>(
     stream: &Stream,
     out: &mut impl DeviceOutput<bf16>,
-    scores: &impl DeviceInput<bf16>,
-    weight: &impl DeviceInput<bf16>,
+    scores: &impl DeviceRange<bf16>,
+    weight: &impl DeviceRange<bf16>,
     bias: Option<&B>,
     config: MultiTokenAttentionConfig,
 ) -> Result<()>
 where
-    B: DeviceInput<bf16>,
+    B: DeviceRange<bf16>,
 {
     config.validate_lengths(
         out.len(),
@@ -278,13 +278,13 @@ where
 pub unsafe fn multi_token_attention_sparse_bf16<B>(
     stream: &Stream,
     out: &mut impl DeviceOutput<bf16>,
-    scores: &impl DeviceInput<bf16>,
-    weight: &impl DeviceInput<bf16>,
+    scores: &impl DeviceRange<bf16>,
+    weight: &impl DeviceRange<bf16>,
     bias: Option<&B>,
     config: MultiTokenAttentionConfig,
 ) -> Result<()>
 where
-    B: DeviceInput<bf16>,
+    B: DeviceRange<bf16>,
 {
     config.validate_lengths(
         out.len(),

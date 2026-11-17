@@ -3,8 +3,7 @@ use crate::{
         engine::EngineIndex,
         execution::{EngineChoice, KnobChoiceInfo},
         knob::BackendKnobType,
-        reduction::ReduceTensorOperator,
-        tensor::{Shape, TensorId, TensorSpec},
+        operation::reduction::ReduceTensorOperator,
     },
     data_type::DataType,
     error::{Error, Result},
@@ -15,17 +14,18 @@ use crate::{
             support::{SDPA_BACKWARD_RNG_DUMP, sdpa_scalar_tensor},
         },
         error::{Error as FrontendError, SdpaRequirement},
-        graph::{DataTypePolicy, Graph, TensorOutputConfig},
+        graph::{DataTypePolicy, Graph, TensorOutputConfig, validate_vector_stride_alignment},
         operation::{
             AttentionBackwardAuxGradients, AttentionBackwardConfig,
             AttentionBackwardHeuristicOverride, AttentionBackwardRequest, AttentionDropoutMask,
             MatmulConfig, Operation, ReductionConfig, SdpaOperation, SdpaScoreModifiers,
         },
     },
+    tensor::{Shape, TensorId, TensorSpec},
 };
 
 #[derive(Debug, Clone, Copy)]
-pub struct GradientMatmulWorkspace {
+pub(crate) struct GradientMatmulWorkspace {
     pub data_type: DataType,
     pub max_total_tokens: Option<i64>,
 }
@@ -105,7 +105,7 @@ impl Graph {
                 .get_mut(id)
                 .ok_or(FrontendError::TensorNotFound(*id))?;
             tensor.byte_alignment = tensor.byte_alignment.max(16);
-            tensor.validate_vector_stride_alignment(*id, &tensor.shape)?;
+            validate_vector_stride_alignment(tensor, *id, &tensor.shape)?;
         }
         Ok(())
     }
@@ -446,7 +446,7 @@ impl Graph {
 }
 
 /// Matmul settings shared by the SDPA backward expansions.
-pub struct SdpaBackwardMatmulConfigs {
+pub(crate) struct SdpaBackwardMatmulConfigs {
     /// `Q K^T` and `dO V^T`, sized by the query and key-value sequence lengths.
     pub(crate) scores: MatmulConfig,
     /// Gradients with respect to the query.

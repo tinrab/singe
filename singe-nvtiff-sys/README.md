@@ -6,4 +6,6 @@
 [![Documentation](https://docs.rs/singe-nvtiff-sys/badge.svg)](https://docs.rs/singe-nvtiff-sys)
 ![License](https://img.shields.io/crates/l/singe-nvtiff-sys.svg)
 
-Low-level FFI bindings for the NVIDIA nvTIFF library.
+Low-level FFI bindings for nvTIFF 0.8, the NVIDIA GPU TIFF codec library, generated from `nvtiff.h`.
+`singe-loader` loads the library at run time, on the first call or through `load`, so building links no NVIDIA library.
+Most users want the safe [`singe-nvtiff`](../singe-nvtiff/README.md) crate.

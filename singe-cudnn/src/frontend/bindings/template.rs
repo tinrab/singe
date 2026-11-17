@@ -1,7 +1,6 @@
 use singe_cuda::types::DevicePtr;
 
 use crate::{
-    backend::tensor::TensorId,
     error::Result,
     frontend::{
         bindings::{Bindings, adjusted_storage_view_ptr, resolve_binding_source},
@@ -9,11 +8,12 @@ use crate::{
         plan::BindingReplacement,
         workspace::WorkspaceLayout,
     },
+    tensor::TensorId,
 };
 
 /// Root allocation and accumulated byte offset for one prepared native binding.
 #[derive(Debug, Clone, Copy)]
-pub struct BindingSource {
+pub(crate) struct BindingSource {
     pub tensor: TensorId,
     pub byte_offset: i64,
 }
@@ -21,7 +21,7 @@ pub struct BindingSource {
 /// Immutable native binding order and corresponding resolved storage sources.
 /// Construction resolves alias chains once; pointer preparation preserves this order.
 #[derive(Debug)]
-pub struct BindingTemplate {
+pub(crate) struct BindingTemplate {
     ids: Vec<TensorId>,
     sources: Vec<BindingSource>,
 }

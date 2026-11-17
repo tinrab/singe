@@ -1,12 +1,12 @@
 use std::path::Path;
 
-use singe_onnx::{AttributeValue, TensorDataType, TensorElements};
+use singe_onnx::{AttributeValue, Model, TensorDataType, TensorElements};
 
 #[test]
-#[ignore = "optional external classifier export; generate it with just test-prepare"]
+#[ignore = "optional external classifier export; generate it with just prepare-tests"]
 fn test_parses_generated_image_classifier_export() {
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/data/image_classifier_model.onnx");
-    let model = singe_onnx::read_path(path).expect("parse generated ONNX model");
+    let model = Model::from_path(path).expect("parse generated ONNX model");
 
     assert_eq!(model.producer_name, "pytorch");
     assert_eq!(model.graph.name, "main_graph");

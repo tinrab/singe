@@ -8,62 +8,56 @@ pub const NVRTC_INSTALL_HEADERS_FORCE_OVERWRITE: u32 = 1;
 pub const NVRTC_INSTALL_HEADERS_NO_WAIT: u32 = 2;
 /// Unsigned C `size_t`, used for byte counts and object sizes in the native ABI.
 pub type size_t = ::core::ffi::c_ulong;
+impl nvrtcResult {
+    /// The operation completed successfully.
+    pub const NVRTC_SUCCESS: nvrtcResult = nvrtcResult(0);
+    /// NVRTC could not allocate the required memory.
+    pub const NVRTC_ERROR_OUT_OF_MEMORY: nvrtcResult = nvrtcResult(1);
+    /// NVRTC could not create the program.
+    pub const NVRTC_ERROR_PROGRAM_CREATION_FAILURE: nvrtcResult = nvrtcResult(2);
+    /// An input argument is invalid.
+    pub const NVRTC_ERROR_INVALID_INPUT: nvrtcResult = nvrtcResult(3);
+    /// The program handle is invalid.
+    pub const NVRTC_ERROR_INVALID_PROGRAM: nvrtcResult = nvrtcResult(4);
+    /// A compilation option is invalid.
+    pub const NVRTC_ERROR_INVALID_OPTION: nvrtcResult = nvrtcResult(5);
+    /// CUDA source compilation failed; the program log contains diagnostics.
+    pub const NVRTC_ERROR_COMPILATION: nvrtcResult = nvrtcResult(6);
+    /// An NVRTC built-in operation failed.
+    pub const NVRTC_ERROR_BUILTIN_OPERATION_FAILURE: nvrtcResult = nvrtcResult(7);
+    /// A name expression cannot be added after compilation.
+    pub const NVRTC_ERROR_NO_NAME_EXPRESSIONS_AFTER_COMPILATION: nvrtcResult = nvrtcResult(
+        8,
+    );
+    /// A lowered name was requested before compiling the program.
+    pub const NVRTC_ERROR_NO_LOWERED_NAMES_BEFORE_COMPILATION: nvrtcResult = nvrtcResult(
+        9,
+    );
+    /// The name expression is invalid.
+    pub const NVRTC_ERROR_NAME_EXPRESSION_NOT_VALID: nvrtcResult = nvrtcResult(10);
+    /// An internal NVRTC error occurred.
+    pub const NVRTC_ERROR_INTERNAL_ERROR: nvrtcResult = nvrtcResult(11);
+    /// NVRTC could not write its compilation timing file.
+    pub const NVRTC_ERROR_TIME_FILE_WRITE_FAILED: nvrtcResult = nvrtcResult(12);
+    /// No precompiled-header creation was attempted. PCH processing may not have been requested, or automatic PCH processing chose not to create a file.
+    pub const NVRTC_ERROR_NO_PCH_CREATE_ATTEMPTED: nvrtcResult = nvrtcResult(13);
+    /// The precompiled-header heap was exhausted. Query the required size and enlarge the heap before retrying compilation with a new program.
+    pub const NVRTC_ERROR_PCH_CREATE_HEAP_EXHAUSTED: nvrtcResult = nvrtcResult(14);
+    /// An error prevented the precompiled-header file from being created.
+    pub const NVRTC_ERROR_PCH_CREATE: nvrtcResult = nvrtcResult(15);
+    /// The operation was cancelled.
+    pub const NVRTC_ERROR_CANCELLED: nvrtcResult = nvrtcResult(16);
+    /// NVRTC could not write its compilation time-trace file.
+    pub const NVRTC_ERROR_TIME_TRACE_FILE_WRITE_FAILED: nvrtcResult = nvrtcResult(17);
+    /// Bundled-header installation could not acquire the installation lock and a nonblocking installation was requested.
+    pub const NVRTC_ERROR_BUSY: nvrtcResult = nvrtcResult(18);
+}
 /// The enumerated type nvrtcResult defines API call result codes.
 ///
 /// NVRTC API functions return nvrtcResult to indicate the call result.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum nvrtcResult {
-    /// The operation completed successfully.
-    NVRTC_SUCCESS = 0,
-    /// NVRTC could not allocate the required memory.
-    NVRTC_ERROR_OUT_OF_MEMORY = 1,
-    /// NVRTC could not create the program.
-    NVRTC_ERROR_PROGRAM_CREATION_FAILURE = 2,
-    /// An input argument is invalid.
-    NVRTC_ERROR_INVALID_INPUT = 3,
-    /// The program handle is invalid.
-    NVRTC_ERROR_INVALID_PROGRAM = 4,
-    /// A compilation option is invalid.
-    NVRTC_ERROR_INVALID_OPTION = 5,
-    /// CUDA source compilation failed; the program log contains diagnostics.
-    NVRTC_ERROR_COMPILATION = 6,
-    /// An NVRTC built-in operation failed.
-    NVRTC_ERROR_BUILTIN_OPERATION_FAILURE = 7,
-    /// A name expression cannot be added after compilation.
-    NVRTC_ERROR_NO_NAME_EXPRESSIONS_AFTER_COMPILATION = 8,
-    /// A lowered name was requested before compiling the program.
-    NVRTC_ERROR_NO_LOWERED_NAMES_BEFORE_COMPILATION = 9,
-    /// The name expression is invalid.
-    NVRTC_ERROR_NAME_EXPRESSION_NOT_VALID = 10,
-    /// An internal NVRTC error occurred.
-    NVRTC_ERROR_INTERNAL_ERROR = 11,
-    /// NVRTC could not write its compilation timing file.
-    NVRTC_ERROR_TIME_FILE_WRITE_FAILED = 12,
-    /// No precompiled-header creation was attempted. PCH processing may not have been requested, or automatic PCH processing chose not to create a file.
-    NVRTC_ERROR_NO_PCH_CREATE_ATTEMPTED = 13,
-    /// The precompiled-header heap was exhausted. Query the required size and enlarge the heap before retrying compilation with a new program.
-    NVRTC_ERROR_PCH_CREATE_HEAP_EXHAUSTED = 14,
-    /// An error prevented the precompiled-header file from being created.
-    NVRTC_ERROR_PCH_CREATE = 15,
-    /// The operation was cancelled.
-    NVRTC_ERROR_CANCELLED = 16,
-    /// NVRTC could not write its compilation time-trace file.
-    NVRTC_ERROR_TIME_TRACE_FILE_WRITE_FAILED = 17,
-    /// Bundled-header installation could not acquire the installation lock and a nonblocking installation was requested.
-    NVRTC_ERROR_BUSY = 18,
-}
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct nvrtcResult(pub ::core::ffi::c_uint);
 singe_loader::functions! { crate::NVRTC;
     /// nvrtcGetErrorString is a helper function that returns a string describing the given nvrtcResult code, e.g., [`nvrtcResult::NVRTC_SUCCESS`] to `"NVRTC_SUCCESS"`.
     ///

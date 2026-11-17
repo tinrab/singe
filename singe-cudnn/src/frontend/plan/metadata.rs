@@ -230,7 +230,7 @@ impl EngineConfigFilter {
 
 /// A finalized configuration and its queried metadata before assigning a collection identity.
 #[derive(Debug)]
-pub struct PreparedEngineConfig {
+pub(crate) struct PreparedEngineConfig {
     pub engine_config: EngineConfig,
     pub metadata: EngineConfigMetadata,
 }
@@ -279,7 +279,8 @@ impl EngineConfigMetadata {
     /// Optional failures reach diagnostic logging; the direct native getter remains fallible.
     ///
     /// # Errors
-    /// Returns mandatory native query errors or an error for workspace sizes that cannot be represented.
+    ///
+    /// Returns an error if a mandatory native query fails or a workspace size cannot be represented.
     pub fn create(engine_config: &EngineConfig) -> Result<Self> {
         let engine = engine_config.engine()?;
         let choice = engine_config.choice()?;

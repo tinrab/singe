@@ -12,7 +12,14 @@ use crate::{
     },
 };
 
-pub fn multiply24(a: u128, b: u128, c: u128, signed: bool, half: Half, saturate: bool) -> u128 {
+pub(crate) fn multiply24(
+    a: u128,
+    b: u128,
+    c: u128,
+    signed: bool,
+    half: Half,
+    saturate: bool,
+) -> u128 {
     let a = if signed {
         sign(a & mask(24), 24)
     } else {
@@ -36,12 +43,12 @@ pub fn multiply24(a: u128, b: u128, c: u128, signed: bool, half: Half, saturate:
 }
 
 /// Adds the absolute difference of `a` and `b` to `c` (`sad`).
-pub fn sum_difference(a: u128, b: u128, c: u128, ty: ScalarType) -> u128 {
+pub(crate) fn sum_difference(a: u128, b: u128, c: u128, ty: ScalarType) -> u128 {
     let [a, b, c] = [a, b, c].map(|value| extend(value, ty).cast_signed());
     (c + (a - b).abs()) as u128
 }
 
-pub fn carryless(a: u64, b: u64, c: u64, half: Half) -> u128 {
+pub(crate) fn carryless(a: u64, b: u64, c: u64, half: Half) -> u128 {
     let mut product = 0u128;
     for i in 0..64 {
         if a & (1 << i) != 0 {
@@ -56,7 +63,7 @@ pub fn carryless(a: u64, b: u64, c: u64, half: Half) -> u128 {
     part ^ u128::from(c)
 }
 
-pub fn find_set(mask: u32, base: u32, offset: i32) -> Result<u32, ExecutionError> {
+pub(crate) fn find_set(mask: u32, base: u32, offset: i32) -> Result<u32, ExecutionError> {
     if base >= 32 {
         return Err(ExecutionError::Indeterminate("fns base exceeds 31".into()));
     }
@@ -85,7 +92,7 @@ pub fn find_set(mask: u32, base: u32, offset: i32) -> Result<u32, ExecutionError
     Ok(u32::MAX)
 }
 
-pub fn bit_mask(position: u32, length: u32, range: RangeMode) -> u32 {
+pub(crate) fn bit_mask(position: u32, length: u32, range: RangeMode) -> u32 {
     let position = if range == RangeMode::Wrap {
         position & 31
     } else {
@@ -99,7 +106,7 @@ pub fn bit_mask(position: u32, length: u32, range: RangeMode) -> u32 {
     }
 }
 
-pub fn extend_bits(value: u32, length: u32, range: RangeMode, signed: bool) -> u128 {
+pub(crate) fn extend_bits(value: u32, length: u32, range: RangeMode, signed: bool) -> u128 {
     let length = range.limit(length);
     if length == 0 {
         0
@@ -110,7 +117,7 @@ pub fn extend_bits(value: u32, length: u32, range: RangeMode, signed: bool) -> u
     }
 }
 
-pub fn dot(mode: DotMode, a: u32, b: u32, c: u32, a_signed: bool, b_signed: bool) -> u128 {
+pub(crate) fn dot(mode: DotMode, a: u32, b: u32, c: u32, a_signed: bool, b_signed: bool) -> u128 {
     let (count, a_width, b_start) = match mode {
         DotMode::FourBytes => (4, 8, 0),
         DotMode::TwoLow => (2, 16, 0),
@@ -135,7 +142,7 @@ pub fn dot(mode: DotMode, a: u32, b: u32, c: u32, a_signed: bool, b_signed: bool
     result as u128
 }
 
-pub fn pack(a: i32, b: i32, c: u32, format: IntegerPackFormat) -> u128 {
+pub(crate) fn pack(a: i32, b: i32, c: u32, format: IntegerPackFormat) -> u128 {
     let bits = format.width.bits();
     let (low, high) = if format.signed {
         (-(1i64 << (bits - 1)), (1i64 << (bits - 1)) - 1)
@@ -153,7 +160,7 @@ pub fn pack(a: i32, b: i32, c: u32, format: IntegerPackFormat) -> u128 {
 }
 
 /// Evaluates a binary integer operation, or `None` when PTX leaves the result unspecified.
-pub fn binary(op: IntegerBinary, ty: ScalarType, a: u128, b: u128) -> Option<u128> {
+pub(crate) fn binary(op: IntegerBinary, ty: ScalarType, a: u128, b: u128) -> Option<u128> {
     use IntegerBinary::{Add, Div, Max, Min, Rem, Sub};
     if ty.is_signed() {
         let a = sign(a, ty.bit_width());
@@ -180,12 +187,12 @@ pub fn binary(op: IntegerBinary, ty: ScalarType, a: u128, b: u128) -> Option<u12
 }
 
 /// Clamps a sign-extended value to the `s32` range, as `.sat` integer forms do.
-pub fn saturate_s32(value: i128) -> u128 {
+pub(crate) fn saturate_s32(value: i128) -> u128 {
     value.clamp(i128::from(i32::MIN), i128::from(i32::MAX)) as u128
 }
 
 /// Negates or takes the absolute value of a signed integer.
-pub fn unary(op: Unary, ty: ScalarType, value: u128) -> u128 {
+pub(crate) fn unary(op: Unary, ty: ScalarType, value: u128) -> u128 {
     let value = sign(value, ty.bit_width());
     (match op {
         Unary::Neg => -value,
@@ -194,7 +201,7 @@ pub fn unary(op: Unary, ty: ScalarType, value: u128) -> u128 {
 }
 
 /// Evaluates `popc`, `clz`, `brev`, `bfind`, and `cnot`.
-pub fn bit_unary(op: BitUnary, ty: ScalarType, value: u128) -> u128 {
+pub(crate) fn bit_unary(op: BitUnary, ty: ScalarType, value: u128) -> u128 {
     let bits = ty.bit_width();
     let unused = 128 - bits;
     match op {
@@ -221,7 +228,7 @@ pub fn bit_unary(op: BitUnary, ty: ScalarType, value: u128) -> u128 {
 }
 
 /// Extracts `length` bits at `position` (`bfe`), sign-extending signed types.
-pub fn extract(value: u128, position: u32, length: u32, ty: ScalarType) -> u128 {
+pub(crate) fn extract(value: u128, position: u32, length: u32, ty: ScalarType) -> u128 {
     let (position, length) = (position & 255, length & 255);
     let bits = ty.bit_width();
     let sign_bit =
@@ -238,7 +245,7 @@ pub fn extract(value: u128, position: u32, length: u32, ty: ScalarType) -> u128 
 }
 
 /// Inserts the low `length` bits of `value` into `base` at `position` (`bfi`).
-pub fn insert(value: u128, base: u128, position: u32, length: u32, bits: u32) -> u128 {
+pub(crate) fn insert(value: u128, base: u128, position: u32, length: u32, bits: u32) -> u128 {
     let (position, length) = (position & 255, length & 255);
     (0..length)
         .take_while(|i| position + i < bits)
@@ -248,7 +255,7 @@ pub fn insert(value: u128, base: u128, position: u32, length: u32, bits: u32) ->
 }
 
 /// Applies a three-input lookup table to each bit (`lop3`).
-pub fn lop3(a: u32, b: u32, c: u32, lut: u8) -> u32 {
+pub(crate) fn lop3(a: u32, b: u32, c: u32, lut: u8) -> u32 {
     (0..8).filter(|i| lut & (1 << i) != 0).fold(0, |result, i| {
         result
             | (if i & 4 != 0 { a } else { !a })
@@ -258,7 +265,13 @@ pub fn lop3(a: u32, b: u32, c: u32, lut: u8) -> u32 {
 }
 
 /// Shifts the 64-bit concatenation `b:a` and returns 32 bits (`shf`).
-pub fn funnel(a: u32, b: u32, amount: u32, direction: ShiftDirection, range: RangeMode) -> u32 {
+pub(crate) fn funnel(
+    a: u32,
+    b: u32,
+    amount: u32,
+    direction: ShiftDirection,
+    range: RangeMode,
+) -> u32 {
     let amount = range.limit(amount);
     let combined = (u64::from(b) << 32) | u64::from(a);
     numeric::low_u32(match direction {
@@ -268,7 +281,7 @@ pub fn funnel(a: u32, b: u32, amount: u32, direction: ShiftDirection, range: Ran
 }
 
 /// Selects four bytes from the eight bytes of `b:a` (`prmt`).
-pub fn permute(mode: Permute, a: u32, b: u32, control: u32) -> u32 {
+pub(crate) fn permute(mode: Permute, a: u32, b: u32, control: u32) -> u32 {
     let source = (u64::from(b) << 32) | u64::from(a);
     let select = control & 3;
     (0..4u32).fold(0, |result, i| {
@@ -294,7 +307,7 @@ pub fn permute(mode: Permute, a: u32, b: u32, control: u32) -> u32 {
 
 /// Returns the result type of `mul` or `mad` on `ty` in `mode`.
 /// `.wide` doubles the width.
-pub fn product_type(ty: ScalarType, mode: MulMode) -> ScalarType {
+pub(crate) fn product_type(ty: ScalarType, mode: MulMode) -> ScalarType {
     if mode != MulMode::Wide {
         return ty;
     }
@@ -308,7 +321,7 @@ pub fn product_type(ty: ScalarType, mode: MulMode) -> ScalarType {
 
 /// Evaluates `mul` and `mad` in `.lo`, `.hi`, or `.wide` mode.
 /// Saturation applies only to `mad.hi.sat.s32`.
-pub fn multiply(
+pub(crate) fn multiply(
     a: u128,
     b: u128,
     addend: u128,
@@ -330,7 +343,7 @@ pub fn multiply(
 }
 
 /// Shifts left, or right with sign extension for signed types.
-pub fn shift(value: u128, amount: u128, ty: ScalarType, direction: ShiftDirection) -> u128 {
+pub(crate) fn shift(value: u128, amount: u128, ty: ScalarType, direction: ShiftDirection) -> u128 {
     let bits = ty.bit_width();
     let amount = numeric::low_u32(amount.min(u128::from(bits)));
     if direction == ShiftDirection::Left {
@@ -343,7 +356,7 @@ pub fn shift(value: u128, amount: u128, ty: ScalarType, direction: ShiftDirectio
 }
 
 /// Adds or subtracts with a carry or borrow input, returning the result and carry-out.
-pub fn carry(a: u128, b: u128, carry_in: bool, subtract: bool, bits: u32) -> (u128, bool) {
+pub(crate) fn carry(a: u128, b: u128, carry_in: bool, subtract: bool, bits: u32) -> (u128, bool) {
     let b = b + u128::from(carry_in);
     if subtract {
         (a.wrapping_sub(b), a < b)

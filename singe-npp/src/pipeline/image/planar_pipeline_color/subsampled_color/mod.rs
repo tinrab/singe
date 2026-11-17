@@ -35,7 +35,8 @@ where
     ///
     /// Uses [`rgb_to_ycbcr420_jpeg_u8_c3_to_p3`](crate::image::raw::color::rgb_to_ycbcr420_jpeg_u8_c3_to_p3).
     ///
-    /// Allocates three owned planes: a full-resolution first plane and two chroma planes with width divided by 2 and height divided by 2. Full-resolution dimensions must be divisible by these factors.
+    /// Allocates three owned planes: a full-resolution first plane and two chroma planes with width divided by 2 and height divided by 2.
+    /// Full-resolution dimensions must be divisible by these factors.
     /// Plane order follows the named color components.
     /// Prepares the input regions, waiting for producers on other streams, and returns after successful stream completion.
     /// Stream capture is rejected.
@@ -57,7 +58,8 @@ where
     ///
     /// Uses [`rgb_to_ycbcr422_jpeg_u8_c3_to_p3`](crate::image::raw::color::rgb_to_ycbcr422_jpeg_u8_c3_to_p3).
     ///
-    /// Allocates three owned planes: a full-resolution first plane and two chroma planes with width divided by 2 and height divided by 1. Full-resolution dimensions must be divisible by these factors.
+    /// Allocates three owned planes: a full-resolution first plane and two chroma planes with width divided by 2 and height divided by 1.
+    /// Full-resolution dimensions must be divisible by these factors.
     /// Plane order follows the named color components.
     /// Prepares the input regions, waiting for producers on other streams, and returns after successful stream completion.
     /// Stream capture is rejected.
@@ -79,7 +81,8 @@ where
     ///
     /// Uses [`rgb_to_ycbcr411_jpeg_u8_c3_to_p3`](crate::image::raw::color::rgb_to_ycbcr411_jpeg_u8_c3_to_p3).
     ///
-    /// Allocates three owned planes: a full-resolution first plane and two chroma planes with width divided by 4 and height divided by 1. Full-resolution dimensions must be divisible by these factors.
+    /// Allocates three owned planes: a full-resolution first plane and two chroma planes with width divided by 4 and height divided by 1.
+    /// Full-resolution dimensions must be divisible by these factors.
     /// Plane order follows the named color components.
     /// Prepares the input regions, waiting for producers on other streams, and returns after successful stream completion.
     /// Stream capture is rejected.
@@ -101,7 +104,8 @@ where
     ///
     /// Uses [`bgr_to_ycbcr420_jpeg_u8_c3_to_p3`](crate::image::raw::color::bgr_to_ycbcr420_jpeg_u8_c3_to_p3).
     ///
-    /// Allocates three owned planes: a full-resolution first plane and two chroma planes with width divided by 2 and height divided by 2. Full-resolution dimensions must be divisible by these factors.
+    /// Allocates three owned planes: a full-resolution first plane and two chroma planes with width divided by 2 and height divided by 2.
+    /// Full-resolution dimensions must be divisible by these factors.
     /// Plane order follows the named color components.
     /// Prepares the input regions, waiting for producers on other streams, and returns after successful stream completion.
     /// Stream capture is rejected.
@@ -123,7 +127,8 @@ where
     ///
     /// Uses [`bgr_to_ycbcr422_jpeg_u8_c3_to_p3`](crate::image::raw::color::bgr_to_ycbcr422_jpeg_u8_c3_to_p3).
     ///
-    /// Allocates three owned planes: a full-resolution first plane and two chroma planes with width divided by 2 and height divided by 1. Full-resolution dimensions must be divisible by these factors.
+    /// Allocates three owned planes: a full-resolution first plane and two chroma planes with width divided by 2 and height divided by 1.
+    /// Full-resolution dimensions must be divisible by these factors.
     /// Plane order follows the named color components.
     /// Prepares the input regions, waiting for producers on other streams, and returns after successful stream completion.
     /// Stream capture is rejected.
@@ -145,7 +150,8 @@ where
     ///
     /// Uses [`bgr_to_ycbcr411_jpeg_u8_c3_to_p3`](crate::image::raw::color::bgr_to_ycbcr411_jpeg_u8_c3_to_p3).
     ///
-    /// Allocates three owned planes: a full-resolution first plane and two chroma planes with width divided by 4 and height divided by 1. Full-resolution dimensions must be divisible by these factors.
+    /// Allocates three owned planes: a full-resolution first plane and two chroma planes with width divided by 4 and height divided by 1.
+    /// Full-resolution dimensions must be divisible by these factors.
     /// Plane order follows the named color components.
     /// Prepares the input regions, waiting for producers on other streams, and returns after successful stream completion.
     /// Stream capture is rejected.
@@ -170,7 +176,8 @@ where
     ///
     /// Uses [`rgb_to_ycbcr420_u8_c3_to_p3`](crate::image::raw::color::rgb_to_ycbcr420_u8_c3_to_p3).
     ///
-    /// Allocates three owned planes: a full-resolution first plane and two chroma planes with width divided by 2 and height divided by 2. Full-resolution dimensions must be divisible by these factors.
+    /// Allocates three owned planes: a full-resolution first plane and two chroma planes with width divided by 2 and height divided by 2.
+    /// Full-resolution dimensions must be divisible by these factors.
     /// Plane order follows the named color components.
     /// Prepares the input regions, waiting for producers on other streams, and returns after successful stream completion.
     /// Stream capture is rejected.
@@ -195,7 +202,8 @@ where
     ///
     /// Uses [`bgr_to_ycbcr420_u8_c3_to_p3`](crate::image::raw::color::bgr_to_ycbcr420_u8_c3_to_p3).
     ///
-    /// Allocates three owned planes: a full-resolution first plane and two chroma planes with width divided by 2 and height divided by 2. Full-resolution dimensions must be divisible by these factors.
+    /// Allocates three owned planes: a full-resolution first plane and two chroma planes with width divided by 2 and height divided by 2.
+    /// Full-resolution dimensions must be divisible by these factors.
     /// Plane order follows the named color components.
     /// Prepares the input regions, waiting for producers on other streams, and returns after successful stream completion.
     /// Stream capture is rejected.
@@ -220,7 +228,8 @@ where
     ///
     /// Uses [`bgr_to_ycrcb420_u8_c3_to_p3`](crate::image::raw::color::bgr_to_ycrcb420_u8_c3_to_p3).
     ///
-    /// Allocates three owned planes: a full-resolution first plane and two chroma planes with width divided by 2 and height divided by 2. Full-resolution dimensions must be divisible by these factors.
+    /// Allocates three owned planes: a full-resolution first plane and two chroma planes with width divided by 2 and height divided by 2.
+    /// Full-resolution dimensions must be divisible by these factors.
     /// Plane order follows the named color components.
     /// Prepares the input regions, waiting for producers on other streams, and returns after successful stream completion.
     /// Stream capture is rejected.
@@ -245,7 +254,8 @@ where
     ///
     /// Uses [`bgr_to_ycbcr420_709csc_u8_c3_to_p3`](crate::image::raw::color::bgr_to_ycbcr420_709csc_u8_c3_to_p3).
     ///
-    /// Allocates three owned planes: a full-resolution first plane and two chroma planes with width divided by 2 and height divided by 2. Full-resolution dimensions must be divisible by these factors.
+    /// Allocates three owned planes: a full-resolution first plane and two chroma planes with width divided by 2 and height divided by 2.
+    /// Full-resolution dimensions must be divisible by these factors.
     /// Plane order follows the named color components.
     /// Prepares the input regions, waiting for producers on other streams, and returns after successful stream completion.
     /// Stream capture is rejected.
@@ -270,7 +280,8 @@ where
     ///
     /// Uses [`bgr_to_ycrcb420_709csc_u8_c3_to_p3`](crate::image::raw::color::bgr_to_ycrcb420_709csc_u8_c3_to_p3).
     ///
-    /// Allocates three owned planes: a full-resolution first plane and two chroma planes with width divided by 2 and height divided by 2. Full-resolution dimensions must be divisible by these factors.
+    /// Allocates three owned planes: a full-resolution first plane and two chroma planes with width divided by 2 and height divided by 2.
+    /// Full-resolution dimensions must be divisible by these factors.
     /// Plane order follows the named color components.
     /// Prepares the input regions, waiting for producers on other streams, and returns after successful stream completion.
     /// Stream capture is rejected.
@@ -295,7 +306,8 @@ where
     ///
     /// Uses [`rgb_to_ycbcr411_u8_c3_to_p3`](crate::image::raw::color::rgb_to_ycbcr411_u8_c3_to_p3).
     ///
-    /// Allocates three owned planes: a full-resolution first plane and two chroma planes with width divided by 4 and height divided by 1. Full-resolution dimensions must be divisible by these factors.
+    /// Allocates three owned planes: a full-resolution first plane and two chroma planes with width divided by 4 and height divided by 1.
+    /// Full-resolution dimensions must be divisible by these factors.
     /// Plane order follows the named color components.
     /// Prepares the input regions, waiting for producers on other streams, and returns after successful stream completion.
     /// Stream capture is rejected.
@@ -320,7 +332,8 @@ where
     ///
     /// Uses [`bgr_to_ycbcr411_u8_c3_to_p3`](crate::image::raw::color::bgr_to_ycbcr411_u8_c3_to_p3).
     ///
-    /// Allocates three owned planes: a full-resolution first plane and two chroma planes with width divided by 4 and height divided by 1. Full-resolution dimensions must be divisible by these factors.
+    /// Allocates three owned planes: a full-resolution first plane and two chroma planes with width divided by 4 and height divided by 1.
+    /// Full-resolution dimensions must be divisible by these factors.
     /// Plane order follows the named color components.
     /// Prepares the input regions, waiting for producers on other streams, and returns after successful stream completion.
     /// Stream capture is rejected.
@@ -345,7 +358,8 @@ where
     ///
     /// Uses [`rgb_to_ycbcr422_u8_c3_to_p3`](crate::image::raw::color::rgb_to_ycbcr422_u8_c3_to_p3).
     ///
-    /// Allocates three owned planes: a full-resolution first plane and two chroma planes with width divided by 2 and height divided by 1. Full-resolution dimensions must be divisible by these factors.
+    /// Allocates three owned planes: a full-resolution first plane and two chroma planes with width divided by 2 and height divided by 1.
+    /// Full-resolution dimensions must be divisible by these factors.
     /// Plane order follows the named color components.
     /// Prepares the input regions, waiting for producers on other streams, and returns after successful stream completion.
     /// Stream capture is rejected.
@@ -370,7 +384,8 @@ where
     ///
     /// Uses [`bgr_to_ycbcr422_u8_c3_to_p3`](crate::image::raw::color::bgr_to_ycbcr422_u8_c3_to_p3).
     ///
-    /// Allocates three owned planes: a full-resolution first plane and two chroma planes with width divided by 2 and height divided by 1. Full-resolution dimensions must be divisible by these factors.
+    /// Allocates three owned planes: a full-resolution first plane and two chroma planes with width divided by 2 and height divided by 1.
+    /// Full-resolution dimensions must be divisible by these factors.
     /// Plane order follows the named color components.
     /// Prepares the input regions, waiting for producers on other streams, and returns after successful stream completion.
     /// Stream capture is rejected.
@@ -392,7 +407,8 @@ where
     ///
     /// Uses [`rgb_to_yuv420_u8_c3_to_p3`](crate::image::raw::color::rgb_to_yuv420_u8_c3_to_p3).
     ///
-    /// Allocates three owned planes: a full-resolution first plane and two chroma planes with width divided by 2 and height divided by 2. Full-resolution dimensions must be divisible by these factors.
+    /// Allocates three owned planes: a full-resolution first plane and two chroma planes with width divided by 2 and height divided by 2.
+    /// Full-resolution dimensions must be divisible by these factors.
     /// Plane order follows the named color components.
     /// Prepares the input regions, waiting for producers on other streams, and returns after successful stream completion.
     /// Stream capture is rejected.
@@ -414,7 +430,8 @@ where
     ///
     /// Uses [`rgb_to_yuv422_u8_c3_to_p3`](crate::image::raw::color::rgb_to_yuv422_u8_c3_to_p3).
     ///
-    /// Allocates three owned planes: a full-resolution first plane and two chroma planes with width divided by 2 and height divided by 1. Full-resolution dimensions must be divisible by these factors.
+    /// Allocates three owned planes: a full-resolution first plane and two chroma planes with width divided by 2 and height divided by 1.
+    /// Full-resolution dimensions must be divisible by these factors.
     /// Plane order follows the named color components.
     /// Prepares the input regions, waiting for producers on other streams, and returns after successful stream completion.
     /// Stream capture is rejected.

@@ -8,12 +8,15 @@ use singe_cuda::{
 use crate::{
     context::StreamContext,
     error::{Error, Result},
-    image::view::{ChannelLayout, ImageView},
+    image::{
+        histogram_range_bins,
+        view::{ChannelLayout, ImageView},
+    },
     pipeline::image::{
         ImagePipeline,
         statistics::{HistogramEvenImage, HistogramRangeImage, ImageStatistic},
     },
-    utility::{histogram_range_bins, to_usize},
+    utility::to_usize,
 };
 
 impl<T, L> ImagePipeline<'_, T, L>

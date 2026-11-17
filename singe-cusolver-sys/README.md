@@ -6,4 +6,7 @@
 [![Documentation](https://docs.rs/singe-cusolver-sys/badge.svg)](https://docs.rs/singe-cusolver-sys)
 ![License](https://img.shields.io/crates/l/singe-cusolver-sys.svg)
 
-Low-level FFI bindings for the NVIDIA cuSOLVER dense and sparse solver library.
+Low-level FFI bindings for the dense cuSOLVER 12.3 API (`cusolverDn.h`).
+The library loads at run time through [`singe-loader`](../singe-loader/README.md), on the first call of one of its functions or up front with `load`, so building links no NVIDIA library.
+If the library or one of its symbols is missing, a function that returns a status returns a failure status, and `take_absence` reports what was missing.
+Most users want the safe [`singe-cusolver`](../singe-cusolver/README.md) crate.

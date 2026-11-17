@@ -1,14 +1,14 @@
+//! Aligned frontend scratch layouts and initialization metadata preceding native workspace.
+
 use std::collections::{BTreeMap, HashSet};
 
 use singe_cuda::types::DevicePtr;
 
 use crate::{
-    backend::{
-        execution::VariantPackOverride,
-        tensor::{TensorId, TensorPlacement, WorkspaceInitializer},
-    },
+    backend::execution::VariantPackOverride,
     error::{Error, Result},
     frontend::graph::TensorRecord,
+    tensor::{TensorId, TensorPlacement, WorkspaceInitializer},
     utility::to_usize,
 };
 
@@ -112,8 +112,7 @@ impl WorkspaceLayout {
         }
 
         if !layout.bindings.is_empty() {
-            // Ordinary CUDA allocations cover the backend alignment, but stronger tensor
-            // alignments require padding whose size depends on the allocation's address.
+            // Ordinary CUDA allocations cover the backend alignment, but stronger tensor alignments require padding whose size depends on the allocation's address.
             let padding = if maximum_alignment > BACKEND_WORKSPACE_ALIGNMENT {
                 maximum_alignment - 1
             } else {
@@ -131,14 +130,14 @@ impl WorkspaceLayout {
         Ok(layout)
     }
 
-    /// Frontend prefix allocation budget, including potential alignment padding.
+    /// Returns the frontend prefix allocation budget, including potential alignment padding.
     /// Address-resolved layouts report the actual prefix before the native workspace.
     #[must_use]
     pub fn byte_len(&self) -> usize {
         self.byte_len
     }
 
-    /// Scratch byte ranges in tensor-identity order, preserved during address resolution.
+    /// Returns the scratch byte ranges in tensor-identity order, preserved during address resolution.
     #[must_use]
     pub fn bindings(&self) -> &[WorkspaceTensorBinding] {
         &self.bindings

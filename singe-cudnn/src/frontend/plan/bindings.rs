@@ -3,15 +3,15 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    backend::tensor::{TensorId, TensorSpec},
     error::{Error, Result},
     frontend::{
         bindings::resolve_binding_source, error::Error as FrontendError, graph::TensorRecord,
         operation::TensorAccess,
     },
+    tensor::{TensorId, TensorSpec},
 };
 
-pub fn required_tensor_bindings(
+pub(crate) fn required_tensor_bindings(
     tensors: &BTreeMap<TensorId, TensorRecord>,
     binding_replacements: &[BindingReplacement],
     binding_ids: &[TensorId],
@@ -62,7 +62,7 @@ pub fn required_tensor_bindings(
     Ok(required.into_values().collect())
 }
 
-pub fn alias_tensor_bindings(
+pub(crate) fn alias_tensor_bindings(
     tensors: &BTreeMap<TensorId, TensorRecord>,
     binding_replacements: &[BindingReplacement],
 ) -> Vec<AliasTensorBinding> {
@@ -81,7 +81,7 @@ pub fn alias_tensor_bindings(
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub struct BindingReplacement {
+pub(crate) struct BindingReplacement {
     pub(crate) source_id: TensorId,
     pub(crate) target_id: TensorId,
     pub(crate) byte_offset: i64,

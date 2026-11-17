@@ -1,32 +1,33 @@
 use num_enum::{IntoPrimitive, TryFromPrimitive};
-use singe_core::{impl_enum_conversion, impl_enum_display};
+use singe_core::impl_enum_display;
 use singe_nvcomp_sys as sys;
 
 use crate::{
     codec::impl_nvcomp_batched_codec_module,
+    error::{Error, Result},
     types::{DataType, DecompressBackend},
     utility::validate_reserved,
 };
 
-/// Cascaded compression scheme.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum Mode {
-    /// No mode; valid only for decompression.
-    ///
-    /// Decompression then accepts data from either mode, at some cost in speed.
-    #[default]
-    Unspecified = sys::nvcompCascadedMode_t::NVCOMP_CASCADED_MODE_UNSPECIFIED as _,
-    /// Adaptive asymmetric compression.
-    Asymmetric = sys::nvcompCascadedMode_t::NVCOMP_CASCADED_MODE_ASYMMETRIC as _,
-    /// Symmetric compression, with decompression that mirrors it.
-    ///
-    /// Supports signed and unsigned 32-bit and 64-bit integers.
-    Symmetric = sys::nvcompCascadedMode_t::NVCOMP_CASCADED_MODE_SYMMETRIC as _,
+singe_core::native_enum! {
+    /// Cascaded compression scheme.
+    #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum Mode: sys::nvcompCascadedMode_t {
+        /// No mode; valid only for decompression.
+        ///
+        /// Decompression then accepts data from either mode, at some cost in speed.
+        #[default]
+        Unspecified = NVCOMP_CASCADED_MODE_UNSPECIFIED,
+        /// Adaptive asymmetric compression.
+        Asymmetric = NVCOMP_CASCADED_MODE_ASYMMETRIC,
+        /// Symmetric compression, with decompression that mirrors it.
+        ///
+        /// Supports signed and unsigned 32-bit and 64-bit integers.
+        Symmetric = NVCOMP_CASCADED_MODE_SYMMETRIC,
+    }
 }
-
-impl_enum_conversion!(sys::nvcompCascadedMode_t, Mode);
 
 impl_enum_display!(Mode, {
     Self::Unspecified => "NVCOMP_CASCADED_MODE_UNSPECIFIED",
@@ -45,7 +46,7 @@ bitflags::bitflags! {
     #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
     pub struct TerminalCodecs: u64 {
         /// Bit packing.
-        const BITPACK = sys::nvcompCascadedTerminalCodec_t::NVCOMP_CASCADED_TERMINAL_CODEC_CASCADED_BITPACK as _;
+        const BITPACK = sys::nvcompCascadedTerminalCodec_t::NVCOMP_CASCADED_TERMINAL_CODEC_CASCADED_BITPACK.0 as u64;
     }
 
     /// Encodings that compression may apply before [`TerminalCodecs::BITPACK`].
@@ -54,11 +55,11 @@ bitflags::bitflags! {
     #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
     pub struct FineGrainedEncodings: u64 {
         /// Delta encoding.
-        const DELTA = sys::nvcompCascadedFineGrainedEncoding_t::NVCOMP_CASCADED_FINE_GRAINED_ENCODING_DELTA as _;
+        const DELTA = sys::nvcompCascadedFineGrainedEncoding_t::NVCOMP_CASCADED_FINE_GRAINED_ENCODING_DELTA.0 as u64;
         /// Run-length encoding.
-        const RLE = sys::nvcompCascadedFineGrainedEncoding_t::NVCOMP_CASCADED_FINE_GRAINED_ENCODING_RLE as _;
+        const RLE = sys::nvcompCascadedFineGrainedEncoding_t::NVCOMP_CASCADED_FINE_GRAINED_ENCODING_RLE.0 as u64;
         /// Frame-of-reference encoding.
-        const FRAME_OF_REFERENCE = sys::nvcompCascadedFineGrainedEncoding_t::NVCOMP_CASCADED_FINE_GRAINED_ENCODING_FOR as _;
+        const FRAME_OF_REFERENCE = sys::nvcompCascadedFineGrainedEncoding_t::NVCOMP_CASCADED_FINE_GRAINED_ENCODING_FOR.0 as u64;
     }
 }
 
@@ -93,18 +94,13 @@ impl TryFrom<sys::nvcompCascadedCommonOpts_t> for CommonOptions {
 
     fn try_from(value: sys::nvcompCascadedCommonOpts_t) -> Result<Self> {
         if value.coarse_grained_encoding_flags != 0 {
-            return Err(Error::InvalidValue {
-                name: "coarse_grained_encoding_flags".into(),
-            });
+            return Err(Error::out_of_range("coarse_grained_encoding_flags"));
         }
         Ok(Self {
-            data_type: value.data_type.into(),
-            mode: value.mode.into(),
-            terminal_codecs: TerminalCodecs::from_bits(value.terminal_codec_flags).ok_or_else(
-                || Error::InvalidValue {
-                    name: "terminal_codec_flags".into(),
-                },
-            )?,
+            data_type: value.data_type.try_into()?,
+            mode: value.mode.try_into()?,
+            terminal_codecs: TerminalCodecs::from_bits(value.terminal_codec_flags)
+                .ok_or_else(|| Error::out_of_range("terminal_codec_flags"))?,
         })
     }
 }
@@ -137,17 +133,9 @@ pub struct CompressOptions {
 
 impl Default for CompressOptions {
     fn default() -> Self {
-        Self::new(DataType::U32)
-    }
-}
-
-impl CompressOptions {
-    /// Creates asymmetric compression options for `data_type` with bit packing, every fine-grained encoding, and level 3.
-    #[must_use]
-    pub fn new(data_type: DataType) -> Self {
         Self {
             common: CommonOptions {
-                data_type,
+                data_type: DataType::U32,
                 mode: Mode::Asymmetric,
                 terminal_codecs: TerminalCodecs::BITPACK,
             },
@@ -167,9 +155,7 @@ impl TryFrom<sys::nvcompBatchedCascadedCompressOpts_t> for CompressOptions {
             fine_grained_encodings: FineGrainedEncodings::from_bits(
                 value.fine_grained_encoding_flags,
             )
-            .ok_or_else(|| Error::InvalidValue {
-                name: "fine_grained_encoding_flags".into(),
-            })?,
+            .ok_or_else(|| Error::out_of_range("fine_grained_encoding_flags"))?,
             compression_level: value.compression_level,
         })
     }
@@ -199,16 +185,8 @@ pub struct DecompressOptions {
 
 impl Default for DecompressOptions {
     fn default() -> Self {
-        Self::new(DecompressBackend::Default)
-    }
-}
-
-impl DecompressOptions {
-    /// Creates options that decompress any Cascaded input with `backend`.
-    #[must_use]
-    pub fn new(backend: DecompressBackend) -> Self {
         Self {
-            backend,
+            backend: DecompressBackend::Default,
             common: CommonOptions::default(),
         }
     }
@@ -220,7 +198,7 @@ impl TryFrom<sys::nvcompBatchedCascadedDecompressOpts_t> for DecompressOptions {
     fn try_from(value: sys::nvcompBatchedCascadedDecompressOpts_t) -> Result<Self> {
         validate_reserved(&value.reserved)?;
         Ok(Self {
-            backend: value.backend.into(),
+            backend: value.backend.try_into()?,
             common: value.common_opts.try_into()?,
         })
     }
@@ -246,12 +224,12 @@ impl_nvcomp_batched_codec_module! {
     required_decompression_alignment = nvcompCascadedRequiredDecompressionAlignment,
     compress_get_required_alignments = nvcompBatchedCascadedCompressGetRequiredAlignments,
     decompress_get_required_alignments = nvcompBatchedCascadedDecompressGetRequiredAlignments,
-    compress_get_temporary_size = nvcompBatchedCascadedCompressGetTempSize,
-    compress_get_temporary_size_sync = nvcompBatchedCascadedCompressGetTempSizeSync,
-    decompress_get_temporary_size = nvcompBatchedCascadedDecompressGetTempSize,
-    decompress_get_temporary_size_sync = nvcompBatchedCascadedDecompressGetTempSizeSync,
+    compress_get_temp_size = nvcompBatchedCascadedCompressGetTempSize,
+    compress_get_temp_size_sync = nvcompBatchedCascadedCompressGetTempSizeSync,
+    decompress_get_temp_size = nvcompBatchedCascadedDecompressGetTempSize,
+    decompress_get_temp_size_sync = nvcompBatchedCascadedDecompressGetTempSizeSync,
     compress_get_max_output_chunk_size = nvcompBatchedCascadedCompressGetMaxOutputChunkSize,
-    compress_raw_async = nvcompBatchedCascadedCompressAsync,
-    decompress_size_raw_async = nvcompBatchedCascadedGetDecompressSizeAsync,
-    decompress_raw_async = nvcompBatchedCascadedDecompressAsync,
+    compress_async = nvcompBatchedCascadedCompressAsync,
+    get_decompress_size_async = nvcompBatchedCascadedGetDecompressSizeAsync,
+    decompress_async = nvcompBatchedCascadedDecompressAsync,
 }

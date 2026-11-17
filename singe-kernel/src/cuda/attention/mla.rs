@@ -5,7 +5,7 @@ use singe_cuda::types::f16;
 #[cfg(any(feature = "dtype_bf16", feature = "dtype_f16", feature = "dtype_f32"))]
 use singe_cuda::{
     stream::Stream,
-    view::{DeviceInput, DeviceOutput},
+    view::{DeviceOutput, DeviceRange},
 };
 
 #[cfg(feature = "dtype_f32")]
@@ -30,11 +30,11 @@ use crate::{
 pub unsafe fn mla_prefill_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    query: &impl DeviceInput<f32>,
-    query_pe: &impl DeviceInput<f32>,
-    key: &impl DeviceInput<f32>,
-    key_pe: &impl DeviceInput<f32>,
-    value: &impl DeviceInput<f32>,
+    query: &impl DeviceRange<f32>,
+    query_pe: &impl DeviceRange<f32>,
+    key: &impl DeviceRange<f32>,
+    key_pe: &impl DeviceRange<f32>,
+    value: &impl DeviceRange<f32>,
     config: MlaPrefillConfig,
 ) -> Result<()> {
     config.validate_lengths(
@@ -76,11 +76,11 @@ pub unsafe fn mla_prefill_f32(
 pub unsafe fn mla_prefill_f16(
     stream: &Stream,
     out: &mut impl DeviceOutput<f16>,
-    query: &impl DeviceInput<f16>,
-    query_pe: &impl DeviceInput<f16>,
-    key: &impl DeviceInput<f16>,
-    key_pe: &impl DeviceInput<f16>,
-    value: &impl DeviceInput<f16>,
+    query: &impl DeviceRange<f16>,
+    query_pe: &impl DeviceRange<f16>,
+    key: &impl DeviceRange<f16>,
+    key_pe: &impl DeviceRange<f16>,
+    value: &impl DeviceRange<f16>,
     config: MlaPrefillConfig,
 ) -> Result<()> {
     config.validate_lengths(
@@ -122,11 +122,11 @@ pub unsafe fn mla_prefill_f16(
 pub unsafe fn mla_prefill_bf16(
     stream: &Stream,
     out: &mut impl DeviceOutput<bf16>,
-    query: &impl DeviceInput<bf16>,
-    query_pe: &impl DeviceInput<bf16>,
-    key: &impl DeviceInput<bf16>,
-    key_pe: &impl DeviceInput<bf16>,
-    value: &impl DeviceInput<bf16>,
+    query: &impl DeviceRange<bf16>,
+    query_pe: &impl DeviceRange<bf16>,
+    key: &impl DeviceRange<bf16>,
+    key_pe: &impl DeviceRange<bf16>,
+    value: &impl DeviceRange<bf16>,
     config: MlaPrefillConfig,
 ) -> Result<()> {
     config.validate_lengths(
@@ -168,12 +168,12 @@ pub unsafe fn mla_prefill_bf16(
 pub unsafe fn sparse_mla_prefill_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    query: &impl DeviceInput<f32>,
-    query_pe: &impl DeviceInput<f32>,
-    key: &impl DeviceInput<f32>,
-    key_pe: &impl DeviceInput<f32>,
-    value: &impl DeviceInput<f32>,
-    indices: &impl DeviceInput<i32>,
+    query: &impl DeviceRange<f32>,
+    query_pe: &impl DeviceRange<f32>,
+    key: &impl DeviceRange<f32>,
+    key_pe: &impl DeviceRange<f32>,
+    value: &impl DeviceRange<f32>,
+    indices: &impl DeviceRange<i32>,
     config: SparseMlaPrefillConfig,
 ) -> Result<()> {
     config.validate_lengths(
@@ -219,10 +219,10 @@ pub unsafe fn mla_decode_lse_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
     lse: &mut impl DeviceOutput<f32>,
-    query: &impl DeviceInput<f32>,
-    query_pe: &impl DeviceInput<f32>,
-    key_value: &impl DeviceInput<f32>,
-    key_pe: &impl DeviceInput<f32>,
+    query: &impl DeviceRange<f32>,
+    query_pe: &impl DeviceRange<f32>,
+    key_value: &impl DeviceRange<f32>,
+    key_pe: &impl DeviceRange<f32>,
     config: MlaDecodeConfig,
 ) -> Result<()> {
     config.validate_lengths(
@@ -263,12 +263,12 @@ pub unsafe fn paged_mla_decode_attention_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
     lse: &mut impl DeviceOutput<f32>,
-    query: &impl DeviceInput<f32>,
-    query_pe: &impl DeviceInput<f32>,
-    key_value_cache: &impl DeviceInput<f32>,
-    key_pe_cache: &impl DeviceInput<f32>,
-    actual_seq_lens: &impl DeviceInput<i32>,
-    block_table: &impl DeviceInput<u32>,
+    query: &impl DeviceRange<f32>,
+    query_pe: &impl DeviceRange<f32>,
+    key_value_cache: &impl DeviceRange<f32>,
+    key_pe_cache: &impl DeviceRange<f32>,
+    actual_seq_lens: &impl DeviceRange<i32>,
+    block_table: &impl DeviceRange<u32>,
     config: PagedMlaDecodeAttentionConfig,
 ) -> Result<()> {
     config.validate_lengths(
@@ -316,12 +316,12 @@ pub unsafe fn paged_mla_decode_attention_f16(
     stream: &Stream,
     out: &mut impl DeviceOutput<f16>,
     lse: &mut impl DeviceOutput<f32>,
-    query: &impl DeviceInput<f16>,
-    query_pe: &impl DeviceInput<f16>,
-    key_value_cache: &impl DeviceInput<f16>,
-    key_pe_cache: &impl DeviceInput<f16>,
-    actual_seq_lens: &impl DeviceInput<i32>,
-    block_table: &impl DeviceInput<u32>,
+    query: &impl DeviceRange<f16>,
+    query_pe: &impl DeviceRange<f16>,
+    key_value_cache: &impl DeviceRange<f16>,
+    key_pe_cache: &impl DeviceRange<f16>,
+    actual_seq_lens: &impl DeviceRange<i32>,
+    block_table: &impl DeviceRange<u32>,
     config: PagedMlaDecodeAttentionConfig,
 ) -> Result<()> {
     config.validate_lengths(
@@ -369,12 +369,12 @@ pub unsafe fn paged_mla_decode_attention_bf16(
     stream: &Stream,
     out: &mut impl DeviceOutput<bf16>,
     lse: &mut impl DeviceOutput<f32>,
-    query: &impl DeviceInput<bf16>,
-    query_pe: &impl DeviceInput<bf16>,
-    key_value_cache: &impl DeviceInput<bf16>,
-    key_pe_cache: &impl DeviceInput<bf16>,
-    actual_seq_lens: &impl DeviceInput<i32>,
-    block_table: &impl DeviceInput<u32>,
+    query: &impl DeviceRange<bf16>,
+    query_pe: &impl DeviceRange<bf16>,
+    key_value_cache: &impl DeviceRange<bf16>,
+    key_pe_cache: &impl DeviceRange<bf16>,
+    actual_seq_lens: &impl DeviceRange<i32>,
+    block_table: &impl DeviceRange<u32>,
     config: PagedMlaDecodeAttentionConfig,
 ) -> Result<()> {
     config.validate_lengths(
@@ -422,10 +422,10 @@ pub unsafe fn mla_decode_lse_f16(
     stream: &Stream,
     out: &mut impl DeviceOutput<f16>,
     lse: &mut impl DeviceOutput<f32>,
-    query: &impl DeviceInput<f16>,
-    query_pe: &impl DeviceInput<f16>,
-    key_value: &impl DeviceInput<f16>,
-    key_pe: &impl DeviceInput<f16>,
+    query: &impl DeviceRange<f16>,
+    query_pe: &impl DeviceRange<f16>,
+    key_value: &impl DeviceRange<f16>,
+    key_pe: &impl DeviceRange<f16>,
     config: MlaDecodeConfig,
 ) -> Result<()> {
     config.validate_lengths(
@@ -466,10 +466,10 @@ pub unsafe fn mla_decode_lse_bf16(
     stream: &Stream,
     out: &mut impl DeviceOutput<bf16>,
     lse: &mut impl DeviceOutput<f32>,
-    query: &impl DeviceInput<bf16>,
-    query_pe: &impl DeviceInput<bf16>,
-    key_value: &impl DeviceInput<bf16>,
-    key_pe: &impl DeviceInput<bf16>,
+    query: &impl DeviceRange<bf16>,
+    query_pe: &impl DeviceRange<bf16>,
+    key_value: &impl DeviceRange<bf16>,
+    key_pe: &impl DeviceRange<bf16>,
     config: MlaDecodeConfig,
 ) -> Result<()> {
     config.validate_lengths(
@@ -510,10 +510,10 @@ pub unsafe fn mla_decode_splitk_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
     lse: &mut impl DeviceOutput<f32>,
-    query: &impl DeviceInput<f32>,
-    query_pe: &impl DeviceInput<f32>,
-    key_value: &impl DeviceInput<f32>,
-    key_pe: &impl DeviceInput<f32>,
+    query: &impl DeviceRange<f32>,
+    query_pe: &impl DeviceRange<f32>,
+    key_value: &impl DeviceRange<f32>,
+    key_pe: &impl DeviceRange<f32>,
     config: MlaDecodeSplitKConfig,
 ) -> Result<()> {
     config.validate_lengths(
@@ -556,10 +556,10 @@ pub unsafe fn mla_decode_splitk_f16(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
     lse: &mut impl DeviceOutput<f32>,
-    query: &impl DeviceInput<f16>,
-    query_pe: &impl DeviceInput<f16>,
-    key_value: &impl DeviceInput<f16>,
-    key_pe: &impl DeviceInput<f16>,
+    query: &impl DeviceRange<f16>,
+    query_pe: &impl DeviceRange<f16>,
+    key_value: &impl DeviceRange<f16>,
+    key_pe: &impl DeviceRange<f16>,
     config: MlaDecodeSplitKConfig,
 ) -> Result<()> {
     config.validate_lengths(
@@ -602,10 +602,10 @@ pub unsafe fn mla_decode_splitk_bf16(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
     lse: &mut impl DeviceOutput<f32>,
-    query: &impl DeviceInput<bf16>,
-    query_pe: &impl DeviceInput<bf16>,
-    key_value: &impl DeviceInput<bf16>,
-    key_pe: &impl DeviceInput<bf16>,
+    query: &impl DeviceRange<bf16>,
+    query_pe: &impl DeviceRange<bf16>,
+    key_value: &impl DeviceRange<bf16>,
+    key_pe: &impl DeviceRange<bf16>,
     config: MlaDecodeSplitKConfig,
 ) -> Result<()> {
     config.validate_lengths(

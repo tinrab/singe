@@ -1,23 +1,24 @@
 use singe_cudnn::{
     backend::{
-        convolution::ConvolutionMode as CudnnConvolutionMode,
         execution::{
             OperationGraph as CudnnOperationGraph,
-            OperationGraphConfig as CudnnOperationGraphConfig,
+            OperationGraphOptions as CudnnOperationGraphOptions,
+        },
+        operation::{
             convolution::{
                 ConvolutionDescriptor as CudnnConvolutionDescriptor,
-                ConvolutionDescriptorConfig as CudnnConvolutionDescriptorConfig,
+                ConvolutionDescriptorSpec as CudnnConvolutionDescriptorSpec,
                 ConvolutionForwardOperation as CudnnConvolutionForwardOperation,
                 ConvolutionGeometry as CudnnConvolutionGeometry,
+                ConvolutionMode as CudnnConvolutionMode,
             },
             pointwise::{
                 PointwiseDescriptor as CudnnPointwiseDescriptor,
-                PointwiseDescriptorConfig as CudnnPointwiseDescriptorConfig,
-                PointwiseOperation as CudnnPointwiseOperation,
-                PointwiseOperationConfig as CudnnPointwiseOperationConfig,
+                PointwiseDescriptorSpec as CudnnPointwiseDescriptorSpec,
+                PointwiseMode as CudnnPointwiseMode, PointwiseOperation as CudnnPointwiseOperation,
+                PointwiseSpec as CudnnPointwiseSpec,
             },
         },
-        pointwise::PointwiseMode as CudnnPointwiseMode,
     },
     context::Context as CudnnContext,
     data_type::DataType as CudnnDataType,
@@ -86,12 +87,12 @@ pub fn build_cudnn_conv2d_bias_relu_template(
         0.0,
     )?;
     let add = CudnnPointwiseDescriptor::create(
-        CudnnPointwiseDescriptorConfig::new(CudnnPointwiseMode::Add, conv_output.compute_type()?)
+        CudnnPointwiseDescriptorSpec::new(CudnnPointwiseMode::Add, conv_output.compute_type()?)
             .with_nan_propagation(CudnnNanPropagation::Propagate),
     )?;
     let add_operation = CudnnPointwiseOperation::create(
         &add,
-        CudnnPointwiseOperationConfig::Binary {
+        CudnnPointwiseSpec::Binary {
             x: &conv_output_descriptor,
             b: &bias_descriptor,
             y: &biased_descriptor,
@@ -100,12 +101,12 @@ pub fn build_cudnn_conv2d_bias_relu_template(
         },
     )?;
     let relu = CudnnPointwiseDescriptor::create(
-        CudnnPointwiseDescriptorConfig::new(CudnnPointwiseMode::ReluFwd, output.compute_type()?)
+        CudnnPointwiseDescriptorSpec::new(CudnnPointwiseMode::ReluFwd, output.compute_type()?)
             .with_nan_propagation(CudnnNanPropagation::NotPropagate),
     )?;
     let relu_operation = CudnnPointwiseOperation::create(
         &relu,
-        CudnnPointwiseOperationConfig::Unary {
+        CudnnPointwiseSpec::Unary {
             x: &biased_descriptor,
             y: &output_descriptor,
             alpha1: 1.0,
@@ -118,7 +119,7 @@ pub fn build_cudnn_conv2d_bias_relu_template(
             add_operation.descriptor(),
             relu_operation.descriptor(),
         ],
-        CudnnOperationGraphConfig::default(),
+        CudnnOperationGraphOptions::default(),
     )?;
     let plan = cudnn_native_graph_execution_plan(cudnn, &operation_graph, input.data_type())?;
     let workspace_size = plan.workspace_size()?;
@@ -181,12 +182,12 @@ pub fn build_cudnn_convolution_template(
         )?;
         let output_descriptor = cudnn_backend_tensor(CUDNN_GRAPH_OUTPUT_TENSOR_ID, output)?;
         let add = CudnnPointwiseDescriptor::create(
-            CudnnPointwiseDescriptorConfig::new(CudnnPointwiseMode::Add, output.compute_type()?)
+            CudnnPointwiseDescriptorSpec::new(CudnnPointwiseMode::Add, output.compute_type()?)
                 .with_nan_propagation(CudnnNanPropagation::Propagate),
         )?;
         let add_operation = CudnnPointwiseOperation::create(
             &add,
-            CudnnPointwiseOperationConfig::Binary {
+            CudnnPointwiseSpec::Binary {
                 x: &conv_output_descriptor,
                 b: &bias_descriptor,
                 y: &output_descriptor,
@@ -197,7 +198,7 @@ pub fn build_cudnn_convolution_template(
         let graph = CudnnOperationGraph::create(
             cudnn,
             &[operation.descriptor(), add_operation.descriptor()],
-            CudnnOperationGraphConfig::default(),
+            CudnnOperationGraphOptions::default(),
         )?;
         let operation = CudnnBackendOperation::conv2d_bias(
             input_descriptor,
@@ -215,7 +216,7 @@ pub fn build_cudnn_convolution_template(
         let graph = CudnnOperationGraph::create(
             cudnn,
             &[operation.descriptor()],
-            CudnnOperationGraphConfig::default(),
+            CudnnOperationGraphOptions::default(),
         )?;
         let operation = CudnnBackendOperation::conv2d(
             input_descriptor,
@@ -252,7 +253,7 @@ fn cudnn_convolution_descriptor(
     geometry: CudnnConvolutionGeometry,
 ) -> Result<CudnnConvolutionDescriptor> {
     Ok(CudnnConvolutionDescriptor::create(
-        CudnnConvolutionDescriptorConfig::new(
+        CudnnConvolutionDescriptorSpec::new(
             compute_type,
             CudnnConvolutionMode::CrossCorrelation,
             geometry,

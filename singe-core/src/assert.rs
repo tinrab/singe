@@ -14,7 +14,7 @@ macro_rules! assert_close {
         let expected = $expected;
         let tolerance = $tolerance as f64;
 
-        assert_eq!(
+        ::core::assert_eq!(
             actual.len(),
             expected.len(),
             "assert_close length mismatch: actual len {}, expected len {}",
@@ -27,7 +27,7 @@ macro_rules! assert_close {
             let expected = *expected as f64;
             let difference = (actual - expected).abs();
 
-            assert!(
+            ::core::assert!(
                 difference <= tolerance,
                 "assert_close failed at index {index}: actual {actual}, expected {expected}, difference {difference}, tolerance {tolerance}",
             );
@@ -40,7 +40,7 @@ macro_rules! assert_close {
         let tolerance = $tolerance as f64;
         let difference = (actual - expected).abs();
 
-        assert!(
+        ::core::assert!(
             difference <= tolerance,
             "assert_close failed for {}: actual {actual}, expected {expected}, difference {difference}, tolerance {tolerance}",
             $name,
@@ -66,7 +66,7 @@ macro_rules! assert_complex_close {
         let real_difference = (actual.re as f64 - expected.re as f64).abs();
         let imaginary_difference = (actual.im as f64 - expected.im as f64).abs();
 
-        assert!(
+        ::core::assert!(
             real_difference <= tolerance && imaginary_difference <= tolerance,
             "assert_complex_close failed: actual ({}, {}i), expected ({}, {}i), real difference {}, imaginary difference {}, tolerance {}",
             actual.re,

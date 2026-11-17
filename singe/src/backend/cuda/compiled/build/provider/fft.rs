@@ -7,8 +7,8 @@ use singe_cuda::{
     types::{Complex32, Complex64},
 };
 use singe_cufft::{
-    plan::{Plan, PlanBuilder},
-    types::TransformType,
+    plan::Plan,
+    types::{Direction, TransformType},
 };
 
 use crate::{
@@ -109,10 +109,8 @@ fn build_fft_graph(
         (_, false) => TransformType::ComplexToReal,
         (_, true) => TransformType::DoubleComplexToDoubleReal,
     };
-    let plan = PlanBuilder::new(context.allocator().context())
-        .one_dimensional(extent(length)?, kind)
-        .batch(batch)
-        .create()?;
+    let mut plan = Plan::create(context.allocator().context())?;
+    plan.plan_1d(extent(length)?, kind, batch)?;
     let stream = CudaStream::create(device)?;
     let graph = if operation == Operation::Rfft {
         if !input.is_contiguous() {
@@ -124,7 +122,7 @@ fn build_fft_graph(
             // SAFETY: the plan transforms the contiguous signals into as many half spectra, which the output holds; the compiled graph keeps both and the plan alive while it replays.
             unsafe {
                 if double {
-                    plan.execute_d2z_f64_async(
+                    plan.execute_async(
                         &tensor_input_view::<f64>(input, DataType::F64, "cuda graph rfft input")?,
                         tensor_output_view_with_len::<Complex64>(
                             output.region()?,
@@ -132,10 +130,11 @@ fn build_fft_graph(
                             pairs,
                             "cuda graph rfft output",
                         )?,
-                        Some(stream.raw()),
+                        Direction::Forward,
+                        stream.raw(),
                     )?;
                 } else {
-                    plan.execute_r2c_f32_async(
+                    plan.execute_async(
                         &tensor_input_view::<f32>(input, DataType::F32, "cuda graph rfft input")?,
                         tensor_output_view_with_len::<Complex32>(
                             output.region()?,
@@ -143,7 +142,8 @@ fn build_fft_graph(
                             pairs,
                             "cuda graph rfft output",
                         )?,
-                        Some(stream.raw()),
+                        Direction::Forward,
+                        stream.raw(),
                     )?;
                 }
             }
@@ -188,8 +188,8 @@ fn build_fft_graph(
             // SAFETY: the plan transforms the scaled half spectra, which only this node reads, into as many signals, which the output holds; the compiled graph keeps the buffer, the output, and the plan alive while it replays.
             unsafe {
                 if double {
-                    plan.execute_z2d_f64_async(
-                        tensor_output_view_with_len::<Complex64>(
+                    plan.execute_async(
+                        &tensor_output_view_with_len::<Complex64>(
                             region,
                             DataType::F64,
                             pairs,
@@ -201,11 +201,12 @@ fn build_fft_graph(
                             points,
                             "cuda graph irfft output",
                         )?,
-                        Some(stream.raw()),
+                        Direction::Inverse,
+                        stream.raw(),
                     )?;
                 } else {
-                    plan.execute_c2r_f32_async(
-                        tensor_output_view_with_len::<Complex32>(
+                    plan.execute_async(
+                        &tensor_output_view_with_len::<Complex32>(
                             region,
                             DataType::F32,
                             pairs,
@@ -217,7 +218,8 @@ fn build_fft_graph(
                             points,
                             "cuda graph irfft output",
                         )?,
-                        Some(stream.raw()),
+                        Direction::Inverse,
+                        stream.raw(),
                     )?;
                 }
             }

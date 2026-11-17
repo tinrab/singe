@@ -1,13 +1,14 @@
 //! Graph nodes with explicit normal or green execution contexts.
+
 use std::{ptr, rc::Rc, slice, sync::Arc};
 
-use singe_core::impl_enum_display;
+use singe_core::{impl_enum_display, report_cleanup_failure};
 use singe_cuda_sys::driver as sys;
 
 use crate::{
     context::Context,
     driver::entry_points::{cuGraphAddNode_v3, cuGraphNodeSetParams_v2},
-    error::Result,
+    error::{Error, Result},
     event::Event,
     graph::{ExecutableGraph, Graph, GraphInstantiateFlags, GraphNode, raw::HostNodeParams},
     green::{GreenContext, GreenStream},
@@ -175,6 +176,7 @@ impl ContextGraph {
     /// Creates a new node described by its type-specific parameters.
     ///
     /// # Safety
+    ///
     /// Host callbacks and their data must remain valid for every execution.
     /// Callbacks must not call CUDA.
     /// External resources must not be destroyed or manipulated through raw handles while referenced by the graph.
@@ -199,7 +201,7 @@ impl ContextGraph {
             .map(GraphNode::as_raw)
             .collect::<Vec<_>>();
         let mut handle = ptr::null_mut();
-        // SAFETY: the caller upholds this function's safety contract.
+        // SAFETY: `handle` is a local output, `handles` lives across the call with its length passed alongside, `&mut self` gives exclusive access to the graph, and the caller keeps the callbacks and external resources in `raw` valid for every execution.
         parameters.with_raw(&context, |raw| unsafe {
             cuGraphAddNode_v3(
                 &raw mut handle,
@@ -222,6 +224,7 @@ impl ContextGraph {
     /// Updates a node's type-specific parameters and preferred context.
     ///
     /// # Safety
+    ///
     /// The callback and data lifetime requirements of `add_node` also apply.
     ///
     /// # Errors
@@ -235,7 +238,7 @@ impl ContextGraph {
         parameters: NodeParameters,
     ) -> Result<()> {
         self.graph.check_nodes(slice::from_ref(&node.node))?;
-        // SAFETY: the caller upholds this function's safety contract.
+        // SAFETY: `check_nodes` confirmed `node` belongs to this graph, `&mut self` gives exclusive access to it, and the caller keeps the callbacks and external resources in `raw` valid for every execution.
         parameters.with_raw(&context, |raw| unsafe {
             cuGraphNodeSetParams_v2(node.as_raw(), raw)
         })?;
@@ -250,6 +253,7 @@ impl ContextGraph {
     /// Adds a kernel node with an explicit execution context.
     ///
     /// # Safety
+    ///
     /// Arguments must match the function ABI and satisfy its value and access requirements.
     /// The function must be valid in `context` and its code owner must outlive every queued execution.
     /// Pointed-to storage must remain valid for every execution, with exclusive writable access.
@@ -277,7 +281,7 @@ impl ContextGraph {
             .collect::<Vec<_>>();
         let mut handle = ptr::null_mut();
         let kernel_context = context.kernel_context()?;
-        // SAFETY: the caller upholds this function's safety contract.
+        // SAFETY: `arguments` outlives the call that copies it into the node, `handles` lives across the call with its length passed alongside, `&mut self` gives exclusive access to the graph, and the caller guarantees the function, arguments, and their storage match and stay valid in `context`.
         parameters.with_encoded_arguments(|mut arguments| unsafe {
             let mut raw = sys::CUgraphNodeParams {
                 type_: sys::CUgraphNodeType::CU_GRAPH_NODE_TYPE_KERNEL,
@@ -311,11 +315,12 @@ impl ContextGraph {
             parameters: None,
         };
         for attribute in config.attributes() {
-            if let Err(error) = node.node.set_launch_attribute(*attribute) {
-                // SAFETY: `cuGraphDestroyNode` receives only plain values.
-                unsafe {
-                    let _ = sys::cuGraphDestroyNode(handle);
+            if let Err(error) = self.graph.set_launch_attribute(&node.node, *attribute) {
+                // SAFETY: `handle` is the node just added to this exclusively borrowed graph, and nothing else refers to it yet.
+                if let Err(destroy_error) = unsafe { try_ffi!(sys::cuGraphDestroyNode(handle)) } {
+                    report_cleanup_failure("destroy", "cuda graph node", &destroy_error);
                 }
+
                 return Err(error);
             }
         }
@@ -328,10 +333,10 @@ impl ContextGraph {
     ///
     /// # Errors
     ///
-    /// Propagates native graph-instantiation errors from [`Graph::instantiate_with_flags`], including invalid nodes, incompatible contexts, or unsupported instantiation flags.
+    /// Propagates native graph-instantiation errors from [`Graph::instantiate`], including invalid nodes, incompatible contexts, or unsupported instantiation flags.
     pub fn instantiate(&self, flags: GraphInstantiateFlags) -> Result<ContextExecutableGraph> {
         Ok(ContextExecutableGraph {
-            executable: self.graph.instantiate_with_flags(flags)?,
+            executable: self.graph.instantiate(flags)?,
             nodes: self.nodes.clone(),
         })
     }
@@ -348,26 +353,38 @@ impl ContextExecutableGraph {
     /// Enqueues the retained executable on an ordinary CUDA stream.
     ///
     /// # Safety
+    ///
     /// Retain node storage and exclude conflicting accesses through completion.
     ///
     /// # Errors
     ///
-    /// Propagates stream-context validation, context binding, and native launch errors from [`ExecutableGraph::launch`].
-    pub unsafe fn launch(&self, stream: &Stream) -> Result<()> {
-        // SAFETY: the caller upholds this function's safety contract.
-        unsafe { self.executable.launch(stream) }
+    /// Propagates stream-context validation, context binding, and native launch errors from [`ExecutableGraph::launch_async`].
+    pub unsafe fn launch_async(&self, stream: &Stream) -> Result<()> {
+        // SAFETY: the caller retains node storage and excludes conflicting accesses through completion, as `ExecutableGraph::launch_async` requires.
+        unsafe { self.executable.launch_async(stream) }
     }
 
     /// Enqueues the retained executable on a green-context stream.
     ///
     /// # Safety
+    ///
     /// Retain node storage and exclude conflicting accesses through completion.
     ///
     /// # Errors
     ///
-    /// Returns an error if CUDA rejects launching this executable on the supplied green-context stream, including incompatible graph or stream state and prior asynchronous failures.
-    pub unsafe fn launch_on_green(&self, stream: &GreenStream) -> Result<()> {
-        // SAFETY: `cuGraphLaunch` receives live handles owned by the wrappers.
+    /// Returns `Error::StreamContextMismatch` unless the graph belongs to the primary context of the green context's device.
+    /// Also returns an error if the context cannot be bound or CUDA rejects launching this executable on the supplied green-context stream, including incompatible graph or stream state and prior asynchronous failures.
+    pub unsafe fn launch_green_async(&self, stream: &GreenStream) -> Result<()> {
+        if !self
+            .executable
+            .context()
+            .is_primary_for(stream.context().device())?
+        {
+            return Err(Error::StreamContextMismatch);
+        }
+
+        self.executable.context().bind()?;
+        // SAFETY: `self.executable` owns the live executable and `stream` borrows a live green stream; the caller retains node storage and excludes conflicting accesses through completion.
         unsafe {
             try_ffi!(sys::cuGraphLaunch(
                 self.executable.as_raw(),
@@ -389,9 +406,9 @@ impl ContextExecutableGraph {
 #[non_exhaustive]
 pub enum HostTaskSyncMode {
     /// The execution thread will block until new host tasks are ready to run.
-    Blocking = sys::CUhostTaskSyncMode::CU_HOST_TASK_BLOCKING as _,
+    Blocking = sys::CUhostTaskSyncMode::CU_HOST_TASK_BLOCKING.0,
     /// The execution thread will spin wait until new host tasks are ready to run.
-    SpinWait = sys::CUhostTaskSyncMode::CU_HOST_TASK_SPINWAIT as _,
+    SpinWait = sys::CUhostTaskSyncMode::CU_HOST_TASK_SPINWAIT.0,
 }
 
 impl_enum_display!(HostTaskSyncMode, {

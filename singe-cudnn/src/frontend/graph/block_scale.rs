@@ -1,8 +1,5 @@
-pub use crate::backend::execution::block_scale::{
-    BlockScaleDequantizeInputs, BlockScaleQuantizeOutputs,
-};
 use crate::{
-    backend::tensor::{TensorId, TensorSpec},
+    backend::operation::block_scale::{BlockScaleDequantizeInputs, BlockScaleQuantizeOutputs},
     data_type::DataType,
     error::Result,
     frontend::{
@@ -12,6 +9,7 @@ use crate::{
             BlockScaleDequantizeConfig, BlockScaleOperation, BlockScaleQuantizeConfig, Operation,
         },
     },
+    tensor::{TensorId, TensorSpec},
 };
 
 impl Graph {

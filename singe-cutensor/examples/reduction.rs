@@ -1,8 +1,7 @@
-use singe_cuda::{context::Context as CudaContext, memory::DeviceMemory, stream::StreamBinding};
+use singe_cuda::{context::Context as CudaContext, memory::DeviceMemory, stream::StreamOptions};
 
 use singe_cutensor::{
     context::Context,
-    error::Result,
     operation::{ComputeDescriptor, OperationDescriptor, TensorOperand},
     plan::{Plan, PlanPreference},
     tensor::TensorDescriptor,
@@ -14,17 +13,19 @@ fn packed_offset(indices: &[u64], extents: &[u64]) -> usize {
     let mut offset = 0_usize;
 
     for (&index, &extent) in indices.iter().zip(extents) {
-        offset += index as usize * stride;
-        stride *= extent as usize;
+        offset += usize::try_from(index).unwrap() * stride;
+        stride *= usize::try_from(extent).unwrap();
     }
 
     offset
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
+    const ALIGNMENT: u32 = 128;
+
     let cuda_context = CudaContext::create()?;
     let context = Context::create(&cuda_context)?;
-    let stream = cuda_context.create_stream()?;
+    let stream = cuda_context.create_stream(StreamOptions::default())?;
 
     let extent_a = vec![2, 3, 2];
     let extent_c = vec![2, 2];
@@ -39,8 +40,6 @@ fn main() -> Result<()> {
     let device_a = DeviceMemory::from_slice(&cuda_context, &host_a)?;
     let device_c_input = DeviceMemory::from_slice(&cuda_context, &host_c)?;
     let mut device_c = DeviceMemory::from_slice(&cuda_context, &host_c)?;
-
-    const ALIGNMENT: u32 = 128;
 
     let descriptor_a = TensorDescriptor::create_for::<f32>(&context, &extent_a, ALIGNMENT)?;
     let descriptor_c = TensorDescriptor::create_for::<f32>(&context, &extent_c, ALIGNMENT)?;
@@ -61,10 +60,10 @@ fn main() -> Result<()> {
         WorkspacePreference::Default,
     )?;
     let plan = Plan::create(&context, &reduction, &preference, workspace_size)?;
-    let mut workspace = if plan.required_workspace_size() > 0 {
+    let mut workspace = if plan.workspace_size() > 0 {
         Some(DeviceMemory::<u8>::create_uninit(
             &cuda_context,
-            plan.required_workspace_size_bytes()?,
+            plan.workspace_size(),
         )?)
     } else {
         None
@@ -72,26 +71,21 @@ fn main() -> Result<()> {
 
     let alpha = 1.25_f32;
     let beta = -0.5_f32;
-    StreamBinding::Borrowed(stream.to_borrowed()).sync_scope(|| {
-        // SAFETY: these buffers match the descriptors and stay borrowed through scope completion.
-        unsafe {
-            plan.reduce(
-                &alpha,
-                &device_a,
-                &beta,
-                &device_c_input,
-                &mut device_c,
-                workspace.as_mut(),
-                &stream,
-            )
-        }
-    })?;
+    plan.reduce(
+        &alpha,
+        &device_a,
+        &beta,
+        &device_c_input,
+        &mut device_c,
+        workspace.as_mut().map(|memory| memory.output()),
+        &stream,
+    )?;
 
     let result = device_c.copy_to_host_vec()?;
-    let mut expected = vec![0.0_f32; extent_c.iter().product::<u64>() as usize];
+    let mut expected = vec![0.0_f32; usize::try_from(extent_c.iter().product::<u64>())?];
 
-    for m in 0..extent_c[0] as usize {
-        for v in 0..extent_c[1] as usize {
+    for m in 0..usize::try_from(extent_c[0])? {
+        for v in 0..usize::try_from(extent_c[1])? {
             let mut sum = 0.0_f32;
             for h in 0..extent_a[1] {
                 let a_offset = packed_offset(&[m as u64, h, v as u64], &extent_a);
@@ -99,7 +93,7 @@ fn main() -> Result<()> {
             }
 
             let c_offset = packed_offset(&[m as u64, v as u64], &extent_c);
-            expected[c_offset] = alpha * sum + beta * host_c[c_offset];
+            expected[c_offset] = beta.mul_add(host_c[c_offset], alpha * sum);
         }
     }
 

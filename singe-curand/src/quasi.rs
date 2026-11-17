@@ -1,11 +1,10 @@
 //! Sobol direction-vector and scramble-constant tables.
 //!
-//! These wrappers expose library-owned host-memory tables returned by cuRAND for quasirandom number generation.
+//! cuRAND owns these host tables for the lifetime of the program, so they are returned as `&'static` slices.
 
 use std::{
     ops::{Index, RangeFull},
-    ptr::{self, NonNull},
-    slice,
+    ptr, slice,
 };
 
 use singe_curand_sys as sys;
@@ -18,71 +17,36 @@ use crate::{
 
 /// Number of Sobol dimensions in the direction-vector and scramble-constant tables.
 ///
-/// cuRAND documents the Joe-Kuo direction-vector sets exposed by `curandGetDirectionVectors32` and `curandGetDirectionVectors64` as containing 20,000 dimensions.
-/// The same dimension limit is used by `curandSetQuasiRandomGeneratorDimensions`.
+/// The Joe-Kuo direction-vector sets returned by [`direction_vectors_32`] and [`direction_vectors_64`] contain 20,000 dimensions.
+/// [`Generator::set_quasi_random_dimensions`](crate::generator::Generator::set_quasi_random_dimensions) accepts at most this many dimensions.
 pub const MAX_QUASI_RANDOM_DIMENSIONS: usize = 20_000;
 
-#[repr(transparent)]
 /// Direction vector for one 32-bit Sobol dimension.
 ///
 /// Each dimension has 32 `u32` words.
+#[repr(transparent)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct DirectionVector32 {
     words: [u32; Self::WORDS],
 }
 
-#[repr(transparent)]
 /// Direction vector for one 64-bit Sobol dimension.
 ///
 /// Each dimension has 64 `u64` words.
+#[repr(transparent)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct DirectionVector64 {
     words: [u64; Self::WORDS],
 }
 
-/// Library-owned table of 32-bit Sobol direction vectors.
-///
-/// The table contains one [`DirectionVector32`] per supported dimension.
-#[derive(Debug, Clone, Copy)]
-pub struct DirectionVectorTable32 {
-    ptr: NonNull<DirectionVector32>,
-    len: usize,
-}
-
-/// Library-owned table of 64-bit Sobol direction vectors.
-///
-/// The table contains one [`DirectionVector64`] per supported dimension.
-#[derive(Debug, Clone, Copy)]
-pub struct DirectionVectorTable64 {
-    ptr: NonNull<DirectionVector64>,
-    len: usize,
-}
-
-/// Library-owned 32-bit scramble constants for scrambled Sobol generation.
-#[derive(Debug, Clone, Copy)]
-pub struct ScrambleConstants32 {
-    ptr: NonNull<u32>,
-    len: usize,
-}
-
-/// Library-owned 64-bit scramble constants for scrambled Sobol generation.
-#[derive(Debug, Clone, Copy)]
-pub struct ScrambleConstants64 {
-    ptr: NonNull<u64>,
-    len: usize,
-}
-
-/// Returns a table of 32-bit Sobol direction vectors for `set`.
-///
-/// cuRAND returns a pointer to host memory owned by the library.
-/// The returned wrapper borrows that stable table and exposes it as a Rust slice.
+/// Returns the library-owned table of 32-bit Sobol direction vectors for `set`, one per dimension.
 ///
 /// # Errors
 ///
-/// Returns an error if `set` is not valid for 32-bit direction vectors or if cuRAND does not return a table pointer.
-pub fn direction_vectors_32(set: DirectionVectorSet) -> Result<DirectionVectorTable32> {
+/// Returns an error if `set` is not valid for 32-bit direction vectors or if cuRAND returns a null table.
+pub fn direction_vectors_32(set: DirectionVectorSet) -> Result<&'static [DirectionVector32]> {
     let mut vectors = ptr::null_mut();
-    // SAFETY: `curandGetDirectionVectors32` receives valid output locations.
+    // SAFETY: `vectors` is a valid output location.
     unsafe {
         try_ffi!(sys::curandGetDirectionVectors32(
             &raw mut vectors,
@@ -90,20 +54,18 @@ pub fn direction_vectors_32(set: DirectionVectorSet) -> Result<DirectionVectorTa
         ))?;
     }
 
-    DirectionVectorTable32::from_raw(vectors.cast(), MAX_QUASI_RANDOM_DIMENSIONS)
+    // SAFETY: cuRAND returns its static table of `MAX_QUASI_RANDOM_DIMENSIONS` vectors, and `DirectionVector32` has the native layout.
+    unsafe { static_table(vectors.cast(), "curand direction vectors") }
 }
 
-/// Returns a table of 64-bit Sobol direction vectors for `set`.
-///
-/// cuRAND returns a pointer to host memory owned by the library.
-/// The returned wrapper borrows that stable table and exposes it as a Rust slice.
+/// Returns the library-owned table of 64-bit Sobol direction vectors for `set`, one per dimension.
 ///
 /// # Errors
 ///
-/// Returns an error if `set` is not valid for 64-bit direction vectors or if cuRAND does not return a table pointer.
-pub fn direction_vectors_64(set: DirectionVectorSet) -> Result<DirectionVectorTable64> {
+/// Returns an error if `set` is not valid for 64-bit direction vectors or if cuRAND returns a null table.
+pub fn direction_vectors_64(set: DirectionVectorSet) -> Result<&'static [DirectionVector64]> {
     let mut vectors = ptr::null_mut();
-    // SAFETY: `curandGetDirectionVectors64` receives valid output locations.
+    // SAFETY: `vectors` is a valid output location.
     unsafe {
         try_ffi!(sys::curandGetDirectionVectors64(
             &raw mut vectors,
@@ -111,181 +73,50 @@ pub fn direction_vectors_64(set: DirectionVectorSet) -> Result<DirectionVectorTa
         ))?;
     }
 
-    DirectionVectorTable64::from_raw(vectors.cast(), MAX_QUASI_RANDOM_DIMENSIONS)
+    // SAFETY: cuRAND returns its static table of `MAX_QUASI_RANDOM_DIMENSIONS` vectors, and `DirectionVector64` has the native layout.
+    unsafe { static_table(vectors.cast(), "curand direction vectors") }
 }
 
-/// Returns 32-bit scramble constants for scrambled Sobol generation.
-///
-/// cuRAND returns a pointer to host memory owned by the library.
+/// Returns the library-owned 32-bit scramble constants for scrambled Sobol generation, one per dimension.
 ///
 /// # Errors
 ///
-/// Returns an error if cuRAND does not return a constants pointer.
-pub fn scramble_constants_32() -> Result<ScrambleConstants32> {
+/// Returns an error if cuRAND returns a null table.
+pub fn scramble_constants_32() -> Result<&'static [u32]> {
     let mut constants = ptr::null_mut();
-    // SAFETY: `curandGetScrambleConstants32` receives valid output locations.
+    // SAFETY: `constants` is a valid output location.
     unsafe {
         try_ffi!(sys::curandGetScrambleConstants32(&raw mut constants))?;
     }
 
-    ScrambleConstants32::from_raw(constants, MAX_QUASI_RANDOM_DIMENSIONS)
+    // SAFETY: cuRAND returns its static table of `MAX_QUASI_RANDOM_DIMENSIONS` constants.
+    unsafe { static_table(constants, "curand scramble constants") }
 }
 
-/// Returns 64-bit scramble constants for scrambled Sobol generation.
-///
-/// cuRAND returns a pointer to host memory owned by the library.
+/// Returns the library-owned 64-bit scramble constants for scrambled Sobol generation, one per dimension.
 ///
 /// # Errors
 ///
-/// Returns an error if cuRAND does not return a constants pointer.
-pub fn scramble_constants_64() -> Result<ScrambleConstants64> {
+/// Returns an error if cuRAND returns a null table.
+pub fn scramble_constants_64() -> Result<&'static [u64]> {
     let mut constants = ptr::null_mut();
-    // SAFETY: `curandGetScrambleConstants64` receives valid output locations.
+    // SAFETY: `constants` is a valid output location.
     unsafe {
         try_ffi!(sys::curandGetScrambleConstants64(&raw mut constants))?;
     }
 
-    ScrambleConstants64::from_raw(constants, MAX_QUASI_RANDOM_DIMENSIONS)
+    // SAFETY: cuRAND returns its static table of `MAX_QUASI_RANDOM_DIMENSIONS` constants.
+    unsafe { static_table(constants, "curand scramble constants") }
 }
 
-impl DirectionVectorTable32 {
-    fn from_raw(ptr: *mut DirectionVector32, len: usize) -> Result<Self> {
-        Ok(Self {
-            ptr: NonNull::new(ptr).ok_or(Error::NullHandle)?,
-            len,
-        })
+// A non-null `ptr` must point to `MAX_QUASI_RANDOM_DIMENSIONS` initialized values that stay alive and unchanged for the rest of the program.
+unsafe fn static_table<T>(ptr: *mut T, name: &'static str) -> Result<&'static [T]> {
+    if ptr.is_null() {
+        return Err(Error::NullPointer { name: name.into() });
     }
 
-    /// Returns the number of dimensions in the table.
-    #[must_use]
-    pub const fn len(&self) -> usize {
-        self.len
-    }
-
-    /// Returns `true` if the table contains no direction vectors.
-    #[must_use]
-    pub const fn is_empty(&self) -> bool {
-        self.len == 0
-    }
-
-    /// Returns the table as a slice indexed by dimension.
-    #[must_use]
-    pub fn as_slice(&self) -> &[DirectionVector32] {
-        // SAFETY: cuRAND owns `len` direction vectors at `ptr` for the lifetime of the program.
-        unsafe { slice::from_raw_parts(self.ptr.as_ptr(), self.len) }
-    }
-
-    /// Returns the direction vector for `dimension`, if present.
-    #[must_use]
-    pub fn get(&self, dimension: usize) -> Option<&DirectionVector32> {
-        self.as_slice().get(dimension)
-    }
-}
-
-impl Index<usize> for DirectionVectorTable32 {
-    type Output = DirectionVector32;
-
-    fn index(&self, index: usize) -> &Self::Output {
-        &self.as_slice()[index]
-    }
-}
-
-impl DirectionVectorTable64 {
-    fn from_raw(ptr: *mut DirectionVector64, len: usize) -> Result<Self> {
-        Ok(Self {
-            ptr: NonNull::new(ptr).ok_or(Error::NullHandle)?,
-            len,
-        })
-    }
-
-    /// Returns the number of dimensions in the table.
-    #[must_use]
-    pub const fn len(&self) -> usize {
-        self.len
-    }
-
-    /// Returns `true` if the table contains no direction vectors.
-    #[must_use]
-    pub const fn is_empty(&self) -> bool {
-        self.len == 0
-    }
-
-    /// Returns the table as a slice indexed by dimension.
-    #[must_use]
-    pub fn as_slice(&self) -> &[DirectionVector64] {
-        // SAFETY: cuRAND owns `len` direction vectors at `ptr` for the lifetime of the program.
-        unsafe { slice::from_raw_parts(self.ptr.as_ptr(), self.len) }
-    }
-
-    /// Returns the direction vector for `dimension`, if present.
-    #[must_use]
-    pub fn get(&self, dimension: usize) -> Option<&DirectionVector64> {
-        self.as_slice().get(dimension)
-    }
-}
-
-impl Index<usize> for DirectionVectorTable64 {
-    type Output = DirectionVector64;
-
-    fn index(&self, index: usize) -> &Self::Output {
-        &self.as_slice()[index]
-    }
-}
-
-impl ScrambleConstants32 {
-    fn from_raw(ptr: *mut u32, len: usize) -> Result<Self> {
-        Ok(Self {
-            ptr: NonNull::new(ptr).ok_or(Error::NullHandle)?,
-            len,
-        })
-    }
-
-    /// Returns the number of scramble constants in the table.
-    #[must_use]
-    pub const fn len(&self) -> usize {
-        self.len
-    }
-
-    /// Returns `true` if the table contains no constants.
-    #[must_use]
-    pub const fn is_empty(&self) -> bool {
-        self.len == 0
-    }
-
-    /// Returns the constants as a slice indexed by dimension.
-    #[must_use]
-    pub fn as_slice(&self) -> &[u32] {
-        // SAFETY: cuRAND owns `len` scramble constants at `ptr` for the lifetime of the program.
-        unsafe { slice::from_raw_parts(self.ptr.as_ptr(), self.len) }
-    }
-}
-
-impl ScrambleConstants64 {
-    fn from_raw(ptr: *mut u64, len: usize) -> Result<Self> {
-        Ok(Self {
-            ptr: NonNull::new(ptr).ok_or(Error::NullHandle)?,
-            len,
-        })
-    }
-
-    /// Returns the number of scramble constants in the table.
-    #[must_use]
-    pub const fn len(&self) -> usize {
-        self.len
-    }
-
-    /// Returns `true` if the table contains no constants.
-    #[must_use]
-    pub const fn is_empty(&self) -> bool {
-        self.len == 0
-    }
-
-    /// Returns the constants as a slice indexed by dimension.
-    #[must_use]
-    pub fn as_slice(&self) -> &[u64] {
-        // SAFETY: cuRAND owns `len` scramble constants at `ptr` for the lifetime of the program.
-        unsafe { slice::from_raw_parts(self.ptr.as_ptr(), self.len) }
-    }
+    // SAFETY: `ptr` is non-null, and the caller guarantees it points to `MAX_QUASI_RANDOM_DIMENSIONS` initialized values that live for the rest of the program.
+    Ok(unsafe { slice::from_raw_parts(ptr, MAX_QUASI_RANDOM_DIMENSIONS) })
 }
 
 impl DirectionVector32 {

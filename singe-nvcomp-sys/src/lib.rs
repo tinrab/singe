@@ -1,7 +1,10 @@
-//! Raw FFI bindings for nvCOMP.
+//! Low-level FFI bindings for the nvCOMP 6.0 C API, the NVIDIA GPU compression library, generated from `nvcomp.h`.
+//! [`singe-loader`](singe_loader) loads the library at run time, on the first call or through [`load`], so building links no NVIDIA library unless the `manager` feature is on.
+//! Most users want the safe `singe-nvcomp` crate.
 //!
-//! Prefer the safe `singe-nvcomp` crate unless direct NVIDIA ABI access is required.
-
+//! # Features
+//!
+//! - `manager`: compiles a C++ bridge to nvCOMP's manager API, which needs the nvCOMP and CUDA headers at build time and links nvCOMP.
 #![allow(
     unpredictable_function_pointer_comparisons,
     non_upper_case_globals,
@@ -12,6 +15,9 @@
     unnecessary_transmutes,
     unused_imports,
     unused_qualifications,
+    missing_debug_implementations,
+    unnameable_types,
+    unreachable_pub,
     clippy::correctness,
     clippy::suspicious,
     clippy::complexity,
@@ -20,10 +26,13 @@
     clippy::absolute_paths,
     clippy::pedantic,
     clippy::nursery,
+    clippy::undocumented_unsafe_blocks,
     reason = "generated bindings preserve upstream ABI conventions and documentation"
 )]
 
-use num_enum::{IntoPrimitive, TryFromPrimitive};
+#[cfg(not(feature = "nvcomp_6_0"))]
+compile_error!("singe-nvcomp-sys requires a version feature, such as `nvcomp_6_0`");
+
 use singe_cuda_sys::runtime::cudaStream_t;
 
 #[cfg(feature = "nvcomp_6_0")]
@@ -80,11 +89,12 @@ pub const nvcompBatchedCascadedCompressDefaultOpts: nvcompBatchedCascadedCompres
             data_type: nvcompType_t::NVCOMP_TYPE_UINT,
             mode: nvcompCascadedMode_t::NVCOMP_CASCADED_MODE_ASYMMETRIC,
             terminal_codec_flags:
-                nvcompCascadedTerminalCodec_t::NVCOMP_CASCADED_TERMINAL_CODEC_CASCADED_BITPACK as _,
+                nvcompCascadedTerminalCodec_t::NVCOMP_CASCADED_TERMINAL_CODEC_CASCADED_BITPACK.0
+                    as u64,
             coarse_grained_encoding_flags: 0,
         },
         fine_grained_encoding_flags:
-            nvcompCascadedFineGrainedEncoding_t::NVCOMP_CASCADED_FINE_GRAINED_ENCODING_ALL as _,
+            nvcompCascadedFineGrainedEncoding_t::NVCOMP_CASCADED_FINE_GRAINED_ENCODING_ALL.0 as u64,
         compression_level: 3,
         reserved: [0; 31],
     };
@@ -339,16 +349,20 @@ pub const nvcompCRC32_CD_ROM_EDC: nvcompCRC32Spec_t = nvcompCRC32Spec_t {
 pub const nvcompCRC32IgnoredInputChunkBytes: *const size_t = std::ptr::null();
 
 /// C ABI bridge for the nvCOMP C++ managers and streaming interface.
-#[cfg(feature = "nvcomp_6_0")]
+#[cfg(feature = "manager")]
 pub mod manager {
     include!("manager_sys.rs");
 }
 
-pub use singe_loader::LoadError;
+pub use singe_loader::{Absence, LoadError, take_absence};
 
 static LIBRARY: singe_loader::Library = singe_loader::Library::nvcomp();
 
-// Loads nvCOMP, which each of its functions otherwise does on first call.
+/// Loads nvCOMP now, instead of on the first call of one of its functions.
+///
+/// # Errors
+///
+/// Returns an error if the library has no files on this platform or one of its files would not load.
 pub fn load() -> Result<(), LoadError> {
     LIBRARY.load()
 }

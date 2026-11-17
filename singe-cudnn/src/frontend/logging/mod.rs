@@ -1,5 +1,6 @@
 //! C++ frontend-compatible logging controls, independent of the native cuDNN callback.
-//! `CUDNN_FRONTEND_LOG_INFO` enables logging when positive and enables tensor dumps for levels 1 through 9. `CUDNN_FRONTEND_LOG_FILE` selects `stdout`, `stderr`, or a file path; an absent destination disables logging.
+//! `CUDNN_FRONTEND_LOG_INFO` enables logging when positive and enables tensor dumps for levels 1 through 9.
+//! `CUDNN_FRONTEND_LOG_FILE` selects `stdout`, `stderr`, or a file path; an absent destination disables logging.
 
 mod dump;
 
@@ -131,7 +132,8 @@ impl Logger {
     /// Opens a configured destination and applies the level and optional dump switch.
     ///
     /// # Errors
-    /// Returns the destination's file-open error.
+    ///
+    /// Returns an error if the destination file cannot be opened.
     pub fn create(config: &LoggingConfig) -> Result<Self> {
         let writer: Box<dyn Write + Send> = match &config.destination {
             LogDestination::Stdout => Box::new(io::stdout()),
@@ -172,16 +174,16 @@ impl Logger {
     /// Writes and flushes one C++ frontend-style labeled message.
     ///
     /// # Errors
-    /// Returns writer-lock or destination I/O errors.
+    ///
+    /// Returns an error if the writer lock is poisoned or destination I/O fails.
     pub fn message(&self, message: fmt::Arguments<'_>) -> Result<()> {
         if !self.enabled() {
             return Ok(());
         }
 
-        let mut writer = self
-            .writer
-            .lock()
-            .map_err(|_| FrontendError::LoggingLockPoisoned { name: "writer" })?;
+        let mut writer = self.writer.lock().map_err(|_| Error::LockPoisoned {
+            name: "logging writer".into(),
+        })?;
         writer
             .write_fmt(format_args!("[cudnn_frontend] {message}\n"))
             .map_err(logging_io)?;
@@ -204,13 +206,12 @@ static STATE: Mutex<LoggingState> = Mutex::new(LoggingState::Environment);
 /// Returns the active logger, loading the environment once on first use.
 ///
 /// # Errors
-/// Returns invalid environment, file-open or configuration-lock errors.
+///
+/// Returns an error if the environment is invalid, the file cannot be opened, or the configuration lock is poisoned.
 pub fn logger() -> Result<Option<Arc<Logger>>> {
-    let mut state = STATE
-        .lock()
-        .map_err(|_| FrontendError::LoggingLockPoisoned {
-            name: "configuration",
-        })?;
+    let mut state = STATE.lock().map_err(|_| Error::LockPoisoned {
+        name: "logging configuration".into(),
+    })?;
     let result = match &*state {
         LoggingState::Configured(logger) => Ok(logger.clone()),
         LoggingState::Environment => {
@@ -235,11 +236,9 @@ pub fn logger() -> Result<Option<Arc<Logger>>> {
 ///
 /// Returns an error if the global configuration mutex is poisoned.
 pub fn set_logger(logger: Option<Arc<Logger>>) -> Result<()> {
-    let mut state = STATE
-        .lock()
-        .map_err(|_| FrontendError::LoggingLockPoisoned {
-            name: "configuration",
-        })?;
+    let mut state = STATE.lock().map_err(|_| Error::LockPoisoned {
+        name: "logging configuration".into(),
+    })?;
     let previous = mem::replace(&mut *state, LoggingState::Configured(logger));
     drop(state);
     // Custom writer flushing and destruction may call application code.
@@ -262,7 +261,7 @@ pub fn configure(config: Option<&LoggingConfig>) -> Result<()> {
 ///
 /// # Errors
 ///
-/// Returns an error for an invalid environment logging level, destination file-open failure, or poisoned configuration mutex.
+/// Returns an error if the environment logging level is invalid, the destination file cannot be opened, or the configuration mutex is poisoned.
 pub fn configure_from_environment() -> Result<()> {
     configure(LoggingConfig::from_environment()?.as_ref())
 }

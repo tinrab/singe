@@ -8,15 +8,12 @@ use std::{
 use crate::{
     backend::{
         behavior::{BackendBehaviorNote, BackendNumericalNote},
-        execution::{EngineConfig, ExecutionPlan},
+        execution::{EngineChoice, EngineConfig, ExecutionPlan},
     },
     error::{Error, Result},
     frontend::{
         error::Error as FrontendError,
-        plan::{
-            CompileConfig, EngineChoice, EngineConfigFilter, PlanSupport,
-            metadata::EngineConfigMetadata,
-        },
+        plan::{CompileConfig, EngineConfigFilter, PlanSupport, metadata::EngineConfigMetadata},
     },
 };
 
@@ -237,7 +234,7 @@ impl fmt::Display for PlanBuildReport {
 }
 
 #[derive(Debug)]
-pub struct PlanCandidate {
+pub(crate) struct PlanCandidate {
     pub id: PlanId,
     pub engine_config: Arc<EngineConfig>,
     /// Knob choices are canonicalized when querying native metadata or restoring an artifact.
@@ -245,14 +242,14 @@ pub struct PlanCandidate {
 }
 
 impl PlanCandidate {
-    pub fn choice(&self) -> EngineChoice {
+    pub(crate) fn choice(&self) -> EngineChoice {
         EngineChoice::new(
             self.metadata.engine_index,
             self.metadata.knob_choices.clone(),
         )
     }
 
-    pub fn name(&self, graph_name: Option<&str>) -> String {
+    pub(crate) fn name(&self, graph_name: Option<&str>) -> String {
         graph_name.map_or_else(
             || self.metadata.name.clone(),
             |graph| format!("{graph}/{}", self.metadata.name),
@@ -261,14 +258,14 @@ impl PlanCandidate {
 }
 
 #[derive(Debug)]
-pub enum PlanBuildOutcome {
+pub(crate) enum PlanBuildOutcome {
     NotAttempted,
     Built(ExecutionPlan),
     Failed(PlanFailure),
 }
 
 #[derive(Debug)]
-pub struct BuiltPlanEntry {
+pub(crate) struct BuiltPlanEntry {
     pub outcome: PlanBuildOutcome,
     pub candidate: PlanCandidate,
     pub exclusion: Option<PlanExclusion>,
@@ -302,7 +299,7 @@ impl BuiltPlanEntry {
         }
     }
 
-    pub fn report(&self, graph_name: Option<&str>) -> PlanBuildReport {
+    pub(crate) fn report(&self, graph_name: Option<&str>) -> PlanBuildReport {
         PlanBuildReport {
             plan: self.candidate.id.clone(),
             name: self.candidate.name(graph_name),
@@ -316,7 +313,7 @@ impl BuiltPlanEntry {
         }
     }
 
-    pub fn execution_plan(&self, graph_name: Option<&str>) -> Result<&ExecutionPlan> {
+    pub(crate) fn execution_plan(&self, graph_name: Option<&str>) -> Result<&ExecutionPlan> {
         self.available_plan().ok_or_else(|| {
             FrontendError::PlanUnavailable {
                 report: Box::new(self.report(graph_name)),
@@ -325,20 +322,20 @@ impl BuiltPlanEntry {
         })
     }
 
-    pub fn available_plan(&self) -> Option<&ExecutionPlan> {
+    pub(crate) fn available_plan(&self) -> Option<&ExecutionPlan> {
         match (&self.outcome, &self.exclusion) {
             (PlanBuildOutcome::Built(plan), None) => Some(plan),
             _ => None,
         }
     }
 
-    pub fn is_available(&self) -> bool {
+    pub(crate) fn is_available(&self) -> bool {
         self.available_plan().is_some()
     }
 }
 
 #[derive(Debug)]
-pub struct CompiledPlanEntry {
+pub(crate) struct CompiledPlanEntry {
     // Destroy the plan before releasing its engine configuration.
     pub execution_plan: ExecutionPlan,
     pub candidate: PlanCandidate,

@@ -4,14 +4,14 @@ use std::{collections::HashMap, mem};
 
 use serde_json::{Map, Value};
 
-pub use crate::frontend::graph::key::tagged::to_value;
+pub(crate) use crate::frontend::graph::key::tagged::to_value;
 use crate::{error::Result, frontend::error::Error as FrontendError};
 
 type TensorIds = HashMap<String, usize>;
 
 /// Canonicalizes typed identities while keeping all scalar literals and ordinary strings intact.
 /// Engine-choice cache hits rebuild descriptors and binding maps for the caller's actual IDs.
-pub fn canonicalize(value: &mut Value) -> Result<()> {
+pub(crate) fn canonicalize(value: &mut Value) -> Result<()> {
     let mut ids = TensorIds::new();
     assign_references(value, &mut ids);
     loop {

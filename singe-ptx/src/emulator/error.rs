@@ -81,4 +81,4 @@ impl CompileError {
 }
 
 /// Result of PTX validation.
-pub type Result<T> = StdResult<T, CompileError>;
+pub(crate) type Result<T> = StdResult<T, CompileError>;

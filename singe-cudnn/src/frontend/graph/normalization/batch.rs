@@ -1,15 +1,15 @@
 use crate::{
-    backend::tensor::{Shape, TensorId},
+    backend::operation::normalization::NormalizationSavedStatistics,
     error::Result,
     frontend::{
         error::Error as FrontendError,
         graph::{Graph, TensorOutputConfig, infer_normalization_channel_dimensions},
         operation::{
             BatchNormalizationConfig, BatchNormalizationInferenceInputs, BatchNormalizationInputs,
-            BatchNormalizationOutputs, NormalizationConfig, NormalizationOperation,
-            NormalizationSavedStatistics, Operation,
+            BatchNormalizationOutputs, NormalizationConfig, NormalizationOperation, Operation,
         },
     },
+    tensor::{Shape, TensorId},
 };
 
 impl Graph {
@@ -48,7 +48,7 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for unknown tensor identities, input rank below two, saved-statistic or affine dimensions that differ from the per-channel shape, or output dimensions that differ from the input.
+    /// Returns an error if a tensor identity is unknown, the input rank is below two, saved-statistic or affine dimensions differ from the per-channel shape, or output dimensions differ from the input.
     pub fn batch_normalization_inference_into(
         &mut self,
         inputs: BatchNormalizationInferenceInputs,
@@ -70,7 +70,7 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for unknown tensor identities, input rank below two, saved-statistic or affine dimensions that differ from the per-channel shape, or output dimensions that differ from the input.
+    /// Returns an error if a tensor identity is unknown, the input rank is below two, saved-statistic or affine dimensions differ from the per-channel shape, or output dimensions differ from the input.
     pub fn batch_normalization_inference(
         &mut self,
         inputs: BatchNormalizationInferenceInputs,
@@ -153,7 +153,7 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for unknown tensor identities, input rank below two, mismatched output, affine, saved-statistic or running-statistic dimensions, nonscalar epsilon or momentum, or incomplete running-statistic inputs and outputs.
+    /// Returns an error if a tensor identity is unknown, the input rank is below two, output, affine, saved-statistic, or running-statistic dimensions mismatch, epsilon or momentum is not a scalar, or the running-statistic inputs and outputs are incomplete.
     pub fn batch_normalization_into(
         &mut self,
         inputs: BatchNormalizationInputs,
@@ -177,7 +177,7 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for unknown tensor identities, input rank below two, mismatched output, affine, saved-statistic or running-statistic dimensions, nonscalar epsilon or momentum, or incomplete running-statistic inputs and outputs.
+    /// Returns an error if a tensor identity is unknown, the input rank is below two, output, affine, saved-statistic, or running-statistic dimensions mismatch, epsilon or momentum is not a scalar, or the running-statistic inputs and outputs are incomplete.
     /// Inferred per-channel strides must also be representable.
     pub fn batch_normalization(
         &mut self,

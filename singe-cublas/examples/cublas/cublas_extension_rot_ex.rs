@@ -1,10 +1,9 @@
-use singe_cublas::{blas::level1::rot_ex, context::Context, error::Result};
-
+use singe_cublas::{blas::extension::rot_ex, context::Context, scalar::Scalar};
 use singe_cuda::{
     context::Context as CudaContext, data_type::DataType, device::Device, memory::DeviceMemory,
 };
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     let cuda = CudaContext::create_for_device(Device::new(0))?;
     let cublas = Context::create(&cuda)?;
     let mut x = DeviceMemory::from_slice(&cuda, &[1.0_f64, 2.0, 3.0, 4.0])?;
@@ -14,15 +13,13 @@ fn main() -> Result<()> {
 
     rot_ex(
         &cublas,
+        4,
         &mut x,
-        DataType::F64,
         1,
         &mut y,
-        DataType::F64,
         1,
-        &c,
-        &s,
-        DataType::F64,
+        Scalar::host(&c),
+        Scalar::host(&s),
         DataType::F64,
     )?;
 

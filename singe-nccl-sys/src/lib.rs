@@ -1,7 +1,6 @@
-//! Raw FFI bindings for NCCL.
-//!
-//! Prefer the safe `singe-nccl` crate unless direct NVIDIA ABI access is required.
-
+//! Low-level FFI bindings for NCCL 2.32, the NVIDIA Collective Communications Library, generated from `nccl.h`.
+//! [`singe-loader`](singe_loader) loads the library at run time, on the first call or through [`load`], so building links no NVIDIA library.
+//! Most users want the safe `singe-nccl` crate.
 #![allow(
     unpredictable_function_pointer_comparisons,
     non_upper_case_globals,
@@ -12,6 +11,9 @@
     unnecessary_transmutes,
     unused_imports,
     unused_qualifications,
+    missing_debug_implementations,
+    unnameable_types,
+    unreachable_pub,
     clippy::correctness,
     clippy::suspicious,
     clippy::complexity,
@@ -20,41 +22,28 @@
     clippy::absolute_paths,
     clippy::pedantic,
     clippy::nursery,
+    clippy::undocumented_unsafe_blocks,
     reason = "generated bindings preserve upstream ABI conventions and documentation"
 )]
 
-/// Include directory containing the device headers used to generate these bindings.
-pub const DEVICE_INCLUDE_PATH: Option<&str> = option_env!("NCCL_INCLUDE_DIR");
+#[cfg(not(feature = "nccl_2_32"))]
+compile_error!("singe-nccl-sys requires a version feature, such as `nccl_2_32`");
 
-/// CUDA toolkit headers needed by the NCCL device headers.
-pub const CUDA_INCLUDE_PATH: Option<&str> = option_env!("NCCL_CUDA_INCLUDE_DIR");
-
-/// Separate CCCL include directory when the toolkit uses that layout.
-pub const CCCL_INCLUDE_PATH: Option<&str> = option_env!("NCCL_CCCL_INCLUDE_DIR");
-
-use num_enum::{IntoPrimitive, TryFromPrimitive};
 #[cfg(feature = "nccl_2_32")]
 use singe_cuda_sys::runtime::{cudaEvent_t, cudaStream_t};
 
 #[cfg(feature = "nccl_2_32")]
 include!("sys_23203.rs");
 
-pub use singe_loader::LoadError;
-
-// NCCL's dynamic operators are values outside the generated Rust enum's variants.
-// This declaration passes the C enum's ABI as an integer, so no invalid Rust enum value is constructed.
-#[cfg(feature = "nccl_2_32")]
-pub mod dynamic {
-    use crate::{ncclComm_t, ncclResult_t};
-
-    singe_loader::functions! { crate::LIBRARY;
-        pub fn ncclRedOpDestroy(op: i32, comm: ncclComm_t) -> ncclResult_t;
-    }
-}
+pub use singe_loader::{Absence, LoadError, take_absence};
 
 static LIBRARY: singe_loader::Library = singe_loader::Library::nccl();
 
-// Loads NCCL, which each of its functions otherwise does on first call.
+/// Loads NCCL now, instead of on the first call of one of its functions.
+///
+/// # Errors
+///
+/// Returns an error if the library has no files on this platform or one of its files would not load.
 pub fn load() -> Result<(), LoadError> {
     LIBRARY.load()
 }
@@ -66,12 +55,14 @@ singe_loader::missing_status!(
     symbol: ncclResult_t::ncclInternalError,
 );
 
+// A missing team query records its absence, so the safe wrapper can tell the zero team apart from a real one.
 #[cfg(feature = "nccl_2_32")]
-singe_loader::missing_status!(
-    ncclTeam_t,
-    library: ncclTeam_t::default(),
-    symbol: ncclTeam_t::default(),
-);
+impl singe_loader::Missing for ncclTeam_t {
+    fn missing(absence: Absence) -> Self {
+        singe_loader::record_absence(absence);
+        Self::default()
+    }
+}
 
 #[cfg(test)]
 mod tests {

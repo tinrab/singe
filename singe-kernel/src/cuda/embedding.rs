@@ -5,7 +5,7 @@ use ::cutile::cuda_async::device_buffer::DevicePointer;
 use singe_cuda::types::f16;
 use singe_cuda::{
     stream::Stream,
-    view::{DeviceInput, DeviceOutput},
+    view::{DeviceOutput, DeviceRange},
 };
 
 #[cfg(feature = "cutile")]
@@ -28,8 +28,8 @@ macro_rules! embedding_lookup_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            token_ids: &impl DeviceInput<u32>,
-            table: &impl DeviceInput<$ty>,
+            token_ids: &impl DeviceRange<u32>,
+            table: &impl DeviceRange<$ty>,
             width: usize,
         ) -> Result<()> {
             if width == 0 {

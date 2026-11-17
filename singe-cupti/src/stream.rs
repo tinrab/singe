@@ -3,48 +3,36 @@ use singe_cupti_sys as sys;
 
 use crate::{context::Context, error::Result, try_ffi, types::StreamId};
 
+/// Which stream the null stream handle names in the traced program.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+pub enum DefaultStream {
+    /// The legacy default stream, which synchronizes with other blocking streams.
+    #[default]
+    Legacy,
+    /// The per-thread default stream, used by programs compiled with `--default-stream per-thread`.
+    PerThread,
+}
+
 impl Context {
     /// Returns the context-local CUPTI ID for a CUDA stream.
     ///
-    /// Set `per_thread_stream` to match whether the program uses CUDA per-thread default streams.
+    /// `default_stream` must match how the program treats the null stream.
     ///
     /// # Errors
     ///
     /// - Returns [`crate::error::Status::NotInitialized`] if CUPTI has not been initialized.
     /// - Returns [`crate::error::Status::InvalidStream`] if the stream is invalid or does not belong to the context.
-    pub fn stream_id(&self, stream: &Stream, per_thread_stream: bool) -> Result<StreamId> {
+    pub fn stream_id(&self, stream: &Stream, default_stream: DefaultStream) -> Result<StreamId> {
         let mut stream_id = 0;
-        // SAFETY: `cuptiGetStreamIdEx` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: this context and `stream` keep their native handles alive for the call, and `stream_id` is a valid output location.
         unsafe {
             try_ffi!(sys::cuptiGetStreamIdEx(
                 self.as_raw(),
                 stream.as_raw() as sys::CUstream,
-                u8::from(per_thread_stream),
+                u8::from(default_stream == DefaultStream::PerThread),
                 &raw mut stream_id,
             ))?;
         }
         Ok(StreamId::from(u64::from(stream_id)))
     }
-
-    // /// Returns the context-local CUPTI ID for a CUDA stream.
-    // ///
-    // /// This wraps CUPTI's deprecated stream ID query. Prefer [`Context::stream_id_extended`] when per-thread default stream behavior matters.
-    // ///
-    // /// # Errors
-    // ///
-    // /// - Returns [`crate::error::Status::NotInitialized`] if CUPTI has not been initialized.
-    // /// - Returns [`crate::error::Status::InvalidStream`] if the stream is invalid or does not belong to the context.
-    // #[deprecated]
-    // pub fn stream_id(&self, stream: &Stream) -> Result<StreamId> {
-    //     let mut stream_id = 0;
-    // SAFETY: `cuptiGetStreamId` receives live handles owned by the wrappers and valid output locations.
-    //     unsafe {
-    //         try_ffi!(sys::cuptiGetStreamId(
-    //             self.as_raw(),
-    //             stream.as_raw() as sys::CUstream,
-    //             &mut stream_id,
-    //         ))?;
-    //     }
-    //     Ok(StreamId::from(u64::from(stream_id)))
-    // }
 }

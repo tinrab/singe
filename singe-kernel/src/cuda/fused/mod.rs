@@ -23,7 +23,7 @@ use ::cutile::{cuda_async::device_buffer::DevicePointer, cuda_core::Stream as Cu
 use singe_cuda::types::f16;
 use singe_cuda::{
     stream::Stream,
-    view::{DeviceInput, DeviceOutput, DeviceRepr},
+    view::{DeviceOutput, DeviceRange, DeviceRepr},
 };
 
 #[cfg(feature = "cutile")]
@@ -294,8 +294,8 @@ macro_rules! binary_fused_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            lhs: &impl DeviceInput<$ty>,
-            rhs: &impl DeviceInput<$ty>,
+            lhs: &impl DeviceRange<$ty>,
+            rhs: &impl DeviceRange<$ty>,
         ) -> Result<()> {
             let len = validate_binary_fused_lengths(out.len(), lhs.len(), rhs.len())?;
             let stream = stream.to_cuda_core()?;
@@ -324,8 +324,8 @@ macro_rules! autotuned_binary_fused_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            lhs: &impl DeviceInput<$ty>,
-            rhs: &impl DeviceInput<$ty>,
+            lhs: &impl DeviceRange<$ty>,
+            rhs: &impl DeviceRange<$ty>,
             config: Fused1dConfig,
         ) -> Result<()> {
             fused_1d(
@@ -357,8 +357,8 @@ macro_rules! autotuned_binary_fused_fn {
         pub unsafe fn $tune_name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            lhs: &impl DeviceInput<$ty>,
-            rhs: &impl DeviceInput<$ty>,
+            lhs: &impl DeviceRange<$ty>,
+            rhs: &impl DeviceRange<$ty>,
             config: Fused1dConfig,
             options: TuneOptions,
         ) -> Result<TuneReport<FusedTileTuning>> {
@@ -391,7 +391,7 @@ macro_rules! unary_fused_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
         ) -> Result<()> {
             let len = ensure_unary_lengths(out.len(), input.len())?;
             let stream = stream.to_cuda_core()?;
@@ -421,8 +421,8 @@ macro_rules! binary_fused_2d_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            lhs: &impl DeviceInput<$ty>,
-            rhs: &impl DeviceInput<$ty>,
+            lhs: &impl DeviceRange<$ty>,
+            rhs: &impl DeviceRange<$ty>,
             rows: usize,
             cols: usize,
         ) -> Result<()> {
@@ -455,8 +455,8 @@ macro_rules! autotuned_binary_fused_2d_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            lhs: &impl DeviceInput<$ty>,
-            rhs: &impl DeviceInput<$ty>,
+            lhs: &impl DeviceRange<$ty>,
+            rhs: &impl DeviceRange<$ty>,
             config: Fused2dConfig,
         ) -> Result<()> {
             fused_2d(
@@ -485,8 +485,8 @@ macro_rules! autotuned_binary_fused_2d_fn {
         pub unsafe fn $tune_name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            lhs: &impl DeviceInput<$ty>,
-            rhs: &impl DeviceInput<$ty>,
+            lhs: &impl DeviceRange<$ty>,
+            rhs: &impl DeviceRange<$ty>,
             config: Fused2dConfig,
             options: TuneOptions,
         ) -> Result<TuneReport<FusedTileTuning>> {
@@ -517,7 +517,7 @@ macro_rules! silu_and_mul_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
             rows: usize,
             hidden: usize,
         ) -> Result<()> {
@@ -550,9 +550,9 @@ macro_rules! ternary_fused_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            a: &impl DeviceInput<$ty>,
-            b: &impl DeviceInput<$ty>,
-            c: &impl DeviceInput<$ty>,
+            a: &impl DeviceRange<$ty>,
+            b: &impl DeviceRange<$ty>,
+            c: &impl DeviceRange<$ty>,
         ) -> Result<()> {
             let len = $crate::cuda::utility::ensure_binary_lengths(out.len(), a.len(), b.len())?;
             ensure_len(c.len(), len)?;
@@ -581,9 +581,9 @@ macro_rules! autotuned_ternary_fused_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            a: &impl DeviceInput<$ty>,
-            b: &impl DeviceInput<$ty>,
-            c: &impl DeviceInput<$ty>,
+            a: &impl DeviceRange<$ty>,
+            b: &impl DeviceRange<$ty>,
+            c: &impl DeviceRange<$ty>,
             config: Fused1dConfig,
         ) -> Result<()> {
             fused_1d_ternary(
@@ -613,9 +613,9 @@ macro_rules! autotuned_ternary_fused_fn {
         pub unsafe fn $tune_name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            a: &impl DeviceInput<$ty>,
-            b: &impl DeviceInput<$ty>,
-            c: &impl DeviceInput<$ty>,
+            a: &impl DeviceRange<$ty>,
+            b: &impl DeviceRange<$ty>,
+            c: &impl DeviceRange<$ty>,
             config: Fused1dConfig,
             options: TuneOptions,
         ) -> Result<TuneReport<FusedTileTuning>> {
@@ -651,9 +651,9 @@ macro_rules! ternary_fused_2d_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            a: &impl DeviceInput<$ty>,
-            b: &impl DeviceInput<$ty>,
-            c: &impl DeviceInput<$ty>,
+            a: &impl DeviceRange<$ty>,
+            b: &impl DeviceRange<$ty>,
+            c: &impl DeviceRange<$ty>,
             rows: usize,
             cols: usize,
         ) -> Result<()> {
@@ -688,9 +688,9 @@ macro_rules! autotuned_ternary_fused_2d_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            a: &impl DeviceInput<$ty>,
-            b: &impl DeviceInput<$ty>,
-            c: &impl DeviceInput<$ty>,
+            a: &impl DeviceRange<$ty>,
+            b: &impl DeviceRange<$ty>,
+            c: &impl DeviceRange<$ty>,
             config: Fused2dConfig,
         ) -> Result<()> {
             fused_2d_ternary(
@@ -722,9 +722,9 @@ macro_rules! autotuned_ternary_fused_2d_fn {
         pub unsafe fn $tune_name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            a: &impl DeviceInput<$ty>,
-            b: &impl DeviceInput<$ty>,
-            c: &impl DeviceInput<$ty>,
+            a: &impl DeviceRange<$ty>,
+            b: &impl DeviceRange<$ty>,
+            c: &impl DeviceRange<$ty>,
             config: Fused2dConfig,
             options: TuneOptions,
         ) -> Result<TuneReport<FusedTileTuning>> {
@@ -766,10 +766,10 @@ macro_rules! conditional_fused_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            condition: &impl DeviceInput<u8>,
-            a: &impl DeviceInput<$ty>,
-            b: &impl DeviceInput<$ty>,
-            c: &impl DeviceInput<$ty>,
+            condition: &impl DeviceRange<u8>,
+            a: &impl DeviceRange<$ty>,
+            b: &impl DeviceRange<$ty>,
+            c: &impl DeviceRange<$ty>,
         ) -> Result<()> {
             let len = $crate::cuda::utility::ensure_binary_lengths(out.len(), a.len(), b.len())?;
             ensure_len(condition.len(), len)?;
@@ -804,10 +804,10 @@ macro_rules! autotuned_conditional_fused_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            condition: &impl DeviceInput<u8>,
-            a: &impl DeviceInput<$ty>,
-            b: &impl DeviceInput<$ty>,
-            c: &impl DeviceInput<$ty>,
+            condition: &impl DeviceRange<u8>,
+            a: &impl DeviceRange<$ty>,
+            b: &impl DeviceRange<$ty>,
+            c: &impl DeviceRange<$ty>,
             config: Fused1dConfig,
         ) -> Result<()> {
             fused_1d_conditional(
@@ -840,10 +840,10 @@ macro_rules! autotuned_conditional_fused_fn {
         pub unsafe fn $tune_name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            condition: &impl DeviceInput<u8>,
-            a: &impl DeviceInput<$ty>,
-            b: &impl DeviceInput<$ty>,
-            c: &impl DeviceInput<$ty>,
+            condition: &impl DeviceRange<u8>,
+            a: &impl DeviceRange<$ty>,
+            b: &impl DeviceRange<$ty>,
+            c: &impl DeviceRange<$ty>,
             config: Fused1dConfig,
             options: TuneOptions,
         ) -> Result<TuneReport<FusedTileTuning>> {
@@ -886,10 +886,10 @@ macro_rules! conditional_fused_2d_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            condition: &impl DeviceInput<u8>,
-            a: &impl DeviceInput<$ty>,
-            b: &impl DeviceInput<$ty>,
-            c: &impl DeviceInput<$ty>,
+            condition: &impl DeviceRange<u8>,
+            a: &impl DeviceRange<$ty>,
+            b: &impl DeviceRange<$ty>,
+            c: &impl DeviceRange<$ty>,
             rows: usize,
             cols: usize,
         ) -> Result<()> {
@@ -930,10 +930,10 @@ macro_rules! autotuned_conditional_fused_2d_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            condition: &impl DeviceInput<u8>,
-            a: &impl DeviceInput<$ty>,
-            b: &impl DeviceInput<$ty>,
-            c: &impl DeviceInput<$ty>,
+            condition: &impl DeviceRange<u8>,
+            a: &impl DeviceRange<$ty>,
+            b: &impl DeviceRange<$ty>,
+            c: &impl DeviceRange<$ty>,
             config: Fused2dConfig,
         ) -> Result<()> {
             fused_2d_conditional(
@@ -966,10 +966,10 @@ macro_rules! autotuned_conditional_fused_2d_fn {
         pub unsafe fn $tune_name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            condition: &impl DeviceInput<u8>,
-            a: &impl DeviceInput<$ty>,
-            b: &impl DeviceInput<$ty>,
-            c: &impl DeviceInput<$ty>,
+            condition: &impl DeviceRange<u8>,
+            a: &impl DeviceRange<$ty>,
+            b: &impl DeviceRange<$ty>,
+            c: &impl DeviceRange<$ty>,
             config: Fused2dConfig,
             options: TuneOptions,
         ) -> Result<TuneReport<FusedTileTuning>> {
@@ -1011,8 +1011,8 @@ macro_rules! bias_fused_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
-            bias: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
+            bias: &impl DeviceRange<$ty>,
             rows: usize,
             cols: usize,
         ) -> Result<()> {
@@ -1048,8 +1048,8 @@ macro_rules! autotuned_bias_fused_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
-            bias: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
+            bias: &impl DeviceRange<$ty>,
             config: Fused2dConfig,
         ) -> Result<()> {
             fused_2d_bias(
@@ -1079,8 +1079,8 @@ macro_rules! autotuned_bias_fused_fn {
         pub unsafe fn $tune_name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
-            bias: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
+            bias: &impl DeviceRange<$ty>,
             config: Fused2dConfig,
             options: TuneOptions,
         ) -> Result<TuneReport<FusedTileTuning>> {
@@ -1115,9 +1115,9 @@ macro_rules! affine_fused_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
-            scale: &impl DeviceInput<$ty>,
-            bias: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
+            scale: &impl DeviceRange<$ty>,
+            bias: &impl DeviceRange<$ty>,
             rows: usize,
             cols: usize,
         ) -> Result<()> {
@@ -1152,9 +1152,9 @@ macro_rules! autotuned_affine_fused_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
-            scale: &impl DeviceInput<$ty>,
-            bias: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
+            scale: &impl DeviceRange<$ty>,
+            bias: &impl DeviceRange<$ty>,
             config: Fused2dConfig,
         ) -> Result<()> {
             fused_2d_column_ternary(
@@ -1186,9 +1186,9 @@ macro_rules! autotuned_affine_fused_fn {
         pub unsafe fn $tune_name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
-            scale: &impl DeviceInput<$ty>,
-            bias: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
+            scale: &impl DeviceRange<$ty>,
+            bias: &impl DeviceRange<$ty>,
             config: Fused2dConfig,
             options: TuneOptions,
         ) -> Result<TuneReport<FusedTileTuning>> {
@@ -1226,9 +1226,9 @@ macro_rules! column2_fused_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
-            lhs: &impl DeviceInput<$ty>,
-            rhs: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
+            lhs: &impl DeviceRange<$ty>,
+            rhs: &impl DeviceRange<$ty>,
             rows: usize,
             cols: usize,
         ) -> Result<()> {
@@ -1263,9 +1263,9 @@ macro_rules! autotuned_column2_fused_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
-            lhs: &impl DeviceInput<$ty>,
-            rhs: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
+            lhs: &impl DeviceRange<$ty>,
+            rhs: &impl DeviceRange<$ty>,
             config: Fused2dConfig,
         ) -> Result<()> {
             fused_2d_column_ternary(
@@ -1297,9 +1297,9 @@ macro_rules! autotuned_column2_fused_fn {
         pub unsafe fn $tune_name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
-            lhs: &impl DeviceInput<$ty>,
-            rhs: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
+            lhs: &impl DeviceRange<$ty>,
+            rhs: &impl DeviceRange<$ty>,
             config: Fused2dConfig,
             options: TuneOptions,
         ) -> Result<TuneReport<FusedTileTuning>> {
@@ -1528,8 +1528,8 @@ fn validate_conditional_fused_2d_lengths(
 fn launch_fused_1d_default<T, F>(
     stream: &Stream,
     out: &mut impl DeviceOutput<T>,
-    lhs: &impl DeviceInput<T>,
-    rhs: &impl DeviceInput<T>,
+    lhs: &impl DeviceRange<T>,
+    rhs: &impl DeviceRange<T>,
     config: Fused1dConfig,
     launch: F,
 ) -> Result<()>
@@ -1557,9 +1557,9 @@ where
 fn launch_fused_1d_ternary_default<T, F>(
     stream: &Stream,
     out: &mut impl DeviceOutput<T>,
-    a: &impl DeviceInput<T>,
-    b: &impl DeviceInput<T>,
-    c: &impl DeviceInput<T>,
+    a: &impl DeviceRange<T>,
+    b: &impl DeviceRange<T>,
+    c: &impl DeviceRange<T>,
     config: Fused1dConfig,
     launch: F,
 ) -> Result<()>
@@ -1588,8 +1588,8 @@ where
 fn launch_fused_1d_with_tuning<T, F>(
     stream: &Stream,
     out: &mut impl DeviceOutput<T>,
-    lhs: &impl DeviceInput<T>,
-    rhs: &impl DeviceInput<T>,
+    lhs: &impl DeviceRange<T>,
+    rhs: &impl DeviceRange<T>,
     config: Fused1dConfig,
     tuning: FusedTileTuning,
     launch: F,
@@ -1622,9 +1622,9 @@ where
 fn launch_fused_1d_ternary_with_tuning<T, F>(
     stream: &Stream,
     out: &mut impl DeviceOutput<T>,
-    a: &impl DeviceInput<T>,
-    b: &impl DeviceInput<T>,
-    c: &impl DeviceInput<T>,
+    a: &impl DeviceRange<T>,
+    b: &impl DeviceRange<T>,
+    c: &impl DeviceRange<T>,
     config: Fused1dConfig,
     tuning: FusedTileTuning,
     launch: F,
@@ -1662,10 +1662,10 @@ where
 fn launch_fused_1d_conditional_default<T, F>(
     stream: &Stream,
     out: &mut impl DeviceOutput<T>,
-    condition: &impl DeviceInput<u8>,
-    a: &impl DeviceInput<T>,
-    b: &impl DeviceInput<T>,
-    c: &impl DeviceInput<T>,
+    condition: &impl DeviceRange<u8>,
+    a: &impl DeviceRange<T>,
+    b: &impl DeviceRange<T>,
+    c: &impl DeviceRange<T>,
     config: Fused1dConfig,
     launch: F,
 ) -> Result<()>
@@ -1700,10 +1700,10 @@ where
 fn launch_fused_1d_conditional_with_tuning<T, F>(
     stream: &Stream,
     out: &mut impl DeviceOutput<T>,
-    condition: &impl DeviceInput<u8>,
-    a: &impl DeviceInput<T>,
-    b: &impl DeviceInput<T>,
-    c: &impl DeviceInput<T>,
+    condition: &impl DeviceRange<u8>,
+    a: &impl DeviceRange<T>,
+    b: &impl DeviceRange<T>,
+    c: &impl DeviceRange<T>,
     config: Fused1dConfig,
     tuning: FusedTileTuning,
     launch: F,
@@ -1739,8 +1739,8 @@ where
 fn launch_fused_2d_default<T, F>(
     stream: &Stream,
     out: DevicePointer<T>,
-    lhs: &impl DeviceInput<T>,
-    rhs: &impl DeviceInput<T>,
+    lhs: &impl DeviceRange<T>,
+    rhs: &impl DeviceRange<T>,
     config: Fused2dConfig,
     launch: F,
 ) -> Result<()>
@@ -1769,9 +1769,9 @@ where
 fn launch_fused_2d_ternary_default<T, F>(
     stream: &Stream,
     out: &mut impl DeviceOutput<T>,
-    a: &impl DeviceInput<T>,
-    b: &impl DeviceInput<T>,
-    c: &impl DeviceInput<T>,
+    a: &impl DeviceRange<T>,
+    b: &impl DeviceRange<T>,
+    c: &impl DeviceRange<T>,
     config: Fused2dConfig,
     launch: F,
 ) -> Result<()>
@@ -1806,10 +1806,10 @@ where
 fn launch_fused_2d_conditional_default<T, F>(
     stream: &Stream,
     out: &mut impl DeviceOutput<T>,
-    condition: &impl DeviceInput<u8>,
-    a: &impl DeviceInput<T>,
-    b: &impl DeviceInput<T>,
-    c: &impl DeviceInput<T>,
+    condition: &impl DeviceRange<u8>,
+    a: &impl DeviceRange<T>,
+    b: &impl DeviceRange<T>,
+    c: &impl DeviceRange<T>,
     config: Fused2dConfig,
     launch: F,
 ) -> Result<()>
@@ -1846,10 +1846,10 @@ where
 fn launch_fused_2d_conditional_with_tuning<T, F>(
     stream: &Stream,
     out: &mut impl DeviceOutput<T>,
-    condition: &impl DeviceInput<u8>,
-    a: &impl DeviceInput<T>,
-    b: &impl DeviceInput<T>,
-    c: &impl DeviceInput<T>,
+    condition: &impl DeviceRange<u8>,
+    a: &impl DeviceRange<T>,
+    b: &impl DeviceRange<T>,
+    c: &impl DeviceRange<T>,
     config: Fused2dConfig,
     tuning: FusedTileTuning,
     launch: F,
@@ -1887,8 +1887,8 @@ where
 fn launch_fused_2d_with_tuning<T, F>(
     stream: &Stream,
     out: DevicePointer<T>,
-    lhs: &impl DeviceInput<T>,
-    rhs: &impl DeviceInput<T>,
+    lhs: &impl DeviceRange<T>,
+    rhs: &impl DeviceRange<T>,
     config: Fused2dConfig,
     tuning: FusedTileTuning,
     launch: F,
@@ -1922,9 +1922,9 @@ where
 fn launch_fused_2d_ternary_with_tuning<T, F>(
     stream: &Stream,
     out: &mut impl DeviceOutput<T>,
-    a: &impl DeviceInput<T>,
-    b: &impl DeviceInput<T>,
-    c: &impl DeviceInput<T>,
+    a: &impl DeviceRange<T>,
+    b: &impl DeviceRange<T>,
+    c: &impl DeviceRange<T>,
     config: Fused2dConfig,
     tuning: FusedTileTuning,
     launch: F,
@@ -1960,8 +1960,8 @@ where
 fn fused_1d<T, FDefault, FTuned>(
     stream: &Stream,
     out: &mut impl DeviceOutput<T>,
-    lhs: &impl DeviceInput<T>,
-    rhs: &impl DeviceInput<T>,
+    lhs: &impl DeviceRange<T>,
+    rhs: &impl DeviceRange<T>,
     config: Fused1dConfig,
     dtype: &'static str,
     op: &'static str,
@@ -2032,9 +2032,9 @@ where
 fn fused_1d_ternary<T, FDefault, FTuned>(
     stream: &Stream,
     out: &mut impl DeviceOutput<T>,
-    a: &impl DeviceInput<T>,
-    b: &impl DeviceInput<T>,
-    c: &impl DeviceInput<T>,
+    a: &impl DeviceRange<T>,
+    b: &impl DeviceRange<T>,
+    c: &impl DeviceRange<T>,
     config: Fused1dConfig,
     dtype: &'static str,
     op: &'static str,
@@ -2119,8 +2119,8 @@ where
 fn fused_2d<T, FDefault, FTuned>(
     stream: &Stream,
     out: &mut impl DeviceOutput<T>,
-    lhs: &impl DeviceInput<T>,
-    rhs: &impl DeviceInput<T>,
+    lhs: &impl DeviceRange<T>,
+    rhs: &impl DeviceRange<T>,
     config: Fused2dConfig,
     dtype: &'static str,
     op: &'static str,
@@ -2222,9 +2222,9 @@ where
 fn fused_2d_ternary<T, FDefault, FTuned>(
     stream: &Stream,
     out: &mut impl DeviceOutput<T>,
-    a: &impl DeviceInput<T>,
-    b: &impl DeviceInput<T>,
-    c: &impl DeviceInput<T>,
+    a: &impl DeviceRange<T>,
+    b: &impl DeviceRange<T>,
+    c: &impl DeviceRange<T>,
     config: Fused2dConfig,
     dtype: &'static str,
     op: &'static str,
@@ -2311,8 +2311,8 @@ where
 fn fused_2d_bias<T, FDefault, FTuned>(
     stream: &Stream,
     out: &mut impl DeviceOutput<T>,
-    input: &impl DeviceInput<T>,
-    bias: &impl DeviceInput<T>,
+    input: &impl DeviceRange<T>,
+    bias: &impl DeviceRange<T>,
     config: Fused2dConfig,
     dtype: &'static str,
     op: &'static str,
@@ -2414,9 +2414,9 @@ where
 fn fused_2d_column_ternary<T, FDefault, FTuned>(
     stream: &Stream,
     out: &mut impl DeviceOutput<T>,
-    input: &impl DeviceInput<T>,
-    lhs: &impl DeviceInput<T>,
-    rhs: &impl DeviceInput<T>,
+    input: &impl DeviceRange<T>,
+    lhs: &impl DeviceRange<T>,
+    rhs: &impl DeviceRange<T>,
     config: Fused2dConfig,
     dtype: &'static str,
     op: &'static str,
@@ -2524,10 +2524,10 @@ where
 fn fused_1d_conditional<T, FDefault, FTuned>(
     stream: &Stream,
     out: &mut impl DeviceOutput<T>,
-    condition: &impl DeviceInput<u8>,
-    a: &impl DeviceInput<T>,
-    b: &impl DeviceInput<T>,
-    c: &impl DeviceInput<T>,
+    condition: &impl DeviceRange<u8>,
+    a: &impl DeviceRange<T>,
+    b: &impl DeviceRange<T>,
+    c: &impl DeviceRange<T>,
     config: Fused1dConfig,
     dtype: &'static str,
     op: &'static str,
@@ -2646,10 +2646,10 @@ where
 fn fused_2d_conditional<T, FDefault, FTuned>(
     stream: &Stream,
     out: &mut impl DeviceOutput<T>,
-    condition: &impl DeviceInput<u8>,
-    a: &impl DeviceInput<T>,
-    b: &impl DeviceInput<T>,
-    c: &impl DeviceInput<T>,
+    condition: &impl DeviceRange<u8>,
+    a: &impl DeviceRange<T>,
+    b: &impl DeviceRange<T>,
+    c: &impl DeviceRange<T>,
     config: Fused2dConfig,
     dtype: &'static str,
     op: &'static str,
@@ -2767,9 +2767,9 @@ fn launch_rms_norm_add_default<T, E, F>(
     stream: &Stream,
     out: &mut impl DeviceOutput<T>,
     residual_out: &mut impl DeviceOutput<T>,
-    input: &impl DeviceInput<T>,
-    residual: &impl DeviceInput<T>,
-    weight: &impl DeviceInput<T>,
+    input: &impl DeviceRange<T>,
+    residual: &impl DeviceRange<T>,
+    weight: &impl DeviceRange<T>,
     config: FusedRmsNormConfig<E>,
     launch: F,
 ) -> Result<()>
@@ -2808,9 +2808,9 @@ fn launch_rms_norm_add_with_tuning<T, E, F>(
     stream: &Stream,
     out: &mut impl DeviceOutput<T>,
     residual_out: &mut impl DeviceOutput<T>,
-    input: &impl DeviceInput<T>,
-    residual: &impl DeviceInput<T>,
-    weight: &impl DeviceInput<T>,
+    input: &impl DeviceRange<T>,
+    residual: &impl DeviceRange<T>,
+    weight: &impl DeviceRange<T>,
     config: FusedRmsNormConfig<E>,
     tuning: FusedTileTuning,
     launch: F,
@@ -2853,9 +2853,9 @@ where
 fn launch_rms_norm_silu_mul_default<T, E, F>(
     stream: &Stream,
     out: &mut impl DeviceOutput<T>,
-    input: &impl DeviceInput<T>,
-    weight: &impl DeviceInput<T>,
-    up: &impl DeviceInput<T>,
+    input: &impl DeviceRange<T>,
+    weight: &impl DeviceRange<T>,
+    up: &impl DeviceRange<T>,
     config: FusedRmsNormConfig<E>,
     launch: F,
 ) -> Result<()>
@@ -2891,9 +2891,9 @@ where
 fn launch_rms_norm_silu_mul_with_tuning<T, E, F>(
     stream: &Stream,
     out: &mut impl DeviceOutput<T>,
-    input: &impl DeviceInput<T>,
-    weight: &impl DeviceInput<T>,
-    up: &impl DeviceInput<T>,
+    input: &impl DeviceRange<T>,
+    weight: &impl DeviceRange<T>,
+    up: &impl DeviceRange<T>,
     config: FusedRmsNormConfig<E>,
     tuning: FusedTileTuning,
     launch: F,
@@ -2935,9 +2935,9 @@ fn fused_rms_norm_add<T, E, FDefault, FTuned>(
     stream: &Stream,
     out: &mut impl DeviceOutput<T>,
     residual_out: &mut impl DeviceOutput<T>,
-    input: &impl DeviceInput<T>,
-    residual: &impl DeviceInput<T>,
-    weight: &impl DeviceInput<T>,
+    input: &impl DeviceRange<T>,
+    residual: &impl DeviceRange<T>,
+    weight: &impl DeviceRange<T>,
     config: FusedRmsNormConfig<E>,
     dtype: &'static str,
     op: &'static str,
@@ -3060,9 +3060,9 @@ where
 fn fused_rms_norm_silu_mul<T, E, FDefault, FTuned>(
     stream: &Stream,
     out: &mut impl DeviceOutput<T>,
-    input: &impl DeviceInput<T>,
-    weight: &impl DeviceInput<T>,
-    up: &impl DeviceInput<T>,
+    input: &impl DeviceRange<T>,
+    weight: &impl DeviceRange<T>,
+    up: &impl DeviceRange<T>,
     config: FusedRmsNormConfig<E>,
     dtype: &'static str,
     op: &'static str,
@@ -3178,8 +3178,8 @@ where
 fn tune_fused_2d<T, F>(
     stream: &Stream,
     out: &mut impl DeviceOutput<T>,
-    lhs: &impl DeviceInput<T>,
-    rhs: &impl DeviceInput<T>,
+    lhs: &impl DeviceRange<T>,
+    rhs: &impl DeviceRange<T>,
     config: Fused2dConfig,
     options: TuneOptions,
     dtype: &'static str,
@@ -3238,8 +3238,8 @@ where
 fn tune_fused_2d_bias<T, F>(
     stream: &Stream,
     out: &mut impl DeviceOutput<T>,
-    input: &impl DeviceInput<T>,
-    bias: &impl DeviceInput<T>,
+    input: &impl DeviceRange<T>,
+    bias: &impl DeviceRange<T>,
     config: Fused2dConfig,
     options: TuneOptions,
     dtype: &'static str,
@@ -3298,8 +3298,8 @@ where
 fn tune_fused_1d<T, F>(
     stream: &Stream,
     out: &mut impl DeviceOutput<T>,
-    lhs: &impl DeviceInput<T>,
-    rhs: &impl DeviceInput<T>,
+    lhs: &impl DeviceRange<T>,
+    rhs: &impl DeviceRange<T>,
     config: Fused1dConfig,
     options: TuneOptions,
     dtype: &'static str,
@@ -3337,9 +3337,9 @@ where
 fn tune_fused_1d_ternary<T, F>(
     stream: &Stream,
     out: &mut impl DeviceOutput<T>,
-    a: &impl DeviceInput<T>,
-    b: &impl DeviceInput<T>,
-    c: &impl DeviceInput<T>,
+    a: &impl DeviceRange<T>,
+    b: &impl DeviceRange<T>,
+    c: &impl DeviceRange<T>,
     config: Fused1dConfig,
     options: TuneOptions,
     dtype: &'static str,
@@ -3378,9 +3378,9 @@ where
 fn tune_fused_2d_column_ternary<T, F>(
     stream: &Stream,
     out: &mut impl DeviceOutput<T>,
-    input: &impl DeviceInput<T>,
-    lhs: &impl DeviceInput<T>,
-    rhs: &impl DeviceInput<T>,
+    input: &impl DeviceRange<T>,
+    lhs: &impl DeviceRange<T>,
+    rhs: &impl DeviceRange<T>,
     config: Fused2dConfig,
     options: TuneOptions,
     dtype: &'static str,
@@ -3424,9 +3424,9 @@ where
 fn tune_fused_2d_ternary<T, F>(
     stream: &Stream,
     out: &mut impl DeviceOutput<T>,
-    a: &impl DeviceInput<T>,
-    b: &impl DeviceInput<T>,
-    c: &impl DeviceInput<T>,
+    a: &impl DeviceRange<T>,
+    b: &impl DeviceRange<T>,
+    c: &impl DeviceRange<T>,
     config: Fused2dConfig,
     options: TuneOptions,
     dtype: &'static str,
@@ -3470,10 +3470,10 @@ where
 fn tune_fused_1d_conditional<T, F>(
     stream: &Stream,
     out: &mut impl DeviceOutput<T>,
-    condition: &impl DeviceInput<u8>,
-    a: &impl DeviceInput<T>,
-    b: &impl DeviceInput<T>,
-    c: &impl DeviceInput<T>,
+    condition: &impl DeviceRange<u8>,
+    a: &impl DeviceRange<T>,
+    b: &impl DeviceRange<T>,
+    c: &impl DeviceRange<T>,
     config: Fused1dConfig,
     options: TuneOptions,
     dtype: &'static str,
@@ -3538,10 +3538,10 @@ where
 fn tune_fused_2d_conditional<T, F>(
     stream: &Stream,
     out: &mut impl DeviceOutput<T>,
-    condition: &impl DeviceInput<u8>,
-    a: &impl DeviceInput<T>,
-    b: &impl DeviceInput<T>,
-    c: &impl DeviceInput<T>,
+    condition: &impl DeviceRange<u8>,
+    a: &impl DeviceRange<T>,
+    b: &impl DeviceRange<T>,
+    c: &impl DeviceRange<T>,
     config: Fused2dConfig,
     options: TuneOptions,
     dtype: &'static str,
@@ -3604,9 +3604,9 @@ fn tune_fused_rms_norm_add<T, E, F>(
     stream: &Stream,
     out: &mut impl DeviceOutput<T>,
     residual_out: &mut impl DeviceOutput<T>,
-    input: &impl DeviceInput<T>,
-    residual: &impl DeviceInput<T>,
-    weight: &impl DeviceInput<T>,
+    input: &impl DeviceRange<T>,
+    residual: &impl DeviceRange<T>,
+    weight: &impl DeviceRange<T>,
     config: FusedRmsNormConfig<E>,
     options: TuneOptions,
     dtype: &'static str,
@@ -3680,9 +3680,9 @@ where
 fn tune_fused_rms_norm_silu_mul<T, E, F>(
     stream: &Stream,
     out: &mut impl DeviceOutput<T>,
-    input: &impl DeviceInput<T>,
-    weight: &impl DeviceInput<T>,
-    up: &impl DeviceInput<T>,
+    input: &impl DeviceRange<T>,
+    weight: &impl DeviceRange<T>,
+    up: &impl DeviceRange<T>,
     config: FusedRmsNormConfig<E>,
     options: TuneOptions,
     dtype: &'static str,
@@ -4251,9 +4251,9 @@ macro_rules! kv_cache_update_dynpos_fn {
             stream: &Stream,
             k_cache: &mut impl DeviceOutput<$ty>,
             v_cache: &mut impl DeviceOutput<$ty>,
-            new_k: &impl DeviceInput<$ty>,
-            new_v: &impl DeviceInput<$ty>,
-            position_start: &impl DeviceInput<u32>,
+            new_k: &impl DeviceRange<$ty>,
+            new_v: &impl DeviceRange<$ty>,
+            position_start: &impl DeviceRange<u32>,
             seq_len: usize,
             heads: usize,
             head_dim: usize,
@@ -4318,10 +4318,10 @@ macro_rules! rope_qk_fn {
             stream: &Stream,
             q_out: &mut impl DeviceOutput<$ty>,
             k_out: &mut impl DeviceOutput<$ty>,
-            q_input: &impl DeviceInput<$ty>,
-            k_input: &impl DeviceInput<$ty>,
-            cos: &impl DeviceInput<$ty>,
-            sin: &impl DeviceInput<$ty>,
+            q_input: &impl DeviceRange<$ty>,
+            k_input: &impl DeviceRange<$ty>,
+            cos: &impl DeviceRange<$ty>,
+            sin: &impl DeviceRange<$ty>,
             config: QkRotaryEmbeddingConfig,
         ) -> Result<()> {
             // SAFETY: the caller upholds this function's safety contract.
@@ -4350,10 +4350,10 @@ macro_rules! rope_qk_cache_update_fn {
             q_out: &mut impl DeviceOutput<$ty>,
             k_out: &mut impl DeviceOutput<$ty>,
             k_cache: &mut impl DeviceOutput<$ty>,
-            q_input: &impl DeviceInput<$ty>,
-            k_input: &impl DeviceInput<$ty>,
-            cos: &impl DeviceInput<$ty>,
-            sin: &impl DeviceInput<$ty>,
+            q_input: &impl DeviceRange<$ty>,
+            k_input: &impl DeviceRange<$ty>,
+            cos: &impl DeviceRange<$ty>,
+            sin: &impl DeviceRange<$ty>,
             config: RopeQkCacheUpdateConfig,
         ) -> Result<()> {
             validate_rope_qk_cache_update(
@@ -4553,14 +4553,14 @@ pub unsafe fn qk_norm_rope_f16(
     stream: &Stream,
     q_out: &mut impl DeviceOutput<f16>,
     k_out: &mut impl DeviceOutput<f16>,
-    query: &impl DeviceInput<f16>,
-    key: &impl DeviceInput<f16>,
-    value: &impl DeviceInput<f16>,
-    q_weight: &impl DeviceInput<f16>,
-    k_weight: &impl DeviceInput<f16>,
-    cos: &impl DeviceInput<f32>,
-    sin: &impl DeviceInput<f32>,
-    position: Option<&dyn DeviceInput<u32>>,
+    query: &impl DeviceRange<f16>,
+    key: &impl DeviceRange<f16>,
+    value: &impl DeviceRange<f16>,
+    q_weight: &impl DeviceRange<f16>,
+    k_weight: &impl DeviceRange<f16>,
+    cos: &impl DeviceRange<f32>,
+    sin: &impl DeviceRange<f32>,
+    position: Option<&dyn DeviceRange<u32>>,
     cache: Option<QkNormRopeCache<'_>>,
     config: QkNormRopeConfig,
 ) -> Result<()> {
@@ -4642,8 +4642,8 @@ pub unsafe fn lm_head_argmax_f16(
     out: &mut impl DeviceOutput<i32>,
     block_max: &mut impl DeviceOutput<f32>,
     block_idx: &mut impl DeviceOutput<i32>,
-    weights: &impl DeviceInput<f16>,
-    hidden: &impl DeviceInput<f16>,
+    weights: &impl DeviceRange<f16>,
+    hidden: &impl DeviceRange<f16>,
     vocab_size: usize,
     hidden_size: usize,
 ) -> Result<()> {

@@ -7,10 +7,9 @@ use crate::{
         behavior::{BackendBehaviorNote, BackendNumericalNote},
         engine::EngineIndex,
         execution::{
-            EngineConfig, EngineKnobInfo, ExecutionPlan, IntermediateId, IntermediateInfo,
-            KernelCacheJson, KnobChoiceInfo, OperationGraph, VariantPack,
+            EngineChoice, EngineConfig, EngineKnobInfo, ExecutionPlan, IntermediateId,
+            IntermediateInfo, KernelCacheJson, KnobChoiceInfo, OperationGraph, VariantPack,
         },
-        tensor::TensorId,
     },
     context::Context,
     error::{Error, Result},
@@ -21,8 +20,8 @@ use crate::{
         logging,
         lower::LoweredGraph,
         plan::{
-            AliasTensorBinding, BindingReplacement, EngineChoice, EngineConfigMetadata,
-            PlanArtifacts, PlanBuildReport, PlanId, RequiredTensor,
+            AliasTensorBinding, BindingReplacement, EngineConfigMetadata, PlanArtifacts,
+            PlanBuildReport, PlanId, RequiredTensor,
             bindings::alias_tensor_bindings,
             config::RuntimeShapePolicy,
             entry::{CompiledPlanEntry, PlanCandidate},
@@ -30,6 +29,7 @@ use crate::{
         },
         workspace::WorkspaceLayout,
     },
+    tensor::TensorId,
 };
 
 /// An ordering and selection handle over immutable, shared executable plans.
@@ -43,7 +43,7 @@ pub struct CompiledGraph {
 }
 
 #[derive(Debug)]
-pub struct CompiledGraphCore {
+pub(crate) struct CompiledGraphCore {
     pub structure: Option<CompiledGraphStructure>,
     pub shape_policy: RuntimeShapePolicy,
     pub entries: Vec<CompiledPlanEntry>,
@@ -57,7 +57,7 @@ pub struct CompiledGraphCore {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CompiledGraphStructure {
+pub(crate) struct CompiledGraphStructure {
     pub recipe: Graph,
     pub graph: Graph,
 }
@@ -70,7 +70,7 @@ impl CompiledGraph {
         plan: &PlanId,
     ) -> Result<()> {
         logging::diagnostic!("executing graph {:?}, plan {plan}", self.graph_name());
-        // SAFETY: callers uphold the same pointer validity and initialized-input contracts as native execution.
+        // SAFETY: callers pass a pack built from bindings under the `Bindings` execution contract, so its entry metadata is live and initialized.
         unsafe { logging::log_variant_pack(context, pack, &self.core.artifacts.tensors) }
     }
 
@@ -124,7 +124,7 @@ impl CompiledGraph {
             .map(|structure| &structure.recipe)
     }
 
-    /// The native operation graph retained by a fresh compilation.
+    /// Returns the native operation graph retained by a fresh compilation.
     /// Restored native artifacts execute directly and do not reconstruct this descriptor.
     #[must_use]
     pub fn operation_graph(&self) -> Option<&OperationGraph> {
@@ -140,7 +140,8 @@ impl CompiledGraph {
     /// Cloned handles, selected plans and queued executions retain their original resources and selections.
     ///
     /// # Errors
-    /// Returns an error for an empty order, duplicate identities or identities absent from this handle.
+    ///
+    /// Returns an error if the order is empty, repeats an identity, or names an identity absent from this handle.
     /// An invalid order leaves ordering and selection unchanged.
     pub fn reorder_plans(&mut self, plans: &[PlanId]) -> Result<()> {
         let positions = plan_positions(self.candidates().map(|candidate| &candidate.id), plans)?;
@@ -167,7 +168,7 @@ impl CompiledGraph {
         choices
     }
 
-    /// Original build diagnostics, including failed candidates and plans omitted by this handle.
+    /// Returns the original build diagnostics, including failed candidates and plans omitted by this handle.
     /// Reports retain their identities and compilation order independently of executable ordering.
     #[must_use]
     pub fn build_reports(&self) -> &[PlanBuildReport] {
@@ -197,7 +198,7 @@ impl CompiledGraph {
         &self.default_entry().candidate.id
     }
 
-    /// Cached engine properties for the selected plan, including restored plan-only artifacts.
+    /// Returns the cached engine properties for the selected plan, including restored plan-only artifacts.
     /// Reading these properties makes no native queries.
     #[must_use]
     pub fn engine_metadata(&self) -> &EngineConfigMetadata {
@@ -237,33 +238,26 @@ impl CompiledGraph {
         Ok(&self.entry_for(plan)?.execution_plan)
     }
 
-    /// Frontend scratch prefix, retained in the supplied workspace allocation.
+    /// Returns the frontend scratch prefix, retained in the supplied workspace allocation.
     /// Its tensors are bound automatically and excluded from required caller bindings.
     #[must_use]
     pub fn frontend_workspace_layout(&self) -> &WorkspaceLayout {
         &self.core.workspace_layout
     }
 
-    /// Cached total allocation size for the selected plan, including frontend scratch.
+    /// Returns the cached total allocation size for the selected plan, including frontend scratch.
     /// Build and restoration resolve the finalized requirement before retaining a plan.
-    /// Use runtime workspace queries when applying shape overrides.
+    /// [`Self::workspace_size_for`] queries other plans and runtime layouts.
     #[must_use]
     pub fn workspace_size(&self) -> usize {
         self.engine_metadata().workspace_size
     }
 
-    /// Cached static workspace for one retained plan, including frontend scratch.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if this handle does not retain `plan`.
-    pub fn workspace_size_for(&self, plan: &PlanId) -> Result<usize> {
+    pub(crate) fn static_workspace_size(&self, plan: &PlanId) -> Result<usize> {
         Ok(self.candidate_for(plan)?.metadata.workspace_size)
     }
 
-    /// Maximum cached static requirement in this handle's current plan order.
-    #[must_use]
-    pub fn max_workspace_size(&self) -> usize {
+    pub(crate) fn max_static_workspace_size(&self) -> usize {
         self.candidates()
             .map(|candidate| candidate.metadata.workspace_size)
             .max()
@@ -411,7 +405,7 @@ impl CompiledGraph {
             .collect()
     }
 
-    /// Caller storage, actual native uses, alias offsets, access roles and indexing dependencies.
+    /// Returns the caller storage, actual native uses, alias offsets, access roles and indexing dependencies.
     /// Excludes unused declarations, frontend workspace, virtual tensors and host scalars.
     /// Resolved once during preparation or artifact restoration; this performs no native queries.
     #[must_use]

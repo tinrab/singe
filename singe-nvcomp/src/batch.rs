@@ -1,26 +1,29 @@
 //! Device chunk tables and status buffers for batched nvCOMP operations.
 
-use std::{marker::PhantomData, mem::MaybeUninit, process, sync::Arc};
+use std::{marker::PhantomData, mem::MaybeUninit, ptr, sync::Arc};
 
 use singe_cuda::{
     context::Context as CudaContext,
     error::Error as CudaError,
     memory::DeviceMemory,
     stream::Stream,
+    submission::{Access, AccessMode},
     types::DevicePtr,
-    view::{DeviceInput, DeviceOutput, DeviceRegion, DeviceRegionProvider, DeviceView},
+    view::{
+        DeviceOutput, DeviceOutputView, DeviceRange, DeviceRegion, DeviceRegionProvider,
+        DeviceSlice, DeviceView,
+    },
 };
 
 use crate::{
     error::{DeviceStatus, Error, Result, Status},
-    utility::is_alignment_satisfied,
-    workspace::TemporaryBuffer,
+    utility::{is_alignment_satisfied, nonempty_ptr, validate_alignment},
 };
 
 /// Device arrays of chunk pointers and sizes that describe the input of a batched nvCOMP operation.
 ///
 /// The table borrows the buffers it describes, so they outlive it.
-/// It does not claim that the chunks are initialized; the operations that read them require that in their safety contracts.
+/// Its chunks are initialized: the safe constructors take initialized device slices, and [`create`](Self::create) requires initialized regions of its caller.
 #[derive(Debug)]
 pub struct DeviceChunkTable<'a> {
     device_chunk_ptrs: DeviceMemory<DevicePtr>,
@@ -39,33 +42,11 @@ impl<'a> DeviceChunkTable<'a> {
     /// # Errors
     ///
     /// Returns an error if a buffer belongs to a CUDA context other than `context`, a size overflows, or the device tables cannot be allocated or uploaded.
-    pub fn from_contiguous<B: DeviceInput<u8> + ?Sized>(
+    pub fn from_contiguous<B: DeviceSlice<u8> + ?Sized>(
         context: &Arc<CudaContext>,
         buffer: &'a B,
     ) -> Result<Self> {
-        Self::from_contiguous_prefix(context, buffer, buffer.len())
-    }
-
-    /// Describes the first `bytes` bytes of `buffer` as one chunk.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if `bytes` exceeds the buffer length, a buffer belongs to a CUDA context other than `context`, a size overflows, or the device tables cannot be allocated or uploaded.
-    pub fn from_contiguous_prefix<B: DeviceInput<u8> + ?Sized>(
-        context: &Arc<CudaContext>,
-        buffer: &'a B,
-        bytes: usize,
-    ) -> Result<Self> {
-        if bytes > buffer.len() {
-            return Err(Error::LengthMismatch {
-                name: "chunk bytes".into(),
-                expected: bytes,
-                actual: buffer.len(),
-            });
-        }
-
-        let region = checked_region(context, buffer)?.slice(..bytes)?;
-        Self::create(context, vec![region])
+        Self::from_regions(context, vec![checked_region(context, buffer)?])
     }
 
     /// Splits `buffer` into chunks of `chunk_bytes` bytes; the last chunk may be shorter.
@@ -73,35 +54,15 @@ impl<'a> DeviceChunkTable<'a> {
     /// # Errors
     ///
     /// Returns an error if `chunk_bytes` is zero, a buffer belongs to a CUDA context other than `context`, a size overflows, or the device tables cannot be allocated or uploaded.
-    pub fn from_contiguous_chunks<B: DeviceInput<u8> + ?Sized>(
+    pub fn from_contiguous_chunks<B: DeviceSlice<u8> + ?Sized>(
         context: &Arc<CudaContext>,
         buffer: &'a B,
         chunk_bytes: usize,
     ) -> Result<Self> {
-        Self::from_contiguous_prefix_chunks(context, buffer, buffer.len(), chunk_bytes)
-    }
-
-    /// Splits the first `bytes` bytes of `buffer` into chunks of `chunk_bytes` bytes; the last chunk may be shorter.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if `bytes` exceeds the buffer length, `chunk_bytes` is zero, a buffer belongs to a CUDA context other than `context`, a size overflows, or the device tables cannot be allocated or uploaded.
-    pub fn from_contiguous_prefix_chunks<B: DeviceInput<u8> + ?Sized>(
-        context: &Arc<CudaContext>,
-        buffer: &'a B,
-        bytes: usize,
-        chunk_bytes: usize,
-    ) -> Result<Self> {
-        if bytes > buffer.len() {
-            return Err(Error::LengthMismatch {
-                name: "chunk bytes".into(),
-                expected: bytes,
-                actual: buffer.len(),
-            });
-        }
-
-        let region = checked_region(context, buffer)?.slice(..bytes)?;
-        Self::create(context, split_regions(region, chunk_bytes)?)
+        Self::from_regions(
+            context,
+            split_regions(checked_region(context, buffer)?, chunk_bytes)?,
+        )
     }
 
     /// Describes consecutive chunks of `buffer` with the sizes in `chunk_bytes`.
@@ -109,12 +70,12 @@ impl<'a> DeviceChunkTable<'a> {
     /// # Errors
     ///
     /// Returns an error if the sizes add up to more than the buffer length, a buffer belongs to a CUDA context other than `context`, a size overflows, or the device tables cannot be allocated or uploaded.
-    pub fn from_contiguous_chunk_sizes<B: DeviceInput<u8> + ?Sized>(
+    pub fn from_contiguous_chunk_sizes<B: DeviceSlice<u8> + ?Sized>(
         context: &Arc<CudaContext>,
         buffer: &'a B,
         chunk_bytes: &[usize],
     ) -> Result<Self> {
-        Self::create(
+        Self::from_regions(
             context,
             adjacent_regions(checked_region(context, buffer)?, chunk_bytes)?,
         )
@@ -125,13 +86,13 @@ impl<'a> DeviceChunkTable<'a> {
     /// # Errors
     ///
     /// Returns an error if `stride_bytes` is zero while `chunk_bytes` is not empty, a chunk is larger than its slot, the last chunk ends past the buffer, a buffer belongs to a CUDA context other than `context`, a size overflows, or the device tables cannot be allocated or uploaded.
-    pub fn from_contiguous_strided_chunks<B: DeviceInput<u8> + ?Sized>(
+    pub fn from_contiguous_strided_chunks<B: DeviceSlice<u8> + ?Sized>(
         context: &Arc<CudaContext>,
         buffer: &'a B,
         stride_bytes: usize,
         chunk_bytes: &[usize],
     ) -> Result<Self> {
-        Self::create(
+        Self::from_regions(
             context,
             strided_regions(checked_region(context, buffer)?, stride_bytes, chunk_bytes)?,
         )
@@ -142,7 +103,7 @@ impl<'a> DeviceChunkTable<'a> {
     /// # Errors
     ///
     /// Returns an error if a buffer belongs to a CUDA context other than `context`, a size overflows, or the device tables cannot be allocated or uploaded.
-    pub fn from_device_slices<B: DeviceInput<u8> + ?Sized>(
+    pub fn from_device_slices<B: DeviceSlice<u8> + ?Sized>(
         context: &Arc<CudaContext>,
         buffers: &[&'a B],
     ) -> Result<Self> {
@@ -150,34 +111,26 @@ impl<'a> DeviceChunkTable<'a> {
             .iter()
             .map(|buffer| checked_region(context, *buffer))
             .collect::<Result<Vec<_>>>()?;
-        Self::create(context, regions)
+        Self::from_regions(context, regions)
     }
 
-    /// Describes each view in `views` as one chunk.
-    ///
-    /// The table borrows the memory behind the views, not the views themselves.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if a buffer belongs to a CUDA context other than `context`, a size overflows, or the device tables cannot be allocated or uploaded.
-    pub fn from_views(
-        context: &Arc<CudaContext>,
-        views: impl IntoIterator<Item = DeviceView<'a, u8>>,
-    ) -> Result<Self> {
-        Self::create(
-            context,
-            views.into_iter().map(DeviceView::into_region).collect(),
-        )
-    }
-
-    // This builder only describes addresses. Native operations establish their
-    // initialization and ordering contracts independently.
     /// Describes each region in `regions` as one chunk.
     ///
+    /// # Safety
+    ///
+    /// Every byte of every region must be initialized whenever an operation that reads the table runs, including every replay of a captured graph.
+    ///
     /// # Errors
     ///
-    /// Returns an error if a buffer belongs to a CUDA context other than `context`, a size overflows, or the device tables cannot be allocated or uploaded.
-    pub fn create(context: &Arc<CudaContext>, regions: Vec<DeviceRegion<'a>>) -> Result<Self> {
+    /// Returns an error if a region belongs to a CUDA context other than `context`, a size overflows, or the device tables cannot be allocated or uploaded.
+    pub unsafe fn create(
+        context: &Arc<CudaContext>,
+        regions: Vec<DeviceRegion<'a>>,
+    ) -> Result<Self> {
+        Self::from_regions(context, regions)
+    }
+
+    fn from_regions(context: &Arc<CudaContext>, regions: Vec<DeviceRegion<'a>>) -> Result<Self> {
         let (ptrs, sizes, ptr_alignment) = table_metadata(context, &regions)?;
         Ok(Self {
             device_chunk_ptrs: DeviceMemory::from_slice(context, &ptrs)?,
@@ -189,15 +142,32 @@ impl<'a> DeviceChunkTable<'a> {
         })
     }
 
+    pub(crate) fn read_accesses(&self) -> Vec<Access> {
+        let mut accesses = self
+            .regions
+            .iter()
+            .map(|region| Access::new(*region, AccessMode::Read))
+            .collect::<Vec<_>>();
+        if !self.is_empty() {
+            accesses.push(Access::new(
+                self.device_chunk_ptrs.region(),
+                AccessMode::Read,
+            ));
+            accesses.push(Access::new(
+                self.device_chunk_bytes.region(),
+                AccessMode::Read,
+            ));
+        }
+        accesses
+    }
+
     pub(crate) fn require_element_size(&self, bytes: usize) -> Result<()> {
         if self
             .regions
             .iter()
             .any(|region| !region.byte_len().is_multiple_of(bytes))
         {
-            return Err(Error::InvalidValue {
-                name: "compression chunk element count".into(),
-            });
+            return Err(Error::out_of_range("compression chunk element count"));
         }
         Ok(())
     }
@@ -405,7 +375,7 @@ impl<'a> DeviceChunkTableMut<'a> {
         self.buffers().validate_context(stream)?;
         stream.ensure_not_capturing()?;
         stream.synchronize()?;
-        // SAFETY: the caller establishes full length-slot production, now completed.
+        // SAFETY: the caller guarantees work on `stream` wrote every size slot, and the synchronization above finished it.
         let sizes = unsafe {
             DeviceView::<usize>::from_raw_parts(self.device_chunk_bytes.region(), self.len())?
         }
@@ -421,6 +391,29 @@ impl<'a> DeviceChunkTableMut<'a> {
             }
         }
         Ok(sizes)
+    }
+
+    pub(crate) fn write_accesses(&self) -> Vec<Access> {
+        let mut accesses = self
+            .regions
+            .iter()
+            .map(|region| Access::new(*region, AccessMode::Write))
+            .collect::<Vec<_>>();
+        if !self.is_empty() {
+            accesses.push(Access::new(
+                self.device_chunk_ptrs.region(),
+                AccessMode::Read,
+            ));
+            accesses.push(Access::new(
+                self.device_buffer_bytes.region(),
+                AccessMode::Read,
+            ));
+            accesses.push(Access::new(
+                self.device_chunk_bytes.region(),
+                AccessMode::Write,
+            ));
+        }
+        accesses
     }
 
     /// Returns the number of chunks.
@@ -527,7 +520,7 @@ impl<'a> DeviceChunkTableView<'a> {
 
     pub(crate) fn validate_context(self, stream: &Stream) -> Result<()> {
         if self.context != stream.context() {
-            return Err(Error::StreamContextMismatch);
+            return Err(CudaError::MemoryContextMismatch.into());
         }
         Ok(())
     }
@@ -538,7 +531,7 @@ impl<'a> DeviceChunkTableView<'a> {
     }
 }
 
-fn checked_region<'a, B: DeviceInput<u8> + ?Sized>(
+fn checked_region<'a, B: DeviceRange<u8> + ?Sized>(
     context: &Arc<CudaContext>,
     buffer: &'a B,
 ) -> Result<DeviceRegion<'a>> {
@@ -561,7 +554,7 @@ fn table_metadata(
             return Err(CudaError::MemoryContextMismatch.into());
         }
 
-        // SAFETY: the checked region retains the actual allocation borrow.
+        // SAFETY: the pointer comes from a region checked to be in `context`, whose borrow keeps the allocation alive.
         ptrs.push(unsafe { DevicePtr::from_raw(region.as_ptr().cast()) });
         sizes.push(region.byte_len());
         alignment = common_alignment(alignment, region.as_ptr().addr());
@@ -569,17 +562,9 @@ fn table_metadata(
     Ok((ptrs, sizes, alignment))
 }
 
-fn nonempty_ptr<T>(memory: &DeviceMemory<T>) -> DevicePtr {
-    if memory.is_empty() {
-        DevicePtr::null()
-    } else {
-        memory.as_device_ptr()
-    }
-}
-
 fn split_regions(region: DeviceRegion<'_>, chunk_bytes: usize) -> Result<Vec<DeviceRegion<'_>>> {
     if chunk_bytes == 0 {
-        return Err(Error::InvalidValue {
+        return Err(Error::NotPositive {
             name: "chunk bytes".into(),
         });
     }
@@ -597,9 +582,9 @@ fn adjacent_regions<'a>(
 ) -> Result<Vec<DeviceRegion<'a>>> {
     let total = total_chunk_bytes(sizes)?;
     if total > region.byte_len() {
-        return Err(Error::LengthMismatch {
+        return Err(Error::BufferTooSmall {
             name: "chunk bytes".into(),
-            expected: total,
+            required: total,
             actual: region.byte_len(),
         });
     }
@@ -623,15 +608,15 @@ fn strided_regions<'a>(
 ) -> Result<Vec<DeviceRegion<'a>>> {
     let required = required_strided_bytes(stride, sizes)?;
     if stride == 0 && !sizes.is_empty() {
-        return Err(Error::InvalidValue {
+        return Err(Error::NotPositive {
             name: "stride bytes".into(),
         });
     }
 
     if required > region.byte_len() {
-        return Err(Error::LengthMismatch {
+        return Err(Error::BufferTooSmall {
             name: "strided buffer bytes".into(),
-            expected: required,
+            required,
             actual: region.byte_len(),
         });
     }
@@ -640,10 +625,10 @@ fn strided_regions<'a>(
         .enumerate()
         .map(|(index, &size)| {
             if size > stride {
-                return Err(Error::LengthMismatch {
-                    name: "strided chunk bytes".into(),
-                    expected: stride,
-                    actual: size,
+                return Err(Error::BufferTooSmall {
+                    name: "stride bytes".into(),
+                    required: size,
+                    actual: stride,
                 });
             }
 
@@ -750,6 +735,17 @@ impl DeviceStatuses {
         Ok(())
     }
 
+    pub(crate) fn validate_context(&self, stream: &Stream) -> Result<()> {
+        if self.context() != stream.context() {
+            return Err(CudaError::MemoryContextMismatch.into());
+        }
+        Ok(())
+    }
+
+    pub(crate) fn region(&self) -> DeviceRegion<'_> {
+        self.statuses.region()
+    }
+
     /// Returns the device pointer to pass to nvCOMP.
     pub fn as_device_ptr(&mut self) -> DevicePtr {
         if self.is_empty() {
@@ -769,18 +765,16 @@ impl DeviceStatuses {
     ///
     /// Returns an error if the buffer and `stream` belong to different CUDA contexts, stream capture is active or cannot be queried, synchronization or the copy fails, or a chunk reports an error status.
     pub unsafe fn check(&self, stream: &Stream) -> Result<Vec<Status>> {
-        if self.statuses.context() != stream.context() {
-            return Err(Error::StreamContextMismatch);
-        }
+        self.validate_context(stream)?;
 
         stream.ensure_not_capturing()?;
         stream.synchronize()?;
-        // SAFETY: caller-established status production completed on the stream.
+        // SAFETY: the caller guarantees work on `stream` wrote every status slot, and the synchronization above finished it.
         unsafe { self.copy_and_check_completed() }
     }
 
     unsafe fn copy_and_check_completed(&self) -> Result<Vec<Status>> {
-        // SAFETY: the caller establishes initialized status slots after completion.
+        // SAFETY: the caller guarantees every status slot was written by finished work.
         let view = unsafe {
             DeviceView::<DeviceStatus>::from_raw_parts(self.statuses.region(), self.len())?
         };
@@ -792,7 +786,10 @@ impl DeviceStatuses {
 
         for (index, status) in statuses.iter().copied().enumerate() {
             if status != Status::Success {
-                return Err(Error::ChunkStatus { index, status });
+                return Err(Error::OperationFailed {
+                    operation: format!("chunk {index}").into(),
+                    status,
+                });
             }
         }
 
@@ -848,109 +845,83 @@ impl<'a> AsyncBatchResult<'a> {
     ///
     /// Returns an error if the status buffer and stream belong to different CUDA contexts, stream capture is active or cannot be queried, synchronization or the status copy fails, or a chunk reports an error status.
     pub fn check(self) -> Result<Vec<Status>> {
-        // SAFETY: from_submission establishes complete status production on this stream.
+        // SAFETY: `from_submission` requires work on `self.stream` that writes every status slot.
         unsafe { self.statuses.check(self.stream) }
     }
 }
 
-/// Handle to an enqueued batched operation that owns its status and temporary buffers.
-///
-/// The caller still keeps the input and output buffers alive until the work finishes.
-/// It cannot be used during stream capture.
-/// Dropping it waits for the stream before freeing the buffers it owns.
-#[derive(Debug)]
-#[must_use = "call check() to complete the launch and validate its device statuses"]
-pub struct OwnedAsyncBatchResult<'a> {
-    pub(crate) statuses: DeviceStatuses,
-    pub(crate) temp: TemporaryBuffer,
-    stream: &'a Stream,
-    completed: bool,
+pub(crate) fn join_operands(
+    stream: &Stream,
+    input: &[DeviceRegion<'_>],
+    output: &[DeviceRegion<'_>],
+    workspace: Option<&DeviceOutputView<'_, u8>>,
+    statuses: Option<&DeviceStatuses>,
+) -> Result<()> {
+    let mut regions = Vec::with_capacity(input.len() + output.len() + 2);
+    regions.extend_from_slice(input);
+    regions.extend_from_slice(output);
+    regions.extend(workspace.map(|workspace| workspace.region()));
+    regions.extend(statuses.map(DeviceStatuses::region));
+    Ok(stream.join_regions(&regions)?)
 }
 
-impl<'a> OwnedAsyncBatchResult<'a> {
-    /// Creates a handle that owns `statuses` and `temp` for work enqueued afterwards on `stream`.
-    ///
-    /// # Safety
-    ///
-    /// Before calling [`check`](Self::check), enqueue work on `stream` that writes every status slot.
-    /// The input and output buffers must stay alive until that work finishes.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if `statuses` or `temp` belongs to another CUDA context, stream capture is active, or the capture status cannot be queried.
-    pub unsafe fn create(
-        statuses: DeviceStatuses,
-        temp: TemporaryBuffer,
-        stream: &'a Stream,
-    ) -> Result<Self> {
-        if statuses.context() != stream.context() || temp.context() != stream.context() {
-            return Err(Error::StreamContextMismatch);
-        }
-
-        stream.ensure_not_capturing()?;
-        Ok(Self {
-            statuses,
-            temp,
-            stream,
-            completed: false,
-        })
+pub(crate) fn check_workspace(
+    workspace: Option<&DeviceOutputView<'_, u8>>,
+    required: usize,
+    alignment: usize,
+    stream: &Stream,
+) -> Result<()> {
+    if let Some(workspace) = workspace
+        && workspace.context() != stream.context()
+    {
+        return Err(CudaError::MemoryContextMismatch.into());
     }
 
-    /// Returns the status buffer, whose slots hold results only after the work finishes.
-    #[must_use]
-    pub const fn statuses(&self) -> &DeviceStatuses {
-        &self.statuses
+    let actual = workspace.map_or(0, DeviceOutputView::len);
+    if actual < required {
+        return Err(Error::BufferTooSmall {
+            name: "workspace".into(),
+            required,
+            actual,
+        });
     }
 
-    /// Returns the temporary buffer.
-    #[must_use]
-    pub const fn temporary(&self) -> &TemporaryBuffer {
-        &self.temp
+    if let Some(workspace) = workspace
+        && !workspace.is_empty()
+    {
+        let address = workspace.region().as_ptr().addr();
+        validate_alignment(
+            "workspace",
+            is_alignment_satisfied(1, address, alignment),
+            alignment,
+        )?;
     }
+    Ok(())
+}
 
-    /// Returns the stream that runs the work.
-    #[must_use]
-    pub const fn stream(&self) -> &'a Stream {
-        self.stream
-    }
-
-    /// Waits for the work and returns the statuses if every chunk succeeded.
-    ///
-    /// The owned buffers are freed when this returns; the input and output buffers are the caller's to keep alive until then.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if synchronization or the status copy fails, or a chunk reports an error status.
-    pub fn check(mut self) -> Result<Vec<Status>> {
-        self.stream.synchronize()?;
-        self.completed = true;
-        // SAFETY: construction requires full status production before check; it completed above.
-        unsafe { self.statuses.copy_and_check_completed() }
+// nvCOMP takes a null pointer for an empty workspace.
+pub(crate) fn workspace_parts(
+    workspace: &mut Option<DeviceOutputView<'_, u8>>,
+) -> (*mut u8, usize) {
+    match workspace {
+        Some(workspace) if !workspace.is_empty() => (workspace.as_mut_ptr(), workspace.len()),
+        _ => (ptr::null_mut(), 0),
     }
 }
 
-impl Drop for OwnedAsyncBatchResult<'_> {
-    fn drop(&mut self) {
-        if !self.completed && self.stream.synchronize().is_err() {
-            process::abort();
-        }
-    }
-}
-
-#[cfg(test)]
+#[cfg(all(test, feature = "testing"))]
 mod tests {
-    use singe_cuda::{
-        context::Context,
-        view::{DeviceSlice, DeviceSliceMut},
-    };
+    use singe_cuda::view::{DeviceSlice, DeviceSliceMut};
 
     use super::*;
+    use crate::testing::setup_context;
 
     #[test]
     fn test_empty_read_chunk_table_has_zero_lengths() -> Result<()> {
-        let allocation_context = Context::create()?;
+        let test = setup_context()?;
+        let allocation_context = test.cuda_context();
         let chunks: [&dyn DeviceSlice<u8>; 0] = [];
-        let table = DeviceChunkTable::from_device_slices(&allocation_context, &chunks)?;
+        let table = DeviceChunkTable::from_device_slices(allocation_context, &chunks)?;
 
         assert_eq!(table.len(), 0);
         assert!(table.is_empty());
@@ -965,9 +936,10 @@ mod tests {
 
     #[test]
     fn test_empty_write_chunk_table_has_zero_lengths() -> Result<()> {
-        let allocation_context = Context::create()?;
+        let test = setup_context()?;
+        let allocation_context = test.cuda_context();
         let mut chunks: [&mut dyn DeviceSliceMut<u8>; 0] = [];
-        let table = DeviceChunkTableMut::from_device_slices(&allocation_context, &mut chunks)?;
+        let table = DeviceChunkTableMut::from_device_slices(allocation_context, &mut chunks)?;
 
         assert_eq!(table.len(), 0);
         assert!(table.is_empty());
@@ -987,10 +959,11 @@ mod tests {
 
     #[test]
     fn test_contiguous_read_chunk_table_splits_prefix() -> Result<()> {
-        let allocation_context = Context::create()?;
-        let memory = DeviceMemory::<u8>::zeroed(&allocation_context, 16)?;
+        let test = setup_context()?;
+        let allocation_context = test.cuda_context();
+        let memory = DeviceMemory::<u8>::zeroed(allocation_context, 16)?;
         let table =
-            DeviceChunkTable::from_contiguous_prefix_chunks(&allocation_context, &memory, 10, 4)?;
+            DeviceChunkTable::from_contiguous_chunk_sizes(allocation_context, &memory, &[4, 4, 2])?;
 
         assert_eq!(table.len(), 3);
         assert!(!table.is_empty());
@@ -1003,10 +976,11 @@ mod tests {
 
     #[test]
     fn test_strided_read_chunk_table_uses_actual_sizes() -> Result<()> {
-        let allocation_context = Context::create()?;
-        let memory = DeviceMemory::<u8>::zeroed(&allocation_context, 24)?;
+        let test = setup_context()?;
+        let allocation_context = test.cuda_context();
+        let memory = DeviceMemory::<u8>::zeroed(allocation_context, 24)?;
         let table = DeviceChunkTable::from_contiguous_strided_chunks(
-            &allocation_context,
+            allocation_context,
             &memory,
             8,
             &[3, 5, 1],
@@ -1022,13 +996,11 @@ mod tests {
 
     #[test]
     fn test_contiguous_read_chunk_table_uses_variable_sizes() -> Result<()> {
-        let allocation_context = Context::create()?;
-        let memory = DeviceMemory::<u8>::zeroed(&allocation_context, 16)?;
-        let table = DeviceChunkTable::from_contiguous_chunk_sizes(
-            &allocation_context,
-            &memory,
-            &[3, 5, 1],
-        )?;
+        let test = setup_context()?;
+        let allocation_context = test.cuda_context();
+        let memory = DeviceMemory::<u8>::zeroed(allocation_context, 16)?;
+        let table =
+            DeviceChunkTable::from_contiguous_chunk_sizes(allocation_context, &memory, &[3, 5, 1])?;
 
         assert_eq!(table.len(), 3);
         assert_eq!(table.max_chunk_bytes(), 5);
@@ -1039,17 +1011,18 @@ mod tests {
 
     #[test]
     fn test_contiguous_read_chunk_table_rejects_oversized_variable_sizes() -> Result<()> {
-        let allocation_context = Context::create()?;
-        let memory = DeviceMemory::<u8>::zeroed(&allocation_context, 8)?;
+        let test = setup_context()?;
+        let allocation_context = test.cuda_context();
+        let memory = DeviceMemory::<u8>::zeroed(allocation_context, 8)?;
         let error =
-            DeviceChunkTable::from_contiguous_chunk_sizes(&allocation_context, &memory, &[3, 6])
+            DeviceChunkTable::from_contiguous_chunk_sizes(allocation_context, &memory, &[3, 6])
                 .unwrap_err();
 
         assert!(matches!(
             error,
-            Error::LengthMismatch {
+            Error::BufferTooSmall {
                 name,
-                expected: 9,
+                required: 9,
                 actual: 8,
             } if name == "chunk bytes"
         ));
@@ -1059,19 +1032,20 @@ mod tests {
 
     #[test]
     fn test_strided_read_chunk_table_rejects_oversized_chunk() -> Result<()> {
-        let allocation_context = Context::create()?;
-        let memory = DeviceMemory::<u8>::zeroed(&allocation_context, 16)?;
+        let test = setup_context()?;
+        let allocation_context = test.cuda_context();
+        let memory = DeviceMemory::<u8>::zeroed(allocation_context, 16)?;
         let error =
-            DeviceChunkTable::from_contiguous_strided_chunks(&allocation_context, &memory, 8, &[9])
+            DeviceChunkTable::from_contiguous_strided_chunks(allocation_context, &memory, 8, &[9])
                 .unwrap_err();
 
         assert!(matches!(
             error,
-            Error::LengthMismatch {
+            Error::BufferTooSmall {
                 name,
-                expected: 8,
-                actual: 9,
-            } if name == "strided chunk bytes"
+                required: 9,
+                actual: 8,
+            } if name == "stride bytes"
         ));
 
         Ok(())
@@ -1079,10 +1053,11 @@ mod tests {
 
     #[test]
     fn test_strided_read_chunk_table_rejects_undersized_buffer() -> Result<()> {
-        let allocation_context = Context::create()?;
-        let memory = DeviceMemory::<u8>::zeroed(&allocation_context, 12)?;
+        let test = setup_context()?;
+        let allocation_context = test.cuda_context();
+        let memory = DeviceMemory::<u8>::zeroed(allocation_context, 12)?;
         let error = DeviceChunkTable::from_contiguous_strided_chunks(
-            &allocation_context,
+            allocation_context,
             &memory,
             8,
             &[3, 5],
@@ -1091,9 +1066,9 @@ mod tests {
 
         assert!(matches!(
             error,
-            Error::LengthMismatch {
+            Error::BufferTooSmall {
                 name,
-                expected: 13,
+                required: 13,
                 actual: 12,
             } if name == "strided buffer bytes"
         ));
@@ -1103,10 +1078,11 @@ mod tests {
 
     #[test]
     fn test_contiguous_write_chunk_table_splits_buffer() -> Result<()> {
-        let allocation_context = Context::create()?;
-        let mut memory = DeviceMemory::<u8>::create_uninit(&allocation_context, 10)?;
+        let test = setup_context()?;
+        let allocation_context = test.cuda_context();
+        let mut memory = DeviceMemory::<u8>::create_uninit(allocation_context, 10)?;
         let table =
-            DeviceChunkTableMut::from_contiguous_chunks(&allocation_context, &mut memory, 4)?;
+            DeviceChunkTableMut::from_contiguous_chunks(allocation_context, &mut memory, 4)?;
 
         assert_eq!(table.len(), 3);
         assert!(!table.is_empty());
@@ -1120,10 +1096,11 @@ mod tests {
 
     #[test]
     fn test_contiguous_write_chunk_table_uses_variable_sizes() -> Result<()> {
-        let allocation_context = Context::create()?;
-        let mut memory = DeviceMemory::<u8>::create_uninit(&allocation_context, 16)?;
+        let test = setup_context()?;
+        let allocation_context = test.cuda_context();
+        let mut memory = DeviceMemory::<u8>::create_uninit(allocation_context, 16)?;
         let table = DeviceChunkTableMut::from_contiguous_chunk_sizes(
-            &allocation_context,
+            allocation_context,
             &mut memory,
             &[3, 5, 1],
         )?;
@@ -1138,10 +1115,11 @@ mod tests {
 
     #[test]
     fn test_contiguous_write_chunk_table_rejects_oversized_variable_sizes() -> Result<()> {
-        let allocation_context = Context::create()?;
-        let mut memory = DeviceMemory::<u8>::create_uninit(&allocation_context, 8)?;
+        let test = setup_context()?;
+        let allocation_context = test.cuda_context();
+        let mut memory = DeviceMemory::<u8>::create_uninit(allocation_context, 8)?;
         let error = DeviceChunkTableMut::from_contiguous_chunk_sizes(
-            &allocation_context,
+            allocation_context,
             &mut memory,
             &[3, 6],
         )
@@ -1149,9 +1127,9 @@ mod tests {
 
         assert!(matches!(
             error,
-            Error::LengthMismatch {
+            Error::BufferTooSmall {
                 name,
-                expected: 9,
+                required: 9,
                 actual: 8,
             } if name == "chunk bytes"
         ));
@@ -1161,35 +1139,17 @@ mod tests {
 
     #[test]
     fn test_contiguous_chunk_tables_reject_zero_chunk_size() -> Result<()> {
-        let allocation_context = Context::create()?;
-        let mut memory = DeviceMemory::<u8>::create_uninit(&allocation_context, 10)?;
+        let test = setup_context()?;
+        let allocation_context = test.cuda_context();
+        let mut memory = DeviceMemory::<u8>::zeroed(allocation_context, 10)?;
 
         assert!(matches!(
-            DeviceChunkTable::from_contiguous_chunks(&allocation_context, &memory, 0).unwrap_err(),
-            Error::InvalidValue { name } if name == "chunk bytes"
+            DeviceChunkTable::from_contiguous_chunks(allocation_context, &memory, 0).unwrap_err(),
+            Error::NotPositive { name } if name == "chunk bytes"
         ));
         assert!(matches!(
-            DeviceChunkTableMut::from_contiguous_chunks(&allocation_context, &mut memory, 0).unwrap_err(),
-            Error::InvalidValue { name } if name == "chunk bytes"
-        ));
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_contiguous_prefix_rejects_oversized_chunk() -> Result<()> {
-        let allocation_context = Context::create()?;
-        let memory = DeviceMemory::<u8>::zeroed(&allocation_context, 8)?;
-        let error =
-            DeviceChunkTable::from_contiguous_prefix(&allocation_context, &memory, 9).unwrap_err();
-
-        assert!(matches!(
-            error,
-            Error::LengthMismatch {
-                name,
-                expected: 9,
-                actual: 8,
-            } if name == "chunk bytes"
+            DeviceChunkTableMut::from_contiguous_chunks(allocation_context, &mut memory, 0).unwrap_err(),
+            Error::NotPositive { name } if name == "chunk bytes"
         ));
 
         Ok(())
@@ -1197,10 +1157,11 @@ mod tests {
 
     #[test]
     fn test_read_chunk_table_tracks_pointer_alignment() -> Result<()> {
-        let allocation_context = Context::create()?;
-        let memory = DeviceMemory::<u8>::zeroed(&allocation_context, 16)?;
+        let test = setup_context()?;
+        let allocation_context = test.cuda_context();
+        let memory = DeviceMemory::<u8>::zeroed(allocation_context, 16)?;
         let misaligned = memory.view().slice(1..)?;
-        let table = DeviceChunkTable::from_contiguous(&allocation_context, &misaligned)?;
+        let table = DeviceChunkTable::from_contiguous(allocation_context, &misaligned)?;
 
         assert!(table.is_aligned_to(1));
         assert!(!table.is_aligned_to(2));
@@ -1212,11 +1173,12 @@ mod tests {
 
     #[test]
     fn test_write_chunk_table_tracks_pointer_alignment() -> Result<()> {
-        let allocation_context = Context::create()?;
-        let mut memory = DeviceMemory::<u8>::create_uninit(&allocation_context, 16)?;
+        let test = setup_context()?;
+        let allocation_context = test.cuda_context();
+        let mut memory = DeviceMemory::<u8>::create_uninit(allocation_context, 16)?;
         let mut view = memory.view_mut();
         let mut misaligned = view.slice_mut(1..)?;
-        let table = DeviceChunkTableMut::from_contiguous(&allocation_context, &mut misaligned)?;
+        let table = DeviceChunkTableMut::from_contiguous(allocation_context, &mut misaligned)?;
 
         assert!(table.is_aligned_to(1));
         assert!(!table.is_aligned_to(2));
@@ -1230,10 +1192,11 @@ mod tests {
 
     #[test]
     fn test_device_statuses_copy_and_check_returns_all_successes() -> Result<()> {
-        let allocation_context = Context::create()?;
+        let test = setup_context()?;
+        let allocation_context = test.cuda_context();
         let statuses = DeviceStatuses::from_memory(
             DeviceMemory::from_slice(
-                &allocation_context,
+                allocation_context,
                 &[
                     DeviceStatus::from_raw(Status::Success.raw()),
                     DeviceStatus::from_raw(Status::Success.raw()),
@@ -1256,8 +1219,9 @@ mod tests {
 
     #[test]
     fn test_empty_device_statuses_use_null_device_pointer() -> Result<()> {
-        let allocation_context = Context::create()?;
-        let mut statuses = DeviceStatuses::create(&allocation_context, 0)?;
+        let test = setup_context()?;
+        let allocation_context = test.cuda_context();
+        let mut statuses = DeviceStatuses::create(allocation_context, 0)?;
 
         assert!(statuses.is_empty());
         assert!(statuses.as_device_ptr().is_null());
@@ -1268,10 +1232,11 @@ mod tests {
 
     #[test]
     fn test_device_statuses_copy_and_check_reports_first_failure() -> Result<()> {
-        let allocation_context = Context::create()?;
+        let test = setup_context()?;
+        let allocation_context = test.cuda_context();
         let statuses = DeviceStatuses::from_memory(
             DeviceMemory::from_slice(
-                &allocation_context,
+                allocation_context,
                 &[
                     DeviceStatus::from_raw(Status::Success.raw()),
                     DeviceStatus::from_raw(Status::CannotCompress.raw()),
@@ -1285,10 +1250,10 @@ mod tests {
         let error = unsafe { statuses.copy_and_check_completed() }.unwrap_err();
         assert!(matches!(
             error,
-            Error::ChunkStatus {
-                index: 1,
+            Error::OperationFailed {
+                operation,
                 status: Status::CannotCompress,
-            }
+            } if operation == "chunk 1"
         ));
 
         Ok(())

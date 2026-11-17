@@ -1,5 +1,5 @@
 use singe_cudnn::backend::{
-    execution::reduction::{ReductionDescriptor, ReductionOperation},
+    operation::reduction::{ReductionDescriptor, ReductionOperation},
     tensor::{BackendTensorUid, Tensor},
 };
 

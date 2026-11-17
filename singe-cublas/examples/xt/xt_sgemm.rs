@@ -1,11 +1,10 @@
 use singe_cublas::{
-    error::Result,
     types::Operation,
     xt::{blas::sgemm, context::Context},
 };
 
-fn main() -> Result<()> {
-    let context = Context::create()?;
+fn main() -> anyhow::Result<()> {
+    let mut context = Context::create()?;
     context.set_block_dim(64)?;
 
     let alpha = 1.0_f32;

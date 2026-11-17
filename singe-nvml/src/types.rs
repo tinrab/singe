@@ -11,17 +11,15 @@ use std::{
 
 use bitflags::parser;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
-use singe_core::{
-    impl_enum_conversion, impl_enum_display, string_from_c_chars, string_from_c_ptr,
-    try_enum_from_raw,
-};
+use singe_core::{impl_enum_display, string_from_c_chars, string_from_c_ptr, try_enum_from_raw};
 use singe_nvml_sys as sys;
 
 use crate::{
     device::Device,
-    error::{Error, Result, Status},
+    error::{Error, Result},
     gpu_instance::GpuInstance,
-    utility::{mask255_bits, option_u64_from_not_available, to_u32},
+    library::Library,
+    utility::{reported_entries, to_u32, to_usize},
 };
 
 pub(crate) fn try_from_nvml_enum<T>(name: &'static str, value: u32) -> Result<T>
@@ -34,6 +32,20 @@ where
     })
 }
 
+// `impl_enum_display!` cannot name the `Unknown(code)` variant of a `native_enum!` catch-all.
+macro_rules! impl_unknown_enum_display {
+    ($enum:ty, { $($variant:path => $name:expr),+ $(,)? } $(,)?) => {
+        impl Display for $enum {
+            fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+                match self {
+                    $($variant => f.write_str($name),)+
+                    Self::Unknown(code) => write!(f, "unknown value {code}"),
+                }
+            }
+        }
+    };
+}
+
 bitflags::bitflags! {
     /// Flags controlling NVML initialization and device attachment.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -42,7 +54,7 @@ bitflags::bitflags! {
         const NO_GPUS = sys::NVML_INIT_FLAG_NO_GPUS;
         /// Initialize the NVML Library without attaching any discovered devices.
         const NO_ATTACH = sys::NVML_INIT_FLAG_NO_ATTACH;
-        /// Force device initialization even when a previous nvmlInit was called with the NO_GPUS and NO_ATTACH flags.
+        /// Initializes GPUs even when an earlier initialization used `NO_GPUS` and `NO_ATTACH`.
         const FORCE_INIT = sys::NVML_INIT_FLAG_FORCE_INIT;
     }
 }
@@ -57,9 +69,7 @@ bitflags::bitflags! {
     /// GPU event types accepted by NVML event registration.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct EventTypes: u64 {
-        /// Mask with no events.
-        ///
-        /// No event.
+        /// No event types.
         const NONE = sys::nvmlEventTypeNone as u64;
         /// Event about single bit ECC errors.
         const SINGLE_BIT_ECC_ERROR = sys::nvmlEventTypeSingleBitEccError as u64;
@@ -67,53 +77,29 @@ bitflags::bitflags! {
         const DOUBLE_BIT_ECC_ERROR = sys::nvmlEventTypeDoubleBitEccError as u64;
         /// Event about PState changes.
         const PSTATE = sys::nvmlEventTypePState as u64;
-        /// Event that Xid critical error occurred.
-        ///
-        /// XID critical error event.
+        /// Critical Xid error.
         const XID_CRITICAL_ERROR = sys::nvmlEventTypeXidCriticalError as u64;
-        /// Event about clock changes.
-        ///
-        /// Kepler only Clock change event.
+        /// Clock change, reported only on Kepler.
         const CLOCK = sys::nvmlEventTypeClock as u64;
-        /// Event about AC/Battery power source changes.
-        ///
-        /// Power source change event.
+        /// Change between AC and battery power.
         const POWER_SOURCE_CHANGE = sys::nvmlEventTypePowerSourceChange as u64;
-        /// Event about MIG configuration changes.
-        ///
-        /// MIG configuration change event.
+        /// MIG configuration change.
         const MIG_CONFIG_CHANGE = sys::nvmlEventMigConfigChange as u64;
-        /// Event about single bit ECC error storm.
-        ///
-        /// Single bit ECC error storm event.
+        /// Storm of single-bit ECC errors.
         const SINGLE_BIT_ECC_ERROR_STORM = sys::nvmlEventTypeSingleBitEccErrorStorm as u64;
-        /// Event about DRAM retirement event.
-        ///
-        /// DRAM retirement event.
+        /// DRAM page retirement.
         const DRAM_RETIREMENT_EVENT = sys::nvmlEventTypeDramRetirementEvent as u64;
-        /// Event about DRAM retirement failure.
-        ///
-        /// DRAM retirement failure event.
+        /// Failed DRAM page retirement.
         const DRAM_RETIREMENT_FAILURE = sys::nvmlEventTypeDramRetirementFailure as u64;
-        /// Event for Non Fatal Poison.
-        ///
-        /// Non-fatal poison error event.
+        /// Non-fatal poison error.
         const NON_FATAL_POISON_ERROR = sys::nvmlEventTypeNonFatalPoisonError as u64;
-        /// Event for Fatal Poison.
-        ///
-        /// Fatal poison error event.
+        /// Fatal poison error.
         const FATAL_POISON_ERROR = sys::nvmlEventTypeFatalPoisonError as u64;
-        /// Event for GPU Unavailable.
-        ///
-        /// GPU unavailable error event.
+        /// GPU became unavailable.
         const GPU_UNAVAILABLE_ERROR = sys::nvmlEventTypeGpuUnavailableError as u64;
-        /// Event for GPU Recovery Action.
-        ///
-        /// GPU recovery action event.
+        /// GPU recovery action required.
         const GPU_RECOVERY_ACTION = sys::nvmlEventTypeGpuRecoveryAction as u64;
-        /// Mask of all events.
-        ///
-        /// Mask of all event types.
+        /// Every event type.
         const ALL = sys::nvmlEventTypeAll as u64;
     }
 }
@@ -128,9 +114,7 @@ bitflags::bitflags! {
     /// GPU driver binding and unbinding notifications.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct SystemEventTypes: u64 {
-        /// System Event for GPU Driver Unbind.
-        ///
-        /// Bitmask value of Driver Unbind System Event.
+        /// A GPU was unbound from the driver.
         const GPU_DRIVER_UNBIND = sys::nvmlSystemEventTypeGpuDriverUnbind as u64;
         /// Bitmask value of Driver Bind System Event.
         const GPU_DRIVER_BIND = sys::nvmlSystemEventTypeGpuDriverBind as u64;
@@ -162,12 +146,7 @@ bitflags::bitflags! {
     /// Flags controlling a Windows driver-model change.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct DriverModelFlags: u32 {
-        /// Generic flag used to specify the default behavior of some functions.
-        /// See description of particular functions for details.
-        ///
-        /// Default flag.
-        /// Generic flag used to force some behavior.
-        /// See description of particular functions for details.
+        /// Default behavior.
         const DEFAULT = sys::nvmlFlagDefault;
         /// Force flag.
         const FORCE = sys::nvmlFlagForce;
@@ -184,9 +163,7 @@ bitflags::bitflags! {
     /// Capabilities supported by a MIG GPU instance profile.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct GpuInstanceProfileCapabilities: u32 {
-        /// MIG GPU instance profile capability.
-        ///
-        /// Bit field values representing MIG profile capabilities [nvmlGpuInstanceProfileInfo_v3_t::capabilities](https://docs.nvidia.com/deploy/nvml-api/latest/api/structnvmlGpuInstanceProfileInfo__v3__t.html#structnvmlgpuinstanceprofileinfo__v3__t_1ad9e76b079f0e392344ed74621f6083f0) Peer-to-Peer support.
+        /// The profile supports peer-to-peer transfers.
         const P2P = sys::NVML_GPU_INSTANCE_PROFILE_CAPS_P2P;
         /// GFX support.
         const GFX = sys::NVML_GPU_INSTANCE_PROFILE_CAPS_GFX;
@@ -203,9 +180,7 @@ bitflags::bitflags! {
     /// Capabilities supported by a MIG compute instance profile.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct ComputeInstanceProfileCapabilities: u32 {
-        /// MIG compute instance profile capability.
-        ///
-        /// Bit field values representing MIG profile capabilities [nvmlComputeInstanceProfileInfo_v3_t::capabilities](https://docs.nvidia.com/deploy/nvml-api/latest/api/structnvmlComputeInstanceProfileInfo__v3__t.html#structnvmlcomputeinstanceprofileinfo__v3__t_1a9cfd266f4c46066bde91f575655ca162).
+        /// The profile supports graphics.
         const GFX = sys::NVML_COMPUTE_INSTANCE_PROFILE_CAPS_GFX;
     }
 }
@@ -217,58 +192,35 @@ impl Display for ComputeInstanceProfileCapabilities {
 }
 
 bitflags::bitflags! {
-    /// Enum to represent the NvLink utilization counter packet types to count \*\* this is ONLY applicable with the units as packets or bytes \*\* as specified in `nvmlNvLinkUtilizationCountUnits_t` \*\* all packet filter descriptions are target GPU centric \*\* these can be "OR'd" together.
+    /// `NVLink` packet types that a utilization counter counts, as seen by the target GPU.
+    ///
+    /// The filter applies only to counters whose unit is packets or bytes.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct NvLinkPacketTypes: u32 {
-        /// no operation packets
-        const NOP = sys::nvmlNvLinkUtilizationCountPktTypes_t::NVML_NVLINK_COUNTER_PKTFILTER_NOP as _;
-        /// read packets
-        const READ = sys::nvmlNvLinkUtilizationCountPktTypes_t::NVML_NVLINK_COUNTER_PKTFILTER_READ as _;
-        /// write packets
-        const WRITE = sys::nvmlNvLinkUtilizationCountPktTypes_t::NVML_NVLINK_COUNTER_PKTFILTER_WRITE as _;
-        /// reduction atomic requests
-        const RATOM = sys::nvmlNvLinkUtilizationCountPktTypes_t::NVML_NVLINK_COUNTER_PKTFILTER_RATOM as _;
-        /// non-reduction atomic requests
-        const NRATOM = sys::nvmlNvLinkUtilizationCountPktTypes_t::NVML_NVLINK_COUNTER_PKTFILTER_NRATOM as _;
-        /// flush requests
-        const FLUSH = sys::nvmlNvLinkUtilizationCountPktTypes_t::NVML_NVLINK_COUNTER_PKTFILTER_FLUSH as _;
-        /// responses with data
-        const RESPDATA = sys::nvmlNvLinkUtilizationCountPktTypes_t::NVML_NVLINK_COUNTER_PKTFILTER_RESPDATA as _;
-        /// responses without data
-        const RESPNODATA = sys::nvmlNvLinkUtilizationCountPktTypes_t::NVML_NVLINK_COUNTER_PKTFILTER_RESPNODATA as _;
-        /// all packets
-        const ALL = sys::nvmlNvLinkUtilizationCountPktTypes_t::NVML_NVLINK_COUNTER_PKTFILTER_ALL as _;
+        /// No-operation packets.
+        const NOP = sys::nvmlNvLinkUtilizationCountPktTypes_t::NVML_NVLINK_COUNTER_PKTFILTER_NOP.0;
+        /// Read packets.
+        const READ = sys::nvmlNvLinkUtilizationCountPktTypes_t::NVML_NVLINK_COUNTER_PKTFILTER_READ.0;
+        /// Write packets.
+        const WRITE = sys::nvmlNvLinkUtilizationCountPktTypes_t::NVML_NVLINK_COUNTER_PKTFILTER_WRITE.0;
+        /// Reduction atomic requests.
+        const RATOM = sys::nvmlNvLinkUtilizationCountPktTypes_t::NVML_NVLINK_COUNTER_PKTFILTER_RATOM.0;
+        /// Non-reduction atomic requests.
+        const NRATOM = sys::nvmlNvLinkUtilizationCountPktTypes_t::NVML_NVLINK_COUNTER_PKTFILTER_NRATOM.0;
+        /// Flush requests.
+        const FLUSH = sys::nvmlNvLinkUtilizationCountPktTypes_t::NVML_NVLINK_COUNTER_PKTFILTER_FLUSH.0;
+        /// Responses with data.
+        const RESPDATA = sys::nvmlNvLinkUtilizationCountPktTypes_t::NVML_NVLINK_COUNTER_PKTFILTER_RESPDATA.0;
+        /// Responses without data.
+        const RESPNODATA = sys::nvmlNvLinkUtilizationCountPktTypes_t::NVML_NVLINK_COUNTER_PKTFILTER_RESPNODATA.0;
+        /// All packets.
+        const ALL = sys::nvmlNvLinkUtilizationCountPktTypes_t::NVML_NVLINK_COUNTER_PKTFILTER_ALL.0;
     }
 }
 
 impl Display for NvLinkPacketTypes {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         parser::to_writer(self, f)
-    }
-}
-
-/// CUDA driver API version in native integer form and separate major and minor components.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct CudaDriverVersion {
-    /// Native version integer, encoded as `1000 * major + 10 * minor`.
-    pub raw: i32,
-    /// CUDA driver API major version.
-    pub major: i32,
-    /// CUDA driver API minor version.
-    pub minor: i32,
-}
-
-impl CudaDriverVersion {
-    /// Decodes a native CUDA driver version integer without querying the driver.
-    ///
-    /// The native encoding is `1000 * major + 10 * minor`.
-    #[must_use]
-    pub const fn from_raw(raw: i32) -> Self {
-        Self {
-            raw,
-            major: raw / 1000,
-            minor: (raw % 1000) / 10,
-        }
     }
 }
 
@@ -287,11 +239,10 @@ pub struct FieldId(
 );
 
 impl FieldId {
-    /// `NVLink` State - one of `NVML_NVLINK_STATE`_\* values.
+    /// `NVLink` link state.
     pub const NVLINK_GET_STATE: Self = Self(sys::NVML_FI_DEV_NVLINK_GET_STATE);
 
-    /// GPU Recovery action.
-    /// See [nvmlDeviceGpuRecoveryAction_t](https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlVgpuStructs.html#group__nvmlvgpustructs_1ga9951f808183aa36957a968358dd791fb).
+    /// Recovery action the GPU requires.
     pub const GET_GPU_RECOVERY_ACTION: Self = Self(sys::NVML_FI_DEV_GET_GPU_RECOVERY_ACTION);
 
     /// Number of groups with no spare bankremap availability.
@@ -351,15 +302,10 @@ impl FieldId {
     /// If any rows failed to be remapped 1=yes 0=no.
     pub const REMAPPED_FAILURE: Self = Self(sys::NVML_FI_DEV_REMAPPED_FAILURE);
 
-    /// Retrieves power usage for this GPU in milliwatts.
+    /// GPU power averaged over one second, in milliwatts.
     ///
-    /// It is only available if power management mode is supported.
-    /// See `nvmlDeviceGetPowerManagementMode` and `nvmlDeviceGetPowerUsage`.
-    ///
-    /// scopeId needs to be specified.
-    /// It signifies: 0 - GPU Only Scope - Metrics for GPU are retrieved 1 - Module scope - Metrics for the module (e.g. CPU + GPU) are retrieved. 2 - GPU base scope - GPU base Power metrics are retrieved.
-    /// Note: Only supports _`MIN_LIMIT`, _`MAX_LIMIT`, _`DEFAULT_LIMIT`, and _`CURRENT_LIMIT` fields.
-    /// Note: CPU here refers to NVIDIA CPU (e.g. Grace). x86 or non-NVIDIA ARM is not supported GPU power averaged over 1 sec interval, supported on Ampere (except GA100) or newer architectures.
+    /// Requires power management support and an Ampere or newer GPU other than GA100.
+    /// The field scope selects the GPU (0), the module including an NVIDIA CPU such as Grace (1), or the GPU base power (2).
     pub const POWER_AVERAGE: Self = Self(sys::NVML_FI_DEV_POWER_AVERAGE);
 
     /// Current GPU power, supported on all architectures.
@@ -377,8 +323,7 @@ impl FieldId {
     /// Limit currently enforced in milliwatts (This includes other limits set elsewhere. E.g. Out-of-band).
     pub const POWER_CURRENT_LIMIT: Self = Self(sys::NVML_FI_DEV_POWER_CURRENT_LIMIT);
 
-    /// Total energy consumption (in mJ) since the driver was last reloaded.
-    /// Same as `NVML_FI_DEV_TOTAL_ENERGY_CONSUMPTION` for the GPU.
+    /// Total energy consumption in millijoules since the driver was last loaded.
     pub const ENERGY: Self = Self(sys::NVML_FI_DEV_ENERGY);
 
     /// Power limit requested by NVML or any other userspace client.
@@ -392,11 +337,9 @@ impl FieldId {
     /// Value can be wrapped.
     pub const PCIE_RX_BYTES: Self = Self(sys::NVML_FI_DEV_PCIE_COUNT_RX_BYTES);
 
-    /// `NVLink` throughput counters field values.
+    /// `NVLink` transmitted data throughput in KiB.
     ///
-    /// Link ID needs to be specified in the scopeId field in [nvmlFieldValue_t](https://docs.nvidia.com/deploy/nvml-api/latest/api/structnvmlFieldValue__t.html#structnvmlfieldvalue__t).
-    /// A scopeId of `UINT_MAX` returns aggregate value summed up across all links for the specified counter type in fieldId.
-    /// `NVLink` TX Data throughput in KiB.
+    /// The field scope selects the link, and `u32::MAX` sums all links.
     pub const NVLINK_THROUGHPUT_DATA_TX: Self = Self(sys::NVML_FI_DEV_NVLINK_THROUGHPUT_DATA_TX);
 
     /// `NVLink` RX Data throughput in KiB.
@@ -437,7 +380,7 @@ impl FieldId {
 
     /// GPU T.Limit temperature thresholds in degree Celsius.
     ///
-    /// These fields are supported on Ada and later architectures and supersedes `nvmlDeviceGetTemperatureThreshold`.
+    /// These fields require an Ada or newer GPU.
     /// T.Limit temperature after which GPU may shut down for HW protection.
     pub const TEMPERATURE_SHUTDOWN_TLIMIT: Self =
         Self(sys::NVML_FI_DEV_TEMPERATURE_SHUTDOWN_TLIMIT);
@@ -464,1462 +407,1388 @@ pub struct GpmMetricId(
 impl GpmMetricId {
     /// `NvLink` write bandwidth for link 71 in MiB/sec.
     pub const NVLINK_L71_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L71_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L71_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 71 in MiB/sec.
     pub const NVLINK_L71_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L71_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L71_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 70 in MiB/sec.
     pub const NVLINK_L70_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L70_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L70_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 70 in MiB/sec.
     pub const NVLINK_L70_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L70_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L70_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 69 in MiB/sec.
     pub const NVLINK_L69_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L69_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L69_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 69 in MiB/sec.
     pub const NVLINK_L69_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L69_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L69_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 68 in MiB/sec.
     pub const NVLINK_L68_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L68_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L68_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 68 in MiB/sec.
     pub const NVLINK_L68_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L68_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L68_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 67 in MiB/sec.
     pub const NVLINK_L67_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L67_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L67_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 67 in MiB/sec.
     pub const NVLINK_L67_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L67_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L67_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 66 in MiB/sec.
     pub const NVLINK_L66_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L66_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L66_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 66 in MiB/sec.
     pub const NVLINK_L66_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L66_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L66_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 65 in MiB/sec.
     pub const NVLINK_L65_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L65_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L65_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 65 in MiB/sec.
     pub const NVLINK_L65_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L65_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L65_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 64 in MiB/sec.
     pub const NVLINK_L64_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L64_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L64_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 64 in MiB/sec.
     pub const NVLINK_L64_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L64_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L64_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 63 in MiB/sec.
     pub const NVLINK_L63_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L63_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L63_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 63 in MiB/sec.
     pub const NVLINK_L63_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L63_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L63_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 62 in MiB/sec.
     pub const NVLINK_L62_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L62_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L62_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 62 in MiB/sec.
     pub const NVLINK_L62_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L62_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L62_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 61 in MiB/sec.
     pub const NVLINK_L61_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L61_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L61_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 61 in MiB/sec.
     pub const NVLINK_L61_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L61_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L61_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 60 in MiB/sec.
     pub const NVLINK_L60_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L60_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L60_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 60 in MiB/sec.
     pub const NVLINK_L60_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L60_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L60_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 59 in MiB/sec.
     pub const NVLINK_L59_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L59_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L59_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 59 in MiB/sec.
     pub const NVLINK_L59_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L59_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L59_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 58 in MiB/sec.
     pub const NVLINK_L58_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L58_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L58_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 58 in MiB/sec.
     pub const NVLINK_L58_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L58_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L58_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 57 in MiB/sec.
     pub const NVLINK_L57_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L57_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L57_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 57 in MiB/sec.
     pub const NVLINK_L57_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L57_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L57_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 56 in MiB/sec.
     pub const NVLINK_L56_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L56_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L56_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 56 in MiB/sec.
     pub const NVLINK_L56_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L56_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L56_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 55 in MiB/sec.
     pub const NVLINK_L55_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L55_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L55_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 55 in MiB/sec.
     pub const NVLINK_L55_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L55_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L55_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 54 in MiB/sec.
     pub const NVLINK_L54_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L54_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L54_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 54 in MiB/sec.
     pub const NVLINK_L54_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L54_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L54_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 53 in MiB/sec.
     pub const NVLINK_L53_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L53_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L53_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 53 in MiB/sec.
     pub const NVLINK_L53_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L53_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L53_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 52 in MiB/sec.
     pub const NVLINK_L52_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L52_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L52_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 52 in MiB/sec.
     pub const NVLINK_L52_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L52_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L52_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 51 in MiB/sec.
     pub const NVLINK_L51_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L51_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L51_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 51 in MiB/sec.
     pub const NVLINK_L51_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L51_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L51_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 50 in MiB/sec.
     pub const NVLINK_L50_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L50_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L50_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 50 in MiB/sec.
     pub const NVLINK_L50_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L50_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L50_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 49 in MiB/sec.
     pub const NVLINK_L49_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L49_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L49_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 49 in MiB/sec.
     pub const NVLINK_L49_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L49_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L49_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 48 in MiB/sec.
     pub const NVLINK_L48_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L48_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L48_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 48 in MiB/sec.
     pub const NVLINK_L48_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L48_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L48_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 47 in MiB/sec.
     pub const NVLINK_L47_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L47_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L47_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 47 in MiB/sec.
     pub const NVLINK_L47_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L47_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L47_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 46 in MiB/sec.
     pub const NVLINK_L46_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L46_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L46_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 46 in MiB/sec.
     pub const NVLINK_L46_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L46_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L46_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 45 in MiB/sec.
     pub const NVLINK_L45_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L45_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L45_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 45 in MiB/sec.
     pub const NVLINK_L45_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L45_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L45_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 44 in MiB/sec.
     pub const NVLINK_L44_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L44_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L44_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 44 in MiB/sec.
     pub const NVLINK_L44_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L44_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L44_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 43 in MiB/sec.
     pub const NVLINK_L43_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L43_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L43_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 43 in MiB/sec.
     pub const NVLINK_L43_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L43_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L43_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 42 in MiB/sec.
     pub const NVLINK_L42_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L42_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L42_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 42 in MiB/sec.
     pub const NVLINK_L42_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L42_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L42_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 41 in MiB/sec.
     pub const NVLINK_L41_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L41_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L41_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 41 in MiB/sec.
     pub const NVLINK_L41_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L41_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L41_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 40 in MiB/sec.
     pub const NVLINK_L40_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L40_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L40_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 40 in MiB/sec.
     pub const NVLINK_L40_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L40_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L40_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 39 in MiB/sec.
     pub const NVLINK_L39_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L39_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L39_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 39 in MiB/sec.
     pub const NVLINK_L39_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L39_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L39_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 38 in MiB/sec.
     pub const NVLINK_L38_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L38_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L38_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 38 in MiB/sec.
     pub const NVLINK_L38_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L38_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L38_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 37 in MiB/sec.
     pub const NVLINK_L37_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L37_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L37_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 37 in MiB/sec.
     pub const NVLINK_L37_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L37_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L37_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 36 in MiB/sec.
     pub const NVLINK_L36_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L36_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L36_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 36 in MiB/sec.
     pub const NVLINK_L36_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L36_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L36_RX_PER_SEC.0);
 
     /// `NvLink` write for link 71 in bytes since reboot.
-    pub const NVLINK_L71_TX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L71_TX as _);
+    pub const NVLINK_L71_TX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L71_TX.0);
 
     /// `NvLink` read for link 71 in bytes since reboot.
-    pub const NVLINK_L71_RX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L71_RX as _);
+    pub const NVLINK_L71_RX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L71_RX.0);
 
     /// `NvLink` write for link 70 in bytes since reboot.
-    pub const NVLINK_L70_TX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L70_TX as _);
+    pub const NVLINK_L70_TX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L70_TX.0);
 
     /// `NvLink` read for link 70 in bytes since reboot.
-    pub const NVLINK_L70_RX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L70_RX as _);
+    pub const NVLINK_L70_RX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L70_RX.0);
 
     /// `NvLink` write for link 69 in bytes since reboot.
-    pub const NVLINK_L69_TX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L69_TX as _);
+    pub const NVLINK_L69_TX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L69_TX.0);
 
     /// `NvLink` read for link 69 in bytes since reboot.
-    pub const NVLINK_L69_RX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L69_RX as _);
+    pub const NVLINK_L69_RX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L69_RX.0);
 
     /// `NvLink` write for link 68 in bytes since reboot.
-    pub const NVLINK_L68_TX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L68_TX as _);
+    pub const NVLINK_L68_TX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L68_TX.0);
 
     /// `NvLink` read for link 68 in bytes since reboot.
-    pub const NVLINK_L68_RX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L68_RX as _);
+    pub const NVLINK_L68_RX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L68_RX.0);
 
     /// `NvLink` write for link 67 in bytes since reboot.
-    pub const NVLINK_L67_TX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L67_TX as _);
+    pub const NVLINK_L67_TX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L67_TX.0);
 
     /// `NvLink` read for link 67 in bytes since reboot.
-    pub const NVLINK_L67_RX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L67_RX as _);
+    pub const NVLINK_L67_RX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L67_RX.0);
 
     /// `NvLink` write for link 66 in bytes since reboot.
-    pub const NVLINK_L66_TX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L66_TX as _);
+    pub const NVLINK_L66_TX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L66_TX.0);
 
     /// `NvLink` read for link 66 in bytes since reboot.
-    pub const NVLINK_L66_RX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L66_RX as _);
+    pub const NVLINK_L66_RX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L66_RX.0);
 
     /// `NvLink` write for link 65 in bytes since reboot.
-    pub const NVLINK_L65_TX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L65_TX as _);
+    pub const NVLINK_L65_TX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L65_TX.0);
 
     /// `NvLink` read for link 65 in bytes since reboot.
-    pub const NVLINK_L65_RX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L65_RX as _);
+    pub const NVLINK_L65_RX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L65_RX.0);
 
     /// `NvLink` write for link 64 in bytes since reboot.
-    pub const NVLINK_L64_TX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L64_TX as _);
+    pub const NVLINK_L64_TX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L64_TX.0);
 
     /// `NvLink` read for link 64 in bytes since reboot.
-    pub const NVLINK_L64_RX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L64_RX as _);
+    pub const NVLINK_L64_RX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L64_RX.0);
 
     /// `NvLink` write for link 63 in bytes since reboot.
-    pub const NVLINK_L63_TX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L63_TX as _);
+    pub const NVLINK_L63_TX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L63_TX.0);
 
     /// `NvLink` read for link 63 in bytes since reboot.
-    pub const NVLINK_L63_RX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L63_RX as _);
+    pub const NVLINK_L63_RX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L63_RX.0);
 
     /// `NvLink` write for link 62 in bytes since reboot.
-    pub const NVLINK_L62_TX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L62_TX as _);
+    pub const NVLINK_L62_TX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L62_TX.0);
 
     /// `NvLink` read for link 62 in bytes since reboot.
-    pub const NVLINK_L62_RX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L62_RX as _);
+    pub const NVLINK_L62_RX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L62_RX.0);
 
     /// `NvLink` write for link 61 in bytes since reboot.
-    pub const NVLINK_L61_TX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L61_TX as _);
+    pub const NVLINK_L61_TX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L61_TX.0);
 
     /// `NvLink` read for link 61 in bytes since reboot.
-    pub const NVLINK_L61_RX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L61_RX as _);
+    pub const NVLINK_L61_RX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L61_RX.0);
 
     /// `NvLink` write for link 60 in bytes since reboot.
-    pub const NVLINK_L60_TX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L60_TX as _);
+    pub const NVLINK_L60_TX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L60_TX.0);
 
     /// `NvLink` read for link 60 in bytes since reboot.
-    pub const NVLINK_L60_RX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L60_RX as _);
+    pub const NVLINK_L60_RX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L60_RX.0);
 
     /// `NvLink` write for link 59 in bytes since reboot.
-    pub const NVLINK_L59_TX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L59_TX as _);
+    pub const NVLINK_L59_TX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L59_TX.0);
 
     /// `NvLink` read for link 59 in bytes since reboot.
-    pub const NVLINK_L59_RX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L59_RX as _);
+    pub const NVLINK_L59_RX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L59_RX.0);
 
     /// `NvLink` write for link 58 in bytes since reboot.
-    pub const NVLINK_L58_TX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L58_TX as _);
+    pub const NVLINK_L58_TX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L58_TX.0);
 
     /// `NvLink` read for link 58 in bytes since reboot.
-    pub const NVLINK_L58_RX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L58_RX as _);
+    pub const NVLINK_L58_RX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L58_RX.0);
 
     /// `NvLink` write for link 57 in bytes since reboot.
-    pub const NVLINK_L57_TX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L57_TX as _);
+    pub const NVLINK_L57_TX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L57_TX.0);
 
     /// `NvLink` read for link 57 in bytes since reboot.
-    pub const NVLINK_L57_RX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L57_RX as _);
+    pub const NVLINK_L57_RX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L57_RX.0);
 
     /// `NvLink` write for link 56 in bytes since reboot.
-    pub const NVLINK_L56_TX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L56_TX as _);
+    pub const NVLINK_L56_TX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L56_TX.0);
 
     /// `NvLink` read for link 56 in bytes since reboot.
-    pub const NVLINK_L56_RX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L56_RX as _);
+    pub const NVLINK_L56_RX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L56_RX.0);
 
     /// `NvLink` write for link 55 in bytes since reboot.
-    pub const NVLINK_L55_TX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L55_TX as _);
+    pub const NVLINK_L55_TX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L55_TX.0);
 
     /// `NvLink` read for link 55 in bytes since reboot.
-    pub const NVLINK_L55_RX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L55_RX as _);
+    pub const NVLINK_L55_RX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L55_RX.0);
 
     /// `NvLink` write for link 54 in bytes since reboot.
-    pub const NVLINK_L54_TX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L54_TX as _);
+    pub const NVLINK_L54_TX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L54_TX.0);
 
     /// `NvLink` read for link 54 in bytes since reboot.
-    pub const NVLINK_L54_RX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L54_RX as _);
+    pub const NVLINK_L54_RX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L54_RX.0);
 
     /// `NvLink` write for link 53 in bytes since reboot.
-    pub const NVLINK_L53_TX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L53_TX as _);
+    pub const NVLINK_L53_TX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L53_TX.0);
 
     /// `NvLink` read for link 53 in bytes since reboot.
-    pub const NVLINK_L53_RX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L53_RX as _);
+    pub const NVLINK_L53_RX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L53_RX.0);
 
     /// `NvLink` write for link 52 in bytes since reboot.
-    pub const NVLINK_L52_TX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L52_TX as _);
+    pub const NVLINK_L52_TX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L52_TX.0);
 
     /// `NvLink` read for link 52 in bytes since reboot.
-    pub const NVLINK_L52_RX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L52_RX as _);
+    pub const NVLINK_L52_RX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L52_RX.0);
 
     /// `NvLink` write for link 51 in bytes since reboot.
-    pub const NVLINK_L51_TX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L51_TX as _);
+    pub const NVLINK_L51_TX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L51_TX.0);
 
     /// `NvLink` read for link 51 in bytes since reboot.
-    pub const NVLINK_L51_RX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L51_RX as _);
+    pub const NVLINK_L51_RX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L51_RX.0);
 
     /// `NvLink` write for link 50 in bytes since reboot.
-    pub const NVLINK_L50_TX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L50_TX as _);
+    pub const NVLINK_L50_TX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L50_TX.0);
 
     /// `NvLink` read for link 50 in bytes since reboot.
-    pub const NVLINK_L50_RX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L50_RX as _);
+    pub const NVLINK_L50_RX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L50_RX.0);
 
     /// `NvLink` write for link 49 in bytes since reboot.
-    pub const NVLINK_L49_TX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L49_TX as _);
+    pub const NVLINK_L49_TX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L49_TX.0);
 
     /// `NvLink` read for link 49 in bytes since reboot.
-    pub const NVLINK_L49_RX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L49_RX as _);
+    pub const NVLINK_L49_RX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L49_RX.0);
 
     /// `NvLink` write for link 48 in bytes since reboot.
-    pub const NVLINK_L48_TX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L48_TX as _);
+    pub const NVLINK_L48_TX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L48_TX.0);
 
     /// `NvLink` read for link 48 in bytes since reboot.
-    pub const NVLINK_L48_RX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L48_RX as _);
+    pub const NVLINK_L48_RX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L48_RX.0);
 
     /// `NvLink` write for link 47 in bytes since reboot.
-    pub const NVLINK_L47_TX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L47_TX as _);
+    pub const NVLINK_L47_TX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L47_TX.0);
 
     /// `NvLink` read for link 47 in bytes since reboot.
-    pub const NVLINK_L47_RX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L47_RX as _);
+    pub const NVLINK_L47_RX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L47_RX.0);
 
     /// `NvLink` write for link 46 in bytes since reboot.
-    pub const NVLINK_L46_TX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L46_TX as _);
+    pub const NVLINK_L46_TX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L46_TX.0);
 
     /// `NvLink` read for link 46 in bytes since reboot.
-    pub const NVLINK_L46_RX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L46_RX as _);
+    pub const NVLINK_L46_RX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L46_RX.0);
 
     /// `NvLink` write for link 45 in bytes since reboot.
-    pub const NVLINK_L45_TX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L45_TX as _);
+    pub const NVLINK_L45_TX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L45_TX.0);
 
     /// `NvLink` read for link 45 in bytes since reboot.
-    pub const NVLINK_L45_RX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L45_RX as _);
+    pub const NVLINK_L45_RX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L45_RX.0);
 
     /// `NvLink` write for link 44 in bytes since reboot.
-    pub const NVLINK_L44_TX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L44_TX as _);
+    pub const NVLINK_L44_TX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L44_TX.0);
 
     /// `NvLink` read for link 44 in bytes since reboot.
-    pub const NVLINK_L44_RX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L44_RX as _);
+    pub const NVLINK_L44_RX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L44_RX.0);
 
     /// `NvLink` write for link 43 in bytes since reboot.
-    pub const NVLINK_L43_TX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L43_TX as _);
+    pub const NVLINK_L43_TX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L43_TX.0);
 
     /// `NvLink` read for link 43 in bytes since reboot.
-    pub const NVLINK_L43_RX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L43_RX as _);
+    pub const NVLINK_L43_RX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L43_RX.0);
 
     /// `NvLink` write for link 42 in bytes since reboot.
-    pub const NVLINK_L42_TX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L42_TX as _);
+    pub const NVLINK_L42_TX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L42_TX.0);
 
     /// `NvLink` read for link 42 in bytes since reboot.
-    pub const NVLINK_L42_RX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L42_RX as _);
+    pub const NVLINK_L42_RX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L42_RX.0);
 
     /// `NvLink` write for link 41 in bytes since reboot.
-    pub const NVLINK_L41_TX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L41_TX as _);
+    pub const NVLINK_L41_TX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L41_TX.0);
 
     /// `NvLink` read for link 41 in bytes since reboot.
-    pub const NVLINK_L41_RX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L41_RX as _);
+    pub const NVLINK_L41_RX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L41_RX.0);
 
     /// `NvLink` write for link 40 in bytes since reboot.
-    pub const NVLINK_L40_TX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L40_TX as _);
+    pub const NVLINK_L40_TX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L40_TX.0);
 
     /// `NvLink` read for link 40 in bytes since reboot.
-    pub const NVLINK_L40_RX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L40_RX as _);
+    pub const NVLINK_L40_RX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L40_RX.0);
 
     /// `NvLink` write for link 39 in bytes since reboot.
-    pub const NVLINK_L39_TX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L39_TX as _);
+    pub const NVLINK_L39_TX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L39_TX.0);
 
     /// `NvLink` read for link 39 in bytes since reboot.
-    pub const NVLINK_L39_RX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L39_RX as _);
+    pub const NVLINK_L39_RX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L39_RX.0);
 
     /// `NvLink` write for link 38 in bytes since reboot.
-    pub const NVLINK_L38_TX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L38_TX as _);
+    pub const NVLINK_L38_TX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L38_TX.0);
 
     /// `NvLink` read for link 38 in bytes since reboot.
-    pub const NVLINK_L38_RX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L38_RX as _);
+    pub const NVLINK_L38_RX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L38_RX.0);
 
     /// `NvLink` write for link 37 in bytes since reboot.
-    pub const NVLINK_L37_TX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L37_TX as _);
+    pub const NVLINK_L37_TX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L37_TX.0);
 
     /// `NvLink` read for link 37 in bytes since reboot.
-    pub const NVLINK_L37_RX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L37_RX as _);
+    pub const NVLINK_L37_RX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L37_RX.0);
 
     /// `NvLink` write for link 36 in bytes since reboot.
-    pub const NVLINK_L36_TX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L36_TX as _);
+    pub const NVLINK_L36_TX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L36_TX.0);
 
     /// `NvLink` read for link 36 in bytes since reboot.
-    pub const NVLINK_L36_RX: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L36_RX as _);
+    pub const NVLINK_L36_RX: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L36_RX.0);
 
     /// The GPU's SM FP16 activity since reboot.
     pub const FP16_CYCLES_ACTIVE: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_FP16_CYCLES_ACTIVE as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_FP16_CYCLES_ACTIVE.0);
 
     /// The GPU's SM FP32 activity since reboot.
     pub const FP32_CYCLES_ACTIVE: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_FP32_CYCLES_ACTIVE as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_FP32_CYCLES_ACTIVE.0);
 
     /// The GPU's SM FP64 activity since reboot.
     pub const FP64_CYCLES_ACTIVE: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_FP64_CYCLES_ACTIVE as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_FP64_CYCLES_ACTIVE.0);
 
     /// The GPU's SM integer activity since reboot.
     pub const INTEGER_CYCLES_ACTIVE: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_INTEGER_CYCLES_ACTIVE as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_INTEGER_CYCLES_ACTIVE.0);
 
     /// The GPU's SM DFMA tensor activity since reboot.
     pub const DFMA_CYCLES_ACTIVE: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_DFMA_CYCLES_ACTIVE as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_DFMA_CYCLES_ACTIVE.0);
 
     /// The GPU's SM IMMA tensor activity since reboot.
     pub const IMMA_CYCLES_ACTIVE: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_IMMA_CYCLES_ACTIVE as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_IMMA_CYCLES_ACTIVE.0);
 
     /// The GPU's SM HMMA tensor activity since reboot.
     pub const HMMA_CYCLES_ACTIVE: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_HMMA_CYCLES_ACTIVE as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_HMMA_CYCLES_ACTIVE.0);
 
     /// The GPU's SM DMMA tensor activity since reboot.
     pub const DMMA_CYCLES_ACTIVE: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_DMMA_CYCLES_ACTIVE as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_DMMA_CYCLES_ACTIVE.0);
 
     /// The GPU's SM MMA tensor activity since reboot.
     pub const MMA_CYCLES_ACTIVE: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_MMA_CYCLES_ACTIVE as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_MMA_CYCLES_ACTIVE.0);
 
     /// The GPU's SM activity since reboot.
     pub const SM_CYCLES_ACTIVE: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_SM_CYCLES_ACTIVE as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_SM_CYCLES_ACTIVE.0);
 
     /// The GPU's SM cycles elapsed since reboot.
     pub const SM_CYCLES_ELAPSED: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_SM_CYCLES_ELAPSED as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_SM_CYCLES_ELAPSED.0);
 
     /// `NvLink` write bandwidth for link 35 in MiB/sec.
     pub const NVLINK_L35_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L35_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L35_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 35 in MiB/sec.
     pub const NVLINK_L35_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L35_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L35_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 34 in MiB/sec.
     pub const NVLINK_L34_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L34_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L34_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 34 in MiB/sec.
     pub const NVLINK_L34_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L34_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L34_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 33 in MiB/sec.
     pub const NVLINK_L33_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L33_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L33_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 33 in MiB/sec.
     pub const NVLINK_L33_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L33_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L33_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 32 in MiB/sec.
     pub const NVLINK_L32_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L32_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L32_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 32 in MiB/sec.
     pub const NVLINK_L32_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L32_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L32_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 31 in MiB/sec.
     pub const NVLINK_L31_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L31_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L31_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 31 in MiB/sec.
     pub const NVLINK_L31_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L31_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L31_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 30 in MiB/sec.
     pub const NVLINK_L30_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L30_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L30_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 30 in MiB/sec.
     pub const NVLINK_L30_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L30_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L30_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 29 in MiB/sec.
     pub const NVLINK_L29_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L29_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L29_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 29 in MiB/sec.
     pub const NVLINK_L29_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L29_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L29_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 28 in MiB/sec.
     pub const NVLINK_L28_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L28_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L28_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 28 in MiB/sec.
     pub const NVLINK_L28_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L28_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L28_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 27 in MiB/sec.
     pub const NVLINK_L27_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L27_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L27_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 27 in MiB/sec.
     pub const NVLINK_L27_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L27_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L27_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 26 in MiB/sec.
     pub const NVLINK_L26_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L26_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L26_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 26 in MiB/sec.
     pub const NVLINK_L26_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L26_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L26_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 25 in MiB/sec.
     pub const NVLINK_L25_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L25_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L25_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 25 in MiB/sec.
     pub const NVLINK_L25_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L25_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L25_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 24 in MiB/sec.
     pub const NVLINK_L24_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L24_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L24_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 24 in MiB/sec.
     pub const NVLINK_L24_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L24_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L24_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 23 in MiB/sec.
     pub const NVLINK_L23_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L23_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L23_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 23 in MiB/sec.
     pub const NVLINK_L23_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L23_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L23_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 22 in MiB/sec.
     pub const NVLINK_L22_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L22_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L22_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 22 in MiB/sec.
     pub const NVLINK_L22_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L22_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L22_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 21 in MiB/sec.
     pub const NVLINK_L21_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L21_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L21_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 21 in MiB/sec.
     pub const NVLINK_L21_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L21_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L21_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 20 in MiB/sec.
     pub const NVLINK_L20_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L20_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L20_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 20 in MiB/sec.
     pub const NVLINK_L20_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L20_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L20_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 19 in MiB/sec.
     pub const NVLINK_L19_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L19_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L19_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 19 in MiB/sec.
     pub const NVLINK_L19_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L19_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L19_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 18 in MiB/sec.
     pub const NVLINK_L18_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L18_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L18_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 18 in MiB/sec.
     pub const NVLINK_L18_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L18_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L18_RX_PER_SEC.0);
 
     /// Percentage of time GR engine 7 context switches were active. 0.0 - 100.0.
     pub const GR7_CTXSW_ACTIVE_PCT: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR7_CTXSW_ACTIVE_PCT as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR7_CTXSW_ACTIVE_PCT.0);
 
     /// Average context switch cycles per request for GR engine 7.
     pub const GR7_CTXSW_CYCLES_PER_REQ: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR7_CTXSW_CYCLES_PER_REQ as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR7_CTXSW_CYCLES_PER_REQ.0);
 
     /// Number of context switch requests for GR engine 7.
     pub const GR7_CTXSW_REQUESTS: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR7_CTXSW_REQUESTS as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR7_CTXSW_REQUESTS.0);
 
     /// Active context switch cycles for GR engine 7.
     pub const GR7_CTXSW_CYCLES_ACTIVE: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR7_CTXSW_CYCLES_ACTIVE as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR7_CTXSW_CYCLES_ACTIVE.0);
 
     /// Total context switch cycles elapsed for GR engine 7.
     pub const GR7_CTXSW_CYCLES_ELAPSED: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR7_CTXSW_CYCLES_ELAPSED as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR7_CTXSW_CYCLES_ELAPSED.0);
 
     /// Percentage of time GR engine 6 context switches were active. 0.0 - 100.0.
     pub const GR6_CTXSW_ACTIVE_PCT: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR6_CTXSW_ACTIVE_PCT as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR6_CTXSW_ACTIVE_PCT.0);
 
     /// Average context switch cycles per request for GR engine 6.
     pub const GR6_CTXSW_CYCLES_PER_REQ: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR6_CTXSW_CYCLES_PER_REQ as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR6_CTXSW_CYCLES_PER_REQ.0);
 
     /// Number of context switch requests for GR engine 6.
     pub const GR6_CTXSW_REQUESTS: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR6_CTXSW_REQUESTS as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR6_CTXSW_REQUESTS.0);
 
     /// Active context switch cycles for GR engine 6.
     pub const GR6_CTXSW_CYCLES_ACTIVE: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR6_CTXSW_CYCLES_ACTIVE as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR6_CTXSW_CYCLES_ACTIVE.0);
 
     /// Total context switch cycles elapsed for GR engine 6.
     pub const GR6_CTXSW_CYCLES_ELAPSED: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR6_CTXSW_CYCLES_ELAPSED as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR6_CTXSW_CYCLES_ELAPSED.0);
 
     /// Percentage of time GR engine 5 context switches were active. 0.0 - 100.0.
     pub const GR5_CTXSW_ACTIVE_PCT: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR5_CTXSW_ACTIVE_PCT as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR5_CTXSW_ACTIVE_PCT.0);
 
     /// Average context switch cycles per request for GR engine 5.
     pub const GR5_CTXSW_CYCLES_PER_REQ: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR5_CTXSW_CYCLES_PER_REQ as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR5_CTXSW_CYCLES_PER_REQ.0);
 
     /// Number of context switch requests for GR engine 5.
     pub const GR5_CTXSW_REQUESTS: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR5_CTXSW_REQUESTS as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR5_CTXSW_REQUESTS.0);
 
     /// Active context switch cycles for GR engine 5.
     pub const GR5_CTXSW_CYCLES_ACTIVE: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR5_CTXSW_CYCLES_ACTIVE as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR5_CTXSW_CYCLES_ACTIVE.0);
 
     /// Total context switch cycles elapsed for GR engine 5.
     pub const GR5_CTXSW_CYCLES_ELAPSED: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR5_CTXSW_CYCLES_ELAPSED as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR5_CTXSW_CYCLES_ELAPSED.0);
 
     /// Percentage of time GR engine 4 context switches were active. 0.0 - 100.0.
     pub const GR4_CTXSW_ACTIVE_PCT: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR4_CTXSW_ACTIVE_PCT as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR4_CTXSW_ACTIVE_PCT.0);
 
     /// Average context switch cycles per request for GR engine 4.
     pub const GR4_CTXSW_CYCLES_PER_REQ: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR4_CTXSW_CYCLES_PER_REQ as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR4_CTXSW_CYCLES_PER_REQ.0);
 
     /// Number of context switch requests for GR engine 4.
     pub const GR4_CTXSW_REQUESTS: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR4_CTXSW_REQUESTS as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR4_CTXSW_REQUESTS.0);
 
     /// Active context switch cycles for GR engine 4.
     pub const GR4_CTXSW_CYCLES_ACTIVE: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR4_CTXSW_CYCLES_ACTIVE as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR4_CTXSW_CYCLES_ACTIVE.0);
 
     /// Total context switch cycles elapsed for GR engine 4.
     pub const GR4_CTXSW_CYCLES_ELAPSED: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR4_CTXSW_CYCLES_ELAPSED as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR4_CTXSW_CYCLES_ELAPSED.0);
 
     /// Percentage of time GR engine 3 context switches were active. 0.0 - 100.0.
     pub const GR3_CTXSW_ACTIVE_PCT: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR3_CTXSW_ACTIVE_PCT as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR3_CTXSW_ACTIVE_PCT.0);
 
     /// Average context switch cycles per request for GR engine 3.
     pub const GR3_CTXSW_CYCLES_PER_REQ: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR3_CTXSW_CYCLES_PER_REQ as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR3_CTXSW_CYCLES_PER_REQ.0);
 
     /// Number of context switch requests for GR engine 3.
     pub const GR3_CTXSW_REQUESTS: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR3_CTXSW_REQUESTS as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR3_CTXSW_REQUESTS.0);
 
     /// Active context switch cycles for GR engine 3.
     pub const GR3_CTXSW_CYCLES_ACTIVE: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR3_CTXSW_CYCLES_ACTIVE as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR3_CTXSW_CYCLES_ACTIVE.0);
 
     /// Total context switch cycles elapsed for GR engine 3.
     pub const GR3_CTXSW_CYCLES_ELAPSED: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR3_CTXSW_CYCLES_ELAPSED as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR3_CTXSW_CYCLES_ELAPSED.0);
 
     /// Percentage of time GR engine 2 context switches were active. 0.0 - 100.0.
     pub const GR2_CTXSW_ACTIVE_PCT: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR2_CTXSW_ACTIVE_PCT as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR2_CTXSW_ACTIVE_PCT.0);
 
     /// Average context switch cycles per request for GR engine 2.
     pub const GR2_CTXSW_CYCLES_PER_REQ: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR2_CTXSW_CYCLES_PER_REQ as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR2_CTXSW_CYCLES_PER_REQ.0);
 
     /// Number of context switch requests for GR engine 2.
     pub const GR2_CTXSW_REQUESTS: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR2_CTXSW_REQUESTS as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR2_CTXSW_REQUESTS.0);
 
     /// Active context switch cycles for GR engine 2.
     pub const GR2_CTXSW_CYCLES_ACTIVE: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR2_CTXSW_CYCLES_ACTIVE as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR2_CTXSW_CYCLES_ACTIVE.0);
 
     /// Total context switch cycles elapsed for GR engine 2.
     pub const GR2_CTXSW_CYCLES_ELAPSED: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR2_CTXSW_CYCLES_ELAPSED as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR2_CTXSW_CYCLES_ELAPSED.0);
 
     /// Percentage of time GR engine 1 context switches were active. 0.0 - 100.0.
     pub const GR1_CTXSW_ACTIVE_PCT: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR1_CTXSW_ACTIVE_PCT as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR1_CTXSW_ACTIVE_PCT.0);
 
     /// Average context switch cycles per request for GR engine 1.
     pub const GR1_CTXSW_CYCLES_PER_REQ: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR1_CTXSW_CYCLES_PER_REQ as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR1_CTXSW_CYCLES_PER_REQ.0);
 
     /// Number of context switch requests for GR engine 1.
     pub const GR1_CTXSW_REQUESTS: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR1_CTXSW_REQUESTS as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR1_CTXSW_REQUESTS.0);
 
     /// Active context switch cycles for GR engine 1.
     pub const GR1_CTXSW_CYCLES_ACTIVE: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR1_CTXSW_CYCLES_ACTIVE as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR1_CTXSW_CYCLES_ACTIVE.0);
 
     /// Total context switch cycles elapsed for GR engine 1.
     pub const GR1_CTXSW_CYCLES_ELAPSED: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR1_CTXSW_CYCLES_ELAPSED as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR1_CTXSW_CYCLES_ELAPSED.0);
 
     /// Percentage of time GR engine 0 context switches were active. 0.0 - 100.0.
     pub const GR0_CTXSW_ACTIVE_PCT: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR0_CTXSW_ACTIVE_PCT as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR0_CTXSW_ACTIVE_PCT.0);
 
     /// Average context switch cycles per request for GR engine 0.
     pub const GR0_CTXSW_CYCLES_PER_REQ: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR0_CTXSW_CYCLES_PER_REQ as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR0_CTXSW_CYCLES_PER_REQ.0);
 
     /// Number of context switch requests for GR engine 0.
     pub const GR0_CTXSW_REQUESTS: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR0_CTXSW_REQUESTS as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR0_CTXSW_REQUESTS.0);
 
     /// Active context switch cycles for GR engine 0.
     pub const GR0_CTXSW_CYCLES_ACTIVE: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR0_CTXSW_CYCLES_ACTIVE as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR0_CTXSW_CYCLES_ACTIVE.0);
 
     /// Total context switch cycles elapsed for GR engine 0.
     pub const GR0_CTXSW_CYCLES_ELAPSED: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR0_CTXSW_CYCLES_ELAPSED as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GR0_CTXSW_CYCLES_ELAPSED.0);
 
     /// Percent utilization of NVENC 3. 0.0 - 100.0.
-    pub const NVENC_3_UTIL: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVENC_3_UTIL as _);
+    pub const NVENC_3_UTIL: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVENC_3_UTIL.0);
 
     /// Percent utilization of NVENC 2. 0.0 - 100.0.
-    pub const NVENC_2_UTIL: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVENC_2_UTIL as _);
+    pub const NVENC_2_UTIL: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVENC_2_UTIL.0);
 
     /// Percent utilization of NVENC 1. 0.0 - 100.0.
-    pub const NVENC_1_UTIL: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVENC_1_UTIL as _);
+    pub const NVENC_1_UTIL: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVENC_1_UTIL.0);
 
     /// Percent utilization of NVENC 0. 0.0 - 100.0.
-    pub const NVENC_0_UTIL: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVENC_0_UTIL as _);
+    pub const NVENC_0_UTIL: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVENC_0_UTIL.0);
 
     /// Percentage of DRAM cache misses. 0.0 - 100.0.
     pub const DRAM_CACHE_MISS: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_DRAM_CACHE_MISS as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_DRAM_CACHE_MISS.0);
 
     /// Percentage of DRAM cache hits. 0.0 - 100.0.
-    pub const DRAM_CACHE_HIT: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_DRAM_CACHE_HIT as _);
+    pub const DRAM_CACHE_HIT: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_DRAM_CACHE_HIT.0);
 
     /// Percentage of peer memory cache misses. 0.0 - 100.0.
     pub const PEERMEM_CACHE_MISS: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_PEERMEM_CACHE_MISS as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_PEERMEM_CACHE_MISS.0);
 
     /// Percentage of peer memory cache hits. 0.0 - 100.0.
     pub const PEERMEM_CACHE_HIT: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_PEERMEM_CACHE_HIT as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_PEERMEM_CACHE_HIT.0);
 
     /// Percentage of host memory cache misses. 0.0 - 100.0.
     pub const HOSTMEM_CACHE_MISS: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_HOSTMEM_CACHE_MISS as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_HOSTMEM_CACHE_MISS.0);
 
     /// Percentage of host memory cache hits. 0.0 - 100.0.
     pub const HOSTMEM_CACHE_HIT: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_HOSTMEM_CACHE_HIT as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_HOSTMEM_CACHE_HIT.0);
 
     /// C2C link 13 data receive bandwidth in MiB/sec.
     pub const C2C_LINK13_DATA_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK13_DATA_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK13_DATA_RX_PER_SEC.0);
 
     /// C2C link 13 data transmit bandwidth in MiB/sec.
     pub const C2C_LINK13_DATA_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK13_DATA_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK13_DATA_TX_PER_SEC.0);
 
     /// C2C link 13 total receive bandwidth in MiB/sec.
     pub const C2C_LINK13_TOTAL_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK13_TOTAL_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK13_TOTAL_RX_PER_SEC.0);
 
     /// C2C link 13 total transmit bandwidth in MiB/sec.
     pub const C2C_LINK13_TOTAL_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK13_TOTAL_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK13_TOTAL_TX_PER_SEC.0);
 
     /// C2C link 12 data receive bandwidth in MiB/sec.
     pub const C2C_LINK12_DATA_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK12_DATA_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK12_DATA_RX_PER_SEC.0);
 
     /// C2C link 12 data transmit bandwidth in MiB/sec.
     pub const C2C_LINK12_DATA_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK12_DATA_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK12_DATA_TX_PER_SEC.0);
 
     /// C2C link 12 total receive bandwidth in MiB/sec.
     pub const C2C_LINK12_TOTAL_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK12_TOTAL_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK12_TOTAL_RX_PER_SEC.0);
 
     /// C2C link 12 total transmit bandwidth in MiB/sec.
     pub const C2C_LINK12_TOTAL_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK12_TOTAL_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK12_TOTAL_TX_PER_SEC.0);
 
     /// C2C link 11 data receive bandwidth in MiB/sec.
     pub const C2C_LINK11_DATA_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK11_DATA_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK11_DATA_RX_PER_SEC.0);
 
     /// C2C link 11 data transmit bandwidth in MiB/sec.
     pub const C2C_LINK11_DATA_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK11_DATA_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK11_DATA_TX_PER_SEC.0);
 
     /// C2C link 11 total receive bandwidth in MiB/sec.
     pub const C2C_LINK11_TOTAL_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK11_TOTAL_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK11_TOTAL_RX_PER_SEC.0);
 
     /// C2C link 11 total transmit bandwidth in MiB/sec.
     pub const C2C_LINK11_TOTAL_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK11_TOTAL_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK11_TOTAL_TX_PER_SEC.0);
 
     /// C2C link 10 data receive bandwidth in MiB/sec.
     pub const C2C_LINK10_DATA_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK10_DATA_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK10_DATA_RX_PER_SEC.0);
 
     /// C2C link 10 data transmit bandwidth in MiB/sec.
     pub const C2C_LINK10_DATA_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK10_DATA_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK10_DATA_TX_PER_SEC.0);
 
     /// C2C link 10 total receive bandwidth in MiB/sec.
     pub const C2C_LINK10_TOTAL_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK10_TOTAL_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK10_TOTAL_RX_PER_SEC.0);
 
     /// C2C link 10 total transmit bandwidth in MiB/sec.
     pub const C2C_LINK10_TOTAL_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK10_TOTAL_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK10_TOTAL_TX_PER_SEC.0);
 
     /// C2C link 9 data receive bandwidth in MiB/sec.
     pub const C2C_LINK9_DATA_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK9_DATA_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK9_DATA_RX_PER_SEC.0);
 
     /// C2C link 9 data transmit bandwidth in MiB/sec.
     pub const C2C_LINK9_DATA_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK9_DATA_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK9_DATA_TX_PER_SEC.0);
 
     /// C2C link 9 total receive bandwidth in MiB/sec.
     pub const C2C_LINK9_TOTAL_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK9_TOTAL_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK9_TOTAL_RX_PER_SEC.0);
 
     /// C2C link 9 total transmit bandwidth in MiB/sec.
     pub const C2C_LINK9_TOTAL_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK9_TOTAL_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK9_TOTAL_TX_PER_SEC.0);
 
     /// C2C link 8 data receive bandwidth in MiB/sec.
     pub const C2C_LINK8_DATA_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK8_DATA_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK8_DATA_RX_PER_SEC.0);
 
     /// C2C link 8 data transmit bandwidth in MiB/sec.
     pub const C2C_LINK8_DATA_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK8_DATA_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK8_DATA_TX_PER_SEC.0);
 
     /// C2C link 8 total receive bandwidth in MiB/sec.
     pub const C2C_LINK8_TOTAL_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK8_TOTAL_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK8_TOTAL_RX_PER_SEC.0);
 
     /// C2C link 8 total transmit bandwidth in MiB/sec.
     pub const C2C_LINK8_TOTAL_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK8_TOTAL_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK8_TOTAL_TX_PER_SEC.0);
 
     /// C2C link 7 data receive bandwidth in MiB/sec.
     pub const C2C_LINK7_DATA_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK7_DATA_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK7_DATA_RX_PER_SEC.0);
 
     /// C2C link 7 data transmit bandwidth in MiB/sec.
     pub const C2C_LINK7_DATA_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK7_DATA_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK7_DATA_TX_PER_SEC.0);
 
     /// C2C link 7 total receive bandwidth in MiB/sec.
     pub const C2C_LINK7_TOTAL_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK7_TOTAL_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK7_TOTAL_RX_PER_SEC.0);
 
     /// C2C link 7 total transmit bandwidth in MiB/sec.
     pub const C2C_LINK7_TOTAL_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK7_TOTAL_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK7_TOTAL_TX_PER_SEC.0);
 
     /// C2C link 6 data receive bandwidth in MiB/sec.
     pub const C2C_LINK6_DATA_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK6_DATA_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK6_DATA_RX_PER_SEC.0);
 
     /// C2C link 6 data transmit bandwidth in MiB/sec.
     pub const C2C_LINK6_DATA_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK6_DATA_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK6_DATA_TX_PER_SEC.0);
 
     /// C2C link 6 total receive bandwidth in MiB/sec.
     pub const C2C_LINK6_TOTAL_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK6_TOTAL_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK6_TOTAL_RX_PER_SEC.0);
 
     /// C2C link 6 total transmit bandwidth in MiB/sec.
     pub const C2C_LINK6_TOTAL_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK6_TOTAL_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK6_TOTAL_TX_PER_SEC.0);
 
     /// C2C link 5 data receive bandwidth in MiB/sec.
     pub const C2C_LINK5_DATA_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK5_DATA_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK5_DATA_RX_PER_SEC.0);
 
     /// C2C link 5 data transmit bandwidth in MiB/sec.
     pub const C2C_LINK5_DATA_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK5_DATA_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK5_DATA_TX_PER_SEC.0);
 
     /// C2C link 5 total receive bandwidth in MiB/sec.
     pub const C2C_LINK5_TOTAL_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK5_TOTAL_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK5_TOTAL_RX_PER_SEC.0);
 
     /// C2C link 5 total transmit bandwidth in MiB/sec.
     pub const C2C_LINK5_TOTAL_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK5_TOTAL_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK5_TOTAL_TX_PER_SEC.0);
 
     /// C2C link 4 data receive bandwidth in MiB/sec.
     pub const C2C_LINK4_DATA_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK4_DATA_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK4_DATA_RX_PER_SEC.0);
 
     /// C2C link 4 data transmit bandwidth in MiB/sec.
     pub const C2C_LINK4_DATA_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK4_DATA_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK4_DATA_TX_PER_SEC.0);
 
     /// C2C link 4 total receive bandwidth in MiB/sec.
     pub const C2C_LINK4_TOTAL_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK4_TOTAL_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK4_TOTAL_RX_PER_SEC.0);
 
     /// C2C link 4 total transmit bandwidth in MiB/sec.
     pub const C2C_LINK4_TOTAL_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK4_TOTAL_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK4_TOTAL_TX_PER_SEC.0);
 
     /// C2C link 3 data receive bandwidth in MiB/sec.
     pub const C2C_LINK3_DATA_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK3_DATA_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK3_DATA_RX_PER_SEC.0);
 
     /// C2C link 3 data transmit bandwidth in MiB/sec.
     pub const C2C_LINK3_DATA_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK3_DATA_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK3_DATA_TX_PER_SEC.0);
 
     /// C2C link 3 total receive bandwidth in MiB/sec.
     pub const C2C_LINK3_TOTAL_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK3_TOTAL_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK3_TOTAL_RX_PER_SEC.0);
 
     /// C2C link 3 total transmit bandwidth in MiB/sec.
     pub const C2C_LINK3_TOTAL_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK3_TOTAL_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK3_TOTAL_TX_PER_SEC.0);
 
     /// C2C link 2 data receive bandwidth in MiB/sec.
     pub const C2C_LINK2_DATA_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK2_DATA_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK2_DATA_RX_PER_SEC.0);
 
     /// C2C link 2 data transmit bandwidth in MiB/sec.
     pub const C2C_LINK2_DATA_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK2_DATA_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK2_DATA_TX_PER_SEC.0);
 
     /// C2C link 2 total receive bandwidth in MiB/sec.
     pub const C2C_LINK2_TOTAL_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK2_TOTAL_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK2_TOTAL_RX_PER_SEC.0);
 
     /// C2C link 2 total transmit bandwidth in MiB/sec.
     pub const C2C_LINK2_TOTAL_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK2_TOTAL_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK2_TOTAL_TX_PER_SEC.0);
 
     /// C2C link 1 data receive bandwidth in MiB/sec.
     pub const C2C_LINK1_DATA_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK1_DATA_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK1_DATA_RX_PER_SEC.0);
 
     /// C2C link 1 data transmit bandwidth in MiB/sec.
     pub const C2C_LINK1_DATA_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK1_DATA_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK1_DATA_TX_PER_SEC.0);
 
     /// C2C link 1 total receive bandwidth in MiB/sec.
     pub const C2C_LINK1_TOTAL_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK1_TOTAL_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK1_TOTAL_RX_PER_SEC.0);
 
     /// C2C link 1 total transmit bandwidth in MiB/sec.
     pub const C2C_LINK1_TOTAL_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK1_TOTAL_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK1_TOTAL_TX_PER_SEC.0);
 
     /// C2C link 0 data receive bandwidth in MiB/sec.
     pub const C2C_LINK0_DATA_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK0_DATA_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK0_DATA_RX_PER_SEC.0);
 
     /// C2C link 0 data transmit bandwidth in MiB/sec.
     pub const C2C_LINK0_DATA_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK0_DATA_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK0_DATA_TX_PER_SEC.0);
 
     /// C2C link 0 total receive bandwidth in MiB/sec.
     pub const C2C_LINK0_TOTAL_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK0_TOTAL_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK0_TOTAL_RX_PER_SEC.0);
 
     /// C2C link 0 total transmit bandwidth in MiB/sec.
     pub const C2C_LINK0_TOTAL_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK0_TOTAL_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_LINK0_TOTAL_TX_PER_SEC.0);
 
     /// C2C data receive bandwidth in MiB/sec.
     pub const C2C_DATA_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_DATA_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_DATA_RX_PER_SEC.0);
 
     /// C2C data transmit bandwidth in MiB/sec.
     pub const C2C_DATA_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_DATA_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_DATA_TX_PER_SEC.0);
 
     /// C2C total receive bandwidth in MiB/sec.
     pub const C2C_TOTAL_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_TOTAL_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_TOTAL_RX_PER_SEC.0);
 
     /// C2C total transmit bandwidth in MiB/sec.
     pub const C2C_TOTAL_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_TOTAL_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_C2C_TOTAL_TX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 17 in MiB/sec.
     pub const NVLINK_L17_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L17_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L17_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 17 in MiB/sec.
     pub const NVLINK_L17_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L17_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L17_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 16 in MiB/sec.
     pub const NVLINK_L16_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L16_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L16_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 16 in MiB/sec.
     pub const NVLINK_L16_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L16_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L16_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 15 in MiB/sec.
     pub const NVLINK_L15_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L15_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L15_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 15 in MiB/sec.
     pub const NVLINK_L15_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L15_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L15_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 14 in MiB/sec.
     pub const NVLINK_L14_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L14_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L14_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 14 in MiB/sec.
     pub const NVLINK_L14_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L14_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L14_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 13 in MiB/sec.
     pub const NVLINK_L13_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L13_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L13_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 13 in MiB/sec.
     pub const NVLINK_L13_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L13_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L13_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 12 in MiB/sec.
     pub const NVLINK_L12_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L12_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L12_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 12 in MiB/sec.
     pub const NVLINK_L12_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L12_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L12_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 11 in MiB/sec.
     pub const NVLINK_L11_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L11_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L11_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 11 in MiB/sec.
     pub const NVLINK_L11_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L11_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L11_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 10 in MiB/sec.
     pub const NVLINK_L10_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L10_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L10_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 10 in MiB/sec.
     pub const NVLINK_L10_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L10_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L10_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 9 in MiB/sec.
     pub const NVLINK_L9_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L9_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L9_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 9 in MiB/sec.
     pub const NVLINK_L9_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L9_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L9_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 8 in MiB/sec.
     pub const NVLINK_L8_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L8_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L8_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 8 in MiB/sec.
     pub const NVLINK_L8_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L8_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L8_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 7 in MiB/sec.
     pub const NVLINK_L7_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L7_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L7_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 7 in MiB/sec.
     pub const NVLINK_L7_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L7_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L7_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 6 in MiB/sec.
     pub const NVLINK_L6_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L6_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L6_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 6 in MiB/sec.
     pub const NVLINK_L6_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L6_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L6_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 5 in MiB/sec.
     pub const NVLINK_L5_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L5_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L5_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 5 in MiB/sec.
     pub const NVLINK_L5_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L5_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L5_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 4 in MiB/sec.
     pub const NVLINK_L4_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L4_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L4_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 4 in MiB/sec.
     pub const NVLINK_L4_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L4_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L4_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 3 in MiB/sec.
     pub const NVLINK_L3_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L3_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L3_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 3 in MiB/sec.
     pub const NVLINK_L3_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L3_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L3_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 2 in MiB/sec.
     pub const NVLINK_L2_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L2_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L2_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 2 in MiB/sec.
     pub const NVLINK_L2_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L2_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L2_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 1 in MiB/sec.
     pub const NVLINK_L1_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L1_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L1_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 1 in MiB/sec.
     pub const NVLINK_L1_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L1_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L1_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for link 0 in MiB/sec.
     pub const NVLINK_L0_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L0_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L0_TX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for link 0 in MiB/sec.
     pub const NVLINK_L0_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L0_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_L0_RX_PER_SEC.0);
 
     /// Percent utilization of NVOFA 1. 0.0 - 100.0.
-    pub const NVOFA_1_UTIL: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVOFA_1_UTIL as _);
+    pub const NVOFA_1_UTIL: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVOFA_1_UTIL.0);
 
     /// Percent utilization of NVOFA 0. 0.0 - 100.0.
-    pub const NVOFA_0_UTIL: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVOFA_0_UTIL as _);
+    pub const NVOFA_0_UTIL: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVOFA_0_UTIL.0);
 
     /// Percent utilization of NVJPG 7. 0.0 - 100.0.
-    pub const NVJPG_7_UTIL: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVJPG_7_UTIL as _);
+    pub const NVJPG_7_UTIL: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVJPG_7_UTIL.0);
 
     /// Percent utilization of NVJPG 6. 0.0 - 100.0.
-    pub const NVJPG_6_UTIL: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVJPG_6_UTIL as _);
+    pub const NVJPG_6_UTIL: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVJPG_6_UTIL.0);
 
     /// Percent utilization of NVJPG 5. 0.0 - 100.0.
-    pub const NVJPG_5_UTIL: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVJPG_5_UTIL as _);
+    pub const NVJPG_5_UTIL: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVJPG_5_UTIL.0);
 
     /// Percent utilization of NVJPG 4. 0.0 - 100.0.
-    pub const NVJPG_4_UTIL: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVJPG_4_UTIL as _);
+    pub const NVJPG_4_UTIL: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVJPG_4_UTIL.0);
 
     /// Percent utilization of NVJPG 3. 0.0 - 100.0.
-    pub const NVJPG_3_UTIL: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVJPG_3_UTIL as _);
+    pub const NVJPG_3_UTIL: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVJPG_3_UTIL.0);
 
     /// Percent utilization of NVJPG 2. 0.0 - 100.0.
-    pub const NVJPG_2_UTIL: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVJPG_2_UTIL as _);
+    pub const NVJPG_2_UTIL: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVJPG_2_UTIL.0);
 
     /// Percent utilization of NVJPG 1. 0.0 - 100.0.
-    pub const NVJPG_1_UTIL: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVJPG_1_UTIL as _);
+    pub const NVJPG_1_UTIL: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVJPG_1_UTIL.0);
 
     /// Percent utilization of NVJPG 0. 0.0 - 100.0.
-    pub const NVJPG_0_UTIL: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVJPG_0_UTIL as _);
+    pub const NVJPG_0_UTIL: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVJPG_0_UTIL.0);
 
     /// Percent utilization of NVDEC 7. 0.0 - 100.0.
-    pub const NVDEC_7_UTIL: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVDEC_7_UTIL as _);
+    pub const NVDEC_7_UTIL: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVDEC_7_UTIL.0);
 
     /// Percent utilization of NVDEC 6. 0.0 - 100.0.
-    pub const NVDEC_6_UTIL: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVDEC_6_UTIL as _);
+    pub const NVDEC_6_UTIL: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVDEC_6_UTIL.0);
 
     /// Percent utilization of NVDEC 5. 0.0 - 100.0.
-    pub const NVDEC_5_UTIL: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVDEC_5_UTIL as _);
+    pub const NVDEC_5_UTIL: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVDEC_5_UTIL.0);
 
     /// Percent utilization of NVDEC 4. 0.0 - 100.0.
-    pub const NVDEC_4_UTIL: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVDEC_4_UTIL as _);
+    pub const NVDEC_4_UTIL: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVDEC_4_UTIL.0);
 
     /// Percent utilization of NVDEC 3. 0.0 - 100.0.
-    pub const NVDEC_3_UTIL: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVDEC_3_UTIL as _);
+    pub const NVDEC_3_UTIL: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVDEC_3_UTIL.0);
 
     /// Percent utilization of NVDEC 2. 0.0 - 100.0.
-    pub const NVDEC_2_UTIL: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVDEC_2_UTIL as _);
+    pub const NVDEC_2_UTIL: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVDEC_2_UTIL.0);
 
     /// Percent utilization of NVDEC 1. 0.0 - 100.0.
-    pub const NVDEC_1_UTIL: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVDEC_1_UTIL as _);
+    pub const NVDEC_1_UTIL: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVDEC_1_UTIL.0);
 
     /// Percent utilization of NVDEC 0. 0.0 - 100.0.
-    pub const NVDEC_0_UTIL: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVDEC_0_UTIL as _);
+    pub const NVDEC_0_UTIL: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVDEC_0_UTIL.0);
 
     /// Percentage of time the GPU's SMs were doing DMMA tensor operations. 0.0 - 100.0.
     pub const DMMA_TENSOR_UTIL: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_DMMA_TENSOR_UTIL as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_DMMA_TENSOR_UTIL.0);
 
     /// Percentage of time any compute/graphics app was active on the GPU. 0.0 - 100.0.
-    pub const GRAPHICS_UTIL: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GRAPHICS_UTIL as _);
+    pub const GRAPHICS_UTIL: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_GRAPHICS_UTIL.0);
 
     /// Percentage of SMs that were busy. 0.0 - 100.0.
-    pub const SM_UTIL: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_SM_UTIL as _);
+    pub const SM_UTIL: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_SM_UTIL.0);
 
     /// Percentage of warps that were active vs theoretical maximum. 0.0 - 100.0.
-    pub const SM_OCCUPANCY: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_SM_OCCUPANCY as _);
+    pub const SM_OCCUPANCY: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_SM_OCCUPANCY.0);
 
     /// Percentage of time the GPU's SMs were doing integer operations. 0.0 - 100.0.
-    pub const INTEGER_UTIL: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_INTEGER_UTIL as _);
+    pub const INTEGER_UTIL: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_INTEGER_UTIL.0);
 
     /// Percentage of time the GPU's SMs were doing ANY tensor operations. 0.0 - 100.0.
     pub const ANY_TENSOR_UTIL: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_ANY_TENSOR_UTIL as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_ANY_TENSOR_UTIL.0);
 
     /// Percentage of time the GPU's SMs were doing DFMA tensor operations. 0.0 - 100.0.
     pub const DFMA_TENSOR_UTIL: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_DFMA_TENSOR_UTIL as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_DFMA_TENSOR_UTIL.0);
 
     /// Percentage of time the GPU's SMs were doing HMMA tensor operations. 0.0 - 100.0.
     pub const HMMA_TENSOR_UTIL: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_HMMA_TENSOR_UTIL as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_HMMA_TENSOR_UTIL.0);
 
     /// Percentage of time the GPU's SMs were doing IMMA tensor operations. 0.0 - 100.0.
     pub const IMMA_TENSOR_UTIL: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_IMMA_TENSOR_UTIL as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_IMMA_TENSOR_UTIL.0);
 
-    /// Percentage of DRAM bw used vs theoretical maximum. 0.0 - 100.0 \*/.
-    pub const DRAM_BW_UTIL: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_DRAM_BW_UTIL as _);
+    /// Percentage of the theoretical DRAM bandwidth used, from 0.0 to 100.0.
+    pub const DRAM_BW_UTIL: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_DRAM_BW_UTIL.0);
 
     /// Percentage of time the GPU's SMs were doing non-tensor FP64 math. 0.0 - 100.0.
-    pub const FP64_UTIL: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_FP64_UTIL as _);
+    pub const FP64_UTIL: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_FP64_UTIL.0);
 
     /// Percentage of time the GPU's SMs were doing non-tensor FP32 math. 0.0 - 100.0.
-    pub const FP32_UTIL: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_FP32_UTIL as _);
+    pub const FP32_UTIL: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_FP32_UTIL.0);
 
     /// Percentage of time the GPU's SMs were doing non-tensor FP16 math. 0.0 - 100.0.
-    pub const FP16_UTIL: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_FP16_UTIL as _);
+    pub const FP16_UTIL: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_FP16_UTIL.0);
 
     /// `PCIe` traffic from this GPU in MiB/sec.
     pub const PCIE_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_PCIE_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_PCIE_TX_PER_SEC.0);
 
     /// `PCIe` traffic to this GPU in MiB/sec.
     pub const PCIE_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_PCIE_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_PCIE_RX_PER_SEC.0);
 
     /// `NvLink` read bandwidth for all links in MiB/sec.
     pub const NVLINK_TOTAL_RX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_TOTAL_RX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_TOTAL_RX_PER_SEC.0);
 
     /// `NvLink` write bandwidth for all links in MiB/sec.
     pub const NVLINK_TOTAL_TX_PER_SEC: Self =
-        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_TOTAL_TX_PER_SEC as _);
+        Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_NVLINK_TOTAL_TX_PER_SEC.0);
 }
 
 /// Native identifier of a virtual GPU type.
@@ -1961,35 +1830,32 @@ pub struct VgpuVersionRange {
     pub current: VgpuVersion,
 }
 
-/// vGPU GUEST info state.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum VgpuGuestInfoState {
-    /// Guest-dependent fields uninitialized.
-    Uninitialized =
-        sys::nvmlVgpuGuestInfoState_t::NVML_VGPU_INSTANCE_GUEST_INFO_STATE_UNINITIALIZED as _,
-    /// Guest-dependent fields initialized.
-    Initialized =
-        sys::nvmlVgpuGuestInfoState_t::NVML_VGPU_INSTANCE_GUEST_INFO_STATE_INITIALIZED as _,
+singe_core::native_enum! {
+    /// vGPU GUEST info state.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    #[non_exhaustive]
+    pub enum VgpuGuestInfoState: sys::nvmlVgpuGuestInfoState_t, unknown = Unknown(u32) {
+        /// Guest-dependent fields uninitialized.
+        Uninitialized = NVML_VGPU_INSTANCE_GUEST_INFO_STATE_UNINITIALIZED,
+        /// Guest-dependent fields initialized.
+        Initialized = NVML_VGPU_INSTANCE_GUEST_INFO_STATE_INITIALIZED,
+    }
 }
-
-impl_enum_conversion!(u32, sys::nvmlVgpuGuestInfoState_t, VgpuGuestInfoState);
 
 bitflags::bitflags! {
     /// vGPU VM compatibility codes.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct VgpuVmCompatibility: u32 {
         /// vGPU is not runnable.
-        const NONE = sys::nvmlVgpuVmCompatibility_t::NVML_VGPU_VM_COMPATIBILITY_NONE as u32;
+        const NONE = sys::nvmlVgpuVmCompatibility_t::NVML_VGPU_VM_COMPATIBILITY_NONE.0;
         /// vGPU is runnable from a cold / powered-off state (ACPI S5).
-        const COLD = sys::nvmlVgpuVmCompatibility_t::NVML_VGPU_VM_COMPATIBILITY_COLD as u32;
+        const COLD = sys::nvmlVgpuVmCompatibility_t::NVML_VGPU_VM_COMPATIBILITY_COLD.0;
         /// vGPU is runnable from a hibernated state (ACPI S4).
-        const HIBERNATE = sys::nvmlVgpuVmCompatibility_t::NVML_VGPU_VM_COMPATIBILITY_HIBERNATE as u32;
+        const HIBERNATE = sys::nvmlVgpuVmCompatibility_t::NVML_VGPU_VM_COMPATIBILITY_HIBERNATE.0;
         /// vGPU is runnable from a sleeped state (ACPI S3).
-        const SLEEP = sys::nvmlVgpuVmCompatibility_t::NVML_VGPU_VM_COMPATIBILITY_SLEEP as u32;
+        const SLEEP = sys::nvmlVgpuVmCompatibility_t::NVML_VGPU_VM_COMPATIBILITY_SLEEP.0;
         /// vGPU is runnable from a live/paused (ACPI S0).
-        const LIVE = sys::nvmlVgpuVmCompatibility_t::NVML_VGPU_VM_COMPATIBILITY_LIVE as u32;
+        const LIVE = sys::nvmlVgpuVmCompatibility_t::NVML_VGPU_VM_COMPATIBILITY_LIVE.0;
     }
 }
 
@@ -2004,15 +1870,15 @@ bitflags::bitflags! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct VgpuPgpuCompatibilityLimitCode: u32 {
         /// Compatibility is not limited.
-        const NONE = sys::nvmlVgpuPgpuCompatibilityLimitCode_t::NVML_VGPU_COMPATIBILITY_LIMIT_NONE as u32;
-        /// ompatibility is limited by host driver version.
-        const HOST_DRIVER = sys::nvmlVgpuPgpuCompatibilityLimitCode_t::NVML_VGPU_COMPATIBILITY_LIMIT_HOST_DRIVER as u32;
+        const NONE = sys::nvmlVgpuPgpuCompatibilityLimitCode_t::NVML_VGPU_COMPATIBILITY_LIMIT_NONE.0;
+        /// Compatibility is limited by host driver version.
+        const HOST_DRIVER = sys::nvmlVgpuPgpuCompatibilityLimitCode_t::NVML_VGPU_COMPATIBILITY_LIMIT_HOST_DRIVER.0;
         /// Compatibility is limited by guest driver version.
-        const GUEST_DRIVER = sys::nvmlVgpuPgpuCompatibilityLimitCode_t::NVML_VGPU_COMPATIBILITY_LIMIT_GUEST_DRIVER as u32;
+        const GUEST_DRIVER = sys::nvmlVgpuPgpuCompatibilityLimitCode_t::NVML_VGPU_COMPATIBILITY_LIMIT_GUEST_DRIVER.0;
         /// Compatibility is limited by GPU hardware.
-        const GPU = sys::nvmlVgpuPgpuCompatibilityLimitCode_t::NVML_VGPU_COMPATIBILITY_LIMIT_GPU as u32;
+        const GPU = sys::nvmlVgpuPgpuCompatibilityLimitCode_t::NVML_VGPU_COMPATIBILITY_LIMIT_GPU.0;
         /// Compatibility is limited by an undefined factor.
-        const OTHER = sys::nvmlVgpuPgpuCompatibilityLimitCode_t::NVML_VGPU_COMPATIBILITY_LIMIT_OTHER as u32;
+        const OTHER = sys::nvmlVgpuPgpuCompatibilityLimitCode_t::NVML_VGPU_COMPATIBILITY_LIMIT_OTHER.0;
     }
 }
 
@@ -2078,9 +1944,7 @@ pub struct PgpuMetadata {
 #[repr(u32)]
 #[non_exhaustive]
 pub enum VgpuPlacementMode {
-    /// Macros to indicate the vGPU mode of the GPU.
-    ///
-    /// Heterogeneous vGPU mode.
+    /// vGPUs of different types share the GPU.
     Heterogeneous = sys::NVML_VGPU_PGPU_HETEROGENEOUS_MODE,
     /// Homogeneous vGPU mode.
     Homogeneous = sys::NVML_VGPU_PGPU_HOMOGENEOUS_MODE,
@@ -2134,22 +1998,21 @@ impl FieldQuery {
     }
 }
 
-/// Generic enable/disable enum.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum EnableState {
-    /// Feature disabled.
-    Disabled = sys::nvmlEnableState_t::NVML_FEATURE_DISABLED as _,
-    /// Feature enabled.
-    Enabled = sys::nvmlEnableState_t::NVML_FEATURE_ENABLED as _,
+singe_core::native_enum! {
+    /// Whether a feature is enabled.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    #[non_exhaustive]
+    pub enum EnableState: sys::nvmlEnableState_t, unknown = Unknown(u32) {
+        /// Feature disabled.
+        Disabled = NVML_FEATURE_DISABLED,
+        /// Feature enabled.
+        Enabled = NVML_FEATURE_ENABLED,
+    }
 }
-
-impl_enum_conversion!(u32, sys::nvmlEnableState_t, EnableState);
 
 /// Product brand reported by NVML.
 ///
-/// [`Self::Other`] preserves unrecognized native values.
+/// [`Self::Unknown`] holds values this crate does not name, including the native unknown value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum Brand {
@@ -2159,8 +2022,6 @@ pub enum Brand {
     NvidiaNpu,
     /// Deprecated NVIDIA Deep Learning Accelerator.
     NvidiaDla,
-    /// Identifies the unknown product brand.
-    Unknown,
     /// Identifies the Quadro product brand.
     Quadro,
     /// Identifies the Tesla product brand.
@@ -2194,109 +2055,98 @@ pub enum Brand {
     /// Unused native TITAN RTX brand value.
     TitanRtx,
     /// Unrecognized native product brand code, preserved without conversion.
-    Other(u32),
+    Unknown(u32),
 }
 
 impl Brand {
-    /// Decodes a native product brand while preserving unrecognized codes in [`Self::Other`].
+    /// Decodes a native product brand while keeping unrecognized codes in [`Self::Unknown`].
     #[must_use]
     pub const fn from_raw(value: u32) -> Self {
         match value {
-            value if value == sys::nvmlBrandType_t::NVML_BRAND_NVIDIA_VGAMEDEV as u32 => {
+            value if value == sys::nvmlBrandType_t::NVML_BRAND_NVIDIA_VGAMEDEV.0 => {
                 Self::NvidiaVgamedev
             }
-            value if value == sys::nvmlBrandType_t::NVML_BRAND_NVIDIA_NPU as u32 => Self::NvidiaNpu,
-            value if value == sys::nvmlBrandType_t::NVML_BRAND_NVIDIA_DLA as u32 => Self::NvidiaDla,
-            value if value == sys::nvmlBrandType_t::NVML_BRAND_UNKNOWN as u32 => Self::Unknown,
-            value if value == sys::nvmlBrandType_t::NVML_BRAND_QUADRO as u32 => Self::Quadro,
-            value if value == sys::nvmlBrandType_t::NVML_BRAND_TESLA as u32 => Self::Tesla,
-            value if value == sys::nvmlBrandType_t::NVML_BRAND_NVS as u32 => Self::Nvs,
-            value if value == sys::nvmlBrandType_t::NVML_BRAND_GRID as u32 => Self::Grid,
-            value if value == sys::nvmlBrandType_t::NVML_BRAND_GEFORCE as u32 => Self::GeForce,
-            value if value == sys::nvmlBrandType_t::NVML_BRAND_TITAN as u32 => Self::Titan,
-            value if value == sys::nvmlBrandType_t::NVML_BRAND_NVIDIA_VAPPS as u32 => {
-                Self::NvidiaVApps
-            }
-            value if value == sys::nvmlBrandType_t::NVML_BRAND_NVIDIA_VPC as u32 => Self::NvidiaVpc,
-            value if value == sys::nvmlBrandType_t::NVML_BRAND_NVIDIA_VCS as u32 => Self::NvidiaVcs,
-            value if value == sys::nvmlBrandType_t::NVML_BRAND_NVIDIA_VWS as u32 => Self::NvidiaVws,
-            value if value == sys::nvmlBrandType_t::NVML_BRAND_NVIDIA_CLOUD_GAMING as u32 => {
+            value if value == sys::nvmlBrandType_t::NVML_BRAND_NVIDIA_NPU.0 => Self::NvidiaNpu,
+            value if value == sys::nvmlBrandType_t::NVML_BRAND_NVIDIA_DLA.0 => Self::NvidiaDla,
+            value if value == sys::nvmlBrandType_t::NVML_BRAND_QUADRO.0 => Self::Quadro,
+            value if value == sys::nvmlBrandType_t::NVML_BRAND_TESLA.0 => Self::Tesla,
+            value if value == sys::nvmlBrandType_t::NVML_BRAND_NVS.0 => Self::Nvs,
+            value if value == sys::nvmlBrandType_t::NVML_BRAND_GRID.0 => Self::Grid,
+            value if value == sys::nvmlBrandType_t::NVML_BRAND_GEFORCE.0 => Self::GeForce,
+            value if value == sys::nvmlBrandType_t::NVML_BRAND_TITAN.0 => Self::Titan,
+            value if value == sys::nvmlBrandType_t::NVML_BRAND_NVIDIA_VAPPS.0 => Self::NvidiaVApps,
+            value if value == sys::nvmlBrandType_t::NVML_BRAND_NVIDIA_VPC.0 => Self::NvidiaVpc,
+            value if value == sys::nvmlBrandType_t::NVML_BRAND_NVIDIA_VCS.0 => Self::NvidiaVcs,
+            value if value == sys::nvmlBrandType_t::NVML_BRAND_NVIDIA_VWS.0 => Self::NvidiaVws,
+            value if value == sys::nvmlBrandType_t::NVML_BRAND_NVIDIA_CLOUD_GAMING.0 => {
                 Self::NvidiaCloudGaming
             }
-            value if value == sys::nvmlBrandType_t::NVML_BRAND_QUADRO_RTX as u32 => Self::QuadroRtx,
-            value if value == sys::nvmlBrandType_t::NVML_BRAND_NVIDIA_RTX as u32 => Self::NvidiaRtx,
-            value if value == sys::nvmlBrandType_t::NVML_BRAND_NVIDIA as u32 => Self::Nvidia,
-            value if value == sys::nvmlBrandType_t::NVML_BRAND_GEFORCE_RTX as u32 => {
-                Self::GeForceRtx
-            }
-            value if value == sys::nvmlBrandType_t::NVML_BRAND_TITAN_RTX as u32 => Self::TitanRtx,
-            raw => Self::Other(raw),
+            value if value == sys::nvmlBrandType_t::NVML_BRAND_QUADRO_RTX.0 => Self::QuadroRtx,
+            value if value == sys::nvmlBrandType_t::NVML_BRAND_NVIDIA_RTX.0 => Self::NvidiaRtx,
+            value if value == sys::nvmlBrandType_t::NVML_BRAND_NVIDIA.0 => Self::Nvidia,
+            value if value == sys::nvmlBrandType_t::NVML_BRAND_GEFORCE_RTX.0 => Self::GeForceRtx,
+            value if value == sys::nvmlBrandType_t::NVML_BRAND_TITAN_RTX.0 => Self::TitanRtx,
+            raw => Self::Unknown(raw),
         }
     }
 }
 
-/// Temperature sensors.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum TemperatureSensor {
-    /// Temperature from the hottest part of the GPU die.
-    GpuMax = sys::nvmlTemperatureSensors_t::NVML_TEMPERATURE_GPU_MAX as _,
-    /// Temperature sensor for the GPU die.
-    Gpu = sys::nvmlTemperatureSensors_t::NVML_TEMPERATURE_GPU as _,
+singe_core::native_enum! {
+    /// Temperature sensors.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    #[non_exhaustive]
+    pub enum TemperatureSensor: sys::nvmlTemperatureSensors_t, unknown = Unknown(u32) {
+        /// Temperature from the hottest part of the GPU die.
+        GpuMax = NVML_TEMPERATURE_GPU_MAX,
+        /// Temperature sensor for the GPU die.
+        Gpu = NVML_TEMPERATURE_GPU,
+    }
 }
 
-impl_enum_conversion!(u32, sys::nvmlTemperatureSensors_t, TemperatureSensor);
-
-/// Temperature thresholds.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum TemperatureThreshold {
-    /// Temperature at which the GPU will shut down for HW protection.
-    Shutdown = sys::nvmlTemperatureThresholds_t::NVML_TEMPERATURE_THRESHOLD_SHUTDOWN as _,
-    /// Temperature at which the GPU will begin HW slowdown.
-    Slowdown = sys::nvmlTemperatureThresholds_t::NVML_TEMPERATURE_THRESHOLD_SLOWDOWN as _,
-    /// Memory Temperature at which the GPU will begin SW slowdown.
-    MemoryMax = sys::nvmlTemperatureThresholds_t::NVML_TEMPERATURE_THRESHOLD_MEM_MAX as _,
-    /// GPU Temperature at which the GPU can be throttled below base clock.
-    GpuMax = sys::nvmlTemperatureThresholds_t::NVML_TEMPERATURE_THRESHOLD_GPU_MAX as _,
-    /// Minimum GPU Temperature that can be set as acoustic threshold.
-    AcousticMin = sys::nvmlTemperatureThresholds_t::NVML_TEMPERATURE_THRESHOLD_ACOUSTIC_MIN as _,
-    /// Current temperature that is set as acoustic threshold.
-    AcousticCurrent =
-        sys::nvmlTemperatureThresholds_t::NVML_TEMPERATURE_THRESHOLD_ACOUSTIC_CURR as _,
-    /// Maximum GPU temperature that can be set as acoustic threshold.
-    AcousticMax = sys::nvmlTemperatureThresholds_t::NVML_TEMPERATURE_THRESHOLD_ACOUSTIC_MAX as _,
-    /// Current temperature that is set as gps threshold.
-    GpuCurrent = sys::nvmlTemperatureThresholds_t::NVML_TEMPERATURE_THRESHOLD_GPS_CURR as _,
+singe_core::native_enum! {
+    /// Temperature thresholds.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum TemperatureThreshold: sys::nvmlTemperatureThresholds_t {
+        /// Temperature at which the GPU will shut down for HW protection.
+        Shutdown = NVML_TEMPERATURE_THRESHOLD_SHUTDOWN,
+        /// Temperature at which the GPU will begin HW slowdown.
+        Slowdown = NVML_TEMPERATURE_THRESHOLD_SLOWDOWN,
+        /// Memory Temperature at which the GPU will begin SW slowdown.
+        MemoryMax = NVML_TEMPERATURE_THRESHOLD_MEM_MAX,
+        /// GPU Temperature at which the GPU can be throttled below base clock.
+        GpuMax = NVML_TEMPERATURE_THRESHOLD_GPU_MAX,
+        /// Minimum GPU Temperature that can be set as acoustic threshold.
+        AcousticMin = NVML_TEMPERATURE_THRESHOLD_ACOUSTIC_MIN,
+        /// Current temperature that is set as acoustic threshold.
+        AcousticCurrent = NVML_TEMPERATURE_THRESHOLD_ACOUSTIC_CURR,
+        /// Maximum GPU temperature that can be set as acoustic threshold.
+        AcousticMax = NVML_TEMPERATURE_THRESHOLD_ACOUSTIC_MAX,
+        /// Current temperature that is set as gps threshold.
+        GpuCurrent = NVML_TEMPERATURE_THRESHOLD_GPS_CURR,
+    }
 }
 
-impl_enum_conversion!(u32, sys::nvmlTemperatureThresholds_t, TemperatureThreshold);
-
-/// Compute mode.
-///
-/// `nvmlComputeMode_t::NVML_COMPUTEMODE_EXCLUSIVE_PROCESS` was added in CUDA 4.0.
-/// Earlier CUDA versions supported a single exclusive mode, which is equivalent to `nvmlComputeMode_t::NVML_COMPUTEMODE_EXCLUSIVE_THREAD` in CUDA 4.0 and beyond.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum ComputeMode {
-    /// Default compute mode , multiple contexts per device.
-    Default = sys::nvmlComputeMode_t::NVML_COMPUTEMODE_DEFAULT as _,
-    /// Support Removed.
-    ExclusiveThread = sys::nvmlComputeMode_t::NVML_COMPUTEMODE_EXCLUSIVE_THREAD as _,
-    /// Compute-prohibited mode , no contexts per device.
-    Prohibited = sys::nvmlComputeMode_t::NVML_COMPUTEMODE_PROHIBITED as _,
-    /// Compute-exclusive-process mode , only one context per device, usable from multiple threads at a time.
-    ExclusiveProcess = sys::nvmlComputeMode_t::NVML_COMPUTEMODE_EXCLUSIVE_PROCESS as _,
+singe_core::native_enum! {
+    /// Compute mode, which limits how many CUDA contexts can use a GPU.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    #[non_exhaustive]
+    pub enum ComputeMode: sys::nvmlComputeMode_t, unknown = Unknown(u32) {
+        /// Default compute mode , multiple contexts per device.
+        Default = NVML_COMPUTEMODE_DEFAULT,
+        /// Support Removed.
+        ExclusiveThread = NVML_COMPUTEMODE_EXCLUSIVE_THREAD,
+        /// Compute-prohibited mode , no contexts per device.
+        Prohibited = NVML_COMPUTEMODE_PROHIBITED,
+        /// Compute-exclusive-process mode , only one context per device, usable from multiple threads at a time.
+        ExclusiveProcess = NVML_COMPUTEMODE_EXCLUSIVE_PROCESS,
+    }
 }
-
-impl_enum_conversion!(u32, sys::nvmlComputeMode_t, ComputeMode);
 
 /// GPU or accelerator architecture reported by NVML.
 ///
-/// [`Self::Other`] preserves unrecognized native values.
+/// [`Self::Unknown`] holds values this crate does not name.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum Architecture {
@@ -2325,11 +2175,11 @@ pub enum Architecture {
     /// NVIDIA Blackwell architecture.
     Blackwell,
     /// Unrecognized native device architecture code, preserved without conversion.
-    Other(u32),
+    Unknown(u32),
 }
 
 impl Architecture {
-    /// Decodes a native device architecture while preserving unrecognized codes in [`Self::Other`].
+    /// Decodes a native device architecture while keeping unrecognized codes in [`Self::Unknown`].
     #[must_use]
     pub const fn from_raw(value: u32) -> Self {
         match value {
@@ -2345,233 +2195,221 @@ impl Architecture {
             sys::NVML_DEVICE_ARCH_ADA => Self::Ada,
             sys::NVML_DEVICE_ARCH_HOPPER => Self::Hopper,
             sys::NVML_DEVICE_ARCH_BLACKWELL => Self::Blackwell,
-            raw => Self::Other(raw),
+            raw => Self::Unknown(raw),
         }
     }
 }
 
-/// Clock types.
-///
-/// All speeds are in Mhz.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum ClockType {
-    /// Graphics clock domain.
-    Graphics = sys::nvmlClockType_t::NVML_CLOCK_GRAPHICS as _,
-    /// SM clock domain.
-    Sm = sys::nvmlClockType_t::NVML_CLOCK_SM as _,
-    /// Memory clock domain.
-    Memory = sys::nvmlClockType_t::NVML_CLOCK_MEM as _,
-    /// Video encoder/decoder clock domain.
-    Video = sys::nvmlClockType_t::NVML_CLOCK_VIDEO as _,
+singe_core::native_enum! {
+    /// Clock types.
+    ///
+    /// All speeds are in Mhz.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    #[non_exhaustive]
+    pub enum ClockType: sys::nvmlClockType_t, unknown = Unknown(u32) {
+        /// Graphics clock domain.
+        Graphics = NVML_CLOCK_GRAPHICS,
+        /// SM clock domain.
+        Sm = NVML_CLOCK_SM,
+        /// Memory clock domain.
+        Memory = NVML_CLOCK_MEM,
+        /// Video encoder/decoder clock domain.
+        Video = NVML_CLOCK_VIDEO,
+    }
 }
 
-impl_enum_conversion!(u32, sys::nvmlClockType_t, ClockType);
-
-/// Enum to represent the `NvLink` utilization counter packet units.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum NvLinkUtilizationCountUnits {
-    /// count by cycles
-    Cycles = sys::nvmlNvLinkUtilizationCountUnits_t::NVML_NVLINK_COUNTER_UNIT_CYCLES as _,
-    /// count by packets
-    Packets = sys::nvmlNvLinkUtilizationCountUnits_t::NVML_NVLINK_COUNTER_UNIT_PACKETS as _,
-    /// count by bytes
-    Bytes = sys::nvmlNvLinkUtilizationCountUnits_t::NVML_NVLINK_COUNTER_UNIT_BYTES as _,
-    /// count reserved for internal use
-    Reserved = sys::nvmlNvLinkUtilizationCountUnits_t::NVML_NVLINK_COUNTER_UNIT_RESERVED as _,
-    /// this must be last
-    Count = sys::nvmlNvLinkUtilizationCountUnits_t::NVML_NVLINK_COUNTER_UNIT_COUNT as _,
+singe_core::native_enum! {
+    /// Unit counted by an `NVLink` utilization counter.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    #[non_exhaustive]
+    pub enum NvLinkUtilizationCountUnits: sys::nvmlNvLinkUtilizationCountUnits_t,
+        unknown = Unknown(u32)
+    {
+        /// Counts cycles.
+        Cycles = NVML_NVLINK_COUNTER_UNIT_CYCLES,
+        /// Counts packets.
+        Packets = NVML_NVLINK_COUNTER_UNIT_PACKETS,
+        /// Counts bytes.
+        Bytes = NVML_NVLINK_COUNTER_UNIT_BYTES,
+        /// Reserved for internal use.
+        Reserved = NVML_NVLINK_COUNTER_UNIT_RESERVED,
+        /// Number of values in this enumeration.
+        Count = NVML_NVLINK_COUNTER_UNIT_COUNT,
+    }
 }
 
-impl_enum_conversion!(
-    u32,
-    sys::nvmlNvLinkUtilizationCountUnits_t,
-    NvLinkUtilizationCountUnits
-);
-
-/// Enum to represent `NvLink` queryable capabilities.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum NvLinkCapability {
-    /// P2P over `NVLink` is supported
-    P2pSupported = sys::nvmlNvLinkCapability_t::NVML_NVLINK_CAP_P2P_SUPPORTED as _,
-    /// Access to system memory is supported
-    SysmemAccess = sys::nvmlNvLinkCapability_t::NVML_NVLINK_CAP_SYSMEM_ACCESS as _,
-    /// P2P atomics are supported
-    P2pAtomics = sys::nvmlNvLinkCapability_t::NVML_NVLINK_CAP_P2P_ATOMICS as _,
-    /// System memory atomics are supported
-    SysmemAtomics = sys::nvmlNvLinkCapability_t::NVML_NVLINK_CAP_SYSMEM_ATOMICS as _,
-    /// SLI is supported over this link
-    SliBridge = sys::nvmlNvLinkCapability_t::NVML_NVLINK_CAP_SLI_BRIDGE as _,
-    /// Link is supported on this device
-    Valid = sys::nvmlNvLinkCapability_t::NVML_NVLINK_CAP_VALID as _,
-    /// should be last
-    Count = sys::nvmlNvLinkCapability_t::NVML_NVLINK_CAP_COUNT as _,
+singe_core::native_enum! {
+    /// Queryable `NVLink` capability.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum NvLinkCapability: sys::nvmlNvLinkCapability_t {
+        /// Peer-to-peer transfers over `NVLink` are supported.
+        P2pSupported = NVML_NVLINK_CAP_P2P_SUPPORTED,
+        /// Access to system memory is supported.
+        SysmemAccess = NVML_NVLINK_CAP_SYSMEM_ACCESS,
+        /// Peer-to-peer atomics are supported.
+        P2pAtomics = NVML_NVLINK_CAP_P2P_ATOMICS,
+        /// System memory atomics are supported.
+        SysmemAtomics = NVML_NVLINK_CAP_SYSMEM_ATOMICS,
+        /// SLI is supported over this link.
+        SliBridge = NVML_NVLINK_CAP_SLI_BRIDGE,
+        /// The link is supported on this device.
+        Valid = NVML_NVLINK_CAP_VALID,
+        /// Number of values in this enumeration.
+        Count = NVML_NVLINK_CAP_COUNT,
+    }
 }
 
-impl_enum_conversion!(u32, sys::nvmlNvLinkCapability_t, NvLinkCapability);
-
-/// Enum to represent `NvLink` queryable error counters.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum NvLinkErrorCounter {
-    /// Data link transmit replay error counter
-    DlReplay = sys::nvmlNvLinkErrorCounter_t::NVML_NVLINK_ERROR_DL_REPLAY as _,
-    /// Data link transmit recovery error counter
-    DlRecovery = sys::nvmlNvLinkErrorCounter_t::NVML_NVLINK_ERROR_DL_RECOVERY as _,
-    /// Data link receive flow control digit CRC error counter
-    DlCrcFlit = sys::nvmlNvLinkErrorCounter_t::NVML_NVLINK_ERROR_DL_CRC_FLIT as _,
-    /// Data link receive data CRC error counter
-    DlCrcData = sys::nvmlNvLinkErrorCounter_t::NVML_NVLINK_ERROR_DL_CRC_DATA as _,
-    /// Data link receive data ECC error counter
-    DlEccData = sys::nvmlNvLinkErrorCounter_t::NVML_NVLINK_ERROR_DL_ECC_DATA as _,
-    /// this must be last
-    Count = sys::nvmlNvLinkErrorCounter_t::NVML_NVLINK_ERROR_COUNT as _,
+singe_core::native_enum! {
+    /// Queryable `NVLink` error counter.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum NvLinkErrorCounter: sys::nvmlNvLinkErrorCounter_t {
+        /// Data link transmit replay errors.
+        DlReplay = NVML_NVLINK_ERROR_DL_REPLAY,
+        /// Data link transmit recovery errors.
+        DlRecovery = NVML_NVLINK_ERROR_DL_RECOVERY,
+        /// Data link receive flow control digit CRC errors.
+        DlCrcFlit = NVML_NVLINK_ERROR_DL_CRC_FLIT,
+        /// Data link receive data CRC errors.
+        DlCrcData = NVML_NVLINK_ERROR_DL_CRC_DATA,
+        /// Data link receive data ECC errors.
+        DlEccData = NVML_NVLINK_ERROR_DL_ECC_DATA,
+        /// Number of values in this enumeration.
+        Count = NVML_NVLINK_ERROR_COUNT,
+    }
 }
 
-impl_enum_conversion!(u32, sys::nvmlNvLinkErrorCounter_t, NvLinkErrorCounter);
-
-/// Enum to represent `NvLink`'s remote device type.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum NvLinkRemoteDeviceType {
-    /// The remote `NVLink` endpoint is a GPU.
-    Gpu = sys::nvmlIntNvLinkDeviceType_t::NVML_NVLINK_DEVICE_TYPE_GPU as _,
-    /// The remote `NVLink` endpoint is an IBM NPU.
-    IbmNpu = sys::nvmlIntNvLinkDeviceType_t::NVML_NVLINK_DEVICE_TYPE_IBMNPU as _,
-    /// The remote `NVLink` endpoint is a switch.
-    Switch = sys::nvmlIntNvLinkDeviceType_t::NVML_NVLINK_DEVICE_TYPE_SWITCH as _,
-    /// The remote `NVLink` endpoint type is unknown.
-    Unknown = sys::nvmlIntNvLinkDeviceType_t::NVML_NVLINK_DEVICE_TYPE_UNKNOWN as _,
+singe_core::native_enum! {
+    /// Type of the device at the remote end of an `NVLink`.
+    ///
+    /// [`Self::Unknown`] holds values this crate does not name, including the native unknown value.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    #[non_exhaustive]
+    pub enum NvLinkRemoteDeviceType: sys::nvmlIntNvLinkDeviceType_t, unknown = Unknown(u32) {
+        /// The remote `NVLink` endpoint is a GPU.
+        Gpu = NVML_NVLINK_DEVICE_TYPE_GPU,
+        /// The remote `NVLink` endpoint is an IBM NPU.
+        IbmNpu = NVML_NVLINK_DEVICE_TYPE_IBMNPU,
+        /// The remote `NVLink` endpoint is a switch.
+        Switch = NVML_NVLINK_DEVICE_TYPE_SWITCH,
+    }
 }
 
-impl_enum_conversion!(u32, sys::nvmlIntNvLinkDeviceType_t, NvLinkRemoteDeviceType);
-
-/// Represents Nvlink Version.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum NvLinkVersion {
-    /// `NVLink` version is invalid.
-    Invalid = sys::nvmlNvlinkVersion_t::NVML_NVLINK_VERSION_INVALID as _,
-    /// `NVLink` Version 1.0.
-    V1_0 = sys::nvmlNvlinkVersion_t::NVML_NVLINK_VERSION_1_0 as _,
-    /// `NVLink` Version 2.0.
-    V2_0 = sys::nvmlNvlinkVersion_t::NVML_NVLINK_VERSION_2_0 as _,
-    /// `NVLink` Version 2.2.
-    V2_2 = sys::nvmlNvlinkVersion_t::NVML_NVLINK_VERSION_2_2 as _,
-    /// `NVLink` Version 3.0.
-    V3_0 = sys::nvmlNvlinkVersion_t::NVML_NVLINK_VERSION_3_0 as _,
-    /// `NVLink` Version 3.1.
-    V3_1 = sys::nvmlNvlinkVersion_t::NVML_NVLINK_VERSION_3_1 as _,
-    /// `NVLink` Version 4.0.
-    V4_0 = sys::nvmlNvlinkVersion_t::NVML_NVLINK_VERSION_4_0 as _,
-    /// `NVLink` Version 5.0.
-    V5_0 = sys::nvmlNvlinkVersion_t::NVML_NVLINK_VERSION_5_0 as _,
+singe_core::native_enum! {
+    /// `NVLink` version.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    #[non_exhaustive]
+    pub enum NvLinkVersion: sys::nvmlNvlinkVersion_t, unknown = Unknown(u32) {
+        /// `NVLink` version is invalid.
+        Invalid = NVML_NVLINK_VERSION_INVALID,
+        /// `NVLink` Version 1.0.
+        V1_0 = NVML_NVLINK_VERSION_1_0,
+        /// `NVLink` Version 2.0.
+        V2_0 = NVML_NVLINK_VERSION_2_0,
+        /// `NVLink` Version 2.2.
+        V2_2 = NVML_NVLINK_VERSION_2_2,
+        /// `NVLink` Version 3.0.
+        V3_0 = NVML_NVLINK_VERSION_3_0,
+        /// `NVLink` Version 3.1.
+        V3_1 = NVML_NVLINK_VERSION_3_1,
+        /// `NVLink` Version 4.0.
+        V4_0 = NVML_NVLINK_VERSION_4_0,
+        /// `NVLink` Version 5.0.
+        V5_0 = NVML_NVLINK_VERSION_5_0,
+    }
 }
 
-impl_enum_conversion!(u32, sys::nvmlNvlinkVersion_t, NvLinkVersion);
-
-/// Workload power profile identifiers.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum PowerProfileType {
-    /// `LowPriorityBackground`.
-    LowPriorityBackground =
-        sys::nvmlPowerProfileType_t::NVML_POWER_PROFILE_LOW_PRIORITY_BACKGROUND as _,
-    /// `NetworkBound`.
-    NetworkBound = sys::nvmlPowerProfileType_t::NVML_POWER_PROFILE_NETWORK_BOUND as _,
-    /// Training.
-    Training = sys::nvmlPowerProfileType_t::NVML_POWER_PROFILE_TRAINING as _,
-    /// `MediumThroughputInference`.
-    MediumThroughputInference =
-        sys::nvmlPowerProfileType_t::NVML_POWER_PROFILE_MEDIUM_THROUGHPUT_INFERENCE as _,
-    /// `HighThroughputInference`.
-    HighThroughputInference =
-        sys::nvmlPowerProfileType_t::NVML_POWER_PROFILE_HIGH_THROUGHPUT_INFERENCE as _,
-    /// `LowLatencyInference`.
-    LowLatencyInference =
-        sys::nvmlPowerProfileType_t::NVML_POWER_PROFILE_LOW_LATENCY_INFERENCE as _,
-    /// Inference.
-    Inference = sys::nvmlPowerProfileType_t::NVML_POWER_PROFILE_INFERENCE as _,
-    /// `MaxQ3`.
-    MaxQ3 = sys::nvmlPowerProfileType_t::NVML_POWER_PROFILE_MAX_Q_3 as _,
-    /// `MaxQ2`.
-    MaxQ2 = sys::nvmlPowerProfileType_t::NVML_POWER_PROFILE_MAX_Q_2 as _,
-    /// `MaxQ1`.
-    MaxQ1 = sys::nvmlPowerProfileType_t::NVML_POWER_PROFILE_MAX_Q_1 as _,
-    /// Identifies the native maximum-performance workload power profile.
-    /// The identifier selects a bit in workload profile masks.
-    MaxP = sys::nvmlPowerProfileType_t::NVML_POWER_PROFILE_MAX_P as _,
-    /// Identifies the native Max-Q workload power profile.
-    /// The identifier selects a bit in workload profile masks.
-    MaxQ = sys::nvmlPowerProfileType_t::NVML_POWER_PROFILE_MAX_Q as _,
-    /// Identifies the native compute workload power profile.
-    /// The identifier selects a bit in workload profile masks.
-    Compute = sys::nvmlPowerProfileType_t::NVML_POWER_PROFILE_COMPUTE as _,
-    /// Identifies the native memory-bound workload power profile.
-    /// The identifier selects a bit in workload profile masks.
-    MemoryBound = sys::nvmlPowerProfileType_t::NVML_POWER_PROFILE_MEMORY_BOUND as _,
-    /// Identifies the native network workload power profile.
-    /// The identifier selects a bit in workload profile masks.
-    Network = sys::nvmlPowerProfileType_t::NVML_POWER_PROFILE_NETWORK as _,
-    /// Identifies the native balanced workload power profile.
-    /// The identifier selects a bit in workload profile masks.
-    Balanced = sys::nvmlPowerProfileType_t::NVML_POWER_PROFILE_BALANCED as _,
-    /// Identifies the native large-language-model inference workload power profile.
-    /// The identifier selects a bit in workload profile masks.
-    LlmInference = sys::nvmlPowerProfileType_t::NVML_POWER_PROFILE_LLM_INFERENCE as _,
-    /// Identifies the native large-language-model training workload power profile.
-    /// The identifier selects a bit in workload profile masks.
-    LlmTraining = sys::nvmlPowerProfileType_t::NVML_POWER_PROFILE_LLM_TRAINING as _,
-    /// Identifies the native RBM workload power profile.
-    /// The identifier selects a bit in workload profile masks.
-    Rbm = sys::nvmlPowerProfileType_t::NVML_POWER_PROFILE_RBM as _,
-    /// Identifies the native DCPCIE workload power profile.
-    /// The identifier selects a bit in workload profile masks.
-    Dcpcie = sys::nvmlPowerProfileType_t::NVML_POWER_PROFILE_DCPCIE as _,
-    /// Identifies the native sparse HMMA workload power profile.
-    /// The identifier selects a bit in workload profile masks.
-    HmmaSparse = sys::nvmlPowerProfileType_t::NVML_POWER_PROFILE_HMMA_SPARSE as _,
-    /// Identifies the native dense HMMA workload power profile.
-    /// The identifier selects a bit in workload profile masks.
-    HmmaDense = sys::nvmlPowerProfileType_t::NVML_POWER_PROFILE_HMMA_DENSE as _,
-    /// Identifies the native synchronized balanced workload power profile.
-    /// The identifier selects a bit in workload profile masks.
-    SyncBalanced = sys::nvmlPowerProfileType_t::NVML_POWER_PROFILE_SYNC_BALANCED as _,
-    /// Identifies the native high-performance-computing workload power profile.
-    /// The identifier selects a bit in workload profile masks.
-    Hpc = sys::nvmlPowerProfileType_t::NVML_POWER_PROFILE_HPC as _,
-    /// Identifies the native MIG workload power profile.
-    /// The identifier selects a bit in workload profile masks.
-    Mig = sys::nvmlPowerProfileType_t::NVML_POWER_PROFILE_MIG as _,
-    /// One past the last workload power profile identifier defined by this header; used for bounds checks.
-    Max = sys::nvmlPowerProfileType_t::NVML_POWER_PROFILE_MAX as _,
+singe_core::native_enum! {
+    /// Workload power profile identifiers.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum PowerProfileType: sys::nvmlPowerProfileType_t {
+        /// `LowPriorityBackground`.
+        LowPriorityBackground = NVML_POWER_PROFILE_LOW_PRIORITY_BACKGROUND,
+        /// `NetworkBound`.
+        NetworkBound = NVML_POWER_PROFILE_NETWORK_BOUND,
+        /// Training.
+        Training = NVML_POWER_PROFILE_TRAINING,
+        /// `MediumThroughputInference`.
+        MediumThroughputInference = NVML_POWER_PROFILE_MEDIUM_THROUGHPUT_INFERENCE,
+        /// `HighThroughputInference`.
+        HighThroughputInference = NVML_POWER_PROFILE_HIGH_THROUGHPUT_INFERENCE,
+        /// `LowLatencyInference`.
+        LowLatencyInference = NVML_POWER_PROFILE_LOW_LATENCY_INFERENCE,
+        /// Inference.
+        Inference = NVML_POWER_PROFILE_INFERENCE,
+        /// `MaxQ3`.
+        MaxQ3 = NVML_POWER_PROFILE_MAX_Q_3,
+        /// `MaxQ2`.
+        MaxQ2 = NVML_POWER_PROFILE_MAX_Q_2,
+        /// `MaxQ1`.
+        MaxQ1 = NVML_POWER_PROFILE_MAX_Q_1,
+        /// Identifies the native maximum-performance workload power profile.
+        /// The identifier selects a bit in workload profile masks.
+        MaxP = NVML_POWER_PROFILE_MAX_P,
+        /// Identifies the native Max-Q workload power profile.
+        /// The identifier selects a bit in workload profile masks.
+        MaxQ = NVML_POWER_PROFILE_MAX_Q,
+        /// Identifies the native compute workload power profile.
+        /// The identifier selects a bit in workload profile masks.
+        Compute = NVML_POWER_PROFILE_COMPUTE,
+        /// Identifies the native memory-bound workload power profile.
+        /// The identifier selects a bit in workload profile masks.
+        MemoryBound = NVML_POWER_PROFILE_MEMORY_BOUND,
+        /// Identifies the native network workload power profile.
+        /// The identifier selects a bit in workload profile masks.
+        Network = NVML_POWER_PROFILE_NETWORK,
+        /// Identifies the native balanced workload power profile.
+        /// The identifier selects a bit in workload profile masks.
+        Balanced = NVML_POWER_PROFILE_BALANCED,
+        /// Identifies the native large-language-model inference workload power profile.
+        /// The identifier selects a bit in workload profile masks.
+        LlmInference = NVML_POWER_PROFILE_LLM_INFERENCE,
+        /// Identifies the native large-language-model training workload power profile.
+        /// The identifier selects a bit in workload profile masks.
+        LlmTraining = NVML_POWER_PROFILE_LLM_TRAINING,
+        /// Identifies the native RBM workload power profile.
+        /// The identifier selects a bit in workload profile masks.
+        Rbm = NVML_POWER_PROFILE_RBM,
+        /// Identifies the native DCPCIE workload power profile.
+        /// The identifier selects a bit in workload profile masks.
+        Dcpcie = NVML_POWER_PROFILE_DCPCIE,
+        /// Identifies the native sparse HMMA workload power profile.
+        /// The identifier selects a bit in workload profile masks.
+        HmmaSparse = NVML_POWER_PROFILE_HMMA_SPARSE,
+        /// Identifies the native dense HMMA workload power profile.
+        /// The identifier selects a bit in workload profile masks.
+        HmmaDense = NVML_POWER_PROFILE_HMMA_DENSE,
+        /// Identifies the native synchronized balanced workload power profile.
+        /// The identifier selects a bit in workload profile masks.
+        SyncBalanced = NVML_POWER_PROFILE_SYNC_BALANCED,
+        /// Identifies the native high-performance-computing workload power profile.
+        /// The identifier selects a bit in workload profile masks.
+        Hpc = NVML_POWER_PROFILE_HPC,
+        /// Identifies the native MIG workload power profile.
+        /// The identifier selects a bit in workload profile masks.
+        Mig = NVML_POWER_PROFILE_MIG,
+        /// One past the last workload power profile identifier.
+        Max = NVML_POWER_PROFILE_MAX,
+    }
 }
-
-impl_enum_conversion!(u32, sys::nvmlPowerProfileType_t, PowerProfileType);
 
 /// `PowerMizer` policy for device performance and power use.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
 #[repr(u32)]
 #[non_exhaustive]
 pub enum PowerMizerMode {
-    /// Device powerMizer modes.
-    ///
-    /// adjust GPU clocks based on GPU utilization.
+    /// Adjusts GPU clocks to GPU utilization.
     Adaptive = sys::NVML_POWER_MIZER_MODE_ADAPTIVE,
-    /// raise GPU clocks to favor maximum performance, to the extent that thermal and other constraints allow.
+    /// Raises GPU clocks for maximum performance, as far as thermal and other limits allow.
     PreferMaximumPerformance = sys::NVML_POWER_MIZER_MODE_PREFER_MAXIMUM_PERFORMANCE,
     /// `PowerMizer` mode is driver controlled.
     Auto = sys::NVML_POWER_MIZER_MODE_AUTO,
-    /// lock to GPU base clocks.
+    /// Locks the GPU to its base clocks.
     PreferConsistentPerformance = sys::NVML_POWER_MIZER_MODE_PREFER_CONSISTENT_PERFORMANCE,
 }
 
@@ -2695,440 +2533,419 @@ pub struct ConfComputeKeyRotationThreshold {
     pub attacker_advantage: u64,
 }
 
-/// Clock Ids.
-///
-/// These are used in combination with `nvmlClockType_t` to specify a single clock value.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum ClockId {
-    /// Current actual clock value.
-    Current = sys::nvmlClockId_t::NVML_CLOCK_ID_CURRENT as _,
-    /// Target application clock.
-    /// Deprecated, do not use.
-    #[deprecated]
-    AppClockTarget = sys::nvmlClockId_t::NVML_CLOCK_ID_APP_CLOCK_TARGET as _,
-    /// Default application clock target Deprecated, do not use.
-    #[deprecated]
-    AppClockDefault = sys::nvmlClockId_t::NVML_CLOCK_ID_APP_CLOCK_DEFAULT as _,
-    /// OEM-defined maximum clock rate.
-    CustomerBoostMax = sys::nvmlClockId_t::NVML_CLOCK_ID_CUSTOMER_BOOST_MAX as _,
+singe_core::native_enum! {
+    /// Clock setting to query, combined with a [`ClockType`] to select one clock value.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum ClockId: sys::nvmlClockId_t {
+        /// Current actual clock value.
+        Current = NVML_CLOCK_ID_CURRENT,
+        /// Target application clock.
+        /// Deprecated, do not use.
+        #[deprecated]
+        AppClockTarget = NVML_CLOCK_ID_APP_CLOCK_TARGET,
+        /// Default application clock target Deprecated, do not use.
+        #[deprecated]
+        AppClockDefault = NVML_CLOCK_ID_APP_CLOCK_DEFAULT,
+        /// OEM-defined maximum clock rate.
+        CustomerBoostMax = NVML_CLOCK_ID_CUSTOMER_BOOST_MAX,
+    }
 }
 
-impl_enum_conversion!(u32, sys::nvmlClockId_t, ClockId);
-
-/// Represents the thermal sensor targets.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(i32)]
-#[non_exhaustive]
-pub enum ThermalTarget {
-    /// No thermal target is selected.
-    None = sys::nvmlThermalTarget_t::NVML_THERMAL_TARGET_NONE as _,
-    /// GPU core temperature requires `NvPhysicalGpuHandle`.
-    Gpu = sys::nvmlThermalTarget_t::NVML_THERMAL_TARGET_GPU as _,
-    /// GPU memory temperature requires `NvPhysicalGpuHandle`.
-    Memory = sys::nvmlThermalTarget_t::NVML_THERMAL_TARGET_MEMORY as _,
-    /// GPU power supply temperature requires `NvPhysicalGpuHandle`.
-    PowerSupply = sys::nvmlThermalTarget_t::NVML_THERMAL_TARGET_POWER_SUPPLY as _,
-    /// GPU board ambient temperature requires `NvPhysicalGpuHandle`.
-    Board = sys::nvmlThermalTarget_t::NVML_THERMAL_TARGET_BOARD as _,
-    /// Visual Computing Device Board temperature requires `NvVisualComputingDeviceHandle`.
-    VcdBoard = sys::nvmlThermalTarget_t::NVML_THERMAL_TARGET_VCD_BOARD as _,
-    /// Visual Computing Device Inlet temperature requires `NvVisualComputingDeviceHandle`.
-    VcdInlet = sys::nvmlThermalTarget_t::NVML_THERMAL_TARGET_VCD_INLET as _,
-    /// Visual Computing Device Outlet temperature requires `NvVisualComputingDeviceHandle`.
-    VcdOutlet = sys::nvmlThermalTarget_t::NVML_THERMAL_TARGET_VCD_OUTLET as _,
-    /// Selects all thermal targets.
-    All = sys::nvmlThermalTarget_t::NVML_THERMAL_TARGET_ALL as _,
-    /// The thermal target is unknown.
-    Unknown = sys::nvmlThermalTarget_t::NVML_THERMAL_TARGET_UNKNOWN as _,
-}
-
-impl_enum_conversion!(i32, sys::nvmlThermalTarget_t, ThermalTarget);
-
-/// Represents the thermal sensor controllers.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(i32)]
-#[non_exhaustive]
-pub enum ThermalController {
-    /// No thermal controller is present.
-    None = sys::nvmlThermalController_t::NVML_THERMAL_CONTROLLER_NONE as _,
-    /// The GPU internal thermal controller.
-    GpuInternal = sys::nvmlThermalController_t::NVML_THERMAL_CONTROLLER_GPU_INTERNAL as _,
-    /// An ADM1032 thermal controller.
-    Adm1032 = sys::nvmlThermalController_t::NVML_THERMAL_CONTROLLER_ADM1032 as _,
-    /// An ADT7461 thermal controller.
-    Adt7461 = sys::nvmlThermalController_t::NVML_THERMAL_CONTROLLER_ADT7461 as _,
-    /// A MAX6649 thermal controller.
-    Max6649 = sys::nvmlThermalController_t::NVML_THERMAL_CONTROLLER_MAX6649 as _,
-    /// A MAX1617 thermal controller.
-    Max1617 = sys::nvmlThermalController_t::NVML_THERMAL_CONTROLLER_MAX1617 as _,
-    /// An LM99 thermal controller.
-    Lm99 = sys::nvmlThermalController_t::NVML_THERMAL_CONTROLLER_LM99 as _,
-    /// An LM89 thermal controller.
-    Lm89 = sys::nvmlThermalController_t::NVML_THERMAL_CONTROLLER_LM89 as _,
-    /// An LM64 thermal controller.
-    Lm64 = sys::nvmlThermalController_t::NVML_THERMAL_CONTROLLER_LM64 as _,
-    /// A G781 thermal controller.
-    G781 = sys::nvmlThermalController_t::NVML_THERMAL_CONTROLLER_G781 as _,
-    /// An ADT7473 thermal controller.
-    Adt7473 = sys::nvmlThermalController_t::NVML_THERMAL_CONTROLLER_ADT7473 as _,
-    /// An SBMAX6649 thermal controller.
-    Sbmax6649 = sys::nvmlThermalController_t::NVML_THERMAL_CONTROLLER_SBMAX6649 as _,
-    /// The VBIOS event thermal controller.
-    VbiosEvt = sys::nvmlThermalController_t::NVML_THERMAL_CONTROLLER_VBIOSEVT as _,
-    /// The operating-system thermal controller.
-    Os = sys::nvmlThermalController_t::NVML_THERMAL_CONTROLLER_OS as _,
-    /// The Canoas NV system controller.
-    NvsysconCanoas = sys::nvmlThermalController_t::NVML_THERMAL_CONTROLLER_NVSYSCON_CANOAS as _,
-    /// The E551 NV system controller.
-    NvsysconE551 = sys::nvmlThermalController_t::NVML_THERMAL_CONTROLLER_NVSYSCON_E551 as _,
-    /// A MAX6649R thermal controller.
-    Max6649r = sys::nvmlThermalController_t::NVML_THERMAL_CONTROLLER_MAX6649R as _,
-    /// An ADT7473S thermal controller.
-    Adt7473s = sys::nvmlThermalController_t::NVML_THERMAL_CONTROLLER_ADT7473S as _,
-    /// The thermal controller is unknown.
-    Unknown = sys::nvmlThermalController_t::NVML_THERMAL_CONTROLLER_UNKNOWN as _,
-}
-
-impl_enum_conversion!(i32, sys::nvmlThermalController_t, ThermalController);
-
-/// Enum to represent device addressing mode values.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum DeviceAddressingMode {
-    /// No active mode.
-    None = sys::nvmlDeviceAddressingModeType_t::NVML_DEVICE_ADDRESSING_MODE_NONE as _,
-    /// Heterogeneous Memory Management mode.
-    Hmm = sys::nvmlDeviceAddressingModeType_t::NVML_DEVICE_ADDRESSING_MODE_HMM as _,
-    /// Address Translation Services mode.
-    Ats = sys::nvmlDeviceAddressingModeType_t::NVML_DEVICE_ADDRESSING_MODE_ATS as _,
-}
-
-impl_enum_conversion!(
-    u32,
-    sys::nvmlDeviceAddressingModeType_t,
-    DeviceAddressingMode
-);
-
-/// Enum to represent type of bridge chip.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum BridgeChipType {
-    /// Identifies a PLX bridge chip.
-    Plx = sys::nvmlBridgeChipType_t::NVML_BRIDGE_CHIP_PLX as _,
-    /// Identifies a BRO4 bridge chip.
-    Bro4 = sys::nvmlBridgeChipType_t::NVML_BRIDGE_CHIP_BRO4 as _,
-}
-
-impl_enum_conversion!(u32, sys::nvmlBridgeChipType_t, BridgeChipType);
-
-/// Allowed `PStates`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum PerformanceState {
-    /// Performance state 0 , Maximum Performance.
-    P0 = sys::nvmlPstates_t::NVML_PSTATE_0 as _,
-    /// Performance state 1.
-    P1 = sys::nvmlPstates_t::NVML_PSTATE_1 as _,
-    /// Performance state 2.
-    P2 = sys::nvmlPstates_t::NVML_PSTATE_2 as _,
-    /// Performance state 3.
-    P3 = sys::nvmlPstates_t::NVML_PSTATE_3 as _,
-    /// Performance state 4.
-    P4 = sys::nvmlPstates_t::NVML_PSTATE_4 as _,
-    /// Performance state 5.
-    P5 = sys::nvmlPstates_t::NVML_PSTATE_5 as _,
-    /// Performance state 6.
-    P6 = sys::nvmlPstates_t::NVML_PSTATE_6 as _,
-    /// Performance state 7.
-    P7 = sys::nvmlPstates_t::NVML_PSTATE_7 as _,
-    /// Performance state 8.
-    P8 = sys::nvmlPstates_t::NVML_PSTATE_8 as _,
-    /// Performance state 9.
-    P9 = sys::nvmlPstates_t::NVML_PSTATE_9 as _,
-    /// Performance state 10.
-    P10 = sys::nvmlPstates_t::NVML_PSTATE_10 as _,
-    /// Performance state 11.
-    P11 = sys::nvmlPstates_t::NVML_PSTATE_11 as _,
-    /// Performance state 12.
-    P12 = sys::nvmlPstates_t::NVML_PSTATE_12 as _,
-    /// Performance state 13.
-    P13 = sys::nvmlPstates_t::NVML_PSTATE_13 as _,
-    /// Performance state 14.
-    P14 = sys::nvmlPstates_t::NVML_PSTATE_14 as _,
-    /// Performance state 15 , Minimum Performance.
-    P15 = sys::nvmlPstates_t::NVML_PSTATE_15 as _,
-    /// Unknown performance state.
-    Unknown = sys::nvmlPstates_t::NVML_PSTATE_UNKNOWN as _,
-}
-
-impl_enum_conversion!(u32, sys::nvmlPstates_t, PerformanceState);
-
-/// Represents the queryable `PCIe` utilization counters.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum PcieUtilCounter {
-    /// 1KB granularity
-    TxBytes = sys::nvmlPcieUtilCounter_t::NVML_PCIE_UTIL_TX_BYTES as _,
-    /// 1KB granularity
-    RxBytes = sys::nvmlPcieUtilCounter_t::NVML_PCIE_UTIL_RX_BYTES as _,
-}
-
-impl_enum_conversion!(u32, sys::nvmlPcieUtilCounter_t, PcieUtilCounter);
-
-/// Represents level relationships within a system between two GPUs The enums are spaced to allow for future relationships.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum TopologyLevel {
-    /// e.g. Tesla K80
-    Internal = sys::nvmlGpuTopologyLevel_t::NVML_TOPOLOGY_INTERNAL as _,
-    /// all devices that only need traverse a single `PCIe` switch
-    Single = sys::nvmlGpuTopologyLevel_t::NVML_TOPOLOGY_SINGLE as _,
-    /// all devices that need not traverse a host bridge
-    Multiple = sys::nvmlGpuTopologyLevel_t::NVML_TOPOLOGY_MULTIPLE as _,
-    /// all devices that are connected to the same host bridge
-    HostBridge = sys::nvmlGpuTopologyLevel_t::NVML_TOPOLOGY_HOSTBRIDGE as _,
-    /// all devices that are connected to the same NUMA node but possibly multiple host bridges
-    Node = sys::nvmlGpuTopologyLevel_t::NVML_TOPOLOGY_NODE as _,
-    /// all devices in the system
-    System = sys::nvmlGpuTopologyLevel_t::NVML_TOPOLOGY_SYSTEM as _,
-}
-
-impl_enum_conversion!(u32, sys::nvmlGpuTopologyLevel_t, TopologyLevel);
-
-/// P2P Capability Index
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum P2pCapabilityIndex {
-    /// Selects peer-to-peer read capability for a P2P status query.
-    Read = sys::nvmlGpuP2PCapsIndex_t::NVML_P2P_CAPS_INDEX_READ as _,
-    /// Selects peer-to-peer write capability for a P2P status query.
-    Write = sys::nvmlGpuP2PCapsIndex_t::NVML_P2P_CAPS_INDEX_WRITE as _,
-    /// Selects `NVLink` peer-to-peer capability for a P2P status query.
-    Nvlink = sys::nvmlGpuP2PCapsIndex_t::NVML_P2P_CAPS_INDEX_NVLINK as _,
-    /// Selects peer-to-peer atomic-operation capability for a P2P status query.
-    Atomics = sys::nvmlGpuP2PCapsIndex_t::NVML_P2P_CAPS_INDEX_ATOMICS as _,
-    /// Deprecated name for the PCI peer-to-peer capability selector.
-    Prop = sys::nvmlGpuP2PCapsIndex_t::NVML_P2P_CAPS_INDEX_PROP as _,
-    /// Unknown peer-to-peer capability index.
-    Unknown = sys::nvmlGpuP2PCapsIndex_t::NVML_P2P_CAPS_INDEX_UNKNOWN as _,
-}
-
-impl_enum_conversion!(u32, sys::nvmlGpuP2PCapsIndex_t, P2pCapabilityIndex);
-
-/// P2P Capability Index Status
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum P2pStatus {
-    /// The requested peer-to-peer capability is available.
-    Ok = sys::nvmlGpuP2PStatus_t::NVML_P2P_STATUS_OK as _,
-    /// The chipset does not support the requested peer-to-peer operation.
-    ChipsetNotSupported = sys::nvmlGpuP2PStatus_t::NVML_P2P_STATUS_CHIPSET_NOT_SUPPORTED as _,
-    /// The GPU does not support the requested peer-to-peer capability.
-    GpuNotSupported = sys::nvmlGpuP2PStatus_t::NVML_P2P_STATUS_GPU_NOT_SUPPORTED as _,
-    /// The I/O hub topology does not support the requested peer-to-peer capability.
-    IoHubNotSupported = sys::nvmlGpuP2PStatus_t::NVML_P2P_STATUS_IOH_TOPOLOGY_NOT_SUPPORTED as _,
-    /// The requested peer-to-peer capability is disabled by registry configuration.
-    DisabledByRegKey = sys::nvmlGpuP2PStatus_t::NVML_P2P_STATUS_DISABLED_BY_REGKEY as _,
-    /// The requested peer-to-peer capability is unsupported.
-    NotSupported = sys::nvmlGpuP2PStatus_t::NVML_P2P_STATUS_NOT_SUPPORTED as _,
-    /// The status of the requested peer-to-peer capability is unknown.
-    Unknown = sys::nvmlGpuP2PStatus_t::NVML_P2P_STATUS_UNKNOWN as _,
-}
-
-impl_enum_conversion!(u32, sys::nvmlGpuP2PStatus_t, P2pStatus);
-
-/// Available infoROM objects.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum InforomObject {
-    /// An object defined by OEM.
-    Oem = sys::nvmlInforomObject_t::NVML_INFOROM_OEM as _,
-    /// The ECC object determining the level of ECC support.
-    Ecc = sys::nvmlInforomObject_t::NVML_INFOROM_ECC as _,
-    /// The power management object.
-    Power = sys::nvmlInforomObject_t::NVML_INFOROM_POWER as _,
-    /// DRAM Encryption object.
-    Den = sys::nvmlInforomObject_t::NVML_INFOROM_DEN as _,
-}
-
-impl_enum_conversion!(u32, sys::nvmlInforomObject_t, InforomObject);
-
-/// Memory error types.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum MemoryErrorType {
-    /// A memory error that was corrected.
+singe_core::native_enum! {
+    /// Component a thermal sensor measures.
     ///
-    /// For ECC errors, these are single bit errors For Texture memory, these are errors fixed by resend.
-    Corrected = sys::nvmlMemoryErrorType_t::NVML_MEMORY_ERROR_TYPE_CORRECTED as _,
-    /// A memory error that was not corrected.
+    /// [`Self::Unknown`] holds values this crate does not name, including the native unknown value.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    #[non_exhaustive]
+    pub enum ThermalTarget: sys::nvmlThermalTarget_t, unknown = Unknown(i32) {
+        /// No thermal target is selected.
+        None = NVML_THERMAL_TARGET_NONE,
+        /// GPU core temperature requires `NvPhysicalGpuHandle`.
+        Gpu = NVML_THERMAL_TARGET_GPU,
+        /// GPU memory temperature requires `NvPhysicalGpuHandle`.
+        Memory = NVML_THERMAL_TARGET_MEMORY,
+        /// GPU power supply temperature requires `NvPhysicalGpuHandle`.
+        PowerSupply = NVML_THERMAL_TARGET_POWER_SUPPLY,
+        /// GPU board ambient temperature requires `NvPhysicalGpuHandle`.
+        Board = NVML_THERMAL_TARGET_BOARD,
+        /// Visual Computing Device Board temperature requires `NvVisualComputingDeviceHandle`.
+        VcdBoard = NVML_THERMAL_TARGET_VCD_BOARD,
+        /// Visual Computing Device Inlet temperature requires `NvVisualComputingDeviceHandle`.
+        VcdInlet = NVML_THERMAL_TARGET_VCD_INLET,
+        /// Visual Computing Device Outlet temperature requires `NvVisualComputingDeviceHandle`.
+        VcdOutlet = NVML_THERMAL_TARGET_VCD_OUTLET,
+        /// Selects all thermal targets.
+        All = NVML_THERMAL_TARGET_ALL,
+    }
+}
+
+singe_core::native_enum! {
+    /// Controller of a thermal sensor.
     ///
-    /// For ECC errors, these are double bit errors For Texture memory, these are errors where the resend fails.
-    Uncorrected = sys::nvmlMemoryErrorType_t::NVML_MEMORY_ERROR_TYPE_UNCORRECTED as _,
+    /// [`Self::Unknown`] holds values this crate does not name, including the native unknown value.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    #[non_exhaustive]
+    pub enum ThermalController: sys::nvmlThermalController_t, unknown = Unknown(i32) {
+        /// No thermal controller is present.
+        None = NVML_THERMAL_CONTROLLER_NONE,
+        /// The GPU internal thermal controller.
+        GpuInternal = NVML_THERMAL_CONTROLLER_GPU_INTERNAL,
+        /// An ADM1032 thermal controller.
+        Adm1032 = NVML_THERMAL_CONTROLLER_ADM1032,
+        /// An ADT7461 thermal controller.
+        Adt7461 = NVML_THERMAL_CONTROLLER_ADT7461,
+        /// A MAX6649 thermal controller.
+        Max6649 = NVML_THERMAL_CONTROLLER_MAX6649,
+        /// A MAX1617 thermal controller.
+        Max1617 = NVML_THERMAL_CONTROLLER_MAX1617,
+        /// An LM99 thermal controller.
+        Lm99 = NVML_THERMAL_CONTROLLER_LM99,
+        /// An LM89 thermal controller.
+        Lm89 = NVML_THERMAL_CONTROLLER_LM89,
+        /// An LM64 thermal controller.
+        Lm64 = NVML_THERMAL_CONTROLLER_LM64,
+        /// A G781 thermal controller.
+        G781 = NVML_THERMAL_CONTROLLER_G781,
+        /// An ADT7473 thermal controller.
+        Adt7473 = NVML_THERMAL_CONTROLLER_ADT7473,
+        /// An SBMAX6649 thermal controller.
+        Sbmax6649 = NVML_THERMAL_CONTROLLER_SBMAX6649,
+        /// The VBIOS event thermal controller.
+        VbiosEvt = NVML_THERMAL_CONTROLLER_VBIOSEVT,
+        /// The operating-system thermal controller.
+        Os = NVML_THERMAL_CONTROLLER_OS,
+        /// The Canoas NV system controller.
+        NvsysconCanoas = NVML_THERMAL_CONTROLLER_NVSYSCON_CANOAS,
+        /// The E551 NV system controller.
+        NvsysconE551 = NVML_THERMAL_CONTROLLER_NVSYSCON_E551,
+        /// A MAX6649R thermal controller.
+        Max6649r = NVML_THERMAL_CONTROLLER_MAX6649R,
+        /// An ADT7473S thermal controller.
+        Adt7473s = NVML_THERMAL_CONTROLLER_ADT7473S,
+    }
 }
 
-impl_enum_conversion!(u32, sys::nvmlMemoryErrorType_t, MemoryErrorType);
-
-/// ECC counter types.
-///
-/// Note: Volatile counts are reset each time the driver loads.
-/// On Windows this is once per boot.
-/// On Linux this can be more frequent.
-/// On Linux the driver unloads when no active clients exist.
-/// If persistence mode is enabled or there is always a driver client active (e.g. X11), then Linux also sees per-boot behavior.
-/// If not, volatile counts are reset each time a compute app is run.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum EccCounterType {
-    /// Volatile counts are reset each time the driver loads.
-    Volatile = sys::nvmlEccCounterType_t::NVML_VOLATILE_ECC as _,
-    /// Aggregate counts persist across reboots (i.e. for the lifetime of the device).
-    Aggregate = sys::nvmlEccCounterType_t::NVML_AGGREGATE_ECC as _,
+singe_core::native_enum! {
+    /// Addressing mode between the GPU and system memory.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    #[non_exhaustive]
+    pub enum DeviceAddressingMode: sys::nvmlDeviceAddressingModeType_t, unknown = Unknown(u32) {
+        /// No active mode.
+        None = NVML_DEVICE_ADDRESSING_MODE_NONE,
+        /// Heterogeneous Memory Management mode.
+        Hmm = NVML_DEVICE_ADDRESSING_MODE_HMM,
+        /// Address Translation Services mode.
+        Ats = NVML_DEVICE_ADDRESSING_MODE_ATS,
+    }
 }
 
-impl_enum_conversion!(u32, sys::nvmlEccCounterType_t, EccCounterType);
-
-/// See `nvmlDeviceGetMemoryErrorCounter`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum MemoryLocation {
-    /// GPU L1 Cache.
-    L1Cache = sys::nvmlMemoryLocation_t::NVML_MEMORY_LOCATION_L1_CACHE as _,
-    /// GPU L2 Cache.
-    L2Cache = sys::nvmlMemoryLocation_t::NVML_MEMORY_LOCATION_L2_CACHE as _,
-    /// Turing+ DRAM.
-    Dram = sys::nvmlMemoryLocation_t::NVML_MEMORY_LOCATION_DRAM as _,
-    /// GPU Register File.
-    RegisterFile = sys::nvmlMemoryLocation_t::NVML_MEMORY_LOCATION_REGISTER_FILE as _,
-    /// GPU Texture Memory.
-    TextureMemory = sys::nvmlMemoryLocation_t::NVML_MEMORY_LOCATION_TEXTURE_MEMORY as _,
-    /// Shared memory.
-    TextureShm = sys::nvmlMemoryLocation_t::NVML_MEMORY_LOCATION_TEXTURE_SHM as _,
-    /// CBU.
-    Cbu = sys::nvmlMemoryLocation_t::NVML_MEMORY_LOCATION_CBU as _,
-    /// Turing+ SRAM.
-    Sram = sys::nvmlMemoryLocation_t::NVML_MEMORY_LOCATION_SRAM as _,
+singe_core::native_enum! {
+    /// Type of a bridge chip.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    #[non_exhaustive]
+    pub enum BridgeChipType: sys::nvmlBridgeChipType_t, unknown = Unknown(u32) {
+        /// Identifies a PLX bridge chip.
+        Plx = NVML_BRIDGE_CHIP_PLX,
+        /// Identifies a BRO4 bridge chip.
+        Bro4 = NVML_BRIDGE_CHIP_BRO4,
+    }
 }
 
-impl_enum_conversion!(u32, sys::nvmlMemoryLocation_t, MemoryLocation);
-
-/// Represents type of perf policy for which violation times can be queried.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum PerfPolicyType {
-    /// How long did power violations cause the GPU to be below application clocks.
-    Power = sys::nvmlPerfPolicyType_t::NVML_PERF_POLICY_POWER as _,
-    /// How long did thermal violations cause the GPU to be below application clocks.
-    Thermal = sys::nvmlPerfPolicyType_t::NVML_PERF_POLICY_THERMAL as _,
-    /// How long did sync boost cause the GPU to be below application clocks.
-    SyncBoost = sys::nvmlPerfPolicyType_t::NVML_PERF_POLICY_SYNC_BOOST as _,
-    /// How long did the board limit cause the GPU to be below application clocks.
-    BoardLimit = sys::nvmlPerfPolicyType_t::NVML_PERF_POLICY_BOARD_LIMIT as _,
-    /// How long did low utilization cause the GPU to be below application clocks.
-    LowUtilization = sys::nvmlPerfPolicyType_t::NVML_PERF_POLICY_LOW_UTILIZATION as _,
-    /// How long did the board reliability limit cause the GPU to be below application clocks.
-    Reliability = sys::nvmlPerfPolicyType_t::NVML_PERF_POLICY_RELIABILITY as _,
-    /// Total time the GPU was held below application clocks by any limiter (0 - 5 above).
-    TotalAppClocks = sys::nvmlPerfPolicyType_t::NVML_PERF_POLICY_TOTAL_APP_CLOCKS as _,
-    /// Total time the GPU was held below base clocks.
-    TotalBaseClocks = sys::nvmlPerfPolicyType_t::NVML_PERF_POLICY_TOTAL_BASE_CLOCKS as _,
+singe_core::native_enum! {
+    /// Allowed `PStates`.
+    ///
+    /// [`Self::Unknown`] holds values this crate does not name, including the native unknown value.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    #[non_exhaustive]
+    pub enum PerformanceState: sys::nvmlPstates_t, unknown = Unknown(u32) {
+        /// Performance state 0 , Maximum Performance.
+        P0 = NVML_PSTATE_0,
+        /// Performance state 1.
+        P1 = NVML_PSTATE_1,
+        /// Performance state 2.
+        P2 = NVML_PSTATE_2,
+        /// Performance state 3.
+        P3 = NVML_PSTATE_3,
+        /// Performance state 4.
+        P4 = NVML_PSTATE_4,
+        /// Performance state 5.
+        P5 = NVML_PSTATE_5,
+        /// Performance state 6.
+        P6 = NVML_PSTATE_6,
+        /// Performance state 7.
+        P7 = NVML_PSTATE_7,
+        /// Performance state 8.
+        P8 = NVML_PSTATE_8,
+        /// Performance state 9.
+        P9 = NVML_PSTATE_9,
+        /// Performance state 10.
+        P10 = NVML_PSTATE_10,
+        /// Performance state 11.
+        P11 = NVML_PSTATE_11,
+        /// Performance state 12.
+        P12 = NVML_PSTATE_12,
+        /// Performance state 13.
+        P13 = NVML_PSTATE_13,
+        /// Performance state 14.
+        P14 = NVML_PSTATE_14,
+        /// Performance state 15 , Minimum Performance.
+        P15 = NVML_PSTATE_15,
+    }
 }
 
-impl_enum_conversion!(u32, sys::nvmlPerfPolicyType_t, PerfPolicyType);
-
-/// Causes for page retirement.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum PageRetirementCause {
-    /// Page was retired due to multiple single bit ECC error.
-    MultipleSingleBitEccErrors =
-        sys::nvmlPageRetirementCause_t::NVML_PAGE_RETIREMENT_CAUSE_MULTIPLE_SINGLE_BIT_ECC_ERRORS
-            as _,
-    /// Page was retired due to double bit ECC error.
-    DoubleBitEccError =
-        sys::nvmlPageRetirementCause_t::NVML_PAGE_RETIREMENT_CAUSE_DOUBLE_BIT_ECC_ERROR as _,
+singe_core::native_enum! {
+    /// Queryable `PCIe` utilization counter.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum PcieUtilCounter: sys::nvmlPcieUtilCounter_t {
+        /// Transmitted bytes, in KiB units.
+        TxBytes = NVML_PCIE_UTIL_TX_BYTES,
+        /// Received bytes, in KiB units.
+        RxBytes = NVML_PCIE_UTIL_RX_BYTES,
+    }
 }
 
-impl_enum_conversion!(u32, sys::nvmlPageRetirementCause_t, PageRetirementCause);
-
-/// Represents the type for sample value returned.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum FieldValueType {
-    /// Double-precision floating-point value
-    Double = sys::nvmlValueType_t::NVML_VALUE_TYPE_DOUBLE as _,
-    /// Unsigned 32-bit integer value
-    UnsignedInt = sys::nvmlValueType_t::NVML_VALUE_TYPE_UNSIGNED_INT as _,
-    /// Unsigned long integer value
-    UnsignedLong = sys::nvmlValueType_t::NVML_VALUE_TYPE_UNSIGNED_LONG as _,
-    /// Unsigned 64-bit integer value
-    UnsignedLongLong = sys::nvmlValueType_t::NVML_VALUE_TYPE_UNSIGNED_LONG_LONG as _,
-    /// Signed 64-bit integer value
-    SignedLongLong = sys::nvmlValueType_t::NVML_VALUE_TYPE_SIGNED_LONG_LONG as _,
-    /// Signed 32-bit integer value
-    SignedInt = sys::nvmlValueType_t::NVML_VALUE_TYPE_SIGNED_INT as _,
-    /// Unsigned 16-bit integer value
-    UnsignedShort = sys::nvmlValueType_t::NVML_VALUE_TYPE_UNSIGNED_SHORT as _,
+singe_core::native_enum! {
+    /// Closest common ancestor of two GPUs in the system topology.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    #[non_exhaustive]
+    pub enum TopologyLevel: sys::nvmlGpuTopologyLevel_t, unknown = Unknown(u32) {
+        /// GPUs on the same board, such as a Tesla K80.
+        Internal = NVML_TOPOLOGY_INTERNAL,
+        /// GPUs connected through a single `PCIe` switch.
+        Single = NVML_TOPOLOGY_SINGLE,
+        /// GPUs connected through multiple `PCIe` switches without a host bridge.
+        Multiple = NVML_TOPOLOGY_MULTIPLE,
+        /// GPUs connected to the same host bridge.
+        HostBridge = NVML_TOPOLOGY_HOSTBRIDGE,
+        /// GPUs on the same NUMA node, possibly behind different host bridges.
+        Node = NVML_TOPOLOGY_NODE,
+        /// Any GPUs in the system.
+        System = NVML_TOPOLOGY_SYSTEM,
+    }
 }
 
-impl_enum_conversion!(u32, sys::nvmlValueType_t, FieldValueType);
-
-/// Represents Type of Sampling Event.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum SamplingType {
-    /// To represent total power drawn by GPU.
-    TotalPower = sys::nvmlSamplingType_t::NVML_TOTAL_POWER_SAMPLES as _,
-    /// To represent percent of time during which one or more kernels was executing on the GPU.
-    GpuUtilization = sys::nvmlSamplingType_t::NVML_GPU_UTILIZATION_SAMPLES as _,
-    /// To represent percent of time during which global (device) memory was being read or written.
-    MemoryUtilization = sys::nvmlSamplingType_t::NVML_MEMORY_UTILIZATION_SAMPLES as _,
-    /// To represent percent of time during which NVENC remains busy.
-    EncoderUtilization = sys::nvmlSamplingType_t::NVML_ENC_UTILIZATION_SAMPLES as _,
-    /// To represent percent of time during which NVDEC remains busy.
-    DecoderUtilization = sys::nvmlSamplingType_t::NVML_DEC_UTILIZATION_SAMPLES as _,
-    /// To represent processor clock samples.
-    ProcessorClock = sys::nvmlSamplingType_t::NVML_PROCESSOR_CLK_SAMPLES as _,
-    /// To represent memory clock samples.
-    MemoryClock = sys::nvmlSamplingType_t::NVML_MEMORY_CLK_SAMPLES as _,
-    /// To represent module power samples for total module starting Grace Hopper.
-    ModulePower = sys::nvmlSamplingType_t::NVML_MODULE_POWER_SAMPLES as _,
-    /// To represent percent of time during which NVJPG remains busy.
-    JpgUtilization = sys::nvmlSamplingType_t::NVML_JPG_UTILIZATION_SAMPLES as _,
-    /// To represent percent of time during which NVOFA remains busy.
-    OfaUtilization = sys::nvmlSamplingType_t::NVML_OFA_UTILIZATION_SAMPLES as _,
+singe_core::native_enum! {
+    /// Peer-to-peer capability to query.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum P2pCapabilityIndex: sys::nvmlGpuP2PCapsIndex_t {
+        /// Selects peer-to-peer read capability for a P2P status query.
+        Read = NVML_P2P_CAPS_INDEX_READ,
+        /// Selects peer-to-peer write capability for a P2P status query.
+        Write = NVML_P2P_CAPS_INDEX_WRITE,
+        /// Selects `NVLink` peer-to-peer capability for a P2P status query.
+        Nvlink = NVML_P2P_CAPS_INDEX_NVLINK,
+        /// Selects peer-to-peer atomic-operation capability for a P2P status query.
+        Atomics = NVML_P2P_CAPS_INDEX_ATOMICS,
+        /// Deprecated name for the PCI peer-to-peer capability selector.
+        Prop = NVML_P2P_CAPS_INDEX_PROP,
+        /// Unknown peer-to-peer capability index.
+        Unknown = NVML_P2P_CAPS_INDEX_UNKNOWN,
+    }
 }
 
-impl_enum_conversion!(u32, sys::nvmlSamplingType_t, SamplingType);
+singe_core::native_enum! {
+    /// Status of a peer-to-peer capability.
+    ///
+    /// [`Self::Unknown`] holds values this crate does not name, including the native unknown value.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    #[non_exhaustive]
+    pub enum P2pStatus: sys::nvmlGpuP2PStatus_t, unknown = Unknown(u32) {
+        /// The requested peer-to-peer capability is available.
+        Ok = NVML_P2P_STATUS_OK,
+        /// The chipset does not support the requested peer-to-peer operation.
+        ChipsetNotSupported = NVML_P2P_STATUS_CHIPSET_NOT_SUPPORTED,
+        /// The GPU does not support the requested peer-to-peer capability.
+        GpuNotSupported = NVML_P2P_STATUS_GPU_NOT_SUPPORTED,
+        /// The I/O hub topology does not support the requested peer-to-peer capability.
+        IoHubNotSupported = NVML_P2P_STATUS_IOH_TOPOLOGY_NOT_SUPPORTED,
+        /// The requested peer-to-peer capability is disabled by registry configuration.
+        DisabledByRegKey = NVML_P2P_STATUS_DISABLED_BY_REGKEY,
+        /// The requested peer-to-peer capability is unsupported.
+        NotSupported = NVML_P2P_STATUS_NOT_SUPPORTED,
+    }
+}
 
-/// Enum to represent process mode.
+singe_core::native_enum! {
+    /// Available infoROM objects.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum InforomObject: sys::nvmlInforomObject_t {
+        /// An object defined by OEM.
+        Oem = NVML_INFOROM_OEM,
+        /// The ECC object determining the level of ECC support.
+        Ecc = NVML_INFOROM_ECC,
+        /// The power management object.
+        Power = NVML_INFOROM_POWER,
+        /// DRAM Encryption object.
+        Den = NVML_INFOROM_DEN,
+    }
+}
+
+singe_core::native_enum! {
+    /// Memory error types.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum MemoryErrorType: sys::nvmlMemoryErrorType_t {
+        /// A corrected memory error: a single-bit ECC error, or a texture memory error fixed by a resend.
+        Corrected = NVML_MEMORY_ERROR_TYPE_CORRECTED,
+        /// An uncorrected memory error: a double-bit ECC error, or a texture memory error whose resend failed.
+        Uncorrected = NVML_MEMORY_ERROR_TYPE_UNCORRECTED,
+    }
+}
+
+singe_core::native_enum! {
+    /// ECC counter types.
+    ///
+    /// Note: Volatile counts are reset each time the driver loads.
+    /// On Windows this is once per boot.
+    /// On Linux this can be more frequent.
+    /// On Linux the driver unloads when no active clients exist.
+    /// If persistence mode is enabled or there is always a driver client active (e.g. X11), then Linux also sees per-boot behavior.
+    /// If not, volatile counts are reset each time a compute app is run.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum EccCounterType: sys::nvmlEccCounterType_t {
+        /// Volatile counts are reset each time the driver loads.
+        Volatile = NVML_VOLATILE_ECC,
+        /// Aggregate counts persist across reboots (i.e. for the lifetime of the device).
+        Aggregate = NVML_AGGREGATE_ECC,
+    }
+}
+
+singe_core::native_enum! {
+    /// Memory location whose ECC error counter is queried.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum MemoryLocation: sys::nvmlMemoryLocation_t {
+        /// GPU L1 Cache.
+        L1Cache = NVML_MEMORY_LOCATION_L1_CACHE,
+        /// GPU L2 Cache.
+        L2Cache = NVML_MEMORY_LOCATION_L2_CACHE,
+        /// Turing+ DRAM.
+        Dram = NVML_MEMORY_LOCATION_DRAM,
+        /// GPU Register File.
+        RegisterFile = NVML_MEMORY_LOCATION_REGISTER_FILE,
+        /// GPU Texture Memory.
+        TextureMemory = NVML_MEMORY_LOCATION_TEXTURE_MEMORY,
+        /// Shared memory.
+        TextureShm = NVML_MEMORY_LOCATION_TEXTURE_SHM,
+        /// CBU.
+        Cbu = NVML_MEMORY_LOCATION_CBU,
+        /// Turing+ SRAM.
+        Sram = NVML_MEMORY_LOCATION_SRAM,
+    }
+}
+
+singe_core::native_enum! {
+    /// Performance policy whose violation time can be queried.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum PerfPolicyType: sys::nvmlPerfPolicyType_t {
+        /// How long did power violations cause the GPU to be below application clocks.
+        Power = NVML_PERF_POLICY_POWER,
+        /// How long did thermal violations cause the GPU to be below application clocks.
+        Thermal = NVML_PERF_POLICY_THERMAL,
+        /// How long did sync boost cause the GPU to be below application clocks.
+        SyncBoost = NVML_PERF_POLICY_SYNC_BOOST,
+        /// How long did the board limit cause the GPU to be below application clocks.
+        BoardLimit = NVML_PERF_POLICY_BOARD_LIMIT,
+        /// How long did low utilization cause the GPU to be below application clocks.
+        LowUtilization = NVML_PERF_POLICY_LOW_UTILIZATION,
+        /// How long did the board reliability limit cause the GPU to be below application clocks.
+        Reliability = NVML_PERF_POLICY_RELIABILITY,
+        /// Total time the GPU was held below application clocks by any limiter (0 - 5 above).
+        TotalAppClocks = NVML_PERF_POLICY_TOTAL_APP_CLOCKS,
+        /// Total time the GPU was held below base clocks.
+        TotalBaseClocks = NVML_PERF_POLICY_TOTAL_BASE_CLOCKS,
+    }
+}
+
+singe_core::native_enum! {
+    /// Causes for page retirement.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum PageRetirementCause: sys::nvmlPageRetirementCause_t {
+        /// Page was retired due to multiple single bit ECC error.
+        MultipleSingleBitEccErrors = NVML_PAGE_RETIREMENT_CAUSE_MULTIPLE_SINGLE_BIT_ECC_ERRORS,
+        /// Page was retired due to double bit ECC error.
+        DoubleBitEccError = NVML_PAGE_RETIREMENT_CAUSE_DOUBLE_BIT_ECC_ERROR,
+    }
+}
+
+singe_core::native_enum! {
+    /// Type of a sample or field value.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    #[non_exhaustive]
+    pub enum FieldValueType: sys::nvmlValueType_t, unknown = Unknown(u32) {
+        /// Double-precision floating-point value.
+        Double = NVML_VALUE_TYPE_DOUBLE,
+        /// Unsigned 32-bit integer value.
+        UnsignedInt = NVML_VALUE_TYPE_UNSIGNED_INT,
+        /// Unsigned long integer value.
+        UnsignedLong = NVML_VALUE_TYPE_UNSIGNED_LONG,
+        /// Unsigned 64-bit integer value.
+        UnsignedLongLong = NVML_VALUE_TYPE_UNSIGNED_LONG_LONG,
+        /// Signed 64-bit integer value.
+        SignedLongLong = NVML_VALUE_TYPE_SIGNED_LONG_LONG,
+        /// Signed 32-bit integer value.
+        SignedInt = NVML_VALUE_TYPE_SIGNED_INT,
+        /// Unsigned 16-bit integer value.
+        UnsignedShort = NVML_VALUE_TYPE_UNSIGNED_SHORT,
+    }
+}
+
+singe_core::native_enum! {
+    /// Quantity that a sample measures.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum SamplingType: sys::nvmlSamplingType_t {
+        /// To represent total power drawn by GPU.
+        TotalPower = NVML_TOTAL_POWER_SAMPLES,
+        /// To represent percent of time during which one or more kernels was executing on the GPU.
+        GpuUtilization = NVML_GPU_UTILIZATION_SAMPLES,
+        /// To represent percent of time during which global (device) memory was being read or written.
+        MemoryUtilization = NVML_MEMORY_UTILIZATION_SAMPLES,
+        /// To represent percent of time during which NVENC remains busy.
+        EncoderUtilization = NVML_ENC_UTILIZATION_SAMPLES,
+        /// To represent percent of time during which NVDEC remains busy.
+        DecoderUtilization = NVML_DEC_UTILIZATION_SAMPLES,
+        /// To represent processor clock samples.
+        ProcessorClock = NVML_PROCESSOR_CLK_SAMPLES,
+        /// To represent memory clock samples.
+        MemoryClock = NVML_MEMORY_CLK_SAMPLES,
+        /// To represent module power samples for total module starting Grace Hopper.
+        ModulePower = NVML_MODULE_POWER_SAMPLES,
+        /// To represent percent of time during which NVJPG remains busy.
+        JpgUtilization = NVML_JPG_UTILIZATION_SAMPLES,
+        /// To represent percent of time during which NVOFA remains busy.
+        OfaUtilization = NVML_OFA_UTILIZATION_SAMPLES,
+    }
+}
+
+/// Kind of work a process runs on the GPU.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
 #[repr(u32)]
 #[non_exhaustive]
 pub enum ProcessMode {
     /// Processes with a compute context.
-    Compute = sys::nvmlProcessMode_enum::NVML_PROCESS_MODE_COMPUTE as _,
+    Compute = sys::nvmlProcessMode_enum::NVML_PROCESS_MODE_COMPUTE.0,
     /// Processes with a graphics context.
-    Graphics = sys::nvmlProcessMode_enum::NVML_PROCESS_MODE_GRAPHICS as _,
+    Graphics = sys::nvmlProcessMode_enum::NVML_PROCESS_MODE_GRAPHICS.0,
     /// Processes with a MPS (Multi-Process Service) compute context.
-    MpsCompute = sys::nvmlProcessMode_enum::NVML_PROCESS_MODE_MPS as _,
+    MpsCompute = sys::nvmlProcessMode_enum::NVML_PROCESS_MODE_MPS.0,
 }
 
 impl_enum_display!(ProcessMode, {
@@ -3150,12 +2967,10 @@ pub enum AffinityScope {
 
 /// Bus connection type reported by NVML.
 ///
-/// [`Self::Other`] preserves unrecognized native values.
+/// [`Self::Unknown`] holds values this crate does not name, including the native unknown value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum BusType {
-    /// Unknown bus type.
-    Unknown,
     /// PCI bus.
     Pci,
     /// PCI-Express bus.
@@ -3165,27 +2980,26 @@ pub enum BusType {
     /// AGP bus.
     Agp,
     /// Unrecognized native bus type code, preserved without conversion.
-    Other(u32),
+    Unknown(u32),
 }
 
 impl BusType {
-    /// Decodes a native bus type while preserving unrecognized codes in [`Self::Other`].
+    /// Decodes a native bus type while keeping unrecognized codes in [`Self::Unknown`].
     #[must_use]
     pub const fn from_raw(value: u32) -> Self {
         match value {
-            sys::NVML_BUS_TYPE_UNKNOWN => Self::Unknown,
             sys::NVML_BUS_TYPE_PCI => Self::Pci,
             sys::NVML_BUS_TYPE_PCIE => Self::Pcie,
             sys::NVML_BUS_TYPE_FPCI => Self::Fpci,
             sys::NVML_BUS_TYPE_AGP => Self::Agp,
-            raw => Self::Other(raw),
+            raw => Self::Unknown(raw),
         }
     }
 }
 
 /// Power source reported for a device.
 ///
-/// [`Self::Other`] preserves unrecognized native values.
+/// [`Self::Unknown`] holds values this crate does not name.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum PowerSource {
@@ -3196,65 +3010,59 @@ pub enum PowerSource {
     /// Power source with insufficient capacity for the device.
     Undersized,
     /// Unrecognized native power source code, preserved without conversion.
-    Other(u32),
+    Unknown(u32),
 }
 
 impl PowerSource {
-    /// Decodes a native power source while preserving unrecognized codes in [`Self::Other`].
+    /// Decodes a native power source while keeping unrecognized codes in [`Self::Unknown`].
     #[must_use]
     pub const fn from_raw(value: u32) -> Self {
         match value {
             sys::NVML_POWER_SOURCE_AC => Self::Ac,
             sys::NVML_POWER_SOURCE_BATTERY => Self::Battery,
             sys::NVML_POWER_SOURCE_UNDERSIZED => Self::Undersized,
-            raw => Self::Other(raw),
+            raw => Self::Unknown(raw),
         }
     }
 }
 
-/// Represents type of encoder for capacity can be queried.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum EncoderType {
-    /// H264 encoder.
-    H264 = sys::nvmlEncoderType_t::NVML_ENCODER_QUERY_H264 as _,
-    /// HEVC encoder.
-    Hevc = sys::nvmlEncoderType_t::NVML_ENCODER_QUERY_HEVC as _,
-    /// AV1 encoder.
-    Av1 = sys::nvmlEncoderType_t::NVML_ENCODER_QUERY_AV1 as _,
-    /// Unknown encoder.
-    Unknown = sys::nvmlEncoderType_t::NVML_ENCODER_QUERY_UNKNOWN as _,
+singe_core::native_enum! {
+    /// Encoder type whose capacity can be queried.
+    ///
+    /// [`Self::Unknown`] holds values this crate does not name, including the native unknown value.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    #[non_exhaustive]
+    pub enum EncoderType: sys::nvmlEncoderType_t, unknown = Unknown(u32) {
+        /// H264 encoder.
+        H264 = NVML_ENCODER_QUERY_H264,
+        /// HEVC encoder.
+        Hevc = NVML_ENCODER_QUERY_HEVC,
+        /// AV1 encoder.
+        Av1 = NVML_ENCODER_QUERY_AV1,
+    }
 }
 
-impl_enum_conversion!(u32, sys::nvmlEncoderType_t, EncoderType);
-
-/// API types that allow changes to default permission restrictions.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum RestrictedApi {
-    /// APIs that change application clocks, see nvmlDeviceSetApplicationsClocks and see nvmlDeviceResetApplicationsClocks.
-    /// Deprecated, keeping definition for backward compatibility.
-    #[deprecated]
-    SetApplicationsClocks =
-        sys::nvmlRestrictedAPI_t::NVML_RESTRICTED_API_SET_APPLICATION_CLOCKS as _,
-    /// APIs that enable/disable Auto Boosted clocks see nvmlDeviceSetAutoBoostedClocksEnabled.
-    SetAutoBoostedClocks =
-        sys::nvmlRestrictedAPI_t::NVML_RESTRICTED_API_SET_AUTO_BOOSTED_CLOCKS as _,
-    /// Keep this last
-    Count = sys::nvmlRestrictedAPI_t::NVML_RESTRICTED_API_COUNT as _,
+singe_core::native_enum! {
+    /// API types that allow changes to default permission restrictions.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum RestrictedApi: sys::nvmlRestrictedAPI_t {
+        /// APIs that change application clocks.
+        #[deprecated]
+        SetApplicationsClocks = NVML_RESTRICTED_API_SET_APPLICATION_CLOCKS,
+        /// APIs that enable or disable auto-boosted clocks.
+        SetAutoBoostedClocks = NVML_RESTRICTED_API_SET_AUTO_BOOSTED_CLOCKS,
+        /// Number of restricted API types.
+        Count = NVML_RESTRICTED_API_COUNT,
+    }
 }
-
-impl_enum_conversion!(u32, sys::nvmlRestrictedAPI_t, RestrictedApi);
 
 /// Adaptive-clocking enablement reported by NVML.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
 #[repr(u32)]
 #[non_exhaustive]
 pub enum AdaptiveClockInfoStatus {
-    /// Adaptive clocking status.
-    ///
     /// Adaptive clocking is disabled.
     Disabled = sys::NVML_ADAPTIVE_CLOCKING_INFO_STATUS_DISABLED,
     /// Adaptive clocking is enabled.
@@ -3266,133 +3074,121 @@ pub enum AdaptiveClockInfoStatus {
 #[repr(u32)]
 #[non_exhaustive]
 pub enum FanPolicy {
-    /// Device Power Modes.
-    ///
-    /// Device Fan control policy Temperature-controlled fan policy.
+    /// The driver controls the fan speed from the temperature.
     TemperatureContinuousSw = sys::NVML_FAN_POLICY_TEMPERATURE_CONTINOUS_SW,
     /// Manual fan control policy.
     Manual = sys::NVML_FAN_POLICY_MANUAL,
 }
 
-/// Fan state enum.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum FanState {
-    /// Fan is working properly.
-    Normal = sys::nvmlFanState_t::NVML_FAN_NORMAL as _,
-    /// Fan has failed.
-    Failed = sys::nvmlFanState_t::NVML_FAN_FAILED as _,
+singe_core::native_enum! {
+    /// Health of a unit fan.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    #[non_exhaustive]
+    pub enum FanState: sys::nvmlFanState_t, unknown = Unknown(u32) {
+        /// Fan is working properly.
+        Normal = NVML_FAN_NORMAL,
+        /// Fan has failed.
+        Failed = NVML_FAN_FAILED,
+    }
 }
 
-impl_enum_conversion!(u32, sys::nvmlFanState_t, FanState);
-
-/// Cooler control type.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum CoolerControl {
-    /// This cooler has no control signal.
-    None = sys::nvmlCoolerControl_t::NVML_THERMAL_COOLER_SIGNAL_NONE as _,
-    /// This cooler can only be toggled either ON or OFF (eg a switch).
-    Toggle = sys::nvmlCoolerControl_t::NVML_THERMAL_COOLER_SIGNAL_TOGGLE as _,
-    /// This cooler's level can be adjusted from some minimum to some maximum (eg a knob).
-    Variable = sys::nvmlCoolerControl_t::NVML_THERMAL_COOLER_SIGNAL_VARIABLE as _,
-    /// Keep this last
-    Count = sys::nvmlCoolerControl_t::NVML_THERMAL_COOLER_SIGNAL_COUNT as _,
+singe_core::native_enum! {
+    /// Cooler control type.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    #[non_exhaustive]
+    pub enum CoolerControl: sys::nvmlCoolerControl_t, unknown = Unknown(u32) {
+        /// This cooler has no control signal.
+        None = NVML_THERMAL_COOLER_SIGNAL_NONE,
+        /// This cooler can only be toggled either ON or OFF (eg a switch).
+        Toggle = NVML_THERMAL_COOLER_SIGNAL_TOGGLE,
+        /// This cooler's level can be adjusted from some minimum to some maximum (eg a knob).
+        Variable = NVML_THERMAL_COOLER_SIGNAL_VARIABLE,
+        /// Number of values in this enumeration.
+        Count = NVML_THERMAL_COOLER_SIGNAL_COUNT,
+    }
 }
 
-impl_enum_conversion!(u32, sys::nvmlCoolerControl_t, CoolerControl);
-
-/// Cooler's target.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum CoolerTarget {
-    /// This cooler cools nothing.
-    None = sys::nvmlCoolerTarget_t::NVML_THERMAL_COOLER_TARGET_NONE as _,
-    /// This cooler can cool the GPU.
-    Gpu = sys::nvmlCoolerTarget_t::NVML_THERMAL_COOLER_TARGET_GPU as _,
-    /// This cooler can cool the memory.
-    Memory = sys::nvmlCoolerTarget_t::NVML_THERMAL_COOLER_TARGET_MEMORY as _,
-    /// This cooler can cool the power supply.
-    PowerSupply = sys::nvmlCoolerTarget_t::NVML_THERMAL_COOLER_TARGET_POWER_SUPPLY as _,
-    /// This cooler cools all of the components related to its target gpu.
-    /// `GPU_RELATED` = GPU | MEMORY | `POWER_SUPPLY`.
-    GpuRelated = sys::nvmlCoolerTarget_t::NVML_THERMAL_COOLER_TARGET_GPU_RELATED as _,
+singe_core::native_enum! {
+    /// Cooler's target.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    #[non_exhaustive]
+    pub enum CoolerTarget: sys::nvmlCoolerTarget_t, unknown = Unknown(u32) {
+        /// This cooler cools nothing.
+        None = NVML_THERMAL_COOLER_TARGET_NONE,
+        /// This cooler can cool the GPU.
+        Gpu = NVML_THERMAL_COOLER_TARGET_GPU,
+        /// This cooler can cool the memory.
+        Memory = NVML_THERMAL_COOLER_TARGET_MEMORY,
+        /// This cooler can cool the power supply.
+        PowerSupply = NVML_THERMAL_COOLER_TARGET_POWER_SUPPLY,
+        /// This cooler cools all of the components related to its target gpu.
+        /// `GPU_RELATED` = GPU | MEMORY | `POWER_SUPPLY`.
+        GpuRelated = NVML_THERMAL_COOLER_TARGET_GPU_RELATED,
+    }
 }
 
-impl_enum_conversion!(u32, sys::nvmlCoolerTarget_t, CoolerTarget);
-
-/// Represents frame buffer capture session type.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum FbcSessionType {
-    /// Unknown.
-    Unknown = sys::nvmlFBCSessionType_t::NVML_FBC_SESSION_TYPE_UNKNOWN as _,
-    /// `ToSys`.
-    ToSys = sys::nvmlFBCSessionType_t::NVML_FBC_SESSION_TYPE_TOSYS as _,
-    /// CUDA.
-    Cuda = sys::nvmlFBCSessionType_t::NVML_FBC_SESSION_TYPE_CUDA as _,
-    /// Vid.
-    Vid = sys::nvmlFBCSessionType_t::NVML_FBC_SESSION_TYPE_VID as _,
-    /// `HEnc`.
-    HwEnc = sys::nvmlFBCSessionType_t::NVML_FBC_SESSION_TYPE_HWENC as _,
+singe_core::native_enum! {
+    /// Frame buffer capture session type.
+    ///
+    /// [`Self::Unknown`] holds values this crate does not name, including the native unknown value.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    #[non_exhaustive]
+    pub enum FbcSessionType: sys::nvmlFBCSessionType_t, unknown = Unknown(u32) {
+        /// `ToSys`.
+        ToSys = NVML_FBC_SESSION_TYPE_TOSYS,
+        /// CUDA.
+        Cuda = NVML_FBC_SESSION_TYPE_CUDA,
+        /// Vid.
+        Vid = NVML_FBC_SESSION_TYPE_VID,
+        /// `HEnc`.
+        HwEnc = NVML_FBC_SESSION_TYPE_HWENC,
+    }
 }
 
-impl_enum_conversion!(u32, sys::nvmlFBCSessionType_t, FbcSessionType);
-
-/// Driver models.
-///
-/// Windows only.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum DriverModel {
-    /// WDDM driver model , GPU treated as a display device.
-    Wddm = sys::nvmlDriverModel_t::NVML_DRIVER_WDDM as _,
-    /// WDM (TCC) model (deprecated) , GPU treated as a generic compute device.
-    #[deprecated]
-    Wdm = sys::nvmlDriverModel_t::NVML_DRIVER_WDM as _,
-    /// MCDM driver model , GPU treated as a Microsoft compute device.
-    Mcdm = sys::nvmlDriverModel_t::NVML_DRIVER_MCDM as _,
+singe_core::native_enum! {
+    /// Driver models.
+    ///
+    /// Windows only.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    #[non_exhaustive]
+    pub enum DriverModel: sys::nvmlDriverModel_t, unknown = Unknown(u32) {
+        /// WDDM driver model , GPU treated as a display device.
+        Wddm = NVML_DRIVER_WDDM,
+        /// WDM (TCC) model (deprecated) , GPU treated as a generic compute device.
+        #[deprecated]
+        Wdm = NVML_DRIVER_WDM,
+        /// MCDM driver model , GPU treated as a Microsoft compute device.
+        Mcdm = NVML_DRIVER_MCDM,
+    }
 }
 
-impl_enum_conversion!(u32, sys::nvmlDriverModel_t, DriverModel);
-
-/// GPU Operation Mode.
-///
-/// GOM allows to reduce power usage and optimize GPU throughput by disabling GPU features.
-///
-/// Each GOM is designed to meet specific user needs.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum GpuOperationMode {
-    /// Everything is enabled and running at full speed.
-    AllOn = sys::nvmlGpuOperationMode_t::NVML_GOM_ALL_ON as _,
-    /// Designed for running only compute tasks.
-    /// Graphics operations are not allowed.
-    Compute = sys::nvmlGpuOperationMode_t::NVML_GOM_COMPUTE as _,
-    /// Designed for running graphics applications that don't require high bandwidth double precision.
-    LowDp = sys::nvmlGpuOperationMode_t::NVML_GOM_LOW_DP as _,
+singe_core::native_enum! {
+    /// GPU Operation Mode.
+    ///
+    /// GOM allows to reduce power usage and optimize GPU throughput by disabling GPU features.
+    ///
+    /// Each GOM is designed to meet specific user needs.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    #[non_exhaustive]
+    pub enum GpuOperationMode: sys::nvmlGpuOperationMode_t, unknown = Unknown(u32) {
+        /// Everything is enabled and running at full speed.
+        AllOn = NVML_GOM_ALL_ON,
+        /// Designed for running only compute tasks.
+        /// Graphics operations are not allowed.
+        Compute = NVML_GOM_COMPUTE,
+        /// Designed for running graphics applications that don't require high bandwidth double precision.
+        LowDp = NVML_GOM_LOW_DP,
+    }
 }
-
-impl_enum_conversion!(u32, sys::nvmlGpuOperationMode_t, GpuOperationMode);
 
 /// Multi-instance GPU partitioning mode.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
 #[repr(u32)]
 #[non_exhaustive]
 pub enum MigMode {
-    /// Disable Multi Instance GPU mode.
-    ///
-    /// Disable Multi Instance GPU mode.
+    /// MIG mode is disabled.
     Disabled = sys::NVML_DEVICE_MIG_DISABLE,
-    /// Enable Multi Instance GPU mode.
-    ///
-    /// Enable Multi Instance GPU mode.
+    /// MIG mode is enabled.
     Enabled = sys::NVML_DEVICE_MIG_ENABLE,
 }
 
@@ -3419,7 +3215,7 @@ impl MigModeActivation {
 
 /// GPU virtualization mode reported by NVML.
 ///
-/// [`Self::Other`] preserves unrecognized native values.
+/// [`Self::Unknown`] holds values this crate does not name.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum VirtualizationMode {
@@ -3434,93 +3230,85 @@ pub enum VirtualizationMode {
     /// GPU managed by a VGX hypervisor in vSGA mode.
     HostVsga,
     /// Unrecognized native GPU virtualization mode code, preserved without conversion.
-    Other(u32),
+    Unknown(u32),
 }
 
 impl VirtualizationMode {
-    /// Decodes a native GPU virtualization mode while preserving unrecognized codes in [`Self::Other`].
+    /// Decodes a native GPU virtualization mode while keeping unrecognized codes in [`Self::Unknown`].
     #[must_use]
     pub const fn from_raw(value: u32) -> Self {
         match value {
             value
                 if value
-                    == sys::nvmlGpuVirtualizationMode_t::NVML_GPU_VIRTUALIZATION_MODE_NONE
-                        as u32 =>
+                    == sys::nvmlGpuVirtualizationMode_t::NVML_GPU_VIRTUALIZATION_MODE_NONE.0 =>
             {
                 Self::None
             }
             value
                 if value
-                    == sys::nvmlGpuVirtualizationMode_t::NVML_GPU_VIRTUALIZATION_MODE_PASSTHROUGH
-                        as u32 =>
+                    == sys::nvmlGpuVirtualizationMode_t::NVML_GPU_VIRTUALIZATION_MODE_PASSTHROUGH.0 =>
             {
                 Self::Passthrough
             }
             value
                 if value
-                    == sys::nvmlGpuVirtualizationMode_t::NVML_GPU_VIRTUALIZATION_MODE_VGPU
-                        as u32 =>
+                    == sys::nvmlGpuVirtualizationMode_t::NVML_GPU_VIRTUALIZATION_MODE_VGPU.0 =>
             {
                 Self::Vgpu
             }
             value
                 if value
-                    == sys::nvmlGpuVirtualizationMode_t::NVML_GPU_VIRTUALIZATION_MODE_HOST_VGPU
-                        as u32 =>
+                    == sys::nvmlGpuVirtualizationMode_t::NVML_GPU_VIRTUALIZATION_MODE_HOST_VGPU.0 =>
             {
                 Self::HostVgpu
             }
             value
                 if value
-                    == sys::nvmlGpuVirtualizationMode_t::NVML_GPU_VIRTUALIZATION_MODE_HOST_VSGA
-                        as u32 =>
+                    == sys::nvmlGpuVirtualizationMode_t::NVML_GPU_VIRTUALIZATION_MODE_HOST_VSGA.0 =>
             {
                 Self::HostVsga
             }
-            raw => Self::Other(raw),
+            raw => Self::Unknown(raw),
         }
     }
 }
 
-/// Host vGPU modes.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum HostVgpuMode {
-    /// Non SR-IOV mode.
-    NonSriov = sys::nvmlHostVgpuMode_t::NVML_HOST_VGPU_MODE_NON_SRIOV as _,
-    /// SR-IOV mode.
-    Sriov = sys::nvmlHostVgpuMode_t::NVML_HOST_VGPU_MODE_SRIOV as _,
+singe_core::native_enum! {
+    /// Host vGPU modes.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    #[non_exhaustive]
+    pub enum HostVgpuMode: sys::nvmlHostVgpuMode_t, unknown = Unknown(u32) {
+        /// Non SR-IOV mode.
+        NonSriov = NVML_HOST_VGPU_MODE_NON_SRIOV,
+        /// SR-IOV mode.
+        Sriov = NVML_HOST_VGPU_MODE_SRIOV,
+    }
 }
 
-impl_enum_conversion!(u32, sys::nvmlHostVgpuMode_t, HostVgpuMode);
-
-/// vGPU driver queryable capabilities.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum VgpuDriverCapability {
-    /// Supports mixing of different vGPU profiles within one guest VM.
-    HeterogeneousMultiVgpu =
-        sys::nvmlVgpuDriverCapability_t::NVML_VGPU_DRIVER_CAP_HETEROGENEOUS_MULTI_VGPU as _,
-    /// Supports FSR and warm update of vGPU host driver without terminating the running guest VM.
-    WarmUpdate = sys::nvmlVgpuDriverCapability_t::NVML_VGPU_DRIVER_CAP_WARM_UPDATE as _,
+singe_core::native_enum! {
+    /// vGPU driver queryable capabilities.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum VgpuDriverCapability: sys::nvmlVgpuDriverCapability_t {
+        /// Supports mixing of different vGPU profiles within one guest VM.
+        HeterogeneousMultiVgpu = NVML_VGPU_DRIVER_CAP_HETEROGENEOUS_MULTI_VGPU,
+        /// Supports FSR and warm update of vGPU host driver without terminating the running guest VM.
+        WarmUpdate = NVML_VGPU_DRIVER_CAP_WARM_UPDATE,
+    }
 }
 
-impl_enum_conversion!(u32, sys::nvmlVgpuDriverCapability_t, VgpuDriverCapability);
-
-/// Types of VM identifiers.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum VgpuVmIdType {
-    /// VM ID represents DOMAIN ID.
-    DomainId = sys::nvmlVgpuVmIdType_t::NVML_VGPU_VM_ID_DOMAIN_ID as _,
-    /// VM ID represents UUID.
-    Uuid = sys::nvmlVgpuVmIdType_t::NVML_VGPU_VM_ID_UUID as _,
+singe_core::native_enum! {
+    /// Types of VM identifiers.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    #[non_exhaustive]
+    pub enum VgpuVmIdType: sys::nvmlVgpuVmIdType_t, unknown = Unknown(u32) {
+        /// VM ID represents DOMAIN ID.
+        DomainId = NVML_VGPU_VM_ID_DOMAIN_ID,
+        /// VM ID represents UUID.
+        Uuid = NVML_VGPU_VM_ID_UUID,
+    }
 }
-
-impl_enum_conversion!(u32, sys::nvmlVgpuVmIdType_t, VgpuVmIdType);
 
 /// Virtual-machine identifier and its NVML identifier kind.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -3599,8 +3387,6 @@ pub enum VgpuSchedulerArrMode {
 #[repr(u32)]
 #[non_exhaustive]
 pub enum VgpuSchedulerEngine {
-    /// vGPU scheduler engine types A GPU or GI may support a subset of engines
-    ///
     /// Graphics engine.
     Graphics = sys::NVML_VGPU_SCHEDULER_ENGINE_TYPE_GRAPHICS,
 }
@@ -3842,18 +3628,17 @@ pub struct GpmMetric {
     pub unit: String,
 }
 
-/// Led color enum.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum LedColor {
-    /// GREEN, indicates good health.
-    Green = sys::nvmlLedColor_t::NVML_LED_COLOR_GREEN as _,
-    /// AMBER, indicates problem.
-    Amber = sys::nvmlLedColor_t::NVML_LED_COLOR_AMBER as _,
+singe_core::native_enum! {
+    /// Color of a unit LED.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    #[non_exhaustive]
+    pub enum LedColor: sys::nvmlLedColor_t, unknown = Unknown(u32) {
+        /// GREEN, indicates good health.
+        Green = NVML_LED_COLOR_GREEN,
+        /// AMBER, indicates problem.
+        Amber = NVML_LED_COLOR_AMBER,
+    }
 }
-
-impl_enum_conversion!(u32, sys::nvmlLedColor_t, LedColor);
 
 /// Unit LED color and the reported cause of an amber indication.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -4044,15 +3829,17 @@ pub struct FieldSample {
 /// GPU utilization, memory use, and timing statistics for a process.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct AccountingStats {
-    /// Percent of time over the process's lifetime during which one or more kernels was executing on the GPU.
-    /// Utilization stats just like returned by [nvmlDeviceGetUtilizationRates](https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceQueries.html#group__nvmldevicequeries_1ga30e0516c86aa5f98196c73f05c77d4df) but for the life time of a process (not just the last sample period).
-    /// Set to `NVML_VALUE_NOT_AVAILABLE` if nvmlDeviceGetUtilizationRates is not supported.
+    /// Percent of the process's lifetime during which one or more kernels ran on the GPU.
+    ///
+    /// The value is `u32::MAX` when the GPU does not report utilization.
     pub gpu_utilization: u32,
-    /// Percent of time over the process's lifetime during which global (device) memory was being read or written.
-    /// Set to `NVML_VALUE_NOT_AVAILABLE` if nvmlDeviceGetUtilizationRates is not supported.
+    /// Percent of the process's lifetime during which device memory was read or written.
+    ///
+    /// The value is `u32::MAX` when the GPU does not report utilization.
     pub memory_utilization: u32,
-    /// Maximum total memory in bytes that was ever allocated by the process.
-    /// Set to `NVML_VALUE_NOT_AVAILABLE` if nvmlProcessInfo_t->usedGpuMemory is not supported.
+    /// Maximum total memory in bytes that the process allocated.
+    ///
+    /// The value is `u64::MAX` when the GPU does not report process memory use.
     pub max_memory_usage: u64,
     /// Amount of time in ms during which the compute context was active.
     /// The time is reported as 0 if the process is not terminated.
@@ -4372,9 +4159,7 @@ pub struct RepairStatus {
 #[repr(u32)]
 #[non_exhaustive]
 pub enum GpuFabricState {
-    /// Fabric Probe States.
-    ///
-    /// Fabric Probe State not supported.
+    /// Fabric probing is not supported.
     NotSupported = sys::NVML_GPU_FABRIC_STATE_NOT_SUPPORTED,
     /// Fabric Probe has not started.
     NotStarted = sys::NVML_GPU_FABRIC_STATE_NOT_STARTED,
@@ -4389,9 +4174,7 @@ pub enum GpuFabricState {
 #[repr(u32)]
 #[non_exhaustive]
 pub enum GpuFabricHealthSummary {
-    /// Fabric Health.
-    ///
-    /// Fabric Health Summary: Not supported.
+    /// Fabric health is not supported.
     NotSupported = sys::NVML_GPU_FABRIC_HEALTH_SUMMARY_NOT_SUPPORTED,
     /// Fabric Health Summary: Healthy.
     Healthy = sys::NVML_GPU_FABRIC_HEALTH_SUMMARY_HEALTHY,
@@ -4406,9 +4189,7 @@ pub enum GpuFabricHealthSummary {
 #[repr(u32)]
 #[non_exhaustive]
 pub enum GpuFabricBooleanState {
-    /// Fabric Degraded BW.
-    ///
-    /// Fabric Health Mask: Degraded Bandwidth not supported.
+    /// The flag is not supported.
     NotSupported = sys::NVML_GPU_FABRIC_HEALTH_MASK_DEGRADED_BW_NOT_SUPPORTED,
     /// Fabric Health Mask: Bandwidth degraded.
     True = sys::NVML_GPU_FABRIC_HEALTH_MASK_DEGRADED_BW_TRUE,
@@ -4421,9 +4202,7 @@ pub enum GpuFabricBooleanState {
 #[repr(u32)]
 #[non_exhaustive]
 pub enum GpuFabricIncorrectConfiguration {
-    /// Fabric Incorrect Configuration.
-    ///
-    /// Fabric Health Mask: Incorrect Configuration not supported.
+    /// Configuration checks are not supported.
     NotSupported = sys::NVML_GPU_FABRIC_HEALTH_MASK_INCORRECT_CONFIGURATION_NOT_SUPPORTED,
     /// Fabric Health Mask: Correct Configuration.
     None = sys::NVML_GPU_FABRIC_HEALTH_MASK_INCORRECT_CONFIGURATION_NONE,
@@ -4686,7 +4465,7 @@ pub struct ComputeInstanceProfileInfo {
 }
 
 /// Information about a compute instance.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub struct ComputeInstanceInfo {
     /// Parent device for the compute instance.
     pub device: Device,
@@ -4754,7 +4533,7 @@ pub struct FbcSessionInfo {
     pub display_ordinal: u32,
     /// Capture session type.
     pub session_type: FbcSessionType,
-    /// Session flags (one or more of `NVML_NVFBC_SESSION_FLAG_XXX`).
+    /// Native session flag bits.
     pub session_flags: u32,
     /// Max horizontal resolution supported by the capture session.
     pub max_horizontal_resolution: u32,
@@ -4907,11 +4686,12 @@ impl From<sys::nvmlGpuInstanceProfileInfo_v3_t> for GpuInstanceProfileInfo {
     }
 }
 
-impl From<sys::nvmlGpuInstanceInfo_t> for GpuInstanceInfo {
-    fn from(value: sys::nvmlGpuInstanceInfo_t) -> Self {
+impl GpuInstanceInfo {
+    // The caller must pass information that NVML returned while `library`'s initialization was alive.
+    pub(crate) unsafe fn from_raw(value: sys::nvmlGpuInstanceInfo_t, library: &Library) -> Self {
         Self {
-            // SAFETY: NVML returned this device handle, which stays valid until NVML shuts down.
-            device: unsafe { Device::from_raw(value.device) },
+            // SAFETY: the caller passes information NVML returned under `library`, which the `Device` retains.
+            device: unsafe { Device::from_raw(value.device, library) },
             id: value.id,
             profile_id: value.profileId,
             placement: value.placement.into(),
@@ -4955,13 +4735,17 @@ impl From<sys::nvmlComputeInstanceProfileInfo_v3_t> for ComputeInstanceProfileIn
     }
 }
 
-impl From<sys::nvmlComputeInstanceInfo_t> for ComputeInstanceInfo {
-    fn from(value: sys::nvmlComputeInstanceInfo_t) -> Self {
+impl ComputeInstanceInfo {
+    // The caller must pass information that NVML returned while `library`'s initialization was alive.
+    pub(crate) unsafe fn from_raw(
+        value: sys::nvmlComputeInstanceInfo_t,
+        library: &Library,
+    ) -> Self {
         Self {
-            // SAFETY: NVML returned this device handle, which stays valid until NVML shuts down.
-            device: unsafe { Device::from_raw(value.device) },
-            // SAFETY: NVML returned this device handle, which stays valid until NVML shuts down.
-            gpu_instance: unsafe { GpuInstance::from_raw(value.gpuInstance) },
+            // SAFETY: the caller passes information NVML returned under `library`, which the `Device` retains.
+            device: unsafe { Device::from_raw(value.device, library) },
+            // SAFETY: the caller passes information NVML returned under `library`, which the `GpuInstance` retains.
+            gpu_instance: unsafe { GpuInstance::from_raw(value.gpuInstance, library) },
             id: value.id,
             profile_id: value.profileId,
             placement: value.placement.into(),
@@ -5014,11 +4798,9 @@ impl From<VgpuVersion> for sys::nvmlVgpuVersion_t {
 impl From<sys::nvmlVgpuPgpuCompatibility_t> for VgpuCompatibility {
     fn from(value: sys::nvmlVgpuPgpuCompatibility_t) -> Self {
         Self {
-            vm_compatibility: VgpuVmCompatibility::from_bits_retain(
-                value.vgpuVmCompatibility as u32,
-            ),
+            vm_compatibility: VgpuVmCompatibility::from_bits_retain(value.vgpuVmCompatibility.0),
             limit_code: VgpuPgpuCompatibilityLimitCode::from_bits_retain(
-                value.compatibilityLimitCode as u32,
+                value.compatibilityLimitCode.0,
             ),
         }
     }
@@ -5048,7 +4830,7 @@ fn write_string_at(bytes: &mut [u8], offset: usize, capacity: usize, value: &str
     bytes[offset..offset + len].copy_from_slice(&value.as_bytes()[..len]);
 }
 
-/// Splits a variable-length metadata blob into its fixed header and opaque data.
+// Splits a variable-length metadata blob into its fixed header and opaque data.
 fn metadata_opaque_data(
     name: &'static str,
     raw: &[u8],
@@ -5057,19 +4839,22 @@ fn metadata_opaque_data(
     opaque_size_offset: usize,
 ) -> Result<Vec<u8>> {
     if raw.len() < header_size {
-        return Err(Error::ShortOutput {
+        return Err(Error::BufferTooSmall {
             name: name.into(),
-            expected: header_size,
+            required: header_size,
             actual: raw.len(),
         });
     }
 
-    let opaque_size = read_u32_at(raw, opaque_size_offset) as usize;
+    let opaque_size = to_usize(
+        read_u32_at(raw, opaque_size_offset),
+        "NVML opaque data size",
+    )?;
     let opaque_end = opaque_offset.saturating_add(opaque_size);
     if raw.len() < opaque_end {
-        return Err(Error::ShortOutput {
+        return Err(Error::BufferTooSmall {
             name: name.into(),
-            expected: opaque_end,
+            required: opaque_end,
             actual: raw.len(),
         });
     }
@@ -5077,7 +4862,7 @@ fn metadata_opaque_data(
 }
 
 impl VgpuMetadata {
-    /// Decodes a metadata blob written by `nvmlVgpuInstanceGetMetadata`.
+    // Decodes a metadata blob written by `nvmlVgpuInstanceGetMetadata`.
     pub(crate) fn decode_raw(raw: &[u8]) -> Result<Self> {
         type Raw = sys::nvmlVgpuMetadata_t;
         let opaque_data = metadata_opaque_data(
@@ -5087,13 +4872,12 @@ impl VgpuMetadata {
             mem::offset_of!(Raw, opaqueData),
             mem::offset_of!(Raw, opaqueDataSize),
         )?;
+
+        let guest_info_state = read_u32_at(raw, mem::offset_of!(Raw, guestInfoState));
         Ok(Self {
             version: read_u32_at(raw, mem::offset_of!(Raw, version)),
             revision: read_u32_at(raw, mem::offset_of!(Raw, revision)),
-            guest_info_state: try_from_nvml_enum(
-                "guest info state",
-                read_u32_at(raw, mem::offset_of!(Raw, guestInfoState)),
-            )?,
+            guest_info_state: sys::nvmlVgpuGuestInfoState_t(guest_info_state).into(),
             guest_driver_version: read_string_at(
                 raw,
                 mem::offset_of!(Raw, guestDriverVersion),
@@ -5125,7 +4909,7 @@ impl VgpuMetadata {
         write_u32_at(
             &mut raw,
             mem::offset_of!(Raw, guestInfoState),
-            self.guest_info_state.into(),
+            sys::nvmlVgpuGuestInfoState_t::from(self.guest_info_state).0,
         );
         write_u32_at(
             &mut raw,
@@ -5161,7 +4945,7 @@ impl VgpuMetadata {
 }
 
 impl PgpuMetadata {
-    /// Decodes a metadata blob written by `nvmlDeviceGetVgpuMetadata`.
+    // Decodes a metadata blob written by `nvmlDeviceGetVgpuMetadata`.
     pub(crate) fn decode_raw(raw: &[u8]) -> Result<Self> {
         type Raw = sys::nvmlVgpuPgpuMetadata_t;
         let opaque_data = metadata_opaque_data(
@@ -5326,7 +5110,7 @@ impl VgpuSchedulerLog {
             VgpuSchedulerArrMode::Default
         };
 
-        let entries = info.logEntries[..info.entriesCount as usize]
+        let entries = reported_entries(&info.logEntries, info.entriesCount)
             .iter()
             .copied()
             .map(Into::into)
@@ -5386,8 +5170,9 @@ impl From<sys::nvmlGpmSupport_t> for GpmSupport {
     }
 }
 
-impl From<sys::nvmlGpmMetric_t> for GpmMetric {
-    fn from(value: sys::nvmlGpmMetric_t) -> Self {
+impl GpmMetric {
+    // The caller must pass a metric that NVML filled, whose name pointers are null or NUL-terminated strings NVML owns.
+    pub(crate) unsafe fn from_raw(value: sys::nvmlGpmMetric_t) -> Self {
         let result = if value.nvmlReturn == sys::nvmlReturn_t::NVML_SUCCESS {
             Ok(value.value)
         } else {
@@ -5397,11 +5182,11 @@ impl From<sys::nvmlGpmMetric_t> for GpmMetric {
         Self {
             metric_id: GpmMetricId(value.metricId),
             result,
-            // SAFETY: `string_from_c_ptr` accepts null, and non-null values are NUL-terminated strings owned by the library.
+            // SAFETY: the caller passes a metric NVML filled, whose `shortName` is null or a NUL-terminated string NVML owns.
             short_name: unsafe { string_from_c_ptr(value.metricInfo.shortName) },
-            // SAFETY: `string_from_c_ptr` accepts null, and non-null values are NUL-terminated strings owned by the library.
+            // SAFETY: the caller passes a metric NVML filled, whose `longName` is null or a NUL-terminated string NVML owns.
             long_name: unsafe { string_from_c_ptr(value.metricInfo.longName) },
-            // SAFETY: `string_from_c_ptr` accepts null, and non-null values are NUL-terminated strings owned by the library.
+            // SAFETY: the caller passes a metric NVML filled, whose `unit` is null or a NUL-terminated string NVML owns.
             unit: unsafe { string_from_c_ptr(value.metricInfo.unit) },
         }
     }
@@ -5534,7 +5319,7 @@ impl From<sys::nvmlBridgeChipInfo_t> for BridgeChipInfo {
 impl From<sys::nvmlBridgeChipHierarchy_t> for BridgeChipHierarchy {
     fn from(value: sys::nvmlBridgeChipHierarchy_t) -> Self {
         Self {
-            bridge_chips: value.bridgeChipInfo[..value.bridgeCount as usize]
+            bridge_chips: reported_entries(&value.bridgeChipInfo, value.bridgeCount)
                 .iter()
                 .copied()
                 .map(Into::into)
@@ -5573,7 +5358,7 @@ impl From<sys::nvmlClkMonStatus_t> for ClkMonStatus {
     fn from(value: sys::nvmlClkMonStatus_t) -> Self {
         Self {
             global_status: value.bGlobalStatus != 0,
-            faults: value.clkMonList[..value.clkMonListSize as usize]
+            faults: reported_entries(&value.clkMonList, value.clkMonListSize)
                 .iter()
                 .copied()
                 .map(Into::into)
@@ -5630,7 +5415,7 @@ impl From<sys::nvmlGpuThermalSettings_t__bindgen_ty_1> for ThermalSensorSetting 
 impl From<sys::nvmlGpuThermalSettings_t> for ThermalSettings {
     fn from(value: sys::nvmlGpuThermalSettings_t) -> Self {
         Self {
-            sensors: value.sensor[..value.count as usize]
+            sensors: reported_entries(&value.sensor, value.count)
                 .iter()
                 .copied()
                 .map(Into::into)
@@ -5655,7 +5440,7 @@ impl From<sys::nvmlNvLinkUtilizationControl_t> for NvLinkUtilizationControl {
     fn from(value: sys::nvmlNvLinkUtilizationControl_t) -> Self {
         Self {
             units: value.units.into(),
-            packet_filter: NvLinkPacketTypes::from_bits_retain(value.pktfilter as u32),
+            packet_filter: NvLinkPacketTypes::from_bits_retain(value.pktfilter.0),
         }
     }
 }
@@ -5675,12 +5460,14 @@ impl From<sys::nvmlNvLinkInfo_t> for NvLinkInfo {
     fn from(value: sys::nvmlNvLinkInfo_t) -> Self {
         Self {
             nvle_enabled: value.isNvleEnabled != 0,
-            firmware_versions: value.firmwareInfo.firmwareVersion
-                [..value.firmwareInfo.numValidEntries as usize]
-                .iter()
-                .copied()
-                .map(Into::into)
-                .collect(),
+            firmware_versions: reported_entries(
+                &value.firmwareInfo.firmwareVersion,
+                value.firmwareInfo.numValidEntries,
+            )
+            .iter()
+            .copied()
+            .map(Into::into)
+            .collect(),
         }
     }
 }
@@ -5697,7 +5484,7 @@ impl From<sys::nvmlNvlinkGetBwMode_t> for NvLinkBwMode {
 impl From<sys::nvmlNvlinkSupportedBwModes_t> for NvLinkSupportedBwModes {
     fn from(value: sys::nvmlNvlinkSupportedBwModes_t) -> Self {
         Self {
-            modes: value.bwModes[..value.totalBwModes as usize].to_vec(),
+            modes: reported_entries(&value.bwModes, value.totalBwModes).to_vec(),
         }
     }
 }
@@ -5799,10 +5586,12 @@ impl From<sys::nvmlConfComputeMemSizeInfo_t> for ConfComputeMemSizeInfo {
 impl From<sys::nvmlConfComputeGpuCertificate_t> for ConfComputeGpuCertificate {
     fn from(value: sys::nvmlConfComputeGpuCertificate_t) -> Self {
         Self {
-            cert_chain: value.certChain[..value.certChainSize as usize].to_vec(),
-            attestation_cert_chain: value.attestationCertChain
-                [..value.attestationCertChainSize as usize]
-                .to_vec(),
+            cert_chain: reported_entries(&value.certChain, value.certChainSize).to_vec(),
+            attestation_cert_chain: reported_entries(
+                &value.attestationCertChain,
+                value.attestationCertChainSize,
+            )
+            .to_vec(),
         }
     }
 }
@@ -5812,11 +5601,16 @@ impl From<sys::nvmlConfComputeGpuAttestationReport_t> for ConfComputeGpuAttestat
         Self {
             cec_attestation_report_present: value.isCecAttestationReportPresent != 0,
             nonce: value.nonce,
-            attestation_report: value.attestationReport[..value.attestationReportSize as usize]
-                .to_vec(),
-            cec_attestation_report: value.cecAttestationReport
-                [..value.cecAttestationReportSize as usize]
-                .to_vec(),
+            attestation_report: reported_entries(
+                &value.attestationReport,
+                value.attestationReportSize,
+            )
+            .to_vec(),
+            cec_attestation_report: reported_entries(
+                &value.cecAttestationReport,
+                value.cecAttestationReportSize,
+            )
+            .to_vec(),
         }
     }
 }
@@ -5833,11 +5627,11 @@ impl GpuFabricInfo {
     pub(crate) fn from_raw(value: &sys::nvmlGpuFabricInfo_v4_t) -> Result<Self> {
         Ok(Self {
             cluster_uuid: value.clusterUuid,
-            status_code: value.status as u32,
+            status_code: value.status.0,
             cliques: value
                 .cliques
-                .get(..value.numCliques as usize)
-                .ok_or_else(|| Error::from(Status::InsufficientSize))?
+                .get(..to_usize(value.numCliques, "clique count")?)
+                .ok_or_else(|| Error::out_of_range("clique count"))?
                 .iter()
                 .map(|clique| GpuFabricClique {
                     kind: GpuFabricCliqueKind::from(clique.type_),
@@ -5925,24 +5719,29 @@ impl FieldValue {
     ///
     /// # Errors
     ///
-    /// Returns `Error::UnknownFieldValueType` if the native discriminator is not supported.
+    /// Returns an error if `value_type` is not a known value type.
     pub fn from_raw(value_type: sys::nvmlValueType_t, value: sys::nvmlValue_t) -> Result<Self> {
-        Ok(match FieldValueType::try_from(u32::from(value_type)) {
-            // SAFETY: the type tag matched above selects this union field.
-            Ok(FieldValueType::Double) => Self::Double(unsafe { value.dVal }),
-            // SAFETY: the type tag matched above selects this union field.
-            Ok(FieldValueType::UnsignedInt) => Self::UnsignedInt(unsafe { value.uiVal }),
-            // SAFETY: the type tag matched above selects this union field.
-            Ok(FieldValueType::UnsignedLong) => Self::UnsignedLong(unsafe { value.ulVal }),
-            // SAFETY: the type tag matched above selects this union field.
-            Ok(FieldValueType::UnsignedLongLong) => Self::UnsignedLongLong(unsafe { value.ullVal }),
-            // SAFETY: the type tag matched above selects this union field.
-            Ok(FieldValueType::SignedLongLong) => Self::SignedLongLong(unsafe { value.sllVal }),
-            // SAFETY: the type tag matched above selects this union field.
-            Ok(FieldValueType::SignedInt) => Self::SignedInt(unsafe { value.siVal }),
-            // SAFETY: the type tag matched above selects this union field.
-            Ok(FieldValueType::UnsignedShort) => Self::UnsignedShort(unsafe { value.usVal }),
-            Err(_) => return Err(Error::UnknownFieldValueType(u32::from(value_type))),
+        Ok(match FieldValueType::from(value_type) {
+            // SAFETY: every `nvmlValue_t` field is a plain number valid for any bit pattern.
+            FieldValueType::Double => Self::Double(unsafe { value.dVal }),
+            // SAFETY: every `nvmlValue_t` field is a plain number valid for any bit pattern.
+            FieldValueType::UnsignedInt => Self::UnsignedInt(unsafe { value.uiVal }),
+            // SAFETY: every `nvmlValue_t` field is a plain number valid for any bit pattern.
+            FieldValueType::UnsignedLong => Self::UnsignedLong(unsafe { value.ulVal }),
+            // SAFETY: every `nvmlValue_t` field is a plain number valid for any bit pattern.
+            FieldValueType::UnsignedLongLong => Self::UnsignedLongLong(unsafe { value.ullVal }),
+            // SAFETY: every `nvmlValue_t` field is a plain number valid for any bit pattern.
+            FieldValueType::SignedLongLong => Self::SignedLongLong(unsafe { value.sllVal }),
+            // SAFETY: every `nvmlValue_t` field is a plain number valid for any bit pattern.
+            FieldValueType::SignedInt => Self::SignedInt(unsafe { value.siVal }),
+            // SAFETY: every `nvmlValue_t` field is a plain number valid for any bit pattern.
+            FieldValueType::UnsignedShort => Self::UnsignedShort(unsafe { value.usVal }),
+            FieldValueType::Unknown(code) => {
+                return Err(Error::UnknownEnumValue {
+                    name: "field value type".into(),
+                    value: i64::from(code),
+                });
+            }
         })
     }
 }
@@ -5952,7 +5751,7 @@ impl Sample {
     ///
     /// # Errors
     ///
-    /// Returns `Error::UnknownFieldValueType` if the native discriminator is not supported.
+    /// Returns an error if `value_type` is not a known value type.
     pub fn from_raw(value_type: sys::nvmlValueType_t, sample: sys::nvmlSample_t) -> Result<Self> {
         Ok(Self {
             timestamp: sample.timeStamp,
@@ -6155,114 +5954,34 @@ bitflags::bitflags! {
     /// Bitmask of reasons that can affect GPU clocks.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct ClockEventReasons: u64 {
-        /// HW Slowdown (reducing the core clocks by a factor of 2 or more) is engaged.
+        /// Hardware slowdown cuts the core clocks by half or more.
         ///
-        /// This is an indicator of:
-        ///
-        /// * temperature being too high
-        /// * External Power Brake Assertion is triggered (e.g. by the system power supply)
-        /// * Power draw is too high and Fast Trigger protection is reducing the clocks
-        /// * May be also reported during PState or clock change
-        ///   + This behavior may be removed in a later release.
-        ///
-        /// See also
-        ///
-        /// [`nvmlDeviceGetTemperature`]
-        ///
-        /// See also
-        ///
-        /// [`nvmlDeviceGetTemperatureThreshold`]
-        ///
-        /// See also
-        ///
-        /// [`nvmlDeviceGetPowerUsage`] Hardware slowdown activated.
+        /// Causes include a high temperature, an external power brake from the power supply, power draw high enough to trip fast-trigger protection, and P-state or clock changes.
         const HW_SLOWDOWN = sys::nvmlClocksThrottleReasonHwSlowdown as u64;
 
-        /// HW Thermal Slowdown (reducing the core clocks by a factor of 2 or more) is engaged.
-        ///
-        /// This is an indicator of:
-        ///
-        /// * temperature being too high
-        ///
-        /// See also
-        ///
-        /// [`nvmlDeviceGetTemperature`]
-        ///
-        /// See also
-        ///
-        /// [`nvmlDeviceGetTemperatureThreshold`]
-        ///
-        /// See also
-        ///
-        /// [`nvmlDeviceGetPowerUsage`] Hardware thermal slowdown activated.
+        /// Hardware thermal slowdown cuts the core clocks by half or more because the temperature is too high.
         const HW_THERMAL_SLOWDOWN = sys::nvmlClocksThrottleReasonHwThermalSlowdown as u64;
 
-        /// HW Power Brake Slowdown (reducing the core clocks by a factor of 2 or more) is engaged.
-        ///
-        /// This is an indicator of:
-        ///
-        /// * External Power Brake Assertion being triggered (e.g. by the system power supply)
-        ///
-        /// See also
-        ///
-        /// [`nvmlDeviceGetTemperature`]
-        ///
-        /// See also
-        ///
-        /// [`nvmlDeviceGetTemperatureThreshold`]
-        ///
-        /// See also
-        ///
-        /// [`nvmlDeviceGetPowerUsage`] Hardware power brake slowdown activated.
+        /// Hardware power brake slowdown cuts the core clocks by half or more because an external power brake, such as from the power supply, is asserted.
         const HW_POWER_BRAKE_SLOWDOWN = sys::nvmlClocksThrottleReasonHwPowerBrakeSlowdown as u64;
 
         /// Nothing is running on the GPU and the clocks are dropping to Idle state.
         const GPU_IDLE = sys::nvmlClocksEventReasonGpuIdle as u64;
         /// Clocks are set to application-specific values.
         const APPLICATIONS_CLOCKS_SETTING = sys::nvmlClocksEventReasonApplicationsClocksSetting as u64;
-        /// The clocks have been optimized to ensure not to exceed currently set power limits.
-        ///
-        /// See also
-        ///
-        /// `nvmlDeviceGetPowerUsage`
-        ///
-        /// See also
-        ///
-        /// `nvmlDeviceSetPowerManagementLimit`
-        ///
-        /// See also
-        ///
-        /// `nvmlDeviceGetPowerManagementLimit` Software power cap activated.
+        /// The clocks are lowered to stay within the power limit.
         const SW_POWER_CAP = sys::nvmlClocksEventReasonSwPowerCap as u64;
-        /// Sync Boost.
+        /// The GPU is in a sync boost group, which runs every member at the lowest clocks across the group.
         ///
-        /// This GPU has been added to a Sync boost group with nvidia-smi or DCGM in order to maximize performance per watt.
-        /// All GPUs in the sync boost group will boost to the minimum possible clocks across the entire group.
-        /// Look at the throttle reasons for other GPUs in the system to see why those GPUs are holding this one at lower clocks.
-        /// Sync boost activated.
+        /// Other GPUs' clock event reasons show why they hold this one at lower clocks.
         const SYNC_BOOST = sys::nvmlClocksEventReasonSyncBoost as u64;
-        /// SW Thermal Slowdown.
-        ///
-        /// The current clocks have been optimized to ensure the following is true:
-        ///
-        /// * Current GPU temperature does not exceed GPU Max Operating Temperature
-        /// * Current memory temperature does not exceeed Memory Max Operating Temperature Software thermal slowdown activated.
+        /// The clocks are lowered to keep the GPU and memory below their maximum operating temperatures.
         const SW_THERMAL_SLOWDOWN = sys::nvmlClocksEventReasonSwThermalSlowdown as u64;
-        /// GPU clocks are limited by current setting of Display clocks.
-        ///
-        /// See also
-        ///
-        /// bug 1997531 Display clock setting limited.
+        /// The display clock setting limits the GPU clocks.
         const DISPLAY_CLOCK_SETTING = sys::nvmlClocksEventReasonDisplayClockSetting as u64;
-        /// Board limit.
-        ///
-        /// The board limit (operating) policy is currently limiting the GPU clocks.
-        /// Board limit policy is limiting clocks.
+        /// The board limit policy limits the GPU clocks.
         const BOARD_LIMIT = sys::nvmlClocksEventReasonBoardLimit as u64;
-        /// Reliability.
-        ///
-        /// The reliability policy is currently limiting the GPU clocks.
-        /// Reliability policy is limiting clocks.
+        /// The reliability policy limits the GPU clocks.
         const RELIABILITY = sys::nvmlClocksEventReasonReliability as u64;
     }
 }
@@ -6274,35 +5993,35 @@ pub struct GpuRecoveryAction(pub u32);
 impl GpuRecoveryAction {
     /// No action needed.
     pub const NONE: Self =
-        Self(sys::nvmlDeviceGpuRecoveryAction_s::NVML_GPU_RECOVERY_ACTION_NONE as _);
+        Self(sys::nvmlDeviceGpuRecoveryAction_s::NVML_GPU_RECOVERY_ACTION_NONE.0);
 
     /// Reset Gpu.
     pub const GPU_RESET: Self =
-        Self(sys::nvmlDeviceGpuRecoveryAction_s::NVML_GPU_RECOVERY_ACTION_GPU_RESET as _);
+        Self(sys::nvmlDeviceGpuRecoveryAction_s::NVML_GPU_RECOVERY_ACTION_GPU_RESET.0);
 
     /// Reboot Node.
     pub const NODE_REBOOT: Self =
-        Self(sys::nvmlDeviceGpuRecoveryAction_s::NVML_GPU_RECOVERY_ACTION_NODE_REBOOT as _);
+        Self(sys::nvmlDeviceGpuRecoveryAction_s::NVML_GPU_RECOVERY_ACTION_NODE_REBOOT.0);
 
     /// Drain P2P.
     pub const DRAIN_P2P: Self =
-        Self(sys::nvmlDeviceGpuRecoveryAction_s::NVML_GPU_RECOVERY_ACTION_DRAIN_P2P as _);
+        Self(sys::nvmlDeviceGpuRecoveryAction_s::NVML_GPU_RECOVERY_ACTION_DRAIN_P2P.0);
 
     /// Drain P2P and Reset Gpu.
     pub const DRAIN_AND_RESET: Self =
-        Self(sys::nvmlDeviceGpuRecoveryAction_s::NVML_GPU_RECOVERY_ACTION_DRAIN_AND_RESET as _);
+        Self(sys::nvmlDeviceGpuRecoveryAction_s::NVML_GPU_RECOVERY_ACTION_DRAIN_AND_RESET.0);
 
     /// Recover IMEX Domain.
     pub const RECOVER_IMEX_DOMAIN: Self =
-        Self(sys::nvmlDeviceGpuRecoveryAction_s::NVML_GPU_RECOVERY_ACTION_RECOVER_IMEX_DOMAIN as _);
+        Self(sys::nvmlDeviceGpuRecoveryAction_s::NVML_GPU_RECOVERY_ACTION_RECOVER_IMEX_DOMAIN.0);
 
     /// Reset the GPU's `PCIe` bus.
     pub const BUS_RESET: Self =
-        Self(sys::nvmlDeviceGpuRecoveryAction_s::NVML_GPU_RECOVERY_ACTION_BUS_RESET as _);
+        Self(sys::nvmlDeviceGpuRecoveryAction_s::NVML_GPU_RECOVERY_ACTION_BUS_RESET.0);
 
     /// Reboot the system.
     pub const SYSTEM_REBOOT: Self =
-        Self(sys::nvmlDeviceGpuRecoveryAction_s::NVML_GPU_RECOVERY_ACTION_SYSTEM_REBOOT as _);
+        Self(sys::nvmlDeviceGpuRecoveryAction_s::NVML_GPU_RECOVERY_ACTION_SYSTEM_REBOOT.0);
 }
 
 /// NVIDIA GRID license feature code.
@@ -6312,27 +6031,27 @@ pub struct GridLicenseFeatureCode(pub u32);
 impl GridLicenseFeatureCode {
     /// Unknown.
     pub const UNKNOWN: Self =
-        Self(sys::nvmlGridLicenseFeatureCode_t::NVML_GRID_LICENSE_FEATURE_CODE_UNKNOWN as _);
+        Self(sys::nvmlGridLicenseFeatureCode_t::NVML_GRID_LICENSE_FEATURE_CODE_UNKNOWN.0);
 
     /// Virtual GPU.
     pub const VGPU: Self =
-        Self(sys::nvmlGridLicenseFeatureCode_t::NVML_GRID_LICENSE_FEATURE_CODE_VGPU as _);
+        Self(sys::nvmlGridLicenseFeatureCode_t::NVML_GRID_LICENSE_FEATURE_CODE_VGPU.0);
 
     /// Nvidia RTX.
     pub const NVIDIA_RTX: Self =
-        Self(sys::nvmlGridLicenseFeatureCode_t::NVML_GRID_LICENSE_FEATURE_CODE_NVIDIA_RTX as _);
+        Self(sys::nvmlGridLicenseFeatureCode_t::NVML_GRID_LICENSE_FEATURE_CODE_NVIDIA_RTX.0);
 
     /// Gaming.
     pub const GAMING: Self =
-        Self(sys::nvmlGridLicenseFeatureCode_t::NVML_GRID_LICENSE_FEATURE_CODE_GAMING as _);
+        Self(sys::nvmlGridLicenseFeatureCode_t::NVML_GRID_LICENSE_FEATURE_CODE_GAMING.0);
 
     /// Compute.
     pub const COMPUTE: Self =
-        Self(sys::nvmlGridLicenseFeatureCode_t::NVML_GRID_LICENSE_FEATURE_CODE_COMPUTE as _);
+        Self(sys::nvmlGridLicenseFeatureCode_t::NVML_GRID_LICENSE_FEATURE_CODE_COMPUTE.0);
 
     /// vGameDev.
     pub const VGAMEDEV: Self =
-        Self(sys::nvmlGridLicenseFeatureCode_t::NVML_GRID_LICENSE_FEATURE_CODE_VGAMEDEV as _);
+        Self(sys::nvmlGridLicenseFeatureCode_t::NVML_GRID_LICENSE_FEATURE_CODE_VGAMEDEV.0);
 }
 
 /// `NVLink` state returned by the `NVLink` state field query.
@@ -6353,7 +6072,7 @@ impl NvLinkFieldState {
     pub const ACTIVE_TRAFFIC_DISABLED: Self = Self(sys::NVML_NVLINK_STATE_ACTIVE_TRAFFIC_DISABLED);
 }
 
-impl_enum_display!(VgpuGuestInfoState, {
+impl_unknown_enum_display!(VgpuGuestInfoState, {
     VgpuGuestInfoState::Uninitialized => "NVML_VGPU_INSTANCE_GUEST_INFO_STATE_UNINITIALIZED",
     VgpuGuestInfoState::Initialized => "NVML_VGPU_INSTANCE_GUEST_INFO_STATE_INITIALIZED",
 });
@@ -6363,12 +6082,12 @@ impl_enum_display!(VgpuPlacementMode, {
     VgpuPlacementMode::Homogeneous => "NVML_VGPU_PGPU_HOMOGENEOUS_MODE",
 });
 
-impl_enum_display!(EnableState, {
+impl_unknown_enum_display!(EnableState, {
     EnableState::Disabled => "NVML_FEATURE_DISABLED",
     EnableState::Enabled => "NVML_FEATURE_ENABLED",
 });
 
-impl_enum_display!(TemperatureSensor, {
+impl_unknown_enum_display!(TemperatureSensor, {
     TemperatureSensor::GpuMax => "NVML_TEMPERATURE_GPU_MAX",
     TemperatureSensor::Gpu => "NVML_TEMPERATURE_GPU",
 });
@@ -6384,21 +6103,21 @@ impl_enum_display!(TemperatureThreshold, {
     TemperatureThreshold::GpuCurrent => "NVML_TEMPERATURE_THRESHOLD_GPS_CURR",
 });
 
-impl_enum_display!(ComputeMode, {
+impl_unknown_enum_display!(ComputeMode, {
     ComputeMode::Default => "NVML_COMPUTEMODE_DEFAULT",
     ComputeMode::ExclusiveThread => "NVML_COMPUTEMODE_EXCLUSIVE_THREAD",
     ComputeMode::Prohibited => "NVML_COMPUTEMODE_PROHIBITED",
     ComputeMode::ExclusiveProcess => "NVML_COMPUTEMODE_EXCLUSIVE_PROCESS",
 });
 
-impl_enum_display!(ClockType, {
+impl_unknown_enum_display!(ClockType, {
     ClockType::Graphics => "NVML_CLOCK_GRAPHICS",
     ClockType::Sm => "NVML_CLOCK_SM",
     ClockType::Memory => "NVML_CLOCK_MEM",
     ClockType::Video => "NVML_CLOCK_VIDEO",
 });
 
-impl_enum_display!(NvLinkUtilizationCountUnits, {
+impl_unknown_enum_display!(NvLinkUtilizationCountUnits, {
     NvLinkUtilizationCountUnits::Cycles => "NVML_NVLINK_COUNTER_UNIT_CYCLES",
     NvLinkUtilizationCountUnits::Packets => "NVML_NVLINK_COUNTER_UNIT_PACKETS",
     NvLinkUtilizationCountUnits::Bytes => "NVML_NVLINK_COUNTER_UNIT_BYTES",
@@ -6425,14 +6144,13 @@ impl_enum_display!(NvLinkErrorCounter, {
     NvLinkErrorCounter::Count => "NVML_NVLINK_ERROR_COUNT",
 });
 
-impl_enum_display!(NvLinkRemoteDeviceType, {
+impl_unknown_enum_display!(NvLinkRemoteDeviceType, {
     NvLinkRemoteDeviceType::Gpu => "NVML_NVLINK_DEVICE_TYPE_GPU",
     NvLinkRemoteDeviceType::IbmNpu => "NVML_NVLINK_DEVICE_TYPE_IBMNPU",
     NvLinkRemoteDeviceType::Switch => "NVML_NVLINK_DEVICE_TYPE_SWITCH",
-    NvLinkRemoteDeviceType::Unknown => "NVML_NVLINK_DEVICE_TYPE_UNKNOWN",
 });
 
-impl_enum_display!(NvLinkVersion, {
+impl_unknown_enum_display!(NvLinkVersion, {
     NvLinkVersion::Invalid => "NVML_NVLINK_VERSION_INVALID",
     NvLinkVersion::V1_0 => "NVML_NVLINK_VERSION_1_0",
     NvLinkVersion::V2_0 => "NVML_NVLINK_VERSION_2_0",
@@ -6486,7 +6204,7 @@ impl_enum_display!(ClockId, {
     ClockId::CustomerBoostMax => "NVML_CLOCK_ID_CUSTOMER_BOOST_MAX",
 });
 
-impl_enum_display!(ThermalTarget, {
+impl_unknown_enum_display!(ThermalTarget, {
     ThermalTarget::None => "NVML_THERMAL_TARGET_NONE",
     ThermalTarget::Gpu => "NVML_THERMAL_TARGET_GPU",
     ThermalTarget::Memory => "NVML_THERMAL_TARGET_MEMORY",
@@ -6496,10 +6214,9 @@ impl_enum_display!(ThermalTarget, {
     ThermalTarget::VcdInlet => "NVML_THERMAL_TARGET_VCD_INLET",
     ThermalTarget::VcdOutlet => "NVML_THERMAL_TARGET_VCD_OUTLET",
     ThermalTarget::All => "NVML_THERMAL_TARGET_ALL",
-    ThermalTarget::Unknown => "NVML_THERMAL_TARGET_UNKNOWN",
 });
 
-impl_enum_display!(ThermalController, {
+impl_unknown_enum_display!(ThermalController, {
     ThermalController::None => "NVML_THERMAL_CONTROLLER_NONE",
     ThermalController::GpuInternal => "NVML_THERMAL_CONTROLLER_GPU_INTERNAL",
     ThermalController::Adm1032 => "NVML_THERMAL_CONTROLLER_ADM1032",
@@ -6518,21 +6235,20 @@ impl_enum_display!(ThermalController, {
     ThermalController::NvsysconE551 => "NVML_THERMAL_CONTROLLER_NVSYSCON_E551",
     ThermalController::Max6649r => "NVML_THERMAL_CONTROLLER_MAX6649R",
     ThermalController::Adt7473s => "NVML_THERMAL_CONTROLLER_ADT7473S",
-    ThermalController::Unknown => "NVML_THERMAL_CONTROLLER_UNKNOWN",
 });
 
-impl_enum_display!(DeviceAddressingMode, {
+impl_unknown_enum_display!(DeviceAddressingMode, {
     DeviceAddressingMode::None => "NVML_DEVICE_ADDRESSING_MODE_NONE",
     DeviceAddressingMode::Hmm => "NVML_DEVICE_ADDRESSING_MODE_HMM",
     DeviceAddressingMode::Ats => "NVML_DEVICE_ADDRESSING_MODE_ATS",
 });
 
-impl_enum_display!(BridgeChipType, {
+impl_unknown_enum_display!(BridgeChipType, {
     BridgeChipType::Plx => "NVML_BRIDGE_CHIP_PLX",
     BridgeChipType::Bro4 => "NVML_BRIDGE_CHIP_BRO4",
 });
 
-impl_enum_display!(PerformanceState, {
+impl_unknown_enum_display!(PerformanceState, {
     PerformanceState::P0 => "NVML_PSTATE_0",
     PerformanceState::P1 => "NVML_PSTATE_1",
     PerformanceState::P2 => "NVML_PSTATE_2",
@@ -6549,7 +6265,6 @@ impl_enum_display!(PerformanceState, {
     PerformanceState::P13 => "NVML_PSTATE_13",
     PerformanceState::P14 => "NVML_PSTATE_14",
     PerformanceState::P15 => "NVML_PSTATE_15",
-    PerformanceState::Unknown => "NVML_PSTATE_UNKNOWN",
 });
 
 impl_enum_display!(PcieUtilCounter, {
@@ -6557,7 +6272,7 @@ impl_enum_display!(PcieUtilCounter, {
     PcieUtilCounter::RxBytes => "NVML_PCIE_UTIL_RX_BYTES",
 });
 
-impl_enum_display!(TopologyLevel, {
+impl_unknown_enum_display!(TopologyLevel, {
     TopologyLevel::Internal => "NVML_TOPOLOGY_INTERNAL",
     TopologyLevel::Single => "NVML_TOPOLOGY_SINGLE",
     TopologyLevel::Multiple => "NVML_TOPOLOGY_MULTIPLE",
@@ -6575,14 +6290,13 @@ impl_enum_display!(P2pCapabilityIndex, {
     P2pCapabilityIndex::Unknown => "NVML_P2P_CAPS_INDEX_UNKNOWN",
 });
 
-impl_enum_display!(P2pStatus, {
+impl_unknown_enum_display!(P2pStatus, {
     P2pStatus::Ok => "NVML_P2P_STATUS_OK",
     P2pStatus::ChipsetNotSupported => "NVML_P2P_STATUS_CHIPSET_NOT_SUPPORTED",
     P2pStatus::GpuNotSupported => "NVML_P2P_STATUS_GPU_NOT_SUPPORTED",
     P2pStatus::IoHubNotSupported => "NVML_P2P_STATUS_IOH_TOPOLOGY_NOT_SUPPORTED",
     P2pStatus::DisabledByRegKey => "NVML_P2P_STATUS_DISABLED_BY_REGKEY",
     P2pStatus::NotSupported => "NVML_P2P_STATUS_NOT_SUPPORTED",
-    P2pStatus::Unknown => "NVML_P2P_STATUS_UNKNOWN",
 });
 
 impl_enum_display!(InforomObject, {
@@ -6629,7 +6343,7 @@ impl_enum_display!(PageRetirementCause, {
     PageRetirementCause::DoubleBitEccError => "NVML_PAGE_RETIREMENT_CAUSE_DOUBLE_BIT_ECC_ERROR",
 });
 
-impl_enum_display!(FieldValueType, {
+impl_unknown_enum_display!(FieldValueType, {
     FieldValueType::Double => "NVML_VALUE_TYPE_DOUBLE",
     FieldValueType::UnsignedInt => "NVML_VALUE_TYPE_UNSIGNED_INT",
     FieldValueType::UnsignedLong => "NVML_VALUE_TYPE_UNSIGNED_LONG",
@@ -6657,11 +6371,10 @@ impl_enum_display!(AffinityScope, {
     AffinityScope::Socket => "NVML_AFFINITY_SCOPE_SOCKET",
 });
 
-impl_enum_display!(EncoderType, {
+impl_unknown_enum_display!(EncoderType, {
     EncoderType::H264 => "NVML_ENCODER_QUERY_H264",
     EncoderType::Hevc => "NVML_ENCODER_QUERY_HEVC",
     EncoderType::Av1 => "NVML_ENCODER_QUERY_AV1",
-    EncoderType::Unknown => "NVML_ENCODER_QUERY_UNKNOWN",
 });
 
 impl_enum_display!(RestrictedApi, {
@@ -6680,19 +6393,19 @@ impl_enum_display!(FanPolicy, {
     FanPolicy::Manual => "NVML_FAN_POLICY_MANUAL",
 });
 
-impl_enum_display!(FanState, {
+impl_unknown_enum_display!(FanState, {
     FanState::Normal => "NVML_FAN_NORMAL",
     FanState::Failed => "NVML_FAN_FAILED",
 });
 
-impl_enum_display!(CoolerControl, {
+impl_unknown_enum_display!(CoolerControl, {
     CoolerControl::None => "NVML_THERMAL_COOLER_SIGNAL_NONE",
     CoolerControl::Toggle => "NVML_THERMAL_COOLER_SIGNAL_TOGGLE",
     CoolerControl::Variable => "NVML_THERMAL_COOLER_SIGNAL_VARIABLE",
     CoolerControl::Count => "NVML_THERMAL_COOLER_SIGNAL_COUNT",
 });
 
-impl_enum_display!(CoolerTarget, {
+impl_unknown_enum_display!(CoolerTarget, {
     CoolerTarget::None => "NVML_THERMAL_COOLER_TARGET_NONE",
     CoolerTarget::Gpu => "NVML_THERMAL_COOLER_TARGET_GPU",
     CoolerTarget::Memory => "NVML_THERMAL_COOLER_TARGET_MEMORY",
@@ -6700,21 +6413,20 @@ impl_enum_display!(CoolerTarget, {
     CoolerTarget::GpuRelated => "NVML_THERMAL_COOLER_TARGET_GPU_RELATED",
 });
 
-impl_enum_display!(FbcSessionType, {
-    FbcSessionType::Unknown => "NVML_FBC_SESSION_TYPE_UNKNOWN",
+impl_unknown_enum_display!(FbcSessionType, {
     FbcSessionType::ToSys => "NVML_FBC_SESSION_TYPE_TOSYS",
     FbcSessionType::Cuda => "NVML_FBC_SESSION_TYPE_CUDA",
     FbcSessionType::Vid => "NVML_FBC_SESSION_TYPE_VID",
     FbcSessionType::HwEnc => "NVML_FBC_SESSION_TYPE_HWENC",
 });
 
-impl_enum_display!(DriverModel, {
+impl_unknown_enum_display!(DriverModel, {
     DriverModel::Wddm => "NVML_DRIVER_WDDM",
     DriverModel::Wdm => "NVML_DRIVER_WDM",
     DriverModel::Mcdm => "NVML_DRIVER_MCDM",
 });
 
-impl_enum_display!(GpuOperationMode, {
+impl_unknown_enum_display!(GpuOperationMode, {
     GpuOperationMode::AllOn => "NVML_GOM_ALL_ON",
     GpuOperationMode::Compute => "NVML_GOM_COMPUTE",
     GpuOperationMode::LowDp => "NVML_GOM_LOW_DP",
@@ -6725,7 +6437,7 @@ impl_enum_display!(MigMode, {
     MigMode::Enabled => "NVML_DEVICE_MIG_ENABLE",
 });
 
-impl_enum_display!(HostVgpuMode, {
+impl_unknown_enum_display!(HostVgpuMode, {
     HostVgpuMode::NonSriov => "NVML_HOST_VGPU_MODE_NON_SRIOV",
     HostVgpuMode::Sriov => "NVML_HOST_VGPU_MODE_SRIOV",
 });
@@ -6735,7 +6447,7 @@ impl_enum_display!(VgpuDriverCapability, {
     VgpuDriverCapability::WarmUpdate => "NVML_VGPU_DRIVER_CAP_WARM_UPDATE",
 });
 
-impl_enum_display!(VgpuVmIdType, {
+impl_unknown_enum_display!(VgpuVmIdType, {
     VgpuVmIdType::DomainId => "NVML_VGPU_VM_ID_DOMAIN_ID",
     VgpuVmIdType::Uuid => "NVML_VGPU_VM_ID_UUID",
 });
@@ -6761,7 +6473,7 @@ impl_enum_display!(ComputeInstanceEngineProfile, {
     ComputeInstanceEngineProfile::Count => "NVML_COMPUTE_INSTANCE_ENGINE_PROFILE_COUNT",
 });
 
-impl_enum_display!(LedColor, {
+impl_unknown_enum_display!(LedColor, {
     LedColor::Green => "NVML_LED_COLOR_GREEN",
     LedColor::Amber => "NVML_LED_COLOR_AMBER",
 });
@@ -6797,6 +6509,31 @@ impl_enum_display!(GpuFabricIncorrectConfiguration, {
     GpuFabricIncorrectConfiguration::InvalidLocation => "NVML_GPU_FABRIC_HEALTH_MASK_INCORRECT_CONFIGURATION_INVALID_LOCATION",
 });
 
+fn option_u64_from_not_available(value: u64) -> Option<u64> {
+    if value == i64::from(sys::NVML_VALUE_NOT_AVAILABLE).cast_unsigned() {
+        None
+    } else {
+        Some(value)
+    }
+}
+
+fn mask255_bits(mask: sys::nvmlMask255_t) -> Vec<u32> {
+    mask.mask
+        .into_iter()
+        .enumerate()
+        .flat_map(|(word_index, word)| {
+            (0..u32::BITS).filter_map(move |bit_index| {
+                let bit = 1u32 << bit_index;
+                (word & bit != 0).then_some(
+                    (u32::try_from(word_index).expect("fixed NVML mask word index fits u32"))
+                        * u32::BITS
+                        + bit_index,
+                )
+            })
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -6817,7 +6554,7 @@ mod tests {
         assert_eq!(VgpuMetadata::decode_raw(&raw).unwrap(), metadata);
         assert!(matches!(
             VgpuMetadata::decode_raw(&raw[..raw.len() - 1]),
-            Err(Error::ShortOutput { .. })
+            Err(Error::BufferTooSmall { .. })
         ));
     }
 

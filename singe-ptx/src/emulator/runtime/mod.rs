@@ -57,17 +57,17 @@ use crate::emulator::{
 };
 
 // The worker turns a panic into `WorkerFailed` for every pending result, so the failure is reported there, and this state must stay reachable for that report and for the waiters it wakes.
-pub fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
+pub(crate) fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
 // Waits on state `lock` guards, reachable for the same reason.
-pub fn wait<'a, T>(condvar: &Condvar, guard: MutexGuard<'a, T>) -> MutexGuard<'a, T> {
+pub(crate) fn wait<'a, T>(condvar: &Condvar, guard: MutexGuard<'a, T>) -> MutexGuard<'a, T> {
     condvar.wait(guard).unwrap_or_else(PoisonError::into_inner)
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub enum Phase {
+pub(crate) enum Phase {
     Running,
     Faulted,
     Draining,
@@ -76,7 +76,7 @@ pub enum Phase {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub enum CommandKind {
+pub(crate) enum CommandKind {
     Immediate,
     Event,
     Launch,
@@ -84,10 +84,10 @@ pub enum CommandKind {
     Transfer,
 }
 
-pub type CommandBody = Box<dyn FnMut(&mut Worker, Option<ExecutionError>) -> bool + Send>;
+pub(crate) type CommandBody = Box<dyn FnMut(&mut Worker, Option<ExecutionError>) -> bool + Send>;
 
 #[derive(Debug, Default)]
-pub struct CommandControl {
+pub(crate) struct CommandControl {
     suspended: AtomicBool,
     inspection_pending: AtomicBool,
 }
@@ -98,14 +98,14 @@ impl CommandControl {
     }
 }
 
-pub struct Command {
+pub(crate) struct Command {
     stream: u64,
     kind: CommandKind,
     poll: CommandBody,
     control: Arc<CommandControl>,
 }
 
-pub struct Admission {
+pub(crate) struct Admission {
     debug: debug::State,
     phase: Phase,
     queue: ChargedQueue<Command>,
@@ -136,7 +136,7 @@ impl Debug for Admission {
     }
 }
 
-pub struct Shared {
+pub(crate) struct Shared {
     execution_budget: Arc<Budget>,
     #[cfg(test)]
     hooks: Hooks,
@@ -155,7 +155,7 @@ impl Debug for Shared {
     }
 }
 
-pub struct Client {
+pub(crate) struct Client {
     shared: Arc<Shared>,
 }
 
@@ -199,7 +199,7 @@ impl Shared {
     }
 }
 
-pub struct QueueReservation {
+pub(crate) struct QueueReservation {
     shared: Arc<Shared>,
     active: bool,
 }
@@ -212,7 +212,7 @@ impl Drop for QueueReservation {
     }
 }
 
-pub fn admission(phase: Phase, diagnostic: bool) -> Result<(), SubmitError> {
+pub(crate) fn admission(phase: Phase, diagnostic: bool) -> Result<(), SubmitError> {
     match phase {
         Phase::Running => Ok(()),
         Phase::Faulted if diagnostic => Ok(()),
@@ -221,7 +221,7 @@ pub fn admission(phase: Phase, diagnostic: bool) -> Result<(), SubmitError> {
     }
 }
 
-pub struct Staging {
+pub(crate) struct Staging {
     shared: Weak<Shared>,
     bytes: usize,
     launch_id: Option<u64>,
@@ -239,7 +239,7 @@ impl Drop for Staging {
 }
 
 #[derive(Debug)]
-pub struct Lease {
+pub(crate) struct Lease {
     shared: Weak<Shared>,
     addresses: Vec<u64>,
 }

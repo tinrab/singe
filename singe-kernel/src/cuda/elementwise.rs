@@ -5,7 +5,7 @@ use ::cutile::cuda_async::device_buffer::DevicePointer;
 use singe_cuda::types::f16;
 use singe_cuda::{
     stream::Stream,
-    view::{DeviceInput, DeviceOutput},
+    view::{DeviceOutput, DeviceRange},
 };
 
 #[cfg(feature = "cutile")]
@@ -149,8 +149,8 @@ macro_rules! binary_float_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            lhs: &impl DeviceInput<$ty>,
-            rhs: &impl DeviceInput<$ty>,
+            lhs: &impl DeviceRange<$ty>,
+            rhs: &impl DeviceRange<$ty>,
             config: VectorConfig,
         ) -> Result<()> {
             validate_binary_vector_lengths(out.len(), lhs.len(), rhs.len(), config)?;
@@ -188,8 +188,8 @@ macro_rules! binary_float_fn {
         pub unsafe fn $tune_name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            lhs: &impl DeviceInput<$ty>,
-            rhs: &impl DeviceInput<$ty>,
+            lhs: &impl DeviceRange<$ty>,
+            rhs: &impl DeviceRange<$ty>,
             config: VectorConfig,
             options: TuneOptions,
         ) -> Result<TuneReport<VectorTuning>> {
@@ -237,8 +237,8 @@ macro_rules! binary_raw_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            lhs: &impl DeviceInput<$ty>,
-            rhs: &impl DeviceInput<$ty>,
+            lhs: &impl DeviceRange<$ty>,
+            rhs: &impl DeviceRange<$ty>,
         ) -> Result<()> {
             let len = ensure_binary_lengths(out.len(), lhs.len(), rhs.len())?;
             let stream = stream.to_cuda_core()?;
@@ -268,8 +268,8 @@ macro_rules! binary_bool_float_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<u8>,
-            lhs: &impl DeviceInput<$ty>,
-            rhs: &impl DeviceInput<$ty>,
+            lhs: &impl DeviceRange<$ty>,
+            rhs: &impl DeviceRange<$ty>,
             config: VectorConfig,
         ) -> Result<()> {
             validate_binary_vector_lengths(out.len(), lhs.len(), rhs.len(), config)?;
@@ -307,8 +307,8 @@ macro_rules! binary_bool_float_fn {
         pub unsafe fn $tune_name(
             stream: &Stream,
             out: &mut impl DeviceOutput<u8>,
-            lhs: &impl DeviceInput<$ty>,
-            rhs: &impl DeviceInput<$ty>,
+            lhs: &impl DeviceRange<$ty>,
+            rhs: &impl DeviceRange<$ty>,
             config: VectorConfig,
             options: TuneOptions,
         ) -> Result<TuneReport<VectorTuning>> {
@@ -349,8 +349,8 @@ macro_rules! binary_bool_raw_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<u8>,
-            lhs: &impl DeviceInput<$ty>,
-            rhs: &impl DeviceInput<$ty>,
+            lhs: &impl DeviceRange<$ty>,
+            rhs: &impl DeviceRange<$ty>,
         ) -> Result<()> {
             let len = out.len();
             ensure_len(lhs.len(), len)?;
@@ -381,9 +381,9 @@ macro_rules! ternary_float_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            lhs: &impl DeviceInput<$ty>,
-            rhs: &impl DeviceInput<$ty>,
-            acc: &impl DeviceInput<$ty>,
+            lhs: &impl DeviceRange<$ty>,
+            rhs: &impl DeviceRange<$ty>,
+            acc: &impl DeviceRange<$ty>,
             config: VectorConfig,
         ) -> Result<()> {
             validate_ternary_vector_lengths(out.len(), lhs.len(), rhs.len(), acc.len(), config)?;
@@ -422,9 +422,9 @@ macro_rules! ternary_float_fn {
         pub unsafe fn $tune_name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            lhs: &impl DeviceInput<$ty>,
-            rhs: &impl DeviceInput<$ty>,
-            acc: &impl DeviceInput<$ty>,
+            lhs: &impl DeviceRange<$ty>,
+            rhs: &impl DeviceRange<$ty>,
+            acc: &impl DeviceRange<$ty>,
             config: VectorConfig,
             options: TuneOptions,
         ) -> Result<TuneReport<VectorTuning>> {
@@ -1743,7 +1743,7 @@ macro_rules! clamp_float_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
             min: $ty,
             max: $ty,
             config: VectorConfig,
@@ -1784,7 +1784,7 @@ macro_rules! clamp_float_fn {
         pub unsafe fn $tune_name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
             min: $ty,
             max: $ty,
             config: VectorConfig,
@@ -1859,7 +1859,7 @@ macro_rules! clamp_helper_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
             min: $ty,
             max: $ty,
         ) -> Result<()> {
@@ -1934,8 +1934,8 @@ macro_rules! lerp_float_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            lhs: &impl DeviceInput<$ty>,
-            rhs: &impl DeviceInput<$ty>,
+            lhs: &impl DeviceRange<$ty>,
+            rhs: &impl DeviceRange<$ty>,
             scalar: $ty,
             config: VectorConfig,
         ) -> Result<()> {
@@ -1975,8 +1975,8 @@ macro_rules! lerp_float_fn {
         pub unsafe fn $tune_name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            lhs: &impl DeviceInput<$ty>,
-            rhs: &impl DeviceInput<$ty>,
+            lhs: &impl DeviceRange<$ty>,
+            rhs: &impl DeviceRange<$ty>,
             scalar: $ty,
             config: VectorConfig,
             options: TuneOptions,
@@ -2018,9 +2018,9 @@ macro_rules! where_float_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            condition: &impl DeviceInput<$condition>,
-            x: &impl DeviceInput<$ty>,
-            y: &impl DeviceInput<$ty>,
+            condition: &impl DeviceRange<$condition>,
+            x: &impl DeviceRange<$ty>,
+            y: &impl DeviceRange<$ty>,
             config: VectorConfig,
         ) -> Result<()> {
             validate_ternary_vector_lengths(out.len(), condition.len(), x.len(), y.len(), config)?;
@@ -2059,9 +2059,9 @@ macro_rules! where_float_fn {
         pub unsafe fn $tune_name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            condition: &impl DeviceInput<$condition>,
-            x: &impl DeviceInput<$ty>,
-            y: &impl DeviceInput<$ty>,
+            condition: &impl DeviceRange<$condition>,
+            x: &impl DeviceRange<$ty>,
+            y: &impl DeviceRange<$ty>,
             config: VectorConfig,
             options: TuneOptions,
         ) -> Result<TuneReport<VectorTuning>> {
@@ -2181,9 +2181,9 @@ macro_rules! where_bool_helper_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            condition: &impl DeviceInput<u8>,
-            x: &impl DeviceInput<$ty>,
-            y: &impl DeviceInput<$ty>,
+            condition: &impl DeviceRange<u8>,
+            x: &impl DeviceRange<$ty>,
+            y: &impl DeviceRange<$ty>,
         ) -> Result<()> {
             let len = ensure_binary_lengths(out.len(), x.len(), y.len())?;
             ensure_len(condition.len(), len)?;
@@ -2260,8 +2260,8 @@ macro_rules! masked_fill_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
-            mask: &impl DeviceInput<u8>,
+            input: &impl DeviceRange<$ty>,
+            mask: &impl DeviceRange<u8>,
             value: $ty,
             config: VectorConfig,
         ) -> Result<()> {
@@ -2301,8 +2301,8 @@ macro_rules! masked_fill_fn {
         pub unsafe fn $tune_name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
-            mask: &impl DeviceInput<u8>,
+            input: &impl DeviceRange<$ty>,
+            mask: &impl DeviceRange<u8>,
             value: $ty,
             config: VectorConfig,
             options: TuneOptions,
@@ -2369,8 +2369,8 @@ macro_rules! masked_fill_helper_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
-            mask: &impl DeviceInput<u8>,
+            input: &impl DeviceRange<$ty>,
+            mask: &impl DeviceRange<u8>,
             value: $ty,
         ) -> Result<()> {
             let len = out.len();

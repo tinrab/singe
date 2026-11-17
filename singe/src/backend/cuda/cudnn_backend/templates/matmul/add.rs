@@ -2,21 +2,21 @@ use singe_cudnn::{
     backend::{
         execution::{
             OperationGraph as CudnnOperationGraph,
-            OperationGraphConfig as CudnnOperationGraphConfig,
+            OperationGraphOptions as CudnnOperationGraphOptions,
+        },
+        operation::{
             matmul::{
                 MatmulDescriptor as CudnnMatmulDescriptor,
-                MatmulDescriptorConfig as CudnnMatmulDescriptorConfig,
-                MatmulOperation as CudnnMatmulOperation,
-                MatmulOperationConfig as CudnnMatmulOperationConfig,
+                MatmulDescriptorSpec as CudnnMatmulDescriptorSpec,
+                MatmulOperation as CudnnMatmulOperation, MatmulSpec as CudnnMatmulSpec,
             },
             pointwise::{
                 PointwiseDescriptor as CudnnPointwiseDescriptor,
-                PointwiseDescriptorConfig as CudnnPointwiseDescriptorConfig,
-                PointwiseOperation as CudnnPointwiseOperation,
-                PointwiseOperationConfig as CudnnPointwiseOperationConfig,
+                PointwiseDescriptorSpec as CudnnPointwiseDescriptorSpec,
+                PointwiseMode as CudnnPointwiseMode, PointwiseOperation as CudnnPointwiseOperation,
+                PointwiseSpec as CudnnPointwiseSpec,
             },
         },
-        pointwise::PointwiseMode as CudnnPointwiseMode,
     },
     context::Context as CudnnContext,
     math::NanPropagation as CudnnNanPropagation,
@@ -67,22 +67,21 @@ pub fn build_cudnn_matmul_add_template(
         matmul_output.promote_rank(rank)?.as_ref(),
     )?;
     let output_descriptor = cudnn_backend_tensor(CUDNN_GRAPH_OUTPUT_TENSOR_ID, &output)?;
-    let matmul =
-        CudnnMatmulDescriptor::create(CudnnMatmulDescriptorConfig::new(a.compute_type()?))?;
+    let matmul = CudnnMatmulDescriptor::create(CudnnMatmulDescriptorSpec::new(a.compute_type()?))?;
     let matmul_operation = CudnnMatmulOperation::create(
         &matmul,
         &a_descriptor,
         &b_descriptor,
         &matmul_output_descriptor,
-        CudnnMatmulOperationConfig::default(),
+        CudnnMatmulSpec::default(),
     )?;
     let add = CudnnPointwiseDescriptor::create(
-        CudnnPointwiseDescriptorConfig::new(CudnnPointwiseMode::Add, output.compute_type()?)
+        CudnnPointwiseDescriptorSpec::new(CudnnPointwiseMode::Add, output.compute_type()?)
             .with_nan_propagation(CudnnNanPropagation::Propagate),
     )?;
     let add_operation = CudnnPointwiseOperation::create(
         &add,
-        CudnnPointwiseOperationConfig::Binary {
+        CudnnPointwiseSpec::Binary {
             x: &matmul_output_descriptor,
             b: &bias_descriptor,
             y: &output_descriptor,
@@ -93,7 +92,7 @@ pub fn build_cudnn_matmul_add_template(
     let operation_graph = CudnnOperationGraph::create(
         cudnn,
         &[matmul_operation.descriptor(), add_operation.descriptor()],
-        CudnnOperationGraphConfig::default(),
+        CudnnOperationGraphOptions::default(),
     )?;
     let plan = cudnn_matmul_graph_execution_plan(cudnn, &operation_graph, a.data_type())?;
     let workspace_size = plan.workspace_size()?;
@@ -152,22 +151,21 @@ pub fn build_cudnn_matmul_add_relu_template(
         add_output.promote_rank(rank)?.as_ref(),
     )?;
     let output_descriptor = cudnn_backend_tensor(CUDNN_GRAPH_OUTPUT_TENSOR_ID, &output)?;
-    let matmul =
-        CudnnMatmulDescriptor::create(CudnnMatmulDescriptorConfig::new(a.compute_type()?))?;
+    let matmul = CudnnMatmulDescriptor::create(CudnnMatmulDescriptorSpec::new(a.compute_type()?))?;
     let matmul_operation = CudnnMatmulOperation::create(
         &matmul,
         &a_descriptor,
         &b_descriptor,
         &matmul_output_descriptor,
-        CudnnMatmulOperationConfig::default(),
+        CudnnMatmulSpec::default(),
     )?;
     let add = CudnnPointwiseDescriptor::create(
-        CudnnPointwiseDescriptorConfig::new(CudnnPointwiseMode::Add, add_output.compute_type()?)
+        CudnnPointwiseDescriptorSpec::new(CudnnPointwiseMode::Add, add_output.compute_type()?)
             .with_nan_propagation(CudnnNanPropagation::Propagate),
     )?;
     let add_operation = CudnnPointwiseOperation::create(
         &add,
-        CudnnPointwiseOperationConfig::Binary {
+        CudnnPointwiseSpec::Binary {
             x: &matmul_output_descriptor,
             b: &bias_descriptor,
             y: &biased_descriptor,
@@ -176,12 +174,12 @@ pub fn build_cudnn_matmul_add_relu_template(
         },
     )?;
     let relu = CudnnPointwiseDescriptor::create(
-        CudnnPointwiseDescriptorConfig::new(CudnnPointwiseMode::ReluFwd, output.compute_type()?)
+        CudnnPointwiseDescriptorSpec::new(CudnnPointwiseMode::ReluFwd, output.compute_type()?)
             .with_nan_propagation(CudnnNanPropagation::NotPropagate),
     )?;
     let relu_operation = CudnnPointwiseOperation::create(
         &relu,
-        CudnnPointwiseOperationConfig::Unary {
+        CudnnPointwiseSpec::Unary {
             x: &biased_descriptor,
             y: &output_descriptor,
             alpha1: 1.0,
@@ -194,7 +192,7 @@ pub fn build_cudnn_matmul_add_relu_template(
             add_operation.descriptor(),
             relu_operation.descriptor(),
         ],
-        CudnnOperationGraphConfig::default(),
+        CudnnOperationGraphOptions::default(),
     )?;
     let plan = cudnn_matmul_graph_execution_plan(cudnn, &operation_graph, a.data_type())?;
     let workspace_size = plan.workspace_size()?;

@@ -1,6 +1,8 @@
+//! Engine candidates, compiled selections, execution arguments, caching, and autotuning.
+
 macro_rules! impl_plan_metadata_methods {
     () => {
-        /// Current candidate identities in collection order, initially the heuristic order.
+        /// Returns the current candidate identities in collection order, initially the heuristic order.
         pub fn plan_ids(&self) -> Vec<PlanId> {
             self.candidates()
                 .map(|candidate| candidate.id.clone())
@@ -39,7 +41,7 @@ macro_rules! impl_plan_metadata_methods {
             Ok(self.candidate_for(plan)?.engine_config.as_ref())
         }
 
-        /// Cached native metadata used by filters and errata matching.
+        /// Returns the cached native metadata used by filters and errata matching.
         ///
         /// # Errors
         ///
@@ -51,8 +53,12 @@ macro_rules! impl_plan_metadata_methods {
         /// Copies the candidate's engine index and canonical knob choices for explicit planning.
         ///
         /// # Errors
-        /// Returns an error when this collection does not contain the plan identity.
-        pub fn engine_choice_for(&self, plan: &PlanId) -> Result<EngineChoice> {
+        ///
+        /// Returns an error if this collection does not contain the plan identity.
+        pub fn engine_choice_for(
+            &self,
+            plan: &PlanId,
+        ) -> Result<$crate::backend::execution::EngineChoice> {
             Ok(self.candidate_for(plan)?.choice())
         }
 
@@ -184,27 +190,24 @@ pub(crate) use crate::frontend::plan::{
     bindings::{BindingReplacement, required_tensor_bindings},
     metadata::PreparedEngineConfig,
 };
-pub use crate::{
-    backend::execution::EngineChoice,
-    frontend::plan::{
-        autotune::{AutotuneConfig, AutotuneResult, AutotuneSampling, AutotuneSession, PlanTiming},
-        bindings::{AliasTensorBinding, AliasTensorKind, RequiredTensor, RequiredTensorBinding},
-        built::BuiltPlanCandidates,
-        cache::PlanCache,
-        compiled::CompiledGraph,
-        config::{BuildPlanPolicy, CompileConfig, HeuristicMode, PlanSupport},
-        entry::{
-            PlanBuildReport, PlanBuildStatus, PlanExclusion, PlanFailure, PlanFailureStage, PlanId,
-        },
-        execute::ExecuteArgs,
-        metadata::{EngineConfigFilter, EngineConfigMetadata},
-        serialization::{
-            NativePlanRestoreTarget, NativePlanSerializationConfig, NativePlanSet,
-            NativePlanStructure,
-        },
-        tensors::{TensorInfo, TensorInfoIter},
-        tuned::TunedPlan,
+pub use crate::frontend::plan::{
+    autotune::{AutotuneConfig, AutotuneResult, AutotuneSampling, AutotuneSession, PlanTiming},
+    bindings::{AliasTensorBinding, AliasTensorKind, RequiredTensor, RequiredTensorBinding},
+    built::BuiltPlanCandidates,
+    cache::PlanCache,
+    compiled::CompiledGraph,
+    config::{BuildPlanPolicy, CompileConfig, HeuristicMode, PlanSupport},
+    entry::{
+        PlanBuildReport, PlanBuildStatus, PlanExclusion, PlanFailure, PlanFailureStage, PlanId,
     },
+    execute::ExecuteArgs,
+    metadata::{EngineConfigFilter, EngineConfigMetadata},
+    serialization::{
+        NativePlanRestoreTarget, NativePlanSerializationConfig, NativePlanSet, NativePlanStructure,
+    },
+    tensors::{TensorInfo, TensorInfoIter},
+    tuned::TunedPlan,
+    workspace::WorkspacePlans,
 };
 use crate::{
     backend::{
@@ -213,7 +216,6 @@ use crate::{
         execution::{
             EngineConfig, EngineKnobInfo, IntermediateInfo, KnobChoiceInfo, OperationGraph,
         },
-        tensor::TensorId,
     },
     context::Context,
     error::{Error, Result},
@@ -227,6 +229,7 @@ use crate::{
             entry::{BuiltPlanEntry, PlanCandidate},
         },
     },
+    tensor::TensorId,
 };
 
 /// Heuristic candidates whose identities remain stable through filtering and compilation.
@@ -277,7 +280,7 @@ impl PlanCandidates {
         &self.recipe
     }
 
-    /// Retained caller binding requirements shared by every candidate in this collection.
+    /// Returns the retained caller binding requirements shared by every candidate in this collection.
     #[must_use]
     pub fn required_tensor_bindings(&self) -> &[RequiredTensor] {
         &self.artifacts.required_tensors
@@ -304,7 +307,8 @@ impl PlanCandidates {
     /// Engine descriptors and cached metadata move together.
     ///
     /// # Errors
-    /// Returns an error for an empty order, duplicate identities or identities absent from this collection.
+    ///
+    /// Returns an error if the order is empty, repeats an identity, or names an identity absent from this collection.
     /// An invalid order leaves the collection unchanged.
     pub fn reorder_plans(&mut self, plans: &[PlanId]) -> Result<()> {
         ordering::reorder_plan_entries(&mut self.entries, plans, |entry| &entry.id)

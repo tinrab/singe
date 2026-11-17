@@ -1,5 +1,6 @@
 // The NVIDIA libraries the `*-sys` crates load, by the file names each platform gives them, so a crate names its library and never a file.
-// Each file name carries the major version of the bindings its crate is generated from.
+// Each entry states its library's major version once, and every file name and doc comment is built from it, so a version bump is a one-token change.
+// The major version is that of the bindings its crate is generated from, or the soname's version for a library without one, such as the driver.
 // The Windows names follow NVIDIA's naming and are unverified until a Windows machine loads them; a library NVIDIA ships only for Linux has none.
 
 use crate::Library;
@@ -18,203 +19,200 @@ const fn files(
     }
 }
 
-impl Library {
-    #[must_use]
-    pub const fn cuda_driver() -> Self {
-        Self::new("the CUDA driver", files(&["libcuda.so.1"], &["nvcuda.dll"]))
-    }
+// Builds a file name from literal parts, where the token `major` stands for the library's major version.
+macro_rules! file_name {
+    ($major:literal; $($part:tt)+) => {
+        concat!($(file_name!(@part $major; $part)),+)
+    };
+    (@part $major:literal; major) => {
+        $major
+    };
+    (@part $major:literal; $part:literal) => {
+        $part
+    };
+}
 
-    #[must_use]
-    pub const fn cuda_runtime() -> Self {
-        Self::new(
-            "the CUDA runtime",
-            files(&["libcudart.so.13"], &["cudart64_13.dll"]),
-        )
-    }
+// The doc comment line that introduces a platform's files, or says it has none.
+macro_rules! platform_files {
+    ($platform:literal;) => {
+        concat!("It has no files on ", $platform, ".")
+    };
+    ($platform:literal; $($file:tt)+) => {
+        concat!("Its files on ", $platform, ":")
+    };
+}
 
-    #[must_use]
-    pub const fn nvrtc() -> Self {
-        Self::new("NVRTC", files(&["libnvrtc.so.13"], &["nvrtc64_130_0.dll"]))
-    }
+// Declares one constructor per library from its name, its major version, and the parts of its file names on Linux and Windows.
+macro_rules! libraries {
+    ($(
+        $(#[doc = $doc:literal])*
+        $constructor:ident => $name:literal, major $major:literal,
+        linux [$([$($linux:tt)+]),* $(,)?],
+        windows [$([$($windows:tt)+]),* $(,)?];
+    )+) => {
+        impl Library {
+            $(
+                #[doc = concat!("Creates the library for ", $name, ", whose files carry major version ", $major, ".")]
+                $(#[doc = ""] #[doc = $doc])*
+                #[doc = ""]
+                #[doc = platform_files!("Linux"; $([$($linux)+])*)]
+                #[doc = ""]
+                $(#[doc = concat!("- `", file_name!($major; $($linux)+), "`")])*
+                #[doc = ""]
+                #[doc = platform_files!("Windows"; $([$($windows)+])*)]
+                #[doc = ""]
+                $(#[doc = concat!("- `", file_name!($major; $($windows)+), "`")])*
+                #[must_use]
+                pub const fn $constructor() -> Self {
+                    Self::new(
+                        $name,
+                        files(
+                            &[$(file_name!($major; $($linux)+)),*],
+                            &[$(file_name!($major; $($windows)+)),*],
+                        ),
+                    )
+                }
+            )+
+        }
+    };
+}
 
-    #[must_use]
-    pub const fn nvjitlink() -> Self {
-        Self::new(
-            "nvJitLink",
-            files(&["libnvJitLink.so.13"], &["nvJitLink_130_0.dll"]),
-        )
-    }
+libraries! {
+    cuda_driver => "the CUDA driver", major "1",
+        linux [["libcuda.so." major]],
+        windows [["nvcuda.dll"]];
 
-    #[must_use]
-    pub const fn nvvm() -> Self {
-        Self::new("NVVM", files(&["libnvvm.so.4"], &["nvvm64_40_0.dll"]))
-    }
+    cuda_runtime => "the CUDA runtime", major "13",
+        linux [["libcudart.so." major]],
+        windows [["cudart64_" major ".dll"]];
 
-    // NVTX's headers implement it inline; this library exports the same functions for languages that cannot use them.
-    #[must_use]
-    pub const fn nvtx() -> Self {
-        Self::new(
-            "NVTX",
-            files(&["libnvtx3interop.so.1"], &["nvtx3interop.dll"]),
-        )
-    }
+    nvrtc => "NVRTC", major "13",
+        linux [["libnvrtc.so." major]],
+        windows [["nvrtc64_" major "0_0.dll"]];
 
-    #[must_use]
-    pub const fn nvml() -> Self {
-        Self::new("NVML", files(&["libnvidia-ml.so.1"], &["nvml.dll"]))
-    }
+    nvjitlink => "nvJitLink", major "13",
+        linux [["libnvJitLink.so." major]],
+        windows [["nvJitLink_" major "0_0.dll"]];
 
-    #[must_use]
-    pub const fn cublas() -> Self {
-        Self::new("cuBLAS", files(&["libcublas.so.13"], &["cublas64_13.dll"]))
-    }
+    nvvm => "NVVM", major "4",
+        linux [["libnvvm.so." major]],
+        windows [["nvvm64_" major "0_0.dll"]];
 
-    #[must_use]
-    pub const fn cublas_lt() -> Self {
-        Self::new(
-            "cuBLASLt",
-            files(&["libcublasLt.so.13"], &["cublasLt64_13.dll"]),
-        )
-    }
+    /// NVTX's headers implement it inline; this library exports the same functions for languages that cannot use them.
+    nvtx => "NVTX", major "1",
+        linux [["libnvtx3interop.so." major]],
+        windows [["nvtx3interop.dll"]];
 
-    // cuDNN loads its own sub-libraries.
-    #[must_use]
-    pub const fn cudnn() -> Self {
-        Self::new("cuDNN", files(&["libcudnn.so.9"], &["cudnn64_9.dll"]))
-    }
+    nvml => "NVML", major "1",
+        linux [["libnvidia-ml.so." major]],
+        windows [["nvml.dll"]];
 
-    #[must_use]
-    pub const fn cudss() -> Self {
-        Self::new("cuDSS", files(&["libcudss.so.0"], &["cudss64_0.dll"]))
-    }
+    cublas => "cuBLAS", major "13",
+        linux [["libcublas.so." major]],
+        windows [["cublas64_" major ".dll"]];
 
-    #[must_use]
-    pub const fn cufft() -> Self {
-        Self::new("cuFFT", files(&["libcufft.so.12"], &["cufft64_12.dll"]))
-    }
+    cublas_lt => "cuBLASLt", major "13",
+        linux [["libcublasLt.so." major]],
+        windows [["cublasLt64_" major ".dll"]];
 
-    // GPUDirect Storage is Linux-only.
-    #[must_use]
-    pub const fn cufile() -> Self {
-        Self::new("cuFile", files(&["libcufile.so.0"], &[]))
-    }
+    /// cuDNN loads its own sub-libraries.
+    cudnn => "cuDNN", major "9",
+        linux [["libcudnn.so." major]],
+        windows [["cudnn64_" major ".dll"]];
 
-    // Windows' CUPTI carries its release in its name, as `cupti64_2025.4.0.dll`, which no fixed name matches.
-    #[must_use]
-    pub const fn cupti() -> Self {
-        Self::new("CUPTI", files(&["libcupti.so.13"], &[]))
-    }
+    cudss => "cuDSS", major "0",
+        linux [["libcudss.so." major]],
+        windows [["cudss64_" major ".dll"]];
 
-    #[must_use]
-    pub const fn curand() -> Self {
-        Self::new("cuRAND", files(&["libcurand.so.10"], &["curand64_10.dll"]))
-    }
+    cufft => "cuFFT", major "12",
+        linux [["libcufft.so." major]],
+        windows [["cufft64_" major ".dll"]];
 
-    #[must_use]
-    pub const fn cusolver() -> Self {
-        Self::new(
-            "cuSOLVER",
-            files(&["libcusolver.so.12"], &["cusolver64_12.dll"]),
-        )
-    }
+    /// cuFile has no Windows release.
+    cufile => "cuFile", major "0",
+        linux [["libcufile.so." major]],
+        windows [];
 
-    #[must_use]
-    pub const fn cusparse() -> Self {
-        Self::new(
-            "cuSPARSE",
-            files(&["libcusparse.so.12"], &["cusparse64_12.dll"]),
-        )
-    }
+    /// Windows' CUPTI carries its release in its name, as `cupti64_2025.4.0.dll`, which no fixed name matches.
+    cupti => "CUPTI", major "13",
+        linux [["libcupti.so." major]],
+        windows [];
 
-    #[must_use]
-    pub const fn cutensor() -> Self {
-        Self::new("cuTENSOR", files(&["libcutensor.so.2"], &["cutensor.dll"]))
-    }
+    curand => "cuRAND", major "10",
+        linux [["libcurand.so." major]],
+        windows [["curand64_" major ".dll"]];
 
-    #[must_use]
-    pub const fn cutensor_mg() -> Self {
-        Self::new(
-            "cuTENSORMg",
-            files(&["libcutensorMg.so.2"], &["cutensorMg.dll"]),
-        )
-    }
+    cusolver => "cuSOLVER", major "12",
+        linux [["libcusolver.so." major]],
+        windows [["cusolver64_" major ".dll"]];
 
-    // cuTENSORMp runs over NCCL, which is Linux-only.
-    #[must_use]
-    pub const fn cutensor_mp() -> Self {
-        Self::new("cuTENSORMp", files(&["libcutensorMp.so.2"], &[]))
-    }
+    cusparse => "cuSPARSE", major "12",
+        linux [["libcusparse.so." major]],
+        windows [["cusparse64_" major ".dll"]];
 
-    // NCCL is Linux-only.
-    #[must_use]
-    pub const fn nccl() -> Self {
-        Self::new("NCCL", files(&["libnccl.so.2"], &[]))
-    }
+    cutensor => "cuTENSOR", major "2",
+        linux [["libcutensor.so." major]],
+        windows [["cutensor.dll"]];
 
-    // NPP's functions are spread over its core library and ten by domain.
-    #[must_use]
-    pub const fn npp() -> Self {
-        Self::new(
-            "NPP",
-            files(
-                &[
-                    "libnppc.so.13",
-                    "libnppial.so.13",
-                    "libnppicc.so.13",
-                    "libnppidei.so.13",
-                    "libnppif.so.13",
-                    "libnppig.so.13",
-                    "libnppim.so.13",
-                    "libnppist.so.13",
-                    "libnppisu.so.13",
-                    "libnppitc.so.13",
-                    "libnpps.so.13",
-                ],
-                &[
-                    "nppc64_13.dll",
-                    "nppial64_13.dll",
-                    "nppicc64_13.dll",
-                    "nppidei64_13.dll",
-                    "nppif64_13.dll",
-                    "nppig64_13.dll",
-                    "nppim64_13.dll",
-                    "nppist64_13.dll",
-                    "nppisu64_13.dll",
-                    "nppitc64_13.dll",
-                    "npps64_13.dll",
-                ],
-            ),
-        )
-    }
+    cutensor_mg => "cuTENSORMg", major "2",
+        linux [["libcutensorMg.so." major]],
+        windows [["cutensorMg.dll"]];
 
-    #[must_use]
-    pub const fn nvcomp() -> Self {
-        Self::new("nvCOMP", files(&["libnvcomp.so.6"], &["nvcomp64_6.dll"]))
-    }
+    /// cuTENSORMp runs over NCCL, which is Linux-only.
+    cutensor_mp => "cuTENSORMp", major "2",
+        linux [["libcutensorMp.so." major]],
+        windows [];
 
-    #[must_use]
-    pub const fn nvimagecodec() -> Self {
-        Self::new(
-            "nvImageCodec",
-            files(&["libnvimgcodec.so.0"], &["nvimgcodec_0.dll"]),
-        )
-    }
+    nccl => "NCCL", major "2",
+        linux [["libnccl.so." major]],
+        windows [];
 
-    #[must_use]
-    pub const fn nvjpeg() -> Self {
-        Self::new("nvJPEG", files(&["libnvjpeg.so.13"], &["nvjpeg64_13.dll"]))
-    }
+    /// NPP's functions are spread over its core library and ten by domain.
+    npp => "NPP", major "13",
+        linux [
+            ["libnppc.so." major],
+            ["libnppial.so." major],
+            ["libnppicc.so." major],
+            ["libnppidei.so." major],
+            ["libnppif.so." major],
+            ["libnppig.so." major],
+            ["libnppim.so." major],
+            ["libnppist.so." major],
+            ["libnppisu.so." major],
+            ["libnppitc.so." major],
+            ["libnpps.so." major],
+        ],
+        windows [
+            ["nppc64_" major ".dll"],
+            ["nppial64_" major ".dll"],
+            ["nppicc64_" major ".dll"],
+            ["nppidei64_" major ".dll"],
+            ["nppif64_" major ".dll"],
+            ["nppig64_" major ".dll"],
+            ["nppim64_" major ".dll"],
+            ["nppist64_" major ".dll"],
+            ["nppisu64_" major ".dll"],
+            ["nppitc64_" major ".dll"],
+            ["npps64_" major ".dll"],
+        ];
 
-    #[must_use]
-    pub const fn nvjpeg2k() -> Self {
-        Self::new(
-            "nvJPEG2000",
-            files(&["libnvjpeg2k.so.0"], &["nvjpeg2k_0.dll"]),
-        )
-    }
+    nvcomp => "nvCOMP", major "6",
+        linux [["libnvcomp.so." major]],
+        windows [["nvcomp64_" major ".dll"]];
 
-    #[must_use]
-    pub const fn nvtiff() -> Self {
-        Self::new("nvTIFF", files(&["libnvtiff.so.0"], &["nvtiff_0.dll"]))
-    }
+    nvimagecodec => "nvImageCodec", major "0",
+        linux [["libnvimgcodec.so." major]],
+        windows [["nvimgcodec_" major ".dll"]];
+
+    nvjpeg => "nvJPEG", major "13",
+        linux [["libnvjpeg.so." major]],
+        windows [["nvjpeg64_" major ".dll"]];
+
+    nvjpeg2k => "nvJPEG2000", major "0",
+        linux [["libnvjpeg2k.so." major]],
+        windows [["nvjpeg2k_" major ".dll"]];
+
+    nvtiff => "nvTIFF", major "0",
+        linux [["libnvtiff.so." major]],
+        windows [["nvtiff_" major ".dll"]];
 }

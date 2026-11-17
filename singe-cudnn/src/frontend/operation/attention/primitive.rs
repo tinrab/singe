@@ -1,18 +1,16 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    backend::{
-        execution::attention::{
-            DiagonalBandMaskOperation, SoftmaxOperation, SoftmaxOperationConfig,
-        },
-        tensor::TensorId,
+    backend::operation::attention::{
+        DiagonalBandMaskOperation, DiagonalBandMaskSpec, SoftmaxOperation, SoftmaxOutputs,
+        SoftmaxSpec, SoftmaxStatsBase,
     },
     error::{Error, Result},
     frontend::{
-        graph::{Graph, SoftmaxOutputs},
+        graph::Graph,
         lower::{LoweredOperation, LoweringContext, optional_tensor_at, tensor_at},
-        operation::{DiagonalBandMaskConfig, SoftmaxStatsBase},
     },
+    tensor::TensorId,
 };
 
 /// Frontend attention primitive operation variants.
@@ -28,7 +26,7 @@ pub enum AttentionPrimitiveOperation {
         /// Masked activation or probability output tensor identity.
         y: TensorId,
         /// Comparison, sequence-length operands, and diagonal-bound settings.
-        config: DiagonalBandMaskConfig,
+        config: DiagonalBandMaskSpec,
     },
     /// Native attention softmax with independently optional row summaries and sink logits.
     Softmax {
@@ -124,7 +122,7 @@ impl AttentionPrimitiveOperation {
                     sum_exp: *sum_exp,
                 }
                 .try_map(|id| tensor_at(tensors, id))?,
-                SoftmaxOperationConfig {
+                SoftmaxSpec {
                     stats_base: *stats_base,
                     sink: optional_tensor_at(tensors, *sink)?,
                 },

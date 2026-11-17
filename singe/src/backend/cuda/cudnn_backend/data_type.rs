@@ -15,7 +15,7 @@ pub fn storage_type(data_type: DataType) -> Result<CudnnDataType> {
         DataType::I32 => CudnnDataType::I32,
         DataType::I64 => CudnnDataType::I64,
         DataType::F16 => CudnnDataType::F16,
-        DataType::Bf16 => CudnnDataType::BF16,
+        DataType::Bf16 => CudnnDataType::Bf16,
         DataType::F32 => CudnnDataType::F32,
         DataType::F64 => CudnnDataType::F64,
         DataType::F8E4M3 => CudnnDataType::F8E4M3,

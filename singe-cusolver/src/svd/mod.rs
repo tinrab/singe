@@ -1,8 +1,10 @@
+//! Singular value decompositions and singular-vector output modes.
+
 mod generic;
 mod info;
 mod legacy;
-pub mod raw;
-mod scalar;
+mod raw;
+pub(crate) mod scalar;
 mod validation;
 
 use std::mem::MaybeUninit;
@@ -11,12 +13,11 @@ use singe_cuda::{memory::DeviceMemory, view::DeviceOutputView};
 
 pub use self::{
     generic::{
-        SvdLayout, xgesvd, xgesvd_buffer_size, xgesvdp, xgesvdp_buffer_size, xgesvdr,
-        xgesvdr_buffer_size,
+        SvdLayout, xgesvd_async, xgesvd_workspace_size, xgesvdp_async, xgesvdp_workspace_size,
+        xgesvdr_async, xgesvdr_workspace_size,
     },
     info::GesvdjInfo,
     legacy::StridedSvdLayout,
-    scalar::SvdScalar,
 };
 use crate::{
     context::Context,
@@ -27,7 +28,7 @@ use crate::{
         StridedBatchedMatrixRef, StridedBatchedVectorOutput, StridedMatrixLayout, WorkspaceSizes,
     },
     params::Params,
-    types::{EigenMode, SvdMode, TruncatedSvdMode},
+    types::{EigenMode, SvdMode, SvdVectorColumns, TruncatedSvdMode},
 };
 
 /// Classic singular value decomposition with independently selected left and right vector modes.
@@ -68,7 +69,7 @@ impl Gesvd {
         params: &Params,
         layout: SvdLayout,
     ) -> Result<WorkspaceSizes> {
-        xgesvd_buffer_size::<T>(
+        xgesvd_workspace_size::<T>(
             context,
             params,
             self.job_u,
@@ -79,24 +80,24 @@ impl Gesvd {
         )
     }
 
-    /// Queues this SVD with initialized input and write-only output bindings.
+    /// Enqueues this SVD on the context's stream without waiting for it; [`Self::execute`] is the waiting form.
     ///
     /// # Safety
     ///
-    /// Follow [`xgesvd`]'s context, ordering, aliasing, retention, and produced-range contract.
+    /// Follow the [raw execution contract](crate#raw-execution) and [`xgesvd_async`]'s produced-range contract.
     ///
     /// # Errors
     ///
-    /// Returns an error if dimensions, modes, output or status capacities, or workspace sizes are invalid, checked arithmetic or native integer conversion fails, CUDA binding fails, or cuSOLVER rejects or fails to enqueue the operation.
-    pub unsafe fn execute<T: SolverElement>(
+    /// Returns an error if a buffer belongs to another CUDA context, dimensions, modes, output or status capacities, or workspace sizes are invalid, checked arithmetic or native integer conversion fails, CUDA binding fails, or cuSOLVER rejects or fails to enqueue the operation.
+    pub unsafe fn execute_async<T: SolverElement>(
         self,
         context: &Context,
-        params: &Params,
         mut bindings: GesvdBindings<'_, T>,
+        params: &Params,
     ) -> Result<()> {
-        // SAFETY: the caller upholds the raw operation's contract for these bindings.
+        // SAFETY: this method's caller accepted the raw execution contract for `bindings`; the callee checks their capacities and contexts and orders the operation after their producers.
         unsafe {
-            xgesvd(
+            xgesvd_async(
                 context,
                 params,
                 self.job_u,
@@ -111,6 +112,22 @@ impl Gesvd {
                 &mut bindings.dev_info,
             )
         }
+    }
+
+    /// Computes this SVD and waits for completion before returning.
+    /// Inspect the produced status before using numerical outputs.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if stream capture is active or invalidated, a buffer belongs to another CUDA context, dimensions, modes, output or status capacities, or workspace sizes are invalid, checked arithmetic or native integer conversion fails, CUDA binding or completion fails, or cuSOLVER rejects or fails to enqueue the operation.
+    pub fn execute<T: SolverElement>(
+        self,
+        context: &Context,
+        bindings: GesvdBindings<'_, T>,
+        params: &Params,
+    ) -> Result<()> {
+        // SAFETY: `sync_scope` rejects capture and waits for the work before the borrowed bindings are released, on every path.
+        context.sync_scope(|| unsafe { self.execute_async(context, bindings, params) })
     }
 }
 
@@ -139,8 +156,8 @@ pub struct GesvdBindings<'a, T: SolverElement> {
 pub struct Gesvdp {
     /// Whether to compute singular values alone or also singular vectors.
     pub mode: EigenMode,
-    /// Whether vector output contains only `min(rows, columns)` columns instead of full square factors.
-    pub economy: bool,
+    /// Whether vector output has full square factors or only `min(rows, columns)` columns.
+    pub vector_columns: SvdVectorColumns,
     /// Number of rows in each input matrix.
     pub rows: usize,
     /// Number of columns in each input matrix.
@@ -150,10 +167,15 @@ pub struct Gesvdp {
 impl Gesvdp {
     /// Records SVD dimensions and output modes without validating native limits.
     #[must_use]
-    pub const fn new(mode: EigenMode, economy: bool, rows: usize, columns: usize) -> Self {
+    pub const fn new(
+        mode: EigenMode,
+        vector_columns: SvdVectorColumns,
+        rows: usize,
+        columns: usize,
+    ) -> Self {
         Self {
             mode,
-            economy,
+            vector_columns,
             rows,
             columns,
         }
@@ -172,39 +194,39 @@ impl Gesvdp {
         params: &Params,
         layout: SvdLayout,
     ) -> Result<WorkspaceSizes> {
-        xgesvdp_buffer_size::<T>(
+        xgesvdp_workspace_size::<T>(
             context,
             params,
             self.mode,
-            self.economy,
+            self.vector_columns,
             self.rows,
             self.columns,
             layout,
         )
     }
 
-    /// Queues this SVD with initialized input and write-only output bindings.
+    /// Enqueues this SVD on the context's stream without waiting for it; [`Self::execute`] is the waiting form.
     ///
     /// # Safety
     ///
-    /// Follow [`xgesvdp`]'s context, ordering, aliasing, retention, and produced-range contract.
+    /// Follow the [raw execution contract](crate#raw-execution) and [`xgesvdp_async`]'s produced-range contract.
     ///
     /// # Errors
     ///
-    /// Returns an error if dimensions, modes, output or status capacities, or workspace sizes are invalid, checked arithmetic or native integer conversion fails, CUDA binding fails, or cuSOLVER rejects or fails to enqueue the operation.
-    pub unsafe fn execute<T: SolverElement>(
+    /// Returns an error if a buffer belongs to another CUDA context, dimensions, modes, output or status capacities, or workspace sizes are invalid, checked arithmetic or native integer conversion fails, CUDA binding fails, or cuSOLVER rejects or fails to enqueue the operation.
+    pub unsafe fn execute_async<T: SolverElement>(
         self,
         context: &Context,
-        params: &Params,
         mut bindings: GesvdpBindings<'_, T>,
+        params: &Params,
     ) -> Result<()> {
-        // SAFETY: the caller upholds the raw operation's contract for these bindings.
+        // SAFETY: this method's caller accepted the raw execution contract for `bindings`; the callee checks their capacities and contexts and orders the operation after their producers.
         unsafe {
-            xgesvdp(
+            xgesvdp_async(
                 context,
                 params,
                 self.mode,
-                self.economy,
+                self.vector_columns,
                 self.rows,
                 self.columns,
                 bindings.a,
@@ -216,6 +238,22 @@ impl Gesvdp {
                 bindings.residual,
             )
         }
+    }
+
+    /// Computes this SVD and waits for completion before returning.
+    /// Inspect the produced status before using numerical outputs.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if stream capture is active or invalidated, a buffer belongs to another CUDA context, dimensions, modes, output or status capacities, or workspace sizes are invalid, checked arithmetic or native integer conversion fails, CUDA binding or completion fails, or cuSOLVER rejects or fails to enqueue the operation.
+    pub fn execute<T: SolverElement>(
+        self,
+        context: &Context,
+        bindings: GesvdpBindings<'_, T>,
+        params: &Params,
+    ) -> Result<()> {
+        // SAFETY: `sync_scope` rejects capture and waits for the work before the borrowed bindings are released, on every path.
+        context.sync_scope(|| unsafe { self.execute_async(context, bindings, params) })
     }
 }
 
@@ -298,7 +336,7 @@ impl Gesvdr {
         params: &Params,
         layout: SvdLayout,
     ) -> Result<WorkspaceSizes> {
-        xgesvdr_buffer_size::<T>(
+        xgesvdr_workspace_size::<T>(
             context,
             params,
             self.left_vectors,
@@ -312,24 +350,24 @@ impl Gesvdr {
         )
     }
 
-    /// Queues this SVD with initialized input and write-only output bindings.
+    /// Enqueues this SVD on the context's stream without waiting for it; [`Self::execute`] is the waiting form.
     ///
     /// # Safety
     ///
-    /// Follow [`xgesvdr`]'s context, ordering, aliasing, retention, and produced-range contract.
+    /// Follow the [raw execution contract](crate#raw-execution) and [`xgesvdr_async`]'s produced-range contract.
     ///
     /// # Errors
     ///
-    /// Returns an error if dimensions, modes, output or status capacities, or workspace sizes are invalid, checked arithmetic or native integer conversion fails, CUDA binding fails, or cuSOLVER rejects or fails to enqueue the operation.
-    pub unsafe fn execute<T: SolverElement>(
+    /// Returns an error if a buffer belongs to another CUDA context, dimensions, modes, output or status capacities, or workspace sizes are invalid, checked arithmetic or native integer conversion fails, CUDA binding fails, or cuSOLVER rejects or fails to enqueue the operation.
+    pub unsafe fn execute_async<T: SolverElement>(
         self,
         context: &Context,
-        params: &Params,
         mut bindings: GesvdrBindings<'_, T>,
+        params: &Params,
     ) -> Result<()> {
-        // SAFETY: the caller upholds the raw operation's contract for these bindings.
+        // SAFETY: this method's caller accepted the raw execution contract for `bindings`; the callee checks their capacities and contexts and orders the operation after their producers.
         unsafe {
-            xgesvdr(
+            xgesvdr_async(
                 context,
                 params,
                 self.left_vectors,
@@ -347,6 +385,22 @@ impl Gesvdr {
                 &mut bindings.dev_info,
             )
         }
+    }
+
+    /// Computes this SVD and waits for completion before returning.
+    /// Inspect the produced status before using numerical outputs.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if stream capture is active or invalidated, a buffer belongs to another CUDA context, dimensions, modes, output or status capacities, or workspace sizes are invalid, checked arithmetic or native integer conversion fails, CUDA binding or completion fails, or cuSOLVER rejects or fails to enqueue the operation.
+    pub fn execute<T: SolverElement>(
+        self,
+        context: &Context,
+        bindings: GesvdrBindings<'_, T>,
+        params: &Params,
+    ) -> Result<()> {
+        // SAFETY: `sync_scope` rejects capture and waits for the work before the borrowed bindings are released, on every path.
+        context.sync_scope(|| unsafe { self.execute_async(context, bindings, params) })
     }
 }
 
@@ -375,8 +429,8 @@ pub struct GesvdrBindings<'a, T: SolverElement> {
 pub struct Gesvdj {
     /// Whether to compute singular values alone or also singular vectors.
     pub mode: EigenMode,
-    /// Whether vector output contains only `min(rows, columns)` columns instead of full square factors.
-    pub economy: bool,
+    /// Whether vector output has full square factors or only `min(rows, columns)` columns.
+    pub vector_columns: SvdVectorColumns,
     /// Number of rows in each input matrix.
     pub rows: usize,
     /// Number of columns in each input matrix.
@@ -386,10 +440,15 @@ pub struct Gesvdj {
 impl Gesvdj {
     /// Records SVD dimensions and output modes without validating native limits.
     #[must_use]
-    pub const fn new(mode: EigenMode, economy: bool, rows: usize, columns: usize) -> Self {
+    pub const fn new(
+        mode: EigenMode,
+        vector_columns: SvdVectorColumns,
+        rows: usize,
+        columns: usize,
+    ) -> Self {
         Self {
             mode,
-            economy,
+            vector_columns,
             rows,
             columns,
         }
@@ -400,16 +459,16 @@ impl Gesvdj {
     /// # Errors
     ///
     /// Returns an error if dimensions, requested output layouts, or singular-vector modes are invalid, checked layout arithmetic or a native integer conversion fails, CUDA context binding fails, or cuSOLVER rejects the settings or cannot report workspace requirements.
-    pub fn workspace_size<T: SvdScalar>(
+    pub fn workspace_len<T: SolverElement>(
         self,
         context: &Context,
         layout: SvdLayout,
         params: &GesvdjInfo,
     ) -> Result<usize> {
-        (T::JACOBI_QUERY)(
+        (T::SVD_JACOBI_QUERY)(
             context,
             self.mode,
-            self.economy,
+            self.vector_columns.is_economy(),
             self.rows,
             self.columns,
             layout,
@@ -417,57 +476,61 @@ impl Gesvdj {
         )
     }
 
-    /// Completes borrowed execution.
+    /// Enqueues this SVD on the context's stream without waiting for it; [`Self::execute`] is the waiting form.
+    ///
+    /// # Safety
+    ///
+    /// Follow the [raw execution contract](crate#raw-execution); `params` is also borrowed by the queued work through completion.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if a buffer belongs to another CUDA context, dimensions, modes, output or status capacities, or workspace sizes are invalid, checked arithmetic or native integer conversion fails, CUDA binding fails, or cuSOLVER rejects or fails to enqueue the operation.
+    pub unsafe fn execute_async<T: SolverElement>(
+        self,
+        context: &Context,
+        bindings: GesvdjBindings<'_, T>,
+        params: &mut GesvdjInfo,
+    ) -> Result<()> {
+        // SAFETY: this method's caller accepted the raw execution contract for `bindings`; the callee checks their capacities and contexts and orders the operation after their producers.
+        unsafe {
+            (T::SVD_JACOBI)(
+                context,
+                self.mode,
+                self.vector_columns.is_economy(),
+                self.rows,
+                self.columns,
+                bindings.a,
+                bindings.singular_values,
+                bindings.left_vectors,
+                bindings.right_vectors,
+                bindings.workspace,
+                bindings.dev_info,
+                params,
+            )
+        }
+    }
+
+    /// Computes this SVD and waits for completion before returning.
     /// Check the produced status before promoting results.
     ///
     /// # Errors
     ///
     /// Returns an error if dimensions, modes, output or status capacities, or workspace sizes are invalid, checked arithmetic or native integer conversion fails, CUDA binding fails, or cuSOLVER rejects or fails to enqueue the operation.
     /// Also returns an error if stream capture is active or invalidated, a buffer belongs to another CUDA context, or dependency ordering or stream completion fails.
-    pub fn execute<T: SvdScalar>(
+    pub fn execute<T: SolverElement>(
         self,
         context: &Context,
         bindings: GesvdjBindings<'_, T>,
         params: &mut GesvdjInfo,
     ) -> Result<()> {
-        context.sync_scope(|| {
-            context.prepare_region(&bindings.a.data)?;
-            context.prepare_region(&bindings.singular_values)?;
-            context.prepare_region(&bindings.workspace)?;
-            context.prepare_region(&bindings.dev_info)?;
-            for matrix in [
-                bindings.left_vectors.as_ref(),
-                bindings.right_vectors.as_ref(),
-            ]
-            .into_iter()
-            .flatten()
-            {
-                context.prepare_region(&matrix.data)?;
-            }
-            // SAFETY: prepared disjoint bindings and exclusive parameters survive this completed call.
-            unsafe {
-                (T::JACOBI)(
-                    context,
-                    self.mode,
-                    self.economy,
-                    self.rows,
-                    self.columns,
-                    bindings.a,
-                    bindings.singular_values,
-                    bindings.left_vectors,
-                    bindings.right_vectors,
-                    bindings.workspace,
-                    bindings.dev_info,
-                    params,
-                )
-            }
-        })
+        // SAFETY: `sync_scope` rejects capture and waits for the work before the borrowed bindings and `params` are released, on every path.
+        context.sync_scope(|| unsafe { self.execute_async(context, bindings, params) })
     }
 }
 
 /// Initialized input and pending result storage for Jacobi SVD.
 #[derive(Debug)]
-pub struct GesvdjBindings<'a, T: SvdScalar> {
+pub struct GesvdjBindings<'a, T: SolverElement> {
     /// Initialized input matrix, whose logical contents may be overwritten by the decomposition.
     pub a: MatrixMut<'a, T>,
     /// Real output capacity for `min(rows, columns)` singular values per matrix.
@@ -515,13 +578,13 @@ impl GesvdjBatched {
     ///
     /// Returns an error if dimensions, requested output layouts, or singular-vector modes are invalid, checked layout arithmetic or a native integer conversion fails, CUDA context binding fails, or cuSOLVER rejects the settings or cannot report workspace requirements.
     /// The batch must be nonempty, with at most 32 rows and 32 columns per matrix.
-    pub fn workspace_size<T: SvdScalar>(
+    pub fn workspace_len<T: SolverElement>(
         self,
         context: &Context,
         layout: SvdLayout,
         params: &GesvdjInfo,
     ) -> Result<usize> {
-        (T::BATCHED_QUERY)(
+        (T::SVD_BATCHED_QUERY)(
             context,
             self.mode,
             self.rows,
@@ -542,7 +605,7 @@ impl GesvdjBatched {
     /// Returns an error if dimensions, modes, output or status capacities, or workspace sizes are invalid, checked arithmetic or native integer conversion fails, CUDA binding fails, or cuSOLVER rejects or fails to enqueue the operation.
     /// Also returns an error if stream capture is active or invalidated, a buffer belongs to another CUDA context, or dependency ordering or stream completion fails.
     /// Private temporary allocation can also fail.
-    pub fn execute<T: SvdScalar>(
+    pub fn execute<T: SolverElement>(
         self,
         context: &Context,
         bindings: GesvdjBindings<'_, T>,
@@ -550,20 +613,6 @@ impl GesvdjBatched {
     ) -> Result<()> {
         let mut native_vectors: Option<DeviceMemory<MaybeUninit<T>>> = None;
         context.sync_scope(|| {
-            context.prepare_region(&bindings.a.data)?;
-            context.prepare_region(&bindings.singular_values)?;
-            context.prepare_region(&bindings.workspace)?;
-            context.prepare_region(&bindings.dev_info)?;
-            for matrix in [
-                bindings.left_vectors.as_ref(),
-                bindings.right_vectors.as_ref(),
-            ]
-            .into_iter()
-            .flatten()
-            {
-                context.prepare_region(&matrix.data)?;
-            }
-
             let left_scratch = self.rows >= self.columns;
             let (left, right) = if self.mode == EigenMode::NoVector
                 && if left_scratch {
@@ -571,9 +620,8 @@ impl GesvdjBatched {
                 } else {
                     bindings.right_vectors.is_none()
                 } {
-                // The native batched implementation uses the larger vector buffer
-                // even when no vectors are requested. Keep its owner outside
-                // the closure so errors and unwinding drain before destruction.
+                // The native batched implementation uses the larger vector buffer even when no vectors are requested.
+                // Keep its owner outside the closure so errors and unwinding drain before destruction.
                 let side = self.rows.max(self.columns);
                 let elements = side
                     .checked_mul(side)
@@ -592,9 +640,9 @@ impl GesvdjBatched {
             } else {
                 (bindings.left_vectors, bindings.right_vectors)
             };
-            // SAFETY: every binding and exclusive parameter borrow survives completion.
+            // SAFETY: the scope waits for completion before releasing every binding, the private vector storage, and the parameter borrow; the callee orders the operation after its operands' producers.
             unsafe {
-                (T::BATCHED)(
+                (T::SVD_BATCHED)(
                     context,
                     self.mode,
                     self.rows,
@@ -634,7 +682,7 @@ pub struct GesvdaStridedBatched {
 
 impl GesvdaStridedBatched {
     /// Records SVD dimensions and output modes without validating native limits.
-    /// Residual output is initially disabled.
+    /// Residual output is initially disabled; set [`Self::compute_residual`] to request it.
     #[must_use]
     pub const fn new(
         mode: EigenMode,
@@ -653,21 +701,13 @@ impl GesvdaStridedBatched {
         }
     }
 
-    /// Requests one host residual per matrix.
-    /// Values-only results use private vector storage because the native values-only path does not produce residuals.
-    #[must_use]
-    pub const fn with_residual(mut self) -> Self {
-        self.compute_residual = true;
-        self
-    }
-
     /// Queries device scratch capacity in elements of `T` using batch layout metadata.
     ///
     /// # Errors
     ///
     /// Returns an error if dimensions, requested output layouts, or singular-vector modes are invalid, checked layout arithmetic or a native integer conversion fails, CUDA context binding fails, or cuSOLVER rejects the settings or cannot report workspace requirements.
     /// Matrices must be tall or square, rank must be in `1..=columns`, and batch strides must cover each logical storage footprint.
-    pub fn workspace_size<T: SvdScalar>(
+    pub fn workspace_len<T: SolverElement>(
         self,
         context: &Context,
         mut layout: StridedSvdLayout,
@@ -691,7 +731,7 @@ impl GesvdaStridedBatched {
                 layout.right_vectors = Some(vectors(self.columns)?);
             }
         }
-        (T::APPROXIMATE_QUERY)(
+        (T::SVD_APPROXIMATE_QUERY)(
             context,
             mode,
             self.rank,
@@ -712,7 +752,7 @@ impl GesvdaStridedBatched {
     /// Also returns an error if stream capture is active or invalidated, a buffer belongs to another CUDA context, or dependency ordering or stream completion fails.
     /// Private temporary allocation can also fail.
     /// Residual storage must be present exactly when residual computation is enabled.
-    pub fn execute<T: SvdScalar>(
+    pub fn execute<T: SolverElement>(
         self,
         context: &Context,
         bindings: GesvdaStridedBatchedBindings<'_, T>,
@@ -722,20 +762,6 @@ impl GesvdaStridedBatched {
         context.sync_scope(|| {
             if self.compute_residual != bindings.residual.is_some() {
                 return Err(Error::InvalidSvdMode);
-            }
-
-            context.prepare_region(&bindings.a.data)?;
-            context.prepare_region(&bindings.singular_values.data)?;
-            context.prepare_region(&bindings.workspace)?;
-            context.prepare_region(&bindings.dev_info)?;
-            for matrix in [
-                bindings.left_vectors.as_ref(),
-                bindings.right_vectors.as_ref(),
-            ]
-            .into_iter()
-            .flatten()
-            {
-                context.prepare_region(&matrix.data)?;
             }
 
             let mode = if self.compute_residual {
@@ -780,9 +806,9 @@ impl GesvdaStridedBatched {
             } else {
                 bindings.right_vectors
             };
-            // SAFETY: prepared device regions and host residuals remain borrowed through completion.
+            // SAFETY: the scope waits for completion before releasing the device bindings, private vector storage, and host residuals; the callee orders the operation after its operands' producers.
             unsafe {
-                (T::APPROXIMATE)(
+                (T::SVD_APPROXIMATE)(
                     context,
                     mode,
                     self.rank,
@@ -806,7 +832,7 @@ impl GesvdaStridedBatched {
 ///
 /// Only logical output ranges become results after successful completion; padding, stride gaps, and scratch remain outside those ranges.
 #[derive(Debug)]
-pub struct GesvdaStridedBatchedBindings<'a, T: SvdScalar> {
+pub struct GesvdaStridedBatchedBindings<'a, T: SolverElement> {
     /// Initialized strided batched input matrices; each logical matrix is read by the approximate solver.
     pub a: StridedBatchedMatrixRef<'a, T>,
     /// Real output capacity for `rank` singular values per matrix; stride gaps are not produced.
@@ -830,21 +856,20 @@ mod tests {
     use std::mem::MaybeUninit;
 
     use singe_core::assert_close;
-    use singe_cuda::memory::DeviceMemory;
+    use singe_cuda::{memory::DeviceMemory, stream::StreamOptions};
 
     use super::*;
-    use crate::{params::Params, testing::setup_context_if_available};
+    use crate::{params::Params, testing::setup_context};
 
     #[test]
     fn test_gesvd_descriptor_returns_expected_singular_values() -> Result<()> {
-        let Some(mut context) = setup_context_if_available()? else {
-            return Ok(());
-        };
+        let mut test = setup_context()?;
+        let context = test.context_mut();
         let params = Params::create()?;
         let operation = Gesvd::new(SvdMode::None, SvdMode::None, 2, 2);
         // Query before allocating input, outputs, or scratch.
         let workspace_sizes =
-            operation.workspace_size::<f32>(&context, &params, SvdLayout::new(2))?;
+            operation.workspace_size::<f32>(context, &params, SvdLayout::new(2))?;
         let mut a = DeviceMemory::from_slice(context.cuda_context(), &[3.0_f32, 0.0, 0.0, 2.0])?;
         let mut s = DeviceMemory::<f32>::create_uninit(context.cuda_context(), 2)?;
         let mut workspace = DeviceMemory::<u8>::create_uninit(
@@ -853,74 +878,39 @@ mod tests {
         )?;
         let mut host_workspace = vec![MaybeUninit::<u8>::uninit(); workspace_sizes.host_bytes];
         let mut dev_info = DeviceMemory::<i32>::create_uninit(context.cuda_context(), 1)?;
-        let stream = context.cuda_context().create_stream()?;
+        let stream = context
+            .cuda_context()
+            .create_stream(StreamOptions::default())?;
         context.set_stream(Some(&stream))?;
-        stream.sync_scope(|_| {
-            // SAFETY: disjoint buffers, host scratch, and handles survive the draining scope.
-            Ok(unsafe {
-                operation.execute(
-                    &context,
-                    &params,
-                    GesvdBindings {
-                        a: MatrixMut::new(&mut a, 2),
-                        singular_values: s.output(),
-                        left_vectors: None,
-                        right_vectors_transposed: None,
-                        workspace: ByteWorkspaceMut::new(&mut workspace, &mut host_workspace),
-                        dev_info: dev_info.output(),
-                    },
-                )
-            })
-        })??;
-        // SAFETY: successful completion writes the first status element.
+        operation.execute(
+            context,
+            GesvdBindings {
+                a: MatrixMut::new(&mut a, 2),
+                singular_values: s.output(),
+                left_vectors: None,
+                right_vectors_transposed: None,
+                workspace: ByteWorkspaceMut::new(&mut workspace, &mut host_workspace),
+                dev_info: dev_info.output(),
+            },
+            &params,
+        )?;
+        // SAFETY: the solve completed without error, which writes the status element.
         let dev_info = unsafe { dev_info.assume_init() };
         assert_eq!(dev_info.copy_to_host_vec()?, vec![0]);
-        // SAFETY: a zero status confirms the compact singular-value range was produced.
+        // SAFETY: the status is zero, so both singular values were written.
         let s = unsafe { s.assume_init() };
         assert_close!(&s.copy_to_host_vec()?, &[3.0, 2.0], 1.0e-5);
         Ok(())
     }
 
     #[test]
-    fn test_gesvdp_descriptor_preserves_operation_shape() {
-        let operation = Gesvdp::new(EigenMode::Vector, true, 32, 16);
-
-        assert_eq!(operation.mode, EigenMode::Vector);
-        assert!(operation.economy);
-        assert_eq!(operation.rows, 32);
-        assert_eq!(operation.columns, 16);
-    }
-
-    #[test]
-    fn test_gesvdr_descriptor_preserves_operation_shape() {
-        let operation = Gesvdr::new(
-            TruncatedSvdMode::Some,
-            TruncatedSvdMode::None,
-            128,
-            64,
-            12,
-            24,
-            3,
-        );
-
-        assert_eq!(operation.left_vectors, TruncatedSvdMode::Some);
-        assert_eq!(operation.right_vectors, TruncatedSvdMode::None);
-        assert_eq!(operation.rows, 128);
-        assert_eq!(operation.columns, 64);
-        assert_eq!(operation.rank, 12);
-        assert_eq!(operation.oversamples, 24);
-        assert_eq!(operation.iterations, 3);
-    }
-
-    #[test]
     fn test_xgesvd_returns_expected_singular_values() -> Result<()> {
-        let Some(mut context) = setup_context_if_available()? else {
-            return Ok(());
-        };
+        let mut test = setup_context()?;
+        let context = test.context_mut();
         let params = Params::create()?;
         // Query before allocating input, outputs, or scratch.
-        let workspace_sizes = xgesvd_buffer_size::<f32>(
-            &context,
+        let workspace_sizes = xgesvd_workspace_size::<f32>(
+            context,
             &params,
             SvdMode::None,
             SvdMode::None,
@@ -936,13 +926,15 @@ mod tests {
         )?;
         let mut host_workspace = vec![MaybeUninit::<u8>::uninit(); workspace_sizes.host_bytes];
         let mut dev_info = DeviceMemory::<i32>::create_uninit(context.cuda_context(), 1)?;
-        let stream = context.cuda_context().create_stream()?;
+        let stream = context
+            .cuda_context()
+            .create_stream(StreamOptions::default())?;
         context.set_stream(Some(&stream))?;
         stream.sync_scope(|_| {
-            // SAFETY: disjoint buffers, host scratch, and handles survive the draining scope.
+            // SAFETY: the buffers are disjoint and declared outside `sync_scope`, which waits for the solve before they can drop.
             Ok(unsafe {
-                xgesvd::<f32>(
-                    &context,
+                xgesvd_async::<f32>(
+                    context,
                     &params,
                     SvdMode::None,
                     SvdMode::None,
@@ -957,10 +949,10 @@ mod tests {
                 )
             })
         })??;
-        // SAFETY: successful completion writes the first status element.
+        // SAFETY: the solve completed without error, which writes the status element.
         let dev_info = unsafe { dev_info.assume_init() };
         assert_eq!(dev_info.copy_to_host_vec()?, vec![0]);
-        // SAFETY: a zero status confirms the compact singular-value range was produced.
+        // SAFETY: the status is zero, so both singular values were written.
         let s = unsafe { s.assume_init() };
         assert_close!(&s.copy_to_host_vec()?, &[3.0, 2.0], 1.0e-5);
         Ok(())

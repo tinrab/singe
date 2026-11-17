@@ -141,7 +141,9 @@ where
     ///
     /// Returns an error if another owner still shares the underlying allocation.
     pub fn into_raw(self) -> Result<(RawAllocation, Size, i32)> {
-        let allocation = Arc::try_unwrap(self.allocation).map_err(|_| Error::OwnershipShared)?;
+        let allocation = Arc::try_unwrap(self.allocation).map_err(|_| Error::OwnershipShared {
+            name: "allocation".into(),
+        })?;
         Ok((allocation.into_raw(), self.size, self.step))
     }
 

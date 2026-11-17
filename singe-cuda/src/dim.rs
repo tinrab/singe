@@ -1,3 +1,5 @@
+//! Three-dimensional CUDA grid, block, and cluster dimensions.
+
 use singe_cuda_sys::runtime;
 
 /// Three unsigned 32-bit axis values for CUDA grids, blocks, or clusters.

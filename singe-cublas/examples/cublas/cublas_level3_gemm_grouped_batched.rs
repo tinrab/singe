@@ -1,11 +1,16 @@
 use singe_cublas::{
-    blas::level3::dgemm_grouped_batched, context::Context, error::Result, types::Operation,
+    blas::level3::{GemmGroup, gemm_grouped_batched},
+    context::Context,
+    gemm::GemmShape,
 };
 use singe_cuda::{
-    context::Context as CudaContext, device::Device, memory::DeviceMemory, types::DevicePtr,
+    context::Context as CudaContext,
+    device::Device,
+    memory::DeviceMemory,
+    view::{DeviceInputView, DeviceOutputView},
 };
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     let cuda = CudaContext::create_for_device(Device::new(0))?;
     let cublas = Context::create(&cuda)?;
 
@@ -16,51 +21,47 @@ fn main() -> Result<()> {
     let b1 = DeviceMemory::from_slice(&cuda, &[9.0_f64, 11.0, 10.0, 12.0])?;
     let b2 =
         DeviceMemory::from_slice(&cuda, &[4.0_f64, 7.0, 10.0, 5.0, 8.0, 11.0, 6.0, 9.0, 12.0])?;
-    let c0 = DeviceMemory::<f64>::zeroed(&cuda, 4)?;
-    let c1 = DeviceMemory::<f64>::zeroed(&cuda, 4)?;
-    let c2 = DeviceMemory::<f64>::zeroed(&cuda, 9)?;
+    let mut c0 = DeviceMemory::<f64>::zeroed(&cuda, 4)?;
+    let mut c1 = DeviceMemory::<f64>::zeroed(&cuda, 4)?;
+    let mut c2 = DeviceMemory::<f64>::zeroed(&cuda, 9)?;
 
-    let a = [
-        // SAFETY: the address comes from a live allocation; wrapping it does not dereference it.
-        unsafe { DevicePtr::from_raw(a0.as_ptr().cast_mut().cast::<()>()) },
-        // SAFETY: the address comes from a live allocation; wrapping it does not dereference it.
-        unsafe { DevicePtr::from_raw(a1.as_ptr().cast_mut().cast::<()>()) },
-        // SAFETY: the address comes from a live allocation; wrapping it does not dereference it.
-        unsafe { DevicePtr::from_raw(a2.as_ptr().cast_mut().cast::<()>()) },
-    ];
-    let b = [
-        // SAFETY: the address comes from a live allocation; wrapping it does not dereference it.
-        unsafe { DevicePtr::from_raw(b0.as_ptr().cast_mut().cast::<()>()) },
-        // SAFETY: the address comes from a live allocation; wrapping it does not dereference it.
-        unsafe { DevicePtr::from_raw(b1.as_ptr().cast_mut().cast::<()>()) },
-        // SAFETY: the address comes from a live allocation; wrapping it does not dereference it.
-        unsafe { DevicePtr::from_raw(b2.as_ptr().cast_mut().cast::<()>()) },
-    ];
-    let mut c = [
-        // SAFETY: the address comes from a live allocation; wrapping it does not dereference it.
-        unsafe { DevicePtr::from_raw(c0.as_ptr().cast_mut().cast::<()>()) },
-        // SAFETY: the address comes from a live allocation; wrapping it does not dereference it.
-        unsafe { DevicePtr::from_raw(c1.as_ptr().cast_mut().cast::<()>()) },
-        // SAFETY: the address comes from a live allocation; wrapping it does not dereference it.
-        unsafe { DevicePtr::from_raw(c2.as_ptr().cast_mut().cast::<()>()) },
-    ];
-
-    dgemm_grouped_batched(
+    gemm_grouped_batched(
         &cublas,
-        &[Operation::NonTranspose, Operation::NonTranspose],
-        &[Operation::NonTranspose, Operation::NonTranspose],
-        &[2, 3],
-        &[2, 3],
-        &[2, 3],
-        &[1.0, 1.0],
-        &a,
-        &[2, 3],
-        &b,
-        &[2, 3],
-        &[0.0, 0.0],
-        &mut c,
-        &[2, 3],
-        &[2, 1],
+        &[
+            GemmGroup {
+                shape: GemmShape::new(2, 2, 2),
+                alpha: 1.0,
+                beta: 0.0,
+                lda: 2,
+                ldb: 2,
+                ldc: 2,
+                count: 2,
+            },
+            GemmGroup {
+                shape: GemmShape::new(3, 3, 3),
+                alpha: 1.0,
+                beta: 0.0,
+                lda: 3,
+                ldb: 3,
+                ldc: 3,
+                count: 1,
+            },
+        ],
+        &[
+            DeviceInputView::from_buffer(&a0),
+            DeviceInputView::from_buffer(&a1),
+            DeviceInputView::from_buffer(&a2),
+        ],
+        &[
+            DeviceInputView::from_buffer(&b0),
+            DeviceInputView::from_buffer(&b1),
+            DeviceInputView::from_buffer(&b2),
+        ],
+        &mut [
+            DeviceOutputView::from_output(&mut c0),
+            DeviceOutputView::from_output(&mut c1),
+            DeviceOutputView::from_output(&mut c2),
+        ],
     )?;
 
     assert_eq!(c0.copy_to_host_vec()?, vec![19.0, 43.0, 22.0, 50.0]);

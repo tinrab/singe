@@ -1,4 +1,7 @@
-use singe_cuda::{context::Context, stream::Stream};
+use singe_cuda::{
+    context::Context,
+    stream::{Stream, StreamOptions},
+};
 
 use crate::{context::StreamContext, error::Result};
 
@@ -11,7 +14,7 @@ use crate::{context::StreamContext, error::Result};
 /// Returns an error if CUDA context creation, stream creation, or constructing the NPP stream context fails.
 pub fn create_stream_context() -> Result<(Stream, StreamContext)> {
     let context = Context::create()?;
-    let stream = context.create_stream()?;
+    let stream = context.create_stream(StreamOptions::default())?;
     let stream_context = StreamContext::create(&stream)?;
     Ok((stream, stream_context))
 }

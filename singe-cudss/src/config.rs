@@ -3,6 +3,8 @@ use std::{
     ptr,
 };
 
+use singe_core::report_cleanup_failure;
+use singe_cuda::device::Device;
 use singe_cudss_sys as sys;
 
 use crate::{
@@ -17,15 +19,15 @@ use crate::{
 
 /// Solver configuration settings for a cuDSS solve.
 ///
-/// A configuration object stores algorithm choices and feature toggles read by [`Context::execute`](crate::context::Context::execute).
+/// A configuration object stores algorithm choices and feature toggles read by [`Context::execute_async`](crate::context::Context::execute_async).
 /// cuDSS allocates only lightweight host resources for this object.
 #[derive(Debug)]
 pub struct Config {
     raw: sys::cudssConfig_t,
 }
 
-// SAFETY: cuDSS config objects are host-side mutable resources.
-// Ownership can move between threads, but the wrapper does not expose shared concurrent mutation.
+// SAFETY: a cuDSS config is a host-side object that cuDSS does not tie to the creating thread, so it may be used from any thread one call at a time.
+// It is not `Sync`, because cuDSS does not document concurrent calls on one config.
 unsafe impl Send for Config {}
 
 impl Config {
@@ -38,7 +40,7 @@ impl Config {
     ///
     /// Returns an error if cuDSS cannot create the configuration object or returns a null handle.
     pub fn create() -> Result<Self> {
-        // SAFETY: `cudssConfigCreate` receives valid output locations.
+        // SAFETY: `raw` is a live local that cuDSS writes the new handle into, and it is checked for null before the wrapper owns it.
         unsafe {
             let mut raw = ptr::null_mut();
             try_ffi!(sys::cudssConfigCreate(&raw mut raw))?;
@@ -70,16 +72,16 @@ impl Config {
     ///
     /// `T` must match the value type documented for `param`.
     ///
-    /// # Errors
-    ///
-    /// Returns an error if the value size cannot be represented for cuDSS or if cuDSS rejects the parameter, value type, or value.
-    ///
     /// # Safety
     ///
     /// T must match this parameter's native ABI, with every source byte initialized.
     /// Pointer-valued settings must retain valid pointees for every native use.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the value size cannot be represented for cuDSS or if cuDSS rejects the parameter, value type, or value.
     pub unsafe fn set_raw<T: Copy>(&mut self, param: ConfigParameter, value: &T) -> Result<()> {
-        // SAFETY: `cudssConfigSet` receives live handles owned by the wrappers.
+        // SAFETY: `self.raw` is the live config this wrapper owns, `value` is a borrowed `T` read for `size_of::<T>()` bytes, and the caller guarantees `T` matches the parameter's native ABI.
         unsafe {
             try_ffi!(sys::cudssConfigSet(
                 self.raw,
@@ -94,20 +96,20 @@ impl Config {
     ///
     /// `T` and the slice length must match the value type documented for `param`.
     ///
-    /// # Errors
-    ///
-    /// Returns an error if the slice byte size cannot be represented for cuDSS or if cuDSS rejects the parameter, value type, or values.
-    ///
     /// # Safety
     ///
     /// T, slice length, byte initialization, and indirection must match this parameter's native array ABI.
     /// Retain referenced pointees for every native use.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the slice byte size cannot be represented for cuDSS or if cuDSS rejects the parameter, value type, or values.
     pub unsafe fn set_raw_slice<T: Copy>(
         &mut self,
         param: ConfigParameter,
         values: &[T],
     ) -> Result<()> {
-        // SAFETY: `cudssConfigSet` receives live handles owned by the wrappers and pointers into buffers borrowed for the call.
+        // SAFETY: `self.raw` is the live config this wrapper owns, `values` is read for its `size_of_val` bytes, and the caller guarantees the element type and length match the parameter's native array ABI.
         unsafe {
             try_ffi!(sys::cudssConfigSet(
                 self.raw,
@@ -122,15 +124,16 @@ impl Config {
     ///
     /// `T` must match the value type documented for `param`.
     ///
-    /// # Errors
-    ///
-    /// Returns an error if the value size cannot be represented for cuDSS, if cuDSS rejects the parameter or value type, or if cuDSS reports an internal byte-count mismatch.
-    ///
     /// # Safety
     ///
     /// The parameter must be a synchronous host output that initializes all bytes as a valid T. Device outputs and parameters requiring an existing destination value cannot be read through this method.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the value size cannot be represented for cuDSS, if cuDSS rejects the parameter or value type, or if cuDSS reports an internal byte-count mismatch.
     pub unsafe fn get_raw<T: Copy>(&self, param: ConfigParameter) -> Result<T> {
-        // SAFETY: the caller upholds this function's safety contract.
+        // SAFETY: `self.raw` is the live config this wrapper owns and `value` has room for `size_of::<T>()` bytes.
+        // `assume_init` runs only after cuDSS reported writing exactly that many bytes, and the caller guarantees they form a valid `T`.
         unsafe {
             let mut value = mem::MaybeUninit::<T>::uninit();
             let mut size_written = 0;
@@ -156,7 +159,7 @@ impl Config {
     ///
     /// Returns an error if cuDSS rejects the setting.
     pub fn set_reordering_algorithm(&mut self, algorithm: ReorderingAlgorithm) -> Result<()> {
-        // SAFETY: this named setting supplies its documented native scalar or array ABI.
+        // SAFETY: the value's enum is `#[repr(u32)]`, matching the parameter's native enum type.
         unsafe { self.set_raw(ConfigParameter::ReorderingAlgorithm, &algorithm) }
     }
 
@@ -166,11 +169,11 @@ impl Config {
     ///
     /// Returns an error if cuDSS cannot report the setting.
     pub fn reordering_algorithm(&self) -> Result<ReorderingAlgorithm> {
-        // SAFETY: this configuration field has the documented u32 enum ABI.
+        // SAFETY: cuDSS writes the parameter as its native enum type, a `u32`, and every `u32` is a valid value.
         let raw = unsafe { self.get_raw::<u32>(ConfigParameter::ReorderingAlgorithm) }?;
-        ReorderingAlgorithm::try_from(raw).map_err(|_| Error::UnknownParameterValue {
+        ReorderingAlgorithm::try_from(raw).map_err(|_| Error::UnknownEnumValue {
             name: "reordering_algorithm".into(),
-            value: raw,
+            value: raw.into(),
         })
     }
 
@@ -180,7 +183,7 @@ impl Config {
     ///
     /// Returns an error if cuDSS rejects the setting.
     pub fn set_factorization_algorithm(&mut self, algorithm: FactorizationAlgorithm) -> Result<()> {
-        // SAFETY: this named setting supplies its documented native scalar or array ABI.
+        // SAFETY: the value's enum is `#[repr(u32)]`, matching the parameter's native enum type.
         unsafe { self.set_raw(ConfigParameter::FactorizationAlgorithm, &algorithm) }
     }
 
@@ -190,7 +193,7 @@ impl Config {
     ///
     /// Returns an error if cuDSS rejects the setting.
     pub fn set_solve_algorithm(&mut self, algorithm: SolveAlgorithm) -> Result<()> {
-        // SAFETY: this named setting supplies its documented native scalar or array ABI.
+        // SAFETY: the value's enum is `#[repr(u32)]`, matching the parameter's native enum type.
         unsafe { self.set_raw(ConfigParameter::SolveAlgorithm, &algorithm) }
     }
 
@@ -200,7 +203,7 @@ impl Config {
     ///
     /// Returns an error if cuDSS rejects the setting.
     pub fn set_matching_algorithm(&mut self, algorithm: MatchingAlgorithm) -> Result<()> {
-        // SAFETY: this named setting supplies its documented native scalar or array ABI.
+        // SAFETY: the value's enum is `#[repr(u32)]`, matching the parameter's native enum type.
         unsafe { self.set_raw(ConfigParameter::MatchingAlgorithm, &algorithm) }
     }
 
@@ -210,11 +213,11 @@ impl Config {
     ///
     /// Returns an error if cuDSS cannot report the setting.
     pub fn matching_algorithm(&self) -> Result<MatchingAlgorithm> {
-        // SAFETY: this configuration field has the documented u32 enum ABI.
+        // SAFETY: cuDSS writes the parameter as its native enum type, a `u32`, and every `u32` is a valid value.
         let raw = unsafe { self.get_raw::<u32>(ConfigParameter::MatchingAlgorithm) }?;
-        MatchingAlgorithm::try_from(raw).map_err(|_| Error::UnknownParameterValue {
+        MatchingAlgorithm::try_from(raw).map_err(|_| Error::UnknownEnumValue {
             name: "matching_algorithm".into(),
-            value: raw,
+            value: raw.into(),
         })
     }
 
@@ -224,7 +227,7 @@ impl Config {
     ///
     /// Returns an error if cuDSS rejects the setting.
     pub fn set_pivot_type(&mut self, pivot_type: PivotType) -> Result<()> {
-        // SAFETY: this named setting supplies its documented native scalar or array ABI.
+        // SAFETY: the value's enum is `#[repr(u32)]`, matching the parameter's native enum type.
         unsafe { self.set_raw(ConfigParameter::PivotType, &pivot_type) }
     }
 
@@ -234,7 +237,7 @@ impl Config {
     ///
     /// Returns an error if cuDSS rejects the setting.
     pub fn set_pivot_epsilon_algorithm(&mut self, algorithm: PivotEpsilonAlgorithm) -> Result<()> {
-        // SAFETY: this named setting supplies its documented native scalar or array ABI.
+        // SAFETY: the value's enum is `#[repr(u32)]`, matching the parameter's native enum type.
         unsafe { self.set_raw(ConfigParameter::PivotEpsilonAlgorithm, &algorithm) }
     }
 
@@ -244,7 +247,7 @@ impl Config {
     ///
     /// Returns an error if cuDSS rejects the setting.
     pub fn set_iterative_refinement_steps(&mut self, steps: i32) -> Result<()> {
-        // SAFETY: this named setting supplies its documented native scalar or array ABI.
+        // SAFETY: the parameter's native type is `int`, which `i32` matches.
         unsafe { self.set_raw(ConfigParameter::IterativeRefinementSteps, &steps) }
     }
 
@@ -254,7 +257,7 @@ impl Config {
     ///
     /// Returns an error if cuDSS rejects the setting.
     pub fn set_iterative_refinement_tolerance(&mut self, tolerance: f64) -> Result<()> {
-        // SAFETY: this named setting supplies its documented native scalar or array ABI.
+        // SAFETY: the parameter's native type is `double`, which `f64` matches.
         unsafe { self.set_raw(ConfigParameter::IterativeRefinementTolerance, &tolerance) }
     }
 
@@ -299,12 +302,13 @@ impl Config {
     /// # Errors
     ///
     /// Returns an error if cuDSS rejects either setting.
-    pub fn set_device_indices(&mut self, devices: &[i32]) -> Result<()> {
+    pub fn set_device_indices(&mut self, devices: &[Device]) -> Result<()> {
         let count = to_i32(devices.len(), "device count")?;
-        // SAFETY: this named setting supplies its documented native scalar or array ABI.
+        let device_ids: Vec<i32> = devices.iter().map(|device| device.id()).collect();
+        // SAFETY: the device count is an `int` and the device indices are an `int` array of that length.
         unsafe {
             self.set_raw(ConfigParameter::DeviceCount, &count)?;
-            self.set_raw_slice(ConfigParameter::DeviceIndices, devices)
+            self.set_raw_slice(ConfigParameter::DeviceIndices, &device_ids)
         }
     }
 
@@ -314,7 +318,7 @@ impl Config {
     ///
     /// Returns an error if cuDSS rejects the setting.
     pub fn set_uniform_batch_size(&mut self, batch_size: i32) -> Result<()> {
-        // SAFETY: this named setting supplies its documented native scalar or array ABI.
+        // SAFETY: the parameter's native type is `int`, which `i32` matches.
         unsafe { self.set_raw(ConfigParameter::UniformBatchSize, &batch_size) }
     }
 
@@ -324,12 +328,12 @@ impl Config {
     ///
     /// Returns an error if cuDSS rejects the setting.
     pub fn set_uniform_batch_index(&mut self, batch_index: i32) -> Result<()> {
-        // SAFETY: this named setting supplies its documented native scalar or array ABI.
+        // SAFETY: the parameter's native type is `int`, which `i32` matches.
         unsafe { self.set_raw(ConfigParameter::UniformBatchIndex, &batch_index) }
     }
 
     fn set_bool(&mut self, param: ConfigParameter, enabled: bool) -> Result<()> {
-        // SAFETY: this named setting supplies its documented native scalar or array ABI.
+        // SAFETY: every boolean configuration parameter is an `int` flag, which `i32` matches.
         unsafe { self.set_raw(param, &i32::from(enabled)) }
     }
 
@@ -351,13 +355,10 @@ impl Config {
 
 impl Drop for Config {
     fn drop(&mut self) {
-        // SAFETY: `cudssConfigDestroy` receives live handles owned by the wrappers.
+        // SAFETY: `self.raw` is the live config this wrapper owns, and `into_raw` skips this drop when ownership leaves the wrapper.
         unsafe {
             if let Err(error) = try_ffi!(sys::cudssConfigDestroy(self.raw)) {
-                eprintln!(
-                    "failed to destroy cudss config: {}",
-                    singe_core::ErrorChain(&error)
-                );
+                report_cleanup_failure("destroy", "cudss config", &error);
             }
         }
     }

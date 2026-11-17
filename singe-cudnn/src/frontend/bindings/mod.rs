@@ -1,28 +1,27 @@
+//! Tensor pointer registrations, retained scalar defaults, and runtime layout overrides.
+
 mod overrides;
 mod owned;
 mod template;
 
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
-    mem::{MaybeUninit, size_of},
+    mem::size_of,
     sync::Arc,
 };
 
 use singe_cuda::{
     context::Context as CudaContext,
-    memory::DeviceMemory,
+    error::Error as CudaError,
     submission::{Access, AccessMode},
     types::DevicePtr,
-    view::{DeviceInput, DeviceOutput, DeviceRegion, DeviceRegionProvider},
+    view::{DeviceOutput, DeviceOutputView, DeviceRange, DeviceRegion, DeviceRegionProvider},
 };
 
 pub(crate) use crate::frontend::bindings::template::{BindingSource, BindingTemplate};
 use crate::{
-    backend::{
-        execution::{VariantPack, VariantPackOverride, WorkspaceInitialization},
-        tensor::{Shape, TensorId, TensorPlacement},
-    },
-    data_type::{DataType, DataTypeLike},
+    backend::execution::{VariantPack, VariantPackOverride, WorkspaceInitialization},
+    data_type::{DataType, TensorElement},
     error::{Error, Result},
     frontend::{
         error::Error as FrontendError,
@@ -32,6 +31,7 @@ use crate::{
         workspace::WorkspaceLayout,
     },
     scalar::{ScalarStorage, ScalarValue},
+    tensor::{Shape, TensorId, TensorPlacement},
     utility::to_usize,
 };
 
@@ -142,14 +142,14 @@ impl<'a> Bindings<'a> {
         Self::default()
     }
 
-    /// Number of registered pointers, including owned scalar defaults.
+    /// Returns the number of registered pointers, including owned scalar defaults.
     /// Graph declarations without a registration do not contribute to this count.
     #[must_use]
     pub fn len(&self) -> usize {
         self.map.len()
     }
 
-    /// Whether this set has no registered pointers, including scalar defaults.
+    /// Returns whether this set has no registered pointers, including scalar defaults.
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.map.is_empty()
@@ -229,7 +229,7 @@ impl<'a> Bindings<'a> {
         Ok(())
     }
 
-    fn validate_tensor_binding_type<T: DataTypeLike>(&self, id: TensorId) -> Result<()> {
+    fn validate_tensor_binding_type<T: TensorElement>(&self, id: TensorId) -> Result<()> {
         if let Some(tensors) = self.tensors {
             let record = tensors.get(&id).ok_or(FrontendError::TensorNotFound(id))?;
             let actual = T::data_type();
@@ -251,7 +251,8 @@ impl<'a> Bindings<'a> {
     /// A rejected assignment leaves the previous binding unchanged.
     ///
     /// # Errors
-    /// Returns an error for incompatible graph metadata, invalid alignment or scalar allocation failure.
+    ///
+    /// Returns an error if the graph metadata is incompatible, the alignment is invalid, or allocating scalar storage fails.
     pub fn set_scalar(
         &mut self,
         id: TensorId,
@@ -328,7 +329,7 @@ impl<'a> Bindings<'a> {
     /// # Errors
     ///
     /// Returns an error if a graph-aware tensor identity is unknown, its native encoding differs from the Rust element type, the encoding requires packed byte storage, or its placement is not caller-supplied device storage.
-    pub fn set<T: DataTypeLike>(
+    pub fn set<T: TensorElement>(
         &mut self,
         id: TensorId,
         memory: &mut (impl DeviceOutput<T> + ?Sized),
@@ -344,18 +345,18 @@ impl<'a> Bindings<'a> {
     /// # Errors
     ///
     /// Returns an error if a graph-aware tensor identity is unknown, its native encoding differs from the Rust element type, the encoding requires packed byte storage, or its placement is not caller-supplied device storage.
-    pub fn set_input<T: DataTypeLike>(
+    pub fn set_input<T: TensorElement>(
         &mut self,
         id: TensorId,
-        memory: &(impl DeviceInput<T> + ?Sized),
+        memory: &(impl DeviceRange<T> + ?Sized),
     ) -> Result<&mut Self> {
         self.set_typed_binding::<T>(id, memory, BindingAccess::ReadOnly)
     }
 
-    fn set_typed_binding<T: DataTypeLike>(
+    fn set_typed_binding<T: TensorElement>(
         &mut self,
         id: TensorId,
-        memory: &(impl DeviceInput<T> + ?Sized),
+        memory: &(impl DeviceRange<T> + ?Sized),
         access: BindingAccess,
     ) -> Result<&mut Self> {
         self.validate_tensor_id(id)?;
@@ -370,7 +371,7 @@ impl<'a> Bindings<'a> {
 
         self.validate_device_placement(id)?;
         let info = binding_memory_info(memory.region(), T::data_type(), access);
-        // SAFETY: the pointer and metadata describe this typed view; execution retains its existing ownership/access contract.
+        // SAFETY: `set_id` only records the address of a view whose element type was checked above; `prepare_variant_pack` checks its capacity and context, and the unsafe execute functions that read these bindings require the caller to keep the storage live.
         unsafe {
             self.set_id(
                 id,
@@ -408,7 +409,7 @@ impl<'a> Bindings<'a> {
     pub fn set_encoded_input_bytes(
         &mut self,
         id: TensorId,
-        memory: &(impl DeviceInput<u8> + ?Sized),
+        memory: &(impl DeviceRange<u8> + ?Sized),
     ) -> Result<&mut Self> {
         self.set_encoded_binding(id, memory, BindingAccess::ReadOnly)
     }
@@ -416,7 +417,7 @@ impl<'a> Bindings<'a> {
     fn set_encoded_binding(
         &mut self,
         id: TensorId,
-        memory: &(impl DeviceInput<u8> + ?Sized),
+        memory: &(impl DeviceRange<u8> + ?Sized),
         access: BindingAccess,
     ) -> Result<&mut Self> {
         let tensors = self
@@ -430,7 +431,7 @@ impl<'a> Bindings<'a> {
 
         self.validate_device_placement(id)?;
         let info = binding_memory_info(memory.region(), data_type, access);
-        // SAFETY: the byte pointer matches the recorded storage; packing and asynchronous validity are part of execution's contract.
+        // SAFETY: `set_id` only records the address of this byte view; `prepare_variant_pack` checks its capacity against the encoded layout, and the unsafe execute functions that read these bindings require the caller to keep the storage live.
         unsafe {
             self.set_id(
                 id,
@@ -456,7 +457,7 @@ impl<'a> Bindings<'a> {
         Ok(())
     }
 
-    /// Known byte capacity of a typed, encoded-byte or explicitly sized raw binding.
+    /// Returns the known byte capacity of a typed, encoded-byte or explicitly sized raw binding.
     #[must_use]
     pub fn byte_capacity(&self, id: TensorId) -> Option<usize> {
         self.memory_info.get(&id).map(|info| info.byte_capacity)
@@ -512,9 +513,7 @@ impl<'a> Bindings<'a> {
         }
 
         if info.context.as_ref() != allocation_context.as_ref() {
-            return Err(Error::ContextMismatch {
-                name: format!("frontend binding {binding_id}").into(),
-            });
+            return Err(CudaError::MemoryContextMismatch.into());
         }
 
         if record.tensor.placement != TensorPlacement::Device {
@@ -576,7 +575,7 @@ impl<'a> Bindings<'a> {
     /// Returns an error if graph metadata is present and the tensor identity is unknown.
     pub unsafe fn set_ptr(&mut self, id: TensorId, ptr: DevicePtr) -> Result<&mut Self> {
         self.validate_tensor_id(id)?;
-        // SAFETY: the caller upholds this function's safety contract.
+        // SAFETY: `set_ptr` and `set_id` share one contract: the caller keeps `ptr` valid for the tensor through every execution.
         Ok(unsafe { self.set_id(id, ptr) })
     }
 
@@ -585,6 +584,7 @@ impl<'a> Bindings<'a> {
     /// Use this for externally managed packed/ragged buffers whose physical span cannot be inferred from dimensions.
     ///
     /// # Safety
+    ///
     /// The pointer must refer to at least `byte_capacity` accessible bytes in `allocation_context` and satisfy the graph's encoding, access, alignment and aliasing requirements.
     /// The caller retains the allocation and orders its producers through every execution.
     /// Recording metadata here does not retain the underlying allocation.
@@ -612,7 +612,7 @@ impl<'a> Bindings<'a> {
             tracked_access: None,
             owner: None,
         };
-        // SAFETY: the caller establishes the raw allocation contract above.
+        // SAFETY: this function's contract makes the caller keep `byte_capacity` bytes at `ptr` accessible and retained through every execution, which covers `set_id`.
         unsafe { self.set_id(id, ptr) };
         self.memory_info.insert(id, info);
         Ok(self)
@@ -678,7 +678,7 @@ pub(crate) fn prepare_variant_pack(
     allocation_context: &Arc<CudaContext>,
     binding_replacements: &[BindingReplacement],
     bindings: &Bindings<'_>,
-    workspace: Option<&mut DeviceMemory<MaybeUninit<u8>>>,
+    workspace: Option<DeviceOutputView<'_, u8>>,
     runtime_overrides: &RuntimeOverrides,
     template: &BindingTemplate,
     tensors: &BTreeMap<TensorId, TensorRecord>,
@@ -692,9 +692,10 @@ pub(crate) fn prepare_variant_pack(
         Some(workspace) => layout.resolve_address(workspace.region().as_ptr().addr())?,
         None => layout,
     };
-    let capacity = workspace.as_ref().map_or(0, |workspace| workspace.len());
+    let capacity = workspace.as_ref().map_or(0, DeviceOutputView::len);
     if capacity < layout.byte_len() {
-        return Err(Error::InsufficientWorkspaceSize {
+        return Err(Error::BufferTooSmall {
+            name: "workspace".into(),
             required: layout.byte_len(),
             actual: capacity,
         });
@@ -728,7 +729,7 @@ pub(crate) fn prepare_variant_pack(
         .into_iter()
         .map(|(id, ptr)| (id.into(), ptr))
         .collect::<Vec<_>>();
-    // SAFETY: every binding points into a live tensor allocation that the caller retains through execution.
+    // SAFETY: the loop above checked each binding's context, capacity and alignment against its runtime layout; the unsafe execute functions that submit this pack require their callers to keep the storage live.
     let mut pack = unsafe {
         VariantPack::create_with_workspace_prefix(
             allocation_context,
@@ -790,7 +791,7 @@ impl CompiledGraph {
         &self,
         allocation_context: &Arc<CudaContext>,
         bindings: &Bindings<'_>,
-        workspace: Option<&mut DeviceMemory<MaybeUninit<u8>>>,
+        workspace: Option<DeviceOutputView<'_, u8>>,
         runtime_overrides: &RuntimeOverrides,
     ) -> Result<VariantPack> {
         runtime_overrides.validate_enabled(self.core.shape_policy.overrides_enabled)?;

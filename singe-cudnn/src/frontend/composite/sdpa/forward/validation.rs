@@ -1,18 +1,17 @@
 use std::collections::BTreeSet;
 
+use singe_core::LibraryVersion;
+
 use crate::{
-    backend::{
-        execution::attention::SoftmaxStatsBase,
-        tensor::{Shape, TensorId},
-    },
+    backend::operation::attention::{AttentionSequenceInputs, SoftmaxStatsBase},
     data_type::DataType,
-    error::{Error, Result},
+    error::{Error, Result, SdpaFeature},
     frontend::{
         composite::sdpa::{
             SdpaBackwardGradientTensors, SdpaBackwardInputs, attention_heads_compatible,
-            infer_sdpa_output_shape, infer_sdpa_scores_shape, support,
+            infer_sdpa_output_shape, infer_sdpa_scores_shape,
             support::{
-                SDPA_ALIBI_DATA_TYPE, SDPA_ALIBI_SHAPE, SDPA_BACKWARD_D_BIAS_SHAPE,
+                self, SDPA_ALIBI_DATA_TYPE, SDPA_ALIBI_SHAPE, SDPA_BACKWARD_D_BIAS_SHAPE,
                 SDPA_BACKWARD_D_K_LAYOUT, SDPA_BACKWARD_D_K_SHAPE, SDPA_BACKWARD_D_O_LAYOUT,
                 SDPA_BACKWARD_D_O_SHAPE, SDPA_BACKWARD_D_Q_LAYOUT, SDPA_BACKWARD_D_Q_SHAPE,
                 SDPA_BACKWARD_D_SINK_TOKEN_SHAPE, SDPA_BACKWARD_D_V_LAYOUT,
@@ -28,20 +27,20 @@ use crate::{
                 SDPA_SINK_TOKEN_SHAPE,
             },
         },
-        error::{Error as FrontendError, RankExpectation, SdpaFeature, SdpaRequirement},
+        error::{Error as FrontendError, RankExpectation, SdpaRequirement},
         graph::{Graph, reduce_last_axis},
         operation::{
             AttentionBackwardConfig, AttentionConfig, AttentionDropoutConfig,
             AttentionImplementation, AttentionMaxTotalSequenceLengths, AttentionPagedKvCache,
-            AttentionSequenceInputs, DirectSdpaForwardConfig, Operation, SdpaScoreModifiers,
-            SdpaScoreSubgraph,
+            DirectSdpaForwardConfig, Operation, SdpaScoreModifiers, SdpaScoreSubgraph,
         },
     },
+    tensor::{Shape, TensorId},
     utility::check_range,
     version,
 };
 
-pub struct SdpaBackwardValidation {
+pub(crate) struct SdpaBackwardValidation {
     pub scores_shape: Shape,
     pub expected_stats_shape: Shape,
 }
@@ -265,12 +264,11 @@ impl Graph {
                 self.tensor_spec(bias)?.data_type,
                 DataType::Boolean | DataType::ByteBoolean
             ) {
-                return Err(FrontendError::SdpaUnsupported {
+                return Err(Error::SdpaUnsupported {
                     operation: "sdpa",
                     feature: SdpaFeature::NonNumericBias,
                     sm_version: None,
-                }
-                .into());
+                });
             }
         }
 
@@ -306,8 +304,8 @@ impl Graph {
                 _ => continue,
             };
             for id in uses.reads.into_iter().chain(uses.writes) {
-                // Score subgraphs also list their own external bindings here. They are
-                // imported later; only operands declared in this graph belong to this pass.
+                // Score subgraphs also list their own external bindings here.
+                // They are imported later; only operands declared in this graph belong to this pass.
                 if let Some(offset) = self
                     .tensors
                     .get(&id)
@@ -387,12 +385,11 @@ impl Graph {
 
         let has_alibi_right_bound = modifiers.right_window() == Some(0);
         if !has_alibi_right_bound {
-            return Err(FrontendError::SdpaUnsupported {
+            return Err(Error::SdpaUnsupported {
                 feature: SdpaFeature::UnalignedAlibi,
                 operation: "sdpa",
                 sm_version: None,
-            }
-            .into());
+            });
         }
         Ok(())
     }
@@ -520,7 +517,7 @@ impl Graph {
         }
 
         self.validate_sdpa_score_modifiers(q, k, v, config.modifiers())?;
-        self.validate_attention_support_surface_for_version(version()?.raw(), q, k, v, config)?;
+        self.validate_attention_support_surface_for_version(version()?, q, k, v, config)?;
         if let Some(score_subgraph) = config.score_subgraph() {
             let q_tensor = self.tensor_spec(q)?;
             let kv_shapes = self.attention_kv_shapes(k, v, config)?;
@@ -763,7 +760,7 @@ impl Graph {
 
     pub(crate) fn validate_attention_support_surface_for_version(
         &self,
-        cudnn_version: u64,
+        cudnn_version: LibraryVersion,
         q: TensorId,
         k: TensorId,
         v: TensorId,
@@ -827,12 +824,11 @@ impl Graph {
         config: &AttentionBackwardConfig,
     ) -> Result<()> {
         if config.modifiers().sequence_inputs().has_cumulative() {
-            return Err(FrontendError::SdpaUnsupported {
+            return Err(Error::SdpaUnsupported {
                 operation: "sdpa backward",
                 feature: SdpaFeature::CumulativeSequenceLengths,
                 sm_version: None,
-            }
-            .into());
+            });
         }
 
         if config.softmax().stats_base() != SoftmaxStatsBase::NaturalLog {
@@ -875,7 +871,7 @@ impl Graph {
             self.validate_tensor_scalar_shape(inverse, "attention inverse dropout scale")?;
             self.validate_tensor_data_type_supported(
                 inverse,
-                &[DataType::F32, DataType::F16, DataType::BF16],
+                &[DataType::F32, DataType::F16, DataType::Bf16],
                 "attention inverse dropout scale",
             )?;
         }
@@ -1029,7 +1025,7 @@ impl Graph {
 
     pub(crate) fn validate_attention_backward_support_surface_for_version(
         &self,
-        cudnn_version: u64,
+        cudnn_version: LibraryVersion,
         q: TensorId,
         k: TensorId,
         v: TensorId,

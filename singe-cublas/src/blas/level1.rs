@@ -1,807 +1,818 @@
-#![expect(
-    clippy::many_single_char_names,
+#![allow(
+    clippy::too_many_arguments,
     clippy::similar_names,
-    reason = "BLAS and factorization operand names follow the standard mathematical API"
+    clippy::many_single_char_names,
+    reason = "BLAS operations take each operand, increment, and scalar separately, named as in BLAS"
 )]
-use std::ptr;
 
-use singe_cuda::{data_type::DataType, memory::DeviceMemory};
+use singe_cuda::view::{DeviceOutput, DeviceRange};
 
 use crate::{
+    blas::{ComplexElement, Element, RealElement, shape::ensure_vector},
     context::Context,
-    error::{Error, Result},
-    sys, try_ffi,
+    error::Result,
+    scalar::{Scalar, ScalarMut},
+    try_ffi,
     utility::to_i64,
 };
 
-/// Supports the 64-bit integer interface.
+/// Enqueues `x = alpha * x` over `n` elements `incx` apart.
 ///
-/// Scales vector `x` by scalar $\alpha$ and overwrites it with the result.
-/// The performed operation is $\mathbf{x}\lbrack j\rbrack = \alpha \times \mathbf{x}\lbrack j\rbrack$ for $i = 1,\ldots,n$ and $j = 1 + \left( {i - 1} \right)\cdot \text{incx}$.
-/// The formula uses the BLAS 1-based indexing convention.
+/// # Safety
 ///
-/// See NETLIB documentation:
-///
-/// [sscal()](https://www.netlib.org/blas/sscal.f), [dscal()](https://www.netlib.org/blas/dscal.f), [csscal()](https://www.netlib.org/blas/csscal.f), [cscal()](https://www.netlib.org/blas/cscal.f), [zdscal()](https://www.netlib.org/blas/zdscal.f), [zscal()](https://www.netlib.org/blas/zscal.f).
+/// The caller upholds the [raw execution contract](crate#raw-execution).
 ///
 /// # Errors
 ///
-/// Returns an error if the context cannot be used with host pointer mode, `incx` is zero or too large for cuBLAS, the vector length is invalid, or cuBLAS rejects the operation.
-pub fn sscal(context: &Context, alpha: &f32, x: &mut DeviceMemory<f32>, incx: usize) -> Result<()> {
+/// Returns an error if `x` is too small, an increment is zero, a value exceeds the native integer range, an operand belongs to another CUDA context, or cuBLAS rejects the call.
+pub unsafe fn scal_async<T: Element>(
+    context: &Context,
+    n: usize,
+    alpha: Scalar<'_, T>,
+    x: &mut (impl DeviceOutput<T> + ?Sized),
+    incx: usize,
+) -> Result<()> {
     context.bind()?;
-    context.require_host_pointer_mode()?;
-    if incx == 0 {
-        return Err(Error::InvalidIncrement);
-    }
-
-    let n = vector_len(x.len(), incx)?;
-    if n == 0 {
-        return Ok(());
-    }
-
-    let incx = to_i64(incx, "incx")?;
-
-    // SAFETY: `cublasSscal_v2_64` receives live handles owned by the wrappers and valid output locations.
+    ensure_vector("x", x.len(), n, incx)?;
+    let (n, incx) = (to_i64(n, "n")?, to_i64(incx, "incx")?);
+    context.prepare_operands(&[x.region()], &[alpha.region()])?;
+    context.use_pointer_mode(&[alpha.pointer_mode()])?;
+    // SAFETY: `x` holds `n` values `incx` apart in this context, ordered after its producers; the caller upholds the raw execution contract.
     unsafe {
-        try_ffi!(sys::cublasSscal_v2_64(
+        try_ffi!(T::scal(
             context.as_raw(),
             n,
-            alpha,
+            alpha.ptr(),
             x.as_mut_ptr(),
-            incx,
-        ))?;
+            incx
+        ))
     }
-
-    Ok(())
 }
 
-/// Supports the 64-bit integer interface.
-///
-/// Generalizes the typed cuBLAS norm routines so input data, output data, and compute type can be specified independently.
-///
-/// Computes the Euclidean norm of vector `x`.
-/// The code uses a multiphase model of accumulation to avoid intermediate underflow and overflow, with the result being equivalent to $\sqrt{\sum\_{i = 1}^{n}\left( {\mathbf{x}\lbrack j\rbrack \times \mathbf{x}\lbrack j\rbrack} \right)}$ where $j = 1 + \left( {i - 1} \right)\cdot \text{incx}$ in exact arithmetic.
-/// The formula uses the BLAS 1-based indexing convention.
-///
-/// See NETLIB documentation:
-///
-/// [snrm2()](https://www.netlib.org/blas/snrm2.f90), [dnrm2()](https://www.netlib.org/blas/dnrm2.f90), [scnrm2()](https://www.netlib.org/blas/scnrm2.f90), [dznrm2()](https://www.netlib.org/blas/dznrm2.f90).
+/// Computes `x = alpha * x` and waits for it.
 ///
 /// # Errors
 ///
-/// Returns an error if the context cannot be used with host pointer mode, `incx` is zero or too large for cuBLAS, `x` is too small for the requested vector shape, a type combination is unsupported, cuBLAS cannot allocate its reduction buffer, or cuBLAS rejects or fails the operation.
-pub fn nrm2_ex<TX, TResult>(
+/// Returns an error if the handle's stream is capturing, waiting fails, or for the reasons [`scal_async`] lists.
+pub fn scal<T: Element>(
     context: &Context,
-    x: &DeviceMemory<TX>,
-    x_type: DataType,
+    n: usize,
+    alpha: Scalar<'_, T>,
+    x: &mut (impl DeviceOutput<T> + ?Sized),
     incx: usize,
-    result: &mut TResult,
-    result_type: DataType,
-    execution_type: DataType,
 ) -> Result<()> {
-    context.bind()?;
-    context.require_host_pointer_mode()?;
-    if incx == 0 {
-        return Err(Error::InvalidIncrement);
-    }
-
-    let n = vector_len(x.len(), incx)?;
-    if n == 0 {
-        return Ok(());
-    }
-
-    let incx = to_i64(incx, "incx")?;
-
-    // SAFETY: `cublasNrm2Ex_64` receives live handles owned by the wrappers and pointers into buffers borrowed for the call.
-    unsafe {
-        try_ffi!(sys::cublasNrm2Ex_64(
-            context.as_raw(),
-            n,
-            x.as_ptr().cast(),
-            x_type.into(),
-            incx,
-            ptr::from_mut(result).cast(),
-            result_type.into(),
-            execution_type.into(),
-        ))?;
-    }
-
-    Ok(())
+    // SAFETY: the scope waits for the handle's stream before the borrowed operands are released.
+    context.sync_scope(|| unsafe { scal_async(context, n, alpha, x, incx) })
 }
 
-/// Supports the 64-bit integer interface.
+/// Enqueues `y = alpha * x + y`.
 ///
-/// Generalizes the typed cuBLAS dot-product routines so input data, output data, and compute type can be specified independently.
-/// The `dotc` variants compute conjugated dot products, and the `dotu` variants compute unconjugated dot products.
+/// # Safety
 ///
-/// Computes the dot product of vectors `x` and `y`.
-/// The result is $\sum\_{i = 1}^{n}\left( {\mathbf{x}\lbrack k\rbrack \times \mathbf{y}\lbrack j\rbrack} \right)$ where $k = 1 + \left( {i - 1} \right)\cdot \text{incx}$ and $j = 1 + \left( {i - 1} \right)\cdot \text{incy}$.
-/// For conjugated dot products, the element of vector `x` is conjugated.
-/// The formula uses the BLAS 1-based indexing convention.
-///
-/// See NETLIB documentation:
-///
-/// [sdot()](https://www.netlib.org/blas/sdot.f), [ddot()](https://www.netlib.org/blas/ddot.f), [cdotu()](https://www.netlib.org/blas/cdotu.f), [cdotc()](https://www.netlib.org/blas/cdotc.f), [zdotu()](https://www.netlib.org/blas/zdotu.f), [zdotc()](https://www.netlib.org/blas/zdotc.f).
+/// The caller upholds the [raw execution contract](crate#raw-execution).
 ///
 /// # Errors
 ///
-/// Returns an error if the context cannot be used with host pointer mode, `incx` or `incy` is zero or too large for cuBLAS, `x` or `y` is too small for the requested vector shape, a type combination is unsupported, cuBLAS cannot allocate its reduction buffer, or cuBLAS rejects or fails the operation.
-pub fn dot_ex<TX, TY, TResult>(
+/// Returns an error if a vector is too small, an increment is zero, a value exceeds the native integer range, an operand belongs to another CUDA context, or cuBLAS rejects the call.
+pub unsafe fn axpy_async<T: Element>(
     context: &Context,
-    x: &DeviceMemory<TX>,
-    x_type: DataType,
+    n: usize,
+    alpha: Scalar<'_, T>,
+    x: &(impl DeviceRange<T> + ?Sized),
     incx: usize,
-    y: &DeviceMemory<TY>,
-    y_type: DataType,
+    y: &mut (impl DeviceOutput<T> + ?Sized),
     incy: usize,
-    result: &mut TResult,
-    result_type: DataType,
-    execution_type: DataType,
 ) -> Result<()> {
     context.bind()?;
-    context.require_host_pointer_mode()?;
-    if incx == 0 || incy == 0 {
-        return Err(Error::InvalidIncrement);
-    }
-
-    let n = vector_binary_len(x.len(), incx, y.len(), incy)?;
-    if n == 0 {
-        return Ok(());
-    }
-
-    let incx = to_i64(incx, "incx")?;
-    let incy = to_i64(incy, "incy")?;
-
-    // SAFETY: `cublasDotEx_64` receives live handles owned by the wrappers and pointers into buffers borrowed for the call.
+    ensure_vector("x", x.len(), n, incx)?;
+    ensure_vector("y", y.len(), n, incy)?;
+    let (n, incx, incy) = (
+        to_i64(n, "n")?,
+        to_i64(incx, "incx")?,
+        to_i64(incy, "incy")?,
+    );
+    context.prepare_operands(&[x.region(), y.region()], &[alpha.region()])?;
+    context.use_pointer_mode(&[alpha.pointer_mode()])?;
+    // SAFETY: the vectors hold the strided values in this context, ordered after their producers; the caller upholds the raw execution contract.
     unsafe {
-        try_ffi!(sys::cublasDotEx_64(
+        try_ffi!(T::axpy(
             context.as_raw(),
             n,
-            x.as_ptr().cast(),
-            x_type.into(),
+            alpha.ptr(),
+            x.as_device_ptr(),
             incx,
-            y.as_ptr().cast(),
-            y_type.into(),
+            y.as_mut_ptr(),
             incy,
-            ptr::from_mut(result).cast(),
-            result_type.into(),
-            execution_type.into(),
-        ))?;
+        ))
     }
-
-    Ok(())
 }
 
-/// Computes a dot product with explicit input, result, and execution types, conjugating `x` for complex data.
+/// Computes `y = alpha * x + y` and waits for it.
 ///
 /// # Errors
 ///
-/// Returns an error if an increment is zero, the strided vectors have different logical lengths, or a length or increment exceeds the native integer range.
-/// Returns an error if the handle is not in host pointer mode.
-/// CUDA context binding and cuBLAS operation errors are propagated.
-pub fn dotc_ex<TX, TY, TResult>(
+/// Returns an error if the handle's stream is capturing, waiting fails, or for the reasons [`axpy_async`] lists.
+pub fn axpy<T: Element>(
     context: &Context,
-    x: &DeviceMemory<TX>,
-    x_type: DataType,
+    n: usize,
+    alpha: Scalar<'_, T>,
+    x: &(impl DeviceRange<T> + ?Sized),
     incx: usize,
-    y: &DeviceMemory<TY>,
-    y_type: DataType,
+    y: &mut (impl DeviceOutput<T> + ?Sized),
     incy: usize,
-    result: &mut TResult,
-    result_type: DataType,
-    execution_type: DataType,
+) -> Result<()> {
+    // SAFETY: the scope waits for the handle's stream before the borrowed operands are released.
+    context.sync_scope(|| unsafe { axpy_async(context, n, alpha, x, incx, y, incy) })
+}
+
+/// Enqueues `y = x`.
+///
+/// # Safety
+///
+/// The caller upholds the [raw execution contract](crate#raw-execution).
+///
+/// # Errors
+///
+/// Returns an error if a vector is too small, an increment is zero, a value exceeds the native integer range, an operand belongs to another CUDA context, or cuBLAS rejects the call.
+pub unsafe fn copy_async<T: Element>(
+    context: &Context,
+    n: usize,
+    x: &(impl DeviceRange<T> + ?Sized),
+    incx: usize,
+    y: &mut (impl DeviceOutput<T> + ?Sized),
+    incy: usize,
 ) -> Result<()> {
     context.bind()?;
-    context.require_host_pointer_mode()?;
-    if incx == 0 || incy == 0 {
-        return Err(Error::InvalidIncrement);
-    }
-
-    let n = vector_binary_len(x.len(), incx, y.len(), incy)?;
-    if n == 0 {
-        return Ok(());
-    }
-
-    let incx = to_i64(incx, "incx")?;
-    let incy = to_i64(incy, "incy")?;
-
-    // SAFETY: `cublasDotcEx_64` receives live handles owned by the wrappers and pointers into buffers borrowed for the call.
+    ensure_vector("x", x.len(), n, incx)?;
+    ensure_vector("y", y.len(), n, incy)?;
+    let (n, incx, incy) = (
+        to_i64(n, "n")?,
+        to_i64(incx, "incx")?,
+        to_i64(incy, "incy")?,
+    );
+    context.prepare_operands(&[x.region(), y.region()], &[])?;
+    // SAFETY: the vectors hold the strided values in this context, ordered after their producers; the caller upholds the raw execution contract.
     unsafe {
-        try_ffi!(sys::cublasDotcEx_64(
+        try_ffi!(T::copy(
             context.as_raw(),
             n,
-            x.as_ptr().cast(),
-            x_type.into(),
+            x.as_device_ptr(),
             incx,
-            y.as_ptr().cast(),
-            y_type.into(),
+            y.as_mut_ptr(),
             incy,
-            ptr::from_mut(result).cast(),
-            result_type.into(),
-            execution_type.into(),
-        ))?;
+        ))
     }
-
-    Ok(())
 }
 
-/// Supports the 64-bit integer interface.
-///
-/// Applies the Givens rotation matrix to vectors `x` and `y`.
+/// Copies `x` into `y` and waits for it.
 ///
 /// # Errors
 ///
-/// Returns an error if the context cannot be used with host pointer mode, either increment is zero or too large for cuBLAS, the vector lengths are incompatible, or cuBLAS rejects the operation.
-pub fn drot(
+/// Returns an error if the handle's stream is capturing, waiting fails, or for the reasons [`copy_async`] lists.
+pub fn copy<T: Element>(
     context: &Context,
-    x: &mut DeviceMemory<f64>,
+    n: usize,
+    x: &(impl DeviceRange<T> + ?Sized),
     incx: usize,
-    y: &mut DeviceMemory<f64>,
+    y: &mut (impl DeviceOutput<T> + ?Sized),
     incy: usize,
-    c: &f64,
-    s: &f64,
+) -> Result<()> {
+    // SAFETY: the scope waits for the handle's stream before the borrowed operands are released.
+    context.sync_scope(|| unsafe { copy_async(context, n, x, incx, y, incy) })
+}
+
+/// Enqueues an exchange of the values of `x` and `y`.
+///
+/// # Safety
+///
+/// The caller upholds the [raw execution contract](crate#raw-execution).
+///
+/// # Errors
+///
+/// Returns an error if a vector is too small, an increment is zero, a value exceeds the native integer range, an operand belongs to another CUDA context, or cuBLAS rejects the call.
+pub unsafe fn swap_async<T: Element>(
+    context: &Context,
+    n: usize,
+    x: &mut (impl DeviceOutput<T> + ?Sized),
+    incx: usize,
+    y: &mut (impl DeviceOutput<T> + ?Sized),
+    incy: usize,
 ) -> Result<()> {
     context.bind()?;
-    context.require_host_pointer_mode()?;
-    if incx == 0 || incy == 0 {
-        return Err(Error::InvalidIncrement);
-    }
-
-    let n = vector_binary_len(x.len(), incx, y.len(), incy)?;
-    if n == 0 {
-        return Ok(());
-    }
-
-    let incx = to_i64(incx, "incx")?;
-    let incy = to_i64(incy, "incy")?;
-
-    // SAFETY: `cublasDrot_v2_64` receives live handles owned by the wrappers and valid output locations.
+    ensure_vector("x", x.len(), n, incx)?;
+    ensure_vector("y", y.len(), n, incy)?;
+    let (n, incx, incy) = (
+        to_i64(n, "n")?,
+        to_i64(incx, "incx")?,
+        to_i64(incy, "incy")?,
+    );
+    context.prepare_operands(&[x.region(), y.region()], &[])?;
+    // SAFETY: the vectors hold the strided values in this context, ordered after their producers; the caller upholds the raw execution contract.
     unsafe {
-        try_ffi!(sys::cublasDrot_v2_64(
+        try_ffi!(T::swap(
             context.as_raw(),
             n,
             x.as_mut_ptr(),
             incx,
             y.as_mut_ptr(),
             incy,
-            c,
-            s,
-        ))?;
+        ))
     }
-
-    Ok(())
 }
 
-/// Supports the 64-bit integer interface.
-///
-/// Extends the typed cuBLAS rotation routines so vector and scalar types can be chosen independently.
+/// Exchanges the values of `x` and `y` and waits for it.
 ///
 /// # Errors
 ///
-/// Returns an error if the context cannot be used with host pointer mode, either increment is zero or too large for cuBLAS, the vector lengths are incompatible, the supplied data type combination is not supported, or cuBLAS rejects the operation.
-pub fn rot_ex<TX, TY, TCS>(
+/// Returns an error if the handle's stream is capturing, waiting fails, or for the reasons [`swap_async`] lists.
+pub fn swap<T: Element>(
     context: &Context,
-    x: &mut DeviceMemory<TX>,
-    x_type: DataType,
+    n: usize,
+    x: &mut (impl DeviceOutput<T> + ?Sized),
     incx: usize,
-    y: &mut DeviceMemory<TY>,
-    y_type: DataType,
+    y: &mut (impl DeviceOutput<T> + ?Sized),
     incy: usize,
-    c: &TCS,
-    s: &TCS,
-    cs_type: DataType,
-    execution_type: DataType,
+) -> Result<()> {
+    // SAFETY: the scope waits for the handle's stream before the borrowed operands are released.
+    context.sync_scope(|| unsafe { swap_async(context, n, x, incx, y, incy) })
+}
+
+/// Enqueues the unconjugated dot product of `x` and `y` into `result`.
+///
+/// # Safety
+///
+/// The caller upholds the [raw execution contract](crate#raw-execution).
+///
+/// # Errors
+///
+/// Returns an error if a vector is too small, an increment is zero, a value exceeds the native integer range, an operand belongs to another CUDA context, or cuBLAS rejects the call.
+pub unsafe fn dot_async<T: Element>(
+    context: &Context,
+    n: usize,
+    x: &(impl DeviceRange<T> + ?Sized),
+    incx: usize,
+    y: &(impl DeviceRange<T> + ?Sized),
+    incy: usize,
+    mut result: ScalarMut<'_, T>,
 ) -> Result<()> {
     context.bind()?;
-    context.require_host_pointer_mode()?;
-    if incx == 0 || incy == 0 {
-        return Err(Error::InvalidIncrement);
-    }
-
-    let n = vector_binary_len(x.len(), incx, y.len(), incy)?;
-    if n == 0 {
-        return Ok(());
-    }
-
-    let incx = to_i64(incx, "incx")?;
-    let incy = to_i64(incy, "incy")?;
-
-    // SAFETY: `cublasRotEx_64` receives live handles owned by the wrappers and valid output locations.
+    ensure_vector("x", x.len(), n, incx)?;
+    ensure_vector("y", y.len(), n, incy)?;
+    let (n, incx, incy) = (
+        to_i64(n, "n")?,
+        to_i64(incx, "incx")?,
+        to_i64(incy, "incy")?,
+    );
+    context.prepare_operands(&[x.region(), y.region()], &[result.region()])?;
+    context.use_pointer_mode(&[result.pointer_mode()])?;
+    // SAFETY: the vectors hold the strided values in this context, ordered after their producers; the caller upholds the raw execution contract.
     unsafe {
-        try_ffi!(sys::cublasRotEx_64(
+        try_ffi!(T::dot(
             context.as_raw(),
             n,
-            x.as_mut_ptr().cast(),
-            x_type.into(),
+            x.as_device_ptr(),
             incx,
-            y.as_mut_ptr().cast(),
-            y_type.into(),
+            y.as_device_ptr(),
             incy,
-            ptr::from_ref(c).cast(),
-            ptr::from_ref(s).cast(),
-            cs_type.into(),
-            execution_type.into(),
-        ))?;
+            result.as_mut_ptr(),
+        ))
     }
-
-    Ok(())
 }
 
-/// Supports the 64-bit integer interface.
-///
-/// Constructs the Givens rotation matrix parameters for `a` and `b`.
+/// Computes the unconjugated dot product of `x` and `y` into `result` and waits for it.
 ///
 /// # Errors
 ///
-/// Returns an error if the context cannot be used with host pointer mode or cuBLAS rejects the operation.
-pub fn drotg(context: &Context, a: &mut f64, b: &mut f64, c: &mut f64, s: &mut f64) -> Result<()> {
-    context.bind()?;
-    context.require_host_pointer_mode()?;
-
-    // SAFETY: `cublasDrotg_v2` receives live handles owned by the wrappers.
-    unsafe {
-        try_ffi!(sys::cublasDrotg_v2(
-            context.as_raw(),
-            ptr::from_mut(a),
-            ptr::from_mut(b),
-            ptr::from_mut(c),
-            ptr::from_mut(s),
-        ))?;
-    }
-
-    Ok(())
-}
-
-/// Supports the 64-bit integer interface.
-///
-/// Applies the modified Givens transformation described by `param` to vectors `x` and `y`.
-///
-/// # Errors
-///
-/// Returns an error if the context cannot be used with host pointer mode, either increment is zero or too large for cuBLAS, the vector lengths are incompatible, or cuBLAS rejects the operation.
-pub fn drotm(
+/// Returns an error if the handle's stream is capturing, waiting fails, or for the reasons [`dot_async`] lists.
+pub fn dot<T: Element>(
     context: &Context,
-    x: &mut DeviceMemory<f64>,
+    n: usize,
+    x: &(impl DeviceRange<T> + ?Sized),
     incx: usize,
-    y: &mut DeviceMemory<f64>,
+    y: &(impl DeviceRange<T> + ?Sized),
     incy: usize,
-    param: &[f64; 5],
+    result: ScalarMut<'_, T>,
+) -> Result<()> {
+    // SAFETY: the scope waits for the handle's stream before the borrowed operands are released.
+    context.sync_scope(|| unsafe { dot_async(context, n, x, incx, y, incy, result) })
+}
+
+/// Enqueues the dot product of conjugated `x` and `y` into `result`.
+///
+/// # Safety
+///
+/// The caller upholds the [raw execution contract](crate#raw-execution).
+///
+/// # Errors
+///
+/// Returns an error if a vector is too small, an increment is zero, a value exceeds the native integer range, an operand belongs to another CUDA context, or cuBLAS rejects the call.
+pub unsafe fn dotc_async<T: ComplexElement>(
+    context: &Context,
+    n: usize,
+    x: &(impl DeviceRange<T> + ?Sized),
+    incx: usize,
+    y: &(impl DeviceRange<T> + ?Sized),
+    incy: usize,
+    mut result: ScalarMut<'_, T>,
 ) -> Result<()> {
     context.bind()?;
-    context.require_host_pointer_mode()?;
-    if incx == 0 || incy == 0 {
-        return Err(Error::InvalidIncrement);
-    }
-
-    let n = vector_binary_len(x.len(), incx, y.len(), incy)?;
-    if n == 0 {
-        return Ok(());
-    }
-
-    let incx = to_i64(incx, "incx")?;
-    let incy = to_i64(incy, "incy")?;
-
-    // SAFETY: `cublasDrotm_v2_64` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
+    ensure_vector("x", x.len(), n, incx)?;
+    ensure_vector("y", y.len(), n, incy)?;
+    let (n, incx, incy) = (
+        to_i64(n, "n")?,
+        to_i64(incx, "incx")?,
+        to_i64(incy, "incy")?,
+    );
+    context.prepare_operands(&[x.region(), y.region()], &[result.region()])?;
+    context.use_pointer_mode(&[result.pointer_mode()])?;
+    // SAFETY: the vectors hold the strided values in this context, ordered after their producers; the caller upholds the raw execution contract.
     unsafe {
-        try_ffi!(sys::cublasDrotm_v2_64(
+        try_ffi!(T::dotc(
+            context.as_raw(),
+            n,
+            x.as_device_ptr(),
+            incx,
+            y.as_device_ptr(),
+            incy,
+            result.as_mut_ptr(),
+        ))
+    }
+}
+
+/// Computes the dot product of conjugated `x` and `y` into `result` and waits for it.
+///
+/// # Errors
+///
+/// Returns an error if the handle's stream is capturing, waiting fails, or for the reasons [`dotc_async`] lists.
+pub fn dotc<T: ComplexElement>(
+    context: &Context,
+    n: usize,
+    x: &(impl DeviceRange<T> + ?Sized),
+    incx: usize,
+    y: &(impl DeviceRange<T> + ?Sized),
+    incy: usize,
+    result: ScalarMut<'_, T>,
+) -> Result<()> {
+    // SAFETY: the scope waits for the handle's stream before the borrowed operands are released.
+    context.sync_scope(|| unsafe { dotc_async(context, n, x, incx, y, incy, result) })
+}
+
+/// Enqueues the Euclidean norm of `x` into `result`.
+///
+/// # Safety
+///
+/// The caller upholds the [raw execution contract](crate#raw-execution).
+///
+/// # Errors
+///
+/// Returns an error if `x` is too small, `incx` is zero, a value exceeds the native integer range, an operand belongs to another CUDA context, or cuBLAS rejects the call.
+pub unsafe fn nrm2_async<T: Element>(
+    context: &Context,
+    n: usize,
+    x: &(impl DeviceRange<T> + ?Sized),
+    incx: usize,
+    mut result: ScalarMut<'_, T::Real>,
+) -> Result<()> {
+    context.bind()?;
+    ensure_vector("x", x.len(), n, incx)?;
+    let (n, incx) = (to_i64(n, "n")?, to_i64(incx, "incx")?);
+    context.prepare_operands(&[x.region()], &[result.region()])?;
+    context.use_pointer_mode(&[result.pointer_mode()])?;
+    // SAFETY: `x` holds the strided values in this context, ordered after its producers, and `result` has the element's real type; the caller upholds the raw execution contract.
+    unsafe {
+        try_ffi!(T::nrm2(
+            context.as_raw(),
+            n,
+            x.as_device_ptr(),
+            incx,
+            result.as_mut_ptr().cast(),
+        ))
+    }
+}
+
+/// Computes the Euclidean norm of `x` into `result` and waits for it.
+///
+/// # Errors
+///
+/// Returns an error if the handle's stream is capturing, waiting fails, or for the reasons [`nrm2_async`] lists.
+pub fn nrm2<T: Element>(
+    context: &Context,
+    n: usize,
+    x: &(impl DeviceRange<T> + ?Sized),
+    incx: usize,
+    result: ScalarMut<'_, T::Real>,
+) -> Result<()> {
+    // SAFETY: the scope waits for the handle's stream before the borrowed operands are released.
+    context.sync_scope(|| unsafe { nrm2_async(context, n, x, incx, result) })
+}
+
+/// Enqueues the sum of the absolute values of `x` into `result`.
+///
+/// For complex values, it sums the absolute real and imaginary parts.
+///
+/// # Safety
+///
+/// The caller upholds the [raw execution contract](crate#raw-execution).
+///
+/// # Errors
+///
+/// Returns an error if `x` is too small, `incx` is zero, a value exceeds the native integer range, an operand belongs to another CUDA context, or cuBLAS rejects the call.
+pub unsafe fn asum_async<T: Element>(
+    context: &Context,
+    n: usize,
+    x: &(impl DeviceRange<T> + ?Sized),
+    incx: usize,
+    mut result: ScalarMut<'_, T::Real>,
+) -> Result<()> {
+    context.bind()?;
+    ensure_vector("x", x.len(), n, incx)?;
+    let (n, incx) = (to_i64(n, "n")?, to_i64(incx, "incx")?);
+    context.prepare_operands(&[x.region()], &[result.region()])?;
+    context.use_pointer_mode(&[result.pointer_mode()])?;
+    // SAFETY: `x` holds the strided values in this context, ordered after its producers, and `result` has the element's real type; the caller upholds the raw execution contract.
+    unsafe {
+        try_ffi!(T::asum(
+            context.as_raw(),
+            n,
+            x.as_device_ptr(),
+            incx,
+            result.as_mut_ptr().cast(),
+        ))
+    }
+}
+
+/// Computes the sum of the absolute values of `x` into `result` and waits for it.
+///
+/// # Errors
+///
+/// Returns an error if the handle's stream is capturing, waiting fails, or for the reasons [`asum_async`] lists.
+pub fn asum<T: Element>(
+    context: &Context,
+    n: usize,
+    x: &(impl DeviceRange<T> + ?Sized),
+    incx: usize,
+    result: ScalarMut<'_, T::Real>,
+) -> Result<()> {
+    // SAFETY: the scope waits for the handle's stream before the borrowed operands are released.
+    context.sync_scope(|| unsafe { asum_async(context, n, x, incx, result) })
+}
+
+/// Enqueues the one-based index of the first element of `x` with the largest magnitude into `result`.
+///
+/// For complex values, the magnitude is the sum of the absolute real and imaginary parts.
+///
+/// # Safety
+///
+/// The caller upholds the [raw execution contract](crate#raw-execution).
+///
+/// # Errors
+///
+/// Returns an error if `x` is too small, `incx` is zero, a value exceeds the native integer range, an operand belongs to another CUDA context, or cuBLAS rejects the call.
+pub unsafe fn iamax_async<T: Element>(
+    context: &Context,
+    n: usize,
+    x: &(impl DeviceRange<T> + ?Sized),
+    incx: usize,
+    mut result: ScalarMut<'_, i64>,
+) -> Result<()> {
+    context.bind()?;
+    ensure_vector("x", x.len(), n, incx)?;
+    let (n, incx) = (to_i64(n, "n")?, to_i64(incx, "incx")?);
+    context.prepare_operands(&[x.region()], &[result.region()])?;
+    context.use_pointer_mode(&[result.pointer_mode()])?;
+    // SAFETY: `x` holds the strided values in this context, ordered after its producers; the caller upholds the raw execution contract.
+    unsafe {
+        try_ffi!(T::iamax(
+            context.as_raw(),
+            n,
+            x.as_device_ptr(),
+            incx,
+            result.as_mut_ptr(),
+        ))
+    }
+}
+
+/// Computes the one-based index of the first element of `x` with the largest magnitude into `result` and waits for it.
+///
+/// # Errors
+///
+/// Returns an error if the handle's stream is capturing, waiting fails, or for the reasons [`iamax_async`] lists.
+pub fn iamax<T: Element>(
+    context: &Context,
+    n: usize,
+    x: &(impl DeviceRange<T> + ?Sized),
+    incx: usize,
+    result: ScalarMut<'_, i64>,
+) -> Result<()> {
+    // SAFETY: the scope waits for the handle's stream before the borrowed operands are released.
+    context.sync_scope(|| unsafe { iamax_async(context, n, x, incx, result) })
+}
+
+/// Enqueues the one-based index of the first element of `x` with the smallest magnitude into `result`.
+///
+/// For complex values, the magnitude is the sum of the absolute real and imaginary parts.
+///
+/// # Safety
+///
+/// The caller upholds the [raw execution contract](crate#raw-execution).
+///
+/// # Errors
+///
+/// Returns an error if `x` is too small, `incx` is zero, a value exceeds the native integer range, an operand belongs to another CUDA context, or cuBLAS rejects the call.
+pub unsafe fn iamin_async<T: Element>(
+    context: &Context,
+    n: usize,
+    x: &(impl DeviceRange<T> + ?Sized),
+    incx: usize,
+    mut result: ScalarMut<'_, i64>,
+) -> Result<()> {
+    context.bind()?;
+    ensure_vector("x", x.len(), n, incx)?;
+    let (n, incx) = (to_i64(n, "n")?, to_i64(incx, "incx")?);
+    context.prepare_operands(&[x.region()], &[result.region()])?;
+    context.use_pointer_mode(&[result.pointer_mode()])?;
+    // SAFETY: `x` holds the strided values in this context, ordered after its producers; the caller upholds the raw execution contract.
+    unsafe {
+        try_ffi!(T::iamin(
+            context.as_raw(),
+            n,
+            x.as_device_ptr(),
+            incx,
+            result.as_mut_ptr(),
+        ))
+    }
+}
+
+/// Computes the one-based index of the first element of `x` with the smallest magnitude into `result` and waits for it.
+///
+/// # Errors
+///
+/// Returns an error if the handle's stream is capturing, waiting fails, or for the reasons [`iamin_async`] lists.
+pub fn iamin<T: Element>(
+    context: &Context,
+    n: usize,
+    x: &(impl DeviceRange<T> + ?Sized),
+    incx: usize,
+    result: ScalarMut<'_, i64>,
+) -> Result<()> {
+    // SAFETY: the scope waits for the handle's stream before the borrowed operands are released.
+    context.sync_scope(|| unsafe { iamin_async(context, n, x, incx, result) })
+}
+
+/// Enqueues the Givens rotation `[x, y] = [c * x + s * y, -conj(s) * x + c * y]`.
+///
+/// # Safety
+///
+/// The caller upholds the [raw execution contract](crate#raw-execution).
+///
+/// # Errors
+///
+/// Returns an error if a vector is too small, an increment is zero, a value exceeds the native integer range, the scalars use different pointer modes, an operand belongs to another CUDA context, or cuBLAS rejects the call.
+pub unsafe fn rot_async<T: Element>(
+    context: &Context,
+    n: usize,
+    x: &mut (impl DeviceOutput<T> + ?Sized),
+    incx: usize,
+    y: &mut (impl DeviceOutput<T> + ?Sized),
+    incy: usize,
+    c: Scalar<'_, T::Real>,
+    s: Scalar<'_, T>,
+) -> Result<()> {
+    context.bind()?;
+    ensure_vector("x", x.len(), n, incx)?;
+    ensure_vector("y", y.len(), n, incy)?;
+    let (n, incx, incy) = (
+        to_i64(n, "n")?,
+        to_i64(incx, "incx")?,
+        to_i64(incy, "incy")?,
+    );
+    context.prepare_operands(&[x.region(), y.region()], &[c.region(), s.region()])?;
+    context.use_pointer_mode(&[c.pointer_mode(), s.pointer_mode()])?;
+    // SAFETY: the vectors hold the strided values in this context, ordered after their producers, and `c` has the element's real type; the caller upholds the raw execution contract.
+    unsafe {
+        try_ffi!(T::rot(
             context.as_raw(),
             n,
             x.as_mut_ptr(),
             incx,
             y.as_mut_ptr(),
             incy,
-            param.as_ptr(),
-        ))?;
+            c.ptr().cast(),
+            s.ptr(),
+        ))
     }
-
-    Ok(())
 }
 
-/// Supports the 64-bit integer interface.
-///
-/// Constructs the modified Givens transformation parameters in `param`.
+/// Applies the Givens rotation described by `c` and `s` to `x` and `y` and waits for it.
 ///
 /// # Errors
 ///
-/// Returns an error if the context cannot be used with host pointer mode or cuBLAS rejects the operation.
-pub fn drotmg(
+/// Returns an error if the handle's stream is capturing, waiting fails, or for the reasons [`rot_async`] lists.
+pub fn rot<T: Element>(
     context: &Context,
-    d1: &mut f64,
-    d2: &mut f64,
-    x1: &mut f64,
-    y1: &f64,
-    param: &mut [f64; 5],
-) -> Result<()> {
-    context.bind()?;
-    context.require_host_pointer_mode()?;
-
-    // SAFETY: `cublasDrotmg_v2` receives live handles owned by the wrappers and valid output locations.
-    unsafe {
-        try_ffi!(sys::cublasDrotmg_v2(
-            context.as_raw(),
-            ptr::from_mut(d1),
-            ptr::from_mut(d2),
-            ptr::from_mut(x1),
-            ptr::from_ref(y1),
-            param.as_mut_ptr(),
-        ))?;
-    }
-
-    Ok(())
-}
-
-/// Supports the 64-bit integer interface.
-///
-/// Scales vector `x` by scalar $\alpha$ and overwrites it with the result.
-/// The performed operation is $\mathbf{x}\lbrack j\rbrack = \alpha \times \mathbf{x}\lbrack j\rbrack$ for $i = 1,\ldots,n$ and $j = 1 + \left( {i - 1} \right)\cdot \text{incx}$.
-/// The formula uses the BLAS 1-based indexing convention.
-///
-/// See NETLIB documentation:
-///
-/// [sscal()](https://www.netlib.org/blas/sscal.f), [dscal()](https://www.netlib.org/blas/dscal.f), [csscal()](https://www.netlib.org/blas/csscal.f), [cscal()](https://www.netlib.org/blas/cscal.f), [zdscal()](https://www.netlib.org/blas/zdscal.f), [zscal()](https://www.netlib.org/blas/zscal.f).
-///
-/// # Errors
-///
-/// Returns an error if the context cannot be used with host pointer mode, `incx` is zero or too large for cuBLAS, `x` is too small for the requested vector shape, a type combination is unsupported, or cuBLAS rejects or fails the operation.
-pub fn scal_ex<TAlpha, TX>(
-    context: &Context,
-    alpha: &TAlpha,
-    alpha_type: DataType,
-    x: &mut DeviceMemory<TX>,
-    x_type: DataType,
+    n: usize,
+    x: &mut (impl DeviceOutput<T> + ?Sized),
     incx: usize,
-    execution_type: DataType,
-) -> Result<()> {
-    context.bind()?;
-    context.require_host_pointer_mode()?;
-    if incx == 0 {
-        return Err(Error::InvalidIncrement);
-    }
-
-    let n = vector_len(x.len(), incx)?;
-    if n == 0 {
-        return Ok(());
-    }
-
-    let incx = to_i64(incx, "incx")?;
-
-    // SAFETY: `cublasScalEx_64` receives live handles owned by the wrappers and valid output locations.
-    unsafe {
-        try_ffi!(sys::cublasScalEx_64(
-            context.as_raw(),
-            n,
-            ptr::from_ref(alpha).cast(),
-            alpha_type.into(),
-            x.as_mut_ptr().cast(),
-            x_type.into(),
-            incx,
-            execution_type.into(),
-        ))?;
-    }
-
-    Ok(())
-}
-
-/// Supports the 64-bit integer interface.
-///
-/// Generalizes the typed cuBLAS AXPY routines so input data, output data, and compute type can be specified independently.
-///
-/// Multiplies vector `x` by scalar $\alpha$ and adds it to vector `y`, overwriting `y` with the result.
-/// The performed operation is $\mathbf{y}\lbrack j\rbrack = \alpha \times \mathbf{x}\lbrack k\rbrack + \mathbf{y}\lbrack j\rbrack$ for $i = 1,\ldots,n$, $k = 1 + \left( {i - 1} \right)\cdot \text{incx}$ and $j = 1 + \left( {i - 1} \right)\cdot \text{incy}$.
-/// The formula uses the BLAS 1-based indexing convention.
-///
-/// See NETLIB documentation:
-///
-/// [saxpy()](https://www.netlib.org/blas/saxpy.f), [daxpy()](https://www.netlib.org/blas/daxpy.f), [caxpy()](https://www.netlib.org/blas/caxpy.f), [zaxpy()](https://www.netlib.org/blas/zaxpy.f).
-///
-/// # Errors
-///
-/// Returns an error if the context cannot be used with host pointer mode, `incx` or `incy` is zero or too large for cuBLAS, `x` or `y` is too small for the requested vector shape, a type combination is unsupported, or cuBLAS rejects or fails the operation.
-pub fn axpy_ex<TAlpha, TX, TY>(
-    context: &Context,
-    alpha: &TAlpha,
-    alpha_type: DataType,
-    x: &DeviceMemory<TX>,
-    x_type: DataType,
-    incx: usize,
-    y: &mut DeviceMemory<TY>,
-    y_type: DataType,
+    y: &mut (impl DeviceOutput<T> + ?Sized),
     incy: usize,
-    execution_type: DataType,
+    c: Scalar<'_, T::Real>,
+    s: Scalar<'_, T>,
 ) -> Result<()> {
-    context.bind()?;
-    context.require_host_pointer_mode()?;
-    if incx == 0 || incy == 0 {
-        return Err(Error::InvalidIncrement);
-    }
-
-    let n = vector_binary_len(x.len(), incx, y.len(), incy)?;
-    if n == 0 {
-        return Ok(());
-    }
-
-    let incx = to_i64(incx, "incx")?;
-    let incy = to_i64(incy, "incy")?;
-
-    // SAFETY: `cublasAxpyEx_64` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
-    unsafe {
-        try_ffi!(sys::cublasAxpyEx_64(
-            context.as_raw(),
-            n,
-            ptr::from_ref(alpha).cast(),
-            alpha_type.into(),
-            x.as_ptr().cast(),
-            x_type.into(),
-            incx,
-            y.as_mut_ptr().cast(),
-            y_type.into(),
-            incy,
-            execution_type.into(),
-        ))?;
-    }
-
-    Ok(())
+    // SAFETY: the scope waits for the handle's stream before the borrowed operands are released.
+    context.sync_scope(|| unsafe { rot_async(context, n, x, incx, y, incy, c, s) })
 }
 
-/// Copies corresponding strided vector elements using explicit input and output data types.
+/// Enqueues the construction of the Givens rotation that zeroes `b`, overwriting `a` with `r` and writing `c` and `s`.
+///
+/// # Safety
+///
+/// The caller upholds the [raw execution contract](crate#raw-execution).
 ///
 /// # Errors
 ///
-/// Returns an error if an increment is zero, the strided vectors have different logical lengths, or a length or increment exceeds the native integer range.
-/// CUDA context binding and cuBLAS operation errors are propagated.
-pub fn copy_ex<TX, TY>(
+/// Returns an error if the scalars use different pointer modes, a scalar belongs to another CUDA context, or cuBLAS rejects the call.
+pub unsafe fn rotg_async<T: Element>(
     context: &Context,
-    x: &DeviceMemory<TX>,
-    x_type: DataType,
+    mut a: ScalarMut<'_, T>,
+    mut b: ScalarMut<'_, T>,
+    mut c: ScalarMut<'_, T::Real>,
+    mut s: ScalarMut<'_, T>,
+) -> Result<()> {
+    context.bind()?;
+    context.prepare_operands(&[], &[a.region(), b.region(), c.region(), s.region()])?;
+    context.use_pointer_mode(&[
+        a.pointer_mode(),
+        b.pointer_mode(),
+        c.pointer_mode(),
+        s.pointer_mode(),
+    ])?;
+    // SAFETY: the scalars share one pointer mode, belong to this context, and `c` has the element's real type; the caller upholds the raw execution contract.
+    unsafe {
+        try_ffi!(T::rotg(
+            context.as_raw(),
+            a.as_mut_ptr(),
+            b.as_mut_ptr(),
+            c.as_mut_ptr().cast(),
+            s.as_mut_ptr(),
+        ))
+    }
+}
+
+/// Constructs the Givens rotation that zeroes `b` and waits for it.
+///
+/// # Errors
+///
+/// Returns an error if the handle's stream is capturing, waiting fails, or for the reasons [`rotg_async`] lists.
+pub fn rotg<T: Element>(
+    context: &Context,
+    a: ScalarMut<'_, T>,
+    b: ScalarMut<'_, T>,
+    c: ScalarMut<'_, T::Real>,
+    s: ScalarMut<'_, T>,
+) -> Result<()> {
+    // SAFETY: the scope waits for the handle's stream before the borrowed operands are released.
+    context.sync_scope(|| unsafe { rotg_async(context, a, b, c, s) })
+}
+
+/// Enqueues the modified Givens transformation that `param` describes on `x` and `y`.
+///
+/// # Safety
+///
+/// The caller upholds the [raw execution contract](crate#raw-execution).
+///
+/// # Errors
+///
+/// Returns an error if a vector is too small, an increment is zero, a value exceeds the native integer range, an operand belongs to another CUDA context, or cuBLAS rejects the call.
+pub unsafe fn rotm_async<T: RealElement>(
+    context: &Context,
+    n: usize,
+    x: &mut (impl DeviceOutput<T> + ?Sized),
     incx: usize,
-    y: &mut DeviceMemory<TY>,
-    y_type: DataType,
+    y: &mut (impl DeviceOutput<T> + ?Sized),
     incy: usize,
+    param: Scalar<'_, [T; 5]>,
 ) -> Result<()> {
     context.bind()?;
-    if incx == 0 || incy == 0 {
-        return Err(Error::InvalidIncrement);
-    }
-
-    let n = vector_binary_len(x.len(), incx, y.len(), incy)?;
-    if n == 0 {
-        return Ok(());
-    }
-
-    let incx = to_i64(incx, "incx")?;
-    let incy = to_i64(incy, "incy")?;
-
-    // SAFETY: `cublasCopyEx_64` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
+    ensure_vector("x", x.len(), n, incx)?;
+    ensure_vector("y", y.len(), n, incy)?;
+    let (n, incx, incy) = (
+        to_i64(n, "n")?,
+        to_i64(incx, "incx")?,
+        to_i64(incy, "incy")?,
+    );
+    context.prepare_operands(&[x.region(), y.region()], &[param.region()])?;
+    context.use_pointer_mode(&[param.pointer_mode()])?;
+    // SAFETY: the vectors hold the strided values in this context, ordered after their producers, and `param` holds five values; the caller upholds the raw execution contract.
     unsafe {
-        try_ffi!(sys::cublasCopyEx_64(
+        try_ffi!(T::rotm(
             context.as_raw(),
             n,
-            x.as_ptr().cast(),
-            x_type.into(),
+            x.as_mut_ptr(),
             incx,
-            y.as_mut_ptr().cast(),
-            y_type.into(),
+            y.as_mut_ptr(),
             incy,
-        ))?;
+            param.ptr().cast(),
+        ))
     }
-
-    Ok(())
 }
 
-/// Exchanges corresponding strided vector elements using explicit data types.
+/// Applies the modified Givens transformation that `param` describes to `x` and `y` and waits for it.
 ///
 /// # Errors
 ///
-/// Returns an error if an increment is zero, the strided vectors have different logical lengths, or a length or increment exceeds the native integer range.
-/// CUDA context binding and cuBLAS operation errors are propagated.
-pub fn swap_ex<TX, TY>(
+/// Returns an error if the handle's stream is capturing, waiting fails, or for the reasons [`rotm_async`] lists.
+pub fn rotm<T: RealElement>(
     context: &Context,
-    x: &mut DeviceMemory<TX>,
-    x_type: DataType,
+    n: usize,
+    x: &mut (impl DeviceOutput<T> + ?Sized),
     incx: usize,
-    y: &mut DeviceMemory<TY>,
-    y_type: DataType,
+    y: &mut (impl DeviceOutput<T> + ?Sized),
     incy: usize,
+    param: Scalar<'_, [T; 5]>,
+) -> Result<()> {
+    // SAFETY: the scope waits for the handle's stream before the borrowed operands are released.
+    context.sync_scope(|| unsafe { rotm_async(context, n, x, incx, y, incy, param) })
+}
+
+/// Enqueues the construction of the modified Givens transformation that zeroes the second component of `(sqrt(d1) * x1, sqrt(d2) * y1)`.
+///
+/// # Safety
+///
+/// The caller upholds the [raw execution contract](crate#raw-execution).
+///
+/// # Errors
+///
+/// Returns an error if the scalars use different pointer modes, a scalar belongs to another CUDA context, or cuBLAS rejects the call.
+pub unsafe fn rotmg_async<T: RealElement>(
+    context: &Context,
+    mut d1: ScalarMut<'_, T>,
+    mut d2: ScalarMut<'_, T>,
+    mut x1: ScalarMut<'_, T>,
+    y1: Scalar<'_, T>,
+    mut param: ScalarMut<'_, [T; 5]>,
 ) -> Result<()> {
     context.bind()?;
-    if incx == 0 || incy == 0 {
-        return Err(Error::InvalidIncrement);
-    }
-
-    let n = vector_binary_len(x.len(), incx, y.len(), incy)?;
-    if n == 0 {
-        return Ok(());
-    }
-
-    let incx = to_i64(incx, "incx")?;
-    let incy = to_i64(incy, "incy")?;
-
-    // SAFETY: `cublasSwapEx_64` receives live handles owned by the wrappers and valid output locations.
+    context.prepare_operands(
+        &[],
+        &[
+            d1.region(),
+            d2.region(),
+            x1.region(),
+            y1.region(),
+            param.region(),
+        ],
+    )?;
+    context.use_pointer_mode(&[
+        d1.pointer_mode(),
+        d2.pointer_mode(),
+        x1.pointer_mode(),
+        y1.pointer_mode(),
+        param.pointer_mode(),
+    ])?;
+    // SAFETY: the scalars share one pointer mode, belong to this context, and `param` holds five values; the caller upholds the raw execution contract.
     unsafe {
-        try_ffi!(sys::cublasSwapEx_64(
+        try_ffi!(T::rotmg(
             context.as_raw(),
-            n,
-            x.as_mut_ptr().cast(),
-            x_type.into(),
-            incx,
-            y.as_mut_ptr().cast(),
-            y_type.into(),
-            incy,
-        ))?;
+            d1.as_mut_ptr(),
+            d2.as_mut_ptr(),
+            x1.as_mut_ptr(),
+            y1.ptr(),
+            param.as_mut_ptr().cast(),
+        ))
     }
-
-    Ok(())
 }
 
-/// Returns the one-based index of the first vector element with maximum magnitude.
-///
-/// For complex values, magnitude is the sum of the absolute real and imaginary parts.
-/// Returns zero for an empty vector.
+/// Constructs a modified Givens transformation and waits for it.
 ///
 /// # Errors
 ///
-/// Returns an error if an increment is zero, or a length or increment exceeds the native integer range.
-/// Returns an error if the handle is not in host pointer mode.
-/// CUDA context binding and cuBLAS operation errors are propagated.
-pub fn iamax_ex<TX>(
+/// Returns an error if the handle's stream is capturing, waiting fails, or for the reasons [`rotmg_async`] lists.
+pub fn rotmg<T: RealElement>(
     context: &Context,
-    x: &DeviceMemory<TX>,
-    x_type: DataType,
-    incx: usize,
-) -> Result<i64> {
-    context.bind()?;
-    context.require_host_pointer_mode()?;
-    if incx == 0 {
-        return Err(Error::InvalidIncrement);
-    }
-
-    let n = vector_len(x.len(), incx)?;
-    if n == 0 {
-        return Ok(0);
-    }
-
-    let incx = to_i64(incx, "incx")?;
-    let mut result = 0;
-
-    // SAFETY: `cublasIamaxEx_64` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
-    unsafe {
-        try_ffi!(sys::cublasIamaxEx_64(
-            context.as_raw(),
-            n,
-            x.as_ptr().cast(),
-            x_type.into(),
-            incx,
-            &raw mut result,
-        ))?;
-    }
-
-    Ok(result)
-}
-
-/// Returns the one-based index of the first vector element with minimum magnitude.
-///
-/// For complex values, magnitude is the sum of the absolute real and imaginary parts.
-/// Returns zero for an empty vector.
-///
-/// # Errors
-///
-/// Returns an error if an increment is zero, or a length or increment exceeds the native integer range.
-/// Returns an error if the handle is not in host pointer mode.
-/// CUDA context binding and cuBLAS operation errors are propagated.
-pub fn iamin_ex<TX>(
-    context: &Context,
-    x: &DeviceMemory<TX>,
-    x_type: DataType,
-    incx: usize,
-) -> Result<i64> {
-    context.bind()?;
-    context.require_host_pointer_mode()?;
-    if incx == 0 {
-        return Err(Error::InvalidIncrement);
-    }
-
-    let n = vector_len(x.len(), incx)?;
-    if n == 0 {
-        return Ok(0);
-    }
-
-    let incx = to_i64(incx, "incx")?;
-    let mut result = 0;
-
-    // SAFETY: `cublasIaminEx_64` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
-    unsafe {
-        try_ffi!(sys::cublasIaminEx_64(
-            context.as_raw(),
-            n,
-            x.as_ptr().cast(),
-            x_type.into(),
-            incx,
-            &raw mut result,
-        ))?;
-    }
-
-    Ok(result)
-}
-
-/// Sums absolute vector values using explicit input, result, and execution types.
-///
-/// For complex values, sums the absolute real and imaginary parts.
-///
-/// # Errors
-///
-/// Returns an error if an increment is zero, or a length or increment exceeds the native integer range.
-/// Returns an error if the handle is not in host pointer mode.
-/// CUDA context binding and cuBLAS operation errors are propagated.
-pub fn asum_ex<TX, TResult>(
-    context: &Context,
-    x: &DeviceMemory<TX>,
-    x_type: DataType,
-    incx: usize,
-    result: &mut TResult,
-    result_type: DataType,
-    execution_type: DataType,
+    d1: ScalarMut<'_, T>,
+    d2: ScalarMut<'_, T>,
+    x1: ScalarMut<'_, T>,
+    y1: Scalar<'_, T>,
+    param: ScalarMut<'_, [T; 5]>,
 ) -> Result<()> {
-    context.bind()?;
-    context.require_host_pointer_mode()?;
-    if incx == 0 {
-        return Err(Error::InvalidIncrement);
-    }
-
-    let n = vector_len(x.len(), incx)?;
-    if n == 0 {
-        return Ok(());
-    }
-
-    let incx = to_i64(incx, "incx")?;
-
-    // SAFETY: `cublasAsumEx_64` receives live handles owned by the wrappers and pointers into buffers borrowed for the call.
-    unsafe {
-        try_ffi!(sys::cublasAsumEx_64(
-            context.as_raw(),
-            n,
-            x.as_ptr().cast(),
-            x_type.into(),
-            incx,
-            ptr::from_mut(result).cast(),
-            result_type.into(),
-            execution_type.into(),
-        ))?;
-    }
-
-    Ok(())
-}
-
-fn vector_len(length: usize, inc: usize) -> Result<i64> {
-    if length == 0 {
-        return Ok(0);
-    }
-
-    let n = 1 + (length - 1) / inc;
-    to_i64(n, "n")
-}
-
-fn vector_binary_len(x_length: usize, incx: usize, y_length: usize, incy: usize) -> Result<i64> {
-    let x_n = vector_len(x_length, incx)?;
-    let y_n = vector_len(y_length, incy)?;
-
-    if x_n != y_n {
-        return Err(Error::InvalidVectorShape);
-    }
-
-    Ok(x_n)
+    // SAFETY: the scope waits for the handle's stream before the borrowed operands are released.
+    context.sync_scope(|| unsafe { rotmg_async(context, d1, d2, x1, y1, param) })
 }
 
 #[cfg(all(test, feature = "testing"))]
 mod tests {
+    use singe_cuda::memory::DeviceMemory;
+
     use super::*;
     use crate::testing::setup_context;
 
     #[test]
-    fn test_sscal_scales_vector() -> Result<()> {
-        let context = setup_context()?;
+    fn test_scal_scales_vector() -> Result<()> {
+        let test = setup_context()?;
+        let context = test.context();
 
         let mut x = DeviceMemory::from_slice(context.cuda_context(), &[1.0_f32, 2.0, 3.0, 4.0])?;
-        sscal(&context, &2.5, &mut x, 1)?;
+        scal(context, 4, Scalar::host(&2.5), &mut x, 1)?;
 
         let result = x.copy_to_host_vec()?;
         assert_eq!(result, vec![2.5, 5.0, 7.5, 10.0]);
@@ -810,12 +821,22 @@ mod tests {
     }
 
     #[test]
-    fn test_drot_rotates_vectors() -> Result<()> {
-        let context = setup_context()?;
+    fn test_rot_rotates_vectors() -> Result<()> {
+        let test = setup_context()?;
+        let context = test.context();
 
         let mut x = DeviceMemory::from_slice(context.cuda_context(), &[1.0_f64, 2.0, 3.0, 4.0])?;
         let mut y = DeviceMemory::from_slice(context.cuda_context(), &[5.0_f64, 6.0, 7.0, 8.0])?;
-        drot(&context, &mut x, 1, &mut y, 1, &2.1, &1.2)?;
+        rot(
+            context,
+            4,
+            &mut x,
+            1,
+            &mut y,
+            1,
+            Scalar::host(&2.1),
+            Scalar::host(&1.2),
+        )?;
 
         let x_result = x.copy_to_host_vec()?;
         let y_result = y.copy_to_host_vec()?;

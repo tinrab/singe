@@ -1,11 +1,11 @@
 use cutile::cuda_async::device_buffer::DevicePointer;
-use singe_cuda::view::{DeviceInput, DeviceOutput, DeviceRepr, DeviceSliceMut};
+use singe_cuda::view::{DeviceOutput, DeviceRange, DeviceRepr, DeviceSliceMut};
 
 #[allow(dead_code, reason = "only used by some kernel feature combinations")]
 pub fn input_pointer<T, S>(input: &S) -> DevicePointer<T>
 where
     T: DeviceRepr,
-    S: DeviceInput<T> + ?Sized,
+    S: DeviceRange<T> + ?Sized,
 {
     // SAFETY: the address comes from a live device buffer; wrapping it does not dereference it.
     unsafe { DevicePointer::from_cu_deviceptr(input.as_device_ptr() as _) }

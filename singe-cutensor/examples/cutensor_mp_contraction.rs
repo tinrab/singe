@@ -15,19 +15,23 @@ use std::{
 use anyhow::{Result, anyhow};
 use singe_cuda::{
     context::Context as CudaContext, data_type::DataType, device::Device, memory::DeviceMemory,
-    types::Complex32,
+    stream::StreamOptions, types::Complex32,
 };
 use singe_cutensor::{
     mp::{
         context::Context as MpContext,
         plan::{OperationDescriptor, Plan, PlanPreference},
-        tensor::{RankPartition, TensorDescriptor, TensorDescriptorConfig, TensorMode},
+        tensor::{RankPartition, TensorDescriptor, TensorDescriptorOptions, TensorMode},
         types::Algorithm,
     },
     operation::ComputeDescriptor,
     types::{Mode, Operator},
 };
-use singe_nccl::{communicator::Communicator, types::UniqueId, unique_id};
+use singe_nccl::{
+    communicator::Communicator,
+    types::{RankId, UniqueId},
+    unique_id,
+};
 
 const DEFAULT_EQUATION: &str = "mk,kn->mn";
 const DEFAULT_EXTENT: u64 = 2048;
@@ -62,9 +66,10 @@ impl Config {
             rank: env_parse("SINGE_CUTENSOR_MP_RANK")?.unwrap_or(0),
             rank_count: env_parse("SINGE_CUTENSOR_MP_NRANKS")?.unwrap_or(1),
             local_device: env_parse("SINGE_CUTENSOR_MP_LOCAL_DEVICE")?,
-            id_file: env::var_os("SINGE_CUTENSOR_MP_ID_FILE")
-                .map(PathBuf::from)
-                .unwrap_or_else(|| env::temp_dir().join("singe-cutensor-mp-nccl-id.bin")),
+            id_file: env::var_os("SINGE_CUTENSOR_MP_ID_FILE").map_or_else(
+                || env::temp_dir().join("singe-cutensor-mp-nccl-id.bin"),
+                PathBuf::from,
+            ),
         })
     }
 }
@@ -78,8 +83,9 @@ fn main() -> Result<()> {
         .local_device
         .unwrap_or_else(|| config.rank.rem_euclid(device_count));
 
-    let cuda_context = CudaContext::retain_primary_for_device(Device::new(local_device))?;
-    let stream = cuda_context.create_stream()?;
+    let local_device = Device::new(local_device);
+    let cuda_context = CudaContext::create_for_device(local_device)?;
+    let stream = cuda_context.create_stream(StreamOptions::default())?;
 
     let communicator = create_communicator(&cuda_context, &config)?;
     let context = MpContext::create(&communicator, local_device, Some(&stream))?;
@@ -90,10 +96,10 @@ fn main() -> Result<()> {
         println!("equation: {}", config.equation);
     }
 
-    let [modes_a_chars, modes_b_chars, modes_c_chars] = split_equation(&config.equation)?;
-    let modes_a = chars_to_raw_modes(&modes_a_chars);
-    let modes_b = chars_to_raw_modes(&modes_b_chars);
-    let modes_c = chars_to_raw_modes(&modes_c_chars);
+    let [a_mode_chars, b_mode_chars, c_mode_chars] = split_equation(&config.equation)?;
+    let modes_a = chars_to_raw_modes(&a_mode_chars);
+    let modes_b = chars_to_raw_modes(&b_mode_chars);
+    let modes_c = chars_to_raw_modes(&c_mode_chars);
     let cutensor_modes_a = raw_modes_to_cutensor(&modes_a);
     let cutensor_modes_b = raw_modes_to_cutensor(&modes_b);
     let cutensor_modes_c = raw_modes_to_cutensor(&modes_c);
@@ -115,9 +121,9 @@ fn main() -> Result<()> {
     let local_extent_c = calc_local_extents(&extent_c, &ranks_per_mode_c);
 
     if config.rank == 0 {
-        print_modes("modeA", &modes_a_chars);
-        print_modes("modeB", &modes_b_chars);
-        print_modes("modeC", &modes_c_chars);
+        print_modes("modeA", &a_mode_chars);
+        print_modes("modeB", &b_mode_chars);
+        print_modes("modeC", &c_mode_chars);
         print_values("extentA", &extent_a);
         print_values("extentB", &extent_b);
         print_values("extentC", &extent_c);
@@ -147,7 +153,7 @@ fn main() -> Result<()> {
 
     let descriptor_a = TensorDescriptor::create(
         &context,
-        TensorDescriptorConfig {
+        TensorDescriptorOptions {
             modes: &tensor_modes_a,
             partition: RankPartition {
                 ranks_per_mode: &ranks_per_mode_a,
@@ -159,7 +165,7 @@ fn main() -> Result<()> {
     )?;
     let descriptor_b = TensorDescriptor::create(
         &context,
-        TensorDescriptorConfig {
+        TensorDescriptorOptions {
             modes: &tensor_modes_b,
             partition: RankPartition {
                 ranks_per_mode: &ranks_per_mode_b,
@@ -171,7 +177,7 @@ fn main() -> Result<()> {
     )?;
     let descriptor_c = TensorDescriptor::create(
         &context,
-        TensorDescriptorConfig {
+        TensorDescriptorOptions {
             modes: &tensor_modes_c,
             partition: RankPartition {
                 ranks_per_mode: &ranks_per_mode_c,
@@ -219,23 +225,14 @@ fn main() -> Result<()> {
 
     let mut workspace_memory = plan.create_workspace_memory()?;
 
-    // SAFETY: the example keeps these buffers alive and synchronizes before reading the results.
-    let mut a = unsafe {
-        DeviceMemory::<Complex32>::create_unchecked(&cuda_context, product_usize(&local_extent_a)?)
-    }?;
-    // SAFETY: the example keeps these buffers alive and synchronizes before reading the results.
-    let mut b = unsafe {
-        DeviceMemory::<Complex32>::create_unchecked(&cuda_context, product_usize(&local_extent_b)?)
-    }?;
-    // SAFETY: the example keeps these buffers alive and synchronizes before reading the results.
-    let mut c = unsafe {
-        DeviceMemory::<Complex32>::create_unchecked(&cuda_context, product_usize(&local_extent_c)?)
-    }?;
+    let mut a = DeviceMemory::<Complex32>::zeroed(&cuda_context, product_usize(&local_extent_a)?)?;
+    let mut b = DeviceMemory::<Complex32>::zeroed(&cuda_context, product_usize(&local_extent_b)?)?;
+    let mut c = DeviceMemory::<Complex32>::zeroed(&cuda_context, product_usize(&local_extent_c)?)?;
 
     // SAFETY: the example keeps these buffers alive and synchronizes before reading the results.
     unsafe {
-        a.set_value_async_unchecked((config.rank & 0xff) as u8, &stream)?;
-        b.set_value_async_unchecked(
+        a.set_value_async((config.rank & 0xff) as u8, &stream)?;
+        b.set_value_async(
             ((config.rank * config.rank_count + config.rank + 1) & 0xff) as u8,
             &stream,
         )?;
@@ -250,14 +247,13 @@ fn main() -> Result<()> {
     for repetition in 0..config.repetitions {
         // SAFETY: the example keeps these buffers alive and synchronizes before reading the results.
         unsafe {
-            c.set_value_async_unchecked(0, &stream)?;
+            c.set_value_async(0, &stream)?;
         }
 
         stream.synchronize()?;
 
         let start = Instant::now();
         plan.contract_in_place(&alpha, &a, &b, &beta, &mut c, &mut workspace_memory)?;
-        stream.synchronize()?;
 
         if repetition > 0 {
             timings.push(start.elapsed().as_secs_f64() * 1.0e3);
@@ -314,7 +310,7 @@ fn parse_args() -> Result<Config> {
                     Some(next_value(value, &mut args, "--local-device")?.parse()?);
             }
             "--id-file" => {
-                config.id_file = PathBuf::from(next_value(value, &mut args, "--id-file")?)
+                config.id_file = PathBuf::from(next_value(value, &mut args, "--id-file")?);
             }
             "--help" | "-h" => {
                 print_usage();
@@ -383,9 +379,10 @@ fn create_communicator(cuda_context: &Arc<CudaContext>, config: &Config) -> Resu
     };
     Ok(Communicator::create_rank(
         cuda_context,
+        RankId::create(config.rank)?,
         config.rank_count,
-        id,
-        config.rank,
+        &[id],
+        None,
     )?)
 }
 
@@ -529,8 +526,9 @@ fn print_performance_metrics(
     let total_c = product_usize(extent_c).unwrap_or(0);
     let bytes = (total_a + total_b + total_c) * size_of::<Complex32>();
     let gb_per_rank = bytes as f64 / (1024.0 * 1024.0 * 1024.0);
-    let gflops_per_rank = (2_usize.pow(num_k_modes as u32) as f64 * total_c as f64 * 8.0)
-        / (1024.0 * 1024.0 * 1024.0);
+    let gflops_per_rank =
+        (2_usize.pow(u32::try_from(num_k_modes).unwrap()) as f64 * total_c as f64 * 8.0)
+            / (1024.0 * 1024.0 * 1024.0);
     let seconds = min_ms / 1000.0;
     println!(
         "Performance Summary: min_time: {min_ms:.3} ms, data size: ~{gb_per_rank:.3} GB/rank, \

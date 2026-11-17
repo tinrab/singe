@@ -2,19 +2,20 @@ mod common;
 
 use singe_cuda::{memory::DeviceMemory, view::OwnedDeviceRegion};
 use singe_cudnn::{
-    backend::tensor::{Shape, TensorSpec},
+    backend::operation::{normalization::NormalizationSavedStatistics, pointwise::Activation},
     data_type::{DataType, f16},
     error::Result,
     frontend::{
         bindings::BindingAccess,
         graph::{DataTypePolicy, Graph, GraphConfig, TensorOutputConfig},
         operation::{
-            Activation, BatchNormalizationBackwardConfig, BatchNormalizationBackwardInputs,
+            BatchNormalizationBackwardConfig, BatchNormalizationBackwardInputs,
             BatchNormalizationBackwardOutputs, BatchNormalizationInferenceInputs,
-            NormalizationConfig, NormalizationSavedStatistics, PointwiseOperation,
+            NormalizationConfig, PointwiseOperation,
         },
         plan::{CompileConfig, ExecuteArgs, HeuristicMode},
     },
+    tensor::{Shape, TensorSpec},
 };
 
 fn run() -> Result<()> {
@@ -121,9 +122,9 @@ fn run() -> Result<()> {
     // Native intermediates need no caller bindings, and the plan, buffers and workspace
     // remain live through stream completion, including an enqueue failure.
     example.execute_and_wait(|context| unsafe {
-        compiled.execute(
+        compiled.execute_async(
             context,
-            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
         )
     })?;
     for id in [
@@ -141,6 +142,6 @@ fn run() -> Result<()> {
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_batch_norm_backward", run())
 }

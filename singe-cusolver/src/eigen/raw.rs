@@ -36,2035 +36,575 @@ use crate::{
     params::Params,
     sys, try_ffi,
     types::{EigenMode, EigenType, FillMode},
-    utility::{to_i32, to_i64, to_usize},
+    utility::{require_workspace_bytes, to_i32, to_i64, to_size_t, to_usize},
 };
 
-/// Queries scratch capacity from layout metadata without allocating buffers.
+macro_rules! syevj_buffer_size_by_precision {
+    ($($name:ident, $ty:ty, $sys:ident;)+) => {
+        $(
+            pub(crate) fn $name(
+                context: &Context,
+                mode: EigenMode,
+                fill_mode: FillMode,
+                n: usize,
+                a: MatrixLayout,
+                params: &SyevjInfo,
+            ) -> Result<usize> {
+                context.bind()?;
+                a.validate(n, n)?;
+                let mut lwork = 0;
+                // SAFETY: `context` and `params` are live handles, the size query reads no device data so its matrix pointers may be null, and `lwork` is a writable local.
+                unsafe {
+                    try_ffi!(sys::$sys(
+                        context.as_raw(),
+                        mode.into(),
+                        fill_mode.into(),
+                        to_i32(n, "n")?,
+                        ptr::null(),
+                        to_i32(a.leading_dimension, "lda")?,
+                        ptr::null(),
+                        &raw mut lwork,
+                        params.as_raw()
+                    ))?;
+                }
+                to_usize(lwork, "lwork")
+            }
+        )+
+    };
+}
+
+syevj_buffer_size_by_precision! {
+    ssyevj_buffer_size, f32, cusolverDnSsyevj_bufferSize;
+    dsyevj_buffer_size, f64, cusolverDnDsyevj_bufferSize;
+    cheevj_buffer_size, Complex32, cusolverDnCheevj_bufferSize;
+    zheevj_buffer_size, Complex64, cusolverDnZheevj_bufferSize;
+}
+
+macro_rules! syevj_by_precision {
+    ($($name:ident, $ty:ty, $real:ty, $sys:ident, $buffer_size:ident;)+) => {
+        $(
+            pub(crate) unsafe fn $name(
+                context: &Context,
+                mode: EigenMode,
+                fill_mode: FillMode,
+                n: usize,
+                mut a: MatrixMut<'_, $ty>,
+                mut w: DeviceOutputView<'_, $real>,
+                mut scratch: DeviceOutputView<'_, $ty>,
+                mut dev_info: DeviceOutputView<'_, i32>,
+                params: &mut SyevjInfo,
+            ) -> Result<()> {
+                context.bind()?;
+                let values = n;
+                a.layout().require_capacity("a", n, n, a.data.len())?;
+                output(&w, values)?;
+                output(&dev_info, 1)?;
+                context.prepare_region(&a.data)?;
+                context.prepare_region(&w)?;
+                context.prepare_region(&scratch)?;
+                context.prepare_region(&dev_info)?;
+                let lwork = $buffer_size(context, mode, fill_mode, n, a.layout(), params)?;
+                workspace(scratch.len(), lwork)?;
+                // SAFETY: the capacities of `a`, `w`, and `dev_info` were checked above, `scratch` covers the queried `lwork`, and `params` is borrowed exclusively.
+                // The caller retains and orders every operand through completion per the crate's raw execution contract.
+                unsafe {
+                    try_ffi!(sys::$sys(
+                        context.as_raw(),
+                        mode.into(),
+                        fill_mode.into(),
+                        to_i32(n, "n")?,
+                        a.data.as_mut_ptr().cast(),
+                        to_i32(a.leading_dimension, "lda")?,
+                        w.as_mut_ptr().cast(),
+                        scratch.as_mut_ptr().cast(),
+                        to_i32(lwork, "lwork")?,
+                        dev_info.as_mut_ptr().cast(),
+                        params.as_raw()
+                    ))?;
+                }
+                Ok(())
+            }
+        )+
+    };
+}
+
+syevj_by_precision! {
+    ssyevj, f32, f32, cusolverDnSsyevj, ssyevj_buffer_size;
+    dsyevj, f64, f64, cusolverDnDsyevj, dsyevj_buffer_size;
+    cheevj, Complex32, f32, cusolverDnCheevj, cheevj_buffer_size;
+    zheevj, Complex64, f64, cusolverDnZheevj, zheevj_buffer_size;
+}
+
+macro_rules! syevj_batched_buffer_size_by_precision {
+    ($($name:ident, $ty:ty, $sys:ident;)+) => {
+        $(
+            pub(crate) fn $name(
+                context: &Context,
+                mode: EigenMode,
+                fill_mode: FillMode,
+                n: usize,
+                a: MatrixLayout,
+                params: &SyevjInfo,
+                batch_count: usize,
+            ) -> Result<usize> {
+                context.bind()?;
+                batch_layout(n, a, batch_count, false)?;
+                let mut lwork = 0;
+                // SAFETY: `context` and `params` are live handles, the size query reads no device data so its matrix pointers may be null, and `lwork` is a writable local.
+                unsafe {
+                    try_ffi!(sys::$sys(
+                        context.as_raw(),
+                        mode.into(),
+                        fill_mode.into(),
+                        to_i32(n, "n")?,
+                        ptr::null(),
+                        to_i32(a.leading_dimension, "lda")?,
+                        ptr::null(),
+                        &raw mut lwork,
+                        params.as_raw(),
+                        to_i32(batch_count, "batch_count")?
+                    ))?;
+                }
+                to_usize(lwork, "lwork")
+            }
+        )+
+    };
+}
+
+syevj_batched_buffer_size_by_precision! {
+    ssyevj_batched_buffer_size, f32, cusolverDnSsyevjBatched_bufferSize;
+    dsyevj_batched_buffer_size, f64, cusolverDnDsyevjBatched_bufferSize;
+    cheevj_batched_buffer_size, Complex32, cusolverDnCheevjBatched_bufferSize;
+    zheevj_batched_buffer_size, Complex64, cusolverDnZheevjBatched_bufferSize;
+}
+
+macro_rules! syevj_batched_by_precision {
+    ($($name:ident, $ty:ty, $real:ty, $sys:ident, $buffer_size:ident;)+) => {
+        $(
+            pub(crate) unsafe fn $name(
+                context: &Context,
+                mode: EigenMode,
+                fill_mode: FillMode,
+                n: usize,
+                mut a: MatrixMut<'_, $ty>,
+                mut w: DeviceOutputView<'_, $real>,
+                mut scratch: DeviceOutputView<'_, $ty>,
+                mut dev_info: DeviceOutputView<'_, i32>,
+                params: &mut SyevjInfo,
+                batch_count: usize,
+            ) -> Result<()> {
+                context.bind()?;
+                let values = batch_layout(n, a.layout(), batch_count, false)?;
+                a.layout().require_capacity("a", n, values, a.data.len())?;
+                output(&w, values)?;
+                output(&dev_info, batch_count)?;
+                context.prepare_region(&a.data)?;
+                context.prepare_region(&w)?;
+                context.prepare_region(&scratch)?;
+                context.prepare_region(&dev_info)?;
+                let lwork =
+                    $buffer_size(context, mode, fill_mode, n, a.layout(), params, batch_count)?;
+                workspace(scratch.len(), lwork)?;
+                // SAFETY: the capacities of `a`, `w`, and `dev_info` were checked above, `scratch` covers the queried `lwork`, and `params` is borrowed exclusively.
+                // The caller retains and orders every operand through completion per the crate's raw execution contract.
+                unsafe {
+                    try_ffi!(sys::$sys(
+                        context.as_raw(),
+                        mode.into(),
+                        fill_mode.into(),
+                        to_i32(n, "n")?,
+                        a.data.as_mut_ptr().cast(),
+                        to_i32(a.leading_dimension, "lda")?,
+                        w.as_mut_ptr().cast(),
+                        scratch.as_mut_ptr().cast(),
+                        to_i32(lwork, "lwork")?,
+                        dev_info.as_mut_ptr().cast(),
+                        params.as_raw(),
+                        to_i32(batch_count, "batch_count")?
+                    ))?;
+                }
+                Ok(())
+            }
+        )+
+    };
+}
+
+syevj_batched_by_precision! {
+    ssyevj_batched, f32, f32, cusolverDnSsyevjBatched, ssyevj_batched_buffer_size;
+    dsyevj_batched, f64, f64, cusolverDnDsyevjBatched, dsyevj_batched_buffer_size;
+    cheevj_batched, Complex32, f32, cusolverDnCheevjBatched, cheevj_batched_buffer_size;
+    zheevj_batched, Complex64, f64, cusolverDnZheevjBatched, zheevj_batched_buffer_size;
+}
+
+macro_rules! sygvj_buffer_size_by_precision {
+    ($($name:ident, $ty:ty, $sys:ident;)+) => {
+        $(
+            pub(crate) fn $name(
+                context: &Context,
+                eig_type: EigenType,
+                mode: EigenMode,
+                fill_mode: FillMode,
+                n: usize,
+                a: MatrixLayout,
+                b: MatrixLayout,
+                params: &SyevjInfo,
+            ) -> Result<usize> {
+                context.bind()?;
+                a.validate(n, n)?;
+                b.validate(n, n)?;
+                let mut lwork = 0;
+                // SAFETY: `context` and `params` are live handles, the size query reads no device data so its matrix pointers may be null, and `lwork` is a writable local.
+                unsafe {
+                    try_ffi!(sys::$sys(
+                        context.as_raw(),
+                        eig_type.into(),
+                        mode.into(),
+                        fill_mode.into(),
+                        to_i32(n, "n")?,
+                        ptr::null(),
+                        to_i32(a.leading_dimension, "lda")?,
+                        ptr::null(),
+                        to_i32(b.leading_dimension, "ldb")?,
+                        ptr::null(),
+                        &raw mut lwork,
+                        params.as_raw()
+                    ))?;
+                }
+                to_usize(lwork, "lwork")
+            }
+        )+
+    };
+}
+
+sygvj_buffer_size_by_precision! {
+    ssygvj_buffer_size, f32, cusolverDnSsygvj_bufferSize;
+    dsygvj_buffer_size, f64, cusolverDnDsygvj_bufferSize;
+    chegvj_buffer_size, Complex32, cusolverDnChegvj_bufferSize;
+    zhegvj_buffer_size, Complex64, cusolverDnZhegvj_bufferSize;
+}
+
+macro_rules! sygvj_by_precision {
+    ($($name:ident, $ty:ty, $real:ty, $sys:ident, $buffer_size:ident;)+) => {
+        $(
+            pub(crate) unsafe fn $name(
+                context: &Context,
+                eig_type: EigenType,
+                mode: EigenMode,
+                fill_mode: FillMode,
+                n: usize,
+                mut a: MatrixMut<'_, $ty>,
+                mut b: MatrixMut<'_, $ty>,
+                mut w: DeviceOutputView<'_, $real>,
+                mut scratch: DeviceOutputView<'_, $ty>,
+                mut dev_info: DeviceOutputView<'_, i32>,
+                params: &mut SyevjInfo,
+            ) -> Result<()> {
+                context.bind()?;
+                let values = n;
+                a.layout().require_capacity("a", n, n, a.data.len())?;
+                b.layout().require_capacity("b", n, n, b.data.len())?;
+                output(&w, values)?;
+                output(&dev_info, 1)?;
+                context.prepare_region(&a.data)?;
+                context.prepare_region(&b.data)?;
+                context.prepare_region(&w)?;
+                context.prepare_region(&scratch)?;
+                context.prepare_region(&dev_info)?;
+                let lwork = $buffer_size(
+                    context,
+                    eig_type,
+                    mode,
+                    fill_mode,
+                    n,
+                    a.layout(),
+                    b.layout(),
+                    params,
+                )?;
+                workspace(scratch.len(), lwork)?;
+                // SAFETY: the capacities of `a`, `b`, `w`, and `dev_info` were checked above, `scratch` covers the queried `lwork`, and `params` is borrowed exclusively.
+                // The caller retains and orders every operand through completion per the crate's raw execution contract.
+                unsafe {
+                    try_ffi!(sys::$sys(
+                        context.as_raw(),
+                        eig_type.into(),
+                        mode.into(),
+                        fill_mode.into(),
+                        to_i32(n, "n")?,
+                        a.data.as_mut_ptr().cast(),
+                        to_i32(a.leading_dimension, "lda")?,
+                        b.data.as_mut_ptr().cast(),
+                        to_i32(b.leading_dimension, "ldb")?,
+                        w.as_mut_ptr().cast(),
+                        scratch.as_mut_ptr().cast(),
+                        to_i32(lwork, "lwork")?,
+                        dev_info.as_mut_ptr().cast(),
+                        params.as_raw()
+                    ))?;
+                }
+                Ok(())
+            }
+        )+
+    };
+}
+
+sygvj_by_precision! {
+    ssygvj, f32, f32, cusolverDnSsygvj, ssygvj_buffer_size;
+    dsygvj, f64, f64, cusolverDnDsygvj, dsygvj_buffer_size;
+    chegvj, Complex32, f32, cusolverDnChegvj, chegvj_buffer_size;
+    zhegvj, Complex64, f64, cusolverDnZhegvj, zhegvj_buffer_size;
+}
+
+macro_rules! sygvd_buffer_size_by_precision {
+    ($($name:ident, $ty:ty, $sys:ident;)+) => {
+        $(
+            pub(crate) fn $name(
+                context: &Context,
+                eig_type: EigenType,
+                mode: EigenMode,
+                fill_mode: FillMode,
+                n: usize,
+                a: MatrixLayout,
+                b: MatrixLayout,
+            ) -> Result<usize> {
+                context.bind()?;
+                a.validate(n, n)?;
+                b.validate(n, n)?;
+                let mut lwork = 0;
+                // SAFETY: `context` is a live handle, the size query reads no device data so its matrix pointers may be null, and `lwork` is a writable local.
+                unsafe {
+                    try_ffi!(sys::$sys(
+                        context.as_raw(),
+                        eig_type.into(),
+                        mode.into(),
+                        fill_mode.into(),
+                        to_i32(n, "n")?,
+                        ptr::null(),
+                        to_i32(a.leading_dimension, "lda")?,
+                        ptr::null(),
+                        to_i32(b.leading_dimension, "ldb")?,
+                        ptr::null(),
+                        &raw mut lwork
+                    ))?;
+                }
+                to_usize(lwork, "lwork")
+            }
+        )+
+    };
+}
+
+sygvd_buffer_size_by_precision! {
+    ssygvd_buffer_size, f32, cusolverDnSsygvd_bufferSize;
+    dsygvd_buffer_size, f64, cusolverDnDsygvd_bufferSize;
+    chegvd_buffer_size, Complex32, cusolverDnChegvd_bufferSize;
+    zhegvd_buffer_size, Complex64, cusolverDnZhegvd_bufferSize;
+}
+
+macro_rules! sygvd_by_precision {
+    ($($name:ident, $ty:ty, $real:ty, $sys:ident, $buffer_size:ident;)+) => {
+        $(
+            pub(crate) unsafe fn $name(
+                context: &Context,
+                eig_type: EigenType,
+                mode: EigenMode,
+                fill_mode: FillMode,
+                n: usize,
+                mut a: MatrixMut<'_, $ty>,
+                mut b: MatrixMut<'_, $ty>,
+                mut w: DeviceOutputView<'_, $real>,
+                mut scratch: DeviceOutputView<'_, $ty>,
+                mut dev_info: DeviceOutputView<'_, i32>,
+            ) -> Result<()> {
+                context.bind()?;
+                let values = n;
+                a.layout().require_capacity("a", n, n, a.data.len())?;
+                b.layout().require_capacity("b", n, n, b.data.len())?;
+                output(&w, values)?;
+                output(&dev_info, 1)?;
+                context.prepare_region(&a.data)?;
+                context.prepare_region(&b.data)?;
+                context.prepare_region(&w)?;
+                context.prepare_region(&scratch)?;
+                context.prepare_region(&dev_info)?;
+                let lwork = $buffer_size(
+                    context,
+                    eig_type,
+                    mode,
+                    fill_mode,
+                    n,
+                    a.layout(),
+                    b.layout(),
+                )?;
+                workspace(scratch.len(), lwork)?;
+                // SAFETY: the capacities of `a`, `b`, `w`, and `dev_info` were checked above and `scratch` covers the queried `lwork`.
+                // The caller retains and orders every operand through completion per the crate's raw execution contract.
+                unsafe {
+                    try_ffi!(sys::$sys(
+                        context.as_raw(),
+                        eig_type.into(),
+                        mode.into(),
+                        fill_mode.into(),
+                        to_i32(n, "n")?,
+                        a.data.as_mut_ptr().cast(),
+                        to_i32(a.leading_dimension, "lda")?,
+                        b.data.as_mut_ptr().cast(),
+                        to_i32(b.leading_dimension, "ldb")?,
+                        w.as_mut_ptr().cast(),
+                        scratch.as_mut_ptr().cast(),
+                        to_i32(lwork, "lwork")?,
+                        dev_info.as_mut_ptr().cast()
+                    ))?;
+                }
+                Ok(())
+            }
+        )+
+    };
+}
+
+sygvd_by_precision! {
+    ssygvd, f32, f32, cusolverDnSsygvd, ssygvd_buffer_size;
+    dsygvd, f64, f64, cusolverDnDsygvd, dsygvd_buffer_size;
+    chegvd, Complex32, f32, cusolverDnChegvd, chegvd_buffer_size;
+    zhegvd, Complex64, f64, cusolverDnZhegvd, zhegvd_buffer_size;
+}
+
+macro_rules! sygvdx_selected_buffer_size_by_precision {
+    ($($name:ident, $ty:ty, $real:ty, $sys:ident;)+) => {
+        $(
+            pub(crate) fn $name(
+                context: &Context,
+                eig_type: EigenType,
+                mode: EigenMode,
+                fill_mode: FillMode,
+                selection: &EigenSelection<$real>,
+                n: usize,
+                a: MatrixLayout,
+                b: MatrixLayout,
+            ) -> Result<usize> {
+                context.bind()?;
+                a.validate(n, n)?;
+                b.validate(n, n)?;
+                let (range, vl, vu, il, iu) = native_selection(selection, n)?;
+                let mut lwork = 0;
+                let mut ignored_count = MaybeUninit::<i32>::uninit();
+                // SAFETY: `context` is a live handle, the size query reads no device data so its matrix pointers may be null, and `lwork` and `ignored_count` are writable locals.
+                unsafe {
+                    try_ffi!(sys::$sys(
+                        context.as_raw(),
+                        eig_type.into(),
+                        mode.into(),
+                        range.into(),
+                        fill_mode.into(),
+                        to_i32(n, "n")?,
+                        ptr::null(),
+                        to_i32(a.leading_dimension, "lda")?,
+                        ptr::null(),
+                        to_i32(b.leading_dimension, "ldb")?,
+                        *vl,
+                        *vu,
+                        to_i32(il, "il")?,
+                        to_i32(iu, "iu")?,
+                        ignored_count.as_mut_ptr(),
+                        ptr::null(),
+                        &raw mut lwork
+                    ))?;
+                }
+                to_usize(lwork, "lwork")
+            }
+        )+
+    };
+}
+
+sygvdx_selected_buffer_size_by_precision! {
+    ssygvdx_selected_buffer_size, f32, f32, cusolverDnSsygvdx_bufferSize;
+    dsygvdx_selected_buffer_size, f64, f64, cusolverDnDsygvdx_bufferSize;
+    chegvdx_selected_buffer_size, Complex32, f32, cusolverDnChegvdx_bufferSize;
+    zhegvdx_selected_buffer_size, Complex64, f64, cusolverDnZhegvdx_bufferSize;
+}
+
+macro_rules! sygvdx_selected_by_precision {
+    ($($name:ident, $ty:ty, $real:ty, $sys:ident, $buffer_size:ident;)+) => {
+        $(
+            pub(crate) unsafe fn $name(
+                context: &Context,
+                eig_type: EigenType,
+                mode: EigenMode,
+                fill_mode: FillMode,
+                selection: &EigenSelection<$real>,
+                n: usize,
+                mut a: MatrixMut<'_, $ty>,
+                mut b: MatrixMut<'_, $ty>,
+                mut w: DeviceOutputView<'_, $real>,
+                mut scratch: DeviceOutputView<'_, $ty>,
+                mut dev_info: DeviceOutputView<'_, i32>,
+                selected_count: &mut MaybeUninit<i32>,
+            ) -> Result<()> {
+                context.bind()?;
+                let values = n;
+                a.layout().require_capacity("a", n, n, a.data.len())?;
+                b.layout().require_capacity("b", n, n, b.data.len())?;
+                output(&w, values)?;
+                output(&dev_info, 1)?;
+                context.prepare_region(&a.data)?;
+                context.prepare_region(&b.data)?;
+                context.prepare_region(&w)?;
+                context.prepare_region(&scratch)?;
+                context.prepare_region(&dev_info)?;
+                let lwork = $buffer_size(
+                    context,
+                    eig_type,
+                    mode,
+                    fill_mode,
+                    selection,
+                    n,
+                    a.layout(),
+                    b.layout(),
+                )?;
+                workspace(scratch.len(), lwork)?;
+                let (range, vl, vu, il, iu) = native_selection(selection, n)?;
+                // SAFETY: the capacities of `a`, `b`, `w`, and `dev_info` were checked above and `scratch` covers the queried `lwork`.
+                // The caller retains and orders every operand, including `selected_count`, through completion per the crate's raw execution contract.
+                unsafe {
+                    try_ffi!(sys::$sys(
+                        context.as_raw(),
+                        eig_type.into(),
+                        mode.into(),
+                        range.into(),
+                        fill_mode.into(),
+                        to_i32(n, "n")?,
+                        a.data.as_mut_ptr().cast(),
+                        to_i32(a.leading_dimension, "lda")?,
+                        b.data.as_mut_ptr().cast(),
+                        to_i32(b.leading_dimension, "ldb")?,
+                        *vl,
+                        *vu,
+                        to_i32(il, "il")?,
+                        to_i32(iu, "iu")?,
+                        selected_count.as_mut_ptr(),
+                        w.as_mut_ptr().cast(),
+                        scratch.as_mut_ptr().cast(),
+                        to_i32(lwork, "lwork")?,
+                        dev_info.as_mut_ptr().cast()
+                    ))?;
+                }
+                Ok(())
+            }
+        )+
+    };
+}
+
+sygvdx_selected_by_precision! {
+    ssygvdx_selected, f32, f32, cusolverDnSsygvdx, ssygvdx_selected_buffer_size;
+    dsygvdx_selected, f64, f64, cusolverDnDsygvdx, dsygvdx_selected_buffer_size;
+    chegvdx_selected, Complex32, f32, cusolverDnChegvdx, chegvdx_selected_buffer_size;
+    zhegvdx_selected, Complex64, f64, cusolverDnZhegvdx, zhegvdx_selected_buffer_size;
+}
+
+/// Returns the device and host workspace bytes the operation needs, reading only layout metadata.
 ///
 /// # Errors
 ///
 /// Returns an error if CUDA context binding fails, matrix dimensions or leading dimensions are invalid, a dimension or returned workspace size cannot be represented by the required integer type, checked layout-size arithmetic overflows, or cuSOLVER rejects the configuration or fails to report workspace requirements.
-pub fn ssyevj_buffer_size(
-    context: &Context,
-    mode: EigenMode,
-    fill_mode: FillMode,
-    n: usize,
-    a: MatrixLayout,
-    params: &SyevjInfo,
-) -> Result<usize> {
-    context.bind()?;
-    a.validate(n, n)?;
-    let mut lwork = 0;
-    // SAFETY: native workspace queries inspect metadata without accessing matrices.
-    unsafe {
-        try_ffi!(sys::cusolverDnSsyevj_bufferSize(
-            context.as_raw(),
-            mode.into(),
-            fill_mode.into(),
-            to_i32(n, "n")?,
-            ptr::null(),
-            to_i32(a.leading_dimension, "lda")?,
-            ptr::null(),
-            &raw mut lwork,
-            params.as_raw()
-        ))?;
-    }
-    to_usize(lwork, "lwork")
-}
-
-/// Enqueues the native eigenvalue operation.
-///
-/// # Safety
-/// Keep all borrowed resources alive and order their accesses through completion and every replay.
-/// Inspect completed status before reading or promoting results.
-/// Jacobi parameter storage is exclusive through completion when present.
-/// Selected host counts and bounds must also survive completion and replay.
-///
-/// # Errors
-///
-/// Returns an error if CUDA context binding fails, a device buffer belongs to another CUDA context, matrix dimensions, leading dimensions, or storage capacities are invalid, checked size arithmetic or native integer conversion fails, the status output capacity is insufficient, a pivot, reflector, or numerical output buffer is too small, device scratch capacity is smaller than the queried requirement, or cuSOLVER rejects the configuration or returns an error while querying workspace or submitting execution.
-pub unsafe fn ssyevj(
-    context: &Context,
-    mode: EigenMode,
-    fill_mode: FillMode,
-    n: usize,
-    mut a: MatrixMut<'_, f32>,
-    mut w: DeviceOutputView<'_, f32>,
-    mut scratch: DeviceOutputView<'_, f32>,
-    mut dev_info: DeviceOutputView<'_, i32>,
-    params: &mut SyevjInfo,
-) -> Result<()> {
-    context.bind()?;
-    let values = n;
-    a.layout().require_capacity(n, n, a.data.len())?;
-    output(&w, values)?;
-    output(&dev_info, 1)?;
-    context.validate_region(&a.data)?;
-    context.validate_region(&w)?;
-    context.validate_region(&scratch)?;
-    context.validate_region(&dev_info)?;
-    let lwork = ssyevj_buffer_size(context, mode, fill_mode, n, a.layout(), params)?;
-    workspace(scratch.len(), lwork)?;
-    // SAFETY: validated metadata and the caller's queued-access contract cover native use.
-    unsafe {
-        try_ffi!(sys::cusolverDnSsyevj(
-            context.as_raw(),
-            mode.into(),
-            fill_mode.into(),
-            to_i32(n, "n")?,
-            a.data.as_mut_ptr().cast(),
-            to_i32(a.leading_dimension, "lda")?,
-            w.as_mut_ptr().cast(),
-            scratch.as_mut_ptr().cast(),
-            to_i32(lwork, "lwork")?,
-            dev_info.as_mut_ptr().cast(),
-            params.as_raw()
-        ))?;
-    }
-    Ok(())
-}
-
-/// Queries scratch capacity from layout metadata without allocating buffers.
-///
-/// # Errors
-///
-/// Returns an error if CUDA context binding fails, matrix dimensions or leading dimensions are invalid, the batch count or packed storage extent is invalid, a dimension or returned workspace size cannot be represented by the required integer type, checked layout-size arithmetic overflows, or cuSOLVER rejects the configuration or fails to report workspace requirements.
-pub fn ssyevj_batched_buffer_size(
-    context: &Context,
-    mode: EigenMode,
-    fill_mode: FillMode,
-    n: usize,
-    a: MatrixLayout,
-    params: &SyevjInfo,
-    batch_count: usize,
-) -> Result<usize> {
-    context.bind()?;
-    batch_layout(n, a, batch_count, false)?;
-    let mut lwork = 0;
-    // SAFETY: native workspace queries inspect metadata without accessing matrices.
-    unsafe {
-        try_ffi!(sys::cusolverDnSsyevjBatched_bufferSize(
-            context.as_raw(),
-            mode.into(),
-            fill_mode.into(),
-            to_i32(n, "n")?,
-            ptr::null(),
-            to_i32(a.leading_dimension, "lda")?,
-            ptr::null(),
-            &raw mut lwork,
-            params.as_raw(),
-            to_i32(batch_count, "batch_count")?
-        ))?;
-    }
-    to_usize(lwork, "lwork")
-}
-
-/// Enqueues the native eigenvalue operation.
-///
-/// # Safety
-/// Keep all borrowed resources alive and order their accesses through completion and every replay.
-/// Inspect completed status before reading or promoting results.
-/// Jacobi parameter storage is exclusive through completion when present.
-/// Selected host counts and bounds must also survive completion and replay.
-///
-/// # Errors
-///
-/// Returns an error if CUDA context binding fails, a device buffer belongs to another CUDA context, matrix dimensions, leading dimensions, or storage capacities are invalid, checked size arithmetic or native integer conversion fails, the status output capacity is insufficient, a pivot, reflector, or numerical output buffer is too small, device scratch capacity is smaller than the queried requirement, batch metadata or related pointer-table lengths are invalid, or cuSOLVER rejects the configuration or returns an error while querying workspace or submitting execution.
-pub unsafe fn ssyevj_batched(
-    context: &Context,
-    mode: EigenMode,
-    fill_mode: FillMode,
-    n: usize,
-    mut a: MatrixMut<'_, f32>,
-    mut w: DeviceOutputView<'_, f32>,
-    mut scratch: DeviceOutputView<'_, f32>,
-    mut dev_info: DeviceOutputView<'_, i32>,
-    params: &mut SyevjInfo,
-    batch_count: usize,
-) -> Result<()> {
-    context.bind()?;
-    let values = batch_layout(n, a.layout(), batch_count, false)?;
-    a.layout().require_capacity(n, values, a.data.len())?;
-    output(&w, values)?;
-    output(&dev_info, batch_count)?;
-    context.validate_region(&a.data)?;
-    context.validate_region(&w)?;
-    context.validate_region(&scratch)?;
-    context.validate_region(&dev_info)?;
-    let lwork =
-        ssyevj_batched_buffer_size(context, mode, fill_mode, n, a.layout(), params, batch_count)?;
-    workspace(scratch.len(), lwork)?;
-    // SAFETY: validated metadata and the caller's queued-access contract cover native use.
-    unsafe {
-        try_ffi!(sys::cusolverDnSsyevjBatched(
-            context.as_raw(),
-            mode.into(),
-            fill_mode.into(),
-            to_i32(n, "n")?,
-            a.data.as_mut_ptr().cast(),
-            to_i32(a.leading_dimension, "lda")?,
-            w.as_mut_ptr().cast(),
-            scratch.as_mut_ptr().cast(),
-            to_i32(lwork, "lwork")?,
-            dev_info.as_mut_ptr().cast(),
-            params.as_raw(),
-            to_i32(batch_count, "batch_count")?
-        ))?;
-    }
-    Ok(())
-}
-
-/// Queries scratch capacity from layout metadata without allocating buffers.
-///
-/// # Errors
-///
-/// Returns an error if CUDA context binding fails, matrix dimensions or leading dimensions are invalid, a dimension or returned workspace size cannot be represented by the required integer type, checked layout-size arithmetic overflows, or cuSOLVER rejects the configuration or fails to report workspace requirements.
-pub fn ssygvj_buffer_size(
-    context: &Context,
-    eig_type: EigenType,
-    mode: EigenMode,
-    fill_mode: FillMode,
-    n: usize,
-    a: MatrixLayout,
-    b: MatrixLayout,
-    params: &SyevjInfo,
-) -> Result<usize> {
-    context.bind()?;
-    a.validate(n, n)?;
-    b.validate(n, n)?;
-    let mut lwork = 0;
-    // SAFETY: native workspace queries inspect metadata without accessing matrices.
-    unsafe {
-        try_ffi!(sys::cusolverDnSsygvj_bufferSize(
-            context.as_raw(),
-            eig_type.into(),
-            mode.into(),
-            fill_mode.into(),
-            to_i32(n, "n")?,
-            ptr::null(),
-            to_i32(a.leading_dimension, "lda")?,
-            ptr::null(),
-            to_i32(b.leading_dimension, "ldb")?,
-            ptr::null(),
-            &raw mut lwork,
-            params.as_raw()
-        ))?;
-    }
-    to_usize(lwork, "lwork")
-}
-
-/// Enqueues the native eigenvalue operation.
-///
-/// # Safety
-/// Keep all borrowed resources alive and order their accesses through completion and every replay.
-/// Inspect completed status before reading or promoting results.
-/// Jacobi parameter storage is exclusive through completion when present.
-/// Selected host counts and bounds must also survive completion and replay.
-///
-/// # Errors
-///
-/// Returns an error if CUDA context binding fails, a device buffer belongs to another CUDA context, matrix dimensions, leading dimensions, or storage capacities are invalid, checked size arithmetic or native integer conversion fails, the status output capacity is insufficient, a pivot, reflector, or numerical output buffer is too small, device scratch capacity is smaller than the queried requirement, or cuSOLVER rejects the configuration or returns an error while querying workspace or submitting execution.
-pub unsafe fn ssygvj(
-    context: &Context,
-    eig_type: EigenType,
-    mode: EigenMode,
-    fill_mode: FillMode,
-    n: usize,
-    mut a: MatrixMut<'_, f32>,
-    mut b: MatrixMut<'_, f32>,
-    mut w: DeviceOutputView<'_, f32>,
-    mut scratch: DeviceOutputView<'_, f32>,
-    mut dev_info: DeviceOutputView<'_, i32>,
-    params: &mut SyevjInfo,
-) -> Result<()> {
-    context.bind()?;
-    let values = n;
-    a.layout().require_capacity(n, n, a.data.len())?;
-    b.layout().require_capacity(n, n, b.data.len())?;
-    output(&w, values)?;
-    output(&dev_info, 1)?;
-    context.validate_region(&a.data)?;
-    context.validate_region(&b.data)?;
-    context.validate_region(&w)?;
-    context.validate_region(&scratch)?;
-    context.validate_region(&dev_info)?;
-    let lwork = ssygvj_buffer_size(
-        context,
-        eig_type,
-        mode,
-        fill_mode,
-        n,
-        a.layout(),
-        b.layout(),
-        params,
-    )?;
-    workspace(scratch.len(), lwork)?;
-    // SAFETY: validated metadata and the caller's queued-access contract cover native use.
-    unsafe {
-        try_ffi!(sys::cusolverDnSsygvj(
-            context.as_raw(),
-            eig_type.into(),
-            mode.into(),
-            fill_mode.into(),
-            to_i32(n, "n")?,
-            a.data.as_mut_ptr().cast(),
-            to_i32(a.leading_dimension, "lda")?,
-            b.data.as_mut_ptr().cast(),
-            to_i32(b.leading_dimension, "ldb")?,
-            w.as_mut_ptr().cast(),
-            scratch.as_mut_ptr().cast(),
-            to_i32(lwork, "lwork")?,
-            dev_info.as_mut_ptr().cast(),
-            params.as_raw()
-        ))?;
-    }
-    Ok(())
-}
-
-/// Queries scratch capacity from layout metadata without allocating buffers.
-///
-/// # Errors
-///
-/// Returns an error if CUDA context binding fails, matrix dimensions or leading dimensions are invalid, a dimension or returned workspace size cannot be represented by the required integer type, checked layout-size arithmetic overflows, or cuSOLVER rejects the configuration or fails to report workspace requirements.
-pub fn ssygvd_buffer_size(
-    context: &Context,
-    eig_type: EigenType,
-    mode: EigenMode,
-    fill_mode: FillMode,
-    n: usize,
-    a: MatrixLayout,
-    b: MatrixLayout,
-) -> Result<usize> {
-    context.bind()?;
-    a.validate(n, n)?;
-    b.validate(n, n)?;
-    let mut lwork = 0;
-    // SAFETY: native workspace queries inspect metadata without accessing matrices.
-    unsafe {
-        try_ffi!(sys::cusolverDnSsygvd_bufferSize(
-            context.as_raw(),
-            eig_type.into(),
-            mode.into(),
-            fill_mode.into(),
-            to_i32(n, "n")?,
-            ptr::null(),
-            to_i32(a.leading_dimension, "lda")?,
-            ptr::null(),
-            to_i32(b.leading_dimension, "ldb")?,
-            ptr::null(),
-            &raw mut lwork
-        ))?;
-    }
-    to_usize(lwork, "lwork")
-}
-
-/// Enqueues the native eigenvalue operation.
-///
-/// # Safety
-/// Keep all borrowed resources alive and order their accesses through completion and every replay.
-/// Inspect completed status before reading or promoting results.
-/// Jacobi parameter storage is exclusive through completion when present.
-/// Selected host counts and bounds must also survive completion and replay.
-///
-/// # Errors
-///
-/// Returns an error if CUDA context binding fails, a device buffer belongs to another CUDA context, matrix dimensions, leading dimensions, or storage capacities are invalid, checked size arithmetic or native integer conversion fails, the status output capacity is insufficient, a pivot, reflector, or numerical output buffer is too small, device scratch capacity is smaller than the queried requirement, or cuSOLVER rejects the configuration or returns an error while querying workspace or submitting execution.
-pub unsafe fn ssygvd(
-    context: &Context,
-    eig_type: EigenType,
-    mode: EigenMode,
-    fill_mode: FillMode,
-    n: usize,
-    mut a: MatrixMut<'_, f32>,
-    mut b: MatrixMut<'_, f32>,
-    mut w: DeviceOutputView<'_, f32>,
-    mut scratch: DeviceOutputView<'_, f32>,
-    mut dev_info: DeviceOutputView<'_, i32>,
-) -> Result<()> {
-    context.bind()?;
-    let values = n;
-    a.layout().require_capacity(n, n, a.data.len())?;
-    b.layout().require_capacity(n, n, b.data.len())?;
-    output(&w, values)?;
-    output(&dev_info, 1)?;
-    context.validate_region(&a.data)?;
-    context.validate_region(&b.data)?;
-    context.validate_region(&w)?;
-    context.validate_region(&scratch)?;
-    context.validate_region(&dev_info)?;
-    let lwork = ssygvd_buffer_size(
-        context,
-        eig_type,
-        mode,
-        fill_mode,
-        n,
-        a.layout(),
-        b.layout(),
-    )?;
-    workspace(scratch.len(), lwork)?;
-    // SAFETY: validated metadata and the caller's queued-access contract cover native use.
-    unsafe {
-        try_ffi!(sys::cusolverDnSsygvd(
-            context.as_raw(),
-            eig_type.into(),
-            mode.into(),
-            fill_mode.into(),
-            to_i32(n, "n")?,
-            a.data.as_mut_ptr().cast(),
-            to_i32(a.leading_dimension, "lda")?,
-            b.data.as_mut_ptr().cast(),
-            to_i32(b.leading_dimension, "ldb")?,
-            w.as_mut_ptr().cast(),
-            scratch.as_mut_ptr().cast(),
-            to_i32(lwork, "lwork")?,
-            dev_info.as_mut_ptr().cast()
-        ))?;
-    }
-    Ok(())
-}
-
-/// Queries scratch capacity from layout metadata without allocating buffers.
-///
-/// # Errors
-///
-/// Returns an error if CUDA context binding fails, matrix dimensions or leading dimensions are invalid, the selected eigenvalue interval is invalid, a dimension or returned workspace size cannot be represented by the required integer type, checked layout-size arithmetic overflows, or cuSOLVER rejects the configuration or fails to report workspace requirements.
-pub fn ssygvdx_selected_buffer_size(
-    context: &Context,
-    eig_type: EigenType,
-    mode: EigenMode,
-    fill_mode: FillMode,
-    selection: &EigenSelection<f32>,
-    n: usize,
-    a: MatrixLayout,
-    b: MatrixLayout,
-) -> Result<usize> {
-    context.bind()?;
-    a.validate(n, n)?;
-    b.validate(n, n)?;
-    let (range, vl, vu, il, iu) = native_selection(selection, n)?;
-    let mut lwork = 0;
-    let mut ignored_count = MaybeUninit::<i32>::uninit();
-    // SAFETY: native workspace queries inspect metadata without accessing matrices.
-    unsafe {
-        try_ffi!(sys::cusolverDnSsygvdx_bufferSize(
-            context.as_raw(),
-            eig_type.into(),
-            mode.into(),
-            range.into(),
-            fill_mode.into(),
-            to_i32(n, "n")?,
-            ptr::null(),
-            to_i32(a.leading_dimension, "lda")?,
-            ptr::null(),
-            to_i32(b.leading_dimension, "ldb")?,
-            *vl,
-            *vu,
-            to_i32(il, "il")?,
-            to_i32(iu, "iu")?,
-            ignored_count.as_mut_ptr(),
-            ptr::null(),
-            &raw mut lwork
-        ))?;
-    }
-    to_usize(lwork, "lwork")
-}
-
-/// Enqueues the native eigenvalue operation.
-///
-/// # Safety
-/// Keep all borrowed resources alive and order their accesses through completion and every replay.
-/// Inspect completed status before reading or promoting results.
-/// Jacobi parameter storage is exclusive through completion when present.
-/// Selected host counts and bounds must also survive completion and replay.
-///
-/// # Errors
-///
-/// Returns an error if CUDA context binding fails, a device buffer belongs to another CUDA context, matrix dimensions, leading dimensions, or storage capacities are invalid, checked size arithmetic or native integer conversion fails, the status output capacity is insufficient, a pivot, reflector, or numerical output buffer is too small, device scratch capacity is smaller than the queried requirement, the eigenvalue selection is invalid, or cuSOLVER rejects the configuration or returns an error while querying workspace or submitting execution.
-pub unsafe fn ssygvdx_selected(
-    context: &Context,
-    eig_type: EigenType,
-    mode: EigenMode,
-    fill_mode: FillMode,
-    selection: &EigenSelection<f32>,
-    n: usize,
-    mut a: MatrixMut<'_, f32>,
-    mut b: MatrixMut<'_, f32>,
-    mut w: DeviceOutputView<'_, f32>,
-    mut scratch: DeviceOutputView<'_, f32>,
-    mut dev_info: DeviceOutputView<'_, i32>,
-    selected_count: &mut MaybeUninit<i32>,
-) -> Result<()> {
-    context.bind()?;
-    let values = n;
-    a.layout().require_capacity(n, n, a.data.len())?;
-    b.layout().require_capacity(n, n, b.data.len())?;
-    output(&w, values)?;
-    output(&dev_info, 1)?;
-    context.validate_region(&a.data)?;
-    context.validate_region(&b.data)?;
-    context.validate_region(&w)?;
-    context.validate_region(&scratch)?;
-    context.validate_region(&dev_info)?;
-    let lwork = ssygvdx_selected_buffer_size(
-        context,
-        eig_type,
-        mode,
-        fill_mode,
-        selection,
-        n,
-        a.layout(),
-        b.layout(),
-    )?;
-    workspace(scratch.len(), lwork)?;
-    let (range, vl, vu, il, iu) = native_selection(selection, n)?;
-    // SAFETY: validated metadata and the caller's queued-access contract cover native use.
-    unsafe {
-        try_ffi!(sys::cusolverDnSsygvdx(
-            context.as_raw(),
-            eig_type.into(),
-            mode.into(),
-            range.into(),
-            fill_mode.into(),
-            to_i32(n, "n")?,
-            a.data.as_mut_ptr().cast(),
-            to_i32(a.leading_dimension, "lda")?,
-            b.data.as_mut_ptr().cast(),
-            to_i32(b.leading_dimension, "ldb")?,
-            *vl,
-            *vu,
-            to_i32(il, "il")?,
-            to_i32(iu, "iu")?,
-            selected_count.as_mut_ptr(),
-            w.as_mut_ptr().cast(),
-            scratch.as_mut_ptr().cast(),
-            to_i32(lwork, "lwork")?,
-            dev_info.as_mut_ptr().cast()
-        ))?;
-    }
-    Ok(())
-}
-
-/// Queries scratch capacity from layout metadata without allocating buffers.
-///
-/// # Errors
-///
-/// Returns an error if CUDA context binding fails, matrix dimensions or leading dimensions are invalid, a dimension or returned workspace size cannot be represented by the required integer type, checked layout-size arithmetic overflows, or cuSOLVER rejects the configuration or fails to report workspace requirements.
-pub fn dsyevj_buffer_size(
-    context: &Context,
-    mode: EigenMode,
-    fill_mode: FillMode,
-    n: usize,
-    a: MatrixLayout,
-    params: &SyevjInfo,
-) -> Result<usize> {
-    context.bind()?;
-    a.validate(n, n)?;
-    let mut lwork = 0;
-    // SAFETY: native workspace queries inspect metadata without accessing matrices.
-    unsafe {
-        try_ffi!(sys::cusolverDnDsyevj_bufferSize(
-            context.as_raw(),
-            mode.into(),
-            fill_mode.into(),
-            to_i32(n, "n")?,
-            ptr::null(),
-            to_i32(a.leading_dimension, "lda")?,
-            ptr::null(),
-            &raw mut lwork,
-            params.as_raw()
-        ))?;
-    }
-    to_usize(lwork, "lwork")
-}
-
-/// Enqueues the native eigenvalue operation.
-///
-/// # Safety
-/// Keep all borrowed resources alive and order their accesses through completion and every replay.
-/// Inspect completed status before reading or promoting results.
-/// Jacobi parameter storage is exclusive through completion when present.
-/// Selected host counts and bounds must also survive completion and replay.
-///
-/// # Errors
-///
-/// Returns an error if CUDA context binding fails, a device buffer belongs to another CUDA context, matrix dimensions, leading dimensions, or storage capacities are invalid, checked size arithmetic or native integer conversion fails, the status output capacity is insufficient, a pivot, reflector, or numerical output buffer is too small, device scratch capacity is smaller than the queried requirement, or cuSOLVER rejects the configuration or returns an error while querying workspace or submitting execution.
-pub unsafe fn dsyevj(
-    context: &Context,
-    mode: EigenMode,
-    fill_mode: FillMode,
-    n: usize,
-    mut a: MatrixMut<'_, f64>,
-    mut w: DeviceOutputView<'_, f64>,
-    mut scratch: DeviceOutputView<'_, f64>,
-    mut dev_info: DeviceOutputView<'_, i32>,
-    params: &mut SyevjInfo,
-) -> Result<()> {
-    context.bind()?;
-    let values = n;
-    a.layout().require_capacity(n, n, a.data.len())?;
-    output(&w, values)?;
-    output(&dev_info, 1)?;
-    context.validate_region(&a.data)?;
-    context.validate_region(&w)?;
-    context.validate_region(&scratch)?;
-    context.validate_region(&dev_info)?;
-    let lwork = dsyevj_buffer_size(context, mode, fill_mode, n, a.layout(), params)?;
-    workspace(scratch.len(), lwork)?;
-    // SAFETY: validated metadata and the caller's queued-access contract cover native use.
-    unsafe {
-        try_ffi!(sys::cusolverDnDsyevj(
-            context.as_raw(),
-            mode.into(),
-            fill_mode.into(),
-            to_i32(n, "n")?,
-            a.data.as_mut_ptr().cast(),
-            to_i32(a.leading_dimension, "lda")?,
-            w.as_mut_ptr().cast(),
-            scratch.as_mut_ptr().cast(),
-            to_i32(lwork, "lwork")?,
-            dev_info.as_mut_ptr().cast(),
-            params.as_raw()
-        ))?;
-    }
-    Ok(())
-}
-
-/// Queries scratch capacity from layout metadata without allocating buffers.
-///
-/// # Errors
-///
-/// Returns an error if CUDA context binding fails, matrix dimensions or leading dimensions are invalid, the batch count or packed storage extent is invalid, a dimension or returned workspace size cannot be represented by the required integer type, checked layout-size arithmetic overflows, or cuSOLVER rejects the configuration or fails to report workspace requirements.
-pub fn dsyevj_batched_buffer_size(
-    context: &Context,
-    mode: EigenMode,
-    fill_mode: FillMode,
-    n: usize,
-    a: MatrixLayout,
-    params: &SyevjInfo,
-    batch_count: usize,
-) -> Result<usize> {
-    context.bind()?;
-    batch_layout(n, a, batch_count, false)?;
-    let mut lwork = 0;
-    // SAFETY: native workspace queries inspect metadata without accessing matrices.
-    unsafe {
-        try_ffi!(sys::cusolverDnDsyevjBatched_bufferSize(
-            context.as_raw(),
-            mode.into(),
-            fill_mode.into(),
-            to_i32(n, "n")?,
-            ptr::null(),
-            to_i32(a.leading_dimension, "lda")?,
-            ptr::null(),
-            &raw mut lwork,
-            params.as_raw(),
-            to_i32(batch_count, "batch_count")?
-        ))?;
-    }
-    to_usize(lwork, "lwork")
-}
-
-/// Enqueues the native eigenvalue operation.
-///
-/// # Safety
-/// Keep all borrowed resources alive and order their accesses through completion and every replay.
-/// Inspect completed status before reading or promoting results.
-/// Jacobi parameter storage is exclusive through completion when present.
-/// Selected host counts and bounds must also survive completion and replay.
-///
-/// # Errors
-///
-/// Returns an error if CUDA context binding fails, a device buffer belongs to another CUDA context, matrix dimensions, leading dimensions, or storage capacities are invalid, checked size arithmetic or native integer conversion fails, the status output capacity is insufficient, a pivot, reflector, or numerical output buffer is too small, device scratch capacity is smaller than the queried requirement, batch metadata or related pointer-table lengths are invalid, or cuSOLVER rejects the configuration or returns an error while querying workspace or submitting execution.
-pub unsafe fn dsyevj_batched(
-    context: &Context,
-    mode: EigenMode,
-    fill_mode: FillMode,
-    n: usize,
-    mut a: MatrixMut<'_, f64>,
-    mut w: DeviceOutputView<'_, f64>,
-    mut scratch: DeviceOutputView<'_, f64>,
-    mut dev_info: DeviceOutputView<'_, i32>,
-    params: &mut SyevjInfo,
-    batch_count: usize,
-) -> Result<()> {
-    context.bind()?;
-    let values = batch_layout(n, a.layout(), batch_count, false)?;
-    a.layout().require_capacity(n, values, a.data.len())?;
-    output(&w, values)?;
-    output(&dev_info, batch_count)?;
-    context.validate_region(&a.data)?;
-    context.validate_region(&w)?;
-    context.validate_region(&scratch)?;
-    context.validate_region(&dev_info)?;
-    let lwork =
-        dsyevj_batched_buffer_size(context, mode, fill_mode, n, a.layout(), params, batch_count)?;
-    workspace(scratch.len(), lwork)?;
-    // SAFETY: validated metadata and the caller's queued-access contract cover native use.
-    unsafe {
-        try_ffi!(sys::cusolverDnDsyevjBatched(
-            context.as_raw(),
-            mode.into(),
-            fill_mode.into(),
-            to_i32(n, "n")?,
-            a.data.as_mut_ptr().cast(),
-            to_i32(a.leading_dimension, "lda")?,
-            w.as_mut_ptr().cast(),
-            scratch.as_mut_ptr().cast(),
-            to_i32(lwork, "lwork")?,
-            dev_info.as_mut_ptr().cast(),
-            params.as_raw(),
-            to_i32(batch_count, "batch_count")?
-        ))?;
-    }
-    Ok(())
-}
-
-/// Queries scratch capacity from layout metadata without allocating buffers.
-///
-/// # Errors
-///
-/// Returns an error if CUDA context binding fails, matrix dimensions or leading dimensions are invalid, a dimension or returned workspace size cannot be represented by the required integer type, checked layout-size arithmetic overflows, or cuSOLVER rejects the configuration or fails to report workspace requirements.
-pub fn dsygvj_buffer_size(
-    context: &Context,
-    eig_type: EigenType,
-    mode: EigenMode,
-    fill_mode: FillMode,
-    n: usize,
-    a: MatrixLayout,
-    b: MatrixLayout,
-    params: &SyevjInfo,
-) -> Result<usize> {
-    context.bind()?;
-    a.validate(n, n)?;
-    b.validate(n, n)?;
-    let mut lwork = 0;
-    // SAFETY: native workspace queries inspect metadata without accessing matrices.
-    unsafe {
-        try_ffi!(sys::cusolverDnDsygvj_bufferSize(
-            context.as_raw(),
-            eig_type.into(),
-            mode.into(),
-            fill_mode.into(),
-            to_i32(n, "n")?,
-            ptr::null(),
-            to_i32(a.leading_dimension, "lda")?,
-            ptr::null(),
-            to_i32(b.leading_dimension, "ldb")?,
-            ptr::null(),
-            &raw mut lwork,
-            params.as_raw()
-        ))?;
-    }
-    to_usize(lwork, "lwork")
-}
-
-/// Enqueues the native eigenvalue operation.
-///
-/// # Safety
-/// Keep all borrowed resources alive and order their accesses through completion and every replay.
-/// Inspect completed status before reading or promoting results.
-/// Jacobi parameter storage is exclusive through completion when present.
-/// Selected host counts and bounds must also survive completion and replay.
-///
-/// # Errors
-///
-/// Returns an error if CUDA context binding fails, a device buffer belongs to another CUDA context, matrix dimensions, leading dimensions, or storage capacities are invalid, checked size arithmetic or native integer conversion fails, the status output capacity is insufficient, a pivot, reflector, or numerical output buffer is too small, device scratch capacity is smaller than the queried requirement, or cuSOLVER rejects the configuration or returns an error while querying workspace or submitting execution.
-pub unsafe fn dsygvj(
-    context: &Context,
-    eig_type: EigenType,
-    mode: EigenMode,
-    fill_mode: FillMode,
-    n: usize,
-    mut a: MatrixMut<'_, f64>,
-    mut b: MatrixMut<'_, f64>,
-    mut w: DeviceOutputView<'_, f64>,
-    mut scratch: DeviceOutputView<'_, f64>,
-    mut dev_info: DeviceOutputView<'_, i32>,
-    params: &mut SyevjInfo,
-) -> Result<()> {
-    context.bind()?;
-    let values = n;
-    a.layout().require_capacity(n, n, a.data.len())?;
-    b.layout().require_capacity(n, n, b.data.len())?;
-    output(&w, values)?;
-    output(&dev_info, 1)?;
-    context.validate_region(&a.data)?;
-    context.validate_region(&b.data)?;
-    context.validate_region(&w)?;
-    context.validate_region(&scratch)?;
-    context.validate_region(&dev_info)?;
-    let lwork = dsygvj_buffer_size(
-        context,
-        eig_type,
-        mode,
-        fill_mode,
-        n,
-        a.layout(),
-        b.layout(),
-        params,
-    )?;
-    workspace(scratch.len(), lwork)?;
-    // SAFETY: validated metadata and the caller's queued-access contract cover native use.
-    unsafe {
-        try_ffi!(sys::cusolverDnDsygvj(
-            context.as_raw(),
-            eig_type.into(),
-            mode.into(),
-            fill_mode.into(),
-            to_i32(n, "n")?,
-            a.data.as_mut_ptr().cast(),
-            to_i32(a.leading_dimension, "lda")?,
-            b.data.as_mut_ptr().cast(),
-            to_i32(b.leading_dimension, "ldb")?,
-            w.as_mut_ptr().cast(),
-            scratch.as_mut_ptr().cast(),
-            to_i32(lwork, "lwork")?,
-            dev_info.as_mut_ptr().cast(),
-            params.as_raw()
-        ))?;
-    }
-    Ok(())
-}
-
-/// Queries scratch capacity from layout metadata without allocating buffers.
-///
-/// # Errors
-///
-/// Returns an error if CUDA context binding fails, matrix dimensions or leading dimensions are invalid, a dimension or returned workspace size cannot be represented by the required integer type, checked layout-size arithmetic overflows, or cuSOLVER rejects the configuration or fails to report workspace requirements.
-pub fn dsygvd_buffer_size(
-    context: &Context,
-    eig_type: EigenType,
-    mode: EigenMode,
-    fill_mode: FillMode,
-    n: usize,
-    a: MatrixLayout,
-    b: MatrixLayout,
-) -> Result<usize> {
-    context.bind()?;
-    a.validate(n, n)?;
-    b.validate(n, n)?;
-    let mut lwork = 0;
-    // SAFETY: native workspace queries inspect metadata without accessing matrices.
-    unsafe {
-        try_ffi!(sys::cusolverDnDsygvd_bufferSize(
-            context.as_raw(),
-            eig_type.into(),
-            mode.into(),
-            fill_mode.into(),
-            to_i32(n, "n")?,
-            ptr::null(),
-            to_i32(a.leading_dimension, "lda")?,
-            ptr::null(),
-            to_i32(b.leading_dimension, "ldb")?,
-            ptr::null(),
-            &raw mut lwork
-        ))?;
-    }
-    to_usize(lwork, "lwork")
-}
-
-/// Enqueues the native eigenvalue operation.
-///
-/// # Safety
-/// Keep all borrowed resources alive and order their accesses through completion and every replay.
-/// Inspect completed status before reading or promoting results.
-/// Jacobi parameter storage is exclusive through completion when present.
-/// Selected host counts and bounds must also survive completion and replay.
-///
-/// # Errors
-///
-/// Returns an error if CUDA context binding fails, a device buffer belongs to another CUDA context, matrix dimensions, leading dimensions, or storage capacities are invalid, checked size arithmetic or native integer conversion fails, the status output capacity is insufficient, a pivot, reflector, or numerical output buffer is too small, device scratch capacity is smaller than the queried requirement, or cuSOLVER rejects the configuration or returns an error while querying workspace or submitting execution.
-pub unsafe fn dsygvd(
-    context: &Context,
-    eig_type: EigenType,
-    mode: EigenMode,
-    fill_mode: FillMode,
-    n: usize,
-    mut a: MatrixMut<'_, f64>,
-    mut b: MatrixMut<'_, f64>,
-    mut w: DeviceOutputView<'_, f64>,
-    mut scratch: DeviceOutputView<'_, f64>,
-    mut dev_info: DeviceOutputView<'_, i32>,
-) -> Result<()> {
-    context.bind()?;
-    let values = n;
-    a.layout().require_capacity(n, n, a.data.len())?;
-    b.layout().require_capacity(n, n, b.data.len())?;
-    output(&w, values)?;
-    output(&dev_info, 1)?;
-    context.validate_region(&a.data)?;
-    context.validate_region(&b.data)?;
-    context.validate_region(&w)?;
-    context.validate_region(&scratch)?;
-    context.validate_region(&dev_info)?;
-    let lwork = dsygvd_buffer_size(
-        context,
-        eig_type,
-        mode,
-        fill_mode,
-        n,
-        a.layout(),
-        b.layout(),
-    )?;
-    workspace(scratch.len(), lwork)?;
-    // SAFETY: validated metadata and the caller's queued-access contract cover native use.
-    unsafe {
-        try_ffi!(sys::cusolverDnDsygvd(
-            context.as_raw(),
-            eig_type.into(),
-            mode.into(),
-            fill_mode.into(),
-            to_i32(n, "n")?,
-            a.data.as_mut_ptr().cast(),
-            to_i32(a.leading_dimension, "lda")?,
-            b.data.as_mut_ptr().cast(),
-            to_i32(b.leading_dimension, "ldb")?,
-            w.as_mut_ptr().cast(),
-            scratch.as_mut_ptr().cast(),
-            to_i32(lwork, "lwork")?,
-            dev_info.as_mut_ptr().cast()
-        ))?;
-    }
-    Ok(())
-}
-
-/// Queries scratch capacity from layout metadata without allocating buffers.
-///
-/// # Errors
-///
-/// Returns an error if CUDA context binding fails, matrix dimensions or leading dimensions are invalid, the selected eigenvalue interval is invalid, a dimension or returned workspace size cannot be represented by the required integer type, checked layout-size arithmetic overflows, or cuSOLVER rejects the configuration or fails to report workspace requirements.
-pub fn dsygvdx_selected_buffer_size(
-    context: &Context,
-    eig_type: EigenType,
-    mode: EigenMode,
-    fill_mode: FillMode,
-    selection: &EigenSelection<f64>,
-    n: usize,
-    a: MatrixLayout,
-    b: MatrixLayout,
-) -> Result<usize> {
-    context.bind()?;
-    a.validate(n, n)?;
-    b.validate(n, n)?;
-    let (range, vl, vu, il, iu) = native_selection(selection, n)?;
-    let mut lwork = 0;
-    let mut ignored_count = MaybeUninit::<i32>::uninit();
-    // SAFETY: native workspace queries inspect metadata without accessing matrices.
-    unsafe {
-        try_ffi!(sys::cusolverDnDsygvdx_bufferSize(
-            context.as_raw(),
-            eig_type.into(),
-            mode.into(),
-            range.into(),
-            fill_mode.into(),
-            to_i32(n, "n")?,
-            ptr::null(),
-            to_i32(a.leading_dimension, "lda")?,
-            ptr::null(),
-            to_i32(b.leading_dimension, "ldb")?,
-            *vl,
-            *vu,
-            to_i32(il, "il")?,
-            to_i32(iu, "iu")?,
-            ignored_count.as_mut_ptr(),
-            ptr::null(),
-            &raw mut lwork
-        ))?;
-    }
-    to_usize(lwork, "lwork")
-}
-
-/// Enqueues the native eigenvalue operation.
-///
-/// # Safety
-/// Keep all borrowed resources alive and order their accesses through completion and every replay.
-/// Inspect completed status before reading or promoting results.
-/// Jacobi parameter storage is exclusive through completion when present.
-/// Selected host counts and bounds must also survive completion and replay.
-///
-/// # Errors
-///
-/// Returns an error if CUDA context binding fails, a device buffer belongs to another CUDA context, matrix dimensions, leading dimensions, or storage capacities are invalid, checked size arithmetic or native integer conversion fails, the status output capacity is insufficient, a pivot, reflector, or numerical output buffer is too small, device scratch capacity is smaller than the queried requirement, the eigenvalue selection is invalid, or cuSOLVER rejects the configuration or returns an error while querying workspace or submitting execution.
-pub unsafe fn dsygvdx_selected(
-    context: &Context,
-    eig_type: EigenType,
-    mode: EigenMode,
-    fill_mode: FillMode,
-    selection: &EigenSelection<f64>,
-    n: usize,
-    mut a: MatrixMut<'_, f64>,
-    mut b: MatrixMut<'_, f64>,
-    mut w: DeviceOutputView<'_, f64>,
-    mut scratch: DeviceOutputView<'_, f64>,
-    mut dev_info: DeviceOutputView<'_, i32>,
-    selected_count: &mut MaybeUninit<i32>,
-) -> Result<()> {
-    context.bind()?;
-    let values = n;
-    a.layout().require_capacity(n, n, a.data.len())?;
-    b.layout().require_capacity(n, n, b.data.len())?;
-    output(&w, values)?;
-    output(&dev_info, 1)?;
-    context.validate_region(&a.data)?;
-    context.validate_region(&b.data)?;
-    context.validate_region(&w)?;
-    context.validate_region(&scratch)?;
-    context.validate_region(&dev_info)?;
-    let lwork = dsygvdx_selected_buffer_size(
-        context,
-        eig_type,
-        mode,
-        fill_mode,
-        selection,
-        n,
-        a.layout(),
-        b.layout(),
-    )?;
-    workspace(scratch.len(), lwork)?;
-    let (range, vl, vu, il, iu) = native_selection(selection, n)?;
-    // SAFETY: validated metadata and the caller's queued-access contract cover native use.
-    unsafe {
-        try_ffi!(sys::cusolverDnDsygvdx(
-            context.as_raw(),
-            eig_type.into(),
-            mode.into(),
-            range.into(),
-            fill_mode.into(),
-            to_i32(n, "n")?,
-            a.data.as_mut_ptr().cast(),
-            to_i32(a.leading_dimension, "lda")?,
-            b.data.as_mut_ptr().cast(),
-            to_i32(b.leading_dimension, "ldb")?,
-            *vl,
-            *vu,
-            to_i32(il, "il")?,
-            to_i32(iu, "iu")?,
-            selected_count.as_mut_ptr(),
-            w.as_mut_ptr().cast(),
-            scratch.as_mut_ptr().cast(),
-            to_i32(lwork, "lwork")?,
-            dev_info.as_mut_ptr().cast()
-        ))?;
-    }
-    Ok(())
-}
-
-/// Queries scratch capacity from layout metadata without allocating buffers.
-///
-/// # Errors
-///
-/// Returns an error if CUDA context binding fails, matrix dimensions or leading dimensions are invalid, a dimension or returned workspace size cannot be represented by the required integer type, checked layout-size arithmetic overflows, or cuSOLVER rejects the configuration or fails to report workspace requirements.
-pub fn cheevj_buffer_size(
-    context: &Context,
-    mode: EigenMode,
-    fill_mode: FillMode,
-    n: usize,
-    a: MatrixLayout,
-    params: &SyevjInfo,
-) -> Result<usize> {
-    context.bind()?;
-    a.validate(n, n)?;
-    let mut lwork = 0;
-    // SAFETY: native workspace queries inspect metadata without accessing matrices.
-    unsafe {
-        try_ffi!(sys::cusolverDnCheevj_bufferSize(
-            context.as_raw(),
-            mode.into(),
-            fill_mode.into(),
-            to_i32(n, "n")?,
-            ptr::null(),
-            to_i32(a.leading_dimension, "lda")?,
-            ptr::null(),
-            &raw mut lwork,
-            params.as_raw()
-        ))?;
-    }
-    to_usize(lwork, "lwork")
-}
-
-/// Enqueues the native eigenvalue operation.
-///
-/// # Safety
-/// Keep all borrowed resources alive and order their accesses through completion and every replay.
-/// Inspect completed status before reading or promoting results.
-/// Jacobi parameter storage is exclusive through completion when present.
-/// Selected host counts and bounds must also survive completion and replay.
-///
-/// # Errors
-///
-/// Returns an error if CUDA context binding fails, a device buffer belongs to another CUDA context, matrix dimensions, leading dimensions, or storage capacities are invalid, checked size arithmetic or native integer conversion fails, the status output capacity is insufficient, a pivot, reflector, or numerical output buffer is too small, device scratch capacity is smaller than the queried requirement, or cuSOLVER rejects the configuration or returns an error while querying workspace or submitting execution.
-pub unsafe fn cheevj(
-    context: &Context,
-    mode: EigenMode,
-    fill_mode: FillMode,
-    n: usize,
-    mut a: MatrixMut<'_, Complex32>,
-    mut w: DeviceOutputView<'_, f32>,
-    mut scratch: DeviceOutputView<'_, Complex32>,
-    mut dev_info: DeviceOutputView<'_, i32>,
-    params: &mut SyevjInfo,
-) -> Result<()> {
-    context.bind()?;
-    let values = n;
-    a.layout().require_capacity(n, n, a.data.len())?;
-    output(&w, values)?;
-    output(&dev_info, 1)?;
-    context.validate_region(&a.data)?;
-    context.validate_region(&w)?;
-    context.validate_region(&scratch)?;
-    context.validate_region(&dev_info)?;
-    let lwork = cheevj_buffer_size(context, mode, fill_mode, n, a.layout(), params)?;
-    workspace(scratch.len(), lwork)?;
-    // SAFETY: validated metadata and the caller's queued-access contract cover native use.
-    unsafe {
-        try_ffi!(sys::cusolverDnCheevj(
-            context.as_raw(),
-            mode.into(),
-            fill_mode.into(),
-            to_i32(n, "n")?,
-            a.data.as_mut_ptr().cast(),
-            to_i32(a.leading_dimension, "lda")?,
-            w.as_mut_ptr().cast(),
-            scratch.as_mut_ptr().cast(),
-            to_i32(lwork, "lwork")?,
-            dev_info.as_mut_ptr().cast(),
-            params.as_raw()
-        ))?;
-    }
-    Ok(())
-}
-
-/// Queries scratch capacity from layout metadata without allocating buffers.
-///
-/// # Errors
-///
-/// Returns an error if CUDA context binding fails, matrix dimensions or leading dimensions are invalid, the batch count or packed storage extent is invalid, a dimension or returned workspace size cannot be represented by the required integer type, checked layout-size arithmetic overflows, or cuSOLVER rejects the configuration or fails to report workspace requirements.
-pub fn cheevj_batched_buffer_size(
-    context: &Context,
-    mode: EigenMode,
-    fill_mode: FillMode,
-    n: usize,
-    a: MatrixLayout,
-    params: &SyevjInfo,
-    batch_count: usize,
-) -> Result<usize> {
-    context.bind()?;
-    batch_layout(n, a, batch_count, false)?;
-    let mut lwork = 0;
-    // SAFETY: native workspace queries inspect metadata without accessing matrices.
-    unsafe {
-        try_ffi!(sys::cusolverDnCheevjBatched_bufferSize(
-            context.as_raw(),
-            mode.into(),
-            fill_mode.into(),
-            to_i32(n, "n")?,
-            ptr::null(),
-            to_i32(a.leading_dimension, "lda")?,
-            ptr::null(),
-            &raw mut lwork,
-            params.as_raw(),
-            to_i32(batch_count, "batch_count")?
-        ))?;
-    }
-    to_usize(lwork, "lwork")
-}
-
-/// Enqueues the native eigenvalue operation.
-///
-/// # Safety
-/// Keep all borrowed resources alive and order their accesses through completion and every replay.
-/// Inspect completed status before reading or promoting results.
-/// Jacobi parameter storage is exclusive through completion when present.
-/// Selected host counts and bounds must also survive completion and replay.
-///
-/// # Errors
-///
-/// Returns an error if CUDA context binding fails, a device buffer belongs to another CUDA context, matrix dimensions, leading dimensions, or storage capacities are invalid, checked size arithmetic or native integer conversion fails, the status output capacity is insufficient, a pivot, reflector, or numerical output buffer is too small, device scratch capacity is smaller than the queried requirement, batch metadata or related pointer-table lengths are invalid, or cuSOLVER rejects the configuration or returns an error while querying workspace or submitting execution.
-pub unsafe fn cheevj_batched(
-    context: &Context,
-    mode: EigenMode,
-    fill_mode: FillMode,
-    n: usize,
-    mut a: MatrixMut<'_, Complex32>,
-    mut w: DeviceOutputView<'_, f32>,
-    mut scratch: DeviceOutputView<'_, Complex32>,
-    mut dev_info: DeviceOutputView<'_, i32>,
-    params: &mut SyevjInfo,
-    batch_count: usize,
-) -> Result<()> {
-    context.bind()?;
-    let values = batch_layout(n, a.layout(), batch_count, false)?;
-    a.layout().require_capacity(n, values, a.data.len())?;
-    output(&w, values)?;
-    output(&dev_info, batch_count)?;
-    context.validate_region(&a.data)?;
-    context.validate_region(&w)?;
-    context.validate_region(&scratch)?;
-    context.validate_region(&dev_info)?;
-    let lwork =
-        cheevj_batched_buffer_size(context, mode, fill_mode, n, a.layout(), params, batch_count)?;
-    workspace(scratch.len(), lwork)?;
-    // SAFETY: validated metadata and the caller's queued-access contract cover native use.
-    unsafe {
-        try_ffi!(sys::cusolverDnCheevjBatched(
-            context.as_raw(),
-            mode.into(),
-            fill_mode.into(),
-            to_i32(n, "n")?,
-            a.data.as_mut_ptr().cast(),
-            to_i32(a.leading_dimension, "lda")?,
-            w.as_mut_ptr().cast(),
-            scratch.as_mut_ptr().cast(),
-            to_i32(lwork, "lwork")?,
-            dev_info.as_mut_ptr().cast(),
-            params.as_raw(),
-            to_i32(batch_count, "batch_count")?
-        ))?;
-    }
-    Ok(())
-}
-
-/// Queries scratch capacity from layout metadata without allocating buffers.
-///
-/// # Errors
-///
-/// Returns an error if CUDA context binding fails, matrix dimensions or leading dimensions are invalid, a dimension or returned workspace size cannot be represented by the required integer type, checked layout-size arithmetic overflows, or cuSOLVER rejects the configuration or fails to report workspace requirements.
-pub fn chegvj_buffer_size(
-    context: &Context,
-    eig_type: EigenType,
-    mode: EigenMode,
-    fill_mode: FillMode,
-    n: usize,
-    a: MatrixLayout,
-    b: MatrixLayout,
-    params: &SyevjInfo,
-) -> Result<usize> {
-    context.bind()?;
-    a.validate(n, n)?;
-    b.validate(n, n)?;
-    let mut lwork = 0;
-    // SAFETY: native workspace queries inspect metadata without accessing matrices.
-    unsafe {
-        try_ffi!(sys::cusolverDnChegvj_bufferSize(
-            context.as_raw(),
-            eig_type.into(),
-            mode.into(),
-            fill_mode.into(),
-            to_i32(n, "n")?,
-            ptr::null(),
-            to_i32(a.leading_dimension, "lda")?,
-            ptr::null(),
-            to_i32(b.leading_dimension, "ldb")?,
-            ptr::null(),
-            &raw mut lwork,
-            params.as_raw()
-        ))?;
-    }
-    to_usize(lwork, "lwork")
-}
-
-/// Enqueues the native eigenvalue operation.
-///
-/// # Safety
-/// Keep all borrowed resources alive and order their accesses through completion and every replay.
-/// Inspect completed status before reading or promoting results.
-/// Jacobi parameter storage is exclusive through completion when present.
-/// Selected host counts and bounds must also survive completion and replay.
-///
-/// # Errors
-///
-/// Returns an error if CUDA context binding fails, a device buffer belongs to another CUDA context, matrix dimensions, leading dimensions, or storage capacities are invalid, checked size arithmetic or native integer conversion fails, the status output capacity is insufficient, a pivot, reflector, or numerical output buffer is too small, device scratch capacity is smaller than the queried requirement, or cuSOLVER rejects the configuration or returns an error while querying workspace or submitting execution.
-pub unsafe fn chegvj(
-    context: &Context,
-    eig_type: EigenType,
-    mode: EigenMode,
-    fill_mode: FillMode,
-    n: usize,
-    mut a: MatrixMut<'_, Complex32>,
-    mut b: MatrixMut<'_, Complex32>,
-    mut w: DeviceOutputView<'_, f32>,
-    mut scratch: DeviceOutputView<'_, Complex32>,
-    mut dev_info: DeviceOutputView<'_, i32>,
-    params: &mut SyevjInfo,
-) -> Result<()> {
-    context.bind()?;
-    let values = n;
-    a.layout().require_capacity(n, n, a.data.len())?;
-    b.layout().require_capacity(n, n, b.data.len())?;
-    output(&w, values)?;
-    output(&dev_info, 1)?;
-    context.validate_region(&a.data)?;
-    context.validate_region(&b.data)?;
-    context.validate_region(&w)?;
-    context.validate_region(&scratch)?;
-    context.validate_region(&dev_info)?;
-    let lwork = chegvj_buffer_size(
-        context,
-        eig_type,
-        mode,
-        fill_mode,
-        n,
-        a.layout(),
-        b.layout(),
-        params,
-    )?;
-    workspace(scratch.len(), lwork)?;
-    // SAFETY: validated metadata and the caller's queued-access contract cover native use.
-    unsafe {
-        try_ffi!(sys::cusolverDnChegvj(
-            context.as_raw(),
-            eig_type.into(),
-            mode.into(),
-            fill_mode.into(),
-            to_i32(n, "n")?,
-            a.data.as_mut_ptr().cast(),
-            to_i32(a.leading_dimension, "lda")?,
-            b.data.as_mut_ptr().cast(),
-            to_i32(b.leading_dimension, "ldb")?,
-            w.as_mut_ptr().cast(),
-            scratch.as_mut_ptr().cast(),
-            to_i32(lwork, "lwork")?,
-            dev_info.as_mut_ptr().cast(),
-            params.as_raw()
-        ))?;
-    }
-    Ok(())
-}
-
-/// Queries scratch capacity from layout metadata without allocating buffers.
-///
-/// # Errors
-///
-/// Returns an error if CUDA context binding fails, matrix dimensions or leading dimensions are invalid, a dimension or returned workspace size cannot be represented by the required integer type, checked layout-size arithmetic overflows, or cuSOLVER rejects the configuration or fails to report workspace requirements.
-pub fn chegvd_buffer_size(
-    context: &Context,
-    eig_type: EigenType,
-    mode: EigenMode,
-    fill_mode: FillMode,
-    n: usize,
-    a: MatrixLayout,
-    b: MatrixLayout,
-) -> Result<usize> {
-    context.bind()?;
-    a.validate(n, n)?;
-    b.validate(n, n)?;
-    let mut lwork = 0;
-    // SAFETY: native workspace queries inspect metadata without accessing matrices.
-    unsafe {
-        try_ffi!(sys::cusolverDnChegvd_bufferSize(
-            context.as_raw(),
-            eig_type.into(),
-            mode.into(),
-            fill_mode.into(),
-            to_i32(n, "n")?,
-            ptr::null(),
-            to_i32(a.leading_dimension, "lda")?,
-            ptr::null(),
-            to_i32(b.leading_dimension, "ldb")?,
-            ptr::null(),
-            &raw mut lwork
-        ))?;
-    }
-    to_usize(lwork, "lwork")
-}
-
-/// Enqueues the native eigenvalue operation.
-///
-/// # Safety
-/// Keep all borrowed resources alive and order their accesses through completion and every replay.
-/// Inspect completed status before reading or promoting results.
-/// Jacobi parameter storage is exclusive through completion when present.
-/// Selected host counts and bounds must also survive completion and replay.
-///
-/// # Errors
-///
-/// Returns an error if CUDA context binding fails, a device buffer belongs to another CUDA context, matrix dimensions, leading dimensions, or storage capacities are invalid, checked size arithmetic or native integer conversion fails, the status output capacity is insufficient, a pivot, reflector, or numerical output buffer is too small, device scratch capacity is smaller than the queried requirement, or cuSOLVER rejects the configuration or returns an error while querying workspace or submitting execution.
-pub unsafe fn chegvd(
-    context: &Context,
-    eig_type: EigenType,
-    mode: EigenMode,
-    fill_mode: FillMode,
-    n: usize,
-    mut a: MatrixMut<'_, Complex32>,
-    mut b: MatrixMut<'_, Complex32>,
-    mut w: DeviceOutputView<'_, f32>,
-    mut scratch: DeviceOutputView<'_, Complex32>,
-    mut dev_info: DeviceOutputView<'_, i32>,
-) -> Result<()> {
-    context.bind()?;
-    let values = n;
-    a.layout().require_capacity(n, n, a.data.len())?;
-    b.layout().require_capacity(n, n, b.data.len())?;
-    output(&w, values)?;
-    output(&dev_info, 1)?;
-    context.validate_region(&a.data)?;
-    context.validate_region(&b.data)?;
-    context.validate_region(&w)?;
-    context.validate_region(&scratch)?;
-    context.validate_region(&dev_info)?;
-    let lwork = chegvd_buffer_size(
-        context,
-        eig_type,
-        mode,
-        fill_mode,
-        n,
-        a.layout(),
-        b.layout(),
-    )?;
-    workspace(scratch.len(), lwork)?;
-    // SAFETY: validated metadata and the caller's queued-access contract cover native use.
-    unsafe {
-        try_ffi!(sys::cusolverDnChegvd(
-            context.as_raw(),
-            eig_type.into(),
-            mode.into(),
-            fill_mode.into(),
-            to_i32(n, "n")?,
-            a.data.as_mut_ptr().cast(),
-            to_i32(a.leading_dimension, "lda")?,
-            b.data.as_mut_ptr().cast(),
-            to_i32(b.leading_dimension, "ldb")?,
-            w.as_mut_ptr().cast(),
-            scratch.as_mut_ptr().cast(),
-            to_i32(lwork, "lwork")?,
-            dev_info.as_mut_ptr().cast()
-        ))?;
-    }
-    Ok(())
-}
-
-/// Queries scratch capacity from layout metadata without allocating buffers.
-///
-/// # Errors
-///
-/// Returns an error if CUDA context binding fails, matrix dimensions or leading dimensions are invalid, the selected eigenvalue interval is invalid, a dimension or returned workspace size cannot be represented by the required integer type, checked layout-size arithmetic overflows, or cuSOLVER rejects the configuration or fails to report workspace requirements.
-pub fn chegvdx_selected_buffer_size(
-    context: &Context,
-    eig_type: EigenType,
-    mode: EigenMode,
-    fill_mode: FillMode,
-    selection: &EigenSelection<f32>,
-    n: usize,
-    a: MatrixLayout,
-    b: MatrixLayout,
-) -> Result<usize> {
-    context.bind()?;
-    a.validate(n, n)?;
-    b.validate(n, n)?;
-    let (range, vl, vu, il, iu) = native_selection(selection, n)?;
-    let mut lwork = 0;
-    let mut ignored_count = MaybeUninit::<i32>::uninit();
-    // SAFETY: native workspace queries inspect metadata without accessing matrices.
-    unsafe {
-        try_ffi!(sys::cusolverDnChegvdx_bufferSize(
-            context.as_raw(),
-            eig_type.into(),
-            mode.into(),
-            range.into(),
-            fill_mode.into(),
-            to_i32(n, "n")?,
-            ptr::null(),
-            to_i32(a.leading_dimension, "lda")?,
-            ptr::null(),
-            to_i32(b.leading_dimension, "ldb")?,
-            *vl,
-            *vu,
-            to_i32(il, "il")?,
-            to_i32(iu, "iu")?,
-            ignored_count.as_mut_ptr(),
-            ptr::null(),
-            &raw mut lwork
-        ))?;
-    }
-    to_usize(lwork, "lwork")
-}
-
-/// Enqueues the native eigenvalue operation.
-///
-/// # Safety
-/// Keep all borrowed resources alive and order their accesses through completion and every replay.
-/// Inspect completed status before reading or promoting results.
-/// Jacobi parameter storage is exclusive through completion when present.
-/// Selected host counts and bounds must also survive completion and replay.
-///
-/// # Errors
-///
-/// Returns an error if CUDA context binding fails, a device buffer belongs to another CUDA context, matrix dimensions, leading dimensions, or storage capacities are invalid, checked size arithmetic or native integer conversion fails, the status output capacity is insufficient, a pivot, reflector, or numerical output buffer is too small, device scratch capacity is smaller than the queried requirement, the eigenvalue selection is invalid, or cuSOLVER rejects the configuration or returns an error while querying workspace or submitting execution.
-pub unsafe fn chegvdx_selected(
-    context: &Context,
-    eig_type: EigenType,
-    mode: EigenMode,
-    fill_mode: FillMode,
-    selection: &EigenSelection<f32>,
-    n: usize,
-    mut a: MatrixMut<'_, Complex32>,
-    mut b: MatrixMut<'_, Complex32>,
-    mut w: DeviceOutputView<'_, f32>,
-    mut scratch: DeviceOutputView<'_, Complex32>,
-    mut dev_info: DeviceOutputView<'_, i32>,
-    selected_count: &mut MaybeUninit<i32>,
-) -> Result<()> {
-    context.bind()?;
-    let values = n;
-    a.layout().require_capacity(n, n, a.data.len())?;
-    b.layout().require_capacity(n, n, b.data.len())?;
-    output(&w, values)?;
-    output(&dev_info, 1)?;
-    context.validate_region(&a.data)?;
-    context.validate_region(&b.data)?;
-    context.validate_region(&w)?;
-    context.validate_region(&scratch)?;
-    context.validate_region(&dev_info)?;
-    let lwork = chegvdx_selected_buffer_size(
-        context,
-        eig_type,
-        mode,
-        fill_mode,
-        selection,
-        n,
-        a.layout(),
-        b.layout(),
-    )?;
-    workspace(scratch.len(), lwork)?;
-    let (range, vl, vu, il, iu) = native_selection(selection, n)?;
-    // SAFETY: validated metadata and the caller's queued-access contract cover native use.
-    unsafe {
-        try_ffi!(sys::cusolverDnChegvdx(
-            context.as_raw(),
-            eig_type.into(),
-            mode.into(),
-            range.into(),
-            fill_mode.into(),
-            to_i32(n, "n")?,
-            a.data.as_mut_ptr().cast(),
-            to_i32(a.leading_dimension, "lda")?,
-            b.data.as_mut_ptr().cast(),
-            to_i32(b.leading_dimension, "ldb")?,
-            *vl,
-            *vu,
-            to_i32(il, "il")?,
-            to_i32(iu, "iu")?,
-            selected_count.as_mut_ptr(),
-            w.as_mut_ptr().cast(),
-            scratch.as_mut_ptr().cast(),
-            to_i32(lwork, "lwork")?,
-            dev_info.as_mut_ptr().cast()
-        ))?;
-    }
-    Ok(())
-}
-
-/// Queries scratch capacity from layout metadata without allocating buffers.
-///
-/// # Errors
-///
-/// Returns an error if CUDA context binding fails, matrix dimensions or leading dimensions are invalid, a dimension or returned workspace size cannot be represented by the required integer type, checked layout-size arithmetic overflows, or cuSOLVER rejects the configuration or fails to report workspace requirements.
-pub fn zheevj_buffer_size(
-    context: &Context,
-    mode: EigenMode,
-    fill_mode: FillMode,
-    n: usize,
-    a: MatrixLayout,
-    params: &SyevjInfo,
-) -> Result<usize> {
-    context.bind()?;
-    a.validate(n, n)?;
-    let mut lwork = 0;
-    // SAFETY: native workspace queries inspect metadata without accessing matrices.
-    unsafe {
-        try_ffi!(sys::cusolverDnZheevj_bufferSize(
-            context.as_raw(),
-            mode.into(),
-            fill_mode.into(),
-            to_i32(n, "n")?,
-            ptr::null(),
-            to_i32(a.leading_dimension, "lda")?,
-            ptr::null(),
-            &raw mut lwork,
-            params.as_raw()
-        ))?;
-    }
-    to_usize(lwork, "lwork")
-}
-
-/// Enqueues the native eigenvalue operation.
-///
-/// # Safety
-/// Keep all borrowed resources alive and order their accesses through completion and every replay.
-/// Inspect completed status before reading or promoting results.
-/// Jacobi parameter storage is exclusive through completion when present.
-/// Selected host counts and bounds must also survive completion and replay.
-///
-/// # Errors
-///
-/// Returns an error if CUDA context binding fails, a device buffer belongs to another CUDA context, matrix dimensions, leading dimensions, or storage capacities are invalid, checked size arithmetic or native integer conversion fails, the status output capacity is insufficient, a pivot, reflector, or numerical output buffer is too small, device scratch capacity is smaller than the queried requirement, or cuSOLVER rejects the configuration or returns an error while querying workspace or submitting execution.
-pub unsafe fn zheevj(
-    context: &Context,
-    mode: EigenMode,
-    fill_mode: FillMode,
-    n: usize,
-    mut a: MatrixMut<'_, Complex64>,
-    mut w: DeviceOutputView<'_, f64>,
-    mut scratch: DeviceOutputView<'_, Complex64>,
-    mut dev_info: DeviceOutputView<'_, i32>,
-    params: &mut SyevjInfo,
-) -> Result<()> {
-    context.bind()?;
-    let values = n;
-    a.layout().require_capacity(n, n, a.data.len())?;
-    output(&w, values)?;
-    output(&dev_info, 1)?;
-    context.validate_region(&a.data)?;
-    context.validate_region(&w)?;
-    context.validate_region(&scratch)?;
-    context.validate_region(&dev_info)?;
-    let lwork = zheevj_buffer_size(context, mode, fill_mode, n, a.layout(), params)?;
-    workspace(scratch.len(), lwork)?;
-    // SAFETY: validated metadata and the caller's queued-access contract cover native use.
-    unsafe {
-        try_ffi!(sys::cusolverDnZheevj(
-            context.as_raw(),
-            mode.into(),
-            fill_mode.into(),
-            to_i32(n, "n")?,
-            a.data.as_mut_ptr().cast(),
-            to_i32(a.leading_dimension, "lda")?,
-            w.as_mut_ptr().cast(),
-            scratch.as_mut_ptr().cast(),
-            to_i32(lwork, "lwork")?,
-            dev_info.as_mut_ptr().cast(),
-            params.as_raw()
-        ))?;
-    }
-    Ok(())
-}
-
-/// Queries scratch capacity from layout metadata without allocating buffers.
-///
-/// # Errors
-///
-/// Returns an error if CUDA context binding fails, matrix dimensions or leading dimensions are invalid, the batch count or packed storage extent is invalid, a dimension or returned workspace size cannot be represented by the required integer type, checked layout-size arithmetic overflows, or cuSOLVER rejects the configuration or fails to report workspace requirements.
-pub fn zheevj_batched_buffer_size(
-    context: &Context,
-    mode: EigenMode,
-    fill_mode: FillMode,
-    n: usize,
-    a: MatrixLayout,
-    params: &SyevjInfo,
-    batch_count: usize,
-) -> Result<usize> {
-    context.bind()?;
-    batch_layout(n, a, batch_count, false)?;
-    let mut lwork = 0;
-    // SAFETY: native workspace queries inspect metadata without accessing matrices.
-    unsafe {
-        try_ffi!(sys::cusolverDnZheevjBatched_bufferSize(
-            context.as_raw(),
-            mode.into(),
-            fill_mode.into(),
-            to_i32(n, "n")?,
-            ptr::null(),
-            to_i32(a.leading_dimension, "lda")?,
-            ptr::null(),
-            &raw mut lwork,
-            params.as_raw(),
-            to_i32(batch_count, "batch_count")?
-        ))?;
-    }
-    to_usize(lwork, "lwork")
-}
-
-/// Enqueues the native eigenvalue operation.
-///
-/// # Safety
-/// Keep all borrowed resources alive and order their accesses through completion and every replay.
-/// Inspect completed status before reading or promoting results.
-/// Jacobi parameter storage is exclusive through completion when present.
-/// Selected host counts and bounds must also survive completion and replay.
-///
-/// # Errors
-///
-/// Returns an error if CUDA context binding fails, a device buffer belongs to another CUDA context, matrix dimensions, leading dimensions, or storage capacities are invalid, checked size arithmetic or native integer conversion fails, the status output capacity is insufficient, a pivot, reflector, or numerical output buffer is too small, device scratch capacity is smaller than the queried requirement, batch metadata or related pointer-table lengths are invalid, or cuSOLVER rejects the configuration or returns an error while querying workspace or submitting execution.
-pub unsafe fn zheevj_batched(
-    context: &Context,
-    mode: EigenMode,
-    fill_mode: FillMode,
-    n: usize,
-    mut a: MatrixMut<'_, Complex64>,
-    mut w: DeviceOutputView<'_, f64>,
-    mut scratch: DeviceOutputView<'_, Complex64>,
-    mut dev_info: DeviceOutputView<'_, i32>,
-    params: &mut SyevjInfo,
-    batch_count: usize,
-) -> Result<()> {
-    context.bind()?;
-    let values = batch_layout(n, a.layout(), batch_count, false)?;
-    a.layout().require_capacity(n, values, a.data.len())?;
-    output(&w, values)?;
-    output(&dev_info, batch_count)?;
-    context.validate_region(&a.data)?;
-    context.validate_region(&w)?;
-    context.validate_region(&scratch)?;
-    context.validate_region(&dev_info)?;
-    let lwork =
-        zheevj_batched_buffer_size(context, mode, fill_mode, n, a.layout(), params, batch_count)?;
-    workspace(scratch.len(), lwork)?;
-    // SAFETY: validated metadata and the caller's queued-access contract cover native use.
-    unsafe {
-        try_ffi!(sys::cusolverDnZheevjBatched(
-            context.as_raw(),
-            mode.into(),
-            fill_mode.into(),
-            to_i32(n, "n")?,
-            a.data.as_mut_ptr().cast(),
-            to_i32(a.leading_dimension, "lda")?,
-            w.as_mut_ptr().cast(),
-            scratch.as_mut_ptr().cast(),
-            to_i32(lwork, "lwork")?,
-            dev_info.as_mut_ptr().cast(),
-            params.as_raw(),
-            to_i32(batch_count, "batch_count")?
-        ))?;
-    }
-    Ok(())
-}
-
-/// Queries scratch capacity from layout metadata without allocating buffers.
-///
-/// # Errors
-///
-/// Returns an error if CUDA context binding fails, matrix dimensions or leading dimensions are invalid, a dimension or returned workspace size cannot be represented by the required integer type, checked layout-size arithmetic overflows, or cuSOLVER rejects the configuration or fails to report workspace requirements.
-pub fn zhegvj_buffer_size(
-    context: &Context,
-    eig_type: EigenType,
-    mode: EigenMode,
-    fill_mode: FillMode,
-    n: usize,
-    a: MatrixLayout,
-    b: MatrixLayout,
-    params: &SyevjInfo,
-) -> Result<usize> {
-    context.bind()?;
-    a.validate(n, n)?;
-    b.validate(n, n)?;
-    let mut lwork = 0;
-    // SAFETY: native workspace queries inspect metadata without accessing matrices.
-    unsafe {
-        try_ffi!(sys::cusolverDnZhegvj_bufferSize(
-            context.as_raw(),
-            eig_type.into(),
-            mode.into(),
-            fill_mode.into(),
-            to_i32(n, "n")?,
-            ptr::null(),
-            to_i32(a.leading_dimension, "lda")?,
-            ptr::null(),
-            to_i32(b.leading_dimension, "ldb")?,
-            ptr::null(),
-            &raw mut lwork,
-            params.as_raw()
-        ))?;
-    }
-    to_usize(lwork, "lwork")
-}
-
-/// Enqueues the native eigenvalue operation.
-///
-/// # Safety
-/// Keep all borrowed resources alive and order their accesses through completion and every replay.
-/// Inspect completed status before reading or promoting results.
-/// Jacobi parameter storage is exclusive through completion when present.
-/// Selected host counts and bounds must also survive completion and replay.
-///
-/// # Errors
-///
-/// Returns an error if CUDA context binding fails, a device buffer belongs to another CUDA context, matrix dimensions, leading dimensions, or storage capacities are invalid, checked size arithmetic or native integer conversion fails, the status output capacity is insufficient, a pivot, reflector, or numerical output buffer is too small, device scratch capacity is smaller than the queried requirement, or cuSOLVER rejects the configuration or returns an error while querying workspace or submitting execution.
-pub unsafe fn zhegvj(
-    context: &Context,
-    eig_type: EigenType,
-    mode: EigenMode,
-    fill_mode: FillMode,
-    n: usize,
-    mut a: MatrixMut<'_, Complex64>,
-    mut b: MatrixMut<'_, Complex64>,
-    mut w: DeviceOutputView<'_, f64>,
-    mut scratch: DeviceOutputView<'_, Complex64>,
-    mut dev_info: DeviceOutputView<'_, i32>,
-    params: &mut SyevjInfo,
-) -> Result<()> {
-    context.bind()?;
-    let values = n;
-    a.layout().require_capacity(n, n, a.data.len())?;
-    b.layout().require_capacity(n, n, b.data.len())?;
-    output(&w, values)?;
-    output(&dev_info, 1)?;
-    context.validate_region(&a.data)?;
-    context.validate_region(&b.data)?;
-    context.validate_region(&w)?;
-    context.validate_region(&scratch)?;
-    context.validate_region(&dev_info)?;
-    let lwork = zhegvj_buffer_size(
-        context,
-        eig_type,
-        mode,
-        fill_mode,
-        n,
-        a.layout(),
-        b.layout(),
-        params,
-    )?;
-    workspace(scratch.len(), lwork)?;
-    // SAFETY: validated metadata and the caller's queued-access contract cover native use.
-    unsafe {
-        try_ffi!(sys::cusolverDnZhegvj(
-            context.as_raw(),
-            eig_type.into(),
-            mode.into(),
-            fill_mode.into(),
-            to_i32(n, "n")?,
-            a.data.as_mut_ptr().cast(),
-            to_i32(a.leading_dimension, "lda")?,
-            b.data.as_mut_ptr().cast(),
-            to_i32(b.leading_dimension, "ldb")?,
-            w.as_mut_ptr().cast(),
-            scratch.as_mut_ptr().cast(),
-            to_i32(lwork, "lwork")?,
-            dev_info.as_mut_ptr().cast(),
-            params.as_raw()
-        ))?;
-    }
-    Ok(())
-}
-
-/// Queries scratch capacity from layout metadata without allocating buffers.
-///
-/// # Errors
-///
-/// Returns an error if CUDA context binding fails, matrix dimensions or leading dimensions are invalid, a dimension or returned workspace size cannot be represented by the required integer type, checked layout-size arithmetic overflows, or cuSOLVER rejects the configuration or fails to report workspace requirements.
-pub fn zhegvd_buffer_size(
-    context: &Context,
-    eig_type: EigenType,
-    mode: EigenMode,
-    fill_mode: FillMode,
-    n: usize,
-    a: MatrixLayout,
-    b: MatrixLayout,
-) -> Result<usize> {
-    context.bind()?;
-    a.validate(n, n)?;
-    b.validate(n, n)?;
-    let mut lwork = 0;
-    // SAFETY: native workspace queries inspect metadata without accessing matrices.
-    unsafe {
-        try_ffi!(sys::cusolverDnZhegvd_bufferSize(
-            context.as_raw(),
-            eig_type.into(),
-            mode.into(),
-            fill_mode.into(),
-            to_i32(n, "n")?,
-            ptr::null(),
-            to_i32(a.leading_dimension, "lda")?,
-            ptr::null(),
-            to_i32(b.leading_dimension, "ldb")?,
-            ptr::null(),
-            &raw mut lwork
-        ))?;
-    }
-    to_usize(lwork, "lwork")
-}
-
-/// Enqueues the native eigenvalue operation.
-///
-/// # Safety
-/// Keep all borrowed resources alive and order their accesses through completion and every replay.
-/// Inspect completed status before reading or promoting results.
-/// Jacobi parameter storage is exclusive through completion when present.
-/// Selected host counts and bounds must also survive completion and replay.
-///
-/// # Errors
-///
-/// Returns an error if CUDA context binding fails, a device buffer belongs to another CUDA context, matrix dimensions, leading dimensions, or storage capacities are invalid, checked size arithmetic or native integer conversion fails, the status output capacity is insufficient, a pivot, reflector, or numerical output buffer is too small, device scratch capacity is smaller than the queried requirement, or cuSOLVER rejects the configuration or returns an error while querying workspace or submitting execution.
-pub unsafe fn zhegvd(
-    context: &Context,
-    eig_type: EigenType,
-    mode: EigenMode,
-    fill_mode: FillMode,
-    n: usize,
-    mut a: MatrixMut<'_, Complex64>,
-    mut b: MatrixMut<'_, Complex64>,
-    mut w: DeviceOutputView<'_, f64>,
-    mut scratch: DeviceOutputView<'_, Complex64>,
-    mut dev_info: DeviceOutputView<'_, i32>,
-) -> Result<()> {
-    context.bind()?;
-    let values = n;
-    a.layout().require_capacity(n, n, a.data.len())?;
-    b.layout().require_capacity(n, n, b.data.len())?;
-    output(&w, values)?;
-    output(&dev_info, 1)?;
-    context.validate_region(&a.data)?;
-    context.validate_region(&b.data)?;
-    context.validate_region(&w)?;
-    context.validate_region(&scratch)?;
-    context.validate_region(&dev_info)?;
-    let lwork = zhegvd_buffer_size(
-        context,
-        eig_type,
-        mode,
-        fill_mode,
-        n,
-        a.layout(),
-        b.layout(),
-    )?;
-    workspace(scratch.len(), lwork)?;
-    // SAFETY: validated metadata and the caller's queued-access contract cover native use.
-    unsafe {
-        try_ffi!(sys::cusolverDnZhegvd(
-            context.as_raw(),
-            eig_type.into(),
-            mode.into(),
-            fill_mode.into(),
-            to_i32(n, "n")?,
-            a.data.as_mut_ptr().cast(),
-            to_i32(a.leading_dimension, "lda")?,
-            b.data.as_mut_ptr().cast(),
-            to_i32(b.leading_dimension, "ldb")?,
-            w.as_mut_ptr().cast(),
-            scratch.as_mut_ptr().cast(),
-            to_i32(lwork, "lwork")?,
-            dev_info.as_mut_ptr().cast()
-        ))?;
-    }
-    Ok(())
-}
-
-/// Queries scratch capacity from layout metadata without allocating buffers.
-///
-/// # Errors
-///
-/// Returns an error if CUDA context binding fails, matrix dimensions or leading dimensions are invalid, the selected eigenvalue interval is invalid, a dimension or returned workspace size cannot be represented by the required integer type, checked layout-size arithmetic overflows, or cuSOLVER rejects the configuration or fails to report workspace requirements.
-pub fn zhegvdx_selected_buffer_size(
-    context: &Context,
-    eig_type: EigenType,
-    mode: EigenMode,
-    fill_mode: FillMode,
-    selection: &EigenSelection<f64>,
-    n: usize,
-    a: MatrixLayout,
-    b: MatrixLayout,
-) -> Result<usize> {
-    context.bind()?;
-    a.validate(n, n)?;
-    b.validate(n, n)?;
-    let (range, vl, vu, il, iu) = native_selection(selection, n)?;
-    let mut lwork = 0;
-    let mut ignored_count = MaybeUninit::<i32>::uninit();
-    // SAFETY: native workspace queries inspect metadata without accessing matrices.
-    unsafe {
-        try_ffi!(sys::cusolverDnZhegvdx_bufferSize(
-            context.as_raw(),
-            eig_type.into(),
-            mode.into(),
-            range.into(),
-            fill_mode.into(),
-            to_i32(n, "n")?,
-            ptr::null(),
-            to_i32(a.leading_dimension, "lda")?,
-            ptr::null(),
-            to_i32(b.leading_dimension, "ldb")?,
-            *vl,
-            *vu,
-            to_i32(il, "il")?,
-            to_i32(iu, "iu")?,
-            ignored_count.as_mut_ptr(),
-            ptr::null(),
-            &raw mut lwork
-        ))?;
-    }
-    to_usize(lwork, "lwork")
-}
-
-/// Enqueues the native eigenvalue operation.
-///
-/// # Safety
-/// Keep all borrowed resources alive and order their accesses through completion and every replay.
-/// Inspect completed status before reading or promoting results.
-/// Jacobi parameter storage is exclusive through completion when present.
-/// Selected host counts and bounds must also survive completion and replay.
-///
-/// # Errors
-///
-/// Returns an error if CUDA context binding fails, a device buffer belongs to another CUDA context, matrix dimensions, leading dimensions, or storage capacities are invalid, checked size arithmetic or native integer conversion fails, the status output capacity is insufficient, a pivot, reflector, or numerical output buffer is too small, device scratch capacity is smaller than the queried requirement, the eigenvalue selection is invalid, or cuSOLVER rejects the configuration or returns an error while querying workspace or submitting execution.
-pub unsafe fn zhegvdx_selected(
-    context: &Context,
-    eig_type: EigenType,
-    mode: EigenMode,
-    fill_mode: FillMode,
-    selection: &EigenSelection<f64>,
-    n: usize,
-    mut a: MatrixMut<'_, Complex64>,
-    mut b: MatrixMut<'_, Complex64>,
-    mut w: DeviceOutputView<'_, f64>,
-    mut scratch: DeviceOutputView<'_, Complex64>,
-    mut dev_info: DeviceOutputView<'_, i32>,
-    selected_count: &mut MaybeUninit<i32>,
-) -> Result<()> {
-    context.bind()?;
-    let values = n;
-    a.layout().require_capacity(n, n, a.data.len())?;
-    b.layout().require_capacity(n, n, b.data.len())?;
-    output(&w, values)?;
-    output(&dev_info, 1)?;
-    context.validate_region(&a.data)?;
-    context.validate_region(&b.data)?;
-    context.validate_region(&w)?;
-    context.validate_region(&scratch)?;
-    context.validate_region(&dev_info)?;
-    let lwork = zhegvdx_selected_buffer_size(
-        context,
-        eig_type,
-        mode,
-        fill_mode,
-        selection,
-        n,
-        a.layout(),
-        b.layout(),
-    )?;
-    workspace(scratch.len(), lwork)?;
-    let (range, vl, vu, il, iu) = native_selection(selection, n)?;
-    // SAFETY: validated metadata and the caller's queued-access contract cover native use.
-    unsafe {
-        try_ffi!(sys::cusolverDnZhegvdx(
-            context.as_raw(),
-            eig_type.into(),
-            mode.into(),
-            range.into(),
-            fill_mode.into(),
-            to_i32(n, "n")?,
-            a.data.as_mut_ptr().cast(),
-            to_i32(a.leading_dimension, "lda")?,
-            b.data.as_mut_ptr().cast(),
-            to_i32(b.leading_dimension, "ldb")?,
-            *vl,
-            *vu,
-            to_i32(il, "il")?,
-            to_i32(iu, "iu")?,
-            selected_count.as_mut_ptr(),
-            w.as_mut_ptr().cast(),
-            scratch.as_mut_ptr().cast(),
-            to_i32(lwork, "lwork")?,
-            dev_info.as_mut_ptr().cast()
-        ))?;
-    }
-    Ok(())
-}
-
-/// Queries scratch capacity from layout metadata without allocating buffers.
-///
-/// # Errors
-///
-/// Returns an error if CUDA context binding fails, matrix dimensions or leading dimensions are invalid, a dimension or returned workspace size cannot be represented by the required integer type, checked layout-size arithmetic overflows, or cuSOLVER rejects the configuration or fails to report workspace requirements.
-pub fn xsyevd_buffer_size<T: SolverElement>(
+pub fn xsyevd_workspace_size<T: SolverElement>(
     context: &Context,
     params: &Params,
     mode: EigenMode,
@@ -2076,7 +616,7 @@ pub fn xsyevd_buffer_size<T: SolverElement>(
     a.validate(n, n)?;
     let mut device_bytes = 0;
     let mut host_bytes = 0;
-    // SAFETY: the query reads metadata only.
+    // SAFETY: `context` and `params` are live handles, the size query reads no device data so its matrix pointers may be null, and `device_bytes` and `host_bytes` are writable locals.
     unsafe {
         try_ffi!(sys::cusolverDnXsyevd_bufferSize(
             context.as_raw(),
@@ -2100,18 +640,16 @@ pub fn xsyevd_buffer_size<T: SolverElement>(
     ))
 }
 
-/// Enqueues the native eigenvalue operation.
+/// Enqueues a symmetric or Hermitian eigendecomposition through the native 64-bit interface.
 ///
 /// # Safety
-/// Keep all borrowed resources alive and order their accesses through completion and every replay.
-/// Inspect completed status before reading or promoting results.
-/// Jacobi parameter storage is exclusive through completion when present.
-/// Selected host counts and bounds must also survive completion and replay.
+///
+/// Follow the [raw execution contract](crate#raw-execution).
 ///
 /// # Errors
 ///
-/// Returns an error if CUDA context binding fails, a device buffer belongs to another CUDA context, matrix dimensions, leading dimensions, or storage capacities are invalid, checked size arithmetic or native integer conversion fails, the status output capacity is insufficient, a pivot, reflector, or numerical output buffer is too small, device scratch capacity is smaller than the queried requirement, or cuSOLVER rejects the configuration or returns an error while querying workspace or submitting execution.
-pub unsafe fn xsyevd<T: SolverElement>(
+/// Returns an error if CUDA context binding fails, a device buffer belongs to another CUDA context, matrix dimensions, leading dimensions, or storage capacities are invalid, checked size arithmetic or native integer conversion fails, an eigenvalue or status output is too small, device or host workspace is smaller than the queried requirement, or cuSOLVER rejects the configuration or returns an error while querying workspace or submitting execution.
+pub unsafe fn xsyevd_async<T: SolverElement>(
     context: &Context,
     params: &Params,
     mode: EigenMode,
@@ -2124,17 +662,18 @@ pub unsafe fn xsyevd<T: SolverElement>(
 ) -> Result<()> {
     context.bind()?;
     let values = n;
-    a.layout().require_capacity(n, n, a.data.len())?;
+    a.layout().require_capacity("a", n, n, a.data.len())?;
     output(&w, values)?;
     output(&dev_info, 1)?;
-    context.validate_region(&a.data)?;
-    context.validate_region(&w)?;
-    context.validate_region(&scratch.device)?;
-    context.validate_region(&dev_info)?;
-    let sizes = xsyevd_buffer_size::<T>(context, params, mode, fill_mode, n, a.layout())?;
-    workspace(scratch.device.len(), sizes.device_bytes)?;
-    workspace(scratch.host.len(), sizes.host_bytes)?;
-    // SAFETY: validated storage and the caller's queued-access contract cover native use.
+    context.prepare_region(&a.data)?;
+    context.prepare_region(&w)?;
+    context.prepare_region(&scratch.device)?;
+    context.prepare_region(&dev_info)?;
+    let sizes = xsyevd_workspace_size::<T>(context, params, mode, fill_mode, n, a.layout())?;
+    require_workspace_bytes("device workspace", scratch.device.len(), sizes.device_bytes)?;
+    require_workspace_bytes("host workspace", scratch.host.len(), sizes.host_bytes)?;
+    // SAFETY: the capacities of `a`, `w`, and `dev_info` were checked above, `scratch` covers both queried byte sizes, and `params` is a live handle.
+    // The caller retains and orders every operand through completion per the crate's raw execution contract.
     unsafe {
         try_ffi!(sys::cusolverDnXsyevd(
             context.as_raw(),
@@ -2149,21 +688,21 @@ pub unsafe fn xsyevd<T: SolverElement>(
             w.as_mut_ptr().cast(),
             T::data_type().into(),
             scratch.device.as_mut_ptr().cast(),
-            sizes.device_bytes as _,
+            to_size_t(sizes.device_bytes, "device workspace size")?,
             scratch.host.as_mut_ptr().cast(),
-            sizes.host_bytes as _,
+            to_size_t(sizes.host_bytes, "host workspace size")?,
             dev_info.as_mut_ptr().cast()
         ))?;
     }
     Ok(())
 }
 
-/// Queries scratch capacity from layout metadata without allocating buffers.
+/// Returns the device and host workspace bytes the operation needs, reading only layout metadata.
 ///
 /// # Errors
 ///
 /// Returns an error if CUDA context binding fails, matrix dimensions or leading dimensions are invalid, the selected eigenvalue interval is invalid, a dimension or returned workspace size cannot be represented by the required integer type, checked layout-size arithmetic overflows, or cuSOLVER rejects the configuration or fails to report workspace requirements.
-pub fn xsyevdx_buffer_size<T: SolverElement>(
+pub fn xsyevdx_workspace_size<T: SolverElement>(
     context: &Context,
     params: &Params,
     mode: EigenMode,
@@ -2178,7 +717,7 @@ pub fn xsyevdx_buffer_size<T: SolverElement>(
     let mut device_bytes = 0;
     let mut host_bytes = 0;
     let mut ignored_count = MaybeUninit::<i64>::uninit();
-    // SAFETY: the query reads metadata only.
+    // SAFETY: `context` and `params` are live handles, the size query reads no device data so its matrix pointers may be null, and `device_bytes`, `host_bytes`, and `ignored_count` are writable locals.
     unsafe {
         try_ffi!(sys::cusolverDnXsyevdx_bufferSize(
             context.as_raw(),
@@ -2208,18 +747,19 @@ pub fn xsyevdx_buffer_size<T: SolverElement>(
     ))
 }
 
-/// Enqueues the native eigenvalue operation.
+/// Enqueues a selected symmetric or Hermitian eigendecomposition through the native 64-bit interface.
+///
+/// `selected_count` receives the number of produced eigenvalues when the operation completes.
 ///
 /// # Safety
-/// Keep all borrowed resources alive and order their accesses through completion and every replay.
-/// Inspect completed status before reading or promoting results.
-/// Jacobi parameter storage is exclusive through completion when present.
-/// Selected host counts and bounds must also survive completion and replay.
+///
+/// Follow the [raw execution contract](crate#raw-execution).
+/// `selected_count` is written at completion, so it must also stay alive through completion and replay.
 ///
 /// # Errors
 ///
-/// Returns an error if CUDA context binding fails, a device buffer belongs to another CUDA context, matrix dimensions, leading dimensions, or storage capacities are invalid, checked size arithmetic or native integer conversion fails, the status output capacity is insufficient, a pivot, reflector, or numerical output buffer is too small, device scratch capacity is smaller than the queried requirement, the eigenvalue selection is invalid, or cuSOLVER rejects the configuration or returns an error while querying workspace or submitting execution.
-pub unsafe fn xsyevdx<T: SolverElement>(
+/// Returns an error if CUDA context binding fails, a device buffer belongs to another CUDA context, matrix dimensions, leading dimensions, or storage capacities are invalid, checked size arithmetic or native integer conversion fails, an eigenvalue or status output is too small, device or host workspace is smaller than the queried requirement, the eigenvalue selection is invalid, or cuSOLVER rejects the configuration or returns an error while querying workspace or submitting execution.
+pub unsafe fn xsyevdx_async<T: SolverElement>(
     context: &Context,
     params: &Params,
     mode: EigenMode,
@@ -2234,19 +774,20 @@ pub unsafe fn xsyevdx<T: SolverElement>(
 ) -> Result<()> {
     context.bind()?;
     let values = n;
-    a.layout().require_capacity(n, n, a.data.len())?;
+    a.layout().require_capacity("a", n, n, a.data.len())?;
     output(&w, values)?;
     output(&dev_info, 1)?;
-    context.validate_region(&a.data)?;
-    context.validate_region(&w)?;
-    context.validate_region(&scratch.device)?;
-    context.validate_region(&dev_info)?;
+    context.prepare_region(&a.data)?;
+    context.prepare_region(&w)?;
+    context.prepare_region(&scratch.device)?;
+    context.prepare_region(&dev_info)?;
     let sizes =
-        xsyevdx_buffer_size::<T>(context, params, mode, fill_mode, selection, n, a.layout())?;
-    workspace(scratch.device.len(), sizes.device_bytes)?;
-    workspace(scratch.host.len(), sizes.host_bytes)?;
+        xsyevdx_workspace_size::<T>(context, params, mode, fill_mode, selection, n, a.layout())?;
+    require_workspace_bytes("device workspace", scratch.device.len(), sizes.device_bytes)?;
+    require_workspace_bytes("host workspace", scratch.host.len(), sizes.host_bytes)?;
     let (range, vl, vu, il, iu) = native_selection(selection, n)?;
-    // SAFETY: validated storage and the caller's queued-access contract cover native use.
+    // SAFETY: the capacities of `a`, `w`, and `dev_info` were checked above, `scratch` covers both queried byte sizes, and `params` is a live handle.
+    // The caller retains and orders every operand, including `selected_count`, through completion per the crate's raw execution contract.
     unsafe {
         try_ffi!(sys::cusolverDnXsyevdx(
             context.as_raw(),
@@ -2267,21 +808,21 @@ pub unsafe fn xsyevdx<T: SolverElement>(
             w.as_mut_ptr().cast(),
             T::data_type().into(),
             scratch.device.as_mut_ptr().cast(),
-            sizes.device_bytes as _,
+            to_size_t(sizes.device_bytes, "device workspace size")?,
             scratch.host.as_mut_ptr().cast(),
-            sizes.host_bytes as _,
+            to_size_t(sizes.host_bytes, "host workspace size")?,
             dev_info.as_mut_ptr().cast()
         ))?;
     }
     Ok(())
 }
 
-/// Queries scratch capacity from layout metadata without allocating buffers.
+/// Returns the device and host workspace bytes the operation needs, reading only layout metadata.
 ///
 /// # Errors
 ///
 /// Returns an error if CUDA context binding fails, matrix dimensions or leading dimensions are invalid, the batch count or packed storage extent is invalid, a dimension or returned workspace size cannot be represented by the required integer type, checked layout-size arithmetic overflows, or cuSOLVER rejects the configuration or fails to report workspace requirements.
-pub fn xsyev_batched_buffer_size<T: SolverElement>(
+pub fn xsyev_batched_workspace_size<T: SolverElement>(
     context: &Context,
     params: &Params,
     mode: EigenMode,
@@ -2294,7 +835,7 @@ pub fn xsyev_batched_buffer_size<T: SolverElement>(
     batch_layout(n, a, batch_count, true)?;
     let mut device_bytes = 0;
     let mut host_bytes = 0;
-    // SAFETY: the query reads metadata only.
+    // SAFETY: `context` and `params` are live handles, the size query reads no device data so its matrix pointers may be null, and `device_bytes` and `host_bytes` are writable locals.
     unsafe {
         try_ffi!(sys::cusolverDnXsyevBatched_bufferSize(
             context.as_raw(),
@@ -2319,18 +860,16 @@ pub fn xsyev_batched_buffer_size<T: SolverElement>(
     ))
 }
 
-/// Enqueues the native eigenvalue operation.
+/// Enqueues a packed batched symmetric or Hermitian eigendecomposition through the native 64-bit interface.
 ///
 /// # Safety
-/// Keep all borrowed resources alive and order their accesses through completion and every replay.
-/// Inspect completed status before reading or promoting results.
-/// Jacobi parameter storage is exclusive through completion when present.
-/// Selected host counts and bounds must also survive completion and replay.
+///
+/// Follow the [raw execution contract](crate#raw-execution).
 ///
 /// # Errors
 ///
-/// Returns an error if CUDA context binding fails, a device buffer belongs to another CUDA context, matrix dimensions, leading dimensions, or storage capacities are invalid, checked size arithmetic or native integer conversion fails, the status output capacity is insufficient, a pivot, reflector, or numerical output buffer is too small, device scratch capacity is smaller than the queried requirement, batch metadata or related pointer-table lengths are invalid, or cuSOLVER rejects the configuration or returns an error while querying workspace or submitting execution.
-pub unsafe fn xsyev_batched<T: SolverElement>(
+/// Returns an error if CUDA context binding fails, a device buffer belongs to another CUDA context, matrix dimensions, leading dimensions, or storage capacities are invalid, checked size arithmetic or native integer conversion fails, an eigenvalue or status output is too small, device or host workspace is smaller than the queried requirement, the batch count is zero or the packed batch exceeds native limits, or cuSOLVER rejects the configuration or returns an error while querying workspace or submitting execution.
+pub unsafe fn xsyev_batched_async<T: SolverElement>(
     context: &Context,
     params: &Params,
     mode: EigenMode,
@@ -2344,14 +883,14 @@ pub unsafe fn xsyev_batched<T: SolverElement>(
 ) -> Result<()> {
     context.bind()?;
     let values = batch_layout(n, a.layout(), batch_count, true)?;
-    a.layout().require_capacity(n, values, a.data.len())?;
+    a.layout().require_capacity("a", n, values, a.data.len())?;
     output(&w, values)?;
     output(&dev_info, batch_count)?;
-    context.validate_region(&a.data)?;
-    context.validate_region(&w)?;
-    context.validate_region(&scratch.device)?;
-    context.validate_region(&dev_info)?;
-    let sizes = xsyev_batched_buffer_size::<T>(
+    context.prepare_region(&a.data)?;
+    context.prepare_region(&w)?;
+    context.prepare_region(&scratch.device)?;
+    context.prepare_region(&dev_info)?;
+    let sizes = xsyev_batched_workspace_size::<T>(
         context,
         params,
         mode,
@@ -2360,9 +899,10 @@ pub unsafe fn xsyev_batched<T: SolverElement>(
         a.layout(),
         batch_count,
     )?;
-    workspace(scratch.device.len(), sizes.device_bytes)?;
-    workspace(scratch.host.len(), sizes.host_bytes)?;
-    // SAFETY: validated storage and the caller's queued-access contract cover native use.
+    require_workspace_bytes("device workspace", scratch.device.len(), sizes.device_bytes)?;
+    require_workspace_bytes("host workspace", scratch.host.len(), sizes.host_bytes)?;
+    // SAFETY: the capacities of `a`, `w`, and `dev_info` were checked above, `scratch` covers both queried byte sizes, and `params` is a live handle.
+    // The caller retains and orders every operand through completion per the crate's raw execution contract.
     unsafe {
         try_ffi!(sys::cusolverDnXsyevBatched(
             context.as_raw(),
@@ -2377,9 +917,9 @@ pub unsafe fn xsyev_batched<T: SolverElement>(
             w.as_mut_ptr().cast(),
             T::data_type().into(),
             scratch.device.as_mut_ptr().cast(),
-            sizes.device_bytes as _,
+            to_size_t(sizes.device_bytes, "device workspace size")?,
             scratch.host.as_mut_ptr().cast(),
-            sizes.host_bytes as _,
+            to_size_t(sizes.host_bytes, "host workspace size")?,
             dev_info.as_mut_ptr().cast(),
             to_i64(batch_count, "batch_count")?
         ))?;
@@ -2387,7 +927,7 @@ pub unsafe fn xsyev_batched<T: SolverElement>(
     Ok(())
 }
 
-/// Queries scratch capacity from layout metadata without allocating buffers.
+/// Returns the device and host workspace bytes the operation needs, reading only layout metadata.
 ///
 /// Real inputs support n complex eigenvalues or two n-element real blocks holding real and imaginary parts.
 /// Eigenvectors always use the input type.
@@ -2397,7 +937,7 @@ pub unsafe fn xsyev_batched<T: SolverElement>(
 /// # Errors
 ///
 /// Returns an error if CUDA context binding fails, matrix dimensions or leading dimensions are invalid, a dimension or returned workspace size cannot be represented by the required integer type, checked layout-size arithmetic overflows, or cuSOLVER rejects the configuration or fails to report workspace requirements.
-pub fn xgeev_buffer_size<T: SolverElement, W: EigenvalueElement<T>>(
+pub fn xgeev_workspace_size<T: SolverElement, W: EigenvalueElement<T>>(
     context: &Context,
     params: &Params,
     n: usize,
@@ -2421,7 +961,7 @@ pub fn xgeev_buffer_size<T: SolverElement, W: EigenvalueElement<T>>(
     )?;
     let mut device_bytes = 0;
     let mut host_bytes = 0;
-    // SAFETY: the query reads metadata only.
+    // SAFETY: `context` and `params` are live handles, the size query reads no device data so its matrix pointers may be null, and `device_bytes` and `host_bytes` are writable locals.
     unsafe {
         try_ffi!(sys::cusolverDnXgeev_bufferSize(
             context.as_raw(),
@@ -2451,23 +991,21 @@ pub fn xgeev_buffer_size<T: SolverElement, W: EigenvalueElement<T>>(
     ))
 }
 
-/// Enqueues the native eigenvalue operation.
-///
-/// # Safety
-/// Keep all borrowed resources alive and order their accesses through completion and every replay.
-/// Inspect completed status before reading or promoting results.
-/// Jacobi parameter storage is exclusive through completion when present.
-/// Selected host counts and bounds must also survive completion and replay.
+/// Enqueues a general eigendecomposition through the native 64-bit interface.
 ///
 /// Real inputs support n complex eigenvalues or two n-element real blocks holding real and imaginary parts.
 /// Eigenvectors always use the input type.
 /// For real A, a conjugate pair uses adjacent real and imaginary vector columns: `v[j] + i*v[j+1]` and `v[j] - i*v[j+1]`.
 /// Complex A produces complex columns.
 ///
+/// # Safety
+///
+/// Follow the [raw execution contract](crate#raw-execution).
+///
 /// # Errors
 ///
-/// Returns an error if CUDA context binding fails, a device buffer belongs to another CUDA context, matrix dimensions, leading dimensions, or storage capacities are invalid, checked size arithmetic or native integer conversion fails, the status output capacity is insufficient, a pivot, reflector, or numerical output buffer is too small, device scratch capacity is smaller than the queried requirement, or cuSOLVER rejects the configuration or returns an error while querying workspace or submitting execution.
-pub unsafe fn xgeev<T: SolverElement, W: EigenvalueElement<T>>(
+/// Returns an error if CUDA context binding fails, a device buffer belongs to another CUDA context, matrix dimensions, leading dimensions, or storage capacities are invalid, checked size arithmetic or native integer conversion fails, an eigenvalue or status output is too small, device or host workspace is smaller than the queried requirement, or cuSOLVER rejects the configuration or returns an error while querying workspace or submitting execution.
+pub unsafe fn xgeev_async<T: SolverElement, W: EigenvalueElement<T>>(
     context: &Context,
     params: &Params,
     n: usize,
@@ -2479,22 +1017,27 @@ pub unsafe fn xgeev<T: SolverElement, W: EigenvalueElement<T>>(
 ) -> Result<()> {
     context.bind()?;
     let values = n;
-    a.layout().require_capacity(n, n, a.data.len())?;
+    a.layout().require_capacity("a", n, n, a.data.len())?;
     let values = values
         .checked_mul(W::ELEMENTS_PER_VALUE)
         .ok_or(Error::InvalidVectorShape)?;
     if let Some(vectors) = &right_vectors {
-        MatrixLayout::new(vectors.leading_dimension).require_capacity(n, n, vectors.data.len())?;
-        context.validate_region(&vectors.data)?;
+        MatrixLayout::new(vectors.leading_dimension).require_capacity(
+            "vectors",
+            n,
+            n,
+            vectors.data.len(),
+        )?;
+        context.prepare_region(&vectors.data)?;
     }
 
     output(&w, values)?;
     output(&dev_info, 1)?;
-    context.validate_region(&a.data)?;
-    context.validate_region(&w)?;
-    context.validate_region(&scratch.device)?;
-    context.validate_region(&dev_info)?;
-    let sizes = xgeev_buffer_size::<T, W>(
+    context.prepare_region(&a.data)?;
+    context.prepare_region(&w)?;
+    context.prepare_region(&scratch.device)?;
+    context.prepare_region(&dev_info)?;
+    let sizes = xgeev_workspace_size::<T, W>(
         context,
         params,
         n,
@@ -2503,8 +1046,8 @@ pub unsafe fn xgeev<T: SolverElement, W: EigenvalueElement<T>>(
             .as_ref()
             .map(|v| MatrixLayout::new(v.leading_dimension)),
     )?;
-    workspace(scratch.device.len(), sizes.device_bytes)?;
-    workspace(scratch.host.len(), sizes.host_bytes)?;
+    require_workspace_bytes("device workspace", scratch.device.len(), sizes.device_bytes)?;
+    require_workspace_bytes("host workspace", scratch.host.len(), sizes.host_bytes)?;
     let mode = if right_vectors.is_some() {
         EigenMode::Vector
     } else {
@@ -2517,7 +1060,8 @@ pub unsafe fn xgeev<T: SolverElement, W: EigenvalueElement<T>>(
     let vr_ptr = right_vectors
         .as_mut()
         .map_or(ptr::null_mut(), |v| v.data.as_mut_ptr().cast());
-    // SAFETY: validated storage and the caller's queued-access contract cover native use.
+    // SAFETY: the capacities of `a`, `w`, `right_vectors`, and `dev_info` were checked above, `scratch` covers both queried byte sizes, and `params` is a live handle.
+    // The caller retains and orders every operand through completion per the crate's raw execution contract.
     unsafe {
         try_ffi!(sys::cusolverDnXgeev(
             context.as_raw(),
@@ -2538,9 +1082,9 @@ pub unsafe fn xgeev<T: SolverElement, W: EigenvalueElement<T>>(
             ldvr,
             T::data_type().into(),
             scratch.device.as_mut_ptr().cast(),
-            sizes.device_bytes as _,
+            to_size_t(sizes.device_bytes, "device workspace size")?,
             scratch.host.as_mut_ptr().cast(),
-            sizes.host_bytes as _,
+            to_size_t(sizes.host_bytes, "host workspace size")?,
             dev_info.as_mut_ptr().cast()
         ))?;
     }

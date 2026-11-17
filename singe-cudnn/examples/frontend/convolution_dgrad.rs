@@ -4,7 +4,6 @@ use std::env::args;
 
 use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
-    backend::tensor::{Shape, TensorSpec},
     data_type::{DataType, f16},
     error::Result,
     frontend::{
@@ -12,6 +11,7 @@ use singe_cudnn::{
         operation::ConvolutionConfig,
         plan::{CompileConfig, ExecuteArgs, HeuristicMode},
     },
+    tensor::{Shape, TensorSpec},
 };
 
 fn run() -> Result<()> {
@@ -56,7 +56,7 @@ fn run() -> Result<()> {
     )?;
 
     let mut half_seed = 123_456_789_u32;
-    let dy_dev = DeviceMemory::from_slice(
+    let y_grad_dev = DeviceMemory::from_slice(
         example.cudnn.cuda_context(),
         &common::init_f16_image(gradient_elements, &mut half_seed),
     )?;
@@ -64,20 +64,20 @@ fn run() -> Result<()> {
         example.cudnn.cuda_context(),
         &common::init_f16_image(filter_elements, &mut half_seed),
     )?;
-    let mut dx_dev = DeviceMemory::from_slice(
+    let mut x_grad_dev = DeviceMemory::from_slice(
         example.cudnn.cuda_context(),
         &vec![f16::from_f32(if accumulate { 0.5 } else { 0.0 }); output_elements],
     )?;
     let mut workspace = common::workspace(example.cudnn.cuda_context(), compiled.workspace_size())?;
     let mut bindings = compiled.bindings()?;
-    bindings.set_input(dy, &dy_dev)?;
+    bindings.set_input(dy, &y_grad_dev)?;
     bindings.set_input(w, &w_dev)?;
-    bindings.set(dx, &mut dx_dev)?;
+    bindings.set(dx, &mut x_grad_dev)?;
     // SAFETY: initialized inputs, accumulated output and workspace remain live through stream completion.
     example.execute_and_wait(|context| unsafe {
-        compiled.execute(
+        compiled.execute_async(
             context,
-            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
         )
     })?;
 
@@ -91,6 +91,6 @@ fn run() -> Result<()> {
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_convolution_backward_data", run())
 }

@@ -23,7 +23,7 @@ use syn::{
 use walkdir::WalkDir;
 
 #[derive(Serialize)]
-struct Declaration {
+struct Record {
     file: String,
     kind: &'static str,
     name: String,
@@ -41,7 +41,7 @@ struct Declaration {
 struct Collector {
     file: String,
     owners: Vec<String>,
-    items: Vec<Declaration>,
+    items: Vec<Record>,
 }
 
 impl Collector {
@@ -80,7 +80,7 @@ impl Collector {
         } else {
             tokens.to_string()
         };
-        self.items.push(Declaration {
+        self.items.push(Record {
             file: self.file.clone(),
             kind,
             name,
@@ -121,16 +121,16 @@ impl<'ast> Visit<'ast> for Collector {
     fn visit_item(&mut self, item: &'ast Item) {
         match item {
             Item::Const(item) => {
-                self.record("constant", item.ident.to_string(), item, &item.attrs, None)
+                self.record("constant", item.ident.to_string(), item, &item.attrs, None);
             }
             Item::Static(item) => {
-                self.record("static", item.ident.to_string(), item, &item.attrs, None)
+                self.record("static", item.ident.to_string(), item, &item.attrs, None);
             }
             Item::Type(item) => {
-                self.record("type", item.ident.to_string(), item, &item.attrs, None)
+                self.record("type", item.ident.to_string(), item, &item.attrs, None);
             }
             Item::Trait(item) => {
-                self.record("trait", item.ident.to_string(), item, &item.attrs, None)
+                self.record("trait", item.ident.to_string(), item, &item.attrs, None);
             }
             Item::Union(item) => {
                 self.record("union", item.ident.to_string(), item, &item.attrs, None);
@@ -245,7 +245,7 @@ impl<'ast> Visit<'ast> for Collector {
                 None,
             ),
             TraitItem::Const(item) => {
-                self.record("constant", item.ident.to_string(), item, &item.attrs, None)
+                self.record("constant", item.ident.to_string(), item, &item.attrs, None);
             }
             _ => (),
         }
@@ -341,10 +341,10 @@ fn audit_tokens(mut file: File) -> TokenStream {
 
 fn without_docs(tokens: TokenStream) -> TokenStream {
     let mut output = TokenStream::new();
-    let mut tokens = tokens.into_iter().peekable();
+    let mut tokens = tokens.into_iter();
     while let Some(token) = tokens.next() {
         if matches!(&token, TokenTree::Punct(punct) if punct.as_char() == '#') {
-            let mut lookahead = tokens.clone();
+            let mut lookahead = tokens.clone().peekable();
             let inner =
                 matches!(lookahead.peek(), Some(TokenTree::Punct(punct)) if punct.as_char() == '!');
             if inner {

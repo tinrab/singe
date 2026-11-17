@@ -6,21 +6,7 @@ generate:
     #!/usr/bin/env bash
     set -euxo pipefail
 
-    nvjpeg_num_enums=(
-        "nvjpegStatus_t"
-        "nvjpegExifOrientation_t"
-        "nvjpegChromaSubsampling_t"
-        "nvjpegOutputFormat_t"
-        "nvjpegInputFormat_t"
-        "nvjpegBackend_t"
-        "nvjpegEncBackend_t"
-        "nvjpegJpegEncoding_t"
-        "nvjpegScaleFactor_t"
-    )
-    nvjpeg_enum_args=$(for enum in "${nvjpeg_num_enums[@]}"; do echo -n "--with-derive-custom $enum=TryFromPrimitive,IntoPrimitive "; done)
-
     bindgen {{nvjpeg_include_path}}/nvjpeg.h \
-        $nvjpeg_enum_args \
         --allowlist-item "^nvjpeg.*" \
         --allowlist-item "^NVJPEG.*" \
         --blocklist-item "^cuda.*" \
@@ -35,7 +21,7 @@ generate:
         --with-derive-hash \
         --with-derive-ord \
         --use-core \
-        --default-enum-style=rust \
+        --default-enum-style=newtype \
         -- \
             -I {{nvjpeg_include_path}} \
             -I {{cuda_path}}/include \
@@ -51,20 +37,7 @@ generate:
     fi
     mv bindings.rs ./src/sys_${NVJPEG_VERSION}.rs
 
-    nvjpeg2k_num_enums=(
-        "nvjpeg2kStatus_t"
-        "nvjpeg2kBackend_t"
-        "nvjpeg2kColorSpace_t"
-        "nvjpeg2kImageType_t"
-        "nvjpeg2kImageFormat_t"
-        "nvjpeg2kProgOrder_t"
-        "nvjpeg2kBitstreamType_t"
-        "nvjpeg2kQualityType_t"
-    )
-    nvjpeg2k_enum_args=$(for enum in "${nvjpeg2k_num_enums[@]}"; do echo -n "--with-derive-custom $enum=TryFromPrimitive,IntoPrimitive "; done)
-
     bindgen {{nvjpeg2k_include_path}}/nvjpeg2k.h \
-        $nvjpeg2k_enum_args \
         --allowlist-item "^nvjpeg2k.*" \
         --allowlist-item "^NVJPEG2K.*" \
         --blocklist-item "^cuda.*" \
@@ -79,7 +52,7 @@ generate:
         --with-derive-hash \
         --with-derive-ord \
         --use-core \
-        --default-enum-style=rust \
+        --default-enum-style=newtype \
         -- \
             -I {{nvjpeg2k_include_path}} \
             -I {{cuda_path}}/include \

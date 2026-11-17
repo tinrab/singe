@@ -1,7 +1,11 @@
 use serde::{Deserialize, Serialize};
 
-pub use crate::backend::execution::normalization::NormalizationSavedStatistics;
-use crate::backend::{normalization::BackendNormalizationForwardPhase, tensor::TensorId};
+use crate::{
+    backend::operation::normalization::{
+        BackendNormalizationForwardPhase, NormalizationSavedStatistics,
+    },
+    tensor::TensorId,
+};
 
 /// Inference has no saved-statistics operands.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]

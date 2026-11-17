@@ -1,16 +1,15 @@
 use serde::{Deserialize, Serialize};
 
-pub use crate::backend::execution::rope::{RopeBackwardInputs, RopeConfig, RopeInputs};
 use crate::{
-    backend::{
-        execution::rope::{RopeBackwardOperation, RopeForwardOperation},
-        tensor::TensorId,
+    backend::operation::rope::{
+        RopeBackwardInputs, RopeBackwardOperation, RopeForwardOperation, RopeInputs, RopeOptions,
     },
     error::Result,
     frontend::{
         graph::Graph,
         lower::{LoweredOperation, LoweringContext, tensor_at},
     },
+    tensor::TensorId,
 };
 
 /// Frontend forward or backward rotary position embedding operation.
@@ -23,7 +22,7 @@ pub enum RopeOperation {
         /// Rotated activation destination identity.
         output: TensorId,
         /// Rotation dimension, output scale, and optional diagnostic name.
-        config: RopeConfig,
+        config: RopeOptions,
     },
     /// Applies the transpose rotation to produce input gradients.
     Backward {
@@ -32,7 +31,7 @@ pub enum RopeOperation {
         /// Input-gradient destination identity.
         input_gradient: TensorId,
         /// Rotation dimension and output scale matching the corresponding forward rotation.
-        config: RopeConfig,
+        config: RopeOptions,
     },
 }
 

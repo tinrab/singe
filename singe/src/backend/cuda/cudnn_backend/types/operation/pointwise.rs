@@ -1,5 +1,5 @@
 use singe_cudnn::backend::{
-    execution::pointwise::{
+    operation::pointwise::{
         PointwiseDescriptor as CudnnPointwiseDescriptor,
         PointwiseOperation as CudnnPointwiseOperation,
     },

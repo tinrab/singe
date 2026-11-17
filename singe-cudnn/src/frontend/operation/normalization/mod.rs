@@ -7,16 +7,12 @@ mod statistics;
 
 use serde::{Deserialize, Serialize};
 
-use crate::backend::tensor::TensorId;
 pub use crate::frontend::operation::normalization::{
     batch::{
         BatchNormalizationBackwardConfig, BatchNormalizationBackwardInputs,
         BatchNormalizationBackwardOutputs, BatchNormalizationBackwardWeightsConfig,
-        BatchNormalizationBackwardWeightsInputs, BatchNormalizationBackwardWeightsOutputs,
         BatchNormalizationConfig, BatchNormalizationFinalizeConfig,
-        BatchNormalizationFinalizeInputs, BatchNormalizationFinalizeOutputs,
         BatchNormalizationInferenceInputs, BatchNormalizationInputs, BatchNormalizationOutputs,
-        BatchNormalizationRunningStatistics, BatchNormalizationRunningStats,
     },
     layer_rms::{
         LayerNormalizationAffine, LayerNormalizationAffineGradients,
@@ -35,7 +31,14 @@ pub use crate::frontend::operation::normalization::{
         AdaptiveLayerNormalizationOutputs, InstanceNormalizationConfig,
         InstanceNormalizationInputs, InstanceNormalizationOutputs,
     },
-    statistics::{NormalizationSavedStatistics, NormalizationStatistics},
+    statistics::NormalizationStatistics,
+};
+use crate::{
+    backend::operation::normalization::{
+        BatchNormalizationBackwardWeightsInputs, BatchNormalizationBackwardWeightsOutputs,
+        BatchNormalizationFinalizeInputs, BatchNormalizationFinalizeOutputs,
+    },
+    tensor::TensorId,
 };
 
 /// Common attributes for normalization operations without additional operation options.

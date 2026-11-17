@@ -7,7 +7,7 @@ use singe::{
     error::Error,
     graph::{Graph, GraphPrepareOptions},
 };
-use singe_cuda::testing::device_lock;
+use singe_cuda::{device::Device as CudaDevice, testing::device_lock};
 
 fn tensor(device: Device, dimensions: &[i64], values: Vec<f32>) -> Tensor {
     Tensor::from_vec(device, Shape::create(dimensions.to_vec()).unwrap(), values).unwrap()
@@ -15,7 +15,7 @@ fn tensor(device: Device, dimensions: &[i64], values: Vec<f32>) -> Tensor {
 
 #[test]
 fn test_compiled_cuda_graphs_report_out_of_range_indices_after_replay() {
-    let _lock = device_lock(0).unwrap();
+    let _lock = device_lock(CudaDevice::new(0)).unwrap();
     let device = Device::Cuda(0);
     let input = tensor(device, &[3, 2], vec![1., 2., 3., 4., 5., 6.]);
     let rows = Tensor::from_vec(device, Shape::create([2]).unwrap(), vec![0_i64, 2]).unwrap();

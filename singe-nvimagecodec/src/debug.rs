@@ -1,18 +1,19 @@
 use std::{
     ffi::c_void,
     fmt::{self, Debug, Formatter},
+    mem::ManuallyDrop,
+    panic::{self, AssertUnwindSafe},
     ptr,
 };
 
-use singe_core::string_from_c_ptr;
+use singe_core::{report_cleanup_failure, string_from_c_ptr};
 use singe_nvimagecodec_sys as sys;
 
 use crate::{
     error::{Error, Result},
     instance::{Instance, InstanceRef},
     try_ffi,
-    types::{DebugMessageCategory, DebugMessageSeverity},
-    utility::{NativeStruct, debug_callback},
+    types::{DebugMessageCategory, DebugMessageSeverity, NativeStruct},
 };
 
 pub(crate) type DebugCallbackFn = dyn for<'a> Fn(DebugMessage<'a>) + Send + Sync + 'static;
@@ -23,11 +24,12 @@ pub(crate) type DebugCallbackFn = dyn for<'a> Fn(DebugMessage<'a>) + Send + Sync
 #[derive(Debug)]
 pub struct DebugMessenger {
     raw: sys::nvimgcodecDebugMessenger_t,
-    _instance: InstanceRef,
-    _callback: Option<Box<DebugCallback>>,
+    instance: InstanceRef,
+    callback: Option<Box<DebugCallback>>,
 }
 
-pub(crate) struct DebugCallback(pub(crate) Box<DebugCallbackFn>);
+/// Rust callback that a [`DebugMessenger`] passes nvImageCodec's messages to.
+pub struct DebugCallback(pub(crate) Box<DebugCallbackFn>);
 
 impl Debug for DebugCallback {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
@@ -46,10 +48,14 @@ pub struct DebugMessage<'a> {
 /// Native debug-messenger handle with the values that keep it valid, from [`DebugMessenger::into_raw`].
 ///
 /// Destroy the handle before dropping this value, or pass it back to [`DebugMessenger::from_raw`].
+#[derive(Debug)]
 pub struct RawDebugMessenger {
-    /// Native debug-messenger handle.
+    /// Native debug-messenger handle, owned exclusively.
     pub handle: sys::nvimgcodecDebugMessenger_t,
-    owner: DebugMessenger,
+    /// Instance the handle was created with.
+    pub instance: Instance,
+    /// Callback whose address the handle was given as user data, or `None` if the caller keeps its callback data alive.
+    pub callback: Option<Box<DebugCallback>>,
 }
 
 impl DebugMessenger {
@@ -71,10 +77,12 @@ impl DebugMessenger {
         desc.message_severity = severity.bits();
         desc.message_category = category.bits();
         desc.user_callback = Some(debug_callback);
-        desc.user_data = ptr::from_ref::<DebugCallback>(callback.as_ref()) as *mut c_void;
+        desc.user_data = ptr::from_ref::<DebugCallback>(callback.as_ref())
+            .cast_mut()
+            .cast::<c_void>();
 
         let mut raw = ptr::null_mut();
-        // SAFETY: `nvimgcodecDebugMessengerCreate` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
+        // SAFETY: `instance` is live, `desc` is a local that outlives the call, its user data points to the boxed callback the messenger keeps, which `debug_callback` only reads, and `raw` is a writable local.
         unsafe {
             try_ffi!(sys::nvimgcodecDebugMessengerCreate(
                 instance.as_raw(),
@@ -89,8 +97,8 @@ impl DebugMessenger {
 
         Ok(Self {
             raw,
-            _instance: instance.as_instance_ref(),
-            _callback: Some(callback),
+            instance: instance.as_instance_ref(),
+            callback: Some(callback),
         })
     }
 
@@ -100,52 +108,45 @@ impl DebugMessenger {
         self.raw
     }
 
-    /// Takes ownership of a native debug messenger created outside this crate.
+    /// Takes ownership of a native debug messenger, from [`into_raw`](Self::into_raw) or created outside this crate.
     ///
     /// # Safety
     ///
-    /// `raw` must be valid, created with `instance`, and owned by nobody else.
-    /// If it has a callback, the caller must keep the callback's data alive separately.
+    /// `raw.handle` must be valid, created with `raw.instance`, and owned by nobody else.
+    /// `raw.callback` must be the callback the handle was created with, or `None`, in which case the caller must keep the callback's data alive separately.
     ///
     /// # Errors
     ///
-    /// Returns an error if `raw` is null.
-    pub unsafe fn from_raw_parts(
-        instance: &Instance,
-        raw: sys::nvimgcodecDebugMessenger_t,
-    ) -> Result<Self> {
-        if raw.is_null() {
+    /// Returns [`Error::NullHandle`] if `raw.handle` is null.
+    pub unsafe fn from_raw(raw: RawDebugMessenger) -> Result<Self> {
+        if raw.handle.is_null() {
             return Err(Error::NullHandle);
         }
 
         Ok(Self {
-            raw,
-            _instance: instance.as_instance_ref(),
-            _callback: None,
+            raw: raw.handle,
+            instance: raw.instance.into_instance_ref(),
+            callback: raw.callback,
         })
-    }
-
-    /// Takes back ownership of a handle from [`into_raw`](Self::into_raw).
-    ///
-    /// # Safety
-    ///
-    /// The handle must still be valid and owned by nobody else, with its original callback.
-    #[must_use]
-    pub unsafe fn from_raw(mut raw: RawDebugMessenger) -> Self {
-        raw.owner.raw = raw.handle;
-        raw.owner
     }
 
     /// Releases the native handle with the values that keep it valid, including the callback.
     ///
     /// Destroy the handle or pass it back to [`from_raw`](Self::from_raw).
     #[must_use]
-    pub fn into_raw(mut self) -> RawDebugMessenger {
-        let handle = self.raw;
-        self.raw = ptr::null_mut();
+    pub fn into_raw(self) -> RawDebugMessenger {
+        let this = ManuallyDrop::new(self);
+        // SAFETY: `this` is never dropped, so each owning field moves out exactly once.
+        let (instance, callback) = unsafe {
+            (
+                ptr::read(&raw const this.instance),
+                ptr::read(&raw const this.callback),
+            )
+        };
         RawDebugMessenger {
-            handle,
-            owner: self,
+            handle: this.raw,
+            instance: instance.into_instance(),
+            callback,
         }
     }
 }
@@ -212,15 +213,43 @@ impl DebugMessage<'_> {
 impl Drop for DebugMessenger {
     fn drop(&mut self) {
         if !self.raw.is_null() {
-            // SAFETY: `nvimgcodecDebugMessengerDestroy` receives live handles owned by the wrappers.
-            unsafe {
-                if let Err(error) = try_ffi!(sys::nvimgcodecDebugMessengerDestroy(self.raw)) {
-                    eprintln!(
-                        "failed to free nvimagecodec debug messenger: {}",
-                        singe_core::ErrorChain(&error)
-                    );
-                }
+            // SAFETY: `self.raw` is the live messenger this value owns, and its callback box is dropped only after this call, so no message arrives after it is freed.
+            if let Err(error) = unsafe { try_ffi!(sys::nvimgcodecDebugMessengerDestroy(self.raw)) }
+            {
+                report_cleanup_failure("destroy", "nvimagecodec debug messenger", &error);
             }
         }
     }
+}
+
+unsafe extern "C" fn debug_callback(
+    message_severity: sys::nvimgcodecDebugMessageSeverity_t,
+    message_category: sys::nvimgcodecDebugMessageCategory_t,
+    callback_data: *const sys::nvimgcodecDebugMessageData_t,
+    user_data: *mut c_void,
+) -> i32 {
+    if user_data.is_null() || callback_data.is_null() {
+        return 1;
+    }
+
+    // SAFETY: nvImageCodec passes back the `DebugCallback` registered with this messenger, which outlives it.
+    let callback = unsafe { &*user_data.cast::<DebugCallback>().cast_const() };
+    // SAFETY: nvImageCodec passes message data that stays valid for the duration of the callback.
+    let data = unsafe { &*callback_data };
+    let message = DebugMessage::from_raw(
+        DebugMessageSeverity::from_bits_retain(message_severity.0),
+        DebugMessageCategory::from_bits_retain(message_category.0),
+        data,
+    );
+
+    // Unwinding must not reach nvImageCodec, so a panicking callback loses this message.
+    if panic::catch_unwind(AssertUnwindSafe(|| (callback.0)(message))).is_err() {
+        if cfg!(debug_assertions) {
+            eprintln!("nvimagecodec debug messenger callback panicked");
+        }
+
+        return 1;
+    }
+
+    0
 }

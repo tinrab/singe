@@ -1,16 +1,8 @@
-//! Storage metadata and raw ownership for cuSPARSE data descriptors.
+//! Raw ownership of cuSPARSE data and analysis descriptors.
 
 use std::sync::Arc;
 
-use singe_cuda::{
-    context::Context as CudaContext,
-    view::{DeviceInput, DeviceOutputView, DeviceRegion, DeviceRepr},
-};
-
-use crate::{
-    context::Context,
-    error::{Error, Result},
-};
+use singe_cuda::{context::Context as CudaContext, view::DeviceRegion};
 
 /// A transferred opaque native resource and the CUDA context needed to destroy it.
 /// External analysis workspaces remain subject to the raw execution contract.
@@ -37,81 +29,125 @@ pub struct RawDescriptor<'a, H> {
     pub regions: Vec<Option<DeviceRegion<'a>>>,
 }
 
-pub(crate) fn output_region<'a, T: DeviceRepr>(
-    context: &Context,
-    output: DeviceOutputView<'a, T>,
-    minimum: usize,
-    name: &str,
-) -> Result<DeviceRegion<'a>> {
-    output_region_for(context.cuda_context(), output, minimum, name)
-}
+macro_rules! analysis_descriptor {
+    (
+        $(#[$meta:meta])*
+        $name:ident {
+            raw: $raw:ty,
+            object: $object:literal,
+            create: $create:path,
+            destroy: $destroy:path $(,)?
+        }
+    ) => {
+        $(#[$meta])*
+        #[derive(Debug)]
+        pub struct $name {
+            handle: $raw,
+            cuda_context: ::std::sync::Arc<::singe_cuda::context::Context>,
+        }
 
-pub(crate) fn output_region_for<'a, T: DeviceRepr>(
-    context: &Arc<CudaContext>,
-    output: DeviceOutputView<'a, T>,
-    minimum: usize,
-    name: &str,
-) -> Result<DeviceRegion<'a>> {
-    let () = T::LAYOUT;
-    if output.context() != context {
-        return Err(Error::PlanContextMismatch);
-    }
+        // SAFETY: cuSPARSE lets any thread use and destroy the descriptor one call at a time, and `&self` exposes only its handle and context, so the owner moves between threads; it is not `Sync`.
+        unsafe impl Send for $name {}
 
-    if output.len() < minimum {
-        return Err(Error::LengthMismatch {
-            name: name.to_owned().into(),
-            expected: minimum,
-            actual: output.len(),
-        });
-    }
-    Ok(output.into_region())
-}
+        impl $name {
+            /// Creates native analysis state in the CUDA context of `context`.
+            ///
+            /// # Errors
+            ///
+            /// Returns an error if the context cannot be bound, cuSPARSE cannot create the descriptor, or it returns a null handle.
+            pub fn create(context: &$crate::context::Context) -> $crate::error::Result<Self> {
+                context.bind()?;
+                let mut handle = ::std::ptr::null_mut();
+                // SAFETY: the output location is valid for writes and the context is bound.
+                unsafe {
+                    $crate::error::try_ffi!($create(&raw mut handle))?;
+                }
 
-pub(crate) fn input_region<'a, T: DeviceRepr>(
-    context: &Context,
-    input: &'a (impl DeviceInput<T> + ?Sized),
-    minimum: usize,
-    name: &str,
-) -> Result<DeviceRegion<'a>> {
-    let () = T::LAYOUT;
-    if input.context() != context.cuda_context() {
-        return Err(Error::PlanContextMismatch);
-    }
+                if handle.is_null() {
+                    return Err($crate::error::Error::NullHandle);
+                }
 
-    if input.len() < minimum {
-        return Err(Error::LengthMismatch {
-            name: name.to_owned().into(),
-            expected: minimum,
-            actual: input.len(),
-        });
-    }
-    Ok(input.region())
-}
+                Ok(Self {
+                    handle,
+                    cuda_context: ::std::sync::Arc::clone(context.cuda_context()),
+                })
+            }
 
-pub(crate) fn matrix_extent(rows: usize, cols: usize, ld: usize, row_major: bool) -> Result<usize> {
-    let (major, minor) = if row_major {
-        (rows, cols)
-    } else {
-        (cols, rows)
+            /// Adopts a native descriptor and the CUDA context it was created in.
+            ///
+            /// # Safety
+            ///
+            /// `raw.handle` must be a live, uniquely owned descriptor created in `raw.cuda_context`.
+            /// Preserve all analysis bindings and workspaces through their final dependent operation.
+            ///
+            /// # Errors
+            ///
+            /// Returns an error if the handle is null.
+            pub unsafe fn from_raw(
+                raw: $crate::descriptor::RawResource<$raw>,
+            ) -> $crate::error::Result<Self> {
+                if raw.handle.is_null() {
+                    return Err($crate::error::Error::NullHandle);
+                }
+
+                Ok(Self {
+                    handle: raw.handle,
+                    cuda_context: raw.cuda_context,
+                })
+            }
+
+            /// Transfers the native descriptor and its CUDA context to the caller without destroying it.
+            #[must_use]
+            pub fn into_raw(self) -> $crate::descriptor::RawResource<$raw> {
+                let this = ::std::mem::ManuallyDrop::new(self);
+                $crate::descriptor::RawResource {
+                    handle: this.handle,
+                    // SAFETY: `this` is never dropped, so the context moves out exactly once.
+                    cuda_context: unsafe { ::std::ptr::read(&raw const this.cuda_context) },
+                }
+            }
+
+            /// Returns the native descriptor without transferring ownership.
+            #[must_use]
+            pub fn as_raw(&self) -> $raw {
+                self.handle
+            }
+
+            /// Returns the CUDA context the descriptor was created in.
+            #[must_use]
+            pub fn cuda_context(&self) -> &::std::sync::Arc<::singe_cuda::context::Context> {
+                &self.cuda_context
+            }
+
+            pub(crate) fn ensure_context(
+                &self,
+                context: &$crate::context::Context,
+            ) -> $crate::error::Result<()> {
+                if self.cuda_context.as_ref() != context.cuda_context().as_ref() {
+                    return Err($crate::error::Error::context_mismatch($object));
+                }
+                Ok(())
+            }
+        }
+
+        impl Drop for $name {
+            fn drop(&mut self) {
+                if let Err(error) = self.cuda_context.bind() {
+                    ::singe_core::report_cleanup_failure(
+                        "bind the cuda context to destroy",
+                        $object,
+                        &error,
+                    );
+                    return;
+                }
+
+                // SAFETY: the descriptor is live, uniquely owned, and its context is bound.
+                if let Err(error) = unsafe { $crate::error::try_ffi!($destroy(self.handle)) } {
+                    ::singe_core::report_cleanup_failure("destroy", $object, &error);
+                }
+            }
+        }
     };
-    if major == 0 || minor == 0 {
-        return Ok(0);
-    }
-
-    if ld < minor {
-        return Err(Error::out_of_range("leading dimension"));
-    }
-    (major - 1)
-        .checked_mul(ld)
-        .and_then(|value| value.checked_add(minor))
-        .ok_or_else(|| Error::out_of_range("matrix extent"))
 }
 
-pub(crate) fn workspace<'a>(
-    context: &Context,
-    buffer: Option<DeviceOutputView<'a, u8>>,
-) -> Result<Option<DeviceRegion<'a>>> {
-    buffer
-        .map(|view| output_region(context, view, 0, "workspace"))
-        .transpose()
-}
+pub(crate) use analysis_descriptor;

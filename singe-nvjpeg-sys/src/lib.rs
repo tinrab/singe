@@ -1,5 +1,10 @@
-//! Raw FFI bindings for nvJPEG and nvJPEG 2000.
-
+//! Low-level FFI bindings for nvJPEG 13.2, from the CUDA Toolkit, and for nvJPEG 2000 0.11, generated from `nvjpeg.h` and `nvjpeg2k.h`.
+//! [`singe-loader`](singe_loader) loads each library at run time, on the first call or through [`load`] and `load_k2`, so building links no NVIDIA library.
+//! Most users want the safe `singe-nvjpeg` crate.
+//!
+//! # Features
+//!
+//! - `k2`: adds the nvJPEG 2000 bindings in the `k2` module.
 #![allow(
     unpredictable_function_pointer_comparisons,
     non_upper_case_globals,
@@ -10,6 +15,9 @@
     unnecessary_transmutes,
     unused_imports,
     unused_qualifications,
+    missing_debug_implementations,
+    unnameable_types,
+    unreachable_pub,
     clippy::correctness,
     clippy::suspicious,
     clippy::complexity,
@@ -18,10 +26,13 @@
     clippy::absolute_paths,
     clippy::pedantic,
     clippy::nursery,
+    clippy::undocumented_unsafe_blocks,
     reason = "generated bindings preserve upstream ABI conventions and documentation"
 )]
 
-use num_enum::{IntoPrimitive, TryFromPrimitive};
+#[cfg(not(feature = "nvjpeg_13_2"))]
+compile_error!("singe-nvjpeg-sys requires a version feature, such as `nvjpeg_13_2`");
+
 use singe_cuda_sys::{
     library_types::libraryPropertyType,
     runtime::{cudaError_t, cudaStream_t},
@@ -33,7 +44,6 @@ include!("sys_130203.rs");
 #[cfg(feature = "k2")]
 /// Raw FFI bindings for nvJPEG 2000.
 pub mod k2 {
-    use num_enum::{IntoPrimitive, TryFromPrimitive};
     use singe_cuda_sys::{
         library_types::libraryPropertyType,
         runtime::{cudaError_t, cudaStream_t},
@@ -42,18 +52,28 @@ pub mod k2 {
     include!("k2_sys_1100.rs");
 }
 
-pub use singe_loader::LoadError;
+pub use singe_loader::{Absence, LoadError, take_absence};
 
 static LIBRARY: singe_loader::Library = singe_loader::Library::nvjpeg();
 
-// Loads nvJPEG, which each of its functions otherwise does on first call.
+/// Loads nvJPEG now, instead of on the first call of one of its functions.
+///
+/// # Errors
+///
+/// Returns an error if the library has no files on this platform or one of its files would not load.
 pub fn load() -> Result<(), LoadError> {
     LIBRARY.load()
 }
 
+#[cfg(feature = "k2")]
 static K2: singe_loader::Library = singe_loader::Library::nvjpeg2k();
 
-// Loads nvJPEG2000, which each of its functions otherwise does on first call.
+/// Loads nvJPEG2000 now, instead of on the first call of one of its functions.
+///
+/// # Errors
+///
+/// Returns an error if the library has no files on this platform or one of its files would not load.
+#[cfg(feature = "k2")]
 pub fn load_k2() -> Result<(), LoadError> {
     K2.load()
 }

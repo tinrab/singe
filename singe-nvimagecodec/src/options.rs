@@ -167,16 +167,10 @@ impl DecoderOptions {
         Self::default()
     }
 
-    /// Adds an option after the existing ones, without replacing any.
-    pub fn push(&mut self, option: impl Into<DecoderOption>) -> &mut Self {
-        self.entries.push(option.into());
-        self
-    }
-
-    /// Adds an option after the existing ones and returns the list.
+    /// Adds an option after the existing ones, without replacing any, and returns the list.
     #[must_use]
-    pub fn with(mut self, option: impl Into<DecoderOption>) -> Self {
-        self.push(option);
+    pub fn with_option(mut self, option: impl Into<DecoderOption>) -> Self {
+        self.entries.push(option.into());
         self
     }
 
@@ -205,16 +199,10 @@ impl EncoderOptions {
         Self::default()
     }
 
-    /// Adds an option after the existing ones, without replacing any.
-    pub fn push(&mut self, option: impl Into<EncoderOption>) -> &mut Self {
-        self.entries.push(option.into());
-        self
-    }
-
-    /// Adds an option after the existing ones and returns the list.
+    /// Adds an option after the existing ones, without replacing any, and returns the list.
     #[must_use]
-    pub fn with(mut self, option: impl Into<EncoderOption>) -> Self {
-        self.push(option);
+    pub fn with_option(mut self, option: impl Into<EncoderOption>) -> Self {
+        self.entries.push(option.into());
         self
     }
 
@@ -567,9 +555,9 @@ mod tests {
     #[test]
     fn test_decoder_render_options() -> Result<()> {
         let options = DecoderOptions::new()
-            .with(AnyDecoderOption::FancyUpsampling(false))
-            .with(NvJpegCudaDecoderOption::HybridHuffmanThreshold(0))
-            .with(NvJpegCudaDecoderOption::DeviceMemoryPadding(1024));
+            .with_option(AnyDecoderOption::FancyUpsampling(false))
+            .with_option(NvJpegCudaDecoderOption::HybridHuffmanThreshold(0))
+            .with_option(NvJpegCudaDecoderOption::DeviceMemoryPadding(1024));
 
         let options = options.render().ok_or_else(|| Error::Empty {
             name: "options".into(),
@@ -586,7 +574,7 @@ mod tests {
     fn test_encoder_render_options() -> Result<()> {
         let streams =
             NonZeroUsize::new(4).ok_or_else(|| Error::out_of_range("num_cuda_streams"))?;
-        let options = EncoderOptions::new().with(GlobalCodecOption::NumCudaStreams(streams));
+        let options = EncoderOptions::new().with_option(GlobalCodecOption::NumCudaStreams(streams));
 
         let options = options.render().ok_or_else(|| Error::Empty {
             name: "options".into(),

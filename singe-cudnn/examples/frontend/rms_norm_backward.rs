@@ -3,9 +3,7 @@ mod common;
 use singe_core::assert_close;
 use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
-    backend::tensor::{Shape, TensorSpec},
     data_type::DataType,
-    error::Result,
     frontend::{
         error::Error as FrontendError,
         graph::{DataTypePolicy, Graph, GraphConfig, TensorOutputConfig},
@@ -15,6 +13,7 @@ use singe_cudnn::{
         },
         plan::{CompileConfig, ExecuteArgs, HeuristicMode},
     },
+    tensor::{Shape, TensorSpec},
 };
 
 fn init_f32_image(size: usize, seed: &mut u32) -> Vec<f32> {
@@ -30,7 +29,7 @@ fn count_nonfinite_f32(values: &[f32]) -> usize {
     values.iter().filter(|value| !value.is_finite()).count()
 }
 
-fn run() -> Result<()> {
+fn run() -> anyhow::Result<()> {
     let example = common::ExampleContext::create()?;
 
     let batch_size = 4;
@@ -116,11 +115,11 @@ fn run() -> Result<()> {
         example.cudnn.cuda_context(),
         &init_f32_image(graph.shape(x)?.storage_span()?, &mut float_seed),
     )?;
-    let dy_dev = DeviceMemory::from_slice(
+    let y_grad_dev = DeviceMemory::from_slice(
         example.cudnn.cuda_context(),
         &init_f32_image(graph.shape(dy)?.storage_span()?, &mut float_seed),
     )?;
-    let _mean_init = init_f32_image((batch_size * seq_length) as usize, &mut float_seed);
+    let _mean_init = init_f32_image(usize::try_from(batch_size * seq_length)?, &mut float_seed);
     let inv_variance_dev = DeviceMemory::from_slice(
         example.cudnn.cuda_context(),
         &init_f32_image(graph.shape(inv_variance)?.storage_span()?, &mut float_seed),
@@ -133,29 +132,29 @@ fn run() -> Result<()> {
         example.cudnn.cuda_context(),
         &init_f32_image(graph.shape(dscale)?.storage_span()?, &mut float_seed),
     )?;
-    let _bias_gradient_init = init_f32_image(hidden_size as usize, &mut float_seed);
-    let mut dx_dev = DeviceMemory::from_slice(
+    let _bias_gradient_init = init_f32_image(usize::try_from(hidden_size)?, &mut float_seed);
+    let mut x_grad_dev = DeviceMemory::from_slice(
         example.cudnn.cuda_context(),
         &init_f32_image(graph.shape(dx)?.storage_span()?, &mut float_seed),
     )?;
     let mut workspace = common::workspace(example.cudnn.cuda_context(), compiled.workspace_size())?;
     let mut bindings = compiled.bindings()?;
     bindings.set_input(x, &x_dev)?;
-    bindings.set_input(dy, &dy_dev)?;
+    bindings.set_input(dy, &y_grad_dev)?;
     bindings.set_input(inv_variance, &inv_variance_dev)?;
     bindings.set_input(scale, &scale_dev)?;
     bindings.set(dscale, &mut dscale_dev)?;
-    bindings.set(dx, &mut dx_dev)?;
+    bindings.set(dx, &mut x_grad_dev)?;
     // SAFETY: matching bindings, buffers and workspace remain live until the helper
     // completes the cuDNN stream, including when native execution returns an error.
     example.execute_and_wait(|context| unsafe {
-        compiled.execute(
+        compiled.execute_async(
             context,
-            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
         )
     })?;
 
-    let dx_host = dx_dev.copy_to_host_vec()?;
+    let dx_host = x_grad_dev.copy_to_host_vec()?;
     let dscale_host = dscale_dev.copy_to_host_vec()?;
 
     let dx_first = dx_host[0];
@@ -178,8 +177,8 @@ fn run() -> Result<()> {
 
     assert_eq!(dx_nonfinite, 0, "dx.nonfinite mismatch");
     assert_eq!(dscale_nonfinite, 0, "dscale.nonfinite mismatch");
-    assert_close!(dx_first, 0.251971, 1.0e-5, "dx.first");
-    assert_close!(dx_last, 0.277723, 1.0e-5, "dx.last");
+    assert_close!(dx_first, 0.251_971, 1.0e-5, "dx.first");
+    assert_close!(dx_last, 0.277_723, 1.0e-5, "dx.last");
     assert_close!(dx_checksum, 55946.1, 1.0, "dx.checksum");
     assert_close!(dscale_first, 518.905, 1.0e-3, "dscale.first");
     assert_close!(dscale_last, 510.452, 1.0e-3, "dscale.last");
@@ -188,6 +187,6 @@ fn run() -> Result<()> {
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_rms_norm_backward", run())
 }

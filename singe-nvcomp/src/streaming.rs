@@ -5,20 +5,26 @@ use std::{
     ffi::c_void,
     io,
     io::{ErrorKind, Read, Write},
+    mem::MaybeUninit,
     panic::{AssertUnwindSafe, catch_unwind, resume_unwind},
-    process, slice,
+    ptr, slice,
     sync::Arc,
 };
 
-use singe_cuda::{context::Context as CudaContext, stream::Stream};
+use singe_core::abort_after_cleanup_failure;
+use singe_cuda::{context::Context as CudaContext, memory::DeviceMemory, stream::Stream};
 
 use crate::{
     error::{Error, Result},
     gzip::CompressOptions,
     manager::bridge_result,
     sys::manager as ffi,
-    workspace::TemporaryBuffer,
 };
+
+// Operation codes of the bridge's `singe_nvcomp_gzip_stream` and `singe_nvcomp_gzip_temp_size`.
+const DECOMPRESS: i32 = 0;
+const COMPRESS: i32 = 1;
+const MEASURE: i32 = 2;
 
 enum CallbackFailure {
     Io(io::Error),
@@ -61,9 +67,10 @@ unsafe extern "C" fn read<R: Read + Send + ?Sized>(
     }));
     // User I/O may bind another CUDA context. Native code must resume in
     // the stream's actual context on success, error, and caught unwinding.
-    if input.context.bind().is_err() {
-        process::abort();
+    if let Err(error) = input.context.bind() {
+        abort_after_cleanup_failure("restore the cuda context for", "nvcomp gzip stream", &error);
     }
+
     match result {
         Ok(Ok(bytes)) if bytes <= capacity => {
             // SAFETY: `count` is the output location nvCOMP supplied for this callback.
@@ -108,9 +115,10 @@ unsafe extern "C" fn write<W: Write + Send + ?Sized>(
             .write_all(unsafe { slice::from_raw_parts(data, count) })
     }));
     // Restore native context even when the writer failed or panicked.
-    if output.context.bind().is_err() {
-        process::abort();
+    if let Err(error) = output.context.bind() {
+        abort_after_cleanup_failure("restore the cuda context for", "nvcomp gzip stream", &error);
     }
+
     match result {
         Ok(Ok(())) => 0,
         Ok(Err(error)) => {
@@ -138,8 +146,8 @@ fn callback_result(failure: Option<CallbackFailure>) -> Result<()> {
 /// It does not support gzip data with more than one member.
 #[derive(Debug)]
 pub struct GzipStream {
-    workspace: TemporaryBuffer,
-    stream: Arc<Stream>,
+    workspace: Option<DeviceMemory<MaybeUninit<u8>>>,
+    stream: Stream,
     options: CompressOptions,
 }
 
@@ -151,9 +159,9 @@ impl GzipStream {
     /// Returns an error if nvCOMP fails the query.
     pub fn compression_workspace_size(options: CompressOptions) -> Result<usize> {
         let mut bytes = 0;
-        // SAFETY: `singe_nvcomp_gzip_temp_size` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: the query takes plain values, and `bytes` is a live local.
         bridge_result(unsafe {
-            ffi::singe_nvcomp_gzip_temp_size(1, options.algorithm.into(), &raw mut bytes)
+            ffi::singe_nvcomp_gzip_temp_size(COMPRESS, options.algorithm.into(), &raw mut bytes)
         })?;
         Ok(bytes)
     }
@@ -165,8 +173,8 @@ impl GzipStream {
     /// Returns an error if nvCOMP fails the query.
     pub fn decompression_workspace_size() -> Result<usize> {
         let mut bytes = 0;
-        // SAFETY: `singe_nvcomp_gzip_temp_size` receives live handles owned by the wrappers and valid output locations.
-        bridge_result(unsafe { ffi::singe_nvcomp_gzip_temp_size(0, 0, &raw mut bytes) })?;
+        // SAFETY: the query takes plain values, and `bytes` is a live local.
+        bridge_result(unsafe { ffi::singe_nvcomp_gzip_temp_size(DECOMPRESS, 0, &raw mut bytes) })?;
         Ok(bytes)
     }
 
@@ -175,14 +183,18 @@ impl GzipStream {
     /// # Errors
     ///
     /// Returns an error if stream capture is active or cannot be queried, the CUDA context cannot be bound, nvCOMP fails a workspace query, or the allocation fails.
-    pub fn create(options: CompressOptions, stream: &Arc<Stream>) -> Result<Self> {
+    pub fn create(options: CompressOptions, stream: &Stream) -> Result<Self> {
         stream.ensure_not_capturing()?;
         stream.context().bind()?;
         let size =
             Self::compression_workspace_size(options)?.max(Self::decompression_workspace_size()?);
         Ok(Self {
-            stream: Arc::clone(stream),
-            workspace: TemporaryBuffer::create(stream.context(), size)?,
+            stream: stream.clone(),
+            workspace: if size == 0 {
+                None
+            } else {
+                Some(DeviceMemory::<u8>::create_uninit(stream.context(), size)?)
+            },
             options,
         })
     }
@@ -205,7 +217,7 @@ impl GzipStream {
         input: &mut (impl Read + Send + ?Sized),
         output: &mut (impl Write + Send + ?Sized),
     ) -> Result<()> {
-        self.run(1, input, output).map(|_| ())
+        self.run(COMPRESS, input, output).map(|_| ())
     }
 
     /// Reads gzip data from `input`, decompresses it, and writes the result to `output`.
@@ -226,7 +238,7 @@ impl GzipStream {
         input: &mut (impl Read + Send + ?Sized),
         output: &mut (impl Write + Send + ?Sized),
     ) -> Result<()> {
-        self.run(0, input, output).map(|_| ())
+        self.run(DECOMPRESS, input, output).map(|_| ())
     }
 
     /// Returns the uncompressed size, in bytes, of the gzip data in `input`.
@@ -244,7 +256,7 @@ impl GzipStream {
     ///
     /// If `input` panics, the panic resumes after nvCOMP returns and its GPU work has finished.
     pub fn decompressed_size(&mut self, input: &mut (impl Read + Send + ?Sized)) -> Result<usize> {
-        self.run(2, input, &mut io::sink())
+        self.run(MEASURE, input, &mut io::sink())
     }
 
     fn run<R: Read + Send + ?Sized, W: Write + Send + ?Sized>(
@@ -265,8 +277,14 @@ impl GzipStream {
             context: self.stream.context(),
             failure: None,
         };
+        let (workspace_ptr, workspace_bytes): (*mut c_void, usize) = self
+            .workspace
+            .as_ref()
+            .map_or((ptr::null_mut(), 0), |memory| {
+                (memory.as_device_ptr().as_ptr().cast(), memory.len())
+            });
         let mut size = 0;
-        // SAFETY: `singe_nvcomp_gzip_stream` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `input` and `output` are live locals of the types `read::<R>` and `write::<W>` expect, the workspace holds `workspace_bytes` bytes in the bound context, and the bridge drains the stream before returning.
         let code = unsafe {
             ffi::singe_nvcomp_gzip_stream(
                 operation,
@@ -275,8 +293,8 @@ impl GzipStream {
                 (&raw mut input).cast(),
                 Some(write::<W>),
                 (&raw mut output).cast(),
-                self.workspace.as_device_ptr().as_ptr().cast(),
-                self.workspace.len(),
+                workspace_ptr,
+                workspace_bytes,
                 self.stream.as_raw().cast(),
                 &raw mut size,
             )
@@ -291,13 +309,16 @@ impl GzipStream {
 
 impl Drop for GzipStream {
     fn drop(&mut self) {
-        if let Some(allocation) = self.workspace.allocation()
-            && self
+        if let Some(memory) = &self.workspace
+            && let Err(error) = self
                 .stream
-                .defer_drop_until_capture_end(Arc::clone(allocation))
-                .is_err()
+                .defer_drop_until_capture_end(Arc::clone(memory.allocation()))
         {
-            process::abort();
+            abort_after_cleanup_failure(
+                "retain until capture ends",
+                "nvcomp gzip stream workspace",
+                &error,
+            );
         }
     }
 }

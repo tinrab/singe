@@ -1,8 +1,11 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    backend::{normalization::BackendNormalizationForwardPhase, tensor::TensorId},
-    frontend::operation::normalization::{NormalizationSavedStatistics, NormalizationStatistics},
+    backend::operation::normalization::{
+        BackendNormalizationForwardPhase, NormalizationSavedStatistics,
+    },
+    frontend::operation::normalization::NormalizationStatistics,
+    tensor::TensorId,
 };
 
 /// Affine operands accepted by `LayerNorm`.

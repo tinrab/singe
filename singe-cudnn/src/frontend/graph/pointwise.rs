@@ -1,13 +1,13 @@
 use std::{borrow::Cow, iter};
 
 use crate::{
-    backend::tensor::TensorId,
     error::Result,
     frontend::{
         error::Error as FrontendError,
         graph::{Graph, TensorOutputConfig},
         operation::{Operation, PointwiseOperation},
     },
+    tensor::TensorId,
     utility::to_i64,
 };
 
@@ -17,7 +17,8 @@ impl Graph {
     /// Pointwise operations apply elementwise unary, binary, or ternary modes selected by cuDNN's pointwise mode.
     ///
     /// # Errors
-    /// Returns an error for a mode with the wrong tensor ports.
+    ///
+    /// Returns an error if the mode has the wrong tensor ports.
     pub fn pointwise_into(&mut self, operation: PointwiseOperation) -> Result<()> {
         operation.validate_tensor_ports()?;
         self.operations.push(Operation::Pointwise(operation));
@@ -35,7 +36,8 @@ impl Graph {
     /// A configured operation scope names the result `scope::OUT_0`.
     ///
     /// # Errors
-    /// Returns an error for unknown operands, incompatible broadcasting or a mode with the wrong tensor ports.
+    ///
+    /// Returns an error if an operand is unknown, broadcasting is incompatible, or the mode has the wrong tensor ports.
     /// Construction errors leave the graph unchanged.
     pub fn pointwise(
         &mut self,
@@ -91,7 +93,7 @@ impl Graph {
     }
 }
 
-pub fn infer_binary_pointwise_dimensions(lhs: &[i64], rhs: &[i64]) -> Result<Vec<i64>> {
+pub(crate) fn infer_binary_pointwise_dimensions(lhs: &[i64], rhs: &[i64]) -> Result<Vec<i64>> {
     let rank = lhs.len().max(rhs.len());
     let lhs_offset = rank - lhs.len();
     let rhs_offset = rank - rhs.len();

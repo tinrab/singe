@@ -1,7 +1,7 @@
 //! Device memory handler support for cuDSS.
 
 use std::{
-    ffi::{CString, c_int, c_void},
+    ffi::{c_int, c_void},
     marker::PhantomData,
     sync::Arc,
 };
@@ -42,8 +42,8 @@ pub type DeviceFreeFn = unsafe extern "C" fn(
 
 /// A user-provided stream-ordered device memory handler for cuDSS.
 ///
-/// cuDSS uses this handler during [`Context::execute`](crate::context::Context::execute) to allocate internal device buffers.
-/// Those allocations are owned by [`SolverState`](crate::data::SolverState) objects until the corresponding data object is destroyed, so a handler must not be replaced or outlive its backing memory pool while any `SolverState` object may still contain memory allocated by it.
+/// cuDSS uses this handler during [`Context::execute_async`](crate::context::Context::execute_async) to allocate internal device buffers.
+/// Those allocations are owned by [`SolverState`](crate::solver_state::SolverState) objects until the corresponding data object is destroyed, so a handler must not be replaced or outlive its backing memory pool while any `SolverState` object may still contain memory allocated by it.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DeviceMemoryHandler(sys::cudssDeviceMemHandler_t);
 
@@ -52,15 +52,15 @@ impl DeviceMemoryHandler {
     ///
     /// The name is copied into cuDSS' fixed-size allocator name field and must fit with a trailing NUL byte.
     ///
-    /// # Errors
-    ///
-    /// Returns an error if `name` contains an interior NUL byte or exceeds cuDSS' allocator-name capacity, including the trailing NUL byte.
-    ///
     /// # Safety
     ///
     /// `context` must remain valid for every cuDSS call that can allocate or free through this handler.
     /// The callbacks must implement cuDSS' stream-ordered allocation contract, return `0` on success, and allocate memory that is valid for the CUDA context bound to the cuDSS handle.
     /// Memory returned by `device_alloc` must be at least 256-byte aligned, and `device_free` must accept the exact pointer and size pairs produced by `device_alloc`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `name` contains an interior NUL byte or exceeds cuDSS' allocator-name capacity, including the trailing NUL byte.
     pub unsafe fn create(
         name: &str,
         context: *mut c_void,
@@ -74,8 +74,9 @@ impl DeviceMemoryHandler {
             });
         }
 
-        // Reuse the crate-wide string error mapping for interior NUL bytes.
-        let _ = CString::new(name)?;
+        if name.contains('\0') {
+            return Err(Error::InteriorNul);
+        }
 
         let mut handler = sys::cudssDeviceMemHandler_t {
             ctx: context,
@@ -161,19 +162,19 @@ impl<'a, T: DeviceRepr> DevicePointerTable<'a, T> {
 
     /// Borrows an externally established region containing initialized pointers.
     ///
-    /// # Errors
-    ///
-    /// Returns a CUDA view error if the pointer-table length overflows its byte representation, exceeds the region, or the region does not satisfy the alignment and address requirements of a `DevicePtr` slice.
-    ///
     /// # Safety
     ///
     /// The region must contain `length` initialized `DevicePtr` values.
     /// Every entry used by cuDSS must identify live, aligned storage for T in the region's actual context.
     /// Retain the table and all pointees through descriptor use and queued completion.
     /// Initialization and access permissions of pointees must satisfy the execution phase; constructing a table establishes neither.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the pointer-table length overflows its byte representation, exceeds the region, or the region does not satisfy the alignment and address requirements of a `DevicePtr` slice.
     pub unsafe fn from_raw(region: DeviceRegion<'a>, length: usize) -> Result<Self> {
         let context = region.context();
-        // SAFETY: the caller establishes initialized pointers and region liveness.
+        // SAFETY: the caller guarantees the region is live and holds `length` initialized `DevicePtr` values; `from_raw_parts` checks the length and alignment.
         let table = unsafe { DeviceView::from_raw_parts(region, length)? };
         Ok(Self {
             table: Some(table),
@@ -184,20 +185,19 @@ impl<'a, T: DeviceRepr> DevicePointerTable<'a, T> {
 
     /// Borrows a pointer allocation without inventing an allocation owner.
     ///
-    /// # Errors
-    ///
-    /// Propagates the pointer-table view validation errors from [`Self::from_raw`].
-    ///
     /// # Safety
     ///
     /// All referenced buffers must outlive the descriptor and queued work, and satisfy the context, alignment, initialization, and access contract of [`Self::from_raw`].
     /// This borrow alone retains only the table allocation.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the pointer-table view fails the validation of [`Self::from_raw`].
     pub unsafe fn from_device_memory<B>(memory: &'a B) -> Result<Self>
     where
         B: DeviceSlice<DevicePtr> + ?Sized,
     {
-        // SAFETY: DeviceSlice supplies initialized pointer values; the caller
-        // establishes the validity and liveness of the referenced allocations.
+        // SAFETY: `DeviceSlice` guarantees `memory.len()` initialized `DevicePtr` values borrowed for `'a`, and the caller guarantees the pointees meet `from_raw`'s contract.
         unsafe { Self::from_raw(memory.region(), memory.len()) }
     }
 
@@ -211,7 +211,7 @@ impl<'a, T: DeviceRepr> DevicePointerTable<'a, T> {
         }
     }
 
-    /// Number of pointer entries in the table.
+    /// Returns the number of pointer entries in the table.
     #[must_use]
     pub const fn len(&self) -> usize {
         match &self.table {
@@ -220,22 +220,26 @@ impl<'a, T: DeviceRepr> DevicePointerTable<'a, T> {
         }
     }
 
-    /// Whether the table contains no pointer entries.
+    /// Returns whether the table contains no pointer entries.
     #[must_use]
     pub const fn is_empty(&self) -> bool {
         self.len() == 0
     }
 
-    /// CUDA context in which the pointer table resides.
+    /// Returns the CUDA context in which the pointer table resides.
     #[must_use]
     pub const fn context(&self) -> &'a Arc<Context> {
         self.context
     }
 
+    pub(crate) fn region(&self) -> Option<DeviceRegion<'a>> {
+        self.table.as_ref().map(DeviceView::region)
+    }
+
     /// Returns the borrowed table address without transferring ownership.
     #[must_use]
     pub fn as_ptr(self) -> DevicePtr {
-        // SAFETY: the address belongs to the borrowed pointer table.
+        // SAFETY: `DevicePtr::from_raw` only records the address of the table borrowed for `'a`; nothing is dereferenced.
         self.table.map_or(DevicePtr::null(), |table| unsafe {
             DevicePtr::from_raw(table.as_ptr().cast_mut().cast())
         })

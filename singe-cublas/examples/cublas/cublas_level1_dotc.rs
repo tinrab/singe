@@ -1,11 +1,9 @@
-use singe_cublas::{blas::level1::dotc_ex, context::Context, error::Result};
-
+use singe_cublas::{blas::level1::dotc, context::Context, scalar::ScalarMut};
 use singe_cuda::{
-    context::Context as CudaContext, data_type::DataType, device::Device, memory::DeviceMemory,
-    types::Complex64,
+    context::Context as CudaContext, device::Device, memory::DeviceMemory, types::Complex64,
 };
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     let cuda = CudaContext::create_for_device(Device::new(0))?;
     let cublas = Context::create(&cuda)?;
     let x = DeviceMemory::from_slice(
@@ -28,18 +26,7 @@ fn main() -> Result<()> {
     )?;
     let mut result = Complex64::new(0.0, 0.0);
 
-    dotc_ex(
-        &cublas,
-        &x,
-        DataType::ComplexF64,
-        1,
-        &y,
-        DataType::ComplexF64,
-        1,
-        &mut result,
-        DataType::ComplexF64,
-        DataType::ComplexF64,
-    )?;
+    dotc(&cublas, 4, &x, 1, &y, 1, ScalarMut::host(&mut result))?;
 
     assert!((result.re - 178.44).abs() < 1.0e-9);
     assert!((result.im + 1.60).abs() < 1.0e-9);

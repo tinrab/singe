@@ -1,8 +1,7 @@
-use singe_cuda::{context::Context as CudaContext, memory::DeviceMemory, stream::StreamBinding};
+use singe_cuda::{context::Context as CudaContext, memory::DeviceMemory, stream::StreamOptions};
 
 use singe_cutensor::{
     context::Context,
-    error::Result,
     operation::{ComputeDescriptor, OperationDescriptor, TensorOperand},
     plan::{Plan, PlanPreference},
     tensor::TensorDescriptor,
@@ -14,17 +13,19 @@ fn packed_offset(indices: &[u64], extents: &[u64]) -> usize {
     let mut offset = 0_usize;
 
     for (&index, &extent) in indices.iter().zip(extents) {
-        offset += index as usize * stride;
-        stride *= extent as usize;
+        offset += usize::try_from(index).unwrap() * stride;
+        stride *= usize::try_from(extent).unwrap();
     }
 
     offset
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
+    const ALIGNMENT: u32 = 128;
+
     let cuda_context = CudaContext::create()?;
     let context = Context::create(&cuda_context)?;
-    let stream = cuda_context.create_stream()?;
+    let stream = cuda_context.create_stream(StreamOptions::default())?;
 
     let mode_e = vec!['m'.into(), 'n'.into(), 'b'.into(), 'r'.into(), 'a'.into()];
     let mode_a = vec![
@@ -47,10 +48,10 @@ fn main() -> Result<()> {
         .map(|index| 0.25_f32 * (index as f32 + 1.0))
         .collect::<Vec<_>>();
     let host_b = (0..extent_b.iter().product::<u64>())
-        .map(|index| -0.5_f32 + index as f32 * 0.1)
+        .map(|index| (index as f32).mul_add(0.1, -0.5_f32))
         .collect::<Vec<_>>();
     let host_c = (0..extent_c.iter().product::<u64>())
-        .map(|index| 0.75_f32 + index as f32 * 0.2)
+        .map(|index| (index as f32).mul_add(0.2, 0.75_f32))
         .collect::<Vec<_>>();
     let host_d = (0..extent_e.iter().product::<u64>())
         .map(|index| -0.125_f32 * (index as f32 + 1.0))
@@ -61,8 +62,6 @@ fn main() -> Result<()> {
     let device_c = DeviceMemory::from_slice(&cuda_context, &host_c)?;
     let device_d_input = DeviceMemory::from_slice(&cuda_context, &host_d)?;
     let mut device_e = DeviceMemory::from_slice(&cuda_context, &host_d)?;
-
-    const ALIGNMENT: u32 = 128;
 
     let descriptor_a = TensorDescriptor::create_for::<f32>(&context, &extent_a, ALIGNMENT)?;
     let descriptor_b = TensorDescriptor::create_for::<f32>(&context, &extent_b, ALIGNMENT)?;
@@ -86,10 +85,10 @@ fn main() -> Result<()> {
         WorkspacePreference::Default,
     )?;
     let plan = Plan::create(&context, &contraction, &preference, workspace_size)?;
-    let mut workspace = if plan.required_workspace_size() > 0 {
+    let mut workspace = if plan.workspace_size() > 0 {
         Some(DeviceMemory::<u8>::create_uninit(
             &cuda_context,
-            plan.required_workspace_size_bytes()?,
+            plan.workspace_size(),
         )?)
     } else {
         None
@@ -97,22 +96,17 @@ fn main() -> Result<()> {
 
     let alpha = 1.25_f32;
     let beta = -0.75_f32;
-    StreamBinding::Borrowed(stream.to_borrowed()).sync_scope(|| {
-        // SAFETY: these buffers match the descriptors and stay borrowed through scope completion.
-        unsafe {
-            plan.contract_trinary(
-                &alpha,
-                &device_a,
-                &device_b,
-                &device_c,
-                &beta,
-                &device_d_input,
-                &mut device_e,
-                workspace.as_mut(),
-                &stream,
-            )
-        }
-    })?;
+    plan.contract_trinary(
+        &alpha,
+        &device_a,
+        &device_b,
+        &device_c,
+        &beta,
+        &device_d_input,
+        &mut device_e,
+        workspace.as_mut().map(|memory| memory.output()),
+        &stream,
+    )?;
 
     let result = device_e.copy_to_host_vec()?;
     let mut expected = vec![0.0_f32; result.len()];
@@ -129,13 +123,14 @@ fn main() -> Result<()> {
                                     let a_offset = packed_offset(&[m, k, a, j, b, i], &extent_a);
                                     let b_offset = packed_offset(&[k, n, i], &extent_b);
                                     let c_offset = packed_offset(&[r, j], &extent_c);
-                                    sum += host_a[a_offset] * host_b[b_offset] * host_c[c_offset];
+                                    sum = (host_a[a_offset] * host_b[b_offset])
+                                        .mul_add(host_c[c_offset], sum);
                                 }
                             }
                         }
 
                         let e_offset = packed_offset(&[m, n, b, r, a], &extent_e);
-                        expected[e_offset] = alpha * sum + beta * host_d[e_offset];
+                        expected[e_offset] = beta.mul_add(host_d[e_offset], alpha * sum);
                     }
                 }
             }

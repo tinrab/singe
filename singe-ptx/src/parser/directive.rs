@@ -63,7 +63,7 @@ fn attribute(input: Input<'_>) -> PResult<'_, Attribute> {
     .parse(input)
 }
 
-pub fn attributes(input: Input<'_>) -> PResult<'_, Vec<Attribute>> {
+pub(crate) fn attributes(input: Input<'_>) -> PResult<'_, Vec<Attribute>> {
     preceded(
         keyword(".attribute"),
         delimited(
@@ -490,7 +490,7 @@ fn array_bounds(input: Input<'_>) -> PResult<'_, Vec<Option<u32>>> {
     .parse(input)
 }
 
-pub fn parameter(input: Input<'_>) -> PResult<'_, Parameter> {
+pub(crate) fn parameter(input: Input<'_>) -> PResult<'_, Parameter> {
     let (input, (span, (space, align, ty, ptr, name, bounds))) = with_span((
         opt(lexeme(state_space)),
         opt(lexeme(alignment)),
@@ -521,7 +521,7 @@ pub fn parameter(input: Input<'_>) -> PResult<'_, Parameter> {
     ))
 }
 
-pub fn param_list(input: Input<'_>) -> PResult<'_, Vec<Parameter>> {
+pub(crate) fn param_list(input: Input<'_>) -> PResult<'_, Vec<Parameter>> {
     delimited(
         lexeme(char('(')),
         separated_list0(comma_sep, lexeme(parameter)),
@@ -530,7 +530,7 @@ pub fn param_list(input: Input<'_>) -> PResult<'_, Vec<Parameter>> {
     .parse(input)
 }
 
-pub fn variable_decl(input: Input<'_>, depth: usize) -> PResult<'_, VariableDecl> {
+pub(crate) fn variable_decl(input: Input<'_>, depth: usize) -> PResult<'_, VariableDecl> {
     let (
         input,
         (span, (linkage, space, attributes, align, vec, ty, name, count, bounds, init, ())),
@@ -574,7 +574,7 @@ pub fn variable_decl(input: Input<'_>, depth: usize) -> PResult<'_, VariableDecl
     ))
 }
 
-pub fn function_directive(input: Input<'_>) -> PResult<'_, FunctionDirective> {
+pub(crate) fn function_directive(input: Input<'_>) -> PResult<'_, FunctionDirective> {
     alt((
         map(with_span(keyword(".noreturn")), |(span, _)| {
             FunctionDirective::NoReturn { span }
@@ -872,7 +872,7 @@ fn loc_directive(input: Input<'_>) -> PResult<'_, LocDirective> {
     ))
 }
 
-pub fn directive_statement(input: Input<'_>) -> PResult<'_, DirectiveStatement> {
+pub(crate) fn directive_statement(input: Input<'_>) -> PResult<'_, DirectiveStatement> {
     alt((
         map(
             with_span(preceded(
@@ -929,7 +929,7 @@ pub fn directive_statement(input: Input<'_>) -> PResult<'_, DirectiveStatement> 
     .parse(input)
 }
 
-pub fn top_level_item(input: Input<'_>) -> PResult<'_, TopLevelItem> {
+pub(crate) fn top_level_item(input: Input<'_>) -> PResult<'_, TopLevelItem> {
     alt((
         map(function, TopLevelItem::Function),
         pragma,

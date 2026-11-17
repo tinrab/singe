@@ -1,4 +1,4 @@
-use singe_cuda::view::DeviceRegionProvider;
+use singe_cuda::{stream::AsStream, view::DeviceRegionProvider};
 use singe_cudnn::{
     backend::{execution::VariantPack, tensor::BackendTensorUid},
     context::Context as CudnnContext,
@@ -181,12 +181,16 @@ pub fn execute_cudnn_template<'a>(
     // SAFETY: binding encodings, capacities, contexts and alignment match the template.
     // All owners remain outside the draining scope through execution, errors and unwinding.
     let pack = unsafe {
-        VariantPack::create(context.runtime().context(), &bindings, Some(&mut workspace))?
+        VariantPack::create(
+            context.runtime().context(),
+            &bindings,
+            Some(workspace.output()),
+        )?
     };
     let mut regions = input_regions;
     regions.extend([output_region, workspace.region()]);
     context.with_cudnn(|cudnn| {
-        let binding = cudnn.stream()?;
+        let binding = cudnn.stream_binding();
         let execute = || {
             for region in &regions {
                 if let Some(producer) = region.stream()
@@ -198,7 +202,7 @@ pub fn execute_cudnn_template<'a>(
             }
 
             // SAFETY: the template and initialized input remain live, the output is exclusive, and this scope completes all writes before pending storage is promoted, or on the eager stream orders every reuse of it after them.
-            unsafe { plan.execute(cudnn, &pack) }?;
+            unsafe { plan.execute_async(cudnn, &pack) }?;
             Ok(())
         };
         if context.is_eager() {

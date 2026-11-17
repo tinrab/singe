@@ -8,15 +8,17 @@ use singe_cuda::{
 };
 
 use crate::{
-    backend::{execution::VariantPack, tensor::TensorId},
+    backend::execution::VariantPack,
     context::Context,
     error::{Error, Result},
     frontend::{bindings::Bindings, error::Error as FrontendError, plan::CompiledGraph},
+    tensor::TensorId,
     utility::to_usize,
 };
 
 struct BindingRange {
     id: TensorId,
+    pointer: DevicePtr,
     start: usize,
     end: usize,
     alignment: usize,
@@ -25,6 +27,7 @@ struct BindingRange {
 }
 
 struct AliasGroup {
+    pointer: DevicePtr,
     start: usize,
     end: usize,
     alignment: usize,
@@ -45,7 +48,7 @@ struct TrialBuffer {
 /// Private device state for all warmup and timed trials of one tuning request.
 /// Keep this alive outside the stream completion scope, including on failed enqueues.
 #[derive(Debug)]
-pub struct AutotuneState<'a> {
+pub(crate) struct AutotuneState<'a> {
     pub bindings: Bindings<'a>,
     pub accesses: Vec<Access>,
     buffers: Vec<TrialBuffer>,
@@ -56,7 +59,7 @@ impl<'a> AutotuneState<'a> {
         clippy::too_many_lines,
         reason = "plan construction and selection keep the complete native execution lifecycle together"
     )]
-    pub fn create(
+    pub(crate) fn create(
         compiled: &'a CompiledGraph,
         context: &Context,
         bindings: &Bindings<'_>,
@@ -122,6 +125,7 @@ impl<'a> AutotuneState<'a> {
             if bytes != 0 {
                 ranges.push(BindingRange {
                     id: binding.id,
+                    pointer,
                     start,
                     end: start
                         .checked_add(bytes)
@@ -146,6 +150,7 @@ impl<'a> AutotuneState<'a> {
                 group.bindings.push((range.id, range.start));
             } else {
                 groups.push(AliasGroup {
+                    pointer: range.pointer,
                     start: range.start,
                     end: range.end,
                     alignment: range.alignment,
@@ -189,8 +194,7 @@ impl<'a> AutotuneState<'a> {
                 .then(|| DeviceMemory::<u8>::create_uninit(context.cuda_context(), bytes))
                 .transpose()?;
             buffers.push(TrialBuffer {
-                // SAFETY: the source ranges came from the validated caller bindings.
-                original: unsafe { DevicePtr::from_raw(group.start as *mut ()) },
+                original: group.pointer,
                 // SAFETY: the allocation covers this aligned group span.
                 pointer: unsafe { DevicePtr::from_raw(pointer.cast()) },
                 bytes,
@@ -207,12 +211,16 @@ impl<'a> AutotuneState<'a> {
 
     /// Saves initial read state after its caller-established producer dependencies on this stream.
     /// Groups consumed only after complete graph production do not read caller output bytes.
-    pub unsafe fn snapshot(&self, stream: &StreamBinding) -> Result<()> {
+    ///
+    /// # Safety
+    ///
+    /// The caller's bindings must be initialized and ordered before `stream`, and this state must outlive the stream's completion scope, including on failed enqueues.
+    pub(crate) unsafe fn snapshot(&self, stream: &StreamBinding) -> Result<()> {
         for buffer in &self.buffers {
             if let Some(baseline) = &buffer.baseline {
                 // SAFETY: the caller's input contract covers every readable group; the completion scope retains both sides.
                 unsafe {
-                    DeviceMemory::<MaybeUninit<u8>>::copy_async_on(
+                    DeviceMemory::<MaybeUninit<u8>>::copy_async(
                         baseline.as_mut_ptr(),
                         buffer.original.cast(),
                         buffer.bytes,
@@ -227,12 +235,16 @@ impl<'a> AutotuneState<'a> {
 
     /// Restores caller entry state before each invocation.
     /// Outputs and fully produced internal values remain private scratch without a baseline copy.
-    pub unsafe fn reset(&self, stream: &StreamBinding) -> Result<()> {
+    ///
+    /// # Safety
+    ///
+    /// [`Self::snapshot`] must have been enqueued on `stream` first, and this state must outlive the stream's completion scope, including on failed enqueues.
+    pub(crate) unsafe fn reset(&self, stream: &StreamBinding) -> Result<()> {
         for buffer in &self.buffers {
             if let Some(baseline) = &buffer.baseline {
                 // SAFETY: snapshot precedes each reset and all allocations outlive the stream completion scope.
                 unsafe {
-                    DeviceMemory::<MaybeUninit<u8>>::copy_async_on(
+                    DeviceMemory::<MaybeUninit<u8>>::copy_async(
                         buffer.pointer.cast(),
                         baseline.as_ptr(),
                         buffer.bytes,

@@ -2,10 +2,7 @@ mod common;
 
 use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
-    backend::{
-        pointwise::PointwiseMode,
-        tensor::{Shape, TensorSpec},
-    },
+    backend::operation::pointwise::PointwiseMode,
     data_type::DataType,
     error::Result,
     frontend::{
@@ -13,8 +10,13 @@ use singe_cudnn::{
         operation::{MatmulConfig, PointwiseOperation},
         plan::{CompileConfig, ExecuteArgs, HeuristicMode},
     },
+    tensor::{Shape, TensorSpec},
 };
 
+#[expect(
+    clippy::many_single_char_names,
+    reason = "keeps the upstream sample's single-letter dimension names"
+)]
 fn run() -> Result<()> {
     let example = common::ExampleContext::create()?;
 
@@ -87,9 +89,9 @@ fn run() -> Result<()> {
     bindings.set(c_after_add, &mut c_dev)?;
     // SAFETY: initialized inputs and bias, writable output and workspace remain live through stream completion.
     example.execute_and_wait(|context| unsafe {
-        compiled.execute(
+        compiled.execute_async(
             context,
-            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
         )
     })?;
 
@@ -101,6 +103,6 @@ fn run() -> Result<()> {
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_int8_matmul", run())
 }

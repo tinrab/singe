@@ -21,7 +21,7 @@ macro_rules! backend_metadata_enum {
             /// Serialization uses this ID, and deserialization selects a named variant when available.
             pub const fn raw(self) -> u32 {
                 match self {
-                    $($(#[$raw_meta])* Self::$variant => <$native>::$constant as u32,)+
+                    $($(#[$raw_meta])* Self::$variant => <$native>::$constant.0,)+
                     Self::Unknown(value) => value,
                 }
             }
@@ -70,15 +70,13 @@ macro_rules! backend_metadata_enum {
 
         impl From<$native> for $name {
             fn from(value: $native) -> Self {
-                Self::from(value as u32)
+                Self::from(value.0)
             }
         }
 
-        impl TryFrom<$name> for $native {
-            type Error = $name;
-
-            fn try_from(value: $name) -> Result<Self, Self::Error> {
-                Self::try_from(value.raw()).map_err(|_| value)
+        impl From<$name> for $native {
+            fn from(value: $name) -> Self {
+                Self(value.raw())
             }
         }
 

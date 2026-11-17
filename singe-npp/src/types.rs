@@ -5,7 +5,7 @@ use std::{
 
 use bitflags::parser;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
-use singe_core::{impl_enum_conversion, impl_enum_display};
+use singe_core::impl_enum_display;
 use singe_cuda::{
     types::{Complex, Complex32, Complex64, f16},
     view::{AnyBitPatternDeviceRepr, NoUninitDeviceRepr},
@@ -14,36 +14,36 @@ use singe_npp_sys as sys;
 
 use crate::error::{Error, Result};
 
-/// Data types for nppiPlus functions.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[non_exhaustive]
-#[repr(u32)]
-pub enum DataType {
-    /// 8-bit unsigned integer data type.
-    U8 = sys::NppDataType::NPP_8U as _,
-    /// 8-bit signed integer data type.
-    I8 = sys::NppDataType::NPP_8S as _,
-    /// 16-bit unsigned integer data type.
-    U16 = sys::NppDataType::NPP_16U as _,
-    /// 16-bit signed integer data type.
-    I16 = sys::NppDataType::NPP_16S as _,
-    /// 32-bit unsigned integer data type.
-    U32 = sys::NppDataType::NPP_32U as _,
-    /// 32-bit signed integer data type.
-    I32 = sys::NppDataType::NPP_32S as _,
-    /// 64-bit unsigned integer data type.
-    U64 = sys::NppDataType::NPP_64U as _,
-    /// 64-bit signed integer data type.
-    I64 = sys::NppDataType::NPP_64S as _,
-    /// 16-bit original CUDA floating point data type.
-    F16 = sys::NppDataType::NPP_16F as _,
-    /// 32-bit floating point data type.
-    F32 = sys::NppDataType::NPP_32F as _,
-    /// 64-bit double precision floating point data type.
-    F64 = sys::NppDataType::NPP_64F as _,
+singe_core::native_enum! {
+    /// Data types for nppiPlus functions.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[non_exhaustive]
+    #[repr(u32)]
+    pub enum DataType: sys::NppDataType {
+        /// 8-bit unsigned integer data type.
+        U8 = NPP_8U,
+        /// 8-bit signed integer data type.
+        I8 = NPP_8S,
+        /// 16-bit unsigned integer data type.
+        U16 = NPP_16U,
+        /// 16-bit signed integer data type.
+        I16 = NPP_16S,
+        /// 32-bit unsigned integer data type.
+        U32 = NPP_32U,
+        /// 32-bit signed integer data type.
+        I32 = NPP_32S,
+        /// 64-bit unsigned integer data type.
+        U64 = NPP_64U,
+        /// 64-bit signed integer data type.
+        I64 = NPP_64S,
+        /// 16-bit original CUDA floating point data type.
+        F16 = NPP_16F,
+        /// 32-bit floating point data type.
+        F32 = NPP_32F,
+        /// 64-bit double precision floating point data type.
+        F64 = NPP_64F,
+    }
 }
-
-impl_enum_conversion!(sys::NppDataType, DataType);
 
 impl_enum_display!(DataType, {
     DataType::U8 => "NPP_8U",
@@ -94,30 +94,30 @@ macro_rules! impl_data_type {
     };
 }
 
-/// Image channel counts for nppiPlus functions.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[non_exhaustive]
-#[repr(u32)]
-pub enum ImageChannels {
-    /// Single channel per pixel data.
-    C1 = sys::NppiChannels::NPP_CH_1 as _,
-    /// Two channel per pixel data.
-    C2 = sys::NppiChannels::NPP_CH_2 as _,
-    /// Three channel per pixel data.
-    C3 = sys::NppiChannels::NPP_CH_3 as _,
-    /// Four channel per pixel data.
-    C4 = sys::NppiChannels::NPP_CH_4 as _,
-    /// Four channel per pixel data with alpha.
-    AC4 = sys::NppiChannels::NPP_CH_A4 as _,
-    /// Two channel single channel per plane pixel data.
-    P2 = sys::NppiChannels::NPP_CH_P2 as _,
-    /// Three channel single channel per plane pixel data.
-    P3 = sys::NppiChannels::NPP_CH_P3 as _,
-    /// Four channel single channel per plane pixel data.
-    P4 = sys::NppiChannels::NPP_CH_P4 as _,
+singe_core::native_enum! {
+    /// Image channel counts for nppiPlus functions.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[non_exhaustive]
+    #[repr(u32)]
+    pub enum ImageChannels: sys::NppiChannels {
+        /// Single channel per pixel data.
+        C1 = NPP_CH_1,
+        /// Two channel per pixel data.
+        C2 = NPP_CH_2,
+        /// Three channel per pixel data.
+        C3 = NPP_CH_3,
+        /// Four channel per pixel data.
+        C4 = NPP_CH_4,
+        /// Four channel per pixel data with alpha.
+        AC4 = NPP_CH_A4,
+        /// Two channel single channel per plane pixel data.
+        P2 = NPP_CH_P2,
+        /// Three channel single channel per plane pixel data.
+        P3 = NPP_CH_P3,
+        /// Four channel single channel per plane pixel data.
+        P4 = NPP_CH_P4,
+    }
 }
-
-impl_enum_conversion!(sys::NppiChannels, ImageChannels);
 
 impl_enum_display!(ImageChannels, {
     ImageChannels::C1 => "NPP_CH_1",
@@ -130,22 +130,22 @@ impl_enum_display!(ImageChannels, {
     ImageChannels::P4 => "NPP_CH_P4",
 });
 
-///  Color space enumeration
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[non_exhaustive]
-#[repr(u32)]
-pub enum ColorSpace {
-    ///< no color space defined. used for simple transcoding.
-    TranscodeOnly = sys::NppiColorSpace::NPP_TRANSCODE_ONLY as _,
-    ///< BT601 colorspace used within JPEG images covering 0..255.
-    Bt601Jpeg = sys::NppiColorSpace::NPP_BT601JPEG as _,
-    ///< BT709 High Definition TV colorspace.
-    Bt709Hdtv = sys::NppiColorSpace::NPP_BT709HDTV as _,
-    ///< BT2020 High Definition TV colorspace.
-    Bt2020Hdtv = sys::NppiColorSpace::NPP_BT2020HDTV as _,
+singe_core::native_enum! {
+    ///  Color space enumeration
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[non_exhaustive]
+    #[repr(u32)]
+    pub enum ColorSpace: sys::NppiColorSpace {
+        ///< no color space defined. used for simple transcoding.
+        TranscodeOnly = NPP_TRANSCODE_ONLY,
+        ///< BT601 colorspace used within JPEG images covering 0..255.
+        Bt601Jpeg = NPP_BT601JPEG,
+        ///< BT709 High Definition TV colorspace.
+        Bt709Hdtv = NPP_BT709HDTV,
+        ///< BT2020 High Definition TV colorspace.
+        Bt2020Hdtv = NPP_BT2020HDTV,
+    }
 }
-
-impl_enum_conversion!(sys::NppiColorSpace, ColorSpace);
 
 impl_enum_display!(ColorSpace, {
     ColorSpace::TranscodeOnly => "NPP_TRANSCODE_ONLY",
@@ -465,13 +465,13 @@ impl Size {
     /// Returns an error identifying the first nonpositive dimension.
     pub fn validate(self) -> Result<()> {
         if self.width <= 0 {
-            return Err(Error::ValueNotPositive {
+            return Err(Error::NotPositive {
                 name: "width".into(),
             });
         }
 
         if self.height <= 0 {
-            return Err(Error::ValueNotPositive {
+            return Err(Error::NotPositive {
                 name: "height".into(),
             });
         }
@@ -1872,36 +1872,36 @@ impl From<sys::NppiProfileData> for ProfileStatistics {
     }
 }
 
-/// Filtering methods.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[non_exhaustive]
-#[repr(u32)]
-pub enum InterpolationMode {
-    /// Undefined filtering interpolation mode.
-    Undefined = sys::NppiInterpolationMode::NPPI_INTER_UNDEFINED as _,
-    /// Nearest neighbor filtering.
-    Nearest = sys::NppiInterpolationMode::NPPI_INTER_NN as _,
-    /// Linear interpolation.
-    Linear = sys::NppiInterpolationMode::NPPI_INTER_LINEAR as _,
-    /// Cubic interpolation.
-    Cubic = sys::NppiInterpolationMode::NPPI_INTER_CUBIC as _,
-    /// Two-parameter cubic filter (B=1, C=0).
-    CubicBspline = sys::NppiInterpolationMode::NPPI_INTER_CUBIC2P_BSPLINE as _,
-    /// Two-parameter cubic filter (B=0, C=1/2).
-    CubicCatmullRom = sys::NppiInterpolationMode::NPPI_INTER_CUBIC2P_CATMULLROM as _,
-    /// Two-parameter cubic filter (B=1/2, C=3/10).
-    CubicB05C03 = sys::NppiInterpolationMode::NPPI_INTER_CUBIC2P_B05C03 as _,
-    /// Super sampling.
-    Super = sys::NppiInterpolationMode::NPPI_INTER_SUPER as _,
-    /// Lanczos filtering.
-    Lanczos = sys::NppiInterpolationMode::NPPI_INTER_LANCZOS as _,
-    /// Generic Lanczos filtering with order 3.
-    Lanczos3Advanced = sys::NppiInterpolationMode::NPPI_INTER_LANCZOS3_ADVANCED as _,
-    /// Smooth edge filtering.
-    SmoothEdge = sys::NppiInterpolationMode::NPPI_SMOOTH_EDGE as _,
+singe_core::native_enum! {
+    /// Filtering methods.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[non_exhaustive]
+    #[repr(u32)]
+    pub enum InterpolationMode: sys::NppiInterpolationMode {
+        /// Undefined filtering interpolation mode.
+        Undefined = NPPI_INTER_UNDEFINED,
+        /// Nearest neighbor filtering.
+        Nearest = NPPI_INTER_NN,
+        /// Linear interpolation.
+        Linear = NPPI_INTER_LINEAR,
+        /// Cubic interpolation.
+        Cubic = NPPI_INTER_CUBIC,
+        /// Two-parameter cubic filter (B=1, C=0).
+        CubicBspline = NPPI_INTER_CUBIC2P_BSPLINE,
+        /// Two-parameter cubic filter (B=0, C=1/2).
+        CubicCatmullRom = NPPI_INTER_CUBIC2P_CATMULLROM,
+        /// Two-parameter cubic filter (B=1/2, C=3/10).
+        CubicB05C03 = NPPI_INTER_CUBIC2P_B05C03,
+        /// Super sampling.
+        Super = NPPI_INTER_SUPER,
+        /// Lanczos filtering.
+        Lanczos = NPPI_INTER_LANCZOS,
+        /// Generic Lanczos filtering with order 3.
+        Lanczos3Advanced = NPPI_INTER_LANCZOS3_ADVANCED,
+        /// Smooth edge filtering.
+        SmoothEdge = NPPI_SMOOTH_EDGE,
+    }
 }
-
-impl_enum_conversion!(sys::NppiInterpolationMode, InterpolationMode);
 
 impl From<InterpolationMode> for i32 {
     fn from(value: InterpolationMode) -> Self {
@@ -1924,49 +1924,49 @@ impl_enum_display!(InterpolationMode, {
     InterpolationMode::SmoothEdge => "NPPI_SMOOTH_EDGE",
 });
 
-/// Rounding Modes.
-///
-/// The enumerated rounding modes are used by a large number of NPP primitives to allow the user to specify the method by which fractional values are converted to integer values.
-/// Also see [Rounding Modes](https://docs.nvidia.com/cuda/archive/13.4.2/npp/introduction.html#general_conventions_lb_1rounding_modes).
-///
-/// For NPP release 5.5 new names for the three rounding modes are introduced that are based on the naming conventions for rounding modes set forth in the IEEE-754 floating-point standard.
-/// Developers are encouraged to use the new, longer names to be future proof as the legacy names will be deprecated in subsequent NPP releases.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[non_exhaustive]
-#[repr(u32)]
-pub enum RoundMode {
-    /// Round to the nearest even integer.
+singe_core::native_enum! {
+    /// Rounding Modes.
     ///
-    /// All fractional numbers are rounded to their nearest integer.
-    /// The ambiguous cases (i.e. &lt;integer>.5) are rounded to the closest even integer.
-    /// E.g.
+    /// The enumerated rounding modes are used by a large number of NPP primitives to allow the user to specify the method by which fractional values are converted to integer values.
+    /// Also see [Rounding Modes](https://docs.nvidia.com/cuda/archive/13.4.2/npp/introduction.html#general_conventions_lb_1rounding_modes).
     ///
-    /// * roundNear(0.5) = 0
-    /// * roundNear(0.6) = 1
-    /// * roundNear(1.5) = 2
-    /// * roundNear(-1.5) = -2.
-    Near = sys::NppRoundMode::NPP_RND_NEAR as _,
-    /// Round according to financial rule.
-    ///
-    /// All fractional numbers are rounded to their nearest integer.
-    /// The ambiguous cases (i.e. &lt;integer>.5) are rounded away from zero.
-    /// E.g.
-    ///
-    /// * roundFinancial(0.4) = 0
-    /// * roundFinancial(0.5) = 1
-    /// * roundFinancial(-1.5) = -2.
-    Financial = sys::NppRoundMode::NPP_RND_FINANCIAL as _,
-    /// Round towards zero (truncation).
-    ///
-    /// All fractional numbers of the form &lt;integer>.&lt;decimals> are truncated to &lt;integer>.
-    ///
-    /// * roundZero(1.5) = 1
-    /// * roundZero(1.9) = 1
-    /// * roundZero(-2.5) = -2.
-    Zero = sys::NppRoundMode::NPP_RND_ZERO as _,
+    /// For NPP release 5.5 new names for the three rounding modes are introduced that are based on the naming conventions for rounding modes set forth in the IEEE-754 floating-point standard.
+    /// Developers are encouraged to use the new, longer names to be future proof as the legacy names will be deprecated in subsequent NPP releases.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[non_exhaustive]
+    #[repr(u32)]
+    pub enum RoundMode: sys::NppRoundMode {
+        /// Round to the nearest even integer.
+        ///
+        /// All fractional numbers are rounded to their nearest integer.
+        /// The ambiguous cases (i.e. &lt;integer>.5) are rounded to the closest even integer.
+        /// E.g.
+        ///
+        /// * roundNear(0.5) = 0
+        /// * roundNear(0.6) = 1
+        /// * roundNear(1.5) = 2
+        /// * roundNear(-1.5) = -2.
+        Near = NPP_RND_NEAR,
+        /// Round according to financial rule.
+        ///
+        /// All fractional numbers are rounded to their nearest integer.
+        /// The ambiguous cases (i.e. &lt;integer>.5) are rounded away from zero.
+        /// E.g.
+        ///
+        /// * roundFinancial(0.4) = 0
+        /// * roundFinancial(0.5) = 1
+        /// * roundFinancial(-1.5) = -2.
+        Financial = NPP_RND_FINANCIAL,
+        /// Round towards zero (truncation).
+        ///
+        /// All fractional numbers of the form &lt;integer>.&lt;decimals> are truncated to &lt;integer>.
+        ///
+        /// * roundZero(1.5) = 1
+        /// * roundZero(1.9) = 1
+        /// * roundZero(-2.5) = -2.
+        Zero = NPP_RND_ZERO,
+    }
 }
-
-impl_enum_conversion!(sys::NppRoundMode, RoundMode);
 
 impl_enum_display!(RoundMode, {
     RoundMode::Near => "NPP_RND_NEAR",
@@ -1974,20 +1974,20 @@ impl_enum_display!(RoundMode, {
     RoundMode::Zero => "NPP_RND_ZERO",
 });
 
-/// Hints.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[non_exhaustive]
-#[repr(u32)]
-pub enum HintAlgorithm {
-    /// Hint none, currently these are all ignored.
-    None = sys::NppHintAlgorithm::NPP_ALG_HINT_NONE as _,
-    /// Hint fast, currently these are all ignored.
-    Fast = sys::NppHintAlgorithm::NPP_ALG_HINT_FAST as _,
-    /// Hint accurate, currently these are all ignored.
-    Accurate = sys::NppHintAlgorithm::NPP_ALG_HINT_ACCURATE as _,
+singe_core::native_enum! {
+    /// Hints.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[non_exhaustive]
+    #[repr(u32)]
+    pub enum HintAlgorithm: sys::NppHintAlgorithm {
+        /// Hint none, currently these are all ignored.
+        None = NPP_ALG_HINT_NONE,
+        /// Hint fast, currently these are all ignored.
+        Fast = NPP_ALG_HINT_FAST,
+        /// Hint accurate, currently these are all ignored.
+        Accurate = NPP_ALG_HINT_ACCURATE,
+    }
 }
-
-impl_enum_conversion!(sys::NppHintAlgorithm, HintAlgorithm);
 
 impl_enum_display!(HintAlgorithm, {
     HintAlgorithm::None => "NPP_ALG_HINT_NONE",
@@ -1995,20 +1995,20 @@ impl_enum_display!(HintAlgorithm, {
     HintAlgorithm::Accurate => "NPP_ALG_HINT_ACCURATE",
 });
 
-/// Norm controls.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[non_exhaustive]
-#[repr(u32)]
-pub enum ImageNormalization {
-    /// maximum.
-    Infinity = sys::NppiNorm::nppiNormInf as _,
-    /// sum.
-    L1 = sys::NppiNorm::nppiNormL1 as _,
-    /// square root of sum of squares.
-    L2 = sys::NppiNorm::nppiNormL2 as _,
+singe_core::native_enum! {
+    /// Norm controls.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[non_exhaustive]
+    #[repr(u32)]
+    pub enum ImageNormalization: sys::NppiNorm {
+        /// maximum.
+        Infinity = nppiNormInf,
+        /// sum.
+        L1 = nppiNormL1,
+        /// square root of sum of squares.
+        L2 = nppiNormL2,
+    }
 }
-
-impl_enum_conversion!(sys::NppiNorm, ImageNormalization);
 
 impl_enum_display!(ImageNormalization, {
     ImageNormalization::Infinity => "nppiNormInf",
@@ -2016,29 +2016,24 @@ impl_enum_display!(ImageNormalization, {
     ImageNormalization::L2 => "nppiNormL2",
 });
 
-/// Provides control of the type of segment boundaries, if any, added to the image generated by the watershed segmentation function.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[non_exhaustive]
-#[repr(u32)]
-pub enum WatershedSegmentBoundaryType {
-    /// Image watershed segment boundary type none.
-    None = sys::NppiWatershedSegmentBoundaryType::NPP_WATERSHED_SEGMENT_BOUNDARIES_NONE as _,
-    /// Image watershed segment boundary type black.
-    Black = sys::NppiWatershedSegmentBoundaryType::NPP_WATERSHED_SEGMENT_BOUNDARIES_BLACK as _,
-    /// Image watershed segment boundary type white.
-    White = sys::NppiWatershedSegmentBoundaryType::NPP_WATERSHED_SEGMENT_BOUNDARIES_WHITE as _,
-    /// Image watershed segment boundary type contrasting intensity.
-    Contrast =
-        sys::NppiWatershedSegmentBoundaryType::NPP_WATERSHED_SEGMENT_BOUNDARIES_CONTRAST as _,
-    /// Image watershed segment boundary type render boundaries only.
-    BoundariesOnly =
-        sys::NppiWatershedSegmentBoundaryType::NPP_WATERSHED_SEGMENT_BOUNDARIES_ONLY as _,
+singe_core::native_enum! {
+    /// Provides control of the type of segment boundaries, if any, added to the image generated by the watershed segmentation function.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[non_exhaustive]
+    #[repr(u32)]
+    pub enum WatershedSegmentBoundaryType: sys::NppiWatershedSegmentBoundaryType {
+        /// Image watershed segment boundary type none.
+        None = NPP_WATERSHED_SEGMENT_BOUNDARIES_NONE,
+        /// Image watershed segment boundary type black.
+        Black = NPP_WATERSHED_SEGMENT_BOUNDARIES_BLACK,
+        /// Image watershed segment boundary type white.
+        White = NPP_WATERSHED_SEGMENT_BOUNDARIES_WHITE,
+        /// Image watershed segment boundary type contrasting intensity.
+        Contrast = NPP_WATERSHED_SEGMENT_BOUNDARIES_CONTRAST,
+        /// Image watershed segment boundary type render boundaries only.
+        BoundariesOnly = NPP_WATERSHED_SEGMENT_BOUNDARIES_ONLY,
+    }
 }
-
-impl_enum_conversion!(
-    sys::NppiWatershedSegmentBoundaryType,
-    WatershedSegmentBoundaryType
-);
 
 impl_enum_display!(WatershedSegmentBoundaryType, {
     WatershedSegmentBoundaryType::None => "NPP_WATERSHED_SEGMENT_BOUNDARIES_NONE",
@@ -2048,24 +2043,24 @@ impl_enum_display!(WatershedSegmentBoundaryType, {
     WatershedSegmentBoundaryType::BoundariesOnly => "NPP_WATERSHED_SEGMENT_BOUNDARIES_ONLY",
 });
 
-/// Pixel comparison control values.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[non_exhaustive]
-#[repr(u32)]
-pub enum ComparisonOperation {
-    /// Threshold test for less than.
-    Less = sys::NppCmpOp::NPP_CMP_LESS as _,
-    /// Threshold test for less than or equal.
-    LessEqual = sys::NppCmpOp::NPP_CMP_LESS_EQ as _,
-    /// Threshold test for equal.
-    Equal = sys::NppCmpOp::NPP_CMP_EQ as _,
-    /// Threshold test for greater than or equal.
-    GreaterEqual = sys::NppCmpOp::NPP_CMP_GREATER_EQ as _,
-    /// Threshold test for greater than.
-    Greater = sys::NppCmpOp::NPP_CMP_GREATER as _,
+singe_core::native_enum! {
+    /// Pixel comparison control values.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[non_exhaustive]
+    #[repr(u32)]
+    pub enum ComparisonOperation: sys::NppCmpOp {
+        /// Threshold test for less than.
+        Less = NPP_CMP_LESS,
+        /// Threshold test for less than or equal.
+        LessEqual = NPP_CMP_LESS_EQ,
+        /// Threshold test for equal.
+        Equal = NPP_CMP_EQ,
+        /// Threshold test for greater than or equal.
+        GreaterEqual = NPP_CMP_GREATER_EQ,
+        /// Threshold test for greater than.
+        Greater = NPP_CMP_GREATER,
+    }
 }
-
-impl_enum_conversion!(sys::NppCmpOp, ComparisonOperation);
 
 impl_enum_display!(ComparisonOperation, {
     ComparisonOperation::Less => "NPP_CMP_LESS",
@@ -2075,27 +2070,27 @@ impl_enum_display!(ComparisonOperation, {
     ComparisonOperation::Greater => "NPP_CMP_GREATER",
 });
 
-/// Supported image border modes.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[non_exhaustive]
-#[repr(u32)]
-pub enum BorderType {
-    /// Image border type undefined.
-    Undefined = sys::NppiBorderType::NPP_BORDER_UNDEFINED as _,
-    /// Image border type constant value.
-    Constant = sys::NppiBorderType::NPP_BORDER_CONSTANT as _,
-    /// Image border type replicate border pixels.
-    Replicate = sys::NppiBorderType::NPP_BORDER_REPLICATE as _,
-    /// Image border type wrap border pixels.
-    Wrap = sys::NppiBorderType::NPP_BORDER_WRAP as _,
-    /// Image border type mirror border pixels (IPP mirrored border / `OpenCV` `BORDER_REFLECT_101`): gfedcb|abcdefgh|gfedcba , edge pixel is NOT repeated.
-    Mirror = sys::NppiBorderType::NPP_BORDER_MIRROR as _,
-    /// Image border type mirror with replication: `fedcba|abcdefgh|hgfedcba`.
-    /// The edge pixel is repeated, as in `OpenCV` `BORDER_REFLECT`.
-    MirrorReflect = sys::NppiBorderType::NPP_BORDER_MIRROR_REFL as _,
+singe_core::native_enum! {
+    /// Supported image border modes.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[non_exhaustive]
+    #[repr(u32)]
+    pub enum BorderType: sys::NppiBorderType {
+        /// Image border type undefined.
+        Undefined = NPP_BORDER_UNDEFINED,
+        /// Image border type constant value.
+        Constant = NPP_BORDER_CONSTANT,
+        /// Image border type replicate border pixels.
+        Replicate = NPP_BORDER_REPLICATE,
+        /// Image border type wrap border pixels.
+        Wrap = NPP_BORDER_WRAP,
+        /// Image border type mirror border pixels (IPP mirrored border / `OpenCV` `BORDER_REFLECT_101`): gfedcb|abcdefgh|gfedcba , edge pixel is NOT repeated.
+        Mirror = NPP_BORDER_MIRROR,
+        /// Image border type mirror with replication: `fedcba|abcdefgh|hgfedcba`.
+        /// The edge pixel is repeated, as in `OpenCV` `BORDER_REFLECT`.
+        MirrorReflect = NPP_BORDER_MIRROR_REFL,
+    }
 }
-
-impl_enum_conversion!(sys::NppiBorderType, BorderType);
 
 impl_enum_display!(BorderType, {
     BorderType::Undefined => "NPP_BORDER_UNDEFINED",
@@ -2106,36 +2101,36 @@ impl_enum_display!(BorderType, {
     BorderType::MirrorReflect => "NPP_BORDER_MIRROR_REFL",
 });
 
-/// Fixed filter-kernel sizes.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[non_exhaustive]
-#[repr(u32)]
-pub enum MaskSize {
-    /// 1 X 3 filter mask size.
-    Mask1x3 = sys::NppiMaskSize::NPP_MASK_SIZE_1_X_3 as _,
-    /// 1 X 5 filter mask size.
-    Mask1x5 = sys::NppiMaskSize::NPP_MASK_SIZE_1_X_5 as _,
-    /// 3 X 1 filter mask size, leaving space for more 1 X N type enum values.
-    Mask3x1 = sys::NppiMaskSize::NPP_MASK_SIZE_3_X_1 as _,
-    /// 5 X 1 filter mask size.
-    Mask5x1 = sys::NppiMaskSize::NPP_MASK_SIZE_5_X_1 as _,
-    /// 3 X 3 filter mask size, leaving space for more N X 1 type enum values.
-    Mask3x3 = sys::NppiMaskSize::NPP_MASK_SIZE_3_X_3 as _,
-    /// 5 X 5 filter mask size.
-    Mask5x5 = sys::NppiMaskSize::NPP_MASK_SIZE_5_X_5 as _,
-    /// 7 X 7 filter mask size.
-    Mask7x7 = sys::NppiMaskSize::NPP_MASK_SIZE_7_X_7 as _,
-    /// 9 X 9 filter mask size.
-    Mask9x9 = sys::NppiMaskSize::NPP_MASK_SIZE_9_X_9 as _,
-    /// 11 X 11 filter mask size.
-    Mask11x11 = sys::NppiMaskSize::NPP_MASK_SIZE_11_X_11 as _,
-    /// 13 X 13 filter mask size.
-    Mask13x13 = sys::NppiMaskSize::NPP_MASK_SIZE_13_X_13 as _,
-    /// 15 X 15 filter mask size.
-    Mask15x15 = sys::NppiMaskSize::NPP_MASK_SIZE_15_X_15 as _,
+singe_core::native_enum! {
+    /// Fixed filter-kernel sizes.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[non_exhaustive]
+    #[repr(u32)]
+    pub enum MaskSize: sys::NppiMaskSize {
+        /// 1 X 3 filter mask size.
+        Mask1x3 = NPP_MASK_SIZE_1_X_3,
+        /// 1 X 5 filter mask size.
+        Mask1x5 = NPP_MASK_SIZE_1_X_5,
+        /// 3 X 1 filter mask size, leaving space for more 1 X N type enum values.
+        Mask3x1 = NPP_MASK_SIZE_3_X_1,
+        /// 5 X 1 filter mask size.
+        Mask5x1 = NPP_MASK_SIZE_5_X_1,
+        /// 3 X 3 filter mask size, leaving space for more N X 1 type enum values.
+        Mask3x3 = NPP_MASK_SIZE_3_X_3,
+        /// 5 X 5 filter mask size.
+        Mask5x5 = NPP_MASK_SIZE_5_X_5,
+        /// 7 X 7 filter mask size.
+        Mask7x7 = NPP_MASK_SIZE_7_X_7,
+        /// 9 X 9 filter mask size.
+        Mask9x9 = NPP_MASK_SIZE_9_X_9,
+        /// 11 X 11 filter mask size.
+        Mask11x11 = NPP_MASK_SIZE_11_X_11,
+        /// 13 X 13 filter mask size.
+        Mask13x13 = NPP_MASK_SIZE_13_X_13,
+        /// 15 X 15 filter mask size.
+        Mask15x15 = NPP_MASK_SIZE_15_X_15,
+    }
 }
-
-impl_enum_conversion!(sys::NppiMaskSize, MaskSize);
 
 impl_enum_display!(MaskSize, {
     MaskSize::Mask1x3 => "NPP_MASK_SIZE_1_X_3",
@@ -2151,20 +2146,20 @@ impl_enum_display!(MaskSize, {
     MaskSize::Mask15x15 => "NPP_MASK_SIZE_15_X_15",
 });
 
-/// nppiMirror direction controls.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[non_exhaustive]
-#[repr(u32)]
-pub enum Axis {
-    /// Flip around horizontal axis in mirror function.
-    Horizontal = sys::NppiAxis::NPP_HORIZONTAL_AXIS as _,
-    /// Flip around vertical axis in mirror function.
-    Vertical = sys::NppiAxis::NPP_VERTICAL_AXIS as _,
-    /// Flip around both axes in mirror function.
-    Both = sys::NppiAxis::NPP_BOTH_AXIS as _,
+singe_core::native_enum! {
+    /// nppiMirror direction controls.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[non_exhaustive]
+    #[repr(u32)]
+    pub enum Axis: sys::NppiAxis {
+        /// Flip around horizontal axis in mirror function.
+        Horizontal = NPP_HORIZONTAL_AXIS,
+        /// Flip around vertical axis in mirror function.
+        Vertical = NPP_VERTICAL_AXIS,
+        /// Flip around both axes in mirror function.
+        Both = NPP_BOTH_AXIS,
+    }
 }
-
-impl_enum_conversion!(sys::NppiAxis, Axis);
 
 impl_enum_display!(Axis, {
     Axis::Horizontal => "NPP_HORIZONTAL_AXIS",
@@ -2172,22 +2167,22 @@ impl_enum_display!(Axis, {
     Axis::Both => "NPP_BOTH_AXIS",
 });
 
-/// Bayer Grid Position Registration.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[non_exhaustive]
-#[repr(u32)]
-pub enum BayerGridPosition {
-    /// Default registration position BGGR.
-    Bggr = sys::NppiBayerGridPosition::NPPI_BAYER_BGGR as _,
-    /// Registration position RGGB.
-    Rggb = sys::NppiBayerGridPosition::NPPI_BAYER_RGGB as _,
-    /// Registration position GBRG.
-    Gbrg = sys::NppiBayerGridPosition::NPPI_BAYER_GBRG as _,
-    /// Registration position GRBG.
-    Grbg = sys::NppiBayerGridPosition::NPPI_BAYER_GRBG as _,
+singe_core::native_enum! {
+    /// Bayer Grid Position Registration.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[non_exhaustive]
+    #[repr(u32)]
+    pub enum BayerGridPosition: sys::NppiBayerGridPosition {
+        /// Default registration position BGGR.
+        Bggr = NPPI_BAYER_BGGR,
+        /// Registration position RGGB.
+        Rggb = NPPI_BAYER_RGGB,
+        /// Registration position GBRG.
+        Gbrg = NPPI_BAYER_GBRG,
+        /// Registration position GRBG.
+        Grbg = NPPI_BAYER_GRBG,
+    }
 }
-
-impl_enum_conversion!(sys::NppiBayerGridPosition, BayerGridPosition);
 
 impl_enum_display!(BayerGridPosition, {
     BayerGridPosition::Bggr => "NPPI_BAYER_BGGR",
@@ -2196,58 +2191,58 @@ impl_enum_display!(BayerGridPosition, {
     BayerGridPosition::Grbg => "NPPI_BAYER_GRBG",
 });
 
-/// Differential Filter types.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[non_exhaustive]
-#[repr(u32)]
-pub enum DifferentialKernel {
-    /// Differential kernel filter type sobel.
-    Sobel = sys::NppiDifferentialKernel::NPP_FILTER_SOBEL as _,
-    /// Differential kernel filter type scharr.
-    Scharr = sys::NppiDifferentialKernel::NPP_FILTER_SCHARR as _,
+singe_core::native_enum! {
+    /// Differential Filter types.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[non_exhaustive]
+    #[repr(u32)]
+    pub enum DifferentialKernel: sys::NppiDifferentialKernel {
+        /// Differential kernel filter type sobel.
+        Sobel = NPP_FILTER_SOBEL,
+        /// Differential kernel filter type scharr.
+        Scharr = NPP_FILTER_SCHARR,
+    }
 }
-
-impl_enum_conversion!(sys::NppiDifferentialKernel, DifferentialKernel);
 
 impl_enum_display!(DifferentialKernel, {
     DifferentialKernel::Sobel => "NPP_FILTER_SOBEL",
     DifferentialKernel::Scharr => "NPP_FILTER_SCHARR",
 });
 
-/// Alpha composition mode controls.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[non_exhaustive]
-#[repr(u32)]
-pub enum AlphaOperation {
-    /// Alpha composition over operation.
-    Over = sys::NppiAlphaOp::NPPI_OP_ALPHA_OVER as _,
-    /// Alpha composition in operation.
-    In = sys::NppiAlphaOp::NPPI_OP_ALPHA_IN as _,
-    /// Alpha composition out operation.
-    Out = sys::NppiAlphaOp::NPPI_OP_ALPHA_OUT as _,
-    /// Alpha composition atop operation.
-    Atop = sys::NppiAlphaOp::NPPI_OP_ALPHA_ATOP as _,
-    /// Alpha composition xor operation.
-    Xor = sys::NppiAlphaOp::NPPI_OP_ALPHA_XOR as _,
-    /// Alpha composition plus operation.
-    Plus = sys::NppiAlphaOp::NPPI_OP_ALPHA_PLUS as _,
-    /// Alpha composition over premultiply operation.
-    OverPremultiplied = sys::NppiAlphaOp::NPPI_OP_ALPHA_OVER_PREMUL as _,
-    /// Alpha composition in premultiply operation.
-    InPremultiplied = sys::NppiAlphaOp::NPPI_OP_ALPHA_IN_PREMUL as _,
-    /// Alpha composition out premultiply operation.
-    OutPremultiplied = sys::NppiAlphaOp::NPPI_OP_ALPHA_OUT_PREMUL as _,
-    /// Alpha composition atop premultiply operation.
-    AtopPremultiplied = sys::NppiAlphaOp::NPPI_OP_ALPHA_ATOP_PREMUL as _,
-    /// Alpha composition xor premultiply operation.
-    XorPremultiplied = sys::NppiAlphaOp::NPPI_OP_ALPHA_XOR_PREMUL as _,
-    /// Alpha composition plus premultiply operation.
-    PlusPremultiplied = sys::NppiAlphaOp::NPPI_OP_ALPHA_PLUS_PREMUL as _,
-    /// Alpha composition premultiply operation.
-    Premultiplied = sys::NppiAlphaOp::NPPI_OP_ALPHA_PREMUL as _,
+singe_core::native_enum! {
+    /// Alpha composition mode controls.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[non_exhaustive]
+    #[repr(u32)]
+    pub enum AlphaOperation: sys::NppiAlphaOp {
+        /// Alpha composition over operation.
+        Over = NPPI_OP_ALPHA_OVER,
+        /// Alpha composition in operation.
+        In = NPPI_OP_ALPHA_IN,
+        /// Alpha composition out operation.
+        Out = NPPI_OP_ALPHA_OUT,
+        /// Alpha composition atop operation.
+        Atop = NPPI_OP_ALPHA_ATOP,
+        /// Alpha composition xor operation.
+        Xor = NPPI_OP_ALPHA_XOR,
+        /// Alpha composition plus operation.
+        Plus = NPPI_OP_ALPHA_PLUS,
+        /// Alpha composition over premultiply operation.
+        OverPremultiplied = NPPI_OP_ALPHA_OVER_PREMUL,
+        /// Alpha composition in premultiply operation.
+        InPremultiplied = NPPI_OP_ALPHA_IN_PREMUL,
+        /// Alpha composition out premultiply operation.
+        OutPremultiplied = NPPI_OP_ALPHA_OUT_PREMUL,
+        /// Alpha composition atop premultiply operation.
+        AtopPremultiplied = NPPI_OP_ALPHA_ATOP_PREMUL,
+        /// Alpha composition xor premultiply operation.
+        XorPremultiplied = NPPI_OP_ALPHA_XOR_PREMUL,
+        /// Alpha composition plus premultiply operation.
+        PlusPremultiplied = NPPI_OP_ALPHA_PLUS_PREMUL,
+        /// Alpha composition premultiply operation.
+        Premultiplied = NPPI_OP_ALPHA_PREMUL,
+    }
 }
-
-impl_enum_conversion!(sys::NppiAlphaOp, AlphaOperation);
 
 impl_enum_display!(AlphaOperation, {
     AlphaOperation::Over => "NPPI_OP_ALPHA_OVER",
@@ -2265,20 +2260,20 @@ impl_enum_display!(AlphaOperation, {
     AlphaOperation::Premultiplied => "NPPI_OP_ALPHA_PREMUL",
 });
 
-/// Signal sign operations.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[non_exhaustive]
-#[repr(u32)]
-pub enum ZeroCrossingType {
-    /// sign change.
-    SignChange = sys::NppsZCType::nppZCR as _,
-    /// sign change XOR.
-    SignChangeXor = sys::NppsZCType::nppZCXor as _,
-    /// sign change `count_0`.
-    SignChangeCountZero = sys::NppsZCType::nppZCC as _,
+singe_core::native_enum! {
+    /// Signal sign operations.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[non_exhaustive]
+    #[repr(u32)]
+    pub enum ZeroCrossingType: sys::NppsZCType {
+        /// sign change.
+        SignChange = nppZCR,
+        /// sign change XOR.
+        SignChangeXor = nppZCXor,
+        /// sign change `count_0`.
+        SignChangeCountZero = nppZCC,
+    }
 }
-
-impl_enum_conversion!(sys::NppsZCType, ZeroCrossingType);
 
 impl_enum_display!(ZeroCrossingType, {
     ZeroCrossingType::SignChange => "nppZCR",
@@ -2286,18 +2281,18 @@ impl_enum_display!(ZeroCrossingType, {
     ZeroCrossingType::SignChangeCountZero => "nppZCC",
 });
 
-/// `HuffMan` Table controls.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[non_exhaustive]
-#[repr(u32)]
-pub enum HuffmanTableType {
-    /// DC Table.
-    Dc = sys::NppiHuffmanTableType::nppiDCTable as _,
-    /// AC Table.
-    Ac = sys::NppiHuffmanTableType::nppiACTable as _,
+singe_core::native_enum! {
+    /// `HuffMan` Table controls.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[non_exhaustive]
+    #[repr(u32)]
+    pub enum HuffmanTableType: sys::NppiHuffmanTableType {
+        /// DC Table.
+        Dc = nppiDCTable,
+        /// AC Table.
+        Ac = nppiACTable,
+    }
 }
-
-impl_enum_conversion!(sys::NppiHuffmanTableType, HuffmanTableType);
 
 impl_enum_display!(HuffmanTableType, {
     HuffmanTableType::Dc => "nppiDCTable",
@@ -2320,7 +2315,7 @@ mod tests {
     fn test_size_create_rejects_nonpositive_width() {
         assert!(matches!(
             Size::create(0, 1),
-            Err(Error::ValueNotPositive { name }) if name == "width"
+            Err(Error::NotPositive { name }) if name == "width"
         ));
     }
 
@@ -2328,7 +2323,7 @@ mod tests {
     fn test_size_create_rejects_nonpositive_height() {
         assert!(matches!(
             Size::create(1, -1),
-            Err(Error::ValueNotPositive { name }) if name == "height"
+            Err(Error::NotPositive { name }) if name == "height"
         ));
     }
 

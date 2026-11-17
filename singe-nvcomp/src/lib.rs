@@ -1,52 +1,71 @@
-//! Safe Rust wrappers for the NVIDIA nvCOMP compression library.
+//! Safe Rust wrappers for nvCOMP, which compresses and decompresses data in GPU memory with the LZ4, Snappy, Zstd, Deflate, Gzip, `GDeflate`, ANS, Cascaded, and Bitcomp codecs.
 //!
-//! [`format::Codec`] is the main entry point.
-//! It holds one codec's options and compresses or decompresses device buffers, waiting for the result.
-//! [`Codec::compress_contiguous`](format::Codec::compress_contiguous) splits a large buffer into chunks and compresses them in one batch.
+//! This crate provides:
 //!
-//! Each codec module, such as [`lz4`] and [`zstd`], offers the same operations as free functions, plus lower-level ones:
-//!
-//! - `*_chunks_async` functions check their arguments, enqueue batched work over the chunk tables in [`batch`], and return a handle to wait on.
-//! - `*_raw_async` functions pass device pointer arrays straight to nvCOMP.
-//!
-//! Both are `unsafe`, because every buffer must stay valid until the GPU work finishes.
-//!
-//! [`manager`] wraps nvCOMP's managers, which compress whole buffers in nvCOMP's own format.
-//! [`streaming`] compresses gzip data between Rust readers and writers, and [`crc32`] computes checksums on the GPU.
+//! - **One codec type:** [`Codec<C>`](format::Codec) holds one codec's options, selected by a marker type such as [`Lz4`](format::Lz4) or [`Zstd`](format::Zstd), and compresses and decompresses device buffers.
+//! - **Whole buffers:** [`compress_one`](format::Codec::compress_one) and [`decompress_one`](format::Codec::decompress_one) treat a buffer as one chunk, and [`compress_contiguous`](format::Codec::compress_contiguous) and [`decompress_contiguous`](format::Codec::decompress_contiguous) split a large buffer into chunks and process them in one batch.
+//! - **Chunk tables:** [`compress_chunks`](format::Codec::compress_chunks) and [`compress_chunks_scoped`](format::Codec::compress_chunks_scoped) compress caller-provided chunks, and the `unsafe` [`compress_chunks_async`](format::Codec::compress_chunks_async) and [`decompress_chunks_async`](format::Codec::decompress_chunks_async) enqueue batched work without waiting.
+//! - **Compressed data:** [`CompressedChunk`](compressed::CompressedChunk) and [`CompressedBatch`](compressed::CompressedBatch) keep compressed device bytes together with the options needed to decompress them.
+//! - **Checksums:** CRC32 computed on the GPU.
 //!
 //! # Example
 //!
-//! ```no_run
-//! use singe_cuda::{context::Context as CudaContext, memory::DeviceMemory};
-//! use singe_nvcomp::{error::Result, format::{Codec, Lz4}};
+//! Compress device bytes with LZ4 and check that decompressing them gives the input back:
 //!
-//! fn main() -> Result<()> {
-//!     let cuda = CudaContext::create()?;
-//!     let stream = cuda.create_stream()?;
+//! ```rust,no_run
+//! use singe_cuda::{context::Context, memory::DeviceMemory, stream::StreamOptions};
+//! use singe_nvcomp::format::{Codec, Lz4};
+//!
+//! fn main() -> anyhow::Result<()> {
+//!     let context = Context::create()?;
+//!     let stream = context.create_stream(StreamOptions::default())?;
 //!
 //!     let input = b"Hello, nvCOMP!".repeat(1024);
-//!     let device_input = DeviceMemory::from_slice(&cuda, &input)?;
+//!     let device_input = DeviceMemory::from_slice(&context, &input)?;
 //!     let codec = Codec::<Lz4>::default();
 //!     let compressed = codec.compress_one(&device_input, &stream)?;
 //!
-//!     let mut output = DeviceMemory::<u8>::create_uninit(&cuda, input.len())?;
+//!     let mut output = DeviceMemory::<u8>::create_uninit(&context, input.len())?;
 //!     let output_bytes = codec.decompress_one(&compressed, &mut output, &stream)?;
-//!     assert_eq!(output_bytes, input.len());
 //!     // SAFETY: `decompress_one` returned after writing the first `output_bytes` bytes.
 //!     let output = unsafe { output.assume_init_prefix(output_bytes)? };
 //!     assert_eq!(output.copy_to_host_vec()?, input);
 //!
+//!     println!("{} bytes compressed to {}", input.len(), compressed.len());
 //!     Ok(())
 //! }
 //! ```
+//!
+//! [`compress_one`](format::Codec::compress_one) and [`decompress_one`](format::Codec::decompress_one) wait for the GPU before returning, and [`decompress_one`](format::Codec::decompress_one) returns the number of bytes it wrote.
+//! Decompressing a raw chunk table stays `unsafe`, because nvCOMP documents corrupt compressed input as undefined behavior.
+//!
+//! # Features
+//!
+//! - `manager`: adds the `manager` module, for nvCOMP's managers, whose output starts with a header that records the codec and sizes, and the `streaming` module, for gzip between Rust readers and writers.
+//!   It builds a C++ bridge that links nvCOMP at build time, found through `NVCOMP_INCLUDE_PATH` and `NVCOMP_PATH`.
+//!
+//! # Raw execution
+//!
+//! The `unsafe` `*_async` functions check contexts, chunk counts, capacities, alignments, and workspace sizes, order the work on the given stream after the producers of every operand, enqueue it, and return without waiting.
+//! The caller must:
+//!
+//! - keep every chunk, chunk table, workspace, status buffer, and output alive, and let nothing else write them or read the outputs, until the work finishes, including through every replay of a captured graph;
+//! - initialize the input chunks, which a [`DeviceChunkTable`](batch::DeviceChunkTable) guarantees and a [`DeviceChunkTableView`](batch::DeviceChunkTableView) does not;
+//! - pass decompression input that is valid compressed data for the codec and options, since nvCOMP documents corrupt, truncated, or mismatched input as undefined behavior that can write past the output capacities.
+//!
+//! Outputs, sizes, and statuses hold results only after the work finishes; [`AsyncBatchResult::check`](batch::AsyncBatchResult::check) waits and checks the statuses.
+//! The safe [`decompress_one`](format::Codec::decompress_one) and [`decompress_contiguous`](format::Codec::decompress_contiguous) take a [`CompressedChunk`](compressed::CompressedChunk) or [`CompressedBatch`](compressed::CompressedBatch), which holds data from a completed compression.
 
-/// Batched ANS compression and decompression.
+#[cfg(not(feature = "nvcomp_6_0"))]
+compile_error!("singe-nvcomp requires a version feature, such as `nvcomp_6_0`");
+
+/// ANS options and chunk limits for [`format::Codec`].
 pub mod ans;
 
 pub mod batch;
 pub mod bitcomp;
 
-/// Batched Cascaded compression and decompression.
+/// Cascaded options and chunk limits for [`format::Codec`].
 pub mod cascaded;
 
 /// Compressed chunks and batches in device memory.
@@ -55,7 +74,7 @@ pub mod compressed;
 /// CRC32 checksums computed on the GPU.
 pub mod crc32;
 
-/// Batched Deflate compression and decompression.
+/// Deflate options and chunk limits for [`format::Codec`].
 pub mod deflate;
 
 /// Error and status types.
@@ -63,55 +82,57 @@ pub mod error;
 
 pub mod format;
 
-/// Batched `GDeflate` compression and decompression.
+/// `GDeflate` options and chunk limits for [`format::Codec`].
 pub mod gdeflate;
 
-/// Batched Gzip compression and decompression.
+/// Gzip options and chunk limits for [`format::Codec`].
 pub mod gzip;
 
-/// Batched LZ4 compression and decompression.
+/// LZ4 options and chunk limits for [`format::Codec`].
 pub mod lz4;
 
+#[cfg(feature = "manager")]
 pub mod manager;
 
-/// Batched Snappy compression and decompression.
+/// Snappy options and chunk limits for [`format::Codec`].
 pub mod snappy;
 
+#[cfg(feature = "manager")]
 pub mod streaming;
+
+#[cfg(feature = "testing")]
+pub mod testing;
 
 /// Data types, alignments, library properties, and option enums shared by the codecs.
 pub mod types;
 
-pub mod workspace;
-
-/// Batched Zstd compression and decompression.
+/// Zstd options and chunk limits for [`format::Codec`].
 pub mod zstd;
-
-#[cfg(feature = "testing")]
-/// CPU reference implementations for checking GPU results.
-pub mod testing;
 
 pub(crate) mod utility;
 
 mod codec;
 
-use singe_core::{CudaRuntimeVersion, LibraryVersion};
-use singe_nvcomp_sys as sys;
+pub use singe_core::{CudaVersion, LibraryVersion};
+pub use singe_nvcomp_sys as sys;
 
-use crate::{error::Result, types::Properties};
+use crate::{
+    error::{Result, try_ffi},
+    types::Properties,
+};
 
 /// Returns the properties of the loaded nvCOMP library.
 ///
 /// # Errors
 ///
-/// Returns an error if nvCOMP cannot report its properties.
+/// Returns an error if nvCOMP cannot report its properties or reports a version that does not fit its encoding.
 pub fn properties() -> Result<Properties> {
     let mut properties = sys::nvcompProperties_t::default();
-    // SAFETY: `nvcompGetProperties` receives valid output locations.
+    // SAFETY: `properties` is a live local of the native properties type, which nvCOMP fills.
     unsafe {
         try_ffi!(sys::nvcompGetProperties(&raw mut properties))?;
     }
-    Ok(properties.into())
+    Properties::try_from(properties)
 }
 
 /// Returns the version of the loaded nvCOMP library.
@@ -128,20 +149,18 @@ pub fn version() -> Result<LibraryVersion> {
 /// # Errors
 ///
 /// Returns an error if nvCOMP cannot report its properties.
-pub fn cudart_version() -> Result<CudaRuntimeVersion> {
+pub fn cudart_version() -> Result<CudaVersion> {
     Ok(properties()?.cudart_version)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::error::Status;
 
     #[test]
     fn test_it_works() -> Result<()> {
-        assert_ne!(version()?, 0);
-        assert_ne!(cudart_version()?, 0);
-        assert!(!Status::Success.description().is_empty());
+        assert_ne!(version()?, LibraryVersion::new(0, 0, 0));
+        assert_ne!(cudart_version()?.major(), 0);
         Ok(())
     }
 }

@@ -12,7 +12,11 @@ use crate::{
 };
 
 impl Engine {
-    pub fn execute_integer(&mut self, lane: usize, operation: &IntegerOperation) -> Result<()> {
+    pub(crate) fn execute_integer(
+        &mut self,
+        lane: usize,
+        operation: &IntegerOperation,
+    ) -> Result<()> {
         match operation {
             IntegerOperation::DotProduct {
                 mode,

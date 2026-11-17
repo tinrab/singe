@@ -30,7 +30,7 @@ use crate::{
                 },
             },
             cudnn_backend::cudnn_takes_matmul,
-            gemm::{ScaledMatmulPointers, enqueue_scaled_matmul},
+            gemm::{ScaledMatmulOperands, enqueue_scaled_matmul},
             graph_value::CudaGraphValue,
             provider_selection::{KernelChoice, Operand, matmul_kernel},
             tensor_region::CudaTensorSource,
@@ -308,15 +308,12 @@ fn build_scaled_matmul_graph(
         ));
     }
 
-    let pointer = |value: &CudaGraphValue| -> Result<_> {
-        Ok(value.tensor_region()?.region().as_ptr().cast_const().cast())
-    };
-    let pointers = ScaledMatmulPointers {
-        lhs: pointer(lhs)?,
-        rhs: pointer(rhs)?,
-        lhs_scale: pointer(lhs_scale)?,
-        rhs_scale: pointer(rhs_scale)?,
-        output: request.output.tensor_region()?.region().as_ptr().cast(),
+    let operands = ScaledMatmulOperands {
+        lhs: lhs.tensor_region()?.region(),
+        rhs: rhs.tensor_region()?.region(),
+        lhs_scale: Some(lhs_scale.tensor_region()?.region()),
+        rhs_scale: Some(rhs_scale.tensor_region()?.region()),
+        output: request.output.tensor_region()?.region(),
     };
     let stream = CudaStream::create(request.output.device())?;
     let cublaslt = request.runtime.cublaslt().locked("cuda runtime cache")?;
@@ -327,7 +324,7 @@ fn build_scaled_matmul_graph(
                 &cublaslt,
                 &problem,
                 [lhs.data_type(), rhs.data_type(), output_type],
-                &pointers,
+                &operands,
                 Some(stream.raw()),
             )
         }

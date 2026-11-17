@@ -1,29 +1,33 @@
 use crate::{
     backend::{
-        pointwise::PointwiseMode,
-        reduction::ReduceTensorOperator,
-        tensor::{BackendTensorReordering, TensorId, TensorSpec},
+        operation::{
+            attention::{SdpaForwardQuantization, SoftmaxOutputs},
+            block_scale::BlockScaleDequantizeInputs,
+            pointwise::PointwiseMode,
+            reduction::ReduceTensorOperator,
+        },
+        tensor::BackendTensorReordering,
     },
     data_type::DataType,
-    error::Result,
+    error::{Error, Result, SdpaFeature},
     frontend::{
         composite::sdpa::{
             SdpaForwardOutputTensors, SdpaFp8Inputs, SdpaInputs, SdpaMxfp8Inputs,
             forward::selection::ResolvedAttentionImplementation, infer_sdpa_output_shape,
             infer_sdpa_scores_shape, support::SDPA_SCORE_SUBGRAPH,
         },
-        error::{Error as FrontendError, SdpaFeature},
+        error::Error as FrontendError,
         graph::{
-            BlockScaleDequantizeInputs, Graph, MatmulFp8Inputs, MatmulFp8QuantizeOutputs,
-            MatmulFp8QuantizeTensors, SoftmaxOutputs, TensorOutputConfig,
+            Graph, MatmulFp8Inputs, MatmulFp8QuantizeOutputs, MatmulFp8QuantizeTensors,
+            TensorOutputConfig,
         },
         operation::{
-            AttentionConfig, AttentionForwardInputs, BlockScaleDequantizeConfig,
-            PointwiseOperation, ReductionConfig, SdpaForwardQuantization,
+            AttentionConfig, BlockScaleDequantizeConfig, PointwiseOperation, ReductionConfig,
             SdpaSoftmaxAuxOutputRequest,
         },
     },
     math::NanPropagation,
+    tensor::{TensorId, TensorSpec},
 };
 
 struct QuantizedSoftmaxOutputs {
@@ -121,31 +125,6 @@ impl Graph {
             score_sum_exp: outputs.sum_exp,
             rng_dump,
         })
-    }
-
-    /// Adds FP8 SDPA with independent output and auxiliary placement and encoding.
-    /// Stats, RNG dumps and Amax outputs default to FP32 independently of graph policies.
-    ///
-    /// FP8 SDPA uses explicit descale/scale tensors for Q, K, V, scores, and output as documented in the frontend attention support surface.
-    /// Quantization scales need not be scalars.
-    /// Composite operations accept shapes broadcastable at their point of use; native engines determine their supported layouts.
-    /// The separate attention-scale operand remains a logical scalar and can be a device tensor, host by-value input or constant.
-    /// A configured numeric attention factor multiplies it.
-    /// `AttentionConfig` carries sequence lengths, paging, score modifiers, dropout and implementation selection.
-    /// Cumulative lengths and block masks require the unified implementation.
-    /// Preparation selects an implementation for the target and validates its support restrictions.
-    /// Result placement selects I/O or intermediate encoding unless explicitly overridden.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error for unknown or incompatible query/key/value or paged-cache geometry, invalid sequence-length combinations, an RNG dump requested without dropout, or unrepresentable inferred score, result, or auxiliary layouts.
-    pub fn sdpa_fp8(
-        &mut self,
-        inputs: SdpaFp8Inputs,
-        config: &AttentionConfig,
-        outputs: SdpaForwardOutputTensors<TensorOutputConfig>,
-    ) -> Result<SdpaForwardOutputTensors> {
-        self.record_attention_forward(AttentionForwardInputs::Fp8(inputs), outputs, config.clone())
     }
 
     pub(crate) fn expand_fp8_attention(
@@ -299,47 +278,6 @@ impl Graph {
         })
     }
 
-    /// Records FP8 attention with caller-declared output layouts and auxiliary tensors.
-    /// Supplied auxiliary tensors enable their requests without duplicate configuration flags.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error for unknown or incompatible query/key/value or paged-cache geometry, invalid sequence-length combinations, an RNG dump requested without dropout, or unrepresentable inferred score, result, or auxiliary layouts.
-    /// Caller-declared outputs must exist and match inferred output requirements.
-    pub fn sdpa_fp8_into(
-        &mut self,
-        inputs: SdpaFp8Inputs,
-        outputs: SdpaForwardOutputTensors,
-        config: &AttentionConfig,
-    ) -> Result<()> {
-        self.record_explicit_attention_forward(AttentionForwardInputs::Fp8(inputs), outputs, config)
-    }
-
-    /// Adds block-scaled attention with independent result placement and encoding.
-    /// Every requested result selects placement and encoding independently.
-    /// Stats, RNG dumps and probability/output Amax default to FP32 independently of graph policies.
-    /// Omitted primary encoding follows I/O or intermediate policy, with BF16 as the fallback.
-    /// Explicit output types reach native support selection without a frontend-only BF16 restriction.
-    /// Paged MXFP8 caches are unsupported by the C++ cuDNN backend path.
-    /// Implementation selection and expansion occur during preparation.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error for unknown or incompatible query/key/value or paged-cache geometry, invalid sequence-length combinations, an RNG dump requested without dropout, or unrepresentable inferred score, result, or auxiliary layouts.
-    /// MXFP8 requests cannot use paged caches.
-    pub fn sdpa_mxfp8(
-        &mut self,
-        inputs: SdpaMxfp8Inputs,
-        config: &AttentionConfig,
-        outputs: SdpaForwardOutputTensors<TensorOutputConfig>,
-    ) -> Result<SdpaForwardOutputTensors> {
-        self.record_attention_forward(
-            AttentionForwardInputs::Mxfp8(inputs),
-            outputs,
-            config.clone(),
-        )
-    }
-
     pub(crate) fn expand_mxfp8_attention(
         &mut self,
         inputs: SdpaMxfp8Inputs,
@@ -348,12 +286,11 @@ impl Graph {
         config: &AttentionConfig,
     ) -> Result<SdpaForwardOutputTensors> {
         if config.paged().is_enabled() {
-            return Err(FrontendError::SdpaUnsupported {
+            return Err(Error::SdpaUnsupported {
                 feature: SdpaFeature::PagedCaches,
                 operation: "mxfp8 sdpa",
                 sm_version: None,
-            }
-            .into());
+            });
         }
 
         if implementation == ResolvedAttentionImplementation::Composite {
@@ -508,26 +445,5 @@ impl Graph {
             absolute_max_probabilities: absolute_max_s,
             absolute_max_output: absolute_max_o,
         })
-    }
-
-    /// Records MXFP8 attention with caller-declared output layouts and auxiliary tensors.
-    /// Supplied auxiliary tensors enable their requests without duplicate configuration flags.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error for unknown or incompatible query/key/value or paged-cache geometry, invalid sequence-length combinations, an RNG dump requested without dropout, or unrepresentable inferred score, result, or auxiliary layouts.
-    /// Caller-declared outputs must exist and match inferred output requirements.
-    /// MXFP8 requests cannot use paged caches.
-    pub fn sdpa_mxfp8_into(
-        &mut self,
-        inputs: SdpaMxfp8Inputs,
-        outputs: SdpaForwardOutputTensors,
-        config: &AttentionConfig,
-    ) -> Result<()> {
-        self.record_explicit_attention_forward(
-            AttentionForwardInputs::Mxfp8(inputs),
-            outputs,
-            config,
-        )
     }
 }

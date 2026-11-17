@@ -1,17 +1,14 @@
 use singe_cublas::{
-    blas::level3::gemm_ex,
+    blas::extension::gemm_ex,
     context::Context,
-    error::Result,
+    scalar::Scalar,
     types::{ComputeType, EmulationStrategy, GemmAlgorithm, Operation},
 };
+use singe_cuda::{context::Context as CudaContext, device::Device, memory::DeviceMemory};
 
-use singe_cuda::{
-    context::Context as CudaContext, data_type::DataType, device::Device, memory::DeviceMemory,
-};
-
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     let cuda = CudaContext::create_for_device(Device::new(0))?;
-    let cublas = Context::create(&cuda)?;
+    let mut cublas = Context::create(&cuda)?;
 
     let a = DeviceMemory::from_slice(
         &cuda,
@@ -37,16 +34,13 @@ fn main() -> Result<()> {
         4,
         4,
         4,
-        &1.0_f32,
+        Scalar::host(&1.0_f32),
         &a,
-        DataType::F32,
         4,
         &b,
-        DataType::F32,
         4,
-        &0.0_f32,
+        Scalar::host(&0.0_f32),
         &mut c_native,
-        DataType::F32,
         4,
         ComputeType::F32,
         GemmAlgorithm::Default,
@@ -60,16 +54,13 @@ fn main() -> Result<()> {
         4,
         4,
         4,
-        &1.0_f32,
+        Scalar::host(&1.0_f32),
         &a,
-        DataType::F32,
         4,
         &b,
-        DataType::F32,
         4,
-        &0.0_f32,
+        Scalar::host(&0.0_f32),
         &mut c_emulated,
-        DataType::F32,
         4,
         ComputeType::F32EmulatedBf16x9,
         GemmAlgorithm::Default,

@@ -1,17 +1,18 @@
 mod common;
 
-use std::process;
-
 use singe_cuda::memory::DeviceMemory;
-use singe_nccl::local::{LocalCommunicatorGroup, RankVec, RootRank};
+use singe_nccl::{
+    local::{LocalCommunicatorGroup, RankVec},
+    types::RootRank,
+};
 
-use crate::common::{ExampleResult, check_all_equal};
+use crate::common::{check_all_equal, first_devices};
 
 const ELEMENT_COUNT: usize = 16;
 const ROOT_RANK: i32 = 0;
 
-fn run() -> ExampleResult {
-    let group = LocalCommunicatorGroup::create_all_visible(2)?;
+fn main() -> anyhow::Result<()> {
+    let group = LocalCommunicatorGroup::create(&first_devices(2)?)?;
     let rank_count = group.rank_count();
     let root = RootRank::create(ROOT_RANK)?;
     let root_index = usize::try_from(ROOT_RANK)?;
@@ -63,11 +64,4 @@ fn run() -> ExampleResult {
     drop(recv_buffers);
     drop(send_buffers);
     Ok(group.destroy()?)
-}
-
-fn main() {
-    if let Err(error) = run() {
-        eprintln!("{error}");
-        process::exit(1);
-    }
 }

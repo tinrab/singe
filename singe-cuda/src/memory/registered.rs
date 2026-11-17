@@ -1,26 +1,22 @@
-use std::{
-    alloc::Layout,
-    marker::PhantomData,
-    mem::{ManuallyDrop, MaybeUninit},
-    ptr::NonNull,
-    result::Result as StdResult,
-    slice,
-    sync::Arc,
-};
+use std::{marker::PhantomData, ptr, ptr::NonNull, slice, sync::Arc};
+
+use singe_core::report_cleanup_failure;
+use singe_cuda_sys::runtime;
 
 use crate::{
     context::Context,
     error::{Error, Result},
     memory::{
-        CudaHostSlice, HostRegisterFlags, HostRegistration, RegisteredAllocation,
-        RegisteredHostMemory, RegisteredHostSlice, RegisteredHostVec, dangling_or_non_null,
+        HostRegisterFlags, PinnedHostSlice, PinnedHostSliceMut, register_host_raw,
+        unregister_host_raw,
     },
     submission::{Access, AccessMode},
+    try_ffi,
     types::DevicePtr,
-    utility::checked_bytes,
+    utility::{checked_bytes, dangling_or_non_null},
     view::{
-        AnyBitPatternDeviceRepr, DeviceOutputView, DeviceRepr, DeviceView, DeviceViewMut,
-        NoUninitDeviceRepr,
+        AllocationId, DeviceRegion, DeviceRepr, DeviceView, DeviceViewMut, HostRegion, HostSlice,
+        HostSliceMut,
     },
 };
 
@@ -29,7 +25,7 @@ impl<'a, T: DeviceRepr> RegisteredHostMemory<'a, T> {
     ///
     /// # Errors
     ///
-    /// Propagates access-tracking and CUDA completion errors before invoking the callback.
+    /// Returns an error if access tracking fails or waiting for tracked device work fails, before the callback runs.
     pub fn with_host_slice<R>(&self, read: impl FnOnce(&[T]) -> R) -> Result<R> {
         let context = self.context();
         let _guard =
@@ -41,7 +37,7 @@ impl<'a, T: DeviceRepr> RegisteredHostMemory<'a, T> {
     ///
     /// # Errors
     ///
-    /// Propagates access-tracking and CUDA completion errors before invoking the callback.
+    /// Returns an error if access tracking fails or waiting for tracked device work fails, before the callback runs.
     pub fn with_host_slice_mut<R>(&mut self, write: impl FnOnce(&mut [T]) -> R) -> Result<R> {
         let context = Arc::clone(self.context());
         let _guard =
@@ -49,26 +45,16 @@ impl<'a, T: DeviceRepr> RegisteredHostMemory<'a, T> {
         Ok(write(self.as_slice_mut()))
     }
 
-    /// Registers a mutable host slice with CUDA for this wrapper's lifetime.
+    /// Registers a mutable host slice with CUDA using `flags` for this wrapper's lifetime.
     ///
     /// Empty slices retain the context without registering a host range.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the slice byte length overflows, CUDA cannot register the host range, or `slice` is non-empty for a zero-sized `T`.
-    pub fn create(context: &Arc<Context>, slice: &'a mut [T]) -> Result<Self> {
-        Self::create_with_flags(context, slice, HostRegisterFlags::DEFAULT)
-    }
-
-    /// Registers a mutable host slice with CUDA using `flags`.
-    ///
     /// Safe mutable registration rejects [`HostRegisterFlags::READ_ONLY`] and [`HostRegisterFlags::IO_MEMORY`].
     /// Use [`RegisteredHostMemory::create_io_memory`] for MMIO ranges.
     ///
     /// # Errors
     ///
     /// Returns an error if `flags` are incompatible with mutable safe registration, the slice byte length overflows, CUDA cannot register the range, or `slice` is non-empty for a zero-sized `T`.
-    pub fn create_with_flags(
+    pub fn create(
         context: &Arc<Context>,
         slice: &'a mut [T],
         flags: HostRegisterFlags,
@@ -76,7 +62,7 @@ impl<'a, T: DeviceRepr> RegisteredHostMemory<'a, T> {
         if flags.contains(HostRegisterFlags::READ_ONLY)
             || flags.contains(HostRegisterFlags::IO_MEMORY)
         {
-            return Err(Error::InvalidValue);
+            return Err(Error::out_of_range("host register flags"));
         }
         // SAFETY: the registration borrows `slice` for its lifetime, so the pages stay valid until unregistration.
         unsafe { Self::register_slice(context, slice.as_mut_ptr(), slice.len(), flags) }
@@ -90,10 +76,9 @@ impl<'a, T: DeviceRepr> RegisteredHostMemory<'a, T> {
     ///
     /// # Errors
     ///
-    /// Returns an error for byte-size overflow or a nonempty zero-sized range.
-    /// Also propagates context-binding and CUDA I/O-memory registration errors.
+    /// Returns an error if the byte size overflows, `slice` is non-empty for a zero-sized `T`, the context cannot be bound, or CUDA cannot register the range as I/O memory.
     pub unsafe fn create_io_memory(context: &Arc<Context>, slice: &'a mut [T]) -> Result<Self> {
-        // SAFETY: the caller upholds this function's safety contract.
+        // SAFETY: the registration borrows `slice` for `'a`, so the range stays mapped until unregistration, and the caller guarantees it is an MMIO range CUDA accepts.
         unsafe {
             Self::register_slice(
                 context,
@@ -104,6 +89,7 @@ impl<'a, T: DeviceRepr> RegisteredHostMemory<'a, T> {
         }
     }
 
+    // Requires `ptr` to name `length` host values that stay allocated for `'a`, and an MMIO range when `flags` contains `IO_MEMORY`.
     unsafe fn register_slice(
         context: &Arc<Context>,
         ptr: *mut T,
@@ -111,10 +97,10 @@ impl<'a, T: DeviceRepr> RegisteredHostMemory<'a, T> {
         flags: HostRegisterFlags,
     ) -> Result<Self> {
         let () = T::LAYOUT;
-        let bytes = checked_bytes::<T>(length)?;
+        let bytes = checked_bytes::<T>(length, "byte length")?;
         let typed_ptr = dangling_or_non_null(ptr, length)?;
         let registration =
-            // SAFETY: the caller upholds this function's safety contract.
+            // SAFETY: the caller guarantees `typed_ptr` names `bytes` host bytes that stay allocated for `'a`, which the `PhantomData` borrow ties this registration to.
             unsafe { HostRegistration::create(context, typed_ptr.cast(), bytes, flags)? };
         Ok(Self {
             ptr: typed_ptr,
@@ -130,7 +116,7 @@ impl<'a, T: DeviceRepr> RegisteredHostMemory<'a, T> {
         if self.is_empty() {
             return &[];
         }
-        // SAFETY: `self` owns or borrows `length` initialized elements at `ptr`, and the borrow of `self` prevents aliasing mutation.
+        // SAFETY: `ptr` names `length` initialized values borrowed or owned for `self`'s lifetime, and `&self` excludes host mutation through this wrapper.
         unsafe { slice::from_raw_parts(self.ptr.as_ptr(), self.length) }
     }
 
@@ -139,7 +125,7 @@ impl<'a, T: DeviceRepr> RegisteredHostMemory<'a, T> {
         if self.is_empty() {
             return &mut [];
         }
-        // SAFETY: `self` owns or borrows `length` initialized elements at `ptr`, and the borrow of `self` prevents aliasing mutation.
+        // SAFETY: `ptr` names `length` initialized values borrowed or owned for `self`'s lifetime, and `&mut self` makes this the only reference to them.
         unsafe { slice::from_raw_parts_mut(self.ptr.as_ptr(), self.length) }
     }
 
@@ -172,7 +158,7 @@ impl<'a, T: DeviceRepr> RegisteredHostMemory<'a, T> {
     ///
     /// Returns an error if `len * size_of::<T>()` overflows or `T` is a non-empty zero-sized element type.
     pub fn byte_len(&self) -> Result<usize> {
-        checked_bytes::<T>(self.length)
+        checked_bytes::<T>(self.length, "byte length")
     }
 
     /// Returns the flags used to create this registration.
@@ -200,10 +186,9 @@ impl<'a, T: DeviceRepr> RegisteredHostMemory<'a, T> {
     ///
     /// # Errors
     ///
-    /// Propagates context-binding and CUDA mapping-query errors.
-    /// Also rejects invalid mapped address ranges, byte-size overflow, or a view whose byte length or alignment does not match `T`.
+    /// Returns an error if the context cannot be bound, CUDA cannot report the mapping, the mapped range or byte size is invalid, or the view's byte length or alignment does not match `T`.
     pub fn mapped_device_view(&self) -> Result<DeviceView<'_, T>> {
-        // SAFETY: the registered host storage contains valid T values and retains this shared borrow.
+        // SAFETY: the mapped region aliases the registered host values, which are initialized `T` values that `&self` keeps alive and unmodified.
         unsafe { DeviceView::from_raw_parts(self.registration.mapped_device_region()?, self.len()) }
     }
 
@@ -211,10 +196,9 @@ impl<'a, T: DeviceRepr> RegisteredHostMemory<'a, T> {
     ///
     /// # Errors
     ///
-    /// Propagates context-binding and CUDA mapping-query errors.
-    /// Also rejects invalid mapped address ranges, byte-size overflow, or a view whose byte length or alignment does not match `T`.
+    /// Returns an error if the context cannot be bound, CUDA cannot report the mapping, the mapped range or byte size is invalid, or the view's byte length or alignment does not match `T`.
     pub fn mapped_device_view_mut(&mut self) -> Result<DeviceViewMut<'_, T>> {
-        // SAFETY: the exclusive wrapper borrow covers the complete registered host range.
+        // SAFETY: the mapped region aliases the registered host values, which are initialized `T` values that `&mut self` keeps alive and unaliased.
         unsafe {
             DeviceViewMut::from_raw_parts(self.registration.mapped_device_region()?, self.len())
         }
@@ -226,7 +210,7 @@ impl<'a, T: DeviceRepr> RegisteredHostSlice<'a, T> {
     ///
     /// # Errors
     ///
-    /// Propagates access-tracking and CUDA completion errors before invoking the callback.
+    /// Returns an error if access tracking fails or waiting for tracked device work fails, before the callback runs.
     pub fn with_host_slice<R>(&self, read: impl FnOnce(&[T]) -> R) -> Result<R> {
         let context = self.context();
         let _guard =
@@ -234,46 +218,29 @@ impl<'a, T: DeviceRepr> RegisteredHostSlice<'a, T> {
         Ok(read(self.as_slice()))
     }
 
-    /// Registers an immutable host slice with CUDA for this wrapper's lifetime.
+    /// Registers an immutable host slice with CUDA using `flags` for this wrapper's lifetime.
     ///
     /// Empty slices retain the context without registering a host range.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the slice byte length overflows, CUDA cannot register the host range, or `slice` is non-empty for a zero-sized `T`.
-    pub fn create(context: &Arc<Context>, slice: &'a [T]) -> Result<Self> {
-        Self::create_with_flags(context, slice, HostRegisterFlags::DEFAULT)
-    }
-
-    /// Registers an immutable host slice as read-only for CUDA access.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the slice byte length overflows, CUDA cannot register the host range as read-only, or `slice` is non-empty for a zero-sized `T`.
-    pub fn create_read_only(context: &Arc<Context>, slice: &'a [T]) -> Result<Self> {
-        Self::create_with_flags(context, slice, HostRegisterFlags::READ_ONLY)
-    }
-
-    /// Registers an immutable host slice with CUDA using `flags`.
-    ///
+    /// Pass [`HostRegisterFlags::READ_ONLY`] to register the range as read-only for CUDA access.
     /// Immutable registration rejects [`HostRegisterFlags::IO_MEMORY`].
-    /// Use the unsafe mutable constructor for MMIO ranges.
+    /// Use [`RegisteredHostMemory::create_io_memory`] for MMIO ranges.
     ///
     /// # Errors
     ///
     /// Returns an error if `flags` contain unsupported options, the byte length overflows, CUDA cannot register the range, or `slice` is non-empty for a zero-sized `T`.
-    pub fn create_with_flags(
+    pub fn create(
         context: &Arc<Context>,
         slice: &'a [T],
         flags: HostRegisterFlags,
     ) -> Result<Self> {
         if flags.contains(HostRegisterFlags::IO_MEMORY) {
-            return Err(Error::InvalidValue);
+            return Err(Error::out_of_range("host register flags"));
         }
         // SAFETY: the registration borrows `slice` for its lifetime, so the pages stay valid until unregistration.
         unsafe { Self::register_slice(context, slice.as_ptr(), slice.len(), flags) }
     }
 
+    // Requires `ptr` to name `length` host values that stay allocated for `'a`.
     unsafe fn register_slice(
         context: &Arc<Context>,
         ptr: *const T,
@@ -281,10 +248,10 @@ impl<'a, T: DeviceRepr> RegisteredHostSlice<'a, T> {
         flags: HostRegisterFlags,
     ) -> Result<Self> {
         let () = T::LAYOUT;
-        let bytes = checked_bytes::<T>(length)?;
+        let bytes = checked_bytes::<T>(length, "byte length")?;
         let typed_ptr = dangling_or_non_null(ptr.cast_mut(), length)?;
         let registration =
-            // SAFETY: the caller upholds this function's safety contract.
+            // SAFETY: the caller guarantees `typed_ptr` names `bytes` host bytes that stay allocated for `'a`, which the `PhantomData` borrow ties this registration to.
             unsafe { HostRegistration::create(context, typed_ptr.cast(), bytes, flags)? };
         Ok(Self {
             ptr: typed_ptr,
@@ -300,7 +267,7 @@ impl<'a, T: DeviceRepr> RegisteredHostSlice<'a, T> {
         if self.is_empty() {
             return &[];
         }
-        // SAFETY: `self` owns or borrows `length` initialized elements at `ptr`, and the borrow of `self` prevents aliasing mutation.
+        // SAFETY: `ptr` names `length` initialized values borrowed or owned for `self`'s lifetime, and `&self` excludes host mutation through this wrapper.
         unsafe { slice::from_raw_parts(self.ptr.as_ptr(), self.length) }
     }
 
@@ -328,7 +295,7 @@ impl<'a, T: DeviceRepr> RegisteredHostSlice<'a, T> {
     ///
     /// Returns an error if `len * size_of::<T>()` overflows or `T` is a non-empty zero-sized element type.
     pub fn byte_len(&self) -> Result<usize> {
-        checked_bytes::<T>(self.length)
+        checked_bytes::<T>(self.length, "byte length")
     }
 
     /// Returns the flags used to create this registration.
@@ -341,7 +308,7 @@ impl<'a, T: DeviceRepr> RegisteredHostSlice<'a, T> {
     ///
     /// # Errors
     ///
-    /// Propagates context-binding and CUDA host-to-device mapping query errors, including memory that is not mapped for this context.
+    /// Returns an error if the context cannot be bound or CUDA cannot report the mapping, including memory that is not mapped for this context.
     pub fn mapped_device_ptr(&self) -> Result<DevicePtr> {
         self.registration.mapped_device_ptr()
     }
@@ -356,326 +323,194 @@ impl<'a, T: DeviceRepr> RegisteredHostSlice<'a, T> {
     ///
     /// # Errors
     ///
-    /// Propagates context-binding and CUDA mapping-query errors.
-    /// Also rejects invalid mapped address ranges, byte-size overflow, or a view whose byte length or alignment does not match `T`.
+    /// Returns an error if the context cannot be bound, CUDA cannot report the mapping, the mapped range or byte size is invalid, or the view's byte length or alignment does not match `T`.
     pub fn mapped_device_view(&self) -> Result<DeviceView<'_, T>> {
-        // SAFETY: the registered host storage contains valid T values and retains this shared borrow.
+        // SAFETY: the mapped region aliases the registered host values, which are initialized `T` values that `&self` keeps alive and unmodified.
         unsafe { DeviceView::from_raw_parts(self.registration.mapped_device_region()?, self.len()) }
     }
 }
 
-impl<T: DeviceRepr> RegisteredHostVec<T> {
-    /// Completes tracked device accesses and excludes submitted work while reading host values.
-    ///
-    /// # Errors
-    ///
-    /// Propagates access-tracking and CUDA completion errors before invoking the callback.
-    pub fn with_host_slice<R>(&self, read: impl FnOnce(&[T]) -> R) -> Result<R> {
-        let context = self.context();
-        let _guard =
-            context.acquire_accesses(&[Access::host(self.host_region(), AccessMode::Read)])?;
-        Ok(read(self.as_slice()))
-    }
+#[derive(Debug)]
+pub(crate) struct HostRegistration {
+    flags: HostRegisterFlags,
+    context: Arc<Context>,
+    id: AllocationId,
+    ptr: NonNull<()>,
+    bytes: usize,
+}
 
-    /// Completes tracked device accesses and excludes submitted work while modifying host values.
-    ///
-    /// # Errors
-    ///
-    /// Propagates access-tracking and CUDA completion errors before invoking the callback.
-    pub fn with_host_slice_mut<R>(&mut self, write: impl FnOnce(&mut [T]) -> R) -> Result<R> {
-        let context = Arc::clone(self.context());
-        let _guard =
-            context.acquire_accesses(&[Access::host(self.host_region(), AccessMode::ReadWrite)])?;
-        Ok(write(self.as_slice_mut()))
-    }
-
-    /// Copies `values` into a new `Vec<T>` and registers its storage with CUDA.
-    ///
-    /// Empty slices retain the context without registering a host range.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if allocation of the `Vec` fails, the byte length overflows, CUDA cannot register the range, or `values` is non-empty for a zero-sized `T`.
-    pub fn from_slice(context: &Arc<Context>, values: &[T]) -> Result<Self> {
-        Self::from_slice_with_flags(context, values, HostRegisterFlags::DEFAULT)
-    }
-
-    /// Copies `values` into a new `Vec<T>` and registers it with `flags`.
-    ///
-    /// This constructor rejects [`HostRegisterFlags::READ_ONLY`] because the returned vector exposes mutable access, and rejects [`HostRegisterFlags::IO_MEMORY`] because a normal `Vec<T>` cannot represent an MMIO range.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if `flags` contain unsupported options, allocation of the `Vec` fails, the byte length overflows, CUDA cannot register the range, or `values` is non-empty for a zero-sized `T`.
-    pub fn from_slice_with_flags(
+impl HostRegistration {
+    unsafe fn create(
         context: &Arc<Context>,
-        values: &[T],
+        ptr: NonNull<()>,
+        bytes: usize,
         flags: HostRegisterFlags,
     ) -> Result<Self> {
-        Self::from_vec_with_flags(context, values.to_vec(), flags)
-    }
-
-    /// Registers an owned vector without copying or changing its allocation.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error for byte-size overflow, a nonempty zero-sized allocation, or an invalid allocation layout.
-    /// Also propagates context-binding and CUDA host registration errors.
-    pub fn from_vec(context: &Arc<Context>, values: Vec<T>) -> Result<Self> {
-        Self::from_vec_with_flags(context, values, HostRegisterFlags::DEFAULT)
-    }
-
-    /// Registers an owned vector, preserving its original capacity and allocation layout.
-    ///
-    /// Mutable storage rejects read-only and MMIO registration flags.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error for byte-size overflow, a nonempty zero-sized allocation, an invalid allocation layout, or unsupported read-only or I/O-memory flags.
-    /// Also propagates context-binding and CUDA host registration errors.
-    pub fn from_vec_with_flags(
-        context: &Arc<Context>,
-        mut values: Vec<T>,
-        flags: HostRegisterFlags,
-    ) -> Result<Self> {
-        let () = T::LAYOUT;
-        if flags.contains(HostRegisterFlags::READ_ONLY)
-            || flags.contains(HostRegisterFlags::IO_MEMORY)
-        {
-            return Err(Error::InvalidValue);
+        context.bind()?;
+        if bytes != 0 {
+            // SAFETY: the typed wrapper retains the host storage for this registration's lifetime.
+            unsafe {
+                register_host_raw(ptr.as_ptr(), bytes, flags)?;
+            }
         }
-
-        let bytes = checked_bytes::<T>(values.len())?;
-        let layout = Layout::array::<T>(values.capacity())
-            .map_err(|_| Error::InvalidMemoryAllocationRequest)?;
-        let ptr = NonNull::from(values.as_mut_slice()).cast();
-        // SAFETY: the vector is moved into the registration, so its buffer stays valid until unregistration.
-        let registration = unsafe { HostRegistration::create(context, ptr.cast(), bytes, flags)? };
-        let length = values.len();
-        // The shared owner unregisters and frees this original global allocation.
-        let _values = ManuallyDrop::new(values);
         Ok(Self {
-            allocation: Arc::new(RegisteredAllocation {
-                registration,
-                layout,
-            }),
+            flags,
+            context: Arc::clone(context),
+            id: AllocationId::create(),
             ptr,
-            length,
+            bytes,
         })
     }
 
-    /// Returns the registered vector contents as a slice.
-    #[must_use]
-    pub fn as_slice(&self) -> &[T] {
-        // SAFETY: `self` owns or borrows `length` initialized elements at `ptr`, and the borrow of `self` prevents aliasing mutation.
-        unsafe { slice::from_raw_parts(self.ptr.as_ptr(), self.length) }
-    }
-
-    /// Returns the registered vector contents as a mutable slice.
-    pub fn as_slice_mut(&mut self) -> &mut [T] {
-        // SAFETY: `self` owns or borrows `length` initialized elements at `ptr`, and the borrow of `self` prevents aliasing mutation.
-        unsafe { slice::from_raw_parts_mut(self.ptr.as_ptr(), self.length) }
-    }
-
-    /// Returns the number of registered elements.
-    #[must_use]
-    pub fn len(&self) -> usize {
-        self.length
-    }
-
-    /// Returns whether this registered vector contains no elements.
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.length == 0
-    }
-
-    /// Returns the registered vector size in bytes.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if `len * size_of::<T>()` overflows or `T` is a non-empty zero-sized element type.
-    pub fn byte_len(&self) -> Result<usize> {
-        checked_bytes::<T>(self.length)
-    }
-
-    /// Returns the flags used to register this vector.
-    #[must_use]
-    pub fn flags(&self) -> HostRegisterFlags {
-        self.allocation.flags()
-    }
-
-    /// Returns the CUDA device pointer alias for this registered vector.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if CUDA cannot map this vector into the current CUDA context or reports runtime initialization diagnostics.
-    pub fn mapped_device_ptr(&self) -> Result<DevicePtr> {
-        self.allocation.mapped_device_ptr()
-    }
-
-    /// Returns the CUDA context retained for registration, mapping, and unregistration.
-    #[must_use]
-    pub fn context(&self) -> &Arc<Context> {
-        self.allocation.context()
-    }
-
-    /// Borrows initialized registered values through their device mapping.
-    ///
-    /// # Errors
-    ///
-    /// Propagates context-binding and CUDA mapping-query errors.
-    /// Also rejects invalid mapped address ranges, byte-size overflow, or a view whose byte length or alignment does not match `T`.
-    pub fn mapped_device_view(&self) -> Result<DeviceView<'_, T>> {
-        // SAFETY: the registered host storage contains valid T values and retains this shared borrow.
+    fn host_region(&self) -> HostRegion<'_> {
+        // SAFETY: the registration retains this range and its original flags.
         unsafe {
-            DeviceView::from_raw_parts(
-                self.allocation
-                    .mapped_device_region()?
-                    .slice(..self.byte_len()?)?,
-                self.len(),
+            HostRegion::from_raw_parts(
+                &self.context,
+                self.id,
+                self.bytes,
+                self.flags.contains(HostRegisterFlags::PORTABLE),
             )
         }
     }
 
-    /// Exclusively borrows registered values through their device mapping.
-    ///
-    /// # Errors
-    ///
-    /// Propagates context-binding and CUDA mapping-query errors.
-    /// Also rejects invalid mapped address ranges, byte-size overflow, or a view whose byte length or alignment does not match `T`.
-    pub fn mapped_device_view_mut(&mut self) -> Result<DeviceViewMut<'_, T>> {
-        // SAFETY: the exclusive wrapper borrow covers the complete registered host range.
-        unsafe {
-            DeviceViewMut::from_raw_parts(
-                self.allocation
-                    .mapped_device_region()?
-                    .slice(..self.byte_len()?)?,
-                self.len(),
-            )
+    fn mapped_device_ptr(&self) -> Result<DevicePtr> {
+        self.context.bind()?;
+        if self.bytes == 0 {
+            return Ok(DevicePtr::null());
         }
+        mapped_host_device_ptr(self.ptr.as_ptr())
     }
 
-    /// Returns the retained owner without granting host or device access.
-    #[must_use]
-    pub fn allocation(&self) -> &Arc<RegisteredAllocation> {
-        &self.allocation
+    fn mapped_device_region(&self) -> Result<DeviceRegion<'_>> {
+        let pointer = self.mapped_device_ptr()?;
+        // SAFETY: the registration and its typed wrapper retain the host borrow or owned vector.
+        unsafe { DeviceRegion::from_raw_parts(&self.context, self.id, pointer.cast(), self.bytes) }
     }
 
-    /// Returns the host address for this typed range.
-    #[must_use]
-    pub const fn as_ptr(&self) -> *const T {
-        self.ptr.as_ptr().cast_const()
-    }
-
-    /// Returns the host address under an exclusive typed borrow.
-    pub const fn as_mut_ptr(&mut self) -> *mut T {
-        self.ptr.as_ptr()
-    }
-
-    /// Reinterprets initialized bytes while preserving the original registration and deallocation layout.
-    ///
-    /// # Errors
-    ///
-    /// Returns the original vector if its byte length is invalid, `U` is zero-sized, its size does not divide the exposed byte length, or a nonempty range is not aligned for `U`.
-    pub fn cast<U: AnyBitPatternDeviceRepr>(self) -> StdResult<RegisteredHostVec<U>, Self>
-    where
-        T: NoUninitDeviceRepr,
-    {
-        let () = T::LAYOUT;
-        let () = U::LAYOUT;
-        let size = size_of::<U>();
-        let Ok(bytes) = self.byte_len() else {
-            return Err(self);
-        };
-        if size == 0
-            || !bytes.is_multiple_of(size)
-            || (bytes != 0 && !self.as_ptr().addr().is_multiple_of(align_of::<U>()))
-        {
-            return Err(self);
+    fn unregister(&mut self) -> Result<()> {
+        if self.bytes != 0 {
+            self.context.bind()?;
+            // SAFETY: the registration still retains its live host range.
+            unsafe { unregister_host_raw(self.ptr.as_ptr())? };
+            self.bytes = 0;
         }
-        Ok(RegisteredHostVec {
-            allocation: self.allocation,
-            ptr: if bytes == 0 {
-                NonNull::dangling()
-            } else {
-                self.ptr.cast()
-            },
-            length: bytes / size,
-        })
-    }
-
-    /// Erases initialization while retaining the complete allocation and registration.
-    #[must_use]
-    pub fn into_uninit(self) -> RegisteredHostVec<MaybeUninit<T>> {
-        RegisteredHostVec {
-            allocation: self.allocation,
-            ptr: self.ptr.cast(),
-            length: self.length,
-        }
-    }
-
-    /// Allocates and registers storage for a host or device producer without initializing values.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error for byte-size overflow, a nonempty zero-sized allocation, an invalid allocation layout, or unsupported read-only or I/O-memory flags.
-    /// Also propagates context-binding and CUDA host registration errors.
-    pub fn create_uninit(
-        context: &Arc<Context>,
-        length: usize,
-        flags: HostRegisterFlags,
-    ) -> Result<RegisteredHostVec<MaybeUninit<T>>> {
-        let () = T::LAYOUT;
-        checked_bytes::<T>(length)?;
-        RegisteredHostVec::from_vec_with_flags(context, vec![MaybeUninit::uninit(); length], flags)
+        Ok(())
     }
 }
 
-impl<T: DeviceRepr> RegisteredHostVec<MaybeUninit<T>> {
-    /// Marks all values initialized after all host and device production completes.
-    ///
-    /// # Safety
-    /// Every element must be valid and all producers must have completed.
-    #[must_use]
-    pub unsafe fn assume_init(self) -> RegisteredHostVec<T> {
-        let () = T::LAYOUT;
-        RegisteredHostVec {
-            allocation: self.allocation,
-            ptr: self.ptr.cast(),
-            length: self.length,
+impl Drop for HostRegistration {
+    fn drop(&mut self) {
+        if let Err(error) = self.unregister() {
+            report_cleanup_failure("unregister", "cuda host memory", &error);
         }
     }
+}
 
-    /// Exposes a completed initialized prefix while retaining the complete registration and capacity.
-    ///
-    /// # Safety
-    /// Every prefix element must be valid and all producers must have completed.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if `length` exceeds the currently exposed element count.
-    pub unsafe fn assume_init_prefix(mut self, length: usize) -> Result<RegisteredHostVec<T>> {
-        if length > self.length {
-            return Err(Error::InvalidMemoryAccess);
-        }
+/// Mutable borrowed host memory registered with CUDA for the registration lifetime.
+#[derive(Debug)]
+pub struct RegisteredHostMemory<'a, T: DeviceRepr> {
+    ptr: NonNull<T>,
+    length: usize,
+    registration: HostRegistration,
+    _borrow: PhantomData<&'a mut [T]>,
+}
 
-        self.length = length;
-        // SAFETY: the caller upholds this function's safety contract.
-        Ok(unsafe { self.assume_init() })
+/// Immutable borrowed host memory registered with CUDA for the registration lifetime.
+#[derive(Debug)]
+pub struct RegisteredHostSlice<'a, T: DeviceRepr> {
+    ptr: NonNull<T>,
+    length: usize,
+    registration: HostRegistration,
+    _borrow: PhantomData<&'a [T]>,
+}
+
+#[expect(
+    clippy::non_send_fields_in_send_ty,
+    reason = "raw host pointers follow the owned or borrowed storage bounds explained above"
+)]
+// SAFETY: the wrapper is a `&mut [T]` borrow plus a registration that `cudaHostUnregister` can release from any thread.
+unsafe impl<T: DeviceRepr + Send> Send for RegisteredHostMemory<'_, T> {}
+
+// SAFETY: `&RegisteredHostMemory<T>` grants only shared reads of the borrowed `[T]`.
+unsafe impl<T: DeviceRepr + Sync> Sync for RegisteredHostMemory<'_, T> {}
+
+#[expect(
+    clippy::non_send_fields_in_send_ty,
+    reason = "raw host pointers follow the owned or borrowed storage bounds explained above"
+)]
+// SAFETY: the wrapper is a `&[T]` borrow, which is `Send` when `T: Sync`, plus a registration releasable from any thread.
+unsafe impl<T: DeviceRepr + Sync> Send for RegisteredHostSlice<'_, T> {}
+
+// SAFETY: `&RegisteredHostSlice<T>` grants only shared reads of the borrowed `[T]`.
+unsafe impl<T: DeviceRepr + Sync> Sync for RegisteredHostSlice<'_, T> {}
+
+// SAFETY: the wrapper borrows `length` live `T` values at `ptr` for `'a`, and `&self` grants only reads.
+unsafe impl<T: DeviceRepr> HostSlice<T> for RegisteredHostMemory<'_, T> {
+    fn as_host_ptr(&self) -> *const T {
+        self.as_ptr()
     }
 
-    /// Exclusively borrows mapped storage for a producer without asserting initialized values.
-    ///
-    /// # Errors
-    ///
-    /// Propagates context-binding and CUDA mapping-query errors.
-    /// Also rejects invalid mapped address ranges, byte-size overflow, or output metadata whose byte length or alignment does not match `T`.
-    pub fn mapped_device_output(&mut self) -> Result<DeviceOutputView<'_, T>> {
-        let region = self
-            .allocation
-            .mapped_device_region()?
-            .slice(..self.byte_len()?)?;
-        // SAFETY: this exclusive borrow retains the mapped registration and does not read its contents.
-        unsafe { DeviceOutputView::from_raw_parts(region, self.length) }
+    fn len(&self) -> usize {
+        self.len()
     }
+}
+
+// SAFETY: the wrapper holds the `&mut [T]` borrow, so `&mut self` is exclusive over the same range.
+unsafe impl<T: DeviceRepr> HostSliceMut<T> for RegisteredHostMemory<'_, T> {
+    fn as_host_mut_ptr(&mut self) -> *mut T {
+        self.as_mut_ptr()
+    }
+}
+
+// SAFETY: the wrapper borrows `length` live `T` values at `ptr` for `'a`, and nothing mutates them during the borrow.
+unsafe impl<T: DeviceRepr> HostSlice<T> for RegisteredHostSlice<'_, T> {
+    fn as_host_ptr(&self) -> *const T {
+        self.as_ptr()
+    }
+
+    fn len(&self) -> usize {
+        self.len()
+    }
+}
+
+// SAFETY: the registration page-locks the borrowed range until it drops, and the region keeps its identity and flags.
+unsafe impl<T: DeviceRepr> PinnedHostSlice<T> for RegisteredHostMemory<'_, T> {
+    fn host_region(&self) -> HostRegion<'_> {
+        self.registration
+            .host_region()
+            .slice(..self.byte_len().expect("valid host slice length"))
+            .expect("host slice fits its allocation")
+    }
+}
+
+// SAFETY: the type implements both `PinnedHostSlice` and `HostSliceMut` over the same range.
+unsafe impl<T: DeviceRepr> PinnedHostSliceMut<T> for RegisteredHostMemory<'_, T> {}
+
+// SAFETY: the registration page-locks the borrowed range until it drops, and the region keeps its identity and flags.
+unsafe impl<T: DeviceRepr> PinnedHostSlice<T> for RegisteredHostSlice<'_, T> {
+    fn host_region(&self) -> HostRegion<'_> {
+        self.registration
+            .host_region()
+            .slice(..self.byte_len().expect("valid host slice length"))
+            .expect("host slice fits its allocation")
+    }
+}
+
+pub(crate) fn mapped_host_device_ptr(ptr: *mut ()) -> Result<DevicePtr> {
+    if ptr.is_null() {
+        return Ok(DevicePtr::null());
+    }
+
+    let mut device_ptr = ptr::null_mut();
+    // SAFETY: `device_ptr` is a local output, and the query only reads CUDA's mapping of `ptr`.
+    unsafe {
+        try_ffi!(runtime::cudaHostGetDevicePointer(
+            &raw mut device_ptr,
+            ptr.cast(),
+            0,
+        ))?;
+    }
+    // SAFETY: `DevicePtr` only records the CUDA-reported alias; callers tie its use to the registration's lifetime.
+    Ok(unsafe { DevicePtr::from_raw(device_ptr.cast()) })
 }

@@ -6,7 +6,7 @@ use singe_cuda::types::bf16;
 use singe_cuda::types::f16;
 use singe_cuda::{
     stream::Stream,
-    view::{DeviceInput, DeviceOutput, DeviceOutputView},
+    view::{DeviceOutput, DeviceOutputView, DeviceRange},
 };
 
 #[cfg(feature = "cutile")]
@@ -299,7 +299,7 @@ pub unsafe fn moe_align_block_size_i32(
     cumsum: &mut impl DeviceOutput<i32>,
     max_expert_count: &mut impl DeviceOutput<i32>,
     workspace: &mut impl DeviceOutput<i32>,
-    topk_ids: &impl DeviceInput<i32>,
+    topk_ids: &impl DeviceRange<i32>,
     config: MoeAlignBlockSizeConfig,
 ) -> Result<()> {
     ensure_len_at_least(workspace.len(), config.workspace_len()?)?;
@@ -360,12 +360,12 @@ pub unsafe fn moe_align_block_size_i32(
 pub unsafe fn fused_moe_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    input: &impl DeviceInput<f32>,
-    weight: &impl DeviceInput<f32>,
-    routed_weight: &impl DeviceInput<f32>,
-    sorted_token_ids: &impl DeviceInput<i32>,
-    expert_ids: &impl DeviceInput<i32>,
-    num_tokens_post_pad: &impl DeviceInput<i32>,
+    input: &impl DeviceRange<f32>,
+    weight: &impl DeviceRange<f32>,
+    routed_weight: &impl DeviceRange<f32>,
+    sorted_token_ids: &impl DeviceRange<i32>,
+    expert_ids: &impl DeviceRange<i32>,
+    num_tokens_post_pad: &impl DeviceRange<i32>,
     config: FusedMoeConfig,
 ) -> Result<()> {
     config.validate_lengths(
@@ -420,12 +420,12 @@ pub unsafe fn fused_moe_f32(
 pub unsafe fn fused_moe_f16(
     stream: &Stream,
     out: &mut impl DeviceOutput<f16>,
-    input: &impl DeviceInput<f16>,
-    weight: &impl DeviceInput<f16>,
-    routed_weight: &impl DeviceInput<f32>,
-    sorted_token_ids: &impl DeviceInput<i32>,
-    expert_ids: &impl DeviceInput<i32>,
-    num_tokens_post_pad: &impl DeviceInput<i32>,
+    input: &impl DeviceRange<f16>,
+    weight: &impl DeviceRange<f16>,
+    routed_weight: &impl DeviceRange<f32>,
+    sorted_token_ids: &impl DeviceRange<i32>,
+    expert_ids: &impl DeviceRange<i32>,
+    num_tokens_post_pad: &impl DeviceRange<i32>,
     config: FusedMoeConfig,
 ) -> Result<()> {
     config.validate_lengths(
@@ -480,12 +480,12 @@ pub unsafe fn fused_moe_f16(
 pub unsafe fn fused_moe_bf16(
     stream: &Stream,
     out: &mut impl DeviceOutput<bf16>,
-    input: &impl DeviceInput<bf16>,
-    weight: &impl DeviceInput<bf16>,
-    routed_weight: &impl DeviceInput<f32>,
-    sorted_token_ids: &impl DeviceInput<i32>,
-    expert_ids: &impl DeviceInput<i32>,
-    num_tokens_post_pad: &impl DeviceInput<i32>,
+    input: &impl DeviceRange<bf16>,
+    weight: &impl DeviceRange<bf16>,
+    routed_weight: &impl DeviceRange<f32>,
+    sorted_token_ids: &impl DeviceRange<i32>,
+    expert_ids: &impl DeviceRange<i32>,
+    num_tokens_post_pad: &impl DeviceRange<i32>,
     config: FusedMoeConfig,
 ) -> Result<()> {
     config.validate_lengths(
@@ -540,14 +540,14 @@ pub unsafe fn fused_moe_bf16(
 pub unsafe fn fused_moe_f8e4m3_block_scaled_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    input: &impl DeviceInput<u8>,
-    weight: &impl DeviceInput<u8>,
-    input_scales: &impl DeviceInput<f32>,
-    weight_scales: &impl DeviceInput<f32>,
-    routed_weight: &impl DeviceInput<f32>,
-    sorted_token_ids: &impl DeviceInput<i32>,
-    expert_ids: &impl DeviceInput<i32>,
-    num_tokens_post_pad: &impl DeviceInput<i32>,
+    input: &impl DeviceRange<u8>,
+    weight: &impl DeviceRange<u8>,
+    input_scales: &impl DeviceRange<f32>,
+    weight_scales: &impl DeviceRange<f32>,
+    routed_weight: &impl DeviceRange<f32>,
+    sorted_token_ids: &impl DeviceRange<i32>,
+    expert_ids: &impl DeviceRange<i32>,
+    num_tokens_post_pad: &impl DeviceRange<i32>,
     config: FusedMoeBlockScaledConfig,
 ) -> Result<()> {
     config.validate_lengths(

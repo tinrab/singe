@@ -2,15 +2,11 @@ use std::borrow::Cow;
 
 use serde::{Deserialize, Serialize};
 
-pub use crate::backend::execution::pointwise::Activation;
 use crate::{
-    backend::{
-        execution::pointwise::{
-            ActivationDirection, PointwiseDescriptor, PointwiseDescriptorConfig,
-            PointwiseOperation as BackendPointwiseOperation, PointwiseOperationConfig,
-        },
-        pointwise::{PointwiseMode, PointwiseOperandKind},
-        tensor::TensorId,
+    backend::operation::pointwise::{
+        Activation, ActivationDirection, PointwiseDescriptor, PointwiseDescriptorSpec,
+        PointwiseMode, PointwiseOperandKind, PointwiseOperation as BackendPointwiseOperation,
+        PointwiseSpec,
     },
     data_type::DataType,
     error::{Error, Result},
@@ -20,6 +16,7 @@ use crate::{
         lower::{LoweredOperation, LoweringContext, tensor_at},
     },
     math::NanPropagation,
+    tensor::TensorId,
 };
 
 /// Frontend pointwise operation variants.
@@ -277,7 +274,7 @@ impl<O> PointwiseOperation<O> {
         self
     }
 
-    /// Requested compute precision, or `None` to inherit the graph policy during lowering.
+    /// Returns the requested compute precision, or `None` to inherit the graph policy during lowering.
     pub fn compute_type(&self) -> Option<DataType> {
         let (Self::Unary { compute_type, .. }
         | Self::ActivationForward { compute_type, .. }
@@ -347,7 +344,8 @@ impl<O> PointwiseOperation<O> {
     /// Sets the index-generation axis, or restores the native `-1` default with `None`.
     ///
     /// # Errors
-    /// Returns an error when an explicit axis is supplied for another mode or tensor-port form.
+    ///
+    /// Returns an error if an explicit axis is supplied for another mode or tensor-port form.
     pub fn with_axis(mut self, axis: impl Into<Option<i64>>) -> Result<Self> {
         let axis = axis.into();
         if let Self::Unary {
@@ -365,7 +363,7 @@ impl<O> PointwiseOperation<O> {
         Ok(self)
     }
 
-    /// Result identity or inference configuration, independent of the operand identities.
+    /// Returns the result identity or inference configuration, independent of the operand identities.
     pub fn output(&self) -> &O {
         match self {
             Self::ActivationBackward { input_gradient, .. } => input_gradient,
@@ -579,10 +577,10 @@ impl PointwiseOperation {
                 axis,
                 ..
             } => (
-                PointwiseDescriptorConfig::new(*mode, context.compute_data_type(*compute_type))
+                PointwiseDescriptorSpec::new(*mode, context.compute_data_type(*compute_type))
                     .with_nan_propagation(*nan_propagation)
                     .with_axis(*axis)?,
-                PointwiseOperationConfig::Unary {
+                PointwiseSpec::Unary {
                     x: *input,
                     y: *output,
                     alpha1: *alpha1,
@@ -597,13 +595,13 @@ impl PointwiseOperation {
                 alpha1,
                 ..
             } => (
-                PointwiseDescriptorConfig::for_activation(
+                PointwiseDescriptorSpec::for_activation(
                     *activation,
                     ActivationDirection::Forward,
                     context.compute_data_type(*compute_type),
                 )
                 .with_nan_propagation(*nan_propagation),
-                PointwiseOperationConfig::Unary {
+                PointwiseSpec::Unary {
                     x: *input,
                     y: *output,
                     alpha1: *alpha1,
@@ -620,13 +618,13 @@ impl PointwiseOperation {
                 alpha2,
                 ..
             } => (
-                PointwiseDescriptorConfig::for_activation(
+                PointwiseDescriptorSpec::for_activation(
                     *activation,
                     ActivationDirection::Backward,
                     context.compute_data_type(*compute_type),
                 )
                 .with_nan_propagation(*nan_propagation),
-                PointwiseOperationConfig::ActivationBackward {
+                PointwiseSpec::ActivationBackward {
                     dy: *output_gradient,
                     x: *input,
                     dx: *input_gradient,
@@ -645,9 +643,9 @@ impl PointwiseOperation {
                 alpha2,
                 ..
             } => (
-                PointwiseDescriptorConfig::new(*mode, context.compute_data_type(*compute_type))
+                PointwiseDescriptorSpec::new(*mode, context.compute_data_type(*compute_type))
                     .with_nan_propagation(*nan_propagation),
-                PointwiseOperationConfig::Binary {
+                PointwiseSpec::Binary {
                     x: *lhs,
                     b: *rhs,
                     y: *output,
@@ -667,9 +665,9 @@ impl PointwiseOperation {
                 alpha2,
                 ..
             } => (
-                PointwiseDescriptorConfig::new(*mode, context.compute_data_type(*compute_type))
+                PointwiseDescriptorSpec::new(*mode, context.compute_data_type(*compute_type))
                     .with_nan_propagation(*nan_propagation),
-                PointwiseOperationConfig::Ternary {
+                PointwiseSpec::Ternary {
                     x: *x,
                     b: *b,
                     t: *t,

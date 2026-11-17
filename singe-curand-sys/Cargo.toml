@@ -1,23 +1,28 @@
 [package]
 name = "singe-curand-sys"
 description = "Low-level FFI bindings for the NVIDIA cuRAND random number generation library."
-version = "0.1.0-alpha.3"
+version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 repository.workspace = true
+documentation = "https://docs.rs/singe-curand-sys"
 license-file.workspace = true
 readme = "README.md"
-keywords = ["cuda", "curand", "bindings", "ffi"]
+keywords = ["cuda", "nvidia", "curand", "ffi", "bindings"]
+categories = ["external-ffi-bindings", "hardware-support"]
 include.workspace = true
 
 [package.metadata.docs.rs]
-rustdoc-args = ["--html-in-header", "dist/katex_header.html"]
+rustdoc-args = ["--cfg", "docsrs", "--html-in-header", "dist/katex_header.html"]
 
 [features]
-default = ["curand_13_4"]
+default = ["curand_10_4"]
 
-curand_13_4 = ["singe-cuda-sys/runtime_13_4"]
+curand_10_4 = ["singe-cuda-sys/runtime_13_4"]
 
 [dependencies]
 singe-loader.workspace = true
 singe-cuda-sys.workspace = true
-num_enum.workspace = true
+
+[dev-dependencies]
+anyhow.workspace = true

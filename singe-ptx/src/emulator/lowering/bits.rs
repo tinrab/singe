@@ -29,7 +29,7 @@ const INTEGERS: &[ScalarType] = &[
 ];
 
 /// Lowers `popc`, `clz`, `brev`, `bfind`, and `cnot`.
-pub fn unary(
+pub(crate) fn unary(
     compiler: &FunctionCompiler<'_, '_>,
     instruction: &Instruction,
     head: &mut Head<'_>,
@@ -60,7 +60,7 @@ pub fn unary(
 }
 
 /// Lowers `bfe`.
-pub fn extract(
+pub(crate) fn extract(
     compiler: &FunctionCompiler<'_, '_>,
     instruction: &Instruction,
     head: &mut Head<'_>,
@@ -77,7 +77,7 @@ pub fn extract(
 }
 
 /// Lowers `bfi`.
-pub fn insert(
+pub(crate) fn insert(
     compiler: &FunctionCompiler<'_, '_>,
     instruction: &Instruction,
     head: &mut Head<'_>,
@@ -95,7 +95,7 @@ pub fn insert(
 }
 
 /// Lowers `lop3`, including the PTX 8.2 form that also combines a predicate.
-pub fn lop3(
+pub(crate) fn lop3(
     compiler: &FunctionCompiler<'_, '_>,
     instruction: &Instruction,
     head: &mut Head<'_>,
@@ -156,7 +156,7 @@ pub fn lop3(
 }
 
 /// Lowers `prmt`.
-pub fn permute(
+pub(crate) fn permute(
     compiler: &FunctionCompiler<'_, '_>,
     instruction: &Instruction,
     head: &mut Head<'_>,
@@ -191,7 +191,7 @@ pub fn permute(
 }
 
 /// Lowers `shf`.
-pub fn funnel(
+pub(crate) fn funnel(
     compiler: &FunctionCompiler<'_, '_>,
     instruction: &Instruction,
     head: &mut Head<'_>,
@@ -220,7 +220,7 @@ pub fn funnel(
 }
 
 /// Lowers `fns`.
-pub fn find_set(
+pub(crate) fn find_set(
     compiler: &FunctionCompiler<'_, '_>,
     instruction: &Instruction,
     head: &mut Head<'_>,
@@ -236,7 +236,7 @@ pub fn find_set(
 }
 
 /// Lowers `bmsk`.
-pub fn mask(
+pub(crate) fn mask(
     compiler: &FunctionCompiler<'_, '_>,
     instruction: &Instruction,
     head: &mut Head<'_>,
@@ -254,7 +254,7 @@ pub fn mask(
 }
 
 /// Lowers `szext`.
-pub fn extend(
+pub(crate) fn extend(
     compiler: &FunctionCompiler<'_, '_>,
     instruction: &Instruction,
     head: &mut Head<'_>,

@@ -1,5 +1,7 @@
 use std::{mem, ptr};
 
+use singe_core::report_cleanup_failure;
+
 use crate::{
     context::Context,
     error::{Error, Result},
@@ -15,21 +17,21 @@ pub struct GesvdjInfo {
     handle: sys::gesvdjInfo_t,
 }
 
-// SAFETY: native execution and option changes require exclusive access. Completed
-// getters may share an immutable borrow of the parameter storage.
+// SAFETY: `gesvdjInfo_t` is host-side parameter storage with no thread affinity, and this wrapper is its only owner.
 unsafe impl Send for GesvdjInfo {}
 
+// SAFETY: `&self` methods only read options or completed results; setters and execution take `&mut self`, so shared access never overlaps a native write.
 unsafe impl Sync for GesvdjInfo {}
 
 impl GesvdjInfo {
-    /// Creates `gesvdj` and `gesvdjBatched` parameter storage with default values.
+    /// Creates parameter storage with default options for [`Gesvdj`](crate::svd::Gesvdj) and [`GesvdjBatched`](crate::svd::GesvdjBatched).
     ///
     /// # Errors
     ///
     /// Returns an error if cuSOLVER cannot allocate the parameter storage or if it does not return a valid handle.
     pub fn create() -> Result<Self> {
         let mut handle = ptr::null_mut();
-        // SAFETY: `cusolverDnCreateGesvdjInfo` receives valid output locations.
+        // SAFETY: `handle` is a writable local that receives the new parameter object.
         unsafe {
             try_ffi!(sys::cusolverDnCreateGesvdjInfo(&raw mut handle))?;
         }
@@ -41,27 +43,27 @@ impl GesvdjInfo {
         Ok(Self { handle })
     }
 
-    /// Configures the `gesvdj` tolerance.
+    /// Sets the convergence tolerance of the Jacobi SVD.
     ///
     /// # Errors
     ///
     /// Returns an error if cuSOLVER rejects `tolerance`.
     pub fn set_tolerance(&mut self, tolerance: f64) -> Result<()> {
-        // SAFETY: `cusolverDnXgesvdjSetTolerance` receives live handles owned by the wrappers.
+        // SAFETY: `self` owns a live parameter object, and `&mut self` excludes concurrent host access; queued solves keep exclusive use under the raw execution contract.
         unsafe {
             try_ffi!(sys::cusolverDnXgesvdjSetTolerance(self.as_raw(), tolerance,))?;
         }
         Ok(())
     }
 
-    /// Configures the maximum number of `gesvdj` sweeps.
+    /// Sets the maximum number of Jacobi sweeps.
     /// The default value is 100.
     ///
     /// # Errors
     ///
     /// Returns an error if cuSOLVER rejects `max_sweeps`.
     pub fn set_max_sweeps(&mut self, max_sweeps: i32) -> Result<()> {
-        // SAFETY: `cusolverDnXgesvdjSetMaxSweeps` receives live handles owned by the wrappers.
+        // SAFETY: `self` owns a live parameter object, and `&mut self` excludes concurrent host access; queued solves keep exclusive use under the raw execution contract.
         unsafe {
             try_ffi!(sys::cusolverDnXgesvdjSetMaxSweeps(
                 self.as_raw(),
@@ -71,16 +73,14 @@ impl GesvdjInfo {
         Ok(())
     }
 
-    /// If `sort_eigenvalues` is false, the singular values are not sorted.
-    /// This setting only applies to `gesvdjBatched`.
-    /// `gesvdj` always sorts singular values in descending order.
-    /// By default, singular values are always sorted in descending order.
+    /// Sets whether [`GesvdjBatched`](crate::svd::GesvdjBatched) sorts singular values in descending order.
+    /// Sorting is on by default; [`Gesvdj`](crate::svd::Gesvdj) always sorts.
     ///
     /// # Errors
     ///
     /// Returns an error if cuSOLVER rejects the sort setting.
     pub fn set_sort_eigenvalues(&mut self, sort_eigenvalues: bool) -> Result<()> {
-        // SAFETY: `cusolverDnXgesvdjSetSortEig` receives live handles owned by the wrappers.
+        // SAFETY: `self` owns a live parameter object, and `&mut self` excludes concurrent host access; queued solves keep exclusive use under the raw execution contract.
         unsafe {
             try_ffi!(sys::cusolverDnXgesvdjSetSortEig(
                 self.as_raw(),
@@ -90,20 +90,18 @@ impl GesvdjInfo {
         Ok(())
     }
 
-    /// Returns the Frobenius norm of the internal residual reported by `gesvdj`.
-    /// Not the Frobenius norm of the exact residual.
+    /// Returns the Frobenius norm of the internal residual of the last completed [`Gesvdj`](crate::svd::Gesvdj) solve.
     ///
-    /// This accessor does not support `gesvdjBatched`.
-    /// Calling this after `gesvdjBatched` returns [`crate::error::Status::NotSupported`].
+    /// The internal residual differs from the exact residual by roundoff.
     ///
     /// # Errors
     ///
-    /// Returns an error if the info handle was used with `gesvdjBatched`, which does not report a residual.
+    /// Returns an error if the object was last used by [`GesvdjBatched`](crate::svd::GesvdjBatched), which reports no residual, as [`Status::NotSupported`](crate::error::Status::NotSupported).
     pub fn residual(&self, context: &Context) -> Result<f64> {
         context.bind()?;
 
         let mut residual = 0.0;
-        // SAFETY: `cusolverDnXgesvdjGetResidual` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `context` and `self` own live handles, and `residual` is a writable local.
         unsafe {
             try_ffi!(sys::cusolverDnXgesvdjGetResidual(
                 context.as_raw(),
@@ -114,18 +112,16 @@ impl GesvdjInfo {
         Ok(residual)
     }
 
-    /// Returns the number of executed `gesvdj` sweeps.
-    /// This accessor does not support `gesvdjBatched`.
-    /// Calling this after `gesvdjBatched` returns [`crate::error::Status::NotSupported`].
+    /// Returns the number of sweeps the last completed [`Gesvdj`](crate::svd::Gesvdj) solve executed.
     ///
     /// # Errors
     ///
-    /// Returns an error if the info handle was used with `gesvdjBatched`, which does not report a sweep count.
+    /// Returns an error if the object was last used by [`GesvdjBatched`](crate::svd::GesvdjBatched), which reports no sweep count, as [`Status::NotSupported`](crate::error::Status::NotSupported).
     pub fn executed_sweeps(&self, context: &Context) -> Result<i32> {
         context.bind()?;
 
         let mut sweeps = 0;
-        // SAFETY: `cusolverDnXgesvdjGetSweeps` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `context` and `self` own live handles, and `sweeps` is a writable local.
         unsafe {
             try_ffi!(sys::cusolverDnXgesvdjGetSweeps(
                 context.as_raw(),
@@ -142,12 +138,12 @@ impl GesvdjInfo {
         self.handle
     }
 
-    /// Takes ownership of a raw cuSOLVER `gesvdj` info handle.
+    /// Takes ownership of a raw Jacobi SVD parameter handle.
     ///
     /// # Safety
     ///
-    /// `handle` must be a valid `gesvdjInfo_t` created by cuSOLVER.
-    /// The returned wrapper takes ownership and will destroy it with `cusolverDnDestroyGesvdjInfo`; no other owner may destroy or keep using it.
+    /// `handle` must be a live parameter handle created by cuSOLVER.
+    /// The returned wrapper destroys it on drop, so no other owner may destroy or keep using it.
     ///
     /// # Errors
     ///
@@ -159,7 +155,7 @@ impl GesvdjInfo {
         Ok(Self { handle })
     }
 
-    /// Releases ownership and returns the raw cuSOLVER `gesvdj` info handle.
+    /// Releases ownership and returns the raw parameter handle.
     ///
     /// The caller becomes responsible for destroying the handle.
     #[must_use]
@@ -172,13 +168,10 @@ impl GesvdjInfo {
 
 impl Drop for GesvdjInfo {
     fn drop(&mut self) {
-        // SAFETY: `cusolverDnDestroyGesvdjInfo` receives live handles owned by the wrappers.
+        // SAFETY: `self` owns the handle and is being dropped, so nothing uses it after this call.
         unsafe {
             if let Err(error) = try_ffi!(sys::cusolverDnDestroyGesvdjInfo(self.handle)) {
-                eprintln!(
-                    "failed to destroy cusolver gesvdj info: {}",
-                    singe_core::ErrorChain(&error)
-                );
+                report_cleanup_failure("destroy", "cusolver gesvdj info", &error);
             }
         }
     }

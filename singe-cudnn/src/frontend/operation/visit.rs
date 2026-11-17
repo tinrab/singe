@@ -4,7 +4,7 @@
 //! Score subgraphs are separate graphs whose captured tensors are handled by the callers.
 
 use crate::{
-    backend::{execution::attention::AttentionSequenceInputs, tensor::TensorId},
+    backend::operation::attention::AttentionSequenceInputs,
     error::{Error, Result},
     frontend::operation::{
         AttentionBackwardRequest, AttentionForwardInputs, AttentionForwardRequest,
@@ -16,17 +16,18 @@ use crate::{
         attention::{
             AlibiBias, AttentionBackwardConfig, AttentionConfig, AttentionDropoutConfig,
             AttentionMaskMode, AttentionScoreConfig, DirectSdpaBackwardConfig, DirectSdpaDropout,
-            DirectSdpaForwardConfig, SdpaFusedMaskMode, SdpaOperation, SdpaScoreModifiers,
+            DirectSdpaForwardConfig, SdpaOperation, SdpaScoreModifiers,
         },
         normalization::{
             LayerNormalizationAffine, NormalizationStatistics, RmsNormalizationStatistics,
         },
     },
+    tensor::TensorId,
 };
 
 /// How an operation uses one of its tensors.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TensorRole {
+pub(crate) enum TensorRole {
     Read,
     Write,
     /// Read and overwritten, such as a blended destination.
@@ -36,7 +37,7 @@ pub enum TensorRole {
 }
 
 /// Receives each tensor ID stored in an operation with its role, and may replace it.
-pub type TensorVisitor<'a> = dyn FnMut(&mut TensorId, TensorRole) -> Result<()> + 'a;
+pub(crate) type TensorVisitor<'a> = dyn FnMut(&mut TensorId, TensorRole) -> Result<()> + 'a;
 
 impl TensorUses {
     pub(crate) fn record(&mut self, id: TensorId, role: TensorRole) {
@@ -61,7 +62,7 @@ fn visit_optional(
 }
 
 /// Collects the uses reported by a visitor run.
-pub fn collect_tensor_uses(
+pub(crate) fn collect_tensor_uses(
     visit_all: impl FnOnce(&mut TensorVisitor<'_>) -> Result<()>,
 ) -> TensorUses {
     let mut uses = TensorUses::default();
@@ -711,15 +712,6 @@ impl AttentionConfig {
         self.remove_zero_probability_dropout();
         self.softmax.visit_tensor_ids(visit)?;
         self.score.visit_tensor_ids(visit)?;
-        if let SdpaFusedMaskMode::CausalBottomRight {
-            sequence_length_query,
-            sequence_length_key_value,
-        } = &mut self.fused.mask
-        {
-            visit(sequence_length_query, TensorRole::Index)?;
-            visit(sequence_length_key_value, TensorRole::Index)?;
-        }
-
         for cache in [&mut self.paged.k, &mut self.paged.v].into_iter().flatten() {
             visit(&mut cache.page_table, TensorRole::Index)?;
         }

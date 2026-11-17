@@ -1,7 +1,5 @@
 //! Run a PTX kernel on the CPU emulator and check its output.
 
-use std::error::Error;
-
 use singe_ptx::emulator::{Emulator, EmulatorOptions, LaunchConfig, ParsedModule, ShutdownMode};
 
 const PTX: &str = r"
@@ -35,7 +33,7 @@ done:
 }
 ";
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() -> anyhow::Result<()> {
     let device = Emulator::create(EmulatorOptions::default())?;
     let module = device.load(ParsedModule::parse(PTX)?)?.wait()?;
     let kernel = module.kernel("add")?;

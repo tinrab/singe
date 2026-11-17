@@ -1,15 +1,15 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    backend::tensor::TensorId,
+    backend::operation::attention::{AttentionSequenceInputs, SequenceLength},
     frontend::{
         graph::Graph,
         operation::{
             AttentionDiagonalAlignment, AttentionDiagonalBand, AttentionDropoutConfig,
-            AttentionDropoutMask, AttentionDropoutMode, AttentionMaskMode, AttentionSequenceInputs,
-            SequenceLength,
+            AttentionDropoutMask, AttentionDropoutMode, AttentionMaskMode,
         },
     },
+    tensor::TensorId,
 };
 
 /// User-provided graph applied to SDPA score tensors.
@@ -234,7 +234,7 @@ impl SdpaScoreModifiers {
         self.custom_dropout.map(|dropout| dropout.scale)
     }
 
-    /// The complete caller-provided dropout request, independently of generated Philox dropout.
+    /// Returns the complete caller-provided dropout request, independently of generated Philox dropout.
     #[must_use]
     pub fn custom_dropout(&self) -> Option<AttentionDropoutMask> {
         self.custom_dropout
@@ -291,7 +291,7 @@ impl SdpaScoreModifiers {
         })
     }
 
-    /// C++ bottom-right support rule, including nonzero right bounds and windows.
+    /// Returns whether the C++ bottom-right support rule applies, including nonzero right bounds and windows.
     #[must_use]
     pub fn causal_bottom_right(&self) -> bool {
         self.bottom_right_alignment() && self.right_window().is_some()

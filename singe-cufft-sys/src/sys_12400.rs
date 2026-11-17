@@ -50,58 +50,48 @@ pub type size_t = ::core::ffi::c_ulong;
 pub struct CUstream_st {
     _unused: [u8; 0],
 }
-/// CUFFT API function return values
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cufftResult_t {
+impl cufftResult_t {
     /// The cuFFT operation was successful
-    CUFFT_SUCCESS = 0,
+    pub const CUFFT_SUCCESS: cufftResult_t = cufftResult_t(0);
     /// cuFFT was passed an invalid plan handle
-    CUFFT_INVALID_PLAN = 1,
+    pub const CUFFT_INVALID_PLAN: cufftResult_t = cufftResult_t(1);
     /// cuFFT failed to allocate GPU or CPU memory
-    CUFFT_ALLOC_FAILED = 2,
+    pub const CUFFT_ALLOC_FAILED: cufftResult_t = cufftResult_t(2);
     /// The cuFFT type provided is unsupported
-    CUFFT_INVALID_TYPE = 3,
+    pub const CUFFT_INVALID_TYPE: cufftResult_t = cufftResult_t(3);
     /// User specified an invalid pointer or parameter
-    CUFFT_INVALID_VALUE = 4,
+    pub const CUFFT_INVALID_VALUE: cufftResult_t = cufftResult_t(4);
     /// Driver or internal cuFFT library error
-    CUFFT_INTERNAL_ERROR = 5,
+    pub const CUFFT_INTERNAL_ERROR: cufftResult_t = cufftResult_t(5);
     /// Failed to execute an FFT on the GPU
-    CUFFT_EXEC_FAILED = 6,
+    pub const CUFFT_EXEC_FAILED: cufftResult_t = cufftResult_t(6);
     /// The cuFFT library failed to initialize
-    CUFFT_SETUP_FAILED = 7,
+    pub const CUFFT_SETUP_FAILED: cufftResult_t = cufftResult_t(7);
     /// User specified an invalid transform size
-    CUFFT_INVALID_SIZE = 8,
+    pub const CUFFT_INVALID_SIZE: cufftResult_t = cufftResult_t(8);
     /// Not currently in use
-    CUFFT_UNALIGNED_DATA = 9,
+    pub const CUFFT_UNALIGNED_DATA: cufftResult_t = cufftResult_t(9);
     /// Execution of a plan was on different GPU than plan creation
-    CUFFT_INVALID_DEVICE = 11,
+    pub const CUFFT_INVALID_DEVICE: cufftResult_t = cufftResult_t(11);
     /// No workspace has been provided prior to plan execution
-    CUFFT_NO_WORKSPACE = 13,
+    pub const CUFFT_NO_WORKSPACE: cufftResult_t = cufftResult_t(13);
     /// Function does not implement functionality for parameters given.
-    CUFFT_NOT_IMPLEMENTED = 14,
+    pub const CUFFT_NOT_IMPLEMENTED: cufftResult_t = cufftResult_t(14);
     /// Operation is not supported for parameters given.
-    CUFFT_NOT_SUPPORTED = 16,
+    pub const CUFFT_NOT_SUPPORTED: cufftResult_t = cufftResult_t(16);
     /// cuFFT is unable to find a dependency
-    CUFFT_MISSING_DEPENDENCY = 17,
+    pub const CUFFT_MISSING_DEPENDENCY: cufftResult_t = cufftResult_t(17);
     /// An NVRTC failure was encountered during a cuFFT operation
-    CUFFT_NVRTC_FAILURE = 18,
+    pub const CUFFT_NVRTC_FAILURE: cufftResult_t = cufftResult_t(18);
     /// An nvJitLink failure was encountered during a cuFFT operation
-    CUFFT_NVJITLINK_FAILURE = 19,
+    pub const CUFFT_NVJITLINK_FAILURE: cufftResult_t = cufftResult_t(19);
     /// An NVSHMEM failure was encountered during a cuFFT operation
-    CUFFT_NVSHMEM_FAILURE = 20,
+    pub const CUFFT_NVSHMEM_FAILURE: cufftResult_t = cufftResult_t(20);
 }
+/// CUFFT API function return values
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cufftResult_t(pub ::core::ffi::c_uint);
 pub use self::cufftResult_t as cufftResult;
 /// A single-precision, floating-point real data type.
 pub type cufftReal = f32;
@@ -111,53 +101,35 @@ pub type cufftDoubleReal = f64;
 pub type cufftComplex = cuComplex;
 /// A double-precision, floating-point complex data type that consists of interleaved real and imaginary components.
 pub type cufftDoubleComplex = cuDoubleComplex;
-/// CUFFT supports the following transform types
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cufftType_t {
+impl cufftType_t {
     /// Real to complex (interleaved)
-    CUFFT_R2C = 42,
+    pub const CUFFT_R2C: cufftType_t = cufftType_t(42);
     /// Complex (interleaved) to real
-    CUFFT_C2R = 44,
+    pub const CUFFT_C2R: cufftType_t = cufftType_t(44);
     /// Complex to complex (interleaved)
-    CUFFT_C2C = 41,
+    pub const CUFFT_C2C: cufftType_t = cufftType_t(41);
     /// Double to double-complex (interleaved)
-    CUFFT_D2Z = 106,
+    pub const CUFFT_D2Z: cufftType_t = cufftType_t(106);
     /// Double-complex (interleaved) to double
-    CUFFT_Z2D = 108,
+    pub const CUFFT_Z2D: cufftType_t = cufftType_t(108);
     /// Double-complex to double-complex (interleaved)
-    CUFFT_Z2Z = 105,
+    pub const CUFFT_Z2Z: cufftType_t = cufftType_t(105);
 }
+/// CUFFT supports the following transform types
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cufftType_t(pub ::core::ffi::c_uint);
 pub use self::cufftType_t as cufftType;
-/// CUFFT supports the following data layouts
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cufftCompatibility_t {
+impl cufftCompatibility_t {
     /// The default value
-    CUFFT_COMPATIBILITY_FFTW_PADDING = 1,
+    pub const CUFFT_COMPATIBILITY_FFTW_PADDING: cufftCompatibility_t = cufftCompatibility_t(
+        1,
+    );
 }
+/// CUFFT supports the following data layouts
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cufftCompatibility_t(pub ::core::ffi::c_uint);
 pub use self::cufftCompatibility_t as cufftCompatibility;
 /// A handle type used to store and access cuFFT plans. The user receives a handle after creating a cuFFT plan and uses this handle to execute the plan.
 pub type cufftHandle = ::core::ffi::c_int;
@@ -1144,30 +1116,28 @@ singe_loader::functions! { crate::LIBRARY;
         value: *mut ::core::ffi::c_int,
     ) -> cufftResult;
 }
-/// Set/Get PlanProperty APIs configures per-plan behavior
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cufftProperty_t {
+impl cufftProperty_t {
     /// long long int
-    NVFFT_PLAN_PROPERTY_INT64_PATIENT_JIT = 1,
+    pub const NVFFT_PLAN_PROPERTY_INT64_PATIENT_JIT: cufftProperty_t = cufftProperty_t(
+        1,
+    );
     /// Plan property limiting the number of host threads available to cuFFT.
-    NVFFT_PLAN_PROPERTY_INT64_MAX_NUM_HOST_THREADS = 2,
+    pub const NVFFT_PLAN_PROPERTY_INT64_MAX_NUM_HOST_THREADS: cufftProperty_t = cufftProperty_t(
+        2,
+    );
     /// long long int
-    NVFFT_PLAN_PROPERTY_INT64_BLUESTEIN_ONLY = 3,
+    pub const NVFFT_PLAN_PROPERTY_INT64_BLUESTEIN_ONLY: cufftProperty_t = cufftProperty_t(
+        3,
+    );
     /// long long int
-    NVFFT_PLAN_PROPERTY_INT64_DISABLE_FMA = 4,
+    pub const NVFFT_PLAN_PROPERTY_INT64_DISABLE_FMA: cufftProperty_t = cufftProperty_t(
+        4,
+    );
 }
+/// Set/Get PlanProperty APIs configures per-plan behavior
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cufftProperty_t(pub ::core::ffi::c_uint);
 pub use self::cufftProperty_t as cufftProperty;
 singe_loader::functions! { crate::LIBRARY;
     /// Associates a cuFFT plan with a property identified by the key `property`. The value for the property is given by value `propertyValueInt64`, which is a signed long long integer.

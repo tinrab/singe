@@ -1,13 +1,13 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    backend::tensor::TensorId,
     data_type::DataType,
     frontend::operation::{
         AttentionBackwardWorkspaceLimit, AttentionDropoutConfig, AttentionDropoutMode,
         AttentionMaskMode, AttentionMaxTotalSequenceLengths, AttentionScoreConfig,
         SdpaScoreModifiers, SdpaScoreSubgraph, SoftmaxConfig,
     },
+    tensor::TensorId,
 };
 
 /// High-level configuration for SDPA backward helpers.
@@ -108,8 +108,7 @@ impl AttentionBackwardConfig {
     /// A cap below the padded dP requirement selects ordered FP32 dQ accumulation.
     /// Zero always requests that route.
     /// `Unlimited` retains the dP route.
-    /// An explicit cap takes precedence over `CUDNN_FRONTEND_ATTN_DP_WORKSPACE_LIMIT`.
-    /// `None` removes the explicit cap and restores environment inheritance.
+    /// `None` leaves the dP workspace uncapped, like `Unlimited`.
     #[must_use]
     pub fn with_probability_gradient_workspace_limit(
         mut self,
@@ -119,7 +118,7 @@ impl AttentionBackwardConfig {
         self
     }
 
-    /// Returns the explicit cap, or `None` to inherit the environment setting.
+    /// Returns the explicit cap, or `None` when the dP workspace is uncapped.
     #[must_use]
     pub fn probability_gradient_workspace_limit(&self) -> Option<AttentionBackwardWorkspaceLimit> {
         self.probability_gradient_workspace_limit
@@ -268,7 +267,7 @@ impl AttentionBackwardConfig {
         self.deterministic_algorithm
     }
 
-    /// Auxiliary-output presence derived from recorded output identities.
+    /// Returns the auxiliary-output presence derived from recorded output identities.
     #[must_use]
     pub fn aux_gradients(&self) -> AttentionBackwardAuxGradients {
         self.aux_gradients

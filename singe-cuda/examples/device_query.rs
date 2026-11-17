@@ -1,10 +1,8 @@
 //! Rust take on the CUDA "deviceQuery" sample: print the driver and runtime versions and the main properties of every visible device.
 
-use std::error::Error;
-
 use singe_cuda::{device::Device, driver, runtime};
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() -> anyhow::Result<()> {
     println!("CUDA driver version: {}", driver::version()?);
     println!("CUDA runtime version: {}", runtime::version()?);
 

@@ -1,11 +1,7 @@
 use crate::{
-    backend::{
-        pointwise::PointwiseMode,
-        reduction::ReduceTensorOperator,
-        tensor::{Shape, TensorId, TensorSpec},
-    },
+    backend::operation::{pointwise::PointwiseMode, reduction::ReduceTensorOperator},
     data_type::DataType,
-    error::Result,
+    error::{Error, Result, SdpaFeature},
     frontend::{
         composite::sdpa::{
             SdpaFp8BackwardGradientTensors, SdpaFp8BackwardInputs, SdpaFp8BackwardOutputConfig,
@@ -17,13 +13,14 @@ use crate::{
                 SDPA_FP8_BACKWARD_SCORE_SUBGRAPH_BPROP,
             },
         },
-        error::{Error as FrontendError, SdpaFeature},
+        error::Error as FrontendError,
         graph::{
             Graph, MatmulFp8Inputs, MatmulFp8QuantizeOutputs, MatmulFp8QuantizeTensors,
             reduce_last_axis,
         },
-        operation::{AttentionBackwardConfig, AttentionBackwardRequest, ReductionConfig},
+        operation::{AttentionBackwardConfig, ReductionConfig},
     },
+    tensor::{Shape, TensorId, TensorSpec},
 };
 
 struct Fp8BackwardPreparation {
@@ -36,19 +33,7 @@ struct Fp8BackwardPreparation {
 }
 
 impl Graph {
-    /// Creates independently typed gradients while retaining FP8 probability intermediates.
-    /// Fixed scalar scales and `F16` or `BF16` gradients support current scaling.
-    /// Each Amax describes the descaled result before its output scale and conversion.
-    /// Expansion occurs during graph preparation, after resolving the target architecture.
-    /// Each gradient selects its own placement and encoding; sink gradients default to FP32.
-    /// Bias gradients and RNG dumps are unavailable in the C++ FP8 backward operation.
-    /// Each required Amax selects its own placement and supported encoding, defaulting to bindable FP32.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error for unsupported bias-gradient or RNG-dump requests, unknown query, key or value identities, non-four-dimensional inputs, or unrepresentable inferred auxiliary-output layouts.
-    /// Target and native support validation occurs during preparation.
-    pub fn sdpa_fp8_backward(
+    pub(crate) fn infer_fp8_sdpa_backward(
         &mut self,
         inputs: SdpaFp8BackwardInputs,
         config: AttentionBackwardConfig,
@@ -99,7 +84,7 @@ impl Graph {
                 absolute_max_value_gradient: amax_v,
                 absolute_max_probability_gradient: amax_p,
             };
-            self.sdpa_fp8_backward_into(inputs, gradients, config)?;
+            self.sdpa_backward_into(inputs, gradients, config)?;
             Ok(gradients)
         })();
         if result.is_err() {
@@ -363,28 +348,6 @@ impl Graph {
         Ok(())
     }
 
-    /// Records FP8 backward with caller-declared gradient layouts and Amax outputs.
-    /// A supplied sink-gradient output enables that request without discarding its identity.
-    /// Preparation resolves support and deterministic routing for the compilation target.
-    ///
-    /// # Errors
-    ///
-    /// This recording step currently returns no errors.
-    /// Graph preparation validates the deferred operands, layouts, and target-specific support.
-    pub fn sdpa_fp8_backward_into(
-        &mut self,
-        inputs: SdpaFp8BackwardInputs,
-        gradients: SdpaFp8BackwardGradientTensors,
-        config: AttentionBackwardConfig,
-    ) -> Result<()> {
-        self.record_attention_backward_request(AttentionBackwardRequest::Fp8 {
-            inputs,
-            outputs: gradients,
-            config,
-        });
-        Ok(())
-    }
-
     #[expect(
         clippy::too_many_lines,
         reason = "the composite attention operation builds and validates its complete tensor graph"
@@ -426,12 +389,11 @@ impl Graph {
             [q, k, v, o, stats, d_o, d_q, d_k, d_v],
         )?;
         if config.aux_gradients().bias() {
-            return Err(FrontendError::SdpaUnsupported {
+            return Err(Error::SdpaUnsupported {
                 feature: SdpaFeature::BiasGradient,
                 operation: "quantized sdpa backward",
                 sm_version: None,
-            }
-            .into());
+            });
         }
 
         let query_key_width = q_tensor.shape.dimensions()[3];

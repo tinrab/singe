@@ -1,16 +1,20 @@
 [package]
 name = "singe-cublas-sys"
 description = "Low-level FFI bindings for the NVIDIA cuBLAS dense linear algebra library."
-version = "0.1.0-alpha.9"
+version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 repository.workspace = true
+documentation = "https://docs.rs/singe-cublas-sys"
 license-file.workspace = true
 readme = "README.md"
-keywords = ["cuda", "cublas", "bindings", "ffi"]
+keywords = ["cuda", "nvidia", "cublas", "ffi", "bindings"]
+categories = ["external-ffi-bindings", "hardware-support"]
 include.workspace = true
 
 [package.metadata.docs.rs]
-rustdoc-args = ["--html-in-header", "dist/katex_header.html"]
+features = ["lt", "xt"]
+rustdoc-args = ["--cfg", "docsrs", "--html-in-header", "dist/katex_header.html"]
 
 [features]
 default = ["cublas_13_8"]
@@ -22,4 +26,6 @@ xt = ["cublas_13_8"]
 [dependencies]
 singe-loader.workspace = true
 singe-cuda-sys.workspace = true
-num_enum.workspace = true
+
+[dev-dependencies]
+anyhow.workspace = true

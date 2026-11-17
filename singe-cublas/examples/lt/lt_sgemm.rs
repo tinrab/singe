@@ -1,16 +1,15 @@
-use std::error::Error;
-
 use singe_cublas::{
     lt::{
         context::Context as LtContext,
         descriptor::MatrixLayout,
-        matmul::{MatmulDescriptor, MatmulPreference, matmul, matmul_algorithm_heuristics},
+        matmul::{MatmulDescriptor, MatmulPreference, matmul_algorithm_heuristics, matmul_async},
     },
+    scalar::Scalar,
     types::{ComputeType, Operation},
 };
-
 use singe_cuda::{
     context::Context as CudaContext, data_type::DataType, device::Device, memory::DeviceMemory,
+    view::DeviceInputView,
 };
 
 const M: u64 = 2;
@@ -18,19 +17,19 @@ const N: u64 = 2;
 const K: u64 = 2;
 const WORKSPACE_BYTES: usize = 1 << 20;
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() -> anyhow::Result<()> {
     let cuda = CudaContext::create_for_device(Device::new(0))?;
     let lt = LtContext::create(&cuda)?;
 
     let a = DeviceMemory::from_slice(&cuda, &[1.0_f32, 3.0, 2.0, 4.0])?;
     let b = DeviceMemory::from_slice(&cuda, &[5.0_f32, 7.0, 6.0, 8.0])?;
-    let c = DeviceMemory::<f32>::zeroed(&cuda, (M * N) as usize)?;
-    let mut d = DeviceMemory::<f32>::create_uninit(&cuda, (M * N) as usize)?;
+    let c = DeviceMemory::<f32>::zeroed(&cuda, usize::try_from(M * N)?)?;
+    let mut d = DeviceMemory::<f32>::create_uninit(&cuda, usize::try_from(M * N)?)?;
 
-    let a_layout = MatrixLayout::create(DataType::F32, M, K, M as i64)?;
-    let b_layout = MatrixLayout::create(DataType::F32, K, N, K as i64)?;
-    let c_layout = MatrixLayout::create(DataType::F32, M, N, M as i64)?;
-    let d_layout = MatrixLayout::create(DataType::F32, M, N, M as i64)?;
+    let a_layout = MatrixLayout::create(DataType::F32, M, K, i64::try_from(M)?)?;
+    let b_layout = MatrixLayout::create(DataType::F32, K, N, i64::try_from(K)?)?;
+    let c_layout = MatrixLayout::create(DataType::F32, M, N, i64::try_from(M)?)?;
+    let d_layout = MatrixLayout::create(DataType::F32, M, N, i64::try_from(M)?)?;
 
     let mut desc = MatmulDescriptor::create(ComputeType::F32, DataType::F32)?;
     desc.set_transpose_a(Operation::NonTranspose)?;
@@ -55,21 +54,21 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // SAFETY: layouts match the retained buffers and scalars; the default stream is drained below.
     unsafe {
-        matmul(
+        matmul_async(
             &lt,
             &desc,
-            &alpha,
+            Scalar::host(&alpha),
             &a,
             &a_layout,
             &b,
             &b_layout,
-            &beta,
-            &c,
+            Scalar::host(&beta),
+            Some(DeviceInputView::from_buffer(&c)),
             &c_layout,
             &mut d.output(),
             &d_layout,
             Some(&heuristics[0].algorithm),
-            Some(&mut workspace),
+            Some(workspace.output()),
             None,
         )
     }?;

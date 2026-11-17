@@ -173,11 +173,7 @@ fn copy_contiguous_tensor_same_device(src: &Tensor) -> Result<Tensor> {
     context.sync_scope(|| {
         // SAFETY: the source is initialized, and the scope retains both borrows or, on the eager stream, orders any reuse of them after the copy.
         unsafe {
-            transfer::copy_device_async_unchecked(
-                &mut output_memory,
-                &src_memory,
-                context.stream().raw(),
-            )?;
+            transfer::copy_device_async(&mut output_memory, &src_memory, context.stream().raw())?;
         }
         Ok(())
     })?;

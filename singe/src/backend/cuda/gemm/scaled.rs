@@ -1,18 +1,23 @@
 // FP8 products on tensor cores through cuBLASLt, which takes FP8 operands in one layout only, "TN": the left operand transposed and both column-major.
 // `torch._scaled_mm`'s row-major `lhs [M, K]` and column-major `rhs [K, N]` are that layout read the other way round: cuBLASLt's `A` is `rhs`, `K × N` with leading dimension `K`, transposed, its `B` is `lhs`, `K × M` with leading dimension `K`, and its column-major `N × M` result is the row-major `[M, N]` output.
 
-use std::ffi::c_void;
+use std::{ffi::c_void, ptr};
 
 use singe_cublas::{
     lt::{
         context::Context as CublasLtContext,
         descriptor::MatrixLayout,
-        matmul::{MatmulDescriptor, MatmulPreference, matmul_algorithm_heuristics, matmul_raw},
+        matmul::{MatmulDescriptor, MatmulPreference, matmul_algorithm_heuristics, matmul_async},
         types::{MatmulDescriptorAttribute, MatrixScale},
     },
+    scalar::Scalar,
     types::{ComputeType, Operation as CublasOperation},
 };
-use singe_cuda::{data_type::DataType as CudaDataType, stream::Stream};
+use singe_cuda::{
+    data_type::DataType as CudaDataType,
+    stream::Stream,
+    view::{DeviceInputView, DeviceOutputView, DeviceRegion},
+};
 
 use crate::{
     backend::spec::{MatmulScaling, ScaledMatmulProblem},
@@ -21,13 +26,17 @@ use crate::{
     utility::{to_i64, to_u64},
 };
 
-// Device pointers of one FP8 product: its operands and their `F32` scales, and its output.
-pub struct ScaledMatmulPointers {
-    pub lhs: *const c_void,
-    pub rhs: *const c_void,
-    pub lhs_scale: *const c_void,
-    pub rhs_scale: *const c_void,
-    pub output: *mut c_void,
+// Device storage of one FP8 product: its operands and their `F32` scales, and its output.
+pub struct ScaledMatmulOperands<'a> {
+    pub lhs: DeviceRegion<'a>,
+    pub rhs: DeviceRegion<'a>,
+    pub lhs_scale: Option<DeviceRegion<'a>>,
+    pub rhs_scale: Option<DeviceRegion<'a>>,
+    pub output: DeviceRegion<'a>,
+}
+
+fn scale_pointer(scale: Option<DeviceRegion<'_>>) -> *const c_void {
+    scale.map_or(ptr::null(), |scale| scale.as_ptr().cast_const().cast())
 }
 
 fn cuda_data_type(data_type: DataType) -> Result<CudaDataType> {
@@ -49,12 +58,12 @@ fn extent(value: i64) -> Result<u64> {
 //
 // # Safety
 //
-// The pointers address live device memory of the problem's operands, scales, and output on the context's device, which stays alive until the stream's work completes.
+// The regions hold the problem's operands, scales, and output on the context's device, which stay alive until the stream's work completes, and nothing else accesses the output until then.
 pub unsafe fn enqueue_scaled_matmul(
     cublaslt: &CublasLtContext,
     problem: &ScaledMatmulProblem,
     types: [DataType; 3],
-    pointers: &ScaledMatmulPointers,
+    operands: &ScaledMatmulOperands<'_>,
     stream: Option<&Stream>,
 ) -> Result<()> {
     let [lhs_type, rhs_type, output_type] = types;
@@ -71,11 +80,11 @@ pub unsafe fn enqueue_scaled_matmul(
     unsafe {
         descriptor.set_attribute(
             MatmulDescriptorAttribute::AScalePointer,
-            &pointers.rhs_scale,
+            &scale_pointer(operands.rhs_scale),
         )?;
         descriptor.set_attribute(
             MatmulDescriptorAttribute::BScalePointer,
-            &pointers.lhs_scale,
+            &scale_pointer(operands.lhs_scale),
         )?;
     }
 
@@ -113,20 +122,26 @@ pub unsafe fn enqueue_scaled_matmul(
         )
     })?;
     let (alpha, beta) = (1.0_f32, 0.0_f32);
+    let rhs = DeviceInputView::<u8>::create(operands.rhs)?;
+    let lhs = DeviceInputView::<u8>::create(operands.lhs)?;
+    // SAFETY: the caller gives the output region exclusively to this product until the stream's work completes.
+    let mut output = unsafe {
+        DeviceOutputView::<u8>::from_raw_parts(operands.output, operands.output.byte_len())?
+    };
     // SAFETY: the layouts describe the caller's buffers; with beta zero cuBLASLt reads nothing of C, which aliases D.
     unsafe {
-        matmul_raw(
+        matmul_async(
             cublaslt,
             &descriptor,
-            (&raw const alpha).cast(),
-            pointers.rhs,
+            Scalar::host(&alpha),
+            &rhs,
             &a_layout,
-            pointers.lhs,
+            &lhs,
             &b_layout,
-            (&raw const beta).cast(),
-            pointers.output.cast_const(),
+            Scalar::host(&beta),
+            None,
             &output_layout,
-            pointers.output,
+            &mut output,
             &output_layout,
             Some(&algorithm.algorithm),
             None,

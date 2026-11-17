@@ -1,12 +1,13 @@
-use std::io::Cursor;
-
-use bomboni_request::parse::RequestParseInto;
-
 use prost::Message;
-
-use singe_onnx::proto::onnx::{
-    GraphProto, ModelProto, NodeProto, OperatorSetIdProto, TensorProto, TensorShapeProto,
-    TypeProto, ValueInfoProto, tensor_proto, tensor_shape_proto, type_proto,
+use singe_onnx::{
+    Model,
+    proto::{
+        onnx::{
+            GraphProto, ModelProto, NodeProto, OperatorSetIdProto, TensorProto, TensorShapeProto,
+            TypeProto, ValueInfoProto, tensor_proto, tensor_shape_proto, type_proto,
+        },
+        onnx_structure,
+    },
 };
 
 #[test]
@@ -43,7 +44,7 @@ fn test_decode_model_structure() {
     };
 
     let full_bytes = model.encode_to_vec();
-    let full_model = singe_onnx::decode_proto(&full_bytes).expect("decode full ONNX model");
+    let full_model = ModelProto::decode(full_bytes.as_slice()).expect("decode full ONNX model");
     let full_initializer = full_model
         .graph
         .as_ref()
@@ -53,8 +54,8 @@ fn test_decode_model_structure() {
         .expect("full initializer");
     assert_eq!(full_initializer.raw_data, weight_data);
 
-    let structure =
-        singe_onnx::decode_structure_proto(&full_bytes).expect("decode structure-only ONNX model");
+    let structure = onnx_structure::ModelProto::decode(full_bytes.as_slice())
+        .expect("decode structure-only ONNX model");
     let graph = structure.graph.as_ref().expect("structure graph");
     assert_eq!(graph.name, "structure_graph");
     assert_eq!(graph.node.len(), 1);
@@ -84,7 +85,7 @@ fn test_decode_model_structure() {
     );
 
     let parsed_structure =
-        singe_onnx::decode_structure(&full_bytes).expect("parse structure-only ONNX model");
+        Model::structure_from_bytes(&full_bytes).expect("parse structure-only ONNX model");
     assert_eq!(parsed_structure.producer_name, "singe-onnx-test");
     assert_eq!(parsed_structure.graph.name, "structure_graph");
     assert_eq!(parsed_structure.graph.nodes.len(), 1);
@@ -105,13 +106,8 @@ fn test_decode_model_structure() {
     );
     assert_eq!(parsed_initializer.data, None);
 
-    let read_structure =
-        singe_onnx::read_structure(Cursor::new(&full_bytes)).expect("read structure ONNX model");
-    assert_eq!(read_structure, parsed_structure);
-
-    let parsed_from_proto: singe_onnx::Model = structure
-        .parse_into()
-        .expect("parse structure-only ONNX proto into typed model");
+    let parsed_from_proto =
+        Model::try_from(structure).expect("parse structure-only ONNX proto into typed model");
     assert_eq!(parsed_from_proto, parsed_structure);
 }
 
@@ -157,7 +153,13 @@ fn test_tensor_payload_fields_cannot_be_ambiguous_or_silently_discarded() {
     let mut external_and_inline = valid;
     external_and_inline.data_location = tensor_proto::DataLocation::External as i32;
     for tensor in [ambiguous, mismatched, invalid_location, external_and_inline] {
-        let parsed: Result<singe_onnx::Tensor, _> = tensor.parse_into();
-        assert!(parsed.is_err());
+        let model = ModelProto {
+            graph: Some(GraphProto {
+                initializer: vec![tensor],
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        assert!(Model::try_from(model).is_err());
     }
 }

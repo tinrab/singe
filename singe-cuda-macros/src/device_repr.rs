@@ -5,14 +5,14 @@ use quote::{quote, quote_spanned};
 use syn::{Data, DeriveInput, Error, Path, Result, parse_quote, spanned::Spanned};
 
 #[derive(Clone, Copy)]
-pub enum Representation {
+pub(crate) enum Representation {
     Transfer,
     NoUninit,
     Zeroable,
     AnyBitPattern,
 }
 
-pub fn expand(input: TokenStream, representation: Representation) -> Result<TokenStream> {
+pub(crate) fn expand(input: TokenStream, representation: Representation) -> Result<TokenStream> {
     let input: DeriveInput = syn::parse2(input)?;
     let mut cuda: Path = parse_quote!(::singe_cuda);
     let mut stable_layout = false;

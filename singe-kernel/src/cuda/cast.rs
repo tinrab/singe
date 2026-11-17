@@ -7,7 +7,7 @@ use singe_cuda::types::bf16;
 use singe_cuda::types::f16;
 use singe_cuda::{
     stream::Stream,
-    view::{DeviceInput, DeviceOutput},
+    view::{DeviceOutput, DeviceRange},
 };
 
 #[cfg(feature = "cutile")]
@@ -118,7 +118,7 @@ macro_rules! cast_tuned_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$out_ty>,
-            input: &impl DeviceInput<$in_ty>,
+            input: &impl DeviceRange<$in_ty>,
             config: VectorConfig,
         ) -> Result<()> {
             validate_vector_lengths(out.len(), input.len(), config)?;
@@ -153,7 +153,7 @@ macro_rules! cast_tuned_fn {
         pub unsafe fn $tune_name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$out_ty>,
-            input: &impl DeviceInput<$in_ty>,
+            input: &impl DeviceRange<$in_ty>,
             config: VectorConfig,
             options: TuneOptions,
         ) -> Result<TuneReport<VectorTuning>> {
@@ -203,7 +203,7 @@ macro_rules! cast_raw_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$out_ty>,
-            input: &impl DeviceInput<$in_ty>,
+            input: &impl DeviceRange<$in_ty>,
         ) -> Result<()> {
             let len = out.len();
             ensure_len(input.len(), len)?;
@@ -577,14 +577,20 @@ mod tests {
     #[test]
     fn test_f32_to_bf16_matches_host_conversion() -> Result<()> {
         use singe_cuda::{
-            context::Context as CudaContext, device::Device, memory::DeviceMemory,
-            stream::StreamFlags, types::bf16,
+            context::Context as CudaContext,
+            device::Device,
+            memory::DeviceMemory,
+            stream::{StreamFlags, StreamOptions},
+            types::bf16,
         };
 
-        let Ok(context) = CudaContext::retain_primary_for_device(Device::new(0)) else {
+        let Ok(context) = CudaContext::create_for_device(Device::new(0)) else {
             return Ok(());
         };
-        let stream = context.create_stream_with_flags(StreamFlags::NON_BLOCKING)?;
+        let stream = context.create_stream(StreamOptions {
+            flags: StreamFlags::NON_BLOCKING,
+            ..StreamOptions::default()
+        })?;
         let input_host = vec![0.0f32, 1.0, -0.5, 3.25, -7.75, 0.001, 1024.0];
         let input = DeviceMemory::from_slice(stream.context(), &input_host)?;
         let mut out = DeviceMemory::<bf16>::create_uninit(stream.context(), input_host.len())?;
@@ -620,14 +626,20 @@ mod tests {
     #[test]
     fn test_bf16_to_f32_matches_host_conversion() -> Result<()> {
         use singe_cuda::{
-            context::Context as CudaContext, device::Device, memory::DeviceMemory,
-            stream::StreamFlags, types::bf16,
+            context::Context as CudaContext,
+            device::Device,
+            memory::DeviceMemory,
+            stream::{StreamFlags, StreamOptions},
+            types::bf16,
         };
 
-        let Ok(context) = CudaContext::retain_primary_for_device(Device::new(0)) else {
+        let Ok(context) = CudaContext::create_for_device(Device::new(0)) else {
             return Ok(());
         };
-        let stream = context.create_stream_with_flags(StreamFlags::NON_BLOCKING)?;
+        let stream = context.create_stream(StreamOptions {
+            flags: StreamFlags::NON_BLOCKING,
+            ..StreamOptions::default()
+        })?;
         let input_host = [0.0f32, 1.0, -0.5, 3.25, -7.75, 0.001, 1024.0]
             .into_iter()
             .map(bf16::from_f32)

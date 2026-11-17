@@ -3,10 +3,7 @@ mod common;
 use singe_core::assert_close;
 use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
-    backend::{
-        device::{DeviceProperties, DevicePropertiesSource},
-        tensor::{Shape, TensorId, TensorSpec},
-    },
+    backend::device::{DeviceProperties, DevicePropertiesSource},
     data_type::{DataType, f16},
     error::{Error, Result, Status},
     frontend::{
@@ -17,6 +14,7 @@ use singe_cudnn::{
             NativePlanSerializationConfig, NativePlanStructure,
         },
     },
+    tensor::{Shape, TensorId, TensorSpec},
 };
 
 const X_ID: TensorId = TensorId::new(1000);
@@ -63,6 +61,10 @@ fn is_deviceless_not_supported(error: &Error) -> bool {
     )
 }
 
+#[expect(
+    clippy::many_single_char_names,
+    reason = "keeps the upstream sample's single-letter dimension names"
+)]
 fn build_graph(device_properties: DeviceProperties) -> Result<Graph> {
     let n = 16_i64;
     let c = 128_i64;
@@ -132,7 +134,7 @@ fn run() -> Result<()> {
 
     let graph = build_graph(restored_device)?;
     let build = || {
-        let candidates = graph.plan_candidates(
+        let candidates = graph.prepare(None)?.plan_candidates(
             None,
             &CompileConfig::from_heuristic_modes([HeuristicMode::A, HeuristicMode::Fallback]),
         )?;
@@ -204,9 +206,9 @@ fn run() -> Result<()> {
         .set(Y_ID, &mut y_dev)?;
     // SAFETY: the example retains its plan and buffers through the surrounding completion or replay sequence.
     unsafe {
-        restored.execute(
+        restored.execute_async(
             &context.cudnn,
-            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
         )
     }?;
 
@@ -216,6 +218,6 @@ fn run() -> Result<()> {
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_deviceless_aot_compilation", run())
 }

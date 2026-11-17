@@ -1,1071 +1,813 @@
+//! Typed backend attribute names, native representations, and attribute-value conversion.
+
 use std::fmt;
 
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use serde::{Deserialize, Serialize};
-use singe_core::{impl_enum_conversion, impl_enum_display};
+use singe_core::impl_enum_display;
 use singe_cudnn_sys as sys;
 
 use crate::{
     backend::{
         behavior::{BackendBehaviorNote, BackendNumericalNote},
-        convolution::ConvolutionMode,
-        execution::{
+        heuristic::BackendHeuristicMode,
+        knob::BackendKnobType,
+        layout::BackendLayoutType,
+        operation::{
+            convolution::ConvolutionMode,
             moe::MoeGroupedMatmulMode,
-            normalization::{BatchNormalizationFinalizeStatsMode, GenStatsMode},
+            normalization::{
+                BackendNormalizationForwardPhase, BackendNormalizationMode,
+                BatchNormalizationFinalizeStatsMode, GenStatsMode,
+            },
+            pointwise::PointwiseMode,
+            reduction::ReduceTensorOperator,
             resample::{PaddingMode, ResampleMode},
             rng::RngDistribution,
             tensor_ops::{ReshapeMode, SignalMode},
         },
-        heuristic::BackendHeuristicMode,
-        knob::BackendKnobType,
-        layout::BackendLayoutType,
-        normalization::{BackendNormalizationForwardPhase, BackendNormalizationMode},
-        pointwise::PointwiseMode,
-        reduction::ReduceTensorOperator,
         tensor::BackendTensorReordering,
     },
     data_type::DataType,
     math::NanPropagation,
 };
 
-/// Backend descriptor attribute name that can be set or retrieved with [`BackendDescriptor`](crate::backend::descriptor::BackendDescriptor) attribute methods.
-/// The backend descriptor to which an attribute belongs is identified by the prefix of the attribute name.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[non_exhaustive]
-#[repr(u32)]
-pub enum BackendAttributeName {
-    /// Descriptor of the group-offset tensor for a grouped reduction operation.
-    OperationReductionGroupOffsetDesc = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_REDUCTION_GROUP_OFFSET_DESC as _,
-    ///< Backward math precision for `MoE` grouped matmul. @since cuDNN 9.22.0
-    OperationMoeGroupedMatmulBackwardMathPrec = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_BWD_MATH_PREC as _,
-    ///< Backward token descriptor for `MoE` grouped matmul. @since cuDNN 9.22.0
-    OperationMoeGroupedMatmulBackwardTokenDesc = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_BWD_TOKEN_DESC as _,
-    ///< Backward weight descriptor for `MoE` grouped matmul. @since cuDNN 9.22.0
-    OperationMoeGroupedMatmulBackwardWeightGradientDesc = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_BWD_DWEIGHT_DESC as _,
-    ///< Backward first token offset descriptor for `MoE` grouped matmul. @since cuDNN 9.22.0
-    OperationMoeGroupedMatmulBackwardFirstTokenOffsetDesc = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_BWD_FIRST_TOKEN_OFFSET_DESC as _,
-    ///< Backward output descriptor for `MoE` grouped matmul. @since cuDNN 9.22.0
-    OperationMoeGroupedMatmulBackwardOutputGradientDesc = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_BWD_DOUTPUT_DESC as _,
-
-    /// `RoPE` input tensor descriptor with shape `[B, H, S, D]`.
-    /// Available since cuDNN 9.24.0.
-    OperationRopeForwardInputDesc = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_ROPE_FWD_XDESC as _,
-    /// `RoPE` output tensor descriptor with shape `[B, H, S, D]`.
-    /// Available since cuDNN 9.24.0.
-    OperationRopeForwardOutputDesc = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_ROPE_FWD_YDESC as _,
-    /// `RoPE` frequency-angle tensor with shape `[S, 1, 1, D]`.
-    /// The kernel computes `sincosf` internally.
-    /// Available since cuDNN 9.24.0.
-    OperationRopeForwardFrequenciesDesc = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_ROPE_FWD_FREQSDESC as _,
-    ///< `RoPE` host-side fp32 scalar multiplied into cos/sin (default 1.0). Used to fold YARN mscale and/or SDPA `attn_scale`. @since cuDNN 9.24.0
-    OperationRopeForwardOutputScale = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_ROPE_FWD_OUTPUT_SCALE as _,
-    ///< `RoPE` rotation width in last dim (int64, default = `head_dim`). When < `head_dim`, the last `rope_dim` slots get rotated; the first (`head_dim` - `rope_dim`) are scaled-pass-through (used for DSv3-style MLA). @since cuDNN 9.24.0
-    OperationRopeForwardRotationDimension = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_ROPE_FWD_ROPE_DIM as _,
-    /// `RoPE` input-gradient (`dY`) tensor descriptor with shape `[B, H, S, D]`.
-    /// Available since cuDNN 9.25.0.
-    OperationRopeBackwardInputDesc = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_ROPE_BWD_DYDESC as _,
-    /// `RoPE` output-gradient (`dX`) tensor descriptor with shape `[B, H, S, D]`.
-    /// Available since cuDNN 9.25.0.
-    OperationRopeBackwardOutputDesc = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_ROPE_BWD_DXDESC as _,
-    /// `RoPE` backward frequency-angle tensor with shape `[S, 1, 1, D]`, using the same semantics as forward execution.
-    /// Available since cuDNN 9.25.0.
-    OperationRopeBackwardFrequenciesDesc = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_ROPE_BWD_FREQSDESC as _,
-    ///< `RoPE` bwd host fp32 scalar (default 1.0). Symmetric to fwd: cos/sin pre-scaled, passthrough scaled. @since cuDNN 9.25.0
-    OperationRopeBackwardOutputScale = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_ROPE_BWD_OUTPUT_SCALE as _,
-    ///< `RoPE` bwd rotation width in last dim (int64, default = `head_dim`). @since cuDNN 9.25.0
-    OperationRopeBackwardRotationDimension = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_ROPE_BWD_ROPE_DIM as _,
-
-    ///< Compile-time constant value for by-value tensors. @since cuDNN 9.22.0
-    TensorConstantValue = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_TENSOR_CONSTANT_VALUE as _,
-    ///< Ragged tensor offset unit size. @since cuDNN 9.24.0
-    TensorRaggedOffsetMultiplier = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_TENSOR_RAGGED_OFFSET_MULTIPLIER as _,
-    ///< Reshape mode (view-only or logical). @since cuDNN 9.22.0
-    OperationReshapeMode = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_RESHAPE_MODE as _,
-    ///< Slice input tensor descriptor. @since cuDNN 9.22.0
-    OperationSliceXDesc = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SLICE_XDESC as _,
-    ///< Slice output tensor descriptor. @since cuDNN 9.22.0
-    OperationSliceYDesc = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SLICE_YDESC as _,
-    ///< Slice start indices. @since cuDNN 9.22.0
-    OperationSliceStartIndices = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SLICE_START_INDICES as _,
-    ///< Slice limit indices. @since cuDNN 9.22.0
-    OperationSliceLimitIndices = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SLICE_LIMIT_INDICES as _,
-    ///< Slice strides. @since cuDNN 9.22.0
-    OperationSliceStrides = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SLICE_STRIDES as _,
-    ///< Transpose input tensor descriptor. @since cuDNN 9.22.0
-    OperationTransposeXDesc = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_TRANSPOSE_XDESC as _,
-    ///< Transpose output tensor descriptor. @since cuDNN 9.22.0
-    OperationTransposeYDesc = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_TRANSPOSE_YDESC as _,
-    ///< Transpose permutation array. @since cuDNN 9.22.0
-    OperationTransposePermutation = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_TRANSPOSE_PERMUTATION as _,
-    /// Shared memory limit metadata propagated to heuristic results.
-    EngineHeurSharedMemoryLimit = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_ENGINEHEUR_SHARED_MEMORY_LIMIT as _,
-    /// Dynamic shared memory budget, in bytes.
-    EngineSharedMemoryLimit = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_ENGINE_SHARED_MEMORY_LIMIT as _,
-    /// Counter that shows if the kernel cache changed.
-    KernelCacheRevision = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_KERNEL_CACHE_REVISION as _,
-    /// Number of entries in the kernel cache.
-    KernelCacheEntryCount = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_KERNEL_CACHE_ENTRY_COUNT as _,
-    /// Emit statistics as natural-log LSE multiplied by log2(e).
-    /// SDPA backward expects natural-log statistics.
-    OperationSoftmaxStatsLog2 = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SOFTMAX_STATS_LOG2 as _,
-    /// Indices of the input dimensions to reduce, ascending and distinct.
-    OperationReductionDims = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_REDUCTION_DIMS as _,
-    /// Accumulator identity values, one pointer per output; set the output descriptors first.
-    OperationReductionInitValues = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_REDUCTION_INIT_VALUES as _,
-    /// Finalized operation graph describing the reducer body combining accumulator and current element.
-    OperationReductionSubgraph = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_REDUCTION_SUBGRAPH as _,
-    /// Subgraph tensor IDs holding accumulator values, one per output.
-    OperationReductionSubgraphAccumulatorUids = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_REDUCTION_SUBGRAPH_ACCUMULATOR_UIDS as _,
-    /// Subgraph tensor IDs holding current elements, one per output.
-    OperationReductionSubgraphCurrentUids = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_REDUCTION_SUBGRAPH_CURRENT_UIDS as _,
-    /// Subgraph tensor IDs holding output values, one per output.
-    OperationReductionSubgraphOutputUids = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_REDUCTION_SUBGRAPH_OUTPUT_UIDS as _,
-    /// Optional compute type the reducer body evaluates in, one per output; defaults to output element type.
-    OperationReductionSubgraphComputeTypes = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_REDUCTION_SUBGRAPH_COMPUTE_TYPES as _,
-
-    ///< Pointwise operation type. @since cuDNN 9.0.0
-    PointwiseMode = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_POINTWISE_MODE as _,
-    ///< Computation precision for pointwise ops. @since cuDNN 9.0.0
-    PointwiseMathPrec = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_POINTWISE_MATH_PREC as _,
-    ///< NaN handling behavior. @deprecated @since cuDNN 9.0.0
-    PointwiseNanPropagation =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_POINTWISE_NAN_PROPAGATION as _,
-    ///< Lower clipping threshold for `ReLU`. @since cuDNN 9.0.0
-    PointwiseReluLowerClip =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_POINTWISE_RELU_LOWER_CLIP as _,
-    ///< Upper clipping threshold for `ReLU`. @since cuDNN 9.0.0
-    PointwiseReluUpperClip =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_POINTWISE_RELU_UPPER_CLIP as _,
-    ///< Slope below lower clip for leaky `ReLU`. @since cuDNN 9.0.0
-    PointwiseReluLowerClipSlope =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_POINTWISE_RELU_LOWER_CLIP_SLOPE as _,
-    ///< Alpha parameter for ELU activation. @since cuDNN 9.0.0
-    PointwiseEluAlpha = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_POINTWISE_ELU_ALPHA as _,
-    ///< Beta parameter for softplus function. @since cuDNN 9.0.0
-    PointwiseSoftplusBeta = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_POINTWISE_SOFTPLUS_BETA as _,
-    ///< Beta parameter for swish activation. @since cuDNN 9.0.0
-    PointwiseSwishBeta = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_POINTWISE_SWISH_BETA as _,
-    ///< Axis for axis-dependent pointwise operations. @since cuDNN 9.0.0
-    PointwiseAxis = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_POINTWISE_AXIS as _,
-
-    ///< Computation data type for convolution. @since cuDNN 9.0.0
-    ConvolutionCompType = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_CONVOLUTION_COMP_TYPE as _,
-    ///< Convolution vs cross-correlation mode. @since cuDNN 9.0.0
-    ConvolutionConvMode = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_CONVOLUTION_CONV_MODE as _,
-    ///< Dilation factors per spatial dimension. @since cuDNN 9.0.0
-    ConvolutionDilations = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_CONVOLUTION_DILATIONS as _,
-    ///< Filter stride values per spatial dimension. @since cuDNN 9.0.0
-    ConvolutionFilterStrides =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_CONVOLUTION_FILTER_STRIDES as _,
-    ///< Post-paddings per spatial dimension. @since cuDNN 9.0.0
-    ConvolutionPostPaddings =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_CONVOLUTION_POST_PADDINGS as _,
-    ///< Pre-paddings per spatial dimension. @since cuDNN 9.0.0
-    ConvolutionPrePaddings =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_CONVOLUTION_PRE_PADDINGS as _,
-    ///< Number of spatial dimensions. @since cuDNN 9.0.0
-    ConvolutionSpatialDims =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_CONVOLUTION_SPATIAL_DIMS as _,
-
-    ///< Heuristic algorithm selection mode. @since cuDNN 9.0.0
-    EngineHeurMode = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_ENGINEHEUR_MODE as _,
-    ///< Associated operation graph descriptor. @since cuDNN 9.0.0
-    EngineHeurOperationGraph =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_ENGINEHEUR_OPERATION_GRAPH as _,
-    ///< Array of resulting engine configurations. @since cuDNN 9.0.0
-    EngineHeurResults = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_ENGINEHEUR_RESULTS as _,
-    ///< Target streaming multiprocessor count. @since cuDNN 9.0.0
-    EngineHeurSmCountTarget =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_ENGINEHEUR_SM_COUNT_TARGET as _,
-    ///< Device properties for heuristic query. @since cuDNN 9.8.0
-    EngineHeurDeviceProp = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_ENGINEHEUR_DEVICEPROP as _,
-
-    ///< Selected engine from heuristic results. @since cuDNN 9.0.0
-    EngineCfgEngine = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_ENGINECFG_ENGINE as _,
-    ///< Intermediate tensor information. @since cuDNN 9.0.0
-    EngineCfgIntermediateInfo =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_ENGINECFG_INTERMEDIATE_INFO as _,
-    ///< Performance tuning knob selections. @since cuDNN 9.0.0
-    EngineCfgKnobChoices = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_ENGINECFG_KNOB_CHOICES as _,
-    ///< Required workspace memory size. @since cuDNN 9.2.0
-    EngineCfgWorkspaceSize =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_ENGINECFG_WORKSPACE_SIZE as _,
-    /// Shared-memory requirement reported by an engine configuration, in bytes.
-    EngineCfgSharedMemoryUsed = 304,
-    ///< Associated cuDNN handle. @deprecated @since cuDNN 9.0.0
-    ExecutionPlanHandle = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_EXECUTION_PLAN_HANDLE as _,
-    ///< Engine configuration to execute. @since cuDNN 9.0.0
-    ExecutionPlanEngineConfig =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_EXECUTION_PLAN_ENGINE_CONFIG as _,
-    ///< Total workspace size requirement. @since cuDNN 9.0.0
-    ExecutionPlanWorkspaceSize =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_EXECUTION_PLAN_WORKSPACE_SIZE as _,
-    ///< UIDs of computed intermediates. @since cuDNN 9.0.0
-    ExecutionPlanComputedIntermediateIds =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_EXECUTION_PLAN_COMPUTED_INTERMEDIATE_UIDS as _,
-    ///< Run-only intermediate UIDs. @since cuDNN 9.0.0
-    ExecutionPlanRunOnlyIntermediateIds =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_EXECUTION_PLAN_RUN_ONLY_INTERMEDIATE_UIDS as _,
-    ///< Human-readable execution plan JSON. @since cuDNN 9.0.0
-    ExecutionPlanJsonRepresentation =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_EXECUTION_PLAN_JSON_REPRESENTATION as _,
-    ///< Compiled kernel cache descriptor. @since cuDNN 9.4.0
-    ExecutionPlanKernelCache =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_EXECUTION_PLAN_KERNEL_CACHE as _,
-    ///< Device properties for execution plan. @since cuDNN 9.8.0
-    ExecutionPlanDeviceProp =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_EXECUTION_PLAN_DEVICEPROP as _,
-
-    ///< Unique identifier for intermediate tensor. @since cuDNN 9.0.0
-    IntermediateInfoUniqueId =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_INTERMEDIATE_INFO_UNIQUE_ID as _,
-    ///< Memory size requirement in bytes. @since cuDNN 9.0.0
-    IntermediateInfoSize = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_INTERMEDIATE_INFO_SIZE as _,
-    ///< Data dependency UIDs. @since cuDNN 9.0.0
-    IntermediateInfoDependentTensorUids =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_INTERMEDIATE_INFO_DEPENDENT_DATA_UIDS as _,
-    ///< Attribute dependencies. @since cuDNN 9.0.0
-    IntermediateInfoDependentAttributes =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_INTERMEDIATE_INFO_DEPENDENT_ATTRIBUTES as _,
-
-    ///< Type of performance tuning knob. @since cuDNN 9.0.0
-    KnobChoiceKnobType = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_KNOB_CHOICE_KNOB_TYPE as _,
-    ///< Selected value for the knob. @since cuDNN 9.0.0
-    KnobChoiceKnobValue = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_KNOB_CHOICE_KNOB_VALUE as _,
-
-    ///< Forward convolution scaling factor alpha. @since cuDNN 9.0.0
-    OperationConvolutionForwardAlpha =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_CONVOLUTION_FORWARD_ALPHA as _,
-    ///< Forward convolution scaling factor beta. @since cuDNN 9.0.0
-    OperationConvolutionForwardBeta =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_CONVOLUTION_FORWARD_BETA as _,
-    ///< Forward convolution descriptor. @since cuDNN 9.0.0
-    OperationConvolutionForwardConvDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_CONVOLUTION_FORWARD_CONV_DESC as _,
-    ///< Forward convolution filter weight tensor. @since cuDNN 9.0.0
-    OperationConvolutionForwardW =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_CONVOLUTION_FORWARD_W as _,
-    ///< Forward convolution input tensor. @since cuDNN 9.0.0
-    OperationConvolutionForwardX =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_CONVOLUTION_FORWARD_X as _,
-    ///< Forward convolution output tensor. @since cuDNN 9.0.0
-    OperationConvolutionForwardY =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_CONVOLUTION_FORWARD_Y as _,
-    ///< Backward data scaling factor alpha. @since cuDNN 9.0.0
-    OperationConvolutionBwdDataAlpha =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_DATA_ALPHA as _,
-    ///< Backward data scaling factor beta. @since cuDNN 9.0.0
-    OperationConvolutionBwdDataBeta =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_DATA_BETA as _,
-    ///< Backward data convolution descriptor. @since cuDNN 9.0.0
-    OperationConvolutionBwdDataConvDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_DATA_CONV_DESC as _,
-    ///< Backward data filter weights. @since cuDNN 9.0.0
-    OperationConvolutionBwdDataW =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_DATA_W as _,
-    ///< Backward data input gradient output. @since cuDNN 9.0.0
-    OperationConvolutionBwdDataDx =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_DATA_DX as _,
-    ///< Backward data output gradient input. @since cuDNN 9.0.0
-    OperationConvolutionBwdDataDy =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_DATA_DY as _,
-    ///< Backward filter scaling factor alpha. @since cuDNN 9.0.0
-    OperationConvolutionBwdFilterAlpha =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_FILTER_ALPHA as _,
-    ///< Backward filter scaling factor beta. @since cuDNN 9.0.0
-    OperationConvolutionBwdFilterBeta =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_FILTER_BETA as _,
-    ///< Backward filter convolution descriptor. @since cuDNN 9.0.0
-    OperationConvolutionBwdFilterConvDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_FILTER_CONV_DESC as _,
-    ///< Backward filter gradient output. @since cuDNN 9.0.0
-    OperationConvolutionBwdFilterDw =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_FILTER_DW as _,
-    ///< Backward filter input feature maps. @since cuDNN 9.0.0
-    OperationConvolutionBwdFilterX =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_FILTER_X as _,
-    ///< Backward filter output gradients. @since cuDNN 9.0.0
-    OperationConvolutionBwdFilterDy =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_FILTER_DY as _,
-
-    ///< Pointwise descriptor reference. @since cuDNN 9.0.0
-    OperationPointwisePwDescriptor =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_POINTWISE_PW_DESCRIPTOR as _,
-    ///< First input tensor descriptor. @since cuDNN 9.0.0
-    OperationPointwiseXDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_POINTWISE_XDESC as _,
-    ///< Bias or second operand descriptor. @since cuDNN 9.0.0
-    OperationPointwiseBDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_POINTWISE_BDESC as _,
-    ///< Output tensor descriptor. @since cuDNN 9.0.0
-    OperationPointwiseYDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_POINTWISE_YDESC as _,
-    ///< First scaling constant. @since cuDNN 9.0.0
-    OperationPointwiseAlpha1 =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_POINTWISE_ALPHA1 as _,
-    ///< Second scaling constant. @since cuDNN 9.0.0
-    OperationPointwiseAlpha2 =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_POINTWISE_ALPHA2 as _,
-    ///< Input gradient descriptor. @since cuDNN 9.0.0
-    OperationPointwiseDxDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_POINTWISE_DXDESC as _,
-    ///< Output gradient descriptor. @since cuDNN 9.0.0
-    OperationPointwiseDyDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_POINTWISE_DYDESC as _,
-    ///< Intermediate tensor descriptor. @since cuDNN 9.0.0
-    OperationPointwiseTDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_POINTWISE_TDESC as _,
-
-    ///< Statistics computation mode. @since cuDNN 9.0.0
-    OperationGenStatsMode = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_GENSTATS_MODE as _,
-    ///< Computation precision for statistics. @since cuDNN 9.0.0
-    OperationGenStatsMathPrec =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_GENSTATS_MATH_PREC as _,
-    ///< Input data tensor descriptor. @since cuDNN 9.0.0
-    OperationGenStatsXDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_GENSTATS_XDESC as _,
-    ///< Sum output descriptor. @since cuDNN 9.0.0
-    OperationGenStatsSumDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_GENSTATS_SUMDESC as _,
-    ///< Sum of squares output descriptor. @since cuDNN 9.0.0
-    OperationGenStatsSqSumDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_GENSTATS_SQSUMDESC as _,
-
-    ///< Training vs inference mode. @since cuDNN 9.0.0
-    OperationBnFinalizeStatsMode =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_BN_FINALIZE_STATS_MODE as _,
-    ///< Computation precision. @since cuDNN 9.0.0
-    OperationBnFinalizeMathPrec =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_BN_FINALIZE_MATH_PREC as _,
-    ///< Sum of batch norm outputs. @since cuDNN 9.0.0
-    OperationBnFinalizeYSumDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_BN_FINALIZE_Y_SUM_DESC as _,
-    ///< Sum of squared outputs. @since cuDNN 9.0.0
-    OperationBnFinalizeYSqSumDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_BN_FINALIZE_Y_SQ_SUM_DESC as _,
-    ///< Batch norm scale parameter. @since cuDNN 9.0.0
-    OperationBnFinalizeScaleDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_BN_FINALIZE_SCALE_DESC as _,
-    ///< Batch norm bias parameter. @since cuDNN 9.0.0
-    OperationBnFinalizeBiasDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_BN_FINALIZE_BIAS_DESC as _,
-    ///< Previous running mean. @since cuDNN 9.0.0
-    OperationBnFinalizePrevRunningMeanDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_BN_FINALIZE_PREV_RUNNING_MEAN_DESC as _,
-    ///< Previous running variance. @since cuDNN 9.0.0
-    OperationBnFinalizePrevRunningVarDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_BN_FINALIZE_PREV_RUNNING_VAR_DESC as _,
-    ///< Updated running mean output. @since cuDNN 9.0.0
-    OperationBnFinalizeUpdatedRunningMeanDesc = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_BN_FINALIZE_UPDATED_RUNNING_MEAN_DESC as _,
-    ///< Updated running variance output. @since cuDNN 9.0.0
-    OperationBnFinalizeUpdatedRunningVarDesc = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_BN_FINALIZE_UPDATED_RUNNING_VAR_DESC as _,
-    ///< Cached mean for backward pass. @since cuDNN 9.0.0
-    OperationBnFinalizeSavedMeanDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_BN_FINALIZE_SAVED_MEAN_DESC as _,
-    ///< Cached inverse std dev for backward. @since cuDNN 9.0.0
-    OperationBnFinalizeSavedInvStdDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_BN_FINALIZE_SAVED_INV_STD_DESC as _,
-    ///< Equivalent scale for fused inference. @since cuDNN 9.0.0
-    OperationBnFinalizeEqScaleDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_BN_FINALIZE_EQ_SCALE_DESC as _,
-    ///< Equivalent bias for fused inference. @since cuDNN 9.0.0
-    OperationBnFinalizeEqBiasDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_BN_FINALIZE_EQ_BIAS_DESC as _,
-    ///< Accumulation sample counter. @since cuDNN 9.0.0
-    OperationBnFinalizeAccumCountDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_BN_FINALIZE_ACCUM_COUNT_DESC as _,
-    ///< Numerical stability epsilon. @since cuDNN 9.0.0
-    OperationBnFinalizeEpsilonDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_BN_FINALIZE_EPSILON_DESC as _,
-    ///< Exponential averaging factor. @since cuDNN 9.0.0
-    OperationBnFinalizeExpAverateFactorDesc = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_BN_FINALIZE_EXP_AVERATE_FACTOR_DESC as _,
-
-    ///< Associated cuDNN handle. @deprecated @since cuDNN 9.0.0
-    OperationGraphHandle = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATIONGRAPH_HANDLE as _,
-    ///< Array of operation descriptors in the graph. @since cuDNN 9.0.0
-    OperationGraphOps = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATIONGRAPH_OPS as _,
-    ///< Total number of engines available. @since cuDNN 9.0.0
-    OperationGraphEngineGlobalCount =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATIONGRAPH_ENGINE_GLOBAL_COUNT as _,
-    ///< Dynamic shape support flag. @since cuDNN 9.4.0
-    OperationGraphIsDynamicShapeEnabled =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATIONGRAPH_IS_DYNAMIC_SHAPE_ENABLED as _,
-    ///< Same topology reuse flag. @since cuDNN 9.6.0
-    OperationGraphIsSameTopology =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATIONGRAPH_IS_SAME_TOPOLOGY as _,
-    ///< Dynamic shape support with execute time override @since cuDNN 9.21.0
-    OperationGraphIsOverrideShapeEnabled =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATIONGRAPH_IS_OVERRIDE_SHAPE_ENABLED as _,
-    ///< Memory alignment requirement in bytes. @since cuDNN 9.0.0
-    TensorByteAlignment = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_TENSOR_BYTE_ALIGNMENT as _,
-    ///< Element data type. @since cuDNN 9.0.0
-    TensorDataType = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_TENSOR_DATA_TYPE as _,
-    ///< Dimension sizes array. @since cuDNN 9.0.0
-    TensorDimensions = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_TENSOR_DIMENSIONS as _,
-    ///< Memory strides per dimension. @since cuDNN 9.0.0
-    TensorStrides = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_TENSOR_STRIDES as _,
-    ///< Vectorization element count. @since cuDNN 9.0.0
-    TensorVectorCount = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_TENSOR_VECTOR_COUNT as _,
-    ///< Which dimension is vectorized. @since cuDNN 9.0.0
-    TensorVectorizedDimension =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_TENSOR_VECTORIZED_DIMENSION as _,
-    ///< Unique identifier for graph connectivity. @since cuDNN 9.0.0
-    TensorUniqueId = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_TENSOR_UNIQUE_ID as _,
-    ///< Virtual (intermediate) vs I/O tensor flag. @since cuDNN 9.0.0
-    TensorIsVirtual = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_TENSOR_IS_VIRTUAL as _,
-    ///< Constant scalar vs device pointer flag. @since cuDNN 9.0.0
-    TensorIsByValue = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_TENSOR_IS_BY_VALUE as _,
-    ///< Memory layout transformation type. @since cuDNN 9.0.0
-    TensorReorderingMode = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_TENSOR_REORDERING_MODE as _,
-    ///< Ragged tensor offset descriptor. @since cuDNN 9.0.0
-    TensorRaggedOffsetDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_TENSOR_RAGGED_OFFSET_DESC as _,
-
-    ///< Tensor UIDs in this variant pack. @since cuDNN 9.0.0
-    VariantPackUniqueIds = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_VARIANT_PACK_UNIQUE_IDS as _,
-    ///< GPU memory data pointers array. @since cuDNN 9.0.0
-    VariantPackDataPointers =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_VARIANT_PACK_DATA_POINTERS as _,
-    ///< Intermediate tensor pointers. @since cuDNN 9.0.0
-    VariantPackIntermediates =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_VARIANT_PACK_INTERMEDIATES as _,
-    ///< Workspace memory pointer. @since cuDNN 9.0.0
-    VariantPackWorkspace = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_VARIANT_PACK_WORKSPACE as _,
-    ///< Override tensor UIDs for dynamic shapes. @since cuDNN 9.18.0
-    VariantPackOverrideUniqueIds =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_VARIANT_PACK_OVERRIDE_UNIQUE_IDS as _,
-    ///< Override shapes for dynamic shapes. @since cuDNN 9.18.0
-    VariantPackOverrideShapes =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_VARIANT_PACK_OVERRIDE_SHAPES as _,
-    ///< Override strides for dynamic shapes. @since cuDNN 9.18.0
-    VariantPackOverrideStrides =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_VARIANT_PACK_OVERRIDE_STRIDES as _,
-
-    ///< Associated tensor identifier. @since cuDNN 9.0.0
-    LayoutInfoTensorUid = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_LAYOUT_INFO_TENSOR_UID as _,
-    ///< Available memory layout types. @since cuDNN 9.0.0
-    LayoutInfoTypes = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_LAYOUT_INFO_TYPES as _,
-
-    ///< Knob type being described. @since cuDNN 9.0.0
-    KnobInfoType = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_KNOB_INFO_TYPE as _,
-    ///< Upper bound for knob value. @since cuDNN 9.0.0
-    KnobInfoMaximumValue = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_KNOB_INFO_MAXIMUM_VALUE as _,
-    ///< Lower bound for knob value. @since cuDNN 9.0.0
-    KnobInfoMinimumValue = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_KNOB_INFO_MINIMUM_VALUE as _,
-    ///< Valid increment between knob values. @since cuDNN 9.0.0
-    KnobInfoStride = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_KNOB_INFO_STRIDE as _,
-
-    ///< Operation graph this engine processes. @since cuDNN 9.0.0
-    EngineOperationGraph = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_ENGINE_OPERATION_GRAPH as _,
-    ///< Engine index in the global engine list. @since cuDNN 9.0.0
-    EngineGlobalIndex = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_ENGINE_GLOBAL_INDEX as _,
-    ///< Available knob configuration options. @since cuDNN 9.0.0
-    EngineKnobInfo = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_ENGINE_KNOB_INFO as _,
-    ///< Numerical properties (tensor cores, precision). @since cuDNN 9.0.0
-    EngineNumericalNote = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_ENGINE_NUMERICAL_NOTE as _,
-    ///< Preferred tensor memory layouts. @since cuDNN 9.0.0
-    EngineLayoutInfo = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_ENGINE_LAYOUT_INFO as _,
-    ///< Runtime behavior characteristics. @since cuDNN 9.0.0
-    EngineBehaviorNote = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_ENGINE_BEHAVIOR_NOTE as _,
-    ///< Streaming multiprocessor target count. @since cuDNN 9.0.0
-    EngineSmCountTarget = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_ENGINE_SM_COUNT_TARGET as _,
-    ///< Device properties descriptor. @since cuDNN 9.8.0
-    EngineDeviceProp = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_ENGINE_DEVICEPROP as _,
-
-    ///< Computation precision type for matmul. @since cuDNN 9.0.0
-    MatmulCompType = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_MATMUL_COMP_TYPE as _,
-    ///< Padding value for incomplete blocks. @since cuDNN 9.0.0
-    MatmulPaddingValue = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_MATMUL_PADDING_VALUE as _,
-
-    ///< First input matrix (A) tensor descriptor. @since cuDNN 9.0.0
-    OperationMatmulADesc = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_MATMUL_ADESC as _,
-    ///< Second input matrix (B) tensor descriptor. @since cuDNN 9.0.0
-    OperationMatmulBDesc = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_MATMUL_BDESC as _,
-    ///< Output matrix (C) tensor descriptor. @since cuDNN 9.0.0
-    OperationMatmulCDesc = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_MATMUL_CDESC as _,
-    ///< `MatMul` operation configuration descriptor. @since cuDNN 9.0.0
-    OperationMatmulDesc = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_MATMUL_DESC as _,
-    ///< Irregular batch count. @deprecated @since cuDNN 9.0.0
-    OperationMatmulIrregularlyStridedBatchCount = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_MATMUL_IRREGULARLY_STRIDED_BATCH_COUNT as _,
-    ///< Override for output rows (M). @since cuDNN 9.0.0
-    OperationMatmulGemmMOverrideDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_MATMUL_GEMM_M_OVERRIDE_DESC as _,
-    ///< Override for output columns (N). @since cuDNN 9.0.0
-    OperationMatmulGemmNOverrideDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_MATMUL_GEMM_N_OVERRIDE_DESC as _,
-    ///< Override for contraction dim (K). @since cuDNN 9.0.0
-    OperationMatmulGemmKOverrideDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_MATMUL_GEMM_K_OVERRIDE_DESC as _,
-
-    ///< Reduction operation type (ADD, MUL, MIN, etc.). @since cuDNN 9.0.0
-    ReductionOperator = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_REDUCTION_OPERATOR as _,
-    ///< Computation data type for reduction. @since cuDNN 9.0.0
-    ReductionCompType = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_REDUCTION_COMP_TYPE as _,
-    ///< Whether reduction must be deterministic. @since cuDNN 9.11.0
-    ReductionIsDeterministic =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_REDUCTION_IS_DETERMINISTIC as _,
-
-    ///< Reduction input tensor descriptor. @since cuDNN 9.0.0
-    OperationReductionXDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_REDUCTION_XDESC as _,
-    ///< Reduction output tensor descriptor. @since cuDNN 9.0.0
-    OperationReductionYDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_REDUCTION_YDESC as _,
-    ///< Reduction descriptor reference. @since cuDNN 9.0.0
-    OperationReductionDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_REDUCTION_DESC as _,
-
-    ///< Computation precision. @since cuDNN 9.0.0
-    OperationBnBwdWeightsMathPrec =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_BN_BWD_WEIGHTS_MATH_PREC as _,
-    ///< Cached batch mean from forward. @since cuDNN 9.0.0
-    OperationBnBwdWeightsMeanDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_BN_BWD_WEIGHTS_MEAN_DESC as _,
-    ///< Cached inverse std dev from forward. @since cuDNN 9.0.0
-    OperationBnBwdWeightsInvStdDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_BN_BWD_WEIGHTS_INVSTD_DESC as _,
-    ///< Batch norm scale parameter. @since cuDNN 9.0.0
-    OperationBnBwdWeightsBnScaleDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_BN_BWD_WEIGHTS_BN_SCALE_DESC as _,
-    ///< Forward input tensor. @since cuDNN 9.0.0
-    OperationBnBwdWeightsXDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_BN_BWD_WEIGHTS_X_DESC as _,
-    ///< Output gradient tensor. @since cuDNN 9.0.0
-    OperationBnBwdWeightsDyDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_BN_BWD_WEIGHTS_DY_DESC as _,
-    ///< Scale gradient output. @since cuDNN 9.0.0
-    OperationBnBwdWeightsDbnScaleDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_BN_BWD_WEIGHTS_DBN_SCALE_DESC as _,
-    ///< Bias gradient output. @since cuDNN 9.0.0
-    OperationBnBwdWeightsDbnBiasDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_BN_BWD_WEIGHTS_DBN_BIAS_DESC as _,
-    ///< Equivalent output gradient scale. @since cuDNN 9.0.0
-    OperationBnBwdWeightsEqDyScaleDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_BN_BWD_WEIGHTS_EQ_DY_SCALE_DESC as _,
-    ///< Equivalent input scale. @since cuDNN 9.0.0
-    OperationBnBwdWeightsEqXScaleDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_BN_BWD_WEIGHTS_EQ_X_SCALE_DESC as _,
-    ///< Equivalent bias value. @since cuDNN 9.0.0
-    OperationBnBwdWeightsEqBias =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_BN_BWD_WEIGHTS_EQ_BIAS as _,
-
-    ///< Resampling interpolation method. @since cuDNN 9.0.0
-    ResampleMode = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_RESAMPLE_MODE as _,
-    ///< Computation precision for resampling. @since cuDNN 9.0.0
-    ResampleCompType = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_RESAMPLE_COMP_TYPE as _,
-    ///< Number of spatial dimensions. @since cuDNN 9.0.0
-    ResampleSpatialDims = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_RESAMPLE_SPATIAL_DIMS as _,
-    ///< Post-paddings per spatial dimension. @since cuDNN 9.0.0
-    ResamplePostPaddings = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_RESAMPLE_POST_PADDINGS as _,
-    ///< Pre-paddings per spatial dimension. @since cuDNN 9.0.0
-    ResamplePrePaddings = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_RESAMPLE_PRE_PADDINGS as _,
-    ///< Stride factors per spatial dimension. @since cuDNN 9.0.0
-    ResampleStrides = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_RESAMPLE_STRIDES as _,
-    ///< Filter window sizes per dimension. @since cuDNN 9.0.0
-    ResampleWindowDims = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_RESAMPLE_WINDOW_DIMS as _,
-    ///< NaN handling behavior. @since cuDNN 9.0.0
-    ResampleNanPropagation =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_RESAMPLE_NAN_PROPAGATION as _,
-    ///< Padding strategy (zero, `neg_inf`, edge). @since cuDNN 9.0.0
-    ResamplePaddingMode = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_RESAMPLE_PADDING_MODE as _,
-
-    ///< Forward resample input tensor. @since cuDNN 9.0.0
-    OperationResampleFwdXDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_RESAMPLE_FWD_XDESC as _,
-    ///< Forward resample output tensor. @since cuDNN 9.0.0
-    OperationResampleFwdYDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_RESAMPLE_FWD_YDESC as _,
-    ///< Max pooling index tensor. @since cuDNN 9.0.0
-    OperationResampleFwdIdxDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_RESAMPLE_FWD_IDXDESC as _,
-    ///< Output scaling factor. @deprecated @since cuDNN 9.0.0
-    OperationResampleFwdAlpha =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_RESAMPLE_FWD_ALPHA as _,
-    ///< Accumulation scaling factor. @deprecated @since cuDNN 9.0.0
-    OperationResampleFwdBeta =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_RESAMPLE_FWD_BETA as _,
-    ///< Resample descriptor reference. @since cuDNN 9.0.0
-    OperationResampleFwdDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_RESAMPLE_FWD_DESC as _,
-
-    ///< Backward resample input gradient. @since cuDNN 9.0.0
-    OperationResampleBwdDxDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_RESAMPLE_BWD_DXDESC as _,
-    ///< Backward resample output gradient. @since cuDNN 9.0.0
-    OperationResampleBwdDyDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_RESAMPLE_BWD_DYDESC as _,
-    ///< Index tensor from forward pass. @since cuDNN 9.0.0
-    OperationResampleBwdIdxDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_RESAMPLE_BWD_IDXDESC as _,
-    ///< Gradient scaling factor. @deprecated @since cuDNN 9.0.0
-    OperationResampleBwdAlpha =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_RESAMPLE_BWD_ALPHA as _,
-    ///< Accumulation scaling. @deprecated @since cuDNN 9.0.0
-    OperationResampleBwdBeta =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_RESAMPLE_BWD_BETA as _,
-    ///< Resample descriptor reference. @since cuDNN 9.0.0
-    OperationResampleBwdDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_RESAMPLE_BWD_DESC as _,
-    ///< Forward input reference. @since cuDNN 9.0.0
-    OperationResampleBwdXDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_RESAMPLE_BWD_XDESC as _,
-    ///< Forward output reference. @since cuDNN 9.0.0
-    OperationResampleBwdYDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_RESAMPLE_BWD_YDESC as _,
-
-    ///< Concatenation axis dimension. @since cuDNN 9.0.0
-    OperationConcatAxis = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_CONCAT_AXIS as _,
-    ///< Array of input tensor descriptors. @since cuDNN 9.0.0
-    OperationConcatInputDescs =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_CONCAT_INPUT_DESCS as _,
-    ///< In-place output tensor selection index. @since cuDNN 9.0.0
-    OperationConcatInplaceIndex =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_CONCAT_INPLACE_INDEX as _,
-    ///< Concatenated output descriptor. @since cuDNN 9.0.0
-    OperationConcatOutputDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_CONCAT_OUTPUT_DESC as _,
-
-    ///< Signal set vs wait mode. @since cuDNN 9.0.0
-    OperationSignalMode = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SIGNAL_MODE as _,
-    ///< Flag variable tensor descriptor. @since cuDNN 9.0.0
-    OperationSignalFlagDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SIGNAL_FLAGDESC as _,
-    ///< Signal value for comparison. @since cuDNN 9.0.0
-    OperationSignalValue = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SIGNAL_VALUE as _,
-    ///< Input tensor for signal set. @since cuDNN 9.0.0
-    OperationSignalXDesc = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SIGNAL_XDESC as _,
-    ///< Output tensor descriptor. @since cuDNN 9.0.0
-    OperationSignalYDesc = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SIGNAL_YDESC as _,
-
-    ///< Cache container descriptor. @since cuDNN 9.4.0
-    OperationPagedCacheLoadContainerDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_PAGED_CACHE_LOAD_CONTAINER_DESC as _,
-    ///< Output tensor descriptor. @since cuDNN 9.4.0
-    OperationPagedCacheLoadYDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_PAGED_CACHE_LOAD_YDESC as _,
-    ///< Load sequence specification. @since cuDNN 9.4.0
-    OperationPagedCacheLoadSequenceDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_PAGED_CACHE_LOAD_SEQUENCE_DESC as _,
-    ///< Page table mapping descriptor. @since cuDNN 9.4.0
-    OperationPagedCacheLoadPageTableDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_PAGED_CACHE_LOAD_PAGE_TABLE_DESC as _,
-
-    ///< Normalization algorithm type. @since cuDNN 9.0.0
-    OperationNormFwdMode = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_NORM_FWD_MODE as _,
-    ///< Training vs inference phase. @since cuDNN 9.0.0
-    OperationNormFwdPhase = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_NORM_FWD_PHASE as _,
-    ///< Input tensor descriptor. @since cuDNN 9.0.0
-    OperationNormFwdXDesc = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_NORM_FWD_XDESC as _,
-    ///< Computed or cached mean tensor. @since cuDNN 9.0.0
-    OperationNormFwdMeanDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_NORM_FWD_MEAN_DESC as _,
-    ///< Computed or cached inverse variance. @since cuDNN 9.0.0
-    OperationNormFwdInvVarianceDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_NORM_FWD_INV_VARIANCE_DESC as _,
-    ///< Learnable scale parameter (gamma). @since cuDNN 9.0.0
-    OperationNormFwdScaleDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_NORM_FWD_SCALE_DESC as _,
-    ///< Learnable bias parameter (beta). @since cuDNN 9.0.0
-    OperationNormFwdBiasDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_NORM_FWD_BIAS_DESC as _,
-    ///< Numerical stability constant. @since cuDNN 9.0.0
-    OperationNormFwdEpsilonDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_NORM_FWD_EPSILON_DESC as _,
-    ///< Momentum for running statistics. @since cuDNN 9.0.0
-    OperationNormFwdExpAvgFactorDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_NORM_FWD_EXP_AVG_FACTOR_DESC as _,
-    ///< Input running mean. @since cuDNN 9.0.0
-    OperationNormFwdInputRunningMeanDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_NORM_FWD_INPUT_RUNNING_MEAN_DESC as _,
-    ///< Input running variance. @since cuDNN 9.0.0
-    OperationNormFwdInputRunningVarDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_NORM_FWD_INPUT_RUNNING_VAR_DESC as _,
-    ///< Updated running mean output. @since cuDNN 9.0.0
-    OperationNormFwdOutputRunningMeanDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_NORM_FWD_OUTPUT_RUNNING_MEAN_DESC as _,
-    ///< Updated running variance output. @since cuDNN 9.0.0
-    OperationNormFwdOutputRunningVarDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_NORM_FWD_OUTPUT_RUNNING_VAR_DESC as _,
-    ///< Output tensor descriptor. @since cuDNN 9.0.0
-    OperationNormFwdYDesc = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_NORM_FWD_YDESC as _,
-    ///< Peer statistics for multi-GPU sync. @since cuDNN 9.0.0
-    OperationNormFwdPeerStatDescs =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_NORM_FWD_PEER_STAT_DESCS as _,
-
-    ///< Normalization algorithm type. @since cuDNN 9.0.0
-    OperationNormBwdMode = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_NORM_BWD_MODE as _,
-    ///< Forward input tensor reference. @since cuDNN 9.0.0
-    OperationNormBwdXDesc = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_NORM_BWD_XDESC as _,
-    ///< Cached mean from forward pass. @since cuDNN 9.0.0
-    OperationNormBwdMeanDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_NORM_BWD_MEAN_DESC as _,
-    ///< Cached inverse std dev. @since cuDNN 9.0.0
-    OperationNormBwdInvVarianceDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_NORM_BWD_INV_VARIANCE_DESC as _,
-    ///< Output gradient tensor. @since cuDNN 9.0.0
-    OperationNormBwdDyDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_NORM_BWD_DYDESC as _,
-    ///< Forward scale parameter. @since cuDNN 9.0.0
-    OperationNormBwdScaleDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_NORM_BWD_SCALE_DESC as _,
-    ///< Numerical stability epsilon. @since cuDNN 9.0.0
-    OperationNormBwdEpsilonDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_NORM_BWD_EPSILON_DESC as _,
-    ///< Scale gradient output. @since cuDNN 9.0.0
-    OperationNormBwdDScaleDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_NORM_BWD_DSCALE_DESC as _,
-    ///< Bias gradient output. @since cuDNN 9.0.0
-    OperationNormBwdDBiasDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_NORM_BWD_DBIAS_DESC as _,
-    ///< Input gradient output tensor. @since cuDNN 9.0.0
-    OperationNormBwdDxDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_NORM_BWD_DXDESC as _,
-    ///< Peer gradient statistics for multi-GPU. @since cuDNN 9.0.0
-    OperationNormBwdPeerStatDescs =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_NORM_BWD_PEER_STAT_DESCS as _,
-
-    ///< Reshape input tensor descriptor. @since cuDNN 9.0.0
-    OperationReshapeXDesc = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_RESHAPE_XDESC as _,
-    ///< Reshape output tensor descriptor. @since cuDNN 9.0.0
-    OperationReshapeYDesc = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_RESHAPE_YDESC as _,
-
-    ///< Band matrix input tensor. @since cuDNN 9.10.0
-    OperationExpandBandMatrixXDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_EXPAND_BAND_MATRIX_XDESC as _,
-    ///< Expanded output tensor. @since cuDNN 9.10.0
-    OperationExpandBandMatrixYDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_EXPAND_BAND_MATRIX_YDESC as _,
-    ///< Lower bandwidth of the band. @since cuDNN 9.10.0
-    OperationExpandBandMatrixLowerBandwidth =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_EXPAND_BAND_MATRIX_LOWER_BANDWIDTH as _,
-    ///< Upper bandwidth of the band. @since cuDNN 9.10.0
-    OperationExpandBandMatrixUpperBandwidth =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_EXPAND_BAND_MATRIX_UPPER_BANDWIDTH as _,
-    ///< Axis along which to expand. @since cuDNN 9.10.0
-    OperationExpandBandMatrixAxis =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_EXPAND_BAND_MATRIX_AXIS as _,
-    ///< Padding value outside the band. @since cuDNN 9.10.0
-    OperationExpandBandMatrixPadValue =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_EXPAND_BAND_MATRIX_PAD_VALUE as _,
-    ///< KV token offset descriptor. @since cuDNN 9.10.0
-    OperationExpandBandMatrixKvTokenOffsetDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_EXPAND_BAND_MATRIX_KV_TOKEN_OFFSET_DESC as _,
-    ///< Speculative decoding mask. @since cuDNN 9.13.0
-    OperationExpandBandMatrixSpeculativeMaskDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_EXPAND_BAND_MATRIX_SPECULATIVE_MASK_DESC as _,
-
-    ///< Full matrix input tensor. @since cuDNN 9.10.0
-    OperationContractBandMatrixXDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_CONTRACT_BAND_MATRIX_XDESC as _,
-    ///< Contracted band output tensor. @since cuDNN 9.10.0
-    OperationContractBandMatrixYDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_CONTRACT_BAND_MATRIX_YDESC as _,
-    ///< Lower bandwidth. @since cuDNN 9.10.0
-    OperationContractBandMatrixLowerBandwidth =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_CONTRACT_BAND_MATRIX_LOWER_BANDWIDTH as _,
-    ///< Upper bandwidth. @since cuDNN 9.10.0
-    OperationContractBandMatrixUpperBandwidth =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_CONTRACT_BAND_MATRIX_UPPER_BANDWIDTH as _,
-    ///< Axis along which to contract. @since cuDNN 9.10.0
-    OperationContractBandMatrixAxis =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_CONTRACT_BAND_MATRIX_AXIS as _,
-    ///< Padding value. @since cuDNN 9.10.0
-    OperationContractBandMatrixPadValue =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_CONTRACT_BAND_MATRIX_PAD_VALUE as _,
-    ///< Maximum token value for contraction. @since cuDNN 9.10.0
-    OperationContractBandMaxTokenValue =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_CONTRACT_BAND_MAX_TOKEN_VALUE as _,
-
-    ///< Random distribution type selection. @since cuDNN 9.0.0
-    RngDistribution = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_RNG_DISTRIBUTION as _,
-    ///< Normal distribution mean parameter. @since cuDNN 9.0.0
-    RngNormalDistMean = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_RNG_NORMAL_DIST_MEAN as _,
-    ///< Normal distribution std deviation. @since cuDNN 9.0.0
-    RngNormalDistStandardDeviation =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_RNG_NORMAL_DIST_STANDARD_DEVIATION as _,
-    ///< Uniform distribution upper bound. @since cuDNN 9.0.0
-    RngUniformDistMaximum = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_RNG_UNIFORM_DIST_MAXIMUM as _,
-    ///< Uniform distribution lower bound. @since cuDNN 9.0.0
-    RngUniformDistMinimum = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_RNG_UNIFORM_DIST_MINIMUM as _,
-    ///< Bernoulli probability of 1. @since cuDNN 9.0.0
-    RngBernoulliDistProbability =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_RNG_BERNOULLI_DIST_PROBABILITY as _,
-
-    ///< RNG output tensor descriptor. @since cuDNN 9.0.0
-    OperationRngYDesc = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_RNG_YDESC as _,
-    ///< RNG seed value. @since cuDNN 9.0.0
-    OperationRngSeed = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_RNG_SEED as _,
-    ///< RNG descriptor reference. @since cuDNN 9.0.0
-    OperationRngDesc = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_RNG_DESC as _,
-    ///< RNG offset/state descriptor. @since cuDNN 9.0.0
-    OperationRngOffsetDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_RNG_OFFSET_DESC as _,
-
-    ///< Whether kernel is cached. @since cuDNN 9.4.0
-    KernelCacheIsEngineCfgKernelCached =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_KERNEL_CACHE_IS_ENGINECFG_KERNEL_CACHED as _,
-    ///< Operation graph for kernel cache. @since cuDNN 9.5.0
-    KernelCacheOperationGraph =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_KERNEL_CACHE_OPERATION_GRAPH as _,
-    ///< Kernel cache JSON serialization. @since cuDNN 9.10.0
-    KernelCacheJsonRepresentation =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_KERNEL_CACHE_JSON_REPRESENTATION as _,
-    ///< Input float tensor to quantize. @since cuDNN 9.7.0
-    OperationBlockScaleQuantizeXDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_BLOCK_SCALE_QUANTIZE_XDESC as _,
-    ///< Quantized output tensor. @since cuDNN 9.7.0
-    OperationBlockScaleQuantizeYDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_BLOCK_SCALE_QUANTIZE_YDESC as _,
-    ///< Per-block scaling factors output. @since cuDNN 9.7.0
-    OperationBlockScaleQuantizeScaleDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_BLOCK_SCALE_QUANTIZE_SCALE_DESC as _,
-    ///< Computation precision. @since cuDNN 9.7.0
-    OperationBlockScaleQuantizeMathPrec =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_BLOCK_SCALE_QUANTIZE_MATH_PREC as _,
-    ///< Quantization block size. @since cuDNN 9.7.0
-    OperationBlockScaleQuantizeBlockSize =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_BLOCK_SCALE_QUANTIZE_BLOCK_SIZE as _,
-
-    ///< Quantized input tensor. @since cuDNN 9.7.0
-    OperationBlockScaleDequantizeXDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_BLOCK_SCALE_DEQUANTIZE_XDESC as _,
-    ///< Per-block scale factors. @since cuDNN 9.7.0
-    OperationBlockScaleDequantizeScaleDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_BLOCK_SCALE_DEQUANTIZE_SCALE_DESC as _,
-    ///< Dequantized output tensor. @since cuDNN 9.7.0
-    OperationBlockScaleDequantizeYDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_BLOCK_SCALE_DEQUANTIZE_YDESC as _,
-    ///< Computation precision. @since cuDNN 9.7.0
-    OperationBlockScaleDequantizeMathPrec =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_BLOCK_SCALE_DEQUANTIZE_MATH_PREC as _,
-    ///< Dequantization block size. @since cuDNN 9.7.0
-    OperationBlockScaleDequantizeBlockSize =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_BLOCK_SCALE_DEQUANTIZE_BLOCK_SIZE as _,
-    ///< Negative scale handling. @since cuDNN 9.13.0
-    OperationBlockScaleDequantizeNegScale =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_BLOCK_SCALE_DEQUANTIZE_NEG_SCALE as _,
-
-    ///< Query cumulative sequence length tensor. @since cuDNN 9.24.0
-    OperationSdpaFwdCuSeqLenQDesc = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SDPA_FWD_CU_SEQ_LEN_QDESC as _,
-    ///< Key-value cumulative sequence length tensor. @since cuDNN 9.24.0
-    OperationSdpaFwdCuSeqLenKvDesc = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SDPA_FWD_CU_SEQ_LEN_KVDESC as _,
-    ///< Query cumulative sequence length tensor. @since cuDNN 9.24.0
-    OperationDiagonalBandMaskCuSeqLenQDesc = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_DIAGONAL_BAND_MASK_CU_SEQ_LEN_QDESC as _,
-    ///< Key-value cumulative sequence length tensor. @since cuDNN 9.24.0
-    OperationDiagonalBandMaskCuSeqLenKvDesc = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_DIAGONAL_BAND_MASK_CU_SEQ_LEN_KVDESC as _,
-    ///< FP8 descale factor for Q. @since cuDNN 9.25.0
-    OperationSdpaFwdDescaleQDesc = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SDPA_FWD_DESCALE_QDESC as _,
-    ///< FP8 descale factor for K. @since cuDNN 9.25.0
-    OperationSdpaFwdDescaleKDesc = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SDPA_FWD_DESCALE_KDESC as _,
-    ///< FP8 descale factor for V. @since cuDNN 9.25.0
-    OperationSdpaFwdDescaleVDesc = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SDPA_FWD_DESCALE_VDESC as _,
-    ///< FP8 descale factor for S. @since cuDNN 9.25.0
-    OperationSdpaFwdDescaleSDesc = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SDPA_FWD_DESCALE_SDESC as _,
-    ///< FP8 scale factor for S. @since cuDNN 9.25.0
-    OperationSdpaFwdScaleSDesc = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SDPA_FWD_SCALE_SDESC as _,
-    ///< FP8 scale factor for O. @since cuDNN 9.25.0
-    OperationSdpaFwdScaleODesc = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SDPA_FWD_SCALE_ODESC as _,
-    ///< FP8 absolute maximum of S. @since cuDNN 9.25.0
-    OperationSdpaFwdAmaxSDesc = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SDPA_FWD_AMAX_SDESC as _,
-    ///< FP8 absolute maximum of O. @since cuDNN 9.25.0
-    OperationSdpaFwdAmaxODesc = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SDPA_FWD_AMAX_ODESC as _,
-    ///< Query tensor descriptor. @since cuDNN 9.13.0
-    OperationSdpaFwdQDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SDPA_FWD_QDESC as _,
-    ///< Key tensor descriptor. @since cuDNN 9.13.0
-    OperationSdpaFwdKDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SDPA_FWD_KDESC as _,
-    ///< Value tensor descriptor. @since cuDNN 9.13.0
-    OperationSdpaFwdVDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SDPA_FWD_VDESC as _,
-    ///< Output tensor descriptor. @since cuDNN 9.13.0
-    OperationSdpaFwdODesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SDPA_FWD_ODESC as _,
-    ///< Statistics output descriptor. @since cuDNN 9.13.0
-    OperationSdpaFwdStatsDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SDPA_FWD_STATSDESC as _,
-    ///< Attention scaling factor descriptor. @since cuDNN 9.13.0
-    OperationSdpaFwdScaleDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SDPA_FWD_SCALEDESC as _,
-    ///< Block-sparse attention mask. @since cuDNN 9.14.0
-    OperationSdpaFwdBlockMaskDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SDPA_FWD_BLOCK_MASK_DESC as _,
-    ///< Paged attention key page table. @since cuDNN 9.15.0
-    OperationSdpaFwdPageTableKDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SDPA_FWD_PAGE_TABLE_KDESC as _,
-    ///< Paged attention value page table. @since cuDNN 9.15.0
-    OperationSdpaFwdPageTableVDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SDPA_FWD_PAGE_TABLE_VDESC as _,
-    ///< Query sequence length tensor. @since cuDNN 9.15.0
-    OperationSdpaFwdSeqLenQDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SDPA_FWD_SEQ_LEN_QDESC as _,
-    ///< Key-value sequence length tensor. @since cuDNN 9.15.0
-    OperationSdpaFwdSeqLenKvDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SDPA_FWD_SEQ_LEN_KVDESC as _,
-    ///< Softmax descriptor. @since cuDNN 9.21.0
-    OperationSdpaFwdSoftmaxDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SDPA_FWD_SOFTMAX_DESC as _,
-    ///< Forward SDPA subgraph. @since cuDNN 9.21.0
-    OperationSdpaFwdSubgraph =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SDPA_FWD_SUBGRAPH as _,
-    ///< Subgraph input tensor UID. @since cuDNN 9.21.0
-    OperationSdpaFwdSubgraphInputId =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SDPA_FWD_SUBGRAPH_INPUT_UID as _,
-    ///< Subgraph output tensor UID. @since cuDNN 9.21.0
-    OperationSdpaFwdSubgraphOutputId =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SDPA_FWD_SUBGRAPH_OUTPUT_UID as _,
-    ///< Dropout seed tensor descriptor. @since cuDNN 9.21.0
-    OperationSdpaFwdDropoutSeedDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SDPA_FWD_DROPOUT_SEED_DESC as _,
-    ///< Dropout offset tensor descriptor. @since cuDNN 9.21.0
-    OperationSdpaFwdDropoutOffsetDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SDPA_FWD_DROPOUT_OFFSET_DESC as _,
-    ///< Dropout RNG dump tensor descriptor. @since cuDNN 9.21.0
-    OperationSdpaFwdDropoutRngDumpDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SDPA_FWD_DROPOUT_RNG_DUMP_DESC as _,
-    ///< Dropout probability. @since cuDNN 9.21.0
-    OperationSdpaFwdDropoutProbability =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SDPA_FWD_DROPOUT_PROBABILITY as _,
-    ///< Unfuse FMA in softmax for SM100. @since cuDNN 9.22.0
-    OperationSdpaFwdUnfuseFma =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SDPA_FWD_UNFUSE_FMA as _,
-    ///< Query tensor descriptor. @since cuDNN 9.17.0
-    OperationSdpaBwdQDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SDPA_BWD_QDESC as _,
-    ///< Key tensor descriptor. @since cuDNN 9.17.0
-    OperationSdpaBwdKDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SDPA_BWD_KDESC as _,
-    ///< Value tensor descriptor. @since cuDNN 9.17.0
-    OperationSdpaBwdVDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SDPA_BWD_VDESC as _,
-    ///< Forward output tensor descriptor. @since cuDNN 9.17.0
-    OperationSdpaBwdODesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SDPA_BWD_ODESC as _,
-    ///< Forward statistics descriptor. @since cuDNN 9.17.0
-    OperationSdpaBwdStatsDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SDPA_BWD_STATSDESC as _,
-    ///< Attention scaling factor. @since cuDNN 9.17.0
-    OperationSdpaBwdScaleDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SDPA_BWD_SCALEDESC as _,
-    ///< Query sequence length tensor. @since cuDNN 9.17.0
-    OperationSdpaBwdSeqLenQDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SDPA_BWD_SEQ_LEN_QDESC as _,
-    ///< Key-value sequence length tensor. @since cuDNN 9.17.0
-    OperationSdpaBwdSeqLenKvDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SDPA_BWD_SEQ_LEN_KVDESC as _,
-    ///< Query gradient output tensor. @since cuDNN 9.17.0
-    OperationSdpaBwdDqDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SDPA_BWD_DQDESC as _,
-    ///< Key gradient output tensor. @since cuDNN 9.17.0
-    OperationSdpaBwdDkDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SDPA_BWD_DKDESC as _,
-    ///< Value gradient output tensor. @since cuDNN 9.17.0
-    OperationSdpaBwdDvDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SDPA_BWD_DVDESC as _,
-    ///< Output gradient input tensor. @since cuDNN 9.17.0
-    OperationSdpaBwdDoDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SDPA_BWD_DODDESC as _,
-    ///< Backward sink descriptor. @since UNPUBLISHED
-    OperationSdpaBwdSinkDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SDPA_BWD_SINK_DESC as _,
-    ///< Backward sink gradient descriptor. @since UNPUBLISHED
-    OperationSdpaBwdDsinkDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SDPA_BWD_DSINK_DESC as _,
-    ///< Max total query sequence length. @since UNPUBLISHED
-    OperationSdpaBwdMaxTotalSeqLenQ =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SDPA_BWD_MAX_TOTAL_SEQ_LEN_Q as _,
-    ///< Max total KV sequence length. @since UNPUBLISHED
-    OperationSdpaBwdMaxTotalSeqLenKv =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SDPA_BWD_MAX_TOTAL_SEQ_LEN_KV as _,
-    ///< Backward SDPA subgraph. @since UNPUBLISHED
-    OperationSdpaBwdSubgraph =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SDPA_BWD_SUBGRAPH as _,
-    ///< Subgraph input tensor UID. @since UNPUBLISHED
-    OperationSdpaBwdSubgraphInputId =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SDPA_BWD_SUBGRAPH_INPUT_UID as _,
-    ///< Subgraph output tensor UID. @since UNPUBLISHED
-    OperationSdpaBwdSubgraphOutputId =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SDPA_BWD_SUBGRAPH_OUTPUT_UID as _,
-    ///< Gather/scatter mode for `MoE`. @since cuDNN 9.15.0
-    OperationMoeGroupedMatmulMode =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_MODE as _,
-    ///< Computation precision. @since cuDNN 9.15.0
-    OperationMoeGroupedMatmulMathPrec =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_MATH_PREC as _,
-    ///< Token tensor descriptor. @since cuDNN 9.15.0
-    OperationMoeGroupedMatmulTokenDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_TOKEN_DESC as _,
-    ///< Expert weight tensor descriptor. @since cuDNN 9.15.0
-    OperationMoeGroupedMatmulWeightDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_WEIGHT_DESC as _,
-    ///< First token offset per expert. @since cuDNN 9.15.0
-    OperationMoeGroupedMatmulFirstTokenOffsetDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_FIRST_TOKEN_OFFSET_DESC as _,
-    ///< Output tensor descriptor. @since cuDNN 9.15.0
-    OperationMoeGroupedMatmulOutputDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_OUTPUT_DESC as _,
-    ///< Token routing index descriptor. @since cuDNN 9.15.0
-    OperationMoeGroupedMatmulTokenIndexDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_TOKEN_INDEX_DESC as _,
-    ///< Token routing weights descriptor. @since cuDNN 9.15.0
-    OperationMoeGroupedMatmulTokenKsDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_TOKEN_KS_DESC as _,
-    ///< Top-K experts per token. @since cuDNN 9.15.0
-    OperationMoeGroupedMatmulTopK =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_TOP_K as _,
-    ///< Input tensor descriptor. @since cuDNN 9.20.0
-    OperationDiagonalBandMaskXDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_DIAGONAL_BAND_MASK_XDESC as _,
-    ///< KV sequence length tensor. @since cuDNN 9.20.0
-    OperationDiagonalBandMaskSeqLenKvDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_DIAGONAL_BAND_MASK_SEQ_LEN_KVDESC as _,
-    ///< Query sequence length tensor. @since cuDNN 9.20.0
-    OperationDiagonalBandMaskSeqLenQDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_DIAGONAL_BAND_MASK_SEQ_LEN_QDESC as _,
-    ///< Left bound offset descriptor. @since cuDNN 9.20.0
-    OperationDiagonalBandMaskLeftBoundDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_DIAGONAL_BAND_MASK_LEFT_BOUND_DESC as _,
-    ///< Right bound shift descriptor. @since cuDNN 9.20.0
-    OperationDiagonalBandMaskShiftRightBoundDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_DIAGONAL_BAND_MASK_SHIFT_RIGHT_BOUND_DESC as _,
-    ///< Band descriptor. @since cuDNN 9.20.0
-    OperationDiagonalBandMaskBDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_DIAGONAL_BAND_MASK_BDESC as _,
-    ///< Output mask tensor descriptor. @since cuDNN 9.20.0
-    OperationDiagonalBandMaskYDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_DIAGONAL_BAND_MASK_YDESC as _,
-    ///< Mask comparison mode. @since cuDNN 9.20.0
-    OperationDiagonalBandMaskComparisonMode =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_DIAGONAL_BAND_MASK_COMPARISON_MODE as _,
-    ///< Softmax input tensor descriptor. @since cuDNN 9.20.0
-    OperationSoftmaxXDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SOFTMAX_XDESC as _,
-    ///< Softmax output tensor descriptor. @since cuDNN 9.20.0
-    OperationSoftmaxYDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SOFTMAX_YDESC as _,
-    ///< Softmax statistics output. @since cuDNN 9.20.0
-    OperationSoftmaxStatsDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SOFTMAX_STATS_DESC as _,
-    ///< Row-wise max values descriptor. @since cuDNN 9.20.0
-    OperationSoftmaxMaxDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SOFTMAX_MAX_DESC as _,
-    ///< Row-wise sum of exponentials. @since cuDNN 9.20.0
-    OperationSoftmaxSumExpDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SOFTMAX_SUM_EXP_DESC as _,
-    ///< Softmax sink descriptor. @since cuDNN 9.20.0
-    OperationSoftmaxSinkDesc =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SOFTMAX_SINK_DESC as _,
-
-    ///< CUDA device identifier. @since cuDNN 9.8.0
-    DevicePropDeviceId = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_DEVICEPROP_DEVICE_ID as _,
-    ///< Associated cuDNN handle. @since cuDNN 9.8.0
-    DevicePropHandle = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_DEVICEPROP_HANDLE as _,
-    ///< Device properties JSON. @since cuDNN 9.8.0
-    DevicePropJsonRepresentation =
-        sys::cudnnBackendAttributeName_t::CUDNN_ATTR_DEVICEPROP_JSON_REPRESENTATION as _,
+singe_core::native_enum! {
+    /// Backend descriptor attribute name that can be set or retrieved with [`BackendDescriptor`](crate::backend::descriptor::BackendDescriptor) attribute methods.
+    /// The backend descriptor to which an attribute belongs is identified by the prefix of the attribute name.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[non_exhaustive]
+    #[repr(u32)]
+    pub enum BackendAttributeName: sys::cudnnBackendAttributeName_t {
+        /// Descriptor of the group-offset tensor for a grouped reduction operation.
+        OperationReductionGroupOffsetDesc = CUDNN_ATTR_OPERATION_REDUCTION_GROUP_OFFSET_DESC,
+        /// Backward math precision for `MoE` grouped matmul.
+        OperationMoeGroupedMatmulBackwardMathPrec = CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_BWD_MATH_PREC,
+        /// Backward token descriptor for `MoE` grouped matmul.
+        OperationMoeGroupedMatmulBackwardTokenDesc = CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_BWD_TOKEN_DESC,
+        /// Backward weight descriptor for `MoE` grouped matmul.
+        OperationMoeGroupedMatmulBackwardWeightGradientDesc = CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_BWD_DWEIGHT_DESC,
+        /// Backward first token offset descriptor for `MoE` grouped matmul.
+        OperationMoeGroupedMatmulBackwardFirstTokenOffsetDesc = CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_BWD_FIRST_TOKEN_OFFSET_DESC,
+        /// Backward output descriptor for `MoE` grouped matmul.
+        OperationMoeGroupedMatmulBackwardOutputGradientDesc = CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_BWD_DOUTPUT_DESC,
+        /// `RoPE` input tensor descriptor with shape `[B, H, S, D]`.
+        /// Available since cuDNN 9.24.0.
+        OperationRopeForwardInputDesc = CUDNN_ATTR_OPERATION_ROPE_FWD_XDESC,
+        /// `RoPE` output tensor descriptor with shape `[B, H, S, D]`.
+        /// Available since cuDNN 9.24.0.
+        OperationRopeForwardOutputDesc = CUDNN_ATTR_OPERATION_ROPE_FWD_YDESC,
+        /// `RoPE` frequency-angle tensor with shape `[S, 1, 1, D]`.
+        /// The kernel computes `sincosf` internally.
+        /// Available since cuDNN 9.24.0.
+        OperationRopeForwardFrequenciesDesc = CUDNN_ATTR_OPERATION_ROPE_FWD_FREQSDESC,
+        /// `RoPE` host-side fp32 scalar multiplied into cos/sin (default 1.0).
+        /// Used to fold YARN mscale and/or SDPA `attn_scale`.
+        OperationRopeForwardOutputScale = CUDNN_ATTR_OPERATION_ROPE_FWD_OUTPUT_SCALE,
+        /// `RoPE` rotation width in last dim (int64, default = `head_dim`).
+        /// When < `head_dim`, the last `rope_dim` slots get rotated; the first (`head_dim` - `rope_dim`) are scaled-pass-through (used for DSv3-style MLA).
+        OperationRopeForwardRotationDimension = CUDNN_ATTR_OPERATION_ROPE_FWD_ROPE_DIM,
+        /// `RoPE` input-gradient (`dY`) tensor descriptor with shape `[B, H, S, D]`.
+        /// Available since cuDNN 9.25.0.
+        OperationRopeBackwardInputDesc = CUDNN_ATTR_OPERATION_ROPE_BWD_DYDESC,
+        /// `RoPE` output-gradient (`dX`) tensor descriptor with shape `[B, H, S, D]`.
+        /// Available since cuDNN 9.25.0.
+        OperationRopeBackwardOutputDesc = CUDNN_ATTR_OPERATION_ROPE_BWD_DXDESC,
+        /// `RoPE` backward frequency-angle tensor with shape `[S, 1, 1, D]`, using the same semantics as forward execution.
+        /// Available since cuDNN 9.25.0.
+        OperationRopeBackwardFrequenciesDesc = CUDNN_ATTR_OPERATION_ROPE_BWD_FREQSDESC,
+        /// `RoPE` bwd host fp32 scalar (default 1.0).
+        /// Symmetric to fwd: cos/sin pre-scaled, passthrough scaled.
+        OperationRopeBackwardOutputScale = CUDNN_ATTR_OPERATION_ROPE_BWD_OUTPUT_SCALE,
+        /// `RoPE` bwd rotation width in last dim (int64, default = `head_dim`).
+        OperationRopeBackwardRotationDimension = CUDNN_ATTR_OPERATION_ROPE_BWD_ROPE_DIM,
+        /// Compile-time constant value for by-value tensors.
+        TensorConstantValue = CUDNN_ATTR_TENSOR_CONSTANT_VALUE,
+        /// Ragged tensor offset unit size.
+        TensorRaggedOffsetMultiplier = CUDNN_ATTR_TENSOR_RAGGED_OFFSET_MULTIPLIER,
+        /// Reshape mode (view-only or logical).
+        OperationReshapeMode = CUDNN_ATTR_OPERATION_RESHAPE_MODE,
+        /// Slice input tensor descriptor.
+        OperationSliceXDesc = CUDNN_ATTR_OPERATION_SLICE_XDESC,
+        /// Slice output tensor descriptor.
+        OperationSliceYDesc = CUDNN_ATTR_OPERATION_SLICE_YDESC,
+        /// Slice start indices.
+        OperationSliceStartIndices = CUDNN_ATTR_OPERATION_SLICE_START_INDICES,
+        /// Slice limit indices.
+        OperationSliceLimitIndices = CUDNN_ATTR_OPERATION_SLICE_LIMIT_INDICES,
+        /// Slice strides.
+        OperationSliceStrides = CUDNN_ATTR_OPERATION_SLICE_STRIDES,
+        /// Transpose input tensor descriptor.
+        OperationTransposeXDesc = CUDNN_ATTR_OPERATION_TRANSPOSE_XDESC,
+        /// Transpose output tensor descriptor.
+        OperationTransposeYDesc = CUDNN_ATTR_OPERATION_TRANSPOSE_YDESC,
+        /// Transpose permutation array.
+        OperationTransposePermutation = CUDNN_ATTR_OPERATION_TRANSPOSE_PERMUTATION,
+        /// Shared memory limit metadata propagated to heuristic results.
+        EngineHeurSharedMemoryLimit = CUDNN_ATTR_ENGINEHEUR_SHARED_MEMORY_LIMIT,
+        /// Dynamic shared memory budget, in bytes.
+        EngineSharedMemoryLimit = CUDNN_ATTR_ENGINE_SHARED_MEMORY_LIMIT,
+        /// Counter that shows if the kernel cache changed.
+        KernelCacheRevision = CUDNN_ATTR_KERNEL_CACHE_REVISION,
+        /// Number of entries in the kernel cache.
+        KernelCacheEntryCount = CUDNN_ATTR_KERNEL_CACHE_ENTRY_COUNT,
+        /// Emit statistics as natural-log LSE multiplied by log2(e).
+        /// SDPA backward expects natural-log statistics.
+        OperationSoftmaxStatsLog2 = CUDNN_ATTR_OPERATION_SOFTMAX_STATS_LOG2,
+        /// Indices of the input dimensions to reduce, ascending and distinct.
+        OperationReductionDims = CUDNN_ATTR_OPERATION_REDUCTION_DIMS,
+        /// Accumulator identity values, one pointer per output; set the output descriptors first.
+        OperationReductionInitValues = CUDNN_ATTR_OPERATION_REDUCTION_INIT_VALUES,
+        /// Finalized operation graph describing the reducer body combining accumulator and current element.
+        OperationReductionSubgraph = CUDNN_ATTR_OPERATION_REDUCTION_SUBGRAPH,
+        /// Subgraph tensor IDs holding accumulator values, one per output.
+        OperationReductionSubgraphAccumulatorUids = CUDNN_ATTR_OPERATION_REDUCTION_SUBGRAPH_ACCUMULATOR_UIDS,
+        /// Subgraph tensor IDs holding current elements, one per output.
+        OperationReductionSubgraphCurrentUids = CUDNN_ATTR_OPERATION_REDUCTION_SUBGRAPH_CURRENT_UIDS,
+        /// Subgraph tensor IDs holding output values, one per output.
+        OperationReductionSubgraphOutputUids = CUDNN_ATTR_OPERATION_REDUCTION_SUBGRAPH_OUTPUT_UIDS,
+        /// Optional compute type the reducer body evaluates in, one per output; defaults to output element type.
+        OperationReductionSubgraphComputeTypes = CUDNN_ATTR_OPERATION_REDUCTION_SUBGRAPH_COMPUTE_TYPES,
+        /// Pointwise operation type.
+        PointwiseMode = CUDNN_ATTR_POINTWISE_MODE,
+        /// Computation precision for pointwise ops.
+        PointwiseMathPrec = CUDNN_ATTR_POINTWISE_MATH_PREC,
+        /// NaN handling behavior.
+        /// Deprecated by cuDNN.
+        PointwiseNanPropagation = CUDNN_ATTR_POINTWISE_NAN_PROPAGATION,
+        /// Lower clipping threshold for `ReLU`.
+        PointwiseReluLowerClip = CUDNN_ATTR_POINTWISE_RELU_LOWER_CLIP,
+        /// Upper clipping threshold for `ReLU`.
+        PointwiseReluUpperClip = CUDNN_ATTR_POINTWISE_RELU_UPPER_CLIP,
+        /// Slope below lower clip for leaky `ReLU`.
+        PointwiseReluLowerClipSlope = CUDNN_ATTR_POINTWISE_RELU_LOWER_CLIP_SLOPE,
+        /// Alpha parameter for ELU activation.
+        PointwiseEluAlpha = CUDNN_ATTR_POINTWISE_ELU_ALPHA,
+        /// Beta parameter for softplus function.
+        PointwiseSoftplusBeta = CUDNN_ATTR_POINTWISE_SOFTPLUS_BETA,
+        /// Beta parameter for swish activation.
+        PointwiseSwishBeta = CUDNN_ATTR_POINTWISE_SWISH_BETA,
+        /// Axis for axis-dependent pointwise operations.
+        PointwiseAxis = CUDNN_ATTR_POINTWISE_AXIS,
+        /// Computation data type for convolution.
+        ConvolutionCompType = CUDNN_ATTR_CONVOLUTION_COMP_TYPE,
+        /// Convolution vs cross-correlation mode.
+        ConvolutionConvMode = CUDNN_ATTR_CONVOLUTION_CONV_MODE,
+        /// Dilation factors per spatial dimension.
+        ConvolutionDilations = CUDNN_ATTR_CONVOLUTION_DILATIONS,
+        /// Filter stride values per spatial dimension.
+        ConvolutionFilterStrides = CUDNN_ATTR_CONVOLUTION_FILTER_STRIDES,
+        /// Post-paddings per spatial dimension.
+        ConvolutionPostPaddings = CUDNN_ATTR_CONVOLUTION_POST_PADDINGS,
+        /// Pre-paddings per spatial dimension.
+        ConvolutionPrePaddings = CUDNN_ATTR_CONVOLUTION_PRE_PADDINGS,
+        /// Number of spatial dimensions.
+        ConvolutionSpatialDims = CUDNN_ATTR_CONVOLUTION_SPATIAL_DIMS,
+        /// Heuristic algorithm selection mode.
+        EngineHeurMode = CUDNN_ATTR_ENGINEHEUR_MODE,
+        /// Associated operation graph descriptor.
+        EngineHeurOperationGraph = CUDNN_ATTR_ENGINEHEUR_OPERATION_GRAPH,
+        /// Array of resulting engine configurations.
+        EngineHeurResults = CUDNN_ATTR_ENGINEHEUR_RESULTS,
+        /// Target streaming multiprocessor count.
+        EngineHeurSmCountTarget = CUDNN_ATTR_ENGINEHEUR_SM_COUNT_TARGET,
+        /// Device properties for heuristic query.
+        EngineHeurDeviceProp = CUDNN_ATTR_ENGINEHEUR_DEVICEPROP,
+        /// Selected engine from heuristic results.
+        EngineCfgEngine = CUDNN_ATTR_ENGINECFG_ENGINE,
+        /// Intermediate tensor information.
+        EngineCfgIntermediateInfo = CUDNN_ATTR_ENGINECFG_INTERMEDIATE_INFO,
+        /// Performance tuning knob selections.
+        EngineCfgKnobChoices = CUDNN_ATTR_ENGINECFG_KNOB_CHOICES,
+        /// Required workspace memory size.
+        EngineCfgWorkspaceSize = CUDNN_ATTR_ENGINECFG_WORKSPACE_SIZE,
+        /// Shared-memory requirement reported by an engine configuration, in bytes.
+        EngineCfgSharedMemoryUsed = CUDNN_ATTR_ENGINECFG_SHARED_MEMORY_USED,
+        /// Associated cuDNN handle.
+        /// Deprecated by cuDNN.
+        ExecutionPlanHandle = CUDNN_ATTR_EXECUTION_PLAN_HANDLE,
+        /// Engine configuration to execute.
+        ExecutionPlanEngineConfig = CUDNN_ATTR_EXECUTION_PLAN_ENGINE_CONFIG,
+        /// Total workspace size requirement.
+        ExecutionPlanWorkspaceSize = CUDNN_ATTR_EXECUTION_PLAN_WORKSPACE_SIZE,
+        /// UIDs of computed intermediates.
+        ExecutionPlanComputedIntermediateIds = CUDNN_ATTR_EXECUTION_PLAN_COMPUTED_INTERMEDIATE_UIDS,
+        /// Run-only intermediate UIDs.
+        ExecutionPlanRunOnlyIntermediateIds = CUDNN_ATTR_EXECUTION_PLAN_RUN_ONLY_INTERMEDIATE_UIDS,
+        /// Human-readable execution plan JSON.
+        ExecutionPlanJsonRepresentation = CUDNN_ATTR_EXECUTION_PLAN_JSON_REPRESENTATION,
+        /// Compiled kernel cache descriptor.
+        ExecutionPlanKernelCache = CUDNN_ATTR_EXECUTION_PLAN_KERNEL_CACHE,
+        /// Device properties for execution plan.
+        ExecutionPlanDeviceProp = CUDNN_ATTR_EXECUTION_PLAN_DEVICEPROP,
+        /// Unique identifier for intermediate tensor.
+        IntermediateInfoUniqueId = CUDNN_ATTR_INTERMEDIATE_INFO_UNIQUE_ID,
+        /// Memory size requirement in bytes.
+        IntermediateInfoSize = CUDNN_ATTR_INTERMEDIATE_INFO_SIZE,
+        /// Data dependency UIDs.
+        IntermediateInfoDependentTensorUids = CUDNN_ATTR_INTERMEDIATE_INFO_DEPENDENT_DATA_UIDS,
+        /// Attribute dependencies.
+        IntermediateInfoDependentAttributes = CUDNN_ATTR_INTERMEDIATE_INFO_DEPENDENT_ATTRIBUTES,
+        /// Type of performance tuning knob.
+        KnobChoiceKnobType = CUDNN_ATTR_KNOB_CHOICE_KNOB_TYPE,
+        /// Selected value for the knob.
+        KnobChoiceKnobValue = CUDNN_ATTR_KNOB_CHOICE_KNOB_VALUE,
+        /// Forward convolution scaling factor alpha.
+        OperationConvolutionForwardAlpha = CUDNN_ATTR_OPERATION_CONVOLUTION_FORWARD_ALPHA,
+        /// Forward convolution scaling factor beta.
+        OperationConvolutionForwardBeta = CUDNN_ATTR_OPERATION_CONVOLUTION_FORWARD_BETA,
+        /// Forward convolution descriptor.
+        OperationConvolutionForwardConvDesc = CUDNN_ATTR_OPERATION_CONVOLUTION_FORWARD_CONV_DESC,
+        /// Forward convolution filter weight tensor.
+        OperationConvolutionForwardW = CUDNN_ATTR_OPERATION_CONVOLUTION_FORWARD_W,
+        /// Forward convolution input tensor.
+        OperationConvolutionForwardX = CUDNN_ATTR_OPERATION_CONVOLUTION_FORWARD_X,
+        /// Forward convolution output tensor.
+        OperationConvolutionForwardY = CUDNN_ATTR_OPERATION_CONVOLUTION_FORWARD_Y,
+        /// Backward data scaling factor alpha.
+        OperationConvolutionBwdDataAlpha = CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_DATA_ALPHA,
+        /// Backward data scaling factor beta.
+        OperationConvolutionBwdDataBeta = CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_DATA_BETA,
+        /// Backward data convolution descriptor.
+        OperationConvolutionBwdDataConvDesc = CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_DATA_CONV_DESC,
+        /// Backward data filter weights.
+        OperationConvolutionBwdDataW = CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_DATA_W,
+        /// Backward data input gradient output.
+        OperationConvolutionBwdDataDx = CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_DATA_DX,
+        /// Backward data output gradient input.
+        OperationConvolutionBwdDataDy = CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_DATA_DY,
+        /// Backward filter scaling factor alpha.
+        OperationConvolutionBwdFilterAlpha = CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_FILTER_ALPHA,
+        /// Backward filter scaling factor beta.
+        OperationConvolutionBwdFilterBeta = CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_FILTER_BETA,
+        /// Backward filter convolution descriptor.
+        OperationConvolutionBwdFilterConvDesc = CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_FILTER_CONV_DESC,
+        /// Backward filter gradient output.
+        OperationConvolutionBwdFilterDw = CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_FILTER_DW,
+        /// Backward filter input feature maps.
+        OperationConvolutionBwdFilterX = CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_FILTER_X,
+        /// Backward filter output gradients.
+        OperationConvolutionBwdFilterDy = CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_FILTER_DY,
+        /// Pointwise descriptor reference.
+        OperationPointwisePwDescriptor = CUDNN_ATTR_OPERATION_POINTWISE_PW_DESCRIPTOR,
+        /// First input tensor descriptor.
+        OperationPointwiseXDesc = CUDNN_ATTR_OPERATION_POINTWISE_XDESC,
+        /// Bias or second operand descriptor.
+        OperationPointwiseBDesc = CUDNN_ATTR_OPERATION_POINTWISE_BDESC,
+        /// Output tensor descriptor.
+        OperationPointwiseYDesc = CUDNN_ATTR_OPERATION_POINTWISE_YDESC,
+        /// First scaling constant.
+        OperationPointwiseAlpha1 = CUDNN_ATTR_OPERATION_POINTWISE_ALPHA1,
+        /// Second scaling constant.
+        OperationPointwiseAlpha2 = CUDNN_ATTR_OPERATION_POINTWISE_ALPHA2,
+        /// Input gradient descriptor.
+        OperationPointwiseDxDesc = CUDNN_ATTR_OPERATION_POINTWISE_DXDESC,
+        /// Output gradient descriptor.
+        OperationPointwiseDyDesc = CUDNN_ATTR_OPERATION_POINTWISE_DYDESC,
+        /// Intermediate tensor descriptor.
+        OperationPointwiseTDesc = CUDNN_ATTR_OPERATION_POINTWISE_TDESC,
+        /// Statistics computation mode.
+        OperationGenStatsMode = CUDNN_ATTR_OPERATION_GENSTATS_MODE,
+        /// Computation precision for statistics.
+        OperationGenStatsMathPrec = CUDNN_ATTR_OPERATION_GENSTATS_MATH_PREC,
+        /// Input data tensor descriptor.
+        OperationGenStatsXDesc = CUDNN_ATTR_OPERATION_GENSTATS_XDESC,
+        /// Sum output descriptor.
+        OperationGenStatsSumDesc = CUDNN_ATTR_OPERATION_GENSTATS_SUMDESC,
+        /// Sum of squares output descriptor.
+        OperationGenStatsSqSumDesc = CUDNN_ATTR_OPERATION_GENSTATS_SQSUMDESC,
+        /// Training vs inference mode.
+        OperationBnFinalizeStatsMode = CUDNN_ATTR_OPERATION_BN_FINALIZE_STATS_MODE,
+        /// Computation precision.
+        OperationBnFinalizeMathPrec = CUDNN_ATTR_OPERATION_BN_FINALIZE_MATH_PREC,
+        /// Sum of batch norm outputs.
+        OperationBnFinalizeYSumDesc = CUDNN_ATTR_OPERATION_BN_FINALIZE_Y_SUM_DESC,
+        /// Sum of squared outputs.
+        OperationBnFinalizeYSqSumDesc = CUDNN_ATTR_OPERATION_BN_FINALIZE_Y_SQ_SUM_DESC,
+        /// Batch norm scale parameter.
+        OperationBnFinalizeScaleDesc = CUDNN_ATTR_OPERATION_BN_FINALIZE_SCALE_DESC,
+        /// Batch norm bias parameter.
+        OperationBnFinalizeBiasDesc = CUDNN_ATTR_OPERATION_BN_FINALIZE_BIAS_DESC,
+        /// Previous running mean.
+        OperationBnFinalizePrevRunningMeanDesc = CUDNN_ATTR_OPERATION_BN_FINALIZE_PREV_RUNNING_MEAN_DESC,
+        /// Previous running variance.
+        OperationBnFinalizePrevRunningVarDesc = CUDNN_ATTR_OPERATION_BN_FINALIZE_PREV_RUNNING_VAR_DESC,
+        /// Updated running mean output.
+        OperationBnFinalizeUpdatedRunningMeanDesc = CUDNN_ATTR_OPERATION_BN_FINALIZE_UPDATED_RUNNING_MEAN_DESC,
+        /// Updated running variance output.
+        OperationBnFinalizeUpdatedRunningVarDesc = CUDNN_ATTR_OPERATION_BN_FINALIZE_UPDATED_RUNNING_VAR_DESC,
+        /// Cached mean for backward pass.
+        OperationBnFinalizeSavedMeanDesc = CUDNN_ATTR_OPERATION_BN_FINALIZE_SAVED_MEAN_DESC,
+        /// Cached inverse std dev for backward.
+        OperationBnFinalizeSavedInvStdDesc = CUDNN_ATTR_OPERATION_BN_FINALIZE_SAVED_INV_STD_DESC,
+        /// Equivalent scale for fused inference.
+        OperationBnFinalizeEqScaleDesc = CUDNN_ATTR_OPERATION_BN_FINALIZE_EQ_SCALE_DESC,
+        /// Equivalent bias for fused inference.
+        OperationBnFinalizeEqBiasDesc = CUDNN_ATTR_OPERATION_BN_FINALIZE_EQ_BIAS_DESC,
+        /// Accumulation sample counter.
+        OperationBnFinalizeAccumCountDesc = CUDNN_ATTR_OPERATION_BN_FINALIZE_ACCUM_COUNT_DESC,
+        /// Numerical stability epsilon.
+        OperationBnFinalizeEpsilonDesc = CUDNN_ATTR_OPERATION_BN_FINALIZE_EPSILON_DESC,
+        /// Exponential averaging factor.
+        OperationBnFinalizeExpAverateFactorDesc = CUDNN_ATTR_OPERATION_BN_FINALIZE_EXP_AVERATE_FACTOR_DESC,
+        /// Associated cuDNN handle.
+        /// Deprecated by cuDNN.
+        OperationGraphHandle = CUDNN_ATTR_OPERATIONGRAPH_HANDLE,
+        /// Array of operation descriptors in the graph.
+        OperationGraphOps = CUDNN_ATTR_OPERATIONGRAPH_OPS,
+        /// Total number of engines available.
+        OperationGraphEngineGlobalCount = CUDNN_ATTR_OPERATIONGRAPH_ENGINE_GLOBAL_COUNT,
+        /// Dynamic shape support flag.
+        OperationGraphIsDynamicShapeEnabled = CUDNN_ATTR_OPERATIONGRAPH_IS_DYNAMIC_SHAPE_ENABLED,
+        /// Same topology reuse flag.
+        OperationGraphIsSameTopology = CUDNN_ATTR_OPERATIONGRAPH_IS_SAME_TOPOLOGY,
+        /// Dynamic shape support with execute time override
+        OperationGraphIsOverrideShapeEnabled = CUDNN_ATTR_OPERATIONGRAPH_IS_OVERRIDE_SHAPE_ENABLED,
+        /// Memory alignment requirement in bytes.
+        TensorByteAlignment = CUDNN_ATTR_TENSOR_BYTE_ALIGNMENT,
+        /// Element data type.
+        TensorDataType = CUDNN_ATTR_TENSOR_DATA_TYPE,
+        /// Dimension sizes array.
+        TensorDimensions = CUDNN_ATTR_TENSOR_DIMENSIONS,
+        /// Memory strides per dimension.
+        TensorStrides = CUDNN_ATTR_TENSOR_STRIDES,
+        /// Vectorization element count.
+        TensorVectorCount = CUDNN_ATTR_TENSOR_VECTOR_COUNT,
+        /// Which dimension is vectorized.
+        TensorVectorizedDimension = CUDNN_ATTR_TENSOR_VECTORIZED_DIMENSION,
+        /// Unique identifier for graph connectivity.
+        TensorUniqueId = CUDNN_ATTR_TENSOR_UNIQUE_ID,
+        /// Virtual (intermediate) vs I/O tensor flag.
+        TensorIsVirtual = CUDNN_ATTR_TENSOR_IS_VIRTUAL,
+        /// Constant scalar vs device pointer flag.
+        TensorIsByValue = CUDNN_ATTR_TENSOR_IS_BY_VALUE,
+        /// Memory layout transformation type.
+        TensorReorderingMode = CUDNN_ATTR_TENSOR_REORDERING_MODE,
+        /// Ragged tensor offset descriptor.
+        TensorRaggedOffsetDesc = CUDNN_ATTR_TENSOR_RAGGED_OFFSET_DESC,
+        /// Tensor UIDs in this variant pack.
+        VariantPackUniqueIds = CUDNN_ATTR_VARIANT_PACK_UNIQUE_IDS,
+        /// GPU memory data pointers array.
+        VariantPackDataPointers = CUDNN_ATTR_VARIANT_PACK_DATA_POINTERS,
+        /// Intermediate tensor pointers.
+        VariantPackIntermediates = CUDNN_ATTR_VARIANT_PACK_INTERMEDIATES,
+        /// Workspace memory pointer.
+        VariantPackWorkspace = CUDNN_ATTR_VARIANT_PACK_WORKSPACE,
+        /// Override tensor UIDs for dynamic shapes.
+        VariantPackOverrideUniqueIds = CUDNN_ATTR_VARIANT_PACK_OVERRIDE_UNIQUE_IDS,
+        /// Override shapes for dynamic shapes.
+        VariantPackOverrideShapes = CUDNN_ATTR_VARIANT_PACK_OVERRIDE_SHAPES,
+        /// Override strides for dynamic shapes.
+        VariantPackOverrideStrides = CUDNN_ATTR_VARIANT_PACK_OVERRIDE_STRIDES,
+        /// Associated tensor identifier.
+        LayoutInfoTensorUid = CUDNN_ATTR_LAYOUT_INFO_TENSOR_UID,
+        /// Available memory layout types.
+        LayoutInfoTypes = CUDNN_ATTR_LAYOUT_INFO_TYPES,
+        /// Knob type being described.
+        KnobInfoType = CUDNN_ATTR_KNOB_INFO_TYPE,
+        /// Upper bound for knob value.
+        KnobInfoMaximumValue = CUDNN_ATTR_KNOB_INFO_MAXIMUM_VALUE,
+        /// Lower bound for knob value.
+        KnobInfoMinimumValue = CUDNN_ATTR_KNOB_INFO_MINIMUM_VALUE,
+        /// Valid increment between knob values.
+        KnobInfoStride = CUDNN_ATTR_KNOB_INFO_STRIDE,
+        /// Operation graph this engine processes.
+        EngineOperationGraph = CUDNN_ATTR_ENGINE_OPERATION_GRAPH,
+        /// Engine index in the global engine list.
+        EngineGlobalIndex = CUDNN_ATTR_ENGINE_GLOBAL_INDEX,
+        /// Available knob configuration options.
+        EngineKnobInfo = CUDNN_ATTR_ENGINE_KNOB_INFO,
+        /// Numerical properties (tensor cores, precision).
+        EngineNumericalNote = CUDNN_ATTR_ENGINE_NUMERICAL_NOTE,
+        /// Preferred tensor memory layouts.
+        EngineLayoutInfo = CUDNN_ATTR_ENGINE_LAYOUT_INFO,
+        /// Runtime behavior characteristics.
+        EngineBehaviorNote = CUDNN_ATTR_ENGINE_BEHAVIOR_NOTE,
+        /// Streaming multiprocessor target count.
+        EngineSmCountTarget = CUDNN_ATTR_ENGINE_SM_COUNT_TARGET,
+        /// Device properties descriptor.
+        EngineDeviceProp = CUDNN_ATTR_ENGINE_DEVICEPROP,
+        /// Computation precision type for matmul.
+        MatmulCompType = CUDNN_ATTR_MATMUL_COMP_TYPE,
+        /// Padding value for incomplete blocks.
+        MatmulPaddingValue = CUDNN_ATTR_MATMUL_PADDING_VALUE,
+        /// First input matrix (A) tensor descriptor.
+        OperationMatmulADesc = CUDNN_ATTR_OPERATION_MATMUL_ADESC,
+        /// Second input matrix (B) tensor descriptor.
+        OperationMatmulBDesc = CUDNN_ATTR_OPERATION_MATMUL_BDESC,
+        /// Output matrix (C) tensor descriptor.
+        OperationMatmulCDesc = CUDNN_ATTR_OPERATION_MATMUL_CDESC,
+        /// `MatMul` operation configuration descriptor.
+        OperationMatmulDesc = CUDNN_ATTR_OPERATION_MATMUL_DESC,
+        /// Irregular batch count.
+        /// Deprecated by cuDNN.
+        OperationMatmulIrregularlyStridedBatchCount = CUDNN_ATTR_OPERATION_MATMUL_IRREGULARLY_STRIDED_BATCH_COUNT,
+        /// Override for output rows (M).
+        OperationMatmulGemmMOverrideDesc = CUDNN_ATTR_OPERATION_MATMUL_GEMM_M_OVERRIDE_DESC,
+        /// Override for output columns (N).
+        OperationMatmulGemmNOverrideDesc = CUDNN_ATTR_OPERATION_MATMUL_GEMM_N_OVERRIDE_DESC,
+        /// Override for contraction dim (K).
+        OperationMatmulGemmKOverrideDesc = CUDNN_ATTR_OPERATION_MATMUL_GEMM_K_OVERRIDE_DESC,
+        /// Reduction operation type (ADD, MUL, MIN, etc.).
+        ReductionOperator = CUDNN_ATTR_REDUCTION_OPERATOR,
+        /// Computation data type for reduction.
+        ReductionCompType = CUDNN_ATTR_REDUCTION_COMP_TYPE,
+        /// Whether reduction must be deterministic.
+        ReductionIsDeterministic = CUDNN_ATTR_REDUCTION_IS_DETERMINISTIC,
+        /// Reduction input tensor descriptor.
+        OperationReductionXDesc = CUDNN_ATTR_OPERATION_REDUCTION_XDESC,
+        /// Reduction output tensor descriptor.
+        OperationReductionYDesc = CUDNN_ATTR_OPERATION_REDUCTION_YDESC,
+        /// Reduction descriptor reference.
+        OperationReductionDesc = CUDNN_ATTR_OPERATION_REDUCTION_DESC,
+        /// Computation precision.
+        OperationBnBwdWeightsMathPrec = CUDNN_ATTR_OPERATION_BN_BWD_WEIGHTS_MATH_PREC,
+        /// Cached batch mean from forward.
+        OperationBnBwdWeightsMeanDesc = CUDNN_ATTR_OPERATION_BN_BWD_WEIGHTS_MEAN_DESC,
+        /// Cached inverse std dev from forward.
+        OperationBnBwdWeightsInvStdDesc = CUDNN_ATTR_OPERATION_BN_BWD_WEIGHTS_INVSTD_DESC,
+        /// Batch norm scale parameter.
+        OperationBnBwdWeightsBnScaleDesc = CUDNN_ATTR_OPERATION_BN_BWD_WEIGHTS_BN_SCALE_DESC,
+        /// Forward input tensor.
+        OperationBnBwdWeightsXDesc = CUDNN_ATTR_OPERATION_BN_BWD_WEIGHTS_X_DESC,
+        /// Output gradient tensor.
+        OperationBnBwdWeightsDyDesc = CUDNN_ATTR_OPERATION_BN_BWD_WEIGHTS_DY_DESC,
+        /// Scale gradient output.
+        OperationBnBwdWeightsDbnScaleDesc = CUDNN_ATTR_OPERATION_BN_BWD_WEIGHTS_DBN_SCALE_DESC,
+        /// Bias gradient output.
+        OperationBnBwdWeightsDbnBiasDesc = CUDNN_ATTR_OPERATION_BN_BWD_WEIGHTS_DBN_BIAS_DESC,
+        /// Equivalent output gradient scale.
+        OperationBnBwdWeightsEqDyScaleDesc = CUDNN_ATTR_OPERATION_BN_BWD_WEIGHTS_EQ_DY_SCALE_DESC,
+        /// Equivalent input scale.
+        OperationBnBwdWeightsEqXScaleDesc = CUDNN_ATTR_OPERATION_BN_BWD_WEIGHTS_EQ_X_SCALE_DESC,
+        /// Equivalent bias value.
+        OperationBnBwdWeightsEqBias = CUDNN_ATTR_OPERATION_BN_BWD_WEIGHTS_EQ_BIAS,
+        /// Resampling interpolation method.
+        ResampleMode = CUDNN_ATTR_RESAMPLE_MODE,
+        /// Computation precision for resampling.
+        ResampleCompType = CUDNN_ATTR_RESAMPLE_COMP_TYPE,
+        /// Number of spatial dimensions.
+        ResampleSpatialDims = CUDNN_ATTR_RESAMPLE_SPATIAL_DIMS,
+        /// Post-paddings per spatial dimension.
+        ResamplePostPaddings = CUDNN_ATTR_RESAMPLE_POST_PADDINGS,
+        /// Pre-paddings per spatial dimension.
+        ResamplePrePaddings = CUDNN_ATTR_RESAMPLE_PRE_PADDINGS,
+        /// Stride factors per spatial dimension.
+        ResampleStrides = CUDNN_ATTR_RESAMPLE_STRIDES,
+        /// Filter window sizes per dimension.
+        ResampleWindowDims = CUDNN_ATTR_RESAMPLE_WINDOW_DIMS,
+        /// NaN handling behavior.
+        ResampleNanPropagation = CUDNN_ATTR_RESAMPLE_NAN_PROPAGATION,
+        /// Padding strategy (zero, `neg_inf`, edge).
+        ResamplePaddingMode = CUDNN_ATTR_RESAMPLE_PADDING_MODE,
+        /// Forward resample input tensor.
+        OperationResampleFwdXDesc = CUDNN_ATTR_OPERATION_RESAMPLE_FWD_XDESC,
+        /// Forward resample output tensor.
+        OperationResampleFwdYDesc = CUDNN_ATTR_OPERATION_RESAMPLE_FWD_YDESC,
+        /// Max pooling index tensor.
+        OperationResampleFwdIdxDesc = CUDNN_ATTR_OPERATION_RESAMPLE_FWD_IDXDESC,
+        /// Output scaling factor.
+        /// Deprecated by cuDNN.
+        OperationResampleFwdAlpha = CUDNN_ATTR_OPERATION_RESAMPLE_FWD_ALPHA,
+        /// Accumulation scaling factor.
+        /// Deprecated by cuDNN.
+        OperationResampleFwdBeta = CUDNN_ATTR_OPERATION_RESAMPLE_FWD_BETA,
+        /// Resample descriptor reference.
+        OperationResampleFwdDesc = CUDNN_ATTR_OPERATION_RESAMPLE_FWD_DESC,
+        /// Backward resample input gradient.
+        OperationResampleBwdDxDesc = CUDNN_ATTR_OPERATION_RESAMPLE_BWD_DXDESC,
+        /// Backward resample output gradient.
+        OperationResampleBwdDyDesc = CUDNN_ATTR_OPERATION_RESAMPLE_BWD_DYDESC,
+        /// Index tensor from forward pass.
+        OperationResampleBwdIdxDesc = CUDNN_ATTR_OPERATION_RESAMPLE_BWD_IDXDESC,
+        /// Gradient scaling factor.
+        /// Deprecated by cuDNN.
+        OperationResampleBwdAlpha = CUDNN_ATTR_OPERATION_RESAMPLE_BWD_ALPHA,
+        /// Accumulation scaling.
+        /// Deprecated by cuDNN.
+        OperationResampleBwdBeta = CUDNN_ATTR_OPERATION_RESAMPLE_BWD_BETA,
+        /// Resample descriptor reference.
+        OperationResampleBwdDesc = CUDNN_ATTR_OPERATION_RESAMPLE_BWD_DESC,
+        /// Forward input reference.
+        OperationResampleBwdXDesc = CUDNN_ATTR_OPERATION_RESAMPLE_BWD_XDESC,
+        /// Forward output reference.
+        OperationResampleBwdYDesc = CUDNN_ATTR_OPERATION_RESAMPLE_BWD_YDESC,
+        /// Concatenation axis dimension.
+        OperationConcatAxis = CUDNN_ATTR_OPERATION_CONCAT_AXIS,
+        /// Array of input tensor descriptors.
+        OperationConcatInputDescs = CUDNN_ATTR_OPERATION_CONCAT_INPUT_DESCS,
+        /// In-place output tensor selection index.
+        OperationConcatInplaceIndex = CUDNN_ATTR_OPERATION_CONCAT_INPLACE_INDEX,
+        /// Concatenated output descriptor.
+        OperationConcatOutputDesc = CUDNN_ATTR_OPERATION_CONCAT_OUTPUT_DESC,
+        /// Signal set vs wait mode.
+        OperationSignalMode = CUDNN_ATTR_OPERATION_SIGNAL_MODE,
+        /// Flag variable tensor descriptor.
+        OperationSignalFlagDesc = CUDNN_ATTR_OPERATION_SIGNAL_FLAGDESC,
+        /// Signal value for comparison.
+        OperationSignalValue = CUDNN_ATTR_OPERATION_SIGNAL_VALUE,
+        /// Input tensor for signal set.
+        OperationSignalXDesc = CUDNN_ATTR_OPERATION_SIGNAL_XDESC,
+        /// Output tensor descriptor.
+        OperationSignalYDesc = CUDNN_ATTR_OPERATION_SIGNAL_YDESC,
+        /// Cache container descriptor.
+        OperationPagedCacheLoadContainerDesc = CUDNN_ATTR_OPERATION_PAGED_CACHE_LOAD_CONTAINER_DESC,
+        /// Output tensor descriptor.
+        OperationPagedCacheLoadYDesc = CUDNN_ATTR_OPERATION_PAGED_CACHE_LOAD_YDESC,
+        /// Load sequence specification.
+        OperationPagedCacheLoadSequenceDesc = CUDNN_ATTR_OPERATION_PAGED_CACHE_LOAD_SEQUENCE_DESC,
+        /// Page table mapping descriptor.
+        OperationPagedCacheLoadPageTableDesc = CUDNN_ATTR_OPERATION_PAGED_CACHE_LOAD_PAGE_TABLE_DESC,
+        /// Normalization algorithm type.
+        OperationNormFwdMode = CUDNN_ATTR_OPERATION_NORM_FWD_MODE,
+        /// Training vs inference phase.
+        OperationNormFwdPhase = CUDNN_ATTR_OPERATION_NORM_FWD_PHASE,
+        /// Input tensor descriptor.
+        OperationNormFwdXDesc = CUDNN_ATTR_OPERATION_NORM_FWD_XDESC,
+        /// Computed or cached mean tensor.
+        OperationNormFwdMeanDesc = CUDNN_ATTR_OPERATION_NORM_FWD_MEAN_DESC,
+        /// Computed or cached inverse variance.
+        OperationNormFwdInvVarianceDesc = CUDNN_ATTR_OPERATION_NORM_FWD_INV_VARIANCE_DESC,
+        /// Learnable scale parameter (gamma).
+        OperationNormFwdScaleDesc = CUDNN_ATTR_OPERATION_NORM_FWD_SCALE_DESC,
+        /// Learnable bias parameter (beta).
+        OperationNormFwdBiasDesc = CUDNN_ATTR_OPERATION_NORM_FWD_BIAS_DESC,
+        /// Numerical stability constant.
+        OperationNormFwdEpsilonDesc = CUDNN_ATTR_OPERATION_NORM_FWD_EPSILON_DESC,
+        /// Momentum for running statistics.
+        OperationNormFwdExpAvgFactorDesc = CUDNN_ATTR_OPERATION_NORM_FWD_EXP_AVG_FACTOR_DESC,
+        /// Input running mean.
+        OperationNormFwdInputRunningMeanDesc = CUDNN_ATTR_OPERATION_NORM_FWD_INPUT_RUNNING_MEAN_DESC,
+        /// Input running variance.
+        OperationNormFwdInputRunningVarDesc = CUDNN_ATTR_OPERATION_NORM_FWD_INPUT_RUNNING_VAR_DESC,
+        /// Updated running mean output.
+        OperationNormFwdOutputRunningMeanDesc = CUDNN_ATTR_OPERATION_NORM_FWD_OUTPUT_RUNNING_MEAN_DESC,
+        /// Updated running variance output.
+        OperationNormFwdOutputRunningVarDesc = CUDNN_ATTR_OPERATION_NORM_FWD_OUTPUT_RUNNING_VAR_DESC,
+        /// Output tensor descriptor.
+        OperationNormFwdYDesc = CUDNN_ATTR_OPERATION_NORM_FWD_YDESC,
+        /// Peer statistics for multi-GPU sync.
+        OperationNormFwdPeerStatDescs = CUDNN_ATTR_OPERATION_NORM_FWD_PEER_STAT_DESCS,
+        /// Normalization algorithm type.
+        OperationNormBwdMode = CUDNN_ATTR_OPERATION_NORM_BWD_MODE,
+        /// Forward input tensor reference.
+        OperationNormBwdXDesc = CUDNN_ATTR_OPERATION_NORM_BWD_XDESC,
+        /// Cached mean from forward pass.
+        OperationNormBwdMeanDesc = CUDNN_ATTR_OPERATION_NORM_BWD_MEAN_DESC,
+        /// Cached inverse std dev.
+        OperationNormBwdInvVarianceDesc = CUDNN_ATTR_OPERATION_NORM_BWD_INV_VARIANCE_DESC,
+        /// Output gradient tensor.
+        OperationNormBwdDyDesc = CUDNN_ATTR_OPERATION_NORM_BWD_DYDESC,
+        /// Forward scale parameter.
+        OperationNormBwdScaleDesc = CUDNN_ATTR_OPERATION_NORM_BWD_SCALE_DESC,
+        /// Numerical stability epsilon.
+        OperationNormBwdEpsilonDesc = CUDNN_ATTR_OPERATION_NORM_BWD_EPSILON_DESC,
+        /// Scale gradient output.
+        OperationNormBwdDScaleDesc = CUDNN_ATTR_OPERATION_NORM_BWD_DSCALE_DESC,
+        /// Bias gradient output.
+        OperationNormBwdDBiasDesc = CUDNN_ATTR_OPERATION_NORM_BWD_DBIAS_DESC,
+        /// Input gradient output tensor.
+        OperationNormBwdDxDesc = CUDNN_ATTR_OPERATION_NORM_BWD_DXDESC,
+        /// Peer gradient statistics for multi-GPU.
+        OperationNormBwdPeerStatDescs = CUDNN_ATTR_OPERATION_NORM_BWD_PEER_STAT_DESCS,
+        /// Reshape input tensor descriptor.
+        OperationReshapeXDesc = CUDNN_ATTR_OPERATION_RESHAPE_XDESC,
+        /// Reshape output tensor descriptor.
+        OperationReshapeYDesc = CUDNN_ATTR_OPERATION_RESHAPE_YDESC,
+        /// Band matrix input tensor.
+        OperationExpandBandMatrixXDesc = CUDNN_ATTR_OPERATION_EXPAND_BAND_MATRIX_XDESC,
+        /// Expanded output tensor.
+        OperationExpandBandMatrixYDesc = CUDNN_ATTR_OPERATION_EXPAND_BAND_MATRIX_YDESC,
+        /// Lower bandwidth of the band.
+        OperationExpandBandMatrixLowerBandwidth = CUDNN_ATTR_OPERATION_EXPAND_BAND_MATRIX_LOWER_BANDWIDTH,
+        /// Upper bandwidth of the band.
+        OperationExpandBandMatrixUpperBandwidth = CUDNN_ATTR_OPERATION_EXPAND_BAND_MATRIX_UPPER_BANDWIDTH,
+        /// Axis along which to expand.
+        OperationExpandBandMatrixAxis = CUDNN_ATTR_OPERATION_EXPAND_BAND_MATRIX_AXIS,
+        /// Padding value outside the band.
+        OperationExpandBandMatrixPadValue = CUDNN_ATTR_OPERATION_EXPAND_BAND_MATRIX_PAD_VALUE,
+        /// KV token offset descriptor.
+        OperationExpandBandMatrixKvTokenOffsetDesc = CUDNN_ATTR_OPERATION_EXPAND_BAND_MATRIX_KV_TOKEN_OFFSET_DESC,
+        /// Speculative decoding mask.
+        OperationExpandBandMatrixSpeculativeMaskDesc = CUDNN_ATTR_OPERATION_EXPAND_BAND_MATRIX_SPECULATIVE_MASK_DESC,
+        /// Full matrix input tensor.
+        OperationContractBandMatrixXDesc = CUDNN_ATTR_OPERATION_CONTRACT_BAND_MATRIX_XDESC,
+        /// Contracted band output tensor.
+        OperationContractBandMatrixYDesc = CUDNN_ATTR_OPERATION_CONTRACT_BAND_MATRIX_YDESC,
+        /// Lower bandwidth.
+        OperationContractBandMatrixLowerBandwidth = CUDNN_ATTR_OPERATION_CONTRACT_BAND_MATRIX_LOWER_BANDWIDTH,
+        /// Upper bandwidth.
+        OperationContractBandMatrixUpperBandwidth = CUDNN_ATTR_OPERATION_CONTRACT_BAND_MATRIX_UPPER_BANDWIDTH,
+        /// Axis along which to contract.
+        OperationContractBandMatrixAxis = CUDNN_ATTR_OPERATION_CONTRACT_BAND_MATRIX_AXIS,
+        /// Padding value.
+        OperationContractBandMatrixPadValue = CUDNN_ATTR_OPERATION_CONTRACT_BAND_MATRIX_PAD_VALUE,
+        /// Maximum token value for contraction.
+        OperationContractBandMaxTokenValue = CUDNN_ATTR_OPERATION_CONTRACT_BAND_MAX_TOKEN_VALUE,
+        /// Random distribution type selection.
+        RngDistribution = CUDNN_ATTR_RNG_DISTRIBUTION,
+        /// Normal distribution mean parameter.
+        RngNormalDistMean = CUDNN_ATTR_RNG_NORMAL_DIST_MEAN,
+        /// Normal distribution std deviation.
+        RngNormalDistStandardDeviation = CUDNN_ATTR_RNG_NORMAL_DIST_STANDARD_DEVIATION,
+        /// Uniform distribution upper bound.
+        RngUniformDistMaximum = CUDNN_ATTR_RNG_UNIFORM_DIST_MAXIMUM,
+        /// Uniform distribution lower bound.
+        RngUniformDistMinimum = CUDNN_ATTR_RNG_UNIFORM_DIST_MINIMUM,
+        /// Bernoulli probability of 1.
+        RngBernoulliDistProbability = CUDNN_ATTR_RNG_BERNOULLI_DIST_PROBABILITY,
+        /// RNG output tensor descriptor.
+        OperationRngYDesc = CUDNN_ATTR_OPERATION_RNG_YDESC,
+        /// RNG seed value.
+        OperationRngSeed = CUDNN_ATTR_OPERATION_RNG_SEED,
+        /// RNG descriptor reference.
+        OperationRngDesc = CUDNN_ATTR_OPERATION_RNG_DESC,
+        /// RNG offset/state descriptor.
+        OperationRngOffsetDesc = CUDNN_ATTR_OPERATION_RNG_OFFSET_DESC,
+        /// Whether kernel is cached.
+        KernelCacheIsEngineCfgKernelCached = CUDNN_ATTR_KERNEL_CACHE_IS_ENGINECFG_KERNEL_CACHED,
+        /// Operation graph for kernel cache.
+        KernelCacheOperationGraph = CUDNN_ATTR_KERNEL_CACHE_OPERATION_GRAPH,
+        /// Kernel cache JSON serialization.
+        KernelCacheJsonRepresentation = CUDNN_ATTR_KERNEL_CACHE_JSON_REPRESENTATION,
+        /// Input float tensor to quantize.
+        OperationBlockScaleQuantizeXDesc = CUDNN_ATTR_OPERATION_BLOCK_SCALE_QUANTIZE_XDESC,
+        /// Quantized output tensor.
+        OperationBlockScaleQuantizeYDesc = CUDNN_ATTR_OPERATION_BLOCK_SCALE_QUANTIZE_YDESC,
+        /// Per-block scaling factors output.
+        OperationBlockScaleQuantizeScaleDesc = CUDNN_ATTR_OPERATION_BLOCK_SCALE_QUANTIZE_SCALE_DESC,
+        /// Computation precision.
+        OperationBlockScaleQuantizeMathPrec = CUDNN_ATTR_OPERATION_BLOCK_SCALE_QUANTIZE_MATH_PREC,
+        /// Quantization block size.
+        OperationBlockScaleQuantizeBlockSize = CUDNN_ATTR_OPERATION_BLOCK_SCALE_QUANTIZE_BLOCK_SIZE,
+        /// Quantized input tensor.
+        OperationBlockScaleDequantizeXDesc = CUDNN_ATTR_OPERATION_BLOCK_SCALE_DEQUANTIZE_XDESC,
+        /// Per-block scale factors.
+        OperationBlockScaleDequantizeScaleDesc = CUDNN_ATTR_OPERATION_BLOCK_SCALE_DEQUANTIZE_SCALE_DESC,
+        /// Dequantized output tensor.
+        OperationBlockScaleDequantizeYDesc = CUDNN_ATTR_OPERATION_BLOCK_SCALE_DEQUANTIZE_YDESC,
+        /// Computation precision.
+        OperationBlockScaleDequantizeMathPrec = CUDNN_ATTR_OPERATION_BLOCK_SCALE_DEQUANTIZE_MATH_PREC,
+        /// Dequantization block size.
+        OperationBlockScaleDequantizeBlockSize = CUDNN_ATTR_OPERATION_BLOCK_SCALE_DEQUANTIZE_BLOCK_SIZE,
+        /// Negative scale handling.
+        OperationBlockScaleDequantizeNegScale = CUDNN_ATTR_OPERATION_BLOCK_SCALE_DEQUANTIZE_NEG_SCALE,
+        /// Query cumulative sequence length tensor.
+        OperationSdpaFwdCuSeqLenQDesc = CUDNN_ATTR_OPERATION_SDPA_FWD_CU_SEQ_LEN_QDESC,
+        /// Key-value cumulative sequence length tensor.
+        OperationSdpaFwdCuSeqLenKvDesc = CUDNN_ATTR_OPERATION_SDPA_FWD_CU_SEQ_LEN_KVDESC,
+        /// Query cumulative sequence length tensor.
+        OperationDiagonalBandMaskCuSeqLenQDesc = CUDNN_ATTR_OPERATION_DIAGONAL_BAND_MASK_CU_SEQ_LEN_QDESC,
+        /// Key-value cumulative sequence length tensor.
+        OperationDiagonalBandMaskCuSeqLenKvDesc = CUDNN_ATTR_OPERATION_DIAGONAL_BAND_MASK_CU_SEQ_LEN_KVDESC,
+        /// FP8 descale factor for Q.
+        OperationSdpaFwdDescaleQDesc = CUDNN_ATTR_OPERATION_SDPA_FWD_DESCALE_QDESC,
+        /// FP8 descale factor for K.
+        OperationSdpaFwdDescaleKDesc = CUDNN_ATTR_OPERATION_SDPA_FWD_DESCALE_KDESC,
+        /// FP8 descale factor for V.
+        OperationSdpaFwdDescaleVDesc = CUDNN_ATTR_OPERATION_SDPA_FWD_DESCALE_VDESC,
+        /// FP8 descale factor for S.
+        OperationSdpaFwdDescaleSDesc = CUDNN_ATTR_OPERATION_SDPA_FWD_DESCALE_SDESC,
+        /// FP8 scale factor for S.
+        OperationSdpaFwdScaleSDesc = CUDNN_ATTR_OPERATION_SDPA_FWD_SCALE_SDESC,
+        /// FP8 scale factor for O.
+        OperationSdpaFwdScaleODesc = CUDNN_ATTR_OPERATION_SDPA_FWD_SCALE_ODESC,
+        /// FP8 absolute maximum of S.
+        OperationSdpaFwdAmaxSDesc = CUDNN_ATTR_OPERATION_SDPA_FWD_AMAX_SDESC,
+        /// FP8 absolute maximum of O.
+        OperationSdpaFwdAmaxODesc = CUDNN_ATTR_OPERATION_SDPA_FWD_AMAX_ODESC,
+        /// Query tensor descriptor.
+        OperationSdpaFwdQDesc = CUDNN_ATTR_OPERATION_SDPA_FWD_QDESC,
+        /// Key tensor descriptor.
+        OperationSdpaFwdKDesc = CUDNN_ATTR_OPERATION_SDPA_FWD_KDESC,
+        /// Value tensor descriptor.
+        OperationSdpaFwdVDesc = CUDNN_ATTR_OPERATION_SDPA_FWD_VDESC,
+        /// Output tensor descriptor.
+        OperationSdpaFwdODesc = CUDNN_ATTR_OPERATION_SDPA_FWD_ODESC,
+        /// Statistics output descriptor.
+        OperationSdpaFwdStatsDesc = CUDNN_ATTR_OPERATION_SDPA_FWD_STATSDESC,
+        /// Attention scaling factor descriptor.
+        OperationSdpaFwdScaleDesc = CUDNN_ATTR_OPERATION_SDPA_FWD_SCALEDESC,
+        /// Block-sparse attention mask.
+        OperationSdpaFwdBlockMaskDesc = CUDNN_ATTR_OPERATION_SDPA_FWD_BLOCK_MASK_DESC,
+        /// Paged attention key page table.
+        OperationSdpaFwdPageTableKDesc = CUDNN_ATTR_OPERATION_SDPA_FWD_PAGE_TABLE_KDESC,
+        /// Paged attention value page table.
+        OperationSdpaFwdPageTableVDesc = CUDNN_ATTR_OPERATION_SDPA_FWD_PAGE_TABLE_VDESC,
+        /// Query sequence length tensor.
+        OperationSdpaFwdSeqLenQDesc = CUDNN_ATTR_OPERATION_SDPA_FWD_SEQ_LEN_QDESC,
+        /// Key-value sequence length tensor.
+        OperationSdpaFwdSeqLenKvDesc = CUDNN_ATTR_OPERATION_SDPA_FWD_SEQ_LEN_KVDESC,
+        /// Softmax descriptor.
+        OperationSdpaFwdSoftmaxDesc = CUDNN_ATTR_OPERATION_SDPA_FWD_SOFTMAX_DESC,
+        /// Forward SDPA subgraph.
+        OperationSdpaFwdSubgraph = CUDNN_ATTR_OPERATION_SDPA_FWD_SUBGRAPH,
+        /// Subgraph input tensor UID.
+        OperationSdpaFwdSubgraphInputId = CUDNN_ATTR_OPERATION_SDPA_FWD_SUBGRAPH_INPUT_UID,
+        /// Subgraph output tensor UID.
+        OperationSdpaFwdSubgraphOutputId = CUDNN_ATTR_OPERATION_SDPA_FWD_SUBGRAPH_OUTPUT_UID,
+        /// Dropout seed tensor descriptor.
+        OperationSdpaFwdDropoutSeedDesc = CUDNN_ATTR_OPERATION_SDPA_FWD_DROPOUT_SEED_DESC,
+        /// Dropout offset tensor descriptor.
+        OperationSdpaFwdDropoutOffsetDesc = CUDNN_ATTR_OPERATION_SDPA_FWD_DROPOUT_OFFSET_DESC,
+        /// Dropout RNG dump tensor descriptor.
+        OperationSdpaFwdDropoutRngDumpDesc = CUDNN_ATTR_OPERATION_SDPA_FWD_DROPOUT_RNG_DUMP_DESC,
+        /// Dropout probability.
+        OperationSdpaFwdDropoutProbability = CUDNN_ATTR_OPERATION_SDPA_FWD_DROPOUT_PROBABILITY,
+        /// Unfuse FMA in softmax for SM100.
+        OperationSdpaFwdUnfuseFma = CUDNN_ATTR_OPERATION_SDPA_FWD_UNFUSE_FMA,
+        /// Query tensor descriptor.
+        OperationSdpaBwdQDesc = CUDNN_ATTR_OPERATION_SDPA_BWD_QDESC,
+        /// Key tensor descriptor.
+        OperationSdpaBwdKDesc = CUDNN_ATTR_OPERATION_SDPA_BWD_KDESC,
+        /// Value tensor descriptor.
+        OperationSdpaBwdVDesc = CUDNN_ATTR_OPERATION_SDPA_BWD_VDESC,
+        /// Forward output tensor descriptor.
+        OperationSdpaBwdODesc = CUDNN_ATTR_OPERATION_SDPA_BWD_ODESC,
+        /// Forward statistics descriptor.
+        OperationSdpaBwdStatsDesc = CUDNN_ATTR_OPERATION_SDPA_BWD_STATSDESC,
+        /// Attention scaling factor.
+        OperationSdpaBwdScaleDesc = CUDNN_ATTR_OPERATION_SDPA_BWD_SCALEDESC,
+        /// Query sequence length tensor.
+        OperationSdpaBwdSeqLenQDesc = CUDNN_ATTR_OPERATION_SDPA_BWD_SEQ_LEN_QDESC,
+        /// Key-value sequence length tensor.
+        OperationSdpaBwdSeqLenKvDesc = CUDNN_ATTR_OPERATION_SDPA_BWD_SEQ_LEN_KVDESC,
+        /// Query gradient output tensor.
+        OperationSdpaBwdDqDesc = CUDNN_ATTR_OPERATION_SDPA_BWD_DQDESC,
+        /// Key gradient output tensor.
+        OperationSdpaBwdDkDesc = CUDNN_ATTR_OPERATION_SDPA_BWD_DKDESC,
+        /// Value gradient output tensor.
+        OperationSdpaBwdDvDesc = CUDNN_ATTR_OPERATION_SDPA_BWD_DVDESC,
+        /// Output gradient input tensor.
+        OperationSdpaBwdDoDesc = CUDNN_ATTR_OPERATION_SDPA_BWD_DODDESC,
+        /// Backward sink descriptor.
+        OperationSdpaBwdSinkDesc = CUDNN_ATTR_OPERATION_SDPA_BWD_SINK_DESC,
+        /// Backward sink gradient descriptor.
+        OperationSdpaBwdDsinkDesc = CUDNN_ATTR_OPERATION_SDPA_BWD_DSINK_DESC,
+        /// Max total query sequence length.
+        OperationSdpaBwdMaxTotalSeqLenQ = CUDNN_ATTR_OPERATION_SDPA_BWD_MAX_TOTAL_SEQ_LEN_Q,
+        /// Max total KV sequence length.
+        OperationSdpaBwdMaxTotalSeqLenKv = CUDNN_ATTR_OPERATION_SDPA_BWD_MAX_TOTAL_SEQ_LEN_KV,
+        /// Backward SDPA subgraph.
+        OperationSdpaBwdSubgraph = CUDNN_ATTR_OPERATION_SDPA_BWD_SUBGRAPH,
+        /// Subgraph input tensor UID.
+        OperationSdpaBwdSubgraphInputId = CUDNN_ATTR_OPERATION_SDPA_BWD_SUBGRAPH_INPUT_UID,
+        /// Subgraph output tensor UID.
+        OperationSdpaBwdSubgraphOutputId = CUDNN_ATTR_OPERATION_SDPA_BWD_SUBGRAPH_OUTPUT_UID,
+        /// Gather/scatter mode for `MoE`.
+        OperationMoeGroupedMatmulMode = CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_MODE,
+        /// Computation precision.
+        OperationMoeGroupedMatmulMathPrec = CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_MATH_PREC,
+        /// Token tensor descriptor.
+        OperationMoeGroupedMatmulTokenDesc = CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_TOKEN_DESC,
+        /// Expert weight tensor descriptor.
+        OperationMoeGroupedMatmulWeightDesc = CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_WEIGHT_DESC,
+        /// First token offset per expert.
+        OperationMoeGroupedMatmulFirstTokenOffsetDesc = CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_FIRST_TOKEN_OFFSET_DESC,
+        /// Output tensor descriptor.
+        OperationMoeGroupedMatmulOutputDesc = CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_OUTPUT_DESC,
+        /// Token routing index descriptor.
+        OperationMoeGroupedMatmulTokenIndexDesc = CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_TOKEN_INDEX_DESC,
+        /// Token routing weights descriptor.
+        OperationMoeGroupedMatmulTokenKsDesc = CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_TOKEN_KS_DESC,
+        /// Top-K experts per token.
+        OperationMoeGroupedMatmulTopK = CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_TOP_K,
+        /// Input tensor descriptor.
+        OperationDiagonalBandMaskXDesc = CUDNN_ATTR_OPERATION_DIAGONAL_BAND_MASK_XDESC,
+        /// KV sequence length tensor.
+        OperationDiagonalBandMaskSeqLenKvDesc = CUDNN_ATTR_OPERATION_DIAGONAL_BAND_MASK_SEQ_LEN_KVDESC,
+        /// Query sequence length tensor.
+        OperationDiagonalBandMaskSeqLenQDesc = CUDNN_ATTR_OPERATION_DIAGONAL_BAND_MASK_SEQ_LEN_QDESC,
+        /// Left bound offset descriptor.
+        OperationDiagonalBandMaskLeftBoundDesc = CUDNN_ATTR_OPERATION_DIAGONAL_BAND_MASK_LEFT_BOUND_DESC,
+        /// Right bound shift descriptor.
+        OperationDiagonalBandMaskShiftRightBoundDesc = CUDNN_ATTR_OPERATION_DIAGONAL_BAND_MASK_SHIFT_RIGHT_BOUND_DESC,
+        /// Band descriptor.
+        OperationDiagonalBandMaskBDesc = CUDNN_ATTR_OPERATION_DIAGONAL_BAND_MASK_BDESC,
+        /// Output mask tensor descriptor.
+        OperationDiagonalBandMaskYDesc = CUDNN_ATTR_OPERATION_DIAGONAL_BAND_MASK_YDESC,
+        /// Mask comparison mode.
+        OperationDiagonalBandMaskComparisonMode = CUDNN_ATTR_OPERATION_DIAGONAL_BAND_MASK_COMPARISON_MODE,
+        /// Softmax input tensor descriptor.
+        OperationSoftmaxXDesc = CUDNN_ATTR_OPERATION_SOFTMAX_XDESC,
+        /// Softmax output tensor descriptor.
+        OperationSoftmaxYDesc = CUDNN_ATTR_OPERATION_SOFTMAX_YDESC,
+        /// Softmax statistics output.
+        OperationSoftmaxStatsDesc = CUDNN_ATTR_OPERATION_SOFTMAX_STATS_DESC,
+        /// Row-wise max values descriptor.
+        OperationSoftmaxMaxDesc = CUDNN_ATTR_OPERATION_SOFTMAX_MAX_DESC,
+        /// Row-wise sum of exponentials.
+        OperationSoftmaxSumExpDesc = CUDNN_ATTR_OPERATION_SOFTMAX_SUM_EXP_DESC,
+        /// Softmax sink descriptor.
+        OperationSoftmaxSinkDesc = CUDNN_ATTR_OPERATION_SOFTMAX_SINK_DESC,
+        /// CUDA device identifier.
+        DevicePropDeviceId = CUDNN_ATTR_DEVICEPROP_DEVICE_ID,
+        /// Associated cuDNN handle.
+        DevicePropHandle = CUDNN_ATTR_DEVICEPROP_HANDLE,
+        /// Device properties JSON.
+        DevicePropJsonRepresentation = CUDNN_ATTR_DEVICEPROP_JSON_REPRESENTATION,
+    }
 }
-
-impl_enum_conversion!(sys::cudnnBackendAttributeName_t, BackendAttributeName);
 
 /// Native attribute ID reported by runtime metadata, including IDs absent from this crate's headers.
 /// Descriptor attribute keys still use the checked [`BackendAttributeName`] enum.
@@ -1497,81 +1239,81 @@ impl_enum_display!(BackendAttributeName, {
     Self::DevicePropJsonRepresentation => "CUDNN_ATTR_DEVICEPROP_JSON_REPRESENTATION",
 });
 
-/// [`BackendAttributeType`] specifies the data type of an attribute of a cuDNN backend descriptor.
-/// [`BackendDescriptor`](crate::backend::descriptor::BackendDescriptor) attribute methods use this enum to pass the matching cuDNN attribute type.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum BackendAttributeType {
-    ///< `cudnnBackendReshapeMode_t` value. @since cuDNN 9.22.0
-    ReshapeMode = sys::cudnnBackendAttributeType_t::CUDNN_TYPE_RESHAPE_MODE as _,
-    ///< `cudnnHandle_t` value. @since cuDNN 9.0.0
-    Handle = sys::cudnnBackendAttributeType_t::CUDNN_TYPE_HANDLE as _,
-    ///< `cudnnDataType_t` value. @since cuDNN 9.0.0
-    DataType = sys::cudnnBackendAttributeType_t::CUDNN_TYPE_DATA_TYPE as _,
-    ///< Boolean value. @since cuDNN 9.0.0
-    Boolean = sys::cudnnBackendAttributeType_t::CUDNN_TYPE_BOOLEAN as _,
-    ///< 64-bit signed integer value. @since cuDNN 9.0.0
-    Int64 = sys::cudnnBackendAttributeType_t::CUDNN_TYPE_INT64 as _,
-    ///< 32-bit float value. @since cuDNN 9.0.0
-    Float = sys::cudnnBackendAttributeType_t::CUDNN_TYPE_FLOAT as _,
-    ///< 64-bit double value. @since cuDNN 9.0.0
-    Double = sys::cudnnBackendAttributeType_t::CUDNN_TYPE_DOUBLE as _,
-    ///< Void pointer value. @since cuDNN 9.0.0
-    VoidPtr = sys::cudnnBackendAttributeType_t::CUDNN_TYPE_VOID_PTR as _,
-    ///< `cudnnConvolutionMode_t` value. @since cuDNN 9.0.0
-    ConvolutionMode = sys::cudnnBackendAttributeType_t::CUDNN_TYPE_CONVOLUTION_MODE as _,
-    ///< `cudnnBackendHeurMode_t` value. @since cuDNN 9.0.0
-    HeurMode = sys::cudnnBackendAttributeType_t::CUDNN_TYPE_HEUR_MODE as _,
-    ///< `cudnnBackendKnobType_t` value. @since cuDNN 9.0.0
-    KnobType = sys::cudnnBackendAttributeType_t::CUDNN_TYPE_KNOB_TYPE as _,
-    ///< `cudnnNanPropagation_t` value. @deprecated @since cuDNN 9.0.0
-    NanPropagation = sys::cudnnBackendAttributeType_t::CUDNN_TYPE_NAN_PROPOGATION as _, // Note: FFI has typo "PROPOGATION".
-    ///< `cudnnBackendNumericalNote_t` value. @since cuDNN 9.0.0
-    NumericalNote = sys::cudnnBackendAttributeType_t::CUDNN_TYPE_NUMERICAL_NOTE as _,
-    ///< `cudnnBackendLayoutType_t` value. @since cuDNN 9.0.0
-    LayoutType = sys::cudnnBackendAttributeType_t::CUDNN_TYPE_LAYOUT_TYPE as _,
-    ///< `cudnnBackendAttributeName_t` value. @since cuDNN 9.0.0
-    AttribName = sys::cudnnBackendAttributeType_t::CUDNN_TYPE_ATTRIB_NAME as _,
-    ///< `cudnnPointwiseMode_t` value. @since cuDNN 9.0.0
-    PointwiseMode = sys::cudnnBackendAttributeType_t::CUDNN_TYPE_POINTWISE_MODE as _,
-    ///< `cudnnBackendDescriptor_t` value. @since cuDNN 9.0.0
-    BackendDescriptor = sys::cudnnBackendAttributeType_t::CUDNN_TYPE_BACKEND_DESCRIPTOR as _,
-    ///< `cudnnGenStatsMode_t` value. @since cuDNN 9.0.0
-    GenStatsMode = sys::cudnnBackendAttributeType_t::CUDNN_TYPE_GENSTATS_MODE as _,
-    ///< `cudnnBnFinalizeStatsMode_t` value. @since cuDNN 9.0.0
-    BnFinalizeStatsMode = sys::cudnnBackendAttributeType_t::CUDNN_TYPE_BN_FINALIZE_STATS_MODE as _,
-    ///< `cudnnReduceTensorOp_t` value. @since cuDNN 9.0.0
-    ReductionOperatorType =
-        sys::cudnnBackendAttributeType_t::CUDNN_TYPE_REDUCTION_OPERATOR_TYPE as _,
-    ///< `cudnnBackendBehaviorNote_t` value. @since cuDNN 9.0.0
-    BehaviorNote = sys::cudnnBackendAttributeType_t::CUDNN_TYPE_BEHAVIOR_NOTE as _,
-    ///< `cudnnBackendTensorReordering_t` value. @since cuDNN 9.0.0
-    TensorReorderingMode = sys::cudnnBackendAttributeType_t::CUDNN_TYPE_TENSOR_REORDERING_MODE as _,
-    ///< `cudnnResampleMode_t` value. @since cuDNN 9.0.0
-    ResampleMode = sys::cudnnBackendAttributeType_t::CUDNN_TYPE_RESAMPLE_MODE as _,
-    ///< `cudnnPaddingMode_t` value. @since cuDNN 9.0.0
-    PaddingMode = sys::cudnnBackendAttributeType_t::CUDNN_TYPE_PADDING_MODE as _,
-    ///< 32-bit signed integer value. @since cuDNN 9.0.0
-    Int32 = sys::cudnnBackendAttributeType_t::CUDNN_TYPE_INT32 as _,
-    ///< Character value. @since cuDNN 9.0.0
-    Char = sys::cudnnBackendAttributeType_t::CUDNN_TYPE_CHAR as _,
-    ///< `cudnnSignalMode_t` value. @since cuDNN 9.0.0
-    SignalMode = sys::cudnnBackendAttributeType_t::CUDNN_TYPE_SIGNAL_MODE as _,
-    ///< `cudnnFraction_t` value. @since cuDNN 9.0.0
-    Fraction = sys::cudnnBackendAttributeType_t::CUDNN_TYPE_FRACTION as _,
-    ///< `cudnnBackendNormMode_t` value. @since cuDNN 9.0.0
-    NormMode = sys::cudnnBackendAttributeType_t::CUDNN_TYPE_NORM_MODE as _,
-    ///< `cudnnBackendNormFwdPhase_t` value. @since cuDNN 9.0.0
-    NormFwdPhase = sys::cudnnBackendAttributeType_t::CUDNN_TYPE_NORM_FWD_PHASE as _,
-    ///< `cudnnRngDistribution_t` value. @since cuDNN 9.0.0
-    RngDistribution = sys::cudnnBackendAttributeType_t::CUDNN_TYPE_RNG_DISTRIBUTION as _,
-    ///< `cudnnMoeGroupedMatmulMode_t` value. @since cuDNN 9.15.0
-    MoeGroupedMatmulMode =
-        sys::cudnnBackendAttributeType_t::CUDNN_TYPE_MOE_GROUPED_MATMUL_MODE as _,
+singe_core::native_enum! {
+    /// [`BackendAttributeType`] specifies the data type of an attribute of a cuDNN backend descriptor.
+    /// [`BackendDescriptor`](crate::backend::descriptor::BackendDescriptor) attribute methods use this enum to pass the matching cuDNN attribute type.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum BackendAttributeType: sys::cudnnBackendAttributeType_t {
+        /// [`ReshapeMode`] value.
+        ReshapeMode = CUDNN_TYPE_RESHAPE_MODE,
+        /// [`Context`](crate::context::Context) handle value.
+        Handle = CUDNN_TYPE_HANDLE,
+        /// [`DataType`] value.
+        DataType = CUDNN_TYPE_DATA_TYPE,
+        /// Boolean value.
+        Boolean = CUDNN_TYPE_BOOLEAN,
+        /// 64-bit signed integer value.
+        Int64 = CUDNN_TYPE_INT64,
+        /// 32-bit float value.
+        Float = CUDNN_TYPE_FLOAT,
+        /// 64-bit double value.
+        Double = CUDNN_TYPE_DOUBLE,
+        /// Void pointer value.
+        VoidPtr = CUDNN_TYPE_VOID_PTR,
+        /// [`ConvolutionMode`] value.
+        ConvolutionMode = CUDNN_TYPE_CONVOLUTION_MODE,
+        /// [`BackendHeuristicMode`] value.
+        HeurMode = CUDNN_TYPE_HEUR_MODE,
+        /// [`BackendKnobType`] value.
+        KnobType = CUDNN_TYPE_KNOB_TYPE,
+        /// [`NanPropagation`] value.
+        /// Deprecated by cuDNN.
+        // Note: FFI has typo "PROPOGATION".
+        NanPropagation = CUDNN_TYPE_NAN_PROPOGATION,
+        /// [`BackendNumericalNote`] value.
+        NumericalNote = CUDNN_TYPE_NUMERICAL_NOTE,
+        /// [`BackendLayoutType`] value.
+        LayoutType = CUDNN_TYPE_LAYOUT_TYPE,
+        /// [`BackendAttributeName`] value.
+        AttribName = CUDNN_TYPE_ATTRIB_NAME,
+        /// [`PointwiseMode`] value.
+        PointwiseMode = CUDNN_TYPE_POINTWISE_MODE,
+        /// [`BackendDescriptor`](crate::backend::descriptor::BackendDescriptor) handle value.
+        BackendDescriptor = CUDNN_TYPE_BACKEND_DESCRIPTOR,
+        /// [`GenStatsMode`] value.
+        GenStatsMode = CUDNN_TYPE_GENSTATS_MODE,
+        /// [`BatchNormalizationFinalizeStatsMode`] value.
+        BnFinalizeStatsMode = CUDNN_TYPE_BN_FINALIZE_STATS_MODE,
+        /// [`ReduceTensorOperator`] value.
+        ReductionOperatorType = CUDNN_TYPE_REDUCTION_OPERATOR_TYPE,
+        /// [`BackendBehaviorNote`] value.
+        BehaviorNote = CUDNN_TYPE_BEHAVIOR_NOTE,
+        /// [`BackendTensorReordering`] value.
+        TensorReorderingMode = CUDNN_TYPE_TENSOR_REORDERING_MODE,
+        /// [`ResampleMode`] value.
+        ResampleMode = CUDNN_TYPE_RESAMPLE_MODE,
+        /// [`PaddingMode`] value.
+        PaddingMode = CUDNN_TYPE_PADDING_MODE,
+        /// 32-bit signed integer value.
+        Int32 = CUDNN_TYPE_INT32,
+        /// Character value.
+        Char = CUDNN_TYPE_CHAR,
+        /// [`SignalMode`] value.
+        SignalMode = CUDNN_TYPE_SIGNAL_MODE,
+        /// [`Fraction`](crate::math::Fraction) value.
+        Fraction = CUDNN_TYPE_FRACTION,
+        /// [`BackendNormalizationMode`] value.
+        NormMode = CUDNN_TYPE_NORM_MODE,
+        /// [`BackendNormalizationForwardPhase`] value.
+        NormFwdPhase = CUDNN_TYPE_NORM_FWD_PHASE,
+        /// [`RngDistribution`] value.
+        RngDistribution = CUDNN_TYPE_RNG_DISTRIBUTION,
+        /// [`MoeGroupedMatmulMode`] value.
+        MoeGroupedMatmulMode = CUDNN_TYPE_MOE_GROUPED_MATMUL_MODE,
+    }
 }
-
-impl_enum_conversion!(sys::cudnnBackendAttributeType_t, BackendAttributeType,);
 
 impl_enum_display!(BackendAttributeType, {
     Self::ReshapeMode => "CUDNN_TYPE_RESHAPE_MODE",
@@ -1613,6 +1355,7 @@ impl_enum_display!(BackendAttributeType, {
 /// Engine metadata preserves unknown native IDs; enums with a closed set of values reject them.
 ///
 /// # Safety
+///
 /// `ATTRIBUTE_TYPE` must be a native enum category represented by one u32.
 /// It must match the meaning of this type's `Into<u32>` and `TryFrom<u32>` conversions.
 /// Categories with other payload sizes, pointers or retained objects are invalid.
@@ -1625,8 +1368,8 @@ pub unsafe trait BackendEnum: Copy + Into<u32> + TryFrom<u32> {
 macro_rules! backend_enum {
     ($value:ty, $native:ty, $category:ident) => {
         const _: () = assert!(size_of::<$native>() == size_of::<u32>());
-        // SAFETY: this cuDNN category stores the corresponding native 32-bit enum;
-        // the Rust wrapper supplies checked decoding and matching integer values.
+        // SAFETY: the assertion above checks that the native enum is 32 bits wide, and `$category` is the attribute type cuDNN uses for it.
+        // The wrapper's `Into<u32>` and `TryFrom<u32>` use the native discriminants.
         unsafe impl BackendEnum for $value {
             const ATTRIBUTE_TYPE: BackendAttributeType = BackendAttributeType::$category;
         }

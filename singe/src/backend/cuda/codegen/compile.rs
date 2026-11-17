@@ -10,6 +10,7 @@ use std::{
 use sha2::{Digest, Sha256};
 use singe_cuda::{
     architecture::GpuArchitecture,
+    jit::JitOptions,
     module::{KernelFunction, ModuleImage},
     nvrtc::CompileOptions,
 };
@@ -153,7 +154,9 @@ impl CudaRuntime {
             }
         };
         let (cubin, origin) = compile()?;
-        let module = match self.context().load_module(&ModuleImage::from_vec(cubin)) {
+        // SAFETY: NVRTC or tileiras wrote these bytes as a cubin, now or into the kernel cache, which publishes only complete entries by renaming them.
+        let image = unsafe { ModuleImage::from_bytes_unchecked(cubin) };
+        let module = match self.context().load_module(&image, JitOptions::default()) {
             Ok(module) => module,
             // A damaged cache entry compiles again.
             Err(_) if origin == CubinOrigin::Cached => {
@@ -165,7 +168,9 @@ impl CudaRuntime {
                 }
 
                 let (cubin, _) = compile()?;
-                self.context().load_module(&ModuleImage::from_vec(cubin))?
+                // SAFETY: NVRTC or tileiras wrote these bytes as a cubin, now or into the kernel cache, which publishes only complete entries by renaming them.
+                let image = unsafe { ModuleImage::from_bytes_unchecked(cubin) };
+                self.context().load_module(&image, JitOptions::default())?
             }
             Err(error) => return Err(error.into()),
         };

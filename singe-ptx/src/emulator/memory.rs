@@ -22,7 +22,7 @@ type Result<T> = StdResult<T, ExecutionError>;
 const WINDOW_BITS: u32 = 60;
 
 /// Size of one canonical state-space window.
-pub const WINDOW_BYTES: u64 = 1 << WINDOW_BITS;
+pub(crate) const WINDOW_BYTES: u64 = 1 << WINDOW_BITS;
 
 /// Bits below the window tag in a compact generic address.
 const COMPACT_BITS: u32 = 28;
@@ -35,11 +35,11 @@ const GLOBAL_WIDE_START: u64 = 5 * COMPACT_WINDOW;
 /// First offset handed out in every window, so that null is never a valid address.
 const FIRST_OFFSET: u64 = 65536;
 
-pub const CHUNK_BYTES: usize = 65536;
+pub(crate) const CHUNK_BYTES: usize = 65536;
 
 /// One canonical address window per addressable state space.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Window {
+pub(crate) enum Window {
     Global,
     Const,
     Shared,
@@ -101,7 +101,7 @@ impl Window {
 
 // Small state-space addresses have one generic representation in both u32 and u64.
 // Global allocations skip these windows; large state-space offsets use the wide windows.
-pub fn generic_address(address: u64) -> u64 {
+pub(crate) fn generic_address(address: u64) -> u64 {
     let tag = address >> WINDOW_BITS;
     let offset = specific(address);
     if (1..=4).contains(&tag) && offset < COMPACT_WINDOW {
@@ -111,7 +111,7 @@ pub fn generic_address(address: u64) -> u64 {
     }
 }
 
-pub fn canonical_address(address: u64) -> u64 {
+pub(crate) fn canonical_address(address: u64) -> u64 {
     let tag = address >> COMPACT_BITS;
     if (1..=4).contains(&tag) {
         (tag << WINDOW_BITS) | (address & (COMPACT_WINDOW - 1))
@@ -120,11 +120,15 @@ pub fn canonical_address(address: u64) -> u64 {
     }
 }
 
-pub fn specific(address: u64) -> u64 {
+pub(crate) fn specific(address: u64) -> u64 {
     address & (WINDOW_BYTES - 1)
 }
 
-pub fn validate_address_size(address: u64, size: usize, address_size: AddressSize) -> Result<()> {
+pub(crate) fn validate_address_size(
+    address: u64,
+    size: usize,
+    address_size: AddressSize,
+) -> Result<()> {
     if address_size == AddressSize::Bits32 {
         let end = address
             .checked_add(size.saturating_sub(1) as u64)
@@ -141,23 +145,23 @@ pub fn validate_address_size(address: u64, size: usize, address_size: AddressSiz
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Actor {
-    pub grid: GridId,
-    pub cta: usize,
-    pub lane: usize,
+pub(crate) struct Actor {
+    pub(crate) grid: GridId,
+    pub(crate) cta: usize,
+    pub(crate) lane: usize,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub struct GridId(u64);
+pub(crate) struct GridId(u64);
 
 impl GridId {
-    pub fn sequence(self) -> u64 {
+    pub(crate) fn sequence(self) -> u64 {
         self.0
     }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Owner {
+pub(crate) enum Owner {
     Device,
     Cta(GridId, usize),
     Lane(GridId, usize),
@@ -233,7 +237,7 @@ impl DefinedBytes {
     }
 }
 
-pub struct Allocation {
+pub(crate) struct Allocation {
     bytes: Vec<u8>,
     initialized: DefinedBytes,
     writable: bool,
@@ -243,7 +247,7 @@ pub struct Allocation {
     size: usize,
 }
 
-pub struct Memory {
+pub(crate) struct Memory {
     allocations: BTreeMap<u64, Allocation>,
     /// Next free offset of each window.
     windows: [u64; 5],
@@ -581,7 +585,7 @@ impl Memory {
         Ok((base, offset))
     }
 
-    pub fn read(
+    pub(crate) fn read(
         &self,
         address: u64,
         size: usize,
@@ -597,7 +601,7 @@ impl Memory {
         Ok(&allocation.bytes[offset..offset + size])
     }
 
-    pub fn validate_write(
+    pub(crate) fn validate_write(
         &self,
         address: u64,
         size: usize,
@@ -612,7 +616,7 @@ impl Memory {
         Ok(())
     }
 
-    pub fn write(
+    pub(crate) fn write(
         &mut self,
         address: u64,
         bytes: &[u8],
@@ -639,7 +643,7 @@ impl Memory {
     /// Copies `size` bytes between two `.param` objects, as a call or return does.
     ///
     /// Undefined bytes, such as padding, stay undefined in the destination.
-    pub fn copy_parameter(
+    pub(crate) fn copy_parameter(
         &mut self,
         source: u64,
         destination: u64,
@@ -676,7 +680,7 @@ impl Memory {
         Ok(())
     }
 
-    pub fn initialize(&mut self, base: u64, offset: usize, bytes: &[u8]) -> Result<()> {
+    pub(crate) fn initialize(&mut self, base: u64, offset: usize, bytes: &[u8]) -> Result<()> {
         let allocation = self
             .allocations
             .get_mut(&base)

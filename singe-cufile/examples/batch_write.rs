@@ -1,6 +1,5 @@
 use std::{
     env,
-    error::Error,
     fs::{self, File, OpenOptions},
     io::Result as IoResult,
     os::unix::fs::OpenOptionsExt,
@@ -12,7 +11,7 @@ use anyhow::{Result, anyhow};
 use singe_cuda::{context::Context, device::Device, memory::DeviceMemory};
 use singe_cufile::{
     batch::{Batch, BatchCookie, BatchRequest},
-    buffer::RegisteredBuffer,
+    buffer::{IoSlice, RegisteredBuffer},
     driver::Driver,
     file::FileHandle,
     types::BufferRegisterFlags,
@@ -20,9 +19,8 @@ use singe_cufile::{
 
 const CHUNK_SIZE: usize = 4096;
 const MAX_BATCH: usize = 128;
-const O_DIRECT: i32 = 0o40000;
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() -> Result<()> {
     let args: Vec<_> = env::args().collect();
     if args.len() != 4 {
         eprintln!("usage: {} <output-file> <gpu-id> <batch-size>", args[0]);
@@ -33,10 +31,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     let gpu_id = args[2].parse()?;
     let batch_size: usize = args[3].parse()?;
     if !(1..=MAX_BATCH).contains(&batch_size) {
-        return Err(format!("batch size must be in 1..={MAX_BATCH}").into());
+        anyhow::bail!("batch size must be in 1..={MAX_BATCH}");
     }
 
-    let context = Context::retain_primary_for_device(Device::new(gpu_id))?;
+    let context = Context::create_for_device(Device::new(gpu_id))?;
     context.bind()?;
     let driver = Driver::create()?;
 
@@ -45,8 +43,11 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let mut device_buffers = Vec::with_capacity(batch_size);
     for index in 0..batch_size {
-        let buffer =
-            DeviceMemory::<u8>::filled(&context, CHUNK_SIZE, 0xef_u8.wrapping_add(index as u8))?;
+        let buffer = DeviceMemory::<u8>::filled(
+            &context,
+            CHUNK_SIZE,
+            0xef_u8.wrapping_add(u8::try_from(index)?),
+        )?;
         device_buffers.push(buffer);
     }
 
@@ -64,10 +65,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         .map(|(index, buffer)| {
             BatchRequest::write(
                 &output,
-                buffer,
-                CHUNK_SIZE,
+                IoSlice::create(buffer, ..CHUNK_SIZE)?,
                 (index * CHUNK_SIZE) as u64,
-                0,
                 BatchCookie::new(index),
             )
         })
@@ -95,7 +94,7 @@ fn open_direct_write(path: &Path) -> IoResult<File> {
         .write(true)
         .create(true)
         .truncate(true)
-        .custom_flags(O_DIRECT)
+        .custom_flags(libc::O_DIRECT)
         .open(path)
 }
 
@@ -110,7 +109,7 @@ fn verify_pattern_file(path: &Path, batch_size: usize) -> Result<()> {
     }
 
     for index in 0..batch_size {
-        let expected = 0xef_u8.wrapping_add(index as u8);
+        let expected = 0xef_u8.wrapping_add(u8::try_from(index)?);
         let range = index * CHUNK_SIZE..(index + 1) * CHUNK_SIZE;
         if contents[range].iter().any(|byte| *byte != expected) {
             return Err(anyhow!(

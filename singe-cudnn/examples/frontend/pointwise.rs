@@ -4,20 +4,20 @@ use std::env::args;
 
 use singe_cuda::{memory::DeviceMemory, view::OwnedDeviceRegion};
 use singe_cudnn::{
-    backend::{
-        pointwise::PointwiseMode,
+    backend::operation::{
+        pointwise::{Activation, PointwiseMode},
         reduction::ReduceTensorOperator,
-        tensor::{Shape, TensorSpec},
     },
     data_type::{DataType, f8e4m3, f16},
     error::Result,
     frontend::{
         bindings::BindingAccess,
         graph::{DataTypePolicy, Graph, GraphConfig, TensorOutputConfig},
-        operation::{Activation, PointwiseOperation, ReductionAxes, ReductionConfig},
+        operation::{PointwiseOperation, ReductionAxes, ReductionConfig},
         plan::{CompileConfig, ExecuteArgs, HeuristicMode},
     },
     math::NanPropagation,
+    tensor::{Shape, TensorSpec},
 };
 
 fn init_f16_image(size: usize, seed: &mut u32) -> Vec<f16> {
@@ -83,9 +83,9 @@ fn run_index_generation(example: &common::ExampleContext) -> Result<()> {
     bindings.set(indices, &mut indices_dev)?;
     // SAFETY: initialized input, writable indices and workspace remain live through stream completion.
     example.execute_and_wait(|context| unsafe {
-        compiled.execute(
+        compiled.execute_async(
             context,
-            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
         )
     })?;
     Ok(())
@@ -183,9 +183,9 @@ fn run_inferred_activation(example: &common::ExampleContext) -> Result<()> {
     // SAFETY: initialized inputs, byte-addressed boolean predicates, retained writable outputs
     // and workspace remain live through stream completion, including enqueue failure.
     example.execute_and_wait(|context| unsafe {
-        compiled.execute(
+        compiled.execute_async(
             context,
-            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
         )
     })?;
     Ok(())
@@ -245,9 +245,9 @@ fn run_broadcast_select(example: &common::ExampleContext) -> Result<()> {
     // SAFETY: initialized inputs, packed predicate bytes, writable output and workspace
     // retain their declared physical spans through stream completion, including enqueue failure.
     example.execute_and_wait(|context| unsafe {
-        compiled.execute(
+        compiled.execute_async(
             context,
-            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
         )
     })?;
     Ok(())
@@ -305,9 +305,9 @@ fn run_reduction(example: &common::ExampleContext) -> Result<()> {
     bindings.set(c, &mut c_dev)?;
     // SAFETY: initialized input, writable output and workspace remain live through stream completion.
     example.execute_and_wait(|context| unsafe {
-        compiled.execute(
+        compiled.execute_async(
             context,
-            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
         )
     })?;
 
@@ -377,9 +377,9 @@ fn run_fused_scalar(example: &common::ExampleContext) -> Result<()> {
     bindings.set(c, &mut c_dev)?;
     // SAFETY: inputs, writable output and workspace remain live through stream completion.
     example.execute_and_wait(|context| unsafe {
-        compiled.execute(
+        compiled.execute_async(
             context,
-            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
         )
     })?;
 
@@ -448,15 +448,15 @@ fn run_fused_absolute_max_type_conversion(example: &common::ExampleContext) -> R
     bindings.set(c, &mut c_dev)?;
     // SAFETY: read-only inputs, writable outputs and workspace remain live through stream completion.
     example.execute_and_wait(|context| unsafe {
-        compiled.execute(
+        compiled.execute_async(
             context,
-            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
         )
     })?;
 
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_pointwise", run())
 }

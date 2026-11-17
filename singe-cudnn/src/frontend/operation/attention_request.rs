@@ -1,7 +1,6 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    backend::tensor::TensorId,
     error::Result,
     frontend::{
         composite::sdpa::{SdpaForwardOutputTensors, SdpaFp8Inputs, SdpaInputs, SdpaMxfp8Inputs},
@@ -9,6 +8,7 @@ use crate::{
         lower::{LoweredOperation, LoweringContext},
         operation::AttentionConfig,
     },
+    tensor::TensorId,
 };
 
 /// Attention operands retained until preparation chooses a target-specific implementation.
@@ -31,6 +31,24 @@ impl AttentionForwardInputs {
             Self::Fp8(inputs) => [inputs.query, inputs.key, inputs.value],
             Self::Mxfp8(inputs) => [inputs.query, inputs.key, inputs.value],
         }
+    }
+}
+
+impl From<SdpaInputs> for AttentionForwardInputs {
+    fn from(inputs: SdpaInputs) -> Self {
+        Self::Floating(inputs)
+    }
+}
+
+impl From<SdpaFp8Inputs> for AttentionForwardInputs {
+    fn from(inputs: SdpaFp8Inputs) -> Self {
+        Self::Fp8(inputs)
+    }
+}
+
+impl From<SdpaMxfp8Inputs> for AttentionForwardInputs {
+    fn from(inputs: SdpaMxfp8Inputs) -> Self {
+        Self::Mxfp8(inputs)
     }
 }
 

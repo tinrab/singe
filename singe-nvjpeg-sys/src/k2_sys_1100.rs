@@ -157,90 +157,66 @@ impl Default for nvjpeg2kDeviceAllocatorV2 {
 ///
 /// Allows the user to provide device allocators which accept CUDA streams and user context. Extended device allocators can be passed as input to the library using [`nvjpeg2kCreateV2`].
 pub type nvjpeg2kDeviceAllocatorV2_t = nvjpeg2kDeviceAllocatorV2;
-/// Return status codes for nvJPEG2000 APIs.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum nvjpeg2kStatus_t {
+impl nvjpeg2kStatus_t {
     /// The API call finished successfully. Note that many calls are asynchronous and some errors may only appear after synchronization.
-    NVJPEG2K_STATUS_SUCCESS = 0,
+    pub const NVJPEG2K_STATUS_SUCCESS: nvjpeg2kStatus_t = nvjpeg2kStatus_t(0);
     /// The library handle was not initialized.
-    NVJPEG2K_STATUS_NOT_INITIALIZED = 1,
+    pub const NVJPEG2K_STATUS_NOT_INITIALIZED: nvjpeg2kStatus_t = nvjpeg2kStatus_t(1);
     /// Wrong parameter was passed. For example, a null pointer as input data, or an invalid enum value.
-    NVJPEG2K_STATUS_INVALID_PARAMETER = 2,
+    pub const NVJPEG2K_STATUS_INVALID_PARAMETER: nvjpeg2kStatus_t = nvjpeg2kStatus_t(2);
     /// Cannot parse the JPEG2000 stream. Likely due to a corruption that cannot be handled.
-    NVJPEG2K_STATUS_BAD_JPEG = 3,
+    pub const NVJPEG2K_STATUS_BAD_JPEG: nvjpeg2kStatus_t = nvjpeg2kStatus_t(3);
     /// Attempting to decode a JPEG2000 stream that is not supported by the nvJPEG2000 library.
-    NVJPEG2K_STATUS_JPEG_NOT_SUPPORTED = 4,
+    pub const NVJPEG2K_STATUS_JPEG_NOT_SUPPORTED: nvjpeg2kStatus_t = nvjpeg2kStatus_t(4);
     /// The user-provided allocator functions, for either memory allocation or for releasing the memory, returned a non-zero code.
-    NVJPEG2K_STATUS_ALLOCATOR_FAILURE = 5,
+    pub const NVJPEG2K_STATUS_ALLOCATOR_FAILURE: nvjpeg2kStatus_t = nvjpeg2kStatus_t(5);
     /// Error during the execution of the device tasks.
-    NVJPEG2K_STATUS_EXECUTION_FAILED = 6,
+    pub const NVJPEG2K_STATUS_EXECUTION_FAILED: nvjpeg2kStatus_t = nvjpeg2kStatus_t(6);
     /// The device capabilities are not enough for the set of input parameters provided.
-    NVJPEG2K_STATUS_ARCH_MISMATCH = 7,
+    pub const NVJPEG2K_STATUS_ARCH_MISMATCH: nvjpeg2kStatus_t = nvjpeg2kStatus_t(7);
     /// Unknown error occurred in the library.
-    NVJPEG2K_STATUS_INTERNAL_ERROR = 8,
+    pub const NVJPEG2K_STATUS_INTERNAL_ERROR: nvjpeg2kStatus_t = nvjpeg2kStatus_t(8);
     /// API is not supported by the backend.
-    NVJPEG2K_STATUS_IMPLEMENTATION_NOT_SUPPORTED = 9,
+    pub const NVJPEG2K_STATUS_IMPLEMENTATION_NOT_SUPPORTED: nvjpeg2kStatus_t = nvjpeg2kStatus_t(
+        9,
+    );
+}
+/// Return status codes for nvJPEG2000 APIs.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct nvjpeg2kStatus_t(pub ::core::ffi::c_uint);
+impl nvjpeg2kBackend_t {
+    /// Default backend implementation.
+    pub const NVJPEG2K_BACKEND_DEFAULT: nvjpeg2kBackend_t = nvjpeg2kBackend_t(0);
 }
 /// Backend selection for the nvJPEG2000 library.
 ///
 /// Allows the user to select a different internal implementation. A single implementation is currently supported. Additional implementations may be added in the future.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum nvjpeg2kBackend_t {
-    /// Default backend implementation.
-    NVJPEG2K_BACKEND_DEFAULT = 0,
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct nvjpeg2kBackend_t(pub ::core::ffi::c_uint);
+impl nvjpeg2kColorSpace_t {
+    /// Color space is not supported.
+    pub const NVJPEG2K_COLORSPACE_NOT_SUPPORTED: nvjpeg2kColorSpace_t = nvjpeg2kColorSpace_t(
+        -1,
+    );
+    /// Color space is unknown.
+    pub const NVJPEG2K_COLORSPACE_UNKNOWN: nvjpeg2kColorSpace_t = nvjpeg2kColorSpace_t(
+        0,
+    );
+    /// sRGB color space.
+    pub const NVJPEG2K_COLORSPACE_SRGB: nvjpeg2kColorSpace_t = nvjpeg2kColorSpace_t(1);
+    /// Grayscale.
+    pub const NVJPEG2K_COLORSPACE_GRAY: nvjpeg2kColorSpace_t = nvjpeg2kColorSpace_t(2);
+    /// sYCC color space.
+    pub const NVJPEG2K_COLORSPACE_SYCC: nvjpeg2kColorSpace_t = nvjpeg2kColorSpace_t(3);
 }
 /// Color space values for JP2 files.
 ///
 /// Corresponds to the colorspace values which are part of the JP2 file format specification.
-#[repr(i32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum nvjpeg2kColorSpace_t {
-    /// Color space is not supported.
-    NVJPEG2K_COLORSPACE_NOT_SUPPORTED = -1,
-    /// Color space is unknown.
-    NVJPEG2K_COLORSPACE_UNKNOWN = 0,
-    /// sRGB color space.
-    NVJPEG2K_COLORSPACE_SRGB = 1,
-    /// Grayscale.
-    NVJPEG2K_COLORSPACE_GRAY = 2,
-    /// sYCC color space.
-    NVJPEG2K_COLORSPACE_SYCC = 3,
-}
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct nvjpeg2kColorSpace_t(pub ::core::ffi::c_int);
 /// Per-component image information.
 ///
 /// Used to retrieve component level information. This information can be used for allocating output buffers.
@@ -256,17 +232,18 @@ pub struct nvjpeg2kImageComponentInfo_t {
     /// 1 if the component samples are signed, 0 otherwise.
     pub sgn: u8,
 }
+impl nvjpeg2kNLTType {
+    /// Component has no NLT marker (or marker with Tnlt=0).
+    pub const NVJPEG2K_NLT_NONE: nvjpeg2kNLTType = nvjpeg2kNLTType(0);
+    /// Signed-magnitude binary complement (Tnlt=3).
+    pub const NVJPEG2K_NLT_TYPE3: nvjpeg2kNLTType = nvjpeg2kNLTType(3);
+}
 /// Nonlinear transformation (NLT marker) type.
 ///
 /// Identifies which NLT type, per ISO/IEC 15444-2 Annex A.4.10, applies to a component. Tnlt = 1 (BT.709) and Tnlt = 2 (LUT) are reserved for future support; encountering them in a bitstream produces an `::NVJPEG2K_STATUS_NOT_SUPPORTED` parse error today.
-#[repr(u32)]
+#[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum nvjpeg2kNLTType {
-    /// Component has no NLT marker (or marker with Tnlt=0).
-    NVJPEG2K_NLT_NONE = 0,
-    /// Signed-magnitude binary complement (Tnlt=3).
-    NVJPEG2K_NLT_TYPE3 = 3,
-}
+pub struct nvjpeg2kNLTType(pub ::core::ffi::c_uint);
 pub use self::nvjpeg2kNLTType as nvjpeg2kNLTType_t;
 /// Per-component NLT marker information.
 ///
@@ -313,54 +290,36 @@ pub struct nvjpeg2kImageInfo_t {
     /// Number of image components.
     pub num_components: u32,
 }
-/// Pixel data types supported by nvJPEG2000.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum nvjpeg2kImageType_t {
+impl nvjpeg2kImageType_t {
     /// Unsigned 8-bit integer.
-    NVJPEG2K_UINT8 = 0,
+    pub const NVJPEG2K_UINT8: nvjpeg2kImageType_t = nvjpeg2kImageType_t(0);
     /// Unsigned 16-bit integer.
-    NVJPEG2K_UINT16 = 1,
+    pub const NVJPEG2K_UINT16: nvjpeg2kImageType_t = nvjpeg2kImageType_t(1);
     /// Signed 16-bit integer.
-    NVJPEG2K_INT16 = 2,
+    pub const NVJPEG2K_INT16: nvjpeg2kImageType_t = nvjpeg2kImageType_t(2);
     /// IEEE-754 binary16. Requires NLT type 3 on every component with `BDnlt` = 16.
-    NVJPEG2K_FP16 = 3,
+    pub const NVJPEG2K_FP16: nvjpeg2kImageType_t = nvjpeg2kImageType_t(3);
     /// IEEE-754 binary32. Requires NLT type 3 on every component with `BDnlt` ∈ {16, 32}. `BDnlt` = 16 components are promoted via `__half2float`; `BDnlt` = 32 components are bit-reinterpreted as `float`.
-    NVJPEG2K_FP32 = 4,
+    pub const NVJPEG2K_FP32: nvjpeg2kImageType_t = nvjpeg2kImageType_t(4);
+}
+/// Pixel data types supported by nvJPEG2000.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct nvjpeg2kImageType_t(pub ::core::ffi::c_uint);
+impl nvjpeg2kImageFormat_t {
+    /// All components are stored in separate planes.
+    pub const NVJPEG2K_FORMAT_PLANAR: nvjpeg2kImageFormat_t = nvjpeg2kImageFormat_t(0);
+    /// All components are stored in interleaved order. Not supported when component dimensions differ.
+    pub const NVJPEG2K_FORMAT_INTERLEAVED: nvjpeg2kImageFormat_t = nvjpeg2kImageFormat_t(
+        1,
+    );
 }
 /// Image memory layout format.
 ///
 /// Describes how an image is stored in memory.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum nvjpeg2kImageFormat_t {
-    /// All components are stored in separate planes.
-    NVJPEG2K_FORMAT_PLANAR = 0,
-    /// All components are stored in interleaved order. Not supported when component dimensions differ.
-    NVJPEG2K_FORMAT_INTERLEAVED = 1,
-}
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct nvjpeg2kImageFormat_t(pub ::core::ffi::c_uint);
 /// Image container for decode/encode operations.
 ///
 /// Contains an array of pointers, one per component, and a corresponding array of pitch values. `pixel_type` determines the data type of `pixel_data`.
@@ -385,33 +344,35 @@ impl Default for nvjpeg2kImage_t {
         }
     }
 }
-/// Progression orders defined in the JPEG2000 standard.
-#[repr(u32)]
-#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum nvjpeg2kProgOrder {
+impl nvjpeg2kProgOrder {
     /// Layer-Resolution-Component-Position.
-    NVJPEG2K_LRCP = 0,
+    pub const NVJPEG2K_LRCP: nvjpeg2kProgOrder = nvjpeg2kProgOrder(0);
     /// Resolution-Layer-Component-Position.
-    NVJPEG2K_RLCP = 1,
+    pub const NVJPEG2K_RLCP: nvjpeg2kProgOrder = nvjpeg2kProgOrder(1);
     /// Resolution-Position-Component-Layer.
-    NVJPEG2K_RPCL = 2,
+    pub const NVJPEG2K_RPCL: nvjpeg2kProgOrder = nvjpeg2kProgOrder(2);
     /// Position-Component-Resolution-Layer.
-    NVJPEG2K_PCRL = 3,
+    pub const NVJPEG2K_PCRL: nvjpeg2kProgOrder = nvjpeg2kProgOrder(3);
     /// Component-Position-Resolution-Layer.
-    NVJPEG2K_CPRL = 4,
+    pub const NVJPEG2K_CPRL: nvjpeg2kProgOrder = nvjpeg2kProgOrder(4);
 }
+/// Progression orders defined in the JPEG2000 standard.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct nvjpeg2kProgOrder(pub ::core::ffi::c_uint);
 pub use self::nvjpeg2kProgOrder as nvjpeg2kProgOrder_t;
+impl nvjpeg2kBitstreamType {
+    /// JPEG2000 codestream (.j2k).
+    pub const NVJPEG2K_STREAM_J2K: nvjpeg2kBitstreamType = nvjpeg2kBitstreamType(0);
+    /// JP2 container (.jp2).
+    pub const NVJPEG2K_STREAM_JP2: nvjpeg2kBitstreamType = nvjpeg2kBitstreamType(1);
+}
 /// JPEG2000 bitstream type.
 ///
 /// `::NVJPEG2K_STREAM_J2K` corresponds to the JPEG2000 codestream. `::NVJPEG2K_STREAM_JP2` corresponds to the .jp2 container.
-#[repr(u32)]
+#[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum nvjpeg2kBitstreamType {
-    /// JPEG2000 codestream (.j2k).
-    NVJPEG2K_STREAM_J2K = 0,
-    /// JP2 container (.jp2).
-    NVJPEG2K_STREAM_JP2 = 1,
-}
+pub struct nvjpeg2kBitstreamType(pub ::core::ffi::c_uint);
 pub use self::nvjpeg2kBitstreamType as nvjpeg2kBitstreamType_t;
 /// JPEG2000 encode configuration.
 ///
@@ -475,19 +436,26 @@ impl Default for nvjpeg2kEncodeConfig_t {
         }
     }
 }
+impl nvjpeg2kQualityType {
+    /// Quality value is interpreted as desired Peak Signal-to-Noise Ratio (PSNR) target. The higher the value, the better quality image is produced. Quality value should be positive floating point. Cannot be used with HT encoder.
+    pub const NVJPEG2K_QUALITY_TYPE_TARGET_PSNR: nvjpeg2kQualityType = nvjpeg2kQualityType(
+        0,
+    );
+    /// Quality value is interpreted as quantization step (by how much pixel data will be divided). The higher the value, the worse quality image is produced. Quality value should be positive floating point.
+    pub const NVJPEG2K_QUALITY_TYPE_QUANTIZATION_STEP: nvjpeg2kQualityType = nvjpeg2kQualityType(
+        1,
+    );
+    /// Quality value is interpreted as JPEG-like quality factor (1.0 worst to 100.0 best). Can only be used when the input colorspace is YCC, Grayscale, or RGB with MCT enabled.
+    pub const NVJPEG2K_QUALITY_TYPE_Q_FACTOR: nvjpeg2kQualityType = nvjpeg2kQualityType(
+        2,
+    );
+}
 /// Quality type selection for lossy encoding.
 ///
 /// Can be used with [`nvjpeg2kEncodeParamsSpecifyQuality`].
-#[repr(u32)]
+#[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum nvjpeg2kQualityType {
-    /// Quality value is interpreted as desired Peak Signal-to-Noise Ratio (PSNR) target. The higher the value, the better quality image is produced. Quality value should be positive floating point. Cannot be used with HT encoder.
-    NVJPEG2K_QUALITY_TYPE_TARGET_PSNR = 0,
-    /// Quality value is interpreted as quantization step (by how much pixel data will be divided). The higher the value, the worse quality image is produced. Quality value should be positive floating point.
-    NVJPEG2K_QUALITY_TYPE_QUANTIZATION_STEP = 1,
-    /// Quality value is interpreted as JPEG-like quality factor (1.0 worst to 100.0 best). Can only be used when the input colorspace is YCC, Grayscale, or RGB with MCT enabled.
-    NVJPEG2K_QUALITY_TYPE_Q_FACTOR = 2,
-}
+pub struct nvjpeg2kQualityType(pub ::core::ffi::c_uint);
 pub use self::nvjpeg2kQualityType as nvjpeg2kQualityType_t;
 /// Opaque nvJPEG2000 library handle.
 #[repr(C)]

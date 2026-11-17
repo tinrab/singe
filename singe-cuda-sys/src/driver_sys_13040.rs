@@ -406,405 +406,392 @@ impl Default for CUipcMemHandle_st {
 pub type CUipcMemHandle_v1 = CUipcMemHandle_st;
 /// CUDA IPC mem handle
 pub type CUipcMemHandle = CUipcMemHandle_v1;
-/// CUDA Ipc Mem Flags
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUipcMem_flags_enum {
+impl CUipcMem_flags_enum {
     /// Automatically enable peer access between remote devices as needed.
-    CU_IPC_MEM_LAZY_ENABLE_PEER_ACCESS = 1,
+    pub const CU_IPC_MEM_LAZY_ENABLE_PEER_ACCESS: CUipcMem_flags_enum = CUipcMem_flags_enum(
+        1,
+    );
 }
+/// CUDA Ipc Mem Flags
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUipcMem_flags_enum(pub ::core::ffi::c_uint);
 pub use self::CUipcMem_flags_enum as CUipcMem_flags;
-/// CUDA Mem Attach Flags
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUmemAttach_flags_enum {
+impl CUmemAttach_flags_enum {
     /// Memory can be accessed by any stream on any device.
-    CU_MEM_ATTACH_GLOBAL = 1,
+    pub const CU_MEM_ATTACH_GLOBAL: CUmemAttach_flags_enum = CUmemAttach_flags_enum(1);
     /// Memory cannot be accessed by any stream on any device.
-    CU_MEM_ATTACH_HOST = 2,
+    pub const CU_MEM_ATTACH_HOST: CUmemAttach_flags_enum = CUmemAttach_flags_enum(2);
     /// Memory can only be accessed by a single stream on the associated device.
-    CU_MEM_ATTACH_SINGLE = 4,
+    pub const CU_MEM_ATTACH_SINGLE: CUmemAttach_flags_enum = CUmemAttach_flags_enum(4);
 }
+/// CUDA Mem Attach Flags
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUmemAttach_flags_enum(pub ::core::ffi::c_uint);
 pub use self::CUmemAttach_flags_enum as CUmemAttach_flags;
 impl CUctx_flags_enum {
+    /// Automatic scheduling.
+    pub const CU_CTX_SCHED_AUTO: CUctx_flags_enum = CUctx_flags_enum(0);
+    /// Set spin as default scheduling.
+    pub const CU_CTX_SCHED_SPIN: CUctx_flags_enum = CUctx_flags_enum(1);
+    /// Set yield as default scheduling.
+    pub const CU_CTX_SCHED_YIELD: CUctx_flags_enum = CUctx_flags_enum(2);
     /// Set blocking synchronization as default scheduling.
-    pub const CU_CTX_BLOCKING_SYNC: CUctx_flags_enum = CUctx_flags_enum::CU_CTX_SCHED_BLOCKING_SYNC;
+    pub const CU_CTX_SCHED_BLOCKING_SYNC: CUctx_flags_enum = CUctx_flags_enum(4);
+    /// Set blocking synchronization as default scheduling.
+    pub const CU_CTX_BLOCKING_SYNC: CUctx_flags_enum = CUctx_flags_enum(4);
+    /// Mask of the context scheduling-policy bits.
+    pub const CU_CTX_SCHED_MASK: CUctx_flags_enum = CUctx_flags_enum(7);
+    /// Deprecated: This flag was deprecated as of CUDA 11.0 and it no longer has any effect. All contexts as of CUDA 3.2 behave as though the flag is enabled.
+    pub const CU_CTX_MAP_HOST: CUctx_flags_enum = CUctx_flags_enum(8);
+    /// Keep local memory allocation after launch.
+    pub const CU_CTX_LMEM_RESIZE_TO_MAX: CUctx_flags_enum = CUctx_flags_enum(16);
+    /// Trigger coredumps from exceptions in this context.
+    pub const CU_CTX_COREDUMP_ENABLE: CUctx_flags_enum = CUctx_flags_enum(32);
+    /// Enable user pipe to trigger coredumps in this context.
+    pub const CU_CTX_USER_COREDUMP_ENABLE: CUctx_flags_enum = CUctx_flags_enum(64);
+    /// Ensure synchronous memory operations on this context will synchronize.
+    pub const CU_CTX_SYNC_MEMOPS: CUctx_flags_enum = CUctx_flags_enum(128);
+    /// Mask of the context flag bits defined by this ABI.
+    pub const CU_CTX_FLAGS_MASK: CUctx_flags_enum = CUctx_flags_enum(255);
 }
 /// Context creation flags
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUctx_flags_enum {
-    /// Automatic scheduling.
-    CU_CTX_SCHED_AUTO = 0,
-    /// Set spin as default scheduling.
-    CU_CTX_SCHED_SPIN = 1,
-    /// Set yield as default scheduling.
-    CU_CTX_SCHED_YIELD = 2,
-    /// Set blocking synchronization as default scheduling.
-    CU_CTX_SCHED_BLOCKING_SYNC = 4,
-    /// Mask of the context scheduling-policy bits.
-    CU_CTX_SCHED_MASK = 7,
-    /// Deprecated: This flag was deprecated as of CUDA 11.0 and it no longer has any effect. All contexts as of CUDA 3.2 behave as though the flag is enabled.
-    CU_CTX_MAP_HOST = 8,
-    /// Keep local memory allocation after launch.
-    CU_CTX_LMEM_RESIZE_TO_MAX = 16,
-    /// Trigger coredumps from exceptions in this context.
-    CU_CTX_COREDUMP_ENABLE = 32,
-    /// Enable user pipe to trigger coredumps in this context.
-    CU_CTX_USER_COREDUMP_ENABLE = 64,
-    /// Ensure synchronous memory operations on this context will synchronize.
-    CU_CTX_SYNC_MEMOPS = 128,
-    /// Mask of the context flag bits defined by this ABI.
-    CU_CTX_FLAGS_MASK = 255,
-}
-pub use self::CUctx_flags_enum as CUctx_flags;
-/// Event sched flags
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUevent_sched_flags_enum {
-    /// Automatic scheduling.
-    CU_EVENT_SCHED_AUTO = 0,
-    /// Set spin as default scheduling.
-    CU_EVENT_SCHED_SPIN = 1,
-    /// Set yield as default scheduling.
-    CU_EVENT_SCHED_YIELD = 2,
-    /// Set blocking synchronization as default scheduling.
-    CU_EVENT_SCHED_BLOCKING_SYNC = 4,
-}
-pub use self::CUevent_sched_flags_enum as CUevent_sched_flags;
-/// Host task synchronization mode
-#[repr(u32)]
+#[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum CUhostTaskSyncMode_enum {
+pub struct CUctx_flags_enum(pub ::core::ffi::c_uint);
+pub use self::CUctx_flags_enum as CUctx_flags;
+impl CUevent_sched_flags_enum {
+    /// Automatic scheduling.
+    pub const CU_EVENT_SCHED_AUTO: CUevent_sched_flags_enum = CUevent_sched_flags_enum(
+        0,
+    );
+    /// Set spin as default scheduling.
+    pub const CU_EVENT_SCHED_SPIN: CUevent_sched_flags_enum = CUevent_sched_flags_enum(
+        1,
+    );
+    /// Set yield as default scheduling.
+    pub const CU_EVENT_SCHED_YIELD: CUevent_sched_flags_enum = CUevent_sched_flags_enum(
+        2,
+    );
+    /// Set blocking synchronization as default scheduling.
+    pub const CU_EVENT_SCHED_BLOCKING_SYNC: CUevent_sched_flags_enum = CUevent_sched_flags_enum(
+        4,
+    );
+}
+/// Event sched flags
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUevent_sched_flags_enum(pub ::core::ffi::c_uint);
+pub use self::CUevent_sched_flags_enum as CUevent_sched_flags;
+impl CUhostTaskSyncMode_enum {
     /// The execution thread will block until new host tasks are ready to run.
-    CU_HOST_TASK_BLOCKING = 0,
+    pub const CU_HOST_TASK_BLOCKING: CUhostTaskSyncMode_enum = CUhostTaskSyncMode_enum(
+        0,
+    );
     /// The execution thread will spin wait until new host tasks are ready to run.
-    CU_HOST_TASK_SPINWAIT = 1,
+    pub const CU_HOST_TASK_SPINWAIT: CUhostTaskSyncMode_enum = CUhostTaskSyncMode_enum(
+        1,
+    );
 }
+/// Host task synchronization mode
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUhostTaskSyncMode_enum(pub ::core::ffi::c_uint);
 pub use self::CUhostTaskSyncMode_enum as CUhostTaskSyncMode;
-/// Stream creation flags
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUstream_flags_enum {
+impl CUstream_flags_enum {
     /// Default stream flag.
-    CU_STREAM_DEFAULT = 0,
+    pub const CU_STREAM_DEFAULT: CUstream_flags_enum = CUstream_flags_enum(0);
     /// Stream does not synchronize with stream 0 (the NULL stream).
-    CU_STREAM_NON_BLOCKING = 1,
+    pub const CU_STREAM_NON_BLOCKING: CUstream_flags_enum = CUstream_flags_enum(1);
 }
+/// Stream creation flags
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUstream_flags_enum(pub ::core::ffi::c_uint);
 pub use self::CUstream_flags_enum as CUstream_flags;
-/// Event creation flags
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUevent_flags_enum {
+impl CUevent_flags_enum {
     /// Default event flag.
-    CU_EVENT_DEFAULT = 0,
+    pub const CU_EVENT_DEFAULT: CUevent_flags_enum = CUevent_flags_enum(0);
     /// Event uses blocking synchronization.
-    CU_EVENT_BLOCKING_SYNC = 1,
+    pub const CU_EVENT_BLOCKING_SYNC: CUevent_flags_enum = CUevent_flags_enum(1);
     /// Event will not record timing data.
-    CU_EVENT_DISABLE_TIMING = 2,
+    pub const CU_EVENT_DISABLE_TIMING: CUevent_flags_enum = CUevent_flags_enum(2);
     /// Event is suitable for interprocess use.
     ///
     /// [`CUevent_flags::CU_EVENT_DISABLE_TIMING`] must be set.
-    CU_EVENT_INTERPROCESS = 4,
+    pub const CU_EVENT_INTERPROCESS: CUevent_flags_enum = CUevent_flags_enum(4);
 }
+/// Event creation flags
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUevent_flags_enum(pub ::core::ffi::c_uint);
 pub use self::CUevent_flags_enum as CUevent_flags;
-/// Event record flags
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUevent_record_flags_enum {
+impl CUevent_record_flags_enum {
     /// Default event record flag.
-    CU_EVENT_RECORD_DEFAULT = 0,
+    pub const CU_EVENT_RECORD_DEFAULT: CUevent_record_flags_enum = CUevent_record_flags_enum(
+        0,
+    );
     /// When using stream capture, create an event record node instead of the default behavior.
     ///
     /// This flag is invalid when used outside of capture.
-    CU_EVENT_RECORD_EXTERNAL = 1,
+    pub const CU_EVENT_RECORD_EXTERNAL: CUevent_record_flags_enum = CUevent_record_flags_enum(
+        1,
+    );
 }
+/// Event record flags
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUevent_record_flags_enum(pub ::core::ffi::c_uint);
 pub use self::CUevent_record_flags_enum as CUevent_record_flags;
-/// Event wait flags
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUevent_wait_flags_enum {
+impl CUevent_wait_flags_enum {
     /// Default event wait flag.
-    CU_EVENT_WAIT_DEFAULT = 0,
+    pub const CU_EVENT_WAIT_DEFAULT: CUevent_wait_flags_enum = CUevent_wait_flags_enum(
+        0,
+    );
     /// When using stream capture, create an event wait node instead of the default behavior.
     ///
     /// This flag is invalid when used outside of capture.
-    CU_EVENT_WAIT_EXTERNAL = 1,
+    pub const CU_EVENT_WAIT_EXTERNAL: CUevent_wait_flags_enum = CUevent_wait_flags_enum(
+        1,
+    );
 }
+/// Event wait flags
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUevent_wait_flags_enum(pub ::core::ffi::c_uint);
 pub use self::CUevent_wait_flags_enum as CUevent_wait_flags;
-/// CUDA-valid Atomic Operations
-#[repr(u32)]
-#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum CUatomicOperation_enum {
+impl CUatomicOperation_enum {
     /// Atomic integer addition.
-    CU_ATOMIC_OPERATION_INTEGER_ADD = 0,
+    pub const CU_ATOMIC_OPERATION_INTEGER_ADD: CUatomicOperation_enum = CUatomicOperation_enum(
+        0,
+    );
     /// Atomic integer minimum.
-    CU_ATOMIC_OPERATION_INTEGER_MIN = 1,
+    pub const CU_ATOMIC_OPERATION_INTEGER_MIN: CUatomicOperation_enum = CUatomicOperation_enum(
+        1,
+    );
     /// Atomic integer maximum.
-    CU_ATOMIC_OPERATION_INTEGER_MAX = 2,
+    pub const CU_ATOMIC_OPERATION_INTEGER_MAX: CUatomicOperation_enum = CUatomicOperation_enum(
+        2,
+    );
     /// Atomic integer increment.
-    CU_ATOMIC_OPERATION_INTEGER_INCREMENT = 3,
+    pub const CU_ATOMIC_OPERATION_INTEGER_INCREMENT: CUatomicOperation_enum = CUatomicOperation_enum(
+        3,
+    );
     /// Atomic integer decrement.
-    CU_ATOMIC_OPERATION_INTEGER_DECREMENT = 4,
+    pub const CU_ATOMIC_OPERATION_INTEGER_DECREMENT: CUatomicOperation_enum = CUatomicOperation_enum(
+        4,
+    );
     /// Atomic bitwise AND.
-    CU_ATOMIC_OPERATION_AND = 5,
+    pub const CU_ATOMIC_OPERATION_AND: CUatomicOperation_enum = CUatomicOperation_enum(
+        5,
+    );
     /// Atomic bitwise OR.
-    CU_ATOMIC_OPERATION_OR = 6,
+    pub const CU_ATOMIC_OPERATION_OR: CUatomicOperation_enum = CUatomicOperation_enum(6);
     /// Atomic bitwise exclusive OR.
-    CU_ATOMIC_OPERATION_XOR = 7,
+    pub const CU_ATOMIC_OPERATION_XOR: CUatomicOperation_enum = CUatomicOperation_enum(
+        7,
+    );
     /// Atomic exchange of the stored value.
-    CU_ATOMIC_OPERATION_EXCHANGE = 8,
+    pub const CU_ATOMIC_OPERATION_EXCHANGE: CUatomicOperation_enum = CUatomicOperation_enum(
+        8,
+    );
     /// Atomic compare-and-swap.
-    CU_ATOMIC_OPERATION_CAS = 9,
+    pub const CU_ATOMIC_OPERATION_CAS: CUatomicOperation_enum = CUatomicOperation_enum(
+        9,
+    );
     /// Atomic floating-point addition.
-    CU_ATOMIC_OPERATION_FLOAT_ADD = 10,
+    pub const CU_ATOMIC_OPERATION_FLOAT_ADD: CUatomicOperation_enum = CUatomicOperation_enum(
+        10,
+    );
     /// Atomic floating-point minimum.
-    CU_ATOMIC_OPERATION_FLOAT_MIN = 11,
+    pub const CU_ATOMIC_OPERATION_FLOAT_MIN: CUatomicOperation_enum = CUatomicOperation_enum(
+        11,
+    );
     /// Atomic floating-point maximum.
-    CU_ATOMIC_OPERATION_FLOAT_MAX = 12,
+    pub const CU_ATOMIC_OPERATION_FLOAT_MAX: CUatomicOperation_enum = CUatomicOperation_enum(
+        12,
+    );
     /// End marker for the native atomic-operation identifiers.
-    CU_ATOMIC_OPERATION_MAX = 13,
+    pub const CU_ATOMIC_OPERATION_MAX: CUatomicOperation_enum = CUatomicOperation_enum(
+        13,
+    );
 }
-pub use self::CUatomicOperation_enum as CUatomicOperation;
-/// CUDA-valid Atomic Operation capabilities
-#[repr(u32)]
+/// CUDA-valid Atomic Operations
+#[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum CUatomicOperationCapability_enum {
+pub struct CUatomicOperation_enum(pub ::core::ffi::c_uint);
+pub use self::CUatomicOperation_enum as CUatomicOperation;
+impl CUatomicOperationCapability_enum {
     /// Supports signed integer operands.
-    CU_ATOMIC_CAPABILITY_SIGNED = 1,
+    pub const CU_ATOMIC_CAPABILITY_SIGNED: CUatomicOperationCapability_enum = CUatomicOperationCapability_enum(
+        1,
+    );
     /// Supports unsigned integer operands.
-    CU_ATOMIC_CAPABILITY_UNSIGNED = 2,
+    pub const CU_ATOMIC_CAPABILITY_UNSIGNED: CUatomicOperationCapability_enum = CUatomicOperationCapability_enum(
+        2,
+    );
     /// Supports reduction operations.
-    CU_ATOMIC_CAPABILITY_REDUCTION = 4,
+    pub const CU_ATOMIC_CAPABILITY_REDUCTION: CUatomicOperationCapability_enum = CUatomicOperationCapability_enum(
+        4,
+    );
     /// Supports 32-bit scalar operands.
-    CU_ATOMIC_CAPABILITY_SCALAR_32 = 8,
+    pub const CU_ATOMIC_CAPABILITY_SCALAR_32: CUatomicOperationCapability_enum = CUatomicOperationCapability_enum(
+        8,
+    );
     /// Supports 64-bit scalar operands.
-    CU_ATOMIC_CAPABILITY_SCALAR_64 = 16,
+    pub const CU_ATOMIC_CAPABILITY_SCALAR_64: CUatomicOperationCapability_enum = CUatomicOperationCapability_enum(
+        16,
+    );
     /// Supports 128-bit scalar operands.
-    CU_ATOMIC_CAPABILITY_SCALAR_128 = 32,
+    pub const CU_ATOMIC_CAPABILITY_SCALAR_128: CUatomicOperationCapability_enum = CUatomicOperationCapability_enum(
+        32,
+    );
     /// Supports vectors of four 32-bit components.
-    CU_ATOMIC_CAPABILITY_VECTOR_32x4 = 64,
+    pub const CU_ATOMIC_CAPABILITY_VECTOR_32x4: CUatomicOperationCapability_enum = CUatomicOperationCapability_enum(
+        64,
+    );
 }
+/// CUDA-valid Atomic Operation capabilities
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUatomicOperationCapability_enum(pub ::core::ffi::c_uint);
 pub use self::CUatomicOperationCapability_enum as CUatomicOperationCapability;
-/// Flags for ::cuStreamWaitValue32 and ::cuStreamWaitValue64
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUstreamWaitValue_flags_enum {
+impl CUstreamWaitValue_flags_enum {
     /// Wait until (int32_t)(\*addr - value) >= 0 (or int64_t for 64 bit values).
     ///
     /// Note this is a cyclic comparison which ignores wraparound. (Default behavior.)
-    CU_STREAM_WAIT_VALUE_GEQ = 0,
+    pub const CU_STREAM_WAIT_VALUE_GEQ: CUstreamWaitValue_flags_enum = CUstreamWaitValue_flags_enum(
+        0,
+    );
     /// Wait until \*addr == value.
-    CU_STREAM_WAIT_VALUE_EQ = 1,
+    pub const CU_STREAM_WAIT_VALUE_EQ: CUstreamWaitValue_flags_enum = CUstreamWaitValue_flags_enum(
+        1,
+    );
     /// Wait until (\*addr & value) != 0.
-    CU_STREAM_WAIT_VALUE_AND = 2,
+    pub const CU_STREAM_WAIT_VALUE_AND: CUstreamWaitValue_flags_enum = CUstreamWaitValue_flags_enum(
+        2,
+    );
     /// Wait until ~(\*addr | value) != 0.
     ///
     /// Support for this operation can be queried with [`cuDeviceGetAttribute`] and [`CUdevice_attribute_enum::CU_DEVICE_ATTRIBUTE_CAN_USE_STREAM_WAIT_VALUE_NOR`].
-    CU_STREAM_WAIT_VALUE_NOR = 3,
+    pub const CU_STREAM_WAIT_VALUE_NOR: CUstreamWaitValue_flags_enum = CUstreamWaitValue_flags_enum(
+        3,
+    );
     /// Follow the wait operation with a flush of outstanding remote writes.
     ///
     /// This means that, if a remote write operation is guaranteed to have reached the device before the wait can be satisfied, that write is guaranteed to be visible to downstream device work. The device is permitted to reorder remote writes internally. For example, this flag would be required if two remote writes arrive in a defined order, the wait is satisfied by the second write, and downstream work needs to observe the first write. Support for this operation is restricted to selected platforms and can be queried with [`CUdevice_attribute_enum::CU_DEVICE_ATTRIBUTE_CAN_FLUSH_REMOTE_WRITES`].
-    CU_STREAM_WAIT_VALUE_FLUSH = 1073741824,
+    pub const CU_STREAM_WAIT_VALUE_FLUSH: CUstreamWaitValue_flags_enum = CUstreamWaitValue_flags_enum(
+        1073741824,
+    );
 }
+/// Flags for ::cuStreamWaitValue32 and ::cuStreamWaitValue64
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUstreamWaitValue_flags_enum(pub ::core::ffi::c_uint);
 pub use self::CUstreamWaitValue_flags_enum as CUstreamWaitValue_flags;
-/// Flags for ::cuStreamWriteValue32
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUstreamWriteValue_flags_enum {
+impl CUstreamWriteValue_flags_enum {
     /// Default behavior.
-    CU_STREAM_WRITE_VALUE_DEFAULT = 0,
+    pub const CU_STREAM_WRITE_VALUE_DEFAULT: CUstreamWriteValue_flags_enum = CUstreamWriteValue_flags_enum(
+        0,
+    );
     /// Permits the write to be reordered with writes which were issued before it, as a performance optimization.
     ///
     /// Normally, cuStreamWriteValue32 will provide a memory fence before the write, which has similar semantics to __threadfence_system() but is scoped to the stream rather than a CUDA thread. This flag is not supported in the v2 API.
-    CU_STREAM_WRITE_VALUE_NO_MEMORY_BARRIER = 1,
+    pub const CU_STREAM_WRITE_VALUE_NO_MEMORY_BARRIER: CUstreamWriteValue_flags_enum = CUstreamWriteValue_flags_enum(
+        1,
+    );
 }
+/// Flags for ::cuStreamWriteValue32
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUstreamWriteValue_flags_enum(pub ::core::ffi::c_uint);
 pub use self::CUstreamWriteValue_flags_enum as CUstreamWriteValue_flags;
-/// Operations for ::cuStreamBatchMemOp
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUstreamBatchMemOpType_enum {
+impl CUstreamBatchMemOpType_enum {
     /// Represents a cuStreamWaitValue32 operation.
-    CU_STREAM_MEM_OP_WAIT_VALUE_32 = 1,
+    pub const CU_STREAM_MEM_OP_WAIT_VALUE_32: CUstreamBatchMemOpType_enum = CUstreamBatchMemOpType_enum(
+        1,
+    );
     /// Represents a cuStreamWriteValue32 operation.
-    CU_STREAM_MEM_OP_WRITE_VALUE_32 = 2,
+    pub const CU_STREAM_MEM_OP_WRITE_VALUE_32: CUstreamBatchMemOpType_enum = CUstreamBatchMemOpType_enum(
+        2,
+    );
     /// Represents a cuStreamWaitValue64 operation.
-    CU_STREAM_MEM_OP_WAIT_VALUE_64 = 4,
+    pub const CU_STREAM_MEM_OP_WAIT_VALUE_64: CUstreamBatchMemOpType_enum = CUstreamBatchMemOpType_enum(
+        4,
+    );
     /// Represents a cuStreamWriteValue64 operation.
-    CU_STREAM_MEM_OP_WRITE_VALUE_64 = 5,
+    pub const CU_STREAM_MEM_OP_WRITE_VALUE_64: CUstreamBatchMemOpType_enum = CUstreamBatchMemOpType_enum(
+        5,
+    );
     /// Insert a memory barrier of the specified type.
-    CU_STREAM_MEM_OP_BARRIER = 6,
+    pub const CU_STREAM_MEM_OP_BARRIER: CUstreamBatchMemOpType_enum = CUstreamBatchMemOpType_enum(
+        6,
+    );
     /// Perform a atomic reduction.
     ///
     /// See CUstreamBatchMemOpParams::atomicReduction.
-    CU_STREAM_MEM_OP_ATOMIC_REDUCTION = 8,
+    pub const CU_STREAM_MEM_OP_ATOMIC_REDUCTION: CUstreamBatchMemOpType_enum = CUstreamBatchMemOpType_enum(
+        8,
+    );
     /// This has the same effect as [`CUstreamWaitValue_flags_enum::CU_STREAM_WAIT_VALUE_FLUSH`], but as a standalone operation.
-    CU_STREAM_MEM_OP_FLUSH_REMOTE_WRITES = 3,
+    pub const CU_STREAM_MEM_OP_FLUSH_REMOTE_WRITES: CUstreamBatchMemOpType_enum = CUstreamBatchMemOpType_enum(
+        3,
+    );
 }
+/// Operations for ::cuStreamBatchMemOp
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUstreamBatchMemOpType_enum(pub ::core::ffi::c_uint);
 pub use self::CUstreamBatchMemOpType_enum as CUstreamBatchMemOpType;
-/// Flags for ::CUstreamBatchMemOpParams::memoryBarrier
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUstreamMemoryBarrier_flags_enum {
+impl CUstreamMemoryBarrier_flags_enum {
     /// System-wide memory barrier.
-    CU_STREAM_MEMORY_BARRIER_TYPE_SYS = 0,
+    pub const CU_STREAM_MEMORY_BARRIER_TYPE_SYS: CUstreamMemoryBarrier_flags_enum = CUstreamMemoryBarrier_flags_enum(
+        0,
+    );
     /// Limit memory barrier scope to the GPU.
-    CU_STREAM_MEMORY_BARRIER_TYPE_GPU = 1,
+    pub const CU_STREAM_MEMORY_BARRIER_TYPE_GPU: CUstreamMemoryBarrier_flags_enum = CUstreamMemoryBarrier_flags_enum(
+        1,
+    );
 }
+/// Flags for ::CUstreamBatchMemOpParams::memoryBarrier
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUstreamMemoryBarrier_flags_enum(pub ::core::ffi::c_uint);
 pub use self::CUstreamMemoryBarrier_flags_enum as CUstreamMemoryBarrier_flags;
-/// Atomic reduction operation types for ::CUstreamBatchMemOpParams::atomicReduction::reductionOp
-#[repr(u32)]
-#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum CUstreamAtomicReductionOpType_enum {
+impl CUstreamAtomicReductionOpType_enum {
     /// Performs an atomic OR: \*(address) = \*(address) | value.
-    CU_STREAM_ATOMIC_REDUCTION_OP_OR = 6,
+    pub const CU_STREAM_ATOMIC_REDUCTION_OP_OR: CUstreamAtomicReductionOpType_enum = CUstreamAtomicReductionOpType_enum(
+        6,
+    );
     /// Performs an atomic AND: \*(address) = \*(address) & value.
-    CU_STREAM_ATOMIC_REDUCTION_OP_AND = 5,
+    pub const CU_STREAM_ATOMIC_REDUCTION_OP_AND: CUstreamAtomicReductionOpType_enum = CUstreamAtomicReductionOpType_enum(
+        5,
+    );
     /// Performs an atomic ADD: \*(address) = \*(address) + value.
-    CU_STREAM_ATOMIC_REDUCTION_OP_ADD = 0,
+    pub const CU_STREAM_ATOMIC_REDUCTION_OP_ADD: CUstreamAtomicReductionOpType_enum = CUstreamAtomicReductionOpType_enum(
+        0,
+    );
 }
-pub use self::CUstreamAtomicReductionOpType_enum as CUstreamAtomicReductionOpType;
-/// Atomic reduction data types for ::CUstreamBatchMemOpParams::atomicReduction::dataType
-#[repr(u32)]
+/// Atomic reduction operation types for ::CUstreamBatchMemOpParams::atomicReduction::reductionOp
+#[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum CUstreamAtomicReductionDataType_enum {
+pub struct CUstreamAtomicReductionOpType_enum(pub ::core::ffi::c_uint);
+pub use self::CUstreamAtomicReductionOpType_enum as CUstreamAtomicReductionOpType;
+impl CUstreamAtomicReductionDataType_enum {
     /// Unsigned 32-bit scalar reduction operands.
-    CU_STREAM_ATOMIC_REDUCTION_UNSIGNED_32 = 14,
+    pub const CU_STREAM_ATOMIC_REDUCTION_UNSIGNED_32: CUstreamAtomicReductionDataType_enum = CUstreamAtomicReductionDataType_enum(
+        14,
+    );
     /// Unsigned 64-bit scalar reduction operands.
-    CU_STREAM_ATOMIC_REDUCTION_UNSIGNED_64 = 22,
+    pub const CU_STREAM_ATOMIC_REDUCTION_UNSIGNED_64: CUstreamAtomicReductionDataType_enum = CUstreamAtomicReductionDataType_enum(
+        22,
+    );
 }
+/// Atomic reduction data types for ::CUstreamBatchMemOpParams::atomicReduction::dataType
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUstreamAtomicReductionDataType_enum(pub ::core::ffi::c_uint);
 pub use self::CUstreamAtomicReductionDataType_enum as CUstreamAtomicReductionDataType;
 /// Per-operation parameters for ::cuStreamBatchMemOp
 #[repr(C)]
@@ -1052,66 +1039,44 @@ impl Default for CUDA_BATCH_MEM_OP_NODE_PARAMS_v2_st {
 }
 /// Batch memory operation node parameters.
 pub type CUDA_BATCH_MEM_OP_NODE_PARAMS_v2 = CUDA_BATCH_MEM_OP_NODE_PARAMS_v2_st;
-/// Occupancy calculator flag
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUoccupancy_flags_enum {
+impl CUoccupancy_flags_enum {
     /// Default behavior.
-    CU_OCCUPANCY_DEFAULT = 0,
+    pub const CU_OCCUPANCY_DEFAULT: CUoccupancy_flags_enum = CUoccupancy_flags_enum(0);
     /// Assume global caching is enabled and cannot be automatically turned off.
-    CU_OCCUPANCY_DISABLE_CACHING_OVERRIDE = 1,
+    pub const CU_OCCUPANCY_DISABLE_CACHING_OVERRIDE: CUoccupancy_flags_enum = CUoccupancy_flags_enum(
+        1,
+    );
 }
+/// Occupancy calculator flag
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUoccupancy_flags_enum(pub ::core::ffi::c_uint);
 pub use self::CUoccupancy_flags_enum as CUoccupancy_flags;
-/// Flags for ::cuStreamUpdateCaptureDependencies
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUstreamUpdateCaptureDependencies_flags_enum {
+impl CUstreamUpdateCaptureDependencies_flags_enum {
     /// Add new nodes to the dependency set.
-    CU_STREAM_ADD_CAPTURE_DEPENDENCIES = 0,
+    pub const CU_STREAM_ADD_CAPTURE_DEPENDENCIES: CUstreamUpdateCaptureDependencies_flags_enum = CUstreamUpdateCaptureDependencies_flags_enum(
+        0,
+    );
     /// Replace the dependency set with the new nodes.
-    CU_STREAM_SET_CAPTURE_DEPENDENCIES = 1,
+    pub const CU_STREAM_SET_CAPTURE_DEPENDENCIES: CUstreamUpdateCaptureDependencies_flags_enum = CUstreamUpdateCaptureDependencies_flags_enum(
+        1,
+    );
 }
+/// Flags for ::cuStreamUpdateCaptureDependencies
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUstreamUpdateCaptureDependencies_flags_enum(pub ::core::ffi::c_uint);
 pub use self::CUstreamUpdateCaptureDependencies_flags_enum as CUstreamUpdateCaptureDependencies_flags;
-/// Types of async notification that can be sent
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUasyncNotificationType_enum {
+impl CUasyncNotificationType_enum {
     /// Sent when the process has exceeded its device memory budget.
-    CU_ASYNC_NOTIFICATION_TYPE_OVER_BUDGET = 1,
+    pub const CU_ASYNC_NOTIFICATION_TYPE_OVER_BUDGET: CUasyncNotificationType_enum = CUasyncNotificationType_enum(
+        1,
+    );
 }
+/// Types of async notification that can be sent
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUasyncNotificationType_enum(pub ::core::ffi::c_uint);
 pub use self::CUasyncNotificationType_enum as CUasyncNotificationType;
 /// Information passed to the user via the async notification callback
 #[repr(C)]
@@ -1168,581 +1133,908 @@ pub type CUasyncCallback = ::core::option::Option<
         callback: CUasyncCallbackHandle,
     ),
 >;
-/// Array formats
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUarray_format_enum {
+impl CUarray_format_enum {
     /// Unsigned 8-bit integers.
-    CU_AD_FORMAT_UNSIGNED_INT8 = 1,
+    pub const CU_AD_FORMAT_UNSIGNED_INT8: CUarray_format_enum = CUarray_format_enum(1);
     /// Unsigned 16-bit integers.
-    CU_AD_FORMAT_UNSIGNED_INT16 = 2,
+    pub const CU_AD_FORMAT_UNSIGNED_INT16: CUarray_format_enum = CUarray_format_enum(2);
     /// Unsigned 32-bit integers.
-    CU_AD_FORMAT_UNSIGNED_INT32 = 3,
+    pub const CU_AD_FORMAT_UNSIGNED_INT32: CUarray_format_enum = CUarray_format_enum(3);
     /// Signed 8-bit integers.
-    CU_AD_FORMAT_SIGNED_INT8 = 8,
+    pub const CU_AD_FORMAT_SIGNED_INT8: CUarray_format_enum = CUarray_format_enum(8);
     /// Signed 16-bit integers.
-    CU_AD_FORMAT_SIGNED_INT16 = 9,
+    pub const CU_AD_FORMAT_SIGNED_INT16: CUarray_format_enum = CUarray_format_enum(9);
     /// Signed 32-bit integers.
-    CU_AD_FORMAT_SIGNED_INT32 = 10,
+    pub const CU_AD_FORMAT_SIGNED_INT32: CUarray_format_enum = CUarray_format_enum(10);
     /// 16-bit floating point.
-    CU_AD_FORMAT_HALF = 16,
+    pub const CU_AD_FORMAT_HALF: CUarray_format_enum = CUarray_format_enum(16);
     /// 32-bit floating point.
-    CU_AD_FORMAT_FLOAT = 32,
+    pub const CU_AD_FORMAT_FLOAT: CUarray_format_enum = CUarray_format_enum(32);
     /// 8-bit YUV planar format, with 4:2:0 sampling.
-    CU_AD_FORMAT_NV12 = 176,
+    pub const CU_AD_FORMAT_NV12: CUarray_format_enum = CUarray_format_enum(176);
     /// 1 channel unsigned 8-bit normalized integer.
-    CU_AD_FORMAT_UNORM_INT8X1 = 192,
+    pub const CU_AD_FORMAT_UNORM_INT8X1: CUarray_format_enum = CUarray_format_enum(192);
     /// 2 channel unsigned 8-bit normalized integer.
-    CU_AD_FORMAT_UNORM_INT8X2 = 193,
+    pub const CU_AD_FORMAT_UNORM_INT8X2: CUarray_format_enum = CUarray_format_enum(193);
     /// 4 channel unsigned 8-bit normalized integer.
-    CU_AD_FORMAT_UNORM_INT8X4 = 194,
+    pub const CU_AD_FORMAT_UNORM_INT8X4: CUarray_format_enum = CUarray_format_enum(194);
     /// 1 channel unsigned 16-bit normalized integer.
-    CU_AD_FORMAT_UNORM_INT16X1 = 195,
+    pub const CU_AD_FORMAT_UNORM_INT16X1: CUarray_format_enum = CUarray_format_enum(195);
     /// 2 channel unsigned 16-bit normalized integer.
-    CU_AD_FORMAT_UNORM_INT16X2 = 196,
+    pub const CU_AD_FORMAT_UNORM_INT16X2: CUarray_format_enum = CUarray_format_enum(196);
     /// 4 channel unsigned 16-bit normalized integer.
-    CU_AD_FORMAT_UNORM_INT16X4 = 197,
+    pub const CU_AD_FORMAT_UNORM_INT16X4: CUarray_format_enum = CUarray_format_enum(197);
     /// 1 channel signed 8-bit normalized integer.
-    CU_AD_FORMAT_SNORM_INT8X1 = 198,
+    pub const CU_AD_FORMAT_SNORM_INT8X1: CUarray_format_enum = CUarray_format_enum(198);
     /// 2 channel signed 8-bit normalized integer.
-    CU_AD_FORMAT_SNORM_INT8X2 = 199,
+    pub const CU_AD_FORMAT_SNORM_INT8X2: CUarray_format_enum = CUarray_format_enum(199);
     /// 4 channel signed 8-bit normalized integer.
-    CU_AD_FORMAT_SNORM_INT8X4 = 200,
+    pub const CU_AD_FORMAT_SNORM_INT8X4: CUarray_format_enum = CUarray_format_enum(200);
     /// 1 channel signed 16-bit normalized integer.
-    CU_AD_FORMAT_SNORM_INT16X1 = 201,
+    pub const CU_AD_FORMAT_SNORM_INT16X1: CUarray_format_enum = CUarray_format_enum(201);
     /// 2 channel signed 16-bit normalized integer.
-    CU_AD_FORMAT_SNORM_INT16X2 = 202,
+    pub const CU_AD_FORMAT_SNORM_INT16X2: CUarray_format_enum = CUarray_format_enum(202);
     /// 4 channel signed 16-bit normalized integer.
-    CU_AD_FORMAT_SNORM_INT16X4 = 203,
+    pub const CU_AD_FORMAT_SNORM_INT16X4: CUarray_format_enum = CUarray_format_enum(203);
     /// 4 channel unsigned normalized block-compressed (BC1 compression) format.
-    CU_AD_FORMAT_BC1_UNORM = 145,
+    pub const CU_AD_FORMAT_BC1_UNORM: CUarray_format_enum = CUarray_format_enum(145);
     /// 4 channel unsigned normalized block-compressed (BC1 compression) format with sRGB encoding.
-    CU_AD_FORMAT_BC1_UNORM_SRGB = 146,
+    pub const CU_AD_FORMAT_BC1_UNORM_SRGB: CUarray_format_enum = CUarray_format_enum(
+        146,
+    );
     /// 4 channel unsigned normalized block-compressed (BC2 compression) format.
-    CU_AD_FORMAT_BC2_UNORM = 147,
+    pub const CU_AD_FORMAT_BC2_UNORM: CUarray_format_enum = CUarray_format_enum(147);
     /// 4 channel unsigned normalized block-compressed (BC2 compression) format with sRGB encoding.
-    CU_AD_FORMAT_BC2_UNORM_SRGB = 148,
+    pub const CU_AD_FORMAT_BC2_UNORM_SRGB: CUarray_format_enum = CUarray_format_enum(
+        148,
+    );
     /// 4 channel unsigned normalized block-compressed (BC3 compression) format.
-    CU_AD_FORMAT_BC3_UNORM = 149,
+    pub const CU_AD_FORMAT_BC3_UNORM: CUarray_format_enum = CUarray_format_enum(149);
     /// 4 channel unsigned normalized block-compressed (BC3 compression) format with sRGB encoding.
-    CU_AD_FORMAT_BC3_UNORM_SRGB = 150,
+    pub const CU_AD_FORMAT_BC3_UNORM_SRGB: CUarray_format_enum = CUarray_format_enum(
+        150,
+    );
     /// 1 channel unsigned normalized block-compressed (BC4 compression) format.
-    CU_AD_FORMAT_BC4_UNORM = 151,
+    pub const CU_AD_FORMAT_BC4_UNORM: CUarray_format_enum = CUarray_format_enum(151);
     /// 1 channel signed normalized block-compressed (BC4 compression) format.
-    CU_AD_FORMAT_BC4_SNORM = 152,
+    pub const CU_AD_FORMAT_BC4_SNORM: CUarray_format_enum = CUarray_format_enum(152);
     /// 2 channel unsigned normalized block-compressed (BC5 compression) format.
-    CU_AD_FORMAT_BC5_UNORM = 153,
+    pub const CU_AD_FORMAT_BC5_UNORM: CUarray_format_enum = CUarray_format_enum(153);
     /// 2 channel signed normalized block-compressed (BC5 compression) format.
-    CU_AD_FORMAT_BC5_SNORM = 154,
+    pub const CU_AD_FORMAT_BC5_SNORM: CUarray_format_enum = CUarray_format_enum(154);
     /// 3 channel unsigned half-float block-compressed (BC6H compression) format.
-    CU_AD_FORMAT_BC6H_UF16 = 155,
+    pub const CU_AD_FORMAT_BC6H_UF16: CUarray_format_enum = CUarray_format_enum(155);
     /// 3 channel signed half-float block-compressed (BC6H compression) format.
-    CU_AD_FORMAT_BC6H_SF16 = 156,
+    pub const CU_AD_FORMAT_BC6H_SF16: CUarray_format_enum = CUarray_format_enum(156);
     /// 4 channel unsigned normalized block-compressed (BC7 compression) format.
-    CU_AD_FORMAT_BC7_UNORM = 157,
+    pub const CU_AD_FORMAT_BC7_UNORM: CUarray_format_enum = CUarray_format_enum(157);
     /// 4 channel unsigned normalized block-compressed (BC7 compression) format with sRGB encoding.
-    CU_AD_FORMAT_BC7_UNORM_SRGB = 158,
+    pub const CU_AD_FORMAT_BC7_UNORM_SRGB: CUarray_format_enum = CUarray_format_enum(
+        158,
+    );
     /// 10-bit YUV planar format, with 4:2:0 sampling.
-    CU_AD_FORMAT_P010 = 159,
+    pub const CU_AD_FORMAT_P010: CUarray_format_enum = CUarray_format_enum(159);
     /// 16-bit YUV planar format, with 4:2:0 sampling.
-    CU_AD_FORMAT_P016 = 161,
+    pub const CU_AD_FORMAT_P016: CUarray_format_enum = CUarray_format_enum(161);
     /// 8-bit YUV planar format, with 4:2:2 sampling.
-    CU_AD_FORMAT_NV16 = 162,
+    pub const CU_AD_FORMAT_NV16: CUarray_format_enum = CUarray_format_enum(162);
     /// 10-bit YUV planar format, with 4:2:2 sampling.
-    CU_AD_FORMAT_P210 = 163,
+    pub const CU_AD_FORMAT_P210: CUarray_format_enum = CUarray_format_enum(163);
     /// 16-bit YUV planar format, with 4:2:2 sampling.
-    CU_AD_FORMAT_P216 = 164,
+    pub const CU_AD_FORMAT_P216: CUarray_format_enum = CUarray_format_enum(164);
     /// 2 channel, 8-bit YUV packed planar format, with 4:2:2 sampling.
-    CU_AD_FORMAT_YUY2 = 165,
+    pub const CU_AD_FORMAT_YUY2: CUarray_format_enum = CUarray_format_enum(165);
     /// 2 channel, 10-bit YUV packed planar format, with 4:2:2 sampling.
-    CU_AD_FORMAT_Y210 = 166,
+    pub const CU_AD_FORMAT_Y210: CUarray_format_enum = CUarray_format_enum(166);
     /// 2 channel, 16-bit YUV packed planar format, with 4:2:2 sampling.
-    CU_AD_FORMAT_Y216 = 167,
+    pub const CU_AD_FORMAT_Y216: CUarray_format_enum = CUarray_format_enum(167);
     /// 4 channel, 8-bit YUV packed planar format, with 4:4:4 sampling.
-    CU_AD_FORMAT_AYUV = 168,
+    pub const CU_AD_FORMAT_AYUV: CUarray_format_enum = CUarray_format_enum(168);
     /// 10-bit YUV packed planar format, with 4:4:4 sampling.
-    CU_AD_FORMAT_Y410 = 169,
+    pub const CU_AD_FORMAT_Y410: CUarray_format_enum = CUarray_format_enum(169);
     /// 4 channel, 12-bit YUV packed planar format, with 4:4:4 sampling.
-    CU_AD_FORMAT_Y416 = 177,
+    pub const CU_AD_FORMAT_Y416: CUarray_format_enum = CUarray_format_enum(177);
     /// 3 channel 8-bit YUV planar format, with 4:4:4 sampling.
-    CU_AD_FORMAT_Y444_PLANAR8 = 178,
+    pub const CU_AD_FORMAT_Y444_PLANAR8: CUarray_format_enum = CUarray_format_enum(178);
     /// 3 channel 10-bit YUV planar format, with 4:4:4 sampling.
-    CU_AD_FORMAT_Y444_PLANAR10 = 179,
+    pub const CU_AD_FORMAT_Y444_PLANAR10: CUarray_format_enum = CUarray_format_enum(179);
     /// 3 channel 8-bit YUV semi-planar format, with 4:4:4 sampling.
-    CU_AD_FORMAT_YUV444_8bit_SemiPlanar = 180,
+    pub const CU_AD_FORMAT_YUV444_8bit_SemiPlanar: CUarray_format_enum = CUarray_format_enum(
+        180,
+    );
     /// 3 channel 16-bit YUV semi-planar format, with 4:4:4 sampling.
-    CU_AD_FORMAT_YUV444_16bit_SemiPlanar = 181,
+    pub const CU_AD_FORMAT_YUV444_16bit_SemiPlanar: CUarray_format_enum = CUarray_format_enum(
+        181,
+    );
     /// 4 channel unorm R10G10B10A2 RGB format.
-    CU_AD_FORMAT_UNORM_INT_101010_2 = 80,
+    pub const CU_AD_FORMAT_UNORM_INT_101010_2: CUarray_format_enum = CUarray_format_enum(
+        80,
+    );
     /// 4 channel unsigned 8-bit YUV packed format, with 4:2:2 sampling.
-    CU_AD_FORMAT_UINT8_PACKED_422 = 81,
+    pub const CU_AD_FORMAT_UINT8_PACKED_422: CUarray_format_enum = CUarray_format_enum(
+        81,
+    );
     /// 4 channel unsigned 8-bit YUV packed format, with 4:4:4 sampling.
-    CU_AD_FORMAT_UINT8_PACKED_444 = 82,
+    pub const CU_AD_FORMAT_UINT8_PACKED_444: CUarray_format_enum = CUarray_format_enum(
+        82,
+    );
     /// 3 channel unsigned 8-bit YUV semi-planar format, with 4:2:0 sampling.
-    CU_AD_FORMAT_UINT8_SEMIPLANAR_420 = 83,
+    pub const CU_AD_FORMAT_UINT8_SEMIPLANAR_420: CUarray_format_enum = CUarray_format_enum(
+        83,
+    );
     /// 3 channel unsigned 16-bit YUV semi-planar format, with 4:2:0 sampling.
-    CU_AD_FORMAT_UINT16_SEMIPLANAR_420 = 84,
+    pub const CU_AD_FORMAT_UINT16_SEMIPLANAR_420: CUarray_format_enum = CUarray_format_enum(
+        84,
+    );
     /// 3 channel unsigned 8-bit YUV semi-planar format, with 4:2:2 sampling.
-    CU_AD_FORMAT_UINT8_SEMIPLANAR_422 = 85,
+    pub const CU_AD_FORMAT_UINT8_SEMIPLANAR_422: CUarray_format_enum = CUarray_format_enum(
+        85,
+    );
     /// 3 channel unsigned 16-bit YUV semi-planar format, with 4:2:2 sampling.
-    CU_AD_FORMAT_UINT16_SEMIPLANAR_422 = 86,
+    pub const CU_AD_FORMAT_UINT16_SEMIPLANAR_422: CUarray_format_enum = CUarray_format_enum(
+        86,
+    );
     /// 3 channel unsigned 8-bit YUV semi-planar format, with 4:4:4 sampling.
-    CU_AD_FORMAT_UINT8_SEMIPLANAR_444 = 87,
+    pub const CU_AD_FORMAT_UINT8_SEMIPLANAR_444: CUarray_format_enum = CUarray_format_enum(
+        87,
+    );
     /// 3 channel unsigned 16-bit YUV semi-planar format, with 4:4:4 sampling.
-    CU_AD_FORMAT_UINT16_SEMIPLANAR_444 = 88,
+    pub const CU_AD_FORMAT_UINT16_SEMIPLANAR_444: CUarray_format_enum = CUarray_format_enum(
+        88,
+    );
     /// 3 channel unsigned 8-bit YUV planar format, with 4:2:0 sampling.
-    CU_AD_FORMAT_UINT8_PLANAR_420 = 89,
+    pub const CU_AD_FORMAT_UINT8_PLANAR_420: CUarray_format_enum = CUarray_format_enum(
+        89,
+    );
     /// 3 channel unsigned 16-bit YUV planar format, with 4:2:0 sampling.
-    CU_AD_FORMAT_UINT16_PLANAR_420 = 90,
+    pub const CU_AD_FORMAT_UINT16_PLANAR_420: CUarray_format_enum = CUarray_format_enum(
+        90,
+    );
     /// 3 channel unsigned 8-bit YUV planar format, with 4:2:2 sampling.
-    CU_AD_FORMAT_UINT8_PLANAR_422 = 91,
+    pub const CU_AD_FORMAT_UINT8_PLANAR_422: CUarray_format_enum = CUarray_format_enum(
+        91,
+    );
     /// 3 channel unsigned 16-bit YUV planar format, with 4:2:2 sampling.
-    CU_AD_FORMAT_UINT16_PLANAR_422 = 92,
+    pub const CU_AD_FORMAT_UINT16_PLANAR_422: CUarray_format_enum = CUarray_format_enum(
+        92,
+    );
     /// 3 channel unsigned 8-bit YUV planar format, with 4:4:4 sampling.
-    CU_AD_FORMAT_UINT8_PLANAR_444 = 93,
+    pub const CU_AD_FORMAT_UINT8_PLANAR_444: CUarray_format_enum = CUarray_format_enum(
+        93,
+    );
     /// 3 channel unsigned 16-bit YUV planar format, with 4:4:4 sampling.
-    CU_AD_FORMAT_UINT16_PLANAR_444 = 94,
+    pub const CU_AD_FORMAT_UINT16_PLANAR_444: CUarray_format_enum = CUarray_format_enum(
+        94,
+    );
     /// Reserved upper-bound sentinel for native array formats.
-    CU_AD_FORMAT_MAX = 2147483647,
+    pub const CU_AD_FORMAT_MAX: CUarray_format_enum = CUarray_format_enum(2147483647);
 }
+/// Array formats
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUarray_format_enum(pub ::core::ffi::c_uint);
 pub use self::CUarray_format_enum as CUarray_format;
-/// Texture reference addressing modes
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUaddress_mode_enum {
+impl CUaddress_mode_enum {
     /// Wrapping address mode.
-    CU_TR_ADDRESS_MODE_WRAP = 0,
+    pub const CU_TR_ADDRESS_MODE_WRAP: CUaddress_mode_enum = CUaddress_mode_enum(0);
     /// Clamp to edge address mode.
-    CU_TR_ADDRESS_MODE_CLAMP = 1,
+    pub const CU_TR_ADDRESS_MODE_CLAMP: CUaddress_mode_enum = CUaddress_mode_enum(1);
     /// Mirror address mode.
-    CU_TR_ADDRESS_MODE_MIRROR = 2,
+    pub const CU_TR_ADDRESS_MODE_MIRROR: CUaddress_mode_enum = CUaddress_mode_enum(2);
     /// Border address mode.
-    CU_TR_ADDRESS_MODE_BORDER = 3,
+    pub const CU_TR_ADDRESS_MODE_BORDER: CUaddress_mode_enum = CUaddress_mode_enum(3);
 }
+/// Texture reference addressing modes
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUaddress_mode_enum(pub ::core::ffi::c_uint);
 pub use self::CUaddress_mode_enum as CUaddress_mode;
-/// Texture reference filtering modes
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUfilter_mode_enum {
+impl CUfilter_mode_enum {
     /// Point filter mode.
-    CU_TR_FILTER_MODE_POINT = 0,
+    pub const CU_TR_FILTER_MODE_POINT: CUfilter_mode_enum = CUfilter_mode_enum(0);
     /// Linear filter mode.
-    CU_TR_FILTER_MODE_LINEAR = 1,
+    pub const CU_TR_FILTER_MODE_LINEAR: CUfilter_mode_enum = CUfilter_mode_enum(1);
 }
+/// Texture reference filtering modes
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUfilter_mode_enum(pub ::core::ffi::c_uint);
 pub use self::CUfilter_mode_enum as CUfilter_mode;
 impl CUdevice_attribute_enum {
-    /// use [`CUdevice_attribute::CU_DEVICE_ATTRIBUTE_MAX_SHARED_MEMORY_PER_BLOCK`].
-    pub const CU_DEVICE_ATTRIBUTE_SHARED_MEMORY_PER_BLOCK: CUdevice_attribute_enum = CUdevice_attribute_enum::CU_DEVICE_ATTRIBUTE_MAX_SHARED_MEMORY_PER_BLOCK;
-}
-impl CUdevice_attribute_enum {
-    /// use [`CUdevice_attribute::CU_DEVICE_ATTRIBUTE_MAX_REGISTERS_PER_BLOCK`].
-    pub const CU_DEVICE_ATTRIBUTE_REGISTERS_PER_BLOCK: CUdevice_attribute_enum = CUdevice_attribute_enum::CU_DEVICE_ATTRIBUTE_MAX_REGISTERS_PER_BLOCK;
-}
-impl CUdevice_attribute_enum {
-    /// use [`CUdevice_attribute::CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_LAYERED_WIDTH`].
-    pub const CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_ARRAY_WIDTH: CUdevice_attribute_enum = CUdevice_attribute_enum::CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_LAYERED_WIDTH;
-}
-impl CUdevice_attribute_enum {
-    /// use [`CUdevice_attribute::CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_LAYERED_HEIGHT`].
-    pub const CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_ARRAY_HEIGHT: CUdevice_attribute_enum = CUdevice_attribute_enum::CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_LAYERED_HEIGHT;
-}
-impl CUdevice_attribute_enum {
-    /// use [`CUdevice_attribute::CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_LAYERED_LAYERS`].
-    pub const CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_ARRAY_NUMSLICES: CUdevice_attribute_enum = CUdevice_attribute_enum::CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_LAYERED_LAYERS;
-}
-impl CUdevice_attribute_enum {
-    /// Device supports virtual memory management APIs like [`cuMemAddressReserve`], [`cuMemCreate`], [`cuMemMap`] and related APIs.
-    pub const CU_DEVICE_ATTRIBUTE_VIRTUAL_MEMORY_MANAGEMENT_SUPPORTED: CUdevice_attribute_enum = CUdevice_attribute_enum::CU_DEVICE_ATTRIBUTE_VIRTUAL_ADDRESS_MANAGEMENT_SUPPORTED;
-}
-/// Device properties
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUdevice_attribute_enum {
     /// Maximum number of threads per block.
-    CU_DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK = 1,
+    pub const CU_DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        1,
+    );
     /// Maximum block dimension X.
-    CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_X = 2,
+    pub const CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_X: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        2,
+    );
     /// Maximum block dimension Y.
-    CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Y = 3,
+    pub const CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Y: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        3,
+    );
     /// Maximum block dimension Z.
-    CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Z = 4,
+    pub const CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Z: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        4,
+    );
     /// Maximum grid dimension X.
-    CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_X = 5,
+    pub const CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_X: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        5,
+    );
     /// Maximum grid dimension Y.
-    CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_Y = 6,
+    pub const CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_Y: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        6,
+    );
     /// Maximum grid dimension Z.
-    CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_Z = 7,
+    pub const CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_Z: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        7,
+    );
     /// Maximum shared memory available per block in bytes.
-    CU_DEVICE_ATTRIBUTE_MAX_SHARED_MEMORY_PER_BLOCK = 8,
+    pub const CU_DEVICE_ATTRIBUTE_MAX_SHARED_MEMORY_PER_BLOCK: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        8,
+    );
+    /// use [`CUdevice_attribute::CU_DEVICE_ATTRIBUTE_MAX_SHARED_MEMORY_PER_BLOCK`].
+    #[deprecated]
+    pub const CU_DEVICE_ATTRIBUTE_SHARED_MEMORY_PER_BLOCK: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        8,
+    );
     /// Memory available on device for **constant** variables in a CUDA C kernel in bytes.
-    CU_DEVICE_ATTRIBUTE_TOTAL_CONSTANT_MEMORY = 9,
+    pub const CU_DEVICE_ATTRIBUTE_TOTAL_CONSTANT_MEMORY: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        9,
+    );
     /// Warp size in threads.
-    CU_DEVICE_ATTRIBUTE_WARP_SIZE = 10,
+    pub const CU_DEVICE_ATTRIBUTE_WARP_SIZE: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        10,
+    );
     /// Maximum pitch in bytes allowed by memory copies.
-    CU_DEVICE_ATTRIBUTE_MAX_PITCH = 11,
+    pub const CU_DEVICE_ATTRIBUTE_MAX_PITCH: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        11,
+    );
     /// Maximum number of 32-bit registers available per block.
-    CU_DEVICE_ATTRIBUTE_MAX_REGISTERS_PER_BLOCK = 12,
+    pub const CU_DEVICE_ATTRIBUTE_MAX_REGISTERS_PER_BLOCK: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        12,
+    );
+    /// use [`CUdevice_attribute::CU_DEVICE_ATTRIBUTE_MAX_REGISTERS_PER_BLOCK`].
+    #[deprecated]
+    pub const CU_DEVICE_ATTRIBUTE_REGISTERS_PER_BLOCK: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        12,
+    );
     /// Typical clock frequency in kilohertz.
-    CU_DEVICE_ATTRIBUTE_CLOCK_RATE = 13,
+    pub const CU_DEVICE_ATTRIBUTE_CLOCK_RATE: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        13,
+    );
     /// Alignment requirement for textures.
-    CU_DEVICE_ATTRIBUTE_TEXTURE_ALIGNMENT = 14,
+    pub const CU_DEVICE_ATTRIBUTE_TEXTURE_ALIGNMENT: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        14,
+    );
     /// Device can possibly copy memory and execute a kernel concurrently.
     ///
     /// Deprecated. Use instead [`CUdevice_attribute::CU_DEVICE_ATTRIBUTE_ASYNC_ENGINE_COUNT`].
     #[deprecated]
-    CU_DEVICE_ATTRIBUTE_GPU_OVERLAP = 15,
+    pub const CU_DEVICE_ATTRIBUTE_GPU_OVERLAP: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        15,
+    );
     /// Number of multiprocessors on device.
-    CU_DEVICE_ATTRIBUTE_MULTIPROCESSOR_COUNT = 16,
+    pub const CU_DEVICE_ATTRIBUTE_MULTIPROCESSOR_COUNT: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        16,
+    );
     /// Specifies whether there is a run time limit on kernels.
-    CU_DEVICE_ATTRIBUTE_KERNEL_EXEC_TIMEOUT = 17,
+    pub const CU_DEVICE_ATTRIBUTE_KERNEL_EXEC_TIMEOUT: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        17,
+    );
     /// Device is integrated with host memory.
-    CU_DEVICE_ATTRIBUTE_INTEGRATED = 18,
+    pub const CU_DEVICE_ATTRIBUTE_INTEGRATED: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        18,
+    );
     /// Device can map host memory into CUDA address space.
-    CU_DEVICE_ATTRIBUTE_CAN_MAP_HOST_MEMORY = 19,
+    pub const CU_DEVICE_ATTRIBUTE_CAN_MAP_HOST_MEMORY: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        19,
+    );
     /// Compute mode (See [CUcomputemode](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-driver-api/cuda_driver_api/group__CUDA__TYPES.html#group__cuda__types_1ga637aab2eadb52e1c1c048b8bad9592d1) for details).
-    CU_DEVICE_ATTRIBUTE_COMPUTE_MODE = 20,
+    pub const CU_DEVICE_ATTRIBUTE_COMPUTE_MODE: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        20,
+    );
     /// Maximum 1D texture width.
-    CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE1D_WIDTH = 21,
+    pub const CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE1D_WIDTH: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        21,
+    );
     /// Maximum 2D texture width.
-    CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_WIDTH = 22,
+    pub const CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_WIDTH: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        22,
+    );
     /// Maximum 2D texture height.
-    CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_HEIGHT = 23,
+    pub const CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_HEIGHT: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        23,
+    );
     /// Maximum 3D texture width.
-    CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE3D_WIDTH = 24,
+    pub const CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE3D_WIDTH: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        24,
+    );
     /// Maximum 3D texture height.
-    CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE3D_HEIGHT = 25,
+    pub const CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE3D_HEIGHT: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        25,
+    );
     /// Maximum 3D texture depth.
-    CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE3D_DEPTH = 26,
+    pub const CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE3D_DEPTH: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        26,
+    );
     /// Maximum 2D layered texture width.
-    CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_LAYERED_WIDTH = 27,
+    pub const CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_LAYERED_WIDTH: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        27,
+    );
     /// Maximum 2D layered texture height.
-    CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_LAYERED_HEIGHT = 28,
+    pub const CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_LAYERED_HEIGHT: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        28,
+    );
     /// Maximum layers in a 2D layered texture.
-    CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_LAYERED_LAYERS = 29,
+    pub const CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_LAYERED_LAYERS: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        29,
+    );
+    /// use [`CUdevice_attribute::CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_LAYERED_WIDTH`].
+    #[deprecated]
+    pub const CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_ARRAY_WIDTH: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        27,
+    );
+    /// use [`CUdevice_attribute::CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_LAYERED_HEIGHT`].
+    #[deprecated]
+    pub const CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_ARRAY_HEIGHT: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        28,
+    );
+    /// use [`CUdevice_attribute::CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_LAYERED_LAYERS`].
+    #[deprecated]
+    pub const CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_ARRAY_NUMSLICES: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        29,
+    );
     /// Alignment requirement for surfaces.
-    CU_DEVICE_ATTRIBUTE_SURFACE_ALIGNMENT = 30,
+    pub const CU_DEVICE_ATTRIBUTE_SURFACE_ALIGNMENT: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        30,
+    );
     /// Device can possibly execute multiple kernels concurrently.
-    CU_DEVICE_ATTRIBUTE_CONCURRENT_KERNELS = 31,
+    pub const CU_DEVICE_ATTRIBUTE_CONCURRENT_KERNELS: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        31,
+    );
     /// Device has ECC support enabled.
-    CU_DEVICE_ATTRIBUTE_ECC_ENABLED = 32,
+    pub const CU_DEVICE_ATTRIBUTE_ECC_ENABLED: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        32,
+    );
     /// PCI bus ID of the device.
-    CU_DEVICE_ATTRIBUTE_PCI_BUS_ID = 33,
+    pub const CU_DEVICE_ATTRIBUTE_PCI_BUS_ID: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        33,
+    );
     /// PCI device ID of the device.
-    CU_DEVICE_ATTRIBUTE_PCI_DEVICE_ID = 34,
+    pub const CU_DEVICE_ATTRIBUTE_PCI_DEVICE_ID: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        34,
+    );
     /// Device is using TCC driver model.
-    CU_DEVICE_ATTRIBUTE_TCC_DRIVER = 35,
+    pub const CU_DEVICE_ATTRIBUTE_TCC_DRIVER: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        35,
+    );
     /// Peak memory clock frequency in kilohertz.
-    CU_DEVICE_ATTRIBUTE_MEMORY_CLOCK_RATE = 36,
+    pub const CU_DEVICE_ATTRIBUTE_MEMORY_CLOCK_RATE: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        36,
+    );
     /// Global memory bus width in bits.
-    CU_DEVICE_ATTRIBUTE_GLOBAL_MEMORY_BUS_WIDTH = 37,
+    pub const CU_DEVICE_ATTRIBUTE_GLOBAL_MEMORY_BUS_WIDTH: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        37,
+    );
     /// Size of L2 cache in bytes.
-    CU_DEVICE_ATTRIBUTE_L2_CACHE_SIZE = 38,
+    pub const CU_DEVICE_ATTRIBUTE_L2_CACHE_SIZE: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        38,
+    );
     /// Maximum resident threads per multiprocessor.
-    CU_DEVICE_ATTRIBUTE_MAX_THREADS_PER_MULTIPROCESSOR = 39,
+    pub const CU_DEVICE_ATTRIBUTE_MAX_THREADS_PER_MULTIPROCESSOR: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        39,
+    );
     /// Number of asynchronous engines.
-    CU_DEVICE_ATTRIBUTE_ASYNC_ENGINE_COUNT = 40,
+    pub const CU_DEVICE_ATTRIBUTE_ASYNC_ENGINE_COUNT: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        40,
+    );
     /// Device shares a unified address space with the host.
-    CU_DEVICE_ATTRIBUTE_UNIFIED_ADDRESSING = 41,
+    pub const CU_DEVICE_ATTRIBUTE_UNIFIED_ADDRESSING: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        41,
+    );
     /// Maximum 1D layered texture width.
-    CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE1D_LAYERED_WIDTH = 42,
+    pub const CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE1D_LAYERED_WIDTH: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        42,
+    );
     /// Maximum layers in a 1D layered texture.
-    CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE1D_LAYERED_LAYERS = 43,
+    pub const CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE1D_LAYERED_LAYERS: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        43,
+    );
     /// do not use.
     #[deprecated]
-    CU_DEVICE_ATTRIBUTE_CAN_TEX2D_GATHER = 44,
+    pub const CU_DEVICE_ATTRIBUTE_CAN_TEX2D_GATHER: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        44,
+    );
     /// Maximum 2D texture width if CUDA_ARRAY3D_TEXTURE_GATHER is set.
-    CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_GATHER_WIDTH = 45,
+    pub const CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_GATHER_WIDTH: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        45,
+    );
     /// Maximum 2D texture height if CUDA_ARRAY3D_TEXTURE_GATHER is set.
-    CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_GATHER_HEIGHT = 46,
+    pub const CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_GATHER_HEIGHT: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        46,
+    );
     /// Alternate maximum 3D texture width.
-    CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE3D_WIDTH_ALTERNATE = 47,
+    pub const CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE3D_WIDTH_ALTERNATE: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        47,
+    );
     /// Alternate maximum 3D texture height.
-    CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE3D_HEIGHT_ALTERNATE = 48,
+    pub const CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE3D_HEIGHT_ALTERNATE: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        48,
+    );
     /// Alternate maximum 3D texture depth.
-    CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE3D_DEPTH_ALTERNATE = 49,
+    pub const CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE3D_DEPTH_ALTERNATE: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        49,
+    );
     /// PCI domain ID of the device.
-    CU_DEVICE_ATTRIBUTE_PCI_DOMAIN_ID = 50,
+    pub const CU_DEVICE_ATTRIBUTE_PCI_DOMAIN_ID: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        50,
+    );
     /// Pitch alignment requirement for textures.
-    CU_DEVICE_ATTRIBUTE_TEXTURE_PITCH_ALIGNMENT = 51,
+    pub const CU_DEVICE_ATTRIBUTE_TEXTURE_PITCH_ALIGNMENT: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        51,
+    );
     /// Maximum cubemap texture width/height.
-    CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURECUBEMAP_WIDTH = 52,
+    pub const CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURECUBEMAP_WIDTH: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        52,
+    );
     /// Maximum cubemap layered texture width/height.
-    CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURECUBEMAP_LAYERED_WIDTH = 53,
+    pub const CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURECUBEMAP_LAYERED_WIDTH: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        53,
+    );
     /// Maximum layers in a cubemap layered texture.
-    CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURECUBEMAP_LAYERED_LAYERS = 54,
+    pub const CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURECUBEMAP_LAYERED_LAYERS: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        54,
+    );
     /// Maximum 1D surface width.
-    CU_DEVICE_ATTRIBUTE_MAXIMUM_SURFACE1D_WIDTH = 55,
+    pub const CU_DEVICE_ATTRIBUTE_MAXIMUM_SURFACE1D_WIDTH: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        55,
+    );
     /// Maximum 2D surface width.
-    CU_DEVICE_ATTRIBUTE_MAXIMUM_SURFACE2D_WIDTH = 56,
+    pub const CU_DEVICE_ATTRIBUTE_MAXIMUM_SURFACE2D_WIDTH: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        56,
+    );
     /// Maximum 2D surface height.
-    CU_DEVICE_ATTRIBUTE_MAXIMUM_SURFACE2D_HEIGHT = 57,
+    pub const CU_DEVICE_ATTRIBUTE_MAXIMUM_SURFACE2D_HEIGHT: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        57,
+    );
     /// Maximum 3D surface width.
-    CU_DEVICE_ATTRIBUTE_MAXIMUM_SURFACE3D_WIDTH = 58,
+    pub const CU_DEVICE_ATTRIBUTE_MAXIMUM_SURFACE3D_WIDTH: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        58,
+    );
     /// Maximum 3D surface height.
-    CU_DEVICE_ATTRIBUTE_MAXIMUM_SURFACE3D_HEIGHT = 59,
+    pub const CU_DEVICE_ATTRIBUTE_MAXIMUM_SURFACE3D_HEIGHT: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        59,
+    );
     /// Maximum 3D surface depth.
-    CU_DEVICE_ATTRIBUTE_MAXIMUM_SURFACE3D_DEPTH = 60,
+    pub const CU_DEVICE_ATTRIBUTE_MAXIMUM_SURFACE3D_DEPTH: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        60,
+    );
     /// Maximum 1D layered surface width.
-    CU_DEVICE_ATTRIBUTE_MAXIMUM_SURFACE1D_LAYERED_WIDTH = 61,
+    pub const CU_DEVICE_ATTRIBUTE_MAXIMUM_SURFACE1D_LAYERED_WIDTH: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        61,
+    );
     /// Maximum layers in a 1D layered surface.
-    CU_DEVICE_ATTRIBUTE_MAXIMUM_SURFACE1D_LAYERED_LAYERS = 62,
+    pub const CU_DEVICE_ATTRIBUTE_MAXIMUM_SURFACE1D_LAYERED_LAYERS: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        62,
+    );
     /// Maximum 2D layered surface width.
-    CU_DEVICE_ATTRIBUTE_MAXIMUM_SURFACE2D_LAYERED_WIDTH = 63,
+    pub const CU_DEVICE_ATTRIBUTE_MAXIMUM_SURFACE2D_LAYERED_WIDTH: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        63,
+    );
     /// Maximum 2D layered surface height.
-    CU_DEVICE_ATTRIBUTE_MAXIMUM_SURFACE2D_LAYERED_HEIGHT = 64,
+    pub const CU_DEVICE_ATTRIBUTE_MAXIMUM_SURFACE2D_LAYERED_HEIGHT: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        64,
+    );
     /// Maximum layers in a 2D layered surface.
-    CU_DEVICE_ATTRIBUTE_MAXIMUM_SURFACE2D_LAYERED_LAYERS = 65,
+    pub const CU_DEVICE_ATTRIBUTE_MAXIMUM_SURFACE2D_LAYERED_LAYERS: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        65,
+    );
     /// Maximum cubemap surface width.
-    CU_DEVICE_ATTRIBUTE_MAXIMUM_SURFACECUBEMAP_WIDTH = 66,
+    pub const CU_DEVICE_ATTRIBUTE_MAXIMUM_SURFACECUBEMAP_WIDTH: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        66,
+    );
     /// Maximum cubemap layered surface width.
-    CU_DEVICE_ATTRIBUTE_MAXIMUM_SURFACECUBEMAP_LAYERED_WIDTH = 67,
+    pub const CU_DEVICE_ATTRIBUTE_MAXIMUM_SURFACECUBEMAP_LAYERED_WIDTH: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        67,
+    );
     /// Maximum layers in a cubemap layered surface.
-    CU_DEVICE_ATTRIBUTE_MAXIMUM_SURFACECUBEMAP_LAYERED_LAYERS = 68,
+    pub const CU_DEVICE_ATTRIBUTE_MAXIMUM_SURFACECUBEMAP_LAYERED_LAYERS: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        68,
+    );
     /// do not use.
     ///
     /// Use cudaDeviceGetTexture1DLinearMaxWidth() or [`cuDeviceGetTexture1DLinearMaxWidth`] instead.
     #[deprecated]
-    CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE1D_LINEAR_WIDTH = 69,
+    pub const CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE1D_LINEAR_WIDTH: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        69,
+    );
     /// Maximum 2D linear texture width.
-    CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_LINEAR_WIDTH = 70,
+    pub const CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_LINEAR_WIDTH: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        70,
+    );
     /// Maximum 2D linear texture height.
-    CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_LINEAR_HEIGHT = 71,
+    pub const CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_LINEAR_HEIGHT: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        71,
+    );
     /// Maximum 2D linear texture pitch in bytes.
-    CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_LINEAR_PITCH = 72,
+    pub const CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_LINEAR_PITCH: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        72,
+    );
     /// Maximum mipmapped 2D texture width.
-    CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_MIPMAPPED_WIDTH = 73,
+    pub const CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_MIPMAPPED_WIDTH: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        73,
+    );
     /// Maximum mipmapped 2D texture height.
-    CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_MIPMAPPED_HEIGHT = 74,
+    pub const CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_MIPMAPPED_HEIGHT: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        74,
+    );
     /// Major compute capability version number.
-    CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR = 75,
+    pub const CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        75,
+    );
     /// Minor compute capability version number.
-    CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR = 76,
+    pub const CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        76,
+    );
     /// Maximum mipmapped 1D texture width.
-    CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE1D_MIPMAPPED_WIDTH = 77,
+    pub const CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE1D_MIPMAPPED_WIDTH: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        77,
+    );
     /// Device supports stream priorities.
-    CU_DEVICE_ATTRIBUTE_STREAM_PRIORITIES_SUPPORTED = 78,
+    pub const CU_DEVICE_ATTRIBUTE_STREAM_PRIORITIES_SUPPORTED: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        78,
+    );
     /// Device supports caching globals in L1.
-    CU_DEVICE_ATTRIBUTE_GLOBAL_L1_CACHE_SUPPORTED = 79,
+    pub const CU_DEVICE_ATTRIBUTE_GLOBAL_L1_CACHE_SUPPORTED: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        79,
+    );
     /// Device supports caching locals in L1.
-    CU_DEVICE_ATTRIBUTE_LOCAL_L1_CACHE_SUPPORTED = 80,
+    pub const CU_DEVICE_ATTRIBUTE_LOCAL_L1_CACHE_SUPPORTED: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        80,
+    );
     /// Maximum shared memory available per multiprocessor in bytes.
-    CU_DEVICE_ATTRIBUTE_MAX_SHARED_MEMORY_PER_MULTIPROCESSOR = 81,
+    pub const CU_DEVICE_ATTRIBUTE_MAX_SHARED_MEMORY_PER_MULTIPROCESSOR: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        81,
+    );
     /// Maximum number of 32-bit registers available per multiprocessor.
-    CU_DEVICE_ATTRIBUTE_MAX_REGISTERS_PER_MULTIPROCESSOR = 82,
+    pub const CU_DEVICE_ATTRIBUTE_MAX_REGISTERS_PER_MULTIPROCESSOR: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        82,
+    );
     /// Device can allocate managed memory on this system.
-    CU_DEVICE_ATTRIBUTE_MANAGED_MEMORY = 83,
+    pub const CU_DEVICE_ATTRIBUTE_MANAGED_MEMORY: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        83,
+    );
     /// Device is on a multi-GPU board.
-    CU_DEVICE_ATTRIBUTE_MULTI_GPU_BOARD = 84,
+    pub const CU_DEVICE_ATTRIBUTE_MULTI_GPU_BOARD: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        84,
+    );
     /// Unique id for a group of devices on the same multi-GPU board.
-    CU_DEVICE_ATTRIBUTE_MULTI_GPU_BOARD_GROUP_ID = 85,
+    pub const CU_DEVICE_ATTRIBUTE_MULTI_GPU_BOARD_GROUP_ID: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        85,
+    );
     /// Link between the device and the host supports all native atomic operations.
-    CU_DEVICE_ATTRIBUTE_HOST_NATIVE_ATOMIC_SUPPORTED = 86,
+    pub const CU_DEVICE_ATTRIBUTE_HOST_NATIVE_ATOMIC_SUPPORTED: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        86,
+    );
     /// Ratio of single precision performance (in floating-point operations per second) to double precision performance.
-    CU_DEVICE_ATTRIBUTE_SINGLE_TO_DOUBLE_PRECISION_PERF_RATIO = 87,
+    pub const CU_DEVICE_ATTRIBUTE_SINGLE_TO_DOUBLE_PRECISION_PERF_RATIO: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        87,
+    );
     /// Device supports coherently accessing pageable memory without calling cudaHostRegister on it.
-    CU_DEVICE_ATTRIBUTE_PAGEABLE_MEMORY_ACCESS = 88,
+    pub const CU_DEVICE_ATTRIBUTE_PAGEABLE_MEMORY_ACCESS: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        88,
+    );
     /// Device can coherently access managed memory concurrently with the CPU.
-    CU_DEVICE_ATTRIBUTE_CONCURRENT_MANAGED_ACCESS = 89,
+    pub const CU_DEVICE_ATTRIBUTE_CONCURRENT_MANAGED_ACCESS: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        89,
+    );
     /// Device supports compute preemption.
-    CU_DEVICE_ATTRIBUTE_COMPUTE_PREEMPTION_SUPPORTED = 90,
+    pub const CU_DEVICE_ATTRIBUTE_COMPUTE_PREEMPTION_SUPPORTED: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        90,
+    );
     /// Device can access host registered memory at the same virtual address as the CPU.
-    CU_DEVICE_ATTRIBUTE_CAN_USE_HOST_POINTER_FOR_REGISTERED_MEM = 91,
+    pub const CU_DEVICE_ATTRIBUTE_CAN_USE_HOST_POINTER_FOR_REGISTERED_MEM: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        91,
+    );
     /// along with v1 MemOps API, cuStreamBatchMemOp and related APIs are supported.
     #[deprecated]
-    CU_DEVICE_ATTRIBUTE_CAN_USE_STREAM_MEM_OPS_V1 = 92,
+    pub const CU_DEVICE_ATTRIBUTE_CAN_USE_STREAM_MEM_OPS_V1: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        92,
+    );
     /// along with v1 MemOps API, 64-bit operations are supported in cuStreamBatchMemOp and related APIs.
     #[deprecated]
-    CU_DEVICE_ATTRIBUTE_CAN_USE_64_BIT_STREAM_MEM_OPS_V1 = 93,
+    pub const CU_DEVICE_ATTRIBUTE_CAN_USE_64_BIT_STREAM_MEM_OPS_V1: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        93,
+    );
     /// along with v1 MemOps API, [`CUstreamWaitValue_flags_enum::CU_STREAM_WAIT_VALUE_NOR`] is supported.
     #[deprecated]
-    CU_DEVICE_ATTRIBUTE_CAN_USE_STREAM_WAIT_VALUE_NOR_V1 = 94,
+    pub const CU_DEVICE_ATTRIBUTE_CAN_USE_STREAM_WAIT_VALUE_NOR_V1: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        94,
+    );
     /// Device supports launching cooperative kernels via [`cuLaunchCooperativeKernel`].
-    CU_DEVICE_ATTRIBUTE_COOPERATIVE_LAUNCH = 95,
+    pub const CU_DEVICE_ATTRIBUTE_COOPERATIVE_LAUNCH: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        95,
+    );
     /// [`cuLaunchCooperativeKernelMultiDevice`] is deprecated.
     #[deprecated]
-    CU_DEVICE_ATTRIBUTE_COOPERATIVE_MULTI_DEVICE_LAUNCH = 96,
+    pub const CU_DEVICE_ATTRIBUTE_COOPERATIVE_MULTI_DEVICE_LAUNCH: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        96,
+    );
     /// Maximum optin shared memory per block.
     ///
     /// That is shared memory that is available for dynamic allocation or static allocation (including architecture specific static shared memory) on this device but is not guaranteed to be portable.
-    CU_DEVICE_ATTRIBUTE_MAX_SHARED_MEMORY_PER_BLOCK_OPTIN = 97,
+    pub const CU_DEVICE_ATTRIBUTE_MAX_SHARED_MEMORY_PER_BLOCK_OPTIN: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        97,
+    );
     /// The [`CUstreamWaitValue_flags_enum::CU_STREAM_WAIT_VALUE_FLUSH`] flag and the [`CUstreamBatchMemOpType_enum::CU_STREAM_MEM_OP_FLUSH_REMOTE_WRITES`] MemOp are supported on the device.
     ///
     /// See [Stream Memory Operations](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-driver-api/cuda_driver_api/group__CUDA__MEMOP.html#group__cuda__memop) for additional details.
-    CU_DEVICE_ATTRIBUTE_CAN_FLUSH_REMOTE_WRITES = 98,
+    pub const CU_DEVICE_ATTRIBUTE_CAN_FLUSH_REMOTE_WRITES: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        98,
+    );
     /// Device supports host memory registration via ::cudaHostRegister.
-    CU_DEVICE_ATTRIBUTE_HOST_REGISTER_SUPPORTED = 99,
+    pub const CU_DEVICE_ATTRIBUTE_HOST_REGISTER_SUPPORTED: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        99,
+    );
     /// Device accesses pageable memory via the host’s page tables.
-    CU_DEVICE_ATTRIBUTE_PAGEABLE_MEMORY_ACCESS_USES_HOST_PAGE_TABLES = 100,
+    pub const CU_DEVICE_ATTRIBUTE_PAGEABLE_MEMORY_ACCESS_USES_HOST_PAGE_TABLES: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        100,
+    );
     /// The host can directly access managed memory on the device without migration.
-    CU_DEVICE_ATTRIBUTE_DIRECT_MANAGED_MEM_ACCESS_FROM_HOST = 101,
+    pub const CU_DEVICE_ATTRIBUTE_DIRECT_MANAGED_MEM_ACCESS_FROM_HOST: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        101,
+    );
     /// Use [`CUdevice_attribute::CU_DEVICE_ATTRIBUTE_VIRTUAL_MEMORY_MANAGEMENT_SUPPORTED`].
     #[deprecated]
-    CU_DEVICE_ATTRIBUTE_VIRTUAL_ADDRESS_MANAGEMENT_SUPPORTED = 102,
+    pub const CU_DEVICE_ATTRIBUTE_VIRTUAL_ADDRESS_MANAGEMENT_SUPPORTED: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        102,
+    );
+    /// Device supports virtual memory management APIs like [`cuMemAddressReserve`], [`cuMemCreate`], [`cuMemMap`] and related APIs.
+    pub const CU_DEVICE_ATTRIBUTE_VIRTUAL_MEMORY_MANAGEMENT_SUPPORTED: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        102,
+    );
     /// Device supports exporting memory to a posix file descriptor with [`cuMemExportToShareableHandle`], if requested via [`cuMemCreate`].
-    CU_DEVICE_ATTRIBUTE_HANDLE_TYPE_POSIX_FILE_DESCRIPTOR_SUPPORTED = 103,
+    pub const CU_DEVICE_ATTRIBUTE_HANDLE_TYPE_POSIX_FILE_DESCRIPTOR_SUPPORTED: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        103,
+    );
     /// Device supports exporting memory to a Win32 NT handle with [`cuMemExportToShareableHandle`], if requested via [`cuMemCreate`].
-    CU_DEVICE_ATTRIBUTE_HANDLE_TYPE_WIN32_HANDLE_SUPPORTED = 104,
+    pub const CU_DEVICE_ATTRIBUTE_HANDLE_TYPE_WIN32_HANDLE_SUPPORTED: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        104,
+    );
     /// Device supports exporting memory to a Win32 KMT handle with [`cuMemExportToShareableHandle`], if requested via [`cuMemCreate`].
-    CU_DEVICE_ATTRIBUTE_HANDLE_TYPE_WIN32_KMT_HANDLE_SUPPORTED = 105,
+    pub const CU_DEVICE_ATTRIBUTE_HANDLE_TYPE_WIN32_KMT_HANDLE_SUPPORTED: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        105,
+    );
     /// Maximum number of blocks per multiprocessor.
-    CU_DEVICE_ATTRIBUTE_MAX_BLOCKS_PER_MULTIPROCESSOR = 106,
+    pub const CU_DEVICE_ATTRIBUTE_MAX_BLOCKS_PER_MULTIPROCESSOR: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        106,
+    );
     /// Device supports compression of memory.
-    CU_DEVICE_ATTRIBUTE_GENERIC_COMPRESSION_SUPPORTED = 107,
+    pub const CU_DEVICE_ATTRIBUTE_GENERIC_COMPRESSION_SUPPORTED: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        107,
+    );
     /// Maximum L2 persisting lines capacity setting in bytes.
-    CU_DEVICE_ATTRIBUTE_MAX_PERSISTING_L2_CACHE_SIZE = 108,
+    pub const CU_DEVICE_ATTRIBUTE_MAX_PERSISTING_L2_CACHE_SIZE: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        108,
+    );
     /// Maximum value of [CUaccessPolicyWindow::num_bytes](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-driver-api/cuda_driver_api/structCUaccessPolicyWindow__v1.html#structcuaccesspolicywindow__v1_1a79ee4c983788bc68605d42aee2701eec).
-    CU_DEVICE_ATTRIBUTE_MAX_ACCESS_POLICY_WINDOW_SIZE = 109,
+    pub const CU_DEVICE_ATTRIBUTE_MAX_ACCESS_POLICY_WINDOW_SIZE: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        109,
+    );
     /// Device supports specifying the GPUDirect RDMA flag with [`cuMemCreate`].
-    CU_DEVICE_ATTRIBUTE_GPU_DIRECT_RDMA_WITH_CUDA_VMM_SUPPORTED = 110,
+    pub const CU_DEVICE_ATTRIBUTE_GPU_DIRECT_RDMA_WITH_CUDA_VMM_SUPPORTED: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        110,
+    );
     /// Shared memory reserved by CUDA driver per block in bytes.
-    CU_DEVICE_ATTRIBUTE_RESERVED_SHARED_MEMORY_PER_BLOCK = 111,
+    pub const CU_DEVICE_ATTRIBUTE_RESERVED_SHARED_MEMORY_PER_BLOCK: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        111,
+    );
     /// Device supports sparse CUDA arrays and sparse CUDA mipmapped arrays.
-    CU_DEVICE_ATTRIBUTE_SPARSE_CUDA_ARRAY_SUPPORTED = 112,
+    pub const CU_DEVICE_ATTRIBUTE_SPARSE_CUDA_ARRAY_SUPPORTED: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        112,
+    );
     /// Device supports using the cuMemHostRegister flag ::CU_MEMHOSTERGISTER_READ_ONLY to register memory that must be mapped as read-only to the GPU.
-    CU_DEVICE_ATTRIBUTE_READ_ONLY_HOST_REGISTER_SUPPORTED = 113,
+    pub const CU_DEVICE_ATTRIBUTE_READ_ONLY_HOST_REGISTER_SUPPORTED: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        113,
+    );
     /// External timeline semaphore interop is supported on the device.
-    CU_DEVICE_ATTRIBUTE_TIMELINE_SEMAPHORE_INTEROP_SUPPORTED = 114,
+    pub const CU_DEVICE_ATTRIBUTE_TIMELINE_SEMAPHORE_INTEROP_SUPPORTED: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        114,
+    );
     /// Device supports using the [`cuMemAllocAsync`] and ::cuMemPool family of APIs.
-    CU_DEVICE_ATTRIBUTE_MEMORY_POOLS_SUPPORTED = 115,
+    pub const CU_DEVICE_ATTRIBUTE_MEMORY_POOLS_SUPPORTED: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        115,
+    );
     /// Device supports GPUDirect RDMA APIs, like nvidia_p2p_get_pages (see <https://docs.nvidia.com/cuda/gpudirect-rdma> for more information).
-    CU_DEVICE_ATTRIBUTE_GPU_DIRECT_RDMA_SUPPORTED = 116,
+    pub const CU_DEVICE_ATTRIBUTE_GPU_DIRECT_RDMA_SUPPORTED: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        116,
+    );
     /// The returned attribute shall be interpreted as a bitmask, where the individual bits are described by the [CUflushGPUDirectRDMAWritesOptions](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-driver-api/cuda_driver_api/group__CUDA__TYPES.html#group__cuda__types_1gaf34334d1d6892847a5d05be7ca8db3c6) enum.
-    CU_DEVICE_ATTRIBUTE_GPU_DIRECT_RDMA_FLUSH_WRITES_OPTIONS = 117,
+    pub const CU_DEVICE_ATTRIBUTE_GPU_DIRECT_RDMA_FLUSH_WRITES_OPTIONS: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        117,
+    );
     /// GPUDirect RDMA writes to the device do not need to be flushed for consumers within the scope indicated by the returned attribute.
     ///
     /// See [CUGPUDirectRDMAWritesOrdering](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-driver-api/cuda_driver_api/group__CUDA__TYPES.html#group__cuda__types_1ga8d647023012ffc318ce86814fec05376) for the numerical values returned here.
-    CU_DEVICE_ATTRIBUTE_GPU_DIRECT_RDMA_WRITES_ORDERING = 118,
+    pub const CU_DEVICE_ATTRIBUTE_GPU_DIRECT_RDMA_WRITES_ORDERING: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        118,
+    );
     /// Handle types supported with mempool based IPC.
-    CU_DEVICE_ATTRIBUTE_MEMPOOL_SUPPORTED_HANDLE_TYPES = 119,
+    pub const CU_DEVICE_ATTRIBUTE_MEMPOOL_SUPPORTED_HANDLE_TYPES: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        119,
+    );
     /// Indicates device supports cluster launch.
-    CU_DEVICE_ATTRIBUTE_CLUSTER_LAUNCH = 120,
+    pub const CU_DEVICE_ATTRIBUTE_CLUSTER_LAUNCH: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        120,
+    );
     /// Device supports deferred mapping CUDA arrays and CUDA mipmapped arrays.
-    CU_DEVICE_ATTRIBUTE_DEFERRED_MAPPING_CUDA_ARRAY_SUPPORTED = 121,
+    pub const CU_DEVICE_ATTRIBUTE_DEFERRED_MAPPING_CUDA_ARRAY_SUPPORTED: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        121,
+    );
     /// 64-bit operations are supported in cuStreamBatchMemOp and related MemOp APIs.
-    CU_DEVICE_ATTRIBUTE_CAN_USE_64_BIT_STREAM_MEM_OPS = 122,
+    pub const CU_DEVICE_ATTRIBUTE_CAN_USE_64_BIT_STREAM_MEM_OPS: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        122,
+    );
     /// [`CUstreamWaitValue_flags_enum::CU_STREAM_WAIT_VALUE_NOR`] is supported by MemOp APIs.
-    CU_DEVICE_ATTRIBUTE_CAN_USE_STREAM_WAIT_VALUE_NOR = 123,
+    pub const CU_DEVICE_ATTRIBUTE_CAN_USE_STREAM_WAIT_VALUE_NOR: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        123,
+    );
     /// Device supports buffer sharing with dma_buf mechanism.
-    CU_DEVICE_ATTRIBUTE_DMA_BUF_SUPPORTED = 124,
+    pub const CU_DEVICE_ATTRIBUTE_DMA_BUF_SUPPORTED: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        124,
+    );
     /// Device supports IPC Events.
-    CU_DEVICE_ATTRIBUTE_IPC_EVENT_SUPPORTED = 125,
+    pub const CU_DEVICE_ATTRIBUTE_IPC_EVENT_SUPPORTED: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        125,
+    );
     /// Number of memory domains the device supports.
-    CU_DEVICE_ATTRIBUTE_MEM_SYNC_DOMAIN_COUNT = 126,
+    pub const CU_DEVICE_ATTRIBUTE_MEM_SYNC_DOMAIN_COUNT: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        126,
+    );
     /// Device supports accessing memory using Tensor Map.
-    CU_DEVICE_ATTRIBUTE_TENSOR_MAP_ACCESS_SUPPORTED = 127,
+    pub const CU_DEVICE_ATTRIBUTE_TENSOR_MAP_ACCESS_SUPPORTED: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        127,
+    );
     /// Device supports exporting memory to a fabric handle with [`cuMemExportToShareableHandle`] or requested with [`cuMemCreate`].
-    CU_DEVICE_ATTRIBUTE_HANDLE_TYPE_FABRIC_SUPPORTED = 128,
+    pub const CU_DEVICE_ATTRIBUTE_HANDLE_TYPE_FABRIC_SUPPORTED: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        128,
+    );
     /// Device supports unified function pointers.
-    CU_DEVICE_ATTRIBUTE_UNIFIED_FUNCTION_POINTERS = 129,
+    pub const CU_DEVICE_ATTRIBUTE_UNIFIED_FUNCTION_POINTERS: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        129,
+    );
     /// NUMA configuration of a device: value is of type [CUdeviceNumaConfig](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-driver-api/cuda_driver_api/group__CUDA__TYPES.html#group__cuda__types_1gabd735e21702c410355167e04d3362eab) enum.
-    CU_DEVICE_ATTRIBUTE_NUMA_CONFIG = 130,
+    pub const CU_DEVICE_ATTRIBUTE_NUMA_CONFIG: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        130,
+    );
     /// NUMA node ID of the GPU memory.
-    CU_DEVICE_ATTRIBUTE_NUMA_ID = 131,
+    pub const CU_DEVICE_ATTRIBUTE_NUMA_ID: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        131,
+    );
     /// Device supports switch multicast and reduction operations.
-    CU_DEVICE_ATTRIBUTE_MULTICAST_SUPPORTED = 132,
+    pub const CU_DEVICE_ATTRIBUTE_MULTICAST_SUPPORTED: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        132,
+    );
     /// Indicates if contexts created on this device will be shared via MPS.
-    CU_DEVICE_ATTRIBUTE_MPS_ENABLED = 133,
+    pub const CU_DEVICE_ATTRIBUTE_MPS_ENABLED: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        133,
+    );
     /// NUMA ID of the host node closest to the device.
     ///
     /// Returns -1 when system does not support NUMA.
-    CU_DEVICE_ATTRIBUTE_HOST_NUMA_ID = 134,
+    pub const CU_DEVICE_ATTRIBUTE_HOST_NUMA_ID: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        134,
+    );
     /// Device supports CIG with D3D12.
-    CU_DEVICE_ATTRIBUTE_D3D12_CIG_SUPPORTED = 135,
+    pub const CU_DEVICE_ATTRIBUTE_D3D12_CIG_SUPPORTED: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        135,
+    );
     /// The returned valued shall be interpreted as a bitmask, where the individual bits are described by the [CUmemDecompressAlgorithm](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-driver-api/cuda_driver_api/group__CUDA__MEM.html#group__cuda__mem_1ga6c015495b909c100e19cd4ddafceee91) enum.
-    CU_DEVICE_ATTRIBUTE_MEM_DECOMPRESS_ALGORITHM_MASK = 136,
+    pub const CU_DEVICE_ATTRIBUTE_MEM_DECOMPRESS_ALGORITHM_MASK: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        136,
+    );
     /// The returned valued is the maximum length in bytes of a single decompress operation that is allowed.
-    CU_DEVICE_ATTRIBUTE_MEM_DECOMPRESS_MAXIMUM_LENGTH = 137,
+    pub const CU_DEVICE_ATTRIBUTE_MEM_DECOMPRESS_MAXIMUM_LENGTH: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        137,
+    );
     /// Device supports CIG with Vulkan.
-    CU_DEVICE_ATTRIBUTE_VULKAN_CIG_SUPPORTED = 138,
+    pub const CU_DEVICE_ATTRIBUTE_VULKAN_CIG_SUPPORTED: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        138,
+    );
     /// The combined 16-bit PCI device ID and 16-bit PCI vendor ID.
-    CU_DEVICE_ATTRIBUTE_GPU_PCI_DEVICE_ID = 139,
+    pub const CU_DEVICE_ATTRIBUTE_GPU_PCI_DEVICE_ID: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        139,
+    );
     /// The combined 16-bit PCI subsystem ID and 16-bit PCI subsystem vendor ID.
-    CU_DEVICE_ATTRIBUTE_GPU_PCI_SUBSYSTEM_ID = 140,
+    pub const CU_DEVICE_ATTRIBUTE_GPU_PCI_SUBSYSTEM_ID: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        140,
+    );
     /// Device supports HOST_NUMA location with the virtual memory management APIs like [`cuMemCreate`], [`cuMemMap`] and related APIs.
-    CU_DEVICE_ATTRIBUTE_HOST_NUMA_VIRTUAL_MEMORY_MANAGEMENT_SUPPORTED = 141,
+    pub const CU_DEVICE_ATTRIBUTE_HOST_NUMA_VIRTUAL_MEMORY_MANAGEMENT_SUPPORTED: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        141,
+    );
     /// Device supports HOST_NUMA location with the [`cuMemAllocAsync`] and ::cuMemPool family of APIs.
-    CU_DEVICE_ATTRIBUTE_HOST_NUMA_MEMORY_POOLS_SUPPORTED = 142,
+    pub const CU_DEVICE_ATTRIBUTE_HOST_NUMA_MEMORY_POOLS_SUPPORTED: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        142,
+    );
     /// Device supports HOST_NUMA location IPC between nodes in a multi-node system.
-    CU_DEVICE_ATTRIBUTE_HOST_NUMA_MULTINODE_IPC_SUPPORTED = 143,
+    pub const CU_DEVICE_ATTRIBUTE_HOST_NUMA_MULTINODE_IPC_SUPPORTED: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        143,
+    );
     /// Device suports HOST location with the [`cuMemAllocAsync`] and ::cuMemPool family of APIs.
-    CU_DEVICE_ATTRIBUTE_HOST_MEMORY_POOLS_SUPPORTED = 144,
+    pub const CU_DEVICE_ATTRIBUTE_HOST_MEMORY_POOLS_SUPPORTED: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        144,
+    );
     /// Device supports HOST location with the virtual memory management APIs like [`cuMemCreate`], [`cuMemMap`] and related APIs.
-    CU_DEVICE_ATTRIBUTE_HOST_VIRTUAL_MEMORY_MANAGEMENT_SUPPORTED = 145,
+    pub const CU_DEVICE_ATTRIBUTE_HOST_VIRTUAL_MEMORY_MANAGEMENT_SUPPORTED: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        145,
+    );
     /// Device supports page-locked host memory buffer sharing with dma_buf mechanism.
-    CU_DEVICE_ATTRIBUTE_HOST_ALLOC_DMA_BUF_SUPPORTED = 146,
+    pub const CU_DEVICE_ATTRIBUTE_HOST_ALLOC_DMA_BUF_SUPPORTED: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        146,
+    );
     /// Link between the device and the host supports only some native atomic operations.
-    CU_DEVICE_ATTRIBUTE_ONLY_PARTIAL_HOST_NATIVE_ATOMIC_SUPPORTED = 147,
+    pub const CU_DEVICE_ATTRIBUTE_ONLY_PARTIAL_HOST_NATIVE_ATOMIC_SUPPORTED: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        147,
+    );
     /// Device supports atomic reduction operations in stream batch memory operations.
-    CU_DEVICE_ATTRIBUTE_ATOMIC_REDUCTION_SUPPORTED = 148,
+    pub const CU_DEVICE_ATTRIBUTE_ATOMIC_REDUCTION_SUPPORTED: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        148,
+    );
     /// Number of locality domains.
-    CU_DEVICE_ATTRIBUTE_LOCALITY_DOMAIN_COUNT = 149,
+    pub const CU_DEVICE_ATTRIBUTE_LOCALITY_DOMAIN_COUNT: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        149,
+    );
     /// Maximum oversized shared memory per block.
-    CU_DEVICE_ATTRIBUTE_MAX_OVERSIZED_SHARED_MEMORY_PER_BLOCK = 150,
+    pub const CU_DEVICE_ATTRIBUTE_MAX_OVERSIZED_SHARED_MEMORY_PER_BLOCK: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        150,
+    );
     /// Device supports CIG streams with D3D12.
-    CU_DEVICE_ATTRIBUTE_D3D12_CIG_STREAMS_SUPPORTED = 151,
+    pub const CU_DEVICE_ATTRIBUTE_D3D12_CIG_STREAMS_SUPPORTED: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        151,
+    );
     /// Device supports mmap() of dmabuf file descriptors for CUDA device memory allocations.
-    CU_DEVICE_ATTRIBUTE_DMA_BUF_MMAP_SUPPORTED = 152,
+    pub const CU_DEVICE_ATTRIBUTE_DMA_BUF_MMAP_SUPPORTED: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        152,
+    );
     /// Device supports unicast logical endpoints.
-    CU_DEVICE_ATTRIBUTE_LOGICAL_ENDPOINT_UNICAST_SUPPORTED = 153,
+    pub const CU_DEVICE_ATTRIBUTE_LOGICAL_ENDPOINT_UNICAST_SUPPORTED: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        153,
+    );
     /// Device supports multicast logical endpoints.
-    CU_DEVICE_ATTRIBUTE_LOGICAL_ENDPOINT_MULTICAST_SUPPORTED = 154,
+    pub const CU_DEVICE_ATTRIBUTE_LOGICAL_ENDPOINT_MULTICAST_SUPPORTED: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        154,
+    );
     /// Device supports counted operations via logical endpoints.
-    CU_DEVICE_ATTRIBUTE_LOGICAL_ENDPOINT_COUNTED_OPS_SUPPORTED = 155,
+    pub const CU_DEVICE_ATTRIBUTE_LOGICAL_ENDPOINT_COUNTED_OPS_SUPPORTED: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        155,
+    );
     /// Device supports unicast logical endpoint access on the owner device.
-    CU_DEVICE_ATTRIBUTE_LOGICAL_ENDPOINT_UNICAST_ACCESS_ON_OWNER_DEVICE_SUPPORTED = 156,
+    pub const CU_DEVICE_ATTRIBUTE_LOGICAL_ENDPOINT_UNICAST_ACCESS_ON_OWNER_DEVICE_SUPPORTED: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        156,
+    );
     /// Number of multiprocessors on each locality domain.
-    CU_DEVICE_ATTRIBUTE_LOCALITY_DOMAIN_MULTIPROCESSOR_COUNT = 157,
+    pub const CU_DEVICE_ATTRIBUTE_LOCALITY_DOMAIN_MULTIPROCESSOR_COUNT: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        157,
+    );
     /// Handle types supported with logical endpoint IPC.
-    CU_DEVICE_ATTRIBUTE_LOGICAL_ENDPOINT_SUPPORTED_HANDLE_TYPES = 158,
+    pub const CU_DEVICE_ATTRIBUTE_LOGICAL_ENDPOINT_SUPPORTED_HANDLE_TYPES: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        158,
+    );
     /// Device supports GPUDirect RDMA with localized memory using the default RDMA mapping link.
-    CU_DEVICE_ATTRIBUTE_GPU_DIRECT_RDMA_WITH_LOCALIZED_MEMORY_SUPPORTED = 161,
+    pub const CU_DEVICE_ATTRIBUTE_GPU_DIRECT_RDMA_WITH_LOCALIZED_MEMORY_SUPPORTED: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        161,
+    );
     /// End marker for the native device-attribute identifiers.
-    CU_DEVICE_ATTRIBUTE_MAX = 162,
+    pub const CU_DEVICE_ATTRIBUTE_MAX: CUdevice_attribute_enum = CUdevice_attribute_enum(
+        162,
+    );
 }
+/// Device properties
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUdevice_attribute_enum(pub ::core::ffi::c_uint);
 pub use self::CUdevice_attribute_enum as CUdevice_attribute;
 /// Legacy device properties
 #[repr(C)]
@@ -1773,108 +2065,144 @@ pub struct CUdevprop_st {
 pub type CUdevprop_v1 = CUdevprop_st;
 /// Legacy device properties
 pub type CUdevprop = CUdevprop_v1;
-/// Pointer information
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUpointer_attribute_enum {
+impl CUpointer_attribute_enum {
     /// The [`CUcontext`] on which a pointer was allocated or registered.
-    CU_POINTER_ATTRIBUTE_CONTEXT = 1,
+    pub const CU_POINTER_ATTRIBUTE_CONTEXT: CUpointer_attribute_enum = CUpointer_attribute_enum(
+        1,
+    );
     /// The [CUmemorytype](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-driver-api/cuda_driver_api/group__CUDA__TYPES.html#group__cuda__types_1ga8a114cc994ad2e865c44ef3838eaec72) describing the physical location of a pointer.
-    CU_POINTER_ATTRIBUTE_MEMORY_TYPE = 2,
+    pub const CU_POINTER_ATTRIBUTE_MEMORY_TYPE: CUpointer_attribute_enum = CUpointer_attribute_enum(
+        2,
+    );
     /// The address at which a pointer’s memory may be accessed on the device.
-    CU_POINTER_ATTRIBUTE_DEVICE_POINTER = 3,
+    pub const CU_POINTER_ATTRIBUTE_DEVICE_POINTER: CUpointer_attribute_enum = CUpointer_attribute_enum(
+        3,
+    );
     /// The address at which a pointer’s memory may be accessed on the host.
-    CU_POINTER_ATTRIBUTE_HOST_POINTER = 4,
+    pub const CU_POINTER_ATTRIBUTE_HOST_POINTER: CUpointer_attribute_enum = CUpointer_attribute_enum(
+        4,
+    );
     /// A pair of tokens for use with the nv-p2p.h Linux kernel interface.
-    CU_POINTER_ATTRIBUTE_P2P_TOKENS = 5,
+    pub const CU_POINTER_ATTRIBUTE_P2P_TOKENS: CUpointer_attribute_enum = CUpointer_attribute_enum(
+        5,
+    );
     /// Synchronize every synchronous memory operation initiated on this region.
-    CU_POINTER_ATTRIBUTE_SYNC_MEMOPS = 6,
+    pub const CU_POINTER_ATTRIBUTE_SYNC_MEMOPS: CUpointer_attribute_enum = CUpointer_attribute_enum(
+        6,
+    );
     /// A process-wide unique ID for an allocated memory region.
-    CU_POINTER_ATTRIBUTE_BUFFER_ID = 7,
+    pub const CU_POINTER_ATTRIBUTE_BUFFER_ID: CUpointer_attribute_enum = CUpointer_attribute_enum(
+        7,
+    );
     /// Indicates if the pointer points to managed memory.
-    CU_POINTER_ATTRIBUTE_IS_MANAGED = 8,
+    pub const CU_POINTER_ATTRIBUTE_IS_MANAGED: CUpointer_attribute_enum = CUpointer_attribute_enum(
+        8,
+    );
     /// A device ordinal of a device on which a pointer was allocated or registered.
-    CU_POINTER_ATTRIBUTE_DEVICE_ORDINAL = 9,
+    pub const CU_POINTER_ATTRIBUTE_DEVICE_ORDINAL: CUpointer_attribute_enum = CUpointer_attribute_enum(
+        9,
+    );
     /// 1 if this pointer maps to an allocation that is suitable for ::cudaIpcGetMemHandle, 0 otherwise.
-    CU_POINTER_ATTRIBUTE_IS_LEGACY_CUDA_IPC_CAPABLE = 10,
+    pub const CU_POINTER_ATTRIBUTE_IS_LEGACY_CUDA_IPC_CAPABLE: CUpointer_attribute_enum = CUpointer_attribute_enum(
+        10,
+    );
     /// Starting address for this requested pointer.
-    CU_POINTER_ATTRIBUTE_RANGE_START_ADDR = 11,
+    pub const CU_POINTER_ATTRIBUTE_RANGE_START_ADDR: CUpointer_attribute_enum = CUpointer_attribute_enum(
+        11,
+    );
     /// Size of the address range for this requested pointer.
-    CU_POINTER_ATTRIBUTE_RANGE_SIZE = 12,
+    pub const CU_POINTER_ATTRIBUTE_RANGE_SIZE: CUpointer_attribute_enum = CUpointer_attribute_enum(
+        12,
+    );
     /// 1 if this pointer is in a valid address range that is mapped to a backing allocation, 0 otherwise.
-    CU_POINTER_ATTRIBUTE_MAPPED = 13,
+    pub const CU_POINTER_ATTRIBUTE_MAPPED: CUpointer_attribute_enum = CUpointer_attribute_enum(
+        13,
+    );
     /// Bitmask of allowed [CUmemAllocationHandleType](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-driver-api/cuda_driver_api/group__CUDA__TYPES.html#group__cuda__types_1ga450a23153d86fce0afe30e25d63caef9) for this allocation.
-    CU_POINTER_ATTRIBUTE_ALLOWED_HANDLE_TYPES = 14,
+    pub const CU_POINTER_ATTRIBUTE_ALLOWED_HANDLE_TYPES: CUpointer_attribute_enum = CUpointer_attribute_enum(
+        14,
+    );
     /// 1 if the memory this pointer is referencing can be used with the GPUDirect RDMA API.
-    CU_POINTER_ATTRIBUTE_IS_GPU_DIRECT_RDMA_CAPABLE = 15,
+    pub const CU_POINTER_ATTRIBUTE_IS_GPU_DIRECT_RDMA_CAPABLE: CUpointer_attribute_enum = CUpointer_attribute_enum(
+        15,
+    );
     /// Returns the access flags the device associated with the current context has on the corresponding memory referenced by the pointer given.
-    CU_POINTER_ATTRIBUTE_ACCESS_FLAGS = 16,
+    pub const CU_POINTER_ATTRIBUTE_ACCESS_FLAGS: CUpointer_attribute_enum = CUpointer_attribute_enum(
+        16,
+    );
     /// Returns the mempool handle for the allocation if it was allocated from a mempool.
     ///
     /// Otherwise returns NULL.
-    CU_POINTER_ATTRIBUTE_MEMPOOL_HANDLE = 17,
+    pub const CU_POINTER_ATTRIBUTE_MEMPOOL_HANDLE: CUpointer_attribute_enum = CUpointer_attribute_enum(
+        17,
+    );
     /// Size of the actual underlying mapping that the pointer belongs to.
-    CU_POINTER_ATTRIBUTE_MAPPING_SIZE = 18,
+    pub const CU_POINTER_ATTRIBUTE_MAPPING_SIZE: CUpointer_attribute_enum = CUpointer_attribute_enum(
+        18,
+    );
     /// The start address of the mapping that the pointer belongs to.
-    CU_POINTER_ATTRIBUTE_MAPPING_BASE_ADDR = 19,
+    pub const CU_POINTER_ATTRIBUTE_MAPPING_BASE_ADDR: CUpointer_attribute_enum = CUpointer_attribute_enum(
+        19,
+    );
     /// A process-wide unique id corresponding to the physical allocation the pointer belongs to.
-    CU_POINTER_ATTRIBUTE_MEMORY_BLOCK_ID = 20,
+    pub const CU_POINTER_ATTRIBUTE_MEMORY_BLOCK_ID: CUpointer_attribute_enum = CUpointer_attribute_enum(
+        20,
+    );
     /// Returns in `*data` a boolean that indicates whether the pointer points to memory that is capable to be used for hardware accelerated decompression.
-    CU_POINTER_ATTRIBUTE_IS_HW_DECOMPRESS_CAPABLE = 21,
+    pub const CU_POINTER_ATTRIBUTE_IS_HW_DECOMPRESS_CAPABLE: CUpointer_attribute_enum = CUpointer_attribute_enum(
+        21,
+    );
     /// Returns in `*data` an integer representing the locality domain ordinal of the memory allocation, or -1 if the allocation is not localized to a locality domain.
-    CU_POINTER_ATTRIBUTE_LOCALITY_DOMAIN_ORDINAL = 22,
+    pub const CU_POINTER_ATTRIBUTE_LOCALITY_DOMAIN_ORDINAL: CUpointer_attribute_enum = CUpointer_attribute_enum(
+        22,
+    );
 }
+/// Pointer information
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUpointer_attribute_enum(pub ::core::ffi::c_uint);
 pub use self::CUpointer_attribute_enum as CUpointer_attribute;
-/// Function properties
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUfunction_attribute_enum {
+impl CUfunction_attribute_enum {
     /// The maximum number of threads per block, beyond which a launch of the function would fail.
     ///
     /// This number depends on both the function and the device on which the function is currently loaded.
-    CU_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK = 0,
+    pub const CU_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK: CUfunction_attribute_enum = CUfunction_attribute_enum(
+        0,
+    );
     /// The size in bytes of statically-allocated shared memory required by this function.
     ///
     /// This does not include dynamically-allocated shared memory requested by the user at runtime.
-    CU_FUNC_ATTRIBUTE_SHARED_SIZE_BYTES = 1,
+    pub const CU_FUNC_ATTRIBUTE_SHARED_SIZE_BYTES: CUfunction_attribute_enum = CUfunction_attribute_enum(
+        1,
+    );
     /// The size in bytes of user-allocated constant memory required by this function.
-    CU_FUNC_ATTRIBUTE_CONST_SIZE_BYTES = 2,
+    pub const CU_FUNC_ATTRIBUTE_CONST_SIZE_BYTES: CUfunction_attribute_enum = CUfunction_attribute_enum(
+        2,
+    );
     /// The size in bytes of local memory used by each thread of this function.
-    CU_FUNC_ATTRIBUTE_LOCAL_SIZE_BYTES = 3,
+    pub const CU_FUNC_ATTRIBUTE_LOCAL_SIZE_BYTES: CUfunction_attribute_enum = CUfunction_attribute_enum(
+        3,
+    );
     /// The number of registers used by each thread of this function.
-    CU_FUNC_ATTRIBUTE_NUM_REGS = 4,
+    pub const CU_FUNC_ATTRIBUTE_NUM_REGS: CUfunction_attribute_enum = CUfunction_attribute_enum(
+        4,
+    );
     /// The PTX virtual architecture version for which the function was compiled.
     ///
     /// This value is the major PTX version \* 10 + the minor PTX version, so a PTX version 1.3 function would return the value 13. Note that this may return the undefined value of 0 for cubins compiled prior to CUDA 3.0.
-    CU_FUNC_ATTRIBUTE_PTX_VERSION = 5,
+    pub const CU_FUNC_ATTRIBUTE_PTX_VERSION: CUfunction_attribute_enum = CUfunction_attribute_enum(
+        5,
+    );
     /// The binary architecture version for which the function was compiled.
     ///
     /// This value is the major binary version \* 10 + the minor binary version, so a binary version 1.3 function would return the value 13. Note that this will return a value of 10 for legacy cubins that do not have a properly-encoded binary architecture version.
-    CU_FUNC_ATTRIBUTE_BINARY_VERSION = 6,
+    pub const CU_FUNC_ATTRIBUTE_BINARY_VERSION: CUfunction_attribute_enum = CUfunction_attribute_enum(
+        6,
+    );
     /// The attribute to indicate whether the function has been compiled with user specified option “-Xptxas –dlcm=ca” set .
-    CU_FUNC_ATTRIBUTE_CACHE_MODE_CA = 7,
+    pub const CU_FUNC_ATTRIBUTE_CACHE_MODE_CA: CUfunction_attribute_enum = CUfunction_attribute_enum(
+        7,
+    );
     /// The maximum size in bytes of dynamically-allocated shared memory that can be used by this function.
     ///
     /// If the user-specified dynamic shared memory size is larger than this value, the launch will fail.
@@ -1886,17 +2214,23 @@ pub enum CUfunction_attribute_enum {
     /// This attribute cannot be used to access oversized shared memory. Oversized shared memory can only be accessed by setting [`CUfunction_attribute_enum::CU_FUNC_ATTRIBUTE_SHARED_MEMORY_MODE`] or [`CUlaunchAttributeID_enum::CU_LAUNCH_ATTRIBUTE_SHARED_MEMORY_MODE`].
     ///
     /// See [`cuFuncSetAttribute`], [`cuKernelSetAttribute`].
-    CU_FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES = 8,
+    pub const CU_FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES: CUfunction_attribute_enum = CUfunction_attribute_enum(
+        8,
+    );
     /// On devices where the L1 cache and shared memory use the same hardware resources, this sets the shared memory carveout preference, in percent of the total shared memory.
     ///
     /// Refer to [`CUdevice_attribute_enum::CU_DEVICE_ATTRIBUTE_MAX_SHARED_MEMORY_PER_MULTIPROCESSOR`]. This is only a hint, and the driver can choose a different ratio if required to execute the function.
     ///
     /// See [`cuFuncSetAttribute`], [`cuKernelSetAttribute`].
-    CU_FUNC_ATTRIBUTE_PREFERRED_SHARED_MEMORY_CARVEOUT = 9,
+    pub const CU_FUNC_ATTRIBUTE_PREFERRED_SHARED_MEMORY_CARVEOUT: CUfunction_attribute_enum = CUfunction_attribute_enum(
+        9,
+    );
     /// If this attribute is set, the kernel must launch with a valid cluster size specified.
     ///
     /// See [`cuFuncSetAttribute`], [`cuKernelSetAttribute`].
-    CU_FUNC_ATTRIBUTE_CLUSTER_SIZE_MUST_BE_SET = 10,
+    pub const CU_FUNC_ATTRIBUTE_CLUSTER_SIZE_MUST_BE_SET: CUfunction_attribute_enum = CUfunction_attribute_enum(
+        10,
+    );
     /// The required cluster width in blocks.
     ///
     /// The values must either all be 0 or all be positive. The validity of the cluster dimensions is otherwise checked at launch time.
@@ -1904,7 +2238,9 @@ pub enum CUfunction_attribute_enum {
     /// If the value is set during compile time, it cannot be set at runtime. Setting it at runtime will return [`CUresult::CUDA_ERROR_NOT_PERMITTED`].
     ///
     /// See [`cuFuncSetAttribute`], [`cuKernelSetAttribute`].
-    CU_FUNC_ATTRIBUTE_REQUIRED_CLUSTER_WIDTH = 11,
+    pub const CU_FUNC_ATTRIBUTE_REQUIRED_CLUSTER_WIDTH: CUfunction_attribute_enum = CUfunction_attribute_enum(
+        11,
+    );
     /// The required cluster height in blocks.
     ///
     /// The values must either all be 0 or all be positive. The validity of the cluster dimensions is otherwise checked at launch time.
@@ -1912,7 +2248,9 @@ pub enum CUfunction_attribute_enum {
     /// If the value is set during compile time, it cannot be set at runtime. Setting it at runtime should return [`CUresult::CUDA_ERROR_NOT_PERMITTED`].
     ///
     /// See [`cuFuncSetAttribute`], [`cuKernelSetAttribute`].
-    CU_FUNC_ATTRIBUTE_REQUIRED_CLUSTER_HEIGHT = 12,
+    pub const CU_FUNC_ATTRIBUTE_REQUIRED_CLUSTER_HEIGHT: CUfunction_attribute_enum = CUfunction_attribute_enum(
+        12,
+    );
     /// The required cluster depth in blocks.
     ///
     /// The values must either all be 0 or all be positive. The validity of the cluster dimensions is otherwise checked at launch time.
@@ -1920,7 +2258,9 @@ pub enum CUfunction_attribute_enum {
     /// If the value is set during compile time, it cannot be set at runtime. Setting it at runtime should return [`CUresult::CUDA_ERROR_NOT_PERMITTED`].
     ///
     /// See [`cuFuncSetAttribute`], [`cuKernelSetAttribute`].
-    CU_FUNC_ATTRIBUTE_REQUIRED_CLUSTER_DEPTH = 13,
+    pub const CU_FUNC_ATTRIBUTE_REQUIRED_CLUSTER_DEPTH: CUfunction_attribute_enum = CUfunction_attribute_enum(
+        13,
+    );
     /// Whether the function can be launched with non-portable cluster size.
     ///
     /// 1 is allowed, 0 is disallowed. A non-portable cluster size may only function on the specific SKUs the program is tested on. The launch might fail if the program is run on a different hardware platform.
@@ -1934,233 +2274,197 @@ pub enum CUfunction_attribute_enum {
     /// The specific hardware unit may support higher cluster sizes that’s not guaranteed to be portable.
     ///
     /// See [`cuFuncSetAttribute`], [`cuKernelSetAttribute`].
-    CU_FUNC_ATTRIBUTE_NON_PORTABLE_CLUSTER_SIZE_ALLOWED = 14,
+    pub const CU_FUNC_ATTRIBUTE_NON_PORTABLE_CLUSTER_SIZE_ALLOWED: CUfunction_attribute_enum = CUfunction_attribute_enum(
+        14,
+    );
     /// The block scheduling policy of a function.
     ///
     /// The value type is CUclusterSchedulingPolicy / cudaClusterSchedulingPolicy.
     ///
     /// See [`cuFuncSetAttribute`], [`cuKernelSetAttribute`].
-    CU_FUNC_ATTRIBUTE_CLUSTER_SCHEDULING_POLICY_PREFERENCE = 15,
+    pub const CU_FUNC_ATTRIBUTE_CLUSTER_SCHEDULING_POLICY_PREFERENCE: CUfunction_attribute_enum = CUfunction_attribute_enum(
+        15,
+    );
     /// Whether the function can be updated on device.
     ///
     /// 1 means device node update is supported, 0 is unsupported.
     ///
     /// See [`cuFuncGetAttribute`].
-    CU_FUNC_ATTRIBUTE_DEVICE_NODE_UPDATE_SUPPORTED = 16,
+    pub const CU_FUNC_ATTRIBUTE_DEVICE_NODE_UPDATE_SUPPORTED: CUfunction_attribute_enum = CUfunction_attribute_enum(
+        16,
+    );
     /// The shared memory mode of a function.
     ///
     /// The value type is CUsharedMemoryMode / cudaSharedMemoryMode.
     ///
     /// See [`cuFuncSetAttribute`], [`cuKernelSetAttribute`].
-    CU_FUNC_ATTRIBUTE_SHARED_MEMORY_MODE = 17,
+    pub const CU_FUNC_ATTRIBUTE_SHARED_MEMORY_MODE: CUfunction_attribute_enum = CUfunction_attribute_enum(
+        17,
+    );
     /// Upper-bound sentinel for CUDA function attribute selectors.
-    CU_FUNC_ATTRIBUTE_MAX = 18,
+    pub const CU_FUNC_ATTRIBUTE_MAX: CUfunction_attribute_enum = CUfunction_attribute_enum(
+        18,
+    );
 }
+/// Function properties
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUfunction_attribute_enum(pub ::core::ffi::c_uint);
 pub use self::CUfunction_attribute_enum as CUfunction_attribute;
-/// Function cache configurations
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUfunc_cache_enum {
+impl CUfunc_cache_enum {
     /// no preference for shared memory or L1 (default).
-    CU_FUNC_CACHE_PREFER_NONE = 0,
+    pub const CU_FUNC_CACHE_PREFER_NONE: CUfunc_cache_enum = CUfunc_cache_enum(0);
     /// prefer larger shared memory and smaller L1 cache.
-    CU_FUNC_CACHE_PREFER_SHARED = 1,
+    pub const CU_FUNC_CACHE_PREFER_SHARED: CUfunc_cache_enum = CUfunc_cache_enum(1);
     /// prefer larger L1 cache and smaller shared memory.
-    CU_FUNC_CACHE_PREFER_L1 = 2,
+    pub const CU_FUNC_CACHE_PREFER_L1: CUfunc_cache_enum = CUfunc_cache_enum(2);
     /// prefer equal sized L1 cache and shared memory.
-    CU_FUNC_CACHE_PREFER_EQUAL = 3,
+    pub const CU_FUNC_CACHE_PREFER_EQUAL: CUfunc_cache_enum = CUfunc_cache_enum(3);
 }
+/// Function cache configurations
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUfunc_cache_enum(pub ::core::ffi::c_uint);
 pub use self::CUfunc_cache_enum as CUfunc_cache;
+impl CUsharedconfig_enum {
+    /// set default shared memory bank size.
+    pub const CU_SHARED_MEM_CONFIG_DEFAULT_BANK_SIZE: CUsharedconfig_enum = CUsharedconfig_enum(
+        0,
+    );
+    /// set shared memory bank width to four bytes.
+    pub const CU_SHARED_MEM_CONFIG_FOUR_BYTE_BANK_SIZE: CUsharedconfig_enum = CUsharedconfig_enum(
+        1,
+    );
+    /// set shared memory bank width to eight bytes.
+    pub const CU_SHARED_MEM_CONFIG_EIGHT_BYTE_BANK_SIZE: CUsharedconfig_enum = CUsharedconfig_enum(
+        2,
+    );
+}
 /// Deprecated:
 ///
 /// Shared memory configurations
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUsharedconfig_enum {
-    /// set default shared memory bank size.
-    CU_SHARED_MEM_CONFIG_DEFAULT_BANK_SIZE = 0,
-    /// set shared memory bank width to four bytes.
-    CU_SHARED_MEM_CONFIG_FOUR_BYTE_BANK_SIZE = 1,
-    /// set shared memory bank width to eight bytes.
-    CU_SHARED_MEM_CONFIG_EIGHT_BYTE_BANK_SIZE = 2,
-}
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUsharedconfig_enum(pub ::core::ffi::c_uint);
 pub use self::CUsharedconfig_enum as CUsharedconfig;
-/// Shared memory carveout configurations. These may be passed to ::cuFuncSetAttribute or ::cuKernelSetAttribute
-#[repr(i32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUshared_carveout_enum {
+impl CUshared_carveout_enum {
     /// No preference for shared memory or L1 (default).
-    CU_SHAREDMEM_CARVEOUT_DEFAULT = -1,
+    pub const CU_SHAREDMEM_CARVEOUT_DEFAULT: CUshared_carveout_enum = CUshared_carveout_enum(
+        -1,
+    );
     /// Prefer maximum available shared memory, minimum L1 cache.
-    CU_SHAREDMEM_CARVEOUT_MAX_SHARED = 100,
+    pub const CU_SHAREDMEM_CARVEOUT_MAX_SHARED: CUshared_carveout_enum = CUshared_carveout_enum(
+        100,
+    );
     /// Prefer maximum available L1 cache, minimum shared memory.
-    CU_SHAREDMEM_CARVEOUT_MAX_L1 = 0,
+    pub const CU_SHAREDMEM_CARVEOUT_MAX_L1: CUshared_carveout_enum = CUshared_carveout_enum(
+        0,
+    );
 }
+/// Shared memory carveout configurations. These may be passed to ::cuFuncSetAttribute or ::cuKernelSetAttribute
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUshared_carveout_enum(pub ::core::ffi::c_int);
 pub use self::CUshared_carveout_enum as CUshared_carveout;
-/// Memory types
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUmemorytype_enum {
+impl CUmemorytype_enum {
     /// Host memory.
-    CU_MEMORYTYPE_HOST = 1,
+    pub const CU_MEMORYTYPE_HOST: CUmemorytype_enum = CUmemorytype_enum(1);
     /// Device memory.
-    CU_MEMORYTYPE_DEVICE = 2,
+    pub const CU_MEMORYTYPE_DEVICE: CUmemorytype_enum = CUmemorytype_enum(2);
     /// Array memory.
-    CU_MEMORYTYPE_ARRAY = 3,
+    pub const CU_MEMORYTYPE_ARRAY: CUmemorytype_enum = CUmemorytype_enum(3);
     /// Unified device or host memory.
-    CU_MEMORYTYPE_UNIFIED = 4,
+    pub const CU_MEMORYTYPE_UNIFIED: CUmemorytype_enum = CUmemorytype_enum(4);
 }
+/// Memory types
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUmemorytype_enum(pub ::core::ffi::c_uint);
 pub use self::CUmemorytype_enum as CUmemorytype;
-/// Compute Modes
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUcomputemode_enum {
+impl CUcomputemode_enum {
     /// Default compute mode (Multiple contexts allowed per device).
-    CU_COMPUTEMODE_DEFAULT = 0,
+    pub const CU_COMPUTEMODE_DEFAULT: CUcomputemode_enum = CUcomputemode_enum(0);
     /// Compute-prohibited mode (No contexts can be created on this device at this time).
-    CU_COMPUTEMODE_PROHIBITED = 2,
+    pub const CU_COMPUTEMODE_PROHIBITED: CUcomputemode_enum = CUcomputemode_enum(2);
     /// Compute-exclusive-process mode (Only one context used by a single process can be present on this device at a time).
-    CU_COMPUTEMODE_EXCLUSIVE_PROCESS = 3,
+    pub const CU_COMPUTEMODE_EXCLUSIVE_PROCESS: CUcomputemode_enum = CUcomputemode_enum(
+        3,
+    );
 }
+/// Compute Modes
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUcomputemode_enum(pub ::core::ffi::c_uint);
 pub use self::CUcomputemode_enum as CUcomputemode;
-/// Memory advise values
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUmem_advise_enum {
+impl CUmem_advise_enum {
     /// Data will mostly be read and only occasionally be written to.
-    CU_MEM_ADVISE_SET_READ_MOSTLY = 1,
+    pub const CU_MEM_ADVISE_SET_READ_MOSTLY: CUmem_advise_enum = CUmem_advise_enum(1);
     /// Undo the effect of [`CUmem_advise_enum::CU_MEM_ADVISE_SET_READ_MOSTLY`].
-    CU_MEM_ADVISE_UNSET_READ_MOSTLY = 2,
+    pub const CU_MEM_ADVISE_UNSET_READ_MOSTLY: CUmem_advise_enum = CUmem_advise_enum(2);
     /// Set the preferred location for the data as the specified device.
-    CU_MEM_ADVISE_SET_PREFERRED_LOCATION = 3,
+    pub const CU_MEM_ADVISE_SET_PREFERRED_LOCATION: CUmem_advise_enum = CUmem_advise_enum(
+        3,
+    );
     /// Clear the preferred location for the data.
-    CU_MEM_ADVISE_UNSET_PREFERRED_LOCATION = 4,
+    pub const CU_MEM_ADVISE_UNSET_PREFERRED_LOCATION: CUmem_advise_enum = CUmem_advise_enum(
+        4,
+    );
     /// Data will be accessed by the specified device, so prevent page faults as much as possible.
-    CU_MEM_ADVISE_SET_ACCESSED_BY = 5,
+    pub const CU_MEM_ADVISE_SET_ACCESSED_BY: CUmem_advise_enum = CUmem_advise_enum(5);
     /// Let the Unified Memory subsystem decide on the page faulting policy for the specified device.
-    CU_MEM_ADVISE_UNSET_ACCESSED_BY = 6,
+    pub const CU_MEM_ADVISE_UNSET_ACCESSED_BY: CUmem_advise_enum = CUmem_advise_enum(6);
 }
+/// Memory advise values
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUmem_advise_enum(pub ::core::ffi::c_uint);
 pub use self::CUmem_advise_enum as CUmem_advise;
-/// Attribute queried for a managed-memory address range.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUmem_range_attribute_enum {
+impl CUmem_range_attribute_enum {
     /// Whether the range will mostly be read and only occasionally be written to.
-    CU_MEM_RANGE_ATTRIBUTE_READ_MOSTLY = 1,
+    pub const CU_MEM_RANGE_ATTRIBUTE_READ_MOSTLY: CUmem_range_attribute_enum = CUmem_range_attribute_enum(
+        1,
+    );
     /// The preferred location of the range.
-    CU_MEM_RANGE_ATTRIBUTE_PREFERRED_LOCATION = 2,
+    pub const CU_MEM_RANGE_ATTRIBUTE_PREFERRED_LOCATION: CUmem_range_attribute_enum = CUmem_range_attribute_enum(
+        2,
+    );
     /// Memory range has [`CUmem_advise_enum::CU_MEM_ADVISE_SET_ACCESSED_BY`] set for specified device.
-    CU_MEM_RANGE_ATTRIBUTE_ACCESSED_BY = 3,
+    pub const CU_MEM_RANGE_ATTRIBUTE_ACCESSED_BY: CUmem_range_attribute_enum = CUmem_range_attribute_enum(
+        3,
+    );
     /// The last location to which the range was prefetched.
-    CU_MEM_RANGE_ATTRIBUTE_LAST_PREFETCH_LOCATION = 4,
+    pub const CU_MEM_RANGE_ATTRIBUTE_LAST_PREFETCH_LOCATION: CUmem_range_attribute_enum = CUmem_range_attribute_enum(
+        4,
+    );
     /// The preferred location type of the range.
-    CU_MEM_RANGE_ATTRIBUTE_PREFERRED_LOCATION_TYPE = 5,
+    pub const CU_MEM_RANGE_ATTRIBUTE_PREFERRED_LOCATION_TYPE: CUmem_range_attribute_enum = CUmem_range_attribute_enum(
+        5,
+    );
     /// The preferred location id of the range.
-    CU_MEM_RANGE_ATTRIBUTE_PREFERRED_LOCATION_ID = 6,
+    pub const CU_MEM_RANGE_ATTRIBUTE_PREFERRED_LOCATION_ID: CUmem_range_attribute_enum = CUmem_range_attribute_enum(
+        6,
+    );
     /// The last location type to which the range was prefetched.
-    CU_MEM_RANGE_ATTRIBUTE_LAST_PREFETCH_LOCATION_TYPE = 7,
+    pub const CU_MEM_RANGE_ATTRIBUTE_LAST_PREFETCH_LOCATION_TYPE: CUmem_range_attribute_enum = CUmem_range_attribute_enum(
+        7,
+    );
     /// The last location id to which the range was prefetched.
-    CU_MEM_RANGE_ATTRIBUTE_LAST_PREFETCH_LOCATION_ID = 8,
+    pub const CU_MEM_RANGE_ATTRIBUTE_LAST_PREFETCH_LOCATION_ID: CUmem_range_attribute_enum = CUmem_range_attribute_enum(
+        8,
+    );
 }
+/// Attribute queried for a managed-memory address range.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUmem_range_attribute_enum(pub ::core::ffi::c_uint);
 pub use self::CUmem_range_attribute_enum as CUmem_range_attribute;
-/// Online compiler and linker options
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUjit_option_enum {
+impl CUjit_option_enum {
     /// Max number of registers that a thread may use.
     ///
     /// Option type: unsigned int
     ///
     /// Applies to: compiler only.
-    CU_JIT_MAX_REGISTERS = 0,
+    pub const CU_JIT_MAX_REGISTERS: CUjit_option_enum = CUjit_option_enum(0);
     /// IN: Specifies minimum number of threads per block to target compilation for
     ///
     /// OUT: Returns the number of threads the compiler actually targeted.
@@ -2172,17 +2476,17 @@ pub enum CUjit_option_enum {
     /// .
     ///
     /// Option type: unsigned int.
-    CU_JIT_THREADS_PER_BLOCK = 1,
+    pub const CU_JIT_THREADS_PER_BLOCK: CUjit_option_enum = CUjit_option_enum(1);
     /// Overwrites the option value with the total wall clock time, in milliseconds, spent in the compiler and linker
     ///
     /// Option type: float.
-    CU_JIT_WALL_TIME = 2,
+    pub const CU_JIT_WALL_TIME: CUjit_option_enum = CUjit_option_enum(2);
     /// Pointer to a buffer in which to print any log messages that are informational in nature (the buffer size is specified via option [`CUjit_option_enum::CU_JIT_INFO_LOG_BUFFER_SIZE_BYTES`]
     ///
     /// )
     ///
     /// Option type: char \*.
-    CU_JIT_INFO_LOG_BUFFER = 3,
+    pub const CU_JIT_INFO_LOG_BUFFER: CUjit_option_enum = CUjit_option_enum(3);
     /// IN: Log buffer size in bytes.
     ///
     /// Log messages will be capped at this size (including null terminator)
@@ -2192,13 +2496,15 @@ pub enum CUjit_option_enum {
     /// Option type: unsigned int
     ///
     /// Applies to: compiler and linker.
-    CU_JIT_INFO_LOG_BUFFER_SIZE_BYTES = 4,
+    pub const CU_JIT_INFO_LOG_BUFFER_SIZE_BYTES: CUjit_option_enum = CUjit_option_enum(
+        4,
+    );
     /// Pointer to a buffer in which to print any log messages that reflect errors (the buffer size is specified via option [`CUjit_option_enum::CU_JIT_ERROR_LOG_BUFFER_SIZE_BYTES`]
     ///
     /// )
     ///
     /// Option type: char \*.
-    CU_JIT_ERROR_LOG_BUFFER = 5,
+    pub const CU_JIT_ERROR_LOG_BUFFER: CUjit_option_enum = CUjit_option_enum(5);
     /// IN: Log buffer size in bytes.
     ///
     /// Log messages will be capped at this size (including null terminator)
@@ -2208,19 +2514,21 @@ pub enum CUjit_option_enum {
     /// Option type: unsigned int
     ///
     /// Applies to: compiler and linker.
-    CU_JIT_ERROR_LOG_BUFFER_SIZE_BYTES = 6,
+    pub const CU_JIT_ERROR_LOG_BUFFER_SIZE_BYTES: CUjit_option_enum = CUjit_option_enum(
+        6,
+    );
     /// Level of optimizations to apply to generated code (0 - 4), with 4 being the default and highest level of optimizations.
     ///
     /// Option type: unsigned int
     ///
     /// Applies to: compiler only.
-    CU_JIT_OPTIMIZATION_LEVEL = 7,
+    pub const CU_JIT_OPTIMIZATION_LEVEL: CUjit_option_enum = CUjit_option_enum(7);
     /// No option value required.
     ///
     /// Determines the target based on the current attached context (default)
     ///
     /// Option type: No option value needed.
-    CU_JIT_TARGET_FROM_CUCONTEXT = 8,
+    pub const CU_JIT_TARGET_FROM_CUCONTEXT: CUjit_option_enum = CUjit_option_enum(8);
     /// Target is chosen based on supplied [CUjit_target](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-driver-api/cuda_driver_api/group__CUDA__TYPES.html#group__cuda__types_1gae443308cb7ed1d52b85b487305779184).
     ///
     /// Cannot be combined with [`CUjit_option_enum::CU_JIT_THREADS_PER_BLOCK`]
@@ -2228,7 +2536,7 @@ pub enum CUjit_option_enum {
     /// .
     ///
     /// Option type: unsigned int for enumerated type.
-    CU_JIT_TARGET = 9,
+    pub const CU_JIT_TARGET: CUjit_option_enum = CUjit_option_enum(9);
     /// Specifies choice of fallback strategy if matching cubin is not found.
     ///
     /// Choice is based on supplied [CUjit_fallback](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-driver-api/cuda_driver_api/group__CUDA__TYPES.html#group__cuda__types_1ga4a1a92ea65e18b06907b981848c282f2)
@@ -2236,19 +2544,19 @@ pub enum CUjit_option_enum {
     /// . This option cannot be used with cuLink\* APIs as the linker requires exact matches.
     ///
     /// Option type: unsigned int for enumerated type.
-    CU_JIT_FALLBACK_STRATEGY = 10,
+    pub const CU_JIT_FALLBACK_STRATEGY: CUjit_option_enum = CUjit_option_enum(10);
     /// Specifies whether to create debug information in output (-g) (0: false, default)
     ///
     /// Option type: int.
-    CU_JIT_GENERATE_DEBUG_INFO = 11,
+    pub const CU_JIT_GENERATE_DEBUG_INFO: CUjit_option_enum = CUjit_option_enum(11);
     /// Generate verbose log messages (0: false, default)
     ///
     /// Option type: int.
-    CU_JIT_LOG_VERBOSE = 12,
+    pub const CU_JIT_LOG_VERBOSE: CUjit_option_enum = CUjit_option_enum(12);
     /// Generate line number information (-lineinfo) (0: false, default)
     ///
     /// Option type: int.
-    CU_JIT_GENERATE_LINE_INFO = 13,
+    pub const CU_JIT_GENERATE_LINE_INFO: CUjit_option_enum = CUjit_option_enum(13);
     /// Specifies whether to enable caching explicitly (-dlcm)
     ///
     /// Choice is based on supplied ::CUjit_cacheMode_enum.
@@ -2256,11 +2564,11 @@ pub enum CUjit_option_enum {
     /// Option type: unsigned int for enumerated type ::CUjit_cacheMode_enum
     ///
     /// Applies to: compiler only.
-    CU_JIT_CACHE_MODE = 14,
+    pub const CU_JIT_CACHE_MODE: CUjit_option_enum = CUjit_option_enum(14);
     /// Deprecated: This jit option is deprecated and should not be used.
-    CU_JIT_NEW_SM3X_OPT = 15,
+    pub const CU_JIT_NEW_SM3X_OPT: CUjit_option_enum = CUjit_option_enum(15);
     /// This jit option is used for internal purpose only.
-    CU_JIT_FAST_COMPILE = 16,
+    pub const CU_JIT_FAST_COMPILE: CUjit_option_enum = CUjit_option_enum(16);
     /// Array of device symbol names that will be relocated to the corresponding host addresses stored in [`CUjit_option_enum::CU_JIT_GLOBAL_SYMBOL_ADDRESSES`].
     ///
     /// Must contain [`CUjit_option_enum::CU_JIT_GLOBAL_SYMBOL_COUNT`]
@@ -2276,7 +2584,7 @@ pub enum CUjit_option_enum {
     /// Option type: const char \*\*
     ///
     /// Applies to: dynamic linker only.
-    CU_JIT_GLOBAL_SYMBOL_NAMES = 17,
+    pub const CU_JIT_GLOBAL_SYMBOL_NAMES: CUjit_option_enum = CUjit_option_enum(17);
     /// Array of host addresses that will be used to relocate corresponding device symbols stored in [`CUjit_option_enum::CU_JIT_GLOBAL_SYMBOL_NAMES`].
     ///
     /// Must contain [`CUjit_option_enum::CU_JIT_GLOBAL_SYMBOL_COUNT`]
@@ -2284,37 +2592,45 @@ pub enum CUjit_option_enum {
     /// entries.
     ///
     /// Option type: void \*\*.
-    CU_JIT_GLOBAL_SYMBOL_ADDRESSES = 18,
+    pub const CU_JIT_GLOBAL_SYMBOL_ADDRESSES: CUjit_option_enum = CUjit_option_enum(18);
     /// Number of entries in [`CUjit_option_enum::CU_JIT_GLOBAL_SYMBOL_NAMES`] and [`CUjit_option_enum::CU_JIT_GLOBAL_SYMBOL_ADDRESSES`] arrays.
     ///
     /// Option type: unsigned int
     ///
     /// Applies to: dynamic linker only.
-    CU_JIT_GLOBAL_SYMBOL_COUNT = 19,
+    pub const CU_JIT_GLOBAL_SYMBOL_COUNT: CUjit_option_enum = CUjit_option_enum(19);
     /// Only valid with LTO-IR compiled with toolkits prior to CUDA 12.0.
-    CU_JIT_LTO = 20,
+    pub const CU_JIT_LTO: CUjit_option_enum = CUjit_option_enum(20);
     /// Only valid with LTO-IR compiled with toolkits prior to CUDA 12.0.
-    CU_JIT_FTZ = 21,
+    pub const CU_JIT_FTZ: CUjit_option_enum = CUjit_option_enum(21);
     /// Only valid with LTO-IR compiled with toolkits prior to CUDA 12.0.
-    CU_JIT_PREC_DIV = 22,
+    pub const CU_JIT_PREC_DIV: CUjit_option_enum = CUjit_option_enum(22);
     /// Only valid with LTO-IR compiled with toolkits prior to CUDA 12.0.
-    CU_JIT_PREC_SQRT = 23,
+    pub const CU_JIT_PREC_SQRT: CUjit_option_enum = CUjit_option_enum(23);
     /// Only valid with LTO-IR compiled with toolkits prior to CUDA 12.0.
-    CU_JIT_FMA = 24,
+    pub const CU_JIT_FMA: CUjit_option_enum = CUjit_option_enum(24);
     /// Only valid with LTO-IR compiled with toolkits prior to CUDA 12.0.
-    CU_JIT_REFERENCED_KERNEL_NAMES = 25,
+    pub const CU_JIT_REFERENCED_KERNEL_NAMES: CUjit_option_enum = CUjit_option_enum(25);
     /// Only valid with LTO-IR compiled with toolkits prior to CUDA 12.0.
-    CU_JIT_REFERENCED_KERNEL_COUNT = 26,
+    pub const CU_JIT_REFERENCED_KERNEL_COUNT: CUjit_option_enum = CUjit_option_enum(26);
     /// Only valid with LTO-IR compiled with toolkits prior to CUDA 12.0.
-    CU_JIT_REFERENCED_VARIABLE_NAMES = 27,
+    pub const CU_JIT_REFERENCED_VARIABLE_NAMES: CUjit_option_enum = CUjit_option_enum(
+        27,
+    );
     /// Only valid with LTO-IR compiled with toolkits prior to CUDA 12.0.
-    CU_JIT_REFERENCED_VARIABLE_COUNT = 28,
+    pub const CU_JIT_REFERENCED_VARIABLE_COUNT: CUjit_option_enum = CUjit_option_enum(
+        28,
+    );
     /// Only valid with LTO-IR compiled with toolkits prior to CUDA 12.0.
-    CU_JIT_OPTIMIZE_UNUSED_DEVICE_VARIABLES = 29,
+    pub const CU_JIT_OPTIMIZE_UNUSED_DEVICE_VARIABLES: CUjit_option_enum = CUjit_option_enum(
+        29,
+    );
     /// Generate position independent code (0: false)
     ///
     /// Option type: int.
-    CU_JIT_POSITION_INDEPENDENT_CODE = 30,
+    pub const CU_JIT_POSITION_INDEPENDENT_CODE: CUjit_option_enum = CUjit_option_enum(
+        30,
+    );
     /// This option hints to the JIT compiler the minimum number of CTAs from the kernel’s grid to be mapped to a SM.
     ///
     /// This option is ignored when used together with [`CUjit_option_enum::CU_JIT_MAX_REGISTERS`] or [`CUjit_option_enum::CU_JIT_THREADS_PER_BLOCK`]. Optimizations based on this option need [`CUjit_option_enum::CU_JIT_MAX_THREADS_PER_BLOCK`] to be specified as well. For kernels already using PTX directive .minnctapersm, this option will be ignored by default. Use [`CUjit_option_enum::CU_JIT_OVERRIDE_DIRECTIVE_VALUES`]
@@ -2322,7 +2638,7 @@ pub enum CUjit_option_enum {
     /// to let this option take precedence over the PTX directive. Option type: unsigned int
     ///
     /// Applies to: compiler only.
-    CU_JIT_MIN_CTA_PER_SM = 31,
+    pub const CU_JIT_MIN_CTA_PER_SM: CUjit_option_enum = CUjit_option_enum(31);
     /// Maximum number threads in a thread block, computed as the product of the maximum extent specifed for each dimension of the block.
     ///
     /// This limit is guaranteed not to be exeeded in any invocation of the kernel. Exceeding the maximum number of threads results in runtime error or kernel launch failure. For kernels already using PTX directive .maxntid, this option will be ignored by default. Use [`CUjit_option_enum::CU_JIT_OVERRIDE_DIRECTIVE_VALUES`]
@@ -2330,206 +2646,174 @@ pub enum CUjit_option_enum {
     /// to let this option take precedence over the PTX directive. Option type: int
     ///
     /// Applies to: compiler only.
-    CU_JIT_MAX_THREADS_PER_BLOCK = 32,
+    pub const CU_JIT_MAX_THREADS_PER_BLOCK: CUjit_option_enum = CUjit_option_enum(32);
     /// This option lets the values specified using [`CUjit_option_enum::CU_JIT_MAX_REGISTERS`], [`CUjit_option_enum::CU_JIT_THREADS_PER_BLOCK`], [`CUjit_option_enum::CU_JIT_MAX_THREADS_PER_BLOCK`] and [`CUjit_option_enum::CU_JIT_MIN_CTA_PER_SM`] take precedence over any PTX directives.
     ///
     /// (0: Disable, default; 1: Enable) Option type: int
     ///
     /// Applies to: compiler only.
-    CU_JIT_OVERRIDE_DIRECTIVE_VALUES = 33,
+    pub const CU_JIT_OVERRIDE_DIRECTIVE_VALUES: CUjit_option_enum = CUjit_option_enum(
+        33,
+    );
     /// This option specifies the maximum number of concurrent threads to use when running compiler optimizations.
     ///
     /// If the specified value is 1, the option will be ignored. If the specified value is 0, the number of threads will match the number of CPUs on the underlying machine. Otherwise, if the option is N, then up to N threads will be used. Option type: unsigned int
     ///
     /// Applies to: compiler only.
-    CU_JIT_SPLIT_COMPILE = 34,
+    pub const CU_JIT_SPLIT_COMPILE: CUjit_option_enum = CUjit_option_enum(34);
     /// This option specifies the maximum number of concurrent threads to use when compiling device code.
     ///
     /// If the specified value is 1, the option will be ignored. If the specified value is 0, the number of threads will match the number of CPUs on the underlying machine. Otherwise, if the option is N, then up to N threads will be used. This option is ignored if the env var CUDA_BINARY_LOADER_THREAD_COUNT is set. Option type: unsigned int
     ///
     /// Applies to: compiler and linker.
-    CU_JIT_BINARY_LOADER_THREAD_COUNT = 35,
+    pub const CU_JIT_BINARY_LOADER_THREAD_COUNT: CUjit_option_enum = CUjit_option_enum(
+        35,
+    );
     /// Upper-bound sentinel for CUDA JIT option selectors.
-    CU_JIT_NUM_OPTIONS = 36,
+    pub const CU_JIT_NUM_OPTIONS: CUjit_option_enum = CUjit_option_enum(36);
 }
+/// Online compiler and linker options
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUjit_option_enum(pub ::core::ffi::c_uint);
 pub use self::CUjit_option_enum as CUjit_option;
-/// Online compilation targets
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUjit_target_enum {
+impl CUjit_target_enum {
     /// Compute device class 3.0.
-    CU_TARGET_COMPUTE_30 = 30,
+    pub const CU_TARGET_COMPUTE_30: CUjit_target_enum = CUjit_target_enum(30);
     /// Compute device class 3.2.
-    CU_TARGET_COMPUTE_32 = 32,
+    pub const CU_TARGET_COMPUTE_32: CUjit_target_enum = CUjit_target_enum(32);
     /// Compute device class 3.5.
-    CU_TARGET_COMPUTE_35 = 35,
+    pub const CU_TARGET_COMPUTE_35: CUjit_target_enum = CUjit_target_enum(35);
     /// Compute device class 3.7.
-    CU_TARGET_COMPUTE_37 = 37,
+    pub const CU_TARGET_COMPUTE_37: CUjit_target_enum = CUjit_target_enum(37);
     /// Compute device class 5.0.
-    CU_TARGET_COMPUTE_50 = 50,
+    pub const CU_TARGET_COMPUTE_50: CUjit_target_enum = CUjit_target_enum(50);
     /// Compute device class 5.2.
-    CU_TARGET_COMPUTE_52 = 52,
+    pub const CU_TARGET_COMPUTE_52: CUjit_target_enum = CUjit_target_enum(52);
     /// Compute device class 5.3.
-    CU_TARGET_COMPUTE_53 = 53,
+    pub const CU_TARGET_COMPUTE_53: CUjit_target_enum = CUjit_target_enum(53);
     /// Compute device class 6.0.
-    CU_TARGET_COMPUTE_60 = 60,
+    pub const CU_TARGET_COMPUTE_60: CUjit_target_enum = CUjit_target_enum(60);
     /// Compute device class 6.1.
-    CU_TARGET_COMPUTE_61 = 61,
+    pub const CU_TARGET_COMPUTE_61: CUjit_target_enum = CUjit_target_enum(61);
     /// Compute device class 6.2.
-    CU_TARGET_COMPUTE_62 = 62,
+    pub const CU_TARGET_COMPUTE_62: CUjit_target_enum = CUjit_target_enum(62);
     /// Compute device class 7.0.
-    CU_TARGET_COMPUTE_70 = 70,
+    pub const CU_TARGET_COMPUTE_70: CUjit_target_enum = CUjit_target_enum(70);
     /// Compute device class 7.2.
-    CU_TARGET_COMPUTE_72 = 72,
+    pub const CU_TARGET_COMPUTE_72: CUjit_target_enum = CUjit_target_enum(72);
     /// Compute device class 7.5.
-    CU_TARGET_COMPUTE_75 = 75,
+    pub const CU_TARGET_COMPUTE_75: CUjit_target_enum = CUjit_target_enum(75);
     /// Compute device class 8.0.
-    CU_TARGET_COMPUTE_80 = 80,
+    pub const CU_TARGET_COMPUTE_80: CUjit_target_enum = CUjit_target_enum(80);
     /// Compute device class 8.6.
-    CU_TARGET_COMPUTE_86 = 86,
+    pub const CU_TARGET_COMPUTE_86: CUjit_target_enum = CUjit_target_enum(86);
     /// Compute device class 8.7.
-    CU_TARGET_COMPUTE_87 = 87,
+    pub const CU_TARGET_COMPUTE_87: CUjit_target_enum = CUjit_target_enum(87);
     /// Compute device class 8.9.
-    CU_TARGET_COMPUTE_89 = 89,
+    pub const CU_TARGET_COMPUTE_89: CUjit_target_enum = CUjit_target_enum(89);
     /// Compute device class 9.0.
-    CU_TARGET_COMPUTE_90 = 90,
+    pub const CU_TARGET_COMPUTE_90: CUjit_target_enum = CUjit_target_enum(90);
     /// Compute device class 10.0.
-    CU_TARGET_COMPUTE_100 = 100,
+    pub const CU_TARGET_COMPUTE_100: CUjit_target_enum = CUjit_target_enum(100);
     /// Compute device class 11.0.
-    CU_TARGET_COMPUTE_110 = 110,
+    pub const CU_TARGET_COMPUTE_110: CUjit_target_enum = CUjit_target_enum(110);
     /// Compute device class 10.3.
-    CU_TARGET_COMPUTE_103 = 103,
+    pub const CU_TARGET_COMPUTE_103: CUjit_target_enum = CUjit_target_enum(103);
     /// Compute device class 10.7.
-    CU_TARGET_COMPUTE_107 = 107,
+    pub const CU_TARGET_COMPUTE_107: CUjit_target_enum = CUjit_target_enum(107);
     /// Compute device class 12.0.
-    CU_TARGET_COMPUTE_120 = 120,
+    pub const CU_TARGET_COMPUTE_120: CUjit_target_enum = CUjit_target_enum(120);
     /// Compute device class 12.1.
     ///
     /// Compute device class 9.0. with accelerated features.
-    CU_TARGET_COMPUTE_121 = 121,
+    pub const CU_TARGET_COMPUTE_121: CUjit_target_enum = CUjit_target_enum(121);
     /// Compute capability 9.0 target with architecture-specific accelerated features.
-    CU_TARGET_COMPUTE_90A = 65626,
+    pub const CU_TARGET_COMPUTE_90A: CUjit_target_enum = CUjit_target_enum(65626);
     /// Compute capability 10.0 target with architecture-specific accelerated features.
-    CU_TARGET_COMPUTE_100A = 65636,
+    pub const CU_TARGET_COMPUTE_100A: CUjit_target_enum = CUjit_target_enum(65636);
     /// Compute capability 11.0 target with architecture-specific accelerated features.
-    CU_TARGET_COMPUTE_110A = 65646,
+    pub const CU_TARGET_COMPUTE_110A: CUjit_target_enum = CUjit_target_enum(65646);
     /// Compute capability 10.3 target with architecture-specific accelerated features.
-    CU_TARGET_COMPUTE_103A = 65639,
+    pub const CU_TARGET_COMPUTE_103A: CUjit_target_enum = CUjit_target_enum(65639);
     /// Compute capability 10.7 target with architecture-specific accelerated features.
-    CU_TARGET_COMPUTE_107A = 65643,
+    pub const CU_TARGET_COMPUTE_107A: CUjit_target_enum = CUjit_target_enum(65643);
     /// Compute capability 12.0 target with architecture-specific accelerated features.
-    CU_TARGET_COMPUTE_120A = 65656,
+    pub const CU_TARGET_COMPUTE_120A: CUjit_target_enum = CUjit_target_enum(65656);
     /// Compute capability 12.1 target with architecture-specific accelerated features.
-    CU_TARGET_COMPUTE_121A = 65657,
+    pub const CU_TARGET_COMPUTE_121A: CUjit_target_enum = CUjit_target_enum(65657);
     /// Compute capability 10.0 target with architecture-family features.
-    CU_TARGET_COMPUTE_100F = 131172,
+    pub const CU_TARGET_COMPUTE_100F: CUjit_target_enum = CUjit_target_enum(131172);
     /// Compute capability 11.0 target with architecture-family features.
-    CU_TARGET_COMPUTE_110F = 131182,
+    pub const CU_TARGET_COMPUTE_110F: CUjit_target_enum = CUjit_target_enum(131182);
     /// Compute capability 10.3 target with architecture-family features.
-    CU_TARGET_COMPUTE_103F = 131175,
+    pub const CU_TARGET_COMPUTE_103F: CUjit_target_enum = CUjit_target_enum(131175);
     /// Compute capability 10.7 target with architecture-family features.
-    CU_TARGET_COMPUTE_107F = 131179,
+    pub const CU_TARGET_COMPUTE_107F: CUjit_target_enum = CUjit_target_enum(131179);
     /// Compute capability 12.0 target with architecture-family features.
-    CU_TARGET_COMPUTE_120F = 131192,
+    pub const CU_TARGET_COMPUTE_120F: CUjit_target_enum = CUjit_target_enum(131192);
     /// Compute capability 12.1 target with architecture-family features.
-    CU_TARGET_COMPUTE_121F = 131193,
+    pub const CU_TARGET_COMPUTE_121F: CUjit_target_enum = CUjit_target_enum(131193);
 }
+/// Online compilation targets
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUjit_target_enum(pub ::core::ffi::c_uint);
 pub use self::CUjit_target_enum as CUjit_target;
-/// Cubin matching fallback strategies
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUjit_fallback_enum {
+impl CUjit_fallback_enum {
     /// Prefer to compile ptx if exact binary match not found.
-    CU_PREFER_PTX = 0,
+    pub const CU_PREFER_PTX: CUjit_fallback_enum = CUjit_fallback_enum(0);
     /// Prefer to fall back to compatible binary code if exact match not found.
-    CU_PREFER_BINARY = 1,
+    pub const CU_PREFER_BINARY: CUjit_fallback_enum = CUjit_fallback_enum(1);
 }
+/// Cubin matching fallback strategies
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUjit_fallback_enum(pub ::core::ffi::c_uint);
 pub use self::CUjit_fallback_enum as CUjit_fallback;
-/// Caching modes for dlcm
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUjit_cacheMode_enum {
+impl CUjit_cacheMode_enum {
     /// Compile with no -dlcm flag specified.
-    CU_JIT_CACHE_OPTION_NONE = 0,
+    pub const CU_JIT_CACHE_OPTION_NONE: CUjit_cacheMode_enum = CUjit_cacheMode_enum(0);
     /// Compile with L1 cache disabled.
-    CU_JIT_CACHE_OPTION_CG = 1,
+    pub const CU_JIT_CACHE_OPTION_CG: CUjit_cacheMode_enum = CUjit_cacheMode_enum(1);
     /// Compile with L1 cache enabled.
-    CU_JIT_CACHE_OPTION_CA = 2,
+    pub const CU_JIT_CACHE_OPTION_CA: CUjit_cacheMode_enum = CUjit_cacheMode_enum(2);
 }
+/// Caching modes for dlcm
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUjit_cacheMode_enum(pub ::core::ffi::c_uint);
 pub use self::CUjit_cacheMode_enum as CUjit_cacheMode;
-/// Device code formats
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUjitInputType_enum {
+impl CUjitInputType_enum {
     /// Compiled device-class-specific device code
     ///
     /// Applicable options: none.
-    CU_JIT_INPUT_CUBIN = 0,
+    pub const CU_JIT_INPUT_CUBIN: CUjitInputType_enum = CUjitInputType_enum(0);
     /// PTX source code
     ///
     /// Applicable options: PTX compiler options.
-    CU_JIT_INPUT_PTX = 1,
+    pub const CU_JIT_INPUT_PTX: CUjitInputType_enum = CUjitInputType_enum(1);
     /// Bundle of multiple cubins and/or PTX of some device code
     ///
     /// Applicable options: PTX compiler options,.
-    CU_JIT_INPUT_FATBINARY = 2,
+    pub const CU_JIT_INPUT_FATBINARY: CUjitInputType_enum = CUjitInputType_enum(2);
     /// Host object with embedded device code
     ///
     /// Applicable options: PTX compiler options,.
-    CU_JIT_INPUT_OBJECT = 3,
+    pub const CU_JIT_INPUT_OBJECT: CUjitInputType_enum = CUjitInputType_enum(3);
     /// Archive of host objects with embedded device code
     ///
     /// Applicable options: PTX compiler options,.
-    CU_JIT_INPUT_LIBRARY = 4,
+    pub const CU_JIT_INPUT_LIBRARY: CUjitInputType_enum = CUjitInputType_enum(4);
     /// Only valid with LTO-IR compiled with toolkits prior to CUDA 12.0.
-    CU_JIT_INPUT_NVVM = 5,
+    pub const CU_JIT_INPUT_NVVM: CUjitInputType_enum = CUjitInputType_enum(5);
     /// Upper-bound sentinel for CUDA linker input formats.
-    CU_JIT_NUM_INPUT_TYPES = 6,
+    pub const CU_JIT_NUM_INPUT_TYPES: CUjitInputType_enum = CUjitInputType_enum(6);
 }
+/// Device code formats
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUjitInputType_enum(pub ::core::ffi::c_uint);
 pub use self::CUjitInputType_enum as CUjitInputType;
 /// Incomplete native type used by [`CUlinkState`] handles. The native API owns its layout.
 #[repr(C)]
@@ -2539,183 +2823,159 @@ pub struct CUlinkState_st {
 }
 /// Opaque state of a CUDA driver JIT linking session, created by [`cuLinkCreate_v2`] and released by [`cuLinkDestroy`].
 pub type CUlinkState = *mut CUlinkState_st;
-/// Flags to register a graphics resource
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUgraphicsRegisterFlags_enum {
+impl CUgraphicsRegisterFlags_enum {
     /// Default registration behavior without additional access hints.
-    CU_GRAPHICS_REGISTER_FLAGS_NONE = 0,
+    pub const CU_GRAPHICS_REGISTER_FLAGS_NONE: CUgraphicsRegisterFlags_enum = CUgraphicsRegisterFlags_enum(
+        0,
+    );
     /// Hints that CUDA will only read the registered resource.
-    CU_GRAPHICS_REGISTER_FLAGS_READ_ONLY = 1,
+    pub const CU_GRAPHICS_REGISTER_FLAGS_READ_ONLY: CUgraphicsRegisterFlags_enum = CUgraphicsRegisterFlags_enum(
+        1,
+    );
     /// Hints that CUDA will overwrite the registered resource without reading its previous contents.
-    CU_GRAPHICS_REGISTER_FLAGS_WRITE_DISCARD = 2,
+    pub const CU_GRAPHICS_REGISTER_FLAGS_WRITE_DISCARD: CUgraphicsRegisterFlags_enum = CUgraphicsRegisterFlags_enum(
+        2,
+    );
     /// Allows binding the registered image to a CUDA surface for load and store operations.
-    CU_GRAPHICS_REGISTER_FLAGS_SURFACE_LDST = 4,
+    pub const CU_GRAPHICS_REGISTER_FLAGS_SURFACE_LDST: CUgraphicsRegisterFlags_enum = CUgraphicsRegisterFlags_enum(
+        4,
+    );
     /// Allows texture-gather operations on the registered image.
-    CU_GRAPHICS_REGISTER_FLAGS_TEXTURE_GATHER = 8,
+    pub const CU_GRAPHICS_REGISTER_FLAGS_TEXTURE_GATHER: CUgraphicsRegisterFlags_enum = CUgraphicsRegisterFlags_enum(
+        8,
+    );
 }
+/// Flags to register a graphics resource
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUgraphicsRegisterFlags_enum(pub ::core::ffi::c_uint);
 pub use self::CUgraphicsRegisterFlags_enum as CUgraphicsRegisterFlags;
-/// Flags for mapping and unmapping interop resources
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUgraphicsMapResourceFlags_enum {
+impl CUgraphicsMapResourceFlags_enum {
     /// Specifies no hints about how this resource will be used. It is therefore assumed that this resource will be read from and written to by CUDA kernels.  This is the default value.
-    CU_GRAPHICS_MAP_RESOURCE_FLAGS_NONE = 0,
+    pub const CU_GRAPHICS_MAP_RESOURCE_FLAGS_NONE: CUgraphicsMapResourceFlags_enum = CUgraphicsMapResourceFlags_enum(
+        0,
+    );
     /// Hints that CUDA will only read the mapped resource.
-    CU_GRAPHICS_MAP_RESOURCE_FLAGS_READ_ONLY = 1,
+    pub const CU_GRAPHICS_MAP_RESOURCE_FLAGS_READ_ONLY: CUgraphicsMapResourceFlags_enum = CUgraphicsMapResourceFlags_enum(
+        1,
+    );
     /// Hints that CUDA will overwrite the mapped resource without reading its previous contents.
-    CU_GRAPHICS_MAP_RESOURCE_FLAGS_WRITE_DISCARD = 2,
+    pub const CU_GRAPHICS_MAP_RESOURCE_FLAGS_WRITE_DISCARD: CUgraphicsMapResourceFlags_enum = CUgraphicsMapResourceFlags_enum(
+        2,
+    );
 }
+/// Flags for mapping and unmapping interop resources
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUgraphicsMapResourceFlags_enum(pub ::core::ffi::c_uint);
 pub use self::CUgraphicsMapResourceFlags_enum as CUgraphicsMapResourceFlags;
-/// Array indices for cube faces
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUarray_cubemap_face_enum {
+impl CUarray_cubemap_face_enum {
     /// Positive X face of cubemap.
-    CU_CUBEMAP_FACE_POSITIVE_X = 0,
+    pub const CU_CUBEMAP_FACE_POSITIVE_X: CUarray_cubemap_face_enum = CUarray_cubemap_face_enum(
+        0,
+    );
     /// Negative X face of cubemap.
-    CU_CUBEMAP_FACE_NEGATIVE_X = 1,
+    pub const CU_CUBEMAP_FACE_NEGATIVE_X: CUarray_cubemap_face_enum = CUarray_cubemap_face_enum(
+        1,
+    );
     /// Positive Y face of cubemap.
-    CU_CUBEMAP_FACE_POSITIVE_Y = 2,
+    pub const CU_CUBEMAP_FACE_POSITIVE_Y: CUarray_cubemap_face_enum = CUarray_cubemap_face_enum(
+        2,
+    );
     /// Negative Y face of cubemap.
-    CU_CUBEMAP_FACE_NEGATIVE_Y = 3,
+    pub const CU_CUBEMAP_FACE_NEGATIVE_Y: CUarray_cubemap_face_enum = CUarray_cubemap_face_enum(
+        3,
+    );
     /// Positive Z face of cubemap.
-    CU_CUBEMAP_FACE_POSITIVE_Z = 4,
+    pub const CU_CUBEMAP_FACE_POSITIVE_Z: CUarray_cubemap_face_enum = CUarray_cubemap_face_enum(
+        4,
+    );
     /// Negative Z face of cubemap.
-    CU_CUBEMAP_FACE_NEGATIVE_Z = 5,
+    pub const CU_CUBEMAP_FACE_NEGATIVE_Z: CUarray_cubemap_face_enum = CUarray_cubemap_face_enum(
+        5,
+    );
 }
+/// Array indices for cube faces
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUarray_cubemap_face_enum(pub ::core::ffi::c_uint);
 pub use self::CUarray_cubemap_face_enum as CUarray_cubemap_face;
-/// Limits
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUlimit_enum {
+impl CUlimit_enum {
     /// GPU thread stack size.
-    CU_LIMIT_STACK_SIZE = 0,
+    pub const CU_LIMIT_STACK_SIZE: CUlimit_enum = CUlimit_enum(0);
     /// GPU printf FIFO size.
-    CU_LIMIT_PRINTF_FIFO_SIZE = 1,
+    pub const CU_LIMIT_PRINTF_FIFO_SIZE: CUlimit_enum = CUlimit_enum(1);
     /// GPU malloc heap size.
-    CU_LIMIT_MALLOC_HEAP_SIZE = 2,
+    pub const CU_LIMIT_MALLOC_HEAP_SIZE: CUlimit_enum = CUlimit_enum(2);
     /// GPU device runtime launch synchronize depth.
-    CU_LIMIT_DEV_RUNTIME_SYNC_DEPTH = 3,
+    pub const CU_LIMIT_DEV_RUNTIME_SYNC_DEPTH: CUlimit_enum = CUlimit_enum(3);
     /// GPU device runtime pending launch count.
-    CU_LIMIT_DEV_RUNTIME_PENDING_LAUNCH_COUNT = 4,
+    pub const CU_LIMIT_DEV_RUNTIME_PENDING_LAUNCH_COUNT: CUlimit_enum = CUlimit_enum(4);
     /// A value between 0 and 128 that indicates the maximum fetch granularity of L2 (in Bytes).
     ///
     /// This is a hint.
-    CU_LIMIT_MAX_L2_FETCH_GRANULARITY = 5,
+    pub const CU_LIMIT_MAX_L2_FETCH_GRANULARITY: CUlimit_enum = CUlimit_enum(5);
     /// A size in bytes for L2 persisting lines cache size.
-    CU_LIMIT_PERSISTING_L2_CACHE_SIZE = 6,
+    pub const CU_LIMIT_PERSISTING_L2_CACHE_SIZE: CUlimit_enum = CUlimit_enum(6);
     /// A maximum size in bytes of shared memory available to CUDA kernels on a CIG context.
     ///
     /// Can only be queried, cannot be set.
-    CU_LIMIT_SHMEM_SIZE = 7,
+    pub const CU_LIMIT_SHMEM_SIZE: CUlimit_enum = CUlimit_enum(7);
     /// A non-zero value indicates this CUDA context is a CIG-enabled context.
     ///
     /// Can only be queried, cannot be set.
-    CU_LIMIT_CIG_ENABLED = 8,
+    pub const CU_LIMIT_CIG_ENABLED: CUlimit_enum = CUlimit_enum(8);
     /// When set to zero, CUDA will fail to launch a kernel on a CIG context, instead of using the fallback path, if the kernel uses more shared memory than available.
-    CU_LIMIT_CIG_SHMEM_FALLBACK_ENABLED = 9,
+    pub const CU_LIMIT_CIG_SHMEM_FALLBACK_ENABLED: CUlimit_enum = CUlimit_enum(9);
     /// Per-block memory size.
-    CU_LIMIT_PER_BLOCK_MEMORY_SIZE = 10,
+    pub const CU_LIMIT_PER_BLOCK_MEMORY_SIZE: CUlimit_enum = CUlimit_enum(10);
     /// Reserved upper-bound sentinel for native device limits.
-    CU_LIMIT_MAX = 11,
+    pub const CU_LIMIT_MAX: CUlimit_enum = CUlimit_enum(11);
 }
+/// Limits
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUlimit_enum(pub ::core::ffi::c_uint);
 pub use self::CUlimit_enum as CUlimit;
-/// Resource types
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUresourcetype_enum {
+impl CUresourcetype_enum {
     /// Array resource.
-    CU_RESOURCE_TYPE_ARRAY = 0,
+    pub const CU_RESOURCE_TYPE_ARRAY: CUresourcetype_enum = CUresourcetype_enum(0);
     /// Mipmapped array resource.
-    CU_RESOURCE_TYPE_MIPMAPPED_ARRAY = 1,
+    pub const CU_RESOURCE_TYPE_MIPMAPPED_ARRAY: CUresourcetype_enum = CUresourcetype_enum(
+        1,
+    );
     /// Linear resource.
-    CU_RESOURCE_TYPE_LINEAR = 2,
+    pub const CU_RESOURCE_TYPE_LINEAR: CUresourcetype_enum = CUresourcetype_enum(2);
     /// Pitch 2D resource.
-    CU_RESOURCE_TYPE_PITCH2D = 3,
+    pub const CU_RESOURCE_TYPE_PITCH2D: CUresourcetype_enum = CUresourcetype_enum(3);
 }
+/// Resource types
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUresourcetype_enum(pub ::core::ffi::c_uint);
 pub use self::CUresourcetype_enum as CUresourcetype;
 /// CUDA host function.
 pub type CUhostFn = ::core::option::Option<
     unsafe extern "C" fn(userData: *mut ::core::ffi::c_void),
 >;
-/// Specifies performance hint with ::CUaccessPolicyWindow for hitProp and missProp members.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUaccessProperty_enum {
+impl CUaccessProperty_enum {
     /// Normal cache persistence.
-    CU_ACCESS_PROPERTY_NORMAL = 0,
+    pub const CU_ACCESS_PROPERTY_NORMAL: CUaccessProperty_enum = CUaccessProperty_enum(
+        0,
+    );
     /// Streaming access is less likely to persit from cache.
-    CU_ACCESS_PROPERTY_STREAMING = 1,
+    pub const CU_ACCESS_PROPERTY_STREAMING: CUaccessProperty_enum = CUaccessProperty_enum(
+        1,
+    );
     /// Persisting access is more likely to persist in cache.
-    CU_ACCESS_PROPERTY_PERSISTING = 2,
+    pub const CU_ACCESS_PROPERTY_PERSISTING: CUaccessProperty_enum = CUaccessProperty_enum(
+        2,
+    );
 }
+/// Specifies performance hint with ::CUaccessPolicyWindow for hitProp and missProp members.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUaccessProperty_enum(pub ::core::ffi::c_uint);
 pub use self::CUaccessProperty_enum as CUaccessProperty;
 /// Specifies an access policy for a window, a contiguous extent of memory beginning at base_ptr and ending at base_ptr + num_bytes. num_bytes is limited by CU_DEVICE_ATTRIBUTE_MAX_ACCESS_POLICY_WINDOW_SIZE. Partition into many segments and assign segments such that: sum of "hit segments" / window == approx. ratio. sum of "miss segments" / window == approx 1-ratio. Segments and ratio specifications are fitted to the capabilities of the architecture. Accesses in a hit segment apply the hitProp access policy. Accesses in a miss segment apply the missProp access policy.
 #[repr(C)]
@@ -2980,34 +3240,30 @@ impl Default for CUDA_HOST_NODE_PARAMS_v2_st {
 }
 /// Host node parameters.
 pub type CUDA_HOST_NODE_PARAMS_v2 = CUDA_HOST_NODE_PARAMS_v2_st;
-/// Conditional node types
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUgraphConditionalNodeType_enum {
+impl CUgraphConditionalNodeType_enum {
     /// Conditional ‘if/else’ Node.
     ///
     /// Body\[0\] executed if condition is non-zero. If `size` == 2, an optional ELSE graph is created and this is executed if the condition is zero.
-    CU_GRAPH_COND_TYPE_IF = 0,
+    pub const CU_GRAPH_COND_TYPE_IF: CUgraphConditionalNodeType_enum = CUgraphConditionalNodeType_enum(
+        0,
+    );
     /// Conditional ‘while’ Node.
     ///
     /// Body executed repeatedly while condition value is non-zero.
-    CU_GRAPH_COND_TYPE_WHILE = 1,
+    pub const CU_GRAPH_COND_TYPE_WHILE: CUgraphConditionalNodeType_enum = CUgraphConditionalNodeType_enum(
+        1,
+    );
     /// Conditional ‘switch’ Node.
     ///
     /// Body\[n\] is executed once, where ‘n’ is the value of the condition. If the condition does not match a body index, no body is launched.
-    CU_GRAPH_COND_TYPE_SWITCH = 2,
+    pub const CU_GRAPH_COND_TYPE_SWITCH: CUgraphConditionalNodeType_enum = CUgraphConditionalNodeType_enum(
+        2,
+    );
 }
+/// Conditional node types
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUgraphConditionalNodeType_enum(pub ::core::ffi::c_uint);
 pub use self::CUgraphConditionalNodeType_enum as CUgraphConditionalNodeType;
 /// Conditional node parameters.
 #[repr(C)]
@@ -3045,75 +3301,77 @@ impl Default for CUDA_CONDITIONAL_NODE_PARAMS {
         }
     }
 }
-/// Graph node types
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUgraphNodeType_enum {
+impl CUgraphNodeType_enum {
     /// GPU kernel node.
-    CU_GRAPH_NODE_TYPE_KERNEL = 0,
+    pub const CU_GRAPH_NODE_TYPE_KERNEL: CUgraphNodeType_enum = CUgraphNodeType_enum(0);
     /// Memcpy node.
-    CU_GRAPH_NODE_TYPE_MEMCPY = 1,
+    pub const CU_GRAPH_NODE_TYPE_MEMCPY: CUgraphNodeType_enum = CUgraphNodeType_enum(1);
     /// Memset node.
-    CU_GRAPH_NODE_TYPE_MEMSET = 2,
+    pub const CU_GRAPH_NODE_TYPE_MEMSET: CUgraphNodeType_enum = CUgraphNodeType_enum(2);
     /// Host (executable) node.
-    CU_GRAPH_NODE_TYPE_HOST = 3,
+    pub const CU_GRAPH_NODE_TYPE_HOST: CUgraphNodeType_enum = CUgraphNodeType_enum(3);
     /// Node which executes an embedded graph.
-    CU_GRAPH_NODE_TYPE_GRAPH = 4,
+    pub const CU_GRAPH_NODE_TYPE_GRAPH: CUgraphNodeType_enum = CUgraphNodeType_enum(4);
     /// Empty (no-op) node.
-    CU_GRAPH_NODE_TYPE_EMPTY = 5,
+    pub const CU_GRAPH_NODE_TYPE_EMPTY: CUgraphNodeType_enum = CUgraphNodeType_enum(5);
     /// External event wait node.
-    CU_GRAPH_NODE_TYPE_WAIT_EVENT = 6,
+    pub const CU_GRAPH_NODE_TYPE_WAIT_EVENT: CUgraphNodeType_enum = CUgraphNodeType_enum(
+        6,
+    );
     /// External event record node.
-    CU_GRAPH_NODE_TYPE_EVENT_RECORD = 7,
+    pub const CU_GRAPH_NODE_TYPE_EVENT_RECORD: CUgraphNodeType_enum = CUgraphNodeType_enum(
+        7,
+    );
     /// External semaphore signal node.
-    CU_GRAPH_NODE_TYPE_EXT_SEMAS_SIGNAL = 8,
+    pub const CU_GRAPH_NODE_TYPE_EXT_SEMAS_SIGNAL: CUgraphNodeType_enum = CUgraphNodeType_enum(
+        8,
+    );
     /// External semaphore wait node.
-    CU_GRAPH_NODE_TYPE_EXT_SEMAS_WAIT = 9,
+    pub const CU_GRAPH_NODE_TYPE_EXT_SEMAS_WAIT: CUgraphNodeType_enum = CUgraphNodeType_enum(
+        9,
+    );
     /// Memory Allocation Node.
-    CU_GRAPH_NODE_TYPE_MEM_ALLOC = 10,
+    pub const CU_GRAPH_NODE_TYPE_MEM_ALLOC: CUgraphNodeType_enum = CUgraphNodeType_enum(
+        10,
+    );
     /// Memory Free Node.
-    CU_GRAPH_NODE_TYPE_MEM_FREE = 11,
+    pub const CU_GRAPH_NODE_TYPE_MEM_FREE: CUgraphNodeType_enum = CUgraphNodeType_enum(
+        11,
+    );
     /// Batch MemOp Node See cuStreamBatchMemOp and [CUstreamBatchMemOpType](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-driver-api/cuda_driver_api/group__CUDA__TYPES.html#group__cuda__types_1gab257b534afdb704b6ebdb99c16a5b292) for what these nodes can do.
-    CU_GRAPH_NODE_TYPE_BATCH_MEM_OP = 12,
+    pub const CU_GRAPH_NODE_TYPE_BATCH_MEM_OP: CUgraphNodeType_enum = CUgraphNodeType_enum(
+        12,
+    );
     /// Conditional Node.
-    CU_GRAPH_NODE_TYPE_CONDITIONAL = 13,
+    pub const CU_GRAPH_NODE_TYPE_CONDITIONAL: CUgraphNodeType_enum = CUgraphNodeType_enum(
+        13,
+    );
     /// Reserved.
-    CU_GRAPH_NODE_TYPE_RESERVED_16 = 16,
+    pub const CU_GRAPH_NODE_TYPE_RESERVED_16: CUgraphNodeType_enum = CUgraphNodeType_enum(
+        16,
+    );
 }
+/// Graph node types
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUgraphNodeType_enum(pub ::core::ffi::c_uint);
 pub use self::CUgraphNodeType_enum as CUgraphNodeType;
-/// Type annotations that can be applied to graph edges as part of ::CUgraphEdgeData.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUgraphDependencyType_enum {
+impl CUgraphDependencyType_enum {
     /// This is an ordinary dependency.
-    CU_GRAPH_DEPENDENCY_TYPE_DEFAULT = 0,
+    pub const CU_GRAPH_DEPENDENCY_TYPE_DEFAULT: CUgraphDependencyType_enum = CUgraphDependencyType_enum(
+        0,
+    );
     /// This dependency type allows the downstream node to use cudaGridDependencySynchronize().
     ///
     /// It may only be used between kernel nodes, and must be used with either the [`CU_GRAPH_KERNEL_NODE_PORT_PROGRAMMATIC`] or [`CU_GRAPH_KERNEL_NODE_PORT_LAUNCH_ORDER`] outgoing port.
-    CU_GRAPH_DEPENDENCY_TYPE_PROGRAMMATIC = 1,
+    pub const CU_GRAPH_DEPENDENCY_TYPE_PROGRAMMATIC: CUgraphDependencyType_enum = CUgraphDependencyType_enum(
+        1,
+    );
 }
+/// Type annotations that can be applied to graph edges as part of ::CUgraphEdgeData.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUgraphDependencyType_enum(pub ::core::ffi::c_uint);
 pub use self::CUgraphDependencyType_enum as CUgraphDependencyType;
 /// Optional annotation for edges in a CUDA graph. Note, all edges implicitly have annotations and default to a zero-initialized value if not specified. A zero-initialized struct indicates a standard full serialization of two nodes with memory visibility.
 #[repr(C)]
@@ -3132,34 +3390,36 @@ pub struct CUgraphEdgeData_st {
 ///
 /// Note, all edges implicitly have annotations and default to a zero-initialized value if not specified. A zero-initialized struct indicates a standard full serialization of two nodes with memory visibility.
 pub type CUgraphEdgeData = CUgraphEdgeData_st;
-/// Graph instantiation results
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUgraphInstantiateResult_enum {
+impl CUgraphInstantiateResult_enum {
     /// Instantiation succeeded.
-    CUDA_GRAPH_INSTANTIATE_SUCCESS = 0,
+    pub const CUDA_GRAPH_INSTANTIATE_SUCCESS: CUgraphInstantiateResult_enum = CUgraphInstantiateResult_enum(
+        0,
+    );
     /// Instantiation failed for an unexpected reason which is described in the return value of the function.
-    CUDA_GRAPH_INSTANTIATE_ERROR = 1,
+    pub const CUDA_GRAPH_INSTANTIATE_ERROR: CUgraphInstantiateResult_enum = CUgraphInstantiateResult_enum(
+        1,
+    );
     /// Instantiation failed due to invalid structure, such as cycles.
-    CUDA_GRAPH_INSTANTIATE_INVALID_STRUCTURE = 2,
+    pub const CUDA_GRAPH_INSTANTIATE_INVALID_STRUCTURE: CUgraphInstantiateResult_enum = CUgraphInstantiateResult_enum(
+        2,
+    );
     /// Instantiation for device launch failed because the graph contained an unsupported operation.
-    CUDA_GRAPH_INSTANTIATE_NODE_OPERATION_NOT_SUPPORTED = 3,
+    pub const CUDA_GRAPH_INSTANTIATE_NODE_OPERATION_NOT_SUPPORTED: CUgraphInstantiateResult_enum = CUgraphInstantiateResult_enum(
+        3,
+    );
     /// Instantiation for device launch failed due to the nodes belonging to different contexts.
-    CUDA_GRAPH_INSTANTIATE_MULTIPLE_CTXS_NOT_SUPPORTED = 4,
+    pub const CUDA_GRAPH_INSTANTIATE_MULTIPLE_CTXS_NOT_SUPPORTED: CUgraphInstantiateResult_enum = CUgraphInstantiateResult_enum(
+        4,
+    );
     /// One or more conditional handles are not associated with conditional nodes.
-    CUDA_GRAPH_INSTANTIATE_CONDITIONAL_HANDLE_UNUSED = 5,
+    pub const CUDA_GRAPH_INSTANTIATE_CONDITIONAL_HANDLE_UNUSED: CUgraphInstantiateResult_enum = CUgraphInstantiateResult_enum(
+        5,
+    );
 }
+/// Graph instantiation results
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUgraphInstantiateResult_enum(pub ::core::ffi::c_uint);
 pub use self::CUgraphInstantiateResult_enum as CUgraphInstantiateResult;
 /// Graph instantiation parameters
 #[repr(C)]
@@ -3185,60 +3445,66 @@ impl Default for CUDA_GRAPH_INSTANTIATE_PARAMS_st {
 }
 /// Graph instantiation parameters.
 pub type CUDA_GRAPH_INSTANTIATE_PARAMS = CUDA_GRAPH_INSTANTIATE_PARAMS_st;
-/// Policy used when synchronizing CUDA work.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUsynchronizationPolicy_enum {
+impl CUsynchronizationPolicy_enum {
     /// Selects the synchronization policy automatically.
-    CU_SYNC_POLICY_AUTO = 1,
+    pub const CU_SYNC_POLICY_AUTO: CUsynchronizationPolicy_enum = CUsynchronizationPolicy_enum(
+        1,
+    );
     /// Spins while waiting for completion.
-    CU_SYNC_POLICY_SPIN = 2,
+    pub const CU_SYNC_POLICY_SPIN: CUsynchronizationPolicy_enum = CUsynchronizationPolicy_enum(
+        2,
+    );
     /// Yields the waiting thread while waiting for completion.
-    CU_SYNC_POLICY_YIELD = 3,
+    pub const CU_SYNC_POLICY_YIELD: CUsynchronizationPolicy_enum = CUsynchronizationPolicy_enum(
+        3,
+    );
     /// Blocks the waiting thread until completion.
-    CU_SYNC_POLICY_BLOCKING_SYNC = 4,
+    pub const CU_SYNC_POLICY_BLOCKING_SYNC: CUsynchronizationPolicy_enum = CUsynchronizationPolicy_enum(
+        4,
+    );
 }
+/// Policy used when synchronizing CUDA work.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUsynchronizationPolicy_enum(pub ::core::ffi::c_uint);
 pub use self::CUsynchronizationPolicy_enum as CUsynchronizationPolicy;
-/// Cluster scheduling policies. These may be passed to ::cuFuncSetAttribute or ::cuKernelSetAttribute
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUclusterSchedulingPolicy_enum {
+impl CUclusterSchedulingPolicy_enum {
     /// the default policy.
-    CU_CLUSTER_SCHEDULING_POLICY_DEFAULT = 0,
+    pub const CU_CLUSTER_SCHEDULING_POLICY_DEFAULT: CUclusterSchedulingPolicy_enum = CUclusterSchedulingPolicy_enum(
+        0,
+    );
     /// spread the blocks within a cluster to the SMs.
-    CU_CLUSTER_SCHEDULING_POLICY_SPREAD = 1,
+    pub const CU_CLUSTER_SCHEDULING_POLICY_SPREAD: CUclusterSchedulingPolicy_enum = CUclusterSchedulingPolicy_enum(
+        1,
+    );
     /// allow the hardware to load-balance the blocks in a cluster to the SMs.
-    CU_CLUSTER_SCHEDULING_POLICY_LOAD_BALANCING = 2,
+    pub const CU_CLUSTER_SCHEDULING_POLICY_LOAD_BALANCING: CUclusterSchedulingPolicy_enum = CUclusterSchedulingPolicy_enum(
+        2,
+    );
     /// Spread the blocks within a cluster to the SMs, and prefer placement that prioritizes Distributed Shared Memory locality for Rubin-class GPUs.
     ///
     /// This is a preference only. The driver may ignore this request when the launch is not eligible, when the device does not support the requested placement behavior, or when other launch constraints take precedence.
     ///
     /// This policy is intended for clustered kernels whose performance depends on communication through Distributed Shared Memory among blocks in the same cluster.
-    CU_CLUSTER_SCHEDULING_POLICY_RUBIN_DSMEM_LOCALITY = 3,
+    pub const CU_CLUSTER_SCHEDULING_POLICY_RUBIN_DSMEM_LOCALITY: CUclusterSchedulingPolicy_enum = CUclusterSchedulingPolicy_enum(
+        3,
+    );
 }
+/// Cluster scheduling policies. These may be passed to ::cuFuncSetAttribute or ::cuKernelSetAttribute
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUclusterSchedulingPolicy_enum(pub ::core::ffi::c_uint);
 pub use self::CUclusterSchedulingPolicy_enum as CUclusterSchedulingPolicy;
+impl CUlaunchMemSyncDomain_enum {
+    /// Launch kernels in the default domain.
+    pub const CU_LAUNCH_MEM_SYNC_DOMAIN_DEFAULT: CUlaunchMemSyncDomain_enum = CUlaunchMemSyncDomain_enum(
+        0,
+    );
+    /// Launch kernels in the remote domain.
+    pub const CU_LAUNCH_MEM_SYNC_DOMAIN_REMOTE: CUlaunchMemSyncDomain_enum = CUlaunchMemSyncDomain_enum(
+        1,
+    );
+}
 /// Memory Synchronization Domain
 ///
 /// A kernel can be launched in a specified memory synchronization domain that affects all memory operations issued by that kernel. A memory barrier issued in one domain will only order memory operations in that domain, thus eliminating latency increase from memory barriers ordering unrelated traffic.
@@ -3246,25 +3512,9 @@ pub use self::CUclusterSchedulingPolicy_enum as CUclusterSchedulingPolicy;
 /// By default, kernels are launched in domain 0. Kernel launched with ::CU_LAUNCH_MEM_SYNC_DOMAIN_REMOTE will have a different domain ID. User may also alter the domain ID with ::CUlaunchMemSyncDomainMap for a specific stream / graph node / kernel launch. See ::CU_LAUNCH_ATTRIBUTE_MEM_SYNC_DOMAIN, ::cuStreamSetAttribute, ::cuLaunchKernelEx, ::cuGraphKernelNodeSetAttribute.
 ///
 /// Memory operations done in kernels launched in different domains are considered system-scope distanced. In other words, a GPU scoped memory synchronization is not sufficient for memory order to be observed by kernels in another memory synchronization domain even if they are on the same GPU.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUlaunchMemSyncDomain_enum {
-    /// Launch kernels in the default domain.
-    CU_LAUNCH_MEM_SYNC_DOMAIN_DEFAULT = 0,
-    /// Launch kernels in the remote domain.
-    CU_LAUNCH_MEM_SYNC_DOMAIN_REMOTE = 1,
-}
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUlaunchMemSyncDomain_enum(pub ::core::ffi::c_uint);
 pub use self::CUlaunchMemSyncDomain_enum as CUlaunchMemSyncDomain;
 /// Memory Synchronization Domain map
 ///
@@ -3289,75 +3539,93 @@ pub struct CUlaunchMemSyncDomainMap_st {
 ///
 /// Domain ID range is available through [`CUdevice_attribute_enum::CU_DEVICE_ATTRIBUTE_MEM_SYNC_DOMAIN_COUNT`].
 pub type CUlaunchMemSyncDomainMap = CUlaunchMemSyncDomainMap_st;
-/// Enum for defining applicability of portable cluster size, used with ::cuLaunchKernelEx
-#[repr(u32)]
-#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum CUlaunchAttributePortableClusterMode_enum {
+impl CUlaunchAttributePortableClusterMode_enum {
     /// The default to use for allowing non-portable cluster size on launch - uses current function attribute for [`CUfunction_attribute_enum::CU_FUNC_ATTRIBUTE_NON_PORTABLE_CLUSTER_SIZE_ALLOWED`].
-    CU_LAUNCH_PORTABLE_CLUSTER_MODE_DEFAULT = 0,
+    pub const CU_LAUNCH_PORTABLE_CLUSTER_MODE_DEFAULT: CUlaunchAttributePortableClusterMode_enum = CUlaunchAttributePortableClusterMode_enum(
+        0,
+    );
     /// Specifies that the cluster size requested must be a portable size.
-    CU_LAUNCH_PORTABLE_CLUSTER_MODE_REQUIRE_PORTABLE = 1,
+    pub const CU_LAUNCH_PORTABLE_CLUSTER_MODE_REQUIRE_PORTABLE: CUlaunchAttributePortableClusterMode_enum = CUlaunchAttributePortableClusterMode_enum(
+        1,
+    );
     /// Specifies that the cluster size requested may be a non-portable size.
-    CU_LAUNCH_PORTABLE_CLUSTER_MODE_ALLOW_NON_PORTABLE = 2,
+    pub const CU_LAUNCH_PORTABLE_CLUSTER_MODE_ALLOW_NON_PORTABLE: CUlaunchAttributePortableClusterMode_enum = CUlaunchAttributePortableClusterMode_enum(
+        2,
+    );
 }
-pub use self::CUlaunchAttributePortableClusterMode_enum as CUlaunchAttributePortableClusterMode;
-/// Shared memory related attributes for use with ::cuLaunchKernelEx
-#[repr(u32)]
+/// Enum for defining applicability of portable cluster size, used with ::cuLaunchKernelEx
+#[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum CUsharedMemoryMode_enum {
+pub struct CUlaunchAttributePortableClusterMode_enum(pub ::core::ffi::c_uint);
+pub use self::CUlaunchAttributePortableClusterMode_enum as CUlaunchAttributePortableClusterMode;
+impl CUsharedMemoryMode_enum {
     /// The default to use for shared memory on launch - uses current function attribute for [`CUfunction_attribute_enum::CU_FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES`].
-    CU_SHARED_MEMORY_MODE_DEFAULT = 0,
+    pub const CU_SHARED_MEMORY_MODE_DEFAULT: CUsharedMemoryMode_enum = CUsharedMemoryMode_enum(
+        0,
+    );
     /// Specifies that the dynamic shared size bytes requested must be a portable size within the bounds of [`CUdevice_attribute_enum::CU_DEVICE_ATTRIBUTE_MAX_SHARED_MEMORY_PER_BLOCK`].
-    CU_SHARED_MEMORY_MODE_REQUIRE_PORTABLE = 1,
+    pub const CU_SHARED_MEMORY_MODE_REQUIRE_PORTABLE: CUsharedMemoryMode_enum = CUsharedMemoryMode_enum(
+        1,
+    );
     /// Specifies that the dynamic shared size bytes requested may be a non-portable size but still within the bounds of [`CUdevice_attribute_enum::CU_DEVICE_ATTRIBUTE_MAX_SHARED_MEMORY_PER_BLOCK_OPTIN`].
-    CU_SHARED_MEMORY_MODE_ALLOW_NON_PORTABLE = 2,
+    pub const CU_SHARED_MEMORY_MODE_ALLOW_NON_PORTABLE: CUsharedMemoryMode_enum = CUsharedMemoryMode_enum(
+        2,
+    );
     /// Specifies that oversized shared memory configurations may be used (with the limitation of only 8kB L1 cache).
-    CU_SHARED_MEMORY_MODE_ALLOW_OVERSIZED_SHARED_MEMORY = 3,
+    pub const CU_SHARED_MEMORY_MODE_ALLOW_OVERSIZED_SHARED_MEMORY: CUsharedMemoryMode_enum = CUsharedMemoryMode_enum(
+        3,
+    );
     /// Specifies that oversized shared memory configurations may be used (with the limitation of only 8kB L1 cache), and prefer an oversized shared memory configuration.
-    CU_SHARED_MEMORY_MODE_PREFER_OVERSIZED_SHARED_MEMORY = 4,
+    pub const CU_SHARED_MEMORY_MODE_PREFER_OVERSIZED_SHARED_MEMORY: CUsharedMemoryMode_enum = CUsharedMemoryMode_enum(
+        4,
+    );
 }
+/// Shared memory related attributes for use with ::cuLaunchKernelEx
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUsharedMemoryMode_enum(pub ::core::ffi::c_uint);
 pub use self::CUsharedMemoryMode_enum as CUsharedMemoryMode;
-/// Launch attributes enum; used as id field of ::CUlaunchAttribute
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUlaunchAttributeID_enum {
+impl CUlaunchAttributeID_enum {
     /// Ignored entry, for convenient composition.
-    CU_LAUNCH_ATTRIBUTE_IGNORE = 0,
+    pub const CU_LAUNCH_ATTRIBUTE_IGNORE: CUlaunchAttributeID_enum = CUlaunchAttributeID_enum(
+        0,
+    );
     /// Valid for streams, graph nodes, launches.
     ///
     /// See [CUlaunchAttributeValue::accessPolicyWindow](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-driver-api/cuda_driver_api/unionCUlaunchAttributeValue.html#unionculaunchattributevalue_1a154aa6110d2610fb68ec60bc9337073b).
-    CU_LAUNCH_ATTRIBUTE_ACCESS_POLICY_WINDOW = 1,
+    pub const CU_LAUNCH_ATTRIBUTE_ACCESS_POLICY_WINDOW: CUlaunchAttributeID_enum = CUlaunchAttributeID_enum(
+        1,
+    );
     /// Valid for graph nodes, launches.
     ///
     /// See [CUlaunchAttributeValue::cooperative](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-driver-api/cuda_driver_api/unionCUlaunchAttributeValue.html#unionculaunchattributevalue_1a3015f3dc785dce3a2c250b852457082a).
-    CU_LAUNCH_ATTRIBUTE_COOPERATIVE = 2,
+    pub const CU_LAUNCH_ATTRIBUTE_COOPERATIVE: CUlaunchAttributeID_enum = CUlaunchAttributeID_enum(
+        2,
+    );
     /// Valid for streams.
     ///
     /// See [CUlaunchAttributeValue::syncPolicy](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-driver-api/cuda_driver_api/unionCUlaunchAttributeValue.html#unionculaunchattributevalue_1abfc7b2566d09fbd679636513d5c07cd8).
-    CU_LAUNCH_ATTRIBUTE_SYNCHRONIZATION_POLICY = 3,
+    pub const CU_LAUNCH_ATTRIBUTE_SYNCHRONIZATION_POLICY: CUlaunchAttributeID_enum = CUlaunchAttributeID_enum(
+        3,
+    );
     /// Valid for graph nodes, launches.
     ///
     /// See [CUlaunchAttributeValue::clusterDim](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-driver-api/cuda_driver_api/unionCUlaunchAttributeValue.html#unionculaunchattributevalue_1a70d79310f04581a60df6069b7d7d432a).
-    CU_LAUNCH_ATTRIBUTE_CLUSTER_DIMENSION = 4,
+    pub const CU_LAUNCH_ATTRIBUTE_CLUSTER_DIMENSION: CUlaunchAttributeID_enum = CUlaunchAttributeID_enum(
+        4,
+    );
     /// Valid for graph nodes, launches.
     ///
     /// See [CUlaunchAttributeValue::clusterSchedulingPolicyPreference](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-driver-api/cuda_driver_api/unionCUlaunchAttributeValue.html#unionculaunchattributevalue_1a714fd4571d6ef99a53a20d378eebb2ba).
-    CU_LAUNCH_ATTRIBUTE_CLUSTER_SCHEDULING_POLICY_PREFERENCE = 5,
+    pub const CU_LAUNCH_ATTRIBUTE_CLUSTER_SCHEDULING_POLICY_PREFERENCE: CUlaunchAttributeID_enum = CUlaunchAttributeID_enum(
+        5,
+    );
     /// Valid for launches.
     ///
     /// Setting [CUlaunchAttributeValue::programmaticStreamSerializationAllowed](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-driver-api/cuda_driver_api/unionCUlaunchAttributeValue.html#unionculaunchattributevalue_1a21590ca9c3de21690d12d9c7f73917ab) to non-0 signals that the kernel will use programmatic means to resolve its stream dependency, so that the CUDA runtime should opportunistically allow the grid’s execution to overlap with the previous kernel in the stream, if that kernel requests the overlap. The dependent launches can choose to wait on the dependency using the programmatic sync (cudaGridDependencySynchronize() or equivalent PTX instructions).
-    CU_LAUNCH_ATTRIBUTE_PROGRAMMATIC_STREAM_SERIALIZATION = 6,
+    pub const CU_LAUNCH_ATTRIBUTE_PROGRAMMATIC_STREAM_SERIALIZATION: CUlaunchAttributeID_enum = CUlaunchAttributeID_enum(
+        6,
+    );
     /// Valid for launches.
     ///
     /// Set [CUlaunchAttributeValue::programmaticEvent](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-driver-api/cuda_driver_api/unionCUlaunchAttributeValue.html#unionculaunchattributevalue_1ae1eb628b29c538c9fb1e5a3d829b0777) to record the event. Event recorded through this launch attribute is guaranteed to only trigger after all block in the associated kernel trigger the event. A block can trigger the event through PTX launchdep.release or CUDA builtin function cudaTriggerProgrammaticLaunchCompletion(). A trigger can also be inserted at the beginning of each block’s execution if triggerAtBlockStart is set to non-0. The dependent launches can choose to wait on the dependency using the programmatic sync (cudaGridDependencySynchronize() or equivalent PTX instructions). Note that dependents (including the CPU thread calling [`cuEventSynchronize`]) are not guaranteed to observe the release precisely when it is released. For example, [`cuEventSynchronize`]
@@ -3365,19 +3633,27 @@ pub enum CUlaunchAttributeID_enum {
     /// may only observe the event trigger long after the associated kernel has completed. This recording type is primarily meant for establishing programmatic dependency between device tasks. Note also this type of dependency allows, but does not guarantee, concurrent execution of tasks.
     ///
     /// The event supplied must not be an interprocess or interop event. The event must disable timing (i.e. must be created with the.
-    CU_LAUNCH_ATTRIBUTE_PROGRAMMATIC_EVENT = 7,
+    pub const CU_LAUNCH_ATTRIBUTE_PROGRAMMATIC_EVENT: CUlaunchAttributeID_enum = CUlaunchAttributeID_enum(
+        7,
+    );
     /// Valid for streams, graph nodes, launches.
     ///
     /// See [CUlaunchAttributeValue::priority](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-driver-api/cuda_driver_api/unionCUlaunchAttributeValue.html#unionculaunchattributevalue_1a8b3a370124a50866fcdb1c9cb5580e96).
-    CU_LAUNCH_ATTRIBUTE_PRIORITY = 8,
+    pub const CU_LAUNCH_ATTRIBUTE_PRIORITY: CUlaunchAttributeID_enum = CUlaunchAttributeID_enum(
+        8,
+    );
     /// Valid for streams, graph nodes, launches.
     ///
     /// See [CUlaunchAttributeValue::memSyncDomainMap](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-driver-api/cuda_driver_api/unionCUlaunchAttributeValue.html#unionculaunchattributevalue_1a34552cdc66a0a5373d8515108d9c63d6).
-    CU_LAUNCH_ATTRIBUTE_MEM_SYNC_DOMAIN_MAP = 9,
+    pub const CU_LAUNCH_ATTRIBUTE_MEM_SYNC_DOMAIN_MAP: CUlaunchAttributeID_enum = CUlaunchAttributeID_enum(
+        9,
+    );
     /// Valid for streams, graph nodes, launches.
     ///
     /// See [CUlaunchAttributeValue::memSyncDomain](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-driver-api/cuda_driver_api/unionCUlaunchAttributeValue.html#unionculaunchattributevalue_1a68b8301d88ce5c6e69fc5f08734e55a8).
-    CU_LAUNCH_ATTRIBUTE_MEM_SYNC_DOMAIN = 10,
+    pub const CU_LAUNCH_ATTRIBUTE_MEM_SYNC_DOMAIN: CUlaunchAttributeID_enum = CUlaunchAttributeID_enum(
+        10,
+    );
     /// Valid for graph nodes, launches.
     ///
     /// Set [CUlaunchAttributeValue::preferredClusterDim](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-driver-api/cuda_driver_api/unionCUlaunchAttributeValue.html#unionculaunchattributevalue_1ad78976fd10fa7429385d312a34df8c5a) to allow the kernel launch to specify a preferred substitute cluster dimension. Blocks may be grouped according to either the dimensions specified with this attribute (grouped into a “preferred substitute cluster”), or the one specified with [`CUlaunchAttributeID_enum::CU_LAUNCH_ATTRIBUTE_CLUSTER_DIMENSION`]
@@ -3385,7 +3661,9 @@ pub enum CUlaunchAttributeID_enum {
     /// attribute (grouped into a “regular cluster”). The cluster dimensions of a “preferred substitute cluster” shall be an integer multiple greater than zero of the regular cluster dimensions. The device will attempt - on a best-effort basis - to group thread blocks into preferred clusters over grouping them into regular clusters. When it deems necessary (primarily when the device temporarily runs out of physical resources to launch the larger preferred clusters), the device may switch to launch the regular clusters instead to attempt to utilize as much of the physical device resources as possible.
     ///
     /// Each type of cluster will have its enumeration / coordinate setup as if the grid consists solely of its type of cluster. For example, if the preferred substitute cluster dimensions double the regular cluster dimensions, there might be simultaneously a regular cluster indexed at (1,0,0), and a preferred cluster indexed at (1,0,0). In this example, the preferred substitute cluster (1,0,0) replaces regular clusters (2,0,0) and (3,0,0) and groups their blocks.
-    CU_LAUNCH_ATTRIBUTE_PREFERRED_CLUSTER_DIMENSION = 11,
+    pub const CU_LAUNCH_ATTRIBUTE_PREFERRED_CLUSTER_DIMENSION: CUlaunchAttributeID_enum = CUlaunchAttributeID_enum(
+        11,
+    );
     /// Valid for launches.
     ///
     /// Set [CUlaunchAttributeValue::launchCompletionEvent](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-driver-api/cuda_driver_api/unionCUlaunchAttributeValue.html#unionculaunchattributevalue_1acbf92a20afbb58ef233b0d9facfb8940)
@@ -3397,7 +3675,9 @@ pub enum CUlaunchAttributeID_enum {
     /// set except that it is not visible to cudaGridDependencySynchronize() and can be used with compute capability less than 9.0.
     ///
     /// The event supplied must not be an interprocess or interop event. The event must disable timing (i.e. must be created with the.
-    CU_LAUNCH_ATTRIBUTE_LAUNCH_COMPLETION_EVENT = 12,
+    pub const CU_LAUNCH_ATTRIBUTE_LAUNCH_COMPLETION_EVENT: CUlaunchAttributeID_enum = CUlaunchAttributeID_enum(
+        12,
+    );
     /// Valid for graph nodes, launches.
     ///
     /// This attribute is graphs-only, and passing it to a launch in a non-capturing stream will result in an error.
@@ -3407,11 +3687,15 @@ pub enum CUlaunchAttributeID_enum {
     /// . Graphs containing one or more device-updatable nodes also do not allow multiple instantiation, and neither the graph nor its instantiated version can be passed to cuGraphExecUpdate.
     ///
     /// If a graph contains device-updatable nodes and updates those nodes from the device from within the graph, the graph must be uploaded with.
-    CU_LAUNCH_ATTRIBUTE_DEVICE_UPDATABLE_KERNEL_NODE = 13,
+    pub const CU_LAUNCH_ATTRIBUTE_DEVICE_UPDATABLE_KERNEL_NODE: CUlaunchAttributeID_enum = CUlaunchAttributeID_enum(
+        13,
+    );
     /// Valid for launches.
     ///
     /// On devices where the L1 cache and shared memory use the same hardware resources, setting [CUlaunchAttributeValue::sharedMemCarveout](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-driver-api/cuda_driver_api/unionCUlaunchAttributeValue.html#unionculaunchattributevalue_1ab4890866538ded7d27e648d399caaff2) to a percentage between 0-100 signals the CUDA driver to set the shared memory carveout preference, in percent of the total shared memory for that kernel launch. This attribute takes precedence over [`CUfunction_attribute_enum::CU_FUNC_ATTRIBUTE_PREFERRED_SHARED_MEMORY_CARVEOUT`]. This is only a hint, and the CUDA driver can choose a different configuration if required for the launch.
-    CU_LAUNCH_ATTRIBUTE_PREFERRED_SHARED_MEMORY_CARVEOUT = 14,
+    pub const CU_LAUNCH_ATTRIBUTE_PREFERRED_SHARED_MEMORY_CARVEOUT: CUlaunchAttributeID_enum = CUlaunchAttributeID_enum(
+        14,
+    );
     /// Valid for streams, graph nodes, launches.
     ///
     /// This attribute is a hint to the CUDA runtime that the launch should attempt to make the kernel maximize its NVLINK utilization.
@@ -3421,16 +3705,26 @@ pub enum CUlaunchAttributeID_enum {
     /// This attribute is a hint only. CUDA makes no functional or performance guarantee. Its applicability can be affected by many different factors, including driver version (i.e. CUDA doesn’t guarantee the performance characteristics will be maintained between driver versions or a driver update could alter or regress previously observed perf characteristics.) It also doesn’t guarantee a successful result, i.e. applying the attribute may not improve the performance of either the targeted kernel or the encapsulating application.
     ///
     /// Valid values for CUlaunchAttributeValue::nvlinkUtilCentricScheduling are 0 (disabled) and 1 (enabled).
-    CU_LAUNCH_ATTRIBUTE_NVLINK_UTIL_CENTRIC_SCHEDULING = 16,
+    pub const CU_LAUNCH_ATTRIBUTE_NVLINK_UTIL_CENTRIC_SCHEDULING: CUlaunchAttributeID_enum = CUlaunchAttributeID_enum(
+        16,
+    );
     /// Valid for graph nodes, launches.
     ///
     /// This controls whether the kernel launch is allowed to use a non-portable cluster size. Valid values for [CUlaunchAttributeValue::portableClusterSizeMode](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-driver-api/cuda_driver_api/unionCUlaunchAttributeValue.html#unionculaunchattributevalue_1ab59ceb6906a7de4ce07de5f2269d18b3) are described in [CUlaunchAttributePortableClusterMode](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-driver-api/cuda_driver_api/group__CUDA__TYPES.html#group__cuda__types_1gaeb6323dd92d20fdf48e4cf68122e77a1). Any other value will return [`cudaError_enum::CUDA_ERROR_INVALID_VALUE`].
-    CU_LAUNCH_ATTRIBUTE_PORTABLE_CLUSTER_SIZE_MODE = 17,
+    pub const CU_LAUNCH_ATTRIBUTE_PORTABLE_CLUSTER_SIZE_MODE: CUlaunchAttributeID_enum = CUlaunchAttributeID_enum(
+        17,
+    );
     /// Valid for graph nodes, launches.
     ///
     /// This controls a kernel’s use of non-portable or oversized shared memory configurations.
-    CU_LAUNCH_ATTRIBUTE_SHARED_MEMORY_MODE = 18,
+    pub const CU_LAUNCH_ATTRIBUTE_SHARED_MEMORY_MODE: CUlaunchAttributeID_enum = CUlaunchAttributeID_enum(
+        18,
+    );
 }
+/// Launch attributes enum; used as id field of ::CUlaunchAttribute
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUlaunchAttributeID_enum(pub ::core::ffi::c_uint);
 pub use self::CUlaunchAttributeID_enum as CUlaunchAttributeID;
 /// Launch attributes union; used as value field of ::CUlaunchAttribute
 #[repr(C)]
@@ -3651,123 +3945,101 @@ pub use self::CUlaunchAttributeID as CUkernelNodeAttrID;
 pub type CUkernelNodeAttrValue_v1 = CUlaunchAttributeValue;
 /// Launch attributes union; used as value field of ::CUlaunchAttribute
 pub type CUkernelNodeAttrValue = CUkernelNodeAttrValue_v1;
-/// Possible stream capture statuses returned by ::cuStreamIsCapturing
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUstreamCaptureStatus_enum {
+impl CUstreamCaptureStatus_enum {
     /// Stream is not capturing.
-    CU_STREAM_CAPTURE_STATUS_NONE = 0,
+    pub const CU_STREAM_CAPTURE_STATUS_NONE: CUstreamCaptureStatus_enum = CUstreamCaptureStatus_enum(
+        0,
+    );
     /// Stream is actively capturing.
-    CU_STREAM_CAPTURE_STATUS_ACTIVE = 1,
+    pub const CU_STREAM_CAPTURE_STATUS_ACTIVE: CUstreamCaptureStatus_enum = CUstreamCaptureStatus_enum(
+        1,
+    );
     /// Stream is part of a capture sequence that has been invalidated, but not terminated.
-    CU_STREAM_CAPTURE_STATUS_INVALIDATED = 2,
+    pub const CU_STREAM_CAPTURE_STATUS_INVALIDATED: CUstreamCaptureStatus_enum = CUstreamCaptureStatus_enum(
+        2,
+    );
 }
+/// Possible stream capture statuses returned by ::cuStreamIsCapturing
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUstreamCaptureStatus_enum(pub ::core::ffi::c_uint);
 pub use self::CUstreamCaptureStatus_enum as CUstreamCaptureStatus;
-/// Possible modes for stream capture thread interactions. For more details see ::cuStreamBeginCapture and ::cuThreadExchangeStreamCaptureMode
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUstreamCaptureMode_enum {
+impl CUstreamCaptureMode_enum {
     /// This is the default mode. If the local thread has an ongoing capture sequence that was not initiated with [`CUstreamCaptureMode_enum::CU_STREAM_CAPTURE_MODE_RELAXED`] at [`cuStreamBeginCapture_v2`], or if any other thread has a concurrent capture sequence initiated with [`CUstreamCaptureMode_enum::CU_STREAM_CAPTURE_MODE_GLOBAL`], this thread is prohibited from potentially unsafe API calls.
-    CU_STREAM_CAPTURE_MODE_GLOBAL = 0,
+    pub const CU_STREAM_CAPTURE_MODE_GLOBAL: CUstreamCaptureMode_enum = CUstreamCaptureMode_enum(
+        0,
+    );
     /// If the local thread has an ongoing capture sequence not initiated with [`CUstreamCaptureMode_enum::CU_STREAM_CAPTURE_MODE_RELAXED`], it is prohibited from potentially unsafe API calls. Concurrent capture sequences in other threads are ignored.
-    CU_STREAM_CAPTURE_MODE_THREAD_LOCAL = 1,
+    pub const CU_STREAM_CAPTURE_MODE_THREAD_LOCAL: CUstreamCaptureMode_enum = CUstreamCaptureMode_enum(
+        1,
+    );
     /// The local thread is not prohibited from potentially unsafe API calls. Note that the thread is still prohibited from API calls which necessarily conflict with stream capture, for example, attempting ::cuEventQuery on an event that was last recorded inside a capture sequence.
-    CU_STREAM_CAPTURE_MODE_RELAXED = 2,
+    pub const CU_STREAM_CAPTURE_MODE_RELAXED: CUstreamCaptureMode_enum = CUstreamCaptureMode_enum(
+        2,
+    );
 }
+/// Possible modes for stream capture thread interactions. For more details see ::cuStreamBeginCapture and ::cuThreadExchangeStreamCaptureMode
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUstreamCaptureMode_enum(pub ::core::ffi::c_uint);
 pub use self::CUlaunchAttributeID as CUstreamAttrID;
 pub use self::CUstreamCaptureMode_enum as CUstreamCaptureMode;
 /// Launch attributes union; used as value field of ::CUlaunchAttribute
 pub type CUstreamAttrValue_v1 = CUlaunchAttributeValue;
 /// Launch attributes union; used as value field of ::CUlaunchAttribute
 pub type CUstreamAttrValue = CUstreamAttrValue_v1;
-/// Flags to specify search options. For more details see ::cuGetProcAddress
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUdriverProcAddress_flags_enum {
+impl CUdriverProcAddress_flags_enum {
     /// Default search mode for driver symbols.
-    CU_GET_PROC_ADDRESS_DEFAULT = 0,
+    pub const CU_GET_PROC_ADDRESS_DEFAULT: CUdriverProcAddress_flags_enum = CUdriverProcAddress_flags_enum(
+        0,
+    );
     /// Search for legacy versions of driver symbols.
-    CU_GET_PROC_ADDRESS_LEGACY_STREAM = 1,
+    pub const CU_GET_PROC_ADDRESS_LEGACY_STREAM: CUdriverProcAddress_flags_enum = CUdriverProcAddress_flags_enum(
+        1,
+    );
     /// Search for per-thread versions of driver symbols.
-    CU_GET_PROC_ADDRESS_PER_THREAD_DEFAULT_STREAM = 2,
+    pub const CU_GET_PROC_ADDRESS_PER_THREAD_DEFAULT_STREAM: CUdriverProcAddress_flags_enum = CUdriverProcAddress_flags_enum(
+        2,
+    );
 }
+/// Flags to specify search options. For more details see ::cuGetProcAddress
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUdriverProcAddress_flags_enum(pub ::core::ffi::c_uint);
 pub use self::CUdriverProcAddress_flags_enum as CUdriverProcAddress_flags;
-/// Flags to indicate search status. For more details see ::cuGetProcAddress
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUdriverProcAddressQueryResult_enum {
+impl CUdriverProcAddressQueryResult_enum {
     /// Symbol was succesfully found.
-    CU_GET_PROC_ADDRESS_SUCCESS = 0,
+    pub const CU_GET_PROC_ADDRESS_SUCCESS: CUdriverProcAddressQueryResult_enum = CUdriverProcAddressQueryResult_enum(
+        0,
+    );
     /// Symbol was not found in search.
-    CU_GET_PROC_ADDRESS_SYMBOL_NOT_FOUND = 1,
+    pub const CU_GET_PROC_ADDRESS_SYMBOL_NOT_FOUND: CUdriverProcAddressQueryResult_enum = CUdriverProcAddressQueryResult_enum(
+        1,
+    );
     /// Symbol was found but version supplied was not sufficient.
-    CU_GET_PROC_ADDRESS_VERSION_NOT_SUFFICIENT = 2,
+    pub const CU_GET_PROC_ADDRESS_VERSION_NOT_SUFFICIENT: CUdriverProcAddressQueryResult_enum = CUdriverProcAddressQueryResult_enum(
+        2,
+    );
 }
+/// Flags to indicate search status. For more details see ::cuGetProcAddress
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUdriverProcAddressQueryResult_enum(pub ::core::ffi::c_uint);
 pub use self::CUdriverProcAddressQueryResult_enum as CUdriverProcAddressQueryResult;
-/// Execution Affinity Types
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUexecAffinityType_enum {
+impl CUexecAffinityType_enum {
     /// Create a context with limited SMs.
-    CU_EXEC_AFFINITY_TYPE_SM_COUNT = 0,
+    pub const CU_EXEC_AFFINITY_TYPE_SM_COUNT: CUexecAffinityType_enum = CUexecAffinityType_enum(
+        0,
+    );
     /// Reserved upper-bound sentinel for native execution-affinity parameter kinds.
-    CU_EXEC_AFFINITY_TYPE_MAX = 1,
+    pub const CU_EXEC_AFFINITY_TYPE_MAX: CUexecAffinityType_enum = CUexecAffinityType_enum(
+        1,
+    );
 }
+/// Execution Affinity Types
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUexecAffinityType_enum(pub ::core::ffi::c_uint);
 pub use self::CUexecAffinityType_enum as CUexecAffinityType;
 /// Value for ::CU_EXEC_AFFINITY_TYPE_SM_COUNT
 #[repr(C)]
@@ -3818,26 +4090,18 @@ impl Default for CUexecAffinityParam_st {
 pub type CUexecAffinityParam_v1 = CUexecAffinityParam_st;
 /// Execution Affinity Parameters.
 pub type CUexecAffinityParam = CUexecAffinityParam_v1;
-/// Graphics-client handle representation supplied when creating a CUDA-in-Graphics context.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUcigDataType_enum {
+impl CUcigDataType_enum {
     /// D3D12 Command Queue Handle.
-    CIG_DATA_TYPE_D3D12_COMMAND_QUEUE = 1,
+    pub const CIG_DATA_TYPE_D3D12_COMMAND_QUEUE: CUcigDataType_enum = CUcigDataType_enum(
+        1,
+    );
     /// Nvidia specific data blob used for Vulkan and other NV clients.
-    CIG_DATA_TYPE_NV_BLOB = 2,
+    pub const CIG_DATA_TYPE_NV_BLOB: CUcigDataType_enum = CUcigDataType_enum(2);
 }
+/// Graphics-client handle representation supplied when creating a CUDA-in-Graphics context.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUcigDataType_enum(pub ::core::ffi::c_uint);
 pub use self::CUcigDataType_enum as CUcigDataType;
 /// CIG Context Create Params
 #[repr(C)]
@@ -3883,13 +4147,16 @@ impl Default for CUctxCreateParams_st {
 ///
 /// Both execAffinityParams and cigParams cannot be non-NULL at the same time. If both are NULL, the context will be created as a regular CUDA context.
 pub type CUctxCreateParams = CUctxCreateParams_st;
-/// Graphics-client command-list representation supplied for CUDA-in-Graphics stream capture.
-#[repr(u32)]
-#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum CUstreamCigDataType_enum {
+impl CUstreamCigDataType_enum {
     /// D3D12 Command List Handle.
-    STREAM_CIG_DATA_TYPE_D3D12_COMMAND_LIST = 1,
+    pub const STREAM_CIG_DATA_TYPE_D3D12_COMMAND_LIST: CUstreamCigDataType_enum = CUstreamCigDataType_enum(
+        1,
+    );
 }
+/// Graphics-client command-list representation supplied for CUDA-in-Graphics stream capture.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUstreamCigDataType_enum(pub ::core::ffi::c_uint);
 pub use self::CUstreamCigDataType_enum as CUstreamCigDataType;
 /// CIG Stream Capture Params
 #[repr(C)]
@@ -3929,30 +4196,24 @@ impl Default for CUstreamCigCaptureParams_st {
 }
 /// Params for capturing CUDA stream to CIG streamCigParams must be non-NULL.
 pub type CUstreamCigCaptureParams = CUstreamCigCaptureParams_st;
-/// Library options to be specified with ::cuLibraryLoadData() or ::cuLibraryLoadFromFile()
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUlibraryOption_enum {
+impl CUlibraryOption_enum {
     /// Supplies the host universal-function and data tables when loading a CUDA library.
-    CU_LIBRARY_HOST_UNIVERSAL_FUNCTION_AND_DATA_TABLE = 0,
+    pub const CU_LIBRARY_HOST_UNIVERSAL_FUNCTION_AND_DATA_TABLE: CUlibraryOption_enum = CUlibraryOption_enum(
+        0,
+    );
     /// Specifes that the argument `code` passed to [`cuLibraryLoadData`] will be preserved.
     ///
     /// Specifying this option will let the driver know that `code` can be accessed at any point until [`cuLibraryUnload`]. The default behavior is for the driver to allocate and maintain its own copy of `code`. Note that this is only a memory usage optimization hint and the driver can choose to ignore it if required. Specifying this option with [`cuLibraryLoadFromFile`] is invalid and will return [`cudaError_enum::CUDA_ERROR_INVALID_VALUE`].
-    CU_LIBRARY_BINARY_IS_PRESERVED = 1,
+    pub const CU_LIBRARY_BINARY_IS_PRESERVED: CUlibraryOption_enum = CUlibraryOption_enum(
+        1,
+    );
     /// Upper-bound sentinel for CUDA library loading option selectors.
-    CU_LIBRARY_NUM_OPTIONS = 2,
+    pub const CU_LIBRARY_NUM_OPTIONS: CUlibraryOption_enum = CUlibraryOption_enum(2);
 }
+/// Library options to be specified with ::cuLibraryLoadData() or ::cuLibraryLoadFromFile()
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUlibraryOption_enum(pub ::core::ffi::c_uint);
 pub use self::CUlibraryOption_enum as CUlibraryOption;
 /// Host-side function and data tables supplied through [`CUlibraryOption_enum::CU_LIBRARY_HOST_UNIVERSAL_FUNCTION_AND_DATA_TABLE`].
 #[repr(C)]
@@ -3978,333 +4239,349 @@ impl Default for CUlibraryHostUniversalFunctionAndDataTable_st {
 }
 /// Host-side function and data tables supplied through [`CUlibraryOption_enum::CU_LIBRARY_HOST_UNIVERSAL_FUNCTION_AND_DATA_TABLE`].
 pub type CUlibraryHostUniversalFunctionAndDataTable = CUlibraryHostUniversalFunctionAndDataTable_st;
-/// Error codes
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudaError_enum {
+impl cudaError_enum {
     /// The API call returned with no errors.
     ///
     /// In the case of query calls, this also means that the operation being queried is complete (see [`cuEventQuery`] and [`cuStreamQuery`]).
-    CUDA_SUCCESS = 0,
+    pub const CUDA_SUCCESS: cudaError_enum = cudaError_enum(0);
     /// This indicates that one or more of the parameters passed to the API call is not within an acceptable range of values.
-    CUDA_ERROR_INVALID_VALUE = 1,
+    pub const CUDA_ERROR_INVALID_VALUE: cudaError_enum = cudaError_enum(1);
     /// The API call failed because it was unable to allocate enough memory or other resources to perform the requested operation.
-    CUDA_ERROR_OUT_OF_MEMORY = 2,
+    pub const CUDA_ERROR_OUT_OF_MEMORY: cudaError_enum = cudaError_enum(2);
     /// This indicates that the CUDA driver has not been initialized with [`cuInit`] or that initialization has failed.
-    CUDA_ERROR_NOT_INITIALIZED = 3,
+    pub const CUDA_ERROR_NOT_INITIALIZED: cudaError_enum = cudaError_enum(3);
     /// This indicates that the CUDA driver is in the process of shutting down.
-    CUDA_ERROR_DEINITIALIZED = 4,
+    pub const CUDA_ERROR_DEINITIALIZED: cudaError_enum = cudaError_enum(4);
     /// This indicates profiler is not initialized for this run.
     ///
     /// This can happen when the application is running with external profiling tools like visual profiler.
-    CUDA_ERROR_PROFILER_DISABLED = 5,
+    pub const CUDA_ERROR_PROFILER_DISABLED: cudaError_enum = cudaError_enum(5);
     /// Deprecated: This error return is deprecated as of CUDA 5.0. It is no longer an error to attempt to enable/disable the profiling via ::cuProfilerStart or ::cuProfilerStop without initialization.
-    CUDA_ERROR_PROFILER_NOT_INITIALIZED = 6,
+    pub const CUDA_ERROR_PROFILER_NOT_INITIALIZED: cudaError_enum = cudaError_enum(6);
     /// Deprecated: This error return is deprecated as of CUDA 5.0. It is no longer an error to call cuProfilerStart() when profiling is already enabled.
-    CUDA_ERROR_PROFILER_ALREADY_STARTED = 7,
+    pub const CUDA_ERROR_PROFILER_ALREADY_STARTED: cudaError_enum = cudaError_enum(7);
     /// Deprecated: This error return is deprecated as of CUDA 5.0. It is no longer an error to call cuProfilerStop() when profiling is already disabled.
-    CUDA_ERROR_PROFILER_ALREADY_STOPPED = 8,
+    pub const CUDA_ERROR_PROFILER_ALREADY_STOPPED: cudaError_enum = cudaError_enum(8);
     /// This indicates that the CUDA driver that the application has loaded is a stub library.
     ///
     /// Applications that run with the stub rather than a real driver loaded will result in CUDA API returning this error.
-    CUDA_ERROR_STUB_LIBRARY = 34,
+    pub const CUDA_ERROR_STUB_LIBRARY: cudaError_enum = cudaError_enum(34);
     /// This indicates that the API call requires a newer CUDA driver than the one currently installed.
     ///
     /// Users should install an updated NVIDIA CUDA driver to allow the API call to succeed.
-    CUDA_ERROR_CALL_REQUIRES_NEWER_DRIVER = 36,
+    pub const CUDA_ERROR_CALL_REQUIRES_NEWER_DRIVER: cudaError_enum = cudaError_enum(36);
     /// This indicates that requested CUDA device is unavailable at the current time.
     ///
     /// Devices are often unavailable due to use of [`CUcomputemode_enum::CU_COMPUTEMODE_EXCLUSIVE_PROCESS`] or [`CUcomputemode_enum::CU_COMPUTEMODE_PROHIBITED`].
-    CUDA_ERROR_DEVICE_UNAVAILABLE = 46,
+    pub const CUDA_ERROR_DEVICE_UNAVAILABLE: cudaError_enum = cudaError_enum(46);
     /// The API call failed because of a hardware resource required to bind memory to a multicast object is unavailable.
-    CUDA_ERROR_MULTICAST_RESOURCE_FULL = 47,
+    pub const CUDA_ERROR_MULTICAST_RESOURCE_FULL: cudaError_enum = cudaError_enum(47);
     /// This indicates that no CUDA-capable devices were detected by the installed CUDA driver.
-    CUDA_ERROR_NO_DEVICE = 100,
+    pub const CUDA_ERROR_NO_DEVICE: cudaError_enum = cudaError_enum(100);
     /// This indicates that the device ordinal supplied by the user does not correspond to a valid CUDA device or that the action requested is invalid for the specified device.
-    CUDA_ERROR_INVALID_DEVICE = 101,
+    pub const CUDA_ERROR_INVALID_DEVICE: cudaError_enum = cudaError_enum(101);
     /// This error indicates that the Grid license is not applied.
-    CUDA_ERROR_DEVICE_NOT_LICENSED = 102,
+    pub const CUDA_ERROR_DEVICE_NOT_LICENSED: cudaError_enum = cudaError_enum(102);
     /// This indicates that the device kernel image is invalid.
     ///
     /// This can also indicate an invalid CUDA module.
-    CUDA_ERROR_INVALID_IMAGE = 200,
+    pub const CUDA_ERROR_INVALID_IMAGE: cudaError_enum = cudaError_enum(200);
     /// This most frequently indicates that there is no context bound to the current thread.
     ///
     /// This can also be returned if the context passed to an API call is not a valid handle (such as a context that has had cuCtxDestroy() invoked on it). This can also be returned if a user mixes different API versions (i.e. 3010 context with 3020 API calls). See [`cuCtxGetApiVersion`] for more details. This can also be returned if the green context passed to an API call was not converted to a [`CUcontext`] using [`cuCtxFromGreenCtx`] API.
-    CUDA_ERROR_INVALID_CONTEXT = 201,
+    pub const CUDA_ERROR_INVALID_CONTEXT: cudaError_enum = cudaError_enum(201);
     /// This indicated that the context being supplied as a parameter to the API call was already the active context.
-    CUDA_ERROR_CONTEXT_ALREADY_CURRENT = 202,
+    pub const CUDA_ERROR_CONTEXT_ALREADY_CURRENT: cudaError_enum = cudaError_enum(202);
     /// This indicates that a map or register operation has failed.
-    CUDA_ERROR_MAP_FAILED = 205,
+    pub const CUDA_ERROR_MAP_FAILED: cudaError_enum = cudaError_enum(205);
     /// This indicates that an unmap or unregister operation has failed.
-    CUDA_ERROR_UNMAP_FAILED = 206,
+    pub const CUDA_ERROR_UNMAP_FAILED: cudaError_enum = cudaError_enum(206);
     /// This indicates that the specified array is currently mapped and thus cannot be destroyed.
-    CUDA_ERROR_ARRAY_IS_MAPPED = 207,
+    pub const CUDA_ERROR_ARRAY_IS_MAPPED: cudaError_enum = cudaError_enum(207);
     /// This indicates that the resource is already mapped.
-    CUDA_ERROR_ALREADY_MAPPED = 208,
+    pub const CUDA_ERROR_ALREADY_MAPPED: cudaError_enum = cudaError_enum(208);
     /// This indicates that there is no kernel image available that is suitable for the device.
     ///
     /// This can occur when a user specifies code generation options for a particular CUDA source file that do not include the corresponding device configuration.
-    CUDA_ERROR_NO_BINARY_FOR_GPU = 209,
+    pub const CUDA_ERROR_NO_BINARY_FOR_GPU: cudaError_enum = cudaError_enum(209);
     /// This indicates that a resource has already been acquired.
-    CUDA_ERROR_ALREADY_ACQUIRED = 210,
+    pub const CUDA_ERROR_ALREADY_ACQUIRED: cudaError_enum = cudaError_enum(210);
     /// This indicates that a resource is not mapped.
-    CUDA_ERROR_NOT_MAPPED = 211,
+    pub const CUDA_ERROR_NOT_MAPPED: cudaError_enum = cudaError_enum(211);
     /// This indicates that a mapped resource is not available for access as an array.
-    CUDA_ERROR_NOT_MAPPED_AS_ARRAY = 212,
+    pub const CUDA_ERROR_NOT_MAPPED_AS_ARRAY: cudaError_enum = cudaError_enum(212);
     /// This indicates that a mapped resource is not available for access as a pointer.
-    CUDA_ERROR_NOT_MAPPED_AS_POINTER = 213,
+    pub const CUDA_ERROR_NOT_MAPPED_AS_POINTER: cudaError_enum = cudaError_enum(213);
     /// This indicates that an uncorrectable ECC error was detected during execution.
-    CUDA_ERROR_ECC_UNCORRECTABLE = 214,
+    pub const CUDA_ERROR_ECC_UNCORRECTABLE: cudaError_enum = cudaError_enum(214);
     /// This indicates that the [CUlimit](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-driver-api/cuda_driver_api/group__CUDA__TYPES.html#group__cuda__types_1gae24c2d4214af24139020f1aecaf32665) passed to the API call is not supported by the active device.
-    CUDA_ERROR_UNSUPPORTED_LIMIT = 215,
+    pub const CUDA_ERROR_UNSUPPORTED_LIMIT: cudaError_enum = cudaError_enum(215);
     /// This indicates that the [`CUcontext`] passed to the API call can only be bound to a single CPU thread at a time but is already bound to a CPU thread.
-    CUDA_ERROR_CONTEXT_ALREADY_IN_USE = 216,
+    pub const CUDA_ERROR_CONTEXT_ALREADY_IN_USE: cudaError_enum = cudaError_enum(216);
     /// This indicates that peer access is not supported across the given devices.
-    CUDA_ERROR_PEER_ACCESS_UNSUPPORTED = 217,
+    pub const CUDA_ERROR_PEER_ACCESS_UNSUPPORTED: cudaError_enum = cudaError_enum(217);
     /// This indicates that a PTX JIT compilation failed.
-    CUDA_ERROR_INVALID_PTX = 218,
+    pub const CUDA_ERROR_INVALID_PTX: cudaError_enum = cudaError_enum(218);
     /// This indicates an error with OpenGL or DirectX context.
-    CUDA_ERROR_INVALID_GRAPHICS_CONTEXT = 219,
+    pub const CUDA_ERROR_INVALID_GRAPHICS_CONTEXT: cudaError_enum = cudaError_enum(219);
     /// This indicates that an uncorrectable NVLink error was detected during the execution.
-    CUDA_ERROR_NVLINK_UNCORRECTABLE = 220,
+    pub const CUDA_ERROR_NVLINK_UNCORRECTABLE: cudaError_enum = cudaError_enum(220);
     /// This indicates that the PTX JIT compiler library was not found.
-    CUDA_ERROR_JIT_COMPILER_NOT_FOUND = 221,
+    pub const CUDA_ERROR_JIT_COMPILER_NOT_FOUND: cudaError_enum = cudaError_enum(221);
     /// This indicates that the provided PTX was compiled with an unsupported toolchain.
-    CUDA_ERROR_UNSUPPORTED_PTX_VERSION = 222,
+    pub const CUDA_ERROR_UNSUPPORTED_PTX_VERSION: cudaError_enum = cudaError_enum(222);
     /// This indicates that the PTX JIT compilation was disabled.
-    CUDA_ERROR_JIT_COMPILATION_DISABLED = 223,
+    pub const CUDA_ERROR_JIT_COMPILATION_DISABLED: cudaError_enum = cudaError_enum(223);
     /// This indicates that the [CUexecAffinityType](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-driver-api/cuda_driver_api/group__CUDA__TYPES.html#group__cuda__types_1ga14e6345acf2bda65be91eda77cf03f5c) passed to the API call is not supported by the active device.
-    CUDA_ERROR_UNSUPPORTED_EXEC_AFFINITY = 224,
+    pub const CUDA_ERROR_UNSUPPORTED_EXEC_AFFINITY: cudaError_enum = cudaError_enum(224);
     /// This indicates that the code to be compiled by the PTX JIT contains unsupported call to cudaDeviceSynchronize.
-    CUDA_ERROR_UNSUPPORTED_DEVSIDE_SYNC = 225,
+    pub const CUDA_ERROR_UNSUPPORTED_DEVSIDE_SYNC: cudaError_enum = cudaError_enum(225);
     /// This indicates that an exception occurred on the device that is now contained by the GPU’s error containment capability.
     ///
     /// Common causes are - a. Certain types of invalid accesses of peer GPU memory over nvlink b. Certain classes of hardware errors This leaves the process in an inconsistent state and any further CUDA work will return the same error. To continue using CUDA, the process must be terminated and relaunched.
-    CUDA_ERROR_CONTAINED = 226,
+    pub const CUDA_ERROR_CONTAINED: cudaError_enum = cudaError_enum(226);
     /// This indicates that the Loader version is insufficient for fatbin.
-    CUDA_ERROR_INSUFFICIENT_LOADER_VERSION = 227,
+    pub const CUDA_ERROR_INSUFFICIENT_LOADER_VERSION: cudaError_enum = cudaError_enum(
+        227,
+    );
     /// This indicates that the device kernel source is invalid.
     ///
     /// This includes compilation/linker errors encountered in device code or user error.
-    CUDA_ERROR_INVALID_SOURCE = 300,
+    pub const CUDA_ERROR_INVALID_SOURCE: cudaError_enum = cudaError_enum(300);
     /// This indicates that the file specified was not found.
-    CUDA_ERROR_FILE_NOT_FOUND = 301,
+    pub const CUDA_ERROR_FILE_NOT_FOUND: cudaError_enum = cudaError_enum(301);
     /// This indicates that a link to a shared object failed to resolve.
-    CUDA_ERROR_SHARED_OBJECT_SYMBOL_NOT_FOUND = 302,
+    pub const CUDA_ERROR_SHARED_OBJECT_SYMBOL_NOT_FOUND: cudaError_enum = cudaError_enum(
+        302,
+    );
     /// This indicates that initialization of a shared object failed.
-    CUDA_ERROR_SHARED_OBJECT_INIT_FAILED = 303,
+    pub const CUDA_ERROR_SHARED_OBJECT_INIT_FAILED: cudaError_enum = cudaError_enum(303);
     /// This indicates that an OS call failed.
-    CUDA_ERROR_OPERATING_SYSTEM = 304,
+    pub const CUDA_ERROR_OPERATING_SYSTEM: cudaError_enum = cudaError_enum(304);
     /// This indicates that a resource handle passed to the API call was not valid.
     ///
     /// Resource handles are opaque types like [`CUstream`] and [`CUevent`].
-    CUDA_ERROR_INVALID_HANDLE = 400,
+    pub const CUDA_ERROR_INVALID_HANDLE: cudaError_enum = cudaError_enum(400);
     /// This indicates that a resource required by the API call is not in a valid state to perform the requested operation.
-    CUDA_ERROR_ILLEGAL_STATE = 401,
+    pub const CUDA_ERROR_ILLEGAL_STATE: cudaError_enum = cudaError_enum(401);
     /// This indicates an attempt was made to introspect an object in a way that would discard semantically important information.
     ///
     /// This is either due to the object using funtionality newer than the API version used to introspect it or omission of optional return arguments.
-    CUDA_ERROR_LOSSY_QUERY = 402,
+    pub const CUDA_ERROR_LOSSY_QUERY: cudaError_enum = cudaError_enum(402);
     /// This indicates that a named symbol was not found.
     ///
     /// Examples of symbols are global/constant variable names, driver function names, texture names, and surface names.
-    CUDA_ERROR_NOT_FOUND = 500,
+    pub const CUDA_ERROR_NOT_FOUND: cudaError_enum = cudaError_enum(500);
     /// This indicates that asynchronous operations issued previously have not completed yet.
     ///
     /// This result is not actually an error, but must be indicated differently than [`cudaError_enum::CUDA_SUCCESS`] (which indicates completion). Calls that may return this value include [`cuEventQuery`] and [`cuStreamQuery`].
-    CUDA_ERROR_NOT_READY = 600,
+    pub const CUDA_ERROR_NOT_READY: cudaError_enum = cudaError_enum(600);
     /// While executing a kernel, the device encountered a load or store instruction on an invalid memory address.
     ///
     /// This leaves the process in an inconsistent state and any further CUDA work will return the same error. To continue using CUDA, the process must be terminated and relaunched.
-    CUDA_ERROR_ILLEGAL_ADDRESS = 700,
+    pub const CUDA_ERROR_ILLEGAL_ADDRESS: cudaError_enum = cudaError_enum(700);
     /// This indicates that a launch did not occur because it did not have appropriate resources.
     ///
     /// This error usually indicates that the user has attempted to pass too many arguments to the device kernel, or the kernel launch specifies too many threads for the kernel’s register count. Passing arguments of the wrong size (i.e. a 64-bit pointer when a 32-bit int is expected) is equivalent to passing too many arguments and can also result in this error.
-    CUDA_ERROR_LAUNCH_OUT_OF_RESOURCES = 701,
+    pub const CUDA_ERROR_LAUNCH_OUT_OF_RESOURCES: cudaError_enum = cudaError_enum(701);
     /// This indicates that the device kernel took too long to execute.
     ///
     /// This can only occur if timeouts are enabled - see the device attribute [`CUdevice_attribute_enum::CU_DEVICE_ATTRIBUTE_KERNEL_EXEC_TIMEOUT`] for more information. This leaves the process in an inconsistent state and any further CUDA work will return the same error. To continue using CUDA, the process must be terminated and relaunched.
-    CUDA_ERROR_LAUNCH_TIMEOUT = 702,
+    pub const CUDA_ERROR_LAUNCH_TIMEOUT: cudaError_enum = cudaError_enum(702);
     /// This error indicates a kernel launch that uses an incompatible texturing mode.
-    CUDA_ERROR_LAUNCH_INCOMPATIBLE_TEXTURING = 703,
+    pub const CUDA_ERROR_LAUNCH_INCOMPATIBLE_TEXTURING: cudaError_enum = cudaError_enum(
+        703,
+    );
     /// This error indicates that a call to [`cuCtxEnablePeerAccess`] is trying to re-enable peer access to a context which has already had peer access to it enabled.
-    CUDA_ERROR_PEER_ACCESS_ALREADY_ENABLED = 704,
+    pub const CUDA_ERROR_PEER_ACCESS_ALREADY_ENABLED: cudaError_enum = cudaError_enum(
+        704,
+    );
     /// This error indicates that [`cuCtxDisablePeerAccess`] is trying to disable peer access which has not been enabled yet via [`cuCtxEnablePeerAccess`].
-    CUDA_ERROR_PEER_ACCESS_NOT_ENABLED = 705,
+    pub const CUDA_ERROR_PEER_ACCESS_NOT_ENABLED: cudaError_enum = cudaError_enum(705);
     /// This error indicates that the primary context for the specified device has already been initialized.
-    CUDA_ERROR_PRIMARY_CONTEXT_ACTIVE = 708,
+    pub const CUDA_ERROR_PRIMARY_CONTEXT_ACTIVE: cudaError_enum = cudaError_enum(708);
     /// This error indicates that the context current to the calling thread has been destroyed using cuCtxDestroy, or is a primary context which has not yet been initialized.
-    CUDA_ERROR_CONTEXT_IS_DESTROYED = 709,
+    pub const CUDA_ERROR_CONTEXT_IS_DESTROYED: cudaError_enum = cudaError_enum(709);
     /// A device-side assert triggered during kernel execution.
     ///
     /// The context cannot be used anymore, and must be destroyed. All existing device memory allocations from this context are invalid and must be reconstructed if the program is to continue using CUDA.
-    CUDA_ERROR_ASSERT = 710,
+    pub const CUDA_ERROR_ASSERT: cudaError_enum = cudaError_enum(710);
     /// This error indicates that the hardware resources required to enable peer access have been exhausted for one or more of the devices passed to [`cuCtxEnablePeerAccess`].
-    CUDA_ERROR_TOO_MANY_PEERS = 711,
+    pub const CUDA_ERROR_TOO_MANY_PEERS: cudaError_enum = cudaError_enum(711);
     /// This error indicates that the memory range passed to cuMemHostRegister() has already been registered.
-    CUDA_ERROR_HOST_MEMORY_ALREADY_REGISTERED = 712,
+    pub const CUDA_ERROR_HOST_MEMORY_ALREADY_REGISTERED: cudaError_enum = cudaError_enum(
+        712,
+    );
     /// This error indicates that the pointer passed to [`cuMemHostUnregister`] does not correspond to any currently registered memory region.
-    CUDA_ERROR_HOST_MEMORY_NOT_REGISTERED = 713,
+    pub const CUDA_ERROR_HOST_MEMORY_NOT_REGISTERED: cudaError_enum = cudaError_enum(
+        713,
+    );
     /// While executing a kernel, the device encountered a stack error.
     ///
     /// This can be due to stack corruption or exceeding the stack size limit. This leaves the process in an inconsistent state and any further CUDA work will return the same error. To continue using CUDA, the process must be terminated and relaunched.
-    CUDA_ERROR_HARDWARE_STACK_ERROR = 714,
+    pub const CUDA_ERROR_HARDWARE_STACK_ERROR: cudaError_enum = cudaError_enum(714);
     /// While executing a kernel, the device encountered an illegal instruction.
     ///
     /// This leaves the process in an inconsistent state and any further CUDA work will return the same error. To continue using CUDA, the process must be terminated and relaunched.
-    CUDA_ERROR_ILLEGAL_INSTRUCTION = 715,
+    pub const CUDA_ERROR_ILLEGAL_INSTRUCTION: cudaError_enum = cudaError_enum(715);
     /// While executing a kernel, the device encountered a load or store instruction on a memory address which is not aligned.
     ///
     /// This leaves the process in an inconsistent state and any further CUDA work will return the same error. To continue using CUDA, the process must be terminated and relaunched.
-    CUDA_ERROR_MISALIGNED_ADDRESS = 716,
+    pub const CUDA_ERROR_MISALIGNED_ADDRESS: cudaError_enum = cudaError_enum(716);
     /// While executing a kernel, the device encountered an instruction which can only operate on memory locations in certain address spaces (global, shared, or local), but was supplied a memory address not belonging to an allowed address space.
     ///
     /// This leaves the process in an inconsistent state and any further CUDA work will return the same error. To continue using CUDA, the process must be terminated and relaunched.
-    CUDA_ERROR_INVALID_ADDRESS_SPACE = 717,
+    pub const CUDA_ERROR_INVALID_ADDRESS_SPACE: cudaError_enum = cudaError_enum(717);
     /// While executing a kernel, the device program counter wrapped its address space.
     ///
     /// This leaves the process in an inconsistent state and any further CUDA work will return the same error. To continue using CUDA, the process must be terminated and relaunched.
-    CUDA_ERROR_INVALID_PC = 718,
+    pub const CUDA_ERROR_INVALID_PC: cudaError_enum = cudaError_enum(718);
     /// An exception occurred on the device while executing a kernel.
     ///
     /// Common causes include dereferencing an invalid device pointer and accessing out of bounds shared memory. Less common cases can be system specific - more information about these cases can be found in the system specific user guide. This leaves the process in an inconsistent state and any further CUDA work will return the same error. To continue using CUDA, the process must be terminated and relaunched.
-    CUDA_ERROR_LAUNCH_FAILED = 719,
+    pub const CUDA_ERROR_LAUNCH_FAILED: cudaError_enum = cudaError_enum(719);
     /// This error indicates that the number of blocks launched per grid for a kernel that was launched via either [`cuLaunchCooperativeKernel`] or [`cuLaunchCooperativeKernelMultiDevice`] exceeds the maximum number of blocks as allowed by [`cuOccupancyMaxActiveBlocksPerMultiprocessor`] or [`cuOccupancyMaxActiveBlocksPerMultiprocessorWithFlags`] times the number of multiprocessors as specified by the device attribute [`CUdevice_attribute_enum::CU_DEVICE_ATTRIBUTE_MULTIPROCESSOR_COUNT`].
-    CUDA_ERROR_COOPERATIVE_LAUNCH_TOO_LARGE = 720,
+    pub const CUDA_ERROR_COOPERATIVE_LAUNCH_TOO_LARGE: cudaError_enum = cudaError_enum(
+        720,
+    );
     /// An exception occurred on the device while exiting a kernel using tensor memory: the tensor memory was not completely deallocated.
     ///
     /// This leaves the process in an inconsistent state and any further CUDA work will return the same error. To continue using CUDA, the process must be terminated and relaunched.
-    CUDA_ERROR_TENSOR_MEMORY_LEAK = 721,
+    pub const CUDA_ERROR_TENSOR_MEMORY_LEAK: cudaError_enum = cudaError_enum(721);
     /// This error indicates that the attempted operation is not permitted.
-    CUDA_ERROR_NOT_PERMITTED = 800,
+    pub const CUDA_ERROR_NOT_PERMITTED: cudaError_enum = cudaError_enum(800);
     /// This error indicates that the attempted operation is not supported on the current system or device.
-    CUDA_ERROR_NOT_SUPPORTED = 801,
+    pub const CUDA_ERROR_NOT_SUPPORTED: cudaError_enum = cudaError_enum(801);
     /// This error indicates that the system is not yet ready to start any CUDA work.
     ///
     /// To continue using CUDA, verify the system configuration is in a valid state and all required driver daemons are actively running. More information about this error can be found in the system specific user guide.
-    CUDA_ERROR_SYSTEM_NOT_READY = 802,
+    pub const CUDA_ERROR_SYSTEM_NOT_READY: cudaError_enum = cudaError_enum(802);
     /// This error indicates that there is a mismatch between the versions of the display driver and the CUDA driver.
     ///
     /// Refer to the compatibility documentation for supported versions.
-    CUDA_ERROR_SYSTEM_DRIVER_MISMATCH = 803,
+    pub const CUDA_ERROR_SYSTEM_DRIVER_MISMATCH: cudaError_enum = cudaError_enum(803);
     /// This error indicates that the system was upgraded to run with forward compatibility but the visible hardware detected by CUDA does not support this configuration.
     ///
     /// Refer to the compatibility documentation for the supported hardware matrix or ensure that only supported hardware is visible during initialization via the CUDA_VISIBLE_DEVICES environment variable.
-    CUDA_ERROR_COMPAT_NOT_SUPPORTED_ON_DEVICE = 804,
+    pub const CUDA_ERROR_COMPAT_NOT_SUPPORTED_ON_DEVICE: cudaError_enum = cudaError_enum(
+        804,
+    );
     /// This error indicates that the MPS client failed to connect to the MPS control daemon or the MPS server.
-    CUDA_ERROR_MPS_CONNECTION_FAILED = 805,
+    pub const CUDA_ERROR_MPS_CONNECTION_FAILED: cudaError_enum = cudaError_enum(805);
     /// This error indicates that the remote procedural call between the MPS server and the MPS client failed.
-    CUDA_ERROR_MPS_RPC_FAILURE = 806,
+    pub const CUDA_ERROR_MPS_RPC_FAILURE: cudaError_enum = cudaError_enum(806);
     /// This error indicates that the MPS server is not ready to accept new MPS client requests.
     ///
     /// This error can be returned when the MPS server is in the process of recovering from a fatal failure.
-    CUDA_ERROR_MPS_SERVER_NOT_READY = 807,
+    pub const CUDA_ERROR_MPS_SERVER_NOT_READY: cudaError_enum = cudaError_enum(807);
     /// This error indicates that the hardware resources required to create MPS client have been exhausted.
-    CUDA_ERROR_MPS_MAX_CLIENTS_REACHED = 808,
+    pub const CUDA_ERROR_MPS_MAX_CLIENTS_REACHED: cudaError_enum = cudaError_enum(808);
     /// This error indicates the hardware resources required to support device connections have been exhausted.
-    CUDA_ERROR_MPS_MAX_CONNECTIONS_REACHED = 809,
+    pub const CUDA_ERROR_MPS_MAX_CONNECTIONS_REACHED: cudaError_enum = cudaError_enum(
+        809,
+    );
     /// This error indicates that the MPS client has been terminated by the server.
     ///
     /// To continue using CUDA, the process must be terminated and relaunched.
-    CUDA_ERROR_MPS_CLIENT_TERMINATED = 810,
+    pub const CUDA_ERROR_MPS_CLIENT_TERMINATED: cudaError_enum = cudaError_enum(810);
     /// This error indicates that the module is using CUDA Dynamic Parallelism, but the current configuration, like MPS, does not support it.
-    CUDA_ERROR_CDP_NOT_SUPPORTED = 811,
+    pub const CUDA_ERROR_CDP_NOT_SUPPORTED: cudaError_enum = cudaError_enum(811);
     /// This error indicates that a module contains an unsupported interaction between different versions of CUDA Dynamic Parallelism.
-    CUDA_ERROR_CDP_VERSION_MISMATCH = 812,
+    pub const CUDA_ERROR_CDP_VERSION_MISMATCH: cudaError_enum = cudaError_enum(812);
     /// This error indicates that the operation is not permitted when the stream is capturing.
-    CUDA_ERROR_STREAM_CAPTURE_UNSUPPORTED = 900,
+    pub const CUDA_ERROR_STREAM_CAPTURE_UNSUPPORTED: cudaError_enum = cudaError_enum(
+        900,
+    );
     /// This error indicates that the current capture sequence on the stream has been invalidated due to a previous error.
-    CUDA_ERROR_STREAM_CAPTURE_INVALIDATED = 901,
+    pub const CUDA_ERROR_STREAM_CAPTURE_INVALIDATED: cudaError_enum = cudaError_enum(
+        901,
+    );
     /// This error indicates that the operation would have resulted in a merge of two independent capture sequences.
-    CUDA_ERROR_STREAM_CAPTURE_MERGE = 902,
+    pub const CUDA_ERROR_STREAM_CAPTURE_MERGE: cudaError_enum = cudaError_enum(902);
     /// This error indicates that the capture was not initiated in this stream.
-    CUDA_ERROR_STREAM_CAPTURE_UNMATCHED = 903,
+    pub const CUDA_ERROR_STREAM_CAPTURE_UNMATCHED: cudaError_enum = cudaError_enum(903);
     /// This error indicates that the capture sequence contains a fork that was not joined to the primary stream.
-    CUDA_ERROR_STREAM_CAPTURE_UNJOINED = 904,
+    pub const CUDA_ERROR_STREAM_CAPTURE_UNJOINED: cudaError_enum = cudaError_enum(904);
     /// This error indicates that a dependency would have been created which crosses the capture sequence boundary.
     ///
     /// Only implicit in-stream ordering dependencies are allowed to cross the boundary.
-    CUDA_ERROR_STREAM_CAPTURE_ISOLATION = 905,
+    pub const CUDA_ERROR_STREAM_CAPTURE_ISOLATION: cudaError_enum = cudaError_enum(905);
     /// This error indicates a disallowed implicit dependency on a current capture sequence from cudaStreamLegacy.
-    CUDA_ERROR_STREAM_CAPTURE_IMPLICIT = 906,
+    pub const CUDA_ERROR_STREAM_CAPTURE_IMPLICIT: cudaError_enum = cudaError_enum(906);
     /// This error indicates that the operation is not permitted on an event which was last recorded in a capturing stream.
-    CUDA_ERROR_CAPTURED_EVENT = 907,
+    pub const CUDA_ERROR_CAPTURED_EVENT: cudaError_enum = cudaError_enum(907);
     /// A stream capture sequence not initiated with the [`CUstreamCaptureMode::CU_STREAM_CAPTURE_MODE_RELAXED`] argument to cuStreamBeginCapture was passed to [`cuStreamEndCapture`] in a different thread.
-    CUDA_ERROR_STREAM_CAPTURE_WRONG_THREAD = 908,
+    pub const CUDA_ERROR_STREAM_CAPTURE_WRONG_THREAD: cudaError_enum = cudaError_enum(
+        908,
+    );
     /// This error indicates that the timeout specified for the wait operation has lapsed.
-    CUDA_ERROR_TIMEOUT = 909,
+    pub const CUDA_ERROR_TIMEOUT: cudaError_enum = cudaError_enum(909);
     /// This error indicates that the graph update was not performed because it included changes which violated constraints specific to instantiated graph update.
-    CUDA_ERROR_GRAPH_EXEC_UPDATE_FAILURE = 910,
+    pub const CUDA_ERROR_GRAPH_EXEC_UPDATE_FAILURE: cudaError_enum = cudaError_enum(910);
     /// This indicates that an error has occurred in a device outside of GPU.
     ///
     /// It can be a synchronous error with respect to CUDA API or an asynchronous error from the external device. In case of asynchronous error, it means that if CUDA was waiting for an external device’s signal before consuming shared data, the external device signaled an error indicating that the data is not valid for consumption. This leaves the process in an inconsistent state and any further CUDA work will return the same error. To continue using CUDA, the process must be terminated and relaunched. In case of synchronous error, it means that one or more external devices have encountered an error and cannot complete the operation.
-    CUDA_ERROR_EXTERNAL_DEVICE = 911,
+    pub const CUDA_ERROR_EXTERNAL_DEVICE: cudaError_enum = cudaError_enum(911);
     /// Indicates a kernel launch error due to cluster misconfiguration.
-    CUDA_ERROR_INVALID_CLUSTER_SIZE = 912,
+    pub const CUDA_ERROR_INVALID_CLUSTER_SIZE: cudaError_enum = cudaError_enum(912);
     /// Indiciates a function handle is not loaded when calling an API that requires a loaded function.
-    CUDA_ERROR_FUNCTION_NOT_LOADED = 913,
+    pub const CUDA_ERROR_FUNCTION_NOT_LOADED: cudaError_enum = cudaError_enum(913);
     /// This error indicates one or more resources passed in are not valid resource types for the operation.
-    CUDA_ERROR_INVALID_RESOURCE_TYPE = 914,
+    pub const CUDA_ERROR_INVALID_RESOURCE_TYPE: cudaError_enum = cudaError_enum(914);
     /// This error indicates one or more resources are insufficient or non-applicable for the operation.
-    CUDA_ERROR_INVALID_RESOURCE_CONFIGURATION = 915,
+    pub const CUDA_ERROR_INVALID_RESOURCE_CONFIGURATION: cudaError_enum = cudaError_enum(
+        915,
+    );
     /// This error indicates that an error happened during the key rotation sequence.
-    CUDA_ERROR_KEY_ROTATION = 916,
+    pub const CUDA_ERROR_KEY_ROTATION: cudaError_enum = cudaError_enum(916);
     /// This error indicates that the requested operation is not permitted because the stream is in a detached state.
     ///
     /// This can occur if the green context associated with the stream has been destroyed, limiting the stream’s operational capabilities.
-    CUDA_ERROR_STREAM_DETACHED = 917,
+    pub const CUDA_ERROR_STREAM_DETACHED: cudaError_enum = cudaError_enum(917);
     /// This error indicates that a graph recapture failed and had to be terminated.
-    CUDA_ERROR_GRAPH_RECAPTURE_FAILURE = 918,
+    pub const CUDA_ERROR_GRAPH_RECAPTURE_FAILURE: cudaError_enum = cudaError_enum(918);
     /// The GPU fabric is not ready within the bounded wait while the fabric manager probe is still in progress (or not converging in time).
     ///
     /// Applications may retry after a delay; for the initialization wait budget, see environment variables such as CUDA_FABRIC_INIT_TIMEOUT_MS. The CUDA Runtime uses the same value as ::cudaErrorFabricNotReady.
-    CUDA_ERROR_FABRIC_NOT_READY = 919,
+    pub const CUDA_ERROR_FABRIC_NOT_READY: cudaError_enum = cudaError_enum(919);
     /// This indicates that an unknown internal error has occurred.
-    CUDA_ERROR_UNKNOWN = 999,
+    pub const CUDA_ERROR_UNKNOWN: cudaError_enum = cudaError_enum(999);
 }
+/// Error codes
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudaError_enum(pub ::core::ffi::c_uint);
 pub use self::cudaError_enum as CUresult;
 impl CUdevice_P2PAttribute_enum {
+    /// A relative value indicating the performance of the link between two devices.
+    pub const CU_DEVICE_P2P_ATTRIBUTE_PERFORMANCE_RANK: CUdevice_P2PAttribute_enum = CUdevice_P2PAttribute_enum(
+        1,
+    );
+    /// P2P Access is enable.
+    pub const CU_DEVICE_P2P_ATTRIBUTE_ACCESS_SUPPORTED: CUdevice_P2PAttribute_enum = CUdevice_P2PAttribute_enum(
+        2,
+    );
+    /// All CUDA-valid atomic operation over the link are supported.
+    pub const CU_DEVICE_P2P_ATTRIBUTE_NATIVE_ATOMIC_SUPPORTED: CUdevice_P2PAttribute_enum = CUdevice_P2PAttribute_enum(
+        3,
+    );
+    /// Deprecated: use CU_DEVICE_P2P_ATTRIBUTE_CUDA_ARRAY_ACCESS_SUPPORTED instead
+    pub const CU_DEVICE_P2P_ATTRIBUTE_ACCESS_ACCESS_SUPPORTED: CUdevice_P2PAttribute_enum = CUdevice_P2PAttribute_enum(
+        4,
+    );
     /// Accessing CUDA arrays over the link supported.
-    pub const CU_DEVICE_P2P_ATTRIBUTE_CUDA_ARRAY_ACCESS_SUPPORTED: CUdevice_P2PAttribute_enum = CUdevice_P2PAttribute_enum::CU_DEVICE_P2P_ATTRIBUTE_ACCESS_ACCESS_SUPPORTED;
+    pub const CU_DEVICE_P2P_ATTRIBUTE_CUDA_ARRAY_ACCESS_SUPPORTED: CUdevice_P2PAttribute_enum = CUdevice_P2PAttribute_enum(
+        4,
+    );
+    /// Only some CUDA-valid atomic operations over the link are supported.
+    pub const CU_DEVICE_P2P_ATTRIBUTE_ONLY_PARTIAL_NATIVE_ATOMIC_SUPPORTED: CUdevice_P2PAttribute_enum = CUdevice_P2PAttribute_enum(
+        5,
+    );
 }
 /// P2P Attributes
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUdevice_P2PAttribute_enum {
-    /// A relative value indicating the performance of the link between two devices.
-    CU_DEVICE_P2P_ATTRIBUTE_PERFORMANCE_RANK = 1,
-    /// P2P Access is enable.
-    CU_DEVICE_P2P_ATTRIBUTE_ACCESS_SUPPORTED = 2,
-    /// All CUDA-valid atomic operation over the link are supported.
-    CU_DEVICE_P2P_ATTRIBUTE_NATIVE_ATOMIC_SUPPORTED = 3,
-    /// Deprecated: use CU_DEVICE_P2P_ATTRIBUTE_CUDA_ARRAY_ACCESS_SUPPORTED instead
-    CU_DEVICE_P2P_ATTRIBUTE_ACCESS_ACCESS_SUPPORTED = 4,
-    /// Only some CUDA-valid atomic operations over the link are supported.
-    CU_DEVICE_P2P_ATTRIBUTE_ONLY_PARTIAL_NATIVE_ATOMIC_SUPPORTED = 5,
-}
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUdevice_P2PAttribute_enum(pub ::core::ffi::c_uint);
 pub use self::CUdevice_P2PAttribute_enum as CUdevice_P2PAttribute;
 /// CUDA stream callback.
 pub type CUstreamCallback = ::core::option::Option<
@@ -4802,92 +5079,152 @@ impl Default for CUDA_TEXTURE_DESC_st {
 pub type CUDA_TEXTURE_DESC_v1 = CUDA_TEXTURE_DESC_st;
 /// Texture descriptor
 pub type CUDA_TEXTURE_DESC = CUDA_TEXTURE_DESC_v1;
-/// Resource view format
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUresourceViewFormat_enum {
+impl CUresourceViewFormat_enum {
     /// No resource view format (use underlying resource format).
-    CU_RES_VIEW_FORMAT_NONE = 0,
+    pub const CU_RES_VIEW_FORMAT_NONE: CUresourceViewFormat_enum = CUresourceViewFormat_enum(
+        0,
+    );
     /// 1 channel unsigned 8-bit integers.
-    CU_RES_VIEW_FORMAT_UINT_1X8 = 1,
+    pub const CU_RES_VIEW_FORMAT_UINT_1X8: CUresourceViewFormat_enum = CUresourceViewFormat_enum(
+        1,
+    );
     /// 2 channel unsigned 8-bit integers.
-    CU_RES_VIEW_FORMAT_UINT_2X8 = 2,
+    pub const CU_RES_VIEW_FORMAT_UINT_2X8: CUresourceViewFormat_enum = CUresourceViewFormat_enum(
+        2,
+    );
     /// 4 channel unsigned 8-bit integers.
-    CU_RES_VIEW_FORMAT_UINT_4X8 = 3,
+    pub const CU_RES_VIEW_FORMAT_UINT_4X8: CUresourceViewFormat_enum = CUresourceViewFormat_enum(
+        3,
+    );
     /// 1 channel signed 8-bit integers.
-    CU_RES_VIEW_FORMAT_SINT_1X8 = 4,
+    pub const CU_RES_VIEW_FORMAT_SINT_1X8: CUresourceViewFormat_enum = CUresourceViewFormat_enum(
+        4,
+    );
     /// 2 channel signed 8-bit integers.
-    CU_RES_VIEW_FORMAT_SINT_2X8 = 5,
+    pub const CU_RES_VIEW_FORMAT_SINT_2X8: CUresourceViewFormat_enum = CUresourceViewFormat_enum(
+        5,
+    );
     /// 4 channel signed 8-bit integers.
-    CU_RES_VIEW_FORMAT_SINT_4X8 = 6,
+    pub const CU_RES_VIEW_FORMAT_SINT_4X8: CUresourceViewFormat_enum = CUresourceViewFormat_enum(
+        6,
+    );
     /// 1 channel unsigned 16-bit integers.
-    CU_RES_VIEW_FORMAT_UINT_1X16 = 7,
+    pub const CU_RES_VIEW_FORMAT_UINT_1X16: CUresourceViewFormat_enum = CUresourceViewFormat_enum(
+        7,
+    );
     /// 2 channel unsigned 16-bit integers.
-    CU_RES_VIEW_FORMAT_UINT_2X16 = 8,
+    pub const CU_RES_VIEW_FORMAT_UINT_2X16: CUresourceViewFormat_enum = CUresourceViewFormat_enum(
+        8,
+    );
     /// 4 channel unsigned 16-bit integers.
-    CU_RES_VIEW_FORMAT_UINT_4X16 = 9,
+    pub const CU_RES_VIEW_FORMAT_UINT_4X16: CUresourceViewFormat_enum = CUresourceViewFormat_enum(
+        9,
+    );
     /// 1 channel signed 16-bit integers.
-    CU_RES_VIEW_FORMAT_SINT_1X16 = 10,
+    pub const CU_RES_VIEW_FORMAT_SINT_1X16: CUresourceViewFormat_enum = CUresourceViewFormat_enum(
+        10,
+    );
     /// 2 channel signed 16-bit integers.
-    CU_RES_VIEW_FORMAT_SINT_2X16 = 11,
+    pub const CU_RES_VIEW_FORMAT_SINT_2X16: CUresourceViewFormat_enum = CUresourceViewFormat_enum(
+        11,
+    );
     /// 4 channel signed 16-bit integers.
-    CU_RES_VIEW_FORMAT_SINT_4X16 = 12,
+    pub const CU_RES_VIEW_FORMAT_SINT_4X16: CUresourceViewFormat_enum = CUresourceViewFormat_enum(
+        12,
+    );
     /// 1 channel unsigned 32-bit integers.
-    CU_RES_VIEW_FORMAT_UINT_1X32 = 13,
+    pub const CU_RES_VIEW_FORMAT_UINT_1X32: CUresourceViewFormat_enum = CUresourceViewFormat_enum(
+        13,
+    );
     /// 2 channel unsigned 32-bit integers.
-    CU_RES_VIEW_FORMAT_UINT_2X32 = 14,
+    pub const CU_RES_VIEW_FORMAT_UINT_2X32: CUresourceViewFormat_enum = CUresourceViewFormat_enum(
+        14,
+    );
     /// 4 channel unsigned 32-bit integers.
-    CU_RES_VIEW_FORMAT_UINT_4X32 = 15,
+    pub const CU_RES_VIEW_FORMAT_UINT_4X32: CUresourceViewFormat_enum = CUresourceViewFormat_enum(
+        15,
+    );
     /// 1 channel signed 32-bit integers.
-    CU_RES_VIEW_FORMAT_SINT_1X32 = 16,
+    pub const CU_RES_VIEW_FORMAT_SINT_1X32: CUresourceViewFormat_enum = CUresourceViewFormat_enum(
+        16,
+    );
     /// 2 channel signed 32-bit integers.
-    CU_RES_VIEW_FORMAT_SINT_2X32 = 17,
+    pub const CU_RES_VIEW_FORMAT_SINT_2X32: CUresourceViewFormat_enum = CUresourceViewFormat_enum(
+        17,
+    );
     /// 4 channel signed 32-bit integers.
-    CU_RES_VIEW_FORMAT_SINT_4X32 = 18,
+    pub const CU_RES_VIEW_FORMAT_SINT_4X32: CUresourceViewFormat_enum = CUresourceViewFormat_enum(
+        18,
+    );
     /// 1 channel 16-bit floating point.
-    CU_RES_VIEW_FORMAT_FLOAT_1X16 = 19,
+    pub const CU_RES_VIEW_FORMAT_FLOAT_1X16: CUresourceViewFormat_enum = CUresourceViewFormat_enum(
+        19,
+    );
     /// 2 channel 16-bit floating point.
-    CU_RES_VIEW_FORMAT_FLOAT_2X16 = 20,
+    pub const CU_RES_VIEW_FORMAT_FLOAT_2X16: CUresourceViewFormat_enum = CUresourceViewFormat_enum(
+        20,
+    );
     /// 4 channel 16-bit floating point.
-    CU_RES_VIEW_FORMAT_FLOAT_4X16 = 21,
+    pub const CU_RES_VIEW_FORMAT_FLOAT_4X16: CUresourceViewFormat_enum = CUresourceViewFormat_enum(
+        21,
+    );
     /// 1 channel 32-bit floating point.
-    CU_RES_VIEW_FORMAT_FLOAT_1X32 = 22,
+    pub const CU_RES_VIEW_FORMAT_FLOAT_1X32: CUresourceViewFormat_enum = CUresourceViewFormat_enum(
+        22,
+    );
     /// 2 channel 32-bit floating point.
-    CU_RES_VIEW_FORMAT_FLOAT_2X32 = 23,
+    pub const CU_RES_VIEW_FORMAT_FLOAT_2X32: CUresourceViewFormat_enum = CUresourceViewFormat_enum(
+        23,
+    );
     /// 4 channel 32-bit floating point.
-    CU_RES_VIEW_FORMAT_FLOAT_4X32 = 24,
+    pub const CU_RES_VIEW_FORMAT_FLOAT_4X32: CUresourceViewFormat_enum = CUresourceViewFormat_enum(
+        24,
+    );
     /// Block compressed 1.
-    CU_RES_VIEW_FORMAT_UNSIGNED_BC1 = 25,
+    pub const CU_RES_VIEW_FORMAT_UNSIGNED_BC1: CUresourceViewFormat_enum = CUresourceViewFormat_enum(
+        25,
+    );
     /// Block compressed 2.
-    CU_RES_VIEW_FORMAT_UNSIGNED_BC2 = 26,
+    pub const CU_RES_VIEW_FORMAT_UNSIGNED_BC2: CUresourceViewFormat_enum = CUresourceViewFormat_enum(
+        26,
+    );
     /// Block compressed 3.
-    CU_RES_VIEW_FORMAT_UNSIGNED_BC3 = 27,
+    pub const CU_RES_VIEW_FORMAT_UNSIGNED_BC3: CUresourceViewFormat_enum = CUresourceViewFormat_enum(
+        27,
+    );
     /// Block compressed 4 unsigned.
-    CU_RES_VIEW_FORMAT_UNSIGNED_BC4 = 28,
+    pub const CU_RES_VIEW_FORMAT_UNSIGNED_BC4: CUresourceViewFormat_enum = CUresourceViewFormat_enum(
+        28,
+    );
     /// Block compressed 4 signed.
-    CU_RES_VIEW_FORMAT_SIGNED_BC4 = 29,
+    pub const CU_RES_VIEW_FORMAT_SIGNED_BC4: CUresourceViewFormat_enum = CUresourceViewFormat_enum(
+        29,
+    );
     /// Block compressed 5 unsigned.
-    CU_RES_VIEW_FORMAT_UNSIGNED_BC5 = 30,
+    pub const CU_RES_VIEW_FORMAT_UNSIGNED_BC5: CUresourceViewFormat_enum = CUresourceViewFormat_enum(
+        30,
+    );
     /// Block compressed 5 signed.
-    CU_RES_VIEW_FORMAT_SIGNED_BC5 = 31,
+    pub const CU_RES_VIEW_FORMAT_SIGNED_BC5: CUresourceViewFormat_enum = CUresourceViewFormat_enum(
+        31,
+    );
     /// Block compressed 6 unsigned half-float.
-    CU_RES_VIEW_FORMAT_UNSIGNED_BC6H = 32,
+    pub const CU_RES_VIEW_FORMAT_UNSIGNED_BC6H: CUresourceViewFormat_enum = CUresourceViewFormat_enum(
+        32,
+    );
     /// Block compressed 6 signed half-float.
-    CU_RES_VIEW_FORMAT_SIGNED_BC6H = 33,
+    pub const CU_RES_VIEW_FORMAT_SIGNED_BC6H: CUresourceViewFormat_enum = CUresourceViewFormat_enum(
+        33,
+    );
     /// Block compressed 7.
-    CU_RES_VIEW_FORMAT_UNSIGNED_BC7 = 34,
+    pub const CU_RES_VIEW_FORMAT_UNSIGNED_BC7: CUresourceViewFormat_enum = CUresourceViewFormat_enum(
+        34,
+    );
 }
+/// Resource view format
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUresourceViewFormat_enum(pub ::core::ffi::c_uint);
 pub use self::CUresourceViewFormat_enum as CUresourceViewFormat;
 /// Resource view descriptor
 #[repr(C)]
@@ -4946,175 +5283,183 @@ impl Default for CUtensorMap_st {
 ///
 /// Requires compiler support for aligning to 128 bytes.
 pub type CUtensorMap = CUtensorMap_st;
-/// Tensor map data type
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUtensorMapDataType_enum {
+impl CUtensorMapDataType_enum {
     /// Unsigned 8-bit integer elements.
-    CU_TENSOR_MAP_DATA_TYPE_UINT8 = 0,
+    pub const CU_TENSOR_MAP_DATA_TYPE_UINT8: CUtensorMapDataType_enum = CUtensorMapDataType_enum(
+        0,
+    );
     /// Unsigned 16-bit integer elements.
-    CU_TENSOR_MAP_DATA_TYPE_UINT16 = 1,
+    pub const CU_TENSOR_MAP_DATA_TYPE_UINT16: CUtensorMapDataType_enum = CUtensorMapDataType_enum(
+        1,
+    );
     /// Unsigned 32-bit integer elements.
-    CU_TENSOR_MAP_DATA_TYPE_UINT32 = 2,
+    pub const CU_TENSOR_MAP_DATA_TYPE_UINT32: CUtensorMapDataType_enum = CUtensorMapDataType_enum(
+        2,
+    );
     /// Signed 32-bit integer elements.
-    CU_TENSOR_MAP_DATA_TYPE_INT32 = 3,
+    pub const CU_TENSOR_MAP_DATA_TYPE_INT32: CUtensorMapDataType_enum = CUtensorMapDataType_enum(
+        3,
+    );
     /// Unsigned 64-bit integer elements.
-    CU_TENSOR_MAP_DATA_TYPE_UINT64 = 4,
+    pub const CU_TENSOR_MAP_DATA_TYPE_UINT64: CUtensorMapDataType_enum = CUtensorMapDataType_enum(
+        4,
+    );
     /// Signed 64-bit integer elements.
-    CU_TENSOR_MAP_DATA_TYPE_INT64 = 5,
+    pub const CU_TENSOR_MAP_DATA_TYPE_INT64: CUtensorMapDataType_enum = CUtensorMapDataType_enum(
+        5,
+    );
     /// 16-bit floating-point elements.
-    CU_TENSOR_MAP_DATA_TYPE_FLOAT16 = 6,
+    pub const CU_TENSOR_MAP_DATA_TYPE_FLOAT16: CUtensorMapDataType_enum = CUtensorMapDataType_enum(
+        6,
+    );
     /// 32-bit floating-point elements.
-    CU_TENSOR_MAP_DATA_TYPE_FLOAT32 = 7,
+    pub const CU_TENSOR_MAP_DATA_TYPE_FLOAT32: CUtensorMapDataType_enum = CUtensorMapDataType_enum(
+        7,
+    );
     /// 64-bit floating-point elements.
-    CU_TENSOR_MAP_DATA_TYPE_FLOAT64 = 8,
+    pub const CU_TENSOR_MAP_DATA_TYPE_FLOAT64: CUtensorMapDataType_enum = CUtensorMapDataType_enum(
+        8,
+    );
     /// 16-bit brain floating-point elements.
-    CU_TENSOR_MAP_DATA_TYPE_BFLOAT16 = 9,
+    pub const CU_TENSOR_MAP_DATA_TYPE_BFLOAT16: CUtensorMapDataType_enum = CUtensorMapDataType_enum(
+        9,
+    );
     /// 32-bit floating-point elements with subnormal values flushed to zero.
-    CU_TENSOR_MAP_DATA_TYPE_FLOAT32_FTZ = 10,
+    pub const CU_TENSOR_MAP_DATA_TYPE_FLOAT32_FTZ: CUtensorMapDataType_enum = CUtensorMapDataType_enum(
+        10,
+    );
     /// TensorFloat-32 elements.
-    CU_TENSOR_MAP_DATA_TYPE_TFLOAT32 = 11,
+    pub const CU_TENSOR_MAP_DATA_TYPE_TFLOAT32: CUtensorMapDataType_enum = CUtensorMapDataType_enum(
+        11,
+    );
     /// TensorFloat-32 elements with subnormal values flushed to zero.
-    CU_TENSOR_MAP_DATA_TYPE_TFLOAT32_FTZ = 12,
+    pub const CU_TENSOR_MAP_DATA_TYPE_TFLOAT32_FTZ: CUtensorMapDataType_enum = CUtensorMapDataType_enum(
+        12,
+    );
     /// Groups of sixteen unsigned 4-bit values packed into eight bytes, with no gaps between groups.
-    CU_TENSOR_MAP_DATA_TYPE_16U4_ALIGN8B = 13,
+    pub const CU_TENSOR_MAP_DATA_TYPE_16U4_ALIGN8B: CUtensorMapDataType_enum = CUtensorMapDataType_enum(
+        13,
+    );
     /// Groups of sixteen unsigned 4-bit values in 16-byte-aligned storage, with eight padding bytes after each eight-byte packed group.
-    CU_TENSOR_MAP_DATA_TYPE_16U4_ALIGN16B = 14,
+    pub const CU_TENSOR_MAP_DATA_TYPE_16U4_ALIGN16B: CUtensorMapDataType_enum = CUtensorMapDataType_enum(
+        14,
+    );
     /// Groups of sixteen unsigned 6-bit values in 16-byte-aligned storage, with four padding bytes after each twelve-byte packed group.
-    CU_TENSOR_MAP_DATA_TYPE_16U6_ALIGN16B = 15,
+    pub const CU_TENSOR_MAP_DATA_TYPE_16U6_ALIGN16B: CUtensorMapDataType_enum = CUtensorMapDataType_enum(
+        15,
+    );
 }
+/// Tensor map data type
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUtensorMapDataType_enum(pub ::core::ffi::c_uint);
 pub use self::CUtensorMapDataType_enum as CUtensorMapDataType;
-/// Tensor map interleave layout type
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUtensorMapInterleave_enum {
+impl CUtensorMapInterleave_enum {
     /// No channel interleaving.
-    CU_TENSOR_MAP_INTERLEAVE_NONE = 0,
+    pub const CU_TENSOR_MAP_INTERLEAVE_NONE: CUtensorMapInterleave_enum = CUtensorMapInterleave_enum(
+        0,
+    );
     /// Interleaves channels in 16-byte groups, such as eight 16-bit channels per group.
-    CU_TENSOR_MAP_INTERLEAVE_16B = 1,
+    pub const CU_TENSOR_MAP_INTERLEAVE_16B: CUtensorMapInterleave_enum = CUtensorMapInterleave_enum(
+        1,
+    );
     /// Interleaves channels in 32-byte groups, such as sixteen 16-bit channels per group.
-    CU_TENSOR_MAP_INTERLEAVE_32B = 2,
+    pub const CU_TENSOR_MAP_INTERLEAVE_32B: CUtensorMapInterleave_enum = CUtensorMapInterleave_enum(
+        2,
+    );
 }
+/// Tensor map interleave layout type
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUtensorMapInterleave_enum(pub ::core::ffi::c_uint);
 pub use self::CUtensorMapInterleave_enum as CUtensorMapInterleave;
-/// Tensor map swizzling mode of shared memory banks
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUtensorMapSwizzle_enum {
+impl CUtensorMapSwizzle_enum {
     /// No shared-memory swizzling.
-    CU_TENSOR_MAP_SWIZZLE_NONE = 0,
+    pub const CU_TENSOR_MAP_SWIZZLE_NONE: CUtensorMapSwizzle_enum = CUtensorMapSwizzle_enum(
+        0,
+    );
     /// Swizzles 16-byte chunks within a 32-byte span.
-    CU_TENSOR_MAP_SWIZZLE_32B = 1,
+    pub const CU_TENSOR_MAP_SWIZZLE_32B: CUtensorMapSwizzle_enum = CUtensorMapSwizzle_enum(
+        1,
+    );
     /// Swizzles 16-byte chunks within a 64-byte span.
-    CU_TENSOR_MAP_SWIZZLE_64B = 2,
+    pub const CU_TENSOR_MAP_SWIZZLE_64B: CUtensorMapSwizzle_enum = CUtensorMapSwizzle_enum(
+        2,
+    );
     /// Swizzles 16-byte chunks within a 128-byte span.
-    CU_TENSOR_MAP_SWIZZLE_128B = 3,
+    pub const CU_TENSOR_MAP_SWIZZLE_128B: CUtensorMapSwizzle_enum = CUtensorMapSwizzle_enum(
+        3,
+    );
     /// Swizzles 32-byte chunks within a 128-byte span.
-    CU_TENSOR_MAP_SWIZZLE_128B_ATOM_32B = 4,
+    pub const CU_TENSOR_MAP_SWIZZLE_128B_ATOM_32B: CUtensorMapSwizzle_enum = CUtensorMapSwizzle_enum(
+        4,
+    );
     /// Swizzles 32-byte chunks within a 128-byte span and exchanges the lower and upper eight bytes of each 16-byte unit on alternate rows.
-    CU_TENSOR_MAP_SWIZZLE_128B_ATOM_32B_FLIP_8B = 5,
+    pub const CU_TENSOR_MAP_SWIZZLE_128B_ATOM_32B_FLIP_8B: CUtensorMapSwizzle_enum = CUtensorMapSwizzle_enum(
+        5,
+    );
     /// Swizzles 64-byte chunks within a 128-byte span.
-    CU_TENSOR_MAP_SWIZZLE_128B_ATOM_64B = 6,
+    pub const CU_TENSOR_MAP_SWIZZLE_128B_ATOM_64B: CUtensorMapSwizzle_enum = CUtensorMapSwizzle_enum(
+        6,
+    );
 }
+/// Tensor map swizzling mode of shared memory banks
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUtensorMapSwizzle_enum(pub ::core::ffi::c_uint);
 pub use self::CUtensorMapSwizzle_enum as CUtensorMapSwizzle;
-/// Tensor map L2 promotion type
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUtensorMapL2promotion_enum {
+impl CUtensorMapL2promotion_enum {
     /// No L2 fetch-size promotion.
-    CU_TENSOR_MAP_L2_PROMOTION_NONE = 0,
+    pub const CU_TENSOR_MAP_L2_PROMOTION_NONE: CUtensorMapL2promotion_enum = CUtensorMapL2promotion_enum(
+        0,
+    );
     /// Fills L2 requests from DRAM at 64-byte granularity.
-    CU_TENSOR_MAP_L2_PROMOTION_L2_64B = 1,
+    pub const CU_TENSOR_MAP_L2_PROMOTION_L2_64B: CUtensorMapL2promotion_enum = CUtensorMapL2promotion_enum(
+        1,
+    );
     /// Fills L2 requests from DRAM at 128-byte granularity.
-    CU_TENSOR_MAP_L2_PROMOTION_L2_128B = 2,
+    pub const CU_TENSOR_MAP_L2_PROMOTION_L2_128B: CUtensorMapL2promotion_enum = CUtensorMapL2promotion_enum(
+        2,
+    );
     /// Fills L2 requests from DRAM at 256-byte granularity.
-    CU_TENSOR_MAP_L2_PROMOTION_L2_256B = 3,
+    pub const CU_TENSOR_MAP_L2_PROMOTION_L2_256B: CUtensorMapL2promotion_enum = CUtensorMapL2promotion_enum(
+        3,
+    );
 }
+/// Tensor map L2 promotion type
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUtensorMapL2promotion_enum(pub ::core::ffi::c_uint);
 pub use self::CUtensorMapL2promotion_enum as CUtensorMapL2promotion;
-/// Tensor map out-of-bounds fill type
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUtensorMapFloatOOBfill_enum {
+impl CUtensorMapFloatOOBfill_enum {
     /// Fills out-of-bounds elements with zero.
-    CU_TENSOR_MAP_FLOAT_OOB_FILL_NONE = 0,
+    pub const CU_TENSOR_MAP_FLOAT_OOB_FILL_NONE: CUtensorMapFloatOOBfill_enum = CUtensorMapFloatOOBfill_enum(
+        0,
+    );
     /// Fills out-of-bounds elements with the special NaN value that requests zero contribution to FMA. Only floating-point tensor data types support this mode.
-    CU_TENSOR_MAP_FLOAT_OOB_FILL_NAN_REQUEST_ZERO_FMA = 1,
+    pub const CU_TENSOR_MAP_FLOAT_OOB_FILL_NAN_REQUEST_ZERO_FMA: CUtensorMapFloatOOBfill_enum = CUtensorMapFloatOOBfill_enum(
+        1,
+    );
 }
+/// Tensor map out-of-bounds fill type
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUtensorMapFloatOOBfill_enum(pub ::core::ffi::c_uint);
 pub use self::CUtensorMapFloatOOBfill_enum as CUtensorMapFloatOOBfill;
-/// Tensor map Im2Col wide mode
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUtensorMapIm2ColWideMode_enum {
+impl CUtensorMapIm2ColWideMode_enum {
     /// Loads along the W dimension using the element count in `pixelsPerColumn`.
-    CU_TENSOR_MAP_IM2COL_WIDE_MODE_W = 0,
+    pub const CU_TENSOR_MAP_IM2COL_WIDE_MODE_W: CUtensorMapIm2ColWideMode_enum = CUtensorMapIm2ColWideMode_enum(
+        0,
+    );
     /// Uses native W128 loading along the W dimension; `pixelsPerColumn` is ignored.
-    CU_TENSOR_MAP_IM2COL_WIDE_MODE_W128 = 1,
+    pub const CU_TENSOR_MAP_IM2COL_WIDE_MODE_W128: CUtensorMapIm2ColWideMode_enum = CUtensorMapIm2ColWideMode_enum(
+        1,
+    );
 }
+/// Tensor map Im2Col wide mode
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUtensorMapIm2ColWideMode_enum(pub ::core::ffi::c_uint);
 pub use self::CUtensorMapIm2ColWideMode_enum as CUtensorMapIm2ColWideMode;
 /// GPU Direct v3 tokens
 #[repr(C)]
@@ -5129,28 +5474,24 @@ pub struct CUDA_POINTER_ATTRIBUTE_P2P_TOKENS_st {
 pub type CUDA_POINTER_ATTRIBUTE_P2P_TOKENS_v1 = CUDA_POINTER_ATTRIBUTE_P2P_TOKENS_st;
 /// GPU Direct v3 tokens
 pub type CUDA_POINTER_ATTRIBUTE_P2P_TOKENS = CUDA_POINTER_ATTRIBUTE_P2P_TOKENS_v1;
-/// Access flags that specify the level of access the current context's device has on the memory referenced.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUDA_POINTER_ATTRIBUTE_ACCESS_FLAGS_enum {
+impl CUDA_POINTER_ATTRIBUTE_ACCESS_FLAGS_enum {
     /// No access, meaning the device cannot access this memory at all, thus must be staged through accessible memory in order to complete certain operations.
-    CU_POINTER_ATTRIBUTE_ACCESS_FLAG_NONE = 0,
+    pub const CU_POINTER_ATTRIBUTE_ACCESS_FLAG_NONE: CUDA_POINTER_ATTRIBUTE_ACCESS_FLAGS_enum = CUDA_POINTER_ATTRIBUTE_ACCESS_FLAGS_enum(
+        0,
+    );
     /// Read-only access, meaning writes to this memory are considered invalid accesses and thus return error in that case.
-    CU_POINTER_ATTRIBUTE_ACCESS_FLAG_READ = 1,
+    pub const CU_POINTER_ATTRIBUTE_ACCESS_FLAG_READ: CUDA_POINTER_ATTRIBUTE_ACCESS_FLAGS_enum = CUDA_POINTER_ATTRIBUTE_ACCESS_FLAGS_enum(
+        1,
+    );
     /// Read-write access, the device has full read-write access to the memory.
-    CU_POINTER_ATTRIBUTE_ACCESS_FLAG_READWRITE = 3,
+    pub const CU_POINTER_ATTRIBUTE_ACCESS_FLAG_READWRITE: CUDA_POINTER_ATTRIBUTE_ACCESS_FLAGS_enum = CUDA_POINTER_ATTRIBUTE_ACCESS_FLAGS_enum(
+        3,
+    );
 }
+/// Access flags that specify the level of access the current context's device has on the memory referenced.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUDA_POINTER_ATTRIBUTE_ACCESS_FLAGS_enum(pub ::core::ffi::c_uint);
 pub use self::CUDA_POINTER_ATTRIBUTE_ACCESS_FLAGS_enum as CUDA_POINTER_ATTRIBUTE_ACCESS_FLAGS;
 /// Kernel launch parameters
 #[repr(C)]
@@ -5190,40 +5531,48 @@ impl Default for CUDA_LAUNCH_PARAMS_st {
 pub type CUDA_LAUNCH_PARAMS_v1 = CUDA_LAUNCH_PARAMS_st;
 /// Kernel launch parameters
 pub type CUDA_LAUNCH_PARAMS = CUDA_LAUNCH_PARAMS_v1;
-/// External memory handle types
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUexternalMemoryHandleType_enum {
+impl CUexternalMemoryHandleType_enum {
     /// Handle is an opaque file descriptor.
-    CU_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD = 1,
+    pub const CU_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD: CUexternalMemoryHandleType_enum = CUexternalMemoryHandleType_enum(
+        1,
+    );
     /// Handle is an opaque shared NT handle.
-    CU_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32 = 2,
+    pub const CU_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32: CUexternalMemoryHandleType_enum = CUexternalMemoryHandleType_enum(
+        2,
+    );
     /// Handle is an opaque, globally shared handle.
-    CU_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_KMT = 3,
+    pub const CU_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_KMT: CUexternalMemoryHandleType_enum = CUexternalMemoryHandleType_enum(
+        3,
+    );
     /// Handle is a D3D12 heap object.
-    CU_EXTERNAL_MEMORY_HANDLE_TYPE_D3D12_HEAP = 4,
+    pub const CU_EXTERNAL_MEMORY_HANDLE_TYPE_D3D12_HEAP: CUexternalMemoryHandleType_enum = CUexternalMemoryHandleType_enum(
+        4,
+    );
     /// Handle is a D3D12 committed resource.
-    CU_EXTERNAL_MEMORY_HANDLE_TYPE_D3D12_RESOURCE = 5,
+    pub const CU_EXTERNAL_MEMORY_HANDLE_TYPE_D3D12_RESOURCE: CUexternalMemoryHandleType_enum = CUexternalMemoryHandleType_enum(
+        5,
+    );
     /// Handle is a shared NT handle to a D3D11 resource.
-    CU_EXTERNAL_MEMORY_HANDLE_TYPE_D3D11_RESOURCE = 6,
+    pub const CU_EXTERNAL_MEMORY_HANDLE_TYPE_D3D11_RESOURCE: CUexternalMemoryHandleType_enum = CUexternalMemoryHandleType_enum(
+        6,
+    );
     /// Handle is a globally shared handle to a D3D11 resource.
-    CU_EXTERNAL_MEMORY_HANDLE_TYPE_D3D11_RESOURCE_KMT = 7,
+    pub const CU_EXTERNAL_MEMORY_HANDLE_TYPE_D3D11_RESOURCE_KMT: CUexternalMemoryHandleType_enum = CUexternalMemoryHandleType_enum(
+        7,
+    );
     /// Handle is an NvSciBuf object.
-    CU_EXTERNAL_MEMORY_HANDLE_TYPE_NVSCIBUF = 8,
+    pub const CU_EXTERNAL_MEMORY_HANDLE_TYPE_NVSCIBUF: CUexternalMemoryHandleType_enum = CUexternalMemoryHandleType_enum(
+        8,
+    );
     /// Handle is a dma_buf file descriptor.
-    CU_EXTERNAL_MEMORY_HANDLE_TYPE_DMABUF_FD = 9,
+    pub const CU_EXTERNAL_MEMORY_HANDLE_TYPE_DMABUF_FD: CUexternalMemoryHandleType_enum = CUexternalMemoryHandleType_enum(
+        9,
+    );
 }
+/// External memory handle types
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUexternalMemoryHandleType_enum(pub ::core::ffi::c_uint);
 pub use self::CUexternalMemoryHandleType_enum as CUexternalMemoryHandleType;
 /// External memory handle descriptor
 #[repr(C)]
@@ -5346,42 +5695,52 @@ impl Default for CUDA_EXTERNAL_MEMORY_MIPMAPPED_ARRAY_DESC_st {
 pub type CUDA_EXTERNAL_MEMORY_MIPMAPPED_ARRAY_DESC_v1 = CUDA_EXTERNAL_MEMORY_MIPMAPPED_ARRAY_DESC_st;
 /// External memory mipmap descriptor
 pub type CUDA_EXTERNAL_MEMORY_MIPMAPPED_ARRAY_DESC = CUDA_EXTERNAL_MEMORY_MIPMAPPED_ARRAY_DESC_v1;
-/// External semaphore handle types
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUexternalSemaphoreHandleType_enum {
+impl CUexternalSemaphoreHandleType_enum {
     /// Handle is an opaque file descriptor.
-    CU_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD = 1,
+    pub const CU_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD: CUexternalSemaphoreHandleType_enum = CUexternalSemaphoreHandleType_enum(
+        1,
+    );
     /// Handle is an opaque shared NT handle.
-    CU_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_WIN32 = 2,
+    pub const CU_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_WIN32: CUexternalSemaphoreHandleType_enum = CUexternalSemaphoreHandleType_enum(
+        2,
+    );
     /// Handle is an opaque, globally shared handle.
-    CU_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_WIN32_KMT = 3,
+    pub const CU_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_WIN32_KMT: CUexternalSemaphoreHandleType_enum = CUexternalSemaphoreHandleType_enum(
+        3,
+    );
     /// Handle is a shared NT handle referencing a D3D12 fence object.
-    CU_EXTERNAL_SEMAPHORE_HANDLE_TYPE_D3D12_FENCE = 4,
+    pub const CU_EXTERNAL_SEMAPHORE_HANDLE_TYPE_D3D12_FENCE: CUexternalSemaphoreHandleType_enum = CUexternalSemaphoreHandleType_enum(
+        4,
+    );
     /// Handle is a shared NT handle referencing a D3D11 fence object.
-    CU_EXTERNAL_SEMAPHORE_HANDLE_TYPE_D3D11_FENCE = 5,
+    pub const CU_EXTERNAL_SEMAPHORE_HANDLE_TYPE_D3D11_FENCE: CUexternalSemaphoreHandleType_enum = CUexternalSemaphoreHandleType_enum(
+        5,
+    );
     /// Opaque handle to NvSciSync Object.
-    CU_EXTERNAL_SEMAPHORE_HANDLE_TYPE_NVSCISYNC = 6,
+    pub const CU_EXTERNAL_SEMAPHORE_HANDLE_TYPE_NVSCISYNC: CUexternalSemaphoreHandleType_enum = CUexternalSemaphoreHandleType_enum(
+        6,
+    );
     /// Handle is a shared NT handle referencing a D3D11 keyed mutex object.
-    CU_EXTERNAL_SEMAPHORE_HANDLE_TYPE_D3D11_KEYED_MUTEX = 7,
+    pub const CU_EXTERNAL_SEMAPHORE_HANDLE_TYPE_D3D11_KEYED_MUTEX: CUexternalSemaphoreHandleType_enum = CUexternalSemaphoreHandleType_enum(
+        7,
+    );
     /// Handle is a globally shared handle referencing a D3D11 keyed mutex object.
-    CU_EXTERNAL_SEMAPHORE_HANDLE_TYPE_D3D11_KEYED_MUTEX_KMT = 8,
+    pub const CU_EXTERNAL_SEMAPHORE_HANDLE_TYPE_D3D11_KEYED_MUTEX_KMT: CUexternalSemaphoreHandleType_enum = CUexternalSemaphoreHandleType_enum(
+        8,
+    );
     /// Handle is an opaque file descriptor referencing a timeline semaphore.
-    CU_EXTERNAL_SEMAPHORE_HANDLE_TYPE_TIMELINE_SEMAPHORE_FD = 9,
+    pub const CU_EXTERNAL_SEMAPHORE_HANDLE_TYPE_TIMELINE_SEMAPHORE_FD: CUexternalSemaphoreHandleType_enum = CUexternalSemaphoreHandleType_enum(
+        9,
+    );
     /// Handle is an opaque shared NT handle referencing a timeline semaphore.
-    CU_EXTERNAL_SEMAPHORE_HANDLE_TYPE_TIMELINE_SEMAPHORE_WIN32 = 10,
+    pub const CU_EXTERNAL_SEMAPHORE_HANDLE_TYPE_TIMELINE_SEMAPHORE_WIN32: CUexternalSemaphoreHandleType_enum = CUexternalSemaphoreHandleType_enum(
+        10,
+    );
 }
+/// External semaphore handle types
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUexternalSemaphoreHandleType_enum(pub ::core::ffi::c_uint);
 pub use self::CUexternalSemaphoreHandleType_enum as CUexternalSemaphoreHandleType;
 /// External semaphore handle descriptor
 #[repr(C)]
@@ -5759,257 +6118,219 @@ pub type CUDA_EXT_SEM_WAIT_NODE_PARAMS_v2 = CUDA_EXT_SEM_WAIT_NODE_PARAMS_v2_st;
 pub type CUmemGenericAllocationHandle_v1 = ::core::ffi::c_ulonglong;
 /// Opaque handle to a CUDA virtual-memory allocation. The handle identifies an allocation, not a device address; mappings are established separately with [`cuMemMap`].
 pub type CUmemGenericAllocationHandle = CUmemGenericAllocationHandle_v1;
-/// Flags for specifying particular handle types
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUmemAllocationHandleType_enum {
+impl CUmemAllocationHandleType_enum {
     /// Does not allow any export mechanism.
     ///
     /// >.
-    CU_MEM_HANDLE_TYPE_NONE = 0,
+    pub const CU_MEM_HANDLE_TYPE_NONE: CUmemAllocationHandleType_enum = CUmemAllocationHandleType_enum(
+        0,
+    );
     /// Allows a file descriptor to be used for exporting.
     ///
     /// Permitted only on POSIX systems. (int).
-    CU_MEM_HANDLE_TYPE_POSIX_FILE_DESCRIPTOR = 1,
+    pub const CU_MEM_HANDLE_TYPE_POSIX_FILE_DESCRIPTOR: CUmemAllocationHandleType_enum = CUmemAllocationHandleType_enum(
+        1,
+    );
     /// Allows a Win32 NT handle to be used for exporting.
     ///
     /// (HANDLE).
-    CU_MEM_HANDLE_TYPE_WIN32 = 2,
+    pub const CU_MEM_HANDLE_TYPE_WIN32: CUmemAllocationHandleType_enum = CUmemAllocationHandleType_enum(
+        2,
+    );
     /// Allows a Win32 KMT handle to be used for exporting.
     ///
     /// (D3DKMT_HANDLE).
-    CU_MEM_HANDLE_TYPE_WIN32_KMT = 4,
+    pub const CU_MEM_HANDLE_TYPE_WIN32_KMT: CUmemAllocationHandleType_enum = CUmemAllocationHandleType_enum(
+        4,
+    );
     /// Allows a fabric handle to be used for exporting.
     ///
     /// (CUmemFabricHandle).
-    CU_MEM_HANDLE_TYPE_FABRIC = 8,
+    pub const CU_MEM_HANDLE_TYPE_FABRIC: CUmemAllocationHandleType_enum = CUmemAllocationHandleType_enum(
+        8,
+    );
     /// Reserved upper-bound sentinel for native allocation handle types.
-    CU_MEM_HANDLE_TYPE_MAX = 2147483647,
+    pub const CU_MEM_HANDLE_TYPE_MAX: CUmemAllocationHandleType_enum = CUmemAllocationHandleType_enum(
+        2147483647,
+    );
 }
+/// Flags for specifying particular handle types
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUmemAllocationHandleType_enum(pub ::core::ffi::c_uint);
 pub use self::CUmemAllocationHandleType_enum as CUmemAllocationHandleType;
-/// Specifies the memory protection flags for mapping.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUmemAccess_flags_enum {
+impl CUmemAccess_flags_enum {
     /// Default, make the address range not accessible.
-    CU_MEM_ACCESS_FLAGS_PROT_NONE = 0,
+    pub const CU_MEM_ACCESS_FLAGS_PROT_NONE: CUmemAccess_flags_enum = CUmemAccess_flags_enum(
+        0,
+    );
     /// Make the address range read accessible.
-    CU_MEM_ACCESS_FLAGS_PROT_READ = 1,
+    pub const CU_MEM_ACCESS_FLAGS_PROT_READ: CUmemAccess_flags_enum = CUmemAccess_flags_enum(
+        1,
+    );
     /// Make the address range read-write accessible.
-    CU_MEM_ACCESS_FLAGS_PROT_READWRITE = 3,
+    pub const CU_MEM_ACCESS_FLAGS_PROT_READWRITE: CUmemAccess_flags_enum = CUmemAccess_flags_enum(
+        3,
+    );
     /// Reserved upper-bound sentinel for native memory access protections.
-    CU_MEM_ACCESS_FLAGS_PROT_MAX = 2147483647,
+    pub const CU_MEM_ACCESS_FLAGS_PROT_MAX: CUmemAccess_flags_enum = CUmemAccess_flags_enum(
+        2147483647,
+    );
 }
+/// Specifies the memory protection flags for mapping.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUmemAccess_flags_enum(pub ::core::ffi::c_uint);
 pub use self::CUmemAccess_flags_enum as CUmemAccess_flags;
 impl CUmemLocationType_enum {
+    /// No valid native memory location is selected.
+    pub const CU_MEM_LOCATION_TYPE_INVALID: CUmemLocationType_enum = CUmemLocationType_enum(
+        0,
+    );
     /// Location is unspecified.
     ///
     /// This is used when creating a managed memory pool to indicate no preferred location for the pool.
-    pub const CU_MEM_LOCATION_TYPE_NONE: CUmemLocationType_enum = CUmemLocationType_enum::CU_MEM_LOCATION_TYPE_INVALID;
+    pub const CU_MEM_LOCATION_TYPE_NONE: CUmemLocationType_enum = CUmemLocationType_enum(
+        0,
+    );
+    /// Location is a device location, thus id is a device ordinal.
+    pub const CU_MEM_LOCATION_TYPE_DEVICE: CUmemLocationType_enum = CUmemLocationType_enum(
+        1,
+    );
+    /// Location is host, id is ignored.
+    pub const CU_MEM_LOCATION_TYPE_HOST: CUmemLocationType_enum = CUmemLocationType_enum(
+        2,
+    );
+    /// Location is a host NUMA node, thus id is a host NUMA node id.
+    pub const CU_MEM_LOCATION_TYPE_HOST_NUMA: CUmemLocationType_enum = CUmemLocationType_enum(
+        3,
+    );
+    /// Location is a host NUMA node of the current thread, id is ignored.
+    pub const CU_MEM_LOCATION_TYPE_HOST_NUMA_CURRENT: CUmemLocationType_enum = CUmemLocationType_enum(
+        4,
+    );
+    /// Location is not visible but device is accessible, id is always CU_DEVICE_INVALID.
+    pub const CU_MEM_LOCATION_TYPE_INVISIBLE: CUmemLocationType_enum = CUmemLocationType_enum(
+        5,
+    );
+    /// Location is a portion of device memory, specified by the locality domain ID.
+    pub const CU_MEM_LOCATION_TYPE_DEVICE_LOCALITY_DOMAIN: CUmemLocationType_enum = CUmemLocationType_enum(
+        6,
+    );
+    /// Reserved upper-bound sentinel for native memory location types.
+    pub const CU_MEM_LOCATION_TYPE_MAX: CUmemLocationType_enum = CUmemLocationType_enum(
+        2147483647,
+    );
 }
 /// Specifies the type of location
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUmemLocationType_enum {
-    /// No valid native memory location is selected.
-    CU_MEM_LOCATION_TYPE_INVALID = 0,
-    /// Location is a device location, thus id is a device ordinal.
-    CU_MEM_LOCATION_TYPE_DEVICE = 1,
-    /// Location is host, id is ignored.
-    CU_MEM_LOCATION_TYPE_HOST = 2,
-    /// Location is a host NUMA node, thus id is a host NUMA node id.
-    CU_MEM_LOCATION_TYPE_HOST_NUMA = 3,
-    /// Location is a host NUMA node of the current thread, id is ignored.
-    CU_MEM_LOCATION_TYPE_HOST_NUMA_CURRENT = 4,
-    /// Location is not visible but device is accessible, id is always CU_DEVICE_INVALID.
-    CU_MEM_LOCATION_TYPE_INVISIBLE = 5,
-    /// Location is a portion of device memory, specified by the locality domain ID.
-    CU_MEM_LOCATION_TYPE_DEVICE_LOCALITY_DOMAIN = 6,
-    /// Reserved upper-bound sentinel for native memory location types.
-    CU_MEM_LOCATION_TYPE_MAX = 2147483647,
-}
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUmemLocationType_enum(pub ::core::ffi::c_uint);
 pub use self::CUmemLocationType_enum as CUmemLocationType;
-/// Defines the allocation types available
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUmemAllocationType_enum {
+impl CUmemAllocationType_enum {
     /// No valid native memory allocation type is selected.
-    CU_MEM_ALLOCATION_TYPE_INVALID = 0,
+    pub const CU_MEM_ALLOCATION_TYPE_INVALID: CUmemAllocationType_enum = CUmemAllocationType_enum(
+        0,
+    );
     /// This allocation type is ‘pinned’, i.e.
     ///
     /// cannot migrate from its current location while the application is actively using it.
-    CU_MEM_ALLOCATION_TYPE_PINNED = 1,
+    pub const CU_MEM_ALLOCATION_TYPE_PINNED: CUmemAllocationType_enum = CUmemAllocationType_enum(
+        1,
+    );
     /// This allocation type is managed memory.
-    CU_MEM_ALLOCATION_TYPE_MANAGED = 2,
+    pub const CU_MEM_ALLOCATION_TYPE_MANAGED: CUmemAllocationType_enum = CUmemAllocationType_enum(
+        2,
+    );
     /// ABI sentinel that forces a 32-bit C allocation-type enum representation.
-    CU_MEM_ALLOCATION_TYPE_MAX = 2147483647,
+    pub const CU_MEM_ALLOCATION_TYPE_MAX: CUmemAllocationType_enum = CUmemAllocationType_enum(
+        2147483647,
+    );
 }
+/// Defines the allocation types available
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUmemAllocationType_enum(pub ::core::ffi::c_uint);
 pub use self::CUmemAllocationType_enum as CUmemAllocationType;
-/// Flag for requesting different optimal and required granularities for an allocation.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUmemAllocationGranularity_flags_enum {
+impl CUmemAllocationGranularity_flags_enum {
     /// Minimum required granularity for allocation.
-    CU_MEM_ALLOC_GRANULARITY_MINIMUM = 0,
+    pub const CU_MEM_ALLOC_GRANULARITY_MINIMUM: CUmemAllocationGranularity_flags_enum = CUmemAllocationGranularity_flags_enum(
+        0,
+    );
     /// Recommended granularity for allocation for best performance.
-    CU_MEM_ALLOC_GRANULARITY_RECOMMENDED = 1,
+    pub const CU_MEM_ALLOC_GRANULARITY_RECOMMENDED: CUmemAllocationGranularity_flags_enum = CUmemAllocationGranularity_flags_enum(
+        1,
+    );
 }
+/// Flag for requesting different optimal and required granularities for an allocation.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUmemAllocationGranularity_flags_enum(pub ::core::ffi::c_uint);
 pub use self::CUmemAllocationGranularity_flags_enum as CUmemAllocationGranularity_flags;
-/// Specifies the handle type for address range
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUmemRangeHandleType_enum {
+impl CUmemRangeHandleType_enum {
     /// Exports a memory-range handle as a DMA-BUF file descriptor.
-    CU_MEM_RANGE_HANDLE_TYPE_DMA_BUF_FD = 1,
+    pub const CU_MEM_RANGE_HANDLE_TYPE_DMA_BUF_FD: CUmemRangeHandleType_enum = CUmemRangeHandleType_enum(
+        1,
+    );
     /// Reserved upper-bound sentinel for native memory-range handle types.
-    CU_MEM_RANGE_HANDLE_TYPE_MAX = 2147483647,
+    pub const CU_MEM_RANGE_HANDLE_TYPE_MAX: CUmemRangeHandleType_enum = CUmemRangeHandleType_enum(
+        2147483647,
+    );
 }
+/// Specifies the handle type for address range
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUmemRangeHandleType_enum(pub ::core::ffi::c_uint);
 pub use self::CUmemRangeHandleType_enum as CUmemRangeHandleType;
-/// Flag for requesting handle type for address range.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUmemRangeFlags_enum {
+impl CUmemRangeFlags_enum {
     /// Indicates that DMA_BUF handle should be mapped via PCIe BAR1.
-    CU_MEM_RANGE_FLAG_DMA_BUF_MAPPING_TYPE_PCIE = 1,
+    pub const CU_MEM_RANGE_FLAG_DMA_BUF_MAPPING_TYPE_PCIE: CUmemRangeFlags_enum = CUmemRangeFlags_enum(
+        1,
+    );
 }
+/// Flag for requesting handle type for address range.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUmemRangeFlags_enum(pub ::core::ffi::c_uint);
 pub use self::CUmemRangeFlags_enum as CUmemRangeFlags;
-/// Sparse subresource types
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUarraySparseSubresourceType_enum {
+impl CUarraySparseSubresourceType_enum {
     /// Selects a sparse mip level for array mapping.
-    CU_ARRAY_SPARSE_SUBRESOURCE_TYPE_SPARSE_LEVEL = 0,
+    pub const CU_ARRAY_SPARSE_SUBRESOURCE_TYPE_SPARSE_LEVEL: CUarraySparseSubresourceType_enum = CUarraySparseSubresourceType_enum(
+        0,
+    );
     /// Selects a packed mip tail for array mapping.
-    CU_ARRAY_SPARSE_SUBRESOURCE_TYPE_MIPTAIL = 1,
+    pub const CU_ARRAY_SPARSE_SUBRESOURCE_TYPE_MIPTAIL: CUarraySparseSubresourceType_enum = CUarraySparseSubresourceType_enum(
+        1,
+    );
 }
+/// Sparse subresource types
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUarraySparseSubresourceType_enum(pub ::core::ffi::c_uint);
 pub use self::CUarraySparseSubresourceType_enum as CUarraySparseSubresourceType;
-/// Memory operation types
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUmemOperationType_enum {
+impl CUmemOperationType_enum {
     /// Maps the selected sparse-array subresource to an allocation.
-    CU_MEM_OPERATION_TYPE_MAP = 1,
+    pub const CU_MEM_OPERATION_TYPE_MAP: CUmemOperationType_enum = CUmemOperationType_enum(
+        1,
+    );
     /// Removes the mapping of the selected sparse-array subresource.
-    CU_MEM_OPERATION_TYPE_UNMAP = 2,
+    pub const CU_MEM_OPERATION_TYPE_UNMAP: CUmemOperationType_enum = CUmemOperationType_enum(
+        2,
+    );
 }
+/// Memory operation types
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUmemOperationType_enum(pub ::core::ffi::c_uint);
 pub use self::CUmemOperationType_enum as CUmemOperationType;
-/// Memory handle types
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUmemHandleType_enum {
+impl CUmemHandleType_enum {
     /// Uses a generic CUDA allocation handle in an array-mapping operation.
-    CU_MEM_HANDLE_TYPE_GENERIC = 0,
+    pub const CU_MEM_HANDLE_TYPE_GENERIC: CUmemHandleType_enum = CUmemHandleType_enum(0);
 }
+/// Memory handle types
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUmemHandleType_enum(pub ::core::ffi::c_uint);
 pub use self::CUmemHandleType_enum as CUmemHandleType;
 /// Specifies the CUDA array or CUDA mipmapped array memory mapping information
 #[repr(C)]
@@ -6186,26 +6507,20 @@ impl Default for CUmemLocation_st {
 pub type CUmemLocation_v1 = CUmemLocation_st;
 /// Specifies a memory location.
 pub type CUmemLocation = CUmemLocation_v1;
-/// Specifies compression attribute for an allocation.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUmemAllocationCompType_enum {
+impl CUmemAllocationCompType_enum {
     /// Allocating non-compressible memory.
-    CU_MEM_ALLOCATION_COMP_NONE = 0,
+    pub const CU_MEM_ALLOCATION_COMP_NONE: CUmemAllocationCompType_enum = CUmemAllocationCompType_enum(
+        0,
+    );
     /// Allocating compressible memory.
-    CU_MEM_ALLOCATION_COMP_GENERIC = 1,
+    pub const CU_MEM_ALLOCATION_COMP_GENERIC: CUmemAllocationCompType_enum = CUmemAllocationCompType_enum(
+        1,
+    );
 }
+/// Specifies compression attribute for an allocation.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUmemAllocationCompType_enum(pub ::core::ffi::c_uint);
 pub use self::CUmemAllocationCompType_enum as CUmemAllocationCompType;
 /// Specifies the allocation properties for a allocation.
 #[repr(C)]
@@ -6250,26 +6565,20 @@ impl Default for CUmemAllocationProp_st {
 pub type CUmemAllocationProp_v1 = CUmemAllocationProp_st;
 /// Specifies the allocation properties for a allocation.
 pub type CUmemAllocationProp = CUmemAllocationProp_v1;
-/// Flags for querying different granularities for a multicast object
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUmulticastGranularity_flags_enum {
+impl CUmulticastGranularity_flags_enum {
     /// Minimum required granularity.
-    CU_MULTICAST_GRANULARITY_MINIMUM = 0,
+    pub const CU_MULTICAST_GRANULARITY_MINIMUM: CUmulticastGranularity_flags_enum = CUmulticastGranularity_flags_enum(
+        0,
+    );
     /// Recommended granularity for best performance.
-    CU_MULTICAST_GRANULARITY_RECOMMENDED = 1,
+    pub const CU_MULTICAST_GRANULARITY_RECOMMENDED: CUmulticastGranularity_flags_enum = CUmulticastGranularity_flags_enum(
+        1,
+    );
 }
+/// Flags for querying different granularities for a multicast object
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUmulticastGranularity_flags_enum(pub ::core::ffi::c_uint);
 pub use self::CUmulticastGranularity_flags_enum as CUmulticastGranularity_flags;
 /// Specifies the properties for a multicast object.
 #[repr(C)]
@@ -6310,40 +6619,48 @@ impl Default for CUmemAccessDesc_st {
 pub type CUmemAccessDesc_v1 = CUmemAccessDesc_st;
 /// Memory access descriptor
 pub type CUmemAccessDesc = CUmemAccessDesc_v1;
-/// CUDA Graph Update error types
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUgraphExecUpdateResult_enum {
+impl CUgraphExecUpdateResult_enum {
     /// The update succeeded.
-    CU_GRAPH_EXEC_UPDATE_SUCCESS = 0,
+    pub const CU_GRAPH_EXEC_UPDATE_SUCCESS: CUgraphExecUpdateResult_enum = CUgraphExecUpdateResult_enum(
+        0,
+    );
     /// The update failed for an unexpected reason which is described in the return value of the function.
-    CU_GRAPH_EXEC_UPDATE_ERROR = 1,
+    pub const CU_GRAPH_EXEC_UPDATE_ERROR: CUgraphExecUpdateResult_enum = CUgraphExecUpdateResult_enum(
+        1,
+    );
     /// The update failed because the topology changed.
-    CU_GRAPH_EXEC_UPDATE_ERROR_TOPOLOGY_CHANGED = 2,
+    pub const CU_GRAPH_EXEC_UPDATE_ERROR_TOPOLOGY_CHANGED: CUgraphExecUpdateResult_enum = CUgraphExecUpdateResult_enum(
+        2,
+    );
     /// The update failed because a node type changed.
-    CU_GRAPH_EXEC_UPDATE_ERROR_NODE_TYPE_CHANGED = 3,
+    pub const CU_GRAPH_EXEC_UPDATE_ERROR_NODE_TYPE_CHANGED: CUgraphExecUpdateResult_enum = CUgraphExecUpdateResult_enum(
+        3,
+    );
     /// The update failed because the function of a kernel node changed (CUDA driver &lt; 11.2).
-    CU_GRAPH_EXEC_UPDATE_ERROR_FUNCTION_CHANGED = 4,
+    pub const CU_GRAPH_EXEC_UPDATE_ERROR_FUNCTION_CHANGED: CUgraphExecUpdateResult_enum = CUgraphExecUpdateResult_enum(
+        4,
+    );
     /// The update failed because the parameters changed in a way that is not supported.
-    CU_GRAPH_EXEC_UPDATE_ERROR_PARAMETERS_CHANGED = 5,
+    pub const CU_GRAPH_EXEC_UPDATE_ERROR_PARAMETERS_CHANGED: CUgraphExecUpdateResult_enum = CUgraphExecUpdateResult_enum(
+        5,
+    );
     /// The update failed because something about the node is not supported.
-    CU_GRAPH_EXEC_UPDATE_ERROR_NOT_SUPPORTED = 6,
+    pub const CU_GRAPH_EXEC_UPDATE_ERROR_NOT_SUPPORTED: CUgraphExecUpdateResult_enum = CUgraphExecUpdateResult_enum(
+        6,
+    );
     /// The update failed because the function of a kernel node changed in an unsupported way.
-    CU_GRAPH_EXEC_UPDATE_ERROR_UNSUPPORTED_FUNCTION_CHANGE = 7,
+    pub const CU_GRAPH_EXEC_UPDATE_ERROR_UNSUPPORTED_FUNCTION_CHANGE: CUgraphExecUpdateResult_enum = CUgraphExecUpdateResult_enum(
+        7,
+    );
     /// The update failed because the node attributes changed in a way that is not supported.
-    CU_GRAPH_EXEC_UPDATE_ERROR_ATTRIBUTES_CHANGED = 8,
+    pub const CU_GRAPH_EXEC_UPDATE_ERROR_ATTRIBUTES_CHANGED: CUgraphExecUpdateResult_enum = CUgraphExecUpdateResult_enum(
+        8,
+    );
 }
+/// CUDA Graph Update error types
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUgraphExecUpdateResult_enum(pub ::core::ffi::c_uint);
 pub use self::CUgraphExecUpdateResult_enum as CUgraphExecUpdateResult;
 /// Result information returned by cuGraphExecUpdate
 #[repr(C)]
@@ -6369,74 +6686,94 @@ impl Default for CUgraphExecUpdateResultInfo_st {
 pub type CUgraphExecUpdateResultInfo_v1 = CUgraphExecUpdateResultInfo_st;
 /// Result information returned by cuGraphExecUpdate
 pub type CUgraphExecUpdateResultInfo = CUgraphExecUpdateResultInfo_v1;
-/// CUDA memory pool attributes
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUmemPool_attribute_enum {
+impl CUmemPool_attribute_enum {
     /// (value type = int) Allow cuMemAllocAsync to use memory asynchronously freed in another streams as long as a stream ordering dependency of the allocating stream on the free action exists.
     ///
     /// CUDA events and null stream interactions can create the required stream ordered dependencies. (default enabled).
-    CU_MEMPOOL_ATTR_REUSE_FOLLOW_EVENT_DEPENDENCIES = 1,
+    pub const CU_MEMPOOL_ATTR_REUSE_FOLLOW_EVENT_DEPENDENCIES: CUmemPool_attribute_enum = CUmemPool_attribute_enum(
+        1,
+    );
     /// (value type = int) Allow reuse of already completed frees when there is no dependency between the free and allocation.
     ///
     /// (default enabled).
-    CU_MEMPOOL_ATTR_REUSE_ALLOW_OPPORTUNISTIC = 2,
+    pub const CU_MEMPOOL_ATTR_REUSE_ALLOW_OPPORTUNISTIC: CUmemPool_attribute_enum = CUmemPool_attribute_enum(
+        2,
+    );
     /// (value type = int) Allow cuMemAllocAsync to insert new stream dependencies in order to establish the stream ordering required to reuse a piece of memory released by cuMemFreeAsync (default enabled).
-    CU_MEMPOOL_ATTR_REUSE_ALLOW_INTERNAL_DEPENDENCIES = 3,
+    pub const CU_MEMPOOL_ATTR_REUSE_ALLOW_INTERNAL_DEPENDENCIES: CUmemPool_attribute_enum = CUmemPool_attribute_enum(
+        3,
+    );
     /// (value type = cuuint64_t) Amount of reserved memory in bytes to hold onto before trying to release memory back to the OS.
     ///
     /// When more than the release threshold bytes of memory are held by the memory pool, the allocator will try to release memory back to the OS on the next call to stream, event or context synchronize. (default 0).
-    CU_MEMPOOL_ATTR_RELEASE_THRESHOLD = 4,
+    pub const CU_MEMPOOL_ATTR_RELEASE_THRESHOLD: CUmemPool_attribute_enum = CUmemPool_attribute_enum(
+        4,
+    );
     /// (value type = cuuint64_t) Amount of backing memory currently allocated for the mempool.
-    CU_MEMPOOL_ATTR_RESERVED_MEM_CURRENT = 5,
+    pub const CU_MEMPOOL_ATTR_RESERVED_MEM_CURRENT: CUmemPool_attribute_enum = CUmemPool_attribute_enum(
+        5,
+    );
     /// (value type = cuuint64_t) High watermark of backing memory allocated for the mempool since the last time it was reset.
     ///
     /// High watermark can only be reset to zero.
-    CU_MEMPOOL_ATTR_RESERVED_MEM_HIGH = 6,
+    pub const CU_MEMPOOL_ATTR_RESERVED_MEM_HIGH: CUmemPool_attribute_enum = CUmemPool_attribute_enum(
+        6,
+    );
     /// (value type = cuuint64_t) Amount of memory from the pool that is currently in use by the application.
-    CU_MEMPOOL_ATTR_USED_MEM_CURRENT = 7,
+    pub const CU_MEMPOOL_ATTR_USED_MEM_CURRENT: CUmemPool_attribute_enum = CUmemPool_attribute_enum(
+        7,
+    );
     /// (value type = cuuint64_t) High watermark of the amount of memory from the pool that was in use by the application since the last time it was reset.
     ///
     /// High watermark can only be reset to zero.
-    CU_MEMPOOL_ATTR_USED_MEM_HIGH = 8,
+    pub const CU_MEMPOOL_ATTR_USED_MEM_HIGH: CUmemPool_attribute_enum = CUmemPool_attribute_enum(
+        8,
+    );
     /// (value type = CUmemAllocationType) The allocation type of the mempool.
-    CU_MEMPOOL_ATTR_ALLOCATION_TYPE = 9,
+    pub const CU_MEMPOOL_ATTR_ALLOCATION_TYPE: CUmemPool_attribute_enum = CUmemPool_attribute_enum(
+        9,
+    );
     /// (value type = CUmemAllocationHandleType) Available export handle types for the mempool.
     ///
     /// For imported pools this value is always [`CUmemAllocationHandleType::CU_MEM_HANDLE_TYPE_NONE`] as an imported pool cannot be re-exported.
-    CU_MEMPOOL_ATTR_EXPORT_HANDLE_TYPES = 10,
+    pub const CU_MEMPOOL_ATTR_EXPORT_HANDLE_TYPES: CUmemPool_attribute_enum = CUmemPool_attribute_enum(
+        10,
+    );
     /// (value type = int) The location id for the mempool.
     ///
     /// If the location type for this pool is [`CUmemLocationType::CU_MEM_LOCATION_TYPE_INVISIBLE`] then ID will be CU_DEVICE_INVALID.
-    CU_MEMPOOL_ATTR_LOCATION_ID = 11,
+    pub const CU_MEMPOOL_ATTR_LOCATION_ID: CUmemPool_attribute_enum = CUmemPool_attribute_enum(
+        11,
+    );
     /// (value type = CUmemLocationType) The location type for the mempool.
     ///
     /// For imported memory pools where the device is not directly visible to the importing process or pools imported via fabric handles across nodes this will be [`CUmemLocationType::CU_MEM_LOCATION_TYPE_INVISIBLE`].
-    CU_MEMPOOL_ATTR_LOCATION_TYPE = 12,
+    pub const CU_MEMPOOL_ATTR_LOCATION_TYPE: CUmemPool_attribute_enum = CUmemPool_attribute_enum(
+        12,
+    );
     /// (value type = cuuint64_t) Maximum size of the pool in bytes, this value may be higher than what was initially passed to cuMemPoolCreate due to alignment requirements.
     ///
     /// A value of 0 indicates no maximum size. For [`CUmemAllocationType::CU_MEM_ALLOCATION_TYPE_MANAGED`] and IPC imported pools this value will be system dependent.
-    CU_MEMPOOL_ATTR_MAX_POOL_SIZE = 13,
+    pub const CU_MEMPOOL_ATTR_MAX_POOL_SIZE: CUmemPool_attribute_enum = CUmemPool_attribute_enum(
+        13,
+    );
     /// (value type = int) Indicates whether the pool has hardware compresssion enabled.
-    CU_MEMPOOL_ATTR_HW_DECOMPRESS_ENABLED = 14,
+    pub const CU_MEMPOOL_ATTR_HW_DECOMPRESS_ENABLED: CUmemPool_attribute_enum = CUmemPool_attribute_enum(
+        14,
+    );
     /// (value type = int) The locality domain ID for the mempool, if the mempool is localized to a locality domain.
     ///
     /// A value of -1 indicates that the mempool is not localized.
     ///
     /// Note: On devices with a single locality domain, mempools created with [`CUmemLocationType_enum::CU_MEM_LOCATION_TYPE_DEVICE_LOCALITY_DOMAIN`] and localityDomainId 0 are equivalent to full-device mempools created with [`CUmemLocationType_enum::CU_MEM_LOCATION_TYPE_DEVICE`]. The value of this attribute will be -1 for such mempools.
-    CU_MEMPOOL_ATTR_LOCALITY_DOMAIN_ID = 15,
+    pub const CU_MEMPOOL_ATTR_LOCALITY_DOMAIN_ID: CUmemPool_attribute_enum = CUmemPool_attribute_enum(
+        15,
+    );
 }
+/// CUDA memory pool attributes
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUmemPool_attribute_enum(pub ::core::ffi::c_uint);
 pub use self::CUmemPool_attribute_enum as CUmemPool_attribute;
 /// Specifies the properties of allocations made from the pool.
 #[repr(C)]
@@ -6494,57 +6831,49 @@ impl Default for CUmemPoolPtrExportData_st {
 pub type CUmemPoolPtrExportData_v1 = CUmemPoolPtrExportData_st;
 /// Opaque data for exporting a pool allocation
 pub type CUmemPoolPtrExportData = CUmemPoolPtrExportData_v1;
-/// Flags to specify for copies within a batch. For more details see ::cuMemcpyBatchAsync.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUmemcpyFlags_enum {
+impl CUmemcpyFlags_enum {
     /// Uses the default behavior for the copy operation.
-    CU_MEMCPY_FLAG_DEFAULT = 0,
+    pub const CU_MEMCPY_FLAG_DEFAULT: CUmemcpyFlags_enum = CUmemcpyFlags_enum(0);
     /// Hint to the driver to try and overlap the copy with compute work on the SMs.
-    CU_MEMCPY_FLAG_PREFER_OVERLAP_WITH_COMPUTE = 1,
+    pub const CU_MEMCPY_FLAG_PREFER_OVERLAP_WITH_COMPUTE: CUmemcpyFlags_enum = CUmemcpyFlags_enum(
+        1,
+    );
 }
+/// Flags to specify for copies within a batch. For more details see ::cuMemcpyBatchAsync.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUmemcpyFlags_enum(pub ::core::ffi::c_uint);
 pub use self::CUmemcpyFlags_enum as CUmemcpyFlags;
-/// These flags allow applications to convey the source access ordering CUDA must maintain. The destination will always be accessed in stream order.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUmemcpySrcAccessOrder_enum {
+impl CUmemcpySrcAccessOrder_enum {
     /// Default invalid.
-    CU_MEMCPY_SRC_ACCESS_ORDER_INVALID = 0,
+    pub const CU_MEMCPY_SRC_ACCESS_ORDER_INVALID: CUmemcpySrcAccessOrder_enum = CUmemcpySrcAccessOrder_enum(
+        0,
+    );
     /// Indicates that access to the source pointer must be in stream order.
-    CU_MEMCPY_SRC_ACCESS_ORDER_STREAM = 1,
+    pub const CU_MEMCPY_SRC_ACCESS_ORDER_STREAM: CUmemcpySrcAccessOrder_enum = CUmemcpySrcAccessOrder_enum(
+        1,
+    );
     /// Indicates that access to the source pointer can be out of stream order and all accesses must be complete before the API call returns.
     ///
     /// This flag is suited for ephemeral sources (ex., stack variables) when it’s known that no prior operations in the stream can be accessing the memory and also that the lifetime of the memory is limited to the scope that the source variable was declared in. Specifying this flag allows the driver to optimize the copy and removes the need for the user to synchronize the stream after the API call.
-    CU_MEMCPY_SRC_ACCESS_ORDER_DURING_API_CALL = 2,
+    pub const CU_MEMCPY_SRC_ACCESS_ORDER_DURING_API_CALL: CUmemcpySrcAccessOrder_enum = CUmemcpySrcAccessOrder_enum(
+        2,
+    );
     /// Indicates that access to the source pointer can be out of stream order and the accesses can happen even after the API call returns.
     ///
     /// This flag is suited for host pointers allocated outside CUDA (ex., via malloc) when it’s known that no prior operations in the stream can be accessing the memory. Specifying this flag allows the driver to optimize the copy on certain platforms.
-    CU_MEMCPY_SRC_ACCESS_ORDER_ANY = 3,
+    pub const CU_MEMCPY_SRC_ACCESS_ORDER_ANY: CUmemcpySrcAccessOrder_enum = CUmemcpySrcAccessOrder_enum(
+        3,
+    );
     /// ABI sentinel that forces a 32-bit C source-access-order enum representation.
-    CU_MEMCPY_SRC_ACCESS_ORDER_MAX = 2147483647,
+    pub const CU_MEMCPY_SRC_ACCESS_ORDER_MAX: CUmemcpySrcAccessOrder_enum = CUmemcpySrcAccessOrder_enum(
+        2147483647,
+    );
 }
+/// These flags allow applications to convey the source access ordering CUDA must maintain. The destination will always be accessed in stream order.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUmemcpySrcAccessOrder_enum(pub ::core::ffi::c_uint);
 pub use self::CUmemcpySrcAccessOrder_enum as CUmemcpySrcAccessOrder;
 /// Attributes specific to copies within a batch. For more details on usage see ::cuMemcpyBatchAsync.
 #[repr(C)]
@@ -6574,28 +6903,24 @@ impl Default for CUmemcpyAttributes_st {
 pub type CUmemcpyAttributes_v1 = CUmemcpyAttributes_st;
 /// Attributes specific to copies within a batch. For more details on usage see ::cuMemcpyBatchAsync.
 pub type CUmemcpyAttributes = CUmemcpyAttributes_v1;
-/// These flags allow applications to convey the operand type for individual copies specified in ::cuMemcpy3DBatchAsync.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUmemcpy3DOperandType_enum {
+impl CUmemcpy3DOperandType_enum {
     /// Memcpy operand is a valid pointer.
-    CU_MEMCPY_OPERAND_TYPE_POINTER = 1,
+    pub const CU_MEMCPY_OPERAND_TYPE_POINTER: CUmemcpy3DOperandType_enum = CUmemcpy3DOperandType_enum(
+        1,
+    );
     /// Memcpy operand is a CUarray.
-    CU_MEMCPY_OPERAND_TYPE_ARRAY = 2,
+    pub const CU_MEMCPY_OPERAND_TYPE_ARRAY: CUmemcpy3DOperandType_enum = CUmemcpy3DOperandType_enum(
+        2,
+    );
     /// Reserved upper-bound sentinel for native three-dimensional copy operand types.
-    CU_MEMCPY_OPERAND_TYPE_MAX = 2147483647,
+    pub const CU_MEMCPY_OPERAND_TYPE_MAX: CUmemcpy3DOperandType_enum = CUmemcpy3DOperandType_enum(
+        2147483647,
+    );
 }
+/// These flags allow applications to convey the operand type for individual copies specified in ::cuMemcpy3DBatchAsync.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUmemcpy3DOperandType_enum(pub ::core::ffi::c_uint);
 pub use self::CUmemcpy3DOperandType_enum as CUmemcpy3DOperandType;
 /// Struct representing a 3D offset
 #[repr(C)]
@@ -6798,52 +7123,57 @@ pub struct CUDA_MEM_FREE_NODE_PARAMS_st {
 }
 /// Memory free node parameters.
 pub type CUDA_MEM_FREE_NODE_PARAMS = CUDA_MEM_FREE_NODE_PARAMS_st;
-/// Device-level accounting and limits for memory allocated by CUDA graphs.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUgraphMem_attribute_enum {
+impl CUgraphMem_attribute_enum {
     /// (value type = cuuint64_t) Amount of memory, in bytes, currently associated with graphs.
-    CU_GRAPH_MEM_ATTR_USED_MEM_CURRENT = 0,
+    pub const CU_GRAPH_MEM_ATTR_USED_MEM_CURRENT: CUgraphMem_attribute_enum = CUgraphMem_attribute_enum(
+        0,
+    );
     /// (value type = cuuint64_t) High watermark of memory, in bytes, associated with graphs since the last time it was reset.
     ///
     /// High watermark can only be reset to zero.
-    CU_GRAPH_MEM_ATTR_USED_MEM_HIGH = 1,
+    pub const CU_GRAPH_MEM_ATTR_USED_MEM_HIGH: CUgraphMem_attribute_enum = CUgraphMem_attribute_enum(
+        1,
+    );
     /// (value type = cuuint64_t) Amount of memory, in bytes, currently allocated for use by the CUDA graphs asynchronous allocator.
-    CU_GRAPH_MEM_ATTR_RESERVED_MEM_CURRENT = 2,
+    pub const CU_GRAPH_MEM_ATTR_RESERVED_MEM_CURRENT: CUgraphMem_attribute_enum = CUgraphMem_attribute_enum(
+        2,
+    );
     /// (value type = cuuint64_t) High watermark of memory, in bytes, currently allocated for use by the CUDA graphs asynchronous allocator.
-    CU_GRAPH_MEM_ATTR_RESERVED_MEM_HIGH = 3,
+    pub const CU_GRAPH_MEM_ATTR_RESERVED_MEM_HIGH: CUgraphMem_attribute_enum = CUgraphMem_attribute_enum(
+        3,
+    );
 }
-pub use self::CUgraphMem_attribute_enum as CUgraphMem_attribute;
-/// Child graph node ownership
-#[repr(i32)]
+/// Device-level accounting and limits for memory allocated by CUDA graphs.
+#[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum CUgraphChildGraphNodeOwnership_enum {
+pub struct CUgraphMem_attribute_enum(pub ::core::ffi::c_uint);
+pub use self::CUgraphMem_attribute_enum as CUgraphMem_attribute;
+impl CUgraphChildGraphNodeOwnership_enum {
     /// Default behavior for a child graph node.
     ///
     /// Child graph is cloned into the parent and memory allocation/free nodes can’t be present in the child graph.
-    CU_GRAPH_CHILD_GRAPH_OWNERSHIP_CLONE = 0,
+    pub const CU_GRAPH_CHILD_GRAPH_OWNERSHIP_CLONE: CUgraphChildGraphNodeOwnership_enum = CUgraphChildGraphNodeOwnership_enum(
+        0,
+    );
     /// The child graph is moved to the parent.
     ///
     /// The handle to the child graph is owned by the parent and will be destroyed when the parent is destroyed.
     ///
     /// The following restrictions apply to child graphs after they have been moved: Cannot be independently instantiated or destroyed; Cannot be added as a child graph of a separate parent graph; Cannot be used as an argument to cuGraphExecUpdate; Cannot have additional memory allocation or free nodes added.
-    CU_GRAPH_CHILD_GRAPH_OWNERSHIP_MOVE = 1,
+    pub const CU_GRAPH_CHILD_GRAPH_OWNERSHIP_MOVE: CUgraphChildGraphNodeOwnership_enum = CUgraphChildGraphNodeOwnership_enum(
+        1,
+    );
     /// Invalid ownership flag.
     ///
     /// Set when params are queried to prevent accidentally reusing the driver-owned graph object.
-    CU_GRAPH_CHILD_GRAPH_OWNERSHIP_INVALID = -1,
+    pub const CU_GRAPH_CHILD_GRAPH_OWNERSHIP_INVALID: CUgraphChildGraphNodeOwnership_enum = CUgraphChildGraphNodeOwnership_enum(
+        -1,
+    );
 }
+/// Child graph node ownership
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUgraphChildGraphNodeOwnership_enum(pub ::core::ffi::c_int);
 pub use self::CUgraphChildGraphNodeOwnership_enum as CUgraphChildGraphNodeOwnership;
 /// Child graph node parameters
 #[repr(C)]
@@ -6991,257 +7321,225 @@ impl Default for CUgraphNodeParams_st {
 ///
 /// See cuGraphAddNode.
 pub type CUgraphNodeParams = CUgraphNodeParams_st;
-/// Bitmasks for ::CU_DEVICE_ATTRIBUTE_GPU_DIRECT_RDMA_FLUSH_WRITES_OPTIONS
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUflushGPUDirectRDMAWritesOptions_enum {
+impl CUflushGPUDirectRDMAWritesOptions_enum {
     /// [`cuFlushGPUDirectRDMAWrites`] and its CUDA Runtime API counterpart are supported on the device.
-    CU_FLUSH_GPU_DIRECT_RDMA_WRITES_OPTION_HOST = 1,
+    pub const CU_FLUSH_GPU_DIRECT_RDMA_WRITES_OPTION_HOST: CUflushGPUDirectRDMAWritesOptions_enum = CUflushGPUDirectRDMAWritesOptions_enum(
+        1,
+    );
     /// The [`CUstreamWaitValue_flags_enum::CU_STREAM_WAIT_VALUE_FLUSH`] flag and the [`CUstreamBatchMemOpType_enum::CU_STREAM_MEM_OP_FLUSH_REMOTE_WRITES`] MemOp are supported on the device.
-    CU_FLUSH_GPU_DIRECT_RDMA_WRITES_OPTION_MEMOPS = 2,
+    pub const CU_FLUSH_GPU_DIRECT_RDMA_WRITES_OPTION_MEMOPS: CUflushGPUDirectRDMAWritesOptions_enum = CUflushGPUDirectRDMAWritesOptions_enum(
+        2,
+    );
 }
+/// Bitmasks for ::CU_DEVICE_ATTRIBUTE_GPU_DIRECT_RDMA_FLUSH_WRITES_OPTIONS
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUflushGPUDirectRDMAWritesOptions_enum(pub ::core::ffi::c_uint);
 pub use self::CUflushGPUDirectRDMAWritesOptions_enum as CUflushGPUDirectRDMAWritesOptions;
-/// Platform native ordering for GPUDirect RDMA writes
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUGPUDirectRDMAWritesOrdering_enum {
+impl CUGPUDirectRDMAWritesOrdering_enum {
     /// The device does not natively support ordering of remote writes.
     ///
     /// [`cuFlushGPUDirectRDMAWrites`] can be leveraged if supported.
-    CU_GPU_DIRECT_RDMA_WRITES_ORDERING_NONE = 0,
+    pub const CU_GPU_DIRECT_RDMA_WRITES_ORDERING_NONE: CUGPUDirectRDMAWritesOrdering_enum = CUGPUDirectRDMAWritesOrdering_enum(
+        0,
+    );
     /// Natively, the device can consistently consume remote writes, although other CUDA devices may not.
-    CU_GPU_DIRECT_RDMA_WRITES_ORDERING_OWNER = 100,
+    pub const CU_GPU_DIRECT_RDMA_WRITES_ORDERING_OWNER: CUGPUDirectRDMAWritesOrdering_enum = CUGPUDirectRDMAWritesOrdering_enum(
+        100,
+    );
     /// Any CUDA device in the system can consistently consume remote writes to this device.
-    CU_GPU_DIRECT_RDMA_WRITES_ORDERING_ALL_DEVICES = 200,
+    pub const CU_GPU_DIRECT_RDMA_WRITES_ORDERING_ALL_DEVICES: CUGPUDirectRDMAWritesOrdering_enum = CUGPUDirectRDMAWritesOrdering_enum(
+        200,
+    );
 }
+/// Platform native ordering for GPUDirect RDMA writes
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUGPUDirectRDMAWritesOrdering_enum(pub ::core::ffi::c_uint);
 pub use self::CUGPUDirectRDMAWritesOrdering_enum as CUGPUDirectRDMAWritesOrdering;
-/// The scopes for ::cuFlushGPUDirectRDMAWrites
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUflushGPUDirectRDMAWritesScope_enum {
+impl CUflushGPUDirectRDMAWritesScope_enum {
     /// Blocks until remote writes are visible to the CUDA device context owning the data.
-    CU_FLUSH_GPU_DIRECT_RDMA_WRITES_TO_OWNER = 100,
+    pub const CU_FLUSH_GPU_DIRECT_RDMA_WRITES_TO_OWNER: CUflushGPUDirectRDMAWritesScope_enum = CUflushGPUDirectRDMAWritesScope_enum(
+        100,
+    );
     /// Blocks until remote writes are visible to all CUDA device contexts.
-    CU_FLUSH_GPU_DIRECT_RDMA_WRITES_TO_ALL_DEVICES = 200,
+    pub const CU_FLUSH_GPU_DIRECT_RDMA_WRITES_TO_ALL_DEVICES: CUflushGPUDirectRDMAWritesScope_enum = CUflushGPUDirectRDMAWritesScope_enum(
+        200,
+    );
 }
+/// The scopes for ::cuFlushGPUDirectRDMAWrites
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUflushGPUDirectRDMAWritesScope_enum(pub ::core::ffi::c_uint);
 pub use self::CUflushGPUDirectRDMAWritesScope_enum as CUflushGPUDirectRDMAWritesScope;
-/// The targets for ::cuFlushGPUDirectRDMAWrites
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUflushGPUDirectRDMAWritesTarget_enum {
+impl CUflushGPUDirectRDMAWritesTarget_enum {
     /// Sets the target for [`cuFlushGPUDirectRDMAWrites`] to the currently active CUDA device context.
-    CU_FLUSH_GPU_DIRECT_RDMA_WRITES_TARGET_CURRENT_CTX = 0,
+    pub const CU_FLUSH_GPU_DIRECT_RDMA_WRITES_TARGET_CURRENT_CTX: CUflushGPUDirectRDMAWritesTarget_enum = CUflushGPUDirectRDMAWritesTarget_enum(
+        0,
+    );
 }
+/// The targets for ::cuFlushGPUDirectRDMAWrites
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUflushGPUDirectRDMAWritesTarget_enum(pub ::core::ffi::c_uint);
 pub use self::CUflushGPUDirectRDMAWritesTarget_enum as CUflushGPUDirectRDMAWritesTarget;
-/// The additional write options for ::cuGraphDebugDotPrint
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUgraphDebugDot_flags_enum {
+impl CUgraphDebugDot_flags_enum {
     /// Output all debug data as if every debug flag is enabled.
-    CU_GRAPH_DEBUG_DOT_FLAGS_VERBOSE = 1,
+    pub const CU_GRAPH_DEBUG_DOT_FLAGS_VERBOSE: CUgraphDebugDot_flags_enum = CUgraphDebugDot_flags_enum(
+        1,
+    );
     /// Use CUDA Runtime structures for output.
-    CU_GRAPH_DEBUG_DOT_FLAGS_RUNTIME_TYPES = 2,
+    pub const CU_GRAPH_DEBUG_DOT_FLAGS_RUNTIME_TYPES: CUgraphDebugDot_flags_enum = CUgraphDebugDot_flags_enum(
+        2,
+    );
     /// Adds CUDA_KERNEL_NODE_PARAMS values to output.
-    CU_GRAPH_DEBUG_DOT_FLAGS_KERNEL_NODE_PARAMS = 4,
+    pub const CU_GRAPH_DEBUG_DOT_FLAGS_KERNEL_NODE_PARAMS: CUgraphDebugDot_flags_enum = CUgraphDebugDot_flags_enum(
+        4,
+    );
     /// Adds CUDA_MEMCPY3D values to output.
-    CU_GRAPH_DEBUG_DOT_FLAGS_MEMCPY_NODE_PARAMS = 8,
+    pub const CU_GRAPH_DEBUG_DOT_FLAGS_MEMCPY_NODE_PARAMS: CUgraphDebugDot_flags_enum = CUgraphDebugDot_flags_enum(
+        8,
+    );
     /// Adds CUDA_MEMSET_NODE_PARAMS values to output.
-    CU_GRAPH_DEBUG_DOT_FLAGS_MEMSET_NODE_PARAMS = 16,
+    pub const CU_GRAPH_DEBUG_DOT_FLAGS_MEMSET_NODE_PARAMS: CUgraphDebugDot_flags_enum = CUgraphDebugDot_flags_enum(
+        16,
+    );
     /// Adds CUDA_HOST_NODE_PARAMS values to output.
-    CU_GRAPH_DEBUG_DOT_FLAGS_HOST_NODE_PARAMS = 32,
+    pub const CU_GRAPH_DEBUG_DOT_FLAGS_HOST_NODE_PARAMS: CUgraphDebugDot_flags_enum = CUgraphDebugDot_flags_enum(
+        32,
+    );
     /// Adds CUevent handle from record and wait nodes to output.
-    CU_GRAPH_DEBUG_DOT_FLAGS_EVENT_NODE_PARAMS = 64,
+    pub const CU_GRAPH_DEBUG_DOT_FLAGS_EVENT_NODE_PARAMS: CUgraphDebugDot_flags_enum = CUgraphDebugDot_flags_enum(
+        64,
+    );
     /// Adds CUDA_EXT_SEM_SIGNAL_NODE_PARAMS values to output.
-    CU_GRAPH_DEBUG_DOT_FLAGS_EXT_SEMAS_SIGNAL_NODE_PARAMS = 128,
+    pub const CU_GRAPH_DEBUG_DOT_FLAGS_EXT_SEMAS_SIGNAL_NODE_PARAMS: CUgraphDebugDot_flags_enum = CUgraphDebugDot_flags_enum(
+        128,
+    );
     /// Adds CUDA_EXT_SEM_WAIT_NODE_PARAMS values to output.
-    CU_GRAPH_DEBUG_DOT_FLAGS_EXT_SEMAS_WAIT_NODE_PARAMS = 256,
+    pub const CU_GRAPH_DEBUG_DOT_FLAGS_EXT_SEMAS_WAIT_NODE_PARAMS: CUgraphDebugDot_flags_enum = CUgraphDebugDot_flags_enum(
+        256,
+    );
     /// Adds CUkernelNodeAttrValue values to output.
-    CU_GRAPH_DEBUG_DOT_FLAGS_KERNEL_NODE_ATTRIBUTES = 512,
+    pub const CU_GRAPH_DEBUG_DOT_FLAGS_KERNEL_NODE_ATTRIBUTES: CUgraphDebugDot_flags_enum = CUgraphDebugDot_flags_enum(
+        512,
+    );
     /// Adds node handles and every kernel function handle to output.
-    CU_GRAPH_DEBUG_DOT_FLAGS_HANDLES = 1024,
+    pub const CU_GRAPH_DEBUG_DOT_FLAGS_HANDLES: CUgraphDebugDot_flags_enum = CUgraphDebugDot_flags_enum(
+        1024,
+    );
     /// Adds memory alloc node parameters to output.
-    CU_GRAPH_DEBUG_DOT_FLAGS_MEM_ALLOC_NODE_PARAMS = 2048,
+    pub const CU_GRAPH_DEBUG_DOT_FLAGS_MEM_ALLOC_NODE_PARAMS: CUgraphDebugDot_flags_enum = CUgraphDebugDot_flags_enum(
+        2048,
+    );
     /// Adds memory free node parameters to output.
-    CU_GRAPH_DEBUG_DOT_FLAGS_MEM_FREE_NODE_PARAMS = 4096,
+    pub const CU_GRAPH_DEBUG_DOT_FLAGS_MEM_FREE_NODE_PARAMS: CUgraphDebugDot_flags_enum = CUgraphDebugDot_flags_enum(
+        4096,
+    );
     /// Adds batch mem op node parameters to output.
-    CU_GRAPH_DEBUG_DOT_FLAGS_BATCH_MEM_OP_NODE_PARAMS = 8192,
+    pub const CU_GRAPH_DEBUG_DOT_FLAGS_BATCH_MEM_OP_NODE_PARAMS: CUgraphDebugDot_flags_enum = CUgraphDebugDot_flags_enum(
+        8192,
+    );
     /// Adds edge numbering information.
-    CU_GRAPH_DEBUG_DOT_FLAGS_EXTRA_TOPO_INFO = 16384,
+    pub const CU_GRAPH_DEBUG_DOT_FLAGS_EXTRA_TOPO_INFO: CUgraphDebugDot_flags_enum = CUgraphDebugDot_flags_enum(
+        16384,
+    );
     /// Adds conditional node parameters to output.
-    CU_GRAPH_DEBUG_DOT_FLAGS_CONDITIONAL_NODE_PARAMS = 32768,
+    pub const CU_GRAPH_DEBUG_DOT_FLAGS_CONDITIONAL_NODE_PARAMS: CUgraphDebugDot_flags_enum = CUgraphDebugDot_flags_enum(
+        32768,
+    );
 }
+/// The additional write options for ::cuGraphDebugDotPrint
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUgraphDebugDot_flags_enum(pub ::core::ffi::c_uint);
 pub use self::CUgraphDebugDot_flags_enum as CUgraphDebugDot_flags;
-/// Flags for user objects for graphs
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUuserObject_flags_enum {
+impl CUuserObject_flags_enum {
     /// Indicates the destructor execution is not synchronized by any CUDA handle.
-    CU_USER_OBJECT_NO_DESTRUCTOR_SYNC = 1,
+    pub const CU_USER_OBJECT_NO_DESTRUCTOR_SYNC: CUuserObject_flags_enum = CUuserObject_flags_enum(
+        1,
+    );
 }
+/// Flags for user objects for graphs
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUuserObject_flags_enum(pub ::core::ffi::c_uint);
 pub use self::CUuserObject_flags_enum as CUuserObject_flags;
-/// Flags for retaining user object references for graphs
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUuserObjectRetain_flags_enum {
+impl CUuserObjectRetain_flags_enum {
     /// Transfer references from the caller rather than creating new references.
-    CU_GRAPH_USER_OBJECT_MOVE = 1,
+    pub const CU_GRAPH_USER_OBJECT_MOVE: CUuserObjectRetain_flags_enum = CUuserObjectRetain_flags_enum(
+        1,
+    );
 }
+/// Flags for retaining user object references for graphs
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUuserObjectRetain_flags_enum(pub ::core::ffi::c_uint);
 pub use self::CUuserObjectRetain_flags_enum as CUuserObjectRetain_flags;
-/// Flags for instantiating a graph
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUgraphInstantiate_flags_enum {
+impl CUgraphInstantiate_flags_enum {
     /// Automatically free memory allocated in a graph before relaunching.
-    CUDA_GRAPH_INSTANTIATE_FLAG_AUTO_FREE_ON_LAUNCH = 1,
+    pub const CUDA_GRAPH_INSTANTIATE_FLAG_AUTO_FREE_ON_LAUNCH: CUgraphInstantiate_flags_enum = CUgraphInstantiate_flags_enum(
+        1,
+    );
     /// Automatically upload the graph after instantiation.
     ///
     /// Only supported by [`cuGraphInstantiateWithParams`]. The upload will be performed using the stream provided in `instantiateParams`.
-    CUDA_GRAPH_INSTANTIATE_FLAG_UPLOAD = 2,
+    pub const CUDA_GRAPH_INSTANTIATE_FLAG_UPLOAD: CUgraphInstantiate_flags_enum = CUgraphInstantiate_flags_enum(
+        2,
+    );
     /// Instantiate the graph to be launchable from the device.
     ///
     /// This flag can only be used on platforms which support unified addressing. This flag cannot be used in conjunction with [`CUgraphInstantiate_flags::CUDA_GRAPH_INSTANTIATE_FLAG_AUTO_FREE_ON_LAUNCH`].
-    CUDA_GRAPH_INSTANTIATE_FLAG_DEVICE_LAUNCH = 4,
+    pub const CUDA_GRAPH_INSTANTIATE_FLAG_DEVICE_LAUNCH: CUgraphInstantiate_flags_enum = CUgraphInstantiate_flags_enum(
+        4,
+    );
     /// Run the graph using the per-node priority attributes rather than the priority of the stream it is launched into.
-    CUDA_GRAPH_INSTANTIATE_FLAG_USE_NODE_PRIORITY = 8,
+    pub const CUDA_GRAPH_INSTANTIATE_FLAG_USE_NODE_PRIORITY: CUgraphInstantiate_flags_enum = CUgraphInstantiate_flags_enum(
+        8,
+    );
 }
+/// Flags for instantiating a graph
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUgraphInstantiate_flags_enum(pub ::core::ffi::c_uint);
 pub use self::CUgraphInstantiate_flags_enum as CUgraphInstantiate_flags;
-/// CUDA device NUMA configuration
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUdeviceNumaConfig_enum {
+impl CUdeviceNumaConfig_enum {
     /// The GPU is not a NUMA node.
-    CU_DEVICE_NUMA_CONFIG_NONE = 0,
+    pub const CU_DEVICE_NUMA_CONFIG_NONE: CUdeviceNumaConfig_enum = CUdeviceNumaConfig_enum(
+        0,
+    );
     /// The GPU is a NUMA node, [`CUdevice_attribute::CU_DEVICE_ATTRIBUTE_NUMA_ID`] contains its NUMA ID.
-    CU_DEVICE_NUMA_CONFIG_NUMA_NODE = 1,
+    pub const CU_DEVICE_NUMA_CONFIG_NUMA_NODE: CUdeviceNumaConfig_enum = CUdeviceNumaConfig_enum(
+        1,
+    );
 }
+/// CUDA device NUMA configuration
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUdeviceNumaConfig_enum(pub ::core::ffi::c_uint);
 pub use self::CUdeviceNumaConfig_enum as CUdeviceNumaConfig;
-/// CUDA Process States
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUprocessState_enum {
+impl CUprocessState_enum {
     /// Default process state.
-    CU_PROCESS_STATE_RUNNING = 0,
+    pub const CU_PROCESS_STATE_RUNNING: CUprocessState_enum = CUprocessState_enum(0);
     /// CUDA API locks are taken so further CUDA API calls will block.
-    CU_PROCESS_STATE_LOCKED = 1,
+    pub const CU_PROCESS_STATE_LOCKED: CUprocessState_enum = CUprocessState_enum(1);
     /// Application memory contents have been checkpointed and underlying allocations and device handles have been released.
-    CU_PROCESS_STATE_CHECKPOINTED = 2,
+    pub const CU_PROCESS_STATE_CHECKPOINTED: CUprocessState_enum = CUprocessState_enum(
+        2,
+    );
     /// Application entered an uncorrectable error during the checkpoint/restore process.
-    CU_PROCESS_STATE_FAILED = 3,
+    pub const CU_PROCESS_STATE_FAILED: CUprocessState_enum = CUprocessState_enum(3);
     /// Application memory contents are being checkpointed.
-    CU_PROCESS_STATE_CHECKPOINTING = 4,
+    pub const CU_PROCESS_STATE_CHECKPOINTING: CUprocessState_enum = CUprocessState_enum(
+        4,
+    );
     /// Application memory contents are being restored.
-    CU_PROCESS_STATE_RESTORING = 5,
+    pub const CU_PROCESS_STATE_RESTORING: CUprocessState_enum = CUprocessState_enum(5);
 }
+/// CUDA Process States
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUprocessState_enum(pub ::core::ffi::c_uint);
 pub use self::CUprocessState_enum as CUprocessState;
 /// Per-GPU data for zero-copy mapped device memory used with CUDA checkpoint/restore on custom storage
 #[repr(C)]
@@ -8322,26 +8620,20 @@ singe_loader::functions! { crate::DRIVER;
     /// - `hmod`: - Module to unload
     pub fn cuModuleUnload(hmod: CUmodule) -> CUresult;
 }
-/// CUDA Lazy Loading status
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUmoduleLoadingMode_enum {
+impl CUmoduleLoadingMode_enum {
     /// Lazy Kernel Loading is not enabled.
-    CU_MODULE_EAGER_LOADING = 1,
+    pub const CU_MODULE_EAGER_LOADING: CUmoduleLoadingMode_enum = CUmoduleLoadingMode_enum(
+        1,
+    );
     /// Lazy Kernel Loading is enabled.
-    CU_MODULE_LAZY_LOADING = 2,
+    pub const CU_MODULE_LAZY_LOADING: CUmoduleLoadingMode_enum = CUmoduleLoadingMode_enum(
+        2,
+    );
 }
+/// CUDA Lazy Loading status
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUmoduleLoadingMode_enum(pub ::core::ffi::c_uint);
 pub use self::CUmoduleLoadingMode_enum as CUmoduleLoadingMode;
 singe_loader::functions! { crate::DRIVER;
     /// Query lazy loading mode.
@@ -11830,19 +12122,28 @@ singe_loader::functions! { crate::DRIVER;
         flags: ::core::ffi::c_ulonglong,
     ) -> CUresult;
 }
-/// Bitmasks for CU_DEVICE_ATTRIBUTE_MEM_DECOMPRESS_ALGORITHM_MASK.
-#[repr(u32)]
-#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum CUmemDecompressAlgorithm_enum {
+impl CUmemDecompressAlgorithm_enum {
     /// Decompression is unsupported.
-    CU_MEM_DECOMPRESS_UNSUPPORTED = 0,
+    pub const CU_MEM_DECOMPRESS_UNSUPPORTED: CUmemDecompressAlgorithm_enum = CUmemDecompressAlgorithm_enum(
+        0,
+    );
     /// Deflate is supported.
-    CU_MEM_DECOMPRESS_ALGORITHM_DEFLATE = 1,
+    pub const CU_MEM_DECOMPRESS_ALGORITHM_DEFLATE: CUmemDecompressAlgorithm_enum = CUmemDecompressAlgorithm_enum(
+        1,
+    );
     /// Snappy is supported.
-    CU_MEM_DECOMPRESS_ALGORITHM_SNAPPY = 2,
+    pub const CU_MEM_DECOMPRESS_ALGORITHM_SNAPPY: CUmemDecompressAlgorithm_enum = CUmemDecompressAlgorithm_enum(
+        2,
+    );
     /// LZ4 is supported.
-    CU_MEM_DECOMPRESS_ALGORITHM_LZ4 = 4,
+    pub const CU_MEM_DECOMPRESS_ALGORITHM_LZ4: CUmemDecompressAlgorithm_enum = CUmemDecompressAlgorithm_enum(
+        4,
+    );
 }
+/// Bitmasks for CU_DEVICE_ATTRIBUTE_MEM_DECOMPRESS_ALGORITHM_MASK.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUmemDecompressAlgorithm_enum(pub ::core::ffi::c_uint);
 pub use self::CUmemDecompressAlgorithm_enum as CUmemDecompressAlgorithm;
 /// Structure describing the parameters that compose a single decompression operation.
 #[repr(C)]
@@ -12618,19 +12919,24 @@ singe_loader::functions! { crate::DRIVER;
         option: CUmulticastGranularity_flags,
     ) -> CUresult;
 }
-/// Fabric clique types
-#[repr(u32)]
-#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum CUcliqueType_enum {
+impl CUcliqueType_enum {
     /// Unicast pointer clique.
-    CU_CLIQUE_TYPE_UNICAST_POINTER = 0,
+    pub const CU_CLIQUE_TYPE_UNICAST_POINTER: CUcliqueType_enum = CUcliqueType_enum(0);
     /// Multicast pointer clique.
-    CU_CLIQUE_TYPE_MULTICAST_POINTER = 1,
+    pub const CU_CLIQUE_TYPE_MULTICAST_POINTER: CUcliqueType_enum = CUcliqueType_enum(1);
     /// Unicast logical endpoint clique.
-    CU_CLIQUE_TYPE_UNICAST_LOGICAL_ENDPOINT = 2,
+    pub const CU_CLIQUE_TYPE_UNICAST_LOGICAL_ENDPOINT: CUcliqueType_enum = CUcliqueType_enum(
+        2,
+    );
     /// Multicast logical endpoint clique.
-    CU_CLIQUE_TYPE_MULTICAST_LOGICAL_ENDPOINT = 3,
+    pub const CU_CLIQUE_TYPE_MULTICAST_LOGICAL_ENDPOINT: CUcliqueType_enum = CUcliqueType_enum(
+        3,
+    );
 }
+/// Fabric clique types
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUcliqueType_enum(pub ::core::ffi::c_uint);
 pub use self::CUcliqueType_enum as CUcliqueType;
 /// Fabric clique information
 #[repr(C)]
@@ -12692,15 +12998,20 @@ singe_loader::functions! { crate::DRIVER;
 }
 /// An ID that represents a logical endpoint.
 pub type CUlogicalEndpointId = cuuint32_t;
-/// IPC handle types that can be requested/queried for a given logical endpoint
-#[repr(u32)]
-#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum CUlogicalEndpointIpcHandleType_enum {
+impl CUlogicalEndpointIpcHandleType_enum {
     /// Does not request an IPC handle for the logical endpoint.
-    CU_LOGICAL_ENDPOINT_IPC_HANDLE_TYPE_NONE = 0,
+    pub const CU_LOGICAL_ENDPOINT_IPC_HANDLE_TYPE_NONE: CUlogicalEndpointIpcHandleType_enum = CUlogicalEndpointIpcHandleType_enum(
+        0,
+    );
     /// Uses a fabric handle to share the logical endpoint.
-    CU_LOGICAL_ENDPOINT_IPC_HANDLE_TYPE_FABRIC = 1,
+    pub const CU_LOGICAL_ENDPOINT_IPC_HANDLE_TYPE_FABRIC: CUlogicalEndpointIpcHandleType_enum = CUlogicalEndpointIpcHandleType_enum(
+        1,
+    );
 }
+/// IPC handle types that can be requested/queried for a given logical endpoint
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUlogicalEndpointIpcHandleType_enum(pub ::core::ffi::c_uint);
 pub use self::CUlogicalEndpointIpcHandleType_enum as CUlogicalEndpointIpcHandleType;
 /// Fabric handle for a logical endpoint
 #[repr(C)]
@@ -12720,27 +13031,39 @@ impl Default for CUlogicalEndpointFabricHandle_st {
 }
 /// Fabric handle for a logical endpoint.
 pub type CUlogicalEndpointFabricHandle = CUlogicalEndpointFabricHandle_st;
-/// Logical endpoint type
-#[repr(u32)]
-#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum CUlogicalEndpointType_enum {
+impl CUlogicalEndpointType_enum {
     /// No valid logical endpoint type is selected.
-    CU_LOGICAL_ENDPOINT_TYPE_INVALID = 0,
+    pub const CU_LOGICAL_ENDPOINT_TYPE_INVALID: CUlogicalEndpointType_enum = CUlogicalEndpointType_enum(
+        0,
+    );
     /// Selects one device as the destination logical endpoint.
-    CU_LOGICAL_ENDPOINT_TYPE_UNICAST = 1,
+    pub const CU_LOGICAL_ENDPOINT_TYPE_UNICAST: CUlogicalEndpointType_enum = CUlogicalEndpointType_enum(
+        1,
+    );
     /// Selects a multicast group as the destination logical endpoint.
-    CU_LOGICAL_ENDPOINT_TYPE_MULTICAST = 2,
+    pub const CU_LOGICAL_ENDPOINT_TYPE_MULTICAST: CUlogicalEndpointType_enum = CUlogicalEndpointType_enum(
+        2,
+    );
 }
-pub use self::CUlogicalEndpointType_enum as CUlogicalEndpointType;
-/// Flags for ::CUlogicalEndpointProp
-#[repr(u32)]
+/// Logical endpoint type
+#[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum CUlogicalEndpointFlag_enum {
+pub struct CUlogicalEndpointType_enum(pub ::core::ffi::c_uint);
+pub use self::CUlogicalEndpointType_enum as CUlogicalEndpointType;
+impl CUlogicalEndpointFlag_enum {
     /// Default flag for logical endpoint construction.
-    CU_LOGICAL_ENDPOINT_FLAG_NONE = 0,
+    pub const CU_LOGICAL_ENDPOINT_FLAG_NONE: CUlogicalEndpointFlag_enum = CUlogicalEndpointFlag_enum(
+        0,
+    );
     /// Indicate the programmer’s intention to use counted operations with the logical endpoint.
-    CU_LOGICAL_ENDPOINT_FLAG_COUNTED_OPS = 1,
+    pub const CU_LOGICAL_ENDPOINT_FLAG_COUNTED_OPS: CUlogicalEndpointFlag_enum = CUlogicalEndpointFlag_enum(
+        1,
+    );
 }
+/// Flags for ::CUlogicalEndpointProp
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUlogicalEndpointFlag_enum(pub ::core::ffi::c_uint);
 pub use self::CUlogicalEndpointFlag_enum as CUlogicalEndpointFlag;
 /// Properties of a logical endpoint construction
 #[repr(C)]
@@ -13597,19 +13920,26 @@ singe_loader::functions! { crate::DRIVER;
         mode: CUstreamCaptureMode,
     ) -> CUresult;
 }
-/// Whether a recaptured node can update an existing executable graph, or encountered an error.
-#[repr(u32)]
-#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum CUgraphRecaptureStatus_enum {
+impl CUgraphRecaptureStatus_enum {
     /// Node is eligible for update in an instantiated graph.
-    CU_GRAPH_RECAPTURE_ELIGIBLE_FOR_UPDATE = 0,
+    pub const CU_GRAPH_RECAPTURE_ELIGIBLE_FOR_UPDATE: CUgraphRecaptureStatus_enum = CUgraphRecaptureStatus_enum(
+        0,
+    );
     /// Parameter changes in the node cannot be applied to an instantiated graph.
-    CU_GRAPH_RECAPTURE_INELIGIBLE_FOR_UPDATE = 1,
+    pub const CU_GRAPH_RECAPTURE_INELIGIBLE_FOR_UPDATE: CUgraphRecaptureStatus_enum = CUgraphRecaptureStatus_enum(
+        1,
+    );
     /// Error while attempting to recapture the node.
     ///
     /// The recapture will be ended regardless of the return value from the callback.
-    CU_GRAPH_RECAPTURE_ERROR = 2,
+    pub const CU_GRAPH_RECAPTURE_ERROR: CUgraphRecaptureStatus_enum = CUgraphRecaptureStatus_enum(
+        2,
+    );
 }
+/// Whether a recaptured node can update an existing executable graph, or encountered an error.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUgraphRecaptureStatus_enum(pub ::core::ffi::c_uint);
 pub use self::CUgraphRecaptureStatus_enum as CUgraphRecaptureStatus;
 /// Callback function invoked when node parameter mismatches are detected while recapturing to an existing graph.
 ///
@@ -14536,28 +14866,24 @@ singe_loader::functions! { crate::DRIVER;
     /// - `paramCount`: Returns the number of parameters used by the function.
     pub fn cuFuncGetParamCount(func: CUfunction, paramCount: *mut size_t) -> CUresult;
 }
-/// Whether the native code for a CUDA function has been loaded onto the device.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUfunctionLoadingState_enum {
+impl CUfunctionLoadingState_enum {
     /// The function has not yet been loaded onto the device.
-    CU_FUNCTION_LOADING_STATE_UNLOADED = 0,
+    pub const CU_FUNCTION_LOADING_STATE_UNLOADED: CUfunctionLoadingState_enum = CUfunctionLoadingState_enum(
+        0,
+    );
     /// The function is loaded onto the device.
-    CU_FUNCTION_LOADING_STATE_LOADED = 1,
+    pub const CU_FUNCTION_LOADING_STATE_LOADED: CUfunctionLoadingState_enum = CUfunctionLoadingState_enum(
+        1,
+    );
     /// End marker for native function-loading states.
-    CU_FUNCTION_LOADING_STATE_MAX = 2,
+    pub const CU_FUNCTION_LOADING_STATE_MAX: CUfunctionLoadingState_enum = CUfunctionLoadingState_enum(
+        2,
+    );
 }
+/// Whether the native code for a CUDA function has been loaded onto the device.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUfunctionLoadingState_enum(pub ::core::ffi::c_uint);
 pub use self::CUfunctionLoadingState_enum as CUfunctionLoadingState;
 singe_loader::functions! { crate::DRIVER;
     /// Returns if the function is loaded.
@@ -18168,79 +18494,93 @@ singe_loader::functions! { crate::DRIVER;
         symbolStatus: *mut CUdriverProcAddressQueryResult,
     ) -> CUresult;
 }
-/// Flags for choosing a coredump attribute to get/set
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUcoredumpSettings_enum {
+impl CUcoredumpSettings_enum {
     /// Bool where ::true means that GPU exceptions from this context will create a coredump at the location specified by ::CU_COREDUMP_FILE. The default value is ::false unless set to ::true globally or locally, or the CU_CTX_USER_COREDUMP_ENABLE flag was set during context creation.
-    CU_COREDUMP_ENABLE_ON_EXCEPTION = 1,
+    pub const CU_COREDUMP_ENABLE_ON_EXCEPTION: CUcoredumpSettings_enum = CUcoredumpSettings_enum(
+        1,
+    );
     /// Bool where ::true means that the host CPU will also create a coredump. The default value is ::true unless set to ::false globally or or locally. This value is deprecated as of CUDA 12.5 - raise the ::CU_COREDUMP_SKIP_ABORT flag to disable host device abort() if needed.
-    CU_COREDUMP_TRIGGER_HOST = 2,
+    pub const CU_COREDUMP_TRIGGER_HOST: CUcoredumpSettings_enum = CUcoredumpSettings_enum(
+        2,
+    );
     /// Bool where ::true means that any resulting coredumps will not have a dump of GPU memory or non-reloc ELF images. The default value is ::false unless set to ::true globally or locally. This attribute is deprecated as of CUDA 12.5, please use ::CU_COREDUMP_GENERATION_FLAGS instead.
-    CU_COREDUMP_LIGHTWEIGHT = 3,
+    pub const CU_COREDUMP_LIGHTWEIGHT: CUcoredumpSettings_enum = CUcoredumpSettings_enum(
+        3,
+    );
     /// Bool where ::true means that a coredump can be created by writing to the system pipe specified by ::CU_COREDUMP_PIPE. The default value is ::false unless set to ::true globally or locally.
-    CU_COREDUMP_ENABLE_USER_TRIGGER = 4,
+    pub const CU_COREDUMP_ENABLE_USER_TRIGGER: CUcoredumpSettings_enum = CUcoredumpSettings_enum(
+        4,
+    );
     /// String of up to 1023 characters that defines the location where any coredumps generated by this context will be written. The default value is ::core.cuda.HOSTNAME.PID where ::HOSTNAME is the host name of the machine running the CUDA applications and ::PID is the process ID of the CUDA application.
-    CU_COREDUMP_FILE = 5,
+    pub const CU_COREDUMP_FILE: CUcoredumpSettings_enum = CUcoredumpSettings_enum(5);
     /// String of up to 1023 characters that defines the name of the pipe that will be monitored if user-triggered coredumps are enabled. The default value is ::corepipe.cuda.HOSTNAME.PID where ::HOSTNAME is the host name of the machine running the CUDA application and ::PID is the process ID of the CUDA application.
-    CU_COREDUMP_PIPE = 6,
+    pub const CU_COREDUMP_PIPE: CUcoredumpSettings_enum = CUcoredumpSettings_enum(6);
     /// An integer with values to allow granular control the data contained in a coredump specified as a bitwise OR combination of the following values:
-    CU_COREDUMP_GENERATION_FLAGS = 7,
+    pub const CU_COREDUMP_GENERATION_FLAGS: CUcoredumpSettings_enum = CUcoredumpSettings_enum(
+        7,
+    );
     /// End marker for native GPU coredump setting identifiers.
-    CU_COREDUMP_MAX = 8,
+    pub const CU_COREDUMP_MAX: CUcoredumpSettings_enum = CUcoredumpSettings_enum(8);
 }
+/// Flags for choosing a coredump attribute to get/set
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUcoredumpSettings_enum(pub ::core::ffi::c_uint);
 pub use self::CUcoredumpSettings_enum as CUcoredumpSettings;
-/// Flags for controlling coredump contents.
-#[repr(i32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUCoredumpGenerationFlags {
+impl CUCoredumpGenerationFlags {
     /// if set by itself, coredump generation returns to its default settings of including all memory regions that it is able to access
-    CU_COREDUMP_DEFAULT_FLAGS = 0,
+    pub const CU_COREDUMP_DEFAULT_FLAGS: CUCoredumpGenerationFlags = CUCoredumpGenerationFlags(
+        0,
+    );
     /// Coredump will not include the data from CUDA source modules that are not relocated at runtime.
-    CU_COREDUMP_SKIP_NONRELOCATED_ELF_IMAGES = 1,
+    pub const CU_COREDUMP_SKIP_NONRELOCATED_ELF_IMAGES: CUCoredumpGenerationFlags = CUCoredumpGenerationFlags(
+        1,
+    );
     /// Coredump will not include device-side global data that does not belong to any context.
-    CU_COREDUMP_SKIP_GLOBAL_MEMORY = 2,
+    pub const CU_COREDUMP_SKIP_GLOBAL_MEMORY: CUCoredumpGenerationFlags = CUCoredumpGenerationFlags(
+        2,
+    );
     /// Coredump will not include grid-scale shared memory for the warp that the dumped kernel belonged to.
-    CU_COREDUMP_SKIP_SHARED_MEMORY = 4,
+    pub const CU_COREDUMP_SKIP_SHARED_MEMORY: CUCoredumpGenerationFlags = CUCoredumpGenerationFlags(
+        4,
+    );
     /// Coredump will not include local memory from the kernel.
-    CU_COREDUMP_SKIP_LOCAL_MEMORY = 8,
+    pub const CU_COREDUMP_SKIP_LOCAL_MEMORY: CUCoredumpGenerationFlags = CUCoredumpGenerationFlags(
+        8,
+    );
     /// If set, GPU exceptions will not raise an abort() in the host CPU process. Same functional goal as ::CU_COREDUMP_TRIGGER_HOST but better reflects the default behavior.
-    CU_COREDUMP_SKIP_ABORT = 16,
+    pub const CU_COREDUMP_SKIP_ABORT: CUCoredumpGenerationFlags = CUCoredumpGenerationFlags(
+        16,
+    );
     /// Coredump will not include constbank memory.
-    CU_COREDUMP_SKIP_CONSTBANK_MEMORY = 32,
+    pub const CU_COREDUMP_SKIP_CONSTBANK_MEMORY: CUCoredumpGenerationFlags = CUCoredumpGenerationFlags(
+        32,
+    );
     /// The generated coredump will be compressed with gzip, and .gz suffix will be appended to the filename, if it's not a part of it already.
-    CU_COREDUMP_GZIP_COMPRESS = 64,
+    pub const CU_COREDUMP_GZIP_COMPRESS: CUCoredumpGenerationFlags = CUCoredumpGenerationFlags(
+        64,
+    );
     /// The coredump will only include contexts that have encountered an exception or a trap.
-    CU_COREDUMP_FAULTED_CONTEXTS_ONLY = 128,
+    pub const CU_COREDUMP_FAULTED_CONTEXTS_ONLY: CUCoredumpGenerationFlags = CUCoredumpGenerationFlags(
+        128,
+    );
     /// By default, when coredumps are requested, the GPU will ensure memory faults and other errors prevent warps from exiting, if possible. This can potentially affect the performance of the application. Setting this flag will disable this functionality, making it possible for faulted warps to exit, but also avoiding the potential performance hit.
-    CU_COREDUMP_NO_ERRBAR_AT_EXIT = 1073741824,
+    pub const CU_COREDUMP_NO_ERRBAR_AT_EXIT: CUCoredumpGenerationFlags = CUCoredumpGenerationFlags(
+        1073741824,
+    );
     /// Setting this flag will disable actual generation of the coredump file, but exception details will still be logged.
-    CU_COREDUMP_LOG_ONLY = -2147483648,
+    pub const CU_COREDUMP_LOG_ONLY: CUCoredumpGenerationFlags = CUCoredumpGenerationFlags(
+        -2147483648,
+    );
     /// Enables all of the above options. Equiavlent to setting the ::CU_COREDUMP_LIGHTWEIGHT attribute to ::true.
-    CU_COREDUMP_LIGHTWEIGHT_FLAGS = 47,
+    pub const CU_COREDUMP_LIGHTWEIGHT_FLAGS: CUCoredumpGenerationFlags = CUCoredumpGenerationFlags(
+        47,
+    );
 }
+/// Flags for controlling coredump contents.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUCoredumpGenerationFlags(pub ::core::ffi::c_int);
 singe_loader::functions! { crate::DRIVER;
     /// Allows caller to fetch a coredump attribute value for the current context.
     ///
@@ -18424,70 +18764,68 @@ pub struct CUdevResourceDesc_st {
 }
 /// An opaque descriptor handle. The descriptor encapsulates multiple created and configured resources. Created via [`cuDevResourceGenerateDesc`].
 pub type CUdevResourceDesc = *mut CUdevResourceDesc_st;
-/// Flags for green context creation.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUgreenCtxCreate_flags {
+impl CUgreenCtxCreate_flags {
     /// Default behavior.
-    CU_GREEN_CTX_NONE = 0,
+    pub const CU_GREEN_CTX_NONE: CUgreenCtxCreate_flags = CUgreenCtxCreate_flags(0);
     /// Creates a default stream to use inside the green context.
-    CU_GREEN_CTX_DEFAULT_STREAM = 1,
+    pub const CU_GREEN_CTX_DEFAULT_STREAM: CUgreenCtxCreate_flags = CUgreenCtxCreate_flags(
+        1,
+    );
+}
+/// Flags for green context creation.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUgreenCtxCreate_flags(pub ::core::ffi::c_uint);
+impl CUdevSmResourceGroup_flags {
+    /// Uses the default SM-resource grouping policy.
+    pub const CU_DEV_SM_RESOURCE_GROUP_DEFAULT: CUdevSmResourceGroup_flags = CUdevSmResourceGroup_flags(
+        0,
+    );
+    /// Treats constraints as a hint, ignoring them if necessary to reach the requested `smCount`. Lets `smCount` be a non-multiple of `coscheduledSmCount`, filling the difference between SM count and already assigned co-scheduled groupings with other SMs. This lets any resulting group behave similar to the `remainder` group for example. When used with [`CUdevSmResourceGroup_flags::CU_DEV_SM_RESOURCE_GROUP_LOCALITY_DOMAIN_ID`], backfill fills up to the requested `smCount` using the target locality domain first, then SMs not attributed to any locality domain, then SMs from other locality domains. If no SMs can be found in the requested locality domain, CUDA_ERROR_INVALID_RESOURCE_CONFIGURATION is returned.
+    pub const CU_DEV_SM_RESOURCE_GROUP_BACKFILL: CUdevSmResourceGroup_flags = CUdevSmResourceGroup_flags(
+        1,
+    );
+    /// The SMs must be located on a specific locality domain, specified by localityDomainId.
+    pub const CU_DEV_SM_RESOURCE_GROUP_LOCALITY_DOMAIN_ID: CUdevSmResourceGroup_flags = CUdevSmResourceGroup_flags(
+        2,
+    );
 }
 /// Flags for a [CUdevSmResource](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-driver-api/cuda_driver_api/structCUdevSmResource.html#structcudevsmresource) group.
-#[repr(u32)]
+#[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum CUdevSmResourceGroup_flags {
-    /// Uses the default SM-resource grouping policy.
-    CU_DEV_SM_RESOURCE_GROUP_DEFAULT = 0,
-    /// Treats constraints as a hint, ignoring them if necessary to reach the requested `smCount`. Lets `smCount` be a non-multiple of `coscheduledSmCount`, filling the difference between SM count and already assigned co-scheduled groupings with other SMs. This lets any resulting group behave similar to the `remainder` group for example. When used with [`CUdevSmResourceGroup_flags::CU_DEV_SM_RESOURCE_GROUP_LOCALITY_DOMAIN_ID`], backfill fills up to the requested `smCount` using the target locality domain first, then SMs not attributed to any locality domain, then SMs from other locality domains. If no SMs can be found in the requested locality domain, CUDA_ERROR_INVALID_RESOURCE_CONFIGURATION is returned.
-    CU_DEV_SM_RESOURCE_GROUP_BACKFILL = 1,
-    /// The SMs must be located on a specific locality domain, specified by localityDomainId.
-    CU_DEV_SM_RESOURCE_GROUP_LOCALITY_DOMAIN_ID = 2,
+pub struct CUdevSmResourceGroup_flags(pub ::core::ffi::c_uint);
+impl CUdevSmResourceSplitByCount_flags {
+    /// Lower the minimum SM count and alignment, and treat each SM independent of its hierarchy. This allows more fine grained partitions but at the cost of advanced features (such as large clusters on compute capability 9.0+).
+    pub const CU_DEV_SM_RESOURCE_SPLIT_IGNORE_SM_COSCHEDULING: CUdevSmResourceSplitByCount_flags = CUdevSmResourceSplitByCount_flags(
+        1,
+    );
+    /// Compute Capability 9.0+ only. Attempt to create groups that may allow for maximally sized thread clusters. This can be queried post green context creation using ::cuOccupancyMaxPotentialClusterSize.
+    pub const CU_DEV_SM_RESOURCE_SPLIT_MAX_POTENTIAL_CLUSTER_SIZE: CUdevSmResourceSplitByCount_flags = CUdevSmResourceSplitByCount_flags(
+        2,
+    );
 }
 /// Flags controlling SM-resource partition granularity and supported thread-block cluster sizes.
-#[repr(u32)]
+#[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum CUdevSmResourceSplitByCount_flags {
-    /// Lower the minimum SM count and alignment, and treat each SM independent of its hierarchy. This allows more fine grained partitions but at the cost of advanced features (such as large clusters on compute capability 9.0+).
-    CU_DEV_SM_RESOURCE_SPLIT_IGNORE_SM_COSCHEDULING = 1,
-    /// Compute Capability 9.0+ only. Attempt to create groups that may allow for maximally sized thread clusters. This can be queried post green context creation using ::cuOccupancyMaxPotentialClusterSize.
-    CU_DEV_SM_RESOURCE_SPLIT_MAX_POTENTIAL_CLUSTER_SIZE = 2,
+pub struct CUdevSmResourceSplitByCount_flags(pub ::core::ffi::c_uint);
+impl CUdevResourceType {
+    /// No valid device resource kind is selected.
+    pub const CU_DEV_RESOURCE_TYPE_INVALID: CUdevResourceType = CUdevResourceType(0);
+    /// Streaming multiprocessors related information.
+    pub const CU_DEV_RESOURCE_TYPE_SM: CUdevResourceType = CUdevResourceType(1);
+    /// Workqueue configuration related information.
+    pub const CU_DEV_RESOURCE_TYPE_WORKQUEUE_CONFIG: CUdevResourceType = CUdevResourceType(
+        1000,
+    );
+    /// Pre-existing workqueue related information.
+    pub const CU_DEV_RESOURCE_TYPE_WORKQUEUE: CUdevResourceType = CUdevResourceType(
+        10000,
+    );
 }
 /// Type of resource.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum CUdevResourceType {
-    /// No valid device resource kind is selected.
-    CU_DEV_RESOURCE_TYPE_INVALID = 0,
-    /// Streaming multiprocessors related information.
-    CU_DEV_RESOURCE_TYPE_SM = 1,
-    /// Workqueue configuration related information.
-    CU_DEV_RESOURCE_TYPE_WORKQUEUE_CONFIG = 1000,
-    /// Pre-existing workqueue related information.
-    CU_DEV_RESOURCE_TYPE_WORKQUEUE = 10000,
-}
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUdevResourceType(pub ::core::ffi::c_uint);
 /// Data for SM-related resources All parameters in this structure are OUTPUT only. Do not write to any of the fields in this structure.
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
@@ -18505,17 +18843,22 @@ pub struct CUdevSmResource_st {
 }
 /// Data for SM-related resources All parameters in this structure are OUTPUT only. Do not write to any of the fields in this structure.
 pub type CUdevSmResource = CUdevSmResource_st;
-/// Sharing scope for workqueues.
-#[repr(u32)]
-#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum CUdevWorkqueueConfigScope {
+impl CUdevWorkqueueConfigScope {
     /// Use all shared workqueue resources across all contexts.
     ///
     /// Default driver behavior.
-    CU_WORKQUEUE_SCOPE_DEVICE_CTX = 0,
+    pub const CU_WORKQUEUE_SCOPE_DEVICE_CTX: CUdevWorkqueueConfigScope = CUdevWorkqueueConfigScope(
+        0,
+    );
     /// When possible, use non-overlapping workqueue resources with other balanced green contexts.
-    CU_WORKQUEUE_SCOPE_GREEN_CTX_BALANCED = 1,
+    pub const CU_WORKQUEUE_SCOPE_GREEN_CTX_BALANCED: CUdevWorkqueueConfigScope = CUdevWorkqueueConfigScope(
+        1,
+    );
 }
+/// Sharing scope for workqueues.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUdevWorkqueueConfigScope(pub ::core::ffi::c_uint);
 /// Data for workqueue configuration related resources
 #[repr(C)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
@@ -18944,19 +19287,20 @@ singe_loader::functions! { crate::DRIVER;
         type_: CUdevResourceType,
     ) -> CUresult;
 }
+impl CUlogLevel_enum {
+    /// A CUDA driver error message.
+    pub const CU_LOG_LEVEL_ERROR: CUlogLevel_enum = CUlogLevel_enum(0);
+    /// A CUDA driver warning message.
+    pub const CU_LOG_LEVEL_WARNING: CUlogLevel_enum = CUlogLevel_enum(1);
+}
 /// ___MANBRIEF___ error log management functions for the low-level CUDA API (___CURRENT_FILE___) ___ENDMANBRIEF___
 ///
 /// This section describes the error log management functions of the low-level CUDA driver application programming interface.
 ///
 /// @{
-#[repr(u32)]
+#[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum CUlogLevel_enum {
-    /// A CUDA driver error message.
-    CU_LOG_LEVEL_ERROR = 0,
-    /// A CUDA driver warning message.
-    CU_LOG_LEVEL_WARNING = 1,
-}
+pub struct CUlogLevel_enum(pub ::core::ffi::c_uint);
 pub use self::CUlogLevel_enum as CUlogLevel;
 /// Incomplete native type used by [`CUlogsCallbackHandle`] handles. The native API owns its layout.
 #[repr(C)]

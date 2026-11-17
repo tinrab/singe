@@ -2,6 +2,7 @@
 
 use std::collections::HashMap;
 
+use prost::Message;
 use singe::{
     DataType, Device, OnnxModel, OnnxOptions, Shape, Tensor,
     backend::registry::{Operation, OperationAttributes},
@@ -12,9 +13,8 @@ use singe::{
     random::Generator,
     value::ValueSpec,
 };
-use singe_onnx::{
-    decode_proto, encode_proto,
-    proto::onnx::{AttributeProto, NodeProto, StringStringEntryProto, attribute_proto},
+use singe_onnx::proto::onnx::{
+    AttributeProto, ModelProto, NodeProto, StringStringEntryProto, attribute_proto,
 };
 
 // The program of one operation on one input, with one named output.
@@ -152,7 +152,7 @@ fn test_overridable_defaults_remain_graph_inputs_and_initializers() {
         .bind_state(&HashMap::from([("fallback".into(), value)]))
         .unwrap();
     let bytes = onnx::export(&program, &state).unwrap();
-    let proto = decode_proto(&bytes).unwrap().graph.unwrap();
+    let proto = ModelProto::decode(bytes.as_slice()).unwrap().graph.unwrap();
     assert_eq!(proto.input[0].name, "fallback");
     assert_eq!(proto.initializer[0].name, "fallback");
     let imported = OnnxModel::from_reader(bytes.as_slice(), OnnxOptions::new()).unwrap();
@@ -220,7 +220,7 @@ fn test_gelu_formulas_are_explicit_and_roundtrip_independently() {
             OperationAttributes::None,
         );
         let bytes = onnx::export(&program, &program.bind_state(&HashMap::new()).unwrap()).unwrap();
-        let proto = decode_proto(&bytes).unwrap();
+        let proto = ModelProto::decode(bytes.as_slice()).unwrap();
         let gelu = proto
             .graph
             .as_ref()
@@ -297,7 +297,7 @@ fn test_shape_contract_preserves_ranges_when_callers_supply_weaker_bounds_and_re
             .dimensions(),
         [3]
     );
-    let mut proto = decode_proto(&bytes).unwrap();
+    let mut proto = ModelProto::decode(bytes.as_slice()).unwrap();
     proto
         .metadata_props
         .iter_mut()
@@ -305,7 +305,7 @@ fn test_shape_contract_preserves_ranges_when_callers_supply_weaker_bounds_and_re
         .unwrap()
         .value = "2".into();
     assert!(matches!(
-        OnnxModel::from_reader(encode_proto(&proto).as_slice(), OnnxOptions::new()),
+        OnnxModel::from_reader(proto.encode_to_vec().as_slice(), OnnxOptions::new()),
         Err(Error::InvalidModel { .. })
     ));
 }
@@ -356,7 +356,7 @@ fn test_literal_payloads_preserve_integer_precision_nan_bits_signed_zero_and_str
 #[test]
 fn test_live_metadata_shape_values_reexport_as_runtime_integer_operations() {
     let mut source =
-        decode_proto(include_bytes!("../references/shapes/shape_as_data.onnx")).unwrap();
+        ModelProto::decode(&include_bytes!("../references/shapes/shape_as_data.onnx")[..]).unwrap();
     let graph = source.graph.as_mut().unwrap();
     let one = graph.initializer.pop().unwrap();
     // This program owns a literal shape operand.
@@ -376,7 +376,7 @@ fn test_live_metadata_shape_values_reexport_as_runtime_integer_operations() {
         },
     );
     let original = OnnxModel::from_reader(
-        encode_proto(&source).as_slice(),
+        source.encode_to_vec().as_slice(),
         OnnxOptions::new()
             .with_symbolic_dimension_range("batch", 2, Some(1), Some(4))
             .with_symbolic_dimension_range("sequence", 3, Some(1), Some(8)),
@@ -524,7 +524,7 @@ fn test_malformed_versioned_shape_metadata_is_rejected_at_import() {
         ("singe.axis.99.min", "1"),
         ("singe.axis.0.unknown", "1"),
     ] {
-        let mut proto = decode_proto(&bytes).unwrap();
+        let mut proto = ModelProto::decode(bytes.as_slice()).unwrap();
         let properties = &mut proto.graph.as_mut().unwrap().input[0].metadata_props;
         if let Some(property) = properties.iter_mut().find(|property| property.key == key) {
             property.value = value.into();
@@ -535,7 +535,7 @@ fn test_malformed_versioned_shape_metadata_is_rejected_at_import() {
             });
         }
         assert!(matches!(
-            OnnxModel::from_reader(encode_proto(&proto).as_slice(), OnnxOptions::new()),
+            OnnxModel::from_reader(proto.encode_to_vec().as_slice(), OnnxOptions::new()),
             Err(Error::InvalidModel { .. })
         ));
     }
@@ -556,7 +556,7 @@ fn test_graphs_that_write_inputs_export_present_outputs_and_round_trip() {
     let program = captured.program().unwrap();
     let state = program.bind_state(&HashMap::new()).unwrap();
     let bytes = onnx::export(&program, &state).unwrap();
-    let model = decode_proto(&bytes).unwrap();
+    let model = ModelProto::decode(bytes.as_slice()).unwrap();
     let graph = model.graph.unwrap();
     assert!(
         graph
@@ -611,7 +611,7 @@ fn test_random_operations_export_as_onnx_random_operators() {
     .unwrap();
     let program = captured.program().unwrap();
     let bytes = onnx::export(&program, &program.bind_state(&HashMap::new()).unwrap()).unwrap();
-    let graph = decode_proto(&bytes).unwrap().graph.unwrap();
+    let graph = ModelProto::decode(bytes.as_slice()).unwrap().graph.unwrap();
     for operator in ["RandomUniform", "RandomNormal", "Bernoulli", "Multinomial"] {
         assert!(
             graph.node.iter().any(|node| node.op_type == operator),

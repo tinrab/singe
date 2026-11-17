@@ -1,16 +1,19 @@
 [package]
 name = "singe-nvimagecodec-sys"
 description = "Low-level FFI bindings for the NVIDIA nvImageCodec library."
-version = "0.1.0-alpha.1"
+version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 repository.workspace = true
+documentation = "https://docs.rs/singe-nvimagecodec-sys"
 license-file.workspace = true
 readme = "README.md"
-keywords = ["cuda", "nvimagecodec", "bindings", "ffi"]
+keywords = ["cuda", "nvidia", "nvimagecodec", "ffi", "bindings"]
+categories = ["external-ffi-bindings", "hardware-support"]
 include.workspace = true
 
 [package.metadata.docs.rs]
-rustdoc-args = ["--html-in-header", "dist/katex_header.html"]
+rustdoc-args = ["--cfg", "docsrs", "--html-in-header", "dist/katex_header.html"]
 
 [features]
 default = ["nvimagecodec_0_9"]
@@ -20,4 +23,6 @@ nvimagecodec_0_9 = ["singe-cuda-sys/runtime_13_4"]
 [dependencies]
 singe-loader.workspace = true
 singe-cuda-sys.workspace = true
-num_enum.workspace = true
+
+[dev-dependencies]
+anyhow.workspace = true

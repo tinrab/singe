@@ -4,33 +4,7 @@ generate:
     #!/usr/bin/env bash
     set -euxo pipefail
 
-    num_enums=(
-        "nvimgcodecStructureType_t"
-        "nvimgcodecStatus_t"
-        "nvimgcodecSampleDataType_t"
-        "nvimgcodecChromaSubsampling_t"
-        "nvimgcodecSampleFormat_t"
-        "nvimgcodecColorSpec_t"
-        "nvimgcodecImageBufferKind_t"
-        "nvimgcodecJpegEncoding_t"
-        "nvimgcodecQualityType_t"
-        "nvimgcodecBackendKind_t"
-        "nvimgcodecLoadHintPolicy_t"
-        "nvimgcodecProcessingStatus"
-        "nvimgcodecJpeg2kProgOrder_t"
-        "nvimgcodecJpeg2kBitstreamType_t"
-        "nvimgcodecMetadataKind_t"
-        "nvimgcodecMetadataFormat_t"
-        "nvimgcodecMetadataValueType_t"
-        "nvimgcodecDebugMessageSeverity_t"
-        "nvimgcodecDebugMessageCategory_t"
-        "nvimgcodecOutOfBoundsPolicy_t"
-        "nvimgcodecPriority_t"
-    )
-    enum_args=$(for enum in "${num_enums[@]}"; do echo -n "--with-derive-custom $enum=TryFromPrimitive,IntoPrimitive "; done)
-
     bindgen {{nvimagecodec_include_path}}/nvimgcodec.h \
-        $enum_args \
         --allowlist-item "^nvimgcodec.*" \
         --allowlist-item "^NVIMGCODEC.*" \
         --blocklist-item "^CUstream_st$" \
@@ -45,7 +19,7 @@ generate:
         --with-derive-hash \
         --with-derive-ord \
         --use-core \
-        --default-enum-style=rust \
+        --default-enum-style=newtype \
         -- \
             -I {{nvimagecodec_include_path}} \
         > bindings.rs

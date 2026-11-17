@@ -6,7 +6,7 @@ use singe_cuda::types::bf16;
 use singe_cuda::types::f16;
 use singe_cuda::{
     stream::Stream,
-    view::{DeviceInput, DeviceOutput},
+    view::{DeviceOutput, DeviceRange},
 };
 
 #[cfg(feature = "cutile")]
@@ -55,10 +55,10 @@ macro_rules! gated_delta_rule_preprocess_fn {
             stream: &Stream,
             beta_out: &mut impl DeviceOutput<$ty>,
             g_out: &mut impl DeviceOutput<$ty>,
-            b_in: &impl DeviceInput<$ty>,
-            a_in: &impl DeviceInput<$ty>,
-            a_log: &impl DeviceInput<$ty>,
-            dt_bias: &impl DeviceInput<$ty>,
+            b_in: &impl DeviceRange<$ty>,
+            a_in: &impl DeviceRange<$ty>,
+            a_log: &impl DeviceRange<$ty>,
+            dt_bias: &impl DeviceRange<$ty>,
             rows: usize,
             hidden: usize,
         ) -> Result<()> {
@@ -104,10 +104,10 @@ macro_rules! gated_delta_rule_preprocess_g_f32_fn {
             stream: &Stream,
             beta_out: &mut impl DeviceOutput<$ty>,
             g_out: &mut impl DeviceOutput<f32>,
-            b_in: &impl DeviceInput<$ty>,
-            a_in: &impl DeviceInput<$ty>,
-            a_log: &impl DeviceInput<$ty>,
-            dt_bias: &impl DeviceInput<$ty>,
+            b_in: &impl DeviceRange<$ty>,
+            a_in: &impl DeviceRange<$ty>,
+            a_log: &impl DeviceRange<$ty>,
+            dt_bias: &impl DeviceRange<$ty>,
             rows: usize,
             hidden: usize,
         ) -> Result<()> {
@@ -165,11 +165,11 @@ macro_rules! recurrent_gated_delta_rule_no_state_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            query: &impl DeviceInput<$ty>,
-            key: &impl DeviceInput<$ty>,
-            value: &impl DeviceInput<$ty>,
-            gate: &impl DeviceInput<$ty>,
-            beta: &impl DeviceInput<$ty>,
+            query: &impl DeviceRange<$ty>,
+            key: &impl DeviceRange<$ty>,
+            value: &impl DeviceRange<$ty>,
+            gate: &impl DeviceRange<$ty>,
+            beta: &impl DeviceRange<$ty>,
             config: RecurrentGatedDeltaRuleConfig,
         ) -> Result<()> {
             let params = validate_recurrent_gated_delta_rule_no_state(
@@ -217,12 +217,12 @@ macro_rules! recurrent_gated_delta_rule_with_state_fn {
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
             final_state: &mut impl DeviceOutput<$ty>,
-            query: &impl DeviceInput<$ty>,
-            key: &impl DeviceInput<$ty>,
-            value: &impl DeviceInput<$ty>,
-            gate: &impl DeviceInput<$ty>,
-            beta: &impl DeviceInput<$ty>,
-            initial_state: &impl DeviceInput<$ty>,
+            query: &impl DeviceRange<$ty>,
+            key: &impl DeviceRange<$ty>,
+            value: &impl DeviceRange<$ty>,
+            gate: &impl DeviceRange<$ty>,
+            beta: &impl DeviceRange<$ty>,
+            initial_state: &impl DeviceRange<$ty>,
             config: RecurrentGatedDeltaRuleConfig,
         ) -> Result<()> {
             let params = validate_recurrent_gated_delta_rule_with_state(
@@ -270,11 +270,11 @@ macro_rules! chunk_gated_delta_rule_no_state_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            query: &impl DeviceInput<$ty>,
-            key: &impl DeviceInput<$ty>,
-            value: &impl DeviceInput<$ty>,
-            gate: &impl DeviceInput<$ty>,
-            beta: &impl DeviceInput<$ty>,
+            query: &impl DeviceRange<$ty>,
+            key: &impl DeviceRange<$ty>,
+            value: &impl DeviceRange<$ty>,
+            gate: &impl DeviceRange<$ty>,
+            beta: &impl DeviceRange<$ty>,
             config: ChunkGatedDeltaRuleConfig,
         ) -> Result<()> {
             validate_chunk_gated_delta_rule_no_state(
@@ -327,12 +327,12 @@ macro_rules! chunk_gated_delta_rule_with_state_fn {
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
             final_state: &mut impl DeviceOutput<$ty>,
-            query: &impl DeviceInput<$ty>,
-            key: &impl DeviceInput<$ty>,
-            value: &impl DeviceInput<$ty>,
-            gate: &impl DeviceInput<$ty>,
-            beta: &impl DeviceInput<$ty>,
-            initial_state: &impl DeviceInput<$ty>,
+            query: &impl DeviceRange<$ty>,
+            key: &impl DeviceRange<$ty>,
+            value: &impl DeviceRange<$ty>,
+            gate: &impl DeviceRange<$ty>,
+            beta: &impl DeviceRange<$ty>,
+            initial_state: &impl DeviceRange<$ty>,
             config: ChunkGatedDeltaRuleConfig,
         ) -> Result<()> {
             validate_chunk_gated_delta_rule_with_state(
@@ -417,12 +417,12 @@ macro_rules! recurrent_gated_delta_rule_decode_with_state_fn {
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
             final_state: &mut impl DeviceOutput<$ty>,
-            query: &impl DeviceInput<$ty>,
-            key: &impl DeviceInput<$ty>,
-            value: &impl DeviceInput<$ty>,
-            gate: &impl DeviceInput<$ty>,
-            beta: &impl DeviceInput<$ty>,
-            initial_state: &impl DeviceInput<$ty>,
+            query: &impl DeviceRange<$ty>,
+            key: &impl DeviceRange<$ty>,
+            value: &impl DeviceRange<$ty>,
+            gate: &impl DeviceRange<$ty>,
+            beta: &impl DeviceRange<$ty>,
+            initial_state: &impl DeviceRange<$ty>,
             config: RecurrentGatedDeltaRuleConfig,
         ) -> Result<()> {
             let params = validate_recurrent_gated_delta_rule_decode_with_state(

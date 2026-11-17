@@ -4,7 +4,6 @@ use std::env::args;
 
 use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
-    backend::tensor::{Shape, TensorSpec},
     data_type::{DataType, f8e4m3},
     error::{Error, Result},
     frontend::{
@@ -16,15 +15,20 @@ use singe_cudnn::{
         },
         plan::{CompileConfig, ExecuteArgs, HeuristicMode},
     },
+    tensor::{Shape, TensorSpec},
 };
 
+#[expect(
+    clippy::many_single_char_names,
+    reason = "keeps the upstream sample's single-letter dimension names"
+)]
 fn run() -> Result<()> {
     let example = common::ExampleContext::create()?;
 
     let output_type = if args().any(|argument| argument == "--fp16-output") {
         DataType::F16
     } else {
-        DataType::BF16
+        DataType::Bf16
     };
     let implementation = if args().any(|argument| argument == "--composite") {
         AttentionImplementation::Composite
@@ -110,7 +114,7 @@ fn run() -> Result<()> {
             } else {
                 (None, None)
             };
-            graph.sdpa_fp8_into(
+            graph.sdpa_into(
                 inputs,
                 SdpaForwardOutputTensors {
                     stats: Some(stats),
@@ -131,9 +135,9 @@ fn run() -> Result<()> {
                 score_sum_exp,
             )
         } else {
-            let outputs = graph.sdpa_fp8(
+            let outputs = graph.sdpa(
                 inputs,
-                &config,
+                config.clone(),
                 SdpaForwardOutputTensors::new(
                     TensorOutputConfig::new()
                         .with_data_type(output_type)
@@ -233,14 +237,14 @@ fn run() -> Result<()> {
 
     // SAFETY: initialized inputs, encoded output allocations, host scales and workspace remain live through completion.
     example.execute_and_wait(|context| unsafe {
-        compiled.execute(
+        compiled.execute_async(
             context,
-            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
         )
     })?;
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_fp8_sdpa_current_scaling", run())
 }

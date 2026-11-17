@@ -46,8 +46,8 @@ pub fn cudnn_backend_tensor_binding(
 
     let required = native.storage_byte_len(None)?;
     if required > region.byte_len() {
-        return Err(CudnnError::BackendTensorBindingCapacityMismatch {
-            tensor_id: id,
+        return Err(CudnnError::BufferTooSmall {
+            name: format!("native tensor {id} binding").into(),
             required,
             actual: region.byte_len(),
         }
@@ -59,9 +59,9 @@ pub fn cudnn_backend_tensor_binding(
             name: "native tensor binding alignment".into(),
         })?;
     if alignment > 1 && !region.as_ptr().addr().is_multiple_of(alignment) {
-        return Err(CudnnError::BackendTensorBindingAlignmentMismatch {
-            tensor_id: id,
-            required: alignment,
+        return Err(CudaError::Misaligned {
+            name: format!("native tensor {id} binding").into(),
+            alignment,
         }
         .into());
     }

@@ -25,9 +25,8 @@ where
     /// NPP may reject other normalizations.
     /// IDs can have gaps and have no defined ordering.
     /// Source and destination dimensions must match.
-    /// The destination must use a linear CUDA allocation with a byte stride of source width times `size_of::<u32>()`; the wrapper does not enforce this native allocation or stride requirement.
+    /// The destination must have a byte stride of source width times `size_of::<u32>()`, as in a linear CUDA allocation; other strides return an error.
     /// Owns temporary device scratch through native completion.
-    /// NPP receives a mutable source pointer; source storage must be exclusively available during native use.
     /// Row padding remains unwritten.
     /// Prepares image regions and waits for producers on other streams.
     /// Rejects stream capture and returns after successful stream completion.
@@ -65,9 +64,8 @@ where
     /// IDs can have gaps and have no defined ordering.
     /// Uses the smallest width and height across the batch as a common top-left ROI.
     /// Destination pixels outside that ROI remain unwritten.
-    /// Destinations must use linear CUDA allocations with a byte stride of the common ROI width times `size_of::<u32>()`; the wrapper does not enforce this native requirement.
+    /// Destinations must have a byte stride of the common ROI width times `size_of::<u32>()`, as in linear CUDA allocations; other strides return an error.
     /// Uploads temporary device descriptors and retains them through native completion.
-    /// NPP receives a mutable source pointer; source storage must be exclusively available during native use.
     /// Row padding remains unwritten.
     /// Prepares image regions and waits for producers on other streams.
     /// Rejects stream capture and returns after successful stream completion.
@@ -102,9 +100,8 @@ where
     /// NPP may reject other normalizations.
     /// IDs can have gaps and have no defined ordering.
     /// Each source/destination pair uses its own size; the largest destination width and height determine the native launch bounds.
-    /// Destinations must use linear CUDA allocations with a byte stride of their own width times `size_of::<u32>()`; the wrapper does not enforce this native requirement.
+    /// Destinations must have a byte stride of their own width times `size_of::<u32>()`, as in linear CUDA allocations; other strides return an error.
     /// Uploads temporary device descriptors and retains them through native completion.
-    /// NPP receives a mutable source pointer; source storage must be exclusively available during native use.
     /// Row padding remains unwritten.
     /// Prepares image regions and waits for producers on other streams.
     /// Rejects stream capture and returns after successful stream completion.
@@ -140,7 +137,6 @@ where
     /// IDs can have gaps and have no defined ordering.
     /// Allocates a new source-sized, contiguous `u32` image and temporary device scratch.
     /// Returns the unchanged native label grid as `MarkerLabels` for later compression.
-    /// NPP receives a mutable source pointer; source storage must be exclusively available during native use.
     /// Row padding remains unwritten.
     /// Prepares image regions and waits for producers on other streams.
     /// Rejects stream capture and returns after successful stream completion.

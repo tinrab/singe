@@ -6,50 +6,60 @@
 [![Documentation](https://docs.rs/singe-nvjpeg/badge.svg)](https://docs.rs/singe-nvjpeg)
 ![License](https://img.shields.io/crates/l/singe-nvjpeg.svg)
 
-Safe Rust wrappers for the NVIDIA nvJPEG and nvJPEG 2000 libraries.
+Safe Rust wrappers for nvJPEG, which decodes and encodes JPEG images on the GPU, and for nvJPEG 2000 behind the `k2` feature.
+The crate works on bytes in memory; read and write files with `std::fs`.
 
 This crate provides:
 
-- Single-image and batched JPEG decoding.
-- JPEG encoding with configurable quality and input layouts.
-- Device output, planar/interleaved pixel views, and decode options.
-- JPEG 2000 encoding and decoding through the optional `k2` feature.
+- **Decoding:** `Decoder` for one image at a time, with output formats such as interleaved or planar RGB, planar YUV, and luma only, and options for a region, scaling, and EXIF orientation.
+- **Batched decoding:** `BatchedDecoder` decodes several JPEGs in one call.
+- **Encoding:** `Encoder` writes device images as JPEG, with a quality setting, chroma subsampling, and interleaved or planar input.
+- **Buffers and allocators:** reusable pinned and device buffers, and custom allocators.
+- **JPEG 2000:** decoding and encoding through nvJPEG 2000, in the `k2` module.
 
 ## Example
 
-Decode a JPEG into interleaved RGB device memory:
+Decode a JPEG file into interleaved RGB pixels in device memory and copy them to the host:
 
-```rust
-use singe_cuda::context::Context;
+```rust,no_run
+use singe_cuda::{context::Context as CudaContext, stream::StreamOptions};
 use singe_nvjpeg::{
-	decode::{DecodeOptions, Decoder},
-	types::OutputFormat,
+    context::{Context, ContextOptions},
+    decode::{DecodeOptions, Decoder},
+    types::OutputFormat,
 };
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-	let context = Context::create()?;
-	let stream = context.create_stream()?;
-	let mut decoder = Decoder::builder()
-		.options(DecodeOptions::new().with_output_format(OutputFormat::RgbInterleaved))
-		.create(&context)?;
-	let decoded = decoder.decode_file_to_device("input.jpg", &stream)?;
-	let pixels = decoded.single_plane()?.data().copy_to_host_vec()?;
-	println!("decoded {} RGB bytes", pixels.len());
-	Ok(())
+fn main() -> anyhow::Result<()> {
+    let cuda_context = CudaContext::create()?;
+    let stream = cuda_context.create_stream(StreamOptions::default())?;
+    let context = Context::create(&cuda_context, &ContextOptions::default())?;
+
+    let options = DecodeOptions::new().with_output_format(OutputFormat::RgbInterleaved);
+    let mut decoder = Decoder::create(&context, options)?;
+    let data = std::fs::read("input.jpg")?;
+    let decoded = decoder.decode_to_device(&data, &stream)?;
+
+    let plane = decoded.single_plane()?;
+    let size = plane.spec().size();
+    let pixels = plane.data().copy_to_host_vec()?;
+    println!("decoded {}x{} into {} RGB bytes", size.width(), size.height(), pixels.len());
+    Ok(())
 }
 ```
 
-The decoder keeps its library handle and CUDA context alive, and returns once the pixels are written.
-Padding bytes at the end of each row are not written.
+`decode_to_device` allocates the output planes, decodes into them, and waits for the GPU before returning.
+The `unsafe` `*_async` functions enqueue the same work without waiting, for stream capture and for callers that manage their own buffers.
 
-Enable the `k2` feature for the JPEG 2000 API, which loads nvJPEG 2000 at run time.
+## Features
+
+- `k2`: adds the `k2` module for JPEG 2000, which loads nvJPEG 2000 at run time.
 
 ## More examples
 
-- [JPEG decode](examples/decode.rs): decode a file and write a PPM image.
-- [Batch decode](examples/batch_decode.rs): decode several JPEGs together.
-- [JPEG encode](examples/encode.rs): encode pixel data.
-- [JPEG 2000 decode](examples/jpeg2k_decode.rs): decode with `--features k2`.
-- [JPEG 2000 encode](examples/jpeg2k_encode.rs): encode with `--features k2`.
+The examples write their output to the system temporary directory.
 
-See the [API reference](https://docs.rs/singe-nvjpeg).
+- [JPEG decode](./examples/decode.rs): decode a JPEG file and write a PPM image.
+- [Batch decode](./examples/batch_decode.rs): decode several JPEG files in one batch and write PPM images.
+- [JPEG encode](./examples/encode.rs): encode a generated RGB gradient as JPEG.
+- [JPEG 2000 decode](./examples/jpeg2k_decode.rs): decode a JPEG 2000 file and write a PGM image, with `--features k2`.
+- [JPEG 2000 encode](./examples/jpeg2k_encode.rs): losslessly encode a generated RGB gradient as a JP2 file, with `--features k2`.

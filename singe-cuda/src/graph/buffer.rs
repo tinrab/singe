@@ -99,7 +99,7 @@ where
     /// Returns an error for unequal element counts or byte-size overflow.
     /// Also propagates context-binding, stream-capture, CUDA copy, and stream synchronization errors.
     pub unsafe fn copy_to_host_unchecked(&self, host_slice: &mut [T]) -> Result<()> {
-        // SAFETY: the caller upholds this function's safety contract.
+        // SAFETY: the caller guarantees every element is initialized, valid for `T`, and written before this copy, which is all the owned memory's copy requires.
         unsafe { self.memory.copy_to_host_unchecked(host_slice) }
     }
 
@@ -136,7 +136,7 @@ where
     /// Propagates byte-size, context-binding, stream-capture, CUDA copy, and stream synchronization errors.
     /// No initialized vector is returned unless the transfer completes.
     pub unsafe fn copy_to_host_vec_unchecked(&self) -> Result<Vec<T>> {
-        // SAFETY: the caller upholds this function's safety contract.
+        // SAFETY: the caller guarantees every element is initialized, valid for `T`, and written before this readback.
         unsafe { self.memory.copy_to_host_vec_unchecked() }
     }
 
@@ -188,24 +188,26 @@ impl<T: DeviceRepr> GraphBuffer<MaybeUninit<T>> {
     /// Marks all values initialized after their producing work completes.
     ///
     /// # Safety
+    ///
     /// Every element must be valid, and producing work must complete or be ordered before every consumer.
     /// Recording a graph does not establish initialization; only its successful execution can do so.
     #[must_use]
     pub unsafe fn assume_init(self) -> GraphBuffer<T> {
-        // SAFETY: the caller upholds this function's safety contract.
+        // SAFETY: the caller guarantees every element is valid and its producing work is ordered before every consumer.
         GraphBuffer::from_memory(unsafe { self.memory.assume_init() })
     }
 
     /// Exposes only a produced prefix while retaining the full graph allocation.
     ///
     /// # Safety
+    ///
     /// Every prefix element must be valid, with producer completion and ordering satisfying `assume_init`.
     ///
     /// # Errors
     ///
     /// Returns an error if `length` exceeds the currently exposed element count.
     pub unsafe fn assume_init_prefix(self, length: usize) -> Result<GraphBuffer<T>> {
-        // SAFETY: the caller upholds this function's safety contract.
+        // SAFETY: the caller guarantees the first `length` elements are valid and ordered as `assume_init` requires; the length itself is checked by the callee.
         unsafe { self.memory.assume_init_prefix(length) }.map(GraphBuffer::from_memory)
     }
 }

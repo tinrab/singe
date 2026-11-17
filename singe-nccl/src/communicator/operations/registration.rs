@@ -27,7 +27,7 @@ impl Communicator {
 
         let mut handle = ptr::null_mut();
         let size = buffer_byte_len::<T>(buffer.len(), "registered buffer size")?;
-        // SAFETY: `ncclCommRegister` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
+        // SAFETY: `self` owns the live, active communicator with its context bound, `buffer` is a borrowed range of `size` bytes in that context, and `handle` is a local output slot.
         unsafe {
             try_ffi!(sys::ncclCommRegister(
                 self.as_raw(),
@@ -69,7 +69,7 @@ impl Communicator {
 
         let mut handle = ptr::null_mut();
         let size = buffer_byte_len::<T>(buffer.len(), "window size")?;
-        // SAFETY: `ncclCommWindowRegister` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
+        // SAFETY: `self` owns the live, active communicator with its context bound, `buffer` is an exclusively borrowed range of `size` bytes in that context, and `handle` is a local output slot.
         unsafe {
             try_ffi!(sys::ncclCommWindowRegister(
                 self.as_raw(),

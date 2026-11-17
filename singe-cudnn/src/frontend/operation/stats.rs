@@ -1,11 +1,8 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    backend::{
-        execution::normalization::{
-            GenStatsMode, GenStatsOperation as BackendGenStatsOperation, GenStatsOutputs,
-        },
-        tensor::TensorId,
+    backend::operation::normalization::{
+        GenStatsMode, GenStatsOperation as BackendGenStatsOperation, GenStatsOutputs,
     },
     data_type::DataType,
     error::Result,
@@ -13,6 +10,7 @@ use crate::{
         graph::{Graph, infer_normalization_channel_dimensions},
         lower::{LoweredOperation, LoweringContext, tensor_at},
     },
+    tensor::TensorId,
 };
 
 /// Frontend generate-stats operation.

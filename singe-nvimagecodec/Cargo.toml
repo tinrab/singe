@@ -1,16 +1,19 @@
 [package]
 name = "singe-nvimagecodec"
-description = "Safe Rust wrappers for the NVIDIA nvImageCodec library."
-version = "0.1.0-alpha.1"
+description = "Safe Rust wrappers for NVIDIA nvImageCodec, for decoding and encoding images on the GPU."
+version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 repository.workspace = true
+documentation = "https://docs.rs/singe-nvimagecodec"
 license-file.workspace = true
 readme = "README.md"
 keywords = ["cuda", "nvidia", "nvimagecodec", "image", "codec"]
+categories = ["api-bindings", "hardware-support", "multimedia::images"]
 include.workspace = true
 
 [package.metadata.docs.rs]
-rustdoc-args = ["--html-in-header", "dist/katex_header.html"]
+rustdoc-args = ["--cfg", "docsrs", "--html-in-header", "dist/katex_header.html"]
 
 [features]
 default = ["nvimagecodec_0_9"]

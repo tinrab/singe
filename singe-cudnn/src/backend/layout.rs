@@ -1,3 +1,5 @@
+//! Native layout types and engine layout requirements.
+
 use singe_cudnn_sys as sys;
 
 use crate::metadata::backend_metadata_enum;

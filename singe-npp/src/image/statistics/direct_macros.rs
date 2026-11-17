@@ -334,7 +334,8 @@ macro_rules! impl_statistic_masked {
         /// Allocates temporary GPU scratch storage and returns after successful stream completion.
         /// This scratch-owning form rejects stream capture.
         /// The mask must have the same ROI size as the source image.
-        /// `channel` is zero-based and must be less than 3. `output` must contain exactly 1 element.
+        /// `channel` is zero-based and must be less than 3.
+        /// `output` must contain exactly 1 element.
         ///
         /// # Errors
         ///
@@ -784,7 +785,8 @@ macro_rules! impl_typed_pair_indexed_statistic {
         ///
         /// Allocates temporary GPU scratch storage and returns after successful stream completion.
         /// This scratch-owning form rejects stream capture.
-        /// `channel` is zero-based and must be less than 3. `minimum` must contain exactly 1 element.
+        /// `channel` is zero-based and must be less than 3.
+        /// `minimum` must contain exactly 1 element.
         /// `maximum` must contain exactly 1 element.
         /// `minimum_index` must contain exactly 1 element.
         /// `maximum_index` must contain exactly 1 element.
@@ -987,7 +989,8 @@ macro_rules! impl_typed_pair_indexed_statistic_masked {
         /// Allocates temporary GPU scratch storage and returns after successful stream completion.
         /// This scratch-owning form rejects stream capture.
         /// The mask must have the same ROI size as the source image.
-        /// `channel` is zero-based and must be less than 3. `minimum` must contain exactly 1 element.
+        /// `channel` is zero-based and must be less than 3.
+        /// `minimum` must contain exactly 1 element.
         /// `maximum` must contain exactly 1 element.
         /// `minimum_index` must contain exactly 1 element.
         /// `maximum_index` must contain exactly 1 element.
@@ -1261,7 +1264,8 @@ macro_rules! impl_norm_statistic_masked {
         /// Allocates temporary GPU scratch storage and returns after successful stream completion.
         /// This scratch-owning form rejects stream capture.
         /// The mask must have the same ROI size as the source image.
-        /// `channel` is zero-based and must be less than 3. `output` must contain exactly 1 element.
+        /// `channel` is zero-based and must be less than 3.
+        /// `output` must contain exactly 1 element.
         ///
         /// # Errors
         ///
@@ -1620,7 +1624,8 @@ macro_rules! impl_error_metric_masked {
         /// Allocates temporary GPU scratch storage and returns after successful stream completion.
         /// This scratch-owning form rejects stream capture.
         /// The mask must have the same ROI size as the source image.
-        /// `channel` is zero-based and must be less than 3. `output` must contain exactly 1 element.
+        /// `channel` is zero-based and must be less than 3.
+        /// `output` must contain exactly 1 element.
         ///
         /// # Errors
         ///
@@ -1800,7 +1805,8 @@ macro_rules! impl_mean_stddev {
         ///
         /// Allocates temporary GPU scratch storage and returns after successful stream completion.
         /// This scratch-owning form rejects stream capture.
-        /// `channel` is zero-based and must be less than 3. `mean` must contain exactly 1 element.
+        /// `channel` is zero-based and must be less than 3.
+        /// `mean` must contain exactly 1 element.
         /// `standard_deviation` must contain exactly 1 element.
         ///
         /// # Errors
@@ -1981,7 +1987,8 @@ macro_rules! impl_mean_stddev_masked {
         /// Allocates temporary GPU scratch storage and returns after successful stream completion.
         /// This scratch-owning form rejects stream capture.
         /// The mask must have the same ROI size as the source image.
-        /// `channel` is zero-based and must be less than 3. `mean` must contain exactly 1 element.
+        /// `channel` is zero-based and must be less than 3.
+        /// `mean` must contain exactly 1 element.
         /// `standard_deviation` must contain exactly 1 element.
         ///
         /// # Errors

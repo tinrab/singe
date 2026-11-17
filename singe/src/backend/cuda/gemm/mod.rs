@@ -5,13 +5,17 @@
 mod scaled;
 
 use singe_cublas::{
-    blas::level3,
+    blas::extension,
     context::Context as CublasContext,
+    scalar::Scalar,
     types::{ComputeType, GemmAlgorithm, Operation as CublasOperation},
 };
-use singe_cuda::{data_type::DataType as CublasDataType, view::DeviceRepr};
+use singe_cuda::{
+    data_type::DataTypeLike,
+    types::{bf16, f16},
+};
 
-pub use self::scaled::{ScaledMatmulPointers, enqueue_scaled_matmul};
+pub use self::scaled::{ScaledMatmulOperands, enqueue_scaled_matmul};
 use crate::{
     backend::{
         cuda::{
@@ -143,23 +147,16 @@ impl GemmLayout {
     ) -> Result<()> {
         let data_type = lhs.data_type();
         match data_type {
-            DataType::F32 => {
-                self.launch_typed::<f32>(cublas, CublasDataType::F32, lhs, rhs, output)
-            }
-            DataType::F16 => {
-                self.launch_typed::<u16>(cublas, CublasDataType::F16, lhs, rhs, output)
-            }
-            DataType::Bf16 => {
-                self.launch_typed::<u16>(cublas, CublasDataType::Bf16, lhs, rhs, output)
-            }
+            DataType::F32 => self.launch_typed::<f32>(cublas, lhs, rhs, output),
+            DataType::F16 => self.launch_typed::<f16>(cublas, lhs, rhs, output),
+            DataType::Bf16 => self.launch_typed::<bf16>(cublas, lhs, rhs, output),
             _ => Err(Error::unsupported_data_type("cuda gemm")),
         }
     }
 
-    fn launch_typed<T: DeviceRepr>(
+    fn launch_typed<T: DataTypeLike>(
         &self,
         cublas: &CublasContext,
-        cublas_type: CublasDataType,
         lhs: &(impl CudaTensorSource + ?Sized),
         rhs: &(impl CudaTensorSource + ?Sized),
         output: CudaTensorRegion<'_>,
@@ -179,27 +176,24 @@ impl GemmLayout {
             .checked_mul(self.columns)
             .and_then(|stride| i64::try_from(stride).ok())
             .ok_or_else(|| Error::out_of_range("cuda gemm output batch stride"))?;
-        // SAFETY: the views hold initialized values of `cublas_type`, `F32` compute reads `f32` scalars, and the caller orders the storage on the cuBLAS stream.
+        // SAFETY: the views hold the tensors' storage, which lives until the work on the cuBLAS stream completes, as eager execution scopes and compiled graphs ensure.
         unsafe {
-            level3::gemm_strided_batched_ex_views(
+            extension::gemm_strided_batched_ex_async(
                 cublas,
                 self.rhs.operation,
                 self.lhs.operation,
                 self.columns,
                 self.rows,
                 self.inner,
-                &1.0_f32,
+                Scalar::host(&1.0_f32),
                 &rhs_view,
-                cublas_type,
                 self.rhs.leading_dimension,
                 self.rhs.batch_stride,
                 &lhs_view,
-                cublas_type,
                 self.lhs.leading_dimension,
                 self.lhs.batch_stride,
-                &0.0_f32,
+                Scalar::host(&0.0_f32),
                 &mut output_view,
-                cublas_type,
                 self.columns,
                 output_stride,
                 self.batch_count,

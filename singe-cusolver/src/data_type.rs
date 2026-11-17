@@ -1,27 +1,54 @@
+//! Supported matrix elements and their real, complex, and eigenvalue result types.
+
 use singe_cuda::{
     data_type::DataTypeLike,
     types::{Complex32, Complex64},
 };
 
-/// A supported solver matrix element with its corresponding real and complex result types.
+/// A supported solver matrix element: `f32`, `f64`, `Complex32`, or `Complex64`.
 ///
-/// Implementations cover f32, f64, Complex32, and Complex64.
+/// The sealed trait carries the element's real and complex result types and dispatches every typed operation to its native per-precision entry point.
 /// Associated types prevent unsupported precision combinations in matrix, vector, and scalar results.
-pub trait SolverElement: DataTypeLike + private::Sealed {
-    /// Real result precision corresponding to this matrix element type.
-    type Real: SolverReal;
+pub trait SolverElement: private::Sealed {}
 
-    /// Complex result precision corresponding to this matrix element type.
-    type Complex: DataTypeLike;
-}
+pub(crate) mod private {
+    use singe_cuda::data_type::DataTypeLike;
 
-mod private {
-    pub trait Sealed {}
+    use crate::{
+        data_type::SolverReal, dense::scalar::DenseDispatch, eigen::scalar::EigenDispatch,
+        svd::scalar::SvdDispatch,
+    };
 
+    #[expect(
+        unnameable_types,
+        reason = "sealed supertrait of SolverElement; users cannot name or implement it"
+    )]
+    pub trait Element: DataTypeLike {
+        /// Real result precision corresponding to this matrix element type.
+        type Real: SolverReal;
+
+        /// Complex result precision corresponding to this matrix element type.
+        type Complex: DataTypeLike;
+    }
+
+    #[expect(
+        unnameable_types,
+        reason = "sealed supertrait of SolverElement; users cannot name or implement it"
+    )]
+    pub trait Sealed: Element + DenseDispatch + EigenDispatch + SvdDispatch {}
+
+    #[expect(
+        unnameable_types,
+        reason = "sealed supertrait of SolverReal; users cannot name or implement it"
+    )]
     pub trait Real {
         fn zero_ref() -> &'static Self;
     }
 
+    #[expect(
+        unnameable_types,
+        reason = "sealed supertrait of EigenvalueElement; users cannot name or implement it"
+    )]
     pub trait Eigenvalue<T> {}
 }
 
@@ -75,11 +102,12 @@ eigenvalue!(Complex64, Complex64, 1);
 
 macro_rules! solver_element {
     ($matrix:ty, $real:ty, $complex:ty) => {
-        impl private::Sealed for $matrix {}
-        impl SolverElement for $matrix {
+        impl private::Element for $matrix {
             type Real = $real;
             type Complex = $complex;
         }
+        impl private::Sealed for $matrix {}
+        impl SolverElement for $matrix {}
     };
 }
 

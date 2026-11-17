@@ -27,7 +27,7 @@ fn guard_predicate(input: Input<'_>) -> PResult<'_, PredicateGuard> {
     ))
 }
 
-pub fn instruction(input: Input<'_>, depth: usize) -> PResult<'_, Instruction> {
+pub(crate) fn instruction(input: Input<'_>, depth: usize) -> PResult<'_, Instruction> {
     let start = input.location_offset();
     let (input, guard) = opt(lexeme(guard_predicate)).parse(input)?;
     let (input, ()) = ws(input)?;

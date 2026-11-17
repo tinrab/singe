@@ -1,55 +1,22 @@
 //! Neighborhood aggregation on CSC-format graphs.
 
-use std::{marker::PhantomData, mem::MaybeUninit, ptr};
-
-use num_enum::{IntoPrimitive, TryFromPrimitive};
-use singe_core::{impl_enum_conversion, impl_enum_display};
-use singe_cuda::{
-    error::Error as CudaError,
-    memory::DeviceMemory,
-    stream::{Stream, StreamBinding},
-    view::{
-        AnyBitPatternDeviceRepr, DeviceInput, DeviceInputView, DeviceOutput, DeviceOutputView,
-        DeviceRegionProvider, DeviceRepr, DeviceView,
-    },
-};
-use singe_cudnn_sys as sys;
-
-use crate::{
-    data_type::{DataTypeLike, bf16, f16},
-    error::{Error, Result},
-    try_ffi,
-    utility::{to_i32, to_i64},
-};
-
-/// Neighborhood aggregation operation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum AggregationOp {
-    /// Sums features from source neighbors.
-    Sum = sys::cudnnGnnAggOp_t::CUDNN_GNN_AGG_SUM as _,
-    /// Averages features from source neighbors.
-    Mean = sys::cudnnGnnAggOp_t::CUDNN_GNN_AGG_MEAN as _,
-    /// Selects the maximum feature and records its source-neighbor position.
-    Max = sys::cudnnGnnAggOp_t::CUDNN_GNN_AGG_MAX as _,
-    /// Selects the minimum feature and records its source-neighbor position.
-    Min = sys::cudnnGnnAggOp_t::CUDNN_GNN_AGG_MIN as _,
-}
-
-impl_enum_conversion!(sys::cudnnGnnAggOp_t, AggregationOp);
-
-impl_enum_display!(AggregationOp, {Self::Sum=>"CUDNN_GNN_AGG_SUM",Self::Mean=>"CUDNN_GNN_AGG_MEAN",Self::Max=>"CUDNN_GNN_AGG_MAX",Self::Min=>"CUDNN_GNN_AGG_MIN"});
-
 mod sealed {
     use crate::data_type::{bf16, f16};
 
+    #[expect(
+        unnameable_types,
+        reason = "seals `GraphIndex`, so callers cannot name or implement it"
+    )]
     pub trait Index {}
 
     impl Index for i32 {}
 
     impl Index for i64 {}
 
+    #[expect(
+        unnameable_types,
+        reason = "seals `FeatureScalar`, so callers cannot name or implement it"
+    )]
     pub trait Feature {}
 
     impl Feature for f32 {}
@@ -59,15 +26,56 @@ mod sealed {
     impl Feature for bf16 {}
 }
 
+use std::{marker::PhantomData, mem::MaybeUninit, ptr};
+
+use num_enum::{IntoPrimitive, TryFromPrimitive};
+use singe_core::impl_enum_display;
+use singe_cuda::{
+    error::Error as CudaError,
+    memory::DeviceMemory,
+    stream::Stream,
+    view::{
+        AnyBitPatternDeviceRepr, DeviceInputView, DeviceOutput, DeviceOutputView, DeviceRange,
+        DeviceRegionProvider, DeviceRepr, DeviceView,
+    },
+};
+use singe_cudnn_sys as sys;
+
+use crate::{
+    data_type::{TensorElement, bf16, f16},
+    error::{Error, Result},
+    try_ffi,
+    utility::{to_i32, to_i64},
+};
+
+singe_core::native_enum! {
+    /// Neighborhood aggregation operation.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum AggregationOp: sys::cudnnGnnAggOp_t {
+        /// Sums features from source neighbors.
+        Sum = CUDNN_GNN_AGG_SUM,
+        /// Averages features from source neighbors.
+        Mean = CUDNN_GNN_AGG_MEAN,
+        /// Selects the maximum feature and records its source-neighbor position.
+        Max = CUDNN_GNN_AGG_MAX,
+        /// Selects the minimum feature and records its source-neighbor position.
+        Min = CUDNN_GNN_AGG_MIN,
+    }
+}
+
+impl_enum_display!(AggregationOp, {Self::Sum=>"CUDNN_GNN_AGG_SUM",Self::Mean=>"CUDNN_GNN_AGG_MEAN",Self::Max=>"CUDNN_GNN_AGG_MAX",Self::Min=>"CUDNN_GNN_AGG_MIN"});
+
 /// Supported CSC graph indices: signed 32-bit or 64-bit integers.
-pub trait GraphIndex: DataTypeLike + Into<i64> + AnyBitPatternDeviceRepr + sealed::Index {}
+pub trait GraphIndex: TensorElement + Into<i64> + AnyBitPatternDeviceRepr + sealed::Index {}
 
 impl GraphIndex for i32 {}
 
 impl GraphIndex for i64 {}
 
 /// Supported aggregation feature elements: float, half and bfloat16.
-pub trait FeatureScalar: DataTypeLike + sealed::Feature {}
+pub trait FeatureScalar: TensorElement + sealed::Feature {}
 
 impl FeatureScalar for f32 {}
 
@@ -141,8 +149,8 @@ impl<I: GraphIndex> CscGraph<I> {
         })
     }
 
-    fn raw(&self) -> sys::cudnnGnnCscGraph_t {
-        sys::cudnnGnnCscGraph_t {
+    fn raw(&self) -> Result<sys::cudnnGnnCscGraph_t> {
+        Ok(sys::cudnnGnnCscGraph_t {
             cscOffsets: self.offsets.as_ptr().cast(),
             cscIndices: self.indices.as_ptr().cast(),
             mapCscToCoo: self
@@ -153,14 +161,11 @@ impl<I: GraphIndex> CscGraph<I> {
                 .reverse_to_coo
                 .as_ref()
                 .map_or(ptr::null(), |v| v.as_ptr().cast()),
-            nSrcNodes: i64::try_from(self.source_nodes)
-                .expect("graph dimensions fit the native i64 interface"),
-            nDstNodes: i64::try_from(self.destination_nodes)
-                .expect("graph dimensions fit the native i64 interface"),
-            nIndices: i64::try_from(self.indices.len())
-                .expect("graph dimensions fit the native i64 interface"),
+            nSrcNodes: to_i64(self.source_nodes, "source nodes")?,
+            nDstNodes: to_i64(self.destination_nodes, "destination nodes")?,
+            nIndices: to_i64(self.indices.len(), "edge count")?,
             idxType: I::data_type().into(),
-        }
+        })
     }
 
     /// Performs neighborhood aggregation on a CSC-format graph using NVRTC-compiled kernels (JIT-compiled on first call per (dataType, idxType), cached thereafter).
@@ -174,7 +179,7 @@ impl<I: GraphIndex> CscGraph<I> {
     ///
     /// # Errors
     ///
-    /// Returns an error for invalid feature widths, missing node and edge features, insufficient buffer capacity, overflowing sizes or native-width conversions, mismatched CUDA contexts, allocation or stream-dependency failure, native aggregation failure, or completion synchronization failure.
+    /// Returns an error if a feature width is invalid, node and edge features are missing, a buffer is too small, a size or native-width conversion overflows, the CUDA contexts differ, allocation or stream ordering fails, the native aggregation fails, or waiting for completion fails.
     pub fn forward<T: FeatureScalar>(
         &self,
         op: AggregationOp,
@@ -199,11 +204,10 @@ impl<I: GraphIndex> CscGraph<I> {
         } else {
             None
         };
-        // Scratch owners are declared outside the scope so every queued failure
-        // and unwind completes before their storage or caller borrows are released.
-        StreamBinding::Borrowed(self.stream.to_borrowed()).sync_scope(|| {
-            // SAFETY: initialized feature views and exclusive destinations stay
-            // borrowed until completion; graph indices were checked on upload.
+        // Scratch owners are declared outside the scope so every queued failure and unwind completes before their storage or caller borrows are released.
+        self.stream.complete(|| {
+            // SAFETY: the feature views are initialized, `output` and `positions` are exclusive, and `sync_scope` waits before these borrows end.
+            // The graph's indices were checked on upload.
             unsafe {
                 self.forward_async(
                     op,
@@ -227,6 +231,7 @@ impl<I: GraphIndex> CscGraph<I> {
     /// Enqueues aggregation with caller-owned output and optional max/min positions.
     ///
     /// # Safety
+    ///
     /// Retain the graph, feature ranges, output and positions through completion, submission failure and replay.
     /// Writes must stay exclusive.
     /// Order input producers before this call; every input must be valid when read.
@@ -235,7 +240,7 @@ impl<I: GraphIndex> CscGraph<I> {
     ///
     /// # Errors
     ///
-    /// Returns an error for missing node and edge features, zero or unrepresentable feature widths, overflowing sizes, insufficient buffer capacity, a positions buffer supplied for the wrong operation, mismatched CUDA contexts, context binding or stream-dependency failure, or native aggregation failure.
+    /// Returns an error if node and edge features are missing, a feature width is zero or unrepresentable, a size overflows, a buffer is too small, a positions buffer is supplied for the wrong operation, the CUDA contexts differ, binding the context or ordering the streams fails, or the native aggregation fails.
     pub unsafe fn forward_async<T: FeatureScalar>(
         &self,
         op: AggregationOp,
@@ -301,8 +306,9 @@ impl<I: GraphIndex> CscGraph<I> {
         }
 
         self.stream.join_regions(&regions)?;
-        let raw = self.raw();
-        // SAFETY: `cudnnGnnAggSimpleForward` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
+        let raw = self.raw()?;
+        // SAFETY: `raw` points into the graph's live index buffers, `require` checked every feature, output and position buffer against its rows and width, and all of them share the stream's context.
+        // The caller keeps them alive and ordered through completion, per this function's contract.
         unsafe {
             try_ffi!(sys::cudnnGnnAggSimpleForward(
                 self.stream.as_raw().cast(),
@@ -328,6 +334,7 @@ impl<I: GraphIndex> CscGraph<I> {
     /// `dimensions` contains the node, edge and concat feature widths, in that order.
     ///
     /// # Safety
+    ///
     /// Retain the graph, positions, gradient and destinations through completion, failure and replay.
     /// Positions and dimensions must match the forward call; max/min require its valid position prefix.
     /// Order all reads and keep writes exclusive.
@@ -335,13 +342,13 @@ impl<I: GraphIndex> CscGraph<I> {
     ///
     /// # Errors
     ///
-    /// Returns an error for invalid or unrepresentable feature widths, missing or unexpected gradient destinations or position storage, overflowing sizes, insufficient buffer capacity, mismatched CUDA contexts, context binding or stream-dependency failure, or native gradient aggregation failure.
+    /// Returns an error if a feature width is invalid or unrepresentable, a gradient destination or position storage is missing or unexpected, a size overflows, a buffer is too small, the CUDA contexts differ, binding the context or ordering the streams fails, or the native gradient aggregation fails.
     pub unsafe fn backward_async<T: FeatureScalar>(
         &self,
         op: AggregationOp,
         dimensions: [usize; 3],
         positions: Option<DeviceInputView<'_, I>>,
-        gradient: &(impl DeviceInput<T> + ?Sized),
+        gradient: &(impl DeviceRange<T> + ?Sized),
         mut node: Option<DeviceOutputView<'_, T>>,
         mut edge: Option<DeviceOutputView<'_, T>>,
         mut concat: Option<DeviceOutputView<'_, T>>,
@@ -398,8 +405,9 @@ impl<I: GraphIndex> CscGraph<I> {
 
         self.stream.join_regions(&regions)?;
         self.stream.context().bind()?;
-        let raw = self.raw();
-        // SAFETY: `cudnnGnnAggSimpleBackward` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
+        let raw = self.raw()?;
+        // SAFETY: `raw` points into the graph's live index buffers, `require` checked the gradient, positions and destinations against their rows and widths, and all of them share the stream's context.
+        // The caller keeps them alive, ordered and initialized through completion, per this function's contract.
         unsafe {
             try_ffi!(sys::cudnnGnnAggSimpleBackward(
                 self.stream.as_raw().cast(),
@@ -461,9 +469,10 @@ impl<I: GraphIndex, T: FeatureScalar> Aggregation<'_, I, T> {
     /// For each destination node, reads the upstream gradient and scatters contributions back to source neighbors via atomic-add (non-deterministic across runs; order of atomics is not guaranteed).
     ///
     /// Requires SM 8.0 (Ampere) or later.
-    /// Returns `CUDNN_STATUS_NOT_SUPPORTED_ARCH_MISMATCH` on older devices.
+    /// Older devices fail with [`Status::NotSupportedArchitectureMismatch`](crate::error::Status::NotSupportedArchitectureMismatch).
     ///
     /// # Safety
+    ///
     /// Keep the aggregation state, gradient and destination ranges alive through completion, submission failure and replay.
     /// All gradient destinations must be initialized before this call, usually to zero.
     /// This SDK accumulates into concat gradients as well as node and edge gradients.
@@ -471,16 +480,15 @@ impl<I: GraphIndex, T: FeatureScalar> Aggregation<'_, I, T> {
     ///
     /// # Errors
     ///
-    /// Returns an error for invalid or unrepresentable feature widths, missing or unexpected gradient destinations or position storage, overflowing sizes, insufficient buffer capacity, mismatched CUDA contexts, context binding or stream-dependency failure, or native gradient aggregation failure.
+    /// Returns an error if a feature width is invalid or unrepresentable, a gradient destination or position storage is missing or unexpected, a size overflows, a buffer is too small, the CUDA contexts differ, binding the context or ordering the streams fails, or the native gradient aggregation fails.
     pub unsafe fn backward_async(
         &self,
-        gradient: &(impl DeviceInput<T> + ?Sized),
+        gradient: &(impl DeviceRange<T> + ?Sized),
         node: Option<DeviceOutputView<'_, T>>,
         edge: Option<DeviceOutputView<'_, T>>,
         concat: Option<DeviceOutputView<'_, T>>,
     ) -> Result<()> {
-        // SAFETY: the stored graph, operation, widths and positions came from a
-        // completed forward. The caller supplies the queued range/access contract.
+        // SAFETY: the graph, operation, widths and positions are the ones the completed forward used, and this function's caller retains and orders the gradient and destinations as `CscGraph::backward_async` requires.
         unsafe {
             self.graph.backward_async(
                 self.op,
@@ -500,15 +508,15 @@ fn count(rows: usize, width: usize) -> Result<usize> {
 }
 
 fn require<T: DeviceRepr>(
-    buffer: &(impl DeviceInput<T> + ?Sized),
+    buffer: &(impl DeviceRange<T> + ?Sized),
     rows: usize,
     width: usize,
 ) -> Result<()> {
     let expected = count(rows, width)?;
     if buffer.len() < expected {
-        return Err(Error::LengthMismatch {
+        return Err(Error::BufferTooSmall {
             name: "features".into(),
-            expected,
+            required: expected,
             actual: buffer.len(),
         });
     }

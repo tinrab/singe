@@ -1,29 +1,28 @@
 use singe_cublas::{
-    blas::level3::dsyrk,
+    blas::level3::syrk,
     context::Context,
-    error::Result,
+    scalar::Scalar,
     types::{FillMode, Operation},
 };
-
 use singe_cuda::{context::Context as CudaContext, device::Device, memory::DeviceMemory};
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     let cuda = CudaContext::create_for_device(Device::new(0))?;
     let cublas = Context::create(&cuda)?;
 
     let a = DeviceMemory::from_slice(&cuda, &[1.0_f64, 3.0, 3.0, 4.0])?;
     let mut c = DeviceMemory::<f64>::zeroed(&cuda, 4)?;
 
-    dsyrk(
+    syrk(
         &cublas,
         FillMode::Upper,
         Operation::Transpose,
         2,
         2,
-        &1.0,
+        Scalar::host(&1.0),
         &a,
         2,
-        &0.0,
+        Scalar::host(&0.0),
         &mut c,
         2,
     )?;

@@ -240,10 +240,14 @@ impl CudaGraphValue {
     ///
     /// # Errors
     ///
-    /// Returns an allocation-in-use error if another value, storage alias, or retained submission resource prevents unique ownership.
+    /// Returns `CudaError::OwnershipShared` if another value, storage alias, or retained submission resource prevents unique ownership.
     pub unsafe fn assume_init(self) -> Result<Tensor> {
-        let inner = Arc::try_unwrap(self.inner).map_err(|_| CudaError::AllocationInUse)?;
-        let owner = Arc::try_unwrap(inner.owner).map_err(|_| CudaError::AllocationInUse)?;
+        let inner = Arc::try_unwrap(self.inner).map_err(|_| CudaError::OwnershipShared {
+            name: "graph value".into(),
+        })?;
+        let owner = Arc::try_unwrap(inner.owner).map_err(|_| CudaError::OwnershipShared {
+            name: "graph value owner".into(),
+        })?;
         let tensor = match owner {
             CudaGraphValueOwner::Allocation(storage) => {
                 // SAFETY: the caller establishes completed, valid initialization.

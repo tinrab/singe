@@ -1,15 +1,14 @@
 //! Fill a pinned vector, copy it through the device, and reuse the pool's memory.
 
-use std::error::Error;
-
 use singe_cuda::{
     context::Context,
     memory::{DeviceMemory, PinnedVec},
+    stream::StreamOptions,
 };
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() -> anyhow::Result<()> {
     let context = Context::create()?;
-    let stream = context.create_stream()?;
+    let stream = context.create_stream(StreamOptions::default())?;
     let pinned = context.pinned_host();
 
     // A pinned vector grows like any `Vec`, from blocks the context's pool hands out.
@@ -17,7 +16,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     input.extend((0..4096_u16).map(f32::from));
 
     let mut device = DeviceMemory::<f32>::zeroed(&context, input.len())?;
-    stream.sync_scope(|scope| device.copy_from_pinned_async(&input, scope))?;
+    stream.sync_scope(|scope| device.copy_from_pinned_scoped(&input, scope))?;
 
     // The constructors return CUDA's error where a growing `Vec` would abort.
     let mut output = pinned.zeroed::<f32>(input.len())?;

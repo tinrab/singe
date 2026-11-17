@@ -103,155 +103,188 @@ singe_loader::functions! { crate::LIBRARY;
     pub fn cudnnGetCudartVersion() -> size_t;
 }
 impl cudnnStatus_t {
+    /// The operation was completed successfully.
+    pub const CUDNN_STATUS_SUCCESS: cudnnStatus_t = cudnnStatus_t(0);
+    /// The cuDNN library was not initialized properly. This error is usually returned when a call to [`cudnnCreate`] fails or when [`cudnnCreate`] has not been called prior to calling another cuDNN routine. In the former case, it is usually due to an error in the CUDA Runtime API called by [`cudnnCreate`] or by an error in the hardware setup.
+    pub const CUDNN_STATUS_NOT_INITIALIZED: cudnnStatus_t = cudnnStatus_t(1001);
+    /// Some cuDNN sub libraries have different versions, indicative of an installation issue.
+    pub const CUDNN_STATUS_SUBLIBRARY_VERSION_MISMATCH: cudnnStatus_t = cudnnStatus_t(
+        1002,
+    );
+    /// The schema used for serialization is not what the current cuDNN library expects, thus the serialized artifact is no longer valid and needs to be re-serialized.
+    pub const CUDNN_STATUS_SERIALIZATION_VERSION_MISMATCH: cudnnStatus_t = cudnnStatus_t(
+        1003,
+    );
+    /// This error code may be reported in the warning logging level as a reminder that some functionality is under deprecation and will be removed in the next major version update.
+    pub const CUDNN_STATUS_DEPRECATED: cudnnStatus_t = cudnnStatus_t(1004);
+    /// The functionality requested requires some license and an error was detected when trying to check the current licensing. This error can happen if the license is not present or is expired or if the environment variable `NVIDIA_LICENSE_FILE` is not set properly.
+    pub const CUDNN_STATUS_LICENSE_ERROR: cudnnStatus_t = cudnnStatus_t(1005);
+    /// Some tasks in the user stream are not completed.
+    pub const CUDNN_STATUS_RUNTIME_IN_PROGRESS: cudnnStatus_t = cudnnStatus_t(1006);
+    /// Numerical overflow occurred during the GPU kernel execution.
+    pub const CUDNN_STATUS_RUNTIME_FP_OVERFLOW: cudnnStatus_t = cudnnStatus_t(1007);
+    /// Sub-library loading failed.
+    ///
+    /// since: cuDNN 9.2.0
+    pub const CUDNN_STATUS_SUBLIBRARY_LOADING_FAILED: cudnnStatus_t = cudnnStatus_t(
+        1008,
+    );
+    /// This is an error category code. An incorrect value or parameter was passed to the function.
+    pub const CUDNN_STATUS_BAD_PARAM: cudnnStatus_t = cudnnStatus_t(2000);
+    /// The cuDNN API has unexpectedly received a null pointer from the user.
+    pub const CUDNN_STATUS_BAD_PARAM_NULL_POINTER: cudnnStatus_t = cudnnStatus_t(2002);
+    /// The cuDNN API has received a misaligned pointer from the user.
+    pub const CUDNN_STATUS_BAD_PARAM_MISALIGNED_POINTER: cudnnStatus_t = cudnnStatus_t(
+        2003,
+    );
+    /// The backend descriptor has not been finalized.
+    pub const CUDNN_STATUS_BAD_PARAM_NOT_FINALIZED: cudnnStatus_t = cudnnStatus_t(2004);
+    /// The cuDNN API has received an out-of-bound value.
+    pub const CUDNN_STATUS_BAD_PARAM_OUT_OF_BOUND: cudnnStatus_t = cudnnStatus_t(2005);
+    /// The cuDNN API has received a memory buffer with insufficient space.
+    pub const CUDNN_STATUS_BAD_PARAM_SIZE_INSUFFICIENT: cudnnStatus_t = cudnnStatus_t(
+        2006,
+    );
+    /// The cuDNN API has received an unexpected stream.
+    pub const CUDNN_STATUS_BAD_PARAM_STREAM_MISMATCH: cudnnStatus_t = cudnnStatus_t(
+        2007,
+    );
+    /// The cuDNN API has received inconsistent tensor shapes.
+    pub const CUDNN_STATUS_BAD_PARAM_SHAPE_MISMATCH: cudnnStatus_t = cudnnStatus_t(2008);
+    /// The cuDNN API has received duplicated entries.
+    pub const CUDNN_STATUS_BAD_PARAM_DUPLICATED_ENTRIES: cudnnStatus_t = cudnnStatus_t(
+        2009,
+    );
+    /// The cuDNN API has received an invalid or unsupported attribute type.
+    pub const CUDNN_STATUS_BAD_PARAM_ATTRIBUTE_TYPE: cudnnStatus_t = cudnnStatus_t(2010);
+    /// The cuDNN API has received an unexpected CUDA graph.
+    pub const CUDNN_STATUS_BAD_PARAM_CUDA_GRAPH_MISMATCH: cudnnStatus_t = cudnnStatus_t(
+        2011,
+    );
+    /// Wrong descriptor type.
+    ///
+    /// since: cuDNN 9.6.0
+    pub const CUDNN_STATUS_BAD_PARAM_DESCRIPTOR_TYPE: cudnnStatus_t = cudnnStatus_t(
+        2012,
+    );
+    /// This is an error category code. The functionality requested is not currently supported by cuDNN.
+    pub const CUDNN_STATUS_NOT_SUPPORTED: cudnnStatus_t = cudnnStatus_t(3000);
+    /// cuDNN does not currently support such an operation graph pattern.
+    pub const CUDNN_STATUS_NOT_SUPPORTED_GRAPH_PATTERN: cudnnStatus_t = cudnnStatus_t(
+        3001,
+    );
+    /// cuDNN does not currently support the tensor shapes used in some specific operation or graph pattern.
+    pub const CUDNN_STATUS_NOT_SUPPORTED_SHAPE: cudnnStatus_t = cudnnStatus_t(3002);
+    /// cuDNN does not currently support the tensor data type.
+    pub const CUDNN_STATUS_NOT_SUPPORTED_DATA_TYPE: cudnnStatus_t = cudnnStatus_t(3003);
+    /// cuDNN does not currently support the tensor layout.
+    pub const CUDNN_STATUS_NOT_SUPPORTED_LAYOUT: cudnnStatus_t = cudnnStatus_t(3004);
+    /// The requested functionality is not compatible with the current CUDA driver.
+    pub const CUDNN_STATUS_NOT_SUPPORTED_INCOMPATIBLE_CUDA_DRIVER: cudnnStatus_t = cudnnStatus_t(
+        3005,
+    );
+    /// The requested functionality is not compatible with the current CUDA runtime.
+    pub const CUDNN_STATUS_NOT_SUPPORTED_INCOMPATIBLE_CUDART: cudnnStatus_t = cudnnStatus_t(
+        3006,
+    );
+    /// The function requires a feature absent from the current GPU device.
+    pub const CUDNN_STATUS_NOT_SUPPORTED_ARCH_MISMATCH: cudnnStatus_t = cudnnStatus_t(
+        3007,
+    );
+    /// A runtime library required by cuDNN cannot be found in the predefined search paths. These libraries are `libcuda.so` (`nvcuda.dll`) and `libnvrtc.so` (`nvrtc64_&lt;Major Release Version>&lt;Minor Release Version>_0.dll` and `nvrtc-builtins64_&lt;Major Release Version>&lt;Minor Release Version>.dll`).
+    pub const CUDNN_STATUS_NOT_SUPPORTED_RUNTIME_PREREQUISITE_MISSING: cudnnStatus_t = cudnnStatus_t(
+        3008,
+    );
+    /// The requested functionality is not available due to missing a sublibrary.
+    pub const CUDNN_STATUS_NOT_SUPPORTED_SUBLIBRARY_UNAVAILABLE: cudnnStatus_t = cudnnStatus_t(
+        3009,
+    );
+    /// The requested functionality is not available due to the insufficient shared memory size on the GPU.
+    pub const CUDNN_STATUS_NOT_SUPPORTED_SHARED_MEMORY_INSUFFICIENT: cudnnStatus_t = cudnnStatus_t(
+        3010,
+    );
+    /// The requested functionality is not available due to padding requirements.
+    pub const CUDNN_STATUS_NOT_SUPPORTED_PADDING: cudnnStatus_t = cudnnStatus_t(3011);
+    /// The requested functionality is not available because they lead to invalid kernel launch parameters.
+    pub const CUDNN_STATUS_NOT_SUPPORTED_BAD_LAUNCH_PARAM: cudnnStatus_t = cudnnStatus_t(
+        3012,
+    );
+    /// The requested functionality is not available because this particular engine does not support the native CUDA graph API. (The engines that do support that API have the behavior note [`cudnnBackendBehaviorNote_t::CUDNN_BEHAVIOR_NOTE_SUPPORTS_CUDA_GRAPH_NATIVE_API`].)
+    pub const CUDNN_STATUS_NOT_SUPPORTED_CUDA_GRAPH_NATIVE_API: cudnnStatus_t = cudnnStatus_t(
+        3013,
+    );
+    /// Invalid dynamic shape.
+    ///
+    /// since: cuDNN 9.18.0
+    pub const CUDNN_STATUS_NOT_SUPPORTED_INVALID_DYNAMIC_SHAPE: cudnnStatus_t = cudnnStatus_t(
+        3014,
+    );
+    /// This is an error category code. An internal cuDNN operation failed.
+    pub const CUDNN_STATUS_INTERNAL_ERROR: cudnnStatus_t = cudnnStatus_t(4000);
+    /// A runtime kernel has failed to be compiled.
+    pub const CUDNN_STATUS_INTERNAL_ERROR_COMPILATION_FAILED: cudnnStatus_t = cudnnStatus_t(
+        4001,
+    );
+    /// An unexpected internal inconsistency has been detected.
+    pub const CUDNN_STATUS_INTERNAL_ERROR_UNEXPECTED_VALUE: cudnnStatus_t = cudnnStatus_t(
+        4002,
+    );
+    /// An internal host memory allocation failed inside the cuDNN library.
+    pub const CUDNN_STATUS_INTERNAL_ERROR_HOST_ALLOCATION_FAILED: cudnnStatus_t = cudnnStatus_t(
+        4003,
+    );
+    /// Resource allocation failed inside the cuDNN library.
+    pub const CUDNN_STATUS_INTERNAL_ERROR_DEVICE_ALLOCATION_FAILED: cudnnStatus_t = cudnnStatus_t(
+        4004,
+    );
+    /// Invalid kernel launch parameters are unexpectedly detected.
+    pub const CUDNN_STATUS_INTERNAL_ERROR_BAD_LAUNCH_PARAM: cudnnStatus_t = cudnnStatus_t(
+        4005,
+    );
+    /// Access to GPU memory space failed, which is usually caused by a failure to bind a texture. To correct, prior to the function call, unbind any previously bound textures. Otherwise, this may indicate an internal error/bug in the library.
+    pub const CUDNN_STATUS_INTERNAL_ERROR_TEXTURE_CREATION_FAILED: cudnnStatus_t = cudnnStatus_t(
+        4006,
+    );
+    /// This is an error category code. The GPU program failed to execute. This is usually caused by a failure to launch a kernel on the GPU, which can be caused by another library that cuDNN depends on.
+    pub const CUDNN_STATUS_EXECUTION_FAILED: cudnnStatus_t = cudnnStatus_t(5000);
+    /// The GPU program failed to execute due to an error reported by the CUDA driver.
+    pub const CUDNN_STATUS_EXECUTION_FAILED_CUDA_DRIVER: cudnnStatus_t = cudnnStatus_t(
+        5001,
+    );
+    /// The GPU program failed to execute due to an error reported by cuBLAS.
+    pub const CUDNN_STATUS_EXECUTION_FAILED_CUBLAS: cudnnStatus_t = cudnnStatus_t(5002);
+    /// The GPU program failed to execute due to an error reported by the CUDA runtime.
+    pub const CUDNN_STATUS_EXECUTION_FAILED_CUDART: cudnnStatus_t = cudnnStatus_t(5003);
+    /// The GPU program failed to execute due to an error reported by cuRAND.
+    pub const CUDNN_STATUS_EXECUTION_FAILED_CURAND: cudnnStatus_t = cudnnStatus_t(5004);
     /// Deprecated: Use CUDNN_STATUS_INTERNAL_ERROR_HOST_ALLOCATION_FAILED.
     ///
     /// since: cuDNN 9.0.0
-    pub const CUDNN_STATUS_ALLOC_FAILED: cudnnStatus_t = cudnnStatus_t::CUDNN_STATUS_INTERNAL_ERROR_HOST_ALLOCATION_FAILED;
-}
-impl cudnnStatus_t {
+    pub const CUDNN_STATUS_ALLOC_FAILED: cudnnStatus_t = cudnnStatus_t(4003);
+    /// please transition to CUDNN_STATUS_BAD_PARAM instead
+    pub const CUDNN_STATUS_INVALID_VALUE: cudnnStatus_t = cudnnStatus_t(2001);
     /// Deprecated: Use CUDNN_STATUS_NOT_SUPPORTED_ARCH_MISMATCH.
     ///
     /// since: cuDNN 9.0.0
-    pub const CUDNN_STATUS_ARCH_MISMATCH: cudnnStatus_t = cudnnStatus_t::CUDNN_STATUS_NOT_SUPPORTED_ARCH_MISMATCH;
-}
-impl cudnnStatus_t {
+    pub const CUDNN_STATUS_ARCH_MISMATCH: cudnnStatus_t = cudnnStatus_t(3007);
     /// Deprecated: Use CUDNN_STATUS_INTERNAL_ERROR_TEXTURE_CREATION_FAILED.
     ///
     /// since: cuDNN 9.0.0
-    pub const CUDNN_STATUS_MAPPING_ERROR: cudnnStatus_t = cudnnStatus_t::CUDNN_STATUS_INTERNAL_ERROR_TEXTURE_CREATION_FAILED;
-}
-impl cudnnStatus_t {
-    /// Alias for [`cudnnStatus_t::CUDNN_STATUS_NOT_SUPPORTED_RUNTIME_PREREQUISITE_MISSING`].
-    pub const CUDNN_STATUS_RUNTIME_PREREQUISITE_MISSING: cudnnStatus_t = cudnnStatus_t::CUDNN_STATUS_NOT_SUPPORTED_RUNTIME_PREREQUISITE_MISSING;
-}
-impl cudnnStatus_t {
+    pub const CUDNN_STATUS_MAPPING_ERROR: cudnnStatus_t = cudnnStatus_t(4006);
+    pub const CUDNN_STATUS_RUNTIME_PREREQUISITE_MISSING: cudnnStatus_t = cudnnStatus_t(
+        3008,
+    );
     /// Deprecated: Use CUDNN_STATUS_SUBLIBRARY_VERSION_MISMATCH.
     ///
     /// since: cuDNN 9.0.0
-    pub const CUDNN_STATUS_VERSION_MISMATCH: cudnnStatus_t = cudnnStatus_t::CUDNN_STATUS_SUBLIBRARY_VERSION_MISMATCH;
+    pub const CUDNN_STATUS_VERSION_MISMATCH: cudnnStatus_t = cudnnStatus_t(1002);
 }
 /// [`cudnnStatus_t`] is an enumerated type used for function status returns. All cuDNN library functions return their status, which can be one of the following values:
 ///
 /// Additionally, the following macros can be used on [`cudnnStatus_t`] error codes.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudnnStatus_t {
-    /// The operation was completed successfully.
-    CUDNN_STATUS_SUCCESS = 0,
-    /// The cuDNN library was not initialized properly. This error is usually returned when a call to [`cudnnCreate`] fails or when [`cudnnCreate`] has not been called prior to calling another cuDNN routine. In the former case, it is usually due to an error in the CUDA Runtime API called by [`cudnnCreate`] or by an error in the hardware setup.
-    CUDNN_STATUS_NOT_INITIALIZED = 1001,
-    /// Some cuDNN sub libraries have different versions, indicative of an installation issue.
-    CUDNN_STATUS_SUBLIBRARY_VERSION_MISMATCH = 1002,
-    /// The schema used for serialization is not what the current cuDNN library expects, thus the serialized artifact is no longer valid and needs to be re-serialized.
-    CUDNN_STATUS_SERIALIZATION_VERSION_MISMATCH = 1003,
-    /// This error code may be reported in the warning logging level as a reminder that some functionality is under deprecation and will be removed in the next major version update.
-    CUDNN_STATUS_DEPRECATED = 1004,
-    /// The functionality requested requires some license and an error was detected when trying to check the current licensing. This error can happen if the license is not present or is expired or if the environment variable `NVIDIA_LICENSE_FILE` is not set properly.
-    CUDNN_STATUS_LICENSE_ERROR = 1005,
-    /// Some tasks in the user stream are not completed.
-    CUDNN_STATUS_RUNTIME_IN_PROGRESS = 1006,
-    /// Numerical overflow occurred during the GPU kernel execution.
-    CUDNN_STATUS_RUNTIME_FP_OVERFLOW = 1007,
-    /// Sub-library loading failed.
-    ///
-    /// since: cuDNN 9.2.0
-    CUDNN_STATUS_SUBLIBRARY_LOADING_FAILED = 1008,
-    /// This is an error category code. An incorrect value or parameter was passed to the function.
-    CUDNN_STATUS_BAD_PARAM = 2000,
-    /// The cuDNN API has unexpectedly received a null pointer from the user.
-    CUDNN_STATUS_BAD_PARAM_NULL_POINTER = 2002,
-    /// The cuDNN API has received a misaligned pointer from the user.
-    CUDNN_STATUS_BAD_PARAM_MISALIGNED_POINTER = 2003,
-    /// The backend descriptor has not been finalized.
-    CUDNN_STATUS_BAD_PARAM_NOT_FINALIZED = 2004,
-    /// The cuDNN API has received an out-of-bound value.
-    CUDNN_STATUS_BAD_PARAM_OUT_OF_BOUND = 2005,
-    /// The cuDNN API has received a memory buffer with insufficient space.
-    CUDNN_STATUS_BAD_PARAM_SIZE_INSUFFICIENT = 2006,
-    /// The cuDNN API has received an unexpected stream.
-    CUDNN_STATUS_BAD_PARAM_STREAM_MISMATCH = 2007,
-    /// The cuDNN API has received inconsistent tensor shapes.
-    CUDNN_STATUS_BAD_PARAM_SHAPE_MISMATCH = 2008,
-    /// The cuDNN API has received duplicated entries.
-    CUDNN_STATUS_BAD_PARAM_DUPLICATED_ENTRIES = 2009,
-    /// The cuDNN API has received an invalid or unsupported attribute type.
-    CUDNN_STATUS_BAD_PARAM_ATTRIBUTE_TYPE = 2010,
-    /// The cuDNN API has received an unexpected CUDA graph.
-    CUDNN_STATUS_BAD_PARAM_CUDA_GRAPH_MISMATCH = 2011,
-    /// Wrong descriptor type.
-    ///
-    /// since: cuDNN 9.6.0
-    CUDNN_STATUS_BAD_PARAM_DESCRIPTOR_TYPE = 2012,
-    /// This is an error category code. The functionality requested is not currently supported by cuDNN.
-    CUDNN_STATUS_NOT_SUPPORTED = 3000,
-    /// cuDNN does not currently support such an operation graph pattern.
-    CUDNN_STATUS_NOT_SUPPORTED_GRAPH_PATTERN = 3001,
-    /// cuDNN does not currently support the tensor shapes used in some specific operation or graph pattern.
-    CUDNN_STATUS_NOT_SUPPORTED_SHAPE = 3002,
-    /// cuDNN does not currently support the tensor data type.
-    CUDNN_STATUS_NOT_SUPPORTED_DATA_TYPE = 3003,
-    /// cuDNN does not currently support the tensor layout.
-    CUDNN_STATUS_NOT_SUPPORTED_LAYOUT = 3004,
-    /// The requested functionality is not compatible with the current CUDA driver.
-    CUDNN_STATUS_NOT_SUPPORTED_INCOMPATIBLE_CUDA_DRIVER = 3005,
-    /// The requested functionality is not compatible with the current CUDA runtime.
-    CUDNN_STATUS_NOT_SUPPORTED_INCOMPATIBLE_CUDART = 3006,
-    /// The function requires a feature absent from the current GPU device.
-    CUDNN_STATUS_NOT_SUPPORTED_ARCH_MISMATCH = 3007,
-    /// A runtime library required by cuDNN cannot be found in the predefined search paths. These libraries are `libcuda.so` (`nvcuda.dll`) and `libnvrtc.so` (`nvrtc64_&lt;Major Release Version>&lt;Minor Release Version>_0.dll` and `nvrtc-builtins64_&lt;Major Release Version>&lt;Minor Release Version>.dll`).
-    CUDNN_STATUS_NOT_SUPPORTED_RUNTIME_PREREQUISITE_MISSING = 3008,
-    /// The requested functionality is not available due to missing a sublibrary.
-    CUDNN_STATUS_NOT_SUPPORTED_SUBLIBRARY_UNAVAILABLE = 3009,
-    /// The requested functionality is not available due to the insufficient shared memory size on the GPU.
-    CUDNN_STATUS_NOT_SUPPORTED_SHARED_MEMORY_INSUFFICIENT = 3010,
-    /// The requested functionality is not available due to padding requirements.
-    CUDNN_STATUS_NOT_SUPPORTED_PADDING = 3011,
-    /// The requested functionality is not available because they lead to invalid kernel launch parameters.
-    CUDNN_STATUS_NOT_SUPPORTED_BAD_LAUNCH_PARAM = 3012,
-    /// The requested functionality is not available because this particular engine does not support the native CUDA graph API. (The engines that do support that API have the behavior note [`cudnnBackendBehaviorNote_t::CUDNN_BEHAVIOR_NOTE_SUPPORTS_CUDA_GRAPH_NATIVE_API`].)
-    CUDNN_STATUS_NOT_SUPPORTED_CUDA_GRAPH_NATIVE_API = 3013,
-    /// Invalid dynamic shape.
-    ///
-    /// since: cuDNN 9.18.0
-    CUDNN_STATUS_NOT_SUPPORTED_INVALID_DYNAMIC_SHAPE = 3014,
-    /// This is an error category code. An internal cuDNN operation failed.
-    CUDNN_STATUS_INTERNAL_ERROR = 4000,
-    /// A runtime kernel has failed to be compiled.
-    CUDNN_STATUS_INTERNAL_ERROR_COMPILATION_FAILED = 4001,
-    /// An unexpected internal inconsistency has been detected.
-    CUDNN_STATUS_INTERNAL_ERROR_UNEXPECTED_VALUE = 4002,
-    /// An internal host memory allocation failed inside the cuDNN library.
-    CUDNN_STATUS_INTERNAL_ERROR_HOST_ALLOCATION_FAILED = 4003,
-    /// Resource allocation failed inside the cuDNN library.
-    CUDNN_STATUS_INTERNAL_ERROR_DEVICE_ALLOCATION_FAILED = 4004,
-    /// Invalid kernel launch parameters are unexpectedly detected.
-    CUDNN_STATUS_INTERNAL_ERROR_BAD_LAUNCH_PARAM = 4005,
-    /// Access to GPU memory space failed, which is usually caused by a failure to bind a texture. To correct, prior to the function call, unbind any previously bound textures. Otherwise, this may indicate an internal error/bug in the library.
-    CUDNN_STATUS_INTERNAL_ERROR_TEXTURE_CREATION_FAILED = 4006,
-    /// This is an error category code. The GPU program failed to execute. This is usually caused by a failure to launch a kernel on the GPU, which can be caused by another library that cuDNN depends on.
-    CUDNN_STATUS_EXECUTION_FAILED = 5000,
-    /// The GPU program failed to execute due to an error reported by the CUDA driver.
-    CUDNN_STATUS_EXECUTION_FAILED_CUDA_DRIVER = 5001,
-    /// The GPU program failed to execute due to an error reported by cuBLAS.
-    CUDNN_STATUS_EXECUTION_FAILED_CUBLAS = 5002,
-    /// The GPU program failed to execute due to an error reported by the CUDA runtime.
-    CUDNN_STATUS_EXECUTION_FAILED_CUDART = 5003,
-    /// The GPU program failed to execute due to an error reported by cuRAND.
-    CUDNN_STATUS_EXECUTION_FAILED_CURAND = 5004,
-    /// please transition to CUDNN_STATUS_BAD_PARAM instead
-    CUDNN_STATUS_INVALID_VALUE = 2001,
-}
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudnnStatus_t(pub ::core::ffi::c_uint);
 singe_loader::functions! { crate::LIBRARY;
     /// This function converts the cuDNN status code to a `NULL` terminated (ASCIIZ) static string. For example, when the input argument is [`cudnnStatus_t::CUDNN_STATUS_SUCCESS`], the returned string is [`cudnnStatus_t::CUDNN_STATUS_SUCCESS`]. When an invalid status value is passed to the function, the returned string is `CUDNN_UNKNOWN_STATUS`.
     ///
@@ -277,28 +310,18 @@ singe_loader::functions! { crate::LIBRARY;
 pub struct cudnnRuntimeTag_t {
     _unused: [u8; 0],
 }
-/// [`cudnnErrQueryMode_t`] is an enumerated type passed to [`cudnnQueryRuntimeError`] to select the remote kernel error query mode.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudnnErrQueryMode_t {
+impl cudnnErrQueryMode_t {
     /// Read the error storage location regardless of the kernel completion status.
-    CUDNN_ERRQUERY_RAWCODE = 0,
+    pub const CUDNN_ERRQUERY_RAWCODE: cudnnErrQueryMode_t = cudnnErrQueryMode_t(0);
     /// Report if all tasks in the user stream of the cuDNN handle were completed. If that is the case, report the remote kernel error code.
-    CUDNN_ERRQUERY_NONBLOCKING = 1,
+    pub const CUDNN_ERRQUERY_NONBLOCKING: cudnnErrQueryMode_t = cudnnErrQueryMode_t(1);
     /// Wait for all tasks to complete in the user stream before reporting the remote kernel error code.
-    CUDNN_ERRQUERY_BLOCKING = 2,
+    pub const CUDNN_ERRQUERY_BLOCKING: cudnnErrQueryMode_t = cudnnErrQueryMode_t(2);
 }
+/// [`cudnnErrQueryMode_t`] is an enumerated type passed to [`cudnnQueryRuntimeError`] to select the remote kernel error query mode.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudnnErrQueryMode_t(pub ::core::ffi::c_uint);
 singe_loader::functions! { crate::LIBRARY;
     /// cuDNN library functions perform extensive input argument checking before launching GPU kernels. The last step is to verify that the GPU kernel actually started. When a kernel fails to start, [`cudnnStatus_t::CUDNN_STATUS_EXECUTION_FAILED`] is returned by the corresponding API call. Typically, after a GPU kernel starts, no runtime checks are performed by the kernel itself - numerical results are simply written to output buffers.
     ///
@@ -430,303 +453,235 @@ singe_loader::functions! { crate::LIBRARY;
         streamId: *mut cudaStream_t,
     ) -> cudnnStatus_t;
 }
-/// [`cudnnDataType_t`] is an enumerated type indicating the data type to which a tensor descriptor or filter descriptor refers.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudnnDataType_t {
+impl cudnnDataType_t {
     /// The data is a 32-bit single-precision floating-point (`float`).
-    CUDNN_DATA_FLOAT = 0,
+    pub const CUDNN_DATA_FLOAT: cudnnDataType_t = cudnnDataType_t(0);
     /// The data is a 64-bit double-precision floating-point (`double`).
-    CUDNN_DATA_DOUBLE = 1,
+    pub const CUDNN_DATA_DOUBLE: cudnnDataType_t = cudnnDataType_t(1);
     /// The data is a 16-bit floating-point.
-    CUDNN_DATA_HALF = 2,
+    pub const CUDNN_DATA_HALF: cudnnDataType_t = cudnnDataType_t(2);
     /// The data is an 8-bit signed integer.
-    CUDNN_DATA_INT8 = 3,
+    pub const CUDNN_DATA_INT8: cudnnDataType_t = cudnnDataType_t(3);
     /// The data is a 32-bit signed integer.
-    CUDNN_DATA_INT32 = 4,
+    pub const CUDNN_DATA_INT32: cudnnDataType_t = cudnnDataType_t(4);
     /// The data is 32-bit elements each composed of 4 8-bit signed integers. This data type is only supported with the tensor format [`cudnnTensorFormat_t::CUDNN_TENSOR_NCHW_VECT_C`].
-    CUDNN_DATA_INT8x4 = 5,
+    pub const CUDNN_DATA_INT8x4: cudnnDataType_t = cudnnDataType_t(5);
     /// The data is an 8-bit unsigned integer.
-    CUDNN_DATA_UINT8 = 6,
+    pub const CUDNN_DATA_UINT8: cudnnDataType_t = cudnnDataType_t(6);
     /// The data is 32-bit elements each composed of 4 8-bit unsigned integers. This data type is only supported with the tensor format [`cudnnTensorFormat_t::CUDNN_TENSOR_NCHW_VECT_C`].
-    CUDNN_DATA_UINT8x4 = 7,
+    pub const CUDNN_DATA_UINT8x4: cudnnDataType_t = cudnnDataType_t(7);
     /// The data is 32-element vectors, each element being an 8-bit signed integer. This data type is only supported with the tensor format [`cudnnTensorFormat_t::CUDNN_TENSOR_NCHW_VECT_C`]. Moreover, this data type can only be used with `algo 1`, meaning, [`cudnnConvolutionFwdAlgo_t::CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_PRECOMP_GEMM`]. For more information, refer to [`cudnnConvolutionFwdAlgo_t`].
-    CUDNN_DATA_INT8x32 = 8,
+    pub const CUDNN_DATA_INT8x32: cudnnDataType_t = cudnnDataType_t(8);
     /// The data is a 16-bit quantity, with 7 mantissa bits, 8 exponent bits, and 1 sign bit.
-    CUDNN_DATA_BFLOAT16 = 9,
+    pub const CUDNN_DATA_BFLOAT16: cudnnDataType_t = cudnnDataType_t(9);
     /// The data is a 64-bit signed integer.
-    CUDNN_DATA_INT64 = 10,
+    pub const CUDNN_DATA_INT64: cudnnDataType_t = cudnnDataType_t(10);
     /// The data is a boolean (`bool`).
     ///
     /// Note that for type [`cudnnBackendAttributeType_t::CUDNN_TYPE_BOOLEAN`], elements are expected to be “packed”: that is, one byte contains 8 elements of type [`cudnnBackendAttributeType_t::CUDNN_TYPE_BOOLEAN`]. Further, within each byte, elements are indexed from the least significant bit to the most significant bit. For example, a 1 dimensional tensor of 8 elements containing 01001111 has value 1 for elements 0 through 3, 0 for elements 4 and 5, 1 for element 6 and 0 for element 7.
     ///
     /// Tensors with more than 8 elements simply use more bytes, where the order is also from least significant to most significant byte. Note, CUDA is little-endian, meaning that the least significant byte has the lower memory address address. For example, in the case of 16 elements, 01001111 11111100 has value 1 for elements 0 through 3, 0 for elements 4 and 5, 1 for element 6 and 0 for element 7, value 0 for elements 8 and 9, 1 for elements 10 through 15.
-    CUDNN_DATA_BOOLEAN = 11,
+    pub const CUDNN_DATA_BOOLEAN: cudnnDataType_t = cudnnDataType_t(11);
     /// The data is an 8-bit quantity, with 3 mantissa bits, 4 exponent bits, and 1 sign bit.
-    CUDNN_DATA_FP8_E4M3 = 12,
+    pub const CUDNN_DATA_FP8_E4M3: cudnnDataType_t = cudnnDataType_t(12);
     /// The data is an 8-bit quantity, with 2 mantissa bits, 5 exponent bits, and 1 sign bit.
-    CUDNN_DATA_FP8_E5M2 = 13,
+    pub const CUDNN_DATA_FP8_E5M2: cudnnDataType_t = cudnnDataType_t(13);
     /// The data type is a higher throughput but lower precision compute type (compared to [`cudnnDataType_t::CUDNN_DATA_FLOAT`]) used for FP8 tensor core operations.
-    CUDNN_DATA_FAST_FLOAT_FOR_FP8 = 14,
+    pub const CUDNN_DATA_FAST_FLOAT_FOR_FP8: cudnnDataType_t = cudnnDataType_t(14);
     /// Pure-exponent scale format (8-bit exponent, 0-bit mantissa) for block scaling.
     ///
     /// since: cuDNN 9.7.0
-    CUDNN_DATA_FP8_E8M0 = 15,
+    pub const CUDNN_DATA_FP8_E8M0: cudnnDataType_t = cudnnDataType_t(15);
     /// FP4 with 2-bit exponent, 1-bit mantissa.
     ///
     /// since: cuDNN 9.7.0
-    CUDNN_DATA_FP4_E2M1 = 16,
+    pub const CUDNN_DATA_FP4_E2M1: cudnnDataType_t = cudnnDataType_t(16);
     /// 4-bit signed integer.
     ///
     /// since: cuDNN 9.11.0
-    CUDNN_DATA_INT4 = 17,
+    pub const CUDNN_DATA_INT4: cudnnDataType_t = cudnnDataType_t(17);
     /// 4-bit unsigned integer.
     ///
     /// since: cuDNN 9.11.0
-    CUDNN_DATA_UINT4 = 18,
+    pub const CUDNN_DATA_UINT4: cudnnDataType_t = cudnnDataType_t(18);
     /// 32-bit unsigned integer.
     ///
     /// since: cuDNN 9.11.0
-    CUDNN_DATA_UINT32 = 19,
+    pub const CUDNN_DATA_UINT32: cudnnDataType_t = cudnnDataType_t(19);
     /// Complex 32-bit floating point.
     ///
     /// since: cuDNN 9.14.0
-    CUDNN_DATA_COMPLEX_FP32 = 20,
+    pub const CUDNN_DATA_COMPLEX_FP32: cudnnDataType_t = cudnnDataType_t(20);
     /// Complex 64-bit floating point.
     ///
     /// since: cuDNN 9.14.0
-    CUDNN_DATA_COMPLEX_FP64 = 21,
+    pub const CUDNN_DATA_COMPLEX_FP64: cudnnDataType_t = cudnnDataType_t(21);
     /// Byte-addressed boolean type.
     ///
     /// since: cuDNN 9.25.0
-    CUDNN_DATA_BYTE_BOOLEAN = 22,
+    pub const CUDNN_DATA_BYTE_BOOLEAN: cudnnDataType_t = cudnnDataType_t(22);
     /// Unsigned FP8 with 5-bit exponent, 3-bit mantissa, for block scaling.
     ///
     /// since: cuDNN 9.26.0
-    CUDNN_DATA_FP8_E5M3 = 23,
+    pub const CUDNN_DATA_FP8_E5M3: cudnnDataType_t = cudnnDataType_t(23);
 }
-/// [`cudnnMathType_t`] is an enumerated type used to indicate if the use of Tensor Core operations is permitted in a given library routine.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudnnMathType_t {
+/// [`cudnnDataType_t`] is an enumerated type indicating the data type to which a tensor descriptor or filter descriptor refers.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudnnDataType_t(pub ::core::ffi::c_uint);
+impl cudnnMathType_t {
     /// Tensor Core operations are not used on pre-NVIDIA A100 GPU devices. On A100 GPU architecture devices, Tensor Core TF32 operation is permitted.
-    CUDNN_DEFAULT_MATH = 0,
+    pub const CUDNN_DEFAULT_MATH: cudnnMathType_t = cudnnMathType_t(0);
     /// The use of Tensor Core operations is permitted but will not actively perform datatype down conversion on tensors in order to utilize Tensor Cores.
-    CUDNN_TENSOR_OP_MATH = 1,
+    pub const CUDNN_TENSOR_OP_MATH: cudnnMathType_t = cudnnMathType_t(1);
     /// The use of Tensor Core operations is permitted and will actively perform datatype down conversion on tensors in order to utilize Tensor Cores.
-    CUDNN_TENSOR_OP_MATH_ALLOW_CONVERSION = 2,
+    pub const CUDNN_TENSOR_OP_MATH_ALLOW_CONVERSION: cudnnMathType_t = cudnnMathType_t(
+        2,
+    );
     /// Restricted to only kernels that use FMA instructions.
     ///
     /// On pre-NVIDIA A100 GPU devices, [`cudnnMathType_t::CUDNN_DEFAULT_MATH`] and [`cudnnMathType_t::CUDNN_FMA_MATH`] have the same behavior: Tensor Core kernels will not be selected. With NVIDIA Ampere architecture and CUDA toolkit 11, [`cudnnMathType_t::CUDNN_DEFAULT_MATH`] permits TF32 Tensor Core operation and [`cudnnMathType_t::CUDNN_FMA_MATH`] does not. The TF32 behavior for [`cudnnMathType_t::CUDNN_DEFAULT_MATH`] and the other Tensor Core math types can be explicitly disabled by the environment variable `NVIDIA_TF32_OVERRIDE=0`.
-    CUDNN_FMA_MATH = 3,
+    pub const CUDNN_FMA_MATH: cudnnMathType_t = cudnnMathType_t(3);
+}
+/// [`cudnnMathType_t`] is an enumerated type used to indicate if the use of Tensor Core operations is permitted in a given library routine.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudnnMathType_t(pub ::core::ffi::c_uint);
+impl cudnnNanPropagation_t {
+    /// `NAN` numbers are not propagated.
+    #[deprecated]
+    pub const CUDNN_NOT_PROPAGATE_NAN: cudnnNanPropagation_t = cudnnNanPropagation_t(0);
+    /// `NAN` numbers are propagated.
+    #[deprecated]
+    pub const CUDNN_PROPAGATE_NAN: cudnnNanPropagation_t = cudnnNanPropagation_t(1);
 }
 /// [`cudnnNanPropagation_t`] is an enumerated type used to indicate if a given routine should propagate Nan numbers. This enumerated type is used as a field for the [`cudnnActivationDescriptor_t`] descriptor and [`cudnnPoolingDescriptor_t`] descriptor.
 #[deprecated]
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudnnNanPropagation_t {
-    /// `NAN` numbers are not propagated.
-    #[deprecated]
-    CUDNN_NOT_PROPAGATE_NAN = 0,
-    /// `NAN` numbers are propagated.
-    #[deprecated]
-    CUDNN_PROPAGATE_NAN = 1,
-}
-/// Enumerated type used by [`cudnnSetCTCLossDescriptor_v9`] and [`cudnnGetCTCLossDescriptor_v9`] to indicate the behavior for out of boundary (OOB) samples. OOB samples are samples where L+R > T is encountered during the gradient calculation.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudnnCTCGradMode_t {
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudnnNanPropagation_t(pub ::core::ffi::c_uint);
+impl cudnnCTCGradMode_t {
     /// Zero the gradient for OOB samples (guarantees finite).
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_CTC_ZERO_OOB_GRADIENTS = 0,
+    pub const CUDNN_CTC_ZERO_OOB_GRADIENTS: cudnnCTCGradMode_t = cudnnCTCGradMode_t(0);
     /// Skip writing gradient for OOB samples.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_CTC_SKIP_OOB_GRADIENTS = 1,
+    pub const CUDNN_CTC_SKIP_OOB_GRADIENTS: cudnnCTCGradMode_t = cudnnCTCGradMode_t(1);
 }
-/// [`cudnnTensorFormat_t`] is an enumerated type used by [`cudnnSetTensor4dDescriptor`] to create a tensor with a pre-defined layout. For a detailed explanation of how these tensors are arranged in memory, refer to [Data Layout Formats](https://docs.nvidia.com/deeplearning/cudnn/latest/developer/core-concepts.html#data-layout-formats "(in NVIDIA cuDNN)").
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudnnTensorFormat_t {
+/// Enumerated type used by [`cudnnSetCTCLossDescriptor_v9`] and [`cudnnGetCTCLossDescriptor_v9`] to indicate the behavior for out of boundary (OOB) samples. OOB samples are samples where L+R > T is encountered during the gradient calculation.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudnnCTCGradMode_t(pub ::core::ffi::c_uint);
+impl cudnnTensorFormat_t {
     /// This tensor format specifies that the data is laid out in the following order: batch size, feature maps, rows, columns. The strides are implicitly defined in such a way that the data are contiguous in memory with no padding between images, feature maps, rows, and columns; the columns are the inner dimension and the images are the outermost dimension.
-    CUDNN_TENSOR_NCHW = 0,
+    pub const CUDNN_TENSOR_NCHW: cudnnTensorFormat_t = cudnnTensorFormat_t(0);
     /// This tensor format specifies that the data is laid out in the following order: batch size, rows, columns, feature maps. The strides are implicitly defined in such a way that the data are contiguous in memory with no padding between images, rows, columns, and feature maps; the feature maps are the inner dimension and the images are the outermost dimension.
-    CUDNN_TENSOR_NHWC = 1,
+    pub const CUDNN_TENSOR_NHWC: cudnnTensorFormat_t = cudnnTensorFormat_t(1);
     /// This tensor format specifies that the data is laid out in the following order: batch size, feature maps, rows, columns. However, each element of the tensor is a vector of multiple feature maps. The length of the vector is carried by the data type of the tensor. The strides are implicitly defined in such a way that the data are contiguous in memory with no padding between images, feature maps, rows, and columns; the columns are the inner dimension and the images are the outermost dimension. This format is only supported with tensor data types [`cudnnDataType_t::CUDNN_DATA_INT8x4`], [`cudnnDataType_t::CUDNN_DATA_INT8x32`], and [`cudnnDataType_t::CUDNN_DATA_UINT8x4`].
     ///
     /// The [`cudnnTensorFormat_t::CUDNN_TENSOR_NCHW_VECT_C`] can also be interpreted in the following way: The NCHW INT8x32 format is really N x (C/32) x H x W x 32 (32 Cs for every W), just as the NCHW INT8x4 format is N x (C/4) x H x W x 4 (4 Cs for every W). Hence, the VECT_C name - each W is a vector (4 or 32) of Cs.
-    CUDNN_TENSOR_NCHW_VECT_C = 2,
+    pub const CUDNN_TENSOR_NCHW_VECT_C: cudnnTensorFormat_t = cudnnTensorFormat_t(2);
+}
+/// [`cudnnTensorFormat_t`] is an enumerated type used by [`cudnnSetTensor4dDescriptor`] to create a tensor with a pre-defined layout. For a detailed explanation of how these tensors are arranged in memory, refer to [Data Layout Formats](https://docs.nvidia.com/deeplearning/cudnn/latest/developer/core-concepts.html#data-layout-formats "(in NVIDIA cuDNN)").
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudnnTensorFormat_t(pub ::core::ffi::c_uint);
+impl cudnnReduceTensorOp_t {
+    /// The operation to be performed is addition.
+    #[deprecated]
+    pub const CUDNN_REDUCE_TENSOR_ADD: cudnnReduceTensorOp_t = cudnnReduceTensorOp_t(0);
+    /// The operation to be performed is multiplication.
+    #[deprecated]
+    pub const CUDNN_REDUCE_TENSOR_MUL: cudnnReduceTensorOp_t = cudnnReduceTensorOp_t(1);
+    /// The operation to be performed is a minimum comparison.
+    #[deprecated]
+    pub const CUDNN_REDUCE_TENSOR_MIN: cudnnReduceTensorOp_t = cudnnReduceTensorOp_t(2);
+    /// The operation to be performed is a maximum comparison.
+    #[deprecated]
+    pub const CUDNN_REDUCE_TENSOR_MAX: cudnnReduceTensorOp_t = cudnnReduceTensorOp_t(3);
+    /// The operation to be performed is a maximum comparison of absolute values.
+    #[deprecated]
+    pub const CUDNN_REDUCE_TENSOR_AMAX: cudnnReduceTensorOp_t = cudnnReduceTensorOp_t(4);
+    /// The operation to be performed is averaging.
+    #[deprecated]
+    pub const CUDNN_REDUCE_TENSOR_AVG: cudnnReduceTensorOp_t = cudnnReduceTensorOp_t(5);
+    /// The operation to be performed is addition of absolute values.
+    #[deprecated]
+    pub const CUDNN_REDUCE_TENSOR_NORM1: cudnnReduceTensorOp_t = cudnnReduceTensorOp_t(
+        6,
+    );
+    /// The operation to be performed is a square root of the sum of squares.
+    #[deprecated]
+    pub const CUDNN_REDUCE_TENSOR_NORM2: cudnnReduceTensorOp_t = cudnnReduceTensorOp_t(
+        7,
+    );
+    /// The operation to be performed is multiplication, not including elements of value zero.
+    #[deprecated]
+    pub const CUDNN_REDUCE_TENSOR_MUL_NO_ZEROS: cudnnReduceTensorOp_t = cudnnReduceTensorOp_t(
+        8,
+    );
 }
 /// [`cudnnReduceTensorOp_t`] is an enumerated type used to indicate the Tensor Core operation to be used by the [`cudnnReduceTensor`] routine. This enumerated type is used as a field for the [`cudnnReduceTensorDescriptor_t`] descriptor.
 #[deprecated]
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudnnReduceTensorOp_t {
-    /// The operation to be performed is addition.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudnnReduceTensorOp_t(pub ::core::ffi::c_uint);
+impl cudnnActivationMode_t {
+    /// Selects the sigmoid function.
     #[deprecated]
-    CUDNN_REDUCE_TENSOR_ADD = 0,
-    /// The operation to be performed is multiplication.
+    pub const CUDNN_ACTIVATION_SIGMOID: cudnnActivationMode_t = cudnnActivationMode_t(0);
+    /// Selects the rectified linear function.
     #[deprecated]
-    CUDNN_REDUCE_TENSOR_MUL = 1,
-    /// The operation to be performed is a minimum comparison.
+    pub const CUDNN_ACTIVATION_RELU: cudnnActivationMode_t = cudnnActivationMode_t(1);
+    /// Selects the hyperbolic tangent function.
     #[deprecated]
-    CUDNN_REDUCE_TENSOR_MIN = 2,
-    /// The operation to be performed is a maximum comparison.
+    pub const CUDNN_ACTIVATION_TANH: cudnnActivationMode_t = cudnnActivationMode_t(2);
+    /// Selects the clipped rectified linear function.
     #[deprecated]
-    CUDNN_REDUCE_TENSOR_MAX = 3,
-    /// The operation to be performed is a maximum comparison of absolute values.
+    pub const CUDNN_ACTIVATION_CLIPPED_RELU: cudnnActivationMode_t = cudnnActivationMode_t(
+        3,
+    );
+    /// Selects the exponential linear function.
     #[deprecated]
-    CUDNN_REDUCE_TENSOR_AMAX = 4,
-    /// The operation to be performed is averaging.
+    pub const CUDNN_ACTIVATION_ELU: cudnnActivationMode_t = cudnnActivationMode_t(4);
+    /// Selects the identity function, intended for bypassing the activation step in [`cudnnConvolutionBiasActivationForward`]. (The [`cudnnConvolutionBiasActivationForward`] function must use [`cudnnConvolutionFwdAlgo_t::CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_PRECOMP_GEMM`].) Does not work with [`cudnnActivationForward`] or [`cudnnActivationBackward`].
     #[deprecated]
-    CUDNN_REDUCE_TENSOR_AVG = 5,
-    /// The operation to be performed is addition of absolute values.
+    pub const CUDNN_ACTIVATION_IDENTITY: cudnnActivationMode_t = cudnnActivationMode_t(
+        5,
+    );
+    /// Selects the swish function.
     #[deprecated]
-    CUDNN_REDUCE_TENSOR_NORM1 = 6,
-    /// The operation to be performed is a square root of the sum of squares.
-    #[deprecated]
-    CUDNN_REDUCE_TENSOR_NORM2 = 7,
-    /// The operation to be performed is multiplication, not including elements of value zero.
-    #[deprecated]
-    CUDNN_REDUCE_TENSOR_MUL_NO_ZEROS = 8,
+    pub const CUDNN_ACTIVATION_SWISH: cudnnActivationMode_t = cudnnActivationMode_t(6);
 }
 /// [`cudnnActivationMode_t`] is an enumerated type used to select the neuron activation function used in [`cudnnActivationForward`], [`cudnnActivationBackward`], and [`cudnnConvolutionBiasActivationForward`].
 #[deprecated]
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudnnActivationMode_t {
-    /// Selects the sigmoid function.
-    #[deprecated]
-    CUDNN_ACTIVATION_SIGMOID = 0,
-    /// Selects the rectified linear function.
-    #[deprecated]
-    CUDNN_ACTIVATION_RELU = 1,
-    /// Selects the hyperbolic tangent function.
-    #[deprecated]
-    CUDNN_ACTIVATION_TANH = 2,
-    /// Selects the clipped rectified linear function.
-    #[deprecated]
-    CUDNN_ACTIVATION_CLIPPED_RELU = 3,
-    /// Selects the exponential linear function.
-    #[deprecated]
-    CUDNN_ACTIVATION_ELU = 4,
-    /// Selects the identity function, intended for bypassing the activation step in [`cudnnConvolutionBiasActivationForward`]. (The [`cudnnConvolutionBiasActivationForward`] function must use [`cudnnConvolutionFwdAlgo_t::CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_PRECOMP_GEMM`].) Does not work with [`cudnnActivationForward`] or [`cudnnActivationBackward`].
-    #[deprecated]
-    CUDNN_ACTIVATION_IDENTITY = 5,
-    /// Selects the swish function.
-    #[deprecated]
-    CUDNN_ACTIVATION_SWISH = 6,
-}
-/// [`cudnnSeverity_t`] is an enumerated type passed to the customized callback function for logging that users may set. This enumerate describes the severity level of the item, so the customized logging call back may react differently. The numerical values are the same that are to be used for setting the `CUDNN_LOGLEVEL_DBG` environment variable.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudnnSeverity_t {
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudnnActivationMode_t(pub ::core::ffi::c_uint);
+impl cudnnSeverity_t {
     /// Fatal error severity.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_SEV_FATAL = 0,
+    pub const CUDNN_SEV_FATAL: cudnnSeverity_t = cudnnSeverity_t(0);
     /// Error severity.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_SEV_ERROR = 1,
+    pub const CUDNN_SEV_ERROR: cudnnSeverity_t = cudnnSeverity_t(1);
     /// Warning severity.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_SEV_WARNING = 2,
+    pub const CUDNN_SEV_WARNING: cudnnSeverity_t = cudnnSeverity_t(2);
     /// Informational severity.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_SEV_INFO = 3,
+    pub const CUDNN_SEV_INFO: cudnnSeverity_t = cudnnSeverity_t(3);
 }
+/// [`cudnnSeverity_t`] is an enumerated type passed to the customized callback function for logging that users may set. This enumerate describes the severity level of the item, so the customized logging call back may react differently. The numerical values are the same that are to be used for setting the `CUDNN_LOGLEVEL_DBG` environment variable.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudnnSeverity_t(pub ::core::ffi::c_uint);
 /// Debug callback metadata containing version, status, timestamps, handle, stream, PID, TID, and device ID.
 ///
 /// since: cuDNN 9.0.0
@@ -845,56 +800,38 @@ singe_loader::functions! { crate::LIBRARY;
     /// - [`cudnnStatus_t::CUDNN_STATUS_SUCCESS`]: The version check passed.
     pub fn cudnnGraphVersionCheck() -> cudnnStatus_t;
 }
-/// [`cudnnConvolutionMode_t`] is an enumerated type used by [`cudnnSetConvolution2dDescriptor`] to configure a convolution `descriptor`. The filter used for the convolution can be applied in two different ways, corresponding mathematically to a convolution or to a cross-correlation. (A cross-correlation is equivalent to a convolution with its filter rotated by 180 degrees.)
-#[deprecated]
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudnnConvolutionMode_t {
+impl cudnnConvolutionMode_t {
     /// In this mode, a convolution operation will be done when applying the filter to the images.
     #[deprecated]
-    CUDNN_CONVOLUTION = 0,
+    pub const CUDNN_CONVOLUTION: cudnnConvolutionMode_t = cudnnConvolutionMode_t(0);
     /// In this mode, a cross-correlation operation will be done when applying the filter to the images.
     #[deprecated]
-    CUDNN_CROSS_CORRELATION = 1,
+    pub const CUDNN_CROSS_CORRELATION: cudnnConvolutionMode_t = cudnnConvolutionMode_t(
+        1,
+    );
 }
-/// [`cudnnReorderType_t`] is an enumerated type to set the convolution reordering type. The reordering type can be set by [`cudnnSetConvolutionReorderType`] and its status can be read by [`cudnnGetConvolutionReorderType`].
+/// [`cudnnConvolutionMode_t`] is an enumerated type used by [`cudnnSetConvolution2dDescriptor`] to configure a convolution `descriptor`. The filter used for the convolution can be applied in two different ways, corresponding mathematically to a convolution or to a cross-correlation. (A cross-correlation is equivalent to a convolution with its filter rotated by 180 degrees.)
 #[deprecated]
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudnnReorderType_t {
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudnnConvolutionMode_t(pub ::core::ffi::c_uint);
+impl cudnnReorderType_t {
     /// Deprecated: Default reordering behavior.
     ///
     /// since: cuDNN 9.0.0
     #[deprecated]
-    CUDNN_DEFAULT_REORDER = 0,
+    pub const CUDNN_DEFAULT_REORDER: cudnnReorderType_t = cudnnReorderType_t(0);
     /// Deprecated: No reordering.
     ///
     /// since: cuDNN 9.0.0
     #[deprecated]
-    CUDNN_NO_REORDER = 1,
+    pub const CUDNN_NO_REORDER: cudnnReorderType_t = cudnnReorderType_t(1);
 }
+/// [`cudnnReorderType_t`] is an enumerated type to set the convolution reordering type. The reordering type can be set by [`cudnnSetConvolutionReorderType`] and its status can be read by [`cudnnGetConvolutionReorderType`].
+#[deprecated]
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudnnReorderType_t(pub ::core::ffi::c_uint);
 /// [`cudnnBackendDescriptor_t`] is a typedef void pointer to one of many opaque `descriptor` structures. The type of structure that it points to is determined by the argument when allocating the memory for the opaque structure using [`cudnnBackendCreateDescriptor`].
 ///
 /// Attributes of a `descriptor` can be set using [`cudnnBackendSetAttribute`]. After all required attributes of a `descriptor` are set, the `descriptor` can be finalized by [`cudnnBackendFinalize`]. From a finalized `descriptor`, one can query its queryable attributes using [`cudnnBackendGetAttribute`]. Finally, the memory allocated for a `descriptor` can be freed using [`cudnnBackendDestroyDescriptor`].
@@ -912,304 +849,281 @@ pub struct cudnnFractionStruct {
 }
 /// `cudnnFraction_t` is a structure that allows a user to define `int64_t` fractions.
 pub type cudnnFraction_t = cudnnFractionStruct;
-/// [`cudnnPointwiseMode_t`] is an enumerated type to indicate the intended pointwise math operation in the backend pointwise operation descriptor.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudnnPointwiseMode_t {
+impl cudnnPointwiseMode_t {
     /// A pointwise addition between two tensors is computed.
-    CUDNN_POINTWISE_ADD = 0,
+    pub const CUDNN_POINTWISE_ADD: cudnnPointwiseMode_t = cudnnPointwiseMode_t(0);
     /// A pointwise addition between the first tensor and the square of the second tensor is computed.
-    CUDNN_POINTWISE_ADD_SQUARE = 5,
+    pub const CUDNN_POINTWISE_ADD_SQUARE: cudnnPointwiseMode_t = cudnnPointwiseMode_t(5);
     /// A pointwise true division of the first tensor by second tensor is computed.
-    CUDNN_POINTWISE_DIV = 6,
+    pub const CUDNN_POINTWISE_DIV: cudnnPointwiseMode_t = cudnnPointwiseMode_t(6);
     /// A pointwise maximum is taken between two tensors.
-    CUDNN_POINTWISE_MAX = 3,
+    pub const CUDNN_POINTWISE_MAX: cudnnPointwiseMode_t = cudnnPointwiseMode_t(3);
     /// A pointwise minimum is taken between two tensors.
-    CUDNN_POINTWISE_MIN = 2,
+    pub const CUDNN_POINTWISE_MIN: cudnnPointwiseMode_t = cudnnPointwiseMode_t(2);
     /// A pointwise floating-point remainder of the first tensor’s division by the second tensor is computed.
-    CUDNN_POINTWISE_MOD = 7,
+    pub const CUDNN_POINTWISE_MOD: cudnnPointwiseMode_t = cudnnPointwiseMode_t(7);
     /// A pointwise multiplication between two tensors is computed.
-    CUDNN_POINTWISE_MUL = 1,
+    pub const CUDNN_POINTWISE_MUL: cudnnPointwiseMode_t = cudnnPointwiseMode_t(1);
     /// A pointwise value from the first tensor to the power of the second tensor is computed.
-    CUDNN_POINTWISE_POW = 8,
+    pub const CUDNN_POINTWISE_POW: cudnnPointwiseMode_t = cudnnPointwiseMode_t(8);
     /// A pointwise subtraction between two tensors is computed.
-    CUDNN_POINTWISE_SUB = 9,
+    pub const CUDNN_POINTWISE_SUB: cudnnPointwiseMode_t = cudnnPointwiseMode_t(9);
     /// A pointwise absolute value of the input tensor is computed.
-    CUDNN_POINTWISE_ABS = 10,
+    pub const CUDNN_POINTWISE_ABS: cudnnPointwiseMode_t = cudnnPointwiseMode_t(10);
     /// A pointwise ceiling of the input tensor is computed.
-    CUDNN_POINTWISE_CEIL = 11,
+    pub const CUDNN_POINTWISE_CEIL: cudnnPointwiseMode_t = cudnnPointwiseMode_t(11);
     /// A pointwise trigonometric cosine of the input tensor is computed.
-    CUDNN_POINTWISE_COS = 12,
+    pub const CUDNN_POINTWISE_COS: cudnnPointwiseMode_t = cudnnPointwiseMode_t(12);
     /// A pointwise exponential of the input tensor is computed.
-    CUDNN_POINTWISE_EXP = 13,
+    pub const CUDNN_POINTWISE_EXP: cudnnPointwiseMode_t = cudnnPointwiseMode_t(13);
     /// A pointwise floor of the input tensor is computed.
-    CUDNN_POINTWISE_FLOOR = 14,
+    pub const CUDNN_POINTWISE_FLOOR: cudnnPointwiseMode_t = cudnnPointwiseMode_t(14);
     /// A pointwise natural logarithm of the input tensor is computed.
-    CUDNN_POINTWISE_LOG = 15,
+    pub const CUDNN_POINTWISE_LOG: cudnnPointwiseMode_t = cudnnPointwiseMode_t(15);
     /// A pointwise numerical negative of the input tensor is computed.
-    CUDNN_POINTWISE_NEG = 16,
+    pub const CUDNN_POINTWISE_NEG: cudnnPointwiseMode_t = cudnnPointwiseMode_t(16);
     /// A pointwise reciprocal of the square root of the input tensor is computed.
-    CUDNN_POINTWISE_RSQRT = 17,
+    pub const CUDNN_POINTWISE_RSQRT: cudnnPointwiseMode_t = cudnnPointwiseMode_t(17);
     /// A pointwise trigonometric sine of the input tensor is computed.
-    CUDNN_POINTWISE_SIN = 18,
+    pub const CUDNN_POINTWISE_SIN: cudnnPointwiseMode_t = cudnnPointwiseMode_t(18);
     /// A pointwise square root of the input tensor is computed.
-    CUDNN_POINTWISE_SQRT = 4,
+    pub const CUDNN_POINTWISE_SQRT: cudnnPointwiseMode_t = cudnnPointwiseMode_t(4);
     /// A pointwise trigonometric tangent of the input tensor is computed.
-    CUDNN_POINTWISE_TAN = 19,
+    pub const CUDNN_POINTWISE_TAN: cudnnPointwiseMode_t = cudnnPointwiseMode_t(19);
     /// A pointwise Error Function is computed.
-    CUDNN_POINTWISE_ERF = 20,
+    pub const CUDNN_POINTWISE_ERF: cudnnPointwiseMode_t = cudnnPointwiseMode_t(20);
     /// No computation is performed. As with other pointwise modes, this mode provides implicit conversions by specifying the data type of the input tensor as one type, and the data type of the output tensor as another.
-    CUDNN_POINTWISE_IDENTITY = 21,
+    pub const CUDNN_POINTWISE_IDENTITY: cudnnPointwiseMode_t = cudnnPointwiseMode_t(21);
     /// A pointwise reciprocal of the input tensor is computed. In other words, for every element x in the input tensor, 1/x is computed.
-    CUDNN_POINTWISE_RECIPROCAL = 22,
+    pub const CUDNN_POINTWISE_RECIPROCAL: cudnnPointwiseMode_t = cudnnPointwiseMode_t(
+        22,
+    );
     /// Two-argument arctangent.
     ///
     /// since: cuDNN 9.1.0
-    CUDNN_POINTWISE_ATAN2 = 23,
+    pub const CUDNN_POINTWISE_ATAN2: cudnnPointwiseMode_t = cudnnPointwiseMode_t(23);
     /// Element-wise floored modulo: y = x - floor(x / b) * b. Result follows the sign of the divisor. In contrast, [`cudnnPointwiseMode_t::CUDNN_POINTWISE_MOD`] produces truncated remainder (C `fmod`/`%`; result follows the sign of the dividend). The two differ only when the operands have opposite signs.
     ///
     /// since: cuDNN 9.27.0
-    CUDNN_POINTWISE_FLOOR_MOD = 24,
+    pub const CUDNN_POINTWISE_FLOOR_MOD: cudnnPointwiseMode_t = cudnnPointwiseMode_t(24);
     /// A pointwise rectified linear activation function of the input tensor is computed.
-    CUDNN_POINTWISE_RELU_FWD = 100,
+    pub const CUDNN_POINTWISE_RELU_FWD: cudnnPointwiseMode_t = cudnnPointwiseMode_t(100);
     /// A pointwise tanh activation function of the input tensor is computed.
-    CUDNN_POINTWISE_TANH_FWD = 101,
+    pub const CUDNN_POINTWISE_TANH_FWD: cudnnPointwiseMode_t = cudnnPointwiseMode_t(101);
     /// A pointwise sigmoid activation function of the input tensor is computed.
-    CUDNN_POINTWISE_SIGMOID_FWD = 102,
+    pub const CUDNN_POINTWISE_SIGMOID_FWD: cudnnPointwiseMode_t = cudnnPointwiseMode_t(
+        102,
+    );
     /// A pointwise Exponential Linear Unit activation function of the input tensor is computed.
-    CUDNN_POINTWISE_ELU_FWD = 103,
+    pub const CUDNN_POINTWISE_ELU_FWD: cudnnPointwiseMode_t = cudnnPointwiseMode_t(103);
     /// A pointwise Gaussian Error Linear Unit activation function of the input tensor is computed.
-    CUDNN_POINTWISE_GELU_FWD = 104,
+    pub const CUDNN_POINTWISE_GELU_FWD: cudnnPointwiseMode_t = cudnnPointwiseMode_t(104);
     /// A pointwise softplus activation function of the input tensor is computed.
-    CUDNN_POINTWISE_SOFTPLUS_FWD = 105,
+    pub const CUDNN_POINTWISE_SOFTPLUS_FWD: cudnnPointwiseMode_t = cudnnPointwiseMode_t(
+        105,
+    );
     /// A pointwise swish activation function of the input tensor is computed.
-    CUDNN_POINTWISE_SWISH_FWD = 106,
+    pub const CUDNN_POINTWISE_SWISH_FWD: cudnnPointwiseMode_t = cudnnPointwiseMode_t(
+        106,
+    );
     /// A pointwise tanh approximation of the Gaussian Error Linear Unit activation function of the input tensor is computed. The tanh GELU approximation is computed as $0.5x\left( 1+\tanh\left\[ \sqrt{2/\pi}\left( x+0.044715x^{3} \right) \right\] \right)$. For more information, refer to the [GAUSSIAN ERROR LINEAR UNIT (GELUS)](https://arxiv.org/pdf/1606.08415.pdf) paper.
-    CUDNN_POINTWISE_GELU_APPROX_TANH_FWD = 107,
+    pub const CUDNN_POINTWISE_GELU_APPROX_TANH_FWD: cudnnPointwiseMode_t = cudnnPointwiseMode_t(
+        107,
+    );
     /// A pointwise first derivative of rectified linear activation of the input tensor is computed.
-    CUDNN_POINTWISE_RELU_BWD = 200,
+    pub const CUDNN_POINTWISE_RELU_BWD: cudnnPointwiseMode_t = cudnnPointwiseMode_t(200);
     /// A pointwise first derivative of tanh activation of the input tensor is computed.
-    CUDNN_POINTWISE_TANH_BWD = 201,
+    pub const CUDNN_POINTWISE_TANH_BWD: cudnnPointwiseMode_t = cudnnPointwiseMode_t(201);
     /// A pointwise first derivative of sigmoid activation of the input tensor is computed.
-    CUDNN_POINTWISE_SIGMOID_BWD = 202,
+    pub const CUDNN_POINTWISE_SIGMOID_BWD: cudnnPointwiseMode_t = cudnnPointwiseMode_t(
+        202,
+    );
     /// A pointwise first derivative of Exponential Linear Unit activation of the input tensor is computed.
-    CUDNN_POINTWISE_ELU_BWD = 203,
+    pub const CUDNN_POINTWISE_ELU_BWD: cudnnPointwiseMode_t = cudnnPointwiseMode_t(203);
     /// A pointwise first derivative of Gaussian Error Linear Unit activation of the input tensor is computed.
-    CUDNN_POINTWISE_GELU_BWD = 204,
+    pub const CUDNN_POINTWISE_GELU_BWD: cudnnPointwiseMode_t = cudnnPointwiseMode_t(204);
     /// A pointwise first derivative of softplus activation of the input tensor is computed.
-    CUDNN_POINTWISE_SOFTPLUS_BWD = 205,
+    pub const CUDNN_POINTWISE_SOFTPLUS_BWD: cudnnPointwiseMode_t = cudnnPointwiseMode_t(
+        205,
+    );
     /// A pointwise first derivative of swish activation of the input tensor is computed.
-    CUDNN_POINTWISE_SWISH_BWD = 206,
+    pub const CUDNN_POINTWISE_SWISH_BWD: cudnnPointwiseMode_t = cudnnPointwiseMode_t(
+        206,
+    );
     /// A pointwise first derivative of the tanh approximation of the Gaussian Error Linear Unit activation of the input tensor is computed. This is computed as $0.5\left( 1+\tanh\left( b\left( x+cx^{3} \right) \right)+bxsech^{2}\left( b\left( cx^{3}+x \right) \right)\left( 3cx^{2}+1 \right)dy \right)$ where $b$ is $\sqrt{2/\pi}$ and $c$ is $0.044715$.
-    CUDNN_POINTWISE_GELU_APPROX_TANH_BWD = 207,
+    pub const CUDNN_POINTWISE_GELU_APPROX_TANH_BWD: cudnnPointwiseMode_t = cudnnPointwiseMode_t(
+        207,
+    );
     /// A pointwise truth value of the first tensor equal to the second tensor is computed.
-    CUDNN_POINTWISE_CMP_EQ = 300,
+    pub const CUDNN_POINTWISE_CMP_EQ: cudnnPointwiseMode_t = cudnnPointwiseMode_t(300);
     /// A pointwise truth value of the first tensor not equal to the second tensor is computed.
-    CUDNN_POINTWISE_CMP_NEQ = 301,
+    pub const CUDNN_POINTWISE_CMP_NEQ: cudnnPointwiseMode_t = cudnnPointwiseMode_t(301);
     /// A pointwise truth value of the first tensor greater than the second tensor is computed.
-    CUDNN_POINTWISE_CMP_GT = 302,
+    pub const CUDNN_POINTWISE_CMP_GT: cudnnPointwiseMode_t = cudnnPointwiseMode_t(302);
     /// A pointwise truth value of the first tensor greater than equal to the second tensor is computed.
-    CUDNN_POINTWISE_CMP_GE = 303,
+    pub const CUDNN_POINTWISE_CMP_GE: cudnnPointwiseMode_t = cudnnPointwiseMode_t(303);
     /// A pointwise truth value of the first tensor less than the second tensor is computed.
-    CUDNN_POINTWISE_CMP_LT = 304,
+    pub const CUDNN_POINTWISE_CMP_LT: cudnnPointwiseMode_t = cudnnPointwiseMode_t(304);
     /// A pointwise truth value of the first tensor less than equal to the second tensor is computed.
-    CUDNN_POINTWISE_CMP_LE = 305,
+    pub const CUDNN_POINTWISE_CMP_LE: cudnnPointwiseMode_t = cudnnPointwiseMode_t(305);
     /// A pointwise truth value of the first tensor logical `AND` second tensor is computed.
-    CUDNN_POINTWISE_LOGICAL_AND = 400,
+    pub const CUDNN_POINTWISE_LOGICAL_AND: cudnnPointwiseMode_t = cudnnPointwiseMode_t(
+        400,
+    );
     /// A pointwise truth value of the first tensor logical `OR` second tensor is computed.
-    CUDNN_POINTWISE_LOGICAL_OR = 401,
+    pub const CUDNN_POINTWISE_LOGICAL_OR: cudnnPointwiseMode_t = cudnnPointwiseMode_t(
+        401,
+    );
     /// A pointwise truth value of input tensors logical `NOT` is computed.
-    CUDNN_POINTWISE_LOGICAL_NOT = 402,
+    pub const CUDNN_POINTWISE_LOGICAL_NOT: cudnnPointwiseMode_t = cudnnPointwiseMode_t(
+        402,
+    );
     /// A pointwise index value of the input tensor is generated along a given axis.
-    CUDNN_POINTWISE_GEN_INDEX = 501,
+    pub const CUDNN_POINTWISE_GEN_INDEX: cudnnPointwiseMode_t = cudnnPointwiseMode_t(
+        501,
+    );
     /// A pointwise value is selected amongst two input tensors based on a given predicate tensor.
-    CUDNN_POINTWISE_BINARY_SELECT = 601,
+    pub const CUDNN_POINTWISE_BINARY_SELECT: cudnnPointwiseMode_t = cudnnPointwiseMode_t(
+        601,
+    );
 }
+/// [`cudnnPointwiseMode_t`] is an enumerated type to indicate the intended pointwise math operation in the backend pointwise operation descriptor.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudnnPointwiseMode_t(pub ::core::ffi::c_uint);
 impl cudnnResampleMode_t {
-    /// Average pooling including padding in divisor.
-    ///
-    /// since: cuDNN 9.0.0
-    pub const CUDNN_RESAMPLE_AVGPOOL_INCLUDE_PADDING: cudnnResampleMode_t = cudnnResampleMode_t::CUDNN_RESAMPLE_AVGPOOL;
-}
-/// [`cudnnResampleMode_t`] is an enumerated type to indicate the resample mode in the backend resample operations.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudnnResampleMode_t {
     /// Nearest-neighbor interpolation.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_RESAMPLE_NEAREST = 0,
+    pub const CUDNN_RESAMPLE_NEAREST: cudnnResampleMode_t = cudnnResampleMode_t(0);
     /// Bilinear interpolation.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_RESAMPLE_BILINEAR = 1,
+    pub const CUDNN_RESAMPLE_BILINEAR: cudnnResampleMode_t = cudnnResampleMode_t(1);
     /// Average pooling (include padding).
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_RESAMPLE_AVGPOOL = 2,
+    pub const CUDNN_RESAMPLE_AVGPOOL: cudnnResampleMode_t = cudnnResampleMode_t(2);
+    /// Average pooling including padding in divisor.
+    ///
+    /// since: cuDNN 9.0.0
+    pub const CUDNN_RESAMPLE_AVGPOOL_INCLUDE_PADDING: cudnnResampleMode_t = cudnnResampleMode_t(
+        2,
+    );
     /// Average pooling excluding padding from divisor.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_RESAMPLE_AVGPOOL_EXCLUDE_PADDING = 4,
+    pub const CUDNN_RESAMPLE_AVGPOOL_EXCLUDE_PADDING: cudnnResampleMode_t = cudnnResampleMode_t(
+        4,
+    );
     /// Max pooling.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_RESAMPLE_MAXPOOL = 3,
+    pub const CUDNN_RESAMPLE_MAXPOOL: cudnnResampleMode_t = cudnnResampleMode_t(3);
+}
+/// [`cudnnResampleMode_t`] is an enumerated type to indicate the resample mode in the backend resample operations.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudnnResampleMode_t(pub ::core::ffi::c_uint);
+impl cudnnSignalMode_t {
+    /// The flag variable is updated with the provided signal value atomically.
+    pub const CUDNN_SIGNAL_SET: cudnnSignalMode_t = cudnnSignalMode_t(0);
+    /// The operation blocks until the flag variable keeps comparing equal to the provided signal value.
+    pub const CUDNN_SIGNAL_WAIT: cudnnSignalMode_t = cudnnSignalMode_t(1);
 }
 /// [`cudnnSignalMode_t`] is an enumerated type to indicate the signaling mode in the backend signal operation.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudnnSignalMode_t {
-    /// The flag variable is updated with the provided signal value atomically.
-    CUDNN_SIGNAL_SET = 0,
-    /// The operation blocks until the flag variable keeps comparing equal to the provided signal value.
-    CUDNN_SIGNAL_WAIT = 1,
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudnnSignalMode_t(pub ::core::ffi::c_uint);
+impl cudnnGenStatsMode_t {
+    /// In this mode, the sum and sum of squares of the input tensor along the specified dimensions are computed and written out. The reduction dimensions currently supported are limited per channel, however additional support may be added upon request.
+    pub const CUDNN_GENSTATS_SUM_SQSUM: cudnnGenStatsMode_t = cudnnGenStatsMode_t(0);
 }
 /// [`cudnnGenStatsMode_t`] is an enumerated type to indicate the statistics mode in the backend statistics generation operation.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudnnGenStatsMode_t {
-    /// In this mode, the sum and sum of squares of the input tensor along the specified dimensions are computed and written out. The reduction dimensions currently supported are limited per channel, however additional support may be added upon request.
-    CUDNN_GENSTATS_SUM_SQSUM = 0,
-}
-/// [`cudnnBnFinalizeStatsMode_t`] is an enumerated type that that exposes the different mathematical operation modes that converts batch norm statistics and the trained scale and bias to the equivalent scale and bias to be applied in the next normalization stage for inference and training use cases.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudnnBnFinalizeStatsMode_t {
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudnnGenStatsMode_t(pub ::core::ffi::c_uint);
+impl cudnnBnFinalizeStatsMode_t {
     /// Training mode finalization.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_BN_FINALIZE_STATISTICS_TRAINING = 0,
+    pub const CUDNN_BN_FINALIZE_STATISTICS_TRAINING: cudnnBnFinalizeStatsMode_t = cudnnBnFinalizeStatsMode_t(
+        0,
+    );
     /// Inference mode finalization.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_BN_FINALIZE_STATISTICS_INFERENCE = 1,
+    pub const CUDNN_BN_FINALIZE_STATISTICS_INFERENCE: cudnnBnFinalizeStatsMode_t = cudnnBnFinalizeStatsMode_t(
+        1,
+    );
+}
+/// [`cudnnBnFinalizeStatsMode_t`] is an enumerated type that that exposes the different mathematical operation modes that converts batch norm statistics and the trained scale and bias to the equivalent scale and bias to be applied in the next normalization stage for inference and training use cases.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudnnBnFinalizeStatsMode_t(pub ::core::ffi::c_uint);
+impl cudnnRngDistribution_t {
+    /// The bernoulli distribution is used for the random number generation. The attribute [`cudnnBackendAttributeName_t::CUDNN_ATTR_RNG_BERNOULLI_DIST_PROBABILITY`] can be used to specify the probability of generating 1’s.
+    pub const CUDNN_RNG_DISTRIBUTION_BERNOULLI: cudnnRngDistribution_t = cudnnRngDistribution_t(
+        0,
+    );
+    /// The uniform distribution is used for the random number generation. The attribute [`cudnnBackendAttributeName_t::CUDNN_ATTR_RNG_UNIFORM_DIST_MINIMUM`] and [`cudnnBackendAttributeName_t::CUDNN_ATTR_RNG_UNIFORM_DIST_MAXIMUM`] can be used to specify the minimum and maximum value between which the random numbers should be uniformly generated.
+    pub const CUDNN_RNG_DISTRIBUTION_UNIFORM: cudnnRngDistribution_t = cudnnRngDistribution_t(
+        1,
+    );
+    /// The normal distribution is used for the random number generation. The attribute [`cudnnBackendAttributeName_t::CUDNN_ATTR_RNG_NORMAL_DIST_MEAN`] and [`cudnnBackendAttributeName_t::CUDNN_ATTR_RNG_NORMAL_DIST_STANDARD_DEVIATION`] can be used to specify the mean and standard deviation of the random number generator.
+    pub const CUDNN_RNG_DISTRIBUTION_NORMAL: cudnnRngDistribution_t = cudnnRngDistribution_t(
+        2,
+    );
 }
 /// [`cudnnRngDistribution_t`] is an enumerated type to indicate the distribution to be used in the backend `Rng` (random number generator) operation.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudnnRngDistribution_t {
-    /// The bernoulli distribution is used for the random number generation. The attribute [`cudnnBackendAttributeName_t::CUDNN_ATTR_RNG_BERNOULLI_DIST_PROBABILITY`] can be used to specify the probability of generating 1’s.
-    CUDNN_RNG_DISTRIBUTION_BERNOULLI = 0,
-    /// The uniform distribution is used for the random number generation. The attribute [`cudnnBackendAttributeName_t::CUDNN_ATTR_RNG_UNIFORM_DIST_MINIMUM`] and [`cudnnBackendAttributeName_t::CUDNN_ATTR_RNG_UNIFORM_DIST_MAXIMUM`] can be used to specify the minimum and maximum value between which the random numbers should be uniformly generated.
-    CUDNN_RNG_DISTRIBUTION_UNIFORM = 1,
-    /// The normal distribution is used for the random number generation. The attribute [`cudnnBackendAttributeName_t::CUDNN_ATTR_RNG_NORMAL_DIST_MEAN`] and [`cudnnBackendAttributeName_t::CUDNN_ATTR_RNG_NORMAL_DIST_STANDARD_DEVIATION`] can be used to specify the mean and standard deviation of the random number generator.
-    CUDNN_RNG_DISTRIBUTION_NORMAL = 2,
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudnnRngDistribution_t(pub ::core::ffi::c_uint);
+impl cudnnMoeGroupedMatmulMode_t {
+    /// No gather/scatter.
+    ///
+    /// since: cuDNN 9.15.0
+    pub const CUDNN_MOE_GROUPED_MATMUL_MODE_NONE: cudnnMoeGroupedMatmulMode_t = cudnnMoeGroupedMatmulMode_t(
+        0,
+    );
+    /// Gather mode.
+    ///
+    /// since: cuDNN 9.15.0
+    pub const CUDNN_MOE_GROUPED_MATMUL_MODE_GATHER: cudnnMoeGroupedMatmulMode_t = cudnnMoeGroupedMatmulMode_t(
+        1,
+    );
+    /// Scatter mode.
+    ///
+    /// since: cuDNN 9.15.0
+    pub const CUDNN_MOE_GROUPED_MATMUL_MODE_SCATTER: cudnnMoeGroupedMatmulMode_t = cudnnMoeGroupedMatmulMode_t(
+        2,
+    );
 }
 /// Mixture-of-Experts grouped matmul modes.
 ///
 /// since: cuDNN 9.15.0
-#[repr(u32)]
+#[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum cudnnMoeGroupedMatmulMode_t {
-    /// No gather/scatter.
-    ///
-    /// since: cuDNN 9.15.0
-    CUDNN_MOE_GROUPED_MATMUL_MODE_NONE = 0,
-    /// Gather mode.
-    ///
-    /// since: cuDNN 9.15.0
-    CUDNN_MOE_GROUPED_MATMUL_MODE_GATHER = 1,
-    /// Scatter mode.
-    ///
-    /// since: cuDNN 9.15.0
-    CUDNN_MOE_GROUPED_MATMUL_MODE_SCATTER = 2,
-}
-/// [`cudnnBackendAttributeName_t`] is an enumerated type that indicates the backend descriptor attributes that can be set or get using [`cudnnBackendSetAttribute`] and [`cudnnBackendGetAttribute`] functions. The backend descriptor to which an attribute belongs is identified by the prefix of the attribute name.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudnnBackendAttributeName_t {
+pub struct cudnnMoeGroupedMatmulMode_t(pub ::core::ffi::c_uint);
+impl cudnnBackendAttributeName_t {
     /// Mode of the pointwise operation.
     ///
     /// ```text
     /// * [`cudnnBackendAttributeType_t::CUDNN_TYPE_POINTWISE_MODE`]; one element.
     /// * Required attribute.
     /// ```
-    CUDNN_ATTR_POINTWISE_MODE = 0,
+    pub const CUDNN_ATTR_POINTWISE_MODE: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        0,
+    );
     /// The math precision of the computation.
     ///
     /// ```text
     /// * [`cudnnBackendAttributeType_t::CUDNN_TYPE_DATA_TYPE`]; one element.
     /// * Required attribute.
     /// ```
-    CUDNN_ATTR_POINTWISE_MATH_PREC = 1,
+    pub const CUDNN_ATTR_POINTWISE_MATH_PREC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1,
+    );
     /// Specifies a method by which to propagate NaNs.
     ///
     /// ```text
@@ -1218,49 +1132,63 @@ pub enum cudnnBackendAttributeName_t {
     /// * Current support only includes enum value [`cudnnNanPropagation_t::CUDNN_PROPAGATE_NAN`].
     /// * Default value is [`cudnnNanPropagation_t::CUDNN_NOT_PROPAGATE_NAN`].
     /// ```
-    CUDNN_ATTR_POINTWISE_NAN_PROPAGATION = 2,
+    pub const CUDNN_ATTR_POINTWISE_NAN_PROPAGATION: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2,
+    );
     /// Sets the lower clip value for ReLU. If `(value &lt; lower_clip) value = lower_clip + lower_clip_slope * (value - lower_clip)`:
     ///
     /// ```text
     /// * [`cudnnBackendAttributeType_t::CUDNN_TYPE_DOUBLE`]/ [`cudnnBackendAttributeType_t::CUDNN_TYPE_FLOAT`]; one element.
     /// * Default value is `0.0f`.
     /// ```
-    CUDNN_ATTR_POINTWISE_RELU_LOWER_CLIP = 3,
+    pub const CUDNN_ATTR_POINTWISE_RELU_LOWER_CLIP: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        3,
+    );
     /// Sets the upper clip value for ReLU. If `(value > upper_clip) value = upper_clip`:
     ///
     /// ```text
     /// * [`cudnnBackendAttributeType_t::CUDNN_TYPE_DOUBLE`]/ [`cudnnBackendAttributeType_t::CUDNN_TYPE_FLOAT`]; one element.
     /// * Default value is `Numeric limit max`.
     /// ```
-    CUDNN_ATTR_POINTWISE_RELU_UPPER_CLIP = 4,
+    pub const CUDNN_ATTR_POINTWISE_RELU_UPPER_CLIP: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        4,
+    );
     /// Sets the lower clip slope value for ReLU. If `(value &lt; lower_clip) value = lower_clip + lower_clip_slope * (value - lower_clip)`:
     ///
     /// ```text
     /// * [`cudnnBackendAttributeType_t::CUDNN_TYPE_DOUBLE`]/ [`cudnnBackendAttributeType_t::CUDNN_TYPE_FLOAT`]; one element.
     /// * Default value is `0.0f`.
     /// ```
-    CUDNN_ATTR_POINTWISE_RELU_LOWER_CLIP_SLOPE = 5,
+    pub const CUDNN_ATTR_POINTWISE_RELU_LOWER_CLIP_SLOPE: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        5,
+    );
     /// Sets the alpha value for ELU. If `(value &lt; 0.0) value = alpha * (e^value - 1.0)`:
     ///
     /// ```text
     /// * [`cudnnBackendAttributeType_t::CUDNN_TYPE_DOUBLE`]/ [`cudnnBackendAttributeType_t::CUDNN_TYPE_FLOAT`]; one element.
     /// * Default value is `1.0f`.
     /// ```
-    CUDNN_ATTR_POINTWISE_ELU_ALPHA = 6,
+    pub const CUDNN_ATTR_POINTWISE_ELU_ALPHA: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        6,
+    );
     /// Sets the beta value for softplus. If `value = log (1 + e^(beta * value)) / beta`:
     ///
     /// ```text
     /// * [`cudnnBackendAttributeType_t::CUDNN_TYPE_DOUBLE`]/ [`cudnnBackendAttributeType_t::CUDNN_TYPE_FLOAT`]; one element.
     /// * Default value is `1.0f`.
     /// ```
-    CUDNN_ATTR_POINTWISE_SOFTPLUS_BETA = 7,
+    pub const CUDNN_ATTR_POINTWISE_SOFTPLUS_BETA: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        7,
+    );
     /// Sets the beta value for swish. If `value = value / (1 + e^(-beta * value))`:
     ///
     /// ```text
     /// * [`cudnnBackendAttributeType_t::CUDNN_TYPE_DOUBLE`]/ [`cudnnBackendAttributeType_t::CUDNN_TYPE_FLOAT`]; one element.
     /// * Default value is `1.0f`.
     /// ```
-    CUDNN_ATTR_POINTWISE_SWISH_BETA = 8,
+    pub const CUDNN_ATTR_POINTWISE_SWISH_BETA: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        8,
+    );
     /// Sets the axis value for `GEN_INDEX`. The index will be generated for this axis.
     ///
     /// ```text
@@ -1268,582 +1196,814 @@ pub enum cudnnBackendAttributeName_t {
     /// * Default value is `-1`.
     /// * Needs to lie between `\[0,input_dim_size-1\]`. For example, if your input has dimensions \[N,C,H,W\], the axis can be set to anything in `\[0,3\]`.
     /// ```
-    CUDNN_ATTR_POINTWISE_AXIS = 9,
+    pub const CUDNN_ATTR_POINTWISE_AXIS: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        9,
+    );
     /// The compute type of the convolution operator.
     ///
     /// ```text
     /// * [`cudnnBackendAttributeType_t::CUDNN_TYPE_DATA_TYPE`]; one element.
     /// * Required attribute.
     /// ```
-    CUDNN_ATTR_CONVOLUTION_COMP_TYPE = 100,
+    pub const CUDNN_ATTR_CONVOLUTION_COMP_TYPE: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        100,
+    );
     /// Convolution vs cross-correlation mode.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_CONVOLUTION_CONV_MODE = 101,
+    pub const CUDNN_ATTR_CONVOLUTION_CONV_MODE: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        101,
+    );
     /// Filter dilation.
     ///
     /// ```text
     /// * [`cudnnBackendAttributeType_t::CUDNN_TYPE_INT64`]; one or more, but at most `CUDNN_MAX_DIMS` elements.
     /// * Required attribute.
     /// ```
-    CUDNN_ATTR_CONVOLUTION_DILATIONS = 102,
+    pub const CUDNN_ATTR_CONVOLUTION_DILATIONS: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        102,
+    );
     /// Filter stride.
     ///
     /// ```text
     /// * [`cudnnBackendAttributeType_t::CUDNN_TYPE_INT64`]; one or more, but at most `CUDNN_MAX_DIMS` elements.
     /// * Required attribute.
     /// ```
-    CUDNN_ATTR_CONVOLUTION_FILTER_STRIDES = 103,
+    pub const CUDNN_ATTR_CONVOLUTION_FILTER_STRIDES: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        103,
+    );
     /// Padding at the end of each spatial dimension.
     ///
     /// ```text
     /// * [`cudnnBackendAttributeType_t::CUDNN_TYPE_INT64`]; one or more, but at most `CUDNN_MAX_DIMS` elements.
     /// * Required attribute.
     /// ```
-    CUDNN_ATTR_CONVOLUTION_POST_PADDINGS = 104,
+    pub const CUDNN_ATTR_CONVOLUTION_POST_PADDINGS: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        104,
+    );
     /// Padding at the beginning of each spatial dimension.
     ///
     /// ```text
     /// * [`cudnnBackendAttributeType_t::CUDNN_TYPE_INT64`]; one or more, but at most `CUDNN_MAX_DIMS` elements.
     /// * Required attribute.
     /// ```
-    CUDNN_ATTR_CONVOLUTION_PRE_PADDINGS = 105,
+    pub const CUDNN_ATTR_CONVOLUTION_PRE_PADDINGS: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        105,
+    );
     /// The number of spatial dimensions, expected array length for each of dilations, filter strides, and padding arrays.
     ///
     /// ```text
     /// * [`cudnnBackendAttributeType_t::CUDNN_TYPE_INT64`]; one element.
     /// * Required attribute.
     /// ```
-    CUDNN_ATTR_CONVOLUTION_SPATIAL_DIMS = 106,
+    pub const CUDNN_ATTR_CONVOLUTION_SPATIAL_DIMS: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        106,
+    );
     /// Heuristic algorithm selection mode.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_ENGINEHEUR_MODE = 200,
+    pub const CUDNN_ATTR_ENGINEHEUR_MODE: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        200,
+    );
     /// Associated operation graph descriptor.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_ENGINEHEUR_OPERATION_GRAPH = 201,
+    pub const CUDNN_ATTR_ENGINEHEUR_OPERATION_GRAPH: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        201,
+    );
     /// Array of resulting engine configurations.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_ENGINEHEUR_RESULTS = 202,
+    pub const CUDNN_ATTR_ENGINEHEUR_RESULTS: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        202,
+    );
     /// Target streaming multiprocessor count.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_ENGINEHEUR_SM_COUNT_TARGET = 203,
+    pub const CUDNN_ATTR_ENGINEHEUR_SM_COUNT_TARGET: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        203,
+    );
     /// Device properties for heuristic query.
     ///
     /// since: cuDNN 9.8.0
-    CUDNN_ATTR_ENGINEHEUR_DEVICEPROP = 204,
+    pub const CUDNN_ATTR_ENGINEHEUR_DEVICEPROP: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        204,
+    );
     /// Shared memory limit metadata propagated to heuristic results.
     ///
     /// since: cuDNN 9.NEXT
-    CUDNN_ATTR_ENGINEHEUR_SHARED_MEMORY_LIMIT = 205,
+    pub const CUDNN_ATTR_ENGINEHEUR_SHARED_MEMORY_LIMIT: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        205,
+    );
     /// Selected engine from heuristic results.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_ENGINECFG_ENGINE = 300,
+    pub const CUDNN_ATTR_ENGINECFG_ENGINE: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        300,
+    );
     /// Intermediate tensor information.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_ENGINECFG_INTERMEDIATE_INFO = 301,
+    pub const CUDNN_ATTR_ENGINECFG_INTERMEDIATE_INFO: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        301,
+    );
     /// Performance tuning knob selections.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_ENGINECFG_KNOB_CHOICES = 302,
+    pub const CUDNN_ATTR_ENGINECFG_KNOB_CHOICES: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        302,
+    );
     /// Required workspace memory size.
     ///
     /// since: cuDNN 9.2.0
-    CUDNN_ATTR_ENGINECFG_WORKSPACE_SIZE = 303,
+    pub const CUDNN_ATTR_ENGINECFG_WORKSPACE_SIZE: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        303,
+    );
     /// Shared memory used by engine.
     ///
     /// since: cuDNN 9.2.0
-    CUDNN_ATTR_ENGINECFG_SHARED_MEMORY_USED = 304,
+    pub const CUDNN_ATTR_ENGINECFG_SHARED_MEMORY_USED: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        304,
+    );
     /// Associated cuDNN handle.
     ///
     /// Deprecated:
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_EXECUTION_PLAN_HANDLE = 400,
+    pub const CUDNN_ATTR_EXECUTION_PLAN_HANDLE: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        400,
+    );
     /// Engine configuration to execute.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_EXECUTION_PLAN_ENGINE_CONFIG = 401,
+    pub const CUDNN_ATTR_EXECUTION_PLAN_ENGINE_CONFIG: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        401,
+    );
     /// Total workspace size requirement.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_EXECUTION_PLAN_WORKSPACE_SIZE = 402,
+    pub const CUDNN_ATTR_EXECUTION_PLAN_WORKSPACE_SIZE: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        402,
+    );
     /// UIDs of computed intermediates.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_EXECUTION_PLAN_COMPUTED_INTERMEDIATE_UIDS = 403,
+    pub const CUDNN_ATTR_EXECUTION_PLAN_COMPUTED_INTERMEDIATE_UIDS: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        403,
+    );
     /// Run-only intermediate UIDs.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_EXECUTION_PLAN_RUN_ONLY_INTERMEDIATE_UIDS = 404,
+    pub const CUDNN_ATTR_EXECUTION_PLAN_RUN_ONLY_INTERMEDIATE_UIDS: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        404,
+    );
     /// Human-readable execution plan JSON.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_EXECUTION_PLAN_JSON_REPRESENTATION = 405,
+    pub const CUDNN_ATTR_EXECUTION_PLAN_JSON_REPRESENTATION: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        405,
+    );
     /// Compiled kernel cache descriptor.
     ///
     /// since: cuDNN 9.4.0
-    CUDNN_ATTR_EXECUTION_PLAN_KERNEL_CACHE = 406,
+    pub const CUDNN_ATTR_EXECUTION_PLAN_KERNEL_CACHE: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        406,
+    );
     /// Device properties for execution plan.
     ///
     /// since: cuDNN 9.8.0
-    CUDNN_ATTR_EXECUTION_PLAN_DEVICEPROP = 407,
+    pub const CUDNN_ATTR_EXECUTION_PLAN_DEVICEPROP: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        407,
+    );
     /// Unique identifier for intermediate tensor.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_INTERMEDIATE_INFO_UNIQUE_ID = 500,
+    pub const CUDNN_ATTR_INTERMEDIATE_INFO_UNIQUE_ID: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        500,
+    );
     /// Memory size requirement in bytes.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_INTERMEDIATE_INFO_SIZE = 501,
+    pub const CUDNN_ATTR_INTERMEDIATE_INFO_SIZE: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        501,
+    );
     /// Data dependency UIDs.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_INTERMEDIATE_INFO_DEPENDENT_DATA_UIDS = 502,
+    pub const CUDNN_ATTR_INTERMEDIATE_INFO_DEPENDENT_DATA_UIDS: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        502,
+    );
     /// Attribute dependencies.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_INTERMEDIATE_INFO_DEPENDENT_ATTRIBUTES = 503,
+    pub const CUDNN_ATTR_INTERMEDIATE_INFO_DEPENDENT_ATTRIBUTES: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        503,
+    );
     /// Type of performance tuning knob.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_KNOB_CHOICE_KNOB_TYPE = 600,
+    pub const CUDNN_ATTR_KNOB_CHOICE_KNOB_TYPE: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        600,
+    );
     /// Selected value for the knob.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_KNOB_CHOICE_KNOB_VALUE = 601,
+    pub const CUDNN_ATTR_KNOB_CHOICE_KNOB_VALUE: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        601,
+    );
     /// The alpha value.
     ///
     /// ```text
     /// * [`cudnnBackendAttributeType_t::CUDNN_TYPE_FLOAT`] or [`cudnnBackendAttributeType_t::CUDNN_TYPE_DOUBLE`]; one or more elements.
     /// * Required to be set before finalization.
     /// ```
-    CUDNN_ATTR_OPERATION_CONVOLUTION_FORWARD_ALPHA = 700,
+    pub const CUDNN_ATTR_OPERATION_CONVOLUTION_FORWARD_ALPHA: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        700,
+    );
     /// The beta value.
     ///
     /// ```text
     /// * [`cudnnBackendAttributeType_t::CUDNN_TYPE_FLOAT`] or [`cudnnBackendAttributeType_t::CUDNN_TYPE_DOUBLE`]; one or more elements.
     /// * Required attribute.
     /// ```
-    CUDNN_ATTR_OPERATION_CONVOLUTION_FORWARD_BETA = 701,
+    pub const CUDNN_ATTR_OPERATION_CONVOLUTION_FORWARD_BETA: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        701,
+    );
     /// The convolution operator descriptor.
     ///
     /// ```text
     /// * [`cudnnBackendAttributeType_t::CUDNN_TYPE_BACKEND_DESCRIPTOR`]; one element of descriptor type [`cudnnBackendDescriptorType_t::CUDNN_BACKEND_CONVOLUTION_DESCRIPTOR`].
     /// * Required attribute.
     /// ```
-    CUDNN_ATTR_OPERATION_CONVOLUTION_FORWARD_CONV_DESC = 702,
+    pub const CUDNN_ATTR_OPERATION_CONVOLUTION_FORWARD_CONV_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        702,
+    );
     /// The convolution filter tensor descriptor.
     ///
     /// ```text
     /// * [`cudnnBackendAttributeType_t::CUDNN_TYPE_BACKEND_DESCRIPTOR`]; one element of descriptor type [`cudnnBackendDescriptorType_t::CUDNN_BACKEND_TENSOR_DESCRIPTOR`].
     /// * Required attribute.
     /// ```
-    CUDNN_ATTR_OPERATION_CONVOLUTION_FORWARD_W = 703,
+    pub const CUDNN_ATTR_OPERATION_CONVOLUTION_FORWARD_W: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        703,
+    );
     /// The image tensor descriptor.
     ///
     /// ```text
     /// * [`cudnnBackendAttributeType_t::CUDNN_TYPE_BACKEND_DESCRIPTOR`]; one element of descriptor type [`cudnnBackendDescriptorType_t::CUDNN_BACKEND_TENSOR_DESCRIPTOR`].
     /// * Required attribute.
     /// ```
-    CUDNN_ATTR_OPERATION_CONVOLUTION_FORWARD_X = 704,
+    pub const CUDNN_ATTR_OPERATION_CONVOLUTION_FORWARD_X: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        704,
+    );
     /// The response tensor descriptor.
     ///
     /// ```text
     /// * [`cudnnBackendAttributeType_t::CUDNN_TYPE_BACKEND_DESCRIPTOR`]; one element of descriptor type [`cudnnBackendDescriptorType_t::CUDNN_BACKEND_TENSOR_DESCRIPTOR`].
     /// * Required attribute.
     /// ```
-    CUDNN_ATTR_OPERATION_CONVOLUTION_FORWARD_Y = 705,
+    pub const CUDNN_ATTR_OPERATION_CONVOLUTION_FORWARD_Y: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        705,
+    );
     /// The alpha value.
     ///
     /// ```text
     /// * [`cudnnBackendAttributeType_t::CUDNN_TYPE_FLOAT`] or [`cudnnBackendAttributeType_t::CUDNN_TYPE_DOUBLE`]; one or more elements.
     /// * Required attribute.
     /// ```
-    CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_DATA_ALPHA = 706,
+    pub const CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_DATA_ALPHA: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        706,
+    );
     /// The beta value.
     ///
     /// ```text
     /// * [`cudnnBackendAttributeType_t::CUDNN_TYPE_FLOAT`] or [`cudnnBackendAttributeType_t::CUDNN_TYPE_DOUBLE`]; one or more elements.
     /// * Required attribute.
     /// ```
-    CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_DATA_BETA = 707,
+    pub const CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_DATA_BETA: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        707,
+    );
     /// The convolution operator descriptor.
     ///
     /// ```text
     /// * [`cudnnBackendAttributeType_t::CUDNN_TYPE_BACKEND_DESCRIPTOR`]; one element of descriptor type [`cudnnBackendDescriptorType_t::CUDNN_BACKEND_CONVOLUTION_DESCRIPTOR`].
     /// * Required attribute.
     /// ```
-    CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_DATA_CONV_DESC = 708,
+    pub const CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_DATA_CONV_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        708,
+    );
     /// The convolution filter tensor descriptor.
     ///
     /// ```text
     /// * [`cudnnBackendAttributeType_t::CUDNN_TYPE_BACKEND_DESCRIPTOR`]; one element of descriptor type [`cudnnBackendDescriptorType_t::CUDNN_BACKEND_TENSOR_DESCRIPTOR`].
     /// * Required attribute.
     /// ```
-    CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_DATA_W = 709,
+    pub const CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_DATA_W: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        709,
+    );
     /// The image gradient tensor descriptor.
     ///
     /// ```text
     /// * [`cudnnBackendAttributeType_t::CUDNN_TYPE_BACKEND_DESCRIPTOR`]; one element of descriptor type [`cudnnBackendDescriptorType_t::CUDNN_BACKEND_TENSOR_DESCRIPTOR`].
     /// * Required attribute.
     /// ```
-    CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_DATA_DX = 710,
+    pub const CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_DATA_DX: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        710,
+    );
     /// The response gradient tensor descriptor.
     ///
     /// ```text
     /// * [`cudnnBackendAttributeType_t::CUDNN_TYPE_BACKEND_DESCRIPTOR`]; one element of descriptor type [`cudnnBackendDescriptorType_t::CUDNN_BACKEND_TENSOR_DESCRIPTOR`].
     /// * Required attribute.
     /// ```
-    CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_DATA_DY = 711,
+    pub const CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_DATA_DY: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        711,
+    );
     /// The alpha value.
     ///
     /// ```text
     /// * [`cudnnBackendAttributeType_t::CUDNN_TYPE_FLOAT`] or [`cudnnBackendAttributeType_t::CUDNN_TYPE_DOUBLE`]; one or more elements.
     /// * Required attribute. Required to be set before finalization.
     /// ```
-    CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_FILTER_ALPHA = 712,
+    pub const CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_FILTER_ALPHA: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        712,
+    );
     /// The beta value.
     ///
     /// ```text
     /// * [`cudnnBackendAttributeType_t::CUDNN_TYPE_FLOAT`] or [`cudnnBackendAttributeType_t::CUDNN_TYPE_DOUBLE`]; one or more elements.
     /// * Required attribute. Required to be set before finalization.
     /// ```
-    CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_FILTER_BETA = 713,
+    pub const CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_FILTER_BETA: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        713,
+    );
     /// The convolution operator descriptor.
     ///
     /// ```text
     /// * [`cudnnBackendAttributeType_t::CUDNN_TYPE_BACKEND_DESCRIPTOR`]; one element of descriptor type [`cudnnBackendDescriptorType_t::CUDNN_BACKEND_CONVOLUTION_DESCRIPTOR`].
     /// * Required attribute. Required to be set before finalization.
     /// ```
-    CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_FILTER_CONV_DESC = 714,
+    pub const CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_FILTER_CONV_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        714,
+    );
     /// The convolution filter tensor descriptor.
     ///
     /// ```text
     /// * [`cudnnBackendAttributeType_t::CUDNN_TYPE_BACKEND_DESCRIPTOR`]; one element of descriptor type [`cudnnBackendDescriptorType_t::CUDNN_BACKEND_TENSOR_DESCRIPTOR`].
     /// * Required attribute. Required to be set before finalization.
     /// ```
-    CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_FILTER_DW = 715,
+    pub const CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_FILTER_DW: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        715,
+    );
     /// The image gradient tensor descriptor.
     ///
     /// ```text
     /// * [`cudnnBackendAttributeType_t::CUDNN_TYPE_BACKEND_DESCRIPTOR`]; one element of descriptor type [`cudnnBackendDescriptorType_t::CUDNN_BACKEND_TENSOR_DESCRIPTOR`].
     /// * Required attribute. Required to be set before finalization.
     /// ```
-    CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_FILTER_X = 716,
+    pub const CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_FILTER_X: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        716,
+    );
     /// The response gradient tensor descriptor.
     ///
     /// ```text
     /// * [`cudnnBackendAttributeType_t::CUDNN_TYPE_BACKEND_DESCRIPTOR`]; one element of descriptor type [`cudnnBackendDescriptorType_t::CUDNN_BACKEND_TENSOR_DESCRIPTOR`].
     /// * Required attribute. Required to be set before finalization.
     /// ```
-    CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_FILTER_DY = 717,
+    pub const CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_FILTER_DY: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        717,
+    );
     /// Pointwise descriptor reference.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_POINTWISE_PW_DESCRIPTOR = 750,
+    pub const CUDNN_ATTR_OPERATION_POINTWISE_PW_DESCRIPTOR: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        750,
+    );
     /// First input tensor descriptor.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_POINTWISE_XDESC = 751,
+    pub const CUDNN_ATTR_OPERATION_POINTWISE_XDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        751,
+    );
     /// Bias or second operand descriptor.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_POINTWISE_BDESC = 752,
+    pub const CUDNN_ATTR_OPERATION_POINTWISE_BDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        752,
+    );
     /// Output tensor descriptor.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_POINTWISE_YDESC = 753,
+    pub const CUDNN_ATTR_OPERATION_POINTWISE_YDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        753,
+    );
     /// First scaling constant.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_POINTWISE_ALPHA1 = 754,
+    pub const CUDNN_ATTR_OPERATION_POINTWISE_ALPHA1: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        754,
+    );
     /// Second scaling constant.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_POINTWISE_ALPHA2 = 755,
+    pub const CUDNN_ATTR_OPERATION_POINTWISE_ALPHA2: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        755,
+    );
     /// Input gradient descriptor.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_POINTWISE_DXDESC = 756,
+    pub const CUDNN_ATTR_OPERATION_POINTWISE_DXDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        756,
+    );
     /// Output gradient descriptor.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_POINTWISE_DYDESC = 757,
+    pub const CUDNN_ATTR_OPERATION_POINTWISE_DYDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        757,
+    );
     /// Intermediate tensor descriptor.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_POINTWISE_TDESC = 758,
+    pub const CUDNN_ATTR_OPERATION_POINTWISE_TDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        758,
+    );
     /// Statistics computation mode.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_GENSTATS_MODE = 770,
+    pub const CUDNN_ATTR_OPERATION_GENSTATS_MODE: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        770,
+    );
     /// Computation precision for statistics.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_GENSTATS_MATH_PREC = 771,
+    pub const CUDNN_ATTR_OPERATION_GENSTATS_MATH_PREC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        771,
+    );
     /// Input data tensor descriptor.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_GENSTATS_XDESC = 772,
+    pub const CUDNN_ATTR_OPERATION_GENSTATS_XDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        772,
+    );
     /// Sum output descriptor.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_GENSTATS_SUMDESC = 773,
+    pub const CUDNN_ATTR_OPERATION_GENSTATS_SUMDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        773,
+    );
     /// Sum of squares output descriptor.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_GENSTATS_SQSUMDESC = 774,
+    pub const CUDNN_ATTR_OPERATION_GENSTATS_SQSUMDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        774,
+    );
     /// Training vs inference mode.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_BN_FINALIZE_STATS_MODE = 780,
+    pub const CUDNN_ATTR_OPERATION_BN_FINALIZE_STATS_MODE: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        780,
+    );
     /// Computation precision.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_BN_FINALIZE_MATH_PREC = 781,
+    pub const CUDNN_ATTR_OPERATION_BN_FINALIZE_MATH_PREC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        781,
+    );
     /// Sum of batch norm outputs.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_BN_FINALIZE_Y_SUM_DESC = 782,
+    pub const CUDNN_ATTR_OPERATION_BN_FINALIZE_Y_SUM_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        782,
+    );
     /// Sum of squared outputs.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_BN_FINALIZE_Y_SQ_SUM_DESC = 783,
+    pub const CUDNN_ATTR_OPERATION_BN_FINALIZE_Y_SQ_SUM_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        783,
+    );
     /// Batch norm scale parameter.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_BN_FINALIZE_SCALE_DESC = 784,
+    pub const CUDNN_ATTR_OPERATION_BN_FINALIZE_SCALE_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        784,
+    );
     /// Batch norm bias parameter.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_BN_FINALIZE_BIAS_DESC = 785,
+    pub const CUDNN_ATTR_OPERATION_BN_FINALIZE_BIAS_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        785,
+    );
     /// Previous running mean.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_BN_FINALIZE_PREV_RUNNING_MEAN_DESC = 786,
+    pub const CUDNN_ATTR_OPERATION_BN_FINALIZE_PREV_RUNNING_MEAN_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        786,
+    );
     /// Previous running variance.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_BN_FINALIZE_PREV_RUNNING_VAR_DESC = 787,
+    pub const CUDNN_ATTR_OPERATION_BN_FINALIZE_PREV_RUNNING_VAR_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        787,
+    );
     /// Updated running mean output.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_BN_FINALIZE_UPDATED_RUNNING_MEAN_DESC = 788,
+    pub const CUDNN_ATTR_OPERATION_BN_FINALIZE_UPDATED_RUNNING_MEAN_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        788,
+    );
     /// Updated running variance output.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_BN_FINALIZE_UPDATED_RUNNING_VAR_DESC = 789,
+    pub const CUDNN_ATTR_OPERATION_BN_FINALIZE_UPDATED_RUNNING_VAR_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        789,
+    );
     /// Cached mean for backward pass.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_BN_FINALIZE_SAVED_MEAN_DESC = 790,
+    pub const CUDNN_ATTR_OPERATION_BN_FINALIZE_SAVED_MEAN_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        790,
+    );
     /// Cached inverse std dev for backward.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_BN_FINALIZE_SAVED_INV_STD_DESC = 791,
+    pub const CUDNN_ATTR_OPERATION_BN_FINALIZE_SAVED_INV_STD_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        791,
+    );
     /// Equivalent scale for fused inference.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_BN_FINALIZE_EQ_SCALE_DESC = 792,
+    pub const CUDNN_ATTR_OPERATION_BN_FINALIZE_EQ_SCALE_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        792,
+    );
     /// Equivalent bias for fused inference.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_BN_FINALIZE_EQ_BIAS_DESC = 793,
+    pub const CUDNN_ATTR_OPERATION_BN_FINALIZE_EQ_BIAS_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        793,
+    );
     /// Accumulation sample counter.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_BN_FINALIZE_ACCUM_COUNT_DESC = 794,
+    pub const CUDNN_ATTR_OPERATION_BN_FINALIZE_ACCUM_COUNT_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        794,
+    );
     /// Numerical stability epsilon.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_BN_FINALIZE_EPSILON_DESC = 795,
+    pub const CUDNN_ATTR_OPERATION_BN_FINALIZE_EPSILON_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        795,
+    );
     /// Exponential averaging factor.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_BN_FINALIZE_EXP_AVERATE_FACTOR_DESC = 796,
+    pub const CUDNN_ATTR_OPERATION_BN_FINALIZE_EXP_AVERATE_FACTOR_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        796,
+    );
     /// A cuDNN handle.
     ///
     /// ```text
     /// * [`cudnnBackendAttributeType_t::CUDNN_TYPE_HANDLE`]; one element.
     /// * Required attribute.
     /// ```
-    CUDNN_ATTR_OPERATIONGRAPH_HANDLE = 800,
+    pub const CUDNN_ATTR_OPERATIONGRAPH_HANDLE: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        800,
+    );
     /// Operation nodes to form the operation graph.
     ///
     /// ```text
     /// * [`cudnnBackendAttributeType_t::CUDNN_TYPE_BACKEND_DESCRIPTOR`]; one or more elements of descriptor type `CUDNN_BACKEND_OPERATION_*_DESCRIPTOR`.
     /// * Required attribute.
     /// ```
-    CUDNN_ATTR_OPERATIONGRAPH_OPS = 801,
+    pub const CUDNN_ATTR_OPERATIONGRAPH_OPS: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        801,
+    );
     /// The number of engines to support the operation graph.
     ///
     /// ```text
     /// * [`cudnnBackendAttributeType_t::CUDNN_TYPE_INT64`]; one element.
     /// * Read-only attribute.
     /// ```
-    CUDNN_ATTR_OPERATIONGRAPH_ENGINE_GLOBAL_COUNT = 802,
+    pub const CUDNN_ATTR_OPERATIONGRAPH_ENGINE_GLOBAL_COUNT: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        802,
+    );
     /// Whether dynamic shape is enabled for the operation graph. The rest of the backend API will treat the graph as a dynamic shape graph and enable this feature.
     ///
     /// ```text
     /// * [`cudnnBackendAttributeType_t::CUDNN_TYPE_BOOLEAN`]; one element.
     /// ```
-    CUDNN_ATTR_OPERATIONGRAPH_IS_DYNAMIC_SHAPE_ENABLED = 803,
+    pub const CUDNN_ATTR_OPERATIONGRAPH_IS_DYNAMIC_SHAPE_ENABLED: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        803,
+    );
     /// Same topology reuse flag.
     ///
     /// since: cuDNN 9.6.0
-    CUDNN_ATTR_OPERATIONGRAPH_IS_SAME_TOPOLOGY = 804,
+    pub const CUDNN_ATTR_OPERATIONGRAPH_IS_SAME_TOPOLOGY: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        804,
+    );
     /// Dynamic shape support with execute time override
     ///
     /// since: cuDNN 9.21.0
-    CUDNN_ATTR_OPERATIONGRAPH_IS_OVERRIDE_SHAPE_ENABLED = 805,
+    pub const CUDNN_ATTR_OPERATIONGRAPH_IS_OVERRIDE_SHAPE_ENABLED: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        805,
+    );
     /// Optional cudnnBackendOperationGraphMode_t — see enum doc.
     ///
     /// since: cuDNN 9.NEXT
-    CUDNN_ATTR_OPERATIONGRAPH_MODE = 806,
+    pub const CUDNN_ATTR_OPERATIONGRAPH_MODE: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        806,
+    );
     /// Byte alignment of pointers for this tensor.
     ///
     /// ```text
     /// * [`cudnnBackendAttributeType_t::CUDNN_TYPE_INT64`]; one element.
     /// * Required attribute.
     /// ```
-    CUDNN_ATTR_TENSOR_BYTE_ALIGNMENT = 900,
+    pub const CUDNN_ATTR_TENSOR_BYTE_ALIGNMENT: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        900,
+    );
     /// Data type of tensor.
     ///
     /// ```text
     /// * [`cudnnBackendAttributeType_t::CUDNN_TYPE_DATA_TYPE`]; one element.
     /// * Required attribute.
     /// ```
-    CUDNN_ATTR_TENSOR_DATA_TYPE = 901,
+    pub const CUDNN_ATTR_TENSOR_DATA_TYPE: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        901,
+    );
     /// Tensor dimensions.
     ///
     /// ```text
     /// * [`cudnnBackendAttributeType_t::CUDNN_TYPE_INT64`]; at most `CUDNN_MAX_DIMS` elements.
     /// * Required attribute.
     /// ```
-    CUDNN_ATTR_TENSOR_DIMENSIONS = 902,
+    pub const CUDNN_ATTR_TENSOR_DIMENSIONS: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        902,
+    );
     /// Tensor strides.
     ///
     /// ```text
     /// * [`cudnnBackendAttributeType_t::CUDNN_TYPE_INT64`]; at most `CUDNN_MAX_DIMS` elements.
     /// * Required attribute.
     /// ```
-    CUDNN_ATTR_TENSOR_STRIDES = 903,
+    pub const CUDNN_ATTR_TENSOR_STRIDES: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        903,
+    );
     /// Size of vectorization.
     ///
     /// ```text
     /// * [`cudnnBackendAttributeType_t::CUDNN_TYPE_INT64`]; one element.
     /// * Default value is `1`.
     /// ```
-    CUDNN_ATTR_TENSOR_VECTOR_COUNT = 904,
+    pub const CUDNN_ATTR_TENSOR_VECTOR_COUNT: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        904,
+    );
     /// Index of the vectorized dimension.
     ///
     /// ```text
     /// * [`cudnnBackendAttributeType_t::CUDNN_TYPE_INT64`]; one element.
     /// * Required to be set before finalization if [`cudnnBackendAttributeName_t::CUDNN_ATTR_TENSOR_VECTOR_COUNT`] is set to a value different than its default; otherwise it’s ignored.
     /// ```
-    CUDNN_ATTR_TENSOR_VECTORIZED_DIMENSION = 905,
+    pub const CUDNN_ATTR_TENSOR_VECTORIZED_DIMENSION: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        905,
+    );
     /// An integer that uniquely identifies the tensor.
     ///
     /// ```text
     /// * [`cudnnBackendAttributeType_t::CUDNN_TYPE_INT64`]; one element.
     /// * Required attribute.
     /// ```
-    CUDNN_ATTR_TENSOR_UNIQUE_ID = 906,
+    pub const CUDNN_ATTR_TENSOR_UNIQUE_ID: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        906,
+    );
     /// Indicates whether the tensor is virtual. A virtual tensor is an intermediate tensor in the operation graph that exists in transient and not read from or written to in global device memory.
     ///
     /// ```text
     /// * [`cudnnBackendAttributeType_t::CUDNN_TYPE_BOOLEAN`]; one element.
     /// * Default value is `false`.
     /// ```
-    CUDNN_ATTR_TENSOR_IS_VIRTUAL = 907,
+    pub const CUDNN_ATTR_TENSOR_IS_VIRTUAL: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        907,
+    );
     /// Constant scalar vs device pointer flag.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_TENSOR_IS_BY_VALUE = 908,
+    pub const CUDNN_ATTR_TENSOR_IS_BY_VALUE: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        908,
+    );
     /// Memory layout transformation type.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_TENSOR_REORDERING_MODE = 909,
+    pub const CUDNN_ATTR_TENSOR_REORDERING_MODE: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        909,
+    );
     /// Compile-time constant value for by-value tensors.
     ///
     /// since: cuDNN 9.22.0
-    CUDNN_ATTR_TENSOR_CONSTANT_VALUE = 910,
+    pub const CUDNN_ATTR_TENSOR_CONSTANT_VALUE: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        910,
+    );
     /// A ragged tensor, that is, a tensor with nested variable length lists as inner dimensions, will have another tensor called the ragged offset descriptor that contains offsets in memory to the next variable length list.
     ///
     /// ```text
     /// * [`cudnnBackendAttributeType_t::CUDNN_TYPE_BACKEND_DESCRIPTOR`]; one element.
     /// * Default value is `None`.
     /// ```
-    CUDNN_ATTR_TENSOR_RAGGED_OFFSET_DESC = 913,
+    pub const CUDNN_ATTR_TENSOR_RAGGED_OFFSET_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        913,
+    );
     /// Ragged tensor offset unit size.
     ///
     /// since: cuDNN 9.24.0
-    CUDNN_ATTR_TENSOR_RAGGED_OFFSET_MULTIPLIER = 914,
+    pub const CUDNN_ATTR_TENSOR_RAGGED_OFFSET_MULTIPLIER: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        914,
+    );
     /// Tensor UIDs in this variant pack.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_VARIANT_PACK_UNIQUE_IDS = 1000,
+    pub const CUDNN_ATTR_VARIANT_PACK_UNIQUE_IDS: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1000,
+    );
     /// GPU memory data pointers array.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_VARIANT_PACK_DATA_POINTERS = 1001,
+    pub const CUDNN_ATTR_VARIANT_PACK_DATA_POINTERS: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1001,
+    );
     /// Intermediate tensor pointers.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_VARIANT_PACK_INTERMEDIATES = 1002,
+    pub const CUDNN_ATTR_VARIANT_PACK_INTERMEDIATES: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1002,
+    );
     /// Workspace memory pointer.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_VARIANT_PACK_WORKSPACE = 1003,
+    pub const CUDNN_ATTR_VARIANT_PACK_WORKSPACE: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1003,
+    );
     /// Override tensor UIDs for dynamic shapes.
     ///
     /// since: cuDNN 9.18.0
-    CUDNN_ATTR_VARIANT_PACK_OVERRIDE_UNIQUE_IDS = 1010,
+    pub const CUDNN_ATTR_VARIANT_PACK_OVERRIDE_UNIQUE_IDS: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1010,
+    );
     /// Override shapes for dynamic shapes.
     ///
     /// since: cuDNN 9.18.0
-    CUDNN_ATTR_VARIANT_PACK_OVERRIDE_SHAPES = 1011,
+    pub const CUDNN_ATTR_VARIANT_PACK_OVERRIDE_SHAPES: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1011,
+    );
     /// Override strides for dynamic shapes.
     ///
     /// since: cuDNN 9.18.0
-    CUDNN_ATTR_VARIANT_PACK_OVERRIDE_STRIDES = 1012,
+    pub const CUDNN_ATTR_VARIANT_PACK_OVERRIDE_STRIDES: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1012,
+    );
     /// Associated tensor identifier.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_LAYOUT_INFO_TENSOR_UID = 1100,
+    pub const CUDNN_ATTR_LAYOUT_INFO_TENSOR_UID: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1100,
+    );
     /// Available memory layout types.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_LAYOUT_INFO_TYPES = 1101,
+    pub const CUDNN_ATTR_LAYOUT_INFO_TYPES: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1101,
+    );
     /// Knob type being described.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_KNOB_INFO_TYPE = 1200,
+    pub const CUDNN_ATTR_KNOB_INFO_TYPE: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1200,
+    );
     /// Upper bound for knob value.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_KNOB_INFO_MAXIMUM_VALUE = 1201,
+    pub const CUDNN_ATTR_KNOB_INFO_MAXIMUM_VALUE: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1201,
+    );
     /// Lower bound for knob value.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_KNOB_INFO_MINIMUM_VALUE = 1202,
+    pub const CUDNN_ATTR_KNOB_INFO_MINIMUM_VALUE: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1202,
+    );
     /// Valid increment between knob values.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_KNOB_INFO_STRIDE = 1203,
+    pub const CUDNN_ATTR_KNOB_INFO_STRIDE: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1203,
+    );
     /// The operation graph to compute.
     ///
     /// ```text
     /// * [`cudnnBackendAttributeType_t::CUDNN_TYPE_BACKEND_DESCRIPTOR`]; one element of descriptor type [`cudnnBackendDescriptorType_t::CUDNN_BACKEND_OPERATIONGRAPH_DESCRIPTOR`].
     /// * Required attribute.
     /// ```
-    CUDNN_ATTR_ENGINE_OPERATION_GRAPH = 1300,
+    pub const CUDNN_ATTR_ENGINE_OPERATION_GRAPH: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1300,
+    );
     /// The index for the engine.
     ///
     /// ```text
@@ -1851,35 +2011,45 @@ pub enum cudnnBackendAttributeName_t {
     /// * Valid values are between `0` and `CUDNN_ATTR_OPERATIONGRAPH_ENGINE_GLOBAL_COUNT-1`.
     /// * Required attribute.
     /// ```
-    CUDNN_ATTR_ENGINE_GLOBAL_INDEX = 1301,
+    pub const CUDNN_ATTR_ENGINE_GLOBAL_INDEX: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1301,
+    );
     /// The descriptors of performance knobs of the engine.
     ///
     /// ```text
     /// * [`cudnnBackendAttributeType_t::CUDNN_TYPE_BACKEND_DESCRIPTOR`]; one element of descriptor type [`cudnnBackendDescriptorType_t::CUDNN_BACKEND_KNOB_INFO_DESCRIPTOR`].
     /// * Read-only attribute.
     /// ```
-    CUDNN_ATTR_ENGINE_KNOB_INFO = 1302,
+    pub const CUDNN_ATTR_ENGINE_KNOB_INFO: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1302,
+    );
     /// The numerical attributes of the engine.
     ///
     /// ```text
     /// * [`cudnnBackendAttributeType_t::CUDNN_TYPE_NUMERICAL_NOTE`]; zero or more elements.
     /// * Read-only attribute.
     /// ```
-    CUDNN_ATTR_ENGINE_NUMERICAL_NOTE = 1303,
+    pub const CUDNN_ATTR_ENGINE_NUMERICAL_NOTE: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1303,
+    );
     /// The preferred tensor layouts of the engine.
     ///
     /// ```text
     /// * [`cudnnBackendAttributeType_t::CUDNN_TYPE_BACKEND_DESCRIPTOR`]; one element of descriptor type [`cudnnBackendDescriptorType_t::CUDNN_BACKEND_LAYOUT_INFO_DESCRIPTOR`].
     /// * Read-only attribute.
     /// ```
-    CUDNN_ATTR_ENGINE_LAYOUT_INFO = 1304,
+    pub const CUDNN_ATTR_ENGINE_LAYOUT_INFO: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1304,
+    );
     /// The behavior attributes of the engine.
     ///
     /// ```text
     /// * [`cudnnBackendAttributeType_t::CUDNN_TYPE_BEHAVIOR_NOTE`]; zero or more elements.
     /// * Read-only attribute.
     /// ```
-    CUDNN_ATTR_ENGINE_BEHAVIOR_NOTE = 1305,
+    pub const CUDNN_ATTR_ENGINE_BEHAVIOR_NOTE: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1305,
+    );
     /// The number of SMs to target.
     ///
     /// ```text
@@ -1887,18 +2057,24 @@ pub enum cudnnBackendAttributeName_t {
     /// * Valid values are between `0` and the number of SMs on the device, where `0` is default meaning all the SMs will be used.
     /// * Optional attribute.
     /// ```
-    CUDNN_ATTR_ENGINE_SM_COUNT_TARGET = 1306,
+    pub const CUDNN_ATTR_ENGINE_SM_COUNT_TARGET: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1306,
+    );
     /// The descriptor of the device that this engine descriptor targets.
     ///
     /// ```text
     /// * [`cudnnBackendAttributeType_t::CUDNN_TYPE_BACKEND_DESCRIPTOR`]; one element of descriptor type [`cudnnBackendDescriptorType_t::CUDNN_BACKEND_DEVICEPROP_DESCRIPTOR`].
     /// * Optional attribute.
     /// ```
-    CUDNN_ATTR_ENGINE_DEVICEPROP = 1307,
+    pub const CUDNN_ATTR_ENGINE_DEVICEPROP: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1307,
+    );
     /// Disable cluster cooperative kernels.
     ///
     /// since: cuDNN 9.17.0
-    CUDNN_ATTR_ENGINE_DISABLE_CLUSTER_COOPERATIVE = 1308,
+    pub const CUDNN_ATTR_ENGINE_DISABLE_CLUSTER_COOPERATIVE: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1308,
+    );
     /// Sets a dynamic shared memory budget for the engine, in bytes.
     ///
     /// ```text
@@ -1907,1222 +2083,1774 @@ pub enum cudnnBackendAttributeName_t {
     /// * FORT/native runtime-fusion engines use the budget when resolving pipeline stages. Other engines ignore it.
     /// * Optional attribute.
     /// ```
-    CUDNN_ATTR_ENGINE_SHARED_MEMORY_LIMIT = 1309,
+    pub const CUDNN_ATTR_ENGINE_SHARED_MEMORY_LIMIT: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1309,
+    );
     /// Computation precision type for matmul.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_MATMUL_COMP_TYPE = 1500,
+    pub const CUDNN_ATTR_MATMUL_COMP_TYPE: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1500,
+    );
     /// Padding value for incomplete blocks.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_MATMUL_PADDING_VALUE = 1503,
+    pub const CUDNN_ATTR_MATMUL_PADDING_VALUE: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1503,
+    );
     /// The Matrix A descriptor.
     ///
     /// ```text
     /// * [`cudnnBackendAttributeType_t::CUDNN_TYPE_BACKEND_DESCRIPTOR`]; one element of descriptor type [`cudnnBackendDescriptorType_t::CUDNN_BACKEND_TENSOR_DESCRIPTOR`].
     /// * Required attribute.
     /// ```
-    CUDNN_ATTR_OPERATION_MATMUL_ADESC = 1520,
+    pub const CUDNN_ATTR_OPERATION_MATMUL_ADESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1520,
+    );
     /// The Matrix B descriptor.
     ///
     /// ```text
     /// * [`cudnnBackendAttributeType_t::CUDNN_TYPE_BACKEND_DESCRIPTOR`]; one element of descriptor type [`cudnnBackendDescriptorType_t::CUDNN_BACKEND_TENSOR_DESCRIPTOR`].
     /// * Required attribute.
     /// ```
-    CUDNN_ATTR_OPERATION_MATMUL_BDESC = 1521,
+    pub const CUDNN_ATTR_OPERATION_MATMUL_BDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1521,
+    );
     /// The Matrix C descriptor.
     ///
     /// ```text
     /// * [`cudnnBackendAttributeType_t::CUDNN_TYPE_BACKEND_DESCRIPTOR`]; one element of descriptor type [`cudnnBackendDescriptorType_t::CUDNN_BACKEND_TENSOR_DESCRIPTOR`].
     /// * Required attribute.
     /// ```
-    CUDNN_ATTR_OPERATION_MATMUL_CDESC = 1522,
+    pub const CUDNN_ATTR_OPERATION_MATMUL_CDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1522,
+    );
     /// The `matmul` operation descriptor.
     ///
     /// ```text
     /// * [`cudnnBackendAttributeType_t::CUDNN_TYPE_BACKEND_DESCRIPTOR`]; one element of descriptor type [`cudnnBackendDescriptorType_t::CUDNN_BACKEND_MATMUL_DESCRIPTOR`].
     /// * Required attribute.
     /// ```
-    CUDNN_ATTR_OPERATION_MATMUL_DESC = 1523,
+    pub const CUDNN_ATTR_OPERATION_MATMUL_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1523,
+    );
     /// Number of `matmul` operations to perform in the batch on matrix.
     ///
     /// ```text
     /// * [`cudnnBackendAttributeType_t::CUDNN_TYPE_INT64`]; one element.
     /// * Default value is `1`.
     /// ```
-    CUDNN_ATTR_OPERATION_MATMUL_IRREGULARLY_STRIDED_BATCH_COUNT = 1524,
+    pub const CUDNN_ATTR_OPERATION_MATMUL_IRREGULARLY_STRIDED_BATCH_COUNT: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1524,
+    );
     /// The tensor `gemm_m_override` descriptor. Allows you to override the M dimension of a batch matmul through this tensor. It is only supported as documented in the [Fused Attention fprop](https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/developer/graph-api.html#fused-multi-head-att-fprop), [Fused Attention bprop](https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/developer/graph-api.html#fused-multi-head-att-bprop), [Fused Flash Attention fprop](https://docs.nvidia.com/deeplearning/cudnn/latest/developer/graph-api.html#flash-fused-multi-head-att-fprop "(in NVIDIA cuDNN)"), and [Fused Flash Attention bprop](https://docs.nvidia.com/deeplearning/cudnn/latest/developer/graph-api.html#flash-fused-multi-head-att-bprop "(in NVIDIA cuDNN)") sections.
     ///
     /// ```text
     /// * [`cudnnBackendAttributeType_t::CUDNN_TYPE_BACKEND_DESCRIPTOR`]; one element of descriptor type [`cudnnBackendDescriptorType_t::CUDNN_BACKEND_TENSOR_DESCRIPTOR`].
     /// * Optional attribute.
     /// ```
-    CUDNN_ATTR_OPERATION_MATMUL_GEMM_M_OVERRIDE_DESC = 1525,
+    pub const CUDNN_ATTR_OPERATION_MATMUL_GEMM_M_OVERRIDE_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1525,
+    );
     /// The tensor `gemm_n_override` descriptor. Allows you to override the N dimension of a batch matmul through this tensor. It is only supported as documented in the [Fused Attention fprop](https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/developer/graph-api.html#fused-multi-head-att-fprop), [Fused Attention bprop](https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/developer/graph-api.html#fused-multi-head-att-bprop), [Fused Flash Attention fprop](https://docs.nvidia.com/deeplearning/cudnn/latest/developer/graph-api.html#flash-fused-multi-head-att-fprop "(in NVIDIA cuDNN)"), and [Fused Flash Attention bprop](https://docs.nvidia.com/deeplearning/cudnn/latest/developer/graph-api.html#flash-fused-multi-head-att-bprop "(in NVIDIA cuDNN)") sections.
     ///
     /// ```text
     /// * [`cudnnBackendAttributeType_t::CUDNN_TYPE_BACKEND_DESCRIPTOR`]; one element of descriptor type [`cudnnBackendDescriptorType_t::CUDNN_BACKEND_TENSOR_DESCRIPTOR`].
     /// * Optional attribute.
     /// ```
-    CUDNN_ATTR_OPERATION_MATMUL_GEMM_N_OVERRIDE_DESC = 1526,
+    pub const CUDNN_ATTR_OPERATION_MATMUL_GEMM_N_OVERRIDE_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1526,
+    );
     /// The tensor `gemm_k_override` descriptor. Allows you to override the K dimension of a batch matmul through this tensor. It is only supported as documented in the [Fused Attention fprop](https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/developer/graph-api.html#fused-multi-head-att-fprop), [Fused Attention bprop](https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/developer/graph-api.html#fused-multi-head-att-bprop), [Fused Flash Attention fprop](https://docs.nvidia.com/deeplearning/cudnn/latest/developer/graph-api.html#flash-fused-multi-head-att-fprop "(in NVIDIA cuDNN)"), and [Fused Flash Attention bprop](https://docs.nvidia.com/deeplearning/cudnn/latest/developer/graph-api.html#flash-fused-multi-head-att-bprop "(in NVIDIA cuDNN)") sections.
     ///
     /// ```text
     /// * [`cudnnBackendAttributeType_t::CUDNN_TYPE_BACKEND_DESCRIPTOR`]; one element of descriptor type [`cudnnBackendDescriptorType_t::CUDNN_BACKEND_TENSOR_DESCRIPTOR`].
     /// * Optional attribute.
     /// ```
-    CUDNN_ATTR_OPERATION_MATMUL_GEMM_K_OVERRIDE_DESC = 1527,
+    pub const CUDNN_ATTR_OPERATION_MATMUL_GEMM_K_OVERRIDE_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1527,
+    );
     /// Reduction operation type (ADD, MUL, MIN, etc.).
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_REDUCTION_OPERATOR = 1600,
+    pub const CUDNN_ATTR_REDUCTION_OPERATOR: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1600,
+    );
     /// Computation data type for reduction.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_REDUCTION_COMP_TYPE = 1601,
+    pub const CUDNN_ATTR_REDUCTION_COMP_TYPE: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1601,
+    );
     /// Whether reduction must be deterministic.
     ///
     /// since: cuDNN 9.11.0
-    CUDNN_ATTR_REDUCTION_IS_DETERMINISTIC = 1602,
+    pub const CUDNN_ATTR_REDUCTION_IS_DETERMINISTIC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1602,
+    );
     /// The matrix `X` descriptor.
     ///
     /// * [`cudnnBackendAttributeType_t::CUDNN_TYPE_BACKEND_DESCRIPTOR`] one element of descriptor type [`cudnnBackendDescriptorType_t::CUDNN_BACKEND_TENSOR_DESCRIPTOR`].
     /// * Required attribute.
-    CUDNN_ATTR_OPERATION_REDUCTION_XDESC = 1610,
+    pub const CUDNN_ATTR_OPERATION_REDUCTION_XDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1610,
+    );
     /// The matrix `Y` descriptor.
     ///
     /// * [`cudnnBackendAttributeType_t::CUDNN_TYPE_BACKEND_DESCRIPTOR`] one element of descriptor type [`cudnnBackendDescriptorType_t::CUDNN_BACKEND_TENSOR_DESCRIPTOR`].
     /// * Required attribute.
-    CUDNN_ATTR_OPERATION_REDUCTION_YDESC = 1611,
+    pub const CUDNN_ATTR_OPERATION_REDUCTION_YDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1611,
+    );
     /// The `reduction` operation descriptor.
     ///
     /// * [`cudnnBackendAttributeType_t::CUDNN_TYPE_BACKEND_DESCRIPTOR`] one element of descriptor type [`cudnnBackendDescriptorType_t::CUDNN_BACKEND_TENSOR_DESCRIPTOR`].
     /// * Required attribute.
-    CUDNN_ATTR_OPERATION_REDUCTION_DESC = 1612,
+    pub const CUDNN_ATTR_OPERATION_REDUCTION_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1612,
+    );
     /// Optional group offset tensor descriptor for grouped reduction.
     ///
     /// since: cuDNN 9.24.0
-    CUDNN_ATTR_OPERATION_REDUCTION_GROUP_OFFSET_DESC = 1613,
+    pub const CUDNN_ATTR_OPERATION_REDUCTION_GROUP_OFFSET_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1613,
+    );
     /// Computation precision.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_BN_BWD_WEIGHTS_MATH_PREC = 1620,
+    pub const CUDNN_ATTR_OPERATION_BN_BWD_WEIGHTS_MATH_PREC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1620,
+    );
     /// Cached batch mean from forward.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_BN_BWD_WEIGHTS_MEAN_DESC = 1621,
+    pub const CUDNN_ATTR_OPERATION_BN_BWD_WEIGHTS_MEAN_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1621,
+    );
     /// Cached inverse std dev from forward.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_BN_BWD_WEIGHTS_INVSTD_DESC = 1622,
+    pub const CUDNN_ATTR_OPERATION_BN_BWD_WEIGHTS_INVSTD_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1622,
+    );
     /// Batch norm scale parameter.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_BN_BWD_WEIGHTS_BN_SCALE_DESC = 1623,
+    pub const CUDNN_ATTR_OPERATION_BN_BWD_WEIGHTS_BN_SCALE_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1623,
+    );
     /// Forward input tensor.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_BN_BWD_WEIGHTS_X_DESC = 1624,
+    pub const CUDNN_ATTR_OPERATION_BN_BWD_WEIGHTS_X_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1624,
+    );
     /// Output gradient tensor.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_BN_BWD_WEIGHTS_DY_DESC = 1625,
+    pub const CUDNN_ATTR_OPERATION_BN_BWD_WEIGHTS_DY_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1625,
+    );
     /// Scale gradient output.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_BN_BWD_WEIGHTS_DBN_SCALE_DESC = 1626,
+    pub const CUDNN_ATTR_OPERATION_BN_BWD_WEIGHTS_DBN_SCALE_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1626,
+    );
     /// Bias gradient output.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_BN_BWD_WEIGHTS_DBN_BIAS_DESC = 1627,
+    pub const CUDNN_ATTR_OPERATION_BN_BWD_WEIGHTS_DBN_BIAS_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1627,
+    );
     /// Equivalent output gradient scale.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_BN_BWD_WEIGHTS_EQ_DY_SCALE_DESC = 1628,
+    pub const CUDNN_ATTR_OPERATION_BN_BWD_WEIGHTS_EQ_DY_SCALE_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1628,
+    );
     /// Equivalent input scale.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_BN_BWD_WEIGHTS_EQ_X_SCALE_DESC = 1629,
+    pub const CUDNN_ATTR_OPERATION_BN_BWD_WEIGHTS_EQ_X_SCALE_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1629,
+    );
     /// Equivalent bias value.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_BN_BWD_WEIGHTS_EQ_BIAS = 1630,
+    pub const CUDNN_ATTR_OPERATION_BN_BWD_WEIGHTS_EQ_BIAS: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1630,
+    );
     /// Indices of the input dimensions to reduce, ascending and distinct.
     ///
     /// since: cuDNN 9.27.0
-    CUDNN_ATTR_OPERATION_REDUCTION_DIMS = 1640,
+    pub const CUDNN_ATTR_OPERATION_REDUCTION_DIMS: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1640,
+    );
     /// Accumulator identity values, one pointer per output; CUDNN_ATTR_OPERATION_REDUCTION_YDESC must be set first.
     ///
     /// since: cuDNN 9.27.0
-    CUDNN_ATTR_OPERATION_REDUCTION_INIT_VALUES = 1641,
+    pub const CUDNN_ATTR_OPERATION_REDUCTION_INIT_VALUES: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1641,
+    );
     /// Operation graph describing the reducer body that combines the accumulator with the current element. Must be finalized before it is set.
     ///
     /// since: cuDNN 9.27.0
-    CUDNN_ATTR_OPERATION_REDUCTION_SUBGRAPH = 1642,
+    pub const CUDNN_ATTR_OPERATION_REDUCTION_SUBGRAPH: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1642,
+    );
     /// Subgraph tensor UIDs holding the accumulator values, one per output.
     ///
     /// since: cuDNN 9.27.0
-    CUDNN_ATTR_OPERATION_REDUCTION_SUBGRAPH_ACCUMULATOR_UIDS = 1643,
+    pub const CUDNN_ATTR_OPERATION_REDUCTION_SUBGRAPH_ACCUMULATOR_UIDS: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1643,
+    );
     /// Subgraph tensor UIDs holding the current elements, one per output.
     ///
     /// since: cuDNN 9.27.0
-    CUDNN_ATTR_OPERATION_REDUCTION_SUBGRAPH_CURRENT_UIDS = 1644,
+    pub const CUDNN_ATTR_OPERATION_REDUCTION_SUBGRAPH_CURRENT_UIDS: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1644,
+    );
     /// Subgraph tensor UIDs holding the output values, one per output.
     ///
     /// since: cuDNN 9.27.0
-    CUDNN_ATTR_OPERATION_REDUCTION_SUBGRAPH_OUTPUT_UIDS = 1645,
+    pub const CUDNN_ATTR_OPERATION_REDUCTION_SUBGRAPH_OUTPUT_UIDS: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1645,
+    );
     /// Optional compute type the reducer body evaluates in, one per output; defaults to the output element type.
     ///
     /// since: cuDNN 9.27.0
-    CUDNN_ATTR_OPERATION_REDUCTION_SUBGRAPH_COMPUTE_TYPES = 1646,
+    pub const CUDNN_ATTR_OPERATION_REDUCTION_SUBGRAPH_COMPUTE_TYPES: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1646,
+    );
     /// Resampling interpolation method.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_RESAMPLE_MODE = 1700,
+    pub const CUDNN_ATTR_RESAMPLE_MODE: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1700,
+    );
     /// Computation precision for resampling.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_RESAMPLE_COMP_TYPE = 1701,
+    pub const CUDNN_ATTR_RESAMPLE_COMP_TYPE: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1701,
+    );
     /// Number of spatial dimensions.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_RESAMPLE_SPATIAL_DIMS = 1702,
+    pub const CUDNN_ATTR_RESAMPLE_SPATIAL_DIMS: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1702,
+    );
     /// Post-paddings per spatial dimension.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_RESAMPLE_POST_PADDINGS = 1703,
+    pub const CUDNN_ATTR_RESAMPLE_POST_PADDINGS: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1703,
+    );
     /// Pre-paddings per spatial dimension.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_RESAMPLE_PRE_PADDINGS = 1704,
+    pub const CUDNN_ATTR_RESAMPLE_PRE_PADDINGS: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1704,
+    );
     /// Stride factors per spatial dimension.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_RESAMPLE_STRIDES = 1705,
+    pub const CUDNN_ATTR_RESAMPLE_STRIDES: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1705,
+    );
     /// Filter window sizes per dimension.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_RESAMPLE_WINDOW_DIMS = 1706,
+    pub const CUDNN_ATTR_RESAMPLE_WINDOW_DIMS: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1706,
+    );
     /// NaN handling behavior.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_RESAMPLE_NAN_PROPAGATION = 1707,
+    pub const CUDNN_ATTR_RESAMPLE_NAN_PROPAGATION: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1707,
+    );
     /// Padding strategy (zero, neg_inf, edge).
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_RESAMPLE_PADDING_MODE = 1708,
+    pub const CUDNN_ATTR_RESAMPLE_PADDING_MODE: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1708,
+    );
     /// Forward resample input tensor.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_RESAMPLE_FWD_XDESC = 1710,
+    pub const CUDNN_ATTR_OPERATION_RESAMPLE_FWD_XDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1710,
+    );
     /// Forward resample output tensor.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_RESAMPLE_FWD_YDESC = 1711,
+    pub const CUDNN_ATTR_OPERATION_RESAMPLE_FWD_YDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1711,
+    );
     /// Max pooling index tensor.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_RESAMPLE_FWD_IDXDESC = 1712,
+    pub const CUDNN_ATTR_OPERATION_RESAMPLE_FWD_IDXDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1712,
+    );
     /// Output scaling factor.
     ///
     /// Deprecated:
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_RESAMPLE_FWD_ALPHA = 1713,
+    pub const CUDNN_ATTR_OPERATION_RESAMPLE_FWD_ALPHA: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1713,
+    );
     /// Accumulation scaling factor.
     ///
     /// Deprecated:
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_RESAMPLE_FWD_BETA = 1714,
+    pub const CUDNN_ATTR_OPERATION_RESAMPLE_FWD_BETA: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1714,
+    );
     /// Resample descriptor reference.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_RESAMPLE_FWD_DESC = 1716,
+    pub const CUDNN_ATTR_OPERATION_RESAMPLE_FWD_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1716,
+    );
     /// Backward resample input gradient.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_RESAMPLE_BWD_DXDESC = 1720,
+    pub const CUDNN_ATTR_OPERATION_RESAMPLE_BWD_DXDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1720,
+    );
     /// Backward resample output gradient.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_RESAMPLE_BWD_DYDESC = 1721,
+    pub const CUDNN_ATTR_OPERATION_RESAMPLE_BWD_DYDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1721,
+    );
     /// Index tensor from forward pass.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_RESAMPLE_BWD_IDXDESC = 1722,
+    pub const CUDNN_ATTR_OPERATION_RESAMPLE_BWD_IDXDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1722,
+    );
     /// Gradient scaling factor.
     ///
     /// Deprecated:
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_RESAMPLE_BWD_ALPHA = 1723,
+    pub const CUDNN_ATTR_OPERATION_RESAMPLE_BWD_ALPHA: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1723,
+    );
     /// Accumulation scaling.
     ///
     /// Deprecated:
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_RESAMPLE_BWD_BETA = 1724,
+    pub const CUDNN_ATTR_OPERATION_RESAMPLE_BWD_BETA: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1724,
+    );
     /// Resample descriptor reference.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_RESAMPLE_BWD_DESC = 1725,
+    pub const CUDNN_ATTR_OPERATION_RESAMPLE_BWD_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1725,
+    );
     /// Forward input reference.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_RESAMPLE_BWD_XDESC = 1726,
+    pub const CUDNN_ATTR_OPERATION_RESAMPLE_BWD_XDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1726,
+    );
     /// Forward output reference.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_RESAMPLE_BWD_YDESC = 1727,
+    pub const CUDNN_ATTR_OPERATION_RESAMPLE_BWD_YDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1727,
+    );
     /// The dimension which tensors are being concatenated over.
     ///
     /// * Type: [`cudnnBackendAttributeType_t::CUDNN_TYPE_INT64`]
     /// * Required attribute.
-    CUDNN_ATTR_OPERATION_CONCAT_AXIS = 1800,
+    pub const CUDNN_ATTR_OPERATION_CONCAT_AXIS: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1800,
+    );
     /// A vector of input tensor descriptors, which are concatenated in the same order as provided in this vector.
     ///
     /// ```text
     /// * [`cudnnBackendAttributeType_t::CUDNN_TYPE_BACKEND_DESCRIPTOR`]; one or more elements of descriptor type [`cudnnBackendDescriptorType_t::CUDNN_BACKEND_TENSOR_DESCRIPTOR`].
     /// * Required attribute.
     /// ```
-    CUDNN_ATTR_OPERATION_CONCAT_INPUT_DESCS = 1801,
+    pub const CUDNN_ATTR_OPERATION_CONCAT_INPUT_DESCS: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1801,
+    );
     /// The index of input tensor in the vector of input tensor descriptors that is already present in-place in the output tensor.
     ///
     /// * Type: [`cudnnBackendAttributeType_t::CUDNN_TYPE_INT64`]
     /// * Optional attribute.
-    CUDNN_ATTR_OPERATION_CONCAT_INPLACE_INDEX = 1802,
+    pub const CUDNN_ATTR_OPERATION_CONCAT_INPLACE_INDEX: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1802,
+    );
     /// The output tensor descriptor for the result from concatenation of input tensors.
     ///
     /// ```text
     /// * [`cudnnBackendAttributeType_t::CUDNN_TYPE_BACKEND_DESCRIPTOR`]; one element of descriptor type [`cudnnBackendDescriptorType_t::CUDNN_BACKEND_TENSOR_DESCRIPTOR`].
     /// * Required attribute.
     /// ```
-    CUDNN_ATTR_OPERATION_CONCAT_OUTPUT_DESC = 1803,
+    pub const CUDNN_ATTR_OPERATION_CONCAT_OUTPUT_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1803,
+    );
     /// Signal set vs wait mode.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_SIGNAL_MODE = 1900,
+    pub const CUDNN_ATTR_OPERATION_SIGNAL_MODE: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1900,
+    );
     /// Flag variable tensor descriptor.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_SIGNAL_FLAGDESC = 1901,
+    pub const CUDNN_ATTR_OPERATION_SIGNAL_FLAGDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1901,
+    );
     /// Signal value for comparison.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_SIGNAL_VALUE = 1902,
+    pub const CUDNN_ATTR_OPERATION_SIGNAL_VALUE: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1902,
+    );
     /// Input tensor for signal set.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_SIGNAL_XDESC = 1903,
+    pub const CUDNN_ATTR_OPERATION_SIGNAL_XDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1903,
+    );
     /// Output tensor descriptor.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_SIGNAL_YDESC = 1904,
+    pub const CUDNN_ATTR_OPERATION_SIGNAL_YDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1904,
+    );
     /// Cache container descriptor.
     ///
     /// since: cuDNN 9.4.0
-    CUDNN_ATTR_OPERATION_PAGED_CACHE_LOAD_CONTAINER_DESC = 1950,
+    pub const CUDNN_ATTR_OPERATION_PAGED_CACHE_LOAD_CONTAINER_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1950,
+    );
     /// Output tensor descriptor.
     ///
     /// since: cuDNN 9.4.0
-    CUDNN_ATTR_OPERATION_PAGED_CACHE_LOAD_YDESC = 1951,
+    pub const CUDNN_ATTR_OPERATION_PAGED_CACHE_LOAD_YDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1951,
+    );
     /// Load sequence specification.
     ///
     /// since: cuDNN 9.4.0
-    CUDNN_ATTR_OPERATION_PAGED_CACHE_LOAD_SEQUENCE_DESC = 1952,
+    pub const CUDNN_ATTR_OPERATION_PAGED_CACHE_LOAD_SEQUENCE_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1952,
+    );
     /// Page table mapping descriptor.
     ///
     /// since: cuDNN 9.4.0
-    CUDNN_ATTR_OPERATION_PAGED_CACHE_LOAD_PAGE_TABLE_DESC = 1953,
+    pub const CUDNN_ATTR_OPERATION_PAGED_CACHE_LOAD_PAGE_TABLE_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        1953,
+    );
     /// Normalization algorithm type.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_NORM_FWD_MODE = 2000,
+    pub const CUDNN_ATTR_OPERATION_NORM_FWD_MODE: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2000,
+    );
     /// Training vs inference phase.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_NORM_FWD_PHASE = 2001,
+    pub const CUDNN_ATTR_OPERATION_NORM_FWD_PHASE: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2001,
+    );
     /// Input tensor descriptor.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_NORM_FWD_XDESC = 2002,
+    pub const CUDNN_ATTR_OPERATION_NORM_FWD_XDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2002,
+    );
     /// Computed or cached mean tensor.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_NORM_FWD_MEAN_DESC = 2003,
+    pub const CUDNN_ATTR_OPERATION_NORM_FWD_MEAN_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2003,
+    );
     /// Computed or cached inverse variance.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_NORM_FWD_INV_VARIANCE_DESC = 2004,
+    pub const CUDNN_ATTR_OPERATION_NORM_FWD_INV_VARIANCE_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2004,
+    );
     /// Learnable scale parameter (gamma).
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_NORM_FWD_SCALE_DESC = 2005,
+    pub const CUDNN_ATTR_OPERATION_NORM_FWD_SCALE_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2005,
+    );
     /// Learnable bias parameter (beta).
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_NORM_FWD_BIAS_DESC = 2006,
+    pub const CUDNN_ATTR_OPERATION_NORM_FWD_BIAS_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2006,
+    );
     /// Numerical stability constant.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_NORM_FWD_EPSILON_DESC = 2007,
+    pub const CUDNN_ATTR_OPERATION_NORM_FWD_EPSILON_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2007,
+    );
     /// Momentum for running statistics.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_NORM_FWD_EXP_AVG_FACTOR_DESC = 2008,
+    pub const CUDNN_ATTR_OPERATION_NORM_FWD_EXP_AVG_FACTOR_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2008,
+    );
     /// Input running mean.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_NORM_FWD_INPUT_RUNNING_MEAN_DESC = 2009,
+    pub const CUDNN_ATTR_OPERATION_NORM_FWD_INPUT_RUNNING_MEAN_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2009,
+    );
     /// Input running variance.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_NORM_FWD_INPUT_RUNNING_VAR_DESC = 2010,
+    pub const CUDNN_ATTR_OPERATION_NORM_FWD_INPUT_RUNNING_VAR_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2010,
+    );
     /// Updated running mean output.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_NORM_FWD_OUTPUT_RUNNING_MEAN_DESC = 2011,
+    pub const CUDNN_ATTR_OPERATION_NORM_FWD_OUTPUT_RUNNING_MEAN_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2011,
+    );
     /// Updated running variance output.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_NORM_FWD_OUTPUT_RUNNING_VAR_DESC = 2012,
+    pub const CUDNN_ATTR_OPERATION_NORM_FWD_OUTPUT_RUNNING_VAR_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2012,
+    );
     /// Output tensor descriptor.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_NORM_FWD_YDESC = 2013,
+    pub const CUDNN_ATTR_OPERATION_NORM_FWD_YDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2013,
+    );
     /// Peer statistics for multi-GPU sync.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_NORM_FWD_PEER_STAT_DESCS = 2014,
+    pub const CUDNN_ATTR_OPERATION_NORM_FWD_PEER_STAT_DESCS: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2014,
+    );
     /// Normalization algorithm type.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_NORM_BWD_MODE = 2100,
+    pub const CUDNN_ATTR_OPERATION_NORM_BWD_MODE: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2100,
+    );
     /// Forward input tensor reference.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_NORM_BWD_XDESC = 2101,
+    pub const CUDNN_ATTR_OPERATION_NORM_BWD_XDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2101,
+    );
     /// Cached mean from forward pass.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_NORM_BWD_MEAN_DESC = 2102,
+    pub const CUDNN_ATTR_OPERATION_NORM_BWD_MEAN_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2102,
+    );
     /// Cached inverse std dev.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_NORM_BWD_INV_VARIANCE_DESC = 2103,
+    pub const CUDNN_ATTR_OPERATION_NORM_BWD_INV_VARIANCE_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2103,
+    );
     /// Output gradient tensor.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_NORM_BWD_DYDESC = 2104,
+    pub const CUDNN_ATTR_OPERATION_NORM_BWD_DYDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2104,
+    );
     /// Forward scale parameter.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_NORM_BWD_SCALE_DESC = 2105,
+    pub const CUDNN_ATTR_OPERATION_NORM_BWD_SCALE_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2105,
+    );
     /// Numerical stability epsilon.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_NORM_BWD_EPSILON_DESC = 2106,
+    pub const CUDNN_ATTR_OPERATION_NORM_BWD_EPSILON_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2106,
+    );
     /// Scale gradient output.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_NORM_BWD_DSCALE_DESC = 2107,
+    pub const CUDNN_ATTR_OPERATION_NORM_BWD_DSCALE_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2107,
+    );
     /// Bias gradient output.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_NORM_BWD_DBIAS_DESC = 2108,
+    pub const CUDNN_ATTR_OPERATION_NORM_BWD_DBIAS_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2108,
+    );
     /// Input gradient output tensor.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_NORM_BWD_DXDESC = 2109,
+    pub const CUDNN_ATTR_OPERATION_NORM_BWD_DXDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2109,
+    );
     /// Peer gradient statistics for multi-GPU.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_NORM_BWD_PEER_STAT_DESCS = 2110,
+    pub const CUDNN_ATTR_OPERATION_NORM_BWD_PEER_STAT_DESCS: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2110,
+    );
     /// Reshape input tensor descriptor.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_RESHAPE_XDESC = 2200,
+    pub const CUDNN_ATTR_OPERATION_RESHAPE_XDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2200,
+    );
     /// Reshape output tensor descriptor.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_RESHAPE_YDESC = 2201,
+    pub const CUDNN_ATTR_OPERATION_RESHAPE_YDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2201,
+    );
     /// Reshape mode (view-only or logical).
     ///
     /// since: cuDNN 9.22.0
-    CUDNN_ATTR_OPERATION_RESHAPE_MODE = 2202,
+    pub const CUDNN_ATTR_OPERATION_RESHAPE_MODE: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2202,
+    );
     /// Transpose input tensor descriptor.
     ///
     /// since: cuDNN 9.22.0
-    CUDNN_ATTR_OPERATION_TRANSPOSE_XDESC = 3200,
+    pub const CUDNN_ATTR_OPERATION_TRANSPOSE_XDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        3200,
+    );
     /// Transpose output tensor descriptor.
     ///
     /// since: cuDNN 9.22.0
-    CUDNN_ATTR_OPERATION_TRANSPOSE_YDESC = 3201,
+    pub const CUDNN_ATTR_OPERATION_TRANSPOSE_YDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        3201,
+    );
     /// Transpose permutation array.
     ///
     /// since: cuDNN 9.22.0
-    CUDNN_ATTR_OPERATION_TRANSPOSE_PERMUTATION = 3202,
+    pub const CUDNN_ATTR_OPERATION_TRANSPOSE_PERMUTATION: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        3202,
+    );
     /// Slice input tensor descriptor.
     ///
     /// since: cuDNN 9.22.0
-    CUDNN_ATTR_OPERATION_SLICE_XDESC = 3300,
+    pub const CUDNN_ATTR_OPERATION_SLICE_XDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        3300,
+    );
     /// Slice output tensor descriptor.
     ///
     /// since: cuDNN 9.22.0
-    CUDNN_ATTR_OPERATION_SLICE_YDESC = 3301,
+    pub const CUDNN_ATTR_OPERATION_SLICE_YDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        3301,
+    );
     /// Slice start indices.
     ///
     /// since: cuDNN 9.22.0
-    CUDNN_ATTR_OPERATION_SLICE_START_INDICES = 3302,
+    pub const CUDNN_ATTR_OPERATION_SLICE_START_INDICES: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        3302,
+    );
     /// Slice limit indices.
     ///
     /// since: cuDNN 9.22.0
-    CUDNN_ATTR_OPERATION_SLICE_LIMIT_INDICES = 3303,
+    pub const CUDNN_ATTR_OPERATION_SLICE_LIMIT_INDICES: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        3303,
+    );
     /// Slice strides.
     ///
     /// since: cuDNN 9.22.0
-    CUDNN_ATTR_OPERATION_SLICE_STRIDES = 3304,
+    pub const CUDNN_ATTR_OPERATION_SLICE_STRIDES: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        3304,
+    );
     /// RoPE input tensor descriptor \[B,H,S,D\].
     ///
     /// since: cuDNN 9.24.0
-    CUDNN_ATTR_OPERATION_ROPE_FWD_XDESC = 3400,
+    pub const CUDNN_ATTR_OPERATION_ROPE_FWD_XDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        3400,
+    );
     /// RoPE output tensor descriptor \[B,H,S,D\].
     ///
     /// since: cuDNN 9.24.0
-    CUDNN_ATTR_OPERATION_ROPE_FWD_YDESC = 3401,
+    pub const CUDNN_ATTR_OPERATION_ROPE_FWD_YDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        3401,
+    );
     /// RoPE frequency angles tensor \[S,1,1,D\]. Kernel computes sincosf internally.
     ///
     /// since: cuDNN 9.24.0
-    CUDNN_ATTR_OPERATION_ROPE_FWD_FREQSDESC = 3402,
+    pub const CUDNN_ATTR_OPERATION_ROPE_FWD_FREQSDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        3402,
+    );
     /// RoPE host-side fp32 scalar multiplied into cos/sin (default 1.0). Used to fold YARN mscale and/or SDPA attn_scale.
     ///
     /// since: cuDNN 9.24.0
-    CUDNN_ATTR_OPERATION_ROPE_FWD_OUTPUT_SCALE = 3403,
+    pub const CUDNN_ATTR_OPERATION_ROPE_FWD_OUTPUT_SCALE: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        3403,
+    );
     /// RoPE rotation width in last dim (int64, default = head_dim). When &lt; head_dim, the last rope_dim slots get rotated; the first (head_dim - rope_dim) are scaled-pass-through (used for DSv3-style MLA).
     ///
     /// since: cuDNN 9.24.0
-    CUDNN_ATTR_OPERATION_ROPE_FWD_ROPE_DIM = 3404,
+    pub const CUDNN_ATTR_OPERATION_ROPE_FWD_ROPE_DIM: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        3404,
+    );
     /// RoPE bwd input gradient (dY) descriptor \[B,H,S,D\].
     ///
     /// since: cuDNN 9.25.0
-    CUDNN_ATTR_OPERATION_ROPE_BWD_DYDESC = 3410,
+    pub const CUDNN_ATTR_OPERATION_ROPE_BWD_DYDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        3410,
+    );
     /// RoPE bwd output gradient (dX) descriptor \[B,H,S,D\].
     ///
     /// since: cuDNN 9.25.0
-    CUDNN_ATTR_OPERATION_ROPE_BWD_DXDESC = 3411,
+    pub const CUDNN_ATTR_OPERATION_ROPE_BWD_DXDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        3411,
+    );
     /// RoPE bwd frequency angles tensor \[S,1,1,D\]; same semantics as fwd.
     ///
     /// since: cuDNN 9.25.0
-    CUDNN_ATTR_OPERATION_ROPE_BWD_FREQSDESC = 3412,
+    pub const CUDNN_ATTR_OPERATION_ROPE_BWD_FREQSDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        3412,
+    );
     /// RoPE bwd host fp32 scalar (default 1.0). Symmetric to fwd: cos/sin pre-scaled, passthrough scaled.
     ///
     /// since: cuDNN 9.25.0
-    CUDNN_ATTR_OPERATION_ROPE_BWD_OUTPUT_SCALE = 3413,
+    pub const CUDNN_ATTR_OPERATION_ROPE_BWD_OUTPUT_SCALE: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        3413,
+    );
     /// RoPE bwd rotation width in last dim (int64, default = head_dim).
     ///
     /// since: cuDNN 9.25.0
-    CUDNN_ATTR_OPERATION_ROPE_BWD_ROPE_DIM = 3414,
+    pub const CUDNN_ATTR_OPERATION_ROPE_BWD_ROPE_DIM: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        3414,
+    );
     /// Band matrix input tensor.
     ///
     /// since: cuDNN 9.10.0
-    CUDNN_ATTR_OPERATION_EXPAND_BAND_MATRIX_XDESC = 2250,
+    pub const CUDNN_ATTR_OPERATION_EXPAND_BAND_MATRIX_XDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2250,
+    );
     /// Expanded output tensor.
     ///
     /// since: cuDNN 9.10.0
-    CUDNN_ATTR_OPERATION_EXPAND_BAND_MATRIX_YDESC = 2251,
+    pub const CUDNN_ATTR_OPERATION_EXPAND_BAND_MATRIX_YDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2251,
+    );
     /// Lower bandwidth of the band.
     ///
     /// since: cuDNN 9.10.0
-    CUDNN_ATTR_OPERATION_EXPAND_BAND_MATRIX_LOWER_BANDWIDTH = 2252,
+    pub const CUDNN_ATTR_OPERATION_EXPAND_BAND_MATRIX_LOWER_BANDWIDTH: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2252,
+    );
     /// Upper bandwidth of the band.
     ///
     /// since: cuDNN 9.10.0
-    CUDNN_ATTR_OPERATION_EXPAND_BAND_MATRIX_UPPER_BANDWIDTH = 2253,
+    pub const CUDNN_ATTR_OPERATION_EXPAND_BAND_MATRIX_UPPER_BANDWIDTH: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2253,
+    );
     /// Axis along which to expand.
     ///
     /// since: cuDNN 9.10.0
-    CUDNN_ATTR_OPERATION_EXPAND_BAND_MATRIX_AXIS = 2254,
+    pub const CUDNN_ATTR_OPERATION_EXPAND_BAND_MATRIX_AXIS: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2254,
+    );
     /// Padding value outside the band.
     ///
     /// since: cuDNN 9.10.0
-    CUDNN_ATTR_OPERATION_EXPAND_BAND_MATRIX_PAD_VALUE = 2255,
+    pub const CUDNN_ATTR_OPERATION_EXPAND_BAND_MATRIX_PAD_VALUE: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2255,
+    );
     /// KV token offset descriptor.
     ///
     /// since: cuDNN 9.10.0
-    CUDNN_ATTR_OPERATION_EXPAND_BAND_MATRIX_KV_TOKEN_OFFSET_DESC = 2256,
+    pub const CUDNN_ATTR_OPERATION_EXPAND_BAND_MATRIX_KV_TOKEN_OFFSET_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2256,
+    );
     /// Speculative decoding mask.
     ///
     /// since: cuDNN 9.13.0
-    CUDNN_ATTR_OPERATION_EXPAND_BAND_MATRIX_SPECULATIVE_MASK_DESC = 2257,
+    pub const CUDNN_ATTR_OPERATION_EXPAND_BAND_MATRIX_SPECULATIVE_MASK_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2257,
+    );
     /// Full matrix input tensor.
     ///
     /// since: cuDNN 9.10.0
-    CUDNN_ATTR_OPERATION_CONTRACT_BAND_MATRIX_XDESC = 2270,
+    pub const CUDNN_ATTR_OPERATION_CONTRACT_BAND_MATRIX_XDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2270,
+    );
     /// Contracted band output tensor.
     ///
     /// since: cuDNN 9.10.0
-    CUDNN_ATTR_OPERATION_CONTRACT_BAND_MATRIX_YDESC = 2271,
+    pub const CUDNN_ATTR_OPERATION_CONTRACT_BAND_MATRIX_YDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2271,
+    );
     /// Lower bandwidth.
     ///
     /// since: cuDNN 9.10.0
-    CUDNN_ATTR_OPERATION_CONTRACT_BAND_MATRIX_LOWER_BANDWIDTH = 2272,
+    pub const CUDNN_ATTR_OPERATION_CONTRACT_BAND_MATRIX_LOWER_BANDWIDTH: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2272,
+    );
     /// Upper bandwidth.
     ///
     /// since: cuDNN 9.10.0
-    CUDNN_ATTR_OPERATION_CONTRACT_BAND_MATRIX_UPPER_BANDWIDTH = 2273,
+    pub const CUDNN_ATTR_OPERATION_CONTRACT_BAND_MATRIX_UPPER_BANDWIDTH: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2273,
+    );
     /// Axis along which to contract.
     ///
     /// since: cuDNN 9.10.0
-    CUDNN_ATTR_OPERATION_CONTRACT_BAND_MATRIX_AXIS = 2274,
+    pub const CUDNN_ATTR_OPERATION_CONTRACT_BAND_MATRIX_AXIS: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2274,
+    );
     /// Padding value.
     ///
     /// since: cuDNN 9.10.0
-    CUDNN_ATTR_OPERATION_CONTRACT_BAND_MATRIX_PAD_VALUE = 2275,
+    pub const CUDNN_ATTR_OPERATION_CONTRACT_BAND_MATRIX_PAD_VALUE: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2275,
+    );
     /// Maximum token value for contraction.
     ///
     /// since: cuDNN 9.10.0
-    CUDNN_ATTR_OPERATION_CONTRACT_BAND_MAX_TOKEN_VALUE = 2276,
+    pub const CUDNN_ATTR_OPERATION_CONTRACT_BAND_MAX_TOKEN_VALUE: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2276,
+    );
     /// Random distribution type selection.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_RNG_DISTRIBUTION = 2300,
+    pub const CUDNN_ATTR_RNG_DISTRIBUTION: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2300,
+    );
     /// Normal distribution mean parameter.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_RNG_NORMAL_DIST_MEAN = 2301,
+    pub const CUDNN_ATTR_RNG_NORMAL_DIST_MEAN: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2301,
+    );
     /// Normal distribution std deviation.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_RNG_NORMAL_DIST_STANDARD_DEVIATION = 2302,
+    pub const CUDNN_ATTR_RNG_NORMAL_DIST_STANDARD_DEVIATION: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2302,
+    );
     /// Uniform distribution upper bound.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_RNG_UNIFORM_DIST_MAXIMUM = 2303,
+    pub const CUDNN_ATTR_RNG_UNIFORM_DIST_MAXIMUM: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2303,
+    );
     /// Uniform distribution lower bound.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_RNG_UNIFORM_DIST_MINIMUM = 2304,
+    pub const CUDNN_ATTR_RNG_UNIFORM_DIST_MINIMUM: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2304,
+    );
     /// Bernoulli probability of 1.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_RNG_BERNOULLI_DIST_PROBABILITY = 2305,
+    pub const CUDNN_ATTR_RNG_BERNOULLI_DIST_PROBABILITY: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2305,
+    );
     /// RNG output tensor descriptor.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_RNG_YDESC = 2310,
+    pub const CUDNN_ATTR_OPERATION_RNG_YDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2310,
+    );
     /// RNG seed value.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_RNG_SEED = 2311,
+    pub const CUDNN_ATTR_OPERATION_RNG_SEED: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2311,
+    );
     /// RNG descriptor reference.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_RNG_DESC = 2312,
+    pub const CUDNN_ATTR_OPERATION_RNG_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2312,
+    );
     /// RNG offset/state descriptor.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ATTR_OPERATION_RNG_OFFSET_DESC = 2313,
+    pub const CUDNN_ATTR_OPERATION_RNG_OFFSET_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2313,
+    );
     /// Operation graph for kernel cache.
     ///
     /// since: cuDNN 9.5.0
-    CUDNN_ATTR_KERNEL_CACHE_OPERATION_GRAPH = 2400,
+    pub const CUDNN_ATTR_KERNEL_CACHE_OPERATION_GRAPH: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2400,
+    );
     /// Whether kernel is cached.
     ///
     /// since: cuDNN 9.4.0
-    CUDNN_ATTR_KERNEL_CACHE_IS_ENGINECFG_KERNEL_CACHED = 2401,
+    pub const CUDNN_ATTR_KERNEL_CACHE_IS_ENGINECFG_KERNEL_CACHED: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2401,
+    );
     /// Kernel cache JSON serialization.
     ///
     /// since: cuDNN 9.10.0
-    CUDNN_ATTR_KERNEL_CACHE_JSON_REPRESENTATION = 2402,
+    pub const CUDNN_ATTR_KERNEL_CACHE_JSON_REPRESENTATION: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2402,
+    );
     /// Counter that shows if the kernel cache changed.
     ///
     /// since: cuDNN 9.27.0
-    CUDNN_ATTR_KERNEL_CACHE_REVISION = 2403,
+    pub const CUDNN_ATTR_KERNEL_CACHE_REVISION: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2403,
+    );
     /// Number of entries in the kernel cache.
     ///
     /// since: cuDNN 9.27.0
-    CUDNN_ATTR_KERNEL_CACHE_ENTRY_COUNT = 2404,
+    pub const CUDNN_ATTR_KERNEL_CACHE_ENTRY_COUNT: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2404,
+    );
     /// Input float tensor to quantize.
     ///
     /// since: cuDNN 9.7.0
-    CUDNN_ATTR_OPERATION_BLOCK_SCALE_QUANTIZE_XDESC = 2500,
+    pub const CUDNN_ATTR_OPERATION_BLOCK_SCALE_QUANTIZE_XDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2500,
+    );
     /// Quantized output tensor.
     ///
     /// since: cuDNN 9.7.0
-    CUDNN_ATTR_OPERATION_BLOCK_SCALE_QUANTIZE_YDESC = 2501,
+    pub const CUDNN_ATTR_OPERATION_BLOCK_SCALE_QUANTIZE_YDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2501,
+    );
     /// Per-block scaling factors output.
     ///
     /// since: cuDNN 9.7.0
-    CUDNN_ATTR_OPERATION_BLOCK_SCALE_QUANTIZE_SCALE_DESC = 2502,
+    pub const CUDNN_ATTR_OPERATION_BLOCK_SCALE_QUANTIZE_SCALE_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2502,
+    );
     /// Computation precision.
     ///
     /// since: cuDNN 9.7.0
-    CUDNN_ATTR_OPERATION_BLOCK_SCALE_QUANTIZE_MATH_PREC = 2503,
+    pub const CUDNN_ATTR_OPERATION_BLOCK_SCALE_QUANTIZE_MATH_PREC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2503,
+    );
     /// Quantization block size.
     ///
     /// since: cuDNN 9.7.0
-    CUDNN_ATTR_OPERATION_BLOCK_SCALE_QUANTIZE_BLOCK_SIZE = 2504,
+    pub const CUDNN_ATTR_OPERATION_BLOCK_SCALE_QUANTIZE_BLOCK_SIZE: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2504,
+    );
     /// Quantized input tensor.
     ///
     /// since: cuDNN 9.7.0
-    CUDNN_ATTR_OPERATION_BLOCK_SCALE_DEQUANTIZE_XDESC = 2600,
+    pub const CUDNN_ATTR_OPERATION_BLOCK_SCALE_DEQUANTIZE_XDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2600,
+    );
     /// Per-block scale factors.
     ///
     /// since: cuDNN 9.7.0
-    CUDNN_ATTR_OPERATION_BLOCK_SCALE_DEQUANTIZE_SCALE_DESC = 2601,
+    pub const CUDNN_ATTR_OPERATION_BLOCK_SCALE_DEQUANTIZE_SCALE_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2601,
+    );
     /// Dequantized output tensor.
     ///
     /// since: cuDNN 9.7.0
-    CUDNN_ATTR_OPERATION_BLOCK_SCALE_DEQUANTIZE_YDESC = 2602,
+    pub const CUDNN_ATTR_OPERATION_BLOCK_SCALE_DEQUANTIZE_YDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2602,
+    );
     /// Computation precision.
     ///
     /// since: cuDNN 9.7.0
-    CUDNN_ATTR_OPERATION_BLOCK_SCALE_DEQUANTIZE_MATH_PREC = 2603,
+    pub const CUDNN_ATTR_OPERATION_BLOCK_SCALE_DEQUANTIZE_MATH_PREC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2603,
+    );
     /// Dequantization block size.
     ///
     /// since: cuDNN 9.7.0
-    CUDNN_ATTR_OPERATION_BLOCK_SCALE_DEQUANTIZE_BLOCK_SIZE = 2604,
+    pub const CUDNN_ATTR_OPERATION_BLOCK_SCALE_DEQUANTIZE_BLOCK_SIZE: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2604,
+    );
     /// Negative scale handling.
     ///
     /// since: cuDNN 9.13.0
-    CUDNN_ATTR_OPERATION_BLOCK_SCALE_DEQUANTIZE_NEG_SCALE = 2605,
+    pub const CUDNN_ATTR_OPERATION_BLOCK_SCALE_DEQUANTIZE_NEG_SCALE: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2605,
+    );
     /// CUDA device identifier.
     ///
     /// since: cuDNN 9.8.0
-    CUDNN_ATTR_DEVICEPROP_DEVICE_ID = 2700,
+    pub const CUDNN_ATTR_DEVICEPROP_DEVICE_ID: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2700,
+    );
     /// Associated cuDNN handle.
     ///
     /// since: cuDNN 9.8.0
-    CUDNN_ATTR_DEVICEPROP_HANDLE = 2701,
+    pub const CUDNN_ATTR_DEVICEPROP_HANDLE: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2701,
+    );
     /// Device properties JSON.
     ///
     /// since: cuDNN 9.8.0
-    CUDNN_ATTR_DEVICEPROP_JSON_REPRESENTATION = 2702,
+    pub const CUDNN_ATTR_DEVICEPROP_JSON_REPRESENTATION: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2702,
+    );
     /// Query tensor descriptor.
     ///
     /// since: cuDNN 9.13.0
-    CUDNN_ATTR_OPERATION_SDPA_FWD_QDESC = 2800,
+    pub const CUDNN_ATTR_OPERATION_SDPA_FWD_QDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2800,
+    );
     /// Key tensor descriptor.
     ///
     /// since: cuDNN 9.13.0
-    CUDNN_ATTR_OPERATION_SDPA_FWD_KDESC = 2801,
+    pub const CUDNN_ATTR_OPERATION_SDPA_FWD_KDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2801,
+    );
     /// Value tensor descriptor.
     ///
     /// since: cuDNN 9.13.0
-    CUDNN_ATTR_OPERATION_SDPA_FWD_VDESC = 2802,
+    pub const CUDNN_ATTR_OPERATION_SDPA_FWD_VDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2802,
+    );
     /// Output tensor descriptor.
     ///
     /// since: cuDNN 9.13.0
-    CUDNN_ATTR_OPERATION_SDPA_FWD_ODESC = 2803,
+    pub const CUDNN_ATTR_OPERATION_SDPA_FWD_ODESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2803,
+    );
     /// Statistics output descriptor.
     ///
     /// since: cuDNN 9.13.0
-    CUDNN_ATTR_OPERATION_SDPA_FWD_STATSDESC = 2804,
+    pub const CUDNN_ATTR_OPERATION_SDPA_FWD_STATSDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2804,
+    );
     /// Attention scaling factor descriptor.
     ///
     /// since: cuDNN 9.13.0
-    CUDNN_ATTR_OPERATION_SDPA_FWD_SCALEDESC = 2805,
+    pub const CUDNN_ATTR_OPERATION_SDPA_FWD_SCALEDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2805,
+    );
     /// Block-sparse attention mask.
     ///
     /// since: cuDNN 9.14.0
-    CUDNN_ATTR_OPERATION_SDPA_FWD_BLOCK_MASK_DESC = 2806,
+    pub const CUDNN_ATTR_OPERATION_SDPA_FWD_BLOCK_MASK_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2806,
+    );
     /// Paged attention key page table.
     ///
     /// since: cuDNN 9.15.0
-    CUDNN_ATTR_OPERATION_SDPA_FWD_PAGE_TABLE_KDESC = 2807,
+    pub const CUDNN_ATTR_OPERATION_SDPA_FWD_PAGE_TABLE_KDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2807,
+    );
     /// Paged attention value page table.
     ///
     /// since: cuDNN 9.15.0
-    CUDNN_ATTR_OPERATION_SDPA_FWD_PAGE_TABLE_VDESC = 2808,
+    pub const CUDNN_ATTR_OPERATION_SDPA_FWD_PAGE_TABLE_VDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2808,
+    );
     /// Query sequence length tensor.
     ///
     /// since: cuDNN 9.15.0
-    CUDNN_ATTR_OPERATION_SDPA_FWD_SEQ_LEN_QDESC = 2809,
+    pub const CUDNN_ATTR_OPERATION_SDPA_FWD_SEQ_LEN_QDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2809,
+    );
     /// Key-value sequence length tensor.
     ///
     /// since: cuDNN 9.15.0
-    CUDNN_ATTR_OPERATION_SDPA_FWD_SEQ_LEN_KVDESC = 2810,
+    pub const CUDNN_ATTR_OPERATION_SDPA_FWD_SEQ_LEN_KVDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2810,
+    );
     /// Forward SDPA subgraph.
     ///
     /// since: cuDNN 9.21.0
-    CUDNN_ATTR_OPERATION_SDPA_FWD_SUBGRAPH = 2811,
+    pub const CUDNN_ATTR_OPERATION_SDPA_FWD_SUBGRAPH: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2811,
+    );
     /// Subgraph input tensor UID.
     ///
     /// since: cuDNN 9.21.0
-    CUDNN_ATTR_OPERATION_SDPA_FWD_SUBGRAPH_INPUT_UID = 2812,
+    pub const CUDNN_ATTR_OPERATION_SDPA_FWD_SUBGRAPH_INPUT_UID: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2812,
+    );
     /// Subgraph output tensor UID.
     ///
     /// since: cuDNN 9.21.0
-    CUDNN_ATTR_OPERATION_SDPA_FWD_SUBGRAPH_OUTPUT_UID = 2813,
+    pub const CUDNN_ATTR_OPERATION_SDPA_FWD_SUBGRAPH_OUTPUT_UID: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2813,
+    );
     /// Softmax descriptor.
     ///
     /// since: cuDNN 9.21.0
-    CUDNN_ATTR_OPERATION_SDPA_FWD_SOFTMAX_DESC = 2814,
+    pub const CUDNN_ATTR_OPERATION_SDPA_FWD_SOFTMAX_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2814,
+    );
     /// Dropout seed tensor descriptor.
     ///
     /// since: cuDNN 9.21.0
-    CUDNN_ATTR_OPERATION_SDPA_FWD_DROPOUT_SEED_DESC = 2815,
+    pub const CUDNN_ATTR_OPERATION_SDPA_FWD_DROPOUT_SEED_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2815,
+    );
     /// Dropout offset tensor descriptor.
     ///
     /// since: cuDNN 9.21.0
-    CUDNN_ATTR_OPERATION_SDPA_FWD_DROPOUT_OFFSET_DESC = 2816,
+    pub const CUDNN_ATTR_OPERATION_SDPA_FWD_DROPOUT_OFFSET_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2816,
+    );
     /// Dropout RNG dump tensor descriptor.
     ///
     /// since: cuDNN 9.21.0
-    CUDNN_ATTR_OPERATION_SDPA_FWD_DROPOUT_RNG_DUMP_DESC = 2817,
+    pub const CUDNN_ATTR_OPERATION_SDPA_FWD_DROPOUT_RNG_DUMP_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2817,
+    );
     /// Dropout probability.
     ///
     /// since: cuDNN 9.21.0
-    CUDNN_ATTR_OPERATION_SDPA_FWD_DROPOUT_PROBABILITY = 2818,
+    pub const CUDNN_ATTR_OPERATION_SDPA_FWD_DROPOUT_PROBABILITY: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2818,
+    );
     /// Unfuse FMA in softmax for SM100.
     ///
     /// since: cuDNN 9.22.0
-    CUDNN_ATTR_OPERATION_SDPA_FWD_UNFUSE_FMA = 2819,
+    pub const CUDNN_ATTR_OPERATION_SDPA_FWD_UNFUSE_FMA: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2819,
+    );
     /// Query cumulative sequence length tensor.
     ///
     /// since: cuDNN 9.24.0
-    CUDNN_ATTR_OPERATION_SDPA_FWD_CU_SEQ_LEN_QDESC = 2820,
+    pub const CUDNN_ATTR_OPERATION_SDPA_FWD_CU_SEQ_LEN_QDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2820,
+    );
     /// Key-value cumulative sequence length tensor.
     ///
     /// since: cuDNN 9.24.0
-    CUDNN_ATTR_OPERATION_SDPA_FWD_CU_SEQ_LEN_KVDESC = 2821,
+    pub const CUDNN_ATTR_OPERATION_SDPA_FWD_CU_SEQ_LEN_KVDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2821,
+    );
     /// FP8 descale factor for Q.
     ///
     /// since: cuDNN 9.25.0
-    CUDNN_ATTR_OPERATION_SDPA_FWD_DESCALE_QDESC = 2822,
+    pub const CUDNN_ATTR_OPERATION_SDPA_FWD_DESCALE_QDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2822,
+    );
     /// FP8 descale factor for K.
     ///
     /// since: cuDNN 9.25.0
-    CUDNN_ATTR_OPERATION_SDPA_FWD_DESCALE_KDESC = 2823,
+    pub const CUDNN_ATTR_OPERATION_SDPA_FWD_DESCALE_KDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2823,
+    );
     /// FP8 descale factor for V.
     ///
     /// since: cuDNN 9.25.0
-    CUDNN_ATTR_OPERATION_SDPA_FWD_DESCALE_VDESC = 2824,
+    pub const CUDNN_ATTR_OPERATION_SDPA_FWD_DESCALE_VDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2824,
+    );
     /// FP8 descale factor for S.
     ///
     /// since: cuDNN 9.25.0
-    CUDNN_ATTR_OPERATION_SDPA_FWD_DESCALE_SDESC = 2825,
+    pub const CUDNN_ATTR_OPERATION_SDPA_FWD_DESCALE_SDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2825,
+    );
     /// FP8 scale factor for S.
     ///
     /// since: cuDNN 9.25.0
-    CUDNN_ATTR_OPERATION_SDPA_FWD_SCALE_SDESC = 2826,
+    pub const CUDNN_ATTR_OPERATION_SDPA_FWD_SCALE_SDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2826,
+    );
     /// FP8 scale factor for O.
     ///
     /// since: cuDNN 9.25.0
-    CUDNN_ATTR_OPERATION_SDPA_FWD_SCALE_ODESC = 2827,
+    pub const CUDNN_ATTR_OPERATION_SDPA_FWD_SCALE_ODESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2827,
+    );
     /// FP8 absolute maximum of S.
     ///
     /// since: cuDNN 9.25.0
-    CUDNN_ATTR_OPERATION_SDPA_FWD_AMAX_SDESC = 2828,
+    pub const CUDNN_ATTR_OPERATION_SDPA_FWD_AMAX_SDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2828,
+    );
     /// FP8 absolute maximum of O.
     ///
     /// since: cuDNN 9.25.0
-    CUDNN_ATTR_OPERATION_SDPA_FWD_AMAX_ODESC = 2829,
+    pub const CUDNN_ATTR_OPERATION_SDPA_FWD_AMAX_ODESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2829,
+    );
     /// Query tensor descriptor.
     ///
     /// since: cuDNN 9.17.0
-    CUDNN_ATTR_OPERATION_SDPA_BWD_QDESC = 2851,
+    pub const CUDNN_ATTR_OPERATION_SDPA_BWD_QDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2851,
+    );
     /// Key tensor descriptor.
     ///
     /// since: cuDNN 9.17.0
-    CUDNN_ATTR_OPERATION_SDPA_BWD_KDESC = 2852,
+    pub const CUDNN_ATTR_OPERATION_SDPA_BWD_KDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2852,
+    );
     /// Value tensor descriptor.
     ///
     /// since: cuDNN 9.17.0
-    CUDNN_ATTR_OPERATION_SDPA_BWD_VDESC = 2853,
+    pub const CUDNN_ATTR_OPERATION_SDPA_BWD_VDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2853,
+    );
     /// Forward output tensor descriptor.
     ///
     /// since: cuDNN 9.17.0
-    CUDNN_ATTR_OPERATION_SDPA_BWD_ODESC = 2854,
+    pub const CUDNN_ATTR_OPERATION_SDPA_BWD_ODESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2854,
+    );
     /// Forward statistics descriptor.
     ///
     /// since: cuDNN 9.17.0
-    CUDNN_ATTR_OPERATION_SDPA_BWD_STATSDESC = 2855,
+    pub const CUDNN_ATTR_OPERATION_SDPA_BWD_STATSDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2855,
+    );
     /// Attention scaling factor.
     ///
     /// since: cuDNN 9.17.0
-    CUDNN_ATTR_OPERATION_SDPA_BWD_SCALEDESC = 2856,
+    pub const CUDNN_ATTR_OPERATION_SDPA_BWD_SCALEDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2856,
+    );
     /// Query sequence length tensor.
     ///
     /// since: cuDNN 9.17.0
-    CUDNN_ATTR_OPERATION_SDPA_BWD_SEQ_LEN_QDESC = 2857,
+    pub const CUDNN_ATTR_OPERATION_SDPA_BWD_SEQ_LEN_QDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2857,
+    );
     /// Key-value sequence length tensor.
     ///
     /// since: cuDNN 9.17.0
-    CUDNN_ATTR_OPERATION_SDPA_BWD_SEQ_LEN_KVDESC = 2858,
+    pub const CUDNN_ATTR_OPERATION_SDPA_BWD_SEQ_LEN_KVDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2858,
+    );
     /// Query gradient output tensor.
     ///
     /// since: cuDNN 9.17.0
-    CUDNN_ATTR_OPERATION_SDPA_BWD_DQDESC = 2859,
+    pub const CUDNN_ATTR_OPERATION_SDPA_BWD_DQDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2859,
+    );
     /// Key gradient output tensor.
     ///
     /// since: cuDNN 9.17.0
-    CUDNN_ATTR_OPERATION_SDPA_BWD_DKDESC = 2860,
+    pub const CUDNN_ATTR_OPERATION_SDPA_BWD_DKDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2860,
+    );
     /// Value gradient output tensor.
     ///
     /// since: cuDNN 9.17.0
-    CUDNN_ATTR_OPERATION_SDPA_BWD_DVDESC = 2861,
+    pub const CUDNN_ATTR_OPERATION_SDPA_BWD_DVDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2861,
+    );
     /// Output gradient input tensor.
     ///
     /// since: cuDNN 9.17.0
-    CUDNN_ATTR_OPERATION_SDPA_BWD_DODDESC = 2862,
+    pub const CUDNN_ATTR_OPERATION_SDPA_BWD_DODDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2862,
+    );
     /// Backward sink descriptor.
     ///
     /// since: UNPUBLISHED
-    CUDNN_ATTR_OPERATION_SDPA_BWD_SINK_DESC = 2863,
+    pub const CUDNN_ATTR_OPERATION_SDPA_BWD_SINK_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2863,
+    );
     /// Backward sink gradient descriptor.
     ///
     /// since: UNPUBLISHED
-    CUDNN_ATTR_OPERATION_SDPA_BWD_DSINK_DESC = 2864,
+    pub const CUDNN_ATTR_OPERATION_SDPA_BWD_DSINK_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2864,
+    );
     /// Max total query sequence length.
     ///
     /// since: UNPUBLISHED
-    CUDNN_ATTR_OPERATION_SDPA_BWD_MAX_TOTAL_SEQ_LEN_Q = 2865,
+    pub const CUDNN_ATTR_OPERATION_SDPA_BWD_MAX_TOTAL_SEQ_LEN_Q: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2865,
+    );
     /// Max total KV sequence length.
     ///
     /// since: UNPUBLISHED
-    CUDNN_ATTR_OPERATION_SDPA_BWD_MAX_TOTAL_SEQ_LEN_KV = 2866,
+    pub const CUDNN_ATTR_OPERATION_SDPA_BWD_MAX_TOTAL_SEQ_LEN_KV: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2866,
+    );
     /// Backward SDPA subgraph.
     ///
     /// since: UNPUBLISHED
-    CUDNN_ATTR_OPERATION_SDPA_BWD_SUBGRAPH = 2867,
+    pub const CUDNN_ATTR_OPERATION_SDPA_BWD_SUBGRAPH: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2867,
+    );
     /// Subgraph input tensor UID.
     ///
     /// since: UNPUBLISHED
-    CUDNN_ATTR_OPERATION_SDPA_BWD_SUBGRAPH_INPUT_UID = 2868,
+    pub const CUDNN_ATTR_OPERATION_SDPA_BWD_SUBGRAPH_INPUT_UID: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2868,
+    );
     /// Subgraph output tensor UID.
     ///
     /// since: UNPUBLISHED
-    CUDNN_ATTR_OPERATION_SDPA_BWD_SUBGRAPH_OUTPUT_UID = 2869,
+    pub const CUDNN_ATTR_OPERATION_SDPA_BWD_SUBGRAPH_OUTPUT_UID: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2869,
+    );
     /// Gather/scatter mode for MoE.
     ///
     /// since: cuDNN 9.15.0
-    CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_MODE = 2900,
+    pub const CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_MODE: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2900,
+    );
     /// Computation precision.
     ///
     /// since: cuDNN 9.15.0
-    CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_MATH_PREC = 2901,
+    pub const CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_MATH_PREC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2901,
+    );
     /// Token tensor descriptor.
     ///
     /// since: cuDNN 9.15.0
-    CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_TOKEN_DESC = 2902,
+    pub const CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_TOKEN_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2902,
+    );
     /// Expert weight tensor descriptor.
     ///
     /// since: cuDNN 9.15.0
-    CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_WEIGHT_DESC = 2903,
+    pub const CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_WEIGHT_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2903,
+    );
     /// First token offset per expert.
     ///
     /// since: cuDNN 9.15.0
-    CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_FIRST_TOKEN_OFFSET_DESC = 2904,
+    pub const CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_FIRST_TOKEN_OFFSET_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2904,
+    );
     /// Output tensor descriptor.
     ///
     /// since: cuDNN 9.15.0
-    CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_OUTPUT_DESC = 2905,
+    pub const CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_OUTPUT_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2905,
+    );
     /// Token routing index descriptor.
     ///
     /// since: cuDNN 9.15.0
-    CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_TOKEN_INDEX_DESC = 2906,
+    pub const CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_TOKEN_INDEX_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2906,
+    );
     /// Token routing weights descriptor.
     ///
     /// since: cuDNN 9.15.0
-    CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_TOKEN_KS_DESC = 2907,
+    pub const CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_TOKEN_KS_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2907,
+    );
     /// Top-K experts per token.
     ///
     /// since: cuDNN 9.15.0
-    CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_TOP_K = 2908,
+    pub const CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_TOP_K: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2908,
+    );
     /// Backward math precision for MoE grouped matmul.
     ///
     /// since: cuDNN 9.22.0
-    CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_BWD_MATH_PREC = 2951,
+    pub const CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_BWD_MATH_PREC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2951,
+    );
     /// Backward token descriptor for MoE grouped matmul.
     ///
     /// since: cuDNN 9.22.0
-    CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_BWD_TOKEN_DESC = 2952,
+    pub const CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_BWD_TOKEN_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2952,
+    );
     /// Backward weight descriptor for MoE grouped matmul.
     ///
     /// since: cuDNN 9.22.0
-    CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_BWD_DWEIGHT_DESC = 2953,
+    pub const CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_BWD_DWEIGHT_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2953,
+    );
     /// Backward first token offset descriptor for MoE grouped matmul.
     ///
     /// since: cuDNN 9.22.0
-    CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_BWD_FIRST_TOKEN_OFFSET_DESC = 2954,
+    pub const CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_BWD_FIRST_TOKEN_OFFSET_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2954,
+    );
     /// Backward output descriptor for MoE grouped matmul.
     ///
     /// since: cuDNN 9.22.0
-    CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_BWD_DOUTPUT_DESC = 2955,
+    pub const CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_BWD_DOUTPUT_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        2955,
+    );
     /// Input tensor descriptor.
     ///
     /// since: cuDNN 9.20.0
-    CUDNN_ATTR_OPERATION_DIAGONAL_BAND_MASK_XDESC = 3000,
+    pub const CUDNN_ATTR_OPERATION_DIAGONAL_BAND_MASK_XDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        3000,
+    );
     /// KV sequence length tensor.
     ///
     /// since: cuDNN 9.20.0
-    CUDNN_ATTR_OPERATION_DIAGONAL_BAND_MASK_SEQ_LEN_KVDESC = 3001,
+    pub const CUDNN_ATTR_OPERATION_DIAGONAL_BAND_MASK_SEQ_LEN_KVDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        3001,
+    );
     /// Query sequence length tensor.
     ///
     /// since: cuDNN 9.20.0
-    CUDNN_ATTR_OPERATION_DIAGONAL_BAND_MASK_SEQ_LEN_QDESC = 3002,
+    pub const CUDNN_ATTR_OPERATION_DIAGONAL_BAND_MASK_SEQ_LEN_QDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        3002,
+    );
     /// Left bound offset descriptor.
     ///
     /// since: cuDNN 9.20.0
-    CUDNN_ATTR_OPERATION_DIAGONAL_BAND_MASK_LEFT_BOUND_DESC = 3003,
+    pub const CUDNN_ATTR_OPERATION_DIAGONAL_BAND_MASK_LEFT_BOUND_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        3003,
+    );
     /// Right bound shift descriptor.
     ///
     /// since: cuDNN 9.20.0
-    CUDNN_ATTR_OPERATION_DIAGONAL_BAND_MASK_SHIFT_RIGHT_BOUND_DESC = 3004,
+    pub const CUDNN_ATTR_OPERATION_DIAGONAL_BAND_MASK_SHIFT_RIGHT_BOUND_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        3004,
+    );
     /// Band descriptor.
     ///
     /// since: cuDNN 9.20.0
-    CUDNN_ATTR_OPERATION_DIAGONAL_BAND_MASK_BDESC = 3005,
+    pub const CUDNN_ATTR_OPERATION_DIAGONAL_BAND_MASK_BDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        3005,
+    );
     /// Output mask tensor descriptor.
     ///
     /// since: cuDNN 9.20.0
-    CUDNN_ATTR_OPERATION_DIAGONAL_BAND_MASK_YDESC = 3006,
+    pub const CUDNN_ATTR_OPERATION_DIAGONAL_BAND_MASK_YDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        3006,
+    );
     /// Mask comparison mode.
     ///
     /// since: cuDNN 9.20.0
-    CUDNN_ATTR_OPERATION_DIAGONAL_BAND_MASK_COMPARISON_MODE = 3007,
+    pub const CUDNN_ATTR_OPERATION_DIAGONAL_BAND_MASK_COMPARISON_MODE: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        3007,
+    );
     /// Key-value cumulative sequence length tensor.
     ///
     /// since: cuDNN 9.24.0
-    CUDNN_ATTR_OPERATION_DIAGONAL_BAND_MASK_CU_SEQ_LEN_KVDESC = 3008,
+    pub const CUDNN_ATTR_OPERATION_DIAGONAL_BAND_MASK_CU_SEQ_LEN_KVDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        3008,
+    );
     /// Query cumulative sequence length tensor.
     ///
     /// since: cuDNN 9.24.0
-    CUDNN_ATTR_OPERATION_DIAGONAL_BAND_MASK_CU_SEQ_LEN_QDESC = 3009,
+    pub const CUDNN_ATTR_OPERATION_DIAGONAL_BAND_MASK_CU_SEQ_LEN_QDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        3009,
+    );
     /// Softmax input tensor descriptor.
     ///
     /// since: cuDNN 9.20.0
-    CUDNN_ATTR_OPERATION_SOFTMAX_XDESC = 3100,
+    pub const CUDNN_ATTR_OPERATION_SOFTMAX_XDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        3100,
+    );
     /// Softmax output tensor descriptor.
     ///
     /// since: cuDNN 9.20.0
-    CUDNN_ATTR_OPERATION_SOFTMAX_YDESC = 3101,
+    pub const CUDNN_ATTR_OPERATION_SOFTMAX_YDESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        3101,
+    );
     /// Softmax statistics output.
     ///
     /// since: cuDNN 9.20.0
-    CUDNN_ATTR_OPERATION_SOFTMAX_STATS_DESC = 3102,
+    pub const CUDNN_ATTR_OPERATION_SOFTMAX_STATS_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        3102,
+    );
     /// Row-wise max values descriptor.
     ///
     /// since: cuDNN 9.20.0
-    CUDNN_ATTR_OPERATION_SOFTMAX_MAX_DESC = 3103,
+    pub const CUDNN_ATTR_OPERATION_SOFTMAX_MAX_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        3103,
+    );
     /// Row-wise sum of exponentials.
     ///
     /// since: cuDNN 9.20.0
-    CUDNN_ATTR_OPERATION_SOFTMAX_SUM_EXP_DESC = 3104,
+    pub const CUDNN_ATTR_OPERATION_SOFTMAX_SUM_EXP_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        3104,
+    );
     /// Softmax sink descriptor.
     ///
     /// since: cuDNN 9.20.0
-    CUDNN_ATTR_OPERATION_SOFTMAX_SINK_DESC = 3105,
+    pub const CUDNN_ATTR_OPERATION_SOFTMAX_SINK_DESC: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        3105,
+    );
     /// Emit statistics as natural-log LSE multiplied by log2(e). SDPA backward expects natural-log statistics.
     ///
     /// since: cuDNN 9.27.0
-    CUDNN_ATTR_OPERATION_SOFTMAX_STATS_LOG2 = 3106,
+    pub const CUDNN_ATTR_OPERATION_SOFTMAX_STATS_LOG2: cudnnBackendAttributeName_t = cudnnBackendAttributeName_t(
+        3106,
+    );
 }
-/// The enumeration type [`cudnnBackendAttributeType_t`] specifies the data type of an attribute of a cuDNN backend descriptor. It is used to specify the type of data pointed to by the void `*arrayOfElements` argument of [`cudnnBackendSetAttribute`] and [`cudnnBackendGetAttribute`].
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudnnBackendAttributeType_t {
+/// [`cudnnBackendAttributeName_t`] is an enumerated type that indicates the backend descriptor attributes that can be set or get using [`cudnnBackendSetAttribute`] and [`cudnnBackendGetAttribute`] functions. The backend descriptor to which an attribute belongs is identified by the prefix of the attribute name.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudnnBackendAttributeName_t(pub ::core::ffi::c_uint);
+impl cudnnBackendAttributeType_t {
     /// cudnnHandle_t value.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_TYPE_HANDLE = 0,
+    pub const CUDNN_TYPE_HANDLE: cudnnBackendAttributeType_t = cudnnBackendAttributeType_t(
+        0,
+    );
     /// cudnnDataType_t value.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_TYPE_DATA_TYPE = 1,
+    pub const CUDNN_TYPE_DATA_TYPE: cudnnBackendAttributeType_t = cudnnBackendAttributeType_t(
+        1,
+    );
     /// Boolean value.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_TYPE_BOOLEAN = 2,
+    pub const CUDNN_TYPE_BOOLEAN: cudnnBackendAttributeType_t = cudnnBackendAttributeType_t(
+        2,
+    );
     /// 64-bit signed integer value.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_TYPE_INT64 = 3,
+    pub const CUDNN_TYPE_INT64: cudnnBackendAttributeType_t = cudnnBackendAttributeType_t(
+        3,
+    );
     /// 32-bit float value.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_TYPE_FLOAT = 4,
+    pub const CUDNN_TYPE_FLOAT: cudnnBackendAttributeType_t = cudnnBackendAttributeType_t(
+        4,
+    );
     /// 64-bit double value.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_TYPE_DOUBLE = 5,
+    pub const CUDNN_TYPE_DOUBLE: cudnnBackendAttributeType_t = cudnnBackendAttributeType_t(
+        5,
+    );
     /// Void pointer value.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_TYPE_VOID_PTR = 6,
+    pub const CUDNN_TYPE_VOID_PTR: cudnnBackendAttributeType_t = cudnnBackendAttributeType_t(
+        6,
+    );
     /// cudnnConvolutionMode_t value.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_TYPE_CONVOLUTION_MODE = 7,
+    pub const CUDNN_TYPE_CONVOLUTION_MODE: cudnnBackendAttributeType_t = cudnnBackendAttributeType_t(
+        7,
+    );
     /// cudnnBackendHeurMode_t value.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_TYPE_HEUR_MODE = 8,
+    pub const CUDNN_TYPE_HEUR_MODE: cudnnBackendAttributeType_t = cudnnBackendAttributeType_t(
+        8,
+    );
     /// cudnnBackendKnobType_t value.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_TYPE_KNOB_TYPE = 9,
+    pub const CUDNN_TYPE_KNOB_TYPE: cudnnBackendAttributeType_t = cudnnBackendAttributeType_t(
+        9,
+    );
     /// cudnnNanPropagation_t value.
     ///
     /// Deprecated:
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_TYPE_NAN_PROPOGATION = 10,
+    pub const CUDNN_TYPE_NAN_PROPOGATION: cudnnBackendAttributeType_t = cudnnBackendAttributeType_t(
+        10,
+    );
     /// cudnnBackendNumericalNote_t value.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_TYPE_NUMERICAL_NOTE = 11,
+    pub const CUDNN_TYPE_NUMERICAL_NOTE: cudnnBackendAttributeType_t = cudnnBackendAttributeType_t(
+        11,
+    );
     /// cudnnBackendLayoutType_t value.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_TYPE_LAYOUT_TYPE = 12,
+    pub const CUDNN_TYPE_LAYOUT_TYPE: cudnnBackendAttributeType_t = cudnnBackendAttributeType_t(
+        12,
+    );
     /// cudnnBackendAttributeName_t value.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_TYPE_ATTRIB_NAME = 13,
+    pub const CUDNN_TYPE_ATTRIB_NAME: cudnnBackendAttributeType_t = cudnnBackendAttributeType_t(
+        13,
+    );
     /// cudnnPointwiseMode_t value.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_TYPE_POINTWISE_MODE = 14,
+    pub const CUDNN_TYPE_POINTWISE_MODE: cudnnBackendAttributeType_t = cudnnBackendAttributeType_t(
+        14,
+    );
     /// cudnnBackendDescriptor_t value.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_TYPE_BACKEND_DESCRIPTOR = 15,
+    pub const CUDNN_TYPE_BACKEND_DESCRIPTOR: cudnnBackendAttributeType_t = cudnnBackendAttributeType_t(
+        15,
+    );
     /// cudnnGenStatsMode_t value.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_TYPE_GENSTATS_MODE = 16,
+    pub const CUDNN_TYPE_GENSTATS_MODE: cudnnBackendAttributeType_t = cudnnBackendAttributeType_t(
+        16,
+    );
     /// cudnnBnFinalizeStatsMode_t value.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_TYPE_BN_FINALIZE_STATS_MODE = 17,
+    pub const CUDNN_TYPE_BN_FINALIZE_STATS_MODE: cudnnBackendAttributeType_t = cudnnBackendAttributeType_t(
+        17,
+    );
     /// cudnnReduceTensorOp_t value.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_TYPE_REDUCTION_OPERATOR_TYPE = 18,
+    pub const CUDNN_TYPE_REDUCTION_OPERATOR_TYPE: cudnnBackendAttributeType_t = cudnnBackendAttributeType_t(
+        18,
+    );
     /// cudnnBackendBehaviorNote_t value.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_TYPE_BEHAVIOR_NOTE = 19,
+    pub const CUDNN_TYPE_BEHAVIOR_NOTE: cudnnBackendAttributeType_t = cudnnBackendAttributeType_t(
+        19,
+    );
     /// cudnnBackendTensorReordering_t value.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_TYPE_TENSOR_REORDERING_MODE = 20,
+    pub const CUDNN_TYPE_TENSOR_REORDERING_MODE: cudnnBackendAttributeType_t = cudnnBackendAttributeType_t(
+        20,
+    );
     /// cudnnResampleMode_t value.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_TYPE_RESAMPLE_MODE = 21,
+    pub const CUDNN_TYPE_RESAMPLE_MODE: cudnnBackendAttributeType_t = cudnnBackendAttributeType_t(
+        21,
+    );
     /// cudnnPaddingMode_t value.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_TYPE_PADDING_MODE = 22,
+    pub const CUDNN_TYPE_PADDING_MODE: cudnnBackendAttributeType_t = cudnnBackendAttributeType_t(
+        22,
+    );
     /// 32-bit signed integer value.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_TYPE_INT32 = 23,
+    pub const CUDNN_TYPE_INT32: cudnnBackendAttributeType_t = cudnnBackendAttributeType_t(
+        23,
+    );
     /// Character value.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_TYPE_CHAR = 24,
+    pub const CUDNN_TYPE_CHAR: cudnnBackendAttributeType_t = cudnnBackendAttributeType_t(
+        24,
+    );
     /// cudnnSignalMode_t value.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_TYPE_SIGNAL_MODE = 25,
+    pub const CUDNN_TYPE_SIGNAL_MODE: cudnnBackendAttributeType_t = cudnnBackendAttributeType_t(
+        25,
+    );
     /// cudnnFraction_t value.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_TYPE_FRACTION = 26,
+    pub const CUDNN_TYPE_FRACTION: cudnnBackendAttributeType_t = cudnnBackendAttributeType_t(
+        26,
+    );
     /// cudnnBackendNormMode_t value.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_TYPE_NORM_MODE = 27,
+    pub const CUDNN_TYPE_NORM_MODE: cudnnBackendAttributeType_t = cudnnBackendAttributeType_t(
+        27,
+    );
     /// cudnnBackendNormFwdPhase_t value.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_TYPE_NORM_FWD_PHASE = 28,
+    pub const CUDNN_TYPE_NORM_FWD_PHASE: cudnnBackendAttributeType_t = cudnnBackendAttributeType_t(
+        28,
+    );
     /// cudnnRngDistribution_t value.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_TYPE_RNG_DISTRIBUTION = 29,
+    pub const CUDNN_TYPE_RNG_DISTRIBUTION: cudnnBackendAttributeType_t = cudnnBackendAttributeType_t(
+        29,
+    );
     /// cudnnMoeGroupedMatmulMode_t value.
     ///
     /// since: cuDNN 9.15.0
-    CUDNN_TYPE_MOE_GROUPED_MATMUL_MODE = 30,
+    pub const CUDNN_TYPE_MOE_GROUPED_MATMUL_MODE: cudnnBackendAttributeType_t = cudnnBackendAttributeType_t(
+        30,
+    );
     /// cudnnBackendReshapeMode_t value.
     ///
     /// since: cuDNN 9.22.0
-    CUDNN_TYPE_RESHAPE_MODE = 31,
+    pub const CUDNN_TYPE_RESHAPE_MODE: cudnnBackendAttributeType_t = cudnnBackendAttributeType_t(
+        31,
+    );
     /// cudnnBackendOperationGraphMode_t value.
     ///
     /// since: cuDNN 9.NEXT
-    CUDNN_TYPE_OPERATIONGRAPH_MODE = 32,
+    pub const CUDNN_TYPE_OPERATIONGRAPH_MODE: cudnnBackendAttributeType_t = cudnnBackendAttributeType_t(
+        32,
+    );
 }
-/// [`cudnnBackendDescriptor_t`] is an enumerated type that indicates the type of backend descriptors. Users create a backend descriptor of a particular type by passing a value from this enumerate to the [`cudnnBackendCreateDescriptor`] function.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudnnBackendDescriptorType_t {
+/// The enumeration type [`cudnnBackendAttributeType_t`] specifies the data type of an attribute of a cuDNN backend descriptor. It is used to specify the type of data pointed to by the void `*arrayOfElements` argument of [`cudnnBackendSetAttribute`] and [`cudnnBackendGetAttribute`].
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudnnBackendAttributeType_t(pub ::core::ffi::c_uint);
+impl cudnnBackendDescriptorType_t {
     /// Created with `cudnnBackendCreateDescriptor(CUDNN_BACKEND_POINTWISE_DESCRIPTOR, &desc)`; the cuDNN backend pointwise descriptor specifies the parameters for a pointwise operator like mode, math precision, nan propagation, and so on.
     ///
     /// Attributes of a cuDNN backend convolution descriptor are values of enumeration type [`cudnnBackendAttributeName_t`] with prefix `CUDNN_ATTR_POINTWISE_`:
     ///
     /// [`cudnnBackendFinalize`] with a [`cudnnBackendDescriptorType_t::CUDNN_BACKEND_POINTWISE_DESCRIPTOR`] can have the following return values.
-    CUDNN_BACKEND_POINTWISE_DESCRIPTOR = 0,
+    pub const CUDNN_BACKEND_POINTWISE_DESCRIPTOR: cudnnBackendDescriptorType_t = cudnnBackendDescriptorType_t(
+        0,
+    );
     /// Created with `cudnnBackendCreateDescriptor(CUDNN_BACKEND_CONVOLUTION_DESCRIPTOR, &desc)`; the cuDNN backend convolution descriptor specifies the parameters for a convolution operator for both forward and backward propagation: compute data type, convolution mode, filter dilation and stride, and padding on both sides.
     ///
     /// Attributes of a cuDNN backend convolution descriptor are values of enumeration type [`cudnnBackendAttributeName_t`] with prefix `CUDNN_ATTR_CONVOLUTION_`:
     ///
     /// [`cudnnBackendFinalize`] with a [`cudnnBackendDescriptorType_t::CUDNN_BACKEND_CONVOLUTION_DESCRIPTOR`] can have the following return values.
-    CUDNN_BACKEND_CONVOLUTION_DESCRIPTOR = 1,
+    pub const CUDNN_BACKEND_CONVOLUTION_DESCRIPTOR: cudnnBackendDescriptorType_t = cudnnBackendDescriptorType_t(
+        1,
+    );
     /// Created with descriptor type value [`cudnnBackendDescriptorType_t::CUDNN_BACKEND_ENGINE_DESCRIPTOR`], cuDNN backend engine descriptor describes an engine to compute an operation graph. An engine is a grouping of kernels with similar compute and numerical attributes.
     ///
     /// Attributes of a cuDNN backend convolution descriptor are values of enumeration type [`cudnnBackendAttributeName_t`] with prefix `CUDNN_ATTR_ENGINE_`.
-    CUDNN_BACKEND_ENGINE_DESCRIPTOR = 2,
+    pub const CUDNN_BACKEND_ENGINE_DESCRIPTOR: cudnnBackendDescriptorType_t = cudnnBackendDescriptorType_t(
+        2,
+    );
     /// Created with `cudnnBackendCreateDescriptor(CUDNN_BACKEND_ENGINECFG_DESCRIPTOR, &desc)`; the cuDNN backend engine configuration descriptor consists of an engine descriptor and an array of knob choice descriptors. Users can query from engine config information about intermediates: computational intermediate results that can be reused between executions.
-    CUDNN_BACKEND_ENGINECFG_DESCRIPTOR = 3,
+    pub const CUDNN_BACKEND_ENGINECFG_DESCRIPTOR: cudnnBackendDescriptorType_t = cudnnBackendDescriptorType_t(
+        3,
+    );
     /// Created with `cudnnBackendCreateDescriptor(CUDNN_BACKEND_ENGINEHEUR_DESCRIPTOR, &desc)`; the cuDNN backend engine heuristics descriptor allows users to obtain for an operation graph engine configuration descriptors ranked by performance according to cuDNN’s heuristics.
-    CUDNN_BACKEND_ENGINEHEUR_DESCRIPTOR = 4,
+    pub const CUDNN_BACKEND_ENGINEHEUR_DESCRIPTOR: cudnnBackendDescriptorType_t = cudnnBackendDescriptorType_t(
+        4,
+    );
     /// Created with `cudnnBackendCreateDescriptor(CUDNN_BACKEND_EXECUTION_PLAN_DESCRIPTOR, &desc)`; the cuDNN backend execution plan descriptor allows the user to specify an execution plan, consists of a cuDNN handle, an engine configuration, and optionally an array of intermediates to compute.
-    CUDNN_BACKEND_EXECUTION_PLAN_DESCRIPTOR = 5,
+    pub const CUDNN_BACKEND_EXECUTION_PLAN_DESCRIPTOR: cudnnBackendDescriptorType_t = cudnnBackendDescriptorType_t(
+        5,
+    );
     /// Created with `cudnnBackendCreateDescriptor(CUDNN_BACKEND_INTERMEDIATE_INFO_DESCRIPTOR, &desc)`; the cuDNN backend intermediate descriptor is a read-only descriptor that contains information about an execution intermediate. An execution intermediate is some intermediate computation for an engine config in device memory that can be reused between plan execution to amortize the kernel. Each intermediate is identified by a unique ID. Users can query for the device memory size of the intermediate. An intermediate can depend on the data of one or more tensors identified by the tensor UIDs or one more attribute of the operation graph.
     ///
     /// This is a read-only descriptor. Users cannot set the descriptor attributes or finalize the descriptor. User query for a finalized descriptor from an engine config descriptor.
     ///
     /// User does not finalize this descriptor. `cudnnBackendFinalize(desc)` with a backend intermediate descriptor returns [`cudnnStatus_t::CUDNN_STATUS_NOT_SUPPORTED`].
-    CUDNN_BACKEND_INTERMEDIATE_INFO_DESCRIPTOR = 6,
+    pub const CUDNN_BACKEND_INTERMEDIATE_INFO_DESCRIPTOR: cudnnBackendDescriptorType_t = cudnnBackendDescriptorType_t(
+        6,
+    );
     /// Created with `cudnnBackendCreateDescriptor(CUDNN_BACKEND_KNOB_CHOICE_DESCRIPTOR, &desc)`; the cuDNN backend knob choice descriptor consists of the type of knobs to be set and the value to which the knob is set.
-    CUDNN_BACKEND_KNOB_CHOICE_DESCRIPTOR = 7,
+    pub const CUDNN_BACKEND_KNOB_CHOICE_DESCRIPTOR: cudnnBackendDescriptorType_t = cudnnBackendDescriptorType_t(
+        7,
+    );
     /// Created with `cudnnBackendCreateDescriptor(CUDNN_BACKEND_INFO_DESCRIPTOR, &desc)`; the cuDNN backend knob info descriptor consists of the type and valid value range of an engine performance knob. Valid value range is given in terms of minimum, maximum, and stride of valid values. This is a purely informative descriptor type. Setting descriptor attributes is not supported. User obtains an array of finalized descriptors, one for each knob type, from a finalized backend descriptor.
     ///
     /// This descriptor is read-only; it is retrieved and finalized from a cuDNN backend engine configuration descriptor. Users cannot set or finalize.
-    CUDNN_BACKEND_KNOB_INFO_DESCRIPTOR = 8,
+    pub const CUDNN_BACKEND_KNOB_INFO_DESCRIPTOR: cudnnBackendDescriptorType_t = cudnnBackendDescriptorType_t(
+        8,
+    );
     /// Created with descriptor type value [`cudnnBackendDescriptorType_t::CUDNN_BACKEND_LAYOUT_INFO_DESCRIPTOR`], cuDNN backend layout info descriptor provides information on the preferred layout for a tensor.
     ///
     /// This descriptor is read-only; it is retrieved and finalized from a cuDNN backend engine configuration descriptor. Users cannot set its attribute or finalize it.
-    CUDNN_BACKEND_LAYOUT_INFO_DESCRIPTOR = 9,
+    pub const CUDNN_BACKEND_LAYOUT_INFO_DESCRIPTOR: cudnnBackendDescriptorType_t = cudnnBackendDescriptorType_t(
+        9,
+    );
     /// Created with `cudnnBackendCreateDescriptor(CUDNN_BACKEND_OPERATION_CONVOLUTION_FORWARD_DESCRIPTOR, &desc)`; the cuDNN backend convolution forward operation descriptor specifies an operation node for forward convolution to compute the response tensor `y` of image tensor `x` convoluted with filter tensor `w` with output scaling $\alpha$ and residual add with $\beta$ scaling. That is, the equation: $y=\alpha\left( w\\*x \right)+\beta y$ where $\\*$ is the convolution operator in the forward direction.
     ///
     /// Attributes of a cuDNN backend convolution descriptor are values of enumeration type [`cudnnBackendAttributeName_t`] with prefix `CUDNN_ATTR_OPERATION_CONVOLUTION_FORWARD_`:
@@ -3136,7 +3864,9 @@ pub enum cudnnBackendDescriptorType_t {
     /// Where the ellipsis `…` are shorthand for spatial dimensions of each tensor, `G` is the number of convolution groups, and `C` and `K` are the number of input and output feature maps per group. In this interpretation, it is assumed that the memory layout for each group is packed. [`cudnnBackendFinalize`] asserts the tensors dimensions and strides are consistent with this interpretation or it returns [`cudnnStatus_t::CUDNN_STATUS_BAD_PARAM`].
     ///
     /// [`cudnnBackendFinalize`] with a [`cudnnBackendDescriptorType_t::CUDNN_BACKEND_OPERATION_CONVOLUTION_FORWARD_DESCRIPTOR`] can have the following return values.
-    CUDNN_BACKEND_OPERATION_CONVOLUTION_FORWARD_DESCRIPTOR = 10,
+    pub const CUDNN_BACKEND_OPERATION_CONVOLUTION_FORWARD_DESCRIPTOR: cudnnBackendDescriptorType_t = cudnnBackendDescriptorType_t(
+        10,
+    );
     /// Created with `cudnnBackendCreateDescriptor(CUDNN_BACKEND_OPERATION_CONVOLUTION_BACKWARD_FILTER_DESCRIPTOR, &desc)`; the cuDNN backend convolution backward filter operation descriptor specifies an operation node for convolution backward filter to compute the gradient of filter `dw` with image tensor `x` and gradient of response `dy` with output $\alpha$ scaling and residue add with $\beta$ scaling. That is, the equation: $dx=\alpha\left( x\tilde{\\*}dy \right)+\beta dx$ where $\tilde{\\*}$ denotes the convolution backward filter operator.
     ///
     /// Attributes of a cuDNN backend convolution descriptor are values of enumeration type [`cudnnBackendAttributeName_t`] with prefix `CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_FILTER_`:
@@ -3144,7 +3874,9 @@ pub enum cudnnBackendDescriptorType_t {
     /// In finalizing the convolution operation, the tensor dimensions of the tensor `X`, `DW`, and `DY` are bound based on the same interpretations as the `X`, `W`, and `Y` tensor dimensions described in the [`cudnnBackendDescriptorType_t::CUDNN_BACKEND_OPERATION_CONVOLUTION_FORWARD_DESCRIPTOR`] section.
     ///
     /// [`cudnnBackendFinalize`] with a [`cudnnBackendDescriptorType_t::CUDNN_BACKEND_OPERATION_CONVOLUTION_BACKWARD_FILTER_DESCRIPTOR`] can have the following return values.
-    CUDNN_BACKEND_OPERATION_CONVOLUTION_BACKWARD_FILTER_DESCRIPTOR = 11,
+    pub const CUDNN_BACKEND_OPERATION_CONVOLUTION_BACKWARD_FILTER_DESCRIPTOR: cudnnBackendDescriptorType_t = cudnnBackendDescriptorType_t(
+        11,
+    );
     /// Created with `cudnnBackendCreateDescriptor(CUDNN_BACKEND_OPERATION_CONVOLUTION_BACKWARD_DATA_DESCRIPTOR, &desc)`; the cuDNN backend convolution backward data operation descriptor specifies an operation node for convolution backward data to compute the gradient of input data `dx` with filter tensor `w` and gradient of response `dy` with output $\alpha$ scaling and residue add with $\beta$ scaling. That is, the equation: $dx=\alpha\left( w\bar{\\*}dy \right)+\beta dx$ where $\bar{\\*}$ denotes the convolution backward data operator.
     ///
     /// Attributes of a cuDNN backend convolution descriptor are values of enumeration type [`cudnnBackendAttributeName_t`] with prefix `CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_DATA_`:
@@ -3152,7 +3884,9 @@ pub enum cudnnBackendDescriptorType_t {
     /// In finalizing the convolution operation, the tensor dimensions of the tensor `DX`, `W`, and `DY` are bound based on the same interpretations as the `X`, `W`, and `Y` tensor dimensions described in the [`cudnnBackendDescriptorType_t::CUDNN_BACKEND_OPERATION_CONVOLUTION_FORWARD_DESCRIPTOR`] section.
     ///
     /// [`cudnnBackendFinalize`] with a [`cudnnBackendDescriptorType_t::CUDNN_BACKEND_OPERATION_CONVOLUTION_BACKWARD_DATA_DESCRIPTOR`] can have the following return values.
-    CUDNN_BACKEND_OPERATION_CONVOLUTION_BACKWARD_DATA_DESCRIPTOR = 12,
+    pub const CUDNN_BACKEND_OPERATION_CONVOLUTION_BACKWARD_DATA_DESCRIPTOR: cudnnBackendDescriptorType_t = cudnnBackendDescriptorType_t(
+        12,
+    );
     /// Represents a pointwise operation that implements the equation `Y = op(alpha1 * X)` or `Y = op(alpha1 * X, alpha2 * B)` depending on the operation type. The actual type of operation represented by `op()` above depends on the [`cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_POINTWISE_PW_DESCRIPTOR`] attribute in the descriptor. This operation descriptor supports operations with single-input single-output.
     ///
     /// For a list of supported operations, refer to the [`cudnnPointwiseMode_t`] section.
@@ -3164,27 +3898,39 @@ pub enum cudnnBackendDescriptorType_t {
     /// This opaque struct can be created with [cudnnBackendCreateDescriptor() (CUDNN_BACKEND_OPERATION_POINTWISE_DESCRIPTOR)](https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnbackendcreatedescriptor).
     ///
     /// In the finalization stage, the attributes are cross checked to make sure there are no conflicts. The status below may be returned.
-    CUDNN_BACKEND_OPERATION_POINTWISE_DESCRIPTOR = 13,
+    pub const CUDNN_BACKEND_OPERATION_POINTWISE_DESCRIPTOR: cudnnBackendDescriptorType_t = cudnnBackendDescriptorType_t(
+        13,
+    );
     /// Represents an operation that will generate per-channel statistics. The specific statistics that will be generated depends on the [`cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_GENSTATS_MODE`] attribute in the descriptor. Currently, only [`cudnnGenStatsMode_t::CUDNN_GENSTATS_SUM_SQSUM`] is supported for the [`cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_GENSTATS_MODE`]. It will generate the sum and quadratic sum of per-channel elements of the input tensor `x`. The output dimension should be all 1 except the `C` dimension. Also, the `C` dimension of outputs should equal the `C` dimension of the input. This opaque struct can be created with `cudnnBackendCreateDescriptor() (CUDNN_BACKEND_OPERATION_GEN_STATS_DESCRIPTOR)`.
     ///
     /// In the finalization stage, the attributes are cross checked to make sure there are no conflicts. The status below may be returned.
-    CUDNN_BACKEND_OPERATION_GEN_STATS_DESCRIPTOR = 14,
+    pub const CUDNN_BACKEND_OPERATION_GEN_STATS_DESCRIPTOR: cudnnBackendDescriptorType_t = cudnnBackendDescriptorType_t(
+        14,
+    );
     /// Created with descriptor type value [`cudnnBackendDescriptorType_t::CUDNN_BACKEND_OPERATIONGRAPH_DESCRIPTOR`], cuDNN backend operation graph descriptor describes an operation graph, a small network of one or more operations connected by virtual tensors. Operation graph defines users’ computation case or mathematical expression that they wish to compute.
     ///
     /// Attributes of a cuDNN backend convolution descriptor are values of enumeration type [`cudnnBackendAttributeName_t`] with prefix `CUDNN_ATTR_OPERATIONGRAPH_`.
-    CUDNN_BACKEND_OPERATIONGRAPH_DESCRIPTOR = 15,
+    pub const CUDNN_BACKEND_OPERATIONGRAPH_DESCRIPTOR: cudnnBackendDescriptorType_t = cudnnBackendDescriptorType_t(
+        15,
+    );
     /// Created with `cudnnBackendCreateDescriptor(CUDNN_BACKEND_VARIANT_PACK_DESCRIPTOR, &desc)`; the cuDNN backend variant pack plan allows users to set up pointers to device buffers to various non-virtual tensors, identified by unique identifiers, of the operation graph, workspace, and computation intermediates.
     ///
     /// The return values for [`cudnnBackendFinalize`] when called with a cuDNN backend variant pack descriptor is.
-    CUDNN_BACKEND_VARIANT_PACK_DESCRIPTOR = 16,
+    pub const CUDNN_BACKEND_VARIANT_PACK_DESCRIPTOR: cudnnBackendDescriptorType_t = cudnnBackendDescriptorType_t(
+        16,
+    );
     /// Created with `cudnnBackendCreateDescriptor(CUDNN_BACKEND_TENSOR_DESCRIPTOR, &desc)`; the cuDNN backend tensor allows users to specify the memory storage of a generic tensor. A tensor is identified by a unique identifier and described by its data type, its data byte-alignment requirements, and the extents and strides of its dimensions. Optionally, a tensor element can be vector in one of its dimensions. A tensor can also be set to be virtual when it is an intermediate variable in a computation graph and not mapped to physical global memory storage.
     ///
     /// Attributes of a cuDNN backend tensor descriptors are values of enumeration type [`cudnnBackendAttributeName_t`] with prefix `CUDNN_ATTR_TENSOR_`:
     ///
     /// [`cudnnBackendFinalize`] with a [`cudnnBackendDescriptorType_t::CUDNN_BACKEND_CONVOLUTION_DESCRIPTOR`] can have the following return values.
-    CUDNN_BACKEND_TENSOR_DESCRIPTOR = 17,
+    pub const CUDNN_BACKEND_TENSOR_DESCRIPTOR: cudnnBackendDescriptorType_t = cudnnBackendDescriptorType_t(
+        17,
+    );
     /// Created with `cudnnBackendCreateDescriptor(CUDNN_BACKEND_MATMUL_DESCRIPTOR, &desc)`; the cuDNN backend `matmul` descriptor specifies any metadata needed for the `matmul` operation.
-    CUDNN_BACKEND_MATMUL_DESCRIPTOR = 18,
+    pub const CUDNN_BACKEND_MATMUL_DESCRIPTOR: cudnnBackendDescriptorType_t = cudnnBackendDescriptorType_t(
+        18,
+    );
     /// Created with `cudnnBackendCreateDescriptor(CUDNN_BACKEND_OPERATION_MATMUL_DESCRIPTOR, &desc)`; the cuDNN backend `matmul` operation descriptor specifies an operation node for `matmul` to compute the matrix product C by multiplying Matrix A and Matrix B, as shown in the following equation: C=AB
     ///
     /// When using the `matmul` operation, the matrices are expected to be at least rank-2 tensors. The last two dimensions are expected to correspond to either M, K or N. All the preceding dimensions are interpreted as batch dimensions. If there are zero batch dimensions then the requirements are as follows:
@@ -3210,13 +3956,19 @@ pub enum cudnnBackendDescriptorType_t {
     /// In the finalization of the `matmul` operation, the tensor dimensions of the Matrices A, B, and C will be checked to ensure that they satisfy the requirements of matmul:
     ///
     /// [`cudnnBackendFinalize`] with a [`cudnnBackendDescriptorType_t::CUDNN_BACKEND_OPERATION_MATMUL_DESCRIPTOR`] can have the following return values.
-    CUDNN_BACKEND_OPERATION_MATMUL_DESCRIPTOR = 19,
+    pub const CUDNN_BACKEND_OPERATION_MATMUL_DESCRIPTOR: cudnnBackendDescriptorType_t = cudnnBackendDescriptorType_t(
+        19,
+    );
     /// Created with `cudnnBackendCreateDescriptor(CUDNN_BACKEND_OPERATION_BN_FINALIZE_STATISTICS_DESCRIPTOR, &desc)`; the cuDNN backend `bn_finalize` statistics operation descriptor specifies an operation node for the batch norm finalize operation.
     ///
     /// In ResNet like models, a common technique to fuse batch norm with convolutions would involve splitting the batch norm operation into three parts - `genStats`, `finalize`, and `apply` (pointwise, scale, and bias). The `genStats` operation is usually fused with the convolution operation that precedes the batch norm while the `apply` is fused with the ReLU and convolution that follows the batch norm op. The batch norm `finalize` operation is a buffer op between the two fusions that takes the batch norm `scale`, `bias`, `sum`, and `sqsum` produced by the `genStats` operation as inputs and produces an equivalent `scale` and `bias` as output. The equivalent `scale` and `bias` are then consumed in the `apply` phase. Additionally, the `bn_finalize` operation also produces the running stats, mean, and inverse standard deviation as outputs.
-    CUDNN_BACKEND_OPERATION_BN_FINALIZE_STATISTICS_DESCRIPTOR = 20,
+    pub const CUDNN_BACKEND_OPERATION_BN_FINALIZE_STATISTICS_DESCRIPTOR: cudnnBackendDescriptorType_t = cudnnBackendDescriptorType_t(
+        20,
+    );
     /// Created with `cudnnBackendCreateDescriptor(CUDNN_BACKEND_REDUCTION_DESCRIPTOR, &desc)`; the cuDNN backend `reduction` descriptor specifies any metadata, including the math operation and compute data type, needed for the `reduction` operation.
-    CUDNN_BACKEND_REDUCTION_DESCRIPTOR = 21,
+    pub const CUDNN_BACKEND_REDUCTION_DESCRIPTOR: cudnnBackendDescriptorType_t = cudnnBackendDescriptorType_t(
+        21,
+    );
     /// The cuDNN backend `reduction` operation descriptor represents an operation node that implements reducing values of an input tensor `X` in one or more dimensions to get an output tensor `Y`. The math operation and compute data type used for reducing tensor values is specified via [`cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_REDUCTION_DESC`].
     ///
     /// This operation descriptor can be created with `cudnnBackendCreateDescriptor(CUDNN_BACKEND_OPERATION_REDUCTION_DESCRIPTOR, &desc)`.
@@ -3230,25 +3982,35 @@ pub enum cudnnBackendDescriptorType_t {
     /// In the finalization of the `reduction` operation, the dimensions of tensors `X` and `Y` are checked to ensure that they satisfy the requirements of the reduction operation.
     ///
     /// [`cudnnBackendFinalize`] with a [`cudnnBackendDescriptorType_t::CUDNN_BACKEND_OPERATION_REDUCTION_DESCRIPTOR`] can have the following return values.
-    CUDNN_BACKEND_OPERATION_REDUCTION_DESCRIPTOR = 22,
+    pub const CUDNN_BACKEND_OPERATION_REDUCTION_DESCRIPTOR: cudnnBackendDescriptorType_t = cudnnBackendDescriptorType_t(
+        22,
+    );
     /// BN backward weights: computes dScale, dBias, and equivalent gradients.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_BACKEND_OPERATION_BN_BWD_WEIGHTS_DESCRIPTOR = 23,
+    pub const CUDNN_BACKEND_OPERATION_BN_BWD_WEIGHTS_DESCRIPTOR: cudnnBackendDescriptorType_t = cudnnBackendDescriptorType_t(
+        23,
+    );
     /// Created with `cudnnBackendCreateDescriptor(CUDNN_BACKEND_RESAMPLE_DESCRIPTOR, &desc)`; the cuDNN backend resample descriptor specifies the parameters for a resample operation (upsampling or downsampling) in both forward and backward propagation.
     ///
     /// The return values for [`cudnnBackendFinalize`] when called with a [`cudnnBackendDescriptorType_t::CUDNN_BACKEND_RESAMPLE_DESCRIPTOR`] is.
-    CUDNN_BACKEND_RESAMPLE_DESCRIPTOR = 24,
+    pub const CUDNN_BACKEND_RESAMPLE_DESCRIPTOR: cudnnBackendDescriptorType_t = cudnnBackendDescriptorType_t(
+        24,
+    );
     /// Created with `cudnnBackendCreateDescriptor(CUDNN_BACKEND_OPERATION_RESAMPLE_FWD_DESCRIPTOR, &desc)`; the cuDNN backend resample forward operation descriptor specifies an operation node for forward resampling. It computes the output tensor `y` of image tensor `x` resampled according to [`cudnnBackendAttributeName_t::CUDNN_ATTR_RESAMPLE_MODE`], with output scaling $\alpha$ and residual add with $\beta$ scaling.
     ///
     /// The resampling mode acts independently on each spatial dimension. For spatial dimension `i`, the output spatial dimension size `y_i` can be calculated by combining input image’s spatial dimension size `x_i`, post padding `post_i`, pre padding `pre_i`, stride `s_i`, and window size `w_i` as: `y_i = 1+(x_i + post_i + pre_i - w_i) / s_i`
     ///
     /// In the finalization stage, the attributes are cross checked to make sure there are no conflicts. The status below may be returned.
-    CUDNN_BACKEND_OPERATION_RESAMPLE_FWD_DESCRIPTOR = 25,
+    pub const CUDNN_BACKEND_OPERATION_RESAMPLE_FWD_DESCRIPTOR: cudnnBackendDescriptorType_t = cudnnBackendDescriptorType_t(
+        25,
+    );
     /// Created with `cudnnBackendCreateDescriptor(CUDNN_BACKEND_OPERATION_RESAMPLE_BWD_DESCRIPTOR, &desc)`; the cuDNN backend resample backward operation descriptor specifies an operation node for backward resampling. It computes the input tensor gradient `dx` from output tensor gradient `dy` with backward resampling done according to [`cudnnBackendAttributeName_t::CUDNN_ATTR_RESAMPLE_MODE`] with output scaling $\alpha$ and residual add with $\beta$ scaling.
     ///
     /// In the finalization stage, the attributes are cross checked to make sure there are no conflicts. The status below may be returned.
-    CUDNN_BACKEND_OPERATION_RESAMPLE_BWD_DESCRIPTOR = 26,
+    pub const CUDNN_BACKEND_OPERATION_RESAMPLE_BWD_DESCRIPTOR: cudnnBackendDescriptorType_t = cudnnBackendDescriptorType_t(
+        26,
+    );
     /// Created with `cudnnBackendCreateDescriptor(CUDNN_BACKEND_OPERATION_CONCAT_DESCRIPTOR, &desc)`; the cuDNN backend concatenation operation descriptor specifies an operation node for concatenating a given vector of tensors along a given concatenation axis.
     ///
     /// This operation also supports an in-place mode, where one of the input tensors is already assumed to be at the correct location in the output tensor, that is, they share the same device buffer.
@@ -3256,70 +4018,98 @@ pub enum cudnnBackendDescriptorType_t {
     /// Attributes of a cuDNN backend concat operation descriptor are values of enumeration type [`cudnnBackendAttributeName_t`] with prefix `CUDNN_ATTR_OPERATION_CONCAT_`:
     ///
     /// [`cudnnBackendFinalize`] with a [`cudnnBackendDescriptorType_t::CUDNN_BACKEND_OPERATION_CONCAT_DESCRIPTOR`] can have the following return values.
-    CUDNN_BACKEND_OPERATION_CONCAT_DESCRIPTOR = 27,
+    pub const CUDNN_BACKEND_OPERATION_CONCAT_DESCRIPTOR: cudnnBackendDescriptorType_t = cudnnBackendDescriptorType_t(
+        27,
+    );
     /// Created with `cudnnBackendCreateDescriptor(CUDNN_BACKEND_OPERATION_SIGNAL_DESCRIPTOR, &desc)`; the cuDNN backend signal operation descriptor specifies an operation node for updating or waiting on a flag variable. Signaling operations can be used to communicate between cuDNN operation graphs, even with operation graphs in another GPU.
     ///
     /// This operation, to connect to other nodes in the graph, also has a pass-through input tensor, which is not operated on and is just passed along to the output tensor. This mandatory pass-through input tensor helps in determining the predecessor node after which the signal operation should be executed. The optional output tensor helps in determining the successor node before which the signal execution should have completed. It is also guaranteed that for a non-virtual tensor as the output tensor, all writes for the tensor will have taken place before the signal value is updated by the operation.
     ///
     /// In the finalization stage, the attributes are cross checked to make sure there are no conflicts. The status below may be returned.
-    CUDNN_BACKEND_OPERATION_SIGNAL_DESCRIPTOR = 28,
+    pub const CUDNN_BACKEND_OPERATION_SIGNAL_DESCRIPTOR: cudnnBackendDescriptorType_t = cudnnBackendDescriptorType_t(
+        28,
+    );
     /// Created with `cudnnBackendCreateDescriptor(CUDNN_BACKEND_OPERATION_NORM_FORWARD_DESCRIPTOR, &desc)`; the cuDNN backend normalization forward operation specifies a node for a forward normalization that takes as input a tensor `X` and produces a normalized output `Y` with the normalization mode set by the [`cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_NORM_FWD_MODE`] attribute. The operation supports optional running stats computation and allows for storing the computed means and variances for reuse in the backwards calculation depending on the setting of the [`cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_NORM_FWD_PHASE`] attribute.
     ///
     /// **Limitations**
     ///
     /// In the finalization stage, the attributes are checked to ensure there are no conflicts.
-    CUDNN_BACKEND_OPERATION_NORM_FORWARD_DESCRIPTOR = 29,
+    pub const CUDNN_BACKEND_OPERATION_NORM_FORWARD_DESCRIPTOR: cudnnBackendDescriptorType_t = cudnnBackendDescriptorType_t(
+        29,
+    );
     /// Created with `cudnnBackendCreateDescriptor(CUDNN_BACKEND_OPERATION_NORM_BACKWARD_DESCRIPTOR, &desc)`; the cuDNN backend normalization backward operation specifies a node for a backward normalization that takes as input the gradient tensor `dY` and outputs the gradient tensor `dX` and weight gradients `dScale` and `dBias`. The normalization mode is set using the [`cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_NORM_BWD_MODE`] attribute.
     ///
     /// **Limitations**
     ///
     /// In the finalization stage, the attributes are checked to ensure there are no conflicts.
-    CUDNN_BACKEND_OPERATION_NORM_BACKWARD_DESCRIPTOR = 30,
+    pub const CUDNN_BACKEND_OPERATION_NORM_BACKWARD_DESCRIPTOR: cudnnBackendDescriptorType_t = cudnnBackendDescriptorType_t(
+        30,
+    );
     /// Reshapes a tensor from one layout to another.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_BACKEND_OPERATION_RESHAPE_DESCRIPTOR = 31,
+    pub const CUDNN_BACKEND_OPERATION_RESHAPE_DESCRIPTOR: cudnnBackendDescriptorType_t = cudnnBackendDescriptorType_t(
+        31,
+    );
     /// Created with `cudnnBackendCreateDescriptor(CUDNN_BACKEND_RNG_DESCRIPTOR, &desc)`; the cuDNN backend `Rng` descriptor specifies any metadata, including the probability distribution that will be used to generate the tensor and the distribution’s corresponding parameters.
-    CUDNN_BACKEND_RNG_DESCRIPTOR = 32,
+    pub const CUDNN_BACKEND_RNG_DESCRIPTOR: cudnnBackendDescriptorType_t = cudnnBackendDescriptorType_t(
+        32,
+    );
     /// Created with `cudnnBackendCreateDescriptor(CUDNN_BACKEND_OPERATION_RNG_DESCRIPTOR, &desc)`; the cuDNN backend `Rng` operation descriptor specifies an operation node for generating a tensor with random numbers based on the probability distribution specified in the `Rng` descriptor.
     ///
     /// The random numbers are generated using a [Philox random number generator (RNG) as described in Pytorch](https://github.com/pytorch/pytorch/blob/main/aten/src/ATen/core/PhiloxRNGEngine.h). The Philox object takes a seed value, a subsequence for starting the generation, and an offset for the subsequence. Seed and offset can be set by using the attributes. The subsequence is internally set, to ensure independent random numbers.
     ///
     /// In the finalization stage, the attributes are cross checked to make sure there are no conflicts. The status below may be returned.
-    CUDNN_BACKEND_OPERATION_RNG_DESCRIPTOR = 33,
+    pub const CUDNN_BACKEND_OPERATION_RNG_DESCRIPTOR: cudnnBackendDescriptorType_t = cudnnBackendDescriptorType_t(
+        33,
+    );
     /// Created with `cudnnBackendCreateDescriptor(CUDNN_BACKEND_KERNEL_CACHE_DESCRIPTOR, &desc)`; the cuDNN backend kernel cache helps significantly reduce execution plan finalizing time for use cases that have same-topology dynamic shape operation graph by binding the previously compiled applicable kernel to the execution plan instead of re-compiling a new one from scratch. This is used with execution plans containing a graph with [`cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATIONGRAPH_IS_DYNAMIC_SHAPE_ENABLED`] enabled.
     ///
     /// [`cudnnBackendAttributeName_t::CUDNN_ATTR_KERNEL_CACHE_REVISION`] and [`cudnnBackendAttributeName_t::CUDNN_ATTR_KERNEL_CACHE_ENTRY_COUNT`] are read-only: setting either before finalization returns [`cudnnStatus_t::CUDNN_STATUS_NOT_SUPPORTED`]. [`cudnnBackendAttributeName_t::CUDNN_ATTR_KERNEL_CACHE_OPERATION_GRAPH`] and [`cudnnBackendAttributeName_t::CUDNN_ATTR_KERNEL_CACHE_JSON_REPRESENTATION`] are settable before finalization.
     ///
     /// The return values for [`cudnnBackendFinalize`] when called with a cuDNN backend kernel cache descriptor are.
-    CUDNN_BACKEND_KERNEL_CACHE_DESCRIPTOR = 34,
+    pub const CUDNN_BACKEND_KERNEL_CACHE_DESCRIPTOR: cudnnBackendDescriptorType_t = cudnnBackendDescriptorType_t(
+        34,
+    );
     /// Created with `cudnnBackendCreateDescriptor(CUDNN_BACKEND_OPERATION_PAGED_CACHE_LOAD_DESCRIPTOR, &desc)`; the cuDNN backend paged cache load operation descriptor is used with a fused flash attention fprop graph, and specifies an operation node for reconstructing the k- or v-cache.
     ///
     /// The k/v-cache is reconstructed by using a page table tensor to look up the location of a specific sequence ID in a non-contiguous container tensor. Storing a k/v-cache non-contiguously enables efficient memory management by avoiding fragmentation. For more information, refer to the [Paged Attention paper](https://arxiv.org/abs/2309.06180).
     ///
     /// In the finalization stage, the attributes are cross-checked to make sure there are no conflicts. The status below may be returned.
-    CUDNN_BACKEND_OPERATION_PAGED_CACHE_LOAD_DESCRIPTOR = 35,
+    pub const CUDNN_BACKEND_OPERATION_PAGED_CACHE_LOAD_DESCRIPTOR: cudnnBackendDescriptorType_t = cudnnBackendDescriptorType_t(
+        35,
+    );
     /// Created with `cudnnBackendCreateDescriptor(CUDNN_BACKEND_OPERATION_BLOCK_SCALE_QUANTIZE_DESCRIPTOR, &desc)`; the cuDNN block scale quantize descriptor specifies the parameters for the block scale quantize operation to output block scaled tensors.
     ///
     /// The return values for [`cudnnBackendFinalize`] when called with a cuDNN backend block scale quantize descriptor are.
-    CUDNN_BACKEND_OPERATION_BLOCK_SCALE_QUANTIZE_DESCRIPTOR = 36,
+    pub const CUDNN_BACKEND_OPERATION_BLOCK_SCALE_QUANTIZE_DESCRIPTOR: cudnnBackendDescriptorType_t = cudnnBackendDescriptorType_t(
+        36,
+    );
     /// Created with `cudnnBackendCreateDescriptor(CUDNN_BACKEND_OPERATION_BLOCK_SCALE_DEQUANTIZE_DESCRIPTOR, &desc)`; the cuDNN block scale dequantize descriptor specifies the parameters for the block scale dequantize operation to take in block scaled tensors.
     ///
     /// The return values for [`cudnnBackendFinalize`] when called with a cuDNN backend block scale dequantize descriptor are.
-    CUDNN_BACKEND_OPERATION_BLOCK_SCALE_DEQUANTIZE_DESCRIPTOR = 37,
+    pub const CUDNN_BACKEND_OPERATION_BLOCK_SCALE_DEQUANTIZE_DESCRIPTOR: cudnnBackendDescriptorType_t = cudnnBackendDescriptorType_t(
+        37,
+    );
     /// Created with
     /// `cudnnBackendCreateDescriptor(CUDNN_BACKEND_DEVICEPROP_DESCRIPTOR, &desc)`; the cuDNN device property descriptor specifies the properties of a device.
     ///
     /// The return values for [`cudnnBackendFinalize`] when called with a cuDNN device property descriptor are.
-    CUDNN_BACKEND_DEVICEPROP_DESCRIPTOR = 38,
+    pub const CUDNN_BACKEND_DEVICEPROP_DESCRIPTOR: cudnnBackendDescriptorType_t = cudnnBackendDescriptorType_t(
+        38,
+    );
     /// Expands a band matrix into a full matrix representation.
     ///
     /// since: cuDNN 9.10.0
-    CUDNN_BACKEND_OPERATION_EXPAND_BAND_MATRIX_DESCRIPTOR = 39,
+    pub const CUDNN_BACKEND_OPERATION_EXPAND_BAND_MATRIX_DESCRIPTOR: cudnnBackendDescriptorType_t = cudnnBackendDescriptorType_t(
+        39,
+    );
     /// Contracts a full matrix into a band matrix representation.
     ///
     /// since: cuDNN 9.10.0
-    CUDNN_BACKEND_OPERATION_CONTRACT_BAND_MATRIX_DESCRIPTOR = 40,
+    pub const CUDNN_BACKEND_OPERATION_CONTRACT_BAND_MATRIX_DESCRIPTOR: cudnnBackendDescriptorType_t = cudnnBackendDescriptorType_t(
+        40,
+    );
     /// Created with `cudnnBackendCreateDescriptor(CUDNN_BACKEND_OPERATION_SDPA_FWD_DESCRIPTOR, &desc);` the cuDNN scaled dot-product attention forward operation descriptor represents a flash attention forward computation as a single operation, obviating in some cases the need to represent flash attention as many separate operations. The basic flash attention operation is:
     ///
     /// An optional padding mask is also supported. The padding mask does not have its own attribute, but is implicitly enabled if [`cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SDPA_FWD_SEQ_LEN_QDESC`] and [`cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SDPA_FWD_SEQ_LEN_KVDESC`] are both specified. In this case, the formula becomes:
@@ -3333,403 +4123,501 @@ pub enum cudnnBackendDescriptorType_t {
     /// For ease of use, access this operation through the frontend’s attention API, which can automatically select this operation depending on the features requested and the cuDNN backend version. The details of this backend descriptor type are provided here for completeness.
     ///
     /// The return values for [`cudnnBackendFinalize`] when called with a cuDNN device property descriptor are.
-    CUDNN_BACKEND_OPERATION_SDPA_FWD_DESCRIPTOR = 41,
+    pub const CUDNN_BACKEND_OPERATION_SDPA_FWD_DESCRIPTOR: cudnnBackendDescriptorType_t = cudnnBackendDescriptorType_t(
+        41,
+    );
     /// Mixture-of-Experts grouped matmul with token routing.
     ///
     /// since: cuDNN 9.15.0
-    CUDNN_BACKEND_OPERATION_MOE_GROUPED_MATMUL_DESCRIPTOR = 42,
+    pub const CUDNN_BACKEND_OPERATION_MOE_GROUPED_MATMUL_DESCRIPTOR: cudnnBackendDescriptorType_t = cudnnBackendDescriptorType_t(
+        42,
+    );
     /// This descriptor and its attributes are reserved for future use.
-    CUDNN_BACKEND_OPERATION_SDPA_BWD_DESCRIPTOR = 43,
+    pub const CUDNN_BACKEND_OPERATION_SDPA_BWD_DESCRIPTOR: cudnnBackendDescriptorType_t = cudnnBackendDescriptorType_t(
+        43,
+    );
     /// Created with `cudnnBackendCreateDescriptor(CUDNN_BACKEND_OPERATION_DIAGONAL_BAND_MASK_DESCRIPTOR, &desc);` the cuDNN diagonal band mask operation descriptor generates a diagonal band attention mask. It produces a mask tensor based on diagonal band boundaries (left and right bounds) relative to the query and key-value sequence positions, commonly used to implement sliding window or local attention patterns. This descriptor can only be used within SDPA operations, notably as part of the [`cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SDPA_FWD_SUBGRAPH`] of [`cudnnBackendDescriptorType_t::CUDNN_BACKEND_OPERATION_SDPA_FWD_DESCRIPTOR`].
     ///
     /// The return values for [`cudnnBackendFinalize`] when called with a cuDNN diagonal band mask operation descriptor are.
-    CUDNN_BACKEND_OPERATION_DIAGONAL_BAND_MASK_DESCRIPTOR = 44,
+    pub const CUDNN_BACKEND_OPERATION_DIAGONAL_BAND_MASK_DESCRIPTOR: cudnnBackendDescriptorType_t = cudnnBackendDescriptorType_t(
+        44,
+    );
     /// Created with `cudnnBackendCreateDescriptor(CUDNN_BACKEND_OPERATION_SOFTMAX_DESCRIPTOR, &desc);` the cuDNN softmax operation descriptor computes the softmax function over the input tensor and optionally outputs intermediate statistics (row-wise max, sum of exponentials) for use in fused attention patterns. This descriptor can only be used within SDPA operations, notably as the [`cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SDPA_FWD_SOFTMAX_DESC`] attribute of [`cudnnBackendDescriptorType_t::CUDNN_BACKEND_OPERATION_SDPA_FWD_DESCRIPTOR`].
     ///
     /// The return values for [`cudnnBackendFinalize`] when called with a cuDNN softmax operation descriptor are.
-    CUDNN_BACKEND_OPERATION_SOFTMAX_DESCRIPTOR = 45,
+    pub const CUDNN_BACKEND_OPERATION_SOFTMAX_DESCRIPTOR: cudnnBackendDescriptorType_t = cudnnBackendDescriptorType_t(
+        45,
+    );
     /// Transpose operation.
     ///
     /// since: cuDNN 9.22.0
-    CUDNN_BACKEND_OPERATION_TRANSPOSE_DESCRIPTOR = 46,
+    pub const CUDNN_BACKEND_OPERATION_TRANSPOSE_DESCRIPTOR: cudnnBackendDescriptorType_t = cudnnBackendDescriptorType_t(
+        46,
+    );
     /// Slice operation.
     ///
     /// since: cuDNN 9.22.0
-    CUDNN_BACKEND_OPERATION_SLICE_DESCRIPTOR = 47,
+    pub const CUDNN_BACKEND_OPERATION_SLICE_DESCRIPTOR: cudnnBackendDescriptorType_t = cudnnBackendDescriptorType_t(
+        47,
+    );
     /// Backward MoE grouped matmul.
     ///
     /// since: cuDNN 9.22.0
-    CUDNN_BACKEND_OPERATION_MOE_GROUPED_MATMUL_BWD_DESCRIPTOR = 48,
+    pub const CUDNN_BACKEND_OPERATION_MOE_GROUPED_MATMUL_BWD_DESCRIPTOR: cudnnBackendDescriptorType_t = cudnnBackendDescriptorType_t(
+        48,
+    );
     /// Rotary Position Embedding (RoPE) forward.
     ///
     /// since: cuDNN 9.24.0
-    CUDNN_BACKEND_OPERATION_ROPE_FWD_DESCRIPTOR = 49,
+    pub const CUDNN_BACKEND_OPERATION_ROPE_FWD_DESCRIPTOR: cudnnBackendDescriptorType_t = cudnnBackendDescriptorType_t(
+        49,
+    );
     /// Rotary Position Embedding (RoPE) backward.
     ///
     /// since: cuDNN 9.25.0
-    CUDNN_BACKEND_OPERATION_ROPE_BWD_DESCRIPTOR = 50,
+    pub const CUDNN_BACKEND_OPERATION_ROPE_BWD_DESCRIPTOR: cudnnBackendDescriptorType_t = cudnnBackendDescriptorType_t(
+        50,
+    );
 }
-/// `cudnnBackendNumericalNot_t` is an enumerated type that indicates queryable numerical properties of an engine. Users can query for an array of numerical notes from an [`cudnnBackendDescriptorType_t::CUDNN_BACKEND_ENGINE_DESCRIPTOR`] using the [`cudnnBackendGetAttribute`] function.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudnnBackendNumericalNote_t {
+/// [`cudnnBackendDescriptor_t`] is an enumerated type that indicates the type of backend descriptors. Users create a backend descriptor of a particular type by passing a value from this enumerate to the [`cudnnBackendCreateDescriptor`] function.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudnnBackendDescriptorType_t(pub ::core::ffi::c_uint);
+impl cudnnBackendNumericalNote_t {
     /// Engine uses Tensor Core hardware acceleration.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_NUMERICAL_NOTE_TENSOR_CORE = 0,
+    pub const CUDNN_NUMERICAL_NOTE_TENSOR_CORE: cudnnBackendNumericalNote_t = cudnnBackendNumericalNote_t(
+        0,
+    );
     /// Engine down-converts inputs to lower precision for compute.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_NUMERICAL_NOTE_DOWN_CONVERT_INPUTS = 1,
+    pub const CUDNN_NUMERICAL_NOTE_DOWN_CONVERT_INPUTS: cudnnBackendNumericalNote_t = cudnnBackendNumericalNote_t(
+        1,
+    );
     /// Engine uses reduced-precision accumulation in reductions.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_NUMERICAL_NOTE_REDUCED_PRECISION_REDUCTION = 2,
+    pub const CUDNN_NUMERICAL_NOTE_REDUCED_PRECISION_REDUCTION: cudnnBackendNumericalNote_t = cudnnBackendNumericalNote_t(
+        2,
+    );
     /// Engine uses FFT-based computation.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_NUMERICAL_NOTE_FFT = 3,
+    pub const CUDNN_NUMERICAL_NOTE_FFT: cudnnBackendNumericalNote_t = cudnnBackendNumericalNote_t(
+        3,
+    );
     /// Engine may produce non-deterministic results across runs.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_NUMERICAL_NOTE_NONDETERMINISTIC = 4,
+    pub const CUDNN_NUMERICAL_NOTE_NONDETERMINISTIC: cudnnBackendNumericalNote_t = cudnnBackendNumericalNote_t(
+        4,
+    );
     /// Engine uses Winograd transform.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_NUMERICAL_NOTE_WINOGRAD = 5,
+    pub const CUDNN_NUMERICAL_NOTE_WINOGRAD: cudnnBackendNumericalNote_t = cudnnBackendNumericalNote_t(
+        5,
+    );
     /// Engine uses Winograd with 4x4 output tiles.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_NUMERICAL_NOTE_WINOGRAD_TILE_4x4 = 6,
+    pub const CUDNN_NUMERICAL_NOTE_WINOGRAD_TILE_4x4: cudnnBackendNumericalNote_t = cudnnBackendNumericalNote_t(
+        6,
+    );
     /// Engine uses Winograd with 6x6 output tiles.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_NUMERICAL_NOTE_WINOGRAD_TILE_6x6 = 7,
+    pub const CUDNN_NUMERICAL_NOTE_WINOGRAD_TILE_6x6: cudnnBackendNumericalNote_t = cudnnBackendNumericalNote_t(
+        7,
+    );
     /// Engine uses Winograd with 13x13 output tiles.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_NUMERICAL_NOTE_WINOGRAD_TILE_13x13 = 8,
+    pub const CUDNN_NUMERICAL_NOTE_WINOGRAD_TILE_13x13: cudnnBackendNumericalNote_t = cudnnBackendNumericalNote_t(
+        8,
+    );
     /// Engine strictly propagates NaN values.
     ///
     /// since: cuDNN 9.1.0
-    CUDNN_NUMERICAL_NOTE_STRICT_NAN_PROP = 9,
+    pub const CUDNN_NUMERICAL_NOTE_STRICT_NAN_PROP: cudnnBackendNumericalNote_t = cudnnBackendNumericalNote_t(
+        9,
+    );
     /// Number of numerical note types.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_NUMERICAL_NOTE_TYPE_COUNT = 10,
+    pub const CUDNN_NUMERICAL_NOTE_TYPE_COUNT: cudnnBackendNumericalNote_t = cudnnBackendNumericalNote_t(
+        10,
+    );
 }
-/// [`cudnnBackendBehaviorNote_t`] is an enumerated type that indicates queryable behavior notes of an engine. Users can query for an array of behavior notes from an [`cudnnBackendDescriptorType_t::CUDNN_BACKEND_ENGINE_DESCRIPTOR`] using the [`cudnnBackendGetAttribute`] function.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudnnBackendBehaviorNote_t {
+/// `cudnnBackendNumericalNot_t` is an enumerated type that indicates queryable numerical properties of an engine. Users can query for an array of numerical notes from an [`cudnnBackendDescriptorType_t::CUDNN_BACKEND_ENGINE_DESCRIPTOR`] using the [`cudnnBackendGetAttribute`] function.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudnnBackendNumericalNote_t(pub ::core::ffi::c_uint);
+impl cudnnBackendBehaviorNote_t {
     /// Engine requires runtime compilation (NVRTC).
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_BEHAVIOR_NOTE_RUNTIME_COMPILATION = 0,
+    pub const CUDNN_BEHAVIOR_NOTE_RUNTIME_COMPILATION: cudnnBackendBehaviorNote_t = cudnnBackendBehaviorNote_t(
+        0,
+    );
     /// Engine requires INT8x32-reordered filter tensors.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_BEHAVIOR_NOTE_REQUIRES_FILTER_INT8x32_REORDER = 1,
+    pub const CUDNN_BEHAVIOR_NOTE_REQUIRES_FILTER_INT8x32_REORDER: cudnnBackendBehaviorNote_t = cudnnBackendBehaviorNote_t(
+        1,
+    );
     /// Engine requires INT8x32-reordered bias tensors.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_BEHAVIOR_NOTE_REQUIRES_BIAS_INT8x32_REORDER = 2,
+    pub const CUDNN_BEHAVIOR_NOTE_REQUIRES_BIAS_INT8x32_REORDER: cudnnBackendBehaviorNote_t = cudnnBackendBehaviorNote_t(
+        2,
+    );
     /// Engine supports native CUDA graph capture.
     ///
     /// since: cuDNN 9.5.0
-    CUDNN_BEHAVIOR_NOTE_SUPPORTS_CUDA_GRAPH_NATIVE_API = 3,
+    pub const CUDNN_BEHAVIOR_NOTE_SUPPORTS_CUDA_GRAPH_NATIVE_API: cudnnBackendBehaviorNote_t = cudnnBackendBehaviorNote_t(
+        3,
+    );
     /// Engine depends on cuBLASLt library.
     ///
     /// since: cuDNN 9.15.0
-    CUDNN_BEHAVIOR_NOTE_CUBLASLT_DEPENDENCY = 4,
+    pub const CUDNN_BEHAVIOR_NOTE_CUBLASLT_DEPENDENCY: cudnnBackendBehaviorNote_t = cudnnBackendBehaviorNote_t(
+        4,
+    );
     /// Number of behavior note types.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_BEHAVIOR_NOTE_TYPE_COUNT = 5,
+    pub const CUDNN_BEHAVIOR_NOTE_TYPE_COUNT: cudnnBackendBehaviorNote_t = cudnnBackendBehaviorNote_t(
+        5,
+    );
 }
-/// [`cudnnBackendKnobType_t`] is an enumerated type that indicates the type of performance knobs. Performance knobs are runtime settings to an engine that will affect its performance. Users can query for an array of performance knobs and their valid value range from a [`cudnnBackendDescriptorType_t::CUDNN_BACKEND_ENGINE_DESCRIPTOR`] using the [`cudnnBackendGetAttribute`] function. Users can set the choice for each knob using the [`cudnnBackendSetAttribute`] function with a [`cudnnBackendDescriptorType_t::CUDNN_BACKEND_KNOB_CHOICE_DESCRIPTOR`].
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudnnBackendKnobType_t {
+/// [`cudnnBackendBehaviorNote_t`] is an enumerated type that indicates queryable behavior notes of an engine. Users can query for an array of behavior notes from an [`cudnnBackendDescriptorType_t::CUDNN_BACKEND_ENGINE_DESCRIPTOR`] using the [`cudnnBackendGetAttribute`] function.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudnnBackendBehaviorNote_t(pub ::core::ffi::c_uint);
+impl cudnnBackendKnobType_t {
     /// Deprecated: Split-K factor.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_KNOB_TYPE_SPLIT_K = 0,
+    pub const CUDNN_KNOB_TYPE_SPLIT_K: cudnnBackendKnobType_t = cudnnBackendKnobType_t(
+        0,
+    );
     /// Memory access swizzle pattern for coalescing.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_KNOB_TYPE_SWIZZLE = 1,
+    pub const CUDNN_KNOB_TYPE_SWIZZLE: cudnnBackendKnobType_t = cudnnBackendKnobType_t(
+        1,
+    );
     /// Thread block tile size for computation.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_KNOB_TYPE_TILE_SIZE = 2,
+    pub const CUDNN_KNOB_TYPE_TILE_SIZE: cudnnBackendKnobType_t = cudnnBackendKnobType_t(
+        2,
+    );
     /// Deprecated: Use texture memory.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_KNOB_TYPE_USE_TEX = 3,
+    pub const CUDNN_KNOB_TYPE_USE_TEX: cudnnBackendKnobType_t = cudnnBackendKnobType_t(
+        3,
+    );
     /// Edge/boundary handling mode.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_KNOB_TYPE_EDGE = 4,
+    pub const CUDNN_KNOB_TYPE_EDGE: cudnnBackendKnobType_t = cudnnBackendKnobType_t(4);
     /// Deprecated: K-block size.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_KNOB_TYPE_KBLOCK = 5,
+    pub const CUDNN_KNOB_TYPE_KBLOCK: cudnnBackendKnobType_t = cudnnBackendKnobType_t(5);
     /// Deprecated: Load granularity A.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_KNOB_TYPE_LDGA = 6,
+    pub const CUDNN_KNOB_TYPE_LDGA: cudnnBackendKnobType_t = cudnnBackendKnobType_t(6);
     /// Deprecated: Load granularity B.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_KNOB_TYPE_LDGB = 7,
+    pub const CUDNN_KNOB_TYPE_LDGB: cudnnBackendKnobType_t = cudnnBackendKnobType_t(7);
     /// Deprecated: Chunk-K size.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_KNOB_TYPE_CHUNK_K = 8,
+    pub const CUDNN_KNOB_TYPE_CHUNK_K: cudnnBackendKnobType_t = cudnnBackendKnobType_t(
+        8,
+    );
     /// Deprecated: Split-H factor.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_KNOB_TYPE_SPLIT_H = 9,
+    pub const CUDNN_KNOB_TYPE_SPLIT_H: cudnnBackendKnobType_t = cudnnBackendKnobType_t(
+        9,
+    );
     /// Deprecated: Winograd tile size.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_KNOB_TYPE_WINO_TILE = 10,
+    pub const CUDNN_KNOB_TYPE_WINO_TILE: cudnnBackendKnobType_t = cudnnBackendKnobType_t(
+        10,
+    );
     /// Multiplication factor for tiling.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_KNOB_TYPE_MULTIPLY = 11,
+    pub const CUDNN_KNOB_TYPE_MULTIPLY: cudnnBackendKnobType_t = cudnnBackendKnobType_t(
+        11,
+    );
     /// Split-K with separate output buffers.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_KNOB_TYPE_SPLIT_K_BUF = 12,
+    pub const CUDNN_KNOB_TYPE_SPLIT_K_BUF: cudnnBackendKnobType_t = cudnnBackendKnobType_t(
+        12,
+    );
     /// Tile size along K (contraction) dimension.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_KNOB_TYPE_TILEK = 13,
+    pub const CUDNN_KNOB_TYPE_TILEK: cudnnBackendKnobType_t = cudnnBackendKnobType_t(13);
     /// Number of pipeline stages.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_KNOB_TYPE_STAGES = 14,
+    pub const CUDNN_KNOB_TYPE_STAGES: cudnnBackendKnobType_t = cudnnBackendKnobType_t(
+        14,
+    );
     /// Cross-thread/cross-block reduction strategy.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_KNOB_TYPE_REDUCTION_MODE = 15,
+    pub const CUDNN_KNOB_TYPE_REDUCTION_MODE: cudnnBackendKnobType_t = cudnnBackendKnobType_t(
+        15,
+    );
     /// Deprecated: CTA split-K mode.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_KNOB_TYPE_CTA_SPLIT_K_MODE = 16,
+    pub const CUDNN_KNOB_TYPE_CTA_SPLIT_K_MODE: cudnnBackendKnobType_t = cudnnBackendKnobType_t(
+        16,
+    );
     /// Split-K slice count.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_KNOB_TYPE_SPLIT_K_SLC = 17,
+    pub const CUDNN_KNOB_TYPE_SPLIT_K_SLC: cudnnBackendKnobType_t = cudnnBackendKnobType_t(
+        17,
+    );
     /// Index computation mode.
     ///
     /// since: cuDNN 9.7.0
-    CUDNN_KNOB_TYPE_IDX_MODE = 18,
+    pub const CUDNN_KNOB_TYPE_IDX_MODE: cudnnBackendKnobType_t = cudnnBackendKnobType_t(
+        18,
+    );
     /// Deprecated: Sliced mode.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_KNOB_TYPE_SLICED = 19,
+    pub const CUDNN_KNOB_TYPE_SLICED: cudnnBackendKnobType_t = cudnnBackendKnobType_t(
+        19,
+    );
     /// Deprecated: Split-RS factor.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_KNOB_TYPE_SPLIT_RS = 20,
+    pub const CUDNN_KNOB_TYPE_SPLIT_RS: cudnnBackendKnobType_t = cudnnBackendKnobType_t(
+        20,
+    );
     /// Deprecated: Single buffer mode.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_KNOB_TYPE_SINGLEBUFFER = 21,
+    pub const CUDNN_KNOB_TYPE_SINGLEBUFFER: cudnnBackendKnobType_t = cudnnBackendKnobType_t(
+        21,
+    );
     /// Deprecated: Load granularity C.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_KNOB_TYPE_LDGC = 22,
+    pub const CUDNN_KNOB_TYPE_LDGC: cudnnBackendKnobType_t = cudnnBackendKnobType_t(22);
     /// Specialized filter processing mode.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_KNOB_TYPE_SPECFILT = 23,
+    pub const CUDNN_KNOB_TYPE_SPECFILT: cudnnBackendKnobType_t = cudnnBackendKnobType_t(
+        23,
+    );
     /// Kernel configuration selector.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_KNOB_TYPE_KERNEL_CFG = 24,
+    pub const CUDNN_KNOB_TYPE_KERNEL_CFG: cudnnBackendKnobType_t = cudnnBackendKnobType_t(
+        24,
+    );
     /// Workspace size preference.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_KNOB_TYPE_WORKSPACE = 25,
+    pub const CUDNN_KNOB_TYPE_WORKSPACE: cudnnBackendKnobType_t = cudnnBackendKnobType_t(
+        25,
+    );
     /// Deprecated: CGA tile size.
     ///
     /// since: cuDNN 9.0.0
     #[deprecated]
-    CUDNN_KNOB_TYPE_TILE_CGA = 26,
+    pub const CUDNN_KNOB_TYPE_TILE_CGA: cudnnBackendKnobType_t = cudnnBackendKnobType_t(
+        26,
+    );
     /// CGA cluster tile size along M dimension.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_KNOB_TYPE_TILE_CGA_M = 27,
+    pub const CUDNN_KNOB_TYPE_TILE_CGA_M: cudnnBackendKnobType_t = cudnnBackendKnobType_t(
+        27,
+    );
     /// CGA cluster tile size along N dimension.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_KNOB_TYPE_TILE_CGA_N = 28,
+    pub const CUDNN_KNOB_TYPE_TILE_CGA_N: cudnnBackendKnobType_t = cudnnBackendKnobType_t(
+        28,
+    );
     /// Thread block size (threads per block).
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_KNOB_TYPE_BLOCK_SIZE = 29,
+    pub const CUDNN_KNOB_TYPE_BLOCK_SIZE: cudnnBackendKnobType_t = cudnnBackendKnobType_t(
+        29,
+    );
     /// Target occupancy level.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_KNOB_TYPE_OCCUPANCY = 30,
+    pub const CUDNN_KNOB_TYPE_OCCUPANCY: cudnnBackendKnobType_t = cudnnBackendKnobType_t(
+        30,
+    );
     /// Register array size per thread.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_KNOB_TYPE_ARRAY_SIZE_PER_THREAD = 31,
+    pub const CUDNN_KNOB_TYPE_ARRAY_SIZE_PER_THREAD: cudnnBackendKnobType_t = cudnnBackendKnobType_t(
+        31,
+    );
     /// Deprecated: Channels per block.
     ///
     /// since: cuDNN 9.0.0
     #[deprecated]
-    CUDNN_KNOB_TYPE_NUM_C_PER_BLOCK = 32,
+    pub const CUDNN_KNOB_TYPE_NUM_C_PER_BLOCK: cudnnBackendKnobType_t = cudnnBackendKnobType_t(
+        32,
+    );
     /// Column split factor for parallelism.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_KNOB_TYPE_SPLIT_COLS = 33,
+    pub const CUDNN_KNOB_TYPE_SPLIT_COLS: cudnnBackendKnobType_t = cudnnBackendKnobType_t(
+        33,
+    );
     /// Tile size along row dimension.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_KNOB_TYPE_TILE_ROWS = 34,
+    pub const CUDNN_KNOB_TYPE_TILE_ROWS: cudnnBackendKnobType_t = cudnnBackendKnobType_t(
+        34,
+    );
     /// Tile size along column dimension.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_KNOB_TYPE_TILE_COLS = 35,
+    pub const CUDNN_KNOB_TYPE_TILE_COLS: cudnnBackendKnobType_t = cudnnBackendKnobType_t(
+        35,
+    );
     /// Memory load granularity.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_KNOB_TYPE_LOAD_SIZE = 36,
+    pub const CUDNN_KNOB_TYPE_LOAD_SIZE: cudnnBackendKnobType_t = cudnnBackendKnobType_t(
+        36,
+    );
     /// Number of CTAs (thread blocks) to launch.
     ///
     /// since: cuDNN 9.7.0
-    CUDNN_KNOB_TYPE_CTA_COUNT = 37,
+    pub const CUDNN_KNOB_TYPE_CTA_COUNT: cudnnBackendKnobType_t = cudnnBackendKnobType_t(
+        37,
+    );
     /// Stream-K work distribution mode.
     ///
     /// since: cuDNN 9.7.0
-    CUDNN_KNOB_TYPE_STREAM_K = 38,
+    pub const CUDNN_KNOB_TYPE_STREAM_K: cudnnBackendKnobType_t = cudnnBackendKnobType_t(
+        38,
+    );
     /// Split-P slice count.
     ///
     /// since: cuDNN 9.7.0
-    CUDNN_KNOB_TYPE_SPLIT_P_SLC = 39,
+    pub const CUDNN_KNOB_TYPE_SPLIT_P_SLC: cudnnBackendKnobType_t = cudnnBackendKnobType_t(
+        39,
+    );
     /// Tile size along M (output rows) dimension.
     ///
     /// since: cuDNN 9.7.0
-    CUDNN_KNOB_TYPE_TILE_M = 40,
+    pub const CUDNN_KNOB_TYPE_TILE_M: cudnnBackendKnobType_t = cudnnBackendKnobType_t(
+        40,
+    );
     /// Tile size along N (output cols) dimension.
     ///
     /// since: cuDNN 9.7.0
-    CUDNN_KNOB_TYPE_TILE_N = 41,
+    pub const CUDNN_KNOB_TYPE_TILE_N: cudnnBackendKnobType_t = cudnnBackendKnobType_t(
+        41,
+    );
     /// Warp specialization configuration.
     ///
     /// since: cuDNN 9.7.0
-    CUDNN_KNOB_TYPE_WARP_SPEC_CFG = 42,
+    pub const CUDNN_KNOB_TYPE_WARP_SPEC_CFG: cudnnBackendKnobType_t = cudnnBackendKnobType_t(
+        42,
+    );
     /// Swap A and B operands in matmul.
     ///
     /// since: cuDNN 9.18.0
-    CUDNN_KNOB_TYPE_SWAP_AB = 43,
+    pub const CUDNN_KNOB_TYPE_SWAP_AB: cudnnBackendKnobType_t = cudnnBackendKnobType_t(
+        43,
+    );
     /// Enable TMA for input tensors.
     ///
     /// since: cuDNN 9.22.0
-    CUDNN_KNOB_TYPE_INPUT_TMA_ENABLE = 44,
+    pub const CUDNN_KNOB_TYPE_INPUT_TMA_ENABLE: cudnnBackendKnobType_t = cudnnBackendKnobType_t(
+        44,
+    );
     /// Enable TMA for output tensors.
     ///
     /// since: cuDNN 9.22.0
-    CUDNN_KNOB_TYPE_OUTPUT_TMA_ENABLE = 45,
+    pub const CUDNN_KNOB_TYPE_OUTPUT_TMA_ENABLE: cudnnBackendKnobType_t = cudnnBackendKnobType_t(
+        45,
+    );
     /// Number of knob types.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_KNOB_TYPE_COUNTS = 46,
+    pub const CUDNN_KNOB_TYPE_COUNTS: cudnnBackendKnobType_t = cudnnBackendKnobType_t(
+        46,
+    );
 }
-/// [`cudnnBackendLayoutType_t`] is an enumerated type that indicates queryable layout requirements of an engine. Users can query for layout requirements from a [`cudnnBackendDescriptorType_t::CUDNN_BACKEND_ENGINE_DESCRIPTOR`] using the [`cudnnBackendGetAttribute`] function.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudnnBackendLayoutType_t {
+/// [`cudnnBackendKnobType_t`] is an enumerated type that indicates the type of performance knobs. Performance knobs are runtime settings to an engine that will affect its performance. Users can query for an array of performance knobs and their valid value range from a [`cudnnBackendDescriptorType_t::CUDNN_BACKEND_ENGINE_DESCRIPTOR`] using the [`cudnnBackendGetAttribute`] function. Users can set the choice for each knob using the [`cudnnBackendSetAttribute`] function with a [`cudnnBackendDescriptorType_t::CUDNN_BACKEND_KNOB_CHOICE_DESCRIPTOR`].
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudnnBackendKnobType_t(pub ::core::ffi::c_uint);
+impl cudnnBackendLayoutType_t {
     /// Prefers NCHW layout.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_LAYOUT_TYPE_PREFERRED_NCHW = 0,
+    pub const CUDNN_LAYOUT_TYPE_PREFERRED_NCHW: cudnnBackendLayoutType_t = cudnnBackendLayoutType_t(
+        0,
+    );
     /// Prefers NHWC layout.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_LAYOUT_TYPE_PREFERRED_NHWC = 1,
+    pub const CUDNN_LAYOUT_TYPE_PREFERRED_NHWC: cudnnBackendLayoutType_t = cudnnBackendLayoutType_t(
+        1,
+    );
     /// Prefers padded 4CK layout.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_LAYOUT_TYPE_PREFERRED_PAD4CK = 2,
+    pub const CUDNN_LAYOUT_TYPE_PREFERRED_PAD4CK: cudnnBackendLayoutType_t = cudnnBackendLayoutType_t(
+        2,
+    );
     /// Prefers padded 8CK layout.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_LAYOUT_TYPE_PREFERRED_PAD8CK = 3,
+    pub const CUDNN_LAYOUT_TYPE_PREFERRED_PAD8CK: cudnnBackendLayoutType_t = cudnnBackendLayoutType_t(
+        3,
+    );
     /// Number of layout types.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_LAYOUT_TYPE_COUNT = 4,
+    pub const CUDNN_LAYOUT_TYPE_COUNT: cudnnBackendLayoutType_t = cudnnBackendLayoutType_t(
+        4,
+    );
 }
-/// [`cudnnBackendHeurMode_t`] is an enumerated type that indicates the operation mode of a [`cudnnBackendDescriptorType_t::CUDNN_BACKEND_ENGINEHEUR_DESCRIPTOR`].
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudnnBackendHeurMode_t {
+/// [`cudnnBackendLayoutType_t`] is an enumerated type that indicates queryable layout requirements of an engine. Users can query for layout requirements from a [`cudnnBackendDescriptorType_t::CUDNN_BACKEND_ENGINE_DESCRIPTOR`] using the [`cudnnBackendGetAttribute`] function.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudnnBackendLayoutType_t(pub ::core::ffi::c_uint);
+impl cudnnBackendHeurMode_t {
     /// Fast decision-tree heuristic with minimal CPU overhead.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_HEUR_MODE_INSTANT = 0,
+    pub const CUDNN_HEUR_MODE_INSTANT: cudnnBackendHeurMode_t = cudnnBackendHeurMode_t(
+        0,
+    );
     /// Can utilize the neural net based heuristics to improve generalization performance compared to [`cudnnBackendHeurMode_t::CUDNN_HEUR_MODE_INSTANT`].
     ///
     /// In cases where the neural net is utilized, inference time on the CPU will be increased by 10-100x compared to [`cudnnBackendHeurMode_t::CUDNN_HEUR_MODE_INSTANT`]. These neural net heuristics are not supported for any of the following cases:
@@ -3739,138 +4627,213 @@ pub enum cudnnBackendHeurMode_t {
     /// * Dilated convolutions (any dilation for any spatial dimension larger than `1`)
     ///
     /// Further, the neural net is only enabled on x86 platforms when cuDNN is run on an A100 GPU. In cases where the neural net is not supported, [`cudnnBackendHeurMode_t::CUDNN_HEUR_MODE_B`] will fall back to [`cudnnBackendHeurMode_t::CUDNN_HEUR_MODE_INSTANT`]. [`cudnnBackendHeurMode_t::CUDNN_HEUR_MODE_B`] will also fall back to [`cudnnBackendHeurMode_t::CUDNN_HEUR_MODE_INSTANT`] in cases where the overhead of [`cudnnBackendHeurMode_t::CUDNN_HEUR_MODE_B`] is projected to reduce overall network performance.
-    CUDNN_HEUR_MODE_B = 1,
+    pub const CUDNN_HEUR_MODE_B: cudnnBackendHeurMode_t = cudnnBackendHeurMode_t(1);
     /// This heuristic mode is intended to be used for finding fallback options which provide functional support (without any expectation of providing optimal GPU performance).
-    CUDNN_HEUR_MODE_FALLBACK = 2,
+    pub const CUDNN_HEUR_MODE_FALLBACK: cudnnBackendHeurMode_t = cudnnBackendHeurMode_t(
+        2,
+    );
     /// Decision-tree heuristic (preferred over INSTANT).
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_HEUR_MODE_A = 3,
+    pub const CUDNN_HEUR_MODE_A: cudnnBackendHeurMode_t = cudnnBackendHeurMode_t(3);
     /// Number of heuristic modes.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_HEUR_MODES_COUNT = 4,
+    pub const CUDNN_HEUR_MODES_COUNT: cudnnBackendHeurMode_t = cudnnBackendHeurMode_t(4);
 }
-/// [`cudnnBackendTensorReordering_t`] is an enumerated type that indicates tensor reordering as a property of the tensor descriptor. Users can get and set this property in a [`cudnnBackendDescriptorType_t::CUDNN_BACKEND_TENSOR_DESCRIPTOR`] using the [`cudnnBackendSetAttribute`] and [`cudnnBackendGetAttribute`] functions.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudnnBackendTensorReordering_t {
+/// [`cudnnBackendHeurMode_t`] is an enumerated type that indicates the operation mode of a [`cudnnBackendDescriptorType_t::CUDNN_BACKEND_ENGINEHEUR_DESCRIPTOR`].
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudnnBackendHeurMode_t(pub ::core::ffi::c_uint);
+impl cudnnBackendTensorReordering_t {
     /// No tensor reordering applied.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_TENSOR_REORDERING_NONE = 0,
+    pub const CUDNN_TENSOR_REORDERING_NONE: cudnnBackendTensorReordering_t = cudnnBackendTensorReordering_t(
+        0,
+    );
     /// INT8 data reordered into 32-element vectors.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_TENSOR_REORDERING_INT8x32 = 1,
+    pub const CUDNN_TENSOR_REORDERING_INT8x32: cudnnBackendTensorReordering_t = cudnnBackendTensorReordering_t(
+        1,
+    );
     /// FP16 data reordered into 16-element vectors.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_TENSOR_REORDERING_F16x16 = 2,
+    pub const CUDNN_TENSOR_REORDERING_F16x16: cudnnBackendTensorReordering_t = cudnnBackendTensorReordering_t(
+        2,
+    );
     /// FP8 data reordered into 128x4 blocks.
     ///
     /// since: cuDNN 9.7.0
-    CUDNN_TENSOR_REORDERING_F8_128x4 = 3,
+    pub const CUDNN_TENSOR_REORDERING_F8_128x4: cudnnBackendTensorReordering_t = cudnnBackendTensorReordering_t(
+        3,
+    );
 }
-/// [`cudnnPaddingMode_t`] is an enumerated type to indicate the padding mode in the backend resample operations.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudnnPaddingMode_t {
+/// [`cudnnBackendTensorReordering_t`] is an enumerated type that indicates tensor reordering as a property of the tensor descriptor. Users can get and set this property in a [`cudnnBackendDescriptorType_t::CUDNN_BACKEND_TENSOR_DESCRIPTOR`] using the [`cudnnBackendSetAttribute`] and [`cudnnBackendGetAttribute`] functions.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudnnBackendTensorReordering_t(pub ::core::ffi::c_uint);
+impl cudnnPaddingMode_t {
     /// Pads with zeros.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_ZERO_PAD = 0,
+    pub const CUDNN_ZERO_PAD: cudnnPaddingMode_t = cudnnPaddingMode_t(0);
     /// Pads with negative infinity (for max pooling).
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_NEG_INF_PAD = 1,
+    pub const CUDNN_NEG_INF_PAD: cudnnPaddingMode_t = cudnnPaddingMode_t(1);
     /// Pads by replicating edge values.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_EDGE_VAL_PAD = 2,
+    pub const CUDNN_EDGE_VAL_PAD: cudnnPaddingMode_t = cudnnPaddingMode_t(2);
+}
+/// [`cudnnPaddingMode_t`] is an enumerated type to indicate the padding mode in the backend resample operations.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudnnPaddingMode_t(pub ::core::ffi::c_uint);
+impl cudnnBackendNormMode_t {
+    /// Layer normalization: normalizes over feature dims per sample.
+    ///
+    /// since: cuDNN 9.0.0
+    pub const CUDNN_LAYER_NORM: cudnnBackendNormMode_t = cudnnBackendNormMode_t(0);
+    /// Instance normalization: normalizes per instance per channel.
+    ///
+    /// since: cuDNN 9.0.0
+    pub const CUDNN_INSTANCE_NORM: cudnnBackendNormMode_t = cudnnBackendNormMode_t(1);
+    /// Batch normalization: normalizes across the batch dimension.
+    ///
+    /// since: cuDNN 9.0.0
+    pub const CUDNN_BATCH_NORM: cudnnBackendNormMode_t = cudnnBackendNormMode_t(2);
+    /// Group normalization (unsupported; returns CUDNN_STATUS_INTERNAL_ERROR).
+    ///
+    /// since: cuDNN 9.0.0
+    pub const CUDNN_GROUP_NORM: cudnnBackendNormMode_t = cudnnBackendNormMode_t(3);
+    /// Root mean square normalization: normalizes by RMS of activations.
+    ///
+    /// since: cuDNN 9.0.0
+    pub const CUDNN_RMS_NORM: cudnnBackendNormMode_t = cudnnBackendNormMode_t(4);
+    /// Adaptive layer normalization with learned affine parameters.
+    ///
+    /// since: cuDNN 9.7.0
+    pub const CUDNN_ADA_LAYER_NORM: cudnnBackendNormMode_t = cudnnBackendNormMode_t(5);
 }
 /// [`cudnnBackendNormMode_t`] is an enumerated type to indicate the normalization mode in the backend normalization forward and normalization backward operations.
 ///
 /// For reference:
 ///
 /// [`cudnnBackendNormMode_t::CUDNN_GROUP_NORM`] is not yet supported. If you try to use it, cuDNN returns a [`cudnnStatus_t::CUDNN_STATUS_INTERNAL_ERROR`] error.
-#[repr(u32)]
+#[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum cudnnBackendNormMode_t {
-    /// Layer normalization: normalizes over feature dims per sample.
-    ///
-    /// since: cuDNN 9.0.0
-    CUDNN_LAYER_NORM = 0,
-    /// Instance normalization: normalizes per instance per channel.
-    ///
-    /// since: cuDNN 9.0.0
-    CUDNN_INSTANCE_NORM = 1,
-    /// Batch normalization: normalizes across the batch dimension.
-    ///
-    /// since: cuDNN 9.0.0
-    CUDNN_BATCH_NORM = 2,
-    /// Group normalization (unsupported; returns CUDNN_STATUS_INTERNAL_ERROR).
-    ///
-    /// since: cuDNN 9.0.0
-    CUDNN_GROUP_NORM = 3,
-    /// Root mean square normalization: normalizes by RMS of activations.
-    ///
-    /// since: cuDNN 9.0.0
-    CUDNN_RMS_NORM = 4,
-    /// Adaptive layer normalization with learned affine parameters.
-    ///
-    /// since: cuDNN 9.7.0
-    CUDNN_ADA_LAYER_NORM = 5,
-}
-/// [`cudnnBackendNormFwdPhase_t`] is an enumerated type used to distinguish the inference and training phase of the normalization forward operation.
-#[repr(u32)]
-#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum cudnnBackendNormFwdPhase_t {
+pub struct cudnnBackendNormMode_t(pub ::core::ffi::c_uint);
+impl cudnnBackendNormFwdPhase_t {
     /// Inference phase: uses pre-computed running statistics.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_NORM_FWD_INFERENCE = 0,
+    pub const CUDNN_NORM_FWD_INFERENCE: cudnnBackendNormFwdPhase_t = cudnnBackendNormFwdPhase_t(
+        0,
+    );
     /// Training phase: computes batch statistics and updates running stats.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_NORM_FWD_TRAINING = 1,
+    pub const CUDNN_NORM_FWD_TRAINING: cudnnBackendNormFwdPhase_t = cudnnBackendNormFwdPhase_t(
+        1,
+    );
+}
+/// [`cudnnBackendNormFwdPhase_t`] is an enumerated type used to distinguish the inference and training phase of the normalization forward operation.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudnnBackendNormFwdPhase_t(pub ::core::ffi::c_uint);
+impl cudnnBackendReshapeMode_t {
+    /// View-only reshape (no data movement).
+    ///
+    /// since: cuDNN 9.22.0
+    pub const CUDNN_RESHAPE_VIEW_ONLY: cudnnBackendReshapeMode_t = cudnnBackendReshapeMode_t(
+        0,
+    );
+    /// Logical reshape (may involve data movement).
+    ///
+    /// since: cuDNN 9.22.0
+    pub const CUDNN_RESHAPE_LOGICAL: cudnnBackendReshapeMode_t = cudnnBackendReshapeMode_t(
+        1,
+    );
 }
 /// Reshape operation mode.
 ///
 /// since: cuDNN 9.22.0
-#[repr(u32)]
+#[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum cudnnBackendReshapeMode_t {
-    /// View-only reshape (no data movement).
-    ///
-    /// since: cuDNN 9.22.0
-    CUDNN_RESHAPE_VIEW_ONLY = 0,
-    /// Logical reshape (may involve data movement).
-    ///
-    /// since: cuDNN 9.22.0
-    CUDNN_RESHAPE_LOGICAL = 1,
+pub struct cudnnBackendReshapeMode_t(pub ::core::ffi::c_uint);
+impl cudnnBackendOperationGraphMode_t {
+    /// Default; backend detects the mode.
+    pub const CUDNN_OPERATIONGRAPH_MODE_AUTO: cudnnBackendOperationGraphMode_t = cudnnBackendOperationGraphMode_t(
+        -1,
+    );
+    /// Selects native operation-graph handling for forward convolution.
+    pub const CUDNN_OPERATIONGRAPH_MODE_CONV_FORWARD: cudnnBackendOperationGraphMode_t = cudnnBackendOperationGraphMode_t(
+        0,
+    );
+    /// Selects native operation-graph handling for convolution input-gradient computation.
+    pub const CUDNN_OPERATIONGRAPH_MODE_CONV_BWD_DATA: cudnnBackendOperationGraphMode_t = cudnnBackendOperationGraphMode_t(
+        1,
+    );
+    /// Selects native operation-graph handling for convolution filter-gradient computation.
+    pub const CUDNN_OPERATIONGRAPH_MODE_CONV_BWD_FILTER: cudnnBackendOperationGraphMode_t = cudnnBackendOperationGraphMode_t(
+        2,
+    );
+    /// Selects native operation-graph handling for normalization inference.
+    pub const CUDNN_OPERATIONGRAPH_MODE_NORM_FWD_INFER: cudnnBackendOperationGraphMode_t = cudnnBackendOperationGraphMode_t(
+        17,
+    );
+    /// Selects native operation-graph handling for normalization training.
+    pub const CUDNN_OPERATIONGRAPH_MODE_NORM_FWD_TRAIN: cudnnBackendOperationGraphMode_t = cudnnBackendOperationGraphMode_t(
+        18,
+    );
+    /// Selects native operation-graph handling for normalization gradient computation.
+    pub const CUDNN_OPERATIONGRAPH_MODE_NORM_BWD: cudnnBackendOperationGraphMode_t = cudnnBackendOperationGraphMode_t(
+        19,
+    );
+    /// Selects native operation-graph handling for a fused graph containing a convolution.
+    pub const CUDNN_OPERATIONGRAPH_MODE_GENERIC_CONV_FUSION: cudnnBackendOperationGraphMode_t = cudnnBackendOperationGraphMode_t(
+        20,
+    );
+    /// Selects native operation-graph handling for forward resampling.
+    pub const CUDNN_OPERATIONGRAPH_MODE_RESAMPLE_FWD: cudnnBackendOperationGraphMode_t = cudnnBackendOperationGraphMode_t(
+        22,
+    );
+    /// Selects native operation-graph handling for resampling gradient computation.
+    pub const CUDNN_OPERATIONGRAPH_MODE_RESAMPLE_BWD: cudnnBackendOperationGraphMode_t = cudnnBackendOperationGraphMode_t(
+        23,
+    );
+    /// Selects native operation-graph handling for matrix multiplication.
+    pub const CUDNN_OPERATIONGRAPH_MODE_BLAS_MATMUL: cudnnBackendOperationGraphMode_t = cudnnBackendOperationGraphMode_t(
+        25,
+    );
+    /// Selects native operation-graph handling for a fused graph containing matrix multiplication.
+    pub const CUDNN_OPERATIONGRAPH_MODE_GENERIC_MATMUL_FUSION: cudnnBackendOperationGraphMode_t = cudnnBackendOperationGraphMode_t(
+        26,
+    );
+    /// Selects native operation-graph handling for a fused pointwise operation graph.
+    pub const CUDNN_OPERATIONGRAPH_MODE_GENERIC_POINTWISE_FUSION: cudnnBackendOperationGraphMode_t = cudnnBackendOperationGraphMode_t(
+        27,
+    );
+    /// Composite SDPA fwd (matmul + softmax + matmul).
+    pub const CUDNN_OPERATIONGRAPH_MODE_SDPA_FWD: cudnnBackendOperationGraphMode_t = cudnnBackendOperationGraphMode_t(
+        28,
+    );
+    /// Selects native operation-graph handling for gradient computation for composite scaled dot-product attention.
+    pub const CUDNN_OPERATIONGRAPH_MODE_SDPA_BWD: cudnnBackendOperationGraphMode_t = cudnnBackendOperationGraphMode_t(
+        29,
+    );
+    /// Unified SDPA fwd (single SdpaForwardOperation).
+    pub const CUDNN_OPERATIONGRAPH_MODE_UNIFIED_SDPA_FWD: cudnnBackendOperationGraphMode_t = cudnnBackendOperationGraphMode_t(
+        30,
+    );
+    /// Selects native operation-graph handling for gradient computation for the unified scaled dot-product attention operation.
+    pub const CUDNN_OPERATIONGRAPH_MODE_UNIFIED_SDPA_BWD: cudnnBackendOperationGraphMode_t = cudnnBackendOperationGraphMode_t(
+        31,
+    );
 }
 /// Mode of an operation graph.
 ///
@@ -3881,44 +4844,9 @@ pub enum cudnnBackendReshapeMode_t {
 ///
 ///
 /// since: cuDNN 9.NEXT
-#[repr(i32)]
+#[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum cudnnBackendOperationGraphMode_t {
-    /// Default; backend detects the mode.
-    CUDNN_OPERATIONGRAPH_MODE_AUTO = -1,
-    /// Selects native operation-graph handling for forward convolution.
-    CUDNN_OPERATIONGRAPH_MODE_CONV_FORWARD = 0,
-    /// Selects native operation-graph handling for convolution input-gradient computation.
-    CUDNN_OPERATIONGRAPH_MODE_CONV_BWD_DATA = 1,
-    /// Selects native operation-graph handling for convolution filter-gradient computation.
-    CUDNN_OPERATIONGRAPH_MODE_CONV_BWD_FILTER = 2,
-    /// Selects native operation-graph handling for normalization inference.
-    CUDNN_OPERATIONGRAPH_MODE_NORM_FWD_INFER = 17,
-    /// Selects native operation-graph handling for normalization training.
-    CUDNN_OPERATIONGRAPH_MODE_NORM_FWD_TRAIN = 18,
-    /// Selects native operation-graph handling for normalization gradient computation.
-    CUDNN_OPERATIONGRAPH_MODE_NORM_BWD = 19,
-    /// Selects native operation-graph handling for a fused graph containing a convolution.
-    CUDNN_OPERATIONGRAPH_MODE_GENERIC_CONV_FUSION = 20,
-    /// Selects native operation-graph handling for forward resampling.
-    CUDNN_OPERATIONGRAPH_MODE_RESAMPLE_FWD = 22,
-    /// Selects native operation-graph handling for resampling gradient computation.
-    CUDNN_OPERATIONGRAPH_MODE_RESAMPLE_BWD = 23,
-    /// Selects native operation-graph handling for matrix multiplication.
-    CUDNN_OPERATIONGRAPH_MODE_BLAS_MATMUL = 25,
-    /// Selects native operation-graph handling for a fused graph containing matrix multiplication.
-    CUDNN_OPERATIONGRAPH_MODE_GENERIC_MATMUL_FUSION = 26,
-    /// Selects native operation-graph handling for a fused pointwise operation graph.
-    CUDNN_OPERATIONGRAPH_MODE_GENERIC_POINTWISE_FUSION = 27,
-    /// Composite SDPA fwd (matmul + softmax + matmul).
-    CUDNN_OPERATIONGRAPH_MODE_SDPA_FWD = 28,
-    /// Selects native operation-graph handling for gradient computation for composite scaled dot-product attention.
-    CUDNN_OPERATIONGRAPH_MODE_SDPA_BWD = 29,
-    /// Unified SDPA fwd (single SdpaForwardOperation).
-    CUDNN_OPERATIONGRAPH_MODE_UNIFIED_SDPA_FWD = 30,
-    /// Selects native operation-graph handling for gradient computation for the unified scaled dot-product attention operation.
-    CUDNN_OPERATIONGRAPH_MODE_UNIFIED_SDPA_BWD = 31,
-}
+pub struct cudnnBackendOperationGraphMode_t(pub ::core::ffi::c_int);
 singe_loader::functions! { crate::LIBRARY;
     /// This function allocates memory in the `descriptor` for a given `descriptor` type and at the location pointed by the `descriptor`.
     ///
@@ -4240,26 +5168,16 @@ pub struct cudnnTensorTransformStruct {
 /// [`cudnnTensorTransformDescriptor_t`] is an opaque structure containing the description of the tensor transform. Use the [`cudnnCreateTensorTransformDescriptor`] function to create an instance of this descriptor, and [`cudnnDestroyTensorTransformDescriptor`] function to destroy a previously created instance.
 #[deprecated]
 pub type cudnnTensorTransformDescriptor_t = *mut cudnnTensorTransformStruct;
-/// [`cudnnDeterminism_t`] is an enumerated type used to indicate if the computed results are deterministic (reproducible). For more information, refer to [Reproducibility (Determinism)](https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/developer/misc.html#reproducibility).
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudnnDeterminism_t {
+impl cudnnDeterminism_t {
     /// Results are not guaranteed to be reproducible.
-    CUDNN_NON_DETERMINISTIC = 0,
+    pub const CUDNN_NON_DETERMINISTIC: cudnnDeterminism_t = cudnnDeterminism_t(0);
     /// Results are guaranteed to be reproducible.
-    CUDNN_DETERMINISTIC = 1,
+    pub const CUDNN_DETERMINISTIC: cudnnDeterminism_t = cudnnDeterminism_t(1);
 }
+/// [`cudnnDeterminism_t`] is an enumerated type used to indicate if the computed results are deterministic (reproducible). For more information, refer to [Reproducibility (Determinism)](https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/developer/misc.html#reproducibility).
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudnnDeterminism_t(pub ::core::ffi::c_uint);
 singe_loader::functions! { crate::LIBRARY;
     /// This function creates a generic tensor descriptor object by allocating the memory needed to hold its opaque structure. The data is initialized to all zeros.
     ///
@@ -4485,32 +5403,24 @@ singe_loader::functions! { crate::LIBRARY;
         tensorDesc: cudnnTensorDescriptor_t,
     ) -> cudnnStatus_t;
 }
-/// [`cudnnFoldingDirection_t`] is an enumerated type used to select the folding direction. For more information, refer to [`cudnnTensorTransformDescriptor_t`].
-///
-/// **Data Member**.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudnnFoldingDirection_t {
+impl cudnnFoldingDirection_t {
     /// Fold the tensor.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_TRANSFORM_FOLD = 0,
+    pub const CUDNN_TRANSFORM_FOLD: cudnnFoldingDirection_t = cudnnFoldingDirection_t(0);
     /// Unfold the tensor.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_TRANSFORM_UNFOLD = 1,
+    pub const CUDNN_TRANSFORM_UNFOLD: cudnnFoldingDirection_t = cudnnFoldingDirection_t(
+        1,
+    );
 }
+/// [`cudnnFoldingDirection_t`] is an enumerated type used to select the folding direction. For more information, refer to [`cudnnTensorTransformDescriptor_t`].
+///
+/// **Data Member**.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudnnFoldingDirection_t(pub ::core::ffi::c_uint);
 singe_loader::functions! { crate::LIBRARY;
     /// This function initializes and returns a destination tensor descriptor `destDesc` for tensor transform operations. The initialization is done with the desired parameters described in the transform descriptor [`cudnnTensorDescriptor_t`].
     ///
@@ -4726,34 +5636,24 @@ singe_loader::functions! { crate::LIBRARY;
         C: *mut ::core::ffi::c_void,
     ) -> cudnnStatus_t;
 }
-/// [`cudnnOpTensorOp_t`] is an enumerated type used to indicate the Tensor Core operation to be used by the [`cudnnOpTensor`] routine. This enumerated type is used as a field for the [`cudnnOpTensorDescriptor_t`] descriptor.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudnnOpTensorOp_t {
+impl cudnnOpTensorOp_t {
     /// The operation to be performed is addition.
-    CUDNN_OP_TENSOR_ADD = 0,
+    pub const CUDNN_OP_TENSOR_ADD: cudnnOpTensorOp_t = cudnnOpTensorOp_t(0);
     /// The operation to be performed is multiplication.
-    CUDNN_OP_TENSOR_MUL = 1,
+    pub const CUDNN_OP_TENSOR_MUL: cudnnOpTensorOp_t = cudnnOpTensorOp_t(1);
     /// The operation to be performed is a minimum comparison.
-    CUDNN_OP_TENSOR_MIN = 2,
+    pub const CUDNN_OP_TENSOR_MIN: cudnnOpTensorOp_t = cudnnOpTensorOp_t(2);
     /// The operation to be performed is a maximum comparison.
-    CUDNN_OP_TENSOR_MAX = 3,
+    pub const CUDNN_OP_TENSOR_MAX: cudnnOpTensorOp_t = cudnnOpTensorOp_t(3);
     /// The operation to be performed is square root, performed on only the `A` tensor.
-    CUDNN_OP_TENSOR_SQRT = 4,
+    pub const CUDNN_OP_TENSOR_SQRT: cudnnOpTensorOp_t = cudnnOpTensorOp_t(4);
     /// The operation to be performed is negation, performed on only the `A` tensor.
-    CUDNN_OP_TENSOR_NOT = 5,
+    pub const CUDNN_OP_TENSOR_NOT: cudnnOpTensorOp_t = cudnnOpTensorOp_t(5);
 }
+/// [`cudnnOpTensorOp_t`] is an enumerated type used to indicate the Tensor Core operation to be used by the [`cudnnOpTensor`] routine. This enumerated type is used as a field for the [`cudnnOpTensorDescriptor_t`] descriptor.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudnnOpTensorOp_t(pub ::core::ffi::c_uint);
 singe_loader::functions! { crate::LIBRARY;
     /// This function creates a tensor pointwise math descriptor. For more information, refer to [`cudnnOpTensorDescriptor_t`].
     ///
@@ -4871,58 +5771,42 @@ singe_loader::functions! { crate::LIBRARY;
         C: *mut ::core::ffi::c_void,
     ) -> cudnnStatus_t;
 }
-/// [`cudnnReduceTensorIndices_t`] is an enumerated type used to indicate whether indices are to be computed by the [`cudnnReduceTensor`] routine. This enumerated type is used as a field for the [`cudnnReduceTensorDescriptor_t`] descriptor.
-#[deprecated]
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudnnReduceTensorIndices_t {
+impl cudnnReduceTensorIndices_t {
     /// Do not compute indices.
     #[deprecated]
-    CUDNN_REDUCE_TENSOR_NO_INDICES = 0,
+    pub const CUDNN_REDUCE_TENSOR_NO_INDICES: cudnnReduceTensorIndices_t = cudnnReduceTensorIndices_t(
+        0,
+    );
     /// Compute indices. The resulting indices are relative, and flattened.
     #[deprecated]
-    CUDNN_REDUCE_TENSOR_FLATTENED_INDICES = 1,
+    pub const CUDNN_REDUCE_TENSOR_FLATTENED_INDICES: cudnnReduceTensorIndices_t = cudnnReduceTensorIndices_t(
+        1,
+    );
+}
+/// [`cudnnReduceTensorIndices_t`] is an enumerated type used to indicate whether indices are to be computed by the [`cudnnReduceTensor`] routine. This enumerated type is used as a field for the [`cudnnReduceTensorDescriptor_t`] descriptor.
+#[deprecated]
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudnnReduceTensorIndices_t(pub ::core::ffi::c_uint);
+impl cudnnIndicesType_t {
+    /// Compute unsigned int indices.
+    #[deprecated]
+    pub const CUDNN_32BIT_INDICES: cudnnIndicesType_t = cudnnIndicesType_t(0);
+    /// Compute unsigned long indices.
+    #[deprecated]
+    pub const CUDNN_64BIT_INDICES: cudnnIndicesType_t = cudnnIndicesType_t(1);
+    /// Compute unsigned short indices.
+    #[deprecated]
+    pub const CUDNN_16BIT_INDICES: cudnnIndicesType_t = cudnnIndicesType_t(2);
+    /// Compute unsigned char indices.
+    #[deprecated]
+    pub const CUDNN_8BIT_INDICES: cudnnIndicesType_t = cudnnIndicesType_t(3);
 }
 /// [`cudnnIndicesType_t`] is an enumerated type used to indicate the data type for the indices to be computed by the [`cudnnReduceTensor`] routine. This enumerated type is used as a field for the [`cudnnReduceTensorDescriptor_t`] descriptor.
 #[deprecated]
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudnnIndicesType_t {
-    /// Compute unsigned int indices.
-    #[deprecated]
-    CUDNN_32BIT_INDICES = 0,
-    /// Compute unsigned long indices.
-    #[deprecated]
-    CUDNN_64BIT_INDICES = 1,
-    /// Compute unsigned short indices.
-    #[deprecated]
-    CUDNN_16BIT_INDICES = 2,
-    /// Compute unsigned char indices.
-    #[deprecated]
-    CUDNN_8BIT_INDICES = 3,
-}
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudnnIndicesType_t(pub ::core::ffi::c_uint);
 singe_loader::functions! { crate::LIBRARY;
     /// This function creates a reduced tensor descriptor object by allocating the memory needed to hold its opaque structure.
     ///
@@ -5370,27 +6254,29 @@ singe_loader::functions! { crate::LIBRARY;
         filterDesc: cudnnFilterDescriptor_t,
     ) -> cudnnStatus_t;
 }
-/// [`cudnnSoftmaxAlgorithm_t`] is used to select an implementation of the softmax function used in [`cudnnSoftmaxForward`] and [`cudnnSoftmaxBackward`].
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudnnSoftmaxAlgorithm_t {
+impl cudnnSoftmaxAlgorithm_t {
     /// This implementation applies the straightforward softmax operation.
-    CUDNN_SOFTMAX_FAST = 0,
+    pub const CUDNN_SOFTMAX_FAST: cudnnSoftmaxAlgorithm_t = cudnnSoftmaxAlgorithm_t(0);
     /// This implementation scales each point of the softmax input domain by its maximum value to avoid potential floating point overflows in the softmax evaluation.
-    CUDNN_SOFTMAX_ACCURATE = 1,
+    pub const CUDNN_SOFTMAX_ACCURATE: cudnnSoftmaxAlgorithm_t = cudnnSoftmaxAlgorithm_t(
+        1,
+    );
     /// This entry performs the log softmax operation, avoiding overflows by scaling each point in the input domain as in [`cudnnSoftmaxAlgorithm_t::CUDNN_SOFTMAX_ACCURATE`].
-    CUDNN_SOFTMAX_LOG = 2,
+    pub const CUDNN_SOFTMAX_LOG: cudnnSoftmaxAlgorithm_t = cudnnSoftmaxAlgorithm_t(2);
+}
+/// [`cudnnSoftmaxAlgorithm_t`] is used to select an implementation of the softmax function used in [`cudnnSoftmaxForward`] and [`cudnnSoftmaxBackward`].
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudnnSoftmaxAlgorithm_t(pub ::core::ffi::c_uint);
+impl cudnnSoftmaxMode_t {
+    /// Compute softmax over all C, H, W for each image (N).
+    ///
+    /// since: cuDNN 9.0.0
+    pub const CUDNN_SOFTMAX_MODE_INSTANCE: cudnnSoftmaxMode_t = cudnnSoftmaxMode_t(0);
+    /// Compute softmax over channel (C) for each spatial location (H, W) and image (N).
+    ///
+    /// since: cuDNN 9.0.0
+    pub const CUDNN_SOFTMAX_MODE_CHANNEL: cudnnSoftmaxMode_t = cudnnSoftmaxMode_t(1);
 }
 /// [`cudnnSoftmaxMode_t`] is used to select over which data the [`cudnnSoftmaxForward`] and [`cudnnSoftmaxBackward`] are computing their results.
 ///
@@ -5399,29 +6285,9 @@ pub enum cudnnSoftmaxAlgorithm_t {
 ///
 /// [`cudnnSoftmaxMode_t::CUDNN_SOFTMAX_MODE_CHANNEL`]
 /// The softmax operation is computed per spatial location (`H,W`) per image (`N`) across dimension `C`.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudnnSoftmaxMode_t {
-    /// Compute softmax over all C, H, W for each image (N).
-    ///
-    /// since: cuDNN 9.0.0
-    CUDNN_SOFTMAX_MODE_INSTANCE = 0,
-    /// Compute softmax over channel (C) for each spatial location (H, W) and image (N).
-    ///
-    /// since: cuDNN 9.0.0
-    CUDNN_SOFTMAX_MODE_CHANNEL = 1,
-}
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudnnSoftmaxMode_t(pub ::core::ffi::c_uint);
 singe_loader::functions! { crate::LIBRARY;
     /// This routine computes the softmax function.
     ///
@@ -5465,35 +6331,31 @@ singe_loader::functions! { crate::LIBRARY;
         y: *mut ::core::ffi::c_void,
     ) -> cudnnStatus_t;
 }
-/// [`cudnnPoolingMode_t`] is an enumerated type passed to [`cudnnSetPooling2dDescriptor`] to select the pooling method to be used by [`cudnnPoolingForward`] and [`cudnnPoolingBackward`].
-#[deprecated]
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudnnPoolingMode_t {
+impl cudnnPoolingMode_t {
     /// The maximum value inside the pooling window is used.
     #[deprecated]
-    CUDNN_POOLING_MAX = 0,
+    pub const CUDNN_POOLING_MAX: cudnnPoolingMode_t = cudnnPoolingMode_t(0);
     /// Values inside the pooling window are averaged. The number of elements used to calculate the average includes spatial locations falling in the padding region.
     #[deprecated]
-    CUDNN_POOLING_AVERAGE_COUNT_INCLUDE_PADDING = 1,
+    pub const CUDNN_POOLING_AVERAGE_COUNT_INCLUDE_PADDING: cudnnPoolingMode_t = cudnnPoolingMode_t(
+        1,
+    );
     /// Values inside the pooling window are averaged. The number of elements used to calculate the average excludes spatial locations falling in the padding region.
     #[deprecated]
-    CUDNN_POOLING_AVERAGE_COUNT_EXCLUDE_PADDING = 2,
+    pub const CUDNN_POOLING_AVERAGE_COUNT_EXCLUDE_PADDING: cudnnPoolingMode_t = cudnnPoolingMode_t(
+        2,
+    );
     /// The maximum value inside the pooling window is used. The algorithm used is deterministic.
     #[deprecated]
-    CUDNN_POOLING_MAX_DETERMINISTIC = 3,
+    pub const CUDNN_POOLING_MAX_DETERMINISTIC: cudnnPoolingMode_t = cudnnPoolingMode_t(
+        3,
+    );
 }
+/// [`cudnnPoolingMode_t`] is an enumerated type passed to [`cudnnSetPooling2dDescriptor`] to select the pooling method to be used by [`cudnnPoolingForward`] and [`cudnnPoolingBackward`].
+#[deprecated]
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudnnPoolingMode_t(pub ::core::ffi::c_uint);
 singe_loader::functions! { crate::LIBRARY;
     /// This function creates a pooling descriptor object by allocating the memory needed to hold its opaque structure.
     ///
@@ -5898,24 +6760,14 @@ singe_loader::functions! { crate::LIBRARY;
         normDesc: *mut cudnnLRNDescriptor_t,
     ) -> cudnnStatus_t;
 }
-/// [`cudnnLRNMode_t`] is an enumerated type used to specify the mode of operation in [`cudnnLRNCrossChannelForward`] and [`cudnnLRNCrossChannelBackward`].
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudnnLRNMode_t {
+impl cudnnLRNMode_t {
     /// LRN computation is performed across the tensor’s dimension `dimA\[1\]`.
-    CUDNN_LRN_CROSS_CHANNEL_DIM1 = 0,
+    pub const CUDNN_LRN_CROSS_CHANNEL_DIM1: cudnnLRNMode_t = cudnnLRNMode_t(0);
 }
+/// [`cudnnLRNMode_t`] is an enumerated type used to specify the mode of operation in [`cudnnLRNCrossChannelForward`] and [`cudnnLRNCrossChannelBackward`].
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudnnLRNMode_t(pub ::core::ffi::c_uint);
 singe_loader::functions! { crate::LIBRARY;
     /// This function initializes a previously created LRN descriptor object.
     ///
@@ -6019,26 +6871,18 @@ singe_loader::functions! { crate::LIBRARY;
         y: *mut ::core::ffi::c_void,
     ) -> cudnnStatus_t;
 }
-/// [`cudnnDivNormMode_t`] is an enumerated type used to specify the mode of operation in [`cudnnDivisiveNormalizationForward`] and [`cudnnDivisiveNormalizationBackward`].
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudnnDivNormMode_t {
+impl cudnnDivNormMode_t {
     /// The means tensor data pointer is expected to contain means or other kernel convolution values precomputed by the user. The means pointer can also be `NULL`, in that case, it’s considered to be filled with zeroes. This is equivalent to spatial LRN.
     ///
     /// In the backward pass, the means are treated as independent inputs and the gradient over means is computed independently. In this mode, to yield a net gradient over the entire LCN computational graph, the `destDiffMeans` result should be backpropagated through the user’s means layer (which can be implemented using average pooling) and added to the `destDiffData` tensor produced by [`cudnnDivisiveNormalizationBackward`].
-    CUDNN_DIVNORM_PRECOMPUTED_MEANS = 0,
+    pub const CUDNN_DIVNORM_PRECOMPUTED_MEANS: cudnnDivNormMode_t = cudnnDivNormMode_t(
+        0,
+    );
 }
+/// [`cudnnDivNormMode_t`] is an enumerated type used to specify the mode of operation in [`cudnnDivisiveNormalizationForward`] and [`cudnnDivisiveNormalizationBackward`].
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudnnDivNormMode_t(pub ::core::ffi::c_uint);
 singe_loader::functions! { crate::LIBRARY;
     /// This function performs the forward spatial `DivisiveNormalization` layer computation. It divides every value in a layer by the standard deviation of its spatial neighbors. Note that `DivisiveNormalization` only implements the `x/max(c, sigma_x)` portion of the computation, where `sigma_x` is the variance over the spatial neighborhood of `x`.
     ///
@@ -6091,6 +6935,23 @@ singe_loader::functions! { crate::LIBRARY;
         y: *mut ::core::ffi::c_void,
     ) -> cudnnStatus_t;
 }
+impl cudnnBatchNormMode_t {
+    /// Normalization is performed per-activation. This mode is intended to be used after the non-convolutional network layers. In this mode, the tensor dimensions of `bnBias` and `bnScale` and the parameters used in the `cudnnBatchNormalization*` functions are 1xCxHxW.
+    #[deprecated]
+    pub const CUDNN_BATCHNORM_PER_ACTIVATION: cudnnBatchNormMode_t = cudnnBatchNormMode_t(
+        0,
+    );
+    /// Normalization is performed over N+spatial dimensions. This mode is intended for use after convolutional layers (where spatial invariance is desired). In this mode, the `bnBias` and `bnScale` tensor dimensions are 1xCx1x1.
+    #[deprecated]
+    pub const CUDNN_BATCHNORM_SPATIAL: cudnnBatchNormMode_t = cudnnBatchNormMode_t(1);
+    /// This mode is similar to [`cudnnBatchNormMode_t::CUDNN_BATCHNORM_SPATIAL`] but it can be faster for some tasks.
+    ///
+    /// An optimized path may be selected for [`cudnnDataType_t::CUDNN_DATA_FLOAT`] and [`cudnnDataType_t::CUDNN_DATA_HALF`] types, compute capability 6.0 or higher for the following two batch normalization API calls: [`cudnnBatchNormalizationForwardTraining`], and [`cudnnBatchNormalizationBackward`]. In the case of [`cudnnBatchNormalizationBackward`], the `savedMean` and `savedInvVariance` arguments should not be `NULL`.
+    #[deprecated]
+    pub const CUDNN_BATCHNORM_SPATIAL_PERSISTENT: cudnnBatchNormMode_t = cudnnBatchNormMode_t(
+        2,
+    );
+}
 /// [`cudnnBatchNormMode_t`] is an enumerated type used to specify the mode of operation in [`cudnnBatchNormalizationForwardInference`], [`cudnnBatchNormalizationForwardTraining`], [`cudnnBatchNormalizationBackward`], and [`cudnnDeriveBNTensorDescriptor`] routines.
 ///
 /// **NCHW Mode Only**
@@ -6100,32 +6961,9 @@ singe_loader::functions! { crate::LIBRARY;
 ///
 /// For finite but very large input values, the algorithm may encounter overflows more frequently due to a lower dynamic range and emit Inf-s/NaN-s while [`cudnnBatchNormMode_t::CUDNN_BATCHNORM_SPATIAL`] will produce finite results. The user can invoke [`cudnnQueryRuntimeError`] to check if a numerical overflow occurred in this mode.
 #[deprecated]
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudnnBatchNormMode_t {
-    /// Normalization is performed per-activation. This mode is intended to be used after the non-convolutional network layers. In this mode, the tensor dimensions of `bnBias` and `bnScale` and the parameters used in the `cudnnBatchNormalization*` functions are 1xCxHxW.
-    #[deprecated]
-    CUDNN_BATCHNORM_PER_ACTIVATION = 0,
-    /// Normalization is performed over N+spatial dimensions. This mode is intended for use after convolutional layers (where spatial invariance is desired). In this mode, the `bnBias` and `bnScale` tensor dimensions are 1xCx1x1.
-    #[deprecated]
-    CUDNN_BATCHNORM_SPATIAL = 1,
-    /// This mode is similar to [`cudnnBatchNormMode_t::CUDNN_BATCHNORM_SPATIAL`] but it can be faster for some tasks.
-    ///
-    /// An optimized path may be selected for [`cudnnDataType_t::CUDNN_DATA_FLOAT`] and [`cudnnDataType_t::CUDNN_DATA_HALF`] types, compute capability 6.0 or higher for the following two batch normalization API calls: [`cudnnBatchNormalizationForwardTraining`], and [`cudnnBatchNormalizationBackward`]. In the case of [`cudnnBatchNormalizationBackward`], the `savedMean` and `savedInvVariance` arguments should not be `NULL`.
-    #[deprecated]
-    CUDNN_BATCHNORM_SPATIAL_PERSISTENT = 2,
-}
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudnnBatchNormMode_t(pub ::core::ffi::c_uint);
 singe_loader::functions! { crate::LIBRARY;
     /// This function derives a secondary tensor descriptor for the batch normalization `scale`, `invVariance`, `bnBias`, and `bnScale` subtensors from the layer’s `x` data descriptor.
     ///
@@ -6151,32 +6989,26 @@ singe_loader::functions! { crate::LIBRARY;
         mode: cudnnBatchNormMode_t,
     ) -> cudnnStatus_t;
 }
-/// [`cudnnBatchNormOps_t`] is an enumerated type used to specify the mode of operation in [`cudnnGetBatchNormalizationForwardTrainingExWorkspaceSize`], [`cudnnBatchNormalizationForwardTrainingEx`], [`cudnnGetBatchNormalizationBackwardExWorkspaceSize`], [`cudnnBatchNormalizationBackwardEx`], and [`cudnnGetBatchNormalizationTrainingExReserveSpaceSize`] functions.
-#[deprecated]
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudnnBatchNormOps_t {
+impl cudnnBatchNormOps_t {
     /// Only batch normalization is performed, per-activation.
     #[deprecated]
-    CUDNN_BATCHNORM_OPS_BN = 0,
+    pub const CUDNN_BATCHNORM_OPS_BN: cudnnBatchNormOps_t = cudnnBatchNormOps_t(0);
     /// First, the batch normalization is performed, and then the activation is performed.
     #[deprecated]
-    CUDNN_BATCHNORM_OPS_BN_ACTIVATION = 1,
+    pub const CUDNN_BATCHNORM_OPS_BN_ACTIVATION: cudnnBatchNormOps_t = cudnnBatchNormOps_t(
+        1,
+    );
     /// Performs the batch normalization, then element-wise addition, followed by the activation operation.
     #[deprecated]
-    CUDNN_BATCHNORM_OPS_BN_ADD_ACTIVATION = 2,
+    pub const CUDNN_BATCHNORM_OPS_BN_ADD_ACTIVATION: cudnnBatchNormOps_t = cudnnBatchNormOps_t(
+        2,
+    );
 }
+/// [`cudnnBatchNormOps_t`] is an enumerated type used to specify the mode of operation in [`cudnnGetBatchNormalizationForwardTrainingExWorkspaceSize`], [`cudnnBatchNormalizationForwardTrainingEx`], [`cudnnGetBatchNormalizationBackwardExWorkspaceSize`], [`cudnnBatchNormalizationBackwardEx`], and [`cudnnGetBatchNormalizationTrainingExReserveSpaceSize`] functions.
+#[deprecated]
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudnnBatchNormOps_t(pub ::core::ffi::c_uint);
 singe_loader::functions! { crate::LIBRARY;
     /// This function performs the forward batch normalization layer computation for the inference phase. This layer is based on the [Batch Normalization: Accelerating Deep Network Training by Reducing Internal Covariate Shift paper](https://arxiv.org/abs/1502.03167).
     ///
@@ -6242,28 +7074,28 @@ singe_loader::functions! { crate::LIBRARY;
         epsilon: f64,
     ) -> cudnnStatus_t;
 }
-/// [`cudnnNormMode_t`] is an enumerated type used to specify the mode of operation in [`cudnnNormalizationForwardInference`], [`cudnnNormalizationForwardTraining`], [`cudnnBatchNormalizationBackward`], [`cudnnGetNormalizationForwardTrainingWorkspaceSize`], [`cudnnGetNormalizationBackwardWorkspaceSize`], and [`cudnnGetNormalizationTrainingReserveSpaceSize`] routines.
-#[deprecated]
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudnnNormMode_t {
+impl cudnnNormMode_t {
     /// Normalization is performed per-activation. This mode is intended to be used after the non-convolutional network layers. In this mode, the tensor dimensions of `normBias` and `normScale` and the parameters used in the `cudnnNormalization*` functions are 1xCxHxW.
     #[deprecated]
-    CUDNN_NORM_PER_ACTIVATION = 0,
+    pub const CUDNN_NORM_PER_ACTIVATION: cudnnNormMode_t = cudnnNormMode_t(0);
     /// Normalization is performed per-channel over N+spatial dimensions. This mode is intended for use after convolutional layers (where spatial invariance is desired). In this mode, the `normBias` and `normScale` tensor dimensions are 1xCx1x1.
     #[deprecated]
-    CUDNN_NORM_PER_CHANNEL = 1,
+    pub const CUDNN_NORM_PER_CHANNEL: cudnnNormMode_t = cudnnNormMode_t(1);
+}
+/// [`cudnnNormMode_t`] is an enumerated type used to specify the mode of operation in [`cudnnNormalizationForwardInference`], [`cudnnNormalizationForwardTraining`], [`cudnnBatchNormalizationBackward`], [`cudnnGetNormalizationForwardTrainingWorkspaceSize`], [`cudnnGetNormalizationBackwardWorkspaceSize`], and [`cudnnGetNormalizationTrainingReserveSpaceSize`] routines.
+#[deprecated]
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudnnNormMode_t(pub ::core::ffi::c_uint);
+impl cudnnNormAlgo_t {
+    /// Standard normalization is performed.
+    #[deprecated]
+    pub const CUDNN_NORM_ALGO_STANDARD: cudnnNormAlgo_t = cudnnNormAlgo_t(0);
+    /// This mode is similar to [`cudnnNormAlgo_t::CUDNN_NORM_ALGO_STANDARD`], however it only supports [`cudnnNormMode_t::CUDNN_NORM_PER_CHANNEL`] and can be faster for some tasks.
+    ///
+    /// An optimized path may be selected for [`cudnnDataType_t::CUDNN_DATA_FLOAT`] and [`cudnnDataType_t::CUDNN_DATA_HALF`] types, compute capability 6.0 or higher for the following two normalization API calls: [`cudnnNormalizationForwardTraining`] and [`cudnnNormalizationBackward`]. In the case of [`cudnnNormalizationBackward`], the `savedMean` and `savedInvVariance` arguments should not be `NULL`.
+    #[deprecated]
+    pub const CUDNN_NORM_ALGO_PERSIST: cudnnNormAlgo_t = cudnnNormAlgo_t(1);
 }
 /// [`cudnnNormAlgo_t`] is an enumerated type used to specify the algorithm to execute the normalization operation.
 ///
@@ -6274,29 +7106,9 @@ pub enum cudnnNormMode_t {
 ///
 /// For finite but very large input values, the algorithm may encounter overflows more frequently due to a lower dynamic range and emit Inf-s/NaN-s while [`cudnnNormAlgo_t::CUDNN_NORM_ALGO_STANDARD`] will produce finite results. The user can invoke [`cudnnQueryRuntimeError`] to check if a numerical overflow occurred in this mode.
 #[deprecated]
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudnnNormAlgo_t {
-    /// Standard normalization is performed.
-    #[deprecated]
-    CUDNN_NORM_ALGO_STANDARD = 0,
-    /// This mode is similar to [`cudnnNormAlgo_t::CUDNN_NORM_ALGO_STANDARD`], however it only supports [`cudnnNormMode_t::CUDNN_NORM_PER_CHANNEL`] and can be faster for some tasks.
-    ///
-    /// An optimized path may be selected for [`cudnnDataType_t::CUDNN_DATA_FLOAT`] and [`cudnnDataType_t::CUDNN_DATA_HALF`] types, compute capability 6.0 or higher for the following two normalization API calls: [`cudnnNormalizationForwardTraining`] and [`cudnnNormalizationBackward`]. In the case of [`cudnnNormalizationBackward`], the `savedMean` and `savedInvVariance` arguments should not be `NULL`.
-    #[deprecated]
-    CUDNN_NORM_ALGO_PERSIST = 1,
-}
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudnnNormAlgo_t(pub ::core::ffi::c_uint);
 singe_loader::functions! { crate::LIBRARY;
     /// This function derives tensor descriptors for the normalization `mean`, `invariance`, `normBias`, and `normScale` subtensors from the layer’s `x` data descriptor and norm mode. Normalization `mean` and `invariance` share the same descriptor while `bias` and `scale` share the same descriptor.
     ///
@@ -6326,21 +7138,22 @@ singe_loader::functions! { crate::LIBRARY;
         groupCnt: ::core::ffi::c_int,
     ) -> cudnnStatus_t;
 }
-/// [`cudnnNormOps_t`] is an enumerated type used to specify the mode of operation in [`cudnnGetNormalizationForwardTrainingWorkspaceSize`], [`cudnnNormalizationForwardTraining`], [`cudnnGetNormalizationBackwardWorkspaceSize`], [`cudnnNormalizationBackward`], and [`cudnnGetNormalizationTrainingReserveSpaceSize`] functions.
-#[deprecated]
-#[repr(u32)]
-#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum cudnnNormOps_t {
+impl cudnnNormOps_t {
     /// Only normalization is performed.
     #[deprecated]
-    CUDNN_NORM_OPS_NORM = 0,
+    pub const CUDNN_NORM_OPS_NORM: cudnnNormOps_t = cudnnNormOps_t(0);
     /// First, the normalization is performed, then the activation is performed.
     #[deprecated]
-    CUDNN_NORM_OPS_NORM_ACTIVATION = 1,
+    pub const CUDNN_NORM_OPS_NORM_ACTIVATION: cudnnNormOps_t = cudnnNormOps_t(1);
     /// Performs the normalization, then element-wise addition, followed by the activation operation.
     #[deprecated]
-    CUDNN_NORM_OPS_NORM_ADD_ACTIVATION = 2,
+    pub const CUDNN_NORM_OPS_NORM_ADD_ACTIVATION: cudnnNormOps_t = cudnnNormOps_t(2);
 }
+/// [`cudnnNormOps_t`] is an enumerated type used to specify the mode of operation in [`cudnnGetNormalizationForwardTrainingWorkspaceSize`], [`cudnnNormalizationForwardTraining`], [`cudnnGetNormalizationBackwardWorkspaceSize`], [`cudnnNormalizationBackward`], and [`cudnnGetNormalizationTrainingReserveSpaceSize`] functions.
+#[deprecated]
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudnnNormOps_t(pub ::core::ffi::c_uint);
 singe_loader::functions! { crate::LIBRARY;
     /// This function performs the forward normalization layer computation for the inference phase. Per-channel normalization layer is based on the [Batch Normalization: Accelerating Deep Network Training by Reducing Internal Covariate Shift paper](https://arxiv.org/abs/1502.03167).
     ///
@@ -6414,24 +7227,14 @@ singe_loader::functions! { crate::LIBRARY;
         groupCnt: ::core::ffi::c_int,
     ) -> cudnnStatus_t;
 }
-/// [`cudnnSamplerType_t`] is an enumerated type passed to [`cudnnSetSpatialTransformerNdDescriptor`] to select the sampler type to be used by [`cudnnSpatialTfSamplerForward`] and [`cudnnSpatialTfSamplerBackward`].
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudnnSamplerType_t {
+impl cudnnSamplerType_t {
     /// Selects the bilinear sampler.
-    CUDNN_SAMPLER_BILINEAR = 0,
+    pub const CUDNN_SAMPLER_BILINEAR: cudnnSamplerType_t = cudnnSamplerType_t(0);
 }
+/// [`cudnnSamplerType_t`] is an enumerated type passed to [`cudnnSetSpatialTransformerNdDescriptor`] to select the sampler type to be used by [`cudnnSpatialTfSamplerForward`] and [`cudnnSpatialTfSamplerBackward`].
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudnnSamplerType_t(pub ::core::ffi::c_uint);
 singe_loader::functions! { crate::LIBRARY;
     /// This function creates a generic spatial transformer descriptor object by allocating the memory needed to hold its opaque structure.
     ///
@@ -6742,142 +7545,154 @@ singe_loader::functions! { crate::LIBRARY;
         reserveSpaceSizeInBytes: size_t,
     ) -> cudnnStatus_t;
 }
-/// [`cudnnConvolutionFwdAlgo_t`] is an enumerated type that exposes the different algorithms available to execute the forward convolution operation.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudnnConvolutionFwdAlgo_t {
+impl cudnnConvolutionFwdAlgo_t {
     /// This algorithm expresses the convolution as a matrix product without actually explicitly forming the matrix that holds the input tensor data.
-    CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_GEMM = 0,
+    pub const CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_GEMM: cudnnConvolutionFwdAlgo_t = cudnnConvolutionFwdAlgo_t(
+        0,
+    );
     /// Implicit GEMM with precomputed indices. Needs workspace for index precomputation.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_PRECOMP_GEMM = 1,
+    pub const CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_PRECOMP_GEMM: cudnnConvolutionFwdAlgo_t = cudnnConvolutionFwdAlgo_t(
+        1,
+    );
     /// This algorithm expresses convolution as an explicit matrix product. A significant memory workspace is needed to store the matrix that holds the input tensor data.
-    CUDNN_CONVOLUTION_FWD_ALGO_GEMM = 2,
+    pub const CUDNN_CONVOLUTION_FWD_ALGO_GEMM: cudnnConvolutionFwdAlgo_t = cudnnConvolutionFwdAlgo_t(
+        2,
+    );
     /// This algorithm expresses the convolution as a direct convolution (for example, without implicitly or explicitly doing a matrix multiplication).
-    CUDNN_CONVOLUTION_FWD_ALGO_DIRECT = 3,
+    pub const CUDNN_CONVOLUTION_FWD_ALGO_DIRECT: cudnnConvolutionFwdAlgo_t = cudnnConvolutionFwdAlgo_t(
+        3,
+    );
     /// This algorithm uses the Fast-Fourier Transform approach to compute the convolution. A significant memory workspace is needed to store intermediate results.
-    CUDNN_CONVOLUTION_FWD_ALGO_FFT = 4,
+    pub const CUDNN_CONVOLUTION_FWD_ALGO_FFT: cudnnConvolutionFwdAlgo_t = cudnnConvolutionFwdAlgo_t(
+        4,
+    );
     /// This algorithm uses the Fast-Fourier Transform approach but splits the inputs into tiles. A significant memory workspace is needed to store intermediate results but less than [`cudnnConvolutionFwdAlgo_t::CUDNN_CONVOLUTION_FWD_ALGO_FFT`] for large size images.
-    CUDNN_CONVOLUTION_FWD_ALGO_FFT_TILING = 5,
+    pub const CUDNN_CONVOLUTION_FWD_ALGO_FFT_TILING: cudnnConvolutionFwdAlgo_t = cudnnConvolutionFwdAlgo_t(
+        5,
+    );
     /// This algorithm uses the Winograd Transform approach to compute the convolution. A reasonably sized workspace is needed to store intermediate results.
     ///
     /// # Note
     ///
     /// The [`cudnnConvolutionFwdAlgo_t::CUDNN_CONVOLUTION_FWD_ALGO_WINOGRAD`] algorithm is **not** supported on GPUs based on the NVIDIA Hopper GPU architecture and later GPU architectures.
-    CUDNN_CONVOLUTION_FWD_ALGO_WINOGRAD = 6,
+    pub const CUDNN_CONVOLUTION_FWD_ALGO_WINOGRAD: cudnnConvolutionFwdAlgo_t = cudnnConvolutionFwdAlgo_t(
+        6,
+    );
     /// This algorithm uses the Winograd Transform approach to compute the convolution. A significant workspace may be needed to store intermediate results.
-    CUDNN_CONVOLUTION_FWD_ALGO_WINOGRAD_NONFUSED = 7,
+    pub const CUDNN_CONVOLUTION_FWD_ALGO_WINOGRAD_NONFUSED: cudnnConvolutionFwdAlgo_t = cudnnConvolutionFwdAlgo_t(
+        7,
+    );
     /// Number of forward convolution algorithms.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_CONVOLUTION_FWD_ALGO_COUNT = 8,
+    pub const CUDNN_CONVOLUTION_FWD_ALGO_COUNT: cudnnConvolutionFwdAlgo_t = cudnnConvolutionFwdAlgo_t(
+        8,
+    );
 }
-/// [`cudnnConvolutionBwdFilterAlgo_t`] is an enumerated type that exposes the different algorithms available to execute the backward filter convolution operation.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudnnConvolutionBwdFilterAlgo_t {
+/// [`cudnnConvolutionFwdAlgo_t`] is an enumerated type that exposes the different algorithms available to execute the forward convolution operation.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudnnConvolutionFwdAlgo_t(pub ::core::ffi::c_uint);
+impl cudnnConvolutionBwdFilterAlgo_t {
     /// This algorithm expresses the convolution as a sum of matrix products without actually explicitly forming the matrix that holds the input tensor data. The sum is done using the atomic add operation, thus the results are non-deterministic.
-    CUDNN_CONVOLUTION_BWD_FILTER_ALGO_0 = 0,
+    pub const CUDNN_CONVOLUTION_BWD_FILTER_ALGO_0: cudnnConvolutionBwdFilterAlgo_t = cudnnConvolutionBwdFilterAlgo_t(
+        0,
+    );
     /// This algorithm expresses the convolution as a matrix product without actually explicitly forming the matrix that holds the input tensor data. The results are deterministic.
-    CUDNN_CONVOLUTION_BWD_FILTER_ALGO_1 = 1,
+    pub const CUDNN_CONVOLUTION_BWD_FILTER_ALGO_1: cudnnConvolutionBwdFilterAlgo_t = cudnnConvolutionBwdFilterAlgo_t(
+        1,
+    );
     /// This algorithm uses the Fast-Fourier Transform approach to compute the convolution. A significant workspace is needed to store intermediate results. The results are deterministic.
-    CUDNN_CONVOLUTION_BWD_FILTER_ALGO_FFT = 2,
+    pub const CUDNN_CONVOLUTION_BWD_FILTER_ALGO_FFT: cudnnConvolutionBwdFilterAlgo_t = cudnnConvolutionBwdFilterAlgo_t(
+        2,
+    );
     /// This algorithm is similar to [`cudnnConvolutionBwdFilterAlgo_t::CUDNN_CONVOLUTION_BWD_FILTER_ALGO_0`] but uses some small workspace to precompute some indices. The results are also non-deterministic.
-    CUDNN_CONVOLUTION_BWD_FILTER_ALGO_3 = 3,
+    pub const CUDNN_CONVOLUTION_BWD_FILTER_ALGO_3: cudnnConvolutionBwdFilterAlgo_t = cudnnConvolutionBwdFilterAlgo_t(
+        3,
+    );
     /// Winograd transform (not implemented).
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_CONVOLUTION_BWD_FILTER_ALGO_WINOGRAD = 4,
+    pub const CUDNN_CONVOLUTION_BWD_FILTER_ALGO_WINOGRAD: cudnnConvolutionBwdFilterAlgo_t = cudnnConvolutionBwdFilterAlgo_t(
+        4,
+    );
     /// Winograd non-fused. Significant workspace. Deterministic.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_CONVOLUTION_BWD_FILTER_ALGO_WINOGRAD_NONFUSED = 5,
+    pub const CUDNN_CONVOLUTION_BWD_FILTER_ALGO_WINOGRAD_NONFUSED: cudnnConvolutionBwdFilterAlgo_t = cudnnConvolutionBwdFilterAlgo_t(
+        5,
+    );
     /// This algorithm uses the Fast-Fourier Transform approach to compute the convolution but splits the input tensor into tiles. A significant workspace may be needed to store intermediate results. The results are deterministic.
-    CUDNN_CONVOLUTION_BWD_FILTER_ALGO_FFT_TILING = 6,
+    pub const CUDNN_CONVOLUTION_BWD_FILTER_ALGO_FFT_TILING: cudnnConvolutionBwdFilterAlgo_t = cudnnConvolutionBwdFilterAlgo_t(
+        6,
+    );
     /// Number of backward filter algorithms.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_CONVOLUTION_BWD_FILTER_ALGO_COUNT = 7,
+    pub const CUDNN_CONVOLUTION_BWD_FILTER_ALGO_COUNT: cudnnConvolutionBwdFilterAlgo_t = cudnnConvolutionBwdFilterAlgo_t(
+        7,
+    );
 }
-/// [`cudnnConvolutionBwdDataAlgo_t`] is an enumerated type that exposes the different algorithms available to execute the backward data convolution operation.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudnnConvolutionBwdDataAlgo_t {
+/// [`cudnnConvolutionBwdFilterAlgo_t`] is an enumerated type that exposes the different algorithms available to execute the backward filter convolution operation.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudnnConvolutionBwdFilterAlgo_t(pub ::core::ffi::c_uint);
+impl cudnnConvolutionBwdDataAlgo_t {
     /// This algorithm expresses the convolution as a sum of matrix products without actually explicitly forming the matrix that holds the input tensor data. The sum is done using the atomic add operation, thus the results are non-deterministic.
-    CUDNN_CONVOLUTION_BWD_DATA_ALGO_0 = 0,
+    pub const CUDNN_CONVOLUTION_BWD_DATA_ALGO_0: cudnnConvolutionBwdDataAlgo_t = cudnnConvolutionBwdDataAlgo_t(
+        0,
+    );
     /// This algorithm expresses the convolution as a matrix product without actually explicitly forming the matrix that holds the input tensor data. The results are deterministic.
-    CUDNN_CONVOLUTION_BWD_DATA_ALGO_1 = 1,
+    pub const CUDNN_CONVOLUTION_BWD_DATA_ALGO_1: cudnnConvolutionBwdDataAlgo_t = cudnnConvolutionBwdDataAlgo_t(
+        1,
+    );
     /// This algorithm uses a Fast-Fourier Transform approach to compute the convolution. A significant memory workspace is needed to store intermediate results. The results are deterministic.
-    CUDNN_CONVOLUTION_BWD_DATA_ALGO_FFT = 2,
+    pub const CUDNN_CONVOLUTION_BWD_DATA_ALGO_FFT: cudnnConvolutionBwdDataAlgo_t = cudnnConvolutionBwdDataAlgo_t(
+        2,
+    );
     /// This algorithm uses the Fast-Fourier Transform approach but splits the inputs into tiles. A significant memory workspace is needed to store intermediate results but less than [`cudnnConvolutionBwdDataAlgo_t::CUDNN_CONVOLUTION_BWD_DATA_ALGO_FFT`] for large size images. The results are deterministic.
-    CUDNN_CONVOLUTION_BWD_DATA_ALGO_FFT_TILING = 3,
+    pub const CUDNN_CONVOLUTION_BWD_DATA_ALGO_FFT_TILING: cudnnConvolutionBwdDataAlgo_t = cudnnConvolutionBwdDataAlgo_t(
+        3,
+    );
     /// This algorithm uses the Winograd Transform approach to compute the convolution. A reasonably sized workspace is needed to store intermediate results. The results are deterministic.
     ///
     /// # Note
     ///
     /// The [`cudnnConvolutionBwdDataAlgo_t::CUDNN_CONVOLUTION_BWD_DATA_ALGO_WINOGRAD`] algorithm is **not** supported on GPUs based on the NVIDIA Hopper GPU architecture and later GPU architectures.
-    CUDNN_CONVOLUTION_BWD_DATA_ALGO_WINOGRAD = 4,
+    pub const CUDNN_CONVOLUTION_BWD_DATA_ALGO_WINOGRAD: cudnnConvolutionBwdDataAlgo_t = cudnnConvolutionBwdDataAlgo_t(
+        4,
+    );
     /// This algorithm uses the Winograd Transform approach to compute the convolution. A significant workspace may be needed to store intermediate results. The results are deterministic.
-    CUDNN_CONVOLUTION_BWD_DATA_ALGO_WINOGRAD_NONFUSED = 5,
+    pub const CUDNN_CONVOLUTION_BWD_DATA_ALGO_WINOGRAD_NONFUSED: cudnnConvolutionBwdDataAlgo_t = cudnnConvolutionBwdDataAlgo_t(
+        5,
+    );
     /// Number of backward data algorithms.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_CONVOLUTION_BWD_DATA_ALGO_COUNT = 6,
+    pub const CUDNN_CONVOLUTION_BWD_DATA_ALGO_COUNT: cudnnConvolutionBwdDataAlgo_t = cudnnConvolutionBwdDataAlgo_t(
+        6,
+    );
+}
+/// [`cudnnConvolutionBwdDataAlgo_t`] is an enumerated type that exposes the different algorithms available to execute the backward data convolution operation.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudnnConvolutionBwdDataAlgo_t(pub ::core::ffi::c_uint);
+impl cudnnCTCLossAlgo_t {
+    /// Results are guaranteed to be reproducible.
+    pub const CUDNN_CTC_LOSS_ALGO_DETERMINISTIC: cudnnCTCLossAlgo_t = cudnnCTCLossAlgo_t(
+        0,
+    );
+    /// Results are not guaranteed to be reproducible.
+    pub const CUDNN_CTC_LOSS_ALGO_NON_DETERMINISTIC: cudnnCTCLossAlgo_t = cudnnCTCLossAlgo_t(
+        1,
+    );
 }
 /// [`cudnnCTCLossAlgo_t`] is an enumerated type that exposes the different algorithms available to execute the CTC loss operation.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudnnCTCLossAlgo_t {
-    /// Results are guaranteed to be reproducible.
-    CUDNN_CTC_LOSS_ALGO_DETERMINISTIC = 0,
-    /// Results are not guaranteed to be reproducible.
-    CUDNN_CTC_LOSS_ALGO_NON_DETERMINISTIC = 1,
-}
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudnnCTCLossAlgo_t(pub ::core::ffi::c_uint);
 singe_loader::functions! { crate::LIBRARY;
     /// Cross-library version checker. Each sublibrary has a version checker that checks whether its own version matches that of its dependencies.
     ///
@@ -8082,69 +8897,35 @@ singe_loader::functions! { crate::LIBRARY;
         reserveSpaceSizeInBytes: size_t,
     ) -> cudnnStatus_t;
 }
-/// [`cudnnRNNAlgo_t`] is an enumerated type used to specify the algorithm.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudnnRNNAlgo_t {
+impl cudnnRNNAlgo_t {
     /// This algorithm uses cuBLASLt to perform all matrix multiplications and dedicated kernels for cell-specific operations such as applying nonlinearities or adding biases. This is the most versatile RNN algorithm. It supports pseudo-random dropout masks between RNN layers, variable length sequences in unpacked data layouts, recurrent projection in LSTM models, and multiple choices for RNN biases: no bias, one bias, or two biases. The algorithm traverses RNN cells layer-by-layer or in a diagonal pattern through multiple layers with a certain number of time steps grouped into one “comptational chunk”. Whenever possible GEMMs are executed in parallel CUDA streams. This algorithm is expected to deliver robust performance across a wide range of RNN configurations. It is also supported on a broad range of architectures, including the oldest GPUs.
-    CUDNN_RNN_ALGO_STANDARD = 0,
+    pub const CUDNN_RNN_ALGO_STANDARD: cudnnRNNAlgo_t = cudnnRNNAlgo_t(0);
     /// Input GEMMs in this algorithm are performed by cuBLASLt. Recurrent GEMMs, typically with fused element-wise cell operations, are handled by persistent kernels that require all thread blocks of a grid to run concurrently on GPU and communicate. All recurrent weights are stored collaboratively in stream multi-processor (SM) registers and optionally in shared memory. RNN cells are traversed layer-by-layer. GPUs with a larger number of SMs can handle longer hidden state vectors using this algorithm. This method is expected to be fast when the first dimension of the input tensor is small (meaning, a small minibatch). [`cudnnRNNAlgo_t::CUDNN_RNN_ALGO_PERSIST_STATIC`] is supported on devices with compute capability >= 6.0.
-    CUDNN_RNN_ALGO_PERSIST_STATIC = 1,
+    pub const CUDNN_RNN_ALGO_PERSIST_STATIC: cudnnRNNAlgo_t = cudnnRNNAlgo_t(1);
     /// The recurrent parts of the network are executed using a *persistent kernel* approach. This method is expected to perform reasonably well for small RNN models. [`cudnnRNNAlgo_t::CUDNN_RNN_ALGO_PERSIST_DYNAMIC`] kernels are compiled at runtime and are optimized for specific parameters of the RNN model and active GPU. The limits on the maximum size of a hidden vector when using [`cudnnRNNAlgo_t::CUDNN_RNN_ALGO_PERSIST_DYNAMIC`] may be higher than the corresponding limits of [`cudnnRNNAlgo_t::CUDNN_RNN_ALGO_PERSIST_STATIC`]. This algorithm does not utilize NVIDIA Tensor Cores. [`cudnnRNNAlgo_t::CUDNN_RNN_ALGO_PERSIST_DYNAMIC`] is supported on devices with compute capability >= 6.0.
-    CUDNN_RNN_ALGO_PERSIST_DYNAMIC = 2,
+    pub const CUDNN_RNN_ALGO_PERSIST_DYNAMIC: cudnnRNNAlgo_t = cudnnRNNAlgo_t(2);
     /// Despite its name, this algorithm does not rely on persistent GPU kernels (all thread blocks being active at the same time) but in other aspects it operates similarly to [`cudnnRNNAlgo_t::CUDNN_RNN_ALGO_PERSIST_STATIC`]. Input GEMMs for all time-steps are performed by cuBLASLt and recurrent GEMMs with fused element-wise operations are handled by “regular” CUDA thread blocks. One thread block collaboratively loads all recurrent weights of one layer (square matrix) and a small number of input data vectors to compute the same number of output elements without any synchronization with other thread blocks. The algorithm is limited by available register resources so the hidden vector size cannot be very large, for example, up to 192 elements for LSTM/GRU cells and up to 384 elements for RELU/TANH cells in the forward pass. This algorithm could be surprisingly fast and it scales well with the number of available SMs for large batch sizes.
-    CUDNN_RNN_ALGO_PERSIST_STATIC_SMALL_H = 3,
+    pub const CUDNN_RNN_ALGO_PERSIST_STATIC_SMALL_H: cudnnRNNAlgo_t = cudnnRNNAlgo_t(3);
     /// Number of RNN algorithms.
     ///
     /// since: cuDNN 9.0.0
-    CUDNN_RNN_ALGO_COUNT = 4,
+    pub const CUDNN_RNN_ALGO_COUNT: cudnnRNNAlgo_t = cudnnRNNAlgo_t(4);
+}
+/// [`cudnnRNNAlgo_t`] is an enumerated type used to specify the algorithm.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudnnRNNAlgo_t(pub ::core::ffi::c_uint);
+impl cudnnForwardMode_t {
+    /// Selects the inference mode.
+    pub const CUDNN_FWD_MODE_INFERENCE: cudnnForwardMode_t = cudnnForwardMode_t(0);
+    /// Selects the training mode.
+    pub const CUDNN_FWD_MODE_TRAINING: cudnnForwardMode_t = cudnnForwardMode_t(1);
 }
 /// [`cudnnForwardMode_t`] is an enumerated type to specify inference or training mode in RNN API. This parameter allows the cuDNN library to tune more precisely the size of the workspace buffer that could be different in inference and training regimens.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudnnForwardMode_t {
-    /// Selects the inference mode.
-    CUDNN_FWD_MODE_INFERENCE = 0,
-    /// Selects the training mode.
-    CUDNN_FWD_MODE_TRAINING = 1,
-}
-/// [`cudnnRNNMode_t`] is an enumerated type used to specify the type of network.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudnnRNNMode_t {
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudnnForwardMode_t(pub ::core::ffi::c_uint);
+impl cudnnRNNMode_t {
     /// A single-gate recurrent neural network with a ReLU activation function.
     ///
     /// In the forward pass, the output h t for a given iteration can be computed from the recurrent input h t-1 and the previous layer input x t, given the matrices `W`, `R`, the bias vectors, and where `ReLU(x) = max(x, 0)`.
@@ -8160,7 +8941,7 @@ pub enum cudnnRNNMode_t {
     /// If `cudnnRNNBiasMode_t biasMode` in `rnnDesc` is [`cudnnRNNBiasMode_t::CUDNN_RNN_NO_BIAS`], then the following equation applies:
     ///
     /// h t = ReLU(W i x t + R i h t-1).
-    CUDNN_RNN_RELU = 0,
+    pub const CUDNN_RNN_RELU: cudnnRNNMode_t = cudnnRNNMode_t(0);
     /// A single-gate recurrent neural network with a `tanh` activation function.
     ///
     /// In the forward pass, the output h t for a given iteration can be computed from the recurrent input h t-1 and the previous layer input x t, given the matrices `W`, `R` the bias vectors, and where `tanh` is the hyperbolic tangent function.
@@ -8176,7 +8957,7 @@ pub enum cudnnRNNMode_t {
     /// If `cudnnRNNBiasMode_t biasMode` in `rnnDesc` is [`cudnnRNNBiasMode_t::CUDNN_RNN_NO_BIAS`], then the following equation applies:
     ///
     /// h t = tanh(W i x t + R i h t-1).
-    CUDNN_RNN_TANH = 1,
+    pub const CUDNN_RNN_TANH: cudnnRNNMode_t = cudnnRNNMode_t(1);
     /// A four-gate LSTM (Long Short-Term Memory) network with no peephole connections.
     ///
     /// In the forward pass, the output h t and cell output c t for a given iteration can be computed from the recurrent input h t-1, the cell input c t-1 and the previous layer input x t, given the matrices `W`, `R`, and the bias vectors. In addition, the following applies:
@@ -8227,7 +9008,7 @@ pub enum cudnnRNNMode_t {
     /// c t = f t ◦ c t-1 + i t ◦ c’ t
     ///
     /// h t = o t ◦ tanh(c t).
-    CUDNN_LSTM = 2,
+    pub const CUDNN_LSTM: cudnnRNNMode_t = cudnnRNNMode_t(2);
     /// A three-gate network consisting of Gated Recurrent Units (GRU).
     ///
     /// In the forward pass, the output h t for a given iteration can be computed from the recurrent input h t-1 and the previous layer input x t given matrices `W`, `R`, and the bias vectors. In addition, the following applies:
@@ -8276,114 +9057,74 @@ pub enum cudnnRNNMode_t {
     /// h’ t = tanh(W h x t + rt ◦ (R h h t-1))
     ///
     /// h t = (1 - i t) ◦ h’ t + i t ◦ h t-1.
-    CUDNN_GRU = 3,
+    pub const CUDNN_GRU: cudnnRNNMode_t = cudnnRNNMode_t(3);
+}
+/// [`cudnnRNNMode_t`] is an enumerated type used to specify the type of network.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudnnRNNMode_t(pub ::core::ffi::c_uint);
+impl cudnnRNNBiasMode_t {
+    /// Applies RNN cell formulas that do not use biases.
+    pub const CUDNN_RNN_NO_BIAS: cudnnRNNBiasMode_t = cudnnRNNBiasMode_t(0);
+    /// Applies RNN cell formulas that use one input bias vector in the input GEMM.
+    pub const CUDNN_RNN_SINGLE_INP_BIAS: cudnnRNNBiasMode_t = cudnnRNNBiasMode_t(1);
+    /// Applies RNN cell formulas that use two bias vectors.
+    pub const CUDNN_RNN_DOUBLE_BIAS: cudnnRNNBiasMode_t = cudnnRNNBiasMode_t(2);
+    /// Applies RNN cell formulas that use one recurrent bias vector in the recurrent GEMM.
+    pub const CUDNN_RNN_SINGLE_REC_BIAS: cudnnRNNBiasMode_t = cudnnRNNBiasMode_t(3);
 }
 /// [`cudnnRNNBiasMode_t`] is an enumerated type used to specify the number of bias vectors for RNN functions. Refer to the description of the [`cudnnRNNMode_t`] enumerated type for the equations for each cell type based on the bias mode.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudnnRNNBiasMode_t {
-    /// Applies RNN cell formulas that do not use biases.
-    CUDNN_RNN_NO_BIAS = 0,
-    /// Applies RNN cell formulas that use one input bias vector in the input GEMM.
-    CUDNN_RNN_SINGLE_INP_BIAS = 1,
-    /// Applies RNN cell formulas that use two bias vectors.
-    CUDNN_RNN_DOUBLE_BIAS = 2,
-    /// Applies RNN cell formulas that use one recurrent bias vector in the recurrent GEMM.
-    CUDNN_RNN_SINGLE_REC_BIAS = 3,
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudnnRNNBiasMode_t(pub ::core::ffi::c_uint);
+impl cudnnDirectionMode_t {
+    /// The network iterates recurrently from the first input to the last.
+    pub const CUDNN_UNIDIRECTIONAL: cudnnDirectionMode_t = cudnnDirectionMode_t(0);
+    /// Each layer of the network iterates recurrently from the first input to the last and separately from the last input to the first. The outputs of the two are concatenated at each iteration giving the output of the layer.
+    pub const CUDNN_BIDIRECTIONAL: cudnnDirectionMode_t = cudnnDirectionMode_t(1);
 }
 /// [`cudnnDirectionMode_t`] is an enumerated type used to specify the recurrence pattern.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudnnDirectionMode_t {
-    /// The network iterates recurrently from the first input to the last.
-    CUDNN_UNIDIRECTIONAL = 0,
-    /// Each layer of the network iterates recurrently from the first input to the last and separately from the last input to the first. The outputs of the two are concatenated at each iteration giving the output of the layer.
-    CUDNN_BIDIRECTIONAL = 1,
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudnnDirectionMode_t(pub ::core::ffi::c_uint);
+impl cudnnRNNInputMode_t {
+    /// A biased matrix multiplication is performed at the input of the first recurrent layer.
+    pub const CUDNN_LINEAR_INPUT: cudnnRNNInputMode_t = cudnnRNNInputMode_t(0);
+    /// No operation is performed at the input of the first recurrent layer. If [`cudnnRNNInputMode_t::CUDNN_SKIP_INPUT`] is used the leading dimension of the input tensor must be equal to the hidden state size of the network.
+    pub const CUDNN_SKIP_INPUT: cudnnRNNInputMode_t = cudnnRNNInputMode_t(1);
 }
 /// [`cudnnRNNInputMode_t`] is an enumerated type used to specify the behavior of the first layer.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudnnRNNInputMode_t {
-    /// A biased matrix multiplication is performed at the input of the first recurrent layer.
-    CUDNN_LINEAR_INPUT = 0,
-    /// No operation is performed at the input of the first recurrent layer. If [`cudnnRNNInputMode_t::CUDNN_SKIP_INPUT`] is used the leading dimension of the input tensor must be equal to the hidden state size of the network.
-    CUDNN_SKIP_INPUT = 1,
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudnnRNNInputMode_t(pub ::core::ffi::c_uint);
+impl cudnnRNNClipMode_t {
+    /// Disables LSTM cell clipping.
+    pub const CUDNN_RNN_CLIP_NONE: cudnnRNNClipMode_t = cudnnRNNClipMode_t(0);
+    /// Enables LSTM cell clipping.
+    pub const CUDNN_RNN_CLIP_MINMAX: cudnnRNNClipMode_t = cudnnRNNClipMode_t(1);
 }
 /// [`cudnnRNNClipMode_t`] is an enumerated type used to select the LSTM cell clipping mode.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudnnRNNClipMode_t {
-    /// Disables LSTM cell clipping.
-    CUDNN_RNN_CLIP_NONE = 0,
-    /// Enables LSTM cell clipping.
-    CUDNN_RNN_CLIP_MINMAX = 1,
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudnnRNNClipMode_t(pub ::core::ffi::c_uint);
+impl cudnnRNNDataLayout_t {
+    /// Data layout is padded, with outer stride from one time-step to the next.
+    pub const CUDNN_RNN_DATA_LAYOUT_SEQ_MAJOR_UNPACKED: cudnnRNNDataLayout_t = cudnnRNNDataLayout_t(
+        0,
+    );
+    /// The sequence length is sorted and packed as in the basic RNN API.
+    pub const CUDNN_RNN_DATA_LAYOUT_SEQ_MAJOR_PACKED: cudnnRNNDataLayout_t = cudnnRNNDataLayout_t(
+        1,
+    );
+    /// Data layout is padded, with outer stride from one batch to the next.
+    pub const CUDNN_RNN_DATA_LAYOUT_BATCH_MAJOR_UNPACKED: cudnnRNNDataLayout_t = cudnnRNNDataLayout_t(
+        2,
+    );
 }
 /// [`cudnnRNNDataLayout_t`] is an enumerated type used to select the RNN data layout. It is used in the API calls [`cudnnGetRNNDataDescriptor`] and [`cudnnSetRNNDataDescriptor`].
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudnnRNNDataLayout_t {
-    /// Data layout is padded, with outer stride from one time-step to the next.
-    CUDNN_RNN_DATA_LAYOUT_SEQ_MAJOR_UNPACKED = 0,
-    /// The sequence length is sorted and packed as in the basic RNN API.
-    CUDNN_RNN_DATA_LAYOUT_SEQ_MAJOR_PACKED = 1,
-    /// Data layout is padded, with outer stride from one batch to the next.
-    CUDNN_RNN_DATA_LAYOUT_BATCH_MAJOR_UNPACKED = 2,
-}
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudnnRNNDataLayout_t(pub ::core::ffi::c_uint);
 /// Opaque RNN descriptor.
 ///
 /// since: cuDNN 9.0.0
@@ -8959,34 +9700,24 @@ singe_loader::functions! { crate::LIBRARY;
         reserveSpace: *mut ::core::ffi::c_void,
     ) -> cudnnStatus_t;
 }
+impl cudnnSeqDataAxis_t {
+    /// Identifies the `TIME` (sequence length) dimension or specifies the `TIME` in the data layout.
+    pub const CUDNN_SEQDATA_TIME_DIM: cudnnSeqDataAxis_t = cudnnSeqDataAxis_t(0);
+    /// Identifies the `BATCH` dimension or specifies the `BATCH` in the data layout.
+    pub const CUDNN_SEQDATA_BATCH_DIM: cudnnSeqDataAxis_t = cudnnSeqDataAxis_t(1);
+    /// Identifies the `BEAM` dimension or specifies the `BEAM` in the data layout.
+    pub const CUDNN_SEQDATA_BEAM_DIM: cudnnSeqDataAxis_t = cudnnSeqDataAxis_t(2);
+    /// Identifies the `VECT` (vector) dimension or specifies the `VECT` in the data layout.
+    pub const CUDNN_SEQDATA_VECT_DIM: cudnnSeqDataAxis_t = cudnnSeqDataAxis_t(3);
+}
 /// [`cudnnSeqDataAxis_t`] is an enumerated type that indexes active dimensions in the `dimA[]` argument that is passed to the [`cudnnSetSeqDataDescriptor`] function to configure the sequence data descriptor of type [`cudnnSeqDataDescriptor_t`].
 ///
 /// [`cudnnSeqDataAxis_t`] constants are also used in the `axis[]` argument of the [`cudnnSetSeqDataDescriptor`] call to define the layout of the sequence data buffer in memory. Refer to [`cudnnSetSeqDataDescriptor`] for a detailed description on how to use the [`cudnnSeqDataAxis_t`] enumerated type.
 ///
 /// The [`CUDNN_SEQDATA_DIM_COUNT`] macro defines the number of constants in the [`cudnnSeqDataAxis_t`] enumerated type. This value is currently set to `4`.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudnnSeqDataAxis_t {
-    /// Identifies the `TIME` (sequence length) dimension or specifies the `TIME` in the data layout.
-    CUDNN_SEQDATA_TIME_DIM = 0,
-    /// Identifies the `BATCH` dimension or specifies the `BATCH` in the data layout.
-    CUDNN_SEQDATA_BATCH_DIM = 1,
-    /// Identifies the `BEAM` dimension or specifies the `BEAM` in the data layout.
-    CUDNN_SEQDATA_BEAM_DIM = 2,
-    /// Identifies the `VECT` (vector) dimension or specifies the `VECT` in the data layout.
-    CUDNN_SEQDATA_VECT_DIM = 3,
-}
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudnnSeqDataAxis_t(pub ::core::ffi::c_uint);
 /// Opaque sequence data descriptor.
 ///
 /// Deprecated: Since cuDNN 9.0.0.
@@ -9380,38 +10111,44 @@ singe_loader::functions! { crate::LIBRARY;
         reserveSpaceSizeInBytes: *mut size_t,
     ) -> cudnnStatus_t;
 }
-/// [`cudnnMultiHeadAttnWeightKind_t`] is an enumerated type that specifies a group of weights or biases in the [`cudnnGetMultiHeadAttnWeights`] function.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudnnMultiHeadAttnWeightKind_t {
+impl cudnnMultiHeadAttnWeightKind_t {
     /// Selects the input projection weights for `queries`.
-    CUDNN_MH_ATTN_Q_WEIGHTS = 0,
+    pub const CUDNN_MH_ATTN_Q_WEIGHTS: cudnnMultiHeadAttnWeightKind_t = cudnnMultiHeadAttnWeightKind_t(
+        0,
+    );
     /// Selects the input projection weights for `keys`.
-    CUDNN_MH_ATTN_K_WEIGHTS = 1,
+    pub const CUDNN_MH_ATTN_K_WEIGHTS: cudnnMultiHeadAttnWeightKind_t = cudnnMultiHeadAttnWeightKind_t(
+        1,
+    );
     /// Selects the input projection weights for `values`.
-    CUDNN_MH_ATTN_V_WEIGHTS = 2,
+    pub const CUDNN_MH_ATTN_V_WEIGHTS: cudnnMultiHeadAttnWeightKind_t = cudnnMultiHeadAttnWeightKind_t(
+        2,
+    );
     /// Selects the output projection weights.
-    CUDNN_MH_ATTN_O_WEIGHTS = 3,
+    pub const CUDNN_MH_ATTN_O_WEIGHTS: cudnnMultiHeadAttnWeightKind_t = cudnnMultiHeadAttnWeightKind_t(
+        3,
+    );
     /// Selects the input projection biases for `queries`.
-    CUDNN_MH_ATTN_Q_BIASES = 4,
+    pub const CUDNN_MH_ATTN_Q_BIASES: cudnnMultiHeadAttnWeightKind_t = cudnnMultiHeadAttnWeightKind_t(
+        4,
+    );
     /// Selects the input projection biases for `keys`.
-    CUDNN_MH_ATTN_K_BIASES = 5,
+    pub const CUDNN_MH_ATTN_K_BIASES: cudnnMultiHeadAttnWeightKind_t = cudnnMultiHeadAttnWeightKind_t(
+        5,
+    );
     /// Selects the input projection biases for `values`.
-    CUDNN_MH_ATTN_V_BIASES = 6,
+    pub const CUDNN_MH_ATTN_V_BIASES: cudnnMultiHeadAttnWeightKind_t = cudnnMultiHeadAttnWeightKind_t(
+        6,
+    );
     /// Selects the output projection biases.
-    CUDNN_MH_ATTN_O_BIASES = 7,
+    pub const CUDNN_MH_ATTN_O_BIASES: cudnnMultiHeadAttnWeightKind_t = cudnnMultiHeadAttnWeightKind_t(
+        7,
+    );
 }
+/// [`cudnnMultiHeadAttnWeightKind_t`] is an enumerated type that specifies a group of weights or biases in the [`cudnnGetMultiHeadAttnWeights`] function.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudnnMultiHeadAttnWeightKind_t(pub ::core::ffi::c_uint);
 singe_loader::functions! { crate::LIBRARY;
     /// This function obtains the shape of the weight or bias tensor. It also retrieves the start address of tensor data located in the `weight` buffer. Use the `wKind` argument to select a particular tensor. For more information, refer to [`cudnnMultiHeadAttnWeightKind_t`] for the description of the enumerant type.
     ///
@@ -9541,26 +10278,16 @@ singe_loader::functions! { crate::LIBRARY;
     /// - [`cudnnStatus_t::CUDNN_STATUS_SUCCESS`]: The version check passed.
     pub fn cudnnAdvVersionCheck() -> cudnnStatus_t;
 }
-/// [`cudnnWgradMode_t`] is an enumerated type that selects how buffers holding gradients of the loss function, computed with respect to trainable parameters, are updated. Currently, this type is used by the [`cudnnMultiHeadAttnBackwardWeights`] and [`cudnnRNNBackwardWeights_v8`] functions only.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudnnWgradMode_t {
+impl cudnnWgradMode_t {
     /// A weight gradient component corresponding to a new batch of inputs is added to previously evaluated weight gradients. Before using this mode, the buffer holding weight gradients should be initialized to zero. Alternatively, the first API call outputting to an uninitialized buffer should use the [`cudnnWgradMode_t::CUDNN_WGRAD_MODE_SET`] option.
-    CUDNN_WGRAD_MODE_ADD = 0,
+    pub const CUDNN_WGRAD_MODE_ADD: cudnnWgradMode_t = cudnnWgradMode_t(0);
     /// A weight gradient component, corresponding to a new batch of inputs, overwrites previously stored weight gradients in the output buffer.
-    CUDNN_WGRAD_MODE_SET = 1,
+    pub const CUDNN_WGRAD_MODE_SET: cudnnWgradMode_t = cudnnWgradMode_t(1);
 }
+/// [`cudnnWgradMode_t`] is an enumerated type that selects how buffers holding gradients of the loss function, computed with respect to trainable parameters, are updated. Currently, this type is used by the [`cudnnMultiHeadAttnBackwardWeights`] and [`cudnnRNNBackwardWeights_v8`] functions only.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudnnWgradMode_t(pub ::core::ffi::c_uint);
 singe_loader::functions! { crate::LIBRARY;
     /// This function computes exact, first-order derivatives of the RNN model with respect to its inputs: `x`, `hx` and for the LSTM cell type also `cx`. If `o = \[y, hy, cy\] = F(x, hx, cx) = F(z)` is a vector-valued function that represents the entire RNN model and it takes vectors `x` (for all time-steps) and vectors `hx`, `cx` (for all layers) as inputs, concatenated into $\textbf{z}\epsilon\mathbb{R}^{n}$ (network weights and biases are assumed constant), and outputs vectors `y`, `hy`, `cy` concatenated into a vector $\textbf{o}\epsilon\mathbb{R}^{m}$, then [`cudnnRNNBackwardData_v8`] computes the result of $\left(\partial o_{i}/\partial z_{j}\right)^{T} \delta_{out}$ where $\delta_{out}$ is the `mx1` gradient of the loss function with respect to all RNN outputs. The $\delta_{out}$ gradient is back propagated through prior layers of the deep learning model, starting from the model output. $\partial o_{i}/\partial z_{j}$ is the `mxn` Jacobian matrix of `F(z)`. The $\delta_{out}$ input is supplied via the `dy`, `dhy`, and `dcy` arguments and gradient results $\left(\partial o_{i}/\partial z_{j}\right)^{T} \delta_{out}$ are written to the `dx`, `dhx`, and `dcx` buffers.
     ///
@@ -9849,26 +10576,20 @@ singe_loader::functions! { crate::LIBRARY;
         reserveSpace: *mut ::core::ffi::c_void,
     ) -> cudnnStatus_t;
 }
-/// [`cudnnLossNormalizationMode_t`] is an enumerated type that controls the input normalization mode for a loss function. This type can be used with [`cudnnSetCTCLossDescriptorEx`].
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudnnLossNormalizationMode_t {
+impl cudnnLossNormalizationMode_t {
     /// The input probs of the [`cudnnCTCLoss`] function is expected to be the normalized probability, and the output `gradients` is the gradient of loss with respect to the unnormalized probability.
-    CUDNN_LOSS_NORMALIZATION_NONE = 0,
+    pub const CUDNN_LOSS_NORMALIZATION_NONE: cudnnLossNormalizationMode_t = cudnnLossNormalizationMode_t(
+        0,
+    );
     /// The input probs of the [`cudnnCTCLoss`] function is expected to be the unnormalized activation from the previous layer, and the output `gradients` is the gradient with respect to the activation. Internally the probability is computed by softmax normalization.
-    CUDNN_LOSS_NORMALIZATION_SOFTMAX = 1,
+    pub const CUDNN_LOSS_NORMALIZATION_SOFTMAX: cudnnLossNormalizationMode_t = cudnnLossNormalizationMode_t(
+        1,
+    );
 }
+/// [`cudnnLossNormalizationMode_t`] is an enumerated type that controls the input normalization mode for a loss function. This type can be used with [`cudnnSetCTCLossDescriptorEx`].
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudnnLossNormalizationMode_t(pub ::core::ffi::c_uint);
 singe_loader::functions! { crate::LIBRARY;
     /// This function creates a CTC loss function descriptor.
     ///
@@ -10260,6 +10981,7 @@ pub type cudnnConvolutionDescriptor_t = *mut cudnnConvolutionStruct;
 /// Deprecated: Since cuDNN 9.0.0. Use graph API instead.
 ///
 /// since: cuDNN 9.0.0
+#[deprecated]
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialOrd, PartialEq)]
 pub struct cudnnConvolutionFwdAlgoPerfStruct {
@@ -11035,6 +11757,7 @@ singe_loader::functions! { crate::LIBRARY;
 /// Deprecated: Since cuDNN 9.0.0. Use graph API instead.
 ///
 /// since: cuDNN 9.0.0
+#[deprecated]
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialOrd, PartialEq)]
 pub struct cudnnConvolutionBwdDataAlgoPerfStruct {
@@ -11410,38 +12133,239 @@ pub struct cudnnFusedOpsPlanStruct {
 /// [`cudnnFusedOpsPlan_t`] is a pointer to an opaque structure holding the description of the `cudnnFusedOpsPlan`. This descriptor contains the plan information, including the problem type and size, which kernels should be run, and the internal workspace partition. Use the function [`cudnnCreateFusedOpsPlan`] to create one instance of this structure, and the function [`cudnnDestroyFusedOpsPlan`] to destroy a previously-created descriptor.
 #[deprecated]
 pub type cudnnFusedOpsPlan_t = *mut cudnnFusedOpsPlanStruct;
+impl cudnnFusedOps_t {
+    /// Fused scale, bias, activation, convolution, and optional BN stats generation.
+    pub const CUDNN_FUSED_SCALE_BIAS_ACTIVATION_CONV_BNSTATS: cudnnFusedOps_t = cudnnFusedOps_t(
+        0,
+    );
+    /// Fused scale, bias, activation, and backward weight convolution.
+    pub const CUDNN_FUSED_SCALE_BIAS_ACTIVATION_WGRAD: cudnnFusedOps_t = cudnnFusedOps_t(
+        1,
+    );
+    /// Finalize batch normalization statistics for training.
+    pub const CUDNN_FUSED_BN_FINALIZE_STATISTICS_TRAINING: cudnnFusedOps_t = cudnnFusedOps_t(
+        2,
+    );
+    /// Finalize batch normalization statistics for inference.
+    pub const CUDNN_FUSED_BN_FINALIZE_STATISTICS_INFERENCE: cudnnFusedOps_t = cudnnFusedOps_t(
+        3,
+    );
+    /// Fused convolution, scale, bias, residual add, and activation.
+    pub const CUDNN_FUSED_CONV_SCALE_BIAS_ADD_ACTIVATION: cudnnFusedOps_t = cudnnFusedOps_t(
+        4,
+    );
+    /// Fused scale, bias, residual add, activation, and bitmask generation.
+    pub const CUDNN_FUSED_SCALE_BIAS_ADD_ACTIVATION_GEN_BITMASK: cudnnFusedOps_t = cudnnFusedOps_t(
+        5,
+    );
+    /// Fused backward activation fork and backward batch normalization.
+    pub const CUDNN_FUSED_DACTIVATION_FORK_DBATCHNORM: cudnnFusedOps_t = cudnnFusedOps_t(
+        6,
+    );
+}
 /// The [`cudnnFusedOps_t`] type is an enumerated type to select a specific sequence of computations to perform in the fused operations.
 ///
 /// **Members and Descriptions**.
 #[deprecated]
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudnnFusedOps_t {
-    /// Fused scale, bias, activation, convolution, and optional BN stats generation.
-    CUDNN_FUSED_SCALE_BIAS_ACTIVATION_CONV_BNSTATS = 0,
-    /// Fused scale, bias, activation, and backward weight convolution.
-    CUDNN_FUSED_SCALE_BIAS_ACTIVATION_WGRAD = 1,
-    /// Finalize batch normalization statistics for training.
-    CUDNN_FUSED_BN_FINALIZE_STATISTICS_TRAINING = 2,
-    /// Finalize batch normalization statistics for inference.
-    CUDNN_FUSED_BN_FINALIZE_STATISTICS_INFERENCE = 3,
-    /// Fused convolution, scale, bias, residual add, and activation.
-    CUDNN_FUSED_CONV_SCALE_BIAS_ADD_ACTIVATION = 4,
-    /// Fused scale, bias, residual add, activation, and bitmask generation.
-    CUDNN_FUSED_SCALE_BIAS_ADD_ACTIVATION_GEN_BITMASK = 5,
-    /// Fused backward activation fork and backward batch normalization.
-    CUDNN_FUSED_DACTIVATION_FORK_DBATCHNORM = 6,
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudnnFusedOps_t(pub ::core::ffi::c_uint);
+impl cudnnFusedOpsConstParamLabel_t {
+    /// Input tensor descriptor (X).
+    #[deprecated]
+    pub const CUDNN_PARAM_XDESC: cudnnFusedOpsConstParamLabel_t = cudnnFusedOpsConstParamLabel_t(
+        0,
+    );
+    /// Placeholder for input data pointer alignment (X).
+    #[deprecated]
+    pub const CUDNN_PARAM_XDATA_PLACEHOLDER: cudnnFusedOpsConstParamLabel_t = cudnnFusedOpsConstParamLabel_t(
+        1,
+    );
+    /// Batch normalization mode.
+    #[deprecated]
+    pub const CUDNN_PARAM_BN_MODE: cudnnFusedOpsConstParamLabel_t = cudnnFusedOpsConstParamLabel_t(
+        2,
+    );
+    /// Equivalent scale/bias descriptor for BN fusion.
+    #[deprecated]
+    pub const CUDNN_PARAM_BN_EQSCALEBIAS_DESC: cudnnFusedOpsConstParamLabel_t = cudnnFusedOpsConstParamLabel_t(
+        3,
+    );
+    /// Placeholder for BN equivalent scale pointer alignment.
+    #[deprecated]
+    pub const CUDNN_PARAM_BN_EQSCALE_PLACEHOLDER: cudnnFusedOpsConstParamLabel_t = cudnnFusedOpsConstParamLabel_t(
+        4,
+    );
+    /// Placeholder for BN equivalent bias pointer alignment.
+    #[deprecated]
+    pub const CUDNN_PARAM_BN_EQBIAS_PLACEHOLDER: cudnnFusedOpsConstParamLabel_t = cudnnFusedOpsConstParamLabel_t(
+        5,
+    );
+    /// Activation descriptor.
+    #[deprecated]
+    pub const CUDNN_PARAM_ACTIVATION_DESC: cudnnFusedOpsConstParamLabel_t = cudnnFusedOpsConstParamLabel_t(
+        6,
+    );
+    /// Convolution descriptor.
+    #[deprecated]
+    pub const CUDNN_PARAM_CONV_DESC: cudnnFusedOpsConstParamLabel_t = cudnnFusedOpsConstParamLabel_t(
+        7,
+    );
+    /// Filter descriptor (W).
+    #[deprecated]
+    pub const CUDNN_PARAM_WDESC: cudnnFusedOpsConstParamLabel_t = cudnnFusedOpsConstParamLabel_t(
+        8,
+    );
+    /// Placeholder for filter data pointer alignment (W).
+    #[deprecated]
+    pub const CUDNN_PARAM_WDATA_PLACEHOLDER: cudnnFusedOpsConstParamLabel_t = cudnnFusedOpsConstParamLabel_t(
+        9,
+    );
+    /// Filter gradient descriptor (dW).
+    #[deprecated]
+    pub const CUDNN_PARAM_DWDESC: cudnnFusedOpsConstParamLabel_t = cudnnFusedOpsConstParamLabel_t(
+        10,
+    );
+    /// Placeholder for filter gradient data pointer alignment (dW).
+    #[deprecated]
+    pub const CUDNN_PARAM_DWDATA_PLACEHOLDER: cudnnFusedOpsConstParamLabel_t = cudnnFusedOpsConstParamLabel_t(
+        11,
+    );
+    /// Output tensor descriptor (Y).
+    #[deprecated]
+    pub const CUDNN_PARAM_YDESC: cudnnFusedOpsConstParamLabel_t = cudnnFusedOpsConstParamLabel_t(
+        12,
+    );
+    /// Placeholder for output data pointer alignment (Y).
+    #[deprecated]
+    pub const CUDNN_PARAM_YDATA_PLACEHOLDER: cudnnFusedOpsConstParamLabel_t = cudnnFusedOpsConstParamLabel_t(
+        13,
+    );
+    /// Output gradient tensor descriptor (dY).
+    #[deprecated]
+    pub const CUDNN_PARAM_DYDESC: cudnnFusedOpsConstParamLabel_t = cudnnFusedOpsConstParamLabel_t(
+        14,
+    );
+    /// Placeholder for output gradient data pointer alignment (dY).
+    #[deprecated]
+    pub const CUDNN_PARAM_DYDATA_PLACEHOLDER: cudnnFusedOpsConstParamLabel_t = cudnnFusedOpsConstParamLabel_t(
+        15,
+    );
+    /// Output statistics tensor descriptor.
+    #[deprecated]
+    pub const CUDNN_PARAM_YSTATS_DESC: cudnnFusedOpsConstParamLabel_t = cudnnFusedOpsConstParamLabel_t(
+        16,
+    );
+    /// Placeholder for Y sum pointer alignment.
+    #[deprecated]
+    pub const CUDNN_PARAM_YSUM_PLACEHOLDER: cudnnFusedOpsConstParamLabel_t = cudnnFusedOpsConstParamLabel_t(
+        17,
+    );
+    /// Placeholder for Y squared sum pointer alignment.
+    #[deprecated]
+    pub const CUDNN_PARAM_YSQSUM_PLACEHOLDER: cudnnFusedOpsConstParamLabel_t = cudnnFusedOpsConstParamLabel_t(
+        18,
+    );
+    /// BN scale/bias/mean/variance tensor descriptor.
+    #[deprecated]
+    pub const CUDNN_PARAM_BN_SCALEBIAS_MEANVAR_DESC: cudnnFusedOpsConstParamLabel_t = cudnnFusedOpsConstParamLabel_t(
+        19,
+    );
+    /// Placeholder for BN scale pointer alignment.
+    #[deprecated]
+    pub const CUDNN_PARAM_BN_SCALE_PLACEHOLDER: cudnnFusedOpsConstParamLabel_t = cudnnFusedOpsConstParamLabel_t(
+        20,
+    );
+    /// Placeholder for BN bias pointer alignment.
+    #[deprecated]
+    pub const CUDNN_PARAM_BN_BIAS_PLACEHOLDER: cudnnFusedOpsConstParamLabel_t = cudnnFusedOpsConstParamLabel_t(
+        21,
+    );
+    /// Placeholder for BN saved mean pointer alignment.
+    #[deprecated]
+    pub const CUDNN_PARAM_BN_SAVED_MEAN_PLACEHOLDER: cudnnFusedOpsConstParamLabel_t = cudnnFusedOpsConstParamLabel_t(
+        22,
+    );
+    /// Placeholder for BN saved inverse standard deviation pointer alignment.
+    #[deprecated]
+    pub const CUDNN_PARAM_BN_SAVED_INVSTD_PLACEHOLDER: cudnnFusedOpsConstParamLabel_t = cudnnFusedOpsConstParamLabel_t(
+        23,
+    );
+    /// Placeholder for BN running mean pointer alignment.
+    #[deprecated]
+    pub const CUDNN_PARAM_BN_RUNNING_MEAN_PLACEHOLDER: cudnnFusedOpsConstParamLabel_t = cudnnFusedOpsConstParamLabel_t(
+        24,
+    );
+    /// Placeholder for BN running variance pointer alignment.
+    #[deprecated]
+    pub const CUDNN_PARAM_BN_RUNNING_VAR_PLACEHOLDER: cudnnFusedOpsConstParamLabel_t = cudnnFusedOpsConstParamLabel_t(
+        25,
+    );
+    /// Residual input tensor descriptor (Z).
+    #[deprecated]
+    pub const CUDNN_PARAM_ZDESC: cudnnFusedOpsConstParamLabel_t = cudnnFusedOpsConstParamLabel_t(
+        26,
+    );
+    /// In the setter, the `*param` should be a pointer to a previously initialized `X_PointerPlaceHolder_t*`.
+    #[deprecated]
+    pub const CUDNN_PARAM_ZDATA_PLACEHOLDER: cudnnFusedOpsConstParamLabel_t = cudnnFusedOpsConstParamLabel_t(
+        27,
+    );
+    /// In the setter, the `*param` should be a pointer to a previously initialized cudnnTensorDescriptor_t*(cudnn-ops-library.md#cudnntensordescriptor-t).
+    #[deprecated]
+    pub const CUDNN_PARAM_BN_Z_EQSCALEBIAS_DESC: cudnnFusedOpsConstParamLabel_t = cudnnFusedOpsConstParamLabel_t(
+        28,
+    );
+    /// In the setter, the `*param` should be a pointer to a previously initialized `X_PointerPlaceHolder_t*`.
+    #[deprecated]
+    pub const CUDNN_PARAM_BN_Z_EQSCALE_PLACEHOLDER: cudnnFusedOpsConstParamLabel_t = cudnnFusedOpsConstParamLabel_t(
+        29,
+    );
+    /// Placeholder for BN Z-branch equivalent bias pointer alignment.
+    #[deprecated]
+    pub const CUDNN_PARAM_BN_Z_EQBIAS_PLACEHOLDER: cudnnFusedOpsConstParamLabel_t = cudnnFusedOpsConstParamLabel_t(
+        30,
+    );
+    /// Activation bitmask tensor descriptor.
+    #[deprecated]
+    pub const CUDNN_PARAM_ACTIVATION_BITMASK_DESC: cudnnFusedOpsConstParamLabel_t = cudnnFusedOpsConstParamLabel_t(
+        31,
+    );
+    /// Placeholder for activation bitmask pointer alignment.
+    #[deprecated]
+    pub const CUDNN_PARAM_ACTIVATION_BITMASK_PLACEHOLDER: cudnnFusedOpsConstParamLabel_t = cudnnFusedOpsConstParamLabel_t(
+        32,
+    );
+    /// Input gradient tensor descriptor (dX).
+    #[deprecated]
+    pub const CUDNN_PARAM_DXDESC: cudnnFusedOpsConstParamLabel_t = cudnnFusedOpsConstParamLabel_t(
+        33,
+    );
+    /// Placeholder for input gradient data pointer alignment (dX).
+    #[deprecated]
+    pub const CUDNN_PARAM_DXDATA_PLACEHOLDER: cudnnFusedOpsConstParamLabel_t = cudnnFusedOpsConstParamLabel_t(
+        34,
+    );
+    /// Residual input gradient tensor descriptor (dZ).
+    #[deprecated]
+    pub const CUDNN_PARAM_DZDESC: cudnnFusedOpsConstParamLabel_t = cudnnFusedOpsConstParamLabel_t(
+        35,
+    );
+    /// Placeholder for residual input gradient data pointer alignment (dZ).
+    #[deprecated]
+    pub const CUDNN_PARAM_DZDATA_PLACEHOLDER: cudnnFusedOpsConstParamLabel_t = cudnnFusedOpsConstParamLabel_t(
+        36,
+    );
+    /// Placeholder for BN scale gradient pointer alignment.
+    #[deprecated]
+    pub const CUDNN_PARAM_BN_DSCALE_PLACEHOLDER: cudnnFusedOpsConstParamLabel_t = cudnnFusedOpsConstParamLabel_t(
+        37,
+    );
+    /// Placeholder for BN bias gradient pointer alignment.
+    #[deprecated]
+    pub const CUDNN_PARAM_BN_DBIAS_PLACEHOLDER: cudnnFusedOpsConstParamLabel_t = cudnnFusedOpsConstParamLabel_t(
+        38,
+    );
 }
 /// The [`cudnnFusedOpsConstParamLabel_t`] is an enumerated type for the selection of the type of the `cudnnFusedOps` descriptor. For more information, refer to [`cudnnSetFusedOpsConstParamPackAttribute`].
 ///
@@ -11451,264 +12375,177 @@ pub enum cudnnFusedOps_t {
 ///
 /// The following operation performs the computation, where $\\*$ denotes convolution operator: $y=\alpha_{1}\left( w\\*x \right)+\alpha_{2}z+b$.
 #[deprecated]
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudnnFusedOpsConstParamLabel_t {
-    /// Input tensor descriptor (X).
-    #[deprecated]
-    CUDNN_PARAM_XDESC = 0,
-    /// Placeholder for input data pointer alignment (X).
-    #[deprecated]
-    CUDNN_PARAM_XDATA_PLACEHOLDER = 1,
-    /// Batch normalization mode.
-    #[deprecated]
-    CUDNN_PARAM_BN_MODE = 2,
-    /// Equivalent scale/bias descriptor for BN fusion.
-    #[deprecated]
-    CUDNN_PARAM_BN_EQSCALEBIAS_DESC = 3,
-    /// Placeholder for BN equivalent scale pointer alignment.
-    #[deprecated]
-    CUDNN_PARAM_BN_EQSCALE_PLACEHOLDER = 4,
-    /// Placeholder for BN equivalent bias pointer alignment.
-    #[deprecated]
-    CUDNN_PARAM_BN_EQBIAS_PLACEHOLDER = 5,
-    /// Activation descriptor.
-    #[deprecated]
-    CUDNN_PARAM_ACTIVATION_DESC = 6,
-    /// Convolution descriptor.
-    #[deprecated]
-    CUDNN_PARAM_CONV_DESC = 7,
-    /// Filter descriptor (W).
-    #[deprecated]
-    CUDNN_PARAM_WDESC = 8,
-    /// Placeholder for filter data pointer alignment (W).
-    #[deprecated]
-    CUDNN_PARAM_WDATA_PLACEHOLDER = 9,
-    /// Filter gradient descriptor (dW).
-    #[deprecated]
-    CUDNN_PARAM_DWDESC = 10,
-    /// Placeholder for filter gradient data pointer alignment (dW).
-    #[deprecated]
-    CUDNN_PARAM_DWDATA_PLACEHOLDER = 11,
-    /// Output tensor descriptor (Y).
-    #[deprecated]
-    CUDNN_PARAM_YDESC = 12,
-    /// Placeholder for output data pointer alignment (Y).
-    #[deprecated]
-    CUDNN_PARAM_YDATA_PLACEHOLDER = 13,
-    /// Output gradient tensor descriptor (dY).
-    #[deprecated]
-    CUDNN_PARAM_DYDESC = 14,
-    /// Placeholder for output gradient data pointer alignment (dY).
-    #[deprecated]
-    CUDNN_PARAM_DYDATA_PLACEHOLDER = 15,
-    /// Output statistics tensor descriptor.
-    #[deprecated]
-    CUDNN_PARAM_YSTATS_DESC = 16,
-    /// Placeholder for Y sum pointer alignment.
-    #[deprecated]
-    CUDNN_PARAM_YSUM_PLACEHOLDER = 17,
-    /// Placeholder for Y squared sum pointer alignment.
-    #[deprecated]
-    CUDNN_PARAM_YSQSUM_PLACEHOLDER = 18,
-    /// BN scale/bias/mean/variance tensor descriptor.
-    #[deprecated]
-    CUDNN_PARAM_BN_SCALEBIAS_MEANVAR_DESC = 19,
-    /// Placeholder for BN scale pointer alignment.
-    #[deprecated]
-    CUDNN_PARAM_BN_SCALE_PLACEHOLDER = 20,
-    /// Placeholder for BN bias pointer alignment.
-    #[deprecated]
-    CUDNN_PARAM_BN_BIAS_PLACEHOLDER = 21,
-    /// Placeholder for BN saved mean pointer alignment.
-    #[deprecated]
-    CUDNN_PARAM_BN_SAVED_MEAN_PLACEHOLDER = 22,
-    /// Placeholder for BN saved inverse standard deviation pointer alignment.
-    #[deprecated]
-    CUDNN_PARAM_BN_SAVED_INVSTD_PLACEHOLDER = 23,
-    /// Placeholder for BN running mean pointer alignment.
-    #[deprecated]
-    CUDNN_PARAM_BN_RUNNING_MEAN_PLACEHOLDER = 24,
-    /// Placeholder for BN running variance pointer alignment.
-    #[deprecated]
-    CUDNN_PARAM_BN_RUNNING_VAR_PLACEHOLDER = 25,
-    /// Residual input tensor descriptor (Z).
-    #[deprecated]
-    CUDNN_PARAM_ZDESC = 26,
-    /// In the setter, the `*param` should be a pointer to a previously initialized `X_PointerPlaceHolder_t*`.
-    #[deprecated]
-    CUDNN_PARAM_ZDATA_PLACEHOLDER = 27,
-    /// In the setter, the `*param` should be a pointer to a previously initialized cudnnTensorDescriptor_t*(cudnn-ops-library.md#cudnntensordescriptor-t).
-    #[deprecated]
-    CUDNN_PARAM_BN_Z_EQSCALEBIAS_DESC = 28,
-    /// In the setter, the `*param` should be a pointer to a previously initialized `X_PointerPlaceHolder_t*`.
-    #[deprecated]
-    CUDNN_PARAM_BN_Z_EQSCALE_PLACEHOLDER = 29,
-    /// Placeholder for BN Z-branch equivalent bias pointer alignment.
-    #[deprecated]
-    CUDNN_PARAM_BN_Z_EQBIAS_PLACEHOLDER = 30,
-    /// Activation bitmask tensor descriptor.
-    #[deprecated]
-    CUDNN_PARAM_ACTIVATION_BITMASK_DESC = 31,
-    /// Placeholder for activation bitmask pointer alignment.
-    #[deprecated]
-    CUDNN_PARAM_ACTIVATION_BITMASK_PLACEHOLDER = 32,
-    /// Input gradient tensor descriptor (dX).
-    #[deprecated]
-    CUDNN_PARAM_DXDESC = 33,
-    /// Placeholder for input gradient data pointer alignment (dX).
-    #[deprecated]
-    CUDNN_PARAM_DXDATA_PLACEHOLDER = 34,
-    /// Residual input gradient tensor descriptor (dZ).
-    #[deprecated]
-    CUDNN_PARAM_DZDESC = 35,
-    /// Placeholder for residual input gradient data pointer alignment (dZ).
-    #[deprecated]
-    CUDNN_PARAM_DZDATA_PLACEHOLDER = 36,
-    /// Placeholder for BN scale gradient pointer alignment.
-    #[deprecated]
-    CUDNN_PARAM_BN_DSCALE_PLACEHOLDER = 37,
-    /// Placeholder for BN bias gradient pointer alignment.
-    #[deprecated]
-    CUDNN_PARAM_BN_DBIAS_PLACEHOLDER = 38,
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudnnFusedOpsConstParamLabel_t(pub ::core::ffi::c_uint);
+impl cudnnFusedOpsPointerPlaceHolder_t {
+    /// Null pointer (parameter disabled).
+    pub const CUDNN_PTR_NULL: cudnnFusedOpsPointerPlaceHolder_t = cudnnFusedOpsPointerPlaceHolder_t(
+        0,
+    );
+    /// Pointer is element-aligned.
+    pub const CUDNN_PTR_ELEM_ALIGNED: cudnnFusedOpsPointerPlaceHolder_t = cudnnFusedOpsPointerPlaceHolder_t(
+        1,
+    );
+    /// Pointer is 16-byte aligned.
+    pub const CUDNN_PTR_16B_ALIGNED: cudnnFusedOpsPointerPlaceHolder_t = cudnnFusedOpsPointerPlaceHolder_t(
+        2,
+    );
 }
 /// [`cudnnFusedOpsPointerPlaceHolder_t`] is an enumerated type used to select the alignment type of the `cudnnFusedOps` descriptor pointer.
 ///
 /// **Members and Descriptions**.
 #[deprecated]
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudnnFusedOpsPointerPlaceHolder_t {
-    /// Null pointer (parameter disabled).
-    CUDNN_PTR_NULL = 0,
-    /// Pointer is element-aligned.
-    CUDNN_PTR_ELEM_ALIGNED = 1,
-    /// Pointer is 16-byte aligned.
-    CUDNN_PTR_16B_ALIGNED = 2,
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudnnFusedOpsPointerPlaceHolder_t(pub ::core::ffi::c_uint);
+impl cudnnFusedOpsVariantParamLabel_t {
+    /// Pointer to input data (X) in device memory.
+    #[deprecated]
+    pub const CUDNN_PTR_XDATA: cudnnFusedOpsVariantParamLabel_t = cudnnFusedOpsVariantParamLabel_t(
+        0,
+    );
+    /// Pointer to BN equivalent scale in device memory.
+    #[deprecated]
+    pub const CUDNN_PTR_BN_EQSCALE: cudnnFusedOpsVariantParamLabel_t = cudnnFusedOpsVariantParamLabel_t(
+        1,
+    );
+    /// Pointer to BN equivalent bias in device memory.
+    #[deprecated]
+    pub const CUDNN_PTR_BN_EQBIAS: cudnnFusedOpsVariantParamLabel_t = cudnnFusedOpsVariantParamLabel_t(
+        2,
+    );
+    /// Pointer to filter data (W) in device memory.
+    #[deprecated]
+    pub const CUDNN_PTR_WDATA: cudnnFusedOpsVariantParamLabel_t = cudnnFusedOpsVariantParamLabel_t(
+        3,
+    );
+    /// Pointer to filter gradient data (dW) in device memory.
+    #[deprecated]
+    pub const CUDNN_PTR_DWDATA: cudnnFusedOpsVariantParamLabel_t = cudnnFusedOpsVariantParamLabel_t(
+        4,
+    );
+    /// Pointer to output data (Y) in device memory.
+    #[deprecated]
+    pub const CUDNN_PTR_YDATA: cudnnFusedOpsVariantParamLabel_t = cudnnFusedOpsVariantParamLabel_t(
+        5,
+    );
+    /// Pointer to output gradient data (dY) in device memory.
+    #[deprecated]
+    pub const CUDNN_PTR_DYDATA: cudnnFusedOpsVariantParamLabel_t = cudnnFusedOpsVariantParamLabel_t(
+        6,
+    );
+    /// Pointer to Y sum accumulator in device memory.
+    #[deprecated]
+    pub const CUDNN_PTR_YSUM: cudnnFusedOpsVariantParamLabel_t = cudnnFusedOpsVariantParamLabel_t(
+        7,
+    );
+    /// Pointer to Y squared sum accumulator in device memory.
+    #[deprecated]
+    pub const CUDNN_PTR_YSQSUM: cudnnFusedOpsVariantParamLabel_t = cudnnFusedOpsVariantParamLabel_t(
+        8,
+    );
+    /// Pointer to workspace in device memory.
+    #[deprecated]
+    pub const CUDNN_PTR_WORKSPACE: cudnnFusedOpsVariantParamLabel_t = cudnnFusedOpsVariantParamLabel_t(
+        9,
+    );
+    /// Pointer to BN scale in device memory.
+    #[deprecated]
+    pub const CUDNN_PTR_BN_SCALE: cudnnFusedOpsVariantParamLabel_t = cudnnFusedOpsVariantParamLabel_t(
+        10,
+    );
+    /// Pointer to BN bias in device memory.
+    #[deprecated]
+    pub const CUDNN_PTR_BN_BIAS: cudnnFusedOpsVariantParamLabel_t = cudnnFusedOpsVariantParamLabel_t(
+        11,
+    );
+    /// Pointer to BN saved mean in device memory.
+    #[deprecated]
+    pub const CUDNN_PTR_BN_SAVED_MEAN: cudnnFusedOpsVariantParamLabel_t = cudnnFusedOpsVariantParamLabel_t(
+        12,
+    );
+    /// Pointer to BN saved inverse standard deviation in device memory.
+    #[deprecated]
+    pub const CUDNN_PTR_BN_SAVED_INVSTD: cudnnFusedOpsVariantParamLabel_t = cudnnFusedOpsVariantParamLabel_t(
+        13,
+    );
+    /// Pointer to BN running mean in device memory.
+    #[deprecated]
+    pub const CUDNN_PTR_BN_RUNNING_MEAN: cudnnFusedOpsVariantParamLabel_t = cudnnFusedOpsVariantParamLabel_t(
+        14,
+    );
+    /// Pointer to BN running variance in device memory.
+    #[deprecated]
+    pub const CUDNN_PTR_BN_RUNNING_VAR: cudnnFusedOpsVariantParamLabel_t = cudnnFusedOpsVariantParamLabel_t(
+        15,
+    );
+    /// Pointer to residual input data (Z) in device memory.
+    #[deprecated]
+    pub const CUDNN_PTR_ZDATA: cudnnFusedOpsVariantParamLabel_t = cudnnFusedOpsVariantParamLabel_t(
+        16,
+    );
+    /// Pointer to BN Z-branch equivalent scale in device memory.
+    #[deprecated]
+    pub const CUDNN_PTR_BN_Z_EQSCALE: cudnnFusedOpsVariantParamLabel_t = cudnnFusedOpsVariantParamLabel_t(
+        17,
+    );
+    /// Pointer to BN Z-branch equivalent bias in device memory.
+    #[deprecated]
+    pub const CUDNN_PTR_BN_Z_EQBIAS: cudnnFusedOpsVariantParamLabel_t = cudnnFusedOpsVariantParamLabel_t(
+        18,
+    );
+    /// Pointer to activation bitmask in device memory.
+    #[deprecated]
+    pub const CUDNN_PTR_ACTIVATION_BITMASK: cudnnFusedOpsVariantParamLabel_t = cudnnFusedOpsVariantParamLabel_t(
+        19,
+    );
+    /// Pointer to input gradient data (dX) in device memory.
+    #[deprecated]
+    pub const CUDNN_PTR_DXDATA: cudnnFusedOpsVariantParamLabel_t = cudnnFusedOpsVariantParamLabel_t(
+        20,
+    );
+    /// Pointer to residual input gradient data (dZ) in device memory.
+    #[deprecated]
+    pub const CUDNN_PTR_DZDATA: cudnnFusedOpsVariantParamLabel_t = cudnnFusedOpsVariantParamLabel_t(
+        21,
+    );
+    /// Pointer to BN scale gradient in device memory.
+    #[deprecated]
+    pub const CUDNN_PTR_BN_DSCALE: cudnnFusedOpsVariantParamLabel_t = cudnnFusedOpsVariantParamLabel_t(
+        22,
+    );
+    /// Pointer to BN bias gradient in device memory.
+    #[deprecated]
+    pub const CUDNN_PTR_BN_DBIAS: cudnnFusedOpsVariantParamLabel_t = cudnnFusedOpsVariantParamLabel_t(
+        23,
+    );
+    /// Workspace size in bytes (host, size_t).
+    #[deprecated]
+    pub const CUDNN_SCALAR_SIZE_T_WORKSPACE_SIZE_IN_BYTES: cudnnFusedOpsVariantParamLabel_t = cudnnFusedOpsVariantParamLabel_t(
+        100,
+    );
+    /// BN accumulation count (host, int64_t).
+    #[deprecated]
+    pub const CUDNN_SCALAR_INT64_T_BN_ACCUMULATION_COUNT: cudnnFusedOpsVariantParamLabel_t = cudnnFusedOpsVariantParamLabel_t(
+        101,
+    );
+    /// BN exponential average factor (host, double).
+    #[deprecated]
+    pub const CUDNN_SCALAR_DOUBLE_BN_EXP_AVG_FACTOR: cudnnFusedOpsVariantParamLabel_t = cudnnFusedOpsVariantParamLabel_t(
+        102,
+    );
+    /// BN epsilon value (host, double).
+    #[deprecated]
+    pub const CUDNN_SCALAR_DOUBLE_BN_EPSILON: cudnnFusedOpsVariantParamLabel_t = cudnnFusedOpsVariantParamLabel_t(
+        103,
+    );
 }
 /// The [`cudnnFusedOpsVariantParamLabel_t`] is an enumerated type that is used to set the buffer pointers. These buffer pointers can be changed in each iteration.
 #[deprecated]
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudnnFusedOpsVariantParamLabel_t {
-    /// Pointer to input data (X) in device memory.
-    #[deprecated]
-    CUDNN_PTR_XDATA = 0,
-    /// Pointer to BN equivalent scale in device memory.
-    #[deprecated]
-    CUDNN_PTR_BN_EQSCALE = 1,
-    /// Pointer to BN equivalent bias in device memory.
-    #[deprecated]
-    CUDNN_PTR_BN_EQBIAS = 2,
-    /// Pointer to filter data (W) in device memory.
-    #[deprecated]
-    CUDNN_PTR_WDATA = 3,
-    /// Pointer to filter gradient data (dW) in device memory.
-    #[deprecated]
-    CUDNN_PTR_DWDATA = 4,
-    /// Pointer to output data (Y) in device memory.
-    #[deprecated]
-    CUDNN_PTR_YDATA = 5,
-    /// Pointer to output gradient data (dY) in device memory.
-    #[deprecated]
-    CUDNN_PTR_DYDATA = 6,
-    /// Pointer to Y sum accumulator in device memory.
-    #[deprecated]
-    CUDNN_PTR_YSUM = 7,
-    /// Pointer to Y squared sum accumulator in device memory.
-    #[deprecated]
-    CUDNN_PTR_YSQSUM = 8,
-    /// Pointer to workspace in device memory.
-    #[deprecated]
-    CUDNN_PTR_WORKSPACE = 9,
-    /// Pointer to BN scale in device memory.
-    #[deprecated]
-    CUDNN_PTR_BN_SCALE = 10,
-    /// Pointer to BN bias in device memory.
-    #[deprecated]
-    CUDNN_PTR_BN_BIAS = 11,
-    /// Pointer to BN saved mean in device memory.
-    #[deprecated]
-    CUDNN_PTR_BN_SAVED_MEAN = 12,
-    /// Pointer to BN saved inverse standard deviation in device memory.
-    #[deprecated]
-    CUDNN_PTR_BN_SAVED_INVSTD = 13,
-    /// Pointer to BN running mean in device memory.
-    #[deprecated]
-    CUDNN_PTR_BN_RUNNING_MEAN = 14,
-    /// Pointer to BN running variance in device memory.
-    #[deprecated]
-    CUDNN_PTR_BN_RUNNING_VAR = 15,
-    /// Pointer to residual input data (Z) in device memory.
-    #[deprecated]
-    CUDNN_PTR_ZDATA = 16,
-    /// Pointer to BN Z-branch equivalent scale in device memory.
-    #[deprecated]
-    CUDNN_PTR_BN_Z_EQSCALE = 17,
-    /// Pointer to BN Z-branch equivalent bias in device memory.
-    #[deprecated]
-    CUDNN_PTR_BN_Z_EQBIAS = 18,
-    /// Pointer to activation bitmask in device memory.
-    #[deprecated]
-    CUDNN_PTR_ACTIVATION_BITMASK = 19,
-    /// Pointer to input gradient data (dX) in device memory.
-    #[deprecated]
-    CUDNN_PTR_DXDATA = 20,
-    /// Pointer to residual input gradient data (dZ) in device memory.
-    #[deprecated]
-    CUDNN_PTR_DZDATA = 21,
-    /// Pointer to BN scale gradient in device memory.
-    #[deprecated]
-    CUDNN_PTR_BN_DSCALE = 22,
-    /// Pointer to BN bias gradient in device memory.
-    #[deprecated]
-    CUDNN_PTR_BN_DBIAS = 23,
-    /// Workspace size in bytes (host, size_t).
-    #[deprecated]
-    CUDNN_SCALAR_SIZE_T_WORKSPACE_SIZE_IN_BYTES = 100,
-    /// BN accumulation count (host, int64_t).
-    #[deprecated]
-    CUDNN_SCALAR_INT64_T_BN_ACCUMULATION_COUNT = 101,
-    /// BN exponential average factor (host, double).
-    #[deprecated]
-    CUDNN_SCALAR_DOUBLE_BN_EXP_AVG_FACTOR = 102,
-    /// BN epsilon value (host, double).
-    #[deprecated]
-    CUDNN_SCALAR_DOUBLE_BN_EPSILON = 103,
-}
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudnnFusedOpsVariantParamLabel_t(pub ::core::ffi::c_uint);
 singe_loader::functions! { crate::LIBRARY;
     /// Cross-library version checker. Each sublibrary has a version checker that checks whether its own version matches that of its dependencies.
     ///
@@ -11727,6 +12564,7 @@ singe_loader::functions! { crate::LIBRARY;
 /// Deprecated: Since cuDNN 9.0.0. Use graph API instead.
 ///
 /// since: cuDNN 9.0.0
+#[deprecated]
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialOrd, PartialEq)]
 pub struct cudnnConvolutionBwdFilterAlgoPerfStruct {
@@ -12275,19 +13113,24 @@ singe_loader::functions! { crate::LIBRARY;
         varPack: cudnnFusedOpsVariantParamPack_t,
     ) -> cudnnStatus_t;
 }
+impl cudnnCausalConv1dActivation_t {
+    /// Identity (no activation).
+    pub const CUDNN_CAUSAL_CONV1D_ACTIVATION_IDENTITY: cudnnCausalConv1dActivation_t = cudnnCausalConv1dActivation_t(
+        0,
+    );
+    /// SiLU (Sigmoid Linear Unit) activation.
+    pub const CUDNN_CAUSAL_CONV1D_ACTIVATION_SILU: cudnnCausalConv1dActivation_t = cudnnCausalConv1dActivation_t(
+        1,
+    );
+}
 /// Activation mode for causal conv1d operations.
 ///
 ///
 ///
 /// since: cuDNN 9.22.0
-#[repr(u32)]
+#[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum cudnnCausalConv1dActivation_t {
-    /// Identity (no activation).
-    CUDNN_CAUSAL_CONV1D_ACTIVATION_IDENTITY = 0,
-    /// SiLU (Sigmoid Linear Unit) activation.
-    CUDNN_CAUSAL_CONV1D_ACTIVATION_SILU = 1,
-}
+pub struct cudnnCausalConv1dActivation_t(pub ::core::ffi::c_uint);
 singe_loader::functions! { crate::LIBRARY;
     /// Check the version of the cuDNN SubquadraticOps library.
     ///
@@ -12826,19 +13669,20 @@ singe_loader::functions! { crate::LIBRARY;
         reserveSpaceSizeInBytes: size_t,
     ) -> cudnnStatus_t;
 }
-/// Aggregation operation for GNN CSC graph aggregation
-#[repr(u32)]
-#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum cudnnGnnAggOp_t {
+impl cudnnGnnAggOp_t {
     /// Sums neighbor contributions.
-    CUDNN_GNN_AGG_SUM = 0,
+    pub const CUDNN_GNN_AGG_SUM: cudnnGnnAggOp_t = cudnnGnnAggOp_t(0);
     /// Averages neighbor contributions.
-    CUDNN_GNN_AGG_MEAN = 1,
+    pub const CUDNN_GNN_AGG_MEAN: cudnnGnnAggOp_t = cudnnGnnAggOp_t(1);
     /// Takes the maximum neighbor contribution.
-    CUDNN_GNN_AGG_MAX = 2,
+    pub const CUDNN_GNN_AGG_MAX: cudnnGnnAggOp_t = cudnnGnnAggOp_t(2);
     /// Takes the minimum neighbor contribution.
-    CUDNN_GNN_AGG_MIN = 3,
+    pub const CUDNN_GNN_AGG_MIN: cudnnGnnAggOp_t = cudnnGnnAggOp_t(3);
 }
+/// Aggregation operation for GNN CSC graph aggregation
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudnnGnnAggOp_t(pub ::core::ffi::c_uint);
 /// cudnnGnnCscGraph_t
 ///
 /// CSC-format graph descriptor. All pointer fields refer to device memory whose element type matches idxType (CUDNN_DATA_INT32 or CUDNN_DATA_INT64).

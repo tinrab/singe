@@ -1,10 +1,11 @@
 use crate::{
-    backend::tensor::{Shape, TensorId},
+    backend::operation::tensor_ops::ReshapeSpec,
     error::Result,
     frontend::{
         graph::{Graph, TensorOutputConfig},
-        operation::{Operation, ReshapeConfig, TensorOperation},
+        operation::{Operation, TensorOperation},
     },
+    tensor::{Shape, TensorId},
 };
 
 impl Graph {
@@ -12,12 +13,12 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for unknown tensors, invalid vector metadata, unequal logical element counts, or incompatible encodings in logical mode.
+    /// Returns an error if a tensor is unknown, vector metadata is invalid, the logical element counts differ, or the encodings are incompatible in logical mode.
     pub fn reshape_into(
         &mut self,
         input: TensorId,
         output: TensorId,
-        config: ReshapeConfig,
+        config: ReshapeSpec,
     ) -> Result<()> {
         let operation = TensorOperation::Reshape {
             input,
@@ -38,13 +39,13 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for unknown tensors, invalid vector metadata, unequal logical element counts, or incompatible encodings in logical mode.
+    /// Returns an error if a tensor is unknown, vector metadata is invalid, the logical element counts differ, or the encodings are incompatible in logical mode.
     /// Inferred output dimensions must be positive and their channels-last strides must be representable.
     pub fn reshape(
         &mut self,
         input: TensorId,
         output_dimensions: impl Into<Vec<i64>>,
-        config: ReshapeConfig,
+        config: ReshapeSpec,
         output: TensorOutputConfig,
     ) -> Result<TensorId> {
         let input_tensor = self.tensor_spec(input)?;

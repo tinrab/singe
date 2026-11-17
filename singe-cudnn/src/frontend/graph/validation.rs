@@ -1,7 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
-    backend::tensor::TensorId,
     context::Context,
     error::Result,
     frontend::{
@@ -11,6 +10,7 @@ use crate::{
         operation::{AttentionBackwardHeuristicOverride, Operation, ReductionOperation},
         plan::{RequiredTensor, TensorInfo, TensorInfoIter},
     },
+    tensor::TensorId,
     version,
 };
 
@@ -27,19 +27,19 @@ pub struct ValidatedGraph {
 }
 
 impl ValidatedGraph {
-    /// Original recipe, before target-specific expansion and layout reconciliation.
+    /// Returns the original recipe, before target-specific expansion and layout reconciliation.
     #[must_use]
     pub fn recipe(&self) -> &Graph {
         &self.recipe
     }
 
-    /// Expanded declarations and operation geometry used by native preparation.
+    /// Returns the expanded declarations and operation geometry used by native preparation.
     #[must_use]
     pub fn graph(&self) -> &Graph {
         &self.expanded
     }
 
-    /// All retained declarations and access metadata in frontend-ID order.
+    /// Returns all retained declarations and access metadata in frontend-ID order.
     /// Includes expanded intermediates, score-subgraph tensors and storage-only sources.
     /// This stage has no native descriptors, so every native UID is absent.
     #[must_use]
@@ -47,10 +47,11 @@ impl ValidatedGraph {
         TensorInfoIter::declarations(&self.layout.tensors)
     }
 
-    /// Retained declaration and access metadata before native preparation.
+    /// Returns the retained declaration and access metadata before native preparation.
     ///
     /// # Errors
-    /// Returns an error when the validated graph does not contain the frontend identity.
+    ///
+    /// Returns an error if the validated graph does not contain the frontend identity.
     pub fn tensor_info(&self, id: TensorId) -> Result<TensorInfo<'_>> {
         self.layout
             .tensors
@@ -59,7 +60,7 @@ impl ValidatedGraph {
             .ok_or(FrontendError::TensorNotFound(id).into())
     }
 
-    /// Caller storage and assigned native identities, including nested captures and storage views.
+    /// Returns the caller storage and assigned native identities, including nested captures and storage views.
     /// Does not query native descriptors or engine support.
     #[must_use]
     pub fn required_tensor_bindings(&self) -> &[RequiredTensor] {
@@ -74,7 +75,8 @@ impl Graph {
     /// The original recipe remains unchanged, and the result can be prepared without repeating validation.
     ///
     /// # Errors
-    /// Returns an error for invalid declarations, operation geometry, references, bounds or incompatible shared layouts.
+    ///
+    /// Returns an error if a declaration, operation geometry, reference, or bound is invalid, or shared layouts are incompatible.
     /// Native engine availability is queried after preparation.
     pub fn validate(&self, context: Option<&Context>) -> Result<ValidatedGraph> {
         logging::diagnostic!(
@@ -83,7 +85,7 @@ impl Graph {
             self.operations.len(),
             self.tensors.len(),
         );
-        self.validate_runtime_feature_support_for_version(version()?.raw())?;
+        self.validate_runtime_feature_support_for_version(version()?)?;
         self.validate_tensor_declarations()?;
         self.validate_attention_statistics_bases()?;
         for (id, bounds) in &self.runtime_shape_constraints {

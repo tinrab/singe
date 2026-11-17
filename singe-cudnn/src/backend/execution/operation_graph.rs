@@ -14,7 +14,7 @@ use crate::{
 
 /// Independent native shape modes for an operation graph.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct OperationGraphConfig {
+pub struct OperationGraphOptions {
     /// Requests native dynamic-shape support when finalizing the operation graph.
     pub dynamic_shape_enabled: bool,
     /// Requests native execution-time shape overrides independently of dynamic-shape support.
@@ -26,7 +26,7 @@ pub struct OperationGraphConfig {
 pub struct OperationGraph {
     descriptor: BackendDescriptor,
     cuda_context: Option<Arc<CudaContext>>,
-    config: OperationGraphConfig,
+    config: OperationGraphOptions,
     operation_types: Vec<BackendDescriptorType>,
 }
 
@@ -39,7 +39,7 @@ impl OperationGraph {
     pub fn create(
         context: &Context,
         operations: &[&BackendDescriptor],
-        config: OperationGraphConfig,
+        config: OperationGraphOptions,
     ) -> Result<Self> {
         Self::create_with_context(Some(context), operations, config)
     }
@@ -51,7 +51,7 @@ impl OperationGraph {
     /// Returns an error if the operation list is empty or native graph creation, attribute assignment, or finalization fails.
     pub fn create_deviceless(
         operations: &[&BackendDescriptor],
-        config: OperationGraphConfig,
+        config: OperationGraphOptions,
     ) -> Result<Self> {
         Self::create_with_context(None, operations, config)
     }
@@ -59,10 +59,10 @@ impl OperationGraph {
     fn create_with_context(
         context: Option<&Context>,
         operations: &[&BackendDescriptor],
-        config: OperationGraphConfig,
+        config: OperationGraphOptions,
     ) -> Result<Self> {
         if operations.is_empty() {
-            return Err(Error::EmptyList {
+            return Err(Error::Empty {
                 name: "operations".into(),
             });
         }
@@ -73,7 +73,7 @@ impl OperationGraph {
 
         let mut descriptor = BackendDescriptor::create(BackendDescriptorType::OperationGraph)?;
         if let Some(context) = context {
-            // SAFETY: context is live through native graph configuration and finalization.
+            // SAFETY: `context` is a live cuDNN handle borrowed for this constructor, which finalizes the graph before returning.
             unsafe {
                 descriptor.set_attribute_handle(
                     BackendAttributeName::OperationGraphHandle,
@@ -154,7 +154,7 @@ impl OperationGraph {
 
     /// Shape modes accepted during construction, including disabled native defaults.
     #[must_use]
-    pub fn config(&self) -> OperationGraphConfig {
+    pub fn options(&self) -> OperationGraphOptions {
         self.config
     }
 
@@ -173,6 +173,10 @@ impl OperationGraph {
 
 impl Drop for OperationGraph {
     fn drop(&mut self) {
-        bind_for_drop(self.cuda_context(), "cudnn operation graph");
+        bind_for_drop(
+            self.cuda_context.as_ref(),
+            &mut self.descriptor,
+            "cudnn operation graph",
+        );
     }
 }

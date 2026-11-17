@@ -2,6 +2,7 @@ use singe_nvcomp_sys as sys;
 
 use crate::{
     codec::impl_nvcomp_batched_codec_module,
+    error::{Error, Result},
     types::{CompressionAlgorithm, DecompressBackend},
     utility::{bool_from_i32, validate_reserved},
 };
@@ -22,8 +23,9 @@ impl TryFrom<sys::nvcompBatchedDeflateCompressOpts_t> for CompressOptions {
             algorithm: value
                 .algorithm
                 .try_into()
-                .map_err(|_| Error::InvalidValue {
+                .map_err(|_| Error::UnknownEnumValue {
                     name: "algorithm".into(),
+                    value: i64::from(value.algorithm),
                 })?,
         })
     }
@@ -64,7 +66,7 @@ impl TryFrom<sys::nvcompBatchedDeflateDecompressOpts_t> for DecompressOptions {
     fn try_from(value: sys::nvcompBatchedDeflateDecompressOpts_t) -> Result<Self> {
         validate_reserved(&value.reserved)?;
         Ok(Self {
-            backend: value.backend.into(),
+            backend: value.backend.try_into()?,
             sort_before_hw_decompress: bool_from_i32(
                 value.sort_before_hw_decompress,
                 "sort_before_hw_decompress",
@@ -93,31 +95,12 @@ impl_nvcomp_batched_codec_module! {
     required_decompression_alignment = nvcompDeflateRequiredDecompressionAlignment,
     compress_get_required_alignments = nvcompBatchedDeflateCompressGetRequiredAlignments,
     decompress_get_required_alignments = nvcompBatchedDeflateDecompressGetRequiredAlignments,
-    compress_get_temporary_size = nvcompBatchedDeflateCompressGetTempSize,
-    compress_get_temporary_size_sync = nvcompBatchedDeflateCompressGetTempSizeSync,
-    decompress_get_temporary_size = nvcompBatchedDeflateDecompressGetTempSize,
-    decompress_get_temporary_size_sync = nvcompBatchedDeflateDecompressGetTempSizeSync,
+    compress_get_temp_size = nvcompBatchedDeflateCompressGetTempSize,
+    compress_get_temp_size_sync = nvcompBatchedDeflateCompressGetTempSizeSync,
+    decompress_get_temp_size = nvcompBatchedDeflateDecompressGetTempSize,
+    decompress_get_temp_size_sync = nvcompBatchedDeflateDecompressGetTempSizeSync,
     compress_get_max_output_chunk_size = nvcompBatchedDeflateCompressGetMaxOutputChunkSize,
-    compress_raw_async = nvcompBatchedDeflateCompressAsync,
-    decompress_size_raw_async = nvcompBatchedDeflateGetDecompressSizeAsync,
-    decompress_raw_async = nvcompBatchedDeflateDecompressAsync,
-}
-
-impl CompressOptions {
-    /// Creates Deflate compression options with the given settings.
-    #[must_use]
-    pub fn new(algorithm: CompressionAlgorithm) -> Self {
-        Self { algorithm }
-    }
-}
-
-impl DecompressOptions {
-    /// Creates Deflate decompression options with the given settings.
-    #[must_use]
-    pub fn new(backend: DecompressBackend, sort_before_hw_decompress: bool) -> Self {
-        Self {
-            backend,
-            sort_before_hw_decompress,
-        }
-    }
+    compress_async = nvcompBatchedDeflateCompressAsync,
+    get_decompress_size_async = nvcompBatchedDeflateGetDecompressSizeAsync,
+    decompress_async = nvcompBatchedDeflateDecompressAsync,
 }

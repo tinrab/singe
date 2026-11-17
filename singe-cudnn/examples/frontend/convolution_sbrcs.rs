@@ -4,19 +4,21 @@ use std::env::args;
 
 use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
-    backend::{
-        pointwise::PointwiseMode,
-        tensor::{Shape, TensorSpec},
-    },
+    backend::operation::{normalization::GenStatsOutputs, pointwise::PointwiseMode},
     data_type::{DataType, f16},
     error::Result,
     frontend::{
-        graph::{DataTypePolicy, GenStatsOutputs, Graph, GraphConfig, TensorOutputConfig},
+        graph::{DataTypePolicy, Graph, GraphConfig, TensorOutputConfig},
         operation::{ConvolutionConfig, GenStatsConfig, PointwiseOperation},
         plan::{CompileConfig, ExecuteArgs, HeuristicMode},
     },
+    tensor::{Shape, TensorSpec},
 };
 
+#[expect(
+    clippy::many_single_char_names,
+    reason = "keeps the upstream sample's single-letter dimension names"
+)]
 fn run() -> Result<()> {
     let example = common::ExampleContext::create()?;
     // Matches C++'s SBRCS sample: scale, bias, ReLU, convolution and channel statistics.
@@ -122,15 +124,15 @@ fn run() -> Result<()> {
     // SAFETY: initialized inputs, independent writable results and workspace stay live
     // through stream completion, including an enqueue failure.
     example.execute_and_wait(|context| unsafe {
-        compiled.execute(
+        compiled.execute_async(
             context,
-            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
         )
     })?;
     println!("SBRCS produced an FP16 activation and two FP32 channel-statistic tensors");
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_convolution_sbrcs", run())
 }

@@ -1,10 +1,7 @@
 mod common;
 
 use singe_cudnn::{
-    backend::{
-        behavior::BackendBehaviorNote,
-        tensor::{Shape, TensorId, TensorSpec},
-    },
+    backend::behavior::BackendBehaviorNote,
     data_type::DataType,
     error::Result,
     frontend::{
@@ -12,8 +9,13 @@ use singe_cudnn::{
         operation::MatmulConfig,
         plan::{BuildPlanPolicy, CompileConfig, EngineConfigFilter, HeuristicMode},
     },
+    tensor::{Shape, TensorId, TensorSpec},
 };
 
+#[expect(
+    clippy::many_single_char_names,
+    reason = "keeps the upstream sample's single-letter dimension names"
+)]
 fn run() -> Result<()> {
     let window_size = common::positive_usize_argument("--build-window", 8)?;
     let context = common::ExampleContext::create()?;
@@ -26,14 +28,14 @@ fn run() -> Result<()> {
     let mut graph = Graph::with_config(
         GraphConfig::new().with_data_type_policy(
             DataTypePolicy::new()
-                .with_io(DataType::BF16)
+                .with_io(DataType::Bf16)
                 .with_compute(DataType::F32),
         ),
     );
     let a = graph.insert_tensor(
         TensorId::new(1000),
         TensorSpec::new(
-            DataType::BF16,
+            DataType::Bf16,
             Shape::with_strides([b, m, k], [m * k, k, 1])?,
         )
         .with_name("A"),
@@ -42,7 +44,7 @@ fn run() -> Result<()> {
     let b_tensor = graph.insert_tensor(
         TensorId::new(1001),
         TensorSpec::new(
-            DataType::BF16,
+            DataType::Bf16,
             Shape::with_strides([b, k, n], [k * n, n, 1])?,
         )
         .with_name("B"),
@@ -92,6 +94,6 @@ fn run() -> Result<()> {
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_parallel_compilation", run())
 }

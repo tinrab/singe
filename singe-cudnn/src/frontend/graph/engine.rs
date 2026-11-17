@@ -2,7 +2,7 @@ use crate::{
     backend::{
         behavior::{BackendBehaviorNote, BackendNumericalNote},
         engine::{Engine, EngineIndex},
-        execution::{EngineKnobInfo, EnginePlanningConfig},
+        execution::{EngineKnobInfo, EnginePlanningOptions},
     },
     context::Context,
     error::Result,
@@ -22,12 +22,12 @@ impl Graph {
         &self,
         context: Option<&Context>,
         engine_index: EngineIndex,
-        planning: EnginePlanningConfig,
+        planning: EnginePlanningOptions,
     ) -> Result<Engine> {
         self.prepare(context)?.engine(engine_index, planning)
     }
 
-    /// Number of native engines available for the live or deviceless operation graph.
+    /// Returns the number of native engines available for the live or deviceless operation graph.
     ///
     /// # Errors
     ///
@@ -36,7 +36,7 @@ impl Graph {
         self.prepare(context)?.engine_count()
     }
 
-    /// Global engine indices for the live or deviceless operation graph.
+    /// Returns the global engine indices for the live or deviceless operation graph.
     ///
     /// # Errors
     ///
@@ -45,7 +45,7 @@ impl Graph {
         self.prepare(context)?.engine_indices()
     }
 
-    /// Adjustable knobs supported by an engine for this graph and compilation target.
+    /// Returns the adjustable knobs supported by an engine for this graph and compilation target.
     ///
     /// # Errors
     ///
@@ -55,12 +55,12 @@ impl Graph {
         context: Option<&Context>,
         engine_index: EngineIndex,
     ) -> Result<Vec<EngineKnobInfo>> {
-        self.engine(context, engine_index, EnginePlanningConfig::default())?
+        self.engine(context, engine_index, EnginePlanningOptions::default())?
             .knob_infos()
             .map(<[_]>::to_vec)
     }
 
-    /// Numerical notes for an engine using this graph's actual target properties.
+    /// Returns the numerical notes for an engine using this graph's actual target properties.
     ///
     /// # Errors
     ///
@@ -70,12 +70,12 @@ impl Graph {
         context: Option<&Context>,
         engine_index: EngineIndex,
     ) -> Result<Vec<BackendNumericalNote>> {
-        self.engine(context, engine_index, EnginePlanningConfig::default())?
+        self.engine(context, engine_index, EnginePlanningOptions::default())?
             .numerical_notes()
             .map(<[_]>::to_vec)
     }
 
-    /// Behavior notes for an engine using this graph's actual target properties.
+    /// Returns the behavior notes for an engine using this graph's actual target properties.
     ///
     /// # Errors
     ///
@@ -85,7 +85,7 @@ impl Graph {
         context: Option<&Context>,
         engine_index: EngineIndex,
     ) -> Result<Vec<BackendBehaviorNote>> {
-        self.engine(context, engine_index, EnginePlanningConfig::default())?
+        self.engine(context, engine_index, EnginePlanningOptions::default())?
             .behavior_notes()
             .map(<[_]>::to_vec)
     }

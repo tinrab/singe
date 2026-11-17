@@ -1,24 +1,27 @@
+//! Dropout descriptors retaining RNG state, reserve storage, and forward/backward operations.
+
 use std::{
     mem::{ManuallyDrop, MaybeUninit},
     ptr,
     sync::Arc,
 };
 
+use singe_core::report_cleanup_failure;
 use singe_cuda::{
     context::Context as CudaContext,
     error::Error as CudaError,
     memory::DeviceMemory,
-    view::{DeviceInput, DeviceOutput, DeviceRegionProvider},
+    view::{DeviceOutput, DeviceRange, DeviceRegionProvider, DeviceSlice},
 };
 use singe_cudnn_sys as sys;
 
 use crate::{
-    backend::tensor::TensorDescriptor,
     context::Context,
-    data_type::DataTypeLike,
+    data_type::TensorElement,
     error::{Error, Result},
+    legacy::tensor::TensorDescriptor,
     try_ffi,
-    utility::{check_range, to_usize},
+    utility::{check_range, to_size_t, to_usize},
 };
 
 /// Owns a native dropout descriptor, its CUDA context, and opaque random-number-generator state.
@@ -48,8 +51,8 @@ pub struct RawDropoutDescriptor {
     pub states: DeviceMemory<MaybeUninit<u8>>,
 }
 
-// SAFETY: native ownership and its context/state owners move together. Submission
-// and destruction remain exclusive caller operations under the raw contract.
+// SAFETY: cuDNN dropout descriptors have no thread affinity, and the record moves the handle together with the context and state owners it references.
+// Using or destroying the handle stays an exclusive operation of the record's single owner.
 unsafe impl Send for RawDropoutDescriptor {}
 
 impl DropoutDescriptor {
@@ -62,7 +65,7 @@ impl DropoutDescriptor {
         context.bind()?;
 
         let mut size_in_bytes = 0;
-        // SAFETY: `cudnnDropoutGetStatesSize` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `context` owns a live handle bound above, and `size_in_bytes` is a writable local.
         unsafe {
             try_ffi!(sys::cudnnDropoutGetStatesSize(
                 context.as_raw(),
@@ -88,17 +91,17 @@ impl DropoutDescriptor {
         let state_size = Self::state_size(context)?;
         let states = DeviceMemory::<u8>::create_uninit(context.cuda_context(), state_size.max(1))?;
         let descriptor = Self::allocate(context, rate, seed, states)?;
-        // The descriptor and state owners outlive the completion guard, including
-        // native failure and unwinding. State padding remains opaque storage.
-        context.stream()?.sync_scope(|| {
-            // SAFETY: `cudnnSetDropoutDescriptor` receives live handles owned by the wrappers and valid output locations.
+        // The descriptor and state owners outlive the completion guard, including native failure and unwinding.
+        // State padding remains opaque storage.
+        context.sync_scope(|| {
+            // SAFETY: `descriptor` owns a fresh handle and at least `state_size` bytes of state storage in this context, and `sync_scope` waits for the initialization before returning.
             unsafe {
                 try_ffi!(sys::cudnnSetDropoutDescriptor(
                     descriptor.handle,
                     context.as_raw(),
                     rate,
                     descriptor.states.as_mut_ptr().cast(),
-                    state_size as _,
+                    to_size_t(state_size, "dropout state size")?,
                     seed,
                 ))?;
             }
@@ -123,14 +126,15 @@ impl DropoutDescriptor {
 
         let required = Self::state_size(context)?;
         if states.byte_len() < required {
-            return Err(Error::InsufficientWorkspaceSize {
+            return Err(Error::BufferTooSmall {
+                name: "dropout states".into(),
                 required,
                 actual: states.byte_len(),
             });
         }
 
         let mut handle = ptr::null_mut();
-        // SAFETY: `cudnnCreateDropoutDescriptor` receives valid output locations.
+        // SAFETY: `handle` is a live local that cuDNN writes the new descriptor into.
         unsafe {
             try_ffi!(sys::cudnnCreateDropoutDescriptor(&raw mut handle))?;
         }
@@ -184,12 +188,12 @@ impl DropoutDescriptor {
     ///
     /// # Safety
     ///
-    /// The record must own its live native handle and unchanged context/state dependencies.
+    /// `raw.handle` must be uniquely owned and configured for `raw.cuda_context`, `raw.rate`, `raw.seed`, and the live allocation in `raw.states`.
     /// All previous work using them must be complete.
     ///
     /// # Errors
     ///
-    /// Returns an error if the transferred native handle is null.
+    /// Returns an error if `raw.handle` is null ([`Error::NullHandle`]).
     pub unsafe fn from_raw(raw: RawDropoutDescriptor) -> Result<Self> {
         if raw.handle.is_null() {
             return Err(Error::NullHandle);
@@ -200,35 +204,6 @@ impl DropoutDescriptor {
             rate: raw.rate,
             seed: raw.seed,
             states: raw.states,
-        })
-    }
-
-    /// Adopts an externally owned descriptor and its opaque RNG allocation.
-    ///
-    /// # Safety
-    /// `handle` must be uniquely owned, configured for `context`, `rate`, `seed`, and the supplied live state allocation.
-    /// No work may still use it.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the transferred native handle is null.
-    pub unsafe fn from_raw_parts(
-        handle: sys::cudnnDropoutDescriptor_t,
-        context: &Context,
-        rate: f32,
-        seed: u64,
-        states: DeviceMemory<MaybeUninit<u8>>,
-    ) -> Result<Self> {
-        if handle.is_null() {
-            return Err(Error::NullHandle);
-        }
-
-        Ok(Self {
-            handle,
-            cuda_context: Arc::clone(context.cuda_context()),
-            rate,
-            seed,
-            states,
         })
     }
 
@@ -244,7 +219,7 @@ impl DropoutDescriptor {
         let mut rate = 0.0;
         let mut states = ptr::null_mut();
         let mut seed = 0;
-        // SAFETY: `cudnnGetDropoutDescriptor` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `ensure_context` matched the descriptor to the bound handle, both are owned by live wrappers, and the three outputs are writable locals.
         unsafe {
             try_ffi!(sys::cudnnGetDropoutDescriptor(
                 descriptor.handle,
@@ -261,13 +236,14 @@ impl DropoutDescriptor {
     /// Restores a descriptor from RNG storage produced by cuDNN.
     ///
     /// # Safety
-    /// `states` must contain valid RNG state from `cudnnSetDropoutDescriptor` using the same cuDNN version and seed.
+    ///
+    /// `states` must contain RNG state that [`DropoutDescriptor::create`] initialized with the same cuDNN version and seed.
     /// All previous uses of the storage must be complete.
     /// Opaque padding need not be exposed as initialized bytes.
     ///
     /// # Errors
     ///
-    /// Returns an error for an invalid rate, a state allocation from another CUDA context, insufficient state capacity, context binding or state-size query failure, native descriptor creation or restoration failure, a null native handle, or stream lookup or synchronization failure.
+    /// Returns an error if the rate is invalid, the state allocation belongs to another CUDA context, the state is too small, binding the context or querying the state size fails, native descriptor creation or restoration fails, a native handle is null, or looking up or synchronizing the stream fails.
     pub unsafe fn restore(
         context: &Context,
         rate: f32,
@@ -275,15 +251,15 @@ impl DropoutDescriptor {
         states: DeviceMemory<MaybeUninit<u8>>,
     ) -> Result<Self> {
         let descriptor = Self::allocate(context, rate, seed, states)?;
-        context.stream()?.sync_scope(|| {
-            // SAFETY: `cudnnRestoreDropoutDescriptor` receives live handles owned by the wrappers and valid output locations.
+        context.sync_scope(|| {
+            // SAFETY: `allocate` checked that the owned state storage is in this context and holds the required size, the caller guarantees it holds RNG state for this seed, and `sync_scope` waits before returning.
             unsafe {
                 try_ffi!(sys::cudnnRestoreDropoutDescriptor(
                     descriptor.handle,
                     context.as_raw(),
                     rate,
                     descriptor.states.as_mut_ptr().cast(),
-                    descriptor.states.byte_len() as _,
+                    to_size_t(descriptor.states.byte_len(), "dropout state size")?,
                     seed,
                 ))?;
             }
@@ -294,14 +270,14 @@ impl DropoutDescriptor {
 
     /// Returns the reserve space size required to run dropout for `tensor_descriptor`.
     ///
-    /// The same reserve space must be passed to [`dropout_forward`] and [`dropout_backward`], and its contents must remain unchanged between those calls.
+    /// The same reserve space must be passed to [`dropout_forward_async`] and [`dropout_backward_async`], and its contents must remain unchanged between those calls.
     ///
     /// # Errors
     ///
     /// Returns an error if cuDNN rejects `tensor_descriptor` or the reported byte count cannot be represented as `usize`.
     pub fn reserve_space_size<T>(tensor_descriptor: &TensorDescriptor<T>) -> Result<usize> {
         let mut size_in_bytes = 0;
-        // SAFETY: `cudnnDropoutGetReserveSpaceSize` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `tensor_descriptor` owns a live descriptor, and `size_in_bytes` is a writable local.
         unsafe {
             try_ffi!(sys::cudnnDropoutGetReserveSpaceSize(
                 tensor_descriptor.as_raw(),
@@ -325,8 +301,7 @@ impl DropoutDescriptor {
     #[must_use]
     pub fn into_raw(self) -> RawDropoutDescriptor {
         let descriptor = ManuallyDrop::new(self);
-        // SAFETY: every owned field is moved exactly once; the source destructor
-        // is suppressed and the transferred record retains all dependencies.
+        // SAFETY: `ManuallyDrop` suppresses the source destructor, so each owned field is read exactly once into the record that now owns it.
         unsafe {
             RawDropoutDescriptor {
                 handle: descriptor.handle,
@@ -346,18 +321,18 @@ impl Drop for DropoutDescriptor {
         }
 
         if let Err(error) = self.cuda_context.bind() {
-            eprintln!(
-                "failed to bind cuda context before destroying cudnn dropout descriptor: {error}"
+            report_cleanup_failure(
+                "bind the cuda context to destroy",
+                "cudnn dropout descriptor",
+                &error,
             );
+            return;
         }
 
-        // SAFETY: `cudnnDestroyDropoutDescriptor` receives live handles owned by the wrappers.
+        // SAFETY: the handle is non-null and owned by this wrapper, its context is bound, and nothing uses it after drop.
         unsafe {
             if let Err(error) = try_ffi!(sys::cudnnDestroyDropoutDescriptor(self.handle)) {
-                eprintln!(
-                    "failed to destroy cudnn dropout descriptor: {}",
-                    singe_core::ErrorChain(&error)
-                );
+                report_cleanup_failure("destroy", "cudnn dropout descriptor", &error);
             }
         }
     }
@@ -394,34 +369,36 @@ impl DropoutReserveSpace {
 
 /// Performs forward dropout over `x`, returning results in `y`.
 /// If dropout is configured in `dropout_descriptor`, approximately the `rate` fraction of `x` values are replaced by `0`, and the rest are scaled by `1 / (1 - rate)`.
-/// Do not run this concurrently with another [`dropout_forward`] call using the same states.
-///
-/// # Errors
-///
-/// Returns an error if the input and output tensors are incompatible, if an in-place call uses mismatched strides, if `reserve_space` is smaller than [`DropoutDescriptor::reserve_space_size`], if `dropout_descriptor` was not initialized with valid state storage, if the operation fails to launch on the GPU, or if cuDNN does not support the provided configuration.
+/// Do not run this concurrently with another [`dropout_forward_async`] call using the same states.
 ///
 /// # Safety
+///
 /// Retain the context, descriptors, RNG state, reserve storage and tensor ranges through completion, submission failure and graph replay.
 /// Order allocation readiness and input producers before this call; inputs must be valid when read.
 /// Writes must remain exclusive.
 /// Forward mutates RNG state; backward requires the unchanged reserve contents from the matching successful forward call.
 /// Only descriptor elements are produced; padding and tails remain pending.
-pub unsafe fn dropout_forward<T: DataTypeLike>(
+///
+/// # Errors
+///
+/// Returns an error if the input and output tensors have different dimensions, if `reserve_space` is smaller than [`DropoutDescriptor::reserve_space_size`], if `dropout_descriptor` was not initialized with valid state storage, if the operation fails to launch on the GPU, or if cuDNN does not support the provided configuration.
+pub unsafe fn dropout_forward_async<T: TensorElement>(
     context: &Context,
     dropout_descriptor: &mut DropoutDescriptor,
     x_descriptor: &TensorDescriptor<T>,
-    x: &(impl DeviceInput<T> + ?Sized),
+    x: &(impl DeviceRange<T> + ?Sized),
     y_descriptor: &TensorDescriptor<T>,
     y: &mut (impl DeviceOutput<T> + ?Sized),
     reserve_space: &mut DropoutReserveSpace,
 ) -> Result<()> {
     dropout_descriptor.ensure_context(context, "dropout forward")?;
     context.bind()?;
-    for region in [x.region(), y.region(), reserve_space.storage.region()] {
-        if region.context() != context.cuda_context() {
-            return Err(CudaError::MemoryContextMismatch.into());
-        }
-    }
+    context.prepare_regions(&[
+        x.region(),
+        y.region(),
+        reserve_space.storage.region(),
+        dropout_descriptor.states.region(),
+    ])?;
 
     check_range!(
         "dropout input storage span",
@@ -440,13 +417,15 @@ pub unsafe fn dropout_forward<T: DataTypeLike>(
 
     let required_reserve_size = DropoutDescriptor::reserve_space_size(x_descriptor)?;
     if reserve_space.byte_len() < required_reserve_size {
-        return Err(Error::InsufficientWorkspaceSize {
+        return Err(Error::BufferTooSmall {
+            name: "reserve space".into(),
             required: required_reserve_size,
             actual: reserve_space.byte_len(),
         });
     }
 
-    // SAFETY: `cudnnDropoutForward` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
+    // SAFETY: the buffers share the handle's context and cover their descriptors, and the reserve holds the size cuDNN requires for `x_descriptor`.
+    // The caller retains, orders and initializes the buffers and RNG state through completion, per this function's contract.
     unsafe {
         try_ffi!(sys::cudnnDropoutForward(
             context.as_raw(),
@@ -456,7 +435,7 @@ pub unsafe fn dropout_forward<T: DataTypeLike>(
             y_descriptor.as_raw(),
             y.as_mut_ptr().cast(),
             reserve_space.as_mut_ptr().cast(),
-            reserve_space.byte_len() as _,
+            to_size_t(reserve_space.byte_len(), "dropout reserve size")?,
         ))?;
     }
 
@@ -468,36 +447,33 @@ pub unsafe fn dropout_forward<T: DataTypeLike>(
 ///
 /// Better performance is obtained for fully packed tensors.
 ///
-/// # Errors
-///
-/// Returns an error if the input and output gradients are incompatible, if an in-place call uses mismatched strides, if `reserve_space` is smaller than [`DropoutDescriptor::reserve_space_size`], if `dropout_descriptor` was not initialized with valid state storage, if the operation fails to launch on the GPU, or if cuDNN does not support the provided configuration.
-///
 /// # Safety
+///
 /// Retain the context, descriptors, RNG state, reserve storage and tensor ranges through completion, submission failure and graph replay.
 /// Order allocation readiness and input producers before this call; inputs must be valid when read.
 /// Writes must remain exclusive.
 /// Forward mutates RNG state; backward requires the unchanged reserve contents from the matching successful forward call.
 /// Only descriptor elements are produced; padding and tails remain pending.
-pub unsafe fn dropout_backward<T: DataTypeLike>(
+///
+/// # Errors
+///
+/// Returns an error if the input and output gradients have different dimensions, if `reserve_space` is smaller than [`DropoutDescriptor::reserve_space_size`], if `dropout_descriptor` was not initialized with valid state storage, if the operation fails to launch on the GPU, or if cuDNN does not support the provided configuration.
+pub unsafe fn dropout_backward_async<T: TensorElement>(
     context: &Context,
     dropout_descriptor: &DropoutDescriptor,
     output_gradient_descriptor: &TensorDescriptor<T>,
-    output_gradient: &(impl DeviceInput<T> + ?Sized),
+    output_gradient: &(impl DeviceRange<T> + ?Sized),
     input_gradient_descriptor: &TensorDescriptor<T>,
     input_gradient: &mut (impl DeviceOutput<T> + ?Sized),
     reserve_space: &mut DropoutReserveSpace,
 ) -> Result<()> {
     dropout_descriptor.ensure_context(context, "dropout backward")?;
     context.bind()?;
-    for region in [
+    context.prepare_regions(&[
         output_gradient.region(),
         input_gradient.region(),
         reserve_space.storage.region(),
-    ] {
-        if region.context() != context.cuda_context() {
-            return Err(CudaError::MemoryContextMismatch.into());
-        }
-    }
+    ])?;
 
     check_range!(
         "dropout input storage span",
@@ -508,20 +484,23 @@ pub unsafe fn dropout_backward<T: DataTypeLike>(
         input_gradient.region().byte_len() >= input_gradient_descriptor.byte_len()?
     )?;
 
-    check_range!(
-        "dropout backward",
-        output_gradient_descriptor.dimensions() == input_gradient_descriptor.dimensions()
-    )?;
+    if output_gradient_descriptor.dimensions() != input_gradient_descriptor.dimensions() {
+        return Err(Error::DescriptorMismatch {
+            name: "dropout backward".into(),
+        });
+    }
 
     let required_reserve_size = DropoutDescriptor::reserve_space_size(output_gradient_descriptor)?;
     if reserve_space.byte_len() < required_reserve_size {
-        return Err(Error::InsufficientWorkspaceSize {
+        return Err(Error::BufferTooSmall {
+            name: "reserve space".into(),
             required: required_reserve_size,
             actual: reserve_space.byte_len(),
         });
     }
 
-    // SAFETY: `cudnnDropoutBackward` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
+    // SAFETY: the buffers share the handle's context and cover their descriptors, and the reserve holds the size cuDNN requires.
+    // The caller supplies the reserve of the matching forward and retains and orders every buffer through completion, per this function's contract.
     unsafe {
         try_ffi!(sys::cudnnDropoutBackward(
             context.as_raw(),
@@ -531,25 +510,87 @@ pub unsafe fn dropout_backward<T: DataTypeLike>(
             input_gradient_descriptor.as_raw(),
             input_gradient.as_mut_ptr().cast(),
             reserve_space.as_mut_ptr().cast(),
-            reserve_space.byte_len() as _,
+            to_size_t(reserve_space.byte_len(), "dropout reserve size")?,
         ))?;
     }
 
     Ok(())
 }
 
+/// Performs forward dropout over `x` into `y` and waits for it.
+///
+/// # Errors
+///
+/// Returns an error if the handle's stream is capturing, [`dropout_forward_async`] fails, or the wait fails.
+pub fn dropout_forward<T: TensorElement>(
+    context: &Context,
+    dropout_descriptor: &mut DropoutDescriptor,
+    x_descriptor: &TensorDescriptor<T>,
+    x: &(impl DeviceSlice<T> + ?Sized),
+    y_descriptor: &TensorDescriptor<T>,
+    y: &mut (impl DeviceOutput<T> + ?Sized),
+    reserve_space: &mut DropoutReserveSpace,
+) -> Result<()> {
+    context.sync_scope(|| {
+        // SAFETY: `x` is initialized, the RNG state and reserve storage are borrowed exclusively, and the borrows outlive the wait in `sync_scope`.
+        unsafe {
+            dropout_forward_async(
+                context,
+                dropout_descriptor,
+                x_descriptor,
+                x,
+                y_descriptor,
+                y,
+                reserve_space,
+            )
+        }
+    })
+}
+
+/// Performs backward dropout over `output_gradient` into `input_gradient` and waits for it.
+///
+/// The reserve space must hold the mask of the matching forward call, or the gradients are meaningless.
+///
+/// # Errors
+///
+/// Returns an error if the handle's stream is capturing, [`dropout_backward_async`] fails, or the wait fails.
+pub fn dropout_backward<T: TensorElement>(
+    context: &Context,
+    dropout_descriptor: &DropoutDescriptor,
+    output_gradient_descriptor: &TensorDescriptor<T>,
+    output_gradient: &(impl DeviceSlice<T> + ?Sized),
+    input_gradient_descriptor: &TensorDescriptor<T>,
+    input_gradient: &mut (impl DeviceOutput<T> + ?Sized),
+    reserve_space: &mut DropoutReserveSpace,
+) -> Result<()> {
+    context.sync_scope(|| {
+        // SAFETY: `output_gradient` is initialized, the reserve bytes are opaque mask storage, and the borrows outlive the wait in `sync_scope`.
+        unsafe {
+            dropout_backward_async(
+                context,
+                dropout_descriptor,
+                output_gradient_descriptor,
+                output_gradient,
+                input_gradient_descriptor,
+                input_gradient,
+                reserve_space,
+            )
+        }
+    })
+}
+
 #[cfg(all(test, feature = "testing"))]
 mod tests {
-    use singe_cuda::stream::StreamBinding;
 
     use super::*;
     use crate::testing::setup_context;
 
     #[test]
     fn test_dropout_descriptor_create() -> Result<()> {
-        let test_context = setup_context()?;
+        let test = setup_context()?;
+        let test_context = test.context();
 
-        let descriptor = DropoutDescriptor::create(&test_context, 0.25, 1234)?;
+        let descriptor = DropoutDescriptor::create(test_context, 0.25, 1234)?;
 
         assert_eq!(descriptor.rate(), 0.25);
         assert_eq!(descriptor.seed(), 1234);
@@ -560,9 +601,10 @@ mod tests {
 
     #[test]
     fn test_dropout_reserve_space_create() -> Result<()> {
-        let test_context = setup_context()?;
+        let test = setup_context()?;
+        let test_context = test.context();
         let tensor_descriptor = TensorDescriptor::<f32>::create_contiguous(&[2, 4])?;
-        let reserve_space = DropoutReserveSpace::create(&test_context, &tensor_descriptor)?;
+        let reserve_space = DropoutReserveSpace::create(test_context, &tensor_descriptor)?;
 
         assert!(reserve_space.byte_len() > 0);
 
@@ -571,81 +613,80 @@ mod tests {
 
     #[test]
     fn test_dropout_forward_backward_smoke() -> Result<()> {
-        let test_context = setup_context()?;
+        let test = setup_context()?;
+        let test_context = test.context();
 
         let shape = [1, 1, 1, 8];
         let count = shape
             .iter()
-            .map(|&dimension| dimension as usize)
+            .map(|&dimension| usize::try_from(dimension).expect("positive test dimension"))
             .product::<usize>();
         let tensor_descriptor = TensorDescriptor::<f32>::create_contiguous(&shape)?;
-        let mut dropout = DropoutDescriptor::create(&test_context, 0.5, 7)?;
-        let mut reserve_space = DropoutReserveSpace::create(&test_context, &tensor_descriptor)?;
+        let mut dropout = DropoutDescriptor::create(test_context, 0.5, 7)?;
+        let mut reserve_space = DropoutReserveSpace::create(test_context, &tensor_descriptor)?;
 
         let x_host = vec![1.0f32; count];
-        let dy_host = vec![1.0f32; count];
+        let y_grad_host = vec![1.0f32; count];
 
         let x = DeviceMemory::from_slice(test_context.cuda_context(), &x_host)?;
         let mut y = DeviceMemory::<f32>::create_uninit(test_context.cuda_context(), count)?;
-        let dy = DeviceMemory::from_slice(test_context.cuda_context(), &dy_host)?;
+        let dy = DeviceMemory::from_slice(test_context.cuda_context(), &y_grad_host)?;
         let mut dx = DeviceMemory::<f32>::create_uninit(test_context.cuda_context(), count)?;
 
-        StreamBinding::Borrowed(test_context.stream().to_borrowed()).sync_scope(
-            || -> Result<()> {
-                // SAFETY: inputs are initialized and all owners survive the stream wait below.
-                unsafe {
-                    dropout_forward(
-                        &test_context,
-                        &mut dropout,
-                        &tensor_descriptor,
-                        &x,
-                        &tensor_descriptor,
-                        &mut y,
-                        &mut reserve_space,
-                    )?;
-                }
+        test.stream().complete(|| -> Result<()> {
+            // SAFETY: `x` is initialized, and every owner outlives the wait in `sync_scope`.
+            unsafe {
+                dropout_forward_async(
+                    test_context,
+                    &mut dropout,
+                    &tensor_descriptor,
+                    &x,
+                    &tensor_descriptor,
+                    &mut y,
+                    &mut reserve_space,
+                )?;
+            }
 
-                // SAFETY: the matching forward precedes this call on the same stream.
-                unsafe {
-                    dropout_backward(
-                        &test_context,
-                        &dropout,
-                        &tensor_descriptor,
-                        &dy,
-                        &tensor_descriptor,
-                        &mut dx,
-                        &mut reserve_space,
-                    )?;
-                }
+            // SAFETY: the matching forward wrote `reserve_space` earlier on the same stream, `dy` is initialized, and every owner outlives the wait.
+            unsafe {
+                dropout_backward_async(
+                    test_context,
+                    &dropout,
+                    &tensor_descriptor,
+                    &dy,
+                    &tensor_descriptor,
+                    &mut dx,
+                    &mut reserve_space,
+                )?;
+            }
 
-                Ok(())
-            },
-        )?;
+            Ok(())
+        })?;
 
-        let mut dx_host = vec![0.0f32; count];
+        let mut x_grad_host = vec![0.0f32; count];
         // SAFETY: the completed operation wrote every contiguous descriptor element.
         let dx = unsafe { dx.assume_init() };
-        dx.copy_to_host(&mut dx_host)?;
-        assert_eq!(dx_host.len(), count);
+        dx.copy_to_host(&mut x_grad_host)?;
+        assert_eq!(x_grad_host.len(), count);
 
         Ok(())
     }
 
     #[test]
     fn test_dropout_descriptor_restore() -> Result<()> {
-        let test_context = setup_context()?;
+        let test = setup_context()?;
+        let test_context = test.context();
 
-        let descriptor = DropoutDescriptor::create(&test_context, 0.25, 1234)?;
+        let descriptor = DropoutDescriptor::create(test_context, 0.25, 1234)?;
         let state_size = descriptor.states().byte_len();
         let raw = descriptor.into_raw();
-        // SAFETY: creation completed RNG initialization; ownership was transferred
-        // and no submission uses this descriptor or state allocation.
+        // SAFETY: `into_raw` transferred the handle, and no queued work uses it.
         unsafe {
             try_ffi!(sys::cudnnDestroyDropoutDescriptor(raw.handle))?;
         }
-        // SAFETY: the descriptors and buffers are test locals that outlive the draining scope.
+        // SAFETY: `create` initialized `raw.states` with this seed in this process and waited for it.
         let restored =
-            unsafe { DropoutDescriptor::restore(&test_context, raw.rate, raw.seed, raw.states)? };
+            unsafe { DropoutDescriptor::restore(test_context, raw.rate, raw.seed, raw.states)? };
 
         assert_eq!(restored.rate(), 0.25);
         assert_eq!(restored.seed(), 1234);

@@ -6,13 +6,14 @@
 [![Documentation](https://docs.rs/singe-kernel/badge.svg)](https://docs.rs/singe-kernel)
 ![License](https://img.shields.io/crates/l/singe-kernel.svg)
 
-Reusable CPU and GPU kernels.
+Reusable CPU and GPU kernels for inference.
+CPU kernels work on host slices, and CUDA kernels, written with cuTile, work on device buffers and streams from `singe-cuda`.
 
-CPU kernels operate on host slices.
-CUDA kernels use device buffers and streams from `singe-cuda`.
-Kernel families include matmul, attention, normalization, convolution, audio, quantization, and fused inference operations.
+This crate provides:
 
-The goal of this crate is to offer reusable kernels built on top of various backends, which currently contain CPU and CUDA/cuTile-rs.
+- **CPU kernels** in `cpu`: matmul, attention, convolution, FFT, normalization, positional encodings, quantization, mixture-of-experts layers, and gated delta rule preprocessing.
+- **CUDA kernels** in `cuda`, one Cargo feature per family, from activations and attention to softmax and quantized matmul.
+- **Autotuning** for the CUDA kernels with tunable configurations: tune on a cache miss, require a cached result, or launch with an explicit tuning value.
 
 ## Example
 
@@ -22,57 +23,55 @@ Multiply two row-major matrices on the CPU:
 use singe_kernel::cpu::matmul;
 
 fn main() {
-	let a = [1.0_f32, 2.0, 3.0, 4.0];
-	let b = [5.0_f32, 6.0, 7.0, 8.0];
-	let output = matmul::matmul_f32(
-		&a, &b,
-		2, 2, 2,      // rows, columns, reduction
-		2, 2,         // input row strides
-		false, false, // transpose inputs
-	);
-	assert_eq!(output, [19.0, 22.0, 43.0, 50.0]);
+    let a = [1.0_f32, 2.0, 3.0, 4.0];
+    let b = [5.0_f32, 6.0, 7.0, 8.0];
+    let output = matmul::matmul_f32(
+        &a, &b,
+        2, 2, 2,      // rows, columns, reduction
+        2, 2,         // input row strides
+        false, false, // transpose inputs
+    );
+    assert_eq!(output, [19.0, 22.0, 43.0, 50.0]);
 }
 ```
 
 ## CUDA kernels
 
-The CUDA kernels are written with cuTile and work with buffers and streams from `singe-cuda`.
-Enable the kernels you need through Cargo features.
-For matrix multiplication:
+Enable the kernel families you use through Cargo features:
 
 ```toml
-singe-cuda = "*"
-singe-kernel = { version = "*", features = ["kernel_matmul"] }
+singe-cuda = "0.1"
+singe-kernel = { version = "0.1", features = ["kernel_matmul"] }
 ```
 
-Here is the same matrix multiplication on the GPU:
+The same matrix multiplication on the GPU:
 
-```rust,no_run
-use singe_cuda::{context::Context, device::Device, memory::DeviceMemory};
+```rust,ignore
+use singe_cuda::{context::Context, memory::DeviceMemory, stream::StreamOptions};
 use singe_kernel::cuda::matmul::{self, MatmulConfig};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-	let context = Context::retain_primary_for_device(Device::new(0))?;
-	let stream = context.create_stream()?;
-	let a = DeviceMemory::from_slice(&context, &[1.0_f32, 2.0, 3.0, 4.0])?;
-	let b = DeviceMemory::from_slice(&context, &[5.0_f32, 6.0, 7.0, 8.0])?;
-	let mut output = DeviceMemory::<f32>::zeroed(&context, 4)?;
-	let config = MatmulConfig::row_major(2, 2, 2);
+    let context = Context::create()?;
+    let stream = context.create_stream(StreamOptions::default())?;
+    let a = DeviceMemory::from_slice(&context, &[1.0_f32, 2.0, 3.0, 4.0])?;
+    let b = DeviceMemory::from_slice(&context, &[5.0_f32, 6.0, 7.0, 8.0])?;
+    let mut output = DeviceMemory::<f32>::zeroed(&context, 4)?;
 
-	stream.sync_scope(|_| {
-		// SAFETY: the buffers match the 2×2 layouts and stay alive until
-		// the scope finishes. Output is disjoint and exclusively written.
-		Ok(unsafe { matmul::matmul_f32(&stream, &mut output, &a, &b, config) })
-	})??;
-	assert_eq!(output.copy_to_host_vec()?, [19.0, 22.0, 43.0, 50.0]);
-	Ok(())
+    // SAFETY: the buffers match the 2×2 layouts, do not overlap,
+    // and stay alive until `stream.synchronize` returns.
+    unsafe { matmul::matmul_f32(&stream, &mut output, &a, &b, MatmulConfig::row_major(2, 2, 2))? };
+    stream.synchronize()?;
+    assert_eq!(output.copy_to_host_vec()?, [19.0, 22.0, 43.0, 50.0]);
+    Ok(())
 }
 ```
 
-`MatmulConfig` sets the matrix dimensions and layout.
-The stream scope waits for the kernel to finish before we copy the result back.
+`MatmulConfig` sets the matrix dimensions, row strides, and transposes, and its `tuning` field chooses between the default launch and a tuned one.
+The [CUDA guide](./docs/kernels.md) lists every kernel family and describes launches and autotuning.
 
-`f32` kernels are enabled by default.
-Add features such as `dtype_f16` or `dtype_bf16` for other datatypes, or `full` for all kernels and datatypes.
+## Features
 
-See the [CUDA guide](docs/kernels.md) for the kernel table, launch details, and autotuning, or the [API reference](https://docs.rs/singe-kernel) for individual functions.
+- `kernel_<family>`, such as `kernel_matmul` or `kernel_attention`: one CUDA kernel family; `kernels_all` enables every family.
+- `dtype_<type>`, such as `dtype_f16` or `dtype_bf16`: kernels for one element type; `dtype_f32` is on by default, and `dtypes_all` enables every type.
+- `full`: every kernel family and element type.
+- `serde`: `Serialize` and `Deserialize` for kernel configurations and tuning reports, so a tuning result can be saved and reused.

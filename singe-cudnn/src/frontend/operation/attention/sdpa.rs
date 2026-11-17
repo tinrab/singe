@@ -4,24 +4,22 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     backend::{
-        execution::attention::{
-            SdpaBackwardConfig, SdpaBackwardOperation, SdpaForwardConfig, SdpaForwardDropout,
-            SdpaForwardOperation, SdpaForwardSoftmax, SdpaSubgraph, SoftmaxOperation,
-            SoftmaxOperationConfig,
+        operation::attention::{
+            AttentionSequenceInputs, SdpaBackwardOperation, SdpaBackwardOptions, SdpaBackwardSink,
+            SdpaBackwardTensors, SdpaForwardDropout, SdpaForwardOperation, SdpaForwardOptions,
+            SdpaForwardQuantization, SdpaForwardSoftmax, SdpaForwardTensors, SdpaSubgraph,
+            SequenceLength, SoftmaxOperation, SoftmaxOutputs, SoftmaxSpec, SoftmaxStatsBase,
         },
-        tensor::{Tensor, TensorId},
+        tensor::Tensor,
     },
     error::Result,
     frontend::{
         error::{Error as FrontendError, SdpaRequirement},
-        graph::{DataTypePolicy, Graph, SoftmaxOutputs},
+        graph::{DataTypePolicy, Graph},
         lower::{LoweredOperation, LoweringContext, optional_tensor_at, tensor_at},
-        operation::{
-            AttentionSequenceInputs, DirectSdpaDropout, SdpaBackwardSink, SdpaBackwardTensors,
-            SdpaForwardQuantization, SdpaForwardTensors, SdpaFusedMaskMode, SdpaScoreModifiers,
-            SdpaScoreSubgraph, SequenceLength, SoftmaxStatsBase,
-        },
+        operation::{DirectSdpaDropout, SdpaScoreModifiers, SdpaScoreSubgraph},
     },
+    tensor::TensorId,
 };
 
 /// Options for the direct cuDNN SDPA forward operation.
@@ -70,7 +68,7 @@ impl DirectSdpaForwardConfig {
         self
     }
 
-    /// Encoding of saved forward softmax statistics.
+    /// Returns the encoding of saved forward softmax statistics.
     #[must_use]
     pub fn stats_base(self) -> SoftmaxStatsBase {
         self.stats_base
@@ -337,7 +335,7 @@ impl DirectSdpaBackwardConfig {
         self
     }
 
-    /// C++ causal-like support rule: a top-left-aligned right bound is present.
+    /// Returns whether the C++ causal-like support rule applies: a top-left-aligned right bound is present.
     #[must_use]
     pub fn causal_mask(&self) -> bool {
         self.causal_mask
@@ -482,7 +480,7 @@ impl SdpaOperation {
                             sum_exp: *score_sum_exp,
                         }
                         .try_map(|id| tensor_at(tensors, id))?,
-                        SoftmaxOperationConfig {
+                        SoftmaxSpec {
                             stats_base: config.stats_base,
                             sink: optional_tensor_at(tensors, *sink)?,
                         },
@@ -523,7 +521,7 @@ impl SdpaOperation {
 
                 Ok(LoweredOperation::SdpaForward(SdpaForwardOperation::create(
                     forward_tensors.try_map(|id| tensor_at(tensors, id))?,
-                    SdpaForwardConfig {
+                    SdpaForwardOptions {
                         sequence: config
                             .sequence_inputs()
                             .try_map(|id| tensor_at(tensors, id))?,
@@ -566,7 +564,7 @@ impl SdpaOperation {
                 Ok(LoweredOperation::SdpaBackward(
                     SdpaBackwardOperation::create(
                         (*backward_tensors).try_map(|id| tensor_at(tensors, id))?,
-                        SdpaBackwardConfig {
+                        SdpaBackwardOptions {
                             sequence: config
                                 .sequence_inputs()
                                 .try_map(|id| tensor_at(tensors, id))?,
@@ -595,13 +593,12 @@ pub struct SdpaConfig {
     pub(crate) name: Option<String>,
     pub(crate) aux_outputs: SdpaAuxOutputRequest,
     pub(crate) stats_base: SoftmaxStatsBase,
-    pub(crate) mask: SdpaFusedMaskMode,
     #[serde(default, with = "crate::scalar::float::optional_f32")]
     pub(crate) attention_scale: Option<f32>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SdpaAuxOutputRequest {
+pub(crate) struct SdpaAuxOutputRequest {
     pub(crate) softmax: SdpaSoftmaxAuxOutputRequest,
     pub(crate) quantized: SdpaQuantizedAuxOutputRequest,
     pub(crate) rng_dump: bool,
@@ -609,7 +606,7 @@ pub struct SdpaAuxOutputRequest {
 
 /// Independently requested softmax outputs.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SdpaSoftmaxAuxOutputRequest {
+pub(crate) struct SdpaSoftmaxAuxOutputRequest {
     pub stats: bool,
     pub logit_max: bool,
     pub score_sum_exp: bool,
@@ -617,7 +614,7 @@ pub struct SdpaSoftmaxAuxOutputRequest {
 
 /// Independently requested pre-quantization absolute maxima.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SdpaQuantizedAuxOutputRequest {
+pub(crate) struct SdpaQuantizedAuxOutputRequest {
     pub absolute_max_probabilities: bool,
     pub absolute_max_output: bool,
 }
@@ -635,51 +632,51 @@ impl SdpaAuxOutputRequest {
         }
     }
 
-    pub fn rng_dump(self) -> bool {
+    pub(crate) fn rng_dump(self) -> bool {
         self.rng_dump
     }
 
-    pub fn stats(self) -> bool {
+    pub(crate) fn stats(self) -> bool {
         self.softmax.stats
     }
 
-    pub fn absolute_max_s(self) -> bool {
+    pub(crate) fn absolute_max_s(self) -> bool {
         self.quantized.absolute_max_probabilities
     }
 
-    pub fn absolute_max_o(self) -> bool {
+    pub(crate) fn absolute_max_o(self) -> bool {
         self.quantized.absolute_max_output
     }
 
-    pub fn softmax(self) -> SdpaSoftmaxAuxOutputRequest {
+    pub(crate) fn softmax(self) -> SdpaSoftmaxAuxOutputRequest {
         self.softmax
     }
 
-    pub fn quantized(self) -> SdpaQuantizedAuxOutputRequest {
+    pub(crate) fn quantized(self) -> SdpaQuantizedAuxOutputRequest {
         self.quantized
     }
 }
 
 impl SdpaSoftmaxAuxOutputRequest {
-    pub fn stats(self) -> bool {
+    pub(crate) fn stats(self) -> bool {
         self.stats
     }
 
-    pub fn logit_max(self) -> bool {
+    pub(crate) fn logit_max(self) -> bool {
         self.logit_max
     }
 
-    pub fn score_sum_exp(self) -> bool {
+    pub(crate) fn score_sum_exp(self) -> bool {
         self.score_sum_exp
     }
 }
 
 impl SdpaQuantizedAuxOutputRequest {
-    pub fn absolute_max_s(self) -> bool {
+    pub(crate) fn absolute_max_s(self) -> bool {
         self.absolute_max_probabilities
     }
 
-    pub fn absolute_max_o(self) -> bool {
+    pub(crate) fn absolute_max_o(self) -> bool {
         self.absolute_max_output
     }
 }
@@ -692,7 +689,6 @@ impl SdpaConfig {
             name: None,
             aux_outputs: SdpaAuxOutputRequest::default(),
             stats_base: SoftmaxStatsBase::NaturalLog,
-            mask: SdpaFusedMaskMode::None,
             attention_scale: None,
         }
     }
@@ -724,13 +720,6 @@ impl SdpaConfig {
         self
     }
 
-    /// Replaces the fused attention mask mode.
-    #[must_use]
-    pub fn with_mask(mut self, mask: SdpaFusedMaskMode) -> Self {
-        self.mask = mask;
-        self
-    }
-
     /// Sets the numeric attention factor, or removes it with `None` while retaining the tensor scale.
     #[must_use]
     pub fn with_attention_scale(mut self, attention_scale: impl Into<Option<f32>>) -> Self {
@@ -746,12 +735,6 @@ impl SdpaConfig {
 
     pub(crate) fn aux_outputs(&self) -> SdpaAuxOutputRequest {
         self.aux_outputs
-    }
-
-    /// Returns the fused attention mask mode.
-    #[must_use]
-    pub fn mask(&self) -> SdpaFusedMaskMode {
-        self.mask
     }
 
     /// Returns the optional numeric attention multiplier applied in addition to the tensor scale.

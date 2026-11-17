@@ -5,16 +5,19 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use singe_core::report_cleanup_failure;
+
 use crate::{
     error::{Error, Result},
-    graph::{ExecutableGraph, Graph},
-    stream::{Stream, StreamCaptureMode, StreamCaptureStatus},
+    graph::{ExecutableGraph, Graph, GraphInstantiateFlags},
+    stream::{Stream, StreamCaptureMode},
     submission::{DeviceOperation, Execution, Operation, Resources, Submission},
 };
 
 /// Prepared work that can be recorded without allocation, compilation, waits or host readback.
 ///
 /// # Safety
+///
 /// Register every owner and byte-range access with `Recording` before recording native work.
 /// Outputs must expose pending storage only; recording does not execute producers.
 /// Native operations and resources must remain valid for every replay.
@@ -48,6 +51,7 @@ impl Recording {
     /// Registers replay resources before recording one native operation.
     ///
     /// # Safety
+    ///
     /// Retain all referenced owners and declare all accessed ranges.
     /// The closure must be graph-safe and enqueue only on the supplied stream.
     /// Returned values must not claim that capture initialized their storage.
@@ -72,9 +76,14 @@ impl Recording {
 
 impl Drop for Recording {
     fn drop(&mut self) {
-        if !matches!(self.stream.capture_status(), Ok(StreamCaptureStatus::None)) {
+        // CUDA may still retain captured addresses, so the recorded resources stay retained.
+        if let Err(error) = self.stream.ensure_not_capturing() {
             mem::forget(mem::take(&mut self.resources));
-            eprintln!("cuda capture did not end; retaining recorded resources");
+            report_cleanup_failure(
+                "release the recorded resources of",
+                "cuda stream capture",
+                &error,
+            );
         }
     }
 }
@@ -110,7 +119,9 @@ impl<T> OwnedGraph<T> {
     /// No executable or independent resource snapshot is returned if instantiation fails.
     pub fn instantiate(&self) -> Result<OwnedExecutable> {
         Ok(OwnedExecutable {
-            executable: Arc::new(Mutex::new(self.graph.instantiate()?)),
+            executable: Arc::new(Mutex::new(
+                self.graph.instantiate(GraphInstantiateFlags::empty())?,
+            )),
             resources: self.resources.clone(),
         })
     }
@@ -127,6 +138,7 @@ impl OwnedExecutable {
     /// Adopts an existing executable and its complete replay ownership and access declarations.
     ///
     /// # Safety
+    ///
     /// Resources must retain everything referenced by every node, including private scratch.
     /// Declare writable graph-private storage so shared instances serialize its use.
     /// Raw mutations must preserve this ownership and access contract.
@@ -145,7 +157,7 @@ impl OwnedExecutable {
     /// # Errors
     ///
     /// Propagates execution setup, access-tracking, dependency-ordering, graph-launch, and completion registration errors.
-    /// Returns `Error::ResourcePoisoned` if the executable lock is poisoned.
+    /// Returns `Error::LockPoisoned` if the executable lock is poisoned.
     /// A failure can occur after native work has been queued; the execution ledger retains resources through cleanup.
     pub fn launch(&self, stream: &Stream) -> Result<Submission<()>> {
         self.clone().submit_on(stream)
@@ -154,11 +166,12 @@ impl OwnedExecutable {
     /// Accesses native graph mutation under the replay lock.
     ///
     /// # Safety
+    ///
     /// Complete prior launches before mutation and preserve the retained ownership and access declarations.
     ///
     /// # Errors
     ///
-    /// Returns `Error::ResourcePoisoned` if the executable lock is poisoned.
+    /// Returns `Error::LockPoisoned` if the executable lock is poisoned.
     /// Otherwise propagates errors returned by `access`.
     pub unsafe fn with_raw<T>(
         &self,
@@ -167,13 +180,12 @@ impl OwnedExecutable {
         let mut executable = self
             .executable
             .lock()
-            .map_err(|_| Error::ResourcePoisoned {
-                name: "executable graph",
-            })?;
+            .map_err(|_| Error::lock_poisoned("executable graph"))?;
         access(&mut executable)
     }
 }
 
+// SAFETY: `enqueue` registers the replay resources and the executable itself through `Execution::enqueue` before launching, and the unit output exposes no device storage.
 unsafe impl Operation for OwnedExecutable {
     type Pending = Self::Output;
 
@@ -182,15 +194,13 @@ unsafe impl Operation for OwnedExecutable {
     fn enqueue(self, execution: &mut Execution) -> Result<()> {
         let mut resources = self.resources;
         resources.retain(Arc::clone(&self.executable));
-        // SAFETY: the declared resources retain every buffer and the stream orders all access to them.
+        // SAFETY: `resources` holds every owner and access the replay declared at capture or adoption plus the executable, and the closure only launches on the execution's stream.
         unsafe {
             execution.enqueue(resources, |stream| {
                 self.executable
                     .lock()
-                    .map_err(|_| Error::ResourcePoisoned {
-                        name: "executable graph",
-                    })?
-                    .launch(stream)
+                    .map_err(|_| Error::lock_poisoned("executable graph"))?
+                    .launch_async(stream)
             })
         }
     }
@@ -200,7 +210,7 @@ unsafe impl Operation for OwnedExecutable {
     }
 }
 
-// SAFETY: enqueue returns pending device metadata and resolution is the identity function.
+// SAFETY: `Pending` is `Output`, `resolve` returns it unchanged, and `enqueue` schedules the launch without host resolution.
 unsafe impl DeviceOperation for OwnedExecutable {}
 
 impl Stream {

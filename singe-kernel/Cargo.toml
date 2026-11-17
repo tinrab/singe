@@ -1,12 +1,14 @@
 [package]
 name = "singe-kernel"
 description = "Reusable CPU and GPU kernels."
-version = "0.1.0-alpha.5"
+version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 repository.workspace = true
 license-file.workspace = true
 readme = "README.md"
 keywords = ["singe", "cuda", "kernel", "gpu"]
+categories = ["science"]
 include.workspace = true
 
 [features]
@@ -19,7 +21,7 @@ cutile = [
     "dep:cuda-core",
     "singe-cuda/interop_cuda_core",
 ]
-cuda_13_4 = ["dep:singe-cuda"]
+cuda_13_4 = ["dep:singe-cuda", "singe-cuda/runtime_13_4"]
 serde = ["dep:serde"]
 dtype_f32 = []
 dtype_f16 = []

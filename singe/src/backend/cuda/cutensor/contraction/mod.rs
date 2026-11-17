@@ -42,7 +42,7 @@ pub fn create_cutensor_contraction_plan(
     let plan = create_cutensor_contraction_plan_handle(
         cutensor, a, a_mode, b, b_mode, c, c_mode, d_mode, output,
     )?;
-    let workspace_size = plan.required_workspace_size_bytes()?;
+    let workspace_size = plan.workspace_size();
     Ok((
         plan,
         cutensor_workspace(cutensor.cuda_context(), workspace_size)?,

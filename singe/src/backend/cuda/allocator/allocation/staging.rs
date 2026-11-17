@@ -24,12 +24,12 @@ impl CudaCachingAllocator {
                 memory.as_ptr(),
                 bytes.len(),
                 MemoryCopyKind::HostToDevice,
-                &self.stream,
+                &*self.stream,
             )?;
         }
 
         let staged = copied
-            .record(&self.stream, EventRecordFlags::DEFAULT)
+            .record(&*self.stream, EventRecordFlags::DEFAULT)
             .map_err(Error::from)
             .and_then(|()| self.cache.staging.locked("cuda staging buffers"));
         match staged {
@@ -63,9 +63,7 @@ impl CudaCachingAllocator {
 
         match finished.pop() {
             Some(buffer) => Ok(buffer.copied),
-            None => Ok(self
-                .context
-                .create_event_with_flags(EventFlags::DISABLE_TIMING)?),
+            None => Ok(self.context.create_event(EventFlags::DISABLE_TIMING)?),
         }
     }
 }

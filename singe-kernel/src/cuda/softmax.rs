@@ -8,7 +8,7 @@ use ::cutile::{cuda_async::device_buffer::DevicePointer, cuda_core::Stream as Cu
 use singe_cuda::types::f16;
 use singe_cuda::{
     stream::Stream,
-    view::{DeviceInput, DeviceOutput, DeviceRepr},
+    view::{DeviceOutput, DeviceRange, DeviceRepr},
 };
 
 #[cfg(feature = "cutile")]
@@ -121,7 +121,7 @@ macro_rules! softmax_fns {
         pub unsafe fn $softmax(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
             config: SoftmaxConfig,
         ) -> Result<()> {
             softmax(
@@ -152,7 +152,7 @@ macro_rules! softmax_fns {
         pub unsafe fn $tune_softmax(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
             config: SoftmaxConfig,
             options: TuneOptions,
         ) -> Result<TuneReport<SoftmaxTuning>> {
@@ -181,7 +181,7 @@ macro_rules! softmax_fns {
         pub unsafe fn $log_softmax(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
             config: SoftmaxConfig,
         ) -> Result<()> {
             softmax(
@@ -214,7 +214,7 @@ macro_rules! softmax_fns {
         pub unsafe fn $tune_log_softmax(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
             config: SoftmaxConfig,
             options: TuneOptions,
         ) -> Result<TuneReport<SoftmaxTuning>> {
@@ -245,7 +245,7 @@ macro_rules! softmax_fns {
         pub unsafe fn $softmin(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
             config: SoftmaxConfig,
         ) -> Result<()> {
             softmax(
@@ -276,7 +276,7 @@ macro_rules! softmax_fns {
         pub unsafe fn $tune_softmin(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
             config: SoftmaxConfig,
             options: TuneOptions,
         ) -> Result<TuneReport<SoftmaxTuning>> {
@@ -353,7 +353,7 @@ softmax_fns!(
 pub unsafe fn softmax_lse_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    input: &impl DeviceInput<f32>,
+    input: &impl DeviceRange<f32>,
     config: SoftmaxConfig,
 ) -> Result<()> {
     softmax_lse(
@@ -385,7 +385,7 @@ pub unsafe fn softmax_lse_f32(
 pub unsafe fn tune_softmax_lse_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    input: &impl DeviceInput<f32>,
+    input: &impl DeviceRange<f32>,
     config: SoftmaxConfig,
     options: TuneOptions,
 ) -> Result<TuneReport<SoftmaxTuning>> {
@@ -415,7 +415,7 @@ pub unsafe fn tune_softmax_lse_f32(
 pub unsafe fn softmax_lse_f16(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    input: &impl DeviceInput<f16>,
+    input: &impl DeviceRange<f16>,
     config: SoftmaxConfig,
 ) -> Result<()> {
     softmax_lse(
@@ -447,7 +447,7 @@ pub unsafe fn softmax_lse_f16(
 pub unsafe fn tune_softmax_lse_f16(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    input: &impl DeviceInput<f16>,
+    input: &impl DeviceRange<f16>,
     config: SoftmaxConfig,
     options: TuneOptions,
 ) -> Result<TuneReport<SoftmaxTuning>> {
@@ -477,7 +477,7 @@ pub unsafe fn tune_softmax_lse_f16(
 pub unsafe fn softmax_lse_f64(
     stream: &Stream,
     out: &mut impl DeviceOutput<f64>,
-    input: &impl DeviceInput<f64>,
+    input: &impl DeviceRange<f64>,
     config: SoftmaxConfig,
 ) -> Result<()> {
     softmax_lse(
@@ -509,7 +509,7 @@ pub unsafe fn softmax_lse_f64(
 pub unsafe fn tune_softmax_lse_f64(
     stream: &Stream,
     out: &mut impl DeviceOutput<f64>,
-    input: &impl DeviceInput<f64>,
+    input: &impl DeviceRange<f64>,
     config: SoftmaxConfig,
     options: TuneOptions,
 ) -> Result<TuneReport<SoftmaxTuning>> {
@@ -539,7 +539,7 @@ pub unsafe fn tune_softmax_lse_f64(
 pub unsafe fn softmax_lse_wide_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    input: &impl DeviceInput<f32>,
+    input: &impl DeviceRange<f32>,
     partial: &mut impl DeviceOutput<f32>,
     row_max: &mut impl DeviceOutput<f32>,
     row_sum: &mut impl DeviceOutput<f32>,
@@ -573,7 +573,7 @@ pub unsafe fn softmax_lse_wide_f32(
 pub unsafe fn softmax_lse_wide_f16(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    input: &impl DeviceInput<f16>,
+    input: &impl DeviceRange<f16>,
     partial: &mut impl DeviceOutput<f32>,
     row_max: &mut impl DeviceOutput<f32>,
     row_sum: &mut impl DeviceOutput<f32>,
@@ -607,7 +607,7 @@ pub unsafe fn softmax_lse_wide_f16(
 pub unsafe fn softmax_lse_wide_f64(
     stream: &Stream,
     out: &mut impl DeviceOutput<f64>,
-    input: &impl DeviceInput<f64>,
+    input: &impl DeviceRange<f64>,
     partial: &mut impl DeviceOutput<f64>,
     row_max: &mut impl DeviceOutput<f64>,
     row_sum: &mut impl DeviceOutput<f64>,
@@ -641,7 +641,7 @@ pub unsafe fn softmax_lse_wide_f64(
 pub unsafe fn softmax_wide_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    input: &impl DeviceInput<f32>,
+    input: &impl DeviceRange<f32>,
     partial: &mut impl DeviceOutput<f32>,
     row_max: &mut impl DeviceOutput<f32>,
     row_sum: &mut impl DeviceOutput<f32>,
@@ -675,7 +675,7 @@ pub unsafe fn softmax_wide_f32(
 pub unsafe fn softmax_wide_f16(
     stream: &Stream,
     out: &mut impl DeviceOutput<f16>,
-    input: &impl DeviceInput<f16>,
+    input: &impl DeviceRange<f16>,
     partial: &mut impl DeviceOutput<f32>,
     row_max: &mut impl DeviceOutput<f32>,
     row_sum: &mut impl DeviceOutput<f32>,
@@ -709,7 +709,7 @@ pub unsafe fn softmax_wide_f16(
 pub unsafe fn softmax_wide_f64(
     stream: &Stream,
     out: &mut impl DeviceOutput<f64>,
-    input: &impl DeviceInput<f64>,
+    input: &impl DeviceRange<f64>,
     partial: &mut impl DeviceOutput<f64>,
     row_max: &mut impl DeviceOutput<f64>,
     row_sum: &mut impl DeviceOutput<f64>,
@@ -743,7 +743,7 @@ pub unsafe fn softmax_wide_f64(
 pub unsafe fn log_softmax_wide_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    input: &impl DeviceInput<f32>,
+    input: &impl DeviceRange<f32>,
     partial: &mut impl DeviceOutput<f32>,
     row_max: &mut impl DeviceOutput<f32>,
     row_sum: &mut impl DeviceOutput<f32>,
@@ -777,7 +777,7 @@ pub unsafe fn log_softmax_wide_f32(
 pub unsafe fn log_softmax_wide_f16(
     stream: &Stream,
     out: &mut impl DeviceOutput<f16>,
-    input: &impl DeviceInput<f16>,
+    input: &impl DeviceRange<f16>,
     partial: &mut impl DeviceOutput<f32>,
     row_max: &mut impl DeviceOutput<f32>,
     row_sum: &mut impl DeviceOutput<f32>,
@@ -811,7 +811,7 @@ pub unsafe fn log_softmax_wide_f16(
 pub unsafe fn log_softmax_wide_f64(
     stream: &Stream,
     out: &mut impl DeviceOutput<f64>,
-    input: &impl DeviceInput<f64>,
+    input: &impl DeviceRange<f64>,
     partial: &mut impl DeviceOutput<f64>,
     row_max: &mut impl DeviceOutput<f64>,
     row_sum: &mut impl DeviceOutput<f64>,
@@ -845,7 +845,7 @@ pub unsafe fn log_softmax_wide_f64(
 pub unsafe fn softmin_wide_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    input: &impl DeviceInput<f32>,
+    input: &impl DeviceRange<f32>,
     partial: &mut impl DeviceOutput<f32>,
     row_min: &mut impl DeviceOutput<f32>,
     row_sum: &mut impl DeviceOutput<f32>,
@@ -879,7 +879,7 @@ pub unsafe fn softmin_wide_f32(
 pub unsafe fn softmin_wide_f16(
     stream: &Stream,
     out: &mut impl DeviceOutput<f16>,
-    input: &impl DeviceInput<f16>,
+    input: &impl DeviceRange<f16>,
     partial: &mut impl DeviceOutput<f32>,
     row_min: &mut impl DeviceOutput<f32>,
     row_sum: &mut impl DeviceOutput<f32>,
@@ -913,7 +913,7 @@ pub unsafe fn softmin_wide_f16(
 pub unsafe fn softmin_wide_f64(
     stream: &Stream,
     out: &mut impl DeviceOutput<f64>,
-    input: &impl DeviceInput<f64>,
+    input: &impl DeviceRange<f64>,
     partial: &mut impl DeviceOutput<f64>,
     row_min: &mut impl DeviceOutput<f64>,
     row_sum: &mut impl DeviceOutput<f64>,
@@ -1013,7 +1013,7 @@ where
 
 fn validate_softmax<T: DeviceRepr>(
     out: &impl DeviceOutput<T>,
-    input: &impl DeviceInput<T>,
+    input: &impl DeviceRange<T>,
     config: SoftmaxConfig,
 ) -> Result<()> {
     if config.columns == 0 {
@@ -1036,7 +1036,7 @@ fn validate_softmax<T: DeviceRepr>(
 fn launch_softmax_default<T, F>(
     stream: &Stream,
     out: &mut impl DeviceOutput<T>,
-    input: &impl DeviceInput<T>,
+    input: &impl DeviceRange<T>,
     config: SoftmaxConfig,
     launch: F,
 ) -> Result<()>
@@ -1058,7 +1058,7 @@ where
 fn launch_softmax_with_tuning<T, F>(
     stream: &Stream,
     out: &mut impl DeviceOutput<T>,
-    input: &impl DeviceInput<T>,
+    input: &impl DeviceRange<T>,
     config: SoftmaxConfig,
     tuning: SoftmaxTuning,
     launch: F,
@@ -1093,7 +1093,7 @@ where
 fn softmax<T, FDefault, FTuned>(
     stream: &Stream,
     out: &mut impl DeviceOutput<T>,
-    input: &impl DeviceInput<T>,
+    input: &impl DeviceRange<T>,
     config: SoftmaxConfig,
     dtype: &'static str,
     op: &'static str,
@@ -1152,7 +1152,7 @@ where
 fn tune_softmax<T, F>(
     stream: &Stream,
     out: &mut impl DeviceOutput<T>,
-    input: &impl DeviceInput<T>,
+    input: &impl DeviceRange<T>,
     config: SoftmaxConfig,
     options: TuneOptions,
     dtype: &'static str,
@@ -1191,7 +1191,7 @@ where
 fn softmax_wide<Input, Scratch, F>(
     stream: &Stream,
     out: &mut impl DeviceOutput<Input>,
-    input: &impl DeviceInput<Input>,
+    input: &impl DeviceRange<Input>,
     partial: &mut impl DeviceOutput<Scratch>,
     row_max: &mut impl DeviceOutput<Scratch>,
     row_sum: &mut impl DeviceOutput<Scratch>,
@@ -1244,7 +1244,7 @@ where
 
 fn validate_softmax_lse<Input: DeviceRepr, Output: DeviceRepr>(
     out: &impl DeviceOutput<Output>,
-    input: &impl DeviceInput<Input>,
+    input: &impl DeviceRange<Input>,
     config: SoftmaxConfig,
 ) -> Result<()> {
     if config.columns == 0 {
@@ -1267,7 +1267,7 @@ fn validate_softmax_lse<Input: DeviceRepr, Output: DeviceRepr>(
 fn launch_softmax_lse_default<Input, Output, F>(
     stream: &Stream,
     out: &mut impl DeviceOutput<Output>,
-    input: &impl DeviceInput<Input>,
+    input: &impl DeviceRange<Input>,
     config: SoftmaxConfig,
     launch: F,
 ) -> Result<()>
@@ -1296,7 +1296,7 @@ where
 fn launch_softmax_lse_with_tuning<Input, Output, F>(
     stream: &Stream,
     out: &mut impl DeviceOutput<Output>,
-    input: &impl DeviceInput<Input>,
+    input: &impl DeviceRange<Input>,
     config: SoftmaxConfig,
     tuning: SoftmaxTuning,
     launch: F,
@@ -1332,7 +1332,7 @@ where
 fn softmax_lse<Input, Output, FDefault, FTuned>(
     stream: &Stream,
     out: &mut impl DeviceOutput<Output>,
-    input: &impl DeviceInput<Input>,
+    input: &impl DeviceRange<Input>,
     config: SoftmaxConfig,
     dtype: &'static str,
     op: &'static str,
@@ -1404,7 +1404,7 @@ where
 fn tune_softmax_lse<Input, Output, F>(
     stream: &Stream,
     out: &mut impl DeviceOutput<Output>,
-    input: &impl DeviceInput<Input>,
+    input: &impl DeviceRange<Input>,
     config: SoftmaxConfig,
     options: TuneOptions,
     dtype: &'static str,
@@ -1444,7 +1444,7 @@ where
 fn softmax_lse_wide<Input, Output, Scratch, F>(
     stream: &Stream,
     out: &mut impl DeviceOutput<Output>,
-    input: &impl DeviceInput<Input>,
+    input: &impl DeviceRange<Input>,
     partial: &mut impl DeviceOutput<Scratch>,
     row_max: &mut impl DeviceOutput<Scratch>,
     row_sum: &mut impl DeviceOutput<Scratch>,
@@ -1501,8 +1501,9 @@ mod tests {
     use singe_cuda::{
         context::Context as CudaContext,
         device::Device,
+        graph::GraphInstantiateFlags,
         memory::DeviceMemory,
-        stream::{Stream, StreamCaptureMode, StreamFlags},
+        stream::{Stream, StreamCaptureMode, StreamFlags, StreamOptions},
     };
 
     // Borrowed eager launches and replay are drained on errors as well as success.
@@ -1510,12 +1511,13 @@ mod tests {
 
     #[cfg(feature = "dtype_f32")]
     fn test_stream() -> Result<Option<Stream>> {
-        let Ok(context) = CudaContext::retain_primary_for_device(Device::new(0)) else {
+        let Ok(context) = CudaContext::create_for_device(Device::new(0)) else {
             return Ok(None);
         };
-        Ok(Some(
-            context.create_stream_with_flags(StreamFlags::NON_BLOCKING)?,
-        ))
+        Ok(Some(context.create_stream(StreamOptions {
+            flags: StreamFlags::NON_BLOCKING,
+            ..StreamOptions::default()
+        })?))
     }
 
     #[cfg(feature = "dtype_f32")]
@@ -1657,7 +1659,9 @@ mod tests {
         stream.begin_capture(StreamCaptureMode::Relaxed)?;
         // SAFETY: the inputs and exclusive output survive capture and draining replay.
         unsafe { softmax_f32(&stream, &mut graph_out, &input, config.cached_tuning()) }?;
-        let graph = stream.end_capture()?.instantiate()?;
+        let graph = stream
+            .end_capture()?
+            .instantiate(GraphInstantiateFlags::empty())?;
         stream.sync_scope(|_| unsafe { graph.launch(&stream) })?;
 
         assert_softmax_output(&graph_out, &expected, &stream)

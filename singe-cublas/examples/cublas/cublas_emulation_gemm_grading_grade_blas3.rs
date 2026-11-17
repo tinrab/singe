@@ -1,9 +1,11 @@
-use singe_cublas::{context::Context, error::Result, types::Operation};
+use singe_cublas::{
+    blas::level3::gemm, context::Context, error::Result, scalar::Scalar, types::Operation,
+};
 use singe_cuda::{
     context::Context as CudaContext, device::Device, memory::DeviceMemory, types::Complex64,
 };
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     let cuda = CudaContext::create_for_device(Device::new(0))?;
     let cublas = Context::create(&cuda)?;
 
@@ -49,7 +51,7 @@ fn cpu_gemm_real(n: usize, a: &[f64], b: &[f64]) -> Vec<f64> {
         for row in 0..n {
             let mut sum = 0.0;
             for inner in 0..n {
-                sum += a[row + inner * n] * b[inner + col * n];
+                sum = a[row + inner * n].mul_add(b[inner + col * n], sum);
             }
 
             c[row + col * n] = sum;
@@ -74,23 +76,22 @@ fn cpu_gemm_complex(n: usize, a: &[Complex64], b: &[Complex64]) -> Vec<Complex64
 }
 
 fn run_dgemm(cublas: &Context, n: usize, a: &[f64], b: &[f64]) -> Result<Vec<f64>> {
-    use singe_cublas::blas::level3::dgemm;
     let a = DeviceMemory::from_slice(cublas.cuda_context(), a)?;
     let b = DeviceMemory::from_slice(cublas.cuda_context(), b)?;
     let mut c = DeviceMemory::<f64>::zeroed(cublas.cuda_context(), n * n)?;
-    dgemm(
+    gemm(
         cublas,
         Operation::NonTranspose,
         Operation::NonTranspose,
         n,
         n,
         n,
-        &1.0,
+        Scalar::host(&1.0),
         &a,
         n,
         &b,
         n,
-        &0.0,
+        Scalar::host(&0.0),
         &mut c,
         n,
     )?;
@@ -103,23 +104,22 @@ fn run_zgemm(
     a: &[Complex64],
     b: &[Complex64],
 ) -> Result<Vec<Complex64>> {
-    use singe_cublas::blas::level3::zgemm;
     let a = DeviceMemory::from_slice(cublas.cuda_context(), a)?;
     let b = DeviceMemory::from_slice(cublas.cuda_context(), b)?;
     let mut c = DeviceMemory::<Complex64>::zeroed(cublas.cuda_context(), n * n)?;
-    zgemm(
+    gemm(
         cublas,
         Operation::NonTranspose,
         Operation::NonTranspose,
         n,
         n,
         n,
-        &Complex64::new(1.0, 0.0),
+        Scalar::host(&Complex64::new(1.0, 0.0)),
         &a,
         n,
         &b,
         n,
-        &Complex64::new(0.0, 0.0),
+        Scalar::host(&Complex64::new(0.0, 0.0)),
         &mut c,
         n,
     )?;

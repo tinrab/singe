@@ -5,8 +5,9 @@ use singe_cuda::{context::Context as CudaContext, memory::DeviceMemory};
 use crate::{
     context::StreamContext,
     error::{Error, Result},
+    image::histogram_range_bins,
     pipeline::image::statistics_histogram_channel_methods::{ImageHistograms, ImageStatistic},
-    utility::{histogram_range_bins, to_usize},
+    utility::to_usize,
 };
 
 pub fn histogram_buffers<const C: usize>(

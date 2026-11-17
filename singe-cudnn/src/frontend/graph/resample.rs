@@ -1,16 +1,13 @@
-pub use crate::backend::execution::resample::ResampleOutputs;
 use crate::{
-    backend::{
-        execution::resample::ResampleMode,
-        tensor::{Shape, TensorId},
-    },
+    backend::operation::resample::{ResampleBackwardInputs, ResampleMode, ResampleOutputs},
     data_type::DataType,
     error::{Error, Result},
     frontend::{
         error::Error as FrontendError,
         graph::{Graph, TensorOutputConfig},
-        operation::{Operation, ResampleBackwardInputs, ResampleConfig, ResampleOperation},
+        operation::{Operation, ResampleConfig, ResampleOperation},
     },
+    tensor::{Shape, TensorId},
 };
 
 /// Requested saved-index result for forward resampling inference.
@@ -36,7 +33,7 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for unknown tensor identities, incompatible input/output ranks or batch/channel dimensions, invalid spatial geometry, unsupported saved-index mode or mismatched index dimensions, or virtual destination placement with nonzero beta.
+    /// Returns an error if a tensor identity is unknown, the input/output ranks or batch/channel dimensions are incompatible, the spatial geometry is invalid, the saved-index mode is unsupported or the index dimensions mismatch, or a virtual destination is combined with a nonzero beta.
     pub fn resample_into(
         &mut self,
         input: TensorId,
@@ -59,7 +56,7 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for unknown tensor identities, incompatible input/output ranks or batch/channel dimensions, invalid spatial geometry, unsupported saved-index mode or mismatched index dimensions, or virtual destination placement with nonzero beta.
+    /// Returns an error if a tensor identity is unknown, the input/output ranks or batch/channel dimensions are incompatible, the spatial geometry is invalid, the saved-index mode is unsupported or the index dimensions mismatch, or a virtual destination is combined with a nonzero beta.
     /// Inferred output dimensions and strides must also be representable.
     pub fn resample(
         &mut self,
@@ -107,7 +104,7 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for unknown tensor identities, incompatible gradient ranks or batch/channel dimensions, invalid spatial geometry, mismatched saved forward tensor or index dimensions, unsupported saved-index mode, or virtual gradient placement with nonzero beta.
+    /// Returns an error if a tensor identity is unknown, the gradient ranks or batch/channel dimensions are incompatible, the spatial geometry is invalid, the saved forward tensor or index dimensions mismatch, the saved-index mode is unsupported, or a virtual gradient is combined with a nonzero beta.
     pub fn resample_backward_into(
         &mut self,
         inputs: ResampleBackwardInputs<TensorId>,
@@ -130,7 +127,7 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for unknown tensor identities, incompatible gradient ranks or batch/channel dimensions, invalid spatial geometry, mismatched saved forward tensor or index dimensions, unsupported saved-index mode, or virtual gradient placement with nonzero beta.
+    /// Returns an error if a tensor identity is unknown, the gradient ranks or batch/channel dimensions are incompatible, the spatial geometry is invalid, the saved forward tensor or index dimensions mismatch, the saved-index mode is unsupported, or a virtual gradient is combined with a nonzero beta.
     pub fn resample_backward(
         &mut self,
         inputs: ResampleBackwardInputs<TensorId>,

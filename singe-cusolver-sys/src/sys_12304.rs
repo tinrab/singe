@@ -262,32 +262,22 @@ pub struct cusolverDnParams {
 }
 /// Opaque dense-solver algorithm configuration handle. Created by [`cusolverDnCreateParams`] and released by [`cusolverDnDestroyParams`].
 pub type cusolverDnParams_t = *mut cusolverDnParams;
-/// The [`cusolverDnFunction_t`] type indicates which routine needs to be configured by [`cusolverDnSetAdvOptions`]. The value [`cusolverDnFunction_t::CUSOLVERDN_GETRF`] corresponds to the routine `Getrf`.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cusolverDnFunction_t {
+impl cusolverDnFunction_t {
     /// Corresponds to `Getrf`.
-    CUSOLVERDN_GETRF = 0,
+    pub const CUSOLVERDN_GETRF: cusolverDnFunction_t = cusolverDnFunction_t(0);
     /// Selects Cholesky factorization when configuring dense-solver algorithm options.
-    CUSOLVERDN_POTRF = 1,
+    pub const CUSOLVERDN_POTRF: cusolverDnFunction_t = cusolverDnFunction_t(1);
     /// Selects batched symmetric eigensolving when configuring dense-solver algorithm options.
-    CUSOLVERDN_SYEVBATCHED = 2,
+    pub const CUSOLVERDN_SYEVBATCHED: cusolverDnFunction_t = cusolverDnFunction_t(2);
     /// Selects QR factorization when configuring dense-solver algorithm options.
-    CUSOLVERDN_GEQRF = 3,
+    pub const CUSOLVERDN_GEQRF: cusolverDnFunction_t = cusolverDnFunction_t(3);
     /// Selects the symmetric or Hermitian divide-and-conquer eigensolver when configuring dense-solver algorithm options.
-    CUSOLVERDN_SYEVD = 4,
+    pub const CUSOLVERDN_SYEVD: cusolverDnFunction_t = cusolverDnFunction_t(4);
 }
+/// The [`cusolverDnFunction_t`] type indicates which routine needs to be configured by [`cusolverDnSetAdvOptions`]. The value [`cusolverDnFunction_t::CUSOLVERDN_GETRF`] corresponds to the routine `Getrf`.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cusolverDnFunction_t(pub ::core::ffi::c_uint);
 /// Unsigned C `size_t`, used for byte counts and object sizes in the native ABI.
 pub type size_t = ::core::ffi::c_ulong;
 /// Unsigned 64-bit integer in the native C runtime ABI.
@@ -505,443 +495,371 @@ pub type cuComplex = cuFloatComplex;
 pub struct CUstream_st {
     _unused: [u8; 0],
 }
+impl cublasFillMode_t {
+    /// The lower part of the matrix is filled.
+    pub const CUBLAS_FILL_MODE_LOWER: cublasFillMode_t = cublasFillMode_t(0);
+    /// The upper part of the matrix is filled.
+    pub const CUBLAS_FILL_MODE_UPPER: cublasFillMode_t = cublasFillMode_t(1);
+    /// The full matrix is filled.
+    pub const CUBLAS_FILL_MODE_FULL: cublasFillMode_t = cublasFillMode_t(2);
+}
 /// The type indicates which part (lower or upper) of the dense matrix was filled and consequently should be used by the function.
 ///
 /// Notice that BLAS implementations often use Fortran characters `‘L’` or `‘l’` (lower) and `‘U’` or `‘u’` (upper) to describe which part of the matrix is filled.
-#[repr(u32)]
+#[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum cublasFillMode_t {
-    /// The lower part of the matrix is filled.
-    CUBLAS_FILL_MODE_LOWER = 0,
-    /// The upper part of the matrix is filled.
-    CUBLAS_FILL_MODE_UPPER = 1,
-    /// The full matrix is filled.
-    CUBLAS_FILL_MODE_FULL = 2,
+pub struct cublasFillMode_t(pub ::core::ffi::c_uint);
+impl cublasDiagType_t {
+    /// Uses the stored diagonal elements of the triangular matrix.
+    pub const CUBLAS_DIAG_NON_UNIT: cublasDiagType_t = cublasDiagType_t(0);
+    /// Treats diagonal elements as one without referencing their stored values.
+    pub const CUBLAS_DIAG_UNIT: cublasDiagType_t = cublasDiagType_t(1);
 }
 /// Whether a triangular matrix has an implicit unit diagonal.
-#[repr(u32)]
+#[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum cublasDiagType_t {
-    /// Uses the stored diagonal elements of the triangular matrix.
-    CUBLAS_DIAG_NON_UNIT = 0,
-    /// Treats diagonal elements as one without referencing their stored values.
-    CUBLAS_DIAG_UNIT = 1,
+pub struct cublasDiagType_t(pub ::core::ffi::c_uint);
+impl cublasSideMode_t {
+    /// Applies the matrix factor from the left.
+    pub const CUBLAS_SIDE_LEFT: cublasSideMode_t = cublasSideMode_t(0);
+    /// Applies the matrix factor from the right.
+    pub const CUBLAS_SIDE_RIGHT: cublasSideMode_t = cublasSideMode_t(1);
 }
 /// Side on which a matrix factor is applied in a dense linear algebra operation.
-#[repr(u32)]
+#[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum cublasSideMode_t {
-    /// Applies the matrix factor from the left.
-    CUBLAS_SIDE_LEFT = 0,
-    /// Applies the matrix factor from the right.
-    CUBLAS_SIDE_RIGHT = 1,
-}
+pub struct cublasSideMode_t(pub ::core::ffi::c_uint);
 impl cublasOperation_t {
-    /// Alias for [`cublasOperation_t::CUBLAS_OP_C`].
-    pub const CUBLAS_OP_HERMITAN: cublasOperation_t = cublasOperation_t::CUBLAS_OP_C;
+    /// The non-transpose operation is selected.
+    pub const CUBLAS_OP_N: cublasOperation_t = cublasOperation_t(0);
+    /// The transpose operation is selected.
+    pub const CUBLAS_OP_T: cublasOperation_t = cublasOperation_t(1);
+    /// The conjugate transpose operation is selected.
+    pub const CUBLAS_OP_C: cublasOperation_t = cublasOperation_t(2);
+    pub const CUBLAS_OP_HERMITAN: cublasOperation_t = cublasOperation_t(2);
+    /// Selects element-wise complex conjugation without transposition.
+    pub const CUBLAS_OP_CONJG: cublasOperation_t = cublasOperation_t(3);
 }
 /// The [`cublasOperation_t`] type indicates which operation needs to be performed with the dense matrix.
 ///
 /// Notice that BLAS implementations often use Fortran characters `‘N’` or `‘n’` (non-transpose), `‘T’` or `‘t’` (transpose) and `‘C’` or `‘c’` (conjugate transpose) to describe which operations need to be performed with the dense matrix.
-#[repr(u32)]
+#[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum cublasOperation_t {
-    /// The non-transpose operation is selected.
-    CUBLAS_OP_N = 0,
-    /// The transpose operation is selected.
-    CUBLAS_OP_T = 1,
-    /// The conjugate transpose operation is selected.
-    CUBLAS_OP_C = 2,
-    /// Selects element-wise complex conjugation without transposition.
-    CUBLAS_OP_CONJG = 3,
-}
+pub struct cublasOperation_t(pub ::core::ffi::c_uint);
 /// Native cuSOLVER integer used for dimensions, leading dimensions, and pivot indices in the typed solver interfaces. This header defines it as C `int`.
 pub type cusolver_int_t = ::core::ffi::c_int;
-/// This is a status type returned by the library functions and it can have the following values.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cusolverStatus_t {
+impl cusolverStatus_t {
     /// The operation completed successfully.
-    CUSOLVER_STATUS_SUCCESS = 0,
+    pub const CUSOLVER_STATUS_SUCCESS: cusolverStatus_t = cusolverStatus_t(0);
     /// The cuSolver library was not initialized. This is usually caused by the lack of a prior call, an error in the CUDA Runtime API called by the cuSolver routine, or an error in the hardware setup.
     ///
     /// **To correct:** call [`cusolverDnCreate`] prior to the function call; and check that the hardware, an appropriate version of the driver, and the cuSolver library are correctly installed.
-    CUSOLVER_STATUS_NOT_INITIALIZED = 1,
+    pub const CUSOLVER_STATUS_NOT_INITIALIZED: cusolverStatus_t = cusolverStatus_t(1);
     /// Resource allocation failed inside the cuSolver library. This is usually caused by a `cudaMalloc()` failure.
     ///
     /// **To correct:** prior to the function call, deallocate previously allocated memory as much as possible.
-    CUSOLVER_STATUS_ALLOC_FAILED = 2,
+    pub const CUSOLVER_STATUS_ALLOC_FAILED: cusolverStatus_t = cusolverStatus_t(2);
     /// An unsupported value or parameter was passed to the function (a negative vector size, for example).
     ///
     /// **To correct:** ensure that all the parameters being passed have valid values.
-    CUSOLVER_STATUS_INVALID_VALUE = 3,
+    pub const CUSOLVER_STATUS_INVALID_VALUE: cusolverStatus_t = cusolverStatus_t(3);
     /// The function requires a feature absent from the device architecture; usually caused by the lack of support for atomic operations or double precision.
     ///
     /// **To correct:** compile and run the application on a device with compute capability 5.0 or above.
-    CUSOLVER_STATUS_ARCH_MISMATCH = 4,
+    pub const CUSOLVER_STATUS_ARCH_MISMATCH: cusolverStatus_t = cusolverStatus_t(4);
     /// A required GPU memory mapping or access failed.
-    CUSOLVER_STATUS_MAPPING_ERROR = 5,
+    pub const CUSOLVER_STATUS_MAPPING_ERROR: cusolverStatus_t = cusolverStatus_t(5);
     /// The GPU program failed to execute. This is often caused by a launch failure of the kernel on the GPU, which can be caused by multiple reasons.
     ///
     /// **To correct:** check that the hardware, an appropriate version of the driver, and the cuSolver library are correctly installed.
-    CUSOLVER_STATUS_EXECUTION_FAILED = 6,
+    pub const CUSOLVER_STATUS_EXECUTION_FAILED: cusolverStatus_t = cusolverStatus_t(6);
     /// An internal cuSolver operation failed. This error is usually caused by a `cudaMemcpyAsync()` failure.
     ///
     /// **To correct:** check that the hardware, an appropriate version of the driver, and the cuSolver library are correctly installed. Also, check that the memory passed as a parameter to the routine is not being deallocated prior to the routine’s completion.
-    CUSOLVER_STATUS_INTERNAL_ERROR = 7,
+    pub const CUSOLVER_STATUS_INTERNAL_ERROR: cusolverStatus_t = cusolverStatus_t(7);
     /// The matrix type is not supported by this function. This is usually caused by passing an invalid matrix descriptor to the function.
     ///
     /// **To correct:** check that the fields in `descrA` were set correctly.
-    CUSOLVER_STATUS_MATRIX_TYPE_NOT_SUPPORTED = 8,
+    pub const CUSOLVER_STATUS_MATRIX_TYPE_NOT_SUPPORTED: cusolverStatus_t = cusolverStatus_t(
+        8,
+    );
     /// The parameter combination is not supported, for example batched version is not supported or `M &lt; N` is not supported.
     ///
     /// **To correct:** consult the documentation, and use a supported configuration.
-    CUSOLVER_STATUS_NOT_SUPPORTED = 9,
+    pub const CUSOLVER_STATUS_NOT_SUPPORTED: cusolverStatus_t = cusolverStatus_t(9);
     /// A zero pivot was encountered.
-    CUSOLVER_STATUS_ZERO_PIVOT = 10,
+    pub const CUSOLVER_STATUS_ZERO_PIVOT: cusolverStatus_t = cusolverStatus_t(10);
     /// The native library license is invalid.
-    CUSOLVER_STATUS_INVALID_LICENSE = 11,
+    pub const CUSOLVER_STATUS_INVALID_LICENSE: cusolverStatus_t = cusolverStatus_t(11);
     /// The iterative-refinement parameter object has not been created.
-    CUSOLVER_STATUS_IRS_PARAMS_NOT_INITIALIZED = 12,
+    pub const CUSOLVER_STATUS_IRS_PARAMS_NOT_INITIALIZED: cusolverStatus_t = cusolverStatus_t(
+        12,
+    );
     /// An iterative-refinement configuration value is invalid.
-    CUSOLVER_STATUS_IRS_PARAMS_INVALID = 13,
+    pub const CUSOLVER_STATUS_IRS_PARAMS_INVALID: cusolverStatus_t = cusolverStatus_t(
+        13,
+    );
     /// The requested main or lowest iterative-refinement precision is invalid.
-    CUSOLVER_STATUS_IRS_PARAMS_INVALID_PREC = 14,
+    pub const CUSOLVER_STATUS_IRS_PARAMS_INVALID_PREC: cusolverStatus_t = cusolverStatus_t(
+        14,
+    );
     /// The iterative-refinement solver selection is invalid.
-    CUSOLVER_STATUS_IRS_PARAMS_INVALID_REFINE = 15,
+    pub const CUSOLVER_STATUS_IRS_PARAMS_INVALID_REFINE: cusolverStatus_t = cusolverStatus_t(
+        15,
+    );
     /// The iterative-refinement maximum iteration count is invalid.
-    CUSOLVER_STATUS_IRS_PARAMS_INVALID_MAXITER = 16,
+    pub const CUSOLVER_STATUS_IRS_PARAMS_INVALID_MAXITER: cusolverStatus_t = cusolverStatus_t(
+        16,
+    );
     /// An internal iterative-refinement error occurred.
-    CUSOLVER_STATUS_IRS_INTERNAL_ERROR = 20,
+    pub const CUSOLVER_STATUS_IRS_INTERNAL_ERROR: cusolverStatus_t = cusolverStatus_t(
+        20,
+    );
     /// The iterative-refinement configuration is unsupported.
-    CUSOLVER_STATUS_IRS_NOT_SUPPORTED = 21,
+    pub const CUSOLVER_STATUS_IRS_NOT_SUPPORTED: cusolverStatus_t = cusolverStatus_t(21);
     /// Iterative refinement encountered a numerical range or convergence failure; inspect the routine's iteration and information outputs.
-    CUSOLVER_STATUS_IRS_OUT_OF_RANGE = 22,
+    pub const CUSOLVER_STATUS_IRS_OUT_OF_RANGE: cusolverStatus_t = cusolverStatus_t(22);
     /// The right-hand-side count is unsupported by the selected GMRES refinement solver.
-    CUSOLVER_STATUS_IRS_NRHS_NOT_SUPPORTED_FOR_REFINE_GMRES = 23,
+    pub const CUSOLVER_STATUS_IRS_NRHS_NOT_SUPPORTED_FOR_REFINE_GMRES: cusolverStatus_t = cusolverStatus_t(
+        23,
+    );
     /// The iterative-refinement information object has not been created.
-    CUSOLVER_STATUS_IRS_INFOS_NOT_INITIALIZED = 25,
+    pub const CUSOLVER_STATUS_IRS_INFOS_NOT_INITIALIZED: cusolverStatus_t = cusolverStatus_t(
+        25,
+    );
     /// An iterative-refinement information object remains undestroyed.
-    CUSOLVER_STATUS_IRS_INFOS_NOT_DESTROYED = 26,
+    pub const CUSOLVER_STATUS_IRS_INFOS_NOT_DESTROYED: cusolverStatus_t = cusolverStatus_t(
+        26,
+    );
     /// The iterative-refinement solver encountered a singular matrix.
-    CUSOLVER_STATUS_IRS_MATRIX_SINGULAR = 30,
+    pub const CUSOLVER_STATUS_IRS_MATRIX_SINGULAR: cusolverStatus_t = cusolverStatus_t(
+        30,
+    );
     /// The supplied workspace does not satisfy the solver's requirements.
-    CUSOLVER_STATUS_INVALID_WORKSPACE = 31,
+    pub const CUSOLVER_STATUS_INVALID_WORKSPACE: cusolverStatus_t = cusolverStatus_t(31);
+}
+/// This is a status type returned by the library functions and it can have the following values.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cusolverStatus_t(pub ::core::ffi::c_uint);
+impl cusolverEigType_t {
+    /// A\*x = lambda\*B\*x.
+    pub const CUSOLVER_EIG_TYPE_1: cusolverEigType_t = cusolverEigType_t(1);
+    /// A\*B\*x = lambda\*x.
+    pub const CUSOLVER_EIG_TYPE_2: cusolverEigType_t = cusolverEigType_t(2);
+    /// B\*A\*x = lambda\*x.
+    pub const CUSOLVER_EIG_TYPE_3: cusolverEigType_t = cusolverEigType_t(3);
 }
 /// The [`cusolverEigType_t`] type indicates which type of eigenvalue the solver is.
 ///
 /// Notice that LAPACK implementations often use Fortran integer `1` (A\*x = lambda\*B\*x), `2` (A\*B\*x = lambda\*x), `3` (B\*A\*x = lambda\*x) to indicate which type of eigenvalue the solver is.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cusolverEigType_t {
-    /// A\*x = lambda\*B\*x.
-    CUSOLVER_EIG_TYPE_1 = 1,
-    /// A\*B\*x = lambda\*x.
-    CUSOLVER_EIG_TYPE_2 = 2,
-    /// B\*A\*x = lambda\*x.
-    CUSOLVER_EIG_TYPE_3 = 3,
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cusolverEigType_t(pub ::core::ffi::c_uint);
+impl cusolverEigMode_t {
+    /// Only eigenvalues are computed.
+    pub const CUSOLVER_EIG_MODE_NOVECTOR: cusolverEigMode_t = cusolverEigMode_t(0);
+    /// Both eigenvalues and eigenvectors are computed.
+    pub const CUSOLVER_EIG_MODE_VECTOR: cusolverEigMode_t = cusolverEigMode_t(1);
 }
 /// The [`cusolverEigMode_t`] type indicates whether or not eigenvectors are computed.
 ///
 /// Notice that LAPACK implementations often use Fortran character `'N'` (only eigenvalues are computed), `'V'` (both eigenvalues and eigenvectors are computed) to indicate whether or not eigenvectors are computed.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cusolverEigMode_t {
-    /// Only eigenvalues are computed.
-    CUSOLVER_EIG_MODE_NOVECTOR = 0,
-    /// Both eigenvalues and eigenvectors are computed.
-    CUSOLVER_EIG_MODE_VECTOR = 1,
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cusolverEigMode_t(pub ::core::ffi::c_uint);
+impl cusolverEigRange_t {
+    /// Computes all eigenvalues.
+    pub const CUSOLVER_EIG_RANGE_ALL: cusolverEigRange_t = cusolverEigRange_t(1001);
+    /// Computes eigenvalues with one-based indices in the inclusive interval `il..=iu`.
+    pub const CUSOLVER_EIG_RANGE_I: cusolverEigRange_t = cusolverEigRange_t(1002);
+    /// Computes eigenvalues in the half-open value interval `(vl, vu]`.
+    pub const CUSOLVER_EIG_RANGE_V: cusolverEigRange_t = cusolverEigRange_t(1003);
 }
 /// Selection of all eigenvalues, an index interval, or a value interval for an eigensolver.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cusolverEigRange_t {
-    /// Computes all eigenvalues.
-    CUSOLVER_EIG_RANGE_ALL = 1001,
-    /// Computes eigenvalues with one-based indices in the inclusive interval `il..=iu`.
-    CUSOLVER_EIG_RANGE_I = 1002,
-    /// Computes eigenvalues in the half-open value interval `(vl, vu]`.
-    CUSOLVER_EIG_RANGE_V = 1003,
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cusolverEigRange_t(pub ::core::ffi::c_uint);
+impl cusolverEigComp_t {
+    /// Only eigenvalues are computed.
+    pub const CUSOLVER_EIG_COMP_N: cusolverEigComp_t = cusolverEigComp_t(10);
+    /// The unitary matrix is initialized to the identity matrix.
+    pub const CUSOLVER_EIG_COMP_I: cusolverEigComp_t = cusolverEigComp_t(11);
+    /// The product of the matrix given on entry with the orthogonal transformations accumulated during the computational routine is returned.
+    pub const CUSOLVER_EIG_COMP_V: cusolverEigComp_t = cusolverEigComp_t(12);
 }
 /// The [`cusolverEigComp_t`] type indicates the computational mode for eigen routines that compute eigenvalues and optionally eigenvectors, analogous to the `compz` argument in LAPACK.
 ///
 /// The values of [`cusolverEigComp_t`] correspond directly to the LAPACK `compz` argument. In LAPACK, `compz` is specified as a single character: `'N'` means no eigenvectors are computed (eigenvalues only); `'I'` means the eigenvector matrix is initialized to the identity and then updated by the routine; `'V'` means the routine uses the matrix provided on entry and overwrites it with the product of that matrix and the orthogonal (or unitary) transformations accumulated during the computation. The cuSolver enumerants [`cusolverEigComp_t::CUSOLVER_EIG_COMP_N`], [`cusolverEigComp_t::CUSOLVER_EIG_COMP_I`], and [`cusolverEigComp_t::CUSOLVER_EIG_COMP_V`] map to LAPACK `'N'`, `'I'`, and `'V'` respectively.
-#[repr(u32)]
+#[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum cusolverEigComp_t {
-    /// Only eigenvalues are computed.
-    CUSOLVER_EIG_COMP_N = 10,
-    /// The unitary matrix is initialized to the identity matrix.
-    CUSOLVER_EIG_COMP_I = 11,
-    /// The product of the matrix given on entry with the orthogonal transformations accumulated during the computational routine is returned.
-    CUSOLVER_EIG_COMP_V = 12,
+pub struct cusolverEigComp_t(pub ::core::ffi::c_uint);
+impl cusolverNorm_t {
+    /// Uses the infinity norm: the maximum absolute row sum.
+    pub const CUSOLVER_INF_NORM: cusolverNorm_t = cusolverNorm_t(104);
+    /// Uses the largest absolute matrix element.
+    pub const CUSOLVER_MAX_NORM: cusolverNorm_t = cusolverNorm_t(105);
+    /// Uses the one norm: the maximum absolute column sum.
+    pub const CUSOLVER_ONE_NORM: cusolverNorm_t = cusolverNorm_t(106);
+    /// Uses the Frobenius norm: the square root of the sum of squared element magnitudes.
+    pub const CUSOLVER_FRO_NORM: cusolverNorm_t = cusolverNorm_t(107);
 }
 /// Matrix norm used by native solver error and convergence calculations.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cusolverNorm_t {
-    /// Uses the infinity norm: the maximum absolute row sum.
-    CUSOLVER_INF_NORM = 104,
-    /// Uses the largest absolute matrix element.
-    CUSOLVER_MAX_NORM = 105,
-    /// Uses the one norm: the maximum absolute column sum.
-    CUSOLVER_ONE_NORM = 106,
-    /// Uses the Frobenius norm: the square root of the sum of squared element magnitudes.
-    CUSOLVER_FRO_NORM = 107,
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cusolverNorm_t(pub ::core::ffi::c_uint);
+impl cusolverIRSRefinement_t {
+    /// Solver is not set; this value is what is set when creating the `params` structure. IRS solver will return an error.
+    pub const CUSOLVER_IRS_REFINE_NOT_SET: cusolverIRSRefinement_t = cusolverIRSRefinement_t(
+        1100,
+    );
+    /// No refinement solver, the IRS solver performs a factorization followed by a solve without any refinement. For example if the IRS solver was [`cusolverDnIRSXgesv`], this is equivalent to a Xgesv routine without refinement and where the factorization is carried out in the lowest precision. If for example the main precision was CUSOLVER_R_64F and the lowest was CUSOLVER_R_64F as well, then this is equivalent to a call to `cusolverDnDgesv()`.
+    pub const CUSOLVER_IRS_REFINE_NONE: cusolverIRSRefinement_t = cusolverIRSRefinement_t(
+        1101,
+    );
+    /// Classical iterative refinement solver. Similar to the one used in LAPACK routines.
+    pub const CUSOLVER_IRS_REFINE_CLASSICAL: cusolverIRSRefinement_t = cusolverIRSRefinement_t(
+        1102,
+    );
+    /// Classical iterative refinement solver that uses the GMRES (Generalized Minimal Residual) internally to solve the correction equation at each iteration. We call the *classical refinement iteration* the outer iteration while the `GMRES` is called inner iteration. Note that if the tolerance of the inner GMRES is set very low, lets say to machine precision, then the outer *classical refinement iteration* will performs only one iteration and thus this option will behave like [`cusolverIRSRefinement_t::CUSOLVER_IRS_REFINE_GMRES`].
+    pub const CUSOLVER_IRS_REFINE_CLASSICAL_GMRES: cusolverIRSRefinement_t = cusolverIRSRefinement_t(
+        1103,
+    );
+    /// GMRES (Generalized Minimal Residual) based iterative refinement solver. In recent study, the GMRES method has drawn the scientific community attention for its ability to be used as refinement solver that outperforms the classical iterative refinement method. Based on our experimentation, we recommend this setting.
+    pub const CUSOLVER_IRS_REFINE_GMRES: cusolverIRSRefinement_t = cusolverIRSRefinement_t(
+        1104,
+    );
+    /// Similar to [`cusolverIRSRefinement_t::CUSOLVER_IRS_REFINE_CLASSICAL_GMRES`] which consists of classical refinement process that uses GMRES to solve the inner correction system; here it is a GMRES (Generalized Minimal Residual) based iterative refinement solver that uses another GMRES internally to solve the preconditioned system.
+    pub const CUSOLVER_IRS_REFINE_GMRES_GMRES: cusolverIRSRefinement_t = cusolverIRSRefinement_t(
+        1105,
+    );
+    /// Uses GMRES iterative refinement without preconditioning.
+    pub const CUSOLVER_IRS_REFINE_GMRES_NOPCOND: cusolverIRSRefinement_t = cusolverIRSRefinement_t(
+        1106,
+    );
+    /// Legacy DD precision-selection value in [`cusolverIRSRefinement_t`]. The explicit main- and lowest-precision configuration APIs instead accept [`cusolverPrecType_t`].
+    pub const CUSOLVER_PREC_DD: cusolverIRSRefinement_t = cusolverIRSRefinement_t(1150);
+    /// Legacy SS precision-selection value in [`cusolverIRSRefinement_t`]. The explicit main- and lowest-precision configuration APIs instead accept [`cusolverPrecType_t`].
+    pub const CUSOLVER_PREC_SS: cusolverIRSRefinement_t = cusolverIRSRefinement_t(1151);
+    /// Legacy SHT precision-selection value in [`cusolverIRSRefinement_t`]. The explicit main- and lowest-precision configuration APIs instead accept [`cusolverPrecType_t`].
+    pub const CUSOLVER_PREC_SHT: cusolverIRSRefinement_t = cusolverIRSRefinement_t(1152);
 }
 /// The [`cusolverIRSRefinement_t`] type indicates which solver type would be used for the specific cusolver function. Most of our experimentation shows that [`cusolverIRSRefinement_t::CUSOLVER_IRS_REFINE_GMRES`] is the best option.
 ///
 /// *More details about the refinement process can be found in Azzam Haidar, Stanimire Tomov, Jack Dongarra, and Nicholas J. Higham. 2018. Harnessing GPU tensor cores for fast FP16 arithmetic to speed up mixed-precision iterative refinement solvers. In Proceedings of the International Conference for High Performance Computing, Networking, Storage, and Analysis (SC ‘18). IEEE Press, Piscataway, NJ, USA, Article 47, 11 pages.*.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cusolverIRSRefinement_t {
-    /// Solver is not set; this value is what is set when creating the `params` structure. IRS solver will return an error.
-    CUSOLVER_IRS_REFINE_NOT_SET = 1100,
-    /// No refinement solver, the IRS solver performs a factorization followed by a solve without any refinement. For example if the IRS solver was [`cusolverDnIRSXgesv`], this is equivalent to a Xgesv routine without refinement and where the factorization is carried out in the lowest precision. If for example the main precision was CUSOLVER_R_64F and the lowest was CUSOLVER_R_64F as well, then this is equivalent to a call to `cusolverDnDgesv()`.
-    CUSOLVER_IRS_REFINE_NONE = 1101,
-    /// Classical iterative refinement solver. Similar to the one used in LAPACK routines.
-    CUSOLVER_IRS_REFINE_CLASSICAL = 1102,
-    /// Classical iterative refinement solver that uses the GMRES (Generalized Minimal Residual) internally to solve the correction equation at each iteration. We call the *classical refinement iteration* the outer iteration while the `GMRES` is called inner iteration. Note that if the tolerance of the inner GMRES is set very low, lets say to machine precision, then the outer *classical refinement iteration* will performs only one iteration and thus this option will behave like [`cusolverIRSRefinement_t::CUSOLVER_IRS_REFINE_GMRES`].
-    CUSOLVER_IRS_REFINE_CLASSICAL_GMRES = 1103,
-    /// GMRES (Generalized Minimal Residual) based iterative refinement solver. In recent study, the GMRES method has drawn the scientific community attention for its ability to be used as refinement solver that outperforms the classical iterative refinement method. Based on our experimentation, we recommend this setting.
-    CUSOLVER_IRS_REFINE_GMRES = 1104,
-    /// Similar to [`cusolverIRSRefinement_t::CUSOLVER_IRS_REFINE_CLASSICAL_GMRES`] which consists of classical refinement process that uses GMRES to solve the inner correction system; here it is a GMRES (Generalized Minimal Residual) based iterative refinement solver that uses another GMRES internally to solve the preconditioned system.
-    CUSOLVER_IRS_REFINE_GMRES_GMRES = 1105,
-    /// Uses GMRES iterative refinement without preconditioning.
-    CUSOLVER_IRS_REFINE_GMRES_NOPCOND = 1106,
-    /// Legacy DD precision-selection value in [`cusolverIRSRefinement_t`]. The explicit main- and lowest-precision configuration APIs instead accept [`cusolverPrecType_t`].
-    CUSOLVER_PREC_DD = 1150,
-    /// Legacy SS precision-selection value in [`cusolverIRSRefinement_t`]. The explicit main- and lowest-precision configuration APIs instead accept [`cusolverPrecType_t`].
-    CUSOLVER_PREC_SS = 1151,
-    /// Legacy SHT precision-selection value in [`cusolverIRSRefinement_t`]. The explicit main- and lowest-precision configuration APIs instead accept [`cusolverPrecType_t`].
-    CUSOLVER_PREC_SHT = 1152,
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cusolverIRSRefinement_t(pub ::core::ffi::c_uint);
+impl cusolverPrecType_t {
+    /// Selects real signed 8-bit integer arithmetic for iterative-refinement precision configuration.
+    pub const CUSOLVER_R_8I: cusolverPrecType_t = cusolverPrecType_t(1201);
+    /// Selects real unsigned 8-bit integer arithmetic for iterative-refinement precision configuration.
+    pub const CUSOLVER_R_8U: cusolverPrecType_t = cusolverPrecType_t(1202);
+    /// Selects real 64-bit floating-point arithmetic for iterative-refinement precision configuration.
+    pub const CUSOLVER_R_64F: cusolverPrecType_t = cusolverPrecType_t(1203);
+    /// Selects real 32-bit floating-point arithmetic for iterative-refinement precision configuration.
+    pub const CUSOLVER_R_32F: cusolverPrecType_t = cusolverPrecType_t(1204);
+    /// Selects real 16-bit floating-point arithmetic for iterative-refinement precision configuration.
+    pub const CUSOLVER_R_16F: cusolverPrecType_t = cusolverPrecType_t(1205);
+    /// Selects real bfloat16 arithmetic for iterative-refinement precision configuration.
+    pub const CUSOLVER_R_16BF: cusolverPrecType_t = cusolverPrecType_t(1206);
+    /// Selects real TensorFloat-32 arithmetic for iterative-refinement precision configuration.
+    pub const CUSOLVER_R_TF32: cusolverPrecType_t = cusolverPrecType_t(1207);
+    /// Native real AP precision mode. The header exposes this selector, but the documented iterative-refinement supported-precision tables do not include it.
+    pub const CUSOLVER_R_AP: cusolverPrecType_t = cusolverPrecType_t(1208);
+    /// Selects complex signed 8-bit integer arithmetic for iterative-refinement precision configuration.
+    pub const CUSOLVER_C_8I: cusolverPrecType_t = cusolverPrecType_t(1211);
+    /// Selects complex unsigned 8-bit integer arithmetic for iterative-refinement precision configuration.
+    pub const CUSOLVER_C_8U: cusolverPrecType_t = cusolverPrecType_t(1212);
+    /// Selects complex 64-bit floating-point arithmetic for iterative-refinement precision configuration.
+    pub const CUSOLVER_C_64F: cusolverPrecType_t = cusolverPrecType_t(1213);
+    /// Selects complex 32-bit floating-point arithmetic for iterative-refinement precision configuration.
+    pub const CUSOLVER_C_32F: cusolverPrecType_t = cusolverPrecType_t(1214);
+    /// Selects complex 16-bit floating-point arithmetic for iterative-refinement precision configuration.
+    pub const CUSOLVER_C_16F: cusolverPrecType_t = cusolverPrecType_t(1215);
+    /// Selects complex bfloat16 arithmetic for iterative-refinement precision configuration.
+    pub const CUSOLVER_C_16BF: cusolverPrecType_t = cusolverPrecType_t(1216);
+    /// Selects complex TensorFloat-32 arithmetic for iterative-refinement precision configuration.
+    pub const CUSOLVER_C_TF32: cusolverPrecType_t = cusolverPrecType_t(1217);
+    /// Native complex AP precision mode. The header exposes this selector, but the documented iterative-refinement supported-precision tables do not include it.
+    pub const CUSOLVER_C_AP: cusolverPrecType_t = cusolverPrecType_t(1218);
 }
 /// Native real or complex precision selector for iterative-refinement main and lowest internal precision. Supported combinations depend on the solver and device.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cusolverPrecType_t {
-    /// Selects real signed 8-bit integer arithmetic for iterative-refinement precision configuration.
-    CUSOLVER_R_8I = 1201,
-    /// Selects real unsigned 8-bit integer arithmetic for iterative-refinement precision configuration.
-    CUSOLVER_R_8U = 1202,
-    /// Selects real 64-bit floating-point arithmetic for iterative-refinement precision configuration.
-    CUSOLVER_R_64F = 1203,
-    /// Selects real 32-bit floating-point arithmetic for iterative-refinement precision configuration.
-    CUSOLVER_R_32F = 1204,
-    /// Selects real 16-bit floating-point arithmetic for iterative-refinement precision configuration.
-    CUSOLVER_R_16F = 1205,
-    /// Selects real bfloat16 arithmetic for iterative-refinement precision configuration.
-    CUSOLVER_R_16BF = 1206,
-    /// Selects real TensorFloat-32 arithmetic for iterative-refinement precision configuration.
-    CUSOLVER_R_TF32 = 1207,
-    /// Native real AP precision mode. The header exposes this selector, but the documented iterative-refinement supported-precision tables do not include it.
-    CUSOLVER_R_AP = 1208,
-    /// Selects complex signed 8-bit integer arithmetic for iterative-refinement precision configuration.
-    CUSOLVER_C_8I = 1211,
-    /// Selects complex unsigned 8-bit integer arithmetic for iterative-refinement precision configuration.
-    CUSOLVER_C_8U = 1212,
-    /// Selects complex 64-bit floating-point arithmetic for iterative-refinement precision configuration.
-    CUSOLVER_C_64F = 1213,
-    /// Selects complex 32-bit floating-point arithmetic for iterative-refinement precision configuration.
-    CUSOLVER_C_32F = 1214,
-    /// Selects complex 16-bit floating-point arithmetic for iterative-refinement precision configuration.
-    CUSOLVER_C_16F = 1215,
-    /// Selects complex bfloat16 arithmetic for iterative-refinement precision configuration.
-    CUSOLVER_C_16BF = 1216,
-    /// Selects complex TensorFloat-32 arithmetic for iterative-refinement precision configuration.
-    CUSOLVER_C_TF32 = 1217,
-    /// Native complex AP precision mode. The header exposes this selector, but the documented iterative-refinement supported-precision tables do not include it.
-    CUSOLVER_C_AP = 1218,
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cusolverPrecType_t(pub ::core::ffi::c_uint);
+impl cusolverAlgMode_t {
+    /// default algorithm
+    pub const CUSOLVER_ALG_0: cusolverAlgMode_t = cusolverAlgMode_t(0);
+    /// Uses a single algorithm for consistent accuracy over all n.
+    pub const CUSOLVER_ALG_1: cusolverAlgMode_t = cusolverAlgMode_t(1);
+    /// Selects native algorithm variant 2 for routines that support it. Algorithm availability and behavior are defined by the selected routine.
+    pub const CUSOLVER_ALG_2: cusolverAlgMode_t = cusolverAlgMode_t(2);
 }
 /// The [`cusolverAlgMode_t`] type indicates which algorithm is selected by [`cusolverDnSetAdvOptions`]. The set of algorithms supported for each routine is described in detail along with the routine’s documentation.
 ///
 /// The default algorithm is [`cusolverAlgMode_t::CUSOLVER_ALG_0`]. The user can also provide `NULL` to use the default algorithm.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cusolverAlgMode_t {
-    /// default algorithm
-    CUSOLVER_ALG_0 = 0,
-    /// Uses a single algorithm for consistent accuracy over all n.
-    CUSOLVER_ALG_1 = 1,
-    /// Selects native algorithm variant 2 for routines that support it. Algorithm availability and behavior are defined by the selected routine.
-    CUSOLVER_ALG_2 = 2,
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cusolverAlgMode_t(pub ::core::ffi::c_uint);
+impl cusolverStorevMode_t {
+    /// Columnwise.
+    pub const CUBLAS_STOREV_COLUMNWISE: cusolverStorevMode_t = cusolverStorevMode_t(0);
+    /// Rowwise.
+    pub const CUBLAS_STOREV_ROWWISE: cusolverStorevMode_t = cusolverStorevMode_t(1);
 }
 /// Specifies how the vectors which define the elementary reflectors are stored.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cusolverStorevMode_t {
-    /// Columnwise.
-    CUBLAS_STOREV_COLUMNWISE = 0,
-    /// Rowwise.
-    CUBLAS_STOREV_ROWWISE = 1,
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cusolverStorevMode_t(pub ::core::ffi::c_uint);
+impl cusolverDirectMode_t {
+    /// Forward.
+    pub const CUBLAS_DIRECT_FORWARD: cusolverDirectMode_t = cusolverDirectMode_t(0);
+    /// Backward.
+    pub const CUBLAS_DIRECT_BACKWARD: cusolverDirectMode_t = cusolverDirectMode_t(1);
 }
 /// Specifies the order in which the elementary reflectors are multiplied to form the block reflector.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cusolverDirectMode_t {
-    /// Forward.
-    CUBLAS_DIRECT_FORWARD = 0,
-    /// Backward.
-    CUBLAS_DIRECT_BACKWARD = 1,
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cusolverDirectMode_t(pub ::core::ffi::c_uint);
+impl cusolverDeterministicMode_t {
+    /// Compute deterministic results.
+    pub const CUSOLVER_DETERMINISTIC_RESULTS: cusolverDeterministicMode_t = cusolverDeterministicMode_t(
+        1,
+    );
+    /// Allow non-deterministic results.
+    pub const CUSOLVER_ALLOW_NON_DETERMINISTIC_RESULTS: cusolverDeterministicMode_t = cusolverDeterministicMode_t(
+        2,
+    );
 }
 /// The [`cusolverDeterministicMode_t`] type indicates whether multiple cuSolver function executions with the same input have the same bitwise equal result (deterministic) or might have bitwise different results (non-deterministic). In comparison to [cublasAtomicsMode_t](https://docs.nvidia.com/cuda/cublas/#cublasatomicsmode-t), which only includes the usage of atomic functions, [`cusolverDeterministicMode_t`] includes all non-deterministic programming patterns. The deterministic mode can be set and queried using [`cusolverDnSetDeterministicMode`] and [`cusolverDnGetDeterministicMode`] routines, respectively.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cusolverDeterministicMode_t {
-    /// Compute deterministic results.
-    CUSOLVER_DETERMINISTIC_RESULTS = 1,
-    /// Allow non-deterministic results.
-    CUSOLVER_ALLOW_NON_DETERMINISTIC_RESULTS = 2,
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cusolverDeterministicMode_t(pub ::core::ffi::c_uint);
+impl cusolverMathMode_t {
+    /// This is the default math mode. Tensor Cores will be used whenever possible.
+    pub const CUSOLVER_DEFAULT_MATH: cusolverMathMode_t = cusolverMathMode_t(1);
+    /// Use FP32 emulation according to the configured emulation strategy (see [`cusolverDnSetEmulationStrategy`]).
+    pub const CUSOLVER_FP32_EMULATED_BF16X9_MATH: cusolverMathMode_t = cusolverMathMode_t(
+        2,
+    );
+    /// Use FP64 emulation according to the configured emulation strategy (see [`cusolverDnSetEmulationStrategy`]).
+    pub const CUSOLVER_FP64_EMULATED_FIXEDPOINT_MATH: cusolverMathMode_t = cusolverMathMode_t(
+        4,
+    );
+    /// Combination of [`cusolverMathMode_t::CUSOLVER_FP32_EMULATED_BF16X9_MATH`] and [`cusolverMathMode_t::CUSOLVER_FP64_EMULATED_FIXEDPOINT_MATH`].
+    pub const CUSOLVER_FP32_FP64_EMULATED_MATH: cusolverMathMode_t = cusolverMathMode_t(
+        6,
+    );
 }
 /// The [`cusolverMathMode_t`] type is used in [`cusolverDnSetMathMode`] to choose compute precision modes as defined in the following table:
 ///
 /// The following combinations of [`cusolverMathMode_t`] using the bitwise OR operator are allowed:
 ///
 /// * [`cusolverMathMode_t::CUSOLVER_FP32_FP64_EMULATED_MATH`] = [`cusolverMathMode_t::CUSOLVER_FP32_EMULATED_BF16X9_MATH`] | [`cusolverMathMode_t::CUSOLVER_FP64_EMULATED_FIXEDPOINT_MATH`].
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cusolverMathMode_t {
-    /// This is the default math mode. Tensor Cores will be used whenever possible.
-    CUSOLVER_DEFAULT_MATH = 1,
-    /// Use FP32 emulation according to the configured emulation strategy (see [`cusolverDnSetEmulationStrategy`]).
-    CUSOLVER_FP32_EMULATED_BF16X9_MATH = 2,
-    /// Use FP64 emulation according to the configured emulation strategy (see [`cusolverDnSetEmulationStrategy`]).
-    CUSOLVER_FP64_EMULATED_FIXEDPOINT_MATH = 4,
-    /// Combination of [`cusolverMathMode_t::CUSOLVER_FP32_EMULATED_BF16X9_MATH`] and [`cusolverMathMode_t::CUSOLVER_FP64_EMULATED_FIXEDPOINT_MATH`].
-    CUSOLVER_FP32_FP64_EMULATED_MATH = 6,
-}
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cusolverMathMode_t(pub ::core::ffi::c_uint);
 singe_loader::functions! { crate::LIBRARY;
     /// Queries the cuSOLVER major, minor, or patch version property selected by `type_` and writes it to `value`.
     pub fn cusolverGetProperty(

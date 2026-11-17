@@ -60,7 +60,7 @@ macro_rules! impl_filter_box_border_advanced {
             stream_context.validate_region(destination)?;
             stream_context.stream().ensure_not_capturing()?;
 
-            $crate::utility::validate_border_roi(source.size(), source_offset, destination.size())?;
+            $crate::image::validate_border_roi(source.size(), source_offset, destination.size())?;
             validate_filter_mask(mask_size, anchor)?;
             let required_bytes = $buffer_size_name(destination.size())?;
             let scratch =
@@ -187,7 +187,7 @@ macro_rules! impl_filter_advanced_border {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            $crate::utility::validate_border_roi(source.size(), source_offset, destination.size())?;
+            $crate::image::validate_border_roi(source.size(), source_offset, destination.size())?;
             validate_advanced_filter_kernel(kernel)?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
@@ -329,7 +329,7 @@ macro_rules! impl_filter_bilateral_gauss_border {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            $crate::utility::validate_border_roi(source.size(), source_offset, destination.size())?;
+            $crate::image::validate_border_roi(source.size(), source_offset, destination.size())?;
             validate_bilateral_gauss_parameters(
                 radius,
                 step_between_source_pixels,

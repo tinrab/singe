@@ -9,7 +9,7 @@ use crate::{
         graph::{Graph, key},
         plan::CompileConfig,
     },
-    version,
+    pack_cudnn_version, version,
 };
 
 /// Whether a graph key includes tensor dimensions and strides.
@@ -95,11 +95,10 @@ impl Graph {
             None
         };
         let cache_input = serde_json::json!({
-            "schema": "singe-cudnn-frontend-plan-cache-v36",
+            "schema": "singe-cudnn-frontend-plan-cache-v37",
             "resolved_sm_version": self.compilation_sm_version(context)?,
-            "attention_dp_workspace_limit": self.attention_workspace_environment(context)?,
             "graph_digest": hex::encode(graph_digest),
-            "cudnn_version": version()?.raw(),
+            "cudnn_version": pack_cudnn_version(version()?),
             "context_device_properties_json": context_device_properties_json,
             "compile_config": compile_config.cache_key_json()?,
         });
@@ -234,9 +233,9 @@ fn project_operation(object: &mut Map<String, Value>) {
 mod tests {
     use super::*;
     use crate::{
-        backend::tensor::{Shape, TensorSpec},
         data_type::DataType,
         frontend::graph::GraphConfig,
+        tensor::{Shape, TensorSpec},
     };
 
     fn graph_with_shape(dimensions: [i64; 2], dynamic_shape: bool) -> Result<Graph> {

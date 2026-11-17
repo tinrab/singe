@@ -1,7 +1,7 @@
 use singe::{Device, Shape, Tensor, random::Generator, tensor::SamplingOptions};
 
 #[cfg(all(feature = "testing", feature = "cuda"))]
-use singe_cuda::testing::device_lock;
+use singe_cuda::{device::Device as CudaDevice, testing::device_lock};
 
 fn logits(device: Device, rows: i64, values: &[f32]) -> Tensor {
     let columns = i64::try_from(values.len()).unwrap();
@@ -112,7 +112,7 @@ fn test_filtered_tokens_are_never_drawn_and_frequencies_match() {
 #[cfg(all(feature = "testing", feature = "cuda"))]
 #[test]
 fn test_cuda_sampling_draws_the_same_tokens_as_cpu() {
-    let _lock = device_lock(0).unwrap();
+    let _lock = device_lock(CudaDevice::new(0)).unwrap();
     let values = linear_probabilities(32);
     let cpu = logits(Device::Cpu, 2, &values);
     let cuda = cpu.to_device(Device::Cuda(0)).unwrap();

@@ -72,7 +72,7 @@ impl Importer {
                         max,
                     }
                 }
-                None => DimensionConstraint::Unknown,
+                _ => DimensionConstraint::Unknown,
             })
             .collect();
         let id = self.value(&info.name)?.node;

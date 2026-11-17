@@ -10,43 +10,43 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct RegisterId(pub usize);
+pub(crate) struct RegisterId(pub(crate) usize);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct FunctionId(pub usize);
+pub(crate) struct FunctionId(pub(crate) usize);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ProgramCounter(pub usize);
+pub(crate) struct ProgramCounter(pub(crate) usize);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct GlobalId(pub usize);
+pub(crate) struct GlobalId(pub(crate) usize);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct FrameId(pub usize);
+pub(crate) struct FrameId(pub(crate) usize);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum MemoryRef {
+pub(crate) enum MemoryRef {
     Global(GlobalId),
     Frame(FrameId),
 }
 
 /// Component of a three-dimensional special register.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Axis {
+pub(crate) enum Axis {
     X,
     Y,
     Z,
 }
 
 impl Axis {
-    pub fn index(self) -> usize {
+    pub(crate) fn index(self) -> usize {
         self as usize
     }
 }
 
 /// Lanes a `%lanemask_*` register selects relative to the executing lane.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum LaneMask {
+pub(crate) enum LaneMask {
     Equal,
     LessEqual,
     Less,
@@ -56,7 +56,7 @@ pub enum LaneMask {
 
 impl LaneMask {
     /// Returns the warp mask for the lane at `lane` within its warp.
-    pub fn bits(self, lane: u32) -> u32 {
+    pub(crate) fn bits(self, lane: u32) -> u32 {
         let equal = 1u32 << lane;
         match self {
             Self::Equal => equal,
@@ -69,7 +69,7 @@ impl LaneMask {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SpecialRegister {
+pub(crate) enum SpecialRegister {
     ThreadId(Axis),
     BlockId(Axis),
     BlockDimensions(Axis),
@@ -84,7 +84,7 @@ pub enum SpecialRegister {
 }
 
 impl SpecialRegister {
-    pub fn ty(self) -> ScalarType {
+    pub(crate) fn ty(self) -> ScalarType {
         if matches!(self, Self::GridId) {
             ScalarType::U64
         } else {
@@ -92,7 +92,7 @@ impl SpecialRegister {
         }
     }
 
-    pub fn legacy_type(self, ty: ScalarType) -> bool {
+    pub(crate) fn legacy_type(self, ty: ScalarType) -> bool {
         let bits = match ty {
             ScalarType::U16 | ScalarType::S16 | ScalarType::B16 => 16,
             ScalarType::U32 | ScalarType::S32 | ScalarType::B32 => 32,
@@ -110,7 +110,7 @@ impl SpecialRegister {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Source {
+pub(crate) enum Source {
     Register(RegisterId),
     Immediate(u128),
     Special(SpecialRegister),
@@ -118,59 +118,59 @@ pub enum Source {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Destination {
+pub(crate) enum Destination {
     Register(RegisterId),
     Discard,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Predicate {
+pub(crate) enum Predicate {
     Register { register: RegisterId, negated: bool },
     Constant(bool),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum AsyncCopyInput {
+pub(crate) enum AsyncCopyInput {
     Bytes(Source),
     Ignore(Predicate),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AsyncCopy {
-    pub destination: Address,
-    pub source: Address,
-    pub size: usize,
-    pub input: Option<AsyncCopyInput>,
+pub(crate) struct AsyncCopy {
+    pub(crate) destination: Address,
+    pub(crate) source: Address,
+    pub(crate) size: usize,
+    pub(crate) input: Option<AsyncCopyInput>,
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum MatrixLoad {
+pub(crate) enum MatrixLoad {
     Rows4([Destination; 4]),
     Columns2([Destination; 2]),
 }
 
 #[derive(Debug, Clone)]
-pub struct MatrixMultiply {
-    pub destinations: [Destination; 4],
-    pub a: [Source; 4],
-    pub b: [Source; 2],
-    pub c: [Source; 4],
+pub(crate) struct MatrixMultiply {
+    pub(crate) destinations: [Destination; 4],
+    pub(crate) a: [Source; 4],
+    pub(crate) b: [Source; 2],
+    pub(crate) c: [Source; 4],
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AddressBase {
+pub(crate) enum AddressBase {
     Register(RegisterId),
     Object(MemoryRef),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Address {
-    pub base: AddressBase,
-    pub offset: i64,
+pub(crate) struct Address {
+    pub(crate) base: AddressBase,
+    pub(crate) offset: i64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum IntegerBinary {
+pub(crate) enum IntegerBinary {
     Add,
     Sub,
     Div,
@@ -180,7 +180,7 @@ pub enum IntegerBinary {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum CarryArithmetic {
+pub(crate) enum CarryArithmetic {
     Add {
         a: Source,
         b: Source,
@@ -199,14 +199,14 @@ pub enum CarryArithmetic {
 
 /// Direction of `shl`/`shr` and `shf`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ShiftDirection {
+pub(crate) enum ShiftDirection {
     Left,
     Right,
 }
 
 /// How `shf`, `bmsk`, and `szext` treat a shift amount, position, or length beyond 31.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RangeMode {
+pub(crate) enum RangeMode {
     /// Limits the value to 32.
     Clamp,
     /// Uses the value modulo 32.
@@ -214,7 +214,7 @@ pub enum RangeMode {
 }
 
 impl RangeMode {
-    pub fn limit(self, value: u32) -> u32 {
+    pub(crate) fn limit(self, value: u32) -> u32 {
         match self {
             Self::Clamp => value.min(32),
             Self::Wrap => value & 31,
@@ -224,27 +224,27 @@ impl RangeMode {
 
 /// Which half of a double-width product an instruction keeps (`.lo` or `.hi`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Half {
+pub(crate) enum Half {
     Low,
     High,
 }
 
 /// Direction of a `cvta` conversion between a state-space address and a generic address.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AddressConversion {
+pub(crate) enum AddressConversion {
     ToGeneric,
     ToSpace,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BitwiseBinary {
+pub(crate) enum BitwiseBinary {
     And,
     Or,
     Xor,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FloatBinary {
+pub(crate) enum FloatBinary {
     Add,
     Sub,
     Mul,
@@ -254,14 +254,14 @@ pub enum FloatBinary {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BooleanOp {
+pub(crate) enum BooleanOp {
     And,
     Or,
     Xor,
 }
 
 impl BooleanOp {
-    pub fn apply(self, lhs: bool, rhs: bool) -> bool {
+    pub(crate) fn apply(self, lhs: bool, rhs: bool) -> bool {
         match self {
             Self::And => lhs & rhs,
             Self::Or => lhs | rhs,
@@ -272,20 +272,20 @@ impl BooleanOp {
 
 /// A predicate folded into a comparison or `lop3` result with `.and`, `.or`, or `.xor`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Combine {
-    pub op: BooleanOp,
-    pub predicate: Predicate,
+pub(crate) struct Combine {
+    pub(crate) op: BooleanOp,
+    pub(crate) predicate: Predicate,
 }
 
 /// The optional predicate output of `lop3.and` and `lop3.or`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Lop3Predicate {
-    pub destination: Destination,
-    pub combine: Combine,
+pub(crate) struct Lop3Predicate {
+    pub(crate) destination: Destination,
+    pub(crate) combine: Combine,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Vote {
+pub(crate) enum Vote {
     All,
     Any,
     Ballot,
@@ -293,7 +293,7 @@ pub enum Vote {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Shuffle {
+pub(crate) enum Shuffle {
     Up,
     Down,
     Butterfly,
@@ -301,7 +301,7 @@ pub enum Shuffle {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Atomic {
+pub(crate) enum Atomic {
     Add,
     Min,
     Max,
@@ -315,24 +315,24 @@ pub enum Atomic {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ConversionRounding {
+pub(crate) enum ConversionRounding {
     None,
     Float(FloatRoundingMode),
     Integer(IntRoundingMode),
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct ConversionControl {
-    pub rounding: ConversionRounding,
-    pub ftz: bool,
-    pub clamp: Clamp,
+pub(crate) struct ConversionControl {
+    pub(crate) rounding: ConversionRounding,
+    pub(crate) ftz: bool,
+    pub(crate) clamp: Clamp,
     /// `.satfinite`: an infinite result becomes the largest finite value of its sign.
-    pub finite: bool,
+    pub(crate) finite: bool,
 }
 
 /// The clamp applied to a floating result; PTX does not allow `.sat` with `.relu`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Clamp {
+pub(crate) enum Clamp {
     None,
     /// `.sat`: clamps to [0.0, 1.0], and NaN becomes 0.0.
     Saturate,
@@ -342,7 +342,7 @@ pub enum Clamp {
 
 impl Clamp {
     /// Combines the `.sat` and `.relu` qualifiers once lowering has rejected both together.
-    pub fn new(saturate: bool, relu: bool) -> Self {
+    pub(crate) fn new(saturate: bool, relu: bool) -> Self {
         if saturate {
             Self::Saturate
         } else if relu {
@@ -354,22 +354,22 @@ impl Clamp {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FloatMath {
+pub(crate) enum FloatMath {
     Reciprocal,
     SquareRoot,
     ReciprocalSquareRoot,
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct MathControl {
-    pub rounding: FloatRoundingMode,
-    pub ftz: bool,
+pub(crate) struct MathControl {
+    pub(crate) rounding: FloatRoundingMode,
+    pub(crate) ftz: bool,
     /// `rcp.approx.ftz.f64`: reads only the upper 32 bits of the input encoding and rounds the result to the upper 32 bits.
-    pub upper_word: bool,
+    pub(crate) upper_word: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FloatFormat {
+pub(crate) enum FloatFormat {
     F16,
     F16x2,
     Bf16,
@@ -415,16 +415,16 @@ impl FloatFormat {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct FloatControl {
-    pub rounding: FloatRoundingMode,
-    pub ftz: bool,
-    pub clamp: Clamp,
+pub(crate) struct FloatControl {
+    pub(crate) rounding: FloatRoundingMode,
+    pub(crate) ftz: bool,
+    pub(crate) clamp: Clamp,
     /// `.NaN` on `min`/`max`: a NaN input produces NaN instead of the other operand.
-    pub nan: bool,
+    pub(crate) nan: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FloatProperty {
+pub(crate) enum FloatProperty {
     Finite,
     Infinite,
     Number,
@@ -434,13 +434,13 @@ pub enum FloatProperty {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Unary {
+pub(crate) enum Unary {
     Neg,
     Abs,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BitUnary {
+pub(crate) enum BitUnary {
     Popc,
     Clz,
     Bfind { shift: bool },
@@ -449,7 +449,7 @@ pub enum BitUnary {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Permute {
+pub(crate) enum Permute {
     Generic,
     Forward,
     Backward,
@@ -460,14 +460,14 @@ pub enum Permute {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DotMode {
+pub(crate) enum DotMode {
     FourBytes,
     TwoLow,
     TwoHigh,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum IntegerPackWidth {
+pub(crate) enum IntegerPackWidth {
     Two,
     Four,
     Eight,
@@ -486,13 +486,13 @@ impl IntegerPackWidth {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct IntegerPackFormat {
-    pub width: IntegerPackWidth,
-    pub signed: bool,
+pub(crate) struct IntegerPackFormat {
+    pub(crate) width: IntegerPackWidth,
+    pub(crate) signed: bool,
 }
 
 #[derive(Debug, Clone)]
-pub enum Operation {
+pub(crate) enum Operation {
     Integer(IntegerOperation),
     Float(FloatOperation),
     Data(DataOperation),
@@ -504,7 +504,7 @@ pub enum Operation {
 
 /// Loads, stores, atomics, and fences.
 #[derive(Debug, Clone)]
-pub enum MemoryOperation {
+pub(crate) enum MemoryOperation {
     Load {
         ty: ScalarType,
         space: Option<StateSpace>,
@@ -538,7 +538,7 @@ pub enum MemoryOperation {
 
 /// Asynchronous copies and `mbarrier` objects.
 #[derive(Debug, Clone)]
-pub enum AsyncOperation {
+pub(crate) enum AsyncOperation {
     Copy(AsyncCopy),
     CommitCopies,
     WaitCopies {
@@ -575,7 +575,7 @@ pub enum AsyncOperation {
 
 /// Branches, calls, returns, and lane termination.
 #[derive(Debug, Clone)]
-pub enum ControlOperation {
+pub(crate) enum ControlOperation {
     Branch {
         target: ProgramCounter,
     },
@@ -593,7 +593,7 @@ pub enum ControlOperation {
 
 /// Operations that rendezvous with other lanes of a warp or CTA.
 #[derive(Debug, Clone)]
-pub enum CollectiveOperation {
+pub(crate) enum CollectiveOperation {
     MatrixLoad {
         layout: MatrixLoad,
         address: Address,
@@ -633,7 +633,7 @@ pub enum CollectiveOperation {
 
 /// Integer arithmetic, logic, and bit-field operations on registers.
 #[derive(Debug, Clone)]
-pub enum IntegerOperation {
+pub(crate) enum IntegerOperation {
     DotProduct {
         mode: DotMode,
         a_ty: ScalarType,
@@ -789,7 +789,7 @@ pub enum IntegerOperation {
 
 /// Floating-point arithmetic, math, and classification.
 #[derive(Debug, Clone)]
-pub enum FloatOperation {
+pub(crate) enum FloatOperation {
     Unary {
         op: Unary,
         format: FloatFormat,
@@ -850,7 +850,7 @@ pub enum FloatOperation {
 
 /// Moves, conversions, comparisons, and selections.
 #[derive(Debug, Clone)]
-pub enum DataOperation {
+pub(crate) enum DataOperation {
     Pack {
         destination: Destination,
         low: Source,
@@ -912,22 +912,22 @@ pub enum DataOperation {
 }
 
 #[derive(Debug, Clone)]
-pub struct Instruction {
-    pub span: Span,
-    pub guard: Option<Predicate>,
-    pub operation: Operation,
+pub(crate) struct Instruction {
+    pub(crate) span: Span,
+    pub(crate) guard: Option<Predicate>,
+    pub(crate) operation: Operation,
 }
 
 #[derive(Debug, Clone)]
-pub struct FrameObject {
-    pub space: StateSpace,
-    pub layout: StorageLayout,
-    pub role: FrameRole,
-    pub dynamic: bool,
+pub(crate) struct FrameObject {
+    pub(crate) space: StateSpace,
+    pub(crate) layout: StorageLayout,
+    pub(crate) role: FrameRole,
+    pub(crate) dynamic: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FrameRole {
+pub(crate) enum FrameRole {
     KernelInput,
     Input,
     Return,
@@ -935,36 +935,36 @@ pub enum FrameRole {
 }
 
 #[derive(Debug, Clone)]
-pub struct RegisterLayout {
-    pub name: String,
-    pub ty: ScalarType,
-    pub span: Span,
+pub(crate) struct RegisterLayout {
+    pub(crate) name: String,
+    pub(crate) ty: ScalarType,
+    pub(crate) span: Span,
 }
 
 #[derive(Debug, Clone)]
-pub struct Function {
-    pub name: String,
-    pub noreturn: bool,
-    pub registers: Vec<RegisterLayout>,
-    pub objects: Vec<FrameObject>,
-    pub parameters: Vec<ParameterLayout>,
-    pub returns: Vec<ParameterLayout>,
-    pub instructions: Vec<Instruction>,
+pub(crate) struct Function {
+    pub(crate) name: String,
+    pub(crate) noreturn: bool,
+    pub(crate) registers: Vec<RegisterLayout>,
+    pub(crate) objects: Vec<FrameObject>,
+    pub(crate) parameters: Vec<ParameterLayout>,
+    pub(crate) returns: Vec<ParameterLayout>,
+    pub(crate) instructions: Vec<Instruction>,
 }
 
 #[derive(Debug, Clone)]
-pub struct Executable {
-    pub entry: FunctionId,
-    pub functions: Vec<Function>,
-    pub module: ModuleLayout,
+pub(crate) struct Executable {
+    pub(crate) entry: FunctionId,
+    pub(crate) functions: Vec<Function>,
+    pub(crate) module: ModuleLayout,
 }
 
 impl Executable {
-    pub fn function(&self, id: FunctionId) -> &Function {
+    pub(crate) fn function(&self, id: FunctionId) -> &Function {
         &self.functions[id.0]
     }
 
-    pub fn entry_function(&self) -> &Function {
+    pub(crate) fn entry_function(&self) -> &Function {
         self.function(self.entry)
     }
 }

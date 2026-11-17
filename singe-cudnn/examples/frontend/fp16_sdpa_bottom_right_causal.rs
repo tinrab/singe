@@ -4,7 +4,7 @@ use std::env::args;
 
 use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
-    backend::tensor::{Shape, TensorSpec},
+    backend::operation::attention::{AttentionSequenceInputs, SoftmaxStatsBase},
     data_type::{DataType, f16},
     error::Result,
     frontend::{
@@ -13,10 +13,10 @@ use singe_cudnn::{
         operation::{
             AttentionConfig, AttentionDiagonalAlignment, AttentionDiagonalBand,
             AttentionImplementation, AttentionMaskMode, AttentionScoreConfig,
-            AttentionSequenceInputs, SoftmaxStatsBase,
         },
         plan::{CompileConfig, ExecuteArgs, HeuristicMode},
     },
+    tensor::{Shape, TensorSpec},
 };
 
 fn init_f16_image(size: usize, seed: &mut u32) -> Vec<f16> {
@@ -26,6 +26,10 @@ fn init_f16_image(size: usize, seed: &mut u32) -> Vec<f16> {
         .collect()
 }
 
+#[expect(
+    clippy::many_single_char_names,
+    reason = "keeps the upstream sample's single-letter dimension names"
+)]
 fn run() -> Result<()> {
     let example = common::ExampleContext::create()?;
     let inference = args().any(|argument| argument == "--inference");
@@ -92,7 +96,7 @@ fn run() -> Result<()> {
         Shape::contiguous([b, 1, 1, 1])?,
     ));
 
-    let outputs = graph.sdpa_auto(
+    let outputs = graph.sdpa(
         SdpaInputs {
             query: q,
             key: k,
@@ -174,15 +178,15 @@ fn run() -> Result<()> {
     // SAFETY: initialized inputs and exclusive output buffers match the native descriptors,
     // and all owners and the plan remain live until stream completion, including enqueue failures.
     example.execute_and_wait(|context| unsafe {
-        compiled.execute(
+        compiled.execute_async(
             context,
-            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
         )
     })?;
 
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_fp16_sdpa_bottom_right_causal", run())
 }

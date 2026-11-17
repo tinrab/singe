@@ -5,7 +5,7 @@
 //! # Example
 //!
 //! ```no_run
-//! use singe_cuda::{context::Context, memory::DeviceMemory};
+//! use singe_cuda::{context::Context, memory::DeviceMemory, stream::StreamOptions};
 //! use singe_npp::{
 //!     C3, Image, ImagePipeline, ImageView, StreamContext, Workspace,
 //!     types::{ComparisonOperation, InterpolationMode, Size},
@@ -13,7 +13,7 @@
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! let context = Context::create()?;
-//! let stream = context.create_stream()?;
+//! let stream = context.create_stream(StreamOptions::default())?;
 //! let stream_context = StreamContext::create(&stream)?;
 //! let mut workspace = Workspace::create();
 //!
@@ -36,6 +36,9 @@
 //! # Ok(())
 //! # }
 //! ```
+
+#[cfg(not(feature = "npp_13_2"))]
+compile_error!("singe-npp requires a version feature, such as `npp_13_2`");
 
 /// Application-managed NPP stream contexts and synchronization.
 pub mod context;
@@ -65,8 +68,10 @@ pub mod testing;
 // TODO: refactor into mods
 use std::ptr;
 
-use singe_core::LibraryVersion;
-use singe_npp_sys as sys;
+pub use singe_core::LibraryVersion;
+pub use singe_npp_sys as sys;
+
+use crate::error::try_ffi;
 
 pub use self::{
     context::StreamContext,
@@ -82,13 +87,12 @@ pub use self::{
     },
     signal::{Signal, SignalOutputView, SignalView, SignalViewMut, SupportedSignal},
 };
-use crate::utility::to_u64;
 
 /// Returns the loaded NPP library version.
 ///
 /// # Errors
 ///
-/// Returns an error if NPP returns a null version pointer.
+/// Returns an error if NPP returns a null version pointer or a negative version component.
 pub fn version() -> Result<LibraryVersion> {
     // SAFETY: `nppGetLibVersion` takes no arguments.
     let raw = unsafe { sys::nppGetLibVersion() };
@@ -98,11 +102,8 @@ pub fn version() -> Result<LibraryVersion> {
 
     // SAFETY: `nppGetLibVersion` returned a non-null pointer to a static version struct.
     let raw = unsafe { ptr::read(raw) };
-    Ok(LibraryVersion::new(
-        to_u64(raw.major, "npp major version")?,
-        to_u64(raw.minor, "npp minor version")?,
-        to_u64(raw.build, "npp build version")?,
-    ))
+    LibraryVersion::from_properties(raw.major, raw.minor, raw.build)
+        .ok_or_else(|| Error::out_of_range("npp version"))
 }
 
 #[cfg(test)]

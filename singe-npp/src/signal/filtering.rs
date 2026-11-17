@@ -172,13 +172,13 @@ pub unsafe fn integral_with_scratch<T: Integral>(
 /// Computes the native cumulative sum of the source signal.
 ///
 /// The destination must contain `source.len() + 1` elements.
-/// Allocates temporary scratch storage for this call.
+/// Allocates temporary scratch storage that is freed when the call returns, so stream capture is rejected.
 ///
 /// # Errors
 ///
 /// Returns an error if CUDA context binding fails or a signal belongs to another CUDA context.
 /// Returns an error if the destination length is not one greater than the source length, a required size or length conversion fails, or NPP reports a failure.
-/// Scratch allocation errors are propagated.
+/// Returns an error if the stream is being captured; scratch allocation errors are propagated.
 ///
 /// # Safety
 ///
@@ -194,6 +194,7 @@ pub unsafe fn integral<T: Integral>(
     stream_context.cuda_context().bind()?;
     stream_context.validate_region(source)?;
     stream_context.validate_region(destination)?;
+    stream_context.stream().ensure_not_capturing()?;
     // SAFETY: the caller upholds this function's safety contract.
     unsafe {
         let required_bytes = integral_buffer_size(source)?;

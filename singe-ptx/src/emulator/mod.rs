@@ -27,7 +27,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-pub use half::{bf16 as Bf16, f16 as F16};
+pub use half::{bf16, f16};
 
 pub use crate::emulator::{
     compiler::LaunchRequirements,

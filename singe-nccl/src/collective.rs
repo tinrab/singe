@@ -20,14 +20,15 @@ use crate::{
 pub struct LaunchCompletionEvent(Arc<Event>);
 
 impl LaunchCompletionEvent {
-    /// Create it with `cudaEventDisableTiming`; interprocess and interop events are unsupported.
+    /// Creates a launch-completion event in `context` with [`EventFlags::DISABLE_TIMING`].
+    /// Interprocess and interop events are unsupported.
     ///
     /// # Errors
     ///
     /// Returns an error if CUDA cannot create a timing-disabled event in `context`.
     pub fn create(context: &Arc<Context>) -> Result<Self> {
         Ok(Self(Arc::new(
-            context.create_event_with_flags(EventFlags::DISABLE_TIMING)?,
+            context.create_event(EventFlags::DISABLE_TIMING)?,
         )))
     }
 
@@ -55,7 +56,7 @@ enum ExtensionValue<'a> {
 }
 
 impl<'a> Extension<'a> {
-    /// Integer value.
+    /// Creates a vendor extension carrying an integer value.
     #[must_use]
     pub fn integer(vendor_id: i32, option_id: i32, value: i32) -> Self {
         Self {
@@ -65,7 +66,7 @@ impl<'a> Extension<'a> {
         }
     }
 
-    /// C-style string value.
+    /// Creates a vendor extension carrying a NUL-terminated string value.
     #[must_use]
     pub fn string(vendor_id: i32, option_id: i32, value: &'a CStr) -> Self {
         Self {
@@ -75,9 +76,10 @@ impl<'a> Extension<'a> {
         }
     }
 
-    /// Opaque pointer-sized value.
+    /// Creates a vendor extension carrying an opaque pointer-sized value.
     ///
     /// # Safety
+    ///
     /// The pointer must satisfy the vendor option's validity and lifetime requirements for every collective call that uses this extension.
     pub unsafe fn raw(vendor_id: i32, option_id: i32, value: *mut ffi::c_void) -> Self {
         Self {
@@ -88,11 +90,12 @@ impl<'a> Extension<'a> {
     }
 }
 
-/// Per-collective configuration.
-/// Users assign values to attributes to customize an individual collective call issued through one of the configured entry points.
-/// The same configuration must be set on every rank; NCCL validates it only locally.
+/// Settings for one collective call.
+///
+/// [`Default`] selects NCCL's behavior for every setting.
+/// Every rank must pass the same options; NCCL validates them only locally.
 #[derive(Debug, Clone)]
-pub struct CollectiveConfig<'a> {
+pub struct CollectiveOptions<'a> {
     /// Lower bound on channels/CTAs.
     pub min_ctas: Option<i32>,
     /// Upper bound on channels/CTAs, must be less than or equal to the communicator's maximum.
@@ -119,7 +122,7 @@ pub struct CollectiveConfig<'a> {
     pub extensions: &'a [Extension<'a>],
 }
 
-impl Default for CollectiveConfig<'_> {
+impl Default for CollectiveOptions<'_> {
     fn default() -> Self {
         Self {
             min_ctas: None,
@@ -136,13 +139,13 @@ impl Default for CollectiveConfig<'_> {
     }
 }
 
-pub(crate) struct RawConfig {
+pub(crate) struct RawOptions {
     pub(crate) value: sys::ncclCollConfig_t,
     _extensions: Vec<sys::ncclConfigExt_t>,
 }
 
-impl CollectiveConfig<'_> {
-    pub(crate) fn prepare(&self, communicator: &Communicator) -> Result<RawConfig> {
+impl CollectiveOptions<'_> {
+    pub(crate) fn prepare(&self, communicator: &Communicator) -> Result<RawOptions> {
         if self.profiler_tag >> 63 != 0
             || [
                 self.min_ctas,
@@ -155,7 +158,7 @@ impl CollectiveConfig<'_> {
             .any(|v| v < 0)
             || matches!((self.min_ctas,self.max_ctas),(Some(min),Some(max)) if min > max)
         {
-            return Err(Error::out_of_range("collective configuration"));
+            return Err(Error::out_of_range("collective options"));
         }
 
         let mut extensions = Vec::with_capacity(self.extensions.len());
@@ -191,7 +194,7 @@ impl CollectiveConfig<'_> {
                 return Err(Error::StreamContextMismatch);
             }
 
-            let mut retained = communicator.handle.launch_events.borrow_mut();
+            let mut retained = communicator.handle.state().launch_events.borrow_mut();
             if !retained.iter().any(|old| Arc::ptr_eq(old, &event.0)) {
                 retained.push(Arc::clone(&event.0));
             }
@@ -200,7 +203,7 @@ impl CollectiveConfig<'_> {
             ptr::null_mut()
         };
         validate_collective(communicator.as_raw(), self.cluster_size, !event.is_null())?;
-        Ok(RawConfig {
+        Ok(RawOptions {
             value: sys::ncclCollConfig_t {
                 size: size_of::<sys::ncclCollConfig_t>() as _,
                 magic: sys::NCCL_API_MAGIC,

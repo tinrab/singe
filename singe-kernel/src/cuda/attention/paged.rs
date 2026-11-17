@@ -7,7 +7,7 @@ use singe_cuda::view::DeviceInputView;
 #[cfg(any(feature = "dtype_bf16", feature = "dtype_f16", feature = "dtype_f32"))]
 use singe_cuda::{
     stream::Stream,
-    view::{DeviceInput, DeviceOutput},
+    view::{DeviceOutput, DeviceRange},
 };
 
 #[cfg(feature = "dtype_f32")]
@@ -36,7 +36,7 @@ use crate::{
 pub unsafe fn sliding_window_attention_packed_qkv_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    qkv: &impl DeviceInput<f32>,
+    qkv: &impl DeviceRange<f32>,
     config: PackedQkvAttentionConfig,
 ) -> Result<()> {
     validate_packed_qkv_attention_config(qkv.len(), config)?;
@@ -56,10 +56,10 @@ pub unsafe fn sliding_window_attention_packed_qkv_f32(
 pub unsafe fn sliding_window_attention_paged_kv_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    query: &impl DeviceInput<f32>,
-    key_cache: &impl DeviceInput<f32>,
-    value_cache: &impl DeviceInput<f32>,
-    block_table: &impl DeviceInput<u32>,
+    query: &impl DeviceRange<f32>,
+    key_cache: &impl DeviceRange<f32>,
+    value_cache: &impl DeviceRange<f32>,
+    block_table: &impl DeviceRange<u32>,
     config: PagedKvAttentionConfig,
 ) -> Result<()> {
     validate_paged_kv_attention_config(
@@ -118,11 +118,11 @@ pub unsafe fn sliding_window_attention_paged_kv_f32(
 pub unsafe fn paged_kv_decode_attention_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    query: &impl DeviceInput<f32>,
-    key_cache: &impl DeviceInput<f32>,
-    value_cache: &impl DeviceInput<f32>,
-    actual_seq_lens: &impl DeviceInput<i32>,
-    block_table: &impl DeviceInput<u32>,
+    query: &impl DeviceRange<f32>,
+    key_cache: &impl DeviceRange<f32>,
+    value_cache: &impl DeviceRange<f32>,
+    actual_seq_lens: &impl DeviceRange<i32>,
+    block_table: &impl DeviceRange<u32>,
     config: PagedKvDecodeAttentionConfig,
 ) -> Result<()> {
     config.validate_lengths(
@@ -164,11 +164,11 @@ pub unsafe fn paged_kv_decode_attention_f32(
 pub unsafe fn paged_kv_decode_attention_f16(
     stream: &Stream,
     out: &mut impl DeviceOutput<f16>,
-    query: &impl DeviceInput<f16>,
-    key_cache: &impl DeviceInput<f16>,
-    value_cache: &impl DeviceInput<f16>,
-    actual_seq_lens: &impl DeviceInput<i32>,
-    block_table: &impl DeviceInput<u32>,
+    query: &impl DeviceRange<f16>,
+    key_cache: &impl DeviceRange<f16>,
+    value_cache: &impl DeviceRange<f16>,
+    actual_seq_lens: &impl DeviceRange<i32>,
+    block_table: &impl DeviceRange<u32>,
     config: PagedKvDecodeAttentionConfig,
 ) -> Result<()> {
     config.validate_lengths(
@@ -210,11 +210,11 @@ pub unsafe fn paged_kv_decode_attention_f16(
 pub unsafe fn paged_kv_decode_attention_bf16(
     stream: &Stream,
     out: &mut impl DeviceOutput<bf16>,
-    query: &impl DeviceInput<bf16>,
-    key_cache: &impl DeviceInput<bf16>,
-    value_cache: &impl DeviceInput<bf16>,
-    actual_seq_lens: &impl DeviceInput<i32>,
-    block_table: &impl DeviceInput<u32>,
+    query: &impl DeviceRange<bf16>,
+    key_cache: &impl DeviceRange<bf16>,
+    value_cache: &impl DeviceRange<bf16>,
+    actual_seq_lens: &impl DeviceRange<i32>,
+    block_table: &impl DeviceRange<u32>,
     config: PagedKvDecodeAttentionConfig,
 ) -> Result<()> {
     config.validate_lengths(
@@ -257,13 +257,13 @@ pub unsafe fn paged_kv_prefill_attention_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
     lse: &mut impl DeviceOutput<f32>,
-    query: &impl DeviceInput<f32>,
-    key_cache: &impl DeviceInput<f32>,
-    value_cache: &impl DeviceInput<f32>,
-    actual_seq_lens_q: &impl DeviceInput<i32>,
-    actual_seq_lens_kv: &impl DeviceInput<i32>,
-    actual_seq_offsets: &impl DeviceInput<i32>,
-    block_table: &impl DeviceInput<u32>,
+    query: &impl DeviceRange<f32>,
+    key_cache: &impl DeviceRange<f32>,
+    value_cache: &impl DeviceRange<f32>,
+    actual_seq_lens_q: &impl DeviceRange<i32>,
+    actual_seq_lens_kv: &impl DeviceRange<i32>,
+    actual_seq_offsets: &impl DeviceRange<i32>,
+    block_table: &impl DeviceRange<u32>,
     config: PagedKvPrefillAttentionConfig,
 ) -> Result<()> {
     config.validate_lengths(
@@ -314,13 +314,13 @@ pub unsafe fn paged_kv_prefill_attention_f16(
     stream: &Stream,
     out: &mut impl DeviceOutput<f16>,
     lse: &mut impl DeviceOutput<f32>,
-    query: &impl DeviceInput<f16>,
-    key_cache: &impl DeviceInput<f16>,
-    value_cache: &impl DeviceInput<f16>,
-    actual_seq_lens_q: &impl DeviceInput<i32>,
-    actual_seq_lens_kv: &impl DeviceInput<i32>,
-    actual_seq_offsets: &impl DeviceInput<i32>,
-    block_table: &impl DeviceInput<u32>,
+    query: &impl DeviceRange<f16>,
+    key_cache: &impl DeviceRange<f16>,
+    value_cache: &impl DeviceRange<f16>,
+    actual_seq_lens_q: &impl DeviceRange<i32>,
+    actual_seq_lens_kv: &impl DeviceRange<i32>,
+    actual_seq_offsets: &impl DeviceRange<i32>,
+    block_table: &impl DeviceRange<u32>,
     config: PagedKvPrefillAttentionConfig,
 ) -> Result<()> {
     config.validate_lengths(
@@ -371,13 +371,13 @@ pub unsafe fn paged_kv_prefill_attention_bf16(
     stream: &Stream,
     out: &mut impl DeviceOutput<bf16>,
     lse: &mut impl DeviceOutput<f32>,
-    query: &impl DeviceInput<bf16>,
-    key_cache: &impl DeviceInput<bf16>,
-    value_cache: &impl DeviceInput<bf16>,
-    actual_seq_lens_q: &impl DeviceInput<i32>,
-    actual_seq_lens_kv: &impl DeviceInput<i32>,
-    actual_seq_offsets: &impl DeviceInput<i32>,
-    block_table: &impl DeviceInput<u32>,
+    query: &impl DeviceRange<bf16>,
+    key_cache: &impl DeviceRange<bf16>,
+    value_cache: &impl DeviceRange<bf16>,
+    actual_seq_lens_q: &impl DeviceRange<i32>,
+    actual_seq_lens_kv: &impl DeviceRange<i32>,
+    actual_seq_offsets: &impl DeviceRange<i32>,
+    block_table: &impl DeviceRange<u32>,
     config: PagedKvPrefillAttentionConfig,
 ) -> Result<()> {
     config.validate_lengths(
@@ -428,12 +428,12 @@ pub unsafe fn ragged_kv_prefill_attention_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
     lse: &mut impl DeviceOutput<f32>,
-    query: &impl DeviceInput<f32>,
-    key: &impl DeviceInput<f32>,
-    value: &impl DeviceInput<f32>,
-    actual_seq_lens_q: &impl DeviceInput<i32>,
-    actual_seq_lens_kv: &impl DeviceInput<i32>,
-    actual_seq_offsets: &impl DeviceInput<i32>,
+    query: &impl DeviceRange<f32>,
+    key: &impl DeviceRange<f32>,
+    value: &impl DeviceRange<f32>,
+    actual_seq_lens_q: &impl DeviceRange<i32>,
+    actual_seq_lens_kv: &impl DeviceRange<i32>,
+    actual_seq_offsets: &impl DeviceRange<i32>,
     config: RaggedKvPrefillAttentionConfig,
 ) -> Result<()> {
     config.validate_lengths(
@@ -480,12 +480,12 @@ pub unsafe fn ragged_kv_prefill_attention_f16(
     stream: &Stream,
     out: &mut impl DeviceOutput<f16>,
     lse: &mut impl DeviceOutput<f32>,
-    query: &impl DeviceInput<f16>,
-    key: &impl DeviceInput<f16>,
-    value: &impl DeviceInput<f16>,
-    actual_seq_lens_q: &impl DeviceInput<i32>,
-    actual_seq_lens_kv: &impl DeviceInput<i32>,
-    actual_seq_offsets: &impl DeviceInput<i32>,
+    query: &impl DeviceRange<f16>,
+    key: &impl DeviceRange<f16>,
+    value: &impl DeviceRange<f16>,
+    actual_seq_lens_q: &impl DeviceRange<i32>,
+    actual_seq_lens_kv: &impl DeviceRange<i32>,
+    actual_seq_offsets: &impl DeviceRange<i32>,
     config: RaggedKvPrefillAttentionConfig,
 ) -> Result<()> {
     config.validate_lengths(
@@ -532,12 +532,12 @@ pub unsafe fn ragged_kv_prefill_attention_bf16(
     stream: &Stream,
     out: &mut impl DeviceOutput<bf16>,
     lse: &mut impl DeviceOutput<f32>,
-    query: &impl DeviceInput<bf16>,
-    key: &impl DeviceInput<bf16>,
-    value: &impl DeviceInput<bf16>,
-    actual_seq_lens_q: &impl DeviceInput<i32>,
-    actual_seq_lens_kv: &impl DeviceInput<i32>,
-    actual_seq_offsets: &impl DeviceInput<i32>,
+    query: &impl DeviceRange<bf16>,
+    key: &impl DeviceRange<bf16>,
+    value: &impl DeviceRange<bf16>,
+    actual_seq_lens_q: &impl DeviceRange<i32>,
+    actual_seq_lens_kv: &impl DeviceRange<i32>,
+    actual_seq_offsets: &impl DeviceRange<i32>,
     config: RaggedKvPrefillAttentionConfig,
 ) -> Result<()> {
     config.validate_lengths(

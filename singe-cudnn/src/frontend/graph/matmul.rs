@@ -1,21 +1,22 @@
 use crate::{
-    backend::{
+    backend::operation::{
+        block_scale::{BlockScaleDequantizeInputs, BlockScaleQuantizeOutputs},
         pointwise::PointwiseMode,
         reduction::ReduceTensorOperator,
-        tensor::{Shape, TensorId, TensorSpec},
     },
     data_type::DataType,
     error::Result,
     frontend::{
         composite::sdpa::attention_heads_compatible,
         error::Error as FrontendError,
-        graph::{BlockScaleDequantizeInputs, BlockScaleQuantizeOutputs, Graph, TensorOutputConfig},
+        graph::{Graph, TensorOutputConfig},
         operation::{
             BlockScaleDequantizeConfig, BlockScaleQuantizeConfig, MatmulConfig, MatmulOperation,
             Operation, PointwiseOperation, ReductionConfig,
         },
     },
     math::NanPropagation,
+    tensor::{Shape, TensorId, TensorSpec},
 };
 
 /// FP8 matmul operands and dequantization multipliers applied to their product.
@@ -114,7 +115,8 @@ impl Graph {
     /// The last two dimensions of `a` and `b` are interpreted as matrix dimensions and earlier dimensions as batch dimensions.
     ///
     /// # Errors
-    /// Returns an error for unknown operands or dimension-override tensors, incompatible ranks or a result shape inconsistent with the requested overrides.
+    ///
+    /// Returns an error if an operand or dimension-override tensor is unknown, ranks are incompatible, or the result shape is inconsistent with the requested overrides.
     pub fn matmul_into(
         &mut self,
         a: TensorId,
@@ -134,7 +136,7 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for unknown operands or dimension-override tensors, incompatible ranks or result geometry, or an inferred contiguous layout whose strides cannot be represented.
+    /// Returns an error if an operand or dimension-override tensor is unknown, ranks or result geometry are incompatible, or the strides of an inferred contiguous layout cannot be represented.
     pub fn matmul(
         &mut self,
         a: TensorId,
@@ -167,7 +169,7 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for unknown operands or scales, incompatible matrix or result geometry, unrepresentable inferred strides, or invalid pointwise broadcast or reduction shapes in the dequantization composition.
+    /// Returns an error if an operand or scale is unknown, the matrix or result geometry is incompatible, an inferred stride is unrepresentable, or a pointwise broadcast or reduction shape in the dequantization composition is invalid.
     pub fn matmul_fp8_into(
         &mut self,
         tensors: MatmulFp8Tensors,
@@ -257,7 +259,7 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for unknown operands or scales, incompatible matrix or result geometry, unrepresentable inferred strides, or invalid pointwise broadcast or reduction shapes in the dequantization composition.
+    /// Returns an error if an operand or scale is unknown, the matrix or result geometry is incompatible, an inferred stride is unrepresentable, or a pointwise broadcast or reduction shape in the dequantization composition is invalid.
     pub fn matmul_fp8(
         &mut self,
         inputs: MatmulFp8Inputs,
@@ -286,7 +288,7 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for unknown operands or scales, incompatible matrix or result geometry, unrepresentable inferred strides, or invalid pointwise broadcast or reduction shapes in the dequantization composition.
+    /// Returns an error if an operand or scale is unknown, the matrix or result geometry is incompatible, an inferred stride is unrepresentable, or a pointwise broadcast or reduction shape in the dequantization composition is invalid.
     /// Also returns an error if output scaling cannot broadcast or the absolute-maximum destination has invalid reduction geometry.
     pub fn matmul_fp8_quantize_into(
         &mut self,
@@ -367,7 +369,7 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for unknown operands or scales, incompatible matrix or result geometry, unrepresentable inferred strides, or invalid pointwise broadcast or reduction shapes in the dequantization composition.
+    /// Returns an error if an operand or scale is unknown, the matrix or result geometry is incompatible, an inferred stride is unrepresentable, or a pointwise broadcast or reduction shape in the dequantization composition is invalid.
     /// Also returns an error if output scaling cannot broadcast or the absolute-maximum destination has invalid reduction geometry.
     pub fn matmul_fp8_quantize(
         &mut self,

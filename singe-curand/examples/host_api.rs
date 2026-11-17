@@ -1,8 +1,8 @@
 //! Port of the cuRAND "Host API Example": generate uniform floats on the device with a pseudorandom generator, copy them back, and repeat the same sequence on the host generator.
 
-use std::{error::Error, sync::Arc};
-
-use singe_cuda::{context::Context as CudaContext, device::Device, memory::DeviceMemory};
+use singe_cuda::{
+    context::Context as CudaContext, device::Device, memory::DeviceMemory, stream::StreamOptions,
+};
 use singe_curand::{
     generator::{Generator, HostGenerator},
     types::RngType,
@@ -11,9 +11,9 @@ use singe_curand::{
 const COUNT: usize = 100;
 const SEED: u64 = 1234;
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() -> anyhow::Result<()> {
     let context = CudaContext::create_for_device(Device::new(0))?;
-    let stream = Arc::new(context.create_stream()?);
+    let stream = context.create_stream(StreamOptions::default())?;
 
     let mut device_output = DeviceMemory::<f32>::zeroed(&context, COUNT)?;
     let mut generator = Generator::create(RngType::PseudoDefault, &stream)?;

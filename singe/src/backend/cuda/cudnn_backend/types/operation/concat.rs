@@ -1,5 +1,5 @@
 use singe_cudnn::backend::{
-    execution::tensor_ops::ConcatOperation,
+    operation::tensor_ops::ConcatOperation,
     tensor::{BackendTensorUid, Tensor},
 };
 

@@ -9,5 +9,8 @@ pub mod cutile_fused;
 /// Adds scraped NVIDIA API documentation to generated FFI declarations.
 pub mod document;
 
+/// Generates the checked-in ONNX protobuf types of `singe-onnx`.
+pub mod onnx_proto;
+
 /// Locates the workspace and writes generated files only when their contents change.
 pub mod utility;

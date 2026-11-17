@@ -65,7 +65,10 @@ impl LaunchRequirements {
     }
 }
 
-pub fn compile(module: &ast::Module, entry: &str) -> Result<(ir::Executable, LaunchRequirements)> {
+pub(crate) fn compile(
+    module: &ast::Module,
+    entry: &str,
+) -> Result<(ir::Executable, LaunchRequirements)> {
     let layout = ModuleLayout::create(module)?;
     let mut definitions: BTreeMap<&str, &ast::Function> = BTreeMap::new();
     for item in &module.items {
@@ -271,10 +274,10 @@ fn requirements(function: &ast::Function) -> Result<LaunchRequirements> {
 
 /// Where a frame object or module variable lives and how it is laid out.
 #[derive(Debug, Clone, Copy)]
-pub struct ObjectProperties {
-    pub space: StateSpace,
-    pub layout: StorageLayout,
-    pub role: FrameRole,
+pub(crate) struct ObjectProperties {
+    pub(crate) space: StateSpace,
+    pub(crate) layout: StorageLayout,
+    pub(crate) role: FrameRole,
 }
 
 struct Linker<'a> {
@@ -295,7 +298,7 @@ struct Scope {
     symbols: BTreeMap<String, Symbol>,
 }
 
-pub struct FunctionCompiler<'a, 'b> {
+pub(crate) struct FunctionCompiler<'a, 'b> {
     function: &'a ast::Function,
     module: &'b ModuleLayout,
     linker: &'b mut Linker<'a>,
@@ -1089,7 +1092,7 @@ impl<'a, 'b> FunctionCompiler<'a, 'b> {
 
 /// How a register's declared width must relate to the operand type an instruction expects.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Width {
+pub(crate) enum Width {
     /// The register has exactly the expected width.
     Exact,
     /// The register may be wider, as for `ld`, `st`, and `cvt` operands.
@@ -1098,7 +1101,7 @@ pub enum Width {
 
 /// Returns whether a register declared as `declared` can serve as an operand of type `expected`.
 /// Bit types match any same-width type.
-pub fn compatible(declared: ScalarType, expected: ScalarType, width: Width) -> bool {
+pub(crate) fn compatible(declared: ScalarType, expected: ScalarType, width: Width) -> bool {
     use ScalarType::{Bf16, Pred, SamplerRef, SurfRef, TexRef, Tf32};
     if declared == Pred || expected == Pred {
         return declared == expected;

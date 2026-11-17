@@ -4,7 +4,7 @@ use std::env::args;
 
 use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
-    backend::tensor::{Shape, TensorSpec},
+    backend::operation::attention::SoftmaxStatsBase,
     data_type::{DataType, f8e4m3},
     error::Result,
     frontend::{
@@ -16,10 +16,11 @@ use singe_cudnn::{
         graph::{DataTypePolicy, Graph, GraphConfig, TensorOutputConfig},
         operation::{
             AttentionBackwardConfig, AttentionConfig, AttentionDiagonalAlignment,
-            AttentionDiagonalBand, AttentionMaskMode, AttentionScoreConfig, SoftmaxStatsBase,
+            AttentionDiagonalBand, AttentionMaskMode, AttentionScoreConfig,
         },
         plan::{CompileConfig, ExecuteArgs, HeuristicMode},
     },
+    tensor::{Shape, TensorSpec},
 };
 
 fn interleaved_shape([b, h, s, d]: [i64; 4]) -> Result<Shape> {
@@ -31,6 +32,10 @@ fn interleaved_shape([b, h, s, d]: [i64; 4]) -> Result<Shape> {
     )
 }
 
+#[expect(
+    clippy::many_single_char_names,
+    reason = "keeps the upstream sample's single-letter dimension names"
+)]
 fn run() -> Result<()> {
     let example = common::ExampleContext::create()?;
 
@@ -95,7 +100,7 @@ fn run() -> Result<()> {
         AttentionDiagonalBand::causal(AttentionDiagonalAlignment::TopLeft),
     ));
     let mut forward_graph = graph.clone();
-    let forward_outputs = forward_graph.sdpa_fp8(
+    let forward_outputs = forward_graph.sdpa(
         SdpaFp8Inputs::new(
             q,
             k,
@@ -108,7 +113,7 @@ fn run() -> Result<()> {
             scale_s,
             scale_o,
         ),
-        &AttentionConfig::new()
+        AttentionConfig::new()
             .with_name("fp8_attention_forward")
             .with_score_config(score_config.clone())
             .with_stats_base(SoftmaxStatsBase::NaturalLog),
@@ -136,7 +141,7 @@ fn run() -> Result<()> {
         })?,
     ];
 
-    let outputs = graph.sdpa_fp8_backward(
+    let outputs = graph.sdpa_backward(
         SdpaFp8BackwardInputs::new(
             q,
             k,
@@ -233,9 +238,9 @@ fn run() -> Result<()> {
 
         // SAFETY: inputs, writable saved state and forward scratch remain live through stream completion.
         example.execute_and_wait(|context| unsafe {
-            forward_compiled.execute(
+            forward_compiled.execute_async(
                 context,
-                ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+                ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
             )
         })?;
     }
@@ -262,15 +267,15 @@ fn run() -> Result<()> {
 
     // SAFETY: FP8 inputs, actual saved forward state, writable gradients and workspace remain live through completion.
     example.execute_and_wait(|context| unsafe {
-        compiled.execute(
+        compiled.execute_async(
             context,
-            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
         )
     })?;
     println!("executed fp8 forward and backward attention with saved statistics, query heads: {h}");
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_fp8_sdpa_backward", run())
 }

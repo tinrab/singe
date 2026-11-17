@@ -1,13 +1,9 @@
 mod inputs;
 
 use crate::{
-    backend::{
-        pointwise::PointwiseMode,
-        reduction::ReduceTensorOperator,
-        tensor::{Shape, TensorSpec},
-    },
+    backend::operation::{pointwise::PointwiseMode, reduction::ReduceTensorOperator},
     data_type::DataType,
-    error::Result,
+    error::{Error, Result, SdpaFeature},
     frontend::{
         composite::sdpa::{
             SdpaMxfp8BackwardGradientTensors, SdpaMxfp8BackwardInputs,
@@ -31,10 +27,11 @@ use crate::{
                 SDPA_MXFP8_BACKWARD_STATS_SHAPE, SDPA_MXFP8_BACKWARD_V_LAYOUT,
             },
         },
-        error::{Error as FrontendError, SdpaFeature},
+        error::Error as FrontendError,
         graph::{Graph, reduce_last_axis},
-        operation::{AttentionBackwardConfig, AttentionBackwardRequest, ReductionConfig},
+        operation::{AttentionBackwardConfig, ReductionConfig},
     },
+    tensor::{Shape, TensorSpec},
 };
 
 struct Mxfp8BackwardPreparation {
@@ -45,18 +42,7 @@ struct Mxfp8BackwardPreparation {
 }
 
 impl Graph {
-    /// Creates independently typed MXFP8 gradients and requested Amax outputs measured after conversion.
-    /// Each gradient selects placement and encoding independently, with a BF16 fallback.
-    /// Sink gradients select their own placement and encoding, with an FP32 default.
-    /// Bias gradients and RNG dumps remain unsupported for quantized backward inference.
-    /// Unrequested Amax outputs create no tensors, bindings or reduction operations.
-    /// Preparation resolves the target architecture and deterministic routing.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error for unsupported bias-gradient or RNG-dump requests, unknown query, key or value identities, non-four-dimensional inputs, or unrepresentable inferred auxiliary-output layouts.
-    /// Target and native support validation occurs during preparation.
-    pub fn sdpa_mxfp8_backward(
+    pub(crate) fn infer_mxfp8_sdpa_backward(
         &mut self,
         inputs: SdpaMxfp8BackwardInputs,
         config: AttentionBackwardConfig,
@@ -70,7 +56,7 @@ impl Graph {
             let [d_q, d_k, d_v] = self.infer_attention_gradients(
                 [inputs.query, inputs.key, inputs.value],
                 outputs.gradients,
-                Some(DataType::BF16),
+                Some(DataType::Bf16),
                 config.name(),
             )?;
             let amax_q = outputs
@@ -100,7 +86,7 @@ impl Graph {
                 absolute_max_key_gradient: amax_k,
                 absolute_max_value_gradient: amax_v,
             };
-            self.sdpa_mxfp8_backward_into(inputs, gradients, config)?;
+            self.sdpa_backward_into(inputs, gradients, config)?;
             Ok(gradients)
         })();
         if result.is_err() {
@@ -346,27 +332,6 @@ impl Graph {
         Ok(())
     }
 
-    /// Records MXFP8 backward with caller-declared gradient layouts and optional Amax outputs.
-    /// Amax reductions observe the gradient values after conversion to their declared encodings.
-    ///
-    /// # Errors
-    ///
-    /// This recording step currently returns no errors.
-    /// Graph preparation validates the deferred operands, layouts, and target-specific support.
-    pub fn sdpa_mxfp8_backward_into(
-        &mut self,
-        inputs: SdpaMxfp8BackwardInputs,
-        gradients: SdpaMxfp8BackwardGradientTensors,
-        config: AttentionBackwardConfig,
-    ) -> Result<()> {
-        self.record_attention_backward_request(AttentionBackwardRequest::Mxfp8 {
-            inputs,
-            outputs: gradients,
-            config,
-        });
-        Ok(())
-    }
-
     #[expect(
         clippy::too_many_lines,
         reason = "the composite attention operation builds and validates its complete tensor graph"
@@ -402,12 +367,11 @@ impl Graph {
         self.promote_index_tensors(config.modifiers().sequence_inputs().tensors())?;
         self.validate_attention_backward_config(q, k, v, config)?;
         if config.aux_gradients().bias() {
-            return Err(FrontendError::SdpaUnsupported {
+            return Err(Error::SdpaUnsupported {
                 feature: SdpaFeature::BiasGradient,
                 operation: "quantized sdpa backward",
                 sm_version: None,
-            }
-            .into());
+            });
         }
 
         let is_ragged = self.validate_attention_backward_ragged_layout(

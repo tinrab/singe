@@ -1,16 +1,19 @@
 [package]
 name = "singe-ptx"
 description = "A PTX parser and a CPU emulator that runs PTX kernels without an NVIDIA GPU."
-version = "0.1.0-alpha.8"
+version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 repository.workspace = true
+documentation = "https://docs.rs/singe-ptx"
 license-file.workspace = true
 readme = "README.md"
 keywords = ["cuda", "nvidia", "ptx", "parser"]
+categories = ["parser-implementations", "emulators"]
 include.workspace = true
 
-[features]
-cuda_tests = []
+[package.metadata.docs.rs]
+rustdoc-args = ["--cfg", "docsrs", "--html-in-header", "dist/katex_header.html"]
 
 [dependencies]
 thiserror.workspace = true

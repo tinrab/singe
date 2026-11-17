@@ -1,15 +1,15 @@
 use crate::{
-    backend::tensor::Shape,
+    backend::operation::normalization::{
+        BatchNormalizationBackwardWeightsInputs, BatchNormalizationBackwardWeightsOutputs,
+        NormalizationSavedStatistics,
+    },
     data_type::DataType,
     error::Result,
     frontend::{
         graph::{Graph, TensorOutputConfig, infer_normalization_channel_dimensions},
-        operation::{
-            BatchNormalizationBackwardWeightsConfig, BatchNormalizationBackwardWeightsInputs,
-            BatchNormalizationBackwardWeightsOutputs, NormalizationOperation,
-            NormalizationSavedStatistics, Operation,
-        },
+        operation::{BatchNormalizationBackwardWeightsConfig, NormalizationOperation, Operation},
     },
+    tensor::Shape,
 };
 
 impl Graph {
@@ -59,7 +59,7 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for unknown tensor identities, input rank below two, an output gradient whose dimensions differ from the input, or mismatched per-channel statistics, scale, gradient, or equivalent-coefficient dimensions.
+    /// Returns an error if a tensor identity is unknown, the input rank is below two, the output gradient's dimensions differ from the input, or per-channel statistics, scale, gradient, or equivalent-coefficient dimensions mismatch.
     pub fn batch_normalization_backward_weights_into(
         &mut self,
         inputs: BatchNormalizationBackwardWeightsInputs,
@@ -83,7 +83,7 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for unknown tensor identities, input rank below two, an output gradient whose dimensions differ from the input, or mismatched per-channel statistics, scale, gradient, or equivalent-coefficient dimensions.
+    /// Returns an error if a tensor identity is unknown, the input rank is below two, the output gradient's dimensions differ from the input, or per-channel statistics, scale, gradient, or equivalent-coefficient dimensions mismatch.
     /// Inferred output strides must also be representable.
     pub fn batch_normalization_backward_weights(
         &mut self,

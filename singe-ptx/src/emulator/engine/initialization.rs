@@ -42,7 +42,7 @@ struct PendingAllocation {
     offset: usize,
 }
 
-pub struct GridBuilder {
+pub(crate) struct GridBuilder {
     engine: Engine,
     storage: StoragePlan,
     dynamic_address: u64,
@@ -57,7 +57,7 @@ pub struct GridBuilder {
     work_bytes: usize,
 }
 
-pub struct StoragePlan {
+pub(crate) struct StoragePlan {
     pub(crate) charge: usize,
     dynamic_alignment: Option<u32>,
 }
@@ -137,7 +137,7 @@ fn storage_plan(code: &CompiledKernel, config: LaunchConfig) -> Result<StoragePl
 }
 
 impl GridBuilder {
-    pub fn create(
+    pub(crate) fn create(
         code: &CompiledKernel,
         global_count: usize,
         config: LaunchConfig,
@@ -171,15 +171,15 @@ impl GridBuilder {
         })
     }
 
-    pub fn release(&self, memory: &mut Memory) {
+    pub(crate) fn release(&self, memory: &mut Memory) {
         self.engine.release(memory);
     }
 
-    pub fn finish(self) -> Engine {
+    pub(crate) fn finish(self) -> Engine {
         self.engine
     }
 
-    pub fn advance(
+    pub(crate) fn advance(
         &mut self,
         globals: &[u64],
         args: &[Vec<u8>],

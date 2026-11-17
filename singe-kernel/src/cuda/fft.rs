@@ -12,7 +12,7 @@ use singe_cuda::{
     error::Error as CudaError,
     memory::DeviceMemory,
     stream::Stream,
-    view::{DeviceInput, DeviceOutput, DeviceSliceMut},
+    view::{DeviceOutput, DeviceRange, DeviceSliceMut},
 };
 
 #[cfg(feature = "cutile")]
@@ -358,7 +358,7 @@ impl FftPlan {
         {
             return Err(CudaError::MemoryContextMismatch.into());
         }
-        self.validate_workspace_len(workspace.map(DeviceInput::len))
+        self.validate_workspace_len(workspace.map(DeviceRange::len))
     }
 
     fn validate_workspace_len(&self, workspace_len: Option<usize>) -> Result<()> {
@@ -735,7 +735,7 @@ fn create_twiddle_tables(
 pub unsafe fn copy_c2c_f32_interleaved(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    input: &impl DeviceInput<f32>,
+    input: &impl DeviceRange<f32>,
     plan: &FftC2cPlan,
     batch: usize,
 ) -> Result<()> {
@@ -767,7 +767,7 @@ pub unsafe fn copy_c2c_f32_interleaved(
 pub unsafe fn fft_c2c_f32_interleaved(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    input: &impl DeviceInput<f32>,
+    input: &impl DeviceRange<f32>,
     plan: &FftC2cPlan,
     batch: usize,
     direction: FftDirection,
@@ -807,7 +807,7 @@ pub unsafe fn fft_c2c_f32_interleaved(
 pub unsafe fn fft_c2c_f16_interleaved(
     stream: &Stream,
     out: &mut impl DeviceOutput<f16>,
-    input: &impl DeviceInput<f16>,
+    input: &impl DeviceRange<f16>,
     plan: &FftC2cPlan,
     batch: usize,
     direction: FftDirection,
@@ -851,7 +851,7 @@ pub unsafe fn fft_c2c_f16_interleaved(
 pub unsafe fn fft_c2c_bf16_interleaved(
     stream: &Stream,
     out: &mut impl DeviceOutput<bf16>,
-    input: &impl DeviceInput<bf16>,
+    input: &impl DeviceRange<bf16>,
     plan: &FftC2cPlan,
     batch: usize,
     direction: FftDirection,
@@ -895,7 +895,7 @@ pub unsafe fn fft_c2c_bf16_interleaved(
 pub unsafe fn fft_f32_interleaved(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    input: &impl DeviceInput<f32>,
+    input: &impl DeviceRange<f32>,
     plan: &FftPlan,
 ) -> Result<()> {
     // SAFETY: the caller upholds this function's safety contract.
@@ -914,7 +914,7 @@ pub unsafe fn fft_f32_interleaved(
 pub unsafe fn fft_f32_interleaved_with_workspace<W>(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    input: &impl DeviceInput<f32>,
+    input: &impl DeviceRange<f32>,
     plan: &FftPlan,
     workspace: Option<&mut W>,
 ) -> Result<()>
@@ -929,7 +929,7 @@ where
 unsafe fn fft_f32_interleaved_inner(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    input: &impl DeviceInput<f32>,
+    input: &impl DeviceRange<f32>,
     plan: &FftPlan,
 ) -> Result<()> {
     plan.validate_stream(stream)?;
@@ -967,7 +967,7 @@ unsafe fn fft_f32_interleaved_inner(
 pub unsafe fn fft_r2c_f32_interleaved(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    input: &impl DeviceInput<f32>,
+    input: &impl DeviceRange<f32>,
     plan: &FftPlan,
 ) -> Result<()> {
     // SAFETY: the caller upholds this function's safety contract.
@@ -986,7 +986,7 @@ pub unsafe fn fft_r2c_f32_interleaved(
 pub unsafe fn fft_r2c_f32_interleaved_with_workspace<W>(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    input: &impl DeviceInput<f32>,
+    input: &impl DeviceRange<f32>,
     plan: &FftPlan,
     workspace: Option<&mut W>,
 ) -> Result<()>
@@ -1001,7 +1001,7 @@ where
 unsafe fn fft_r2c_f32_interleaved_inner(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    input: &impl DeviceInput<f32>,
+    input: &impl DeviceRange<f32>,
     plan: &FftPlan,
 ) -> Result<()> {
     plan.validate_stream(stream)?;
@@ -1038,7 +1038,7 @@ unsafe fn fft_r2c_f32_interleaved_inner(
 pub unsafe fn ifft_c2r_f32_interleaved(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    input: &impl DeviceInput<f32>,
+    input: &impl DeviceRange<f32>,
     plan: &FftPlan,
 ) -> Result<()> {
     // SAFETY: the caller upholds this function's safety contract.
@@ -1057,7 +1057,7 @@ pub unsafe fn ifft_c2r_f32_interleaved(
 pub unsafe fn ifft_c2r_f32_interleaved_with_workspace<W>(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    input: &impl DeviceInput<f32>,
+    input: &impl DeviceRange<f32>,
     plan: &FftPlan,
     workspace: Option<&mut W>,
 ) -> Result<()>
@@ -1072,7 +1072,7 @@ where
 unsafe fn ifft_c2r_f32_interleaved_inner(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    input: &impl DeviceInput<f32>,
+    input: &impl DeviceRange<f32>,
     plan: &FftPlan,
 ) -> Result<()> {
     plan.validate_stream(stream)?;

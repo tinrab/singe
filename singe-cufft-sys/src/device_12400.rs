@@ -10,83 +10,123 @@ pub const CUFFT_DEVICE_VER_PATCH: u32 = 0;
 pub const CUFFT_DEVICE_VERSION: u32 = 500;
 /// Unsigned C `size_t`, used for byte counts and object sizes in the native ABI.
 pub type size_t = ::core::ffi::c_ulong;
-/// Direction of an experimental device FFT.
-#[repr(u32)]
-#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
-pub enum cufftDescriptionDirection_t {
+impl cufftDescriptionDirection_t {
     /// Forward Fourier transform.
-    CUFFT_DESC_FORWARD = 0,
+    pub const CUFFT_DESC_FORWARD: cufftDescriptionDirection_t = cufftDescriptionDirection_t(
+        0,
+    );
     /// Inverse Fourier transform.
-    CUFFT_DESC_INVERSE = 1,
+    pub const CUFFT_DESC_INVERSE: cufftDescriptionDirection_t = cufftDescriptionDirection_t(
+        1,
+    );
 }
+/// Direction of an experimental device FFT.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
+pub struct cufftDescriptionDirection_t(pub ::core::ffi::c_uint);
 pub use self::cufftDescriptionDirection_t as cufftDescriptionDirection;
-/// Real or complex input and output representations of a device FFT.
-#[repr(u32)]
-#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
-pub enum cufftDescriptionType_t {
+impl cufftDescriptionType_t {
     /// Complex-to-complex transform.
-    CUFFT_DESC_C2C = 0,
+    pub const CUFFT_DESC_C2C: cufftDescriptionType_t = cufftDescriptionType_t(0);
     /// Complex-to-real inverse transform.
-    CUFFT_DESC_C2R = 1,
+    pub const CUFFT_DESC_C2R: cufftDescriptionType_t = cufftDescriptionType_t(1);
     /// Real-to-complex transform.
-    CUFFT_DESC_R2C = 2,
+    pub const CUFFT_DESC_R2C: cufftDescriptionType_t = cufftDescriptionType_t(2);
 }
+/// Real or complex input and output representations of a device FFT.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
+pub struct cufftDescriptionType_t(pub ::core::ffi::c_uint);
 pub use self::cufftDescriptionType_t as cufftDescriptionType;
-/// Scalar precision of an experimental device FFT.
-#[repr(u32)]
-#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
-pub enum cufftDescriptionPrecision_t {
+impl cufftDescriptionPrecision_t {
     /// Single-precision floating-point samples.
-    CUFFT_DESC_SINGLE = 0,
+    pub const CUFFT_DESC_SINGLE: cufftDescriptionPrecision_t = cufftDescriptionPrecision_t(
+        0,
+    );
     /// Double-precision floating-point samples.
-    CUFFT_DESC_DOUBLE = 1,
+    pub const CUFFT_DESC_DOUBLE: cufftDescriptionPrecision_t = cufftDescriptionPrecision_t(
+        1,
+    );
     /// Half-precision floating-point samples.
-    CUFFT_DESC_HALF = 2,
+    pub const CUFFT_DESC_HALF: cufftDescriptionPrecision_t = cufftDescriptionPrecision_t(
+        2,
+    );
 }
+/// Scalar precision of an experimental device FFT.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
+pub struct cufftDescriptionPrecision_t(pub ::core::ffi::c_uint);
 pub use self::cufftDescriptionPrecision_t as cufftDescriptionPrecision;
-/// Integer traits configuring a device FFT description.
-#[repr(u32)]
-#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
-pub enum cufftDescriptionTrait_t {
+impl cufftDescriptionTrait_t {
     /// Number of elements in a transform.
-    CUFFT_DESC_TRAIT_SIZE = 0,
+    pub const CUFFT_DESC_TRAIT_SIZE: cufftDescriptionTrait_t = cufftDescriptionTrait_t(
+        0,
+    );
     /// Forward or inverse transform direction.
-    CUFFT_DESC_TRAIT_DIRECTION = 1,
+    pub const CUFFT_DESC_TRAIT_DIRECTION: cufftDescriptionTrait_t = cufftDescriptionTrait_t(
+        1,
+    );
     /// Scalar precision of the transform.
-    CUFFT_DESC_TRAIT_PRECISION = 2,
+    pub const CUFFT_DESC_TRAIT_PRECISION: cufftDescriptionTrait_t = cufftDescriptionTrait_t(
+        2,
+    );
     /// Real or complex transform kind.
-    CUFFT_DESC_TRAIT_TYPE = 3,
+    pub const CUFFT_DESC_TRAIT_TYPE: cufftDescriptionTrait_t = cufftDescriptionTrait_t(
+        3,
+    );
     /// Target streaming-multiprocessor architecture.
-    CUFFT_DESC_TRAIT_SM = 4,
+    pub const CUFFT_DESC_TRAIT_SM: cufftDescriptionTrait_t = cufftDescriptionTrait_t(4);
     /// Number of transform elements assigned to each thread.
-    CUFFT_DESC_TRAIT_ELEMENTS_PER_THREAD = 5,
+    pub const CUFFT_DESC_TRAIT_ELEMENTS_PER_THREAD: cufftDescriptionTrait_t = cufftDescriptionTrait_t(
+        5,
+    );
 }
+/// Integer traits configuring a device FFT description.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
+pub struct cufftDescriptionTrait_t(pub ::core::ffi::c_uint);
 pub use self::cufftDescriptionTrait_t as cufftDescriptionTrait;
-/// Resource requirements of a device FFT function.
-#[repr(u32)]
-#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
-pub enum cufftDeviceFunctionTrait_t {
+impl cufftDeviceFunctionTrait_t {
     /// Number of transform elements assigned to each thread.
-    CUFFT_DEVICE_FUNC_TRAIT_ELEMENTS_PER_THREAD = 0,
+    pub const CUFFT_DEVICE_FUNC_TRAIT_ELEMENTS_PER_THREAD: cufftDeviceFunctionTrait_t = cufftDeviceFunctionTrait_t(
+        0,
+    );
     /// Per-thread storage required by the device function.
-    CUFFT_DEVICE_FUNC_TRAIT_STORAGE_SIZE = 1,
+    pub const CUFFT_DEVICE_FUNC_TRAIT_STORAGE_SIZE: cufftDeviceFunctionTrait_t = cufftDeviceFunctionTrait_t(
+        1,
+    );
     /// Shared memory required by one FFT.
-    CUFFT_DEVICE_FUNC_TRAIT_SHARED_MEMORY_PER_FFT = 2,
+    pub const CUFFT_DEVICE_FUNC_TRAIT_SHARED_MEMORY_PER_FFT: cufftDeviceFunctionTrait_t = cufftDeviceFunctionTrait_t(
+        2,
+    );
     /// Number of threads cooperating on one FFT.
-    CUFFT_DEVICE_FUNC_TRAIT_THREADS_PER_FFT = 3,
+    pub const CUFFT_DEVICE_FUNC_TRAIT_THREADS_PER_FFT: cufftDeviceFunctionTrait_t = cufftDeviceFunctionTrait_t(
+        3,
+    );
     /// Suggested number of FFTs processed by one thread block.
-    CUFFT_DEVICE_FUNC_TRAIT_SUGGESTED_FFTS_PER_BLOCK = 4,
+    pub const CUFFT_DEVICE_FUNC_TRAIT_SUGGESTED_FFTS_PER_BLOCK: cufftDeviceFunctionTrait_t = cufftDeviceFunctionTrait_t(
+        4,
+    );
 }
-pub use self::cufftDeviceFunctionTrait_t as cufftDeviceFunctionTrait;
-/// Format of code extracted from a device FFT program.
-#[repr(u32)]
+/// Resource requirements of a device FFT function.
+#[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
-pub enum cufftDeviceCodeContainer_t {
+pub struct cufftDeviceFunctionTrait_t(pub ::core::ffi::c_uint);
+pub use self::cufftDeviceFunctionTrait_t as cufftDeviceFunctionTrait;
+impl cufftDeviceCodeContainer_t {
     /// Link-time optimization intermediate representation.
-    CUFFT_DEVICE_LTOIR = 0,
+    pub const CUFFT_DEVICE_LTOIR: cufftDeviceCodeContainer_t = cufftDeviceCodeContainer_t(
+        0,
+    );
     /// CUDA fatbinary container.
-    CUFFT_DEVICE_FATBIN = 1,
+    pub const CUFFT_DEVICE_FATBIN: cufftDeviceCodeContainer_t = cufftDeviceCodeContainer_t(
+        1,
+    );
 }
+/// Format of code extracted from a device FFT program.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
+pub struct cufftDeviceCodeContainer_t(pub ::core::ffi::c_uint);
 pub use self::cufftDeviceCodeContainer_t as cufftDeviceCodeContainer;
 /// Native handle identifying a device FFT description.
 pub type cufftDescriptionHandle = ::core::ffi::c_int;

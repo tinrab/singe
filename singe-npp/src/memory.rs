@@ -2,6 +2,7 @@
 
 use std::{mem::ManuallyDrop, ptr, sync::Arc};
 
+use singe_core::report_cleanup_failure;
 use singe_cuda::{
     context::Context,
     view::{AllocationId, DeviceRegion, DeviceRegionProvider},
@@ -132,12 +133,10 @@ unsafe impl DeviceRegionProvider for Allocation {
 impl Drop for Allocation {
     fn drop(&mut self) {
         if let Err(error) = self.parts.context.bind() {
-            eprintln!(
-                "failed to bind npp allocation context: {}",
-                singe_core::ErrorChain(&error)
-            );
+            report_cleanup_failure("bind the cuda context to free", "npp allocation", &error);
             return;
         }
+
         // SAFETY: the last owner releases the native base using its matching allocator.
         unsafe {
             match self.parts.kind {

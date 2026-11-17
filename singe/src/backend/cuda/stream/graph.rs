@@ -1,6 +1,8 @@
 use singe_core::ErrorChain;
 use singe_cuda::{
-    graph::{ExecutableGraph as NativeExecutableGraph, Graph as NativeCudaGraph},
+    graph::{
+        ExecutableGraph as NativeExecutableGraph, Graph as NativeCudaGraph, GraphInstantiateFlags,
+    },
     stream::{StreamCaptureMode, StreamCaptureStatus},
 };
 
@@ -131,7 +133,7 @@ impl CudaGraph {
     /// Returns an error if CUDA rejects graph instantiation.
     pub fn instantiate(&self) -> Result<CudaExecutableGraph> {
         Ok(CudaExecutableGraph {
-            executable: self.graph.instantiate()?,
+            executable: self.graph.instantiate(GraphInstantiateFlags::empty())?,
         })
     }
 }
@@ -161,7 +163,7 @@ impl CudaExecutableGraph {
     pub unsafe fn launch(&self, stream: &CudaStream) -> Result<()> {
         // SAFETY: the caller upholds this function's safety contract.
         unsafe {
-            self.executable.launch(stream.raw())?;
+            self.executable.launch_async(stream.raw())?;
         }
         Ok(())
     }

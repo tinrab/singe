@@ -5,7 +5,7 @@ use singe_cuda::types::f16;
 #[cfg(any(feature = "dtype_bf16", feature = "dtype_f16", feature = "dtype_f32"))]
 use singe_cuda::{
     stream::Stream,
-    view::{DeviceInput, DeviceOutput},
+    view::{DeviceOutput, DeviceRange},
 };
 
 #[cfg(feature = "dtype_bf16")]
@@ -49,9 +49,9 @@ pub unsafe fn fmha_prefill_lse_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
     lse: &mut impl DeviceOutput<f32>,
-    query: &impl DeviceInput<f32>,
-    key: &impl DeviceInput<f32>,
-    value: &impl DeviceInput<f32>,
+    query: &impl DeviceRange<f32>,
+    key: &impl DeviceRange<f32>,
+    value: &impl DeviceRange<f32>,
     config: FmhaPrefillConfig,
 ) -> Result<()> {
     config.validate_lengths(out.len(), lse.len(), query.len(), key.len(), value.len())?;
@@ -98,9 +98,9 @@ pub unsafe fn fmha_prefill_lse_mma_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
     lse: &mut impl DeviceOutput<f32>,
-    query: &impl DeviceInput<f32>,
-    key: &impl DeviceInput<f32>,
-    value: &impl DeviceInput<f32>,
+    query: &impl DeviceRange<f32>,
+    key: &impl DeviceRange<f32>,
+    value: &impl DeviceRange<f32>,
     config: FmhaPrefillConfig,
 ) -> Result<()> {
     config.validate_lengths(out.len(), lse.len(), query.len(), key.len(), value.len())?;
@@ -146,9 +146,9 @@ pub unsafe fn fmha_prefill_lse_mma_f32(
 pub unsafe fn fmha_prefill_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    query: &impl DeviceInput<f32>,
-    key: &impl DeviceInput<f32>,
-    value: &impl DeviceInput<f32>,
+    query: &impl DeviceRange<f32>,
+    key: &impl DeviceRange<f32>,
+    value: &impl DeviceRange<f32>,
     config: FmhaPrefillConfig,
 ) -> Result<()> {
     config.validate_output_lengths(out.len(), query.len(), key.len(), value.len())?;
@@ -193,10 +193,10 @@ pub unsafe fn fmha_prefill_f32(
 pub unsafe fn attention_sink_prefill_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    query: &impl DeviceInput<f32>,
-    key: &impl DeviceInput<f32>,
-    value: &impl DeviceInput<f32>,
-    sinks: &impl DeviceInput<f32>,
+    query: &impl DeviceRange<f32>,
+    key: &impl DeviceRange<f32>,
+    value: &impl DeviceRange<f32>,
+    sinks: &impl DeviceRange<f32>,
     config: AttentionSinkPrefillConfig,
 ) -> Result<()> {
     config.validate_lengths(out.len(), query.len(), key.len(), value.len(), sinks.len())?;
@@ -245,9 +245,9 @@ pub unsafe fn attention_sink_prefill_f32(
 pub unsafe fn softcapped_window_attention_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    query: &impl DeviceInput<f32>,
-    key: &impl DeviceInput<f32>,
-    value: &impl DeviceInput<f32>,
+    query: &impl DeviceRange<f32>,
+    key: &impl DeviceRange<f32>,
+    value: &impl DeviceRange<f32>,
     config: SoftcappedWindowAttentionConfig,
 ) -> Result<()> {
     config.validate_lengths(out.len(), query.len(), key.len(), value.len())?;
@@ -295,9 +295,9 @@ pub unsafe fn softcapped_window_attention_f32(
 pub unsafe fn softcapped_window_attention_f16(
     stream: &Stream,
     out: &mut impl DeviceOutput<f16>,
-    query: &impl DeviceInput<f16>,
-    key: &impl DeviceInput<f16>,
-    value: &impl DeviceInput<f16>,
+    query: &impl DeviceRange<f16>,
+    key: &impl DeviceRange<f16>,
+    value: &impl DeviceRange<f16>,
     config: SoftcappedWindowAttentionConfig,
 ) -> Result<()> {
     config.validate_lengths(out.len(), query.len(), key.len(), value.len())?;
@@ -345,9 +345,9 @@ pub unsafe fn softcapped_window_attention_f16(
 pub unsafe fn softcapped_window_attention_bf16(
     stream: &Stream,
     out: &mut impl DeviceOutput<bf16>,
-    query: &impl DeviceInput<bf16>,
-    key: &impl DeviceInput<bf16>,
-    value: &impl DeviceInput<bf16>,
+    query: &impl DeviceRange<bf16>,
+    key: &impl DeviceRange<bf16>,
+    value: &impl DeviceRange<bf16>,
     config: SoftcappedWindowAttentionConfig,
 ) -> Result<()> {
     config.validate_lengths(out.len(), query.len(), key.len(), value.len())?;
@@ -396,9 +396,9 @@ pub unsafe fn fmha_decode_lse_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
     lse: &mut impl DeviceOutput<f32>,
-    query: &impl DeviceInput<f32>,
-    key: &impl DeviceInput<f32>,
-    value: &impl DeviceInput<f32>,
+    query: &impl DeviceRange<f32>,
+    key: &impl DeviceRange<f32>,
+    value: &impl DeviceRange<f32>,
     config: FmhaDecodeConfig,
 ) -> Result<()> {
     config.validate_lengths(out.len(), lse.len(), query.len(), key.len(), value.len())?;
@@ -441,9 +441,9 @@ pub unsafe fn softcapped_window_decode_lse_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
     lse: &mut impl DeviceOutput<f32>,
-    query: &impl DeviceInput<f32>,
-    key: &impl DeviceInput<f32>,
-    value: &impl DeviceInput<f32>,
+    query: &impl DeviceRange<f32>,
+    key: &impl DeviceRange<f32>,
+    value: &impl DeviceRange<f32>,
     config: SoftcappedWindowDecodeConfig,
 ) -> Result<()> {
     config.validate_lengths(out.len(), lse.len(), query.len(), key.len(), value.len())?;
@@ -489,9 +489,9 @@ pub unsafe fn softcapped_window_decode_lse_f16(
     stream: &Stream,
     out: &mut impl DeviceOutput<f16>,
     lse: &mut impl DeviceOutput<f32>,
-    query: &impl DeviceInput<f16>,
-    key: &impl DeviceInput<f16>,
-    value: &impl DeviceInput<f16>,
+    query: &impl DeviceRange<f16>,
+    key: &impl DeviceRange<f16>,
+    value: &impl DeviceRange<f16>,
     config: SoftcappedWindowDecodeConfig,
 ) -> Result<()> {
     config.validate_lengths(out.len(), lse.len(), query.len(), key.len(), value.len())?;
@@ -537,9 +537,9 @@ pub unsafe fn softcapped_window_decode_lse_bf16(
     stream: &Stream,
     out: &mut impl DeviceOutput<bf16>,
     lse: &mut impl DeviceOutput<f32>,
-    query: &impl DeviceInput<bf16>,
-    key: &impl DeviceInput<bf16>,
-    value: &impl DeviceInput<bf16>,
+    query: &impl DeviceRange<bf16>,
+    key: &impl DeviceRange<bf16>,
+    value: &impl DeviceRange<bf16>,
     config: SoftcappedWindowDecodeConfig,
 ) -> Result<()> {
     config.validate_lengths(out.len(), lse.len(), query.len(), key.len(), value.len())?;
@@ -585,9 +585,9 @@ pub unsafe fn fmha_prefill_lse_f16(
     stream: &Stream,
     out: &mut impl DeviceOutput<f16>,
     lse: &mut impl DeviceOutput<f32>,
-    query: &impl DeviceInput<f16>,
-    key: &impl DeviceInput<f16>,
-    value: &impl DeviceInput<f16>,
+    query: &impl DeviceRange<f16>,
+    key: &impl DeviceRange<f16>,
+    value: &impl DeviceRange<f16>,
     config: FmhaPrefillConfig,
 ) -> Result<()> {
     if config.query_len >= 16 && cutile::attention::supports_fmha_prefill_mma(config) {
@@ -639,9 +639,9 @@ pub unsafe fn fmha_prefill_lse_bf16(
     stream: &Stream,
     out: &mut impl DeviceOutput<bf16>,
     lse: &mut impl DeviceOutput<f32>,
-    query: &impl DeviceInput<bf16>,
-    key: &impl DeviceInput<bf16>,
-    value: &impl DeviceInput<bf16>,
+    query: &impl DeviceRange<bf16>,
+    key: &impl DeviceRange<bf16>,
+    value: &impl DeviceRange<bf16>,
     config: FmhaPrefillConfig,
 ) -> Result<()> {
     if config.query_len >= 16 && cutile::attention::supports_fmha_prefill_mma(config) {
@@ -692,9 +692,9 @@ pub unsafe fn fmha_prefill_lse_bf16(
 pub unsafe fn fmha_prefill_f16(
     stream: &Stream,
     out: &mut impl DeviceOutput<f16>,
-    query: &impl DeviceInput<f16>,
-    key: &impl DeviceInput<f16>,
-    value: &impl DeviceInput<f16>,
+    query: &impl DeviceRange<f16>,
+    key: &impl DeviceRange<f16>,
+    value: &impl DeviceRange<f16>,
     config: FmhaPrefillConfig,
 ) -> Result<()> {
     if config.query_len >= 16 && cutile::attention::supports_fmha_prefill_mma(config) {
@@ -744,9 +744,9 @@ pub unsafe fn fmha_prefill_f16(
 pub unsafe fn fmha_prefill_bf16(
     stream: &Stream,
     out: &mut impl DeviceOutput<bf16>,
-    query: &impl DeviceInput<bf16>,
-    key: &impl DeviceInput<bf16>,
-    value: &impl DeviceInput<bf16>,
+    query: &impl DeviceRange<bf16>,
+    key: &impl DeviceRange<bf16>,
+    value: &impl DeviceRange<bf16>,
     config: FmhaPrefillConfig,
 ) -> Result<()> {
     if config.query_len >= 16 && cutile::attention::supports_fmha_prefill_mma(config) {
@@ -796,10 +796,10 @@ pub unsafe fn fmha_prefill_bf16(
 pub unsafe fn attention_sink_prefill_f16(
     stream: &Stream,
     out: &mut impl DeviceOutput<f16>,
-    query: &impl DeviceInput<f16>,
-    key: &impl DeviceInput<f16>,
-    value: &impl DeviceInput<f16>,
-    sinks: &impl DeviceInput<f32>,
+    query: &impl DeviceRange<f16>,
+    key: &impl DeviceRange<f16>,
+    value: &impl DeviceRange<f16>,
+    sinks: &impl DeviceRange<f32>,
     config: AttentionSinkPrefillConfig,
 ) -> Result<()> {
     config.validate_lengths(out.len(), query.len(), key.len(), value.len(), sinks.len())?;
@@ -848,10 +848,10 @@ pub unsafe fn attention_sink_prefill_f16(
 pub unsafe fn attention_sink_prefill_bf16(
     stream: &Stream,
     out: &mut impl DeviceOutput<bf16>,
-    query: &impl DeviceInput<bf16>,
-    key: &impl DeviceInput<bf16>,
-    value: &impl DeviceInput<bf16>,
-    sinks: &impl DeviceInput<f32>,
+    query: &impl DeviceRange<bf16>,
+    key: &impl DeviceRange<bf16>,
+    value: &impl DeviceRange<bf16>,
+    sinks: &impl DeviceRange<f32>,
     config: AttentionSinkPrefillConfig,
 ) -> Result<()> {
     config.validate_lengths(out.len(), query.len(), key.len(), value.len(), sinks.len())?;
@@ -901,9 +901,9 @@ pub unsafe fn fmha_decode_lse_f16(
     stream: &Stream,
     out: &mut impl DeviceOutput<f16>,
     lse: &mut impl DeviceOutput<f32>,
-    query: &impl DeviceInput<f16>,
-    key: &impl DeviceInput<f16>,
-    value: &impl DeviceInput<f16>,
+    query: &impl DeviceRange<f16>,
+    key: &impl DeviceRange<f16>,
+    value: &impl DeviceRange<f16>,
     config: FmhaDecodeConfig,
 ) -> Result<()> {
     config.validate_lengths(out.len(), lse.len(), query.len(), key.len(), value.len())?;
@@ -946,10 +946,10 @@ pub unsafe fn fmha_decode_lse_dynpos_f16(
     stream: &Stream,
     out: &mut impl DeviceOutput<f16>,
     lse: &mut impl DeviceOutput<f32>,
-    query: &impl DeviceInput<f16>,
-    key: &impl DeviceInput<f16>,
-    value: &impl DeviceInput<f16>,
-    position_start: &impl DeviceInput<u32>,
+    query: &impl DeviceRange<f16>,
+    key: &impl DeviceRange<f16>,
+    value: &impl DeviceRange<f16>,
+    position_start: &impl DeviceRange<u32>,
     config: FmhaDecodeConfig,
 ) -> Result<()> {
     ensure_len(position_start.len(), 1)?;
@@ -994,9 +994,9 @@ pub unsafe fn fmha_decode_lse_bf16(
     stream: &Stream,
     out: &mut impl DeviceOutput<bf16>,
     lse: &mut impl DeviceOutput<f32>,
-    query: &impl DeviceInput<bf16>,
-    key: &impl DeviceInput<bf16>,
-    value: &impl DeviceInput<bf16>,
+    query: &impl DeviceRange<bf16>,
+    key: &impl DeviceRange<bf16>,
+    value: &impl DeviceRange<bf16>,
     config: FmhaDecodeConfig,
 ) -> Result<()> {
     config.validate_lengths(out.len(), lse.len(), query.len(), key.len(), value.len())?;
@@ -1038,8 +1038,8 @@ pub unsafe fn fmha_decode_lse_bf16(
 pub unsafe fn splitk_reduce_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    attn_splitk: &impl DeviceInput<f32>,
-    lse_splitk: &impl DeviceInput<f32>,
+    attn_splitk: &impl DeviceRange<f32>,
+    lse_splitk: &impl DeviceRange<f32>,
     config: SplitKReduceConfig,
 ) -> Result<()> {
     config.validate_lengths(out.len(), attn_splitk.len(), lse_splitk.len())?;
@@ -1075,9 +1075,9 @@ pub unsafe fn fmha_decode_splitk_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
     lse: &mut impl DeviceOutput<f32>,
-    query: &impl DeviceInput<f32>,
-    key: &impl DeviceInput<f32>,
-    value: &impl DeviceInput<f32>,
+    query: &impl DeviceRange<f32>,
+    key: &impl DeviceRange<f32>,
+    value: &impl DeviceRange<f32>,
     config: FmhaDecodeSplitKConfig,
 ) -> Result<()> {
     config.validate_lengths(out.len(), lse.len(), query.len(), key.len(), value.len())?;
@@ -1122,9 +1122,9 @@ fn launch_fmha_decode_splitk_reduce_f32(
     out: &mut impl DeviceOutput<f32>,
     attn_scratch: &mut impl DeviceOutput<f32>,
     lse_scratch: &mut impl DeviceOutput<f32>,
-    query: &impl DeviceInput<f32>,
-    key: &impl DeviceInput<f32>,
-    value: &impl DeviceInput<f32>,
+    query: &impl DeviceRange<f32>,
+    key: &impl DeviceRange<f32>,
+    value: &impl DeviceRange<f32>,
     config: FmhaDecodeSplitKReduceConfig,
     tuning: AttentionSplitKTuning,
 ) -> Result<()> {
@@ -1157,9 +1157,9 @@ pub unsafe fn fmha_decode_splitk_reduce_f32(
     out: &mut impl DeviceOutput<f32>,
     attn_scratch: &mut impl DeviceOutput<f32>,
     lse_scratch: &mut impl DeviceOutput<f32>,
-    query: &impl DeviceInput<f32>,
-    key: &impl DeviceInput<f32>,
-    value: &impl DeviceInput<f32>,
+    query: &impl DeviceRange<f32>,
+    key: &impl DeviceRange<f32>,
+    value: &impl DeviceRange<f32>,
     config: FmhaDecodeSplitKReduceConfig,
 ) -> Result<()> {
     validate_fmha_decode_splitk_reduce_lengths(
@@ -1260,9 +1260,9 @@ pub unsafe fn tune_fmha_decode_splitk_reduce_f32(
     out: &mut impl DeviceOutput<f32>,
     attn_scratch: &mut impl DeviceOutput<f32>,
     lse_scratch: &mut impl DeviceOutput<f32>,
-    query: &impl DeviceInput<f32>,
-    key: &impl DeviceInput<f32>,
-    value: &impl DeviceInput<f32>,
+    query: &impl DeviceRange<f32>,
+    key: &impl DeviceRange<f32>,
+    value: &impl DeviceRange<f32>,
     config: FmhaDecodeSplitKReduceConfig,
     options: TuneOptions,
 ) -> Result<TuneReport<AttentionSplitKTuning>> {

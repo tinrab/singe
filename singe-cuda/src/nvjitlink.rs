@@ -2,7 +2,7 @@
 
 use std::{ffi::CString, mem, ptr, result::Result as StdResult};
 
-use singe_core::{impl_enum_display, status_enum};
+use singe_core::{impl_enum_display, report_cleanup_failure};
 use singe_cuda_sys::nvjitlink as sys;
 
 use crate::{
@@ -10,76 +10,55 @@ use crate::{
     error::{Error, Result},
 };
 
-status_enum! {
+singe_core::wrapper_status! {
+    library = "nvjitlink",
+    error = Error::NvJitLink,
+    raw = sys::nvJitLinkResult,
+    success = NVJITLINK_SUCCESS,
+    absence = singe_cuda_sys::take_absence,
+    check = check_nvjitlink,
+    diagnostic = String::new,
+    unknown = "UNKNOWN_NVJITLINK_STATUS",
     /// API call result codes returned by nvJitLink.
-    pub enum Status: u32 => sys::nvJitLinkResult, unknown = "UNKNOWN_NVJITLINK_STATUS" {
+    pub enum Status: u32 {
         /// Successful completion.
-        Success = NVJITLINK_SUCCESS,
+        Success = NVJITLINK_SUCCESS => "success",
         /// Unrecognized Option
-        UnrecognizedOption = NVJITLINK_ERROR_UNRECOGNIZED_OPTION,
+        UnrecognizedOption = NVJITLINK_ERROR_UNRECOGNIZED_OPTION => "unrecognized option",
         /// Option `-arch=sm_NN` not specified
-        MissingArch = NVJITLINK_ERROR_MISSING_ARCH,
+        MissingArch = NVJITLINK_ERROR_MISSING_ARCH => "missing arch",
         /// Invalid Input
-        InvalidInput = NVJITLINK_ERROR_INVALID_INPUT,
+        InvalidInput = NVJITLINK_ERROR_INVALID_INPUT => "invalid input",
         /// Issue during PTX Compilation
-        PtxCompile = NVJITLINK_ERROR_PTX_COMPILE,
+        PtxCompile = NVJITLINK_ERROR_PTX_COMPILE => "ptx compile",
         /// Issue during NVVM Compilation
-        NvvmCompile = NVJITLINK_ERROR_NVVM_COMPILE,
+        NvvmCompile = NVJITLINK_ERROR_NVVM_COMPILE => "nvvm compile",
         /// Internal Error
-        Internal = NVJITLINK_ERROR_INTERNAL,
+        Internal = NVJITLINK_ERROR_INTERNAL => "internal",
         /// Issue with Thread Pool
-        Threadpool = NVJITLINK_ERROR_THREADPOOL,
+        Threadpool = NVJITLINK_ERROR_THREADPOOL => "threadpool",
         /// Unrecognized Input
-        UnrecognizedInput = NVJITLINK_ERROR_UNRECOGNIZED_INPUT,
+        UnrecognizedInput = NVJITLINK_ERROR_UNRECOGNIZED_INPUT => "unrecognized input",
         /// Finalizer Error
-        Finalize = NVJITLINK_ERROR_FINALIZE,
+        Finalize = NVJITLINK_ERROR_FINALIZE => "finalize",
         /// Null Input
-        NullInput = NVJITLINK_ERROR_NULL_INPUT,
+        NullInput = NVJITLINK_ERROR_NULL_INPUT => "null input",
         /// Incompatible Options
-        IncompatibleOptions = NVJITLINK_ERROR_INCOMPATIBLE_OPTIONS,
+        IncompatibleOptions = NVJITLINK_ERROR_INCOMPATIBLE_OPTIONS => "incompatible options",
         /// Incorrect Input Type
-        IncorrectInputType = NVJITLINK_ERROR_INCORRECT_INPUT_TYPE,
+        IncorrectInputType = NVJITLINK_ERROR_INCORRECT_INPUT_TYPE => "incorrect input type",
         /// Arch Mismatch
-        ArchMismatch = NVJITLINK_ERROR_ARCH_MISMATCH,
+        ArchMismatch = NVJITLINK_ERROR_ARCH_MISMATCH => "arch mismatch",
         /// Outdated Library
-        OutdatedLibrary = NVJITLINK_ERROR_OUTDATED_LIBRARY,
+        OutdatedLibrary = NVJITLINK_ERROR_OUTDATED_LIBRARY => "outdated library",
         /// Missing Fatbin
-        MissingFatbin = NVJITLINK_ERROR_MISSING_FATBIN,
+        MissingFatbin = NVJITLINK_ERROR_MISSING_FATBIN => "missing fatbin",
         /// Unrecognized -arch value
-        UnrecognizedArch = NVJITLINK_ERROR_UNRECOGNIZED_ARCH,
+        UnrecognizedArch = NVJITLINK_ERROR_UNRECOGNIZED_ARCH => "unrecognized arch",
         /// Unsupported -arch value
-        UnsupportedArch = NVJITLINK_ERROR_UNSUPPORTED_ARCH,
+        UnsupportedArch = NVJITLINK_ERROR_UNSUPPORTED_ARCH => "unsupported arch",
         /// Requires -lto
-        LtoNotEnabled = NVJITLINK_ERROR_LTO_NOT_ENABLED,
-    }
-}
-
-impl Status {
-    /// Static description of this status.
-    #[must_use]
-    pub const fn description(self) -> &'static str {
-        match self {
-            Self::Success => "success",
-            Self::UnrecognizedOption => "unrecognized option",
-            Self::MissingArch => "missing arch",
-            Self::InvalidInput => "invalid input",
-            Self::PtxCompile => "ptx compile",
-            Self::NvvmCompile => "nvvm compile",
-            Self::Internal => "internal",
-            Self::Threadpool => "threadpool",
-            Self::UnrecognizedInput => "unrecognized input",
-            Self::Finalize => "finalize",
-            Self::NullInput => "null input",
-            Self::IncompatibleOptions => "incompatible options",
-            Self::IncorrectInputType => "incorrect input type",
-            Self::ArchMismatch => "arch mismatch",
-            Self::OutdatedLibrary => "outdated library",
-            Self::MissingFatbin => "missing fatbin",
-            Self::UnrecognizedArch => "unrecognized arch",
-            Self::UnsupportedArch => "unsupported arch",
-            Self::LtoNotEnabled => "lto not enabled",
-            Self::Unknown(_) => "unknown nvjitlink error",
-        }
+        LtoNotEnabled = NVJITLINK_ERROR_LTO_NOT_ENABLED => "lto not enabled",
     }
 }
 
@@ -89,21 +68,21 @@ impl Status {
 #[non_exhaustive]
 pub enum InputType {
     /// CUDA binaries.
-    Cubin = sys::nvJitLinkInputType::NVJITLINK_INPUT_CUBIN as _,
+    Cubin = sys::nvJitLinkInputType::NVJITLINK_INPUT_CUBIN.0,
     /// PTX.
-    Ptx = sys::nvJitLinkInputType::NVJITLINK_INPUT_PTX as _,
+    Ptx = sys::nvJitLinkInputType::NVJITLINK_INPUT_PTX.0,
     /// LTO-IR.
-    LtoIr = sys::nvJitLinkInputType::NVJITLINK_INPUT_LTOIR as _,
+    LtoIr = sys::nvJitLinkInputType::NVJITLINK_INPUT_LTOIR.0,
     /// Fatbin.
-    Fatbin = sys::nvJitLinkInputType::NVJITLINK_INPUT_FATBIN as _,
+    Fatbin = sys::nvJitLinkInputType::NVJITLINK_INPUT_FATBIN.0,
     /// Host object.
-    Object = sys::nvJitLinkInputType::NVJITLINK_INPUT_OBJECT as _,
+    Object = sys::nvJitLinkInputType::NVJITLINK_INPUT_OBJECT.0,
     /// Host library.
-    Library = sys::nvJitLinkInputType::NVJITLINK_INPUT_LIBRARY as _,
+    Library = sys::nvJitLinkInputType::NVJITLINK_INPUT_LIBRARY.0,
     /// Index file.
-    Index = sys::nvJitLinkInputType::NVJITLINK_INPUT_INDEX as _,
+    Index = sys::nvJitLinkInputType::NVJITLINK_INPUT_INDEX.0,
     /// Dynamically chooses from the valid types.
-    Any = sys::nvJitLinkInputType::NVJITLINK_INPUT_ANY as _,
+    Any = sys::nvJitLinkInputType::NVJITLINK_INPUT_ANY.0,
 }
 
 impl InputType {
@@ -195,16 +174,26 @@ pub struct Linker {
     output: OutputKind,
 }
 
+/// Raw ownership of a linker and the output mode it was created with.
+///
+/// Destroy `handle` with nvJitLink, or re-adopt the value with [`Linker::from_raw`].
+#[derive(Debug)]
+pub struct RawLinker {
+    /// Native linker handle.
+    pub handle: sys::nvJitLinkHandle,
+    /// Output mode the linker was created with.
+    pub output: OutputKind,
+}
+
 impl Linker {
     /// Creates an instance of the linker with the given input options.
     ///
     /// # Errors
     ///
-    /// Returns `Error::InvalidValue` if PTX or LTO IR output is requested without link-time optimization, or the option count exceeds the native integer range.
-    /// Also returns an error for interior NUL bytes in option strings, a native linker initialization failure, or a null returned handle.
+    /// Returns an error if PTX or LTO IR output is requested without link-time optimization, the option count does not fit a `u32`, an option contains an interior NUL byte, nvJitLink cannot create the linker, or it returns a null handle.
     pub fn create(options: LinkOptions) -> Result<Self> {
         if options.output != OutputKind::Cubin && !options.lto {
-            return Err(Error::InvalidValue);
+            return Err(Error::out_of_range("output kind"));
         }
 
         let mut arguments = vec![format!("-arch={}", options.architecture)];
@@ -227,11 +216,14 @@ impl Linker {
             .collect::<StdResult<Vec<_>, _>>()?;
         let pointers = args.iter().map(|s| s.as_ptr()).collect::<Vec<_>>();
         let mut handle = ptr::null_mut();
-        // SAFETY: `__nvJitLinkCreate_13_4` receives valid output locations and pointers into buffers borrowed for the call.
+        // SAFETY: `handle` is a local output, and `pointers` holds the counted NUL-terminated options in `args`, which outlive the call.
         let code = unsafe {
             sys::__nvJitLinkCreate_13_4(
                 &raw mut handle,
-                pointers.len().try_into().map_err(|_| Error::InvalidValue)?,
+                pointers
+                    .len()
+                    .try_into()
+                    .map_err(|_| Error::out_of_range("linker option count"))?,
                 pointers.as_ptr(),
             )
         };
@@ -255,22 +247,33 @@ impl Linker {
     /// Takes ownership of a linker created with the specified output mode.
     ///
     /// # Safety
-    /// The handle must be live and uniquely owned, and its options must match `output`.
+    ///
+    /// `raw.handle` must be live and uniquely owned, and its options must match `raw.output`.
     ///
     /// # Errors
     ///
-    /// Returns `Error::NullHandle` if `handle` is null.
-    pub unsafe fn from_raw(handle: sys::nvJitLinkHandle, output: OutputKind) -> Result<Self> {
-        if handle.is_null() {
+    /// Returns an error if `raw.handle` is null.
+    #[expect(
+        clippy::needless_pass_by_value,
+        reason = "taking the raw owner by value transfers ownership of its handle"
+    )]
+    pub unsafe fn from_raw(raw: RawLinker) -> Result<Self> {
+        if raw.handle.is_null() {
             return Err(Error::NullHandle);
         }
-        Ok(Self { handle, output })
+        Ok(Self {
+            handle: raw.handle,
+            output: raw.output,
+        })
     }
 
-    /// Transfers ownership of the linker handle to the caller.
+    /// Transfers ownership of the linker handle and its output mode to the caller.
     #[must_use]
-    pub fn into_raw(mut self) -> sys::nvJitLinkHandle {
-        mem::replace(&mut self.handle, ptr::null_mut())
+    pub fn into_raw(mut self) -> RawLinker {
+        RawLinker {
+            handle: mem::replace(&mut self.handle, ptr::null_mut()),
+            output: self.output,
+        }
     }
 
     /// Adds data to the link.
@@ -281,7 +284,7 @@ impl Linker {
     /// Native failure status and linker diagnostics are retained in `Error::NvJitLink`.
     pub fn add_data(&mut self, kind: InputType, bytes: &[u8], name: &str) -> Result<()> {
         let name = CString::new(name)?;
-        // SAFETY: `__nvJitLinkAddData_13_4` receives live handles owned by the wrappers and pointers into buffers borrowed for the call.
+        // SAFETY: `self` owns the live linker exclusively, and `bytes` and the NUL-terminated `name` are borrowed for the call, which copies them.
         self.check(unsafe {
             sys::__nvJitLinkAddData_13_4(
                 self.handle,
@@ -301,7 +304,7 @@ impl Linker {
     /// Native failure status and linker diagnostics are retained in `Error::NvJitLink`.
     pub fn add_file(&mut self, kind: InputType, file: &str) -> Result<()> {
         let file = CString::new(file)?;
-        // SAFETY: `__nvJitLinkAddFile_13_4` receives live handles owned by the wrappers and pointers into buffers borrowed for the call.
+        // SAFETY: `self` owns the live linker exclusively, and `file` is a NUL-terminated path borrowed for the call.
         self.check(unsafe { sys::__nvJitLinkAddFile_13_4(self.handle, kind.raw(), file.as_ptr()) })
     }
 
@@ -312,9 +315,10 @@ impl Linker {
     /// Returns an error if native linking fails or the selected output size or contents cannot be retrieved.
     /// The consumed linker is destroyed on both success and failure; successful output owns its bytes independently.
     pub fn complete(self) -> Result<LinkedArtifact> {
-        // SAFETY: `__nvJitLinkComplete_13_4` receives live handles owned by the wrappers.
+        // SAFETY: `self` owns the live linker, consumed by this call.
         self.check(unsafe { sys::__nvJitLinkComplete_13_4(self.handle) })?;
         let mut size = 0;
+        // SAFETY: the linker completed above, and `size` is a local output.
         self.check(unsafe {
             match self.output {
                 OutputKind::Cubin => {
@@ -329,7 +333,7 @@ impl Linker {
             }
         })?;
         let mut bytes = vec![0; size];
-        // SAFETY: `__nvJitLinkGetLinkedCubin_13_4`, `__nvJitLinkGetLinkedPtx_13_4`, `__nvJitLinkGetLinkedLTOIR_13_4` receive live handles owned by the wrappers and valid output locations.
+        // SAFETY: `bytes` holds the `size` bytes the linker reported for the same output kind.
         self.check(unsafe {
             match self.output {
                 OutputKind::Cubin => {
@@ -357,25 +361,20 @@ impl Linker {
     }
 
     fn check(&self, status: sys::nvJitLinkResult) -> Result<()> {
-        if status == sys::nvJitLinkResult::NVJITLINK_SUCCESS {
-            Ok(())
-        } else if status == sys::nvJitLinkResult::NVJITLINK_ERROR_INTERNAL
-            && let Err(error) = singe_cuda_sys::load_nvjitlink()
-        {
-            Err(Error::Load(error))
-        } else {
-            Err(Error::NvJitLink {
-                code: Status::from(status as u32),
-                message: self.log(true),
-            })
-        }
+        Error::check_nvjitlink(status).map_err(|error| match error {
+            Error::NvJitLink { code, .. } => Error::NvJitLink {
+                code,
+                diagnostic: self.log(true),
+            },
+            error => error,
+        })
     }
 
     fn log(&self, error: bool) -> String {
         if self.handle.is_null() {
             return String::new();
         }
-        // SAFETY: `__nvJitLinkGetErrorLogSize_13_4`, `__nvJitLinkGetInfoLogSize_13_4`, `__nvJitLinkGetErrorLog_13_4`, `__nvJitLinkGetInfoLog_13_4` receive live handles owned by the wrappers and valid output locations.
+        // SAFETY: the handle is non-null and owned by `self`, `size` is a local output, and `bytes` holds the `size` bytes reported for the same log.
         unsafe {
             let mut size = 0;
             let result = if error {
@@ -406,15 +405,12 @@ impl Linker {
 impl Drop for Linker {
     fn drop(&mut self) {
         if !self.handle.is_null() {
-            // SAFETY: `__nvJitLinkDestroy_13_4` receives live handles owned by the wrappers and valid output locations.
-            unsafe {
-                let status = sys::__nvJitLinkDestroy_13_4(&raw mut self.handle);
-                if status != sys::nvJitLinkResult::NVJITLINK_SUCCESS {
-                    eprintln!(
-                        "failed to destroy nvjitlink linker: {}",
-                        Status::from(status as u32)
-                    );
-                }
+            // SAFETY: this wrapper owns the non-null linker, and nvJitLink nulls the handle field it destroys.
+            let status = unsafe { sys::__nvJitLinkDestroy_13_4(&raw mut self.handle) };
+            if status != sys::nvJitLinkResult::NVJITLINK_SUCCESS {
+                // The linker log is not read through a handle whose destruction failed.
+                let error = Error::from(Status::from(status));
+                report_cleanup_failure("destroy", "nvjitlink linker", &error);
             }
         }
     }

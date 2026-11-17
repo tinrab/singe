@@ -1,13 +1,13 @@
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, fs, mem::take, path::Path};
 
-use bomboni_request::{
-    error::{CommonError, PathErrorStep, RequestError, RequestResult},
-    parse::{RequestParse, RequestParseInto},
-};
-
+use bomboni_request::error::{CommonError, PathErrorStep, RequestError, RequestResult};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
+use prost::Message;
 
-use crate::proto::{onnx, onnx_structure};
+use crate::{
+    error::{Error, FormatError, Result},
+    proto::{onnx, onnx_structure},
+};
 
 /// Metadata key-value pairs from ONNX `StringStringEntryProto` lists.
 ///
@@ -128,10 +128,6 @@ pub struct Attribute {
     pub name: String,
     /// Discriminator describing which attribute value is present.
     pub attribute_type: AttributeType,
-    /// Referenced parent function attribute name, when this is a function-body reference.
-    ///
-    /// ONNX restricts this to function sub-graphs; it is invalid in the main graph.
-    pub ref_attribute_name: String,
     /// Human-readable attribute documentation.
     /// Markdown is allowed by ONNX.
     pub doc_string: Option<String>,
@@ -141,6 +137,7 @@ pub struct Attribute {
 
 /// Value carried by an [`Attribute`].
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub enum AttributeValue {
     /// Singular floating-point value.
     Float(f32),
@@ -170,6 +167,10 @@ pub enum AttributeValue {
     SparseTensors(Vec<SparseTensor>),
     /// Repeated type descriptor values.
     Types(Vec<Type>),
+    /// Reference to the named attribute of the enclosing function, which supplies the value at each call site.
+    ///
+    /// ONNX allows references only inside function bodies; the referenced attribute has the type in [`Attribute::attribute_type`].
+    Reference(String),
 }
 
 /// Serialized ONNX tensor value.
@@ -206,6 +207,7 @@ pub struct Tensor {
 ///
 /// ONNX may store tensor elements either in type-specific repeated fields or in a raw little-endian byte buffer.
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub enum TensorElements {
     /// `float_data`: `FLOAT` values or interleaved real/imaginary `COMPLEX64` values.
     Float(Vec<f32>),
@@ -276,6 +278,7 @@ pub struct Type {
 
 /// Concrete ONNX type kind.
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub enum TypeValue {
     /// Tensor type.
     Tensor(TensorType),
@@ -354,6 +357,7 @@ pub struct Dimension {
 
 /// Concrete or symbolic dimension value.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum DimensionValue {
     /// Integer dimension size.
     Value(i64),
@@ -424,6 +428,7 @@ pub struct Function {
 /// ONNX attribute type discriminator.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, TryFromPrimitive, IntoPrimitive)]
 #[repr(i32)]
+#[non_exhaustive]
 pub enum AttributeType {
     /// Undefined attribute type.
     Undefined = 0,
@@ -460,6 +465,7 @@ pub enum AttributeType {
 /// ONNX tensor element data type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, TryFromPrimitive, IntoPrimitive)]
 #[repr(i32)]
+#[non_exhaustive]
 pub enum TensorDataType {
     /// Undefined tensor data type.
     Undefined = 0,
@@ -520,6 +526,7 @@ pub enum TensorDataType {
 /// ONNX tensor data storage location.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, TryFromPrimitive, IntoPrimitive)]
 #[repr(i32)]
+#[non_exhaustive]
 pub enum TensorDataLocation {
     /// Data is embedded in `raw_data` or a type-specific repeated field.
     #[default]
@@ -528,8 +535,73 @@ pub enum TensorDataLocation {
     External = 1,
 }
 
-impl RequestParse<onnx::ModelProto> for Model {
-    fn parse(value: onnx::ModelProto) -> RequestResult<Self> {
+// The conversions use a private trait, so the public API offers only `TryFrom` and keeps `bomboni_request` out of it.
+trait FromProto<T>: Sized {
+    fn from_proto(value: T) -> RequestResult<Self>;
+}
+
+trait ProtoInto<U> {
+    fn parse_into(self) -> RequestResult<U>;
+}
+
+impl<T, U> ProtoInto<U> for T
+where
+    U: FromProto<T>,
+{
+    fn parse_into(self) -> RequestResult<U> {
+        U::from_proto(self)
+    }
+}
+
+impl Model {
+    /// Decodes and parses an ONNX model from protobuf bytes, including inline tensor data.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the bytes are not a valid ONNX protobuf message, or the decoded model violates the typed ONNX format requirements.
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
+        Self::try_from(onnx::ModelProto::decode(bytes)?)
+    }
+
+    /// Reads and parses an ONNX model file, including inline tensor data.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the file cannot be read, the bytes are not a valid ONNX protobuf message, or the decoded model violates the typed ONNX format requirements.
+    pub fn from_path(path: impl AsRef<Path>) -> Result<Self> {
+        Self::from_bytes(&fs::read(path)?)
+    }
+
+    /// Decodes and parses an ONNX model from protobuf bytes, skipping inline tensor payloads.
+    ///
+    /// The structure-only schema leaves out the payload fields, so `prost` skips them as unknown fields instead of allocating weight buffers, and each initializer's `data` is `None`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the bytes are not a valid ONNX protobuf message, or the decoded model violates the typed ONNX format requirements.
+    pub fn structure_from_bytes(bytes: &[u8]) -> Result<Self> {
+        Self::try_from(onnx_structure::ModelProto::decode(bytes)?)
+    }
+}
+
+impl TryFrom<onnx::ModelProto> for Model {
+    type Error = Error;
+
+    fn try_from(value: onnx::ModelProto) -> Result<Self> {
+        Self::from_proto(value).map_err(|error| Error::Format(FormatError::new(error)))
+    }
+}
+
+impl TryFrom<onnx_structure::ModelProto> for Model {
+    type Error = Error;
+
+    fn try_from(value: onnx_structure::ModelProto) -> Result<Self> {
+        Self::from_proto(value).map_err(|error| Error::Format(FormatError::new(error)))
+    }
+}
+
+impl FromProto<onnx::ModelProto> for Model {
+    fn from_proto(value: onnx::ModelProto) -> RequestResult<Self> {
         Ok(Self {
             ir_version: value.ir_version,
             operator_set_imports: parse_repeated(
@@ -553,14 +625,14 @@ impl RequestParse<onnx::ModelProto> for Model {
     }
 }
 
-impl RequestParse<onnx_structure::ModelProto> for Model {
-    fn parse(value: onnx_structure::ModelProto) -> RequestResult<Self> {
+impl FromProto<onnx_structure::ModelProto> for Model {
+    fn from_proto(value: onnx_structure::ModelProto) -> RequestResult<Self> {
         onnx::ModelProto::from(value).parse_into()
     }
 }
 
-impl RequestParse<onnx::OperatorSetIdProto> for OperatorSetId {
-    fn parse(value: onnx::OperatorSetIdProto) -> RequestResult<Self> {
+impl FromProto<onnx::OperatorSetIdProto> for OperatorSetId {
+    fn from_proto(value: onnx::OperatorSetIdProto) -> RequestResult<Self> {
         Ok(Self {
             domain: non_empty(value.domain),
             version: value.version,
@@ -568,8 +640,8 @@ impl RequestParse<onnx::OperatorSetIdProto> for OperatorSetId {
     }
 }
 
-impl RequestParse<onnx::GraphProto> for Graph {
-    fn parse(value: onnx::GraphProto) -> RequestResult<Self> {
+impl FromProto<onnx::GraphProto> for Graph {
+    fn from_proto(value: onnx::GraphProto) -> RequestResult<Self> {
         Ok(Self {
             nodes: parse_repeated(value.node, onnx::GraphProto::NODE_FIELD_NAME)?,
             name: value.name,
@@ -595,8 +667,8 @@ impl RequestParse<onnx::GraphProto> for Graph {
     }
 }
 
-impl RequestParse<onnx::NodeProto> for Node {
-    fn parse(value: onnx::NodeProto) -> RequestResult<Self> {
+impl FromProto<onnx::NodeProto> for Node {
+    fn from_proto(value: onnx::NodeProto) -> RequestResult<Self> {
         Ok(Self {
             inputs: value.input,
             outputs: value.output,
@@ -612,8 +684,8 @@ impl RequestParse<onnx::NodeProto> for Node {
     }
 }
 
-impl RequestParse<onnx::AttributeProto> for Attribute {
-    fn parse(value: onnx::AttributeProto) -> RequestResult<Self> {
+impl FromProto<onnx::AttributeProto> for Attribute {
+    fn from_proto(value: onnx::AttributeProto) -> RequestResult<Self> {
         if value.name.is_empty() {
             return Err(RequestError::field(
                 onnx::AttributeProto::NAME_FIELD_NAME,
@@ -629,6 +701,7 @@ impl RequestParse<onnx::AttributeProto> for Attribute {
                     CommonError::InvalidEnumValue,
                 ));
             }
+            _ if !value.ref_attr_name.is_empty() => AttributeValue::Reference(value.ref_attr_name),
             AttributeType::Float => AttributeValue::Float(value.f),
             AttributeType::Int => AttributeValue::Int(value.i),
             AttributeType::String => {
@@ -675,15 +748,14 @@ impl RequestParse<onnx::AttributeProto> for Attribute {
         Ok(Self {
             name: value.name,
             attribute_type,
-            ref_attribute_name: value.ref_attr_name,
             doc_string: non_empty(value.doc_string),
             value: parsed_value,
         })
     }
 }
 
-impl RequestParse<onnx::TensorProto> for Tensor {
-    fn parse(value: onnx::TensorProto) -> RequestResult<Self> {
+impl FromProto<onnx::TensorProto> for Tensor {
+    fn from_proto(mut value: onnx::TensorProto) -> RequestResult<Self> {
         let data_type = parse_enum(value.data_type, onnx::TensorProto::DATA_TYPE_FIELD_NAME)?;
         if data_type == TensorDataType::Undefined {
             return Err(RequestError::field(
@@ -717,7 +789,7 @@ impl RequestParse<onnx::TensorProto> for Tensor {
 
         let data = match data_location {
             TensorDataLocation::External => None,
-            TensorDataLocation::Default => parse_tensor_data(&value, data_type)?,
+            TensorDataLocation::Default => parse_tensor_data(&mut value, data_type)?,
         };
         if data.is_none() && populated != 0 {
             return Err(RequestError::field(
@@ -742,8 +814,8 @@ impl RequestParse<onnx::TensorProto> for Tensor {
     }
 }
 
-impl RequestParse<onnx::tensor_proto::Segment> for TensorSegment {
-    fn parse(value: onnx::tensor_proto::Segment) -> RequestResult<Self> {
+impl FromProto<onnx::tensor_proto::Segment> for TensorSegment {
+    fn from_proto(value: onnx::tensor_proto::Segment) -> RequestResult<Self> {
         Ok(Self {
             begin: value.begin,
             end: value.end,
@@ -751,8 +823,8 @@ impl RequestParse<onnx::tensor_proto::Segment> for TensorSegment {
     }
 }
 
-impl RequestParse<onnx::SparseTensorProto> for SparseTensor {
-    fn parse(value: onnx::SparseTensorProto) -> RequestResult<Self> {
+impl FromProto<onnx::SparseTensorProto> for SparseTensor {
+    fn from_proto(value: onnx::SparseTensorProto) -> RequestResult<Self> {
         Ok(Self {
             values: parse_optional(value.values, onnx::SparseTensorProto::VALUES_FIELD_NAME)?,
             indices: parse_optional(value.indices, onnx::SparseTensorProto::INDICES_FIELD_NAME)?,
@@ -761,8 +833,8 @@ impl RequestParse<onnx::SparseTensorProto> for SparseTensor {
     }
 }
 
-impl RequestParse<onnx::ValueInfoProto> for ValueInfo {
-    fn parse(value: onnx::ValueInfoProto) -> RequestResult<Self> {
+impl FromProto<onnx::ValueInfoProto> for ValueInfo {
+    fn from_proto(value: onnx::ValueInfoProto) -> RequestResult<Self> {
         Ok(Self {
             name: value.name,
             value_type: parse_optional(value.r#type, onnx::ValueInfoProto::TYPE_FIELD_NAME)?,
@@ -774,8 +846,8 @@ impl RequestParse<onnx::ValueInfoProto> for ValueInfo {
     }
 }
 
-impl RequestParse<onnx::TypeProto> for Type {
-    fn parse(value: onnx::TypeProto) -> RequestResult<Self> {
+impl FromProto<onnx::TypeProto> for Type {
+    fn from_proto(value: onnx::TypeProto) -> RequestResult<Self> {
         Ok(Self {
             denotation: non_empty(value.denotation),
             value: parse_required(value.value, onnx::TypeProto::VALUE_ONEOF_NAME)?,
@@ -783,8 +855,8 @@ impl RequestParse<onnx::TypeProto> for Type {
     }
 }
 
-impl RequestParse<onnx::type_proto::Value> for TypeValue {
-    fn parse(value: onnx::type_proto::Value) -> RequestResult<Self> {
+impl FromProto<onnx::type_proto::Value> for TypeValue {
+    fn from_proto(value: onnx::type_proto::Value) -> RequestResult<Self> {
         Ok(match value {
             onnx::type_proto::Value::TensorType(value) => Self::Tensor(value.parse_into()?),
             onnx::type_proto::Value::SequenceType(value) => {
@@ -801,8 +873,8 @@ impl RequestParse<onnx::type_proto::Value> for TypeValue {
     }
 }
 
-impl RequestParse<onnx::type_proto::Tensor> for TensorType {
-    fn parse(value: onnx::type_proto::Tensor) -> RequestResult<Self> {
+impl FromProto<onnx::type_proto::Tensor> for TensorType {
+    fn from_proto(value: onnx::type_proto::Tensor) -> RequestResult<Self> {
         Ok(Self {
             element_type: parse_enum(value.elem_type, "elem_type")?,
             shape: parse_optional(value.shape, "shape")?,
@@ -810,16 +882,16 @@ impl RequestParse<onnx::type_proto::Tensor> for TensorType {
     }
 }
 
-impl RequestParse<onnx::type_proto::Sequence> for TypeSequence {
-    fn parse(value: onnx::type_proto::Sequence) -> RequestResult<Self> {
+impl FromProto<onnx::type_proto::Sequence> for TypeSequence {
+    fn from_proto(value: onnx::type_proto::Sequence) -> RequestResult<Self> {
         Ok(Self {
             element_type: parse_required(value.elem_type.map(|value| *value), "elem_type")?,
         })
     }
 }
 
-impl RequestParse<onnx::type_proto::Map> for TypeMap {
-    fn parse(value: onnx::type_proto::Map) -> RequestResult<Self> {
+impl FromProto<onnx::type_proto::Map> for TypeMap {
+    fn from_proto(value: onnx::type_proto::Map) -> RequestResult<Self> {
         Ok(Self {
             key_type: parse_enum(value.key_type, "key_type")?,
             value_type: parse_required(value.value_type.map(|value| *value), "value_type")?,
@@ -827,16 +899,16 @@ impl RequestParse<onnx::type_proto::Map> for TypeMap {
     }
 }
 
-impl RequestParse<onnx::type_proto::Optional> for TypeOptional {
-    fn parse(value: onnx::type_proto::Optional) -> RequestResult<Self> {
+impl FromProto<onnx::type_proto::Optional> for TypeOptional {
+    fn from_proto(value: onnx::type_proto::Optional) -> RequestResult<Self> {
         Ok(Self {
             element_type: parse_required(value.elem_type.map(|value| *value), "elem_type")?,
         })
     }
 }
 
-impl RequestParse<onnx::type_proto::SparseTensor> for SparseTensorType {
-    fn parse(value: onnx::type_proto::SparseTensor) -> RequestResult<Self> {
+impl FromProto<onnx::type_proto::SparseTensor> for SparseTensorType {
+    fn from_proto(value: onnx::type_proto::SparseTensor) -> RequestResult<Self> {
         Ok(Self {
             element_type: parse_enum(value.elem_type, "elem_type")?,
             shape: parse_optional(value.shape, "shape")?,
@@ -844,16 +916,16 @@ impl RequestParse<onnx::type_proto::SparseTensor> for SparseTensorType {
     }
 }
 
-impl RequestParse<onnx::TensorShapeProto> for TensorShape {
-    fn parse(value: onnx::TensorShapeProto) -> RequestResult<Self> {
+impl FromProto<onnx::TensorShapeProto> for TensorShape {
+    fn from_proto(value: onnx::TensorShapeProto) -> RequestResult<Self> {
         Ok(Self {
             dimensions: parse_repeated(value.dim, onnx::TensorShapeProto::DIM_FIELD_NAME)?,
         })
     }
 }
 
-impl RequestParse<onnx::tensor_shape_proto::Dimension> for Dimension {
-    fn parse(value: onnx::tensor_shape_proto::Dimension) -> RequestResult<Self> {
+impl FromProto<onnx::tensor_shape_proto::Dimension> for Dimension {
+    fn from_proto(value: onnx::tensor_shape_proto::Dimension) -> RequestResult<Self> {
         Ok(Self {
             denotation: non_empty(value.denotation),
             value: parse_optional(
@@ -864,8 +936,8 @@ impl RequestParse<onnx::tensor_shape_proto::Dimension> for Dimension {
     }
 }
 
-impl RequestParse<onnx::tensor_shape_proto::dimension::Value> for DimensionValue {
-    fn parse(value: onnx::tensor_shape_proto::dimension::Value) -> RequestResult<Self> {
+impl FromProto<onnx::tensor_shape_proto::dimension::Value> for DimensionValue {
+    fn from_proto(value: onnx::tensor_shape_proto::dimension::Value) -> RequestResult<Self> {
         Ok(match value {
             onnx::tensor_shape_proto::dimension::Value::DimValue(value) => Self::Value(value),
             onnx::tensor_shape_proto::dimension::Value::DimParam(value) => Self::Parameter(value),
@@ -873,8 +945,8 @@ impl RequestParse<onnx::tensor_shape_proto::dimension::Value> for DimensionValue
     }
 }
 
-impl RequestParse<onnx::TensorAnnotation> for TensorAnnotation {
-    fn parse(value: onnx::TensorAnnotation) -> RequestResult<Self> {
+impl FromProto<onnx::TensorAnnotation> for TensorAnnotation {
+    fn from_proto(value: onnx::TensorAnnotation) -> RequestResult<Self> {
         Ok(Self {
             tensor_name: value.tensor_name,
             quant_parameter_tensor_names: parse_property_map(value.quant_parameter_tensor_names)
@@ -886,8 +958,8 @@ impl RequestParse<onnx::TensorAnnotation> for TensorAnnotation {
     }
 }
 
-impl RequestParse<onnx::TrainingInfoProto> for TrainingInfo {
-    fn parse(value: onnx::TrainingInfoProto) -> RequestResult<Self> {
+impl FromProto<onnx::TrainingInfoProto> for TrainingInfo {
+    fn from_proto(value: onnx::TrainingInfoProto) -> RequestResult<Self> {
         Ok(Self {
             initialization: parse_optional(
                 value.initialization,
@@ -909,8 +981,8 @@ impl RequestParse<onnx::TrainingInfoProto> for TrainingInfo {
     }
 }
 
-impl RequestParse<onnx::FunctionProto> for Function {
-    fn parse(value: onnx::FunctionProto) -> RequestResult<Self> {
+impl FromProto<onnx::FunctionProto> for Function {
+    fn from_proto(value: onnx::FunctionProto) -> RequestResult<Self> {
         Ok(Self {
             name: value.name,
             inputs: value.input,
@@ -1261,7 +1333,7 @@ where
 
 fn parse_required<T, U>(value: Option<T>, field: &'static str) -> RequestResult<U>
 where
-    U: RequestParse<T>,
+    U: FromProto<T>,
 {
     value
         .ok_or_else(|| RequestError::field(field, CommonError::RequiredFieldMissing))?
@@ -1271,7 +1343,7 @@ where
 
 fn parse_optional<T, U>(value: Option<T>, field: &'static str) -> RequestResult<Option<U>>
 where
-    U: RequestParse<T>,
+    U: FromProto<T>,
 {
     value
         .map(|value| value.parse_into().map_err(|error| error.wrap_field(field)))
@@ -1280,7 +1352,7 @@ where
 
 fn parse_repeated<T, U>(values: Vec<T>, field: &'static str) -> RequestResult<Vec<U>>
 where
-    U: RequestParse<T>,
+    U: FromProto<T>,
 {
     values
         .into_iter()
@@ -1338,7 +1410,7 @@ fn parse_strings(values: Vec<Vec<u8>>, field: &'static str) -> RequestResult<Vec
 }
 
 fn parse_tensor_data(
-    value: &onnx::TensorProto,
+    value: &mut onnx::TensorProto,
     data_type: TensorDataType,
 ) -> RequestResult<Option<TensorElements>> {
     if !value.raw_data.is_empty() {
@@ -1348,15 +1420,13 @@ fn parse_tensor_data(
                 CommonError::TypeMismatch,
             ));
         }
-        return Ok(Some(TensorElements::Raw(value.raw_data.clone())));
+        return Ok(Some(TensorElements::Raw(take(&mut value.raw_data))));
     }
 
     match data_type {
         TensorDataType::Undefined => unreachable!("undefined tensor data type is rejected earlier"),
-        TensorDataType::Float | TensorDataType::Complex64 => {
-            Ok((!value.float_data.is_empty())
-                .then(|| TensorElements::Float(value.float_data.clone())))
-        }
+        TensorDataType::Float | TensorDataType::Complex64 => Ok((!value.float_data.is_empty())
+            .then(|| TensorElements::Float(take(&mut value.float_data)))),
         TensorDataType::Int32
         | TensorDataType::Uint8
         | TensorDataType::Int8
@@ -1374,27 +1444,23 @@ fn parse_tensor_data(
         | TensorDataType::Float4e2m1
         | TensorDataType::Float8e8m0
         | TensorDataType::Uint2
-        | TensorDataType::Int2 => {
-            Ok((!value.int32_data.is_empty())
-                .then(|| TensorElements::Int32(value.int32_data.clone())))
-        }
+        | TensorDataType::Int2 => Ok((!value.int32_data.is_empty())
+            .then(|| TensorElements::Int32(take(&mut value.int32_data)))),
         TensorDataType::String => {
             if value.string_data.is_empty() {
                 Ok(None)
             } else {
                 Ok(Some(TensorElements::String(parse_strings(
-                    value.string_data.clone(),
+                    take(&mut value.string_data),
                     onnx::TensorProto::STRING_DATA_FIELD_NAME,
                 )?)))
             }
         }
-        TensorDataType::Int64 => {
-            Ok((!value.int64_data.is_empty())
-                .then(|| TensorElements::Int64(value.int64_data.clone())))
-        }
+        TensorDataType::Int64 => Ok((!value.int64_data.is_empty())
+            .then(|| TensorElements::Int64(take(&mut value.int64_data)))),
         TensorDataType::Double | TensorDataType::Complex128 => Ok((!value.double_data.is_empty())
-            .then(|| TensorElements::Double(value.double_data.clone()))),
+            .then(|| TensorElements::Double(take(&mut value.double_data)))),
         TensorDataType::Uint32 | TensorDataType::Uint64 => Ok((!value.uint64_data.is_empty())
-            .then(|| TensorElements::Uint64(value.uint64_data.clone()))),
+            .then(|| TensorElements::Uint64(take(&mut value.uint64_data)))),
     }
 }

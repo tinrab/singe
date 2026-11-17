@@ -1,3 +1,5 @@
+//! Native engine identities, properties, and tuning-knob declarations.
+
 use std::{
     fmt::{self, Display, Formatter},
     result::Result as StdResult,
@@ -14,11 +16,10 @@ use crate::{
         behavior::{BackendBehaviorNote, BackendNumericalNote},
         descriptor::{BackendDescriptor, BackendDescriptorType},
         device::{DeviceProperties, DevicePropertiesSource},
-        execution::{EngineKnobInfo, EnginePlanningConfig, LayoutInfo, OperationGraph},
+        execution::{EngineKnobInfo, EnginePlanningOptions, LayoutInfo, OperationGraph},
     },
     context::Context,
     error::{Error, Result},
-    frontend::error::Error as FrontendError,
     utility::{bind_context, bind_for_drop, to_i32, to_i64, validate_context_pair},
 };
 
@@ -46,6 +47,7 @@ impl EngineIndex {
     /// Use [`Self::try_new`] for runtime values that may be negative.
     ///
     /// # Panics
+    ///
     /// Panics if `value` is negative.
     #[must_use]
     pub const fn new(value: i64) -> Self {
@@ -91,25 +93,17 @@ impl<'de> Deserialize<'de> for EngineIndex {
 }
 
 impl Engine {
-    /// Creates an engine using the operation graph and the supplied context's device.
+    /// Creates an engine for the operation graph, with device properties queried from the context's device when `properties` is `None`.
     ///
     /// # Errors
     ///
-    /// Returns an error if live contexts disagree or cannot be bound, device properties cannot be queried, or native descriptor creation, attribute assignment, or engine finalization fails.
-    pub fn create(context: &Context, graph: &OperationGraph, index: EngineIndex) -> Result<Self> {
-        Self::create_with_config(context, graph, index, None, EnginePlanningConfig::default())
-    }
-
-    /// Creates an engine with explicit device properties and native resource targets.
-    ///
-    /// # Errors
-    /// Returns context, target-property, attribute or native engine-finalization errors.
-    pub fn create_with_config(
+    /// Returns an error if live contexts disagree or cannot be bound, device properties cannot be queried, a resource target does not fit `i32`, or native descriptor creation, attribute assignment, or engine finalization fails.
+    pub fn create(
         context: &Context,
         graph: &OperationGraph,
         index: EngineIndex,
         properties: Option<&DeviceProperties>,
-        planning: EnginePlanningConfig,
+        planning: EnginePlanningOptions,
     ) -> Result<Self> {
         Self::create_with_context(Some(context), graph, index, properties, planning)
     }
@@ -123,7 +117,7 @@ impl Engine {
         graph: &OperationGraph,
         index: EngineIndex,
         properties: &DeviceProperties,
-        planning: EnginePlanningConfig,
+        planning: EnginePlanningOptions,
     ) -> Result<Self> {
         Self::create_with_context(None, graph, index, Some(properties), planning)
     }
@@ -133,7 +127,7 @@ impl Engine {
         graph: &OperationGraph,
         index: EngineIndex,
         properties: Option<&DeviceProperties>,
-        planning: EnginePlanningConfig,
+        planning: EnginePlanningOptions,
     ) -> Result<Self> {
         validate_context_pair(
             context.map(Context::cuda_context),
@@ -155,7 +149,7 @@ impl Engine {
         };
         let properties = properties
             .or(automatic_properties.as_ref())
-            .ok_or(FrontendError::DevicelessRequiresDeviceProperties)?;
+            .ok_or(Error::DevicelessRequiresDeviceProperties)?;
         let mut descriptor = BackendDescriptor::create(BackendDescriptorType::Engine)?;
         descriptor.set_attribute_descriptor(
             BackendAttributeName::EngineOperationGraph,
@@ -242,7 +236,7 @@ impl Engine {
     /// # Errors
     ///
     /// Returns an error if engine enumeration fails.
-    /// If no engine configuration can be finalized, returns the last attempted construction error, or [`Error::NoAvailableEngines`] when enumeration yields no engines.
+    /// Returns an error if no engine configuration can be finalized: the last attempted construction error, or [`Error::NoAvailableEngines`] when enumeration yields no engines.
     pub fn find_compatible(graph: &OperationGraph) -> Result<Self> {
         let mut last_error = None;
         for index in Self::engine_indices_for_operation_graph(graph)? {
@@ -252,7 +246,7 @@ impl Engine {
                     graph,
                     index,
                     None,
-                    EnginePlanningConfig::default(),
+                    EnginePlanningOptions::default(),
                 )?;
                 let mut config = BackendDescriptor::create(BackendDescriptorType::EngineCfg)?;
                 config.set_attribute_descriptor(
@@ -321,7 +315,7 @@ impl Engine {
         }
 
         bind_context(self.cuda_context())?;
-        // SAFETY: this attribute returns objects of the explicitly selected native class.
+        // SAFETY: `EngineKnobInfo` holds knob-information descriptors, so `KnobInfo` is the class cuDNN writes.
         let knobs = unsafe {
             self.descriptor.attribute_descriptor_slice(
                 BackendAttributeName::EngineKnobInfo,
@@ -358,7 +352,7 @@ impl Engine {
         }
 
         bind_context(self.cuda_context())?;
-        // SAFETY: the named attribute requires the explicitly selected native class.
+        // SAFETY: `EngineLayoutInfo` holds layout-information descriptors, so `LayoutInfo` is the class cuDNN writes.
         let layouts = unsafe {
             self.descriptor.attribute_descriptor_slice(
                 BackendAttributeName::EngineLayoutInfo,
@@ -384,6 +378,10 @@ impl Engine {
 
 impl Drop for Engine {
     fn drop(&mut self) {
-        bind_for_drop(self.cuda_context(), "cudnn engine");
+        bind_for_drop(
+            self.cuda_context.as_ref(),
+            &mut self.descriptor,
+            "cudnn engine",
+        );
     }
 }

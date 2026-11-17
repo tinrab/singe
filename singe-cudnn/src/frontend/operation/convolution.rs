@@ -1,15 +1,12 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    backend::{
-        convolution::ConvolutionMode,
-        execution::convolution::{
-            ConvolutionBackwardDataOperation as BackendConvolutionBackwardDataOperation,
-            ConvolutionBackwardFilterOperation as BackendConvolutionBackwardFilterOperation,
-            ConvolutionDescriptor, ConvolutionDescriptorConfig,
-            ConvolutionForwardOperation as BackendConvolutionForwardOperation, ConvolutionGeometry,
-        },
-        tensor::{Shape, TensorId},
+    backend::operation::convolution::{
+        ConvolutionBackwardDataOperation as BackendConvolutionBackwardDataOperation,
+        ConvolutionBackwardFilterOperation as BackendConvolutionBackwardFilterOperation,
+        ConvolutionDescriptor, ConvolutionDescriptorSpec,
+        ConvolutionForwardOperation as BackendConvolutionForwardOperation, ConvolutionGeometry,
+        ConvolutionMode,
     },
     data_type::DataType,
     error::{Error, Result},
@@ -19,6 +16,7 @@ use crate::{
         lower::{LoweredOperation, LoweringContext, tensor_at},
     },
     scalar::native_f32,
+    tensor::{Shape, TensorId},
     utility::to_usize,
 };
 
@@ -143,7 +141,7 @@ impl ConvolutionOperation {
     pub(crate) fn lower(&self, context: &LoweringContext<'_>) -> Result<LoweredOperation> {
         let tensors = context.backend_tensors();
         let (_, config) = self.destination_and_config();
-        let descriptor = ConvolutionDescriptor::create(ConvolutionDescriptorConfig::new(
+        let descriptor = ConvolutionDescriptor::create(ConvolutionDescriptorSpec::new(
             context.compute_data_type(config.compute_type()),
             config.mode(),
             config.resolve_geometry()?,
@@ -248,7 +246,8 @@ impl ConvolutionConfig {
     /// The result owns the exact pre/post padding, stride and dilation values.
     ///
     /// # Errors
-    /// Returns an error for empty or mismatched arrays, or nonpositive strides and dilations.
+    ///
+    /// Returns an error if an array is empty, the array lengths mismatch, or a stride or dilation is not positive.
     pub fn resolve_geometry(&self) -> Result<ConvolutionGeometry> {
         ConvolutionGeometry::create(
             self.pre_paddings.clone(),
@@ -277,13 +276,13 @@ impl ConvolutionConfig {
         self
     }
 
-    /// Requested result coefficient, before native precision conversion.
+    /// Returns the requested result coefficient, before native precision conversion.
     #[must_use]
     pub fn alpha(&self) -> f64 {
         self.alpha
     }
 
-    /// Requested destination coefficient, before native precision conversion.
+    /// Returns the requested destination coefficient, before native precision conversion.
     #[must_use]
     pub fn beta(&self) -> f64 {
         self.beta

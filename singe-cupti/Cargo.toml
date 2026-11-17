@@ -1,16 +1,19 @@
 [package]
 name = "singe-cupti"
 description = "Safe Rust wrappers for NVIDIA CUPTI, for tracing and profiling CUDA applications."
-version = "0.1.0-alpha.9"
+version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 repository.workspace = true
+documentation = "https://docs.rs/singe-cupti"
 license-file.workspace = true
 readme = "README.md"
-keywords = ["nvidia", "cupti", "profiling", "cuda", "trace"]
+keywords = ["cuda", "nvidia", "cupti", "profiling", "trace"]
+categories = ["api-bindings", "hardware-support", "development-tools::profiling"]
 include.workspace = true
 
 [package.metadata.docs.rs]
-rustdoc-args = ["--html-in-header", "dist/katex_header.html"]
+rustdoc-args = ["--cfg", "docsrs", "--html-in-header", "dist/katex_header.html"]
 
 [features]
 default = ["cupti_13_4"]
@@ -28,4 +31,4 @@ num_enum.workspace = true
 bitflags.workspace = true
 
 [dev-dependencies]
-rand.workspace = true
+anyhow.workspace = true

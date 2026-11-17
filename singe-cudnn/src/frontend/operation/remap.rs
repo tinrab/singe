@@ -1,10 +1,10 @@
 use crate::{
-    backend::tensor::TensorId,
     error::Result,
     frontend::{
         graph::TensorCaptureTarget,
         operation::{Operation, SdpaScoreSubgraph},
     },
+    tensor::TensorId,
 };
 
 impl Operation {

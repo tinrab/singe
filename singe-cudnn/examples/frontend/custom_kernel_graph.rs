@@ -1,18 +1,20 @@
 mod common;
 
-use singe_cuda::{cuda_module, memory::DeviceMemory, module::LaunchConfig};
+use std::slice;
+
+use singe_cuda::{
+    cuda_module, graph::GraphInstantiateFlags, memory::DeviceMemory, module::LaunchConfig,
+};
 use singe_cudnn::{
-    backend::{
-        behavior::BackendBehaviorNote,
-        tensor::{Shape, TensorId, TensorSpec},
-    },
+    backend::behavior::BackendBehaviorNote,
     data_type::DataType,
-    error::{Error, Result, Status},
+    error::{Error, Status},
     frontend::{
         graph::{DataTypePolicy, Graph, GraphConfig},
         operation::MatmulConfig,
         plan::{CompileConfig, EngineConfigFilter, ExecuteArgs, HeuristicMode},
     },
+    tensor::{Shape, TensorId, TensorSpec},
 };
 
 cuda_module! {
@@ -36,7 +38,7 @@ cuda_module! {
     }
 }
 
-fn run() -> Result<()> {
+fn run() -> anyhow::Result<()> {
     let context = common::ExampleContext::create()?;
 
     let batch = 1_i64;
@@ -75,24 +77,25 @@ fn run() -> Result<()> {
     )?;
 
     let compiled = graph
+        .prepare(Some(&context.cudnn))?
         .plan_candidates(
             Some(&context.cudnn),
             &CompileConfig::from_heuristic_modes([HeuristicMode::A]),
         )?
         .filter(
             &EngineConfigFilter::new()
-                .with_included_behavior_notes(&[BackendBehaviorNote::SupportsCudaGraphNativeApi]),
+                .with_included_behavior_notes([BackendBehaviorNote::SupportsCudaGraphNativeApi]),
         )
         .compile(Some(&context.cudnn), &CompileConfig::new())?;
 
-    let element_count = (batch * rows * cols) as usize;
+    let element_count = usize::try_from(batch * rows * cols)?;
     let mut a_dev = DeviceMemory::from_slice(
         context.cudnn.cuda_context(),
-        &vec![1.0_f32; (batch * rows * depth) as usize],
+        &vec![1.0_f32; usize::try_from(batch * rows * depth)?],
     )?;
     let mut b_dev = DeviceMemory::from_slice(
         context.cudnn.cuda_context(),
-        &vec![1.0_f32; (batch * depth * cols) as usize],
+        &vec![1.0_f32; usize::try_from(batch * depth * cols)?],
     )?;
     let mut c_dev = DeviceMemory::<f32>::zeroed(context.cudnn.cuda_context(), element_count)?;
     let mut workspace = common::workspace(context.cudnn.cuda_context(), compiled.workspace_size())?;
@@ -107,7 +110,7 @@ fn run() -> Result<()> {
     let cudnn_node = match unsafe {
         compiled.append_to_cuda_graph(
             &context.cudnn,
-            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
             &mut main_graph,
             &[],
         )
@@ -118,7 +121,7 @@ fn run() -> Result<()> {
         {
             return Ok(());
         }
-        Err(error) => return Err(error),
+        Err(error) => return Err(error.into()),
     };
 
     let module = postprocess_kernel::Module::create(context.cudnn.cuda_context())?;
@@ -129,25 +132,25 @@ fn run() -> Result<()> {
     let kernel_node = unsafe {
         module.affine_node(
             &mut main_graph,
-            &[cudnn_node.clone()],
+            slice::from_ref(&cudnn_node),
             &launch,
             &mut c_dev,
-            element_count as i32,
+            i32::try_from(element_count)?,
             scale,
             bias,
         )?
     };
 
-    let mut executable = main_graph.instantiate()?;
+    let mut executable = main_graph.instantiate(GraphInstantiateFlags::empty())?;
     // SAFETY: the example keeps these buffers alive and synchronizes before reading the results.
     unsafe {
-        executable.launch(&context.stream)?;
+        executable.launch_async(&context.stream)?;
     }
 
     context.stream.synchronize()?;
 
     let output = c_dev.copy_to_host_vec()?;
-    let expected = depth as f32 * scale + bias;
+    let expected = (depth as f32).mul_add(scale, bias);
     assert!(
         output
             .iter()
@@ -158,11 +161,11 @@ fn run() -> Result<()> {
     let bias_new = 2.0_f32;
     let mut a_dev_new = DeviceMemory::from_slice(
         context.cudnn.cuda_context(),
-        &vec![2.0_f32; (batch * rows * depth) as usize],
+        &vec![2.0_f32; usize::try_from(batch * rows * depth)?],
     )?;
     let mut b_dev_new = DeviceMemory::from_slice(
         context.cudnn.cuda_context(),
-        &vec![1.5_f32; (batch * depth * cols) as usize],
+        &vec![1.5_f32; usize::try_from(batch * depth * cols)?],
     )?;
     let mut c_dev_new = DeviceMemory::<f32>::zeroed(context.cudnn.cuda_context(), element_count)?;
     let mut workspace_new =
@@ -177,7 +180,8 @@ fn run() -> Result<()> {
     unsafe {
         compiled.update_cuda_graph_node(
             &context.cudnn,
-            ExecuteArgs::new(&bindings_new).with_workspace(&mut workspace_new),
+            ExecuteArgs::new(&bindings_new).with_workspace(workspace_new.output()),
+            &mut main_graph,
             &cudnn_node,
             Some(&mut executable),
         )
@@ -189,7 +193,7 @@ fn run() -> Result<()> {
             &kernel_node,
             launch.geometry(),
             &mut c_dev_new,
-            element_count as i32,
+            i32::try_from(element_count)?,
             scale_new,
             bias_new,
         )?;
@@ -197,13 +201,13 @@ fn run() -> Result<()> {
 
     // SAFETY: the example keeps these buffers alive and synchronizes before reading the results.
     unsafe {
-        executable.launch(&context.stream)?;
+        executable.launch_async(&context.stream)?;
     }
 
     context.stream.synchronize()?;
 
     let output_new = c_dev_new.copy_to_host_vec()?;
-    let expected_new = (depth as f32 * 2.0_f32 * 1.5_f32) * scale_new + bias_new;
+    let expected_new = (depth as f32 * 2.0_f32 * 1.5_f32).mul_add(scale_new, bias_new);
     assert!(
         output_new
             .iter()
@@ -213,6 +217,6 @@ fn run() -> Result<()> {
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_custom_kernel_graph", run())
 }

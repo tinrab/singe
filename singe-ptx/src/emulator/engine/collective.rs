@@ -12,7 +12,7 @@ use crate::{
 };
 
 impl Engine {
-    pub fn execute_collective(
+    pub(crate) fn execute_collective(
         &mut self,
         global: &Memory,
         lane: usize,

@@ -1,14 +1,14 @@
 use crate::{
-    backend::tensor::Shape,
+    backend::operation::normalization::NormalizationSavedStatistics,
     error::Result,
     frontend::{
         graph::{Graph, TensorOutputConfig, infer_normalization_channel_dimensions},
         operation::{
             BatchNormalizationBackwardConfig, BatchNormalizationBackwardInputs,
-            BatchNormalizationBackwardOutputs, NormalizationOperation,
-            NormalizationSavedStatistics, Operation,
+            BatchNormalizationBackwardOutputs, NormalizationOperation, Operation,
         },
     },
+    tensor::Shape,
 };
 
 impl Graph {
@@ -63,7 +63,7 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for unknown tensor identities, input rank below two, mismatched input/output-gradient dimensions, or saved-statistic, scale, or affine-gradient dimensions that differ from the per-channel shape.
+    /// Returns an error if a tensor identity is unknown, the input rank is below two, input and output-gradient dimensions mismatch, or saved-statistic, scale, or affine-gradient dimensions differ from the per-channel shape.
     pub fn batch_normalization_backward_into(
         &mut self,
         inputs: BatchNormalizationBackwardInputs,
@@ -87,7 +87,7 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for unknown tensor identities, input rank below two, mismatched input/output-gradient dimensions, or saved-statistic, scale, or affine-gradient dimensions that differ from the per-channel shape.
+    /// Returns an error if a tensor identity is unknown, the input rank is below two, input and output-gradient dimensions mismatch, or saved-statistic, scale, or affine-gradient dimensions differ from the per-channel shape.
     /// Inferred output strides must also be representable.
     pub fn batch_normalization_backward(
         &mut self,

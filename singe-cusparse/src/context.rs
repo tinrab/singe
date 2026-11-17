@@ -1,17 +1,66 @@
-use std::{mem, ptr, sync::Arc};
+use std::{convert::Infallible, sync::Arc};
 
 use singe_cuda::{
     context::Context as CudaContext,
-    stream::{BorrowedStream, Stream, StreamBinding},
-    view::DeviceRepr,
+    handle::{CreateHandle, Handle, NativeHandle, RawHandle, StreamHandle},
+    stream::{Stream, StreamBinding},
+    sys::runtime,
+    view::{DeviceRegion, DeviceRepr},
 };
 
 use crate::{
     error::{Error, Result},
-    scalar::{Scalar, ScalarMut},
+    scalar::Scalar,
     sys, try_ffi,
     types::PointerMode,
 };
+
+/// Marker type for the native cuSPARSE handle owned by [`Context`].
+#[derive(Debug)]
+pub struct CusparseHandle(Infallible);
+
+// SAFETY: cuSPARSE handles may be used and destroyed from any thread, one call at a time.
+unsafe impl NativeHandle for CusparseHandle {
+    type Raw = sys::cusparseHandle_t;
+
+    type State = ();
+
+    type Error = Error;
+
+    const OBJECT: &'static str = "cusparse context";
+
+    fn null_handle() -> Error {
+        Error::NullHandle
+    }
+
+    fn is_null(raw: Self::Raw) -> bool {
+        raw.is_null()
+    }
+
+    unsafe fn destroy(raw: Self::Raw, (): ()) -> Result<()> {
+        // SAFETY: the caller passes a live, uniquely owned handle with its context bound.
+        unsafe { try_ffi!(sys::cusparseDestroy(raw)) }
+    }
+}
+
+// SAFETY: `cusparseCreate` binds to the current context.
+unsafe impl CreateHandle for CusparseHandle {
+    unsafe fn create(raw: *mut Self::Raw) -> Result<()> {
+        // SAFETY: the caller provides a writable output location and binds the context.
+        unsafe { try_ffi!(sys::cusparseCreate(raw)) }
+    }
+}
+
+// SAFETY: `cusparseSetStream` only installs the stream; `Handle` retains it.
+unsafe impl StreamHandle for CusparseHandle {
+    unsafe fn set_stream(raw: Self::Raw, stream: runtime::cudaStream_t) -> Result<()> {
+        // SAFETY: the caller passes a live handle and a live stream of its bound context.
+        unsafe { try_ffi!(sys::cusparseSetStream(raw, stream)) }
+    }
+}
+
+/// Raw ownership of a cuSPARSE handle, its CUDA context, and its installed stream.
+pub type RawContext = RawHandle<CusparseHandle>;
 
 /// A stateful cuSPARSE handle.
 ///
@@ -19,117 +68,41 @@ use crate::{
 /// The handle is movable between threads, but it is intentionally not `Clone` or `Sync`.
 #[derive(Debug)]
 pub struct Context {
-    handle: Handle,
+    handle: Handle<CusparseHandle>,
 }
-
-#[derive(Debug)]
-struct Handle {
-    raw: sys::cusparseHandle_t,
-    streams: Vec<Stream>,
-    cuda_context: Arc<CudaContext>,
-}
-
-/// A transferred native handle, its actual CUDA context, and retained stream owners.
-/// Destroy the handle before releasing these owners, or re-adopt the complete value.
-#[derive(Debug)]
-pub struct RawContext {
-    /// Native cuSPARSE handle whose ownership accompanies these retained resources.
-    pub handle: sys::cusparseHandle_t,
-    /// Actual CUDA context required for native handle operations and destruction.
-    pub cuda_context: Arc<CudaContext>,
-    /// Stream owners retained while the native handle may reference them.
-    pub streams: Vec<Stream>,
-}
-
-// SAFETY: cuSPARSE handles carry mutable pointer-mode and stream state. Ownership can
-// move between threads, but the wrapper requires exclusive access for mutation.
-unsafe impl Send for Handle {}
 
 impl Context {
-    /// Initializes the cuSPARSE library and creates a cuSPARSE handle.
-    /// The handle must be created before using other cuSPARSE operations through this wrapper.
-    /// It allocates hardware resources needed to access the GPU.
+    /// Initializes the cuSPARSE library and creates a cuSPARSE handle on the legacy default stream.
     ///
     /// # Errors
     ///
     /// Returns an error if the CUDA context cannot be bound, if cuSPARSE cannot create a handle, or if cuSPARSE returns a null handle.
     pub fn create(cuda_context: &Arc<CudaContext>) -> Result<Self> {
-        cuda_context.bind()?;
-
-        let mut handle = ptr::null_mut();
-        // SAFETY: `cusparseCreate` receives valid output locations.
-        unsafe {
-            try_ffi!(sys::cusparseCreate(&raw mut handle))?;
-        }
-
-        if handle.is_null() {
-            return Err(Error::NullHandle);
-        }
-
         Ok(Self {
-            handle: Handle {
-                raw: handle,
-                streams: Vec::new(),
-                cuda_context: Arc::clone(cuda_context),
-            },
+            handle: Handle::create(cuda_context)?,
         })
     }
 
-    /// Wraps an existing cuSPARSE handle and takes ownership of it.
+    /// Adopts a cuSPARSE handle with its CUDA context and installed stream.
     ///
     /// # Safety
     ///
-    /// `parts.handle` must be a uniquely owned cuSPARSE handle associated with `parts.cuda_context`.
-    /// Include every nondefault stream used by outstanding work, including the currently selected stream, in `parts.streams`.
-    /// Complete outstanding uses before transferring ownership to a different execution protocol.
-    /// No other owner may destroy the transferred handle.
+    /// `raw.handle` must be a uniquely owned cuSPARSE handle created in `raw.cuda_context`, with `raw.stream` installed on it.
     ///
     /// # Errors
     ///
-    /// Returns an error if the handle is null, retained streams belong to another CUDA context, or a nondefault native stream lacks a matching retained stream owner.
-    /// Also propagates CUDA context-binding and native stream-query errors.
-    pub unsafe fn from_raw(parts: RawContext) -> Result<Self> {
-        if parts.handle.is_null() {
-            return Err(Error::NullHandle);
-        }
-
-        let context = Self {
-            handle: Handle {
-                raw: parts.handle,
-                cuda_context: parts.cuda_context,
-                streams: parts.streams,
-            },
-        };
-        for stream in &context.handle.streams {
-            context.ensure_stream(stream)?;
-        }
-
-        context.bind()?;
-        let mut native_stream = ptr::null_mut();
-        // SAFETY: `cusparseGetStream` receives live handles owned by the wrappers and valid output locations.
-        unsafe {
-            try_ffi!(sys::cusparseGetStream(
-                context.as_raw(),
-                &raw mut native_stream
-            ))?;
-        }
-
-        if !native_stream.is_null()
-            && !context
-                .handle
-                .streams
-                .iter()
-                .any(|stream| stream.as_raw() == native_stream)
-        {
-            return Err(Error::StreamContextMismatch);
-        }
-        Ok(context)
+    /// Returns an error if the handle is null or the stream belongs to another CUDA context.
+    pub unsafe fn from_raw(raw: RawContext) -> Result<Self> {
+        Ok(Self {
+            // SAFETY: the caller guarantees `raw` holds a uniquely owned cuSPARSE handle created in its CUDA context with its stream installed.
+            handle: unsafe { Handle::from_raw(raw)? },
+        })
     }
 
     /// Returns the underlying CUDA context used by this cuSPARSE handle.
     #[must_use]
     pub fn cuda_context(&self) -> &Arc<CudaContext> {
-        &self.handle.cuda_context
+        self.handle.cuda_context()
     }
 
     /// Binds the underlying CUDA context associated with this handle.
@@ -138,88 +111,56 @@ impl Context {
     ///
     /// Returns an error if the CUDA context cannot be bound.
     pub fn bind(&self) -> Result<()> {
-        Ok(self.cuda_context().bind()?)
+        self.handle.bind()
     }
 
-    /// Ensures `stream` belongs to the same CUDA context as this handle.
-    ///
-    /// Returns an error if the stream belongs to a different context.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the stream belongs to another CUDA context or binding this context fails.
-    pub fn ensure_stream(&self, stream: &Stream) -> Result<()> {
-        if self.cuda_context() != stream.context() {
-            return Err(Error::StreamContextMismatch);
-        }
-
-        self.bind()
+    /// Returns the stream installed on this handle, or `None` for the legacy default stream.
+    #[must_use]
+    pub fn stream(&self) -> Option<&Stream> {
+        self.handle.stream()
     }
 
-    /// Returns the stream used for cuSPARSE operations on this handle.
-    /// If no explicit stream has been set, cuSPARSE uses the CUDA default stream.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the CUDA context cannot be bound or if cuSPARSE cannot report the current stream.
-    pub fn stream(&self) -> Result<StreamBinding> {
-        self.bind()?;
-
-        let mut stream = ptr::null_mut();
-        // SAFETY: `cusparseGetStream` receives live handles owned by the wrappers and valid output locations.
-        unsafe {
-            try_ffi!(sys::cusparseGetStream(self.as_raw(), &raw mut stream))?;
-        }
-
-        if let Some(owner) = self
-            .handle
-            .streams
-            .iter()
-            .find(|owner| owner.as_raw() == stream)
-        {
-            return Ok(StreamBinding::Borrowed(owner.to_borrowed()));
-        }
-        Ok(if stream.is_null() {
-            StreamBinding::Default(Arc::clone(self.cuda_context()))
-        } else {
-            // SAFETY: the library reports the stream bound to this handle, which the handle keeps alive.
-            StreamBinding::Borrowed(unsafe {
-                BorrowedStream::from_raw(stream, Arc::clone(self.cuda_context()))
-            })
-        })
+    /// Returns the stream this handle's operations run on.
+    #[must_use]
+    pub fn stream_binding(&self) -> StreamBinding {
+        self.handle.stream_binding()
     }
 
-    /// Sets the stream used by cuSPARSE operations on this handle.
-    /// Previous stream owners remain retained until this context is dropped, including when native stream selection returns an error.
+    /// Installs `stream` for cuSPARSE operations on this handle and retains it, or the legacy default stream for `None`.
+    ///
+    /// On an error the handle keeps its previous stream.
     ///
     /// # Errors
     ///
     /// Returns an error if `stream` belongs to another CUDA context, if the CUDA context cannot be bound, or if cuSPARSE rejects the stream.
     pub fn set_stream(&mut self, stream: Option<&Stream>) -> Result<()> {
-        if let Some(stream) = stream {
-            self.ensure_stream(stream)?;
-        } else {
-            self.bind()?;
-        }
+        self.handle.set_stream(stream)
+    }
 
-        if let Some(stream) = stream
-            && !self
-                .handle
-                .streams
-                .iter()
-                .any(|owner| owner.as_raw() == stream.as_raw())
-        {
-            self.handle.streams.push(stream.clone());
-        }
+    /// Runs `f`, then waits for this handle's stream, even when `f` fails.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the stream is capturing, `f` fails, or the wait fails.
+    pub fn sync_scope<R>(&self, f: impl FnOnce() -> Result<R>) -> Result<R> {
+        self.handle.sync_scope(f)
+    }
 
-        // SAFETY: `cusparseSetStream` receives live handles owned by the wrappers.
-        unsafe {
-            try_ffi!(sys::cusparseSetStream(
-                self.as_raw(),
-                stream.map_or_else(ptr::null_mut, Stream::as_raw),
-            ))?;
-        }
-        Ok(())
+    /// Orders later work on this handle's stream after the producers of these regions.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if a region belongs to another CUDA context or the dependencies cannot be enqueued.
+    pub fn prepare_regions(&self, regions: &[DeviceRegion<'_>]) -> Result<()> {
+        self.handle.prepare_regions(regions)
+    }
+
+    pub(crate) fn prepare_operands(&self, operands: &[&[Option<DeviceRegion<'_>>]]) -> Result<()> {
+        let regions: Vec<DeviceRegion<'_>> = operands
+            .iter()
+            .flat_map(|regions| regions.iter().flatten().copied())
+            .collect();
+        self.prepare_regions(&regions)
     }
 
     /// Returns the context-global scalar pointer mode used by cuSPARSE operations on this handle.
@@ -232,11 +173,11 @@ impl Context {
         self.bind()?;
 
         let mut mode = sys::cusparsePointerMode_t::CUSPARSE_POINTER_MODE_HOST;
-        // SAFETY: `cusparseGetPointerMode` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `self` owns the live handle, its context is bound above, and `mode` is a writable local.
         unsafe {
             try_ffi!(sys::cusparseGetPointerMode(self.as_raw(), &raw mut mode))?;
         }
-        Ok(mode.into())
+        Ok(mode.try_into()?)
     }
 
     /// Sets the context-global scalar pointer mode used by cuSPARSE operations on this handle.
@@ -248,7 +189,7 @@ impl Context {
     /// Returns an error if the CUDA context cannot be bound or if cuSPARSE rejects the pointer mode.
     pub fn set_scalar_pointer_mode(&mut self, mode: PointerMode) -> Result<()> {
         self.bind()?;
-        // SAFETY: `cusparseSetPointerMode` receives live handles owned by the wrappers.
+        // SAFETY: `self` owns the live handle, its context is bound above, and `&mut self` excludes concurrent use of it.
         unsafe {
             try_ffi!(sys::cusparseSetPointerMode(self.as_raw(), mode.into()))?;
         }
@@ -280,66 +221,19 @@ impl Context {
         Ok(())
     }
 
-    pub(crate) fn require_output_scalar_pointer_mode<T: DeviceRepr>(
-        &self,
-        result: &ScalarMut<'_, T>,
-    ) -> Result<()> {
-        result.validate_context(self.cuda_context())?;
-        if self.scalar_pointer_mode()? != result.pointer_mode() {
-            // SAFETY: raw operations serialize this non-Sync handle and select the result's ABI.
-            unsafe {
-                try_ffi!(sys::cusparseSetPointerMode(
-                    self.as_raw(),
-                    result.pointer_mode().into()
-                ))?;
-            }
-        }
-        Ok(())
-    }
-
     /// Returns the raw cuSPARSE handle.
     ///
     /// The returned handle is borrowed and remains valid only while this context and its underlying CUDA context are alive.
     #[must_use]
     pub fn as_raw(&self) -> sys::cusparseHandle_t {
-        self.handle.raw
+        self.handle.as_raw()
     }
 
-    /// Consumes the context and returns the raw cuSPARSE handle without destroying it.
+    /// Consumes the context and returns the raw cuSPARSE handle, its CUDA context, and its stream without destroying the handle.
     ///
-    /// Destroy the transferred handle before releasing its context and retained stream owners, or re-adopt the complete [`RawContext`].
+    /// Destroy the transferred handle before releasing its context and stream, or re-adopt the complete [`RawContext`].
     #[must_use]
-    pub fn into_raw(mut self) -> RawContext {
-        RawContext {
-            handle: mem::replace(&mut self.handle.raw, ptr::null_mut()),
-            cuda_context: Arc::clone(&self.handle.cuda_context),
-            streams: mem::take(&mut self.handle.streams),
-        }
-    }
-}
-
-impl Drop for Handle {
-    fn drop(&mut self) {
-        if self.raw.is_null() {
-            return;
-        }
-
-        if let Err(error) = self.cuda_context.bind() {
-            eprintln!(
-                "failed to bind cuda context before destroying cusparse handle: {}",
-                singe_core::ErrorChain(&error)
-            );
-            return;
-        }
-
-        // SAFETY: `cusparseDestroy` receives live handles owned by the wrappers.
-        unsafe {
-            if let Err(error) = try_ffi!(sys::cusparseDestroy(self.raw)) {
-                eprintln!(
-                    "failed to destroy cusparse context: {}",
-                    singe_core::ErrorChain(&error)
-                );
-            }
-        }
+    pub fn into_raw(self) -> RawContext {
+        self.handle.into_raw()
     }
 }

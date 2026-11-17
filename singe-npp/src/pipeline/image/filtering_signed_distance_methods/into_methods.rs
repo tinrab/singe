@@ -17,10 +17,9 @@ where
     /// Horizontal and vertical subpixel offsets shift the final distances; fully covered pixel centers are at `(0.5, 0.5)`.
     /// For `f32` output, converts the `f64` offsets to native `f32`; implementations with `f64` output retain `f64` offsets.
     /// Allocates temporary device scratch and retains it through native completion.
-    /// NPP requires width and height in `64..=32767`; the wrapper checks positive dimensions but does not enforce that native range.
+    /// The wrapper rejects a width or height outside NPP's `64..=32767` range.
     /// Requests only the Euclidean distance image; optional Manhattan and Voronoi outputs are disabled.
     /// Source and destination dimensions must match.
-    /// NPP receives a mutable source pointer; source storage must be exclusively available during native use.
     /// Prepares image regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
     /// Writes every logical output sample; row padding remains unwritten.
     ///
@@ -59,11 +58,10 @@ where
     /// Horizontal and vertical subpixel offsets shift the final distances; fully covered pixel centers are at `(0.5, 0.5)`.
     /// For `f32` output, converts the `f64` offsets to native `f32`; implementations with `f64` output retain `f64` offsets.
     /// Allocates temporary device scratch and retains it through native completion.
-    /// NPP requires width and height in `64..=32767`; the wrapper checks positive dimensions but does not enforce that native range.
+    /// The wrapper rejects a width or height outside NPP's `64..=32767` range.
     /// Uses the native absolute-Manhattan variant, but requests only the Euclidean distance image.
     /// The optional Manhattan and Voronoi outputs are disabled.
     /// Source and destination dimensions must match.
-    /// NPP receives a mutable source pointer; source storage must be exclusively available during native use.
     /// Prepares image regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
     /// Writes every logical output sample; row padding remains unwritten.
     ///

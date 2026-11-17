@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::backend::tensor::TensorId;
+use crate::tensor::TensorId;
 
 /// Diagonal used when comparing query and key positions.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -112,60 +112,4 @@ pub enum AttentionMaskMode {
     DiagonalBand(AttentionDiagonalBand),
     /// Uses the supplied block-mask tensor identity.
     Block(TensorId),
-}
-
-/// Fused attention causal-mask selection with sequence operands for bottom-right alignment.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[non_exhaustive]
-pub enum SdpaFusedMaskMode {
-    /// No fused causal mask.
-    #[default]
-    None,
-    /// Retains keys at or before the query position with sequence starts aligned.
-    CausalTopLeft,
-    /// Retains keys at or before the query diagonal with sequence ends aligned per batch.
-    CausalBottomRight {
-        /// Query sequence-length tensor identity used for the per-batch diagonal shift.
-        sequence_length_query: TensorId,
-        /// Key/value sequence-length tensor identity used for the per-batch diagonal shift.
-        sequence_length_key_value: TensorId,
-    },
-}
-
-impl SdpaFusedMaskMode {
-    /// Returns whether the fused mask uses top-left causal alignment.
-    #[must_use]
-    pub fn is_causal_top_left(self) -> bool {
-        matches!(self, Self::CausalTopLeft)
-    }
-
-    /// Returns whether the fused mask uses bottom-right causal alignment.
-    #[must_use]
-    pub fn is_causal_bottom_right(self) -> bool {
-        matches!(self, Self::CausalBottomRight { .. })
-    }
-
-    /// Returns the query-length identity for bottom-right masking, or `None` for another mode.
-    #[must_use]
-    pub fn sequence_length_query(self) -> Option<TensorId> {
-        match self {
-            Self::CausalBottomRight {
-                sequence_length_query,
-                ..
-            } => Some(sequence_length_query),
-            _ => None,
-        }
-    }
-
-    /// Returns the key/value-length identity for bottom-right masking, or `None` for another mode.
-    #[must_use]
-    pub fn sequence_length_key_value(self) -> Option<TensorId> {
-        match self {
-            Self::CausalBottomRight {
-                sequence_length_key_value,
-                ..
-            } => Some(sequence_length_key_value),
-            _ => None,
-        }
-    }
 }

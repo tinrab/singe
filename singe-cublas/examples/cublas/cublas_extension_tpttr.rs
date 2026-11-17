@@ -1,8 +1,7 @@
-use singe_cublas::{blas::level3::dtpttr, context::Context, error::Result, types::FillMode};
-
+use singe_cublas::{blas::level3::tpttr, context::Context, types::FillMode};
 use singe_cuda::{context::Context as CudaContext, device::Device, memory::DeviceMemory};
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     let cuda = CudaContext::create_for_device(Device::new(0))?;
     let cublas = Context::create(&cuda)?;
 
@@ -10,7 +9,7 @@ fn main() -> Result<()> {
     let ap = DeviceMemory::from_slice(&cuda, &[1.0_f64, 3.0, 2.0])?;
     let mut a = DeviceMemory::from_slice(&cuda, &[0.0_f64, 0.0, 0.0, 0.0])?;
 
-    dtpttr(&cublas, FillMode::Upper, 2, &ap, &mut a, 2)?;
+    tpttr(&cublas, FillMode::Upper, 2, &ap, &mut a, 2)?;
 
     let result = a.copy_to_host_vec()?;
     assert_eq!(result, vec![1.0, 0.0, 3.0, 2.0]);

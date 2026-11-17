@@ -116,291 +116,247 @@ pub struct Npp16f_2 {
     /// Original CUDA fp16 data size and format.
     pub fp16_1: ::core::ffi::c_short,
 }
-/// Filtering methods.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum NppiInterpolationMode {
+impl NppiInterpolationMode {
     /// Undefined filtering interpolation mode.
-    NPPI_INTER_UNDEFINED = 0,
+    pub const NPPI_INTER_UNDEFINED: NppiInterpolationMode = NppiInterpolationMode(0);
     /// Nearest neighbor filtering.
-    NPPI_INTER_NN = 1,
+    pub const NPPI_INTER_NN: NppiInterpolationMode = NppiInterpolationMode(1);
     /// Linear interpolation.
-    NPPI_INTER_LINEAR = 2,
+    pub const NPPI_INTER_LINEAR: NppiInterpolationMode = NppiInterpolationMode(2);
     /// Cubic interpolation.
-    NPPI_INTER_CUBIC = 4,
+    pub const NPPI_INTER_CUBIC: NppiInterpolationMode = NppiInterpolationMode(4);
     /// Two-parameter cubic filter (B=1, C=0).
-    NPPI_INTER_CUBIC2P_BSPLINE = 5,
+    pub const NPPI_INTER_CUBIC2P_BSPLINE: NppiInterpolationMode = NppiInterpolationMode(
+        5,
+    );
     /// Two-parameter cubic filter (B=0, C=1/2).
-    NPPI_INTER_CUBIC2P_CATMULLROM = 6,
+    pub const NPPI_INTER_CUBIC2P_CATMULLROM: NppiInterpolationMode = NppiInterpolationMode(
+        6,
+    );
     /// Two-parameter cubic filter (B=1/2, C=3/10).
-    NPPI_INTER_CUBIC2P_B05C03 = 7,
+    pub const NPPI_INTER_CUBIC2P_B05C03: NppiInterpolationMode = NppiInterpolationMode(
+        7,
+    );
     /// Super sampling.
-    NPPI_INTER_SUPER = 8,
+    pub const NPPI_INTER_SUPER: NppiInterpolationMode = NppiInterpolationMode(8);
     /// Lanczos filtering.
-    NPPI_INTER_LANCZOS = 16,
+    pub const NPPI_INTER_LANCZOS: NppiInterpolationMode = NppiInterpolationMode(16);
     /// Generic Lanczos filtering with order 3.
-    NPPI_INTER_LANCZOS3_ADVANCED = 17,
+    pub const NPPI_INTER_LANCZOS3_ADVANCED: NppiInterpolationMode = NppiInterpolationMode(
+        17,
+    );
     /// Smooth edge filtering.
-    NPPI_SMOOTH_EDGE = 134217728,
+    pub const NPPI_SMOOTH_EDGE: NppiInterpolationMode = NppiInterpolationMode(134217728);
+}
+/// Filtering methods.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct NppiInterpolationMode(pub ::core::ffi::c_uint);
+impl NppiBayerGridPosition {
+    /// Default registration position BGGR.
+    pub const NPPI_BAYER_BGGR: NppiBayerGridPosition = NppiBayerGridPosition(0);
+    /// Registration position RGGB.
+    pub const NPPI_BAYER_RGGB: NppiBayerGridPosition = NppiBayerGridPosition(1);
+    /// Registration position GBRG.
+    pub const NPPI_BAYER_GBRG: NppiBayerGridPosition = NppiBayerGridPosition(2);
+    /// Registration position GRBG.
+    pub const NPPI_BAYER_GRBG: NppiBayerGridPosition = NppiBayerGridPosition(3);
 }
 /// Bayer Grid Position Registration.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum NppiBayerGridPosition {
-    /// Default registration position BGGR.
-    NPPI_BAYER_BGGR = 0,
-    /// Registration position RGGB.
-    NPPI_BAYER_RGGB = 1,
-    /// Registration position GBRG.
-    NPPI_BAYER_GBRG = 2,
-    /// Registration position GRBG.
-    NPPI_BAYER_GRBG = 3,
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct NppiBayerGridPosition(pub ::core::ffi::c_uint);
+impl NppiMaskSize {
+    /// 1 X 3 filter mask size.
+    pub const NPP_MASK_SIZE_1_X_3: NppiMaskSize = NppiMaskSize(0);
+    /// 1 X 5 filter mask size.
+    pub const NPP_MASK_SIZE_1_X_5: NppiMaskSize = NppiMaskSize(1);
+    /// 3 X 1 filter mask size, leaving space for more 1 X N type enum values.
+    pub const NPP_MASK_SIZE_3_X_1: NppiMaskSize = NppiMaskSize(100);
+    /// 5 X 1 filter mask size.
+    pub const NPP_MASK_SIZE_5_X_1: NppiMaskSize = NppiMaskSize(101);
+    /// 3 X 3 filter mask size, leaving space for more N X 1 type enum values.
+    pub const NPP_MASK_SIZE_3_X_3: NppiMaskSize = NppiMaskSize(200);
+    /// 5 X 5 filter mask size.
+    pub const NPP_MASK_SIZE_5_X_5: NppiMaskSize = NppiMaskSize(201);
+    /// 7 X 7 filter mask size.
+    pub const NPP_MASK_SIZE_7_X_7: NppiMaskSize = NppiMaskSize(400);
+    /// 9 X 9 filter mask size.
+    pub const NPP_MASK_SIZE_9_X_9: NppiMaskSize = NppiMaskSize(500);
+    /// 11 X 11 filter mask size.
+    pub const NPP_MASK_SIZE_11_X_11: NppiMaskSize = NppiMaskSize(600);
+    /// 13 X 13 filter mask size.
+    pub const NPP_MASK_SIZE_13_X_13: NppiMaskSize = NppiMaskSize(700);
+    /// 15 X 15 filter mask size.
+    pub const NPP_MASK_SIZE_15_X_15: NppiMaskSize = NppiMaskSize(800);
 }
 /// Fixed filter-kernel sizes.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum NppiMaskSize {
-    /// 1 X 3 filter mask size.
-    NPP_MASK_SIZE_1_X_3 = 0,
-    /// 1 X 5 filter mask size.
-    NPP_MASK_SIZE_1_X_5 = 1,
-    /// 3 X 1 filter mask size, leaving space for more 1 X N type enum values.
-    NPP_MASK_SIZE_3_X_1 = 100,
-    /// 5 X 1 filter mask size.
-    NPP_MASK_SIZE_5_X_1 = 101,
-    /// 3 X 3 filter mask size, leaving space for more N X 1 type enum values.
-    NPP_MASK_SIZE_3_X_3 = 200,
-    /// 5 X 5 filter mask size.
-    NPP_MASK_SIZE_5_X_5 = 201,
-    /// 7 X 7 filter mask size.
-    NPP_MASK_SIZE_7_X_7 = 400,
-    /// 9 X 9 filter mask size.
-    NPP_MASK_SIZE_9_X_9 = 500,
-    /// 11 X 11 filter mask size.
-    NPP_MASK_SIZE_11_X_11 = 600,
-    /// 13 X 13 filter mask size.
-    NPP_MASK_SIZE_13_X_13 = 700,
-    /// 15 X 15 filter mask size.
-    NPP_MASK_SIZE_15_X_15 = 800,
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct NppiMaskSize(pub ::core::ffi::c_uint);
+impl NppiDifferentialKernel {
+    /// Differential kernel filter type sobel.
+    pub const NPP_FILTER_SOBEL: NppiDifferentialKernel = NppiDifferentialKernel(0);
+    /// Differential kernel filter type scharr.
+    pub const NPP_FILTER_SCHARR: NppiDifferentialKernel = NppiDifferentialKernel(1);
 }
 /// Differential Filter types.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum NppiDifferentialKernel {
-    /// Differential kernel filter type sobel.
-    NPP_FILTER_SOBEL = 0,
-    /// Differential kernel filter type scharr.
-    NPP_FILTER_SCHARR = 1,
-}
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct NppiDifferentialKernel(pub ::core::ffi::c_uint);
 impl NppStatus {
+    /// Application and NPP library version mismatch.
+    pub const NPP_LIBRARY_VERSION_MISMATCH_ERROR: NppStatus = NppStatus(-9998);
+    /// Invalid host memory pointer error.
+    pub const NPP_INVALID_HOST_POINTER_ERROR: NppStatus = NppStatus(-1032);
+    /// Invalid device memory pointer error.
+    pub const NPP_INVALID_DEVICE_POINTER_ERROR: NppStatus = NppStatus(-1031);
+    /// Color look up table bitsize error.
+    pub const NPP_LUT_PALETTE_BITSIZE_ERROR: NppStatus = NppStatus(-1030);
+    /// ZeroCrossing mode not supported error.
+    pub const NPP_ZC_MODE_NOT_SUPPORTED_ERROR: NppStatus = NppStatus(-1028);
+    /// Not sufficient CUDA compute capability error.
+    pub const NPP_NOT_SUFFICIENT_COMPUTE_CAPABILITY: NppStatus = NppStatus(-1027);
+    /// Texture bind error.
+    pub const NPP_TEXTURE_BIND_ERROR: NppStatus = NppStatus(-1024);
+    /// Wrong intersection region of interest error.
+    pub const NPP_WRONG_INTERSECTION_ROI_ERROR: NppStatus = NppStatus(-1020);
+    /// Haar classifier pixel match error.
+    pub const NPP_HAAR_CLASSIFIER_PIXEL_MATCH_ERROR: NppStatus = NppStatus(-1006);
+    /// Memory free request error.
+    pub const NPP_MEMFREE_ERROR: NppStatus = NppStatus(-1005);
+    /// Memory set request error.
+    pub const NPP_MEMSET_ERROR: NppStatus = NppStatus(-1004);
+    /// Memory copy request error.
+    pub const NPP_MEMCPY_ERROR: NppStatus = NppStatus(-1003);
+    /// Memory alignment error.
+    pub const NPP_ALIGNMENT_ERROR: NppStatus = NppStatus(-1002);
+    /// CUDA kernel execution error, most commonly CUDA kernel launch error.
+    pub const NPP_CUDA_KERNEL_EXECUTION_ERROR: NppStatus = NppStatus(-1000);
+    /// Non CTX function support has been deprecated.
+    #[deprecated]
+    pub const NPP_STREAM_CTX_ERROR: NppStatus = NppStatus(-215);
+    /// Unsupported round mode.
+    pub const NPP_ROUND_MODE_NOT_SUPPORTED_ERROR: NppStatus = NppStatus(-213);
+    /// Image pixels are constant for quality index.
+    pub const NPP_QUALITY_INDEX_ERROR: NppStatus = NppStatus(-210);
+    /// One of the output image dimensions is less than 1 pixel.
+    pub const NPP_RESIZE_NO_OPERATION_ERROR: NppStatus = NppStatus(-201);
+    /// Number overflows the upper or lower limit of the data type.
+    pub const NPP_OVERFLOW_ERROR: NppStatus = NppStatus(-109);
+    /// Step value is not pixel multiple.
+    pub const NPP_NOT_EVEN_STEP_ERROR: NppStatus = NppStatus(-108);
+    /// Number of levels for histogram is less than 2.
+    pub const NPP_HISTOGRAM_NUMBER_OF_LEVELS_ERROR: NppStatus = NppStatus(-107);
+    /// Number of levels for LUT is less than 2.
+    pub const NPP_LUT_NUMBER_OF_LEVELS_ERROR: NppStatus = NppStatus(-106);
+    /// All values of the mask are zero.
+    pub const NPP_ZERO_MASK_VALUE_ERROR: NppStatus = NppStatus(-62);
+    /// Processed data is corrupted.
+    pub const NPP_CORRUPTED_DATA_ERROR: NppStatus = NppStatus(-61);
+    /// Wrong order of the destination channels.
+    pub const NPP_CHANNEL_ORDER_ERROR: NppStatus = NppStatus(-60);
+    /// Data type is incorrect or not supported.
+    pub const NPP_DATA_TYPE_ERROR: NppStatus = NppStatus(-59);
+    /// The quadrangle is nonconvex or degenerates into triangle, line or point.
+    pub const NPP_QUADRANGLE_ERROR: NppStatus = NppStatus(-58);
+    /// Size of the rectangle region is less than or equal to 1.
+    pub const NPP_RECTANGLE_ERROR: NppStatus = NppStatus(-57);
+    /// Unallowable values of the transformation coefficients.
+    pub const NPP_COEFFICIENT_ERROR: NppStatus = NppStatus(-56);
+    /// Bad or unsupported number of channels.
+    pub const NPP_NUMBER_OF_CHANNELS_ERROR: NppStatus = NppStatus(-53);
+    /// Channel of interest is not 1, 2, or 3.
+    pub const NPP_COI_ERROR: NppStatus = NppStatus(-52);
+    /// Divisor is equal to zero.
+    pub const NPP_DIVISOR_ERROR: NppStatus = NppStatus(-51);
+    /// Illegal channel index.
+    pub const NPP_CHANNEL_ERROR: NppStatus = NppStatus(-47);
+    /// Stride is less than the row length.
+    pub const NPP_STRIDE_ERROR: NppStatus = NppStatus(-37);
+    /// Anchor point is outside mask.
+    pub const NPP_ANCHOR_ERROR: NppStatus = NppStatus(-34);
+    /// Lower bound is larger than upper bound.
+    pub const NPP_MASK_SIZE_ERROR: NppStatus = NppStatus(-33);
+    /// A resize scale factor is invalid.
+    pub const NPP_RESIZE_FACTOR_ERROR: NppStatus = NppStatus(-24);
+    /// The interpolation mode is invalid or unsupported for this operation.
+    pub const NPP_INTERPOLATION_ERROR: NppStatus = NppStatus(-23);
+    /// The requested mirror or flip direction is invalid.
+    pub const NPP_MIRROR_FLIP_ERROR: NppStatus = NppStatus(-22);
+    /// The zero-order image moment is zero, so normalization by that moment is undefined.
+    pub const NPP_MOMENT_00_ZERO_ERROR: NppStatus = NppStatus(-21);
+    /// The threshold level is negative where a nonnegative level is required.
+    pub const NPP_THRESHOLD_NEGATIVE_LEVEL_ERROR: NppStatus = NppStatus(-20);
+    /// The threshold arguments are invalid.
+    pub const NPP_THRESHOLD_ERROR: NppStatus = NppStatus(-19);
+    /// The FFT flags are invalid.
+    pub const NPP_FFT_FLAG_ERROR: NppStatus = NppStatus(-18);
+    /// The FFT order is outside the supported range.
+    pub const NPP_FFT_ORDER_ERROR: NppStatus = NppStatus(-17);
+    /// Step is less or equal zero.
+    pub const NPP_STEP_ERROR: NppStatus = NppStatus(-16);
+    /// Not supported mode error.
+    pub const NPP_NOT_SUPPORTED_MODE_ERROR: NppStatus = NppStatus(-14);
+    /// The supplied context does not match the operation.
+    pub const NPP_CONTEXT_MATCH_ERROR: NppStatus = NppStatus(-13);
+    /// The scaling exponent is outside the supported range.
+    pub const NPP_SCALE_RANGE_ERROR: NppStatus = NppStatus(-12);
+    /// An argument or computed value is outside the permitted range.
+    pub const NPP_OUT_OFF_RANGE_ERROR: NppStatus = NppStatus(-11);
+    /// A zero divisor prevents the operation from completing.
+    pub const NPP_DIVIDE_BY_ZERO_ERROR: NppStatus = NppStatus(-10);
+    /// An allocation required by the operation failed.
+    pub const NPP_MEMORY_ALLOCATION_ERR: NppStatus = NppStatus(-9);
+    /// A required pointer argument is null.
+    pub const NPP_NULL_POINTER_ERROR: NppStatus = NppStatus(-8);
+    /// A value range is invalid.
+    pub const NPP_RANGE_ERROR: NppStatus = NppStatus(-7);
+    /// A size argument is invalid.
+    pub const NPP_SIZE_ERROR: NppStatus = NppStatus(-6);
+    /// An argument is invalid for the requested operation.
+    pub const NPP_BAD_ARGUMENT_ERROR: NppStatus = NppStatus(-5);
+    /// The operation has insufficient memory.
+    pub const NPP_NO_MEMORY_ERROR: NppStatus = NppStatus(-4);
+    /// The requested operation is not implemented.
+    pub const NPP_NOT_IMPLEMENTED_ERROR: NppStatus = NppStatus(-3);
+    /// An unspecified NPP error occurred.
+    pub const NPP_ERROR: NppStatus = NppStatus(-2);
+    /// Reserved native NPP error status.
+    pub const NPP_ERROR_RESERVED: NppStatus = NppStatus(-1);
+    /// Error free operation.
+    pub const NPP_NO_ERROR: NppStatus = NppStatus(0);
     /// Successful operation (same as [`NppStatus::NPP_NO_ERROR`]).
-    pub const NPP_SUCCESS: NppStatus = NppStatus::NPP_NO_ERROR;
+    pub const NPP_SUCCESS: NppStatus = NppStatus(0);
+    /// Indicates that no operation was performed.
+    pub const NPP_NO_OPERATION_WARNING: NppStatus = NppStatus(1);
+    /// Divisor is zero however does not terminate the execution.
+    pub const NPP_DIVIDE_BY_ZERO_WARNING: NppStatus = NppStatus(6);
+    /// Indicates that the quadrangle passed to one of affine warping functions doesn’t have necessary properties.
+    ///
+    /// First 3 vertices are used, the fourth vertex discarded.
+    pub const NPP_AFFINE_QUAD_INCORRECT_WARNING: NppStatus = NppStatus(28);
+    /// The given ROI has no intersection with either the source or destination ROI.
+    ///
+    /// Thus no operation was performed.
+    pub const NPP_WRONG_INTERSECTION_ROI_WARNING: NppStatus = NppStatus(29);
+    /// The given quadrangle has no intersection with either the source or destination ROI.
+    ///
+    /// Thus no operation was performed.
+    pub const NPP_WRONG_INTERSECTION_QUAD_WARNING: NppStatus = NppStatus(30);
+    /// Image size isn’t multiple of two.
+    ///
+    /// Indicates that in case of 422/411/420 sampling the ROI width/height was modified for proper processing.
+    pub const NPP_DOUBLE_SIZE_WARNING: NppStatus = NppStatus(35);
+    /// Speed reduction due to uncoalesced memory accesses warning.
+    pub const NPP_MISALIGNED_DST_ROI_WARNING: NppStatus = NppStatus(10000);
 }
 /// Error Status Codes.
 ///
 /// Almost all NPP function return error-status information using these return codes. Negative return codes indicate errors, positive return codes indicate warnings, a return code of 0 indicates success.
-#[repr(i32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum NppStatus {
-    /// Application and NPP library version mismatch.
-    NPP_LIBRARY_VERSION_MISMATCH_ERROR = -9998,
-    /// Invalid host memory pointer error.
-    NPP_INVALID_HOST_POINTER_ERROR = -1032,
-    /// Invalid device memory pointer error.
-    NPP_INVALID_DEVICE_POINTER_ERROR = -1031,
-    /// Color look up table bitsize error.
-    NPP_LUT_PALETTE_BITSIZE_ERROR = -1030,
-    /// ZeroCrossing mode not supported error.
-    NPP_ZC_MODE_NOT_SUPPORTED_ERROR = -1028,
-    /// Not sufficient CUDA compute capability error.
-    NPP_NOT_SUFFICIENT_COMPUTE_CAPABILITY = -1027,
-    /// Texture bind error.
-    NPP_TEXTURE_BIND_ERROR = -1024,
-    /// Wrong intersection region of interest error.
-    NPP_WRONG_INTERSECTION_ROI_ERROR = -1020,
-    /// Haar classifier pixel match error.
-    NPP_HAAR_CLASSIFIER_PIXEL_MATCH_ERROR = -1006,
-    /// Memory free request error.
-    NPP_MEMFREE_ERROR = -1005,
-    /// Memory set request error.
-    NPP_MEMSET_ERROR = -1004,
-    /// Memory copy request error.
-    NPP_MEMCPY_ERROR = -1003,
-    /// Memory alignment error.
-    NPP_ALIGNMENT_ERROR = -1002,
-    /// CUDA kernel execution error, most commonly CUDA kernel launch error.
-    NPP_CUDA_KERNEL_EXECUTION_ERROR = -1000,
-    /// Non CTX function support has been deprecated.
-    #[deprecated]
-    NPP_STREAM_CTX_ERROR = -215,
-    /// Unsupported round mode.
-    NPP_ROUND_MODE_NOT_SUPPORTED_ERROR = -213,
-    /// Image pixels are constant for quality index.
-    NPP_QUALITY_INDEX_ERROR = -210,
-    /// One of the output image dimensions is less than 1 pixel.
-    NPP_RESIZE_NO_OPERATION_ERROR = -201,
-    /// Number overflows the upper or lower limit of the data type.
-    NPP_OVERFLOW_ERROR = -109,
-    /// Step value is not pixel multiple.
-    NPP_NOT_EVEN_STEP_ERROR = -108,
-    /// Number of levels for histogram is less than 2.
-    NPP_HISTOGRAM_NUMBER_OF_LEVELS_ERROR = -107,
-    /// Number of levels for LUT is less than 2.
-    NPP_LUT_NUMBER_OF_LEVELS_ERROR = -106,
-    /// All values of the mask are zero.
-    NPP_ZERO_MASK_VALUE_ERROR = -62,
-    /// Processed data is corrupted.
-    NPP_CORRUPTED_DATA_ERROR = -61,
-    /// Wrong order of the destination channels.
-    NPP_CHANNEL_ORDER_ERROR = -60,
-    /// Data type is incorrect or not supported.
-    NPP_DATA_TYPE_ERROR = -59,
-    /// The quadrangle is nonconvex or degenerates into triangle, line or point.
-    NPP_QUADRANGLE_ERROR = -58,
-    /// Size of the rectangle region is less than or equal to 1.
-    NPP_RECTANGLE_ERROR = -57,
-    /// Unallowable values of the transformation coefficients.
-    NPP_COEFFICIENT_ERROR = -56,
-    /// Bad or unsupported number of channels.
-    NPP_NUMBER_OF_CHANNELS_ERROR = -53,
-    /// Channel of interest is not 1, 2, or 3.
-    NPP_COI_ERROR = -52,
-    /// Divisor is equal to zero.
-    NPP_DIVISOR_ERROR = -51,
-    /// Illegal channel index.
-    NPP_CHANNEL_ERROR = -47,
-    /// Stride is less than the row length.
-    NPP_STRIDE_ERROR = -37,
-    /// Anchor point is outside mask.
-    NPP_ANCHOR_ERROR = -34,
-    /// Lower bound is larger than upper bound.
-    NPP_MASK_SIZE_ERROR = -33,
-    /// A resize scale factor is invalid.
-    NPP_RESIZE_FACTOR_ERROR = -24,
-    /// The interpolation mode is invalid or unsupported for this operation.
-    NPP_INTERPOLATION_ERROR = -23,
-    /// The requested mirror or flip direction is invalid.
-    NPP_MIRROR_FLIP_ERROR = -22,
-    /// The zero-order image moment is zero, so normalization by that moment is undefined.
-    NPP_MOMENT_00_ZERO_ERROR = -21,
-    /// The threshold level is negative where a nonnegative level is required.
-    NPP_THRESHOLD_NEGATIVE_LEVEL_ERROR = -20,
-    /// The threshold arguments are invalid.
-    NPP_THRESHOLD_ERROR = -19,
-    /// The FFT flags are invalid.
-    NPP_FFT_FLAG_ERROR = -18,
-    /// The FFT order is outside the supported range.
-    NPP_FFT_ORDER_ERROR = -17,
-    /// Step is less or equal zero.
-    NPP_STEP_ERROR = -16,
-    /// Not supported mode error.
-    NPP_NOT_SUPPORTED_MODE_ERROR = -14,
-    /// The supplied context does not match the operation.
-    NPP_CONTEXT_MATCH_ERROR = -13,
-    /// The scaling exponent is outside the supported range.
-    NPP_SCALE_RANGE_ERROR = -12,
-    /// An argument or computed value is outside the permitted range.
-    NPP_OUT_OFF_RANGE_ERROR = -11,
-    /// A zero divisor prevents the operation from completing.
-    NPP_DIVIDE_BY_ZERO_ERROR = -10,
-    /// An allocation required by the operation failed.
-    NPP_MEMORY_ALLOCATION_ERR = -9,
-    /// A required pointer argument is null.
-    NPP_NULL_POINTER_ERROR = -8,
-    /// A value range is invalid.
-    NPP_RANGE_ERROR = -7,
-    /// A size argument is invalid.
-    NPP_SIZE_ERROR = -6,
-    /// An argument is invalid for the requested operation.
-    NPP_BAD_ARGUMENT_ERROR = -5,
-    /// The operation has insufficient memory.
-    NPP_NO_MEMORY_ERROR = -4,
-    /// The requested operation is not implemented.
-    NPP_NOT_IMPLEMENTED_ERROR = -3,
-    /// An unspecified NPP error occurred.
-    NPP_ERROR = -2,
-    /// Reserved native NPP error status.
-    NPP_ERROR_RESERVED = -1,
-    /// Error free operation.
-    NPP_NO_ERROR = 0,
-    /// Indicates that no operation was performed.
-    NPP_NO_OPERATION_WARNING = 1,
-    /// Divisor is zero however does not terminate the execution.
-    NPP_DIVIDE_BY_ZERO_WARNING = 6,
-    /// Indicates that the quadrangle passed to one of affine warping functions doesn’t have necessary properties.
-    ///
-    /// First 3 vertices are used, the fourth vertex discarded.
-    NPP_AFFINE_QUAD_INCORRECT_WARNING = 28,
-    /// The given ROI has no intersection with either the source or destination ROI.
-    ///
-    /// Thus no operation was performed.
-    NPP_WRONG_INTERSECTION_ROI_WARNING = 29,
-    /// The given quadrangle has no intersection with either the source or destination ROI.
-    ///
-    /// Thus no operation was performed.
-    NPP_WRONG_INTERSECTION_QUAD_WARNING = 30,
-    /// Image size isn’t multiple of two.
-    ///
-    /// Indicates that in case of 422/411/420 sampling the ROI width/height was modified for proper processing.
-    NPP_DOUBLE_SIZE_WARNING = 35,
-    /// Speed reduction due to uncoalesced memory accesses warning.
-    NPP_MISALIGNED_DST_ROI_WARNING = 10000,
-}
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct NppStatus(pub ::core::ffi::c_int);
 /// NPPLibraryVersion This struct contains the NPP Library Version information.
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
@@ -506,54 +462,56 @@ pub struct Npp64fc {
     /// Imaginary part.
     pub im: Npp64f,
 }
-/// Data types for nppiPlus functions.
-#[repr(u32)]
-#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum NppDataType {
+impl NppDataType {
     /// 8-bit unsigned integer data type.
-    NPP_8U = 0,
+    pub const NPP_8U: NppDataType = NppDataType(0);
     /// 8-bit signed integer data type.
-    NPP_8S = 1,
+    pub const NPP_8S: NppDataType = NppDataType(1);
     /// 16-bit unsigned integer data type.
-    NPP_16U = 2,
+    pub const NPP_16U: NppDataType = NppDataType(2);
     /// 16-bit signed integer data type.
-    NPP_16S = 3,
+    pub const NPP_16S: NppDataType = NppDataType(3);
     /// 32-bit unsigned integer data type.
-    NPP_32U = 4,
+    pub const NPP_32U: NppDataType = NppDataType(4);
     /// 32-bit signed integer data type.
-    NPP_32S = 5,
+    pub const NPP_32S: NppDataType = NppDataType(5);
     /// 64-bit unsigned integer data type.
-    NPP_64U = 6,
+    pub const NPP_64U: NppDataType = NppDataType(6);
     /// 64-bit signed integer data type.
-    NPP_64S = 7,
+    pub const NPP_64S: NppDataType = NppDataType(7);
     /// 16-bit original CUDA floating point data type.
-    NPP_16F = 8,
+    pub const NPP_16F: NppDataType = NppDataType(8);
     /// 32-bit floating point data type.
-    NPP_32F = 9,
+    pub const NPP_32F: NppDataType = NppDataType(9);
     /// 64-bit double precision floating point data type.
-    NPP_64F = 10,
+    pub const NPP_64F: NppDataType = NppDataType(10);
+}
+/// Data types for nppiPlus functions.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct NppDataType(pub ::core::ffi::c_uint);
+impl NppiChannels {
+    /// Single channel per pixel data.
+    pub const NPP_CH_1: NppiChannels = NppiChannels(0);
+    /// Two channel per pixel data.
+    pub const NPP_CH_2: NppiChannels = NppiChannels(1);
+    /// Three channel per pixel data.
+    pub const NPP_CH_3: NppiChannels = NppiChannels(2);
+    /// Four channel per pixel data.
+    pub const NPP_CH_4: NppiChannels = NppiChannels(3);
+    /// Four channel per pixel data with alpha.
+    pub const NPP_CH_A4: NppiChannels = NppiChannels(4);
+    /// Two channel single channel per plane pixel data.
+    pub const NPP_CH_P2: NppiChannels = NppiChannels(5);
+    /// Three channel single channel per plane pixel data.
+    pub const NPP_CH_P3: NppiChannels = NppiChannels(6);
+    /// Four channel single channel per plane pixel data.
+    pub const NPP_CH_P4: NppiChannels = NppiChannels(7);
 }
 /// Image channel counts for nppiPlus functions.
-#[repr(u32)]
+#[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum NppiChannels {
-    /// Single channel per pixel data.
-    NPP_CH_1 = 0,
-    /// Two channel per pixel data.
-    NPP_CH_2 = 1,
-    /// Three channel per pixel data.
-    NPP_CH_3 = 2,
-    /// Four channel per pixel data.
-    NPP_CH_4 = 3,
-    /// Four channel per pixel data with alpha.
-    NPP_CH_A4 = 4,
-    /// Two channel single channel per plane pixel data.
-    NPP_CH_P2 = 5,
-    /// Three channel single channel per plane pixel data.
-    NPP_CH_P3 = 6,
-    /// Four channel single channel per plane pixel data.
-    NPP_CH_P4 = 7,
-}
+pub struct NppiChannels(pub ::core::ffi::c_uint);
 /// 2D Point.
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
@@ -614,74 +572,35 @@ pub struct NppiRect {
     /// Rectangle height.
     pub height: ::core::ffi::c_int,
 }
-/// nppiMirror direction controls.
-#[repr(u32)]
-#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum NppiAxis {
+impl NppiAxis {
     /// Flip around horizontal axis in mirror function.
-    NPP_HORIZONTAL_AXIS = 0,
+    pub const NPP_HORIZONTAL_AXIS: NppiAxis = NppiAxis(0);
     /// Flip around vertical axis in mirror function.
-    NPP_VERTICAL_AXIS = 1,
+    pub const NPP_VERTICAL_AXIS: NppiAxis = NppiAxis(1);
     /// Flip around both axes in mirror function.
-    NPP_BOTH_AXIS = 2,
+    pub const NPP_BOTH_AXIS: NppiAxis = NppiAxis(2);
+}
+/// nppiMirror direction controls.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct NppiAxis(pub ::core::ffi::c_uint);
+impl NppCmpOp {
+    /// Threshold test for less than.
+    pub const NPP_CMP_LESS: NppCmpOp = NppCmpOp(0);
+    /// Threshold test for less than or equal.
+    pub const NPP_CMP_LESS_EQ: NppCmpOp = NppCmpOp(1);
+    /// Threshold test for equal.
+    pub const NPP_CMP_EQ: NppCmpOp = NppCmpOp(2);
+    /// Threshold test for greater than or equal.
+    pub const NPP_CMP_GREATER_EQ: NppCmpOp = NppCmpOp(3);
+    /// Threshold test for greater than.
+    pub const NPP_CMP_GREATER: NppCmpOp = NppCmpOp(4);
 }
 /// Pixel comparison control values.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum NppCmpOp {
-    /// Threshold test for less than.
-    NPP_CMP_LESS = 0,
-    /// Threshold test for less than or equal.
-    NPP_CMP_LESS_EQ = 1,
-    /// Threshold test for equal.
-    NPP_CMP_EQ = 2,
-    /// Threshold test for greater than or equal.
-    NPP_CMP_GREATER_EQ = 3,
-    /// Threshold test for greater than.
-    NPP_CMP_GREATER = 4,
-}
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct NppCmpOp(pub ::core::ffi::c_uint);
 impl NppRoundMode {
-    /// Alias name for [`NppRoundMode::NPP_RND_NEAR`].
-    pub const NPP_ROUND_NEAREST_TIES_TO_EVEN: NppRoundMode = NppRoundMode::NPP_RND_NEAR;
-}
-impl NppRoundMode {
-    /// Alias name for [`NppRoundMode::NPP_RND_FINANCIAL`].
-    pub const NPP_ROUND_NEAREST_TIES_AWAY_FROM_ZERO: NppRoundMode = NppRoundMode::NPP_RND_FINANCIAL;
-}
-impl NppRoundMode {
-    /// Alias name for [`NppRoundMode::NPP_RND_ZERO`].
-    pub const NPP_ROUND_TOWARD_ZERO: NppRoundMode = NppRoundMode::NPP_RND_ZERO;
-}
-/// Rounding Modes.
-///
-/// The enumerated rounding modes are used by a large number of NPP primitives to allow the user to specify the method by which fractional values are converted to integer values. Also see [Rounding Modes](https://docs.nvidia.com/cuda/archive/13.4.2/npp/introduction.html#general_conventions_lb_1rounding_modes).
-///
-/// For NPP release 5.5 new names for the three rounding modes are introduced that are based on the naming conventions for rounding modes set forth in the IEEE-754 floating-point standard. Developers are encouraged to use the new, longer names to be future proof as the legacy names will be deprecated in subsequent NPP releases.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum NppRoundMode {
     /// Round to the nearest even integer.
     ///
     /// All fractional numbers are rounded to their nearest integer. The ambiguous cases (i.e. &lt;integer>.5) are rounded to the closest even integer. E.g.
@@ -690,7 +609,9 @@ pub enum NppRoundMode {
     /// * roundNear(0.6) = 1
     /// * roundNear(1.5) = 2
     /// * roundNear(-1.5) = -2.
-    NPP_RND_NEAR = 0,
+    pub const NPP_RND_NEAR: NppRoundMode = NppRoundMode(0);
+    /// Alias name for [`NppRoundMode::NPP_RND_NEAR`].
+    pub const NPP_ROUND_NEAREST_TIES_TO_EVEN: NppRoundMode = NppRoundMode(0);
     /// Round according to financial rule.
     ///
     /// All fractional numbers are rounded to their nearest integer. The ambiguous cases (i.e. &lt;integer>.5) are rounded away from zero. E.g.
@@ -698,7 +619,9 @@ pub enum NppRoundMode {
     /// * roundFinancial(0.4) = 0
     /// * roundFinancial(0.5) = 1
     /// * roundFinancial(-1.5) = -2.
-    NPP_RND_FINANCIAL = 1,
+    pub const NPP_RND_FINANCIAL: NppRoundMode = NppRoundMode(1);
+    /// Alias name for [`NppRoundMode::NPP_RND_FINANCIAL`].
+    pub const NPP_ROUND_NEAREST_TIES_AWAY_FROM_ZERO: NppRoundMode = NppRoundMode(1);
     /// Round towards zero (truncation).
     ///
     /// All fractional numbers of the form &lt;integer>.&lt;decimals> are truncated to &lt;integer>.
@@ -706,82 +629,82 @@ pub enum NppRoundMode {
     /// * roundZero(1.5) = 1
     /// * roundZero(1.9) = 1
     /// * roundZero(-2.5) = -2.
-    NPP_RND_ZERO = 2,
+    pub const NPP_RND_ZERO: NppRoundMode = NppRoundMode(2);
+    /// Alias name for [`NppRoundMode::NPP_RND_ZERO`].
+    pub const NPP_ROUND_TOWARD_ZERO: NppRoundMode = NppRoundMode(2);
 }
+/// Rounding Modes.
+///
+/// The enumerated rounding modes are used by a large number of NPP primitives to allow the user to specify the method by which fractional values are converted to integer values. Also see [Rounding Modes](https://docs.nvidia.com/cuda/archive/13.4.2/npp/introduction.html#general_conventions_lb_1rounding_modes).
+///
+/// For NPP release 5.5 new names for the three rounding modes are introduced that are based on the naming conventions for rounding modes set forth in the IEEE-754 floating-point standard. Developers are encouraged to use the new, longer names to be future proof as the legacy names will be deprecated in subsequent NPP releases.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct NppRoundMode(pub ::core::ffi::c_uint);
 impl NppiBorderType {
+    /// Image border type undefined.
+    pub const NPP_BORDER_UNDEFINED: NppiBorderType = NppiBorderType(0);
     /// Image border type none.
-    pub const NPP_BORDER_NONE: NppiBorderType = NppiBorderType::NPP_BORDER_UNDEFINED;
+    pub const NPP_BORDER_NONE: NppiBorderType = NppiBorderType(0);
+    /// Image border type constant value.
+    pub const NPP_BORDER_CONSTANT: NppiBorderType = NppiBorderType(1);
+    /// Image border type replicate border pixels.
+    pub const NPP_BORDER_REPLICATE: NppiBorderType = NppiBorderType(2);
+    /// Image border type wrap border pixels.
+    pub const NPP_BORDER_WRAP: NppiBorderType = NppiBorderType(3);
+    /// Image border type mirror border pixels (IPP mirrored border / OpenCV BORDER_REFLECT_101): gfedcb|abcdefgh|gfedcba — edge pixel is NOT repeated.
+    pub const NPP_BORDER_MIRROR: NppiBorderType = NppiBorderType(4);
+    /// Image border type mirror with replication (IPP mirrored border with replication / OpenCV BORDER_REFLECT): fedcba|abcdefgh|hgfedcba — edge pixel IS repeated.
+    pub const NPP_BORDER_MIRROR_REFL: NppiBorderType = NppiBorderType(5);
 }
 /// Supported image border modes.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum NppiBorderType {
-    /// Image border type undefined.
-    NPP_BORDER_UNDEFINED = 0,
-    /// Image border type constant value.
-    NPP_BORDER_CONSTANT = 1,
-    /// Image border type replicate border pixels.
-    NPP_BORDER_REPLICATE = 2,
-    /// Image border type wrap border pixels.
-    NPP_BORDER_WRAP = 3,
-    /// Image border type mirror border pixels (IPP mirrored border / OpenCV BORDER_REFLECT_101): gfedcb|abcdefgh|gfedcba — edge pixel is NOT repeated.
-    NPP_BORDER_MIRROR = 4,
-    /// Image border type mirror with replication (IPP mirrored border with replication / OpenCV BORDER_REFLECT): fedcba|abcdefgh|hgfedcba — edge pixel IS repeated.
-    NPP_BORDER_MIRROR_REFL = 5,
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct NppiBorderType(pub ::core::ffi::c_uint);
+impl NppHintAlgorithm {
+    /// Hint none, currently these are all ignored.
+    pub const NPP_ALG_HINT_NONE: NppHintAlgorithm = NppHintAlgorithm(0);
+    /// Hint fast, currently these are all ignored.
+    pub const NPP_ALG_HINT_FAST: NppHintAlgorithm = NppHintAlgorithm(1);
+    /// Hint accurate, currently these are all ignored.
+    pub const NPP_ALG_HINT_ACCURATE: NppHintAlgorithm = NppHintAlgorithm(2);
 }
 /// Hints.
-#[repr(u32)]
+#[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum NppHintAlgorithm {
-    /// Hint none, currently these are all ignored.
-    NPP_ALG_HINT_NONE = 0,
-    /// Hint fast, currently these are all ignored.
-    NPP_ALG_HINT_FAST = 1,
-    /// Hint accurate, currently these are all ignored.
-    NPP_ALG_HINT_ACCURATE = 2,
+pub struct NppHintAlgorithm(pub ::core::ffi::c_uint);
+impl NppiAlphaOp {
+    /// Alpha composition over operation.
+    pub const NPPI_OP_ALPHA_OVER: NppiAlphaOp = NppiAlphaOp(0);
+    /// Alpha composition in operation.
+    pub const NPPI_OP_ALPHA_IN: NppiAlphaOp = NppiAlphaOp(1);
+    /// Alpha composition out operation.
+    pub const NPPI_OP_ALPHA_OUT: NppiAlphaOp = NppiAlphaOp(2);
+    /// Alpha composition atop operation.
+    pub const NPPI_OP_ALPHA_ATOP: NppiAlphaOp = NppiAlphaOp(3);
+    /// Alpha composition xor operation.
+    pub const NPPI_OP_ALPHA_XOR: NppiAlphaOp = NppiAlphaOp(4);
+    /// Alpha composition plus operation.
+    pub const NPPI_OP_ALPHA_PLUS: NppiAlphaOp = NppiAlphaOp(5);
+    /// Alpha composition over premultiply operation.
+    pub const NPPI_OP_ALPHA_OVER_PREMUL: NppiAlphaOp = NppiAlphaOp(6);
+    /// Alpha composition in premultiply operation.
+    pub const NPPI_OP_ALPHA_IN_PREMUL: NppiAlphaOp = NppiAlphaOp(7);
+    /// Alpha composition out premultiply operation.
+    pub const NPPI_OP_ALPHA_OUT_PREMUL: NppiAlphaOp = NppiAlphaOp(8);
+    /// Alpha composition atop premultiply operation.
+    pub const NPPI_OP_ALPHA_ATOP_PREMUL: NppiAlphaOp = NppiAlphaOp(9);
+    /// Alpha composition xor premultiply operation.
+    pub const NPPI_OP_ALPHA_XOR_PREMUL: NppiAlphaOp = NppiAlphaOp(10);
+    /// Alpha composition plus premultiply operation.
+    pub const NPPI_OP_ALPHA_PLUS_PREMUL: NppiAlphaOp = NppiAlphaOp(11);
+    /// Alpha composition premultiply operation.
+    pub const NPPI_OP_ALPHA_PREMUL: NppiAlphaOp = NppiAlphaOp(12);
 }
 /// Alpha composition mode controls.
-#[repr(u32)]
+#[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum NppiAlphaOp {
-    /// Alpha composition over operation.
-    NPPI_OP_ALPHA_OVER = 0,
-    /// Alpha composition in operation.
-    NPPI_OP_ALPHA_IN = 1,
-    /// Alpha composition out operation.
-    NPPI_OP_ALPHA_OUT = 2,
-    /// Alpha composition atop operation.
-    NPPI_OP_ALPHA_ATOP = 3,
-    /// Alpha composition xor operation.
-    NPPI_OP_ALPHA_XOR = 4,
-    /// Alpha composition plus operation.
-    NPPI_OP_ALPHA_PLUS = 5,
-    /// Alpha composition over premultiply operation.
-    NPPI_OP_ALPHA_OVER_PREMUL = 6,
-    /// Alpha composition in premultiply operation.
-    NPPI_OP_ALPHA_IN_PREMUL = 7,
-    /// Alpha composition out premultiply operation.
-    NPPI_OP_ALPHA_OUT_PREMUL = 8,
-    /// Alpha composition atop premultiply operation.
-    NPPI_OP_ALPHA_ATOP_PREMUL = 9,
-    /// Alpha composition xor premultiply operation.
-    NPPI_OP_ALPHA_XOR_PREMUL = 10,
-    /// Alpha composition plus premultiply operation.
-    NPPI_OP_ALPHA_PLUS_PREMUL = 11,
-    /// Alpha composition premultiply operation.
-    NPPI_OP_ALPHA_PREMUL = 12,
-}
+pub struct NppiAlphaOp(pub ::core::ffi::c_uint);
 /// The [`NppiHOGConfig`] structure defines the configuration parameters for the HOG descriptor.
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
@@ -837,37 +760,40 @@ impl Default for NppiHaarBuffer {
         }
     }
 }
-/// Signal sign operations.
-#[repr(u32)]
-#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum NppsZCType {
+impl NppsZCType {
     /// sign change.
-    nppZCR = 0,
+    pub const nppZCR: NppsZCType = NppsZCType(0);
     /// sign change XOR.
-    nppZCXor = 1,
+    pub const nppZCXor: NppsZCType = NppsZCType(1);
     /// sign change count_0.
-    nppZCC = 2,
+    pub const nppZCC: NppsZCType = NppsZCType(2);
+}
+/// Signal sign operations.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct NppsZCType(pub ::core::ffi::c_uint);
+impl NppiHuffmanTableType {
+    /// DC Table.
+    pub const nppiDCTable: NppiHuffmanTableType = NppiHuffmanTableType(0);
+    /// AC Table.
+    pub const nppiACTable: NppiHuffmanTableType = NppiHuffmanTableType(1);
 }
 /// HuffMan Table controls.
-#[repr(u32)]
+#[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum NppiHuffmanTableType {
-    /// DC Table.
-    nppiDCTable = 0,
-    /// AC Table.
-    nppiACTable = 1,
+pub struct NppiHuffmanTableType(pub ::core::ffi::c_uint);
+impl NppiNorm {
+    /// maximum.
+    pub const nppiNormInf: NppiNorm = NppiNorm(0);
+    /// sum.
+    pub const nppiNormL1: NppiNorm = NppiNorm(1);
+    /// square root of sum of squares.
+    pub const nppiNormL2: NppiNorm = NppiNorm(2);
 }
 /// Norm controls.
-#[repr(u32)]
+#[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum NppiNorm {
-    /// maximum.
-    nppiNormInf = 0,
-    /// sum.
-    nppiNormL1 = 1,
-    /// square root of sum of squares.
-    nppiNormL2 = 2,
-}
+pub struct NppiNorm(pub ::core::ffi::c_uint);
 /// Data structure of connected pixel region information.
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
@@ -1038,21 +964,32 @@ pub struct NppiContourTotalsInfo {
     /// longest per contour pixel count in image.
     pub nLongestImageContourPixelCount: Npp32u,
 }
-/// Provides control of the type of segment boundaries, if any, added to the image generated by the watershed segmentation function.
-#[repr(u32)]
-#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum NppiWatershedSegmentBoundaryType {
+impl NppiWatershedSegmentBoundaryType {
     /// Image watershed segment boundary type none.
-    NPP_WATERSHED_SEGMENT_BOUNDARIES_NONE = 0,
+    pub const NPP_WATERSHED_SEGMENT_BOUNDARIES_NONE: NppiWatershedSegmentBoundaryType = NppiWatershedSegmentBoundaryType(
+        0,
+    );
     /// Image watershed segment boundary type black.
-    NPP_WATERSHED_SEGMENT_BOUNDARIES_BLACK = 1,
+    pub const NPP_WATERSHED_SEGMENT_BOUNDARIES_BLACK: NppiWatershedSegmentBoundaryType = NppiWatershedSegmentBoundaryType(
+        1,
+    );
     /// Image watershed segment boundary type white.
-    NPP_WATERSHED_SEGMENT_BOUNDARIES_WHITE = 2,
+    pub const NPP_WATERSHED_SEGMENT_BOUNDARIES_WHITE: NppiWatershedSegmentBoundaryType = NppiWatershedSegmentBoundaryType(
+        2,
+    );
     /// Image watershed segment boundary type contrasting intensity.
-    NPP_WATERSHED_SEGMENT_BOUNDARIES_CONTRAST = 3,
+    pub const NPP_WATERSHED_SEGMENT_BOUNDARIES_CONTRAST: NppiWatershedSegmentBoundaryType = NppiWatershedSegmentBoundaryType(
+        3,
+    );
     /// Image watershed segment boundary type render boundaries only.
-    NPP_WATERSHED_SEGMENT_BOUNDARIES_ONLY = 4,
+    pub const NPP_WATERSHED_SEGMENT_BOUNDARIES_ONLY: NppiWatershedSegmentBoundaryType = NppiWatershedSegmentBoundaryType(
+        4,
+    );
 }
+/// Provides control of the type of segment boundaries, if any, added to the image generated by the watershed segmentation function.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct NppiWatershedSegmentBoundaryType(pub ::core::ffi::c_uint);
 /// Opaque workspace handle. Manages a growing device scratch buffer (high-water-mark) and a per-function size cache to eliminate repeated nppiXxxGetBufferHostSize queries. Create with nppiWorkspaceCreate(), destroy with nppiWorkspaceDestroy(). For framework-managed memory (PyTorch, TensorRT, Triton) use nppiWorkspaceSetExternal() to inject a pre-allocated device pointer.
 pub type NppWorkspace = Npp32u;
 /// ## Application Managed Stream Context
@@ -1257,19 +1194,20 @@ impl Default for NppiColorTwistBatchCXR {
         }
     }
 }
-/// Color space enumeration
-#[repr(u32)]
-#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum NppiColorSpace {
+impl NppiColorSpace {
     /// no color space defined. used for simple transcoding.
-    NPP_TRANSCODE_ONLY = 0,
+    pub const NPP_TRANSCODE_ONLY: NppiColorSpace = NppiColorSpace(0);
     /// BT601 colorspace used within JPEG images covering 0..255.
-    NPP_BT601JPEG = 1,
+    pub const NPP_BT601JPEG: NppiColorSpace = NppiColorSpace(1);
     /// BT709 High Definition TV colorspace.
-    NPP_BT709HDTV = 2,
+    pub const NPP_BT709HDTV: NppiColorSpace = NppiColorSpace(2);
     /// BT2020 High Definition TV colorspace.
-    NPP_BT2020HDTV = 3,
+    pub const NPP_BT2020HDTV: NppiColorSpace = NppiColorSpace(3);
 }
+/// Color space enumeration
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct NppiColorSpace(pub ::core::ffi::c_uint);
 /// Profile data type for radial and linear profiles
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone, PartialOrd, PartialEq)]

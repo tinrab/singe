@@ -1,19 +1,17 @@
 mod common;
 
-use std::process;
-
 use singe_cuda::memory::DeviceMemory;
 use singe_nccl::{
     local::{LocalCommunicatorGroup, RankVec},
     types::ReductionOperator,
 };
 
-use crate::common::{ExampleResult, check_all_equal, rank_indexed_values};
+use crate::common::{check_all_equal, first_devices, rank_indexed_values};
 
 const ELEMENT_COUNT: usize = 1024;
 
-fn run() -> ExampleResult {
-    let group = LocalCommunicatorGroup::create_all_visible(2)?;
+fn main() -> anyhow::Result<()> {
+    let group = LocalCommunicatorGroup::create(&first_devices(2)?)?;
     let rank_count = group.rank_count();
 
     let send_buffers = group.map_ranks(|rank| {
@@ -50,7 +48,7 @@ fn run() -> ExampleResult {
         .map(|rank| rank as f32 * 1000.0)
         .sum::<f32>();
     let expected: Vec<_> = (0..ELEMENT_COUNT)
-        .map(|index| rank_sum + index as f32 * rank_count as f32)
+        .map(|index| (index as f32).mul_add(rank_count as f32, rank_sum))
         .collect();
 
     for (index, (rank, recv)) in group.ranks().zip(&recv_buffers).enumerate() {
@@ -66,11 +64,4 @@ fn run() -> ExampleResult {
     drop(recv_buffers);
     drop(send_buffers);
     Ok(group.destroy()?)
-}
-
-fn main() {
-    if let Err(error) = run() {
-        eprintln!("{error}");
-        process::exit(1);
-    }
 }

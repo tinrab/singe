@@ -1,22 +1,40 @@
-use std::ops::Deref;
+//! Serialized GPU test contexts.
 
-use singe_cuda::testing::{DeviceLock, bootstrap_for_device};
+use std::sync::Arc;
+
+use singe_cuda::{
+    context::Context as CudaContext,
+    device::Device,
+    testing::{TestDevice, bootstrap_for_device},
+};
 
 use crate::{error::Result, plan::Plan};
 
-/// Owns an unconfigured plan and the device lock serializing GPU tests.
+/// An unconfigured cuFFT plan on a locked test device.
+///
+/// The plan drops before the device's CUDA context and lock.
 #[derive(Debug)]
 pub struct TestContext {
-    /// Plan created in the test CUDA context on device 0.
-    pub plan: Plan,
-    _lock: DeviceLock,
+    plan: Plan,
+    device: TestDevice,
 }
 
-impl Deref for TestContext {
-    type Target = Plan;
-
-    fn deref(&self) -> &Self::Target {
+impl TestContext {
+    /// Returns the plan.
+    #[must_use]
+    pub fn plan(&self) -> &Plan {
         &self.plan
+    }
+
+    /// Returns the plan for its persistent setters.
+    pub fn plan_mut(&mut self) -> &mut Plan {
+        &mut self.plan
+    }
+
+    /// Returns the CUDA context of the locked device.
+    #[must_use]
+    pub fn cuda_context(&self) -> &Arc<CudaContext> {
+        self.device.context()
     }
 }
 
@@ -26,9 +44,7 @@ impl Deref for TestContext {
 ///
 /// Returns an error if device locking, CUDA initialization, context creation, or native plan creation fails.
 pub fn setup_context() -> Result<TestContext> {
-    let device_id: i32 = 0;
-    let (lock, cuda_context) = bootstrap_for_device(device_id)?;
-    let plan = Plan::create(&cuda_context)?;
-
-    Ok(TestContext { plan, _lock: lock })
+    let device = bootstrap_for_device(Device::new(0))?;
+    let plan = Plan::create(device.context())?;
+    Ok(TestContext { plan, device })
 }

@@ -1,19 +1,23 @@
 use std::{env, fs};
 
-use singe_cuda::{context::Context as CudaContext, memory::DeviceMemory, types::Complex32};
+use singe_cuda::{
+    context::Context as CudaContext, memory::DeviceMemory, stream::StreamOptions, types::Complex32,
+};
 use singe_cutensor::{
     context::Context,
-    error::{Error, Result, Status},
+    error::{Error, Status},
     operation::{ComputeDescriptor, OperationDescriptor, TensorOperand},
     plan::{Plan, PlanPreference},
     tensor::TensorDescriptor,
     types::{Algorithm, JitMode, WorkspacePreference},
 };
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
+    const ALIGNMENT: u32 = 128;
+
     let cuda_context = CudaContext::create()?;
     let context = Context::create(&cuda_context)?;
-    let stream = cuda_context.create_stream()?;
+    let stream = cuda_context.create_stream(StreamOptions::default())?;
 
     let cache_path = env::temp_dir().join("singe-cutensor-kernel-cache.bin");
     match context.read_kernel_cache_from_file(&cache_path) {
@@ -29,7 +33,7 @@ fn main() -> Result<()> {
             println!("kernel JIT caching is not supported on this platform");
             return Ok(());
         }
-        Err(error) => return Err(error),
+        Err(error) => return Err(error.into()),
     }
 
     let mode_c = vec![0.into(), 1.into(), 3.into(), 5.into()];
@@ -46,15 +50,13 @@ fn main() -> Result<()> {
     let host_b = (0..extent_b.iter().product::<u64>())
         .map(|index| Complex32::new(-0.25 * index as f32, 0.1 * (index as f32 + 1.0)))
         .collect::<Vec<_>>();
-    let host_c = vec![Complex32::new(0.0, 0.0); extent_c.iter().product::<u64>() as usize];
+    let host_c = vec![Complex32::new(0.0, 0.0); usize::try_from(extent_c.iter().product::<u64>())?];
 
     let device_a = DeviceMemory::from_slice(&cuda_context, &host_a)?;
     let device_b = DeviceMemory::from_slice(&cuda_context, &host_b)?;
     let device_c_input = DeviceMemory::from_slice(&cuda_context, &host_c)?;
     let mut device_c_default = DeviceMemory::from_slice(&cuda_context, &host_c)?;
     let mut device_c_jit = DeviceMemory::from_slice(&cuda_context, &host_c)?;
-
-    const ALIGNMENT: u32 = 128;
 
     let descriptor_a = TensorDescriptor::create_for::<Complex32>(&context, &extent_a, ALIGNMENT)?;
     let descriptor_b = TensorDescriptor::create_for::<Complex32>(&context, &extent_b, ALIGNMENT)?;
@@ -82,10 +84,10 @@ fn main() -> Result<()> {
         &preference_default,
         workspace_default,
     )?;
-    let mut default_workspace = if plan_default.required_workspace_size() > 0 {
+    let mut default_workspace = if plan_default.workspace_size() > 0 {
         Some(DeviceMemory::<u8>::create_uninit(
             &cuda_context,
-            plan_default.required_workspace_size_bytes()?,
+            plan_default.workspace_size(),
         )?)
     } else {
         None
@@ -99,10 +101,10 @@ fn main() -> Result<()> {
         WorkspacePreference::Default,
     )?;
     let plan_jit = Plan::create(&context, &contraction, &preference_jit, workspace_jit)?;
-    let mut jit_workspace = if plan_jit.required_workspace_size() > 0 {
+    let mut jit_workspace = if plan_jit.workspace_size() > 0 {
         Some(DeviceMemory::<u8>::create_uninit(
             &cuda_context,
-            plan_jit.required_workspace_size_bytes()?,
+            plan_jit.workspace_size(),
         )?)
     } else {
         None
@@ -110,32 +112,26 @@ fn main() -> Result<()> {
 
     let alpha = Complex32::new(1.1, 0.0);
     let beta = Complex32::new(0.0, 0.0);
-    // SAFETY: descriptors match these buffers; all resources remain live until stream synchronization below.
-    unsafe {
-        plan_default.contract(
-            &alpha,
-            &device_a,
-            &device_b,
-            &beta,
-            &device_c_input,
-            &mut device_c_default,
-            default_workspace.as_mut(),
-            &stream,
-        )
-    }?;
-    // SAFETY: descriptors match these buffers; all resources remain live until stream synchronization below.
-    unsafe {
-        plan_jit.contract(
-            &alpha,
-            &device_a,
-            &device_b,
-            &beta,
-            &device_c_input,
-            &mut device_c_jit,
-            jit_workspace.as_mut(),
-            &stream,
-        )
-    }?;
+    plan_default.contract(
+        &alpha,
+        &device_a,
+        &device_b,
+        &beta,
+        &device_c_input,
+        &mut device_c_default,
+        default_workspace.as_mut().map(|memory| memory.output()),
+        &stream,
+    )?;
+    plan_jit.contract(
+        &alpha,
+        &device_a,
+        &device_b,
+        &beta,
+        &device_c_input,
+        &mut device_c_jit,
+        jit_workspace.as_mut().map(|memory| memory.output()),
+        &stream,
+    )?;
     stream.synchronize()?;
 
     let default_result = device_c_default.copy_to_host_vec()?;
@@ -155,7 +151,7 @@ fn main() -> Result<()> {
             code: Status::NotSupported,
             ..
         }) => println!("kernel cache export is not supported on this platform"),
-        Err(error) => return Err(error),
+        Err(error) => return Err(error.into()),
     }
 
     println!("default and JIT contractions produced matching results");

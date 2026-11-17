@@ -10,18 +10,7 @@ generate:
         include_path="${CUDA_PATH}/include"
     fi
 
-    num_enums=(
-        "libraryPropertyType"
-        "curandStatus"
-        "curandRngType"
-        "curandOrdering"
-        "curandDirectionVectorSet"
-        "curandMethod"
-    )
-    enum_args=$(for enum in "${num_enums[@]}"; do echo -n "--with-derive-custom $enum=TryFromPrimitive,IntoPrimitive "; done)
-
     bindgen "${include_path}/curand.h" \
-        $enum_args \
         --allowlist-item "^curand.*" \
         --allowlist-item "^CURAND.*" \
         --blocklist-item "^cuda.*" \
@@ -35,7 +24,7 @@ generate:
         --with-derive-hash \
         --with-derive-ord \
         --use-core \
-        --default-enum-style=rust \
+        --default-enum-style=newtype \
         -- \
             -I {{cuda_path}}/include \
             -I "${include_path}" \

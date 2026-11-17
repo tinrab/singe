@@ -7,7 +7,6 @@ use singe_cuda::{
 };
 
 use crate::{
-    backend::tensor::TensorId,
     error::Result,
     frontend::{
         bindings::{BindingAccess, Bindings, binding_memory_info},
@@ -15,9 +14,10 @@ use crate::{
         operation::TensorAccess,
         plan::RequiredTensor,
     },
+    tensor::TensorId,
 };
 
-pub struct RetainedRegion {
+pub(crate) struct RetainedRegion {
     memory: Box<dyn DeviceRegionProvider + Send + Sync>,
 }
 
@@ -41,7 +41,8 @@ impl Bindings<'_> {
     /// Effective layout capacity and alignment are checked when preparing execution.
     ///
     /// # Errors
-    /// Returns an error for bindings without graph metadata, an unknown tensor or non-device placement.
+    ///
+    /// Returns an error if the bindings have no graph metadata, a tensor is unknown, or a placement is not on the device.
     pub fn set_owned_region<O: DeviceRegionProvider + Send + Sync + 'static>(
         &mut self,
         id: TensorId,

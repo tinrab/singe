@@ -1,8 +1,5 @@
 use crate::{
-    backend::{
-        pointwise::PointwiseMode,
-        tensor::{TensorId, TensorSpec},
-    },
+    backend::operation::{block_scale::BlockScaleDequantizeInputs, pointwise::PointwiseMode},
     data_type::DataType,
     error::Result,
     frontend::{
@@ -16,10 +13,11 @@ use crate::{
             },
         },
         error::Error as FrontendError,
-        graph::{BlockScaleDequantizeInputs, Graph, TensorOutputConfig},
+        graph::{Graph, TensorOutputConfig},
         operation::{BlockScaleDequantizeConfig, PointwiseOperation},
     },
     math::NanPropagation,
+    tensor::{TensorId, TensorSpec},
 };
 
 impl Graph {

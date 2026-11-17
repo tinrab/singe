@@ -13,7 +13,7 @@ use singe_cuda::types::bf16;
 use singe_cuda::types::f16;
 use singe_cuda::{
     stream::Stream,
-    view::{DeviceInput, DeviceInputView, DeviceOutput, DeviceRepr},
+    view::{DeviceInputView, DeviceOutput, DeviceRange, DeviceRepr},
 };
 
 #[cfg(feature = "cutile")]
@@ -267,7 +267,7 @@ macro_rules! normalization_fns {
         pub unsafe fn $layer_norm(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
             config: NormalizationConfig<$scalar>,
         ) -> Result<()> {
             normalization_autotuned(
@@ -322,7 +322,7 @@ macro_rules! normalization_fns {
         pub unsafe fn $tune_layer_norm(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
             config: NormalizationConfig<$scalar>,
             options: TuneOptions,
         ) -> Result<TuneReport<NormalizationTuning>> {
@@ -372,8 +372,8 @@ macro_rules! normalization_fns {
         pub unsafe fn $layer_norm_weight(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
-            weight: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
+            weight: &impl DeviceRange<$ty>,
             config: NormalizationConfig<$scalar>,
         ) -> Result<()> {
             normalization_autotuned(
@@ -428,8 +428,8 @@ macro_rules! normalization_fns {
         pub unsafe fn $tune_layer_norm_weight(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
-            weight: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
+            weight: &impl DeviceRange<$ty>,
             config: NormalizationConfig<$scalar>,
             options: TuneOptions,
         ) -> Result<TuneReport<NormalizationTuning>> {
@@ -479,8 +479,8 @@ macro_rules! normalization_fns {
         pub unsafe fn $layer_norm_bias(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
-            bias: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
+            bias: &impl DeviceRange<$ty>,
             config: NormalizationConfig<$scalar>,
         ) -> Result<()> {
             normalization_autotuned(
@@ -535,8 +535,8 @@ macro_rules! normalization_fns {
         pub unsafe fn $tune_layer_norm_bias(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
-            bias: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
+            bias: &impl DeviceRange<$ty>,
             config: NormalizationConfig<$scalar>,
             options: TuneOptions,
         ) -> Result<TuneReport<NormalizationTuning>> {
@@ -586,9 +586,9 @@ macro_rules! normalization_fns {
         pub unsafe fn $layer_norm_affine(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
-            weight: &impl DeviceInput<$ty>,
-            bias: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
+            weight: &impl DeviceRange<$ty>,
+            bias: &impl DeviceRange<$ty>,
             config: NormalizationConfig<$scalar>,
         ) -> Result<()> {
             normalization_autotuned(
@@ -643,9 +643,9 @@ macro_rules! normalization_fns {
         pub unsafe fn $tune_layer_norm_affine(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
-            weight: &impl DeviceInput<$ty>,
-            bias: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
+            weight: &impl DeviceRange<$ty>,
+            bias: &impl DeviceRange<$ty>,
             config: NormalizationConfig<$scalar>,
             options: TuneOptions,
         ) -> Result<TuneReport<NormalizationTuning>> {
@@ -695,7 +695,7 @@ macro_rules! normalization_fns {
         pub unsafe fn $rms_norm(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
             config: NormalizationConfig<$scalar>,
         ) -> Result<()> {
             normalization_autotuned(
@@ -750,7 +750,7 @@ macro_rules! normalization_fns {
         pub unsafe fn $tune_rms_norm(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
             config: NormalizationConfig<$scalar>,
             options: TuneOptions,
         ) -> Result<TuneReport<NormalizationTuning>> {
@@ -800,9 +800,9 @@ macro_rules! normalization_fns {
         pub unsafe fn $rms_norm_affine(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
-            weight: &impl DeviceInput<$ty>,
-            bias: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
+            weight: &impl DeviceRange<$ty>,
+            bias: &impl DeviceRange<$ty>,
             config: NormalizationConfig<$scalar>,
         ) -> Result<()> {
             normalization_autotuned(
@@ -857,9 +857,9 @@ macro_rules! normalization_fns {
         pub unsafe fn $tune_rms_norm_affine(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
-            weight: &impl DeviceInput<$ty>,
-            bias: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
+            weight: &impl DeviceRange<$ty>,
+            bias: &impl DeviceRange<$ty>,
             config: NormalizationConfig<$scalar>,
             options: TuneOptions,
         ) -> Result<TuneReport<NormalizationTuning>> {
@@ -909,8 +909,8 @@ macro_rules! normalization_fns {
         pub unsafe fn $rms_norm_weight_offset(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
-            weight: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
+            weight: &impl DeviceRange<$ty>,
             config: RmsNormWeightOffsetConfig<$scalar>,
         ) -> Result<()> {
             normalization_autotuned(
@@ -965,8 +965,8 @@ macro_rules! normalization_fns {
         pub unsafe fn $tune_rms_norm_weight_offset(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
-            weight: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
+            weight: &impl DeviceRange<$ty>,
             config: RmsNormWeightOffsetConfig<$scalar>,
             options: TuneOptions,
         ) -> Result<TuneReport<NormalizationTuning>> {
@@ -1116,7 +1116,7 @@ macro_rules! sparsemax_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
             config: SparsemaxConfig,
         ) -> Result<()> {
             sparsemax(
@@ -1148,7 +1148,7 @@ macro_rules! sparsemax_fn {
         pub unsafe fn $tune_name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
             config: SparsemaxConfig,
             options: TuneOptions,
         ) -> Result<TuneReport<SparsemaxTuning>> {
@@ -1197,10 +1197,10 @@ sparsemax_fn!(
 );
 
 pub struct BatchNormInferenceConfig<'a, T: DeviceRepr, A> {
-    pub weight: Option<&'a dyn DeviceInput<T>>,
-    pub bias: Option<&'a dyn DeviceInput<T>>,
-    pub running_mean: Option<&'a dyn DeviceInput<T>>,
-    pub running_var: Option<&'a dyn DeviceInput<T>>,
+    pub weight: Option<&'a dyn DeviceRange<T>>,
+    pub bias: Option<&'a dyn DeviceRange<T>>,
+    pub running_mean: Option<&'a dyn DeviceRange<T>>,
+    pub running_var: Option<&'a dyn DeviceRange<T>>,
     pub feature_count: usize,
     pub spatial_len: usize,
     pub eps: A,
@@ -1234,9 +1234,9 @@ pub struct GroupNormConfig {
 pub unsafe fn group_norm_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    input: &impl DeviceInput<f32>,
-    weight: &impl DeviceInput<f32>,
-    bias: &impl DeviceInput<f32>,
+    input: &impl DeviceRange<f32>,
+    weight: &impl DeviceRange<f32>,
+    bias: &impl DeviceRange<f32>,
     config: GroupNormConfig,
 ) -> Result<()> {
     // SAFETY: the caller upholds this function's safety contract.
@@ -1255,9 +1255,9 @@ pub unsafe fn group_norm_f32(
 pub unsafe fn group_norm_f16(
     stream: &Stream,
     out: &mut impl DeviceOutput<f16>,
-    input: &impl DeviceInput<f16>,
-    weight: &impl DeviceInput<f16>,
-    bias: &impl DeviceInput<f16>,
+    input: &impl DeviceRange<f16>,
+    weight: &impl DeviceRange<f16>,
+    bias: &impl DeviceRange<f16>,
     config: GroupNormConfig,
 ) -> Result<()> {
     // SAFETY: the caller upholds this function's safety contract.
@@ -1276,9 +1276,9 @@ pub unsafe fn group_norm_f16(
 pub unsafe fn group_norm_bf16(
     stream: &Stream,
     out: &mut impl DeviceOutput<bf16>,
-    input: &impl DeviceInput<bf16>,
-    weight: &impl DeviceInput<bf16>,
-    bias: &impl DeviceInput<bf16>,
+    input: &impl DeviceRange<bf16>,
+    weight: &impl DeviceRange<bf16>,
+    bias: &impl DeviceRange<bf16>,
     config: GroupNormConfig,
 ) -> Result<()> {
     // SAFETY: the caller upholds this function's safety contract.
@@ -1298,7 +1298,7 @@ macro_rules! batch_norm_inference_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
             config: BatchNormInferenceConfig<'_, $ty, $scalar>,
         ) -> Result<()> {
             batch_norm_inference(
@@ -1347,9 +1347,9 @@ batch_norm_inference_fn!(batch_norm_inference_f64, f64, f64);
 unsafe fn group_norm(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    input: &impl DeviceInput<f32>,
-    weight: &impl DeviceInput<f32>,
-    bias: &impl DeviceInput<f32>,
+    input: &impl DeviceRange<f32>,
+    weight: &impl DeviceRange<f32>,
+    bias: &impl DeviceRange<f32>,
     config: GroupNormConfig,
 ) -> Result<()> {
     validate_group_norm(out.len(), input.len(), weight.len(), bias.len(), config)?;
@@ -1379,9 +1379,9 @@ unsafe fn group_norm(
 unsafe fn group_norm_f16_impl(
     stream: &Stream,
     out: &mut impl DeviceOutput<f16>,
-    input: &impl DeviceInput<f16>,
-    weight: &impl DeviceInput<f16>,
-    bias: &impl DeviceInput<f16>,
+    input: &impl DeviceRange<f16>,
+    weight: &impl DeviceRange<f16>,
+    bias: &impl DeviceRange<f16>,
     config: GroupNormConfig,
 ) -> Result<()> {
     validate_group_norm(out.len(), input.len(), weight.len(), bias.len(), config)?;
@@ -1411,9 +1411,9 @@ unsafe fn group_norm_f16_impl(
 unsafe fn group_norm_bf16_impl(
     stream: &Stream,
     out: &mut impl DeviceOutput<bf16>,
-    input: &impl DeviceInput<bf16>,
-    weight: &impl DeviceInput<bf16>,
-    bias: &impl DeviceInput<bf16>,
+    input: &impl DeviceRange<bf16>,
+    weight: &impl DeviceRange<bf16>,
+    bias: &impl DeviceRange<bf16>,
     config: GroupNormConfig,
 ) -> Result<()> {
     validate_group_norm(out.len(), input.len(), weight.len(), bias.len(), config)?;
@@ -1441,7 +1441,7 @@ unsafe fn group_norm_bf16_impl(
 fn batch_norm_inference<T, A, F>(
     stream: &Stream,
     out: &mut impl DeviceOutput<T>,
-    input: &impl DeviceInput<T>,
+    input: &impl DeviceRange<T>,
     config: BatchNormInferenceConfig<'_, T, A>,
     launch: F,
 ) -> Result<()>
@@ -1602,7 +1602,7 @@ where
 fn launch_sparsemax_default<T, F>(
     stream: &Stream,
     out: &mut impl DeviceOutput<T>,
-    input: &impl DeviceInput<T>,
+    input: &impl DeviceRange<T>,
     config: SparsemaxConfig,
     launch: F,
 ) -> Result<()>
@@ -1624,7 +1624,7 @@ where
 fn launch_sparsemax_with_tuning<T, F>(
     stream: &Stream,
     out: &mut impl DeviceOutput<T>,
-    input: &impl DeviceInput<T>,
+    input: &impl DeviceRange<T>,
     config: SparsemaxConfig,
     tuning: SparsemaxTuning,
     launch: F,
@@ -1657,7 +1657,7 @@ where
 fn sparsemax<T, FDefault, FTuned>(
     stream: &Stream,
     out: &mut impl DeviceOutput<T>,
-    input: &impl DeviceInput<T>,
+    input: &impl DeviceRange<T>,
     config: SparsemaxConfig,
     dtype: &'static str,
     op: &'static str,
@@ -1715,7 +1715,7 @@ where
 fn tune_sparsemax<T, F>(
     stream: &Stream,
     out: &mut impl DeviceOutput<T>,
-    input: &impl DeviceInput<T>,
+    input: &impl DeviceRange<T>,
     config: SparsemaxConfig,
     options: TuneOptions,
     dtype: &'static str,
@@ -1882,7 +1882,7 @@ where
 fn launch_normalization_default<T, A: Copy, W, B, F>(
     stream: &Stream,
     out: &mut impl DeviceOutput<T>,
-    input: &impl DeviceInput<T>,
+    input: &impl DeviceRange<T>,
     weight: Option<&W>,
     bias: Option<&B>,
     rows: usize,
@@ -1893,8 +1893,8 @@ fn launch_normalization_default<T, A: Copy, W, B, F>(
 ) -> Result<()>
 where
     T: DeviceRepr,
-    W: DeviceInput<T> + ?Sized,
-    B: DeviceInput<T> + ?Sized,
+    W: DeviceRange<T> + ?Sized,
+    B: DeviceRange<T> + ?Sized,
     F: FnOnce(
         &Arc<CutileStream>,
         DevicePointer<T>,
@@ -1932,7 +1932,7 @@ where
 fn launch_normalization_with_tuning<T, A: Copy, W, B, F>(
     stream: &Stream,
     out: &mut impl DeviceOutput<T>,
-    input: &impl DeviceInput<T>,
+    input: &impl DeviceRange<T>,
     weight: Option<&W>,
     bias: Option<&B>,
     rows: usize,
@@ -1944,8 +1944,8 @@ fn launch_normalization_with_tuning<T, A: Copy, W, B, F>(
 ) -> Result<()>
 where
     T: DeviceRepr,
-    W: DeviceInput<T>,
-    B: DeviceInput<T>,
+    W: DeviceRange<T>,
+    B: DeviceRange<T>,
     F: FnOnce(
         &Arc<CutileStream>,
         DevicePointer<T>,
@@ -1991,7 +1991,7 @@ where
 fn normalization_autotuned<T, A: Copy, W, B, FDefault, FTuned>(
     stream: &Stream,
     out: &mut impl DeviceOutput<T>,
-    input: &impl DeviceInput<T>,
+    input: &impl DeviceRange<T>,
     weight: Option<&W>,
     bias: Option<&B>,
     rows: usize,
@@ -2006,8 +2006,8 @@ fn normalization_autotuned<T, A: Copy, W, B, FDefault, FTuned>(
 ) -> Result<()>
 where
     T: DeviceRepr,
-    W: DeviceInput<T>,
-    B: DeviceInput<T>,
+    W: DeviceRange<T>,
+    B: DeviceRange<T>,
     FDefault: FnOnce(
         &Arc<CutileStream>,
         DevicePointer<T>,
@@ -2041,8 +2041,8 @@ where
     validate_normalization_lengths(
         out.len(),
         input.len(),
-        weight.map(DeviceInput::len),
-        bias.map(DeviceInput::len),
+        weight.map(DeviceRange::len),
+        bias.map(DeviceRange::len),
         rows,
         cols,
     )?;
@@ -2142,7 +2142,7 @@ where
 fn tune_normalization<T, A: Copy, W, B, F>(
     stream: &Stream,
     out: &mut impl DeviceOutput<T>,
-    input: &impl DeviceInput<T>,
+    input: &impl DeviceRange<T>,
     weight: Option<&W>,
     bias: Option<&B>,
     rows: usize,
@@ -2156,8 +2156,8 @@ fn tune_normalization<T, A: Copy, W, B, F>(
 ) -> Result<TuneReport<NormalizationTuning>>
 where
     T: DeviceRepr,
-    W: DeviceInput<T>,
-    B: DeviceInput<T>,
+    W: DeviceRange<T>,
+    B: DeviceRange<T>,
     F: Copy
         + Fn(
             &Arc<CutileStream>,
@@ -2178,8 +2178,8 @@ where
     validate_normalization_lengths(
         out.len(),
         input.len(),
-        weight.map(DeviceInput::len),
-        bias.map(DeviceInput::len),
+        weight.map(DeviceRange::len),
+        bias.map(DeviceRange::len),
         rows,
         cols,
     )?;
@@ -2262,8 +2262,9 @@ mod tests {
     use singe_cuda::{
         context::Context as CudaContext,
         device::Device,
+        graph::GraphInstantiateFlags,
         memory::DeviceMemory,
-        stream::{Stream, StreamCaptureMode, StreamFlags},
+        stream::{Stream, StreamCaptureMode, StreamFlags, StreamOptions},
     };
 
     // Each eager normalization launch is drained before its borrowed resources can drop.
@@ -2271,12 +2272,13 @@ mod tests {
 
     #[cfg(feature = "dtype_f32")]
     fn test_stream() -> Result<Option<Stream>> {
-        let Ok(context) = CudaContext::retain_primary_for_device(Device::new(0)) else {
+        let Ok(context) = CudaContext::create_for_device(Device::new(0)) else {
             return Ok(None);
         };
-        Ok(Some(
-            context.create_stream_with_flags(StreamFlags::NON_BLOCKING)?,
-        ))
+        Ok(Some(context.create_stream(StreamOptions {
+            flags: StreamFlags::NON_BLOCKING,
+            ..StreamOptions::default()
+        })?))
     }
 
     #[cfg(feature = "dtype_f32")]
@@ -2726,7 +2728,9 @@ mod tests {
                 config.cached_tuning(),
             )
         }?;
-        let graph = stream.end_capture()?.instantiate()?;
+        let graph = stream
+            .end_capture()?
+            .instantiate(GraphInstantiateFlags::empty())?;
         // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
         stream.sync_scope(|_| unsafe { graph.launch(&stream) })?;
 
@@ -2873,7 +2877,9 @@ mod tests {
         stream.begin_capture(StreamCaptureMode::Relaxed)?;
         // SAFETY: capture records this access; the scoped replay retains every allocation until completion.
         unsafe { sparsemax_f32(&stream, &mut graph_out, &input, config.cached_tuning()) }?;
-        let graph = stream.end_capture()?.instantiate()?;
+        let graph = stream
+            .end_capture()?
+            .instantiate(GraphInstantiateFlags::empty())?;
         stream.sync_scope(|_| unsafe { graph.launch(&stream) })?;
 
         assert_sparsemax_output(&graph_out, &expected, &stream)

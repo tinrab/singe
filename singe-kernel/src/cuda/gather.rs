@@ -4,7 +4,7 @@
 use singe_cuda::types::f16;
 use singe_cuda::{
     stream::Stream,
-    view::{DeviceInput, DeviceOutput},
+    view::{DeviceOutput, DeviceRange},
 };
 
 #[cfg(feature = "cutile")]
@@ -28,8 +28,8 @@ macro_rules! gather_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
-            indices: &impl DeviceInput<u32>,
+            input: &impl DeviceRange<$ty>,
+            indices: &impl DeviceRange<u32>,
         ) -> Result<()> {
             let len = out.len();
             ensure_len(indices.len(), len)?;
@@ -93,8 +93,8 @@ macro_rules! scatter_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
-            indices: &impl DeviceInput<u32>,
+            input: &impl DeviceRange<$ty>,
+            indices: &impl DeviceRange<u32>,
         ) -> Result<()> {
             let len = input.len();
             ensure_len(indices.len(), len)?;
@@ -156,8 +156,8 @@ macro_rules! gather_rows_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
-            row_indices: &impl DeviceInput<u32>,
+            input: &impl DeviceRange<$ty>,
+            row_indices: &impl DeviceRange<u32>,
             cols: usize,
         ) -> Result<()> {
             if cols == 0 {
@@ -224,7 +224,7 @@ macro_rules! gather_row_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
             row_index: usize,
             cols: usize,
         ) -> Result<()> {
@@ -297,8 +297,8 @@ macro_rules! scatter_rows_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
-            row_indices: &impl DeviceInput<u32>,
+            input: &impl DeviceRange<$ty>,
+            row_indices: &impl DeviceRange<u32>,
             cols: usize,
         ) -> Result<()> {
             if cols == 0 {
@@ -367,9 +367,9 @@ macro_rules! copy_indexed_rows_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
-            source_indices: &impl DeviceInput<u32>,
-            output_indices: &impl DeviceInput<u32>,
+            input: &impl DeviceRange<$ty>,
+            source_indices: &impl DeviceRange<u32>,
+            output_indices: &impl DeviceRange<u32>,
             cols: usize,
         ) -> Result<()> {
             if cols == 0 {

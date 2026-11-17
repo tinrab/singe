@@ -10,7 +10,7 @@ use singe::{
 #[cfg(all(feature = "testing", feature = "cuda"))]
 use singe::{backend::cuda, graph::GraphCudaOptions};
 #[cfg(all(feature = "testing", feature = "cuda"))]
-use singe_cuda::testing::device_lock;
+use singe_cuda::{device::Device as CudaDevice, testing::device_lock};
 
 fn assert_invalid_reductions(device: Device) {
     let empty =
@@ -52,7 +52,7 @@ fn test_scalar_views_reject_axes_outside_the_virtual_scalar_axis() {
 #[cfg(all(feature = "testing", feature = "cuda"))]
 #[test]
 fn test_cuda_reduction_validation_and_mixed_device_rejection_follow_the_tensor_contract() {
-    let _lock = device_lock(0).unwrap();
+    let _lock = device_lock(CudaDevice::new(0)).unwrap();
     let device = Device::Cuda(0);
     assert_invalid_reductions(device);
     let cpu = Tensor::scalar(Device::Cpu, 1.0_f32).unwrap();
@@ -79,7 +79,7 @@ fn test_cuda_reduction_validation_and_mixed_device_rejection_follow_the_tensor_c
 #[cfg(all(feature = "testing", feature = "cuda"))]
 #[test]
 fn test_cuda_general_kernel_replay_retains_modules_after_cache_clear_and_outputs_after_reuse() {
-    let _lock = device_lock(0).unwrap();
+    let _lock = device_lock(CudaDevice::new(0)).unwrap();
     let device = Device::Cuda(0);
     let input = Tensor::from_vec(
         device,
@@ -114,7 +114,7 @@ fn test_copies_are_independent_and_broadcast_views_share_storage() {
 #[cfg(all(feature = "testing", feature = "cuda"))]
 #[test]
 fn test_cuda_copies_and_broadcast_views_preserve_allocation_identity_contracts() {
-    let _lock = device_lock(0).unwrap();
+    let _lock = device_lock(CudaDevice::new(0)).unwrap();
     assert_copy_and_view_identity(Device::Cuda(0));
 }
 
@@ -312,7 +312,7 @@ fn test_typed_fill_and_like_constructors_preserve_bool_half_and_integer_values()
 #[cfg(all(feature = "testing", feature = "cuda"))]
 #[test]
 fn test_cuda_host_readback_and_moves_preserve_strided_fp64_and_bool_values() {
-    let _lock = device_lock(0).expect("the CUDA contract tests require device 0");
+    let _lock = device_lock(CudaDevice::new(0)).expect("the CUDA contract tests require device 0");
     let input = Tensor::from_vec(
         Device::Cuda(0),
         Shape::create([2, 3]).unwrap(),

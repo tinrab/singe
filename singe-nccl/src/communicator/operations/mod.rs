@@ -1,3 +1,4 @@
 mod collectives;
-pub mod custom_ops;
+mod custom_ops;
 mod registration;
+mod scoped;

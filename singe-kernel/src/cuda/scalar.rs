@@ -5,7 +5,7 @@ use ::cutile::cuda_async::device_buffer::DevicePointer;
 use singe_cuda::types::f16;
 use singe_cuda::{
     stream::Stream,
-    view::{DeviceInput, DeviceOutput},
+    view::{DeviceOutput, DeviceRange},
 };
 
 #[cfg(feature = "cutile")]
@@ -105,7 +105,7 @@ macro_rules! scalar_float_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
             scalar: $ty,
             config: VectorConfig,
         ) -> Result<()> {
@@ -143,7 +143,7 @@ macro_rules! scalar_float_fn {
         pub unsafe fn $tune_name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
             scalar: $ty,
             config: VectorConfig,
             options: TuneOptions,
@@ -184,7 +184,7 @@ macro_rules! scalar_raw_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
             scalar: $ty,
         ) -> Result<()> {
             let len = ensure_unary_lengths(out.len(), input.len())?;
@@ -214,7 +214,7 @@ macro_rules! scalar_bool_float_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<u8>,
-            input: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
             scalar: $ty,
             config: VectorConfig,
         ) -> Result<()> {
@@ -252,7 +252,7 @@ macro_rules! scalar_bool_float_fn {
         pub unsafe fn $tune_name(
             stream: &Stream,
             out: &mut impl DeviceOutput<u8>,
-            input: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
             scalar: $ty,
             config: VectorConfig,
             options: TuneOptions,
@@ -293,7 +293,7 @@ macro_rules! scalar_bool_raw_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<u8>,
-            input: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
             scalar: $ty,
         ) -> Result<()> {
             let len = out.len();

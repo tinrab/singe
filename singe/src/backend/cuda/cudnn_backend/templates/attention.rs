@@ -2,22 +2,22 @@ use singe_cudnn::{
     backend::{
         execution::{
             EngineChoice, OperationGraph as CudnnOperationGraph,
-            OperationGraphConfig as CudnnOperationGraphConfig,
+            OperationGraphOptions as CudnnOperationGraphOptions,
+        },
+        operation::{
             attention::{
-                AttentionSequenceInputs, DiagonalBandMaskBound, DiagonalBandMaskConfig,
-                DiagonalBandMaskOperation, SdpaForwardConfig, SdpaForwardOperation,
-                SdpaForwardSoftmax, SdpaForwardTensors, SdpaSubgraph, SequenceLength,
+                AttentionSequenceInputs, DiagonalBandMaskBound, DiagonalBandMaskOperation,
+                DiagonalBandMaskSpec, SdpaForwardOperation, SdpaForwardOptions, SdpaForwardSoftmax,
+                SdpaForwardTensors, SdpaSubgraph, SequenceLength,
             },
+            pointwise::PointwiseMode,
         },
-        pointwise::PointwiseMode,
-        tensor::{
-            BackendTensorUid as CudnnTensorUid, Shape as CudnnShape, Tensor as CudnnBackendTensor,
-            TensorId, TensorSpec,
-        },
+        tensor::{BackendTensorUid as CudnnTensorUid, Tensor as CudnnBackendTensor},
     },
     context::Context as CudnnContext,
     data_type::DataType as CudnnDataType,
     error::Status as CudnnStatus,
+    tensor::{Shape as CudnnShape, TensorId, TensorSpec},
 };
 
 use crate::{
@@ -358,7 +358,7 @@ impl ScoreMasks {
                 &current,
                 &infinity,
                 &hidden,
-                DiagonalBandMaskConfig::new(PointwiseMode::CmpGe).with_sequence_inputs(sequence),
+                DiagonalBandMaskSpec::new(PointwiseMode::CmpGe).with_sequence_inputs(sequence),
             )?);
             tensors.push(current);
             current = hidden;
@@ -378,7 +378,7 @@ impl ScoreMasks {
                 &current,
                 &infinity,
                 &hidden,
-                DiagonalBandMaskConfig::new(PointwiseMode::CmpGt)
+                DiagonalBandMaskSpec::new(PointwiseMode::CmpGt)
                     .with_sequence_inputs(sequence)
                     .with_bound(DiagonalBandMaskBound::Left(&bound)),
             )?);
@@ -399,7 +399,7 @@ impl ScoreMasks {
         masks.graph = Some(CudnnOperationGraph::create(
             cudnn,
             &descriptors,
-            CudnnOperationGraphConfig::default(),
+            CudnnOperationGraphOptions::default(),
         )?);
         Ok(masks)
     }
@@ -557,7 +557,7 @@ fn build_template(
             output: &output,
             scale: &scale,
         },
-        SdpaForwardConfig {
+        SdpaForwardOptions {
             sequence: paged
                 .as_ref()
                 .map_or(dense_sequence, |paged| AttentionSequenceInputs {
@@ -570,13 +570,13 @@ fn build_template(
                 stats: paged.as_ref().map(|paged| &paged.stats),
             },
             subgraph: masks.subgraph(),
-            ..SdpaForwardConfig::default()
+            ..SdpaForwardOptions::default()
         },
     )?;
     let operation_graph = CudnnOperationGraph::create(
         cudnn,
         &[attention.descriptor()],
-        CudnnOperationGraphConfig::default(),
+        CudnnOperationGraphOptions::default(),
     )?;
     let plan = match &problem.engine {
         Some(choice) => cudnn_forced_execution_plan(

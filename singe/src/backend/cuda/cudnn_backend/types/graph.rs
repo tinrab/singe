@@ -4,8 +4,10 @@ use singe_cudnn::backend::{
     execution::{
         EngineChoice, ExecutionPlan as CudnnExecutionPlan, OperationGraph as CudnnOperationGraph,
     },
-    pointwise::PointwiseMode as CudnnPointwiseMode,
-    reduction::ReduceTensorOperator as CudnnReductionMode,
+    operation::{
+        pointwise::PointwiseMode as CudnnPointwiseMode,
+        reduction::ReduceTensorOperator as CudnnReductionMode,
+    },
     tensor::{BackendTensorUid as CudnnTensorUid, Tensor as CudnnBackendTensor},
 };
 

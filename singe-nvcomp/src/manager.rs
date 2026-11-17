@@ -6,12 +6,12 @@
 use std::{
     ffi::CStr,
     mem::ManuallyDrop,
-    process,
     ptr::{self, NonNull},
     result::Result as StdResult,
     sync::Arc,
 };
 
+use singe_core::{abort_after_cleanup_failure, report_cleanup_failure};
 use singe_cuda::{
     context::Context as CudaContext, error::Error as CudaError, memory::DeviceMemory,
     stream::Stream, view::DeviceSlice,
@@ -25,7 +25,7 @@ use crate::{
     lz4::{CompressOptions, DecompressOptions},
     snappy, sys,
     types::{AlignmentRequirements, DecompressBackend, GzipDecompressAlgorithm},
-    utility::validate_alignment,
+    utility::{to_i32, validate_alignment},
     zstd,
 };
 
@@ -289,7 +289,7 @@ impl Handle {
 
     fn compression_bound(&self, bytes: usize) -> Result<usize> {
         let mut output = 0;
-        // SAFETY: `singe_nvcomp_compress_bound` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `self` owns a live manager handle, and `output` is a live local the bridge writes once.
         bridge_result(unsafe {
             ffi::singe_nvcomp_compress_bound(self.as_raw(), bytes, &raw mut output)
         })?;
@@ -302,7 +302,7 @@ impl Handle {
             output: 0,
             temp: 0,
         };
-        // SAFETY: `singe_nvcomp_alignments` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `self` owns a live manager handle, and the three outputs are fields of a live local.
         bridge_result(unsafe {
             ffi::singe_nvcomp_alignments(
                 self.as_raw(),
@@ -318,7 +318,7 @@ impl Handle {
 
 impl Drop for Handle {
     fn drop(&mut self) {
-        // SAFETY: `singe_nvcomp_manager_destroy` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `Handle` owns the manager exclusively, so this destroys a live handle exactly once.
         unsafe {
             ffi::singe_nvcomp_manager_destroy(self.as_raw());
         }
@@ -329,14 +329,15 @@ impl Drop for Handle {
 /// It keeps the CUDA context alive but not the stream, which avoids a reference cycle during capture cleanup.
 #[derive(Debug)]
 struct GpuManagerOwner {
-    handle: Handle,
+    // Dropped only by `Drop`, after the context is bound.
+    handle: ManuallyDrop<Handle>,
     context: Arc<CudaContext>,
 }
 
 impl GpuManagerOwner {
     fn create(raw: *mut ffi::SingeNvcompManager, context: &Arc<CudaContext>) -> Result<Self> {
         Ok(Self {
-            handle: Handle::create(raw)?,
+            handle: ManuallyDrop::new(Handle::create(raw)?),
             context: Arc::clone(context),
         })
     }
@@ -344,8 +345,8 @@ impl GpuManagerOwner {
     fn into_raw(self) -> *mut ffi::SingeNvcompManager {
         let this = ManuallyDrop::new(self);
         let raw = this.handle.as_raw();
-        // SAFETY: transfer the native handle without running Handle's destructor;
-        // RawCompressor's stream retains the same context after this reference drops.
+        // SAFETY: `this` is never dropped, so its context moves out exactly once and `Handle`'s destructor never runs.
+        // The `RawCompressor`'s stream keeps the same context alive after this reference drops.
         unsafe {
             drop(ptr::read(&raw const this.context));
         }
@@ -353,20 +354,26 @@ impl GpuManagerOwner {
     }
 }
 
-// SAFETY: only private ownership is shared. Native operations require an exclusive
-// Compressor borrow; final cleanup binds its context and runs once on any thread.
 #[expect(
     clippy::non_send_fields_in_send_ty,
     reason = "native owners transfer their handles and storage borrows under the adjacent safety contract"
 )]
+// SAFETY: an nvCOMP manager is not tied to the thread that created it; native calls go through an exclusive `Compressor` borrow, and the final drop binds the owner's context on whichever thread runs it.
 unsafe impl Send for GpuManagerOwner {}
 
+// SAFETY: `&GpuManagerOwner` reaches native calls only through `Compressor` methods that take `&mut self`, and the other sharer, deferred capture cleanup, only drops it.
 unsafe impl Sync for GpuManagerOwner {}
 
 impl Drop for GpuManagerOwner {
     fn drop(&mut self) {
-        if self.context.bind().is_err() {
-            process::abort();
+        if let Err(error) = self.context.bind() {
+            report_cleanup_failure("bind the cuda context to destroy", "nvcomp manager", &error);
+            return;
+        }
+
+        // SAFETY: `handle` is dropped only here, once, with its context bound.
+        unsafe {
+            ManuallyDrop::drop(&mut self.handle);
         }
     }
 }
@@ -376,7 +383,7 @@ pub(crate) fn bridge_result(code: i32) -> Result<()> {
         return Ok(());
     }
 
-    // SAFETY: `singe_nvcomp_last_error` receives live handles owned by the wrappers and valid output locations.
+    // SAFETY: the bridge returns a NUL-terminated thread-local message that stays valid until its next call on this thread.
     let message = unsafe { CStr::from_ptr(ffi::singe_nvcomp_last_error()) }
         .to_string_lossy()
         .into_owned();
@@ -399,10 +406,14 @@ impl Configured {
     ///
     /// Returns an error if the chunk size is zero or not a multiple of the codec's element size.
     pub fn create(codec: CodecOptions, options: ManagerOptions) -> Result<Self> {
-        if options.chunk_size == 0 || !options.chunk_size.is_multiple_of(codec.element_size()) {
-            return Err(Error::InvalidValue {
+        if options.chunk_size == 0 {
+            return Err(Error::NotPositive {
                 name: "chunk_size".into(),
             });
+        }
+
+        if !options.chunk_size.is_multiple_of(codec.element_size()) {
+            return Err(Error::out_of_range("chunk_size"));
         }
         Ok(Self { codec, options })
     }
@@ -453,7 +464,7 @@ impl CodecOptions {
 #[derive(Debug)]
 pub struct Compressor<C = Configured> {
     owner: Arc<GpuManagerOwner>,
-    stream: Arc<Stream>,
+    stream: Stream,
     configuration: C,
 }
 
@@ -465,8 +476,8 @@ pub struct Compressor<C = Configured> {
 pub struct RawCompressor<C = Configured> {
     /// Native manager handle, owned exclusively.
     pub handle: *mut ffi::SingeNvcompManager,
-    /// Stream that the native manager uses.
-    pub stream: Arc<Stream>,
+    /// Stream that the native manager uses, retaining its CUDA context.
+    pub stream: Stream,
     /// Codec configuration, which must match the native manager.
     pub configuration: C,
 }
@@ -529,11 +540,7 @@ impl Compressor<Configured> {
         clippy::too_many_lines,
         reason = "native operation construction keeps its resource ownership and descriptor ordering together"
     )]
-    pub fn create(
-        codec: CodecOptions,
-        options: ManagerOptions,
-        stream: &Arc<Stream>,
-    ) -> Result<Self> {
+    pub fn create(codec: CodecOptions, options: ManagerOptions, stream: &Stream) -> Result<Self> {
         stream.ensure_not_capturing()?;
         let configuration = Configured::create(codec, options)?;
         stream.context().bind()?;
@@ -542,7 +549,7 @@ impl Compressor<Configured> {
             ($format:ident,$comp:expr,$decomp:expr,$comp_ty:ident,$decomp_ty:ident) => {{
                 let compress: sys::$comp_ty = $comp.into();
                 let decompress: sys::$decomp_ty = $decomp.into();
-                // SAFETY: `singe_nvcomp_manager_create` receives live handles owned by the wrappers and valid output locations.
+                // SAFETY: the option structs are live locals of the matching native types, the stream is live in the bound context, and `raw` is a live output location.
                 bridge_result(unsafe {
                     ffi::singe_nvcomp_manager_create(
                         Format::$format.into_raw(),
@@ -652,7 +659,7 @@ impl Compressor<Configured> {
         }
         Ok(Self {
             owner: Arc::new(GpuManagerOwner::create(raw, stream.context())?),
-            stream: Arc::clone(stream),
+            stream: stream.clone(),
             configuration,
         })
     }
@@ -669,11 +676,9 @@ impl Compressor<Configured> {
             .len()
             .is_multiple_of(self.configuration.codec.element_size())
         {
-            return Err(Error::InvalidValue {
-                name: "compression input element count".into(),
-            });
+            return Err(Error::out_of_range("compression input element count"));
         }
-        // SAFETY: creation checks internal chunk sizes and the input has complete scalars.
+        // SAFETY: `Configured::create` checked the chunk size against the element size, and the check above makes `input` a whole number of elements.
         unsafe { self.compress_with_layout(input) }
     }
 }
@@ -694,7 +699,7 @@ impl Compressor<Detected> {
     pub unsafe fn from_compressed<B: DeviceSlice<u8> + ?Sized>(
         buffer: &B,
         options: DetectionOptions,
-        stream: &Arc<Stream>,
+        stream: &Stream,
     ) -> Result<Self> {
         stream.ensure_not_capturing()?;
         require_context(buffer, stream)?;
@@ -703,7 +708,7 @@ impl Compressor<Detected> {
         stream.sync_scope(|_| {
             Ok((|| -> Result<()> {
                 stream.join_regions(&[buffer.region()])?;
-                // SAFETY: the caller upholds this function's safety contract.
+                // SAFETY: the caller guarantees a complete native bitstream in `buffer`, which is joined on the live stream of the bound context, and `raw` is a live local.
                 bridge_result(unsafe {
                     ffi::singe_nvcomp_manager_from_buffer(
                         buffer.as_device_ptr(),
@@ -712,9 +717,9 @@ impl Compressor<Detected> {
                         0,
                         options.checksum.into_raw(),
                         options.execution.into_raw(),
-                        options.backend as i32,
+                        to_i32(u32::from(options.backend), "backend")?,
                         options.sort_before_hardware_decompression.into(),
-                        options.algorithm as i32,
+                        to_i32(u32::from(options.algorithm), "algorithm")?,
                         &raw mut raw,
                     )
                 })?;
@@ -723,7 +728,7 @@ impl Compressor<Detected> {
         })??;
         Ok(Self {
             owner: Arc::new(GpuManagerOwner::create(raw, stream.context())?),
-            stream: Arc::clone(stream),
+            stream: stream.clone(),
             configuration: Detected,
         })
     }
@@ -743,7 +748,7 @@ impl Compressor<Detected> {
         &mut self,
         input: &B,
     ) -> Result<CompressedBuffer> {
-        // SAFETY: caller establishes the inferred layout's scalar requirements.
+        // SAFETY: the caller guarantees the detected codec's element-size requirements, the only check `compress_with_layout` leaves to its caller.
         unsafe { self.compress_with_layout(input) }
     }
 }
@@ -755,7 +760,7 @@ impl<C> Compressor<C> {
     }
 
     /// Returns the stream the manager runs on.
-    pub fn stream(&self) -> &Arc<Stream> {
+    pub fn stream(&self) -> &Stream {
         &self.stream
     }
 
@@ -775,22 +780,23 @@ impl<C> Compressor<C> {
     ///
     /// # Safety
     ///
-    /// The handle must be live, owned by nobody else, and use `parts.stream`.
-    /// `parts.configuration` must match the manager's codec and chunk size.
+    /// The handle must be live, owned by nobody else, and use `raw.stream`.
+    /// `raw.configuration` must match the manager's codec and chunk size.
     /// Each handle may be passed to this function only once.
     ///
     /// # Errors
     ///
-    /// Returns an error if the handle is null.
-    pub unsafe fn from_raw(parts: RawCompressor<C>) -> Result<Self> {
-        let owner = Arc::new(GpuManagerOwner::create(
-            parts.handle,
-            parts.stream.context(),
-        )?);
+    /// Returns [`Error::NullHandle`] if `raw.handle` is null.
+    pub unsafe fn from_raw(raw: RawCompressor<C>) -> Result<Self> {
+        if raw.handle.is_null() {
+            return Err(Error::NullHandle);
+        }
+
+        let owner = Arc::new(GpuManagerOwner::create(raw.handle, raw.stream.context())?);
         Ok(Self {
             owner,
-            stream: parts.stream,
-            configuration: parts.configuration,
+            stream: raw.stream,
+            configuration: raw.configuration,
         })
     }
 
@@ -803,12 +809,13 @@ impl<C> Compressor<C> {
     /// Returns the manager unchanged if something else still shares the native handle, such as cleanup for a captured graph.
     pub fn into_raw(self) -> StdResult<RawCompressor<C>, Self> {
         let mut this = ManuallyDrop::new(self);
-        // SAFETY: move the owner once while suppressing Compressor's destruction.
+        // SAFETY: `this` is never dropped, and the owner read here is either consumed or written back below, so it has one owner.
         let owner = unsafe { ptr::read(&raw const this.owner) };
         match Arc::try_unwrap(owner) {
             Ok(owner) => {
-                // SAFETY: move remaining owning fields once; raw ownership retains the stream.
+                // SAFETY: `this` is never dropped, so its stream is moved out exactly once.
                 let stream = unsafe { ptr::read(&raw const this.stream) };
+                // SAFETY: `this` is never dropped, so its configuration is moved out exactly once.
                 let configuration = unsafe { ptr::read(&raw const this.configuration) };
                 Ok(RawCompressor {
                     handle: owner.into_raw(),
@@ -817,7 +824,7 @@ impl<C> Compressor<C> {
                 })
             }
             Err(owner) => {
-                // SAFETY: restore the moved field without dropping its stale bits.
+                // SAFETY: the owner was moved out above, so writing it back restores `this` without dropping the stale copy.
                 unsafe {
                     ptr::write(&raw mut this.owner, owner);
                 }
@@ -886,7 +893,7 @@ impl<C> Compressor<C> {
         self.stream.sync_scope(|_| {
             Ok((|| -> Result<()> {
                 self.stream.join_regions(&[input.region()])?;
-                // SAFETY: the caller upholds this function's safety contract.
+                // SAFETY: `input` and `memory` are aligned and in the stream's context, `memory` holds the compression bound, and `sync_scope` waits before they are released.
                 bridge_result(unsafe {
                     ffi::singe_nvcomp_compress(
                         self.owner.handle.as_raw(),
@@ -900,14 +907,14 @@ impl<C> Compressor<C> {
             })())
         })??;
         if len > capacity {
-            return Err(Error::LengthMismatch {
+            return Err(Error::BufferTooSmall {
                 name: "compressed manager bytes".into(),
-                expected: capacity,
-                actual: len,
+                required: len,
+                actual: capacity,
             });
         }
 
-        // SAFETY: checked native success and completion establish exactly this prefix.
+        // SAFETY: `sync_scope` waited for the successful compression, which wrote the first `len <= capacity` bytes.
         let memory = unsafe { memory.assume_init_prefix(len)? };
         Ok(CompressedBuffer { memory })
     }
@@ -942,7 +949,7 @@ impl<C> Compressor<C> {
         self.stream.sync_scope(|_| {
             Ok((|| -> Result<()> {
                 self.stream.join_regions(&[input.region()])?;
-                // SAFETY: the caller upholds this function's safety contract.
+                // SAFETY: the caller guarantees one valid compressed buffer in `input`, which is aligned and in the stream's context, and `sync_scope` waits before it is released.
                 bridge_result(unsafe {
                     ffi::singe_nvcomp_decompress_size(
                         self.owner.handle.as_raw(),
@@ -971,7 +978,7 @@ impl<C> Compressor<C> {
         &mut self,
         input: &B,
     ) -> Result<DeviceMemory<u8>> {
-        // SAFETY: caller establishes bitstream validity for this manager.
+        // SAFETY: the caller guarantees one valid compressed buffer for this manager, as `decompressed_size` requires.
         let capacity = unsafe { self.decompressed_size(input)? };
         let output = DeviceMemory::<u8>::create_uninit(self.context(), capacity)?;
         let alignment = self.owner.handle.alignments(true)?;
@@ -984,7 +991,7 @@ impl<C> Compressor<C> {
         self.stream.sync_scope(|_| {
             Ok((|| -> Result<()> {
                 self.stream.join_regions(&[input.region()])?;
-                // SAFETY: the caller upholds this function's safety contract.
+                // SAFETY: the caller guarantees valid input, `output` is aligned and holds the size from the header, and `sync_scope` waits before the buffers are released.
                 bridge_result(unsafe {
                     ffi::singe_nvcomp_decompress(
                         self.owner.handle.as_raw(),
@@ -998,13 +1005,13 @@ impl<C> Compressor<C> {
             })())
         })??;
         if written > capacity {
-            return Err(Error::LengthMismatch {
+            return Err(Error::BufferTooSmall {
                 name: "decompressed manager bytes".into(),
-                expected: capacity,
-                actual: written,
+                required: written,
+                actual: capacity,
             });
         }
-        // SAFETY: checked native success and completion establish exactly this prefix.
+        // SAFETY: `sync_scope` waited for the successful decompression, which wrote the first `written <= capacity` bytes.
         Ok(unsafe { output.assume_init_prefix(written)? })
     }
 
@@ -1018,7 +1025,7 @@ impl<C> Compressor<C> {
     pub fn deallocate_gpu_memory(&mut self) -> Result<()> {
         self.stream.ensure_not_capturing()?;
         self.stream.context().bind()?;
-        // SAFETY: `singe_nvcomp_deallocate` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: the owner holds a live manager handle, the context is bound, and `&mut self` excludes other calls through it.
         bridge_result(unsafe { ffi::singe_nvcomp_deallocate(self.owner.handle.as_raw()) })
     }
 }
@@ -1028,12 +1035,11 @@ impl<C> Drop for Compressor<C> {
         // All typed operations are eager. An unrelated active capture must not
         // force a capture-incompatible native destructor or invalidate capture.
         // The deferred owner retains only the context; this stream owns cleanup.
-        if self
+        if let Err(error) = self
             .stream
             .defer_drop_until_capture_end(Arc::clone(&self.owner))
-            .is_err()
         {
-            process::abort();
+            abort_after_cleanup_failure("retain until capture ends", "nvcomp manager", &error);
         }
     }
 }
@@ -1048,9 +1054,17 @@ fn require_context<B: DeviceSlice<u8> + ?Sized>(input: &B, stream: &Stream) -> R
 }
 
 fn validate_input_size(capacity: usize, bytes: usize) -> Result<()> {
-    if bytes == 0 || bytes > capacity {
-        return Err(Error::InvalidValue {
-            name: "compressed input size".into(),
+    if bytes == 0 {
+        return Err(Error::Empty {
+            name: "compressed input".into(),
+        });
+    }
+
+    if bytes > capacity {
+        return Err(Error::BufferTooSmall {
+            name: "compressed input".into(),
+            required: bytes,
+            actual: capacity,
         });
     }
     Ok(())
@@ -1068,20 +1082,21 @@ pub struct CpuCompressor {
 impl CpuCompressor {
     /// Creates a CPU LZ4 manager that compresses in chunks of `chunk_size` bytes.
     ///
-    /// nvCOMP's defaults are a chunk size of 65,536 bytes and compression level 9. A `threads` value of 0 uses every available hardware thread.
+    /// nvCOMP's defaults are a chunk size of 65,536 bytes and compression level 9.
+    /// A `threads` value of 0 uses every available hardware thread.
     ///
     /// # Errors
     ///
     /// Returns an error if `chunk_size` is zero, nvCOMP rejects the settings, or nvCOMP fails to create the manager.
     pub fn create(chunk_size: usize, compression_level: i32, threads: u32) -> Result<Self> {
         if chunk_size == 0 {
-            return Err(Error::InvalidValue {
+            return Err(Error::NotPositive {
                 name: "chunk_size".into(),
             });
         }
 
         let mut raw = ptr::null_mut();
-        // SAFETY: `singe_nvcomp_cpu_create` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: the call takes only plain values, and `raw` is a live output location.
         bridge_result(unsafe {
             ffi::singe_nvcomp_cpu_create(chunk_size, compression_level, threads, &raw mut raw)
         })?;
@@ -1105,7 +1120,7 @@ impl CpuCompressor {
     pub unsafe fn from_compressed(input: &[u8], threads: u32) -> Result<Self> {
         validate_input_size(input.len(), input.len())?;
         let mut raw = ptr::null_mut();
-        // SAFETY: the caller upholds this function's safety contract.
+        // SAFETY: the caller guarantees a complete bitstream the CPU manager supports, `input` is a live host slice of its length, and `raw` is a live local.
         bridge_result(unsafe {
             ffi::singe_nvcomp_manager_from_buffer(
                 input.as_ptr(),
@@ -1138,7 +1153,7 @@ impl CpuCompressor {
         let input = AlignedBytes::from_slice(input, alignments.input)?;
         let mut output = AlignedBytes::create(capacity, alignments.output)?;
         let mut len = 0;
-        // SAFETY: `singe_nvcomp_compress` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `input` and `output` are host buffers aligned for nvCOMP, `output` holds the `capacity` bytes the compression bound requires, and `len` is a live local.
         bridge_result(unsafe {
             ffi::singe_nvcomp_compress(
                 self.handle.as_raw(),
@@ -1168,7 +1183,7 @@ impl CpuCompressor {
         let alignments = self.handle.alignments(true)?;
         let input = AlignedBytes::from_slice(input, alignments.input)?;
         let mut capacity = 0;
-        // SAFETY: the caller upholds this function's safety contract.
+        // SAFETY: the caller guarantees valid input for this manager, `input` is an aligned host copy of `input.len` bytes, and `capacity` is a live local.
         bridge_result(unsafe {
             ffi::singe_nvcomp_decompress_size(
                 self.handle.as_raw(),
@@ -1179,7 +1194,7 @@ impl CpuCompressor {
         })?;
         let mut output = AlignedBytes::create(capacity, alignments.output)?;
         let mut written = 0;
-        // SAFETY: the caller upholds this function's safety contract.
+        // SAFETY: the caller guarantees valid input, `output` is an aligned host buffer of the size from the header, and `written` is a live local.
         bridge_result(unsafe {
             ffi::singe_nvcomp_decompress(
                 self.handle.as_raw(),
@@ -1206,7 +1221,7 @@ impl CpuCompressor {
 pub unsafe fn cpu_compression_format(input: &[u8]) -> Result<Format> {
     validate_input_size(input.len(), input.len())?;
     let mut format = 0;
-    // SAFETY: the caller upholds this function's safety contract.
+    // SAFETY: the caller guarantees a complete native bitstream, `input` is a live host slice of its length, and `format` is a live local.
     bridge_result(unsafe {
         ffi::singe_nvcomp_format(input.as_ptr(), ptr::null_mut(), 1, &raw mut format)
     })?;
@@ -1235,7 +1250,7 @@ pub unsafe fn compression_format<B: DeviceSlice<u8> + ?Sized>(
     stream.sync_scope(|_| {
         Ok((|| -> Result<()> {
             stream.join_regions(&[input.region()])?;
-            // SAFETY: caller establishes a complete valid HLIF prefix; owners stay borrowed.
+            // SAFETY: the caller guarantees a complete native bitstream in `input`, which is in the stream's context, and `sync_scope` waits before it is released.
             bridge_result(unsafe {
                 ffi::singe_nvcomp_format(
                     input.as_device_ptr(),
@@ -1260,8 +1275,9 @@ fn format_from_raw(raw: i32) -> Result<Format> {
         6 => Ok(Format::Zstd),
         7 => Ok(Format::Deflate),
         8 => Ok(Format::Gzip),
-        _ => Err(Error::InvalidValue {
+        _ => Err(Error::UnknownEnumValue {
             name: "compression format".into(),
+            value: raw.into(),
         }),
     }
 }
@@ -1276,9 +1292,7 @@ impl AlignedBytes {
     fn create(len: usize, alignment: usize) -> Result<Self> {
         let alignment = alignment.max(1);
         if !alignment.is_power_of_two() {
-            return Err(Error::InvalidValue {
-                name: "manager alignment".into(),
-            });
+            return Err(Error::out_of_range("manager alignment"));
         }
 
         let capacity = len

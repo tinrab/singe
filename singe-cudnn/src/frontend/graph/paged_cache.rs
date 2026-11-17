@@ -1,13 +1,11 @@
 use crate::{
-    backend::tensor::{Shape, TensorId},
+    backend::operation::paged_cache::PagedCacheLoadTensors,
     error::{Error, Result},
     frontend::{
         graph::{Graph, TensorOutputConfig},
-        operation::{
-            Operation, PagedCacheLayout, PagedCacheLoadConfig, PagedCacheLoadOperation,
-            PagedCacheLoadTensors,
-        },
+        operation::{Operation, PagedCacheLayout, PagedCacheLoadConfig, PagedCacheLoadOperation},
     },
+    tensor::{Shape, TensorId},
     utility::check_range,
 };
 
@@ -24,7 +22,7 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for unknown tensor identities, unsupported sequence or page-table integer encodings, incompatible container, sequence, page-table or output geometry, an invalid sequence length, overflowing inferred extents, or failure to promote sequence metadata and its runtime bounds.
+    /// Returns an error if a tensor identity is unknown, a sequence or page-table integer encoding is unsupported, the container, sequence, page-table, or output geometry is incompatible, a sequence length is invalid, an inferred extent overflows, or promoting the sequence metadata and its runtime bounds fails.
     pub fn paged_cache_load_into(
         &mut self,
         tensors: PagedCacheLoadTensors<TensorId>,
@@ -45,7 +43,7 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for unknown tensor identities, unsupported sequence or page-table integer encodings, incompatible container, sequence, page-table or output geometry, an invalid sequence length, overflowing inferred extents, or failure to promote sequence metadata and its runtime bounds.
+    /// Returns an error if a tensor identity is unknown, a sequence or page-table integer encoding is unsupported, the container, sequence, page-table, or output geometry is incompatible, a sequence length is invalid, an inferred extent overflows, or promoting the sequence metadata and its runtime bounds fails.
     pub fn paged_cache_load(
         &mut self,
         container: TensorId,
@@ -89,7 +87,7 @@ fn shape_rank_mismatch(name: &'static str, expected: usize, actual: usize) -> Er
     }
 }
 
-pub fn infer_paged_cache_dimensions(
+pub(crate) fn infer_paged_cache_dimensions(
     container: &Shape,
     sequence: &Shape,
     page_table: &Shape,
@@ -156,7 +154,7 @@ pub fn infer_paged_cache_dimensions(
     })
 }
 
-pub fn infer_paged_cache_output(
+pub(crate) fn infer_paged_cache_output(
     container: &Shape,
     sequence: &Shape,
     page_table: &Shape,

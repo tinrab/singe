@@ -22,7 +22,7 @@ use crate::{
 };
 
 #[derive(Clone, Copy)]
-pub struct MatrixWaiting {
+pub(crate) struct MatrixWaiting {
     function: FunctionId,
     instruction: usize,
     operation: MatrixOperation,
@@ -35,7 +35,7 @@ enum MatrixOperation {
     Multiply(MultiplyLane),
 }
 
-pub const SCRATCH_BYTES_PER_LANE: usize = size_of::<MatrixOperation>();
+pub(crate) const SCRATCH_BYTES_PER_LANE: usize = size_of::<MatrixOperation>();
 
 #[derive(Clone, Copy)]
 struct MatrixRows<const N: usize> {

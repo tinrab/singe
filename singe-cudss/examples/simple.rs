@@ -3,11 +3,11 @@ mod common;
 use std::slice;
 
 use singe_cuda::memory::DeviceMemory;
-use singe_cudss::{config::Config, error::Result};
+use singe_cudss::{config::Config, solver_state::SolverState};
 
 use crate::common::{create_context, dense_matrix, dense_output, solve, spd_csr_matrix};
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     let (cuda, stream, context) = create_context()?;
     println!("cuDSS example: solving a real symmetric positive-definite 5x5 system");
 
@@ -19,10 +19,10 @@ fn main() -> Result<()> {
     let col_indices = DeviceMemory::from_slice(&cuda, &[0_i32, 2, 1, 2, 2, 4, 3, 4])?;
     let a_values = DeviceMemory::from_slice(&cuda, &[4.0f64, 1.0, 3.0, 2.0, 5.0, 1.0, 1.0, 2.0])?;
     let b_values = DeviceMemory::from_slice(&cuda, &[7.0f64, 12.0, 25.0, 4.0, 13.0])?;
-    let mut x_values = DeviceMemory::<f64>::create_uninit(&cuda, (n * nrhs) as usize)?;
+    let mut x_values = DeviceMemory::<f64>::create_uninit(&cuda, usize::try_from(n * nrhs)?)?;
 
     let config = Config::create()?;
-    let mut data = context.create_data()?;
+    let mut data = SolverState::create(&context)?;
 
     let b = dense_matrix(n, nrhs, n, &b_values)?;
     let mut x = dense_output(n, nrhs, n, x_values.output())?;

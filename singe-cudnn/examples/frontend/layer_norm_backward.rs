@@ -3,18 +3,17 @@ mod common;
 use singe_core::assert_close;
 use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
-    backend::tensor::{Shape, TensorSpec},
+    backend::operation::normalization::NormalizationSavedStatistics,
     data_type::{DataType, f16},
-    error::Result,
     frontend::{
         graph::Graph,
         operation::{
             LayerNormalizationAffineGradients, LayerNormalizationBackwardConfig,
             LayerNormalizationBackwardInputs, LayerNormalizationBackwardOutputs,
-            NormalizationSavedStatistics,
         },
-        plan::{BuildPlanPolicy, CompileConfig, ExecuteArgs, HeuristicMode},
+        plan::{BuildPlanPolicy, CompileConfig, ExecuteArgs, HeuristicMode, WorkspacePlans},
     },
+    tensor::{Shape, TensorSpec},
 };
 
 fn init_f32_image(size: usize, seed: &mut u32) -> Vec<f32> {
@@ -44,7 +43,7 @@ fn count_nonfinite_f32(values: &[f32]) -> usize {
     values.iter().filter(|value| !value.is_finite()).count()
 }
 
-fn run() -> Result<()> {
+fn run() -> anyhow::Result<()> {
     let example = common::ExampleContext::create()?;
 
     let batch_size = 4;
@@ -105,10 +104,7 @@ fn run() -> Result<()> {
     graph.layer_normalization_backward_into(
         LayerNormalizationBackwardInputs {
             input: x,
-            statistics: NormalizationSavedStatistics {
-                mean: mean,
-                inv_variance: inv_variance,
-            },
+            statistics: NormalizationSavedStatistics { mean, inv_variance },
             output_gradient: dy,
             scale: Some(scale),
         },
@@ -116,86 +112,85 @@ fn run() -> Result<()> {
             input_gradient: dx,
             affine: Some(LayerNormalizationAffineGradients {
                 scale_gradient: dscale,
-                bias_gradient: bias_gradient,
+                bias_gradient,
             }),
         },
         LayerNormalizationBackwardConfig::new(),
     )?;
 
-    let compiled = match graph.compile(
+    let compiled = graph.compile(
         Some(&example.cudnn),
         &CompileConfig::new()
             .with_heuristic_modes(vec![HeuristicMode::A, HeuristicMode::Fallback])
             .with_build_policy(BuildPlanPolicy::AllSupported),
-    ) {
-        Ok(compiled) => compiled,
-        Err(error) => return Err(error),
-    };
+    )?;
 
     let mut half_seed = 123_456_789_u32;
     let mut float_seed = 123_456_789_u32;
     let mut x_dev = DeviceMemory::from_slice(
         example.cudnn.cuda_context(),
         &init_f16_image(
-            (batch_size * seq_length * hidden_size) as usize,
+            usize::try_from(batch_size * seq_length * hidden_size)?,
             &mut half_seed,
         ),
     )?;
-    let mut dy_dev = DeviceMemory::from_slice(
+    let mut y_grad_dev = DeviceMemory::from_slice(
         example.cudnn.cuda_context(),
         &init_f16_image(
-            (batch_size * seq_length * hidden_size) as usize,
+            usize::try_from(batch_size * seq_length * hidden_size)?,
             &mut half_seed,
         ),
     )?;
     let mut mean_dev = DeviceMemory::from_slice(
         example.cudnn.cuda_context(),
-        &init_f32_image((batch_size * seq_length) as usize, &mut float_seed),
+        &init_f32_image(usize::try_from(batch_size * seq_length)?, &mut float_seed),
     )?;
     let mut inv_variance_dev = DeviceMemory::from_slice(
         example.cudnn.cuda_context(),
-        &init_f32_image((batch_size * seq_length) as usize, &mut float_seed),
+        &init_f32_image(usize::try_from(batch_size * seq_length)?, &mut float_seed),
     )?;
     let mut scale_dev = DeviceMemory::from_slice(
         example.cudnn.cuda_context(),
-        &init_f32_image(hidden_size as usize, &mut float_seed),
+        &init_f32_image(usize::try_from(hidden_size)?, &mut float_seed),
     )?;
     let mut dscale_dev = DeviceMemory::from_slice(
         example.cudnn.cuda_context(),
-        &init_f32_image(hidden_size as usize, &mut float_seed),
+        &init_f32_image(usize::try_from(hidden_size)?, &mut float_seed),
     )?;
     let mut bias_gradient_dev = DeviceMemory::from_slice(
         example.cudnn.cuda_context(),
-        &init_f32_image(hidden_size as usize, &mut float_seed),
+        &init_f32_image(usize::try_from(hidden_size)?, &mut float_seed),
     )?;
-    let mut dx_dev = DeviceMemory::from_slice(
+    let mut x_grad_dev = DeviceMemory::from_slice(
         example.cudnn.cuda_context(),
         &init_f16_image(
-            (batch_size * seq_length * hidden_size) as usize,
+            usize::try_from(batch_size * seq_length * hidden_size)?,
             &mut half_seed,
         ),
     )?;
-    let mut workspace =
-        common::workspace(example.cudnn.cuda_context(), compiled.max_workspace_size())?;
+    let mut workspace = common::workspace(
+        example.cudnn.cuda_context(),
+        compiled.workspace_size_for(WorkspacePlans::All, None)?,
+    )?;
     let mut bindings = compiled.bindings()?;
     bindings.set(x, &mut x_dev)?;
-    bindings.set(dy, &mut dy_dev)?;
+    bindings.set(dy, &mut y_grad_dev)?;
     bindings.set(mean, &mut mean_dev)?;
     bindings.set(inv_variance, &mut inv_variance_dev)?;
     bindings.set(scale, &mut scale_dev)?;
     bindings.set(dscale, &mut dscale_dev)?;
     bindings.set(bias_gradient, &mut bias_gradient_dev)?;
-    bindings.set(dx, &mut dx_dev)?;
+    bindings.set(dx, &mut x_grad_dev)?;
     // SAFETY: matching bindings, buffers and workspace remain live until the helper
     // completes the cuDNN stream, including when native execution returns an error.
     example.execute_and_wait(|context| unsafe {
-        compiled.execute(
+        compiled.execute_async(
             context,
-            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
         )
     })?;
 
-    let dx_host = dx_dev.copy_to_host_vec()?;
+    let dx_host = x_grad_dev.copy_to_host_vec()?;
     let dscale_host = dscale_dev.copy_to_host_vec()?;
     let bias_gradient_host = bias_gradient_dev.copy_to_host_vec()?;
 
@@ -231,8 +226,8 @@ fn run() -> Result<()> {
         bias_gradient_nonfinite, 0,
         "bias_gradient.nonfinite mismatch"
     );
-    assert_close!(dx_first, 0.0748901, 1.0e-5, "dx.first");
-    assert_close!(dx_last, -0.0279999, 1.0e-5, "dx.last");
+    assert_close!(dx_first, 0.074_890_1, 1.0e-5, "dx.first");
+    assert_close!(dx_last, -0.027_999_9, 1.0e-5, "dx.last");
     assert_close!(dx_checksum, -2824.66, 0.1, "dx.checksum");
     assert_close!(dscale_first, -3.24039, 1.0e-4, "dscale.first");
     assert_close!(dscale_last, -5.93121, 1.0e-4, "dscale.last");
@@ -241,7 +236,7 @@ fn run() -> Result<()> {
     assert_close!(bias_gradient_last, 2033.52, 1.0e-2, "bias_gradient.last");
     assert_close!(
         bias_gradient_checksum,
-        262112.0,
+        262_112.0,
         0.5,
         "bias_gradient.checksum"
     );
@@ -249,6 +244,6 @@ fn run() -> Result<()> {
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_layer_norm_backward", run())
 }

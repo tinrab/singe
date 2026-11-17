@@ -13,7 +13,7 @@ use singe_cuda::{
     context::Context,
     error::Error as CudaError,
     memory::DeviceMemory,
-    stream::Stream,
+    stream::{Stream, StreamOptions},
     submission::{AccessMode, Execution, Operation, Resources, transfer::DeviceValue},
     view::DeviceRegionProvider,
 };
@@ -39,8 +39,8 @@ fn hold_stream(stream: &Stream) -> ReleaseStream {
 #[test]
 fn test_dropped_submission_retains_storage_and_cross_stream_consumers_wait_for_the_writer() {
     let context = Context::create().unwrap();
-    let producer = context.create_stream().unwrap();
-    let consumer = context.create_stream().unwrap();
+    let producer = context.create_stream(StreamOptions::default()).unwrap();
+    let consumer = context.create_stream(StreamOptions::default()).unwrap();
     let memory = DeviceMemory::from_slice(&context, &[0_u8; 1024]).unwrap();
     let pointer = memory.as_ptr().cast_mut();
     let owner = Arc::downgrade(memory.allocation());
@@ -75,7 +75,7 @@ fn test_dropped_submission_retains_storage_and_cross_stream_consumers_wait_for_t
 #[test]
 fn test_failure_after_native_submission_drains_work_before_releasing_the_resource_ledger() {
     let context = Context::create().unwrap();
-    let stream = context.create_stream().unwrap();
+    let stream = context.create_stream(StreamOptions::default()).unwrap();
     let memory = Arc::new(DeviceMemory::from_slice(&context, &[0_u8; 1024]).unwrap());
     let pointer = memory.as_ptr().cast_mut();
     let owner = Arc::downgrade(&memory);
@@ -88,7 +88,7 @@ fn test_failure_after_native_submission_drains_work_before_releasing_the_resourc
     let result = unsafe {
         execution.enqueue(resources, |stream| {
             DeviceMemory::<u8>::set_async(pointer, 9, 1024, stream)?;
-            Err::<(), CudaError>(CudaError::ZeroValue {
+            Err::<(), CudaError>(CudaError::NotPositive {
                 name: "injected failure after submission".into(),
             })
         })

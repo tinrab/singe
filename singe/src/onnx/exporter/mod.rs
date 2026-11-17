@@ -4,12 +4,9 @@ mod shapes;
 
 use std::collections::{HashMap, HashSet};
 
-use singe_onnx::{
-    encode_proto,
-    proto::onnx::{
-        AttributeProto, GraphProto, ModelProto, NodeProto, OperatorSetIdProto,
-        StringStringEntryProto,
-    },
+use prost::Message;
+use singe_onnx::proto::onnx::{
+    AttributeProto, GraphProto, ModelProto, NodeProto, OperatorSetIdProto, StringStringEntryProto,
 };
 
 use crate::{
@@ -196,7 +193,7 @@ pub fn export(program: &GraphProgram, state: &StateSnapshot) -> Result<Vec<u8>> 
             .output
             .push(value_info(name, spec.data_type(), dims)?);
     }
-    Ok(encode_proto(&ModelProto {
+    Ok(Message::encode_to_vec(&ModelProto {
         ir_version: 10,
         producer_name: "singe".into(),
         producer_version: env!("CARGO_PKG_VERSION").into(),

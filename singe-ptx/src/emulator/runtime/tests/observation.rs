@@ -8,7 +8,7 @@ use std::{
 
 use crate::emulator::{ExecutionError, Shutdown, Submission};
 
-pub trait Observe {
+pub(crate) trait Observe {
     type Value;
 
     fn observe(self, asynchronous: bool) -> Result<Self::Value, ExecutionError>;
@@ -46,7 +46,7 @@ impl Wake for Notify {
     }
 }
 
-pub fn block_on<F: Future>(future: F) -> F::Output {
+pub(crate) fn block_on<F: Future>(future: F) -> F::Output {
     let waker = Waker::from(Arc::new(Notify(thread::current())));
     let mut context = Context::from_waker(&waker);
     let mut future = pin!(future);

@@ -2,6 +2,7 @@ use singe_nvcomp_sys as sys;
 
 use crate::{
     codec::impl_nvcomp_batched_codec_module,
+    error::{Error, Result},
     types::DecompressBackend,
     utility::{bool_from_i32, validate_reserved},
 };
@@ -53,7 +54,7 @@ impl TryFrom<sys::nvcompBatchedSnappyDecompressOpts_t> for DecompressOptions {
     fn try_from(value: sys::nvcompBatchedSnappyDecompressOpts_t) -> Result<Self> {
         validate_reserved(&value.reserved)?;
         Ok(Self {
-            backend: value.backend.into(),
+            backend: value.backend.try_into()?,
             sort_before_hw_decompress: bool_from_i32(
                 value.sort_before_hw_decompress,
                 "sort_before_hw_decompress",
@@ -82,31 +83,12 @@ impl_nvcomp_batched_codec_module! {
     required_decompression_alignment = nvcompSnappyRequiredDecompressionAlignment,
     compress_get_required_alignments = nvcompBatchedSnappyCompressGetRequiredAlignments,
     decompress_get_required_alignments = nvcompBatchedSnappyDecompressGetRequiredAlignments,
-    compress_get_temporary_size = nvcompBatchedSnappyCompressGetTempSize,
-    compress_get_temporary_size_sync = nvcompBatchedSnappyCompressGetTempSizeSync,
-    decompress_get_temporary_size = nvcompBatchedSnappyDecompressGetTempSize,
-    decompress_get_temporary_size_sync = nvcompBatchedSnappyDecompressGetTempSizeSync,
+    compress_get_temp_size = nvcompBatchedSnappyCompressGetTempSize,
+    compress_get_temp_size_sync = nvcompBatchedSnappyCompressGetTempSizeSync,
+    decompress_get_temp_size = nvcompBatchedSnappyDecompressGetTempSize,
+    decompress_get_temp_size_sync = nvcompBatchedSnappyDecompressGetTempSizeSync,
     compress_get_max_output_chunk_size = nvcompBatchedSnappyCompressGetMaxOutputChunkSize,
-    compress_raw_async = nvcompBatchedSnappyCompressAsync,
-    decompress_size_raw_async = nvcompBatchedSnappyGetDecompressSizeAsync,
-    decompress_raw_async = nvcompBatchedSnappyDecompressAsync,
-}
-
-impl CompressOptions {
-    /// Creates Snappy compression options.
-    #[must_use]
-    pub fn new() -> Self {
-        Self
-    }
-}
-
-impl DecompressOptions {
-    /// Creates Snappy decompression options with the given settings.
-    #[must_use]
-    pub fn new(backend: DecompressBackend, sort_before_hw_decompress: bool) -> Self {
-        Self {
-            backend,
-            sort_before_hw_decompress,
-        }
-    }
+    compress_async = nvcompBatchedSnappyCompressAsync,
+    get_decompress_size_async = nvcompBatchedSnappyGetDecompressSizeAsync,
+    decompress_async = nvcompBatchedSnappyDecompressAsync,
 }

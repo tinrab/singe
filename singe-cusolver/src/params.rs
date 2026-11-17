@@ -1,4 +1,8 @@
+//! Algorithm-selection parameters for the native 64-bit interface.
+
 use std::{mem, ptr};
+
+use singe_core::report_cleanup_failure;
 
 use crate::{
     error::{Error, Result},
@@ -12,10 +16,10 @@ pub struct Params {
     handle: sys::cusolverDnParams_t,
 }
 
-// SAFETY: cuSOLVER parameter handles store solver options and do not expose mutation
-// through shared references, so immutable sharing is allowed.
+// SAFETY: the parameter structure is host memory with no thread affinity, owned uniquely by this wrapper, so it may be configured and destroyed from any thread.
 unsafe impl Send for Params {}
 
+// SAFETY: `set_algorithm` takes `&mut self`, and solvers only read the options through a shared handle, so shared references cannot race.
 unsafe impl Sync for Params {}
 
 impl Params {
@@ -28,7 +32,7 @@ impl Params {
     /// Returns an error if cuSOLVER cannot allocate the parameter structure or if it does not return a valid handle.
     pub fn create() -> Result<Self> {
         let mut handle = ptr::null_mut();
-        // SAFETY: `cusolverDnCreateParams` receives valid output locations.
+        // SAFETY: the call writes a new handle to the local `handle`.
         unsafe {
             try_ffi!(sys::cusolverDnCreateParams(&raw mut handle))?;
         }
@@ -45,8 +49,8 @@ impl Params {
     /// # Errors
     ///
     /// Returns an error if `function` and `algorithm` are not a valid combination for cuSOLVER.
-    pub fn set_adv_options(&mut self, function: Function, algorithm: AlgorithmMode) -> Result<()> {
-        // SAFETY: `cusolverDnSetAdvOptions` receives live handles owned by the wrappers.
+    pub fn set_algorithm(&mut self, function: Function, algorithm: AlgorithmMode) -> Result<()> {
+        // SAFETY: `self` owns the live handle and is borrowed mutably, so no solver reads it concurrently.
         unsafe {
             try_ffi!(sys::cusolverDnSetAdvOptions(
                 self.as_raw(),
@@ -63,12 +67,11 @@ impl Params {
         self.handle
     }
 
-    /// Takes ownership of a raw cuSOLVER params handle.
+    /// Adopts a native parameter handle, which the returned value destroys on drop.
     ///
     /// # Safety
     ///
-    /// `handle` must be a valid `cusolverDnParams_t` created by cuSOLVER.
-    /// The returned wrapper takes ownership and will destroy it with `cusolverDnDestroyParams`; no other owner may destroy or keep using it.
+    /// `handle` must be a live cuSOLVER parameter handle that no other owner destroys or uses afterwards.
     ///
     /// # Errors
     ///
@@ -93,13 +96,10 @@ impl Params {
 
 impl Drop for Params {
     fn drop(&mut self) {
-        // SAFETY: `cusolverDnDestroyParams` receives live handles owned by the wrappers.
+        // SAFETY: `self` uniquely owns the live handle, and the raw execution contract keeps it alive until queued work that reads it completes.
         unsafe {
             if let Err(error) = try_ffi!(sys::cusolverDnDestroyParams(self.handle)) {
-                eprintln!(
-                    "failed to destroy cusolver params: {}",
-                    singe_core::ErrorChain(&error)
-                );
+                report_cleanup_failure("destroy", "cusolver params", &error);
             }
         }
     }

@@ -15,7 +15,7 @@ use crate::{
 };
 
 /// Finds a specific CUDA-related dependency.
-pub fn find_dependency(
+pub(crate) fn find_dependency(
     lib_name: &str,
     primary_header: &str,
     version_headers: &[&str],
@@ -44,7 +44,7 @@ pub fn find_dependency(
 }
 
 /// Checks a specific root directory for the necessary components of a dependency.
-pub fn check_root_for_dependency(
+pub(crate) fn check_root_for_dependency(
     lib_name: &str,
     root: &Path,
     primary_header: &str,
@@ -106,7 +106,10 @@ pub fn check_root_for_dependency(
 
 /// Finds the most likely library subdirectory within a CUDA root.
 /// If `cuda_major_version_hint` is provided, it prioritizes checking versioned paths like `lib/<major_version>`.
-pub fn find_library_path(root: &Path, cuda_major_version_hint: Option<&str>) -> Option<PathBuf> {
+pub(crate) fn find_library_path(
+    root: &Path,
+    cuda_major_version_hint: Option<&str>,
+) -> Option<PathBuf> {
     let mut potential_lib_dirs = Vec::new();
 
     // If hint provided, check versioned path first.
@@ -146,7 +149,7 @@ pub fn find_library_path(root: &Path, cuda_major_version_hint: Option<&str>) -> 
 }
 
 /// Gathers potential root directories from environment variables and common locations.
-pub fn potential_roots(specific_env_vars: &[&str], lib_name_hint: &str) -> Vec<PathBuf> {
+pub(crate) fn potential_roots(specific_env_vars: &[&str], lib_name_hint: &str) -> Vec<PathBuf> {
     let mut roots = Vec::new();
 
     // Specific environment variables first.
@@ -329,7 +332,7 @@ pub(crate) fn driver_search_paths() -> Vec<PathBuf> {
 }
 
 #[cfg(target_os = "linux")]
-pub fn driver_search_paths() -> Vec<PathBuf> {
+pub(crate) fn driver_search_paths() -> Vec<PathBuf> {
     let mut paths = Vec::new();
     let mut stub_paths = Vec::new();
     let mut seen_paths = HashSet::new();
@@ -418,7 +421,7 @@ pub fn driver_search_paths() -> Vec<PathBuf> {
     paths
 }
 
-pub fn command_in_path(command: &str) -> Option<PathBuf> {
+pub(crate) fn command_in_path(command: &str) -> Option<PathBuf> {
     let path_var = env::var_os("PATH")?;
 
     split_paths(&path_var).find_map(|entry| {

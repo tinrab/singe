@@ -4,7 +4,6 @@ use std::env::args;
 
 use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
-    backend::tensor::{Shape, TensorSpec},
     data_type::{DataType, f8e4m3},
     error::{Error, Result},
     frontend::{
@@ -17,8 +16,13 @@ use singe_cudnn::{
         },
         plan::{CompileConfig, ExecuteArgs, HeuristicMode},
     },
+    tensor::{Shape, TensorSpec},
 };
 
+#[expect(
+    clippy::many_single_char_names,
+    reason = "keeps the upstream sample's single-letter dimension names"
+)]
 fn run() -> Result<()> {
     let generate_stats = args().any(|argument| argument == "--stats");
     let implementation = if args().any(|argument| argument == "--composite") {
@@ -89,7 +93,7 @@ fn run() -> Result<()> {
                 AttentionDiagonalAlignment::TopLeft,
             )),
         ));
-    let outputs = graph.sdpa_fp8(
+    let outputs = graph.sdpa(
         SdpaFp8Inputs::new(
             q,
             k,
@@ -102,7 +106,7 @@ fn run() -> Result<()> {
             scale_s,
             scale_o,
         ),
-        &config,
+        config,
         SdpaForwardOutputTensors::new(TensorOutputConfig::new().output_tensor())
             .with_stats(generate_stats.then_some(TensorOutputConfig::new().output_tensor()))
             .with_absolute_max_probabilities(TensorOutputConfig::new().output_tensor())
@@ -141,7 +145,7 @@ fn run() -> Result<()> {
     let qkv_values =
         common::init_f8e4m3_image(graph.shape(qkv_storage)?.storage_span()?, &mut seed);
     let qkv_device = DeviceMemory::from_slice(cuda, &qkv_values)?;
-    let scales = DeviceMemory::from_slice(cuda, &[1.0_f32])?;
+    let unit_scales = DeviceMemory::from_slice(cuda, &[1.0_f32])?;
     let mut output_device =
         DeviceMemory::<f8e4m3>::zeroed(cuda, graph.shape(output)?.storage_span()?)?;
     let mut score_amax =
@@ -160,7 +164,7 @@ fn run() -> Result<()> {
     let mut bindings = compiled.bindings()?;
     bindings.set_input(qkv_storage, &qkv_device)?;
     for id in [descale_q, descale_k, descale_v, descale_s, scale_s, scale_o] {
-        bindings.set_input(id, &scales)?;
+        bindings.set_input(id, &unit_scales)?;
     }
 
     bindings.set(output, &mut output_device)?;
@@ -170,17 +174,17 @@ fn run() -> Result<()> {
         bindings.set(*id, memory)?;
     }
 
-    // SAFETY: the interleaved QKV owner, initialized scales, writable outputs and workspace remain live through stream completion.
+    // SAFETY: the interleaved QKV owner, initialized unit_scales, writable outputs and workspace remain live through stream completion.
     example.execute_and_wait(|context| unsafe {
-        compiled.execute(
+        compiled.execute_async(
             context,
-            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
         )
     })?;
     println!("executed fp8 attention with finite interleaved QKV, stats: {generate_stats}");
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_fp8_sdpa", run())
 }

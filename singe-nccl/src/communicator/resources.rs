@@ -1,10 +1,11 @@
-use std::{mem, process};
+use std::mem;
 
-use singe_cuda::view::DeviceView;
+use singe_core::{abort_after_cleanup_failure, report_cleanup_failure};
+use singe_cuda::{handle::NativeHandle, view::DeviceView};
 
 use crate::communicator::{
-    CommunicatorState, CustomReductionOperator, DeviceRepr, DeviceViewMut, Handle, Ordering,
-    RegisteredBuffer, Result, Window, operations, sys, try_ffi,
+    CommunicatorState, CustomReductionOperator, DeviceRepr, DeviceViewMut, Error, HandleState,
+    NcclCommunicator, Ordering, RegisteredBuffer, Result, Window, sys, try_ffi,
 };
 
 impl<T: DeviceRepr> RegisteredBuffer<'_, T> {
@@ -33,7 +34,7 @@ impl<T: DeviceRepr> RegisteredBuffer<'_, T> {
     pub fn deregister(self) -> Result<()> {
         self.communicator.bind()?;
         self.communicator.cuda_context().synchronize()?;
-        // SAFETY: `ncclCommDeregister` receives live handles owned by the wrappers.
+        // SAFETY: `self.raw` is this live registration on the borrowed communicator, the context is bound and synchronized, and `deregister` consumes `self`, so it is released once.
         unsafe {
             try_ffi!(sys::ncclCommDeregister(
                 self.communicator.as_raw(),
@@ -57,26 +58,18 @@ impl<T: DeviceRepr> Drop for RegisteredBuffer<'_, T> {
         }
 
         if let Err(error) = self.communicator.bind() {
-            eprintln!(
-                "failed to bind cuda context before deregistering nccl buffer: {}",
-                singe_core::ErrorChain(&error)
-            );
+            report_cleanup_failure("bind the cuda context to deregister", "nccl buffer", &error);
             return;
         }
 
-        if self.communicator.cuda_context().synchronize().is_err() {
-            return;
-        }
-        // SAFETY: `ncclCommDeregister` receives live handles owned by the wrappers.
+        self.communicator.cuda_context().synchronize_or_abort();
+        // SAFETY: `self.raw` is this live registration on the borrowed communicator, which is neither destroyed nor aborted, and its context is bound and synchronized.
         unsafe {
             if let Err(error) = try_ffi!(sys::ncclCommDeregister(
                 self.communicator.as_raw(),
                 self.raw.cast(),
             )) {
-                eprintln!(
-                    "failed to deregister nccl buffer: {}",
-                    singe_core::ErrorChain(&error)
-                );
+                report_cleanup_failure("deregister", "nccl buffer", &error);
             }
         }
     }
@@ -99,7 +92,7 @@ impl Window<'_> {
     pub fn deregister(self) -> Result<()> {
         self.communicator.bind()?;
         self.communicator.cuda_context().synchronize()?;
-        // SAFETY: `ncclCommWindowDeregister` receives live handles owned by the wrappers.
+        // SAFETY: `self.raw` is this live window on the borrowed communicator, the context is bound and synchronized, and `deregister` consumes `self`, so it is released once.
         unsafe {
             try_ffi!(sys::ncclCommWindowDeregister(
                 self.communicator.as_raw(),
@@ -122,35 +115,27 @@ impl Drop for Window<'_> {
         }
 
         if let Err(error) = self.communicator.bind() {
-            eprintln!(
-                "failed to bind cuda context before deregistering nccl window: {}",
-                singe_core::ErrorChain(&error)
-            );
+            report_cleanup_failure("bind the cuda context to deregister", "nccl window", &error);
             return;
         }
 
-        if self.communicator.cuda_context().synchronize().is_err() {
-            return;
-        }
-        // SAFETY: `ncclCommWindowDeregister` receives live handles owned by the wrappers.
+        self.communicator.cuda_context().synchronize_or_abort();
+        // SAFETY: `self.raw` is this live window on the borrowed communicator, which is neither destroyed nor aborted, and its context is bound and synchronized.
         unsafe {
             if let Err(error) = try_ffi!(sys::ncclCommWindowDeregister(
                 self.communicator.as_raw(),
                 self.raw,
             )) {
-                eprintln!(
-                    "failed to deregister nccl window: {}",
-                    singe_core::ErrorChain(&error)
-                );
+                report_cleanup_failure("deregister", "nccl window", &error);
             }
         }
     }
 }
 
-impl CustomReductionOperator<'_> {
-    /// Returns the borrowed native registration or operator handle.
+impl<T> CustomReductionOperator<'_, T> {
+    /// Returns the native operator value, valid while this operator lives.
     #[must_use]
-    pub const fn as_raw(&self) -> i32 {
+    pub const fn as_raw(&self) -> sys::ncclRedOp_t {
         self.raw
     }
 
@@ -165,10 +150,7 @@ impl CustomReductionOperator<'_> {
         self.communicator.bind()?;
         // SAFETY: `self.raw` is the live operator registered on this communicator; `destroy` consumes `self`, so it is destroyed once.
         unsafe {
-            try_ffi!(operations::custom_ops::destroy_dynamic_operator(
-                self.raw,
-                self.communicator.as_raw()
-            ))?;
+            try_ffi!(sys::ncclRedOpDestroy(self.raw, self.communicator.as_raw()))?;
         }
 
         mem::forget(self);
@@ -176,7 +158,7 @@ impl CustomReductionOperator<'_> {
     }
 }
 
-impl Drop for CustomReductionOperator<'_> {
+impl<T> Drop for CustomReductionOperator<'_, T> {
     fn drop(&mut self) {
         if matches!(
             self.communicator.state(),
@@ -186,74 +168,76 @@ impl Drop for CustomReductionOperator<'_> {
         }
 
         if let Err(error) = self.communicator.bind() {
-            eprintln!(
-                "failed to bind cuda context before destroying nccl reduction op: {}",
-                singe_core::ErrorChain(&error)
+            report_cleanup_failure(
+                "bind the cuda context to destroy",
+                "nccl reduction operator",
+                &error,
             );
             return;
         }
 
-        // SAFETY: this owner destroys its live operator exactly once.
+        // SAFETY: `self.raw` is the live operator on the borrowed communicator, which is neither destroyed nor aborted; drop runs once.
         unsafe {
-            if let Err(error) = try_ffi!(operations::custom_ops::destroy_dynamic_operator(
-                self.raw,
-                self.communicator.as_raw()
-            )) {
-                eprintln!(
-                    "failed to destroy nccl reduction op: {}",
-                    singe_core::ErrorChain(&error)
-                );
+            if let Err(error) =
+                try_ffi!(sys::ncclRedOpDestroy(self.raw, self.communicator.as_raw()))
+            {
+                report_cleanup_failure("destroy", "nccl reduction operator", &error);
             }
         }
     }
 }
 
-impl Drop for Handle {
-    fn drop(&mut self) {
-        if self.state.load(Ordering::Relaxed) == CommunicatorState::Destroyed.into_raw() {
-            return;
-        }
+// SAFETY: NCCL lets a communicator be used and destroyed from any thread, one call at a time, and `destroy` aborts the process instead of releasing an output slot that initialization, a split, or a shrink may still write.
+unsafe impl NativeHandle for NcclCommunicator {
+    type Raw = sys::ncclComm_t;
 
-        if let Err(error) = self.cuda_context.bind() {
-            eprintln!(
-                "failed to bind cuda context before destroying nccl communicator: {}",
-                singe_core::ErrorChain(&error)
-            );
-        }
+    type State = HandleState;
 
-        if let Err(error) = self.destroy_raw() {
-            eprintln!(
-                "failed to destroy nccl communicator: {}",
-                singe_core::ErrorChain(&error)
-            );
-            // Native grow may still write this slot. It cannot be released if
-            // destruction or cancellation failed to establish completion.
-            if self.initialization_output.is_some() {
-                process::abort();
-            }
-        }
+    type Error = Error;
+
+    const OBJECT: &'static str = "nccl communicator";
+
+    fn null_handle() -> Error {
+        Error::NullHandle
     }
-}
 
-impl Handle {
-    pub(crate) fn destroy_raw(&self) -> Result<()> {
-        let previous = self
-            .state
-            .swap(CommunicatorState::Destroyed.into_raw(), Ordering::AcqRel);
-        if previous == CommunicatorState::Destroyed.into_raw()
-            || previous == CommunicatorState::Aborted.into_raw()
+    fn is_null(raw: Self::Raw) -> bool {
+        raw.is_null()
+    }
+
+    unsafe fn destroy(raw: Self::Raw, state: HandleState) -> Result<()> {
+        // SAFETY: the caller passes the live, uniquely owned communicator described by `state`, with its context bound.
+        let result = unsafe { release(raw, &state) };
+        if let Err(error) = &result
+            && (state.initialization_output.is_some() || !state.child_outputs.borrow().is_empty())
         {
-            return Ok(());
+            abort_after_cleanup_failure("destroy", Self::OBJECT, error);
         }
+        result
+    }
+}
 
-        // SAFETY: `ncclCommAbort`, `ncclCommDestroy` receive live handles owned by the wrappers.
-        unsafe {
-            if previous == CommunicatorState::Initializing.into_raw() {
-                try_ffi!(sys::ncclCommAbort(self.raw))?;
-            } else {
-                try_ffi!(sys::ncclCommDestroy(self.raw))?;
+// An aborted or destroyed communicator is already released.
+// Initialization that is still in progress or failed must be aborted, since NCCL rejects destroying it.
+// Callers must pass a live, uniquely owned communicator described by `state`, with its context bound.
+unsafe fn release(raw: sys::ncclComm_t, state: &HandleState) -> Result<()> {
+    let lifecycle = CommunicatorState::from_raw(state.lifecycle.load(Ordering::Relaxed));
+    // SAFETY: the caller passes a live communicator with its context bound, and `status` is a local output slot.
+    unsafe {
+        match lifecycle {
+            CommunicatorState::Destroyed | CommunicatorState::Aborted => Ok(()),
+            CommunicatorState::Initializing => {
+                let mut status = sys::ncclResult_t::ncclInProgress;
+                let initialized = try_ffi!(sys::ncclCommGetAsyncError(raw, &raw mut status))
+                    .is_ok()
+                    && status == sys::ncclResult_t::ncclSuccess;
+                if initialized {
+                    try_ffi!(sys::ncclCommDestroy(raw))
+                } else {
+                    try_ffi!(sys::ncclCommAbort(raw))
+                }
             }
+            _ => try_ffi!(sys::ncclCommDestroy(raw)),
         }
-        Ok(())
     }
 }

@@ -3,31 +3,33 @@
 use std::sync::Arc;
 
 use singe_cuda::{
-    context::Context as CudaContext, memory::DeviceMemory, stream::Stream, types::DevicePtr,
+    context::Context as CudaContext,
+    memory::DeviceMemory,
+    stream::{Stream, StreamOptions},
     view::DeviceOutputView,
 };
 use singe_cudss::{
     config::Config,
     context::Context,
-    data::SolverState,
     error::{Error, Result},
     matrix::{CsrMatrixDescriptor, DenseMatrixDescriptor, Matrix, MatrixIndex},
+    solver_state::SolverState,
     types::{DataTypeLike, Fp64Mp2, IndexBase, MatrixType, MatrixViewType, Phase},
 };
 
-pub fn create_context() -> Result<(Arc<CudaContext>, Stream, Context)> {
+pub(crate) fn create_context() -> Result<(Arc<CudaContext>, Stream, Context)> {
     let cuda = CudaContext::create()?;
-    let stream = cuda.create_stream()?;
-    let cudss = Context::create(&cuda)?;
-    cudss.set_stream(&stream)?;
+    let stream = cuda.create_stream(StreamOptions::default())?;
+    let mut cudss = Context::create(&cuda)?;
+    cudss.set_stream(Some(&stream))?;
     Ok((cuda, stream, cudss))
 }
 
-pub fn mp2(value: f64) -> Fp64Mp2 {
+pub(crate) fn mp2(value: f64) -> Fp64Mp2 {
     Fp64Mp2::from_f64(value)
 }
 
-pub fn dense_matrix<T: DataTypeLike>(
+pub(crate) fn dense_matrix<T: DataTypeLike>(
     rows: i64,
     columns: i64,
     leading_dim: i64,
@@ -39,7 +41,7 @@ pub fn dense_matrix<T: DataTypeLike>(
     )
 }
 
-pub fn spd_csr_matrix<'a, O, I, T>(
+pub(crate) fn spd_csr_matrix<'a, O, I, T>(
     rows: i64,
     columns: i64,
     nnz: i64,
@@ -68,34 +70,27 @@ where
     )
 }
 
-pub unsafe fn solve(
+pub(crate) unsafe fn solve(
     streams: &[Stream],
     context: &Context,
     config: &Config,
-    data: &mut SolverState,
+    data: &mut SolverState<'_>,
     a: &Matrix<'_>,
     x: &mut Matrix<'_>,
     b: &Matrix<'_>,
 ) -> Result<()> {
     drain(streams, || {
-        // SAFETY: the caller establishes matrix validity, access, and retention
-        // on all streams supplied to this draining scope.
+        // SAFETY: the caller guarantees `execute_async`'s contract for these matrices, and `drain` waits for every stream in `streams` before returning.
         unsafe {
-            context.execute(Phase::ANALYSIS, config, data, a, x, b)?;
-            context.execute(Phase::FACTORIZATION, config, data, a, x, b)?;
-            context.execute(Phase::SOLVE, config, data, a, x, b)
+            context.execute_async(Phase::ANALYSIS, config, data, a, x, b)?;
+            context.execute_async(Phase::FACTORIZATION, config, data, a, x, b)?;
+            context.execute_async(Phase::SOLVE, config, data, a, x, b)
         }
     })?;
     check_info(data)
 }
 
-pub unsafe fn ptr_at<T>(memory: &DeviceMemory<T>, offset: usize) -> DevicePtr {
-    let ptr = memory.as_ptr().wrapping_add(offset);
-    // SAFETY: the address comes from a live allocation; wrapping it does not dereference it.
-    unsafe { DevicePtr::from_raw(ptr.cast_mut().cast()) }
-}
-
-pub fn dense_output<T: DataTypeLike>(
+pub(crate) fn dense_output<T: DataTypeLike>(
     rows: i64,
     columns: i64,
     leading_dim: i64,
@@ -110,21 +105,21 @@ pub fn dense_output<T: DataTypeLike>(
 /// Completes a raw phase on all explicitly selected streams before returning.
 ///
 /// # Safety
-/// Follow Context::execute's matrix, phase, ordering, and access contracts.
+/// Follow `Context::execute_async`'s matrix, phase, ordering, and access contracts.
 /// `streams` must cover all native work and must be the streams selected on context.
-pub unsafe fn execute(
+pub(crate) unsafe fn execute(
     streams: &[Stream],
     context: &Context,
     phase: Phase,
     config: &Config,
-    data: &mut SolverState,
+    data: &mut SolverState<'_>,
     a: &Matrix<'_>,
     x: &mut Matrix<'_>,
     b: &Matrix<'_>,
 ) -> Result<()> {
-    // SAFETY: the caller establishes the raw contract on these exact bindings.
+    // SAFETY: the caller guarantees `execute_async`'s contract and that `streams` are the context's selected streams, which `drain` waits for.
     drain(streams, || unsafe {
-        context.execute(phase, config, data, a, x, b)
+        context.execute_async(phase, config, data, a, x, b)
     })?;
     if phase.intersects(Phase::FACTORIZATION | Phase::REFACTORIZATION | Phase::SOLVE) {
         check_info(data)?;
@@ -132,10 +127,13 @@ pub unsafe fn execute(
     Ok(())
 }
 
-fn check_info(data: &SolverState) -> Result<()> {
+fn check_info(data: &SolverState<'_>) -> Result<()> {
     let info = data.info()?;
     if info != 0 {
-        return Err(Error::NumericalFailure { info });
+        return Err(Error::OperationFailed {
+            operation: "cudss execute".into(),
+            info,
+        });
     }
     Ok(())
 }

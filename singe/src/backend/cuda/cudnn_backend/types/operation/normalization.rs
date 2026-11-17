@@ -1,5 +1,5 @@
 use singe_cudnn::backend::{
-    execution::{
+    operation::{
         normalization::NormalizationForwardOperation,
         pointwise::{PointwiseDescriptor, PointwiseOperation},
         tensor_ops::ReshapeOperation,

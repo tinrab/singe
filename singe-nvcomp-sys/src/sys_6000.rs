@@ -10,118 +10,88 @@ pub const NVCOMP_VER_PATCH: u32 = 0;
 pub const NVCOMP_VER_BUILD: u32 = 12;
 /// Unsigned C `size_t`, used for byte counts and object sizes in the native ABI.
 pub type size_t = ::core::ffi::c_ulong;
-#[repr(u32)]
-/// @brief nvCOMP return statuses.
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum nvcompStatus_t {
+impl nvcompStatus_t {
     /// The operation succeeded.
-    nvcompSuccess = 0,
+    pub const nvcompSuccess: nvcompStatus_t = nvcompStatus_t(0);
     /// An argument has an invalid value.
-    nvcompErrorInvalidValue = 10,
+    pub const nvcompErrorInvalidValue: nvcompStatus_t = nvcompStatus_t(10);
     /// The requested operation or configuration is unsupported.
-    nvcompErrorNotSupported = 11,
+    pub const nvcompErrorNotSupported: nvcompStatus_t = nvcompStatus_t(11);
     /// The input could not be decompressed.
-    nvcompErrorCannotDecompress = 12,
+    pub const nvcompErrorCannotDecompress: nvcompStatus_t = nvcompStatus_t(12);
     /// A stored checksum does not match the computed checksum.
-    nvcompErrorBadChecksum = 13,
+    pub const nvcompErrorBadChecksum: nvcompStatus_t = nvcompStatus_t(13);
     /// The requested checksum verification could not be performed.
-    nvcompErrorCannotVerifyChecksums = 14,
+    pub const nvcompErrorCannotVerifyChecksums: nvcompStatus_t = nvcompStatus_t(14);
     /// The output buffer cannot hold the produced data.
-    nvcompErrorOutputBufferTooSmall = 15,
+    pub const nvcompErrorOutputBufferTooSmall: nvcompStatus_t = nvcompStatus_t(15);
     /// The compressed-stream header has an invalid length.
-    nvcompErrorWrongHeaderLength = 16,
+    pub const nvcompErrorWrongHeaderLength: nvcompStatus_t = nvcompStatus_t(16);
     /// A buffer does not satisfy the required alignment.
-    nvcompErrorAlignment = 17,
+    pub const nvcompErrorAlignment: nvcompStatus_t = nvcompStatus_t(17);
     /// An input chunk exceeds the supported size.
-    nvcompErrorChunkSizeTooLarge = 18,
+    pub const nvcompErrorChunkSizeTooLarge: nvcompStatus_t = nvcompStatus_t(18);
     /// The input could not be compressed.
-    nvcompErrorCannotCompress = 19,
+    pub const nvcompErrorCannotCompress: nvcompStatus_t = nvcompStatus_t(19);
     /// The input byte count is invalid for the selected codec or data representation.
-    nvcompErrorWrongInputLength = 20,
+    pub const nvcompErrorWrongInputLength: nvcompStatus_t = nvcompStatus_t(20);
     /// The batch exceeds the supported number of chunks.
-    nvcompErrorBatchSizeTooLarge = 21,
+    pub const nvcompErrorBatchSizeTooLarge: nvcompStatus_t = nvcompStatus_t(21);
     /// The requested subchunk count exceeds the supported limit.
-    nvcompErrorSubChunkCountTooLarge = 22,
+    pub const nvcompErrorSubChunkCountTooLarge: nvcompStatus_t = nvcompStatus_t(22);
     /// The requested subchunk count is below the supported minimum.
-    nvcompErrorSubChunkCountTooSmall = 23,
+    pub const nvcompErrorSubChunkCountTooSmall: nvcompStatus_t = nvcompStatus_t(23);
     /// The output buffer alignment is weaker than the required alignment.
-    nvcompErrorOutputBufferAlignmentTooSmall = 24,
+    pub const nvcompErrorOutputBufferAlignmentTooSmall: nvcompStatus_t = nvcompStatus_t(
+        24,
+    );
     /// A CUDA operation failed.
-    nvcompErrorCudaError = 1000,
+    pub const nvcompErrorCudaError: nvcompStatus_t = nvcompStatus_t(1000);
     /// An internal nvCOMP error occurred.
-    nvcompErrorInternal = 10000,
+    pub const nvcompErrorInternal: nvcompStatus_t = nvcompStatus_t(10000);
 }
-#[repr(u32)]
-/// @brief Supported data types.
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum nvcompType_t {
+#[repr(transparent)]
+/// @brief nvCOMP return statuses.
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct nvcompStatus_t(pub ::core::ffi::c_uint);
+impl nvcompType_t {
     /// 8-bit signed character
-    NVCOMP_TYPE_CHAR = 0,
+    pub const NVCOMP_TYPE_CHAR: nvcompType_t = nvcompType_t(0);
     /// 8-bit unsigned character
-    NVCOMP_TYPE_UCHAR = 1,
+    pub const NVCOMP_TYPE_UCHAR: nvcompType_t = nvcompType_t(1);
     /// Little-endian 2-byte signed integer
-    NVCOMP_TYPE_SHORT = 2,
+    pub const NVCOMP_TYPE_SHORT: nvcompType_t = nvcompType_t(2);
     /// Little-endian 2-byte unsigned integer
-    NVCOMP_TYPE_USHORT = 3,
+    pub const NVCOMP_TYPE_USHORT: nvcompType_t = nvcompType_t(3);
     /// Little-endian 4-byte signed integer
-    NVCOMP_TYPE_INT = 4,
+    pub const NVCOMP_TYPE_INT: nvcompType_t = nvcompType_t(4);
     /// Little-endian 4-byte unsigned integer
-    NVCOMP_TYPE_UINT = 5,
+    pub const NVCOMP_TYPE_UINT: nvcompType_t = nvcompType_t(5);
     /// Little-endian 8-byte signed integer
-    NVCOMP_TYPE_LONGLONG = 6,
+    pub const NVCOMP_TYPE_LONGLONG: nvcompType_t = nvcompType_t(6);
     /// Little-endian 8-byte unsigned integer
-    NVCOMP_TYPE_ULONGLONG = 7,
+    pub const NVCOMP_TYPE_ULONGLONG: nvcompType_t = nvcompType_t(7);
     /// 1B FP8 with E4M3 layout (sign:1 | exp:4 | mantissa:3)
-    NVCOMP_TYPE_FLOAT8_E4M3 = 9,
+    pub const NVCOMP_TYPE_FLOAT8_E4M3: nvcompType_t = nvcompType_t(9);
     /// Little-endian 2-byte float
-    NVCOMP_TYPE_FLOAT16 = 10,
+    pub const NVCOMP_TYPE_FLOAT16: nvcompType_t = nvcompType_t(10);
     /// 4B IEEE-754 single precision
-    NVCOMP_TYPE_FLOAT32 = 11,
+    pub const NVCOMP_TYPE_FLOAT32: nvcompType_t = nvcompType_t(11);
     /// 8B IEEE-754 double precision
-    NVCOMP_TYPE_FLOAT64 = 12,
+    pub const NVCOMP_TYPE_FLOAT64: nvcompType_t = nvcompType_t(12);
     /// 1b
-    NVCOMP_TYPE_BITS = 255,
+    pub const NVCOMP_TYPE_BITS: nvcompType_t = nvcompType_t(255);
 }
-#[repr(u32)]
-/// @brief Available decompression backend options
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum nvcompDecompressBackend_t {
+#[repr(transparent)]
+/// @brief Supported data types.
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct nvcompType_t(pub ::core::ffi::c_uint);
+impl nvcompDecompressBackend_t {
     /** Let nvCOMP decide the best decompression backend internally, either
  hardware decompression or one of the CUDA implementations.*/
-    NVCOMP_DECOMPRESS_BACKEND_DEFAULT = 0,
+    pub const NVCOMP_DECOMPRESS_BACKEND_DEFAULT: nvcompDecompressBackend_t = nvcompDecompressBackend_t(
+        0,
+    );
     /** Decompress using the dedicated hardware decompression engine.
  If using this backend, nvCOMP will not check for buffers that are too large according
  to the CUDA Driver variable CU_DEVICE_ATTRIBUTE_MEM_DECOMPRESS_MAXIMUM_LENGTH.
@@ -132,10 +102,18 @@ pub enum nvcompDecompressBackend_t {
  CUDA_CHECK(cuDeviceGetAttribute(&max_supported_size,
     CU_DEVICE_ATTRIBUTE_MEM_DECOMPRESS_MAXIMUM_LENGTH,
     device_id));*/
-    NVCOMP_DECOMPRESS_BACKEND_HARDWARE = 1,
+    pub const NVCOMP_DECOMPRESS_BACKEND_HARDWARE: nvcompDecompressBackend_t = nvcompDecompressBackend_t(
+        1,
+    );
     /// Decompress using the CUDA implementation.
-    NVCOMP_DECOMPRESS_BACKEND_CUDA = 2,
+    pub const NVCOMP_DECOMPRESS_BACKEND_CUDA: nvcompDecompressBackend_t = nvcompDecompressBackend_t(
+        2,
+    );
 }
+#[repr(transparent)]
+/// @brief Available decompression backend options
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct nvcompDecompressBackend_t(pub ::core::ffi::c_uint);
 /// @brief nvCOMP properties.
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
@@ -158,50 +136,34 @@ pub struct nvcompAlignmentRequirements_t {
  to 1.*/
     pub temp: size_t,
 }
-#[repr(u32)]
-/// @brief Bitshuffle mode.
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum nvcompBitshuffleMode_t {
+impl nvcompBitshuffleMode_t {
     /// No bitshuffle is performed.
-    NVCOMP_BITSHUFFLE_NONE = 0,
+    pub const NVCOMP_BITSHUFFLE_NONE: nvcompBitshuffleMode_t = nvcompBitshuffleMode_t(0);
     /// Bitshuffle with most significant bits written first.
-    NVCOMP_BITSHUFFLE_MSB_FIRST = 1,
+    pub const NVCOMP_BITSHUFFLE_MSB_FIRST: nvcompBitshuffleMode_t = nvcompBitshuffleMode_t(
+        1,
+    );
     /// Bitshuffle with least significant bits written first.
-    NVCOMP_BITSHUFFLE_LSB_FIRST = 2,
+    pub const NVCOMP_BITSHUFFLE_LSB_FIRST: nvcompBitshuffleMode_t = nvcompBitshuffleMode_t(
+        2,
+    );
 }
-#[repr(u32)]
-/// @brief Bitcomp compression mode.
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum bitcompMode_t {
+#[repr(transparent)]
+/// @brief Bitshuffle mode.
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct nvcompBitshuffleMode_t(pub ::core::ffi::c_uint);
+impl bitcompMode_t {
     /// Preserves all input information during Bitcomp compression.
-    BITCOMP_LOSSLESS = 0,
+    pub const BITCOMP_LOSSLESS: bitcompMode_t = bitcompMode_t(0);
     /// Lossy compression of floating-point data quantized to signed integers.
-    BITCOMP_LOSSY_FP_TO_SIGNED = 1,
+    pub const BITCOMP_LOSSY_FP_TO_SIGNED: bitcompMode_t = bitcompMode_t(1);
     /// Lossy compression of floating-point data quantized to unsigned integers.
-    BITCOMP_LOSSY_FP_TO_UNSIGNED = 2,
+    pub const BITCOMP_LOSSY_FP_TO_UNSIGNED: bitcompMode_t = bitcompMode_t(2);
 }
+#[repr(transparent)]
+/// @brief Bitcomp compression mode.
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct bitcompMode_t(pub ::core::ffi::c_uint);
 /// *#include &lt;bitcomp.h>*
 ///
 /// Bitcomp compression options for the low-level API.
@@ -555,31 +517,37 @@ singe_loader::functions! { crate::LIBRARY;
         stream: cudaStream_t,
     ) -> nvcompStatus_t;
 }
-/// Selects the Cascaded compression mode.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum nvcompCascadedMode_t {
+impl nvcompCascadedMode_t {
     /// Cascaded common options are not specified.
     ///
     /// This value is only valid for decompression. An unspecified mode maximizes decompression support at the cost of decompression performance.
-    NVCOMP_CASCADED_MODE_UNSPECIFIED = 0,
+    pub const NVCOMP_CASCADED_MODE_UNSPECIFIED: nvcompCascadedMode_t = nvcompCascadedMode_t(
+        0,
+    );
     /// Select adaptive asymmetric Cascaded compression.
-    NVCOMP_CASCADED_MODE_ASYMMETRIC = 1,
+    pub const NVCOMP_CASCADED_MODE_ASYMMETRIC: nvcompCascadedMode_t = nvcompCascadedMode_t(
+        1,
+    );
     /// Select Terminal Cascaded compression and matching decompression.
     ///
     /// Supports signed and unsigned 32- and 64-bit integer types.
-    NVCOMP_CASCADED_MODE_SYMMETRIC = 2,
+    pub const NVCOMP_CASCADED_MODE_SYMMETRIC: nvcompCascadedMode_t = nvcompCascadedMode_t(
+        2,
+    );
+}
+/// Selects the Cascaded compression mode.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct nvcompCascadedMode_t(pub ::core::ffi::c_uint);
+impl nvcompCascadedTerminalCodec_t {
+    /// No terminal codec is specified. Invalid for compression or mode-specific decompression; ignored when the Cascaded mode is unspecified.
+    pub const NVCOMP_CASCADED_TERMINAL_CODEC_UNSPECIFIED: nvcompCascadedTerminalCodec_t = nvcompCascadedTerminalCodec_t(
+        0,
+    );
+    /// Enables the Cascaded bitpacking terminal codec in the codec mask.
+    pub const NVCOMP_CASCADED_TERMINAL_CODEC_CASCADED_BITPACK: nvcompCascadedTerminalCodec_t = nvcompCascadedTerminalCodec_t(
+        1,
+    );
 }
 /// Terminal codecs considered during compression and supported during decompression.
 ///
@@ -588,42 +556,51 @@ pub enum nvcompCascadedMode_t {
 /// NVCOMP_CASCADED_TERMINAL_CODEC_UNSPECIFIED is invalid for compression and for decompression when the mode is specified. It is ignored when the mode is NVCOMP_CASCADED_MODE_UNSPECIFIED.
 ///
 /// During decompression, the mask identifies the terminal codecs that may have been used to produce the input. If an input uses a terminal codec not included in this mask, decompression reports [`nvcompStatus_t::nvcompErrorCannotDecompress`] for that input.
-#[repr(u32)]
+#[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum nvcompCascadedTerminalCodec_t {
-    /// No terminal codec is specified. Invalid for compression or mode-specific decompression; ignored when the Cascaded mode is unspecified.
-    NVCOMP_CASCADED_TERMINAL_CODEC_UNSPECIFIED = 0,
-    /// Enables the Cascaded bitpacking terminal codec in the codec mask.
-    NVCOMP_CASCADED_TERMINAL_CODEC_CASCADED_BITPACK = 1,
+pub struct nvcompCascadedTerminalCodec_t(pub ::core::ffi::c_uint);
+impl nvcompCascadedFineGrainedEncoding_t {
+    /// Disables fine-grained Cascaded encodings.
+    pub const NVCOMP_CASCADED_FINE_GRAINED_ENCODING_NONE: nvcompCascadedFineGrainedEncoding_t = nvcompCascadedFineGrainedEncoding_t(
+        0,
+    );
+    /// Enables delta encoding in the fine-grained encoding mask.
+    pub const NVCOMP_CASCADED_FINE_GRAINED_ENCODING_DELTA: nvcompCascadedFineGrainedEncoding_t = nvcompCascadedFineGrainedEncoding_t(
+        1,
+    );
+    /// Enables run-length encoding in the fine-grained encoding mask.
+    pub const NVCOMP_CASCADED_FINE_GRAINED_ENCODING_RLE: nvcompCascadedFineGrainedEncoding_t = nvcompCascadedFineGrainedEncoding_t(
+        2,
+    );
+    /// Enables frame-of-reference encoding; required by asymmetric Cascaded mode.
+    pub const NVCOMP_CASCADED_FINE_GRAINED_ENCODING_FOR: nvcompCascadedFineGrainedEncoding_t = nvcompCascadedFineGrainedEncoding_t(
+        4,
+    );
+    /// Enables delta, run-length, and frame-of-reference encodings in the mask.
+    pub const NVCOMP_CASCADED_FINE_GRAINED_ENCODING_ALL: nvcompCascadedFineGrainedEncoding_t = nvcompCascadedFineGrainedEncoding_t(
+        7,
+    );
 }
 /// Fine-grained encodings considered when Cascaded bitpacking is used as the terminal codec.
 ///
 /// Values may be combined as a bit mask using bitwise OR. For example, NVCOMP_CASCADED_FINE_GRAINED_ENCODING_DELTA | NVCOMP_CASCADED_FINE_GRAINED_ENCODING_RLE enables both encodings.
 ///
 /// Asymmetric mode currently requires NVCOMP_CASCADED_FINE_GRAINED_ENCODING_FOR to be enabled. In symmetric mode, Frame Of Reference encoding is optional.
-#[repr(u32)]
+#[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum nvcompCascadedFineGrainedEncoding_t {
-    /// Disables fine-grained Cascaded encodings.
-    NVCOMP_CASCADED_FINE_GRAINED_ENCODING_NONE = 0,
-    /// Enables delta encoding in the fine-grained encoding mask.
-    NVCOMP_CASCADED_FINE_GRAINED_ENCODING_DELTA = 1,
-    /// Enables run-length encoding in the fine-grained encoding mask.
-    NVCOMP_CASCADED_FINE_GRAINED_ENCODING_RLE = 2,
-    /// Enables frame-of-reference encoding; required by asymmetric Cascaded mode.
-    NVCOMP_CASCADED_FINE_GRAINED_ENCODING_FOR = 4,
-    /// Enables delta, run-length, and frame-of-reference encodings in the mask.
-    NVCOMP_CASCADED_FINE_GRAINED_ENCODING_ALL = 7,
+pub struct nvcompCascadedFineGrainedEncoding_t(pub ::core::ffi::c_uint);
+impl nvcompCascadedCoarseGrainedEncoding_t {
+    /// Disables coarse-grained stream encodings. No coarse-grained encoding is supported by these headers.
+    pub const NVCOMP_CASCADED_COARSE_GRAINED_ENCODING_NONE: nvcompCascadedCoarseGrainedEncoding_t = nvcompCascadedCoarseGrainedEncoding_t(
+        0,
+    );
 }
 /// Coarse-grained encodings considered during compression and supported during decompression for the complete input stream.
 ///
 /// No coarse-grained encodings are currently supported.
-#[repr(u32)]
+#[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum nvcompCascadedCoarseGrainedEncoding_t {
-    /// Disables coarse-grained stream encodings. No coarse-grained encoding is supported by these headers.
-    NVCOMP_CASCADED_COARSE_GRAINED_ENCODING_NONE = 0,
-}
+pub struct nvcompCascadedCoarseGrainedEncoding_t(pub ::core::ffi::c_uint);
 /// Cascaded options required by compression and optionally used to narrow decompression support.
 ///
 /// Providing these options allows nvCOMP to improve decompression performance by only launching decompression implementations that are required by the input. If `mode` is NVCOMP_CASCADED_MODE_UNSPECIFIED, the remaining fields are ignored to maximize decompression support.
@@ -1025,26 +1002,20 @@ pub struct nvcompCRC32Spec_t {
     /// These bytes are unused and must be zeroed. This ensures compatibility if additional fields are added in the future.
     pub reserved: [::core::ffi::c_char; 16usize],
 }
-/// Enumeration of kernel kinds for CRC32 computation.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum nvcompCRC32KernelKind_t {
+impl nvcompCRC32KernelKind_t {
     /// Let each warp process its own chunk of input data.
-    nvcompCRC32WarpKernel = 0,
+    pub const nvcompCRC32WarpKernel: nvcompCRC32KernelKind_t = nvcompCRC32KernelKind_t(
+        0,
+    );
     /// Let one or more blocks process each chunk of input data.
-    nvcompCRC32BlockKernel = 1,
+    pub const nvcompCRC32BlockKernel: nvcompCRC32KernelKind_t = nvcompCRC32KernelKind_t(
+        1,
+    );
 }
+/// Enumeration of kernel kinds for CRC32 computation.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct nvcompCRC32KernelKind_t(pub ::core::ffi::c_uint);
 /// *#include &lt;crc32.h>*
 ///
 /// Configuration for CRC32 kernel execution.
@@ -1093,34 +1064,32 @@ impl Default for nvcompBatchedCRC32Opts_t {
         }
     }
 }
-/// Enumeration specifying segment types for streaming CRC32 computation.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum nvcompCRC32SegmentKind_t {
+impl nvcompCRC32SegmentKind_t {
     /// Single segment (complete message).
-    nvcompCRC32OnlySegment = 0,
+    pub const nvcompCRC32OnlySegment: nvcompCRC32SegmentKind_t = nvcompCRC32SegmentKind_t(
+        0,
+    );
     /// First segment of a message that may be followed by further segments.
-    nvcompCRC32FirstSegment = 1,
+    pub const nvcompCRC32FirstSegment: nvcompCRC32SegmentKind_t = nvcompCRC32SegmentKind_t(
+        1,
+    );
     /// Non-first segment of a message that may be followed by further segments.
-    nvcompCRC32MidSegment = 2,
+    pub const nvcompCRC32MidSegment: nvcompCRC32SegmentKind_t = nvcompCRC32SegmentKind_t(
+        2,
+    );
     /// Last segment of a message.
     ///
     /// If the segment is also the first segment, nvcompCRC32OnlySegment should be used instead.
     ///
     /// This enumerator can also be used to retroactively mark the last processed segment as the last segment of a message. For details, see nvcompBatchedCRC32Async.
-    nvcompCRC32LastSegment = 3,
+    pub const nvcompCRC32LastSegment: nvcompCRC32SegmentKind_t = nvcompCRC32SegmentKind_t(
+        3,
+    );
 }
+/// Enumeration specifying segment types for streaming CRC32 computation.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct nvcompCRC32SegmentKind_t(pub ::core::ffi::c_uint);
 singe_loader::functions! { crate::LIBRARY;
     /// Perform CRC32 checksum calculation asynchronously.
     ///
@@ -1970,26 +1939,20 @@ impl Default for nvcompBatchedGzipCompressOpts_t {
         }
     }
 }
-/// Gzip decompression CUDA algorithm options for the low-level API.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum nvcompBatchedGzipDecompressAlgorithm_t {
+impl nvcompBatchedGzipDecompressAlgorithm_t {
     /// Uses the native baseline gzip decompression algorithm.
-    NVCOMP_GZIP_DECOMPRESS_ALGORITHM_NAIVE = 0,
+    pub const NVCOMP_GZIP_DECOMPRESS_ALGORITHM_NAIVE: nvcompBatchedGzipDecompressAlgorithm_t = nvcompBatchedGzipDecompressAlgorithm_t(
+        0,
+    );
     /// Uses the native lookahead gzip decompression algorithm.
-    NVCOMP_GZIP_DECOMPRESS_ALGORITHM_LOOKAHEAD = 1,
+    pub const NVCOMP_GZIP_DECOMPRESS_ALGORITHM_LOOKAHEAD: nvcompBatchedGzipDecompressAlgorithm_t = nvcompBatchedGzipDecompressAlgorithm_t(
+        1,
+    );
 }
+/// Gzip decompression CUDA algorithm options for the low-level API.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct nvcompBatchedGzipDecompressAlgorithm_t(pub ::core::ffi::c_uint);
 /// *#include &lt;gzip.h>*
 ///
 /// Gzip decompression options for the low-level API.
@@ -3402,24 +3365,14 @@ singe_loader::functions! { crate::LIBRARY;
     /// Returns the description string for an error code.
     pub fn nvcompGetStatusString(status: nvcompStatus_t) -> *const ::core::ffi::c_char;
 }
-/// Available ANS types.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum nvcompANSType_t {
+impl nvcompANSType_t {
     /// Uses range asymmetric numeral systems (rANS) coding.
-    nvcomp_rANS = 0,
+    pub const nvcomp_rANS: nvcompANSType_t = nvcompANSType_t(0);
 }
+/// Available ANS types.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct nvcompANSType_t(pub ::core::ffi::c_uint);
 /// *#include &lt;ans.h>*
 ///
 /// ANS compression options for the low-level API.

@@ -1,8 +1,7 @@
-use singe_cuda::{context::Context as CudaContext, memory::DeviceMemory, stream::StreamBinding};
+use singe_cuda::{context::Context as CudaContext, memory::DeviceMemory, stream::StreamOptions};
 
 use singe_cutensor::{
     context::Context,
-    error::Result,
     operation::{ComputeDescriptor, OperationDescriptor, TensorOperand},
     plan::{Plan, PlanPreference},
     tensor::TensorDescriptor,
@@ -14,17 +13,19 @@ fn packed_offset(indices: &[u64], extents: &[u64]) -> usize {
     let mut offset = 0_usize;
 
     for (&index, &extent) in indices.iter().zip(extents) {
-        offset += index as usize * stride;
-        stride *= extent as usize;
+        offset += usize::try_from(index).unwrap() * stride;
+        stride *= usize::try_from(extent).unwrap();
     }
 
     offset
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
+    const ALIGNMENT: u32 = 128;
+
     let cuda_context = CudaContext::create()?;
     let context = Context::create(&cuda_context)?;
-    let stream = cuda_context.create_stream()?;
+    let stream = cuda_context.create_stream(StreamOptions::default())?;
 
     let extent_a = vec![2, 3, 2];
     let extent_b = vec![2, 2, 3];
@@ -34,7 +35,7 @@ fn main() -> Result<()> {
     let mode_c = vec!['a'.into(), 'b'.into(), 'c'.into()];
 
     let host_a = (0..extent_a.iter().product::<u64>())
-        .map(|index| 0.5_f32 * (index as f32 + 1.0))
+        .map(|index| f32::midpoint(index as f32, 1.0))
         .collect::<Vec<_>>();
     let host_b = (0..extent_b.iter().product::<u64>())
         .map(|index| -0.25_f32 * (index as f32 + 2.0))
@@ -47,8 +48,6 @@ fn main() -> Result<()> {
     let device_b = DeviceMemory::from_slice(&cuda_context, &host_b)?;
     let device_c = DeviceMemory::from_slice(&cuda_context, &host_c)?;
     let mut device_d = DeviceMemory::<f32>::create_uninit(&cuda_context, host_c.len())?;
-
-    const ALIGNMENT: u32 = 128;
 
     let descriptor_a = TensorDescriptor::create_for::<f32>(&context, &extent_a, ALIGNMENT)?;
     let descriptor_b = TensorDescriptor::create_for::<f32>(&context, &extent_b, ALIGNMENT)?;
@@ -72,21 +71,16 @@ fn main() -> Result<()> {
     let alpha = 1.1_f32;
     let beta = 1.3_f32;
     let gamma = 1.2_f32;
-    StreamBinding::Borrowed(stream.to_borrowed()).sync_scope(|| {
-        // SAFETY: these buffers match the descriptors and stay borrowed through scope completion.
-        unsafe {
-            plan.elementwise_trinary(
-                &alpha,
-                &device_a,
-                &beta,
-                &device_b,
-                &gamma,
-                &device_c,
-                &mut device_d.output(),
-                &stream,
-            )
-        }
-    })?;
+    plan.elementwise_trinary(
+        &alpha,
+        &device_a,
+        &beta,
+        &device_b,
+        &gamma,
+        &device_c,
+        &mut device_d.output(),
+        &stream,
+    )?;
 
     // SAFETY: the completed operation produced the full contiguous descriptor output.
     let device_d = unsafe { device_d.assume_init() };
@@ -99,9 +93,10 @@ fn main() -> Result<()> {
                 let output_offset = packed_offset(&[a, b, c], &extent_c);
                 let a_offset = packed_offset(&[c, b, a], &extent_a);
                 let b_offset = packed_offset(&[c, a, b], &extent_b);
-                expected[output_offset] = alpha * host_a[a_offset]
-                    + beta * host_b[b_offset]
-                    + gamma * host_c[output_offset];
+                expected[output_offset] = gamma.mul_add(
+                    host_c[output_offset],
+                    beta.mul_add(host_b[b_offset], alpha * host_a[a_offset]),
+                );
             }
         }
     }

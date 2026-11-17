@@ -1,9 +1,8 @@
 //! Compose an owned upload and readback, then await the host result.
 
-use std::error::Error;
-
 use singe_cuda::{
     context::Context,
+    stream::StreamOptions,
     submission::{
         Operation,
         transfer::{DeviceValue, Upload},
@@ -11,9 +10,9 @@ use singe_cuda::{
 };
 
 #[tokio::main(flavor = "current_thread")]
-async fn main() -> Result<(), Box<dyn Error>> {
+async fn main() -> anyhow::Result<()> {
     let context = Context::create()?;
-    let stream = context.create_stream()?;
+    let stream = context.create_stream(StreamOptions::default())?;
     let input: Vec<u32> = (0..4096).collect();
 
     // Upload copies the input into owned pinned staging. The original host

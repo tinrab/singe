@@ -1,21 +1,24 @@
 [package]
 name = "singe-cudnn"
 description = "Safe Rust wrappers for NVIDIA cuDNN, the deep neural network library, including a Rust port of NVIDIA's cuDNN Frontend."
-version = "0.1.0-alpha.8"
+version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 repository.workspace = true
+documentation = "https://docs.rs/singe-cudnn"
 license-file.workspace = true
 readme = "README.md"
-keywords = ["cuda", "cudnn", "tensor", "deep-learning"]
+keywords = ["cuda", "nvidia", "cudnn", "deep-learning"]
+categories = ["api-bindings", "hardware-support", "science"]
 include.workspace = true
 
 [package.metadata.docs.rs]
-rustdoc-args = ["--html-in-header", "dist/katex_header.html"]
+rustdoc-args = ["--cfg", "docsrs", "--html-in-header", "dist/katex_header.html"]
 
 [features]
 default = ["cudnn_9_27"]
 
-cudnn_9_27 = ["singe-cudnn-sys/cudnn_9_27"]
+cudnn_9_27 = ["singe-cuda/runtime_13_4", "singe-cudnn-sys/cudnn_9_27"]
 
 testing = ["singe-cuda/testing"]
 
@@ -36,7 +39,10 @@ sha2.workspace = true
 hex.workspace = true
 
 [dev-dependencies]
+anyhow.workspace = true
 singe-cublas.workspace = true
+# `custom_kernel_graph` defines its kernel with `cuda_module!`, and the examples query NVRTC.
+singe-cuda = { workspace = true, features = ["macros", "nvrtc_13_4"] }
 
 [[example]]
 name = "frontend_logging"
@@ -281,10 +287,6 @@ path = "examples/frontend/fp16_sdpa_alibi.rs"
 [[example]]
 name = "frontend_fp16_sdpa_cached"
 path = "examples/frontend/fp16_sdpa_cached.rs"
-
-[[example]]
-name = "frontend_fp16_sdpa_benchmark"
-path = "examples/frontend/fp16_sdpa_benchmark.rs"
 
 [[example]]
 name = "frontend_fp16_sdpa_paged_caches"

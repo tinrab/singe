@@ -32,9 +32,9 @@ use crate::{
 };
 
 /// Resources whose owners are gone, released by the worker outside the admission lock.
-pub struct Reclaimable {
-    pub debug: debug::Reclaimed,
-    pub addresses: Vec<u64>,
+pub(crate) struct Reclaimable {
+    pub(crate) debug: debug::Reclaimed,
+    pub(crate) addresses: Vec<u64>,
 }
 
 impl Reclaimable {
@@ -43,15 +43,15 @@ impl Reclaimable {
     }
 }
 
-pub struct Worker {
-    pub memory: Memory,
-    pub shared: Arc<Shared>,
-    pub failure: Option<RetainedFailure>,
+pub(crate) struct Worker {
+    pub(crate) memory: Memory,
+    pub(crate) shared: Arc<Shared>,
+    pub(crate) failure: Option<RetainedFailure>,
 }
 
 impl Worker {
     /// Removes released resources under the admission lock without dropping them.
-    pub fn take_reclaimable(state: &mut Admission) -> Reclaimable {
+    pub(crate) fn take_reclaimable(state: &mut Admission) -> Reclaimable {
         Reclaimable {
             debug: debug::Reclaimed::take(&mut state.debug),
             addresses: mem::take(&mut state.reclaim),
@@ -59,19 +59,19 @@ impl Worker {
     }
 
     /// Drops reclaimed resources after the admission lock is released.
-    pub fn release(&mut self, reclaimable: Reclaimable) {
+    pub(crate) fn release(&mut self, reclaimable: Reclaimable) {
         drop(reclaimable.debug);
         for address in reclaimable.addresses {
             self.memory.release(address);
         }
     }
 
-    pub fn reclaim(&mut self) {
+    pub(crate) fn reclaim(&mut self) {
         let reclaimable = Self::take_reclaimable(&mut lock(&self.shared.admission));
         self.release(reclaimable);
     }
 
-    pub fn check_cancel(&self) -> Result<(), ExecutionError> {
+    pub(crate) fn check_cancel(&self) -> Result<(), ExecutionError> {
         if self.shared.cancel.load(Ordering::Acquire) {
             Err(ExecutionError::Cancelled)
         } else {
@@ -79,7 +79,10 @@ impl Worker {
         }
     }
 
-    pub fn reserve_allocation(&mut self, size: usize) -> Result<AllocationRef, ExecutionError> {
+    pub(crate) fn reserve_allocation(
+        &mut self,
+        size: usize,
+    ) -> Result<AllocationRef, ExecutionError> {
         self.check_cancel()?;
         let address = self
             .memory
@@ -96,13 +99,13 @@ impl Worker {
     }
 
     #[cfg(test)]
-    pub fn transfer_checkpoint(&self, completed: usize, total: usize) {
+    pub(crate) fn transfer_checkpoint(&self, completed: usize, total: usize) {
         if let Some(hook) = lock(&self.shared.hooks.transfer).as_mut() {
             hook(completed, total);
         }
     }
 
-    pub fn fault(&mut self, error: &ExecutionError, storage: Arc<Reservation>) {
+    pub(crate) fn fault(&mut self, error: &ExecutionError, storage: Arc<Reservation>) {
         if !matches!(
             error.root_cause(),
             ExecutionError::Cancelled | ExecutionError::Faulted
@@ -124,20 +127,20 @@ impl Worker {
 }
 
 #[derive(Clone, Copy)]
-pub enum LoadPhase {
+pub(crate) enum LoadPhase {
     Reserve,
     Zero { variable: usize, initialized: usize },
     Initializers { variable: usize, value: usize },
 }
 
-pub struct ModuleLoad {
-    pub layout: Option<ModuleLayout>,
-    pub addresses: Vec<u64>,
-    pub phase: LoadPhase,
+pub(crate) struct ModuleLoad {
+    pub(crate) layout: Option<ModuleLayout>,
+    pub(crate) addresses: Vec<u64>,
+    pub(crate) phase: LoadPhase,
 }
 
 impl ModuleLoad {
-    pub fn poll(
+    pub(crate) fn poll(
         &mut self,
         worker: &mut Worker,
         terminal: Option<ExecutionError>,
@@ -151,7 +154,10 @@ impl ModuleLoad {
         result
     }
 
-    pub fn advance(&mut self, worker: &mut Worker) -> Poll<Result<Arc<Loaded>, ExecutionError>> {
+    pub(crate) fn advance(
+        &mut self,
+        worker: &mut Worker,
+    ) -> Poll<Result<Arc<Loaded>, ExecutionError>> {
         let layout = self
             .layout
             .as_ref()
@@ -305,22 +311,22 @@ impl ModuleLoad {
     }
 }
 
-pub struct LaunchWork {
-    pub code: CompiledKernel,
-    pub loaded: Arc<Loaded>,
-    pub config: LaunchConfig,
-    pub args: Vec<Vec<u8>>,
-    pub _leases: Vec<AllocationRef>,
-    pub staging: Staging,
-    pub engine: Option<Engine>,
-    pub builder: Option<GridBuilder>,
-    pub pause: Option<debug::Registration>,
-    pub stream_id: u64,
-    pub result_storage: Option<Arc<Reservation>>,
+pub(crate) struct LaunchWork {
+    pub(crate) code: CompiledKernel,
+    pub(crate) loaded: Arc<Loaded>,
+    pub(crate) config: LaunchConfig,
+    pub(crate) args: Vec<Vec<u8>>,
+    pub(crate) _leases: Vec<AllocationRef>,
+    pub(crate) staging: Staging,
+    pub(crate) engine: Option<Engine>,
+    pub(crate) builder: Option<GridBuilder>,
+    pub(crate) pause: Option<debug::Registration>,
+    pub(crate) stream_id: u64,
+    pub(crate) result_storage: Option<Arc<Reservation>>,
 }
 
 impl LaunchWork {
-    pub fn poll(
+    pub(crate) fn poll(
         &mut self,
         worker: &mut Worker,
         terminal: Option<ExecutionError>,
@@ -486,7 +492,7 @@ impl LaunchWork {
 /// Commands the worker is running, polled round-robin.
 type ActiveCommands = ChargedQueue<Command>;
 
-pub fn run_worker(shared: &Arc<Shared>) {
+pub(crate) fn run_worker(shared: &Arc<Shared>) {
     let mut worker = Worker {
         memory: Memory::new(
             shared.options.device_storage_bytes,

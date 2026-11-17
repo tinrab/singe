@@ -18,143 +18,111 @@ pub type size_t = ::core::ffi::c_ulong;
 pub struct CUstream_st {
     _unused: [u8; 0],
 }
-/// CURAND function call status types.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum curandStatus {
+impl curandStatus {
     /// No errors.
-    CURAND_STATUS_SUCCESS = 0,
+    pub const CURAND_STATUS_SUCCESS: curandStatus = curandStatus(0);
     /// Header file and linked library version do not match.
-    CURAND_STATUS_VERSION_MISMATCH = 100,
+    pub const CURAND_STATUS_VERSION_MISMATCH: curandStatus = curandStatus(100);
     /// Generator not initialized.
-    CURAND_STATUS_NOT_INITIALIZED = 101,
+    pub const CURAND_STATUS_NOT_INITIALIZED: curandStatus = curandStatus(101);
     /// Memory allocation failed.
-    CURAND_STATUS_ALLOCATION_FAILED = 102,
+    pub const CURAND_STATUS_ALLOCATION_FAILED: curandStatus = curandStatus(102);
     /// Generator is wrong type.
-    CURAND_STATUS_TYPE_ERROR = 103,
+    pub const CURAND_STATUS_TYPE_ERROR: curandStatus = curandStatus(103);
     /// Argument out of range.
-    CURAND_STATUS_OUT_OF_RANGE = 104,
+    pub const CURAND_STATUS_OUT_OF_RANGE: curandStatus = curandStatus(104);
     /// Length requested is not a multple of dimension.
-    CURAND_STATUS_LENGTH_NOT_MULTIPLE = 105,
+    pub const CURAND_STATUS_LENGTH_NOT_MULTIPLE: curandStatus = curandStatus(105);
     /// GPU does not have double precision required by MRG32k3a.
-    CURAND_STATUS_DOUBLE_PRECISION_REQUIRED = 106,
+    pub const CURAND_STATUS_DOUBLE_PRECISION_REQUIRED: curandStatus = curandStatus(106);
     /// Kernel launch failure.
-    CURAND_STATUS_LAUNCH_FAILURE = 201,
+    pub const CURAND_STATUS_LAUNCH_FAILURE: curandStatus = curandStatus(201);
     /// Preexisting failure on library entry.
-    CURAND_STATUS_PREEXISTING_FAILURE = 202,
+    pub const CURAND_STATUS_PREEXISTING_FAILURE: curandStatus = curandStatus(202);
     /// Initialization of CUDA failed.
-    CURAND_STATUS_INITIALIZATION_FAILED = 203,
+    pub const CURAND_STATUS_INITIALIZATION_FAILED: curandStatus = curandStatus(203);
     /// Architecture mismatch, GPU does not support requested feature.
-    CURAND_STATUS_ARCH_MISMATCH = 204,
+    pub const CURAND_STATUS_ARCH_MISMATCH: curandStatus = curandStatus(204);
     /// Internal library error.
-    CURAND_STATUS_INTERNAL_ERROR = 999,
+    pub const CURAND_STATUS_INTERNAL_ERROR: curandStatus = curandStatus(999);
 }
+/// CURAND function call status types.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct curandStatus(pub ::core::ffi::c_uint);
 pub use self::curandStatus as curandStatus_t;
-/// CURAND generator types.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum curandRngType {
+impl curandRngType {
     /// Native test-generator selector, separate from the documented pseudorandom and quasirandom generator families.
-    CURAND_RNG_TEST = 0,
+    pub const CURAND_RNG_TEST: curandRngType = curandRngType(0);
     /// Default pseudorandom generator.
-    CURAND_RNG_PSEUDO_DEFAULT = 100,
+    pub const CURAND_RNG_PSEUDO_DEFAULT: curandRngType = curandRngType(100);
     /// XORWOW pseudorandom generator.
-    CURAND_RNG_PSEUDO_XORWOW = 101,
+    pub const CURAND_RNG_PSEUDO_XORWOW: curandRngType = curandRngType(101);
     /// MRG32k3a pseudorandom generator.
-    CURAND_RNG_PSEUDO_MRG32K3A = 121,
+    pub const CURAND_RNG_PSEUDO_MRG32K3A: curandRngType = curandRngType(121);
     /// Mersenne Twister MTGP32 pseudorandom generator.
-    CURAND_RNG_PSEUDO_MTGP32 = 141,
+    pub const CURAND_RNG_PSEUDO_MTGP32: curandRngType = curandRngType(141);
     /// Mersenne Twister MT19937 pseudorandom generator.
-    CURAND_RNG_PSEUDO_MT19937 = 142,
+    pub const CURAND_RNG_PSEUDO_MT19937: curandRngType = curandRngType(142);
     /// PHILOX-4x32-10 pseudorandom generator.
-    CURAND_RNG_PSEUDO_PHILOX4_32_10 = 161,
+    pub const CURAND_RNG_PSEUDO_PHILOX4_32_10: curandRngType = curandRngType(161);
     /// Default quasirandom generator.
-    CURAND_RNG_QUASI_DEFAULT = 200,
+    pub const CURAND_RNG_QUASI_DEFAULT: curandRngType = curandRngType(200);
     /// Sobol32 quasirandom generator.
-    CURAND_RNG_QUASI_SOBOL32 = 201,
+    pub const CURAND_RNG_QUASI_SOBOL32: curandRngType = curandRngType(201);
     /// Scrambled Sobol32 quasirandom generator.
-    CURAND_RNG_QUASI_SCRAMBLED_SOBOL32 = 202,
+    pub const CURAND_RNG_QUASI_SCRAMBLED_SOBOL32: curandRngType = curandRngType(202);
     /// Sobol64 quasirandom generator.
-    CURAND_RNG_QUASI_SOBOL64 = 203,
+    pub const CURAND_RNG_QUASI_SOBOL64: curandRngType = curandRngType(203);
     /// Scrambled Sobol64 quasirandom generator.
-    CURAND_RNG_QUASI_SCRAMBLED_SOBOL64 = 204,
+    pub const CURAND_RNG_QUASI_SCRAMBLED_SOBOL64: curandRngType = curandRngType(204);
 }
+/// CURAND generator types.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct curandRngType(pub ::core::ffi::c_uint);
 pub use self::curandRngType as curandRngType_t;
-/// CURAND ordering of results in memory.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum curandOrdering {
+impl curandOrdering {
     /// Best ordering for pseudorandom results.
-    CURAND_ORDERING_PSEUDO_BEST = 100,
+    pub const CURAND_ORDERING_PSEUDO_BEST: curandOrdering = curandOrdering(100);
     /// Specific default thread sequence for pseudorandom results, same as [`curandOrdering::CURAND_ORDERING_PSEUDO_BEST`].
-    CURAND_ORDERING_PSEUDO_DEFAULT = 101,
+    pub const CURAND_ORDERING_PSEUDO_DEFAULT: curandOrdering = curandOrdering(101);
     /// Specific seeding pattern for fast lower quality pseudorandom results.
-    CURAND_ORDERING_PSEUDO_SEEDED = 102,
+    pub const CURAND_ORDERING_PSEUDO_SEEDED: curandOrdering = curandOrdering(102);
     /// Specific legacy sequence for pseudorandom results, guaranteed to remain the same for all cuRAND release.
-    CURAND_ORDERING_PSEUDO_LEGACY = 103,
+    pub const CURAND_ORDERING_PSEUDO_LEGACY: curandOrdering = curandOrdering(103);
     /// Specific ordering adjusted to the device it is being executed on, provides the best performance.
-    CURAND_ORDERING_PSEUDO_DYNAMIC = 104,
+    pub const CURAND_ORDERING_PSEUDO_DYNAMIC: curandOrdering = curandOrdering(104);
     /// Specific n-dimensional ordering for quasirandom results.
-    CURAND_ORDERING_QUASI_DEFAULT = 201,
+    pub const CURAND_ORDERING_QUASI_DEFAULT: curandOrdering = curandOrdering(201);
 }
+/// CURAND ordering of results in memory.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct curandOrdering(pub ::core::ffi::c_uint);
 pub use self::curandOrdering as curandOrdering_t;
-/// CURAND choice of direction vector set.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum curandDirectionVectorSet {
+impl curandDirectionVectorSet {
     /// Specific set of 32-bit direction vectors generated from polynomials recommended by S. Joe and F. Y. Kuo, for up to 20,000 dimensions.
-    CURAND_DIRECTION_VECTORS_32_JOEKUO6 = 101,
+    pub const CURAND_DIRECTION_VECTORS_32_JOEKUO6: curandDirectionVectorSet = curandDirectionVectorSet(
+        101,
+    );
     /// Specific set of 32-bit direction vectors generated from polynomials recommended by S. Joe and F. Y. Kuo, for up to 20,000 dimensions, and scrambled.
-    CURAND_SCRAMBLED_DIRECTION_VECTORS_32_JOEKUO6 = 102,
+    pub const CURAND_SCRAMBLED_DIRECTION_VECTORS_32_JOEKUO6: curandDirectionVectorSet = curandDirectionVectorSet(
+        102,
+    );
     /// Specific set of 64-bit direction vectors generated from polynomials recommended by S. Joe and F. Y. Kuo, for up to 20,000 dimensions.
-    CURAND_DIRECTION_VECTORS_64_JOEKUO6 = 103,
+    pub const CURAND_DIRECTION_VECTORS_64_JOEKUO6: curandDirectionVectorSet = curandDirectionVectorSet(
+        103,
+    );
     /// Specific set of 64-bit direction vectors generated from polynomials recommended by S. Joe and F. Y. Kuo, for up to 20,000 dimensions, and scrambled.
-    CURAND_SCRAMBLED_DIRECTION_VECTORS_64_JOEKUO6 = 104,
+    pub const CURAND_SCRAMBLED_DIRECTION_VECTORS_64_JOEKUO6: curandDirectionVectorSet = curandDirectionVectorSet(
+        104,
+    );
 }
+/// CURAND choice of direction vector set.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct curandDirectionVectorSet(pub ::core::ffi::c_uint);
 pub use self::curandDirectionVectorSet as curandDirectionVectorSet_t;
 /// CURAND array of 32-bit direction vectors
 ///
@@ -236,54 +204,44 @@ pub struct curandDiscreteDistribution_st {
 }
 /// Handle to an opaque discrete distribution used by cuRAND device generation routines.
 pub type curandDiscreteDistribution_t = *mut curandDiscreteDistribution_st;
+impl curandMethod {
+    /// choose best depends on args
+    pub const CURAND_CHOOSE_BEST: curandMethod = curandMethod(0);
+    /// Internal ITR method selector. These selectors are used by cuRAND's internal method-specific generation entry points.
+    pub const CURAND_ITR: curandMethod = curandMethod(1);
+    /// Selects the native Knuth generation method. These selectors are used by cuRAND's internal method-specific generation entry points.
+    pub const CURAND_KNUTH: curandMethod = curandMethod(2);
+    /// Internal HITR method selector. These selectors are used by cuRAND's internal method-specific generation entry points.
+    pub const CURAND_HITR: curandMethod = curandMethod(3);
+    /// Internal M1 distribution-method selector. These selectors are used by cuRAND's internal method-specific generation entry points.
+    pub const CURAND_M1: curandMethod = curandMethod(4);
+    /// Internal M2 distribution-method selector. These selectors are used by cuRAND's internal method-specific generation entry points.
+    pub const CURAND_M2: curandMethod = curandMethod(5);
+    /// Selects binary-search generation over a discrete distribution. These selectors are used by cuRAND's internal method-specific generation entry points.
+    pub const CURAND_BINARY_SEARCH: curandMethod = curandMethod(6);
+    /// Selects the native discrete-Gaussian generation method. These selectors are used by cuRAND's internal method-specific generation entry points.
+    pub const CURAND_DISCRETE_GAUSS: curandMethod = curandMethod(7);
+    /// Selects rejection sampling. These selectors are used by cuRAND's internal method-specific generation entry points.
+    pub const CURAND_REJECTION: curandMethod = curandMethod(8);
+    /// Selects generation through the cuRAND device interface. These selectors are used by cuRAND's internal method-specific generation entry points.
+    pub const CURAND_DEVICE_API: curandMethod = curandMethod(9);
+    /// Selects the native fast rejection-sampling method. These selectors are used by cuRAND's internal method-specific generation entry points.
+    pub const CURAND_FAST_REJECTION: curandMethod = curandMethod(10);
+    /// Internal third-method selector. These selectors are used by cuRAND's internal method-specific generation entry points.
+    pub const CURAND_3RD: curandMethod = curandMethod(11);
+    /// Selects the native distribution-definition method. These selectors are used by cuRAND's internal method-specific generation entry points.
+    pub const CURAND_DEFINITION: curandMethod = curandMethod(12);
+    /// Selects the native Poisson generation method. These selectors are used by cuRAND's internal method-specific generation entry points.
+    pub const CURAND_POISSON: curandMethod = curandMethod(13);
+}
 /// CURAND METHOD
 ///
 ///
 ///
 /// UNHIDE_ENUMS
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum curandMethod {
-    /// choose best depends on args
-    CURAND_CHOOSE_BEST = 0,
-    /// Internal ITR method selector. These selectors are used by cuRAND's internal method-specific generation entry points.
-    CURAND_ITR = 1,
-    /// Selects the native Knuth generation method. These selectors are used by cuRAND's internal method-specific generation entry points.
-    CURAND_KNUTH = 2,
-    /// Internal HITR method selector. These selectors are used by cuRAND's internal method-specific generation entry points.
-    CURAND_HITR = 3,
-    /// Internal M1 distribution-method selector. These selectors are used by cuRAND's internal method-specific generation entry points.
-    CURAND_M1 = 4,
-    /// Internal M2 distribution-method selector. These selectors are used by cuRAND's internal method-specific generation entry points.
-    CURAND_M2 = 5,
-    /// Selects binary-search generation over a discrete distribution. These selectors are used by cuRAND's internal method-specific generation entry points.
-    CURAND_BINARY_SEARCH = 6,
-    /// Selects the native discrete-Gaussian generation method. These selectors are used by cuRAND's internal method-specific generation entry points.
-    CURAND_DISCRETE_GAUSS = 7,
-    /// Selects rejection sampling. These selectors are used by cuRAND's internal method-specific generation entry points.
-    CURAND_REJECTION = 8,
-    /// Selects generation through the cuRAND device interface. These selectors are used by cuRAND's internal method-specific generation entry points.
-    CURAND_DEVICE_API = 9,
-    /// Selects the native fast rejection-sampling method. These selectors are used by cuRAND's internal method-specific generation entry points.
-    CURAND_FAST_REJECTION = 10,
-    /// Internal third-method selector. These selectors are used by cuRAND's internal method-specific generation entry points.
-    CURAND_3RD = 11,
-    /// Selects the native distribution-definition method. These selectors are used by cuRAND's internal method-specific generation entry points.
-    CURAND_DEFINITION = 12,
-    /// Selects the native Poisson generation method. These selectors are used by cuRAND's internal method-specific generation entry points.
-    CURAND_POISSON = 13,
-}
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct curandMethod(pub ::core::ffi::c_uint);
 pub use self::curandMethod as curandMethod_t;
 singe_loader::functions! { crate::LIBRARY;
     /// Create new random number generator.

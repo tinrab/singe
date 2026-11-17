@@ -4,10 +4,7 @@ use std::env::args;
 
 use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
-    backend::{
-        pointwise::PointwiseMode,
-        tensor::{Shape, TensorId, TensorSpec},
-    },
+    backend::operation::pointwise::PointwiseMode,
     data_type::{DataType, f16},
     error::Result,
     frontend::{
@@ -18,9 +15,10 @@ use singe_cudnn::{
             AttentionConfig, AttentionImplementation, AttentionScoreConfig, PointwiseOperation,
             SdpaScoreSubgraph,
         },
-        plan::{CompileConfig, ExecuteArgs, HeuristicMode},
+        plan::{CompileConfig, ExecuteArgs, HeuristicMode, WorkspacePlans},
     },
     math::NanPropagation,
+    tensor::{Shape, TensorId, TensorSpec},
 };
 
 fn init_f16_image(size: usize, seed: &mut u32) -> Vec<f16> {
@@ -30,6 +28,10 @@ fn init_f16_image(size: usize, seed: &mut u32) -> Vec<f16> {
         .collect()
 }
 
+#[expect(
+    clippy::many_single_char_names,
+    reason = "keeps the upstream sample's single-letter dimension names"
+)]
 fn run() -> Result<()> {
     let example = common::ExampleContext::create()?;
 
@@ -252,7 +254,7 @@ fn run() -> Result<()> {
             } else {
                 (None, None)
             };
-            graph.sdpa_auto_into(
+            graph.sdpa_into(
                 inputs,
                 SdpaForwardOutputTensors {
                     stats: Some(stats),
@@ -264,7 +266,7 @@ fn run() -> Result<()> {
             )?;
             (o, stats, logit_max, score_sum_exp)
         } else {
-            let outputs = graph.sdpa_auto(
+            let outputs = graph.sdpa(
                 inputs,
                 config,
                 SdpaForwardOutputTensors::new(TensorOutputConfig::new().output_tensor())
@@ -332,7 +334,7 @@ fn run() -> Result<()> {
         .collect::<Result<Vec<_>>>()?;
     let mut workspace = common::workspace(
         example.cudnn.cuda_context(),
-        compiled.workspace_size_with_runtime_overrides(&example.cudnn, &overrides)?,
+        compiled.workspace_size_for(WorkspacePlans::Default, Some((&example.cudnn, &overrides)))?,
     )?;
 
     let mut bindings = compiled.bindings()?;
@@ -347,10 +349,10 @@ fn run() -> Result<()> {
 
     // SAFETY: initialized inputs, writable outputs, overrides and workspace remain live through completion.
     example.execute_and_wait(|context| unsafe {
-        compiled.execute(
+        compiled.execute_async(
             context,
             ExecuteArgs::new(&bindings)
-                .with_workspace(&mut workspace)
+                .with_workspace(workspace.output())
                 .with_overrides(&overrides),
         )
     })?;
@@ -358,6 +360,6 @@ fn run() -> Result<()> {
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_fp16_sdpa_flexible_graphs", run())
 }

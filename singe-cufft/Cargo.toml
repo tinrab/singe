@@ -1,16 +1,19 @@
 [package]
 name = "singe-cufft"
 description = "Safe Rust wrappers for NVIDIA cuFFT, for Fourier transforms on the GPU."
-version = "0.1.0-alpha.8"
+version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 repository.workspace = true
+documentation = "https://docs.rs/singe-cufft"
 license-file.workspace = true
 readme = "README.md"
 keywords = ["cuda", "nvidia", "cufft", "fft"]
+categories = ["api-bindings", "hardware-support", "science"]
 include.workspace = true
 
 [package.metadata.docs.rs]
-rustdoc-args = ["--html-in-header", "dist/katex_header.html"]
+rustdoc-args = ["--cfg", "docsrs", "--html-in-header", "dist/katex_header.html"]
 
 [features]
 default = ["cufft_12_4"]
@@ -32,3 +35,6 @@ singe-cufft-sys.workspace = true
 thiserror.workspace = true
 num_enum.workspace = true
 bitflags.workspace = true
+
+[dev-dependencies]
+anyhow.workspace = true

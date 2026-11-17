@@ -16,7 +16,18 @@ pub enum Error {
     Decode(#[from] DecodeError),
     /// Failed to convert decoded protobuf into Singe's typed ONNX model.
     #[error(transparent)]
-    Format(#[from] RequestError),
+    Format(#[from] FormatError),
+}
+
+/// A decoded ONNX message that violates the typed model's format requirements.
+#[derive(Debug, Error)]
+#[error(transparent)]
+pub struct FormatError(RequestError);
+
+impl FormatError {
+    pub(crate) fn new(error: RequestError) -> Self {
+        Self(error)
+    }
 }
 
 /// Result type used by `singe-onnx`.

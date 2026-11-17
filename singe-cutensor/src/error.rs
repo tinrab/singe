@@ -1,19 +1,22 @@
 use std::{borrow::Cow, ffi::NulError, result::Result as StdResult};
 
-use singe_core::{static_str_from_c_ptr, status_enum};
 use singe_cuda::{data_type::DataType, error::Error as CudaError};
 #[cfg(feature = "mp")]
 use singe_nccl::error::Error as NcclError;
 use thiserror::Error;
 
-use crate::{
-    sys,
-    types::{OperationDescriptorAttribute, PlanAttribute, PlanPreferenceAttribute},
-};
+use crate::sys;
 
-status_enum! {
+singe_core::wrapper_status! {
+    library = "cutensor",
+    error = Error::Cutensor,
+    raw = sys::cutensorStatus_t,
+    success = CUTENSOR_STATUS_SUCCESS,
+    absence = sys::take_absence,
+    unknown = "UNKNOWN_CUTENSOR_STATUS",
+    description = sys::cutensorGetErrorString,
     /// cuTENSOR status returned by library calls.
-    pub enum Status: u32 => sys::cutensorStatus_t, unknown = "UNKNOWN_CUTENSOR_STATUS" {
+    pub enum Status: u32 {
         /// The operation completed successfully.
         Success = CUTENSOR_STATUS_SUCCESS,
         /// The opaque data structure was not initialized.
@@ -48,31 +51,19 @@ status_enum! {
     }
 }
 
-impl Status {
-    /// Library description of this status.
-    #[must_use]
-    pub fn description(self) -> &'static str {
-        let Ok(raw) = sys::cutensorStatus_t::try_from(self) else {
-            return "unknown cutensor error";
-        };
-        // SAFETY: `cutensorGetErrorString` returns null or a static NUL-terminated string.
-        unsafe { static_str_from_c_ptr(sys::cutensorGetErrorString(raw), "unknown cutensor error") }
-    }
-}
-
 /// Errors from cuTENSOR, CUDA, NCCL, and checked wrapper validation.
 #[derive(Error, Debug)]
 #[non_exhaustive]
 pub enum Error {
-    // Its library would not load.
+    /// cuTENSOR or one of its symbols would not load.
     #[error(transparent)]
-    Load(#[from] singe_cutensor_sys::LoadError),
+    Load(#[from] sys::LoadError),
 
     /// A lock was poisoned by a thread that panicked while holding it.
     #[error("`{name}` lock is poisoned")]
     LockPoisoned {
         /// What the lock guards.
-        name: &'static str,
+        name: Cow<'static, str>,
     },
 
     /// A CUDA operation failed.
@@ -85,12 +76,10 @@ pub enum Error {
     Nccl(#[from] NcclError),
 
     /// A native cuTENSOR call returned an error status.
-    #[error("cutensor error ({code}): {message}")]
+    #[error("cutensor error ({code}): {}", code.description())]
     Cutensor {
         /// Native status returned by the failed call.
         code: Status,
-        /// Description of the native status.
-        message: String,
     },
 
     /// A string passed to a native API contains an interior nul byte.
@@ -102,14 +91,26 @@ pub enum Error {
     NullHandle,
 
     /// A dependent resource still retains ownership required to be unique.
-    #[error("resource is shared and cannot be consumed")]
-    OwnershipShared,
+    #[error("`{name}` is still shared")]
+    OwnershipShared {
+        /// Name of the shared resource.
+        name: Cow<'static, str>,
+    },
 
     /// A native library or CUDA runtime version is invalid.
     #[error("invalid `{name}` version")]
     InvalidVersion {
         /// Name of the invalid argument, resource, or operation.
         name: &'static str,
+    },
+
+    /// A native enum value has no typed variant in this crate.
+    #[error("unknown `{name}` value {value}")]
+    UnknownEnumValue {
+        /// Name of the typed enum.
+        name: Cow<'static, str>,
+        /// Unrecognized native value.
+        value: i64,
     },
 
     /// An argument or checked conversion is outside the supported range.
@@ -119,7 +120,7 @@ pub enum Error {
         name: Cow<'static, str>,
     },
 
-    /// Related slices have different lengths.
+    /// Related slices or pointer lists have different lengths.
     #[error("`{name}` length mismatch (expected {expected}, got {actual})")]
     LengthMismatch {
         /// Name of the invalid argument, resource, or operation.
@@ -127,6 +128,17 @@ pub enum Error {
         /// Required number of entries.
         expected: usize,
         /// Observed number of entries.
+        actual: usize,
+    },
+
+    /// An attribute buffer has the wrong byte size.
+    #[error("`{name}` size mismatch (expected {expected} bytes, got {actual})")]
+    SizeMismatch {
+        /// Name of the attribute.
+        name: Cow<'static, str>,
+        /// Required byte count.
+        expected: usize,
+        /// Observed byte count.
         actual: usize,
     },
 
@@ -189,41 +201,23 @@ pub enum Error {
         data_type: DataType,
     },
 
-    /// The number of supplied pointers differs from the required count.
-    #[error("`{name}` pointer count mismatch (expected {expected}, got {actual})")]
-    PointerCountMismatch {
-        /// Name of the invalid argument, resource, or operation.
+    /// A buffer or workspace is smaller than the storage the operation requires.
+    #[error("`{name}` is too small (requires {required}, got {actual})")]
+    BufferTooSmall {
+        /// Name of the undersized buffer.
         name: Cow<'static, str>,
-        /// Required number of entries.
-        expected: usize,
-        /// Observed number of entries.
+        /// Required size in bytes.
+        required: usize,
+        /// Supplied size in bytes.
         actual: usize,
-    },
-
-    /// The supplied workspace is smaller than the native byte requirement.
-    #[error("insufficient workspace size: {actual} bytes provided (required {required} bytes)")]
-    InsufficientWorkspaceSize {
-        /// Required workspace capacity in bytes.
-        required: u64,
-        /// Supplied workspace capacity in bytes.
-        actual: u64,
-    },
-
-    /// The workspace size does not satisfy its required byte alignment.
-    #[error("workspace size is not aligned to {required_alignment} bytes (size is {size} bytes)")]
-    WorkspaceMisaligned {
-        /// Required workspace-size alignment in bytes.
-        required_alignment: u32,
-        /// Supplied workspace size in bytes.
-        size: usize,
     },
 
     /// The stream belongs to another CUDA context.
     #[error("stream belongs to a different cuda context")]
     StreamContextMismatch,
 
-    /// Resources belong to different single-GPU cuTENSOR handles.
-    #[error("cutensor contexts must match for `{name}`")]
+    /// Resources belong to different cuTENSOR, cuTENSORMg, or cuTENSORMp handles.
+    #[error("`{name}` belongs to a different cutensor context")]
     ContextMismatch {
         /// Name of the invalid argument, resource, or operation.
         name: Cow<'static, str>,
@@ -233,16 +227,9 @@ pub enum Error {
     #[error("plan operation kind mismatch (expected {expected}, got {actual})")]
     PlanOperationMismatch {
         /// Required operation kind.
-        expected: String,
+        expected: Cow<'static, str>,
         /// Observed operation kind.
-        actual: String,
-    },
-
-    /// Resources belong to different multi-GPU cuTENSOR handles.
-    #[error("cutensormg contexts must match for `{name}`")]
-    MgContextMismatch {
-        /// Name of the invalid argument, resource, or operation.
-        name: Cow<'static, str>,
+        actual: Cow<'static, str>,
     },
 
     /// A device does not participate in the multi-GPU context.
@@ -252,53 +239,25 @@ pub enum Error {
         device: i32,
     },
 
+    /// Distributed memory places its partitions on other devices than its tensor descriptor.
+    #[error("`{name}` memory devices differ from its cutensormg tensor descriptor")]
+    MgDeviceMismatch {
+        /// Name of the mismatched operand.
+        name: Cow<'static, str>,
+    },
+
+    /// A tensor layout relies on a native default stride, so its storage span cannot be checked.
+    #[error("cannot bound the storage span of `{name}` without both element and block strides")]
+    MgUncheckedLayout {
+        /// Name of the operand whose layout cannot be checked.
+        name: Cow<'static, str>,
+    },
+
     /// An operation does not support multi-GPU tensor storage on the host.
     #[error("cutensormg host tensor memory is not supported by `{name}`")]
     MgHostTensorMemoryUnsupported {
         /// Name of the invalid argument, resource, or operation.
         name: Cow<'static, str>,
-    },
-
-    /// Resources belong to different multi-process cuTENSOR handles.
-    #[error("cutensormp contexts must match for `{name}`")]
-    MpContextMismatch {
-        /// Name of the invalid argument, resource, or operation.
-        name: Cow<'static, str>,
-    },
-
-    /// A plan attribute buffer has the wrong byte size.
-    #[error("invalid plan attribute size for {attr:?}: {actual} (expected {expected})")]
-    PlanInvalidAttributeSize {
-        /// Attribute whose buffer size is invalid.
-        attr: PlanAttribute,
-        /// Required byte count.
-        expected: usize,
-        /// Observed byte count.
-        actual: usize,
-    },
-
-    /// An operation attribute buffer has the wrong byte size.
-    #[error(
-        "invalid operation descriptor attribute size for {attr:?}: {actual} (expected {expected})"
-    )]
-    OperationDescriptorInvalidAttributeSize {
-        /// Attribute whose buffer size is invalid.
-        attr: OperationDescriptorAttribute,
-        /// Required byte count.
-        expected: usize,
-        /// Observed byte count.
-        actual: usize,
-    },
-
-    /// A plan-preference attribute buffer has the wrong byte size.
-    #[error("invalid plan preference attribute size for {attr:?}: {actual} (expected {expected})")]
-    PlanPreferenceInvalidAttributeSize {
-        /// Attribute whose buffer size is invalid.
-        attr: PlanPreferenceAttribute,
-        /// Required byte count.
-        expected: usize,
-        /// Observed byte count.
-        actual: usize,
     },
 }
 
@@ -309,26 +268,27 @@ impl Error {
     pub(crate) fn out_of_range(name: impl Into<Cow<'static, str>>) -> Self {
         Self::OutOfRange { name: name.into() }
     }
-}
 
-impl From<sys::cutensorStatus_t> for Error {
-    fn from(status: sys::cutensorStatus_t) -> Self {
-        if status == sys::cutensorStatus_t::CUTENSOR_STATUS_NOT_INITIALIZED
-            && let Err(error) = singe_cutensor_sys::load()
-        {
-            return Self::Load(error);
+    // Native workspace sizes are `u64`; a size beyond `usize` is reported as `usize::MAX`.
+    #[cfg(feature = "mp")]
+    pub(crate) fn workspace_too_small(
+        name: impl Into<Cow<'static, str>>,
+        required: u64,
+        actual: u64,
+    ) -> Self {
+        Self::BufferTooSmall {
+            name: name.into(),
+            required: usize::try_from(required).unwrap_or(usize::MAX),
+            actual: usize::try_from(actual).unwrap_or(usize::MAX),
         }
-
-        let code = Status::from(status);
-        Self::from(code)
     }
 }
 
-impl From<Status> for Error {
-    fn from(code: Status) -> Self {
-        Self::Cutensor {
-            code,
-            message: code.description().to_string(),
+impl From<singe_core::UnknownEnumValue> for Error {
+    fn from(error: singe_core::UnknownEnumValue) -> Self {
+        Self::UnknownEnumValue {
+            name: error.name.into(),
+            value: error.value,
         }
     }
 }
@@ -339,45 +299,11 @@ impl From<NulError> for Error {
     }
 }
 
-/// Converts a raw cuTENSOR status-returning expression into a crate [`Result`](crate::error::Result).
-#[macro_export]
+// Converts a raw cuTENSOR status into this crate's `Result`.
 macro_rules! try_ffi {
-    ($expr:expr) => {{
-        let status = { $expr };
-        if status != singe_cutensor_sys::cutensorStatus_t::CUTENSOR_STATUS_SUCCESS {
-            Err($crate::error::Error::from(status))
-        } else {
-            Ok(())
-        }
-    }};
+    ($expr:expr) => {
+        $crate::error::Error::check($expr)
+    };
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_status_converts_from_raw_code() {
-        let status = Status::from(sys::cutensorStatus_t::CUTENSOR_STATUS_INVALID_VALUE);
-        assert_eq!(status, Status::InvalidValue);
-        assert_eq!(
-            status.raw(),
-            sys::cutensorStatus_t::CUTENSOR_STATUS_INVALID_VALUE as u32
-        );
-    }
-
-    #[test]
-    fn test_status_display_uses_c_name() {
-        assert_eq!(
-            Status::InvalidValue.to_string(),
-            "CUTENSOR_STATUS_INVALID_VALUE"
-        );
-    }
-
-    #[test]
-    fn test_unknown_status_keeps_raw_code() {
-        let status = Status::Unknown(9999);
-        assert_eq!(status.raw(), 9999);
-        assert_eq!(status.to_string(), "UNKNOWN_CUTENSOR_STATUS(9999)");
-    }
-}
+pub(crate) use try_ffi;

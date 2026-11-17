@@ -7,12 +7,12 @@ use singe_cuda::{
 
 use crate::{
     context::Context,
+    data_type::SolverElement,
     dense::{
-        GebrdScalar, OrgbrScalar, OrgqrScalar, OrgtrScalar, OrmqrScalar, OrmtrScalar,
-        PotrfBatchedScalar, PotriScalar, PotrsBatchedScalar, SytrdScalar,
-        legacy::qr::{xgeqrf, xgeqrf_buffer_size},
-        xgetrf, xgetrf_buffer_size, xgetrs, xlarft, xlarft_buffer_size, xpotrf, xpotrf_buffer_size,
-        xpotrs, xsytrf, xsytrf_buffer_size, xsytrs, xsytrs_buffer_size, xtrtri, xtrtri_buffer_size,
+        xgeqrf_async, xgeqrf_workspace_size, xgetrf_async, xgetrf_workspace_size, xgetrs_async,
+        xlarft_async, xlarft_workspace_size, xpotrf_async, xpotrf_workspace_size, xpotrs_async,
+        xsytrf_async, xsytrf_workspace_size, xsytrs_async, xsytrs_workspace_size, xtrtri_async,
+        xtrtri_workspace_size,
     },
     error::Result,
     layout::{
@@ -24,20 +24,20 @@ use crate::{
 };
 
 /// Typed Cholesky factorization operation.
-///
-/// This is the preferred operation-family API for POTRF.
-/// It keeps matrix metadata grouped in [`MatrixRef`] and [`MatrixMut`] instead of exposing the cuSOLVER `S`/`D`/`C`/`Z` entry point names and separate `a`/`lda` arguments.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Potrf<T: DeviceRepr> {
-    fill_mode: FillMode,
-    n: usize,
-    compute_type: DataType,
+    /// Triangle that holds the matrix data.
+    pub fill_mode: FillMode,
+    /// Square matrix dimension.
+    pub n: usize,
+    /// Compute type passed to the generic native interface; defaults to the matrix element type.
+    pub compute_type: DataType,
     _ty: PhantomData<T>,
 }
 
-/// Runtime buffers for [`Potrf::run`].
+/// Runtime buffers for [`Potrf::execute`].
 #[derive(Debug)]
-pub struct PotrfArgs<'a, T: DeviceRepr> {
+pub struct PotrfBindings<'a, T: DeviceRepr> {
     /// Initialized square matrix overwritten in the selected triangle by its Cholesky factor.
     pub a: MatrixMut<'a, T>,
     /// Exclusive device and host scratch capacities, both measured in bytes.
@@ -49,15 +49,18 @@ pub struct PotrfArgs<'a, T: DeviceRepr> {
 /// Typed Cholesky solve operation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Potrs<T: DeviceRepr> {
-    fill_mode: FillMode,
-    n: usize,
-    right_hand_sides: usize,
+    /// Triangle that holds the matrix data.
+    pub fill_mode: FillMode,
+    /// Square matrix dimension.
+    pub n: usize,
+    /// Number of right-hand sides.
+    pub right_hand_sides: usize,
     _ty: PhantomData<T>,
 }
 
-/// Runtime buffers for [`Potrs::run`].
+/// Runtime buffers for [`Potrs::execute`].
 #[derive(Debug)]
-pub struct PotrsArgs<'a, T: DeviceRepr> {
+pub struct PotrsBindings<'a, T: DeviceRepr> {
     /// Initialized Cholesky factor in the selected triangle.
     pub factor: MatrixRef<'a, T>,
     /// Initialized right-hand-side columns overwritten by the solution.
@@ -69,14 +72,16 @@ pub struct PotrsArgs<'a, T: DeviceRepr> {
 /// Typed Cholesky inverse operation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Potri<T: DeviceRepr> {
-    fill_mode: FillMode,
-    n: usize,
+    /// Triangle that holds the matrix data.
+    pub fill_mode: FillMode,
+    /// Square matrix dimension.
+    pub n: usize,
     _ty: PhantomData<T>,
 }
 
-/// Runtime buffers for [`Potri::run`].
+/// Runtime buffers for [`Potri::execute`].
 #[derive(Debug)]
-pub struct PotriArgs<'a, T: DeviceRepr> {
+pub struct PotriBindings<'a, T: DeviceRepr> {
     /// Initialized Cholesky factor overwritten in the selected triangle by the inverse.
     pub factor: MatrixMut<'a, T>,
     /// Exclusive device scratch capacity measured in elements of `T`.
@@ -88,18 +93,19 @@ pub struct PotriArgs<'a, T: DeviceRepr> {
 /// Typed batched Cholesky factorization operation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BatchedPotrf<T: DeviceRepr> {
-    fill_mode: FillMode,
-    n: usize,
+    /// Triangle that holds the matrix data.
+    pub fill_mode: FillMode,
+    /// Square matrix dimension.
+    pub n: usize,
     _ty: PhantomData<T>,
 }
 
-/// Runtime buffers for [`BatchedPotrf::run`].
+/// Runtime buffers for [`BatchedPotrf::execute`].
 #[derive(Debug)]
-pub struct BatchedPotrfArgs<'a, T: DeviceRepr> {
+pub struct BatchedPotrfBindings<'a, T: DeviceRepr> {
     /// Device pointer table for initialized square matrices, each overwritten by its Cholesky factor.
     ///
     /// The opposite triangle may be used as scratch.
-    /// The caller must retain and exclusively borrow every pointee through completion.
     pub a: BatchedMatrixRef<'a, T>,
     /// Device output capacity for one solver status per matrix; inspect each completed status before using its factor.
     pub info: DeviceOutputView<'a, i32>,
@@ -108,22 +114,21 @@ pub struct BatchedPotrfArgs<'a, T: DeviceRepr> {
 /// Typed batched Cholesky solve operation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BatchedPotrs<T: DeviceRepr> {
-    fill_mode: FillMode,
-    n: usize,
+    /// Triangle that holds the matrix data.
+    pub fill_mode: FillMode,
+    /// Square matrix dimension.
+    pub n: usize,
     _ty: PhantomData<T>,
 }
 
-/// Runtime buffers for [`BatchedPotrs::run`].
+/// Runtime buffers for [`BatchedPotrs::execute`].
 #[derive(Debug)]
-pub struct BatchedPotrsArgs<'a, T: DeviceRepr> {
+pub struct BatchedPotrsBindings<'a, T: DeviceRepr> {
     /// Device pointer table for initialized Cholesky factors.
     ///
     /// The opposite triangle may be used as scratch.
-    /// The caller must retain and exclusively borrow each factor allocation through completion.
     pub factors: BatchedMatrixRef<'a, T>,
     /// Device pointer table for initialized single right-hand sides, overwritten by solutions.
-    ///
-    /// The caller must retain and exclusively borrow every pointee through completion.
     pub rhs: BatchedVectorRef<'a, T>,
     /// Device output capacity for one status for the whole batch, rather than one per matrix.
     pub info: DeviceOutputView<'a, i32>,
@@ -132,15 +137,18 @@ pub struct BatchedPotrsArgs<'a, T: DeviceRepr> {
 /// Typed LU factorization operation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Getrf<T: DeviceRepr> {
-    rows: usize,
-    cols: usize,
-    compute_type: DataType,
+    /// Matrix row count.
+    pub rows: usize,
+    /// Matrix column count.
+    pub cols: usize,
+    /// Compute type passed to the generic native interface; defaults to the matrix element type.
+    pub compute_type: DataType,
     _ty: PhantomData<T>,
 }
 
-/// Runtime buffers for [`Getrf::run`].
+/// Runtime buffers for [`Getrf::execute`].
 #[derive(Debug)]
-pub struct GetrfArgs<'a, T: DeviceRepr> {
+pub struct GetrfBindings<'a, T: DeviceRepr> {
     /// Initialized matrix overwritten by combined lower and upper triangular LU factors.
     pub a: MatrixMut<'a, T>,
     /// Optional device capacity for `min(rows, columns)` native 64-bit pivot indices.
@@ -156,15 +164,18 @@ pub struct GetrfArgs<'a, T: DeviceRepr> {
 /// Typed LU solve operation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Getrs<TA: DeviceRepr, TB: DeviceRepr = TA> {
-    operation: Operation,
-    n: usize,
-    right_hand_sides: usize,
+    /// Operation applied to the factorized matrix.
+    pub operation: Operation,
+    /// Square factor dimension.
+    pub n: usize,
+    /// Number of right-hand sides.
+    pub right_hand_sides: usize,
     _ty: PhantomData<(TA, TB)>,
 }
 
-/// Runtime buffers for [`Getrs::run`].
+/// Runtime buffers for [`Getrs::execute`].
 #[derive(Debug)]
-pub struct GetrsArgs<'a, TA: DeviceRepr, TB: DeviceRepr = TA> {
+pub struct GetrsBindings<'a, TA: DeviceRepr, TB: DeviceRepr = TA> {
     /// Initialized LU factors from a compatible factorization.
     pub factor: MatrixRef<'a, TA>,
     /// Initialized native 64-bit pivot indices associated with the LU factorization.
@@ -178,15 +189,18 @@ pub struct GetrsArgs<'a, TA: DeviceRepr, TB: DeviceRepr = TA> {
 /// Typed triangular inverse operation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Trtri<T: DeviceRepr> {
-    fill_mode: FillMode,
-    diagonal_type: DiagonalType,
-    n: usize,
+    /// Triangle that holds the matrix data.
+    pub fill_mode: FillMode,
+    /// Diagonal type.
+    pub diagonal_type: DiagonalType,
+    /// Square matrix dimension.
+    pub n: usize,
     _ty: PhantomData<T>,
 }
 
-/// Runtime buffers for [`Trtri::run`].
+/// Runtime buffers for [`Trtri::execute`].
 #[derive(Debug)]
-pub struct TrtriArgs<'a, T: DeviceRepr> {
+pub struct TrtriBindings<'a, T: DeviceRepr> {
     /// Initialized triangular matrix overwritten in the selected triangle by its inverse.
     pub a: MatrixMut<'a, T>,
     /// Exclusive device and host scratch capacities, both measured in bytes.
@@ -198,15 +212,18 @@ pub struct TrtriArgs<'a, T: DeviceRepr> {
 /// Typed symmetric or Hermitian solve operation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Sytrs<TA: DeviceRepr, TB: DeviceRepr = TA> {
-    fill_mode: FillMode,
-    n: usize,
-    right_hand_sides: usize,
+    /// Triangle that holds the matrix data.
+    pub fill_mode: FillMode,
+    /// Square factor dimension.
+    pub n: usize,
+    /// Number of right-hand sides.
+    pub right_hand_sides: usize,
     _ty: PhantomData<(TA, TB)>,
 }
 
-/// Runtime buffers for [`Sytrs::run`].
+/// Runtime buffers for [`Sytrs::execute`].
 #[derive(Debug)]
-pub struct SytrsArgs<'a, TA: DeviceRepr, TB: DeviceRepr = TA> {
+pub struct SytrsBindings<'a, TA: DeviceRepr, TB: DeviceRepr = TA> {
     /// Initialized indefinite factorization in the selected triangle.
     pub factor: MatrixRef<'a, TA>,
     /// Optional initialized native 64-bit pivot data matching the factorization.
@@ -223,14 +240,16 @@ pub struct SytrsArgs<'a, TA: DeviceRepr, TB: DeviceRepr = TA> {
 /// Typed symmetric or Hermitian indefinite factorization operation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Sytrf<T: DeviceRepr> {
-    fill_mode: FillMode,
-    n: usize,
+    /// Triangle that holds the matrix data.
+    pub fill_mode: FillMode,
+    /// Square matrix dimension.
+    pub n: usize,
     _ty: PhantomData<T>,
 }
 
-/// Runtime buffers for [`Sytrf::run`].
+/// Runtime buffers for [`Sytrf::execute`].
 #[derive(Debug)]
-pub struct SytrfArgs<'a, T: DeviceRepr> {
+pub struct SytrfBindings<'a, T: DeviceRepr> {
     /// Initialized square matrix overwritten in the selected triangle by its indefinite factorization.
     pub a: MatrixMut<'a, T>,
     /// Optional device capacity for `n` native 64-bit pivot entries.
@@ -245,16 +264,18 @@ pub struct SytrfArgs<'a, T: DeviceRepr> {
 /// Typed symmetric or Hermitian tridiagonal reduction operation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Sytrd<T: DeviceRepr> {
-    fill_mode: FillMode,
-    n: usize,
+    /// Triangle that holds the matrix data.
+    pub fill_mode: FillMode,
+    /// Square matrix dimension.
+    pub n: usize,
     _ty: PhantomData<T>,
 }
 
-/// Runtime buffers for [`Sytrd::run`].
+/// Runtime buffers for [`Sytrd::execute`].
 #[derive(Debug)]
-pub struct SytrdArgs<'a, T>
+pub struct SytrdBindings<'a, T>
 where
-    T: DeviceRepr + SytrdScalar,
+    T: SolverElement,
 {
     /// Initialized symmetric or Hermitian matrix overwritten with tridiagonal entries and elementary reflectors.
     pub a: MatrixMut<'a, T>,
@@ -273,14 +294,16 @@ where
 /// Typed operation that forms explicit tridiagonalization factors.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Orgtr<T: DeviceRepr> {
-    fill_mode: FillMode,
-    n: usize,
+    /// Triangle that holds the matrix data.
+    pub fill_mode: FillMode,
+    /// Square matrix dimension.
+    pub n: usize,
     _ty: PhantomData<T>,
 }
 
-/// Runtime buffers for [`Orgtr::run`].
+/// Runtime buffers for [`Orgtr::execute`].
 #[derive(Debug)]
-pub struct OrgtrArgs<'a, T: DeviceRepr> {
+pub struct OrgtrBindings<'a, T: DeviceRepr> {
     /// Initialized tridiagonal-reduction reflectors overwritten by the explicit orthogonal or unitary factor.
     pub a: MatrixMut<'a, T>,
     /// Initialized elementary-reflector coefficients from the corresponding tridiagonal reduction.
@@ -294,17 +317,22 @@ pub struct OrgtrArgs<'a, T: DeviceRepr> {
 /// Typed operation that applies tridiagonalization factors to a matrix.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Ormtr<T: DeviceRepr> {
-    side: SideMode,
-    fill_mode: FillMode,
-    operation: Operation,
-    rows: usize,
-    cols: usize,
+    /// Which side receives the tridiagonalization factor product.
+    pub side: SideMode,
+    /// Triangle that holds the matrix data.
+    pub fill_mode: FillMode,
+    /// Operation applied to the factor product.
+    pub operation: Operation,
+    /// Target matrix row count.
+    pub rows: usize,
+    /// Target matrix column count.
+    pub cols: usize,
     _ty: PhantomData<T>,
 }
 
-/// Runtime buffers for [`Ormtr::run`].
+/// Runtime buffers for [`Ormtr::execute`].
 #[derive(Debug)]
-pub struct OrmtrArgs<'a, T: DeviceRepr> {
+pub struct OrmtrBindings<'a, T: DeviceRepr> {
     /// Initialized elementary reflectors from a compatible tridiagonal reduction.
     pub reflectors: MatrixRef<'a, T>,
     /// Initialized coefficients associated with the tridiagonal-reduction reflectors.
@@ -320,17 +348,22 @@ pub struct OrmtrArgs<'a, T: DeviceRepr> {
 /// Typed LARFT triangular-factor operation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Larft<TV: DeviceRepr, TTau: DeviceRepr = TV, TT: DeviceRepr = TV> {
-    direct: DirectMode,
-    storev: StorevMode,
-    n: usize,
-    k: usize,
-    compute_type: DataType,
+    /// Reflector product direction.
+    pub direct: DirectMode,
+    /// Reflector storage mode.
+    pub storev: StorevMode,
+    /// Reflector order.
+    pub n: usize,
+    /// Number of elementary reflectors.
+    pub k: usize,
+    /// Compute type passed to the generic native interface; defaults to the matrix element type.
+    pub compute_type: DataType,
     _ty: PhantomData<(TV, TTau, TT)>,
 }
 
-/// Runtime buffers for [`Larft::run`].
+/// Runtime buffers for [`Larft::execute`].
 #[derive(Debug)]
-pub struct LarftArgs<'a, TV: DeviceRepr, TTau: DeviceRepr = TV, TT: DeviceRepr = TV> {
+pub struct LarftBindings<'a, TV: DeviceRepr, TTau: DeviceRepr = TV, TT: DeviceRepr = TV> {
     /// Initialized elementary-reflector vectors in the configured rowwise or columnwise layout.
     pub v: MatrixRef<'a, TV>,
     /// Initialized scalar coefficient for each of the `k` elementary reflectors.
@@ -346,15 +379,18 @@ pub struct LarftArgs<'a, TV: DeviceRepr, TTau: DeviceRepr = TV, TT: DeviceRepr =
 /// Typed QR factorization operation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Geqrf<TA: DeviceRepr, TTau: DeviceRepr = TA> {
-    rows: usize,
-    cols: usize,
-    compute_type: DataType,
+    /// Matrix row count.
+    pub rows: usize,
+    /// Matrix column count.
+    pub cols: usize,
+    /// Compute type passed to the generic native interface; defaults to the matrix element type.
+    pub compute_type: DataType,
     _ty: PhantomData<(TA, TTau)>,
 }
 
-/// Runtime buffers for [`Geqrf::run`].
+/// Runtime buffers for [`Geqrf::execute`].
 #[derive(Debug)]
-pub struct GeqrfArgs<'a, TA: DeviceRepr, TTau: DeviceRepr = TA> {
+pub struct GeqrfBindings<'a, TA: DeviceRepr, TTau: DeviceRepr = TA> {
     /// Initialized matrix overwritten with the upper triangular factor and elementary reflectors.
     pub a: MatrixMut<'a, TA>,
     /// Device output capacity for `min(rows, columns)` elementary-reflector coefficients.
@@ -368,17 +404,22 @@ pub struct GeqrfArgs<'a, TA: DeviceRepr, TTau: DeviceRepr = TA> {
 /// Typed operation that applies QR reflectors to a matrix.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Ormqr<T: DeviceRepr> {
-    side: SideMode,
-    operation: Operation,
-    rows: usize,
-    cols: usize,
-    reflectors: usize,
+    /// Which side receives the reflector product.
+    pub side: SideMode,
+    /// Operation applied to the reflector product.
+    pub operation: Operation,
+    /// Output matrix row count.
+    pub rows: usize,
+    /// Output matrix column count.
+    pub cols: usize,
+    /// Number of elementary reflectors.
+    pub reflectors: usize,
     _ty: PhantomData<T>,
 }
 
-/// Runtime buffers for [`Ormqr::run`].
+/// Runtime buffers for [`Ormqr::execute`].
 #[derive(Debug)]
-pub struct OrmqrArgs<'a, T: DeviceRepr> {
+pub struct OrmqrBindings<'a, T: DeviceRepr> {
     /// Initialized elementary reflectors from a compatible QR factorization.
     pub reflectors: MatrixRef<'a, T>,
     /// Initialized scalar coefficients associated with the QR reflectors.
@@ -394,15 +435,18 @@ pub struct OrmqrArgs<'a, T: DeviceRepr> {
 /// Typed operation that forms explicit QR factors.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Orgqr<T: DeviceRepr> {
-    rows: usize,
-    cols: usize,
-    reflectors: usize,
+    /// Output matrix row count.
+    pub rows: usize,
+    /// Output matrix column count.
+    pub cols: usize,
+    /// Number of elementary reflectors.
+    pub reflectors: usize,
     _ty: PhantomData<T>,
 }
 
-/// Runtime buffers for [`Orgqr::run`].
+/// Runtime buffers for [`Orgqr::execute`].
 #[derive(Debug)]
-pub struct OrgqrArgs<'a, T: DeviceRepr> {
+pub struct OrgqrBindings<'a, T: DeviceRepr> {
     /// Initialized QR reflectors overwritten by the requested explicit orthogonal or unitary columns.
     pub a: MatrixMut<'a, T>,
     /// Initialized coefficients for the configured number of QR reflectors.
@@ -416,16 +460,18 @@ pub struct OrgqrArgs<'a, T: DeviceRepr> {
 /// Typed bidiagonal reduction operation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Gebrd<T: DeviceRepr> {
-    rows: usize,
-    cols: usize,
+    /// Matrix row count.
+    pub rows: usize,
+    /// Matrix column count.
+    pub cols: usize,
     _ty: PhantomData<T>,
 }
 
-/// Runtime buffers for [`Gebrd::run`].
+/// Runtime buffers for [`Gebrd::execute`].
 #[derive(Debug)]
-pub struct GebrdArgs<'a, T>
+pub struct GebrdBindings<'a, T>
 where
-    T: DeviceRepr + GebrdScalar,
+    T: SolverElement,
 {
     /// Initialized matrix overwritten with bidiagonal entries and reflectors representing the left and right transformations.
     pub a: MatrixMut<'a, T>,
@@ -446,16 +492,20 @@ where
 /// Typed operation that forms explicit bidiagonalization factors.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Orgbr<T: DeviceRepr> {
-    side: SideMode,
-    rows: usize,
-    cols: usize,
-    reflectors: usize,
+    /// Whether to form `Q` or `P`.
+    pub side: SideMode,
+    /// Output matrix row count.
+    pub rows: usize,
+    /// Output matrix column count.
+    pub cols: usize,
+    /// Number of elementary reflectors.
+    pub reflectors: usize,
     _ty: PhantomData<T>,
 }
 
-/// Runtime buffers for [`Orgbr::run`].
+/// Runtime buffers for [`Orgbr::execute`].
 #[derive(Debug)]
-pub struct OrgbrArgs<'a, T: DeviceRepr> {
+pub struct OrgbrBindings<'a, T: DeviceRepr> {
     /// Initialized bidiagonal-reduction reflectors overwritten by the requested explicit orthogonal or unitary factor.
     pub a: MatrixMut<'a, T>,
     /// Initialized coefficients for the selected left or right bidiagonalization reflectors.
@@ -481,31 +531,6 @@ where
         }
     }
 
-    /// Sets the compute type passed to the generic cuSOLVER X API.
-    #[must_use]
-    pub const fn with_compute_type(mut self, compute_type: DataType) -> Self {
-        self.compute_type = compute_type;
-        self
-    }
-
-    /// Returns the cuSOLVER fill mode.
-    #[must_use]
-    pub const fn fill_mode(&self) -> FillMode {
-        self.fill_mode
-    }
-
-    /// Returns the square matrix dimension.
-    #[must_use]
-    pub const fn n(&self) -> usize {
-        self.n
-    }
-
-    /// Returns the cuSOLVER compute type.
-    #[must_use]
-    pub const fn compute_type(&self) -> DataType {
-        self.compute_type
-    }
-
     /// Returns the required device and host workspace sizes.
     ///
     /// # Errors
@@ -517,7 +542,7 @@ where
         params: &Params,
         a: MatrixLayout,
     ) -> Result<WorkspaceSizes> {
-        xpotrf_buffer_size::<T>(
+        xpotrf_workspace_size::<T>(
             context,
             params,
             self.fill_mode,
@@ -527,30 +552,51 @@ where
         )
     }
 
-    /// Computes the Cholesky factorization in place.
+    /// Enqueues this operation on the context's stream without waiting for it; [`Self::execute`] is the waiting form.
+    ///
+    /// # Safety
+    ///
+    /// Follow the [raw execution contract](crate#raw-execution).
     ///
     /// # Errors
     ///
     /// Returns an error if inputs or workspaces are invalid, or if cuSOLVER reports a failure.
-    pub fn run(&self, context: &Context, params: &Params, args: PotrfArgs<'_, T>) -> Result<()> {
-        context.sync_scope(|| {
-            context.prepare_region(&args.a.data)?;
-            context.prepare_region(&args.workspace.device)?;
-            context.prepare_region(&args.dev_info)?;
-            // SAFETY: the prepared bindings remain borrowed until this scope completes.
-            unsafe {
-                xpotrf(
-                    context,
-                    params,
-                    self.fill_mode,
-                    self.n,
-                    args.a,
-                    self.compute_type,
-                    args.workspace,
-                    args.dev_info,
-                )
-            }
-        })
+    pub unsafe fn execute_async(
+        &self,
+        context: &Context,
+        bindings: PotrfBindings<'_, T>,
+        params: &Params,
+    ) -> Result<()> {
+        // SAFETY: forwards this method's raw execution contract unchanged; the callee validates the bindings and orders the work after their producers.
+        unsafe {
+            xpotrf_async(
+                context,
+                params,
+                self.fill_mode,
+                self.n,
+                bindings.a,
+                self.compute_type,
+                bindings.workspace,
+                bindings.dev_info,
+            )
+        }
+    }
+
+    /// Computes the Cholesky factorization in place.
+    /// Waits for completion before returning.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if inputs or workspaces are invalid, or if cuSOLVER reports a failure.
+    /// Also returns an error if the context's stream is capturing or waiting for completion fails.
+    pub fn execute(
+        &self,
+        context: &Context,
+        bindings: PotrfBindings<'_, T>,
+        params: &Params,
+    ) -> Result<()> {
+        // SAFETY: `sync_scope` rejects capture and waits for the work before the borrowed bindings are released, on every path.
+        context.sync_scope(|| unsafe { self.execute_async(context, bindings, params) })
     }
 }
 
@@ -569,54 +615,57 @@ where
         }
     }
 
-    /// Returns the cuSOLVER fill mode.
-    #[must_use]
-    pub const fn fill_mode(&self) -> FillMode {
-        self.fill_mode
-    }
-
-    /// Returns the square matrix dimension.
-    #[must_use]
-    pub const fn n(&self) -> usize {
-        self.n
-    }
-
-    /// Returns the number of right-hand sides.
-    #[must_use]
-    pub const fn right_hand_sides(&self) -> usize {
-        self.right_hand_sides
-    }
-
-    /// Solves the linear system in place.
+    /// Enqueues this operation on the context's stream without waiting for it; [`Self::execute`] is the waiting form.
+    ///
+    /// # Safety
+    ///
+    /// Follow the [raw execution contract](crate#raw-execution).
     ///
     /// # Errors
     ///
     /// Returns an error if inputs are invalid or if cuSOLVER reports a failure.
-    pub fn run(&self, context: &Context, params: &Params, args: PotrsArgs<'_, T>) -> Result<()> {
-        context.sync_scope(|| {
-            context.prepare_region(&args.factor.data)?;
-            context.prepare_region(&args.rhs.data)?;
-            context.prepare_region(&args.dev_info)?;
-            // SAFETY: the prepared bindings remain borrowed until this scope completes.
-            unsafe {
-                xpotrs(
-                    context,
-                    params,
-                    self.fill_mode,
-                    self.n,
-                    self.right_hand_sides,
-                    args.factor,
-                    args.rhs,
-                    args.dev_info,
-                )
-            }
-        })
+    pub unsafe fn execute_async(
+        &self,
+        context: &Context,
+        bindings: PotrsBindings<'_, T>,
+        params: &Params,
+    ) -> Result<()> {
+        // SAFETY: forwards this method's raw execution contract unchanged; the callee validates the bindings and orders the work after their producers.
+        unsafe {
+            xpotrs_async(
+                context,
+                params,
+                self.fill_mode,
+                self.n,
+                self.right_hand_sides,
+                bindings.factor,
+                bindings.rhs,
+                bindings.dev_info,
+            )
+        }
+    }
+
+    /// Solves the linear system in place.
+    /// Waits for completion before returning.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if inputs are invalid or if cuSOLVER reports a failure.
+    /// Also returns an error if the context's stream is capturing or waiting for completion fails.
+    pub fn execute(
+        &self,
+        context: &Context,
+        bindings: PotrsBindings<'_, T>,
+        params: &Params,
+    ) -> Result<()> {
+        // SAFETY: `sync_scope` rejects capture and waits for the work before the borrowed bindings are released, on every path.
+        context.sync_scope(|| unsafe { self.execute_async(context, bindings, params) })
     }
 }
 
 impl<T> Potri<T>
 where
-    T: DeviceRepr + PotriScalar,
+    T: SolverElement,
 {
     /// Creates a typed POTRI operation.
     #[must_use]
@@ -628,18 +677,6 @@ where
         }
     }
 
-    /// Returns the cuSOLVER fill mode.
-    #[must_use]
-    pub const fn fill_mode(&self) -> FillMode {
-        self.fill_mode
-    }
-
-    /// Returns the square matrix dimension.
-    #[must_use]
-    pub const fn n(&self) -> usize {
-        self.n
-    }
-
     /// Returns the required legacy workspace length in elements.
     ///
     /// # Errors
@@ -649,34 +686,49 @@ where
         T::potri_buffer_size(context, self.fill_mode, self.n, factor)
     }
 
-    /// Computes the inverse in place from a Cholesky factorization.
+    /// Enqueues this operation on the context's stream without waiting for it; [`Self::execute`] is the waiting form.
+    ///
+    /// # Safety
+    ///
+    /// Follow the [raw execution contract](crate#raw-execution).
     ///
     /// # Errors
     ///
     /// Returns an error if inputs or workspace are invalid, or if cuSOLVER reports a failure.
-    pub fn run(&self, context: &Context, args: PotriArgs<'_, T>) -> Result<()> {
-        context.sync_scope(|| {
-            context.prepare_region(&args.factor.data)?;
-            context.prepare_region(&args.workspace)?;
-            context.prepare_region(&args.dev_info)?;
-            // SAFETY: the prepared bindings remain borrowed until this scope completes.
-            unsafe {
-                T::potri(
-                    context,
-                    self.fill_mode,
-                    self.n,
-                    args.factor,
-                    args.workspace,
-                    args.dev_info,
-                )
-            }
-        })
+    pub unsafe fn execute_async(
+        &self,
+        context: &Context,
+        bindings: PotriBindings<'_, T>,
+    ) -> Result<()> {
+        // SAFETY: forwards this method's raw execution contract unchanged; the callee validates the bindings and orders the work after their producers.
+        unsafe {
+            T::potri(
+                context,
+                self.fill_mode,
+                self.n,
+                bindings.factor,
+                bindings.workspace,
+                bindings.dev_info,
+            )
+        }
+    }
+
+    /// Computes the inverse in place from a Cholesky factorization.
+    /// Waits for completion before returning.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if inputs or workspace are invalid, or if cuSOLVER reports a failure.
+    /// Also returns an error if the context's stream is capturing or waiting for completion fails.
+    pub fn execute(&self, context: &Context, bindings: PotriBindings<'_, T>) -> Result<()> {
+        // SAFETY: `sync_scope` rejects capture and waits for the work before the borrowed bindings are released, on every path.
+        context.sync_scope(|| unsafe { self.execute_async(context, bindings) })
     }
 }
 
 impl<T> BatchedPotrf<T>
 where
-    T: DeviceRepr + PotrfBatchedScalar,
+    T: SolverElement,
 {
     /// Creates a typed batched POTRF operation.
     #[must_use]
@@ -688,39 +740,40 @@ where
         }
     }
 
-    /// Returns the cuSOLVER fill mode.
-    #[must_use]
-    pub const fn fill_mode(&self) -> FillMode {
-        self.fill_mode
-    }
-
-    /// Returns the square matrix dimension.
-    #[must_use]
-    pub const fn n(&self) -> usize {
-        self.n
-    }
-
-    /// Computes batched Cholesky factorizations in place.
+    /// Enqueues this operation on the context's stream without waiting for it; [`Self::execute`] is the waiting form.
+    ///
+    /// # Safety
+    ///
+    /// Follow the [raw execution contract](crate#raw-execution), which also requires every pointer-table pointee to outlive the work.
     ///
     /// # Errors
     ///
     /// Returns an error if inputs are invalid or if cuSOLVER reports a failure.
-    /// # Safety
+    pub unsafe fn execute_async(
+        &self,
+        context: &Context,
+        bindings: BatchedPotrfBindings<'_, T>,
+    ) -> Result<()> {
+        // SAFETY: forwards this method's raw execution contract unchanged; the callee validates the bindings and orders the work after their producers.
+        unsafe { T::potrf_batched(context, self.fill_mode, self.n, bindings.a, bindings.info) }
+    }
+
+    /// Computes batched Cholesky factorizations in place.
+    /// Waits for completion before returning.
     ///
-    /// Retain every device pointer-table pointee through this completed call, and establish its shape, initialization, actual context, and access exclusivity.
-    pub unsafe fn run(&self, context: &Context, args: BatchedPotrfArgs<'_, T>) -> Result<()> {
-        context.sync_scope(|| {
-            context.prepare_region(&args.a.pointers)?;
-            context.prepare_region(&args.info)?;
-            // SAFETY: the prepared bindings remain borrowed until this scope completes.
-            unsafe { T::potrf_batched(context, self.fill_mode, self.n, args.a, args.info) }
-        })
+    /// # Errors
+    ///
+    /// Returns an error if inputs are invalid or if cuSOLVER reports a failure.
+    /// Also returns an error if the context's stream is capturing or waiting for completion fails.
+    pub fn execute(&self, context: &Context, bindings: BatchedPotrfBindings<'_, T>) -> Result<()> {
+        // SAFETY: the pointer-table constructors vouch for the pointees during the bindings' lifetime, and `sync_scope` rejects capture and waits for the work before the bindings are released, on every path.
+        context.sync_scope(|| unsafe { self.execute_async(context, bindings) })
     }
 }
 
 impl<T> BatchedPotrs<T>
 where
-    T: DeviceRepr + PotrsBatchedScalar,
+    T: SolverElement,
 {
     /// Creates a typed batched POTRS operation.
     ///
@@ -734,43 +787,43 @@ where
         }
     }
 
-    /// Returns the cuSOLVER fill mode.
-    #[must_use]
-    pub const fn fill_mode(&self) -> FillMode {
-        self.fill_mode
-    }
-
-    /// Returns the square matrix dimension.
-    #[must_use]
-    pub const fn n(&self) -> usize {
-        self.n
-    }
-
-    /// Solves batched linear systems in place.
+    /// Enqueues this operation on the context's stream without waiting for it; [`Self::execute`] is the waiting form.
+    ///
+    /// # Safety
+    ///
+    /// Follow the [raw execution contract](crate#raw-execution), which also requires every pointer-table pointee to outlive the work.
     ///
     /// # Errors
     ///
     /// Returns an error if inputs are invalid or if cuSOLVER reports a failure.
-    /// # Safety
+    pub unsafe fn execute_async(
+        &self,
+        context: &Context,
+        bindings: BatchedPotrsBindings<'_, T>,
+    ) -> Result<()> {
+        // SAFETY: forwards this method's raw execution contract unchanged; the callee validates the bindings and orders the work after their producers.
+        unsafe {
+            T::potrs_batched(
+                context,
+                self.fill_mode,
+                self.n,
+                bindings.factors,
+                bindings.rhs,
+                bindings.info,
+            )
+        }
+    }
+
+    /// Solves batched linear systems in place.
+    /// Waits for completion before returning.
     ///
-    /// Retain every device pointer-table pointee through this completed call, and establish its shape, initialization, actual context, and access exclusivity.
-    pub unsafe fn run(&self, context: &Context, args: BatchedPotrsArgs<'_, T>) -> Result<()> {
-        context.sync_scope(|| {
-            context.prepare_region(&args.factors.pointers)?;
-            context.prepare_region(&args.rhs.pointers)?;
-            context.prepare_region(&args.info)?;
-            // SAFETY: the prepared bindings remain borrowed until this scope completes.
-            unsafe {
-                T::potrs_batched(
-                    context,
-                    self.fill_mode,
-                    self.n,
-                    args.factors,
-                    args.rhs,
-                    args.info,
-                )
-            }
-        })
+    /// # Errors
+    ///
+    /// Returns an error if inputs are invalid or if cuSOLVER reports a failure.
+    /// Also returns an error if the context's stream is capturing or waiting for completion fails.
+    pub fn execute(&self, context: &Context, bindings: BatchedPotrsBindings<'_, T>) -> Result<()> {
+        // SAFETY: the pointer-table constructors vouch for the pointees during the bindings' lifetime, and `sync_scope` rejects capture and waits for the work before the bindings are released, on every path.
+        context.sync_scope(|| unsafe { self.execute_async(context, bindings) })
     }
 }
 
@@ -789,31 +842,6 @@ where
         }
     }
 
-    /// Sets the compute type passed to the generic cuSOLVER X API.
-    #[must_use]
-    pub const fn with_compute_type(mut self, compute_type: DataType) -> Self {
-        self.compute_type = compute_type;
-        self
-    }
-
-    /// Returns the matrix row count.
-    #[must_use]
-    pub const fn rows(&self) -> usize {
-        self.rows
-    }
-
-    /// Returns the matrix column count.
-    #[must_use]
-    pub const fn cols(&self) -> usize {
-        self.cols
-    }
-
-    /// Returns the cuSOLVER compute type.
-    #[must_use]
-    pub const fn compute_type(&self) -> DataType {
-        self.compute_type
-    }
-
     /// Returns the required device and host workspace sizes.
     ///
     /// # Errors
@@ -825,38 +853,55 @@ where
         params: &Params,
         a: MatrixLayout,
     ) -> Result<WorkspaceSizes> {
-        xgetrf_buffer_size::<T>(context, params, self.rows, self.cols, a, self.compute_type)
+        xgetrf_workspace_size::<T>(context, params, self.rows, self.cols, a, self.compute_type)
     }
 
-    /// Computes the LU factorization in place.
+    /// Enqueues this operation on the context's stream without waiting for it; [`Self::execute`] is the waiting form.
+    ///
+    /// # Safety
+    ///
+    /// Follow the [raw execution contract](crate#raw-execution).
     ///
     /// # Errors
     ///
     /// Returns an error if inputs or workspaces are invalid, or if cuSOLVER reports a failure.
-    pub fn run(&self, context: &Context, params: &Params, args: GetrfArgs<'_, T>) -> Result<()> {
-        context.sync_scope(|| {
-            context.prepare_region(&args.a.data)?;
-            if let Some(value) = args.pivots.as_ref() {
-                context.prepare_region(value)?;
-            }
+    pub unsafe fn execute_async(
+        &self,
+        context: &Context,
+        bindings: GetrfBindings<'_, T>,
+        params: &Params,
+    ) -> Result<()> {
+        // SAFETY: forwards this method's raw execution contract unchanged; the callee validates the bindings and orders the work after their producers.
+        unsafe {
+            xgetrf_async(
+                context,
+                params,
+                self.rows,
+                self.cols,
+                bindings.a,
+                bindings.pivots,
+                self.compute_type,
+                bindings.workspace,
+                bindings.dev_info,
+            )
+        }
+    }
 
-            context.prepare_region(&args.workspace.device)?;
-            context.prepare_region(&args.dev_info)?;
-            // SAFETY: the prepared bindings remain borrowed until this scope completes.
-            unsafe {
-                xgetrf(
-                    context,
-                    params,
-                    self.rows,
-                    self.cols,
-                    args.a,
-                    args.pivots,
-                    self.compute_type,
-                    args.workspace,
-                    args.dev_info,
-                )
-            }
-        })
+    /// Computes the LU factorization in place.
+    /// Waits for completion before returning.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if inputs or workspaces are invalid, or if cuSOLVER reports a failure.
+    /// Also returns an error if the context's stream is capturing or waiting for completion fails.
+    pub fn execute(
+        &self,
+        context: &Context,
+        bindings: GetrfBindings<'_, T>,
+        params: &Params,
+    ) -> Result<()> {
+        // SAFETY: `sync_scope` rejects capture and waits for the work before the borrowed bindings are released, on every path.
+        context.sync_scope(|| unsafe { self.execute_async(context, bindings, params) })
     }
 }
 
@@ -876,55 +921,52 @@ where
         }
     }
 
-    /// Returns the operation applied to the factorized matrix.
-    #[must_use]
-    pub const fn operation(&self) -> Operation {
-        self.operation
-    }
-
-    /// Returns the square factor dimension.
-    #[must_use]
-    pub const fn n(&self) -> usize {
-        self.n
-    }
-
-    /// Returns the number of right-hand sides.
-    #[must_use]
-    pub const fn right_hand_sides(&self) -> usize {
-        self.right_hand_sides
-    }
-
-    /// Solves the linear system in place.
+    /// Enqueues this operation on the context's stream without waiting for it; [`Self::execute`] is the waiting form.
+    ///
+    /// # Safety
+    ///
+    /// Follow the [raw execution contract](crate#raw-execution).
     ///
     /// # Errors
     ///
     /// Returns an error if inputs are invalid or if cuSOLVER reports a failure.
-    pub fn run(
+    pub unsafe fn execute_async(
         &self,
         context: &Context,
+        bindings: GetrsBindings<'_, TA, TB>,
         params: &Params,
-        args: GetrsArgs<'_, TA, TB>,
     ) -> Result<()> {
-        context.sync_scope(|| {
-            context.prepare_region(&args.factor.data)?;
-            context.prepare_region(&args.pivots)?;
-            context.prepare_region(&args.rhs.data)?;
-            context.prepare_region(&args.dev_info)?;
-            // SAFETY: the prepared bindings remain borrowed until this scope completes.
-            unsafe {
-                xgetrs(
-                    context,
-                    params,
-                    self.operation,
-                    self.n,
-                    self.right_hand_sides,
-                    args.factor,
-                    args.pivots,
-                    args.rhs,
-                    args.dev_info,
-                )
-            }
-        })
+        // SAFETY: forwards this method's raw execution contract unchanged; the callee validates the bindings and orders the work after their producers.
+        unsafe {
+            xgetrs_async(
+                context,
+                params,
+                self.operation,
+                self.n,
+                self.right_hand_sides,
+                bindings.factor,
+                bindings.pivots,
+                bindings.rhs,
+                bindings.dev_info,
+            )
+        }
+    }
+
+    /// Solves the linear system in place.
+    /// Waits for completion before returning.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if inputs are invalid or if cuSOLVER reports a failure.
+    /// Also returns an error if the context's stream is capturing or waiting for completion fails.
+    pub fn execute(
+        &self,
+        context: &Context,
+        bindings: GetrsBindings<'_, TA, TB>,
+        params: &Params,
+    ) -> Result<()> {
+        // SAFETY: `sync_scope` rejects capture and waits for the work before the borrowed bindings are released, on every path.
+        context.sync_scope(|| unsafe { self.execute_async(context, bindings, params) })
     }
 }
 
@@ -943,56 +985,53 @@ where
         }
     }
 
-    /// Returns the cuSOLVER fill mode.
-    #[must_use]
-    pub const fn fill_mode(&self) -> FillMode {
-        self.fill_mode
-    }
-
-    /// Returns the diagonal type.
-    #[must_use]
-    pub const fn diagonal_type(&self) -> DiagonalType {
-        self.diagonal_type
-    }
-
-    /// Returns the square matrix dimension.
-    #[must_use]
-    pub const fn n(&self) -> usize {
-        self.n
-    }
-
     /// Returns the required device and host workspace sizes.
     ///
     /// # Errors
     ///
     /// Returns an error if the matrix shape is invalid or cuSOLVER cannot report the workspace sizes.
     pub fn workspace_size(&self, context: &Context, a: MatrixLayout) -> Result<WorkspaceSizes> {
-        xtrtri_buffer_size::<T>(context, self.fill_mode, self.diagonal_type, self.n, a)
+        xtrtri_workspace_size::<T>(context, self.fill_mode, self.diagonal_type, self.n, a)
     }
 
-    /// Computes the triangular inverse in place.
+    /// Enqueues this operation on the context's stream without waiting for it; [`Self::execute`] is the waiting form.
+    ///
+    /// # Safety
+    ///
+    /// Follow the [raw execution contract](crate#raw-execution).
     ///
     /// # Errors
     ///
     /// Returns an error if inputs or workspaces are invalid, or if cuSOLVER reports a failure.
-    pub fn run(&self, context: &Context, args: TrtriArgs<'_, T>) -> Result<()> {
-        context.sync_scope(|| {
-            context.prepare_region(&args.a.data)?;
-            context.prepare_region(&args.workspace.device)?;
-            context.prepare_region(&args.dev_info)?;
-            // SAFETY: the prepared bindings remain borrowed until this scope completes.
-            unsafe {
-                xtrtri(
-                    context,
-                    self.fill_mode,
-                    self.diagonal_type,
-                    self.n,
-                    args.a,
-                    args.workspace,
-                    args.dev_info,
-                )
-            }
-        })
+    pub unsafe fn execute_async(
+        &self,
+        context: &Context,
+        bindings: TrtriBindings<'_, T>,
+    ) -> Result<()> {
+        // SAFETY: forwards this method's raw execution contract unchanged; the callee validates the bindings and orders the work after their producers.
+        unsafe {
+            xtrtri_async(
+                context,
+                self.fill_mode,
+                self.diagonal_type,
+                self.n,
+                bindings.a,
+                bindings.workspace,
+                bindings.dev_info,
+            )
+        }
+    }
+
+    /// Computes the triangular inverse in place.
+    /// Waits for completion before returning.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if inputs or workspaces are invalid, or if cuSOLVER reports a failure.
+    /// Also returns an error if the context's stream is capturing or waiting for completion fails.
+    pub fn execute(&self, context: &Context, bindings: TrtriBindings<'_, T>) -> Result<()> {
+        // SAFETY: `sync_scope` rejects capture and waits for the work before the borrowed bindings are released, on every path.
+        context.sync_scope(|| unsafe { self.execute_async(context, bindings) })
     }
 }
 
@@ -1012,24 +1051,6 @@ where
         }
     }
 
-    /// Returns the cuSOLVER fill mode.
-    #[must_use]
-    pub const fn fill_mode(&self) -> FillMode {
-        self.fill_mode
-    }
-
-    /// Returns the square factor dimension.
-    #[must_use]
-    pub const fn n(&self) -> usize {
-        self.n
-    }
-
-    /// Returns the number of right-hand sides.
-    #[must_use]
-    pub const fn right_hand_sides(&self) -> usize {
-        self.right_hand_sides
-    }
-
     /// Returns the required device and host workspace sizes.
     ///
     /// # Errors
@@ -1041,7 +1062,7 @@ where
         factor: MatrixLayout,
         rhs: MatrixLayout,
     ) -> Result<WorkspaceSizes> {
-        xsytrs_buffer_size::<TA, TB>(
+        xsytrs_workspace_size::<TA, TB>(
             context,
             self.fill_mode,
             self.n,
@@ -1051,36 +1072,46 @@ where
         )
     }
 
-    /// Solves the symmetric or Hermitian system in place.
+    /// Enqueues this operation on the context's stream without waiting for it; [`Self::execute`] is the waiting form.
+    ///
+    /// # Safety
+    ///
+    /// Follow the [raw execution contract](crate#raw-execution).
     ///
     /// # Errors
     ///
     /// Returns an error if inputs or workspaces are invalid, or if cuSOLVER reports a failure.
-    pub fn run(&self, context: &Context, args: SytrsArgs<'_, TA, TB>) -> Result<()> {
-        context.sync_scope(|| {
-            context.prepare_region(&args.factor.data)?;
-            if let Some(value) = args.pivots.as_ref() {
-                context.prepare_region(value)?;
-            }
+    pub unsafe fn execute_async(
+        &self,
+        context: &Context,
+        bindings: SytrsBindings<'_, TA, TB>,
+    ) -> Result<()> {
+        // SAFETY: forwards this method's raw execution contract unchanged; the callee validates the bindings and orders the work after their producers.
+        unsafe {
+            xsytrs_async(
+                context,
+                self.fill_mode,
+                self.n,
+                self.right_hand_sides,
+                bindings.factor,
+                bindings.pivots,
+                bindings.rhs,
+                bindings.workspace,
+                bindings.dev_info,
+            )
+        }
+    }
 
-            context.prepare_region(&args.rhs.data)?;
-            context.prepare_region(&args.workspace.device)?;
-            context.prepare_region(&args.dev_info)?;
-            // SAFETY: the prepared bindings remain borrowed until this scope completes.
-            unsafe {
-                xsytrs(
-                    context,
-                    self.fill_mode,
-                    self.n,
-                    self.right_hand_sides,
-                    args.factor,
-                    args.pivots,
-                    args.rhs,
-                    args.workspace,
-                    args.dev_info,
-                )
-            }
-        })
+    /// Solves the symmetric or Hermitian system in place.
+    /// Waits for completion before returning.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if inputs or workspaces are invalid, or if cuSOLVER reports a failure.
+    /// Also returns an error if the context's stream is capturing or waiting for completion fails.
+    pub fn execute(&self, context: &Context, bindings: SytrsBindings<'_, TA, TB>) -> Result<()> {
+        // SAFETY: `sync_scope` rejects capture and waits for the work before the borrowed bindings are released, on every path.
+        context.sync_scope(|| unsafe { self.execute_async(context, bindings) })
     }
 }
 
@@ -1098,18 +1129,6 @@ where
         }
     }
 
-    /// Returns the cuSOLVER fill mode.
-    #[must_use]
-    pub const fn fill_mode(&self) -> FillMode {
-        self.fill_mode
-    }
-
-    /// Returns the square matrix dimension.
-    #[must_use]
-    pub const fn n(&self) -> usize {
-        self.n
-    }
-
     /// Returns the device and host workspace sizes before allocating buffers.
     ///
     /// # Errors
@@ -1121,44 +1140,61 @@ where
         params: &Params,
         a: MatrixLayout,
     ) -> Result<WorkspaceSizes> {
-        xsytrf_buffer_size::<T>(context, params, self.fill_mode, self.n, a, T::data_type())
+        xsytrf_workspace_size::<T>(context, params, self.fill_mode, self.n, a, T::data_type())
     }
 
-    /// Computes the indefinite factorization in place.
+    /// Enqueues this operation on the context's stream without waiting for it; [`Self::execute`] is the waiting form.
+    ///
+    /// # Safety
+    ///
+    /// Follow the [raw execution contract](crate#raw-execution).
     ///
     /// # Errors
     ///
     /// Returns an error if inputs or workspace are invalid, or if cuSOLVER reports a failure.
-    pub fn run(&self, context: &Context, params: &Params, args: SytrfArgs<'_, T>) -> Result<()> {
-        context.sync_scope(|| {
-            context.prepare_region(&args.a.data)?;
-            if let Some(value) = args.pivots.as_ref() {
-                context.prepare_region(value)?;
-            }
+    pub unsafe fn execute_async(
+        &self,
+        context: &Context,
+        bindings: SytrfBindings<'_, T>,
+        params: &Params,
+    ) -> Result<()> {
+        // SAFETY: forwards this method's raw execution contract unchanged; the callee validates the bindings and orders the work after their producers.
+        unsafe {
+            xsytrf_async(
+                context,
+                params,
+                self.fill_mode,
+                self.n,
+                bindings.a,
+                bindings.pivots,
+                T::data_type(),
+                bindings.workspace,
+                bindings.dev_info,
+            )
+        }
+    }
 
-            context.prepare_region(&args.workspace.device)?;
-            context.prepare_region(&args.dev_info)?;
-            // SAFETY: the prepared bindings remain borrowed until this scope completes.
-            unsafe {
-                xsytrf(
-                    context,
-                    params,
-                    self.fill_mode,
-                    self.n,
-                    args.a,
-                    args.pivots,
-                    T::data_type(),
-                    args.workspace,
-                    args.dev_info,
-                )
-            }
-        })
+    /// Computes the indefinite factorization in place.
+    /// Waits for completion before returning.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if inputs or workspace are invalid, or if cuSOLVER reports a failure.
+    /// Also returns an error if the context's stream is capturing or waiting for completion fails.
+    pub fn execute(
+        &self,
+        context: &Context,
+        bindings: SytrfBindings<'_, T>,
+        params: &Params,
+    ) -> Result<()> {
+        // SAFETY: `sync_scope` rejects capture and waits for the work before the borrowed bindings are released, on every path.
+        context.sync_scope(|| unsafe { self.execute_async(context, bindings, params) })
     }
 }
 
 impl<T> Sytrd<T>
 where
-    T: DeviceRepr + SytrdScalar,
+    T: SolverElement,
 {
     /// Creates a typed SYTRD/HETRD operation.
     #[must_use]
@@ -1170,18 +1206,6 @@ where
         }
     }
 
-    /// Returns the cuSOLVER fill mode.
-    #[must_use]
-    pub const fn fill_mode(&self) -> FillMode {
-        self.fill_mode
-    }
-
-    /// Returns the square matrix dimension.
-    #[must_use]
-    pub const fn n(&self) -> usize {
-        self.n
-    }
-
     /// Returns the required legacy workspace length in elements.
     ///
     /// # Errors
@@ -1191,40 +1215,52 @@ where
         T::sytrd_buffer_size(context, self.fill_mode, self.n, a)
     }
 
-    /// Reduces the matrix to symmetric or Hermitian tridiagonal form in place.
+    /// Enqueues this operation on the context's stream without waiting for it; [`Self::execute`] is the waiting form.
+    ///
+    /// # Safety
+    ///
+    /// Follow the [raw execution contract](crate#raw-execution).
     ///
     /// # Errors
     ///
     /// Returns an error if inputs or workspace are invalid, or if cuSOLVER reports a failure.
-    pub fn run(&self, context: &Context, args: SytrdArgs<'_, T>) -> Result<()> {
-        context.sync_scope(|| {
-            context.prepare_region(&args.a.data)?;
-            context.prepare_region(&args.diagonal.data)?;
-            context.prepare_region(&args.off_diagonal.data)?;
-            context.prepare_region(&args.tau.data)?;
-            context.prepare_region(&args.workspace)?;
-            context.prepare_region(&args.dev_info)?;
-            // SAFETY: the prepared bindings remain borrowed until this scope completes.
-            unsafe {
-                T::sytrd(
-                    context,
-                    self.fill_mode,
-                    self.n,
-                    args.a,
-                    args.diagonal,
-                    args.off_diagonal,
-                    args.tau,
-                    args.workspace,
-                    args.dev_info,
-                )
-            }
-        })
+    pub unsafe fn execute_async(
+        &self,
+        context: &Context,
+        bindings: SytrdBindings<'_, T>,
+    ) -> Result<()> {
+        // SAFETY: forwards this method's raw execution contract unchanged; the callee validates the bindings and orders the work after their producers.
+        unsafe {
+            T::sytrd(
+                context,
+                self.fill_mode,
+                self.n,
+                bindings.a,
+                bindings.diagonal,
+                bindings.off_diagonal,
+                bindings.tau,
+                bindings.workspace,
+                bindings.dev_info,
+            )
+        }
+    }
+
+    /// Reduces the matrix to symmetric or Hermitian tridiagonal form in place.
+    /// Waits for completion before returning.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if inputs or workspace are invalid, or if cuSOLVER reports a failure.
+    /// Also returns an error if the context's stream is capturing or waiting for completion fails.
+    pub fn execute(&self, context: &Context, bindings: SytrdBindings<'_, T>) -> Result<()> {
+        // SAFETY: `sync_scope` rejects capture and waits for the work before the borrowed bindings are released, on every path.
+        context.sync_scope(|| unsafe { self.execute_async(context, bindings) })
     }
 }
 
 impl<T> Orgtr<T>
 where
-    T: DeviceRepr + OrgtrScalar,
+    T: SolverElement,
 {
     /// Creates a typed ORGTR/UNGTR operation.
     #[must_use]
@@ -1236,18 +1272,6 @@ where
         }
     }
 
-    /// Returns the cuSOLVER fill mode.
-    #[must_use]
-    pub const fn fill_mode(&self) -> FillMode {
-        self.fill_mode
-    }
-
-    /// Returns the square matrix dimension.
-    #[must_use]
-    pub const fn n(&self) -> usize {
-        self.n
-    }
-
     /// Returns the required legacy workspace length in elements.
     ///
     /// # Errors
@@ -1257,36 +1281,50 @@ where
         T::orgtr_buffer_size(context, self.fill_mode, self.n, a)
     }
 
-    /// Forms the explicit tridiagonalization factor matrix in place.
+    /// Enqueues this operation on the context's stream without waiting for it; [`Self::execute`] is the waiting form.
+    ///
+    /// # Safety
+    ///
+    /// Follow the [raw execution contract](crate#raw-execution).
     ///
     /// # Errors
     ///
     /// Returns an error if inputs or workspace are invalid, or if cuSOLVER reports a failure.
-    pub fn run(&self, context: &Context, args: OrgtrArgs<'_, T>) -> Result<()> {
-        context.sync_scope(|| {
-            context.prepare_region(&args.a.data)?;
-            context.prepare_region(&args.tau.data)?;
-            context.prepare_region(&args.workspace)?;
-            context.prepare_region(&args.dev_info)?;
-            // SAFETY: the prepared bindings remain borrowed until this scope completes.
-            unsafe {
-                T::orgtr(
-                    context,
-                    self.fill_mode,
-                    self.n,
-                    args.a,
-                    args.tau,
-                    args.workspace,
-                    args.dev_info,
-                )
-            }
-        })
+    pub unsafe fn execute_async(
+        &self,
+        context: &Context,
+        bindings: OrgtrBindings<'_, T>,
+    ) -> Result<()> {
+        // SAFETY: forwards this method's raw execution contract unchanged; the callee validates the bindings and orders the work after their producers.
+        unsafe {
+            T::orgtr(
+                context,
+                self.fill_mode,
+                self.n,
+                bindings.a,
+                bindings.tau,
+                bindings.workspace,
+                bindings.dev_info,
+            )
+        }
+    }
+
+    /// Forms the explicit tridiagonalization factor matrix in place.
+    /// Waits for completion before returning.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if inputs or workspace are invalid, or if cuSOLVER reports a failure.
+    /// Also returns an error if the context's stream is capturing or waiting for completion fails.
+    pub fn execute(&self, context: &Context, bindings: OrgtrBindings<'_, T>) -> Result<()> {
+        // SAFETY: `sync_scope` rejects capture and waits for the work before the borrowed bindings are released, on every path.
+        context.sync_scope(|| unsafe { self.execute_async(context, bindings) })
     }
 }
 
 impl<T> Ormtr<T>
 where
-    T: DeviceRepr + OrmtrScalar,
+    T: SolverElement,
 {
     /// Creates a typed ORMTR/UNMTR operation.
     #[must_use]
@@ -1305,36 +1343,6 @@ where
             cols,
             _ty: PhantomData,
         }
-    }
-
-    /// Returns which side receives the tridiagonalization factor product.
-    #[must_use]
-    pub const fn side(&self) -> SideMode {
-        self.side
-    }
-
-    /// Returns the cuSOLVER fill mode.
-    #[must_use]
-    pub const fn fill_mode(&self) -> FillMode {
-        self.fill_mode
-    }
-
-    /// Returns the operation applied to the factor product.
-    #[must_use]
-    pub const fn operation(&self) -> Operation {
-        self.operation
-    }
-
-    /// Returns the target matrix row count.
-    #[must_use]
-    pub const fn rows(&self) -> usize {
-        self.rows
-    }
-
-    /// Returns the target matrix column count.
-    #[must_use]
-    pub const fn cols(&self) -> usize {
-        self.cols
     }
 
     /// Returns the required legacy workspace length in elements.
@@ -1360,35 +1368,48 @@ where
         )
     }
 
-    /// Applies the tridiagonalization factor product in place.
+    /// Enqueues this operation on the context's stream without waiting for it; [`Self::execute`] is the waiting form.
+    ///
+    /// # Safety
+    ///
+    /// Follow the [raw execution contract](crate#raw-execution).
     ///
     /// # Errors
     ///
     /// Returns an error if inputs or workspace are invalid, or if cuSOLVER reports a failure.
-    pub fn run(&self, context: &Context, args: OrmtrArgs<'_, T>) -> Result<()> {
-        context.sync_scope(|| {
-            context.prepare_region(&args.reflectors.data)?;
-            context.prepare_region(&args.tau.data)?;
-            context.prepare_region(&args.matrix.data)?;
-            context.prepare_region(&args.workspace)?;
-            context.prepare_region(&args.dev_info)?;
-            // SAFETY: the prepared bindings remain borrowed until this scope completes.
-            unsafe {
-                T::ormtr(
-                    context,
-                    self.side,
-                    self.fill_mode,
-                    self.operation,
-                    self.rows,
-                    self.cols,
-                    args.reflectors,
-                    args.tau,
-                    args.matrix,
-                    args.workspace,
-                    args.dev_info,
-                )
-            }
-        })
+    pub unsafe fn execute_async(
+        &self,
+        context: &Context,
+        bindings: OrmtrBindings<'_, T>,
+    ) -> Result<()> {
+        // SAFETY: forwards this method's raw execution contract unchanged; the callee validates the bindings and orders the work after their producers.
+        unsafe {
+            T::ormtr(
+                context,
+                self.side,
+                self.fill_mode,
+                self.operation,
+                self.rows,
+                self.cols,
+                bindings.reflectors,
+                bindings.tau,
+                bindings.matrix,
+                bindings.workspace,
+                bindings.dev_info,
+            )
+        }
+    }
+
+    /// Applies the tridiagonalization factor product in place.
+    /// Waits for completion before returning.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if inputs or workspace are invalid, or if cuSOLVER reports a failure.
+    /// Also returns an error if the context's stream is capturing or waiting for completion fails.
+    pub fn execute(&self, context: &Context, bindings: OrmtrBindings<'_, T>) -> Result<()> {
+        // SAFETY: `sync_scope` rejects capture and waits for the work before the borrowed bindings are released, on every path.
+        context.sync_scope(|| unsafe { self.execute_async(context, bindings) })
     }
 }
 
@@ -1411,43 +1432,6 @@ where
         }
     }
 
-    /// Sets the compute type passed to the generic cuSOLVER X API.
-    #[must_use]
-    pub const fn with_compute_type(mut self, compute_type: DataType) -> Self {
-        self.compute_type = compute_type;
-        self
-    }
-
-    /// Returns the reflector product direction.
-    #[must_use]
-    pub const fn direct(&self) -> DirectMode {
-        self.direct
-    }
-
-    /// Returns the reflector storage mode.
-    #[must_use]
-    pub const fn storev(&self) -> StorevMode {
-        self.storev
-    }
-
-    /// Returns the reflector order.
-    #[must_use]
-    pub const fn n(&self) -> usize {
-        self.n
-    }
-
-    /// Returns the number of elementary reflectors.
-    #[must_use]
-    pub const fn k(&self) -> usize {
-        self.k
-    }
-
-    /// Returns the cuSOLVER compute type.
-    #[must_use]
-    pub const fn compute_type(&self) -> DataType {
-        self.compute_type
-    }
-
     /// Returns the required device and host workspace sizes.
     ///
     /// # Errors
@@ -1460,7 +1444,7 @@ where
         v: MatrixLayout,
         t: MatrixLayout,
     ) -> Result<WorkspaceSizes> {
-        xlarft_buffer_size::<TV, TTau, TT>(
+        xlarft_workspace_size::<TV, TTau, TT>(
             context,
             params,
             self.direct,
@@ -1473,39 +1457,54 @@ where
         )
     }
 
-    /// Forms the triangular factor in place.
+    /// Enqueues this operation on the context's stream without waiting for it; [`Self::execute`] is the waiting form.
+    ///
+    /// # Safety
+    ///
+    /// Follow the [raw execution contract](crate#raw-execution).
     ///
     /// # Errors
     ///
     /// Returns an error if inputs or workspaces are invalid, or if cuSOLVER reports a failure.
-    pub fn run(
+    pub unsafe fn execute_async(
         &self,
         context: &Context,
+        bindings: LarftBindings<'_, TV, TTau, TT>,
         params: &Params,
-        args: LarftArgs<'_, TV, TTau, TT>,
     ) -> Result<()> {
-        context.sync_scope(|| {
-            context.prepare_region(&args.v.data)?;
-            context.prepare_region(&args.tau.data)?;
-            context.prepare_region(&args.t.data)?;
-            context.prepare_region(&args.workspace.device)?;
-            // SAFETY: the prepared bindings remain borrowed until this scope completes.
-            unsafe {
-                xlarft(
-                    context,
-                    params,
-                    self.direct,
-                    self.storev,
-                    self.n,
-                    self.k,
-                    args.v,
-                    args.tau,
-                    args.t,
-                    self.compute_type,
-                    args.workspace,
-                )
-            }
-        })
+        // SAFETY: forwards this method's raw execution contract unchanged; the callee validates the bindings and orders the work after their producers.
+        unsafe {
+            xlarft_async(
+                context,
+                params,
+                self.direct,
+                self.storev,
+                self.n,
+                self.k,
+                bindings.v,
+                bindings.tau,
+                bindings.t,
+                self.compute_type,
+                bindings.workspace,
+            )
+        }
+    }
+
+    /// Forms the triangular factor in place.
+    /// Waits for completion before returning.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if inputs or workspaces are invalid, or if cuSOLVER reports a failure.
+    /// Also returns an error if the context's stream is capturing or waiting for completion fails.
+    pub fn execute(
+        &self,
+        context: &Context,
+        bindings: LarftBindings<'_, TV, TTau, TT>,
+        params: &Params,
+    ) -> Result<()> {
+        // SAFETY: `sync_scope` rejects capture and waits for the work before the borrowed bindings are released, on every path.
+        context.sync_scope(|| unsafe { self.execute_async(context, bindings, params) })
     }
 }
 
@@ -1525,31 +1524,6 @@ where
         }
     }
 
-    /// Sets the compute type passed to the generic cuSOLVER X API.
-    #[must_use]
-    pub const fn with_compute_type(mut self, compute_type: DataType) -> Self {
-        self.compute_type = compute_type;
-        self
-    }
-
-    /// Returns the matrix row count.
-    #[must_use]
-    pub const fn rows(&self) -> usize {
-        self.rows
-    }
-
-    /// Returns the matrix column count.
-    #[must_use]
-    pub const fn cols(&self) -> usize {
-        self.cols
-    }
-
-    /// Returns the cuSOLVER compute type.
-    #[must_use]
-    pub const fn compute_type(&self) -> DataType {
-        self.compute_type
-    }
-
     /// Returns the required device and host workspace sizes.
     ///
     /// # Errors
@@ -1561,46 +1535,68 @@ where
         params: &Params,
         a: MatrixLayout,
     ) -> Result<WorkspaceSizes> {
-        xgeqrf_buffer_size::<TA, TTau>(context, params, self.rows, self.cols, a, self.compute_type)
+        xgeqrf_workspace_size::<TA, TTau>(
+            context,
+            params,
+            self.rows,
+            self.cols,
+            a,
+            self.compute_type,
+        )
     }
 
-    /// Computes the QR factorization in place.
+    /// Enqueues this operation on the context's stream without waiting for it; [`Self::execute`] is the waiting form.
+    ///
+    /// # Safety
+    ///
+    /// Follow the [raw execution contract](crate#raw-execution).
     ///
     /// # Errors
     ///
     /// Returns an error if inputs or workspaces are invalid, or if cuSOLVER reports a failure.
-    pub fn run(
+    pub unsafe fn execute_async(
         &self,
         context: &Context,
+        bindings: GeqrfBindings<'_, TA, TTau>,
         params: &Params,
-        args: GeqrfArgs<'_, TA, TTau>,
     ) -> Result<()> {
-        context.sync_scope(|| {
-            context.prepare_region(&args.a.data)?;
-            context.prepare_region(&args.tau.data)?;
-            context.prepare_region(&args.workspace.device)?;
-            context.prepare_region(&args.dev_info)?;
-            // SAFETY: the prepared bindings remain borrowed until this scope completes.
-            unsafe {
-                xgeqrf(
-                    context,
-                    params,
-                    self.rows,
-                    self.cols,
-                    args.a,
-                    args.tau,
-                    self.compute_type,
-                    args.workspace,
-                    args.dev_info,
-                )
-            }
-        })
+        // SAFETY: forwards this method's raw execution contract unchanged; the callee validates the bindings and orders the work after their producers.
+        unsafe {
+            xgeqrf_async(
+                context,
+                params,
+                self.rows,
+                self.cols,
+                bindings.a,
+                bindings.tau,
+                self.compute_type,
+                bindings.workspace,
+                bindings.dev_info,
+            )
+        }
+    }
+
+    /// Computes the QR factorization in place.
+    /// Waits for completion before returning.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if inputs or workspaces are invalid, or if cuSOLVER reports a failure.
+    /// Also returns an error if the context's stream is capturing or waiting for completion fails.
+    pub fn execute(
+        &self,
+        context: &Context,
+        bindings: GeqrfBindings<'_, TA, TTau>,
+        params: &Params,
+    ) -> Result<()> {
+        // SAFETY: `sync_scope` rejects capture and waits for the work before the borrowed bindings are released, on every path.
+        context.sync_scope(|| unsafe { self.execute_async(context, bindings, params) })
     }
 }
 
 impl<T> Ormqr<T>
 where
-    T: DeviceRepr + OrmqrScalar,
+    T: SolverElement,
 {
     /// Creates a typed ORMQR/UNMQR operation.
     #[must_use]
@@ -1619,36 +1615,6 @@ where
             reflectors,
             _ty: PhantomData,
         }
-    }
-
-    /// Returns which side receives the reflector product.
-    #[must_use]
-    pub const fn side(&self) -> SideMode {
-        self.side
-    }
-
-    /// Returns the operation applied to the reflector product.
-    #[must_use]
-    pub const fn operation(&self) -> Operation {
-        self.operation
-    }
-
-    /// Returns the output matrix row count.
-    #[must_use]
-    pub const fn rows(&self) -> usize {
-        self.rows
-    }
-
-    /// Returns the output matrix column count.
-    #[must_use]
-    pub const fn cols(&self) -> usize {
-        self.cols
-    }
-
-    /// Returns the number of elementary reflectors.
-    #[must_use]
-    pub const fn reflectors(&self) -> usize {
-        self.reflectors
     }
 
     /// Returns the required legacy workspace length in elements.
@@ -1674,41 +1640,54 @@ where
         )
     }
 
-    /// Applies the QR reflector product in place.
+    /// Enqueues this operation on the context's stream without waiting for it; [`Self::execute`] is the waiting form.
+    ///
+    /// # Safety
+    ///
+    /// Follow the [raw execution contract](crate#raw-execution).
     ///
     /// # Errors
     ///
     /// Returns an error if inputs or workspace are invalid, or if cuSOLVER reports a failure.
-    pub fn run(&self, context: &Context, args: OrmqrArgs<'_, T>) -> Result<()> {
-        context.sync_scope(|| {
-            context.prepare_region(&args.reflectors.data)?;
-            context.prepare_region(&args.tau.data)?;
-            context.prepare_region(&args.matrix.data)?;
-            context.prepare_region(&args.workspace)?;
-            context.prepare_region(&args.dev_info)?;
-            // SAFETY: the prepared bindings remain borrowed until this scope completes.
-            unsafe {
-                T::ormqr(
-                    context,
-                    self.side,
-                    self.operation,
-                    self.rows,
-                    self.cols,
-                    self.reflectors,
-                    args.reflectors,
-                    args.tau,
-                    args.matrix,
-                    args.workspace,
-                    args.dev_info,
-                )
-            }
-        })
+    pub unsafe fn execute_async(
+        &self,
+        context: &Context,
+        bindings: OrmqrBindings<'_, T>,
+    ) -> Result<()> {
+        // SAFETY: forwards this method's raw execution contract unchanged; the callee validates the bindings and orders the work after their producers.
+        unsafe {
+            T::ormqr(
+                context,
+                self.side,
+                self.operation,
+                self.rows,
+                self.cols,
+                self.reflectors,
+                bindings.reflectors,
+                bindings.tau,
+                bindings.matrix,
+                bindings.workspace,
+                bindings.dev_info,
+            )
+        }
+    }
+
+    /// Applies the QR reflector product in place.
+    /// Waits for completion before returning.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if inputs or workspace are invalid, or if cuSOLVER reports a failure.
+    /// Also returns an error if the context's stream is capturing or waiting for completion fails.
+    pub fn execute(&self, context: &Context, bindings: OrmqrBindings<'_, T>) -> Result<()> {
+        // SAFETY: `sync_scope` rejects capture and waits for the work before the borrowed bindings are released, on every path.
+        context.sync_scope(|| unsafe { self.execute_async(context, bindings) })
     }
 }
 
 impl<T> Orgqr<T>
 where
-    T: DeviceRepr + OrgqrScalar,
+    T: SolverElement,
 {
     /// Creates a typed ORGQR/UNGQR operation.
     #[must_use]
@@ -1721,24 +1700,6 @@ where
         }
     }
 
-    /// Returns the output matrix row count.
-    #[must_use]
-    pub const fn rows(&self) -> usize {
-        self.rows
-    }
-
-    /// Returns the output matrix column count.
-    #[must_use]
-    pub const fn cols(&self) -> usize {
-        self.cols
-    }
-
-    /// Returns the number of elementary reflectors.
-    #[must_use]
-    pub const fn reflectors(&self) -> usize {
-        self.reflectors
-    }
-
     /// Returns the required legacy workspace length in elements.
     ///
     /// # Errors
@@ -1748,37 +1709,51 @@ where
         T::orgqr_buffer_size(context, self.rows, self.cols, self.reflectors, a)
     }
 
-    /// Forms the explicit QR factor matrix in place.
+    /// Enqueues this operation on the context's stream without waiting for it; [`Self::execute`] is the waiting form.
+    ///
+    /// # Safety
+    ///
+    /// Follow the [raw execution contract](crate#raw-execution).
     ///
     /// # Errors
     ///
     /// Returns an error if inputs or workspace are invalid, or if cuSOLVER reports a failure.
-    pub fn run(&self, context: &Context, args: OrgqrArgs<'_, T>) -> Result<()> {
-        context.sync_scope(|| {
-            context.prepare_region(&args.a.data)?;
-            context.prepare_region(&args.tau.data)?;
-            context.prepare_region(&args.workspace)?;
-            context.prepare_region(&args.dev_info)?;
-            // SAFETY: the prepared bindings remain borrowed until this scope completes.
-            unsafe {
-                T::orgqr(
-                    context,
-                    self.rows,
-                    self.cols,
-                    self.reflectors,
-                    args.a,
-                    args.tau,
-                    args.workspace,
-                    args.dev_info,
-                )
-            }
-        })
+    pub unsafe fn execute_async(
+        &self,
+        context: &Context,
+        bindings: OrgqrBindings<'_, T>,
+    ) -> Result<()> {
+        // SAFETY: forwards this method's raw execution contract unchanged; the callee validates the bindings and orders the work after their producers.
+        unsafe {
+            T::orgqr(
+                context,
+                self.rows,
+                self.cols,
+                self.reflectors,
+                bindings.a,
+                bindings.tau,
+                bindings.workspace,
+                bindings.dev_info,
+            )
+        }
+    }
+
+    /// Forms the explicit QR factor matrix in place.
+    /// Waits for completion before returning.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if inputs or workspace are invalid, or if cuSOLVER reports a failure.
+    /// Also returns an error if the context's stream is capturing or waiting for completion fails.
+    pub fn execute(&self, context: &Context, bindings: OrgqrBindings<'_, T>) -> Result<()> {
+        // SAFETY: `sync_scope` rejects capture and waits for the work before the borrowed bindings are released, on every path.
+        context.sync_scope(|| unsafe { self.execute_async(context, bindings) })
     }
 }
 
 impl<T> Gebrd<T>
 where
-    T: DeviceRepr + GebrdScalar,
+    T: SolverElement,
 {
     /// Creates a typed GEBRD operation.
     #[must_use]
@@ -1790,18 +1765,6 @@ where
         }
     }
 
-    /// Returns the matrix row count.
-    #[must_use]
-    pub const fn rows(&self) -> usize {
-        self.rows
-    }
-
-    /// Returns the matrix column count.
-    #[must_use]
-    pub const fn cols(&self) -> usize {
-        self.cols
-    }
-
     /// Returns the required legacy workspace length in elements.
     ///
     /// # Errors
@@ -1811,42 +1774,53 @@ where
         T::gebrd_buffer_size(context, self.rows, self.cols)
     }
 
-    /// Reduces the matrix to bidiagonal form in place.
+    /// Enqueues this operation on the context's stream without waiting for it; [`Self::execute`] is the waiting form.
+    ///
+    /// # Safety
+    ///
+    /// Follow the [raw execution contract](crate#raw-execution).
     ///
     /// # Errors
     ///
     /// Returns an error if inputs or workspace are invalid, or if cuSOLVER reports a failure.
-    pub fn run(&self, context: &Context, args: GebrdArgs<'_, T>) -> Result<()> {
-        context.sync_scope(|| {
-            context.prepare_region(&args.a.data)?;
-            context.prepare_region(&args.diagonal.data)?;
-            context.prepare_region(&args.off_diagonal.data)?;
-            context.prepare_region(&args.tau_q.data)?;
-            context.prepare_region(&args.tau_p.data)?;
-            context.prepare_region(&args.workspace)?;
-            context.prepare_region(&args.dev_info)?;
-            // SAFETY: the prepared bindings remain borrowed until this scope completes.
-            unsafe {
-                T::gebrd(
-                    context,
-                    self.rows,
-                    self.cols,
-                    args.a,
-                    args.diagonal,
-                    args.off_diagonal,
-                    args.tau_q,
-                    args.tau_p,
-                    args.workspace,
-                    args.dev_info,
-                )
-            }
-        })
+    pub unsafe fn execute_async(
+        &self,
+        context: &Context,
+        bindings: GebrdBindings<'_, T>,
+    ) -> Result<()> {
+        // SAFETY: forwards this method's raw execution contract unchanged; the callee validates the bindings and orders the work after their producers.
+        unsafe {
+            T::gebrd(
+                context,
+                self.rows,
+                self.cols,
+                bindings.a,
+                bindings.diagonal,
+                bindings.off_diagonal,
+                bindings.tau_q,
+                bindings.tau_p,
+                bindings.workspace,
+                bindings.dev_info,
+            )
+        }
+    }
+
+    /// Reduces the matrix to bidiagonal form in place.
+    /// Waits for completion before returning.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if inputs or workspace are invalid, or if cuSOLVER reports a failure.
+    /// Also returns an error if the context's stream is capturing or waiting for completion fails.
+    pub fn execute(&self, context: &Context, bindings: GebrdBindings<'_, T>) -> Result<()> {
+        // SAFETY: `sync_scope` rejects capture and waits for the work before the borrowed bindings are released, on every path.
+        context.sync_scope(|| unsafe { self.execute_async(context, bindings) })
     }
 }
 
 impl<T> Orgbr<T>
 where
-    T: DeviceRepr + OrgbrScalar,
+    T: SolverElement,
 {
     /// Creates a typed ORGBR/UNGBR operation.
     #[must_use]
@@ -1860,30 +1834,6 @@ where
         }
     }
 
-    /// Returns whether to form `Q` or `P`.
-    #[must_use]
-    pub const fn side(&self) -> SideMode {
-        self.side
-    }
-
-    /// Returns the output matrix row count.
-    #[must_use]
-    pub const fn rows(&self) -> usize {
-        self.rows
-    }
-
-    /// Returns the output matrix column count.
-    #[must_use]
-    pub const fn cols(&self) -> usize {
-        self.cols
-    }
-
-    /// Returns the number of elementary reflectors.
-    #[must_use]
-    pub const fn reflectors(&self) -> usize {
-        self.reflectors
-    }
-
     /// Returns the required legacy workspace length in elements.
     ///
     /// # Errors
@@ -1893,37 +1843,51 @@ where
         T::orgbr_buffer_size(context, self.side, self.rows, self.cols, self.reflectors, a)
     }
 
-    /// Forms the explicit bidiagonalization factor matrix in place.
+    /// Enqueues this operation on the context's stream without waiting for it; [`Self::execute`] is the waiting form.
+    ///
+    /// # Safety
+    ///
+    /// Follow the [raw execution contract](crate#raw-execution).
     ///
     /// # Errors
     ///
     /// Returns an error if inputs or workspace are invalid, or if cuSOLVER reports a failure.
-    pub fn run(&self, context: &Context, args: OrgbrArgs<'_, T>) -> Result<()> {
-        context.sync_scope(|| {
-            context.prepare_region(&args.a.data)?;
-            context.prepare_region(&args.tau.data)?;
-            context.prepare_region(&args.workspace)?;
-            context.prepare_region(&args.dev_info)?;
-            // SAFETY: the prepared bindings remain borrowed until this scope completes.
-            unsafe {
-                T::orgbr(
-                    context,
-                    self.side,
-                    self.rows,
-                    self.cols,
-                    self.reflectors,
-                    args.a,
-                    args.tau,
-                    args.workspace,
-                    args.dev_info,
-                )
-            }
-        })
+    pub unsafe fn execute_async(
+        &self,
+        context: &Context,
+        bindings: OrgbrBindings<'_, T>,
+    ) -> Result<()> {
+        // SAFETY: forwards this method's raw execution contract unchanged; the callee validates the bindings and orders the work after their producers.
+        unsafe {
+            T::orgbr(
+                context,
+                self.side,
+                self.rows,
+                self.cols,
+                self.reflectors,
+                bindings.a,
+                bindings.tau,
+                bindings.workspace,
+                bindings.dev_info,
+            )
+        }
+    }
+
+    /// Forms the explicit bidiagonalization factor matrix in place.
+    /// Waits for completion before returning.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if inputs or workspace are invalid, or if cuSOLVER reports a failure.
+    /// Also returns an error if the context's stream is capturing or waiting for completion fails.
+    pub fn execute(&self, context: &Context, bindings: OrgbrBindings<'_, T>) -> Result<()> {
+        // SAFETY: `sync_scope` rejects capture and waits for the work before the borrowed bindings are released, on every path.
+        context.sync_scope(|| unsafe { self.execute_async(context, bindings) })
     }
 }
 
-impl<'a, T: DeviceRepr> PotrfArgs<'a, T> {
-    /// Groups the matrix, workspace, and info buffer needed by [`Potrf::run`].
+impl<'a, T: DeviceRepr> PotrfBindings<'a, T> {
+    /// Groups the matrix, workspace, and info buffer needed by [`Potrf::execute`].
     #[must_use]
     pub const fn new(
         a: MatrixMut<'a, T>,
@@ -1938,7 +1902,7 @@ impl<'a, T: DeviceRepr> PotrfArgs<'a, T> {
     }
 }
 
-impl<'a, T: DeviceRepr> GetrfArgs<'a, T> {
+impl<'a, T: DeviceRepr> GetrfBindings<'a, T> {
     /// Groups the matrix, optional pivot buffer, workspace, and info buffer.
     #[must_use]
     pub const fn new(
@@ -1956,7 +1920,7 @@ impl<'a, T: DeviceRepr> GetrfArgs<'a, T> {
     }
 }
 
-impl<'a, TA: DeviceRepr, TB: DeviceRepr> GetrsArgs<'a, TA, TB> {
+impl<'a, TA: DeviceRepr, TB: DeviceRepr> GetrsBindings<'a, TA, TB> {
     /// Groups the factorized matrix, pivots, right-hand sides, and info buffer.
     #[must_use]
     pub const fn new(
@@ -1974,7 +1938,7 @@ impl<'a, TA: DeviceRepr, TB: DeviceRepr> GetrsArgs<'a, TA, TB> {
     }
 }
 
-impl<'a, T: DeviceRepr> TrtriArgs<'a, T> {
+impl<'a, T: DeviceRepr> TrtriBindings<'a, T> {
     /// Groups the triangular matrix, workspace, and info buffer.
     #[must_use]
     pub const fn new(
@@ -1990,7 +1954,7 @@ impl<'a, T: DeviceRepr> TrtriArgs<'a, T> {
     }
 }
 
-impl<'a, TA: DeviceRepr, TB: DeviceRepr> SytrsArgs<'a, TA, TB> {
+impl<'a, TA: DeviceRepr, TB: DeviceRepr> SytrsBindings<'a, TA, TB> {
     /// Groups the factorized matrix, optional pivots, right-hand sides, workspace, and info buffer.
     #[must_use]
     pub const fn new(
@@ -2010,7 +1974,7 @@ impl<'a, TA: DeviceRepr, TB: DeviceRepr> SytrsArgs<'a, TA, TB> {
     }
 }
 
-impl<'a, T: DeviceRepr> SytrfArgs<'a, T> {
+impl<'a, T: DeviceRepr> SytrfBindings<'a, T> {
     /// Groups the factor matrix, optional pivot buffer, workspace, and info buffer.
     #[must_use]
     pub const fn new(
@@ -2028,9 +1992,9 @@ impl<'a, T: DeviceRepr> SytrfArgs<'a, T> {
     }
 }
 
-impl<'a, T> SytrdArgs<'a, T>
+impl<'a, T> SytrdBindings<'a, T>
 where
-    T: DeviceRepr + SytrdScalar,
+    T: SolverElement,
 {
     /// Groups the matrix, tridiagonal outputs, reflectors, workspace, and info buffer.
     #[must_use]
@@ -2053,7 +2017,7 @@ where
     }
 }
 
-impl<'a, T: DeviceRepr> OrgtrArgs<'a, T> {
+impl<'a, T: DeviceRepr> OrgtrBindings<'a, T> {
     /// Groups the matrix, tau vector, workspace, and info buffer.
     #[must_use]
     pub const fn new(
@@ -2071,7 +2035,7 @@ impl<'a, T: DeviceRepr> OrgtrArgs<'a, T> {
     }
 }
 
-impl<'a, T: DeviceRepr> OrmtrArgs<'a, T> {
+impl<'a, T: DeviceRepr> OrmtrBindings<'a, T> {
     /// Groups the reflector matrix, tau vector, target matrix, workspace, and info buffer.
     #[must_use]
     pub const fn new(
@@ -2091,7 +2055,7 @@ impl<'a, T: DeviceRepr> OrmtrArgs<'a, T> {
     }
 }
 
-impl<'a, TV: DeviceRepr, TTau: DeviceRepr, TT: DeviceRepr> LarftArgs<'a, TV, TTau, TT> {
+impl<'a, TV: DeviceRepr, TTau: DeviceRepr, TT: DeviceRepr> LarftBindings<'a, TV, TTau, TT> {
     /// Groups the reflector matrix, tau vector, output factor, and workspace.
     #[must_use]
     pub const fn new(
@@ -2109,7 +2073,7 @@ impl<'a, TV: DeviceRepr, TTau: DeviceRepr, TT: DeviceRepr> LarftArgs<'a, TV, TTa
     }
 }
 
-impl<'a, TA: DeviceRepr, TTau: DeviceRepr> GeqrfArgs<'a, TA, TTau> {
+impl<'a, TA: DeviceRepr, TTau: DeviceRepr> GeqrfBindings<'a, TA, TTau> {
     /// Groups the matrix, tau vector, workspace, and info buffer.
     #[must_use]
     pub const fn new(
@@ -2127,7 +2091,7 @@ impl<'a, TA: DeviceRepr, TTau: DeviceRepr> GeqrfArgs<'a, TA, TTau> {
     }
 }
 
-impl<'a, T: DeviceRepr> OrmqrArgs<'a, T> {
+impl<'a, T: DeviceRepr> OrmqrBindings<'a, T> {
     /// Groups the reflector matrix, tau vector, target matrix, workspace, and info buffer.
     #[must_use]
     pub const fn new(
@@ -2147,7 +2111,7 @@ impl<'a, T: DeviceRepr> OrmqrArgs<'a, T> {
     }
 }
 
-impl<'a, T: DeviceRepr> OrgqrArgs<'a, T> {
+impl<'a, T: DeviceRepr> OrgqrBindings<'a, T> {
     /// Groups the matrix, tau vector, workspace, and info buffer.
     #[must_use]
     pub const fn new(
@@ -2165,9 +2129,9 @@ impl<'a, T: DeviceRepr> OrgqrArgs<'a, T> {
     }
 }
 
-impl<'a, T> GebrdArgs<'a, T>
+impl<'a, T> GebrdBindings<'a, T>
 where
-    T: DeviceRepr + GebrdScalar,
+    T: SolverElement,
 {
     /// Groups the matrix, bidiagonal outputs, reflectors, workspace, and info buffer.
     #[must_use]
@@ -2192,7 +2156,7 @@ where
     }
 }
 
-impl<'a, T: DeviceRepr> OrgbrArgs<'a, T> {
+impl<'a, T: DeviceRepr> OrgbrBindings<'a, T> {
     /// Groups the matrix, tau vector, workspace, and info buffer.
     #[must_use]
     pub const fn new(
@@ -2210,8 +2174,8 @@ impl<'a, T: DeviceRepr> OrgbrArgs<'a, T> {
     }
 }
 
-impl<'a, T: DeviceRepr> PotrsArgs<'a, T> {
-    /// Groups the factorized matrix, right-hand sides, and info buffer needed by [`Potrs::run`].
+impl<'a, T: DeviceRepr> PotrsBindings<'a, T> {
+    /// Groups the factorized matrix, right-hand sides, and info buffer needed by [`Potrs::execute`].
     #[must_use]
     pub const fn new(
         factor: MatrixRef<'a, T>,
@@ -2226,8 +2190,8 @@ impl<'a, T: DeviceRepr> PotrsArgs<'a, T> {
     }
 }
 
-impl<'a, T: DeviceRepr> PotriArgs<'a, T> {
-    /// Groups the factorized matrix, workspace, and info buffer needed by [`Potri::run`].
+impl<'a, T: DeviceRepr> PotriBindings<'a, T> {
+    /// Groups the factorized matrix, workspace, and info buffer needed by [`Potri::execute`].
     #[must_use]
     pub const fn new(
         factor: MatrixMut<'a, T>,
@@ -2242,15 +2206,15 @@ impl<'a, T: DeviceRepr> PotriArgs<'a, T> {
     }
 }
 
-impl<'a, T: DeviceRepr> BatchedPotrfArgs<'a, T> {
-    /// Groups the matrix pointer array and info buffer needed by [`BatchedPotrf::run`].
+impl<'a, T: DeviceRepr> BatchedPotrfBindings<'a, T> {
+    /// Groups the matrix pointer array and info buffer needed by [`BatchedPotrf::execute`].
     #[must_use]
     pub const fn new(a: BatchedMatrixRef<'a, T>, info: DeviceOutputView<'a, i32>) -> Self {
         Self { a, info }
     }
 }
 
-impl<'a, T: DeviceRepr> BatchedPotrsArgs<'a, T> {
+impl<'a, T: DeviceRepr> BatchedPotrsBindings<'a, T> {
     /// Groups the factor pointer array, right-hand-side pointer array, and info buffer.
     #[must_use]
     pub const fn new(

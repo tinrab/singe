@@ -1,18 +1,16 @@
-use std::error::Error;
-
 use singe_cublas::{
     lt::{
         context::Context as LtContext,
         descriptor::MatrixLayout,
-        matmul::{MatmulDescriptor, matmul},
+        matmul::{MatmulDescriptor, matmul_async},
         types::BatchMode,
     },
+    scalar::Scalar,
     types::{ComputeType, Operation},
 };
-
 use singe_cuda::{
     context::Context as CudaContext, data_type::DataType, device::Device, memory::DeviceMemory,
-    types::f16,
+    types::f16, view::DeviceInputView,
 };
 
 const M: u64 = 2;
@@ -21,7 +19,7 @@ const K: u64 = 2;
 const BATCH_COUNT: i32 = 2;
 const WORKSPACE_BYTES: usize = 1 << 20;
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() -> anyhow::Result<()> {
     let cuda = CudaContext::create_for_device(Device::new(0))?;
     let lt = LtContext::create(&cuda)?;
 
@@ -39,12 +37,12 @@ fn main() -> Result<(), Box<dyn Error>> {
         DeviceMemory::from_slice(&cuda, &[one, two, three, four])?,
     ];
     let c_batches = [
-        DeviceMemory::<f16>::zeroed(&cuda, (M * N) as usize)?,
-        DeviceMemory::<f16>::zeroed(&cuda, (M * N) as usize)?,
+        DeviceMemory::<f16>::zeroed(&cuda, usize::try_from(M * N)?)?,
+        DeviceMemory::<f16>::zeroed(&cuda, usize::try_from(M * N)?)?,
     ];
     let mut d_batches = [
-        DeviceMemory::<f16>::zeroed(&cuda, (M * N) as usize)?,
-        DeviceMemory::<f16>::zeroed(&cuda, (M * N) as usize)?,
+        DeviceMemory::<f16>::zeroed(&cuda, usize::try_from(M * N)?)?,
+        DeviceMemory::<f16>::zeroed(&cuda, usize::try_from(M * N)?)?,
     ];
 
     let a_ptrs = DeviceMemory::from_slice(
@@ -77,19 +75,19 @@ fn main() -> Result<(), Box<dyn Error>> {
     )?;
     let mut workspace = DeviceMemory::<u8>::create_uninit(&cuda, WORKSPACE_BYTES)?;
 
-    let mut a_layout = MatrixLayout::create(DataType::F16, M, K, M as i64)?;
+    let mut a_layout = MatrixLayout::create(DataType::F16, M, K, i64::try_from(M)?)?;
     a_layout.set_batch_count(BATCH_COUNT)?;
     a_layout.set_batch_mode(BatchMode::PointerArray)?;
 
-    let mut b_layout = MatrixLayout::create(DataType::F16, K, N, K as i64)?;
+    let mut b_layout = MatrixLayout::create(DataType::F16, K, N, i64::try_from(K)?)?;
     b_layout.set_batch_count(BATCH_COUNT)?;
     b_layout.set_batch_mode(BatchMode::PointerArray)?;
 
-    let mut c_layout = MatrixLayout::create(DataType::F16, M, N, M as i64)?;
+    let mut c_layout = MatrixLayout::create(DataType::F16, M, N, i64::try_from(M)?)?;
     c_layout.set_batch_count(BATCH_COUNT)?;
     c_layout.set_batch_mode(BatchMode::PointerArray)?;
 
-    let mut d_layout = MatrixLayout::create(DataType::F16, M, N, M as i64)?;
+    let mut d_layout = MatrixLayout::create(DataType::F16, M, N, i64::try_from(M)?)?;
     d_layout.set_batch_count(BATCH_COUNT)?;
     d_layout.set_batch_mode(BatchMode::PointerArray)?;
 
@@ -101,21 +99,21 @@ fn main() -> Result<(), Box<dyn Error>> {
     let beta = 0.0_f32;
     // SAFETY: layouts match the retained buffers and scalars; the default stream is drained below.
     unsafe {
-        matmul(
+        matmul_async(
             &lt,
             &desc,
-            &alpha,
+            Scalar::host(&alpha),
             &a_ptrs,
             &a_layout,
             &b_ptrs,
             &b_layout,
-            &beta,
-            &c_ptrs,
+            Scalar::host(&beta),
+            Some(DeviceInputView::from_buffer(&c_ptrs)),
             &c_layout,
             &mut d_ptrs,
             &d_layout,
             None,
-            Some(&mut workspace),
+            Some(workspace.output()),
             None,
         )
     }?;

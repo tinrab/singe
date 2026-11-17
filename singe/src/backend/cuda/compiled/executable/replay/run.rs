@@ -168,7 +168,7 @@ pub fn run_replay_submission(
 
         // SAFETY: the declared resources retain every buffer and the stream orders all access to them.
         unsafe {
-            submission.enqueue(resources, || Ok(executable.launch(stream.raw())?))?;
+            submission.enqueue(resources, || Ok(executable.launch_async(stream.raw())?))?;
         }
 
         drop(executable);

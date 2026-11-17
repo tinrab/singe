@@ -6,41 +6,40 @@
 [![Documentation](https://docs.rs/singe-curand/badge.svg)](https://docs.rs/singe-curand)
 ![License](https://img.shields.io/crates/l/singe-curand.svg)
 
-Safe Rust wrappers for the NVIDIA cuRAND host API, for random number generation on the GPU or CPU.
+Safe Rust wrappers for the cuRAND host API, NVIDIA's random number generation library.
+A `Generator` fills device memory on a CUDA stream, and a `HostGenerator` fills host slices on the calling thread with the same algorithms.
 
 This crate provides:
 
-- GPU random-number generation through `Generator` and CPU generation through `HostGenerator`.
-- Pseudorandom and quasirandom generators with seed and offset control.
-- Integer, uniform, normal, log-normal, and Poisson distributions.
-- Methods that wait for the generated values, and `unsafe` asynchronous methods that don't.
+- **Generators:** the `XORWOW`, `MRG32k3a`, `MTGP32`, `MT19937`, and Philox pseudorandom generators, and scrambled and unscrambled Sobol quasirandom generators, with seed, offset, ordering, and dimension settings.
+- **Distributions:** integer, uniform, normal, log-normal, and Poisson output in `u32`, `u64`, `f32`, and `f64`, through the `generate_*` methods.
+- **Device-side support:** `DiscreteDistribution`, a Poisson histogram for kernels that use cuRAND's device API, and the Sobol direction vectors and scramble constants in `quasi`.
 
 ## Example
 
-Generate reproducible uniform values on the GPU:
+Generate 1024 reproducible uniform values on the GPU and copy them to the host:
 
-```rust
-use std::sync::Arc;
-use singe_cuda::{context::Context, memory::DeviceMemory};
+```rust,no_run
+use singe_cuda::{context::Context, memory::DeviceMemory, stream::StreamOptions};
 use singe_curand::{generator::Generator, types::RngType};
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-	let context = Context::create()?;
-	let stream = Arc::new(context.create_stream()?);
-	let mut generator = Generator::create(RngType::PseudoPhilox4_32_10, &stream)?;
-	generator.set_seed(1234)?;
-	let mut output = DeviceMemory::<f32>::create_uninit(&context, 1024)?;
-	let values = generator.generate_uniform_f32(&mut output)?.copy_to_host_vec()?;
-	assert!(values.iter().all(|&value| value > 0.0 && value <= 1.0));
-	Ok(())
+fn main() -> anyhow::Result<()> {
+    let context = Context::create()?;
+    let stream = context.create_stream(StreamOptions::default())?;
+
+    let mut generator = Generator::create(RngType::PseudoPhilox4_32_10, &stream)?;
+    generator.set_seed(1234)?;
+
+    let mut output = DeviceMemory::<f32>::create_uninit(&context, 1024)?;
+    let values = generator.generate_uniform_f32(&mut output)?.copy_to_host_vec()?;
+    assert!(values.iter().all(|&value| value > 0.0 && value <= 1.0));
+    Ok(())
 }
 ```
 
-The generator keeps its stream and context alive, and the method returns once the values are ready.
-Use `HostGenerator` to fill host memory, or the `unsafe` `generate_*_async` methods to queue generation without waiting.
+`generate_uniform_f32` returns once the values are ready, as a view of the now-initialized output.
+The `unsafe` `generate_*_async` methods enqueue generation on the generator's stream without waiting.
 
 ## More examples
 
-- [Host API](examples/host_api.rs): generate on the GPU and CPU with a fixed seed.
-
-See the [API reference](https://docs.rs/singe-curand).
+- [Host API](./examples/host_api.rs): generate uniform values on the GPU and on the CPU from the same seed.

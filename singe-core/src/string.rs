@@ -1,7 +1,7 @@
 #[cfg(unix)]
 use std::os::unix::ffi::OsStrExt;
 use std::{
-    ffi::{CStr, CString, NulError},
+    ffi::{CStr, CString, NulError, c_char},
     path::Path,
     slice,
 };
@@ -9,7 +9,8 @@ use std::{
 /// Converts a filesystem path to a C string.
 ///
 /// On Unix, paths are converted from their raw OS bytes.
-/// On other platforms, paths are converted as UTF-8. Interior NUL bytes are reported as [`NulError`].
+/// On other platforms, paths are converted as UTF-8.
+/// Interior NUL bytes are reported as [`NulError`].
 ///
 /// # Errors
 ///
@@ -31,8 +32,8 @@ pub fn path_to_cstring(path: &Path) -> Result<CString, NulError> {
 /// Bytes after the first NUL are ignored and invalid UTF-8 is replaced with the Unicode replacement character.
 /// If the buffer has no NUL terminator, the whole bounded buffer is converted.
 #[must_use]
-pub fn string_from_c_chars(buffer: &[i8]) -> String {
-    // SAFETY: `i8` and `u8` have the same size and alignment, so the buffer can be viewed as bytes.
+pub fn string_from_c_chars(buffer: &[c_char]) -> String {
+    // SAFETY: `c_char` and `u8` have the same size and alignment, so the buffer can be viewed as bytes.
     let bytes = unsafe { slice::from_raw_parts(buffer.as_ptr().cast::<u8>(), buffer.len()) };
     let end = bytes
         .iter()
@@ -50,12 +51,12 @@ pub fn string_from_c_chars(buffer: &[i8]) -> String {
 ///
 /// `ptr` must be either null or a valid pointer accepted by [`CStr::from_ptr`].
 #[must_use]
-pub unsafe fn string_from_c_ptr(ptr: *const i8) -> String {
+pub unsafe fn string_from_c_ptr(ptr: *const c_char) -> String {
     if ptr.is_null() {
         return String::new();
     }
 
-    // SAFETY: the caller upholds this function's safety contract.
+    // SAFETY: `ptr` is non-null here, and the caller guarantees it points to a NUL-terminated string valid for this call.
     unsafe { CStr::from_ptr(ptr).to_string_lossy().into_owned() }
 }
 
@@ -67,23 +68,29 @@ pub unsafe fn string_from_c_ptr(ptr: *const i8) -> String {
 ///
 /// `ptr` must be null or point to a NUL-terminated string with static storage duration, such as the strings returned by CUDA library error-name functions.
 #[must_use]
-pub unsafe fn static_str_from_c_ptr(ptr: *const i8, fallback: &'static str) -> &'static str {
+pub unsafe fn static_str_from_c_ptr(ptr: *const c_char, fallback: &'static str) -> &'static str {
     if ptr.is_null() {
         return fallback;
     }
 
-    // SAFETY: the caller guarantees a NUL-terminated string with static storage.
+    // SAFETY: `ptr` is non-null here, and the caller guarantees a NUL-terminated string with static storage.
     unsafe { CStr::from_ptr(ptr) }.to_str().unwrap_or(fallback)
 }
 
-/// Copies a Rust string into a fixed C character buffer.
+/// Copies a Rust string into a fixed C character buffer and terminates it with a NUL.
 ///
-/// At most `N - 1` bytes are copied and the remaining buffer contents are left unchanged.
-/// To guarantee a trailing NUL, zero-initialize the destination before calling this function.
-pub fn copy_string_to_c_chars<const N: usize>(buffer: &mut [i8; N], value: &str) {
+/// At most `N - 1` bytes are copied, followed by a NUL; bytes after the NUL are left unchanged.
+/// An empty buffer is left unchanged.
+pub fn copy_string_to_c_chars<const N: usize>(buffer: &mut [c_char; N], value: &str) {
+    let Some(capacity) = N.checked_sub(1) else {
+        return;
+    };
+
     let bytes = value.as_bytes();
-    let len = bytes.len().min(N.saturating_sub(1));
+    let len = bytes.len().min(capacity);
     for (slot, byte) in buffer.iter_mut().zip(bytes.iter().copied()).take(len) {
-        *slot = byte.cast_signed();
+        *slot = c_char::from_ne_bytes([byte]);
     }
+
+    buffer[len] = 0;
 }

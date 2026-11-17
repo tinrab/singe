@@ -18,41 +18,42 @@ pub const NVTIFF_TAG_MODEL_TIE_POINT: u32 = 33922;
 pub const NVTIFF_TAG_MODEL_TRANSFORMATION: u32 = 34264;
 /// Unsigned C `size_t`, used for byte counts and object sizes in the native ABI.
 pub type size_t = ::core::ffi::c_ulong;
-/// Return status codes for nvTIFF APIs.
-#[repr(u32)]
-#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum nvtiffStatus {
+impl nvtiffStatus {
     /// The API call finished successfully. Note that many calls are asynchronous and some errors may only be seen after synchronization.
-    NVTIFF_STATUS_SUCCESS = 0,
+    pub const NVTIFF_STATUS_SUCCESS: nvtiffStatus = nvtiffStatus(0);
     /// The library handle was not initialized.
-    NVTIFF_STATUS_NOT_INITIALIZED = 1,
+    pub const NVTIFF_STATUS_NOT_INITIALIZED: nvtiffStatus = nvtiffStatus(1);
     /// Wrong parameter was passed. For example, a null pointer as input data, or an invalid enum value.
-    NVTIFF_STATUS_INVALID_PARAMETER = 2,
+    pub const NVTIFF_STATUS_INVALID_PARAMETER: nvtiffStatus = nvtiffStatus(2);
     /// Cannot parse the TIFF stream. Likely due to a corruption that cannot be handled.
-    NVTIFF_STATUS_BAD_TIFF = 3,
+    pub const NVTIFF_STATUS_BAD_TIFF: nvtiffStatus = nvtiffStatus(3);
     /// Attempting to decode a TIFF stream that is not supported by the nvTIFF library.
-    NVTIFF_STATUS_TIFF_NOT_SUPPORTED = 4,
+    pub const NVTIFF_STATUS_TIFF_NOT_SUPPORTED: nvtiffStatus = nvtiffStatus(4);
     /// The user-provided allocator functions returned a non-zero code.
-    NVTIFF_STATUS_ALLOCATOR_FAILURE = 5,
+    pub const NVTIFF_STATUS_ALLOCATOR_FAILURE: nvtiffStatus = nvtiffStatus(5);
     /// Error during the execution of the device tasks.
-    NVTIFF_STATUS_EXECUTION_FAILED = 6,
+    pub const NVTIFF_STATUS_EXECUTION_FAILED: nvtiffStatus = nvtiffStatus(6);
     /// The device capabilities are not enough for the set of input parameters provided.
-    NVTIFF_STATUS_ARCH_MISMATCH = 7,
+    pub const NVTIFF_STATUS_ARCH_MISMATCH: nvtiffStatus = nvtiffStatus(7);
     /// Unknown error occurred in the library.
-    NVTIFF_STATUS_INTERNAL_ERROR = 8,
+    pub const NVTIFF_STATUS_INTERNAL_ERROR: nvtiffStatus = nvtiffStatus(8);
     /// nvTIFF is unable to load the nvcomp library.
-    NVTIFF_STATUS_NVCOMP_NOT_FOUND = 9,
+    pub const NVTIFF_STATUS_NVCOMP_NOT_FOUND: nvtiffStatus = nvtiffStatus(9);
     /// nvTIFF is unable to load the nvjpeg library.
-    NVTIFF_STATUS_NVJPEG_NOT_FOUND = 10,
+    pub const NVTIFF_STATUS_NVJPEG_NOT_FOUND: nvtiffStatus = nvtiffStatus(10);
     /// nvTIFF is unable to find information about the provided tag.
-    NVTIFF_STATUS_TAG_NOT_FOUND = 11,
+    pub const NVTIFF_STATUS_TAG_NOT_FOUND: nvtiffStatus = nvtiffStatus(11);
     /// Provided parameter is outside the range of possible values.
-    NVTIFF_STATUS_PARAMETER_OUT_OF_BOUNDS = 12,
+    pub const NVTIFF_STATUS_PARAMETER_OUT_OF_BOUNDS: nvtiffStatus = nvtiffStatus(12);
     /// nvTIFF is unable to load the nvJPEG2000 library.
-    NVTIFF_STATUS_NVJPEG2K_NOT_FOUND = 13,
+    pub const NVTIFF_STATUS_NVJPEG2K_NOT_FOUND: nvtiffStatus = nvtiffStatus(13);
     /// Each region in a multi-region decode request is individually decodable, but the requested regions cannot execute as one compatible batch under the current batching rules. Distinct from invalid-parameter and single-image unsupported-image errors.
-    NVTIFF_STATUS_BATCH_INCOMPATIBLE = 14,
+    pub const NVTIFF_STATUS_BATCH_INCOMPATIBLE: nvtiffStatus = nvtiffStatus(14);
 }
+/// Return status codes for nvTIFF APIs.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct nvtiffStatus(pub ::core::ffi::c_uint);
 pub use self::nvtiffStatus as nvtiffStatus_t;
 /// Opaque nvTIFF encoder instance type.
 #[repr(C)]
@@ -70,227 +71,193 @@ pub struct nvtiffEncodeParams {
 }
 /// Handle to opaque nvTIFF encode parameters.
 pub type nvtiffEncodeParams_t = *mut nvtiffEncodeParams;
-/// TIFF file format variant.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum nvtiffVariant {
+impl nvtiffVariant {
     /// Standard TIFF format (up to 4GB file size).
-    NVTIFF_REGULAR_TIFF = 42,
+    pub const NVTIFF_REGULAR_TIFF: nvtiffVariant = nvtiffVariant(42);
     /// BigTIFF format (supports files larger than 4GB).
-    NVTIFF_BIG_TIFF = 43,
+    pub const NVTIFF_BIG_TIFF: nvtiffVariant = nvtiffVariant(43);
 }
+/// TIFF file format variant.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct nvtiffVariant(pub ::core::ffi::c_uint);
 pub use self::nvtiffVariant as nvtiffVariant_t;
 impl nvtiffGeoKeys {
+    /// Model type.
+    pub const NVTIFF_GEOKEY_GT_MODEL_TYPE: nvtiffGeoKeys = nvtiffGeoKeys(1024);
+    /// Raster type.
+    pub const NVTIFF_GEOKEY_GT_RASTER_TYPE: nvtiffGeoKeys = nvtiffGeoKeys(1025);
+    /// Citation.
+    pub const NVTIFF_GEOKEY_GT_CITATION: nvtiffGeoKeys = nvtiffGeoKeys(1026);
+    /// Geodetic CRS.
+    pub const NVTIFF_GEOKEY_GEODETIC_CRS: nvtiffGeoKeys = nvtiffGeoKeys(2048);
+    /// Geodetic citation.
+    pub const NVTIFF_GEOKEY_GEODETIC_CITATION: nvtiffGeoKeys = nvtiffGeoKeys(2049);
+    /// Geodetic datum.
+    pub const NVTIFF_GEOKEY_GEODETIC_DATUM: nvtiffGeoKeys = nvtiffGeoKeys(2050);
+    /// Prime meridian.
+    pub const NVTIFF_GEOKEY_PRIME_MERIDIAN: nvtiffGeoKeys = nvtiffGeoKeys(2051);
+    /// Geographic linear units.
+    pub const NVTIFF_GEOKEY_GEOG_LINEAR_UNITS: nvtiffGeoKeys = nvtiffGeoKeys(2052);
+    /// Geographic linear unit size.
+    pub const NVTIFF_GEOKEY_GEOG_LINEAR_UNIT_SIZE: nvtiffGeoKeys = nvtiffGeoKeys(2053);
+    /// Geographic angular units.
+    pub const NVTIFF_GEOKEY_GEOG_ANGULAR_UNITS: nvtiffGeoKeys = nvtiffGeoKeys(2054);
+    /// Geographic angular unit size.
+    pub const NVTIFF_GEOKEY_GEOG_ANGULAR_UNIT_SIZE: nvtiffGeoKeys = nvtiffGeoKeys(2055);
+    /// Ellipsoid.
+    pub const NVTIFF_GEOKEY_ELLIPSOID: nvtiffGeoKeys = nvtiffGeoKeys(2056);
+    /// Ellipsoid semi-major axis.
+    pub const NVTIFF_GEOKEY_ELLIPSOID_SEMI_MAJOR_AXIS: nvtiffGeoKeys = nvtiffGeoKeys(
+        2057,
+    );
+    /// Ellipsoid semi-minor axis.
+    pub const NVTIFF_GEOKEY_ELLIPSOID_SEMI_MINOR_AXIS: nvtiffGeoKeys = nvtiffGeoKeys(
+        2058,
+    );
+    /// Ellipsoid inverse flattening.
+    pub const NVTIFF_GEOKEY_ELLIPSOID_INV_FLATTENING: nvtiffGeoKeys = nvtiffGeoKeys(
+        2059,
+    );
+    /// Geographic azimuth units.
+    pub const NVTIFF_GEOKEY_GEOG_AZIMUTH_UNITS: nvtiffGeoKeys = nvtiffGeoKeys(2060);
+    /// Prime meridian longitude.
+    pub const NVTIFF_GEOKEY_PRIME_MERIDIAN_LONG: nvtiffGeoKeys = nvtiffGeoKeys(2061);
+    /// Projected CRS.
+    pub const NVTIFF_GEOKEY_PROJECTED_CRS: nvtiffGeoKeys = nvtiffGeoKeys(3072);
+    /// Projected citation.
+    pub const NVTIFF_GEOKEY_PROJECTED_CITATION: nvtiffGeoKeys = nvtiffGeoKeys(3073);
+    /// Projection.
+    pub const NVTIFF_GEOKEY_PROJECTION: nvtiffGeoKeys = nvtiffGeoKeys(3074);
+    /// Projection method.
+    pub const NVTIFF_GEOKEY_PROJ_METHOD: nvtiffGeoKeys = nvtiffGeoKeys(3075);
+    /// Projection linear units.
+    pub const NVTIFF_GEOKEY_PROJ_LINEAR_UNITS: nvtiffGeoKeys = nvtiffGeoKeys(3076);
+    /// Projection linear unit size.
+    pub const NVTIFF_GEOKEY_PROJ_LINEAR_UNIT_SIZE: nvtiffGeoKeys = nvtiffGeoKeys(3077);
+    /// Standard parallel 1.
+    pub const NVTIFF_GEOKEY_PROJ_STD_PARALLEL1: nvtiffGeoKeys = nvtiffGeoKeys(3078);
     /// Standard parallel (alias for PROJ_STD_PARALLEL1).
-    pub const NVTIFF_GEOKEY_PROJ_STD_PARALLEL: nvtiffGeoKeys = nvtiffGeoKeys::NVTIFF_GEOKEY_PROJ_STD_PARALLEL1;
-}
-impl nvtiffGeoKeys {
+    pub const NVTIFF_GEOKEY_PROJ_STD_PARALLEL: nvtiffGeoKeys = nvtiffGeoKeys(3078);
+    /// Standard parallel 2.
+    pub const NVTIFF_GEOKEY_PROJ_STD_PARALLEL2: nvtiffGeoKeys = nvtiffGeoKeys(3079);
+    /// Natural origin longitude.
+    pub const NVTIFF_GEOKEY_PROJ_NAT_ORIGIN_LONG: nvtiffGeoKeys = nvtiffGeoKeys(3080);
     /// Origin longitude (alias for PROJ_NAT_ORIGIN_LONG).
-    pub const NVTIFF_GEOKEY_PROJ_ORIGIN_LONG: nvtiffGeoKeys = nvtiffGeoKeys::NVTIFF_GEOKEY_PROJ_NAT_ORIGIN_LONG;
-}
-impl nvtiffGeoKeys {
+    pub const NVTIFF_GEOKEY_PROJ_ORIGIN_LONG: nvtiffGeoKeys = nvtiffGeoKeys(3080);
+    /// Natural origin latitude.
+    pub const NVTIFF_GEOKEY_PROJ_NAT_ORIGIN_LAT: nvtiffGeoKeys = nvtiffGeoKeys(3081);
     /// Origin latitude (alias for PROJ_NAT_ORIGIN_LAT).
-    pub const NVTIFF_GEOKEY_PROJ_ORIGIN_LAT: nvtiffGeoKeys = nvtiffGeoKeys::NVTIFF_GEOKEY_PROJ_NAT_ORIGIN_LAT;
-}
-impl nvtiffGeoKeys {
+    pub const NVTIFF_GEOKEY_PROJ_ORIGIN_LAT: nvtiffGeoKeys = nvtiffGeoKeys(3081);
+    /// False easting.
+    pub const NVTIFF_GEOKEY_PROJ_FALSE_EASTING: nvtiffGeoKeys = nvtiffGeoKeys(3082);
+    /// False northing.
+    pub const NVTIFF_GEOKEY_PROJ_FALSE_NORTHING: nvtiffGeoKeys = nvtiffGeoKeys(3083);
+    /// False origin longitude.
+    pub const NVTIFF_GEOKEY_PROJ_FALSE_ORIGIN_LONG: nvtiffGeoKeys = nvtiffGeoKeys(3084);
+    /// False origin latitude.
+    pub const NVTIFF_GEOKEY_PROJ_FALSE_ORIGIN_LAT: nvtiffGeoKeys = nvtiffGeoKeys(3085);
+    /// False origin easting.
+    pub const NVTIFF_GEOKEY_PROJ_FALSE_ORIGIN_EASTING: nvtiffGeoKeys = nvtiffGeoKeys(
+        3086,
+    );
+    /// False origin northing.
+    pub const NVTIFF_GEOKEY_PROJ_FALSE_ORIGIN_NORTHING: nvtiffGeoKeys = nvtiffGeoKeys(
+        3087,
+    );
+    /// Center longitude.
+    pub const NVTIFF_GEOKEY_PROJ_CENTER_LONG: nvtiffGeoKeys = nvtiffGeoKeys(3088);
+    /// Center latitude.
+    pub const NVTIFF_GEOKEY_PROJ_CENTER_LAT: nvtiffGeoKeys = nvtiffGeoKeys(3089);
+    /// Center easting.
+    pub const NVTIFF_GEOKEY_PROJ_CENTER_EASTING: nvtiffGeoKeys = nvtiffGeoKeys(3090);
+    /// Center northing.
+    pub const NVTIFF_GEOKEY_PROJ_CENTER_NORTHING: nvtiffGeoKeys = nvtiffGeoKeys(3091);
+    /// Scale at natural origin.
+    pub const NVTIFF_GEOKEY_PROJ_SCALE_AT_NAT_ORIGIN: nvtiffGeoKeys = nvtiffGeoKeys(
+        3092,
+    );
     /// Scale at origin (alias for PROJ_SCALE_AT_NAT_ORIGIN).
-    pub const NVTIFF_GEOKEY_PROJ_SCALE_AT_ORIGIN: nvtiffGeoKeys = nvtiffGeoKeys::NVTIFF_GEOKEY_PROJ_SCALE_AT_NAT_ORIGIN;
+    pub const NVTIFF_GEOKEY_PROJ_SCALE_AT_ORIGIN: nvtiffGeoKeys = nvtiffGeoKeys(3092);
+    /// Scale at center.
+    pub const NVTIFF_GEOKEY_PROJ_SCALE_AT_CENTER: nvtiffGeoKeys = nvtiffGeoKeys(3093);
+    /// Azimuth angle.
+    pub const NVTIFF_GEOKEY_PROJ_AZIMUTH_ANGLE: nvtiffGeoKeys = nvtiffGeoKeys(3094);
+    /// Straight vertical pole longitude.
+    pub const NVTIFF_GEOKEY_PROJ_STRAIGHT_VERT_POLE_LONG: nvtiffGeoKeys = nvtiffGeoKeys(
+        3095,
+    );
+    /// Vertical CRS.
+    pub const NVTIFF_GEOKEY_VERTICAL: nvtiffGeoKeys = nvtiffGeoKeys(4096);
+    /// Vertical citation.
+    pub const NVTIFF_GEOKEY_VERTICAL_CITATION: nvtiffGeoKeys = nvtiffGeoKeys(4097);
+    /// Vertical datum.
+    pub const NVTIFF_GEOKEY_VERTICAL_DATUM: nvtiffGeoKeys = nvtiffGeoKeys(4098);
+    /// Vertical units.
+    pub const NVTIFF_GEOKEY_VERTICAL_UNITS: nvtiffGeoKeys = nvtiffGeoKeys(4099);
+    /// Reserved for private use.
+    pub const NVTIFF_GEOKEY_BASE: nvtiffGeoKeys = nvtiffGeoKeys(32768);
+    /// Maximum value.
+    pub const NVTIFF_GEOKEY_END: nvtiffGeoKeys = nvtiffGeoKeys(65535);
 }
 /// GeoTIFF key identifiers.
 ///
 /// Corresponds to various geo keys listed in the GeoTIFF specification. User can refer to the GeoTIFF specification for additional details.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum nvtiffGeoKeys {
-    /// Model type.
-    NVTIFF_GEOKEY_GT_MODEL_TYPE = 1024,
-    /// Raster type.
-    NVTIFF_GEOKEY_GT_RASTER_TYPE = 1025,
-    /// Citation.
-    NVTIFF_GEOKEY_GT_CITATION = 1026,
-    /// Geodetic CRS.
-    NVTIFF_GEOKEY_GEODETIC_CRS = 2048,
-    /// Geodetic citation.
-    NVTIFF_GEOKEY_GEODETIC_CITATION = 2049,
-    /// Geodetic datum.
-    NVTIFF_GEOKEY_GEODETIC_DATUM = 2050,
-    /// Prime meridian.
-    NVTIFF_GEOKEY_PRIME_MERIDIAN = 2051,
-    /// Geographic linear units.
-    NVTIFF_GEOKEY_GEOG_LINEAR_UNITS = 2052,
-    /// Geographic linear unit size.
-    NVTIFF_GEOKEY_GEOG_LINEAR_UNIT_SIZE = 2053,
-    /// Geographic angular units.
-    NVTIFF_GEOKEY_GEOG_ANGULAR_UNITS = 2054,
-    /// Geographic angular unit size.
-    NVTIFF_GEOKEY_GEOG_ANGULAR_UNIT_SIZE = 2055,
-    /// Ellipsoid.
-    NVTIFF_GEOKEY_ELLIPSOID = 2056,
-    /// Ellipsoid semi-major axis.
-    NVTIFF_GEOKEY_ELLIPSOID_SEMI_MAJOR_AXIS = 2057,
-    /// Ellipsoid semi-minor axis.
-    NVTIFF_GEOKEY_ELLIPSOID_SEMI_MINOR_AXIS = 2058,
-    /// Ellipsoid inverse flattening.
-    NVTIFF_GEOKEY_ELLIPSOID_INV_FLATTENING = 2059,
-    /// Geographic azimuth units.
-    NVTIFF_GEOKEY_GEOG_AZIMUTH_UNITS = 2060,
-    /// Prime meridian longitude.
-    NVTIFF_GEOKEY_PRIME_MERIDIAN_LONG = 2061,
-    /// Projected CRS.
-    NVTIFF_GEOKEY_PROJECTED_CRS = 3072,
-    /// Projected citation.
-    NVTIFF_GEOKEY_PROJECTED_CITATION = 3073,
-    /// Projection.
-    NVTIFF_GEOKEY_PROJECTION = 3074,
-    /// Projection method.
-    NVTIFF_GEOKEY_PROJ_METHOD = 3075,
-    /// Projection linear units.
-    NVTIFF_GEOKEY_PROJ_LINEAR_UNITS = 3076,
-    /// Projection linear unit size.
-    NVTIFF_GEOKEY_PROJ_LINEAR_UNIT_SIZE = 3077,
-    /// Standard parallel 1.
-    NVTIFF_GEOKEY_PROJ_STD_PARALLEL1 = 3078,
-    /// Standard parallel 2.
-    NVTIFF_GEOKEY_PROJ_STD_PARALLEL2 = 3079,
-    /// Natural origin longitude.
-    NVTIFF_GEOKEY_PROJ_NAT_ORIGIN_LONG = 3080,
-    /// Natural origin latitude.
-    NVTIFF_GEOKEY_PROJ_NAT_ORIGIN_LAT = 3081,
-    /// False easting.
-    NVTIFF_GEOKEY_PROJ_FALSE_EASTING = 3082,
-    /// False northing.
-    NVTIFF_GEOKEY_PROJ_FALSE_NORTHING = 3083,
-    /// False origin longitude.
-    NVTIFF_GEOKEY_PROJ_FALSE_ORIGIN_LONG = 3084,
-    /// False origin latitude.
-    NVTIFF_GEOKEY_PROJ_FALSE_ORIGIN_LAT = 3085,
-    /// False origin easting.
-    NVTIFF_GEOKEY_PROJ_FALSE_ORIGIN_EASTING = 3086,
-    /// False origin northing.
-    NVTIFF_GEOKEY_PROJ_FALSE_ORIGIN_NORTHING = 3087,
-    /// Center longitude.
-    NVTIFF_GEOKEY_PROJ_CENTER_LONG = 3088,
-    /// Center latitude.
-    NVTIFF_GEOKEY_PROJ_CENTER_LAT = 3089,
-    /// Center easting.
-    NVTIFF_GEOKEY_PROJ_CENTER_EASTING = 3090,
-    /// Center northing.
-    NVTIFF_GEOKEY_PROJ_CENTER_NORTHING = 3091,
-    /// Scale at natural origin.
-    NVTIFF_GEOKEY_PROJ_SCALE_AT_NAT_ORIGIN = 3092,
-    /// Scale at center.
-    NVTIFF_GEOKEY_PROJ_SCALE_AT_CENTER = 3093,
-    /// Azimuth angle.
-    NVTIFF_GEOKEY_PROJ_AZIMUTH_ANGLE = 3094,
-    /// Straight vertical pole longitude.
-    NVTIFF_GEOKEY_PROJ_STRAIGHT_VERT_POLE_LONG = 3095,
-    /// Vertical CRS.
-    NVTIFF_GEOKEY_VERTICAL = 4096,
-    /// Vertical citation.
-    NVTIFF_GEOKEY_VERTICAL_CITATION = 4097,
-    /// Vertical datum.
-    NVTIFF_GEOKEY_VERTICAL_DATUM = 4098,
-    /// Vertical units.
-    NVTIFF_GEOKEY_VERTICAL_UNITS = 4099,
-    /// Reserved for private use.
-    NVTIFF_GEOKEY_BASE = 32768,
-    /// Maximum value.
-    NVTIFF_GEOKEY_END = 65535,
-}
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct nvtiffGeoKeys(pub ::core::ffi::c_uint);
 pub use self::nvtiffGeoKeys as nvtiffGeoKey_t;
-/// Data type for GeoTIFF key values.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum nvtiffGeoKeyDataType {
+impl nvtiffGeoKeyDataType {
     /// 16-bit unsigned integer.
-    NVTIFF_GEOKEY_TYPE_SHORT = 1,
+    pub const NVTIFF_GEOKEY_TYPE_SHORT: nvtiffGeoKeyDataType = nvtiffGeoKeyDataType(1);
     /// ASCII string.
-    NVTIFF_GEOKEY_TYPE_ASCII = 2,
+    pub const NVTIFF_GEOKEY_TYPE_ASCII: nvtiffGeoKeyDataType = nvtiffGeoKeyDataType(2);
     /// 64-bit floating point.
-    NVTIFF_GEOKEY_TYPE_DOUBLE = 3,
+    pub const NVTIFF_GEOKEY_TYPE_DOUBLE: nvtiffGeoKeyDataType = nvtiffGeoKeyDataType(3);
     /// Unknown type.
-    NVTIFF_GEOKEY_TYPE_UNKNOWN = 4,
+    pub const NVTIFF_GEOKEY_TYPE_UNKNOWN: nvtiffGeoKeyDataType = nvtiffGeoKeyDataType(4);
 }
+/// Data type for GeoTIFF key values.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct nvtiffGeoKeyDataType(pub ::core::ffi::c_uint);
 pub use self::nvtiffGeoKeyDataType as nvtiffGeoKeyDataType_t;
-/// TIFF tag data types as defined in the TIFF specification.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum nvtiffTagDataType {
+impl nvtiffTagDataType {
     /// 8-bit unsigned integer.
-    NVTIFF_TAG_TYPE_BYTE = 1,
+    pub const NVTIFF_TAG_TYPE_BYTE: nvtiffTagDataType = nvtiffTagDataType(1);
     /// 8-bit byte containing ASCII code (null-terminated).
-    NVTIFF_TAG_TYPE_ASCII = 2,
+    pub const NVTIFF_TAG_TYPE_ASCII: nvtiffTagDataType = nvtiffTagDataType(2);
     /// 16-bit unsigned integer.
-    NVTIFF_TAG_TYPE_SHORT = 3,
+    pub const NVTIFF_TAG_TYPE_SHORT: nvtiffTagDataType = nvtiffTagDataType(3);
     /// 32-bit unsigned integer.
-    NVTIFF_TAG_TYPE_LONG = 4,
+    pub const NVTIFF_TAG_TYPE_LONG: nvtiffTagDataType = nvtiffTagDataType(4);
     /// Two LONGs: numerator and denominator.
-    NVTIFF_TAG_TYPE_RATIONAL = 5,
+    pub const NVTIFF_TAG_TYPE_RATIONAL: nvtiffTagDataType = nvtiffTagDataType(5);
     /// 8-bit signed integer.
-    NVTIFF_TAG_TYPE_SBYTE = 6,
+    pub const NVTIFF_TAG_TYPE_SBYTE: nvtiffTagDataType = nvtiffTagDataType(6);
     /// 8-bit byte that may contain anything.
-    NVTIFF_TAG_TYPE_UNDEFINED = 7,
+    pub const NVTIFF_TAG_TYPE_UNDEFINED: nvtiffTagDataType = nvtiffTagDataType(7);
     /// 16-bit signed integer.
-    NVTIFF_TAG_TYPE_SSHORT = 8,
+    pub const NVTIFF_TAG_TYPE_SSHORT: nvtiffTagDataType = nvtiffTagDataType(8);
     /// 32-bit signed integer.
-    NVTIFF_TAG_TYPE_SLONG = 9,
+    pub const NVTIFF_TAG_TYPE_SLONG: nvtiffTagDataType = nvtiffTagDataType(9);
     /// Two SLONGs: numerator and denominator.
-    NVTIFF_TAG_TYPE_SRATIONAL = 10,
+    pub const NVTIFF_TAG_TYPE_SRATIONAL: nvtiffTagDataType = nvtiffTagDataType(10);
     /// 32-bit IEEE floating point.
-    NVTIFF_TAG_TYPE_FLOAT = 11,
+    pub const NVTIFF_TAG_TYPE_FLOAT: nvtiffTagDataType = nvtiffTagDataType(11);
     /// 64-bit IEEE floating point.
-    NVTIFF_TAG_TYPE_DOUBLE = 12,
+    pub const NVTIFF_TAG_TYPE_DOUBLE: nvtiffTagDataType = nvtiffTagDataType(12);
     /// BigTIFF 64-bit unsigned integer.
-    NVTIFF_TAG_TYPE_LONG8 = 16,
+    pub const NVTIFF_TAG_TYPE_LONG8: nvtiffTagDataType = nvtiffTagDataType(16);
     /// BigTIFF 64-bit signed integer.
-    NVTIFF_TAG_TYPE_SLONG8 = 17,
+    pub const NVTIFF_TAG_TYPE_SLONG8: nvtiffTagDataType = nvtiffTagDataType(17);
     /// BigTIFF 64-bit unsigned IFD offset.
-    NVTIFF_TAG_TYPE_IFD8 = 18,
+    pub const NVTIFF_TAG_TYPE_IFD8: nvtiffTagDataType = nvtiffTagDataType(18);
 }
+/// TIFF tag data types as defined in the TIFF specification.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct nvtiffTagDataType(pub ::core::ffi::c_uint);
 pub use self::nvtiffTagDataType as nvtiffTagDataType_t;
 /// Prototype for stream-ordered device memory allocation.
 pub type nvtiffDeviceMallocAsync = ::core::option::Option<
@@ -400,164 +367,130 @@ pub struct nvtiffStream {
 ///
 /// Used for parsing a TIFF file. TIFF metadata can be extracted using parser APIs.
 pub type nvtiffStream_t = *mut nvtiffStream;
+impl nvtiffSampleFormat {
+    /// Unknown sample format.
+    pub const NVTIFF_SAMPLEFORMAT_UNKNOWN: nvtiffSampleFormat = nvtiffSampleFormat(0);
+    /// Unsigned integer data.
+    pub const NVTIFF_SAMPLEFORMAT_UINT: nvtiffSampleFormat = nvtiffSampleFormat(1);
+    /// Signed integer data.
+    pub const NVTIFF_SAMPLEFORMAT_INT: nvtiffSampleFormat = nvtiffSampleFormat(2);
+    /// IEEE floating point data.
+    pub const NVTIFF_SAMPLEFORMAT_IEEEFP: nvtiffSampleFormat = nvtiffSampleFormat(3);
+    /// Undefined data format.
+    pub const NVTIFF_SAMPLEFORMAT_VOID: nvtiffSampleFormat = nvtiffSampleFormat(4);
+    /// Complex integer data.
+    pub const NVTIFF_SAMPLEFORMAT_COMPLEXINT: nvtiffSampleFormat = nvtiffSampleFormat(5);
+    /// Complex IEEE floating point data.
+    pub const NVTIFF_SAMPLEFORMAT_COMPLEXIEEEFP: nvtiffSampleFormat = nvtiffSampleFormat(
+        6,
+    );
+}
 /// Sample format types.
 ///
 /// Corresponds to the SampleFormat (339) tag defined in the TIFF specification.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum nvtiffSampleFormat {
-    /// Unknown sample format.
-    NVTIFF_SAMPLEFORMAT_UNKNOWN = 0,
-    /// Unsigned integer data.
-    NVTIFF_SAMPLEFORMAT_UINT = 1,
-    /// Signed integer data.
-    NVTIFF_SAMPLEFORMAT_INT = 2,
-    /// IEEE floating point data.
-    NVTIFF_SAMPLEFORMAT_IEEEFP = 3,
-    /// Undefined data format.
-    NVTIFF_SAMPLEFORMAT_VOID = 4,
-    /// Complex integer data.
-    NVTIFF_SAMPLEFORMAT_COMPLEXINT = 5,
-    /// Complex IEEE floating point data.
-    NVTIFF_SAMPLEFORMAT_COMPLEXIEEEFP = 6,
-}
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct nvtiffSampleFormat(pub ::core::ffi::c_uint);
 pub use self::nvtiffSampleFormat as nvtiffSampleFormat_t;
+impl nvtiffPhotometricInt {
+    /// Unknown photometric interpretation.
+    pub const NVTIFF_PHOTOMETRIC_UNKNOWN: nvtiffPhotometricInt = nvtiffPhotometricInt(
+        -1,
+    );
+    /// 0 is white, max value is black.
+    pub const NVTIFF_PHOTOMETRIC_MINISWHITE: nvtiffPhotometricInt = nvtiffPhotometricInt(
+        0,
+    );
+    /// 0 is black, max value is white.
+    pub const NVTIFF_PHOTOMETRIC_MINISBLACK: nvtiffPhotometricInt = nvtiffPhotometricInt(
+        1,
+    );
+    /// RGB color model.
+    pub const NVTIFF_PHOTOMETRIC_RGB: nvtiffPhotometricInt = nvtiffPhotometricInt(2);
+    /// Color map indexed (palette color).
+    pub const NVTIFF_PHOTOMETRIC_PALETTE: nvtiffPhotometricInt = nvtiffPhotometricInt(3);
+    /// Holdout mask.
+    pub const NVTIFF_PHOTOMETRIC_MASK: nvtiffPhotometricInt = nvtiffPhotometricInt(4);
+    /// Color separations (e.g., CMYK).
+    pub const NVTIFF_PHOTOMETRIC_SEPARATED: nvtiffPhotometricInt = nvtiffPhotometricInt(
+        5,
+    );
+    /// YCbCr color space.
+    pub const NVTIFF_PHOTOMETRIC_YCBCR: nvtiffPhotometricInt = nvtiffPhotometricInt(6);
+}
 /// Photometric interpretation types.
 ///
 /// Corresponds to the PhotometricInterpretation (262) tag defined in the TIFF specification.
-#[repr(i32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum nvtiffPhotometricInt {
-    /// Unknown photometric interpretation.
-    NVTIFF_PHOTOMETRIC_UNKNOWN = -1,
-    /// 0 is white, max value is black.
-    NVTIFF_PHOTOMETRIC_MINISWHITE = 0,
-    /// 0 is black, max value is white.
-    NVTIFF_PHOTOMETRIC_MINISBLACK = 1,
-    /// RGB color model.
-    NVTIFF_PHOTOMETRIC_RGB = 2,
-    /// Color map indexed (palette color).
-    NVTIFF_PHOTOMETRIC_PALETTE = 3,
-    /// Holdout mask.
-    NVTIFF_PHOTOMETRIC_MASK = 4,
-    /// Color separations (e.g., CMYK).
-    NVTIFF_PHOTOMETRIC_SEPARATED = 5,
-    /// YCbCr color space.
-    NVTIFF_PHOTOMETRIC_YCBCR = 6,
-}
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct nvtiffPhotometricInt(pub ::core::ffi::c_int);
 pub use self::nvtiffPhotometricInt as nvtiffPhotometricInt_t;
+impl nvtiffPlanarConfig {
+    /// Unknown planar configuration.
+    pub const NVTIFF_PLANARCONFIG_UNKNOWN: nvtiffPlanarConfig = nvtiffPlanarConfig(0);
+    /// Chunky format (interleaved).
+    pub const NVTIFF_PLANARCONFIG_CONTIG: nvtiffPlanarConfig = nvtiffPlanarConfig(1);
+    /// Planar format (separate planes).
+    pub const NVTIFF_PLANARCONFIG_SEPARATE: nvtiffPlanarConfig = nvtiffPlanarConfig(2);
+}
 /// Planar configuration types.
 ///
 /// Corresponds to the PlanarConfiguration (284) tag defined in the TIFF specification.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum nvtiffPlanarConfig {
-    /// Unknown planar configuration.
-    NVTIFF_PLANARCONFIG_UNKNOWN = 0,
-    /// Chunky format (interleaved).
-    NVTIFF_PLANARCONFIG_CONTIG = 1,
-    /// Planar format (separate planes).
-    NVTIFF_PLANARCONFIG_SEPARATE = 2,
-}
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct nvtiffPlanarConfig(pub ::core::ffi::c_uint);
 pub use self::nvtiffPlanarConfig as nvtiffPlanarConfig_t;
+impl nvtiffCompression {
+    /// Unknown compression.
+    pub const NVTIFF_COMPRESSION_UNKNOWN: nvtiffCompression = nvtiffCompression(0);
+    /// No compression.
+    pub const NVTIFF_COMPRESSION_NONE: nvtiffCompression = nvtiffCompression(1);
+    /// LZW compression.
+    pub const NVTIFF_COMPRESSION_LZW: nvtiffCompression = nvtiffCompression(5);
+    /// JPEG compression.
+    pub const NVTIFF_COMPRESSION_JPEG: nvtiffCompression = nvtiffCompression(7);
+    /// Adobe Deflate compression.
+    pub const NVTIFF_COMPRESSION_ADOBE_DEFLATE: nvtiffCompression = nvtiffCompression(8);
+    /// PackBits compression.
+    pub const NVTIFF_COMPRESSION_PACKBITS: nvtiffCompression = nvtiffCompression(32773);
+    /// Deflate compression.
+    pub const NVTIFF_COMPRESSION_DEFLATE: nvtiffCompression = nvtiffCompression(32946);
+    /// Aperio JPEG2000 YCC compression.
+    pub const NVTIFF_COMPRESSION_APERIO_JP2000_YCC: nvtiffCompression = nvtiffCompression(
+        33003,
+    );
+    /// Aperio JPEG2000 RGB compression.
+    pub const NVTIFF_COMPRESSION_APERIO_JP2000_RGB: nvtiffCompression = nvtiffCompression(
+        33005,
+    );
+    /// JPEG2000 compression.
+    pub const NVTIFF_COMPRESSION_JP2000: nvtiffCompression = nvtiffCompression(34712);
+}
 /// Compression types.
 ///
 /// Corresponds to the Compression (259) tag defined in the TIFF specification.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum nvtiffCompression {
-    /// Unknown compression.
-    NVTIFF_COMPRESSION_UNKNOWN = 0,
-    /// No compression.
-    NVTIFF_COMPRESSION_NONE = 1,
-    /// LZW compression.
-    NVTIFF_COMPRESSION_LZW = 5,
-    /// JPEG compression.
-    NVTIFF_COMPRESSION_JPEG = 7,
-    /// Adobe Deflate compression.
-    NVTIFF_COMPRESSION_ADOBE_DEFLATE = 8,
-    /// PackBits compression.
-    NVTIFF_COMPRESSION_PACKBITS = 32773,
-    /// Deflate compression.
-    NVTIFF_COMPRESSION_DEFLATE = 32946,
-    /// Aperio JPEG2000 YCC compression.
-    NVTIFF_COMPRESSION_APERIO_JP2000_YCC = 33003,
-    /// Aperio JPEG2000 RGB compression.
-    NVTIFF_COMPRESSION_APERIO_JP2000_RGB = 33005,
-    /// JPEG2000 compression.
-    NVTIFF_COMPRESSION_JP2000 = 34712,
-}
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct nvtiffCompression(pub ::core::ffi::c_uint);
 pub use self::nvtiffCompression as nvtiffCompression_t;
+impl nvtiffImageType {
+    /// Reduced resolution version of another image.
+    pub const NVTIFF_IMAGETYPE_REDUCED_IMAGE: nvtiffImageType = nvtiffImageType(1);
+    /// Single page of a multi-page image.
+    pub const NVTIFF_IMAGETYPE_PAGE: nvtiffImageType = nvtiffImageType(2);
+    /// Transparency mask for another image.
+    pub const NVTIFF_IMAGETYPE_MASK: nvtiffImageType = nvtiffImageType(4);
+    /// Force enum to 32-bit.
+    pub const NVTIFF_IMAGETYPE_ENUM_FORCE_UINT32: nvtiffImageType = nvtiffImageType(
+        4294967295,
+    );
+}
 /// Image type flags.
 ///
 /// Corresponds to the NewSubfileType (254) tag defined in the TIFF specification.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum nvtiffImageType {
-    /// Reduced resolution version of another image.
-    NVTIFF_IMAGETYPE_REDUCED_IMAGE = 1,
-    /// Single page of a multi-page image.
-    NVTIFF_IMAGETYPE_PAGE = 2,
-    /// Transparency mask for another image.
-    NVTIFF_IMAGETYPE_MASK = 4,
-    /// Force enum to 32-bit.
-    NVTIFF_IMAGETYPE_ENUM_FORCE_UINT32 = 4294967295,
-}
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct nvtiffImageType(pub ::core::ffi::c_uint);
 /// Image type storage type.
 pub type nvtiffImageType_t = u32;
 /// TIFF image metadata structure.
@@ -600,28 +533,18 @@ impl Default for nvtiffImageInfo {
 ///
 /// Contains metadata of an image stored in a TIFF file.
 pub type nvtiffImageInfo_t = nvtiffImageInfo;
+impl nvtiffImageGeometryType {
+    /// Image is organized in strips.
+    pub const NVTIFF_IMAGE_STRIPED: nvtiffImageGeometryType = nvtiffImageGeometryType(0);
+    /// Image is organized in tiles.
+    pub const NVTIFF_IMAGE_TILED: nvtiffImageGeometryType = nvtiffImageGeometryType(1);
+}
 /// Image geometry type.
 ///
 /// Specifies whether a TIFF file uses strips or tiles.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum nvtiffImageGeometryType {
-    /// Image is organized in strips.
-    NVTIFF_IMAGE_STRIPED = 0,
-    /// Image is organized in tiles.
-    NVTIFF_IMAGE_TILED = 1,
-}
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct nvtiffImageGeometryType(pub ::core::ffi::c_uint);
 pub use self::nvtiffImageGeometryType as nvtiffImageGeometryType_t;
 /// Image geometry information.
 ///
@@ -657,21 +580,30 @@ impl Default for nvtiffImageGeometry {
 ///
 /// Stores image geometry along with strip/tile dimensions. When the geometry type is [`nvtiffImageGeometryType_t::NVTIFF_IMAGE_STRIPED`], `strile_width` equals `image_width`.
 pub type nvtiffImageGeometry_t = nvtiffImageGeometry;
+impl nvtiffJpegChromaSubsampling {
+    /// Library default. Currently 4:2:0 for RGB input.
+    pub const NVTIFF_JPEG_CHROMA_SUBSAMPLING_DEFAULT: nvtiffJpegChromaSubsampling = nvtiffJpegChromaSubsampling(
+        0,
+    );
+    /// No chroma subsampling. TIFF YCbCrSubSampling = {1, 1}.
+    pub const NVTIFF_JPEG_CHROMA_SUBSAMPLING_444: nvtiffJpegChromaSubsampling = nvtiffJpegChromaSubsampling(
+        1,
+    );
+    /// Horizontal chroma subsampling. TIFF YCbCrSubSampling = {2, 1}.
+    pub const NVTIFF_JPEG_CHROMA_SUBSAMPLING_422: nvtiffJpegChromaSubsampling = nvtiffJpegChromaSubsampling(
+        2,
+    );
+    /// Horizontal and vertical chroma subsampling. TIFF YCbCrSubSampling = {2, 2}.
+    pub const NVTIFF_JPEG_CHROMA_SUBSAMPLING_420: nvtiffJpegChromaSubsampling = nvtiffJpegChromaSubsampling(
+        3,
+    );
+}
 /// RGB chroma subsampling for JPEG encoding.
 ///
 /// This option applies to 3-channel RGB JPEG encoding. Grayscale JPEG encoding always uses a single luminance channel.
-#[repr(u32)]
+#[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum nvtiffJpegChromaSubsampling {
-    /// Library default. Currently 4:2:0 for RGB input.
-    NVTIFF_JPEG_CHROMA_SUBSAMPLING_DEFAULT = 0,
-    /// No chroma subsampling. TIFF YCbCrSubSampling = {1, 1}.
-    NVTIFF_JPEG_CHROMA_SUBSAMPLING_444 = 1,
-    /// Horizontal chroma subsampling. TIFF YCbCrSubSampling = {2, 1}.
-    NVTIFF_JPEG_CHROMA_SUBSAMPLING_422 = 2,
-    /// Horizontal and vertical chroma subsampling. TIFF YCbCrSubSampling = {2, 2}.
-    NVTIFF_JPEG_CHROMA_SUBSAMPLING_420 = 3,
-}
+pub struct nvtiffJpegChromaSubsampling(pub ::core::ffi::c_uint);
 pub use self::nvtiffJpegChromaSubsampling as nvtiffJpegChromaSubsampling_t;
 /// JPEG-specific encode options.
 ///
@@ -699,30 +631,20 @@ impl Default for nvtiffJpegEncodeOptions {
 ///
 /// Zero-initialized options preserve nvTIFF's default JPEG behavior: quality 90, optimized Huffman disabled, and 4:2:0 RGB chroma sampling. `quality` may be 0 to select the default, or 1 through 100. `optimized_huffman` is a boolean where 0 disables optimized Huffman coding and 1 enables it.
 pub type nvtiffJpegEncodeOptions_t = nvtiffJpegEncodeOptions;
+impl nvtiffOutputFormat {
+    /// Keep original format, interleaved channels.
+    pub const NVTIFF_OUTPUT_UNCHANGED_I: nvtiffOutputFormat = nvtiffOutputFormat(0);
+    /// Interleaved RGB with 8 bits per channel.
+    pub const NVTIFF_OUTPUT_RGB_I_UINT8: nvtiffOutputFormat = nvtiffOutputFormat(1);
+    /// Interleaved RGB with 16 bits per channel.
+    pub const NVTIFF_OUTPUT_RGB_I_UINT16: nvtiffOutputFormat = nvtiffOutputFormat(2);
+}
 /// Decode output format types.
 ///
 /// Used to specify the decode output format.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum nvtiffOutputFormat {
-    /// Keep original format, interleaved channels.
-    NVTIFF_OUTPUT_UNCHANGED_I = 0,
-    /// Interleaved RGB with 8 bits per channel.
-    NVTIFF_OUTPUT_RGB_I_UINT8 = 1,
-    /// Interleaved RGB with 16 bits per channel.
-    NVTIFF_OUTPUT_RGB_I_UINT16 = 2,
-}
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct nvtiffOutputFormat(pub ::core::ffi::c_uint);
 pub use self::nvtiffOutputFormat as nvtiffOutputFormat_t;
 /// Opaque decode parameters type.
 #[repr(C)]

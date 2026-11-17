@@ -2,10 +2,7 @@ mod common;
 
 use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
-    backend::{
-        pointwise::PointwiseMode,
-        tensor::{Shape, TensorId, TensorSpec},
-    },
+    backend::operation::{normalization::NormalizationSavedStatistics, pointwise::PointwiseMode},
     data_type::{DataType, f16},
     error::Result,
     frontend::{
@@ -15,11 +12,11 @@ use singe_cudnn::{
             LayerNormalizationAffine, LayerNormalizationAffineGradients,
             LayerNormalizationBackwardConfig, LayerNormalizationBackwardInputs,
             LayerNormalizationBackwardOutputs, LayerNormalizationConfig, LayerNormalizationInputs,
-            LayerNormalizationOutputs, NormalizationSavedStatistics, NormalizationStatistics,
-            PointwiseOperation,
+            LayerNormalizationOutputs, NormalizationStatistics, PointwiseOperation,
         },
         plan::{CompileConfig, ExecuteArgs, HeuristicMode},
     },
+    tensor::{Shape, TensorId, TensorSpec},
 };
 
 const BATCH_SIZE: i64 = 4;
@@ -140,9 +137,9 @@ fn run_training(example: &common::ExampleContext) -> Result<()> {
     // SAFETY: buffers, plan and workspace remain live until the stream completes,
     // including when execution returns an enqueue error.
     example.execute_and_wait(|context| unsafe {
-        compiled.execute(
+        compiled.execute_async(
             context,
-            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
         )
     })
 }
@@ -212,9 +209,9 @@ fn run_inference(example: &common::ExampleContext) -> Result<()> {
     // SAFETY: buffers, plan and workspace remain live until the stream completes,
     // including when execution returns an enqueue error.
     example.execute_and_wait(|context| unsafe {
-        compiled.execute(
+        compiled.execute_async(
             context,
-            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
         )
     })
 }
@@ -283,7 +280,7 @@ fn run_backward(example: &common::ExampleContext) -> Result<()> {
         example.cudnn.cuda_context(),
         graph.shape(x)?.storage_span()?,
     )?;
-    let dy_dev = DeviceMemory::<f16>::zeroed(
+    let y_grad_dev = DeviceMemory::<f16>::zeroed(
         example.cudnn.cuda_context(),
         graph.shape(dy)?.storage_span()?,
     )?;
@@ -299,7 +296,7 @@ fn run_backward(example: &common::ExampleContext) -> Result<()> {
         example.cudnn.cuda_context(),
         graph.shape(inv_variance)?.storage_span()?,
     )?;
-    let mut dx_dev = DeviceMemory::<f16>::zeroed(
+    let mut x_grad_dev = DeviceMemory::<f16>::zeroed(
         example.cudnn.cuda_context(),
         graph.shape(dx)?.storage_span()?,
     )?;
@@ -315,19 +312,19 @@ fn run_backward(example: &common::ExampleContext) -> Result<()> {
 
     let mut bindings = compiled.bindings()?;
     bindings.set_input(x, &x_dev)?;
-    bindings.set_input(dy, &dy_dev)?;
+    bindings.set_input(dy, &y_grad_dev)?;
     bindings.set_input(scale_zero_centered, &scale_zero_centered_dev)?;
     bindings.set_input(mean, &mean_dev)?;
     bindings.set_input(inv_variance, &inv_variance_dev)?;
-    bindings.set(dx, &mut dx_dev)?;
+    bindings.set(dx, &mut x_grad_dev)?;
     bindings.set(dscale, &mut dscale_dev)?;
     bindings.set(bias_gradient, &mut bias_gradient_dev)?;
     // SAFETY: buffers, plan and workspace remain live until the stream completes,
     // including when execution returns an enqueue error.
     example.execute_and_wait(|context| unsafe {
-        compiled.execute(
+        compiled.execute_async(
             context,
-            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
         )
     })
 }
@@ -339,6 +336,6 @@ fn run() -> Result<()> {
     run_backward(&context)
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_layer_norm_zero_centered_gamma", run())
 }

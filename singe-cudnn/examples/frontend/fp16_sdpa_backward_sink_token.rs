@@ -2,7 +2,7 @@ mod common;
 
 use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
-    backend::tensor::{Shape, TensorId, TensorSpec},
+    backend::operation::attention::AttentionSequenceInputs,
     data_type::{DataType, bf16},
     error::Result,
     frontend::{
@@ -11,10 +11,11 @@ use singe_cudnn::{
         graph::{DataTypePolicy, Graph, GraphConfig, TensorOutputConfig},
         operation::{
             AttentionBackwardConfig, AttentionDiagonalAlignment, AttentionDiagonalBand,
-            AttentionMaskMode, AttentionScoreConfig, AttentionSequenceInputs,
+            AttentionMaskMode, AttentionScoreConfig,
         },
         plan::{CompileConfig, ExecuteArgs, HeuristicMode},
     },
+    tensor::{Shape, TensorId, TensorSpec},
 };
 
 fn init_bf16_image(size: usize, seed: &mut u32) -> Vec<bf16> {
@@ -24,6 +25,10 @@ fn init_bf16_image(size: usize, seed: &mut u32) -> Vec<bf16> {
         .collect()
 }
 
+#[expect(
+    clippy::many_single_char_names,
+    reason = "keeps the upstream sample's single-letter dimension names"
+)]
 fn run() -> Result<()> {
     let example = common::ExampleContext::create()?;
 
@@ -39,7 +44,7 @@ fn run() -> Result<()> {
     let mut graph = Graph::with_config(
         GraphConfig::new().with_data_type_policy(
             DataTypePolicy::new()
-                .with_io(DataType::BF16)
+                .with_io(DataType::Bf16)
                 .with_intermediate(DataType::F32)
                 .with_compute(DataType::F32),
         ),
@@ -48,7 +53,7 @@ fn run() -> Result<()> {
     let q = graph.insert_tensor(
         TensorId::new(1001),
         TensorSpec::new(
-            DataType::BF16,
+            DataType::Bf16,
             Shape::with_strides(
                 [b, h_q, s_q, d_qk],
                 vec![h_q * s_q * d_qk, s_q * d_qk, d_qk, 1],
@@ -57,23 +62,23 @@ fn run() -> Result<()> {
     )?;
     let k = graph.insert_tensor(
         TensorId::new(1002),
-        TensorSpec::new(DataType::BF16, Shape::contiguous([b, h_k, s_kv, d_qk])?),
+        TensorSpec::new(DataType::Bf16, Shape::contiguous([b, h_k, s_kv, d_qk])?),
     )?;
     let v = graph.insert_tensor(
         TensorId::new(1003),
-        TensorSpec::new(DataType::BF16, Shape::contiguous([b, h_v, s_kv, d_v])?),
+        TensorSpec::new(DataType::Bf16, Shape::contiguous([b, h_v, s_kv, d_v])?),
     )?;
     let o = graph.insert_tensor(
         TensorId::new(1004),
         TensorSpec::new(
-            DataType::BF16,
+            DataType::Bf16,
             Shape::with_strides([b, h_q, s_q, d_v], vec![h_q * s_q * d_v, s_q * d_v, d_v, 1])?,
         ),
     )?;
-    let d_o = graph.insert_tensor(
+    let o_grad = graph.insert_tensor(
         TensorId::new(1101),
         TensorSpec::new(
-            DataType::BF16,
+            DataType::Bf16,
             Shape::with_strides([b, h_q, s_q, d_v], vec![h_q * s_q * d_v, s_q * d_v, d_v, 1])?,
         ),
     )?;
@@ -112,7 +117,7 @@ fn run() -> Result<()> {
             key: k,
             value: v,
             output: o,
-            output_gradient: d_o,
+            output_gradient: o_grad,
             stats,
             scale,
         },
@@ -138,8 +143,8 @@ fn run() -> Result<()> {
                     .with_data_type(DataType::F32),
             ),
     )?;
-    let d_q = outputs.query_gradient;
-    let d_k = outputs.key_gradient;
+    let q_grad = outputs.query_gradient;
+    let k_grad = outputs.key_gradient;
     let d_v_out = outputs.value_gradient;
     let d_sink_token = outputs.sink_token_gradient;
     let d_sink_token = d_sink_token.ok_or(FrontendError::SdpaOptionalOutputMismatch {
@@ -168,9 +173,9 @@ fn run() -> Result<()> {
         example.cudnn.cuda_context(),
         &init_bf16_image(graph.shape(o)?.storage_span()?, &mut seed),
     )?;
-    let d_o_dev = DeviceMemory::from_slice(
+    let o_grad_dev = DeviceMemory::from_slice(
         example.cudnn.cuda_context(),
-        &init_bf16_image(graph.shape(d_o)?.storage_span()?, &mut seed),
+        &init_bf16_image(graph.shape(o_grad)?.storage_span()?, &mut seed),
     )?;
     let stats_dev = DeviceMemory::from_slice(
         example.cudnn.cuda_context(),
@@ -188,15 +193,15 @@ fn run() -> Result<()> {
         example.cudnn.cuda_context(),
         &vec![0.0_f32; graph.shape(sink_token)?.storage_span()?],
     )?;
-    let mut d_q_dev = DeviceMemory::<bf16>::zeroed(
+    let mut q_grad_dev = DeviceMemory::<bf16>::zeroed(
         example.cudnn.cuda_context(),
-        graph.shape(d_q)?.storage_span()?,
+        graph.shape(q_grad)?.storage_span()?,
     )?;
-    let mut d_k_dev = DeviceMemory::<bf16>::zeroed(
+    let mut k_grad_dev = DeviceMemory::<bf16>::zeroed(
         example.cudnn.cuda_context(),
-        graph.shape(d_k)?.storage_span()?,
+        graph.shape(k_grad)?.storage_span()?,
     )?;
-    let mut d_v_dev = DeviceMemory::<bf16>::zeroed(
+    let mut v_grad_dev = DeviceMemory::<bf16>::zeroed(
         example.cudnn.cuda_context(),
         graph.shape(d_v_out)?.storage_span()?,
     )?;
@@ -211,27 +216,27 @@ fn run() -> Result<()> {
     bindings.set_input(k, &k_dev)?;
     bindings.set_input(v, &v_dev)?;
     bindings.set_input(o, &o_dev)?;
-    bindings.set_input(d_o, &d_o_dev)?;
+    bindings.set_input(o_grad, &o_grad_dev)?;
     bindings.set_input(stats, &stats_dev)?;
     bindings.set_input(sequence_length_query, &seq_len_q_dev)?;
     bindings.set_input(sequence_length_key_value, &seq_len_kv_dev)?;
     bindings.set_input(sink_token, &sink_token_dev)?;
-    bindings.set(d_q, &mut d_q_dev)?;
-    bindings.set(d_k, &mut d_k_dev)?;
-    bindings.set(d_v_out, &mut d_v_dev)?;
+    bindings.set(q_grad, &mut q_grad_dev)?;
+    bindings.set(k_grad, &mut k_grad_dev)?;
+    bindings.set(d_v_out, &mut v_grad_dev)?;
     bindings.set(d_sink_token, &mut d_sink_dev)?;
     // SAFETY: input buffers, writable gradients, plan and workspace remain live
     // through stream completion, including when native execution returns an enqueue error.
     example.execute_and_wait(|context| unsafe {
-        compiled.execute(
+        compiled.execute_async(
             context,
-            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
         )
     })?;
 
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_fp16_sdpa_backward_sink_token", run())
 }

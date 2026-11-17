@@ -4,7 +4,6 @@ use std::env::args;
 
 use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
-    backend::tensor::{Shape, TensorId, TensorSpec},
     data_type::{DataType, f16},
     error::{Error, Result},
     frontend::{
@@ -12,6 +11,7 @@ use singe_cudnn::{
         operation::ConvolutionConfig,
         plan::{CompileConfig, ExecuteArgs, HeuristicMode},
     },
+    tensor::{Shape, TensorId, TensorSpec},
 };
 
 fn init_f16_image(size: usize, seed: &mut u32) -> Vec<f16> {
@@ -21,6 +21,10 @@ fn init_f16_image(size: usize, seed: &mut u32) -> Vec<f16> {
         .collect()
 }
 
+#[expect(
+    clippy::many_single_char_names,
+    reason = "keeps the upstream sample's single-letter dimension names"
+)]
 fn run() -> Result<()> {
     let depthwise = args().any(|argument| argument == "--depthwise");
     let n = 16;
@@ -30,7 +34,7 @@ fn run() -> Result<()> {
     let k = if depthwise { c } else { 256 };
     let r = if depthwise { 3 } else { 1 };
     let s = r;
-    let padding = if depthwise { 1 } else { 0 };
+    let padding = i64::from(depthwise);
     let groups = i64::try_from(
         common::positive_usize_argument("--groups", if depthwise { 128 } else { 1 })?.get(),
     )
@@ -117,9 +121,9 @@ fn run() -> Result<()> {
     // SAFETY: the plan, inputs, accumulated output and workspace remain live until
     // stream completion, including when native execution returns an enqueue error.
     example.execute_and_wait(|context| unsafe {
-        compiled.execute(
+        compiled.execute_async(
             context,
-            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
         )
     })?;
 
@@ -133,6 +137,6 @@ fn run() -> Result<()> {
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_convolution_fprop", run())
 }

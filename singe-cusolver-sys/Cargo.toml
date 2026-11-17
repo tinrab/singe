@@ -1,16 +1,19 @@
 [package]
 name = "singe-cusolver-sys"
 description = "Low-level FFI bindings for the NVIDIA cuSOLVER dense and sparse solver library."
-version = "0.1.0-alpha.8"
+version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 repository.workspace = true
+documentation = "https://docs.rs/singe-cusolver-sys"
 license-file.workspace = true
 readme = "README.md"
-keywords = ["cuda", "cusolver", "bindings", "ffi"]
+keywords = ["cuda", "nvidia", "cusolver", "ffi", "bindings"]
+categories = ["external-ffi-bindings", "hardware-support"]
 include.workspace = true
 
 [package.metadata.docs.rs]
-rustdoc-args = ["--html-in-header", "dist/katex_header.html"]
+rustdoc-args = ["--cfg", "docsrs", "--html-in-header", "dist/katex_header.html"]
 
 [features]
 default = ["cusolver_12_3"]
@@ -20,4 +23,6 @@ cusolver_12_3 = ["singe-cuda-sys/runtime_13_4"]
 [dependencies]
 singe-loader.workspace = true
 singe-cuda-sys.workspace = true
-num_enum.workspace = true
+
+[dev-dependencies]
+anyhow.workspace = true

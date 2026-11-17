@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{backend::tensor::TensorId, frontend::operation::NormalizationSavedStatistics};
+use crate::{backend::operation::normalization::NormalizationSavedStatistics, tensor::TensorId};
 
 /// Instance normalization backward operands and saved forward statistics.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

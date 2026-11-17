@@ -1,3 +1,5 @@
+//! CUDA process checkpoint, restore, and checkpoint storage APIs.
+
 use std::{
     fmt::{self, Display, Formatter},
     mem,
@@ -8,8 +10,6 @@ use std::{
     time::{Duration, Instant},
 };
 
-use num_enum::{IntoPrimitive, TryFromPrimitive};
-use singe_core::impl_enum_conversion;
 use singe_cuda_sys::driver;
 
 use crate::{
@@ -20,31 +20,28 @@ use crate::{
     memory::PinnedVec,
     try_ffi,
     types::DevicePtr,
+    utility::to_usize,
 };
 
-/// CUDA process state used by the checkpoint and restore driver APIs.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum ProcessState {
-    /// The process can make CUDA API calls.
-    Running = driver::CUprocessState::CU_PROCESS_STATE_RUNNING as _,
-    /// CUDA API locks are taken and further CUDA API calls will block.
-    Locked = driver::CUprocessState::CU_PROCESS_STATE_LOCKED as _,
-    /// GPU memory has been moved to host memory and device handles were released.
-    Checkpointed = driver::CUprocessState::CU_PROCESS_STATE_CHECKPOINTED as _,
-    /// The process entered an unrecoverable error during checkpoint or restore.
-    Failed = driver::CUprocessState::CU_PROCESS_STATE_FAILED as _,
-    /// GPU memory is being copied to custom storage.
-    Checkpointing = driver::CUprocessState::CU_PROCESS_STATE_CHECKPOINTING as _,
-    /// GPU memory is being restored from custom storage.
-    Restoring = driver::CUprocessState::CU_PROCESS_STATE_RESTORING as _,
-    /// Unknown process state returned by a newer CUDA driver version.
-    #[num_enum(catch_all)]
-    Unknown(u32),
+singe_core::native_enum! {
+    /// CUDA process state used by the checkpoint and restore driver APIs.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    #[non_exhaustive]
+    pub enum ProcessState: driver::CUprocessState, unknown = Unknown(u32) {
+        /// The process can make CUDA API calls.
+        Running = CU_PROCESS_STATE_RUNNING,
+        /// CUDA API locks are taken and further CUDA API calls will block.
+        Locked = CU_PROCESS_STATE_LOCKED,
+        /// GPU memory has been moved to host memory and device handles were released.
+        Checkpointed = CU_PROCESS_STATE_CHECKPOINTED,
+        /// The process entered an unrecoverable error during checkpoint or restore.
+        Failed = CU_PROCESS_STATE_FAILED,
+        /// GPU memory is being copied to custom storage.
+        Checkpointing = CU_PROCESS_STATE_CHECKPOINTING,
+        /// GPU memory is being restored from custom storage.
+        Restoring = CU_PROCESS_STATE_RESTORING,
+    }
 }
-
-impl_enum_conversion!(driver::CUprocessState, ProcessState);
 
 impl Display for ProcessState {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
@@ -91,7 +88,7 @@ impl LockOptions {
             Some(timeout) => timeout
                 .as_millis()
                 .try_into()
-                .map_err(|_| Error::InvalidValue)?,
+                .map_err(|_| Error::out_of_range("lock timeout"))?,
             None => 0,
         };
 
@@ -138,8 +135,8 @@ impl GpuPair {
     ///
     /// # Errors
     ///
-    /// Propagates CUDA device-property query errors for either the original or target device.
-    /// No remapping is performed by this constructor.
+    /// Returns an error if CUDA cannot report either device's properties.
+    /// This constructor performs no remapping.
     pub fn from_devices(old: Device, new: Device) -> Result<Self> {
         let old_uuid = old.properties()?.uuid;
         let new_uuid = new.properties()?.uuid;
@@ -194,6 +191,7 @@ impl RestoreOptions {
     }
 
     /// Creates restore options from checkpointed/restored GPU UUID pairs.
+    #[must_use]
     pub fn with_gpu_pairs(gpu_pairs: &[GpuPair]) -> Self {
         let mut options = Self::new();
         options.gpu_pairs = gpu_pairs.iter().copied().map(GpuPair::to_raw).collect();
@@ -211,7 +209,7 @@ impl RestoreOptions {
     ///
     /// # Errors
     ///
-    /// Propagates CUDA device-property query errors while reading the original or target device UUIDs through [`GpuPair::from_devices`].
+    /// Returns an error if [`GpuPair::from_devices`] cannot read either device's UUID.
     pub fn with_device_pair(mut self, old: Device, new: Device) -> Result<Self> {
         self.push_device_pair(old, new)?;
         Ok(self)
@@ -226,7 +224,7 @@ impl RestoreOptions {
     ///
     /// # Errors
     ///
-    /// Propagates CUDA device-property query errors while reading the original or target device UUIDs through [`GpuPair::from_devices`].
+    /// Returns an error if [`GpuPair::from_devices`] cannot read either device's UUID.
     pub fn push_device_pair(&mut self, old: Device, new: Device) -> Result<()> {
         let pair = GpuPair::from_devices(old, new)?;
         self.push_gpu_pair(pair);
@@ -237,7 +235,7 @@ impl RestoreOptions {
     ///
     /// # Errors
     ///
-    /// Propagates CUDA device-property query errors while reading the original or target device UUIDs through [`GpuPair::from_devices`].
+    /// Returns an error if [`GpuPair::from_devices`] cannot read a device's UUID.
     pub fn with_device_pairs(gpu_pairs: impl AsRef<[(Device, Device)]>) -> Result<Self> {
         let mut options = Self::new();
         for &(old, new) in gpu_pairs.as_ref() {
@@ -251,7 +249,7 @@ impl RestoreOptions {
             .gpu_pairs
             .len()
             .try_into()
-            .map_err(|_| Error::InvalidValue)?;
+            .map_err(|_| Error::out_of_range("gpu remapping pair count"))?;
         let gpu_pairs = if self.gpu_pairs.is_empty() {
             ptr::null_mut()
         } else {
@@ -351,17 +349,16 @@ impl CheckpointProcess {
     /// # Errors
     ///
     /// Returns an error if CUDA cannot query the target process's checkpoint state, for example because the process is unavailable or checkpoint control is unsupported.
-    /// Also returns `Error::InvalidValue` if the native state cannot be converted to [`ProcessState`].
     pub fn state(self) -> Result<ProcessState> {
         let mut state = driver::CUprocessState::CU_PROCESS_STATE_RUNNING;
-        // SAFETY: `cuCheckpointProcessGetState` receives valid output locations.
+        // SAFETY: `state` is a local output, and the driver validates the process ID.
         unsafe {
             try_ffi!(driver::cuCheckpointProcessGetState(
                 self.pid,
                 &raw mut state,
             ))?;
         }
-        ProcessState::try_from(state as u32).map_err(|_| Error::InvalidValue)
+        Ok(ProcessState::from(state))
     }
 
     /// Returns `true` when this process currently has [`ProcessState::Running`].
@@ -389,14 +386,13 @@ impl CheckpointProcess {
     ///
     /// # Errors
     ///
-    /// Returns `Error::InvalidValue` if the timeout overflows the host monotonic clock, or the native timeout status if `expected` is not reached before the polling deadline.
-    /// Also propagates state-query errors.
+    /// Returns an error if the timeout overflows the monotonic clock, a state query fails, or the process does not reach `expected` before the deadline, with [`Status::Timeout`].
     /// The state is queried immediately and then every 25 milliseconds.
     pub fn wait_for_state(self, expected: ProcessState, timeout: Duration) -> Result<ProcessState> {
         const POLL_INTERVAL: Duration = Duration::from_millis(25);
         let end = Instant::now()
             .checked_add(timeout)
-            .ok_or(Error::InvalidValue)?;
+            .ok_or_else(|| Error::out_of_range("wait timeout"))?;
 
         loop {
             let state = self.state()?;
@@ -407,10 +403,6 @@ impl CheckpointProcess {
             if Instant::now() >= end {
                 return Err(Error::Cuda {
                     code: Status::Timeout,
-                    message: format!(
-                        "timed out waiting for checkpoint process {} to reach {}",
-                        self.pid, expected
-                    ),
                 });
             }
 
@@ -425,7 +417,7 @@ impl CheckpointProcess {
     /// Returns an error if CUDA cannot query the target process's restore thread, including an unavailable target or unsupported checkpoint control.
     pub fn restore_thread_id(self) -> Result<i32> {
         let mut thread_id = 0;
-        // SAFETY: `cuCheckpointProcessGetRestoreThreadId` receives valid output locations.
+        // SAFETY: `thread_id` is a local output, and the driver validates the process ID.
         unsafe {
             try_ffi!(driver::cuCheckpointProcessGetRestoreThreadId(
                 self.pid,
@@ -441,8 +433,7 @@ impl CheckpointProcess {
     ///
     /// # Errors
     ///
-    /// Propagates errors from [`Self::try_lock`].
-    /// A timed-out lock attempt is converted from [`LockResult::TimedOut`] to the native not-ready error status.
+    /// Returns an error if [`Self::try_lock`] fails or times out, with [`Status::NotReady`] for a timeout.
     pub fn lock(self, options: LockOptions) -> Result<()> {
         match self.try_lock(options)? {
             LockResult::Locked => Ok(()),
@@ -457,12 +448,11 @@ impl CheckpointProcess {
     ///
     /// # Errors
     ///
-    /// Returns `Error::InvalidValue` if the timeout in milliseconds does not fit the native timeout field.
-    /// Also propagates native lock failures for invalid process state, unavailable targets, or unsupported checkpoint control.
-    /// The native not-ready status is returned as [`LockResult::TimedOut`] rather than an error.
+    /// Returns an error if the timeout in milliseconds does not fit the native field, or CUDA cannot lock the target, such as for an invalid process state.
+    /// A timeout is returned as [`LockResult::TimedOut`] rather than an error.
     pub fn try_lock(self, options: LockOptions) -> Result<LockResult> {
         let mut args = options.to_raw()?;
-        // SAFETY: `cuCheckpointProcessLock` receives valid output locations.
+        // SAFETY: `args` is a local argument struct that lives through the call, and the driver validates the process ID.
         let result = unsafe { driver::cuCheckpointProcessLock(self.pid, &raw mut args) };
         match result {
             driver::CUresult::CUDA_SUCCESS => Ok(LockResult::Locked),
@@ -477,21 +467,10 @@ impl CheckpointProcess {
     ///
     /// # Errors
     ///
-    /// Propagates errors from [`Self::checkpoint_with_options`] using the default reserved options.
-    pub fn checkpoint(self) -> Result<()> {
-        self.checkpoint_with_options(CheckpointOptions::new())
-    }
-
-    /// Moves the locked process's GPU memory into host memory managed by the driver.
-    ///
-    /// This variant accepts explicit checkpoint options.
-    ///
-    /// # Errors
-    ///
     /// Returns an error if CUDA cannot checkpoint the target, including when it is not locked, the platform or process uses unsupported features, or host storage for saved GPU state cannot be provided.
-    pub fn checkpoint_with_options(self, options: CheckpointOptions) -> Result<()> {
+    pub fn checkpoint(self, options: CheckpointOptions) -> Result<()> {
         let mut args = options.to_raw();
-        // SAFETY: `cuCheckpointProcessCheckpoint` receives valid output locations.
+        // SAFETY: `args` is a local argument struct with no custom-storage output, and the driver validates the process ID.
         unsafe {
             try_ffi!(driver::cuCheckpointProcessCheckpoint(
                 self.pid,
@@ -506,11 +485,11 @@ impl CheckpointProcess {
     ///
     /// # Errors
     ///
-    /// Propagates lock or checkpoint errors.
-    /// A successful lock is not undone if the following checkpoint operation fails.
+    /// Returns an error if locking or checkpointing fails.
+    /// A successful lock is not undone if the checkpoint fails.
     pub fn suspend(self, options: LockOptions) -> Result<()> {
         self.lock(options)?;
-        self.checkpoint()
+        self.checkpoint(CheckpointOptions::new())
     }
 
     /// Toggles the process between running and checkpointed states.
@@ -520,57 +499,41 @@ impl CheckpointProcess {
     ///
     /// # Errors
     ///
-    /// Propagates state-query, suspend, restore, or unlock errors.
-    /// Returns the native illegal-state status if the target is neither running nor checkpointed.
+    /// Returns an error if the state query, suspend, restore, or unlock fails, or the target is neither running nor checkpointed, with [`Status::IllegalState`].
     /// Successful earlier state transitions are not rolled back if a later step fails.
     pub fn toggle(
         self,
-        options: LockOptions,
-        gpu_pairs: impl AsRef<[GpuPair]>,
+        lock_options: LockOptions,
+        restore_options: RestoreOptions,
     ) -> Result<ProcessState> {
         match self.state()? {
             ProcessState::Running => {
-                self.suspend(options)?;
+                self.suspend(lock_options)?;
                 Ok(ProcessState::Checkpointed)
             }
             ProcessState::Checkpointed => {
-                self.resume(gpu_pairs)?;
+                self.resume(restore_options)?;
                 Ok(ProcessState::Running)
             }
             _ => Err(Error::Cuda {
                 code: Status::IllegalState,
-                message: String::from("cannot toggle checkpoint process from current state"),
             }),
         }
     }
 
     /// Restores a checkpointed process, optionally remapping checkpointed GPUs.
     ///
-    /// If `gpu_pairs` is not empty, CUDA requires it to contain every checkpointed GPU.
+    /// If `options` has GPU remapping pairs, CUDA requires them to cover every checkpointed GPU.
     ///
     /// On success the process enters [`ProcessState::Locked`].
     ///
     /// # Errors
     ///
-    /// Returns `Error::InvalidValue` if the remapping-pair count exceeds the native integer range.
-    /// Also propagates native restore errors for invalid target state, incomplete or incompatible GPU remapping, unavailable devices, or insufficient resources.
-    pub fn restore_with_options(self, mut options: RestoreOptions) -> Result<()> {
+    /// Returns an error if the remapping-pair count does not fit the native type, or CUDA cannot restore the target, such as for an invalid state or incomplete GPU remapping.
+    pub fn restore(self, mut options: RestoreOptions) -> Result<()> {
         let mut args = options.raw_args()?;
-        // SAFETY: `cuCheckpointProcessRestore` receives valid output locations.
+        // SAFETY: `args` points at the counted remapping pairs in `options`, which outlives the call, and the driver validates the process ID.
         unsafe { try_ffi!(driver::cuCheckpointProcessRestore(self.pid, &raw mut args)) }
-    }
-
-    /// Restores a checkpointed process, optionally remapping checkpointed GPUs.
-    ///
-    /// If `gpu_pairs` is not empty, CUDA requires it to contain every checkpointed GPU.
-    ///
-    /// On success the process enters [`ProcessState::Locked`].
-    ///
-    /// # Errors
-    ///
-    /// Propagates errors from [`Self::restore_with_options`] using the supplied GPU remapping pairs.
-    pub fn restore(self, gpu_pairs: impl AsRef<[GpuPair]>) -> Result<()> {
-        self.restore_with_options(gpu_pairs.as_ref().into())
     }
 
     /// Restores and unlocks a checkpointed CUDA process.
@@ -579,11 +542,11 @@ impl CheckpointProcess {
     ///
     /// # Errors
     ///
-    /// Propagates restore or unlock errors.
-    /// A successful restore is not rolled back if the following unlock operation fails.
-    pub fn resume(self, gpu_pairs: impl AsRef<[GpuPair]>) -> Result<()> {
-        self.restore(gpu_pairs)?;
-        self.unlock()
+    /// Returns an error if the restore or unlock fails.
+    /// A successful restore is not rolled back if the unlock fails.
+    pub fn resume(self, options: RestoreOptions) -> Result<()> {
+        self.restore(options)?;
+        self.unlock(UnlockOptions::new())
     }
 
     /// Unlocks a locked CUDA process so it can resume CUDA API calls.
@@ -592,21 +555,10 @@ impl CheckpointProcess {
     ///
     /// # Errors
     ///
-    /// Propagates errors from [`Self::unlock_with_options`] using the default reserved options.
-    pub fn unlock(self) -> Result<()> {
-        self.unlock_with_options(UnlockOptions::new())
-    }
-
-    /// Unlocks a locked CUDA process so it can resume CUDA API calls with options.
-    ///
-    /// On success the process enters [`ProcessState::Running`].
-    ///
-    /// # Errors
-    ///
     /// Returns an error if CUDA cannot unlock the target, including when it is not in a state that permits unlocking or checkpoint control is unsupported.
-    pub fn unlock_with_options(self, options: UnlockOptions) -> Result<()> {
+    pub fn unlock(self, options: UnlockOptions) -> Result<()> {
         let mut args = options.to_raw();
-        // SAFETY: `cuCheckpointProcessUnlock` receives valid output locations.
+        // SAFETY: `args` is a local argument struct that lives through the call, and the driver validates the process ID.
         unsafe { try_ffi!(driver::cuCheckpointProcessUnlock(self.pid, &raw mut args)) }
     }
 }
@@ -633,7 +585,7 @@ pub struct StorageRegion<'a> {
 }
 
 impl StorageRegion<'_> {
-    /// Size of the mapped GPU data in bytes.
+    /// Returns the size of the mapped GPU data in bytes.
     ///
     /// # Panics
     ///
@@ -649,19 +601,13 @@ impl StorageRegion<'_> {
     /// Its contents are read for checkpointing and written for restoration.
     #[must_use]
     pub fn device_pointer(&self) -> DevicePtr {
-        // SAFETY: the address is only stored; dereferencing it requires further unsafe code.
+        // SAFETY: the address is the pending operation's mapping, and `DevicePtr` claims no access to it.
         unsafe { DevicePtr::from_raw(self.raw.devPtr as *mut ()) }
-    }
-
-    /// Borrows the stream; it must not be destroyed or put into capture mode.
-    #[must_use]
-    pub fn stream_handle(&self) -> driver::CUstream {
-        self.raw.stream
     }
 
     fn context(&self) -> Result<&Arc<Context>> {
         let mut context = ptr::null_mut();
-        // SAFETY: `cuStreamGetCtx` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: the pending operation keeps its stream live while this region borrows it, and `context` is a local output.
         unsafe {
             try_ffi!(driver::cuStreamGetCtx(self.raw.stream, &raw mut context))?;
         }
@@ -675,11 +621,21 @@ impl StorageRegion<'_> {
     ///
     /// # Errors
     ///
-    /// Returns `Error::InvalidValue` during restoration or for a destination whose byte length differs from the mapped region.
-    /// Also propagates stream-context lookup, context binding, pinned staging allocation, asynchronous copy, and stream synchronization errors.
+    /// Returns an error if the operation is a restore, with [`Error::CheckpointDirectionMismatch`].
+    /// Returns an error if `destination` differs in length from the region, or the context lookup, staging allocation, copy, or synchronization fails.
     pub fn copy_to_host(&self, destination: &mut [u8]) -> Result<()> {
-        if self.restoring || destination.len() != self.size() {
-            return Err(Error::InvalidValue);
+        if self.restoring {
+            return Err(Error::CheckpointDirectionMismatch {
+                operation: "restore",
+            });
+        }
+
+        if destination.len() != self.size() {
+            return Err(Error::size_mismatch(
+                "destination",
+                self.size(),
+                destination.len(),
+            ));
         }
 
         let context = self.context()?;
@@ -687,7 +643,7 @@ impl StorageRegion<'_> {
         let mut pinned = context
             .pinned_host()
             .with_capacity::<u8>(destination.len())?;
-        // SAFETY: `cuMemcpyDtoHAsync` receives live handles owned by the wrappers and a staging buffer of `size` bytes.
+        // SAFETY: `pinned` has capacity for the region's `size` bytes and is held until the stream synchronizes, and the operation keeps the mapping and stream live.
         unsafe {
             try_ffi!(driver::cuMemcpyDtoHAsync(
                 pinned.as_mut_ptr().cast(),
@@ -709,17 +665,23 @@ impl StorageRegion<'_> {
     ///
     /// # Errors
     ///
-    /// Returns `Error::InvalidValue` during checkpointing or for a source whose byte length differs from the restore region.
-    /// Also propagates stream-context lookup, context binding, pinned staging initialization, asynchronous copy, and stream synchronization errors.
+    /// Returns an error if the operation is a checkpoint, with [`Error::CheckpointDirectionMismatch`].
+    /// Returns an error if `source` differs in length from the region, or the context lookup, staging allocation, copy, or synchronization fails.
     pub fn copy_from_host(&self, source: &[u8]) -> Result<()> {
-        if !self.restoring || source.len() != self.size() {
-            return Err(Error::InvalidValue);
+        if !self.restoring {
+            return Err(Error::CheckpointDirectionMismatch {
+                operation: "checkpoint",
+            });
+        }
+
+        if source.len() != self.size() {
+            return Err(Error::size_mismatch("source", self.size(), source.len()));
         }
 
         let context = self.context()?;
         context.bind()?;
         let pinned = context.pinned_host().from_slice(source)?;
-        // SAFETY: `cuMemcpyHtoDAsync` receives live handles owned by the wrappers and a staging buffer of `size` bytes.
+        // SAFETY: `pinned` holds the region's `size` initialized bytes and is held until the stream synchronizes, and the operation keeps the mapping and stream live.
         unsafe {
             try_ffi!(driver::cuMemcpyHtoDAsync(
                 self.raw.devPtr,
@@ -733,7 +695,7 @@ impl StorageRegion<'_> {
     }
 
     fn synchronize_holding(&self, staging: PinnedVec<u8>) -> Result<PinnedVec<u8>> {
-        // SAFETY: `cuStreamSynchronize` receives the live stream owned by this operation.
+        // SAFETY: the pending operation keeps its stream live while this region borrows it.
         if let Err(error) = unsafe { try_ffi!(driver::cuStreamSynchronize(self.raw.stream)) } {
             // The copy may still use the staging, so it never returns to the pool.
             mem::forget(staging);
@@ -758,6 +720,7 @@ impl StorageOperation {
     /// Synchronizes the returned streams, unmaps GPU memory and completes the operation.
     ///
     /// # Safety
+    ///
     /// All required checkpoint or restore copies must have completed or been enqueued on the returned streams.
     /// Restored contents must match the saved checkpoint.
     /// No access to the mappings may occur after successful completion.
@@ -772,7 +735,7 @@ impl StorageOperation {
             return Ok(());
         }
 
-        // SAFETY: the caller upholds this function's safety contract.
+        // SAFETY: the handle is the live pending operation, and the caller guarantees every copy is complete or enqueued and the mappings are no longer used.
         unsafe {
             cuCheckpointOperationComplete(self.handle)?;
         }
@@ -803,7 +766,7 @@ impl CheckpointProcess {
     /// # Errors
     ///
     /// Returns an error if the required driver support is unavailable, the target is the calling process, CUDA initialization or device enumeration fails, a primary context cannot be retained, or CUDA cannot start the requested state transition.
-    /// Also rejects null native storage-info pointers.
+    /// Returns an error if CUDA returns null storage information.
     /// The operation can already have started when a later output-validation error is returned.
     pub fn begin_checkpoint_to_custom_storage(self) -> Result<StorageOperation> {
         self.begin_storage_operation(None)
@@ -816,9 +779,8 @@ impl CheckpointProcess {
     /// # Errors
     ///
     /// Returns an error if the required driver support is unavailable, the target is the calling process, CUDA initialization or device enumeration fails, a primary context cannot be retained, or CUDA cannot start the requested state transition.
-    /// Also rejects null native storage-info pointers.
+    /// Returns an error if CUDA returns null storage information or the remapping-pair count does not fit the native type.
     /// The operation can already have started when a later output-validation error is returned.
-    /// Also returns `Error::InvalidValue` if the supplied GPU remapping-pair count exceeds the native integer range.
     pub fn begin_restore_from_custom_storage(
         self,
         options: RestoreOptions,
@@ -829,23 +791,25 @@ impl CheckpointProcess {
     fn begin_storage_operation(self, restore: Option<RestoreOptions>) -> Result<StorageOperation> {
         ensure_supported()?;
         if u32::try_from(self.pid) == Ok(process::id()) {
-            return Err(Error::InvalidValue);
+            return Err(Error::Cuda {
+                code: Status::NotSupported,
+            });
         }
 
-        // SAFETY: `cuInit` receives only plain values.
+        // SAFETY: `cuInit` takes only its reserved zero flags.
         unsafe {
             try_ffi!(driver::cuInit(0))?;
         }
 
         let contexts = (0..Device::count()?)
-            .map(|id| Context::retain_primary_for_device(Device::new(id)))
+            .map(|id| Context::create_for_device(Device::new(id)))
             .collect::<Result<Vec<_>>>()?;
         let restoring = restore.is_some();
         let mut info = ptr::null_mut();
         if let Some(mut options) = restore {
             let mut args = options.raw_args()?;
             args.customStorageInfo_out = &raw mut info;
-            // SAFETY: `cuCheckpointProcessRestore` receives valid output locations.
+            // SAFETY: `args` points at the counted remapping pairs in `options` and at the local `info` output, which outlive the call.
             unsafe {
                 try_ffi!(driver::cuCheckpointProcessRestore(self.pid, &raw mut args))?;
             }
@@ -854,7 +818,7 @@ impl CheckpointProcess {
                 customStorageInfo_out: &raw mut info,
                 ..Default::default()
             };
-            // SAFETY: `cuCheckpointProcessCheckpoint` receives valid output locations.
+            // SAFETY: `args` points at the local `info` output, which outlives the call.
             unsafe {
                 try_ffi!(driver::cuCheckpointProcessCheckpoint(
                     self.pid,
@@ -867,7 +831,7 @@ impl CheckpointProcess {
             return Err(Error::NullHandle);
         }
 
-        // SAFETY: the driver passes valid checkpoint info for the duration of this callback.
+        // SAFETY: CUDA returned a non-null storage-info pointer that stays valid while the operation is pending, and it is copied out below.
         let info = unsafe { &*info };
         let regions = if info.deviceCount == 0 {
             Vec::new()
@@ -875,8 +839,10 @@ impl CheckpointProcess {
             if info.perDeviceData.is_null() {
                 return Err(Error::NullHandle);
             }
-            // SAFETY: the driver provides `deviceCount` per-device entries for the duration of this callback.
-            unsafe { slice::from_raw_parts(info.perDeviceData, info.deviceCount as usize).to_vec() }
+
+            let count = to_usize(info.deviceCount, "checkpoint device count")?;
+            // SAFETY: CUDA provides `deviceCount` non-null per-device entries while the operation is pending, and they are copied out here.
+            unsafe { slice::from_raw_parts(info.perDeviceData, count).to_vec() }
         };
         Ok(StorageOperation {
             handle: info.handle,
@@ -911,12 +877,9 @@ mod tests {
         checkpoint_fails(
             missing_process.lock(LockOptions::new().with_timeout(Duration::from_millis(1))),
         );
-        checkpoint_fails(missing_process.checkpoint());
-        checkpoint_fails(missing_process.checkpoint_with_options(CheckpointOptions::new()));
-        checkpoint_fails(missing_process.restore([]));
-        checkpoint_fails(missing_process.restore_with_options(RestoreOptions::new()));
-        checkpoint_fails(missing_process.unlock());
-        checkpoint_fails(missing_process.unlock_with_options(UnlockOptions::new()));
+        checkpoint_fails(missing_process.checkpoint(CheckpointOptions::new()));
+        checkpoint_fails(missing_process.restore(RestoreOptions::new()));
+        checkpoint_fails(missing_process.unlock(UnlockOptions::new()));
     }
 
     fn checkpoint_fails<T>(result: Result<T>) {

@@ -160,7 +160,7 @@ macro_rules! impl_morphology_composite_border {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            $crate::utility::validate_border_roi(source.size(), source_offset, destination.size())?;
+            $crate::image::validate_border_roi(source.size(), source_offset, destination.size())?;
             validate_mask(mask, mask_size, anchor)?;
             scratch.require($buffer_size(destination.size())?)?;
 
@@ -189,7 +189,7 @@ macro_rules! impl_morphology_composite_border {
         #[doc = concat!("Calls [`sys::", stringify!($ffi), "`].")]
         ///
         /// Submits work on the selected stream.
-        /// Allocates temporary scratch using the corresponding ROI-size query.
+        /// Allocates temporary scratch using the corresponding ROI-size query and frees it when the call returns, so stream capture is rejected.
         /// Row padding remains unwritten.
         ///
         /// # Errors
@@ -198,7 +198,7 @@ macro_rules! impl_morphology_composite_border {
         /// `source_offset` must address a source pixel, ROI endpoints must not overflow, and the destination-sized ROI must fit within the source image.
         /// Mask dimensions must be positive, their checked product must equal `mask.len()`, and `anchor` must lie within the mask.
         /// The scratch-size query can also fail.
-        /// Scratch allocation can also fail.
+        /// Stream capture is rejected, and scratch allocation can also fail.
         ///
         /// # Safety
         ///
@@ -218,6 +218,7 @@ macro_rules! impl_morphology_composite_border {
             anchor: Point,
             border_type: BorderType,
         ) -> Result<()> {
+            stream_context.stream().ensure_not_capturing()?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 let mut scratch = ScratchBuffer::create(
@@ -297,7 +298,7 @@ macro_rules! impl_generic_morphology_composite_border {
             #[doc = $doc]
             ///
             /// Submits work on the selected stream.
-            /// Allocates temporary scratch using the corresponding ROI-size query.
+            /// Allocates temporary scratch using the corresponding ROI-size query and frees it when the call returns, so stream capture is rejected.
             /// Row padding remains unwritten.
             ///
             /// # Errors
@@ -306,7 +307,7 @@ macro_rules! impl_generic_morphology_composite_border {
             /// `source_offset` must address a source pixel, ROI endpoints must not overflow, and the destination-sized ROI must fit within the source image.
             /// Mask dimensions must be positive, their checked product must equal `mask.len()`, and `anchor` must lie within the mask.
             /// The scratch-size query can also fail.
-            /// Scratch allocation can also fail.
+            /// Stream capture is rejected, and scratch allocation can also fail.
             ///
             /// # Safety
             ///
@@ -385,7 +386,7 @@ macro_rules! impl_generic_morphology_composite_border {
         #[doc = $doc]
         ///
         /// Submits work on the selected stream.
-        /// Allocates temporary scratch using the corresponding ROI-size query.
+        /// Allocates temporary scratch using the corresponding ROI-size query and frees it when the call returns, so stream capture is rejected.
         /// Row padding remains unwritten.
         ///
         /// # Errors
@@ -394,7 +395,7 @@ macro_rules! impl_generic_morphology_composite_border {
         /// `source_offset` must address a source pixel, ROI endpoints must not overflow, and the destination-sized ROI must fit within the source image.
         /// Mask dimensions must be positive, their checked product must equal `mask.len()`, and `anchor` must lie within the mask.
         /// The scratch-size query can also fail.
-        /// Scratch allocation can also fail.
+        /// Stream capture is rejected, and scratch allocation can also fail.
         ///
         /// # Safety
         ///

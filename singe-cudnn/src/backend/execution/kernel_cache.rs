@@ -89,7 +89,8 @@ impl KernelCache {
         bind_context(config.cuda_context())?;
         let mut raw = config.descriptor().as_raw();
         let mut count = 0;
-        // SAFETY: `cudnnBackendGetAttribute` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: the cache and `config` own finalized descriptors that outlive the call, and `count` is a writable local.
+        // cuDNN reads the engine-configuration handle from `raw` as the one requested element.
         unsafe {
             try_ffi!(singe_cudnn_sys::cudnnBackendGetAttribute(
                 self.descriptor.as_raw(),

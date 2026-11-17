@@ -1,27 +1,33 @@
 [package]
 name = "singe-cutensor-sys"
 description = "Low-level FFI bindings for the NVIDIA cuTENSOR tensor algebra library."
-version = "0.1.0-alpha.8"
+version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 repository.workspace = true
+documentation = "https://docs.rs/singe-cutensor-sys"
 license-file.workspace = true
 readme = "README.md"
-keywords = ["cuda", "cutensor", "bindings", "ffi"]
+keywords = ["cuda", "nvidia", "cutensor", "ffi", "bindings"]
+categories = ["external-ffi-bindings", "hardware-support"]
 include.workspace = true
 
 [package.metadata.docs.rs]
-rustdoc-args = ["--html-in-header", "dist/katex_header.html"]
+features = ["mg", "mp"]
+rustdoc-args = ["--cfg", "docsrs", "--html-in-header", "dist/katex_header.html"]
 
 [features]
-default = ["cutensor_2_8", "mp", "mg"]
+default = ["cutensor_2_8"]
 
-cutensor_2_8 = ["singe-cuda-sys/runtime_13_4", "singe-nccl-sys/nccl_2_32"]
+cutensor_2_8 = ["singe-cuda-sys/runtime_13_4"]
 
-mp = []
-mg = []
+mp = ["cutensor_2_8", "dep:singe-nccl-sys", "singe-nccl-sys/nccl_2_32"]
+mg = ["cutensor_2_8"]
 
 [dependencies]
 singe-loader.workspace = true
 singe-cuda-sys.workspace = true
-singe-nccl-sys.workspace = true
-num_enum.workspace = true
+singe-nccl-sys = { workspace = true, optional = true }
+
+[dev-dependencies]
+anyhow.workspace = true

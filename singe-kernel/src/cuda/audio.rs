@@ -7,7 +7,7 @@ use singe_cuda::{
     error::Error as CudaError,
     memory::DeviceMemory,
     stream::Stream,
-    view::{DeviceInput, DeviceInputView, DeviceOutput, DeviceOutputView, DeviceRegion},
+    view::{DeviceInputView, DeviceOutput, DeviceOutputView, DeviceRange, DeviceRegion},
 };
 
 #[cfg(feature = "cutile")]
@@ -330,7 +330,7 @@ struct LogMelShape {
 pub unsafe fn stft_power_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    input: &impl DeviceInput<f32>,
+    input: &impl DeviceRange<f32>,
     plan: &AudioFrontendPlan,
     workspace: &mut impl DeviceOutput<f32>,
 ) -> Result<()> {
@@ -351,7 +351,7 @@ pub unsafe fn stft_power_f32(
 pub unsafe fn stft_power_f32_range(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    input: &impl DeviceInput<f32>,
+    input: &impl DeviceRange<f32>,
     plan: &AudioFrontendPlan,
     first_frame: usize,
     workspace: &mut impl DeviceOutput<f32>,
@@ -384,7 +384,7 @@ pub unsafe fn stft_power_f32_range(
 pub unsafe fn stft_power_f32_batched(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    input: &impl DeviceInput<f32>,
+    input: &impl DeviceRange<f32>,
     plan: &AudioFrontendPlan,
     batch: usize,
     input_len: usize,
@@ -409,7 +409,7 @@ pub unsafe fn stft_power_f32_batched(
 pub unsafe fn stft_power_f32_batched_range(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    input: &impl DeviceInput<f32>,
+    input: &impl DeviceRange<f32>,
     plan: &AudioFrontendPlan,
     batch: usize,
     input_len: usize,
@@ -474,7 +474,7 @@ pub unsafe fn stft_power_f32_batched_range(
 pub unsafe fn stft_r2c_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    input: &impl DeviceInput<f32>,
+    input: &impl DeviceRange<f32>,
     plan: &AudioFrontendPlan,
     workspace: &mut impl DeviceOutput<f32>,
 ) -> Result<()> {
@@ -495,7 +495,7 @@ pub unsafe fn stft_r2c_f32(
 pub unsafe fn stft_r2c_f32_range(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    input: &impl DeviceInput<f32>,
+    input: &impl DeviceRange<f32>,
     plan: &AudioFrontendPlan,
     first_frame: usize,
     workspace: &mut impl DeviceOutput<f32>,
@@ -528,7 +528,7 @@ pub unsafe fn stft_r2c_f32_range(
 pub unsafe fn stft_r2c_f32_batched(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    input: &impl DeviceInput<f32>,
+    input: &impl DeviceRange<f32>,
     plan: &AudioFrontendPlan,
     batch: usize,
     input_len: usize,
@@ -551,7 +551,7 @@ pub unsafe fn stft_r2c_f32_batched(
 pub unsafe fn stft_r2c_f32_batched_range(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    input: &impl DeviceInput<f32>,
+    input: &impl DeviceRange<f32>,
     plan: &AudioFrontendPlan,
     batch: usize,
     input_len: usize,
@@ -621,7 +621,7 @@ fn stft_r2c_workspace_len(batch: usize, frames: usize, n_fft: usize) -> Result<u
 pub unsafe fn log_mel_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    power: &impl DeviceInput<f32>,
+    power: &impl DeviceRange<f32>,
     plan: &AudioFrontendPlan,
     frames: usize,
     workspace: &mut impl DeviceOutput<f32>,
@@ -644,7 +644,7 @@ pub unsafe fn log_mel_f32(
 pub unsafe fn log_mel_f32_batched(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    power: &impl DeviceInput<f32>,
+    power: &impl DeviceRange<f32>,
     plan: &AudioFrontendPlan,
     batch: usize,
     frames: usize,
@@ -669,7 +669,7 @@ pub unsafe fn log_mel_f32_batched(
 pub unsafe fn log_mel_f32_range(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    power: &impl DeviceInput<f32>,
+    power: &impl DeviceRange<f32>,
     plan: &AudioFrontendPlan,
     first_frame: usize,
     frames: usize,
@@ -707,7 +707,7 @@ pub unsafe fn log_mel_f32_range(
 pub unsafe fn convert_log_mel_layout_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    input: &impl DeviceInput<f32>,
+    input: &impl DeviceRange<f32>,
     batch: usize,
     frames: usize,
     mel_bins: usize,
@@ -741,7 +741,7 @@ pub unsafe fn convert_log_mel_layout_f32(
 fn log_mel_f32_inner(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    power: &impl DeviceInput<f32>,
+    power: &impl DeviceRange<f32>,
     plan: &AudioFrontendPlan,
     shape: LogMelShape,
     first_frame: usize,
@@ -1109,7 +1109,10 @@ fn slaney_mel_to_hertz(mel: f32) -> f32 {
 #[cfg(test)]
 mod tests {
     use singe_cuda::{
-        context::Context as CudaContext, device::Device, memory::DeviceMemory, stream::StreamFlags,
+        context::Context as CudaContext,
+        device::Device,
+        memory::DeviceMemory,
+        stream::{StreamFlags, StreamOptions},
     };
 
     use crate::{
@@ -1232,10 +1235,13 @@ mod tests {
 
     #[test]
     fn test_stft_power_f32_matches_host_direct_dft() -> Result<()> {
-        let Ok(context) = CudaContext::retain_primary_for_device(Device::new(0)) else {
+        let Ok(context) = CudaContext::create_for_device(Device::new(0)) else {
             return Ok(());
         };
-        let stream = context.create_stream_with_flags(StreamFlags::NON_BLOCKING)?;
+        let stream = context.create_stream(StreamOptions {
+            flags: StreamFlags::NON_BLOCKING,
+            ..StreamOptions::default()
+        })?;
         let config = standard_log_mel_config();
         let plan = AudioFrontendPlan::create(&context, config)?;
         let input_host = deterministic_audio_input(640);
@@ -1265,10 +1271,13 @@ mod tests {
 
     #[test]
     fn test_stft_r2c_f32_matches_host_direct_dft() -> Result<()> {
-        let Ok(context) = CudaContext::retain_primary_for_device(Device::new(0)) else {
+        let Ok(context) = CudaContext::create_for_device(Device::new(0)) else {
             return Ok(());
         };
-        let stream = context.create_stream_with_flags(StreamFlags::NON_BLOCKING)?;
+        let stream = context.create_stream(StreamOptions {
+            flags: StreamFlags::NON_BLOCKING,
+            ..StreamOptions::default()
+        })?;
         let config = standard_log_mel_config();
         let plan = AudioFrontendPlan::create(&context, config)?;
         let input_host = deterministic_audio_input(640);
@@ -1298,10 +1307,13 @@ mod tests {
 
     #[test]
     fn test_stft_power_f32_matches_host_periodic_hamming_window() -> Result<()> {
-        let Ok(context) = CudaContext::retain_primary_for_device(Device::new(0)) else {
+        let Ok(context) = CudaContext::create_for_device(Device::new(0)) else {
             return Ok(());
         };
-        let stream = context.create_stream_with_flags(StreamFlags::NON_BLOCKING)?;
+        let stream = context.create_stream(StreamOptions {
+            flags: StreamFlags::NON_BLOCKING,
+            ..StreamOptions::default()
+        })?;
         let mut config = standard_log_mel_config();
         config.stft.window = WindowKind::PeriodicHamming;
         let plan = AudioFrontendPlan::create(&context, config)?;
@@ -1332,10 +1344,13 @@ mod tests {
 
     #[test]
     fn test_stft_power_f32_matches_host_centered_zero_padding() -> Result<()> {
-        let Ok(context) = CudaContext::retain_primary_for_device(Device::new(0)) else {
+        let Ok(context) = CudaContext::create_for_device(Device::new(0)) else {
             return Ok(());
         };
-        let stream = context.create_stream_with_flags(StreamFlags::NON_BLOCKING)?;
+        let stream = context.create_stream(StreamOptions {
+            flags: StreamFlags::NON_BLOCKING,
+            ..StreamOptions::default()
+        })?;
         let mut config = standard_log_mel_config();
         config.stft.pad_mode = PadMode::Zero;
         let plan = AudioFrontendPlan::create(&context, config)?;
@@ -1366,10 +1381,13 @@ mod tests {
 
     #[test]
     fn test_stft_power_f32_matches_host_non_centered_zero_padding_config() -> Result<()> {
-        let Ok(context) = CudaContext::retain_primary_for_device(Device::new(0)) else {
+        let Ok(context) = CudaContext::create_for_device(Device::new(0)) else {
             return Ok(());
         };
-        let stream = context.create_stream_with_flags(StreamFlags::NON_BLOCKING)?;
+        let stream = context.create_stream(StreamOptions {
+            flags: StreamFlags::NON_BLOCKING,
+            ..StreamOptions::default()
+        })?;
         let mut config = standard_log_mel_config();
         config.stft.center = false;
         config.stft.pad_mode = PadMode::Zero;
@@ -1444,10 +1462,13 @@ mod tests {
 
     #[test]
     fn test_stft_r2c_f32_range_matches_host_direct_dft_slice() -> Result<()> {
-        let Ok(context) = CudaContext::retain_primary_for_device(Device::new(0)) else {
+        let Ok(context) = CudaContext::create_for_device(Device::new(0)) else {
             return Ok(());
         };
-        let stream = context.create_stream_with_flags(StreamFlags::NON_BLOCKING)?;
+        let stream = context.create_stream(StreamOptions {
+            flags: StreamFlags::NON_BLOCKING,
+            ..StreamOptions::default()
+        })?;
         let config = standard_log_mel_config();
         let plan = AudioFrontendPlan::create(&context, config)?;
         let input_host = deterministic_audio_input(960);
@@ -1487,10 +1508,13 @@ mod tests {
 
     #[test]
     fn test_stft_power_f32_range_matches_host_direct_dft_slice() -> Result<()> {
-        let Ok(context) = CudaContext::retain_primary_for_device(Device::new(0)) else {
+        let Ok(context) = CudaContext::create_for_device(Device::new(0)) else {
             return Ok(());
         };
-        let stream = context.create_stream_with_flags(StreamFlags::NON_BLOCKING)?;
+        let stream = context.create_stream(StreamOptions {
+            flags: StreamFlags::NON_BLOCKING,
+            ..StreamOptions::default()
+        })?;
         let config = standard_log_mel_config();
         let plan = AudioFrontendPlan::create(&context, config)?;
         let input_host = deterministic_audio_input(960);
@@ -1530,10 +1554,13 @@ mod tests {
 
     #[test]
     fn test_stft_power_f32_batched_matches_host_direct_dft() -> Result<()> {
-        let Ok(context) = CudaContext::retain_primary_for_device(Device::new(0)) else {
+        let Ok(context) = CudaContext::create_for_device(Device::new(0)) else {
             return Ok(());
         };
-        let stream = context.create_stream_with_flags(StreamFlags::NON_BLOCKING)?;
+        let stream = context.create_stream(StreamOptions {
+            flags: StreamFlags::NON_BLOCKING,
+            ..StreamOptions::default()
+        })?;
         let config = standard_log_mel_config();
         let plan = AudioFrontendPlan::create(&context, config)?;
         let batch = 2;
@@ -1581,10 +1608,13 @@ mod tests {
 
     #[test]
     fn test_stft_r2c_f32_batched_range_matches_host_direct_dft_slice() -> Result<()> {
-        let Ok(context) = CudaContext::retain_primary_for_device(Device::new(0)) else {
+        let Ok(context) = CudaContext::create_for_device(Device::new(0)) else {
             return Ok(());
         };
-        let stream = context.create_stream_with_flags(StreamFlags::NON_BLOCKING)?;
+        let stream = context.create_stream(StreamOptions {
+            flags: StreamFlags::NON_BLOCKING,
+            ..StreamOptions::default()
+        })?;
         let config = standard_log_mel_config();
         let plan = AudioFrontendPlan::create(&context, config)?;
         let batch = 2;
@@ -1635,10 +1665,13 @@ mod tests {
 
     #[test]
     fn test_log_mel_f32_matches_host_projection() -> Result<()> {
-        let Ok(context) = CudaContext::retain_primary_for_device(Device::new(0)) else {
+        let Ok(context) = CudaContext::create_for_device(Device::new(0)) else {
             return Ok(());
         };
-        let stream = context.create_stream_with_flags(StreamFlags::NON_BLOCKING)?;
+        let stream = context.create_stream(StreamOptions {
+            flags: StreamFlags::NON_BLOCKING,
+            ..StreamOptions::default()
+        })?;
         let config = standard_log_mel_config();
         let plan = AudioFrontendPlan::create(&context, config)?;
         let input_host = deterministic_audio_input(640);
@@ -1676,10 +1709,13 @@ mod tests {
 
     #[test]
     fn test_log_mel_f32_matches_host_centered_reflect_sub_fft_input() -> Result<()> {
-        let Ok(context) = CudaContext::retain_primary_for_device(Device::new(0)) else {
+        let Ok(context) = CudaContext::create_for_device(Device::new(0)) else {
             return Ok(());
         };
-        let stream = context.create_stream_with_flags(StreamFlags::NON_BLOCKING)?;
+        let stream = context.create_stream(StreamOptions {
+            flags: StreamFlags::NON_BLOCKING,
+            ..StreamOptions::default()
+        })?;
         let mut config = standard_log_mel_config();
         config.stft.drop_last_frame = false;
         let plan = AudioFrontendPlan::create(&context, config)?;
@@ -1728,10 +1764,13 @@ mod tests {
 
     #[test]
     fn test_log_mel_f32_batched_matches_host_projection() -> Result<()> {
-        let Ok(context) = CudaContext::retain_primary_for_device(Device::new(0)) else {
+        let Ok(context) = CudaContext::create_for_device(Device::new(0)) else {
             return Ok(());
         };
-        let stream = context.create_stream_with_flags(StreamFlags::NON_BLOCKING)?;
+        let stream = context.create_stream(StreamOptions {
+            flags: StreamFlags::NON_BLOCKING,
+            ..StreamOptions::default()
+        })?;
         let config = standard_log_mel_config();
         let plan = AudioFrontendPlan::create(&context, config)?;
         let batch = 2;
@@ -1781,10 +1820,13 @@ mod tests {
 
     #[test]
     fn test_log_mel_f32_batched_matches_host_dynamic_reference_max_per_batch() -> Result<()> {
-        let Ok(context) = CudaContext::retain_primary_for_device(Device::new(0)) else {
+        let Ok(context) = CudaContext::create_for_device(Device::new(0)) else {
             return Ok(());
         };
-        let stream = context.create_stream_with_flags(StreamFlags::NON_BLOCKING)?;
+        let stream = context.create_stream(StreamOptions {
+            flags: StreamFlags::NON_BLOCKING,
+            ..StreamOptions::default()
+        })?;
         let mut config = standard_log_mel_config();
         config.log_mel.reference_max = None;
         let plan = AudioFrontendPlan::create(&context, config)?;
@@ -1835,10 +1877,13 @@ mod tests {
 
     #[test]
     fn test_log_mel_f32_matches_host_dynamic_reference_max() -> Result<()> {
-        let Ok(context) = CudaContext::retain_primary_for_device(Device::new(0)) else {
+        let Ok(context) = CudaContext::create_for_device(Device::new(0)) else {
             return Ok(());
         };
-        let stream = context.create_stream_with_flags(StreamFlags::NON_BLOCKING)?;
+        let stream = context.create_stream(StreamOptions {
+            flags: StreamFlags::NON_BLOCKING,
+            ..StreamOptions::default()
+        })?;
         let mut config = standard_log_mel_config();
         config.log_mel.reference_max = None;
         let plan = AudioFrontendPlan::create(&context, config)?;
@@ -1877,10 +1922,13 @@ mod tests {
 
     #[test]
     fn test_log_mel_f32_range_writes_absolute_mel_frame_columns() -> Result<()> {
-        let Ok(context) = CudaContext::retain_primary_for_device(Device::new(0)) else {
+        let Ok(context) = CudaContext::create_for_device(Device::new(0)) else {
             return Ok(());
         };
-        let stream = context.create_stream_with_flags(StreamFlags::NON_BLOCKING)?;
+        let stream = context.create_stream(StreamOptions {
+            flags: StreamFlags::NON_BLOCKING,
+            ..StreamOptions::default()
+        })?;
         let config = standard_log_mel_config();
         let plan = AudioFrontendPlan::create(&context, config)?;
         let input_host = deterministic_audio_input(960);
@@ -1932,10 +1980,13 @@ mod tests {
 
     #[test]
     fn test_convert_log_mel_layout_f32_converts_batched_frames_first_to_mels_first() -> Result<()> {
-        let Ok(context) = CudaContext::retain_primary_for_device(Device::new(0)) else {
+        let Ok(context) = CudaContext::create_for_device(Device::new(0)) else {
             return Ok(());
         };
-        let stream = context.create_stream_with_flags(StreamFlags::NON_BLOCKING)?;
+        let stream = context.create_stream(StreamOptions {
+            flags: StreamFlags::NON_BLOCKING,
+            ..StreamOptions::default()
+        })?;
         let batch = 2;
         let frames = 3;
         let mel_bins = 5;
@@ -1974,10 +2025,13 @@ mod tests {
 
     #[test]
     fn test_convert_log_mel_layout_f32_converts_batched_mels_first_to_frames_first() -> Result<()> {
-        let Ok(context) = CudaContext::retain_primary_for_device(Device::new(0)) else {
+        let Ok(context) = CudaContext::create_for_device(Device::new(0)) else {
             return Ok(());
         };
-        let stream = context.create_stream_with_flags(StreamFlags::NON_BLOCKING)?;
+        let stream = context.create_stream(StreamOptions {
+            flags: StreamFlags::NON_BLOCKING,
+            ..StreamOptions::default()
+        })?;
         let batch = 2;
         let frames = 4;
         let mel_bins = 3;
@@ -2016,10 +2070,13 @@ mod tests {
 
     #[test]
     fn test_convert_log_mel_layout_f32_handles_unbatched_noop_layout() -> Result<()> {
-        let Ok(context) = CudaContext::retain_primary_for_device(Device::new(0)) else {
+        let Ok(context) = CudaContext::create_for_device(Device::new(0)) else {
             return Ok(());
         };
-        let stream = context.create_stream_with_flags(StreamFlags::NON_BLOCKING)?;
+        let stream = context.create_stream(StreamOptions {
+            flags: StreamFlags::NON_BLOCKING,
+            ..StreamOptions::default()
+        })?;
         let batch = 1;
         let frames = 4;
         let mel_bins = 6;
@@ -2083,10 +2140,13 @@ mod tests {
     }
 
     fn assert_stft_power_matches_host(config: AudioFrontendConfig, input_len: usize) -> Result<()> {
-        let Ok(context) = CudaContext::retain_primary_for_device(Device::new(0)) else {
+        let Ok(context) = CudaContext::create_for_device(Device::new(0)) else {
             return Ok(());
         };
-        let stream = context.create_stream_with_flags(StreamFlags::NON_BLOCKING)?;
+        let stream = context.create_stream(StreamOptions {
+            flags: StreamFlags::NON_BLOCKING,
+            ..StreamOptions::default()
+        })?;
         let plan = AudioFrontendPlan::create(&context, config)?;
         let input_host = deterministic_audio_input(input_len);
         let frames = config.stft.frame_count(input_host.len())?;

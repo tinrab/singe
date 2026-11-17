@@ -1,6 +1,6 @@
 use std::{sync::Arc, time::Duration};
 
-use singe_cuda::event::{Event, EventFlags, EventRecordFlags};
+use singe_cuda::event::{Event, EventFlags, EventRecordFlags, EventWaitFlags};
 
 use crate::{
     backend::cuda::{runtime::runtime_for_device, stream::CudaStream},
@@ -35,7 +35,7 @@ impl CudaEvent {
             EventTiming::Disabled => EventFlags::DISABLE_TIMING,
         };
         Ok(Self {
-            event: Arc::new(runtime.context().create_event_with_flags(flags)?),
+            event: Arc::new(runtime.context().create_event(flags)?),
             device,
         })
     }
@@ -63,7 +63,9 @@ impl CudaEvent {
     /// Returns an error if `stream` belongs to another device or CUDA cannot enqueue the wait.
     pub fn wait(&self, stream: &CudaStream) -> Result<()> {
         self.check_stream(stream)?;
-        Ok(stream.raw().wait_event(&self.event)?)
+        Ok(stream
+            .raw()
+            .wait_event(&self.event, EventWaitFlags::DEFAULT)?)
     }
 
     /// Returns whether the marked work has completed.

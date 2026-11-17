@@ -1,7 +1,8 @@
 use crate::{
-    backend::tensor::{BackendTensorReordering, BackendTensorUid, Shape, Tensor},
+    backend::tensor::{BackendTensorReordering, BackendTensorUid, Tensor},
     data_type::DataType,
     scalar::{SCALAR_STORAGE_BYTES, ScalarValue},
+    tensor::Shape,
 };
 
 /// Hashable declaration of one native tensor for execution-plan cache keys.

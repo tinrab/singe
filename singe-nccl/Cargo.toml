@@ -1,16 +1,19 @@
 [package]
 name = "singe-nccl"
 description = "Safe Rust wrappers for NCCL, the NVIDIA Collective Communications Library, for exchanging data between GPUs."
-version = "0.1.0-alpha.9"
+version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 repository.workspace = true
+documentation = "https://docs.rs/singe-nccl"
 license-file.workspace = true
 readme = "README.md"
 keywords = ["cuda", "nvidia", "nccl", "communication"]
+categories = ["api-bindings", "hardware-support", "concurrency"]
 include.workspace = true
 
 [package.metadata.docs.rs]
-rustdoc-args = ["--html-in-header", "dist/katex_header.html"]
+rustdoc-args = ["--cfg", "docsrs", "--html-in-header", "dist/katex_header.html"]
 
 [features]
 default = ["nccl_2_32"]

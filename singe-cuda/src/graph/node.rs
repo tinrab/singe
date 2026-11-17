@@ -17,10 +17,12 @@ use crate::{
     utility::to_usize,
 };
 
+// Every query and change of a node goes through its `Graph`, which is not `Sync`, so native graph access follows Rust's borrow of the graph.
+// A `GraphNode` only identifies a node and keeps its graph alive so that its handle stays valid.
 impl GraphNode {
     /// Wraps an existing CUDA graph node handle.
     ///
-    /// The returned node is not associated with any [`Graph`] identity, so graph and executable-graph methods cannot validate that it belongs to the target graph before calling CUDA.
+    /// The returned node has no [`Graph`] identity, so graph, executable-graph, and stream-capture methods reject it with `Error::GraphNodeMismatch`.
     ///
     /// # Safety
     ///
@@ -49,55 +51,53 @@ impl GraphNode {
         }
     }
 
-    fn from_raw_like(handle: runtime::cudaGraphNode_t, node: &Self) -> Self {
-        Self {
-            handle,
-            graph_id: node.graph_id,
-            graph: node.graph.clone(),
-            context: node.context.clone(),
-        }
+    /// Returns the native node handle without transferring graph ownership.
+    #[must_use]
+    pub const fn as_raw(&self) -> runtime::cudaGraphNode_t {
+        self.handle
     }
 
-    pub(crate) fn bind_context(&self) -> Result<()> {
-        if let Some(context) = &self.context {
-            context.bind()?;
-        }
-        Ok(())
+    pub(crate) fn graph_raw(&self) -> Option<runtime::cudaGraph_t> {
+        self.graph.as_ref().map(|graph| graph.handle)
     }
 
-    /// Returns the node type.
-    ///
-    /// Graph objects are not threadsafe.
+    /// Returns the retained context, if this node has context metadata.
+    #[must_use]
+    pub fn context(&self) -> Option<&Arc<Context>> {
+        self.context.as_ref()
+    }
+}
+
+impl Graph {
+    /// Returns the type of `node`.
     ///
     /// # Errors
     ///
-    /// Returns an error if CUDA cannot query the node type or if a previous asynchronous launch reported an error.
-    /// CUDA may also return initialization-related errors such as [`crate::error::Status::NotInitialized`], [`crate::error::Status::CallRequiresNewerDriver`], or [`crate::error::Status::NoDevice`] if this call initializes internal runtime state.
-    /// Callbacks must not call CUDA functions; see [`Stream::add_callback`](crate::stream::Stream::add_callback).
-    pub fn node_type(&self) -> Result<GraphNodeType> {
-        self.bind_context()?;
+    /// Returns `Error::GraphNodeMismatch` if `node` belongs to another graph, and `Error::UnknownEnumValue` if CUDA reports a node type this crate does not know.
+    /// Also returns an error if CUDA cannot query the node type or a previous asynchronous launch reported an error.
+    pub fn node_type(&self, node: &GraphNode) -> Result<GraphNodeType> {
+        self.check_node(node)?;
         let mut kind = runtime::cudaGraphNodeType::CU_GRAPH_NODE_TYPE_KERNEL;
-        // SAFETY: `cudaGraphNodeGetType` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `node` belongs to this live graph, and `kind` is a valid output location.
         unsafe {
-            try_ffi!(runtime::cudaGraphNodeGetType(self.as_raw(), &raw mut kind))?;
+            try_ffi!(runtime::cudaGraphNodeGetType(node.as_raw(), &raw mut kind))?;
         }
-        Ok(kind.into())
+        GraphNodeType::try_from(kind)
     }
 
-    /// Returns this node's dependencies.
-    ///
-    /// Graph objects are not threadsafe.
+    /// Returns the dependencies of `node`.
     ///
     /// # Errors
     ///
-    /// Returns an error if CUDA cannot query the dependencies, a previous asynchronous launch reports an error, or CUDA reports runtime initialization diagnostics.
-    pub fn dependencies(&self) -> Result<Vec<GraphDependency>> {
-        self.bind_context()?;
-        // SAFETY: `cudaGraphNodeGetDependencies` first reports the count, then fills arrays sized to it.
+    /// Returns `Error::GraphNodeMismatch` if `node` belongs to another graph.
+    /// Also returns an error if CUDA cannot query the dependencies or a previous asynchronous launch reports an error.
+    pub fn node_dependencies(&self, node: &GraphNode) -> Result<Vec<GraphDependency>> {
+        self.check_node(node)?;
+        // SAFETY: `node` belongs to this live graph, and the native call first reports the count, then fills arrays sized to it.
         unsafe {
             let mut count = 0;
             try_ffi!(runtime::cudaGraphNodeGetDependencies(
-                self.as_raw(),
+                node.as_raw(),
                 ptr::null_mut(),
                 ptr::null_mut(),
                 &raw mut count,
@@ -110,7 +110,7 @@ impl GraphNode {
             let mut handles = Vec::with_capacity(to_usize(count, "graph node count")?);
             let mut edge_data = Vec::with_capacity(to_usize(count, "graph node count")?);
             try_ffi!(runtime::cudaGraphNodeGetDependencies(
-                self.as_raw(),
+                node.as_raw(),
                 handles.as_mut_ptr(),
                 edge_data.as_mut_ptr(),
                 &raw mut count,
@@ -122,27 +122,26 @@ impl GraphNode {
                 .into_iter()
                 .zip(edge_data)
                 .map(|(handle, data)| GraphDependency {
-                    node: Self::from_raw_like(handle, self),
+                    node: self.node_from_raw(handle),
                     data: data.into(),
                 })
                 .collect())
         }
     }
 
-    /// Returns this node's dependent nodes.
-    ///
-    /// Graph objects are not threadsafe.
+    /// Returns the nodes that depend on `node`.
     ///
     /// # Errors
     ///
-    /// Returns an error if CUDA cannot query the dependent nodes, a previous asynchronous launch reports an error, or CUDA reports runtime initialization diagnostics.
-    pub fn dependent_nodes(&self) -> Result<Vec<GraphDependency>> {
-        self.bind_context()?;
-        // SAFETY: `cudaGraphNodeGetDependentNodes` first reports the count, then fills arrays sized to it.
+    /// Returns `Error::GraphNodeMismatch` if `node` belongs to another graph.
+    /// Also returns an error if CUDA cannot query the dependent nodes or a previous asynchronous launch reports an error.
+    pub fn node_dependents(&self, node: &GraphNode) -> Result<Vec<GraphDependency>> {
+        self.check_node(node)?;
+        // SAFETY: `node` belongs to this live graph, and the native call first reports the count, then fills arrays sized to it.
         unsafe {
             let mut count = 0;
             try_ffi!(runtime::cudaGraphNodeGetDependentNodes(
-                self.as_raw(),
+                node.as_raw(),
                 ptr::null_mut(),
                 ptr::null_mut(),
                 &raw mut count,
@@ -155,7 +154,7 @@ impl GraphNode {
             let mut handles = Vec::with_capacity(to_usize(count, "graph node count")?);
             let mut edge_data = Vec::with_capacity(to_usize(count, "graph node count")?);
             try_ffi!(runtime::cudaGraphNodeGetDependentNodes(
-                self.as_raw(),
+                node.as_raw(),
                 handles.as_mut_ptr(),
                 edge_data.as_mut_ptr(),
                 &raw mut count,
@@ -167,85 +166,33 @@ impl GraphNode {
                 .into_iter()
                 .zip(edge_data)
                 .map(|(handle, data)| GraphDependency {
-                    node: Self::from_raw_like(handle, self),
+                    node: self.node_from_raw(handle),
                     data: data.into(),
                 })
                 .collect())
         }
     }
 
-    /// Returns the event of this event record node.
+    /// Borrows the graph embedded in the child graph node `node` without cloning it.
     ///
-    /// Graph objects are not threadsafe.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if this is not an event-record node, CUDA cannot query the event, CUDA returns a null event handle, a previous asynchronous launch reports an error, or CUDA reports runtime initialization diagnostics.
-    pub fn event_record_node_event(&self) -> Result<runtime::cudaEvent_t> {
-        self.bind_context()?;
-        let mut event = ptr::null_mut();
-        // SAFETY: `cudaGraphEventRecordNodeGetEvent` receives live handles owned by the wrappers and valid output locations.
-        unsafe {
-            try_ffi!(runtime::cudaGraphEventRecordNodeGetEvent(
-                self.as_raw(),
-                &raw mut event,
-            ))?;
-        }
-
-        if event.is_null() {
-            return Err(Error::NullHandle);
-        }
-        Ok(event)
-    }
-
-    /// Returns the event of this event wait node.
-    ///
-    /// Graph objects are not threadsafe.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if this is not an event-wait node, CUDA cannot query the event, CUDA returns a null event handle, a previous asynchronous launch reports an error, or CUDA reports runtime initialization diagnostics.
-    pub fn event_wait_node_event(&self) -> Result<runtime::cudaEvent_t> {
-        self.bind_context()?;
-        let mut event = ptr::null_mut();
-        // SAFETY: `cudaGraphEventWaitNodeGetEvent` receives live handles owned by the wrappers and valid output locations.
-        unsafe {
-            try_ffi!(runtime::cudaGraphEventWaitNodeGetEvent(
-                self.as_raw(),
-                &raw mut event,
-            ))?;
-        }
-
-        if event.is_null() {
-            return Err(Error::NullHandle);
-        }
-        Ok(event)
-    }
-
-    /// Returns a borrowed handle to the embedded graph in a child graph node.
-    /// This does not clone the graph.
-    /// Changes to the returned graph are reflected in the node, and the child node retains ownership of the embedded graph handle.
-    /// The returned [`BorrowedGraph`] is tied to this node borrow and does not destroy the embedded graph when dropped.
-    ///
+    /// The returned [`BorrowedGraph`] borrows this graph, so this graph cannot change while it lives, and it does not destroy the embedded graph when dropped.
     /// Allocation and free nodes cannot be added to the returned graph.
-    /// Attempting to do so returns an error.
-    ///
-    /// Graph objects are not threadsafe.
     ///
     /// # Errors
     ///
-    /// Returns an error if this is not a child-graph node, CUDA cannot query the child graph, CUDA returns a null graph handle, a previous asynchronous launch reports an error, or CUDA reports runtime initialization diagnostics.
+    /// Returns `Error::GraphNodeMismatch` if `node` belongs to another graph.
+    /// Also returns an error if `node` is not a child graph node, CUDA cannot query the child graph, CUDA returns a null graph handle, or a previous asynchronous launch reports an error.
     ///
     /// # Panics
     ///
     /// Panics if the newly constructed borrowed graph unexpectedly has multiple owners.
-    pub fn child_graph(&self) -> Result<BorrowedGraph<'_>> {
-        self.bind_context()?;
+    pub fn child_graph(&self, node: &GraphNode) -> Result<BorrowedGraph<'_>> {
+        self.check_node(node)?;
         let mut graph = ptr::null_mut();
-        // SAFETY: `cudaGraphChildGraphNodeGetGraph` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `node` belongs to this live graph, and `graph` is a valid output location.
         unsafe {
             try_ffi!(runtime::cudaGraphChildGraphNodeGetGraph(
-                self.as_raw(),
+                node.as_raw(),
                 &raw mut graph,
             ))?;
         }
@@ -254,251 +201,93 @@ impl GraphNode {
             return Err(Error::NullHandle);
         }
 
-        // SAFETY: CUDA returned this graph for the context that the new value retains.
-        let mut borrowed =
-            unsafe { BorrowedGraph::from_raw_in_context(graph, self.context.clone()) }?;
+        // SAFETY: CUDA returned this graph, owned by a node of this graph in this graph's context, and the view borrows this graph.
+        let mut borrowed = unsafe { BorrowedGraph::from_raw(graph, Arc::clone(&self.context)) }?;
         let inner =
             Arc::get_mut(&mut borrowed.graph.inner).expect("new borrowed graph has one owner");
-        inner.parent.clone_from(&self.graph);
-        if let Some(parent) = &self.graph {
-            *inner
-                .retained
-                .get_mut()
-                .map_err(|_| Error::ResourcePoisoned {
-                    name: "graph resources",
-                })? = parent
-                .retained
-                .lock()
-                .map_err(|_| Error::ResourcePoisoned {
-                    name: "graph resources",
-                })?
-                .clone();
-        }
+        inner.parent = Some(Arc::clone(&self.inner));
+        *inner
+            .retained
+            .get_mut()
+            .map_err(|_| Error::lock_poisoned("graph resources"))? = self.retained_resources()?;
         Ok(borrowed)
     }
 
-    /// Returns the parameters of this memcpy node.
-    ///
-    /// Graph objects are not threadsafe.
+    /// Returns the address and size of the memory allocation node `node`.
     ///
     /// # Errors
     ///
-    /// Returns an error if this is not a memcpy node, CUDA cannot query the parameters, a previous asynchronous launch reports an error, or CUDA reports runtime initialization diagnostics.
-    pub fn memory_copy_node_params(&self) -> Result<runtime::cudaMemcpy3DParms> {
-        self.bind_context()?;
-        let mut params = runtime::cudaMemcpy3DParms::default();
-        // SAFETY: `cudaGraphMemcpyNodeGetParams` receives live handles owned by the wrappers and valid output locations.
-        unsafe {
-            try_ffi!(runtime::cudaGraphMemcpyNodeGetParams(
-                self.as_raw(),
-                &raw mut params,
-            ))?;
-        }
-        Ok(params)
-    }
-
-    /// Changes a one-dimensional copy node in the graph definition.
-    /// Existing executable graphs keep their previous parameters until explicitly updated.
-    ///
-    /// # Safety
-    /// Source and destination must uphold [`MemoryCopy1DNodeParams::new`] for every affected replay.
-    /// Order mutations against other graph-definition operations and retain old sources for existing executables.
-    ///
-    /// # Errors
-    ///
-    /// Propagates context-binding and CUDA node-parameter update errors, including a node that is not a memory-copy node or invalid copy parameters.
-    pub unsafe fn set_memory_copy_node_1d_params(
+    /// Returns `Error::GraphNodeMismatch` if `node` belongs to another graph.
+    /// Also returns an error if `node` is not a memory allocation node, CUDA cannot query the parameters, or a previous asynchronous launch reports an error.
+    pub fn memory_allocation_node_info(
         &self,
-        params: &MemoryCopy1DNodeParams,
-    ) -> Result<()> {
-        self.bind_context()?;
-        // SAFETY: `cudaGraphMemcpyNodeSetParams1D` receives live handles owned by the wrappers.
-        unsafe {
-            try_ffi!(runtime::cudaGraphMemcpyNodeSetParams1D(
-                self.as_raw(),
-                params.dst().cast(),
-                params.src().cast(),
-                params.count() as _,
-                params.kind().into(),
-            ))
-        }
-    }
-
-    /// Replaces the child graph in this graph definition with an independent snapshot.
-    /// Existing executable graphs retain their previous parameters until explicitly updated.
-    /// The node identity and its incoming and outgoing dependencies are preserved.
-    ///
-    /// # Errors
-    /// Returns an error for an unassociated node, a context mismatch or rejected native parameters.
-    /// CUDA validates the replacement before changing the node.
-    pub fn set_child_graph(&self, child_graph: &Graph) -> Result<()> {
-        self.bind_context()?;
-        if let (Some(context), Some(child_context)) = (&self.context, child_graph.context())
-            && context.as_ref() != child_context.as_ref()
-        {
-            return Err(Error::GraphContextMismatch);
-        }
-
-        let graph = self.graph.as_ref().ok_or(Error::GraphNodeMismatch)?;
-        let child_resources = child_graph.retained_resources()?;
-        let mut retained = graph.retained.lock().map_err(|_| Error::ResourcePoisoned {
-            name: "graph resources",
-        })?;
-        // Retain both snapshots before publishing native pointers. A rejected replacement
-        // can retain extra owners, but cannot release resources used by an existing graph.
-        retained.extend(child_resources);
-        drop(retained);
-        let mut params = runtime::cudaGraphNodeParams {
-            type_: GraphNodeType::Graph.into(),
-            ..Default::default()
-        };
-        // SAFETY: the graph tag selects this zero-initialized union member. Write its
-        // fields separately so native-required padding and reserved bytes stay zero.
-        let graph_params = unsafe { &mut params.__bindgen_anon_1.graph };
-        graph_params.graph = child_graph.as_raw();
-        graph_params.ownership =
-            driver::CUgraphChildGraphNodeOwnership::CU_GRAPH_CHILD_GRAPH_OWNERSHIP_CLONE;
-        // SAFETY: zero-initialized parameters select a cloned child graph; both owners
-        // remain live through the call and retained resources cover the copied nodes.
-        unsafe {
-            try_ffi!(runtime::cudaGraphNodeSetParams(
-                self.as_raw(),
-                &raw mut params
-            ))
-        }
-    }
-
-    /// Returns the parameters of this memset node.
-    ///
-    /// Graph objects are not threadsafe.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if this is not a memset node, CUDA cannot query the parameters, a previous asynchronous launch reports an error, or CUDA reports runtime initialization diagnostics.
-    pub fn memory_set_node_params(&self) -> Result<driver::CUDA_MEMSET_NODE_PARAMS> {
-        self.bind_context()?;
-        let mut params = driver::CUDA_MEMSET_NODE_PARAMS::default();
-        // SAFETY: `cudaGraphMemsetNodeGetParams` receives live handles owned by the wrappers and valid output locations.
-        unsafe {
-            try_ffi!(runtime::cudaGraphMemsetNodeGetParams(
-                self.as_raw(),
-                &raw mut params,
-            ))?;
-        }
-        Ok(params)
-    }
-
-    /// Changes a memset node in the graph definition.
-    /// Existing executables keep their previous parameters until explicitly updated.
-    ///
-    /// # Errors
-    /// Returns an error if the context cannot bind or CUDA rejects the node parameters.
-    ///
-    /// # Safety
-    /// The destination must uphold [`MemorySetNodeParams::new`] for every affected replay.
-    /// Order graph mutation and retain previous destinations through existing executable launches.
-    pub unsafe fn set_memory_set_node_params(&self, params: &MemorySetNodeParams) -> Result<()> {
-        self.bind_context()?;
-        let params = params.into();
-        // SAFETY: `cudaGraphMemsetNodeSetParams` receives live handles owned by the wrappers and pointers into buffers borrowed for the call.
-        unsafe {
-            try_ffi!(runtime::cudaGraphMemsetNodeSetParams(
-                self.as_raw(),
-                &raw const params,
-            ))
-        }
-    }
-
-    /// Returns the parameters of this host node.
-    ///
-    /// Graph objects are not threadsafe.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if this is not a host node, CUDA cannot query the parameters, a previous asynchronous launch reports an error, or CUDA reports runtime initialization diagnostics.
-    pub fn host_node_params(&self) -> Result<driver::CUDA_HOST_NODE_PARAMS> {
-        self.bind_context()?;
-        let mut params = driver::CUDA_HOST_NODE_PARAMS::default();
-        // SAFETY: `cudaGraphHostNodeGetParams` receives live handles owned by the wrappers and valid output locations.
-        unsafe {
-            try_ffi!(runtime::cudaGraphHostNodeGetParams(
-                self.as_raw(),
-                &raw mut params,
-            ))?;
-        }
-        Ok(params)
-    }
-
-    /// Returns the parameters of a memory allocation node.
-    /// The `poolProps` and `accessDescs` values in the returned parameters are owned by the node.
-    /// This memory remains valid until the node is destroyed.
-    /// The returned parameters must not be modified.
-    ///
-    /// Graph objects are not threadsafe.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if this is not a memory-allocation node, CUDA cannot query the parameters, a previous asynchronous launch reports an error, or CUDA reports runtime initialization diagnostics.
-    pub fn memory_allocation_node_info(&self) -> Result<MemoryAllocationNodeInfo> {
-        self.bind_context()?;
+        node: &GraphNode,
+    ) -> Result<MemoryAllocationNodeInfo> {
+        self.check_node(node)?;
         let mut params = runtime::cudaMemAllocNodeParams::default();
-        // SAFETY: `cudaGraphMemAllocNodeGetParams` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `node` belongs to this live graph, and `params` is a valid output location.
         unsafe {
             try_ffi!(runtime::cudaGraphMemAllocNodeGetParams(
-                self.as_raw(),
+                node.as_raw(),
                 &raw mut params,
             ))?;
         }
-        Ok(MemoryAllocationNodeInfo::from_raw(
-            // SAFETY: the address is only stored; dereferencing it requires further unsafe code.
-            unsafe { DevicePtr::new(params.dptr as _) },
-            to_usize(params.bytesize, "memory fill byte count")?,
-            self.graph_id,
-            self.graph.clone(),
-            self.context.clone(),
+        Ok(MemoryAllocationNodeInfo::from_raw_in_graph(
+            // SAFETY: the address is the graph allocation CUDA reported and is only stored; dereferencing it requires further unsafe code.
+            unsafe {
+                DevicePtr::new(ptr::without_provenance_mut(to_usize(
+                    params.dptr,
+                    "memory allocation address",
+                )?))
+            },
+            to_usize(params.bytesize, "memory allocation byte count")?,
+            self.id,
+            Arc::clone(&self.inner),
+            Some(Arc::clone(&self.context)),
         ))
     }
 
-    /// Returns the address of this memory free node.
-    ///
-    /// Graph objects are not threadsafe.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if this is not a memory-free node, CUDA cannot query the pointer, a previous asynchronous launch reports an error, or CUDA reports runtime initialization diagnostics.
+    /// Returns the address that the memory free node `node` frees.
     ///
     /// # Safety
     ///
-    /// The node must still be a valid memory-free node in a live graph, and the returned pointer must not be used after the graph frees it.
-    pub unsafe fn memory_free_node_ptr(&self) -> Result<DevicePtr> {
-        self.bind_context()?;
-        let mut ptr: *mut c_void = ptr::null_mut();
-        // SAFETY: `cudaGraphMemFreeNodeGetParams` receives live handles owned by the wrappers and valid output locations.
-        unsafe {
-            try_ffi!(runtime::cudaGraphMemFreeNodeGetParams(
-                self.as_raw(),
-                (&raw mut ptr).cast(),
-            ))?;
-        }
-        // SAFETY: the caller upholds this function's safety contract.
-        Ok(unsafe { DevicePtr::new(ptr.cast()) })
-    }
-
-    /// Returns the requested kernel node attribute.
+    /// The returned pointer must not be used after the graph frees it.
     ///
     /// # Errors
     ///
-    /// Returns an error if this is not a kernel node, CUDA cannot query the attribute, or a previous asynchronous launch reports an error.
+    /// Returns `Error::GraphNodeMismatch` if `node` belongs to another graph.
+    /// Also returns an error if `node` is not a memory free node, CUDA cannot query the pointer, or a previous asynchronous launch reports an error.
+    pub unsafe fn memory_free_node_ptr(&self, node: &GraphNode) -> Result<DevicePtr> {
+        self.check_node(node)?;
+        let mut ptr: *mut c_void = ptr::null_mut();
+        // SAFETY: `node` belongs to this live graph, and `ptr` is a valid output location.
+        unsafe {
+            try_ffi!(runtime::cudaGraphMemFreeNodeGetParams(
+                node.as_raw(),
+                (&raw mut ptr).cast(),
+            ))?;
+        }
+        // SAFETY: the address is the one CUDA's free node frees, and the caller must not use it after the graph frees it.
+        Ok(unsafe { DevicePtr::new(ptr.cast()) })
+    }
+
+    /// Returns the attribute `id` of the kernel node `node`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Error::GraphNodeMismatch` if `node` belongs to another graph.
+    /// Also returns an error if `node` is not a kernel node, CUDA cannot query the attribute, or a previous asynchronous launch reports an error.
     pub fn kernel_node_attribute(
-        self,
+        &self,
+        node: &GraphNode,
         id: GraphKernelNodeAttributeId,
     ) -> Result<GraphKernelNodeAttribute> {
-        self.bind_context()?;
+        self.check_node(node)?;
         let mut value = runtime::cudaLaunchAttributeValue::default();
-        // SAFETY: the attribute value is a writable local union sized for every attribute.
+        // SAFETY: `node` belongs to this live graph, and the attribute value is a writable local union sized for every attribute.
         unsafe {
             try_ffi!(runtime::cudaGraphKernelNodeGetAttribute(
-                self.as_raw(),
+                node.as_raw(),
                 id.into(),
                 &raw mut value,
             ))?;
@@ -523,13 +312,155 @@ impl GraphNode {
         }
     }
 
-    /// Sets a kernel node attribute.
+    /// Returns the shared memory configuration of the kernel node `node`.
     ///
     /// # Errors
     ///
-    /// Returns an error if this is not a kernel node, CUDA rejects the attribute update, or a previous asynchronous launch reports an error.
-    pub fn set_kernel_node_attribute(&mut self, attribute: GraphKernelNodeAttribute) -> Result<()> {
-        self.bind_context()?;
+    /// Returns `Error::GraphNodeMismatch` if `node` belongs to another graph.
+    /// Also propagates CUDA kernel-node attribute errors, including an incompatible node type or unsupported attribute.
+    pub fn kernel_node_shared_memory_mode(&self, node: &GraphNode) -> Result<SharedMemoryMode> {
+        self.check_node(node)?;
+        let mut value = driver::CUlaunchAttributeValue::default();
+        // SAFETY: `node` belongs to this live graph, and `value` is a valid output location.
+        unsafe {
+            try_ffi!(driver::cuGraphKernelNodeGetAttribute(
+                node.as_raw(),
+                driver::CUlaunchAttributeID::CU_LAUNCH_ATTRIBUTE_SHARED_MEMORY_MODE,
+                &raw mut value
+            ))?;
+            Ok(value.sharedMemoryMode.try_into()?)
+        }
+    }
+
+    /// Returns the cluster scheduling policy preference of the kernel node `node`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Error::GraphNodeMismatch` if `node` belongs to another graph.
+    /// Also propagates CUDA kernel-node attribute errors, including an incompatible node type or unsupported attribute.
+    pub fn kernel_node_cluster_scheduling_policy(
+        &self,
+        node: &GraphNode,
+    ) -> Result<ClusterSchedulingPolicy> {
+        self.check_node(node)?;
+        let mut value = driver::CUlaunchAttributeValue::default();
+        // SAFETY: `node` belongs to this live graph, and `value` is a valid output location.
+        unsafe {
+            try_ffi!(driver::cuGraphKernelNodeGetAttribute(
+                node.as_raw(),
+                driver::CUlaunchAttributeID::CU_LAUNCH_ATTRIBUTE_CLUSTER_SCHEDULING_POLICY_PREFERENCE,
+                &raw mut value
+            ))?;
+            Ok(value.clusterSchedulingPolicyPreference.try_into()?)
+        }
+    }
+
+    /// Changes the one-dimensional copy node `node` in the graph definition.
+    /// Existing executable graphs keep their previous parameters until explicitly updated.
+    ///
+    /// # Safety
+    ///
+    /// Source and destination must uphold [`MemoryCopy1DNodeParams::new`] for every affected replay.
+    /// Retain old sources for existing executables.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Error::GraphNodeMismatch` if `node` belongs to another graph.
+    /// Also propagates context-binding and CUDA node-parameter update errors, including a node that is not a memory-copy node or invalid copy parameters.
+    pub unsafe fn set_memory_copy_node_1d_params(
+        &mut self,
+        node: &GraphNode,
+        params: &MemoryCopy1DNodeParams,
+    ) -> Result<()> {
+        self.check_node(node)?;
+        // SAFETY: `node` belongs to this exclusively borrowed graph, and the caller vouches for the copy operands.
+        unsafe {
+            try_ffi!(runtime::cudaGraphMemcpyNodeSetParams1D(
+                node.as_raw(),
+                params.dst().cast(),
+                params.src().cast(),
+                params.count() as _,
+                params.kind().into(),
+            ))
+        }
+    }
+
+    /// Replaces the graph embedded in the child graph node `node` with an independent snapshot of `child_graph`.
+    /// Existing executable graphs retain their previous parameters until explicitly updated.
+    /// The node identity and its incoming and outgoing dependencies are preserved.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Error::GraphNodeMismatch` if `node` belongs to another graph, `Error::ContextMismatch` if `child_graph` has another context, or an error if CUDA rejects the replacement.
+    /// CUDA validates the replacement before changing the node.
+    pub fn set_child_graph(&mut self, node: &GraphNode, child_graph: &Self) -> Result<()> {
+        self.check_node(node)?;
+        if self.context.as_ref() != child_graph.context().as_ref() {
+            return Err(Error::context_mismatch("child graph"));
+        }
+
+        let child_resources = child_graph.retained_resources()?;
+        // Retain both snapshots before publishing native pointers.
+        // A rejected replacement can retain extra owners, but cannot release resources used by an existing graph.
+        self.retained_lock()?.extend(child_resources);
+        let mut params = runtime::cudaGraphNodeParams {
+            type_: GraphNodeType::Graph.into(),
+            ..Default::default()
+        };
+        // SAFETY: the graph tag selects this zero-initialized union member.
+        // Write its fields separately so native-required padding and reserved bytes stay zero.
+        let graph_params = unsafe { &mut params.__bindgen_anon_1.graph };
+        graph_params.graph = child_graph.as_raw();
+        graph_params.ownership =
+            driver::CUgraphChildGraphNodeOwnership::CU_GRAPH_CHILD_GRAPH_OWNERSHIP_CLONE;
+        // SAFETY: `node` belongs to this exclusively borrowed graph, the zero-initialized parameters select a cloned child graph, both graphs stay live through the call, and retained resources cover the copied nodes.
+        unsafe {
+            try_ffi!(runtime::cudaGraphNodeSetParams(
+                node.as_raw(),
+                &raw mut params
+            ))
+        }
+    }
+
+    /// Changes the memset node `node` in the graph definition.
+    /// Existing executables keep their previous parameters until explicitly updated.
+    ///
+    /// # Safety
+    ///
+    /// The destination must uphold [`MemorySetNodeParams::new`] for every affected replay.
+    /// Retain previous destinations through existing executable launches.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Error::GraphNodeMismatch` if `node` belongs to another graph, or an error if the context cannot bind or CUDA rejects the node parameters.
+    pub unsafe fn set_memory_set_node_params(
+        &mut self,
+        node: &GraphNode,
+        params: &MemorySetNodeParams,
+    ) -> Result<()> {
+        self.check_node(node)?;
+        let params = params.into();
+        // SAFETY: `node` belongs to this exclusively borrowed graph, `params` lives through the call, and the caller vouches for the destination.
+        unsafe {
+            try_ffi!(runtime::cudaGraphMemsetNodeSetParams(
+                node.as_raw(),
+                &raw const params,
+            ))
+        }
+    }
+
+    /// Sets an attribute of the kernel node `node`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Error::GraphNodeMismatch` if `node` belongs to another graph.
+    /// Also returns an error if `node` is not a kernel node, CUDA rejects the attribute update, or a previous asynchronous launch reports an error.
+    pub fn set_kernel_node_attribute(
+        &mut self,
+        node: &GraphNode,
+        attribute: GraphKernelNodeAttribute,
+    ) -> Result<()> {
+        self.check_node(node)?;
         let (id, value) = match attribute {
             GraphKernelNodeAttribute::Cooperative(value) => {
                 let mut attr = runtime::cudaLaunchAttributeValue {
@@ -561,7 +492,7 @@ impl GraphNode {
                     ..runtime::cudaLaunchAttributeValue::default()
                 };
                 // SAFETY: the attribute id set above selects this union field.
-                unsafe { *attr.priority.as_mut() = value as _ };
+                unsafe { *attr.priority.as_mut() = value };
                 (GraphKernelNodeAttributeId::Priority, attr)
             }
             GraphKernelNodeAttribute::PreferredSharedMemoryCarveout(value) => {
@@ -578,109 +509,54 @@ impl GraphNode {
             }
         };
 
-        // SAFETY: `cudaGraphKernelNodeSetAttribute` receives live handles owned by the wrappers and pointers into buffers borrowed for the call.
+        // SAFETY: `node` belongs to this exclusively borrowed graph, and `value` lives through the call.
         unsafe {
             try_ffi!(runtime::cudaGraphKernelNodeSetAttribute(
-                self.as_raw(),
+                node.as_raw(),
                 id.into(),
                 &raw const value,
-            ))?;
-        }
-        Ok(())
-    }
-
-    /// Copies attributes from `src` to this node.
-    /// Both nodes must have the same context.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if CUDA rejects the attribute copy or if a previous asynchronous launch reported an error.
-    pub fn copy_kernel_node_attributes(&self, other: &Self) -> Result<()> {
-        if let (Some(context), Some(other_context)) = (self.context(), other.context())
-            && context != other_context
-        {
-            return Err(Error::GraphContextMismatch);
-        }
-
-        self.bind_context()?;
-        other.bind_context()?;
-        // SAFETY: `cudaGraphKernelNodeCopyAttributes` receives live handles owned by the wrappers.
-        unsafe {
-            try_ffi!(runtime::cudaGraphKernelNodeCopyAttributes(
-                self.as_raw(),
-                other.handle
-            ))?;
-        }
-        Ok(())
-    }
-
-    /// Returns the native node handle without transferring graph ownership.
-    #[must_use]
-    pub const fn as_raw(&self) -> runtime::cudaGraphNode_t {
-        self.handle
-    }
-
-    pub(crate) fn graph_raw(&self) -> Option<runtime::cudaGraph_t> {
-        self.graph.as_ref().map(|graph| graph.handle)
-    }
-
-    /// Returns the retained context, if this node has context metadata.
-    #[must_use]
-    pub fn context(&self) -> Option<&Arc<Context>> {
-        self.context.as_ref()
-    }
-}
-
-impl GraphNode {
-    /// Sets a kernel node attribute using the extended launch attribute representation.
-    ///
-    /// # Errors
-    ///
-    /// Propagates context-binding and CUDA kernel-node attribute errors, including an incompatible node type or unsupported attribute.
-    pub fn set_launch_attribute(&self, attribute: LaunchAttribute) -> Result<()> {
-        self.bind_context()?;
-        let attribute = attribute.raw();
-        // SAFETY: `cuGraphKernelNodeSetAttribute` receives live handles owned by the wrappers and pointers into buffers borrowed for the call.
-        unsafe {
-            try_ffi!(driver::cuGraphKernelNodeSetAttribute(
-                self.as_raw(),
-                attribute.id,
-                &raw const attribute.value
             ))
         }
     }
 
-    /// Returns the shared memory configuration for this kernel node.
+    /// Copies the kernel attributes of `src` to `dst`, both kernel nodes of this graph.
     ///
     /// # Errors
     ///
-    /// Propagates context-binding and CUDA kernel-node attribute errors, including an incompatible node type or unsupported attribute.
-    pub fn shared_memory_mode(&self) -> Result<SharedMemoryMode> {
-        self.bind_context()?;
-        let mut value = driver::CUlaunchAttributeValue::default();
-        // SAFETY: `cuGraphKernelNodeGetAttribute` receives live handles owned by the wrappers and valid output locations.
+    /// Returns `Error::GraphNodeMismatch` if either node belongs to another graph.
+    /// Also returns an error if CUDA rejects the attribute copy or a previous asynchronous launch reported an error.
+    pub fn copy_kernel_node_attributes(&mut self, dst: &GraphNode, src: &GraphNode) -> Result<()> {
+        self.check_node(dst)?;
+        self.check_node(src)?;
+        // SAFETY: both nodes belong to this exclusively borrowed graph.
         unsafe {
-            try_ffi!(driver::cuGraphKernelNodeGetAttribute(
-                self.as_raw(),
-                driver::CUlaunchAttributeID::CU_LAUNCH_ATTRIBUTE_SHARED_MEMORY_MODE,
-                &raw mut value
-            ))?;
-            Ok(value.sharedMemoryMode.into())
+            try_ffi!(runtime::cudaGraphKernelNodeCopyAttributes(
+                dst.as_raw(),
+                src.as_raw()
+            ))
         }
     }
 
-    /// Returns the cluster scheduling policy preference for this kernel node.
+    /// Sets an attribute of the kernel node `node` using the extended launch attribute representation.
     ///
     /// # Errors
     ///
-    /// Propagates context-binding and CUDA kernel-node attribute errors, including an incompatible node type or unsupported attribute.
-    pub fn cluster_scheduling_policy(&self) -> Result<ClusterSchedulingPolicy> {
-        self.bind_context()?;
-        let mut value = driver::CUlaunchAttributeValue::default();
-        // SAFETY: `cuGraphKernelNodeGetAttribute` receives live handles owned by the wrappers and valid output locations.
+    /// Returns `Error::GraphNodeMismatch` if `node` belongs to another graph.
+    /// Also propagates context-binding and CUDA kernel-node attribute errors, including an incompatible node type or unsupported attribute.
+    pub fn set_launch_attribute(
+        &mut self,
+        node: &GraphNode,
+        attribute: LaunchAttribute,
+    ) -> Result<()> {
+        self.check_node(node)?;
+        let attribute = attribute.raw();
+        // SAFETY: `node` belongs to this exclusively borrowed graph, and the attribute value lives through the call.
         unsafe {
-            try_ffi!(driver::cuGraphKernelNodeGetAttribute(self.as_raw(), driver::CUlaunchAttributeID::CU_LAUNCH_ATTRIBUTE_CLUSTER_SCHEDULING_POLICY_PREFERENCE, &raw mut value))?;
-            Ok(value.clusterSchedulingPolicyPreference.into())
+            try_ffi!(driver::cuGraphKernelNodeSetAttribute(
+                node.as_raw(),
+                attribute.id,
+                &raw const attribute.value
+            ))
         }
     }
 }

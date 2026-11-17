@@ -4,10 +4,7 @@ use std::env::args;
 
 use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
-    backend::{
-        pointwise::PointwiseMode,
-        tensor::{Shape, TensorSpec},
-    },
+    backend::operation::pointwise::PointwiseMode,
     data_type::DataType,
     error::Result,
     frontend::{
@@ -16,8 +13,13 @@ use singe_cudnn::{
         plan::{CompileConfig, ExecuteArgs, HeuristicMode},
     },
     math::NanPropagation,
+    tensor::{Shape, TensorSpec},
 };
 
+#[expect(
+    clippy::many_single_char_names,
+    reason = "keeps the upstream sample's single-letter dimension names"
+)]
 fn run() -> Result<()> {
     let include_identity = !args().any(|argument| argument == "--without-identity");
     let example = common::ExampleContext::create()?;
@@ -97,9 +99,9 @@ fn run() -> Result<()> {
     bindings.set(y, &mut y_dev)?;
     // SAFETY: initialized inputs, writable output and workspace remain live through stream completion.
     example.execute_and_wait(|context| unsafe {
-        compiled.execute(
+        compiled.execute_async(
             context,
-            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
         )
     })?;
     println!("executed int8 convolution with int32 output, identity: {include_identity}");
@@ -107,6 +109,6 @@ fn run() -> Result<()> {
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_convolution_int8_fprop", run())
 }

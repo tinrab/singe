@@ -189,7 +189,7 @@ fn forget_key(key: &str) -> Result<()> {
 
 fn compile(name: &str, source: &str, options: &CompileOptions<'_>) -> Result<Vec<u8>> {
     let program = Program::from_source(source).with_name(&format!("{name}.cu"));
-    if let Err(source) = program.compile_with_options(options) {
+    if let Err(source) = program.compile(options) {
         return Err(CompileError::Nvrtc {
             kernel: name.to_owned(),
             log: program.log().unwrap_or_default(),

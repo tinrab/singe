@@ -1,11 +1,7 @@
 use half::{bf16, f16};
 
 use crate::{
-    backend::{
-        pointwise::PointwiseMode,
-        reduction::ReduceTensorOperator,
-        tensor::{Shape, TensorId, TensorPlacement, TensorSpec},
-    },
+    backend::operation::{pointwise::PointwiseMode, reduction::ReduceTensorOperator},
     data_type::DataType,
     error::Result,
     frontend::{
@@ -19,6 +15,7 @@ use crate::{
     },
     math::NanPropagation,
     scalar::ScalarValue,
+    tensor::{Shape, TensorId, TensorPlacement, TensorSpec},
 };
 
 impl Graph {

@@ -12,7 +12,7 @@ use singe_cuda::{
     context::Context,
     memory::transfer,
     view::{
-        AnyBitPatternDeviceRepr, DeviceInput, DeviceOutput, DeviceOutputView, DeviceRegion,
+        AnyBitPatternDeviceRepr, DeviceOutput, DeviceOutputView, DeviceRange, DeviceRegion,
         DeviceRegionProvider, DeviceRepr, DeviceSlice, DeviceSliceMut, DeviceView, DeviceViewMut,
     },
 };
@@ -150,7 +150,7 @@ unsafe impl<T> DeviceRegionProvider for SignalView<'_, T> {
 }
 
 // SAFETY: input/read-write construction establishes initialized T values.
-unsafe impl<T: DeviceRepr> DeviceInput<T> for SignalView<'_, T> {
+unsafe impl<T: DeviceRepr> DeviceRange<T> for SignalView<'_, T> {
     fn as_device_ptr(&self) -> *const T {
         self.as_ptr()
     }
@@ -305,7 +305,7 @@ unsafe impl<T> DeviceRegionProvider for SignalViewMut<'_, T> {
 }
 
 // SAFETY: input/read-write construction establishes initialized T values.
-unsafe impl<T: DeviceRepr> DeviceInput<T> for SignalViewMut<'_, T> {
+unsafe impl<T: DeviceRepr> DeviceRange<T> for SignalViewMut<'_, T> {
     fn as_device_ptr(&self) -> *const T {
         self.as_ptr()
     }
@@ -445,7 +445,7 @@ unsafe impl<T> DeviceRegionProvider for SignalOutputView<'_, T> {
 
 // SAFETY: exclusive construction grants aligned writable storage of the checked length.
 // SAFETY: output metadata describes the same live typed range without initialized reads.
-unsafe impl<T: DeviceRepr> DeviceInput<T> for SignalOutputView<'_, T> {
+unsafe impl<T: DeviceRepr> DeviceRange<T> for SignalOutputView<'_, T> {
     fn len(&self) -> usize {
         self.len()
     }

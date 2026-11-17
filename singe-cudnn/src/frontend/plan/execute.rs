@@ -1,16 +1,13 @@
-use std::mem::MaybeUninit;
-
 use singe_cuda::{
     graph::{ExecutableGraph, Graph as CudaGraph, GraphNode},
-    memory::DeviceMemory,
+    view::DeviceOutputView,
 };
 
 use crate::{
     context::Context,
-    error::Result,
+    error::{Error, Result},
     frontend::{
         bindings::{Bindings, RuntimeOverrides},
-        error::Error as FrontendError,
         plan::{CompiledGraph, PlanId},
     },
     utility::validate_context_pair,
@@ -25,7 +22,7 @@ pub struct ExecuteArgs<'a, 'graph> {
     /// Tensor pointer registrations and owned scalar values for this execution.
     pub bindings: &'a Bindings<'graph>,
     /// Optional device scratch allocation shared by frontend intermediates and native workspace.
-    pub workspace: Option<&'a mut DeviceMemory<MaybeUninit<u8>>>,
+    pub workspace: Option<DeviceOutputView<'a, u8>>,
     /// Optional identity in this compiled collection; `None` selects its default plan.
     pub plan: Option<&'a PlanId>,
     /// Optional execution-time shapes and strides; `None` uses the compiled layouts.
@@ -48,7 +45,7 @@ impl<'a, 'graph> ExecuteArgs<'a, 'graph> {
     #[must_use]
     pub fn with_workspace(
         mut self,
-        workspace: impl Into<Option<&'a mut DeviceMemory<MaybeUninit<u8>>>>,
+        workspace: impl Into<Option<DeviceOutputView<'a, u8>>>,
     ) -> Self {
         self.workspace = workspace.into();
         self
@@ -73,12 +70,13 @@ impl CompiledGraph {
     /// Executes the selected plan with the supplied tensor bindings.
     ///
     /// # Safety
+    ///
     /// Uphold the allocation, initialization, access and lifetime requirements on [`Bindings`].
     ///
     /// # Errors
     ///
-    /// Returns an error for an unknown plan, disabled or invalid runtime overrides, missing or incompatible bindings, invalid aliases or alignment, insufficient workspace, or variant-pack construction failure, execution-context or resource-retention failure, diagnostic logging failure, workspace initialization failure, or native execution failure.
-    pub unsafe fn execute(&self, context: &Context, args: ExecuteArgs<'_, '_>) -> Result<()> {
+    /// Returns an error if the plan is unknown, runtime overrides are disabled or invalid, bindings are missing or incompatible, aliases or alignment are invalid, the workspace is too small, building the variant pack fails, preparing the execution context or retaining resources fails, diagnostic logging fails, initializing the workspace fails, or native execution fails.
+    pub unsafe fn execute_async(&self, context: &Context, args: ExecuteArgs<'_, '_>) -> Result<()> {
         let plan = args.plan.unwrap_or_else(|| self.default_plan());
         let execution_plan = self.execution_plan_for(plan)?;
         let no_overrides = RuntimeOverrides::new();
@@ -88,22 +86,23 @@ impl CompiledGraph {
             args.workspace,
             args.overrides.unwrap_or(&no_overrides),
         )?;
-        // SAFETY: the variant pack uses the same established bindings and runtime layouts as the native execution below.
+        // SAFETY: `variant_pack` holds `args.bindings`, which this function's `Bindings` contract keeps live and initialized at entry.
         unsafe {
             self.log_execution(context, &variant_pack, plan)?;
         }
-        // SAFETY: the caller upholds the Bindings execution contract.
-        unsafe { execution_plan.execute(context, &variant_pack) }
+        // SAFETY: `variant_pack_with_overrides` checked contexts, capacities and alignment, and this function's `Bindings` contract supplies the initialization, producer ordering and lifetime that `ExecutionPlan::execute_async` requires.
+        unsafe { execution_plan.execute_async(context, &variant_pack) }
     }
 
     /// Populates an empty CUDA graph with the selected plan.
     ///
     /// # Safety
+    ///
     /// Uphold the allocation, initialization, access and lifetime requirements on [`Bindings`].
     ///
     /// # Errors
     ///
-    /// Returns an error for an unknown plan, disabled or invalid runtime overrides, missing or incompatible bindings, invalid aliases or alignment, insufficient workspace, or variant-pack construction failure, a nonempty destination graph, incompatible CUDA contexts, resource-retention or workspace-initializer preparation failure, or CUDA graph query or native population failure.
+    /// Returns an error if the plan is unknown, runtime overrides are disabled or invalid, bindings are missing or incompatible, aliases or alignment are invalid, the workspace is too small, building the variant pack fails, the destination graph is not empty, the CUDA contexts are incompatible, retaining resources or preparing workspace initializers fails, or the CUDA graph query or native population fails.
     pub unsafe fn populate_cuda_graph(
         &self,
         context: &Context,
@@ -119,9 +118,9 @@ impl CompiledGraph {
             args.overrides.unwrap_or(&no_overrides),
         )?;
         if !graph.root_nodes()?.is_empty() {
-            return Err(FrontendError::CudaGraphPopulateRequiresEmptyGraph.into());
+            return Err(Error::CudaGraphPopulateRequiresEmptyGraph);
         }
-        // SAFETY: the caller upholds the Bindings execution contract.
+        // SAFETY: `variant_pack_with_overrides` checked the bindings' layouts, and this function's `Bindings` contract keeps the captured addresses valid and initialized for every replay of the populated graph.
         unsafe {
             self.execution_plan_for(plan)?
                 .populate_graph(context, &variant_pack, graph)
@@ -131,6 +130,7 @@ impl CompiledGraph {
     /// Adds the selected plan to `graph` as a child-graph node after `dependencies`.
     ///
     /// # Safety
+    ///
     /// Uphold the allocation, initialization, access and lifetime requirements on [`Bindings`].
     ///
     /// # Errors
@@ -144,9 +144,13 @@ impl CompiledGraph {
         graph: &mut CudaGraph,
         dependencies: &[GraphNode],
     ) -> Result<GraphNode> {
-        validate_context_pair(Some(context.cuda_context()), graph.context(), "cuda graph")?;
+        validate_context_pair(
+            Some(context.cuda_context()),
+            Some(graph.context()),
+            "cuda graph",
+        )?;
         let mut child_graph = context.cuda_context().create_graph()?;
-        // SAFETY: the caller upholds the Bindings execution contract.
+        // SAFETY: `populate_cuda_graph` has the same `Bindings` contract as this function, and `child_graph` is new and empty.
         unsafe { self.populate_cuda_graph(context, args, &mut child_graph) }?;
         Ok(graph.add_child_graph_node(dependencies, &child_graph)?)
     }
@@ -154,16 +158,17 @@ impl CompiledGraph {
     /// Updates a CUDA graph previously populated with this compiled graph.
     ///
     /// # Safety
+    ///
     /// Uphold the allocation, initialization, access and lifetime requirements on [`Bindings`].
     ///
     /// # Errors
     ///
-    /// Returns an error for an unknown plan, disabled or invalid runtime overrides, missing or incompatible bindings, invalid aliases or alignment, insufficient workspace, or variant-pack construction failure, incompatible CUDA contexts, resource-retention or workspace-initializer preparation failure, or CUDA graph operations or native update failure.
+    /// Returns an error if the plan is unknown, runtime overrides are disabled or invalid, bindings are missing or incompatible, aliases or alignment are invalid, the workspace is too small, building the variant pack fails, the CUDA contexts are incompatible, retaining resources or preparing workspace initializers fails, or a CUDA graph operation or the native update fails.
     pub unsafe fn update_cuda_graph(
         &self,
         context: &Context,
         args: ExecuteArgs<'_, '_>,
-        graph: &CudaGraph,
+        graph: &mut CudaGraph,
     ) -> Result<()> {
         let plan = args.plan.unwrap_or_else(|| self.default_plan());
         let no_overrides = RuntimeOverrides::new();
@@ -175,17 +180,18 @@ impl CompiledGraph {
             args.workspace,
             overrides,
         )?;
-        // SAFETY: the caller upholds the Bindings execution contract.
+        // SAFETY: `variant_pack_with_overrides` checked the bindings' layouts, and this function's `Bindings` contract keeps the new addresses valid and older executables' storage retained for every replay.
         unsafe {
             self.execution_plan_for(plan)?
                 .update_graph(context, &variant_pack, graph)
         }
     }
 
-    /// Updates a child-graph node created by [`Self::append_to_cuda_graph`].
+    /// Updates a child-graph node of `graph` created by [`Self::append_to_cuda_graph`].
     /// When `exec` is supplied, the instantiated graph receives the same update.
     ///
     /// # Safety
+    ///
     /// Uphold the allocation, initialization, access and lifetime requirements on [`Bindings`].
     ///
     /// # Errors
@@ -195,17 +201,18 @@ impl CompiledGraph {
         &self,
         context: &Context,
         args: ExecuteArgs<'_, '_>,
+        graph: &mut CudaGraph,
         node: &GraphNode,
         exec: Option<&mut ExecutableGraph>,
     ) -> Result<()> {
-        let child_graph = node.child_graph()?.try_clone()?;
+        let mut child_graph = graph.child_graph(node)?.try_clone()?;
         if let Some(exec) = exec.as_deref() {
             exec.validate_child_graph_node_update(node, &child_graph)?;
         }
 
-        // SAFETY: the caller upholds the Bindings execution contract.
-        unsafe { self.update_cuda_graph(context, args, &child_graph) }?;
-        node.set_child_graph(&child_graph)?;
+        // SAFETY: `update_cuda_graph` has the same `Bindings` contract as this function, applied to a clone of the node's child graph.
+        unsafe { self.update_cuda_graph(context, args, &mut child_graph) }?;
+        graph.set_child_graph(node, &child_graph)?;
         if let Some(exec) = exec {
             exec.set_child_graph_node(node, &child_graph)?;
         }

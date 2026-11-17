@@ -1,12 +1,10 @@
-use std::ptr;
-
 pub use crate::backend::cuda::eager::linear_algebra::matmul;
 use crate::{
     backend::{
         cuda::{
             self,
             eager::ensure_cuda_eager_same_device_inputs,
-            gemm::{ScaledMatmulPointers, enqueue_scaled_matmul},
+            gemm::{ScaledMatmulOperands, enqueue_scaled_matmul},
             kernel_plan,
             stream::ensure_not_stream_capturing,
             tensor_region::CudaTensorSource,
@@ -84,20 +82,19 @@ fn cublaslt_scaled_matmul(
     let context = cuda::execution_context(lhs.device())?;
     context.bind()?;
     let product = context.allocate_output(output, &problem.output_shape)?;
-    let pointer = |tensor: &Tensor| -> Result<_> {
-        Ok(tensor
-            .tensor_region()?
-            .region()
-            .as_ptr()
-            .cast_const()
-            .cast())
+    let (lhs_scale, rhs_scale) = match scales {
+        Some((lhs_scale, rhs_scale)) => (
+            Some(lhs_scale.tensor_region()?.region()),
+            Some(rhs_scale.tensor_region()?.region()),
+        ),
+        None => (None, None),
     };
-    let pointers = ScaledMatmulPointers {
-        lhs: pointer(lhs)?,
-        rhs: pointer(rhs)?,
-        lhs_scale: scales.map_or(Ok(ptr::null()), |(lhs_scale, _)| pointer(lhs_scale))?,
-        rhs_scale: scales.map_or(Ok(ptr::null()), |(_, rhs_scale)| pointer(rhs_scale))?,
-        output: product.region().region().as_ptr().cast(),
+    let operands = ScaledMatmulOperands {
+        lhs: lhs.tensor_region()?.region(),
+        rhs: rhs.tensor_region()?.region(),
+        lhs_scale,
+        rhs_scale,
+        output: product.region().region(),
     };
     context.sync_scope(|| {
         let cublaslt = context.runtime().cublaslt().locked("cuda runtime cache")?;
@@ -107,7 +104,7 @@ fn cublaslt_scaled_matmul(
                 &cublaslt,
                 problem,
                 [lhs.data_type(), rhs.data_type(), output],
-                &pointers,
+                &operands,
                 Some(context.stream().raw()),
             )
         }

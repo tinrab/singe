@@ -30,140 +30,82 @@ pub const cudaTextureType1DLayered: u32 = 241;
 pub const cudaTextureType2DLayered: u32 = 242;
 /// Selects a layered cube-map texture resource.
 pub const cudaTextureTypeCubemapLayered: u32 = 252;
-/// Floating-point rounding direction for CUDA conversion operations.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudaRoundMode {
+impl cudaRoundMode {
     /// Rounds to the nearest representable value.
-    cudaRoundNearest = 0,
+    pub const cudaRoundNearest: cudaRoundMode = cudaRoundMode(0);
     /// Rounds toward zero.
-    cudaRoundZero = 1,
+    pub const cudaRoundZero: cudaRoundMode = cudaRoundMode(1);
     /// Rounds toward positive infinity.
-    cudaRoundPosInf = 2,
+    pub const cudaRoundPosInf: cudaRoundMode = cudaRoundMode(2);
     /// Rounds toward negative infinity.
-    cudaRoundMinInf = 3,
+    pub const cudaRoundMinInf: cudaRoundMode = cudaRoundMode(3);
 }
+/// Floating-point rounding direction for CUDA conversion operations.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudaRoundMode(pub ::core::ffi::c_uint);
 /// Unsigned C `size_t`, used for byte counts and object sizes in the native ABI.
 pub type size_t = ::core::ffi::c_ulong;
-/// CUDA Surface boundary modes.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudaSurfaceBoundaryMode {
+impl cudaSurfaceBoundaryMode {
     /// Zero boundary mode.
-    cudaBoundaryModeZero = 0,
+    pub const cudaBoundaryModeZero: cudaSurfaceBoundaryMode = cudaSurfaceBoundaryMode(0);
     /// Clamp boundary mode.
-    cudaBoundaryModeClamp = 1,
+    pub const cudaBoundaryModeClamp: cudaSurfaceBoundaryMode = cudaSurfaceBoundaryMode(
+        1,
+    );
     /// Trap boundary mode.
-    cudaBoundaryModeTrap = 2,
+    pub const cudaBoundaryModeTrap: cudaSurfaceBoundaryMode = cudaSurfaceBoundaryMode(2);
+}
+/// CUDA Surface boundary modes.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudaSurfaceBoundaryMode(pub ::core::ffi::c_uint);
+impl cudaSurfaceFormatMode {
+    /// Forced format mode.
+    pub const cudaFormatModeForced: cudaSurfaceFormatMode = cudaSurfaceFormatMode(0);
+    /// Auto format mode.
+    pub const cudaFormatModeAuto: cudaSurfaceFormatMode = cudaSurfaceFormatMode(1);
 }
 /// CUDA Surface format modes.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudaSurfaceFormatMode {
-    /// Forced format mode.
-    cudaFormatModeForced = 0,
-    /// Auto format mode.
-    cudaFormatModeAuto = 1,
-}
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudaSurfaceFormatMode(pub ::core::ffi::c_uint);
 /// An opaque value that represents a CUDA Surface object.
 pub type cudaSurfaceObject_t = ::core::ffi::c_ulonglong;
-/// CUDA texture address modes.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudaTextureAddressMode {
+impl cudaTextureAddressMode {
     /// Wrapping address mode.
-    cudaAddressModeWrap = 0,
+    pub const cudaAddressModeWrap: cudaTextureAddressMode = cudaTextureAddressMode(0);
     /// Clamp to edge address mode.
-    cudaAddressModeClamp = 1,
+    pub const cudaAddressModeClamp: cudaTextureAddressMode = cudaTextureAddressMode(1);
     /// Mirror address mode.
-    cudaAddressModeMirror = 2,
+    pub const cudaAddressModeMirror: cudaTextureAddressMode = cudaTextureAddressMode(2);
     /// Border address mode.
-    cudaAddressModeBorder = 3,
+    pub const cudaAddressModeBorder: cudaTextureAddressMode = cudaTextureAddressMode(3);
+}
+/// CUDA texture address modes.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudaTextureAddressMode(pub ::core::ffi::c_uint);
+impl cudaTextureFilterMode {
+    /// Point filter mode.
+    pub const cudaFilterModePoint: cudaTextureFilterMode = cudaTextureFilterMode(0);
+    /// Linear filter mode.
+    pub const cudaFilterModeLinear: cudaTextureFilterMode = cudaTextureFilterMode(1);
 }
 /// CUDA texture filter modes.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudaTextureFilterMode {
-    /// Point filter mode.
-    cudaFilterModePoint = 0,
-    /// Linear filter mode.
-    cudaFilterModeLinear = 1,
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudaTextureFilterMode(pub ::core::ffi::c_uint);
+impl cudaTextureReadMode {
+    /// Read texture as specified element type.
+    pub const cudaReadModeElementType: cudaTextureReadMode = cudaTextureReadMode(0);
+    /// Read texture as normalized float.
+    pub const cudaReadModeNormalizedFloat: cudaTextureReadMode = cudaTextureReadMode(1);
 }
 /// CUDA texture read modes.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudaTextureReadMode {
-    /// Read texture as specified element type.
-    cudaReadModeElementType = 0,
-    /// Read texture as normalized float.
-    cudaReadModeNormalizedFloat = 1,
-}
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudaTextureReadMode(pub ::core::ffi::c_uint);
 /// CUDA texture descriptor.
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialOrd, PartialEq)]

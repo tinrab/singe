@@ -1,9 +1,12 @@
+//! Interprocess CUDA memory and event handle exchange.
+
 use std::{
     fmt::{self, Display, Formatter},
     mem, ptr,
 };
 
 use bitflags::parser;
+use singe_core::report_cleanup_failure;
 use singe_cuda_sys::{driver, runtime};
 
 use crate::{
@@ -16,7 +19,7 @@ bitflags::bitflags! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct IpcMemoryFlags: u32 {
         /// Automatically enable peer access between remote devices as needed.
-        const LAZY_ENABLE_PEER_ACCESS = driver::CUipcMem_flags::CU_IPC_MEM_LAZY_ENABLE_PEER_ACCESS as _;
+        const LAZY_ENABLE_PEER_ACCESS = driver::CUipcMem_flags::CU_IPC_MEM_LAZY_ENABLE_PEER_ACCESS.0;
     }
 }
 
@@ -125,7 +128,7 @@ impl IpcMemoryHandle {
     /// Returns an error if CUDA Runtime cannot open the IPC handle, if the current device cannot access the allocation, or if CUDA returns a null mapped pointer.
     pub fn create_mapping<T>(self, flags: IpcMemoryFlags) -> Result<OpenedIpcMemory<T>> {
         let mut dev_ptr = ptr::null_mut();
-        // SAFETY: `cudaIpcOpenMemHandle` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `dev_ptr` is a writable local, and the token is passed by value; an invalid token is reported as an error.
         unsafe {
             try_ffi!(runtime::cudaIpcOpenMemHandle(
                 &raw mut dev_ptr,
@@ -163,7 +166,8 @@ impl<T> OpenedIpcMemory<T> {
         self.ptr
     }
 
-    /// Decrements the reference count of the memory returned by [`IpcMemoryHandle::create_mapping`] by 1. When the reference count reaches 0, this unmaps the memory.
+    /// Decrements the reference count of the memory returned by [`IpcMemoryHandle::create_mapping`] by 1.
+    /// When the reference count reaches 0, this unmaps the memory.
     /// The original allocation in the exporting process and imported mappings in other processes are unaffected.
     ///
     /// Resources used to enable peer access are freed if this is the last mapping using them.
@@ -187,7 +191,7 @@ impl<T> OpenedIpcMemory<T> {
         if ptr.is_null() {
             return Ok(());
         }
-        // SAFETY: `cudaIpcCloseMemHandle` receives only plain values.
+        // SAFETY: `ptr` is the non-null mapping `cudaIpcOpenMemHandle` returned, and `mem::forget` above keeps `Drop` from closing it again.
         unsafe { try_ffi!(runtime::cudaIpcCloseMemHandle(ptr.cast())) }
     }
 }
@@ -198,14 +202,9 @@ impl<T> Drop for OpenedIpcMemory<T> {
             return;
         }
 
-        // SAFETY: `cudaIpcCloseMemHandle` receives only plain values.
-        unsafe {
-            if let Err(error) = try_ffi!(runtime::cudaIpcCloseMemHandle(self.ptr.cast())) {
-                eprintln!(
-                    "failed to close cuda ipc memory handle: {}",
-                    singe_core::ErrorChain(&error)
-                );
-            }
+        // SAFETY: `self.ptr` is the non-null mapping `cudaIpcOpenMemHandle` returned, closed only here since `close` forgets the owner.
+        if let Err(error) = unsafe { try_ffi!(runtime::cudaIpcCloseMemHandle(self.ptr.cast())) } {
+            report_cleanup_failure("close", "cuda ipc memory handle", &error);
         }
     }
 }

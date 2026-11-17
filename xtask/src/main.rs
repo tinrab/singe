@@ -8,7 +8,7 @@ use anyhow::{Result, bail};
 
 use xtask::{
     cutile_dtype_kernels::generate_cutile_dtype_kernels, cutile_fused::generate_cutile_fused,
-    document::document,
+    document::document, onnx_proto::generate_onnx_proto,
 };
 
 fn main() -> ExitCode {
@@ -42,6 +42,7 @@ fn run() -> Result<ExitCode> {
         }
         Some("gen-cutile-dtype-kernels") => generate_cutile_dtype_kernels(),
         Some("gen-cutile-fused") => generate_cutile_fused(),
+        Some("gen-onnx-proto") => generate_onnx_proto(),
         Some("help" | "--help" | "-h") => {
             print_help();
             Ok(())
@@ -56,4 +57,5 @@ fn print_help() {
     println!("cargo xtask document [--comments-only] [binding-path ...]");
     println!("cargo xtask gen-cutile-dtype-kernels");
     println!("cargo xtask gen-cutile-fused");
+    println!("cargo xtask gen-onnx-proto");
 }

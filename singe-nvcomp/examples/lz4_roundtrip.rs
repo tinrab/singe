@@ -1,13 +1,10 @@
-use singe_cuda::{context::Context as CudaContext, memory::DeviceMemory};
+use singe_cuda::{context::Context as CudaContext, memory::DeviceMemory, stream::StreamOptions};
 
-use singe_nvcomp::{
-    error::Result,
-    format::{Codec, Lz4},
-};
+use singe_nvcomp::format::{Codec, Lz4};
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     let cuda = CudaContext::create()?;
-    let stream = cuda.create_stream()?;
+    let stream = cuda.create_stream(StreamOptions::default())?;
 
     let input = b"nvCOMP LZ4 roundtrip through Singe wrappers. ".repeat(1024);
     let device_input = DeviceMemory::from_slice(&cuda, &input)?;

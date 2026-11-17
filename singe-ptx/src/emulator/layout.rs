@@ -140,18 +140,18 @@ impl ModuleVariable {
 
 /// One write performed when a module variable is initialized.
 #[derive(Debug, Clone)]
-pub struct InitialValue {
+pub(crate) struct InitialValue {
     /// Byte offset within the variable.
-    pub offset: u64,
+    pub(crate) offset: u64,
     /// Number of bytes written by this initializer.
-    pub width: u32,
+    pub(crate) width: u32,
     /// Literal bits or symbolic address to write.
-    pub value: InitialBits,
+    pub(crate) value: InitialBits,
 }
 
 /// Literal bits or an address relocation used to initialize module storage.
 #[derive(Debug, Clone)]
-pub enum InitialBits {
+pub(crate) enum InitialBits {
     /// Literal bits written into the initialized storage.
     Bits(u128),
     /// Symbolic address resolved when the module is loaded.
@@ -262,7 +262,7 @@ impl ModuleLayout {
     }
 }
 
-pub fn validate_pragma(value: &str, span: Span) -> Result<()> {
+pub(crate) fn validate_pragma(value: &str, span: Span) -> Result<()> {
     match value {
         "nounroll" | "used_bytes_mask" => Ok(()),
         _ => Err(CompileError::unsupported(span, format!("pragma {value}"))),
@@ -270,7 +270,7 @@ pub fn validate_pragma(value: &str, span: Span) -> Result<()> {
 }
 
 /// Returns the storage size of a type that the emulator can place in memory.
-pub fn scalar_bytes(ty: ScalarType, span: Span) -> Result<u32> {
+pub(crate) fn scalar_bytes(ty: ScalarType, span: Span) -> Result<u32> {
     use ScalarType::{Bf16, SamplerRef, SurfRef, TexRef, Tf32};
     if matches!(ty, Bf16 | Tf32 | TexRef | SamplerRef | SurfRef) {
         return Err(CompileError::unsupported(
@@ -282,7 +282,7 @@ pub fn scalar_bytes(ty: ScalarType, span: Span) -> Result<u32> {
         .ok_or_else(|| CompileError::declaration(span, "predicates cannot occupy memory"))
 }
 
-pub fn validate_type_version(ty: ScalarType, version: PtxVersion, span: Span) -> Result<()> {
+pub(crate) fn validate_type_version(ty: ScalarType, version: PtxVersion, span: Span) -> Result<()> {
     if ty == ScalarType::B128 && version < PtxVersion::new(8, 3) {
         return Err(CompileError::unsupported(
             span,
@@ -292,7 +292,7 @@ pub fn validate_type_version(ty: ScalarType, version: PtxVersion, span: Span) ->
     Ok(())
 }
 
-pub fn align_up(value: u64, alignment: u32, span: Span) -> Result<u64> {
+pub(crate) fn align_up(value: u64, alignment: u32, span: Span) -> Result<u64> {
     let mask = u64::from(alignment) - 1;
     value
         .checked_add(mask)
@@ -300,7 +300,7 @@ pub fn align_up(value: u64, alignment: u32, span: Span) -> Result<u64> {
         .ok_or_else(|| CompileError::new(span, CompileErrorKind::LayoutOverflow))
 }
 
-pub fn parameters(
+pub(crate) fn parameters(
     parameters: &[Parameter],
     address_size: AddressSize,
 ) -> Result<Vec<ParameterLayout>> {
@@ -389,7 +389,7 @@ pub fn parameters(
     Ok(result)
 }
 
-pub fn is_dynamic_shared(variable: &VariableDecl) -> bool {
+pub(crate) fn is_dynamic_shared(variable: &VariableDecl) -> bool {
     variable.state_space == Some(StateSpace::Shared)
         && variable.linkage == Some(LinkingDirective::Extern)
         && variable.array_bounds == [None]
@@ -429,7 +429,7 @@ fn variable_dimensions(variable: &VariableDecl) -> Result<Vec<u64>> {
     Ok(dimensions)
 }
 
-pub fn variable_layout(variable: &VariableDecl) -> Result<StorageLayout> {
+pub(crate) fn variable_layout(variable: &VariableDecl) -> Result<StorageLayout> {
     if variable.initializer.is_some() && matches!(variable.ty, ScalarType::F16 | ScalarType::F16x2)
     {
         return Err(CompileError::declaration(

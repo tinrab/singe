@@ -37,7 +37,9 @@ use std::{
     time::{Duration, Instant},
 };
 
-use singe_cuda::checkpoint::{CheckpointProcess, LockOptions, ProcessState};
+use singe_cuda::checkpoint::{
+    CheckpointOptions, CheckpointProcess, LockOptions, ProcessState, RestoreOptions, UnlockOptions,
+};
 
 #[test]
 #[ignore = "requires Linux, CRIU, a checkpoint-capable CUDA driver, and permission to checkpoint and restore a child process"]
@@ -70,7 +72,7 @@ fn test_checkpoint_process_e2e() {
         .unwrap();
     assert_eq!(process.state().unwrap(), ProcessState::Locked);
 
-    process.checkpoint().unwrap();
+    process.checkpoint(CheckpointOptions::new()).unwrap();
     assert_eq!(process.state().unwrap(), ProcessState::Checkpointed);
 
     run(criu()
@@ -94,10 +96,10 @@ fn test_checkpoint_process_e2e() {
         .arg(&images_dir));
     wait_for_checkpoint_state(process, ProcessState::Checkpointed);
 
-    process.restore([]).unwrap();
+    process.restore(RestoreOptions::new()).unwrap();
     assert_eq!(process.state().unwrap(), ProcessState::Locked);
 
-    process.unlock().unwrap();
+    process.unlock(UnlockOptions::new()).unwrap();
     assert_eq!(process.state().unwrap(), ProcessState::Running);
 
     assert_eq!(request_counter(&test_dir, 2), 102);
@@ -117,7 +119,7 @@ struct ChildGuard {
 impl ChildGuard {
     fn new(child: Child) -> Self {
         Self {
-            pid: child.id() as i32,
+            pid: i32::try_from(child.id()).expect("process id fits in i32"),
             child: Some(child),
             disarmed: false,
         }

@@ -143,7 +143,7 @@ fn atom(input: Input<'_>, depth: usize) -> PResult<'_, Operand> {
     ))
 }
 
-pub fn operand(input: Input<'_>, depth: usize) -> PResult<'_, Operand> {
+pub(crate) fn operand(input: Input<'_>, depth: usize) -> PResult<'_, Operand> {
     depth::check(depth, input)?;
     let start = input.location_offset();
     let (input, first) = atom(input, depth)?;

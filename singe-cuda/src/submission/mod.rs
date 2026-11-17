@@ -19,6 +19,8 @@ use std::{
     task::{Context, Poll},
 };
 
+use singe_core::report_cleanup_failure;
+
 pub(crate) use self::tracker::{AccessGuard, AccessTracker, lock_access};
 pub use self::{
     completion::Completion,
@@ -45,6 +47,7 @@ impl Execution {
     /// Starts an owned execution ledger on an explicit stream outside capture.
     ///
     /// # Errors
+    ///
     /// Returns an error if capture is active or CUDA cannot query the stream.
     pub fn create(stream: &Stream) -> Result<Self> {
         stream.ensure_not_capturing()?;
@@ -65,6 +68,7 @@ impl Execution {
     /// Registers all owners and accesses before invoking an asynchronous native operation.
     ///
     /// # Safety
+    ///
     /// Retain every owner in the ledger or keep borrowed storage live until stream completion.
     /// Stream-ordered allocations may rely on deallocation ordered after this work.
     /// Owned [`Operation`] implementations must retain their resources independently of returned values.
@@ -102,7 +106,7 @@ impl Execution {
         let access_start = self.resources.accesses.len();
         tracker.retain(&mut resources);
         self.resources.extend(resources);
-        let event = Arc::new(context.create_event_with_flags(EventFlags::DISABLE_TIMING)?);
+        let event = Arc::new(context.create_event(EventFlags::DISABLE_TIMING)?);
         self.submitted = true;
         let result = match panic::catch_unwind(AssertUnwindSafe(|| enqueue(&self.stream))) {
             Ok(result) => result,
@@ -144,6 +148,7 @@ impl Execution {
     /// Transfers the ledger to checked completion independently of the returned output.
     ///
     /// # Errors
+    ///
     /// Returns an error if CUDA cannot record completion or start its completion worker.
     pub fn finish<T>(self, output: T) -> Result<Submission<T>> {
         self.finish_with(output, |output| Ok(output))
@@ -160,7 +165,7 @@ impl Execution {
             let event = Arc::new(
                 self.stream
                     .context()
-                    .create_event_with_flags(EventFlags::DISABLE_TIMING)?,
+                    .create_event(EventFlags::DISABLE_TIMING)?,
             );
             event.record(&self.stream, EventRecordFlags::DEFAULT)?;
             event
@@ -186,19 +191,20 @@ impl Drop for Execution {
         if self.submitted
             && let Err(error) = self.stream.synchronize()
         {
-            if let Ok(mut tracker) = lock_access(
+            // The submission did not complete, so its live resources stay retained.
+            report_cleanup_failure("synchronize", "cuda submission", &error);
+            match lock_access(
                 &self.stream.context().access_tracker,
                 &self.resources.accesses,
             ) {
-                tracker.fail();
+                Ok(mut tracker) => tracker.fail(),
+                Err(lock_error) => {
+                    report_cleanup_failure("lock", "cuda access tracker", &lock_error);
+                }
             }
 
             mem::forget(mem::take(&mut self.resources));
             mem::forget(mem::take(&mut self.events));
-            eprintln!(
-                "cuda submission did not complete; retaining live resources: {}",
-                singe_core::ErrorChain(&error)
-            );
         }
     }
 }
@@ -265,5 +271,32 @@ impl Stream {
     /// An error can occur after some native work has been queued; the execution ledger retains its resources through cleanup.
     pub fn submit<O: Operation>(&self, operation: O) -> Result<Submission<O::Output, O::Pending>> {
         operation.submit_on(self)
+    }
+}
+
+impl Stream {
+    /// Submits arbitrary raw work with an explicitly supplied ownership ledger.
+    ///
+    /// # Safety
+    ///
+    /// The resources must retain every native owner and declare all accesses before `enqueue` runs.
+    /// Follow [`crate::submission::Execution::enqueue`]'s native execution contract.
+    ///
+    /// # Errors
+    ///
+    /// Propagates capture-state, context, access-tracking, dependency-ordering, and completion-event errors, errors returned by `enqueue`, and failures to start or submit to the completion worker.
+    /// The callback may already have enqueued work when a later step fails.
+    pub unsafe fn enqueue_async<T, F>(
+        &self,
+        resources: Resources,
+        enqueue: F,
+    ) -> Result<Submission<T>>
+    where
+        F: FnOnce(&Self) -> Result<T>,
+    {
+        let mut execution = Execution::create(self)?;
+        // SAFETY: the caller guarantees `resources` retains every native owner and declares every access `enqueue` makes, and that `enqueue` follows the execution contract.
+        let output = unsafe { execution.enqueue(resources, enqueue)? };
+        execution.finish(output)
     }
 }

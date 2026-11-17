@@ -1,5 +1,7 @@
 use std::{mem, ptr};
 
+use singe_core::report_cleanup_failure;
+
 use crate::{
     context::Context,
     error::{Error, Result},
@@ -15,15 +17,14 @@ pub struct SyevjInfo {
     handle: sys::syevjInfo_t,
 }
 
-// SAFETY: the owned native parameter object is movable between host threads.
-// Setters and execution require &mut self; shared access only reads options or
-// completed results. Raw execution must exclude concurrent parameter access.
+// SAFETY: `syevjInfo_t` is host-side parameter storage with no thread affinity, and this wrapper is its only owner.
 unsafe impl Send for SyevjInfo {}
 
+// SAFETY: `&self` methods only read options or completed results; setters and execution take `&mut self`, so shared access never overlaps a native write.
 unsafe impl Sync for SyevjInfo {}
 
 impl SyevjInfo {
-    /// Creates `syevj`, `syevj_batched`, and `sygvj` parameter storage with default values.
+    /// Creates parameter storage with default options for [`Syevj`](crate::eigen::Syevj), [`SyevjBatched`](crate::eigen::SyevjBatched), and [`Sygvj`](crate::eigen::Sygvj).
     ///
     /// The returned [`SyevjInfo`] owns the cuSOLVER parameter handle and destroys it when dropped.
     ///
@@ -32,7 +33,7 @@ impl SyevjInfo {
     /// Returns an error if cuSOLVER cannot allocate the parameter storage or if it does not return a valid handle.
     pub fn create() -> Result<Self> {
         let mut handle = ptr::null_mut();
-        // SAFETY: `cusolverDnCreateSyevjInfo` receives valid output locations.
+        // SAFETY: `handle` is a writable local that receives the new parameter object.
         unsafe {
             try_ffi!(sys::cusolverDnCreateSyevjInfo(&raw mut handle))?;
         }
@@ -44,43 +45,41 @@ impl SyevjInfo {
         Ok(Self { handle })
     }
 
-    /// Configures the `syevj` tolerance.
+    /// Sets the convergence tolerance of the Jacobi solve.
     ///
     /// # Errors
     ///
     /// Returns an error if cuSOLVER rejects the tolerance value.
     pub fn set_tolerance(&mut self, tolerance: f64) -> Result<()> {
-        // SAFETY: `cusolverDnXsyevjSetTolerance` receives live handles owned by the wrappers.
+        // SAFETY: `self` owns a live parameter object, and `&mut self` excludes concurrent host access; queued solves keep exclusive use under the raw execution contract.
         unsafe {
             try_ffi!(sys::cusolverDnXsyevjSetTolerance(self.as_raw(), tolerance,))?;
         }
         Ok(())
     }
 
-    /// Configures the maximum number of `syevj` sweeps.
+    /// Sets the maximum number of Jacobi sweeps.
     /// The default value is 100.
     ///
     /// # Errors
     ///
     /// Returns an error if cuSOLVER rejects the sweep count.
     pub fn set_max_sweeps(&mut self, max_sweeps: i32) -> Result<()> {
-        // SAFETY: `cusolverDnXsyevjSetMaxSweeps` receives live handles owned by the wrappers.
+        // SAFETY: `self` owns a live parameter object, and `&mut self` excludes concurrent host access; queued solves keep exclusive use under the raw execution contract.
         unsafe {
             try_ffi!(sys::cusolverDnXsyevjSetMaxSweeps(self.as_raw(), max_sweeps,))?;
         }
         Ok(())
     }
 
-    /// If `sort_eigenvalues` is false, the eigenvalues are not sorted.
-    /// This setting only applies to `syevj_batched`.
-    /// `syevj` and `sygvj` always sort eigenvalues in ascending order.
-    /// By default, eigenvalues are always sorted in ascending order.
+    /// Sets whether [`SyevjBatched`](crate::eigen::SyevjBatched) sorts eigenvalues in ascending order.
+    /// Sorting is on by default; [`Syevj`](crate::eigen::Syevj) and [`Sygvj`](crate::eigen::Sygvj) always sort.
     ///
     /// # Errors
     ///
     /// Returns an error if cuSOLVER rejects the sort setting.
     pub fn set_sort_eigenvalues(&mut self, sort_eigenvalues: bool) -> Result<()> {
-        // SAFETY: `cusolverDnXsyevjSetSortEig` receives live handles owned by the wrappers.
+        // SAFETY: `self` owns a live parameter object, and `&mut self` excludes concurrent host access; queued solves keep exclusive use under the raw execution contract.
         unsafe {
             try_ffi!(sys::cusolverDnXsyevjSetSortEig(
                 self.as_raw(),
@@ -90,18 +89,16 @@ impl SyevjInfo {
         Ok(())
     }
 
-    /// Returns the residual reported by `syevj` or `sygvj`.
-    /// This accessor does not support `syevj_batched`.
-    /// Calling this after `syevj_batched` returns [`crate::error::Status::NotSupported`].
+    /// Returns the residual of the last completed [`Syevj`](crate::eigen::Syevj) or [`Sygvj`](crate::eigen::Sygvj) solve.
     ///
     /// # Errors
     ///
-    /// Returns an error if the info handle was used with `syevj_batched`, which does not report a residual.
+    /// Returns an error if the object was last used by [`SyevjBatched`](crate::eigen::SyevjBatched), which reports no residual, as [`Status::NotSupported`](crate::error::Status::NotSupported).
     pub fn residual(&self, context: &Context) -> Result<f64> {
         context.bind()?;
 
         let mut residual = 0.0;
-        // SAFETY: `cusolverDnXsyevjGetResidual` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `context` and `self` own live handles, and `residual` is a writable local.
         unsafe {
             try_ffi!(sys::cusolverDnXsyevjGetResidual(
                 context.as_raw(),
@@ -112,18 +109,16 @@ impl SyevjInfo {
         Ok(residual)
     }
 
-    /// Returns the number of executed `syevj` or `sygvj` sweeps.
-    /// This accessor does not support `syevj_batched`.
-    /// Calling this after `syevj_batched` returns [`crate::error::Status::NotSupported`].
+    /// Returns the number of sweeps the last completed [`Syevj`](crate::eigen::Syevj) or [`Sygvj`](crate::eigen::Sygvj) solve executed.
     ///
     /// # Errors
     ///
-    /// Returns an error if the info handle was used with `syevj_batched`, which does not report a sweep count.
+    /// Returns an error if the object was last used by [`SyevjBatched`](crate::eigen::SyevjBatched), which reports no sweep count, as [`Status::NotSupported`](crate::error::Status::NotSupported).
     pub fn executed_sweeps(&self, context: &Context) -> Result<i32> {
         context.bind()?;
 
         let mut sweeps = 0;
-        // SAFETY: `cusolverDnXsyevjGetSweeps` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `context` and `self` own live handles, and `sweeps` is a writable local.
         unsafe {
             try_ffi!(sys::cusolverDnXsyevjGetSweeps(
                 context.as_raw(),
@@ -140,12 +135,12 @@ impl SyevjInfo {
         self.handle
     }
 
-    /// Takes ownership of a raw cuSOLVER `syevj` info handle.
+    /// Takes ownership of a raw Jacobi eigensolver parameter handle.
     ///
     /// # Safety
     ///
-    /// `handle` must be a valid `syevjInfo_t` created by cuSOLVER.
-    /// The returned wrapper takes ownership and will destroy it with `cusolverDnDestroySyevjInfo`; no other owner may destroy or keep using it.
+    /// `handle` must be a live parameter handle created by cuSOLVER.
+    /// The returned wrapper destroys it on drop, so no other owner may destroy or keep using it.
     ///
     /// # Errors
     ///
@@ -157,7 +152,7 @@ impl SyevjInfo {
         Ok(Self { handle })
     }
 
-    /// Releases ownership and returns the raw cuSOLVER `syevj` info handle.
+    /// Releases ownership and returns the raw parameter handle.
     ///
     /// The caller becomes responsible for destroying the handle.
     #[must_use]
@@ -170,13 +165,10 @@ impl SyevjInfo {
 
 impl Drop for SyevjInfo {
     fn drop(&mut self) {
-        // SAFETY: `cusolverDnDestroySyevjInfo` receives live handles owned by the wrappers.
+        // SAFETY: `self` owns the handle and is being dropped, so nothing uses it after this call.
         unsafe {
             if let Err(error) = try_ffi!(sys::cusolverDnDestroySyevjInfo(self.handle)) {
-                eprintln!(
-                    "failed to destroy cusolver syevj info: {}",
-                    singe_core::ErrorChain(&error)
-                );
+                report_cleanup_failure("destroy", "cusolver syevj info", &error);
             }
         }
     }

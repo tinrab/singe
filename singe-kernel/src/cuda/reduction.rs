@@ -8,7 +8,7 @@ use ::cutile::{cuda_async::device_buffer::DevicePointer, cuda_core::Stream as Cu
 use singe_cuda::types::f16;
 use singe_cuda::{
     stream::Stream,
-    view::{DeviceInput, DeviceOutput, DeviceRepr},
+    view::{DeviceOutput, DeviceRange, DeviceRepr},
 };
 
 #[cfg(feature = "cutile")]
@@ -208,7 +208,7 @@ fn arg_reduction_candidates(columns: usize) -> Vec<ReductionTuning> {
 
 fn validate_reduction<T: DeviceRepr>(
     out: &impl DeviceOutput<T>,
-    input: &impl DeviceInput<T>,
+    input: &impl DeviceRange<T>,
     config: ReductionConfig,
 ) -> Result<()> {
     let len = checked_element_count(config.rows, config.columns)?;
@@ -229,7 +229,7 @@ fn validate_reduction<T: DeviceRepr>(
 
 fn validate_arg_reduction<T: DeviceRepr>(
     out: &impl DeviceOutput<i32>,
-    input: &impl DeviceInput<T>,
+    input: &impl DeviceRange<T>,
     config: ArgReductionConfig,
 ) -> Result<()> {
     let len = checked_element_count(config.rows, config.columns)?;
@@ -291,7 +291,7 @@ where
 fn launch_reduction_default<T, F>(
     stream: &Stream,
     out: &mut impl DeviceOutput<T>,
-    input: &impl DeviceInput<T>,
+    input: &impl DeviceRange<T>,
     config: ReductionConfig,
     launch: F,
 ) -> Result<()>
@@ -313,7 +313,7 @@ where
 fn launch_reduction_with_tuning<T, F>(
     stream: &Stream,
     out: &mut impl DeviceOutput<T>,
-    input: &impl DeviceInput<T>,
+    input: &impl DeviceRange<T>,
     config: ReductionConfig,
     tuning: ReductionTuning,
     launch: F,
@@ -346,7 +346,7 @@ where
 fn reduction<T, FDefault, FTuned>(
     stream: &Stream,
     out: &mut impl DeviceOutput<T>,
-    input: &impl DeviceInput<T>,
+    input: &impl DeviceRange<T>,
     config: ReductionConfig,
     dtype: &'static str,
     op: &'static str,
@@ -404,7 +404,7 @@ where
 fn tune_reduction<T, F>(
     stream: &Stream,
     out: &mut impl DeviceOutput<T>,
-    input: &impl DeviceInput<T>,
+    input: &impl DeviceRange<T>,
     config: ReductionConfig,
     options: TuneOptions,
     dtype: &'static str,
@@ -442,7 +442,7 @@ where
 fn launch_arg_reduction_default<T, F>(
     stream: &Stream,
     out: &mut impl DeviceOutput<i32>,
-    input: &impl DeviceInput<T>,
+    input: &impl DeviceRange<T>,
     config: ArgReductionConfig,
     launch: F,
 ) -> Result<()>
@@ -464,7 +464,7 @@ where
 fn launch_arg_reduction_with_tuning<T, F>(
     stream: &Stream,
     out: &mut impl DeviceOutput<i32>,
-    input: &impl DeviceInput<T>,
+    input: &impl DeviceRange<T>,
     config: ArgReductionConfig,
     tuning: ReductionTuning,
     launch: F,
@@ -497,7 +497,7 @@ where
 fn arg_reduction<T, FDefault, FTuned>(
     stream: &Stream,
     out: &mut impl DeviceOutput<i32>,
-    input: &impl DeviceInput<T>,
+    input: &impl DeviceRange<T>,
     config: ArgReductionConfig,
     dtype: &'static str,
     op: &'static str,
@@ -567,7 +567,7 @@ where
 fn tune_arg_reduction<T, F>(
     stream: &Stream,
     out: &mut impl DeviceOutput<i32>,
-    input: &impl DeviceInput<T>,
+    input: &impl DeviceRange<T>,
     config: ArgReductionConfig,
     options: TuneOptions,
     dtype: &'static str,
@@ -614,7 +614,7 @@ macro_rules! autotuned_reduction_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
             config: ReductionConfig,
         ) -> Result<()> {
             reduction(
@@ -645,7 +645,7 @@ macro_rules! autotuned_reduction_fn {
         pub unsafe fn $tune_name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
             config: ReductionConfig,
             options: TuneOptions,
         ) -> Result<TuneReport<ReductionTuning>> {
@@ -1068,7 +1068,7 @@ macro_rules! autotuned_arg_reduction_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<i32>,
-            input: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
             config: ArgReductionConfig,
         ) -> Result<()> {
             arg_reduction(
@@ -1099,7 +1099,7 @@ macro_rules! autotuned_arg_reduction_fn {
         pub unsafe fn $tune_name(
             stream: &Stream,
             out: &mut impl DeviceOutput<i32>,
-            input: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
             config: ArgReductionConfig,
             options: TuneOptions,
         ) -> Result<TuneReport<ReductionTuning>> {
@@ -1313,7 +1313,7 @@ macro_rules! block_argmax_fn {
             stream: &Stream,
             block_max: &mut impl DeviceOutput<$max_ty>,
             block_idx: &mut impl DeviceOutput<i32>,
-            input: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
         ) -> Result<usize> {
             let len = input.len();
             if len == 0 {
@@ -1397,8 +1397,8 @@ macro_rules! reduce_block_argmax_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<i32>,
-            block_max: &impl DeviceInput<$max_ty>,
-            block_idx: &impl DeviceInput<i32>,
+            block_max: &impl DeviceRange<$max_ty>,
+            block_idx: &impl DeviceRange<i32>,
             num_blocks: usize,
         ) -> Result<()> {
             if num_blocks == 0 {

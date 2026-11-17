@@ -1,16 +1,12 @@
 mod common;
 
-use std::process;
-
 use singe_cuda::{memory::DeviceMemory, view::DeviceOutputView};
 
-use crate::common::{
-    ExampleResult, check_all_equal, create_power_of_two_rank_contexts, rank_indexed_values,
-};
+use crate::common::{check_all_equal, create_power_of_two_rank_contexts, rank_indexed_values};
 
 const ELEMENTS_PER_RANK: usize = 4;
 
-fn run() -> ExampleResult {
+fn main() -> anyhow::Result<()> {
     let group = create_power_of_two_rank_contexts(2)?;
     let ranks: Vec<_> = group.ranks().collect();
     let rank_count = group.rank_count();
@@ -36,14 +32,19 @@ fn run() -> ExampleResult {
 
     let mut mask = 1usize;
     while mask < rank_count {
+        let peers = rank_indices
+            .iter()
+            .map(|&rank_index| i32::try_from(rank_index ^ mask))
+            .collect::<Result<Vec<_>, _>>()?;
         // SAFETY: the example keeps these buffers alive and synchronizes before reading the results.
         unsafe {
-            group.sync_scope(|| {
-                for (rank_index, rank) in rank_indices.iter().copied().zip(&ranks) {
+            group.completed_group(|| {
+                for ((rank_index, rank), &peer) in
+                    rank_indices.iter().copied().zip(&ranks).zip(&peers)
+                {
                     let send_start = (rank_index & !(mask - 1)) * ELEMENTS_PER_RANK;
                     let recv_start = ((send_start / ELEMENTS_PER_RANK) ^ mask) * ELEMENTS_PER_RANK;
                     let len = ELEMENTS_PER_RANK * mask;
-                    let peer = (rank_index ^ mask) as i32;
 
                     let buffer = &mut recv_buffers[rank_index];
                     let mut whole = buffer.view_mut();
@@ -61,8 +62,8 @@ fn run() -> ExampleResult {
                                 .slice(recv_start..recv_start + len)?,
                         )
                     };
-                    rank.communicator().send(send, peer, rank.stream())?;
-                    rank.communicator().recv(recv, peer, rank.stream())?;
+                    rank.communicator().send_async(send, peer, rank.stream())?;
+                    rank.communicator().recv_async(recv, peer, rank.stream())?;
                 }
                 Ok(())
             })
@@ -70,8 +71,9 @@ fn run() -> ExampleResult {
         mask <<= 1;
     }
 
-    let expected: Vec<_> = (0..rank_count)
-        .flat_map(|rank| rank_indexed_values(rank as i32, ELEMENTS_PER_RANK))
+    let expected: Vec<_> = ranks
+        .iter()
+        .flat_map(|rank| rank_indexed_values(rank.id().get(), ELEMENTS_PER_RANK))
         .collect();
 
     for (index, (rank, recv)) in ranks.iter().zip(&recv_buffers).enumerate() {
@@ -86,11 +88,4 @@ fn run() -> ExampleResult {
 
     drop(recv_buffers);
     Ok(group.destroy()?)
-}
-
-fn main() {
-    if let Err(error) = run() {
-        eprintln!("{error}");
-        process::exit(1);
-    }
 }

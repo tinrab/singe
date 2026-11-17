@@ -101,12 +101,8 @@ pub fn tuning_cublaslt_matmul_algorithm(
             })?;
         }
 
-        let start = runtime
-            .context()
-            .create_event_with_flags(EventFlags::DEFAULT)?;
-        let stop = runtime
-            .context()
-            .create_event_with_flags(EventFlags::DEFAULT)?;
+        let start = runtime.context().create_event(EventFlags::DEFAULT)?;
+        let stop = runtime.context().create_event(EventFlags::DEFAULT)?;
         start.record(stream.raw(), EventRecordFlags::DEFAULT)?;
         for _ in 0..config.measurement_iterations() {
             launch_cublaslt_matmul(CublasLtMatmulLaunch {

@@ -4,10 +4,7 @@ use std::env::args;
 
 use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
-    backend::{
-        pointwise::PointwiseMode,
-        tensor::{Shape, TensorId, TensorSpec},
-    },
+    backend::operation::pointwise::PointwiseMode,
     data_type::{DataType, f16},
     error::Result,
     frontend::{
@@ -20,6 +17,7 @@ use singe_cudnn::{
         },
     },
     math::NanPropagation,
+    tensor::{Shape, TensorId, TensorSpec},
 };
 
 const X_ID: TensorId = TensorId::new(1100);
@@ -35,6 +33,10 @@ fn init_f16_image(size: usize, seed: &mut u32) -> Vec<f16> {
         .collect()
 }
 
+#[expect(
+    clippy::many_single_char_names,
+    reason = "keeps the upstream sample's single-letter dimension names"
+)]
 fn build_graph() -> Result<Graph> {
     let n = 4_i64;
     let c = 32_i64;
@@ -209,15 +211,15 @@ fn run() -> Result<()> {
     bindings.set(Y_ID, &mut y_dev)?;
     // SAFETY: restored plan metadata, initialized inputs, writable output and workspace remain live through completion.
     example.execute_and_wait(|context| unsafe {
-        restored.execute(
+        restored.execute_async(
             context,
-            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
         )
     })?;
 
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_compiled_graph_serialize", run())
 }

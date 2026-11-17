@@ -1,23 +1,24 @@
-use std::{error::Error, mem::size_of};
+use std::mem::size_of;
 
 use singe_cublas::{
     lt::{
         context::Context as LtContext,
         descriptor::MatrixLayout,
-        matmul::{MatmulDescriptor, matmul},
+        matmul::{MatmulDescriptor, matmul_async},
     },
+    scalar::Scalar,
     types::{ComputeType, Operation},
 };
-
 use singe_cuda::{
     context::Context as CudaContext,
     data_type::DataType,
     device::Device,
     memory::DeviceMemory,
     types::{Complex32, f16},
+    view::DeviceInputView,
 };
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() -> anyhow::Result<()> {
     let cuda = CudaContext::create_for_device(Device::new(0))?;
     let lt = LtContext::create(&cuda)?;
 
@@ -26,7 +27,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let c = DeviceMemory::<f16>::zeroed(&cuda, 2)?;
     let mut d = DeviceMemory::<f16>::zeroed(&cuda, 2)?;
 
-    let plane_offset = size_of::<f16>() as i64;
+    let plane_offset = i64::try_from(size_of::<f16>())?;
 
     let mut a_layout = MatrixLayout::create(DataType::ComplexF16, 1, 1, 1)?;
     a_layout.set_plane_offset(plane_offset)?;
@@ -43,13 +44,26 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let alpha = Complex32::new(1.0, 0.0);
     let beta = Complex32::new(0.0, 0.0);
-    // `matrix_transform` is not involved here: the plane offsets make cuBLASLt
+    // `matrix_transform_async` is not involved here: the plane offsets make cuBLASLt
     // interpret the single allocation as planar complex storage.
     // SAFETY: layouts match the retained buffers and scalars; the default stream is drained below.
     unsafe {
-        matmul(
-            &lt, &desc, &alpha, &a, &a_layout, &b, &b_layout, &beta, &c, &c_layout, &mut d,
-            &c_layout, None, None, None,
+        matmul_async(
+            &lt,
+            &desc,
+            Scalar::host(&alpha),
+            &a,
+            &a_layout,
+            &b,
+            &b_layout,
+            Scalar::host(&beta),
+            Some(DeviceInputView::from_buffer(&c)),
+            &c_layout,
+            &mut d,
+            &c_layout,
+            None,
+            None,
+            None,
         )
     }?;
     cuda.synchronize()?;

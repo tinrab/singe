@@ -1,4 +1,5 @@
 //! Borrowed typed views over CUDA-accessible memory.
+
 use std::{
     marker::PhantomData,
     mem::{MaybeUninit, align_of, size_of},
@@ -11,6 +12,11 @@ use std::{
     },
 };
 
+#[cfg(feature = "macros")]
+pub use singe_cuda_macros::{
+    AnyBitPatternDeviceRepr, DeviceRepr, NoUninitDeviceRepr, ZeroableDeviceRepr,
+};
+
 use crate::{
     context::Context,
     error::{Error, Result},
@@ -20,6 +26,7 @@ use crate::{
     },
     stream::Stream,
     types::{Complex, bf16, f4e2m1, f6e2m3, f6e3m2, f8e4m3, f8e5m2, f8ue5m3, f8ue8m0, f16},
+    utility::ranges_overlap,
 };
 
 /// A Rust type that can be represented as plain CUDA device memory.
@@ -78,24 +85,23 @@ pub unsafe trait AnyBitPatternDeviceRepr: ZeroableDeviceRepr {}
 /// Mutable access must be exclusive.
 /// The byte length must fit `usize`.
 /// `region()` must describe that same pointer and the exact byte range of those elements.
-pub unsafe trait DeviceOutput<T: DeviceRepr>: DeviceInput<T> {
+pub unsafe trait DeviceOutput<T: DeviceRepr>: DeviceRange<T> {
     /// Returns a pointer to the writable device output range.
     ///
     /// Writing valid `T` values requires the caller to establish CUDA execution ordering.
     fn as_mut_ptr(&mut self) -> *mut T;
 }
 
-#[cfg(feature = "macros")]
-pub use singe_cuda_macros::{
-    AnyBitPatternDeviceRepr, DeviceRepr, NoUninitDeviceRepr, ZeroableDeviceRepr,
-};
-
 macro_rules! impl_device_repr {
     ($($ty:ty),* $(,)?) => {
         $(
+            // SAFETY: the listed scalars have a fixed size, no padding, and no pointers or owned resources.
             unsafe impl DeviceRepr for $ty {}
+            // SAFETY: every byte of a valid scalar of these types is initialized.
             unsafe impl NoUninitDeviceRepr for $ty {}
+            // SAFETY: all-zero bytes are the zero value of each listed integer and floating-point type, and `()` has no bytes.
             unsafe impl ZeroableDeviceRepr for $ty {}
+            // SAFETY: every bit pattern is a valid value of the listed integer and floating-point types.
             unsafe impl AnyBitPatternDeviceRepr for $ty {}
         )*
     };
@@ -128,67 +134,80 @@ impl_device_repr!(
     f4e2m1,
 );
 
-// Boolean values can be transferred and zero-initialized, but device bytes other than 0 and 1 are invalid.
+// SAFETY: `bool` is one byte with no padding and no pointers or owned resources.
+// It is not `AnyBitPatternDeviceRepr`, since device bytes other than 0 and 1 are invalid.
 unsafe impl DeviceRepr for bool {}
 
+// SAFETY: the single byte of a valid `bool` is initialized.
 unsafe impl NoUninitDeviceRepr for bool {}
 
+// SAFETY: the zero byte is `false`.
 unsafe impl ZeroableDeviceRepr for bool {}
 
+// SAFETY: array elements are laid out without padding between them, so `[T; N]` inherits `T`'s layout check.
 unsafe impl<T: DeviceRepr, const N: usize> DeviceRepr for [T; N] {
     const LAYOUT: () = T::LAYOUT;
 }
 
+// SAFETY: an all-zero array is `N` all-zero elements, each valid because `T: ZeroableDeviceRepr`.
 unsafe impl<T: ZeroableDeviceRepr, const N: usize> ZeroableDeviceRepr for [T; N] {}
 
+// SAFETY: an array's bytes are exactly its elements' bytes, which `T: NoUninitDeviceRepr` keeps initialized.
 unsafe impl<T: NoUninitDeviceRepr, const N: usize> NoUninitDeviceRepr for [T; N] {}
 
+// SAFETY: every array bit pattern is `N` element patterns, each valid because `T: AnyBitPatternDeviceRepr`.
 unsafe impl<T: AnyBitPatternDeviceRepr, const N: usize> AnyBitPatternDeviceRepr for [T; N] {}
 
+// SAFETY: `Wrapping<T>` is `repr(transparent)` over `T`, so it has `T`'s layout.
 unsafe impl<T: DeviceRepr> DeviceRepr for Wrapping<T> {
     const LAYOUT: () = T::LAYOUT;
 }
 
+// SAFETY: `Wrapping<T>` is `repr(transparent)`, so all-zero bytes are a valid `T` inside it.
 unsafe impl<T: ZeroableDeviceRepr> ZeroableDeviceRepr for Wrapping<T> {}
 
+// SAFETY: `Wrapping<T>` is `repr(transparent)`, so its bytes are `T`'s initialized bytes.
 unsafe impl<T: NoUninitDeviceRepr> NoUninitDeviceRepr for Wrapping<T> {}
 
+// SAFETY: `Wrapping<T>` is `repr(transparent)`, so every bit pattern valid for `T` is valid for it.
 unsafe impl<T: AnyBitPatternDeviceRepr> AnyBitPatternDeviceRepr for Wrapping<T> {}
 
-// Complex is repr(C) with two consecutive fields of the same element type.
+// SAFETY: `Complex<T>` is `repr(C)` with two `T` fields, so it has no padding beyond `T`'s own.
 unsafe impl<T: DeviceRepr> DeviceRepr for Complex<T> {
     const LAYOUT: () = T::LAYOUT;
 }
 
+// SAFETY: all-zero bytes are two all-zero `T` fields, each valid because `T: ZeroableDeviceRepr`.
 unsafe impl<T: ZeroableDeviceRepr> ZeroableDeviceRepr for Complex<T> {}
 
+// SAFETY: the two padding-free `T` fields cover every byte, and `T: NoUninitDeviceRepr` keeps them initialized.
 unsafe impl<T: NoUninitDeviceRepr> NoUninitDeviceRepr for Complex<T> {}
 
+// SAFETY: every bit pattern is two `T` patterns, each valid because `T: AnyBitPatternDeviceRepr`.
 unsafe impl<T: AnyBitPatternDeviceRepr> AnyBitPatternDeviceRepr for Complex<T> {}
 
-// MaybeUninit accepts arbitrary storage, while DeviceRepr on T rules out padding and host ownership.
+// SAFETY: `MaybeUninit<T>` has `T`'s size and alignment and owns nothing, and `T: DeviceRepr` rules out host ownership.
 unsafe impl<T: DeviceRepr> DeviceRepr for MaybeUninit<T> {
     const LAYOUT: () = T::LAYOUT;
 }
 
+// SAFETY: any bytes, zero included, are a valid `MaybeUninit<T>`.
 unsafe impl<T: DeviceRepr> ZeroableDeviceRepr for MaybeUninit<T> {}
 
+// SAFETY: any initialized bit pattern is a valid `MaybeUninit<T>`.
 unsafe impl<T: DeviceRepr> AnyBitPatternDeviceRepr for MaybeUninit<T> {}
 
-// PhantomData has no stored bytes and owns no resource regardless of its marker type.
+// SAFETY: `PhantomData` is zero-sized and owns no resource, whatever its marker type.
 unsafe impl<T: ?Sized + 'static> DeviceRepr for PhantomData<T> {}
 
+// SAFETY: `PhantomData` has no bytes, so the empty all-zero pattern is its only value.
 unsafe impl<T: ?Sized + 'static> ZeroableDeviceRepr for PhantomData<T> {}
 
+// SAFETY: `PhantomData` has no bytes that could be uninitialized.
 unsafe impl<T: ?Sized + 'static> NoUninitDeviceRepr for PhantomData<T> {}
 
+// SAFETY: `PhantomData` has no bytes, so its one empty bit pattern is valid.
 unsafe impl<T: ?Sized + 'static> AnyBitPatternDeviceRepr for PhantomData<T> {}
-
-/// Reports byte-range overlap for allocation hazard tracking.
-#[must_use]
-pub(crate) fn ranges_overlap(left: &Range<usize>, right: &Range<usize>) -> bool {
-    left.start < right.end && right.start < left.end
-}
 
 /// Identifies one allocation across its typed handles, mappings, and subranges.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -226,6 +245,7 @@ impl<'a> HostRegion<'a> {
     /// Describes a complete live host allocation or registration.
     ///
     /// # Safety
+    ///
     /// The range must remain registered for `'a` in `context`.
     /// All host and device aliases must share `allocation_id` and byte offsets.
     /// `portable` must reflect CUDA's registration or allocation flags.
@@ -327,12 +347,12 @@ impl<'a> DeviceRegion<'a> {
         bytes: usize,
     ) -> Result<Self> {
         if bytes != 0 && base.is_null() {
-            return Err(Error::InvalidMemoryAccess);
+            return Err(Error::null_pointer("base"));
         }
 
-        (base as usize)
+        base.addr()
             .checked_add(bytes)
-            .ok_or(Error::InvalidMemoryAccess)?;
+            .ok_or_else(|| Error::out_of_range("region end address"))?;
         Ok(Self {
             context,
             stream: None,
@@ -350,7 +370,7 @@ impl<'a> DeviceRegion<'a> {
         self.context
     }
 
-    /// The stream that orders allocation and writes for stream-ordered storage.
+    /// Returns the stream that orders allocation and writes for stream-ordered storage.
     #[must_use]
     pub const fn stream(self) -> Option<&'a Stream> {
         self.stream
@@ -440,6 +460,18 @@ impl<'a> DeviceRegion<'a> {
     #[must_use]
     pub fn as_ptr(self) -> *mut u8 {
         self.base.wrapping_add(self.offset)
+    }
+
+    /// Checks that a nonempty region starts at a multiple of `alignment` bytes, which must be nonzero.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Misaligned`] naming `name` if the region is nonempty and its start is not a multiple of `alignment`.
+    pub fn ensure_aligned(self, alignment: usize, name: &'static str) -> Result<()> {
+        if self.bytes != 0 && !self.as_ptr().addr().is_multiple_of(alignment) {
+            return Err(Error::misaligned(name, alignment));
+        }
+        Ok(())
     }
 
     /// Borrows a byte subrange while preserving allocation and context identity.
@@ -570,6 +602,7 @@ unsafe impl<O: DeviceRegionProvider + 'static> DeviceRegionProvider for OwnedDev
             .slice(self.range.clone())
             .expect("retained range exceeds its allocation");
         self.readiness.as_ref().map_or(region, |stream| {
+            // SAFETY: `readiness` is set only by `Self::with_stream`, whose caller ordered allocation and producer writes on that stream.
             unsafe { region.with_stream(stream) }
                 .expect("retained readiness stream context mismatch")
         })
@@ -591,12 +624,18 @@ impl OwnedDeviceRegion {
 pub(crate) fn cast_length<T: DeviceRepr>(region: DeviceRegion<'_>) -> Result<usize> {
     let () = T::LAYOUT;
     let size = size_of::<T>();
-    if size == 0
-        || !region.byte_len().is_multiple_of(size)
-        || (region.byte_len() != 0 && !region.as_ptr().addr().is_multiple_of(align_of::<T>()))
-    {
-        return Err(Error::InvalidMemoryAccess);
+    if size == 0 {
+        return Err(Error::not_positive("element size"));
     }
+
+    if !region.byte_len().is_multiple_of(size) {
+        return Err(Error::misaligned("region byte length", size));
+    }
+
+    if region.byte_len() != 0 && !region.as_ptr().addr().is_multiple_of(align_of::<T>()) {
+        return Err(Error::misaligned("region address", align_of::<T>()));
+    }
+
     Ok(region.byte_len() / size)
 }
 
@@ -612,7 +651,7 @@ pub(crate) fn cast_length<T: DeviceRepr>(region: DeviceRegion<'_>) -> Result<usi
 /// The byte length must fit `usize`.
 /// `region()` must describe the exact byte range, actual context, allocation identity, and offset.
 /// Nonempty ranges must have the same pointer.
-pub unsafe trait DeviceInput<T: DeviceRepr>: DeviceRegionProvider {
+pub unsafe trait DeviceRange<T: DeviceRepr>: DeviceRegionProvider {
     /// Returns the context associated with the input allocation.
     fn context(&self) -> &Arc<Context> {
         self.region().context()
@@ -646,7 +685,7 @@ pub unsafe trait DeviceInput<T: DeviceRepr>: DeviceRegionProvider {
         let () = T::LAYOUT;
         self.len()
             .checked_mul(size_of::<T>())
-            .ok_or(Error::InvalidMemoryAllocationRequest)
+            .ok_or_else(|| Error::out_of_range("input byte length"))
     }
 }
 
@@ -656,7 +695,7 @@ pub unsafe trait DeviceInput<T: DeviceRepr>: DeviceRegionProvider {
 ///
 /// Every element must contain a valid `T` for the borrow.
 /// Safe consumers may read the range using CUDA, subject to stream ordering and shared-borrow rules.
-pub unsafe trait DeviceSlice<T: DeviceRepr>: DeviceInput<T> {}
+pub unsafe trait DeviceSlice<T: DeviceRepr>: DeviceRange<T> {}
 
 /// A mutable typed contiguous range of CUDA-accessible device memory.
 ///
@@ -695,57 +734,6 @@ pub unsafe trait HostSliceMut<T: DeviceRepr>: HostSlice<T> {
     fn as_host_mut_ptr(&mut self) -> *mut T;
 }
 
-/// Shared abstraction for read-only byte buffers.
-///
-/// # Safety
-///
-/// The pointer must identify `byte_len()` live readable bytes for the borrow.
-/// Consumers must use the address space appropriate to the concrete buffer.
-pub unsafe trait ByteBuffer {
-    /// Returns a pointer to the readable bytes in the buffer’s address space.
-    fn as_byte_ptr(&self) -> *const u8;
-
-    /// Returns the number of readable bytes.
-    fn byte_len(&self) -> usize;
-
-    /// Returns whether the byte range is empty.
-    fn is_empty(&self) -> bool {
-        self.byte_len() == 0
-    }
-}
-
-/// Shared abstraction for mutable byte buffers.
-///
-/// # Safety
-///
-/// The mutable pointer must identify the same bytes as `ByteBuffer` and grant exclusive writable access for the mutable borrow.
-pub unsafe trait ByteBufferMut: ByteBuffer {
-    /// Returns a pointer to the exclusively writable bytes in the buffer’s address space.
-    fn as_byte_mut_ptr(&mut self) -> *mut u8;
-}
-
-unsafe impl<B> ByteBuffer for B
-where
-    B: DeviceSlice<u8> + ?Sized,
-{
-    fn as_byte_ptr(&self) -> *const u8 {
-        self.as_device_ptr()
-    }
-
-    fn byte_len(&self) -> usize {
-        self.len()
-    }
-}
-
-unsafe impl<B> ByteBufferMut for B
-where
-    B: DeviceSliceMut<u8> + ?Sized,
-{
-    fn as_byte_mut_ptr(&mut self) -> *mut u8 {
-        self.as_mut_ptr()
-    }
-}
-
 /// Typed CUDA input metadata without an initialization guarantee.
 ///
 /// Construction checks the element layout and preserves the allocation's context and range.
@@ -773,7 +761,7 @@ impl<'a, T: DeviceRepr> DeviceInputView<'a, T> {
     }
 
     /// Borrows typed input metadata without strengthening its validity contract.
-    pub fn from_buffer<B: DeviceInput<T> + ?Sized>(buffer: &'a B) -> Self {
+    pub fn from_buffer<B: DeviceRange<T> + ?Sized>(buffer: &'a B) -> Self {
         let () = T::LAYOUT;
         Self {
             region: buffer.region(),
@@ -853,7 +841,7 @@ unsafe impl<T: DeviceRepr> DeviceRegionProvider for DeviceInputView<'_, T> {
 }
 
 // SAFETY: construction checks the layout; slicing and casting preserve bounds and alignment.
-unsafe impl<T: DeviceRepr> DeviceInput<T> for DeviceInputView<'_, T> {
+unsafe impl<T: DeviceRepr> DeviceRange<T> for DeviceInputView<'_, T> {
     fn as_device_ptr(&self) -> *const T {
         self.as_ptr()
     }
@@ -976,7 +964,7 @@ impl<'a, T: DeviceRepr> DeviceOutputView<'a, T> {
     /// Returns an error if `mid` exceeds the view’s element count.
     pub fn split_at_mut(self, mid: usize) -> Result<(Self, Self)> {
         if mid > self.length {
-            return Err(Error::InvalidMemoryAccess);
+            return Err(Error::buffer_too_small("view", mid, self.length));
         }
 
         let boundary = mid * size_of::<T>();
@@ -994,19 +982,21 @@ impl<'a, T: DeviceRepr> DeviceOutputView<'a, T> {
     }
 }
 
+// SAFETY: the region comes from a live `DeviceOutput` or a `from_raw_parts` caller, and slicing and splitting keep its identity and bounds.
 unsafe impl<T: DeviceRepr> DeviceRegionProvider for DeviceOutputView<'_, T> {
     fn region(&self) -> DeviceRegion<'_> {
         self.region
     }
 }
 
-// SAFETY: output metadata describes the same live typed range without initialized reads.
-unsafe impl<T: DeviceRepr> DeviceInput<T> for DeviceOutputView<'_, T> {
+// SAFETY: construction validated `length` elements of `T` against the region's size and alignment, and no initialized reads are claimed.
+unsafe impl<T: DeviceRepr> DeviceRange<T> for DeviceOutputView<'_, T> {
     fn len(&self) -> usize {
         self.length
     }
 }
 
+// SAFETY: the view holds the exclusive borrow of its writable range, and the pointer is that range's start.
 unsafe impl<T: DeviceRepr> DeviceOutput<T> for DeviceOutputView<'_, T> {
     fn as_mut_ptr(&mut self) -> *mut T {
         self.region.as_ptr().cast()
@@ -1015,12 +1005,25 @@ unsafe impl<T: DeviceRepr> DeviceOutput<T> for DeviceOutputView<'_, T> {
 
 fn validate_view<T: DeviceRepr>(region: DeviceRegion<'_>, length: usize) -> Result<()> {
     let () = T::LAYOUT;
-    if length.checked_mul(size_of::<T>()) != Some(region.byte_len())
-        || (length != 0
-            && (size_of::<T>() == 0 || !region.as_ptr().addr().is_multiple_of(align_of::<T>())))
-    {
-        return Err(Error::InvalidMemoryAccess);
+    let bytes = length
+        .checked_mul(size_of::<T>())
+        .ok_or_else(|| Error::out_of_range("view byte length"))?;
+    if bytes != region.byte_len() {
+        return Err(Error::size_mismatch(
+            "view region",
+            bytes,
+            region.byte_len(),
+        ));
     }
+
+    if length != 0 && size_of::<T>() == 0 {
+        return Err(Error::not_positive("element size"));
+    }
+
+    if length != 0 && !region.as_ptr().addr().is_multiple_of(align_of::<T>()) {
+        return Err(Error::misaligned("view address", align_of::<T>()));
+    }
+
     Ok(())
 }
 
@@ -1054,7 +1057,6 @@ impl<'a, T: DeviceRepr> DeviceView<'a, T> {
     #[must_use]
     pub fn from_memory(memory: &'a DeviceMemory<T>) -> Self {
         let () = T::LAYOUT;
-        let () = T::LAYOUT;
         Self {
             region: memory.region(),
             length: memory.len(),
@@ -1064,7 +1066,6 @@ impl<'a, T: DeviceRepr> DeviceView<'a, T> {
 
     /// Borrows any typed provider that also retains allocation metadata.
     pub fn from_buffer<B: DeviceSlice<T> + ?Sized>(buffer: &'a B) -> Self {
-        let () = T::LAYOUT;
         let () = T::LAYOUT;
         Self {
             region: buffer.region(),
@@ -1216,7 +1217,6 @@ impl<'a, T: DeviceRepr> DeviceViewMut<'a, T> {
     /// Exclusively borrows every initialized element of a device allocation without copying data.
     pub fn from_memory(memory: &'a mut DeviceMemory<T>) -> Self {
         let () = T::LAYOUT;
-        let () = T::LAYOUT;
         Self {
             region: memory.region(),
             length: memory.len(),
@@ -1226,7 +1226,6 @@ impl<'a, T: DeviceRepr> DeviceViewMut<'a, T> {
 
     /// Exclusively borrows an initialized typed provider without copying data.
     pub fn from_buffer<B: DeviceSliceMut<T> + ?Sized>(buffer: &'a mut B) -> Self {
-        let () = T::LAYOUT;
         let () = T::LAYOUT;
         Self {
             region: buffer.region(),
@@ -1383,7 +1382,7 @@ impl<'a, T: DeviceRepr> DeviceViewMut<'a, T> {
         mid: usize,
     ) -> Result<(DeviceViewMut<'_, T>, DeviceViewMut<'_, T>)> {
         if mid > self.length {
-            return Err(Error::InvalidMemoryAccess);
+            return Err(Error::buffer_too_small("view", mid, self.length));
         }
 
         let bytes = mid * size_of::<T>();
@@ -1437,31 +1436,35 @@ impl<'a, T: DeviceRepr> DeviceViewMut<'a, T> {
     }
 }
 
+// SAFETY: the region comes from a live provider or a `from_raw_parts` caller, and slicing keeps its identity and bounds.
 unsafe impl<T: DeviceRepr> DeviceRegionProvider for DeviceView<'_, T> {
     fn region(&self) -> DeviceRegion<'_> {
         self.region
     }
 }
 
+// SAFETY: the region comes from a live provider or a `from_raw_parts` caller, and slicing and splitting keep its identity and bounds.
 unsafe impl<T: DeviceRepr> DeviceRegionProvider for DeviceViewMut<'_, T> {
     fn region(&self) -> DeviceRegion<'_> {
         self.region
     }
 }
 
+// SAFETY: the view holds the exclusive borrow of its range, and `as_mut_ptr` returns that range's start.
 unsafe impl<T: DeviceRepr> DeviceOutput<T> for DeviceViewMut<'_, T> {
     fn as_mut_ptr(&mut self) -> *mut T {
         self.as_mut_ptr()
     }
 }
 
-// SAFETY: output metadata describes the same live typed range without initialized reads.
-unsafe impl<T: DeviceRepr> DeviceInput<T> for DeviceViewMut<'_, MaybeUninit<T>> {
+// SAFETY: `MaybeUninit<T>` has `T`'s size and alignment, so the validated range holds `length` slots for `T`, and no initialized reads are claimed.
+unsafe impl<T: DeviceRepr> DeviceRange<T> for DeviceViewMut<'_, MaybeUninit<T>> {
     fn len(&self) -> usize {
         self.length
     }
 }
 
+// SAFETY: the view exclusively borrows `length` writable `MaybeUninit<T>` slots, which have `T`'s layout.
 unsafe impl<T: DeviceRepr> DeviceOutput<T> for DeviceViewMut<'_, MaybeUninit<T>> {
     fn as_mut_ptr(&mut self) -> *mut T {
         self.as_mut_ptr().cast()
@@ -1511,7 +1514,8 @@ impl<T: DeviceRepr> DeviceMemory<MaybeUninit<T>> {
     }
 }
 
-unsafe impl<T: DeviceRepr> DeviceInput<T> for DeviceMemory<T> {
+// SAFETY: the owner retains its allocation, whose `length` elements start at `ptr`, and `region()` slices exactly those bytes.
+unsafe impl<T: DeviceRepr> DeviceRange<T> for DeviceMemory<T> {
     fn as_device_ptr(&self) -> *const T {
         self.as_ptr()
     }
@@ -1521,12 +1525,14 @@ unsafe impl<T: DeviceRepr> DeviceInput<T> for DeviceMemory<T> {
     }
 }
 
-// SAFETY: the typed owner or view preserves initialized values for its borrow.
+// SAFETY: `DeviceMemory<T>` is only constructed initialized; uninitialized storage is typed `DeviceMemory<MaybeUninit<T>>`.
 unsafe impl<T: DeviceRepr> DeviceSlice<T> for DeviceMemory<T> {}
 
+// SAFETY: `&mut DeviceMemory<T>` is exclusive, and its input and output pointers are both `ptr`.
 unsafe impl<T: DeviceRepr> DeviceSliceMut<T> for DeviceMemory<T> {}
 
-unsafe impl<T: DeviceRepr> DeviceInput<T> for DeviceView<'_, T> {
+// SAFETY: the view's pointer and length come from the same validated region.
+unsafe impl<T: DeviceRepr> DeviceRange<T> for DeviceView<'_, T> {
     fn as_device_ptr(&self) -> *const T {
         self.as_ptr()
     }
@@ -1536,10 +1542,11 @@ unsafe impl<T: DeviceRepr> DeviceInput<T> for DeviceView<'_, T> {
     }
 }
 
-// SAFETY: the typed owner or view preserves initialized values for its borrow.
+// SAFETY: a `DeviceView<T>` is built from an initialized provider or a `from_raw_parts` caller that vouches for valid values.
 unsafe impl<T: DeviceRepr> DeviceSlice<T> for DeviceView<'_, T> {}
 
-unsafe impl<T: DeviceRepr> DeviceInput<T> for DeviceViewMut<'_, T> {
+// SAFETY: the view's pointer and length come from the same validated region.
+unsafe impl<T: DeviceRepr> DeviceRange<T> for DeviceViewMut<'_, T> {
     fn as_device_ptr(&self) -> *const T {
         self.as_ptr()
     }
@@ -1549,11 +1556,13 @@ unsafe impl<T: DeviceRepr> DeviceInput<T> for DeviceViewMut<'_, T> {
     }
 }
 
-// SAFETY: the typed owner or view preserves initialized values for its borrow.
+// SAFETY: a `DeviceViewMut<T>` is built from an initialized provider or a `from_raw_parts` caller that vouches for valid values.
 unsafe impl<T: DeviceRepr> DeviceSlice<T> for DeviceViewMut<'_, T> {}
 
+// SAFETY: the view holds an exclusive borrow, and its input and output pointers describe one range.
 unsafe impl<T: DeviceRepr> DeviceSliceMut<T> for DeviceViewMut<'_, T> {}
 
+// SAFETY: a slice's pointer and length describe live, aligned `T` values readable for the borrow.
 unsafe impl<T: DeviceRepr> HostSlice<T> for [T] {
     fn as_host_ptr(&self) -> *const T {
         self.as_ptr()
@@ -1564,12 +1573,14 @@ unsafe impl<T: DeviceRepr> HostSlice<T> for [T] {
     }
 }
 
+// SAFETY: `&mut [T]` grants exclusive write access to the same range.
 unsafe impl<T: DeviceRepr> HostSliceMut<T> for [T] {
     fn as_host_mut_ptr(&mut self) -> *mut T {
         self.as_mut_ptr()
     }
 }
 
+// SAFETY: an array's pointer and `N` describe live, aligned `T` values readable for the borrow.
 unsafe impl<T: DeviceRepr, const N: usize> HostSlice<T> for [T; N] {
     fn as_host_ptr(&self) -> *const T {
         self.as_ptr()
@@ -1580,12 +1591,14 @@ unsafe impl<T: DeviceRepr, const N: usize> HostSlice<T> for [T; N] {
     }
 }
 
+// SAFETY: `&mut [T; N]` grants exclusive write access to the same range.
 unsafe impl<T: DeviceRepr, const N: usize> HostSliceMut<T> for [T; N] {
     fn as_host_mut_ptr(&mut self) -> *mut T {
         self.as_mut_ptr()
     }
 }
 
+// SAFETY: a vector's pointer and length describe its live, aligned, initialized elements.
 unsafe impl<T: DeviceRepr> HostSlice<T> for Vec<T> {
     fn as_host_ptr(&self) -> *const T {
         self.as_ptr()
@@ -1596,6 +1609,7 @@ unsafe impl<T: DeviceRepr> HostSlice<T> for Vec<T> {
     }
 }
 
+// SAFETY: `&mut Vec<T>` grants exclusive write access to the same elements.
 unsafe impl<T: DeviceRepr> HostSliceMut<T> for Vec<T> {
     fn as_host_mut_ptr(&mut self) -> *mut T {
         self.as_mut_ptr()
@@ -1605,40 +1619,26 @@ unsafe impl<T: DeviceRepr> HostSliceMut<T> for Vec<T> {
 fn bounds_to_range<R: RangeBounds<usize>>(range: R, length: usize) -> Result<(usize, usize)> {
     let start = match range.start_bound() {
         Bound::Included(&value) => value,
-        Bound::Excluded(&value) => value.checked_add(1).ok_or(Error::InvalidMemoryAccess)?,
+        Bound::Excluded(&value) => value
+            .checked_add(1)
+            .ok_or_else(|| Error::out_of_range("range start"))?,
         Bound::Unbounded => 0,
     };
     let end = match range.end_bound() {
-        Bound::Included(&value) => value.checked_add(1).ok_or(Error::InvalidMemoryAccess)?,
+        Bound::Included(&value) => value
+            .checked_add(1)
+            .ok_or_else(|| Error::out_of_range("range end"))?,
         Bound::Excluded(&value) => value,
         Bound::Unbounded => length,
     };
 
-    if start > end || end > length {
-        return Err(Error::InvalidMemoryAccess);
+    if start > end {
+        return Err(Error::out_of_range("range start"));
+    }
+
+    if end > length {
+        return Err(Error::buffer_too_small("range", end, length));
     }
 
     Ok((start, end))
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::view::ranges_overlap;
-
-    #[test]
-    fn test_byte_range_conflicts_preserve_boundaries_and_aliases() {
-        for (left, right, expected) in [
-            (0..4, 4..8, false),
-            (0..4, 8..12, false),
-            (0..8, 4..12, true),
-            (0..16, 4..8, true),
-            (4..8, 4..8, true),
-            (0..0, 0..0, false),
-            // Hazard tracking conservatively includes an empty subrange inside another view.
-            (0..8, 4..4, true),
-        ] {
-            assert_eq!(ranges_overlap(&left, &right), expected);
-            assert_eq!(ranges_overlap(&right, &left), expected);
-        }
-    }
 }

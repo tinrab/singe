@@ -16,10 +16,10 @@ use nom_locate::LocatedSpan;
 use crate::ast::{FloatLiteral, LinkingDirective, ScalarType, Span, StateSpace, VectorSize};
 
 /// Parser input: the unparsed suffix of the source, which knows its own byte offset.
-pub type Input<'a> = LocatedSpan<&'a str>;
+pub(crate) type Input<'a> = LocatedSpan<&'a str>;
 
 /// Returns the source text an input or recognized token covers.
-pub fn text(input: Input<'_>) -> &str {
+pub(crate) fn text(input: Input<'_>) -> &str {
     input.fragment()
 }
 
@@ -39,7 +39,7 @@ fn strip_prefix_ignore_case<'a>(input: Input<'a>, prefix: &str) -> Option<Input<
 
 /// Why a parser stopped, with the input remaining at that point.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SyntaxErrorKind {
+pub(crate) enum SyntaxErrorKind {
     /// The input does not match the grammar here.
     Unexpected,
     /// Nesting or constructed expression depth exceeds the parser limit.
@@ -48,14 +48,14 @@ pub enum SyntaxErrorKind {
 
 /// Parser error carrying the remaining input, from which [`parse_module`](crate::parser::parse_module) computes the error span.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct SyntaxError<'a> {
-    pub input: Input<'a>,
-    pub kind: SyntaxErrorKind,
+pub(crate) struct SyntaxError<'a> {
+    pub(crate) input: Input<'a>,
+    pub(crate) kind: SyntaxErrorKind,
 }
 
 impl<'a> SyntaxError<'a> {
     /// Returns a recoverable mismatch, which lets `alt` try other branches.
-    pub fn unexpected(input: Input<'a>) -> NomErr<Self> {
+    pub(crate) fn unexpected(input: Input<'a>) -> NomErr<Self> {
         NomErr::Error(Self {
             input,
             kind: SyntaxErrorKind::Unexpected,
@@ -63,7 +63,7 @@ impl<'a> SyntaxError<'a> {
     }
 
     /// Returns a failure that stops the whole parse at `input`.
-    pub fn failure(input: Input<'a>, kind: SyntaxErrorKind) -> NomErr<Self> {
+    pub(crate) fn failure(input: Input<'a>, kind: SyntaxErrorKind) -> NomErr<Self> {
         NomErr::Failure(Self { input, kind })
     }
 }
@@ -81,9 +81,9 @@ impl<'a> NomParseError<Input<'a>> for SyntaxError<'a> {
     }
 }
 
-pub type PResult<'a, T> = IResult<Input<'a>, T, SyntaxError<'a>>;
+pub(crate) type PResult<'a, T> = IResult<Input<'a>, T, SyntaxError<'a>>;
 
-pub fn keyword<'a>(
+pub(crate) fn keyword<'a>(
     token: &'static str,
 ) -> impl Parser<Input<'a>, Output = Input<'a>, Error = SyntaxError<'a>> {
     terminated(
@@ -116,7 +116,7 @@ fn preprocessor_line(input: Input<'_>) -> PResult<'_, ()> {
     value((), pair(char('#'), take_while(|c| c != '\n'))).parse(input)
 }
 
-pub fn ws(input: Input<'_>) -> PResult<'_, ()> {
+pub(crate) fn ws(input: Input<'_>) -> PResult<'_, ()> {
     value(
         (),
         many0(alt((
@@ -129,7 +129,7 @@ pub fn ws(input: Input<'_>) -> PResult<'_, ()> {
     .parse(input)
 }
 
-pub fn lexeme<'a, O>(
+pub(crate) fn lexeme<'a, O>(
     mut inner: impl Parser<Input<'a>, Output = O, Error = SyntaxError<'a>>,
 ) -> impl Parser<Input<'a>, Output = O, Error = SyntaxError<'a>> {
     move |input: Input<'a>| {
@@ -138,7 +138,7 @@ pub fn lexeme<'a, O>(
     }
 }
 
-pub fn with_span<'a, O>(
+pub(crate) fn with_span<'a, O>(
     mut inner: impl Parser<Input<'a>, Output = O, Error = SyntaxError<'a>>,
 ) -> impl Parser<Input<'a>, Output = (Span, O), Error = SyntaxError<'a>> {
     move |input: Input<'a>| {
@@ -149,7 +149,7 @@ pub fn with_span<'a, O>(
     }
 }
 
-pub fn identifier(input: Input<'_>) -> PResult<'_, &str> {
+pub(crate) fn identifier(input: Input<'_>) -> PResult<'_, &str> {
     map(
         alt((
             recognize(pair(
@@ -188,7 +188,7 @@ fn integer_digits(input: Input<'_>) -> PResult<'_, (u64, bool)> {
 
 /// Parses an integer literal with an optional sign.
 /// Returns its 64-bit pattern and whether PTX treats it as unsigned: it has a `U` suffix or exceeds `i64::MAX`.
-pub fn integer_literal(input: Input<'_>) -> PResult<'_, (u64, bool)> {
+pub(crate) fn integer_literal(input: Input<'_>) -> PResult<'_, (u64, bool)> {
     let (input, sign) = opt(one_of("+-")).parse(input)?;
     let (input, (value, suffix)) = integer_digits(input)?;
     let unsigned = suffix || value > i64::MAX.cast_unsigned();
@@ -201,12 +201,12 @@ pub fn integer_literal(input: Input<'_>) -> PResult<'_, (u64, bool)> {
 }
 
 /// Parses an unsigned integer literal in any PTX radix.
-pub fn unsigned_literal(input: Input<'_>) -> PResult<'_, u64> {
+pub(crate) fn unsigned_literal(input: Input<'_>) -> PResult<'_, u64> {
     map(integer_digits, |(value, _)| value).parse(input)
 }
 
 /// Parses an address displacement written as `+ literal` or `- literal`.
-pub fn displacement(input: Input<'_>) -> PResult<'_, i64> {
+pub(crate) fn displacement(input: Input<'_>) -> PResult<'_, i64> {
     let start = input;
     let (input, (sign, magnitude)) =
         (lexeme(one_of("+-")), lexeme(unsigned_literal)).parse(input)?;
@@ -218,7 +218,7 @@ pub fn displacement(input: Input<'_>) -> PResult<'_, i64> {
 
 /// Parses a double-quoted string.
 /// A backslash makes the next character literal.
-pub fn string_literal(input: Input<'_>) -> PResult<'_, String> {
+pub(crate) fn string_literal(input: Input<'_>) -> PResult<'_, String> {
     let (rest, _) = char('"').parse(input)?;
     let mut value = String::new();
     let mut chars = rest.fragment().char_indices();
@@ -238,7 +238,7 @@ pub fn string_literal(input: Input<'_>) -> PResult<'_, String> {
     ))
 }
 
-pub fn float_literal(input: Input<'_>) -> PResult<'_, FloatLiteral> {
+pub(crate) fn float_literal(input: Input<'_>) -> PResult<'_, FloatLiteral> {
     if let Some(tail) = strip_prefix_ignore_case(input, "0f") {
         return hex_float(tail, 8).map(|(remaining, bits)| {
             (
@@ -294,15 +294,15 @@ fn hex_float(input: Input<'_>, width: usize) -> PResult<'_, u64> {
     Ok((remaining, bits))
 }
 
-pub fn comma_sep(input: Input<'_>) -> PResult<'_, ()> {
+pub(crate) fn comma_sep(input: Input<'_>) -> PResult<'_, ()> {
     value((), delimited(ws, char(','), ws)).parse(input)
 }
 
-pub fn semicolon(input: Input<'_>) -> PResult<'_, ()> {
+pub(crate) fn semicolon(input: Input<'_>) -> PResult<'_, ()> {
     value((), lexeme(char(';'))).parse(input)
 }
 
-pub fn scalar_type(input: Input<'_>) -> PResult<'_, ScalarType> {
+pub(crate) fn scalar_type(input: Input<'_>) -> PResult<'_, ScalarType> {
     let (rest, name) = preceded(
         char('.'),
         take_while1(|c: char| c.is_ascii_alphanumeric() || matches!(c, '_' | '$')),
@@ -313,7 +313,7 @@ pub fn scalar_type(input: Input<'_>) -> PResult<'_, ScalarType> {
         .ok_or_else(|| SyntaxError::unexpected(input))
 }
 
-pub fn state_space(input: Input<'_>) -> PResult<'_, StateSpace> {
+pub(crate) fn state_space(input: Input<'_>) -> PResult<'_, StateSpace> {
     alt((
         value(StateSpace::SReg, keyword(".sreg")),
         value(StateSpace::Shared, keyword(".shared")),
@@ -327,7 +327,7 @@ pub fn state_space(input: Input<'_>) -> PResult<'_, StateSpace> {
     .parse(input)
 }
 
-pub fn linking_directive(input: Input<'_>) -> PResult<'_, LinkingDirective> {
+pub(crate) fn linking_directive(input: Input<'_>) -> PResult<'_, LinkingDirective> {
     alt((
         value(LinkingDirective::Extern, keyword(".extern")),
         value(LinkingDirective::Visible, keyword(".visible")),
@@ -337,7 +337,7 @@ pub fn linking_directive(input: Input<'_>) -> PResult<'_, LinkingDirective> {
     .parse(input)
 }
 
-pub fn vector_size(input: Input<'_>) -> PResult<'_, VectorSize> {
+pub(crate) fn vector_size(input: Input<'_>) -> PResult<'_, VectorSize> {
     alt((
         value(VectorSize::V2, keyword(".v2")),
         value(VectorSize::V4, keyword(".v4")),
@@ -346,12 +346,12 @@ pub fn vector_size(input: Input<'_>) -> PResult<'_, VectorSize> {
 }
 
 /// Parses decimal digits without a radix prefix, as in versions and directive counts.
-pub fn decimal<T: FromStr>(input: Input<'_>) -> PResult<'_, T> {
+pub(crate) fn decimal<T: FromStr>(input: Input<'_>) -> PResult<'_, T> {
     let (rest, digits) = take_while1(|c: char| c.is_ascii_digit()).parse(input)?;
     let value = digits.parse().map_err(|_| SyntaxError::unexpected(input))?;
     Ok((rest, value))
 }
 
-pub fn alignment(input: Input<'_>) -> PResult<'_, u32> {
+pub(crate) fn alignment(input: Input<'_>) -> PResult<'_, u32> {
     preceded(keyword(".align"), lexeme(decimal)).parse(input)
 }

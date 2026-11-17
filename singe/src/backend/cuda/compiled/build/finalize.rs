@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
-use singe_cuda::graph::Graph as NativeCudaGraph;
+use singe_cuda::graph::{Graph as NativeCudaGraph, GraphInstantiateFlags};
 
 use crate::{
     backend::cuda::{
@@ -64,7 +64,11 @@ pub fn finalize_cuda_graph_compile(mut input: GraphFinalizeInput<'_>) -> Result<
         let _instantiate_range = CudaNvtxRange::create("singe cuda graph compile instantiate");
         let executable = input
             .has_native_nodes
-            .then(|| input.native_graph.instantiate())
+            .then(|| {
+                input
+                    .native_graph
+                    .instantiate(GraphInstantiateFlags::empty())
+            })
             .transpose()?;
         let report = CudaCompiledGraph::compile_report(
             &input.ir,

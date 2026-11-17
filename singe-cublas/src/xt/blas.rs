@@ -1,11 +1,14 @@
+use std::ptr;
+
 use singe_cublas_sys as sys;
 use singe_cuda::types::{Complex32, Complex64};
 
 use crate::{
+    blas::shape::{packed_len, required_matrix_len},
     error::{Error, Result},
     try_ffi,
     types::{DiagonalType, FillMode, Operation, SideMode},
-    utility::{required_matrix_len, required_packed_triangular_len},
+    utility::to_size_t,
     xt::context::Context,
 };
 
@@ -20,7 +23,7 @@ trait XtScalar: Sized {
 }
 
 impl XtScalar for f32 {
-    type Raw = f32;
+    type Raw = Self;
 
     fn ptr(value: &Self) -> *const Self::Raw {
         value
@@ -36,7 +39,7 @@ impl XtScalar for f32 {
 }
 
 impl XtScalar for f64 {
-    type Raw = f64;
+    type Raw = Self;
 
     fn ptr(value: &Self) -> *const Self::Raw {
         value
@@ -55,7 +58,7 @@ impl XtScalar for Complex32 {
     type Raw = sys::cuComplex;
 
     fn ptr(value: &Self) -> *const Self::Raw {
-        (value as *const Self).cast()
+        ptr::from_ref::<Self>(value).cast()
     }
 
     fn slice_ptr(values: &[Self]) -> *const Self::Raw {
@@ -71,7 +74,7 @@ impl XtScalar for Complex64 {
     type Raw = sys::cuDoubleComplex;
 
     fn ptr(value: &Self) -> *const Self::Raw {
-        (value as *const Self).cast()
+        ptr::from_ref::<Self>(value).cast()
     }
 
     fn slice_ptr(values: &[Self]) -> *const Self::Raw {
@@ -121,23 +124,23 @@ macro_rules! impl_gemm {
                 c.len(),
                 ldc,
             )?;
-            // SAFETY: the `ffi` entry point receives live handles owned by the wrappers.
+            // SAFETY: the operand lengths were validated above, the routine blocks until done while the slices and scalars stay borrowed, and the handle this context owns is live.
             unsafe {
                 try_ffi!(sys::$ffi(
                     context.as_raw(),
                     transpose_a.into(),
                     transpose_b.into(),
-                    m as _,
-                    n as _,
-                    k as _,
+                    to_size_t(m, "m")?,
+                    to_size_t(n, "n")?,
+                    to_size_t(k, "k")?,
                     <$ty as XtScalar>::ptr(alpha),
                     <$ty as XtScalar>::slice_ptr(a),
-                    lda as _,
+                    to_size_t(lda, "lda")?,
                     <$ty as XtScalar>::slice_ptr(b),
-                    ldb as _,
+                    to_size_t(ldb, "ldb")?,
                     <$ty as XtScalar>::ptr(beta),
                     <$ty as XtScalar>::slice_mut_ptr(c),
-                    ldc as _,
+                    to_size_t(ldc, "ldc")?,
                 ))?;
             }
             Ok(())
@@ -168,20 +171,20 @@ macro_rules! impl_syrk {
             ldc: usize,
         ) -> Result<()> {
             validate_syrk(transpose_a, n, k, a.len(), lda, c.len(), ldc)?;
-            // SAFETY: the `ffi` entry point receives live handles owned by the wrappers.
+            // SAFETY: the operand lengths were validated above, the routine blocks until done while the slices and scalars stay borrowed, and the handle this context owns is live.
             unsafe {
                 try_ffi!(sys::$ffi(
                     context.as_raw(),
                     fill_mode.into(),
                     transpose_a.into(),
-                    n as _,
-                    k as _,
+                    to_size_t(n, "n")?,
+                    to_size_t(k, "k")?,
                     <$ty as XtScalar>::ptr(alpha),
                     <$ty as XtScalar>::slice_ptr(a),
-                    lda as _,
+                    to_size_t(lda, "lda")?,
                     <$ty as XtScalar>::ptr(beta),
                     <$ty as XtScalar>::slice_mut_ptr(c),
-                    ldc as _,
+                    to_size_t(ldc, "ldc")?,
                 ))?;
             }
             Ok(())
@@ -212,20 +215,20 @@ macro_rules! impl_herk {
             ldc: usize,
         ) -> Result<()> {
             validate_syrk(transpose_a, n, k, a.len(), lda, c.len(), ldc)?;
-            // SAFETY: the `ffi` entry point receives live handles owned by the wrappers.
+            // SAFETY: the operand lengths were validated above, the routine blocks until done while the slices and scalars stay borrowed, and the handle this context owns is live.
             unsafe {
                 try_ffi!(sys::$ffi(
                     context.as_raw(),
                     fill_mode.into(),
                     transpose_a.into(),
-                    n as _,
-                    k as _,
+                    to_size_t(n, "n")?,
+                    to_size_t(k, "k")?,
                     alpha,
                     <$ty as XtScalar>::slice_ptr(a),
-                    lda as _,
+                    to_size_t(lda, "lda")?,
                     beta,
                     <$ty as XtScalar>::slice_mut_ptr(c),
-                    ldc as _,
+                    to_size_t(ldc, "ldc")?,
                 ))?;
             }
             Ok(())
@@ -258,22 +261,22 @@ macro_rules! impl_syr2k_like {
             ldc: usize,
         ) -> Result<()> {
             validate_syr2k(transpose_a, n, k, a.len(), lda, b.len(), ldb, c.len(), ldc)?;
-            // SAFETY: the `ffi` entry point receives live handles owned by the wrappers.
+            // SAFETY: the operand lengths were validated above, the routine blocks until done while the slices and scalars stay borrowed, and the handle this context owns is live.
             unsafe {
                 try_ffi!(sys::$ffi(
                     context.as_raw(),
                     fill_mode.into(),
                     transpose_a.into(),
-                    n as _,
-                    k as _,
+                    to_size_t(n, "n")?,
+                    to_size_t(k, "k")?,
                     <$ty as XtScalar>::ptr(alpha),
                     <$ty as XtScalar>::slice_ptr(a),
-                    lda as _,
+                    to_size_t(lda, "lda")?,
                     <$ty as XtScalar>::slice_ptr(b),
-                    ldb as _,
+                    to_size_t(ldb, "ldb")?,
                     <$ty as XtScalar>::ptr(beta),
                     <$ty as XtScalar>::slice_mut_ptr(c),
-                    ldc as _,
+                    to_size_t(ldc, "ldc")?,
                 ))?;
             }
             Ok(())
@@ -306,22 +309,22 @@ macro_rules! impl_her2k_like {
             ldc: usize,
         ) -> Result<()> {
             validate_syr2k(transpose_a, n, k, a.len(), lda, b.len(), ldb, c.len(), ldc)?;
-            // SAFETY: the `ffi` entry point receives live handles owned by the wrappers.
+            // SAFETY: the operand lengths were validated above, the routine blocks until done while the slices and scalars stay borrowed, and the handle this context owns is live.
             unsafe {
                 try_ffi!(sys::$ffi(
                     context.as_raw(),
                     fill_mode.into(),
                     transpose_a.into(),
-                    n as _,
-                    k as _,
+                    to_size_t(n, "n")?,
+                    to_size_t(k, "k")?,
                     <$ty as XtScalar>::ptr(alpha),
                     <$ty as XtScalar>::slice_ptr(a),
-                    lda as _,
+                    to_size_t(lda, "lda")?,
                     <$ty as XtScalar>::slice_ptr(b),
-                    ldb as _,
+                    to_size_t(ldb, "ldb")?,
                     beta,
                     <$ty as XtScalar>::slice_mut_ptr(c),
-                    ldc as _,
+                    to_size_t(ldc, "ldc")?,
                 ))?;
             }
             Ok(())
@@ -364,22 +367,22 @@ macro_rules! impl_symm {
                 c.len(),
                 ldc,
             )?;
-            // SAFETY: the `ffi` entry point receives live handles owned by the wrappers.
+            // SAFETY: the operand lengths were validated above, the routine blocks until done while the slices and scalars stay borrowed, and the handle this context owns is live.
             unsafe {
                 try_ffi!(sys::$ffi(
                     context.as_raw(),
                     side.into(),
                     fill_mode.into(),
-                    m as _,
-                    n as _,
+                    to_size_t(m, "m")?,
+                    to_size_t(n, "n")?,
                     <$ty as XtScalar>::ptr(alpha),
                     <$ty as XtScalar>::slice_ptr(a),
-                    lda as _,
+                    to_size_t(lda, "lda")?,
                     <$ty as XtScalar>::slice_ptr(b),
-                    ldb as _,
+                    to_size_t(ldb, "ldb")?,
                     <$ty as XtScalar>::ptr(beta),
                     <$ty as XtScalar>::slice_mut_ptr(c),
-                    ldc as _,
+                    to_size_t(ldc, "ldc")?,
                 ))?;
             }
             Ok(())
@@ -412,7 +415,7 @@ macro_rules! impl_trsm {
             ldb: usize,
         ) -> Result<()> {
             validate_triangular_solve(side, m, n, a.len(), lda, b.len(), ldb)?;
-            // SAFETY: the `ffi` entry point receives live handles owned by the wrappers.
+            // SAFETY: the operand lengths were validated above, the routine blocks until done while the slices and scalars stay borrowed, and the handle this context owns is live.
             unsafe {
                 try_ffi!(sys::$ffi(
                     context.as_raw(),
@@ -420,13 +423,13 @@ macro_rules! impl_trsm {
                     fill_mode.into(),
                     transpose_a.into(),
                     diagonal_type.into(),
-                    m as _,
-                    n as _,
+                    to_size_t(m, "m")?,
+                    to_size_t(n, "n")?,
                     <$ty as XtScalar>::ptr(alpha),
                     <$ty as XtScalar>::slice_ptr(a),
-                    lda as _,
+                    to_size_t(lda, "lda")?,
                     <$ty as XtScalar>::slice_mut_ptr(b),
-                    ldb as _,
+                    to_size_t(ldb, "ldb")?,
                 ))?;
             }
             Ok(())
@@ -470,7 +473,7 @@ macro_rules! impl_trmm {
                 c.len(),
                 ldc,
             )?;
-            // SAFETY: the `ffi` entry point receives live handles owned by the wrappers.
+            // SAFETY: the operand lengths were validated above, the routine blocks until done while the slices and scalars stay borrowed, and the handle this context owns is live.
             unsafe {
                 try_ffi!(sys::$ffi(
                     context.as_raw(),
@@ -478,15 +481,15 @@ macro_rules! impl_trmm {
                     fill_mode.into(),
                     transpose_a.into(),
                     diagonal_type.into(),
-                    m as _,
-                    n as _,
+                    to_size_t(m, "m")?,
+                    to_size_t(n, "n")?,
                     <$ty as XtScalar>::ptr(alpha),
                     <$ty as XtScalar>::slice_ptr(a),
-                    lda as _,
+                    to_size_t(lda, "lda")?,
                     <$ty as XtScalar>::slice_ptr(b),
-                    ldb as _,
+                    to_size_t(ldb, "ldb")?,
                     <$ty as XtScalar>::slice_mut_ptr(c),
-                    ldc as _,
+                    to_size_t(ldc, "ldc")?,
                 ))?;
             }
             Ok(())
@@ -528,21 +531,21 @@ macro_rules! impl_spmm {
                 c.len(),
                 ldc,
             )?;
-            // SAFETY: the `ffi` entry point receives live handles owned by the wrappers.
+            // SAFETY: the operand lengths were validated above, the routine blocks until done while the slices and scalars stay borrowed, and the handle this context owns is live.
             unsafe {
                 try_ffi!(sys::$ffi(
                     context.as_raw(),
                     side.into(),
                     fill_mode.into(),
-                    m as _,
-                    n as _,
+                    to_size_t(m, "m")?,
+                    to_size_t(n, "n")?,
                     <$ty as XtScalar>::ptr(alpha),
                     <$ty as XtScalar>::slice_ptr(ap),
                     <$ty as XtScalar>::slice_ptr(b),
-                    ldb as _,
+                    to_size_t(ldb, "ldb")?,
                     <$ty as XtScalar>::ptr(beta),
                     <$ty as XtScalar>::slice_mut_ptr(c),
-                    ldc as _,
+                    to_size_t(ldc, "ldc")?,
                 ))?;
             }
             Ok(())
@@ -1029,7 +1032,7 @@ fn validate_packed_symmetric_matrix_multiply(
         return Err(Error::InvalidLeadingDimension);
     }
 
-    if ap_len < required_packed_triangular_len(a_dimension)?
+    if ap_len < packed_len(a_dimension)?
         || b_len < required_matrix_len(ldb, n)?
         || c_len < required_matrix_len(ldc, n)?
     {

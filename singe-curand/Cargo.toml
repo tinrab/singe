@@ -1,29 +1,34 @@
 [package]
 name = "singe-curand"
 description = "Safe Rust wrappers for the NVIDIA cuRAND host API, for random number generation on the GPU or CPU."
-version = "0.1.0-alpha.3"
+version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 repository.workspace = true
+documentation = "https://docs.rs/singe-curand"
 license-file.workspace = true
 readme = "README.md"
 keywords = ["cuda", "nvidia", "curand", "rng"]
+categories = ["api-bindings", "hardware-support", "science"]
 include.workspace = true
 
 [package.metadata.docs.rs]
-rustdoc-args = ["--html-in-header", "dist/katex_header.html"]
+rustdoc-args = ["--cfg", "docsrs", "--html-in-header", "dist/katex_header.html"]
 
 [features]
-default = ["curand_13_4"]
+default = ["curand_10_4"]
 
-curand_13_4 = ["singe-cuda/runtime_13_4", "singe-curand-sys/curand_13_4"]
+curand_10_4 = ["singe-cuda/runtime_13_4", "singe-curand-sys/curand_10_4"]
 
 testing = ["singe-cuda/testing"]
 
 [dependencies]
 singe-core.workspace = true
 singe-cuda.workspace = true
-singe-cuda-sys.workspace = true
 singe-curand-sys.workspace = true
 thiserror.workspace = true
 num_enum.workspace = true
 bitflags.workspace = true
+
+[dev-dependencies]
+anyhow.workspace = true

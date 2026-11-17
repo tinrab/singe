@@ -9,6 +9,7 @@ use std::{
 };
 
 use bitflags::parser;
+use singe_core::report_cleanup_failure;
 use singe_cuda_sys::driver as sys;
 
 use crate::{
@@ -17,7 +18,7 @@ use crate::{
     memory::array::{ArrayAllocation, ArrayElement, ArrayFlags, MipmappedAllocation},
     submission::{Access, AccessMode, Resources},
     try_ffi,
-    utility::{driver_enum, to_u64},
+    utility::{checked_pitched_extent, driver_enum, to_u64},
     view::{DeviceRegionProvider, OwnedDeviceRegion},
 };
 
@@ -201,7 +202,7 @@ impl TextureStorage {
         Self {
             context: Arc::clone(region.context()),
             access: Access::new(region.region(), AccessMode::Read),
-            pointer: region.region().as_ptr() as _,
+            pointer: region.region().as_ptr().addr() as sys::CUdeviceptr,
             format: T::FORMAT.into(),
             channels: T::CHANNELS,
             _owner: region.into_owner() as Arc<dyn Any + Send + Sync>,
@@ -216,13 +217,16 @@ impl TextureResource {
     ///
     /// # Errors
     ///
-    /// Returns `Error::InvalidMemoryAccess` if the region is empty or its byte length is not a multiple of `size_of::<T>()`.
-    /// Also returns an error if the byte length cannot be represented by the native 64-bit descriptor field.
+    /// Returns an error if the region is empty, its byte length is not a multiple of `size_of::<T>()`, or the byte length does not fit a `u64`.
     pub fn linear<T: ArrayElement, O: DeviceRegionProvider + Send + Sync + 'static>(
         region: OwnedDeviceRegion<O>,
     ) -> Result<Self> {
-        if region.byte_len() == 0 || !region.byte_len().is_multiple_of(size_of::<T>()) {
-            return Err(Error::InvalidMemoryAccess);
+        if region.byte_len() == 0 {
+            return Err(Error::empty("texture region"));
+        }
+
+        if !region.byte_len().is_multiple_of(size_of::<T>()) {
+            return Err(Error::misaligned("texture byte length", size_of::<T>()));
         }
         Ok(Self::Linear(LinearTextureResource {
             bytes: to_u64(region.byte_len(), "texture byte size")?,
@@ -236,24 +240,37 @@ impl TextureResource {
     ///
     /// # Errors
     ///
-    /// Returns an error for zero dimensions, row-size or byte-span overflow, a pitch shorter than one row, insufficient backing storage, or dimensions or pitch that cannot be represented by the native 64-bit fields.
+    /// Returns an error if a dimension is zero, the row size or byte span overflows, the pitch is shorter than one row, the region is too small, or a dimension or the pitch does not fit a `u64`.
     pub fn pitched_2d<T: ArrayElement, O: DeviceRegionProvider + Send + Sync + 'static>(
         region: OwnedDeviceRegion<O>,
         width: usize,
         height: usize,
         pitch_bytes: usize,
     ) -> Result<Self> {
+        if width == 0 {
+            return Err(Error::not_positive("texture width"));
+        }
+
+        if height == 0 {
+            return Err(Error::not_positive("texture height"));
+        }
+
         let row = width
             .checked_mul(size_of::<T>())
-            .ok_or(Error::InvalidMemoryAllocationRequest)?;
-        let bytes = height
-            .checked_sub(1)
-            .and_then(|rows| rows.checked_mul(pitch_bytes))
-            .and_then(|rows| rows.checked_add(row))
-            .ok_or(Error::InvalidMemoryAllocationRequest)?;
-        if width == 0 || height == 0 || row > pitch_bytes || bytes > region.byte_len() {
-            return Err(Error::InvalidMemoryAccess);
+            .ok_or_else(|| Error::out_of_range("texture row bytes"))?;
+        let bytes = checked_pitched_extent(height, pitch_bytes, row, "texture byte span")?;
+        if row > pitch_bytes {
+            return Err(Error::buffer_too_small("texture pitch", row, pitch_bytes));
         }
+
+        if bytes > region.byte_len() {
+            return Err(Error::buffer_too_small(
+                "texture region",
+                bytes,
+                region.byte_len(),
+            ));
+        }
+
         Ok(Self::Pitched2D(PitchedTextureResource {
             storage: TextureStorage::from_region::<T, O>(region),
             width: to_u64(width, "texture width")?,
@@ -339,6 +356,17 @@ impl TextureResource {
     }
 }
 
+/// Raw ownership of a texture object and the resource it samples.
+///
+/// Destroy `handle` before releasing `resource`, or re-adopt the value with [`TextureObject::from_raw`].
+#[derive(Debug)]
+pub struct RawTextureObject {
+    /// Native object handle.
+    pub handle: sys::CUtexObject,
+    /// Backing resource the texture samples.
+    pub resource: TextureResource,
+}
+
 /// Owns a native sampler and retains its resource through destruction.
 #[derive(Debug)]
 pub struct TextureObject {
@@ -346,9 +374,10 @@ pub struct TextureObject {
     resource: TextureResource,
 }
 
-// SAFETY: only immutable sampler state is shared; kernels remain responsible for access permission and ordering.
+// SAFETY: a `CUtexObject` is a plain value usable from any thread, and destruction binds the retained context first.
 unsafe impl Send for TextureObject {}
 
+// SAFETY: shared references only read the handle and the retained resource; kernels that sample it order their own access.
 unsafe impl Sync for TextureObject {}
 
 impl TextureObject {
@@ -359,13 +388,12 @@ impl TextureObject {
     ///
     /// # Errors
     ///
-    /// Returns an error if the resource context cannot be bound or CUDA rejects the resource format, dimensions, alignment, device limits, or sampler options.
-    /// Returns `Error::NullHandle` for a zero native texture handle.
+    /// Returns an error if the resource context cannot be bound, CUDA rejects the resource format, dimensions, alignment, device limits, or sampler options, or CUDA returns a zero handle.
     pub fn create(resource: TextureResource, options: TextureOptions) -> Result<Self> {
         let native = options.native(resource.levels());
         resource.context().bind()?;
         let mut handle = 0;
-        // SAFETY: `cuTexObjectCreate` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
+        // SAFETY: `resource` retains the storage the descriptor names in the bound context, the descriptors live through the call, and `handle` is a local output.
         unsafe {
             try_ffi!(sys::cuTexObjectCreate(
                 &raw mut handle,
@@ -384,12 +412,12 @@ impl TextureObject {
     /// Creates a sampler using a raw CUDA resource view descriptor.
     ///
     /// # Safety
+    ///
     /// The view must describe the retained resource and satisfy CUDA's format and subresource constraints.
     ///
     /// # Errors
     ///
-    /// Returns an error if the resource context cannot be bound or CUDA rejects the resource, sampler options, or view descriptor.
-    /// Returns `Error::NullHandle` for a zero native texture handle.
+    /// Returns an error if the resource context cannot be bound, CUDA rejects the resource, sampler options, or view descriptor, or CUDA returns a zero handle.
     pub unsafe fn create_with_raw_view(
         resource: TextureResource,
         options: TextureOptions,
@@ -397,7 +425,7 @@ impl TextureObject {
     ) -> Result<Self> {
         resource.context().bind()?;
         let mut handle = 0;
-        // SAFETY: `cuTexObjectCreate` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
+        // SAFETY: `resource` retains the storage the descriptor names in the bound context, the caller guarantees `view` describes it, and `handle` is a local output.
         unsafe {
             try_ffi!(sys::cuTexObjectCreate(
                 &raw mut handle,
@@ -416,17 +444,20 @@ impl TextureObject {
     /// Adopts a live native texture object and retains its backing resource.
     ///
     /// # Safety
+    ///
     /// Transfer the live texture handle's destruction responsibility and retain its actual resource in the matching context.
     ///
     /// # Errors
     ///
-    /// Returns `Error::NullHandle` if `handle` is zero.
-    /// The caller must satisfy the remaining handle validity and ownership requirements.
-    pub unsafe fn from_raw(handle: sys::CUtexObject, resource: TextureResource) -> Result<Self> {
-        if handle == 0 {
+    /// Returns an error if `raw.handle` is zero.
+    pub unsafe fn from_raw(raw: RawTextureObject) -> Result<Self> {
+        if raw.handle == 0 {
             return Err(Error::NullHandle);
         }
-        Ok(Self { handle, resource })
+        Ok(Self {
+            handle: raw.handle,
+            resource: raw.resource,
+        })
     }
 
     /// Returns the borrowed native texture handle without retaining another resource owner.
@@ -460,11 +491,14 @@ impl TextureObject {
 
     /// Transfers the handle together with its resource ownership.
     #[must_use]
-    pub fn into_raw(mut self) -> (sys::CUtexObject, TextureResource) {
+    pub fn into_raw(mut self) -> RawTextureObject {
         let handle = mem::replace(&mut self.handle, 0);
         let this = mem::ManuallyDrop::new(self);
-        // SAFETY: the consumed object no longer destroys the transferred handle or resource.
-        (handle, unsafe { ptr::read(&raw const this.resource) })
+        RawTextureObject {
+            handle,
+            // SAFETY: the owner is wrapped in `ManuallyDrop`, so this field moves out exactly once.
+            resource: unsafe { ptr::read(&raw const this.resource) },
+        }
     }
 }
 
@@ -473,18 +507,32 @@ impl Drop for TextureObject {
         if self.handle == 0 {
             return;
         }
-        if let Err(error) = self
-            .context()
-            .bind()
-            // SAFETY: `cuTexObjectDestroy` receives live handles owned by the wrappers.
-            .and_then(|()| unsafe { try_ffi!(sys::cuTexObjectDestroy(self.handle)) })
-        {
-            eprintln!(
-                "failed to destroy cuda texture object: {}",
-                singe_core::ErrorChain(&error)
+
+        if let Err(error) = self.context().bind() {
+            report_cleanup_failure(
+                "bind the cuda context to destroy",
+                "cuda texture object",
+                &error,
             );
+            return;
+        }
+
+        // SAFETY: this wrapper owns the nonzero texture object, its context is bound, and `self.resource` outlives the destroy.
+        if let Err(error) = unsafe { try_ffi!(sys::cuTexObjectDestroy(self.handle)) } {
+            report_cleanup_failure("destroy", "cuda texture object", &error);
         }
     }
+}
+
+/// Raw ownership of a surface object and the array it refers to.
+///
+/// Destroy `handle` before releasing `allocation`, or re-adopt the value with [`SurfaceObject::from_raw`].
+#[derive(Debug)]
+pub struct RawSurfaceObject {
+    /// Native object handle.
+    pub handle: sys::CUsurfObject,
+    /// Array allocation the surface refers to.
+    pub allocation: Arc<ArrayAllocation>,
 }
 
 /// Owns a native surface retaining its writable array allocation.
@@ -494,9 +542,10 @@ pub struct SurfaceObject {
     allocation: Arc<ArrayAllocation>,
 }
 
-// SAFETY: the wrapper exposes only raw surface handles; access is ordered and authorized by kernel callers.
+// SAFETY: a `CUsurfObject` is a plain value usable from any thread, and destruction binds the retained context first.
 unsafe impl Send for SurfaceObject {}
 
+// SAFETY: shared references only read the handle and the retained array; kernels that use the surface order their own access.
 unsafe impl Sync for SurfaceObject {}
 
 impl SurfaceObject {
@@ -507,11 +556,10 @@ impl SurfaceObject {
     ///
     /// # Errors
     ///
-    /// Returns `Error::InvalidValue` if the allocation lacks the surface-load/store flag.
-    /// Also returns an error if the array context cannot be bound or CUDA rejects surface creation, or `Error::NullHandle` for a zero native surface handle.
+    /// Returns an error if the allocation lacks [`ArrayFlags::SURFACE_LOAD_STORE`], its context cannot be bound, CUDA rejects surface creation, or CUDA returns a zero handle.
     pub fn create(allocation: Arc<ArrayAllocation>) -> Result<Self> {
         if !allocation.flags().contains(ArrayFlags::SURFACE_LOAD_STORE) {
-            return Err(Error::InvalidValue);
+            return Err(Error::out_of_range("array flags"));
         }
 
         allocation.context().bind()?;
@@ -521,7 +569,7 @@ impl SurfaceObject {
         };
         raw.res.array.hArray = allocation.as_raw();
         let mut handle = 0;
-        // SAFETY: `cuSurfObjectCreate` receives valid output locations.
+        // SAFETY: `raw` names the array `allocation` retains in the bound context, and `handle` is a local output.
         unsafe {
             try_ffi!(sys::cuSurfObjectCreate(&raw mut handle, &raw const raw))?;
         }
@@ -535,20 +583,20 @@ impl SurfaceObject {
     /// Adopts a live native surface object and retains its backing array.
     ///
     /// # Safety
+    ///
     /// Transfer destruction responsibility for a live surface referring to this exact retained array.
     ///
     /// # Errors
     ///
-    /// Returns `Error::NullHandle` if `handle` is zero.
-    /// The caller must satisfy the remaining handle validity and ownership requirements.
-    pub unsafe fn from_raw(
-        handle: sys::CUsurfObject,
-        allocation: Arc<ArrayAllocation>,
-    ) -> Result<Self> {
-        if handle == 0 {
+    /// Returns an error if `raw.handle` is zero.
+    pub unsafe fn from_raw(raw: RawSurfaceObject) -> Result<Self> {
+        if raw.handle == 0 {
             return Err(Error::NullHandle);
         }
-        Ok(Self { handle, allocation })
+        Ok(Self {
+            handle: raw.handle,
+            allocation: raw.allocation,
+        })
     }
 
     /// Returns the borrowed native surface handle without retaining another allocation owner.
@@ -584,11 +632,14 @@ impl SurfaceObject {
     ///
     /// The caller must destroy the surface and keep its allocation alive through every use of the handle.
     #[must_use]
-    pub fn into_raw(mut self) -> (sys::CUsurfObject, Arc<ArrayAllocation>) {
+    pub fn into_raw(mut self) -> RawSurfaceObject {
         let handle = mem::replace(&mut self.handle, 0);
         let this = mem::ManuallyDrop::new(self);
-        // SAFETY: the owner is wrapped in `ManuallyDrop`, so this field moves out exactly once.
-        (handle, unsafe { ptr::read(&raw const this.allocation) })
+        RawSurfaceObject {
+            handle,
+            // SAFETY: the owner is wrapped in `ManuallyDrop`, so this field moves out exactly once.
+            allocation: unsafe { ptr::read(&raw const this.allocation) },
+        }
     }
 }
 
@@ -597,16 +648,19 @@ impl Drop for SurfaceObject {
         if self.handle == 0 {
             return;
         }
-        if let Err(error) = self
-            .context()
-            .bind()
-            // SAFETY: `cuSurfObjectDestroy` receives live handles owned by the wrappers.
-            .and_then(|()| unsafe { try_ffi!(sys::cuSurfObjectDestroy(self.handle)) })
-        {
-            eprintln!(
-                "failed to destroy cuda surface object: {}",
-                singe_core::ErrorChain(&error)
+
+        if let Err(error) = self.context().bind() {
+            report_cleanup_failure(
+                "bind the cuda context to destroy",
+                "cuda surface object",
+                &error,
             );
+            return;
+        }
+
+        // SAFETY: this wrapper owns the nonzero surface object, its context is bound, and `self.allocation` outlives the destroy.
+        if let Err(error) = unsafe { try_ffi!(sys::cuSurfObjectDestroy(self.handle)) } {
+            report_cleanup_failure("destroy", "cuda surface object", &error);
         }
     }
 }

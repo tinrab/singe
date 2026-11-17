@@ -4,7 +4,7 @@ use std::{env::args, iter::once};
 
 use singe_cuda::{memory::DeviceMemory, view::OwnedDeviceRegion};
 use singe_cudnn::{
-    backend::tensor::{Shape, TensorSpec},
+    backend::operation::normalization::NormalizationSavedStatistics,
     data_type::{DataType, f16},
     error::Result,
     frontend::{
@@ -12,10 +12,11 @@ use singe_cudnn::{
         graph::{DataTypePolicy, Graph, GraphConfig, TensorOutputConfig},
         operation::{
             AdaptiveLayerNormalizationBackwardInputs, AdaptiveLayerNormalizationBackwardOutputs,
-            NormalizationConfig, NormalizationSavedStatistics,
+            NormalizationConfig,
         },
         plan::{CompileConfig, ExecuteArgs, HeuristicMode},
     },
+    tensor::{Shape, TensorSpec},
 };
 
 fn run() -> Result<()> {
@@ -103,9 +104,9 @@ fn run() -> Result<()> {
     // SAFETY: bindings retain initialized operands and independent writable results.
     // The plan, buffers and workspace remain live through stream completion, including enqueue failure.
     example.execute_and_wait(|context| unsafe {
-        compiled.execute(
+        compiled.execute_async(
             context,
-            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
         )
     })?;
     for id in once(outputs.input_gradient)
@@ -122,6 +123,6 @@ fn run() -> Result<()> {
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_adaptive_layer_norm_backward", run())
 }

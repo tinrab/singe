@@ -4,11 +4,12 @@ use std::{
     sync::Arc,
 };
 
+use singe_core::report_cleanup_failure;
 use singe_cuda::{
     context::Context as CudaContext,
     error::{Error as CudaError, Result as CudaResult},
     memory::{DeviceMemory, PinnedVec},
-    view::{DeviceRepr, ZeroableDeviceRepr},
+    view::{DeviceRegion, DeviceRegionProvider, DeviceRepr, ZeroableDeviceRepr},
 };
 
 use crate::{
@@ -59,13 +60,13 @@ impl<T> DistributedDeviceMemory<T> {
     {
         let mut buffers = Vec::with_capacity(devices.len());
         for device in devices {
-            let TensorDevice::Device(device_id) = *device else {
+            let TensorDevice::Device(device) = *device else {
                 return Err(Error::MgHostTensorMemoryUnsupported {
                     name: "distributed device memory".into(),
                 });
             };
             buffers.push(DeviceMemory::<T>::zeroed(
-                context.cuda_context(device_id)?,
+                context.cuda_context(device)?,
                 len_per_pointer,
             )?);
         }
@@ -96,13 +97,13 @@ impl<T> DistributedDeviceMemory<T> {
         let buffers = devices
             .iter()
             .map(|device| {
-                let TensorDevice::Device(device_id) = *device else {
+                let TensorDevice::Device(device) = *device else {
                     return Err(Error::MgHostTensorMemoryUnsupported {
                         name: "distributed device memory".into(),
                     });
                 };
                 Ok(DeviceMemory::<T>::create_uninit(
-                    context.cuda_context(device_id)?,
+                    context.cuda_context(device)?,
                     len_per_pointer,
                 )?)
             })
@@ -127,12 +128,12 @@ impl<T> DistributedDeviceMemory<T> {
 
     pub(crate) fn validate_context(&self, context: &ContextRef) -> Result<()> {
         for (buffer, device) in self.buffers.iter().zip(&self.devices) {
-            let TensorDevice::Device(device_id) = *device else {
+            let TensorDevice::Device(device) = *device else {
                 return Err(Error::MgHostTensorMemoryUnsupported {
                     name: "distributed device memory".into(),
                 });
             };
-            if buffer.context().as_ref() != context.cuda_context(device_id)?.as_ref() {
+            if buffer.context().as_ref() != context.cuda_context(device)?.as_ref() {
                 return Err(CudaError::MemoryContextMismatch.into());
             }
         }
@@ -155,6 +156,13 @@ impl<T> DistributedDeviceMemory<T> {
     #[must_use]
     pub fn devices(&self) -> &[TensorDevice] {
         &self.devices
+    }
+
+    pub(crate) fn regions(&self) -> Vec<DeviceRegion<'_>> {
+        self.buffers
+            .iter()
+            .map(DeviceRegionProvider::region)
+            .collect()
     }
 
     pub(crate) fn const_ptrs(&self) -> Vec<*const ()> {
@@ -188,7 +196,7 @@ impl<T> DistributedDeviceMemory<MaybeUninit<T>> {
             buffers: self
                 .buffers
                 .into_iter()
-                // SAFETY: the caller upholds this function's safety contract.
+                // SAFETY: the caller guarantees every element of every partition holds an initialized `T` with its producer ordered before consumers.
                 .map(|buffer| unsafe { buffer.assume_init() })
                 .collect(),
             devices: self.devices,
@@ -221,7 +229,9 @@ impl WorkspaceMemory {
         Ok(Self {
             device,
             host: HostWorkspace::create(
-                context.cuda_context(*context.devices().first().ok_or(CudaError::InvalidValue)?)?,
+                context.cuda_context(*context.devices().first().ok_or(CudaError::Empty {
+                    name: "devices".into(),
+                })?)?,
                 workspace.host_size_bytes()?,
             )?,
         })
@@ -247,9 +257,10 @@ impl WorkspaceMemory {
                 return Err(CudaError::MemoryContextMismatch.into());
             }
             if buffer.len() < bytes {
-                return Err(Error::InsufficientWorkspaceSize {
-                    required: bytes as u64,
-                    actual: buffer.len() as u64,
+                return Err(Error::BufferTooSmall {
+                    name: "device workspace".into(),
+                    required: bytes,
+                    actual: buffer.len(),
                 });
             }
         }
@@ -257,9 +268,10 @@ impl WorkspaceMemory {
         let bytes = required.host_size_bytes()?;
         let actual = self.host.memory.as_ref().map_or(0, Vec::capacity);
         if actual < bytes {
-            return Err(Error::InsufficientWorkspaceSize {
-                required: bytes as u64,
-                actual: actual as u64,
+            return Err(Error::BufferTooSmall {
+                name: "host workspace".into(),
+                required: bytes,
+                actual,
             });
         }
         Ok(())
@@ -273,6 +285,13 @@ impl WorkspaceMemory {
         self.device
             .iter()
             .map(|buffer| buffer.as_mut_ptr().cast())
+            .collect()
+    }
+
+    pub(crate) fn device_regions(&self) -> Vec<DeviceRegion<'_>> {
+        self.device
+            .iter()
+            .map(DeviceRegionProvider::region)
             .collect()
     }
 
@@ -319,9 +338,10 @@ impl HostWorkspace {
             .try_for_each(|context| context.synchronize())
             .and_then(|()| memory.allocator().context().synchronize());
         if let Err(error) = waited {
-            eprintln!(
-                "failed to wait for work using a cutensor host workspace: {}",
-                singe_core::ErrorChain(&error)
+            report_cleanup_failure(
+                "synchronize the cuda contexts to release",
+                "cutensor host workspace",
+                &error,
             );
             mem::forget(self.memory.take());
         }

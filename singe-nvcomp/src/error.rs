@@ -1,6 +1,5 @@
 use std::{borrow::Cow, io, result::Result as StdResult};
 
-use singe_core::{static_str_from_c_ptr, status_enum};
 use singe_cuda::{
     error::Error as CudaError,
     view::{AnyBitPatternDeviceRepr, DeviceRepr, ZeroableDeviceRepr},
@@ -8,129 +7,16 @@ use singe_cuda::{
 use singe_nvcomp_sys as sys;
 use thiserror::Error;
 
-/// Errors returned by this crate.
-#[derive(Error, Debug)]
-#[non_exhaustive]
-pub enum Error {
-    // Its library would not load.
-    #[error(transparent)]
-    Load(#[from] singe_nvcomp_sys::LoadError),
-
-    /// An nvCOMP manager failed or threw a C++ exception.
-    #[error("nvcomp manager error: {message}")]
-    Compressor {
-        /// Failure or exception message from the manager.
-        message: String,
-    },
-
-    /// Reading from or writing to a stream failed.
-    #[error(transparent)]
-    Io(#[from] io::Error),
-
-    /// A CUDA call failed.
-    #[error(transparent)]
-    Cuda(#[from] CudaError),
-
-    /// nvCOMP returned an error status.
-    #[error("nvcomp error ({code}): {message}")]
-    Nvcomp {
-        /// Status returned by nvCOMP.
-        code: Status,
-        /// nvCOMP's description of the status.
-        message: String,
-    },
-
-    /// A value does not fit the integer type that nvCOMP uses for it.
-    #[error("`{name}` is out of range")]
-    OutOfRange {
-        /// Name of the argument or field with the invalid value.
-        name: Cow<'static, str>,
-    },
-
-    /// An argument has an invalid value.
-    #[error("`{name}` is invalid")]
-    InvalidValue {
-        /// Name of the invalid argument or field.
-        name: Cow<'static, str>,
-    },
-
-    /// A size exceeds the limit nvCOMP documents for the codec.
-    #[error("`{name}` exceeds maximum supported size (max {max}, got {actual})")]
-    SizeLimitExceeded {
-        /// Name of the argument or field with the invalid value.
-        name: Cow<'static, str>,
-        /// Largest supported size.
-        max: usize,
-        /// Size that was passed.
-        actual: usize,
-    },
-
-    /// A stream belongs to a different CUDA context.
-    #[error("stream belongs to a different cuda context")]
-    StreamContextMismatch,
-
-    /// A slice has a different length than the operation requires.
-    #[error("`{name}` length mismatch (expected {expected}, got {actual})")]
-    LengthMismatch {
-        /// Name of the argument or field with the mismatch.
-        name: Cow<'static, str>,
-        /// Expected length.
-        expected: usize,
-        /// Actual length.
-        actual: usize,
-    },
-
-    /// A chunk's byte count differs from the expected value.
-    #[error("chunk {index} `{name}` length mismatch (expected {expected}, got {actual})")]
-    ChunkLengthMismatch {
-        /// Index of the chunk in the batch.
-        index: usize,
-        /// Name of the mismatched field.
-        name: Cow<'static, str>,
-        /// Expected length.
-        expected: usize,
-        /// Actual length.
-        actual: usize,
-    },
-
-    /// A device buffer does not meet nvCOMP's alignment requirement.
-    #[error("`{name}` does not satisfy {alignment}-byte alignment")]
-    AlignmentMismatch {
-        /// Name of the buffer or table with the invalid alignment.
-        name: Cow<'static, str>,
-        /// Required byte alignment.
-        alignment: usize,
-    },
-
-    /// A batched operation reported an error for one chunk.
-    #[error("chunk {index} failed with nvcomp status {status}")]
-    ChunkStatus {
-        /// Index of the chunk in the batch.
-        index: usize,
-        /// Status that nvCOMP wrote for the chunk.
-        status: Status,
-    },
-}
-
-/// Result type returned by this crate.
-pub type Result<T> = StdResult<T, Error>;
-
-/// Evaluates a native nvCOMP call and converts its status into a [`Result`].
-#[macro_export]
-macro_rules! try_ffi {
-    ($expr:expr) => {{
-        let status = { $expr };
-        if status != singe_nvcomp_sys::nvcompStatus_t::nvcompSuccess {
-            Err($crate::error::Error::from(status))
-        } else {
-            Ok(())
-        }
-    }};
-}
-
-status_enum! {
+singe_core::wrapper_status! {
+    library = "nvcomp",
+    error = Error::Nvcomp,
+    raw = sys::nvcompStatus_t,
+    success = nvcompSuccess,
+    absence = sys::take_absence,
+    unknown = "UNKNOWN_NVCOMP_STATUS",
+    description = sys::nvcompGetStatusString,
     /// Status codes returned by nvCOMP calls.
-    pub enum Status: u32 => sys::nvcompStatus_t, unknown = "UNKNOWN_NVCOMP_STATUS" {
+    pub enum Status: u32 {
         /// The operation succeeded.
         Success = nvcompSuccess,
         /// An argument has an invalid value.
@@ -170,17 +56,129 @@ status_enum! {
     }
 }
 
-impl Status {
-    /// Returns nvCOMP's description of this status.
-    #[must_use]
-    pub fn description(self) -> &'static str {
-        let Ok(raw) = sys::nvcompStatus_t::try_from(self) else {
-            return "unknown nvcomp error";
-        };
-        // SAFETY: `nvcompGetStatusString` returns null or a static NUL-terminated string.
-        unsafe { static_str_from_c_ptr(sys::nvcompGetStatusString(raw), "unknown nvcomp error") }
-    }
+/// Errors returned by this crate.
+#[derive(Error, Debug)]
+#[non_exhaustive]
+pub enum Error {
+    /// nvCOMP or one of its symbols would not load.
+    #[error(transparent)]
+    Load(#[from] sys::LoadError),
+
+    /// An nvCOMP manager failed or threw a C++ exception.
+    #[cfg(feature = "manager")]
+    #[error("nvcomp manager error: {message}")]
+    Compressor {
+        /// Failure or exception message from the manager.
+        message: String,
+    },
+
+    /// Reading from or writing to a stream failed.
+    #[error(transparent)]
+    Io(#[from] io::Error),
+
+    /// A null handle was passed where a valid handle was expected.
+    #[error("unexpected null handle")]
+    NullHandle,
+
+    /// A CUDA call failed.
+    #[error(transparent)]
+    Cuda(#[from] CudaError),
+
+    /// nvCOMP returned an error status.
+    #[error("nvcomp error ({code}): {}", code.description())]
+    Nvcomp {
+        /// Status returned by nvCOMP.
+        code: Status,
+    },
+
+    /// A native enum value has no typed variant in this crate.
+    #[error("unknown `{name}` value {value}")]
+    UnknownEnumValue {
+        /// Name of the typed enum.
+        name: Cow<'static, str>,
+        /// Unrecognized native value.
+        value: i64,
+    },
+
+    /// A value does not fit the integer type that nvCOMP uses for it.
+    #[error("`{name}` is out of range")]
+    OutOfRange {
+        /// Name of the argument or field with the invalid value.
+        name: Cow<'static, str>,
+    },
+
+    /// An input that must not be empty is empty.
+    #[error("`{name}` is empty")]
+    Empty {
+        /// Name of the empty input.
+        name: Cow<'static, str>,
+    },
+
+    /// A size or count that must be positive is zero.
+    #[error("`{name}` must be positive")]
+    NotPositive {
+        /// Name of the argument or field.
+        name: Cow<'static, str>,
+    },
+
+    /// A size exceeds the limit nvCOMP documents for the codec.
+    #[error("`{name}` exceeds maximum supported size (max {max}, got {actual})")]
+    SizeLimitExceeded {
+        /// Name of the argument or field with the invalid value.
+        name: Cow<'static, str>,
+        /// Largest supported size.
+        max: usize,
+        /// Size that was passed.
+        actual: usize,
+    },
+
+    /// A slice has a different length than the operation requires.
+    #[error("`{name}` length mismatch (expected {expected}, got {actual})")]
+    LengthMismatch {
+        /// Name of the argument or field with the mismatch.
+        name: Cow<'static, str>,
+        /// Expected length.
+        expected: usize,
+        /// Actual length.
+        actual: usize,
+    },
+
+    /// A buffer is smaller than the extent the operation reads or writes.
+    #[error("`{name}` is too small (requires {required}, got {actual})")]
+    BufferTooSmall {
+        /// Name of the buffer.
+        name: Cow<'static, str>,
+        /// Required size in bytes.
+        required: usize,
+        /// Supplied size in bytes.
+        actual: usize,
+    },
+
+    /// A chunk's byte count differs from the expected value.
+    #[error("chunk {index} `{name}` length mismatch (expected {expected}, got {actual})")]
+    ChunkLengthMismatch {
+        /// Index of the chunk in the batch.
+        index: usize,
+        /// Name of the mismatched field.
+        name: Cow<'static, str>,
+        /// Expected length.
+        expected: usize,
+        /// Actual length.
+        actual: usize,
+    },
+
+    /// A batched operation reported an error for one chunk.
+    #[error("`{operation}` failed with {status}")]
+    OperationFailed {
+        /// The failed chunk, named by its index in the batch.
+        operation: Cow<'static, str>,
+        /// Status that nvCOMP wrote for the chunk.
+        status: Status,
+    },
 }
+
+/// Result type returned by this crate.
+pub type Result<T> = StdResult<T, Error>;
 
 /// Per-chunk status that batched nvCOMP operations write to device memory.
 ///
@@ -216,7 +214,7 @@ impl DeviceStatus {
     /// Returns the native status, or `None` if the code is not a known nvCOMP status.
     #[must_use]
     pub fn try_as_raw(self) -> Option<sys::nvcompStatus_t> {
-        sys::nvcompStatus_t::try_from(self.0).ok()
+        sys::nvcompStatus_t::try_from(self.status()).ok()
     }
 
     /// Converts the code to a [`Status`].
@@ -232,29 +230,26 @@ impl Error {
     }
 }
 
+impl From<singe_core::UnknownEnumValue> for Error {
+    fn from(error: singe_core::UnknownEnumValue) -> Self {
+        Self::UnknownEnumValue {
+            name: error.name.into(),
+            value: error.value,
+        }
+    }
+}
+
 impl From<DeviceStatus> for Status {
     fn from(status: DeviceStatus) -> Self {
         Self::from(status.raw())
     }
 }
 
-impl From<sys::nvcompStatus_t> for Error {
-    fn from(status: sys::nvcompStatus_t) -> Self {
-        if status == sys::nvcompStatus_t::nvcompErrorInternal
-            && let Err(error) = singe_nvcomp_sys::load()
-        {
-            return Self::Load(error);
-        }
-
-        Self::from(Status::from(status))
-    }
+// Converts a raw nvCOMP status into this crate's `Result`.
+macro_rules! try_ffi {
+    ($expr:expr) => {
+        $crate::error::Error::check($expr)
+    };
 }
 
-impl From<Status> for Error {
-    fn from(status: Status) -> Self {
-        Self::Nvcomp {
-            code: status,
-            message: status.description().to_string(),
-        }
-    }
-}
+pub(crate) use try_ffi;

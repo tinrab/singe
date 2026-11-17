@@ -1,30 +1,27 @@
 use std::{
-    error::Error as StdError,
-    fs,
+    env, fs,
     io::{Error, ErrorKind},
-    path::PathBuf,
 };
 
-use singe_cuda::{context::Context as CudaContext, memory::DeviceMemory};
-use singe_nvjpeg::{image::Plane, k2::prelude::*};
-
-type ExampleResult<T> = Result<T, Box<dyn StdError>>;
+use singe_cuda::{context::Context as CudaContext, memory::DeviceMemory, stream::StreamOptions};
+use singe_nvjpeg::{
+    image::{Plane, Size},
+    k2::{
+        encode::{EncodeConfig, EncodeOptions, Encoder, EncoderHandle},
+        image::EncodeInput,
+        types::{BitstreamType, ColorSpace, ImageFormat},
+    },
+};
 
 const WIDTH: u32 = 256;
 const HEIGHT: u32 = 160;
 
-fn main() -> ExampleResult<()> {
-    let output = output_path();
-    fs::create_dir_all(
-        output
-            .parent()
-            .ok_or_else(|| invalid_input("missing output parent"))?,
-    )?;
-
+fn main() -> anyhow::Result<()> {
+    let output = env::temp_dir().join("jpeg2k_encode.jp2");
     let (red, green, blue) = rgb_gradient(WIDTH, HEIGHT)?;
 
     let context = CudaContext::create()?;
-    let stream = context.create_stream()?;
+    let stream = context.create_stream(StreamOptions::default())?;
     let red = DeviceMemory::<u8>::from_slice(stream.context(), &red)?;
     let green = DeviceMemory::<u8>::from_slice(stream.context(), &green)?;
     let blue = DeviceMemory::<u8>::from_slice(stream.context(), &blue)?;
@@ -43,24 +40,15 @@ fn main() -> ExampleResult<()> {
         .build()?;
 
     let options = EncodeOptions::new().with_input_format(ImageFormat::Planar);
-    let mut encoder = Encoder::builder()
-        .options(options)
-        .encode_config(config)
-        .create(&context)?;
+    let handle = EncoderHandle::create(&context)?;
+    let mut encoder = Encoder::create(&handle, config, options)?;
 
-    encoder.encode_to_file(&image, &output, &stream)?;
+    fs::write(&output, encoder.encode_to_vec(&image, &stream)?)?;
     println!("wrote {}", output.display());
     Ok(())
 }
 
-fn output_path() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("examples")
-        .join("output")
-        .join("jpeg2k_encode.jp2")
-}
-
-fn rgb_gradient(width: u32, height: u32) -> ExampleResult<(Vec<u8>, Vec<u8>, Vec<u8>)> {
+fn rgb_gradient(width: u32, height: u32) -> anyhow::Result<(Vec<u8>, Vec<u8>, Vec<u8>)> {
     let len = (width as usize)
         .checked_mul(height as usize)
         .ok_or_else(|| invalid_input("input image size overflow"))?;

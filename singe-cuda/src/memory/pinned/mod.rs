@@ -10,11 +10,9 @@ use std::{
     sync::Arc,
 };
 
+pub(crate) use self::pool::PinnedPool;
 use self::pool::same_class;
-pub use self::{
-    pool::{PinnedPool, PinnedStats},
-    slice::MappedPinned,
-};
+pub use self::{pool::PinnedStats, slice::PinnedVecExt};
 use crate::{
     context::Context,
     error::{Error, Result},
@@ -72,8 +70,8 @@ impl PinnedHost {
     ///
     /// Returns an error if the byte size overflows, `T` needs an alignment above 4096 bytes, the context cannot be bound, or CUDA cannot allocate page-locked memory.
     pub fn with_capacity<T>(&self, capacity: usize) -> Result<PinnedVec<T>> {
-        let layout =
-            Layout::array::<T>(capacity).map_err(|_| Error::InvalidMemoryAllocationRequest)?;
+        let layout = Layout::array::<T>(capacity)
+            .map_err(|_| Error::out_of_range("pinned vector capacity"))?;
         let block = self.allocate_block(layout)?;
         // SAFETY: the block holds `capacity` values of `T`, allocated by this allocator with `T`'s array layout.
         Ok(
@@ -139,7 +137,7 @@ impl PinnedHost {
         self.0.pinned.device_region(&self.0, pointer, bytes)
     }
 
-    // SAFETY: the caller upholds `Allocator::grow`'s contract for `block`, `old`, and `new`, whichever direction the size moves.
+    // Requires what `Allocator::grow` or `Allocator::shrink` requires: `block` is live from this allocator with layout `old`.
     unsafe fn resize(
         &self,
         block: NonNull<u8>,
@@ -207,7 +205,7 @@ unsafe impl Allocator for PinnedHost {
         old: Layout,
         new: Layout,
     ) -> StdResult<NonNull<[u8]>, AllocError> {
-        // SAFETY: the caller upholds `grow`'s contract.
+        // SAFETY: `grow`'s caller passes a live `block` of this allocator with layout `old`, which is what `resize` requires.
         unsafe { self.resize(block, old, new, false) }
     }
 
@@ -217,7 +215,7 @@ unsafe impl Allocator for PinnedHost {
         old: Layout,
         new: Layout,
     ) -> StdResult<NonNull<[u8]>, AllocError> {
-        // SAFETY: the caller upholds `grow_zeroed`'s contract.
+        // SAFETY: `grow_zeroed`'s caller passes a live `block` of this allocator with layout `old`, which is what `resize` requires.
         unsafe { self.resize(block, old, new, true) }
     }
 
@@ -227,7 +225,7 @@ unsafe impl Allocator for PinnedHost {
         old: Layout,
         new: Layout,
     ) -> StdResult<NonNull<[u8]>, AllocError> {
-        // SAFETY: the caller upholds `shrink`'s contract.
+        // SAFETY: `shrink`'s caller passes a live `block` of this allocator with layout `old`, which is what `resize` requires.
         unsafe { self.resize(block, old, new, false) }
     }
 }

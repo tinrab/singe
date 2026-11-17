@@ -1,10 +1,9 @@
-use singe_cublas::{blas::level1::axpy_ex, context::Context, error::Result};
-
+use singe_cublas::{blas::extension::axpy_ex, context::Context, scalar::Scalar};
 use singe_cuda::{
     context::Context as CudaContext, data_type::DataType, device::Device, memory::DeviceMemory,
 };
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     let cuda = CudaContext::create_for_device(Device::new(0))?;
     let cublas = Context::create(&cuda)?;
     let x = DeviceMemory::from_slice(&cuda, &[1.0_f64, 2.0, 3.0, 4.0])?;
@@ -13,13 +12,11 @@ fn main() -> Result<()> {
 
     axpy_ex(
         &cublas,
-        &alpha,
-        DataType::F64,
+        4,
+        Scalar::host(&alpha),
         &x,
-        DataType::F64,
         1,
         &mut y,
-        DataType::F64,
         1,
         DataType::F64,
     )?;

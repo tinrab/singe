@@ -1,3 +1,5 @@
+//! NVTX annotations, ranges, markers, and profiling resources.
+
 use std::{
     ffi::{CStr, CString},
     marker::PhantomData,
@@ -5,7 +7,7 @@ use std::{
 };
 
 use num_enum::{IntoPrimitive, TryFromPrimitive};
-use singe_core::{LibraryVersion, impl_enum_conversion, impl_enum_display};
+use singe_core::{LibraryVersion, impl_enum_display};
 use singe_cuda_sys::nvtx as sys;
 
 use crate::error::{Error, Result};
@@ -52,40 +54,40 @@ impl Category {
     }
 }
 
-/// Native discriminator selecting whether an annotation includes a color.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum ColorType {
-    /// Color attribute is unused.
-    Unknown = sys::nvtxColorType_t::NVTX_COLOR_UNKNOWN as _,
-    /// An ARGB color is provided.
-    Argb = sys::nvtxColorType_t::NVTX_COLOR_ARGB as _,
+singe_core::native_enum! {
+    /// Native discriminator selecting whether an annotation includes a color.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum ColorType: sys::nvtxColorType_t {
+        /// Color attribute is unused.
+        Unknown = NVTX_COLOR_UNKNOWN,
+        /// An ARGB color is provided.
+        Argb = NVTX_COLOR_ARGB,
+    }
 }
-
-impl_enum_conversion!(sys::nvtxColorType_t, ColorType);
 
 impl_enum_display!(ColorType, {
     Self::Unknown => "NVTX_COLOR_UNKNOWN",
     Self::Argb => "NVTX_COLOR_ARGB",
 });
 
-/// Native discriminator selecting the annotation message representation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum MessageType {
-    /// Message attribute is unused.
-    Unknown = sys::nvtxMessageType_t::NVTX_MESSAGE_UNKNOWN as _,
-    /// A character sequence is used as payload.
-    Ascii = sys::nvtxMessageType_t::NVTX_MESSAGE_TYPE_ASCII as _,
-    /// A wide character sequence is used as payload.
-    Unicode = sys::nvtxMessageType_t::NVTX_MESSAGE_TYPE_UNICODE as _,
-    /// A unique string handle registered with `nvtxDomainRegisterStringA` or `nvtxDomainRegisterStringW`.
-    Registered = sys::nvtxMessageType_t::NVTX_MESSAGE_TYPE_REGISTERED as _,
+singe_core::native_enum! {
+    /// Native discriminator selecting the annotation message representation.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum MessageType: sys::nvtxMessageType_t {
+        /// Message attribute is unused.
+        Unknown = NVTX_MESSAGE_UNKNOWN,
+        /// A character sequence is used as payload.
+        Ascii = NVTX_MESSAGE_TYPE_ASCII,
+        /// A wide character sequence is used as payload.
+        Unicode = NVTX_MESSAGE_TYPE_UNICODE,
+        /// A unique string handle registered with a domain.
+        Registered = NVTX_MESSAGE_TYPE_REGISTERED,
+    }
 }
-
-impl_enum_conversion!(sys::nvtxMessageType_t, MessageType);
 
 impl_enum_display!(MessageType, {
     Self::Unknown => "NVTX_MESSAGE_UNKNOWN",
@@ -94,28 +96,28 @@ impl_enum_display!(MessageType, {
     Self::Registered => "NVTX_MESSAGE_TYPE_REGISTERED",
 });
 
-/// Native discriminator selecting the numeric annotation payload representation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum PayloadType {
-    /// Payload attribute is unused.
-    Unknown = sys::nvtxPayloadType_t::NVTX_PAYLOAD_UNKNOWN as _,
-    /// A 64 bit unsigned integer value is used as payload.
-    UnsignedInt64 = sys::nvtxPayloadType_t::NVTX_PAYLOAD_TYPE_UNSIGNED_INT64 as _,
-    /// A 64 bit signed integer value is used as payload.
-    Int64 = sys::nvtxPayloadType_t::NVTX_PAYLOAD_TYPE_INT64 as _,
-    /// A 64 bit floating point value is used as payload.
-    Double = sys::nvtxPayloadType_t::NVTX_PAYLOAD_TYPE_DOUBLE as _,
-    /// A 32-bit unsigned integer value is used as payload.
-    UnsignedInt32 = sys::nvtxPayloadType_t::NVTX_PAYLOAD_TYPE_UNSIGNED_INT32 as _,
-    /// A 32-bit signed integer value is used as payload.
-    Int32 = sys::nvtxPayloadType_t::NVTX_PAYLOAD_TYPE_INT32 as _,
-    /// A 32 bit floating point value is used as payload.
-    Float = sys::nvtxPayloadType_t::NVTX_PAYLOAD_TYPE_FLOAT as _,
+singe_core::native_enum! {
+    /// Native discriminator selecting the numeric annotation payload representation.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum PayloadType: sys::nvtxPayloadType_t {
+        /// Payload attribute is unused.
+        Unknown = NVTX_PAYLOAD_UNKNOWN,
+        /// A 64 bit unsigned integer value is used as payload.
+        UnsignedInt64 = NVTX_PAYLOAD_TYPE_UNSIGNED_INT64,
+        /// A 64 bit signed integer value is used as payload.
+        Int64 = NVTX_PAYLOAD_TYPE_INT64,
+        /// A 64 bit floating point value is used as payload.
+        Double = NVTX_PAYLOAD_TYPE_DOUBLE,
+        /// A 32-bit unsigned integer value is used as payload.
+        UnsignedInt32 = NVTX_PAYLOAD_TYPE_UNSIGNED_INT32,
+        /// A 32-bit signed integer value is used as payload.
+        Int32 = NVTX_PAYLOAD_TYPE_INT32,
+        /// A 32 bit floating point value is used as payload.
+        Float = NVTX_PAYLOAD_TYPE_FLOAT,
+    }
 }
-
-impl_enum_conversion!(sys::nvtxPayloadType_t, PayloadType);
 
 impl_enum_display!(PayloadType, {
     Self::Unknown => "NVTX_PAYLOAD_UNKNOWN",
@@ -127,26 +129,24 @@ impl_enum_display!(PayloadType, {
     Self::Float => "NVTX_PAYLOAD_TYPE_FLOAT",
 });
 
-/// Generic resource type for when a resource class is not available.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum ResourceGenericType {
-    /// No supported NVTX resource identifier type is selected.
-    Unknown = sys::nvtxResourceGenericType_t::NVTX_RESOURCE_TYPE_UNKNOWN as _,
-    /// Generic pointer assumed to have no collisions with other pointers.
-    GenericPointer = sys::nvtxResourceGenericType_t::NVTX_RESOURCE_TYPE_GENERIC_POINTER as _,
-    /// Generic handle assumed to have no collisions with other handles.
-    GenericHandle = sys::nvtxResourceGenericType_t::NVTX_RESOURCE_TYPE_GENERIC_HANDLE as _,
-    /// OS native thread identifier.
-    GenericThreadNative =
-        sys::nvtxResourceGenericType_t::NVTX_RESOURCE_TYPE_GENERIC_THREAD_NATIVE as _,
-    /// POSIX pthread identifier.
-    GenericThreadPosix =
-        sys::nvtxResourceGenericType_t::NVTX_RESOURCE_TYPE_GENERIC_THREAD_POSIX as _,
+singe_core::native_enum! {
+    /// Generic resource type for when a resource class is not available.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum ResourceGenericType: sys::nvtxResourceGenericType_t {
+        /// No supported NVTX resource identifier type is selected.
+        Unknown = NVTX_RESOURCE_TYPE_UNKNOWN,
+        /// Generic pointer assumed to have no collisions with other pointers.
+        GenericPointer = NVTX_RESOURCE_TYPE_GENERIC_POINTER,
+        /// Generic handle assumed to have no collisions with other handles.
+        GenericHandle = NVTX_RESOURCE_TYPE_GENERIC_HANDLE,
+        /// OS native thread identifier.
+        GenericThreadNative = NVTX_RESOURCE_TYPE_GENERIC_THREAD_NATIVE,
+        /// POSIX pthread identifier.
+        GenericThreadPosix = NVTX_RESOURCE_TYPE_GENERIC_THREAD_POSIX,
+    }
 }
-
-impl_enum_conversion!(sys::nvtxResourceGenericType_t, ResourceGenericType);
 
 impl_enum_display!(ResourceGenericType, {
     Self::Unknown => "NVTX_RESOURCE_TYPE_UNKNOWN",
@@ -200,6 +200,7 @@ impl Payload {
 
 /// Borrowed message and optional metadata for one NVTX marker or range.
 ///
+/// A `&CStr`, `&CString`, or `&Event` converts into attributes with its message and metadata.
 /// The message must remain live through the annotation call.
 /// Unset color and payload fields use the native unknown selectors, and an unset category uses zero.
 #[derive(Debug, Clone, Copy)]
@@ -287,17 +288,19 @@ impl<'a> EventAttributes<'a> {
         }
 
         if let Some(color) = self.color {
-            raw.colorType = sys::nvtxColorType_t::from(ColorType::Argb) as i32;
+            raw.colorType = sys::nvtxColorType_t::from(ColorType::Argb).0.cast_signed();
             raw.color = color.0;
         }
 
         if let Some(payload) = self.payload {
-            raw.payloadType = payload.encode_type() as i32;
+            raw.payloadType = payload.encode_type().0.cast_signed();
             raw.payload = payload.encode_value();
         }
 
         if let Some(message) = self.message {
-            raw.messageType = sys::nvtxMessageType_t::from(MessageType::Ascii) as i32;
+            raw.messageType = sys::nvtxMessageType_t::from(MessageType::Ascii)
+                .0
+                .cast_signed();
             raw.message.ascii = message.as_ptr();
         }
 
@@ -311,7 +314,27 @@ impl Default for EventAttributes<'_> {
     }
 }
 
+impl<'a> From<&'a CStr> for EventAttributes<'a> {
+    fn from(message: &'a CStr) -> Self {
+        Self::new().with_message(message)
+    }
+}
+
+impl<'a> From<&'a CString> for EventAttributes<'a> {
+    fn from(message: &'a CString) -> Self {
+        Self::new().with_message(message)
+    }
+}
+
+impl<'a> From<&'a Event> for EventAttributes<'a> {
+    fn from(event: &'a Event) -> Self {
+        event.attributes()
+    }
+}
+
 /// An owned C-string message and reusable NVTX annotation metadata.
+///
+/// A reference converts into [`EventAttributes`] for the marker and range functions.
 #[derive(Debug, Clone)]
 pub struct Event {
     message: CString,
@@ -327,12 +350,7 @@ impl Event {
     ///
     /// Returns an error if `message` contains an interior NUL byte.
     pub fn create(message: &str) -> Result<Self> {
-        Ok(Self {
-            message: CString::new(message)?,
-            category: None,
-            color: None,
-            payload: None,
-        })
+        Ok(Self::create_from_c_string(CString::new(message)?))
     }
 
     /// Takes ownership of a C-string message with no optional annotation metadata.
@@ -367,60 +385,15 @@ impl Event {
         self
     }
 
-    /// Emits an instantaneous marker in the global NVTX domain.
-    pub fn mark(&self) {
-        mark_with_attributes(self.attributes());
-    }
-
-    /// Pushes this event onto the global domain's current-thread range stack.
-    /// The returned guard pops it on drop.
-    #[must_use]
-    pub fn local_range(&self) -> LocalRange {
-        LocalRange::from_attributes(self.attributes())
-    }
-
-    /// Starts a process range in the global domain and returns a guard that ends its native ID on drop.
-    #[must_use]
-    pub fn range(&self) -> Range {
-        Range::from_attributes(self.attributes())
-    }
-
-    /// Emits an instantaneous marker in `domain`.
-    pub fn domain_mark(&self, domain: &Domain) {
-        domain.mark_with_attributes(self.attributes());
-    }
-
-    /// Pushes this event onto `domain`'s current-thread range stack.
-    /// The returned guard pops it on drop.
-    #[must_use]
-    pub fn domain_local_range<'a>(&self, domain: &'a Domain) -> DomainLocalRange<'a> {
-        domain.range_with_attributes(self.attributes())
-    }
-
-    /// Starts a process range in `domain` and returns a guard that ends its native ID on drop.
-    #[must_use]
-    pub fn domain_range<'a>(&self, domain: &'a Domain) -> DomainRange<'a> {
-        domain.start_range_with_attributes(self.attributes())
-    }
-
     /// Borrows the message and copies the optional metadata into annotation attributes.
     #[must_use]
     pub fn attributes(&self) -> EventAttributes<'_> {
-        let mut attributes = EventAttributes::new().with_message(&self.message);
-
-        if let Some(category) = self.category {
-            attributes = attributes.with_category(category);
+        EventAttributes {
+            message: Some(&self.message),
+            category: self.category,
+            color: self.color,
+            payload: self.payload,
         }
-
-        if let Some(color) = self.color {
-            attributes = attributes.with_color(color);
-        }
-
-        if let Some(payload) = self.payload {
-            attributes = attributes.with_payload(payload);
-        }
-
-        attributes
     }
 }
 
@@ -433,10 +406,10 @@ pub struct Domain {
     handle: sys::nvtxDomainHandle_t,
 }
 
-// SAFETY: NVTX domains are process-wide annotation handles. The wrapper owns the handle
-// and only passes immutable copies to NVTX entry points.
+// SAFETY: an NVTX domain handle is process-wide and NVTX entry points are thread-safe, so the owner may move and destroy it on any thread.
 unsafe impl Send for Domain {}
 
+// SAFETY: shared methods only pass the handle by value to thread-safe NVTX entry points; per-thread range stacks are kept by NVTX itself.
 unsafe impl Sync for Domain {}
 
 impl Domain {
@@ -454,9 +427,9 @@ impl Domain {
     ///
     /// # Errors
     ///
-    /// Returns `Error::NullHandle` if NVTX returns a null domain handle.
+    /// Returns an error if NVTX returns a null domain handle.
     pub fn create_from_c_str(name: &CStr) -> Result<Self> {
-        // SAFETY: `nvtxDomainCreateA` receives pointers into buffers borrowed for the call.
+        // SAFETY: `name` is a NUL-terminated string borrowed for the call.
         let handle = unsafe { sys::nvtxDomainCreateA(name.as_ptr()) };
         if handle.is_null() {
             return Err(Error::NullHandle);
@@ -470,53 +443,22 @@ impl Domain {
         self.handle
     }
 
-    /// Emits an instantaneous marker with `message` in this domain.
+    /// Emits an instantaneous marker in this domain.
     ///
-    /// # Errors
-    ///
-    /// Returns an error if `message` contains an interior NUL byte.
-    pub fn mark(&self, message: &str) -> Result<()> {
-        let message = CString::new(message)?;
-        self.mark_c_str(&message);
-        Ok(())
-    }
-
-    /// Emits an instantaneous marker with an existing C-string message in this domain.
-    pub fn mark_c_str(&self, message: &CStr) {
-        self.mark_with_attributes(EventAttributes::new().with_message(message));
-    }
-
-    /// Emits an instantaneous marker using the supplied message and metadata in this domain.
-    pub fn mark_with_attributes(&self, attributes: EventAttributes<'_>) {
-        let raw = attributes.encode();
-        // SAFETY: `nvtxDomainMarkEx` receives live handles owned by the wrappers.
+    /// `attributes` is a C-string message, an [`Event`], or [`EventAttributes`] with metadata.
+    pub fn mark<'a>(&self, attributes: impl Into<EventAttributes<'a>>) {
+        let raw = attributes.into().encode();
+        // SAFETY: `self` owns the live domain, and `raw` and the message it points to are borrowed for the call.
         unsafe { sys::nvtxDomainMarkEx(self.handle, &raw const raw) };
     }
 
     /// Pushes a range onto this domain's current-thread stack and returns its pop-on-drop guard.
     ///
-    /// # Errors
-    ///
-    /// Returns an error if `message` contains an interior NUL byte.
-    pub fn range<'a>(&'a self, message: &str) -> Result<DomainLocalRange<'a>> {
-        let message = CString::new(message)?;
-        Ok(self.range_c_str(&message))
-    }
-
-    /// Pushes a range with a C-string message onto this domain's current-thread stack.
+    /// `attributes` is a C-string message, an [`Event`], or [`EventAttributes`] with metadata.
     #[must_use]
-    pub fn range_c_str<'a>(&'a self, message: &CStr) -> DomainLocalRange<'a> {
-        self.range_with_attributes(EventAttributes::new().with_message(message))
-    }
-
-    /// Pushes a range with the supplied attributes onto this domain's current-thread stack.
-    #[must_use]
-    pub fn range_with_attributes<'a>(
-        &'a self,
-        attributes: EventAttributes<'_>,
-    ) -> DomainLocalRange<'a> {
-        let raw = attributes.encode();
-        // SAFETY: `nvtxDomainRangePushEx` receives live handles owned by the wrappers.
+    pub fn range<'a>(&self, attributes: impl Into<EventAttributes<'a>>) -> DomainLocalRange<'_> {
+        let raw = attributes.into().encode();
+        // SAFETY: `self` owns the live domain, and `raw` and the message it points to are borrowed for the call.
         unsafe { sys::nvtxDomainRangePushEx(self.handle, &raw const raw) };
         DomainLocalRange {
             domain: self,
@@ -526,25 +468,11 @@ impl Domain {
 
     /// Starts a process range in this domain and returns a guard that ends its native ID on drop.
     ///
-    /// # Errors
-    ///
-    /// Returns an error if `message` contains an interior NUL byte.
-    pub fn start_range(&self, message: &str) -> Result<DomainRange<'_>> {
-        let message = CString::new(message)?;
-        Ok(self.start_range_c_str(&message))
-    }
-
-    /// Starts a process range in this domain using an existing C-string message.
+    /// `attributes` is a C-string message, an [`Event`], or [`EventAttributes`] with metadata.
     #[must_use]
-    pub fn start_range_c_str(&self, message: &CStr) -> DomainRange<'_> {
-        self.start_range_with_attributes(EventAttributes::new().with_message(message))
-    }
-
-    /// Starts a process range in this domain using the supplied message and metadata.
-    #[must_use]
-    pub fn start_range_with_attributes(&self, attributes: EventAttributes<'_>) -> DomainRange<'_> {
-        let raw = attributes.encode();
-        // SAFETY: `nvtxDomainRangeStartEx` receives live handles owned by the wrappers.
+    pub fn start_range<'a>(&self, attributes: impl Into<EventAttributes<'a>>) -> DomainRange<'_> {
+        let raw = attributes.into().encode();
+        // SAFETY: `self` owns the live domain, and `raw` and the message it points to are borrowed for the call.
         let id = unsafe { sys::nvtxDomainRangeStartEx(self.handle, &raw const raw) };
         DomainRange { domain: self, id }
     }
@@ -556,7 +484,7 @@ impl Domain {
     /// Returns an error if `name` contains an interior NUL byte.
     pub fn name_category(&self, category: Category, name: &str) -> Result<()> {
         let name = CString::new(name)?;
-        // SAFETY: `nvtxDomainNameCategoryA` receives live handles owned by the wrappers and pointers into buffers borrowed for the call.
+        // SAFETY: `self` owns the live domain, and `name` is a NUL-terminated string borrowed for the call.
         unsafe { sys::nvtxDomainNameCategoryA(self.handle, category.0, name.as_ptr()) };
         Ok(())
     }
@@ -564,7 +492,7 @@ impl Domain {
 
 impl Drop for Domain {
     fn drop(&mut self) {
-        // SAFETY: `nvtxDomainDestroy` receives live handles owned by the wrappers.
+        // SAFETY: this wrapper owns the domain, and range guards borrow it, so none outlives the destroy.
         unsafe { sys::nvtxDomainDestroy(self.handle) };
     }
 }
@@ -581,29 +509,11 @@ pub struct LocalRange {
 impl LocalRange {
     /// Pushes a range onto the global domain's current-thread stack and returns a guard that ends it on drop.
     ///
-    /// # Errors
-    ///
-    /// Returns an error if `message` contains an interior NUL byte.
-    pub fn create(message: &str) -> Result<Self> {
-        let message = CString::new(message)?;
-        Ok(Self::create_from_c_str(&message))
-    }
-
-    /// Pushes a range onto the global domain's current-thread stack using an existing C-string message.
+    /// `attributes` is a C-string message, an [`Event`], or [`EventAttributes`] with metadata.
     #[must_use]
-    pub fn create_from_c_str(message: &CStr) -> Self {
-        // SAFETY: `nvtxRangePushA` receives pointers into buffers borrowed for the call.
-        unsafe { sys::nvtxRangePushA(message.as_ptr()) };
-        Self {
-            _not_send: PhantomData,
-        }
-    }
-
-    /// Pushes a range onto the global domain's current-thread stack using the supplied message and metadata.
-    #[must_use]
-    pub fn from_attributes(attributes: EventAttributes<'_>) -> Self {
-        let raw = attributes.encode();
-        // SAFETY: `nvtxRangePushEx` receives only plain values.
+    pub fn push<'a>(attributes: impl Into<EventAttributes<'a>>) -> Self {
+        let raw = attributes.into().encode();
+        // SAFETY: `raw` and the message it points to are borrowed for the call.
         unsafe { sys::nvtxRangePushEx(&raw const raw) };
         Self {
             _not_send: PhantomData,
@@ -613,7 +523,7 @@ impl LocalRange {
 
 impl Drop for LocalRange {
     fn drop(&mut self) {
-        // SAFETY: `nvtxRangePop` takes no arguments.
+        // SAFETY: the guard is `!Send`, so this pops the range it pushed on the current thread's stack.
         unsafe { sys::nvtxRangePop() };
     }
 }
@@ -630,27 +540,11 @@ pub struct Range {
 impl Range {
     /// Starts a process range in the global NVTX domain and returns a guard that ends it on drop.
     ///
-    /// # Errors
-    ///
-    /// Returns an error if `message` contains an interior NUL byte.
-    pub fn create(message: &str) -> Result<Self> {
-        let message = CString::new(message)?;
-        Ok(Self::create_from_c_str(&message))
-    }
-
-    /// Starts a process range in the global NVTX domain using an existing C-string message.
+    /// `attributes` is a C-string message, an [`Event`], or [`EventAttributes`] with metadata.
     #[must_use]
-    pub fn create_from_c_str(message: &CStr) -> Self {
-        // SAFETY: `nvtxRangeStartA` receives pointers into buffers borrowed for the call.
-        let id = unsafe { sys::nvtxRangeStartA(message.as_ptr()) };
-        Self { id }
-    }
-
-    /// Starts a process range in the global NVTX domain using the supplied message and metadata.
-    #[must_use]
-    pub fn from_attributes(attributes: EventAttributes<'_>) -> Self {
-        let raw = attributes.encode();
-        // SAFETY: `nvtxRangeStartEx` receives only plain values.
+    pub fn start<'a>(attributes: impl Into<EventAttributes<'a>>) -> Self {
+        let raw = attributes.into().encode();
+        // SAFETY: `raw` and the message it points to are borrowed for the call.
         let id = unsafe { sys::nvtxRangeStartEx(&raw const raw) };
         Self { id }
     }
@@ -658,7 +552,7 @@ impl Range {
 
 impl Drop for Range {
     fn drop(&mut self) {
-        // SAFETY: `nvtxRangeEnd` receives only plain values.
+        // SAFETY: `self.id` is the range this guard started, ended exactly once here.
         unsafe { sys::nvtxRangeEnd(self.id) };
     }
 }
@@ -675,7 +569,7 @@ pub struct DomainLocalRange<'a> {
 
 impl Drop for DomainLocalRange<'_> {
     fn drop(&mut self) {
-        // SAFETY: `nvtxDomainRangePop` receives only plain values.
+        // SAFETY: the borrowed domain is live, and the `!Send` guard pops the range it pushed on this thread.
         unsafe { sys::nvtxDomainRangePop(self.domain.handle) };
     }
 }
@@ -692,7 +586,7 @@ pub struct DomainRange<'a> {
 
 impl Drop for DomainRange<'_> {
     fn drop(&mut self) {
-        // SAFETY: `nvtxDomainRangeEnd` receives only plain values.
+        // SAFETY: the borrowed domain is live, and `self.id` is the range this guard started in it.
         unsafe { sys::nvtxDomainRangeEnd(self.domain.handle, self.id) };
     }
 }
@@ -700,37 +594,23 @@ impl Drop for DomainRange<'_> {
 /// Returns the compile-time NVTX API version used by this crate.
 #[must_use]
 pub fn version() -> LibraryVersion {
-    LibraryVersion::new(u64::from(sys::NVTX_VERSION), 0, 0)
+    LibraryVersion::new(sys::NVTX_VERSION, 0, 0)
 }
 
 /// Initializes NVTX before the first annotation call.
 ///
 /// Other NVTX calls initialize the API lazily if this function has not been called.
 pub fn initialize() {
-    // SAFETY: `nvtxInitialize` receives only plain values.
+    // SAFETY: NVTX accepts a null reserved argument.
     unsafe { sys::nvtxInitialize(ptr::null()) };
 }
 
-/// Emits an instantaneous marker with `message` in the global NVTX domain.
+/// Emits an instantaneous marker in the global NVTX domain.
 ///
-/// # Errors
-///
-/// Returns an error if `message` contains an interior NUL byte.
-pub fn mark(message: &str) -> Result<()> {
-    Event::create(message)?.mark();
-    Ok(())
-}
-
-/// Emits an instantaneous marker with an existing C-string message in the global domain.
-pub fn mark_c_str(message: &CStr) {
-    // SAFETY: `nvtxMarkA` receives pointers into buffers borrowed for the call.
-    unsafe { sys::nvtxMarkA(message.as_ptr()) };
-}
-
-/// Emits an instantaneous marker with the supplied message and metadata in the global domain.
-pub fn mark_with_attributes(attributes: EventAttributes<'_>) {
-    let raw = attributes.encode();
-    // SAFETY: `nvtxMarkEx` receives only plain values.
+/// `attributes` is a C-string message, an [`Event`], or [`EventAttributes`] with metadata.
+pub fn mark<'a>(attributes: impl Into<EventAttributes<'a>>) {
+    let raw = attributes.into().encode();
+    // SAFETY: `raw` and the message it points to are borrowed for the call.
     unsafe { sys::nvtxMarkEx(&raw const raw) };
 }
 
@@ -741,7 +621,7 @@ pub fn mark_with_attributes(attributes: EventAttributes<'_>) {
 /// Returns an error if `name` contains an interior NUL byte.
 pub fn name_category(category: Category, name: &str) -> Result<()> {
     let name = CString::new(name)?;
-    // SAFETY: `nvtxNameCategoryA` receives pointers into buffers borrowed for the call.
+    // SAFETY: `name` is a NUL-terminated string borrowed for the call.
     unsafe { sys::nvtxNameCategoryA(category.0, name.as_ptr()) };
     Ok(())
 }
@@ -755,21 +635,12 @@ pub fn name_category(category: Category, name: &str) -> Result<()> {
 /// # Errors
 ///
 /// Returns an error if `name` contains an interior NUL byte.
-/// Native thread-ID validity is not checked by this wrapper.
+/// The wrapper does not check that the thread ID is valid.
 pub fn name_os_thread(thread_id: u32, name: &str) -> Result<()> {
     let name = CString::new(name)?;
-    // SAFETY: `nvtxNameOsThreadA` receives pointers into buffers borrowed for the call.
+    // SAFETY: `name` is a NUL-terminated string borrowed for the call, and NVTX does not dereference the thread ID.
     unsafe { sys::nvtxNameOsThreadA(thread_id, name.as_ptr()) };
     Ok(())
-}
-
-/// Pushes a range onto the global domain's current-thread stack and returns its pop-on-drop guard.
-///
-/// # Errors
-///
-/// Returns an error if `message` contains an interior NUL byte.
-pub fn scoped_range(message: &str) -> Result<LocalRange> {
-    LocalRange::create(message)
 }
 
 #[cfg(test)]
@@ -797,17 +668,24 @@ mod tests {
                 .expect("the NVTX event attributes fit their ABI size field")
         );
         assert_eq!(raw.category, 7);
-        assert_eq!(raw.colorType, sys::nvtxColorType_t::NVTX_COLOR_ARGB as i32);
+        assert_eq!(
+            raw.colorType,
+            sys::nvtxColorType_t::NVTX_COLOR_ARGB.0.cast_signed()
+        );
         assert_eq!(raw.color, 0x0401_0203);
         assert_eq!(
             raw.messageType,
-            sys::nvtxMessageType_t::NVTX_MESSAGE_TYPE_ASCII as i32
+            sys::nvtxMessageType_t::NVTX_MESSAGE_TYPE_ASCII
+                .0
+                .cast_signed()
         );
         // SAFETY: the message type checked above selects `ascii`.
         assert_eq!(unsafe { raw.message.ascii }, message.as_ptr());
         assert_eq!(
             raw.payloadType,
-            sys::nvtxPayloadType_t::NVTX_PAYLOAD_TYPE_INT64 as i32
+            sys::nvtxPayloadType_t::NVTX_PAYLOAD_TYPE_INT64
+                .0
+                .cast_signed()
         );
         // SAFETY: the payload type checked above selects `llValue`.
         assert_eq!(unsafe { raw.payload.llValue }, -42);
@@ -832,7 +710,9 @@ mod tests {
         assert_eq!(raw.color, 0xff00_00ff);
         assert_eq!(
             raw.payloadType,
-            sys::nvtxPayloadType_t::NVTX_PAYLOAD_TYPE_UNSIGNED_INT32 as i32
+            sys::nvtxPayloadType_t::NVTX_PAYLOAD_TYPE_UNSIGNED_INT32
+                .0
+                .cast_signed()
         );
         // SAFETY: the payload type checked above selects `uiValue`.
         assert_eq!(unsafe { raw.payload.uiValue }, 11);
@@ -841,7 +721,7 @@ mod tests {
     #[test]
     fn test_enum_wrappers_convert_and_display() {
         assert_eq!(
-            ColorType::from(sys::nvtxColorType_t::NVTX_COLOR_ARGB),
+            ColorType::try_from(sys::nvtxColorType_t::NVTX_COLOR_ARGB).unwrap(),
             ColorType::Argb
         );
         assert_eq!(

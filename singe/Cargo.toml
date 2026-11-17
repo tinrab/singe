@@ -1,11 +1,13 @@
 [package]
 name = "singe"
 description = "A machine learning framework that sets tensors ablaze."
-version = "0.1.0-alpha.1"
+version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 repository.workspace = true
 license-file.workspace = true
 keywords = ["ai", "machine-learning", "deep-learning", "tensor", "cuda"]
+categories = ["science"]
 include = ["src/**", "/Cargo.toml", "/README.md", "/LICENSE*", "/dist/katex_header.html"]
 
 [package.metadata.docs.rs]
@@ -24,6 +26,8 @@ cuda = [
     "singe-codegen/tile",
     "dep:cutile-ir",
     "dep:singe-cuda",
+    "singe-cuda/runtime_13_4",
+    "singe-cuda/nvrtc_13_4",
     "dep:singe-cublas",
     "dep:singe-cufft",
     "dep:singe-cudnn",
@@ -34,7 +38,7 @@ cuda = [
 ]
 cuda_13_4 = ["cuda"]
 cuda_nvtx = ["singe-cuda?/nvtx_3"]
-onnx = ["dep:singe-onnx"]
+onnx = ["dep:singe-onnx", "dep:prost"]
 
 [dependencies]
 singe-core.workspace = true
@@ -54,6 +58,7 @@ num-traits.workspace = true
 num_enum.workspace = true
 half.workspace = true
 libm.workspace = true
+prost = { workspace = true, optional = true }
 libloading = { workspace = true, optional = true }
 rayon.workspace = true
 safetensors.workspace = true

@@ -1,39 +1,49 @@
-use std::ops::Deref;
+//! Serialized GPU test contexts.
+
+use std::sync::Arc;
 
 use singe_cuda::{
-    context::Context,
+    context::Context as CudaContext,
     device::Device,
-    stream::Stream,
-    testing::{DeviceLock, device_lock},
+    stream::{Stream, StreamOptions},
+    testing::{TestDevice, bootstrap_for_device},
 };
 
-use crate::{communicator::Communicator, error::Result, unique_id};
+use crate::{communicator::Communicator, error::Result, types::RankId, unique_id};
 
-/// A communicator and CUDA stream retaining the serialized GPU test lock.
+/// A single-rank communicator and CUDA stream on a locked test device.
+///
+/// The communicator drops first, then the stream, then the device's CUDA context and lock.
 #[derive(Debug)]
 pub struct TestContext {
     communicator: Communicator,
     stream: Stream,
-    _lock: DeviceLock,
-}
-
-impl Deref for TestContext {
-    type Target = Communicator;
-
-    fn deref(&self) -> &Self::Target {
-        &self.communicator
-    }
+    device: TestDevice,
 }
 
 impl TestContext {
-    /// Returns the CUDA stream used by the test communicator.
+    /// Returns the test communicator.
+    #[must_use]
+    pub fn communicator(&self) -> &Communicator {
+        &self.communicator
+    }
+
+    /// Returns the CUDA stream for test operations.
+    #[must_use]
     pub fn stream(&self) -> &Stream {
         &self.stream
     }
 
-    /// Consumes the test setup and returns its communicator.
-    pub fn into_communicator(self) -> Communicator {
-        self.communicator
+    /// Returns the CUDA context of the locked device.
+    #[must_use]
+    pub fn cuda_context(&self) -> &Arc<CudaContext> {
+        self.device.context()
+    }
+
+    /// Splits the setup into its communicator and the locked device, dropping the stream.
+    #[must_use]
+    pub fn into_parts(self) -> (Communicator, TestDevice) {
+        (self.communicator, self.device)
     }
 }
 
@@ -41,17 +51,20 @@ impl TestContext {
 ///
 /// # Errors
 ///
-/// Returns an error if retaining the primary CUDA context, creating the stream, generating a unique identifier, or initializing NCCL fails.
+/// Returns an error if locking the device, retaining its primary CUDA context, creating the stream, generating a unique identifier, or initializing NCCL fails.
 pub fn setup_communicator() -> Result<TestContext> {
-    let device_id: i32 = 0;
-    let lock = device_lock(device_id)?;
-    let cuda_context = Context::retain_primary_for_device(Device::new(device_id))?;
-    let stream = cuda_context.create_stream()?;
-    let communicator = Communicator::create_rank(&cuda_context, 1, unique_id()?, 0)?;
-
+    let device = bootstrap_for_device(Device::new(0))?;
+    let stream = device.context().create_stream(StreamOptions::default())?;
+    let communicator = Communicator::create_rank(
+        device.context(),
+        RankId::create(0)?,
+        1,
+        &[unique_id()?],
+        None,
+    )?;
     Ok(TestContext {
         communicator,
         stream,
-        _lock: lock,
+        device,
     })
 }

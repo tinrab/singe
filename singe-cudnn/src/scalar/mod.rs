@@ -1,5 +1,25 @@
+//! Scalar values and aligned host storage for by-value tensor bindings.
+
 pub(crate) mod float;
 mod storage;
+
+mod nibble {
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    use crate::scalar::PACKED_SCALAR_MASK;
+
+    #[expect(
+        clippy::trivially_copy_pass_by_ref,
+        reason = "Serde custom serializers require a borrowed field value"
+    )]
+    pub(crate) fn serialize<S: Serializer>(bits: &u8, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_u8(*bits & PACKED_SCALAR_MASK)
+    }
+
+    pub(crate) fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<u8, D::Error> {
+        Ok(u8::deserialize(deserializer)? & PACKED_SCALAR_MASK)
+    }
+}
 
 use serde::{Deserialize, Serialize};
 use singe_cuda::types::{
@@ -150,7 +170,7 @@ impl ScalarValue {
             Self::ComplexF32 { .. } => DataType::ComplexF32,
             Self::ComplexF64 { .. } => DataType::ComplexF64,
             Self::F16(_) => DataType::F16,
-            Self::Bf16(_) => DataType::BF16,
+            Self::Bf16(_) => DataType::Bf16,
             Self::F8E4M3(_) => DataType::F8E4M3,
             Self::F8E5M2(_) => DataType::F8E5M2,
             Self::F8UE5M3(_) => DataType::F8UE5M3,
@@ -162,7 +182,8 @@ impl ScalarValue {
     /// The multiplicative identity encoded in `data_type`.
     ///
     /// # Errors
-    /// Returns an error for data types without a scalar encoding.
+    ///
+    /// Returns an error if a data type has no scalar encoding.
     pub fn one(data_type: DataType) -> Result<Self> {
         Ok(match data_type {
             DataType::I8 => Self::I8(1),
@@ -175,7 +196,7 @@ impl ScalarValue {
             DataType::U32 => Self::U32(1),
             DataType::I64 => Self::I64(1),
             DataType::F16 => Self::f16_bits(0x3c00),
-            DataType::BF16 => Self::bf16_bits(0x3f80),
+            DataType::Bf16 => Self::bf16_bits(0x3f80),
             DataType::F32 => Self::F32(1.0),
             DataType::F64 => Self::F64(1.0),
             DataType::ComplexF32 => Self::ComplexF32 { re: 1.0, im: 0.0 },
@@ -277,24 +298,6 @@ impl ScalarValue {
     #[must_use]
     pub const fn from_f4e2m1(value: f4e2m1) -> Self {
         Self::f4e2m1_bits(value.to_bits())
-    }
-}
-
-mod nibble {
-    use serde::{Deserialize, Deserializer, Serializer};
-
-    use crate::scalar::PACKED_SCALAR_MASK;
-
-    #[expect(
-        clippy::trivially_copy_pass_by_ref,
-        reason = "Serde custom serializers require a borrowed field value"
-    )]
-    pub fn serialize<S: Serializer>(bits: &u8, serializer: S) -> Result<S::Ok, S::Error> {
-        serializer.serialize_u8(*bits & PACKED_SCALAR_MASK)
-    }
-
-    pub fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<u8, D::Error> {
-        Ok(u8::deserialize(deserializer)? & PACKED_SCALAR_MASK)
     }
 }
 

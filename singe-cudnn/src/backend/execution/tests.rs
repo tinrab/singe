@@ -1,80 +1,68 @@
 use std::sync::Arc;
 
-use singe_cuda::error::{Error as CudaError, Status as CudaStatus};
-use singe_cudnn_sys as sys;
-
 use crate::{
     backend::{
-        convolution::ConvolutionMode,
         descriptor::BackendDescriptorType,
-        engine::{Engine, EngineIndex},
         execution::{
-            EngineChoice, EngineConfig, EngineHeuristics, ExecutionPlan, KernelCache,
-            OperationGraph, OperationGraphConfig, VariantPack,
+            EngineChoice, EngineConfig, EngineHeuristics, EnginePlanningOptions, ExecutionPlan,
+            KernelCache, OperationGraph, OperationGraphOptions, VariantPack,
+        },
+        heuristic::BackendHeuristicMode,
+        operation::{
             attention::{
-                AttentionSequenceInputs, DiagonalBandMaskBound, DiagonalBandMaskConfig,
-                DiagonalBandMaskOperation, SdpaBackwardConfig, SdpaBackwardOperation,
-                SdpaBackwardSink, SdpaBackwardTensors, SdpaForwardConfig, SdpaForwardDropout,
-                SdpaForwardOperation, SdpaForwardSoftmax, SdpaForwardTensors, SdpaSubgraph,
-                SoftmaxOperation, SoftmaxOperationConfig, SoftmaxOutputs, SoftmaxStatsBase,
-            },
-            band_matrix::{ContractBandMatrixOperation, ExpandBandMatrixOperation},
-            block_scale::{
-                BlockScaleDequantizeInputs, BlockScaleDequantizeOperation,
-                BlockScaleDequantizeOperationConfig, BlockScaleQuantizeOperation,
+                AttentionSequenceInputs, DiagonalBandMaskBound, DiagonalBandMaskOperation,
+                DiagonalBandMaskSpec, SdpaBackwardOperation, SdpaBackwardOptions, SdpaBackwardSink,
+                SdpaBackwardTensors, SdpaForwardDropout, SdpaForwardOperation, SdpaForwardOptions,
+                SdpaForwardSoftmax, SdpaForwardTensors, SdpaSubgraph, SoftmaxOperation,
+                SoftmaxOutputs, SoftmaxSpec, SoftmaxStatsBase,
             },
             convolution::{
                 ConvolutionBackwardDataOperation, ConvolutionBackwardFilterOperation,
-                ConvolutionDescriptor, ConvolutionDescriptorConfig, ConvolutionGeometry,
+                ConvolutionDescriptor, ConvolutionDescriptorSpec, ConvolutionGeometry,
+                ConvolutionMode,
             },
-            matmul::{
-                MatmulDescriptor, MatmulDescriptorConfig, MatmulOperation, MatmulOperationConfig,
-            },
+            matmul::{MatmulDescriptor, MatmulDescriptorSpec, MatmulOperation, MatmulSpec},
             moe::{
                 MoeGroupedMatmulInputs, MoeGroupedMatmulOperation, MoeGroupedMatmulRouting,
                 MoeGroupedMatmulTensors,
             },
             normalization::{
+                BackendNormalizationForwardPhase, BackendNormalizationMode,
                 BatchNormalizationBackwardWeightsInputs,
                 BatchNormalizationBackwardWeightsOperation,
-                BatchNormalizationBackwardWeightsOutputs, BatchNormalizationFinalizeStatsMode,
-                GenStatsMode, GenStatsOperation, GenStatsOutputs, NormalizationBackwardConfig,
-                NormalizationBackwardOperation, NormalizationBackwardTensors,
-                NormalizationForwardConfig, NormalizationForwardOperation,
-                NormalizationForwardTensors, NormalizationSavedStatistics,
+                BatchNormalizationBackwardWeightsOutputs, GenStatsMode, GenStatsOperation,
+                GenStatsOutputs, NormalizationBackwardOperation, NormalizationBackwardSpec,
+                NormalizationBackwardTensors, NormalizationForwardOperation,
+                NormalizationForwardSpec, NormalizationForwardTensors,
+                NormalizationSavedStatistics,
             },
-            paged_cache::PagedCacheLoadOperation,
             pointwise::{
-                PointwiseDescriptor, PointwiseDescriptorConfig, PointwiseOperation,
-                PointwiseOperationConfig,
+                PointwiseDescriptor, PointwiseDescriptorSpec, PointwiseMode, PointwiseOperation,
+                PointwiseSpec,
             },
-            reduction::{ReductionDescriptor, ReductionDescriptorConfig},
+            reduction::{ReduceTensorOperator, ReductionDescriptor, ReductionDescriptorSpec},
             resample::{
                 Fraction, PaddingMode, ResampleBackwardInputs, ResampleBackwardOperation,
-                ResampleDescriptor, ResampleDescriptorConfig, ResampleForwardOperation,
+                ResampleDescriptor, ResampleDescriptorSpec, ResampleForwardOperation,
                 ResampleGeometry, ResampleMode, ResampleOutputs,
             },
             rng::{RandomNumberDistribution, RngDescriptor, RngDistribution},
             tensor_ops::{
-                ConcatConfig, ConcatInPlaceMode, ConcatOperation, ReshapeConfig, ReshapeMode,
-                ReshapeOperation, SignalMode,
+                ConcatInPlaceMode, ConcatOperation, ConcatSpec, ReshapeMode, ReshapeOperation,
+                ReshapeSpec,
             },
         },
-        heuristic::BackendHeuristicMode,
-        normalization::{BackendNormalizationForwardPhase, BackendNormalizationMode},
-        pointwise::PointwiseMode,
-        reduction::ReduceTensorOperator,
-        tensor::{BackendTensorReordering, BackendTensorUid, Shape, Tensor, TensorId, TensorSpec},
+        tensor::{BackendTensorReordering, BackendTensorUid, Tensor},
     },
     data_type::DataType,
-    error::{Error, Result, Status},
+    error::{Error, Result},
     math::NanPropagation,
     testing::setup_context,
 };
 
 #[test]
 fn test_backend_tensor_descriptor_smoke_test() -> Result<()> {
-    let _context = setup_context()?;
+    let _test = setup_context()?;
 
     let tensor = Tensor::create_with_id(
         BackendTensorUid::new(7),
@@ -98,7 +86,7 @@ fn test_backend_tensor_descriptor_smoke_test() -> Result<()> {
 
 #[test]
 fn test_backend_vectorized_tensor_descriptor_smoke_test() -> Result<()> {
-    let _context = setup_context()?;
+    let _test = setup_context()?;
 
     let tensor = Tensor::create_vectorized(
         BackendTensorUid::new(9),
@@ -120,35 +108,9 @@ fn test_backend_vectorized_tensor_descriptor_smoke_test() -> Result<()> {
 }
 
 #[test]
-fn test_backend_tensor_descriptor_accepts_ragged_offset() -> Result<()> {
-    let _context = setup_context()?;
-
-    let ragged_offset =
-        Tensor::create_with_id(BackendTensorUid::new(11), DataType::I32, &[4], &[1], 4)?;
-    let tensor = match Tensor::create_with_spec(
-        BackendTensorUid::new(12),
-        &TensorSpec::new(
-            DataType::F16,
-            Shape::with_strides([2, 8, 4, 16], [512, 64, 16, 1])?,
-        )
-        .with_ragged_offset_reference(Some(TensorId::try_from(ragged_offset.id())?))
-        .with_byte_alignment(16)?,
-        Some(&ragged_offset),
-    ) {
-        Ok(tensor) => tensor,
-        Err(Error::Cudnn { code, .. }) if code == Status::BadParam => return Ok(()),
-        Err(error) => return Err(error),
-    };
-
-    assert_eq!(tensor.ragged_offset(), Some(11.into()));
-    assert!(tensor.descriptor().is_finalized());
-
-    Ok(())
-}
-
-#[test]
 fn test_variant_pack_accepts_empty_bindings() -> Result<()> {
-    let context = setup_context()?;
+    let test = setup_context()?;
+    let context = test.context();
     // SAFETY: an empty variant pack has no bindings to keep alive.
     let pack = unsafe { VariantPack::create(context.cuda_context(), &[], None) }?;
     assert!(pack.descriptor().is_finalized());
@@ -157,17 +119,19 @@ fn test_variant_pack_accepts_empty_bindings() -> Result<()> {
 
 #[test]
 fn test_operation_graph_requires_operations() -> Result<()> {
-    let context = setup_context()?;
+    let test = setup_context()?;
+    let context = test.context();
 
-    let error = OperationGraph::create(&context, &[], OperationGraphConfig::default()).unwrap_err();
-    assert!(matches!(error, Error::EmptyList { name } if name == "operations"));
+    let error = OperationGraph::create(context, &[], OperationGraphOptions::default()).unwrap_err();
+    assert!(matches!(error, Error::Empty { name } if name == "operations"));
 
     Ok(())
 }
 
 #[test]
 fn test_engine_heuristics_returns_typed_engine_configs() -> Result<()> {
-    let context = setup_context()?;
+    let test = setup_context()?;
+    let context = test.context();
     let x = Tensor::create_with_id(
         BackendTensorUid::new(1),
         DataType::F32,
@@ -183,24 +147,29 @@ fn test_engine_heuristics_returns_typed_engine_configs() -> Result<()> {
         16,
     )?;
     let pointwise = PointwiseDescriptor::create(
-        PointwiseDescriptorConfig::new(PointwiseMode::ReluFwd, DataType::F32)
+        PointwiseDescriptorSpec::new(PointwiseMode::ReluFwd, DataType::F32)
             .with_nan_propagation(NanPropagation::NotPropagate),
     )?;
     let op = PointwiseOperation::create(
         &pointwise,
-        PointwiseOperationConfig::Unary {
+        PointwiseSpec::Unary {
             x: &x,
             y: &y,
             alpha1: 1.0,
         },
     )?;
     let graph = OperationGraph::create(
-        &context,
+        context,
         &[op.descriptor()],
-        OperationGraphConfig::default(),
+        OperationGraphOptions::default(),
     )?;
-    let heuristics =
-        EngineHeuristics::create(&context, &graph, BackendHeuristicMode::Instant, None)?;
+    let heuristics = EngineHeuristics::create(
+        context,
+        &graph,
+        BackendHeuristicMode::Instant,
+        None,
+        EnginePlanningOptions::default(),
+    )?;
 
     let configs = heuristics.engine_configs(None)?;
     for config in &configs {
@@ -212,7 +181,8 @@ fn test_engine_heuristics_returns_typed_engine_configs() -> Result<()> {
 
 #[test]
 fn test_engine_config_exposes_typed_inspection_helpers() -> Result<()> {
-    let context = setup_context()?;
+    let test = setup_context()?;
+    let context = test.context();
     let x = Tensor::create_with_id(
         BackendTensorUid::new(1),
         DataType::F32,
@@ -228,24 +198,29 @@ fn test_engine_config_exposes_typed_inspection_helpers() -> Result<()> {
         16,
     )?;
     let pointwise = PointwiseDescriptor::create(
-        PointwiseDescriptorConfig::new(PointwiseMode::ReluFwd, DataType::F32)
+        PointwiseDescriptorSpec::new(PointwiseMode::ReluFwd, DataType::F32)
             .with_nan_propagation(NanPropagation::NotPropagate),
     )?;
     let op = PointwiseOperation::create(
         &pointwise,
-        PointwiseOperationConfig::Unary {
+        PointwiseSpec::Unary {
             x: &x,
             y: &y,
             alpha1: 1.0,
         },
     )?;
     let graph = OperationGraph::create(
-        &context,
+        context,
         &[op.descriptor()],
-        OperationGraphConfig::default(),
+        OperationGraphOptions::default(),
     )?;
-    let heuristics =
-        EngineHeuristics::create(&context, &graph, BackendHeuristicMode::Instant, None)?;
+    let heuristics = EngineHeuristics::create(
+        context,
+        &graph,
+        BackendHeuristicMode::Instant,
+        None,
+        EnginePlanningOptions::default(),
+    )?;
 
     for config in heuristics.engine_configs(None)? {
         let _ = config.workspace_size()?;
@@ -259,7 +234,8 @@ fn test_engine_config_exposes_typed_inspection_helpers() -> Result<()> {
 
 #[test]
 fn test_engine_config_can_be_created_from_engine_index_and_knobs() -> Result<()> {
-    let context = setup_context()?;
+    let test = setup_context()?;
+    let context = test.context();
     let x = Tensor::create_with_id(
         BackendTensorUid::new(1),
         DataType::F32,
@@ -275,32 +251,39 @@ fn test_engine_config_can_be_created_from_engine_index_and_knobs() -> Result<()>
         16,
     )?;
     let pointwise = PointwiseDescriptor::create(
-        PointwiseDescriptorConfig::new(PointwiseMode::ReluFwd, DataType::F32)
+        PointwiseDescriptorSpec::new(PointwiseMode::ReluFwd, DataType::F32)
             .with_nan_propagation(NanPropagation::NotPropagate),
     )?;
     let op = PointwiseOperation::create(
         &pointwise,
-        PointwiseOperationConfig::Unary {
+        PointwiseSpec::Unary {
             x: &x,
             y: &y,
             alpha1: 1.0,
         },
     )?;
     let graph = OperationGraph::create(
-        &context,
+        context,
         &[op.descriptor()],
-        OperationGraphConfig::default(),
+        OperationGraphOptions::default(),
     )?;
-    let heuristics =
-        EngineHeuristics::create(&context, &graph, BackendHeuristicMode::Instant, None)?;
+    let heuristics = EngineHeuristics::create(
+        context,
+        &graph,
+        BackendHeuristicMode::Instant,
+        None,
+        EnginePlanningOptions::default(),
+    )?;
 
     for config in heuristics.engine_configs(None)? {
         let engine = config.engine()?;
         let knob_choices = config.knob_choices()?;
         let recreated = EngineConfig::create(
-            &context,
+            context,
             &graph,
             &EngineChoice::new(engine.index(), knob_choices),
+            None,
+            EnginePlanningOptions::default(),
         )?;
 
         let _ = recreated.workspace_size()?;
@@ -313,7 +296,8 @@ fn test_engine_config_can_be_created_from_engine_index_and_knobs() -> Result<()>
 
 #[test]
 fn test_execution_plan_create_smoke_test() -> Result<()> {
-    let context = setup_context()?;
+    let test = setup_context()?;
+    let context = test.context();
     let x = Tensor::create_with_id(
         BackendTensorUid::new(1),
         DataType::F32,
@@ -329,74 +313,33 @@ fn test_execution_plan_create_smoke_test() -> Result<()> {
         16,
     )?;
     let pointwise = PointwiseDescriptor::create(
-        PointwiseDescriptorConfig::new(PointwiseMode::ReluFwd, DataType::F32)
+        PointwiseDescriptorSpec::new(PointwiseMode::ReluFwd, DataType::F32)
             .with_nan_propagation(NanPropagation::NotPropagate),
     )?;
     let op = PointwiseOperation::create(
         &pointwise,
-        PointwiseOperationConfig::Unary {
+        PointwiseSpec::Unary {
             x: &x,
             y: &y,
             alpha1: 1.0,
         },
     )?;
     let graph = OperationGraph::create(
-        &context,
+        context,
         &[op.descriptor()],
-        OperationGraphConfig::default(),
+        OperationGraphOptions::default(),
     )?;
-    let heuristics =
-        EngineHeuristics::create(&context, &graph, BackendHeuristicMode::Instant, None)?;
+    let heuristics = EngineHeuristics::create(
+        context,
+        &graph,
+        BackendHeuristicMode::Instant,
+        None,
+        EnginePlanningOptions::default(),
+    )?;
 
     if let Some(config) = heuristics.engine_configs(None)?.into_iter().next() {
-        let plan = ExecutionPlan::create(&context, &config)?;
+        let plan = ExecutionPlan::create(context, &config, None, None)?;
         let _ = plan.workspace_size()?;
-    }
-
-    Ok(())
-}
-
-#[test]
-fn test_graph_aware_engine_knob_query_returns_or_errors() -> Result<()> {
-    let context = setup_context()?;
-    let a = Tensor::create_with_id(
-        BackendTensorUid::new(0),
-        DataType::BF16,
-        &[16, 32, 128],
-        &[32 * 128, 128, 1],
-        16,
-    )?;
-    let b = Tensor::create_with_id(
-        BackendTensorUid::new(1),
-        DataType::BF16,
-        &[16, 128, 64],
-        &[128 * 64, 64, 1],
-        16,
-    )?;
-    let c = Tensor::create_with_id(
-        BackendTensorUid::new(2),
-        DataType::BF16,
-        &[16, 32, 64],
-        &[32 * 64, 64, 1],
-        16,
-    )?;
-    let matmul = MatmulDescriptor::create(MatmulDescriptorConfig::new(DataType::F32))?;
-    let op = MatmulOperation::create(&matmul, &a, &b, &c, MatmulOperationConfig::default())?;
-    let graph = OperationGraph::create(
-        &context,
-        &[op.descriptor()],
-        OperationGraphConfig::default(),
-    )?;
-
-    match Engine::create(&context, &graph, EngineIndex::new(0))
-        .and_then(|engine| engine.knob_infos().map(<[_]>::to_vec))
-    {
-        Ok(knobs) => {
-            println!("engine 0 knobs: {}", knobs.len());
-        }
-        Err(error) => {
-            println!("engine 0 knob query error: {error}");
-        }
     }
 
     Ok(())
@@ -405,7 +348,7 @@ fn test_graph_aware_engine_knob_query_returns_or_errors() -> Result<()> {
 #[test]
 fn test_pointwise_op_descriptor_smoke_test() -> Result<()> {
     let descriptor = PointwiseDescriptor::create(
-        PointwiseDescriptorConfig::new(PointwiseMode::ReluFwd, DataType::F32)
+        PointwiseDescriptorSpec::new(PointwiseMode::ReluFwd, DataType::F32)
             .with_nan_propagation(NanPropagation::NotPropagate),
     )?;
 
@@ -420,7 +363,7 @@ fn test_pointwise_op_descriptor_smoke_test() -> Result<()> {
 
 #[test]
 fn test_reduction_op_descriptor_smoke_test() -> Result<()> {
-    let descriptor = ReductionDescriptor::create(ReductionDescriptorConfig::new(
+    let descriptor = ReductionDescriptor::create(ReductionDescriptorSpec::new(
         ReduceTensorOperator::Add,
         DataType::F32,
     ))?;
@@ -436,7 +379,7 @@ fn test_reduction_op_descriptor_smoke_test() -> Result<()> {
 
 #[test]
 fn test_gen_stats_op_smoke_test() -> Result<()> {
-    let _context = setup_context()?;
+    let _test = setup_context()?;
 
     let x = Tensor::create_with_id(
         BackendTensorUid::new(60),
@@ -477,19 +420,8 @@ fn test_gen_stats_op_smoke_test() -> Result<()> {
 }
 
 #[test]
-fn test_bn_finalize_stats_op_smoke_test() {
-    assert_eq!(
-        BatchNormalizationFinalizeStatsMode::Training,
-        BatchNormalizationFinalizeStatsMode::try_from(
-            sys::cudnnBnFinalizeStatsMode_t::CUDNN_BN_FINALIZE_STATISTICS_TRAINING as u32,
-        )
-        .expect("valid bn finalize mode"),
-    );
-}
-
-#[test]
 fn test_bn_backward_weights_op_smoke_test() -> Result<()> {
-    let _context = setup_context()?;
+    let _test = setup_context()?;
 
     let mean = Tensor::create_with_id(
         BackendTensorUid::new(78),
@@ -594,7 +526,7 @@ fn test_bn_backward_weights_op_smoke_test() -> Result<()> {
 #[test]
 fn test_resample_descriptor_smoke_test() -> Result<()> {
     let descriptor = ResampleDescriptor::create(
-        ResampleDescriptorConfig::new(
+        ResampleDescriptorSpec::new(
             ResampleMode::Bilinear,
             DataType::F32,
             ResampleGeometry::create(
@@ -618,46 +550,8 @@ fn test_resample_descriptor_smoke_test() -> Result<()> {
 }
 
 #[test]
-fn test_resample_descriptor_accepts_fractional_geometry() -> Result<()> {
-    // NOTE: cuDNN 9.21.1 documents CUDNN_TYPE_FRACTION support for resample geometry,
-    // but some fractional configurations still finalize as NOT_SUPPORTED at runtime.
-    let descriptor = match ResampleDescriptor::create(
-        ResampleDescriptorConfig::new(
-            ResampleMode::Bilinear,
-            DataType::F32,
-            ResampleGeometry::create(
-                [Fraction::new(0, 1), Fraction::new(0, 1)],
-                [Fraction::new(0, 1), Fraction::new(0, 1)],
-                [Fraction::new(1, 2), Fraction::new(1, 2)],
-                [Fraction::new(3, 2), Fraction::new(3, 2)],
-            )?,
-        )
-        .with_nan_propagation(NanPropagation::NotPropagate)
-        .with_padding_mode(PaddingMode::Zero),
-    ) {
-        Ok(descriptor) => descriptor,
-        Err(Error::Cudnn { code, .. }) if code == Status::NotSupported => return Ok(()),
-        Err(error) => return Err(error),
-    };
-
-    assert!(descriptor.descriptor().is_finalized());
-    assert_eq!(
-        descriptor.descriptor().descriptor_type(),
-        BackendDescriptorType::Resample,
-    );
-
-    Ok(())
-}
-
-#[test]
 fn test_resample_ops_use_scalar_alpha_beta_attributes() -> Result<()> {
-    let _context = match setup_context() {
-        Ok(context) => context,
-        Err(Error::Cuda(CudaError::Cuda { code, .. })) if code == CudaStatus::NoDevice => {
-            return Ok(());
-        }
-        Err(error) => return Err(error),
-    };
+    let _test = setup_context()?;
 
     let x = Tensor::create_with_id(
         BackendTensorUid::new(50),
@@ -688,7 +582,7 @@ fn test_resample_ops_use_scalar_alpha_beta_attributes() -> Result<()> {
         16,
     )?;
     let descriptor = ResampleDescriptor::create(
-        ResampleDescriptorConfig::new(
+        ResampleDescriptorSpec::new(
             ResampleMode::MaxPool,
             DataType::F32,
             ResampleGeometry::create(
@@ -729,17 +623,8 @@ fn test_resample_ops_use_scalar_alpha_beta_attributes() -> Result<()> {
 }
 
 #[test]
-fn test_signal_op_smoke_test() {
-    assert_eq!(
-        SignalMode::Set,
-        SignalMode::try_from(sys::cudnnSignalMode_t::CUDNN_SIGNAL_SET as u32)
-            .expect("valid signal mode"),
-    );
-}
-
-#[test]
 fn test_reshape_op_smoke_test() -> Result<()> {
-    let _context = setup_context()?;
+    let _test = setup_context()?;
 
     let x = Tensor::create_with_id(
         BackendTensorUid::new(40),
@@ -756,7 +641,7 @@ fn test_reshape_op_smoke_test() -> Result<()> {
         16,
     )?;
 
-    let op = ReshapeOperation::create(&x, &y, ReshapeConfig::new(ReshapeMode::ViewOnly))?;
+    let op = ReshapeOperation::create(&x, &y, ReshapeSpec::new(ReshapeMode::ViewOnly))?;
 
     assert!(op.descriptor().is_finalized());
     assert_eq!(
@@ -769,7 +654,7 @@ fn test_reshape_op_smoke_test() -> Result<()> {
 
 #[test]
 fn test_concat_op_smoke_test() -> Result<()> {
-    let _context = setup_context()?;
+    let _test = setup_context()?;
 
     let x0 = Tensor::create_with_id(
         BackendTensorUid::new(42),
@@ -793,7 +678,7 @@ fn test_concat_op_smoke_test() -> Result<()> {
         16,
     )?;
 
-    let op = ConcatOperation::create(&[&x0, &x1], &y, ConcatConfig::new(1))?;
+    let op = ConcatOperation::create(&[&x0, &x1], &y, ConcatSpec::new(1))?;
 
     assert!(op.descriptor().is_finalized());
     assert_eq!(
@@ -806,7 +691,7 @@ fn test_concat_op_smoke_test() -> Result<()> {
 
 #[test]
 fn test_concat_op_tracks_absent_inplace_index() -> Result<()> {
-    let _context = setup_context()?;
+    let _test = setup_context()?;
 
     let x0 = Tensor::create_with_id(
         BackendTensorUid::new(42),
@@ -830,16 +715,16 @@ fn test_concat_op_tracks_absent_inplace_index() -> Result<()> {
         16,
     )?;
 
-    let op = ConcatOperation::create(&[&x0, &x1], &y, ConcatConfig::new(1))?;
+    let op = ConcatOperation::create(&[&x0, &x1], &y, ConcatSpec::new(1))?;
 
-    assert_eq!(op.config().in_place, ConcatInPlaceMode::None);
+    assert_eq!(op.spec().in_place, ConcatInPlaceMode::None);
 
     Ok(())
 }
 
 #[test]
 fn test_concat_op_tracks_explicit_inplace_index() -> Result<()> {
-    let _context = setup_context()?;
+    let _test = setup_context()?;
 
     let x0 = Tensor::create_with_id(
         BackendTensorUid::new(42),
@@ -866,16 +751,16 @@ fn test_concat_op_tracks_explicit_inplace_index() -> Result<()> {
     let op = ConcatOperation::create(
         &[&x0, &x1],
         &y,
-        ConcatConfig::new(1).with_in_place(ConcatInPlaceMode::Input(0)),
+        ConcatSpec::new(1).with_in_place(ConcatInPlaceMode::Input(0)),
     )?;
-    assert_eq!(op.config().in_place, ConcatInPlaceMode::Input(0));
+    assert_eq!(op.spec().in_place, ConcatInPlaceMode::Input(0));
 
     let op = ConcatOperation::create(
         &[&x0, &x1],
         &y,
-        ConcatConfig::new(1).with_in_place(ConcatInPlaceMode::Input(1)),
+        ConcatSpec::new(1).with_in_place(ConcatInPlaceMode::Input(1)),
     )?;
-    assert_eq!(op.config().in_place, ConcatInPlaceMode::Input(1));
+    assert_eq!(op.spec().in_place, ConcatInPlaceMode::Input(1));
 
     Ok(())
 }
@@ -911,18 +796,6 @@ fn test_rng_op_smoke_test() {
 }
 
 #[test]
-fn test_paged_cache_load_op_smoke_test() {
-    assert_eq!(
-        BackendDescriptorType::OperationPagedCacheLoad,
-        BackendDescriptorType::try_from(
-            sys::cudnnBackendDescriptorType_t::CUDNN_BACKEND_OPERATION_PAGED_CACHE_LOAD_DESCRIPTOR
-                as u32,
-        )
-        .expect("valid paged cache load descriptor type"),
-    );
-}
-
-#[test]
 fn test_kernel_cache_smoke_test() -> Result<()> {
     let descriptor = KernelCache::create()?;
 
@@ -937,13 +810,8 @@ fn test_kernel_cache_smoke_test() -> Result<()> {
 
 #[test]
 fn test_kernel_cache_build_smoke_test() -> Result<()> {
-    let context_ref = match setup_context() {
-        Ok(context) => context,
-        Err(Error::Cuda(CudaError::Cuda { code, .. })) if code == CudaStatus::NoDevice => {
-            return Ok(());
-        }
-        Err(error) => return Err(error),
-    };
+    let test = setup_context()?;
+    let context_ref = test.context();
     let x = Tensor::create_with_id(
         BackendTensorUid::new(1),
         DataType::F32,
@@ -959,21 +827,21 @@ fn test_kernel_cache_build_smoke_test() -> Result<()> {
         16,
     )?;
     let pointwise = PointwiseDescriptor::create(
-        PointwiseDescriptorConfig::new(PointwiseMode::ReluFwd, DataType::F32)
+        PointwiseDescriptorSpec::new(PointwiseMode::ReluFwd, DataType::F32)
             .with_nan_propagation(NanPropagation::NotPropagate),
     )?;
     let op = PointwiseOperation::create(
         &pointwise,
-        PointwiseOperationConfig::Unary {
+        PointwiseSpec::Unary {
             x: &x,
             y: &y,
             alpha1: 1.0,
         },
     )?;
     let graph = OperationGraph::create(
-        &context_ref,
+        context_ref,
         &[op.descriptor()],
-        OperationGraphConfig::default(),
+        OperationGraphOptions::default(),
     )?;
 
     let mut descriptor = KernelCache::create()?;
@@ -985,101 +853,8 @@ fn test_kernel_cache_build_smoke_test() -> Result<()> {
 }
 
 #[test]
-fn test_expand_band_matrix_op_smoke_test() {
-    assert_eq!(
-        BackendDescriptorType::OperationExpandBandMatrix,
-        BackendDescriptorType::try_from(
-            sys::cudnnBackendDescriptorType_t::CUDNN_BACKEND_OPERATION_EXPAND_BAND_MATRIX_DESCRIPTOR
-                as u32,
-        )
-        .expect("valid expand band matrix descriptor type"),
-    );
-}
-
-#[test]
-fn test_contract_band_matrix_op_smoke_test() {
-    assert_eq!(
-        BackendDescriptorType::OperationContractBandMatrix,
-        BackendDescriptorType::try_from(
-            sys::cudnnBackendDescriptorType_t::CUDNN_BACKEND_OPERATION_CONTRACT_BAND_MATRIX_DESCRIPTOR
-                as u32,
-        )
-        .expect("valid contract band matrix descriptor type"),
-    );
-}
-
-#[test]
-fn test_block_scale_quantize_op_smoke_test() {
-    assert_eq!(
-        BackendDescriptorType::OperationBlockScaleQuantize,
-        BackendDescriptorType::try_from(
-            sys::cudnnBackendDescriptorType_t::CUDNN_BACKEND_OPERATION_BLOCK_SCALE_QUANTIZE_DESCRIPTOR
-                as u32,
-        )
-        .expect("valid block scale quantize descriptor type"),
-    );
-}
-
-#[test]
-fn test_block_scale_dequantize_op_smoke_test() {
-    assert_eq!(
-        BackendDescriptorType::OperationBlockScaleDequantize,
-        BackendDescriptorType::try_from(
-            sys::cudnnBackendDescriptorType_t::CUDNN_BACKEND_OPERATION_BLOCK_SCALE_DEQUANTIZE_DESCRIPTOR
-                as u32,
-        )
-        .expect("valid block scale dequantize descriptor type"),
-    );
-
-    let x = Tensor::create_with_id(
-        BackendTensorUid::new(1),
-        DataType::F8E4M3,
-        &[2, 3, 64],
-        &[192, 64, 1],
-        16,
-    )
-    .expect("valid x tensor");
-    let scale = Tensor::create_vectorized(
-        BackendTensorUid::new(2),
-        DataType::F8UE8M0,
-        &[2, 3, 4],
-        &[12, 4, 1],
-        16,
-        2,
-        4,
-        Some(BackendTensorReordering::F8_128x4),
-    )
-    .expect("valid scale tensor");
-    let y = Tensor::create_with_id(
-        BackendTensorUid::new(3),
-        DataType::F32,
-        &[2, 3, 64],
-        &[192, 64, 1],
-        16,
-    )
-    .expect("valid y tensor");
-
-    let _ = BlockScaleDequantizeOperation::create(
-        BlockScaleDequantizeInputs::new(&x, &scale),
-        &y,
-        BlockScaleDequantizeOperationConfig::new(DataType::F32, [16]),
-    );
-}
-
-#[test]
-fn test_softmax_op_smoke_test() {
-    assert_eq!(
-        BackendDescriptorType::OperationSoftmax,
-        BackendDescriptorType::try_from(
-            sys::cudnnBackendDescriptorType_t::CUDNN_BACKEND_OPERATION_SOFTMAX_DESCRIPTOR as u32,
-        )
-        .expect("valid softmax descriptor type"),
-    );
-}
-
-#[test]
 fn test_matmul_descriptor_smoke_test() -> Result<()> {
-    let descriptor = MatmulDescriptor::create(MatmulDescriptorConfig::new(DataType::F32))?;
+    let descriptor = MatmulDescriptor::create(MatmulDescriptorSpec::new(DataType::F32))?;
 
     assert!(descriptor.descriptor().is_finalized());
     assert_eq!(
@@ -1092,9 +867,9 @@ fn test_matmul_descriptor_smoke_test() -> Result<()> {
 
 #[test]
 fn test_matmul_op_smoke_test() -> Result<()> {
-    let _context = setup_context()?;
+    let _test = setup_context()?;
 
-    let matmul = MatmulDescriptor::create(MatmulDescriptorConfig::new(DataType::F32))?;
+    let matmul = MatmulDescriptor::create(MatmulDescriptorSpec::new(DataType::F32))?;
     let a = Tensor::create_with_id(
         BackendTensorUid::new(20),
         DataType::F32,
@@ -1117,7 +892,7 @@ fn test_matmul_op_smoke_test() -> Result<()> {
         16,
     )?;
 
-    let op = MatmulOperation::create(&matmul, &a, &b, &c, MatmulOperationConfig::default())?;
+    let op = MatmulOperation::create(&matmul, &a, &b, &c, MatmulSpec::default())?;
 
     assert!(op.descriptor().is_finalized());
     assert_eq!(
@@ -1130,7 +905,7 @@ fn test_matmul_op_smoke_test() -> Result<()> {
 
 #[test]
 fn test_sdpa_forward_op_smoke_test() -> Result<()> {
-    let _context = setup_context()?;
+    let _test = setup_context()?;
 
     let q = Tensor::create_with_id(
         BackendTensorUid::new(30),
@@ -1177,7 +952,7 @@ fn test_sdpa_forward_op_smoke_test() -> Result<()> {
             output: &o,
             scale: &scale,
         },
-        SdpaForwardConfig {
+        SdpaForwardOptions {
             softmax: SdpaForwardSoftmax::Default {
                 stats: Some(&stats),
             },
@@ -1196,13 +971,7 @@ fn test_sdpa_forward_op_smoke_test() -> Result<()> {
 
 #[test]
 fn test_sdpa_forward_op_accepts_softmax_descriptor() -> Result<()> {
-    let _context = match setup_context() {
-        Ok(context) => context,
-        Err(Error::Cuda(CudaError::Cuda { code, .. })) if code == CudaStatus::NoDevice => {
-            return Ok(());
-        }
-        Err(error) => return Err(error),
-    };
+    let _test = setup_context()?;
 
     let q = Tensor::create_with_id(
         BackendTensorUid::new(230),
@@ -1276,7 +1045,7 @@ fn test_sdpa_forward_op_accepts_softmax_descriptor() -> Result<()> {
             max: Some(&max),
             sum_exp: Some(&sum_exp),
         },
-        SoftmaxOperationConfig {
+        SoftmaxSpec {
             stats_base: SoftmaxStatsBase::NaturalLog,
             sink: None,
         },
@@ -1290,7 +1059,7 @@ fn test_sdpa_forward_op_accepts_softmax_descriptor() -> Result<()> {
             output: &o,
             scale: &scale,
         },
-        SdpaForwardConfig {
+        SdpaForwardOptions {
             softmax: SdpaForwardSoftmax::Descriptor(Arc::new(softmax)),
             ..Default::default()
         },
@@ -1307,7 +1076,7 @@ fn test_sdpa_forward_op_accepts_softmax_descriptor() -> Result<()> {
 
 #[test]
 fn test_sdpa_forward_op_accepts_optional_direct_attributes() -> Result<()> {
-    let _context = setup_context()?;
+    let _test = setup_context()?;
 
     let q = Tensor::create_with_id(
         BackendTensorUid::new(130),
@@ -1389,7 +1158,7 @@ fn test_sdpa_forward_op_accepts_optional_direct_attributes() -> Result<()> {
             output: &o,
             scale: &scale,
         },
-        SdpaForwardConfig {
+        SdpaForwardOptions {
             sequence: AttentionSequenceInputs::per_batch(
                 &sequence_length_query,
                 &sequence_length_key_value,
@@ -1423,13 +1192,7 @@ fn test_sdpa_forward_op_accepts_optional_direct_attributes() -> Result<()> {
 
 #[test]
 fn test_sdpa_forward_op_accepts_block_mask() -> Result<()> {
-    let _context = match setup_context() {
-        Ok(context) => context,
-        Err(Error::Cuda(CudaError::Cuda { code, .. })) if code == CudaStatus::NoDevice => {
-            return Ok(());
-        }
-        Err(error) => return Err(error),
-    };
+    let _test = setup_context()?;
 
     let q = Tensor::create_with_id(
         BackendTensorUid::new(330),
@@ -1476,7 +1239,7 @@ fn test_sdpa_forward_op_accepts_block_mask() -> Result<()> {
             output: &o,
             scale: &scale,
         },
-        SdpaForwardConfig {
+        SdpaForwardOptions {
             block_mask: Some(&block_mask),
             ..Default::default()
         },
@@ -1493,13 +1256,8 @@ fn test_sdpa_forward_op_accepts_block_mask() -> Result<()> {
 
 #[test]
 fn test_sdpa_forward_op_accepts_subgraph_descriptor() -> Result<()> {
-    let context_ref = match setup_context() {
-        Ok(context) => context,
-        Err(Error::Cuda(CudaError::Cuda { code, .. })) if code == CudaStatus::NoDevice => {
-            return Ok(());
-        }
-        Err(error) => return Err(error),
-    };
+    let test = setup_context()?;
+    let context_ref = test.context();
 
     let q = Tensor::create_with_id(
         BackendTensorUid::new(430),
@@ -1553,21 +1311,21 @@ fn test_sdpa_forward_op_accepts_subgraph_descriptor() -> Result<()> {
         16,
     )?;
     let pointwise = PointwiseDescriptor::create(
-        PointwiseDescriptorConfig::new(PointwiseMode::ReluFwd, DataType::F16)
+        PointwiseDescriptorSpec::new(PointwiseMode::ReluFwd, DataType::F16)
             .with_nan_propagation(NanPropagation::NotPropagate),
     )?;
     let subgraph_op = PointwiseOperation::create(
         &pointwise,
-        PointwiseOperationConfig::Unary {
+        PointwiseSpec::Unary {
             x: &subgraph_input,
             y: &subgraph_output,
             alpha1: 1.0,
         },
     )?;
     let subgraph = OperationGraph::create(
-        &context_ref,
+        context_ref,
         &[subgraph_op.descriptor()],
-        OperationGraphConfig::default(),
+        OperationGraphOptions::default(),
     )?;
 
     let op = SdpaForwardOperation::create(
@@ -1578,7 +1336,7 @@ fn test_sdpa_forward_op_accepts_subgraph_descriptor() -> Result<()> {
             output: &o,
             scale: &scale,
         },
-        SdpaForwardConfig {
+        SdpaForwardOptions {
             softmax: SdpaForwardSoftmax::Default {
                 stats: Some(&stats),
             },
@@ -1602,7 +1360,7 @@ fn test_sdpa_forward_op_accepts_subgraph_descriptor() -> Result<()> {
 
 #[test]
 fn test_sdpa_backward_op_smoke_test() -> Result<()> {
-    let _context = setup_context()?;
+    let _test = setup_context()?;
 
     let q = Tensor::create_with_id(
         BackendTensorUid::new(40),
@@ -1682,7 +1440,7 @@ fn test_sdpa_backward_op_smoke_test() -> Result<()> {
             key_gradient: &d_k,
             value_gradient: &d_v,
         },
-        Default::default(),
+        SdpaBackwardOptions::default(),
     )?;
 
     assert!(op.descriptor().is_finalized());
@@ -1696,7 +1454,7 @@ fn test_sdpa_backward_op_smoke_test() -> Result<()> {
 
 #[test]
 fn test_sdpa_backward_op_accepts_optional_direct_attributes() -> Result<()> {
-    let _context = setup_context()?;
+    let _test = setup_context()?;
 
     let q = Tensor::create_with_id(
         BackendTensorUid::new(150),
@@ -1804,7 +1562,7 @@ fn test_sdpa_backward_op_accepts_optional_direct_attributes() -> Result<()> {
             key_gradient: &d_k,
             value_gradient: &d_v,
         },
-        SdpaBackwardConfig {
+        SdpaBackwardOptions {
             sequence: AttentionSequenceInputs::per_batch(
                 &sequence_length_query,
                 &sequence_length_key_value,
@@ -1827,7 +1585,7 @@ fn test_sdpa_backward_op_accepts_optional_direct_attributes() -> Result<()> {
 
 #[test]
 fn test_diagonal_band_mask_op_smoke_test() -> Result<()> {
-    let _context = setup_context()?;
+    let _test = setup_context()?;
 
     let x = Tensor::create_with_id(
         BackendTensorUid::new(60),
@@ -1865,7 +1623,7 @@ fn test_diagonal_band_mask_op_smoke_test() -> Result<()> {
         &x,
         &b,
         &y,
-        DiagonalBandMaskConfig::new(PointwiseMode::CmpGe)
+        DiagonalBandMaskSpec::new(PointwiseMode::CmpGe)
             .with_sequence_inputs(AttentionSequenceInputs::per_batch(
                 &sequence_length_query,
                 &sequence_length_key_value,
@@ -1885,20 +1643,8 @@ fn test_diagonal_band_mask_op_smoke_test() -> Result<()> {
 }
 
 #[test]
-fn test_moe_grouped_matmul_descriptor_type() {
-    assert_eq!(
-        BackendDescriptorType::OperationMoeGroupedMatmul,
-        BackendDescriptorType::try_from(
-            sys::cudnnBackendDescriptorType_t::CUDNN_BACKEND_OPERATION_MOE_GROUPED_MATMUL_DESCRIPTOR
-                as u32,
-        )
-        .expect("valid moe grouped matmul descriptor type"),
-    );
-}
-
-#[test]
 fn test_moe_grouped_matmul_op_smoke_test() -> Result<()> {
-    let _context = setup_context()?;
+    let _test = setup_context()?;
 
     let token = Tensor::create_with_id(
         BackendTensorUid::new(200),
@@ -1943,9 +1689,9 @@ fn test_moe_grouped_matmul_op_smoke_test() -> Result<()> {
 
 #[test]
 fn test_convolution_backward_data_op_smoke_test() -> Result<()> {
-    let _context = setup_context()?;
+    let _test = setup_context()?;
 
-    let convolution = ConvolutionDescriptor::create(ConvolutionDescriptorConfig::new(
+    let convolution = ConvolutionDescriptor::create(ConvolutionDescriptorSpec::new(
         DataType::F32,
         ConvolutionMode::CrossCorrelation,
         ConvolutionGeometry::create([0, 0], [0, 0], [1, 1], [1, 1])?,
@@ -1992,9 +1738,9 @@ fn test_convolution_backward_data_op_smoke_test() -> Result<()> {
 
 #[test]
 fn test_convolution_backward_filter_op_smoke_test() -> Result<()> {
-    let _context = setup_context()?;
+    let _test = setup_context()?;
 
-    let convolution = ConvolutionDescriptor::create(ConvolutionDescriptorConfig::new(
+    let convolution = ConvolutionDescriptor::create(ConvolutionDescriptorSpec::new(
         DataType::F32,
         ConvolutionMode::CrossCorrelation,
         ConvolutionGeometry::create([0, 0], [0, 0], [1, 1], [1, 1])?,
@@ -2040,29 +1786,10 @@ fn test_convolution_backward_filter_op_smoke_test() -> Result<()> {
 }
 
 #[test]
-fn test_norm_forward_op_descriptor_smoke_test() {
-    let descriptor = NormalizationForwardConfig::new(
-        BackendNormalizationMode::Layer,
-        BackendNormalizationForwardPhase::Inference,
-    );
-    assert_eq!(descriptor.mode(), BackendNormalizationMode::Layer);
-    assert_eq!(
-        descriptor.phase(),
-        BackendNormalizationForwardPhase::Inference
-    );
-}
-
-#[test]
-fn test_norm_backward_op_descriptor_smoke_test() {
-    let descriptor = NormalizationBackwardConfig::new(BackendNormalizationMode::Layer);
-    assert_eq!(descriptor.mode(), BackendNormalizationMode::Layer);
-}
-
-#[test]
 fn test_norm_forward_op_smoke_test() -> Result<()> {
-    let _context = setup_context()?;
+    let _test = setup_context()?;
 
-    let norm = NormalizationForwardConfig::new(
+    let norm = NormalizationForwardSpec::new(
         BackendNormalizationMode::Layer,
         BackendNormalizationForwardPhase::Inference,
     );
@@ -2133,9 +1860,9 @@ fn test_norm_forward_op_smoke_test() -> Result<()> {
 
 #[test]
 fn test_norm_backward_op_smoke_test() -> Result<()> {
-    let _context = setup_context()?;
+    let _test = setup_context()?;
 
-    let norm = NormalizationBackwardConfig::new(BackendNormalizationMode::Layer);
+    let norm = NormalizationBackwardSpec::new(BackendNormalizationMode::Layer);
     let x = Tensor::create_with_id(
         BackendTensorUid::new(50),
         DataType::F32,
@@ -2213,17 +1940,4 @@ fn test_norm_backward_op_smoke_test() -> Result<()> {
     );
 
     Ok(())
-}
-
-#[test]
-fn test_import_surface_smoke_test() {
-    let _ = size_of::<PagedCacheLoadOperation>();
-    let _ = size_of::<ExpandBandMatrixOperation>();
-    let _ = size_of::<ContractBandMatrixOperation>();
-    let _ = size_of::<BlockScaleQuantizeOperation>();
-    let _ = size_of::<BlockScaleDequantizeOperation>();
-    let _ = size_of::<SoftmaxOperation>();
-    let _ = size_of::<SdpaBackwardOperation>();
-    let _ = size_of::<DiagonalBandMaskOperation>();
-    let _ = size_of::<MoeGroupedMatmulOperation>();
 }

@@ -9,17 +9,14 @@ use singe_cuda::{
 };
 
 use crate::{
-    backend::{
-        execution::{ExecutionPlan, variant_pack::VariantPack},
-        tensor::WorkspaceInitializer,
-    },
+    backend::execution::{ExecutionPlan, variant_pack::VariantPack},
     context::Context,
     error::{Error, Result},
-    frontend::error::Error as FrontendError,
+    tensor::WorkspaceInitializer,
 };
 
 #[derive(Debug, Clone)]
-pub enum WorkspaceInitialization {
+pub(crate) enum WorkspaceInitialization {
     Copy {
         byte_offset: usize,
         data: Arc<GraphHostBuffer>,
@@ -89,7 +86,8 @@ impl VariantPack {
                 .checked_add(initialization.byte_len())
                 .ok_or_else(|| Error::out_of_range("workspace initialization bytes"))?;
             if end > self.workspace_prefix_bytes {
-                return Err(Error::InsufficientWorkspaceSize {
+                return Err(Error::BufferTooSmall {
+                    name: "workspace".into(),
                     required: end,
                     actual: self.workspace_prefix_bytes,
                 });
@@ -109,22 +107,28 @@ impl VariantPack {
             return Ok(());
         }
 
-        let stream = context.stream()?;
+        let stream = context.stream_binding();
         for initialization in &self.initializations {
             let pointer = self
                 .workspace_base
                 .wrapping_add(initialization.byte_offset());
-            // SAFETY: pack creation checked every write against its frontend prefix; execution retains the workspace.
             match initialization {
-                WorkspaceInitialization::Copy { data, .. } => unsafe {
-                    data.copy_to_device(DevicePtr::from_raw(pointer.cast()), &stream)?;
-                },
+                WorkspaceInitialization::Copy { data, .. } => {
+                    // SAFETY: `set_workspace_initializations` checked that the copy ends inside the prefix of the workspace allocation.
+                    // The pack's unsafe constructor requires that allocation to stay valid, and the stream orders the copy before cuDNN reads it.
+                    unsafe {
+                        data.copy_to_device(DevicePtr::from_raw(pointer.cast()), &stream)?;
+                    }
+                }
                 WorkspaceInitialization::Fill {
                     byte_len, value, ..
-                // SAFETY: the workspace allocation covers this range, and the stream or graph orders the fill before cuDNN reads it.
-                } => unsafe {
-                    DeviceMemory::<u8>::set_async_on(pointer, *value, *byte_len, &stream)?;
-                },
+                } => {
+                    // SAFETY: `set_workspace_initializations` checked that the fill ends inside the prefix of the workspace allocation.
+                    // The pack's unsafe constructor requires that allocation to stay valid, and the stream orders the fill before cuDNN reads it.
+                    unsafe {
+                        DeviceMemory::<u8>::set_async(pointer, *value, *byte_len, &stream)?;
+                    }
+                }
             }
         }
         Ok(())
@@ -135,8 +139,8 @@ impl VariantPack {
         byte_offset: usize,
         data: &GraphHostBuffer,
     ) -> MemoryCopy1DNodeParams {
-        // SAFETY: the source owns its bytes and is retained on the graph before adding or changing a node.
-        // The variant pack's caller retains exclusive access to its validated workspace during every replay.
+        // SAFETY: callers retain `data` on the graph before adding or changing the node, and the destination lies in the checked workspace prefix.
+        // The pack's unsafe constructor requires the workspace allocation to stay valid through every replay.
         unsafe {
             MemoryCopy1DNodeParams::new(
                 self.workspace_base.wrapping_add(byte_offset).cast(),
@@ -153,7 +157,8 @@ impl VariantPack {
         byte_len: usize,
         value: u8,
     ) -> MemorySetNodeParams {
-        // SAFETY: pack construction checked this range, and the caller retains workspace through every replay.
+        // SAFETY: `set_workspace_initializations` checked that this range lies in the workspace prefix.
+        // The pack's unsafe constructor requires the workspace allocation to stay valid through every replay.
         unsafe {
             MemorySetNodeParams::new(
                 DevicePtr::from_raw(self.workspace_base.wrapping_add(byte_offset).cast()),
@@ -171,7 +176,7 @@ impl VariantPack {
         graph: &mut Graph,
     ) -> Result<()> {
         if !graph.nodes()?.is_empty() {
-            return Err(FrontendError::CudaGraphPopulateRequiresEmptyGraph.into());
+            return Err(Error::CudaGraphPopulateRequiresEmptyGraph);
         }
 
         // Publish the initializer chain and native work as one replaceable snapshot.
@@ -195,25 +200,29 @@ impl VariantPack {
 
         let mut previous = None;
         for initialization in &self.initializations {
-            // SAFETY: host sources are retained by CUDA and the workspace follows the caller's replay contract.
             let node = match initialization {
-                WorkspaceInitialization::Copy { byte_offset, data } => unsafe {
-                    graph.add_memory_copy_node_1d(
-                        previous.as_slice(),
-                        &self.copy_parameters(*byte_offset, data),
-                    )?
-                },
+                WorkspaceInitialization::Copy { byte_offset, data } => {
+                    // SAFETY: the loop above retained `data` on `graph`, and the destination lies in the checked workspace prefix.
+                    unsafe {
+                        graph.add_memory_copy_node_1d(
+                            previous.as_slice(),
+                            &self.copy_parameters(*byte_offset, data),
+                        )?
+                    }
+                }
                 WorkspaceInitialization::Fill {
                     byte_offset,
                     byte_len,
                     value,
-                    // SAFETY: the workspace allocation covers this range, and the stream or graph orders the fill before cuDNN reads it.
-                } => unsafe {
-                    graph.add_memory_set_node(
-                        previous.as_slice(),
-                        &self.fill_parameters(*byte_offset, *byte_len, *value),
-                    )?
-                },
+                } => {
+                    // SAFETY: the fill range lies in the checked workspace prefix, and the node runs before the native child it precedes.
+                    unsafe {
+                        graph.add_memory_set_node(
+                            previous.as_slice(),
+                            &self.fill_parameters(*byte_offset, *byte_len, *value),
+                        )?
+                    }
+                }
             };
             previous = Some(node);
         }
@@ -226,21 +235,21 @@ impl VariantPack {
         &self,
         context: &Context,
         plan: &ExecutionPlan,
-        graph: &Graph,
+        graph: &mut Graph,
     ) -> Result<()> {
         let nodes = graph.nodes()?;
         let [node] = nodes.as_slice() else {
             return Err(invalid_graph());
         };
-        if node.node_type()? != GraphNodeType::Graph {
+        if graph.node_type(node)? != GraphNodeType::Graph {
             return Err(invalid_graph());
         }
 
-        let replacement = node.child_graph()?.try_clone()?;
-        self.update_initializer_chain(context, plan, &replacement)?;
-        // All fallible preparation mutated only the private clone. One native call
-        // publishes a complete workspace/initializer/kernel snapshot without changing this node's identity.
-        node.set_child_graph(&replacement)?;
+        let mut replacement = graph.child_graph(node)?.try_clone()?;
+        self.update_initializer_chain(context, plan, &mut replacement)?;
+        // All fallible preparation mutated only the private clone.
+        // One native call publishes a complete workspace/initializer/kernel snapshot without changing this node's identity.
+        graph.set_child_graph(node, &replacement)?;
         Ok(())
     }
 
@@ -248,7 +257,7 @@ impl VariantPack {
         &self,
         context: &Context,
         plan: &ExecutionPlan,
-        graph: &Graph,
+        graph: &mut Graph,
     ) -> Result<()> {
         if graph.nodes()?.len().checked_sub(1) != Some(self.initializations.len()) {
             return Err(invalid_graph());
@@ -262,11 +271,11 @@ impl VariantPack {
         let mut initialization_nodes = Vec::with_capacity(self.initializations.len());
         // The cloned topology preserves initializer identity independently of addresses.
         for initialization in &self.initializations {
-            if child.node_type()? != initialization.node_type() {
+            if graph.node_type(&child)? != initialization.node_type() {
                 return Err(invalid_graph());
             }
 
-            let dependents = child.dependent_nodes()?;
+            let dependents = graph.node_dependents(&child)?;
             let [next] = dependents.as_slice() else {
                 return Err(invalid_graph());
             };
@@ -274,11 +283,13 @@ impl VariantPack {
             child = next.node.clone();
         }
 
-        if child.node_type()? != GraphNodeType::Graph || !child.dependent_nodes()?.is_empty() {
+        if graph.node_type(&child)? != GraphNodeType::Graph
+            || !graph.node_dependents(&child)?.is_empty()
+        {
             return Err(invalid_graph());
         }
 
-        let child_graph = child.child_graph()?;
+        let child_graph = graph.child_graph(&child)?;
         plan.retain_native_graph_resources(context, &child_graph)?;
         // Finish owner preparation before changing any initializer or backend node.
         // Mutations remain private until the complete replacement succeeds.
@@ -287,27 +298,35 @@ impl VariantPack {
         }
 
         for (node, initialization) in initialization_nodes.iter().zip(&self.initializations) {
-            // SAFETY: host sources are retained by CUDA, while both workspace allocations follow the replay contract.
             match initialization {
-                WorkspaceInitialization::Copy { byte_offset, data } => unsafe {
-                    node.set_memory_copy_node_1d_params(&self.copy_parameters(*byte_offset, data))?;
-                },
+                WorkspaceInitialization::Copy { byte_offset, data } => {
+                    // SAFETY: the loop above retained `data` on `graph`, and the destination lies in the checked workspace prefix.
+                    unsafe {
+                        graph.set_memory_copy_node_1d_params(
+                            node,
+                            &self.copy_parameters(*byte_offset, data),
+                        )?;
+                    }
+                }
                 WorkspaceInitialization::Fill {
                     byte_offset,
                     byte_len,
                     value,
-                    // SAFETY: the workspace allocation covers this range, and the stream or graph orders the fill before cuDNN reads it.
-                } => unsafe {
-                    node.set_memory_set_node_params(&self.fill_parameters(
-                        *byte_offset,
-                        *byte_len,
-                        *value,
-                    ))?;
-                },
+                } => {
+                    // SAFETY: the fill range lies in the checked workspace prefix, and `node` is the matching memset node of this clone.
+                    unsafe {
+                        graph.set_memory_set_node_params(
+                            node,
+                            &self.fill_parameters(*byte_offset, *byte_len, *value),
+                        )?;
+                    }
+                }
             }
         }
-        // SAFETY: preparation retained the plan and host sources before graph mutation.
-        // The caller retains device bindings and both workspaces through their respective replays.
+
+        let child_graph = graph.child_graph(&child)?;
+        // SAFETY: `retain_native_graph_resources` retained the plan code on the child graph before any mutation.
+        // The pack's unsafe constructor requires its bindings and workspace to stay valid for every graph update that uses it.
         unsafe {
             plan.descriptor()
                 .update_graph(context, self.descriptor(), &child_graph)

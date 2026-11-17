@@ -4,16 +4,17 @@ use std::{
 };
 
 use crate::{
-    backend::tensor::{Shape, TensorId, TensorSpec},
+    backend::operation::{
+        attention::DiagonalBandMaskSpec,
+        tensor_ops::{ConcatSpec, SliceSpec, TransposeSpec},
+    },
     error::{Error, Result},
     frontend::{
         error::Error as FrontendError,
         graph::{Graph, RuntimeShapeConstraints, TensorOutputConfig},
-        operation::{
-            AttentionPrimitiveOperation, ConcatConfig, DiagonalBandMaskConfig, Operation,
-            SdpaOperation, SliceConfig, TensorOperation, TransposeConfig,
-        },
+        operation::{AttentionPrimitiveOperation, Operation, SdpaOperation, TensorOperation},
     },
+    tensor::{Shape, TensorId, TensorSpec},
     utility::to_i64,
 };
 
@@ -51,12 +52,12 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for unknown tensor identities, invalid scalar-rank promotion, invalid slice ranges or supplied steps, incompatible output dimensions or encoding, or unrepresentable slice geometry.
+    /// Returns an error if a tensor identity is unknown, scalar-rank promotion is invalid, a slice range or supplied step is invalid, the output dimensions or encoding are incompatible, or the slice geometry is unrepresentable.
     pub fn slice_into(
         &mut self,
         input: TensorId,
         output: TensorId,
-        config: SliceConfig,
+        config: SliceSpec,
     ) -> Result<()> {
         let operation = TensorOperation::Slice {
             input,
@@ -85,7 +86,7 @@ impl Graph {
     pub fn slice(
         &mut self,
         input: TensorId,
-        config: SliceConfig,
+        config: SliceSpec,
         output: TensorOutputConfig,
     ) -> Result<TensorId> {
         let input_tensor = self.tensor_spec(input)?;
@@ -116,12 +117,12 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for unknown tensor identities, invalid scalar-rank promotion, an empty or invalid axis permutation, or incompatible output dimensions or encoding.
+    /// Returns an error if a tensor identity is unknown, scalar-rank promotion is invalid, the axis permutation is empty or invalid, or the output dimensions or encoding are incompatible.
     pub fn transpose_into(
         &mut self,
         input: TensorId,
         output: TensorId,
-        config: TransposeConfig,
+        config: TransposeSpec,
     ) -> Result<()> {
         let operation = TensorOperation::Transpose {
             input,
@@ -146,7 +147,7 @@ impl Graph {
     pub fn transpose(
         &mut self,
         input: TensorId,
-        config: TransposeConfig,
+        config: TransposeSpec,
         output: TensorOutputConfig,
     ) -> Result<TensorId> {
         let input_tensor = self.tensor_spec(input)?;
@@ -182,13 +183,13 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for unknown tensor identities, a nonscalar replacement operand, incompatible replacement encoding or output dimensions, invalid bound-tensor shapes or sequence-length layouts, or failure to promote sequence metadata and its runtime bounds.
+    /// Returns an error if a tensor identity is unknown, the replacement operand is not a scalar, the replacement encoding or output dimensions are incompatible, a bound tensor's shape or sequence-length layout is invalid, or promoting the sequence metadata and its runtime bounds fails.
     pub fn diagonal_band_mask_into(
         &mut self,
         x: TensorId,
         b: TensorId,
         y: TensorId,
-        config: DiagonalBandMaskConfig,
+        config: DiagonalBandMaskSpec,
     ) -> Result<()> {
         let sequence = config.sequence_inputs();
         let operation = AttentionPrimitiveOperation::DiagonalBandMask { x, b, y, config };
@@ -204,12 +205,12 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for unknown tensor identities, a nonscalar replacement operand, incompatible replacement encoding or output dimensions, invalid bound-tensor shapes or sequence-length layouts, or failure to promote sequence metadata and its runtime bounds.
+    /// Returns an error if a tensor identity is unknown, the replacement operand is not a scalar, the replacement encoding or output dimensions are incompatible, a bound tensor's shape or sequence-length layout is invalid, or promoting the sequence metadata and its runtime bounds fails.
     pub fn diagonal_band_mask(
         &mut self,
         x: TensorId,
         b: TensorId,
-        config: DiagonalBandMaskConfig,
+        config: DiagonalBandMaskSpec,
         output: TensorOutputConfig,
     ) -> Result<TensorId> {
         let x_tensor = self.tensor_spec(x)?;
@@ -235,12 +236,12 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for empty or unknown inputs, invalid scalar-rank promotion, an invalid axis or in-place input index, incompatible ranks or non-concatenated dimensions, overflowing output extents, or incompatible output dimensions.
+    /// Returns an error if the inputs are empty or unknown, scalar-rank promotion is invalid, the axis or in-place input index is invalid, ranks or non-concatenated dimensions are incompatible, an output extent overflows, or the output dimensions are incompatible.
     pub fn concat_into(
         &mut self,
         inputs: &[TensorId],
         output: TensorId,
-        config: ConcatConfig,
+        config: ConcatSpec,
     ) -> Result<()> {
         let operation = TensorOperation::Concat {
             inputs: inputs.to_vec(),
@@ -262,12 +263,12 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for empty or unknown inputs, invalid scalar-rank promotion, an invalid axis or in-place input index, incompatible ranks or non-concatenated dimensions, overflowing output extents, or incompatible output dimensions.
+    /// Returns an error if the inputs are empty or unknown, scalar-rank promotion is invalid, the axis or in-place input index is invalid, ranks or non-concatenated dimensions are incompatible, an output extent overflows, or the output dimensions are incompatible.
     /// Inferred stride layout and vectorization must also be representable.
     pub fn concat(
         &mut self,
         inputs: &[TensorId],
-        config: ConcatConfig,
+        config: ConcatSpec,
         output: TensorOutputConfig,
     ) -> Result<TensorId> {
         let input_tensors = inputs
@@ -298,7 +299,7 @@ impl Graph {
         &self,
         inputs: &[TensorId],
         output: TensorId,
-        config: &ConcatConfig,
+        config: &ConcatSpec,
     ) -> Result<()> {
         let tensors = inputs
             .iter()

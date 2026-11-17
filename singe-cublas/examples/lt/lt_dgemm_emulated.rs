@@ -1,20 +1,19 @@
-use std::error::Error;
-
 use singe_cublas::{
     lt::{
         context::Context as LtContext,
         descriptor::{EmulationDescriptor, MatrixLayout},
-        matmul::{MatmulDescriptor, MatmulPreference, matmul, matmul_algorithm_heuristics},
+        matmul::{MatmulDescriptor, MatmulPreference, matmul_algorithm_heuristics, matmul_async},
     },
+    scalar::Scalar,
     types::{ComputeType, Operation},
 };
-
 use singe_cuda::{
     context::Context as CudaContext,
     data_type::DataType,
     device::Device,
     memory::DeviceMemory,
     types::{EmulationMantissaControl, EmulationSpecialValuesSupport, EmulationStrategy},
+    view::DeviceInputView,
 };
 
 const M: u64 = 2;
@@ -22,19 +21,19 @@ const N: u64 = 2;
 const K: u64 = 2;
 const WORKSPACE_BYTES: usize = 1 << 20;
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() -> anyhow::Result<()> {
     let cuda = CudaContext::create_for_device(Device::new(0))?;
     let lt = LtContext::create(&cuda)?;
 
     let a = DeviceMemory::from_slice(&cuda, &[1.0_f64, 3.0, 2.0, 4.0])?;
     let b = DeviceMemory::from_slice(&cuda, &[5.0_f64, 7.0, 6.0, 8.0])?;
-    let c = DeviceMemory::<f64>::zeroed(&cuda, (M * N) as usize)?;
-    let mut d = DeviceMemory::<f64>::zeroed(&cuda, (M * N) as usize)?;
+    let c = DeviceMemory::<f64>::zeroed(&cuda, usize::try_from(M * N)?)?;
+    let mut d = DeviceMemory::<f64>::zeroed(&cuda, usize::try_from(M * N)?)?;
 
-    let a_layout = MatrixLayout::create(DataType::F64, M, K, M as i64)?;
-    let b_layout = MatrixLayout::create(DataType::F64, K, N, K as i64)?;
-    let c_layout = MatrixLayout::create(DataType::F64, M, N, M as i64)?;
-    let d_layout = MatrixLayout::create(DataType::F64, M, N, M as i64)?;
+    let a_layout = MatrixLayout::create(DataType::F64, M, K, i64::try_from(M)?)?;
+    let b_layout = MatrixLayout::create(DataType::F64, K, N, i64::try_from(K)?)?;
+    let c_layout = MatrixLayout::create(DataType::F64, M, N, i64::try_from(M)?)?;
+    let d_layout = MatrixLayout::create(DataType::F64, M, N, i64::try_from(M)?)?;
 
     let mut emulation = EmulationDescriptor::create()?;
     emulation.set_strategy(EmulationStrategy::Performant)?;
@@ -48,7 +47,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut desc = MatmulDescriptor::create(ComputeType::F64EmulatedFixedPoint, DataType::F64)?;
     desc.set_transpose_a(Operation::NonTranspose)?;
     desc.set_transpose_b(Operation::NonTranspose)?;
-    desc.set_emulation_descriptor(&emulation)?;
+    // SAFETY: `emulation` is declared before `desc`, so it outlives every query and matmul that uses `desc`.
+    unsafe { desc.set_emulation_descriptor(&emulation) }?;
 
     let mut preference = MatmulPreference::create()?;
     preference.set_max_workspace_bytes(WORKSPACE_BYTES)?;
@@ -68,21 +68,21 @@ fn main() -> Result<(), Box<dyn Error>> {
     let beta = 0.0_f64;
     // SAFETY: layouts match the retained buffers and scalars; the default stream is drained below.
     unsafe {
-        matmul(
+        matmul_async(
             &lt,
             &desc,
-            &alpha,
+            Scalar::host(&alpha),
             &a,
             &a_layout,
             &b,
             &b_layout,
-            &beta,
-            &c,
+            Scalar::host(&beta),
+            Some(DeviceInputView::from_buffer(&c)),
             &c_layout,
             &mut d,
             &d_layout,
             Some(&heuristics[0].algorithm),
-            Some(&mut workspace),
+            Some(workspace.output()),
             None,
         )
     }?;

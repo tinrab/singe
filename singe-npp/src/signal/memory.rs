@@ -9,7 +9,7 @@ use singe_cuda::{
     memory::transfer,
     types::{Complex32, Complex64},
     view::{
-        AllocationId, AnyBitPatternDeviceRepr, DeviceInput, DeviceOutput, DeviceRegion,
+        AllocationId, AnyBitPatternDeviceRepr, DeviceOutput, DeviceRange, DeviceRegion,
         DeviceRegionProvider, DeviceRepr, DeviceSlice, DeviceSliceMut,
     },
 };
@@ -212,7 +212,9 @@ impl<T> Signal<T> {
     ///
     /// Returns [`Error::OwnershipShared`] if another owner retains the allocation.
     pub fn into_raw(self) -> Result<(RawAllocation, usize)> {
-        let owner = Arc::try_unwrap(self.allocation).map_err(|_| Error::OwnershipShared)?;
+        let owner = Arc::try_unwrap(self.allocation).map_err(|_| Error::OwnershipShared {
+            name: "allocation".into(),
+        })?;
         Ok((owner.into_raw(), self.length))
     }
 }
@@ -312,7 +314,7 @@ unsafe impl<T> DeviceRegionProvider for Signal<T> {
 }
 
 // SAFETY: valid typed constructors and explicit promotion establish T initialization.
-unsafe impl<T: DeviceRepr> DeviceInput<T> for Signal<T> {
+unsafe impl<T: DeviceRepr> DeviceRange<T> for Signal<T> {
     fn as_device_ptr(&self) -> *const T {
         self.as_ptr()
     }
@@ -337,7 +339,7 @@ unsafe impl<T: DeviceRepr> DeviceOutput<T> for Signal<T> {
 
 // SAFETY: this grants writes to T storage and no initialized T input access.
 // SAFETY: output metadata describes the same live typed range without initialized reads.
-unsafe impl<T: DeviceRepr> DeviceInput<T> for Signal<MaybeUninit<T>> {
+unsafe impl<T: DeviceRepr> DeviceRange<T> for Signal<MaybeUninit<T>> {
     fn len(&self) -> usize {
         self.length
     }

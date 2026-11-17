@@ -18,16 +18,16 @@ use crate::{
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Relocation {
-    pub target: GlobalId,
-    pub offset: i64,
-    pub generic: bool,
+pub(crate) struct Relocation {
+    pub(crate) target: GlobalId,
+    pub(crate) offset: i64,
+    pub(crate) generic: bool,
     /// Mask selecting one byte of the relocated address, which is then shifted down to the low bits.
-    pub mask: Option<u64>,
+    pub(crate) mask: Option<u64>,
 }
 
 #[derive(Debug, Clone)]
-pub enum Constant {
+pub(crate) enum Constant {
     Signed(i64),
     Unsigned(u64),
     Float(Double),
@@ -39,7 +39,7 @@ fn error(span: Span, reason: impl Into<String>) -> CompileError {
     CompileError::new(span, CompileErrorKind::InvalidInitializer(reason.into()))
 }
 
-pub fn float_constant(literal: &FloatLiteral, span: Span) -> Result<Constant> {
+pub(crate) fn float_constant(literal: &FloatLiteral, span: Span) -> Result<Constant> {
     Ok(match literal {
         FloatLiteral::Decimal(text) => Constant::Float(
             Double::from_str_r(text, Round::NearestTiesToEven)
@@ -88,7 +88,10 @@ impl Constant {
     }
 }
 
-pub fn evaluate(value: &Initializer, symbols: &BTreeMap<String, GlobalId>) -> Result<Constant> {
+pub(crate) fn evaluate(
+    value: &Initializer,
+    symbols: &BTreeMap<String, GlobalId>,
+) -> Result<Constant> {
     match value {
         Initializer::Integer { value, .. } => Ok(Constant::Signed(*value)),
         Initializer::UnsignedInteger { value, .. } => Ok(Constant::Unsigned(*value)),
@@ -185,7 +188,7 @@ pub fn evaluate(value: &Initializer, symbols: &BTreeMap<String, GlobalId>) -> Re
 /// Checks that every operator in an initializer exists in PTX `version`.
 ///
 /// Returns whether the expression refers to a symbol.
-pub fn validate_version(value: &Initializer, version: PtxVersion) -> Result<bool> {
+pub(crate) fn validate_version(value: &Initializer, version: PtxVersion) -> Result<bool> {
     Ok(match value {
         Initializer::Symbol { .. } => true,
         Initializer::Masked { span, value, .. } => {

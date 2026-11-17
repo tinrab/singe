@@ -1,9 +1,5 @@
 use crate::{
-    backend::{
-        pointwise::PointwiseMode,
-        reduction::ReduceTensorOperator,
-        tensor::{Shape, TensorId, TensorSpec},
-    },
+    backend::operation::{pointwise::PointwiseMode, reduction::ReduceTensorOperator},
     data_type::DataType,
     error::Result,
     frontend::{
@@ -18,16 +14,17 @@ use crate::{
         graph::{DataTypePolicy, Graph},
         logging,
         operation::{
-            AttentionBackwardConfig, AttentionBackwardRequest, AttentionMaxTotalSequenceLengths,
-            PointwiseOperation, ReductionConfig, SdpaScoreModifiers,
+            AttentionBackwardConfig, AttentionMaxTotalSequenceLengths, PointwiseOperation,
+            ReductionConfig, SdpaScoreModifiers,
         },
     },
     math::NanPropagation,
+    tensor::{Shape, TensorId, TensorSpec},
     version,
 };
 
 /// Reconstructed softmax values before and after forward dropout.
-pub struct SdpaBackwardProbabilities {
+pub(crate) struct SdpaBackwardProbabilities {
     pub(crate) probabilities: TensorId,
     pub(crate) dropped_probabilities: TensorId,
 }
@@ -39,27 +36,6 @@ struct FloatingBackwardPreparation {
 }
 
 impl Graph {
-    /// Records floating attention backward with caller-declared gradients and layouts.
-    /// Preparation resolves support and engine selection for the compilation target.
-    ///
-    /// # Errors
-    ///
-    /// This recording step currently returns no errors.
-    /// Graph preparation validates the deferred operands, layouts, and target-specific support.
-    pub fn sdpa_backward_into(
-        &mut self,
-        inputs: SdpaBackwardInputs,
-        gradients: SdpaBackwardGradientTensors,
-        config: AttentionBackwardConfig,
-    ) -> Result<()> {
-        self.record_attention_backward_request(AttentionBackwardRequest::Floating {
-            inputs,
-            outputs: gradients,
-            config,
-        });
-        Ok(())
-    }
-
     #[expect(
         clippy::too_many_lines,
         reason = "the composite attention operation builds and validates its complete tensor graph"
@@ -281,18 +257,7 @@ impl Graph {
         Ok(())
     }
 
-    /// Creates layout-preserving gradients and independently requested auxiliary outputs.
-    /// An inferred bias gradient follows the bias layout, or the score shape when no bias is supplied.
-    /// Each gradient selects placement and encoding independently.
-    /// Bias gradients and RNG dumps default to FP32; sink gradients default to math precision.
-    /// Auxiliary defaults are independent of graph I/O and intermediate policies.
-    /// RNG dumps retain their native FP32 encoding contract.
-    /// Returns all requested gradients and auxiliary outputs in the group accepted by explicit construction.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error for unknown query, key, value or requested bias references, non-four-dimensional attention inputs, incompatible query/key or value geometry, or unrepresentable inferred score, statistic, or auxiliary-gradient layouts.
-    pub fn sdpa_backward(
+    pub(crate) fn infer_floating_sdpa_backward(
         &mut self,
         inputs: SdpaBackwardInputs,
         config: AttentionBackwardConfig,
@@ -398,7 +363,7 @@ impl Graph {
             [q, k, v, o, stats, d_o, d_q, d_k, d_v],
         )?;
         self.validate_attention_backward_support_surface_for_version(
-            version()?.raw(),
+            version()?,
             q,
             k,
             v,

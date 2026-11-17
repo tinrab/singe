@@ -4,7 +4,7 @@
 use singe_cuda::types::f16;
 use singe_cuda::{
     stream::Stream,
-    view::{DeviceInput, DeviceOutput},
+    view::{DeviceOutput, DeviceRange},
 };
 
 use crate::{
@@ -32,7 +32,7 @@ macro_rules! unary_float_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
             config: VectorConfig,
         ) -> Result<()> {
             validate_vector_lengths(out.len(), input.len(), config)?;
@@ -70,7 +70,7 @@ macro_rules! unary_float_fn {
         pub unsafe fn $tune_name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
             config: VectorConfig,
             options: TuneOptions,
         ) -> Result<TuneReport<VectorTuning>> {
@@ -109,7 +109,7 @@ macro_rules! unary_raw_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
         ) -> Result<()> {
             let len = ensure_unary_lengths(out.len(), input.len())?;
             let stream = stream.to_cuda_core()?;
@@ -132,7 +132,7 @@ macro_rules! unary_float_bool_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<u8>,
-            input: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
             config: VectorConfig,
         ) -> Result<()> {
             validate_vector_lengths(out.len(), input.len(), config)?;
@@ -170,7 +170,7 @@ macro_rules! unary_float_bool_fn {
         pub unsafe fn $tune_name(
             stream: &Stream,
             out: &mut impl DeviceOutput<u8>,
-            input: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
             config: VectorConfig,
             options: TuneOptions,
         ) -> Result<TuneReport<VectorTuning>> {
@@ -209,7 +209,7 @@ macro_rules! unary_bool_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<u8>,
-            input: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
         ) -> Result<()> {
             let len = out.len();
             ensure_len(input.len(), len)?;
@@ -233,7 +233,7 @@ macro_rules! nan_to_num_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
             nan: $ty,
             posinf: $ty,
             neginf: $ty,
@@ -277,7 +277,7 @@ macro_rules! nan_to_num_fn {
         pub unsafe fn $tune_name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
             nan: $ty,
             posinf: $ty,
             neginf: $ty,

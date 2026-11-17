@@ -77,7 +77,8 @@ impl BackendDescriptor {
     /// Open metadata enums preserve their unknown IDs through the same conversion as scalar writes.
     ///
     /// # Errors
-    /// Returns an error for an empty array, an unrepresentable element count, a finalized descriptor or a native attribute rejection.
+    ///
+    /// Returns an error if the array is empty, its element count cannot be represented, the descriptor is finalized, or cuDNN rejects the attribute.
     pub fn set_attribute_enum_slice<E: BackendEnum>(
         &mut self,
         name: BackendAttributeName,
@@ -138,7 +139,8 @@ impl BackendDescriptor {
     /// Numerators and denominators are preserved; operation-specific validation remains separate.
     ///
     /// # Errors
-    /// Returns an error for an empty array, an unrepresentable element count, a finalized descriptor or a native attribute rejection.
+    ///
+    /// Returns an error if the array is empty, its element count cannot be represented, the descriptor is finalized, or cuDNN rejects the attribute.
     pub fn set_attribute_fraction_slice(
         &mut self,
         name: BackendAttributeName,
@@ -188,7 +190,7 @@ impl BackendDescriptor {
         descriptors: &[&Self],
     ) -> Result<()> {
         if descriptors.is_empty() {
-            return Err(Error::EmptyList {
+            return Err(Error::Empty {
                 name: "descriptors".into(),
             });
         }
@@ -229,7 +231,7 @@ impl BackendDescriptor {
         value: &[u8],
     ) -> Result<()> {
         if value.is_empty() {
-            return Err(Error::EmptyList {
+            return Err(Error::Empty {
                 name: "value".into(),
             });
         }
@@ -247,13 +249,14 @@ impl BackendDescriptor {
     /// The `name` selects the attribute, and this method supplies the cuDNN attribute type from the Rust value being passed.
     /// The descriptor must not be finalized.
     ///
+    /// # Safety
+    ///
+    /// Supplied handles or pointees must satisfy this attribute's native validity, access and lifetime requirements through descriptor use and queued replay.
+    /// Preserve their owners until native consumers have finished with them.
+    ///
     /// # Errors
     ///
     /// Returns an error if the descriptor has already been finalized, if cuDNN rejects the attribute name, value type, element count, or value, or if the value is not supported by the current cuDNN version.
-    ///
-    /// # Safety
-    /// Supplied handles or pointees must satisfy this attribute's native validity, access and lifetime requirements through descriptor use and queued replay.
-    /// Preserve their owners until native consumers have finished with them.
     pub unsafe fn set_attribute_handle(
         &mut self,
         name: BackendAttributeName,
@@ -272,13 +275,14 @@ impl BackendDescriptor {
     /// The `name` selects the attribute, and this method supplies the cuDNN attribute type from the Rust value being passed.
     /// The descriptor must not be finalized.
     ///
+    /// # Safety
+    ///
+    /// Supplied handles or pointees must satisfy this attribute's native validity, access and lifetime requirements through descriptor use and queued replay.
+    /// Preserve their owners until native consumers have finished with them.
+    ///
     /// # Errors
     ///
     /// Returns an error if the descriptor has already been finalized, if cuDNN rejects the attribute name, value type, element count, or value, or if the value is not supported by the current cuDNN version.
-    ///
-    /// # Safety
-    /// Supplied handles or pointees must satisfy this attribute's native validity, access and lifetime requirements through descriptor use and queued replay.
-    /// Preserve their owners until native consumers have finished with them.
     pub unsafe fn set_attribute_void_ptr_slice(
         &mut self,
         name: BackendAttributeName,
@@ -292,13 +296,14 @@ impl BackendDescriptor {
     /// The `name` selects the attribute, and this method supplies the cuDNN attribute type from the Rust value being passed.
     /// The descriptor must not be finalized.
     ///
+    /// # Safety
+    ///
+    /// Supplied handles or pointees must satisfy this attribute's native validity, access and lifetime requirements through descriptor use and queued replay.
+    /// Preserve their owners until native consumers have finished with them.
+    ///
     /// # Errors
     ///
     /// Returns an error if the descriptor has already been finalized, if cuDNN rejects the attribute name, value type, element count, or value, or if the value is not supported by the current cuDNN version.
-    ///
-    /// # Safety
-    /// Supplied handles or pointees must satisfy this attribute's native validity, access and lifetime requirements through descriptor use and queued replay.
-    /// Preserve their owners until native consumers have finished with them.
     pub unsafe fn set_attribute_void_ptr(
         &mut self,
         name: BackendAttributeName,
@@ -308,9 +313,10 @@ impl BackendDescriptor {
         self.set_attribute_slice_raw(name, BackendAttributeType::VoidPtr, &pointers, "pointers")
     }
 
-    /// Sets a `CUDNN_TYPE_VOID_PTR` attribute whose payload is the object pointer itself rather than an array of void pointers.
+    /// Sets a [`BackendAttributeType::VoidPtr`] attribute whose payload is the object pointer itself rather than an array of pointers.
     ///
     /// # Safety
+    ///
     /// `pointer` must address the native host object payload expected by this attribute, and its transitive storage must remain live for every native use.
     pub(crate) unsafe fn set_attribute_void_ptr_payload(
         &mut self,
@@ -354,7 +360,8 @@ impl BackendDescriptor {
     /// Returns exact native fractional attributes without normalization or conversion to floating point.
     ///
     /// # Errors
-    /// Returns descriptor-state, native attribute-query or inconsistent element-count errors.
+    ///
+    /// Returns an error if the descriptor is not finalized, cuDNN rejects the query, or the reported element count is inconsistent.
     pub fn attribute_fraction_slice(&self, name: BackendAttributeName) -> Result<Vec<Fraction>> {
         Ok(self
             .attribute_raw_vec(
@@ -372,13 +379,14 @@ impl BackendDescriptor {
     ///
     /// The `name` selects the attribute, and this method supplies the expected cuDNN attribute type from the Rust value or return type.
     ///
+    /// # Safety
+    ///
+    /// The attribute must return an array of native void pointers.
+    /// Object payloads, such as variant-pack shape/stride overrides, require `attribute_unchecked` with their actual native object storage rather than a pointer array.
+    ///
     /// # Errors
     ///
     /// Returns an error if the descriptor has not been finalized, if cuDNN does not return the requested attribute value, or if cuDNN rejects the attribute name or expected type for this descriptor.
-    ///
-    /// # Safety
-    /// The attribute must return an array of native void pointers.
-    /// Object payloads, such as variant-pack shape/stride overrides, require `attribute_unchecked` with their actual native object storage rather than a pointer array.
     pub unsafe fn attribute_void_ptr_slice(
         &self,
         name: BackendAttributeName,
@@ -408,12 +416,13 @@ impl BackendDescriptor {
     /// Retries a growing payload on cuDNN's size-insufficient response, up to eight reads.
     ///
     /// # Errors
-    /// Returns finalization, native attribute, invalid count or persistent size-race errors.
+    ///
+    /// Returns an error if the descriptor is not finalized, cuDNN rejects the query, the reported count is invalid, or the payload keeps growing past the retry limit.
     pub fn attribute_char_buffer(&self, name: BackendAttributeName) -> Result<Vec<u8>> {
         Ok(self
             .attribute_raw_vec(name, BackendAttributeType::Char, 0_i8, "char_values")?
             .into_iter()
-            .map(|byte| byte as u8)
+            .map(i8::cast_unsigned)
             .collect())
     }
 
@@ -431,8 +440,10 @@ impl BackendDescriptor {
         self.attribute_raw_vec(name, E::ATTRIBUTE_TYPE, 0u32, "enum values")?
             .into_iter()
             .map(|value| {
-                E::try_from(value)
-                    .map_err(|_| Error::DescriptorInvalidAttributeValue(name, value.to_string()))
+                E::try_from(value).map_err(|_| Error::UnknownEnumValue {
+                    name: name.to_string().into(),
+                    value: value.into(),
+                })
             })
             .collect()
     }
@@ -443,12 +454,14 @@ impl BackendDescriptor {
     /// A zero maximum returns no descriptors without querying the attribute.
     /// Retries a growing result up to eight reads when more descriptors are needed.
     ///
-    /// # Errors
-    /// Returns native query or allocation errors, or an error if a complete result keeps growing beyond the retry limit.
-    ///
     /// # Safety
+    ///
     /// `descriptor_type` must be the class required by `name`; cuDNN writes native class-specific state into each destination.
     /// Use `attribute_unchecked` when supplying an externally established destination ABI.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if a destination descriptor cannot be created, cuDNN rejects the query, or the result keeps growing past the retry limit.
     pub unsafe fn attribute_descriptor_slice(
         &self,
         name: BackendAttributeName,
@@ -505,6 +518,7 @@ impl BackendDescriptor {
     /// Retrieves one owned descriptor of the specified native class.
     ///
     /// # Safety
+    ///
     /// `descriptor_type` must be the native class required by `name`.
     ///
     /// # Errors
@@ -542,7 +556,9 @@ impl BackendDescriptor {
     /// Returns an error if the descriptor is not finalized, the native query fails or does not return one value, or `E` cannot decode the reported value.
     pub fn attribute_enum<E: BackendEnum>(&self, name: BackendAttributeName) -> Result<E> {
         let value: u32 = self.attribute_raw(name, E::ATTRIBUTE_TYPE)?;
-        E::try_from(value)
-            .map_err(|_| Error::DescriptorInvalidAttributeValue(name, value.to_string()))
+        E::try_from(value).map_err(|_| Error::UnknownEnumValue {
+            name: name.to_string().into(),
+            value: value.into(),
+        })
     }
 }

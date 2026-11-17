@@ -1,3 +1,5 @@
+//! Native engine behavior notes, execution requirements, and numerical properties.
+
 use singe_cudnn_sys as sys;
 
 use crate::metadata::backend_metadata_enum;

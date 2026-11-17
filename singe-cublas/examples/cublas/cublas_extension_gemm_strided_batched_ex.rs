@@ -1,15 +1,12 @@
 use singe_cublas::{
-    blas::level3::gemm_strided_batched_ex,
+    blas::extension::gemm_strided_batched_ex,
     context::Context,
-    error::Result,
+    scalar::Scalar,
     types::{ComputeType, GemmAlgorithm, Operation},
 };
+use singe_cuda::{context::Context as CudaContext, device::Device, memory::DeviceMemory};
 
-use singe_cuda::{
-    context::Context as CudaContext, data_type::DataType, device::Device, memory::DeviceMemory,
-};
-
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     let cuda = CudaContext::create_for_device(Device::new(0))?;
     let cublas = Context::create(&cuda)?;
 
@@ -24,18 +21,15 @@ fn main() -> Result<()> {
         2,
         2,
         2,
-        &1.0,
+        Scalar::host(&1.0_f64),
         &a,
-        DataType::F64,
         2,
         4,
         &b,
-        DataType::F64,
         2,
         4,
-        &0.0,
+        Scalar::host(&0.0_f64),
         &mut c,
-        DataType::F64,
         2,
         4,
         2,

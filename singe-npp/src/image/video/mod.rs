@@ -8,7 +8,7 @@
 //! Plane views count stored samples, while [`VideoView::size`](crate::image::video::VideoView::size) counts pixels.
 //!
 //! Some NPP builds declare UYVP transcoders without exporting them from the shared library.
-//! Those entry points return [`crate::error::Status::NotSupportedModeError`] when the loaded library does not provide them.
+//! Those entry points return [`Error::Load`](crate::error::Error::Load) when the loaded library does not provide them.
 
 mod half;
 mod memory;

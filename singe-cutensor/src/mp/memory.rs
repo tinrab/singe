@@ -4,10 +4,12 @@ use std::{
     sync::Arc,
 };
 
+use singe_core::report_cleanup_failure;
 use singe_cuda::{
     context::Context as CudaContext,
     error::{Error as CudaError, Result as CudaResult},
     memory::{DeviceMemory, PinnedVec},
+    view::{DeviceRegion, DeviceRegionProvider},
 };
 
 use crate::{
@@ -74,22 +76,28 @@ impl<'comm> WorkspaceMemory<'comm> {
 
         let actual = self.device.byte_len() as u64;
         if actual < required.device_size() {
-            return Err(Error::InsufficientWorkspaceSize {
-                required: required.device_size(),
+            return Err(Error::workspace_too_small(
+                "device workspace",
+                required.device_size(),
                 actual,
-            });
+            ));
         }
 
         let actual = self.host.memory.as_ref().map_or(0, Vec::capacity) as u64;
         if actual < required.host_size() {
-            return Err(Error::InsufficientWorkspaceSize {
-                required: required.host_size(),
+            return Err(Error::workspace_too_small(
+                "host workspace",
+                required.host_size(),
                 actual,
-            });
+            ));
         }
 
         self.context = Some(context.clone());
         Ok(())
+    }
+
+    pub(crate) fn device_region(&self) -> DeviceRegion<'_> {
+        self.device.region()
     }
 
     #[expect(
@@ -132,9 +140,10 @@ impl HostWorkspace {
             .try_for_each(|context| context.synchronize())
             .and_then(|()| memory.allocator().context().synchronize());
         if let Err(error) = waited {
-            eprintln!(
-                "failed to wait for work using a cutensor host workspace: {}",
-                singe_core::ErrorChain(&error)
+            report_cleanup_failure(
+                "synchronize the cuda contexts to release",
+                "cutensor host workspace",
+                &error,
             );
             mem::forget(self.memory.take());
         }
@@ -147,10 +156,7 @@ impl Drop for WorkspaceMemory<'_> {
         if let Some(context) = &self.context
             && let Err(error) = context.clear_operation_cache()
         {
-            eprintln!(
-                "failed to clear cutensormp workspace registrations: {}",
-                singe_core::ErrorChain(&error)
-            );
+            report_cleanup_failure("clear", "cutensormp workspace registrations", &error);
         }
     }
 }

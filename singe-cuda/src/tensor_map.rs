@@ -8,7 +8,7 @@ use crate::{
     submission::{AccessMode, Resources},
     try_ffi,
     types::DevicePtr,
-    utility::{driver_enum, to_u32},
+    utility::{driver_enum, to_u32, to_usize},
     view::{DeviceRegionProvider, DeviceRepr, NoUninitDeviceRepr, OwnedDeviceRegion},
 };
 
@@ -177,27 +177,50 @@ pub struct TensorMapLayout<'a> {
 impl TensorMapLayout<'_> {
     fn validate(&self, minimum_rank: usize) -> Result<u32> {
         let rank = self.dimensions.len();
-        if !(minimum_rank..=5).contains(&rank)
-            || self.byte_strides.len() != rank - 1
-            || self.element_strides.len() != rank
-        {
-            return Err(Error::InvalidMemoryAccess);
+        if !(minimum_rank..=5).contains(&rank) {
+            return Err(Error::out_of_range("tensor map rank"));
+        }
+
+        if self.byte_strides.len() != rank - 1 {
+            return Err(Error::length_mismatch(
+                "byte strides",
+                rank - 1,
+                self.byte_strides.len(),
+            ));
+        }
+
+        if self.element_strides.len() != rank {
+            return Err(Error::length_mismatch(
+                "element strides",
+                rank,
+                self.element_strides.len(),
+            ));
         }
 
         if self
             .dimensions
             .iter()
             .any(|&dimension| dimension == 0 || dimension > 1 << 32)
-            || self
-                .byte_strides
-                .iter()
-                .any(|&stride| stride == 0 || !stride.is_multiple_of(16) || stride >= 1 << 40)
-            || self
-                .element_strides
-                .iter()
-                .any(|&stride| !(1..=8).contains(&stride))
         {
-            return Err(Error::InvalidMemoryAccess);
+            return Err(Error::out_of_range("tensor map dimension"));
+        }
+
+        for &stride in self.byte_strides {
+            if stride == 0 || stride >= 1 << 40 {
+                return Err(Error::out_of_range("tensor map byte stride"));
+            }
+
+            if !stride.is_multiple_of(16) {
+                return Err(Error::misaligned("tensor map byte stride", 16));
+            }
+        }
+
+        if self
+            .element_strides
+            .iter()
+            .any(|&stride| !(1..=8).contains(&stride))
+        {
+            return Err(Error::out_of_range("tensor map element stride"));
         }
         to_u32(rank, "tensor map rank")
     }
@@ -224,14 +247,14 @@ impl TensorMapLayout<'_> {
                 width.checked_mul(8)
             }
         }
-        .ok_or(Error::InvalidMemoryAllocationRequest)?;
+        .ok_or_else(|| Error::out_of_range("tensor map row bytes"))?;
         self.dimensions[1..].iter().zip(self.byte_strides).try_fold(
             row,
             |bytes, (&dimension, &stride)| {
                 (dimension - 1)
                     .checked_mul(stride)
                     .and_then(|offset| bytes.checked_add(offset))
-                    .ok_or(Error::InvalidMemoryAllocationRequest)
+                    .ok_or_else(|| Error::out_of_range("tensor map byte span"))
             },
         )
     }
@@ -276,9 +299,10 @@ pub struct Im2colWideBox {
 #[repr(transparent)]
 pub struct TensorMapDescriptor(sys::CUtensorMap);
 
-// SAFETY: the native descriptor is exactly 128 initialized bytes with no host ownership or padding.
+// SAFETY: the descriptor is a transparent 128-byte-aligned array of sixteen `u64` words, with no padding, host pointers, or Rust ownership.
 unsafe impl DeviceRepr for TensorMapDescriptor {}
 
+// SAFETY: every byte of the native descriptor array is initialized, by `Default` or by the encoding call.
 unsafe impl NoUninitDeviceRepr for TensorMapDescriptor {}
 
 impl TensorMapDescriptor {
@@ -297,6 +321,7 @@ impl TensorMapDescriptor {
     /// Wraps initialized native tensor-map descriptor bytes without retaining their backing memory.
     ///
     /// # Safety
+    ///
     /// The value must be a successfully encoded CUDA tensor map with initialized descriptor bytes.
     #[must_use]
     pub unsafe fn from_raw(raw: sys::CUtensorMap) -> Self {
@@ -306,13 +331,13 @@ impl TensorMapDescriptor {
     /// Encodes a tiled layout at a raw global address.
     ///
     /// # Safety
+    ///
     /// The address must satisfy CUDA's global-memory, alignment and layout restrictions.
     /// Retain backing memory and establish initialization and ordering before device use.
     ///
     /// # Errors
     ///
-    /// Returns `Error::InvalidMemoryAccess` for invalid rank, slice lengths, dimension sizes, byte strides, or traversal strides.
-    /// Also propagates context binding failures and native encoding errors for unsupported layouts, options, addresses, or device capabilities.
+    /// Returns an error if the rank, a dimension size, a byte stride, or a traversal stride is unsupported, a slice length does not match the rank, a byte stride is not a multiple of 16 bytes, `context` cannot be bound, or CUDA rejects the layout, options, address, or device.
     /// The box must have one size per tensor dimension, each in `1..=256`.
     pub unsafe fn encode_tiled(
         context: &Context,
@@ -322,17 +347,25 @@ impl TensorMapDescriptor {
         options: TensorMapOptions,
     ) -> Result<Self> {
         let rank = layout.validate(1)?;
-        if box_dimensions.len() != rank as usize
-            || box_dimensions
-                .iter()
-                .any(|&dimension| !(1..=256).contains(&dimension))
+        let rank_len = to_usize(rank, "tensor map rank")?;
+        if box_dimensions.len() != rank_len {
+            return Err(Error::length_mismatch(
+                "box dimensions",
+                rank_len,
+                box_dimensions.len(),
+            ));
+        }
+
+        if box_dimensions
+            .iter()
+            .any(|&dimension| !(1..=256).contains(&dimension))
         {
-            return Err(Error::InvalidMemoryAccess);
+            return Err(Error::out_of_range("box dimension"));
         }
 
         context.bind()?;
         let mut raw = sys::CUtensorMap::default();
-        // SAFETY: `cuTensorMapEncodeTiled` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
+        // SAFETY: `validate` checked that the layout slices and `box_dimensions` hold `rank` entries, `raw` is a local output, and the caller guarantees the address meets CUDA's restrictions.
         unsafe {
             try_ffi!(sys::cuTensorMapEncodeTiled(
                 &raw mut raw,
@@ -355,12 +388,12 @@ impl TensorMapDescriptor {
     /// Encodes an im2col layout with rank-minus-two spatial box corners.
     ///
     /// # Safety
+    ///
     /// Uphold [`Self::encode_tiled`]'s memory and lifetime contract for this layout.
     ///
     /// # Errors
     ///
-    /// Returns `Error::InvalidMemoryAccess` for invalid rank, slice lengths, dimension sizes, byte strides, or traversal strides.
-    /// Also propagates context binding failures and native encoding errors for unsupported layouts, options, addresses, or device capabilities.
+    /// Returns an error if the rank, a dimension size, a byte stride, or a traversal stride is unsupported, a slice length does not match the rank, a byte stride is not a multiple of 16 bytes, `context` cannot be bound, or CUDA rejects the layout, options, address, or device.
     /// The tensor rank must be three through five, and both corner slices must have rank minus two entries.
     pub unsafe fn encode_im2col(
         context: &Context,
@@ -370,15 +403,26 @@ impl TensorMapDescriptor {
         options: TensorMapOptions,
     ) -> Result<Self> {
         let rank = layout.validate(3)?;
-        if pixel_box.lower_corner.len() != rank as usize - 2
-            || pixel_box.upper_corner.len() != rank as usize - 2
-        {
-            return Err(Error::InvalidMemoryAccess);
+        let corner_len = to_usize(rank, "tensor map rank")? - 2;
+        if pixel_box.lower_corner.len() != corner_len {
+            return Err(Error::length_mismatch(
+                "lower corner",
+                corner_len,
+                pixel_box.lower_corner.len(),
+            ));
+        }
+
+        if pixel_box.upper_corner.len() != corner_len {
+            return Err(Error::length_mismatch(
+                "upper corner",
+                corner_len,
+                pixel_box.upper_corner.len(),
+            ));
         }
 
         context.bind()?;
         let mut raw = sys::CUtensorMap::default();
-        // SAFETY: `cuTensorMapEncodeIm2col` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
+        // SAFETY: the layout slices hold `rank` entries and both corners `rank - 2`, as checked above, `raw` is a local output, and the caller guarantees the address meets CUDA's restrictions.
         unsafe {
             try_ffi!(sys::cuTensorMapEncodeIm2col(
                 &raw mut raw,
@@ -404,12 +448,12 @@ impl TensorMapDescriptor {
     /// Encodes wide-im2col layouts on devices supporting the native mode.
     ///
     /// # Safety
+    ///
     /// Uphold [`Self::encode_tiled`]'s memory and lifetime contract for this layout.
     ///
     /// # Errors
     ///
-    /// Returns `Error::InvalidMemoryAccess` for invalid rank, slice lengths, dimension sizes, byte strides, or traversal strides.
-    /// Also propagates context binding failures and native encoding errors for unsupported layouts, options, addresses, or device capabilities.
+    /// Returns an error if the rank, a dimension size, a byte stride, or a traversal stride is unsupported, a slice length does not match the rank, a byte stride is not a multiple of 16 bytes, `context` cannot be bound, or CUDA rejects the layout, options, address, or device.
     /// The tensor rank must be three through five; CUDA additionally validates the width box and wide-loading mode.
     pub unsafe fn encode_im2col_wide(
         context: &Context,
@@ -421,7 +465,7 @@ impl TensorMapDescriptor {
         let rank = layout.validate(3)?;
         context.bind()?;
         let mut raw = sys::CUtensorMap::default();
-        // SAFETY: `cuTensorMapEncodeIm2colWide` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
+        // SAFETY: `validate` checked that the layout slices hold `rank` entries, `raw` is a local output, and the caller guarantees the address meets CUDA's restrictions.
         unsafe {
             try_ffi!(sys::cuTensorMapEncodeIm2colWide(
                 &raw mut raw,
@@ -448,6 +492,7 @@ impl TensorMapDescriptor {
     /// Replaces the global base while preserving the encoded layout.
     ///
     /// # Safety
+    ///
     /// The new storage must satisfy the original descriptor's size, alignment and memory restrictions.
     /// Existing descriptor copies and in-flight users are unaffected and retain their own lifetime obligations.
     ///
@@ -456,7 +501,7 @@ impl TensorMapDescriptor {
     /// Returns an error if `context` cannot be bound or CUDA rejects the replacement address for the descriptor's encoded layout.
     pub unsafe fn replace_address(&mut self, context: &Context, address: DevicePtr) -> Result<()> {
         context.bind()?;
-        // SAFETY: `cuTensorMapReplaceAddress` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `self.0` is an encoded descriptor borrowed exclusively, and the caller guarantees the new address satisfies its encoded layout.
         unsafe {
             try_ffi!(sys::cuTensorMapReplaceAddress(
                 &raw mut self.0,
@@ -471,7 +516,7 @@ impl TensorMapDescriptor {
 pub struct RetainedTensorMap<O: DeviceRegionProvider + Send + Sync + 'static> {
     descriptor: TensorMapDescriptor,
     region: OwnedDeviceRegion<O>,
-    required_bytes: u64,
+    required_bytes: usize,
 }
 
 impl<O: DeviceRegionProvider + Send + Sync + 'static> RetainedTensorMap<O> {
@@ -480,12 +525,16 @@ impl<O: DeviceRegionProvider + Send + Sync + 'static> RetainedTensorMap<O> {
         layout: TensorMapLayout<'_>,
         encode: impl FnOnce(&Context, DevicePtr) -> Result<TensorMapDescriptor>,
     ) -> Result<Self> {
-        let required_bytes = layout.required_bytes()?;
-        if required_bytes > region.byte_len() as u64 {
-            return Err(Error::InvalidMemoryAccess);
+        let required_bytes = to_usize(layout.required_bytes()?, "tensor map byte span")?;
+        if required_bytes > region.byte_len() {
+            return Err(Error::buffer_too_small(
+                "device region",
+                required_bytes,
+                region.byte_len(),
+            ));
         }
 
-        // SAFETY: the address belongs to a live device allocation that stays borrowed for the operation that uses it.
+        // SAFETY: the address is the start of `region`, a live allocation in `region.context()` that the returned map retains.
         let descriptor = encode(region.context(), unsafe {
             DevicePtr::from_raw(region.region().as_ptr().cast())
         })?;
@@ -503,36 +552,34 @@ impl<O: DeviceRegionProvider + Send + Sync + 'static> RetainedTensorMap<O> {
     ///
     /// # Errors
     ///
-    /// Returns `Error::InvalidMemoryAccess` for an invalid layout or insufficient backing region, or `Error::InvalidMemoryAllocationRequest` if the required byte-span calculation overflows.
-    /// Also propagates encoding and context binding errors from [`TensorMapDescriptor::encode_tiled`].
+    /// Returns an error if the region is smaller than the layout's byte span, the span overflows, or [`TensorMapDescriptor::encode_tiled`] fails.
     pub fn tiled(
         region: OwnedDeviceRegion<O>,
         layout: TensorMapLayout<'_>,
         box_dimensions: &[u32],
         options: TensorMapOptions,
     ) -> Result<Self> {
-        // SAFETY: the region was validated against `layout`, and the descriptor retains it.
+        // SAFETY: `encode` checks that the region covers the layout's byte span and retains it with the descriptor.
         Self::encode(region, layout, |context, address| unsafe {
             TensorMapDescriptor::encode_tiled(context, address, layout, box_dimensions, options)
         })
     }
 
-    /// Encodes a image-to-column tensor map while retaining its backing device region.
+    /// Encodes an image-to-column tensor map while retaining its backing device region.
     ///
     /// Checks that the region covers the byte span described by `layout`.
     /// Retention does not establish initialization or order later device accesses.
     ///
     /// # Errors
     ///
-    /// Returns `Error::InvalidMemoryAccess` for an invalid layout or insufficient backing region, or `Error::InvalidMemoryAllocationRequest` if the required byte-span calculation overflows.
-    /// Also propagates encoding and context binding errors from [`TensorMapDescriptor::encode_im2col`].
+    /// Returns an error if the region is smaller than the layout's byte span, the span overflows, or [`TensorMapDescriptor::encode_im2col`] fails.
     pub fn im2col(
         region: OwnedDeviceRegion<O>,
         layout: TensorMapLayout<'_>,
         pixel_box: Im2colBox<'_>,
         options: TensorMapOptions,
     ) -> Result<Self> {
-        // SAFETY: the region was validated against `layout`, and the descriptor retains it.
+        // SAFETY: `encode` checks that the region covers the layout's byte span and retains it with the descriptor.
         Self::encode(region, layout, |context, address| unsafe {
             TensorMapDescriptor::encode_im2col(context, address, layout, pixel_box, options)
         })
@@ -545,15 +592,14 @@ impl<O: DeviceRegionProvider + Send + Sync + 'static> RetainedTensorMap<O> {
     ///
     /// # Errors
     ///
-    /// Returns `Error::InvalidMemoryAccess` for an invalid layout or insufficient backing region, or `Error::InvalidMemoryAllocationRequest` if the required byte-span calculation overflows.
-    /// Also propagates encoding and context binding errors from [`TensorMapDescriptor::encode_im2col_wide`].
+    /// Returns an error if the region is smaller than the layout's byte span, the span overflows, or [`TensorMapDescriptor::encode_im2col_wide`] fails.
     pub fn im2col_wide(
         region: OwnedDeviceRegion<O>,
         layout: TensorMapLayout<'_>,
         pixel_box: Im2colWideBox,
         options: TensorMapOptions<Im2colWideSwizzle>,
     ) -> Result<Self> {
-        // SAFETY: the region was validated against `layout`, and the descriptor retains it.
+        // SAFETY: `encode` checks that the region covers the layout's byte span and retains it with the descriptor.
         Self::encode(region, layout, |context, address| unsafe {
             TensorMapDescriptor::encode_im2col_wide(context, address, layout, pixel_box, options)
         })
@@ -590,19 +636,22 @@ impl<O: DeviceRegionProvider + Send + Sync + 'static> RetainedTensorMap<O> {
     ///
     /// # Errors
     ///
-    /// Returns `Error::MemoryContextMismatch` if the new region belongs to another context, or `Error::InvalidMemoryAccess` if it is too short for the encoded layout.
-    /// Also propagates context binding and native address-replacement errors.
+    /// Returns an error if the new region belongs to another context, is too short for the encoded layout, or its context cannot be bound, or if CUDA rejects the replacement address.
     /// The retained region changes only after replacement succeeds.
     pub fn replace_region(&mut self, region: OwnedDeviceRegion<O>) -> Result<()> {
         if region.context() != self.region.context() {
             return Err(Error::MemoryContextMismatch);
         }
 
-        if self.required_bytes > region.byte_len() as u64 {
-            return Err(Error::InvalidMemoryAccess);
+        if self.required_bytes > region.byte_len() {
+            return Err(Error::buffer_too_small(
+                "device region",
+                self.required_bytes,
+                region.byte_len(),
+            ));
         }
 
-        // SAFETY: the new region was validated against the descriptor layout and is retained by `self`.
+        // SAFETY: the new region is in the descriptor's context and covers the encoded byte span, as checked above, and `self` retains it after replacement.
         unsafe {
             self.descriptor.replace_address(
                 region.context(),

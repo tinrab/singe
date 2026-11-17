@@ -25,9 +25,11 @@ type SemiplanarToSubsampledPlanar = for<'source_y, 'source_uv, 'y, 'cb, 'cr> uns
 impl SemiplanarImage<u8> {
     /// Converts semiplanar YCbCr 4:2:0 into a new planar YCbCr 4:2:0 image.
     ///
-    /// The input has a full-resolution Y plane and an interleaved chroma plane with width divided by 2 and height divided by 2. Both planes use `u8` samples.
+    /// The input has a full-resolution Y plane and an interleaved chroma plane with width divided by 2 and height divided by 2.
+    /// Both planes use `u8` samples.
     /// The full-resolution dimensions must be divisible by the input and output subsampling factors; stored chroma dimensions must exactly match the declared sampling.
-    /// Allocates a full-resolution Y plane and two separate chroma planes of width divided by 2 and height divided by 2. The chroma storage order is Cb then Cr.
+    /// Allocates a full-resolution Y plane and two separate chroma planes of width divided by 2 and height divided by 2.
+    /// The chroma storage order is Cb then Cr.
     /// Prepares source regions and waits for their producers on other streams.
     /// Rejects capture and returns after successful native conversion and stream completion.
     /// All logical output samples are initialized; row padding remains unwritten.
@@ -48,9 +50,11 @@ impl SemiplanarImage<u8> {
 
     /// Converts semiplanar YCbCr 4:2:0 into a new planar YCbCr 4:2:2 image.
     ///
-    /// The input has a full-resolution Y plane and an interleaved chroma plane with width divided by 2 and height divided by 2. Both planes use `u8` samples.
+    /// The input has a full-resolution Y plane and an interleaved chroma plane with width divided by 2 and height divided by 2.
+    /// Both planes use `u8` samples.
     /// The full-resolution dimensions must be divisible by the input and output subsampling factors; stored chroma dimensions must exactly match the declared sampling.
-    /// Allocates a full-resolution Y plane and two separate chroma planes of width divided by 2 and height divided by 1. The chroma storage order is Cb then Cr.
+    /// Allocates a full-resolution Y plane and two separate chroma planes of width divided by 2 and height divided by 1.
+    /// The chroma storage order is Cb then Cr.
     /// Prepares source regions and waits for their producers on other streams.
     /// Rejects capture and returns after successful native conversion and stream completion.
     /// All logical output samples are initialized; row padding remains unwritten.
@@ -76,9 +80,11 @@ impl SemiplanarImage<u8> {
 
     /// Converts semiplanar YCbCr 4:2:0 into a new planar YCbCr 4:1:1 image.
     ///
-    /// The input has a full-resolution Y plane and an interleaved chroma plane with width divided by 2 and height divided by 2. Both planes use `u8` samples.
+    /// The input has a full-resolution Y plane and an interleaved chroma plane with width divided by 2 and height divided by 2.
+    /// Both planes use `u8` samples.
     /// The full-resolution dimensions must be divisible by the input and output subsampling factors; stored chroma dimensions must exactly match the declared sampling.
-    /// Allocates a full-resolution Y plane and two separate chroma planes of width divided by 4 and height divided by 1. The chroma storage order is Cb then Cr.
+    /// Allocates a full-resolution Y plane and two separate chroma planes of width divided by 4 and height divided by 1.
+    /// The chroma storage order is Cb then Cr.
     /// Prepares source regions and waits for their producers on other streams.
     /// Rejects capture and returns after successful native conversion and stream completion.
     /// All logical output samples are initialized; row padding remains unwritten.
@@ -104,9 +110,11 @@ impl SemiplanarImage<u8> {
 
     /// Converts semiplanar YCbCr 4:2:0 into a new planar `YCrCb` 4:2:0 image.
     ///
-    /// The input has a full-resolution Y plane and an interleaved chroma plane with width divided by 2 and height divided by 2. Both planes use `u8` samples.
+    /// The input has a full-resolution Y plane and an interleaved chroma plane with width divided by 2 and height divided by 2.
+    /// Both planes use `u8` samples.
     /// The full-resolution dimensions must be divisible by the input and output subsampling factors; stored chroma dimensions must exactly match the declared sampling.
-    /// Allocates a full-resolution Y plane and two separate chroma planes of width divided by 2 and height divided by 2. The chroma storage order is Cr then Cb: `cb()` returns the first Cr plane and `cr()` the second Cb plane.
+    /// Allocates a full-resolution Y plane and two separate chroma planes of width divided by 2 and height divided by 2.
+    /// The chroma storage order is Cr then Cb: `cb()` returns the first Cr plane and `cr()` the second Cb plane.
     /// Prepares source regions and waits for their producers on other streams.
     /// Rejects capture and returns after successful native conversion and stream completion.
     /// All logical output samples are initialized; row padding remains unwritten.

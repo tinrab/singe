@@ -1,18 +1,18 @@
 use std::borrow::Cow;
 
 use crate::{
-    backend::tensor::Shape,
     data_type::DataType,
-    error::Result,
+    error::{Error, Result, SdpaFeature},
     frontend::{
         composite::sdpa::{
             SdpaForwardOutputTensors, infer_sdpa_output_shape, infer_sdpa_scores_shape,
             support::SDPA_STATS_DATA_TYPE,
         },
-        error::{Error as FrontendError, SdpaFeature, SdpaRequirement},
+        error::{Error as FrontendError, SdpaRequirement},
         graph::{DataTypePolicy, Graph, TensorOutputConfig, reduce_last_axis},
         operation::{AttentionConfig, AttentionForwardInputs, AttentionForwardRequest, Operation},
     },
+    tensor::Shape,
 };
 
 impl Graph {
@@ -101,17 +101,16 @@ impl Graph {
         }
 
         if matches!(inputs, AttentionForwardInputs::Mxfp8(_)) && config.paged().is_enabled() {
-            return Err(FrontendError::SdpaUnsupported {
+            return Err(Error::SdpaUnsupported {
                 operation: "mxfp8 sdpa",
                 feature: SdpaFeature::PagedCaches,
                 sm_version: None,
-            }
-            .into());
+            });
         }
 
         let aux_type = self.tensor_spec(q)?.data_type;
         let output_type = match inputs {
-            AttentionForwardInputs::Mxfp8(_) => DataType::BF16,
+            AttentionForwardInputs::Mxfp8(_) => DataType::Bf16,
             _ => aux_type,
         };
         let scalar_shape = Shape::contiguous([1, 1, 1, 1])?;

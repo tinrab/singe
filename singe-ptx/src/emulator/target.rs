@@ -8,32 +8,32 @@ use crate::{
 };
 
 /// Lanes per warp.
-pub const WARP_SIZE: usize = 32;
+pub(crate) const WARP_SIZE: usize = 32;
 
 /// Upper bound reported by `%nwarpid`.
-pub const WARP_IDENTIFIER_COUNT: u32 = 64;
+pub(crate) const WARP_IDENTIFIER_COUNT: u32 = 64;
 
 /// Maximum CTA extent along x, y, and z.
-pub const MAX_BLOCK_DIMENSIONS: [u32; 3] = [1024, 1024, 64];
+pub(crate) const MAX_BLOCK_DIMENSIONS: [u32; 3] = [1024, 1024, 64];
 
 /// Maximum threads in one CTA.
-pub const MAX_BLOCK_THREADS: u32 = 1024;
+pub(crate) const MAX_BLOCK_THREADS: u32 = 1024;
 
 /// Maximum grid extent along x, y, and z.
-pub const MAX_GRID_DIMENSIONS: [u32; 3] = [i32::MAX.cast_unsigned(), 65_535, 65_535];
+pub(crate) const MAX_GRID_DIMENSIONS: [u32; 3] = [i32::MAX.cast_unsigned(), 65_535, 65_535];
 
 /// Warps in the largest CTA.
-pub const WARPS_PER_CTA: usize = MAX_BLOCK_THREADS as usize / WARP_SIZE;
+pub(crate) const WARPS_PER_CTA: usize = MAX_BLOCK_THREADS as usize / WARP_SIZE;
 
 /// Named CTA barriers available to `bar` and `barrier`.
-pub const NAMED_BARRIERS: usize = 16;
+pub(crate) const NAMED_BARRIERS: usize = 16;
 
 /// Register slots one function may declare; a frontend limit, not an architectural one.
-pub const MAX_FUNCTION_REGISTERS: usize = 65_536;
+pub(crate) const MAX_FUNCTION_REGISTERS: usize = 65_536;
 
 /// PTX language version, ordered by major and then minor version.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct PtxVersion {
+pub(crate) struct PtxVersion {
     major: u32,
     minor: u32,
 }
@@ -59,7 +59,7 @@ impl Display for PtxVersion {
     }
 }
 
-pub fn validate_module(module: &Module) -> Result<()> {
+pub(crate) fn validate_module(module: &Module) -> Result<()> {
     let version = PtxVersion::of(module);
     if !version.is_supported() {
         return Err(CompileError::unsupported(
@@ -78,7 +78,7 @@ pub fn validate_module(module: &Module) -> Result<()> {
 }
 
 /// Returns whether CTA dimensions are nonzero and fit the architectural limits.
-pub fn block_fits(dimensions: [u32; 3]) -> bool {
+pub(crate) fn block_fits(dimensions: [u32; 3]) -> bool {
     dimensions
         .into_iter()
         .zip(MAX_BLOCK_DIMENSIONS)
@@ -90,14 +90,14 @@ pub fn block_fits(dimensions: [u32; 3]) -> bool {
 }
 
 /// Returns whether grid dimensions are nonzero and fit the architectural limits.
-pub fn grid_fits(dimensions: [u32; 3]) -> bool {
+pub(crate) fn grid_fits(dimensions: [u32; 3]) -> bool {
     dimensions
         .into_iter()
         .zip(MAX_GRID_DIMENSIONS)
         .all(|(value, maximum)| value > 0 && value <= maximum)
 }
 
-pub fn validate_block(dimensions: [u32; 3], span: Span) -> Result<()> {
+pub(crate) fn validate_block(dimensions: [u32; 3], span: Span) -> Result<()> {
     if block_fits(dimensions) {
         Ok(())
     } else {

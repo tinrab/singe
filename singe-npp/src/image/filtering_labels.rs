@@ -72,8 +72,7 @@ pub fn label_markers_uf_buffer_size_u32_c1(roi: Size) -> Result<usize> {
 /// Native layouts, strides, alignment, allocation bounds, and input contents must be valid.
 /// NPP receives mutable source pointers; provide exclusive access to source storage during native use.
 /// Retain all allocations until native work completes.
-/// Native UF destinations must use linear CUDA allocations, rather than pitched allocations, with a byte stride of the source image width times `size_of::<u32>()`.
-/// The wrapper does not enforce this allocation or stride requirement.
+/// Native UF destinations must have a byte stride of the source image width times `size_of::<u32>()`; other strides return an error.
 pub unsafe fn label_markers_uf_u8_to_u32_c1(
     stream_context: &StreamContext,
     source: &ImageView<'_, u8, C1>,
@@ -86,6 +85,7 @@ pub unsafe fn label_markers_uf_u8_to_u32_c1(
     stream_context.stream().ensure_not_capturing()?;
 
     validate_same_size(source.size(), destination.size())?;
+    validate_u32_label_marker_step(source.size(), destination.step())?;
     let required_bytes = label_markers_uf_buffer_size_u32_c1(source.size())?;
     let scratch = DeviceMemory::<u8>::create_uninit(stream_context.cuda_context(), required_bytes)?;
 
@@ -128,8 +128,7 @@ pub unsafe fn label_markers_uf_u8_to_u32_c1(
 /// Native layouts, strides, alignment, allocation bounds, and input contents must be valid.
 /// NPP receives mutable source pointers; provide exclusive access to source storage during native use.
 /// Retain all allocations until native work completes.
-/// Native UF destinations must use linear CUDA allocations, rather than pitched allocations, with a byte stride of the source image width times `size_of::<u32>()`.
-/// The wrapper does not enforce this allocation or stride requirement.
+/// Native UF destinations must have a byte stride of the source image width times `size_of::<u32>()`; other strides return an error.
 pub unsafe fn label_markers_uf_u16_to_u32_c1(
     stream_context: &StreamContext,
     source: &ImageView<'_, u16, C1>,
@@ -142,6 +141,7 @@ pub unsafe fn label_markers_uf_u16_to_u32_c1(
     stream_context.stream().ensure_not_capturing()?;
 
     validate_same_size(source.size(), destination.size())?;
+    validate_u32_label_marker_step(source.size(), destination.step())?;
     let required_bytes = label_markers_uf_buffer_size_u32_c1(source.size())?;
     let scratch = DeviceMemory::<u8>::create_uninit(stream_context.cuda_context(), required_bytes)?;
 
@@ -184,8 +184,7 @@ pub unsafe fn label_markers_uf_u16_to_u32_c1(
 /// Native layouts, strides, alignment, allocation bounds, and input contents must be valid.
 /// NPP receives mutable source pointers; provide exclusive access to source storage during native use.
 /// Retain all allocations until native work completes.
-/// Native UF destinations must use linear CUDA allocations, rather than pitched allocations, with a byte stride of the source image width times `size_of::<u32>()`.
-/// The wrapper does not enforce this allocation or stride requirement.
+/// Native UF destinations must have a byte stride of the source image width times `size_of::<u32>()`; other strides return an error.
 pub unsafe fn label_markers_uf_u32_c1(
     stream_context: &StreamContext,
     source: &ImageView<'_, u32, C1>,
@@ -198,6 +197,7 @@ pub unsafe fn label_markers_uf_u32_c1(
     stream_context.stream().ensure_not_capturing()?;
 
     validate_same_size(source.size(), destination.size())?;
+    validate_u32_label_marker_step(source.size(), destination.step())?;
     let required_bytes = label_markers_uf_buffer_size_u32_c1(source.size())?;
     let scratch = DeviceMemory::<u8>::create_uninit(stream_context.cuda_context(), required_bytes)?;
 
@@ -245,8 +245,7 @@ macro_rules! impl_label_markers_uf_batch {
         /// Native layouts, strides, alignment, allocation bounds, and input contents must be valid.
         /// NPP receives mutable source pointers; provide exclusive access to source storage during native use.
         /// Retain all allocations until native work completes.
-        /// Native UF destinations must use linear CUDA allocations, rather than pitched allocations, with a byte stride of the common ROI width times `size_of::<u32>()`.
-        /// The wrapper does not enforce this allocation or stride requirement.
+        /// Native UF destinations must have a byte stride of the common ROI width times `size_of::<u32>()`; other strides return an error.
         pub unsafe fn $name(
             stream_context: &StreamContext,
             sources: &[ImageView<'_, $source_ty, C1>],
@@ -268,6 +267,9 @@ macro_rules! impl_label_markers_uf_batch {
                     sources,
                     destinations,
                 )?;
+            for destination in destinations.iter() {
+                validate_u32_label_marker_step(roi, destination.step())?;
+            }
 
             // SAFETY: the caller upholds this function's safety contract.
             stream_context.sync_scope(|| unsafe {
@@ -313,8 +315,7 @@ macro_rules! impl_label_markers_uf_batch_advanced {
         /// Native layouts, strides, alignment, allocation bounds, and input contents must be valid.
         /// NPP receives mutable source pointers; provide exclusive access to source storage during native use.
         /// Retain all allocations until native work completes.
-        /// Native UF destinations must use linear CUDA allocations, rather than pitched allocations, with a byte stride of each destination image width times `size_of::<u32>()`.
-        /// The wrapper does not enforce this allocation or stride requirement.
+        /// Native UF destinations must have a byte stride of each destination image width times `size_of::<u32>()`; other strides return an error.
         pub unsafe fn $name(
             stream_context: &StreamContext,
             sources: &[ImageView<'_, $source_ty, C1>],
@@ -329,6 +330,9 @@ macro_rules! impl_label_markers_uf_batch_advanced {
                 stream_context.validate_region(image)?;
             }
             stream_context.stream().ensure_not_capturing()?;
+            for destination in destinations.iter() {
+                validate_u32_label_marker_step(destination.size(), destination.step())?;
+            }
 
             let (batch_size, max_roi, source_descriptors, destination_descriptors) =
                 label_markers_uf_batch_advanced_descriptors(
@@ -431,8 +435,7 @@ pub unsafe trait LabelMarkersUfC1: DataTypeLike + Sized {
     /// Native layouts, strides, alignment, allocation bounds, and input contents must be valid.
     /// NPP receives mutable source pointers; provide exclusive access to source storage during native use.
     /// Retain all allocations until native work completes.
-    /// Native UF destinations must use linear CUDA allocations, rather than pitched allocations, with a byte stride of the source image width times `size_of::<u32>()`.
-    /// The wrapper does not enforce this allocation or stride requirement.
+    /// Native UF destinations must have a byte stride of the source image width times `size_of::<u32>()`; the provided implementations return an error for other strides.
     unsafe fn dispatch(
         stream_context: &StreamContext,
         source: &ImageView<'_, Self, C1>,
@@ -510,8 +513,7 @@ pub fn label_markers_uf_buffer_size_for<T: LabelMarkersUfC1>(roi: Size) -> Resul
 /// Native layouts, strides, alignment, allocation bounds, and input contents must be valid.
 /// NPP receives mutable source pointers; provide exclusive access to source storage during native use.
 /// Retain all allocations until native work completes.
-/// Native UF destinations must use linear CUDA allocations, rather than pitched allocations, with a byte stride of the source image width times `size_of::<u32>()`.
-/// The wrapper does not enforce this allocation or stride requirement.
+/// Native UF destinations must have a byte stride of the source image width times `size_of::<u32>()`; the provided implementations return an error for other strides.
 pub unsafe fn label_markers_uf<T: LabelMarkersUfC1>(
     stream_context: &StreamContext,
     source: &ImageView<'_, T, C1>,
@@ -555,8 +557,7 @@ where
     /// Native layouts, strides, alignment, allocation bounds, and input contents must be valid.
     /// NPP receives mutable source pointers; provide exclusive access to source storage during native use.
     /// Retain all allocations until native work completes.
-    /// Native UF destinations must use linear CUDA allocations, rather than pitched allocations, with a byte stride of the source image width times `size_of::<u32>()`.
-    /// The wrapper does not enforce this allocation or stride requirement.
+    /// Native UF destinations must have a byte stride of the source image width times `size_of::<u32>()`; the provided implementations return an error for other strides.
     unsafe fn dispatch_to(
         stream_context: &StreamContext,
         source: &ImageView<'_, Self, C1>,
@@ -602,8 +603,7 @@ where
 /// Native layouts, strides, alignment, allocation bounds, and input contents must be valid.
 /// NPP receives mutable source pointers; provide exclusive access to source storage during native use.
 /// Retain all allocations until native work completes.
-/// Native UF destinations must use linear CUDA allocations, rather than pitched allocations, with a byte stride of the source image width times `size_of::<u32>()`.
-/// The wrapper does not enforce this allocation or stride requirement.
+/// Native UF destinations must have a byte stride of the source image width times `size_of::<u32>()`; the provided implementations return an error for other strides.
 pub unsafe fn label_markers_uf_to<T, Destination>(
     stream_context: &StreamContext,
     source: &ImageView<'_, T, C1>,
@@ -651,8 +651,7 @@ pub unsafe trait LabelMarkersUfBatchC1: DataTypeLike + Sized {
     /// Native layouts, strides, alignment, allocation bounds, and input contents must be valid.
     /// NPP receives mutable source pointers; provide exclusive access to source storage during native use.
     /// Retain all allocations until native work completes.
-    /// Native UF destinations must use linear CUDA allocations, rather than pitched allocations, with a byte stride of the common ROI width times `size_of::<u32>()`.
-    /// The wrapper does not enforce this allocation or stride requirement.
+    /// Native UF destinations must have a byte stride of the common ROI width times `size_of::<u32>()`; the provided implementations return an error for other strides.
     unsafe fn dispatch(
         stream_context: &StreamContext,
         sources: &[ImageView<'_, Self, C1>],
@@ -722,8 +721,7 @@ unsafe impl LabelMarkersUfBatchC1 for u32 {
 /// Native layouts, strides, alignment, allocation bounds, and input contents must be valid.
 /// NPP receives mutable source pointers; provide exclusive access to source storage during native use.
 /// Retain all allocations until native work completes.
-/// Native UF destinations must use linear CUDA allocations, rather than pitched allocations, with a byte stride of the common ROI width times `size_of::<u32>()`.
-/// The wrapper does not enforce this allocation or stride requirement.
+/// Native UF destinations must have a byte stride of the common ROI width times `size_of::<u32>()`; the provided implementations return an error for other strides.
 pub unsafe fn label_markers_uf_batch<T: LabelMarkersUfBatchC1>(
     stream_context: &StreamContext,
     sources: &[ImageView<'_, T, C1>],
@@ -767,8 +765,7 @@ pub unsafe trait LabelMarkersUfBatchAdvancedC1: DataTypeLike + Sized {
     /// Native layouts, strides, alignment, allocation bounds, and input contents must be valid.
     /// NPP receives mutable source pointers; provide exclusive access to source storage during native use.
     /// Retain all allocations until native work completes.
-    /// Native UF destinations must use linear CUDA allocations, rather than pitched allocations, with a byte stride of each destination image width times `size_of::<u32>()`.
-    /// The wrapper does not enforce this allocation or stride requirement.
+    /// Native UF destinations must have a byte stride of each destination image width times `size_of::<u32>()`; the provided implementations return an error for other strides.
     unsafe fn dispatch(
         stream_context: &StreamContext,
         sources: &[ImageView<'_, Self, C1>],
@@ -854,8 +851,7 @@ unsafe impl LabelMarkersUfBatchAdvancedC1 for u32 {
 /// Native layouts, strides, alignment, allocation bounds, and input contents must be valid.
 /// NPP receives mutable source pointers; provide exclusive access to source storage during native use.
 /// Retain all allocations until native work completes.
-/// Native UF destinations must use linear CUDA allocations, rather than pitched allocations, with a byte stride of each destination image width times `size_of::<u32>()`.
-/// The wrapper does not enforce this allocation or stride requirement.
+/// Native UF destinations must have a byte stride of each destination image width times `size_of::<u32>()`; the provided implementations return an error for other strides.
 pub unsafe fn label_markers_uf_batch_advanced<T: LabelMarkersUfBatchAdvancedC1>(
     stream_context: &StreamContext,
     sources: &[ImageView<'_, T, C1>],

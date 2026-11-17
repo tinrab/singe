@@ -1,9 +1,12 @@
+use std::hash::{Hash, Hasher};
+
 use singe_core::string_from_c_chars;
 use singe_nvml_sys as sys;
 
 use crate::{
     device::Device,
     error::Result,
+    library::Library,
     try_ffi,
     types::{
         VgpuTypeBar1Info, VgpuTypeCapability, VgpuTypeDeviceId, VgpuTypeId, VgpuTypeResolution,
@@ -12,39 +15,65 @@ use crate::{
 };
 
 /// Identifies a vGPU type and provides its resource limits and capabilities.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[repr(transparent)]
-pub struct VgpuType(VgpuTypeId);
+///
+/// It keeps NVML initialized.
+/// Equality and hashing compare the type identifier.
+#[derive(Debug, Clone)]
+pub struct VgpuType {
+    id: VgpuTypeId,
+    library: Library,
+}
+
+impl PartialEq for VgpuType {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
+}
+
+impl Eq for VgpuType {}
+
+impl Hash for VgpuType {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.id.hash(state);
+    }
+}
 
 impl VgpuType {
-    /// Wraps a typed identifier without querying NVML or checking that the identifier exists.
+    /// Wraps an identifier and keeps `library`'s initialization alive, without checking that the type exists.
     #[must_use]
-    pub const fn from_id(id: VgpuTypeId) -> Self {
-        Self(id)
+    pub fn from_id(id: VgpuTypeId, library: &Library) -> Self {
+        Self {
+            id,
+            library: library.clone(),
+        }
     }
 
     /// Returns the typed identifier used for native NVML calls.
     #[must_use]
-    pub const fn id(self) -> VgpuTypeId {
-        self.0
+    pub const fn id(&self) -> VgpuTypeId {
+        self.id
     }
 
-    /// Returns the class of a vGPU type.
-    /// It does not exceed 64 bytes including the terminating NUL byte.
-    /// This wrapper allocates the required NVML buffer internally.
+    /// Returns the NVML initialization that this type keeps alive.
+    #[must_use]
+    pub const fn library(&self) -> &Library {
+        &self.library
+    }
+
+    /// Returns the class of this vGPU type, at most 63 characters.
     ///
-    /// For Kepler or newer fully supported devices.
+    /// Requires a Kepler or newer GPU.
     ///
     /// # Errors
     ///
     /// Returns an error if the internal class-name buffer is too small, if NVML rejects the vGPU type ID or query arguments, or if NVML reports an unexpected failure.
-    pub fn class(self) -> Result<String> {
-        let mut buffer = [0i8; sys::NVML_VGPU_NAME_BUFFER_SIZE as usize];
+    pub fn class(&self) -> Result<String> {
+        let mut buffer = [0; sys::NVML_VGPU_NAME_BUFFER_SIZE as usize];
         let mut size = to_u32(buffer.len(), "NVML buffer length")?;
-        // SAFETY: `nvmlVgpuTypeGetClass` receives valid output locations.
+        // SAFETY: `buffer` holds the `size` writable bytes passed as its capacity, and NVML validates the type ID.
         unsafe {
             try_ffi!(sys::nvmlVgpuTypeGetClass(
-                self.0.0,
+                self.id.0,
                 buffer.as_mut_ptr(),
                 &raw mut size,
             ))?;
@@ -54,22 +83,19 @@ impl VgpuType {
 
     /// Returns the vGPU type name.
     ///
-    /// The name is an alphanumeric vGPU identifier such as `GRID M60-2Q`.
-    /// It does not exceed 64 bytes including the terminating NUL byte.
-    /// This wrapper allocates the required NVML buffer internally.
-    ///
-    /// For Kepler or newer fully supported devices.
+    /// The name is an alphanumeric identifier of at most 63 characters, such as `GRID M60-2Q`.
+    /// Requires a Kepler or newer GPU.
     ///
     /// # Errors
     ///
     /// Returns an error if the internal name buffer is too small, if NVML rejects the vGPU type ID or query arguments, or if NVML reports an unexpected failure.
-    pub fn name(self) -> Result<String> {
-        let mut buffer = [0i8; sys::NVML_VGPU_NAME_BUFFER_SIZE as usize];
+    pub fn name(&self) -> Result<String> {
+        let mut buffer = [0; sys::NVML_VGPU_NAME_BUFFER_SIZE as usize];
         let mut size = to_u32(buffer.len(), "NVML buffer length")?;
-        // SAFETY: `nvmlVgpuTypeGetName` receives valid output locations.
+        // SAFETY: `buffer` holds the `size` writable bytes passed as its capacity, and NVML validates the type ID.
         unsafe {
             try_ffi!(sys::nvmlVgpuTypeGetName(
-                self.0.0,
+                self.id.0,
                 buffer.as_mut_ptr(),
                 &raw mut size,
             ))?;
@@ -77,40 +103,40 @@ impl VgpuType {
         Ok(string_from_c_chars(&buffer))
     }
 
-    /// Returns the GPU instance profile ID for this vGPU type ID.
-    /// Returns a valid GPU instance profile ID for MIG-capable vGPU types, or `INVALID_GPU_INSTANCE_PROFILE_ID` otherwise.
+    /// Returns the GPU instance profile ID of this vGPU type.
     ///
-    /// For Kepler or newer fully supported devices.
+    /// The ID is valid only for MIG-capable vGPU types; NVML reports an invalid profile ID otherwise.
+    /// Requires a Kepler or newer GPU.
     ///
     /// # Errors
     ///
     /// Returns an error if NVML rejects the vGPU type ID or query arguments, if the device is not in vGPU host virtualization mode, or if NVML reports an unexpected failure.
-    pub fn gpu_instance_profile_id(self) -> Result<u32> {
+    pub fn gpu_instance_profile_id(&self) -> Result<u32> {
         let mut profile_id = 0;
-        // SAFETY: `nvmlVgpuTypeGetGpuInstanceProfileId` receives valid output locations.
+        // SAFETY: NVML validates the type ID, and `profile_id` is a writable local integer.
         unsafe {
             try_ffi!(sys::nvmlVgpuTypeGetGpuInstanceProfileId(
-                self.0.0,
+                self.id.0,
                 &raw mut profile_id,
             ))?;
         }
         Ok(profile_id)
     }
 
-    /// Returns the device ID of a vGPU type.
+    /// Returns the PCI device and subsystem IDs of this vGPU type.
     ///
-    /// For Kepler or newer fully supported devices.
+    /// Requires a Kepler or newer GPU.
     ///
     /// # Errors
     ///
     /// Returns an error if NVML rejects the vGPU type ID or query arguments, if NVML has not been initialized, or if NVML reports an unexpected failure.
-    pub fn device_id(self) -> Result<VgpuTypeDeviceId> {
+    pub fn device_id(&self) -> Result<VgpuTypeDeviceId> {
         let mut device_id = 0;
         let mut subsystem_id = 0;
-        // SAFETY: `nvmlVgpuTypeGetDeviceID` receives valid output locations.
+        // SAFETY: NVML validates the type ID, and `device_id` and `subsystem_id` are writable local integers.
         unsafe {
             try_ffi!(sys::nvmlVgpuTypeGetDeviceID(
-                self.0.0,
+                self.id.0,
                 &raw mut device_id,
                 &raw mut subsystem_id,
             ))?;
@@ -123,53 +149,56 @@ impl VgpuType {
 
     /// Returns the vGPU framebuffer size in bytes.
     ///
-    /// For Kepler or newer fully supported devices.
+    /// Requires a Kepler or newer GPU.
     ///
     /// # Errors
     ///
     /// Returns an error if NVML rejects the vGPU type ID or query arguments, if NVML has not been initialized, or if NVML reports an unexpected failure.
-    pub fn framebuffer_size(self) -> Result<u64> {
+    pub fn framebuffer_size(&self) -> Result<u64> {
         let mut size = 0;
-        // SAFETY: `nvmlVgpuTypeGetFramebufferSize` receives valid output locations.
+        // SAFETY: NVML validates the type ID, and `size` is a writable local integer.
         unsafe {
-            try_ffi!(sys::nvmlVgpuTypeGetFramebufferSize(self.0.0, &raw mut size))?;
+            try_ffi!(sys::nvmlVgpuTypeGetFramebufferSize(
+                self.id.0,
+                &raw mut size
+            ))?;
         }
         Ok(size)
     }
 
-    /// Returns count of vGPU's supported display heads.
+    /// Returns the number of display heads this vGPU type supports.
     ///
-    /// For Kepler or newer fully supported devices.
+    /// Requires a Kepler or newer GPU.
     ///
     /// # Errors
     ///
     /// Returns an error if NVML rejects the vGPU type ID or query arguments, if NVML has not been initialized, or if NVML reports an unexpected failure.
-    pub fn num_display_heads(self) -> Result<u32> {
+    pub fn num_display_heads(&self) -> Result<u32> {
         let mut count = 0;
-        // SAFETY: `nvmlVgpuTypeGetNumDisplayHeads` receives valid output locations.
+        // SAFETY: NVML validates the type ID, and `count` is a writable local integer.
         unsafe {
             try_ffi!(sys::nvmlVgpuTypeGetNumDisplayHeads(
-                self.0.0,
+                self.id.0,
                 &raw mut count
             ))?;
         }
         Ok(count)
     }
 
-    /// Returns vGPU display head's maximum supported resolution.
+    /// Returns the maximum resolution of display head `display_index`.
     ///
-    /// For Kepler or newer fully supported devices.
+    /// Requires a Kepler or newer GPU.
     ///
     /// # Errors
     ///
     /// Returns an error if NVML rejects the vGPU type ID or query arguments, if NVML has not been initialized, or if NVML reports an unexpected failure.
-    pub fn resolution(self, display_index: u32) -> Result<VgpuTypeResolution> {
+    pub fn resolution(&self, display_index: u32) -> Result<VgpuTypeResolution> {
         let mut x = 0;
         let mut y = 0;
-        // SAFETY: `nvmlVgpuTypeGetResolution` receives valid output locations.
+        // SAFETY: NVML validates the type ID, and `x` and `y` are writable local integers.
         unsafe {
             try_ffi!(sys::nvmlVgpuTypeGetResolution(
-                self.0.0,
+                self.id.0,
                 display_index,
                 &raw mut x,
                 &raw mut y,
@@ -178,25 +207,21 @@ impl VgpuType {
         Ok(VgpuTypeResolution { x, y })
     }
 
-    /// Returns license requirements for a vGPU type.
+    /// Returns the licenses that can run this vGPU type.
     ///
-    /// The license type and version required to run the specified vGPU type is returned as an alphanumeric string in the form `<license name>,<version>`, for example `GRID-Virtual-PC,2.0`.
-    /// If a vGPU is runnable with more than one license type, the licenses are delimited by semicolons, for example `GRID-Virtual-PC,2.0;GRID-Virtual-WS,2.0;GRID-Virtual-WS-Ext,2.0`.
-    ///
-    /// The returned string does not exceed 128 bytes including the terminating NUL byte.
-    /// This wrapper allocates the required NVML buffer internally.
-    ///
-    /// For Kepler or newer fully supported devices.
+    /// Each license is `<license name>,<version>`, such as `GRID-Virtual-PC,2.0`, and several are separated by semicolons.
+    /// The string has at most 127 characters.
+    /// Requires a Kepler or newer GPU.
     ///
     /// # Errors
     ///
     /// Returns an error if the internal license buffer is too small, if NVML rejects the vGPU type ID or query arguments, if NVML has not been initialized, or if NVML reports an unexpected failure.
-    pub fn license(self) -> Result<String> {
-        let mut buffer = [0i8; sys::NVML_GRID_LICENSE_BUFFER_SIZE as usize];
-        // SAFETY: `nvmlVgpuTypeGetLicense` receives valid output locations.
+    pub fn license(&self) -> Result<String> {
+        let mut buffer = [0; sys::NVML_GRID_LICENSE_BUFFER_SIZE as usize];
+        // SAFETY: NVML validates the type ID, and `buffer` holds the `buffer.len()` writable bytes passed as its length.
         unsafe {
             try_ffi!(sys::nvmlVgpuTypeGetLicense(
-                self.0.0,
+                self.id.0,
                 buffer.as_mut_ptr(),
                 to_u32(buffer.len(), "NVML buffer length")?,
             ))?;
@@ -204,36 +229,39 @@ impl VgpuType {
         Ok(string_from_c_chars(&buffer))
     }
 
-    /// Returns the static frame-rate limit value of the vGPU type.
+    /// Returns the static frame-rate limit of this vGPU type.
     ///
-    /// For Kepler or newer fully supported devices.
+    /// Requires a Kepler or newer GPU.
     ///
     /// # Errors
     ///
     /// Returns an error if NVML rejects the vGPU type ID or query arguments, if the frame-rate limiter is disabled for this vGPU type, if NVML has not been initialized, or if NVML reports an unexpected failure.
-    pub fn frame_rate_limit(self) -> Result<u32> {
+    pub fn frame_rate_limit(&self) -> Result<u32> {
         let mut limit = 0;
-        // SAFETY: `nvmlVgpuTypeGetFrameRateLimit` receives valid output locations.
+        // SAFETY: NVML validates the type ID, and `limit` is a writable local integer.
         unsafe {
-            try_ffi!(sys::nvmlVgpuTypeGetFrameRateLimit(self.0.0, &raw mut limit))?;
+            try_ffi!(sys::nvmlVgpuTypeGetFrameRateLimit(
+                self.id.0,
+                &raw mut limit
+            ))?;
         }
         Ok(limit)
     }
 
-    /// Returns the maximum number of vGPU instances creatable on a device for this vGPU type.
+    /// Returns how many vGPU instances of this type `device` can host.
     ///
-    /// For Kepler or newer fully supported devices.
+    /// Requires a Kepler or newer GPU.
     ///
     /// # Errors
     ///
     /// Returns an error if NVML rejects the vGPU type ID or query arguments, if NVML has not been initialized, or if NVML reports an unexpected failure.
-    pub fn max_instances(self, device: Device) -> Result<u32> {
+    pub fn max_instances(&self, device: &Device) -> Result<u32> {
         let mut count = 0;
-        // SAFETY: `nvmlVgpuTypeGetMaxInstances` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `device` holds a live NVML device handle, NVML validates the type ID, and `count` is a writable local integer.
         unsafe {
             try_ffi!(sys::nvmlVgpuTypeGetMaxInstances(
                 device.as_raw(),
-                self.0.0,
+                self.id.0,
                 &raw mut count,
             ))?;
         }
@@ -242,17 +270,17 @@ impl VgpuType {
 
     /// Returns the maximum number of vGPU instances supported per VM for this vGPU type.
     ///
-    /// For Kepler or newer fully supported devices.
+    /// Requires a Kepler or newer GPU.
     ///
     /// # Errors
     ///
     /// Returns an error if NVML rejects the vGPU type ID or query arguments, if NVML has not been initialized, or if NVML reports an unexpected failure.
-    pub fn max_instances_per_vm(self) -> Result<u32> {
+    pub fn max_instances_per_vm(&self) -> Result<u32> {
         let mut count = 0;
-        // SAFETY: `nvmlVgpuTypeGetMaxInstancesPerVm` receives valid output locations.
+        // SAFETY: NVML validates the type ID, and `count` is a writable local integer.
         unsafe {
             try_ffi!(sys::nvmlVgpuTypeGetMaxInstancesPerVm(
-                self.0.0,
+                self.id.0,
                 &raw mut count,
             ))?;
         }
@@ -264,13 +292,13 @@ impl VgpuType {
     /// # Errors
     ///
     /// Returns an error if NVML rejects the versioned request, if the vGPU type ID or query arguments are invalid, if the host, GPU, or vGPU type does not support the query, if NVML has not been initialized, or if NVML reports an unexpected failure.
-    pub fn max_instances_per_gpu_instance(self) -> Result<u32> {
+    pub fn max_instances_per_gpu_instance(&self) -> Result<u32> {
         let mut max_instance = sys::nvmlVgpuTypeMaxInstance_t {
             version: struct_version::<sys::nvmlVgpuTypeMaxInstance_t>(1),
-            vgpuTypeId: self.0.0,
+            vgpuTypeId: self.id.0,
             ..Default::default()
         };
-        // SAFETY: `nvmlVgpuTypeGetMaxInstancesPerGpuInstance` receives valid output locations.
+        // SAFETY: `max_instance` is a writable local struct with its version and type ID set.
         unsafe {
             try_ffi!(sys::nvmlVgpuTypeGetMaxInstancesPerGpuInstance(
                 &raw mut max_instance
@@ -281,7 +309,7 @@ impl VgpuType {
 
     /// Returns the BAR1 info for this vGPU type.
     ///
-    /// For Maxwell or newer fully supported devices.
+    /// Requires a Maxwell or newer GPU.
     ///
     /// # Errors
     ///
@@ -291,7 +319,7 @@ impl VgpuType {
     ///
     /// Panics if the native BAR1-info record size cannot fit in its `u32` ABI version field.
     /// The fixed native record layout fits this field on supported targets.
-    pub fn bar1_info(self) -> Result<VgpuTypeBar1Info> {
+    pub fn bar1_info(&self) -> Result<VgpuTypeBar1Info> {
         let mut info = sys::nvmlVgpuTypeBar1Info_t {
             version: 1
                 | ((u32::try_from(size_of::<sys::nvmlVgpuTypeBar1Info_t>())
@@ -299,28 +327,26 @@ impl VgpuType {
                     << 16),
             ..Default::default()
         };
-        // SAFETY: `nvmlVgpuTypeGetBAR1Info` receives valid output locations.
+        // SAFETY: NVML validates the type ID, and `info` is a writable local struct with its version set.
         unsafe {
-            try_ffi!(sys::nvmlVgpuTypeGetBAR1Info(self.0.0, &raw mut info))?;
+            try_ffi!(sys::nvmlVgpuTypeGetBAR1Info(self.id.0, &raw mut info))?;
         }
         Ok(info.into())
     }
 
-    /// Returns the requested capability for the given vGPU type.
-    /// See [`VgpuTypeCapability`] for the supported capabilities.
-    /// Returns a boolean indicating whether the capability is supported.
+    /// Returns whether this vGPU type supports `capability`.
     ///
-    /// For Maxwell or newer fully supported devices.
+    /// Requires a Maxwell or newer GPU.
     ///
     /// # Errors
     ///
     /// Returns an error if NVML rejects the vGPU type ID, capability, or query arguments, if NVML has not been initialized, or if NVML reports an unexpected failure.
-    pub fn capability(self, capability: VgpuTypeCapability) -> Result<bool> {
+    pub fn capability(&self, capability: VgpuTypeCapability) -> Result<bool> {
         let mut result = 0;
-        // SAFETY: `nvmlVgpuTypeGetCapabilities` receives valid output locations.
+        // SAFETY: NVML validates the type ID, and `result` is a writable local integer.
         unsafe {
             try_ffi!(sys::nvmlVgpuTypeGetCapabilities(
-                self.0.0,
+                self.id.0,
                 capability.into(),
                 &raw mut result,
             ))?;
@@ -333,12 +359,12 @@ impl VgpuType {
     /// # Errors
     ///
     /// Returns an error if NVML rejects the vGPU type ID or query arguments, if NVML has not been initialized, or if NVML reports an unexpected failure.
-    pub fn fb_reservation(self) -> Result<u64> {
+    pub fn fb_reservation(&self) -> Result<u64> {
         let mut reservation = 0;
-        // SAFETY: `nvmlVgpuTypeGetFbReservation` receives valid output locations.
+        // SAFETY: NVML validates the type ID, and `reservation` is a writable local integer.
         unsafe {
             try_ffi!(sys::nvmlVgpuTypeGetFbReservation(
-                self.0.0,
+                self.id.0,
                 &raw mut reservation,
             ))?;
         }
@@ -350,11 +376,11 @@ impl VgpuType {
     /// # Errors
     ///
     /// Returns an error if NVML rejects the vGPU type ID or query arguments, if NVML has not been initialized, or if NVML reports an unexpected failure.
-    pub fn gsp_heap_size(self) -> Result<u64> {
+    pub fn gsp_heap_size(&self) -> Result<u64> {
         let mut size = 0;
-        // SAFETY: `nvmlVgpuTypeGetGspHeapSize` receives valid output locations.
+        // SAFETY: NVML validates the type ID, and `size` is a writable local integer.
         unsafe {
-            try_ffi!(sys::nvmlVgpuTypeGetGspHeapSize(self.0.0, &raw mut size))?;
+            try_ffi!(sys::nvmlVgpuTypeGetGspHeapSize(self.id.0, &raw mut size))?;
         }
         Ok(size)
     }

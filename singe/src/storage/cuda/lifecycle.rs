@@ -12,10 +12,10 @@ impl<T: CudaStorageByte> Drop for CudaStorage<T> {
             let ready_event = self.recycle_stream.as_ref().and_then(|stream| {
                 let event = data
                     .context()
-                    .create_event_with_flags(EventFlags::DISABLE_TIMING)
+                    .create_event(EventFlags::DISABLE_TIMING)
                     .ok()?;
                 event
-                    .record(stream, EventRecordFlags::DEFAULT)
+                    .record(&**stream, EventRecordFlags::DEFAULT)
                     .ok()
                     .map(|()| event)
             });

@@ -3,11 +3,11 @@ mod common;
 use std::slice;
 
 use singe_cuda::memory::DeviceMemory;
-use singe_cudss::{config::Config, error::Result};
+use singe_cudss::{config::Config, solver_state::SolverState};
 
 use crate::common::{create_context, dense_matrix, dense_output, solve, spd_csr_matrix};
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     let (cuda, stream, context) = create_context()?;
     println!("cuDSS example: solving and computing a relative residual");
 
@@ -24,10 +24,10 @@ fn main() -> Result<()> {
     let col_indices = DeviceMemory::from_slice(&cuda, &col_indices_h)?;
     let a_values = DeviceMemory::from_slice(&cuda, &a_values_h)?;
     let b_values = DeviceMemory::from_slice(&cuda, &b_values_h)?;
-    let mut x_values = DeviceMemory::<f64>::create_uninit(&cuda, (n * nrhs) as usize)?;
+    let mut x_values = DeviceMemory::<f64>::create_uninit(&cuda, usize::try_from(n * nrhs)?)?;
 
     let config = Config::create()?;
-    let mut data = context.create_data()?;
+    let mut data = SolverState::create(&context)?;
 
     let b = dense_matrix(n, nrhs, n, &b_values)?;
     let mut x = dense_output(n, nrhs, n, x_values.output())?;
@@ -81,12 +81,12 @@ fn relative_residual(
         for offset in row_offsets[row] as usize..row_offsets[row + 1] as usize {
             let col = col_indices[offset] as usize;
             let value = values[offset];
-            ax[row] += value * x[col];
+            ax[row] = value.mul_add(x[col], ax[row]);
             if col == row {
-                frobenius_sq += value * value;
+                frobenius_sq = value.mul_add(value, frobenius_sq);
             } else {
-                ax[col] += value * x[row];
-                frobenius_sq += 2.0 * value * value;
+                ax[col] = value.mul_add(x[row], ax[col]);
+                frobenius_sq = (2.0 * value).mul_add(value, frobenius_sq);
             }
         }
     }
@@ -103,5 +103,5 @@ fn relative_residual(
     let x_norm = x.iter().map(|value| value * value).sum::<f64>().sqrt();
     let b_norm = b.iter().map(|value| value * value).sum::<f64>().sqrt();
 
-    residual_norm / (frobenius_sq.sqrt() * x_norm + b_norm)
+    residual_norm / f64::mul_add(frobenius_sq.sqrt(), x_norm, b_norm)
 }

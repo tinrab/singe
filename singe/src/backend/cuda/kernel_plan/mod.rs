@@ -232,7 +232,7 @@ pub fn launch<S: CudaTensorSource + ?Sized>(
     unsafe {
         stream.complete_or_record(inputs.iter().copied(), outputs, || {
             for (function, config, arguments) in launches {
-                function.launch_on(&config, arguments, stream.raw())?;
+                function.launch_async(&config, arguments, stream.raw())?;
             }
             Ok(())
         })?;

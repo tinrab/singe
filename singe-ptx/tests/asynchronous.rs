@@ -2,6 +2,11 @@
 
 mod support;
 
+use std::{
+    env, fs,
+    process::{self, Command},
+};
+
 use anyhow::Result;
 use singe_ptx::emulator::{
     Emulator, EmulatorOptions, ExecutionError, LaunchConfig, ParsedModule, ShutdownMode,
@@ -377,13 +382,9 @@ fn test_deferred_faults_retain_the_issuing_function_after_its_lane_exits() -> Re
     Ok(())
 }
 
-#[cfg(feature = "cuda_tests")]
 #[test]
+#[ignore = "requires ptxas on PATH"]
 fn test_tiled_fixture_assembles_for_sm80() -> Result<()> {
-    use std::{
-        env, fs,
-        process::{self, Command},
-    };
     let output = env::temp_dir().join(format!("singe-ptx-async-tile-{}.cubin", process::id()));
     let result = Command::new("ptxas")
         .args([

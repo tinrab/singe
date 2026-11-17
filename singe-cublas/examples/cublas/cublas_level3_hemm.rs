@@ -1,15 +1,14 @@
 use singe_cublas::{
-    blas::level3::zhemm,
+    blas::level3::hemm,
     context::Context,
-    error::Result,
+    scalar::Scalar,
     types::{FillMode, SideMode},
 };
-
 use singe_cuda::{
     context::Context as CudaContext, device::Device, memory::DeviceMemory, types::Complex64,
 };
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     let cuda = CudaContext::create_for_device(Device::new(0))?;
     let cublas = Context::create(&cuda)?;
 
@@ -33,18 +32,18 @@ fn main() -> Result<()> {
     )?;
     let mut c = DeviceMemory::<Complex64>::zeroed(&cuda, 4)?;
 
-    zhemm(
+    hemm(
         &cublas,
         SideMode::Left,
         FillMode::Upper,
         2,
         2,
-        &Complex64::new(1.0, 1.0),
+        Scalar::host(&Complex64::new(1.0, 1.0)),
         &a,
         2,
         &b,
         2,
-        &Complex64::new(0.0, 0.0),
+        Scalar::host(&Complex64::new(0.0, 0.0)),
         &mut c,
         2,
     )?;

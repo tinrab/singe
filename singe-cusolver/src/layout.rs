@@ -1,3 +1,5 @@
+//! Borrowed column-major matrices, vectors, pointer tables, and workspace capacities.
+
 use std::{marker::PhantomData, mem::MaybeUninit};
 
 use singe_cuda::{
@@ -43,6 +45,7 @@ impl MatrixLayout {
 
     pub(crate) fn require_capacity(
         self,
+        name: &'static str,
         rows: usize,
         columns: usize,
         elements: usize,
@@ -53,7 +56,11 @@ impl MatrixLayout {
             .checked_mul(columns)
             .ok_or(Error::InvalidMatrixShape)?;
         if elements < required {
-            return Err(Error::InvalidMatrixShape);
+            return Err(Error::BufferTooSmall {
+                name: name.into(),
+                required,
+                actual: elements,
+            });
         }
         Ok(())
     }
@@ -230,27 +237,19 @@ impl<'a, T: DeviceRepr> StridedBatchedVectorOutput<'a, T> {
     }
 }
 
-/// A reference to a batched matrix (pointer array) stored on the device.
+/// A device table of column-major matrix addresses, with the pointee contract of [`BatchedMatrixRef::new`].
 #[derive(Debug, Clone, Copy)]
 pub struct BatchedMatrixRef<'a, T: DeviceRepr> {
-    /// Device-resident array of matrix addresses.
-    ///
-    /// The view retains the pointer table borrow, not the allocations referenced by its entries.
-    pub pointers: DeviceView<'a, DevicePtr>,
-    /// Leading dimension in elements passed to the native batched operation.
-    pub leading_dimension: usize,
+    pub(crate) pointers: DeviceView<'a, DevicePtr>,
+    pub(crate) leading_dimension: usize,
     _phantom: PhantomData<T>,
 }
 
-/// A reference to a batched vector (pointer array) stored on the device.
+/// A device table of vector addresses, with the pointee contract of [`BatchedVectorRef::new`].
 #[derive(Debug, Clone, Copy)]
 pub struct BatchedVectorRef<'a, T: DeviceRepr> {
-    /// Device-resident array of vector addresses.
-    ///
-    /// The view retains the pointer table borrow, not the allocations referenced by its entries.
-    pub pointers: DeviceView<'a, DevicePtr>,
-    /// Leading dimension in elements passed to the native batched operation.
-    pub leading_dimension: usize,
+    pub(crate) pointers: DeviceView<'a, DevicePtr>,
+    pub(crate) leading_dimension: usize,
     _phantom: PhantomData<T>,
 }
 
@@ -431,11 +430,13 @@ impl<'a, T: DeviceRepr> StridedBatchedVectorMut<'a, T> {
 }
 
 impl<'a, T: DeviceRepr> BatchedMatrixRef<'a, T> {
-    /// Borrows a device pointer table and records its element leading dimension.
+    /// Borrows a device pointer table and records the leading dimension, in elements, of every matrix it addresses.
     ///
-    /// Does not validate or retain pointees.
-    /// Callers of unsafe batched operations must establish pointee capacity, context, initialization, and access lifetimes.
-    pub fn new(
+    /// # Safety
+    ///
+    /// For `'a`, every entry of `pointers` must address initialized storage in the table's CUDA context that holds a column-major matrix with this leading dimension and enough columns for every operation the value is passed to.
+    /// Distinct entries must not overlap, and no code may access the pointees during `'a` except the operations the value or its copies are passed to.
+    pub unsafe fn new(
         pointers: &'a (impl DeviceSlice<DevicePtr> + ?Sized),
         leading_dimension: usize,
     ) -> Self {
@@ -444,6 +445,12 @@ impl<'a, T: DeviceRepr> BatchedMatrixRef<'a, T> {
             leading_dimension,
             _phantom: PhantomData,
         }
+    }
+
+    /// Returns the leading dimension, in elements, recorded at construction.
+    #[must_use]
+    pub const fn leading_dimension(&self) -> usize {
+        self.leading_dimension
     }
 
     /// Returns the number of device pointers in the batch.
@@ -468,11 +475,13 @@ impl<'a, T: DeviceRepr> BatchedMatrixRef<'a, T> {
 }
 
 impl<'a, T: DeviceRepr> BatchedVectorRef<'a, T> {
-    /// Borrows a device pointer table and records its element leading dimension.
+    /// Borrows a device pointer table and records the leading dimension, in elements, of every vector it addresses.
     ///
-    /// Does not validate or retain pointees.
-    /// Callers of unsafe batched operations must establish pointee capacity, context, initialization, and access lifetimes.
-    pub fn new(
+    /// # Safety
+    ///
+    /// For `'a`, every entry of `pointers` must address initialized storage in the table's CUDA context with enough elements for every operation the value is passed to.
+    /// Distinct entries must not overlap, and no code may access the pointees during `'a` except the operations the value or its copies are passed to.
+    pub unsafe fn new(
         pointers: &'a (impl DeviceSlice<DevicePtr> + ?Sized),
         leading_dimension: usize,
     ) -> Self {
@@ -481,6 +490,12 @@ impl<'a, T: DeviceRepr> BatchedVectorRef<'a, T> {
             leading_dimension,
             _phantom: PhantomData,
         }
+    }
+
+    /// Returns the leading dimension, in elements, recorded at construction.
+    #[must_use]
+    pub const fn leading_dimension(&self) -> usize {
+        self.leading_dimension
     }
 
     /// Returns the number of device pointers in the batch.

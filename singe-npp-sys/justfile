@@ -5,20 +5,7 @@ generate:
     #!/usr/bin/env bash
     set -euxo pipefail
 
-    num_enums=(
-        "NppStatus"
-        "NppiInterpolationMode"
-        "NppiBayerGridPosition"
-        "NppiMaskSize"
-        "NppiDifferentialKernel"
-        "NppCmpOp"
-        "NppRoundMode"
-        "NppiBorderType"
-    )
-    enum_args=$(for enum in "${num_enums[@]}"; do echo -n "--with-derive-custom $enum=TryFromPrimitive,IntoPrimitive "; done)
-
     bindgen {{npp_include_path}}/npp.h \
-        $enum_args \
         --allowlist-item "^npp.*" \
         --allowlist-item "^nppi.*" \
         --allowlist-item "^npps.*" \
@@ -34,7 +21,7 @@ generate:
         --with-derive-hash \
         --with-derive-ord \
         --use-core \
-        --default-enum-style=rust \
+        --default-enum-style=newtype \
         -- \
             -fparse-all-comments -fretain-comments-from-system-headers \
             -x c++ \

@@ -1,6 +1,6 @@
 use std::{io::Read, path::Path};
 
-use singe_onnx::{read as read_onnx, read_path as read_onnx_path};
+use singe_onnx::{Error as OnnxError, Model};
 
 use crate::onnx::{
     error::Result,
@@ -17,7 +17,7 @@ impl OnnxModel {
     /// Returns an error if the file cannot be read, the ONNX model cannot be parsed, import encounters unsupported ONNX semantics, or graph construction fails.
     pub fn create(path: impl AsRef<Path>, options: OnnxOptions) -> Result<Self> {
         let path = path.as_ref();
-        let model = read_onnx_path(path)?;
+        let model = Model::from_path(path)?;
         let model_dir = path.parent().map(Path::to_path_buf);
         Self::from_imported(import_model(model, options, model_dir)?)
     }
@@ -31,7 +31,9 @@ impl OnnxModel {
     ///
     /// Returns an error if reading, parsing, import, or graph construction fails.
     pub fn from_reader(mut reader: impl Read, options: OnnxOptions) -> Result<Self> {
-        let model = read_onnx(&mut reader)?;
+        let mut bytes = Vec::new();
+        reader.read_to_end(&mut bytes).map_err(OnnxError::Io)?;
+        let model = Model::from_bytes(&bytes)?;
         Self::from_imported(import_model(model, options, None)?)
     }
 

@@ -2,7 +2,7 @@ mod common;
 
 use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
-    backend::tensor::{Shape, TensorSpec},
+    backend::operation::attention::AttentionSequenceInputs,
     data_type::{DataType, f8e4m3},
     error::{Error, Result},
     frontend::{
@@ -11,10 +11,11 @@ use singe_cudnn::{
         graph::{DataTypePolicy, Graph, GraphConfig, TensorOutputConfig},
         operation::{
             AttentionConfig, AttentionDiagonalAlignment, AttentionDiagonalBand, AttentionMaskMode,
-            AttentionScoreConfig, AttentionSequenceInputs,
+            AttentionScoreConfig,
         },
         plan::{CompileConfig, ExecuteArgs, HeuristicMode},
     },
+    tensor::{Shape, TensorSpec},
 };
 
 fn interleaved_shape(b: i64, h: i64, s: i64, d: i64) -> Result<Shape> {
@@ -26,6 +27,10 @@ fn interleaved_shape(b: i64, h: i64, s: i64, d: i64) -> Result<Shape> {
     )
 }
 
+#[expect(
+    clippy::many_single_char_names,
+    reason = "keeps the upstream sample's single-letter dimension names"
+)]
 fn run() -> Result<()> {
     let example = common::ExampleContext::create()?;
     let b = 2_i64;
@@ -62,7 +67,7 @@ fn run() -> Result<()> {
         Shape::contiguous([b, 1, 1, 1])?,
     ));
     let sequence_length_key_value = graph.tensor_like(sequence_length_query, Some("SeqLenKV"))?;
-    let outputs = graph.sdpa_fp8(
+    let outputs = graph.sdpa(
         SdpaFp8Inputs::new(
             q,
             k,
@@ -75,7 +80,7 @@ fn run() -> Result<()> {
             scale_s,
             scale_o,
         ),
-        &AttentionConfig::new()
+        AttentionConfig::new()
             .with_name("sdpa_fp8_bottom_right_causal")
             .with_score_config(
                 AttentionScoreConfig::new()
@@ -126,8 +131,8 @@ fn run() -> Result<()> {
     let mut o_dev = DeviceMemory::<f8e4m3>::zeroed(cuda, output_elements)?;
     let seq_len_q_dev = DeviceMemory::from_slice(cuda, &vec![query_length; batch_elements])?;
     let seq_len_kv_dev = DeviceMemory::from_slice(cuda, &vec![key_value_length; batch_elements])?;
-    let mut absolute_max_s_dev = DeviceMemory::<f32>::zeroed(cuda, score_amax_elements)?;
-    let mut absolute_max_o_dev = DeviceMemory::<f32>::zeroed(cuda, output_amax_elements)?;
+    let mut s_absolute_max_dev = DeviceMemory::<f32>::zeroed(cuda, score_amax_elements)?;
+    let mut o_absolute_max_dev = DeviceMemory::<f32>::zeroed(cuda, output_amax_elements)?;
     let mut workspace = common::workspace(cuda, compiled.workspace_size())?;
     let mut bindings = compiled.bindings()?;
     bindings.set_input(q, &q_dev.view())?;
@@ -140,18 +145,18 @@ fn run() -> Result<()> {
     bindings.set_input(sequence_length_query, &seq_len_q_dev.view())?;
     bindings.set_input(sequence_length_key_value, &seq_len_kv_dev.view())?;
     bindings.set(o, &mut o_dev)?;
-    bindings.set(absolute_max_s, &mut absolute_max_s_dev)?;
-    bindings.set(absolute_max_o, &mut absolute_max_o_dev)?;
+    bindings.set(absolute_max_s, &mut s_absolute_max_dev)?;
+    bindings.set(absolute_max_o, &mut o_absolute_max_dev)?;
     // SAFETY: initialized inputs, host scalars, writable outputs and workspace remain live through completion.
     example.execute_and_wait(|context| unsafe {
-        compiled.execute(
+        compiled.execute_async(
             context,
-            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
         )
     })?;
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_fp8_sdpa_bottom_right_causal", run())
 }

@@ -8,29 +8,22 @@ mod remap;
 mod score;
 mod sdpa;
 
-pub use crate::{
-    backend::execution::attention::{
-        AttentionSequenceInputs, DiagonalBandMaskBound, DiagonalBandMaskConfig, SdpaBackwardSink,
-        SdpaBackwardTensors, SdpaForwardQuantization, SdpaForwardTensors, SequenceLength,
-        SoftmaxStatsBase,
+pub(crate) use crate::frontend::operation::attention::sdpa::{
+    SdpaAuxOutputRequest, SdpaQuantizedAuxOutputRequest, SdpaSoftmaxAuxOutputRequest,
+};
+pub use crate::frontend::operation::attention::{
+    backward_config::{AttentionBackwardAuxGradients, AttentionBackwardConfig},
+    config::{
+        AttentionConfig, AttentionImplementation, AttentionPagedCache, AttentionPagedKvCache,
     },
-    frontend::operation::attention::{
-        backward_config::{AttentionBackwardAuxGradients, AttentionBackwardConfig},
-        config::{
-            AttentionConfig, AttentionImplementation, AttentionPagedCache, AttentionPagedKvCache,
-        },
-        dropout::{
-            AttentionDropoutConfig, AttentionDropoutMask, AttentionDropoutMode, DirectSdpaDropout,
-        },
-        mask::{
-            AttentionDiagonalAlignment, AttentionDiagonalBand, AttentionMaskMode, SdpaFusedMaskMode,
-        },
-        primitive::AttentionPrimitiveOperation,
-        score::{AlibiBias, AttentionScoreConfig, SdpaScoreModifiers, SdpaScoreSubgraph},
-        sdpa::{
-            AttentionMaxTotalSequenceLengths, DirectSdpaBackwardConfig, DirectSdpaForwardConfig,
-            SdpaAuxOutputRequest, SdpaConfig, SdpaOperation, SdpaQuantizedAuxOutputRequest,
-            SdpaSoftmaxAuxOutputRequest,
-        },
+    dropout::{
+        AttentionDropoutConfig, AttentionDropoutMask, AttentionDropoutMode, DirectSdpaDropout,
+    },
+    mask::{AttentionDiagonalAlignment, AttentionDiagonalBand, AttentionMaskMode},
+    primitive::AttentionPrimitiveOperation,
+    score::{AlibiBias, AttentionScoreConfig, SdpaScoreModifiers, SdpaScoreSubgraph},
+    sdpa::{
+        AttentionMaxTotalSequenceLengths, DirectSdpaBackwardConfig, DirectSdpaForwardConfig,
+        SdpaConfig, SdpaOperation,
     },
 };

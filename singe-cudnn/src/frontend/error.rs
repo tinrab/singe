@@ -1,3 +1,5 @@
+//! Typed errors for graph validation, native preparation, planning, bindings, and execution.
+
 use std::{
     borrow::Cow,
     fmt::{self, Write as _},
@@ -5,18 +7,18 @@ use std::{
     sync::Arc,
 };
 
+use singe_core::LibraryVersion;
 use thiserror::Error;
 
 use crate::{
     backend::{
-        engine::EngineIndex,
-        execution::{EngineChoice, attention::SoftmaxStatsBase},
-        knob::BackendKnobType,
-        tensor::{BackendTensorUid, TensorId, TensorPlacement},
+        engine::EngineIndex, execution::EngineChoice, knob::BackendKnobType,
+        operation::attention::SoftmaxStatsBase, tensor::BackendTensorUid,
     },
     data_type::DataType,
-    error::Error as CudnnError,
+    error::{Error as CudnnError, on_sm},
     frontend::plan::{PlanBuildReport, PlanFailure, PlanId},
+    tensor::{TensorId, TensorPlacement},
 };
 
 /// Errors raised while building, preparing, compiling or executing frontend graphs.
@@ -46,36 +48,9 @@ pub enum Error {
         source: IoError,
     },
 
-    /// A frontend logging mutex is poisoned.
-    #[error("logging `{name}` lock is poisoned")]
-    LoggingLockPoisoned {
-        /// Name of the poisoned logging mutex.
-        name: &'static str,
-    },
-
-    /// The attention-planning workspace limit is neither `-1` nor a nonnegative byte count.
-    #[error(
-        "invalid CUDNN_FRONTEND_ATTN_DP_WORKSPACE_LIMIT `{value}`: expected -1 or a non-negative byte count"
-    )]
-    SdpaWorkspaceLimitInvalid {
-        /// Invalid `CUDNN_FRONTEND_ATTN_DP_WORKSPACE_LIMIT` environment value.
-        value: String,
-    },
-
     /// An SDPA request reached a stage that requires its graph expansion to be complete.
     #[error("sdpa request must be expanded during graph preparation")]
     SdpaRequestNotExpanded,
-
-    /// An SDPA implementation does not support a requested capability.
-    #[error("{operation} does not support {feature}{}", on_sm(*.sm_version))]
-    SdpaUnsupported {
-        /// Operation whose requirements failed validation.
-        operation: &'static str,
-        /// Requested feature that is unavailable or requires a newer runtime.
-        feature: SdpaFeature,
-        /// Target SM architecture version, or `None` when unavailable.
-        sm_version: Option<i32>,
-    },
 
     /// An SDPA operation is missing a required input, capability, or target setting.
     #[error("{operation} requires {requirement}")]
@@ -84,19 +59,6 @@ pub enum Error {
         operation: &'static str,
         /// Missing SDPA input, capability, or target requirement.
         requirement: SdpaRequirement,
-    },
-
-    /// Input, filter, and output channel counts cannot form valid convolution groups.
-    #[error(
-        "convolution channels cannot form groups: input={input_channels}, filter={filter_channels}, output={output_channels}"
-    )]
-    ConvolutionGroupChannelsMismatch {
-        /// Number of input channels.
-        input_channels: i64,
-        /// Number of input channels per convolution filter.
-        filter_channels: i64,
-        /// Number of output channels.
-        output_channels: i64,
     },
 
     /// A convolution filter exceeds the kernel's signed 32-bit element-offset limit.
@@ -136,9 +98,9 @@ pub enum Error {
         /// Zero-based position of the native plan being restored.
         position: usize,
         /// cuDNN version recorded in the serialized artifact.
-        serialized_cudnn_version: u64,
+        serialized_cudnn_version: LibraryVersion,
         /// cuDNN version of the runtime performing restoration.
-        runtime_cudnn_version: u64,
+        runtime_cudnn_version: LibraryVersion,
         /// Underlying error that caused this failure.
         source: Box<CudnnError>,
     },
@@ -240,13 +202,6 @@ pub enum Error {
         required: usize,
     },
 
-    /// Native SDPA does not support the requested output data type.
-    #[error("native sdpa does not support output data type `{data_type}`")]
-    SdpaOutputDataTypeUnsupported {
-        /// Requested tensor or scalar storage data type.
-        data_type: DataType,
-    },
-
     /// SDPA backward received softmax statistics in a base other than the natural logarithm.
     #[error("sdpa backward requires natural-log softmax statistics, got {actual:?}")]
     SdpaBackwardStatsBaseUnsupported {
@@ -257,20 +212,6 @@ pub enum Error {
     /// A frontend graph contains no operations.
     #[error("graph has no operations")]
     GraphEmpty,
-
-    /// Related graph or operation settings do not agree.
-    #[error("configuration mismatch for `{name}`")]
-    ConfigurationMismatch {
-        /// Name of the invalid configuration, binding, or internal state.
-        name: &'static str,
-    },
-
-    /// A tensor identifier is negative.
-    #[error("tensor id {value} must be non-negative")]
-    TensorIdInvalid {
-        /// Negative tensor identifier supplied by the caller.
-        value: i64,
-    },
 
     /// A requested frontend tensor is absent.
     #[error("tensor `{0}` was not found")]
@@ -308,13 +249,6 @@ pub enum Error {
     /// Ragged-offset tensor references form a cycle.
     #[error("tensor `{tensor_id}` participates in a ragged offset cycle")]
     RaggedOffsetCycle {
-        /// Identifier of the tensor whose layout, type, or binding is invalid.
-        tensor_id: TensorId,
-    },
-
-    /// A tensor specifies only part of its required vectorization metadata.
-    #[error("tensor `{tensor_id}` has incomplete vectorization metadata")]
-    TensorVectorizationIncomplete {
         /// Identifier of the tensor whose layout, type, or binding is invalid.
         tensor_id: TensorId,
     },
@@ -724,15 +658,6 @@ pub enum Error {
     #[error("unified sdpa is unavailable for this configuration")]
     SdpaUnifiedImplementationUnavailable,
 
-    /// A quantized SDPA operation does not support the requested auxiliary output.
-    #[error("sdpa quantized output `{output}` is unsupported for {operation}")]
-    SdpaQuantizedAuxOutputUnsupported {
-        /// Operation whose requirements failed validation.
-        operation: &'static str,
-        /// Name of the requested output.
-        output: &'static str,
-    },
-
     /// Causal bottom-right masking conflicts with another attention modifier.
     #[error("sdpa causal bottom-right mask cannot be combined with {modifier}")]
     SdpaCausalBottomRightModifierConflict {
@@ -855,7 +780,7 @@ pub enum Error {
         /// Explanation of the unsupported or invalid configuration.
         reason: &'static str,
         /// Detected cuDNN runtime version.
-        cudnn_version: u64,
+        cudnn_version: LibraryVersion,
         /// Target SM architecture version, or `None` when unavailable.
         sm_version: Option<i32>,
         /// Requested tensor or scalar storage data type.
@@ -870,25 +795,13 @@ pub enum Error {
     #[error("runtime overrides require a dynamic-shape or override-shape graph")]
     RuntimeOverridesRequireShapeEnabledGraph,
 
-    /// Native CUDA graph population requires an empty destination graph.
-    #[error("cuda graph provided to populate must be empty")]
-    CudaGraphPopulateRequiresEmptyGraph,
-
     /// A kernel cache was requested for a graph without dynamic shapes.
     #[error("kernel cache requires a dynamic-shape graph")]
     KernelCacheRequiresDynamicShape,
 
-    /// Compilation without a live context requires explicit target-device properties.
-    #[error("deviceless compilation requires device properties")]
-    DevicelessRequiresDeviceProperties,
-
     /// An operation requires bindings associated with a compiled graph template.
     #[error("graph-aware bindings require a compiled graph template")]
     GraphAwareBindingsRequired,
-
-    /// Legacy softmax received auxiliary outputs other than statistics alone or maximum plus exponential sum.
-    #[error("legacy softmax supports no aux outputs, stats only, or max plus sum_exp")]
-    SoftmaxLegacyOutputsUnsupported,
 
     /// Resampling indices were requested outside max-pool or nearest-neighbor mode.
     #[error("resample indices require max-pool or nearest-neighbor mode")]
@@ -915,27 +828,10 @@ pub enum Error {
         /// Requested feature that is unavailable or requires a newer runtime.
         feature: &'static str,
         /// Minimum cuDNN version required by the feature.
-        min_version: &'static str,
+        min_version: LibraryVersion,
         /// Detected cuDNN runtime version.
-        actual_version: u64,
+        actual_version: LibraryVersion,
     },
-
-    /// A requested feature is unavailable for the supplied configuration.
-    #[error("feature `{feature}` is unavailable: {reason}")]
-    FeatureUnavailable {
-        /// Requested feature that is unavailable or requires a newer runtime.
-        feature: &'static str,
-        /// Explanation of the unsupported or invalid configuration.
-        reason: Cow<'static, str>,
-    },
-
-    /// The frontend kernel-cache mutex is poisoned.
-    #[error("kernel cache lock is poisoned")]
-    KernelCacheLockPoisoned,
-
-    /// The frontend plan-cache mutex is poisoned.
-    #[error("plan cache lock is poisoned")]
-    PlanCacheLockPoisoned,
 
     /// An operation has no required output tensor.
     #[error("operation output is missing")]
@@ -997,75 +893,6 @@ impl fmt::Display for RankExpectation {
     }
 }
 
-/// SDPA capability rejected by [`Error::SdpaUnsupported`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[non_exhaustive]
-pub enum SdpaFeature {
-    /// Auxiliary attention gradients.
-    AuxiliaryGradients,
-    /// An attention-bias gradient.
-    BiasGradient,
-    /// Bias gradients, dropout, or attention with linear biases (`ALiBi`).
-    BiasDropoutOrAlibi,
-    /// Causal masking aligned to the bottom-right corner of the attention matrix.
-    CausalBottomRight,
-    /// Cumulative sequence-length tensors.
-    CumulativeSequenceLengths,
-    /// Caller-supplied dropout mask and scale tensors.
-    CustomDropout,
-    /// Attention dropout.
-    Dropout,
-    /// Dropout combined with generated softmax statistics.
-    DropoutWithGeneratedStats,
-    /// Dynamic-shape compilation rather than runtime shape overrides.
-    DynamicShape,
-    /// Internally generated dropout.
-    GeneratedDropout,
-    /// A bias tensor with a nonnumeric data type.
-    NonNumericBias,
-    /// Paged key/value caches.
-    PagedCaches,
-    /// Ragged attention outputs.
-    RaggedOutputs,
-    /// Ragged tensor storage.
-    RaggedTensors,
-    /// Dumping generated random numbers.
-    RngDump,
-    /// A sequence containing one token.
-    SingleTokenSequence,
-    /// The selected target architecture.
-    TargetArchitecture,
-    /// `ALiBi` slopes without causal top-left or right-aligned sliding-window masking.
-    UnalignedAlibi,
-}
-
-impl fmt::Display for SdpaFeature {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
-            Self::AuxiliaryGradients => "auxiliary gradients",
-            Self::BiasGradient => "bias gradients",
-            Self::BiasDropoutOrAlibi => "bias gradients, dropout, or alibi",
-            Self::CausalBottomRight => "causal bottom-right masking",
-            Self::CumulativeSequenceLengths => "cumulative sequence lengths",
-            Self::CustomDropout => "custom dropout mask and scale tensors",
-            Self::Dropout => "dropout",
-            Self::DropoutWithGeneratedStats => "dropout with generated stats",
-            Self::DynamicShape => "dynamic-shape compilation; use runtime shape overrides",
-            Self::GeneratedDropout => "generated dropout",
-            Self::NonNumericBias => "a bias tensor with a non-numeric data type",
-            Self::PagedCaches => "paged key/value caches",
-            Self::RaggedOutputs => "ragged outputs",
-            Self::RaggedTensors => "ragged tensors",
-            Self::RngDump => "rng dump",
-            Self::SingleTokenSequence => "sequence length one",
-            Self::TargetArchitecture => "this target architecture",
-            Self::UnalignedAlibi => {
-                "alibi slopes without causal top-left or right-aligned sliding-window masking"
-            }
-        })
-    }
-}
-
 /// SDPA prerequisite reported by [`Error::SdpaRequires`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
@@ -1122,10 +949,6 @@ impl fmt::Display for SdpaRequirement {
     }
 }
 
-fn on_sm(sm_version: Option<i32>) -> String {
-    sm_version.map_or_default(|sm_version| format!(" on SM {sm_version}"))
-}
-
 fn plan_report_details(reports: &[PlanBuildReport]) -> String {
     let mut output = String::new();
     for report in reports {
@@ -1142,28 +965,6 @@ mod tests {
     fn test_rank_expectation_display() {
         assert_eq!(RankExpectation::Exact(4).to_string(), "4");
         assert_eq!(RankExpectation::AtLeast(2).to_string(), ">= 2");
-    }
-
-    #[test]
-    fn test_sdpa_unsupported_mentions_architecture_only_when_known() {
-        let with_sm = Error::SdpaUnsupported {
-            operation: "sdpa backward",
-            feature: SdpaFeature::RaggedTensors,
-            sm_version: Some(90),
-        };
-        assert_eq!(
-            with_sm.to_string(),
-            "sdpa backward does not support ragged tensors on SM 90"
-        );
-        let without_sm = Error::SdpaUnsupported {
-            operation: "mxfp8 sdpa",
-            feature: SdpaFeature::PagedCaches,
-            sm_version: None,
-        };
-        assert_eq!(
-            without_sm.to_string(),
-            "mxfp8 sdpa does not support paged key/value caches"
-        );
     }
 
     #[test]

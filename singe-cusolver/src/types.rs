@@ -1,158 +1,156 @@
+//! Typed native solver options and precision selectors.
+
 use num_enum::{IntoPrimitive, TryFromPrimitive};
-use singe_core::{impl_enum_conversion, impl_enum_display};
+use singe_core::impl_enum_display;
 use singe_cuda::data_type::DataType;
 use singe_cusolver_sys as sys;
 
-/// Selects the generalized eigenvalue problem type.
-///
-/// This corresponds to LAPACK integer `1` (`A*x = lambda*B*x`), `2` (`A*B*x = lambda*x`), and `3` (`B*A*x = lambda*x`) arguments.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum EigenType {
-    /// A\*x = lambda\*B\*x.
-    Type1 = sys::cusolverEigType_t::CUSOLVER_EIG_TYPE_1 as _,
-    /// A\*B\*x = lambda\*x.
-    Type2 = sys::cusolverEigType_t::CUSOLVER_EIG_TYPE_2 as _,
-    /// B\*A\*x = lambda\*x.
-    Type3 = sys::cusolverEigType_t::CUSOLVER_EIG_TYPE_3 as _,
+singe_core::native_enum! {
+    /// Selects the generalized eigenvalue problem type.
+    ///
+    /// This corresponds to LAPACK integer `1` (`A*x = lambda*B*x`), `2` (`A*B*x = lambda*x`), and `3` (`B*A*x = lambda*x`) arguments.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum EigenType: sys::cusolverEigType_t {
+        /// A\*x = lambda\*B\*x.
+        Type1 = CUSOLVER_EIG_TYPE_1,
+        /// A\*B\*x = lambda\*x.
+        Type2 = CUSOLVER_EIG_TYPE_2,
+        /// B\*A\*x = lambda\*x.
+        Type3 = CUSOLVER_EIG_TYPE_3,
+    }
 }
 
-impl_enum_conversion!(sys::cusolverEigType_t, EigenType);
-
-/// Selects whether to compute eigenvectors.
-///
-/// This corresponds to LAPACK `N` (eigenvalues only) and `V` (eigenvalues and eigenvectors) arguments.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum EigenMode {
-    /// Compute only eigenvalues.
-    NoVector = sys::cusolverEigMode_t::CUSOLVER_EIG_MODE_NOVECTOR as _,
-    /// Compute both eigenvalues and eigenvectors.
-    Vector = sys::cusolverEigMode_t::CUSOLVER_EIG_MODE_VECTOR as _,
+singe_core::native_enum! {
+    /// Selects whether to compute eigenvectors.
+    ///
+    /// This corresponds to LAPACK `N` (eigenvalues only) and `V` (eigenvalues and eigenvectors) arguments.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum EigenMode: sys::cusolverEigMode_t {
+        /// Compute only eigenvalues.
+        NoVector = CUSOLVER_EIG_MODE_NOVECTOR,
+        /// Compute both eigenvalues and eigenvectors.
+        Vector = CUSOLVER_EIG_MODE_VECTOR,
+    }
 }
 
-impl_enum_conversion!(sys::cusolverEigMode_t, EigenMode);
-
-/// Selection of all eigenvalues, an index interval, or a value interval for an eigensolver.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum EigenRange {
-    /// Computes all eigenvalues.
-    All = sys::cusolverEigRange_t::CUSOLVER_EIG_RANGE_ALL as _,
-    /// Computes eigenvalues with one-based indices in the inclusive interval `il..=iu`.
-    Index = sys::cusolverEigRange_t::CUSOLVER_EIG_RANGE_I as _,
-    /// Computes eigenvalues in the half-open value interval `(vl, vu]`.
-    Value = sys::cusolverEigRange_t::CUSOLVER_EIG_RANGE_V as _,
+singe_core::native_enum! {
+    /// Selection of all eigenvalues, an index interval, or a value interval for an eigensolver.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum EigenRange: sys::cusolverEigRange_t {
+        /// Computes all eigenvalues.
+        All = CUSOLVER_EIG_RANGE_ALL,
+        /// Computes eigenvalues with one-based indices in the inclusive interval `il..=iu`.
+        Index = CUSOLVER_EIG_RANGE_I,
+        /// Computes eigenvalues in the half-open value interval `(vl, vu]`.
+        Value = CUSOLVER_EIG_RANGE_V,
+    }
 }
 
-impl_enum_conversion!(sys::cusolverEigRange_t, EigenRange);
-
-/// Matrix norm used by native solver error and convergence calculations.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum Norm {
-    /// Uses the infinity norm: the maximum absolute row sum.
-    Infinity = sys::cusolverNorm_t::CUSOLVER_INF_NORM as _,
-    /// Uses the largest absolute matrix element.
-    Maximum = sys::cusolverNorm_t::CUSOLVER_MAX_NORM as _,
-    /// Uses the one norm: the maximum absolute column sum.
-    One = sys::cusolverNorm_t::CUSOLVER_ONE_NORM as _,
-    /// Uses the Frobenius norm: the square root of the sum of squared element magnitudes.
-    Frobenius = sys::cusolverNorm_t::CUSOLVER_FRO_NORM as _,
+singe_core::native_enum! {
+    /// Matrix norm used by native solver error and convergence calculations.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum Norm: sys::cusolverNorm_t {
+        /// Uses the infinity norm: the maximum absolute row sum.
+        Infinity = CUSOLVER_INF_NORM,
+        /// Uses the largest absolute matrix element.
+        Maximum = CUSOLVER_MAX_NORM,
+        /// Uses the one norm: the maximum absolute column sum.
+        One = CUSOLVER_ONE_NORM,
+        /// Uses the Frobenius norm: the square root of the sum of squared element magnitudes.
+        Frobenius = CUSOLVER_FRO_NORM,
+    }
 }
 
-impl_enum_conversion!(sys::cusolverNorm_t, Norm);
-
-/// Indicates which IRS refinement solver to use for a cuSOLVER operation.
-/// Empirically, [`IrsRefinement::Gmres`] is often the best option.
-///
-/// More details about the refinement process are available in Azzam Haidar, Stanimire Tomov, Jack Dongarra, and Nicholas J. Higham, "Harnessing GPU tensor cores for fast FP16 arithmetic to speed up mixed-precision iterative refinement solvers," SC '18.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum IrsRefinement {
-    /// Solver is not set; this value is what is set when creating the `params` structure.
-    /// The IRS solver returns an error if this value is used.
-    NotSet = sys::cusolverIRSRefinement_t::CUSOLVER_IRS_REFINE_NOT_SET as _,
-    /// No refinement solver; the IRS solver performs a factorization followed by a solve without any refinement.
-    /// For example, when used with [`xgesv`](crate::irs::xgesv), this matches the non-refined solver path with the factorization carried out in the lowest precision.
-    /// If both the main and lowest precision are [`PrecisionType::R64F`], this is equivalent to solving entirely in `f64`.
-    None = sys::cusolverIRSRefinement_t::CUSOLVER_IRS_REFINE_NONE as _,
-    /// Classical iterative refinement solver.
-    /// Similar to the value used in LAPACK operations.
-    Classical = sys::cusolverIRSRefinement_t::CUSOLVER_IRS_REFINE_CLASSICAL as _,
-    /// Classical iterative refinement solver that uses the GMRES (Generalized Minimal Residual) internally to solve the correction equation at each iteration.
-    /// The classical refinement iteration is the outer iteration, and GMRES is the inner iteration.
-    /// If the tolerance of the inner GMRES is very low, for example near machine precision, the outer *classical refinement iteration* performs only one iteration and this option behaves like [`IrsRefinement::Gmres`].
-    ClassicalGmres = sys::cusolverIRSRefinement_t::CUSOLVER_IRS_REFINE_CLASSICAL_GMRES as _,
-    /// GMRES (Generalized Minimal Residual) based iterative refinement solver.
-    /// Recent studies use GMRES as a refinement solver that can outperform classical iterative refinement.
-    /// Recommended setting based on cuSOLVER experimentation.
-    Gmres = sys::cusolverIRSRefinement_t::CUSOLVER_IRS_REFINE_GMRES as _,
-    /// GMRES-based iterative refinement solver that uses another GMRES solve internally for the preconditioned system.
-    GmresGmres = sys::cusolverIRSRefinement_t::CUSOLVER_IRS_REFINE_GMRES_GMRES as _,
-    /// Uses GMRES iterative refinement without preconditioning.
-    GmresNoPcond = sys::cusolverIRSRefinement_t::CUSOLVER_IRS_REFINE_GMRES_NOPCOND as _,
-    /// Legacy DD precision-selection value in `cusolverIRSRefinement_t`.
-    /// The explicit main- and lowest-precision configuration APIs instead accept `cusolverPrecType_t`.
-    PrecDd = sys::cusolverIRSRefinement_t::CUSOLVER_PREC_DD as _,
-    /// Legacy SS precision-selection value in `cusolverIRSRefinement_t`.
-    /// The explicit main- and lowest-precision configuration APIs instead accept `cusolverPrecType_t`.
-    PrecSs = sys::cusolverIRSRefinement_t::CUSOLVER_PREC_SS as _,
-    /// Legacy SHT precision-selection value in `cusolverIRSRefinement_t`.
-    /// The explicit main- and lowest-precision configuration APIs instead accept `cusolverPrecType_t`.
-    PrecSht = sys::cusolverIRSRefinement_t::CUSOLVER_PREC_SHT as _,
+singe_core::native_enum! {
+    /// Indicates which IRS refinement solver to use for a cuSOLVER operation.
+    /// Empirically, [`IrsRefinement::Gmres`] is often the best option.
+    ///
+    /// More details about the refinement process are available in Azzam Haidar, Stanimire Tomov, Jack Dongarra, and Nicholas J. Higham, "Harnessing GPU tensor cores for fast FP16 arithmetic to speed up mixed-precision iterative refinement solvers," SC '18.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum IrsRefinement: sys::cusolverIRSRefinement_t {
+        /// Selects no solver, which makes IRS solves fail.
+        NotSet = CUSOLVER_IRS_REFINE_NOT_SET,
+        /// No refinement solver; the IRS solver performs a factorization followed by a solve without any refinement.
+        /// For example, when used with [`xgesv_async`](crate::irs::xgesv_async), this matches the non-refined solver path with the factorization carried out in the lowest precision.
+        /// If both the main and lowest precision are [`PrecisionType::R64F`], this is equivalent to solving entirely in `f64`.
+        None = CUSOLVER_IRS_REFINE_NONE,
+        /// Classical iterative refinement solver.
+        /// Similar to the value used in LAPACK operations.
+        Classical = CUSOLVER_IRS_REFINE_CLASSICAL,
+        /// Classical iterative refinement solver that uses the GMRES (Generalized Minimal Residual) internally to solve the correction equation at each iteration.
+        /// The classical refinement iteration is the outer iteration, and GMRES is the inner iteration.
+        /// If the tolerance of the inner GMRES is very low, for example near machine precision, the outer *classical refinement iteration* performs only one iteration and this option behaves like [`IrsRefinement::Gmres`].
+        ClassicalGmres = CUSOLVER_IRS_REFINE_CLASSICAL_GMRES,
+        /// GMRES (Generalized Minimal Residual) based iterative refinement solver.
+        /// Recent studies use GMRES as a refinement solver that can outperform classical iterative refinement.
+        /// Recommended setting based on cuSOLVER experimentation.
+        Gmres = CUSOLVER_IRS_REFINE_GMRES,
+        /// GMRES-based iterative refinement solver that uses another GMRES solve internally for the preconditioned system.
+        GmresGmres = CUSOLVER_IRS_REFINE_GMRES_GMRES,
+        /// Uses GMRES iterative refinement without preconditioning.
+        GmresNoPcond = CUSOLVER_IRS_REFINE_GMRES_NOPCOND,
+        /// Selects the legacy DD precision pair; [`IrsParams::set_solver_precisions`](crate::irs::IrsParams::set_solver_precisions) takes [`PrecisionType`] values instead.
+        PrecDd = CUSOLVER_PREC_DD,
+        /// Selects the legacy SS precision pair; [`IrsParams::set_solver_precisions`](crate::irs::IrsParams::set_solver_precisions) takes [`PrecisionType`] values instead.
+        PrecSs = CUSOLVER_PREC_SS,
+        /// Selects the legacy SHT precision pair; [`IrsParams::set_solver_precisions`](crate::irs::IrsParams::set_solver_precisions) takes [`PrecisionType`] values instead.
+        PrecSht = CUSOLVER_PREC_SHT,
+    }
 }
 
-impl_enum_conversion!(sys::cusolverIRSRefinement_t, IrsRefinement);
-
-/// Native real or complex precision selector for iterative-refinement main and lowest internal precision.
-/// Supported combinations depend on the solver and device.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum PrecisionType {
-    /// Selects real signed 8-bit integer arithmetic for iterative-refinement precision configuration.
-    R8I = sys::cusolverPrecType_t::CUSOLVER_R_8I as _,
-    /// Selects real unsigned 8-bit integer arithmetic for iterative-refinement precision configuration.
-    R8U = sys::cusolverPrecType_t::CUSOLVER_R_8U as _,
-    /// Selects real 64-bit floating-point arithmetic for iterative-refinement precision configuration.
-    R64F = sys::cusolverPrecType_t::CUSOLVER_R_64F as _,
-    /// Selects real 32-bit floating-point arithmetic for iterative-refinement precision configuration.
-    R32F = sys::cusolverPrecType_t::CUSOLVER_R_32F as _,
-    /// Selects real 16-bit floating-point arithmetic for iterative-refinement precision configuration.
-    R16F = sys::cusolverPrecType_t::CUSOLVER_R_16F as _,
-    /// Selects real bfloat16 arithmetic for iterative-refinement precision configuration.
-    R16Bf = sys::cusolverPrecType_t::CUSOLVER_R_16BF as _,
-    /// Selects real TensorFloat-32 arithmetic for iterative-refinement precision configuration.
-    RTf32 = sys::cusolverPrecType_t::CUSOLVER_R_TF32 as _,
-    /// Native real AP precision mode.
-    /// The header exposes this selector, but the documented iterative-refinement supported-precision tables do not include it.
-    RAp = sys::cusolverPrecType_t::CUSOLVER_R_AP as _,
-    /// Selects complex signed 8-bit integer arithmetic for iterative-refinement precision configuration.
-    C8I = sys::cusolverPrecType_t::CUSOLVER_C_8I as _,
-    /// Selects complex unsigned 8-bit integer arithmetic for iterative-refinement precision configuration.
-    C8U = sys::cusolverPrecType_t::CUSOLVER_C_8U as _,
-    /// Selects complex 64-bit floating-point arithmetic for iterative-refinement precision configuration.
-    C64F = sys::cusolverPrecType_t::CUSOLVER_C_64F as _,
-    /// Selects complex 32-bit floating-point arithmetic for iterative-refinement precision configuration.
-    C32F = sys::cusolverPrecType_t::CUSOLVER_C_32F as _,
-    /// Selects complex 16-bit floating-point arithmetic for iterative-refinement precision configuration.
-    C16F = sys::cusolverPrecType_t::CUSOLVER_C_16F as _,
-    /// Selects complex bfloat16 arithmetic for iterative-refinement precision configuration.
-    C16Bf = sys::cusolverPrecType_t::CUSOLVER_C_16BF as _,
-    /// Selects complex TensorFloat-32 arithmetic for iterative-refinement precision configuration.
-    CTf32 = sys::cusolverPrecType_t::CUSOLVER_C_TF32 as _,
-    /// Native complex AP precision mode.
-    /// The header exposes this selector, but the documented iterative-refinement supported-precision tables do not include it.
-    CAp = sys::cusolverPrecType_t::CUSOLVER_C_AP as _,
+singe_core::native_enum! {
+    /// Native real or complex precision selector for iterative-refinement main and lowest internal precision.
+    /// Supported combinations depend on the solver and device.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum PrecisionType: sys::cusolverPrecType_t {
+        /// Selects real signed 8-bit integer arithmetic for iterative-refinement precision configuration.
+        R8I = CUSOLVER_R_8I,
+        /// Selects real unsigned 8-bit integer arithmetic for iterative-refinement precision configuration.
+        R8U = CUSOLVER_R_8U,
+        /// Selects real 64-bit floating-point arithmetic for iterative-refinement precision configuration.
+        R64F = CUSOLVER_R_64F,
+        /// Selects real 32-bit floating-point arithmetic for iterative-refinement precision configuration.
+        R32F = CUSOLVER_R_32F,
+        /// Selects real 16-bit floating-point arithmetic for iterative-refinement precision configuration.
+        R16F = CUSOLVER_R_16F,
+        /// Selects real bfloat16 arithmetic for iterative-refinement precision configuration.
+        R16Bf = CUSOLVER_R_16BF,
+        /// Selects real TensorFloat-32 arithmetic for iterative-refinement precision configuration.
+        RTf32 = CUSOLVER_R_TF32,
+        /// Native real AP precision mode.
+        /// The header exposes this selector, but the documented iterative-refinement supported-precision tables do not include it.
+        RAp = CUSOLVER_R_AP,
+        /// Selects complex signed 8-bit integer arithmetic for iterative-refinement precision configuration.
+        C8I = CUSOLVER_C_8I,
+        /// Selects complex unsigned 8-bit integer arithmetic for iterative-refinement precision configuration.
+        C8U = CUSOLVER_C_8U,
+        /// Selects complex 64-bit floating-point arithmetic for iterative-refinement precision configuration.
+        C64F = CUSOLVER_C_64F,
+        /// Selects complex 32-bit floating-point arithmetic for iterative-refinement precision configuration.
+        C32F = CUSOLVER_C_32F,
+        /// Selects complex 16-bit floating-point arithmetic for iterative-refinement precision configuration.
+        C16F = CUSOLVER_C_16F,
+        /// Selects complex bfloat16 arithmetic for iterative-refinement precision configuration.
+        C16Bf = CUSOLVER_C_16BF,
+        /// Selects complex TensorFloat-32 arithmetic for iterative-refinement precision configuration.
+        CTf32 = CUSOLVER_C_TF32,
+        /// Native complex AP precision mode.
+        /// The header exposes this selector, but the documented iterative-refinement supported-precision tables do not include it.
+        CAp = CUSOLVER_C_AP,
+    }
 }
-
-impl_enum_conversion!(sys::cusolverPrecType_t, PrecisionType);
 
 impl PrecisionType {
     /// Maps supported real or complex floating-point storage types to iterative-refinement precision selectors.
@@ -174,152 +172,154 @@ impl PrecisionType {
     }
 }
 
-/// Algorithm selected by [`Params::set_adv_options`](crate::params::Params::set_adv_options).
-/// The set of algorithms supported for each operation is described with that operation's documentation.
-///
-/// The default algorithm is [`AlgorithmMode::Default`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum AlgorithmMode {
-    /// default algorithm
-    Default = sys::cusolverAlgMode_t::CUSOLVER_ALG_0 as _,
-    /// Uses a single algorithm for consistent accuracy over all n.
-    Algorithm1 = sys::cusolverAlgMode_t::CUSOLVER_ALG_1 as _,
-    /// Selects native algorithm variant 2 for routines that support it.
-    /// Algorithm availability and behavior are defined by the selected routine.
-    Algorithm2 = sys::cusolverAlgMode_t::CUSOLVER_ALG_2 as _,
+singe_core::native_enum! {
+    /// Algorithm selected by [`Params::set_algorithm`](crate::params::Params::set_algorithm).
+    /// The set of algorithms supported for each operation is described with that operation's documentation.
+    ///
+    /// The default algorithm is [`AlgorithmMode::Default`].
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum AlgorithmMode: sys::cusolverAlgMode_t {
+        /// default algorithm
+        Default = CUSOLVER_ALG_0,
+        /// Uses a single algorithm for consistent accuracy over all n.
+        Algorithm1 = CUSOLVER_ALG_1,
+        /// Selects native algorithm variant 2 for routines that support it.
+        /// Algorithm availability and behavior are defined by the selected routine.
+        Algorithm2 = CUSOLVER_ALG_2,
+    }
 }
 
-impl_enum_conversion!(sys::cusolverAlgMode_t, AlgorithmMode);
-
-/// Specifies how the vectors which define the elementary reflectors are stored.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum StorevMode {
-    /// Columnwise.
-    Columnwise = sys::cusolverStorevMode_t::CUBLAS_STOREV_COLUMNWISE as _,
-    /// Rowwise.
-    Rowwise = sys::cusolverStorevMode_t::CUBLAS_STOREV_ROWWISE as _,
+singe_core::native_enum! {
+    /// Specifies how the vectors which define the elementary reflectors are stored.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum StorevMode: sys::cusolverStorevMode_t {
+        /// Columnwise.
+        Columnwise = CUBLAS_STOREV_COLUMNWISE,
+        /// Rowwise.
+        Rowwise = CUBLAS_STOREV_ROWWISE,
+    }
 }
 
-impl_enum_conversion!(sys::cusolverStorevMode_t, StorevMode);
-
-/// Specifies the order in which the elementary reflectors are multiplied to form the block reflector.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum DirectMode {
-    /// Forward.
-    Forward = sys::cusolverDirectMode_t::CUBLAS_DIRECT_FORWARD as _,
-    /// Backward.
-    Backward = sys::cusolverDirectMode_t::CUBLAS_DIRECT_BACKWARD as _,
+singe_core::native_enum! {
+    /// Specifies the order in which the elementary reflectors are multiplied to form the block reflector.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum DirectMode: sys::cusolverDirectMode_t {
+        /// Forward.
+        Forward = CUBLAS_DIRECT_FORWARD,
+        /// Backward.
+        Backward = CUBLAS_DIRECT_BACKWARD,
+    }
 }
 
-impl_enum_conversion!(sys::cusolverDirectMode_t, DirectMode);
-
-/// Indicates whether repeated cuSOLVER executions with the same input are required to produce bitwise-identical results.
-///
-/// Compared with cuBLAS atomics mode, [`DeterministicMode`] covers non-determinism beyond atomic operations.
-///
-/// Use [`Context::set_deterministic_mode`](crate::context::Context::set_deterministic_mode) and [`Context::deterministic_mode`](crate::context::Context::deterministic_mode) to configure and query this setting.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum DeterministicMode {
-    /// Compute deterministic results.
-    Deterministic = sys::cusolverDeterministicMode_t::CUSOLVER_DETERMINISTIC_RESULTS as _,
-    /// Allow non-deterministic results.
-    AllowNonDeterministic =
-        sys::cusolverDeterministicMode_t::CUSOLVER_ALLOW_NON_DETERMINISTIC_RESULTS as _,
+singe_core::native_enum! {
+    /// Indicates whether repeated cuSOLVER executions with the same input are required to produce bitwise-identical results.
+    ///
+    /// Compared with cuBLAS atomics mode, [`DeterministicMode`] covers non-determinism beyond atomic operations.
+    ///
+    /// Use [`Context::set_deterministic_mode`](crate::context::Context::set_deterministic_mode) and [`Context::deterministic_mode`](crate::context::Context::deterministic_mode) to configure and query this setting.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum DeterministicMode: sys::cusolverDeterministicMode_t {
+        /// Compute deterministic results.
+        Deterministic = CUSOLVER_DETERMINISTIC_RESULTS,
+        /// Allow non-deterministic results.
+        AllowNonDeterministic = CUSOLVER_ALLOW_NON_DETERMINISTIC_RESULTS,
+    }
 }
 
-impl_enum_conversion!(sys::cusolverDeterministicMode_t, DeterministicMode);
-
-/// Compute precision mode selected by [`set_math_mode`](crate::context::Context::set_math_mode).
-///
-/// The following combinations of [`MathMode`] using the bitwise OR operator are allowed.
-/// Math mode selection for cuSOLVER operations.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum MathMode {
-    /// Default math mode.
-    /// Tensor Cores are used whenever possible.
-    Default = sys::cusolverMathMode_t::CUSOLVER_DEFAULT_MATH as _,
-    /// Use FP32 emulation according to the configured emulation strategy (see [`set_emulation_strategy`](crate::context::Context::set_emulation_strategy)).
-    Fp32EmulatedBf16x9 = sys::cusolverMathMode_t::CUSOLVER_FP32_EMULATED_BF16X9_MATH as _,
+singe_core::native_enum! {
+    /// Compute precision mode selected by [`set_math_mode`](crate::context::Context::set_math_mode).
+    ///
+    /// [`MathMode::Fp32Fp64Emulated`] is the only combination of emulated modes cuSOLVER allows.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum MathMode: sys::cusolverMathMode_t {
+        /// Default math mode.
+        /// Tensor Cores are used whenever possible.
+        Default = CUSOLVER_DEFAULT_MATH,
+        /// Use FP32 emulation according to the configured emulation strategy (see [`set_emulation_strategy`](crate::context::Context::set_emulation_strategy)).
+        Fp32EmulatedBf16x9 = CUSOLVER_FP32_EMULATED_BF16X9_MATH,
+        /// Use FP64 emulation according to the configured emulation strategy.
+        Fp64EmulatedFixedPoint = CUSOLVER_FP64_EMULATED_FIXEDPOINT_MATH,
+        /// Use both FP32 and FP64 emulation according to the configured emulation strategy.
+        Fp32Fp64Emulated = CUSOLVER_FP32_FP64_EMULATED_MATH,
+    }
 }
 
-impl_enum_conversion!(sys::cusolverMathMode_t, MathMode);
-
-/// Selects which filled part of a dense matrix is used by the operation.
-///
-/// This corresponds to BLAS `L`/`l` (lower) and `U`/`u` (upper) arguments.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum FillMode {
-    /// The lower part of the matrix is filled.
-    Lower = sys::cublasFillMode_t::CUBLAS_FILL_MODE_LOWER as _,
-    /// The upper part of the matrix is filled.
-    Upper = sys::cublasFillMode_t::CUBLAS_FILL_MODE_UPPER as _,
-    /// The full matrix is filled.
-    Full = sys::cublasFillMode_t::CUBLAS_FILL_MODE_FULL as _,
+singe_core::native_enum! {
+    /// Selects which filled part of a dense matrix is used by the operation.
+    ///
+    /// This corresponds to BLAS `L`/`l` (lower) and `U`/`u` (upper) arguments.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum FillMode: sys::cublasFillMode_t {
+        /// The lower part of the matrix is filled.
+        Lower = CUBLAS_FILL_MODE_LOWER,
+        /// The upper part of the matrix is filled.
+        Upper = CUBLAS_FILL_MODE_UPPER,
+        /// The full matrix is filled.
+        Full = CUBLAS_FILL_MODE_FULL,
+    }
 }
 
-impl_enum_conversion!(sys::cublasFillMode_t, FillMode);
-
-/// Whether a triangular matrix stores its diagonal or treats every diagonal element as one.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum DiagonalType {
-    /// Uses the stored diagonal elements of the triangular matrix.
-    NonUnit = sys::cublasDiagType_t::CUBLAS_DIAG_NON_UNIT as _,
-    /// Treats diagonal elements as one without referencing their stored values.
-    Unit = sys::cublasDiagType_t::CUBLAS_DIAG_UNIT as _,
+singe_core::native_enum! {
+    /// Whether a triangular matrix stores its diagonal or treats every diagonal element as one.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum DiagonalType: sys::cublasDiagType_t {
+        /// Uses the stored diagonal elements of the triangular matrix.
+        NonUnit = CUBLAS_DIAG_NON_UNIT,
+        /// Treats diagonal elements as one without referencing their stored values.
+        Unit = CUBLAS_DIAG_UNIT,
+    }
 }
 
-impl_enum_conversion!(sys::cublasDiagType_t, DiagonalType);
-
-/// Side on which a matrix appears in a BLAS matrix equation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum SideMode {
-    /// Applies the matrix factor from the left.
-    Left = sys::cublasSideMode_t::CUBLAS_SIDE_LEFT as _,
-    /// Applies the matrix factor from the right.
-    Right = sys::cublasSideMode_t::CUBLAS_SIDE_RIGHT as _,
+singe_core::native_enum! {
+    /// Side on which a matrix appears in a BLAS matrix equation.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum SideMode: sys::cublasSideMode_t {
+        /// Applies the matrix factor from the left.
+        Left = CUBLAS_SIDE_LEFT,
+        /// Applies the matrix factor from the right.
+        Right = CUBLAS_SIDE_RIGHT,
+    }
 }
 
-impl_enum_conversion!(sys::cublasSideMode_t, SideMode);
-
-/// Selects the operation to perform with a dense matrix.
-///
-/// This corresponds to BLAS `N`/`n` (non-transpose), `T`/`t` (transpose), and `C`/`c` (conjugate transpose) arguments.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum Operation {
-    /// Non-transpose operation.
-    NonTranspose = sys::cublasOperation_t::CUBLAS_OP_N as _,
-    /// Transpose operation.
-    Transpose = sys::cublasOperation_t::CUBLAS_OP_T as _,
-    /// Conjugate transpose operation.
-    ConjugateTranspose = sys::cublasOperation_t::CUBLAS_OP_C as _,
-    /// Selects element-wise complex conjugation without transposition.
-    Conjugate = sys::cublasOperation_t::CUBLAS_OP_CONJG as _,
+singe_core::native_enum! {
+    /// Selects the operation to perform with a dense matrix.
+    ///
+    /// This corresponds to BLAS `N`/`n` (non-transpose), `T`/`t` (transpose), and `C`/`c` (conjugate transpose) arguments.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum Operation: sys::cublasOperation_t {
+        /// Non-transpose operation.
+        NonTranspose = CUBLAS_OP_N,
+        /// Transpose operation.
+        Transpose = CUBLAS_OP_T,
+        /// Conjugate transpose operation.
+        ConjugateTranspose = CUBLAS_OP_C,
+        /// Selects element-wise complex conjugation without transposition.
+        Conjugate = CUBLAS_OP_CONJG,
+    }
 }
 
 impl Operation {
     /// Alias for conjugate transposition.
     pub const HERMITIAN: Self = Self::ConjugateTranspose;
 }
-
-impl_enum_conversion!(sys::cublasOperation_t, Operation);
 
 /// Singular-vector output mode for full or reduced SVD routines.
 ///
@@ -371,23 +371,49 @@ impl TruncatedSvdMode {
     }
 }
 
-/// Indicates which operation is configured by [`Params::set_adv_options`](crate::params::Params::set_adv_options).
-/// [`Function::Getrf`] corresponds to the `getrf` operation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum Function {
-    /// Selects the symmetric or Hermitian eigensolver.
-    Syevd = sys::cusolverDnFunction_t::CUSOLVERDN_SYEVD as _,
-    /// Corresponds to `Getrf`.
-    Getrf = sys::cusolverDnFunction_t::CUSOLVERDN_GETRF as _,
-    /// Selects Cholesky factorization when configuring dense-solver algorithm options.
-    Potrf = sys::cusolverDnFunction_t::CUSOLVERDN_POTRF as _,
-    /// Selects batched symmetric eigensolving when configuring dense-solver algorithm options.
-    SyevBatched = sys::cusolverDnFunction_t::CUSOLVERDN_SYEVBATCHED as _,
+/// Columns of the singular-vector matrices that a Jacobi or polar-decomposition SVD produces.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum SvdVectorColumns {
+    /// Square U with `rows` columns and square V with `columns` columns.
+    #[default]
+    Full,
+    /// Only the first `min(rows, columns)` columns of U and V.
+    Economy,
 }
 
-impl_enum_conversion!(sys::cusolverDnFunction_t, Function);
+impl SvdVectorColumns {
+    pub(crate) const fn is_economy(self) -> bool {
+        matches!(self, Self::Economy)
+    }
+}
+
+/// What an iterative-refinement solver does when refinement fails to converge.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum IrsFallback {
+    /// Solves the problem again from scratch in the main precision; the cuSOLVER default.
+    #[default]
+    MainPrecision,
+    /// Returns the solution the refinement solver reached, which may be inaccurate.
+    Disabled,
+}
+
+singe_core::native_enum! {
+    /// Indicates which operation is configured by [`Params::set_algorithm`](crate::params::Params::set_algorithm).
+    /// [`Function::Getrf`] corresponds to the `getrf` operation.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum Function: sys::cusolverDnFunction_t {
+        /// Selects the symmetric or Hermitian eigensolver.
+        Syevd = CUSOLVERDN_SYEVD,
+        /// Corresponds to `Getrf`.
+        Getrf = CUSOLVERDN_GETRF,
+        /// Selects Cholesky factorization when configuring dense-solver algorithm options.
+        Potrf = CUSOLVERDN_POTRF,
+        /// Selects batched symmetric eigensolving when configuring dense-solver algorithm options.
+        SyevBatched = CUSOLVERDN_SYEVBATCHED,
+    }
+}
 
 impl_enum_display!(EigenType, {
     EigenType::Type1 => "CUSOLVER_EIG_TYPE_1",
@@ -469,6 +495,8 @@ impl_enum_display!(DeterministicMode, {
 impl_enum_display!(MathMode, {
     MathMode::Default => "CUSOLVER_DEFAULT_MATH",
     MathMode::Fp32EmulatedBf16x9 => "CUSOLVER_FP32_EMULATED_BF16X9_MATH",
+    MathMode::Fp64EmulatedFixedPoint => "CUSOLVER_FP64_EMULATED_FIXEDPOINT_MATH",
+    MathMode::Fp32Fp64Emulated => "CUSOLVER_FP32_FP64_EMULATED_MATH",
 });
 
 impl_enum_display!(FillMode, {

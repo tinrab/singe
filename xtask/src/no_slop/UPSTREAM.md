@@ -44,6 +44,7 @@ Local deviations to keep:
 - The rules `require-tests-module-last`, `no-literal-to-string-into`, and `require-mods-before-imports`, which now cover every crate, so no scope is set.
 - `pub` in place of `pub(crate)` in `mod.rs`, since Clippy's `redundant_pub_crate` applies inside this private module.
 - A test of `sentences_of` in `rules/doc_sentences.rs`.
+- `sentences_of` ends a sentence after a number unless the number opens the text as a list number, and treats only a single letter as an initial, so its fix no longer joins a sentence ending in a number with the next.
 - `LICENSE` beside the scanner, which predates this record.
 
 Dropped local changes, which the bundle made unnecessary:

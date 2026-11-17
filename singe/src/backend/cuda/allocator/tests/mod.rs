@@ -7,7 +7,7 @@ use std::sync::Arc;
 use singe_cuda::{
     context::Context,
     event::{Event, EventFlags, EventRecordFlags},
-    stream::{Stream, StreamFlags},
+    stream::{Stream, StreamOptions},
 };
 
 use crate::{
@@ -31,15 +31,13 @@ fn caching_allocator_with_stream(stream: Arc<Stream>) -> Option<CudaCachingAlloc
 fn default_stream(context: &Arc<Context>) -> Option<Stream> {
     skip_if_stub(
         context
-            .create_stream_with_flags(StreamFlags::DEFAULT)
+            .create_stream(StreamOptions::default())
             .map_err(Error::from),
     )
 }
 
 fn record_disabled_timing_event(context: &Arc<Context>, stream: &Arc<Stream>) -> Event {
-    let event = context
-        .create_event_with_flags(EventFlags::DISABLE_TIMING)
-        .unwrap();
-    event.record(stream, EventRecordFlags::DEFAULT).unwrap();
+    let event = context.create_event(EventFlags::DISABLE_TIMING).unwrap();
+    event.record(&**stream, EventRecordFlags::DEFAULT).unwrap();
     event
 }

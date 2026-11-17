@@ -1,6 +1,10 @@
 //! Compiler acceptance, rejection, and source diagnostics.
 
-use std::collections::BTreeSet;
+use std::{
+    collections::BTreeSet,
+    env, fs,
+    process::{self, Command},
+};
 
 use anyhow::{Context, Result, ensure};
 use serde::Deserialize;
@@ -77,13 +81,9 @@ fn test_frontend_fixture_expectations() -> Result<()> {
     Ok(())
 }
 
-#[cfg(feature = "cuda_tests")]
 #[test]
+#[ignore = "requires ptxas on PATH"]
 fn test_frontend_expectations_match_nvidia_assembler() -> Result<()> {
-    use std::{
-        env, fs,
-        process::{self, Command},
-    };
     let fixtures: Fixtures = serde_json::from_str(include_str!("fixtures/frontend/cases.json"))?;
     let directory = env::temp_dir().join(format!("singe-ptx-assembler-{}", process::id()));
     fs::create_dir_all(&directory)?;
@@ -96,7 +96,7 @@ fn test_frontend_expectations_match_nvidia_assembler() -> Result<()> {
             .arg("-o")
             .arg(directory.join("kernel.cubin"))
             .output()
-            .context("cuda-tests requires ptxas on PATH")?;
+            .context("running ptxas")?;
         assert_eq!(
             result.status.success(),
             case.error.is_none(),

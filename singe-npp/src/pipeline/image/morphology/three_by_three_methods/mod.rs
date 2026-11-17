@@ -69,7 +69,8 @@ where
 {
     /// Dilates each active channel using a centered 3-by-3 neighborhood.
     /// Allocates a new owned image for the valid source window, with width and height reduced by two pixels.
-    /// The source must be at least 3 by 3. Preserves AC4 alpha from the corresponding source window.
+    /// The source must be at least 3 by 3.
+    /// Preserves AC4 alpha from the corresponding source window.
     /// Prepares participating image regions, waits for their producers on other streams, rejects capture, and returns after successful stream completion.
     /// Row padding remains unwritten.
     ///
@@ -109,7 +110,8 @@ where
 
     /// Erodes each active channel using a centered 3-by-3 neighborhood.
     /// Allocates a new owned image for the valid source window, with width and height reduced by two pixels.
-    /// The source must be at least 3 by 3. Preserves AC4 alpha from the corresponding source window.
+    /// The source must be at least 3 by 3.
+    /// Preserves AC4 alpha from the corresponding source window.
     /// Prepares participating image regions, waits for their producers on other streams, rejects capture, and returns after successful stream completion.
     /// Row padding remains unwritten.
     ///

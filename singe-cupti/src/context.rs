@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use singe_cuda::{
     context::Context as CudaContext,
+    event::Event,
     graph::{ExecutableGraph, Graph, GraphNode},
 };
 use singe_cupti_sys as sys;
@@ -10,8 +11,8 @@ use crate::{
     error::Result,
     profiler, try_ffi,
     types::{
-        ActivityAutoBoostState, ActivityThreadIdType, ContextId, DeviceId, ExecutableGraphId,
-        GraphId, GraphNodeId,
+        ActivityAutoBoostState, ActivityThreadIdType, ContextId, CudaEventId, DeviceId,
+        ExecutableGraphId, GraphId, GraphNodeId,
     },
 };
 
@@ -25,20 +26,12 @@ pub struct Context {
 }
 
 impl Context {
-    /// Creates and retains a CUDA context for CUPTI operations.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if CUDA cannot initialize, select a device, or create the context.
-    pub fn create() -> Result<Self> {
-        Ok(Self {
-            inner: CudaContext::create()?,
-        })
-    }
-
-    #[cfg(feature = "testing")]
-    pub(crate) fn from_cuda_context(inner: Arc<CudaContext>) -> Self {
-        Self { inner }
+    /// Wraps and retains `cuda_context`, so CUPTI queries and profilers observe the work submitted in it.
+    #[must_use]
+    pub fn new(cuda_context: &Arc<CudaContext>) -> Self {
+        Self {
+            inner: Arc::clone(cuda_context),
+        }
     }
 
     /// Makes the retained CUDA context current on this host thread.
@@ -60,7 +53,7 @@ impl Context {
     /// - Returns [`crate::error::Status::InvalidParameter`] if CUPTI rejects the request.
     pub fn id(&self) -> Result<ContextId> {
         let mut context_id = 0;
-        // SAFETY: `cuptiGetContextId` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `self.inner` retains the CUDA context for the call, and `context_id` is a local output.
         unsafe {
             try_ffi!(sys::cuptiGetContextId(self.as_raw(), &raw mut context_id))?;
         }
@@ -78,7 +71,7 @@ impl Context {
     /// - Returns [`crate::error::Status::InvalidParameter`] if CUPTI rejects the request.
     pub fn device_id(&self) -> Result<DeviceId> {
         let mut device_id = 0;
-        // SAFETY: `cuptiGetDeviceId` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `self.inner` retains the CUDA context for the call, and `device_id` is a local output.
         unsafe {
             try_ffi!(sys::cuptiGetDeviceId(self.as_raw(), &raw mut device_id))?;
         }
@@ -97,7 +90,7 @@ impl Context {
     /// - Returns [`crate::error::Status::UnknownError`] if CUPTI reports an internal error.
     pub fn auto_boost_state(&self) -> Result<ActivityAutoBoostState> {
         let mut state = sys::CUpti_ActivityAutoBoostState::default();
-        // SAFETY: `cuptiGetAutoBoostState` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `self.inner` retains the CUDA context for the call, and `state` is a local output.
         unsafe {
             try_ffi!(sys::cuptiGetAutoBoostState(self.as_raw(), &raw mut state))?;
         }
@@ -109,27 +102,13 @@ impl Context {
     }
 }
 
-/// Returns the CUPTI API version reported by the loaded runtime library.
-///
-/// # Errors
-///
-/// - Returns [`crate::error::Status::InvalidParameter`] if CUPTI rejects the request.
-pub fn runtime_version() -> Result<u32> {
-    let mut version = 0u32;
-    // SAFETY: `cuptiGetVersion` receives valid output locations.
-    unsafe {
-        try_ffi!(sys::cuptiGetVersion(&raw mut version))?;
-    }
-    Ok(version)
-}
-
 /// Returns and clears the last CUPTI error recorded for the current host thread.
 ///
 /// # Errors
 ///
 /// Returns the last non-success CUPTI status recorded for the current host thread; reading it clears that recorded error.
 pub fn last_error() -> Result<()> {
-    // SAFETY: `cuptiGetLastError` takes no arguments.
+    // SAFETY: the call takes no arguments and only reads and clears CUPTI's per-thread error state.
     unsafe {
         try_ffi!(sys::cuptiGetLastError())?;
     }
@@ -144,7 +123,7 @@ pub fn last_error() -> Result<()> {
 /// - Returns [`crate::error::Status::InvalidParameter`] if the executable graph handle is invalid.
 pub fn executable_graph_id(executable_graph: &ExecutableGraph) -> Result<ExecutableGraphId> {
     let mut executable_graph_id = 0;
-    // SAFETY: `cuptiGetGraphExecId` receives live handles owned by the wrappers and valid output locations.
+    // SAFETY: the borrowed `executable_graph` keeps its native handle alive for the call, and `executable_graph_id` is a local output.
     unsafe {
         try_ffi!(sys::cuptiGetGraphExecId(
             executable_graph.as_raw() as sys::CUgraphExec,
@@ -162,7 +141,7 @@ pub fn executable_graph_id(executable_graph: &ExecutableGraph) -> Result<Executa
 /// - Returns [`crate::error::Status::InvalidParameter`] if the graph handle is invalid.
 pub fn graph_id(graph: &Graph) -> Result<GraphId> {
     let mut graph_id = 0;
-    // SAFETY: `cuptiGetGraphId` receives live handles owned by the wrappers and valid output locations.
+    // SAFETY: the borrowed `graph` keeps its native handle alive for the call, and `graph_id` is a local output.
     unsafe {
         try_ffi!(sys::cuptiGetGraphId(
             graph.as_raw() as sys::CUgraph,
@@ -180,7 +159,7 @@ pub fn graph_id(graph: &Graph) -> Result<GraphId> {
 /// - Returns [`crate::error::Status::InvalidParameter`] if the graph node handle is invalid.
 pub fn graph_node_id(node: &GraphNode) -> Result<GraphNodeId> {
     let mut node_id = 0;
-    // SAFETY: `cuptiGetGraphNodeId` receives live handles owned by the wrappers and valid output locations.
+    // SAFETY: the borrowed `node` retains its owning graph, so the native node is alive for the call, and `node_id` is a local output.
     unsafe {
         try_ffi!(sys::cuptiGetGraphNodeId(
             node.as_raw() as sys::CUgraphNode,
@@ -188,6 +167,22 @@ pub fn graph_node_id(node: &GraphNode) -> Result<GraphNodeId> {
         ))?;
     }
     Ok(GraphNodeId::from(node_id))
+}
+
+/// Returns the unique CUPTI ID for a CUDA event.
+///
+/// The ID correlates CUDA events with activity records.
+///
+/// # Errors
+///
+/// Returns an error if CUPTI is uninitialized or rejects the event handle.
+pub fn cuda_event_id(event: &Event) -> Result<CudaEventId> {
+    let mut id = 0;
+    // SAFETY: `event` keeps its native event alive for the call, and `id` is a valid output location.
+    unsafe {
+        try_ffi!(sys::cuptiGetCudaEventId(event.as_raw().cast(), &raw mut id))?;
+    }
+    Ok(id.into())
 }
 
 /// Returns a CUPTI timestamp in nanoseconds.
@@ -199,7 +194,7 @@ pub fn graph_node_id(node: &GraphNode) -> Result<GraphNodeId> {
 /// - Returns [`crate::error::Status::InvalidParameter`] if CUPTI rejects the timestamp request.
 pub fn timestamp() -> Result<u64> {
     let mut timestamp = 0;
-    // SAFETY: `cuptiGetTimestamp` receives valid output locations.
+    // SAFETY: `timestamp` is a local output for the call.
     unsafe {
         try_ffi!(sys::cuptiGetTimestamp(&raw mut timestamp))?;
     }
@@ -216,11 +211,11 @@ pub fn timestamp() -> Result<u64> {
 /// - Returns [`crate::error::Status::InvalidParameter`] if CUPTI rejects the thread ID type.
 pub fn thread_id_type() -> Result<ActivityThreadIdType> {
     let mut thread_id_type = sys::CUpti_ActivityThreadIdType::CUPTI_ACTIVITY_THREAD_ID_TYPE_DEFAULT;
-    // SAFETY: `cuptiGetThreadIdType` receives valid output locations.
+    // SAFETY: `thread_id_type` is a local output initialized to a valid enum value.
     unsafe {
         try_ffi!(sys::cuptiGetThreadIdType(&raw mut thread_id_type))?;
     }
-    Ok(ActivityThreadIdType::from(thread_id_type))
+    Ok(ActivityThreadIdType::try_from(thread_id_type)?)
 }
 
 /// Sets the thread ID type CUPTI uses for activity records.
@@ -233,7 +228,7 @@ pub fn thread_id_type() -> Result<ActivityThreadIdType> {
 ///
 /// - Returns [`crate::error::Status::NotSupported`] if the requested thread ID type is not supported on the platform.
 pub fn set_thread_id_type(thread_id_type: ActivityThreadIdType) -> Result<()> {
-    // SAFETY: `cuptiSetThreadIdType` receives only plain values.
+    // SAFETY: the argument is a valid enum value converted from `ActivityThreadIdType`, and the call takes no pointers.
     unsafe {
         try_ffi!(sys::cuptiSetThreadIdType(thread_id_type.into()))?;
     }

@@ -1,11 +1,13 @@
 use std::{mem::ManuallyDrop, ptr};
 
+use singe_core::report_cleanup_failure;
 use singe_cuda::data_type::{DataType, DataTypeLike};
 
 use crate::{
     error::{Error, Result},
     mp::context::{Context, ContextRef},
-    sys, try_ffi,
+    sys::{self, cutensorMpTensorDescriptorAttribute_t as DescriptorAttribute},
+    try_ffi,
     utility::{checked_byte_len, collect_optional_mode_values, to_i64_vec, to_u32},
 };
 
@@ -39,7 +41,7 @@ pub struct RankPartition<'a> {
 
 /// Borrowed global layout and rank-distribution settings copied into a tensor descriptor.
 #[derive(Debug, Clone, Copy)]
-pub struct TensorDescriptorConfig<'a> {
+pub struct TensorDescriptorOptions<'a> {
     /// Ordered global extents and optional local storage geometry.
     pub modes: &'a [TensorMode],
     /// Process-grid dimensions and communicator rank mapping.
@@ -61,6 +63,34 @@ pub struct TensorDescriptor<'comm> {
     ranks: Option<Vec<i32>>,
     rank_count: u32,
     data_type: DataType,
+}
+
+/// Transferred native ownership with its original metadata and retained multi-process context.
+///
+/// Destroy `handle` before releasing this record, or reclaim it with [`TensorDescriptor::from_raw`].
+/// Dropping this record does not destroy the native handle.
+#[derive(Debug)]
+pub struct RawTensorDescriptor<'comm> {
+    /// Transferred native descriptor handle; destroy it before releasing the retained context.
+    pub handle: sys::cutensorMpTensorDescriptor_t,
+    /// Multi-process context the descriptor was created in.
+    pub context: Context<'comm>,
+    /// Global tensor extents in descriptor order.
+    pub shape: Vec<u64>,
+    /// Local element strides, one per mode, or `None` for native compact strides.
+    pub element_stride: Option<Vec<u64>>,
+    /// Block extents, one per mode, or `None` for contiguous partitions.
+    pub block_size: Option<Vec<u64>>,
+    /// Local inter-block element strides, one per mode, or `None` for linear local addressing.
+    pub block_stride: Option<Vec<u64>>,
+    /// Process-grid size along each tensor mode.
+    pub ranks_per_mode: Vec<u64>,
+    /// Explicit communicator rank identifiers, or `None` for the implicit rank range.
+    pub ranks: Option<Vec<i32>>,
+    /// Total participating rank count.
+    pub rank_count: u32,
+    /// Native sample data type.
+    pub data_type: DataType,
 }
 
 impl<'comm> TensorDescriptor<'comm> {
@@ -85,7 +115,7 @@ impl<'comm> TensorDescriptor<'comm> {
             .collect::<Vec<_>>();
         Self::create(
             context,
-            TensorDescriptorConfig {
+            TensorDescriptorOptions {
                 modes: &modes,
                 partition: RankPartition {
                     ranks_per_mode,
@@ -102,36 +132,36 @@ impl<'comm> TensorDescriptor<'comm> {
     /// # Errors
     ///
     /// Returns an error if the mode count cannot fit `u32`, process-grid dimensions or explicit rank counts have incorrect lengths, an optional property is specified for only some modes, a geometry value cannot fit native `i64`, CUDA context binding fails, native descriptor creation fails, or the returned handle is null.
-    pub fn create(context: &Context<'comm>, config: TensorDescriptorConfig<'_>) -> Result<Self> {
-        let rank = to_u32(config.modes.len(), "modes")?;
+    pub fn create(context: &Context<'comm>, options: TensorDescriptorOptions<'_>) -> Result<Self> {
+        let rank = to_u32(options.modes.len(), "modes")?;
         validate_rank(
-            config.partition.ranks_per_mode,
-            config.modes.len(),
+            options.partition.ranks_per_mode,
+            options.modes.len(),
             "ranks_per_mode",
         )?;
-        if let Some(ranks) = config.partition.ranks
-            && ranks.len() != config.partition.rank_count as usize
+        if let Some(ranks) = options.partition.ranks
+            && ranks.len() != options.partition.rank_count as usize
         {
             return Err(Error::LengthMismatch {
                 name: "ranks".into(),
-                expected: config.partition.rank_count as usize,
+                expected: options.partition.rank_count as usize,
                 actual: ranks.len(),
             });
         }
 
-        let shape = config
+        let shape = options
             .modes
             .iter()
             .map(|mode| mode.shape)
             .collect::<Vec<_>>();
         let element_stride =
-            collect_optional_mode_values(config.modes, "element_stride", |mode| {
+            collect_optional_mode_values(options.modes, "element_stride", |mode| {
                 mode.element_stride
             })?;
         let block_size =
-            collect_optional_mode_values(config.modes, "block_size", |mode| mode.block_size)?;
+            collect_optional_mode_values(options.modes, "block_size", |mode| mode.block_size)?;
         let block_stride =
-            collect_optional_mode_values(config.modes, "block_stride", |mode| mode.block_stride)?;
+            collect_optional_mode_values(options.modes, "block_stride", |mode| mode.block_stride)?;
 
         let extent_i64 = to_i64_vec(&shape, "shape")?;
         let element_stride_i64 = element_stride
@@ -146,11 +176,11 @@ impl<'comm> TensorDescriptor<'comm> {
             .as_ref()
             .map(|values| to_i64_vec(values, "block_stride"))
             .transpose()?;
-        let ranks_per_mode_i64 = to_i64_vec(config.partition.ranks_per_mode, "ranks_per_mode")?;
+        let ranks_per_mode_i64 = to_i64_vec(options.partition.ranks_per_mode, "ranks_per_mode")?;
 
         let mut handle = ptr::null_mut();
         context.bind()?;
-        // SAFETY: `cutensorMpCreateTensorDescriptor` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
+        // SAFETY: `context` keeps the handle live, the per-mode arrays hold `rank` values and `ranks` holds `rank_count` (checked above), and `handle` is a local output.
         unsafe {
             try_ffi!(sys::cutensorMpCreateTensorDescriptor(
                 context.as_raw(),
@@ -161,9 +191,9 @@ impl<'comm> TensorDescriptor<'comm> {
                 block_size_i64.as_ref().map_or(ptr::null(), Vec::as_ptr),
                 block_stride_i64.as_ref().map_or(ptr::null(), Vec::as_ptr),
                 ranks_per_mode_i64.as_ptr(),
-                config.partition.rank_count,
-                config.partition.ranks.map_or(ptr::null(), <[i32]>::as_ptr),
-                config.data_type.into(),
+                options.partition.rank_count,
+                options.partition.ranks.map_or(ptr::null(), <[i32]>::as_ptr),
+                options.data_type.into(),
             ))?;
         }
 
@@ -178,74 +208,10 @@ impl<'comm> TensorDescriptor<'comm> {
             element_stride,
             block_size,
             block_stride,
-            ranks_per_mode: config.partition.ranks_per_mode.to_vec(),
-            ranks: config.partition.ranks.map(<[i32]>::to_vec),
-            rank_count: config.partition.rank_count,
-            data_type: config.data_type,
-        })
-    }
-
-    /// Wraps an existing cuTENSORMp tensor descriptor.
-    ///
-    /// # Safety
-    ///
-    /// `handle` must be a valid cuTENSORMp tensor descriptor associated with `context`.
-    /// The metadata in `config` must describe the raw descriptor.
-    /// The returned value takes ownership of `handle` and destroys it on drop.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if `handle` is null, process-grid or explicit rank-array lengths are inconsistent, or an optional property is specified for only some modes.
-    /// The caller must uphold the remaining native descriptor invariants.
-    pub unsafe fn from_raw(
-        handle: sys::cutensorMpTensorDescriptor_t,
-        context: &Context<'comm>,
-        config: TensorDescriptorConfig<'_>,
-    ) -> Result<Self> {
-        if handle.is_null() {
-            return Err(Error::NullHandle);
-        }
-
-        validate_rank(
-            config.partition.ranks_per_mode,
-            config.modes.len(),
-            "ranks_per_mode",
-        )?;
-        if let Some(ranks) = config.partition.ranks
-            && ranks.len() != config.partition.rank_count as usize
-        {
-            return Err(Error::LengthMismatch {
-                name: "ranks".into(),
-                expected: config.partition.rank_count as usize,
-                actual: ranks.len(),
-            });
-        }
-
-        let shape = config
-            .modes
-            .iter()
-            .map(|mode| mode.shape)
-            .collect::<Vec<_>>();
-        let element_stride =
-            collect_optional_mode_values(config.modes, "element_stride", |mode| {
-                mode.element_stride
-            })?;
-        let block_size =
-            collect_optional_mode_values(config.modes, "block_size", |mode| mode.block_size)?;
-        let block_stride =
-            collect_optional_mode_values(config.modes, "block_stride", |mode| mode.block_stride)?;
-
-        Ok(Self {
-            handle,
-            context: context.as_context_ref(),
-            shape,
-            element_stride,
-            block_size,
-            block_stride,
-            ranks_per_mode: config.partition.ranks_per_mode.to_vec(),
-            ranks: config.partition.ranks.map(<[i32]>::to_vec),
-            rank_count: config.partition.rank_count,
-            data_type: config.data_type,
+            ranks_per_mode: options.partition.ranks_per_mode.to_vec(),
+            ranks: options.partition.ranks.map(<[i32]>::to_vec),
+            rank_count: options.partition.rank_count,
+            data_type: options.data_type,
         })
     }
 
@@ -254,7 +220,7 @@ impl<'comm> TensorDescriptor<'comm> {
     /// # Panics
     ///
     /// Panics if the stored rank does not fit `u32`.
-    /// Checked creation excludes this; unsafe adoption must preserve the native rank invariant.
+    /// Checked creation and [`Self::from_raw`] exclude this.
     #[must_use]
     pub fn rank(&self) -> u32 {
         u32::try_from(self.shape.len()).expect("tensor rank is validated on construction")
@@ -318,31 +284,93 @@ impl<'comm> TensorDescriptor<'comm> {
         self.handle
     }
 
-    /// Consumes this descriptor and returns the owned raw cuTENSORMp tensor descriptor.
+    /// Consumes this descriptor and returns the native handle without destroying it.
     ///
-    /// The caller becomes responsible for destroying the descriptor.
+    /// The returned record retains the multi-process context and descriptor metadata.
+    /// Destroy its handle before releasing the record, or reclaim it with `from_raw`.
     #[must_use]
-    pub fn into_raw(self) -> sys::cutensorMpTensorDescriptor_t {
-        let this = ManuallyDrop::new(self);
-        this.handle
+    pub fn into_raw(self) -> RawTensorDescriptor<'comm> {
+        let owner = ManuallyDrop::new(self);
+        // SAFETY: `owner` is never dropped, so each field is read out exactly once.
+        unsafe {
+            RawTensorDescriptor {
+                handle: owner.handle,
+                context: ptr::read(&raw const owner.context).into_context(),
+                shape: ptr::read(&raw const owner.shape),
+                element_stride: ptr::read(&raw const owner.element_stride),
+                block_size: ptr::read(&raw const owner.block_size),
+                block_stride: ptr::read(&raw const owner.block_stride),
+                ranks_per_mode: ptr::read(&raw const owner.ranks_per_mode),
+                ranks: ptr::read(&raw const owner.ranks),
+                rank_count: owner.rank_count,
+                data_type: owner.data_type,
+            }
+        }
+    }
+
+    /// Takes ownership of a native cuTENSORMp tensor descriptor with its metadata and multi-process context.
+    ///
+    /// # Safety
+    ///
+    /// `raw.handle` must be a valid descriptor created in `raw.context`, uniquely owned, and described by the record's metadata.
+    /// The handle must not be destroyed elsewhere afterward.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `raw.handle` is null, the rank does not fit `u32`, a per-mode property or the process-grid dimensions have a length other than the rank, or explicit ranks differ in number from `raw.rank_count`.
+    /// The caller must uphold the remaining native descriptor invariants.
+    pub unsafe fn from_raw(raw: RawTensorDescriptor<'comm>) -> Result<Self> {
+        if raw.handle.is_null() {
+            return Err(Error::NullHandle);
+        }
+
+        let rank = raw.shape.len();
+        to_u32(rank, "shape")?;
+        validate_rank(&raw.ranks_per_mode, rank, "ranks_per_mode")?;
+        for (values, name) in [
+            (raw.element_stride.as_deref(), "element_stride"),
+            (raw.block_size.as_deref(), "block_size"),
+            (raw.block_stride.as_deref(), "block_stride"),
+        ] {
+            if let Some(values) = values {
+                validate_rank(values, rank, name)?;
+            }
+        }
+
+        if let Some(ranks) = &raw.ranks {
+            validate_rank(ranks, raw.rank_count as usize, "ranks")?;
+        }
+
+        Ok(Self {
+            handle: raw.handle,
+            context: raw.context.into_context_ref(),
+            shape: raw.shape,
+            element_stride: raw.element_stride,
+            block_size: raw.block_size,
+            block_stride: raw.block_stride,
+            ranks_per_mode: raw.ranks_per_mode,
+            ranks: raw.ranks,
+            rank_count: raw.rank_count,
+            data_type: raw.data_type,
+        })
     }
 }
 
 impl Drop for TensorDescriptor<'_> {
     fn drop(&mut self) {
         if let Err(error) = self.context.bind() {
-            eprintln!(
-                "failed to bind cutensormp context before destroying tensor descriptor: {error}"
+            report_cleanup_failure(
+                "bind the cuda context to destroy",
+                "cutensormp tensor descriptor",
+                &error,
             );
+            return;
         }
 
-        // SAFETY: `cutensorMpDestroyTensorDescriptor` receives live handles owned by the wrappers.
+        // SAFETY: the descriptor exclusively owns its non-null handle, and `self.context` keeps the multi-process handle live.
         unsafe {
             if let Err(error) = try_ffi!(sys::cutensorMpDestroyTensorDescriptor(self.handle)) {
-                eprintln!(
-                    "failed to destroy cutensormp tensor descriptor: {}",
-                    singe_core::ErrorChain(&error)
-                );
+                report_cleanup_failure("destroy", "cutensormp tensor descriptor", &error);
             }
         }
     }
@@ -398,22 +426,14 @@ impl TensorDescriptor<'_> {
     ///
     /// Returns an error if CUDA context binding or a native layout-attribute query fails, or the byte size of a returned layout array overflows `usize`.
     pub fn local_layout(&self) -> Result<LocalTensorLayout> {
-        use sys::cutensorMpTensorDescriptorAttribute_t::{
-            CUTENSORMP_TENSOR_DESCRIPTOR_LOCAL_BLOCK_SIZE,
-            CUTENSORMP_TENSOR_DESCRIPTOR_LOCAL_BLOCK_STRIDE,
-            CUTENSORMP_TENSOR_DESCRIPTOR_LOCAL_ELEMENT_STRIDE,
-            CUTENSORMP_TENSOR_DESCRIPTOR_LOCAL_EXTENT,
-            CUTENSORMP_TENSOR_DESCRIPTOR_LOCAL_STORAGE_SIZE,
-            CUTENSORMP_TENSOR_DESCRIPTOR_NUM_MODES,
-        };
         self.context.bind()?;
         let mut modes = 0u32;
-        // SAFETY: `cutensorMpTensorDescriptorGetAttribute` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `self.handle` is live, and `modes` is a local `u32`, the size this attribute writes.
         unsafe {
             try_ffi!(sys::cutensorMpTensorDescriptorGetAttribute(
                 self.context.as_raw(),
                 self.handle,
-                CUTENSORMP_TENSOR_DESCRIPTOR_NUM_MODES,
+                DescriptorAttribute::CUTENSORMP_TENSOR_DESCRIPTOR_NUM_MODES,
                 (&raw mut modes).cast(),
                 size_of::<u32>() as _
             ))?;
@@ -422,7 +442,7 @@ impl TensorDescriptor<'_> {
         let array = |attribute| -> Result<Vec<i64>> {
             let mut values = vec![0i64; modes as usize];
             let bytes = checked_byte_len::<i64>(values.len(), "local layout")?;
-            // SAFETY: `cutensorMpTensorDescriptorGetAttribute` receives live handles owned by the wrappers and valid output locations.
+            // SAFETY: `self.handle` is live, and `values` has `bytes` writable bytes, one `i64` per mode as these attributes write.
             unsafe {
                 try_ffi!(sys::cutensorMpTensorDescriptorGetAttribute(
                     self.context.as_raw(),
@@ -435,21 +455,25 @@ impl TensorDescriptor<'_> {
             Ok(values)
         };
         let mut storage_bytes = 0u64;
-        // SAFETY: `cutensorMpTensorDescriptorGetAttribute` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `self.handle` is live, and `storage_bytes` is a local `u64`, the size this attribute writes.
         unsafe {
             try_ffi!(sys::cutensorMpTensorDescriptorGetAttribute(
                 self.context.as_raw(),
                 self.handle,
-                CUTENSORMP_TENSOR_DESCRIPTOR_LOCAL_STORAGE_SIZE,
+                DescriptorAttribute::CUTENSORMP_TENSOR_DESCRIPTOR_LOCAL_STORAGE_SIZE,
                 (&raw mut storage_bytes).cast(),
                 size_of::<u64>() as _
             ))?;
         }
         Ok(LocalTensorLayout {
-            extents: array(CUTENSORMP_TENSOR_DESCRIPTOR_LOCAL_EXTENT)?,
-            element_strides: array(CUTENSORMP_TENSOR_DESCRIPTOR_LOCAL_ELEMENT_STRIDE)?,
-            block_sizes: array(CUTENSORMP_TENSOR_DESCRIPTOR_LOCAL_BLOCK_SIZE)?,
-            block_strides: array(CUTENSORMP_TENSOR_DESCRIPTOR_LOCAL_BLOCK_STRIDE)?,
+            extents: array(DescriptorAttribute::CUTENSORMP_TENSOR_DESCRIPTOR_LOCAL_EXTENT)?,
+            element_strides: array(
+                DescriptorAttribute::CUTENSORMP_TENSOR_DESCRIPTOR_LOCAL_ELEMENT_STRIDE,
+            )?,
+            block_sizes: array(DescriptorAttribute::CUTENSORMP_TENSOR_DESCRIPTOR_LOCAL_BLOCK_SIZE)?,
+            block_strides: array(
+                DescriptorAttribute::CUTENSORMP_TENSOR_DESCRIPTOR_LOCAL_BLOCK_STRIDE,
+            )?,
             storage_bytes,
         })
     }

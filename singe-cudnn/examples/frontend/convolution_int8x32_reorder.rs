@@ -2,24 +2,22 @@ mod common;
 
 use std::env::args;
 
-use singe_cuda::{memory::DeviceMemory, stream::StreamBinding};
+use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
-    backend::{
-        pointwise::PointwiseMode,
-        tensor::{BackendTensorReordering, Shape, TensorSpec},
-    },
+    backend::{operation::pointwise::PointwiseMode, tensor::BackendTensorReordering},
     data_type::DataType,
     error::Result,
     frontend::{
         graph::{Graph, TensorOutputConfig},
         operation::{ConvolutionConfig, PointwiseOperation},
         plan::{CompileConfig, ExecuteArgs, HeuristicMode},
-        reorder::{Int8x32FilterReorder, ReorderBuffers},
     },
+    legacy::reorder::{Int8x32FilterReorder, ReorderBuffers},
+    tensor::{Shape, TensorSpec},
 };
 
 fn run() -> Result<()> {
-    let mut context = common::ExampleContext::create()?;
+    let context = common::ExampleContext::create()?;
     let relu = args().any(|argument| argument == "--relu");
     // Native dimensions count 32-element vectors along the channel axis.
     let input_spec = TensorSpec::new(DataType::I8, Shape::contiguous([1, 2, 5, 5])?)
@@ -89,12 +87,11 @@ fn run() -> Result<()> {
     bindings.set_input(filter, &reordered_filter.view())?;
     bindings.set(output, &mut output_device)?;
     let mut workspace = common::workspace(context.cudnn.cuda_context(), compiled.workspace_size())?;
-    StreamBinding::Borrowed(context.stream.to_borrowed()).sync_scope(|| -> Result<()> {
+    context.stream.complete(|| -> Result<()> {
         // SAFETY: buffers are disjoint and initialized, and the scope retains their owners and descriptor through completion, including errors.
         unsafe {
-            reorder.execute(
-                &mut context.cudnn,
-                &context.stream,
+            reorder.execute_async(
+                &context.cudnn,
                 Some(ReorderBuffers {
                     source: &filter_source,
                     destination: &mut reordered_filter,
@@ -104,9 +101,9 @@ fn run() -> Result<()> {
         }
         // SAFETY: the example retains its plan and buffers through the surrounding completion or replay sequence.
         unsafe {
-            compiled.execute(
+            compiled.execute_async(
                 &context.cudnn,
-                ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+                ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
             )
         }
     })?;
@@ -117,6 +114,6 @@ fn run() -> Result<()> {
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_convolution_int8x32_reorder", run())
 }

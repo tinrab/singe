@@ -325,7 +325,8 @@ macro_rules! impl_comp_color_key_array {
 macro_rules! impl_alpha_comp_color_key {
     ($name:ident, $ffi:ident) => {
         /// Performs complement color-key replacement of `source1` by `source2` with alpha blending, writing the result to `destination`.
-        /// `alpha1` and `alpha2` are constant opacities in the range 0 through 255. `operation` selects the composition; premultiplied-alpha operations are excluded.
+        /// `alpha1` and `alpha2` are constant opacities in the range 0 through 255.
+        /// `operation` selects the composition; premultiplied-alpha operations are excluded.
         #[doc = concat!("Calls [`sys::", stringify!($ffi), "`].")]
         ///
         /// # Errors

@@ -1,16 +1,19 @@
 [package]
 name = "singe-cusolver"
 description = "Safe Rust wrappers for NVIDIA cuSOLVER, for dense matrix factorizations and solvers on the GPU."
-version = "0.1.0-alpha.8"
+version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 repository.workspace = true
+documentation = "https://docs.rs/singe-cusolver"
 license-file.workspace = true
 readme = "README.md"
 keywords = ["cuda", "nvidia", "cusolver", "solver"]
+categories = ["api-bindings", "hardware-support", "science"]
 include.workspace = true
 
 [package.metadata.docs.rs]
-rustdoc-args = ["--html-in-header", "dist/katex_header.html"]
+rustdoc-args = ["--cfg", "docsrs", "--html-in-header", "dist/katex_header.html"]
 
 [features]
 default = ["cusolver_12_3"]
@@ -31,3 +34,6 @@ singe-cusolver-sys.workspace = true
 thiserror.workspace = true
 num_enum.workspace = true
 bitflags.workspace = true
+
+[dev-dependencies]
+anyhow.workspace = true

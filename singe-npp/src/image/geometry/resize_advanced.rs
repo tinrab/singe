@@ -207,12 +207,13 @@ pub unsafe fn resize_sqr_pixel_c1_advanced_with_scratch<T: ResizeSqrPixelAdvance
 /// Resizes a single-channel image with the configured scale factors and interpolation using an internally allocated scratch buffer.
 ///
 /// Enqueues work on the selected stream.
+/// The scratch buffer is freed when the call returns, so stream capture is rejected.
 /// Pixels outside the transformed source intersection and padding may remain unwritten.
 ///
 /// # Errors
 ///
 /// Returns an error if the source ROI has invalid dimensions or overflowing endpoints, or the destination ROI lies outside the destination image.
-/// Returns an error if scratch allocation or CUDA context binding fails, or either image belongs to another context.
+/// Returns an error if the stream is being captured, scratch allocation or CUDA context binding fails, or either image belongs to another context.
 /// Returns an error if the buffer-size query or native resize fails.
 ///
 /// # Safety
@@ -228,6 +229,7 @@ pub unsafe fn resize_sqr_pixel_c1_advanced<T: ResizeSqrPixelAdvancedC1>(
     source: &ImageView<'_, T, C1>,
     destination: &mut ImageOutputView<'_, T, C1>,
 ) -> Result<()> {
+    stream_context.stream().ensure_not_capturing()?;
     // SAFETY: the caller upholds this function's safety contract.
     unsafe {
         let required_bytes = resize_sqr_pixel_c1_advanced_buffer_size::<T>(resize)?;

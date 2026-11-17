@@ -1,14 +1,23 @@
 [package]
 name = "singe-loader"
 description = "Loads NVIDIA libraries at run time for the Singe FFI crates."
-version = "0.1.0-alpha.1"
+version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 repository.workspace = true
+documentation = "https://docs.rs/singe-loader"
 license-file.workspace = true
 readme = "README.md"
 keywords = ["cuda", "nvidia", "ffi", "dlopen"]
+categories = ["development-tools::ffi", "external-ffi-bindings"]
 include.workspace = true
+
+[package.metadata.docs.rs]
+rustdoc-args = ["--cfg", "docsrs", "--html-in-header", "dist/katex_header.html"]
 
 [dependencies]
 libloading.workspace = true
 thiserror.workspace = true
+
+[dev-dependencies]
+anyhow.workspace = true

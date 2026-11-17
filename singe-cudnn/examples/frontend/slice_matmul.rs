@@ -6,18 +6,19 @@ use serde::{Deserialize, Serialize};
 use serde_json::{from_slice, to_vec};
 use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
-    backend::{
+    backend::operation::{
         pointwise::PointwiseMode,
-        tensor::{Shape, TensorId, TensorSpec},
+        tensor_ops::{SliceSpec, TransposeSpec},
     },
     data_type::{DataType, f16},
     error::Result,
     frontend::{
         graph::{DataTypePolicy, Graph, GraphConfig, TensorOutputConfig},
-        operation::{MatmulConfig, PointwiseOperation, SliceConfig, TransposeConfig},
+        operation::{MatmulConfig, PointwiseOperation},
         plan::{CompileConfig, ExecuteArgs, HeuristicMode},
     },
     math::NanPropagation,
+    tensor::{Shape, TensorId, TensorSpec},
 };
 
 fn init_f16_image(size: usize, seed: &mut u32) -> Vec<f16> {
@@ -91,7 +92,7 @@ fn build_graph(
     );
     let a_slice = graph.slice(
         a,
-        SliceConfig::new(spec.slice_ranges()).with_name("matrix_window"),
+        SliceSpec::new(spec.slice_ranges()).with_name("matrix_window"),
         TensorOutputConfig::new(),
     )?;
     let b = graph.tensor(
@@ -127,7 +128,7 @@ fn build_graph(
     let c = if transpose_output {
         let output = graph.transpose(
             c,
-            TransposeConfig::new([0, 2, 1]).with_name("transposed_result"),
+            TransposeSpec::new([0, 2, 1]).with_name("transposed_result"),
             TensorOutputConfig::new().output_tensor(),
         )?;
         // Store the transposed values contiguously instead of inheriting permuted input strides.
@@ -176,9 +177,9 @@ fn run() -> Result<()> {
     // SAFETY: the plan, inputs, output and workspace remain live until stream completion,
     // including when native execution returns an enqueue error.
     example.execute_and_wait(|context| unsafe {
-        compiled.execute(
+        compiled.execute_async(
             context,
-            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
         )
     })?;
 
@@ -187,6 +188,6 @@ fn run() -> Result<()> {
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_slice_matmul", run())
 }

@@ -1,10 +1,11 @@
 use crate::{
-    backend::tensor::TensorId,
+    backend::operation::rope::{RopeBackwardInputs, RopeInputs, RopeOptions},
     error::Result,
     frontend::{
         graph::{Graph, TensorOutputConfig},
-        operation::{Operation, RopeBackwardInputs, RopeConfig, RopeInputs, RopeOperation},
+        operation::{Operation, RopeOperation},
     },
+    tensor::TensorId,
 };
 
 impl Graph {
@@ -18,7 +19,7 @@ impl Graph {
         &mut self,
         inputs: RopeInputs<TensorId>,
         output: TensorId,
-        config: RopeConfig,
+        config: RopeOptions,
     ) -> Result<()> {
         let operation = RopeOperation::Forward {
             inputs,
@@ -41,7 +42,7 @@ impl Graph {
     pub fn rope_forward(
         &mut self,
         inputs: RopeInputs<TensorId>,
-        config: RopeConfig,
+        config: RopeOptions,
         output: TensorOutputConfig,
     ) -> Result<TensorId> {
         let input = self.tensor_spec(inputs.input)?;
@@ -69,7 +70,7 @@ impl Graph {
         &mut self,
         inputs: RopeBackwardInputs<TensorId>,
         input_gradient: TensorId,
-        config: RopeConfig,
+        config: RopeOptions,
     ) -> Result<()> {
         let operation = RopeOperation::Backward {
             inputs,
@@ -92,7 +93,7 @@ impl Graph {
     pub fn rope_backward(
         &mut self,
         inputs: RopeBackwardInputs<TensorId>,
-        config: RopeConfig,
+        config: RopeOptions,
         output: TensorOutputConfig,
     ) -> Result<TensorId> {
         let gradient = self.tensor_spec(inputs.output_gradient)?;

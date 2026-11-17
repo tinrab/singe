@@ -1,9 +1,9 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    backend::tensor::{Shape, TensorSpec},
     error::{Error, Result},
     frontend::error::Error as FrontendError,
+    tensor::{Shape, TensorSpec},
 };
 
 /// Inclusive runtime shape bounds accepted for one dynamic-shape tensor.
@@ -101,7 +101,7 @@ impl RuntimeShapeConstraints {
     }
 }
 
-pub fn validate_runtime_shape_constraint_dimensions(
+pub(crate) fn validate_runtime_shape_constraint_dimensions(
     min_dimensions: &[i64],
     max_dimensions: &[i64],
 ) -> Result<()> {

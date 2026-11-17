@@ -1,12 +1,13 @@
 use std::{mem::ManuallyDrop, ptr};
 
+use singe_core::report_cleanup_failure;
 use singe_cuda::data_type::{DataType, DataTypeLike};
 
 use crate::{
     context::{Context, ContextRef},
     error::{Error, Result},
     sys, try_ffi,
-    utility::{to_i64_vec, to_u32},
+    utility::{to_i64_vec, to_u32, to_usize},
 };
 
 /// Owns a dense tensor layout descriptor and retains its cuTENSOR context.
@@ -22,6 +23,9 @@ pub struct TensorDescriptor {
     alignment_requirement: u32,
 }
 
+// SAFETY: the descriptor exclusively owns its native handle, which has no thread affinity, and its retained library context can be released from any thread.
+unsafe impl Send for TensorDescriptor {}
+
 /// Transferred native ownership with its original metadata and retained library context.
 ///
 /// Destroy `handle` before releasing this record, or reclaim it with [`TensorDescriptor::from_raw`].
@@ -30,11 +34,16 @@ pub struct TensorDescriptor {
 pub struct RawTensorDescriptor {
     /// Transferred native descriptor handle; destroy it before releasing the retained context.
     pub handle: sys::cutensorTensorDescriptor_t,
-    context: ContextRef,
-    shape: Vec<u64>,
-    strides: Option<Vec<u64>>,
-    data_type: DataType,
-    alignment_requirement: u32,
+    /// Library context the descriptor was created in.
+    pub context: ContextRef,
+    /// Tensor extents in descriptor mode order.
+    pub shape: Vec<u64>,
+    /// Element strides, or `None` for packed storage.
+    pub strides: Option<Vec<u64>>,
+    /// Native sample data type.
+    pub data_type: DataType,
+    /// Required data-pointer alignment in bytes.
+    pub alignment_requirement: u32,
 }
 
 impl TensorDescriptor {
@@ -111,7 +120,7 @@ impl TensorDescriptor {
             .transpose()?;
 
         let mut handle = ptr::null_mut();
-        // SAFETY: `cutensorCreateTensorDescriptor` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
+        // SAFETY: `context` keeps the handle live, `extent` and `stride_i64` hold `rank` values (stride count checked above), and `handle` is a local output.
         unsafe {
             try_ffi!(sys::cutensorCreateTensorDescriptor(
                 context.as_raw(),
@@ -201,44 +210,27 @@ impl TensorDescriptor {
         &self.context
     }
 
+    pub(crate) fn layout(&self) -> TensorLayout {
+        TensorLayout {
+            shape: self.shape.clone(),
+            strides: self.strides.clone(),
+        }
+    }
+
     /// Returns the borrowed native dense tensor descriptor.
     #[must_use]
     pub const fn as_raw(&self) -> sys::cutensorTensorDescriptor_t {
         self.handle
     }
 
-    /// Wraps an existing cuTENSOR tensor descriptor and takes ownership of it.
-    ///
-    /// # Safety
-    ///
-    /// `handle` must be a valid `cutensorTensorDescriptor_t` whose rank, extents, strides, data type, and alignment requirement match the metadata supplied to this function.
-    /// Ownership of `handle` is transferred to the returned descriptor, and the handle must not be destroyed elsewhere after calling this function.
-    pub unsafe fn from_raw_parts(
-        handle: sys::cutensorTensorDescriptor_t,
-        context: &Context,
-        shape: Vec<u64>,
-        strides: Option<Vec<u64>>,
-        data_type: DataType,
-        alignment_requirement: u32,
-    ) -> Self {
-        Self {
-            handle,
-            context: context.as_context_ref(),
-            shape,
-            strides,
-            data_type,
-            alignment_requirement,
-        }
-    }
-
     /// Consumes the descriptor and returns the raw cuTENSOR tensor descriptor handle without destroying it.
     ///
-    /// The returned record retains the native library owner and descriptor metadata.
+    /// The returned record retains the library context and descriptor metadata.
     /// Destroy its handle before releasing the record, or reclaim it with `from_raw`.
     #[must_use]
     pub fn into_raw(self) -> RawTensorDescriptor {
         let owner = ManuallyDrop::new(self);
-        // SAFETY: move each field exactly once while suppressing native destruction.
+        // SAFETY: `owner` is never dropped, so each field is read out exactly once.
         unsafe {
             RawTensorDescriptor {
                 handle: owner.handle,
@@ -251,42 +243,88 @@ impl TensorDescriptor {
         }
     }
 
-    /// Reclaims a transferred native resource with its original metadata and library owner.
+    /// Takes ownership of a native tensor descriptor with its metadata and library context.
     ///
     /// # Safety
     ///
-    /// `handle` must remain valid and uniquely owned with its original descriptor metadata unchanged.
-    /// Complete all borrowed queued accesses before replacing or releasing their resources.
-    #[must_use]
-    pub unsafe fn from_raw(raw: RawTensorDescriptor) -> Self {
-        Self {
+    /// `raw.handle` must be a valid descriptor created in `raw.context`, uniquely owned, and described by the record's shape, strides, data type, and alignment requirement.
+    /// The handle must not be destroyed elsewhere afterward.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `raw.handle` is null.
+    pub unsafe fn from_raw(raw: RawTensorDescriptor) -> Result<Self> {
+        if raw.handle.is_null() {
+            return Err(Error::NullHandle);
+        }
+
+        Ok(Self {
             handle: raw.handle,
             context: raw.context,
             shape: raw.shape,
             strides: raw.strides,
             data_type: raw.data_type,
             alignment_requirement: raw.alignment_requirement,
-        }
+        })
     }
 }
 
 impl Drop for TensorDescriptor {
     fn drop(&mut self) {
         if let Err(error) = self.context.bind() {
-            eprintln!(
-                "failed to bind cutensor context before destroying tensor descriptor: {error}"
+            report_cleanup_failure(
+                "bind the cuda context to destroy",
+                "cutensor tensor descriptor",
+                &error,
             );
+            return;
         }
 
-        // SAFETY: `cutensorDestroyTensorDescriptor` receives live handles owned by the wrappers.
+        // SAFETY: the descriptor exclusively owns its non-null handle, and `self.context` keeps the library handle it was created in live.
         unsafe {
             if let Err(error) = try_ffi!(sys::cutensorDestroyTensorDescriptor(self.handle)) {
-                eprintln!(
-                    "failed to destroy cutensor tensor descriptor: {}",
-                    singe_core::ErrorChain(&error)
-                );
+                report_cleanup_failure("destroy", "cutensor tensor descriptor", &error);
             }
         }
+    }
+}
+
+// The extents and strides of a dense descriptor, kept to bound the storage an operation reaches.
+#[derive(Debug, Clone)]
+pub(crate) struct TensorLayout {
+    shape: Vec<u64>,
+    strides: Option<Vec<u64>>,
+}
+
+impl TensorLayout {
+    // Counts the elements from the first to the last one the layout reaches, with each mode's extent grown by its padding.
+    pub(crate) fn span_elements(&self, padding: Option<(&[u32], &[u32])>) -> Result<u64> {
+        let overflow = || Error::out_of_range("tensor span");
+        let mut packed_stride = 1_u64;
+        let mut last = 0_u64;
+        for (index, &extent) in self.shape.iter().enumerate() {
+            let padded = match padding {
+                Some((left, right)) => extent
+                    .checked_add(u64::from(left[index]))
+                    .and_then(|value| value.checked_add(u64::from(right[index])))
+                    .ok_or_else(overflow)?,
+                None => extent,
+            };
+            if padded == 0 {
+                return Ok(0);
+            }
+
+            let stride = self
+                .strides
+                .as_ref()
+                .map_or(packed_stride, |strides| strides[index]);
+            last = (padded - 1)
+                .checked_mul(stride)
+                .and_then(|offset| last.checked_add(offset))
+                .ok_or_else(overflow)?;
+            packed_stride = packed_stride.checked_mul(extent).ok_or_else(overflow)?;
+        }
+        last.checked_add(1).ok_or_else(overflow)
     }
 }
 
@@ -298,7 +336,11 @@ pub struct BlockSparseTensorDescriptor {
     mode_count: u32,
     non_zero_block_count: u64,
     data_type: DataType,
+    block_spans: Vec<u64>,
 }
+
+// SAFETY: the descriptor exclusively owns its native handle, which has no thread affinity, and its retained library context can be released from any thread.
+unsafe impl Send for BlockSparseTensorDescriptor {}
 
 /// Transferred native ownership with its original metadata and retained library context.
 ///
@@ -308,10 +350,16 @@ pub struct BlockSparseTensorDescriptor {
 pub struct RawBlockSparseTensorDescriptor {
     /// Transferred native descriptor handle; destroy it before releasing the retained context.
     pub handle: sys::cutensorBlockSparseTensorDescriptor_t,
-    context: ContextRef,
-    mode_count: u32,
-    non_zero_block_count: u64,
-    data_type: DataType,
+    /// Library context the descriptor was created in.
+    pub context: ContextRef,
+    /// Number of block-sparse tensor modes.
+    pub mode_count: u32,
+    /// Number of explicitly stored nonzero blocks.
+    pub non_zero_block_count: u64,
+    /// Native sample data type.
+    pub data_type: DataType,
+    // The block spans are wrapper state, so only `into_raw` can produce this record.
+    block_spans: Vec<u64>,
 }
 
 impl BlockSparseTensorDescriptor {
@@ -338,9 +386,15 @@ impl BlockSparseTensorDescriptor {
     ///
     /// For example:
     ///
-    /// * strides of block #0: 5, 1, 10, 20. Sorted strides would be: 1, 5, 10, 20. The permutation to sort the strides in this case is to swap the first two elements.
-    /// * strides of block #1: 10, 1, 30, 60. Applying the permutation would result in: 1, 10, 30, 60. The result is sorted in ascending order, which is allowed.
-    /// * strides of block #2: 1, 5, 50, 100. Applying permutation would result in: 5, 1, 50, 100. The result is *not* sorted in ascending order, this is *not* allowed.
+    /// * strides of block #0: 5, 1, 10, 20.
+    ///   Sorted strides would be: 1, 5, 10, 20.
+    ///   The permutation to sort the strides in this case is to swap the first two elements.
+    /// * strides of block #1: 10, 1, 30, 60.
+    ///   Applying the permutation would result in: 1, 10, 30, 60.
+    ///   The result is sorted in ascending order, which is allowed.
+    /// * strides of block #2: 1, 5, 50, 100.
+    ///   Applying permutation would result in: 5, 1, 50, 100.
+    ///   The result is *not* sorted in ascending order, this is *not* allowed.
     ///
     /// This non-blocking call is thread-safe but not reentrant.
     ///
@@ -391,6 +445,13 @@ impl BlockSparseTensorDescriptor {
             });
         }
 
+        let block_spans = nonzero_block_spans(
+            section_count_per_mode,
+            section_extents,
+            to_usize(non_zero_block_count, "nonzero block count")?,
+            non_zero_coordinates,
+            block_strides,
+        )?;
         let num_sections_per_mode = section_count_per_mode.to_vec();
         let section_extents = to_i64_vec(section_extents, "section_extents")?;
         let block_strides = block_strides
@@ -398,7 +459,7 @@ impl BlockSparseTensorDescriptor {
             .transpose()?;
 
         let mut handle = ptr::null_mut();
-        // SAFETY: `cutensorCreateBlockSparseTensorDescriptor` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
+        // SAFETY: `context` keeps the handle live, the section, coordinate, and stride slices were length-checked above, and `handle` is a local output.
         unsafe {
             try_ffi!(sys::cutensorCreateBlockSparseTensorDescriptor(
                 context.as_raw(),
@@ -423,6 +484,7 @@ impl BlockSparseTensorDescriptor {
             mode_count,
             non_zero_block_count,
             data_type,
+            block_spans,
         })
     }
 
@@ -444,6 +506,10 @@ impl BlockSparseTensorDescriptor {
         self.data_type
     }
 
+    pub(crate) fn block_spans(&self) -> &[u64] {
+        &self.block_spans
+    }
+
     pub(crate) fn context(&self) -> &ContextRef {
         &self.context
     }
@@ -454,36 +520,14 @@ impl BlockSparseTensorDescriptor {
         self.handle
     }
 
-    /// Wraps an existing cuTENSOR block-sparse tensor descriptor and takes ownership of it.
-    ///
-    /// # Safety
-    ///
-    /// `handle` must be a valid `cutensorBlockSparseTensorDescriptor_t` whose mode count, non-zero block count, and data type match the metadata supplied to this function.
-    /// Ownership of `handle` is transferred to the returned descriptor, and the handle must not be destroyed elsewhere after calling this function.
-    pub unsafe fn from_raw_parts(
-        handle: sys::cutensorBlockSparseTensorDescriptor_t,
-        context: &Context,
-        mode_count: u32,
-        non_zero_block_count: u64,
-        data_type: DataType,
-    ) -> Self {
-        Self {
-            handle,
-            context: context.as_context_ref(),
-            mode_count,
-            non_zero_block_count,
-            data_type,
-        }
-    }
-
     /// Consumes the descriptor and returns the raw cuTENSOR block-sparse tensor descriptor handle without destroying it.
     ///
-    /// The returned record retains the native library owner and descriptor metadata.
+    /// The returned record retains the library context and descriptor metadata.
     /// Destroy its handle before releasing the record, or reclaim it with `from_raw`.
     #[must_use]
     pub fn into_raw(self) -> RawBlockSparseTensorDescriptor {
         let owner = ManuallyDrop::new(self);
-        // SAFETY: move each field exactly once while suppressing native destruction.
+        // SAFETY: `owner` is never dropped, so each field is read out exactly once.
         unsafe {
             RawBlockSparseTensorDescriptor {
                 handle: owner.handle,
@@ -491,46 +535,117 @@ impl BlockSparseTensorDescriptor {
                 mode_count: owner.mode_count,
                 non_zero_block_count: owner.non_zero_block_count,
                 data_type: owner.data_type,
+                block_spans: ptr::read(&raw const owner.block_spans),
             }
         }
     }
 
-    /// Reclaims a transferred native resource with its original metadata and library owner.
+    /// Takes ownership of a native block-sparse tensor descriptor with its metadata and library context.
     ///
     /// # Safety
     ///
-    /// `handle` must remain valid and uniquely owned with its original descriptor metadata unchanged.
-    /// Complete all borrowed queued accesses before replacing or releasing their resources.
-    #[must_use]
-    pub unsafe fn from_raw(raw: RawBlockSparseTensorDescriptor) -> Self {
-        Self {
+    /// `raw.handle` must be a valid descriptor created in `raw.context`, uniquely owned, and described by the record's mode count, nonzero block count, and data type.
+    /// The handle must not be destroyed elsewhere afterward.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `raw.handle` is null.
+    pub unsafe fn from_raw(raw: RawBlockSparseTensorDescriptor) -> Result<Self> {
+        if raw.handle.is_null() {
+            return Err(Error::NullHandle);
+        }
+
+        Ok(Self {
             handle: raw.handle,
             context: raw.context,
             mode_count: raw.mode_count,
             non_zero_block_count: raw.non_zero_block_count,
             data_type: raw.data_type,
-        }
+            block_spans: raw.block_spans,
+        })
     }
 }
 
 impl Drop for BlockSparseTensorDescriptor {
     fn drop(&mut self) {
         if let Err(error) = self.context.bind() {
-            eprintln!(
-                "failed to bind cutensor context before destroying block sparse tensor descriptor: {error}"
+            report_cleanup_failure(
+                "bind the cuda context to destroy",
+                "cutensor block sparse tensor descriptor",
+                &error,
             );
+            return;
         }
 
-        // SAFETY: `cutensorDestroyBlockSparseTensorDescriptor` receives live handles owned by the wrappers.
+        // SAFETY: the descriptor exclusively owns its non-null handle, and `self.context` keeps the library handle it was created in live.
         unsafe {
             if let Err(error) =
                 try_ffi!(sys::cutensorDestroyBlockSparseTensorDescriptor(self.handle))
             {
-                eprintln!(
-                    "failed to destroy cutensor block sparse tensor descriptor: {}",
-                    singe_core::ErrorChain(&error)
+                report_cleanup_failure(
+                    "destroy",
+                    "cutensor block sparse tensor descriptor",
+                    &error,
                 );
             }
         }
     }
+}
+
+// Elements each nonzero block reaches: its packed size, or one past its last strided element.
+fn nonzero_block_spans(
+    section_count_per_mode: &[u32],
+    section_extents: &[u64],
+    block_count: usize,
+    coordinates: &[i32],
+    block_strides: Option<&[u64]>,
+) -> Result<Vec<u64>> {
+    let modes = section_count_per_mode.len();
+    if modes == 0 {
+        return Ok(vec![1; block_count]);
+    }
+
+    let mut first_sections = Vec::with_capacity(modes);
+    let mut first_section = 0_usize;
+    for &count in section_count_per_mode {
+        first_sections.push(first_section);
+        first_section += count as usize;
+    }
+
+    let overflow = || Error::out_of_range("block span");
+    coordinates
+        .chunks_exact(modes)
+        .enumerate()
+        .map(|(block, coordinates)| {
+            let strides = block_strides.map(|strides| &strides[block * modes..][..modes]);
+            let mut packed = 1_u64;
+            let mut last = 0_u64;
+            for (mode, &coordinate) in coordinates.iter().enumerate() {
+                let section = u32::try_from(coordinate)
+                    .ok()
+                    .filter(|&section| section < section_count_per_mode[mode])
+                    .ok_or_else(|| Error::out_of_range("non_zero_coordinates"))?;
+                let extent = section_extents[first_sections[mode] + section as usize];
+                if extent == 0 {
+                    return Ok(0);
+                }
+
+                match strides {
+                    Some(strides) => {
+                        last = (extent - 1)
+                            .checked_mul(strides[mode])
+                            .and_then(|offset| last.checked_add(offset))
+                            .ok_or_else(overflow)?;
+                    }
+                    None => packed = packed.checked_mul(extent).ok_or_else(overflow)?,
+                }
+            }
+
+            if strides.is_some() {
+                last.checked_add(1).ok_or_else(overflow)
+            } else {
+                Ok(packed)
+            }
+        })
+        .collect()
 }

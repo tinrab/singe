@@ -1,7 +1,7 @@
 mod cache;
 mod problem;
 
-use singe_cublas::lt::types::Epilogue;
+use singe_cublas::lt::{self, types::Epilogue};
 
 use crate::{
     backend::{
@@ -160,7 +160,7 @@ pub fn cublaslt_matmul_algorithm_with_workspace_limit(
         CublasLtMatmulAlgorithmProblem::create(a_layout, b_layout, output, epilogue, bias)?;
 
     with_cublaslt(runtime, |cublaslt| {
-        let library_version = cublaslt.version()?.to_string();
+        let library_version = lt::version()?.to_string();
         let autotune_key = autotune_tensors.map(|tensors| {
             AutotuneCacheKey::from_tensors(
                 Operation::MatMul,

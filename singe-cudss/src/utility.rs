@@ -1,4 +1,6 @@
-use singe_core::checked_conversions;
+use std::{ffi::c_void, slice};
+
+use singe_core::{checked_arithmetic, checked_conversions};
 use singe_cudss_sys as sys;
 
 use crate::{
@@ -13,7 +15,13 @@ checked_conversions!(Error {
     to_i64 -> i64,
 });
 
-pub fn ensure_exact_size(actual: usize, expected: usize, name: &str) -> Result<()> {
+checked_arithmetic!(Error {
+    checked_element_count,
+    validate_min_len,
+    validate_same_len,
+});
+
+pub(crate) fn ensure_exact_size(actual: usize, expected: usize, name: &str) -> Result<()> {
     if actual == expected {
         Ok(())
     } else {
@@ -25,29 +33,15 @@ pub fn ensure_exact_size(actual: usize, expected: usize, name: &str) -> Result<(
     }
 }
 
-pub fn ensure_at_most_size(actual: usize, expected: usize, name: &str) -> Result<()> {
-    if actual <= expected {
-        Ok(())
-    } else {
-        Err(Error::SizeMismatch {
-            name: name.to_owned().into(),
-            expected,
-            actual,
-        })
-    }
-}
-
-pub fn validate_nonnegative(value: i64, name: &str) -> Result<()> {
+pub(crate) fn validate_nonnegative(value: i64, name: &str) -> Result<()> {
     if value >= 0 {
         Ok(())
     } else {
-        Err(Error::InvalidMatrixDimension {
-            name: name.to_owned().into(),
-        })
+        Err(Error::out_of_range(name.to_owned()))
     }
 }
 
-pub fn validate_dense_shape(
+pub(crate) fn validate_dense_shape(
     rows: i64,
     columns: i64,
     leading_dim: i64,
@@ -62,22 +56,19 @@ pub fn validate_dense_shape(
         Layout::RowMajor => columns,
     };
     if leading_dim < minimum_leading_dim {
-        return Err(Error::InvalidLeadingDimension);
+        return Err(Error::out_of_range("leading_dim"));
     }
 
     Ok(())
 }
 
-pub fn checked_element_count(dimensions: &[i64], name: &str) -> Result<usize> {
-    let mut count = 1_usize;
-    for dimension in dimensions {
-        validate_nonnegative(*dimension, name)?;
-        let dimension = to_usize(*dimension, name)?;
-        count = count
-            .checked_mul(dimension)
-            .ok_or_else(|| Error::OutOfRange {
-                name: name.to_owned().into(),
-            })?;
+// Copies `len` values from a native array, treating a null array as empty.
+// The caller passes null or a pointer to `len` readable `i64` values.
+pub(crate) unsafe fn copy_i64_batch(ptr: *mut c_void, len: usize) -> Vec<i64> {
+    if ptr.is_null() || len == 0 {
+        Vec::new()
+    } else {
+        // SAFETY: the caller guarantees a non-null `ptr` points to `len` readable `i64` values.
+        unsafe { slice::from_raw_parts(ptr.cast::<i64>(), len).to_vec() }
     }
-    Ok(count)
 }

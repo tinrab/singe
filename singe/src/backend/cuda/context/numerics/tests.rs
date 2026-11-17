@@ -11,7 +11,7 @@ use crate::{
 #[test]
 fn test_cublas_modes_restore_after_errors_and_unwinding() {
     let cuda = cuda::execution_context(Device::Cuda(0)).unwrap();
-    let cublas = CublasContext::create(cuda.runtime().context()).unwrap();
+    let mut cublas = CublasContext::create(cuda.runtime().context()).unwrap();
     cublas.set_math_mode(MathMode::TF32_TENSOR_OP).unwrap();
     cublas.set_atomics_mode(AtomicsMode::Allowed).unwrap();
     let _scope = NumericalScope::enter(NumericalPolicy {
@@ -26,7 +26,7 @@ fn test_cublas_modes_restore_after_errors_and_unwinding() {
         assert_eq!(context.atomics_mode().unwrap(), AtomicsMode::NotAllowed);
     };
     assert!(
-        with_cublas_numerics::<()>(&cublas, |context| {
+        with_cublas_numerics::<()>(&mut cublas, |context| {
             check(context);
             Err(Error::invalid_argument("test"))
         })
@@ -36,7 +36,7 @@ fn test_cublas_modes_restore_after_errors_and_unwinding() {
     assert_eq!(cublas.atomics_mode().unwrap(), AtomicsMode::Allowed);
     assert!(
         panic::catch_unwind(AssertUnwindSafe(|| {
-            let _ = with_cublas_numerics::<()>(&cublas, |context| {
+            let _ = with_cublas_numerics::<()>(&mut cublas, |context| {
                 check(context);
                 panic!("exercise unwinding")
             });

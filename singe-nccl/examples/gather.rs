@@ -1,17 +1,15 @@
 mod common;
 
-use std::process;
-
 use singe_cuda::memory::DeviceMemory;
-use singe_nccl::local::{LocalCommunicatorGroup, RootRank};
+use singe_nccl::{local::LocalCommunicatorGroup, types::RootRank};
 
-use crate::common::{ExampleResult, check_all_equal, rank_indexed_values};
+use crate::common::{check_all_equal, first_devices, rank_indexed_values};
 
 const ELEMENTS_PER_RANK: usize = 8;
 const ROOT_RANK: i32 = 0;
 
-fn run() -> ExampleResult {
-    let group = LocalCommunicatorGroup::create_all_visible(2)?;
+fn main() -> anyhow::Result<()> {
+    let group = LocalCommunicatorGroup::create(&first_devices(2)?)?;
     let rank_count = group.rank_count();
     let root = RootRank::create(ROOT_RANK)?;
 
@@ -32,8 +30,9 @@ fn run() -> ExampleResult {
     // SAFETY: the completed collective wrote the entire compact root output.
     let recv = unsafe { recv.assume_init() };
 
-    let expected: Vec<_> = (0..rank_count)
-        .flat_map(|rank| rank_indexed_values(rank as i32, ELEMENTS_PER_RANK))
+    let expected: Vec<_> = group
+        .ranks()
+        .flat_map(|rank| rank_indexed_values(rank.id().get(), ELEMENTS_PER_RANK))
         .collect();
 
     let root_rank = group.rank(root.id())?;
@@ -46,11 +45,4 @@ fn run() -> ExampleResult {
     drop(send_buffers);
     drop(recv);
     Ok(group.destroy()?)
-}
-
-fn main() {
-    if let Err(error) = run() {
-        eprintln!("{error}");
-        process::exit(1);
-    }
 }

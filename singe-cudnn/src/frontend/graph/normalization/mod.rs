@@ -7,12 +7,12 @@ mod other_backward;
 mod other_forward;
 
 use crate::{
-    backend::tensor::Shape,
     error::{Error, Result},
     frontend::error::Error as FrontendError,
+    tensor::Shape,
 };
 
-pub fn validate_normalization_broadcast_shape(input: &Shape, operand: &Shape) -> Result<()> {
+pub(crate) fn validate_normalization_broadcast_shape(input: &Shape, operand: &Shape) -> Result<()> {
     if input.rank() < 2
         || operand.rank() != input.rank()
         || operand
@@ -30,7 +30,7 @@ pub fn validate_normalization_broadcast_shape(input: &Shape, operand: &Shape) ->
     Ok(())
 }
 
-pub fn infer_adaptive_layer_normalization_stats_dimensions(
+pub(crate) fn infer_adaptive_layer_normalization_stats_dimensions(
     input: &Shape,
     scale: &Shape,
 ) -> Result<Vec<i64>> {
@@ -44,7 +44,7 @@ pub fn infer_adaptive_layer_normalization_stats_dimensions(
     Ok(dimensions)
 }
 
-pub fn infer_normalization_channel_dimensions(input: &Shape) -> Result<Vec<i64>> {
+pub(crate) fn infer_normalization_channel_dimensions(input: &Shape) -> Result<Vec<i64>> {
     let mut dimensions = input.dimensions().to_vec();
     if dimensions.len() < 2 {
         return Err(Error::InvalidDataShape);
@@ -59,7 +59,7 @@ pub fn infer_normalization_channel_dimensions(input: &Shape) -> Result<Vec<i64>>
     Ok(dimensions)
 }
 
-pub fn infer_instance_normalization_stats_dimensions(input: &Shape) -> Result<Vec<i64>> {
+pub(crate) fn infer_instance_normalization_stats_dimensions(input: &Shape) -> Result<Vec<i64>> {
     let mut dimensions = input.dimensions().to_vec();
     if dimensions.len() < 2 {
         return Err(Error::InvalidDataShape);

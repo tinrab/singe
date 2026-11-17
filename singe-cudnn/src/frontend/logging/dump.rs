@@ -8,19 +8,17 @@ use std::{
 
 use singe_cuda::{
     memory::{DeviceMemory, MemoryCopyKind, MemoryType, PointerAttributes},
-    stream::StreamCaptureStatus,
+    stream::{AsStream, StreamCaptureStatus},
     types::DevicePtr,
 };
 
 use crate::{
-    backend::{
-        execution::VariantPack,
-        tensor::{BackendTensorUid, TensorId, TensorSpec},
-    },
+    backend::{execution::VariantPack, tensor::BackendTensorUid},
     context::Context,
     data_type::DataType,
     error::{Error, Result},
     frontend::{graph::TensorRecord, logging::logger, operation::TensorAccess},
+    tensor::{TensorId, TensorSpec},
     utility::to_usize,
 };
 
@@ -60,17 +58,19 @@ pub struct TensorDump<'a> {
 /// Active or invalidated capture skips readback and emits a message instead of synchronizing.
 ///
 /// # Safety
+///
 /// The pointer must identify initialized storage for `element_count * element_bytes` bytes in the supplied context.
 /// Retain the storage until this call returns, and order producers on the handle's stream.
 /// No other thread or stream may write that range during readback.
 ///
 /// # Errors
-/// Returns invalid width, byte-size overflow, pointer-query, synchronization, transfer or logging errors.
+///
+/// Returns an error if the width is invalid, the byte size overflows, or the pointer query, synchronization, transfer, or logging fails.
 pub unsafe fn dump_tensor(context: &Context, dump: &TensorDump<'_>) -> Result<()> {
     let Some(logger) = logger()?.filter(|logger| logger.tensor_dump_enabled()) else {
         return Ok(());
     };
-    if context.stream()?.capture_status()? != StreamCaptureStatus::None {
+    if context.stream_binding().capture_status()? != StreamCaptureStatus::None {
         logger.message(format_args!(
             "tensor readback skipped during CUDA graph capture"
         ))?;
@@ -83,16 +83,16 @@ pub unsafe fn dump_tensor(context: &Context, dump: &TensorDump<'_>) -> Result<()
         .ok_or_else(|| Error::out_of_range("tensor dump bytes"))?;
     validate_width(dump.element_bytes, dump.format)?;
     context.bind()?;
-    context.stream()?.synchronize()?;
+    context.stream_binding().synchronize()?;
     let mut host = vec![MaybeUninit::uninit(); bytes];
-    // SAFETY: the caller establishes initialization, capacity, producer ordering and exclusive readback.
+    // SAFETY: this function's contract makes `dump.pointer` address `bytes` initialized bytes with no concurrent writer, and the stream was synchronized above, so its producers have finished.
     unsafe {
-        read_bytes(dump.pointer, &mut host)?;
+        read_bytes(context, dump.pointer, &mut host)?;
     }
 
     let host = host
         .into_iter()
-        // SAFETY: the caller upholds this function's safety contract.
+        // SAFETY: `read_bytes` succeeded and wrote every byte, copied from storage the caller guarantees is initialized.
         .map(|byte| unsafe { byte.assume_init() })
         .collect::<Vec<_>>();
     let data = TensorDumpDisplay::create(&host, dump.element_bytes, dump.format)?;
@@ -102,7 +102,7 @@ pub unsafe fn dump_tensor(context: &Context, dump: &TensorDump<'_>) -> Result<()
     ))
 }
 
-pub unsafe fn log_variant_pack(
+pub(crate) unsafe fn log_variant_pack(
     context: &Context,
     pack: &VariantPack,
     tensors: &BTreeMap<TensorId, TensorRecord>,
@@ -116,7 +116,7 @@ pub unsafe fn log_variant_pack(
         });
     }
 
-    if context.stream()?.capture_status()? != StreamCaptureStatus::None {
+    if context.stream_binding().capture_status()? != StreamCaptureStatus::None {
         logger.diagnostic(format_args!(
             "tensor readback skipped during CUDA graph capture"
         ));
@@ -171,7 +171,7 @@ pub unsafe fn log_variant_pack(
         }
 
         if !synchronized {
-            context.stream()?.synchronize()?;
+            context.stream_binding().synchronize()?;
             synchronized = true;
         }
 
@@ -179,7 +179,7 @@ pub unsafe fn log_variant_pack(
         // SAFETY: caller-supplied entry metadata is initialized before execution; graph-written and automatic workspace values are excluded above.
         // Padding is copied as MaybeUninit and never interpreted as a value.
         unsafe {
-            read_bytes(pointer, &mut storage)?;
+            read_bytes(context, pointer, &mut storage)?;
         }
 
         let width = to_usize(spec.data_type.size(), "metadata element bytes")?;
@@ -247,23 +247,28 @@ fn pointer_range(pointer: DevicePtr, bytes: usize) -> Result<Range<usize>> {
     Ok(start..end)
 }
 
-unsafe fn read_bytes(pointer: DevicePtr, destination: &mut [MaybeUninit<u8>]) -> Result<()> {
+unsafe fn read_bytes(
+    context: &Context,
+    pointer: DevicePtr,
+    destination: &mut [MaybeUninit<u8>],
+) -> Result<()> {
     if destination.is_empty() {
         return Ok(());
     }
 
     let attributes = PointerAttributes::query(pointer.as_raw())?;
     match attributes.memory_type {
-        // SAFETY: the caller upholds this function's safety contract.
+        // SAFETY: callers guarantee `pointer` addresses `destination.len()` readable bytes in the bound context, and `destination` is a host slice of exactly that length.
         MemoryType::Device | MemoryType::Managed => unsafe {
             DeviceMemory::<MaybeUninit<u8>>::copy(
+                context.cuda_context(),
                 destination.as_mut_ptr(),
                 pointer.as_raw().cast(),
                 destination.len(),
                 MemoryCopyKind::DeviceToHost,
             )?;
         },
-        // SAFETY: the caller upholds this function's safety contract.
+        // SAFETY: the query reported host memory, callers guarantee `destination.len()` readable bytes at `pointer`, and `destination` is a separate host slice, so the ranges do not overlap.
         MemoryType::Host | MemoryType::Unregistered => unsafe {
             copy_nonoverlapping(
                 pointer.as_raw().cast::<MaybeUninit<u8>>(),
@@ -331,7 +336,8 @@ impl<'a> TensorDumpDisplay<'a> {
     /// Validates the element width and complete elements without allocating or reading device memory.
     ///
     /// # Errors
-    /// Returns an invalid element width, incomplete final element or base64-length overflow error.
+    ///
+    /// Returns an error if the element width is invalid, the final element is incomplete, or the base64 length overflows.
     pub fn create(bytes: &'a [u8], width: usize, format: TensorDumpFormat) -> Result<Self> {
         validate_width(width, format)?;
         if !bytes.len().is_multiple_of(width) {
@@ -359,19 +365,20 @@ impl fmt::Display for TensorDumpDisplay<'_> {
             TensorDumpFormat::Base64 => {
                 const TABLE: &[u8; 64] =
                     b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+                let symbol = |index: u8| char::from(TABLE[usize::from(index)]);
                 for chunk in self.bytes.chunks(3) {
-                    let value = (u32::from(chunk[0]) << 16)
-                        | (u32::from(chunk.get(1).copied().unwrap_or(0)) << 8)
-                        | u32::from(chunk.get(2).copied().unwrap_or(0));
-                    formatter.write_char(TABLE[((value >> 18) & 63) as usize] as char)?;
-                    formatter.write_char(TABLE[((value >> 12) & 63) as usize] as char)?;
+                    let first = chunk[0];
+                    let second = chunk.get(1).copied().unwrap_or(0);
+                    let third = chunk.get(2).copied().unwrap_or(0);
+                    formatter.write_char(symbol(first >> 2))?;
+                    formatter.write_char(symbol(((first & 0x03) << 4) | (second >> 4)))?;
                     formatter.write_char(if chunk.len() > 1 {
-                        TABLE[((value >> 6) & 63) as usize] as char
+                        symbol(((second & 0x0f) << 2) | (third >> 6))
                     } else {
                         '='
                     })?;
                     formatter.write_char(if chunk.len() > 2 {
-                        TABLE[(value & 63) as usize] as char
+                        symbol(third & 0x3f)
                     } else {
                         '='
                     })?;
@@ -411,7 +418,8 @@ impl fmt::Display for TensorDumpDisplay<'_> {
 /// Use [`TensorDumpDisplay`] to write directly into a logger or another formatting destination.
 ///
 /// # Errors
-/// Returns an invalid element width, incomplete final element or base64-length overflow error.
+///
+/// Returns an error if the element width is invalid, the final element is incomplete, or the base64 length overflows.
 pub fn format_tensor_bytes(bytes: &[u8], width: usize, format: TensorDumpFormat) -> Result<String> {
     Ok(TensorDumpDisplay::create(bytes, width, format)?.to_string())
 }

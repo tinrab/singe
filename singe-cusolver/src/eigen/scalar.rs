@@ -7,16 +7,13 @@ use singe_cuda::{
 
 use crate::{
     context::Context,
-    data_type::SolverElement,
+    data_type::private::Element,
     eigen::{EigenSelection, SyevjInfo, raw},
     error::Result,
     layout::{ByteWorkspaceMut, MatrixLayout, MatrixMut, MatrixOutput, WorkspaceSizes},
     params::Params,
     types::{EigenMode, EigenType, FillMode},
 };
-
-/// A supported scalar precision for native eigenvalue dispatch.
-pub trait EigenScalar: SolverElement + private::Sealed {}
 
 type JacobiQuery =
     fn(&Context, EigenMode, FillMode, usize, MatrixLayout, &SyevjInfo) -> Result<usize>;
@@ -27,7 +24,7 @@ type Jacobi<T> = for<'a> unsafe fn(
     FillMode,
     usize,
     MatrixMut<'a, T>,
-    DeviceOutputView<'a, <T as SolverElement>::Real>,
+    DeviceOutputView<'a, <T as Element>::Real>,
     DeviceOutputView<'a, T>,
     DeviceOutputView<'a, i32>,
     &mut SyevjInfo,
@@ -42,7 +39,7 @@ type Batched<T> = for<'a> unsafe fn(
     FillMode,
     usize,
     MatrixMut<'a, T>,
-    DeviceOutputView<'a, <T as SolverElement>::Real>,
+    DeviceOutputView<'a, <T as Element>::Real>,
     DeviceOutputView<'a, T>,
     DeviceOutputView<'a, i32>,
     &mut SyevjInfo,
@@ -68,7 +65,7 @@ type GeneralizedJacobi<T> = for<'a> unsafe fn(
     usize,
     MatrixMut<'a, T>,
     MatrixMut<'a, T>,
-    DeviceOutputView<'a, <T as SolverElement>::Real>,
+    DeviceOutputView<'a, <T as Element>::Real>,
     DeviceOutputView<'a, T>,
     DeviceOutputView<'a, i32>,
     &mut SyevjInfo,
@@ -92,7 +89,7 @@ type GeneralizedDivide<T> = for<'a> unsafe fn(
     usize,
     MatrixMut<'a, T>,
     MatrixMut<'a, T>,
-    DeviceOutputView<'a, <T as SolverElement>::Real>,
+    DeviceOutputView<'a, <T as Element>::Real>,
     DeviceOutputView<'a, T>,
     DeviceOutputView<'a, i32>,
 ) -> Result<()>;
@@ -102,7 +99,7 @@ type GeneralizedSelectedQuery<T> = fn(
     EigenType,
     EigenMode,
     FillMode,
-    &EigenSelection<<T as SolverElement>::Real>,
+    &EigenSelection<<T as Element>::Real>,
     usize,
     MatrixLayout,
     MatrixLayout,
@@ -113,11 +110,11 @@ type GeneralizedSelected<T> = for<'a> unsafe fn(
     EigenType,
     EigenMode,
     FillMode,
-    &EigenSelection<<T as SolverElement>::Real>,
+    &EigenSelection<<T as Element>::Real>,
     usize,
     MatrixMut<'a, T>,
     MatrixMut<'a, T>,
-    DeviceOutputView<'a, <T as SolverElement>::Real>,
+    DeviceOutputView<'a, <T as Element>::Real>,
     DeviceOutputView<'a, T>,
     DeviceOutputView<'a, i32>,
     &mut MaybeUninit<i32>,
@@ -132,38 +129,32 @@ type General<T> = for<'a> unsafe fn(
     usize,
     MatrixMut<'a, T>,
     Option<MatrixOutput<'a, T>>,
-    DeviceOutputView<'a, <T as SolverElement>::Complex>,
+    DeviceOutputView<'a, <T as Element>::Complex>,
     ByteWorkspaceMut<'a>,
     DeviceOutputView<'a, i32>,
 ) -> Result<()>;
 
-mod private {
-    use crate::{
-        data_type::SolverElement,
-        eigen::scalar::{
-            Batched, BatchedQuery, General, GeneralQuery, GeneralizedDivide,
-            GeneralizedDivideQuery, GeneralizedJacobi, GeneralizedJacobiQuery, GeneralizedSelected,
-            GeneralizedSelectedQuery, Jacobi, JacobiQuery,
-        },
-    };
-
-    pub trait Sealed: SolverElement {
-        const JACOBI_QUERY: JacobiQuery;
-        const JACOBI: Jacobi<Self>;
-        const BATCHED_QUERY: BatchedQuery;
-        const BATCHED: Batched<Self>;
-        const GENERALIZED_JACOBI_QUERY: GeneralizedJacobiQuery;
-        const GENERALIZED_JACOBI: GeneralizedJacobi<Self>;
-        const GENERALIZED_DIVIDE_QUERY: GeneralizedDivideQuery;
-        const GENERALIZED_DIVIDE: GeneralizedDivide<Self>;
-        const GENERALIZED_SELECTED_QUERY: GeneralizedSelectedQuery<Self>;
-        const GENERALIZED_SELECTED: GeneralizedSelected<Self>;
-        const GENERAL_QUERY: GeneralQuery;
-        const GENERAL: General<Self>;
-    }
+// Per-precision native entry points of the eigenvalue operations.
+#[expect(
+    unnameable_types,
+    reason = "sealed supertrait of SolverElement; users cannot name or implement it"
+)]
+pub trait EigenDispatch: Element {
+    const JACOBI_QUERY: JacobiQuery;
+    const JACOBI: Jacobi<Self>;
+    const BATCHED_QUERY: BatchedQuery;
+    const BATCHED: Batched<Self>;
+    const GENERALIZED_JACOBI_QUERY: GeneralizedJacobiQuery;
+    const GENERALIZED_JACOBI: GeneralizedJacobi<Self>;
+    const GENERALIZED_DIVIDE_QUERY: GeneralizedDivideQuery;
+    const GENERALIZED_DIVIDE: GeneralizedDivide<Self>;
+    const GENERALIZED_SELECTED_QUERY: GeneralizedSelectedQuery<Self>;
+    const GENERALIZED_SELECTED: GeneralizedSelected<Self>;
+    const GENERAL_QUERY: GeneralQuery;
+    const GENERAL: General<Self>;
 }
 
-impl private::Sealed for f32 {
+impl EigenDispatch for f32 {
     const JACOBI_QUERY: JacobiQuery = raw::ssyevj_buffer_size;
     const JACOBI: Jacobi<Self> = raw::ssyevj;
     const BATCHED_QUERY: BatchedQuery = raw::ssyevj_batched_buffer_size;
@@ -177,13 +168,11 @@ impl private::Sealed for f32 {
         raw::ssygvdx_selected_buffer_size;
 
     const GENERALIZED_SELECTED: GeneralizedSelected<Self> = raw::ssygvdx_selected;
-    const GENERAL_QUERY: GeneralQuery = raw::xgeev_buffer_size::<Self, Complex32>;
-    const GENERAL: General<Self> = raw::xgeev::<Self, Complex32>;
+    const GENERAL_QUERY: GeneralQuery = raw::xgeev_workspace_size::<Self, Complex32>;
+    const GENERAL: General<Self> = raw::xgeev_async::<Self, Complex32>;
 }
 
-impl EigenScalar for f32 {}
-
-impl private::Sealed for f64 {
+impl EigenDispatch for f64 {
     const JACOBI_QUERY: JacobiQuery = raw::dsyevj_buffer_size;
     const JACOBI: Jacobi<Self> = raw::dsyevj;
     const BATCHED_QUERY: BatchedQuery = raw::dsyevj_batched_buffer_size;
@@ -197,13 +186,11 @@ impl private::Sealed for f64 {
         raw::dsygvdx_selected_buffer_size;
 
     const GENERALIZED_SELECTED: GeneralizedSelected<Self> = raw::dsygvdx_selected;
-    const GENERAL_QUERY: GeneralQuery = raw::xgeev_buffer_size::<Self, Complex64>;
-    const GENERAL: General<Self> = raw::xgeev::<Self, Complex64>;
+    const GENERAL_QUERY: GeneralQuery = raw::xgeev_workspace_size::<Self, Complex64>;
+    const GENERAL: General<Self> = raw::xgeev_async::<Self, Complex64>;
 }
 
-impl EigenScalar for f64 {}
-
-impl private::Sealed for Complex32 {
+impl EigenDispatch for Complex32 {
     const JACOBI_QUERY: JacobiQuery = raw::cheevj_buffer_size;
     const JACOBI: Jacobi<Self> = raw::cheevj;
     const BATCHED_QUERY: BatchedQuery = raw::cheevj_batched_buffer_size;
@@ -217,13 +204,11 @@ impl private::Sealed for Complex32 {
         raw::chegvdx_selected_buffer_size;
 
     const GENERALIZED_SELECTED: GeneralizedSelected<Self> = raw::chegvdx_selected;
-    const GENERAL_QUERY: GeneralQuery = raw::xgeev_buffer_size::<Self, Self>;
-    const GENERAL: General<Self> = raw::xgeev::<Self, Self>;
+    const GENERAL_QUERY: GeneralQuery = raw::xgeev_workspace_size::<Self, Self>;
+    const GENERAL: General<Self> = raw::xgeev_async::<Self, Self>;
 }
 
-impl EigenScalar for Complex32 {}
-
-impl private::Sealed for Complex64 {
+impl EigenDispatch for Complex64 {
     const JACOBI_QUERY: JacobiQuery = raw::zheevj_buffer_size;
     const JACOBI: Jacobi<Self> = raw::zheevj;
     const BATCHED_QUERY: BatchedQuery = raw::zheevj_batched_buffer_size;
@@ -237,8 +222,6 @@ impl private::Sealed for Complex64 {
         raw::zhegvdx_selected_buffer_size;
 
     const GENERALIZED_SELECTED: GeneralizedSelected<Self> = raw::zhegvdx_selected;
-    const GENERAL_QUERY: GeneralQuery = raw::xgeev_buffer_size::<Self, Self>;
-    const GENERAL: General<Self> = raw::xgeev::<Self, Self>;
+    const GENERAL_QUERY: GeneralQuery = raw::xgeev_workspace_size::<Self, Self>;
+    const GENERAL: General<Self> = raw::xgeev_async::<Self, Self>;
 }
-
-impl EigenScalar for Complex64 {}

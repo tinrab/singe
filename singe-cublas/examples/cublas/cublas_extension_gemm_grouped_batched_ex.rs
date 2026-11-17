@@ -1,15 +1,17 @@
 use singe_cublas::{
-    blas::level3::gemm_grouped_batched_ex,
+    blas::{extension::gemm_grouped_batched_ex, level3::GemmGroup},
     context::Context,
-    error::Result,
-    types::{ComputeType, Operation},
+    gemm::GemmShape,
+    types::ComputeType,
 };
 use singe_cuda::{
-    context::Context as CudaContext, data_type::DataType, device::Device, memory::DeviceMemory,
-    types::DevicePtr,
+    context::Context as CudaContext,
+    device::Device,
+    memory::DeviceMemory,
+    view::{DeviceInputView, DeviceOutputView},
 };
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     let cuda = CudaContext::create_for_device(Device::new(0))?;
     let cublas = Context::create(&cuda)?;
 
@@ -20,54 +22,49 @@ fn main() -> Result<()> {
     let b1 = DeviceMemory::from_slice(&cuda, &[9.0_f32, 11.0, 10.0, 12.0])?;
     let b2 =
         DeviceMemory::from_slice(&cuda, &[4.0_f32, 7.0, 10.0, 5.0, 8.0, 11.0, 6.0, 9.0, 12.0])?;
-    let c0 = DeviceMemory::<f32>::zeroed(&cuda, 4)?;
-    let c1 = DeviceMemory::<f32>::zeroed(&cuda, 4)?;
-    let c2 = DeviceMemory::<f32>::zeroed(&cuda, 9)?;
+    let mut c0 = DeviceMemory::<f32>::zeroed(&cuda, 4)?;
+    let mut c1 = DeviceMemory::<f32>::zeroed(&cuda, 4)?;
+    let mut c2 = DeviceMemory::<f32>::zeroed(&cuda, 9)?;
 
-    let a = [
-        // SAFETY: the address comes from a live allocation; wrapping it does not dereference it.
-        unsafe { DevicePtr::from_raw(a0.as_ptr().cast_mut().cast::<()>()) },
-        // SAFETY: the address comes from a live allocation; wrapping it does not dereference it.
-        unsafe { DevicePtr::from_raw(a1.as_ptr().cast_mut().cast::<()>()) },
-        // SAFETY: the address comes from a live allocation; wrapping it does not dereference it.
-        unsafe { DevicePtr::from_raw(a2.as_ptr().cast_mut().cast::<()>()) },
-    ];
-    let b = [
-        // SAFETY: the address comes from a live allocation; wrapping it does not dereference it.
-        unsafe { DevicePtr::from_raw(b0.as_ptr().cast_mut().cast::<()>()) },
-        // SAFETY: the address comes from a live allocation; wrapping it does not dereference it.
-        unsafe { DevicePtr::from_raw(b1.as_ptr().cast_mut().cast::<()>()) },
-        // SAFETY: the address comes from a live allocation; wrapping it does not dereference it.
-        unsafe { DevicePtr::from_raw(b2.as_ptr().cast_mut().cast::<()>()) },
-    ];
-    let mut c = [
-        // SAFETY: the address comes from a live allocation; wrapping it does not dereference it.
-        unsafe { DevicePtr::from_raw(c0.as_ptr().cast_mut().cast::<()>()) },
-        // SAFETY: the address comes from a live allocation; wrapping it does not dereference it.
-        unsafe { DevicePtr::from_raw(c1.as_ptr().cast_mut().cast::<()>()) },
-        // SAFETY: the address comes from a live allocation; wrapping it does not dereference it.
-        unsafe { DevicePtr::from_raw(c2.as_ptr().cast_mut().cast::<()>()) },
+    let groups = [
+        GemmGroup {
+            shape: GemmShape::new(2, 2, 2),
+            alpha: 1.0_f32,
+            beta: 0.0_f32,
+            lda: 2,
+            ldb: 2,
+            ldc: 2,
+            count: 2,
+        },
+        GemmGroup {
+            shape: GemmShape::new(3, 3, 3),
+            alpha: 1.0_f32,
+            beta: 0.0_f32,
+            lda: 3,
+            ldb: 3,
+            ldc: 3,
+            count: 1,
+        },
     ];
 
     gemm_grouped_batched_ex(
         &cublas,
-        &[Operation::NonTranspose, Operation::NonTranspose],
-        &[Operation::NonTranspose, Operation::NonTranspose],
-        &[2, 3],
-        &[2, 3],
-        &[2, 3],
-        &[1.0_f32, 1.0_f32],
-        &a,
-        DataType::F32,
-        &[2, 3],
-        &b,
-        DataType::F32,
-        &[2, 3],
-        &[0.0_f32, 0.0_f32],
-        &mut c,
-        DataType::F32,
-        &[2, 3],
-        &[2, 1],
+        &groups,
+        &[
+            DeviceInputView::from_buffer(&a0),
+            DeviceInputView::from_buffer(&a1),
+            DeviceInputView::from_buffer(&a2),
+        ],
+        &[
+            DeviceInputView::from_buffer(&b0),
+            DeviceInputView::from_buffer(&b1),
+            DeviceInputView::from_buffer(&b2),
+        ],
+        &mut [
+            DeviceOutputView::from_output(&mut c0),
+            DeviceOutputView::from_output(&mut c1),
+            DeviceOutputView::from_output(&mut c2),
+        ],
         ComputeType::F32,
     )?;
 

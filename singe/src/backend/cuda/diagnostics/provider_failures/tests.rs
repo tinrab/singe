@@ -11,7 +11,7 @@ fn test_resource_and_internal_errors_do_not_become_negative_capabilities() {
     ] {
         let error = Error::Cudnn(CudnnError::Cudnn {
             code: status,
-            message: "original diagnostic".into(),
+            diagnostic: "original diagnostic".into(),
         });
         let mut failures = GraphProviderFailures::default();
         let error = record_cuda_graph_provider_failure(
@@ -42,7 +42,7 @@ fn test_a_library_rejection_is_an_error_and_a_checked_one_is_not() {
         CudaGraphProvider::CudnnBackend,
         Error::Cudnn(CudnnError::Cudnn {
             code: CudnnStatus::NotSupported,
-            message: "no engine".into(),
+            diagnostic: "no engine".into(),
         }),
     )
     .unwrap_err();

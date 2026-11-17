@@ -1,35 +1,29 @@
 use std::{
     ops::{Index, IndexMut},
-    process, slice, thread, vec,
+    slice, thread, vec,
 };
 
+use singe_core::abort_after_cleanup_failure;
 use singe_cuda::{
     device::Device,
     memory::DeviceMemory,
-    stream::Stream,
+    stream::{Stream, StreamOptions},
     view::{DeviceOutputView, DeviceView, DeviceViewMut},
 };
 
 use crate::{
+    collective::CollectiveOptions,
     communicator::Communicator,
     error::{Error, Result, Status},
     group,
     group::Group,
-    sys,
-    types::{CommunicatorState, DataTypeLike, ReductionOperator},
-    utility::{checked_mul, to_i32, to_usize},
+    sys, try_ffi,
+    types::{CommunicatorState, DataTypeLike, RankId, ReductionOperator, RootRank},
+    utility::{checked_mul, ensure_lengths, to_i32, to_usize},
 };
 
-/// A nonnegative communicator rank identifier.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct RankId(i32);
-
-/// A nonnegative rank selected as the root of a collective.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct RootRank(RankId);
-
 /// A local rank group whose borrowed collectives return after successful completion.
-/// Raw grouped scheduling remains available through [`Self::sync_scope`].
+/// Raw grouped scheduling remains available through [`Self::completed_group`].
 #[derive(Debug)]
 pub struct LocalCommunicatorGroup {
     ranks: Vec<LocalRank>,
@@ -56,113 +50,35 @@ pub struct RootOutput<T> {
     value: T,
 }
 
-impl RankId {
-    /// Creates a nonnegative rank identifier.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if `value` is negative.
-    pub fn create(value: i32) -> Result<Self> {
-        if value < 0 {
-            return Err(Error::out_of_range("rank"));
-        }
-        Ok(Self(value))
-    }
-
-    /// Returns the native rank number.
-    #[must_use]
-    pub const fn get(self) -> i32 {
-        self.0
-    }
-
-    pub(crate) fn to_index(self) -> Result<usize> {
-        to_usize(self.0, "rank")
-    }
-}
-
-impl RootRank {
-    /// Creates a nonnegative rank identifier.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if `value` is negative.
-    pub fn create(value: i32) -> Result<Self> {
-        Ok(Self(RankId::create(value)?))
-    }
-
-    /// Returns the root as a rank identifier.
-    #[must_use]
-    pub const fn id(self) -> RankId {
-        self.0
-    }
-
-    /// Returns the native root rank number.
-    #[must_use]
-    pub const fn get(self) -> i32 {
-        self.0.get()
-    }
-}
-
 impl LocalCommunicatorGroup {
-    /// Creates a local communicator group with one rank per supplied device ID.
+    /// Creates a local communicator group with one rank per device in `devices`, in order.
     ///
     /// # Errors
     ///
-    /// Returns an error if the requested devices are unavailable, a count exceeds the native integer range, CUDA primary-context or stream setup fails, or NCCL cannot create the local clique.
-    pub fn create_all(device_ids: &[i32]) -> Result<Self> {
-        let communicators = Communicator::create_all(device_ids)?;
-        Self::from_communicators(communicators)
+    /// Returns an error if an NCCL group is already open, a primary CUDA context or stream cannot be created, the device count exceeds NCCL's range, or NCCL cannot create the clique.
+    pub fn create(devices: &[Device]) -> Result<Self> {
+        Self::from_communicators(Communicator::create_all(devices)?)
     }
 
-    /// Creates a local group using the first `device_count` CUDA devices.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the requested devices are unavailable, a count exceeds the native integer range, CUDA primary-context or stream setup fails, or NCCL cannot create the local clique.
-    pub fn create_all_first_devices(device_count: i32) -> Result<Self> {
-        let device_count = to_usize(device_count, "device_count")?;
-        let device_ids = (0..device_count)
-            .map(|device_id| to_i32(device_id, "device_id"))
-            .collect::<Result<Vec<_>>>()?;
-        Self::create_all(&device_ids)
-    }
-
-    /// Creates `rank_count` ranks on the first visible CUDA devices.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the requested devices are unavailable, a count exceeds the native integer range, CUDA primary-context or stream setup fails, or NCCL cannot create the local clique.
-    pub fn create_all_visible(rank_count: usize) -> Result<Self> {
-        let device_count = to_usize(Device::count()?, "device_count")?;
-        if device_count < rank_count {
-            return Err(Error::out_of_range("visible device count"));
-        }
-
-        let device_ids = (0..rank_count)
-            .map(|device_id| to_i32(device_id, "device_id"))
-            .collect::<Result<Vec<_>>>()?;
-        Self::create_all(&device_ids)
-    }
-
-    /// Takes ownership of a complete local communicator clique and creates one stream per rank.
-    ///
-    /// Ranks are sorted into communicator-rank order.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the communicator count exceeds the `i32` range, communicator sizes do not match, ranks do not form a complete clique, or querying NCCL metadata or creating CUDA streams fails.
-    pub fn from_communicators(communicators: Vec<Communicator>) -> Result<Self> {
-        let rank_count = to_i32(communicators.len(), "local rank count")?;
-        let mut ranks = Vec::with_capacity(communicators.len());
+    // NCCL cannot report which clique a communicator belongs to, so only `create` builds a group: ranks of different cliques would wait for each other forever.
+    fn from_communicators(communicators: Vec<Communicator>) -> Result<Self> {
+        let local_count = communicators.len();
+        let rank_count = to_i32(local_count, "local rank count")?;
+        let mut ranks = Vec::with_capacity(local_count);
         for communicator in communicators {
-            if communicator.rank_count()? != rank_count {
+            let communicator_rank_count = communicator.rank_count()?;
+            if communicator_rank_count != rank_count {
                 return Err(Error::LengthMismatch {
                     name: "local communicator clique".into(),
+                    expected: local_count,
+                    actual: to_usize(communicator_rank_count, "communicator rank count")?,
                 });
             }
 
             let id = RankId::create(communicator.rank()?)?;
-            let stream = communicator.cuda_context().create_stream()?;
+            let stream = communicator
+                .cuda_context()
+                .create_stream(StreamOptions::default())?;
             ranks.push(LocalRank {
                 id,
                 communicator,
@@ -264,12 +180,17 @@ impl LocalCommunicatorGroup {
         Self::ensure_same_len(send, "all_reduce send")?;
         Self::ensure_pair_lengths(send, recv, "all_reduce buffers")?;
         self.with_completed_group(|| {
-            // SAFETY: all views remain borrowed until the completed group drains.
+            // SAFETY: every local rank issues the matching call in one group, and `with_completed_group` waits for all rank streams while these views stay borrowed.
             unsafe {
                 for ((rank, send), recv) in self.ranks.iter().zip(send.iter()).zip(recv.iter_mut())
                 {
-                    rank.communicator
-                        .all_reduce(*send, recv.reborrow(), op, &rank.stream)?;
+                    rank.communicator.all_reduce_async(
+                        *send,
+                        recv.reborrow(),
+                        op,
+                        &CollectiveOptions::default(),
+                        &rank.stream,
+                    )?;
                 }
                 Ok(())
             }
@@ -288,14 +209,13 @@ impl LocalCommunicatorGroup {
         op: ReductionOperator,
     ) -> Result<()> {
         self.ensure_rank_vec(buffers, "all_reduce buffers")?;
-        let expected =
-            buffers
-                .iter()
-                .next()
-                .map(DeviceViewMut::len)
-                .ok_or(Error::LengthMismatch {
-                    name: "all_reduce buffers".into(),
-                })?;
+        let expected = buffers
+            .iter()
+            .next()
+            .map(DeviceViewMut::len)
+            .ok_or(Error::Empty {
+                name: "all_reduce buffers".into(),
+            })?;
         ensure_lengths(
             buffers.iter().map(DeviceViewMut::len),
             expected,
@@ -303,10 +223,14 @@ impl LocalCommunicatorGroup {
         )?;
         self.with_completed_group(|| {
             for (rank, buffer) in self.ranks.iter().zip(buffers.iter_mut()) {
-                // SAFETY: the completed group retains the exclusive borrows through execution.
+                // SAFETY: every local rank issues the matching call in one group, and `with_completed_group` waits for all rank streams while these exclusive borrows last.
                 unsafe {
-                    rank.communicator
-                        .all_reduce_in_place(buffer.reborrow(), op, &rank.stream)?;
+                    rank.communicator.all_reduce_in_place_async(
+                        buffer.reborrow(),
+                        op,
+                        &CollectiveOptions::default(),
+                        &rank.stream,
+                    )?;
                 }
             }
             Ok(())
@@ -334,14 +258,15 @@ impl LocalCommunicatorGroup {
         Self::ensure_same_len(send, "broadcast send")?;
         Self::ensure_pair_lengths(send, recv, "broadcast buffers")?;
         self.with_completed_group(|| {
-            // SAFETY: all views remain borrowed until the completed group drains.
+            // SAFETY: every local rank issues the matching call in one group, and `with_completed_group` waits for all rank streams while these views stay borrowed.
             unsafe {
                 for ((rank, send), recv) in self.ranks.iter().zip(send.iter()).zip(recv.iter_mut())
                 {
-                    rank.communicator.broadcast(
+                    rank.communicator.broadcast_async(
                         *send,
                         recv.reborrow(),
                         root.get(),
+                        &CollectiveOptions::default(),
                         &rank.stream,
                     )?;
                 }
@@ -366,26 +291,26 @@ impl LocalCommunicatorGroup {
     ) -> Result<()> {
         self.ensure_root(root)?;
         self.ensure_rank_vec(buffers, "broadcast buffers")?;
-        let expected =
-            buffers
-                .iter()
-                .next()
-                .map(DeviceViewMut::len)
-                .ok_or(Error::LengthMismatch {
-                    name: "broadcast buffers".into(),
-                })?;
+        let expected = buffers
+            .iter()
+            .next()
+            .map(DeviceViewMut::len)
+            .ok_or(Error::Empty {
+                name: "broadcast buffers".into(),
+            })?;
         ensure_lengths(
             buffers.iter().map(DeviceViewMut::len),
             expected,
             "broadcast buffers",
         )?;
         self.with_completed_group(|| {
-            // SAFETY: all views remain borrowed until the completed group drains.
+            // SAFETY: every local rank issues the matching call in one group, and `with_completed_group` waits for all rank streams while these views stay borrowed.
             unsafe {
                 for (rank, buffer) in self.ranks.iter().zip(buffers.iter_mut()) {
-                    rank.communicator.broadcast_in_place(
+                    rank.communicator.broadcast_in_place_async(
                         buffer.reborrow(),
                         root.get(),
+                        &CollectiveOptions::default(),
                         &rank.stream,
                     )?;
                 }
@@ -447,12 +372,14 @@ impl LocalCommunicatorGroup {
         if root_recv.len() != send_len {
             return Err(Error::LengthMismatch {
                 name: "reduce recv".into(),
+                expected: send_len,
+                actual: root_recv.len(),
             });
         }
 
         let root_index = root.id().to_index()?;
         self.with_completed_group(|| {
-            // SAFETY: all views remain borrowed until the completed group drains.
+            // SAFETY: every local rank issues the matching call in one group, and `with_completed_group` waits for all rank streams while these views stay borrowed.
             unsafe {
                 let mut root_recv = Some(&mut root_recv);
                 for (index, (rank, send)) in self.ranks.iter().zip(send.iter()).enumerate() {
@@ -461,11 +388,12 @@ impl LocalCommunicatorGroup {
                     } else {
                         None
                     };
-                    rank.communicator.reduce(
+                    rank.communicator.reduce_async(
                         *send,
                         recv.map(DeviceOutputView::reborrow),
                         op,
                         root.get(),
+                        &CollectiveOptions::default(),
                         &rank.stream,
                     )?;
                 }
@@ -497,12 +425,16 @@ impl LocalCommunicatorGroup {
         )?;
         Self::ensure_all_len(recv, expected_recv_len, "all_gather recv")?;
         self.with_completed_group(|| {
-            // SAFETY: all views remain borrowed until the completed group drains.
+            // SAFETY: every local rank issues the matching call in one group, and `with_completed_group` waits for all rank streams while these views stay borrowed.
             unsafe {
                 for ((rank, send), recv) in self.ranks.iter().zip(send.iter()).zip(recv.iter_mut())
                 {
-                    rank.communicator
-                        .all_gather(*send, recv.reborrow(), &rank.stream)?;
+                    rank.communicator.all_gather_async(
+                        *send,
+                        recv.reborrow(),
+                        &CollectiveOptions::default(),
+                        &rank.stream,
+                    )?;
                 }
                 Ok(())
             }
@@ -535,12 +467,14 @@ impl LocalCommunicatorGroup {
         if root_recv.len() != expected_recv_len {
             return Err(Error::LengthMismatch {
                 name: "gather recv".into(),
+                expected: expected_recv_len,
+                actual: root_recv.len(),
             });
         }
 
         let root_index = root.id().to_index()?;
         self.with_completed_group(|| {
-            // SAFETY: all views remain borrowed until the completed group drains.
+            // SAFETY: every local rank issues the matching call in one group, and `with_completed_group` waits for all rank streams while these views stay borrowed.
             unsafe {
                 let mut root_recv = Some(&mut root_recv);
                 for (index, (rank, send)) in self.ranks.iter().zip(send.iter()).enumerate() {
@@ -549,10 +483,11 @@ impl LocalCommunicatorGroup {
                     } else {
                         None
                     };
-                    rank.communicator.gather(
+                    rank.communicator.gather_async(
                         *send,
                         recv.map(DeviceOutputView::reborrow),
                         root.get(),
+                        &CollectiveOptions::default(),
                         &rank.stream,
                     )?;
                 }
@@ -578,29 +513,36 @@ impl LocalCommunicatorGroup {
     ) -> Result<()> {
         self.ensure_root(root)?;
         self.ensure_rank_vec(recv, "scatter recv")?;
-        let recv_len =
-            recv.iter()
-                .next()
-                .map(DeviceOutputView::len)
-                .ok_or(Error::LengthMismatch {
-                    name: "scatter recv".into(),
-                })?;
+        let recv_len = recv
+            .iter()
+            .next()
+            .map(DeviceOutputView::len)
+            .ok_or(Error::Empty {
+                name: "scatter recv".into(),
+            })?;
         Self::ensure_all_len(recv, recv_len, "scatter recv")?;
         let expected_send_len = checked_mul(recv_len, self.rank_count(), "scatter send")?;
         if root_send.len() != expected_send_len {
             return Err(Error::LengthMismatch {
                 name: "scatter send".into(),
+                expected: expected_send_len,
+                actual: root_send.len(),
             });
         }
 
         let root_index = root.id().to_index()?;
         self.with_completed_group(|| {
-            // SAFETY: all views remain borrowed until the completed group drains.
+            // SAFETY: every local rank issues the matching call in one group, and `with_completed_group` waits for all rank streams while these views stay borrowed.
             unsafe {
                 for (index, (rank, recv)) in self.ranks.iter().zip(recv.iter_mut()).enumerate() {
                     let send = (index == root_index).then_some(root_send);
-                    rank.communicator
-                        .scatter(send, recv.reborrow(), root.get(), &rank.stream)?;
+                    rank.communicator.scatter_async(
+                        send,
+                        recv.reborrow(),
+                        root.get(),
+                        &CollectiveOptions::default(),
+                        &rank.stream,
+                    )?;
                 }
                 Ok(())
             }
@@ -629,12 +571,16 @@ impl LocalCommunicatorGroup {
             "all_to_all recv",
         )?;
         self.with_completed_group(|| {
-            // SAFETY: all views remain borrowed until the completed group drains.
+            // SAFETY: every local rank issues the matching call in one group, and `with_completed_group` waits for all rank streams while these views stay borrowed.
             unsafe {
                 for ((rank, send), recv) in self.ranks.iter().zip(send.iter()).zip(recv.iter_mut())
                 {
-                    rank.communicator
-                        .all_to_all(*send, recv.reborrow(), &rank.stream)?;
+                    rank.communicator.all_to_all_async(
+                        *send,
+                        recv.reborrow(),
+                        &CollectiveOptions::default(),
+                        &rank.stream,
+                    )?;
                 }
                 Ok(())
             }
@@ -662,16 +608,23 @@ impl LocalCommunicatorGroup {
             if buffer.len() != elements_per_rank {
                 return Err(Error::LengthMismatch {
                     name: "reduce_scatter recv".into(),
+                    expected: elements_per_rank,
+                    actual: buffer.len(),
                 });
             }
         }
         self.with_completed_group(|| {
-            // SAFETY: all views remain borrowed until the completed group drains.
+            // SAFETY: every local rank issues the matching call in one group, and `with_completed_group` waits for all rank streams while these views stay borrowed.
             unsafe {
                 for ((rank, send), recv) in self.ranks.iter().zip(send.iter()).zip(recv.iter_mut())
                 {
-                    rank.communicator
-                        .reduce_scatter(*send, recv.reborrow(), op, &rank.stream)?;
+                    rank.communicator.reduce_scatter_async(
+                        *send,
+                        recv.reborrow(),
+                        op,
+                        &CollectiveOptions::default(),
+                        &rank.stream,
+                    )?;
                 }
                 Ok(())
             }
@@ -690,6 +643,8 @@ impl LocalCommunicatorGroup {
         if values.len() != self.rank_count() {
             return Err(Error::LengthMismatch {
                 name: name.to_owned().into(),
+                expected: self.rank_count(),
+                actual: values.len(),
             });
         }
         Ok(())
@@ -714,7 +669,7 @@ impl LocalCommunicatorGroup {
             .iter()
             .next()
             .map(DeviceView::len)
-            .ok_or(Error::LengthMismatch {
+            .ok_or_else(|| Error::Empty {
                 name: name.to_owned().into(),
             })
     }
@@ -740,13 +695,15 @@ impl LocalCommunicatorGroup {
         right: &RankVec<DeviceOutputView<'_, T>>,
         name: &str,
     ) -> Result<()> {
-        if left
+        if let Some((left, right)) = left
             .iter()
             .zip(right)
-            .any(|(left, right)| left.len() != right.len())
+            .find(|(left, right)| left.len() != right.len())
         {
             return Err(Error::LengthMismatch {
                 name: name.to_owned().into(),
+                expected: left.len(),
+                actual: right.len(),
             });
         }
         Ok(())
@@ -759,13 +716,14 @@ impl LocalCommunicatorGroup {
     /// Open groups and capture are rejected.
     ///
     /// # Safety
+    ///
     /// The closure must issue matching collective or point-to-point calls using these communicators and streams, including on error and unwind paths.
     /// Retain backing buffers and referenced device resources outside the closure through this call, and uphold each raw operation's access rules.
     ///
     /// # Errors
     ///
     /// Returns an error if an NCCL group is already open, starting or ending the group fails, `f` fails, or asynchronous communicator status or stream synchronization reports a failure.
-    pub unsafe fn sync_scope<R>(&self, f: impl FnOnce() -> Result<R>) -> Result<R> {
+    pub unsafe fn completed_group<R>(&self, f: impl FnOnce() -> Result<R>) -> Result<R> {
         self.with_completed_group(f)
     }
 
@@ -977,15 +935,6 @@ impl<'a, T> IntoIterator for &'a mut RankVec<T> {
     }
 }
 
-fn ensure_lengths(lengths: impl Iterator<Item = usize>, expected: usize, name: &str) -> Result<()> {
-    if lengths.into_iter().any(|len| len != expected) {
-        return Err(Error::LengthMismatch {
-            name: name.to_owned().into(),
-        });
-    }
-    Ok(())
-}
-
 /// Cancels incomplete native submission before scoped CUDA drains release borrows.
 struct CollectiveDrain<'a> {
     ranks: &'a [LocalRank],
@@ -1032,14 +981,17 @@ impl Drop for CollectiveDrain<'_> {
         }
         for rank in self.ranks {
             let communicator = &rank.communicator;
-            if communicator.bind().is_err() {
-                process::abort();
+            if let Err(error) = communicator.bind() {
+                abort_after_cleanup_failure(
+                    "bind the cuda context to abort",
+                    "nccl communicator",
+                    &error,
+                );
             }
 
-            // SAFETY: this guard owns cancellation of the incomplete local group.
-            let status = unsafe { sys::ncclCommAbort(communicator.as_raw()) };
-            if status != sys::ncclResult_t::ncclSuccess {
-                process::abort();
+            // SAFETY: the guard borrows each live local communicator, and its context is bound because a failed bind above ends the process.
+            if let Err(error) = unsafe { try_ffi!(sys::ncclCommAbort(communicator.as_raw())) } {
+                abort_after_cleanup_failure("abort", "nccl communicator", &error);
             }
 
             communicator.set_state(CommunicatorState::Aborted);

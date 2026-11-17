@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, HashSet};
 use crate::{
     backend::{
         descriptor::BackendDescriptor,
-        execution::{
+        operation::{
             attention::{
                 DiagonalBandMaskOperation, SdpaBackwardOperation, SdpaForwardOperation,
                 SdpaSubgraph, SoftmaxOperation,
@@ -28,7 +28,7 @@ use crate::{
             rope::{RopeBackwardOperation, RopeForwardOperation},
             tensor_ops::{ConcatOperation, ReshapeOperation, SliceOperation, TransposeOperation},
         },
-        tensor::{Tensor, TensorId},
+        tensor::Tensor,
     },
     context::Context,
     data_type::DataType,
@@ -37,10 +37,11 @@ use crate::{
         error::Error as FrontendError,
         graph::{DataTypePolicy, Graph, GraphLayout, PreparedGraph, TensorRecord, ValidatedGraph},
     },
+    tensor::TensorId,
 };
 
 #[derive(Debug)]
-pub struct LoweredGraph {
+pub(crate) struct LoweredGraph {
     pub(crate) layout: GraphLayout,
     pub operations: Vec<LoweredOperation>,
     pub backend_tensors: BTreeMap<TensorId, Tensor>,
@@ -90,7 +91,7 @@ impl LoweredGraph {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct LoweringContext<'a> {
+pub(crate) struct LoweringContext<'a> {
     backend_tensors: &'a BTreeMap<TensorId, Tensor>,
     data_type_policy: DataTypePolicy,
     cudnn_context: Option<&'a Context>,
@@ -125,7 +126,7 @@ impl LoweringContext<'_> {
     clippy::large_enum_variant,
     reason = "lowered descriptors are built once per graph; boxing variants would only complicate matching"
 )]
-pub enum LoweredOperation {
+pub(crate) enum LoweredOperation {
     Matmul(MatmulOperation),
     ConvolutionForward(ConvolutionForwardOperation),
     ConvolutionBackwardData(ConvolutionBackwardDataOperation),
@@ -172,7 +173,7 @@ pub enum LoweredOperation {
 }
 
 impl LoweredOperation {
-    pub fn descriptor(&self) -> &BackendDescriptor {
+    pub(crate) fn descriptor(&self) -> &BackendDescriptor {
         match self {
             Self::Matmul(op) => op.descriptor(),
             Self::ConvolutionForward(op) => op.descriptor(),
@@ -251,20 +252,20 @@ fn lower_tensor_at(
     Ok(())
 }
 
-pub fn tensor_at(tensors: &BTreeMap<TensorId, Tensor>, tensor: TensorId) -> Result<&Tensor> {
+pub(crate) fn tensor_at(tensors: &BTreeMap<TensorId, Tensor>, tensor: TensorId) -> Result<&Tensor> {
     tensors
         .get(&tensor)
         .ok_or(FrontendError::TensorNotFound(tensor).into())
 }
 
-pub fn optional_tensor_at(
+pub(crate) fn optional_tensor_at(
     tensors: &BTreeMap<TensorId, Tensor>,
     tensor: Option<TensorId>,
 ) -> Result<Option<&Tensor>> {
     tensor.map(|tensor| tensor_at(tensors, tensor)).transpose()
 }
 
-pub fn tensor_slice_at<'a>(
+pub(crate) fn tensor_slice_at<'a>(
     tensors: &'a BTreeMap<TensorId, Tensor>,
     tensor_ids: &[TensorId],
 ) -> Result<Vec<&'a Tensor>> {

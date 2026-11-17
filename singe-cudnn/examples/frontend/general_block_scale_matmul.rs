@@ -2,16 +2,15 @@ mod common;
 
 use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
-    backend::tensor::{Shape, TensorSpec},
+    backend::operation::block_scale::BlockScaleDequantizeInputs,
     data_type::{DataType, bf16, f16},
     error::{Error, Result},
     frontend::{
-        graph::{
-            BlockScaleDequantizeInputs, DataTypePolicy, Graph, GraphConfig, TensorOutputConfig,
-        },
+        graph::{DataTypePolicy, Graph, GraphConfig, TensorOutputConfig},
         operation::{BlockScaleDequantizeConfig, MatmulConfig},
         plan::{CompileConfig, ExecuteArgs, HeuristicMode},
     },
+    tensor::{Shape, TensorSpec},
 };
 
 #[derive(Clone, Copy)]
@@ -38,7 +37,7 @@ fn encoded_ones(data_type: DataType, bytes: usize) -> Result<Vec<u8>> {
     let pattern = match data_type {
         DataType::I4 => vec![0x11],
         DataType::F16 => f16::from_f32(1.0).to_bits().to_le_bytes().to_vec(),
-        DataType::BF16 => bf16::from_f32(1.0).to_bits().to_le_bytes().to_vec(),
+        DataType::Bf16 => bf16::from_f32(1.0).to_bits().to_le_bytes().to_vec(),
         DataType::F32 => 1.0_f32.to_le_bytes().to_vec(),
         _ => return Err(Error::UnsupportedDataType),
     };
@@ -70,8 +69,8 @@ fn run_problem(example: &common::ExampleContext, index: usize, case: MatmulProbl
     );
     let [
         block_scale_dim_a_m,
-        block_scale_dim_a_k,
-        block_scale_dim_b_k,
+        a_block_scale_dim_k,
+        b_block_scale_dim_k,
         block_scale_dim_b_n,
     ] = [
         (case.m, case.block_size_a_m),
@@ -86,14 +85,14 @@ fn run_problem(example: &common::ExampleContext, index: usize, case: MatmulProbl
     let block_descale_a = graph.tensor(
         TensorSpec::new(
             case.datatype_block_scale_a,
-            Shape::contiguous([case.b, block_scale_dim_a_m, block_scale_dim_a_k])?,
+            Shape::contiguous([case.b, block_scale_dim_a_m, a_block_scale_dim_k])?,
         )
         .with_name("block_descale_a"),
     );
     let block_descale_b = graph.tensor(
         TensorSpec::new(
             case.datatype_block_scale_b,
-            common::column_major_shape([case.b, block_scale_dim_b_k, block_scale_dim_b_n])?,
+            common::column_major_shape([case.b, b_block_scale_dim_k, block_scale_dim_b_n])?,
         )
         .with_name("block_descale_b"),
     );
@@ -149,9 +148,9 @@ fn run_problem(example: &common::ExampleContext, index: usize, case: MatmulProbl
     // SAFETY: the plan and all allocations remain live until stream completion,
     // including when native execution returns an enqueue error.
     example.execute_and_wait(|context| unsafe {
-        compiled.execute(
+        compiled.execute_async(
             context,
-            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
         )
     })?;
 
@@ -211,12 +210,12 @@ fn run() -> Result<()> {
             block_size_a_k: 32,
             block_size_b_k: 32,
             block_size_b_n: 17,
-            datatype_a: DataType::BF16,
-            datatype_b: DataType::BF16,
+            datatype_a: DataType::Bf16,
+            datatype_b: DataType::Bf16,
             datatype_block_scale_a: DataType::F32,
             datatype_block_scale_b: DataType::F32,
-            after_dequant_datatype_a: DataType::BF16,
-            after_dequant_datatype_b: DataType::BF16,
+            after_dequant_datatype_a: DataType::Bf16,
+            after_dequant_datatype_b: DataType::Bf16,
             datatype_d: DataType::F32,
             compute_math_precision: DataType::F32,
         },
@@ -229,6 +228,6 @@ fn run() -> Result<()> {
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_general_block_scale_matmul", run())
 }

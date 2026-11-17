@@ -1,6 +1,11 @@
-use std::{ffi::CString, mem, ptr, result};
+//! NVVM IR compilation and compiler options.
 
-use singe_core::{LibraryVersion, impl_enum_display, static_str_from_c_ptr, status_enum};
+use std::{
+    ffi::{CString, c_char},
+    mem, ptr, result,
+};
+
+use singe_core::{LibraryVersion, impl_enum_display, report_cleanup_failure};
 use singe_cuda_sys::nvvm as sys;
 
 use crate::{
@@ -8,7 +13,7 @@ use crate::{
     error::{Error, Result},
     module::ModuleImage,
     try_nvvm,
-    utility::{to_i32, to_u64, to_usize},
+    utility::{bytes_to_string, to_c_ulong, to_i32, to_usize},
 };
 
 /// NVVM IR and debug metadata versions supported by the loaded compiler.
@@ -24,9 +29,17 @@ pub struct IrVersion {
     pub debug_minor: i32,
 }
 
-status_enum! {
+singe_core::wrapper_status! {
+    library = "nvvm",
+    error = Error::Nvvm,
+    raw = sys::nvvmResult,
+    success = NVVM_SUCCESS,
+    absence = singe_cuda_sys::take_absence,
+    check = check_nvvm,
+    unknown = "UNKNOWN_NVVM_STATUS",
+    description = sys::nvvmGetErrorString,
     /// NVVM result code returned by compiler operations.
-    pub enum Status: u32 => sys::nvvmResult, unknown = "UNKNOWN_NVVM_STATUS" {
+    pub enum Status: u32 {
         /// The operation completed successfully.
         Success = NVVM_SUCCESS,
         /// NVVM could not allocate the required memory.
@@ -49,18 +62,6 @@ status_enum! {
         Compilation = NVVM_ERROR_COMPILATION,
         /// The operation was cancelled.
         Cancelled = NVVM_ERROR_CANCELLED,
-    }
-}
-
-impl Status {
-    /// Library description of this status.
-    #[must_use]
-    pub fn description(self) -> &'static str {
-        let Ok(raw) = sys::nvvmResult::try_from(self) else {
-            return "unknown nvvm error";
-        };
-        // SAFETY: `nvvmGetErrorString` returns null or a static NUL-terminated string.
-        unsafe { static_str_from_c_ptr(sys::nvvmGetErrorString(raw), "unknown nvvm error") }
     }
 }
 
@@ -100,7 +101,8 @@ pub struct CompileOptions<'a> {
     pub precise_division: Option<bool>,
     /// Whether floating-point multiply and add operations may be contracted.
     pub fma: Option<bool>,
-    /// Switch case-density threshold, in percent, from zero through 101. The builder clamps larger values to 101.
+    /// Switch case-density threshold, in percent, from zero through 101.
+    /// The builder clamps larger values to 101.
     pub jump_table_density: Option<u8>,
     /// Whether to generate link-time intermediate representation instead of PTX.
     pub generate_lto: bool,
@@ -246,7 +248,9 @@ impl<'a> CompileOptions<'a> {
         if let Some(architecture) = self.gpu_architecture
             && !architecture.is_virtual()
         {
-            return Err(Error::InvalidValue);
+            return Err(Error::UnsupportedArchitecture {
+                target: architecture.to_string(),
+            });
         }
         Ok(())
     }
@@ -269,6 +273,15 @@ pub struct Program {
     handle: sys::nvvmProgram,
 }
 
+/// Raw ownership of an NVVM program.
+///
+/// Destroy `handle` with NVVM, or re-adopt the value with [`Program::from_raw`].
+#[derive(Debug)]
+pub struct RawProgram {
+    /// Native program handle.
+    pub handle: sys::nvvmProgram,
+}
+
 impl Program {
     /// Creates an empty native NVVM compiler program.
     ///
@@ -277,7 +290,7 @@ impl Program {
     /// Returns an error if NVVM cannot create the program or returns a null handle.
     pub fn create() -> Result<Self> {
         let mut handle = ptr::null_mut();
-        // SAFETY: `nvvmCreateProgram` receives valid output locations.
+        // SAFETY: `handle` is a local output.
         unsafe {
             try_nvvm!(sys::nvvmCreateProgram(&raw mut handle))?;
         }
@@ -288,22 +301,26 @@ impl Program {
         Ok(Self { handle })
     }
 
-    /// Takes ownership of a raw NVVM program handle.
+    /// Takes ownership of a raw NVVM program.
     ///
     /// # Safety
     ///
-    /// `handle` must be a valid `nvvmProgram` that is not owned by any other wrapper.
-    /// The returned wrapper destroys it with `nvvmDestroyProgram`.
+    /// `raw.handle` must be a valid NVVM program that is not owned by any other wrapper.
+    /// The returned wrapper destroys it on drop.
     ///
     /// # Errors
     ///
-    /// Returns `Error::NullHandle` if `handle` is null.
-    pub unsafe fn from_raw(handle: sys::nvvmProgram) -> Result<Self> {
-        if handle.is_null() {
+    /// Returns an error if `raw.handle` is null.
+    #[expect(
+        clippy::needless_pass_by_value,
+        reason = "taking the raw owner by value transfers ownership of its handle"
+    )]
+    pub unsafe fn from_raw(raw: RawProgram) -> Result<Self> {
+        if raw.handle.is_null() {
             return Err(Error::NullHandle);
         }
 
-        Ok(Self { handle })
+        Ok(Self { handle: raw.handle })
     }
 
     /// Adds an NVVM IR module in text or bitcode form to the program.
@@ -325,53 +342,31 @@ impl Program {
         self.add_module_raw(&module, true)
     }
 
-    /// Links the added IR modules and compiles the result using native option strings.
+    /// Validates `options`, links the added IR modules, and compiles the program.
     /// Output is PTX unless link-time IR generation is requested.
     ///
     /// # Errors
     ///
-    /// Returns an error if an option contains an interior NUL, the option count exceeds the native integer range, or NVVM rejects the program or compilation options or fails compilation.
-    /// Compiler diagnostics are available from `log`.
-    pub fn compile(&self, options: &[&str]) -> Result<()> {
-        self.compile_raw(sys::nvvmCompileProgram, options)
-    }
-
-    /// Validates typed options, links the IR modules, and compiles the program.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if an option contains an interior NUL, the option count exceeds the native integer range, or NVVM rejects the program or compilation options or fails compilation.
-    /// Compiler diagnostics are available from `log`.
-    /// Also rejects a concrete GPU target in `options.gpu_architecture`.
-    pub fn compile_with_options(&self, options: &CompileOptions<'_>) -> Result<()> {
+    /// Returns an error if `options.gpu_architecture` is a concrete GPU target, an option contains an interior NUL, the option count does not fit an `i32`, or NVVM rejects the options or fails compilation.
+    /// Compiler diagnostics are available from [`Self::log`].
+    pub fn compile(&self, options: &CompileOptions<'_>) -> Result<()> {
         options.validate()?;
         let arguments = options.as_arguments();
         let argument_refs = arguments.iter().map(String::as_str).collect::<Vec<_>>();
-        self.compile(&argument_refs)
+        self.compile_raw(sys::nvvmCompileProgram, &argument_refs)
     }
 
-    /// Verifies the added NVVM IR modules using native option strings.
+    /// Validates `options` and verifies the added NVVM IR modules.
     ///
     /// # Errors
     ///
-    /// Returns an error if an option contains an interior NUL, the option count exceeds the native integer range, or NVVM rejects the options or finds invalid IR.
-    /// Verification diagnostics are available from `log`.
-    pub fn verify(&self, options: &[&str]) -> Result<()> {
-        self.compile_raw(sys::nvvmVerifyProgram, options)
-    }
-
-    /// Validates typed options and verifies the added NVVM IR modules.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if an option contains an interior NUL, the option count exceeds the native integer range, or NVVM rejects the options or finds invalid IR.
-    /// Verification diagnostics are available from `log`.
-    /// Also rejects a concrete GPU target in `options.gpu_architecture`.
-    pub fn verify_with_options(&self, options: &CompileOptions<'_>) -> Result<()> {
+    /// Returns an error if `options.gpu_architecture` is a concrete GPU target, an option contains an interior NUL, the option count does not fit an `i32`, or NVVM rejects the options or finds invalid IR.
+    /// Verification diagnostics are available from [`Self::log`].
+    pub fn verify(&self, options: &CompileOptions<'_>) -> Result<()> {
         options.validate()?;
         let arguments = options.as_arguments();
         let argument_refs = arguments.iter().map(String::as_str).collect::<Vec<_>>();
-        self.verify(&argument_refs)
+        self.compile_raw(sys::nvvmVerifyProgram, &argument_refs)
     }
 
     /// Returns owned bytes of the last compiled PTX or link-time IR output.
@@ -384,13 +379,14 @@ impl Program {
         self.bytes(sys::nvvmGetCompiledResultSize, sys::nvvmGetCompiledResult)
     }
 
-    /// Copies the last compiled output into an owned module image.
+    /// Copies the last compiled PTX output into an owned module image.
     ///
     /// # Errors
     ///
-    /// Returns an error if NVVM cannot query or copy the requested output, or the returned byte count cannot be represented as `usize`.
+    /// Returns an error if NVVM cannot query or copy the requested output, the returned byte count cannot be represented as `usize`, or the output is empty.
+    /// Returns `Error::InteriorNul` if the output contains a NUL byte before its end, which rejects binary link-time IR.
     pub fn compiled_image(&self) -> Result<ModuleImage<'static>> {
-        Ok(ModuleImage::from_vec(self.compiled_result()?))
+        ModuleImage::from_ptx(self.compiled_result()?)
     }
 
     /// Interprets the last compiled output as text, removing a trailing NUL and replacing invalid UTF-8 lossily.
@@ -416,25 +412,25 @@ impl Program {
     }
 
     /// Borrows the native program handle without transferring ownership.
-    /// It remains valid until the wrapper is dropped or converted with `into_raw`.
+    /// It remains valid until the wrapper is dropped or converted with [`Self::into_raw`].
     #[must_use]
     pub const fn as_raw(&self) -> sys::nvvmProgram {
         self.handle
     }
 
-    /// Transfers ownership of the raw NVVM program handle to the caller.
+    /// Transfers ownership of the NVVM program to the caller.
     ///
-    /// The caller becomes responsible for destroying it with `nvvmDestroyProgram`.
+    /// The caller becomes responsible for destroying it.
     #[must_use]
-    pub fn into_raw(self) -> sys::nvvmProgram {
+    pub fn into_raw(self) -> RawProgram {
         let handle = self.handle;
         mem::forget(self);
-        handle
+        RawProgram { handle }
     }
 
     fn add_module_raw(&mut self, module: &Module<'_>, lazy: bool) -> Result<()> {
         if module.ir.is_empty() {
-            return Err(Error::InvalidValue);
+            return Err(Error::empty("nvvm module ir"));
         }
 
         let name = CString::new(module.name)?;
@@ -444,12 +440,13 @@ impl Program {
             sys::nvvmAddModuleToProgram
         };
 
-        // SAFETY: the program handle is live, and the buffer and name are borrowed for the call.
+        let size = to_c_ulong(module.ir.len(), "nvvm module size")?;
+        // SAFETY: `self` owns the live program exclusively, and the counted IR bytes and NUL-terminated name are borrowed for the call.
         unsafe {
             try_nvvm!(function(
                 self.handle,
                 module.ir.as_ptr().cast(),
-                module.ir.len() as _,
+                size,
                 name.as_ptr(),
             ))
         }
@@ -457,7 +454,11 @@ impl Program {
 
     fn compile_raw(
         &self,
-        function: unsafe extern "C" fn(sys::nvvmProgram, i32, *mut *const i8) -> sys::nvvmResult,
+        function: unsafe extern "C" fn(
+            sys::nvvmProgram,
+            i32,
+            *mut *const c_char,
+        ) -> sys::nvvmResult,
         options: &[&str],
     ) -> Result<()> {
         let options = options
@@ -469,7 +470,7 @@ impl Program {
             .map(|value| value.as_ptr())
             .collect::<Vec<_>>();
 
-        // SAFETY: the program handle is live, and the buffer and name are borrowed for the call.
+        // SAFETY: `self` owns the live program, and `option_ptrs` holds the counted NUL-terminated options in `options`, which outlive the call.
         unsafe {
             try_nvvm!(function(
                 self.handle,
@@ -486,10 +487,10 @@ impl Program {
     fn bytes(
         &self,
         get_size: unsafe extern "C" fn(sys::nvvmProgram, *mut u64) -> sys::nvvmResult,
-        get_data: unsafe extern "C" fn(sys::nvvmProgram, *mut i8) -> sys::nvvmResult,
+        get_data: unsafe extern "C" fn(sys::nvvmProgram, *mut c_char) -> sys::nvvmResult,
     ) -> Result<Vec<u8>> {
         let mut size = 0;
-        // SAFETY: the program handle is live, and `size` is a writable local.
+        // SAFETY: `self` owns the live program, and `size` is a local output.
         unsafe {
             try_nvvm!(get_size(self.handle, &raw mut size))?;
         }
@@ -499,7 +500,7 @@ impl Program {
             return Ok(bytes);
         }
 
-        // SAFETY: `bytes` has the size the library reported for this output.
+        // SAFETY: `bytes` holds the `size` bytes NVVM reported for the same output of the live program.
         unsafe {
             try_nvvm!(get_data(self.handle, bytes.as_mut_ptr().cast()))?;
         }
@@ -509,15 +510,12 @@ impl Program {
 
 impl Drop for Program {
     fn drop(&mut self) {
-        // SAFETY: `nvvmDestroyProgram` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: this wrapper owns the non-null program, and NVVM nulls the handle field it destroys.
         unsafe {
             if !self.handle.is_null()
                 && let Err(error) = try_nvvm!(sys::nvvmDestroyProgram(&raw mut self.handle))
             {
-                eprintln!(
-                    "failed to destroy nvvm program: {}",
-                    singe_core::ErrorChain(&error)
-                );
+                report_cleanup_failure("destroy", "nvvm program", &error);
             }
         }
     }
@@ -531,15 +529,12 @@ impl Drop for Program {
 pub fn version() -> Result<LibraryVersion> {
     let mut major = 0;
     let mut minor = 0;
-    // SAFETY: `nvvmVersion` receives valid output locations.
+    // SAFETY: `major` and `minor` are local outputs.
     unsafe {
         try_nvvm!(sys::nvvmVersion(&raw mut major, &raw mut minor))?;
     }
-    Ok(LibraryVersion::new(
-        to_u64(major, "nvvm major version")?,
-        to_u64(minor, "nvvm minor version")?,
-        0,
-    ))
+    LibraryVersion::from_properties(major, minor, 0)
+        .ok_or_else(|| Error::out_of_range("nvvm version"))
 }
 
 /// Returns the NVVM IR and debug metadata versions supported by the loaded compiler.
@@ -552,7 +547,7 @@ pub fn ir_version() -> Result<IrVersion> {
     let mut minor = 0;
     let mut debug_major = 0;
     let mut debug_minor = 0;
-    // SAFETY: `nvvmIRVersion` receives valid output locations.
+    // SAFETY: the four versions are local outputs.
     unsafe {
         try_nvvm!(sys::nvvmIRVersion(
             &raw mut major,
@@ -573,10 +568,12 @@ pub fn ir_version() -> Result<IrVersion> {
 ///
 /// # Errors
 ///
-/// Returns `Error::InvalidValue` for a concrete architecture target, or a native NVVM error if the version query fails.
+/// Returns an error if `architecture` is a concrete target or NVVM cannot report the version.
 pub fn llvm_version(architecture: GpuArchitecture) -> Result<i32> {
     if !architecture.is_virtual() {
-        return Err(Error::InvalidValue);
+        return Err(Error::UnsupportedArchitecture {
+            target: architecture.to_string(),
+        });
     }
     llvm_version_for_architecture(&architecture.to_string())
 }
@@ -589,7 +586,7 @@ pub fn llvm_version(architecture: GpuArchitecture) -> Result<i32> {
 pub fn llvm_version_for_architecture(architecture: &str) -> Result<i32> {
     let architecture = CString::new(architecture)?;
     let mut major = 0;
-    // SAFETY: `nvvmLLVMVersion` receives valid output locations and pointers into buffers borrowed for the call.
+    // SAFETY: `architecture` is a NUL-terminated string borrowed for the call, and `major` is a local output.
     unsafe {
         try_nvvm!(sys::nvvmLLVMVersion(architecture.as_ptr(), &raw mut major,))?;
     }
@@ -598,13 +595,6 @@ pub fn llvm_version_for_architecture(architecture: &str) -> Result<i32> {
 
 fn flag_bit(value: bool) -> u8 {
     u8::from(value)
-}
-
-fn bytes_to_string(mut bytes: Vec<u8>) -> String {
-    if bytes.last() == Some(&0) {
-        bytes.pop();
-    }
-    String::from_utf8_lossy(&bytes).into_owned()
 }
 
 #[cfg(test)]
@@ -657,10 +647,13 @@ mod tests {
     #[test]
     fn test_real_architecture_is_rejected_for_nvvm_options() {
         let options = CompileOptions::new().gpu_architecture(GpuArchitecture::Sm90);
-        assert!(matches!(options.validate(), Err(Error::InvalidValue)));
+        assert!(matches!(
+            options.validate(),
+            Err(Error::UnsupportedArchitecture { .. })
+        ));
         assert!(matches!(
             llvm_version(GpuArchitecture::Sm90),
-            Err(Error::InvalidValue)
+            Err(Error::UnsupportedArchitecture { .. })
         ));
     }
 }

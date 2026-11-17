@@ -82,7 +82,7 @@ fn reciprocal<F: Float>(value: F, round: Round) -> F {
 }
 
 /// Computes the binary32 base-2 exponential within the two-ulp bound PTX allows for `ex2.approx.f32`.
-pub fn exponential(bits: u128, ftz: bool) -> u128 {
+pub(crate) fn exponential(bits: u128, ftz: bool) -> u128 {
     let value = flush(Single::from_bits(bits), ftz);
     if value.is_nan() {
         return 0x7fc0_0000;
@@ -147,7 +147,7 @@ fn double(op: FloatMath, value: Double, mode: FloatRoundingMode) -> Double {
     }
 }
 
-pub fn evaluate(op: FloatMath, ty: ScalarType, bits: u128, control: MathControl) -> u128 {
+pub(crate) fn evaluate(op: FloatMath, ty: ScalarType, bits: u128, control: MathControl) -> u128 {
     if ty == ScalarType::F64 {
         let bits = if control.upper_word {
             bits & !0xffff_ffff

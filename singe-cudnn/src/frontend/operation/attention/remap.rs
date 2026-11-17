@@ -1,9 +1,9 @@
 use std::collections::BTreeSet;
 
 use crate::{
-    backend::tensor::TensorId,
     error::Result,
     frontend::{graph::TensorCaptureTarget, operation::attention::SdpaScoreSubgraph},
+    tensor::TensorId,
 };
 
 impl SdpaScoreSubgraph {

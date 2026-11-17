@@ -2,9 +2,8 @@ use std::sync::{Arc, Mutex, OnceLock};
 
 use singe_cuda::{
     context::Context as CudaContext,
-    error::Error as CudaError,
     graph::{Graph, GraphRetainedResource, collect_graph_resources, has_deferred_graph_resources},
-    stream::StreamBinding,
+    stream::{AsStream, StreamBinding},
 };
 use singe_cudnn_sys as sys;
 
@@ -34,7 +33,7 @@ pub struct ExecutionPlan {
 /// One native enqueue with workspace and capture resources prepared ahead of timing.
 /// Borrows the exact plan, handle and variant pack that preparation validated.
 #[must_use]
-pub struct PreparedExecution<'a> {
+pub(crate) struct PreparedExecution<'a> {
     plan: &'a ExecutionPlan,
     context: &'a Context,
     variant_pack: &'a VariantPack,
@@ -48,10 +47,12 @@ impl PreparedExecution<'_> {
     /// Enqueues only the native operation after workspace initialization has been ordered.
     ///
     /// # Safety
-    /// Uphold [`ExecutionPlan::execute`]'s allocation, initialization, aliasing and lifetime requirements.
+    ///
+    /// Uphold [`ExecutionPlan::execute_async`]'s allocation, initialization, aliasing and lifetime requirements.
     /// Keep the handle's stream and capture unchanged after preparation, and order workspace initializers before this call.
     pub(crate) unsafe fn execute(self) -> Result<()> {
-        // SAFETY: preparation retained native resources and checked workspace; caller supplies the execution contract.
+        // SAFETY: `prepare_execution` validated the workspace size and retained the plan's context and capture resources.
+        // The caller upholds `ExecutionPlan::execute_async`'s storage, initialization and lifetime requirements, per `# Safety`.
         unsafe {
             backend_execute(
                 self.context,
@@ -65,7 +66,7 @@ impl PreparedExecution<'_> {
 /// Owns one immutable native plan/argument pair whose workspace was checked before submission.
 /// Buffer ownership and asynchronous access remain with the frontend submission resources.
 #[derive(Debug)]
-pub struct RetainedExecution {
+pub(crate) struct RetainedExecution {
     plan: ExecutionPlan,
     variant_pack: VariantPack,
 }
@@ -91,7 +92,8 @@ impl RetainedExecution {
     /// Enqueues the validated pair on the handle's current stream without another workspace query.
     ///
     /// # Safety
-    /// Uphold [`ExecutionPlan::execute`]'s allocation, initialization, aliasing and lifetime requirements.
+    ///
+    /// Uphold [`ExecutionPlan::execute_async`]'s allocation, initialization, aliasing and lifetime requirements.
     pub(crate) unsafe fn execute(&self, context: &Context) -> Result<()> {
         validate_context_pair(
             Some(context.cuda_context()),
@@ -99,12 +101,13 @@ impl RetainedExecution {
             "prepared execution",
         )?;
         if self.plan.needs_cuda_graph_retention() || has_deferred_graph_resources() {
-            self.plan.retain_on_capturing_stream(&context.stream()?)?;
+            self.plan
+                .retain_on_capturing_stream(&context.stream_binding())?;
         }
 
         self.variant_pack.initialize_workspace(context)?;
-        // SAFETY: construction validated this exact immutable plan/pack pair and retained its CUDA context.
-        // The caller supplies live buffers and ordered accesses through completion or capture replay.
+        // SAFETY: `create` validated this immutable plan/pack pair's workspace and retained its CUDA context.
+        // The caller upholds `ExecutionPlan::execute_async`'s storage and lifetime requirements, per `# Safety`.
         unsafe {
             backend_execute(
                 context,
@@ -138,23 +141,13 @@ pub enum ExecutionPlanTarget<'a> {
 }
 
 impl ExecutionPlan {
-    /// Finalizes a native plan from an engine configuration using a live cuDNN context.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if live contexts disagree or cannot be bound, or native descriptor creation, attribute assignment, or plan finalization fails.
-    /// cuDNN validates engine, cache, and target compatibility.
-    pub fn create(context: &Context, engine_config: &EngineConfig) -> Result<Self> {
-        Self::create_for_target(Some(context), engine_config, None, None)
-    }
-
     /// Finalizes a native plan with a live context and optional kernel cache and device properties.
     ///
     /// # Errors
     ///
     /// Returns an error if live contexts disagree or cannot be bound, or native descriptor creation, attribute assignment, or plan finalization fails.
     /// cuDNN validates engine, cache, and target compatibility.
-    pub fn create_with_config(
+    pub fn create(
         context: &Context,
         engine_config: &EngineConfig,
         kernel_cache: Option<&KernelCache>,
@@ -202,7 +195,7 @@ impl ExecutionPlan {
         bind_context(cuda_context)?;
         let mut descriptor = BackendDescriptor::create(BackendDescriptorType::ExecutionPlan)?;
         if let Some(context) = context {
-            // SAFETY: context is live through native plan configuration and finalization.
+            // SAFETY: `context` is a live cuDNN handle borrowed for this constructor, which finalizes the plan before returning.
             unsafe {
                 descriptor.set_attribute_handle(
                     BackendAttributeName::ExecutionPlanHandle,
@@ -275,7 +268,7 @@ impl ExecutionPlan {
             json_plan,
         )?;
         if let ExecutionPlanTarget::Context(context) = target {
-            // SAFETY: context is live through native plan configuration and finalization.
+            // SAFETY: `context` is a live cuDNN handle borrowed for this constructor, which finalizes the plan before returning.
             unsafe {
                 descriptor.set_attribute_handle(
                     BackendAttributeName::ExecutionPlanHandle,
@@ -367,7 +360,7 @@ impl ExecutionPlan {
         self.retain_execution_context(context.cuda_context())?;
         context.bind()?;
         let mut required = 0;
-        // SAFETY: both finalized descriptors and the context remain live throughout the query.
+        // SAFETY: the plan and variant pack are finalized descriptors owned by `self` and `variant_pack`, `context` is bound, and `required` is a writable local.
         unsafe {
             try_ffi!(sys::cudnnGetExecutionPlanWorkspaceSize(
                 context.as_raw(),
@@ -390,7 +383,8 @@ impl ExecutionPlan {
             let required = required
                 .checked_add(variant_pack.workspace_prefix_bytes())
                 .ok_or_else(|| Error::out_of_range("execution workspace bytes"))?;
-            return Err(Error::InsufficientWorkspaceSize {
+            return Err(Error::BufferTooSmall {
+                name: "workspace".into(),
                 required,
                 actual: variant_pack.total_workspace_capacity(),
             });
@@ -484,7 +478,7 @@ impl ExecutionPlan {
             return cache.json_representation().map(Some);
         }
 
-        // SAFETY: the named attribute requires the explicitly selected native class.
+        // SAFETY: `ExecutionPlanKernelCache` holds one kernel-cache descriptor, so `KernelCache` is the class cuDNN writes.
         let descriptor = match unsafe {
             self.inner.descriptor.attribute_descriptor(
                 BackendAttributeName::ExecutionPlanKernelCache,
@@ -511,6 +505,7 @@ impl ExecutionPlan {
     /// Enqueues this plan with the supplied variant pack.
     ///
     /// # Safety
+    ///
     /// All native accesses require live plan code and valid, initialized inputs or writable outputs, with compatible layouts, permitted aliases and established producer dependencies.
     /// Keep device storage and code alive through completion and every captured replay.
     /// Host argument storage must remain valid while cuDNN consumes it.
@@ -519,11 +514,15 @@ impl ExecutionPlan {
     /// # Errors
     ///
     /// Returns an error if contexts disagree, workspace is insufficient, context retention or capture-resource preparation fails, workspace initialization fails, or CUDA binding or native execution fails.
-    pub unsafe fn execute(&self, context: &Context, variant_pack: &VariantPack) -> Result<()> {
+    pub unsafe fn execute_async(
+        &self,
+        context: &Context,
+        variant_pack: &VariantPack,
+    ) -> Result<()> {
         let prepared = self.prepare_execution(context, variant_pack)?;
         prepared.initialize_workspace()?;
-        // SAFETY: the caller upholds this function's safety contract.
-        // SAFETY: the caller guarantees valid bindings, ordered accesses and retained storage through completion or replay.
+        // SAFETY: `prepare_execution` and `initialize_workspace` ordered the workspace initializers on the handle's stream.
+        // The caller upholds the storage, initialization and lifetime requirements in `# Safety`.
         unsafe { prepared.execute() }
     }
 
@@ -536,7 +535,7 @@ impl ExecutionPlan {
         self.validate_workspace(context, variant_pack)?;
         self.retain_execution_context(context.cuda_context())?;
         if self.needs_cuda_graph_retention() || has_deferred_graph_resources() {
-            self.retain_on_capturing_stream(&context.stream()?)?;
+            self.retain_on_capturing_stream(&context.stream_binding())?;
         }
         Ok(PreparedExecution {
             plan: self,
@@ -548,6 +547,7 @@ impl ExecutionPlan {
     /// Populates a CUDA graph using the supplied bindings and workspace.
     ///
     /// # Safety
+    ///
     /// All native accesses require live plan code and valid, initialized inputs or writable outputs, with compatible layouts, permitted aliases and established producer dependencies.
     /// Keep device storage and code alive through completion and every captured replay.
     /// Host argument storage must remain valid while cuDNN consumes it.
@@ -562,10 +562,14 @@ impl ExecutionPlan {
         variant_pack: &VariantPack,
         graph: &mut Graph,
     ) -> Result<()> {
-        validate_context_pair(Some(context.cuda_context()), graph.context(), "cuda graph")?;
+        validate_context_pair(
+            Some(context.cuda_context()),
+            Some(graph.context()),
+            "cuda graph",
+        )?;
         self.validate_workspace(context, variant_pack)?;
         if has_deferred_graph_resources() {
-            collect_graph_resources(&context.stream()?)?;
+            collect_graph_resources(&context.stream_binding())?;
         }
         if variant_pack.has_workspace_initializations() {
             variant_pack.populate_initialized_graph(context, self, graph)
@@ -579,6 +583,7 @@ impl ExecutionPlan {
     /// Preparation errors leave their previous definition unchanged; existing executables retain their own snapshots.
     ///
     /// # Safety
+    ///
     /// All native accesses require live plan code and valid, initialized inputs or writable outputs, with compatible layouts, permitted aliases and established producer dependencies.
     /// Keep device storage and code alive through completion and every captured replay.
     /// Host argument storage must remain valid while cuDNN consumes it.
@@ -591,12 +596,16 @@ impl ExecutionPlan {
         &self,
         context: &Context,
         variant_pack: &VariantPack,
-        graph: &Graph,
+        graph: &mut Graph,
     ) -> Result<()> {
-        validate_context_pair(Some(context.cuda_context()), graph.context(), "cuda graph")?;
+        validate_context_pair(
+            Some(context.cuda_context()),
+            Some(graph.context()),
+            "cuda graph",
+        )?;
         self.validate_workspace(context, variant_pack)?;
         if has_deferred_graph_resources() {
-            collect_graph_resources(&context.stream()?)?;
+            collect_graph_resources(&context.stream_binding())?;
         }
         if variant_pack.has_workspace_initializations() {
             variant_pack.update_initialized_graph(context, self, graph)
@@ -619,11 +628,13 @@ impl ExecutionPlan {
     ///
     /// Returns an error if graph and plan contexts disagree, context retention or binding fails, or CUDA graph resource retention fails.
     pub fn retain_on_cuda_graph(&self, graph: &Graph) -> Result<()> {
-        validate_context_pair(graph.context(), self.cuda_context(), "execution plan graph")?;
+        validate_context_pair(
+            Some(graph.context()),
+            self.cuda_context(),
+            "execution plan graph",
+        )?;
         if self.needs_cuda_graph_retention() {
-            if let Some(context) = graph.context() {
-                self.retain_execution_context(context)?;
-            }
+            self.retain_execution_context(graph.context())?;
 
             if let Some(context) = self.cuda_context() {
                 context.bind()?;
@@ -662,7 +673,8 @@ impl ExecutionPlan {
         graph: &Graph,
     ) -> Result<()> {
         self.retain_native_graph_resources(context, graph)?;
-        // SAFETY: the caller guarantees valid bindings, ordered accesses and retained storage through completion or replay.
+        // SAFETY: `retain_native_graph_resources` retained the plan code on `graph`.
+        // `pack` comes from the unsafe `VariantPack` constructors, whose callers keep its pointers valid for every graph population.
         unsafe {
             self.descriptor()
                 .populate_graph(context, pack.descriptor(), graph)
@@ -676,7 +688,8 @@ impl ExecutionPlan {
         graph: &Graph,
     ) -> Result<()> {
         self.retain_native_graph_resources(context, graph)?;
-        // SAFETY: the caller guarantees valid bindings, ordered accesses and retained storage through completion or replay.
+        // SAFETY: `retain_native_graph_resources` retained the plan code on `graph`.
+        // `pack` comes from the unsafe `VariantPack` constructors, whose callers keep its pointers valid for every graph update.
         unsafe {
             self.descriptor()
                 .update_graph(context, pack.descriptor(), graph)
@@ -689,7 +702,11 @@ impl ExecutionPlan {
         context: &Context,
         graph: &Graph,
     ) -> Result<()> {
-        validate_context_pair(Some(context.cuda_context()), graph.context(), "cuda graph")?;
+        validate_context_pair(
+            Some(context.cuda_context()),
+            Some(graph.context()),
+            "cuda graph",
+        )?;
         self.retain_execution_context(context.cuda_context())?;
         self.retain_on_cuda_graph(graph)
     }
@@ -711,11 +728,13 @@ impl ExecutionPlan {
             return Ok(());
         }
 
-        let mut contexts = self.inner.execution_contexts.lock().map_err(|_| {
-            Error::Cuda(CudaError::ResourcePoisoned {
-                name: "execution plan contexts",
-            })
-        })?;
+        let mut contexts =
+            self.inner
+                .execution_contexts
+                .lock()
+                .map_err(|_| Error::LockPoisoned {
+                    name: "execution plan contexts".into(),
+                })?;
         if !contexts
             .iter()
             .any(|existing| existing.as_ref() == context.as_ref())
@@ -737,6 +756,7 @@ impl Drop for ExecutionPlanOwner {
             .unwrap_or_else(|error| error.into_inner());
         bind_for_drop(
             self.cuda_context.as_ref().or_else(|| contexts.first()),
+            &mut self.descriptor,
             "cudnn execution plan",
         );
     }
@@ -746,7 +766,7 @@ fn read_engine_config(
     plan: &BackendDescriptor,
     cuda_context: Option<Arc<CudaContext>>,
 ) -> Result<EngineConfig> {
-    // SAFETY: this attribute requires an engine-configuration descriptor.
+    // SAFETY: `ExecutionPlanEngineConfig` holds one engine-configuration descriptor, so `EngineCfg` is the class cuDNN writes.
     let descriptor = unsafe {
         plan.attribute_descriptor(
             BackendAttributeName::ExecutionPlanEngineConfig,

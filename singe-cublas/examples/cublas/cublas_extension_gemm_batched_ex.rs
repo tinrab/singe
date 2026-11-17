@@ -1,15 +1,17 @@
 use singe_cublas::{
-    blas::level3::gemm_batched_ex,
+    blas::extension::gemm_batched_ex,
     context::Context,
-    error::Result,
+    scalar::Scalar,
     types::{ComputeType, GemmAlgorithm, Operation},
 };
 use singe_cuda::{
-    context::Context as CudaContext, data_type::DataType, device::Device, memory::DeviceMemory,
-    types::DevicePtr,
+    context::Context as CudaContext,
+    device::Device,
+    memory::DeviceMemory,
+    view::{DeviceInputView, DeviceOutputView},
 };
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     let cuda = CudaContext::create_for_device(Device::new(0))?;
     let cublas = Context::create(&cuda)?;
 
@@ -17,27 +19,8 @@ fn main() -> Result<()> {
     let a1 = DeviceMemory::from_slice(&cuda, &[5.0_f64, 7.0, 6.0, 8.0])?;
     let b0 = DeviceMemory::from_slice(&cuda, &[5.0_f64, 7.0, 6.0, 8.0])?;
     let b1 = DeviceMemory::from_slice(&cuda, &[9.0_f64, 11.0, 10.0, 12.0])?;
-    let c0 = DeviceMemory::<f64>::zeroed(&cuda, 4)?;
-    let c1 = DeviceMemory::<f64>::zeroed(&cuda, 4)?;
-
-    let a = [
-        // SAFETY: the address comes from a live allocation; wrapping it does not dereference it.
-        unsafe { DevicePtr::from_raw(a0.as_ptr().cast_mut().cast::<()>()) },
-        // SAFETY: the address comes from a live allocation; wrapping it does not dereference it.
-        unsafe { DevicePtr::from_raw(a1.as_ptr().cast_mut().cast::<()>()) },
-    ];
-    let b = [
-        // SAFETY: the address comes from a live allocation; wrapping it does not dereference it.
-        unsafe { DevicePtr::from_raw(b0.as_ptr().cast_mut().cast::<()>()) },
-        // SAFETY: the address comes from a live allocation; wrapping it does not dereference it.
-        unsafe { DevicePtr::from_raw(b1.as_ptr().cast_mut().cast::<()>()) },
-    ];
-    let mut c = [
-        // SAFETY: the address comes from a live allocation; wrapping it does not dereference it.
-        unsafe { DevicePtr::from_raw(c0.as_ptr().cast_mut().cast::<()>()) },
-        // SAFETY: the address comes from a live allocation; wrapping it does not dereference it.
-        unsafe { DevicePtr::from_raw(c1.as_ptr().cast_mut().cast::<()>()) },
-    ];
+    let mut c0 = DeviceMemory::<f64>::zeroed(&cuda, 4)?;
+    let mut c1 = DeviceMemory::<f64>::zeroed(&cuda, 4)?;
 
     gemm_batched_ex(
         &cublas,
@@ -46,16 +29,22 @@ fn main() -> Result<()> {
         2,
         2,
         2,
-        &1.0,
-        &a,
-        DataType::F64,
+        Scalar::host(&1.0_f64),
+        &[
+            DeviceInputView::from_buffer(&a0),
+            DeviceInputView::from_buffer(&a1),
+        ],
         2,
-        &b,
-        DataType::F64,
+        &[
+            DeviceInputView::from_buffer(&b0),
+            DeviceInputView::from_buffer(&b1),
+        ],
         2,
-        &0.0,
-        &mut c,
-        DataType::F64,
+        Scalar::host(&0.0_f64),
+        &mut [
+            DeviceOutputView::from_output(&mut c0),
+            DeviceOutputView::from_output(&mut c1),
+        ],
         2,
         ComputeType::F64,
         GemmAlgorithm::Default,

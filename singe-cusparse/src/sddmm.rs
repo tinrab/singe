@@ -1,31 +1,31 @@
-use std::ptr;
+use std::{ptr, slice};
 
-use singe_cuda::{data_type::DataTypeLike, view::DeviceOutputView};
+use singe_cuda::{
+    data_type::DataTypeLike,
+    view::{DeviceOutputView, DeviceRegion},
+};
 use singe_cusparse_sys as sys;
 
 use crate::{
     context::Context,
-    descriptor::workspace,
     error::Result,
     matrix::{DenseMatrixDescriptor, SparseMatrixDescriptor},
     scalar::Scalar,
     try_ffi,
     types::{Operation, SddmmAlgorithm},
-    utility::to_usize,
+    utility::{to_usize, workspace_region},
 };
 
+/// Returns the workspace size in bytes that SDDMM and its preprocessing need.
+///
 /// # Safety
 ///
 /// Uphold the [raw execution contract](crate#raw-execution), including the selected operation's descriptor ABI, sparse index bounds, and resource lifetimes.
 ///
 /// # Errors
 ///
-/// Returns an error if an operand or analysis descriptor belongs to another CUDA context.
-/// Input scalar locations must match; device scalars must belong to the same CUDA context.
-/// Also propagates scalar pointer-mode query or selection errors.
-/// Returned workspace sizes must fit in `usize`.
-/// Also propagates CUDA context-binding errors and any failure status returned by cuSPARSE.
-pub unsafe fn sddmm_buffer_size<Compute: DataTypeLike>(
+/// Returns an error if a descriptor or device scalar belongs to another CUDA context, the input scalars mix host and device locations, the scalar pointer mode cannot be queried or set, the returned size does not fit in `usize`, the CUDA context cannot be bound, or cuSPARSE reports a failure.
+pub unsafe fn sddmm_workspace_size<Compute: DataTypeLike>(
     context: &Context,
     op_a: Operation,
     op_b: Operation,
@@ -43,7 +43,7 @@ pub unsafe fn sddmm_buffer_size<Compute: DataTypeLike>(
     context.require_scalar_pointer_mode(alpha, beta)?;
 
     let mut size = 0;
-    // SAFETY: `cusparseSDDMM_bufferSize` receives live handles owned by the wrappers and valid output locations.
+    // SAFETY: every descriptor was checked against `context`, which is bound with the scalars' pointer mode, and `size` is a writable local; the query enqueues nothing.
     unsafe {
         try_ffi!(sys::cusparseSDDMM_bufferSize(
             context.as_raw(),
@@ -62,18 +62,16 @@ pub unsafe fn sddmm_buffer_size<Compute: DataTypeLike>(
     to_usize(size, "sddmm buffer size")
 }
 
+/// Enqueues SDDMM preprocessing, which may accelerate later SDDMM calls with the same sparsity pattern.
+///
 /// # Safety
 ///
 /// Uphold the [raw execution contract](crate#raw-execution), including the selected operation's descriptor ABI, sparse index bounds, and resource lifetimes.
 ///
 /// # Errors
 ///
-/// Returns an error if an operand or analysis descriptor belongs to another CUDA context.
-/// An optional workspace must belong to the same CUDA context.
-/// Input scalar locations must match; device scalars must belong to the same CUDA context.
-/// Also propagates scalar pointer-mode query or selection errors.
-/// Also propagates CUDA context-binding errors and any failure status returned by cuSPARSE.
-pub unsafe fn sddmm_preprocess<Compute: DataTypeLike>(
+/// Returns an error if a descriptor, device scalar, or workspace belongs to another CUDA context, the input scalars mix host and device locations, the scalar pointer mode cannot be queried or set, the CUDA context cannot be bound, or cuSPARSE reports a failure.
+pub unsafe fn sddmm_preprocess_async<Compute: DataTypeLike>(
     context: &Context,
     op_a: Operation,
     op_b: Operation,
@@ -83,17 +81,24 @@ pub unsafe fn sddmm_preprocess<Compute: DataTypeLike>(
     beta: Scalar<'_, Compute>,
     matrix_c: &mut SparseMatrixDescriptor,
     algorithm: SddmmAlgorithm,
-    external_buffer: Option<DeviceOutputView<'_, u8>>,
+    workspace: Option<DeviceOutputView<'_, u8>>,
 ) -> Result<()> {
-    let external_buffer = workspace(context, external_buffer)?;
+    let workspace = workspace_region(context, workspace)?;
 
     matrix_a.ensure_context(context)?;
     matrix_b.ensure_context(context)?;
     matrix_c.ensure_context(context)?;
     context.bind()?;
     context.require_scalar_pointer_mode(alpha, beta)?;
+    context.prepare_operands(&[
+        matrix_a.regions(),
+        matrix_b.regions(),
+        matrix_c.regions(),
+        slice::from_ref(&workspace),
+        &[alpha.region(), beta.region()],
+    ])?;
 
-    // SAFETY: `cusparseSDDMM_preprocess` receives live handles owned by the wrappers and pointers into buffers borrowed for the call.
+    // SAFETY: descriptors, scalars, and the workspace were checked against the bound `context` and ordered after their producers; the caller retains them through completion per the raw execution contract.
     unsafe {
         try_ffi!(sys::cusparseSDDMM_preprocess(
             context.as_raw(),
@@ -106,8 +111,8 @@ pub unsafe fn sddmm_preprocess<Compute: DataTypeLike>(
             matrix_c.as_raw(),
             Compute::data_type().into(),
             algorithm.into(),
-            external_buffer
-                .map_or(ptr::null_mut(), singe_cuda::view::DeviceRegion::as_ptr)
+            workspace
+                .map_or(ptr::null_mut(), DeviceRegion::as_ptr)
                 .cast(),
         ))?;
     }
@@ -126,38 +131,38 @@ pub unsafe fn sddmm_preprocess<Compute: DataTypeLike>(
 /// `op(A)` is selected by `op_a` and may be `A`, `A^T`, or `A^H`.
 /// `op(B)` is selected by `op_b` and may be `B`, `B^T`, or `B^H`.
 ///
-/// [`sddmm_buffer_size`] returns the workspace size needed by [`sddmm`] or [`sddmm_preprocess`].
+/// [`sddmm_workspace_size`] returns the workspace size needed by [`sddmm_async`] or [`sddmm_preprocess_async`].
 ///
-/// Calling [`sddmm_preprocess`] is optional.
-/// It may accelerate subsequent calls to [`sddmm`].
-/// Useful when [`sddmm`] is called multiple times with the same sparsity pattern (`matrix_c`).
+/// Calling [`sddmm_preprocess_async`] is optional.
+/// It may accelerate subsequent calls to [`sddmm_async`].
+/// Useful when [`sddmm_async`] is called multiple times with the same sparsity pattern (`matrix_c`).
 ///
-/// Calling [`sddmm_preprocess`] with `buffer` makes that buffer active for `matrix_c` SDDMM calls.
-/// Subsequent calls to [`sddmm`] with `matrix_c` and the active buffer must use the same values for all parameters as the call to [`sddmm_preprocess`].
+/// Calling [`sddmm_preprocess_async`] with `buffer` makes that buffer active for `matrix_c` SDDMM calls.
+/// Subsequent calls to [`sddmm_async`] with `matrix_c` and the active buffer must use the same values for all parameters as the call to [`sddmm_preprocess_async`].
 /// The exceptions are: `alpha`, `beta`, `matrix_a`, `matrix_b`, and the values (but not indices) of `matrix_c` may be different.
-/// Importantly, the buffer contents must be unmodified since the call to [`sddmm_preprocess`].
-/// When [`sddmm`] is called with `matrix_c` and its active buffer, it may read acceleration data from the buffer.
+/// Importantly, the buffer contents must be unmodified since the call to [`sddmm_preprocess_async`].
+/// When [`sddmm_async`] is called with `matrix_c` and its active buffer, it may read acceleration data from the buffer.
 ///
-/// Calling [`sddmm_preprocess`] again with `matrix_c` and a new buffer makes the new buffer active and makes the previously active buffer inactive.
-/// For [`sddmm`], there can only be one active buffer per sparse matrix at a time.
-/// To get the effect of multiple active buffers for a single sparse matrix, create multiple matrix handles that all point to the same index and value buffers, and call [`sddmm_preprocess`] once per handle with different workspace buffers.
+/// Calling [`sddmm_preprocess_async`] again with `matrix_c` and a new buffer makes the new buffer active and makes the previously active buffer inactive.
+/// For [`sddmm_async`], there can only be one active buffer per sparse matrix at a time.
+/// To get the effect of multiple active buffers for a single sparse matrix, create multiple matrix handles that all point to the same index and value buffers, and call [`sddmm_preprocess_async`] once per handle with different workspace buffers.
 ///
-/// Calling [`sddmm`] with an inactive buffer is always permitted.
+/// Calling [`sddmm_async`] with an inactive buffer is always permitted.
 /// However, there may be no acceleration from the preprocessing in that case.
 ///
-/// For the purposes of thread safety, [`sddmm_preprocess`] is writing to `matrix_c` internal state.
+/// For the purposes of thread safety, [`sddmm_preprocess_async`] is writing to `matrix_c` internal state.
 ///
 /// Currently supported sparse matrix formats:
 ///
 /// * [`Format::Csr`](crate::types::Format::Csr)
 /// * [`Format::Bsr`](crate::types::Format::Bsr)
 ///
-/// [`sddmm`] supports the following index type for representing `matrix_c`:
+/// [`sddmm_async`] supports the following index type for representing `matrix_c`:
 ///
 /// * 32-bit indices ([`IndexType::I32`](crate::types::IndexType::I32))
 /// * 64-bit indices ([`IndexType::I64`](crate::types::IndexType::I64))
 ///
-/// The data type combinations currently supported for [`sddmm`] are listed below:
+/// The data type combinations currently supported for [`sddmm_async`] are listed below:
 ///
 /// Uniform-precision computation:
 ///
@@ -175,7 +180,7 @@ pub unsafe fn sddmm_preprocess<Compute: DataTypeLike>(
 /// | [`DataType::F16`](singe_cuda::data_type::DataType::F16) | [`DataType::F32`](singe_cuda::data_type::DataType::F32) | [`DataType::F32`](singe_cuda::data_type::DataType::F32) |
 /// | [`DataType::F16`](singe_cuda::data_type::DataType::F16) | [`DataType::F16`](singe_cuda::data_type::DataType::F16) |  |
 ///
-/// [`sddmm`] for [`Format::Bsr`](crate::types::Format::Bsr) also supports the following mixed-precision computation:
+/// [`sddmm_async`] for [`Format::Bsr`](crate::types::Format::Bsr) also supports the following mixed-precision computation:
 ///
 /// | `A`/`B` | `C` | `compute_type` |
 /// | --- | --- | --- |
@@ -184,9 +189,9 @@ pub unsafe fn sddmm_preprocess<Compute: DataTypeLike>(
 ///
 /// [`DataType::F16`](singe_cuda::data_type::DataType::F16) and [`DataType::Bf16`](singe_cuda::data_type::DataType::Bf16) always imply mixed-precision computation.
 ///
-/// [`sddmm`] for [`Format::Bsr`](crate::types::Format::Bsr) supports block sizes of 2, 4, 8, 16, 32, 64 and 128.
+/// [`sddmm_async`] for [`Format::Bsr`](crate::types::Format::Bsr) supports block sizes of 2, 4, 8, 16, 32, 64 and 128.
 ///
-/// [`sddmm`] supports the following algorithms:
+/// [`sddmm_async`] supports the following algorithms:
 ///
 /// | Algorithm | Notes |
 /// | --- | --- |
@@ -194,7 +199,7 @@ pub unsafe fn sddmm_preprocess<Compute: DataTypeLike>(
 ///
 /// It supports batched computation.
 ///
-/// Performance notes: [`sddmm`] for [`Format::Csr`](crate::types::Format::Csr) provides the best performance when `matrix_a` and `matrix_b` satisfy:
+/// Performance notes: [`sddmm_async`] for [`Format::Csr`](crate::types::Format::Csr) provides the best performance when `matrix_a` and `matrix_b` satisfy:
 ///
 /// * For `matrix_a`:
 ///
@@ -205,7 +210,7 @@ pub unsafe fn sddmm_preprocess<Compute: DataTypeLike>(
 ///   * `matrix_b` is in col-major order and `op_b` is [`Operation::NonTranspose`], or
 ///   * `matrix_b` is in row-major order and `op_b` is not [`Operation::NonTranspose`].
 ///
-/// [`sddmm`] for [`Format::Bsr`](crate::types::Format::Bsr) provides the best performance when `matrix_a` and `matrix_b` satisfy:
+/// [`sddmm_async`] for [`Format::Bsr`](crate::types::Format::Bsr) provides the best performance when `matrix_a` and `matrix_b` satisfy:
 ///
 /// * For `matrix_a`:
 ///
@@ -216,7 +221,7 @@ pub unsafe fn sddmm_preprocess<Compute: DataTypeLike>(
 ///   * `matrix_b` is in row-major order and `op_b` is [`Operation::NonTranspose`], or
 ///   * `matrix_b` is in col-major order and `op_b` is not [`Operation::NonTranspose`].
 ///
-/// [`sddmm`] supports the following batch modes:
+/// [`sddmm_async`] supports the following batch modes:
 ///
 /// * $C\_{i} = (A \cdot B) \circ C\_{i}$
 /// * $C\_{i} = \left( A\_{i} \cdot B \right) \circ C\_{i}$
@@ -224,31 +229,28 @@ pub unsafe fn sddmm_preprocess<Compute: DataTypeLike>(
 /// * $C\_{i} = \left( A\_{i} \cdot B\_{i} \right) \circ C\_{i}$
 ///
 /// The number of batches and their strides can be set by using [`SparseMatrixDescriptor::set_csr_strided_batch`] and [`DenseMatrixDescriptor::set_strided_batch`].
-/// The maximum number of batches for [`sddmm`] is 65,535.
+/// The maximum number of batches for [`sddmm_async`] is 65,535.
 ///
-/// [`sddmm`] has the following properties:
+/// [`sddmm_async`] has the following properties:
 ///
 /// * Requires no extra storage.
 /// * Provides deterministic (bitwise) results for each run.
 /// * Supports asynchronous execution.
 /// * Allows the indices of `matrix_c` to be unsorted.
 ///
-/// [`sddmm`] supports the following optimizations:
+/// [`sddmm_async`] supports the following optimizations:
 ///
 /// * CUDA graph capture.
 /// * Hardware Memory Compression.
+///
 /// # Safety
 ///
 /// Uphold the [raw execution contract](crate#raw-execution), including the selected operation's descriptor ABI, sparse index bounds, and resource lifetimes.
 ///
 /// # Errors
 ///
-/// Returns an error if an operand or analysis descriptor belongs to another CUDA context.
-/// An optional workspace must belong to the same CUDA context.
-/// Input scalar locations must match; device scalars must belong to the same CUDA context.
-/// Also propagates scalar pointer-mode query or selection errors.
-/// Also propagates CUDA context-binding errors and any failure status returned by cuSPARSE.
-pub unsafe fn sddmm<Compute: DataTypeLike>(
+/// Returns an error if a descriptor, device scalar, or workspace belongs to another CUDA context, the input scalars mix host and device locations, the scalar pointer mode cannot be queried or set, the CUDA context cannot be bound, or cuSPARSE reports a failure.
+pub unsafe fn sddmm_async<Compute: DataTypeLike>(
     context: &Context,
     op_a: Operation,
     op_b: Operation,
@@ -258,17 +260,24 @@ pub unsafe fn sddmm<Compute: DataTypeLike>(
     beta: Scalar<'_, Compute>,
     matrix_c: &mut SparseMatrixDescriptor,
     algorithm: SddmmAlgorithm,
-    external_buffer: Option<DeviceOutputView<'_, u8>>,
+    workspace: Option<DeviceOutputView<'_, u8>>,
 ) -> Result<()> {
-    let external_buffer = workspace(context, external_buffer)?;
+    let workspace = workspace_region(context, workspace)?;
 
     matrix_a.ensure_context(context)?;
     matrix_b.ensure_context(context)?;
     matrix_c.ensure_context(context)?;
     context.bind()?;
     context.require_scalar_pointer_mode(alpha, beta)?;
+    context.prepare_operands(&[
+        matrix_a.regions(),
+        matrix_b.regions(),
+        matrix_c.regions(),
+        slice::from_ref(&workspace),
+        &[alpha.region(), beta.region()],
+    ])?;
 
-    // SAFETY: `cusparseSDDMM` receives live handles owned by the wrappers and pointers into buffers borrowed for the call.
+    // SAFETY: descriptors, scalars, and the workspace were checked against the bound `context` and ordered after their producers; the caller retains them through completion per the raw execution contract.
     unsafe {
         try_ffi!(sys::cusparseSDDMM(
             context.as_raw(),
@@ -281,8 +290,8 @@ pub unsafe fn sddmm<Compute: DataTypeLike>(
             matrix_c.as_raw(),
             Compute::data_type().into(),
             algorithm.into(),
-            external_buffer
-                .map_or(ptr::null_mut(), singe_cuda::view::DeviceRegion::as_ptr)
+            workspace
+                .map_or(ptr::null_mut(), DeviceRegion::as_ptr)
                 .cast(),
         ))?;
     }

@@ -3,7 +3,7 @@ mod support;
 use std::{error::Error, result::Result as StdResult};
 
 use singe_ptx::emulator::{
-    Bf16, Emulator, EmulatorOptions, F16, LaunchConfig, ParsedModule, ShutdownMode,
+    Emulator, EmulatorOptions, LaunchConfig, ParsedModule, ShutdownMode, bf16, f16,
 };
 use support::Observe;
 
@@ -59,16 +59,16 @@ fn test_half_boundary_values_widen_and_roundtrip() -> Result {
         for (i, (&narrow, &wide)) in narrow.iter().zip(&wide).enumerate() {
             let input = bits[i];
             let expected = if format == "f16" {
-                F16::from_bits(input).to_f32()
+                f16::from_bits(input).to_f32()
             } else {
-                Bf16::from_bits(input).to_f32()
+                bf16::from_bits(input).to_f32()
             };
             if expected.is_nan() {
                 assert!(wide.is_nan());
                 assert!(if format == "f16" {
-                    F16::from_bits(narrow).is_nan()
+                    f16::from_bits(narrow).is_nan()
                 } else {
-                    Bf16::from_bits(narrow).is_nan()
+                    bf16::from_bits(narrow).is_nan()
                 });
             } else {
                 assert_eq!(wide.to_bits(), expected.to_bits(), "{format} {input:04x}");
@@ -155,15 +155,15 @@ fn test_typed_half_transfers_scalar_arguments_and_packed_kernels() -> Result {
                     }};
                 }
                 if format == "f16" {
-                    scalar!(F16);
+                    scalar!(f16);
                 } else {
-                    scalar!(Bf16);
+                    scalar!(bf16);
                 }
                 let encode = |v| {
                     if format == "f16" {
-                        F16::from_f32(v).to_bits()
+                        f16::from_f32(v).to_bits()
                     } else {
-                        Bf16::from_f32(v).to_bits()
+                        bf16::from_f32(v).to_bits()
                     }
                 };
                 let pairs: Vec<u32> = values
@@ -413,8 +413,8 @@ fn test_floating_special_values_nan_selection_and_signed_zero() -> Result {
             "d"
         };
         let is_nan = |bits: u64| match format {
-            "f16" => F16::from_bits(u16::try_from(bits & 0xffff).unwrap()).is_nan(),
-            "bf16" => Bf16::from_bits(u16::try_from(bits & 0xffff).unwrap()).is_nan(),
+            "f16" => f16::from_bits(u16::try_from(bits & 0xffff).unwrap()).is_nan(),
+            "bf16" => bf16::from_bits(u16::try_from(bits & 0xffff).unwrap()).is_nan(),
             "f32" => f32::from_bits(u32::try_from(bits & 0xffff_ffff).unwrap()).is_nan(),
             _ => f64::from_bits(bits).is_nan(),
         };

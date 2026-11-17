@@ -1,10 +1,7 @@
 use std::collections::BTreeMap;
 
 use crate::{
-    backend::{
-        pointwise::PointwiseMode,
-        tensor::{TensorId, TensorSpec},
-    },
+    backend::operation::{attention::SoftmaxStatsBase, pointwise::PointwiseMode},
     error::Result,
     frontend::{
         bindings::resolve_binding_source,
@@ -12,10 +9,11 @@ use crate::{
         graph::Graph,
         operation::{
             AttentionBackwardRequest, AttentionPrimitiveOperation, Operation, PointwiseOperation,
-            SdpaOperation, SoftmaxStatsBase, TensorOperation,
+            SdpaOperation, TensorOperation,
         },
         plan::{AliasTensorKind, BindingReplacement},
     },
+    tensor::{TensorId, TensorSpec},
 };
 
 #[derive(Clone, Copy)]
@@ -54,11 +52,14 @@ fn storage_view_preserves_stats_values(
             continue;
         }
 
-        if source.shape.strides()[axis] as u128 != packed_stride {
+        if u128::try_from(source.shape.strides()[axis]).ok() != Some(packed_stride) {
             return Ok(false);
         }
 
-        let Some(next) = packed_stride.checked_mul(dimension as u128) else {
+        let Some(next) = u128::try_from(dimension)
+            .ok()
+            .and_then(|dimension| packed_stride.checked_mul(dimension))
+        else {
             return Ok(false);
         };
         packed_stride = next;

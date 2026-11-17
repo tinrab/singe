@@ -1,40 +1,58 @@
-//! GPU test setup.
+//! Serialized GPU test contexts.
 
-use std::ops::Deref;
+use std::sync::Arc;
 
-use singe_cuda::testing::{DeviceLock, bootstrap_for_device};
+use singe_cuda::{
+    context::Context as CudaContext,
+    device::Device,
+    stream::{Stream, StreamOptions},
+    testing::{TestDevice, bootstrap_for_device},
+};
 
-use crate::{decode::Decoder, error::Result};
+use crate::{allocator::AllocatorSet, decode::Decoder, error::Result};
 
-/// Decoder and device lock held for a GPU test.
+/// An nvTIFF decoder and its stream on a locked test device.
+///
+/// The decoder drops first, then the stream, then the device's CUDA context and lock.
 #[derive(Debug)]
 pub struct TestContext {
-    /// Decoder on device 0.
-    pub decoder: Decoder,
-    _lock: DeviceLock,
+    decoder: Decoder,
+    stream: Stream,
+    device: TestDevice,
 }
 
-impl Deref for TestContext {
-    type Target = Decoder;
-
-    fn deref(&self) -> &Self::Target {
+impl TestContext {
+    /// Returns the decoder.
+    #[must_use]
+    pub fn decoder(&self) -> &Decoder {
         &self.decoder
+    }
+
+    /// Returns the stream the decoder was created on.
+    #[must_use]
+    pub fn stream(&self) -> &Stream {
+        &self.stream
+    }
+
+    /// Returns the CUDA context of the locked device.
+    #[must_use]
+    pub fn cuda_context(&self) -> &Arc<CudaContext> {
+        self.device.context()
     }
 }
 
-/// Locks device 0 for the test and creates a CUDA context, stream, and decoder on it.
+/// Locks device 0 for the test and creates a CUDA stream and decoder on it.
 ///
 /// # Errors
 ///
 /// Returns an error if locking the device, initializing CUDA, or creating the context, stream, or decoder fails.
 pub fn setup_context() -> Result<TestContext> {
-    let device_id: i32 = 0;
-    let (lock, cuda_context) = bootstrap_for_device(device_id)?;
-    let stream = cuda_context.create_stream()?;
-    let decoder = Decoder::create(&stream)?;
-
+    let device = bootstrap_for_device(Device::new(0))?;
+    let stream = device.context().create_stream(StreamOptions::default())?;
+    let decoder = Decoder::create(AllocatorSet::new(), &stream)?;
     Ok(TestContext {
         decoder,
-        _lock: lock,
+        stream,
+        device,
     })
 }

@@ -1,26 +1,30 @@
 mod common;
 
-use std::{env::args, mem::size_of, num::NonZeroUsize};
+use std::{
+    env::{args, var_os},
+    mem::size_of,
+    num::NonZeroUsize,
+    path::Path,
+};
 
 use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
-    backend::{
-        errata::{Errata, ErrataPlan},
-        execution::ExecutionPlanCache,
-        tensor::{Shape, TensorSpec},
-    },
+    backend::execution::ExecutionPlanCache,
     data_type::{DataType, bf16},
     error::Result,
     frontend::{
         bindings::RuntimeOverrides,
+        errata::{Errata, ErrataPlan},
         graph::{Graph, GraphKeyShapePolicy},
         logging::{TensorDump, TensorDumpFormat, dump_tensor},
         operation::MatmulConfig,
         plan::{
             AutotuneConfig, AutotuneSampling, AutotuneSession, BuildPlanPolicy, CompileConfig,
             HeuristicMode, NativePlanSerializationConfig, NativePlanSet, PlanTiming,
+            WorkspacePlans,
         },
     },
+    tensor::{Shape, TensorSpec},
 };
 
 fn init_f32_image(size: usize, seed: &mut u32) -> Vec<f32> {
@@ -59,18 +63,21 @@ fn trimmed_mean_autotune(session: &mut AutotuneSession<'_, '_>) -> Result<Vec<Pl
 
         measurements.sort_unstable_by(f32::total_cmp);
         let trimmed = &measurements[1..measurements.len() - 1];
-        let elapsed_ms =
-            trimmed.iter().map(|&value| f64::from(value)).sum::<f64>() / trimmed.len() as f64;
+        let elapsed_ms = trimmed.iter().sum::<f32>() / trimmed.len() as f32;
         timings.push(PlanTiming {
             plan,
-            elapsed_ms: elapsed_ms as f32,
+            elapsed_ms,
             samples: measurements.len(),
         });
     }
     Ok(timings)
 }
 
-fn run() -> Result<()> {
+#[expect(
+    clippy::many_single_char_names,
+    reason = "keeps the upstream sample's single-letter dimension names"
+)]
+fn run() -> anyhow::Result<()> {
     let worker_count = common::positive_usize_argument("--workers", 8)?;
     let mut context = common::ExampleContext::create()?;
 
@@ -82,20 +89,20 @@ fn run() -> Result<()> {
     let mut graph = Graph::new();
     let a = graph.tensor(
         TensorSpec::new(
-            DataType::BF16,
+            DataType::Bf16,
             Shape::with_strides([b, m, k], [m * k, k, 1])?,
         )
         .with_name("A"),
     );
     let b_tensor = graph.tensor(
         TensorSpec::new(
-            DataType::BF16,
+            DataType::Bf16,
             Shape::with_strides([b, k, n], [k * n, n, 1])?,
         )
         .with_name("B"),
     );
     let c = graph.tensor(TensorSpec::new(
-        DataType::BF16,
+        DataType::Bf16,
         Shape::with_strides([b, m, n], [m * n, n, 1])?,
     ));
     graph.matmul_into(
@@ -105,12 +112,16 @@ fn run() -> Result<()> {
         MatmulConfig::new().with_compute_type(DataType::F32),
     )?;
 
-    let candidates = graph.plan_candidates(
+    let candidates = graph.prepare(Some(&context.cudnn))?.plan_candidates(
         Some(&context.cudnn),
         &CompileConfig::from_heuristic_modes([HeuristicMode::A]),
     )?;
-    let errata = Errata::load_from_config(None)?.unwrap_or_default();
-    let cudnn_version = singe_cudnn::version()?.raw();
+    // The C++ sample reads its errata file from `CUDNN_ERRATA_JSON_FILE`.
+    let errata = var_os("CUDNN_ERRATA_JSON_FILE")
+        .map(|path| Errata::from_file(Path::new(&path)))
+        .transpose()?
+        .unwrap_or_default();
+    let cudnn_version = singe_cudnn::version()?;
     let candidates = candidates.filter_by(|metadata| {
         !errata.is_blocked(ErrataPlan::from_engine(
             "Matmul",
@@ -129,13 +140,13 @@ fn run() -> Result<()> {
     let mut half_seed = 123_456_789_u32;
     let mut a_dev = DeviceMemory::from_slice(
         context.cudnn.cuda_context(),
-        &init_bf16_image((b * m * k) as usize, &mut half_seed),
+        &init_bf16_image(usize::try_from(b * m * k)?, &mut half_seed),
     )?;
     let mut b_dev = DeviceMemory::from_slice(
         context.cudnn.cuda_context(),
-        &init_bf16_image((b * k * n) as usize, &mut half_seed),
+        &init_bf16_image(usize::try_from(b * k * n)?, &mut half_seed),
     )?;
-    let c_init = init_bf16_image((b * m * n) as usize, &mut half_seed);
+    let c_init = init_bf16_image(usize::try_from(b * m * n)?, &mut half_seed);
 
     let compiled = built_candidates.compile()?;
     println!(
@@ -158,15 +169,17 @@ fn run() -> Result<()> {
     bindings.set(a, &mut a_dev)?;
     bindings.set(b_tensor, &mut b_dev)?;
     bindings.set(c, &mut c_dev)?;
-    let mut workspace =
-        common::workspace(context.cudnn.cuda_context(), compiled.max_workspace_size())?;
+    let mut workspace = common::workspace(
+        context.cudnn.cuda_context(),
+        compiled.workspace_size_for(WorkspacePlans::All, None)?,
+    )?;
     let overrides = RuntimeOverrides::new();
     // SAFETY: all buffers, workspace and by-value scalar owners remain live through the discarded capture.
     let warmup = unsafe {
         compiled.warmup_with_bindings(
             &mut context.cudnn,
             &bindings,
-            Some(&mut workspace),
+            Some(workspace.output()),
             &overrides,
         )
     }?;
@@ -178,7 +191,7 @@ fn run() -> Result<()> {
             compiled.autotune_with(
                 &context.cudnn,
                 &bindings,
-                Some(&mut workspace),
+                Some(workspace.output()),
                 &overrides,
                 trimmed_mean_autotune,
             )
@@ -186,7 +199,7 @@ fn run() -> Result<()> {
             compiled.autotune(
                 &context.cudnn,
                 &bindings,
-                Some(&mut workspace),
+                Some(workspace.output()),
                 &overrides,
                 &AutotuneConfig::new()
                     .with_sampling(AutotuneSampling::MedianOfThree)
@@ -243,7 +256,7 @@ fn run() -> Result<()> {
     }
 
     // SAFETY: the retained winner fixes the measured layouts; buffers and workspace stay live through completion.
-    unsafe { winner.execute(&context.cudnn, &bindings, Some(&mut workspace)) }?;
+    unsafe { winner.execute_async(&context.cudnn, &bindings, Some(workspace.output())) }?;
 
     // SAFETY: the output allocation remains live and initialized; the helper waits for its producer stream before reading.
     unsafe {
@@ -265,6 +278,6 @@ fn run() -> Result<()> {
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_all_plans_autotune", run())
 }

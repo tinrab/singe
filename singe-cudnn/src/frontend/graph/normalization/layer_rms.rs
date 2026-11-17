@@ -1,5 +1,5 @@
 use crate::{
-    backend::{normalization::BackendNormalizationForwardPhase, tensor::TensorId},
+    backend::operation::normalization::BackendNormalizationForwardPhase,
     data_type::DataType,
     error::Result,
     frontend::{
@@ -15,6 +15,7 @@ use crate::{
             RmsNormalizationOutputs, RmsNormalizationStatistics,
         },
     },
+    tensor::TensorId,
 };
 
 impl Graph {
@@ -189,7 +190,7 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for unknown tensor identities, input rank below two, invalid or ambiguous normalization axes, incompatible affine broadcast dimensions, mismatched output or saved-statistic dimensions, or a nonscalar epsilon tensor.
+    /// Returns an error if a tensor identity is unknown, the input rank is below two, the normalization axes are invalid or ambiguous, affine broadcast dimensions are incompatible, output or saved-statistic dimensions mismatch, or the epsilon tensor is not a scalar.
     pub fn layer_normalization_into(
         &mut self,
         inputs: LayerNormalizationInputs,
@@ -211,7 +212,7 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for unknown tensor identities, input rank below two, invalid or ambiguous normalization axes, incompatible affine broadcast dimensions, mismatched output or saved-statistic dimensions, or a nonscalar epsilon tensor.
+    /// Returns an error if a tensor identity is unknown, the input rank is below two, the normalization axes are invalid or ambiguous, affine broadcast dimensions are incompatible, output or saved-statistic dimensions mismatch, or the epsilon tensor is not a scalar.
     /// Inferred statistic strides must also be representable.
     pub fn layer_normalization(
         &mut self,
@@ -287,7 +288,7 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for unknown tensor identities, input rank below two, invalid or ambiguous normalization axes, incompatible affine broadcast dimensions, mismatched output or saved-statistic dimensions, or a nonscalar epsilon tensor.
+    /// Returns an error if a tensor identity is unknown, the input rank is below two, the normalization axes are invalid or ambiguous, affine broadcast dimensions are incompatible, output or saved-statistic dimensions mismatch, or the epsilon tensor is not a scalar.
     pub fn rms_normalization_into(
         &mut self,
         inputs: RmsNormalizationInputs,
@@ -308,7 +309,7 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for unknown tensor identities, input rank below two, invalid or ambiguous normalization axes, incompatible affine broadcast dimensions, mismatched output or saved-statistic dimensions, or a nonscalar epsilon tensor.
+    /// Returns an error if a tensor identity is unknown, the input rank is below two, the normalization axes are invalid or ambiguous, affine broadcast dimensions are incompatible, output or saved-statistic dimensions mismatch, or the epsilon tensor is not a scalar.
     /// Inferred statistic strides must also be representable.
     pub fn rms_normalization(
         &mut self,
@@ -407,7 +408,7 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for unknown tensor identities, invalid or ambiguous normalization axes, incompatible scale or affine-gradient broadcast dimensions, mismatched saved-statistic or input/output-gradient dimensions, or affine-gradient presence inconsistent with the scale input.
+    /// Returns an error if a tensor identity is unknown, the normalization axes are invalid or ambiguous, scale or affine-gradient broadcast dimensions are incompatible, saved-statistic or input/output-gradient dimensions mismatch, or affine-gradient presence is inconsistent with the scale input.
     pub fn layer_normalization_backward_into(
         &mut self,
         inputs: LayerNormalizationBackwardInputs,
@@ -430,7 +431,7 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for unknown tensor identities, invalid or ambiguous normalization axes, incompatible scale or affine-gradient broadcast dimensions, mismatched saved-statistic or input/output-gradient dimensions, or affine-gradient presence inconsistent with the scale input.
+    /// Returns an error if a tensor identity is unknown, the normalization axes are invalid or ambiguous, scale or affine-gradient broadcast dimensions are incompatible, saved-statistic or input/output-gradient dimensions mismatch, or affine-gradient presence is inconsistent with the scale input.
     pub fn layer_normalization_backward(
         &mut self,
         inputs: LayerNormalizationBackwardInputs,
@@ -540,7 +541,7 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for unknown tensor identities, invalid or ambiguous normalization axes, incompatible scale or affine-gradient broadcast dimensions, mismatched saved-statistic or input/output-gradient dimensions, or affine-gradient presence inconsistent with the scale input.
+    /// Returns an error if a tensor identity is unknown, the normalization axes are invalid or ambiguous, scale or affine-gradient broadcast dimensions are incompatible, saved-statistic or input/output-gradient dimensions mismatch, or affine-gradient presence is inconsistent with the scale input.
     pub fn rms_normalization_backward_into(
         &mut self,
         inputs: RmsNormalizationBackwardInputs,
@@ -563,7 +564,7 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for unknown tensor identities, invalid or ambiguous normalization axes, incompatible scale or affine-gradient broadcast dimensions, mismatched saved-statistic or input/output-gradient dimensions, or affine-gradient presence inconsistent with the scale input.
+    /// Returns an error if a tensor identity is unknown, the normalization axes are invalid or ambiguous, scale or affine-gradient broadcast dimensions are incompatible, saved-statistic or input/output-gradient dimensions mismatch, or affine-gradient presence is inconsistent with the scale input.
     pub fn rms_normalization_backward(
         &mut self,
         inputs: RmsNormalizationBackwardInputs,

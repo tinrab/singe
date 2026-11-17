@@ -1,15 +1,9 @@
 //! Host creation of device communicators, teams, and kernel resources.
 //! Kernels include `nccl_device.h` and receive the communicator by value.
 
-use std::{
-    env,
-    ffi::c_void,
-    path::{Path, PathBuf},
-    process::Command,
-    ptr,
-};
+use std::{ffi::c_void, ptr};
 
-use singe_cuda::{architecture::GpuArchitecture, error::Error as CudaError};
+use singe_core::report_cleanup_failure;
 
 use crate::{
     communicator::{Communicator, Window},
@@ -19,65 +13,62 @@ use crate::{
 
 /// GIN connection topology for a device communicator.
 #[derive(Debug, Clone, Copy, Default)]
+#[non_exhaustive]
 pub enum GinConnection {
-    /// Corresponds to [`sys::ncclGinConnectionType_t::NCCL_GIN_CONNECTION_NONE`].
+    /// Requests no GIN connections.
     #[default]
     None,
-    /// Corresponds to [`sys::ncclGinConnectionType_t::NCCL_GIN_CONNECTION_FULL`].
+    /// Connects every communicator rank through GIN.
     Full,
-    /// Corresponds to [`sys::ncclGinConnectionType_t::NCCL_GIN_CONNECTION_RAIL`].
+    /// Connects ranks on the same network rail through GIN.
     Rail,
-    /// Stride of ranks to connect for GIN.
+    /// Connects ranks at this positive world-rank stride through GIN.
     CustomStride(i32),
 }
 
 /// Device communication backend.
 #[derive(Debug, Clone, Copy, Default)]
 pub enum GinType {
-    /// Sentinel: accept any available backend.
+    /// Accepts any available backend.
     #[default]
     Automatic,
-    /// Intentionally not 1. Must match `NCCL_NET_DEVICE_GIN_PROXY` for backward compatibility.
+    /// Uses the host proxy backend.
     Proxy,
-    /// Intentionally not 2. Must match `NCCL_NET_DEVICE_GIN_GDAKI` for backward compatibility.
+    /// Uses the kernel-initiated GDAKI backend.
     Gdaki,
-    /// Must match `NCCL_NET_DEVICE_GIN_GPI`.
+    /// Uses the GPI backend.
     Gpi,
-    /// Must match `NCCL_NET_DEVICE_GIN_EFA_GDA` for backward compatibility.
+    /// Uses the Elastic Fabric Adapter backend with GPU-initiated transfers.
     EfaGda,
 }
 
 impl GinType {
     fn into_raw(self) -> sys::ncclGinType_t {
-        use sys::ncclGinType_t::{
-            NCCL_GIN_TYPE_EFA_GDA, NCCL_GIN_TYPE_GDAKI, NCCL_GIN_TYPE_GPI, NCCL_GIN_TYPE_NONE,
-            NCCL_GIN_TYPE_PROXY,
-        };
         match self {
-            Self::Automatic => NCCL_GIN_TYPE_NONE,
-            Self::Proxy => NCCL_GIN_TYPE_PROXY,
-            Self::Gdaki => NCCL_GIN_TYPE_GDAKI,
-            Self::Gpi => NCCL_GIN_TYPE_GPI,
-            Self::EfaGda => NCCL_GIN_TYPE_EFA_GDA,
+            Self::Automatic => sys::ncclGinType_t::NCCL_GIN_TYPE_NONE,
+            Self::Proxy => sys::ncclGinType_t::NCCL_GIN_TYPE_PROXY,
+            Self::Gdaki => sys::ncclGinType_t::NCCL_GIN_TYPE_GDAKI,
+            Self::Gpi => sys::ncclGinType_t::NCCL_GIN_TYPE_GPI,
+            Self::EfaGda => sys::ncclGinType_t::NCCL_GIN_TYPE_EFA_GDA,
         }
     }
 }
 
 bitflags::bitflags! {
-    /// Bitmask of device CFT capabilities.
+    /// Compute Fabric Transport capabilities required by device kernels.
     #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
     pub struct CftCapabilities: i32 {
-        /// Corresponds to [`sys::ncclCftCap_t::NCCL_CFT`].
-        const UNICAST = sys::ncclCftCap_t::NCCL_CFT as i32;
-        /// Corresponds to [`sys::ncclCftCap_t::NCCL_CFT_MULTIMEM`].
-        const MULTIMEM = sys::ncclCftCap_t::NCCL_CFT_MULTIMEM as i32;
+        /// Requests Compute Fabric Transport unicast support.
+        const UNICAST = sys::ncclCftCap_t::NCCL_CFT.0.cast_signed();
+        /// Requests Compute Fabric Transport multicast support.
+        const MULTIMEM = sys::ncclCftCap_t::NCCL_CFT_MULTIMEM.0.cast_signed();
     }
 }
 
 /// Attributes that users are able to customize for a device communicator.
 #[derive(Debug, Clone)]
 pub struct DeviceRequirements {
-    /// Enable multimem on LSA team.
+    /// Whether to enable multimem on the load/store-accessible team.
     pub lsa_multimem: bool,
     /// Number of hybrid network/rail barriers to allocate.
     pub barriers: i32,
@@ -91,11 +82,11 @@ pub struct DeviceRequirements {
     pub lsa_lla2a_blocks: i32,
     /// Number of low-latency all-to-all slots requested per block.
     pub lsa_lla2a_slots: i32,
-    /// This is a hint, the actual context count in the device communicator may not match.
+    /// Requested number of GIN contexts; the device communicator may provide a different count.
     pub gin_contexts: i32,
-    /// Guaranteed to start at id=0.
+    /// Number of GIN signals to allocate, numbered from 0.
     pub gin_signals: i32,
-    /// Guaranteed to start at id=0.
+    /// Number of GIN counters to allocate, numbered from 0.
     pub gin_counters: i32,
     /// GIN connection topology; requesting GIN resources requires a compatible connection type.
     pub gin_connection: GinConnection,
@@ -144,14 +135,15 @@ pub struct Team<'a> {
     raw: sys::ncclTeam_t,
 }
 
-/// CFT team hierarchy.
+/// Compute Fabric Transport team hierarchy.
 #[derive(Debug, Clone, Copy)]
+#[non_exhaustive]
 pub enum CftTeamMode {
-    /// Corresponds to [`sys::ncclCftTeamMode_t::NCCL_CFT_TEAM_FLAT`].
+    /// Uses the complete flat team with unit rank stride.
     Flat,
-    /// Corresponds to [`sys::ncclCftTeamMode_t::NCCL_CFT_TEAM_HIER_MULTIMEM`].
+    /// Uses the outer team after factoring by the multimem team size.
     HierarchicalMultimem,
-    /// Corresponds to [`sys::ncclCftTeamMode_t::NCCL_CFT_TEAM_HIER_LSA`].
+    /// Uses the outer team after factoring by the load/store-accessible team size.
     HierarchicalLsa,
 }
 
@@ -188,7 +180,7 @@ impl Team<'_> {
     /// Returns an error if `rank` is outside this team.
     pub fn rank_to_world(&self, rank: i32) -> Result<i32> {
         self.validate_rank(rank)?;
-        // SAFETY: `ncclTeamRankToWorld` receives live handles owned by the wrappers.
+        // SAFETY: `self` borrows its live communicator, `validate_rank` bound the context and checked `rank` within the team, and `self.raw` is a team NCCL returned for it.
         Ok(unsafe { sys::ncclTeamRankToWorld(self.communicator.as_raw(), self.raw, rank) })
     }
 
@@ -200,7 +192,7 @@ impl Team<'_> {
     /// Returns an error if `rank` is outside this team.
     pub fn rank_to_lsa(&self, rank: i32) -> Result<i32> {
         self.validate_rank(rank)?;
-        // SAFETY: `ncclTeamRankToLsa` receives live handles owned by the wrappers.
+        // SAFETY: `self` borrows its live communicator, `validate_rank` bound the context and checked `rank` within the team, and `self.raw` is a team NCCL returned for it.
         Ok(unsafe { sys::ncclTeamRankToLsa(self.communicator.as_raw(), self.raw, rank) })
     }
 
@@ -262,12 +254,12 @@ impl DeviceProperties {
         self.raw.cftCountedSupport
     }
 
-    /// True if the GIN type is supported.
+    /// Returns whether the GIN backend `kind` is supported, or any backend for [`GinType::Automatic`].
     #[must_use]
     pub fn gin_supported(&self, kind: GinType) -> bool {
         match kind {
             GinType::Automatic => self.raw.ginSupport.iter().any(|supported| *supported),
-            _ => self.raw.ginSupport[kind.into_raw() as usize],
+            _ => self.raw.ginSupport[kind.into_raw().0 as usize],
         }
     }
 
@@ -291,7 +283,7 @@ impl DeviceProperties {
 }
 
 impl Communicator {
-    /// Device communicator API properties.
+    /// Queries the device communicator API properties.
     ///
     /// # Errors
     ///
@@ -305,7 +297,7 @@ impl Communicator {
             version: sys::NCCL_VERSION_CODE,
             ..Default::default()
         };
-        // SAFETY: `ncclCommQueryProperties` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `self` owns the live communicator with its context bound, and `raw` is a local structure initialized with its size, magic, and version.
         unsafe {
             try_ffi!(sys::ncclCommQueryProperties(self.as_raw(), &raw mut raw))?;
         }
@@ -316,65 +308,48 @@ impl Communicator {
     ///
     /// # Errors
     ///
-    /// Returns an error if the communicator state disallows control operations or binding its CUDA context fails.
+    /// Returns an error if the communicator state disallows control operations, binding its CUDA context fails, or the loaded NCCL lacks the team query.
     pub fn world_team(&self) -> Result<Team<'_>> {
-        self.bind()?;
-        Ok(Team {
-            communicator: self,
-            // SAFETY: `ncclTeamWorld` receives live handles owned by the wrappers.
-            raw: unsafe { sys::ncclTeamWorld(self.as_raw()) },
-        })
+        // SAFETY: `ncclTeamWorld` reads the live communicator, whose context `team` binds.
+        self.team(|communicator| unsafe { sys::ncclTeamWorld(communicator) })
     }
 
     /// Returns the calling rank's load/store-accessible team.
     ///
     /// # Errors
     ///
-    /// Returns an error if the communicator state disallows control operations or binding its CUDA context fails.
+    /// Returns an error if the communicator state disallows control operations, binding its CUDA context fails, or the loaded NCCL lacks the team query.
     pub fn lsa_team(&self) -> Result<Team<'_>> {
-        self.bind()?;
-        Ok(Team {
-            communicator: self,
-            // SAFETY: `ncclTeamLsa` receives live handles owned by the wrappers.
-            raw: unsafe { sys::ncclTeamLsa(self.as_raw()) },
-        })
+        // SAFETY: `ncclTeamLsa` reads the live communicator, whose context `team` binds.
+        self.team(|communicator| unsafe { sys::ncclTeamLsa(communicator) })
     }
 
     /// Returns the calling rank's network rail team.
     ///
     /// # Errors
     ///
-    /// Returns an error if the communicator state disallows control operations or binding its CUDA context fails.
+    /// Returns an error if the communicator state disallows control operations, binding its CUDA context fails, or the loaded NCCL lacks the team query.
     pub fn rail_team(&self) -> Result<Team<'_>> {
-        self.bind()?;
-        Ok(Team {
-            communicator: self,
-            // SAFETY: `ncclTeamRail` receives live handles owned by the wrappers.
-            raw: unsafe { sys::ncclTeamRail(self.as_raw()) },
-        })
+        // SAFETY: `ncclTeamRail` reads the live communicator, whose context `team` binds.
+        self.team(|communicator| unsafe { sys::ncclTeamRail(communicator) })
     }
 
     /// Returns the Compute Fabric Transport multimem team.
     ///
     /// # Errors
     ///
-    /// Returns an error if the communicator state disallows control operations or binding its CUDA context fails.
+    /// Returns an error if the communicator state disallows control operations, binding its CUDA context fails, or the loaded NCCL lacks the team query.
     pub fn cft_multimem_team(&self) -> Result<Team<'_>> {
-        self.bind()?;
-        Ok(Team {
-            communicator: self,
-            // SAFETY: `ncclTeamCftMultimem` receives live handles owned by the wrappers.
-            raw: unsafe { sys::ncclTeamCftMultimem(self.as_raw()) },
-        })
+        // SAFETY: `ncclTeamCftMultimem` reads the live communicator, whose context `team` binds.
+        self.team(|communicator| unsafe { sys::ncclTeamCftMultimem(communicator) })
     }
 
     /// Returns a Compute Fabric Transport team for the selected hierarchy mode.
     ///
     /// # Errors
     ///
-    /// Returns an error if the communicator state disallows control operations or binding its CUDA context fails.
+    /// Returns an error if the communicator state disallows control operations, binding its CUDA context fails, or the loaded NCCL lacks the team query.
     pub fn cft_team(&self, mode: CftTeamMode) -> Result<Team<'_>> {
-        self.bind()?;
         let mode = match mode {
             CftTeamMode::Flat => sys::ncclCftTeamMode_t::NCCL_CFT_TEAM_FLAT,
             CftTeamMode::HierarchicalMultimem => {
@@ -382,10 +357,22 @@ impl Communicator {
             }
             CftTeamMode::HierarchicalLsa => sys::ncclCftTeamMode_t::NCCL_CFT_TEAM_HIER_LSA,
         };
+        // SAFETY: `ncclTeamCft` reads the live communicator, whose context `team` binds.
+        self.team(|communicator| unsafe { sys::ncclTeamCft(communicator, mode) })
+    }
+
+    fn team(&self, query: impl FnOnce(sys::ncclComm_t) -> sys::ncclTeam_t) -> Result<Team<'_>> {
+        self.bind()?;
+        // A missing team symbol returns a zero team and records its absence, so clear any earlier record first.
+        let _ = sys::take_absence();
+        let raw = query(self.as_raw());
+        if let Some(absence) = sys::take_absence() {
+            return Err(Error::Load(absence.into_error()));
+        }
+
         Ok(Team {
             communicator: self,
-            // SAFETY: `ncclTeamCft` receives live handles owned by the wrappers.
-            raw: unsafe { sys::ncclTeamCft(self.as_raw(), mode) },
+            raw,
         })
     }
 }
@@ -515,8 +502,7 @@ impl<'a> DeviceCommunicatorBuilder<'a> {
         self.communicator.bind()
     }
 
-    /// Device resource requirement for LSA barriers.
-    /// Returns its resource index.
+    /// Requests `count` load/store-accessible barriers for `team` and returns the resource index.
     ///
     /// # Errors
     ///
@@ -526,7 +512,7 @@ impl<'a> DeviceCommunicatorBuilder<'a> {
         self.check_team(team, count)?;
         let mut handle = Box::new(sys::ncclLsaBarrierHandle_t::default());
         let mut request = Box::new(sys::ncclDevResourceRequirements_t::default());
-        // SAFETY: `ncclLsaBarrierCreateRequirement` receives only plain values.
+        // SAFETY: `team.raw` was returned by NCCL for this builder's communicator, checked by `check_team`, and `handle` and `request` are boxed output slots.
         unsafe {
             try_ffi!(sys::ncclLsaBarrierCreateRequirement(
                 team.raw,
@@ -544,8 +530,7 @@ impl<'a> DeviceCommunicatorBuilder<'a> {
         Ok(index)
     }
 
-    /// Device resource requirement for GIN barriers.
-    /// Returns its resource index.
+    /// Requests `count` GIN barriers for `team` and returns the resource index.
     ///
     /// # Errors
     ///
@@ -555,7 +540,7 @@ impl<'a> DeviceCommunicatorBuilder<'a> {
         self.check_team(team, count)?;
         let mut handle = Box::new(sys::ncclGinBarrierHandle_t::default());
         let mut request = Box::new(sys::ncclDevResourceRequirements_t::default());
-        // SAFETY: `ncclGinBarrierCreateRequirement` receives live handles owned by the wrappers.
+        // SAFETY: the builder borrows the live communicator, which `check_team` bound and matched to `team`, and `handle` and `request` are boxed output slots.
         unsafe {
             try_ffi!(sys::ncclGinBarrierCreateRequirement(
                 self.communicator.as_raw(),
@@ -574,8 +559,7 @@ impl<'a> DeviceCommunicatorBuilder<'a> {
         Ok(index)
     }
 
-    /// Device resource requirement for CFT barriers.
-    /// Returns its resource index.
+    /// Requests `count` Compute Fabric Transport barriers for `team` and returns the resource index.
     ///
     /// # Errors
     ///
@@ -585,7 +569,7 @@ impl<'a> DeviceCommunicatorBuilder<'a> {
         self.check_team(team, count)?;
         let mut handle = Box::new(sys::ncclCftBarrierHandle_t::default());
         let mut request = Box::new(sys::ncclDevResourceRequirements_t::default());
-        // SAFETY: `ncclCftBarrierCreateRequirement` receives only plain values.
+        // SAFETY: `team.raw` was returned by NCCL for this builder's communicator, checked by `check_team`, and `handle` and `request` are boxed output slots.
         unsafe {
             try_ffi!(sys::ncclCftBarrierCreateRequirement(
                 team.raw,
@@ -603,8 +587,7 @@ impl<'a> DeviceCommunicatorBuilder<'a> {
         Ok(index)
     }
 
-    /// Device resource requirement for low-latency all-to-all.
-    /// Returns its resource index.
+    /// Requests low-latency all-to-all resources for `blocks` blocks of `slots` slots and returns the resource index.
     ///
     /// # Errors
     ///
@@ -616,7 +599,7 @@ impl<'a> DeviceCommunicatorBuilder<'a> {
 
         let mut handle = Box::new(sys::ncclLLA2AHandle_t::default());
         let mut request = Box::new(sys::ncclDevResourceRequirements_t::default());
-        // SAFETY: `ncclLLA2ACreateRequirement` receives only plain values.
+        // SAFETY: `blocks` and `slots` were checked non-negative, and `handle` and `request` are boxed output slots.
         unsafe {
             try_ffi!(sys::ncclLLA2ACreateRequirement(
                 blocks,
@@ -634,8 +617,7 @@ impl<'a> DeviceCommunicatorBuilder<'a> {
         Ok(index)
     }
 
-    /// Enable multimem on a team.
-    /// Returns its team-resource index.
+    /// Requests multimem on `team` and returns the team-resource index.
     ///
     /// # Errors
     ///
@@ -739,7 +721,7 @@ impl<'a> DeviceCommunicatorBuilder<'a> {
             ..Default::default()
         };
         let mut raw = sys::ncclDevComm_t::default();
-        // SAFETY: `ncclDevCommCreate` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
+        // SAFETY: the communicator is live, active, and bound, `requirements` links boxed requests whose output slots `DeviceCommunicator` keeps alive, and `raw` is a local output slot.
         unsafe {
             try_ffi!(sys::ncclDevCommCreate(
                 self.communicator.as_raw(),
@@ -757,14 +739,14 @@ impl<'a> DeviceCommunicatorBuilder<'a> {
 }
 
 impl DeviceCommunicator<'_> {
-    /// Borrowed kernel argument.
+    /// Returns the native device communicator to pass to kernels by value.
     /// Kernels must use the same NCCL headers as these bindings.
     #[must_use]
     pub fn as_raw(&self) -> &sys::ncclDevComm_t {
         &self.raw
     }
 
-    /// Returns the LSA barrier resource at `index`.
+    /// Returns the load/store-accessible barrier resource at `index`.
     ///
     /// Returns `None` if the index is out of range or identifies another resource type.
     #[must_use]
@@ -786,7 +768,7 @@ impl DeviceCommunicator<'_> {
         }
     }
 
-    /// Returns the CFT barrier resource at `index`.
+    /// Returns the Compute Fabric Transport barrier resource at `index`.
     ///
     /// Returns `None` if the index is out of range or identifies another resource type.
     #[must_use]
@@ -831,20 +813,31 @@ impl DeviceCommunicator<'_> {
 
 impl Drop for DeviceCommunicator<'_> {
     fn drop(&mut self) {
-        if self.communicator.bind().is_ok()
-            && self.communicator.cuda_context().synchronize().is_ok()
-        {
-            // SAFETY: `ncclDevCommDestroy` receives live handles owned by the wrappers and pointers into buffers borrowed for the call.
-            unsafe {
-                if let Err(error) = try_ffi!(sys::ncclDevCommDestroy(
-                    self.communicator.as_raw(),
-                    &raw const self.raw
-                )) {
-                    eprintln!(
-                        "failed to destroy nccl device communicator: {}",
-                        singe_core::ErrorChain(&error)
-                    );
-                }
+        if let Err(error) = self.communicator.bind() {
+            report_cleanup_failure(
+                "bind the cuda context to destroy",
+                "nccl device communicator",
+                &error,
+            );
+            return;
+        }
+
+        if let Err(error) = self.communicator.cuda_context().synchronize() {
+            report_cleanup_failure(
+                "synchronize the cuda context to destroy",
+                "nccl device communicator",
+                &error,
+            );
+            return;
+        }
+
+        // SAFETY: `self.raw` came from `ncclDevCommCreate` on the borrowed communicator, its context is bound, and the synchronize above finished every kernel using it.
+        unsafe {
+            if let Err(error) = try_ffi!(sys::ncclDevCommDestroy(
+                self.communicator.as_raw(),
+                &raw const self.raw
+            )) {
+                report_cleanup_failure("destroy", "nccl device communicator", &error);
             }
         }
     }
@@ -859,7 +852,7 @@ pub fn low_latency_all_to_all_slots(max_elements: i32, max_element_size: i32) ->
     if max_elements < 0 || max_element_size <= 0 {
         return Err(Error::out_of_range("all-to-all element size or count"));
     }
-    // SAFETY: `ncclLLA2ACalcSlots` receives only plain values.
+    // SAFETY: NCCL reads only these two checked integers.
     Ok(unsafe { sys::ncclLLA2ACalcSlots(max_elements, max_element_size) })
 }
 
@@ -878,7 +871,7 @@ impl Multimem<'_> {
     }
 }
 
-/// CFT handle based query result for host code.
+/// A logical endpoint in a Compute Fabric Transport mapping of a window.
 #[derive(Debug, Clone, Copy)]
 pub struct LogicalEndpoint {
     /// The logical endpoint identifier returned by NCCL.
@@ -896,7 +889,7 @@ impl Window<'_> {
         Ok(())
     }
 
-    /// VA pointer based query for host code.
+    /// Returns the load/store-accessible multimem device pointer at a byte offset.
     ///
     /// # Errors
     ///
@@ -906,7 +899,7 @@ impl Window<'_> {
     pub fn lsa_multimem_pointer(&self, offset: u64) -> Result<*mut c_void> {
         self.check_offset(offset)?;
         let mut value = ptr::null_mut();
-        // SAFETY: `ncclGetLsaMultimemDevicePointer` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `self.raw` is the live window of the borrowed communicator, `check_offset` bound its context and checked `offset`, and `value` is a local output slot.
         unsafe {
             try_ffi!(sys::ncclGetLsaMultimemDevicePointer(
                 self.raw,
@@ -932,7 +925,7 @@ impl Window<'_> {
         }
 
         let mut value = ptr::null_mut();
-        // SAFETY: `ncclGetMultimemDevicePointer` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `self.raw` is the live window, `check_offset` bound its context and checked `offset`, `multimem` belongs to the same communicator, and `value` is a local output slot.
         unsafe {
             try_ffi!(sys::ncclGetMultimemDevicePointer(
                 self.raw,
@@ -956,7 +949,7 @@ impl Window<'_> {
         self.check_offset(offset)?;
         self.communicator.lsa_team()?.validate_rank(rank)?;
         let mut value = ptr::null_mut();
-        // SAFETY: `ncclGetLsaDevicePointer` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `self.raw` is the live window, `check_offset` bound its context and checked `offset`, `rank` is in the load/store-accessible team, and `value` is a local output slot.
         unsafe {
             try_ffi!(sys::ncclGetLsaDevicePointer(
                 self.raw,
@@ -980,7 +973,7 @@ impl Window<'_> {
         self.check_offset(offset)?;
         self.communicator.world_team()?.validate_rank(rank)?;
         let mut value = ptr::null_mut();
-        // SAFETY: `ncclGetPeerDevicePointer` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `self.raw` is the live window, `check_offset` bound its context and checked `offset`, `rank` is in the world team, and `value` is a local output slot.
         unsafe {
             try_ffi!(sys::ncclGetPeerDevicePointer(
                 self.raw,
@@ -992,7 +985,7 @@ impl Window<'_> {
         Ok(value)
     }
 
-    /// CFT handle based query for host code.
+    /// Returns the multimem logical endpoint at a byte offset.
     ///
     /// # Errors
     ///
@@ -1002,7 +995,7 @@ impl Window<'_> {
     pub fn multimem_endpoint(&self, offset: u64) -> Result<LogicalEndpoint> {
         self.check_offset(offset)?;
         let mut value = LogicalEndpoint { id: 0, offset: 0 };
-        // SAFETY: `ncclGetMultimemDeviceLeInfo` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `self.raw` is the live window of the borrowed communicator, `check_offset` bound its context and checked `offset`, and `value` holds the local output slots.
         unsafe {
             try_ffi!(sys::ncclGetMultimemDeviceLeInfo(
                 self.raw,
@@ -1031,7 +1024,7 @@ impl Window<'_> {
         }
 
         let mut value = LogicalEndpoint { id: 0, offset: 0 };
-        // SAFETY: `ncclGetCftDeviceLeInfo` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `self.raw` is the live window, `check_offset` bound its context and checked `offset`, `team` belongs to the same communicator and contains `rank`, and `value` holds the local output slots.
         unsafe {
             try_ffi!(sys::ncclGetCftDeviceLeInfo(
                 self.raw,
@@ -1057,7 +1050,7 @@ impl Window<'_> {
         self.check_offset(offset)?;
         self.communicator.world_team()?.validate_rank(rank)?;
         let mut value = LogicalEndpoint { id: 0, offset: 0 };
-        // SAFETY: `ncclGetPeerDeviceLeInfo` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `self.raw` is the live window, `check_offset` bound its context and checked `offset`, `rank` is in the world team, and `value` holds the local output slots.
         unsafe {
             try_ffi!(sys::ncclGetPeerDeviceLeInfo(
                 self.raw,
@@ -1069,70 +1062,4 @@ impl Window<'_> {
         }
         Ok(value)
     }
-}
-
-/// Compiles a CUDA source file using the matching NCCL device headers.
-/// The source can include `nccl_device.h` and accept `ncclDevComm` kernel arguments.
-/// Writes a cubin for the specified physical GPU architecture to `output`.
-///
-/// NCCL's device headers require the native CUDA compiler and its host C++ headers.
-/// Uses `NVCC`, then `CUDA_PATH/bin/nvcc`, then `nvcc` on `PATH`.
-/// `CUDA_CCBIN`, when set, selects the host compiler.
-/// Compilation uses C++17.
-///
-/// # Errors
-///
-/// Returns an error if `architecture` is virtual, the NCCL device-header location is unavailable, the compiler process cannot start, or compilation fails.
-pub fn compile_device_kernel(
-    source: &Path,
-    output: &Path,
-    architecture: GpuArchitecture,
-) -> Result<()> {
-    if architecture.is_virtual() {
-        return Err(Error::out_of_range("physical GPU architecture"));
-    }
-
-    let include = sys::DEVICE_INCLUDE_PATH
-        .ok_or_else(|| Error::out_of_range("nccl device header location"))?;
-    let compiler = env::var_os("NVCC")
-        .map(PathBuf::from)
-        .or_else(|| {
-            env::var_os("CUDA_PATH").map(|root| {
-                PathBuf::from(root).join("bin").join(if cfg!(windows) {
-                    "nvcc.exe"
-                } else {
-                    "nvcc"
-                })
-            })
-        })
-        .unwrap_or_else(|| PathBuf::from("nvcc"));
-    let mut command = Command::new(compiler);
-    command
-        .arg("--std=c++17")
-        .arg("--cubin")
-        .arg(format!("--gpu-architecture={architecture}"))
-        .arg("--include-path")
-        .arg(include)
-        .arg(source)
-        .arg("--output-file")
-        .arg(output);
-    for include in [sys::CUDA_INCLUDE_PATH, sys::CCCL_INCLUDE_PATH]
-        .into_iter()
-        .flatten()
-    {
-        command.arg("--include-path").arg(include);
-    }
-
-    if let Some(compiler) = env::var_os("CUDA_CCBIN") {
-        command.arg("--compiler-bindir").arg(compiler);
-    }
-
-    let result = command.output().map_err(CudaError::from)?;
-    if !result.status.success() {
-        return Err(CudaError::Compiler {
-            message: String::from_utf8_lossy(&result.stderr).into_owned(),
-        }
-        .into());
-    }
-    Ok(())
 }

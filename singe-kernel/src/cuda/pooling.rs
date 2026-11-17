@@ -5,7 +5,7 @@ use ::cutile::cuda_async::device_buffer::DevicePointer;
 use singe_cuda::types::f16;
 use singe_cuda::{
     stream::Stream,
-    view::{DeviceInput, DeviceOutput},
+    view::{DeviceOutput, DeviceRange},
 };
 
 #[cfg(feature = "cutile")]
@@ -47,7 +47,7 @@ macro_rules! pool2d_fns {
         pub unsafe fn $max_name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
             config: Pool2dConfig,
         ) -> Result<()> {
             validate_pool2d(out.len(), input.len(), config)?;
@@ -72,7 +72,7 @@ macro_rules! pool2d_fns {
         pub unsafe fn $avg_name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
             config: Pool2dConfig,
             count_include_pad: bool,
         ) -> Result<()> {

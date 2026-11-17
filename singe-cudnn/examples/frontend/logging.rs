@@ -1,11 +1,8 @@
 use std::{io, mem::size_of, sync::Arc};
 
-use singe_cudnn::{
-    error::Result,
-    frontend::logging::{self, Logger, TensorDumpDisplay, TensorDumpFormat},
-};
+use singe_cudnn::frontend::logging::{self, Logger, TensorDumpDisplay, TensorDumpFormat};
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     // This writer also receives preparation, plan-selection and execution diagnostics.
     // Omit explicit configuration to use CUDNN_FRONTEND_LOG_INFO and CUDNN_FRONTEND_LOG_FILE.
     let logger = Arc::new(Logger::new(io::stderr()));

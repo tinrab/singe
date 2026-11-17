@@ -1,16 +1,12 @@
 mod common;
 
 use singe_cublas::{
-    blas::level3, context::Context as CublasContext, error::Result as CublasResult,
+    blas::level3, context::Context as CublasContext, error::Result as CublasResult, scalar::Scalar,
     types::Operation,
 };
-use singe_cuda::{memory::DeviceMemory, stream::StreamCaptureMode};
+use singe_cuda::{graph::GraphInstantiateFlags, memory::DeviceMemory, stream::StreamCaptureMode};
 use singe_cudnn::{
-    backend::{
-        behavior::BackendBehaviorNote,
-        pointwise::PointwiseMode,
-        tensor::{Shape, TensorId, TensorSpec},
-    },
+    backend::{behavior::BackendBehaviorNote, operation::pointwise::PointwiseMode},
     data_type::DataType,
     error::{Error, Result, Status},
     frontend::{
@@ -20,6 +16,7 @@ use singe_cudnn::{
         plan::{CompileConfig, EngineConfigFilter, ExecuteArgs, HeuristicMode},
     },
     math::NanPropagation,
+    tensor::{Shape, TensorId, TensorSpec},
 };
 
 fn map_cublas<T>(result: CublasResult<T>) -> Result<T> {
@@ -28,7 +25,7 @@ fn map_cublas<T>(result: CublasResult<T>) -> Result<T> {
 
 fn run() -> Result<()> {
     let context = common::ExampleContext::create()?;
-    let cublas = map_cublas(CublasContext::create(context.cudnn.cuda_context()))?;
+    let mut cublas = map_cublas(CublasContext::create(context.cudnn.cuda_context()))?;
     map_cublas(cublas.set_stream(Some(&context.stream)))?;
 
     let mut graph = Graph::with_config(
@@ -64,13 +61,14 @@ fn run() -> Result<()> {
     })?;
 
     let compiled = graph
+        .prepare(Some(&context.cudnn))?
         .plan_candidates(
             Some(&context.cudnn),
             &CompileConfig::from_heuristic_modes([HeuristicMode::A]),
         )?
         .filter(
             &EngineConfigFilter::new()
-                .with_included_behavior_notes(&[BackendBehaviorNote::SupportsCudaGraphNativeApi]),
+                .with_included_behavior_notes([BackendBehaviorNote::SupportsCudaGraphNativeApi]),
         )
         .compile(Some(&context.cudnn), &CompileConfig::new())?;
 
@@ -89,19 +87,19 @@ fn run() -> Result<()> {
     context.stream.begin_capture(StreamCaptureMode::Relaxed)?;
     // SAFETY: these 2x2 allocations match the GEMM and remain live through graph launch and synchronization below.
     map_cublas(unsafe {
-        level3::sgemm(
+        level3::gemm_async(
             &cublas,
             Operation::NonTranspose,
             Operation::NonTranspose,
             2,
             2,
             2,
-            &alpha,
+            Scalar::host(&alpha),
             &a_dev,
             2,
             &b_dev,
             2,
-            &beta,
+            Scalar::host(&beta),
             &mut x_dev,
             2,
         )
@@ -114,7 +112,7 @@ fn run() -> Result<()> {
     match unsafe {
         compiled.append_to_cuda_graph(
             &context.cudnn,
-            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
             &mut main_graph,
             &[cublas_node],
         )
@@ -128,10 +126,10 @@ fn run() -> Result<()> {
         Err(error) => return Err(error),
     }
 
-    let executable = main_graph.instantiate()?;
+    let executable = main_graph.instantiate(GraphInstantiateFlags::empty())?;
     // SAFETY: the example keeps these buffers alive and synchronizes before reading the results.
     unsafe {
-        executable.launch(&context.stream)?;
+        executable.launch_async(&context.stream)?;
     }
 
     context.stream.synchronize()?;
@@ -144,6 +142,6 @@ fn run() -> Result<()> {
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_cublas_graph", run())
 }

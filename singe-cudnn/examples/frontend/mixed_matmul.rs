@@ -2,10 +2,7 @@ mod common;
 
 use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
-    backend::{
-        pointwise::PointwiseMode,
-        tensor::{Shape, TensorSpec},
-    },
+    backend::operation::pointwise::PointwiseMode,
     data_type::{DataType, bf16},
     error::Result,
     frontend::{
@@ -14,8 +11,13 @@ use singe_cudnn::{
         plan::{CompileConfig, ExecuteArgs, HeuristicMode},
     },
     math::NanPropagation,
+    tensor::{Shape, TensorSpec},
 };
 
+#[expect(
+    clippy::many_single_char_names,
+    reason = "keeps the upstream sample's single-letter dimension names"
+)]
 fn run() -> Result<()> {
     let example = common::ExampleContext::create()?;
 
@@ -28,13 +30,13 @@ fn run() -> Result<()> {
     let a =
         graph.tensor(TensorSpec::new(DataType::I8, Shape::contiguous([b, m, k])?).with_name("A"));
     let b_tensor =
-        graph.tensor(TensorSpec::new(DataType::BF16, Shape::contiguous([b, k, n])?).with_name("B"));
+        graph.tensor(TensorSpec::new(DataType::Bf16, Shape::contiguous([b, k, n])?).with_name("B"));
     let a_casted = graph.pointwise(
         PointwiseOperation::unary(
             PointwiseMode::Identity,
             a,
             TensorOutputConfig::new()
-                .with_data_type(DataType::BF16)
+                .with_data_type(DataType::Bf16)
                 .virtual_tensor(),
         )
         .with_compute_type(DataType::F32)
@@ -48,7 +50,7 @@ fn run() -> Result<()> {
             .with_compute_type(DataType::F32)
             .with_name("GEMM"),
         TensorOutputConfig::new()
-            .with_data_type(DataType::BF16)
+            .with_data_type(DataType::Bf16)
             .output_tensor(),
     )?;
 
@@ -75,9 +77,9 @@ fn run() -> Result<()> {
     bindings.set(c, &mut c_dev)?;
     // SAFETY: initialized inputs, writable output and workspace remain live through stream completion.
     example.execute_and_wait(|context| unsafe {
-        compiled.execute(
+        compiled.execute_async(
             context,
-            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
         )
     })?;
 
@@ -89,6 +91,6 @@ fn run() -> Result<()> {
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_mixed_matmul", run())
 }

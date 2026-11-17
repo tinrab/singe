@@ -1,10 +1,9 @@
-use singe_cublas::{blas::level1::nrm2_ex, context::Context, error::Result};
-
+use singe_cublas::{blas::extension::nrm2_ex, context::Context, scalar::ScalarMut};
 use singe_cuda::{
     context::Context as CudaContext, data_type::DataType, device::Device, memory::DeviceMemory,
 };
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     let cuda = CudaContext::create_for_device(Device::new(0))?;
     let cublas = Context::create(&cuda)?;
     let x = DeviceMemory::from_slice(&cuda, &[1.0_f64, 2.0, 3.0, 4.0])?;
@@ -12,14 +11,13 @@ fn main() -> Result<()> {
 
     nrm2_ex(
         &cublas,
+        4,
         &x,
-        DataType::F64,
         1,
-        &mut result,
-        DataType::F64,
+        ScalarMut::host(&mut result),
         DataType::F64,
     )?;
-    assert!((result - 5.477225575051661).abs() < 1.0e-12);
+    assert!((result - 5.477_225_575_051_661).abs() < 1.0e-12);
 
     println!("nrm2_ex: {result}");
     Ok(())

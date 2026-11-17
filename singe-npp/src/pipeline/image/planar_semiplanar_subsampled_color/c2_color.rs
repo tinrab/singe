@@ -19,7 +19,8 @@ type SemiplanarToC2 = for<'source_y, 'source_uv, 'destination> unsafe fn(
 impl SemiplanarImage<u8> {
     /// Converts semiplanar YCbCr 4:2:0 into a new packed YCbCr 4:2:2 image.
     ///
-    /// The input has a full-resolution Y plane and an interleaved chroma plane with width divided by 2 and height divided by 2. Both planes use `u8` samples.
+    /// The input has a full-resolution Y plane and an interleaved chroma plane with width divided by 2 and height divided by 2.
+    /// Both planes use `u8` samples.
     /// The full-resolution dimensions must be divisible by the input and output subsampling factors; stored chroma dimensions must exactly match the declared sampling.
     /// Allocates a full-resolution C2 image containing the native YCbCr 4:2:2 packing.
     /// Prepares source regions and waits for their producers on other streams.
@@ -39,7 +40,8 @@ impl SemiplanarImage<u8> {
 
     /// Converts semiplanar YCbCr 4:2:0 into a new packed `CbYCr` 4:2:2 image.
     ///
-    /// The input has a full-resolution Y plane and an interleaved chroma plane with width divided by 2 and height divided by 2. Both planes use `u8` samples.
+    /// The input has a full-resolution Y plane and an interleaved chroma plane with width divided by 2 and height divided by 2.
+    /// Both planes use `u8` samples.
     /// The full-resolution dimensions must be divisible by the input and output subsampling factors; stored chroma dimensions must exactly match the declared sampling.
     /// Allocates a full-resolution C2 image containing the native `CbYCr` 4:2:2 packing.
     /// Prepares source regions and waits for their producers on other streams.
@@ -59,7 +61,8 @@ impl SemiplanarImage<u8> {
 
     /// Converts semiplanar YCbCr 4:1:1 into a new packed YCbCr 4:2:2 image.
     ///
-    /// The input has a full-resolution Y plane and an interleaved chroma plane with width divided by 4 and height divided by 1. Both planes use `u8` samples.
+    /// The input has a full-resolution Y plane and an interleaved chroma plane with width divided by 4 and height divided by 1.
+    /// Both planes use `u8` samples.
     /// The full-resolution dimensions must be divisible by the input and output subsampling factors; stored chroma dimensions must exactly match the declared sampling.
     /// Allocates a full-resolution C2 image containing the native YCbCr 4:2:2 packing.
     /// Prepares source regions and waits for their producers on other streams.

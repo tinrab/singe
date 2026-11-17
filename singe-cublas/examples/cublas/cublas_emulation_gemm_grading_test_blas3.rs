@@ -1,7 +1,9 @@
-use singe_cublas::{blas::level3::dgemm, context::Context, error::Result, types::Operation};
+use singe_cublas::{
+    blas::level3::gemm, context::Context, error::Result, scalar::Scalar, types::Operation,
+};
 use singe_cuda::{context::Context as CudaContext, device::Device, memory::DeviceMemory};
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     let cuda = CudaContext::create_for_device(Device::new(0))?;
     let cublas = Context::create(&cuda)?;
 
@@ -19,11 +21,11 @@ fn main() -> Result<()> {
 
     let scaled_a = a.iter().map(|value| value * 16.0).collect::<Vec<_>>();
     let scaled_b = b.iter().map(|value| value * 0.25).collect::<Vec<_>>();
-    let scaled_gpu = run_dgemm(&cublas, n, &scaled_a, &scaled_b)?;
-    let scaled_cpu = cpu_gemm(n, &scaled_a, &scaled_b);
-    assert_eq!(scaled_gpu, scaled_cpu);
+    let scaled_result = run_dgemm(&cublas, n, &scaled_a, &scaled_b)?;
+    let scaled_expected = cpu_gemm(n, &scaled_a, &scaled_b);
+    assert_eq!(scaled_result, scaled_expected);
 
-    println!("scaling-invariance test passed: {scaled_gpu:?}");
+    println!("scaling-invariance test passed: {scaled_result:?}");
     Ok(())
 }
 
@@ -47,19 +49,19 @@ fn run_dgemm(cublas: &Context, n: usize, a: &[f64], b: &[f64]) -> Result<Vec<f64
     let a = DeviceMemory::from_slice(cublas.cuda_context(), a)?;
     let b = DeviceMemory::from_slice(cublas.cuda_context(), b)?;
     let mut c = DeviceMemory::<f64>::zeroed(cublas.cuda_context(), n * n)?;
-    dgemm(
+    gemm(
         cublas,
         Operation::NonTranspose,
         Operation::NonTranspose,
         n,
         n,
         n,
-        &1.0,
+        Scalar::host(&1.0),
         &a,
         n,
         &b,
         n,
-        &0.0,
+        Scalar::host(&0.0),
         &mut c,
         n,
     )?;
@@ -72,7 +74,7 @@ fn cpu_gemm(n: usize, a: &[f64], b: &[f64]) -> Vec<f64> {
         for row in 0..n {
             let mut sum = 0.0;
             for inner in 0..n {
-                sum += a[row + inner * n] * b[inner + col * n];
+                sum = a[row + inner * n].mul_add(b[inner + col * n], sum);
             }
 
             c[row + col * n] = sum;

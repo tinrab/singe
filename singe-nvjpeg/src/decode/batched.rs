@@ -1,27 +1,21 @@
-use std::sync::Arc;
-
-use singe_cuda::{
-    context::Context as CudaContext, stream::Stream as CudaStream, view::AnyBitPatternDeviceRepr,
-};
+use singe_cuda::{stream::Stream as CudaStream, view::AnyBitPatternDeviceRepr};
 
 use crate::{
-    allocator::AllocatorSet,
     context::{Context, JpegState},
     decode::{
         DecodeParams, DecodedImage, DecodedOutput, image_descriptors_from_decoded_images,
-        image_descriptors_from_decoded_outputs, image_descriptors_from_views, validate_batch,
+        image_descriptors_from_decoded_outputs, image_descriptors_from_views,
     },
     error::{Error, Result},
     image::{Image, ImageViewMut, OutputSpec, Size},
-    types::{Backend, ChromaSubsampling, CreateFlags, OutputFormat},
-    utility::{complete, to_i32},
+    types::{ChromaSubsampling, OutputFormat},
+    utility::{to_i32, validate_same_len},
 };
 
-/// Batch size, CPU thread limit, and output format for a [`BatchedDecoder`].
+/// Batch size and output format for a [`BatchedDecoder`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct BatchConfig {
+pub struct BatchedDecoderOptions {
     batch_size: usize,
-    max_cpu_threads: usize,
     output_format: OutputFormat,
 }
 
@@ -34,65 +28,40 @@ pub struct BatchPrealloc {
 
 /// Decoder for batches of a fixed size.
 ///
-/// It owns its [`Context`] and decoder state, and reuses them across batches.
+/// It keeps its [`Context`] and decoder state, and reuses them across batches.
 #[derive(Debug)]
 pub struct BatchedDecoder {
-    pub(crate) handle: Context,
+    context: Context,
     state: JpegState,
-    config: BatchConfig,
+    options: BatchedDecoderOptions,
 }
 
-/// Builder for a [`BatchedDecoder`] with a custom backend, flags, or allocators.
-#[derive(Debug, Clone, Copy)]
-pub struct BatchedDecoderBuilder {
-    backend: Backend,
-    flags: CreateFlags,
-    config: BatchConfig,
-    allocators: Option<AllocatorSet>,
-}
-
-impl BatchConfig {
-    /// Creates a configuration for batches of `batch_size` images, decoded with up to `max_cpu_threads` CPU threads into `output_format`.
+impl BatchedDecoderOptions {
+    /// Creates options for batches of `batch_size` images decoded into `output_format`.
     ///
     /// # Errors
     ///
-    /// Returns an error if `batch_size` or `max_cpu_threads` is zero or does not fit an `i32`.
-    pub fn create(
-        batch_size: usize,
-        max_cpu_threads: usize,
-        output_format: OutputFormat,
-    ) -> Result<Self> {
-        if batch_size == 0 {
-            return Err(Error::Empty {
-                name: "batch_size".into(),
-            });
-        }
-
-        if max_cpu_threads == 0 {
-            return Err(Error::Empty {
-                name: "max_cpu_threads".into(),
-            });
-        }
-
-        to_i32(batch_size, "batch_size")?;
-        to_i32(max_cpu_threads, "max_cpu_threads")?;
-        Ok(Self {
+    /// Returns an error if `batch_size` is zero or does not fit an `i32`.
+    pub fn create(batch_size: usize, output_format: OutputFormat) -> Result<Self> {
+        let options = Self {
             batch_size,
-            max_cpu_threads,
             output_format,
-        })
+        };
+        options.validate()?;
+        Ok(options)
+    }
+
+    /// Returns a copy with `output_format` as the output format.
+    #[must_use]
+    pub const fn with_output_format(mut self, output_format: OutputFormat) -> Self {
+        self.output_format = output_format;
+        self
     }
 
     /// Returns the number of images per batch.
     #[must_use]
     pub const fn batch_size(self) -> usize {
         self.batch_size
-    }
-
-    /// Returns the maximum number of CPU threads nvJPEG may use.
-    #[must_use]
-    pub const fn max_cpu_threads(self) -> usize {
-        self.max_cpu_threads
     }
 
     /// Returns the output format.
@@ -108,14 +77,7 @@ impl BatchConfig {
             });
         }
 
-        if self.max_cpu_threads == 0 {
-            return Err(Error::Empty {
-                name: "max_cpu_threads".into(),
-            });
-        }
-
         to_i32(self.batch_size, "batch_size")?;
-        to_i32(self.max_cpu_threads, "max_cpu_threads")?;
         Ok(())
     }
 }
@@ -155,56 +117,32 @@ impl BatchPrealloc {
 }
 
 impl BatchedDecoder {
-    /// Returns a builder for a decoder with `config` and a custom backend, flags, or allocators.
-    #[must_use]
-    pub const fn builder(config: BatchConfig) -> BatchedDecoderBuilder {
-        BatchedDecoderBuilder::new(config)
-    }
-
-    /// Creates a decoder in `cuda_context` with `config` and the given backend.
+    /// Creates a decoder for `context` with `options`.
     ///
     /// # Errors
     ///
-    /// Returns an error if `config` is invalid, the CUDA context cannot be bound, or nvJPEG rejects the settings or fails to create the handle or state.
-    pub fn create(
-        cuda_context: &Arc<CudaContext>,
-        backend: Backend,
-        config: BatchConfig,
-    ) -> Result<Self> {
-        Self::builder(config).backend(backend).create(cuda_context)
-    }
-
-    /// Creates a decoder that uses an existing `handle`.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if `config` is invalid, the CUDA context cannot be bound, or nvJPEG fails to create or initialize the state.
-    pub fn from_handle(handle: Context, config: BatchConfig) -> Result<Self> {
-        config.validate()?;
-        let mut state = handle.create_jpeg_state()?;
-        handle.decode_batched_initialize(
-            &mut state,
-            config.batch_size,
-            config.max_cpu_threads,
-            config.output_format,
-        )?;
+    /// Returns an error if the CUDA context cannot be bound, or nvJPEG fails to create or initialize the state.
+    pub fn create(context: &Context, options: BatchedDecoderOptions) -> Result<Self> {
+        options.validate()?;
+        let mut state = context.create_jpeg_state()?;
+        context.decode_batched_initialize(&mut state, options.batch_size, options.output_format)?;
         Ok(Self {
-            handle,
+            context: context.clone(),
             state,
-            config,
+            options,
         })
     }
 
     /// Returns the nvJPEG handle.
     #[must_use]
-    pub const fn handle(&self) -> &Context {
-        &self.handle
+    pub const fn context(&self) -> &Context {
+        &self.context
     }
 
-    /// Returns the batch configuration.
+    /// Returns the batch options.
     #[must_use]
-    pub const fn config(&self) -> BatchConfig {
-        self.config
+    pub const fn options(&self) -> BatchedDecoderOptions {
+        self.options
     }
 
     /// Allocates device memory ahead of decoding, for images up to the size in `prealloc`.
@@ -217,13 +155,13 @@ impl BatchedDecoder {
     /// Returns an error if a dimension is zero or does not fit a positive `i32`, the CUDA context cannot be bound, or nvJPEG fails to allocate.
     pub fn preallocate(&mut self, prealloc: BatchPrealloc) -> Result<()> {
         prealloc.validate()?;
-        self.handle.decode_batched_preallocate(
+        self.context.decode_batched_preallocate(
             &mut self.state,
-            self.config.batch_size,
+            self.options.batch_size,
             prealloc.size.width(),
             prealloc.size.height(),
             prealloc.subsampling,
-            self.config.output_format,
+            self.options.output_format,
         )
     }
 
@@ -235,7 +173,7 @@ impl BatchedDecoder {
     ///
     /// Returns an error if the CUDA context cannot be bound, the tables are too long for nvJPEG, or nvJPEG rejects them.
     pub fn parse_jpeg_tables(&mut self, tables: Option<&[u8]>) -> Result<()> {
-        self.handle
+        self.context
             .decode_batched_parse_jpeg_tables(&mut self.state, tables)
     }
 
@@ -255,10 +193,10 @@ impl BatchedDecoder {
         destinations: &mut [Image],
         stream: &CudaStream,
     ) -> Result<()> {
-        validate_batch(self.config.batch_size, inputs.len(), "inputs")?;
-        // SAFETY: the caller upholds this function's safety contract.
+        validate_same_len(self.options.batch_size, inputs.len(), "inputs")?;
+        // SAFETY: this function's caller guarantees the destinations are large enough and outlive the queued work, which is the callee's contract.
         unsafe {
-            self.handle
+            self.context
                 .decode_batched_async(&mut self.state, inputs, destinations, stream)
         }
     }
@@ -278,11 +216,11 @@ impl BatchedDecoder {
         stream: &CudaStream,
     ) -> Result<()> {
         stream.ensure_not_capturing()?;
-        validate_batch(self.config.batch_size, inputs.len(), "inputs")?;
+        validate_same_len(self.options.batch_size, inputs.len(), "inputs")?;
         let () = T::LAYOUT;
         for (input, destination) in inputs.iter().zip(destinations.iter()) {
-            let info = self.handle.image_info(input)?;
-            let spec = OutputSpec::for_jpeg(&info, self.config.output_format)?;
+            let info = self.context.image_info(input)?;
+            let spec = OutputSpec::for_jpeg(&info, self.options.output_format)?;
             destination.validate_output(&spec, stream.context())?;
         }
 
@@ -291,11 +229,11 @@ impl BatchedDecoder {
             .iter()
             .flat_map(|image| image.planes().iter().map(|plane| plane.region()))
             .collect::<Vec<_>>();
-        complete(stream, || {
+        stream.complete(|| {
             stream.join_regions(&regions)?;
-            // SAFETY: `complete` drains the stream before returning, so every borrowed buffer outlives the queued work.
+            // SAFETY: each destination was validated against its header above, and `complete` waits for `stream` on every path, so the borrowed inputs and planes outlive the work.
             unsafe {
-                self.handle
+                self.context
                     .decode_batched_async(&mut self.state, inputs, &mut images, stream)
             }
         })?;
@@ -315,12 +253,12 @@ impl BatchedDecoder {
         stream: &CudaStream,
     ) -> Result<Vec<DecodedImage>> {
         stream.ensure_not_capturing()?;
-        validate_batch(self.config.batch_size, inputs.len(), "inputs")?;
+        validate_same_len(self.options.batch_size, inputs.len(), "inputs")?;
         let mut outputs = inputs
             .iter()
             .map(|input| {
-                let info = self.handle.image_info(input)?;
-                let spec = OutputSpec::for_jpeg(&info, self.config.output_format)?;
+                let info = self.context.image_info(input)?;
+                let spec = OutputSpec::for_jpeg(&info, self.options.output_format)?;
                 let plane = spec.single_plane()?;
                 Ok(DecodedImage {
                     data: plane.create_uninit_buffer(stream.context())?,
@@ -329,15 +267,15 @@ impl BatchedDecoder {
             })
             .collect::<Result<Vec<_>>>()?;
         let mut images = image_descriptors_from_decoded_images(&mut outputs)?;
-        // SAFETY: `complete` drains the stream before returning, so every borrowed buffer outlives the queued work.
-        complete(stream, || unsafe {
-            self.handle
+        // SAFETY: each output was allocated from its header's plane size, and `complete` waits for `stream` on every path, so the inputs and outputs outlive the work.
+        stream.complete(|| unsafe {
+            self.context
                 .decode_batched_async(&mut self.state, inputs, &mut images, stream)
         })?;
         // Each tightly packed plane was fully written by the completed decode.
         Ok(outputs
             .into_iter()
-            // SAFETY: the completed producer wrote every element of this tightly packed output.
+            // SAFETY: the decode above finished and wrote every byte of this tightly packed output.
             .map(|output| unsafe { output.assume_init() })
             .collect())
     }
@@ -353,25 +291,25 @@ impl BatchedDecoder {
         stream: &CudaStream,
     ) -> Result<Vec<DecodedOutput>> {
         stream.ensure_not_capturing()?;
-        validate_batch(self.config.batch_size, inputs.len(), "inputs")?;
+        validate_same_len(self.options.batch_size, inputs.len(), "inputs")?;
         let mut outputs = inputs
             .iter()
             .map(|input| {
-                let info = self.handle.image_info(input)?;
-                let spec = OutputSpec::for_jpeg(&info, self.config.output_format)?;
+                let info = self.context.image_info(input)?;
+                let spec = OutputSpec::for_jpeg(&info, self.options.output_format)?;
                 DecodedOutput::create_uninit(stream.context(), spec)
             })
             .collect::<Result<Vec<_>>>()?;
         let mut images = image_descriptors_from_decoded_outputs(&mut outputs)?;
-        // SAFETY: `complete` drains the stream before returning, so every borrowed buffer outlives the queued work.
-        complete(stream, || unsafe {
-            self.handle
+        // SAFETY: each output was allocated from its header's output spec, and `complete` waits for `stream` on every path, so the inputs and outputs outlive the work.
+        stream.complete(|| unsafe {
+            self.context
                 .decode_batched_async(&mut self.state, inputs, &mut images, stream)
         })?;
         // Each tightly packed plane was fully written by the completed decode.
         Ok(outputs
             .into_iter()
-            // SAFETY: the completed producer wrote every element of this tightly packed output.
+            // SAFETY: the decode above finished and wrote every byte of this tightly packed output.
             .map(|output| unsafe { output.assume_init() })
             .collect())
     }
@@ -382,7 +320,7 @@ impl BatchedDecoder {
     ///
     /// # Safety
     ///
-    /// Each destination must describe device-accessible buffers large enough for its image's settings, valid until the work on `stream` finishes.
+    /// Each destination must describe device-accessible buffers large enough for the batch's output format and its image's settings, valid until the work on `stream` finishes.
     /// The [raw execution rules](crate#raw-execution) apply, including on failure and for every replay of a captured graph.
     ///
     /// # Errors
@@ -395,10 +333,10 @@ impl BatchedDecoder {
         params: &mut [&mut DecodeParams],
         stream: &CudaStream,
     ) -> Result<()> {
-        validate_batch(self.config.batch_size, inputs.len(), "inputs")?;
-        // SAFETY: the caller upholds this function's safety contract.
+        validate_same_len(self.options.batch_size, inputs.len(), "inputs")?;
+        // SAFETY: this function's caller guarantees the destinations are large enough and outlive the queued work, which is the callee's contract.
         unsafe {
-            self.handle.decode_batched_with_params_async(
+            self.context.decode_batched_with_params_async(
                 &mut self.state,
                 inputs,
                 destinations,
@@ -424,14 +362,18 @@ impl BatchedDecoder {
         stream: &CudaStream,
     ) -> Result<()> {
         stream.ensure_not_capturing()?;
-        validate_batch(self.config.batch_size, inputs.len(), "inputs")?;
-        validate_batch(self.config.batch_size, params.len(), "params")?;
+        validate_same_len(self.options.batch_size, inputs.len(), "inputs")?;
+        validate_same_len(self.options.batch_size, params.len(), "params")?;
         let () = T::LAYOUT;
         for ((input, destination), params) in
             inputs.iter().zip(destinations.iter()).zip(params.iter())
         {
-            let info = self.handle.image_info(input)?;
-            let spec = params.options.output_spec(&info)?;
+            let info = self.context.image_info(input)?;
+            // nvJPEG writes batched output in the batch's format, ignoring the params' format.
+            let spec = params
+                .options
+                .with_output_format(self.options.output_format)
+                .output_spec(&info)?;
             destination.validate_output(&spec, stream.context())?;
         }
 
@@ -440,11 +382,11 @@ impl BatchedDecoder {
             .iter()
             .flat_map(|image| image.planes().iter().map(|plane| plane.region()))
             .collect::<Vec<_>>();
-        complete(stream, || {
+        stream.complete(|| {
             stream.join_regions(&regions)?;
-            // SAFETY: `complete` drains the stream before returning, so every borrowed buffer outlives the queued work.
+            // SAFETY: each destination was validated against its header and settings above, and `complete` waits for `stream` on every path, so the borrowed inputs and planes outlive the work.
             unsafe {
-                self.handle.decode_batched_with_params_async(
+                self.context.decode_batched_with_params_async(
                     &mut self.state,
                     inputs,
                     &mut images,
@@ -454,54 +396,5 @@ impl BatchedDecoder {
             }
         })?;
         Ok(())
-    }
-}
-
-impl BatchedDecoderBuilder {
-    /// Creates a builder with nvJPEG's defaults.
-    #[must_use]
-    pub const fn new(config: BatchConfig) -> Self {
-        Self {
-            backend: Backend::Default,
-            flags: CreateFlags::DEFAULT,
-            config,
-            allocators: None,
-        }
-    }
-
-    /// Sets the backend.
-    #[must_use]
-    pub const fn backend(mut self, backend: Backend) -> Self {
-        self.backend = backend;
-        self
-    }
-
-    /// Sets the handle creation flags.
-    #[must_use]
-    pub const fn flags(mut self, flags: CreateFlags) -> Self {
-        self.flags = flags;
-        self
-    }
-
-    /// Sets custom device and pinned host allocators.
-    #[must_use]
-    pub const fn allocators(mut self, allocators: AllocatorSet) -> Self {
-        self.allocators = Some(allocators);
-        self
-    }
-
-    /// Creates the decoder in `cuda_context`.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the batch configuration is invalid, the CUDA context cannot be bound, nvJPEG rejects the backend, flags, or allocators, or nvJPEG fails to create the handle or state.
-    pub fn create(self, cuda_context: &Arc<CudaContext>) -> Result<BatchedDecoder> {
-        let mut builder = Context::builder().backend(self.backend).flags(self.flags);
-        if let Some(allocators) = self.allocators {
-            builder = builder.allocators(allocators);
-        }
-
-        let handle = builder.create(cuda_context)?;
-        BatchedDecoder::from_handle(handle, self.config)
     }
 }

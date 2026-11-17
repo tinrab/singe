@@ -1,4 +1,4 @@
-use singe_core::{checked_arithmetic, checked_conversions};
+use singe_core::checked_conversions;
 
 use crate::{
     error::{Error, Result},
@@ -12,9 +12,10 @@ checked_conversions!(Error {
     to_i64 -> i64,
 });
 
-checked_arithmetic!(Error { checked_byte_len });
+#[cfg(feature = "mp")]
+singe_core::checked_arithmetic!(Error { checked_byte_len });
 
-pub fn to_i64_vec<T: TryInto<i64> + Copy>(values: &[T], name: &str) -> Result<Vec<i64>> {
+pub(crate) fn to_i64_vec<T: TryInto<i64> + Copy>(values: &[T], name: &str) -> Result<Vec<i64>> {
     values
         .iter()
         .copied()
@@ -22,11 +23,12 @@ pub fn to_i64_vec<T: TryInto<i64> + Copy>(values: &[T], name: &str) -> Result<Ve
         .collect()
 }
 
-pub fn modes_to_i32_vec(modes: &[Mode]) -> Vec<i32> {
+pub(crate) fn modes_to_i32_vec(modes: &[Mode]) -> Vec<i32> {
     modes.iter().map(|mode| mode.as_raw()).collect()
 }
 
-pub fn collect_optional_mode_values<M>(
+#[cfg(any(feature = "mg", feature = "mp"))]
+pub(crate) fn collect_optional_mode_values<M>(
     modes: &[M],
     name: &str,
     value: impl Fn(&M) -> Option<u64>,

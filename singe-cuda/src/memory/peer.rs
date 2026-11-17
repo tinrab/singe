@@ -11,10 +11,8 @@ use crate::{
     stream::{Stream, StreamCaptureStatus},
     submission::{Access, AccessMode, lock_access},
     try_ffi,
-    view::{
-        DeviceInput, DeviceOutput, DeviceRegion, DeviceRepr, DeviceSlice, DeviceViewMut,
-        ranges_overlap,
-    },
+    utility::{ranges_overlap, to_u64},
+    view::{DeviceOutput, DeviceRange, DeviceRegion, DeviceRepr, DeviceSlice, DeviceViewMut},
 };
 
 /// A directed copy path retaining its source and destination contexts.
@@ -36,8 +34,7 @@ impl PeerCopy {
     ///
     /// # Errors
     ///
-    /// Returns the native not-supported status if either endpoint lacks unified addressing.
-    /// Also propagates device-attribute query errors and failures to enable directed peer access from the destination context to the source context.
+    /// Returns an error if either endpoint lacks unified addressing, which is [`Status::NotSupported`], a device attribute query fails, or CUDA cannot enable peer access from the destination context to the source context.
     pub fn create(source: &Arc<Context>, destination: &Arc<Context>) -> Result<Self> {
         if source
             .device()
@@ -72,14 +69,14 @@ impl PeerCopy {
         &self.destination
     }
 
-    /// Completes copying an initialized source into an equally sized writable range.
+    /// Copies an initialized source into an equally sized writable range and waits for the copy.
     /// Both readiness streams are ordered before the copy.
     /// Borrowed storage and contexts remain live through completion on success, error, and unwind.
     ///
     /// # Errors
     ///
-    /// Returns an error for source or destination context mismatches, a stream from another destination context, unequal element counts, overlapping ranges in one allocation, or an unrepresentable byte count.
-    /// Also rejects active or invalidated capture on the copy or readiness streams and propagates access-tracking, synchronization, stream-ordering, native copy, and output-view construction errors.
+    /// Returns an error if either range belongs to the wrong endpoint context, `stream` belongs to another context than the destination, the element counts differ, the ranges overlap in one allocation, or the byte count does not fit.
+    /// Returns an error if the copy stream or a readiness stream is capturing or its capture was invalidated, or if access tracking, synchronization, stream ordering, or the native copy fails.
     pub fn copy<'destination, T, S, D>(
         &self,
         destination: &'destination mut D,
@@ -116,17 +113,17 @@ impl PeerCopy {
             }
 
             stream.join_regions(&[destination.region()])?;
-            // SAFETY: initialized, exclusive disjoint ranges and both actual
-            // contexts stay borrowed until scope completion; readiness is joined.
-            unsafe { self.copy_async_unchecked(destination, source, stream) }
+            // SAFETY: `validate` checked contexts, lengths, and disjointness, both readiness streams are joined, and the borrows of `source` and `destination` outlive the wait in `sync_scope`.
+            unsafe { self.copy_async(destination, source, stream) }
         })?;
-        // SAFETY: completed copying preserves the source's valid representations.
+        // SAFETY: the completed copy wrote every element from an initialized source of the same `T`.
         unsafe { DeviceViewMut::from_raw_parts(destination.region(), destination.len()) }
     }
 
     /// Enqueues a direct native copy using both retained actual contexts.
     ///
     /// # Safety
+    ///
     /// Source values must be valid when read and both allocation readiness dependencies must precede the copy.
     /// Keep the source, exclusive destination, both contexts, and stream live until completion, including after errors.
     /// During capture retain all dependencies through every graph replay.
@@ -134,10 +131,10 @@ impl PeerCopy {
     ///
     /// # Errors
     ///
-    /// Returns `Error::MemoryContextMismatch` for an allocation from the wrong endpoint context, `Error::StreamContextMismatch` for a stream outside the destination context, or `Error::InvalidMemoryAccess` for unequal counts, overlapping ranges, or an unrepresentable byte count.
-    /// Also propagates destination context binding and native copy errors.
+    /// Returns [`Error::MemoryContextMismatch`] if a range belongs to the wrong endpoint context, [`Error::StreamContextMismatch`] if `stream` is outside the destination context, [`Error::LengthMismatch`] if the counts differ, or [`Error::OutOfRange`] if the ranges overlap or the byte count does not fit.
+    /// Returns an error if the destination context cannot be bound or CUDA rejects the copy.
     /// An empty, otherwise valid copy succeeds without binding or enqueueing native work.
-    pub unsafe fn copy_async_unchecked<T, S, D>(
+    pub unsafe fn copy_async<T, S, D>(
         &self,
         destination: &mut D,
         source: &S,
@@ -145,29 +142,30 @@ impl PeerCopy {
     ) -> Result<()>
     where
         T: DeviceRepr,
-        S: DeviceInput<T> + ?Sized,
+        S: DeviceRange<T> + ?Sized,
         D: DeviceOutput<T> + ?Sized,
     {
         self.validate(destination, source, stream)?;
         let bytes = source
             .len()
             .checked_mul(size_of::<T>())
-            .ok_or(Error::InvalidMemoryAccess)?;
-        let native_bytes =
-            driver::size_t::try_from(bytes).map_err(|_| Error::InvalidMemoryAccess)?;
+            .ok_or_else(|| Error::out_of_range("peer copy byte size"))?;
+        let native_bytes = driver::size_t::try_from(bytes)
+            .map_err(|_| Error::out_of_range("peer copy byte size"))?;
         if bytes == 0 {
             return Ok(());
         }
 
+        let destination_address = to_u64(destination.as_mut_ptr().addr(), "peer copy destination")?;
+        let source_address = to_u64(source.as_device_ptr().addr(), "peer copy source")?;
         self.destination.bind()?;
-        // Explicit context validation and peer setup precede this UVA copy.
-        // Unlike the context-parameter peer primitives, cuMemcpyAsync supports
-        // capture and has no 3D pitch restriction for a linear byte range.
-        // SAFETY: `cuMemcpyAsync` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
+        // Explicit context validation and peer setup precede this unified-address copy.
+        // Unlike the context-parameter peer primitives, `cuMemcpyAsync` supports capture and has no 3D pitch restriction for a linear byte range.
+        // SAFETY: `validate` checked that both ranges hold `bytes` bytes in their endpoint contexts and are disjoint, the destination context is bound, and the caller keeps both ranges and `stream` live until completion.
         unsafe {
             try_ffi!(driver::cuMemcpyAsync(
-                destination.as_mut_ptr() as driver::CUdeviceptr,
-                source.as_device_ptr() as driver::CUdeviceptr,
+                destination_address,
+                source_address,
                 native_bytes,
                 stream.as_raw(),
             ))
@@ -177,7 +175,7 @@ impl PeerCopy {
     fn validate<T, S, D>(&self, destination: &D, source: &S, stream: &Stream) -> Result<()>
     where
         T: DeviceRepr,
-        S: DeviceInput<T> + ?Sized,
+        S: DeviceRange<T> + ?Sized,
         D: DeviceOutput<T> + ?Sized,
     {
         let () = T::LAYOUT;
@@ -190,7 +188,11 @@ impl PeerCopy {
         }
 
         if source.len() != destination.len() {
-            return Err(Error::InvalidMemoryAccess);
+            return Err(Error::length_mismatch(
+                "peer source",
+                destination.len(),
+                source.len(),
+            ));
         }
         require_disjoint(source.region(), destination.region())
     }
@@ -202,7 +204,7 @@ fn require_disjoint(source: DeviceRegion<'_>, destination: DeviceRegion<'_>) -> 
     if source.allocation_id() == destination.allocation_id()
         && ranges_overlap(&source_range, &destination_range)
     {
-        return Err(Error::InvalidMemoryAccess);
+        return Err(Error::out_of_range("overlapping peer ranges"));
     }
     Ok(())
 }

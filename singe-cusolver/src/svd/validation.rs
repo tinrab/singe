@@ -2,7 +2,7 @@ use singe_cuda::data_type::DataType;
 
 use crate::error::{Error, Result};
 
-pub fn validate_x_matrix(
+pub(crate) fn validate_x_matrix(
     rows: usize,
     cols: usize,
     bytes: usize,

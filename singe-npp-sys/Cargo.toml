@@ -1,16 +1,19 @@
 [package]
 name = "singe-npp-sys"
 description = "Low-level FFI bindings for the NVIDIA Performance Primitives library (NPP)."
-version = "0.1.0-alpha.9"
+version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 repository.workspace = true
+documentation = "https://docs.rs/singe-npp-sys"
 license-file.workspace = true
 readme = "README.md"
-keywords = ["cuda", "npp", "bindings", "ffi"]
+keywords = ["cuda", "nvidia", "npp", "ffi", "bindings"]
+categories = ["external-ffi-bindings", "hardware-support"]
 include.workspace = true
 
 [package.metadata.docs.rs]
-rustdoc-args = ["--html-in-header", "dist/katex_header.html"]
+rustdoc-args = ["--cfg", "docsrs", "--html-in-header", "dist/katex_header.html"]
 
 [features]
 default = ["npp_13_2"]
@@ -20,4 +23,6 @@ npp_13_2 = ["singe-cuda-sys/runtime_13_4"]
 [dependencies]
 singe-loader.workspace = true
 singe-cuda-sys.workspace = true
-num_enum.workspace = true
+
+[dev-dependencies]
+anyhow.workspace = true

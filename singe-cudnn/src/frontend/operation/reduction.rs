@@ -1,13 +1,9 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    backend::{
-        execution::reduction::{
-            ReducerAccumulator, ReductionDescriptor, ReductionDescriptorConfig,
-            ReductionOperation as BackendReductionOperation,
-        },
-        reduction::ReduceTensorOperator,
-        tensor::{Shape, TensorId},
+    backend::operation::reduction::{
+        ReduceTensorOperator, ReducerAccumulator, ReductionDescriptor, ReductionDescriptorSpec,
+        ReductionOperation as BackendReductionOperation,
     },
     data_type::DataType,
     error::{Error, Result},
@@ -16,6 +12,7 @@ use crate::{
         graph::{Graph, ValidatedGraph},
         lower::{LoweredOperation, LoweringContext, optional_tensor_at, tensor_at},
     },
+    tensor::{Shape, TensorId},
 };
 
 /// Frontend reduction operation.
@@ -185,7 +182,7 @@ impl ReductionOperation {
                 group_offset,
                 ..
             } => {
-                let descriptor = ReductionDescriptor::create(ReductionDescriptorConfig {
+                let descriptor = ReductionDescriptor::create(ReductionDescriptorSpec {
                     op: *op,
                     compute_type: context.compute_data_type(*compute_type),
                     is_deterministic: *is_deterministic,
@@ -314,7 +311,8 @@ impl ReductionConfig {
     /// Ordinary axis selection is independent of axis order and preserves the recorded request.
     ///
     /// # Errors
-    /// Returns an error for empty, repeated or out-of-range explicit axes.
+    ///
+    /// Returns an error if the explicit axes are empty, repeat an axis, or contain an out-of-range axis.
     pub fn infer_output_dimensions(&self, input: &Shape) -> Result<Vec<i64>> {
         let axes = match &self.output {
             ReductionOutput::InputDimensions => return Ok(input.dimensions().to_vec()),
@@ -343,7 +341,8 @@ impl ReductionConfig {
     /// Does not query a graph, device or native descriptor, and leaves encoding selection independent.
     ///
     /// # Errors
-    /// Returns an error for invalid explicit axes or an unrepresentable inferred stride.
+    ///
+    /// Returns an error if an explicit axis is invalid or an inferred stride is unrepresentable.
     pub fn infer_output_shape(&self, input: &Shape) -> Result<Shape> {
         match &self.output {
             ReductionOutput::Shape(shape) => Ok(shape.clone()),

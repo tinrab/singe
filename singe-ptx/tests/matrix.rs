@@ -2,11 +2,14 @@
 
 mod support;
 
-use std::{env, fs};
+use std::{
+    env, fs,
+    process::{self, Command},
+};
 
 use anyhow::Result;
 use singe_ptx::emulator::{
-    Emulator, EmulatorOptions, ExecutionError, F16, LaunchConfig, ParsedModule, ShutdownMode,
+    Emulator, EmulatorOptions, ExecutionError, LaunchConfig, ParsedModule, ShutdownMode, f16,
 };
 use support::Observe;
 
@@ -40,10 +43,10 @@ fn test_tiled_half_matrix_multiplication_matches_exact_and_bounded_references() 
                 let a: Vec<_> = (0..m * k)
                     .map(|i| {
                         if exact {
-                            F16::from_f32(((i * 17 + 3) % 31) as f32 / 8.0 - 15.0 / 8.0)
+                            f16::from_f32(((i * 17 + 3) % 31) as f32 / 8.0 - 15.0 / 8.0)
                         } else {
                             let bits = i.wrapping_mul(0x9e37_79b9).wrapping_add(0x3012);
-                            F16::from_bits(
+                            f16::from_bits(
                                 (u16::try_from(bits >> 16).unwrap() & 0x8000)
                                     | (u16::try_from(bits & 0xffff).unwrap() % 0x7c00),
                             )
@@ -53,10 +56,10 @@ fn test_tiled_half_matrix_multiplication_matches_exact_and_bounded_references() 
                 let b: Vec<_> = (0..k * n)
                     .map(|i| {
                         if exact {
-                            F16::from_f32(((i * 13 + 7) % 29) as f32 / 8.0 - 14.0 / 8.0)
+                            f16::from_f32(((i * 13 + 7) % 29) as f32 / 8.0 - 14.0 / 8.0)
                         } else {
                             let bits = i.wrapping_mul(0x85eb_ca6b).wrapping_add(0x8071);
-                            F16::from_bits(
+                            f16::from_bits(
                                 (u16::try_from(bits >> 16).unwrap() & 0x8000)
                                     | (u16::try_from(bits & 0xffff).unwrap() % 0x7c00),
                             )
@@ -418,8 +421,8 @@ fn test_matrix_special_values_follow_the_documented_software_accumulation() -> R
             );
             let mut expected = f32::from_bits(seed);
             for inner in 0..16 {
-                let a = F16::from_bits(if inner % 2 == 0 { al } else { ah }).to_f32();
-                let b = F16::from_bits(if inner % 2 == 0 { bl } else { bh }).to_f32();
+                let a = f16::from_bits(if inner % 2 == 0 { al } else { ah }).to_f32();
+                let b = f16::from_bits(if inner % 2 == 0 { bl } else { bh }).to_f32();
                 expected = a.mul_add(b, expected);
             }
             let values = run(&body, 32, asynchronous)?;
@@ -643,13 +646,9 @@ fn test_matrix_membership_uses_linear_lanes_in_multidimensional_blocks() -> Resu
     Ok(())
 }
 
-#[cfg(feature = "cuda_tests")]
 #[test]
+#[ignore = "requires ptxas on PATH"]
 fn test_selected_matrix_fixture_assembles_for_sm80() -> Result<()> {
-    use std::{
-        env, fs,
-        process::{self, Command},
-    };
     let output = env::temp_dir().join(format!("singe-ptx-matrix-{}.cubin", process::id()));
     let result = Command::new("ptxas")
         .args([

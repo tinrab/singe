@@ -1,32 +1,31 @@
+//! Spatial transformation descriptors, coordinate-grid generation, and bilinear sampling.
+
 use std::{mem, ptr};
 
 use num_enum::{IntoPrimitive, TryFromPrimitive};
-use singe_core::{impl_enum_conversion, impl_enum_display};
-use singe_cuda::{
-    error::Error as CudaError,
-    view::{DeviceInput, DeviceOutput},
-};
+use singe_core::{impl_enum_display, report_cleanup_failure};
+use singe_cuda::view::{DeviceOutput, DeviceRange, DeviceSlice, DeviceSliceMut};
 use singe_cudnn_sys as sys;
 
 use crate::{
-    backend::tensor::TensorDescriptor,
     context::Context,
     data_type::{DataType, FloatingElement},
     error::{Error, Result},
+    legacy::tensor::TensorDescriptor,
     try_ffi,
-    utility::{check_range, to_i32, to_i32_vec},
+    utility::{check_range, to_i32, to_i32_vec, to_usize},
 };
 
-/// [`SamplerType`] selects the sampler type used by [`SpatialTransformerDescriptor`], [`spatial_tf_sampler_forward`], and [`spatial_tf_sampler_backward`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum SamplerType {
-    /// Selects the bilinear sampler.
-    Bilinear = sys::cudnnSamplerType_t::CUDNN_SAMPLER_BILINEAR as _,
+singe_core::native_enum! {
+    /// [`SamplerType`] selects the sampler type used by [`SpatialTransformerDescriptor`], [`spatial_tf_sampler_forward`], and [`spatial_tf_sampler_backward`].
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum SamplerType: sys::cudnnSamplerType_t {
+        /// Selects the bilinear sampler.
+        Bilinear = CUDNN_SAMPLER_BILINEAR,
+    }
 }
-
-impl_enum_conversion!(sys::cudnnSamplerType_t, SamplerType);
 
 impl_enum_display!(SamplerType, {
     SamplerType::Bilinear => "CUDNN_SAMPLER_BILINEAR",
@@ -34,7 +33,7 @@ impl_enum_display!(SamplerType, {
 
 /// Sampler and element type for a native spatial transformer descriptor.
 #[derive(Debug, Clone, Copy)]
-pub struct SpatialTransformerConfig {
+pub struct SpatialTransformerOptions {
     /// Interpolation sampler used for spatial transformation.
     pub sampler_type: SamplerType,
     /// Element type of the transformed tensor.
@@ -45,8 +44,19 @@ pub struct SpatialTransformerConfig {
 #[derive(Debug)]
 pub struct SpatialTransformerDescriptor {
     handle: sys::cudnnSpatialTransformerDescriptor_t,
-    config: SpatialTransformerConfig,
+    config: SpatialTransformerOptions,
     shape: Vec<u32>,
+}
+
+/// A transferred native spatial transformer descriptor with the settings and shape it was configured with.
+#[derive(Debug)]
+pub struct RawSpatialTransformerDescriptor {
+    /// The owned native spatial transformer descriptor handle.
+    pub handle: sys::cudnnSpatialTransformerDescriptor_t,
+    /// The sampler and element type configured on `handle`.
+    pub options: SpatialTransformerOptions,
+    /// The transformed tensor dimensions configured on `handle`.
+    pub shape: Vec<u32>,
 }
 
 impl SpatialTransformerDescriptor {
@@ -55,7 +65,7 @@ impl SpatialTransformerDescriptor {
     /// # Errors
     ///
     /// Returns an error if the shape has fewer than three dimensions, its rank or dimensions cannot fit native `i32` values, cuDNN rejects creation or configuration, or the returned handle is null.
-    pub fn create(config: SpatialTransformerConfig, shape: &[u32]) -> Result<Self> {
+    pub fn create(config: SpatialTransformerOptions, shape: &[u32]) -> Result<Self> {
         if shape.len() < 3 {
             return Err(Error::InvalidDataShape);
         }
@@ -63,7 +73,7 @@ impl SpatialTransformerDescriptor {
         let dims = to_i32_vec(shape, "spatial transformer dimension")?;
 
         let mut handle = ptr::null_mut();
-        // SAFETY: `cudnnCreateSpatialTransformerDescriptor` receives valid output locations.
+        // SAFETY: `handle` is a live local that cuDNN writes the new descriptor into.
         unsafe {
             try_ffi!(sys::cudnnCreateSpatialTransformerDescriptor(
                 &raw mut handle
@@ -79,7 +89,7 @@ impl SpatialTransformerDescriptor {
             config,
             shape: shape.to_vec(),
         };
-        // SAFETY: `cudnnSetSpatialTransformerNdDescriptor` receives pointers into buffers borrowed for the call.
+        // SAFETY: `descriptor` owns the non-null handle created above, and `dims` holds exactly the rank's `i32` dimensions for the call.
         unsafe {
             try_ffi!(sys::cudnnSetSpatialTransformerNdDescriptor(
                 descriptor.handle,
@@ -95,7 +105,7 @@ impl SpatialTransformerDescriptor {
 
     /// Returns the retained sampler and tensor element type.
     #[must_use]
-    pub fn config(&self) -> SpatialTransformerConfig {
+    pub fn options(&self) -> SpatialTransformerOptions {
         self.config
     }
 
@@ -115,34 +125,34 @@ impl SpatialTransformerDescriptor {
     ///
     /// # Safety
     ///
-    /// `handle` must be a valid `cudnnSpatialTransformerDescriptor_t` created by cuDNN.
-    /// The returned wrapper takes ownership and will destroy it with `cudnnDestroySpatialTransformerDescriptor`; no other owner may destroy or keep using it.
-    /// `config` and `shape` must accurately describe the descriptor.
+    /// `raw.handle` must be a live spatial transformer descriptor created by cuDNN.
+    /// The returned wrapper takes ownership and destroys it on drop; no other owner may destroy or keep using it.
+    /// `raw.options` and `raw.shape` must accurately describe the descriptor.
     ///
     /// # Errors
     ///
-    /// Returns an error if `handle` is null.
-    pub unsafe fn from_raw(
-        handle: sys::cudnnSpatialTransformerDescriptor_t,
-        config: SpatialTransformerConfig,
-        shape: Vec<u32>,
-    ) -> Result<Self> {
-        if handle.is_null() {
+    /// Returns an error if `raw.handle` is null ([`Error::NullHandle`]).
+    pub unsafe fn from_raw(raw: RawSpatialTransformerDescriptor) -> Result<Self> {
+        if raw.handle.is_null() {
             return Err(Error::NullHandle);
         }
         Ok(Self {
-            handle,
-            config,
-            shape,
+            handle: raw.handle,
+            config: raw.options,
+            shape: raw.shape,
         })
     }
 
-    /// Releases ownership and returns the raw cuDNN spatial transformer descriptor handle.
+    /// Releases ownership and returns the raw cuDNN spatial transformer descriptor handle with its settings and shape.
     ///
     /// The caller becomes responsible for destroying the handle.
     #[must_use]
-    pub fn into_raw(mut self) -> sys::cudnnSpatialTransformerDescriptor_t {
-        mem::replace(&mut self.handle, ptr::null_mut())
+    pub fn into_raw(mut self) -> RawSpatialTransformerDescriptor {
+        RawSpatialTransformerDescriptor {
+            handle: mem::replace(&mut self.handle, ptr::null_mut()),
+            options: self.config,
+            shape: mem::take(&mut self.shape),
+        }
     }
 }
 
@@ -152,14 +162,11 @@ impl Drop for SpatialTransformerDescriptor {
             return;
         }
 
-        // SAFETY: `cudnnDestroySpatialTransformerDescriptor` receives live handles owned by the wrappers.
+        // SAFETY: the handle is non-null and owned by this wrapper, and nothing uses it after drop.
         unsafe {
             if let Err(error) = try_ffi!(sys::cudnnDestroySpatialTransformerDescriptor(self.handle))
             {
-                eprintln!(
-                    "failed to destroy cudnn spatial transformer descriptor: {}",
-                    singe_core::ErrorChain(&error)
-                );
+                report_cleanup_failure("destroy", "cudnn spatial transformer descriptor", &error);
             }
         }
     }
@@ -169,51 +176,49 @@ impl Drop for SpatialTransformerDescriptor {
 ///
 /// Only 2D transformation is supported.
 ///
-/// # Errors
-///
-/// Returns an error if `descriptor`, `theta`, or `grid` is invalid, if the operation fails to launch on the GPU, or if cuDNN does not support the provided configuration, such as a transformed tensor dimension greater than 4.
-///
 /// # Safety
+///
 /// Retain the context or stream, descriptors and all buffer ranges through completion, submission failure and replay.
 /// Order allocation readiness and input producers before use; values must be valid when read and writes must stay exclusive.
 /// Only the specified tensor elements are produced; padding and tails remain unchanged.
 /// Nonzero beta requires initialized destination elements.
 /// Backward scratch must contain the state required by the matching forward operation.
-pub unsafe fn spatial_tf_grid_generator_forward<T: FloatingElement>(
+///
+/// # Errors
+///
+/// Returns an error if `descriptor`, `theta`, or `grid` is invalid, if the operation fails to launch on the GPU, or if cuDNN does not support the provided configuration, such as a transformed tensor dimension greater than 4.
+pub unsafe fn spatial_tf_grid_generator_forward_async<T: FloatingElement>(
     context: &Context,
     descriptor: &SpatialTransformerDescriptor,
-    theta: &(impl DeviceInput<T> + ?Sized),
+    theta: &(impl DeviceRange<T> + ?Sized),
     grid: &mut (impl DeviceOutput<T> + ?Sized),
 ) -> Result<()> {
     context.bind()?;
-    if [theta.region(), grid.region()]
-        .iter()
-        .any(|region| region.context() != context.cuda_context())
-    {
-        return Err(CudaError::MemoryContextMismatch.into());
-    }
+    context.prepare_regions(&[theta.region(), grid.region()])?;
 
     check_range!(
         "spatial transformer data type",
-        descriptor.config().data_type == T::data_type()
+        descriptor.options().data_type == T::data_type()
     )?;
     check_range!("spatial transformer rank", descriptor.shape().len() == 4)?;
     let shape = descriptor.shape();
     let grid_elements = [shape[0], shape[2], shape[3], 2]
         .iter()
         .try_fold(1usize, |n, &d| {
-            n.checked_mul(d as usize).ok_or(Error::InvalidDataShape)
+            n.checked_mul(to_usize(d, "spatial transformer dimension")?)
+                .ok_or(Error::InvalidDataShape)
         })?;
     check_range!(
         "theta span",
         theta.len()
-            >= (shape[0] as usize)
+            >= to_usize(shape[0], "spatial transformer batch")?
                 .checked_mul(6)
                 .ok_or(Error::InvalidDataShape)?
     )?;
     check_range!("grid span", grid.len() >= grid_elements)?;
 
-    // SAFETY: `cudnnSpatialTfGridGeneratorForward` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
+    // SAFETY: the descriptor matches `T` and rank 4, `theta` and `grid` share the handle's context and hold the six-coefficient and grid spans checked above.
+    // The caller retains and orders every buffer through completion, per this function's contract.
     unsafe {
         try_ffi!(sys::cudnnSpatialTfGridGeneratorForward(
             context.as_raw(),
@@ -230,51 +235,49 @@ pub unsafe fn spatial_tf_grid_generator_forward<T: FloatingElement>(
 ///
 /// Only 2D transformation is supported.
 ///
-/// # Errors
-///
-/// Returns an error if `descriptor`, `dgrid`, or `dtheta` is invalid, if the operation fails to launch on the GPU, or if cuDNN does not support the provided configuration, such as a transformed tensor dimension greater than 4.
-///
 /// # Safety
+///
 /// Retain the context or stream, descriptors and all buffer ranges through completion, submission failure and replay.
 /// Order allocation readiness and input producers before use; values must be valid when read and writes must stay exclusive.
 /// Only the specified tensor elements are produced; padding and tails remain unchanged.
 /// Nonzero beta requires initialized destination elements.
 /// Backward scratch must contain the state required by the matching forward operation.
-pub unsafe fn spatial_tf_grid_generator_backward<T: FloatingElement>(
+///
+/// # Errors
+///
+/// Returns an error if `descriptor`, `dgrid`, or `dtheta` is invalid, if the operation fails to launch on the GPU, or if cuDNN does not support the provided configuration, such as a transformed tensor dimension greater than 4.
+pub unsafe fn spatial_tf_grid_generator_backward_async<T: FloatingElement>(
     context: &Context,
     descriptor: &SpatialTransformerDescriptor,
-    dgrid: &(impl DeviceInput<T> + ?Sized),
+    dgrid: &(impl DeviceRange<T> + ?Sized),
     dtheta: &mut (impl DeviceOutput<T> + ?Sized),
 ) -> Result<()> {
     context.bind()?;
-    if [dgrid.region(), dtheta.region()]
-        .iter()
-        .any(|region| region.context() != context.cuda_context())
-    {
-        return Err(CudaError::MemoryContextMismatch.into());
-    }
+    context.prepare_regions(&[dgrid.region(), dtheta.region()])?;
 
     check_range!(
         "spatial transformer data type",
-        descriptor.config().data_type == T::data_type()
+        descriptor.options().data_type == T::data_type()
     )?;
     check_range!("spatial transformer rank", descriptor.shape().len() == 4)?;
     let shape = descriptor.shape();
     let grid_elements = [shape[0], shape[2], shape[3], 2]
         .iter()
         .try_fold(1usize, |n, &d| {
-            n.checked_mul(d as usize).ok_or(Error::InvalidDataShape)
+            n.checked_mul(to_usize(d, "spatial transformer dimension")?)
+                .ok_or(Error::InvalidDataShape)
         })?;
     check_range!("dgrid span", dgrid.len() >= grid_elements)?;
     check_range!(
         "dtheta span",
         dtheta.len()
-            >= (shape[0] as usize)
+            >= to_usize(shape[0], "spatial transformer batch")?
                 .checked_mul(6)
                 .ok_or(Error::InvalidDataShape)?
     )?;
 
-    // SAFETY: `cudnnSpatialTfGridGeneratorBackward` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
+    // SAFETY: the descriptor matches `T` and rank 4, `dgrid` and `dtheta` share the handle's context and hold the grid and six-coefficient spans checked above.
+    // The caller retains and orders every buffer through completion, per this function's contract.
     unsafe {
         try_ffi!(sys::cudnnSpatialTfGridGeneratorBackward(
             context.as_raw(),
@@ -291,34 +294,30 @@ pub unsafe fn spatial_tf_grid_generator_backward<T: FloatingElement>(
 ///
 /// Only 2D transformation is supported.
 ///
-/// # Errors
-///
-/// Returns an error if `y_desc` dimensions differ from those specified in `descriptor`, if the operation fails to launch on the GPU, or if cuDNN does not support the provided configuration, such as a transformed tensor dimension greater than 4.
-///
 /// # Safety
+///
 /// Retain the context or stream, descriptors and all buffer ranges through completion, submission failure and replay.
 /// Order allocation readiness and input producers before use; values must be valid when read and writes must stay exclusive.
 /// Only the specified tensor elements are produced; padding and tails remain unchanged.
 /// Nonzero beta requires initialized destination elements.
 /// Backward scratch must contain the state required by the matching forward operation.
-pub unsafe fn spatial_tf_sampler_forward<T: FloatingElement>(
+///
+/// # Errors
+///
+/// Returns an error if `y_desc` dimensions differ from those specified in `descriptor`, if the operation fails to launch on the GPU, or if cuDNN does not support the provided configuration, such as a transformed tensor dimension greater than 4.
+pub unsafe fn spatial_tf_sampler_forward_async<T: FloatingElement>(
     context: &Context,
     descriptor: &SpatialTransformerDescriptor,
     alpha: &T::Scale,
     x_desc: &TensorDescriptor<T>,
-    x: &(impl DeviceInput<T> + ?Sized),
-    grid: &(impl DeviceInput<T> + ?Sized),
+    x: &(impl DeviceRange<T> + ?Sized),
+    grid: &(impl DeviceRange<T> + ?Sized),
     beta: &T::Scale,
     y_desc: &TensorDescriptor<T>,
     y: &mut (impl DeviceOutput<T> + ?Sized),
 ) -> Result<()> {
     context.bind()?;
-    if [x.region(), grid.region(), y.region()]
-        .iter()
-        .any(|region| region.context() != context.cuda_context())
-    {
-        return Err(CudaError::MemoryContextMismatch.into());
-    }
+    context.prepare_regions(&[x.region(), grid.region(), y.region()])?;
 
     check_range!(
         "x storage span",
@@ -330,18 +329,20 @@ pub unsafe fn spatial_tf_sampler_forward<T: FloatingElement>(
     )?;
     check_range!(
         "spatial transformer data type",
-        descriptor.config().data_type == T::data_type()
+        descriptor.options().data_type == T::data_type()
     )?;
     check_range!("spatial transformer rank", descriptor.shape().len() == 4)?;
     let shape = descriptor.shape();
     let grid_elements = [shape[0], shape[2], shape[3], 2]
         .iter()
         .try_fold(1usize, |n, &d| {
-            n.checked_mul(d as usize).ok_or(Error::InvalidDataShape)
+            n.checked_mul(to_usize(d, "spatial transformer dimension")?)
+                .ok_or(Error::InvalidDataShape)
         })?;
     check_range!("grid span", grid.len() >= grid_elements)?;
 
-    // SAFETY: `cudnnSpatialTfSamplerForward` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
+    // SAFETY: the descriptor matches `T` and rank 4, the buffers share the handle's context and cover their descriptors and the grid span, and the scalars are live host values of `T::Scale`.
+    // The caller retains and orders every buffer through completion, per this function's contract.
     unsafe {
         try_ffi!(sys::cudnnSpatialTfSamplerForward(
             context.as_raw(),
@@ -363,45 +364,41 @@ pub unsafe fn spatial_tf_sampler_forward<T: FloatingElement>(
 ///
 /// Only 2D transformation is supported.
 ///
-/// # Errors
-///
-/// Returns an error if `output_gradient_desc` dimensions differ from those specified in `descriptor`, if the operation fails to launch on the GPU, or if cuDNN does not support the provided configuration, such as a transformed tensor dimension greater than 4.
-///
 /// # Safety
+///
 /// Retain the context or stream, descriptors and all buffer ranges through completion, submission failure and replay.
 /// Order allocation readiness and input producers before use; values must be valid when read and writes must stay exclusive.
 /// Only the specified tensor elements are produced; padding and tails remain unchanged.
 /// Nonzero beta requires initialized destination elements.
 /// Backward scratch must contain the state required by the matching forward operation.
-pub unsafe fn spatial_tf_sampler_backward<T: FloatingElement>(
+///
+/// # Errors
+///
+/// Returns an error if `output_gradient_desc` dimensions differ from those specified in `descriptor`, if the operation fails to launch on the GPU, or if cuDNN does not support the provided configuration, such as a transformed tensor dimension greater than 4.
+pub unsafe fn spatial_tf_sampler_backward_async<T: FloatingElement>(
     context: &Context,
     descriptor: &SpatialTransformerDescriptor,
     alpha: &T::Scale,
     x_desc: &TensorDescriptor<T>,
-    x: &(impl DeviceInput<T> + ?Sized),
+    x: &(impl DeviceRange<T> + ?Sized),
     beta: &T::Scale,
     input_gradient_desc: &TensorDescriptor<T>,
     input_gradient: &mut (impl DeviceOutput<T> + ?Sized),
     alpha_dgrid: &T::Scale,
     output_gradient_desc: &TensorDescriptor<T>,
-    output_gradient: &(impl DeviceInput<T> + ?Sized),
-    grid: &(impl DeviceInput<T> + ?Sized),
+    output_gradient: &(impl DeviceRange<T> + ?Sized),
+    grid: &(impl DeviceRange<T> + ?Sized),
     beta_dgrid: &T::Scale,
     dgrid: &mut (impl DeviceOutput<T> + ?Sized),
 ) -> Result<()> {
     context.bind()?;
-    if [
+    context.prepare_regions(&[
         x.region(),
         input_gradient.region(),
         output_gradient.region(),
         grid.region(),
         dgrid.region(),
-    ]
-    .iter()
-    .any(|region| region.context() != context.cuda_context())
-    {
-        return Err(CudaError::MemoryContextMismatch.into());
-    }
+    ])?;
 
     check_range!(
         "x storage span",
@@ -417,14 +414,15 @@ pub unsafe fn spatial_tf_sampler_backward<T: FloatingElement>(
     )?;
     check_range!(
         "spatial transformer data type",
-        descriptor.config().data_type == T::data_type()
+        descriptor.options().data_type == T::data_type()
     )?;
     check_range!("spatial transformer rank", descriptor.shape().len() == 4)?;
     let shape = descriptor.shape();
     let grid_elements = [shape[0], shape[2], shape[3], 2]
         .iter()
         .try_fold(1usize, |n, &d| {
-            n.checked_mul(d as usize).ok_or(Error::InvalidDataShape)
+            n.checked_mul(to_usize(d, "spatial transformer dimension")?)
+                .ok_or(Error::InvalidDataShape)
         })?;
     check_range!("grid span", grid.len() >= grid_elements)?;
     check_range!("dgrid span", dgrid.len() >= grid_elements)?;
@@ -434,7 +432,8 @@ pub unsafe fn spatial_tf_sampler_backward<T: FloatingElement>(
         x_desc.dimensions() == input_gradient_desc.dimensions(),
     )?;
 
-    // SAFETY: `cudnnSpatialTfSamplerBackward` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
+    // SAFETY: the descriptor matches `T` and rank 4, the buffers share the handle's context and cover their descriptors and grid spans, and the scalars are live host values of `T::Scale`.
+    // The caller retains and orders every buffer through completion, per this function's contract.
     unsafe {
         try_ffi!(sys::cudnnSpatialTfSamplerBackward(
             context.as_raw(),
@@ -457,9 +456,113 @@ pub unsafe fn spatial_tf_sampler_backward<T: FloatingElement>(
     Ok(())
 }
 
+/// Generates the sampling grid for each output pixel and waits for it.
+///
+/// # Errors
+///
+/// Returns an error if the handle's stream is capturing, [`spatial_tf_grid_generator_forward_async`] fails, or the wait fails.
+pub fn spatial_tf_grid_generator_forward<T: FloatingElement>(
+    context: &Context,
+    descriptor: &SpatialTransformerDescriptor,
+    theta: &(impl DeviceSlice<T> + ?Sized),
+    grid: &mut (impl DeviceOutput<T> + ?Sized),
+) -> Result<()> {
+    context.sync_scope(|| {
+        // SAFETY: `theta` is initialized, and the borrows outlive the wait in `sync_scope`.
+        unsafe { spatial_tf_grid_generator_forward_async(context, descriptor, theta, grid) }
+    })
+}
+
+/// Computes the gradient of a grid generation operation and waits for it.
+///
+/// # Errors
+///
+/// Returns an error if the handle's stream is capturing, [`spatial_tf_grid_generator_backward_async`] fails, or the wait fails.
+pub fn spatial_tf_grid_generator_backward<T: FloatingElement>(
+    context: &Context,
+    descriptor: &SpatialTransformerDescriptor,
+    dgrid: &(impl DeviceSlice<T> + ?Sized),
+    dtheta: &mut (impl DeviceOutput<T> + ?Sized),
+) -> Result<()> {
+    context.sync_scope(|| {
+        // SAFETY: `dgrid` is initialized, and the borrows outlive the wait in `sync_scope`.
+        unsafe { spatial_tf_grid_generator_backward_async(context, descriptor, dgrid, dtheta) }
+    })
+}
+
+/// Samples the output tensor from the grid generator output and waits for it.
+///
+/// # Errors
+///
+/// Returns an error if the handle's stream is capturing, [`spatial_tf_sampler_forward_async`] fails, or the wait fails.
+pub fn spatial_tf_sampler_forward<T: FloatingElement>(
+    context: &Context,
+    descriptor: &SpatialTransformerDescriptor,
+    alpha: &T::Scale,
+    x_desc: &TensorDescriptor<T>,
+    x: &(impl DeviceSlice<T> + ?Sized),
+    grid: &(impl DeviceSlice<T> + ?Sized),
+    beta: &T::Scale,
+    y_desc: &TensorDescriptor<T>,
+    y: &mut (impl DeviceSliceMut<T> + ?Sized),
+) -> Result<()> {
+    context.sync_scope(|| {
+        // SAFETY: the inputs and `y` are initialized, and the borrows outlive the wait in `sync_scope`.
+        unsafe {
+            spatial_tf_sampler_forward_async(
+                context, descriptor, alpha, x_desc, x, grid, beta, y_desc, y,
+            )
+        }
+    })
+}
+
+/// Computes the gradient of a sampling operation and waits for it.
+///
+/// # Errors
+///
+/// Returns an error if the handle's stream is capturing, [`spatial_tf_sampler_backward_async`] fails, or the wait fails.
+pub fn spatial_tf_sampler_backward<T: FloatingElement>(
+    context: &Context,
+    descriptor: &SpatialTransformerDescriptor,
+    alpha: &T::Scale,
+    x_desc: &TensorDescriptor<T>,
+    x: &(impl DeviceSlice<T> + ?Sized),
+    beta: &T::Scale,
+    input_gradient_desc: &TensorDescriptor<T>,
+    input_gradient: &mut (impl DeviceSliceMut<T> + ?Sized),
+    alpha_dgrid: &T::Scale,
+    output_gradient_desc: &TensorDescriptor<T>,
+    output_gradient: &(impl DeviceSlice<T> + ?Sized),
+    grid: &(impl DeviceSlice<T> + ?Sized),
+    beta_dgrid: &T::Scale,
+    dgrid: &mut (impl DeviceSliceMut<T> + ?Sized),
+) -> Result<()> {
+    context.sync_scope(|| {
+        // SAFETY: every buffer the operation reads is initialized, and the borrows outlive the wait in `sync_scope`.
+        unsafe {
+            spatial_tf_sampler_backward_async(
+                context,
+                descriptor,
+                alpha,
+                x_desc,
+                x,
+                beta,
+                input_gradient_desc,
+                input_gradient,
+                alpha_dgrid,
+                output_gradient_desc,
+                output_gradient,
+                grid,
+                beta_dgrid,
+                dgrid,
+            )
+        }
+    })
+}
+
 #[cfg(all(test, feature = "testing"))]
 mod tests {
-    use singe_cuda::{memory::DeviceMemory, stream::StreamBinding};
+    use singe_cuda::memory::DeviceMemory;
 
     use super::*;
     use crate::testing::setup_context;
@@ -467,15 +570,15 @@ mod tests {
     #[test]
     fn test_spatial_transformer_descriptor_create() -> Result<()> {
         let descriptor = SpatialTransformerDescriptor::create(
-            SpatialTransformerConfig {
+            SpatialTransformerOptions {
                 sampler_type: SamplerType::Bilinear,
                 data_type: DataType::F32,
             },
             &[1, 1, 2, 2],
         )?;
 
-        assert_eq!(descriptor.config().sampler_type, SamplerType::Bilinear);
-        assert_eq!(descriptor.config().data_type, DataType::F32);
+        assert_eq!(descriptor.options().sampler_type, SamplerType::Bilinear);
+        assert_eq!(descriptor.options().data_type, DataType::F32);
         assert_eq!(descriptor.shape(), &[1, 1, 2, 2]);
 
         Ok(())
@@ -483,10 +586,11 @@ mod tests {
 
     #[test]
     fn test_spatial_transformer_forward_backward_smoke() -> Result<()> {
-        let test_context = setup_context()?;
+        let test = setup_context()?;
+        let test_context = test.context();
 
         let descriptor = SpatialTransformerDescriptor::create(
-            SpatialTransformerConfig {
+            SpatialTransformerOptions {
                 sampler_type: SamplerType::Bilinear,
                 data_type: DataType::F32,
             },
@@ -497,7 +601,7 @@ mod tests {
 
         let x_host = vec![1.0f32, 2.0, 3.0, 4.0];
         let theta_host = vec![1.0f32, 0.0, 0.0, 0.0, 1.0, 0.0];
-        let dy_host = vec![1.0f32, 1.0, 1.0, 1.0];
+        let y_grad_host = vec![1.0f32, 1.0, 1.0, 1.0];
 
         let x = DeviceMemory::from_slice(test_context.cuda_context(), &x_host)?;
         let mut y = DeviceMemory::<f32>::create_uninit(test_context.cuda_context(), 4)?;
@@ -506,76 +610,79 @@ mod tests {
         let mut dtheta = DeviceMemory::<f32>::create_uninit(test_context.cuda_context(), 6)?;
         let mut grid = DeviceMemory::<f32>::create_uninit(test_context.cuda_context(), 8)?;
         let mut dgrid = DeviceMemory::<f32>::create_uninit(test_context.cuda_context(), 8)?;
-        let dy = DeviceMemory::from_slice(test_context.cuda_context(), &dy_host)?;
+        let dy = DeviceMemory::from_slice(test_context.cuda_context(), &y_grad_host)?;
 
-        StreamBinding::Borrowed(test_context.stream().to_borrowed()).sync_scope(
-            || -> Result<()> {
-                // SAFETY: the descriptors and buffers are test locals that outlive the draining scope.
-                unsafe {
-                    spatial_tf_grid_generator_forward(&test_context, &descriptor, &theta, &mut grid)
-                }?;
-                // SAFETY: the descriptors and buffers are test locals that outlive the draining scope.
-                unsafe {
-                    spatial_tf_sampler_forward(
-                        &test_context,
-                        &descriptor,
-                        &1.0f32,
-                        &x_desc,
-                        &x,
-                        &grid,
-                        &0.0f32,
-                        &y_desc,
-                        &mut y,
-                    )
-                }?;
-                // SAFETY: the descriptors and buffers are test locals that outlive the draining scope.
-                unsafe {
-                    spatial_tf_sampler_backward(
-                        &test_context,
-                        &descriptor,
-                        &1.0f32,
-                        &x_desc,
-                        &x,
-                        &0.0f32,
-                        &x_desc,
-                        &mut dx,
-                        &1.0f32,
-                        &y_desc,
-                        &dy,
-                        &grid,
-                        &0.0f32,
-                        &mut dgrid,
-                    )
-                }?;
-                // SAFETY: the descriptors and buffers are test locals that outlive the draining scope.
-                unsafe {
-                    spatial_tf_grid_generator_backward(
-                        &test_context,
-                        &descriptor,
-                        &dgrid,
-                        &mut dtheta.output(),
-                    )
-                }?;
+        test.stream().complete(|| -> Result<()> {
+            // SAFETY: the descriptors and buffers are test locals that outlive the draining scope.
+            unsafe {
+                spatial_tf_grid_generator_forward_async(
+                    test_context,
+                    &descriptor,
+                    &theta,
+                    &mut grid,
+                )
+            }?;
+            // SAFETY: the descriptors and buffers are test locals that outlive the draining scope.
+            unsafe {
+                spatial_tf_sampler_forward_async(
+                    test_context,
+                    &descriptor,
+                    &1.0f32,
+                    &x_desc,
+                    &x,
+                    &grid,
+                    &0.0f32,
+                    &y_desc,
+                    &mut y,
+                )
+            }?;
+            // SAFETY: the descriptors and buffers are test locals that outlive the draining scope.
+            unsafe {
+                spatial_tf_sampler_backward_async(
+                    test_context,
+                    &descriptor,
+                    &1.0f32,
+                    &x_desc,
+                    &x,
+                    &0.0f32,
+                    &x_desc,
+                    &mut dx,
+                    &1.0f32,
+                    &y_desc,
+                    &dy,
+                    &grid,
+                    &0.0f32,
+                    &mut dgrid,
+                )
+            }?;
+            // SAFETY: the descriptors and buffers are test locals that outlive the draining scope.
+            unsafe {
+                spatial_tf_grid_generator_backward_async(
+                    test_context,
+                    &descriptor,
+                    &dgrid,
+                    &mut dtheta.output(),
+                )
+            }?;
 
-                Ok(())
-            },
-        )?;
+            Ok(())
+        })?;
 
         let mut y_host = vec![0.0f32; 4];
-        let mut dx_host = vec![0.0f32; 4];
+        let mut x_grad_host = vec![0.0f32; 4];
         let mut dtheta_host = vec![0.0f32; 6];
         // SAFETY: the completed operation wrote every contiguous descriptor element.
         let y = unsafe { y.assume_init() };
         y.copy_to_host(&mut y_host)?;
         // SAFETY: the completed operation wrote every contiguous descriptor element.
         let dx = unsafe { dx.assume_init() };
-        dx.copy_to_host(&mut dx_host)?;
+        dx.copy_to_host(&mut x_grad_host)?;
         // SAFETY: the completed operation wrote every contiguous descriptor element.
         let dtheta = unsafe { dtheta.assume_init() };
         dtheta.copy_to_host(&mut dtheta_host)?;
 
         assert!(y_host.iter().all(|value| value.is_finite()));
-        assert!(dx_host.iter().all(|value| value.is_finite()));
+        assert!(x_grad_host.iter().all(|value| value.is_finite()));
         assert!(dtheta_host.iter().all(|value| value.is_finite()));
 
         Ok(())

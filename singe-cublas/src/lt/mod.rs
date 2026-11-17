@@ -14,43 +14,38 @@ pub mod types;
 
 pub(crate) mod utility;
 
-use singe_core::{CudaRuntimeVersion, LibraryVersion};
+use singe_core::{CudaVersion, LibraryVersion};
 use singe_cublas_sys as sys;
 use singe_cuda::types::LibraryProperty;
 
 use crate::{
-    error::Result,
-    try_ffi,
-    utility::{to_size_t, to_u64, to_usize},
+    error::{Error, Result, try_ffi},
+    utility::{to_size_t, to_usize},
 };
-
-/// Native cuBLASLt logging callback signature.
-pub type LoggerCallback = sys::cublasLtLoggerCallback_t;
 
 /// Returns the cuBLASLt library version.
 ///
 /// # Errors
 ///
-/// Returns an error if the native library version cannot be represented as `u64`.
+/// Returns an error if cuBLASLt cannot report its version properties or a property is negative.
 pub fn version() -> Result<LibraryVersion> {
-    // SAFETY: `cublasLtGetVersion` takes no arguments.
-    let version = to_u64(unsafe { sys::cublasLtGetVersion() }, "version")?;
-    Ok(LibraryVersion::new(
-        version / 10000,
-        (version % 10000) / 100,
-        version % 100,
-    ))
+    LibraryVersion::from_properties(
+        library_property(LibraryProperty::Major)?,
+        library_property(LibraryProperty::Minor)?,
+        library_property(LibraryProperty::Patch)?,
+    )
+    .ok_or_else(|| Error::out_of_range("cublaslt version"))
 }
 
 /// Returns the CUDA Runtime library version used by cuBLASLt.
 ///
 /// # Errors
 ///
-/// Returns an error if the native runtime version cannot be represented as `u64`.
-pub fn cudart_version() -> Result<CudaRuntimeVersion> {
-    // SAFETY: `cublasLtGetCudartVersion` takes no arguments.
-    to_u64(unsafe { sys::cublasLtGetCudartVersion() }, "cudart version")
-        .map(CudaRuntimeVersion::from)
+/// Returns an error if the native runtime version does not fit in `u32`.
+pub fn cudart_version() -> Result<CudaVersion> {
+    // SAFETY: `cublasLtGetCudartVersion` takes no arguments and only reports a linked version.
+    CudaVersion::from_raw(unsafe { sys::cublasLtGetCudartVersion() })
+        .ok_or_else(|| Error::out_of_range("cublaslt cudart version"))
 }
 
 /// Returns the requested cuBLASLt library property.
@@ -61,7 +56,7 @@ pub fn cudart_version() -> Result<CudaRuntimeVersion> {
 /// Returns an error if cuBLASLt cannot report the requested property.
 pub fn library_property(property: LibraryProperty) -> Result<i32> {
     let mut value = 0;
-    // SAFETY: `cublasLtGetProperty` receives valid output locations.
+    // SAFETY: `cublasLtGetProperty` writes one `i32` to `value`, a live local.
     unsafe {
         try_ffi!(sys::cublasLtGetProperty(property.into(), &raw mut value))?;
     }
@@ -75,7 +70,7 @@ pub fn library_property(property: LibraryProperty) -> Result<i32> {
 /// Returns an error if cuBLASLt cannot query the current capacity.
 pub fn heuristics_cache_capacity() -> Result<usize> {
     let mut capacity = 0;
-    // SAFETY: `cublasLtHeuristicsCacheGetCapacity` receives valid output locations.
+    // SAFETY: `cublasLtHeuristicsCacheGetCapacity` writes one `size_t` to `capacity`, a live local.
     unsafe {
         try_ffi!(sys::cublasLtHeuristicsCacheGetCapacity(&raw mut capacity))?;
     }
@@ -92,7 +87,7 @@ pub fn heuristics_cache_capacity() -> Result<usize> {
 /// Returns an error if `capacity` cannot be represented by the cuBLASLt integer type or if cuBLASLt rejects the update.
 pub fn set_heuristics_cache_capacity(capacity: usize) -> Result<()> {
     let capacity = to_size_t(capacity, "heuristics cache capacity")?;
-    // SAFETY: `cublasLtHeuristicsCacheSetCapacity` receives only plain values.
+    // SAFETY: `cublasLtHeuristicsCacheSetCapacity` takes the capacity by value and reads no caller memory.
     unsafe {
         try_ffi!(sys::cublasLtHeuristicsCacheSetCapacity(capacity))?;
     }
@@ -103,21 +98,8 @@ pub fn set_heuristics_cache_capacity(capacity: usize) -> Result<()> {
 ///
 /// This takes precedence over the `CUBLASLT_DISABLE_CPU_INSTRUCTIONS_MASK` environment variable.
 pub fn disable_cpu_instructions_set_mask(mask: u32) {
-    // SAFETY: `cublasLtDisableCpuInstructionsSetMask` receives only plain values.
+    // SAFETY: `cublasLtDisableCpuInstructionsSetMask` takes the mask by value and reads no caller memory.
     unsafe {
         sys::cublasLtDisableCpuInstructionsSetMask(mask);
     }
-}
-
-/// Experimental: disables cuBLASLt logging for the current process.
-///
-/// # Errors
-///
-/// Returns an error if cuBLASLt cannot disable logging.
-pub fn force_disable_logger() -> Result<()> {
-    // SAFETY: `cublasLtLoggerForceDisable` takes no arguments.
-    unsafe {
-        try_ffi!(sys::cublasLtLoggerForceDisable())?;
-    }
-    Ok(())
 }

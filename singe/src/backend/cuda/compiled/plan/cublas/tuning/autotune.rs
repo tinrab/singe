@@ -1,4 +1,4 @@
-use singe_cublas::lt::types::Epilogue;
+use singe_cublas::lt::{self, types::Epilogue};
 
 use crate::{
     backend::{
@@ -32,7 +32,7 @@ pub fn record_tuned_cublaslt_matmul_autotune_entry(
     workspace_limit_bytes: usize,
     result: &CublasLtMatmulTuningResult,
 ) -> Result<()> {
-    let library_version = with_cublaslt(runtime, |cublaslt| Ok(cublaslt.version()?.to_string()))?;
+    let library_version = with_cublaslt(runtime, |_| Ok(lt::version()?.to_string()))?;
     let mut tensors = vec![a, b, output];
     if let Some(bias) = bias {
         tensors.push(bias);
@@ -65,7 +65,7 @@ pub fn cached_cublaslt_matmul_tuning_candidates(
     workspace_limit_bytes: usize,
 ) -> Result<Vec<CublasLtMatmulAlgorithmEntry>> {
     let dtype_plan = CublasLtMatmulDTypePlan::create(output.data_type(), epilogue)?;
-    let library_version = with_cublaslt(runtime, |cublaslt| Ok(cublaslt.version()?.to_string()))?;
+    let library_version = with_cublaslt(runtime, |_| Ok(lt::version()?.to_string()))?;
     let cache = runtime
         .cublaslt_matmul_algorithms()
         .locked("cuda runtime cache")?;

@@ -1,10 +1,9 @@
 use singe_cuda::{
     context::Context as CudaContext, data_type::DataType, memory::DeviceMemory,
-    stream::StreamBinding, types::DevicePtr,
+    stream::StreamOptions, view::DeviceView,
 };
 use singe_cutensor::{
     context::Context,
-    error::Result,
     operation::{BlockSparseTensorOperand, ComputeDescriptor, OperationDescriptor},
     plan::{Plan, PlanPreference},
     tensor::BlockSparseTensorDescriptor,
@@ -16,8 +15,8 @@ fn packed_offset(indices: &[u64], extents: &[u64]) -> usize {
     let mut offset = 0_usize;
 
     for (&index, &extent) in indices.iter().zip(extents) {
-        offset += index as usize * stride;
-        stride *= extent as usize;
+        offset += usize::try_from(index).unwrap() * stride;
+        stride *= usize::try_from(extent).unwrap();
     }
 
     offset
@@ -34,22 +33,24 @@ fn block_elements(section_extents: &[Vec<u64>], modes: &[char], coordinates: &[i
                 'l' => 2,
                 _ => unreachable!(),
             };
-            product * section_extents[mode_index][coordinate as usize] as usize
+            product * usize::try_from(section_extents[mode_index][coordinate as usize]).unwrap()
         })
 }
 
-fn make_block_pointers<T>(memory: &DeviceMemory<T>, offsets: &[usize]) -> Vec<DevicePtr> {
-    offsets
-        .iter()
-        // SAFETY: the address comes from a live allocation; wrapping it does not dereference it.
-        .map(|&offset| unsafe { DevicePtr::from_raw(memory.as_mut_ptr().add(offset).cast::<()>()) })
-        .collect()
+fn blocks<'a>(
+    memory: &'a DeviceMemory<f32>,
+    offsets: &[usize],
+) -> anyhow::Result<Vec<DeviceView<'a, f32>>> {
+    Ok(offsets
+        .windows(2)
+        .map(|range| memory.view().slice(range[0]..range[1]))
+        .collect::<Result<_, _>>()?)
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     let cuda_context = CudaContext::create()?;
     let context = Context::create(&cuda_context)?;
-    let stream = cuda_context.create_stream()?;
+    let stream = cuda_context.create_stream(StreamOptions::default())?;
 
     let mode_a = vec!['k'.into(), 'i'.into(), 'l'.into()];
     let mode_b = vec!['k'.into(), 'l'.into()];
@@ -95,14 +96,14 @@ fn main() -> Result<()> {
         .map(|index| index as f32 + 1.0)
         .collect::<Vec<_>>();
     let host_b = (0..b_offsets.last().copied().unwrap())
-        .map(|index| 0.5_f32 * (index as f32 + 1.0))
+        .map(|index| f32::midpoint(index as f32, 1.0))
         .collect::<Vec<_>>();
     let host_c = vec![0.0_f32; c_offsets.last().copied().unwrap()];
 
     let device_a = DeviceMemory::from_slice(&cuda_context, &host_a)?;
     let device_b = DeviceMemory::from_slice(&cuda_context, &host_b)?;
     let device_c_input = DeviceMemory::from_slice(&cuda_context, &host_c)?;
-    let device_c_output = DeviceMemory::from_slice(&cuda_context, &host_c)?;
+    let mut device_c_output = DeviceMemory::from_slice(&cuda_context, &host_c)?;
 
     let descriptor_a = BlockSparseTensorDescriptor::create(
         &context,
@@ -148,38 +149,33 @@ fn main() -> Result<()> {
         WorkspacePreference::Default,
     )?;
     let plan = Plan::create(&context, &operation, &preference, workspace_size)?;
-    let mut workspace = if plan.required_workspace_size() > 0 {
+    let mut workspace = if plan.workspace_size() > 0 {
         Some(DeviceMemory::<u8>::create_uninit(
             &cuda_context,
-            plan.required_workspace_size_bytes()?,
+            plan.workspace_size(),
         )?)
     } else {
         None
     };
 
-    let pointers_a = make_block_pointers(&device_a, &a_offsets[..a_offsets.len() - 1]);
-    let pointers_b = make_block_pointers(&device_b, &b_offsets[..b_offsets.len() - 1]);
-    let pointers_c_input = make_block_pointers(&device_c_input, &c_offsets[..c_offsets.len() - 1]);
-    let mut pointers_c_output =
-        make_block_pointers(&device_c_output, &c_offsets[..c_offsets.len() - 1]);
+    let blocks_a = blocks(&device_a, &a_offsets)?;
+    let blocks_b = blocks(&device_b, &b_offsets)?;
+    let blocks_c = blocks(&device_c_input, &c_offsets)?;
+    let mut output = device_c_output.view_mut();
+    let mut blocks_d: [_; 2] = output.split_at_mut(c_offsets[1])?.into();
 
     let alpha = 1.0_f32;
     let beta = 0.0_f32;
-    StreamBinding::Borrowed(stream.to_borrowed()).sync_scope(|| {
-        // SAFETY: these buffers match the descriptors and stay borrowed through scope completion.
-        unsafe {
-            plan.block_sparse_contract(
-                &alpha,
-                &pointers_a,
-                &pointers_b,
-                &beta,
-                &pointers_c_input,
-                &mut pointers_c_output,
-                workspace.as_mut(),
-                &stream,
-            )
-        }
-    })?;
+    plan.block_sparse_contract(
+        &alpha,
+        &blocks_a,
+        &blocks_b,
+        &beta,
+        &blocks_c,
+        &mut blocks_d,
+        workspace.as_mut().map(|memory| memory.output()),
+        &stream,
+    )?;
 
     let result = device_c_output.copy_to_host_vec()?;
     let mut expected = vec![0.0_f32; result.len()];
@@ -187,13 +183,14 @@ fn main() -> Result<()> {
     for i_block in 0..2 {
         let i_extent = section_extents[1][i_block];
         for i in 0..i_extent {
-            let c_index = c_offsets[i_block] + i as usize;
+            let c_index = c_offsets[i_block] + usize::try_from(i)?;
             if i_block == 0 {
                 for k in 0..section_extents[0][0] {
                     for l in 0..section_extents[2][0] {
                         let a_index = a_offsets[0] + packed_offset(&[k, i, l], &[2, 2, 3]);
                         let b_index = b_offsets[0] + packed_offset(&[k, l], &[2, 3]);
-                        expected[c_index] += host_a[a_index] * host_b[b_index];
+                        expected[c_index] =
+                            f32::mul_add(host_a[a_index], host_b[b_index], expected[c_index]);
                     }
                 }
             } else {
@@ -201,7 +198,8 @@ fn main() -> Result<()> {
                     for l in 0..section_extents[2][0] {
                         let a_index = a_offsets[1] + packed_offset(&[k, i, l], &[1, 1, 3]);
                         let b_index = b_offsets[1] + packed_offset(&[k, l], &[1, 3]);
-                        expected[c_index] += host_a[a_index] * host_b[b_index];
+                        expected[c_index] =
+                            f32::mul_add(host_a[a_index], host_b[b_index], expected[c_index]);
                     }
                 }
             }

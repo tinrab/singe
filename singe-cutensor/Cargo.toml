@@ -1,26 +1,30 @@
 [package]
 name = "singe-cutensor"
 description = "Safe Rust wrappers for NVIDIA cuTENSOR, for tensor contractions and other tensor operations on the GPU."
-version = "0.1.0-alpha.8"
+version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 repository.workspace = true
+documentation = "https://docs.rs/singe-cutensor"
 license-file.workspace = true
 readme = "README.md"
 keywords = ["cuda", "nvidia", "cutensor", "tensor"]
+categories = ["api-bindings", "hardware-support", "science"]
 include.workspace = true
 
 [package.metadata.docs.rs]
-rustdoc-args = ["--html-in-header", "dist/katex_header.html"]
+features = ["mg", "mp"]
+rustdoc-args = ["--cfg", "docsrs", "--html-in-header", "dist/katex_header.html"]
 
 [features]
-default = ["cutensor_2_8", "mg", "mp"]
+default = ["cutensor_2_8"]
 
 cutensor_2_8 = ["singe-cuda/runtime_13_4", "singe-cutensor-sys/cutensor_2_8"]
 
 testing = ["singe-cuda/testing"]
 
-mg = ["singe-cutensor-sys/mg"]
-mp = ["singe-cutensor-sys/mp", "singe-nccl"]
+mg = ["cutensor_2_8", "singe-cutensor-sys/mg"]
+mp = ["cutensor_2_8", "singe-cutensor-sys/mp", "dep:singe-nccl"]
 
 [dependencies]
 singe-core.workspace = true
@@ -33,4 +37,15 @@ bitflags.workspace = true
 
 [dev-dependencies]
 anyhow.workspace = true
-rand.workspace = true
+
+[[example]]
+name = "mg_blog_post"
+required-features = ["mg"]
+
+[[example]]
+name = "mg_contraction_multi_gpu"
+required-features = ["mg"]
+
+[[example]]
+name = "cutensor_mp_contraction"
+required-features = ["mp"]

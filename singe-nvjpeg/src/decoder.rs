@@ -1,7 +1,8 @@
 //! Staged JPEG decoding with a chosen backend.
 
-use std::{mem, ptr, sync::Arc};
+use std::{mem::ManuallyDrop, ptr, result::Result as StdResult, sync::Arc};
 
+use singe_core::report_cleanup_failure;
 use singe_cuda::{context::Context as CudaContext, stream::Stream as CudaStream};
 use singe_nvjpeg_sys as sys;
 
@@ -13,51 +14,94 @@ use crate::{
     stream::JpegStream,
     try_ffi,
     types::Backend,
-    utility::complete,
 };
 
 /// Decoder for nvJPEG's staged decoding, tied to one backend.
 ///
 /// Staged decoding splits decoding into a host stage, a transfer to the device, and a device stage, so the stages of different images can overlap.
+/// The states it creates keep it alive.
 #[derive(Debug)]
 pub struct JpegDecoder {
-    raw: sys::nvjpegJpegDecoder_t,
-    pub(crate) handle: Context,
+    owner: Arc<DecoderOwner>,
 }
 
+/// Native staged decoder with its library handle, from [`JpegDecoder::into_raw`].
+///
+/// Dropping it leaks the native handle.
+#[derive(Debug)]
+pub struct RawJpegDecoder {
+    /// Native handle, owned exclusively.
+    pub handle: sys::nvjpegJpegDecoder_t,
+    /// nvJPEG library handle the native handle was created with.
+    pub context: Context,
+}
+
+// Shared with the states the decoder creates, which nvJPEG ties to the decoder.
+#[derive(Debug)]
+pub(crate) struct DecoderOwner {
+    raw: sys::nvjpegJpegDecoder_t,
+    handle: Context,
+}
+
+// SAFETY: nvJPEG's thread-safety rules require separate bitstream, state, and buffer handles per thread but not separate decoder handles, so the decoder may move between threads.
+// The retained `Context` is `Send`, and the owner holds no other state.
+unsafe impl Send for DecoderOwner {}
+
+// SAFETY: the same rules let several threads use one decoder handle at once, and the owner has no interior mutability.
+unsafe impl Sync for DecoderOwner {}
+
 impl JpegDecoder {
-    /// Takes ownership of a native decoder created with `handle`.
+    /// Takes ownership of a native decoder created with `raw.context`.
     ///
     /// # Safety
     ///
-    /// `raw` must be valid, created with `handle`, and owned by nobody else.
+    /// `raw.handle` must be valid, created with `raw.context`, and owned by nobody else.
     /// It is destroyed when the returned value drops, so all work that used it must have finished.
     ///
     /// # Errors
     ///
-    /// Returns an error if `raw` is null.
-    pub unsafe fn from_raw(raw: sys::nvjpegJpegDecoder_t, handle: &Context) -> Result<Self> {
-        if raw.is_null() {
+    /// Returns [`Error::NullHandle`] if `raw.handle` is null.
+    pub unsafe fn from_raw(raw: RawJpegDecoder) -> Result<Self> {
+        if raw.handle.is_null() {
             return Err(Error::NullHandle);
         }
         Ok(Self {
-            raw,
-            handle: handle.clone(),
+            owner: Arc::new(DecoderOwner {
+                raw: raw.handle,
+                handle: raw.context,
+            }),
         })
     }
 
-    /// Releases the native handle without destroying it.
+    /// Releases the native handle with its [`Context`], without destroying it.
     ///
-    /// Destroy it, or pass it back to [`from_raw`](Self::from_raw), while its [`Context`] is alive.
-    #[must_use]
-    pub fn into_raw(mut self) -> sys::nvjpegJpegDecoder_t {
-        mem::replace(&mut self.raw, ptr::null_mut())
+    /// Destroy the handle, or pass it back to [`from_raw`](Self::from_raw), while the context is alive.
+    ///
+    /// # Errors
+    ///
+    /// Returns the decoder unchanged if a state created by it is still alive.
+    pub fn into_raw(self) -> StdResult<RawJpegDecoder, Self> {
+        match Arc::try_unwrap(self.owner) {
+            Ok(owner) => {
+                let owner = ManuallyDrop::new(owner);
+                Ok(RawJpegDecoder {
+                    handle: owner.raw,
+                    // SAFETY: `owner` is never dropped, so its context moves out exactly once.
+                    context: unsafe { ptr::read(&raw const owner.handle) },
+                })
+            }
+            Err(owner) => Err(Self { owner }),
+        }
+    }
+
+    pub(crate) fn handle(&self) -> &Context {
+        &self.owner.handle
     }
 
     /// Returns the CUDA context of the decoder.
     #[must_use]
     pub fn cuda_context(&self) -> &Arc<CudaContext> {
-        self.handle.cuda_context()
+        self.handle().cuda_context()
     }
 
     /// Creates a decoder for `handle` that uses `backend`.
@@ -69,7 +113,7 @@ impl JpegDecoder {
         handle.bind()?;
 
         let mut raw = ptr::null_mut();
-        // SAFETY: `nvjpegDecoderCreate` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `handle` owns a live library handle whose context was bound above, and `raw` is a local that receives the decoder.
         unsafe {
             try_ffi!(sys::nvjpegDecoderCreate(
                 handle.as_raw(),
@@ -77,14 +121,13 @@ impl JpegDecoder {
                 &raw mut raw
             ))?;
         }
-
-        if raw.is_null() {
-            return Err(Error::NullHandle);
+        // SAFETY: successful creation returns a decoder that only this wrapper owns.
+        unsafe {
+            Self::from_raw(RawJpegDecoder {
+                handle: raw,
+                context: handle.clone(),
+            })
         }
-        Ok(Self {
-            raw,
-            handle: handle.clone(),
-        })
     }
 
     /// Returns whether this decoder can decode the JPEG in `stream` with `params`.
@@ -94,15 +137,16 @@ impl JpegDecoder {
     /// Returns an error if the CUDA context cannot be bound, `stream` or `params` was created with another [`Context`], or nvJPEG fails the query.
     /// An unsupported JPEG returns `Ok(false)`, not an error.
     pub fn jpeg_supported(&self, stream: &JpegStream, params: &DecodeParams) -> Result<bool> {
-        self.handle.bind()?;
-        self.handle.ensure_handle(&stream.handle)?;
-        self.handle.ensure_handle(&params.handle)?;
+        let handle = self.handle();
+        handle.bind()?;
+        handle.ensure_handle(&stream.handle, "stream")?;
+        handle.ensure_handle(&params.handle, "params")?;
 
         let mut unsupported = 0;
-        // SAFETY: `nvjpegDecoderJpegSupported` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: the decoder, `stream`, and `params` own live handles of this context, as checked above, and `unsupported` is a local that receives the answer.
         unsafe {
             try_ffi!(sys::nvjpegDecoderJpegSupported(
-                self.raw,
+                self.as_raw(),
                 stream.as_raw(),
                 params.as_raw(),
                 &raw mut unsupported
@@ -113,33 +157,40 @@ impl JpegDecoder {
 
     /// Creates a decoder state for this decoder's backend.
     ///
+    /// The state keeps this decoder alive.
+    ///
     /// # Errors
     ///
     /// Returns an error if the CUDA context cannot be bound or nvJPEG fails to create the state.
     pub fn create_state(&self) -> Result<JpegState> {
-        self.handle.bind()?;
+        let handle = self.handle();
+        handle.bind()?;
 
         let mut raw = ptr::null_mut();
-        // SAFETY: `nvjpegDecoderStateCreate` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `handle` and the decoder own live handles whose context was bound above, and `raw` is a local that receives the state.
         unsafe {
             try_ffi!(sys::nvjpegDecoderStateCreate(
-                self.handle.as_raw(),
-                self.raw,
+                handle.as_raw(),
+                self.as_raw(),
                 &raw mut raw
             ))?;
         }
-
-        if raw.is_null() {
-            return Err(Error::NullHandle);
-        }
-        // SAFETY: nvJPEG just created `raw` for this handle, and nothing else owns it.
-        unsafe { JpegState::from_raw_with_handle(raw, &self.handle) }
+        JpegState::from_created_raw(raw, handle, Some(Arc::clone(&self.owner)))
     }
 
     /// Returns the native handle, which this decoder still owns.
     #[must_use]
-    pub const fn as_raw(&self) -> sys::nvjpegJpegDecoder_t {
-        self.raw
+    pub fn as_raw(&self) -> sys::nvjpegJpegDecoder_t {
+        self.owner.raw
+    }
+
+    pub(crate) fn ensure_state(&self, state: &JpegState) -> Result<()> {
+        match &state.decoder {
+            Some(owner) if Arc::ptr_eq(owner, &self.owner) => Ok(()),
+            _ => Err(Error::ContextMismatch {
+                name: "state".into(),
+            }),
+        }
     }
 }
 
@@ -154,10 +205,10 @@ impl Context {
     /// An unsupported JPEG returns `Ok(false)`, not an error.
     pub fn batched_decode_supported(&self, stream: &JpegStream) -> Result<bool> {
         self.bind()?;
-        self.ensure_handle(&stream.handle)?;
+        self.ensure_handle(&stream.handle, "stream")?;
 
         let mut unsupported = 0;
-        // SAFETY: `nvjpegDecodeBatchedSupported` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `self` and `stream` own live handles of this context, as checked above, and `unsupported` is a local that receives the answer.
         unsafe {
             try_ffi!(sys::nvjpegDecodeBatchedSupported(
                 self.as_raw(),
@@ -182,11 +233,11 @@ impl Context {
         params: &DecodeParams,
     ) -> Result<bool> {
         self.bind()?;
-        self.ensure_handle(&stream.handle)?;
-        self.ensure_handle(&params.handle)?;
+        self.ensure_handle(&stream.handle, "stream")?;
+        self.ensure_handle(&params.handle, "params")?;
 
         let mut unsupported = 0;
-        // SAFETY: `nvjpegDecodeBatchedSupportedEx` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `self`, `stream`, and `params` own live handles of this context, as checked above, and `unsupported` is a local that receives the answer.
         unsafe {
             try_ffi!(sys::nvjpegDecodeBatchedSupportedEx(
                 self.as_raw(),
@@ -224,16 +275,16 @@ impl Context {
         cuda_stream: &CudaStream,
     ) -> Result<()> {
         self.ensure_stream(cuda_stream)?;
-        self.ensure_handle(&decoder.handle)?;
-        self.ensure_handle(&state.handle)?;
-        self.ensure_handle(&stream.handle)?;
-        self.ensure_handle(&params.handle)?;
+        self.ensure_handle(decoder.handle(), "decoder")?;
+        self.ensure_handle(&state.handle, "state")?;
+        self.ensure_handle(&stream.handle, "stream")?;
+        self.ensure_handle(&params.handle, "params")?;
 
-        // SAFETY: `nvjpegDecodeJpeg` receives live handles owned by the wrappers.
+        // SAFETY: every handle belongs to this context, as checked above; the caller guarantees `destination` is large enough and that the operands outlive the queued work.
         unsafe {
             try_ffi!(sys::nvjpegDecodeJpeg(
                 self.as_raw(),
-                decoder.raw,
+                decoder.as_raw(),
                 state.as_raw(),
                 stream.as_raw(),
                 destination.as_raw_mut(),
@@ -251,7 +302,7 @@ impl Context {
     ///
     /// # Errors
     ///
-    /// Returns an error if the CUDA context cannot be bound, an argument was created with another [`Context`], or nvJPEG rejects or fails the stage.
+    /// Returns an error if the CUDA context cannot be bound, an argument was created with another [`Context`], `state` was not created by `decoder`, or nvJPEG rejects or fails the stage.
     pub fn decode_jpeg_host(
         &self,
         decoder: &JpegDecoder,
@@ -260,16 +311,17 @@ impl Context {
         stream: &JpegStream,
     ) -> Result<()> {
         self.bind()?;
-        self.ensure_handle(&decoder.handle)?;
-        self.ensure_handle(&state.handle)?;
-        self.ensure_handle(&params.handle)?;
-        self.ensure_handle(&stream.handle)?;
+        self.ensure_handle(decoder.handle(), "decoder")?;
+        self.ensure_handle(&state.handle, "state")?;
+        self.ensure_handle(&params.handle, "params")?;
+        self.ensure_handle(&stream.handle, "stream")?;
+        decoder.ensure_state(state)?;
 
-        // SAFETY: `nvjpegDecodeJpegHost` receives live handles owned by the wrappers.
+        // SAFETY: every handle is live and belongs to this context, as checked above, and the host stage finishes before the call returns.
         unsafe {
             try_ffi!(sys::nvjpegDecodeJpegHost(
                 self.as_raw(),
-                decoder.raw,
+                decoder.as_raw(),
                 state.as_raw(),
                 params.as_raw(),
                 stream.as_raw()
@@ -283,7 +335,7 @@ impl Context {
     ///
     /// # Errors
     ///
-    /// Returns an error if `cuda_stream` belongs to another CUDA context, the context cannot be bound, an argument was created with another [`Context`], nvJPEG fails the stage, or waiting for `cuda_stream` fails.
+    /// Returns an error if `cuda_stream` belongs to another CUDA context, the context cannot be bound, an argument was created with another [`Context`], `state` was not created by `decoder`, nvJPEG fails the stage, or waiting for `cuda_stream` fails.
     pub fn decode_jpeg_transfer_to_device(
         &self,
         decoder: &JpegDecoder,
@@ -291,8 +343,10 @@ impl Context {
         stream: &JpegStream,
         cuda_stream: &CudaStream,
     ) -> Result<()> {
-        // SAFETY: `complete` drains the stream before returning, so every borrowed buffer outlives the queued work.
-        complete(cuda_stream, || unsafe {
+        decoder.ensure_state(state)?;
+
+        // SAFETY: `complete` waits for `cuda_stream` on every path, so the borrowed decoder, state, and stream outlive the queued work.
+        cuda_stream.complete(|| unsafe {
             self.decode_jpeg_transfer_to_device_async(decoder, state, stream, cuda_stream)
         })
     }
@@ -320,15 +374,15 @@ impl Context {
         cuda_stream: &CudaStream,
     ) -> Result<()> {
         self.ensure_stream(cuda_stream)?;
-        self.ensure_handle(&decoder.handle)?;
-        self.ensure_handle(&state.handle)?;
-        self.ensure_handle(&stream.handle)?;
+        self.ensure_handle(decoder.handle(), "decoder")?;
+        self.ensure_handle(&state.handle, "state")?;
+        self.ensure_handle(&stream.handle, "stream")?;
 
-        // SAFETY: `nvjpegDecodeJpegTransferToDevice` receives live handles owned by the wrappers.
+        // SAFETY: every handle belongs to this context, as checked above, and the caller keeps them and the attached buffers alive until the queued copy finishes.
         unsafe {
             try_ffi!(sys::nvjpegDecodeJpegTransferToDevice(
                 self.as_raw(),
-                decoder.raw,
+                decoder.as_raw(),
                 state.as_raw(),
                 stream.as_raw(),
                 cuda_stream.as_raw()
@@ -357,14 +411,14 @@ impl Context {
         cuda_stream: &CudaStream,
     ) -> Result<()> {
         self.ensure_stream(cuda_stream)?;
-        self.ensure_handle(&decoder.handle)?;
-        self.ensure_handle(&state.handle)?;
+        self.ensure_handle(decoder.handle(), "decoder")?;
+        self.ensure_handle(&state.handle, "state")?;
 
-        // SAFETY: `nvjpegDecodeJpegDevice` receives live handles owned by the wrappers.
+        // SAFETY: every handle belongs to this context, as checked above; the caller guarantees `destination` is large enough and that the operands outlive the queued work.
         unsafe {
             try_ffi!(sys::nvjpegDecodeJpegDevice(
                 self.as_raw(),
-                decoder.raw,
+                decoder.as_raw(),
                 state.as_raw(),
                 destination.as_raw_mut(),
                 cuda_stream.as_raw()
@@ -373,20 +427,17 @@ impl Context {
     }
 }
 
-impl Drop for JpegDecoder {
+impl Drop for DecoderOwner {
     fn drop(&mut self) {
-        if self.handle.bind().is_err() {
+        if let Err(error) = self.handle.bind() {
+            report_cleanup_failure("bind the cuda context to destroy", "nvjpeg decoder", &error);
             return;
         }
+
         if !self.raw.is_null() {
-            // SAFETY: `nvjpegDecoderDestroy` receives live handles owned by the wrappers.
-            unsafe {
-                if let Err(error) = try_ffi!(sys::nvjpegDecoderDestroy(self.raw)) {
-                    eprintln!(
-                        "failed to destroy nvjpeg decoder: {}",
-                        singe_core::ErrorChain(&error)
-                    );
-                }
+            // SAFETY: the last owner drops `DecoderOwner`, after every state that used the decoder, and destroys the handle once.
+            if let Err(error) = unsafe { try_ffi!(sys::nvjpegDecoderDestroy(self.raw)) } {
+                report_cleanup_failure("destroy", "nvjpeg decoder", &error);
             }
         }
     }

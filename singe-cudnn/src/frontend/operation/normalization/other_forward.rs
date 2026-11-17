@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{backend::tensor::TensorId, frontend::operation::NormalizationStatistics};
+use crate::{frontend::operation::NormalizationStatistics, tensor::TensorId};
 
 /// Epsilon tensor and optional scope for instance normalization.
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -1,18 +1,18 @@
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 use crate::{
-    backend::tensor::{TensorId, TensorSpec},
     error::Result,
     frontend::{
         error::Error as FrontendError,
         graph::{Graph, RuntimeShapeConstraints, StorageView},
         operation::Operation,
     },
+    tensor::{TensorId, TensorSpec},
 };
 
 /// A captured declaration and its ragged metadata in the destination graph's namespace.
 #[derive(Debug, Clone)]
-pub struct TensorCaptureTarget {
+pub(crate) struct TensorCaptureTarget {
     id: TensorId,
     tensors: BTreeMap<TensorId, TensorSpec>,
 }

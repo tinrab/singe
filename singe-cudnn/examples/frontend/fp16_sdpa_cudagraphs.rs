@@ -2,18 +2,19 @@ mod common;
 
 use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
-    backend::tensor::{Shape, TensorId, TensorSpec},
+    backend::operation::attention::AttentionSequenceInputs,
     data_type::{DataType, bf16},
-    error::{Error, Result, Status},
+    error::{Error, Status},
     frontend::{
         composite::sdpa::{SdpaForwardOutputTensors, SdpaInputs},
         graph::{DataTypePolicy, Graph, GraphConfig, TensorOutputConfig},
         operation::{
             AttentionConfig, AttentionDiagonalAlignment, AttentionDiagonalBand, AttentionMaskMode,
-            AttentionScoreConfig, AttentionSequenceInputs,
+            AttentionScoreConfig,
         },
         plan::{CompileConfig, ExecuteArgs, HeuristicMode},
     },
+    tensor::{Shape, TensorId, TensorSpec},
 };
 
 fn init_bf16_image(size: usize, seed: &mut u32) -> Vec<bf16> {
@@ -23,7 +24,11 @@ fn init_bf16_image(size: usize, seed: &mut u32) -> Vec<bf16> {
         .collect()
 }
 
-fn run() -> Result<()> {
+#[expect(
+    clippy::many_single_char_names,
+    reason = "keeps the upstream sample's single-letter dimension names"
+)]
+fn run() -> anyhow::Result<()> {
     let context = common::ExampleContext::create()?;
 
     let b = 3_i64;
@@ -36,7 +41,7 @@ fn run() -> Result<()> {
     let mut graph = Graph::with_config(
         GraphConfig::new().with_data_type_policy(
             DataTypePolicy::new()
-                .with_io(DataType::BF16)
+                .with_io(DataType::Bf16)
                 .with_intermediate(DataType::F32)
                 .with_compute(DataType::F32),
         ),
@@ -44,15 +49,15 @@ fn run() -> Result<()> {
 
     let q = graph.insert_tensor(
         TensorId::new(1001),
-        TensorSpec::new(DataType::BF16, Shape::contiguous([b, h, s_q, d_qk])?),
+        TensorSpec::new(DataType::Bf16, Shape::contiguous([b, h, s_q, d_qk])?),
     )?;
     let k = graph.insert_tensor(
         TensorId::new(1002),
-        TensorSpec::new(DataType::BF16, Shape::contiguous([b, h, s_kv, d_qk])?),
+        TensorSpec::new(DataType::Bf16, Shape::contiguous([b, h, s_kv, d_qk])?),
     )?;
     let v = graph.insert_tensor(
         TensorId::new(1003),
-        TensorSpec::new(DataType::BF16, Shape::contiguous([b, h, s_kv, d_v])?),
+        TensorSpec::new(DataType::Bf16, Shape::contiguous([b, h, s_kv, d_v])?),
     )?;
     let scale = graph.tensor(TensorSpec::scalar_f32(0.123));
     let sequence_length_query = graph.insert_tensor(
@@ -64,12 +69,12 @@ fn run() -> Result<()> {
         TensorSpec::new(DataType::I32, Shape::contiguous([b, 1, 1, 1])?),
     )?;
 
-    let outputs = graph.sdpa_auto(
+    let outputs = graph.sdpa(
         SdpaInputs {
             query: q,
             key: k,
             value: v,
-            scale: scale,
+            scale,
         },
         AttentionConfig::new()
             .with_compute_type(DataType::F32)
@@ -93,7 +98,7 @@ fn run() -> Result<()> {
     graph.replace_tensor(
         o,
         TensorSpec::new(
-            DataType::BF16,
+            DataType::Bf16,
             Shape::with_strides([b, h, s_q, d_v], vec![h * d_v, d_v, b * h * d_v, 1])?,
         )
         .output_tensor(),
@@ -110,24 +115,30 @@ fn run() -> Result<()> {
     let mut seed = 123_456_789_u32;
     let mut q_dev = DeviceMemory::from_slice(
         context.cudnn.cuda_context(),
-        &init_bf16_image((b * h * s_q * d_qk) as usize, &mut seed),
+        &init_bf16_image(usize::try_from(b * h * s_q * d_qk)?, &mut seed),
     )?;
     let mut k_dev = DeviceMemory::from_slice(
         context.cudnn.cuda_context(),
-        &init_bf16_image((b * h * s_kv * d_qk) as usize, &mut seed),
+        &init_bf16_image(usize::try_from(b * h * s_kv * d_qk)?, &mut seed),
     )?;
     let mut v_dev = DeviceMemory::from_slice(
         context.cudnn.cuda_context(),
-        &init_bf16_image((b * h * s_kv * d_v) as usize, &mut seed),
+        &init_bf16_image(usize::try_from(b * h * s_kv * d_v)?, &mut seed),
     )?;
-    let mut seq_len_q_dev =
-        DeviceMemory::from_slice(context.cudnn.cuda_context(), &vec![20_i32; b as usize])?;
-    let mut seq_len_kv_dev =
-        DeviceMemory::from_slice(context.cudnn.cuda_context(), &vec![20_i32; b as usize])?;
-    let mut o_dev =
-        DeviceMemory::<bf16>::zeroed(context.cudnn.cuda_context(), (b * h * s_q * d_v) as usize)?;
+    let mut seq_len_q_dev = DeviceMemory::from_slice(
+        context.cudnn.cuda_context(),
+        &vec![20_i32; usize::try_from(b)?],
+    )?;
+    let mut seq_len_kv_dev = DeviceMemory::from_slice(
+        context.cudnn.cuda_context(),
+        &vec![20_i32; usize::try_from(b)?],
+    )?;
+    let mut o_dev = DeviceMemory::<bf16>::zeroed(
+        context.cudnn.cuda_context(),
+        usize::try_from(b * h * s_q * d_v)?,
+    )?;
     let mut stats_dev =
-        DeviceMemory::<f32>::zeroed(context.cudnn.cuda_context(), (b * h * s_q) as usize)?;
+        DeviceMemory::<f32>::zeroed(context.cudnn.cuda_context(), usize::try_from(b * h * s_q)?)?;
     let mut workspace = common::workspace(context.cudnn.cuda_context(), compiled.workspace_size())?;
 
     let mut bindings = compiled.bindings()?;
@@ -144,7 +155,7 @@ fn run() -> Result<()> {
     match unsafe {
         compiled.populate_cuda_graph(
             &context.cudnn,
-            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
             &mut cuda_graph,
         )
     } {
@@ -154,15 +165,15 @@ fn run() -> Result<()> {
         {
             return Ok(());
         }
-        Err(error) => return Err(error),
+        Err(error) => return Err(error.into()),
     }
 
     // SAFETY: the example retains its plan and buffers through the surrounding completion or replay sequence.
     match unsafe {
         compiled.update_cuda_graph(
             &context.cudnn,
-            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
-            &cuda_graph,
+            ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
+            &mut cuda_graph,
         )
     } {
         Ok(()) => Ok(()),
@@ -171,10 +182,10 @@ fn run() -> Result<()> {
         {
             Ok(())
         }
-        Err(error) => Err(error),
+        Err(error) => Err(error.into()),
     }
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_fp16_sdpa_cudagraphs", run())
 }

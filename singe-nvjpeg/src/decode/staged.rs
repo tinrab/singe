@@ -1,16 +1,17 @@
 use std::{ptr, sync::Arc};
 
+use singe_core::report_cleanup_failure;
 use singe_cuda::{context::Context as CudaContext, stream::Stream as CudaStream};
 use singe_nvjpeg_sys as sys;
 
 use crate::{
     context::{Context, JpegState},
-    decode::{DecodeOptions, Rectangle, validate_batch},
+    decode::{DecodeOptions, Rectangle},
     error::{Error, Result},
     image::Image,
     try_ffi,
     types::{ChromaSubsampling, ExifOrientation, OutputFormat, ScaleFactor},
-    utility::{to_i32, to_non_zero_u64, to_positive_i32, to_u64},
+    utility::{to_i32, to_non_zero_u64, to_positive_i32, to_u64, validate_same_len},
 };
 
 /// Decode settings for nvJPEG's staged and batched decoding: output format, region, CMYK conversion, scaling, and EXIF orientation.
@@ -20,6 +21,9 @@ pub struct DecodeParams {
     pub(crate) handle: Context,
     pub(crate) options: DecodeOptions,
 }
+
+// SAFETY: nvJPEG requires decode settings to be used by one thread at a time, not by a fixed thread, and every change takes `&mut DecodeParams`.
+unsafe impl Send for DecodeParams {}
 
 impl DecodeParams {
     /// Returns the CUDA context of the parameters.
@@ -37,7 +41,7 @@ impl DecodeParams {
         handle.bind()?;
 
         let mut raw = ptr::null_mut();
-        // SAFETY: `nvjpegDecodeParamsCreate` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `handle` owns a live library handle whose context was bound above, and `raw` is a local that receives the settings.
         unsafe {
             try_ffi!(sys::nvjpegDecodeParamsCreate(handle.as_raw(), &raw mut raw))?;
         }
@@ -60,7 +64,7 @@ impl DecodeParams {
     pub fn set_output_format(&mut self, format: OutputFormat) -> Result<&mut Self> {
         self.handle.bind()?;
 
-        // SAFETY: `nvjpegDecodeParamsSetOutputFormat` receives live handles owned by the wrappers.
+        // SAFETY: `&mut self` owns the live settings handle exclusively, and the format is a valid enum value.
         unsafe {
             try_ffi!(sys::nvjpegDecodeParamsSetOutputFormat(
                 self.raw,
@@ -97,7 +101,7 @@ impl DecodeParams {
             to_i32(width, "width")?,
             to_i32(height, "height")?,
         )?;
-        // SAFETY: `nvjpegDecodeParamsSetROI` receives live handles owned by the wrappers.
+        // SAFETY: `&mut self` owns the live settings handle exclusively, and `Rectangle::create` checked the region's signs and end overflow.
         unsafe {
             try_ffi!(sys::nvjpegDecodeParamsSetROI(
                 self.raw, roi.x, roi.y, roi.width, roi.height
@@ -116,7 +120,7 @@ impl DecodeParams {
     pub fn clear_roi(&mut self) -> Result<&mut Self> {
         self.handle.bind()?;
 
-        // SAFETY: `nvjpegDecodeParamsSetROI` receives live handles owned by the wrappers.
+        // SAFETY: `&mut self` owns the live settings handle exclusively, and a size of -1 is nvJPEG's documented way to clear the region.
         unsafe {
             try_ffi!(sys::nvjpegDecodeParamsSetROI(self.raw, 0, 0, -1, -1))?;
         }
@@ -135,7 +139,7 @@ impl DecodeParams {
     pub fn set_allow_cmyk(&mut self, allow: bool) -> Result<&mut Self> {
         self.handle.bind()?;
 
-        // SAFETY: `nvjpegDecodeParamsSetAllowCMYK` receives live handles owned by the wrappers.
+        // SAFETY: `&mut self` owns the live settings handle exclusively.
         unsafe {
             try_ffi!(sys::nvjpegDecodeParamsSetAllowCMYK(
                 self.raw,
@@ -157,7 +161,7 @@ impl DecodeParams {
     pub fn set_scale_factor(&mut self, scale_factor: ScaleFactor) -> Result<&mut Self> {
         self.handle.bind()?;
 
-        // SAFETY: `nvjpegDecodeParamsSetScaleFactor` receives live handles owned by the wrappers.
+        // SAFETY: `&mut self` owns the live settings handle exclusively, and the scale factor is a valid enum value.
         unsafe {
             try_ffi!(sys::nvjpegDecodeParamsSetScaleFactor(
                 self.raw,
@@ -181,7 +185,7 @@ impl DecodeParams {
     pub fn set_exif_orientation(&mut self, orientation: ExifOrientation) -> Result<&mut Self> {
         self.handle.bind()?;
 
-        // SAFETY: `nvjpegDecodeParamsSetExifOrientation` receives live handles owned by the wrappers.
+        // SAFETY: `&mut self` owns the live settings handle exclusively, and the orientation is a valid enum value.
         unsafe {
             try_ffi!(sys::nvjpegDecodeParamsSetExifOrientation(
                 self.raw,
@@ -224,9 +228,9 @@ impl Context {
         stream: &CudaStream,
     ) -> Result<()> {
         self.ensure_stream(stream)?;
-        self.ensure_handle(&state.handle)?;
+        self.ensure_handle(&state.handle, "state")?;
 
-        // SAFETY: `nvjpegDecode` receives live handles owned by the wrappers and pointers into buffers borrowed for the call.
+        // SAFETY: `state` belongs to this context and `stream` to its CUDA context, as checked above; `data` has its checked nonzero length, and the caller keeps it and `destination` alive until the work finishes.
         unsafe {
             try_ffi!(sys::nvjpegDecode(
                 self.as_raw(),
@@ -240,26 +244,26 @@ impl Context {
         }
     }
 
-    /// Prepares `state` for batched decoding with a batch size, CPU thread limit, and output format.
+    /// Prepares `state` for batched decoding with a batch size and output format.
     ///
     /// Call it once before decoding batches, and not while a batch is being decoded.
     ///
     /// # Errors
     ///
-    /// Returns an error if the CUDA context cannot be bound, `state` was created with another [`Context`], `batch_size` or `max_cpu_threads` does not fit a positive `i32`, or nvJPEG fails.
+    /// Returns an error if the CUDA context cannot be bound, `state` was created with another [`Context`], `batch_size` does not fit a positive `i32`, or nvJPEG fails.
     pub fn decode_batched_initialize(
         &self,
         state: &mut JpegState,
         batch_size: impl TryInto<i32>,
-        max_cpu_threads: impl TryInto<i32>,
         output_format: OutputFormat,
     ) -> Result<()> {
         self.bind()?;
-        self.ensure_handle(&state.handle)?;
+        self.ensure_handle(&state.handle, "state")?;
 
         let batch_size = to_positive_i32(batch_size, "batch_size")?;
-        let max_cpu_threads = to_positive_i32(max_cpu_threads, "max_cpu_threads")?;
-        // SAFETY: `nvjpegDecodeBatchedInitialize` receives live handles owned by the wrappers.
+        // nvJPEG no longer reads its CPU thread limit, so any positive value works.
+        let max_cpu_threads = 1;
+        // SAFETY: the handle and state are live and belong together, and the context is bound.
         unsafe {
             try_ffi!(sys::nvjpegDecodeBatchedInitialize(
                 self.as_raw(),
@@ -290,12 +294,12 @@ impl Context {
         output_format: OutputFormat,
     ) -> Result<()> {
         self.bind()?;
-        self.ensure_handle(&state.handle)?;
+        self.ensure_handle(&state.handle, "state")?;
 
         let batch_size = to_positive_i32(batch_size, "batch_size")?;
         let width = to_positive_i32(width, "width")?;
         let height = to_positive_i32(height, "height")?;
-        // SAFETY: `nvjpegDecodeBatchedPreAllocate` receives live handles owned by the wrappers.
+        // SAFETY: `state` belongs to this live handle, as checked above, and the batch size and dimensions were checked to be positive.
         unsafe {
             try_ffi!(sys::nvjpegDecodeBatchedPreAllocate(
                 self.as_raw(),
@@ -323,10 +327,10 @@ impl Context {
         tables: Option<&[u8]>,
     ) -> Result<()> {
         self.bind()?;
-        self.ensure_handle(&state.handle)?;
+        self.ensure_handle(&state.handle, "state")?;
 
         let (ptr, len) = tables.map_or((ptr::null(), 0), |tables| (tables.as_ptr(), tables.len()));
-        // SAFETY: `nvjpegDecodeBatchedParseJpegTables` receives live handles owned by the wrappers.
+        // SAFETY: `state` belongs to this live handle, as checked above, and `ptr` is null with length 0 or points to the borrowed tables, which nvJPEG copies during the call.
         unsafe {
             try_ffi!(sys::nvjpegDecodeBatchedParseJpegTables(
                 self.as_raw(),
@@ -355,9 +359,9 @@ impl Context {
         stream: &CudaStream,
     ) -> Result<()> {
         self.ensure_stream(stream)?;
-        self.ensure_handle(&state.handle)?;
+        self.ensure_handle(&state.handle, "state")?;
 
-        validate_batch(inputs.len(), destinations.len(), "destinations")?;
+        validate_same_len(inputs.len(), destinations.len(), "destinations")?;
         let data = inputs
             .iter()
             .map(|input| input.as_ptr())
@@ -368,11 +372,11 @@ impl Context {
             .collect::<Result<Vec<_>>>()?;
         let mut raw_destinations = destinations
             .iter_mut()
-            // SAFETY: the caller upholds this function's safety contract.
+            // SAFETY: the pointer comes from the borrowed `destination`, so it is aligned and initialized, and the description is `Copy`.
             .map(|destination| unsafe { *destination.as_raw_mut() })
             .collect::<Vec<_>>();
 
-        // SAFETY: `nvjpegDecodeBatched` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
+        // SAFETY: `state` and `stream` belong to this context, as checked above; `data`, `lengths`, and `raw_destinations` each hold one checked entry per input, and the caller keeps the inputs and destinations alive until the work finishes.
         unsafe {
             try_ffi!(sys::nvjpegDecodeBatched(
                 self.as_raw(),
@@ -404,12 +408,12 @@ impl Context {
         stream: &CudaStream,
     ) -> Result<()> {
         self.ensure_stream(stream)?;
-        self.ensure_handle(&state.handle)?;
+        self.ensure_handle(&state.handle, "state")?;
 
-        validate_batch(inputs.len(), destinations.len(), "destinations")?;
-        validate_batch(inputs.len(), params.len(), "params")?;
+        validate_same_len(inputs.len(), destinations.len(), "destinations")?;
+        validate_same_len(inputs.len(), params.len(), "params")?;
         for params in params.iter() {
-            self.ensure_handle(&params.handle)?;
+            self.ensure_handle(&params.handle, "params")?;
         }
 
         let data = inputs
@@ -422,7 +426,7 @@ impl Context {
             .collect::<Result<Vec<_>>>()?;
         let mut raw_destinations = destinations
             .iter_mut()
-            // SAFETY: the caller upholds this function's safety contract.
+            // SAFETY: the pointer comes from the borrowed `destination`, so it is aligned and initialized, and the description is `Copy`.
             .map(|destination| unsafe { *destination.as_raw_mut() })
             .collect::<Vec<_>>();
         let mut raw_params = params
@@ -430,7 +434,7 @@ impl Context {
             .map(|param| param.as_raw())
             .collect::<Vec<_>>();
 
-        // SAFETY: `nvjpegDecodeBatchedEx` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
+        // SAFETY: `state`, `stream`, and every `params` belong to this context, as checked above; the four arrays each hold one checked entry per input, and the caller keeps the inputs and destinations alive until the work finishes.
         unsafe {
             try_ffi!(sys::nvjpegDecodeBatchedEx(
                 self.as_raw(),
@@ -447,18 +451,19 @@ impl Context {
 
 impl Drop for DecodeParams {
     fn drop(&mut self) {
-        if self.handle.bind().is_err() {
+        if let Err(error) = self.handle.bind() {
+            report_cleanup_failure(
+                "bind the cuda context to destroy",
+                "nvjpeg decode params",
+                &error,
+            );
             return;
         }
+
         if !self.raw.is_null() {
-            // SAFETY: `nvjpegDecodeParamsDestroy` receives live handles owned by the wrappers.
-            unsafe {
-                if let Err(error) = try_ffi!(sys::nvjpegDecodeParamsDestroy(self.raw)) {
-                    eprintln!(
-                        "failed to destroy nvjpeg decode params: {}",
-                        singe_core::ErrorChain(&error)
-                    );
-                }
+            // SAFETY: the settings own their handle exclusively and are destroyed once; safe decodes wait for their work, and raw callers keep the settings alive until theirs finishes.
+            if let Err(error) = unsafe { try_ffi!(sys::nvjpegDecodeParamsDestroy(self.raw)) } {
+                report_cleanup_failure("destroy", "nvjpeg decode params", &error);
             }
         }
     }

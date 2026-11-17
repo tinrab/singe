@@ -96,114 +96,196 @@ pub struct dim3 {
     /// Extent along the z axis.
     pub z: ::core::ffi::c_uint,
 }
-/// Channel format kind.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudaChannelFormatKind {
+impl cudaChannelFormatKind {
     /// Signed channel format.
-    cudaChannelFormatKindSigned = 0,
+    pub const cudaChannelFormatKindSigned: cudaChannelFormatKind = cudaChannelFormatKind(
+        0,
+    );
     /// Unsigned channel format.
-    cudaChannelFormatKindUnsigned = 1,
+    pub const cudaChannelFormatKindUnsigned: cudaChannelFormatKind = cudaChannelFormatKind(
+        1,
+    );
     /// Float channel format.
-    cudaChannelFormatKindFloat = 2,
+    pub const cudaChannelFormatKindFloat: cudaChannelFormatKind = cudaChannelFormatKind(
+        2,
+    );
     /// No channel format.
-    cudaChannelFormatKindNone = 3,
+    pub const cudaChannelFormatKindNone: cudaChannelFormatKind = cudaChannelFormatKind(
+        3,
+    );
     /// Unsigned 8-bit integers, planar 4:2:0 YUV format.
-    cudaChannelFormatKindNV12 = 4,
+    pub const cudaChannelFormatKindNV12: cudaChannelFormatKind = cudaChannelFormatKind(
+        4,
+    );
     /// 1 channel unsigned 8-bit normalized integer.
-    cudaChannelFormatKindUnsignedNormalized8X1 = 5,
+    pub const cudaChannelFormatKindUnsignedNormalized8X1: cudaChannelFormatKind = cudaChannelFormatKind(
+        5,
+    );
     /// 2 channel unsigned 8-bit normalized integer.
-    cudaChannelFormatKindUnsignedNormalized8X2 = 6,
+    pub const cudaChannelFormatKindUnsignedNormalized8X2: cudaChannelFormatKind = cudaChannelFormatKind(
+        6,
+    );
     /// 4 channel unsigned 8-bit normalized integer.
-    cudaChannelFormatKindUnsignedNormalized8X4 = 7,
+    pub const cudaChannelFormatKindUnsignedNormalized8X4: cudaChannelFormatKind = cudaChannelFormatKind(
+        7,
+    );
     /// 1 channel unsigned 16-bit normalized integer.
-    cudaChannelFormatKindUnsignedNormalized16X1 = 8,
+    pub const cudaChannelFormatKindUnsignedNormalized16X1: cudaChannelFormatKind = cudaChannelFormatKind(
+        8,
+    );
     /// 2 channel unsigned 16-bit normalized integer.
-    cudaChannelFormatKindUnsignedNormalized16X2 = 9,
+    pub const cudaChannelFormatKindUnsignedNormalized16X2: cudaChannelFormatKind = cudaChannelFormatKind(
+        9,
+    );
     /// 4 channel unsigned 16-bit normalized integer.
-    cudaChannelFormatKindUnsignedNormalized16X4 = 10,
+    pub const cudaChannelFormatKindUnsignedNormalized16X4: cudaChannelFormatKind = cudaChannelFormatKind(
+        10,
+    );
     /// 1 channel signed 8-bit normalized integer.
-    cudaChannelFormatKindSignedNormalized8X1 = 11,
+    pub const cudaChannelFormatKindSignedNormalized8X1: cudaChannelFormatKind = cudaChannelFormatKind(
+        11,
+    );
     /// 2 channel signed 8-bit normalized integer.
-    cudaChannelFormatKindSignedNormalized8X2 = 12,
+    pub const cudaChannelFormatKindSignedNormalized8X2: cudaChannelFormatKind = cudaChannelFormatKind(
+        12,
+    );
     /// 4 channel signed 8-bit normalized integer.
-    cudaChannelFormatKindSignedNormalized8X4 = 13,
+    pub const cudaChannelFormatKindSignedNormalized8X4: cudaChannelFormatKind = cudaChannelFormatKind(
+        13,
+    );
     /// 1 channel signed 16-bit normalized integer.
-    cudaChannelFormatKindSignedNormalized16X1 = 14,
+    pub const cudaChannelFormatKindSignedNormalized16X1: cudaChannelFormatKind = cudaChannelFormatKind(
+        14,
+    );
     /// 2 channel signed 16-bit normalized integer.
-    cudaChannelFormatKindSignedNormalized16X2 = 15,
+    pub const cudaChannelFormatKindSignedNormalized16X2: cudaChannelFormatKind = cudaChannelFormatKind(
+        15,
+    );
     /// 4 channel signed 16-bit normalized integer.
-    cudaChannelFormatKindSignedNormalized16X4 = 16,
+    pub const cudaChannelFormatKindSignedNormalized16X4: cudaChannelFormatKind = cudaChannelFormatKind(
+        16,
+    );
     /// 4 channel unsigned normalized block-compressed (BC1 compression) format.
-    cudaChannelFormatKindUnsignedBlockCompressed1 = 17,
+    pub const cudaChannelFormatKindUnsignedBlockCompressed1: cudaChannelFormatKind = cudaChannelFormatKind(
+        17,
+    );
     /// 4 channel unsigned normalized block-compressed (BC1 compression) format with sRGB encoding.
-    cudaChannelFormatKindUnsignedBlockCompressed1SRGB = 18,
+    pub const cudaChannelFormatKindUnsignedBlockCompressed1SRGB: cudaChannelFormatKind = cudaChannelFormatKind(
+        18,
+    );
     /// 4 channel unsigned normalized block-compressed (BC2 compression) format.
-    cudaChannelFormatKindUnsignedBlockCompressed2 = 19,
+    pub const cudaChannelFormatKindUnsignedBlockCompressed2: cudaChannelFormatKind = cudaChannelFormatKind(
+        19,
+    );
     /// 4 channel unsigned normalized block-compressed (BC2 compression) format with sRGB encoding.
-    cudaChannelFormatKindUnsignedBlockCompressed2SRGB = 20,
+    pub const cudaChannelFormatKindUnsignedBlockCompressed2SRGB: cudaChannelFormatKind = cudaChannelFormatKind(
+        20,
+    );
     /// 4 channel unsigned normalized block-compressed (BC3 compression) format.
-    cudaChannelFormatKindUnsignedBlockCompressed3 = 21,
+    pub const cudaChannelFormatKindUnsignedBlockCompressed3: cudaChannelFormatKind = cudaChannelFormatKind(
+        21,
+    );
     /// 4 channel unsigned normalized block-compressed (BC3 compression) format with sRGB encoding.
-    cudaChannelFormatKindUnsignedBlockCompressed3SRGB = 22,
+    pub const cudaChannelFormatKindUnsignedBlockCompressed3SRGB: cudaChannelFormatKind = cudaChannelFormatKind(
+        22,
+    );
     /// 1 channel unsigned normalized block-compressed (BC4 compression) format.
-    cudaChannelFormatKindUnsignedBlockCompressed4 = 23,
+    pub const cudaChannelFormatKindUnsignedBlockCompressed4: cudaChannelFormatKind = cudaChannelFormatKind(
+        23,
+    );
     /// 1 channel signed normalized block-compressed (BC4 compression) format.
-    cudaChannelFormatKindSignedBlockCompressed4 = 24,
+    pub const cudaChannelFormatKindSignedBlockCompressed4: cudaChannelFormatKind = cudaChannelFormatKind(
+        24,
+    );
     /// 2 channel unsigned normalized block-compressed (BC5 compression) format.
-    cudaChannelFormatKindUnsignedBlockCompressed5 = 25,
+    pub const cudaChannelFormatKindUnsignedBlockCompressed5: cudaChannelFormatKind = cudaChannelFormatKind(
+        25,
+    );
     /// 2 channel signed normalized block-compressed (BC5 compression) format.
-    cudaChannelFormatKindSignedBlockCompressed5 = 26,
+    pub const cudaChannelFormatKindSignedBlockCompressed5: cudaChannelFormatKind = cudaChannelFormatKind(
+        26,
+    );
     /// 3 channel unsigned half-float block-compressed (BC6H compression) format.
-    cudaChannelFormatKindUnsignedBlockCompressed6H = 27,
+    pub const cudaChannelFormatKindUnsignedBlockCompressed6H: cudaChannelFormatKind = cudaChannelFormatKind(
+        27,
+    );
     /// 3 channel signed half-float block-compressed (BC6H compression) format.
-    cudaChannelFormatKindSignedBlockCompressed6H = 28,
+    pub const cudaChannelFormatKindSignedBlockCompressed6H: cudaChannelFormatKind = cudaChannelFormatKind(
+        28,
+    );
     /// 4 channel unsigned normalized block-compressed (BC7 compression) format.
-    cudaChannelFormatKindUnsignedBlockCompressed7 = 29,
+    pub const cudaChannelFormatKindUnsignedBlockCompressed7: cudaChannelFormatKind = cudaChannelFormatKind(
+        29,
+    );
     /// 4 channel unsigned normalized block-compressed (BC7 compression) format with sRGB encoding.
-    cudaChannelFormatKindUnsignedBlockCompressed7SRGB = 30,
+    pub const cudaChannelFormatKindUnsignedBlockCompressed7SRGB: cudaChannelFormatKind = cudaChannelFormatKind(
+        30,
+    );
     /// 4 channel unsigned normalized (10-bit, 10-bit, 10-bit, 2-bit) format.
-    cudaChannelFormatKindUnsignedNormalized1010102 = 31,
+    pub const cudaChannelFormatKindUnsignedNormalized1010102: cudaChannelFormatKind = cudaChannelFormatKind(
+        31,
+    );
     /// 4 channel unsigned 8-bit packed format, with 4:2:2 sampling.
-    cudaChannelFormatKindUnsigned8Packed422 = 32,
+    pub const cudaChannelFormatKindUnsigned8Packed422: cudaChannelFormatKind = cudaChannelFormatKind(
+        32,
+    );
     /// 4 channel unsigned 8-bit packed format, with 4:4:4 sampling.
-    cudaChannelFormatKindUnsigned8Packed444 = 33,
+    pub const cudaChannelFormatKindUnsigned8Packed444: cudaChannelFormatKind = cudaChannelFormatKind(
+        33,
+    );
     /// 3 channel unsigned 8-bit semi-planar format, with 4:2:0 sampling.
-    cudaChannelFormatKindUnsigned8SemiPlanar420 = 34,
+    pub const cudaChannelFormatKindUnsigned8SemiPlanar420: cudaChannelFormatKind = cudaChannelFormatKind(
+        34,
+    );
     /// 3 channel unsigned 16-bit semi-planar format, with 4:2:0 sampling.
-    cudaChannelFormatKindUnsigned16SemiPlanar420 = 35,
+    pub const cudaChannelFormatKindUnsigned16SemiPlanar420: cudaChannelFormatKind = cudaChannelFormatKind(
+        35,
+    );
     /// 3 channel unsigned 8-bit semi-planar format, with 4:2:2 sampling.
-    cudaChannelFormatKindUnsigned8SemiPlanar422 = 36,
+    pub const cudaChannelFormatKindUnsigned8SemiPlanar422: cudaChannelFormatKind = cudaChannelFormatKind(
+        36,
+    );
     /// 3 channel unsigned 16-bit semi-planar format, with 4:2:2 sampling.
-    cudaChannelFormatKindUnsigned16SemiPlanar422 = 37,
+    pub const cudaChannelFormatKindUnsigned16SemiPlanar422: cudaChannelFormatKind = cudaChannelFormatKind(
+        37,
+    );
     /// 3 channel unsigned 8-bit semi-planar format, with 4:4:4 sampling.
-    cudaChannelFormatKindUnsigned8SemiPlanar444 = 38,
+    pub const cudaChannelFormatKindUnsigned8SemiPlanar444: cudaChannelFormatKind = cudaChannelFormatKind(
+        38,
+    );
     /// 3 channel unsigned 16-bit semi-planar format, with 4:4:4 sampling.
-    cudaChannelFormatKindUnsigned16SemiPlanar444 = 39,
+    pub const cudaChannelFormatKindUnsigned16SemiPlanar444: cudaChannelFormatKind = cudaChannelFormatKind(
+        39,
+    );
     /// 3 channel unsigned 8-bit planar format, with 4:2:0 sampling.
-    cudaChannelFormatKindUnsigned8Planar420 = 40,
+    pub const cudaChannelFormatKindUnsigned8Planar420: cudaChannelFormatKind = cudaChannelFormatKind(
+        40,
+    );
     /// 3 channel unsigned 16-bit planar format, with 4:2:0 sampling.
-    cudaChannelFormatKindUnsigned16Planar420 = 41,
+    pub const cudaChannelFormatKindUnsigned16Planar420: cudaChannelFormatKind = cudaChannelFormatKind(
+        41,
+    );
     /// 3 channel unsigned 8-bit planar format, with 4:2:2 sampling.
-    cudaChannelFormatKindUnsigned8Planar422 = 42,
+    pub const cudaChannelFormatKindUnsigned8Planar422: cudaChannelFormatKind = cudaChannelFormatKind(
+        42,
+    );
     /// 3 channel unsigned 16-bit planar format, with 4:2:2 sampling.
-    cudaChannelFormatKindUnsigned16Planar422 = 43,
+    pub const cudaChannelFormatKindUnsigned16Planar422: cudaChannelFormatKind = cudaChannelFormatKind(
+        43,
+    );
     /// 3 channel unsigned 8-bit planar format, with 4:4:4 sampling.
-    cudaChannelFormatKindUnsigned8Planar444 = 44,
+    pub const cudaChannelFormatKindUnsigned8Planar444: cudaChannelFormatKind = cudaChannelFormatKind(
+        44,
+    );
     /// 3 channel unsigned 16-bit planar format, with 4:4:4 sampling.
-    cudaChannelFormatKindUnsigned16Planar444 = 45,
+    pub const cudaChannelFormatKindUnsigned16Planar444: cudaChannelFormatKind = cudaChannelFormatKind(
+        45,
+    );
 }
+/// Channel format kind.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudaChannelFormatKind(pub ::core::ffi::c_uint);
 /// Incomplete native type used by [`cudaDevResourceDesc_t`] handles. The native API owns its layout.
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -250,58 +332,38 @@ impl Default for cudaChannelFormatDesc {
         }
     }
 }
-/// CUDA memory types.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudaMemoryType {
+impl cudaMemoryType {
     /// Unregistered memory.
-    cudaMemoryTypeUnregistered = 0,
+    pub const cudaMemoryTypeUnregistered: cudaMemoryType = cudaMemoryType(0);
     /// Host memory.
-    cudaMemoryTypeHost = 1,
+    pub const cudaMemoryTypeHost: cudaMemoryType = cudaMemoryType(1);
     /// Device memory.
-    cudaMemoryTypeDevice = 2,
+    pub const cudaMemoryTypeDevice: cudaMemoryType = cudaMemoryType(2);
     /// Managed memory.
-    cudaMemoryTypeManaged = 3,
+    pub const cudaMemoryTypeManaged: cudaMemoryType = cudaMemoryType(3);
 }
-/// CUDA memory copy types.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudaMemcpyKind {
+/// CUDA memory types.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudaMemoryType(pub ::core::ffi::c_uint);
+impl cudaMemcpyKind {
     /// Host -> Host.
-    cudaMemcpyHostToHost = 0,
+    pub const cudaMemcpyHostToHost: cudaMemcpyKind = cudaMemcpyKind(0);
     /// Host -> Device.
-    cudaMemcpyHostToDevice = 1,
+    pub const cudaMemcpyHostToDevice: cudaMemcpyKind = cudaMemcpyKind(1);
     /// Device -> Host.
-    cudaMemcpyDeviceToHost = 2,
+    pub const cudaMemcpyDeviceToHost: cudaMemcpyKind = cudaMemcpyKind(2);
     /// Device -> Device.
-    cudaMemcpyDeviceToDevice = 3,
+    pub const cudaMemcpyDeviceToDevice: cudaMemcpyKind = cudaMemcpyKind(3);
     /// Direction of the transfer is inferred from the pointer values.
     ///
     /// Requires unified virtual addressing.
-    cudaMemcpyDefault = 4,
+    pub const cudaMemcpyDefault: cudaMemcpyKind = cudaMemcpyKind(4);
 }
+/// CUDA memory copy types.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudaMemcpyKind(pub ::core::ffi::c_uint);
 /// CUDA Pitched memory pointer.
 #[repr(C)]
 pub struct cudaPitchedPtr {
@@ -421,28 +483,18 @@ impl Default for cudaMemcpy3DPeerParms {
         }
     }
 }
-/// Specifies performance hint with [`cudaAccessPolicyWindow`] for hitProp and missProp members.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudaAccessProperty {
+impl cudaAccessProperty {
     /// Normal cache persistence.
-    cudaAccessPropertyNormal = 0,
+    pub const cudaAccessPropertyNormal: cudaAccessProperty = cudaAccessProperty(0);
     /// Streaming access is less likely to persit from cache.
-    cudaAccessPropertyStreaming = 1,
+    pub const cudaAccessPropertyStreaming: cudaAccessProperty = cudaAccessProperty(1);
     /// Persisting access is more likely to persist in cache.
-    cudaAccessPropertyPersisting = 2,
+    pub const cudaAccessPropertyPersisting: cudaAccessProperty = cudaAccessProperty(2);
 }
+/// Specifies performance hint with [`cudaAccessPolicyWindow`] for hitProp and missProp members.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudaAccessProperty(pub ::core::ffi::c_uint);
 /// Specifies an access policy for a window, a contiguous extent of memory beginning at base_ptr and ending at base_ptr + num_bytes.
 ///
 /// Partition into many segments and assign segments such that. sum of “hit segments” / window == approx. ratio. sum of “miss segments” / window == approx 1-ratio. Segments and ratio specifications are fitted to the capabilities of the architecture. Accesses in a hit segment apply the hitProp access policy. Accesses in a miss segment apply the missProp access policy.
@@ -474,190 +526,228 @@ impl Default for cudaAccessPolicyWindow {
         }
     }
 }
-/// Host waiting policy for synchronization with CUDA work.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudaSynchronizationPolicy {
+impl cudaSynchronizationPolicy {
     /// Lets the driver select the synchronization waiting policy.
-    cudaSyncPolicyAuto = 1,
+    pub const cudaSyncPolicyAuto: cudaSynchronizationPolicy = cudaSynchronizationPolicy(
+        1,
+    );
     /// Actively spins while waiting for CUDA work.
-    cudaSyncPolicySpin = 2,
+    pub const cudaSyncPolicySpin: cudaSynchronizationPolicy = cudaSynchronizationPolicy(
+        2,
+    );
     /// Yields the host thread while waiting for CUDA work.
-    cudaSyncPolicyYield = 3,
+    pub const cudaSyncPolicyYield: cudaSynchronizationPolicy = cudaSynchronizationPolicy(
+        3,
+    );
     /// Blocks the host thread on a synchronization primitive while waiting.
-    cudaSyncPolicyBlockingSync = 4,
+    pub const cudaSyncPolicyBlockingSync: cudaSynchronizationPolicy = cudaSynchronizationPolicy(
+        4,
+    );
 }
-/// Cluster scheduling policies.
-///
-/// These may be passed to [cudaFuncSetAttribute](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__EXECUTION.html#group__cudart__execution_1ga317e77d2657abf915fd9ed03e75f3eb0).
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudaClusterSchedulingPolicy {
+/// Host waiting policy for synchronization with CUDA work.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudaSynchronizationPolicy(pub ::core::ffi::c_uint);
+impl cudaClusterSchedulingPolicy {
     /// the default policy.
-    cudaClusterSchedulingPolicyDefault = 0,
+    pub const cudaClusterSchedulingPolicyDefault: cudaClusterSchedulingPolicy = cudaClusterSchedulingPolicy(
+        0,
+    );
     /// spread the blocks within a cluster to the SMs.
-    cudaClusterSchedulingPolicySpread = 1,
+    pub const cudaClusterSchedulingPolicySpread: cudaClusterSchedulingPolicy = cudaClusterSchedulingPolicy(
+        1,
+    );
     /// allow the hardware to load-balance the blocks in a cluster to the SMs.
-    cudaClusterSchedulingPolicyLoadBalancing = 2,
+    pub const cudaClusterSchedulingPolicyLoadBalancing: cudaClusterSchedulingPolicy = cudaClusterSchedulingPolicy(
+        2,
+    );
     /// Spread the blocks within a cluster to the SMs, and prefer placement that prioritizes Distributed Shared Memory locality for Rubin-class GPUs.
     ///
     /// This is a preference only. The runtime or driver may ignore this request when the launch is not eligible, when the device does not support the requested placement behavior, or when other launch constraints take precedence.
     ///
     /// This policy is intended for clustered kernels whose performance depends on communication through Distributed Shared Memory among blocks in the same cluster.
-    cudaClusterSchedulingPolicyRubinDsmemLocality = 3,
+    pub const cudaClusterSchedulingPolicyRubinDsmemLocality: cudaClusterSchedulingPolicy = cudaClusterSchedulingPolicy(
+        3,
+    );
+}
+/// Cluster scheduling policies.
+///
+/// These may be passed to [cudaFuncSetAttribute](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__EXECUTION.html#group__cudart__execution_1ga317e77d2657abf915fd9ed03e75f3eb0).
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudaClusterSchedulingPolicy(pub ::core::ffi::c_uint);
+impl cudaStreamUpdateCaptureDependenciesFlags {
+    /// Add new nodes to the dependency set.
+    pub const cudaStreamAddCaptureDependencies: cudaStreamUpdateCaptureDependenciesFlags = cudaStreamUpdateCaptureDependenciesFlags(
+        0,
+    );
+    /// Replace the dependency set with the new nodes.
+    pub const cudaStreamSetCaptureDependencies: cudaStreamUpdateCaptureDependenciesFlags = cudaStreamUpdateCaptureDependenciesFlags(
+        1,
+    );
 }
 /// Flags for [cudaStreamUpdateCaptureDependencies](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__STREAM.html#group__cudart__stream_1ga5d24e83040683a297f2d160bedf25175).
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudaStreamUpdateCaptureDependenciesFlags {
-    /// Add new nodes to the dependency set.
-    cudaStreamAddCaptureDependencies = 0,
-    /// Replace the dependency set with the new nodes.
-    cudaStreamSetCaptureDependencies = 1,
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudaStreamUpdateCaptureDependenciesFlags(pub ::core::ffi::c_uint);
+impl cudaResourceType {
+    /// Array resource.
+    pub const cudaResourceTypeArray: cudaResourceType = cudaResourceType(0);
+    /// Mipmapped array resource.
+    pub const cudaResourceTypeMipmappedArray: cudaResourceType = cudaResourceType(1);
+    /// Linear resource.
+    pub const cudaResourceTypeLinear: cudaResourceType = cudaResourceType(2);
+    /// Pitch 2D resource.
+    pub const cudaResourceTypePitch2D: cudaResourceType = cudaResourceType(3);
 }
 /// CUDA resource types.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudaResourceType {
-    /// Array resource.
-    cudaResourceTypeArray = 0,
-    /// Mipmapped array resource.
-    cudaResourceTypeMipmappedArray = 1,
-    /// Linear resource.
-    cudaResourceTypeLinear = 2,
-    /// Pitch 2D resource.
-    cudaResourceTypePitch2D = 3,
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudaResourceType(pub ::core::ffi::c_uint);
+impl cudaResourceViewFormat {
+    /// No resource view format (use underlying resource format).
+    pub const cudaResViewFormatNone: cudaResourceViewFormat = cudaResourceViewFormat(0);
+    /// 1 channel unsigned 8-bit integers.
+    pub const cudaResViewFormatUnsignedChar1: cudaResourceViewFormat = cudaResourceViewFormat(
+        1,
+    );
+    /// 2 channel unsigned 8-bit integers.
+    pub const cudaResViewFormatUnsignedChar2: cudaResourceViewFormat = cudaResourceViewFormat(
+        2,
+    );
+    /// 4 channel unsigned 8-bit integers.
+    pub const cudaResViewFormatUnsignedChar4: cudaResourceViewFormat = cudaResourceViewFormat(
+        3,
+    );
+    /// 1 channel signed 8-bit integers.
+    pub const cudaResViewFormatSignedChar1: cudaResourceViewFormat = cudaResourceViewFormat(
+        4,
+    );
+    /// 2 channel signed 8-bit integers.
+    pub const cudaResViewFormatSignedChar2: cudaResourceViewFormat = cudaResourceViewFormat(
+        5,
+    );
+    /// 4 channel signed 8-bit integers.
+    pub const cudaResViewFormatSignedChar4: cudaResourceViewFormat = cudaResourceViewFormat(
+        6,
+    );
+    /// 1 channel unsigned 16-bit integers.
+    pub const cudaResViewFormatUnsignedShort1: cudaResourceViewFormat = cudaResourceViewFormat(
+        7,
+    );
+    /// 2 channel unsigned 16-bit integers.
+    pub const cudaResViewFormatUnsignedShort2: cudaResourceViewFormat = cudaResourceViewFormat(
+        8,
+    );
+    /// 4 channel unsigned 16-bit integers.
+    pub const cudaResViewFormatUnsignedShort4: cudaResourceViewFormat = cudaResourceViewFormat(
+        9,
+    );
+    /// 1 channel signed 16-bit integers.
+    pub const cudaResViewFormatSignedShort1: cudaResourceViewFormat = cudaResourceViewFormat(
+        10,
+    );
+    /// 2 channel signed 16-bit integers.
+    pub const cudaResViewFormatSignedShort2: cudaResourceViewFormat = cudaResourceViewFormat(
+        11,
+    );
+    /// 4 channel signed 16-bit integers.
+    pub const cudaResViewFormatSignedShort4: cudaResourceViewFormat = cudaResourceViewFormat(
+        12,
+    );
+    /// 1 channel unsigned 32-bit integers.
+    pub const cudaResViewFormatUnsignedInt1: cudaResourceViewFormat = cudaResourceViewFormat(
+        13,
+    );
+    /// 2 channel unsigned 32-bit integers.
+    pub const cudaResViewFormatUnsignedInt2: cudaResourceViewFormat = cudaResourceViewFormat(
+        14,
+    );
+    /// 4 channel unsigned 32-bit integers.
+    pub const cudaResViewFormatUnsignedInt4: cudaResourceViewFormat = cudaResourceViewFormat(
+        15,
+    );
+    /// 1 channel signed 32-bit integers.
+    pub const cudaResViewFormatSignedInt1: cudaResourceViewFormat = cudaResourceViewFormat(
+        16,
+    );
+    /// 2 channel signed 32-bit integers.
+    pub const cudaResViewFormatSignedInt2: cudaResourceViewFormat = cudaResourceViewFormat(
+        17,
+    );
+    /// 4 channel signed 32-bit integers.
+    pub const cudaResViewFormatSignedInt4: cudaResourceViewFormat = cudaResourceViewFormat(
+        18,
+    );
+    /// 1 channel 16-bit floating point.
+    pub const cudaResViewFormatHalf1: cudaResourceViewFormat = cudaResourceViewFormat(
+        19,
+    );
+    /// 2 channel 16-bit floating point.
+    pub const cudaResViewFormatHalf2: cudaResourceViewFormat = cudaResourceViewFormat(
+        20,
+    );
+    /// 4 channel 16-bit floating point.
+    pub const cudaResViewFormatHalf4: cudaResourceViewFormat = cudaResourceViewFormat(
+        21,
+    );
+    /// 1 channel 32-bit floating point.
+    pub const cudaResViewFormatFloat1: cudaResourceViewFormat = cudaResourceViewFormat(
+        22,
+    );
+    /// 2 channel 32-bit floating point.
+    pub const cudaResViewFormatFloat2: cudaResourceViewFormat = cudaResourceViewFormat(
+        23,
+    );
+    /// 4 channel 32-bit floating point.
+    pub const cudaResViewFormatFloat4: cudaResourceViewFormat = cudaResourceViewFormat(
+        24,
+    );
+    /// Block compressed 1.
+    pub const cudaResViewFormatUnsignedBlockCompressed1: cudaResourceViewFormat = cudaResourceViewFormat(
+        25,
+    );
+    /// Block compressed 2.
+    pub const cudaResViewFormatUnsignedBlockCompressed2: cudaResourceViewFormat = cudaResourceViewFormat(
+        26,
+    );
+    /// Block compressed 3.
+    pub const cudaResViewFormatUnsignedBlockCompressed3: cudaResourceViewFormat = cudaResourceViewFormat(
+        27,
+    );
+    /// Block compressed 4 unsigned.
+    pub const cudaResViewFormatUnsignedBlockCompressed4: cudaResourceViewFormat = cudaResourceViewFormat(
+        28,
+    );
+    /// Block compressed 4 signed.
+    pub const cudaResViewFormatSignedBlockCompressed4: cudaResourceViewFormat = cudaResourceViewFormat(
+        29,
+    );
+    /// Block compressed 5 unsigned.
+    pub const cudaResViewFormatUnsignedBlockCompressed5: cudaResourceViewFormat = cudaResourceViewFormat(
+        30,
+    );
+    /// Block compressed 5 signed.
+    pub const cudaResViewFormatSignedBlockCompressed5: cudaResourceViewFormat = cudaResourceViewFormat(
+        31,
+    );
+    /// Block compressed 6 unsigned half-float.
+    pub const cudaResViewFormatUnsignedBlockCompressed6H: cudaResourceViewFormat = cudaResourceViewFormat(
+        32,
+    );
+    /// Block compressed 6 signed half-float.
+    pub const cudaResViewFormatSignedBlockCompressed6H: cudaResourceViewFormat = cudaResourceViewFormat(
+        33,
+    );
+    /// Block compressed 7.
+    pub const cudaResViewFormatUnsignedBlockCompressed7: cudaResourceViewFormat = cudaResourceViewFormat(
+        34,
+    );
 }
 /// CUDA texture resource view formats.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudaResourceViewFormat {
-    /// No resource view format (use underlying resource format).
-    cudaResViewFormatNone = 0,
-    /// 1 channel unsigned 8-bit integers.
-    cudaResViewFormatUnsignedChar1 = 1,
-    /// 2 channel unsigned 8-bit integers.
-    cudaResViewFormatUnsignedChar2 = 2,
-    /// 4 channel unsigned 8-bit integers.
-    cudaResViewFormatUnsignedChar4 = 3,
-    /// 1 channel signed 8-bit integers.
-    cudaResViewFormatSignedChar1 = 4,
-    /// 2 channel signed 8-bit integers.
-    cudaResViewFormatSignedChar2 = 5,
-    /// 4 channel signed 8-bit integers.
-    cudaResViewFormatSignedChar4 = 6,
-    /// 1 channel unsigned 16-bit integers.
-    cudaResViewFormatUnsignedShort1 = 7,
-    /// 2 channel unsigned 16-bit integers.
-    cudaResViewFormatUnsignedShort2 = 8,
-    /// 4 channel unsigned 16-bit integers.
-    cudaResViewFormatUnsignedShort4 = 9,
-    /// 1 channel signed 16-bit integers.
-    cudaResViewFormatSignedShort1 = 10,
-    /// 2 channel signed 16-bit integers.
-    cudaResViewFormatSignedShort2 = 11,
-    /// 4 channel signed 16-bit integers.
-    cudaResViewFormatSignedShort4 = 12,
-    /// 1 channel unsigned 32-bit integers.
-    cudaResViewFormatUnsignedInt1 = 13,
-    /// 2 channel unsigned 32-bit integers.
-    cudaResViewFormatUnsignedInt2 = 14,
-    /// 4 channel unsigned 32-bit integers.
-    cudaResViewFormatUnsignedInt4 = 15,
-    /// 1 channel signed 32-bit integers.
-    cudaResViewFormatSignedInt1 = 16,
-    /// 2 channel signed 32-bit integers.
-    cudaResViewFormatSignedInt2 = 17,
-    /// 4 channel signed 32-bit integers.
-    cudaResViewFormatSignedInt4 = 18,
-    /// 1 channel 16-bit floating point.
-    cudaResViewFormatHalf1 = 19,
-    /// 2 channel 16-bit floating point.
-    cudaResViewFormatHalf2 = 20,
-    /// 4 channel 16-bit floating point.
-    cudaResViewFormatHalf4 = 21,
-    /// 1 channel 32-bit floating point.
-    cudaResViewFormatFloat1 = 22,
-    /// 2 channel 32-bit floating point.
-    cudaResViewFormatFloat2 = 23,
-    /// 4 channel 32-bit floating point.
-    cudaResViewFormatFloat4 = 24,
-    /// Block compressed 1.
-    cudaResViewFormatUnsignedBlockCompressed1 = 25,
-    /// Block compressed 2.
-    cudaResViewFormatUnsignedBlockCompressed2 = 26,
-    /// Block compressed 3.
-    cudaResViewFormatUnsignedBlockCompressed3 = 27,
-    /// Block compressed 4 unsigned.
-    cudaResViewFormatUnsignedBlockCompressed4 = 28,
-    /// Block compressed 4 signed.
-    cudaResViewFormatSignedBlockCompressed4 = 29,
-    /// Block compressed 5 unsigned.
-    cudaResViewFormatUnsignedBlockCompressed5 = 30,
-    /// Block compressed 5 signed.
-    cudaResViewFormatSignedBlockCompressed5 = 31,
-    /// Block compressed 6 unsigned half-float.
-    cudaResViewFormatUnsignedBlockCompressed6H = 32,
-    /// Block compressed 6 signed half-float.
-    cudaResViewFormatSignedBlockCompressed6H = 33,
-    /// Block compressed 7.
-    cudaResViewFormatUnsignedBlockCompressed7 = 34,
-}
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudaResourceViewFormat(pub ::core::ffi::c_uint);
 /// CUDA resource descriptor.
 #[repr(C)]
 pub struct cudaResourceDesc {
@@ -812,21 +902,32 @@ impl Default for cudaResourceViewDesc {
         }
     }
 }
-/// Shared memory related attributes for use with ::cuLaunchKernelEx.
-#[repr(u32)]
-#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum cudaSharedMemoryMode {
+impl cudaSharedMemoryMode {
     /// The default to use for allowing non-portable shared memory size on launch - uses current function attributes for [cudaFuncAttributeMaxDynamicSharedMemorySize](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1ggac6c537b33d22c871a103f0fda8ac8bbea9d5a5aea324596d0e686f7c416f71c26).
-    cudaSharedMemoryModeDefault = 0,
+    pub const cudaSharedMemoryModeDefault: cudaSharedMemoryMode = cudaSharedMemoryMode(
+        0,
+    );
     /// Specifies that the shared memory size requested must be a portable size within [cudaDevAttrMaxSharedMemoryPerBlock](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1gga49e2f8c2c0bd6fe264f2fc970912e5cdacf1490f9974e877131048b1b3eb8bdcc).
-    cudaSharedMemoryModeRequirePortable = 1,
+    pub const cudaSharedMemoryModeRequirePortable: cudaSharedMemoryMode = cudaSharedMemoryMode(
+        1,
+    );
     /// Specifies that the shared memory size requested may be a non-portable size up to [cudaDevAttrMaxSharedMemoryPerBlockOptin](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1gga49e2f8c2c0bd6fe264f2fc970912e5cda024f669ca60d8ff7b3126dbfc61fd925).
-    cudaSharedMemoryModeAllowNonPortable = 2,
+    pub const cudaSharedMemoryModeAllowNonPortable: cudaSharedMemoryMode = cudaSharedMemoryMode(
+        2,
+    );
     /// Specifies that oversized shared memory configurations may be used (with the limitation of only 8kB L1 cache).
-    cudaSharedMemoryModeAllowOversizedSharedMemory = 3,
+    pub const cudaSharedMemoryModeAllowOversizedSharedMemory: cudaSharedMemoryMode = cudaSharedMemoryMode(
+        3,
+    );
     /// Specifies that oversized shared memory configurations may be used (with the limitation of only 8kB L1 cache), and prefer an oversized shared memory configuration.
-    cudaSharedMemoryModePreferOversizedSharedMemory = 4,
+    pub const cudaSharedMemoryModePreferOversizedSharedMemory: cudaSharedMemoryMode = cudaSharedMemoryMode(
+        4,
+    );
 }
+/// Shared memory related attributes for use with ::cuLaunchKernelEx.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudaSharedMemoryMode(pub ::core::ffi::c_uint);
 /// CUDA pointer attributes.
 #[repr(C)]
 #[derive(Copy, Clone)]
@@ -968,121 +1069,110 @@ impl Default for cudaFuncAttributes {
         }
     }
 }
-/// CUDA device compute modes.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudaComputeMode {
+impl cudaComputeMode {
     /// Default compute mode (Multiple threads can use [cudaSetDevice()](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__DEVICE.html#group__cudart__device_1ga159587909ffa0791bbe4b40187a4c6bb) with this device).
-    cudaComputeModeDefault = 0,
+    pub const cudaComputeModeDefault: cudaComputeMode = cudaComputeMode(0);
     /// Compute-exclusive-thread mode (Only one thread in one process will be able to use [cudaSetDevice()](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__DEVICE.html#group__cudart__device_1ga159587909ffa0791bbe4b40187a4c6bb) with this device).
-    cudaComputeModeExclusive = 1,
+    pub const cudaComputeModeExclusive: cudaComputeMode = cudaComputeMode(1);
     /// Compute-prohibited mode (No threads can use [cudaSetDevice()](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__DEVICE.html#group__cudart__device_1ga159587909ffa0791bbe4b40187a4c6bb) with this device).
-    cudaComputeModeProhibited = 2,
+    pub const cudaComputeModeProhibited: cudaComputeMode = cudaComputeMode(2);
     /// Compute-exclusive-process mode (Many threads in one process will be able to use [cudaSetDevice()](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__DEVICE.html#group__cudart__device_1ga159587909ffa0791bbe4b40187a4c6bb) with this device).
-    cudaComputeModeExclusiveProcess = 3,
+    pub const cudaComputeModeExclusiveProcess: cudaComputeMode = cudaComputeMode(3);
 }
-/// CUDA Limits.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudaLimit {
+/// CUDA device compute modes.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudaComputeMode(pub ::core::ffi::c_uint);
+impl cudaLimit {
     /// GPU thread stack size.
-    cudaLimitStackSize = 0,
+    pub const cudaLimitStackSize: cudaLimit = cudaLimit(0);
     /// GPU printf FIFO size.
-    cudaLimitPrintfFifoSize = 1,
+    pub const cudaLimitPrintfFifoSize: cudaLimit = cudaLimit(1);
     /// GPU malloc heap size.
-    cudaLimitMallocHeapSize = 2,
+    pub const cudaLimitMallocHeapSize: cudaLimit = cudaLimit(2);
     /// GPU device runtime synchronize depth.
-    cudaLimitDevRuntimeSyncDepth = 3,
+    pub const cudaLimitDevRuntimeSyncDepth: cudaLimit = cudaLimit(3);
     /// GPU device runtime pending launch count.
-    cudaLimitDevRuntimePendingLaunchCount = 4,
+    pub const cudaLimitDevRuntimePendingLaunchCount: cudaLimit = cudaLimit(4);
     /// A value between 0 and 128 that indicates the maximum fetch granularity of L2 (in Bytes).
     ///
     /// This is a hint.
-    cudaLimitMaxL2FetchGranularity = 5,
+    pub const cudaLimitMaxL2FetchGranularity: cudaLimit = cudaLimit(5);
     /// A size in bytes for L2 persisting lines cache size.
-    cudaLimitPersistingL2CacheSize = 6,
+    pub const cudaLimitPersistingL2CacheSize: cudaLimit = cudaLimit(6);
     /// Per-block memory size.
-    cudaLimitPerBlockMemorySize = 10,
+    pub const cudaLimitPerBlockMemorySize: cudaLimit = cudaLimit(10);
 }
-/// Defines the allocation types available.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudaMemAllocationType {
+/// CUDA Limits.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudaLimit(pub ::core::ffi::c_uint);
+impl cudaMemAllocationType {
     /// No valid native memory allocation type is selected.
-    cudaMemAllocationTypeInvalid = 0,
+    pub const cudaMemAllocationTypeInvalid: cudaMemAllocationType = cudaMemAllocationType(
+        0,
+    );
     /// This allocation type is ‘pinned’, i.e.
     ///
     /// cannot migrate from its current location while the application is actively using it.
-    cudaMemAllocationTypePinned = 1,
+    pub const cudaMemAllocationTypePinned: cudaMemAllocationType = cudaMemAllocationType(
+        1,
+    );
     /// This allocation type is managed memory.
-    cudaMemAllocationTypeManaged = 2,
+    pub const cudaMemAllocationTypeManaged: cudaMemAllocationType = cudaMemAllocationType(
+        2,
+    );
     /// ABI sentinel that forces a 32-bit C allocation-type enum representation.
-    cudaMemAllocationTypeMax = 2147483647,
+    pub const cudaMemAllocationTypeMax: cudaMemAllocationType = cudaMemAllocationType(
+        2147483647,
+    );
+}
+/// Defines the allocation types available.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudaMemAllocationType(pub ::core::ffi::c_uint);
+impl cudaAtomicOperation {
+    /// Integer addition. Selects the operation for native atomic-capability queries.
+    pub const cudaAtomicOperationIntegerAdd: cudaAtomicOperation = cudaAtomicOperation(
+        0,
+    );
+    /// Integer minimum. Selects the operation for native atomic-capability queries.
+    pub const cudaAtomicOperationIntegerMin: cudaAtomicOperation = cudaAtomicOperation(
+        1,
+    );
+    /// Integer maximum. Selects the operation for native atomic-capability queries.
+    pub const cudaAtomicOperationIntegerMax: cudaAtomicOperation = cudaAtomicOperation(
+        2,
+    );
+    /// Integer increment. Selects the operation for native atomic-capability queries.
+    pub const cudaAtomicOperationIntegerIncrement: cudaAtomicOperation = cudaAtomicOperation(
+        3,
+    );
+    /// Integer decrement. Selects the operation for native atomic-capability queries.
+    pub const cudaAtomicOperationIntegerDecrement: cudaAtomicOperation = cudaAtomicOperation(
+        4,
+    );
+    /// Bitwise AND. Selects the operation for native atomic-capability queries.
+    pub const cudaAtomicOperationAnd: cudaAtomicOperation = cudaAtomicOperation(5);
+    /// Bitwise OR. Selects the operation for native atomic-capability queries.
+    pub const cudaAtomicOperationOr: cudaAtomicOperation = cudaAtomicOperation(6);
+    /// Bitwise exclusive OR. Selects the operation for native atomic-capability queries.
+    pub const cudaAtomicOperationXOR: cudaAtomicOperation = cudaAtomicOperation(7);
+    /// Atomic exchange. Selects the operation for native atomic-capability queries.
+    pub const cudaAtomicOperationExchange: cudaAtomicOperation = cudaAtomicOperation(8);
+    /// Atomic compare and swap. Selects the operation for native atomic-capability queries.
+    pub const cudaAtomicOperationCAS: cudaAtomicOperation = cudaAtomicOperation(9);
+    /// Floating-point addition. Selects the operation for native atomic-capability queries.
+    pub const cudaAtomicOperationFloatAdd: cudaAtomicOperation = cudaAtomicOperation(10);
+    /// Floating-point minimum. Selects the operation for native atomic-capability queries.
+    pub const cudaAtomicOperationFloatMin: cudaAtomicOperation = cudaAtomicOperation(11);
+    /// Floating-point maximum. Selects the operation for native atomic-capability queries.
+    pub const cudaAtomicOperationFloatMax: cudaAtomicOperation = cudaAtomicOperation(12);
 }
 /// CUDA-valid Atomic Operations.
-#[repr(u32)]
+#[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum cudaAtomicOperation {
-    /// Integer addition. Selects the operation for native atomic-capability queries.
-    cudaAtomicOperationIntegerAdd = 0,
-    /// Integer minimum. Selects the operation for native atomic-capability queries.
-    cudaAtomicOperationIntegerMin = 1,
-    /// Integer maximum. Selects the operation for native atomic-capability queries.
-    cudaAtomicOperationIntegerMax = 2,
-    /// Integer increment. Selects the operation for native atomic-capability queries.
-    cudaAtomicOperationIntegerIncrement = 3,
-    /// Integer decrement. Selects the operation for native atomic-capability queries.
-    cudaAtomicOperationIntegerDecrement = 4,
-    /// Bitwise AND. Selects the operation for native atomic-capability queries.
-    cudaAtomicOperationAnd = 5,
-    /// Bitwise OR. Selects the operation for native atomic-capability queries.
-    cudaAtomicOperationOr = 6,
-    /// Bitwise exclusive OR. Selects the operation for native atomic-capability queries.
-    cudaAtomicOperationXOR = 7,
-    /// Atomic exchange. Selects the operation for native atomic-capability queries.
-    cudaAtomicOperationExchange = 8,
-    /// Atomic compare and swap. Selects the operation for native atomic-capability queries.
-    cudaAtomicOperationCAS = 9,
-    /// Floating-point addition. Selects the operation for native atomic-capability queries.
-    cudaAtomicOperationFloatAdd = 10,
-    /// Floating-point minimum. Selects the operation for native atomic-capability queries.
-    cudaAtomicOperationFloatMin = 11,
-    /// Floating-point maximum. Selects the operation for native atomic-capability queries.
-    cudaAtomicOperationFloatMax = 12,
-}
+pub struct cudaAtomicOperation(pub ::core::ffi::c_uint);
 /// CUDA device properties.
 #[repr(C)]
 pub struct cudaDeviceProp {
@@ -1286,38 +1376,44 @@ impl Default for cudaDeviceProp {
         }
     }
 }
-/// External memory handle types.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudaExternalMemoryHandleType {
+impl cudaExternalMemoryHandleType {
     /// Handle is an opaque file descriptor.
-    cudaExternalMemoryHandleTypeOpaqueFd = 1,
+    pub const cudaExternalMemoryHandleTypeOpaqueFd: cudaExternalMemoryHandleType = cudaExternalMemoryHandleType(
+        1,
+    );
     /// Handle is an opaque shared NT handle.
-    cudaExternalMemoryHandleTypeOpaqueWin32 = 2,
+    pub const cudaExternalMemoryHandleTypeOpaqueWin32: cudaExternalMemoryHandleType = cudaExternalMemoryHandleType(
+        2,
+    );
     /// Handle is an opaque, globally shared handle.
-    cudaExternalMemoryHandleTypeOpaqueWin32Kmt = 3,
+    pub const cudaExternalMemoryHandleTypeOpaqueWin32Kmt: cudaExternalMemoryHandleType = cudaExternalMemoryHandleType(
+        3,
+    );
     /// Handle is a D3D12 heap object.
-    cudaExternalMemoryHandleTypeD3D12Heap = 4,
+    pub const cudaExternalMemoryHandleTypeD3D12Heap: cudaExternalMemoryHandleType = cudaExternalMemoryHandleType(
+        4,
+    );
     /// Handle is a D3D12 committed resource.
-    cudaExternalMemoryHandleTypeD3D12Resource = 5,
+    pub const cudaExternalMemoryHandleTypeD3D12Resource: cudaExternalMemoryHandleType = cudaExternalMemoryHandleType(
+        5,
+    );
     /// Handle is a shared NT handle to a D3D11 resource.
-    cudaExternalMemoryHandleTypeD3D11Resource = 6,
+    pub const cudaExternalMemoryHandleTypeD3D11Resource: cudaExternalMemoryHandleType = cudaExternalMemoryHandleType(
+        6,
+    );
     /// Handle is a globally shared handle to a D3D11 resource.
-    cudaExternalMemoryHandleTypeD3D11ResourceKmt = 7,
+    pub const cudaExternalMemoryHandleTypeD3D11ResourceKmt: cudaExternalMemoryHandleType = cudaExternalMemoryHandleType(
+        7,
+    );
     /// Handle is an NvSciBuf object.
-    cudaExternalMemoryHandleTypeNvSciBuf = 8,
+    pub const cudaExternalMemoryHandleTypeNvSciBuf: cudaExternalMemoryHandleType = cudaExternalMemoryHandleType(
+        8,
+    );
 }
+/// External memory handle types.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudaExternalMemoryHandleType(pub ::core::ffi::c_uint);
 /// External memory handle descriptor.
 #[repr(C)]
 #[derive(Copy, Clone)]
@@ -1434,42 +1530,52 @@ impl Default for cudaExternalMemoryMipmappedArrayDesc {
         }
     }
 }
-/// External semaphore handle types.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudaExternalSemaphoreHandleType {
+impl cudaExternalSemaphoreHandleType {
     /// Handle is an opaque file descriptor.
-    cudaExternalSemaphoreHandleTypeOpaqueFd = 1,
+    pub const cudaExternalSemaphoreHandleTypeOpaqueFd: cudaExternalSemaphoreHandleType = cudaExternalSemaphoreHandleType(
+        1,
+    );
     /// Handle is an opaque shared NT handle.
-    cudaExternalSemaphoreHandleTypeOpaqueWin32 = 2,
+    pub const cudaExternalSemaphoreHandleTypeOpaqueWin32: cudaExternalSemaphoreHandleType = cudaExternalSemaphoreHandleType(
+        2,
+    );
     /// Handle is an opaque, globally shared handle.
-    cudaExternalSemaphoreHandleTypeOpaqueWin32Kmt = 3,
+    pub const cudaExternalSemaphoreHandleTypeOpaqueWin32Kmt: cudaExternalSemaphoreHandleType = cudaExternalSemaphoreHandleType(
+        3,
+    );
     /// Handle is a shared NT handle referencing a D3D12 fence object.
-    cudaExternalSemaphoreHandleTypeD3D12Fence = 4,
+    pub const cudaExternalSemaphoreHandleTypeD3D12Fence: cudaExternalSemaphoreHandleType = cudaExternalSemaphoreHandleType(
+        4,
+    );
     /// Handle is a shared NT handle referencing a D3D11 fence object.
-    cudaExternalSemaphoreHandleTypeD3D11Fence = 5,
+    pub const cudaExternalSemaphoreHandleTypeD3D11Fence: cudaExternalSemaphoreHandleType = cudaExternalSemaphoreHandleType(
+        5,
+    );
     /// Opaque handle to NvSciSync Object.
-    cudaExternalSemaphoreHandleTypeNvSciSync = 6,
+    pub const cudaExternalSemaphoreHandleTypeNvSciSync: cudaExternalSemaphoreHandleType = cudaExternalSemaphoreHandleType(
+        6,
+    );
     /// Handle is a shared NT handle referencing a D3D11 keyed mutex object.
-    cudaExternalSemaphoreHandleTypeKeyedMutex = 7,
+    pub const cudaExternalSemaphoreHandleTypeKeyedMutex: cudaExternalSemaphoreHandleType = cudaExternalSemaphoreHandleType(
+        7,
+    );
     /// Handle is a shared KMT handle referencing a D3D11 keyed mutex object.
-    cudaExternalSemaphoreHandleTypeKeyedMutexKmt = 8,
+    pub const cudaExternalSemaphoreHandleTypeKeyedMutexKmt: cudaExternalSemaphoreHandleType = cudaExternalSemaphoreHandleType(
+        8,
+    );
     /// Handle is an opaque handle file descriptor referencing a timeline semaphore.
-    cudaExternalSemaphoreHandleTypeTimelineSemaphoreFd = 9,
+    pub const cudaExternalSemaphoreHandleTypeTimelineSemaphoreFd: cudaExternalSemaphoreHandleType = cudaExternalSemaphoreHandleType(
+        9,
+    );
     /// Handle is an opaque handle file descriptor referencing a timeline semaphore.
-    cudaExternalSemaphoreHandleTypeTimelineSemaphoreWin32 = 10,
+    pub const cudaExternalSemaphoreHandleTypeTimelineSemaphoreWin32: cudaExternalSemaphoreHandleType = cudaExternalSemaphoreHandleType(
+        10,
+    );
 }
+/// External semaphore handle types.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudaExternalSemaphoreHandleType(pub ::core::ffi::c_uint);
 /// External semaphore handle descriptor.
 #[repr(C)]
 #[derive(Copy, Clone)]
@@ -1700,30 +1806,24 @@ impl Default for cudaExternalSemaphoreWaitParams {
         }
     }
 }
-/// Type of resource.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudaDevResourceType {
+impl cudaDevResourceType {
     /// No valid device resource kind is selected.
-    cudaDevResourceTypeInvalid = 0,
+    pub const cudaDevResourceTypeInvalid: cudaDevResourceType = cudaDevResourceType(0);
     /// Streaming multiprocessors related information.
-    cudaDevResourceTypeSm = 1,
+    pub const cudaDevResourceTypeSm: cudaDevResourceType = cudaDevResourceType(1);
     /// Workqueue configuration related information.
-    cudaDevResourceTypeWorkqueueConfig = 1000,
+    pub const cudaDevResourceTypeWorkqueueConfig: cudaDevResourceType = cudaDevResourceType(
+        1000,
+    );
     /// Pre-existing workqueue related information.
-    cudaDevResourceTypeWorkqueue = 10000,
+    pub const cudaDevResourceTypeWorkqueue: cudaDevResourceType = cudaDevResourceType(
+        10000,
+    );
 }
+/// Type of resource.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudaDevResourceType(pub ::core::ffi::c_uint);
 /// Data for SM-related resources All parameters in this structure are OUTPUT only.
 ///
 /// Do not write to any of the fields in this structure.
@@ -1747,17 +1847,22 @@ pub struct cudaDevSmResource {
     /// Only valid if cudaDevSmResourceConstraintTypeLocalityDomainId is set in flags.
     pub localityDomainId: ::core::ffi::c_uint,
 }
-/// Sharing scope for workqueues.
-#[repr(u32)]
-#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum cudaDevWorkqueueConfigScope {
+impl cudaDevWorkqueueConfigScope {
     /// Use all shared workqueue resources on the device.
     ///
     /// Default driver behavior.
-    cudaDevWorkqueueConfigScopeDeviceCtx = 0,
+    pub const cudaDevWorkqueueConfigScopeDeviceCtx: cudaDevWorkqueueConfigScope = cudaDevWorkqueueConfigScope(
+        0,
+    );
     /// When possible, use non-overlapping workqueue resources with other balanced green contexts.
-    cudaDevWorkqueueConfigScopeGreenCtxBalanced = 1,
+    pub const cudaDevWorkqueueConfigScopeGreenCtxBalanced: cudaDevWorkqueueConfigScope = cudaDevWorkqueueConfigScope(
+        1,
+    );
 }
+/// Sharing scope for workqueues.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudaDevWorkqueueConfigScope(pub ::core::ffi::c_uint);
 /// Data for workqueue configuration related resources.
 #[repr(C)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
@@ -1930,6 +2035,16 @@ pub struct CUgraphDeviceUpdatableNode_st {
 }
 /// CUDA device node handle for device-side node update.
 pub type cudaGraphDeviceNode_t = *mut CUgraphDeviceUpdatableNode_st;
+impl cudaLaunchMemSyncDomain {
+    /// Launch kernels in the default domain.
+    pub const cudaLaunchMemSyncDomainDefault: cudaLaunchMemSyncDomain = cudaLaunchMemSyncDomain(
+        0,
+    );
+    /// Launch kernels in the remote domain.
+    pub const cudaLaunchMemSyncDomainRemote: cudaLaunchMemSyncDomain = cudaLaunchMemSyncDomain(
+        1,
+    );
+}
 /// Memory Synchronization Domain.
 ///
 /// A kernel can be launched in a specified memory synchronization domain that affects all memory operations issued by that kernel. A memory barrier issued in one domain will only order memory operations in that domain, thus eliminating latency increase from memory barriers ordering unrelated traffic.
@@ -1937,25 +2052,9 @@ pub type cudaGraphDeviceNode_t = *mut CUgraphDeviceUpdatableNode_st;
 /// By default, kernels are launched in domain 0. Kernel launched with [`cudaLaunchMemSyncDomain::cudaLaunchMemSyncDomainRemote`] will have a different domain ID. User may also alter the domain ID with [cudaLaunchMemSyncDomainMap](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/structcudaLaunchMemSyncDomainMap.html#structcudalaunchmemsyncdomainmap) for a specific stream / graph node / kernel launch. See [`cudaLaunchAttributeID::cudaLaunchAttributeMemSyncDomain`], [cudaStreamSetAttribute](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__STREAM.html#group__cudart__stream_1gabe4c1a2ce58f747d8fdffe6bc2ed3b32), [cudaLaunchKernelEx](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__HIGHLEVEL.html#group__cudart__highlevel_1ga7d9168c86a4293639c75ea437465ed53), [cudaGraphKernelNodeSetAttribute](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__GRAPH.html#group__cudart__graph_1gace65f436d34408075efbec0f468878ca).
 ///
 /// Memory operations done in kernels launched in different domains are considered system-scope distanced. In other words, a GPU scoped memory synchronization is not sufficient for memory order to be observed by kernels in another memory synchronization domain even if they are on the same GPU.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudaLaunchMemSyncDomain {
-    /// Launch kernels in the default domain.
-    cudaLaunchMemSyncDomainDefault = 0,
-    /// Launch kernels in the remote domain.
-    cudaLaunchMemSyncDomainRemote = 1,
-}
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudaLaunchMemSyncDomain(pub ::core::ffi::c_uint);
 /// Memory Synchronization Domain map
 ///
 /// See ::cudaLaunchMemSyncDomain.
@@ -1979,58 +2078,65 @@ pub struct cudaLaunchMemSyncDomainMap_st {
 ///
 /// Domain ID range is available through [cudaDevAttrMemSyncDomainCount](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1gga49e2f8c2c0bd6fe264f2fc970912e5cda82ae431cc82ee71d008b4e8e9cac06ab).
 pub type cudaLaunchMemSyncDomainMap = cudaLaunchMemSyncDomainMap_st;
-/// Enum for defining applicability of portable cluster size, used with [cudaLaunchKernelEx](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__HIGHLEVEL.html#group__cudart__highlevel_1ga7d9168c86a4293639c75ea437465ed53).
-#[repr(u32)]
-#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum cudaLaunchAttributePortableClusterMode {
+impl cudaLaunchAttributePortableClusterMode {
     /// The default to use for allowing non-portable cluster size on launch - uses current function attribute for [cudaFuncAttributeNonPortableClusterSizeAllowed](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1ggac6c537b33d22c871a103f0fda8ac8bbea7c8c14bf3a2b16ea255c98439d5c54c6).
-    cudaLaunchPortableClusterModeDefault = 0,
+    pub const cudaLaunchPortableClusterModeDefault: cudaLaunchAttributePortableClusterMode = cudaLaunchAttributePortableClusterMode(
+        0,
+    );
     /// Specifies that the cluster size requested must be a portable size.
-    cudaLaunchPortableClusterModeRequirePortable = 1,
+    pub const cudaLaunchPortableClusterModeRequirePortable: cudaLaunchAttributePortableClusterMode = cudaLaunchAttributePortableClusterMode(
+        1,
+    );
     /// Specifies that the cluster size requested may be a non-portable size.
-    cudaLaunchPortableClusterModeAllowNonPortable = 2,
+    pub const cudaLaunchPortableClusterModeAllowNonPortable: cudaLaunchAttributePortableClusterMode = cudaLaunchAttributePortableClusterMode(
+        2,
+    );
 }
-/// Launch attributes enum; used as id field of [cudaLaunchAttribute](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/structcudaLaunchAttribute.html#structcudalaunchattribute).
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cudaLaunchAttributeID {
+/// Enum for defining applicability of portable cluster size, used with [cudaLaunchKernelEx](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__HIGHLEVEL.html#group__cudart__highlevel_1ga7d9168c86a4293639c75ea437465ed53).
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudaLaunchAttributePortableClusterMode(pub ::core::ffi::c_uint);
+impl cudaLaunchAttributeID {
     /// Ignored entry, for convenient composition.
-    cudaLaunchAttributeIgnore = 0,
+    pub const cudaLaunchAttributeIgnore: cudaLaunchAttributeID = cudaLaunchAttributeID(
+        0,
+    );
     /// Valid for streams, graph nodes, launches.
     ///
     /// See [cudaLaunchAttributeValue::accessPolicyWindow](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/unioncudaLaunchAttributeValue.html#unioncudalaunchattributevalue_1a2651ad62e74da106b5e84b2e269e3d2f).
-    cudaLaunchAttributeAccessPolicyWindow = 1,
+    pub const cudaLaunchAttributeAccessPolicyWindow: cudaLaunchAttributeID = cudaLaunchAttributeID(
+        1,
+    );
     /// Valid for graph nodes, launches.
     ///
     /// See [cudaLaunchAttributeValue::cooperative](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/unioncudaLaunchAttributeValue.html#unioncudalaunchattributevalue_1a65547cda37105f05546238637fef02d4).
-    cudaLaunchAttributeCooperative = 2,
+    pub const cudaLaunchAttributeCooperative: cudaLaunchAttributeID = cudaLaunchAttributeID(
+        2,
+    );
     /// Valid for streams.
     ///
     /// See [cudaLaunchAttributeValue::syncPolicy](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/unioncudaLaunchAttributeValue.html#unioncudalaunchattributevalue_1af1c0a1fba8d619e14a27e1a5ffe8eb4e).
-    cudaLaunchAttributeSynchronizationPolicy = 3,
+    pub const cudaLaunchAttributeSynchronizationPolicy: cudaLaunchAttributeID = cudaLaunchAttributeID(
+        3,
+    );
     /// Valid for graph nodes, launches.
     ///
     /// See [cudaLaunchAttributeValue::clusterDim](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/unioncudaLaunchAttributeValue.html#unioncudalaunchattributevalue_1ace974195e356be8b43c67ce0c562cbd6).
-    cudaLaunchAttributeClusterDimension = 4,
+    pub const cudaLaunchAttributeClusterDimension: cudaLaunchAttributeID = cudaLaunchAttributeID(
+        4,
+    );
     /// Valid for graph nodes, launches.
     ///
     /// See [cudaLaunchAttributeValue::clusterSchedulingPolicyPreference](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/unioncudaLaunchAttributeValue.html#unioncudalaunchattributevalue_1a22bc4df8c928315c4d1a519d5bb7c200).
-    cudaLaunchAttributeClusterSchedulingPolicyPreference = 5,
+    pub const cudaLaunchAttributeClusterSchedulingPolicyPreference: cudaLaunchAttributeID = cudaLaunchAttributeID(
+        5,
+    );
     /// Valid for launches.
     ///
     /// Setting [cudaLaunchAttributeValue::programmaticStreamSerializationAllowed](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/unioncudaLaunchAttributeValue.html#unioncudalaunchattributevalue_1aef5afeecd2e7bc285f24c309694b315f) to non-0 signals that the kernel will use programmatic means to resolve its stream dependency, so that the CUDA runtime should opportunistically allow the grid’s execution to overlap with the previous kernel in the stream, if that kernel requests the overlap. The dependent launches can choose to wait on the dependency using the programmatic sync ([cudaGridDependencySynchronize()](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__EXECUTION.html#group__cudart__execution_1ga9057f99234a8311c4c5d426cd501d99d) or equivalent PTX instructions).
-    cudaLaunchAttributeProgrammaticStreamSerialization = 6,
+    pub const cudaLaunchAttributeProgrammaticStreamSerialization: cudaLaunchAttributeID = cudaLaunchAttributeID(
+        6,
+    );
     /// Valid for launches.
     ///
     /// Set [cudaLaunchAttributeValue::programmaticEvent](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/unioncudaLaunchAttributeValue.html#unioncudalaunchattributevalue_1ad53249ac5e1d0f756abdbc2b2b1f42b1) to record the event. Event recorded through this launch attribute is guaranteed to only trigger after all block in the associated kernel trigger the event. A block can trigger the event programmatically in a future CUDA release. A trigger can also be inserted at the beginning of each block’s execution if triggerAtBlockStart is set to non-0. The dependent launches can choose to wait on the dependency using the programmatic sync ([cudaGridDependencySynchronize()](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__EXECUTION.html#group__cudart__execution_1ga9057f99234a8311c4c5d426cd501d99d) or equivalent PTX instructions). Note that dependents (including the CPU thread calling [cudaEventSynchronize()](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__EVENT.html#group__cudart__event_1ga949aa42b30ae9e622f6ba0787129ff22)) are not guaranteed to observe the release precisely when it is released. For example, [cudaEventSynchronize()](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__EVENT.html#group__cudart__event_1ga949aa42b30ae9e622f6ba0787129ff22)
@@ -2038,19 +2144,27 @@ pub enum cudaLaunchAttributeID {
     /// may only observe the event trigger long after the associated kernel has completed. This recording type is primarily meant for establishing programmatic dependency between device tasks. Note also this type of dependency allows, but does not guarantee, concurrent execution of tasks.
     ///
     /// The event supplied must not be an interprocess or interop event. The event must disable timing (i.e. must be created with the.
-    cudaLaunchAttributeProgrammaticEvent = 7,
+    pub const cudaLaunchAttributeProgrammaticEvent: cudaLaunchAttributeID = cudaLaunchAttributeID(
+        7,
+    );
     /// Valid for streams, graph nodes, launches.
     ///
     /// See [cudaLaunchAttributeValue::priority](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/unioncudaLaunchAttributeValue.html#unioncudalaunchattributevalue_1afbb47c87ab6783ea8bf2740de62e0698).
-    cudaLaunchAttributePriority = 8,
+    pub const cudaLaunchAttributePriority: cudaLaunchAttributeID = cudaLaunchAttributeID(
+        8,
+    );
     /// Valid for streams, graph nodes, launches.
     ///
     /// See [cudaLaunchAttributeValue::memSyncDomainMap](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/unioncudaLaunchAttributeValue.html#unioncudalaunchattributevalue_1a1eac2ba78a074529a8f8f22a50cfe6f8).
-    cudaLaunchAttributeMemSyncDomainMap = 9,
+    pub const cudaLaunchAttributeMemSyncDomainMap: cudaLaunchAttributeID = cudaLaunchAttributeID(
+        9,
+    );
     /// Valid for streams, graph nodes, launches.
     ///
     /// See [cudaLaunchAttributeValue::memSyncDomain](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/unioncudaLaunchAttributeValue.html#unioncudalaunchattributevalue_1a88c32c6eab183c58133c77a6634a2f48).
-    cudaLaunchAttributeMemSyncDomain = 10,
+    pub const cudaLaunchAttributeMemSyncDomain: cudaLaunchAttributeID = cudaLaunchAttributeID(
+        10,
+    );
     /// Valid for graph nodes and launches.
     ///
     /// Set [cudaLaunchAttributeValue::preferredClusterDim](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/unioncudaLaunchAttributeValue.html#unioncudalaunchattributevalue_1aac671df7c302681278c372743a4f242e) to allow the kernel launch to specify a preferred substitute cluster dimension. Blocks may be grouped according to either the dimensions specified with this attribute (grouped into a “preferred substitute cluster”), or the one specified with [`cudaLaunchAttributeID::cudaLaunchAttributeClusterDimension`]
@@ -2058,7 +2172,9 @@ pub enum cudaLaunchAttributeID {
     /// attribute (grouped into a “regular cluster”). The cluster dimensions of a “preferred substitute cluster” shall be an integer multiple greater than zero of the regular cluster dimensions. The device will attempt - on a best-effort basis - to group thread blocks into preferred clusters over grouping them into regular clusters. When it deems necessary (primarily when the device temporarily runs out of physical resources to launch the larger preferred clusters), the device may switch to launch the regular clusters instead to attempt to utilize as much of the physical device resources as possible.
     ///
     /// Each type of cluster will have its enumeration / coordinate setup as if the grid consists solely of its type of cluster. For example, if the preferred substitute cluster dimensions double the regular cluster dimensions, there might be simultaneously a regular cluster indexed at (1,0,0), and a preferred cluster indexed at (1,0,0). In this example, the preferred substitute cluster (1,0,0) replaces regular clusters (2,0,0) and (3,0,0) and groups their blocks.
-    cudaLaunchAttributePreferredClusterDimension = 11,
+    pub const cudaLaunchAttributePreferredClusterDimension: cudaLaunchAttributeID = cudaLaunchAttributeID(
+        11,
+    );
     /// Valid for launches.
     ///
     /// Set [cudaLaunchAttributeValue::launchCompletionEvent](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/unioncudaLaunchAttributeValue.html#unioncudalaunchattributevalue_1ac8e50a6ccc9c885b420d21fd7c2fea7e)
@@ -2070,7 +2186,9 @@ pub enum cudaLaunchAttributeID {
     /// and can be used with compute capability less than 9.0.
     ///
     /// The event supplied must not be an interprocess or interop event. The event must disable timing (i.e. must be created with the.
-    cudaLaunchAttributeLaunchCompletionEvent = 12,
+    pub const cudaLaunchAttributeLaunchCompletionEvent: cudaLaunchAttributeID = cudaLaunchAttributeID(
+        12,
+    );
     /// Valid for graph nodes, launches.
     ///
     /// This attribute is graphs-only, and passing it to a launch in a non-capturing stream will result in an error.
@@ -2084,11 +2202,15 @@ pub enum cudaLaunchAttributeID {
     /// .
     ///
     /// If a graph contains device-updatable nodes and updates those nodes from the device from within the graph, the graph must be uploaded with ::cuGraphUpload before it is launched. For such a graph, if host-side executable graph updates are made to the device-updatable nodes, the graph must be uploaded before it is launched again.
-    cudaLaunchAttributeDeviceUpdatableKernelNode = 13,
+    pub const cudaLaunchAttributeDeviceUpdatableKernelNode: cudaLaunchAttributeID = cudaLaunchAttributeID(
+        13,
+    );
     /// Valid for launches.
     ///
     /// On devices where the L1 cache and shared memory use the same hardware resources, setting [cudaLaunchAttributeValue::sharedMemCarveout](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/unioncudaLaunchAttributeValue.html#unioncudalaunchattributevalue_1a5b20c278c86e5f0cfb34cd91c70c1bdd) to a percentage between 0-100 signals sets the shared memory carveout preference in percent of the total shared memory for that kernel launch. This attribute takes precedence over [cudaFuncAttributePreferredSharedMemoryCarveout](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1ggac6c537b33d22c871a103f0fda8ac8bbead410365fab79998b26bf68000cac7194). This is only a hint, and the driver can choose a different configuration if required for the launch.
-    cudaLaunchAttributePreferredSharedMemoryCarveout = 14,
+    pub const cudaLaunchAttributePreferredSharedMemoryCarveout: cudaLaunchAttributeID = cudaLaunchAttributeID(
+        14,
+    );
     /// Valid for streams, graph nodes, launches.
     ///
     /// This attribute is a hint to the CUDA runtime that the launch should attempt to make the kernel maximize its NVLINK utilization.
@@ -2098,16 +2220,26 @@ pub enum cudaLaunchAttributeID {
     /// This attribute is a hint only. CUDA makes no functional or performance guarantee. Its applicability can be affected by many different factors, including driver version (i.e. CUDA doesn’t guarantee the performance characteristics will be maintained between driver versions or a driver update could alter or regress previously observed perf characteristics.) It also doesn’t guarantee a successful result, i.e. applying the attribute may not improve the performance of either the targeted kernel or the encapsulating application.
     ///
     /// Valid values for.
-    cudaLaunchAttributeNvlinkUtilCentricScheduling = 16,
+    pub const cudaLaunchAttributeNvlinkUtilCentricScheduling: cudaLaunchAttributeID = cudaLaunchAttributeID(
+        16,
+    );
     /// Valid for graph nodes, launches.
     ///
     /// This indicates whether the kernel launch is allowed to use a non-portable cluster size. Valid values for [cudaLaunchAttributeValue::portableClusterSizeMode](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/unioncudaLaunchAttributeValue.html#unioncudalaunchattributevalue_1a36a3fac80c29bafc05cda73b5071e7a6) are values for [`cudaLaunchAttributePortableClusterMode`] Any other value will return [cudaErrorInvalidValue](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1gga3f51e3575c2178246db0a94a430e0038a3e8aef5398ee38e28ed41e357b48917c).
-    cudaLaunchAttributePortableClusterSizeMode = 17,
+    pub const cudaLaunchAttributePortableClusterSizeMode: cudaLaunchAttributeID = cudaLaunchAttributeID(
+        17,
+    );
     /// Valid for graph nodes, launches.
     ///
     /// This indicates that the kernel launch is allowed to use a non-portable shared memory mode.
-    cudaLaunchAttributeSharedMemoryMode = 18,
+    pub const cudaLaunchAttributeSharedMemoryMode: cudaLaunchAttributeID = cudaLaunchAttributeID(
+        18,
+    );
 }
+/// Launch attributes enum; used as id field of [cudaLaunchAttribute](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/structcudaLaunchAttribute.html#structcudalaunchattribute).
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudaLaunchAttributeID(pub ::core::ffi::c_uint);
 /// Launch attributes union; used as value field of ::cudaLaunchAttribute
 #[repr(C)]
 pub struct cudaLaunchAttributeValue {
@@ -2317,15 +2449,16 @@ impl Default for cudaLaunchConfig_st {
 }
 /// CUDA extensible launch configuration.
 pub type cudaLaunchConfig_t = cudaLaunchConfig_st;
-/// Severity of a CUDA runtime log message.
-#[repr(u32)]
-#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum CUDAlogLevel_enum {
+impl CUDAlogLevel_enum {
     /// A CUDA runtime error message.
-    cudaLogLevelError = 0,
+    pub const cudaLogLevelError: CUDAlogLevel_enum = CUDAlogLevel_enum(0);
     /// A CUDA runtime warning message.
-    cudaLogLevelWarning = 1,
+    pub const cudaLogLevelWarning: CUDAlogLevel_enum = CUDAlogLevel_enum(1);
 }
+/// Severity of a CUDA runtime log message.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct CUDAlogLevel_enum(pub ::core::ffi::c_uint);
 pub use self::CUDAlogLevel_enum as cudaLogLevel;
 /// Incomplete native type used by [`cudaLogsCallbackHandle`] handles. The native API owns its layout.
 #[repr(C)]

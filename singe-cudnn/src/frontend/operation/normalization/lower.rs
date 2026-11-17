@@ -1,12 +1,10 @@
 use crate::{
-    backend::{
-        execution::normalization::{
-            BatchNormalizationBackwardWeightsOperation, BatchNormalizationFinalizeStatsConfig,
-            BatchNormalizationFinalizeStatsOperation, NormalizationBackwardConfig,
-            NormalizationBackwardOperation, NormalizationBackwardTensors,
-            NormalizationForwardConfig, NormalizationForwardOperation, NormalizationForwardTensors,
-        },
-        normalization::{BackendNormalizationForwardPhase, BackendNormalizationMode},
+    backend::operation::normalization::{
+        BackendNormalizationForwardPhase, BackendNormalizationMode,
+        BatchNormalizationBackwardWeightsOperation, BatchNormalizationFinalizeStatsOperation,
+        BatchNormalizationFinalizeStatsSpec, NormalizationBackwardOperation,
+        NormalizationBackwardSpec, NormalizationBackwardTensors, NormalizationForwardOperation,
+        NormalizationForwardSpec, NormalizationForwardTensors,
     },
     error::Result,
     frontend::{
@@ -91,7 +89,7 @@ impl NormalizationOperation {
                 outputs,
                 config,
             } => LoweredOperation::LayerNormalization(NormalizationForwardOperation::create(
-                &NormalizationForwardConfig::new(
+                &NormalizationForwardSpec::new(
                     BackendNormalizationMode::Layer,
                     outputs.statistics.phase(),
                 ),
@@ -110,7 +108,7 @@ impl NormalizationOperation {
                 outputs,
                 config,
             } => LoweredOperation::RmsNormalization(NormalizationForwardOperation::create(
-                &NormalizationForwardConfig::new(
+                &NormalizationForwardSpec::new(
                     BackendNormalizationMode::Rms,
                     outputs.statistics.phase(),
                 ),
@@ -127,7 +125,7 @@ impl NormalizationOperation {
                 inputs, outputs, ..
             } => LoweredOperation::LayerNormalizationBackward(
                 NormalizationBackwardOperation::create(
-                    &NormalizationBackwardConfig::new(BackendNormalizationMode::Layer),
+                    &NormalizationBackwardSpec::new(BackendNormalizationMode::Layer),
                     NormalizationBackwardTensors {
                         mean: Some(inputs.statistics.mean),
                         scale: inputs.scale,
@@ -147,7 +145,7 @@ impl NormalizationOperation {
                 inputs, outputs, ..
             } => {
                 LoweredOperation::RmsNormalizationBackward(NormalizationBackwardOperation::create(
-                    &NormalizationBackwardConfig::new(BackendNormalizationMode::Rms),
+                    &NormalizationBackwardSpec::new(BackendNormalizationMode::Rms),
                     NormalizationBackwardTensors {
                         scale: inputs.scale,
                         scale_gradient: outputs.affine.map(|affine| affine.scale_gradient),
@@ -167,7 +165,7 @@ impl NormalizationOperation {
                 outputs,
                 config,
             } => LoweredOperation::InstanceNormalization(NormalizationForwardOperation::create(
-                &NormalizationForwardConfig::new(
+                &NormalizationForwardSpec::new(
                     BackendNormalizationMode::Instance,
                     outputs.statistics.phase(),
                 ),
@@ -185,7 +183,7 @@ impl NormalizationOperation {
                 inputs, outputs, ..
             } => LoweredOperation::InstanceNormalizationBackward(
                 NormalizationBackwardOperation::create(
-                    &NormalizationBackwardConfig::new(BackendNormalizationMode::Instance),
+                    &NormalizationBackwardSpec::new(BackendNormalizationMode::Instance),
                     NormalizationBackwardTensors {
                         mean: Some(inputs.statistics.mean),
                         scale: Some(inputs.scale),
@@ -206,7 +204,7 @@ impl NormalizationOperation {
                 outputs,
                 config,
             } => LoweredOperation::BatchNormalization(NormalizationForwardOperation::create(
-                &NormalizationForwardConfig::new(
+                &NormalizationForwardSpec::new(
                     BackendNormalizationMode::Batch,
                     BackendNormalizationForwardPhase::Training,
                 ),
@@ -231,7 +229,7 @@ impl NormalizationOperation {
             Self::BatchInference { inputs, output, .. } => {
                 LoweredOperation::BatchNormalizationInference(
                     NormalizationForwardOperation::create(
-                        &NormalizationForwardConfig::new(
+                        &NormalizationForwardSpec::new(
                             BackendNormalizationMode::Batch,
                             BackendNormalizationForwardPhase::Inference,
                         ),
@@ -254,7 +252,7 @@ impl NormalizationOperation {
                 BatchNormalizationFinalizeStatsOperation::create(
                     (*inputs).try_map(|id| tensor_at(tensors, id))?,
                     (*outputs).try_map(|id| tensor_at(tensors, id))?,
-                    BatchNormalizationFinalizeStatsConfig::new(
+                    BatchNormalizationFinalizeStatsSpec::new(
                         config.mode(),
                         context.compute_data_type(config.compute_type()),
                         config.epsilon(),
@@ -269,7 +267,7 @@ impl NormalizationOperation {
                 config,
             } => LoweredOperation::BatchNormalizationBackward(
                 NormalizationBackwardOperation::create(
-                    &NormalizationBackwardConfig::new(BackendNormalizationMode::Batch),
+                    &NormalizationBackwardSpec::new(BackendNormalizationMode::Batch),
                     NormalizationBackwardTensors {
                         mean: Some(inputs.statistics.mean),
                         scale: Some(inputs.scale),
@@ -303,7 +301,7 @@ impl NormalizationOperation {
                 config,
             } => {
                 LoweredOperation::AdaptiveLayerNormalization(NormalizationForwardOperation::create(
-                    &NormalizationForwardConfig::new(
+                    &NormalizationForwardSpec::new(
                         BackendNormalizationMode::AdaLayerNorm,
                         outputs.statistics.phase(),
                     ),
@@ -322,7 +320,7 @@ impl NormalizationOperation {
                 inputs, outputs, ..
             } => LoweredOperation::AdaptiveLayerNormalizationBackward(
                 NormalizationBackwardOperation::create(
-                    &NormalizationBackwardConfig::new(BackendNormalizationMode::AdaLayerNorm),
+                    &NormalizationBackwardSpec::new(BackendNormalizationMode::AdaLayerNorm),
                     NormalizationBackwardTensors {
                         mean: Some(inputs.statistics.mean),
                         scale: Some(inputs.scale),

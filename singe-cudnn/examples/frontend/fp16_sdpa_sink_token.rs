@@ -2,9 +2,7 @@ mod common;
 
 use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
-    backend::tensor::{Shape, TensorId, TensorSpec},
     data_type::{DataType, bf16},
-    error::Result,
     frontend::{
         composite::sdpa::{SdpaForwardOutputTensors, SdpaInputs},
         graph::{DataTypePolicy, Graph, GraphConfig, TensorOutputConfig},
@@ -14,6 +12,7 @@ use singe_cudnn::{
         },
         plan::{CompileConfig, ExecuteArgs, HeuristicMode},
     },
+    tensor::{Shape, TensorId, TensorSpec},
 };
 
 fn init_bf16_image(size: usize, seed: &mut u32) -> Vec<bf16> {
@@ -23,7 +22,11 @@ fn init_bf16_image(size: usize, seed: &mut u32) -> Vec<bf16> {
         .collect()
 }
 
-fn run() -> Result<()> {
+#[expect(
+    clippy::many_single_char_names,
+    reason = "keeps the upstream sample's single-letter dimension names"
+)]
+fn run() -> anyhow::Result<()> {
     let context = common::ExampleContext::create()?;
 
     let b = 3_i64;
@@ -38,7 +41,7 @@ fn run() -> Result<()> {
     let mut graph = Graph::with_config(
         GraphConfig::new().with_data_type_policy(
             DataTypePolicy::new()
-                .with_io(DataType::BF16)
+                .with_io(DataType::Bf16)
                 .with_intermediate(DataType::F32)
                 .with_compute(DataType::F32),
         ),
@@ -47,7 +50,7 @@ fn run() -> Result<()> {
     let q = graph.insert_tensor(
         TensorId::new(1001),
         TensorSpec::new(
-            DataType::BF16,
+            DataType::Bf16,
             Shape::with_strides(
                 [b, h_q, s_q, d_qk],
                 vec![h_q * s_q * d_qk, s_q * d_qk, d_qk, 1],
@@ -57,7 +60,7 @@ fn run() -> Result<()> {
     let k = graph.insert_tensor(
         TensorId::new(1002),
         TensorSpec::new(
-            DataType::BF16,
+            DataType::Bf16,
             Shape::with_strides(
                 [b, h_k, s_kv, d_qk],
                 vec![h_k * s_kv * d_qk, s_kv * d_qk, d_qk, 1],
@@ -67,7 +70,7 @@ fn run() -> Result<()> {
     let v = graph.insert_tensor(
         TensorId::new(1003),
         TensorSpec::new(
-            DataType::BF16,
+            DataType::Bf16,
             Shape::with_strides(
                 [b, h_v, s_kv, d_v],
                 vec![h_v * s_kv * d_v, s_kv * d_v, d_v, 1],
@@ -83,12 +86,12 @@ fn run() -> Result<()> {
         ),
     )?;
 
-    let outputs = graph.sdpa_auto(
+    let outputs = graph.sdpa(
         SdpaInputs {
             query: q,
             key: k,
             value: v,
-            scale: scale,
+            scale,
         },
         AttentionConfig::new()
             .with_compute_type(DataType::F32)
@@ -108,7 +111,7 @@ fn run() -> Result<()> {
     graph.replace_tensor(
         o,
         TensorSpec::new(
-            DataType::BF16,
+            DataType::Bf16,
             Shape::with_strides([b, h_q, s_q, d_v], vec![h_q * d_v, d_v, b * h_q * d_v, 1])?,
         )
         .output_tensor(),
@@ -125,22 +128,28 @@ fn run() -> Result<()> {
     let mut seed = 123_456_789_u32;
     let mut q_dev = DeviceMemory::from_slice(
         context.cudnn.cuda_context(),
-        &init_bf16_image((b * h_q * s_q * d_qk) as usize, &mut seed),
+        &init_bf16_image(usize::try_from(b * h_q * s_q * d_qk)?, &mut seed),
     )?;
     let mut k_dev = DeviceMemory::from_slice(
         context.cudnn.cuda_context(),
-        &init_bf16_image((b * h_k * s_kv * d_qk) as usize, &mut seed),
+        &init_bf16_image(usize::try_from(b * h_k * s_kv * d_qk)?, &mut seed),
     )?;
     let mut v_dev = DeviceMemory::from_slice(
         context.cudnn.cuda_context(),
-        &init_bf16_image((b * h_v * s_kv * d_v) as usize, &mut seed),
+        &init_bf16_image(usize::try_from(b * h_v * s_kv * d_v)?, &mut seed),
     )?;
-    let mut sink_token_dev =
-        DeviceMemory::from_slice(context.cudnn.cuda_context(), &vec![0.0_f32; h_q as usize])?;
-    let mut o_dev =
-        DeviceMemory::<bf16>::zeroed(context.cudnn.cuda_context(), (b * h_q * s_q * d_v) as usize)?;
-    let mut stats_dev =
-        DeviceMemory::<f32>::zeroed(context.cudnn.cuda_context(), (b * h_q * s_q) as usize)?;
+    let mut sink_token_dev = DeviceMemory::from_slice(
+        context.cudnn.cuda_context(),
+        &vec![0.0_f32; usize::try_from(h_q)?],
+    )?;
+    let mut o_dev = DeviceMemory::<bf16>::zeroed(
+        context.cudnn.cuda_context(),
+        usize::try_from(b * h_q * s_q * d_v)?,
+    )?;
+    let mut stats_dev = DeviceMemory::<f32>::zeroed(
+        context.cudnn.cuda_context(),
+        usize::try_from(b * h_q * s_q)?,
+    )?;
     let mut workspace = common::workspace(context.cudnn.cuda_context(), compiled.workspace_size())?;
 
     let mut bindings = compiled.bindings()?;
@@ -152,15 +161,15 @@ fn run() -> Result<()> {
     bindings.set(stats, &mut stats_dev)?;
     // SAFETY: the example retains its plan and buffers through the surrounding completion or replay sequence.
     unsafe {
-        compiled.execute(
+        compiled.execute_async(
             &context.cudnn,
-            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
         )
     }?;
 
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_fp16_sdpa_sink_token", run())
 }

@@ -22,37 +22,23 @@ pub struct CompressedChunk<C: BatchedCodec> {
 }
 
 impl<C: BatchedCodec> CompressedChunk<C> {
-    /// Creates a chunk from compressed data in the first `bytes` bytes of `memory`.
+    /// Creates a chunk from its compressed bytes, uncompressed size, and decompression options.
     ///
     /// # Safety
     ///
-    /// The first `bytes` bytes of `memory` must be valid compressed data for codec `C` and `decoding_options` that decompresses to `uncompressed_bytes` bytes.
-    /// The work that wrote them must have finished, and nothing else may write to the allocation.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if `bytes` exceeds the size of `memory`.
-    pub unsafe fn create(
-        memory: DeviceMemory<MaybeUninit<u8>>,
-        bytes: usize,
-        uncompressed_bytes: usize,
-        decoding_options: C::DecompressOptions,
-    ) -> Result<Self> {
-        if bytes > memory.len() {
-            return Err(Error::LengthMismatch {
-                name: "compressed chunk bytes".into(),
-                expected: bytes,
-                actual: memory.len(),
-            });
-        }
-
-        // SAFETY: the caller establishes completed prefix validity.
-        let memory = unsafe { memory.assume_init_prefix(bytes)? };
-        Ok(Self {
+    /// `parts.memory` must hold valid compressed data for codec `C` and `parts.decoding_options` that decompresses to `parts.uncompressed_bytes` bytes.
+    /// The work that wrote it must have finished, and nothing else may write to the allocation.
+    pub unsafe fn from_parts(parts: CompressedChunkParts<C::DecompressOptions>) -> Self {
+        let CompressedChunkParts {
             memory,
             uncompressed_bytes,
             decoding_options,
-        })
+        } = parts;
+        Self {
+            memory,
+            uncompressed_bytes,
+            decoding_options,
+        }
     }
 
     /// Returns the compressed bytes.
@@ -139,7 +125,7 @@ impl<C: BatchedCodec> CompressedBatch<C> {
         }
 
         if stride_bytes == 0 && !chunk_bytes.is_empty() {
-            return Err(Error::InvalidValue {
+            return Err(Error::NotPositive {
                 name: "stride bytes".into(),
             });
         }
@@ -151,19 +137,19 @@ impl<C: BatchedCodec> CompressedBatch<C> {
                     name: "compressed batch bytes".into(),
                 })?;
         if required_bytes > memory.len() {
-            return Err(Error::LengthMismatch {
+            return Err(Error::BufferTooSmall {
                 name: "compressed batch bytes".into(),
-                expected: required_bytes,
+                required: required_bytes,
                 actual: memory.len(),
             });
         }
 
         for &bytes in &chunk_bytes {
             if bytes > stride_bytes {
-                return Err(Error::LengthMismatch {
-                    name: "compressed chunk bytes".into(),
-                    expected: stride_bytes,
-                    actual: bytes,
+                return Err(Error::BufferTooSmall {
+                    name: "stride bytes".into(),
+                    required: bytes,
+                    actual: stride_bytes,
                 });
             }
         }
@@ -256,8 +242,7 @@ impl<C: BatchedCodec> CompressedBatch<C> {
             name: "compressed chunk end".into(),
         })?;
         let region = self.memory.region().slice(start..end)?;
-        // SAFETY: construction establishes that each completed compressed prefix
-        // is initialized; the raw tail is never exposed through this view.
+        // SAFETY: construction requires the first `size` bytes of each slot to be initialized, and the view covers only those bytes.
         Ok(unsafe { DeviceView::from_raw_parts(region, size)? })
     }
 
@@ -267,10 +252,11 @@ impl<C: BatchedCodec> CompressedBatch<C> {
     ///
     /// Returns an error if a chunk does not fit the allocation, which can happen only if the batch was created from inconsistent parts, or the table cannot be allocated.
     pub fn chunks(&self) -> Result<DeviceChunkTable<'_>> {
-        let chunks = (0..self.len())
-            .map(|index| self.chunk(index))
+        let regions = (0..self.len())
+            .map(|index| self.chunk(index).map(DeviceView::into_region))
             .collect::<Result<Vec<_>>>()?;
-        DeviceChunkTable::from_views(self.memory.context(), chunks)
+        // SAFETY: each region comes from an initialized `DeviceView` of a chunk, and the batch keeps those bytes unchanged while borrowed.
+        unsafe { DeviceChunkTable::create(self.memory.context(), regions) }
     }
 
     /// Returns the allocation, slot size, compressed and uncompressed chunk sizes, and decompression options.
@@ -285,7 +271,7 @@ impl<C: BatchedCodec> CompressedBatch<C> {
     }
 }
 
-/// Parts of a [`CompressedChunk`], from [`CompressedChunk::into_parts`].
+/// Parts of a [`CompressedChunk`], from [`CompressedChunk::into_parts`] or for [`CompressedChunk::from_parts`].
 #[derive(Debug)]
 pub struct CompressedChunkParts<O> {
     /// Compressed bytes.

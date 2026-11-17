@@ -22,18 +22,7 @@ pub fn data_type(name: &str, data_type: TensorDataType) -> Result<DataType> {
         TensorDataType::Bfloat16 => Ok(DataType::Bf16),
         TensorDataType::Float8e4m3fn => Ok(DataType::F8E4M3),
         TensorDataType::Float8e5m2 => Ok(DataType::F8E5M2),
-        TensorDataType::Undefined
-        | TensorDataType::Float8e4m3fnuz
-        | TensorDataType::Float8e5m2fnuz
-        | TensorDataType::Float4e2m1
-        | TensorDataType::String
-        | TensorDataType::Complex64
-        | TensorDataType::Complex128
-        | TensorDataType::Uint4
-        | TensorDataType::Int4
-        | TensorDataType::Float8e8m0
-        | TensorDataType::Uint2
-        | TensorDataType::Int2 => Err(Error::UnsupportedType {
+        _ => Err(Error::UnsupportedType {
             name: name.into(),
             data_type,
             reason: "no compatible singe tensor dtype".into(),

@@ -1,15 +1,19 @@
-//! Raw FFI bindings for cuSPARSE.
-//!
-//! Prefer the safe `singe-cusparse` crate unless direct NVIDIA ABI access is required.
-
+//! Low-level FFI bindings for cuSPARSE 12.8 (`cusparse.h`).
+//! The library loads at run time through [`singe-loader`](singe_loader), on the first call of one of its functions or up front with [`load`], so building links no NVIDIA library.
+//! If the library or one of its symbols is missing, a function that returns a status returns a failure status, and [`take_absence`] reports what was missing.
+//! Most users want the safe `singe-cusparse` crate.
 #![allow(
     deprecated,
     dead_code,
     non_camel_case_types,
     non_snake_case,
+    non_upper_case_globals,
     unnecessary_transmutes,
     unused_imports,
     unused_qualifications,
+    missing_debug_implementations,
+    unnameable_types,
+    unreachable_pub,
     clippy::correctness,
     clippy::suspicious,
     clippy::complexity,
@@ -18,10 +22,13 @@
     clippy::absolute_paths,
     clippy::pedantic,
     clippy::nursery,
+    clippy::undocumented_unsafe_blocks,
     reason = "generated bindings preserve upstream ABI conventions and documentation"
 )]
 
-use num_enum::{IntoPrimitive, TryFromPrimitive};
+#[cfg(not(feature = "cusparse_12_8"))]
+compile_error!("singe-cusparse-sys requires a version feature, such as `cusparse_12_8`");
+
 use singe_cuda_sys::{
     library_types::{cudaDataType, cudaDataType_t, libraryPropertyType},
     runtime::cudaStream_t,
@@ -30,11 +37,15 @@ use singe_cuda_sys::{
 #[cfg(feature = "cusparse_12_8")]
 include!("sys_12806.rs");
 
-pub use singe_loader::LoadError;
+pub use singe_loader::{Absence, LoadError, take_absence};
 
 static LIBRARY: singe_loader::Library = singe_loader::Library::cusparse();
 
-// Loads cuSPARSE, which each of its functions otherwise does on first call.
+/// Loads cuSPARSE now, instead of on the first call of one of its functions.
+///
+/// # Errors
+///
+/// Returns an error if the library has no files on this platform or one of its files would not load.
 pub fn load() -> Result<(), LoadError> {
     LIBRARY.load()
 }
@@ -48,31 +59,27 @@ singe_loader::missing_status!(
 
 // The getters of a matrix descriptor's settings return them directly, so a missing one returns each setting's first value.
 #[cfg(feature = "cusparse_12_8")]
-singe_loader::missing_status!(
+singe_loader::missing_value!(
     cusparseMatrixType_t,
-    library: cusparseMatrixType_t::CUSPARSE_MATRIX_TYPE_GENERAL,
-    symbol: cusparseMatrixType_t::CUSPARSE_MATRIX_TYPE_GENERAL,
+    cusparseMatrixType_t::CUSPARSE_MATRIX_TYPE_GENERAL
 );
 
 #[cfg(feature = "cusparse_12_8")]
-singe_loader::missing_status!(
+singe_loader::missing_value!(
     cusparseFillMode_t,
-    library: cusparseFillMode_t::CUSPARSE_FILL_MODE_LOWER,
-    symbol: cusparseFillMode_t::CUSPARSE_FILL_MODE_LOWER,
+    cusparseFillMode_t::CUSPARSE_FILL_MODE_LOWER
 );
 
 #[cfg(feature = "cusparse_12_8")]
-singe_loader::missing_status!(
+singe_loader::missing_value!(
     cusparseDiagType_t,
-    library: cusparseDiagType_t::CUSPARSE_DIAG_TYPE_NON_UNIT,
-    symbol: cusparseDiagType_t::CUSPARSE_DIAG_TYPE_NON_UNIT,
+    cusparseDiagType_t::CUSPARSE_DIAG_TYPE_NON_UNIT
 );
 
 #[cfg(feature = "cusparse_12_8")]
-singe_loader::missing_status!(
+singe_loader::missing_value!(
     cusparseIndexBase_t,
-    library: cusparseIndexBase_t::CUSPARSE_INDEX_BASE_ZERO,
-    symbol: cusparseIndexBase_t::CUSPARSE_INDEX_BASE_ZERO,
+    cusparseIndexBase_t::CUSPARSE_INDEX_BASE_ZERO
 );
 
 #[cfg(test)]

@@ -1,6 +1,9 @@
 use std::panic;
 
-use singe_cuda::testing::{DeviceLock, device_lock, is_unavailable};
+use singe_cuda::{
+    device::Device as CudaDevice,
+    testing::{DeviceLock, device_lock, is_unavailable},
+};
 
 use crate::error::{Error, Result};
 
@@ -13,7 +16,7 @@ use crate::error::{Error, Result};
 /// Panics if device locking fails for any reason other than a missing CUDA driver.
 #[must_use]
 pub fn maybe_lock_device() -> Option<DeviceLock> {
-    match device_lock(0) {
+    match device_lock(CudaDevice::new(0)) {
         Ok(lock) => Some(lock),
         Err(error) if is_unavailable(&error) => None,
         Err(error) => panic::panic_any(format!("cuda device lock failed: {error:?}")),

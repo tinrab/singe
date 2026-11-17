@@ -2,14 +2,15 @@ use std::mem::MaybeUninit;
 
 use singe_cublas::{
     lt::{
-        matmul::{MatmulAlgorithm, matmul_raw},
+        matmul::{MatmulAlgorithm, matmul_async},
         types::Epilogue,
     },
+    scalar::Scalar,
     types::ComputeType,
 };
 use singe_cuda::{
     memory::DeviceMemory,
-    view::{DeviceInputView, DeviceOutput, DeviceOutputView},
+    view::{DeviceInputView, DeviceOutputView},
 };
 
 use crate::{
@@ -115,7 +116,7 @@ pub fn launch_cublaslt_matmul(launch: CublasLtMatmulLaunch<'_>) -> Result<()> {
                     "cuda graph cuBLASLt addend layout differs from the output's",
                 ));
             }
-            Ok(addend.region()?.region().as_ptr())
+            Ok(DeviceInputView::<u8>::create(addend.region()?.region())?)
         })
         .transpose()?;
     let current = current_stream(output.device())?;
@@ -144,29 +145,24 @@ pub fn launch_cublaslt_matmul(launch: CublasLtMatmulLaunch<'_>) -> Result<()> {
         )?;
         let alpha = 1.0_f32;
         let beta = if addend.is_some() { 1.0_f32 } else { 0.0_f32 };
-        let output_pointer = memory.output.as_mut_ptr();
-        let c = addend.map_or_else(
-            || output_pointer.cast_const().cast(),
-            |addend| addend.cast_const().cast(),
-        );
         // SAFETY: the checked layouts describe A, B, C, and D.
-        // With beta zero, cuBLASLt does not read C's values, so the output needs only write access; an addend has the output's layout and lives as long as the compiled graph holds its value.
+        // Without an addend, cuBLASLt reads C from the output with beta zero, so the output needs only write access; an addend has the output's layout and lives as long as the compiled graph holds its value.
         unsafe {
-            matmul_raw(
+            matmul_async(
                 cublaslt,
                 &descriptors.descriptor,
-                (&raw const alpha).cast(),
-                memory.a.as_ptr().cast(),
+                Scalar::host(&alpha),
+                &memory.a,
                 &descriptors.a_layout,
-                memory.b.as_ptr().cast(),
+                &memory.b,
                 &descriptors.b_layout,
-                (&raw const beta).cast(),
-                c,
+                Scalar::host(&beta),
+                addend,
                 &descriptors.output_layout,
-                output_pointer.cast(),
+                &mut memory.output,
                 &descriptors.output_layout,
                 Some(algorithm),
-                workspace.map(|workspace| workspace as &mut dyn DeviceOutput<u8>),
+                workspace.map(DeviceOutputView::from_output),
                 stream,
             )
         }?;

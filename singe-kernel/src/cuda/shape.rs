@@ -5,7 +5,7 @@ use ::cutile::cuda_async::device_buffer::DevicePointer;
 use singe_cuda::types::f16;
 use singe_cuda::{
     stream::Stream,
-    view::{DeviceInput, DeviceOutput},
+    view::{DeviceOutput, DeviceRange},
 };
 
 #[cfg(feature = "cutile")]
@@ -31,7 +31,7 @@ macro_rules! copy_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
         ) -> Result<()> {
             ensure_len(input.len(), out.len())?;
             let stream = stream.to_cuda_core()?;
@@ -87,7 +87,7 @@ macro_rules! transpose_2d_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
             rows: usize,
             cols: usize,
         ) -> Result<()> {
@@ -148,7 +148,7 @@ macro_rules! transpose_last2_rank3_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
             batch: usize,
             rows: usize,
             cols: usize,
@@ -212,7 +212,7 @@ macro_rules! transpose_last2_rank4_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
             dimensions: [usize; 4],
         ) -> Result<()> {
             let len = checked_rank4_len(dimensions)?;
@@ -271,7 +271,7 @@ macro_rules! materialize_rank2_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
             dimensions: [usize; 2],
             input_strides: [usize; 2],
         ) -> Result<()> {
@@ -332,7 +332,7 @@ macro_rules! slice_rank2_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
             output_dimensions: [usize; 2],
             input_dimensions: [usize; 2],
             input_strides: [usize; 2],
@@ -398,7 +398,7 @@ macro_rules! materialize_rank3_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
             dimensions: [usize; 3],
             input_strides: [usize; 3],
         ) -> Result<()> {
@@ -460,7 +460,7 @@ macro_rules! slice_rank3_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
             output_dimensions: [usize; 3],
             input_dimensions: [usize; 3],
             input_strides: [usize; 3],
@@ -527,7 +527,7 @@ macro_rules! pad_rank2_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
             output_dimensions: [usize; 2],
             input_dimensions: [usize; 2],
             input_strides: [usize; 2],
@@ -595,7 +595,7 @@ macro_rules! pad_rank3_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
             output_dimensions: [usize; 3],
             input_dimensions: [usize; 3],
             input_strides: [usize; 3],
@@ -664,7 +664,7 @@ macro_rules! materialize_rank4_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
             dimensions: [usize; 4],
             input_strides: [usize; 4],
         ) -> Result<()> {
@@ -725,7 +725,7 @@ macro_rules! pad_rank4_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
             output_dimensions: [usize; 4],
             input_dimensions: [usize; 4],
             input_strides: [usize; 4],
@@ -793,7 +793,7 @@ macro_rules! slice_rank4_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
             output_dimensions: [usize; 4],
             input_dimensions: [usize; 4],
             input_strides: [usize; 4],
@@ -859,8 +859,8 @@ macro_rules! concat_rank2_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            lhs: &impl DeviceInput<$ty>,
-            rhs: &impl DeviceInput<$ty>,
+            lhs: &impl DeviceRange<$ty>,
+            rhs: &impl DeviceRange<$ty>,
             output_dimensions: [usize; 2],
             lhs_dimensions: [usize; 2],
             lhs_strides: [usize; 2],
@@ -931,8 +931,8 @@ macro_rules! concat_rank3_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            lhs: &impl DeviceInput<$ty>,
-            rhs: &impl DeviceInput<$ty>,
+            lhs: &impl DeviceRange<$ty>,
+            rhs: &impl DeviceRange<$ty>,
             output_dimensions: [usize; 3],
             lhs_dimensions: [usize; 3],
             lhs_strides: [usize; 3],
@@ -1004,8 +1004,8 @@ macro_rules! concat_rank4_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            lhs: &impl DeviceInput<$ty>,
-            rhs: &impl DeviceInput<$ty>,
+            lhs: &impl DeviceRange<$ty>,
+            rhs: &impl DeviceRange<$ty>,
             output_dimensions: [usize; 4],
             lhs_dimensions: [usize; 4],
             lhs_strides: [usize; 4],
@@ -1076,7 +1076,7 @@ macro_rules! repeat_kv_rank4_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
             output_dimensions: [usize; 4],
             input_strides: [usize; 4],
             repeats: usize,
@@ -1139,7 +1139,7 @@ repeat_kv_rank4_fn!(repeat_kv_rank4_i64, i64);
 pub unsafe fn pack_downsample_2d_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    input: &impl DeviceInput<f32>,
+    input: &impl DeviceRange<f32>,
     rows: usize,
     cols: usize,
     factor: usize,

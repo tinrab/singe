@@ -6,7 +6,6 @@ use crate::{
     backend::{
         device::DeviceProperties,
         execution::{ExecutionPlan, ExecutionPlanTarget, KernelCache, KernelCacheJson},
-        tensor::TensorId,
     },
     context::Context,
     error::{Error, Result},
@@ -26,8 +25,10 @@ use crate::{
         require_baseline,
         workspace::WorkspaceLayout,
     },
+    pack_cudnn_version,
     scalar::ScalarValue,
-    version,
+    tensor::TensorId,
+    unpack_cudnn_version, version,
 };
 
 const NATIVE_ARTIFACT_SCHEMA: &str = "singe-cudnn-native-plans-v40";
@@ -105,7 +106,8 @@ impl CompiledGraph {
     /// A plan-only restored artifact can be serialized again with `Omit`.
     ///
     /// # Errors
-    /// Returns native serialization errors or a missing-structure error when `Include` is requested for a plan-only artifact.
+    ///
+    /// Returns an error if native serialization fails, or `Include` is requested for a plan-only artifact without a structure.
     pub fn serialize(&self, config: NativePlanSerializationConfig) -> Result<Vec<u8>> {
         let structure = match config.structure {
             NativePlanStructure::Include => Some(
@@ -136,7 +138,7 @@ impl CompiledGraph {
             .collect::<Result<Vec<_>>>()?;
         serde_json::to_vec(&CompiledGraphArtifact {
             schema: NATIVE_ARTIFACT_SCHEMA.into(),
-            cudnn_version: version()?.raw(),
+            cudnn_version: pack_cudnn_version(version()?),
             graph_name: self.core.artifacts.graph_name.clone(),
             structure,
             shape_policy: self.core.shape_policy.clone(),
@@ -160,13 +162,14 @@ impl CompiledGraph {
     /// Plan-only artifacts retain execution and runtime-layout support; [`Self::graph`] and [`Self::recipe`] return `None`.
     ///
     /// # Safety
+    ///
     /// The native payloads and Rust binding metadata must originate from the same untampered artifact produced by [`Self::serialize`].
     /// Native introspection cannot establish that arbitrary plan JSON accesses exactly the described tensors and storage.
     /// A deviceless artifact must only execute on live devices compatible with the supplied properties.
     ///
     /// # Errors
     ///
-    /// Returns an error for malformed or incompatible artifact metadata, missing plans or an invalid selection, unsupported cuDNN runtime version, invalid bindings or workspace geometry, target binding failure, native plan or kernel-cache restoration failure, or requested capture warmup failure.
+    /// Returns an error if the artifact metadata is malformed or incompatible, plans are missing or the selection is invalid, the cuDNN runtime version is unsupported, bindings or workspace geometry are invalid, binding the target fails, restoring a native plan or the kernel cache fails, or a requested capture warmup fails.
     pub unsafe fn deserialize(target: NativePlanRestoreTarget<'_>, data: &[u8]) -> Result<Self> {
         let artifact: CompiledGraphArtifact = serde_json::from_slice(data)?;
         if artifact.schema != NATIVE_ARTIFACT_SCHEMA {
@@ -194,7 +197,9 @@ impl CompiledGraph {
             &artifact.binding_replacements,
             &artifact.binding_template_ids,
         )?;
-        let runtime_version = version()?.raw();
+        let serialized_version = unpack_cudnn_version(artifact.cudnn_version)
+            .ok_or_else(|| Error::out_of_range("serialized cudnn version"))?;
+        let runtime_version = version()?;
         require_baseline(runtime_version)?;
         let native_target = match &target {
             NativePlanRestoreTarget::Context(context) => ExecutionPlanTarget::Context(context),
@@ -223,7 +228,7 @@ impl CompiledGraph {
             let entry = restore_plan(native_target, id, saved, &layout).map_err(|source| {
                 FrontendError::NativePlanRestoreFailed {
                     position,
-                    serialized_cudnn_version: artifact.cudnn_version,
+                    serialized_cudnn_version: serialized_version,
                     runtime_cudnn_version: runtime_version,
                     source: Box::new(source),
                 }

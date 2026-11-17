@@ -725,7 +725,7 @@ struct RawDocEntry {
     #[serde(default)]
     doc: String,
     #[serde(default)]
-    deprecated: bool,
+    deprecated: Option<bool>,
     #[serde(default)]
     parameters: BTreeMap<String, RawParameterDocEntry>,
     #[serde(default)]
@@ -746,6 +746,7 @@ impl RawDocEntry {
             self.doc = other.doc;
         }
 
+        self.deprecated = self.deprecated.or(other.deprecated);
         for (name, value) in other.parameters {
             let existing = self
                 .parameters
@@ -800,7 +801,7 @@ struct RawMemberDocEntry {
     #[serde(default)]
     doc: String,
     #[serde(default)]
-    deprecated: bool,
+    deprecated: Option<bool>,
 }
 
 impl From<RawMemberDoc> for RawMemberDocEntry {
@@ -809,7 +810,7 @@ impl From<RawMemberDoc> for RawMemberDocEntry {
             RawMemberDoc::Entry(entry) => entry,
             RawMemberDoc::Text(doc) => Self {
                 doc,
-                deprecated: false,
+                deprecated: None,
             },
         }
     }
@@ -856,7 +857,8 @@ struct DocDatabase {
 struct DocEntry {
     supplemental: bool,
     item_doc: Option<String>,
-    deprecated: bool,
+    // Header comments never state deprecation, so `None` lets another entry for the item decide.
+    deprecated: Option<bool>,
     parameters: BTreeMap<String, String>,
     return_value: Option<ReturnValueDoc>,
     exact_members: BTreeMap<String, String>,
@@ -884,7 +886,7 @@ struct MemberRangeDoc {
     start: u32,
     end: u32,
     doc: String,
-    deprecated: bool,
+    deprecated: Option<bool>,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -1116,18 +1118,35 @@ impl DocDatabase {
     }
 
     fn find_entry(&self, name: &str, symbols: &SymbolIndex) -> Option<&DocEntry> {
-        for candidate in binding_name_candidates(name) {
-            if let Some(entry) = self.entries.get(candidate.as_str()) {
-                return Some(entry);
-            }
-        }
+        self.find_entries(name, symbols).into_iter().next()
+    }
 
-        for alias in symbols.aliases_for_target(name) {
-            if let Some(entry) = self.entries.get(alias) {
-                return Some(entry);
-            }
-        }
-        None
+    // An item can have entries under several names, such as `nvmlReturn_enum` from the headers and `nvmlReturn_t` from the API pages, and only some of them state whether it is deprecated.
+    fn find_entries(&self, name: &str, symbols: &SymbolIndex) -> Vec<&DocEntry> {
+        binding_name_candidates(name)
+            .iter()
+            .filter_map(|candidate| self.entries.get(candidate.as_str()))
+            .chain(
+                symbols
+                    .aliases_for_target(name)
+                    .into_iter()
+                    .filter_map(|alias| self.entries.get(alias)),
+            )
+            .collect()
+    }
+
+    fn find_deprecated(&self, name: &str, symbols: &SymbolIndex) -> bool {
+        self.find_entries(name, symbols)
+            .iter()
+            .find_map(|entry| entry.deprecated)
+            .unwrap_or(false)
+    }
+
+    fn find_member_deprecated(&self, parent: &str, member: &str, symbols: &SymbolIndex) -> bool {
+        self.find_entries(parent, symbols)
+            .iter()
+            .find_map(|entry| entry.find_member_deprecated(member))
+            .unwrap_or(false)
     }
 }
 
@@ -1151,16 +1170,13 @@ impl DocEntry {
         for (name, member) in children.into_iter().chain(members).chain(fields) {
             let member = RawMemberDocEntry::from(member);
             let member_doc = member.doc.trim().to_string();
-            if member_doc.is_empty() {
-                if member.deprecated {
-                    exact_member_deprecated.insert(name, true);
-                }
-
-                continue;
+            if let Some(deprecated) = member.deprecated {
+                exact_member_deprecated.insert(name.clone(), deprecated);
             }
 
-            exact_members.insert(name.clone(), member_doc);
-            exact_member_deprecated.insert(name, member.deprecated);
+            if !member_doc.is_empty() {
+                exact_members.insert(name, member_doc);
+            }
         }
 
         for range in member_ranges {
@@ -1173,10 +1189,7 @@ impl DocEntry {
                 start: range.start,
                 end: range.end,
                 doc,
-                deprecated: exact_member_deprecated
-                    .get(&range.name)
-                    .copied()
-                    .unwrap_or(false),
+                deprecated: exact_member_deprecated.get(&range.name).copied(),
             });
         }
 
@@ -1209,15 +1222,15 @@ impl DocEntry {
             .map(|range| range.doc.as_str())
     }
 
-    fn find_member_deprecated(&self, member: &str) -> bool {
+    fn find_member_deprecated(&self, member: &str) -> Option<bool> {
         if let Some(deprecated) = self.exact_member_deprecated.get(member) {
-            return *deprecated;
+            return Some(*deprecated);
         }
 
         self.ranged_members
             .iter()
             .find(|range| range.matches(member))
-            .is_some_and(|range| range.deprecated)
+            .and_then(|range| range.deprecated)
     }
 }
 
@@ -1488,15 +1501,44 @@ impl BindingDocumenter<'_> {
     }
 
     fn document_item(&self, ident: &syn::Ident, attrs: &mut Vec<Attribute>) {
-        let deprecated = self
-            .docs
-            .find_entry(&ident.to_string(), self.symbols)
-            .is_some_and(|entry| entry.deprecated);
+        let deprecated = self.docs.find_deprecated(&ident.to_string(), self.symbols);
         self.update_deprecated_attr(attrs, deprecated);
         self.update_attrs(
             attrs,
             self.docs.find_item_doc(&ident.to_string(), self.symbols),
         );
+    }
+
+    // bindgen emits each enumerator of a newtype enum, and each duplicate discriminant of a Rust enum, as an associated const of the enum.
+    fn document_enumerator(&self, owner: &str, constant: &mut ImplItemConst) {
+        let name = constant.ident.to_string();
+        let deprecated = self.docs.find_member_deprecated(owner, &name, self.symbols);
+        self.update_deprecated_attr(&mut constant.attrs, deprecated);
+        let doc = self
+            .docs
+            .find_member_doc(owner, &name, self.symbols)
+            .map(ToOwned::to_owned)
+            .or_else(|| self.docs.find_item_doc(&name, self.symbols));
+        self.update_attrs(&mut constant.attrs, doc);
+        if !constant
+            .attrs
+            .iter()
+            .any(|attr| attr.path().is_ident("doc"))
+            && let syn::Expr::Path(value) = &constant.expr
+            && value.path.segments.len() == 2
+        {
+            let mut segments = value.path.segments.iter();
+            if let (Some(owner), Some(variant)) = (segments.next(), segments.next())
+                && self
+                    .symbols
+                    .contains_variant_path(&owner.ident.to_string(), &variant.ident.to_string())
+            {
+                self.update_attrs(
+                    &mut constant.attrs,
+                    Some(format!("Alias for `{}::{}`.", owner.ident, variant.ident)),
+                );
+            }
+        }
     }
 
     fn document_field(&self, parent: &str, index: usize, field: &mut Field) {
@@ -1507,8 +1549,7 @@ impl BindingDocumenter<'_> {
 
         let deprecated = self
             .docs
-            .find_entry(parent, self.symbols)
-            .is_some_and(|entry| entry.find_member_deprecated(&name));
+            .find_member_deprecated(parent, &name, self.symbols);
         self.update_deprecated_attr(&mut field.attrs, deprecated);
         let has_docs = field.attrs.iter().any(|attr| attr.path().is_ident("doc"));
         self.update_attrs(
@@ -1554,10 +1595,7 @@ impl BindingDocumenter<'_> {
 
     fn document_foreign_fn(&self, item: &mut ForeignItemFn) {
         let name = item.sig.ident.to_string();
-        let deprecated = self
-            .docs
-            .find_entry(&name, self.symbols)
-            .is_some_and(|entry| entry.deprecated);
+        let deprecated = self.docs.find_deprecated(&name, self.symbols);
         let doc = self
             .docs
             .find_entry(&name, self.symbols)
@@ -1678,40 +1716,22 @@ impl VisitMut for BindingDocumenter<'_> {
         {
             let owner = segment.ident.to_string();
             for member in &mut item.items {
-                if let ImplItem::Fn(function) = member {
-                    let doc = self
-                        .docs
-                        .find_member_doc(&owner, &function.sig.ident.to_string(), self.symbols)
-                        .map(ToOwned::to_owned)
-                        .or_else(|| self.bitfield_accessor_doc(&owner, function));
-                    self.update_attrs(&mut function.attrs, doc);
+                match member {
+                    ImplItem::Fn(function) => {
+                        let doc = self
+                            .docs
+                            .find_member_doc(&owner, &function.sig.ident.to_string(), self.symbols)
+                            .map(ToOwned::to_owned)
+                            .or_else(|| self.bitfield_accessor_doc(&owner, function));
+                        self.update_attrs(&mut function.attrs, doc);
+                    }
+                    ImplItem::Const(constant) => self.document_enumerator(&owner, constant),
+                    _ => {}
                 }
             }
         }
 
         visit_mut::visit_item_impl_mut(self, item);
-    }
-
-    fn visit_impl_item_const_mut(&mut self, item: &mut ImplItemConst) {
-        self.document_item(&item.ident, &mut item.attrs);
-        if !item.attrs.iter().any(|attr| attr.path().is_ident("doc"))
-            && let syn::Expr::Path(value) = &item.expr
-            && value.path.segments.len() == 2
-        {
-            let mut segments = value.path.segments.iter();
-            if let (Some(owner), Some(variant)) = (segments.next(), segments.next())
-                && self
-                    .symbols
-                    .contains_variant_path(&owner.ident.to_string(), &variant.ident.to_string())
-            {
-                self.update_attrs(
-                    &mut item.attrs,
-                    Some(format!("Alias for `{}::{}`.", owner.ident, variant.ident)),
-                );
-            }
-        }
-
-        visit_mut::visit_impl_item_const_mut(self, item);
     }
 
     fn visit_item_const_mut(&mut self, item: &mut ItemConst) {
@@ -1725,10 +1745,9 @@ impl VisitMut for BindingDocumenter<'_> {
 
         for variant in &mut item.variants {
             let member_name = variant.ident.to_string();
-            let deprecated = self
-                .docs
-                .find_entry(&item_name, self.symbols)
-                .is_some_and(|entry| entry.find_member_deprecated(&member_name));
+            let deprecated =
+                self.docs
+                    .find_member_deprecated(&item_name, &member_name, self.symbols);
             self.update_deprecated_attr(&mut variant.attrs, deprecated);
             self.update_attrs(
                 &mut variant.attrs,
@@ -2554,7 +2573,7 @@ mod tests {
         primary.fill_missing(supplement);
         let entry = DocEntry::from_raw(primary);
         assert_eq!(entry.find_member_doc("MODE"), Some("Deprecated mode."));
-        assert!(entry.find_member_deprecated("MODE"));
+        assert_eq!(entry.find_member_deprecated("MODE"), Some(true));
         assert_eq!(entry.find_member_doc("TEXT"), Some("Text mode."));
         assert_eq!(entry.parameters["value"], "Requested value.");
     }
@@ -2616,7 +2635,7 @@ mod tests {
         primary.fill_missing(header);
         let entry = DocEntry::from_raw(primary);
         assert_eq!(entry.item_doc.as_deref(), Some("Full API contract."));
-        assert!(entry.deprecated);
+        assert_eq!(entry.deprecated, Some(true));
         assert_eq!(
             entry.find_member_doc("flags"),
             Some("Only documented flags are accepted.")

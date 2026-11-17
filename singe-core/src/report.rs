@@ -2,7 +2,7 @@
 
 use std::{error::Error, fmt};
 
-// An error and each error it was caused by, once each, as `error: cause: cause`.
+/// Displays an error followed by each error in its [`source`](Error::source) chain, as `error: cause: cause`.
 #[derive(Debug, Clone, Copy)]
 pub struct ErrorChain<'a>(pub &'a (dyn Error + 'static));
 

@@ -272,7 +272,7 @@ fn operands<const N: usize>(instruction: &Instruction) -> Result<&[Operand; N]> 
         .map_err(|_| CompileError::instruction(instruction.span, format!("expected {N} operands")))
 }
 
-pub fn lower(
+pub(crate) fn lower(
     compiler: &mut FunctionCompiler<'_, '_>,
     instruction: &Instruction,
 ) -> Result<Operation> {

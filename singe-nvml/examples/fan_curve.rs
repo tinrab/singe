@@ -1,6 +1,9 @@
-use std::{error::Error, thread, time::Duration};
+use std::{thread, time::Duration};
 
-use singe_nvml::{library::Library, types::TemperatureSensor};
+use singe_nvml::{
+    library::Library,
+    types::{InitFlags, TemperatureSensor},
+};
 
 const GPU_INDEX: u32 = 0;
 const POLL_INTERVAL: Duration = Duration::from_secs(5);
@@ -9,8 +12,8 @@ const APPLY_CHANGES: bool = false;
 
 const CURVE: &[(u32, u32)] = &[(35, 25), (50, 40), (65, 60), (75, 80), (85, 100)];
 
-fn main() -> Result<(), Box<dyn Error>> {
-    let nvml = Library::create()?;
+fn main() -> anyhow::Result<()> {
+    let nvml = Library::create(InitFlags::empty())?;
     let device = nvml.device(GPU_INDEX)?;
     let name = device.name()?;
     let fans = device.num_fans()?;
@@ -40,6 +43,13 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
 
         thread::sleep(POLL_INTERVAL);
+    }
+
+    // `set_fan_speed` switches the fans to manual control, so hand them back to the driver.
+    if APPLY_CHANGES {
+        for fan in 0..fans {
+            device.set_default_fan_speed(fan)?;
+        }
     }
 
     Ok(())

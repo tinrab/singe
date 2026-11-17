@@ -2,7 +2,7 @@
 
 macro_rules! float_serde {
     ($module:ident, $float:ty, $bits:ty, $digits:literal, $serialize:ident) => {
-        pub mod $module {
+        pub(crate) mod $module {
             use std::fmt;
 
             use serde::{
@@ -10,7 +10,7 @@ macro_rules! float_serde {
                 de::{Error, Unexpected, Visitor},
             };
 
-            pub fn serialize<S: Serializer>(
+            pub(crate) fn serialize<S: Serializer>(
                 value: &$float,
                 serializer: S,
             ) -> Result<S::Ok, S::Error> {
@@ -25,7 +25,7 @@ macro_rules! float_serde {
                 }
             }
 
-            pub fn deserialize<'de, D: Deserializer<'de>>(
+            pub(crate) fn deserialize<'de, D: Deserializer<'de>>(
                 deserializer: D,
             ) -> Result<$float, D::Error> {
                 if deserializer.is_human_readable() {
@@ -83,7 +83,7 @@ float_serde!(f32_bits, f32, u32, 8, serialize_f32);
 
 float_serde!(f64_bits, f64, u64, 16, serialize_f64);
 
-pub mod optional_f32 {
+pub(crate) mod optional_f32 {
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
     #[derive(Serialize, Deserialize)]
@@ -94,11 +94,14 @@ pub mod optional_f32 {
         clippy::trivially_copy_pass_by_ref,
         reason = "Serde custom serializers require a borrowed field value"
     )]
-    pub fn serialize<S: Serializer>(value: &Option<f32>, serializer: S) -> Result<S::Ok, S::Error> {
+    pub(crate) fn serialize<S: Serializer>(
+        value: &Option<f32>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
         value.map(Float).serialize(serializer)
     }
 
-    pub fn deserialize<'de, D: Deserializer<'de>>(
+    pub(crate) fn deserialize<'de, D: Deserializer<'de>>(
         deserializer: D,
     ) -> Result<Option<f32>, D::Error> {
         Option::<Float>::deserialize(deserializer).map(|value| value.map(|value| value.0))

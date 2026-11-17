@@ -6,64 +6,84 @@
 pub struct SingeNvcompManager {
     _unused: [u8; 0],
 }
-/// Enumeration that defines how a buffer gets compressed by an nvCOMP manager.
-#[repr(u32)]
-#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
-pub enum SingeNvcompBitstreamKind {
+impl SingeNvcompBitstreamKind {
     /// Each input buffer is chunked according to manager setting and compressed in parallel. Allows computation of checksums. Adds custom header with nvCOMP metadata at the beginning of the compressed data.
-    SingeNvcompNative = 0,
+    pub const SingeNvcompNative: SingeNvcompBitstreamKind = SingeNvcompBitstreamKind(0);
     /// Compresses input data as is, just using underlying compression algorithm. Does not add header with nvCOMP metadata.
-    SingeNvcompRaw = 1,
+    pub const SingeNvcompRaw: SingeNvcompBitstreamKind = SingeNvcompBitstreamKind(1);
     /// Similar to RAW, but adds custom header with just uncompressed size at the beginning of the compressed data.
-    SingeNvcompWithUncompressedSize = 2,
+    pub const SingeNvcompWithUncompressedSize: SingeNvcompBitstreamKind = SingeNvcompBitstreamKind(
+        2,
+    );
+}
+/// Enumeration that defines how a buffer gets compressed by an nvCOMP manager.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
+pub struct SingeNvcompBitstreamKind(pub ::core::ffi::c_uint);
+impl SingeNvcompExecutionPolicy {
+    /// Use implementation optimized for concurrency.
+    pub const SingeNvcompConcurrency: SingeNvcompExecutionPolicy = SingeNvcompExecutionPolicy(
+        0,
+    );
+    /// Use implementation optimized for latency.
+    pub const SingeNvcompLatency: SingeNvcompExecutionPolicy = SingeNvcompExecutionPolicy(
+        1,
+    );
 }
 /// Enumeration that defines how an nvCOMP manager trades off kernel latency against concurrency with other work on the device.
-#[repr(u32)]
+#[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
-pub enum SingeNvcompExecutionPolicy {
-    /// Use implementation optimized for concurrency.
-    SingeNvcompConcurrency = 0,
-    /// Use implementation optimized for latency.
-    SingeNvcompLatency = 1,
+pub struct SingeNvcompExecutionPolicy(pub ::core::ffi::c_uint);
+impl SingeNvcompChecksumPolicy {
+    /// During compression, do not compute checksums. During decompression, do not verify checksums.
+    pub const SingeNvcompNoComputeNoVerify: SingeNvcompChecksumPolicy = SingeNvcompChecksumPolicy(
+        0,
+    );
+    /// During compression, compute checksums. During decompression, do not attempt to verify checksums.
+    pub const SingeNvcompComputeAndNoVerify: SingeNvcompChecksumPolicy = SingeNvcompChecksumPolicy(
+        1,
+    );
+    /// During compression, do not compute checksums. During decompression, verify checksums if they were included.
+    pub const SingeNvcompNoComputeAndVerifyIfPresent: SingeNvcompChecksumPolicy = SingeNvcompChecksumPolicy(
+        2,
+    );
+    /// During compression, compute checksums. During decompression, verify checksums if they were included.
+    pub const SingeNvcompComputeAndVerifyIfPresent: SingeNvcompChecksumPolicy = SingeNvcompChecksumPolicy(
+        3,
+    );
+    /// During compression, compute checksums. During decompression, verify checksums. A runtime error will be thrown upon configure_decompression if checksums were not included in the compressed buffer.
+    pub const SingeNvcompComputeAndVerify: SingeNvcompChecksumPolicy = SingeNvcompChecksumPolicy(
+        4,
+    );
 }
 /// Enumeration that defines the checksum policy used by an nvCOMP manager.
-#[repr(u32)]
+#[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
-pub enum SingeNvcompChecksumPolicy {
-    /// During compression, do not compute checksums. During decompression, do not verify checksums.
-    SingeNvcompNoComputeNoVerify = 0,
-    /// During compression, compute checksums. During decompression, do not attempt to verify checksums.
-    SingeNvcompComputeAndNoVerify = 1,
-    /// During compression, do not compute checksums. During decompression, verify checksums if they were included.
-    SingeNvcompNoComputeAndVerifyIfPresent = 2,
-    /// During compression, compute checksums. During decompression, verify checksums if they were included.
-    SingeNvcompComputeAndVerifyIfPresent = 3,
-    /// During compression, compute checksums. During decompression, verify checksums. A runtime error will be thrown upon configure_decompression if checksums were not included in the compressed buffer.
-    SingeNvcompComputeAndVerify = 4,
+pub struct SingeNvcompChecksumPolicy(pub ::core::ffi::c_uint);
+impl SingeNvcompFormat {
+    /// LZ4 block compression.
+    pub const SingeNvcompLz4: SingeNvcompFormat = SingeNvcompFormat(0);
+    /// Snappy compression.
+    pub const SingeNvcompSnappy: SingeNvcompFormat = SingeNvcompFormat(1);
+    /// Asymmetric numeral systems compression.
+    pub const SingeNvcompAns: SingeNvcompFormat = SingeNvcompFormat(2);
+    /// GDeflate compression.
+    pub const SingeNvcompGdeflate: SingeNvcompFormat = SingeNvcompFormat(3);
+    /// Cascaded integer compression.
+    pub const SingeNvcompCascaded: SingeNvcompFormat = SingeNvcompFormat(4);
+    /// Bitcomp compression.
+    pub const SingeNvcompBitcomp: SingeNvcompFormat = SingeNvcompFormat(5);
+    /// Zstandard compression.
+    pub const SingeNvcompZstd: SingeNvcompFormat = SingeNvcompFormat(6);
+    /// Deflate compression.
+    pub const SingeNvcompDeflate: SingeNvcompFormat = SingeNvcompFormat(7);
+    /// Gzip compression.
+    pub const SingeNvcompGzip: SingeNvcompFormat = SingeNvcompFormat(8);
 }
 /// nvCOMP supported compression formats.
-#[repr(u32)]
+#[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
-pub enum SingeNvcompFormat {
-    /// LZ4 block compression.
-    SingeNvcompLz4 = 0,
-    /// Snappy compression.
-    SingeNvcompSnappy = 1,
-    /// Asymmetric numeral systems compression.
-    SingeNvcompAns = 2,
-    /// GDeflate compression.
-    SingeNvcompGdeflate = 3,
-    /// Cascaded integer compression.
-    SingeNvcompCascaded = 4,
-    /// Bitcomp compression.
-    SingeNvcompBitcomp = 5,
-    /// Zstandard compression.
-    SingeNvcompZstd = 6,
-    /// Deflate compression.
-    SingeNvcompDeflate = 7,
-    /// Gzip compression.
-    SingeNvcompGzip = 8,
-}
+pub struct SingeNvcompFormat(pub ::core::ffi::c_uint);
 unsafe extern "C" {
     /// The bridge returns zero on success. It catches every C++ exception and copies its message into thread-local storage, valid until the next bridge call.
     ///

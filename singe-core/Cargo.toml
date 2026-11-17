@@ -1,16 +1,27 @@
 [package]
 name = "singe-core"
 description = "Shared macros and FFI helpers for the Singe wrapper crates."
-version = "0.1.0-alpha.8"
+version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 repository.workspace = true
+documentation = "https://docs.rs/singe-core"
 license-file.workspace = true
 readme = "README.md"
 keywords = ["singe", "cuda", "nvidia", "utilities"]
+categories = ["development-tools::ffi"]
 include.workspace = true
 
 [package.metadata.docs.rs]
-rustdoc-args = ["--html-in-header", "dist/katex_header.html"]
+features = ["serde"]
+rustdoc-args = ["--cfg", "docsrs", "--html-in-header", "dist/katex_header.html"]
+
+[features]
+# `Serialize` and `Deserialize` for `LibraryVersion` and `CudaVersion`.
+serde = ["dep:serde"]
 
 [dependencies]
-serde.workspace = true
+serde = { workspace = true, optional = true }
+
+[dev-dependencies]
+anyhow.workspace = true

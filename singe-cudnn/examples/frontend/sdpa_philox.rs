@@ -4,7 +4,7 @@ use std::env::args;
 
 use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
-    backend::tensor::{Shape, TensorSpec},
+    backend::operation::rng::RandomNumberSeedSource,
     data_type::{DataType, bf16},
     error::{Error, Result},
     frontend::{
@@ -12,11 +12,12 @@ use singe_cudnn::{
         graph::{DataTypePolicy, Graph, GraphConfig, TensorOutputConfig},
         operation::{
             AttentionConfig, AttentionDropoutConfig, AttentionDropoutMode, AttentionImplementation,
-            AttentionScoreConfig, RandomNumberSeedSource,
+            AttentionScoreConfig,
         },
         plan::{CompileConfig, ExecuteArgs, HeuristicMode},
     },
     scalar::ScalarValue,
+    tensor::{Shape, TensorSpec},
 };
 
 fn run() -> Result<()> {
@@ -24,14 +25,14 @@ fn run() -> Result<()> {
     let mut graph = Graph::with_config(
         GraphConfig::new().with_data_type_policy(
             DataTypePolicy::new()
-                .with_io(DataType::BF16)
+                .with_io(DataType::Bf16)
                 .with_intermediate(DataType::F32)
                 .with_compute(DataType::F32),
         ),
     );
     let shape = Shape::contiguous([2, 4, 64, 64])?;
     let input_elements = shape.element_count()?;
-    let query = graph.tensor(TensorSpec::new(DataType::BF16, shape).with_name("Q"));
+    let query = graph.tensor(TensorSpec::new(DataType::Bf16, shape).with_name("Q"));
     let key = graph.tensor_like(query, Some("K"))?;
     let value = graph.tensor_like(query, Some("V"))?;
     let scale = graph.tensor(TensorSpec::scalar_f32(0.125));
@@ -94,7 +95,7 @@ fn run() -> Result<()> {
         .with_score_config(AttentionScoreConfig::new().with_dropout_mode(
             AttentionDropoutMode::Philox(AttentionDropoutConfig::new(0.1, seed)),
         ));
-    let outputs = graph.sdpa_auto(
+    let outputs = graph.sdpa(
         SdpaInputs {
             query,
             key,
@@ -147,15 +148,15 @@ fn run() -> Result<()> {
     // SAFETY: all inputs are initialized; output and workspace are writable and disjoint from inputs.
     // Every allocation and host scalar remains live through stream completion.
     ctx.execute_and_wait(|context| unsafe {
-        compiled.execute(
+        compiled.execute_async(
             context,
-            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
         )
     })?;
     println!("Philox attention with seed {seed:?} and implementation {implementation:?}");
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_sdpa_philox", run())
 }

@@ -2,7 +2,7 @@ mod common;
 
 use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
-    backend::tensor::{Shape, TensorSpec},
+    backend::operation::normalization::NormalizationSavedStatistics,
     data_type::{DataType, bf16},
     error::Result,
     frontend::{
@@ -10,11 +10,11 @@ use singe_cudnn::{
         graph::{DataTypePolicy, Graph, GraphConfig, TensorOutputConfig},
         operation::{
             AdaptiveLayerNormalizationConfig, AdaptiveLayerNormalizationInputs,
-            AdaptiveLayerNormalizationOutputs, NormalizationSavedStatistics,
-            NormalizationStatistics,
+            AdaptiveLayerNormalizationOutputs, NormalizationStatistics,
         },
         plan::{CompileConfig, ExecuteArgs, HeuristicMode},
     },
+    tensor::{Shape, TensorSpec},
 };
 
 #[derive(Clone, Copy)]
@@ -51,14 +51,14 @@ fn run_shape(example: &common::ExampleContext, shape: AdaptiveLayerNormShape) ->
     let mut graph = Graph::with_config(
         GraphConfig::new().with_data_type_policy(
             DataTypePolicy::new()
-                .with_io(DataType::BF16)
+                .with_io(DataType::Bf16)
                 .with_intermediate(DataType::F32)
                 .with_compute(DataType::F32),
         ),
     );
     let x = graph.tensor(
         TensorSpec::new(
-            DataType::BF16,
+            DataType::Bf16,
             Shape::contiguous([shape.b, shape.s, shape.d])?,
         )
         .with_name("X"),
@@ -126,9 +126,9 @@ fn run_shape(example: &common::ExampleContext, shape: AdaptiveLayerNormShape) ->
     // SAFETY: matching initialized operands, output storage and workspace remain live
     // until the helper completes the stream, including on enqueue failure.
     example.execute_and_wait(|context| unsafe {
-        compiled.execute(
+        compiled.execute_async(
             context,
-            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
         )
     })?;
     for tensor in [outputs.output, statistics.mean, statistics.inv_variance] {
@@ -150,6 +150,6 @@ fn run() -> Result<()> {
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_adaptive_layer_norm", run())
 }

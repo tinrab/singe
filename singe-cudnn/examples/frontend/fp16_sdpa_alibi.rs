@@ -7,7 +7,6 @@ use std::{
 
 use singe_cuda::{memory::DeviceMemory, submission::Resources, view::OwnedDeviceRegion};
 use singe_cudnn::{
-    backend::tensor::{Shape, TensorSpec},
     data_type::{DataType, bf16},
     error::Result,
     frontend::{
@@ -22,6 +21,7 @@ use singe_cudnn::{
         plan::{CompileConfig, HeuristicMode},
     },
     operation::FrontendExecution,
+    tensor::{Shape, TensorSpec},
 };
 
 fn run() -> Result<()> {
@@ -38,17 +38,17 @@ fn run() -> Result<()> {
     let mut graph = Graph::with_config(
         GraphConfig::new().with_data_type_policy(
             DataTypePolicy::new()
-                .with_io(DataType::BF16)
+                .with_io(DataType::Bf16)
                 .with_intermediate(DataType::F32)
                 .with_compute(DataType::F32),
         ),
     );
     let query_spec = TensorSpec::new(
-        DataType::BF16,
+        DataType::Bf16,
         Shape::contiguous([1, query_heads, sequence_length, head_dimension])?,
     );
     let key_value_spec = TensorSpec::new(
-        DataType::BF16,
+        DataType::Bf16,
         Shape::contiguous([1, key_value_heads, sequence_length, head_dimension])?,
     );
     let query = graph.tensor(query_spec.clone());
@@ -59,7 +59,7 @@ fn run() -> Result<()> {
             .with_shape(Shape::contiguous([1, 1, 1, 1])?),
     );
     let output = graph
-        .sdpa_auto(
+        .sdpa(
             SdpaInputs {
                 query,
                 key,
@@ -149,6 +149,6 @@ fn run() -> Result<()> {
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_fp16_sdpa_alibi", run())
 }

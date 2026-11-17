@@ -8,7 +8,7 @@ use singe::{
     error::Result,
     graph::{Graph, GraphCudaOptions, GraphPrepareOptions},
 };
-use singe_cuda::testing::device_lock;
+use singe_cuda::{device::Device as CudaDevice, testing::device_lock};
 
 fn values(count: usize, scale: f32) -> Vec<f32> {
     (0..count)
@@ -26,7 +26,7 @@ fn chain(x: &Tensor, y: &Tensor) -> Result<Tensor> {
 
 #[test]
 fn test_element_wise_chains_compile_to_one_kernel_and_match_eager_results() {
-    let _lock = device_lock(0).unwrap();
+    let _lock = device_lock(CudaDevice::new(0)).unwrap();
     let device = Device::Cuda(0);
     let x = Tensor::from_vec(device, Shape::create([4, 33]).unwrap(), values(132, 0.03)).unwrap();
     // `y` broadcasts along the rows inside the fused kernel.
@@ -58,7 +58,7 @@ fn test_element_wise_chains_compile_to_one_kernel_and_match_eager_results() {
 
 #[test]
 fn test_fusion_groups_store_every_value_read_outside_the_group() {
-    let _lock = device_lock(0).unwrap();
+    let _lock = device_lock(CudaDevice::new(0)).unwrap();
     let device = Device::Cuda(0);
     let x = Tensor::from_vec(device, Shape::create([64]).unwrap(), values(64, 0.05)).unwrap();
     let (captured, _) = Graph::capture([("x", x.clone())], |inputs| {
@@ -87,7 +87,7 @@ fn test_fusion_groups_store_every_value_read_outside_the_group() {
 /// Two chains that meet in one operation: the reader fuses with the chain lowered last, whose sibling is already available.
 #[test]
 fn test_chains_that_meet_fuse_once_their_other_operands_are_lowered() {
-    let _lock = device_lock(0).unwrap();
+    let _lock = device_lock(CudaDevice::new(0)).unwrap();
     let device = Device::Cuda(0);
     let x = Tensor::from_vec(device, Shape::create([3, 8]).unwrap(), values(24, 0.11)).unwrap();
     let y = Tensor::from_vec(device, Shape::create([3, 8]).unwrap(), values(24, -0.05)).unwrap();
@@ -107,7 +107,7 @@ fn test_chains_that_meet_fuse_once_their_other_operands_are_lowered() {
 
 #[test]
 fn test_groups_that_read_two_views_of_one_value_depend_on_its_producer_once() {
-    let _lock = device_lock(0).unwrap();
+    let _lock = device_lock(CudaDevice::new(0)).unwrap();
     let device = Device::Cuda(0);
     let x = Tensor::from_vec(device, Shape::create([4, 16]).unwrap(), values(64, 0.02)).unwrap();
     // Both halves of `exp(x)` are views of one graph node, as rotary embedding reads both halves of a head.
@@ -128,7 +128,7 @@ fn test_groups_that_read_two_views_of_one_value_depend_on_its_producer_once() {
 
 #[test]
 fn test_concatenations_of_element_wise_groups_compile_to_one_kernel() {
-    let _lock = device_lock(0).unwrap();
+    let _lock = device_lock(CudaDevice::new(0)).unwrap();
     let device = Device::Cuda(0);
     let x = Tensor::from_vec(
         device,
@@ -183,7 +183,7 @@ fn test_concatenations_of_element_wise_groups_compile_to_one_kernel() {
 
 #[test]
 fn test_row_operations_compute_the_element_wise_groups_they_read() {
-    let _lock = device_lock(0).unwrap();
+    let _lock = device_lock(CudaDevice::new(0)).unwrap();
     let device = Device::Cuda(0);
     let scores = Tensor::from_vec(
         device,
@@ -228,7 +228,7 @@ fn test_row_operations_compute_the_element_wise_groups_they_read() {
 
 #[test]
 fn test_row_kernels_also_store_groups_that_other_operations_read() {
-    let _lock = device_lock(0).unwrap();
+    let _lock = device_lock(CudaDevice::new(0)).unwrap();
     let device = Device::Cuda(0);
     let tensor = |seed| {
         Tensor::from_vec(device, Shape::create([6, 40]).unwrap(), values(240, seed)).unwrap()
@@ -263,7 +263,7 @@ fn test_row_kernels_also_store_groups_that_other_operations_read() {
 
 #[test]
 fn test_fused_groups_compile_to_tile_kernels_that_match_eager_results() {
-    let _lock = device_lock(0).unwrap();
+    let _lock = device_lock(CudaDevice::new(0)).unwrap();
     let device = Device::Cuda(0);
     let tensor = |dimensions: &[i64], seed| {
         let count = usize::try_from(dimensions.iter().product::<i64>()).unwrap();

@@ -160,7 +160,7 @@ macro_rules! impl_filter_median_border {
             stream_context.validate_region(destination)?;
             stream_context.stream().ensure_not_capturing()?;
 
-            $crate::utility::validate_border_roi(source.size(), source_offset, destination.size())?;
+            $crate::image::validate_border_roi(source.size(), source_offset, destination.size())?;
             validate_filter_mask(mask_size, anchor)?;
             let required_bytes =
                 $buffer_size_name(stream_context, destination.size(), mask_size, border_type)?;
@@ -259,7 +259,7 @@ macro_rules! impl_filter_unsharp_border {
             stream_context.validate_region(destination)?;
             stream_context.stream().ensure_not_capturing()?;
 
-            $crate::utility::validate_border_roi(source.size(), source_offset, destination.size())?;
+            $crate::image::validate_border_roi(source.size(), source_offset, destination.size())?;
             validate_unsharp_parameters(radius, sigma)?;
             let required_bytes = $buffer_size_name(radius, sigma)?;
             let scratch =

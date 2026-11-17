@@ -5,13 +5,13 @@ use std::slice;
 use singe_cuda::memory::DeviceMemory;
 use singe_cudss::{
     config::Config,
-    error::Result,
+    solver_state::SolverState,
     types::{ConfigParameter, DataParameter, Phase},
 };
 
 use crate::common::{create_context, dense_matrix, dense_output, execute, spd_csr_matrix};
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     let (cuda, stream, context) = create_context()?;
     println!("cuDSS example: computing a dense Schur complement");
 
@@ -23,7 +23,7 @@ fn main() -> Result<()> {
     let col_indices = DeviceMemory::from_slice(&cuda, &[0_i32, 2, 1, 2, 2, 4, 3, 4])?;
     let a_values = DeviceMemory::from_slice(&cuda, &[4.0f64, 1.0, 3.0, 2.0, 5.0, 1.0, 1.0, 2.0])?;
     let b_values = DeviceMemory::from_slice(&cuda, &[7.0f64, 12.0, 25.0, 4.0, 13.0])?;
-    let mut x_values = DeviceMemory::<f64>::create_uninit(&cuda, (n * nrhs) as usize)?;
+    let mut x_values = DeviceMemory::<f64>::create_uninit(&cuda, usize::try_from(n * nrhs)?)?;
 
     let schur_indices = [0_i32, 1, 0, 0, 1];
 
@@ -31,7 +31,7 @@ fn main() -> Result<()> {
     let schur_mode = 1i32;
     // SAFETY: the value pointer and size describe a local of the parameter type.
     unsafe { config.set_raw(ConfigParameter::SchurMode, &schur_mode) }?;
-    let mut data = context.create_data()?;
+    let mut data = SolverState::create(&context)?;
     // SAFETY: the example keeps these buffers alive and synchronizes before reading the results.
     unsafe { data.set_raw_slice(DataParameter::UserSchurIndices, &schur_indices) }?;
 
@@ -77,7 +77,7 @@ fn main() -> Result<()> {
     }?;
 
     let mut schur_values =
-        DeviceMemory::<f64>::create_uninit(&cuda, (shape[0] * shape[1]) as usize)?;
+        DeviceMemory::<f64>::create_uninit(&cuda, usize::try_from(shape[0] * shape[1])?)?;
     let schur = dense_output(shape[0], shape[1], shape[0], schur_values.output())?;
     let mut schur_raw = schur.as_raw();
     stream.sync_scope(|_| {

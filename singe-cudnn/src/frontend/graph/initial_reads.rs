@@ -1,13 +1,12 @@
 use std::collections::{BTreeMap, BTreeSet, HashSet, btree_map::Entry};
 
 use crate::{
-    backend::{execution::tensor_ops::ReshapeMode, tensor::TensorId},
+    backend::operation::tensor_ops::{ConcatInPlaceMode, ReshapeMode},
     frontend::{
         graph::{Graph, TensorRecord, ValidatedGraph, subgraphs::ScoreSubgraph},
-        operation::{
-            ConcatInPlaceMode, Operation, ReductionOperation, TensorOperation, TensorUses,
-        },
+        operation::{Operation, ReductionOperation, TensorOperation, TensorUses},
     },
+    tensor::TensorId,
 };
 
 #[derive(Clone, Copy)]
@@ -118,8 +117,7 @@ fn fully_writes_dense_outputs(operation: &Operation, graph: &Graph, uses: &Tenso
         Operation::Tensor(TensorOperation::Reshape { config, .. }) => {
             config.mode() == ReshapeMode::Logical
         }
-        // Variable-length attention, indexed routing, segmented reductions, view aliases and
-        // custom reducers can preserve destination elements or depend on caller-established state.
+        // Variable-length attention, indexed routing, segmented reductions, view aliases and custom reducers can preserve destination elements or depend on caller-established state.
         _ => false,
     };
     full_write

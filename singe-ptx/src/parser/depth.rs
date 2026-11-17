@@ -3,9 +3,9 @@
 
 use crate::parser::lexical::{Input, PResult, SyntaxError, SyntaxErrorKind};
 
-pub const MAX_DEPTH: usize = 128;
+pub(crate) const MAX_DEPTH: usize = 128;
 
-pub fn check(depth: usize, input: Input<'_>) -> PResult<'_, ()> {
+pub(crate) fn check(depth: usize, input: Input<'_>) -> PResult<'_, ()> {
     if depth > MAX_DEPTH {
         Err(SyntaxError::failure(
             input,

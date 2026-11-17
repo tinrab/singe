@@ -4,17 +4,16 @@ use std::env::args;
 
 use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
-    backend::tensor::{Shape, TensorSpec},
+    backend::operation::block_scale::BlockScaleDequantizeInputs,
     data_type::DataType,
     error::{Error, Result},
     frontend::{
         error::Error as FrontendError,
-        graph::{
-            BlockScaleDequantizeInputs, DataTypePolicy, Graph, GraphConfig, TensorOutputConfig,
-        },
+        graph::{DataTypePolicy, Graph, GraphConfig, TensorOutputConfig},
         operation::{BlockScaleDequantizeConfig, MatmulConfig},
         plan::{CompileConfig, ExecuteArgs, HeuristicMode},
     },
+    tensor::{Shape, TensorSpec},
 };
 
 const SCALE_TILE_ROWS: i64 = 128;
@@ -49,7 +48,7 @@ fn run() -> Result<()> {
             "--format=mxfp8-e4m3-e5m2" => format = BlockFormat::Mxfp8E4M3E5M2,
             "--format=mxfp8-e5m2-e4m3" => format = BlockFormat::Mxfp8E5M2E4M3,
             "--output=fp16" => output_type = DataType::F16,
-            "--output=bf16" => output_type = DataType::BF16,
+            "--output=bf16" => output_type = DataType::Bf16,
             "--output=fp32" => output_type = DataType::F32,
             "--irregular" => irregular = true,
             _ => {
@@ -166,9 +165,9 @@ fn run() -> Result<()> {
     bindings.set_encoded_bytes(tensor_d, &mut output)?;
     // SAFETY: initialized packed inputs/scales, writable output and workspace remain live through stream completion.
     example.execute_and_wait(|context| unsafe {
-        compiled.execute(
+        compiled.execute_async(
             context,
-            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
         )
     })?;
     println!(
@@ -177,6 +176,6 @@ fn run() -> Result<()> {
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_nvfp4_matmul", run())
 }

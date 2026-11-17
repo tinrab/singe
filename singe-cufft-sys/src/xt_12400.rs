@@ -20,27 +20,29 @@ pub const CUFFT_INVERSE: u32 = 1;
 pub const CUFFT_PLAN_NULL: i32 = -1;
 /// Unsigned C `size_t`, used for byte counts and object sizes in the native ABI.
 pub type size_t = ::core::ffi::c_ulong;
-/// Direction of a CUDA library distributed-memory copy.
-#[repr(u32)]
-#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
-pub enum cudaXtCopyType_t {
+impl cudaXtCopyType_t {
     /// Copy host storage to distributed device allocations.
-    LIB_XT_COPY_HOST_TO_DEVICE = 0,
+    pub const LIB_XT_COPY_HOST_TO_DEVICE: cudaXtCopyType_t = cudaXtCopyType_t(0);
     /// Copy distributed device allocations to host storage.
-    LIB_XT_COPY_DEVICE_TO_HOST = 1,
+    pub const LIB_XT_COPY_DEVICE_TO_HOST: cudaXtCopyType_t = cudaXtCopyType_t(1);
     /// Copy between distributed device allocations.
-    LIB_XT_COPY_DEVICE_TO_DEVICE = 2,
+    pub const LIB_XT_COPY_DEVICE_TO_DEVICE: cudaXtCopyType_t = cudaXtCopyType_t(2);
 }
-pub use self::cudaXtCopyType_t as cudaLibXtCopyType;
-/// Native library owning a distributed allocation descriptor.
-#[repr(u32)]
+/// Direction of a CUDA library distributed-memory copy.
+#[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
-pub enum libFormat_t {
+pub struct cudaXtCopyType_t(pub ::core::ffi::c_uint);
+pub use self::cudaXtCopyType_t as cudaLibXtCopyType;
+impl libFormat_t {
     /// Descriptor managed by cuFFT.
-    LIB_FORMAT_CUFFT = 0,
+    pub const LIB_FORMAT_CUFFT: libFormat_t = libFormat_t(0);
     /// No library format is selected.
-    LIB_FORMAT_UNDEFINED = 1,
+    pub const LIB_FORMAT_UNDEFINED: libFormat_t = libFormat_t(1);
 }
+/// Native library owning a distributed allocation descriptor.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
+pub struct libFormat_t(pub ::core::ffi::c_uint);
 pub use self::libFormat_t as libFormat;
 /// Native metadata for device allocations distributed across up to 64 GPUs.
 #[repr(C)]
@@ -96,51 +98,62 @@ impl Default for cudaLibXtDesc_t {
 }
 /// Library-specific distributed allocation descriptor wrapping CUDA multi-GPU storage.
 pub type cudaLibXtDesc = cudaLibXtDesc_t;
-/// cufftXtSubFormat identifies the data layout of a memory descriptor owned by cufft. note that multi GPU cufft does not yet support out-of-place transforms
-#[repr(u32)]
-#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
-pub enum cufftXtSubFormat_t {
+impl cufftXtSubFormat_t {
     /// by default input is in linear order across GPUs
-    CUFFT_XT_FORMAT_INPUT = 0,
+    pub const CUFFT_XT_FORMAT_INPUT: cufftXtSubFormat_t = cufftXtSubFormat_t(0);
     /// by default output is in scrambled order depending on transform
-    CUFFT_XT_FORMAT_OUTPUT = 1,
+    pub const CUFFT_XT_FORMAT_OUTPUT: cufftXtSubFormat_t = cufftXtSubFormat_t(1);
     /// by default inplace is input order, which is linear across GPUs
-    CUFFT_XT_FORMAT_INPLACE = 2,
+    pub const CUFFT_XT_FORMAT_INPLACE: cufftXtSubFormat_t = cufftXtSubFormat_t(2);
     /// shuffled output order after execution of the transform
-    CUFFT_XT_FORMAT_INPLACE_SHUFFLED = 3,
+    pub const CUFFT_XT_FORMAT_INPLACE_SHUFFLED: cufftXtSubFormat_t = cufftXtSubFormat_t(
+        3,
+    );
     /// shuffled input order prior to execution of 1D transforms
-    CUFFT_XT_FORMAT_1D_INPUT_SHUFFLED = 4,
+    pub const CUFFT_XT_FORMAT_1D_INPUT_SHUFFLED: cufftXtSubFormat_t = cufftXtSubFormat_t(
+        4,
+    );
     /// used for cuFFTMp only
-    CUFFT_XT_FORMAT_DISTRIBUTED_INPUT = 5,
+    pub const CUFFT_XT_FORMAT_DISTRIBUTED_INPUT: cufftXtSubFormat_t = cufftXtSubFormat_t(
+        5,
+    );
     /// used for cuFFTMp only
-    CUFFT_XT_FORMAT_DISTRIBUTED_OUTPUT = 6,
+    pub const CUFFT_XT_FORMAT_DISTRIBUTED_OUTPUT: cufftXtSubFormat_t = cufftXtSubFormat_t(
+        6,
+    );
     /// No supported distributed data format is selected.
-    CUFFT_FORMAT_UNDEFINED = 7,
+    pub const CUFFT_FORMAT_UNDEFINED: cufftXtSubFormat_t = cufftXtSubFormat_t(7);
 }
+/// cufftXtSubFormat identifies the data layout of a memory descriptor owned by cufft. note that multi GPU cufft does not yet support out-of-place transforms
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
+pub struct cufftXtSubFormat_t(pub ::core::ffi::c_uint);
 pub use self::cufftXtSubFormat_t as cufftXtSubFormat;
-/// cufftXtCopyType specifies the type of copy for cufftXtMemcpy
-#[repr(u32)]
-#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
-pub enum cufftXtCopyType_t {
+impl cufftXtCopyType_t {
     /// Copy host storage to distributed device allocations.
-    CUFFT_COPY_HOST_TO_DEVICE = 0,
+    pub const CUFFT_COPY_HOST_TO_DEVICE: cufftXtCopyType_t = cufftXtCopyType_t(0);
     /// Copy distributed device allocations to host storage.
-    CUFFT_COPY_DEVICE_TO_HOST = 1,
+    pub const CUFFT_COPY_DEVICE_TO_HOST: cufftXtCopyType_t = cufftXtCopyType_t(1);
     /// Copy between distributed device allocations.
-    CUFFT_COPY_DEVICE_TO_DEVICE = 2,
+    pub const CUFFT_COPY_DEVICE_TO_DEVICE: cufftXtCopyType_t = cufftXtCopyType_t(2);
     /// No supported copy direction is selected.
-    CUFFT_COPY_UNDEFINED = 3,
+    pub const CUFFT_COPY_UNDEFINED: cufftXtCopyType_t = cufftXtCopyType_t(3);
 }
-pub use self::cufftXtCopyType_t as cufftXtCopyType;
-/// cufftXtQueryType specifies the type of query for cufftXtQueryPlan
-#[repr(u32)]
+/// cufftXtCopyType specifies the type of copy for cufftXtMemcpy
+#[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
-pub enum cufftXtQueryType_t {
+pub struct cufftXtCopyType_t(pub ::core::ffi::c_uint);
+pub use self::cufftXtCopyType_t as cufftXtCopyType;
+impl cufftXtQueryType_t {
     /// Factorization and index mapping of a distributed one-dimensional transform.
-    CUFFT_QUERY_1D_FACTORS = 0,
+    pub const CUFFT_QUERY_1D_FACTORS: cufftXtQueryType_t = cufftXtQueryType_t(0);
     /// No supported plan query is selected.
-    CUFFT_QUERY_UNDEFINED = 1,
+    pub const CUFFT_QUERY_UNDEFINED: cufftXtQueryType_t = cufftXtQueryType_t(1);
 }
+/// cufftXtQueryType specifies the type of query for cufftXtQueryPlan
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
+pub struct cufftXtQueryType_t(pub ::core::ffi::c_uint);
 pub use self::cufftXtQueryType_t as cufftXtQueryType;
 /// Factorization and index mapping returned by a distributed one-dimensional FFT query.
 #[repr(C)]
@@ -177,17 +190,22 @@ pub struct cufftXt1dFactors_t {
 }
 /// Factorization and index mapping returned by a distributed one-dimensional FFT query.
 pub type cufftXt1dFactors = cufftXt1dFactors_t;
-/// cufftXtWorkAreaPolicy specifies policy for cufftXtSetWorkAreaPolicy
-#[repr(u32)]
-#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
-pub enum cufftXtWorkAreaPolicy_t {
+impl cufftXtWorkAreaPolicy_t {
     /// maximum reduction
-    CUFFT_WORKAREA_MINIMAL = 0,
+    pub const CUFFT_WORKAREA_MINIMAL: cufftXtWorkAreaPolicy_t = cufftXtWorkAreaPolicy_t(
+        0,
+    );
     /// use workSize parameter as limit
-    CUFFT_WORKAREA_USER = 1,
+    pub const CUFFT_WORKAREA_USER: cufftXtWorkAreaPolicy_t = cufftXtWorkAreaPolicy_t(1);
     /// default - 1x overhead or more, maximum performance
-    CUFFT_WORKAREA_PERFORMANCE = 2,
+    pub const CUFFT_WORKAREA_PERFORMANCE: cufftXtWorkAreaPolicy_t = cufftXtWorkAreaPolicy_t(
+        2,
+    );
 }
+/// cufftXtWorkAreaPolicy specifies policy for cufftXtSetWorkAreaPolicy
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
+pub struct cufftXtWorkAreaPolicy_t(pub ::core::ffi::c_uint);
 pub use self::cufftXtWorkAreaPolicy_t as cufftXtWorkAreaPolicy;
 singe_loader::functions! { crate::LIBRARY;
     /// [`cufftXtSetGPUs`] identifies which GPUs are to be used with the plan. As in the single GPU case [`cufftCreate`](super::cufftCreate) creates a plan and `cufftMakePlan*()` does the plan generation. In cuFFT prior to 10.4.0, this call will return an error if a non-default stream has been associated with the plan.
@@ -483,29 +501,34 @@ singe_loader::functions! { crate::LIBRARY;
         queryType: cufftXtQueryType,
     ) -> cufftResult;
 }
-/// callbacks
-#[repr(u32)]
-#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
-pub enum cufftXtCallbackType_t {
+impl cufftXtCallbackType_t {
     /// Loads single-precision complex samples.
-    CUFFT_CB_LD_COMPLEX = 0,
+    pub const CUFFT_CB_LD_COMPLEX: cufftXtCallbackType_t = cufftXtCallbackType_t(0);
     /// Loads double-precision complex samples.
-    CUFFT_CB_LD_COMPLEX_DOUBLE = 1,
+    pub const CUFFT_CB_LD_COMPLEX_DOUBLE: cufftXtCallbackType_t = cufftXtCallbackType_t(
+        1,
+    );
     /// Loads single-precision real samples.
-    CUFFT_CB_LD_REAL = 2,
+    pub const CUFFT_CB_LD_REAL: cufftXtCallbackType_t = cufftXtCallbackType_t(2);
     /// Loads double-precision real samples.
-    CUFFT_CB_LD_REAL_DOUBLE = 3,
+    pub const CUFFT_CB_LD_REAL_DOUBLE: cufftXtCallbackType_t = cufftXtCallbackType_t(3);
     /// Stores single-precision complex samples.
-    CUFFT_CB_ST_COMPLEX = 4,
+    pub const CUFFT_CB_ST_COMPLEX: cufftXtCallbackType_t = cufftXtCallbackType_t(4);
     /// Stores double-precision complex samples.
-    CUFFT_CB_ST_COMPLEX_DOUBLE = 5,
+    pub const CUFFT_CB_ST_COMPLEX_DOUBLE: cufftXtCallbackType_t = cufftXtCallbackType_t(
+        5,
+    );
     /// Stores single-precision real samples.
-    CUFFT_CB_ST_REAL = 6,
+    pub const CUFFT_CB_ST_REAL: cufftXtCallbackType_t = cufftXtCallbackType_t(6);
     /// Stores double-precision real samples.
-    CUFFT_CB_ST_REAL_DOUBLE = 7,
+    pub const CUFFT_CB_ST_REAL_DOUBLE: cufftXtCallbackType_t = cufftXtCallbackType_t(7);
     /// No supported callback signature is selected.
-    CUFFT_CB_UNDEFINED = 8,
+    pub const CUFFT_CB_UNDEFINED: cufftXtCallbackType_t = cufftXtCallbackType_t(8);
 }
+/// callbacks
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
+pub struct cufftXtCallbackType_t(pub ::core::ffi::c_uint);
 pub use self::cufftXtCallbackType_t as cufftXtCallbackType;
 singe_loader::functions! { crate::LIBRARY;
     /// [`cufftXtSetCallback`] specifies a load or store legacy callback to be used with the plan. This call is valid only after a call to `cufftMakePlan*()`, which does the plan generation. If there was already a legacy callback of this type associated with the plan, this new callback routine replaces it. If the new callback requires shared memory, you must call [`cufftXtSetCallbackSharedSize`] with the amount of shared memory it needs. cuFFT will not retain the amount of shared memory associated with the previous callback.

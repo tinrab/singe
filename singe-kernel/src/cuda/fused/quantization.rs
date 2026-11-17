@@ -4,7 +4,7 @@ use singe_cuda::types::bf16;
 use singe_cuda::types::f16;
 use singe_cuda::{
     stream::Stream,
-    view::{DeviceInput, DeviceOutput},
+    view::{DeviceOutput, DeviceRange},
 };
 
 use crate::{
@@ -36,9 +36,9 @@ macro_rules! fused_fp8 {
             out: &mut impl DeviceOutput<u8>,
             scales: &mut impl DeviceOutput<f32>,
             residual_out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
-            residual: &impl DeviceInput<$ty>,
-            weight: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
+            residual: &impl DeviceRange<$ty>,
+            weight: &impl DeviceRange<$ty>,
             config: FusedRmsNormFp8Config,
         ) -> Result<()> {
             let q = config.quantization;
@@ -79,8 +79,8 @@ macro_rules! fused_fp8 {
             stream: &Stream,
             out: &mut impl DeviceOutput<u8>,
             scales: &mut impl DeviceOutput<f32>,
-            gate: &impl DeviceInput<$ty>,
-            up: &impl DeviceInput<$ty>,
+            gate: &impl DeviceRange<$ty>,
+            up: &impl DeviceRange<$ty>,
             config: Fp8GroupQuantConfig,
         ) -> Result<()> {
             let scale_len = config.scale_len()?;

@@ -1,3 +1,5 @@
+//! Shared CUDA contexts, primary-context retention, and code loading.
+
 use std::{
     any::Any,
     ffi::CString,
@@ -9,20 +11,19 @@ use std::{
 };
 
 use bitflags::parser;
-use singe_cuda_sys::driver;
+use singe_core::report_cleanup_failure;
+use singe_cuda_sys::{driver, runtime};
 
 use crate::{
-    device::Device,
+    device::{Device, Limit},
     error::{Error, Result},
     graph::Graph,
     jit::JitOptions,
-    library::Library,
+    library::{Library, RawLibrary},
     memory::PinnedPool,
     module::{Module, ModuleImage, artifact::ArtifactMetadata},
-    nvrtc::{self, CompilationArtifact, OutputKind},
     submission::{Access, AccessGuard, AccessMode, AccessTracker, lock_access},
     try_ffi,
-    types::Limit,
     utility::{to_u32, to_usize},
     view::DeviceRegion,
 };
@@ -32,24 +33,24 @@ bitflags::bitflags! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct ContextFlags: u32 {
         /// Automatic scheduling.
-        const SCHEDULE_AUTO = driver::CUctx_flags::CU_CTX_SCHED_AUTO as _;
+        const SCHEDULE_AUTO = driver::CUctx_flags::CU_CTX_SCHED_AUTO.0;
         /// Set spin as default scheduling.
-        const SCHEDULE_SPIN = driver::CUctx_flags::CU_CTX_SCHED_SPIN as _;
+        const SCHEDULE_SPIN = driver::CUctx_flags::CU_CTX_SCHED_SPIN.0;
         /// Set yield as default scheduling.
-        const SCHEDULE_YIELD = driver::CUctx_flags::CU_CTX_SCHED_YIELD as _;
+        const SCHEDULE_YIELD = driver::CUctx_flags::CU_CTX_SCHED_YIELD.0;
         /// Set blocking synchronization as default scheduling.
-        const SCHEDULE_BLOCKING_SYNC = driver::CUctx_flags::CU_CTX_SCHED_BLOCKING_SYNC as _;
+        const SCHEDULE_BLOCKING_SYNC = driver::CUctx_flags::CU_CTX_SCHED_BLOCKING_SYNC.0;
         /// Deprecated: This flag was deprecated as of CUDA 11.0 and it no longer has any effect.
         /// All contexts as of CUDA 3.2 behave as though the flag is enabled.
-        const MAP_HOST = driver::CUctx_flags::CU_CTX_MAP_HOST as _;
+        const MAP_HOST = driver::CUctx_flags::CU_CTX_MAP_HOST.0;
         /// Keep local memory allocation after launch.
-        const LOCAL_MEMORY_RESIZE_TO_MAX = driver::CUctx_flags::CU_CTX_LMEM_RESIZE_TO_MAX as _;
+        const LOCAL_MEMORY_RESIZE_TO_MAX = driver::CUctx_flags::CU_CTX_LMEM_RESIZE_TO_MAX.0;
         /// Trigger coredumps from exceptions in this context.
-        const COREDUMP_ENABLE = driver::CUctx_flags::CU_CTX_COREDUMP_ENABLE as _;
+        const COREDUMP_ENABLE = driver::CUctx_flags::CU_CTX_COREDUMP_ENABLE.0;
         /// Enable user pipe to trigger coredumps in this context.
-        const USER_COREDUMP_ENABLE = driver::CUctx_flags::CU_CTX_USER_COREDUMP_ENABLE as _;
+        const USER_COREDUMP_ENABLE = driver::CUctx_flags::CU_CTX_USER_COREDUMP_ENABLE.0;
         /// Ensure synchronous memory operations on this context will synchronize.
-        const SYNC_MEMORY_OPERATIONS = driver::CUctx_flags::CU_CTX_SYNC_MEMOPS as _;
+        const SYNC_MEMORY_OPERATIONS = driver::CUctx_flags::CU_CTX_SYNC_MEMOPS.0;
     }
 }
 
@@ -92,13 +93,26 @@ pub struct Context {
     pub(crate) pinned: PinnedPool,
 }
 
+/// Raw ownership of a CUDA context.
+///
+/// Release `handle` according to `ownership`, or re-adopt the value with [`Context::from_raw`].
+#[derive(Debug)]
+pub struct RawContext {
+    /// Native context handle.
+    pub handle: driver::CUcontext,
+    /// Device the context belongs to.
+    pub device: Device,
+    /// Release responsibility for `handle`.
+    pub ownership: RawContextOwnership,
+}
+
 /// Native release responsibility, including a retained external ownership token.
 #[derive(Clone)]
 #[non_exhaustive]
 pub enum RawContextOwnership {
-    /// Destroys the context with `cuCtxDestroy` when the last wrapper is dropped.
+    /// Destroys the context when the last wrapper is dropped.
     Created,
-    /// Releases one retained primary-context reference with `cuDevicePrimaryCtxRelease`.
+    /// Releases one retained primary-context reference when the last wrapper is dropped.
     Primary,
     /// Keeps an external owner alive without destroying or releasing the native context.
     Borrowed(
@@ -123,7 +137,7 @@ impl Context {
     ///
     /// # Errors
     ///
-    /// Returns `Error::MemoryContextMismatch` for a range belonging to another context, `Error::ReentrantAccess` for nested tracked access, or `Error::AccessTrackingPoisoned` if tracking has failed or a tracking lock is poisoned.
+    /// Returns `Error::MemoryContextMismatch` for a range belonging to another context, `Error::ReentrantAccess` for nested tracked access, or `Error::LockPoisoned` if tracking has failed or a tracking lock is poisoned.
     /// Also propagates CUDA synchronization or event-query errors and errors returned by `access`.
     /// The callback runs only after all required waits succeed.
     pub fn with_host_access<T>(
@@ -139,6 +153,7 @@ impl Context {
     /// The declarations retain context and ordering metadata, not allocation owners.
     ///
     /// # Safety
+    ///
     /// Keep the declared storage live and obey each declaration's access mode.
     /// Any asynchronous work using these ranges must complete before the callback returns or unwinds.
     /// Nested tracked access is rejected rather than waiting on its own guard.
@@ -193,16 +208,16 @@ impl Context {
     ///
     /// # Errors
     ///
-    /// Returns `Error::InvalidValue` for nondefault flags.
+    /// Returns `Error::OutOfRange` for nondefault flags.
     /// Also returns an error if this context cannot be bound or CUDA rejects peer access, for example because the device pair does not support it or the peer-access limit is reached.
     /// Already-enabled access succeeds.
     pub fn enable_peer_access(&self, peer: &Self, flags: PeerAccessFlags) -> Result<()> {
         if flags != PeerAccessFlags::DEFAULT {
-            return Err(Error::InvalidValue);
+            return Err(Error::out_of_range("peer access flags"));
         }
 
         self.bind()?;
-        // SAFETY: `cuCtxEnablePeerAccess` receives live handles owned by the wrappers.
+        // SAFETY: `self` is bound above, and `peer` keeps its context handle live for the call.
         let status = unsafe { driver::cuCtxEnablePeerAccess(peer.as_raw(), flags.bits()) };
         if status == driver::CUresult::CUDA_ERROR_PEER_ACCESS_ALREADY_ENABLED {
             return Ok(());
@@ -213,6 +228,7 @@ impl Context {
     /// Disables this actual context's direct access to `peer` allocations.
     ///
     /// # Safety
+    ///
     /// Complete every access that relies on this permission, including graph replays, before disabling it.
     /// Do not use retained peer-copy objects or peer pointers again until access is re-enabled.
     /// Exclude concurrent uses.
@@ -222,79 +238,59 @@ impl Context {
     /// Returns an error if this context cannot be bound or CUDA cannot disable the permission, including when peer access is not enabled.
     pub unsafe fn disable_peer_access(&self, peer: &Self) -> Result<()> {
         self.bind()?;
-        // SAFETY: `cuCtxDisablePeerAccess` receives live handles owned by the wrappers.
+        // SAFETY: `self` is bound above and `peer` keeps its context live; the caller guarantees no access still relies on the permission.
         unsafe { try_ffi!(driver::cuCtxDisablePeerAccess(peer.as_raw())) }
     }
 
-    /// Creates a context for the calling thread's current runtime device using default context flags.
+    /// Retains the primary context of the calling thread's current runtime device and makes it current.
     ///
-    /// The new context becomes current on this thread.
-    /// The last owning wrapper destroys it.
+    /// The primary context is shared with the CUDA runtime and other libraries on the same device.
+    /// Use [`Self::create_dedicated`] for a separate execution environment.
     ///
     /// # Errors
     ///
     /// Propagates errors from querying the current runtime device or from [`Self::create_for_device`].
     pub fn create() -> Result<Arc<Self>> {
-        Self::create_with_flags(ContextFlags::empty())
+        Self::create_for_device(Device::current()?)
     }
 
-    /// Creates a context for the calling thread's current runtime device with `flags`.
-    ///
-    /// The new context becomes current on this thread.
-    /// The last owning wrapper destroys it.
-    ///
-    /// # Errors
-    ///
-    /// Propagates errors from querying the current runtime device or from [`Self::create_for_device_with_flags`].
-    pub fn create_with_flags(flags: ContextFlags) -> Result<Arc<Self>> {
-        let device = Device::current()?;
-        Self::create_for_device_with_flags(device, flags)
-    }
-
-    /// Creates a context for `device` using default context flags.
-    ///
-    /// The new context becomes current on the calling thread.
-    /// The last owning wrapper destroys it.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if CUDA initialization or context creation fails, including invalid creation flags, an unavailable device, or insufficient resources.
-    /// Returns `Error::NullHandle` if CUDA reports success with a null context handle.
-    pub fn create_for_device(device: Device) -> Result<Arc<Self>> {
-        Self::create_for_device_with_flags(device, ContextFlags::empty())
-    }
-
-    /// Creates a context for `device` with `flags` and makes it current on the calling thread.
+    /// Creates a new context for `device` with `flags` and makes it current on the calling thread.
     ///
     /// The last owning wrapper destroys this context.
-    /// Creating another context for the same device creates a separate execution environment.
+    /// It is a separate execution environment from the device's primary context and from other created contexts.
     ///
     /// # Errors
     ///
     /// Returns an error if CUDA initialization or context creation fails, including invalid creation flags, an unavailable device, or insufficient resources.
     /// Returns `Error::NullHandle` if CUDA reports success with a null context handle.
-    pub fn create_for_device_with_flags(device: Device, flags: ContextFlags) -> Result<Arc<Self>> {
-        // SAFETY: `cuInit`, `cuCtxCreate_v4` receive valid output locations.
+    pub fn create_dedicated(device: Device, flags: ContextFlags) -> Result<Arc<Self>> {
+        // SAFETY: `handle` is a writable local, the null creation parameters select the defaults, and `cuInit` runs first.
         unsafe {
             try_ffi!(driver::cuInit(0))?;
 
             let mut handle = ptr::null_mut();
             try_ffi!(driver::cuCtxCreate_v4(
                 &raw mut handle,
-                ptr::null_mut(), // CUctxCreateParams
+                ptr::null_mut(),
                 flags.bits(),
-                device.id() as _,
+                device.id(),
             ))?;
 
             if handle.is_null() {
                 return Err(Error::NullHandle);
             }
 
+            // The context was just created and nothing else refers to it, so a failed lookup destroys it.
+            let access_tracker = AccessTracker::for_context(handle.addr()).inspect_err(|_| {
+                if let Err(error) = try_ffi!(driver::cuCtxDestroy_v2(handle)) {
+                    report_cleanup_failure("destroy", "cuda context", &error);
+                }
+            })?;
             Ok(Arc::new(Self {
                 handle,
                 device,
                 ownership: RawContextOwnership::Created,
-                access_tracker: AccessTracker::for_context(handle as usize)?,
+                access_tracker,
                 pinned: PinnedPool::default(),
             }))
         }
@@ -309,30 +305,69 @@ impl Context {
     ///
     /// Returns an error if CUDA initialization, retaining the primary context, or setting it current fails.
     /// Returns `Error::NullHandle` if CUDA reports success with a null context handle.
-    pub fn retain_primary_for_device(device: Device) -> Result<Arc<Self>> {
-        // SAFETY: `cuInit`, `cuDevicePrimaryCtxRetain`, `cuCtxSetCurrent` receive valid output locations.
+    pub fn create_for_device(device: Device) -> Result<Arc<Self>> {
+        let mut handle = ptr::null_mut();
+        // SAFETY: `handle` is a writable local, and `cuInit` runs first.
         unsafe {
             try_ffi!(driver::cuInit(0))?;
-
-            let mut handle = ptr::null_mut();
             try_ffi!(driver::cuDevicePrimaryCtxRetain(
                 &raw mut handle,
-                device.id() as _,
+                device.id(),
             ))?;
+        }
 
-            if handle.is_null() {
-                return Err(Error::NullHandle);
+        let access_tracker = if handle.is_null() {
+            Err(Error::NullHandle)
+        } else {
+            AccessTracker::for_context(handle.addr())
+        }
+        .inspect_err(|_| {
+            // SAFETY: releases only the primary-context retain taken above.
+            let result = unsafe { try_ffi!(driver::cuDevicePrimaryCtxRelease_v2(device.id())) };
+            if let Err(error) = result {
+                report_cleanup_failure("release", "cuda primary context", &error);
             }
+        })?;
 
-            try_ffi!(driver::cuCtxSetCurrent(handle))?;
+        // From here on, dropping the wrapper releases the retain.
+        let context = Arc::new(Self {
+            handle,
+            device,
+            ownership: RawContextOwnership::Primary,
+            access_tracker,
+            pinned: PinnedPool::default(),
+        });
 
-            Ok(Arc::new(Self {
-                handle,
-                device,
-                ownership: RawContextOwnership::Primary,
-                access_tracker: AccessTracker::for_context(handle as usize)?,
-                pinned: PinnedPool::default(),
-            }))
+        context.bind()?;
+        Ok(context)
+    }
+
+    // Green contexts belong to their device's primary context, so code loaded there is the only code they may launch.
+    pub(crate) fn is_primary_for(&self, device: Device) -> Result<bool> {
+        if self.device != device {
+            return Ok(false);
+        }
+
+        match self.ownership {
+            RawContextOwnership::Primary => Ok(true),
+            RawContextOwnership::Created => Ok(false),
+            RawContextOwnership::Borrowed(_) => {
+                let mut primary = ptr::null_mut();
+                // SAFETY: `primary` is a writable local, and the retain taken here is released right below.
+                unsafe {
+                    try_ffi!(driver::cuDevicePrimaryCtxRetain(
+                        &raw mut primary,
+                        device.id(),
+                    ))?;
+                }
+
+                // SAFETY: releases only the primary-context retain taken above.
+                unsafe {
+                    try_ffi!(driver::cuDevicePrimaryCtxRelease_v2(device.id()))?;
+                }
+
+                Ok(primary == self.handle)
+            }
         }
     }
 
@@ -345,7 +380,7 @@ impl Context {
     ///
     /// Returns an error if CUDA Driver cannot query or set the current context.
     pub fn bind(&self) -> Result<()> {
-        // SAFETY: `cuCtxGetCurrent`, `cuCtxSetCurrent` receive live handles owned by the wrappers and valid output locations.
+        // SAFETY: `current_context` is a writable local, and `self.handle` is the live context this wrapper owns or borrows.
         unsafe {
             let mut current_context = ptr::null_mut();
             try_ffi!(driver::cuCtxGetCurrent(&raw mut current_context))?;
@@ -358,75 +393,30 @@ impl Context {
         Ok(())
     }
 
-    /// Loads the corresponding module from the given image into the current context.
+    /// Loads the corresponding module from the given image into this context with `jit_options`.
     /// The image may be a cubin or fatbin as output by **nvcc**, or a NUL-terminated PTX string, either as output by **nvcc** or hand-written, or Tile IR data.
     ///
     /// # Errors
     ///
-    /// Returns an error if the context cannot be bound, CUDA cannot load the module, or a previous asynchronous launch reported an error.
-    pub fn load_module(self: &Arc<Self>, image: &ModuleImage<'_>) -> Result<Module> {
-        self.load_module_with_metadata(image, None)
+    /// Returns an error if the context cannot be bound, the JIT option count exceeds `u32`, CUDA rejects the image or JIT options, or a previous asynchronous launch reported an error.
+    pub fn load_module(
+        self: &Arc<Self>,
+        image: &ModuleImage<'_>,
+        jit_options: JitOptions<'_>,
+    ) -> Result<Module> {
+        self.load_module_with_metadata(image, jit_options, None)
     }
 
     pub(crate) fn load_module_with_metadata(
         self: &Arc<Self>,
         image: &ModuleImage<'_>,
+        mut jit_options: JitOptions<'_>,
         metadata: Option<Arc<ArtifactMetadata>>,
     ) -> Result<Module> {
         self.bind()?;
 
-        // SAFETY: the image is a borrowed, NUL-terminated or self-describing module image, and the options arrays have matching lengths.
-        unsafe {
-            let mut module_handle = ptr::null_mut();
-            try_ffi!(driver::cuModuleLoadData(
-                &raw mut module_handle,
-                image.as_ptr().cast(),
-            ))?;
-            Module::from_raw_with_metadata(module_handle, Arc::clone(self), metadata)
-        }
-    }
-
-    /// Creates an empty CUDA graph associated with this context.
-    ///
-    /// Prefer this over [`RawGraph::create`](crate::graph::RawGraph::create) for ordinary Singe code.
-    /// The returned graph carries its context association into instantiated executable graphs, allowing launches and uploads to reject streams from another context before calling CUDA.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the context cannot be bound or CUDA cannot create the graph.
-    pub fn create_graph(self: &Arc<Self>) -> Result<Graph> {
-        Graph::create_in_context(Arc::clone(self))
-    }
-
-    /// Drops this module handle.
-    ///
-    /// The module remains loaded while other module handles or objects retaining it exist.
-    /// Cleanup uses the module's own context; `self` is not used to select a context.
-    ///
-    /// # Errors
-    ///
-    /// This method always returns `Ok(())`.
-    /// Native unloading failures during final cleanup are not returned.
-    pub fn unload_module(self: &Arc<Self>, module: Module) -> Result<()> {
-        drop(module);
-        Ok(())
-    }
-
-    /// Loads the corresponding module from the given image into the current context.
-    /// The image may be a cubin or fatbin as output by **nvcc**, or a NUL-terminated PTX string, either as output by **nvcc** or hand-written, or Tile IR data.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the context cannot be bound, CUDA cannot load the module, JIT options are rejected, or a previous asynchronous launch reported an error.
-    pub fn load_module_with_options(
-        self: &Arc<Self>,
-        image: &ModuleImage<'_>,
-        mut jit_options: JitOptions<'_>,
-    ) -> Result<Module> {
-        self.bind()?;
-
         let mut jit_options = jit_options.build();
-        // SAFETY: the image is a borrowed, NUL-terminated or self-describing module image, and the options arrays have matching lengths.
+        // SAFETY: every `ModuleImage` is nonempty NUL-terminated PTX or a self-describing binary, so the length-less loader stays in bounds, and the options arrays have matching lengths.
         unsafe {
             let mut module_handle = ptr::null_mut();
             try_ffi!(driver::cuModuleLoadDataEx(
@@ -436,61 +426,23 @@ impl Context {
                 jit_options.names.as_mut_ptr().cast(),
                 jit_options.values.as_mut_ptr().cast(),
             ))?;
-            Module::from_raw(module_handle, Arc::clone(self))
+            Module::from_raw_with_metadata(module_handle, Arc::clone(self), metadata)
         }
     }
 
-    /// Retrieves `output` from a compiled NVRTC program and loads it as a module using default JIT settings.
+    /// Creates an empty CUDA graph associated with this context.
     ///
-    /// Only PTX, cubin, and Tile IR can be loaded directly.
-    /// LTO IR and `OptiX` IR are rejected; link LTO IR before loading it.
-    ///
-    /// # Errors
-    ///
-    /// Propagates errors from retrieving the selected NVRTC artifact or loading the module.
-    /// Returns `Error::InvalidValue` for LTO IR or `OptiX` IR; artifact retrieval also rejects empty PTX and cubin output.
-    /// Loading can fail if the context cannot be bound, CUDA rejects the image or JIT settings, the JIT option count exceeds `u32`, or CUDA returns a null module handle.
-    pub fn load_nvrtc_module(
-        self: &Arc<Self>,
-        program: &nvrtc::Program,
-        output: OutputKind,
-    ) -> Result<Module> {
-        self.load_nvrtc_module_with_options(program, output, JitOptions::default())
-    }
-
-    /// Retrieves `output` from a compiled NVRTC program and loads it as a module with `jit_options`.
-    ///
-    /// Only PTX, cubin, and Tile IR can be loaded directly.
-    /// LTO IR and `OptiX` IR are rejected; link LTO IR before loading it.
+    /// Prefer this over [`UnboundGraph::create`](crate::graph::UnboundGraph::create) for ordinary Singe code.
+    /// The returned graph carries its context association into instantiated executable graphs, allowing launches and uploads to reject streams from another context before calling CUDA.
     ///
     /// # Errors
     ///
-    /// Propagates errors from retrieving the selected NVRTC artifact or loading the module.
-    /// Returns `Error::InvalidValue` for LTO IR or `OptiX` IR; artifact retrieval also rejects empty PTX and cubin output.
-    /// Loading can fail if the context cannot be bound, CUDA rejects the image or JIT settings, the JIT option count exceeds `u32`, or CUDA returns a null module handle.
-    pub fn load_nvrtc_module_with_options(
-        self: &Arc<Self>,
-        program: &nvrtc::Program,
-        output: OutputKind,
-        jit_options: JitOptions<'_>,
-    ) -> Result<Module> {
-        let image = module_loadable_image(program.artifact(output)?)?;
-        self.load_module_with_options(&image, jit_options)
+    /// Returns an error if the context cannot be bound or CUDA cannot create the graph.
+    pub fn create_graph(self: &Arc<Self>) -> Result<Graph> {
+        Graph::create_in_context(Arc::clone(self))
     }
 
-    /// Loads a CUDA library from `image` using default JIT settings.
-    ///
-    /// See [`Self::load_library_with_options`] for eager and lazy loading behavior.
-    /// The returned library retains this context.
-    ///
-    /// # Errors
-    ///
-    /// Propagates errors from [`Self::load_library_with_options`].
-    pub fn load_library(self: &Arc<Self>, image: &ModuleImage<'_>) -> Result<Library> {
-        self.load_library_with_options(image, JitOptions::default())
-    }
-
-    /// Loads the corresponding library from the given image based on the application defined library loading mode:
+    /// Loads the corresponding library from the given image with `jit_options`, based on the application defined library loading mode:
     ///
     /// * If module loading is set to EAGER by the environment variables described in "Module loading", the library is loaded eagerly into all contexts at the time of the call and future contexts at the time of creation until the library is unloaded with [`sys::cuLibraryUnload`](singe_cuda_sys::driver::cuLibraryUnload).
     /// * If the environment variables are set to LAZY, the library is not immediately loaded into existing contexts and is loaded only when a function is needed for that context, such as a kernel launch.
@@ -507,7 +459,7 @@ impl Context {
     /// Returns an error if the context cannot be bound, the JIT option count exceeds `u32`, or CUDA rejects the image, options, or required device features.
     /// Returns `Error::NullHandle` if CUDA reports success with a null library handle.
     /// CUDA may also report errors from previous asynchronous work.
-    pub fn load_library_with_options(
+    pub fn load_library(
         self: &Arc<Self>,
         image: &ModuleImage<'_>,
         mut jit_options: JitOptions<'_>,
@@ -516,7 +468,7 @@ impl Context {
 
         let mut jit_options = jit_options.build();
         let mut handle = ptr::null_mut();
-        // SAFETY: `cuLibraryLoadData` receives valid output locations and pointers into buffers borrowed for the call.
+        // SAFETY: every `ModuleImage` is nonempty NUL-terminated PTX or a self-describing binary, so the length-less loader stays in bounds, and the options arrays have matching lengths.
         unsafe {
             try_ffi!(driver::cuLibraryLoadData(
                 &raw mut handle,
@@ -534,47 +486,12 @@ impl Context {
             return Err(Error::NullHandle);
         }
         // SAFETY: CUDA just created this handle in this context, and nothing else owns it.
-        unsafe { Library::from_raw(handle, Arc::clone(self)) }
-    }
-
-    /// Retrieves `output` from a compiled NVRTC program and loads it as a CUDA library using default JIT settings.
-    ///
-    /// Only PTX, cubin, and Tile IR can be loaded directly.
-    /// LTO IR and `OptiX` IR are rejected; link LTO IR before loading it.
-    ///
-    /// See [`Self::load_library_with_options`] for eager and lazy loading behavior.
-    ///
-    /// # Errors
-    ///
-    /// Propagates errors from retrieving the selected NVRTC artifact or from [`Self::load_library_with_options`].
-    /// Returns `Error::InvalidValue` for LTO IR or `OptiX` IR; artifact retrieval also rejects empty PTX and cubin output.
-    pub fn load_nvrtc_library(
-        self: &Arc<Self>,
-        program: &nvrtc::Program,
-        output: OutputKind,
-    ) -> Result<Library> {
-        self.load_nvrtc_library_with_options(program, output, JitOptions::default())
-    }
-
-    /// Retrieves `output` from a compiled NVRTC program and loads it as a CUDA library with `jit_options`.
-    ///
-    /// Only PTX, cubin, and Tile IR can be loaded directly.
-    /// LTO IR and `OptiX` IR are rejected; link LTO IR before loading it.
-    ///
-    /// See [`Self::load_library_with_options`] for eager and lazy loading behavior.
-    ///
-    /// # Errors
-    ///
-    /// Propagates errors from retrieving the selected NVRTC artifact or from [`Self::load_library_with_options`].
-    /// Returns `Error::InvalidValue` for LTO IR or `OptiX` IR; artifact retrieval also rejects empty PTX and cubin output.
-    pub fn load_nvrtc_library_with_options(
-        self: &Arc<Self>,
-        program: &nvrtc::Program,
-        output: OutputKind,
-        jit_options: JitOptions<'_>,
-    ) -> Result<Library> {
-        let image = library_loadable_image(program.artifact(output)?)?;
-        self.load_library_with_options(&image, jit_options)
+        unsafe {
+            Library::from_raw(RawLibrary {
+                handle,
+                context: Arc::clone(self),
+            })
+        }
     }
 
     /// Loads the corresponding library from the given file based on the application defined library loading mode:
@@ -596,7 +513,7 @@ impl Context {
         self.bind()?;
         let path = CString::new(path)?;
         let mut handle = ptr::null_mut();
-        // SAFETY: `cuLibraryLoadFromFile` receives valid output locations and pointers into buffers borrowed for the call.
+        // SAFETY: `handle` is a writable local, `path` is a NUL-terminated string live for the call, and every option array is null with a zero count.
         unsafe {
             try_ffi!(driver::cuLibraryLoadFromFile(
                 &raw mut handle,
@@ -614,7 +531,12 @@ impl Context {
             return Err(Error::NullHandle);
         }
         // SAFETY: CUDA just created this handle in this context, and nothing else owns it.
-        unsafe { Library::from_raw(handle, Arc::clone(self)) }
+        unsafe {
+            Library::from_raw(RawLibrary {
+                handle,
+                context: Arc::clone(self),
+            })
+        }
     }
 
     /// Blocks until the current context has completed all preceding requested tasks.
@@ -627,7 +549,7 @@ impl Context {
     /// Returns an error if the context cannot be bound, a preceding task failed, or a previous asynchronous launch reported an error.
     pub fn synchronize(&self) -> Result<()> {
         self.bind()?;
-        // SAFETY: `cuCtxSynchronize` takes no arguments.
+        // SAFETY: `cuCtxSynchronize` takes no arguments and waits on the context bound above.
         unsafe {
             try_ffi!(driver::cuCtxSynchronize())?;
         }
@@ -642,7 +564,7 @@ impl Context {
     /// Returns an error if the context cannot be bound, CUDA cannot query the flags, or a previous asynchronous launch reported an error.
     pub fn flags(&self) -> Result<ContextFlags> {
         self.bind()?;
-        // SAFETY: `cuCtxGetFlags` receives valid output locations.
+        // SAFETY: `flags` is a local that `cuCtxGetFlags` writes through an exclusive pointer.
         unsafe {
             let mut flags = 0;
             try_ffi!(driver::cuCtxGetFlags(&raw mut flags))?;
@@ -666,10 +588,10 @@ impl Context {
     /// Returns an error if the context cannot be bound, `limit` is unsupported, CUDA cannot query the limit, or a previous asynchronous launch reported an error.
     pub fn limit(&self, limit: Limit) -> Result<usize> {
         self.bind()?;
-        // SAFETY: `cuCtxGetLimit` receives valid output locations.
+        // SAFETY: `value` is a local that `cuCtxGetLimit` writes through an exclusive pointer.
         unsafe {
             let mut value = 0;
-            try_ffi!(driver::cuCtxGetLimit(&raw mut value, limit.into()))?;
+            try_ffi!(driver::cuCtxGetLimit(&raw mut value, driver_limit(limit)))?;
             to_usize(value, "context limit")
         }
     }
@@ -694,7 +616,8 @@ impl Context {
     /// * [`Limit::DevRuntimeSyncDepth`] controls the maximum nesting depth of a grid at which a thread can safely call [`Device::synchronize`].
     ///   Setting this limit must be performed before any launch of a kernel that uses the device runtime and calls [`Device::synchronize`] above the default sync depth, two levels of grids.
     ///   Calls to [`Device::synchronize`] fail if this limit is violated.
-    ///   This limit can be set smaller than the default or up to the maximum launch depth of 24. Additional sync-depth levels require the driver to reserve large amounts of device memory that can no longer be used for application allocations.
+    ///   This limit can be set smaller than the default or up to the maximum launch depth of 24.
+    ///   Additional sync-depth levels require the driver to reserve large amounts of device memory that can no longer be used for application allocations.
     ///   If these reservations of device memory fail, [`Context::set_limit`] returns [`crate::error::Status::OutOfMemory`], and the limit can be reset to a lower value.
     ///   This limit is only applicable to devices of compute capability &lt; 9.0.
     ///   Setting this limit on devices of other compute capability versions returns [`crate::error::Status::UnsupportedLimit`].
@@ -720,9 +643,12 @@ impl Context {
     /// Returns an error if the context cannot be bound, `limit` is unsupported, CUDA rejects the requested value, or a previous asynchronous launch reported an error.
     pub fn set_limit(&self, limit: Limit, value: usize) -> Result<()> {
         self.bind()?;
-        // SAFETY: `cuCtxSetLimit` receives only plain values.
+        let value = value
+            .try_into()
+            .map_err(|_| Error::out_of_range("context limit value"))?;
+        // SAFETY: `cuCtxSetLimit` receives only values, and applies them to the context bound above.
         unsafe {
-            try_ffi!(driver::cuCtxSetLimit(limit.into(), value as _))?;
+            try_ffi!(driver::cuCtxSetLimit(driver_limit(limit), value))?;
         }
         Ok(())
     }
@@ -746,28 +672,23 @@ impl Context {
     ///
     /// # Safety
     ///
-    /// `handle` must be a valid CUDA context for `device`, and no other Rust wrapper may own the same release responsibility.
-    /// `ownership` must match how the context should be released: created contexts are destroyed with `cuCtxDestroy`, while primary contexts are released with `cuDevicePrimaryCtxRelease`.
+    /// `raw.handle` must be a valid CUDA context for `raw.device`, and no other Rust wrapper may own the same release responsibility.
+    /// `raw.ownership` must match how the context should be released: a created context is destroyed, while a primary context has one retain released.
     /// Borrowed contexts retain an external owner instead of acquiring release responsibility.
     ///
     /// # Errors
     ///
-    /// Returns `Error::NullHandle` if `handle` is null.
-    /// Other handle validity and ownership requirements are the caller's responsibility.
-    pub unsafe fn from_raw(
-        handle: driver::CUcontext,
-        device: Device,
-        ownership: RawContextOwnership,
-    ) -> Result<Arc<Self>> {
-        if handle.is_null() {
+    /// Returns `Error::NullHandle` if `raw.handle` is null.
+    pub unsafe fn from_raw(raw: RawContext) -> Result<Arc<Self>> {
+        if raw.handle.is_null() {
             return Err(Error::NullHandle);
         }
 
         Ok(Arc::new(Self {
-            handle,
-            device,
-            ownership,
-            access_tracker: AccessTracker::for_context(handle as usize)?,
+            handle: raw.handle,
+            device: raw.device,
+            ownership: raw.ownership,
+            access_tracker: AccessTracker::for_context(raw.handle.addr())?,
             pinned: PinnedPool::default(),
         }))
     }
@@ -776,29 +697,32 @@ impl Context {
     ///
     /// The caller becomes responsible for releasing the returned context according to the returned ownership mode.
     /// For borrowed contexts, keep the returned external token live while using the raw handle.
-    #[must_use]
-    pub fn into_raw_parts(mut self) -> (driver::CUcontext, Device, RawContextOwnership) {
-        self.release_pinned();
-        let handle = mem::replace(&mut self.handle, ptr::null_mut());
-        (handle, self.device, self.ownership.clone())
+    ///
+    /// # Errors
+    ///
+    /// Returns the context unchanged as `Err` if another clone still retains it.
+    pub fn into_raw(this: Arc<Self>) -> StdResult<RawContext, Arc<Self>> {
+        let mut context = Arc::try_unwrap(this)?;
+        context.release_pinned();
+        let handle = mem::replace(&mut context.handle, ptr::null_mut());
+        Ok(RawContext {
+            handle,
+            device: context.device,
+            ownership: context.ownership.clone(),
+        })
     }
 }
 
-// SAFETY: CUDA driver contexts are shared execution environments, not per-thread
-// library handles. The Rust wrapper only stores the raw context pointer and the
-// owning device, while current-context selection is maintained by CUDA as
-// thread-local driver state.
+// SAFETY: a CUDA context is a process-wide driver object that any thread may make current, use, and destroy; the other fields are `Send`.
 unsafe impl Send for Context {}
 
+// SAFETY: `&self` methods only bind the immutable handle on the calling thread, which the driver keeps as thread-local state, and the mutable state sits behind mutexes.
 unsafe impl Sync for Context {}
 
 impl Context {
     fn release_pinned(&self) {
         if let Err(error) = self.pinned.release_all(self) {
-            eprintln!(
-                "failed to free cuda pinned host memory: {}",
-                singe_core::ErrorChain(&error)
-            );
+            report_cleanup_failure("free", "cuda pinned host memory", &error);
         }
     }
 }
@@ -811,21 +735,18 @@ impl Drop for Context {
 
         // Fields drop after this body, and pinned chunks must go before the native context.
         self.release_pinned();
-        // SAFETY: `cuCtxDestroy_v2`, `cuDevicePrimaryCtxRelease_v2` receive live handles owned by the wrappers.
+        // SAFETY: the last owner releases `self.handle` exactly as `self.ownership` records, after freeing its pinned chunks; a borrowed context is not released.
         unsafe {
             let result = match &self.ownership {
                 RawContextOwnership::Created => try_ffi!(driver::cuCtxDestroy_v2(self.handle)),
                 RawContextOwnership::Primary => {
-                    try_ffi!(driver::cuDevicePrimaryCtxRelease_v2(self.device.id() as _))
+                    try_ffi!(driver::cuDevicePrimaryCtxRelease_v2(self.device.id()))
                 }
                 RawContextOwnership::Borrowed(_) => Ok(()),
             };
 
             if let Err(error) = result {
-                eprintln!(
-                    "failed to destroy cuda context wrapper: {}",
-                    singe_core::ErrorChain(&error)
-                );
+                report_cleanup_failure("destroy", "cuda context", &error);
             }
         }
     }
@@ -845,20 +766,7 @@ impl Hash for Context {
     }
 }
 
-fn module_loadable_image(artifact: CompilationArtifact) -> Result<ModuleImage<'static>> {
-    match artifact {
-        CompilationArtifact::Ptx(image)
-        | CompilationArtifact::Cubin(image)
-        | CompilationArtifact::TileIr(image) => Ok(image),
-        CompilationArtifact::LtoIr(_) | CompilationArtifact::OptixIr(_) => Err(Error::InvalidValue),
-    }
-}
-
-fn library_loadable_image(artifact: CompilationArtifact) -> Result<ModuleImage<'static>> {
-    match artifact {
-        CompilationArtifact::Ptx(image)
-        | CompilationArtifact::Cubin(image)
-        | CompilationArtifact::TileIr(image) => Ok(image),
-        CompilationArtifact::LtoIr(_) | CompilationArtifact::OptixIr(_) => Err(Error::InvalidValue),
-    }
+// The runtime and driver limit enumerations share their values.
+fn driver_limit(limit: Limit) -> driver::CUlimit {
+    driver::CUlimit(runtime::cudaLimit::from(limit).0)
 }

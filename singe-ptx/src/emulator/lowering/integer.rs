@@ -12,7 +12,7 @@ use crate::{
 };
 
 /// Lowers `add`, `sub`, `div`, `rem`, `min`, and `max` on an integer type.
-pub fn binary(
+pub(crate) fn binary(
     compiler: &FunctionCompiler<'_, '_>,
     instruction: &Instruction,
     head: &mut Head<'_>,
@@ -51,7 +51,7 @@ pub fn binary(
 }
 
 /// Lowers `mul` and `mad` with a `lo`, `hi`, or `wide` mode.
-pub fn multiply(
+pub(crate) fn multiply(
     compiler: &FunctionCompiler<'_, '_>,
     instruction: &Instruction,
     head: &mut Head<'_>,
@@ -116,7 +116,7 @@ pub fn multiply(
 }
 
 /// Lowers `mul24` and `mad24`.
-pub fn multiply24(
+pub(crate) fn multiply24(
     compiler: &FunctionCompiler<'_, '_>,
     instruction: &Instruction,
     head: &mut Head<'_>,
@@ -155,7 +155,7 @@ pub fn multiply24(
 }
 
 /// Lowers `sad`.
-pub fn sum_difference(
+pub(crate) fn sum_difference(
     compiler: &FunctionCompiler<'_, '_>,
     instruction: &Instruction,
     head: &mut Head<'_>,
@@ -177,7 +177,7 @@ pub fn sum_difference(
 }
 
 /// Lowers `clmad`.
-pub fn carryless(
+pub(crate) fn carryless(
     compiler: &FunctionCompiler<'_, '_>,
     instruction: &Instruction,
     head: &mut Head<'_>,
@@ -197,7 +197,7 @@ pub fn carryless(
 }
 
 /// Lowers `addc`, `subc`, `madc`, and the `.cc` forms of `add`, `sub`, and `mad`.
-pub fn carry(
+pub(crate) fn carry(
     compiler: &FunctionCompiler<'_, '_>,
     instruction: &Instruction,
     head: &mut Head<'_>,
@@ -255,7 +255,7 @@ pub fn carry(
 }
 
 /// Lowers `dp4a` and `dp2a`.
-pub fn dot(
+pub(crate) fn dot(
     compiler: &FunctionCompiler<'_, '_>,
     instruction: &Instruction,
     head: &mut Head<'_>,
@@ -296,7 +296,7 @@ pub fn dot(
 }
 
 /// Lowers `neg` and `abs` on a signed integer type.
-pub fn unary(
+pub(crate) fn unary(
     compiler: &FunctionCompiler<'_, '_>,
     instruction: &Instruction,
     head: &mut Head<'_>,
@@ -322,7 +322,7 @@ pub fn unary(
 }
 
 /// Lowers `and`, `or`, `xor`, and `not`.
-pub fn bitwise(
+pub(crate) fn bitwise(
     compiler: &FunctionCompiler<'_, '_>,
     instruction: &Instruction,
     head: &mut Head<'_>,
@@ -362,7 +362,7 @@ pub fn bitwise(
 }
 
 /// Lowers `shl` and `shr`.
-pub fn shift(
+pub(crate) fn shift(
     compiler: &FunctionCompiler<'_, '_>,
     instruction: &Instruction,
     head: &mut Head<'_>,

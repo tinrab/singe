@@ -1,15 +1,17 @@
 [package]
 name = "singe-onnx"
-description = "ONNX model utilities."
-version = "0.1.0-alpha.8"
+description = "Decodes ONNX models from their protobuf encoding into typed Rust values."
+version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 repository.workspace = true
+documentation = "https://docs.rs/singe-onnx"
 license-file.workspace = true
 readme = "README.md"
 keywords = ["singe", "onnx", "model"]
+categories = ["science", "parser-implementations"]
 include = [
     "src/**/*.rs",
-    "/build.rs",
     "proto/*.proto",
     "/Cargo.toml",
     "/README.md",
@@ -17,13 +19,14 @@ include = [
     "/dist/katex_header.html",
 ]
 
+[package.metadata.docs.rs]
+rustdoc-args = ["--cfg", "docsrs", "--html-in-header", "dist/katex_header.html"]
+
 [dependencies]
 thiserror.workspace = true
 prost.workspace = true
-bomboni_proto.workspace = true
 bomboni_request.workspace = true
 num_enum.workspace = true
 
-[build-dependencies]
-prost-build.workspace = true
-bomboni_prost.workspace = true
+[dev-dependencies]
+anyhow.workspace = true

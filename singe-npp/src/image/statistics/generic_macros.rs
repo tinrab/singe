@@ -614,7 +614,8 @@ macro_rules! impl_generic_typed_pair_indexed_statistic_c3 {
             ///
             /// Provided implementations allocate temporary GPU scratch and return after successful stream completion.
             /// This scratch-owning form rejects stream capture.
-            /// `channel` is zero-based and must be less than 3. Each result or coordinate view must contain exactly one element per processed channel.
+            /// `channel` is zero-based and must be less than 3.
+            /// Each result or coordinate view must contain exactly one element per processed channel.
             ///
             /// # Errors
             ///
@@ -692,7 +693,8 @@ macro_rules! impl_generic_typed_pair_indexed_statistic_c3 {
         ///
         /// Provided implementations allocate temporary GPU scratch and return after successful stream completion.
         /// This scratch-owning form rejects stream capture.
-        /// `channel` is zero-based and must be less than 3. Each result or coordinate view must contain exactly one element per processed channel.
+        /// `channel` is zero-based and must be less than 3.
+        /// Each result or coordinate view must contain exactly one element per processed channel.
         ///
         /// # Errors
         ///
@@ -903,7 +905,8 @@ macro_rules! impl_generic_typed_pair_indexed_statistic_masked_c3 {
             /// Provided implementations allocate temporary GPU scratch and return after successful stream completion.
             /// This scratch-owning form rejects stream capture.
             /// The mask must have the same ROI size as the source image.
-            /// `channel` is zero-based and must be less than 3. Each result or coordinate view must contain exactly one element per processed channel.
+            /// `channel` is zero-based and must be less than 3.
+            /// Each result or coordinate view must contain exactly one element per processed channel.
             ///
             /// # Errors
             ///
@@ -986,7 +989,8 @@ macro_rules! impl_generic_typed_pair_indexed_statistic_masked_c3 {
         /// Provided implementations allocate temporary GPU scratch and return after successful stream completion.
         /// This scratch-owning form rejects stream capture.
         /// The mask must have the same ROI size as the source image.
-        /// `channel` is zero-based and must be less than 3. Each result or coordinate view must contain exactly one element per processed channel.
+        /// `channel` is zero-based and must be less than 3.
+        /// Each result or coordinate view must contain exactly one element per processed channel.
         ///
         /// # Errors
         ///
@@ -1167,7 +1171,8 @@ macro_rules! impl_generic_statistic_masked_c3 {
             /// Provided implementations allocate temporary GPU scratch and return after successful stream completion.
             /// This scratch-owning form rejects stream capture.
             /// The mask must have the same ROI size as the source image.
-            /// `channel` is zero-based and must be less than 3. Each result or coordinate view must contain exactly one element per processed channel.
+            /// `channel` is zero-based and must be less than 3.
+            /// Each result or coordinate view must contain exactly one element per processed channel.
             ///
             /// # Errors
             ///
@@ -1233,7 +1238,8 @@ macro_rules! impl_generic_statistic_masked_c3 {
         /// Provided implementations allocate temporary GPU scratch and return after successful stream completion.
         /// This scratch-owning form rejects stream capture.
         /// The mask must have the same ROI size as the source image.
-        /// `channel` is zero-based and must be less than 3. Each result or coordinate view must contain exactly one element per processed channel.
+        /// `channel` is zero-based and must be less than 3.
+        /// Each result or coordinate view must contain exactly one element per processed channel.
         ///
         /// # Errors
         ///
@@ -1862,7 +1868,8 @@ macro_rules! impl_generic_error_metric_masked_c3 {
             /// Provided implementations allocate temporary GPU scratch and return after successful stream completion.
             /// This scratch-owning form rejects stream capture.
             /// The mask must have the same ROI size as the source image.
-            /// `channel` is zero-based and must be less than 3. Each result or coordinate view must contain exactly one element per processed channel.
+            /// `channel` is zero-based and must be less than 3.
+            /// Each result or coordinate view must contain exactly one element per processed channel.
             ///
             /// # Errors
             ///
@@ -1931,7 +1938,8 @@ macro_rules! impl_generic_error_metric_masked_c3 {
         /// Provided implementations allocate temporary GPU scratch and return after successful stream completion.
         /// This scratch-owning form rejects stream capture.
         /// The mask must have the same ROI size as the source image.
-        /// `channel` is zero-based and must be less than 3. Each result or coordinate view must contain exactly one element per processed channel.
+        /// `channel` is zero-based and must be less than 3.
+        /// Each result or coordinate view must contain exactly one element per processed channel.
         ///
         /// # Errors
         ///

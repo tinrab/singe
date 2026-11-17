@@ -1,10 +1,9 @@
+//! Device properties for native and deviceless descriptor and engine planning.
+
 use std::sync::{Arc, Mutex};
 
 use serde::{Deserialize, Serialize};
-use singe_cuda::{
-    device::{Device, DeviceAttribute},
-    error::Error as CudaError,
-};
+use singe_cuda::device::{Device, DeviceAttribute};
 
 use crate::{
     backend::{
@@ -53,7 +52,7 @@ impl AsRef<[u8]> for DevicePropertiesJson {
 pub enum DevicePropertiesSource {
     /// Targets this CUDA ordinal without requiring a cuDNN handle or changing the current device.
     Device(Device),
-    /// Targets a retained cuDNN handle using `CUDNN_ATTR_DEVICEPROP_HANDLE`.
+    /// Targets the device of a retained cuDNN handle through [`BackendAttributeName::DevicePropHandle`].
     Context(Arc<Mutex<Context>>),
 }
 
@@ -80,7 +79,8 @@ impl DeviceProperties {
     /// Sets only the chosen native source attribute, avoiding conflicting device and handle targets.
     ///
     /// # Errors
-    /// Returns context-lock, context-binding, invalid device or native descriptor errors.
+    ///
+    /// Returns an error if locking or binding the context fails, the device is invalid, or the native descriptor fails.
     pub fn create(source: DevicePropertiesSource) -> Result<Self> {
         let mut descriptor = BackendDescriptor::create(BackendDescriptorType::DeviceProp)?;
         let sm_version = match &source {
@@ -95,13 +95,11 @@ impl DeviceProperties {
                 sm_version_for_device(*device)?
             }
             DevicePropertiesSource::Context(context) => {
-                let context = context.lock().map_err(|_| {
-                    Error::Cuda(CudaError::ResourcePoisoned {
-                        name: "cudnn context",
-                    })
+                let context = context.lock().map_err(|_| Error::LockPoisoned {
+                    name: "cudnn context".into(),
                 })?;
                 context.bind()?;
-                // SAFETY: source retains the handle for this descriptor's complete lifetime.
+                // SAFETY: `context` is bound and locked, and the returned properties keep `source`, and with it the handle, for the descriptor's whole life.
                 unsafe {
                     descriptor.set_attribute_handle(
                         BackendAttributeName::DevicePropHandle,
@@ -186,20 +184,13 @@ impl DeviceProperties {
 
 #[cfg(all(test, feature = "testing"))]
 mod tests {
-    use singe_cuda::error::Status as CudaStatus;
-
     use super::*;
-    use crate::{error::Error, testing::setup_context};
+    use crate::testing::setup_context;
 
     #[test]
     fn test_device_properties_json_roundtrip() -> Result<()> {
-        let context_ref = match setup_context() {
-            Ok(context) => context,
-            Err(Error::Cuda(CudaError::Cuda { code, .. })) if code == CudaStatus::NoDevice => {
-                return Ok(());
-            }
-            Err(error) => return Err(error),
-        };
+        let test = setup_context()?;
+        let context_ref = test.context();
 
         let properties = DeviceProperties::create(DevicePropertiesSource::Device(
             context_ref.cuda_context().device(),

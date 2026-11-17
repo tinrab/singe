@@ -1,7 +1,7 @@
-//! Raw FFI bindings for CUDA Driver, Runtime, NVRTC, NVVM, NVTX, and library types.
-//!
-//! Prefer the safe `singe-cuda` crate unless direct NVIDIA ABI access is required.
-
+//! Low-level FFI bindings for the CUDA 13.4 driver and runtime APIs, NVRTC, nvJitLink, NVVM, NVTX 3, and the shared CUDA library types, generated with bindgen from their headers.
+//! Each API has its own module: [`driver`], [`runtime`], [`nvrtc`], [`nvjitlink`], [`nvvm`], [`nvtx`], [`profiler`], and [`library_types`].
+//! Every library loads at run time through [`singe-loader`](singe_loader), on the first call of one of its functions or up front with [`load_driver`] and the other `load_*` functions, so nothing links at build time.
+//! Most users want the safe crate, `singe-cuda`.
 #![allow(
     deprecated,
     non_camel_case_types,
@@ -12,6 +12,9 @@
     non_upper_case_globals,
     unsafe_op_in_unsafe_fn,
     unpredictable_function_pointer_comparisons,
+    missing_debug_implementations,
+    unnameable_types,
+    unreachable_pub,
     clippy::correctness,
     clippy::suspicious,
     clippy::complexity,
@@ -20,13 +23,23 @@
     clippy::absolute_paths,
     clippy::pedantic,
     clippy::nursery,
+    clippy::undocumented_unsafe_blocks,
     reason = "generated bindings preserve upstream ABI conventions and documentation"
 )]
+
+#[cfg(not(any(
+    feature = "driver_13_4",
+    feature = "runtime_13_4",
+    feature = "nvrtc_13_4",
+    feature = "nvvm_13_4",
+    feature = "nvtx_3",
+    feature = "nvjitlink_13_4"
+)))]
+compile_error!("singe-cuda-sys requires a version feature, such as `driver_13_4`");
 
 #[cfg(feature = "driver")]
 /// CUDA Driver API declarations for contexts, memory, kernels, and graphs.
 pub mod driver {
-    use num_enum::{IntoPrimitive, TryFromPrimitive};
 
     #[cfg(feature = "driver_13_4")]
     include!("driver_sys_13040.rs");
@@ -95,7 +108,6 @@ pub mod profiler {
 
 /// Scalar data types and library property enums shared by NVIDIA libraries.
 pub mod library_types {
-    use num_enum::{IntoPrimitive, TryFromPrimitive};
 
     #[cfg(feature = "runtime_13_4")]
     include!("library_types_sys_13040.rs");
@@ -110,7 +122,6 @@ pub mod nvjitlink {
 #[cfg(feature = "nvrtc")]
 /// NVRTC runtime compilation declarations.
 pub mod nvrtc {
-    use num_enum::{IntoPrimitive, TryFromPrimitive};
 
     #[cfg(feature = "nvrtc_13_4")]
     include!("nvrtc_sys_13040.rs");
@@ -119,7 +130,6 @@ pub mod nvrtc {
 #[cfg(feature = "nvvm")]
 /// NVVM IR compilation and version-query declarations.
 pub mod nvvm {
-    use num_enum::{IntoPrimitive, TryFromPrimitive};
 
     #[cfg(feature = "nvvm_13_4")]
     include!("nvvm_sys_13040.rs");
@@ -128,7 +138,6 @@ pub mod nvvm {
 #[cfg(feature = "nvtx")]
 /// NVTX event annotation declarations.
 pub mod nvtx {
-    use num_enum::{IntoPrimitive, TryFromPrimitive};
 
     #[cfg(feature = "nvtx_3")]
     include!("nvtx_sys_3.rs");
@@ -137,7 +146,6 @@ pub mod nvtx {
 #[cfg(feature = "runtime")]
 /// CUDA Runtime API declarations and driver-compatible handle aliases.
 pub mod runtime {
-    use num_enum::{IntoPrimitive, TryFromPrimitive};
 
     // These types have type definitions in `driver_types.h`.
     #[cfg(feature = "driver_13_4")]
@@ -254,51 +262,79 @@ pub mod runtime {
     include!("runtime_sys_13040.rs");
 }
 
-pub use singe_loader::LoadError;
+pub use singe_loader::{Absence, LoadError, take_absence};
 
 static DRIVER: singe_loader::Library = singe_loader::Library::cuda_driver();
 
-// Loads the CUDA driver, which each of its functions otherwise does on first call.
+/// Loads the CUDA driver now, instead of on the first call of one of its functions.
+///
+/// # Errors
+///
+/// Returns an error if the library has no files on this platform or one of its files would not load.
 pub fn load_driver() -> Result<(), LoadError> {
     DRIVER.load()
 }
 
 static RUNTIME: singe_loader::Library = singe_loader::Library::cuda_runtime();
 
-// Loads the CUDA runtime, which each of its functions otherwise does on first call.
+/// Loads the CUDA runtime now, instead of on the first call of one of its functions.
+///
+/// # Errors
+///
+/// Returns an error if the library has no files on this platform or one of its files would not load.
 pub fn load_runtime() -> Result<(), LoadError> {
     RUNTIME.load()
 }
 
 static NVRTC: singe_loader::Library = singe_loader::Library::nvrtc();
 
-// Loads NVRTC, which each of its functions otherwise does on first call.
+/// Loads NVRTC now, instead of on the first call of one of its functions.
+///
+/// # Errors
+///
+/// Returns an error if the library has no files on this platform or one of its files would not load.
 pub fn load_nvrtc() -> Result<(), LoadError> {
     NVRTC.load()
 }
 
-// Where NVRTC loaded from, loading it if it is not yet.
+/// Returns the path of each NVRTC file, loading NVRTC first if it is not loaded yet.
+///
+/// # Errors
+///
+/// Returns an error if the library has no files on this platform or one of its files would not load.
 pub fn nvrtc_paths() -> Result<Vec<std::path::PathBuf>, LoadError> {
     NVRTC.paths()
 }
 
 static NVJITLINK: singe_loader::Library = singe_loader::Library::nvjitlink();
 
-// Loads nvJitLink, which each of its functions otherwise does on first call.
+/// Loads nvJitLink now, instead of on the first call of one of its functions.
+///
+/// # Errors
+///
+/// Returns an error if the library has no files on this platform or one of its files would not load.
 pub fn load_nvjitlink() -> Result<(), LoadError> {
     NVJITLINK.load()
 }
 
 static NVVM: singe_loader::Library = singe_loader::Library::nvvm();
 
-// Loads NVVM, which each of its functions otherwise does on first call.
+/// Loads NVVM now, instead of on the first call of one of its functions.
+///
+/// # Errors
+///
+/// Returns an error if the library has no files on this platform or one of its files would not load.
 pub fn load_nvvm() -> Result<(), LoadError> {
     NVVM.load()
 }
 
 static NVTX: singe_loader::Library = singe_loader::Library::nvtx();
 
-// Loads NVTX, which each of its functions otherwise does on first call.
+/// Loads NVTX now, instead of on the first call of one of its functions.
+///
+/// # Errors
+///
+/// Returns an error if the library has no files on this platform or one of its files would not load.
 pub fn load_nvtx() -> Result<(), LoadError> {
     NVTX.load()
 }

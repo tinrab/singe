@@ -1,12 +1,12 @@
 #![cfg(feature = "testing")]
 
-// Each mask form of `sdpa_auto`, against scores computed by hand from what the band documents: `diagonal - left < key <= diagonal + right`.
+// Each mask form of `sdpa`, against scores computed by hand from what the band documents: `diagonal - left < key <= diagonal + right`.
 // cuDNN 9.27 computed wrong scores from scalars that were compile-time constants, which raises no error, so only values can show it.
 
 use half::f16;
-use singe_cuda::{context::Context as CudaContext, memory::DeviceMemory, stream::Stream};
+use singe_cuda::{memory::DeviceMemory, stream::Stream};
 use singe_cudnn::{
-    backend::tensor::{Shape, TensorSpec},
+    backend::operation::attention::AttentionSequenceInputs,
     context::Context,
     data_type::DataType,
     error::Error,
@@ -16,10 +16,11 @@ use singe_cudnn::{
         operation::{
             AttentionConfig, AttentionDiagonalAlignment, AttentionDiagonalBand,
             AttentionImplementation, AttentionMaskMode, AttentionScoreConfig,
-            AttentionSequenceInputs,
         },
         plan::{CompileConfig, ExecuteArgs, HeuristicMode},
     },
+    tensor::{Shape, TensorSpec},
+    testing::setup_context,
 };
 
 const BATCH: usize = 2;
@@ -140,7 +141,7 @@ fn reference(
                 let mut output = vec![0.0_f32; DIM];
                 for (index, weight) in weights.iter().enumerate() {
                     for (output, value) in output.iter_mut().zip(row(value, batch, head, index)) {
-                        *output += weight / total * value.to_f32();
+                        *output = (weight / total).mul_add(value.to_f32(), *output);
                     }
                 }
                 rows.push((batch, head, position, output));
@@ -194,7 +195,7 @@ fn run(
         scores = scores
             .with_sequence_inputs(AttentionSequenceInputs::per_batch(query_length, key_length));
     }
-    let outputs = graph.sdpa_auto(
+    let outputs = graph.sdpa(
         SdpaInputs {
             query: q,
             key: k,
@@ -244,12 +245,10 @@ fn run(
             .unwrap();
     }
     bindings.set(output, &mut o_memory).unwrap();
-    let mut arguments = ExecuteArgs::new(&bindings);
-    if let Some(workspace) = workspace.as_mut() {
-        arguments = arguments.with_workspace(workspace);
-    }
+    let arguments = ExecuteArgs::new(&bindings)
+        .with_workspace(workspace.as_mut().map(|memory| memory.output()));
     // SAFETY: the inputs are initialized, the output is exclusive, and every buffer outlives the synchronization below.
-    unsafe { compiled.execute(cudnn, arguments) }?;
+    unsafe { compiled.execute_async(cudnn, arguments) }?;
     stream.synchronize()?;
     drop(bindings);
     let mut host = vec![f16::ZERO; count];
@@ -258,13 +257,9 @@ fn run(
 }
 
 #[test]
-fn test_every_diagonal_band_matches_a_reference_or_is_refused() {
-    let Ok(cuda) = CudaContext::create() else {
-        return;
-    };
-    let mut cudnn = Context::create(&cuda).unwrap();
-    let stream = cuda.create_stream().unwrap();
-    cudnn.set_stream(Some(&stream)).unwrap();
+fn test_every_diagonal_band_matches_a_reference_or_is_refused() -> Result<(), Error> {
+    let test = setup_context()?;
+    let cudnn = test.context();
 
     let mut seed = 7;
     let query = values(BATCH * HEADS * QUERIES * DIM, &mut seed);
@@ -277,8 +272,8 @@ fn test_every_diagonal_band_matches_a_reference_or_is_refused() {
             AttentionImplementation::Unified,
         ] {
             let output = run(
-                &cudnn,
-                &stream,
+                cudnn,
+                test.stream(),
                 case,
                 implementation,
                 TensorSpec::scalar_f32(SCALE),
@@ -305,34 +300,31 @@ fn test_every_diagonal_band_matches_a_reference_or_is_refused() {
         }
     }
     assert!(wrong.is_empty(), "{wrong:?}");
+    Ok(())
 }
 
 // A caller's constant scale runs as a run-time scalar too, or attention would misread it as it does any constant.
 #[test]
-fn test_a_constant_scale_runs_as_a_scalar() {
-    let Ok(cuda) = CudaContext::create() else {
-        return;
-    };
-    let mut cudnn = Context::create(&cuda).unwrap();
-    let stream = cuda.create_stream().unwrap();
-    cudnn.set_stream(Some(&stream)).unwrap();
+fn test_a_constant_scale_runs_as_a_scalar() -> Result<(), Error> {
+    let test = setup_context()?;
+    let cudnn = test.context();
     let mut seed = 11;
     let query = values(BATCH * HEADS * QUERIES * DIM, &mut seed);
     let key = values(BATCH * HEADS * KEYS * DIM, &mut seed);
     let value = values(BATCH * HEADS * KEYS * DIM, &mut seed);
     let case = CASES[0];
     let output = run(
-        &cudnn,
-        &stream,
+        cudnn,
+        test.stream(),
         case,
         AttentionImplementation::Unified,
         TensorSpec::constant(SCALE),
         [&query, &key, &value],
-    )
-    .unwrap();
+    )?;
     for (batch, head, position, expected) in reference(case, &query, &key, &value) {
         for (actual, expected) in row(&output, batch, head, position).iter().zip(&expected) {
             assert!((actual.to_f32() - expected).abs() <= 2e-3);
         }
     }
+    Ok(())
 }

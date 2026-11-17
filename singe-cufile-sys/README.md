@@ -6,4 +6,6 @@
 [![Documentation](https://docs.rs/singe-cufile-sys/badge.svg)](https://docs.rs/singe-cufile-sys)
 ![License](https://img.shields.io/crates/l/singe-cufile-sys.svg)
 
-Low-level FFI bindings for the NVIDIA cuFile GPUDirect Storage library.
+Low-level FFI bindings for cuFile 1.19, the NVIDIA `GPUDirect` Storage library, generated from `cufile.h`.
+`singe-loader` loads `libcufile.so.0` at run time, on the first call or through `load`, so building links no NVIDIA library.
+Most users want the safe [`singe-cufile`](../singe-cufile/README.md) crate.

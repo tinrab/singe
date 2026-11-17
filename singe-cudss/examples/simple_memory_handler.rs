@@ -7,7 +7,7 @@ use std::{
 
 use singe_cuda::memory::DeviceMemory;
 use singe_cuda_sys::runtime::{self, cudaStream_t};
-use singe_cudss::{config::Config, error::Result, memory::DeviceMemoryHandler};
+use singe_cudss::{config::Config, memory::DeviceMemoryHandler, solver_state::SolverState};
 
 use crate::common::{create_context, dense_matrix, dense_output, solve, spd_csr_matrix};
 
@@ -17,10 +17,10 @@ unsafe extern "C" fn device_alloc(
     size: singe_cudss_sys::size_t,
     stream: cudaStream_t,
 ) -> c_int {
-    // SAFETY: the caller upholds this function's safety contract.
+    // SAFETY: cuDSS calls this allocator with a writable `ptr` and a live stream of the handle's context.
     let status = unsafe { runtime::cudaMallocAsync(ptr, size, stream) };
     println!("custom allocator: allocated {size} bytes");
-    status as c_int
+    c_int::try_from(status.0).unwrap_or(c_int::MAX)
 }
 
 unsafe extern "C" fn device_free(
@@ -29,14 +29,14 @@ unsafe extern "C" fn device_free(
     size: singe_cudss_sys::size_t,
     stream: cudaStream_t,
 ) -> c_int {
-    // SAFETY: the caller upholds this function's safety contract.
+    // SAFETY: cuDSS frees only pointers `device_alloc` returned, on a live stream of the handle's context.
     let status = unsafe { runtime::cudaFreeAsync(ptr, stream) };
     println!("custom allocator: freed {size} bytes");
-    status as c_int
+    c_int::try_from(status.0).unwrap_or(c_int::MAX)
 }
 
-fn main() -> Result<()> {
-    let (cuda, stream, context) = create_context()?;
+fn main() -> anyhow::Result<()> {
+    let (cuda, stream, mut context) = create_context()?;
     println!("cuDSS example: solving with a custom device memory handler");
 
     let n = 5i64;
@@ -47,9 +47,9 @@ fn main() -> Result<()> {
     let col_indices = DeviceMemory::from_slice(&cuda, &[0_i32, 2, 1, 2, 2, 4, 3, 4])?;
     let a_values = DeviceMemory::from_slice(&cuda, &[4.0f64, 1.0, 3.0, 2.0, 5.0, 1.0, 1.0, 2.0])?;
     let b_values = DeviceMemory::from_slice(&cuda, &[7.0f64, 12.0, 25.0, 4.0, 13.0])?;
-    let mut x_values = DeviceMemory::<f64>::create_uninit(&cuda, (n * nrhs) as usize)?;
+    let mut x_values = DeviceMemory::<f64>::create_uninit(&cuda, usize::try_from(n * nrhs)?)?;
 
-    // SAFETY: the example keeps these buffers alive and synchronizes before reading the results.
+    // SAFETY: the callbacks never read the null context, and `cudaMallocAsync` allocates stream-ordered memory aligned to at least 256 bytes.
     let handler = unsafe {
         DeviceMemoryHandler::create(
             "cuda async example memory handler",
@@ -58,13 +58,13 @@ fn main() -> Result<()> {
             device_free,
         )?
     };
-    // SAFETY: the example keeps these buffers alive and synchronizes before reading the results.
+    // SAFETY: no handler is attached yet, and the callbacks use the device's default memory pool, which outlives the context and every solver state.
     unsafe {
         context.set_device_memory_handler(&handler)?;
     }
 
     let config = Config::create()?;
-    let mut data = context.create_data()?;
+    let mut data = SolverState::create(&context)?;
 
     let b = dense_matrix(n, nrhs, n, &b_values)?;
     let mut x = dense_output(n, nrhs, n, x_values.output())?;
@@ -86,7 +86,7 @@ fn main() -> Result<()> {
     println!("attached handler: {}", returned.name());
 
     drop(data);
-    // SAFETY: the example keeps these buffers alive and synchronizes before reading the results.
+    // SAFETY: `data`, the only solver state holding allocations from the handler, was dropped above.
     unsafe {
         context.clear_device_memory_handler()?;
     }

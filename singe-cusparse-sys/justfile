@@ -5,14 +5,7 @@ generate:
     #!/usr/bin/env bash
     set -euxo pipefail
 
-    num_enums=(
-        "cusparseStatus_t"
-        # TODO: add other enums
-    )
-    enum_args=$(for enum in "${num_enums[@]}"; do echo -n "--with-derive-custom $enum=TryFromPrimitive,IntoPrimitive "; done)
-
     bindgen {{cusparse_include_path}}/cusparse.h \
-        $enum_args \
         --allowlist-item "^cusparse.*" \
         --allowlist-item "^CUSPARSE.*" \
         --blocklist-item "^cuda.*" \
@@ -28,7 +21,7 @@ generate:
         --with-derive-hash \
         --with-derive-ord \
         --use-core \
-        --default-enum-style=rust \
+        --default-enum-style=newtype \
         -- \
             -I {{cuda_path}}/include \
             -I {{cusparse_include_path}} \

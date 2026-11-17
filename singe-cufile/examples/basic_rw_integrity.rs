@@ -1,6 +1,5 @@
 use std::{
     env,
-    error::Error,
     fs::{self, File, OpenOptions},
     io::{self, Write},
     os::unix::fs::OpenOptionsExt,
@@ -9,12 +8,15 @@ use std::{
 };
 
 use singe_cuda::{context::Context, device::Device, memory::DeviceMemory};
-use singe_cufile::{driver::Driver, file::FileHandle};
+use singe_cufile::{
+    buffer::{IoSlice, IoSliceMut},
+    driver::Driver,
+    file::FileHandle,
+};
 
 const SIZE: usize = 1024 * 1024;
-const O_DIRECT: i32 = 0o40000;
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() -> anyhow::Result<()> {
     let args: Vec<_> = env::args().collect();
     if args.len() != 4 {
         eprintln!("usage: {} <input-file> <output-file> <gpu-id>", args[0]);
@@ -26,10 +28,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     let gpu_id = args[3].parse()?;
 
     if input_path == output_path {
-        return Err("input and output files must be different".into());
+        anyhow::bail!("input and output files must be different");
     }
 
-    let context = Context::retain_primary_for_device(Device::new(gpu_id))?;
+    let context = Context::create_for_device(Device::new(gpu_id))?;
     context.bind()?;
     let driver = Driver::create()?;
 
@@ -45,20 +47,20 @@ fn main() -> Result<(), Box<dyn Error>> {
     // Read directly from storage into GPU memory, then write the same GPU buffer
     // back out to another file. The wrapper keeps the cuFile handle lifecycle
     // scoped to ordinary Rust values.
-    let read = input.read(&mut device, SIZE, 0, 0)?;
+    let read = input.read(IoSliceMut::create(&mut device, ..)?, 0)?;
     // SAFETY: synchronous file I/O initialized exactly the returned byte count.
     let device = unsafe { device.assume_init_prefix(read)? };
-    let written = output.write(&device, read, 0, 0)?;
+    let written = output.write(IoSlice::create(&device, ..)?, 0)?;
     drop(output);
 
     if written != read {
-        return Err(format!("short write: read {read} bytes, wrote {written} bytes").into());
+        anyhow::bail!("short write: read {read} bytes, wrote {written} bytes");
     }
 
     let expected = fs::read(input_path)?;
     let actual = fs::read(output_path)?;
     if expected != actual {
-        return Err("input and output file contents differ".into());
+        anyhow::bail!("input and output file contents differ");
     }
 
     println!("read {read} bytes into GPU memory and wrote {written} bytes back");
@@ -69,8 +71,8 @@ fn main() -> Result<(), Box<dyn Error>> {
 fn create_pattern_file(path: &Path, size: usize) -> io::Result<()> {
     let mut file = File::create(path)?;
     let mut pattern = vec![0u8; size];
-    for (index, byte) in pattern.iter_mut().enumerate() {
-        *byte = (index % 251) as u8;
+    for (byte, value) in pattern.iter_mut().zip((0..251_u8).cycle()) {
+        *byte = value;
     }
     file.write_all(&pattern)
 }
@@ -78,7 +80,7 @@ fn create_pattern_file(path: &Path, size: usize) -> io::Result<()> {
 fn open_direct_read(path: &Path) -> io::Result<File> {
     OpenOptions::new()
         .read(true)
-        .custom_flags(O_DIRECT)
+        .custom_flags(libc::O_DIRECT)
         .open(path)
 }
 
@@ -88,6 +90,6 @@ fn open_direct_write(path: &Path) -> io::Result<File> {
         .write(true)
         .create(true)
         .truncate(true)
-        .custom_flags(O_DIRECT)
+        .custom_flags(libc::O_DIRECT)
         .open(path)
 }

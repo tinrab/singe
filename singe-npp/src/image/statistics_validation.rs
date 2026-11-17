@@ -414,3 +414,10 @@ pub fn validate_coi(channel: usize, channels: usize) -> Result<i32> {
 
     Err(Error::out_of_range("channel"))
 }
+
+pub fn histogram_range_bins<Level>(levels: &[Level]) -> Result<usize> {
+    if levels.len() < 2 {
+        return Err(Error::out_of_range("levels"));
+    }
+    Ok(levels.len() - 1)
+}

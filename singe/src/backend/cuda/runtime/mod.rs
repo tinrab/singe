@@ -18,7 +18,7 @@ use singe_cuda::{
     architecture::GpuArchitecture,
     context::Context as CudaContext,
     module::KernelFunction,
-    stream::{Stream, StreamCaptureStatus, StreamFlags},
+    stream::{Stream, StreamCaptureStatus, StreamOptions},
 };
 use singe_cudnn::context::Context as CudnnContext;
 use singe_cutensor::context::Context as CutensorContext;
@@ -128,9 +128,7 @@ impl CudaRuntime {
             return Ok(stream);
         }
 
-        let stream = self
-            .context
-            .create_stream_with_flags(StreamFlags::DEFAULT)?;
+        let stream = self.context.create_stream(StreamOptions::default())?;
         Ok(self
             .eager_stream
             .get_or_init(|| CudaStream::new(Arc::new(stream))))

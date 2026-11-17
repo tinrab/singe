@@ -5,7 +5,7 @@ use ::cutile::cuda_async::device_buffer::DevicePointer;
 use singe_cuda::types::f16;
 use singe_cuda::{
     stream::Stream,
-    view::{DeviceInput, DeviceOutput},
+    view::{DeviceOutput, DeviceRange},
 };
 
 #[cfg(feature = "cutile")]
@@ -116,7 +116,7 @@ macro_rules! activation_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
             config: VectorConfig,
         ) -> Result<()> {
             validate_vector_lengths(out.len(), input.len(), config)?;
@@ -153,7 +153,7 @@ macro_rules! activation_fn {
         pub unsafe fn $tune_name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
             config: VectorConfig,
             options: TuneOptions,
         ) -> Result<TuneReport<VectorTuning>> {
@@ -192,7 +192,7 @@ macro_rules! scalar_activation_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
             $param: $ty,
             config: VectorConfig,
         ) -> Result<()> {
@@ -231,7 +231,7 @@ macro_rules! scalar_activation_fn {
         pub unsafe fn $tune_name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
             $param: $ty,
             config: VectorConfig,
             options: TuneOptions,
@@ -272,7 +272,7 @@ macro_rules! binary_scalar_activation_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
             $first: $ty,
             $second: $ty,
             config: VectorConfig,
@@ -313,7 +313,7 @@ macro_rules! binary_scalar_activation_fn {
         pub unsafe fn $tune_name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
             $first: $ty,
             $second: $ty,
             config: VectorConfig,
@@ -862,8 +862,8 @@ binary_scalar_activation_fn!(
 pub unsafe fn swiglu_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    input: &impl DeviceInput<f32>,
-    gate: &impl DeviceInput<f32>,
+    input: &impl DeviceRange<f32>,
+    gate: &impl DeviceRange<f32>,
     config: VectorConfig,
 ) -> Result<()> {
     validate_swiglu_lengths(out.len(), input.len(), gate.len(), config)?;
@@ -896,8 +896,8 @@ pub unsafe fn swiglu_f32(
 pub unsafe fn tune_swiglu_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
-    input: &impl DeviceInput<f32>,
-    gate: &impl DeviceInput<f32>,
+    input: &impl DeviceRange<f32>,
+    gate: &impl DeviceRange<f32>,
     config: VectorConfig,
     options: TuneOptions,
 ) -> Result<TuneReport<VectorTuning>> {
@@ -934,8 +934,8 @@ pub unsafe fn tune_swiglu_f32(
 pub unsafe fn swiglu_f16(
     stream: &Stream,
     out: &mut impl DeviceOutput<f16>,
-    input: &impl DeviceInput<f16>,
-    gate: &impl DeviceInput<f16>,
+    input: &impl DeviceRange<f16>,
+    gate: &impl DeviceRange<f16>,
     config: VectorConfig,
 ) -> Result<()> {
     validate_swiglu_lengths(out.len(), input.len(), gate.len(), config)?;
@@ -968,8 +968,8 @@ pub unsafe fn swiglu_f16(
 pub unsafe fn tune_swiglu_f16(
     stream: &Stream,
     out: &mut impl DeviceOutput<f16>,
-    input: &impl DeviceInput<f16>,
-    gate: &impl DeviceInput<f16>,
+    input: &impl DeviceRange<f16>,
+    gate: &impl DeviceRange<f16>,
     config: VectorConfig,
     options: TuneOptions,
 ) -> Result<TuneReport<VectorTuning>> {
@@ -1006,8 +1006,8 @@ pub unsafe fn tune_swiglu_f16(
 pub unsafe fn swiglu_f64(
     stream: &Stream,
     out: &mut impl DeviceOutput<f64>,
-    input: &impl DeviceInput<f64>,
-    gate: &impl DeviceInput<f64>,
+    input: &impl DeviceRange<f64>,
+    gate: &impl DeviceRange<f64>,
     config: VectorConfig,
 ) -> Result<()> {
     validate_swiglu_lengths(out.len(), input.len(), gate.len(), config)?;
@@ -1040,8 +1040,8 @@ pub unsafe fn swiglu_f64(
 pub unsafe fn tune_swiglu_f64(
     stream: &Stream,
     out: &mut impl DeviceOutput<f64>,
-    input: &impl DeviceInput<f64>,
-    gate: &impl DeviceInput<f64>,
+    input: &impl DeviceRange<f64>,
+    gate: &impl DeviceRange<f64>,
     config: VectorConfig,
     options: TuneOptions,
 ) -> Result<TuneReport<VectorTuning>> {

@@ -1,4 +1,5 @@
 //! Typed kernel signatures and context-bound launch preparation.
+
 use std::{
     fmt,
     marker::PhantomData,
@@ -19,12 +20,15 @@ use crate::{
         owned::{Recordable, Recording},
     },
     green::SmResource,
-    module::{KernelFunction, KernelParameters, LaunchAttribute, LaunchConfig, LaunchGeometry},
+    module::{
+        KernelFunction, KernelParameters, LaunchAttribute, LaunchConfig, LaunchGeometry,
+        OccupancyFlags,
+    },
     stream::{Stream, StreamCaptureScope},
     submission::{DeviceOperation, Execution, Operation, Resources},
     try_ffi,
     types::{FunctionAttribute, SharedMemoryMode},
-    utility::{to_i32, to_usize},
+    utility::{to_i32, to_u32, to_usize},
     view::NoUninitDeviceRepr,
 };
 
@@ -387,6 +391,7 @@ impl<K: KernelSignature> PreparedLaunch<K> {
     /// Binds this signature to a kernel and checks its ABI and launch requirements.
     ///
     /// # Safety
+    ///
     /// `K`'s access modes and launch requirements must describe this function.
     /// Parameter count and representation mismatches are rejected.
     /// CUDA metadata does not verify struct field layouts or semantic identity.
@@ -437,68 +442,60 @@ impl<K: KernelSignature> PreparedLaunch<K> {
         Ok(())
     }
 
-    /// Submits typed arguments on the context's default stream.
+    /// Submits a launch on an explicit stream in this kernel's context.
     ///
     /// # Safety
+    ///
     /// Values and views must satisfy the kernel's bounds, initialization and semantic requirements.
-    /// Preserve storage lifetimes and exclusive writable access until execution completes, including every graph replay.
+    /// Preserve storage lifetimes and exclusive writable access until execution completes, including every graph replay when `stream` is capturing.
     /// Keep this prepared launch or another owner of its kernel code alive through completion.
     ///
     /// # Errors
     ///
-    /// Propagates typed argument conversion and view-context errors from [`KernelSignature::raw_arguments`], followed by errors from [`Self::launch_raw`].
-    pub unsafe fn launch(&self, arguments: K::Arguments<'_>) -> Result<()> {
+    /// Propagates typed argument conversion and view-context errors from [`KernelSignature::raw_arguments`].
+    /// Returns `CudaError::StreamContextMismatch` if `stream` belongs to another context, and propagates context binding and native launch errors from [`KernelFunction::launch_async`].
+    pub unsafe fn launch_async(&self, arguments: K::Arguments<'_>, stream: &Stream) -> Result<()> {
         let arguments = K::raw_arguments(arguments, self.context())?;
-        // SAFETY: the caller upholds this function's safety contract.
-        unsafe { self.launch_raw(arguments) }
+        // SAFETY: `raw_arguments` checked the views' context, and the caller's guarantees on values, storage lifetimes, and code ownership are those `launch_encoded` requires.
+        unsafe { self.launch_encoded(arguments, stream) }
     }
 
-    /// Submits typed arguments on an explicit stream in this kernel's context.
+    /// Records a launch in the active capture and retains the kernel's code for replay.
     ///
     /// # Safety
-    /// Values and views must satisfy the kernel's bounds, initialization and semantic requirements.
-    /// Preserve storage lifetimes and exclusive writable access until execution completes, including every graph replay.
-    /// Keep this prepared launch or another owner of its kernel code alive through completion.
     ///
-    /// # Errors
-    ///
-    /// Propagates typed argument conversion and view-context errors from [`KernelSignature::raw_arguments`], followed by errors from [`Self::launch_on_raw`].
-    pub unsafe fn launch_on(&self, arguments: K::Arguments<'_>, stream: &Stream) -> Result<()> {
-        let arguments = K::raw_arguments(arguments, self.context())?;
-        // SAFETY: the caller upholds this function's safety contract.
-        unsafe { self.launch_on_raw(arguments, stream) }
-    }
-
-    /// Records typed arguments and retains the kernel's code for replay.
-    ///
-    /// # Safety
     /// Values and views must satisfy the kernel's bounds, initialization and semantic requirements for every replay.
     /// Preserve storage lifetimes and exclusive writable access until all graph executions complete.
     /// Keep a graph, executable or another code owner alive until queued executions complete.
     ///
     /// # Errors
     ///
-    /// Propagates typed argument conversion and view-context errors from [`KernelSignature::raw_arguments`], followed by errors from [`Self::record_raw`].
+    /// Propagates typed argument conversion and view-context errors from [`KernelSignature::raw_arguments`].
+    /// Returns `CudaError::StreamContextMismatch` if the capture stream belongs to another context, and propagates context binding and native launch errors.
     pub unsafe fn record(
         &self,
         arguments: K::Arguments<'_>,
         scope: &StreamCaptureScope<'_>,
     ) -> Result<()> {
         let arguments = K::raw_arguments(arguments, self.context())?;
-        // SAFETY: the caller upholds this function's safety contract.
-        unsafe { self.record_raw(arguments, scope) }
+        self.validate_stream(scope.stream())?;
+        scope.retain_module(self.function.module());
+        // SAFETY: `raw_arguments` checked the views' context, the capture retains the module above, and the caller's guarantees for every replay cover what `launch_encoded` requires.
+        unsafe { self.launch_encoded(arguments, scope.stream()) }
     }
 
-    /// Adds a graph node with typed arguments and retains the kernel's code.
+    /// Adds a graph node with this launch's configuration and retains the kernel's code.
     ///
     /// # Safety
+    ///
     /// Values and views must satisfy the kernel's bounds, initialization and semantic requirements for every replay.
     /// Preserve storage lifetimes and exclusive writable access until all graph executions complete.
     /// Keep a graph, executable or another code owner alive until queued executions complete.
     ///
     /// # Errors
     ///
-    /// Propagates typed argument conversion and view-context errors from [`KernelSignature::raw_arguments`], followed by errors from [`Self::add_to_graph_raw`].
+    /// Propagates typed argument conversion and view-context errors from [`KernelSignature::raw_arguments`].
+    /// Also propagates graph-context, dependency ownership, context binding, and native node creation or launch-attribute errors from [`KernelFunction::add_to_graph`].
     pub unsafe fn add_to_graph(
         &self,
         arguments: K::Arguments<'_>,
@@ -506,13 +503,17 @@ impl<K: KernelSignature> PreparedLaunch<K> {
         dependencies: &[GraphNode],
     ) -> Result<GraphNode> {
         let arguments = K::raw_arguments(arguments, self.context())?;
-        // SAFETY: the caller upholds this function's safety contract.
-        unsafe { self.add_to_graph_raw(arguments, graph, dependencies) }
+        // SAFETY: `self.function` and `self.config` were checked against `K` when this launch was prepared, `raw_arguments` checked the views' context, and the caller's guarantees are those `KernelFunction::add_to_graph` requires.
+        K::encode(arguments, |params| unsafe {
+            self.function
+                .add_to_graph(graph, dependencies, &self.config, params)
+        })
     }
 
-    /// Updates an executable node with this launch's geometry and typed arguments, retaining the kernel's code.
+    /// Updates an executable node with this launch's geometry and arguments, retaining the kernel's code.
     ///
     /// # Safety
+    ///
     /// Values and views must satisfy the kernel's bounds, initialization and semantic requirements for all future executions.
     /// Preserve storage lifetimes and exclusive writable access until all executions using them complete.
     /// Keep the executable or another code owner alive until queued executions complete.
@@ -520,7 +521,8 @@ impl<K: KernelSignature> PreparedLaunch<K> {
     ///
     /// # Errors
     ///
-    /// Propagates typed argument conversion and view-context errors from [`KernelSignature::raw_arguments`], followed by errors from [`Self::set_graph_node_params_raw`].
+    /// Propagates typed argument conversion and view-context errors from [`KernelSignature::raw_arguments`].
+    /// Also propagates executable-context, node ownership, context binding, and native update errors from [`KernelFunction::set_graph_node_params`].
     pub unsafe fn set_graph_node_params(
         &self,
         arguments: K::Arguments<'_>,
@@ -528,128 +530,38 @@ impl<K: KernelSignature> PreparedLaunch<K> {
         node: &GraphNode,
     ) -> Result<()> {
         let arguments = K::raw_arguments(arguments, self.context())?;
-        // SAFETY: the caller upholds this function's safety contract.
-        unsafe { self.set_graph_node_params_raw(arguments, executable, node) }
-    }
-
-    /// Submits work on the context's default stream.
-    ///
-    /// # Safety
-    /// Arguments must satisfy the kernel's value, range, initialization and aliasing requirements.
-    /// Keep pointed-to storage and this kernel's code alive until completion.
-    /// During capture, preserve those guarantees for every replay.
-    ///
-    /// # Errors
-    ///
-    /// Propagates context binding and native kernel launch errors from [`KernelFunction::launch`], including invalid images, rejected configuration or arguments, and prior asynchronous CUDA errors.
-    pub unsafe fn launch_raw(&self, arguments: K::RawArguments) -> Result<()> {
-        // SAFETY: the caller upholds this function's safety contract.
-        K::encode(arguments, |params| unsafe {
-            self.function.launch(&self.config, params)
-        })
-    }
-
-    /// Submits work on an explicit stream.
-    ///
-    /// # Safety
-    /// Arguments must satisfy the kernel's value, range, initialization and aliasing requirements.
-    /// Keep pointed-to storage and this kernel's code alive until completion.
-    /// During capture, preserve those guarantees for every replay.
-    ///
-    /// # Errors
-    ///
-    /// Returns `CudaError::StreamContextMismatch` if `stream` belongs to another context.
-    /// Also propagates context binding and native kernel launch errors from [`KernelFunction::launch_on`].
-    pub unsafe fn launch_on_raw(&self, arguments: K::RawArguments, stream: &Stream) -> Result<()> {
-        self.validate_stream(stream)?;
-        // SAFETY: the caller upholds this function's safety contract.
-        K::encode(arguments, |params| unsafe {
-            self.function.launch_on(&self.config, params, stream)
-        })
-    }
-
-    /// Records this prepared launch and retains its code in the captured graph.
-    ///
-    /// # Safety
-    /// Arguments must satisfy the kernel's semantic and access requirements for every replay.
-    /// Keep pointed-to storage alive and order conflicting accesses until all replays complete.
-    /// Keep a graph, executable or another code owner alive until queued executions complete.
-    ///
-    /// # Errors
-    ///
-    /// Returns `CudaError::StreamContextMismatch` if the capture stream belongs to another context.
-    /// Also propagates context binding and native launch errors from [`Self::launch_on_raw`].
-    pub unsafe fn record_raw(
-        &self,
-        arguments: K::RawArguments,
-        scope: &StreamCaptureScope<'_>,
-    ) -> Result<()> {
-        self.validate_stream(scope.stream())?;
-        scope.retain_module(self.function.module());
-        // SAFETY: the caller upholds this function's safety contract.
-        unsafe { self.launch_on_raw(arguments, scope.stream()) }
-    }
-
-    /// Adds a node using the same signature and configuration as immediate launches.
-    ///
-    /// # Safety
-    /// Arguments must satisfy the kernel's semantic and access requirements for every replay.
-    /// Keep pointed-to storage alive until all graph executions using this node complete.
-    /// Keep a graph, executable or another code owner alive until queued executions complete.
-    ///
-    /// # Errors
-    ///
-    /// Propagates graph-context, dependency ownership, context binding, and native node creation or launch-attribute errors from [`KernelFunction::add_to_graph`].
-    pub unsafe fn add_to_graph_raw(
-        &self,
-        arguments: K::RawArguments,
-        graph: &mut Graph,
-        dependencies: &[GraphNode],
-    ) -> Result<GraphNode> {
-        // SAFETY: the caller upholds this function's safety contract.
-        K::encode(arguments, |params| unsafe {
-            self.function
-                .add_to_graph(graph, dependencies, &self.config, params)
-        })
-    }
-
-    /// Replaces an executable node's geometry and raw arguments, preserving its launch attributes.
-    ///
-    /// # Safety
-    /// Arguments must satisfy the kernel's semantic and access requirements for all future executions.
-    /// Keep pointed-to storage alive until all executions using these arguments complete.
-    /// Keep the executable or another code owner alive until queued executions complete.
-    /// Only this launch's geometry is applied; executable attributes remain unchanged and must satisfy `K`.
-    ///
-    /// # Errors
-    ///
-    /// Propagates executable-context, node ownership, context binding, and native update errors from [`KernelFunction::set_graph_node_params`].
-    pub unsafe fn set_graph_node_params_raw(
-        &self,
-        arguments: K::RawArguments,
-        executable: &mut ExecutableGraph,
-        node: &GraphNode,
-    ) -> Result<()> {
-        // SAFETY: the caller upholds this function's safety contract.
+        // SAFETY: `self.function` and `self.config` were checked against `K` when this launch was prepared, `raw_arguments` checked the views' context, and the caller's guarantees are those `KernelFunction::set_graph_node_params` requires.
         K::encode(arguments, |params| unsafe {
             self.function
                 .set_graph_node_params(executable, node, self.config.geometry(), params)
         })
     }
+
+    // Launches converted arguments on `stream`.
+    // The caller guarantees the arguments satisfy the kernel's requirements and keeps their storage and the kernel's code alive until completion.
+    unsafe fn launch_encoded(&self, arguments: K::RawArguments, stream: &Stream) -> Result<()> {
+        self.validate_stream(stream)?;
+        // SAFETY: `self.function` and `self.config` were checked against `K` when this launch was prepared, the stream's context is checked above, and the caller's argument guarantees are those `KernelFunction::launch_async` requires.
+        K::encode(arguments, |params| unsafe {
+            self.function.launch_async(&self.config, params, stream)
+        })
+    }
 }
 
 impl KernelFunction {
-    /// Updates an executable node's geometry and typed arguments, retaining this kernel's code.
+    /// Updates an executable node's geometry and arguments, retaining this kernel's code.
     ///
     /// Launch attributes remain unchanged.
     ///
-    /// # Errors
-    /// Returns an error for ABI, view-context or geometry mismatches, or if CUDA rejects the update.
-    ///
     /// # Safety
+    ///
     /// `K` must describe this function and the executable's existing attributes must satisfy it.
     /// Arguments must satisfy the kernel's bounds, initialization and aliasing requirements for every execution.
     /// Keep storage and the executable or another code owner alive until queued executions complete.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for ABI, view-context or geometry mismatches, or if CUDA rejects the update.
     pub unsafe fn set_typed_graph_node_params<K: KernelSignature>(
         &self,
         executable: &mut ExecutableGraph,
@@ -658,31 +570,9 @@ impl KernelFunction {
         arguments: K::Arguments<'_>,
     ) -> Result<()> {
         let arguments = K::raw_arguments(arguments, self.module().context())?;
-        // SAFETY: the caller upholds this function's safety contract.
-        unsafe { self.set_typed_graph_node_params_raw::<K>(executable, node, geometry, arguments) }
-    }
-
-    /// Updates an executable node using raw values in `K`'s declaration order.
-    ///
-    /// Launch attributes remain unchanged.
-    ///
-    /// # Errors
-    /// Returns an error for ABI or geometry mismatches, or if CUDA rejects the update.
-    ///
-    /// # Safety
-    /// `K` must describe this function and the executable's existing attributes must satisfy it.
-    /// Values and pointers must satisfy the kernel's bounds, initialization and aliasing requirements for every execution.
-    /// Keep storage and the executable or another code owner alive until queued executions complete.
-    pub unsafe fn set_typed_graph_node_params_raw<K: KernelSignature>(
-        &self,
-        executable: &mut ExecutableGraph,
-        node: &GraphNode,
-        geometry: &LaunchGeometry,
-        arguments: K::RawArguments,
-    ) -> Result<()> {
         validate_parameters::<K>(self)?;
         validate_kernel_geometry(self, geometry, K::REQUIREMENTS)?;
-        // SAFETY: the caller upholds this function's safety contract.
+        // SAFETY: `raw_arguments` checked the views' context, the parameter layout and geometry are checked against `K` above, and the caller's guarantees are those `set_graph_node_params` requires.
         K::encode(arguments, |params| unsafe {
             self.set_graph_node_params(executable, node, geometry, params)
         })
@@ -692,7 +582,7 @@ impl KernelFunction {
 fn validate_parameters<K: KernelSignature>(function: &KernelFunction) -> Result<()> {
     function.module().context().bind()?;
     let mut count = 0;
-    // SAFETY: `cuFuncGetParamCount` receives live handles owned by the wrappers and valid output locations.
+    // SAFETY: `count` is a writable local, and `function` retains its module, whose context is bound above.
     unsafe {
         try_ffi!(driver::cuFuncGetParamCount(
             function.as_raw().as_raw(),
@@ -716,11 +606,14 @@ fn validate_parameters<K: KernelSignature>(function: &KernelFunction) -> Result<
             .ok_or(LaunchContractError::ParameterLayoutOverflow)?;
         let mut offset = 0;
         let mut size = 0;
-        // SAFETY: `cuFuncGetParamInfo` receives live handles owned by the wrappers and valid output locations.
+        let native_index = index
+            .try_into()
+            .map_err(|_| CudaError::out_of_range("kernel parameter index"))?;
+        // SAFETY: `offset` and `size` are writable locals, and `function` retains its module, whose context is bound above.
         unsafe {
             try_ffi!(driver::cuFuncGetParamInfo(
                 function.as_raw().as_raw(),
-                index as _,
+                native_index,
                 &raw mut offset,
                 &raw mut size
             ))?;
@@ -744,6 +637,11 @@ fn validate_parameters<K: KernelSignature>(function: &KernelFunction) -> Result<
             .ok_or(LaunchContractError::ParameterLayoutOverflow)?;
     }
     Ok(())
+}
+
+// Widens a native attribute or occupancy count, which CUDA reports as a non-negative `i32`, for the limit checks.
+fn native_limit(value: i32) -> Result<u128> {
+    u128::try_from(value).map_err(|_| CudaError::out_of_range("native launch limit"))
 }
 
 fn check_limit(name: &'static str, requested: u128, limit: u128) -> Result<()> {
@@ -841,12 +739,12 @@ fn validate_geometry(
         check_limit(
             "grid dimension",
             u128::from(g),
-            device.attribute(grid_attr)? as u128,
+            native_limit(device.attribute(grid_attr)?)?,
         )?;
         check_limit(
             "block dimension",
             u128::from(b),
-            device.attribute(block_attr)? as u128,
+            native_limit(device.attribute(block_attr)?)?,
         )?;
         if let Some(width) = required.axis_coordinates {
             check_limit(
@@ -872,12 +770,12 @@ fn validate_geometry(
     check_limit(
         "threads per block",
         threads,
-        device.attribute(DeviceAttribute::MaxThreadsPerBlock)? as u128,
+        native_limit(device.attribute(DeviceAttribute::MaxThreadsPerBlock)?)?,
     )?;
     check_limit(
         "kernel threads per block",
         threads,
-        function.attribute(FunctionAttribute::MaxThreadsPerBlock)? as u128,
+        native_limit(function.attribute(FunctionAttribute::MaxThreadsPerBlock)?)?,
     )?;
     Ok(())
 }
@@ -917,8 +815,14 @@ fn validate_kernel_geometry(
 
     if let Some(minimum) = required.min_compute_capability {
         let actual = (
-            device.attribute(DeviceAttribute::ComputeCapabilityMajor)? as u32,
-            device.attribute(DeviceAttribute::ComputeCapabilityMinor)? as u32,
+            to_u32(
+                device.attribute(DeviceAttribute::ComputeCapabilityMajor)?,
+                "native attribute",
+            )?,
+            to_u32(
+                device.attribute(DeviceAttribute::ComputeCapabilityMinor)?,
+                "native attribute",
+            )?,
         );
         if actual < minimum {
             return Err(LaunchContractError::Architecture {
@@ -958,9 +862,18 @@ fn validate_requirements(
     }
 
     let native_cluster = Dim3::new(
-        function.attribute(FunctionAttribute::RequiredClusterWidth)? as u32,
-        function.attribute(FunctionAttribute::RequiredClusterHeight)? as u32,
-        function.attribute(FunctionAttribute::RequiredClusterDepth)? as u32,
+        to_u32(
+            function.attribute(FunctionAttribute::RequiredClusterWidth)?,
+            "native attribute",
+        )?,
+        to_u32(
+            function.attribute(FunctionAttribute::RequiredClusterHeight)?,
+            "native attribute",
+        )?,
+        to_u32(
+            function.attribute(FunctionAttribute::RequiredClusterDepth)?,
+            "native attribute",
+        )?,
     );
     let native_cluster = (native_cluster.x != 0 || native_cluster.y != 0 || native_cluster.z != 0)
         .then_some(native_cluster);
@@ -1003,7 +916,7 @@ fn validate_requirements(
         }
 
         let limit = function.occupancy_max_potential_cluster_size(config)?;
-        check_limit("cluster blocks", volume(dim), limit as u128)?;
+        check_limit("cluster blocks", volume(dim), native_limit(limit)?)?;
     }
 
     if required.cooperative && !cooperative
@@ -1017,18 +930,19 @@ fn validate_requirements(
         check_limit(
             "cooperative grid clusters",
             volume(grid) / volume(cluster),
-            active as u128,
+            native_limit(active)?,
         )?;
     } else if cooperative {
         let active = function.occupancy_max_active_blocks_per_multiprocessor(
             to_i32(threads, "block thread count")?,
             shared,
+            OccupancyFlags::DEFAULT,
         )?;
         let sms = SmResource::for_context(context)?.sm_count();
         check_limit(
             "cooperative grid blocks",
             volume(grid),
-            active as u128 * u128::from(sms),
+            native_limit(active)? * u128::from(sms),
         )?;
     }
     Ok(())
@@ -1061,22 +975,22 @@ fn dynamic_shared_memory_limit(function: &KernelFunction, config: &LaunchConfig)
     let device = function.module().context().device();
     let capacity = match mode {
         SharedMemoryMode::Default => {
-            return Ok(function.attribute(FunctionAttribute::MaxDynamicSharedSizeBytes)? as u128);
+            return native_limit(function.attribute(FunctionAttribute::MaxDynamicSharedSizeBytes)?);
         }
         SharedMemoryMode::RequirePortable => {
-            device.attribute(DeviceAttribute::MaxSharedMemoryPerBlock)? as u128
+            native_limit(device.attribute(DeviceAttribute::MaxSharedMemoryPerBlock)?)?
         }
         SharedMemoryMode::AllowNonPortable => {
-            device.attribute(DeviceAttribute::MaxSharedMemoryPerBlockOptin)? as u128
+            native_limit(device.attribute(DeviceAttribute::MaxSharedMemoryPerBlockOptin)?)?
         }
         SharedMemoryMode::AllowOversizedSharedMemory
         | SharedMemoryMode::PreferOversizedSharedMemory => {
             let optin = device.attribute(DeviceAttribute::MaxSharedMemoryPerBlockOptin)?;
             let oversized = device.attribute(DeviceAttribute::MaxOversizedSharedMemoryPerBlock)?;
-            optin.max(oversized) as u128
+            native_limit(optin.max(oversized))?
         }
     };
-    let static_bytes = function.attribute(FunctionAttribute::SharedSizeBytes)? as u128;
+    let static_bytes = native_limit(function.attribute(FunctionAttribute::SharedSizeBytes)?)?;
     check_limit("static shared memory", static_bytes, capacity)?;
     Ok(capacity - static_bytes)
 }
@@ -1094,35 +1008,42 @@ impl<K: KernelSignature> PreparedLaunch<K> {
     /// Binds owned resources to this prepared launch without enqueueing work.
     ///
     /// # Safety
+    ///
     /// Arguments must satisfy the kernel's bounds, value, aliasing and output coverage contracts.
     /// Retain every pointed-to allocation and declare all accesses in `resources`.
     /// `output` must preserve pending initialization until successful completion, including capture.
+    ///
+    /// # Errors
+    ///
+    /// Propagates typed argument conversion and view-context errors from [`KernelSignature::raw_arguments`].
     pub unsafe fn into_operation<T: 'static>(
         self,
-        arguments: K::RawArguments,
+        arguments: K::Arguments<'_>,
         mut resources: Resources,
         output: T,
-    ) -> KernelOperation<K, T> {
+    ) -> Result<KernelOperation<K, T>> {
+        let arguments = K::raw_arguments(arguments, self.context())?;
         resources.retain(Arc::new(self.function.module().clone()));
-        KernelOperation {
+        Ok(KernelOperation {
             launch: self,
             arguments,
             resources,
             output,
-        }
+        })
     }
 }
 
+// SAFETY: `into_operation`'s caller declared every owner and access in `resources` and supplied a pending `output`, and `enqueue` registers them through `Execution::enqueue` before launching.
 unsafe impl<K: KernelSignature, T: 'static> Operation for KernelOperation<K, T> {
     type Pending = Self::Output;
 
     type Output = T;
 
     fn enqueue(self, execution: &mut Execution) -> Result<T> {
-        // SAFETY: the declared resources retain every buffer and the stream orders all access to them.
+        // SAFETY: `resources` retain every buffer the arguments address, as `into_operation` requires, and `launch_encoded` runs on the stream that orders those accesses.
         unsafe {
             execution.enqueue(self.resources, |stream| {
-                self.launch.launch_on_raw(self.arguments, stream)
+                self.launch.launch_encoded(self.arguments, stream)
             })?;
         }
         Ok(self.output)
@@ -1133,17 +1054,18 @@ unsafe impl<K: KernelSignature, T: 'static> Operation for KernelOperation<K, T> 
     }
 }
 
-// SAFETY: enqueue returns pending device metadata and resolution is the identity function.
+// SAFETY: `resolve` returns its input unchanged, and `enqueue` schedules the launch without host resolution.
 unsafe impl<K: KernelSignature, T: 'static> DeviceOperation for KernelOperation<K, T> {}
 
+// SAFETY: `record` registers the declared owners and accesses with `Recording` before the launch, the module is among the retained resources, and `output` stays pending as `into_operation` requires.
 unsafe impl<K: KernelSignature, T: 'static> Recordable for KernelOperation<K, T> {
     type Output = T;
 
     fn record(self, recording: &mut Recording) -> Result<T> {
-        // SAFETY: the declared resources retain every buffer and the stream orders all access to them.
+        // SAFETY: `resources` retain every buffer the arguments address for every replay, as `into_operation` requires, and the launch records on the capturing stream.
         unsafe {
             recording.enqueue(self.resources, |stream| {
-                self.launch.launch_on_raw(self.arguments, stream)
+                self.launch.launch_encoded(self.arguments, stream)
             })?;
         }
         Ok(self.output)

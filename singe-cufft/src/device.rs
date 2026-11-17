@@ -3,101 +3,98 @@
 use std::mem::ManuallyDrop;
 
 use num_enum::{IntoPrimitive, TryFromPrimitive};
-use singe_core::{LibraryVersion, impl_enum_conversion, impl_enum_display};
+use singe_core::{LibraryVersion, UnknownEnumValue, impl_enum_display, report_cleanup_failure};
 use singe_cuda::nvjitlink::{InputType, Linker};
 use singe_cufft_sys::device as sys;
 
 use crate::{
     error::{Error, Result},
     try_ffi,
-    utility::to_usize,
+    utility::{to_size_t, to_usize},
 };
 
-/// Direction of a generated device FFT.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum Direction {
-    /// Forward Fourier transform.
-    Forward = sys::cufftDescriptionDirection::CUFFT_DESC_FORWARD as _,
-    /// Inverse Fourier transform.
-    Inverse = sys::cufftDescriptionDirection::CUFFT_DESC_INVERSE as _,
+singe_core::native_enum! {
+    /// Direction of a generated device FFT.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum DeviceDirection: sys::cufftDescriptionDirection {
+        /// Forward Fourier transform.
+        Forward = CUFFT_DESC_FORWARD,
+        /// Inverse Fourier transform.
+        Inverse = CUFFT_DESC_INVERSE,
+    }
 }
 
-impl_enum_conversion!(sys::cufftDescriptionDirection, Direction);
-
-/// Data transformation performed by a generated FFT.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum Transform {
-    /// Complex-to-complex Fourier transform.
-    ComplexToComplex = sys::cufftDescriptionType::CUFFT_DESC_C2C as _,
-    /// Complex-to-real Fourier transform.
-    ComplexToReal = sys::cufftDescriptionType::CUFFT_DESC_C2R as _,
-    /// Real-to-complex Fourier transform.
-    RealToComplex = sys::cufftDescriptionType::CUFFT_DESC_R2C as _,
+singe_core::native_enum! {
+    /// Data transformation performed by a generated FFT.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum DeviceTransform: sys::cufftDescriptionType {
+        /// Complex-to-complex Fourier transform.
+        ComplexToComplex = CUFFT_DESC_C2C,
+        /// Complex-to-real Fourier transform.
+        ComplexToReal = CUFFT_DESC_C2R,
+        /// Real-to-complex Fourier transform.
+        RealToComplex = CUFFT_DESC_R2C,
+    }
 }
 
-impl_enum_conversion!(sys::cufftDescriptionType, Transform);
-
-/// Precision of generated device FFT elements.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum Precision {
-    /// Single precision.
-    Single = sys::cufftDescriptionPrecision::CUFFT_DESC_SINGLE as _,
-    /// Double precision.
-    Double = sys::cufftDescriptionPrecision::CUFFT_DESC_DOUBLE as _,
-    /// Half precision.
-    Half = sys::cufftDescriptionPrecision::CUFFT_DESC_HALF as _,
+singe_core::native_enum! {
+    /// Precision of generated device FFT elements.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum Precision: sys::cufftDescriptionPrecision {
+        /// Single precision.
+        Single = CUFFT_DESC_SINGLE,
+        /// Double precision.
+        Double = CUFFT_DESC_DOUBLE,
+        /// Half precision.
+        Half = CUFFT_DESC_HALF,
+    }
 }
 
-impl_enum_conversion!(sys::cufftDescriptionPrecision, Precision);
-
-/// Integer trait configuring a device FFT description.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum DescriptionTrait {
-    /// FFT length.
-    Size = sys::cufftDescriptionTrait::CUFFT_DESC_TRAIT_SIZE as _,
-    /// Transform direction.
-    Direction = sys::cufftDescriptionTrait::CUFFT_DESC_TRAIT_DIRECTION as _,
-    /// Transform precision.
-    Precision = sys::cufftDescriptionTrait::CUFFT_DESC_TRAIT_PRECISION as _,
-    /// Transform type.
-    Transform = sys::cufftDescriptionTrait::CUFFT_DESC_TRAIT_TYPE as _,
-    /// Target streaming-multiprocessor architecture.
-    Sm = sys::cufftDescriptionTrait::CUFFT_DESC_TRAIT_SM as _,
-    /// Number of elements processed by each thread.
-    ElementsPerThread = sys::cufftDescriptionTrait::CUFFT_DESC_TRAIT_ELEMENTS_PER_THREAD as _,
+singe_core::native_enum! {
+    /// Integer trait configuring a device FFT description.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum DescriptionTrait: sys::cufftDescriptionTrait {
+        /// FFT length.
+        Size = CUFFT_DESC_TRAIT_SIZE,
+        /// Transform direction.
+        Direction = CUFFT_DESC_TRAIT_DIRECTION,
+        /// Transform precision.
+        Precision = CUFFT_DESC_TRAIT_PRECISION,
+        /// Transform type.
+        Transform = CUFFT_DESC_TRAIT_TYPE,
+        /// Target streaming-multiprocessor architecture.
+        Sm = CUFFT_DESC_TRAIT_SM,
+        /// Number of elements processed by each thread.
+        ElementsPerThread = CUFFT_DESC_TRAIT_ELEMENTS_PER_THREAD,
+    }
 }
 
-impl_enum_conversion!(sys::cufftDescriptionTrait, DescriptionTrait);
-
-/// Resource requirements of one device FFT function.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum FunctionTrait {
-    /// Number of elements processed by each thread.
-    ElementsPerThread =
-        sys::cufftDeviceFunctionTrait::CUFFT_DEVICE_FUNC_TRAIT_ELEMENTS_PER_THREAD as _,
-    /// Per-thread storage size required by the function.
-    StorageSize = sys::cufftDeviceFunctionTrait::CUFFT_DEVICE_FUNC_TRAIT_STORAGE_SIZE as _,
-    /// Shared memory required per FFT.
-    SharedMemoryPerFft =
-        sys::cufftDeviceFunctionTrait::CUFFT_DEVICE_FUNC_TRAIT_SHARED_MEMORY_PER_FFT as _,
-    /// Number of threads per FFT.
-    ThreadsPerFft = sys::cufftDeviceFunctionTrait::CUFFT_DEVICE_FUNC_TRAIT_THREADS_PER_FFT as _,
-    /// Suggested number of FFTs per thread block.
-    SuggestedFftsPerBlock =
-        sys::cufftDeviceFunctionTrait::CUFFT_DEVICE_FUNC_TRAIT_SUGGESTED_FFTS_PER_BLOCK as _,
+singe_core::native_enum! {
+    /// Resource requirements of one device FFT function.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum FunctionTrait: sys::cufftDeviceFunctionTrait {
+        /// Number of elements processed by each thread.
+        ElementsPerThread = CUFFT_DEVICE_FUNC_TRAIT_ELEMENTS_PER_THREAD,
+        /// Per-thread storage size required by the function.
+        StorageSize = CUFFT_DEVICE_FUNC_TRAIT_STORAGE_SIZE,
+        /// Shared memory required per FFT.
+        SharedMemoryPerFft = CUFFT_DEVICE_FUNC_TRAIT_SHARED_MEMORY_PER_FFT,
+        /// Number of threads per FFT.
+        ThreadsPerFft = CUFFT_DEVICE_FUNC_TRAIT_THREADS_PER_FFT,
+        /// Suggested number of FFTs per thread block.
+        SuggestedFftsPerBlock = CUFFT_DEVICE_FUNC_TRAIT_SUGGESTED_FFTS_PER_BLOCK,
+    }
 }
-
-impl_enum_conversion!(sys::cufftDeviceFunctionTrait, FunctionTrait);
 
 /// Container format of extracted device code.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -132,13 +129,13 @@ impl Description {
     /// Returns a cuFFT error if description creation fails or any supplied transform trait is rejected, including an unsupported size, precision, or architecture.
     pub fn create(
         size: i64,
-        direction: Direction,
+        direction: DeviceDirection,
         precision: Precision,
-        transform: Transform,
+        transform: DeviceTransform,
         sm: i64,
     ) -> Result<Self> {
         let mut raw = 0;
-        // SAFETY: `cufftDescriptionCreate` receives valid output locations.
+        // SAFETY: `raw` is a local handle slot that the call writes.
         unsafe {
             try_ffi!(sys::cufftDescriptionCreate(&raw mut raw))?;
         }
@@ -146,9 +143,9 @@ impl Description {
         let mut result = Self { raw };
         for (attribute, value) in [
             (DescriptionTrait::Size, size),
-            (DescriptionTrait::Direction, direction as i64),
-            (DescriptionTrait::Precision, precision as i64),
-            (DescriptionTrait::Transform, transform as i64),
+            (DescriptionTrait::Direction, i64::from(u32::from(direction))),
+            (DescriptionTrait::Precision, i64::from(u32::from(precision))),
+            (DescriptionTrait::Transform, i64::from(u32::from(transform))),
             (DescriptionTrait::Sm, sm),
         ] {
             result.set_trait(attribute, value)?;
@@ -162,7 +159,7 @@ impl Description {
     ///
     /// Returns a cuFFT error if the description trait or its value is unsupported.
     pub fn set_trait(&mut self, attribute: DescriptionTrait, value: i64) -> Result<()> {
-        // SAFETY: `cufftDescriptionSetTraitInt64` receives live handles owned by the wrappers.
+        // SAFETY: `self` owns the live description handle, and `&mut self` excludes concurrent use.
         unsafe {
             try_ffi!(sys::cufftDescriptionSetTraitInt64(
                 self.raw,
@@ -180,7 +177,7 @@ impl Description {
     /// Returns a cuFFT error if the trait cannot be read from this description.
     pub fn trait_value(&self, attribute: DescriptionTrait) -> Result<i64> {
         let mut value = 0;
-        // SAFETY: `cufftDescriptionGetTraitInt64` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `self` owns the live description handle, and `value` is a local integer the call writes.
         unsafe {
             try_ffi!(sys::cufftDescriptionGetTraitInt64(
                 self.raw,
@@ -198,7 +195,9 @@ impl Description {
     }
 
     /// Takes ownership of a cuFFT device description.
+    ///
     /// # Safety
+    ///
     /// `raw` must be a live, exclusively owned description handle.
     #[must_use]
     pub unsafe fn from_raw(raw: sys::cufftDescriptionHandle) -> Self {
@@ -214,13 +213,10 @@ impl Description {
 
 impl Drop for Description {
     fn drop(&mut self) {
-        // SAFETY: `cufftDescriptionDestroy` receives live handles owned by the wrappers.
+        // SAFETY: `self` owns the live description handle, and `drop` destroys it once.
         unsafe {
             if let Err(error) = try_ffi!(sys::cufftDescriptionDestroy(self.raw)) {
-                eprintln!(
-                    "failed to destroy cufft device description: {}",
-                    singe_core::ErrorChain(&error)
-                );
+                report_cleanup_failure("destroy", "cufft device description", &error);
             }
         }
     }
@@ -249,11 +245,12 @@ impl DeviceProgram {
             .map(Description::as_raw)
             .collect::<Vec<_>>();
         let mut raw = 0;
-        // SAFETY: `cufftDeviceCreate` receives valid output locations.
+        let count = to_size_t(handles.len(), "description count")?;
+        // SAFETY: `raw` is a local handle slot the call writes, and `handles` holds `count` live descriptions that `Self` retains.
         unsafe {
             try_ffi!(sys::cufftDeviceCreate(
                 &raw mut raw,
-                handles.len() as _,
+                count,
                 handles.as_mut_ptr()
             ))?;
         }
@@ -280,7 +277,7 @@ impl DeviceProgram {
     pub fn is_supported(&self, index: usize) -> Result<bool> {
         let description = self.description(index)?;
         let mut supported = false;
-        // SAFETY: `cufftDeviceIsSupported` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `self` owns the live program, `description` is one of its retained descriptions, and `supported` is a local the call writes.
         unsafe {
             try_ffi!(sys::cufftDeviceIsSupported(
                 self.raw,
@@ -299,7 +296,7 @@ impl DeviceProgram {
     pub fn functions(&self, index: usize) -> Result<Vec<DeviceFunction<'_>>> {
         let description = self.description(index)?;
         let mut count = 0;
-        // SAFETY: `cufftDeviceGetNumDeviceFunctions` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `self` owns the live program, `description` is one of its retained descriptions, and `count` is a local the call writes.
         unsafe {
             try_ffi!(sys::cufftDeviceGetNumDeviceFunctions(
                 self.raw,
@@ -309,7 +306,7 @@ impl DeviceProgram {
         }
 
         let mut handles = vec![0; to_usize(count, "function count")?];
-        // SAFETY: `cufftDeviceGetDeviceFunctions` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: the program and description are live as above, and `handles` holds the `count` slots the call writes.
         unsafe {
             try_ffi!(sys::cufftDeviceGetDeviceFunctions(
                 self.raw,
@@ -336,7 +333,7 @@ impl DeviceProgram {
 
     fn database_for(&self, function: i32) -> Result<String> {
         let mut size = 0;
-        // SAFETY: `cufftDeviceGetDatabaseStrSize` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `self` owns the live program, `function` is -1 or one of its function handles, and `size` is a local the call writes.
         unsafe {
             try_ffi!(sys::cufftDeviceGetDatabaseStrSize(
                 self.raw,
@@ -346,7 +343,7 @@ impl DeviceProgram {
         }
 
         let mut bytes = vec![0; to_usize(size, "database size")?];
-        // SAFETY: `cufftDeviceGetDatabaseStr` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: the program and `function` are valid as above, and `bytes` holds the `size` bytes the call writes.
         unsafe {
             try_ffi!(sys::cufftDeviceGetDatabaseStr(
                 self.raw,
@@ -373,7 +370,7 @@ impl DeviceProgram {
 
     fn code_for(&self, function: i32) -> Result<Vec<DeviceCode>> {
         let mut count = 0;
-        // SAFETY: `cufftDeviceGetNumLTOIRs` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `self` owns the live program, `function` is -1 or one of its function handles, and `count` is a local the call writes.
         unsafe {
             try_ffi!(sys::cufftDeviceGetNumLTOIRs(
                 self.raw,
@@ -384,7 +381,7 @@ impl DeviceProgram {
 
         let count_usize = to_usize(count, "code count")?;
         let mut sizes = vec![0; count_usize];
-        // SAFETY: `cufftDeviceGetLTOIRSizes` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: the program and `function` are valid as above, and `sizes` holds the `count` slots the call writes.
         unsafe {
             try_ffi!(sys::cufftDeviceGetLTOIRSizes(
                 self.raw,
@@ -403,7 +400,7 @@ impl DeviceProgram {
             .map(|bytes| bytes.as_mut_ptr().cast())
             .collect::<Vec<_>>();
         let mut containers = vec![sys::cufftDeviceCodeContainer::CUFFT_DEVICE_LTOIR; count_usize];
-        // SAFETY: `cufftDeviceGetLTOIRs` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: the program and `function` are valid as above; `pointers` and `containers` hold `count` entries, and each pointer addresses a buffer of the size reported above.
         unsafe {
             try_ffi!(sys::cufftDeviceGetLTOIRs(
                 self.raw,
@@ -413,29 +410,28 @@ impl DeviceProgram {
                 function
             ))?;
         }
-        Ok(code
-            .into_iter()
+        code.into_iter()
             .zip(containers)
-            .map(|(bytes, container)| DeviceCode {
-                bytes,
-                container: match container {
+            .map(|(bytes, container)| {
+                let container = match container {
                     sys::cufftDeviceCodeContainer::CUFFT_DEVICE_LTOIR => CodeContainer::LtoIr,
                     sys::cufftDeviceCodeContainer::CUFFT_DEVICE_FATBIN => CodeContainer::Fatbin,
-                },
+                    other => {
+                        return Err(UnknownEnumValue::new("CodeContainer", other.0).into());
+                    }
+                };
+                Ok(DeviceCode { container, bytes })
             })
-            .collect())
+            .collect()
     }
 }
 
 impl Drop for DeviceProgram {
     fn drop(&mut self) {
-        // SAFETY: `cufftDeviceDestroy` receives live handles owned by the wrappers.
+        // SAFETY: `self` owns the live program handle, and `drop` destroys it once, before its descriptions.
         unsafe {
             if let Err(error) = try_ffi!(sys::cufftDeviceDestroy(self.raw)) {
-                eprintln!(
-                    "failed to destroy cufft device: {}",
-                    singe_core::ErrorChain(&error)
-                );
+                report_cleanup_failure("destroy", "cufft device program", &error);
             }
         }
     }
@@ -456,7 +452,7 @@ impl DeviceFunction<'_> {
     /// Returns a cuFFT error if the resource trait cannot be read for this function.
     pub fn trait_value(&self, attribute: FunctionTrait) -> Result<i64> {
         let mut value = 0;
-        // SAFETY: `cufftDeviceGetDeviceFunctionTraitInt64` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: the borrowed program is live, `self.raw` is one of its function handles, and `value` is a local the call writes.
         unsafe {
             try_ffi!(sys::cufftDeviceGetDeviceFunctionTraitInt64(
                 self.program.raw,
@@ -492,10 +488,10 @@ impl DeviceFunction<'_> {
 ///
 /// # Errors
 ///
-/// Returns a cuFFT error if the device-interface version query fails.
+/// Returns an error if the device-interface version query fails or a version component is negative.
 pub fn version() -> Result<LibraryVersion> {
     let (mut major, mut minor, mut patch) = (0, 0, 0);
-    // SAFETY: `cufftDeviceGetSemanticVersion` receives valid output locations.
+    // SAFETY: `major`, `minor`, and `patch` are locals the call writes.
     unsafe {
         try_ffi!(sys::cufftDeviceGetSemanticVersion(
             &raw mut major,
@@ -503,7 +499,8 @@ pub fn version() -> Result<LibraryVersion> {
             &raw mut patch
         ))?;
     }
-    Ok(LibraryVersion::new(major as _, minor as _, patch as _))
+    LibraryVersion::from_properties(major, minor, patch)
+        .ok_or_else(|| Error::out_of_range("cufft device version"))
 }
 
 impl DeviceCode {
@@ -522,15 +519,15 @@ impl DeviceCode {
     }
 }
 
-impl_enum_display!(Direction, {
-    Direction::Forward => "CUFFT_DESC_FORWARD",
-    Direction::Inverse => "CUFFT_DESC_INVERSE",
+impl_enum_display!(DeviceDirection, {
+    DeviceDirection::Forward => "CUFFT_DESC_FORWARD",
+    DeviceDirection::Inverse => "CUFFT_DESC_INVERSE",
 });
 
-impl_enum_display!(Transform, {
-    Transform::ComplexToComplex => "CUFFT_DESC_C2C",
-    Transform::ComplexToReal => "CUFFT_DESC_C2R",
-    Transform::RealToComplex => "CUFFT_DESC_R2C",
+impl_enum_display!(DeviceTransform, {
+    DeviceTransform::ComplexToComplex => "CUFFT_DESC_C2C",
+    DeviceTransform::ComplexToReal => "CUFFT_DESC_C2R",
+    DeviceTransform::RealToComplex => "CUFFT_DESC_R2C",
 });
 
 impl_enum_display!(Precision, {

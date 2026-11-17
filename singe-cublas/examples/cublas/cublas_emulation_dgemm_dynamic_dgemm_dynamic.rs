@@ -1,7 +1,7 @@
 use singe_cublas::{
-    blas::level3::dgemm,
+    blas::level3::gemm,
     context::Context,
-    error::Result,
+    scalar::Scalar,
     types::{EmulationStrategy, MathMode, Operation},
 };
 use singe_cuda::{
@@ -9,10 +9,10 @@ use singe_cuda::{
     types::EmulationMantissaControl,
 };
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     let cuda = CudaContext::create_for_device(Device::new(0))?;
     let mut workspace = DeviceMemory::<u8>::create_uninit(&cuda, 1 << 20)?;
-    let cublas = Context::create(&cuda)?;
+    let mut cublas = Context::create(&cuda)?;
     // The workspace precedes the handle, so it survives handle destruction on every path.
     // The completed GEMM below releases its borrowed operands only after CUDA completion.
     // SAFETY: the example keeps these buffers alive and synchronizes before reading the results.
@@ -30,19 +30,19 @@ fn main() -> Result<()> {
     cublas.set_fixed_point_emulation_max_mantissa_bit_count(79)?;
     cublas.set_fixed_point_emulation_mantissa_bit_offset(-8)?;
 
-    dgemm(
+    gemm(
         &cublas,
         Operation::NonTranspose,
         Operation::NonTranspose,
         2,
         2,
         2,
-        &1.0_f64,
+        Scalar::host(&1.0_f64),
         &a,
         2,
         &b,
         2,
-        &0.0_f64,
+        Scalar::host(&0.0_f64),
         &mut c,
         2,
     )?;

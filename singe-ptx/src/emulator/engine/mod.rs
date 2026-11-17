@@ -18,7 +18,7 @@ use std::{
     },
 };
 
-pub use self::initialization::GridBuilder;
+pub(crate) use self::initialization::GridBuilder;
 
 use crate::{
     ast::{ScalarType, StateSpace},
@@ -49,7 +49,7 @@ type Result<T> = StdResult<T, ExecutionError>;
 
 /// Whether an executed instruction moves its lane to the next instruction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Step {
+pub(crate) enum Step {
     Advance,
     /// The operation set the program counter itself, or parked the lane until a rendezvous releases it.
     Hold,
@@ -217,7 +217,7 @@ impl DirtySet {
     }
 }
 
-pub struct Engine {
+pub(crate) struct Engine {
     asynchronous: AsyncState,
     code: Arc<ir::Executable>,
     config: LaunchConfig,
@@ -245,18 +245,18 @@ pub struct Engine {
 /// One instruction issued to one lane, recorded by test builds.
 #[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct TraceEntry {
-    pub lane: usize,
-    pub function: FunctionId,
-    pub pc: usize,
+pub(crate) struct TraceEntry {
+    pub(crate) lane: usize,
+    pub(crate) function: FunctionId,
+    pub(crate) pc: usize,
 }
 
 /// A [`TraceEntry`] tagged with the launch that issued it.
 #[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct LaunchTraceEntry {
-    pub launch: u64,
-    pub entry: TraceEntry,
+pub(crate) struct LaunchTraceEntry {
+    pub(crate) launch: u64,
+    pub(crate) entry: TraceEntry,
 }
 
 fn product(dimensions: [u32; 3]) -> Result<usize> {
@@ -486,7 +486,7 @@ impl Engine {
     }
 
     #[cfg(test)]
-    pub fn create(
+    pub(crate) fn create(
         code: &CompiledKernel,
         globals: &[u64],
         config: LaunchConfig,
@@ -675,17 +675,17 @@ impl Engine {
         }
     }
 
-    pub fn release(&self, memory: &mut Memory) {
+    pub(crate) fn release(&self, memory: &mut Memory) {
         memory.release_grid(self.grid);
     }
 
-    pub fn identify(&mut self, launch_id: u64, stream_id: u64) {
+    pub(crate) fn identify(&mut self, launch_id: u64, stream_id: u64) {
         self.report.launch_id = launch_id;
         self.report.stream_id = stream_id;
     }
 
     #[cfg(test)]
-    pub fn launch_id(&self) -> u64 {
+    pub(crate) fn launch_id(&self) -> u64 {
         self.report.launch_id
     }
 
@@ -881,20 +881,20 @@ impl Engine {
         }
     }
 
-    pub fn is_paused(&self) -> bool {
+    pub(crate) fn is_paused(&self) -> bool {
         self.breakpoint.is_some()
     }
 
-    pub fn resume(&mut self) {
+    pub(crate) fn resume(&mut self) {
         self.breakpoint = None;
     }
 
-    pub fn breakpoint_location(&self) -> Option<FaultLocation> {
+    pub(crate) fn breakpoint_location(&self) -> Option<FaultLocation> {
         self.breakpoint
             .map(|paused| self.fault_location(paused.lane, paused.pc))
     }
 
-    pub fn breakpoint_storage(&self) -> Result<usize> {
+    pub(crate) fn breakpoint_storage(&self) -> Result<usize> {
         let PausedAt { lane, .. } = self
             .breakpoint
             .ok_or_else(|| ExecutionError::Invalid("launch is not paused".into()))?;
@@ -913,7 +913,7 @@ impl Engine {
             })
     }
 
-    pub fn step(
+    pub(crate) fn step(
         &mut self,
         global: &mut Memory,
         cancellation: &AtomicBool,
@@ -922,14 +922,14 @@ impl Engine {
             .map_err(|cause| self.failure(cause))
     }
 
-    pub fn failure(&mut self, cause: ExecutionError) -> ExecutionError {
+    pub(crate) fn failure(&mut self, cause: ExecutionError) -> ExecutionError {
         ExecutionError::Launch {
             report: Arc::new(self.take_report()),
             cause: Arc::new(cause),
         }
     }
 
-    pub fn retain_result(&self, memory: &mut Memory) -> Arc<Reservation> {
+    pub(crate) fn retain_result(&self, memory: &mut Memory) -> Arc<Reservation> {
         Arc::new(memory.retain_execution(self.grid, self.result_charge))
     }
 

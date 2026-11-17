@@ -1,4 +1,6 @@
-use singe_cuda::stream::{StreamCaptureMode, StreamCaptureStatus, StreamFlags};
+use singe_cuda::stream::{
+    AsStream, StreamCaptureMode, StreamCaptureStatus, StreamFlags, StreamOptions,
+};
 
 use crate::{
     backend::{
@@ -29,21 +31,23 @@ impl ExecutionPlan {
     /// A private nonblocking stream permits warmup when the handle uses CUDA's default stream.
     /// The original stream is restored before returning, including on errors and unwinding.
     ///
-    /// # Errors
-    /// Returns context, workspace, stream configuration or capture errors.
-    /// A cuDNN rejection inside a completed capture is returned in [`WarmupOutcome::Captured`].
-    ///
     /// # Safety
+    ///
     /// Host by-value pointers must contain initialized values in their declared native encodings and remain live until this call returns.
     /// Keep borrowed device buffers and workspace valid in the execution context through capture and graph disposal.
     /// Captured device reads and writes are never launched, so device inputs need not be initialized for this call.
     /// Deviceless plans retain the live context through native plan destruction, including when capture or the native warmup execution fails.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the context, workspace, stream configuration, or capture fails.
+    /// A cuDNN rejection inside a completed capture is returned in [`WarmupOutcome::Captured`].
     pub unsafe fn warmup(
         &self,
         context: &mut Context,
         variant_pack: &VariantPack,
     ) -> Result<WarmupOutcome> {
-        if context.stream()?.capture_status()? != StreamCaptureStatus::None {
+        if context.stream_binding().capture_status()? != StreamCaptureStatus::None {
             return Ok(WarmupOutcome::SkippedActiveCapture);
         }
 
@@ -53,7 +57,7 @@ impl ExecutionPlan {
             Some(variant_pack.cuda_context()),
             "variant pack",
         )?;
-        // SAFETY: the caller retains valid bindings and initialized host scalars through the discarded capture.
+        // SAFETY: the pack is used only inside the discarded capture, and the caller keeps its host scalar pointees initialized and live, per `# Safety`.
         unsafe {
             capture_plan_warmup(self, context, variant_pack.descriptor(), |context| {
                 variant_pack.initialize_workspace(context)
@@ -65,16 +69,17 @@ impl ExecutionPlan {
 /// Captures native initialization and discards every recorded operation before returning.
 ///
 /// # Safety
+///
 /// Host scalar pointees must be initialized, correctly encoded and live until this call returns.
 /// Device addresses may refer to undersized or overlapping placeholder storage because no graph is launched.
 /// This pack must never escape into execution, graph population, instantiation or replay.
-pub unsafe fn capture_plan_warmup(
+pub(crate) unsafe fn capture_plan_warmup(
     plan: &ExecutionPlan,
     context: &mut Context,
     pack: &BackendDescriptor,
     initialize: impl FnOnce(&Context) -> Result<()>,
 ) -> Result<WarmupOutcome> {
-    if context.stream()?.capture_status()? != StreamCaptureStatus::None {
+    if context.stream_binding().capture_status()? != StreamCaptureStatus::None {
         return Ok(WarmupOutcome::SkippedActiveCapture);
     }
 
@@ -84,17 +89,18 @@ pub unsafe fn capture_plan_warmup(
         "execution plan",
     )?;
     plan.retain_execution_context(context.cuda_context())?;
-    let stream = context
-        .cuda_context()
-        .create_stream_with_flags(StreamFlags::NON_BLOCKING)?;
+    let stream = context.cuda_context().create_stream(StreamOptions {
+        flags: StreamFlags::NON_BLOCKING,
+        ..StreamOptions::default()
+    })?;
     context.with_stream(Some(&stream), |context| {
         let mut execution_error = None;
         let mut initialization_result = Ok(());
         let graph = stream.capture(StreamCaptureMode::Relaxed, |_| {
             initialization_result = initialize(context);
             if initialization_result.is_ok() {
-                // SAFETY: the caller upholds this function's safety contract.
-                // SAFETY: the private capture keeps its placeholder state live and is discarded without launching.
+                // SAFETY: the work is only recorded into a private capture that is dropped without launching, so device addresses are never accessed.
+                // The caller keeps the host scalar pointees initialized and live until this call returns, per `# Safety`.
                 execution_error =
                     unsafe { backend_execute(context, plan.descriptor(), pack) }.err();
             }

@@ -57,9 +57,9 @@ pub fn configure(encryption: Encryption<'_>) -> Result<()> {
         size: size_of::<sys::ncclEncryptionConfig_t>() as _,
         magic: sys::NCCL_API_MAGIC,
         version: sys::NCCL_VERSION_CODE,
-        mode: mode as _,
+        mode: mode.0.cast_signed(),
         psk,
     };
-    // SAFETY: `ncclSetEncryption` receives pointers into buffers borrowed for the call.
+    // SAFETY: `config` is a local structure with its size, magic, and version set, and `psk` is null or a borrowed NUL-terminated key checked to hold at least 32 bytes.
     unsafe { try_ffi!(sys::ncclSetEncryption(&raw const config)) }
 }

@@ -11,7 +11,7 @@ use singe_cuda::types::bf16;
 use singe_cuda::types::f16;
 use singe_cuda::{
     stream::Stream,
-    view::{DeviceInput, DeviceOutput, DeviceRepr},
+    view::{DeviceOutput, DeviceRange, DeviceRepr},
 };
 
 #[cfg(feature = "cutile")]
@@ -103,7 +103,7 @@ impl MaskReductionTuning {
 pub unsafe fn mask_not_u8(
     stream: &Stream,
     out: &mut impl DeviceOutput<u8>,
-    input: &impl DeviceInput<u8>,
+    input: &impl DeviceRange<u8>,
 ) -> Result<()> {
     let len = out.len();
     ensure_len(input.len(), len)?;
@@ -125,8 +125,8 @@ pub unsafe fn mask_not_u8(
 pub unsafe fn mask_and_u8(
     stream: &Stream,
     out: &mut impl DeviceOutput<u8>,
-    lhs: &impl DeviceInput<u8>,
-    rhs: &impl DeviceInput<u8>,
+    lhs: &impl DeviceRange<u8>,
+    rhs: &impl DeviceRange<u8>,
 ) -> Result<()> {
     mask_binary(
         stream,
@@ -151,8 +151,8 @@ pub unsafe fn mask_and_u8(
 pub unsafe fn mask_or_u8(
     stream: &Stream,
     out: &mut impl DeviceOutput<u8>,
-    lhs: &impl DeviceInput<u8>,
-    rhs: &impl DeviceInput<u8>,
+    lhs: &impl DeviceRange<u8>,
+    rhs: &impl DeviceRange<u8>,
 ) -> Result<()> {
     mask_binary(
         stream,
@@ -177,8 +177,8 @@ pub unsafe fn mask_or_u8(
 pub unsafe fn mask_xor_u8(
     stream: &Stream,
     out: &mut impl DeviceOutput<u8>,
-    lhs: &impl DeviceInput<u8>,
-    rhs: &impl DeviceInput<u8>,
+    lhs: &impl DeviceRange<u8>,
+    rhs: &impl DeviceRange<u8>,
 ) -> Result<()> {
     mask_binary(
         stream,
@@ -203,7 +203,7 @@ pub unsafe fn mask_xor_u8(
 pub unsafe fn logical_not_u8(
     stream: &Stream,
     out: &mut impl DeviceOutput<u8>,
-    input: &impl DeviceInput<u8>,
+    input: &impl DeviceRange<u8>,
 ) -> Result<()> {
     // SAFETY: the caller establishes the forwarded mask contract.
     unsafe { mask_not_u8(stream, out, input) }
@@ -220,8 +220,8 @@ pub unsafe fn logical_not_u8(
 pub unsafe fn logical_and_u8(
     stream: &Stream,
     out: &mut impl DeviceOutput<u8>,
-    lhs: &impl DeviceInput<u8>,
-    rhs: &impl DeviceInput<u8>,
+    lhs: &impl DeviceRange<u8>,
+    rhs: &impl DeviceRange<u8>,
 ) -> Result<()> {
     // SAFETY: the caller establishes the forwarded mask contract.
     unsafe { mask_and_u8(stream, out, lhs, rhs) }
@@ -238,8 +238,8 @@ pub unsafe fn logical_and_u8(
 pub unsafe fn logical_or_u8(
     stream: &Stream,
     out: &mut impl DeviceOutput<u8>,
-    lhs: &impl DeviceInput<u8>,
-    rhs: &impl DeviceInput<u8>,
+    lhs: &impl DeviceRange<u8>,
+    rhs: &impl DeviceRange<u8>,
 ) -> Result<()> {
     // SAFETY: the caller establishes the forwarded mask contract.
     unsafe { mask_or_u8(stream, out, lhs, rhs) }
@@ -256,8 +256,8 @@ pub unsafe fn logical_or_u8(
 pub unsafe fn logical_xor_u8(
     stream: &Stream,
     out: &mut impl DeviceOutput<u8>,
-    lhs: &impl DeviceInput<u8>,
-    rhs: &impl DeviceInput<u8>,
+    lhs: &impl DeviceRange<u8>,
+    rhs: &impl DeviceRange<u8>,
 ) -> Result<()> {
     // SAFETY: the caller establishes the forwarded mask contract.
     unsafe { mask_xor_u8(stream, out, lhs, rhs) }
@@ -274,7 +274,7 @@ pub unsafe fn logical_xor_u8(
 pub unsafe fn mask_any_u8(
     stream: &Stream,
     out: &mut impl DeviceOutput<u8>,
-    input: &impl DeviceInput<u8>,
+    input: &impl DeviceRange<u8>,
     config: MaskReductionConfig,
 ) -> Result<()> {
     mask_reduction(
@@ -305,7 +305,7 @@ pub unsafe fn mask_any_u8(
 pub unsafe fn tune_mask_any_u8(
     stream: &Stream,
     out: &mut impl DeviceOutput<u8>,
-    input: &impl DeviceInput<u8>,
+    input: &impl DeviceRange<u8>,
     config: MaskReductionConfig,
     options: TuneOptions,
 ) -> Result<TuneReport<MaskReductionTuning>> {
@@ -334,7 +334,7 @@ pub unsafe fn tune_mask_any_u8(
 pub unsafe fn mask_all_u8(
     stream: &Stream,
     out: &mut impl DeviceOutput<u8>,
-    input: &impl DeviceInput<u8>,
+    input: &impl DeviceRange<u8>,
     config: MaskReductionConfig,
 ) -> Result<()> {
     mask_reduction(
@@ -365,7 +365,7 @@ pub unsafe fn mask_all_u8(
 pub unsafe fn tune_mask_all_u8(
     stream: &Stream,
     out: &mut impl DeviceOutput<u8>,
-    input: &impl DeviceInput<u8>,
+    input: &impl DeviceRange<u8>,
     config: MaskReductionConfig,
     options: TuneOptions,
 ) -> Result<TuneReport<MaskReductionTuning>> {
@@ -394,7 +394,7 @@ pub unsafe fn tune_mask_all_u8(
 pub unsafe fn mask_count_nonzero_u8(
     stream: &Stream,
     out: &mut impl DeviceOutput<u32>,
-    input: &impl DeviceInput<u8>,
+    input: &impl DeviceRange<u8>,
     config: MaskReductionConfig,
 ) -> Result<()> {
     mask_reduction(
@@ -425,7 +425,7 @@ pub unsafe fn mask_count_nonzero_u8(
 pub unsafe fn tune_mask_count_nonzero_u8(
     stream: &Stream,
     out: &mut impl DeviceOutput<u32>,
-    input: &impl DeviceInput<u8>,
+    input: &impl DeviceRange<u8>,
     config: MaskReductionConfig,
     options: TuneOptions,
 ) -> Result<TuneReport<MaskReductionTuning>> {
@@ -571,7 +571,7 @@ macro_rules! causal_mask_fill_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
             batch: usize,
             seq_len: usize,
             fill_value: $ty,
@@ -606,7 +606,7 @@ macro_rules! causal_mask_zero_fn {
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
-            input: &impl DeviceInput<$ty>,
+            input: &impl DeviceRange<$ty>,
             batch: usize,
             seq_len: usize,
         ) -> Result<()> {
@@ -655,7 +655,7 @@ causal_mask_zero_fn!(causal_mask_zero_bf16, bf16);
 pub unsafe fn sequence_mask_u8(
     stream: &Stream,
     out: &mut impl DeviceOutput<u8>,
-    lengths: &impl DeviceInput<u32>,
+    lengths: &impl DeviceRange<u32>,
     rows: usize,
     cols: usize,
 ) -> Result<()> {
@@ -686,7 +686,7 @@ pub unsafe fn sequence_mask_u8(
 pub unsafe fn tril_sequence_mask_u8(
     stream: &Stream,
     out: &mut impl DeviceOutput<u8>,
-    lengths: &impl DeviceInput<u32>,
+    lengths: &impl DeviceRange<u32>,
     rows: usize,
     cols: usize,
     diagonal: isize,
@@ -716,7 +716,7 @@ pub unsafe fn tril_sequence_mask_u8(
 pub unsafe fn triu_sequence_mask_u8(
     stream: &Stream,
     out: &mut impl DeviceOutput<u8>,
-    lengths: &impl DeviceInput<u32>,
+    lengths: &impl DeviceRange<u32>,
     rows: usize,
     cols: usize,
     diagonal: isize,
@@ -746,7 +746,7 @@ pub unsafe fn triu_sequence_mask_u8(
 pub unsafe fn lower_triangular_sequence_mask_u8(
     stream: &Stream,
     out: &mut impl DeviceOutput<u8>,
-    lengths: &impl DeviceInput<u32>,
+    lengths: &impl DeviceRange<u32>,
     rows: usize,
     cols: usize,
     diagonal: isize,
@@ -766,7 +766,7 @@ pub unsafe fn lower_triangular_sequence_mask_u8(
 pub unsafe fn upper_triangular_sequence_mask_u8(
     stream: &Stream,
     out: &mut impl DeviceOutput<u8>,
-    lengths: &impl DeviceInput<u32>,
+    lengths: &impl DeviceRange<u32>,
     rows: usize,
     cols: usize,
     diagonal: isize,
@@ -786,7 +786,7 @@ pub unsafe fn upper_triangular_sequence_mask_u8(
 pub unsafe fn causal_sequence_mask_u8(
     stream: &Stream,
     out: &mut impl DeviceOutput<u8>,
-    lengths: &impl DeviceInput<u32>,
+    lengths: &impl DeviceRange<u32>,
     rows: usize,
     cols: usize,
 ) -> Result<()> {
@@ -825,8 +825,8 @@ fn validate_causal_score_mask(
 fn mask_binary<F>(
     stream: &Stream,
     out: &mut impl DeviceOutput<u8>,
-    lhs: &impl DeviceInput<u8>,
-    rhs: &impl DeviceInput<u8>,
+    lhs: &impl DeviceRange<u8>,
+    rhs: &impl DeviceRange<u8>,
     launch: F,
 ) -> Result<()>
 where
@@ -941,7 +941,7 @@ where
 fn launch_mask_reduction_default<T, F>(
     stream: &Stream,
     out: &mut impl DeviceOutput<T>,
-    input: &impl DeviceInput<u8>,
+    input: &impl DeviceRange<u8>,
     config: MaskReductionConfig,
     launch: F,
 ) -> Result<()>
@@ -968,7 +968,7 @@ where
 fn launch_mask_reduction_with_tuning<T, F>(
     stream: &Stream,
     out: &mut impl DeviceOutput<T>,
-    input: &impl DeviceInput<u8>,
+    input: &impl DeviceRange<u8>,
     config: MaskReductionConfig,
     tuning: MaskReductionTuning,
     launch: F,
@@ -1000,7 +1000,7 @@ where
 fn mask_reduction<T, FDefault, FTuned>(
     stream: &Stream,
     out: &mut impl DeviceOutput<T>,
-    input: &impl DeviceInput<u8>,
+    input: &impl DeviceRange<u8>,
     config: MaskReductionConfig,
     op: &'static str,
     launch_default: FDefault,
@@ -1070,7 +1070,7 @@ where
 fn tune_mask_reduction<T, F>(
     stream: &Stream,
     out: &mut impl DeviceOutput<T>,
-    input: &impl DeviceInput<u8>,
+    input: &impl DeviceRange<u8>,
     config: MaskReductionConfig,
     options: TuneOptions,
     op: &'static str,
@@ -1130,7 +1130,7 @@ where
 fn triangular_sequence_mask<F>(
     stream: &Stream,
     out: &mut impl DeviceOutput<u8>,
-    lengths: &impl DeviceInput<u32>,
+    lengths: &impl DeviceRange<u32>,
     rows: usize,
     cols: usize,
     diagonal: isize,

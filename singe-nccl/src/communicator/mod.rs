@@ -1,5 +1,14 @@
+pub mod device;
+
+mod create;
+mod lifecycle;
+mod one_sided;
+mod operations;
+mod resources;
+
 use std::{
     cell::RefCell,
+    convert::Infallible,
     ffi::CStr,
     marker::PhantomData,
     ptr,
@@ -7,21 +16,30 @@ use std::{
         Arc,
         atomic::{AtomicPtr, AtomicU8, Ordering},
     },
+    thread,
 };
 
 use singe_cuda::{
     context::Context as CudaContext,
     device::Device,
+    error::Error as CudaError,
     event::Event,
-    stream::Stream,
+    handle::{Handle, RawHandle},
+    stream::{Stream, StreamScope},
+    submission::Access,
     view::{DeviceRepr, DeviceViewMut},
 };
 
 use crate::{
     error::{Error, Result, Status},
-    sys, try_ffi,
-    types::{CommunicatorState, Config, ShrinkFlags, SplitColor, UniqueId},
-    utility::{ensure_primary_context, to_i32, to_usize},
+    group, sys, try_ffi,
+    types::{CommunicatorState, Config, ReductionOperator, ShrinkFlags, SplitColor, UniqueId},
+    utility::{ensure_primary_context, to_i32},
+};
+
+pub use self::{
+    lifecycle::{CommunicatorGrowth, MemoryStatistics},
+    one_sided::WaitSignal,
 };
 
 /// A stateful NCCL communicator in a device primary CUDA context.
@@ -29,21 +47,11 @@ use crate::{
 /// Use one communicator per host thread or concurrent task.
 /// The communicator is movable between threads, but it is intentionally not `Clone` or `Sync`.
 ///
-/// # Raw collectives
-///
-/// The public unsafe collective and point-to-point methods return after native submission.
-/// All ranks must issue matching calls.
-/// Retain the communicator, streams, backing allocations, and any referenced device scalars or windows through completion, including errors and graph replay.
-/// Inputs must be initialized and ordered before reading; outputs require exclusive access.
-/// Separate input and output views must not overlap.
-/// Use explicit in-place operations when reading and overwriting the same initialized allocation.
-///
-/// Poll nonblocking native submission through [`Self::async_error`] before querying or waiting on its CUDA stream.
-/// Successful device completion and asynchronous status establish the written output range; enqueue success alone does not initialize it.
-/// Local completed helpers handle these waits.
+/// Its collective and point-to-point methods are `unsafe` `*_async` functions that follow the crate's [raw execution](crate#raw-execution) contract, and safe `*_scoped` forms whose [`StreamScope`] waits for the work.
+/// [`LocalCommunicatorGroup`](crate::local::LocalCommunicatorGroup) runs them for all local ranks and waits for completion.
 #[derive(Debug)]
 pub struct Communicator {
-    pub(crate) handle: Handle,
+    pub(crate) handle: Handle<NcclCommunicator>,
 }
 
 /// A native communicator transferred with its actual context and retained resources.
@@ -58,40 +66,27 @@ pub struct RawCommunicator {
     pub state: CommunicatorState,
     /// Stable storage for a native initialization result that may still be written asynchronously.
     pub initialization_output: Option<Box<AtomicPtr<sys::ncclComm>>>,
+    /// Stable storage for split or shrink results that an unfinished job of this communicator may still write.
+    pub child_outputs: Vec<Box<AtomicPtr<sys::ncclComm>>>,
     /// Events retained by queued operations or captured graphs.
     pub launch_events: Vec<Arc<Event>>,
 }
 
-/// A builder for one rank or a local clique of NCCL communicators.
 #[derive(Debug)]
-pub struct CommunicatorBuilder<'a> {
-    mode: CommunicatorBuilderMode<'a>,
-    config: Option<Config<'a>>,
-}
+pub(crate) struct NcclCommunicator(Infallible);
 
+// The state `Handle` keeps with a native communicator and passes to its teardown.
 #[derive(Debug)]
-enum CommunicatorBuilderMode<'a> {
-    Devices(Vec<i32>),
-    Rank {
-        cuda_context: &'a Arc<CudaContext>,
-        rank: i32,
-        rank_count: i32,
-        unique_id: UniqueId,
-    },
-    ScalableRank {
-        cuda_context: &'a Arc<CudaContext>,
-        rank: i32,
-        rank_count: i32,
-        unique_ids: Vec<UniqueId>,
-    },
-}
-
-#[derive(Debug)]
-pub(crate) struct Handle {
-    raw: sys::ncclComm_t,
-    cuda_context: Arc<CudaContext>,
-    state: AtomicU8,
+pub(crate) struct HandleState {
+    lifecycle: AtomicU8,
+    // NCCL writes this slot from its asynchronous initialization job, so it lives as long as the native communicator.
     initialization_output: Option<Box<AtomicPtr<sys::ncclComm>>>,
+    // A split or shrink job whose completion could not be observed may still write these slots, so they live as long as the native communicator.
+    #[expect(
+        clippy::vec_box,
+        reason = "NCCL writes through each slot's address, which must not move when the vector grows"
+    )]
+    child_outputs: RefCell<Vec<Box<AtomicPtr<sys::ncclComm>>>>,
     pub(crate) launch_events: RefCell<Vec<Arc<Event>>>,
 }
 
@@ -113,171 +108,112 @@ pub struct Window<'a> {
     _buffer: PhantomData<&'a mut [u8]>,
 }
 
-/// A custom reduction operator owned by and borrowing its communicator.
+/// A custom reduction operator for elements of type `T`, owned by and borrowing its communicator.
 #[derive(Debug)]
-pub struct CustomReductionOperator<'a> {
+pub struct CustomReductionOperator<'a, T> {
     communicator: &'a Communicator,
-    raw: i32,
+    raw: sys::ncclRedOp_t,
+    _element: PhantomData<fn() -> T>,
 }
 
-pub mod device;
-mod lifecycle;
-mod one_sided;
-mod resources;
+/// The reduction a collective applies to elements of type `T`.
+#[derive(Debug)]
+pub enum Reduction<'a, T> {
+    /// A built-in NCCL reduction operator.
+    BuiltIn(ReductionOperator),
+    /// A custom operator created on the communicator that runs the collective.
+    Custom(&'a CustomReductionOperator<'a, T>),
+}
 
-pub use self::{
-    lifecycle::{CommunicatorGrowth, MemoryStatistics},
-    one_sided::WaitSignal,
-};
+impl<T> Clone for Reduction<'_, T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
 
-mod create;
+impl<T> Copy for Reduction<'_, T> {}
 
-mod operations;
+impl<T> From<ReductionOperator> for Reduction<'_, T> {
+    fn from(operator: ReductionOperator) -> Self {
+        Self::BuiltIn(operator)
+    }
+}
 
-// SAFETY: NCCL communicators are stateful collective handles. The owner may move
-// between threads, but shared concurrent mutation is intentionally not exposed.
-unsafe impl Send for Handle {}
+impl<'a, 'c: 'a, T> From<&'a CustomReductionOperator<'c, T>> for Reduction<'a, T> {
+    fn from(operator: &'a CustomReductionOperator<'c, T>) -> Self {
+        Self::Custom(operator)
+    }
+}
+
+impl HandleState {
+    #[expect(
+        clippy::vec_box,
+        reason = "NCCL writes through each slot's address, which must not move when the vector grows"
+    )]
+    pub(crate) fn new(
+        lifecycle: CommunicatorState,
+        initialization_output: Option<Box<AtomicPtr<sys::ncclComm>>>,
+        child_outputs: Vec<Box<AtomicPtr<sys::ncclComm>>>,
+        launch_events: Vec<Arc<Event>>,
+    ) -> Self {
+        Self {
+            lifecycle: AtomicU8::new(lifecycle.into_raw()),
+            initialization_output,
+            child_outputs: RefCell::new(child_outputs),
+            launch_events: RefCell::new(launch_events),
+        }
+    }
+}
 
 impl Communicator {
     /// Wraps an existing NCCL communicator and takes ownership of it.
     ///
     /// # Safety
     ///
-    /// `parts.handle` must be uniquely owned and associated with `parts.cuda_context`, with the declared native lifecycle state.
+    /// `raw.handle` must be uniquely owned and associated with `raw.cuda_context`, with the declared native lifecycle state.
     /// It must be the device primary context.
-    /// Retain any native initialization output slot and launch events in `parts`; NCCL must not write through a different output slot or use released resources.
+    /// Retain any native initialization output slot and launch events in `raw`; NCCL must not write through a different output slot or use released resources.
     ///
     /// # Errors
     ///
-    /// Returns [`Error::NullHandle`] if the transferred handle is null, or an error if the retained context is not the device primary CUDA context.
-    pub unsafe fn from_raw(parts: RawCommunicator) -> Result<Self> {
-        if parts.handle.is_null() {
+    /// Returns an error if `raw.handle` is null or the retained context is not the device primary CUDA context.
+    pub unsafe fn from_raw(raw: RawCommunicator) -> Result<Self> {
+        if raw.handle.is_null() {
             return Err(Error::NullHandle);
         }
 
-        ensure_primary_context(&parts.cuda_context)?;
-        Ok(Self {
-            handle: Handle {
-                raw: parts.handle,
-                cuda_context: parts.cuda_context,
-                state: AtomicU8::new(parts.state.into_raw()),
-                initialization_output: parts.initialization_output,
-                launch_events: RefCell::new(parts.launch_events),
-            },
-        })
+        ensure_primary_context(&raw.cuda_context)?;
+        let state = HandleState::new(
+            raw.state,
+            raw.initialization_output,
+            raw.child_outputs,
+            raw.launch_events,
+        );
+        // SAFETY: the caller passes a uniquely owned handle created in `raw.cuda_context`, with its lifecycle state, output slot, and launch events.
+        unsafe { Self::adopt(raw.handle, raw.cuda_context, state) }
     }
 
-    /// Creates a blocking communicator clique within a single process.
-    ///
-    /// `device_ids` defines the CUDA device assigned to each rank.
-    /// Each rank retains its actual device primary context, as required by NCCL.
-    /// Use [`Communicator::create_all_first_devices`] for the first `n` devices in order.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if a CUDA device cannot be selected, a CUDA context cannot be created for one of the ranks, the rank count cannot be represented for NCCL, NCCL rejects communicator initialization, or NCCL returns a null communicator handle.
-    pub fn create_all(device_ids: &[i32]) -> Result<Vec<Self>> {
-        CommunicatorBuilder::for_device_ids(device_ids).create_all()
-    }
-
-    /// Creates a local clique using device IDs from 0 through `device_count - 1`.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the device count cannot be represented, an NCCL group is already open, CUDA primary-context setup fails, or NCCL cannot initialize the clique.
-    pub fn create_all_first_devices(device_count: i32) -> Result<Vec<Self>> {
-        let device_count = to_usize(device_count, "device_count")?;
-        let device_ids = (0..device_count)
-            .map(|device_id| to_i32(device_id, "device_id"))
-            .collect::<Result<Vec<i32>>>()?;
-        Self::create_all(&device_ids)
-    }
-
-    /// Creates a local clique spanning all visible CUDA devices.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the device count cannot be represented, an NCCL group is already open, CUDA primary-context setup fails, or NCCL cannot initialize the clique.
-    pub fn create_all_current_devices() -> Result<Vec<Self>> {
-        Self::create_all_first_devices(Device::count()?)
-    }
-
-    /// Creates a new communicator for the multi-threaded or multi-process case.
-    /// `rank` must be between `0` and `rank_count - 1` and unique within the communicator clique.
-    /// Each rank is associated with a CUDA device, which must be current before calling [`Communicator::create_rank`].
-    /// [`Communicator::create_rank`] implicitly synchronizes with other ranks, so it must be called by different threads/processes or used within [`group_start`](crate::group::start)/[`group_end`](crate::group::end).
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if `cuda_context` cannot be bound, `rank_count` or `rank` is invalid for the communicator clique, the unique ID does not match the other ranks, NCCL rejects initialization, or NCCL returns a null communicator handle.
-    pub fn create_rank(
-        cuda_context: &Arc<CudaContext>,
-        rank_count: i32,
-        unique_id: UniqueId,
-        rank: i32,
+    // Callers must pass a handle NCCL created in `cuda_context`, described by `state`, that no other owner destroys or aborts.
+    pub(crate) unsafe fn adopt(
+        raw: sys::ncclComm_t,
+        cuda_context: Arc<CudaContext>,
+        state: HandleState,
     ) -> Result<Self> {
-        CommunicatorBuilder::rank(cuda_context, rank, rank_count, unique_id).create()
-    }
-
-    /// Like [`Communicator::create_rank`], but accepts an explicit communicator configuration.
-    /// For nonblocking initialization, poll [`Self::async_error`] until it returns `None` before using the communicator.
-    ///
-    /// # Errors
-    ///
-    /// Returns the same errors as [`Communicator::create_rank`], and also returns an error if NCCL rejects `config`.
-    pub fn create_rank_with_config(
-        cuda_context: &Arc<CudaContext>,
-        rank_count: i32,
-        unique_id: UniqueId,
-        rank: i32,
-        config: Config<'_>,
-    ) -> Result<Self> {
-        CommunicatorBuilder::rank(cuda_context, rank, rank_count, unique_id)
-            .with_config(config)
-            .create()
-    }
-
-    /// Creates one rank using multiple distributed unique identifiers for scalable initialization.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if rank arguments or identifier counts are invalid, the CUDA context is not the device primary context, CUDA setup fails, or NCCL cannot initialize the communicator.
-    pub fn create_rank_scalable(
-        cuda_context: &Arc<CudaContext>,
-        rank_count: i32,
-        rank: i32,
-        unique_ids: &[UniqueId],
-    ) -> Result<Self> {
-        CommunicatorBuilder::scalable_rank(cuda_context, rank, rank_count, unique_ids).create()
-    }
-
-    /// Like [`Communicator::create_rank_with_config`], but accepts multiple [`UniqueId`] values for scalable initialization.
-    ///
-    /// Passing a single [`UniqueId`] is equivalent to [`Communicator::create_rank_with_config`].
-    ///
-    /// Use this when scalable initialization requires distributing more than one unique ID.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if `cuda_context` cannot be bound, `unique_ids.len()` cannot be represented for NCCL, `rank_count` or `rank` is invalid for the communicator clique, the scalable IDs do not match the other ranks, NCCL rejects initialization or `config`, or NCCL returns a null communicator handle.
-    pub fn create_rank_scalable_with_config(
-        cuda_context: &Arc<CudaContext>,
-        rank_count: i32,
-        rank: i32,
-        unique_ids: &[UniqueId],
-        config: Option<Config<'_>>,
-    ) -> Result<Self> {
-        let builder =
-            CommunicatorBuilder::scalable_rank(cuda_context, rank, rank_count, unique_ids);
-        match config {
-            Some(config) => builder.with_config(config).create(),
-            None => builder.create(),
-        }
+        // SAFETY: the caller's contract; NCCL communicators install no stream.
+        let handle = unsafe {
+            Handle::from_raw(RawHandle {
+                handle: raw,
+                cuda_context,
+                stream: None,
+                state,
+            })?
+        };
+        Ok(Self { handle })
     }
 
     /// Returns the CUDA context retained by this communicator.
     pub fn cuda_context(&self) -> &Arc<CudaContext> {
-        &self.handle.cuda_context
+        self.handle.cuda_context()
     }
 
     /// Binds the CUDA context after checking that the communicator permits control operations.
@@ -292,22 +228,17 @@ impl Communicator {
 
     /// Returns the lifecycle state tracked by the wrapper.
     pub fn state(&self) -> CommunicatorState {
-        CommunicatorState::from_raw(self.handle.state.load(Ordering::Relaxed))
+        CommunicatorState::from_raw(self.handle.state().lifecycle.load(Ordering::Relaxed))
     }
 
     pub(crate) fn ensure_buffer_context(&self, context: &Arc<CudaContext>) -> Result<()> {
         if context != self.cuda_context() {
-            return Err(Error::ContextMismatch);
+            return Err(Error::Cuda(CudaError::MemoryContextMismatch));
         }
         Ok(())
     }
 
-    /// Checks communicator readiness and stream ownership, then binds the CUDA context.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the communicator is not active, the stream belongs to another CUDA context, or binding the CUDA context fails.
-    pub fn ensure_stream(&self, stream: &Stream) -> Result<()> {
+    pub(crate) fn ensure_stream(&self, stream: &Stream) -> Result<()> {
         if self.cuda_context() != stream.context() {
             return Err(Error::StreamContextMismatch);
         }
@@ -325,7 +256,7 @@ impl Communicator {
         self.bind()?;
 
         let mut value = 0;
-        // SAFETY: `ncclCommCount` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `self` owns the live communicator handle, its context is bound, and `value` is a local output slot.
         unsafe {
             try_ffi!(sys::ncclCommCount(self.as_raw(), &raw mut value))?;
         }
@@ -341,7 +272,7 @@ impl Communicator {
         self.bind()?;
 
         let mut value = 0;
-        // SAFETY: `ncclCommUserRank` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `self` owns the live communicator handle, its context is bound, and `value` is a local output slot.
         unsafe {
             try_ffi!(sys::ncclCommUserRank(self.as_raw(), &raw mut value))?;
         }
@@ -357,7 +288,7 @@ impl Communicator {
         self.bind()?;
 
         let mut value = 0;
-        // SAFETY: `ncclCommCuDevice` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `self` owns the live communicator handle, its context is bound, and `value` is a local output slot.
         unsafe {
             try_ffi!(sys::ncclCommCuDevice(self.as_raw(), &raw mut value))?;
         }
@@ -374,7 +305,7 @@ impl Communicator {
     pub fn last_error(&self) -> Result<String> {
         self.bind()?;
 
-        // SAFETY: `ncclGetLastError` receives live handles owned by the wrappers.
+        // SAFETY: `self` owns the live communicator handle and its context is bound.
         let value = unsafe { sys::ncclGetLastError(self.as_raw()) };
         if value.is_null() {
             return Ok(String::new());
@@ -388,7 +319,7 @@ impl Communicator {
 
     /// Queries the progress and potential errors of asynchronous NCCL operations.
     /// Operations that do not require a stream argument, such as [`Communicator::finalize`], are complete once this method reports [`Status::Success`].
-    /// Operations with a stream argument, such as [`Communicator::all_reduce`], report [`Status::Success`] once they are posted to the stream, but may still surface failures through [`Communicator::async_error`] until execution completes.
+    /// Operations with a stream argument, such as [`Communicator::all_reduce_async`], report [`Status::Success`] once they are posted to the stream, but may still surface failures through [`Communicator::async_error`] until execution completes.
     /// If any NCCL call reports [`Status::InProgress`], the operation is still being enqueued in the background.
     /// Poll communicator state until all involved communicators report [`Status::Success`] before issuing another NCCL call.
     /// Before the state changes to [`Status::Success`], do not launch CUDA kernels on streams currently being used by NCCL.
@@ -406,7 +337,7 @@ impl Communicator {
         self.cuda_context().bind()?;
 
         let mut value = sys::ncclResult_t::ncclSuccess;
-        // SAFETY: `ncclCommGetAsyncError` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `self` owns the communicator handle, live even while initializing, its context is bound, and `value` is a local output slot.
         unsafe {
             try_ffi!(sys::ncclCommGetAsyncError(self.as_raw(), &raw mut value))?;
         }
@@ -430,11 +361,9 @@ impl Communicator {
     pub fn finalize(&self) -> Result<()> {
         self.bind()?;
         self.require_state(CommunicatorState::Active)?;
-        // SAFETY: `ncclCommFinalize` receives live handles owned by the wrappers.
-        unsafe {
-            try_ffi!(sys::ncclCommFinalize(self.as_raw()))?;
-        }
-
+        // SAFETY: `self` owns the handle, checked active above, and its context is bound.
+        let status = unsafe { sys::ncclCommFinalize(self.as_raw()) };
+        check_nonblocking(status)?;
         self.set_state(CommunicatorState::Finalizing);
         Ok(())
     }
@@ -455,7 +384,7 @@ impl Communicator {
             return self.invalid_state_error();
         }
 
-        // SAFETY: `ncclCommAbort` receives live handles owned by the wrappers.
+        // SAFETY: `self` owns the handle, checked neither destroyed nor aborted above, and its context is bound.
         unsafe {
             try_ffi!(sys::ncclCommAbort(self.as_raw()))?;
         }
@@ -480,36 +409,25 @@ impl Communicator {
     pub fn revoke(&self) -> Result<()> {
         self.bind()?;
         self.require_state(CommunicatorState::Active)?;
-        // SAFETY: `ncclCommRevoke` receives live handles owned by the wrappers.
-        unsafe {
-            try_ffi!(sys::ncclCommRevoke(
-                self.as_raw(),
-                sys::NCCL_REVOKE_DEFAULT.cast_signed()
-            ))?;
-        }
-
+        // SAFETY: `self` owns the handle, checked active above, and its context is bound.
+        let status =
+            unsafe { sys::ncclCommRevoke(self.as_raw(), sys::NCCL_REVOKE_DEFAULT.cast_signed()) };
+        check_nonblocking(status)?;
         self.set_state(CommunicatorState::Revoked);
         Ok(())
     }
 
-    /// Destroys the native communicator and marks this wrapper as destroyed.
+    /// Destroys the native communicator, or aborts it if its initialization is in progress or failed.
+    ///
+    /// Does nothing native for an aborted communicator.
+    /// If the CUDA context cannot be bound, the communicator and its retained resources leak.
+    /// If teardown fails while initialization, a split, or a shrink may still write an output slot, the process aborts.
     ///
     /// # Errors
     ///
-    /// Returns an error if CUDA context binding fails or NCCL rejects destruction, including destruction while initialization is still in progress.
+    /// Returns an error if CUDA context binding fails or NCCL rejects destruction or abort.
     pub fn destroy(self) -> Result<()> {
-        self.cuda_context().bind()?;
-        self.handle.destroy_raw()
-    }
-
-    /// Splits the communicator by color and orders ranks within each color by `key`.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the communicator state disallows control operations or binding its CUDA context fails.
-    /// NCCL split errors are propagated.
-    pub fn split(&self, color: SplitColor, key: i32) -> Result<Option<Self>> {
-        Self::split_with_config(self, color, key, None)
+        self.handle.destroy()
     }
 
     /// Collectively splits a communicator into one or more new communicators.
@@ -521,58 +439,38 @@ impl Communicator {
     /// If keys are equal, NCCL falls back to the original communicator rank order.
     ///
     /// Passing `None` for `config` makes the new communicator inherit the parent communicator configuration.
+    /// With a nonblocking parent, this waits until the parent reports that NCCL finished creating the new communicator.
     ///
     /// Split only when no NCCL operations are outstanding on the parent communicator.
     /// Outstanding parent operations can deadlock the split.
     ///
     /// # Errors
     ///
-    /// Returns an error if the communicator state disallows control operations or binding its CUDA context fails.
+    /// Returns an error if an NCCL group is open on this thread, the communicator state disallows control operations, or binding its CUDA context fails.
     /// NCCL split errors are propagated.
-    pub fn split_with_config(
+    pub fn split(
         &self,
         color: SplitColor,
         key: i32,
         config: Option<Config<'_>>,
     ) -> Result<Option<Self>> {
+        reject_group()?;
         self.bind()?;
 
-        let mut handle = ptr::null_mut();
+        // The split's job writes the new communicator into this slot when it completes, so the slot must not move.
+        let output = Box::new(AtomicPtr::new(ptr::null_mut()));
         let mut config = config.map(Config::into_raw);
-        // SAFETY: `ncclCommSplit` receives live handles owned by the wrappers and valid output locations.
-        unsafe {
-            try_ffi!(sys::ncclCommSplit(
+        // SAFETY: `self` owns the live parent handle with its context bound, `output` is boxed so it stays put for an asynchronous write, and `config` is null or a local native configuration.
+        let status = unsafe {
+            sys::ncclCommSplit(
                 self.as_raw(),
                 color.into_raw(),
                 key,
-                &raw mut handle,
+                output.as_ptr(),
                 config.as_mut().map_or(ptr::null_mut(), ptr::from_mut),
-            ))?;
-        }
-
-        if handle.is_null() {
-            return Ok(None);
-        }
-
-        Ok(Some(Self {
-            handle: Handle {
-                raw: handle,
-                cuda_context: Arc::clone(self.cuda_context()),
-                state: AtomicU8::new(CommunicatorState::Active.into_raw()),
-                initialization_output: None,
-                launch_events: RefCell::new(Vec::new()),
-            },
-        }))
-    }
-
-    /// Creates a communicator excluding the specified ranks.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the communicator state disallows control operations or binding its CUDA context fails.
-    /// Also returns an error if the exclusion count exceeds the `i32` range, NCCL rejects shrinking, or the returned communicator handle is null.
-    pub fn shrink(&self, excluded_ranks: &[i32], flags: ShrinkFlags) -> Result<Self> {
-        Self::shrink_with_config(self, excluded_ranks, None, flags)
+            )
+        };
+        self.finish_child(output, status)
     }
 
     /// Creates a new communicator by removing selected ranks from an existing communicator.
@@ -581,6 +479,7 @@ impl Communicator {
     /// The original ranks listed in `excluded_ranks` are removed from the new communicator.
     /// Within the new communicator, ranks are updated to maintain a contiguous set of IDs.
     /// Passing `None` for `config` makes the new communicator inherit the parent communicator configuration.
+    /// With a nonblocking parent, this waits until the parent reports that NCCL finished creating the new communicator.
     ///
     /// `flags` controls the behavior of the operation.
     /// Use [`ShrinkFlags::DEFAULT`] for normal operation, or [`ShrinkFlags::ABORT`] when shrinking after an error on the parent communicator.
@@ -590,74 +489,73 @@ impl Communicator {
     ///
     /// # Errors
     ///
-    /// Returns an error if the communicator state disallows control operations or binding its CUDA context fails.
+    /// Returns an error if an NCCL group is open on this thread, the communicator state disallows control operations, or binding its CUDA context fails.
     /// Also returns an error if the exclusion count exceeds the `i32` range, NCCL rejects shrinking, or the returned communicator handle is null.
-    pub fn shrink_with_config(
+    pub fn shrink(
         &self,
         excluded_ranks: &[i32],
-        config: Option<Config<'_>>,
         flags: ShrinkFlags,
+        config: Option<Config<'_>>,
     ) -> Result<Self> {
+        reject_group()?;
         self.bind()?;
 
         let mut excluded_ranks = excluded_ranks.to_vec();
         let excluded_count = to_i32(excluded_ranks.len(), "excluded_ranks")?;
-        let mut handle = ptr::null_mut();
+        // The shrink's job writes the new communicator into this slot when it completes, so the slot must not move.
+        let output = Box::new(AtomicPtr::new(ptr::null_mut()));
         let mut config = config.map(Config::into_raw);
-        // SAFETY: `ncclCommShrink` receives live handles owned by the wrappers and valid output locations.
-        unsafe {
-            try_ffi!(sys::ncclCommShrink(
+        // SAFETY: `self` owns the live parent handle with its context bound, `excluded_ranks` holds `excluded_count` ranks, `output` is boxed so it stays put for an asynchronous write, and `config` is null or a local native configuration.
+        let status = unsafe {
+            sys::ncclCommShrink(
                 self.as_raw(),
                 excluded_ranks.as_mut_ptr(),
                 excluded_count,
-                &raw mut handle,
+                output.as_ptr(),
                 config.as_mut().map_or(ptr::null_mut(), ptr::from_mut),
                 flags.bits().cast_signed(),
-            ))?;
-        }
-
-        if handle.is_null() {
-            return Err(Error::NullHandle);
-        }
-
-        Ok(Self {
-            handle: Handle {
-                raw: handle,
-                cuda_context: Arc::clone(self.cuda_context()),
-                state: AtomicU8::new(CommunicatorState::Active.into_raw()),
-                initialization_output: None,
-                launch_events: RefCell::new(Vec::new()),
-            },
-        })
+            )
+        };
+        self.finish_child(output, status)?.ok_or(Error::NullHandle)
     }
 
     /// Returns the raw NCCL communicator.
     ///
     /// The returned communicator is borrowed and remains valid only while this wrapper is alive.
     pub fn as_raw(&self) -> sys::ncclComm_t {
-        self.handle.raw
+        self.handle.as_raw()
     }
 
     /// Transfers the native handle, lifecycle state, and retained resource owners.
     ///
     /// # Safety
+    ///
     /// Retain every returned owner and native output slot through background initialization, submission, execution, and replay.
     /// Destroy or abort the raw handle before releasing its owners.
     /// This includes unfinished work started by safe nonblocking initialization and lifecycle methods.
-    pub unsafe fn into_raw(mut self) -> RawCommunicator {
-        let state = self.state();
-        self.set_state(CommunicatorState::Destroyed);
+    pub unsafe fn into_raw(self) -> RawCommunicator {
+        let raw = self.handle.into_raw();
+        let HandleState {
+            lifecycle,
+            initialization_output,
+            child_outputs,
+            launch_events,
+        } = raw.state;
         RawCommunicator {
-            handle: self.handle.raw,
-            cuda_context: Arc::clone(&self.handle.cuda_context),
-            state,
-            initialization_output: self.handle.initialization_output.take(),
-            launch_events: self.handle.launch_events.take(),
+            handle: raw.handle,
+            cuda_context: raw.cuda_context,
+            state: CommunicatorState::from_raw(lifecycle.into_inner()),
+            initialization_output,
+            child_outputs: child_outputs.into_inner(),
+            launch_events: launch_events.into_inner(),
         }
     }
 
     pub(crate) fn set_state(&self, state: CommunicatorState) {
-        self.handle.state.store(state.into_raw(), Ordering::Relaxed);
+        self.handle
+            .state()
+            .lifecycle
+            .store(state.into_raw(), Ordering::Relaxed);
     }
 
     fn require_state(&self, expected: CommunicatorState) -> Result<()> {
@@ -692,6 +590,139 @@ impl Communicator {
             state: self.state().name().into(),
         })
     }
+
+    // Finishes a split or shrink, whose job stores the new communicator, or null for an excluded rank, into `output` only when it completes.
+    // A nonblocking parent returns `InProgress` with the slot still null and tracks the job in its asynchronous state, so this waits for that state before reading the slot.
+    fn finish_child(
+        &self,
+        output: Box<AtomicPtr<sys::ncclComm>>,
+        status: sys::ncclResult_t,
+    ) -> Result<Option<Self>> {
+        let status = if status == sys::ncclResult_t::ncclInProgress {
+            match self.wait_for_job() {
+                Ok(status) => status,
+                Err(error) => {
+                    // The job's completion could not be observed, so it may still write the slot, and the parent keeps it until its native release ends the job.
+                    self.handle.state().child_outputs.borrow_mut().push(output);
+                    return Err(error);
+                }
+            }
+        } else {
+            status
+        };
+        let raw = output.load(Ordering::Acquire);
+        if raw.is_null() && status == sys::ncclResult_t::ncclSuccess {
+            return Ok(None);
+        }
+
+        // SAFETY: `raw` and `status` come from this communicator's finished split or shrink in its context, nothing else owns the new handle, and `output` is the slot that job wrote.
+        unsafe {
+            create::communicator_from_initialization(
+                raw,
+                Arc::clone(self.cuda_context()),
+                status,
+                Some(output),
+            )
+        }
+        .map(Some)
+    }
+
+    // Polls this communicator's asynchronous state until its pending job finishes, and returns the job's status.
+    fn wait_for_job(&self) -> Result<sys::ncclResult_t> {
+        loop {
+            let mut value = sys::ncclResult_t::ncclSuccess;
+            // SAFETY: `self` owns the live communicator handle, its context is bound, and `value` is a local output slot.
+            unsafe {
+                try_ffi!(sys::ncclCommGetAsyncError(self.as_raw(), &raw mut value))?;
+            }
+
+            if value != sys::ncclResult_t::ncclInProgress {
+                return Ok(value);
+            }
+
+            thread::yield_now();
+        }
+    }
+
+    pub(crate) fn ensure_rank(&self, rank: i32, name: &'static str) -> Result<()> {
+        if rank < 0 || rank >= self.rank_count()? {
+            return Err(Error::out_of_range(name));
+        }
+        Ok(())
+    }
+
+    pub(crate) fn reduction<T>(&self, op: Reduction<'_, T>) -> Result<sys::ncclRedOp_t> {
+        match op {
+            Reduction::BuiltIn(op) => Ok(op.into()),
+            Reduction::Custom(op) => {
+                if !ptr::eq(op.communicator, self) {
+                    return Err(Error::ContextMismatch {
+                        name: "custom reduction operator".into(),
+                    });
+                }
+                Ok(op.raw)
+            }
+        }
+    }
+
+    // Enqueues one operation in `scope` after declaring its accesses.
+    // Nonblocking submission finishes inside the enqueue, so the scope's completion event and drain follow the native work.
+    // An open group would defer the native enqueue past the scope, so it is rejected.
+    pub(crate) fn enqueue_scoped(
+        &self,
+        accesses: &[Access],
+        scope: &StreamScope<'_, '_>,
+        enqueue: impl FnOnce(&Stream) -> Result<()>,
+    ) -> Result<()> {
+        if group::is_active() {
+            return Err(Error::GroupActive);
+        }
+
+        let mut outcome = Ok(());
+        // SAFETY: callers pass an `enqueue` that issues one NCCL operation on the scope's stream touching only the declared accesses, with operands borrowed for the scope's `'env`, and no group can defer that operation past this call.
+        unsafe {
+            scope.enqueue(accesses, || {
+                outcome = self.finish_submission(enqueue(scope.stream()));
+                Ok(())
+            })?;
+        }
+        outcome
+    }
+
+    // Waits until NCCL has finished submitting a nonblocking operation to its stream.
+    fn finish_submission(&self, result: Result<()>) -> Result<()> {
+        match result {
+            Ok(())
+            | Err(Error::Nccl {
+                code: Status::InProgress,
+            }) => {}
+            Err(error) => return Err(error),
+        }
+
+        loop {
+            match self.async_error()? {
+                None => return Ok(()),
+                Some(Status::InProgress) => thread::yield_now(),
+                Some(status) => return Err(status.into()),
+            }
+        }
+    }
+}
+
+// Nonblocking communicators report `InProgress` while NCCL completes a call in the background.
+fn check_nonblocking(status: sys::ncclResult_t) -> Result<()> {
+    if status == sys::ncclResult_t::ncclInProgress {
+        return Ok(());
+    }
+    Error::check(status)
+}
+
+// A grouped split or shrink stores the new communicator only at the outermost group end, after the call has returned.
+fn reject_group() -> Result<()> {
+    if group::is_active() {
+        return Err(Error::GroupActive);
+    }
+    Ok(())
 }
 
 #[cfg(all(test, feature = "testing"))]
@@ -699,26 +730,12 @@ mod tests {
     use singe_cuda::memory::DeviceMemory;
 
     use super::*;
-    use crate::testing::{TestContext, setup_communicator};
-
-    fn maybe_setup() -> Option<TestContext> {
-        match setup_communicator() {
-            Ok(context) => Some(context),
-            Err(error) => {
-                eprintln!(
-                    "skipping nccl runtime test: {}",
-                    singe_core::ErrorChain(&error)
-                );
-                None
-            }
-        }
-    }
+    use crate::{collective::CollectiveOptions, testing::setup_communicator};
 
     #[test]
     fn test_single_rank_metadata_is_available() -> Result<()> {
-        let Some(context) = maybe_setup() else {
-            return Ok(());
-        };
+        let test = setup_communicator()?;
+        let context = test.communicator();
 
         assert_eq!(context.state(), CommunicatorState::Active);
         assert_eq!(context.rank_count()?, 1);
@@ -731,29 +748,33 @@ mod tests {
 
     #[test]
     fn test_destroy_consumes_communicator() -> Result<()> {
-        let Some(context) = maybe_setup() else {
-            return Ok(());
-        };
+        let (communicator, _device) = setup_communicator()?.into_parts();
 
-        context.into_communicator().destroy()?;
+        communicator.destroy()?;
 
         Ok(())
     }
 
     #[test]
     fn test_finalize_blocks_new_operations_locally() -> Result<()> {
-        let Some(context) = maybe_setup() else {
-            return Ok(());
-        };
+        let test = setup_communicator()?;
+        let context = test.communicator();
         let mut buffer = DeviceMemory::<f32>::from_slice(context.cuda_context(), &[])?;
 
         context.finalize()?;
 
         assert_eq!(context.state(), CommunicatorState::Finalizing);
         // SAFETY: the finalized handle rejects this empty operation before submission.
-        match unsafe { context.broadcast_in_place(buffer.view_mut(), 0, context.stream()) } {
+        match unsafe {
+            context.broadcast_in_place_async(
+                buffer.view_mut(),
+                0,
+                &CollectiveOptions::default(),
+                test.stream(),
+            )
+        } {
             Err(Error::InvalidCommunicatorState { state }) => {
-                assert_eq!(state, "finalizing")
+                assert_eq!(state, "finalizing");
             }
             other => panic!("expected finalizing communicator error, got {other:?}"),
         }

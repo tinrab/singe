@@ -2,7 +2,7 @@ use std::fmt::{self, Display, Formatter};
 
 use bitflags::parser;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
-use singe_core::{impl_enum_conversion, impl_enum_display};
+use singe_core::impl_enum_display;
 use singe_cufile_sys as sys;
 
 bitflags::bitflags! {
@@ -10,33 +10,33 @@ bitflags::bitflags! {
     /// Supported filesystems and block-device types reported by the cuFile driver.
     pub struct DriverStatusFlags: u32 {
         /// Support for DDN Lustre.
-        const LUSTRE_SUPPORTED = 1 << (sys::CUfileDriverStatusFlags::CU_FILE_LUSTRE_SUPPORTED as u32);
+        const LUSTRE_SUPPORTED = 1 << (sys::CUfileDriverStatusFlags::CU_FILE_LUSTRE_SUPPORTED.0);
         /// Support for WekaFS.
-        const WEKAFS_SUPPORTED = 1 << (sys::CUfileDriverStatusFlags::CU_FILE_WEKAFS_SUPPORTED as u32);
+        const WEKAFS_SUPPORTED = 1 << (sys::CUfileDriverStatusFlags::CU_FILE_WEKAFS_SUPPORTED.0);
         /// Support for NFS.
-        const NFS_SUPPORTED = 1 << (sys::CUfileDriverStatusFlags::CU_FILE_NFS_SUPPORTED as u32);
+        const NFS_SUPPORTED = 1 << (sys::CUfileDriverStatusFlags::CU_FILE_NFS_SUPPORTED.0);
         /// Support for IBM Spectrum Scale (GPFS).
-        const GPFS_SUPPORTED = 1 << (sys::CUfileDriverStatusFlags::CU_FILE_GPFS_SUPPORTED as u32);
+        const GPFS_SUPPORTED = 1 << (sys::CUfileDriverStatusFlags::CU_FILE_GPFS_SUPPORTED.0);
         /// Support for `NVMe`.
-        const NVME_SUPPORTED = 1 << (sys::CUfileDriverStatusFlags::CU_FILE_NVME_SUPPORTED as u32);
+        const NVME_SUPPORTED = 1 << (sys::CUfileDriverStatusFlags::CU_FILE_NVME_SUPPORTED.0);
         /// Support for `NVMe` over Fabrics.
-        const NVMEOF_SUPPORTED = 1 << (sys::CUfileDriverStatusFlags::CU_FILE_NVMEOF_SUPPORTED as u32);
+        const NVMEOF_SUPPORTED = 1 << (sys::CUfileDriverStatusFlags::CU_FILE_NVMEOF_SUPPORTED.0);
         /// Support for SCSI.
-        const SCSI_SUPPORTED = 1 << (sys::CUfileDriverStatusFlags::CU_FILE_SCSI_SUPPORTED as u32);
+        const SCSI_SUPPORTED = 1 << (sys::CUfileDriverStatusFlags::CU_FILE_SCSI_SUPPORTED.0);
         /// Support for ScaleFlux computational storage devices.
-        const SCALEFLUX_CSD_SUPPORTED = 1 << (sys::CUfileDriverStatusFlags::CU_FILE_SCALEFLUX_CSD_SUPPORTED as u32);
+        const SCALEFLUX_CSD_SUPPORTED = 1 << (sys::CUfileDriverStatusFlags::CU_FILE_SCALEFLUX_CSD_SUPPORTED.0);
         /// Support for `NVMesh` block devices.
-        const NVMESH_SUPPORTED = 1 << (sys::CUfileDriverStatusFlags::CU_FILE_NVMESH_SUPPORTED as u32);
+        const NVMESH_SUPPORTED = 1 << (sys::CUfileDriverStatusFlags::CU_FILE_NVMESH_SUPPORTED.0);
         /// Support for `BeeGFS`.
-        const BEEGFS_SUPPORTED = 1 << (sys::CUfileDriverStatusFlags::CU_FILE_BEEGFS_SUPPORTED as u32);
+        const BEEGFS_SUPPORTED = 1 << (sys::CUfileDriverStatusFlags::CU_FILE_BEEGFS_SUPPORTED.0);
         /// Deprecated native support bit; NVIDIA directs callers not to use it.
-        const NVME_P2P_SUPPORTED = 1 << (sys::CUfileDriverStatusFlags::CU_FILE_NVME_P2P_SUPPORTED as u32);
+        const NVME_P2P_SUPPORTED = 1 << (sys::CUfileDriverStatusFlags::CU_FILE_NVME_P2P_SUPPORTED.0);
         /// Support for `ScateFS`.
-        const SCATEFS_SUPPORTED = 1 << (sys::CUfileDriverStatusFlags::CU_FILE_SCATEFS_SUPPORTED as u32);
+        const SCATEFS_SUPPORTED = 1 << (sys::CUfileDriverStatusFlags::CU_FILE_SCATEFS_SUPPORTED.0);
         /// Support for PanFS.
-        const PANFS_SUPPORTED = 1 << (sys::CUfileDriverStatusFlags::CU_FILE_PANFS_SUPPORTED as u32);
+        const PANFS_SUPPORTED = 1 << (sys::CUfileDriverStatusFlags::CU_FILE_PANFS_SUPPORTED.0);
         /// Support for `VirtioFS`.
-        const VIRTIOFS_SUPPORTED = 1 << (sys::CUfileDriverStatusFlags::CU_FILE_VIRTIOFS_SUPPORTED as u32);
+        const VIRTIOFS_SUPPORTED = 1 << (sys::CUfileDriverStatusFlags::CU_FILE_VIRTIOFS_SUPPORTED.0);
     }
 }
 
@@ -46,44 +46,44 @@ impl Display for DriverStatusFlags {
     }
 }
 
-/// driver properties
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum DriverStatus {
-    ///< Support for DDN LUSTRE
-    LustreSupported = sys::CUfileDriverStatusFlags::CU_FILE_LUSTRE_SUPPORTED as _,
-    ///< Support for WEKAFS
-    WekaFsSupported = sys::CUfileDriverStatusFlags::CU_FILE_WEKAFS_SUPPORTED as _,
-    ///< Support for NFS
-    NfsSupported = sys::CUfileDriverStatusFlags::CU_FILE_NFS_SUPPORTED as _,
-    /// Bit position indicating GPFS support in the driver status flags.
-    GpfsSupported = sys::CUfileDriverStatusFlags::CU_FILE_GPFS_SUPPORTED as _,
-    ///< Support for `NVMe`
-    NvmeSupported = sys::CUfileDriverStatusFlags::CU_FILE_NVME_SUPPORTED as _,
-    ///< Support for `NVMeOF`
-    NvmeOfSupported = sys::CUfileDriverStatusFlags::CU_FILE_NVMEOF_SUPPORTED as _,
-    ///< Support for SCSI
-    ScsiSupported = sys::CUfileDriverStatusFlags::CU_FILE_SCSI_SUPPORTED as _,
-    ///< Support for Scaleflux CSD
-    ScalefluxCsdSupported = sys::CUfileDriverStatusFlags::CU_FILE_SCALEFLUX_CSD_SUPPORTED as _,
-    ///< Support for `NVMesh` Block Dev
-    NvmeshSupported = sys::CUfileDriverStatusFlags::CU_FILE_NVMESH_SUPPORTED as _,
-    ///< Support for `BeeGFS`
-    BeeGfsSupported = sys::CUfileDriverStatusFlags::CU_FILE_BEEGFS_SUPPORTED as _,
-    ///< Do not use this macro. This is deprecated now
-    NvmeP2pSupported = sys::CUfileDriverStatusFlags::CU_FILE_NVME_P2P_SUPPORTED as _,
-    ///< Support for `ScateFS`
-    ScateFsSupported = sys::CUfileDriverStatusFlags::CU_FILE_SCATEFS_SUPPORTED as _,
-    ///<Support for `VirtioFS`
-    VirtioFsSupported = sys::CUfileDriverStatusFlags::CU_FILE_VIRTIOFS_SUPPORTED as _,
-    /// Support for `PanFS`.
-    PanFsSupported = sys::CUfileDriverStatusFlags::CU_FILE_PANFS_SUPPORTED as _,
-    ///<Maximum FS supported
-    MaxTargetTypes = sys::CUfileDriverStatusFlags::CU_FILE_MAX_TARGET_TYPES as _,
+singe_core::native_enum! {
+    /// driver properties
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum DriverStatus: sys::CUfileDriverStatusFlags {
+        ///< Support for DDN LUSTRE
+        LustreSupported = CU_FILE_LUSTRE_SUPPORTED,
+        ///< Support for WEKAFS
+        WekaFsSupported = CU_FILE_WEKAFS_SUPPORTED,
+        ///< Support for NFS
+        NfsSupported = CU_FILE_NFS_SUPPORTED,
+        /// Bit position indicating GPFS support in the driver status flags.
+        GpfsSupported = CU_FILE_GPFS_SUPPORTED,
+        ///< Support for `NVMe`
+        NvmeSupported = CU_FILE_NVME_SUPPORTED,
+        ///< Support for `NVMeOF`
+        NvmeOfSupported = CU_FILE_NVMEOF_SUPPORTED,
+        ///< Support for SCSI
+        ScsiSupported = CU_FILE_SCSI_SUPPORTED,
+        ///< Support for Scaleflux CSD
+        ScalefluxCsdSupported = CU_FILE_SCALEFLUX_CSD_SUPPORTED,
+        ///< Support for `NVMesh` Block Dev
+        NvmeshSupported = CU_FILE_NVMESH_SUPPORTED,
+        ///< Support for `BeeGFS`
+        BeeGfsSupported = CU_FILE_BEEGFS_SUPPORTED,
+        ///< Do not use this macro. This is deprecated now
+        NvmeP2pSupported = CU_FILE_NVME_P2P_SUPPORTED,
+        ///< Support for `ScateFS`
+        ScateFsSupported = CU_FILE_SCATEFS_SUPPORTED,
+        ///<Support for `VirtioFS`
+        VirtioFsSupported = CU_FILE_VIRTIOFS_SUPPORTED,
+        /// Support for `PanFS`.
+        PanFsSupported = CU_FILE_PANFS_SUPPORTED,
+        ///<Maximum FS supported
+        MaxTargetTypes = CU_FILE_MAX_TARGET_TYPES,
+    }
 }
-
-impl_enum_conversion!(sys::CUfileDriverStatusFlags, DriverStatus);
 
 impl_enum_display!(DriverStatus, {
     Self::LustreSupported => "CU_FILE_LUSTRE_SUPPORTED",
@@ -108,13 +108,13 @@ bitflags::bitflags! {
     /// Enabled cuFile I/O controls.
     pub struct DriverControlFlags: u32 {
         /// Polling mode is enabled.
-        const USE_POLL_MODE = 1 << (sys::CUfileDriverControlFlags::CU_FILE_USE_POLL_MODE as u32);
+        const USE_POLL_MODE = 1 << (sys::CUfileDriverControlFlags::CU_FILE_USE_POLL_MODE.0);
         /// Compatibility mode is allowed.
-        const ALLOW_COMPAT_MODE = 1 << (sys::CUfileDriverControlFlags::CU_FILE_ALLOW_COMPAT_MODE as u32);
+        const ALLOW_COMPAT_MODE = 1 << (sys::CUfileDriverControlFlags::CU_FILE_ALLOW_COMPAT_MODE.0);
         /// Vanilla POSIX I/O mode is enabled.
-        const POSIX_IO_MODE = 1 << (sys::CUfileDriverControlFlags::CU_FILE_VANILLA_POSIX_IO_MODE as u32);
+        const POSIX_IO_MODE = 1 << (sys::CUfileDriverControlFlags::CU_FILE_VANILLA_POSIX_IO_MODE.0);
         /// Fallback I/O mode is enabled.
-        const FALLBACK_IO_MODE = 1 << (sys::CUfileDriverControlFlags::CU_FILE_FALLBACK_IO_MODE as u32);
+        const FALLBACK_IO_MODE = 1 << (sys::CUfileDriverControlFlags::CU_FILE_FALLBACK_IO_MODE.0);
     }
 }
 
@@ -129,15 +129,15 @@ bitflags::bitflags! {
     /// Capabilities supported by the cuFile library.
     pub struct FeatureFlags: u32 {
         /// Dynamic routing across `PCIe` bridges is supported.
-        const DYN_ROUTING_SUPPORTED = 1 << (sys::CUfileFeatureFlags::CU_FILE_DYN_ROUTING_SUPPORTED as u32);
+        const DYN_ROUTING_SUPPORTED = 1 << (sys::CUfileFeatureFlags::CU_FILE_DYN_ROUTING_SUPPORTED.0);
         /// Batch I/O is supported.
-        const BATCH_IO_SUPPORTED = 1 << (sys::CUfileFeatureFlags::CU_FILE_BATCH_IO_SUPPORTED as u32);
+        const BATCH_IO_SUPPORTED = 1 << (sys::CUfileFeatureFlags::CU_FILE_BATCH_IO_SUPPORTED.0);
         /// Stream-based asynchronous I/O is supported.
-        const STREAMS_SUPPORTED = 1 << (sys::CUfileFeatureFlags::CU_FILE_STREAMS_SUPPORTED as u32);
+        const STREAMS_SUPPORTED = 1 << (sys::CUfileFeatureFlags::CU_FILE_STREAMS_SUPPORTED.0);
         /// Parallel I/O is supported.
-        const PARALLEL_IO_SUPPORTED = 1 << (sys::CUfileFeatureFlags::CU_FILE_PARALLEL_IO_SUPPORTED as u32);
+        const PARALLEL_IO_SUPPORTED = 1 << (sys::CUfileFeatureFlags::CU_FILE_PARALLEL_IO_SUPPORTED.0);
         /// PCI peer-to-peer DMA is supported.
-        const P2P_SUPPORTED = 1 << (sys::CUfileFeatureFlags::CU_FILE_P2P_SUPPORTED as u32);
+        const P2P_SUPPORTED = 1 << (sys::CUfileFeatureFlags::CU_FILE_P2P_SUPPORTED.0);
     }
 }
 
@@ -208,46 +208,46 @@ impl Display for P2PFlags {
     }
 }
 
-/// Direction of a cuFile batch I/O request.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum Operation {
-    /// Reads from the registered file into the request buffer.
-    Read = sys::CUfileOpcode::CUFILE_READ as _,
-    /// Writes from the request buffer to the registered file.
-    Write = sys::CUfileOpcode::CUFILE_WRITE as _,
+singe_core::native_enum! {
+    /// Direction of a cuFile batch I/O request.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum Operation: sys::CUfileOpcode {
+        /// Reads from the registered file into the request buffer.
+        Read = CUFILE_READ,
+        /// Writes from the request buffer to the registered file.
+        Write = CUFILE_WRITE,
+    }
 }
-
-impl_enum_conversion!(sys::CUfileOpcode, Operation);
 
 impl_enum_display!(Operation, {
     Self::Read => "CUFILE_READ",
     Self::Write => "CUFILE_WRITE",
 });
 
-///Experimental Batch API's
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum BatchStatus {
-    /// required value prior to submission
-    Waiting = sys::CUFILEStatus_enum::CUFILE_WAITING as _,
-    /// once enqueued
-    Pending = sys::CUFILEStatus_enum::CUFILE_PENDING as _,
-    /// request was ill-formed or could not be enqueued
-    Invalid = sys::CUFILEStatus_enum::CUFILE_INVALID as _,
-    /// request successfully canceled
-    Canceled = sys::CUFILEStatus_enum::CUFILE_CANCELED as _,
-    /// request successfully completed
-    Complete = sys::CUFILEStatus_enum::CUFILE_COMPLETE as _,
-    /// request timed out
-    Timeout = sys::CUFILEStatus_enum::CUFILE_TIMEOUT as _,
-    /// unable to complete
-    Failed = sys::CUFILEStatus_enum::CUFILE_FAILED as _,
+singe_core::native_enum! {
+    ///Experimental Batch API's
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum BatchStatus: sys::CUFILEStatus_enum {
+        /// required value prior to submission
+        Waiting = CUFILE_WAITING,
+        /// once enqueued
+        Pending = CUFILE_PENDING,
+        /// request was ill-formed or could not be enqueued
+        Invalid = CUFILE_INVALID,
+        /// request successfully canceled
+        Canceled = CUFILE_CANCELED,
+        /// request successfully completed
+        Complete = CUFILE_COMPLETE,
+        /// request timed out
+        Timeout = CUFILE_TIMEOUT,
+        /// unable to complete
+        Failed = CUFILE_FAILED,
+    }
 }
-
-impl_enum_conversion!(sys::CUFILEStatus_enum, BatchStatus);
 
 impl_enum_display!(BatchStatus, {
     Self::Waiting => "CUFILE_WAITING",
@@ -259,51 +259,39 @@ impl_enum_display!(BatchStatus, {
     Self::Failed => "CUFILE_FAILED",
 });
 
-/// Selectors for numeric configuration values passed to `cuFileGetParameterSizeT` and `cuFileSetParameterSizeT`.
-/// Size parameters with a `_KB` suffix are expressed in KB.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum SizeConfigParameter {
-    /// Selects the profiling statistics level.
-    ProfileStats = sys::CUFileSizeTConfigParameter_t::CUFILE_PARAM_PROFILE_STATS as _,
-    /// Selects the maximum queued I/O request count.
-    ExecutionMaxIoQueueDepth =
-        sys::CUFileSizeTConfigParameter_t::CUFILE_PARAM_EXECUTION_MAX_IO_QUEUE_DEPTH as _,
-    /// Selects the maximum number of I/O worker threads.
-    ExecutionMaxIoThreads =
-        sys::CUFileSizeTConfigParameter_t::CUFILE_PARAM_EXECUTION_MAX_IO_THREADS as _,
-    /// Selects the minimum I/O size threshold for execution, in KB.
-    ExecutionMinIoThresholdSizeKb =
-        sys::CUFileSizeTConfigParameter_t::CUFILE_PARAM_EXECUTION_MIN_IO_THRESHOLD_SIZE_KB as _,
-    /// Selects the maximum parallelism for an I/O request.
-    ExecutionMaxRequestParallelism =
-        sys::CUFileSizeTConfigParameter_t::CUFILE_PARAM_EXECUTION_MAX_REQUEST_PARALLELISM as _,
-    /// Selects the maximum direct I/O transfer size sent to the filesystem, in KB.
-    PropertiesMaxDirectIoSizeKb =
-        sys::CUFileSizeTConfigParameter_t::CUFILE_PARAM_PROPERTIES_MAX_DIRECT_IO_SIZE_KB as _,
-    /// Selects the maximum internal GPU cache space per device, in KB.
-    PropertiesMaxDeviceCacheSizeKb =
-        sys::CUFileSizeTConfigParameter_t::CUFILE_PARAM_PROPERTIES_MAX_DEVICE_CACHE_SIZE_KB as _,
-    /// Selects the size of an internal bounce buffer, in KB.
-    PropertiesPerBufferCacheSizeKb =
-        sys::CUFileSizeTConfigParameter_t::CUFILE_PARAM_PROPERTIES_PER_BUFFER_CACHE_SIZE_KB as _,
-    /// Selects the maximum pinned device-memory space, in KB.
-    PropertiesMaxDevicePinnedMemorySizeKb =
-        sys::CUFileSizeTConfigParameter_t::CUFILE_PARAM_PROPERTIES_MAX_DEVICE_PINNED_MEM_SIZE_KB
-            as _,
-    /// Selects the batch I/O request count.
-    PropertiesIoBatchSize =
-        sys::CUFileSizeTConfigParameter_t::CUFILE_PARAM_PROPERTIES_IO_BATCHSIZE as _,
-    /// Selects the maximum I/O size handled in polling mode, in KB.
-    PollThresholdSizeKb =
-        sys::CUFileSizeTConfigParameter_t::CUFILE_PARAM_POLLTHRESHOLD_SIZE_KB as _,
-    /// Selects the batch I/O timeout, in milliseconds.
-    PropertiesBatchIoTimeoutMilliseconds =
-        sys::CUFileSizeTConfigParameter_t::CUFILE_PARAM_PROPERTIES_BATCH_IO_TIMEOUT_MS as _,
+singe_core::native_enum! {
+    /// Selectors for numeric configuration values read by [`size_value`](crate::config::size_value) and set by [`set_size_value`](crate::config::set_size_value).
+    /// Size parameters with a `_KB` suffix are expressed in KB.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum SizeConfigParameter: sys::CUFileSizeTConfigParameter_t {
+        /// Selects the profiling statistics level.
+        ProfileStats = CUFILE_PARAM_PROFILE_STATS,
+        /// Selects the maximum queued I/O request count.
+        ExecutionMaxIoQueueDepth = CUFILE_PARAM_EXECUTION_MAX_IO_QUEUE_DEPTH,
+        /// Selects the maximum number of I/O worker threads.
+        ExecutionMaxIoThreads = CUFILE_PARAM_EXECUTION_MAX_IO_THREADS,
+        /// Selects the minimum I/O size threshold for execution, in KB.
+        ExecutionMinIoThresholdSizeKb = CUFILE_PARAM_EXECUTION_MIN_IO_THRESHOLD_SIZE_KB,
+        /// Selects the maximum parallelism for an I/O request.
+        ExecutionMaxRequestParallelism = CUFILE_PARAM_EXECUTION_MAX_REQUEST_PARALLELISM,
+        /// Selects the maximum direct I/O transfer size sent to the filesystem, in KB.
+        PropertiesMaxDirectIoSizeKb = CUFILE_PARAM_PROPERTIES_MAX_DIRECT_IO_SIZE_KB,
+        /// Selects the maximum internal GPU cache space per device, in KB.
+        PropertiesMaxDeviceCacheSizeKb = CUFILE_PARAM_PROPERTIES_MAX_DEVICE_CACHE_SIZE_KB,
+        /// Selects the size of an internal bounce buffer, in KB.
+        PropertiesPerBufferCacheSizeKb = CUFILE_PARAM_PROPERTIES_PER_BUFFER_CACHE_SIZE_KB,
+        /// Selects the maximum pinned device-memory space, in KB.
+        PropertiesMaxDevicePinnedMemorySizeKb = CUFILE_PARAM_PROPERTIES_MAX_DEVICE_PINNED_MEM_SIZE_KB,
+        /// Selects the batch I/O request count.
+        PropertiesIoBatchSize = CUFILE_PARAM_PROPERTIES_IO_BATCHSIZE,
+        /// Selects the maximum I/O size handled in polling mode, in KB.
+        PollThresholdSizeKb = CUFILE_PARAM_POLLTHRESHOLD_SIZE_KB,
+        /// Selects the batch I/O timeout, in milliseconds.
+        PropertiesBatchIoTimeoutMilliseconds = CUFILE_PARAM_PROPERTIES_BATCH_IO_TIMEOUT_MS,
+    }
 }
-
-impl_enum_conversion!(sys::CUFileSizeTConfigParameter_t, SizeConfigParameter);
 
 impl_enum_display!(SizeConfigParameter, {
     Self::ProfileStats => "CUFILE_PARAM_PROFILE_STATS",
@@ -320,49 +308,43 @@ impl_enum_display!(SizeConfigParameter, {
     Self::PropertiesBatchIoTimeoutMilliseconds => "CUFILE_PARAM_PROPERTIES_BATCH_IO_TIMEOUT_MS",
 });
 
-/// Selectors for boolean configuration values passed to `cuFileGetParameterBool` and `cuFileSetParameterBool`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum BoolConfigParameter {
-    /// Configure GDS fallback IO.
-    GdsFallbackIo = sys::CUFileBoolConfigParameter_t::CUFILE_PARAM_GDS_FALLBACK_IO as _,
-    /// Configure vanilla POSIX IO mode.
-    PropertiesPosixIoMode =
-        sys::CUFileBoolConfigParameter_t::CUFILE_PARAM_PROPERTIES_POSIX_IO_MODE as _,
-    /// Selects whether polling mode is enabled.
-    PropertiesUsePollMode =
-        sys::CUFileBoolConfigParameter_t::CUFILE_PARAM_PROPERTIES_USE_POLL_MODE as _,
-    /// Selects whether compatibility I/O is allowed when GDS is unavailable.
-    PropertiesAllowCompatMode =
-        sys::CUFileBoolConfigParameter_t::CUFILE_PARAM_PROPERTIES_ALLOW_COMPAT_MODE as _,
-    /// Selects whether compatibility I/O is forced.
-    ForceCompatMode = sys::CUFileBoolConfigParameter_t::CUFILE_PARAM_FORCE_COMPAT_MODE as _,
-    /// Selects whether aggressive filesystem API checking is enabled.
-    FileSystemMiscApiCheckAggressive =
-        sys::CUFileBoolConfigParameter_t::CUFILE_PARAM_FS_MISC_API_CHECK_AGGRESSIVE as _,
-    /// Selects whether parallel I/O execution is enabled.
-    ExecutionParallelIo = sys::CUFileBoolConfigParameter_t::CUFILE_PARAM_EXECUTION_PARALLEL_IO as _,
-    /// Do not use this macro.
-    /// This is deprecated now.
-    ProfileNvtx = sys::CUFileBoolConfigParameter_t::CUFILE_PARAM_PROFILE_NVTX as _,
-    /// Selects whether system-memory buffers are allowed for I/O.
-    PropertiesAllowSystemMemory =
-        sys::CUFileBoolConfigParameter_t::CUFILE_PARAM_PROPERTIES_ALLOW_SYSTEM_MEMORY as _,
-    /// Selects whether PCI peer-to-peer DMA is enabled.
-    UsePciP2pDma = sys::CUFileBoolConfigParameter_t::CUFILE_PARAM_USE_PCIP2PDMA as _,
-    /// Selects whether the `io_uring` I/O backend is preferred.
-    PreferIoUring = sys::CUFileBoolConfigParameter_t::CUFILE_PARAM_PREFER_IO_URING as _,
-    /// Selects whether direct I/O mode is forced.
-    ForceODirectMode = sys::CUFileBoolConfigParameter_t::CUFILE_PARAM_FORCE_ODIRECT_MODE as _,
-    /// Selects whether storage and GPU topology detection is skipped.
-    SkipTopologyDetection =
-        sys::CUFileBoolConfigParameter_t::CUFILE_PARAM_SKIP_TOPOLOGY_DETECTION as _,
-    /// Selects whether stream memory operations are bypassed.
-    StreamMemopsBypass = sys::CUFileBoolConfigParameter_t::CUFILE_PARAM_STREAM_MEMOPS_BYPASS as _,
+singe_core::native_enum! {
+    /// Selectors for boolean configuration values read by [`bool_value`](crate::config::bool_value) and set by [`set_bool_value`](crate::config::set_bool_value).
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum BoolConfigParameter: sys::CUFileBoolConfigParameter_t {
+        /// Configure GDS fallback IO.
+        GdsFallbackIo = CUFILE_PARAM_GDS_FALLBACK_IO,
+        /// Configure vanilla POSIX IO mode.
+        PropertiesPosixIoMode = CUFILE_PARAM_PROPERTIES_POSIX_IO_MODE,
+        /// Selects whether polling mode is enabled.
+        PropertiesUsePollMode = CUFILE_PARAM_PROPERTIES_USE_POLL_MODE,
+        /// Selects whether compatibility I/O is allowed when GDS is unavailable.
+        PropertiesAllowCompatMode = CUFILE_PARAM_PROPERTIES_ALLOW_COMPAT_MODE,
+        /// Selects whether compatibility I/O is forced.
+        ForceCompatMode = CUFILE_PARAM_FORCE_COMPAT_MODE,
+        /// Selects whether aggressive filesystem API checking is enabled.
+        FileSystemMiscApiCheckAggressive = CUFILE_PARAM_FS_MISC_API_CHECK_AGGRESSIVE,
+        /// Selects whether parallel I/O execution is enabled.
+        ExecutionParallelIo = CUFILE_PARAM_EXECUTION_PARALLEL_IO,
+        /// Do not use this macro.
+        /// This is deprecated now.
+        ProfileNvtx = CUFILE_PARAM_PROFILE_NVTX,
+        /// Selects whether system-memory buffers are allowed for I/O.
+        PropertiesAllowSystemMemory = CUFILE_PARAM_PROPERTIES_ALLOW_SYSTEM_MEMORY,
+        /// Selects whether PCI peer-to-peer DMA is enabled.
+        UsePciP2pDma = CUFILE_PARAM_USE_PCIP2PDMA,
+        /// Selects whether the `io_uring` I/O backend is preferred.
+        PreferIoUring = CUFILE_PARAM_PREFER_IO_URING,
+        /// Selects whether direct I/O mode is forced.
+        ForceODirectMode = CUFILE_PARAM_FORCE_ODIRECT_MODE,
+        /// Selects whether storage and GPU topology detection is skipped.
+        SkipTopologyDetection = CUFILE_PARAM_SKIP_TOPOLOGY_DETECTION,
+        /// Selects whether stream memory operations are bypassed.
+        StreamMemopsBypass = CUFILE_PARAM_STREAM_MEMOPS_BYPASS,
+    }
 }
-
-impl_enum_conversion!(sys::CUFileBoolConfigParameter_t, BoolConfigParameter);
 
 impl_enum_display!(BoolConfigParameter, {
     Self::GdsFallbackIo => "CUFILE_PARAM_GDS_FALLBACK_IO",
@@ -381,22 +363,22 @@ impl_enum_display!(BoolConfigParameter, {
     Self::StreamMemopsBypass => "CUFILE_PARAM_STREAM_MEMOPS_BYPASS",
 });
 
-/// Selectors for string configuration values passed to `cuFileGetParameterString` and `cuFileSetParameterString`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum StringConfigParameter {
-    /// Configure the RDMA transport.
-    RdmaTransport = sys::CUFileStringConfigParameter_t::CUFILE_PARAM_RDMA_TRANSPORT as _,
-    /// Selects the logging verbosity string.
-    LoggingLevel = sys::CUFileStringConfigParameter_t::CUFILE_PARAM_LOGGING_LEVEL as _,
-    /// Selects the log file path string.
-    EnvironmentLogFilePath = sys::CUFileStringConfigParameter_t::CUFILE_PARAM_ENV_LOGFILE_PATH as _,
-    /// Selects the directory used for log files.
-    LogDirectory = sys::CUFileStringConfigParameter_t::CUFILE_PARAM_LOG_DIR as _,
+singe_core::native_enum! {
+    /// Selectors for string configuration values read by [`string_value`](crate::config::string_value) and set by [`set_string_value`](crate::config::set_string_value).
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum StringConfigParameter: sys::CUFileStringConfigParameter_t {
+        /// Configure the RDMA transport.
+        RdmaTransport = CUFILE_PARAM_RDMA_TRANSPORT,
+        /// Selects the logging verbosity string.
+        LoggingLevel = CUFILE_PARAM_LOGGING_LEVEL,
+        /// Selects the log file path string.
+        EnvironmentLogFilePath = CUFILE_PARAM_ENV_LOGFILE_PATH,
+        /// Selects the directory used for log files.
+        LogDirectory = CUFILE_PARAM_LOG_DIR,
+    }
 }
-
-impl_enum_conversion!(sys::CUFileStringConfigParameter_t, StringConfigParameter);
 
 impl_enum_display!(StringConfigParameter, {
     Self::RdmaTransport => "CUFILE_PARAM_RDMA_TRANSPORT",

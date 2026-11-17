@@ -1,8 +1,11 @@
-use std::{borrow::Borrow, collections::BTreeMap};
+use std::collections::BTreeMap;
+
+use singe_core::LibraryVersion;
 
 use crate::{
-    backend::execution::{
-        EngineConfig, OperationGraph, OperationGraphConfig, attention::SdpaSubgraph,
+    backend::{
+        execution::{EngineChoice, OperationGraph, OperationGraphOptions},
+        operation::attention::SdpaSubgraph,
     },
     context::Context,
     error::{Error, Result},
@@ -12,7 +15,7 @@ use crate::{
         logging,
         lower::{LoweredGraph, LoweredOperation, tensor_at},
         operation::AttentionBackwardHeuristicOverride,
-        plan::{CompileConfig, CompiledGraph, EngineChoice, PlanCandidates},
+        plan::{CompileConfig, CompiledGraph},
         require_baseline,
     },
 };
@@ -24,14 +27,14 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for unsupported runtime features, invalid declarations, operation geometry, references, runtime bounds or shared layouts, an empty graph, target-resolution failure, or native descriptor construction failure.
+    /// Returns an error if a runtime feature is unsupported, a declaration, operation geometry, reference, runtime bound, or shared layout is invalid, the graph is empty, resolving the target fails, or building a native descriptor fails.
     pub fn prepare(&self, context: Option<&Context>) -> Result<PreparedGraph> {
         self.validate(context)?.prepare(context)
     }
 
     pub(crate) fn validate_runtime_feature_support_for_version(
         &self,
-        cudnn_version: u64,
+        cudnn_version: LibraryVersion,
     ) -> Result<()> {
         require_baseline(cudnn_version)?;
         if self.kernel_cache_enabled && !self.config.dynamic_shape_enabled {
@@ -48,7 +51,7 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for unsupported runtime features, invalid declarations, operation geometry, references, runtime bounds or shared layouts, an empty graph, target-resolution failure, or native descriptor construction failure, plan-cache key construction or a poisoned cache mutex, target-property resolution, incompatible attention planning overrides, engine discovery or configuration metadata failure, no candidates surviving filters, or failure to build a usable plan.
+    /// Returns an error if a runtime feature is unsupported, a declaration, operation geometry, reference, runtime bound, or shared layout is invalid, the graph is empty, resolving the target or its properties fails, building a native descriptor or the plan-cache key fails, the cache mutex is poisoned, attention planning overrides are incompatible, engine discovery or configuration metadata fails, no candidate survives the filters, or no usable plan builds.
     pub fn compile(
         &self,
         context: Option<&Context>,
@@ -62,9 +65,9 @@ impl Graph {
             .transpose()?;
         if let Some((cache, key)) = &cache {
             let cached_choices = {
-                let cache = cache
-                    .lock()
-                    .map_err(|_| FrontendError::PlanCacheLockPoisoned)?;
+                let cache = cache.lock().map_err(|_| Error::LockPoisoned {
+                    name: "plan cache".into(),
+                })?;
                 cache.get(key).map(<[EngineChoice]>::to_vec)
             };
             if let Some(cached_choices) = cached_choices
@@ -83,54 +86,12 @@ impl Graph {
         if let Some((cache, key)) = cache {
             cache
                 .lock()
-                .map_err(|_| FrontendError::PlanCacheLockPoisoned)?
+                .map_err(|_| Error::LockPoisoned {
+                    name: "plan cache".into(),
+                })?
                 .insert(key, compiled.cached_plan_choices());
         }
         Ok(compiled)
-    }
-
-    /// Returns heuristic engine configurations for a live context, or deviceless with `None`.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error for unsupported runtime features, invalid declarations, operation geometry, references, runtime bounds or shared layouts, an empty graph, target-resolution failure, or native descriptor construction failure, or target-property resolution, incompatible attention planning overrides, engine discovery or configuration metadata failure.
-    /// Successfully queried configurations excluded by filters yield an empty result.
-    pub fn engine_configs(
-        &self,
-        context: Option<&Context>,
-        compile_config: &CompileConfig,
-    ) -> Result<Vec<EngineConfig>> {
-        self.prepare(context)?
-            .engine_configs(context, compile_config)
-    }
-
-    /// Returns plan candidates for a live context, or deviceless with `None`.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error for unsupported runtime features, invalid declarations, operation geometry, references, runtime bounds or shared layouts, an empty graph, target-resolution failure, or native descriptor construction failure, target-property resolution, incompatible attention planning overrides, engine discovery or configuration metadata failure, or no candidates surviving filters.
-    pub fn plan_candidates(
-        &self,
-        context: Option<&Context>,
-        compile_config: &CompileConfig,
-    ) -> Result<PlanCandidates> {
-        self.prepare(context)?
-            .plan_candidates(context, compile_config)
-    }
-
-    /// Compiles using choices and resource targets from owned or shared native configurations.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error for unsupported runtime features, invalid declarations, operation geometry, references, runtime bounds or shared layouts, an empty graph, target-resolution failure, or native descriptor construction failure, source configuration metadata or target incompatibility, engine reconstruction or candidate metadata failure, no candidates surviving filters, or failure to build a usable plan.
-    pub fn compile_with_engine_configs(
-        &self,
-        context: &Context,
-        engine_configs: &[impl Borrow<EngineConfig>],
-    ) -> Result<CompiledGraph> {
-        self.prepare(Some(context))?
-            .candidates_with_engine_configs(Some(context), engine_configs, &CompileConfig::new())?
-            .compile(Some(context), &CompileConfig::new())
     }
 
     pub(crate) fn compile_with_cached_plan_choices(
@@ -159,36 +120,6 @@ impl Graph {
             .build_candidates(context, compile_config)?
             .compile()
     }
-
-    /// Compiles this graph with specific engine indices and knob choices.
-    ///
-    /// This corresponds to the custom execution plan workflow for creating plans from chosen engines and knobs.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error for unsupported runtime features, invalid declarations, operation geometry, references, runtime bounds or shared layouts, an empty graph, target-resolution failure, or native descriptor construction failure, failure to construct the requested engine choices or read their metadata, no candidates surviving filters, or failure to build a usable plan.
-    pub fn compile_with_engines(
-        &self,
-        context: &Context,
-        choices: &[EngineChoice],
-    ) -> Result<CompiledGraph> {
-        self.candidates_with_engines(Some(context), choices)?
-            .compile(Some(context), &CompileConfig::new())
-    }
-
-    /// Returns plan candidates for explicit engine choices on a live context, or deviceless with `None`.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error for unsupported runtime features, invalid declarations, operation geometry, references, runtime bounds or shared layouts, an empty graph, target-resolution failure, or native descriptor construction failure, target-property resolution failure, failure to construct any requested engine configuration, metadata-query failure, or no candidates surviving filters.
-    pub fn candidates_with_engines(
-        &self,
-        context: Option<&Context>,
-        choices: &[EngineChoice],
-    ) -> Result<PlanCandidates> {
-        self.prepare(context)?
-            .candidates_with_engines(context, choices, &CompileConfig::new())
-    }
 }
 
 impl ValidatedGraph {
@@ -197,7 +128,8 @@ impl ValidatedGraph {
     /// Use the validation target or a compatible live context, or None for deviceless preparation.
     ///
     /// # Errors
-    /// Returns an error for an empty operation graph or rejected native descriptor construction.
+    ///
+    /// Returns an error if the operation graph is empty or cuDNN rejects building the native descriptor.
     /// Engine discovery and support selection remain separate from preparation.
     pub fn prepare(self, context: Option<&Context>) -> Result<PreparedGraph> {
         let Self {
@@ -264,7 +196,7 @@ impl ValidatedGraph {
             .iter()
             .map(LoweredOperation::descriptor)
             .collect::<Vec<_>>();
-        let config = OperationGraphConfig {
+        let config = OperationGraphOptions {
             dynamic_shape_enabled: expanded.config.dynamic_shape_enabled,
             override_shape_enabled: expanded.config.override_shape_enabled,
         };

@@ -9,16 +9,15 @@ use crate::{
     backend::{
         device::{DeviceProperties, DevicePropertiesJson, sm_version_for_device},
         execution::{KernelCache, KernelCacheJson},
-        tensor::TensorId,
     },
     context::Context,
     data_type::DataType,
-    error::Result,
+    error::{Error, Result},
     frontend::{
-        error::Error as FrontendError,
         graph::{DataTypePolicy, Graph, RuntimeShapeConstraints, state::GraphRuntimeState},
         plan::PlanCache,
     },
+    tensor::TensorId,
 };
 
 impl Default for Graph {
@@ -213,9 +212,9 @@ impl Graph {
         &mut self,
         kernel_cache: Arc<Mutex<KernelCache>>,
     ) -> Result<()> {
-        let kernel_cache_guard = kernel_cache
-            .lock()
-            .map_err(|_| FrontendError::KernelCacheLockPoisoned)?;
+        let kernel_cache_guard = kernel_cache.lock().map_err(|_| Error::LockPoisoned {
+            name: "kernel cache".into(),
+        })?;
         let kernel_cache_json = if kernel_cache_guard.is_finalized() {
             Some(kernel_cache_guard.json_representation()?)
         } else {
@@ -320,10 +319,6 @@ impl Graph {
 
     pub(crate) fn effective_intermediate_data_type(&self, default: DataType) -> DataType {
         self.config.data_type_policy.effective_intermediate(default)
-    }
-
-    pub(crate) fn effective_compute_data_type(&self, default: DataType) -> DataType {
-        self.config.data_type_policy.effective_compute(default)
     }
 
     pub(crate) fn resolve_compute_data_type(&self, requested: Option<DataType>) -> DataType {

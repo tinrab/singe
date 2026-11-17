@@ -5,11 +5,11 @@ use singe::{
     backend::cuda::{self, CudaEvent, CudaStream, EventTiming},
     error::Error,
 };
-use singe_cuda::testing::device_lock;
+use singe_cuda::{device::Device as CudaDevice, testing::device_lock};
 
 #[test]
 fn test_events_order_streams_and_measure_time() {
-    let _lock = device_lock(0).unwrap();
+    let _lock = device_lock(CudaDevice::new(0)).unwrap();
     let device = Device::Cuda(0);
     let producer = CudaStream::create(device).unwrap();
     let consumer = CudaStream::create(device).unwrap();
@@ -34,7 +34,7 @@ fn test_events_order_streams_and_measure_time() {
 
 #[test]
 fn test_memory_limit_rejects_allocations_beyond_it_and_peak_resets() {
-    let _lock = device_lock(0).unwrap();
+    let _lock = device_lock(CudaDevice::new(0)).unwrap();
     let device = Device::Cuda(0);
     cuda::clear_cache(device).unwrap();
     let active = cuda::allocator_stats(device).unwrap().active_bytes();

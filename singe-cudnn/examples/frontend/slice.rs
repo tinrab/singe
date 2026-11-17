@@ -4,18 +4,16 @@ use std::env::args;
 
 use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
-    backend::{
-        pointwise::PointwiseMode,
-        tensor::{Shape, TensorId, TensorSpec},
-    },
+    backend::operation::{pointwise::PointwiseMode, tensor_ops::SliceSpec},
     data_type::{DataType, f16},
     error::Result,
     frontend::{
         graph::{DataTypePolicy, Graph, GraphConfig, TensorOutputConfig},
-        operation::{MatmulConfig, PointwiseOperation, SliceConfig},
+        operation::{MatmulConfig, PointwiseOperation},
         plan::{CompileConfig, ExecuteArgs, HeuristicMode},
     },
     math::NanPropagation,
+    tensor::{Shape, TensorId, TensorSpec},
 };
 
 const A_ID: TensorId = TensorId::new(1001);
@@ -29,6 +27,10 @@ fn init_f16_image(size: usize, seed: &mut u32) -> Vec<f16> {
         .collect()
 }
 
+#[expect(
+    clippy::many_single_char_names,
+    reason = "keeps the upstream sample's single-letter dimension names"
+)]
 fn build_graph(
     save_slice: bool,
     compact_slice: bool,
@@ -70,7 +72,7 @@ fn build_graph(
         TensorOutputConfig::new()
     };
     let ranges = [b_start..(b_start + b), m_start..(m_start + m), 0..k];
-    let slice_config = SliceConfig::new(ranges)
+    let slice_config = SliceSpec::new(ranges)
         .with_strides(slice_strides)
         .with_name("matrix_window");
     let slice_dimensions = slice_config.infer_output_dimensions(graph.shape(a)?)?;
@@ -180,9 +182,9 @@ fn run() -> Result<()> {
     // SAFETY: the plan, inputs, output and workspace remain live until stream completion,
     // including when native execution returns an enqueue error.
     example.execute_and_wait(|context| unsafe {
-        compiled.execute(
+        compiled.execute_async(
             context,
-            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            ExecuteArgs::new(&bindings).with_workspace(workspace.output()),
         )
     })?;
 
@@ -199,6 +201,6 @@ fn run() -> Result<()> {
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     common::finish("frontend_slice", run())
 }

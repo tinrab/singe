@@ -1,10 +1,9 @@
-use singe_cublas::{blas::level3::cgemm3m, context::Context, error::Result, types::Operation};
-
+use singe_cublas::{blas::level3::gemm3m, context::Context, scalar::Scalar, types::Operation};
 use singe_cuda::{
     context::Context as CudaContext, device::Device, memory::DeviceMemory, types::Complex32,
 };
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     let cuda = CudaContext::create_for_device(Device::new(0))?;
     let cublas = Context::create(&cuda)?;
 
@@ -28,19 +27,19 @@ fn main() -> Result<()> {
     )?;
     let mut c = DeviceMemory::<Complex32>::zeroed(&cuda, 4)?;
 
-    cgemm3m(
+    gemm3m(
         &cublas,
         Operation::NonTranspose,
         Operation::NonTranspose,
         2,
         2,
         2,
-        &Complex32::new(1.0, 1.0),
+        Scalar::host(&Complex32::new(1.0, 1.0)),
         &a,
         2,
         &b,
         2,
-        &Complex32::new(0.0, 0.0),
+        Scalar::host(&Complex32::new(0.0, 0.0)),
         &mut c,
         2,
     )?;

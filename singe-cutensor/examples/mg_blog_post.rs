@@ -5,16 +5,15 @@ use singe_cuda::{
     data_type::DataType,
     device::Device,
     error::Result as CudaResult,
-    stream::{Stream, StreamBinding},
+    stream::{Stream, StreamBinding, StreamOptions},
 };
 use singe_cutensor::{
-    error::Result,
     mg::{
         context::Context,
         contraction::{ContractionDescriptor, ContractionFind, ContractionPlan},
         memory::DistributedDeviceMemory,
         tensor::{
-            DevicePartition, TensorDescriptor, TensorDescriptorConfig, TensorDevice, TensorMode,
+            DevicePartition, TensorDescriptor, TensorDescriptorOptions, TensorDevice, TensorMode,
         },
         types::Algorithm,
     },
@@ -29,11 +28,11 @@ fn mode_vec(modes: &[i32]) -> Vec<Mode> {
     modes.iter().copied().map(Mode::new).collect()
 }
 
-fn create_streams_for_devices(devices: &[i32]) -> CudaResult<(Vec<Stream>, Vec<StreamBinding>)> {
+fn create_streams_for_devices(devices: &[Device]) -> CudaResult<(Vec<Stream>, Vec<StreamBinding>)> {
     let mut streams = Vec::with_capacity(devices.len());
     for &device in devices {
-        let cuda_context = CudaContext::retain_primary_for_device(Device::new(device))?;
-        streams.push(cuda_context.create_stream()?);
+        let cuda_context = CudaContext::create_for_device(device)?;
+        streams.push(cuda_context.create_stream(StreamOptions::default())?);
     }
 
     let bindings = streams
@@ -49,7 +48,7 @@ fn create_tensor(
     extent_map: &HashMap<i32, i64>,
     block_size_map: &HashMap<i32, i64>,
     num_devices: i32,
-) -> Result<(TensorDescriptor, DistributedDeviceMemory<f32>)> {
+) -> anyhow::Result<(TensorDescriptor, DistributedDeviceMemory<f32>)> {
     let mut extent = Vec::with_capacity(modes.len());
     let mut block_size = Vec::with_capacity(modes.len());
     let mut device_count = vec![1_i32; modes.len()];
@@ -87,7 +86,7 @@ fn create_tensor(
     println!("elements per tensor pointer: {elements}");
 
     let descriptor_devices = (0..num_devices / remaining_devices)
-        .map(TensorDevice::Device)
+        .map(|id| TensorDevice::Device(Device::new(id)))
         .collect::<Vec<_>>();
     let tensor_modes = extent
         .iter()
@@ -101,7 +100,7 @@ fn create_tensor(
         .collect::<Vec<_>>();
     let descriptor = TensorDescriptor::create(
         context,
-        TensorDescriptorConfig {
+        TensorDescriptorOptions {
             modes: &tensor_modes,
             partition: DevicePartition {
                 devices: &descriptor_devices,
@@ -111,8 +110,11 @@ fn create_tensor(
         },
     )?;
 
-    let memory =
-        DistributedDeviceMemory::<f32>::zeroed(context, &descriptor_devices, elements as usize)?;
+    let memory = DistributedDeviceMemory::<f32>::zeroed(
+        context,
+        &descriptor_devices,
+        usize::try_from(elements)?,
+    )?;
 
     Ok((descriptor, memory))
 }
@@ -125,7 +127,7 @@ fn largest_power_of_two_at_most(value: i32) -> i32 {
     power
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     let args = env::args().skip(1).collect::<Vec<_>>();
     let available_devices = Device::count()?;
     assert!(
@@ -133,10 +135,10 @@ fn main() -> Result<()> {
         "at least one CUDA device is required"
     );
 
-    let num_devices = args
-        .first()
-        .map(|arg| arg.parse::<i32>().expect("numDevices must be an integer"))
-        .unwrap_or_else(|| largest_power_of_two_at_most(available_devices));
+    let num_devices = args.first().map_or_else(
+        || largest_power_of_two_at_most(available_devices),
+        |arg| arg.parse::<i32>().expect("numDevices must be an integer"),
+    );
     assert!(num_devices >= 1, "numDevices must be positive");
     assert!(
         num_devices <= available_devices,
@@ -147,13 +149,12 @@ fn main() -> Result<()> {
         "numDevices must be a power of two"
     );
 
-    let scaling = args
-        .get(1)
-        .map(|arg| arg.parse::<i64>().expect("scaling must be an integer"))
-        .unwrap_or(2);
+    let scaling = args.get(1).map_or(2, |arg| {
+        arg.parse::<i64>().expect("scaling must be an integer")
+    });
     assert!(scaling >= 1, "scaling must be positive");
 
-    let devices = (0..num_devices).collect::<Vec<_>>();
+    let devices = (0..num_devices).map(Device::new).collect::<Vec<_>>();
     println!("using devices: {devices:?}, scaling: {scaling}");
 
     let context = Context::create(&devices)?;
@@ -190,6 +191,10 @@ fn main() -> Result<()> {
 
     let mut block_size = HashMap::new();
     block_size.insert(m0, 16);
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "mirrors the upstream sample, which rounds the block size up to a whole number"
+    )]
     block_size.insert(
         m1,
         ((m as f64 / (m as f64 / 4096.0 / f64::from(num_devices_m)).ceil()).ceil()
@@ -200,6 +205,10 @@ fn main() -> Result<()> {
     );
     block_size.insert(m2, 8);
     block_size.insert(n0, 16);
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "mirrors the upstream sample, which rounds the block size up to a whole number"
+    )]
     block_size.insert(
         n1,
         ((n as f64 / (n as f64 / 4096.0 / f64::from(num_devices_n)).ceil()).ceil()
@@ -241,7 +250,7 @@ fn main() -> Result<()> {
     let plan = ContractionPlan::create(&context, &contraction, &find, workspace)?;
 
     let mut workspace = plan.create_workspace_memory()?;
-    let (streams, stream_bindings) = create_streams_for_devices(&devices)?;
+    let (_streams, stream_bindings) = create_streams_for_devices(&devices)?;
 
     let alpha = 1.0_f32;
     let beta = 0.0_f32;
@@ -258,10 +267,6 @@ fn main() -> Result<()> {
             &mut workspace,
             &stream_bindings,
         )?;
-
-        for stream in &streams {
-            stream.synchronize()?;
-        }
 
         let elapsed_ms = start.elapsed().as_secs_f64() * 1.0e3;
         println!("rep {rep}: {elapsed_ms:.3} ms");

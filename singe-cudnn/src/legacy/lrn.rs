@@ -1,52 +1,51 @@
+//! Local response and divisive normalization descriptors and tensor operations.
+
 use std::{mem, ptr};
 
 use num_enum::{IntoPrimitive, TryFromPrimitive};
-use singe_core::{impl_enum_conversion, impl_enum_display};
-use singe_cuda::{
-    error::Error as CudaError,
-    view::{DeviceInput, DeviceOutput},
-};
+use singe_core::{impl_enum_display, report_cleanup_failure};
+use singe_cuda::view::{DeviceOutput, DeviceRange, DeviceSlice, DeviceSliceMut};
 use singe_cudnn_sys as sys;
 
 use crate::{
-    backend::tensor::TensorDescriptor,
     context::Context,
     data_type::FloatingElement,
     error::{Error, Result},
+    legacy::tensor::TensorDescriptor,
     try_ffi,
     utility::check_range,
 };
 
-/// Operation mode for [`lrn_cross_channel_forward`] and [`lrn_cross_channel_backward`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum LrnMode {
-    /// LRN across the tensor's channel dimension.
-    CrossChannelDim1 = sys::cudnnLRNMode_t::CUDNN_LRN_CROSS_CHANNEL_DIM1 as _,
+singe_core::native_enum! {
+    /// Operation mode for [`lrn_cross_channel_forward`] and [`lrn_cross_channel_backward`].
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum LrnMode: sys::cudnnLRNMode_t {
+        /// LRN across the tensor's channel dimension.
+        CrossChannelDim1 = CUDNN_LRN_CROSS_CHANNEL_DIM1,
+    }
 }
-
-impl_enum_conversion!(sys::cudnnLRNMode_t, LrnMode);
 
 impl_enum_display!(LrnMode, {
     LrnMode::CrossChannelDim1 => "CUDNN_LRN_CROSS_CHANNEL_DIM1",
 });
 
-/// Operation mode for [`divisive_normalization_forward`] and [`divisive_normalization_backward`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum DivisiveNormalizationMode {
-    /// The means tensor is expected to contain precomputed means or other kernel convolution values.
-    /// cuDNN treats an omitted means buffer as zero-filled.
-    /// Equivalent to spatial LRN.
-    ///
-    /// In the backward pass, means are independent inputs with independent gradients.
-    /// In this mode, to yield a net gradient over the entire LCN computational graph, backpropagate `means_gradient` through the means layer (which can be implemented using average pooling) and add it to the `data_gradient` tensor produced by [`divisive_normalization_backward`].
-    PrecomputedMeans = sys::cudnnDivNormMode_t::CUDNN_DIVNORM_PRECOMPUTED_MEANS as _,
+singe_core::native_enum! {
+    /// Operation mode for [`divisive_normalization_forward`] and [`divisive_normalization_backward`].
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum DivisiveNormalizationMode: sys::cudnnDivNormMode_t {
+        /// The means tensor is expected to contain precomputed means or other kernel convolution values.
+        /// cuDNN treats an omitted means buffer as zero-filled.
+        /// Equivalent to spatial LRN.
+        ///
+        /// In the backward pass, means are independent inputs with independent gradients.
+        /// In this mode, to yield a net gradient over the entire LCN computational graph, backpropagate `means_gradient` through the means layer (which can be implemented using average pooling) and add it to the `data_gradient` tensor produced by [`divisive_normalization_backward`].
+        PrecomputedMeans = CUDNN_DIVNORM_PRECOMPUTED_MEANS,
+    }
 }
-
-impl_enum_conversion!(sys::cudnnDivNormMode_t, DivisiveNormalizationMode);
 
 impl_enum_display!(DivisiveNormalizationMode, {
     DivisiveNormalizationMode::PrecomputedMeans => "CUDNN_DIVNORM_PRECOMPUTED_MEANS",
@@ -54,7 +53,7 @@ impl_enum_display!(DivisiveNormalizationMode, {
 
 /// Window and normalization parameters shared by local response and divisive normalization.
 #[derive(Debug, Clone, Copy)]
-pub struct LrnConfig {
+pub struct LrnOptions {
     /// Window width in elements; divisive normalization uses this width along every spatial axis.
     pub n: u32,
     /// Variance scaling coefficient, divided by the window width for LRN or by the spatial window volume for divisive normalization.
@@ -65,11 +64,32 @@ pub struct LrnConfig {
     pub k: f64,
 }
 
+impl Default for LrnOptions {
+    // These are the values `cudnnCreateLRNDescriptor` installs.
+    fn default() -> Self {
+        Self {
+            n: 5,
+            alpha: 1e-4,
+            beta: 0.75,
+            k: 2.0,
+        }
+    }
+}
+
 /// Owns a native local response normalization descriptor with retained window and scaling parameters.
 #[derive(Debug)]
 pub struct LrnDescriptor {
     handle: sys::cudnnLRNDescriptor_t,
-    config: LrnConfig,
+    config: LrnOptions,
+}
+
+/// A transferred native LRN descriptor with the parameters it was configured with.
+#[derive(Debug)]
+pub struct RawLrnDescriptor {
+    /// The owned native LRN descriptor handle.
+    pub handle: sys::cudnnLRNDescriptor_t,
+    /// The window and normalization parameters configured on `handle`.
+    pub options: LrnOptions,
 }
 
 impl LrnDescriptor {
@@ -78,7 +98,7 @@ impl LrnDescriptor {
     /// # Errors
     ///
     /// Returns an error if the window width is outside the native range, `k` or `beta` fails its native minimum bound, cuDNN rejects creation or configuration, or the returned handle is null.
-    pub fn create(config: LrnConfig) -> Result<Self> {
+    pub fn create(config: LrnOptions) -> Result<Self> {
         check_range!(
             "lrn n",
             (sys::CUDNN_LRN_MIN_N..=sys::CUDNN_LRN_MAX_N).contains(&config.n),
@@ -87,7 +107,7 @@ impl LrnDescriptor {
         check_range!("lrn beta", config.beta >= sys::CUDNN_LRN_MIN_BETA)?;
 
         let mut handle = ptr::null_mut();
-        // SAFETY: `cudnnCreateLRNDescriptor` receives valid output locations.
+        // SAFETY: `handle` is a live local that cuDNN writes the new descriptor into.
         unsafe {
             try_ffi!(sys::cudnnCreateLRNDescriptor(&raw mut handle))?;
         }
@@ -97,7 +117,7 @@ impl LrnDescriptor {
         }
 
         let descriptor = Self { handle, config };
-        // SAFETY: `cudnnSetLRNDescriptor` receives only plain values.
+        // SAFETY: `descriptor` owns the non-null handle created above, and the parameters are plain values checked against cuDNN's bounds.
         unsafe {
             try_ffi!(sys::cudnnSetLRNDescriptor(
                 descriptor.handle,
@@ -113,7 +133,7 @@ impl LrnDescriptor {
 
     /// Returns the retained normalization parameters without querying cuDNN.
     #[must_use]
-    pub fn config(&self) -> LrnConfig {
+    pub fn options(&self) -> LrnOptions {
         self.config
     }
 
@@ -127,26 +147,36 @@ impl LrnDescriptor {
     ///
     /// # Safety
     ///
-    /// `handle` must be a valid `cudnnLRNDescriptor_t` created by cuDNN.
-    /// The returned wrapper takes ownership and will destroy it with `cudnnDestroyLRNDescriptor`; no other owner may destroy or keep using it.
-    /// `config` must accurately describe the descriptor.
+    /// `raw.handle` must be a live LRN descriptor created by cuDNN.
+    /// The returned wrapper takes ownership and destroys it on drop; no other owner may destroy or keep using it.
+    /// `raw.options` must accurately describe the descriptor.
     ///
     /// # Errors
     ///
-    /// Returns an error if `handle` is null.
-    pub unsafe fn from_raw(handle: sys::cudnnLRNDescriptor_t, config: LrnConfig) -> Result<Self> {
-        if handle.is_null() {
+    /// Returns an error if `raw.handle` is null ([`Error::NullHandle`]).
+    #[expect(
+        clippy::needless_pass_by_value,
+        reason = "the raw value transfers ownership of its handle even though its fields are `Copy`"
+    )]
+    pub unsafe fn from_raw(raw: RawLrnDescriptor) -> Result<Self> {
+        if raw.handle.is_null() {
             return Err(Error::NullHandle);
         }
-        Ok(Self { handle, config })
+        Ok(Self {
+            handle: raw.handle,
+            config: raw.options,
+        })
     }
 
-    /// Releases ownership and returns the raw cuDNN LRN descriptor handle.
+    /// Releases ownership and returns the raw cuDNN LRN descriptor handle with its parameters.
     ///
     /// The caller becomes responsible for destroying the handle.
     #[must_use]
-    pub fn into_raw(mut self) -> sys::cudnnLRNDescriptor_t {
-        mem::replace(&mut self.handle, ptr::null_mut())
+    pub fn into_raw(mut self) -> RawLrnDescriptor {
+        RawLrnDescriptor {
+            handle: mem::replace(&mut self.handle, ptr::null_mut()),
+            options: self.config,
+        }
     }
 }
 
@@ -156,53 +186,41 @@ impl Drop for LrnDescriptor {
             return;
         }
 
-        // SAFETY: `cudnnDestroyLRNDescriptor` receives live handles owned by the wrappers.
+        // SAFETY: the handle is non-null and owned by this wrapper, and nothing uses it after drop.
         unsafe {
             if let Err(error) = try_ffi!(sys::cudnnDestroyLRNDescriptor(self.handle)) {
-                eprintln!(
-                    "failed to destroy cudnn lrn descriptor: {}",
-                    singe_core::ErrorChain(&error)
-                );
+                report_cleanup_failure("destroy", "cudnn lrn descriptor", &error);
             }
         }
     }
 }
 
-/// Performs the forward LRN layer computation.
+/// Enqueues the forward LRN layer computation on the handle's stream.
 ///
 /// Supported formats are: `positive-strided`, NCHW and NHWC for 4D `x` and `y`, and only NCDHW DHW-packed for 5D (for both `x` and `y`).
 /// Only non-overlapping 4D and 5D tensors are supported.
 /// NCHW layout is preferred for performance.
 ///
+/// # Safety
+///
+/// The crate's raw execution contract applies.
+/// `x` must be initialized, and `y` too when `beta` is nonzero.
+///
 /// # Errors
 ///
-/// Returns an error if the input and output descriptors are incompatible, if the LRN descriptor parameters are outside their valid ranges, if a 5D tensor is not in NCDHW DHW-packed format, or if cuDNN does not support the provided tensor types, dimensions, or strides.
-///
-/// # Safety
-/// Retain the context or stream, descriptors and all buffer ranges through completion, submission failure and replay.
-/// Order allocation readiness and input producers before use; values must be valid when read and writes must stay exclusive.
-/// Only the specified tensor elements are produced; padding and tails remain unchanged.
-/// Nonzero beta requires initialized destination elements.
-/// Backward scratch must contain the state required by the matching forward operation.
-pub unsafe fn lrn_cross_channel_forward<T: FloatingElement>(
+/// Returns an error if a buffer belongs to another CUDA context or is too small for its descriptor, if the input and output descriptors are incompatible, or if cuDNN rejects the descriptors or parameters.
+pub unsafe fn lrn_cross_channel_forward_async<T: FloatingElement>(
     context: &Context,
     descriptor: &LrnDescriptor,
     mode: LrnMode,
     alpha: &T::Scale,
     x_desc: &TensorDescriptor<T>,
-    x: &(impl DeviceInput<T> + ?Sized),
+    x: &(impl DeviceRange<T> + ?Sized),
     beta: &T::Scale,
     y_desc: &TensorDescriptor<T>,
     y: &mut (impl DeviceOutput<T> + ?Sized),
 ) -> Result<()> {
     context.bind()?;
-    if [x.region(), y.region()]
-        .iter()
-        .any(|region| region.context() != context.cuda_context())
-    {
-        return Err(CudaError::MemoryContextMismatch.into());
-    }
-
     check_range!(
         "x storage span",
         x.region().byte_len() >= x_desc.byte_len()?
@@ -213,8 +231,9 @@ pub unsafe fn lrn_cross_channel_forward<T: FloatingElement>(
     )?;
 
     check_range!("lrn forward", x_desc.dimensions() == y_desc.dimensions())?;
+    context.prepare_regions(&[x.region(), y.region()])?;
 
-    // SAFETY: `cudnnLRNCrossChannelForward` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
+    // SAFETY: the buffers belong to the handle's context and cover their descriptors; the caller keeps them live and ordered through completion.
     unsafe {
         try_ffi!(sys::cudnnLRNCrossChannelForward(
             context.as_raw(),
@@ -232,50 +251,62 @@ pub unsafe fn lrn_cross_channel_forward<T: FloatingElement>(
     Ok(())
 }
 
-/// Performs the backward LRN layer computation.
+/// Performs the forward LRN layer computation and waits for it.
+///
+/// # Errors
+///
+/// Returns an error if the handle's stream is capturing, [`lrn_cross_channel_forward_async`] fails, or the wait fails.
+pub fn lrn_cross_channel_forward<T: FloatingElement>(
+    context: &Context,
+    descriptor: &LrnDescriptor,
+    mode: LrnMode,
+    alpha: &T::Scale,
+    x_desc: &TensorDescriptor<T>,
+    x: &(impl DeviceSlice<T> + ?Sized),
+    beta: &T::Scale,
+    y_desc: &TensorDescriptor<T>,
+    y: &mut (impl DeviceSliceMut<T> + ?Sized),
+) -> Result<()> {
+    context.sync_scope(|| {
+        // SAFETY: the inputs and `y` are initialized, and the borrows outlive the wait in `sync_scope`.
+        unsafe {
+            lrn_cross_channel_forward_async(
+                context, descriptor, mode, alpha, x_desc, x, beta, y_desc, y,
+            )
+        }
+    })
+}
+
+/// Enqueues the backward LRN layer computation on the handle's stream.
 ///
 /// Supported formats are: `positive-strided`, NCHW and NHWC for 4D `x` and `y`, and only NCDHW DHW-packed for 5D (for both `x` and `y`).
 /// Only non-overlapping 4D and 5D tensors are supported.
 /// NCHW layout is preferred for performance.
 ///
+/// # Safety
+///
+/// The crate's raw execution contract applies.
+/// `y`, `output_gradient`, and `x` must be initialized, and `input_gradient` too when `beta` is nonzero.
+///
 /// # Errors
 ///
-/// Returns an error if the data and gradient descriptors are incompatible, if the LRN descriptor parameters are outside their valid ranges, if a 5D tensor is not in NCDHW DHW-packed format, or if cuDNN does not support the provided tensor types, dimensions, or strides.
-///
-/// # Safety
-/// Retain the context or stream, descriptors and all buffer ranges through completion, submission failure and replay.
-/// Order allocation readiness and input producers before use; values must be valid when read and writes must stay exclusive.
-/// Only the specified tensor elements are produced; padding and tails remain unchanged.
-/// Nonzero beta requires initialized destination elements.
-/// Backward scratch must contain the state required by the matching forward operation.
-pub unsafe fn lrn_cross_channel_backward<T: FloatingElement>(
+/// Returns an error if a buffer belongs to another CUDA context or is too small for its descriptor, if the data and gradient descriptors are incompatible, or if cuDNN rejects the descriptors or parameters.
+pub unsafe fn lrn_cross_channel_backward_async<T: FloatingElement>(
     context: &Context,
     descriptor: &LrnDescriptor,
     mode: LrnMode,
     alpha: &T::Scale,
     y_desc: &TensorDescriptor<T>,
-    y: &(impl DeviceInput<T> + ?Sized),
+    y: &(impl DeviceRange<T> + ?Sized),
     output_gradient_desc: &TensorDescriptor<T>,
-    output_gradient: &(impl DeviceInput<T> + ?Sized),
+    output_gradient: &(impl DeviceRange<T> + ?Sized),
     x_desc: &TensorDescriptor<T>,
-    x: &(impl DeviceInput<T> + ?Sized),
+    x: &(impl DeviceRange<T> + ?Sized),
     beta: &T::Scale,
     input_gradient_desc: &TensorDescriptor<T>,
     input_gradient: &mut (impl DeviceOutput<T> + ?Sized),
 ) -> Result<()> {
     context.bind()?;
-    if [
-        y.region(),
-        output_gradient.region(),
-        x.region(),
-        input_gradient.region(),
-    ]
-    .iter()
-    .any(|region| region.context() != context.cuda_context())
-    {
-        return Err(CudaError::MemoryContextMismatch.into());
-    }
-
     check_range!(
         "y storage span",
         y.region().byte_len() >= y_desc.byte_len()?
@@ -299,8 +330,14 @@ pub unsafe fn lrn_cross_channel_backward<T: FloatingElement>(
             && x_desc.dimensions() == output_gradient_desc.dimensions()
             && x_desc.dimensions() == input_gradient_desc.dimensions(),
     )?;
+    context.prepare_regions(&[
+        y.region(),
+        output_gradient.region(),
+        x.region(),
+        input_gradient.region(),
+    ])?;
 
-    // SAFETY: `cudnnLRNCrossChannelBackward` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
+    // SAFETY: the buffers belong to the handle's context and cover their descriptors; the caller keeps them live and ordered through completion.
     unsafe {
         try_ffi!(sys::cudnnLRNCrossChannelBackward(
             context.as_raw(),
@@ -322,35 +359,73 @@ pub unsafe fn lrn_cross_channel_backward<T: FloatingElement>(
     Ok(())
 }
 
-/// Performs the forward spatial `DivisiveNormalization` layer computation.
+/// Performs the backward LRN layer computation and waits for it.
+///
+/// # Errors
+///
+/// Returns an error if the handle's stream is capturing, [`lrn_cross_channel_backward_async`] fails, or the wait fails.
+pub fn lrn_cross_channel_backward<T: FloatingElement>(
+    context: &Context,
+    descriptor: &LrnDescriptor,
+    mode: LrnMode,
+    alpha: &T::Scale,
+    y_desc: &TensorDescriptor<T>,
+    y: &(impl DeviceSlice<T> + ?Sized),
+    output_gradient_desc: &TensorDescriptor<T>,
+    output_gradient: &(impl DeviceSlice<T> + ?Sized),
+    x_desc: &TensorDescriptor<T>,
+    x: &(impl DeviceSlice<T> + ?Sized),
+    beta: &T::Scale,
+    input_gradient_desc: &TensorDescriptor<T>,
+    input_gradient: &mut (impl DeviceSliceMut<T> + ?Sized),
+) -> Result<()> {
+    context.sync_scope(|| {
+        // SAFETY: the inputs and `input_gradient` are initialized, and the borrows outlive the wait in `sync_scope`.
+        unsafe {
+            lrn_cross_channel_backward_async(
+                context,
+                descriptor,
+                mode,
+                alpha,
+                y_desc,
+                y,
+                output_gradient_desc,
+                output_gradient,
+                x_desc,
+                x,
+                beta,
+                input_gradient_desc,
+                input_gradient,
+            )
+        }
+    })
+}
+
+/// Enqueues the forward spatial `DivisiveNormalization` layer computation on the handle's stream.
+///
 /// It divides every value in a layer by the standard deviation of its spatial neighbors.
 /// `DivisiveNormalization` only implements the `x/max(c, sigma_x)` portion of the computation, where `sigma_x` is the variance over the spatial neighborhood of `x`.
-///
-/// The full LCN (Local Contrastive Normalization) computation can be implemented as a two-step process:
-///
-/// The `x - mean(x)` portion, often called subtractive normalization, can be implemented using a cuDNN average pooling layer followed by a tensor add operation.
+/// The `x - mean(x)` portion of local contrastive normalization, often called subtractive normalization, can be implemented using a cuDNN average pooling layer followed by a tensor add operation.
 ///
 /// Supported tensor formats are NCHW for 4D and NCDHW for 5D with any non-overlapping non-negative strides.
 /// Only 4D and 5D tensors are supported.
 ///
+/// # Safety
+///
+/// The crate's raw execution contract applies.
+/// `x` and `means` must be initialized, and `y` too when `beta` is nonzero.
+///
 /// # Errors
 ///
-/// Returns an error if the input and output tensor descriptors are not 4D or 5D, if their dimensions are incompatible, if an in-place call uses mismatched strides, if the LRN descriptor parameters are outside their valid ranges, or if cuDNN does not support the provided strides or configuration.
-///
-/// # Safety
-/// Retain the context or stream, descriptors and all buffer ranges through completion, submission failure and replay.
-/// Order allocation readiness and input producers before use; values must be valid when read and writes must stay exclusive.
-/// Only the specified tensor elements are produced; padding and tails remain unchanged.
-/// Nonzero beta requires initialized destination elements.
-/// Backward scratch must contain the state required by the matching forward operation.
-pub unsafe fn divisive_normalization_forward<T: FloatingElement>(
+/// Returns an error if a buffer belongs to another CUDA context or is too small for its descriptor, if the tensor descriptors are incompatible, or if cuDNN rejects the descriptors, strides, or parameters.
+pub unsafe fn divisive_normalization_forward_async<T: FloatingElement>(
     context: &Context,
     descriptor: &LrnDescriptor,
     mode: DivisiveNormalizationMode,
     alpha: &T::Scale,
     x_desc: &TensorDescriptor<T>,
-    x: &(impl DeviceInput<T> + ?Sized),
-    means: &(impl DeviceInput<T> + ?Sized),
+    x: &(impl DeviceRange<T> + ?Sized),
+    means: &(impl DeviceRange<T> + ?Sized),
     temp: &mut (impl DeviceOutput<T> + ?Sized),
     temp2: &mut (impl DeviceOutput<T> + ?Sized),
     beta: &T::Scale,
@@ -358,19 +433,6 @@ pub unsafe fn divisive_normalization_forward<T: FloatingElement>(
     y: &mut (impl DeviceOutput<T> + ?Sized),
 ) -> Result<()> {
     context.bind()?;
-    if [
-        x.region(),
-        means.region(),
-        temp.region(),
-        temp2.region(),
-        y.region(),
-    ]
-    .iter()
-    .any(|region| region.context() != context.cuda_context())
-    {
-        return Err(CudaError::MemoryContextMismatch.into());
-    }
-
     check_range!(
         "x storage span",
         x.region().byte_len() >= x_desc.byte_len()?
@@ -396,8 +458,15 @@ pub unsafe fn divisive_normalization_forward<T: FloatingElement>(
         "divisive normalization forward",
         x_desc.dimensions() == y_desc.dimensions(),
     )?;
+    context.prepare_regions(&[
+        x.region(),
+        means.region(),
+        temp.region(),
+        temp2.region(),
+        y.region(),
+    ])?;
 
-    // SAFETY: `cudnnDivisiveNormalizationForward` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
+    // SAFETY: the buffers belong to the handle's context and cover their descriptors; the caller keeps them live and ordered through completion.
     unsafe {
         try_ffi!(sys::cudnnDivisiveNormalizationForward(
             context.as_raw(),
@@ -418,30 +487,57 @@ pub unsafe fn divisive_normalization_forward<T: FloatingElement>(
     Ok(())
 }
 
-/// Performs the backward `DivisiveNormalization` layer computation.
-///
-/// Supported tensor formats are NCHW for 4D and NCDHW for 5D with any non-overlapping non-negative strides.
-/// Only 4D and 5D tensors are supported.
+/// Performs the forward spatial `DivisiveNormalization` layer computation and waits for it.
 ///
 /// # Errors
 ///
-/// Returns an error if the input or output tensor descriptors are not 4D or 5D, if `x_desc` and `dxdmeans_desc` dimensions are incompatible, if the LRN descriptor parameters are outside their valid ranges, or if cuDNN does not support the provided strides or configuration.
-///
-/// # Safety
-/// Retain the context or stream, descriptors and all buffer ranges through completion, submission failure and replay.
-/// Order allocation readiness and input producers before use; values must be valid when read and writes must stay exclusive.
-/// Only the specified tensor elements are produced; padding and tails remain unchanged.
-/// Nonzero beta requires initialized destination elements.
-/// Backward scratch must contain the state required by the matching forward operation.
-pub unsafe fn divisive_normalization_backward<T: FloatingElement>(
+/// Returns an error if the handle's stream is capturing, [`divisive_normalization_forward_async`] fails, or the wait fails.
+pub fn divisive_normalization_forward<T: FloatingElement>(
     context: &Context,
     descriptor: &LrnDescriptor,
     mode: DivisiveNormalizationMode,
     alpha: &T::Scale,
     x_desc: &TensorDescriptor<T>,
-    x: &(impl DeviceInput<T> + ?Sized),
-    means: &(impl DeviceInput<T> + ?Sized),
-    dy: &(impl DeviceInput<T> + ?Sized),
+    x: &(impl DeviceSlice<T> + ?Sized),
+    means: &(impl DeviceSlice<T> + ?Sized),
+    temp: &mut (impl DeviceOutput<T> + ?Sized),
+    temp2: &mut (impl DeviceOutput<T> + ?Sized),
+    beta: &T::Scale,
+    y_desc: &TensorDescriptor<T>,
+    y: &mut (impl DeviceSliceMut<T> + ?Sized),
+) -> Result<()> {
+    context.sync_scope(|| {
+        // SAFETY: the inputs and `y` are initialized, and the borrows outlive the wait in `sync_scope`.
+        unsafe {
+            divisive_normalization_forward_async(
+                context, descriptor, mode, alpha, x_desc, x, means, temp, temp2, beta, y_desc, y,
+            )
+        }
+    })
+}
+
+/// Enqueues the backward `DivisiveNormalization` layer computation on the handle's stream.
+///
+/// Supported tensor formats are NCHW for 4D and NCDHW for 5D with any non-overlapping non-negative strides.
+/// Only 4D and 5D tensors are supported.
+///
+/// # Safety
+///
+/// The crate's raw execution contract applies.
+/// `x`, `means`, `dy`, and the scratch written by the matching forward call must be initialized, and `dx` and `dmeans` too when `beta` is nonzero.
+///
+/// # Errors
+///
+/// Returns an error if a buffer belongs to another CUDA context or is too small for its descriptor, if `x_desc` and `dxdmeans_desc` are incompatible, or if cuDNN rejects the descriptors, strides, or parameters.
+pub unsafe fn divisive_normalization_backward_async<T: FloatingElement>(
+    context: &Context,
+    descriptor: &LrnDescriptor,
+    mode: DivisiveNormalizationMode,
+    alpha: &T::Scale,
+    x_desc: &TensorDescriptor<T>,
+    x: &(impl DeviceRange<T> + ?Sized),
+    means: &(impl DeviceRange<T> + ?Sized),
+    dy: &(impl DeviceRange<T> + ?Sized),
     temp: &mut (impl DeviceOutput<T> + ?Sized),
     temp2: &mut (impl DeviceOutput<T> + ?Sized),
     beta: &T::Scale,
@@ -450,21 +546,6 @@ pub unsafe fn divisive_normalization_backward<T: FloatingElement>(
     dmeans: &mut (impl DeviceOutput<T> + ?Sized),
 ) -> Result<()> {
     context.bind()?;
-    if [
-        x.region(),
-        means.region(),
-        dy.region(),
-        temp.region(),
-        temp2.region(),
-        dx.region(),
-        dmeans.region(),
-    ]
-    .iter()
-    .any(|region| region.context() != context.cuda_context())
-    {
-        return Err(CudaError::MemoryContextMismatch.into());
-    }
-
     check_range!(
         "x storage span",
         x.region().byte_len() >= x_desc.byte_len()?
@@ -498,8 +579,17 @@ pub unsafe fn divisive_normalization_backward<T: FloatingElement>(
         "divisive normalization backward",
         x_desc.dimensions() == dxdmeans_desc.dimensions(),
     )?;
+    context.prepare_regions(&[
+        x.region(),
+        means.region(),
+        dy.region(),
+        temp.region(),
+        temp2.region(),
+        dx.region(),
+        dmeans.region(),
+    ])?;
 
-    // SAFETY: `cudnnDivisiveNormalizationBackward` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
+    // SAFETY: the buffers belong to the handle's context and cover their descriptors; the caller keeps them live and ordered through completion.
     unsafe {
         try_ffi!(sys::cudnnDivisiveNormalizationBackward(
             context.as_raw(),
@@ -522,35 +612,80 @@ pub unsafe fn divisive_normalization_backward<T: FloatingElement>(
     Ok(())
 }
 
+/// Performs the backward `DivisiveNormalization` layer computation and waits for it.
+///
+/// # Errors
+///
+/// Returns an error if the handle's stream is capturing, [`divisive_normalization_backward_async`] fails, or the wait fails.
+pub fn divisive_normalization_backward<T: FloatingElement>(
+    context: &Context,
+    descriptor: &LrnDescriptor,
+    mode: DivisiveNormalizationMode,
+    alpha: &T::Scale,
+    x_desc: &TensorDescriptor<T>,
+    x: &(impl DeviceSlice<T> + ?Sized),
+    means: &(impl DeviceSlice<T> + ?Sized),
+    dy: &(impl DeviceSlice<T> + ?Sized),
+    temp: &mut (impl DeviceSliceMut<T> + ?Sized),
+    temp2: &mut (impl DeviceSliceMut<T> + ?Sized),
+    beta: &T::Scale,
+    dxdmeans_desc: &TensorDescriptor<T>,
+    dx: &mut (impl DeviceSliceMut<T> + ?Sized),
+    dmeans: &mut (impl DeviceSliceMut<T> + ?Sized),
+) -> Result<()> {
+    context.sync_scope(|| {
+        // SAFETY: every buffer the operation reads is initialized, and the borrows outlive the wait in `sync_scope`.
+        unsafe {
+            divisive_normalization_backward_async(
+                context,
+                descriptor,
+                mode,
+                alpha,
+                x_desc,
+                x,
+                means,
+                dy,
+                temp,
+                temp2,
+                beta,
+                dxdmeans_desc,
+                dx,
+                dmeans,
+            )
+        }
+    })
+}
+
 #[cfg(all(test, feature = "testing"))]
 mod tests {
-    use singe_cuda::{memory::DeviceMemory, stream::StreamBinding};
+    use singe_cuda::memory::DeviceMemory;
 
     use super::*;
     use crate::testing::setup_context;
 
     #[test]
     fn test_lrn_descriptor_create() -> Result<()> {
-        let descriptor = LrnDescriptor::create(LrnConfig {
+        let descriptor = LrnDescriptor::create(LrnOptions {
             n: 5,
             alpha: 1e-4,
             beta: 0.75,
             k: 2.0,
         })?;
 
-        assert_eq!(descriptor.config().n, 5);
-        assert_eq!(descriptor.config().alpha, 1e-4);
-        assert_eq!(descriptor.config().beta, 0.75);
-        assert_eq!(descriptor.config().k, 2.0);
+        assert_eq!(descriptor.options().n, 5);
+        assert_eq!(descriptor.options().alpha, 1e-4);
+        assert_eq!(descriptor.options().beta, 0.75);
+        assert_eq!(descriptor.options().k, 2.0);
 
         Ok(())
     }
 
     #[test]
     fn test_lrn_forward_backward_smoke() -> Result<()> {
-        let test_context = setup_context()?;
+        let test = setup_context()?;
+        let test_context = test.context();
 
-        let descriptor = LrnDescriptor::create(LrnConfig {
+        let descriptor = LrnDescriptor::create(LrnOptions {
             n: 5,
             alpha: 1e-4,
             beta: 0.75,
@@ -562,72 +697,71 @@ mod tests {
         let x_host = vec![
             0.1f32, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6,
         ];
-        let dy_host = vec![1.0f32; count];
+        let y_grad_host = vec![1.0f32; count];
 
         let x = DeviceMemory::from_slice(test_context.cuda_context(), &x_host)?;
         let mut y = DeviceMemory::<f32>::create_uninit(test_context.cuda_context(), count)?;
-        let dy = DeviceMemory::from_slice(test_context.cuda_context(), &dy_host)?;
+        let dy = DeviceMemory::from_slice(test_context.cuda_context(), &y_grad_host)?;
         let mut dx = DeviceMemory::<f32>::create_uninit(test_context.cuda_context(), count)?;
 
-        StreamBinding::Borrowed(test_context.stream().to_borrowed()).sync_scope(
-            || -> Result<()> {
-                // SAFETY: the descriptors and buffers are test locals that outlive the draining scope.
-                unsafe {
-                    lrn_cross_channel_forward(
-                        &test_context,
-                        &descriptor,
-                        LrnMode::CrossChannelDim1,
-                        &1.0f32,
-                        &tensor_desc,
-                        &x,
-                        &0.0f32,
-                        &tensor_desc,
-                        &mut y,
-                    )
-                }?;
-                // SAFETY: the descriptors and buffers are test locals that outlive the draining scope.
-                unsafe {
-                    lrn_cross_channel_backward(
-                        &test_context,
-                        &descriptor,
-                        LrnMode::CrossChannelDim1,
-                        &1.0f32,
-                        &tensor_desc,
-                        &y,
-                        &tensor_desc,
-                        &dy,
-                        &tensor_desc,
-                        &x,
-                        &0.0f32,
-                        &tensor_desc,
-                        &mut dx,
-                    )
-                }?;
+        test.stream().complete(|| -> Result<()> {
+            // SAFETY: the descriptors and buffers are test locals that outlive the draining scope.
+            unsafe {
+                lrn_cross_channel_forward_async(
+                    test_context,
+                    &descriptor,
+                    LrnMode::CrossChannelDim1,
+                    &1.0f32,
+                    &tensor_desc,
+                    &x,
+                    &0.0f32,
+                    &tensor_desc,
+                    &mut y,
+                )
+            }?;
+            // SAFETY: the descriptors and buffers are test locals that outlive the draining scope.
+            unsafe {
+                lrn_cross_channel_backward_async(
+                    test_context,
+                    &descriptor,
+                    LrnMode::CrossChannelDim1,
+                    &1.0f32,
+                    &tensor_desc,
+                    &y,
+                    &tensor_desc,
+                    &dy,
+                    &tensor_desc,
+                    &x,
+                    &0.0f32,
+                    &tensor_desc,
+                    &mut dx,
+                )
+            }?;
 
-                Ok(())
-            },
-        )?;
+            Ok(())
+        })?;
 
         let mut y_host = vec![0.0f32; count];
-        let mut dx_host = vec![0.0f32; count];
+        let mut x_grad_host = vec![0.0f32; count];
         // SAFETY: the completed operation wrote every contiguous descriptor element.
         let y = unsafe { y.assume_init() };
         y.copy_to_host(&mut y_host)?;
         // SAFETY: the completed operation wrote every contiguous descriptor element.
         let dx = unsafe { dx.assume_init() };
-        dx.copy_to_host(&mut dx_host)?;
+        dx.copy_to_host(&mut x_grad_host)?;
 
         assert!(y_host.iter().all(|value| value.is_finite()));
-        assert!(dx_host.iter().all(|value| value.is_finite()));
+        assert!(x_grad_host.iter().all(|value| value.is_finite()));
 
         Ok(())
     }
 
     #[test]
     fn test_divisive_normalization_forward_backward_smoke() -> Result<()> {
-        let test_context = setup_context()?;
+        let test = setup_context()?;
+        let test_context = test.context();
 
-        let descriptor = LrnDescriptor::create(LrnConfig {
+        let descriptor = LrnDescriptor::create(LrnOptions {
             n: 5,
             alpha: 1e-4,
             beta: 0.75,
@@ -638,75 +772,73 @@ mod tests {
 
         let x_host = vec![0.1f32; count];
         let means_host = vec![0.0f32; count];
-        let dy_host = vec![1.0f32; count];
+        let y_grad_host = vec![1.0f32; count];
 
         let x = DeviceMemory::from_slice(test_context.cuda_context(), &x_host)?;
         let mut y = DeviceMemory::<f32>::create_uninit(test_context.cuda_context(), count)?;
         let means = DeviceMemory::from_slice(test_context.cuda_context(), &means_host)?;
-        let dy = DeviceMemory::from_slice(test_context.cuda_context(), &dy_host)?;
+        let dy = DeviceMemory::from_slice(test_context.cuda_context(), &y_grad_host)?;
         let mut dx = DeviceMemory::<f32>::create_uninit(test_context.cuda_context(), count)?;
         let mut dmeans = DeviceMemory::<f32>::create_uninit(test_context.cuda_context(), count)?;
         let mut temp = DeviceMemory::<f32>::create_uninit(test_context.cuda_context(), count)?;
         let mut temp2 = DeviceMemory::<f32>::create_uninit(test_context.cuda_context(), count)?;
 
-        StreamBinding::Borrowed(test_context.stream().to_borrowed()).sync_scope(
-            || -> Result<()> {
-                // SAFETY: the descriptors and buffers are test locals that outlive the draining scope.
-                unsafe {
-                    divisive_normalization_forward(
-                        &test_context,
-                        &descriptor,
-                        DivisiveNormalizationMode::PrecomputedMeans,
-                        &1.0f32,
-                        &tensor_desc,
-                        &x,
-                        &means,
-                        &mut temp,
-                        &mut temp2,
-                        &0.0f32,
-                        &tensor_desc,
-                        &mut y,
-                    )
-                }?;
-                // SAFETY: the descriptors and buffers are test locals that outlive the draining scope.
-                unsafe {
-                    divisive_normalization_backward(
-                        &test_context,
-                        &descriptor,
-                        DivisiveNormalizationMode::PrecomputedMeans,
-                        &1.0f32,
-                        &tensor_desc,
-                        &x,
-                        &means,
-                        &dy,
-                        &mut temp,
-                        &mut temp2,
-                        &0.0f32,
-                        &tensor_desc,
-                        &mut dx,
-                        &mut dmeans,
-                    )
-                }?;
+        test.stream().complete(|| -> Result<()> {
+            // SAFETY: the descriptors and buffers are test locals that outlive the draining scope.
+            unsafe {
+                divisive_normalization_forward_async(
+                    test_context,
+                    &descriptor,
+                    DivisiveNormalizationMode::PrecomputedMeans,
+                    &1.0f32,
+                    &tensor_desc,
+                    &x,
+                    &means,
+                    &mut temp,
+                    &mut temp2,
+                    &0.0f32,
+                    &tensor_desc,
+                    &mut y,
+                )
+            }?;
+            // SAFETY: the descriptors and buffers are test locals that outlive the draining scope.
+            unsafe {
+                divisive_normalization_backward_async(
+                    test_context,
+                    &descriptor,
+                    DivisiveNormalizationMode::PrecomputedMeans,
+                    &1.0f32,
+                    &tensor_desc,
+                    &x,
+                    &means,
+                    &dy,
+                    &mut temp,
+                    &mut temp2,
+                    &0.0f32,
+                    &tensor_desc,
+                    &mut dx,
+                    &mut dmeans,
+                )
+            }?;
 
-                Ok(())
-            },
-        )?;
+            Ok(())
+        })?;
 
         let mut y_host = vec![0.0f32; count];
-        let mut dx_host = vec![0.0f32; count];
+        let mut x_grad_host = vec![0.0f32; count];
         let mut dmeans_host = vec![0.0f32; count];
         // SAFETY: the completed operation wrote every contiguous descriptor element.
         let y = unsafe { y.assume_init() };
         y.copy_to_host(&mut y_host)?;
         // SAFETY: the completed operation wrote every contiguous descriptor element.
         let dx = unsafe { dx.assume_init() };
-        dx.copy_to_host(&mut dx_host)?;
+        dx.copy_to_host(&mut x_grad_host)?;
         // SAFETY: the completed operation wrote every contiguous descriptor element.
         let dmeans = unsafe { dmeans.assume_init() };
         dmeans.copy_to_host(&mut dmeans_host)?;
 
         assert!(y_host.iter().all(|value| value.is_finite()));
-        assert!(dx_host.iter().all(|value| value.is_finite()));
+        assert!(x_grad_host.iter().all(|value| value.is_finite()));
         assert!(dmeans_host.iter().all(|value| value.is_finite()));
 
         Ok(())

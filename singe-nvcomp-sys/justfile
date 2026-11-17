@@ -5,20 +5,6 @@ generate:
     #!/usr/bin/env bash
     set -euxo pipefail
 
-    num_enums=(
-        "nvcompStatus_t"
-        "nvcompType_t"
-        "nvcompDecompressBackend_t"
-        "nvcompBitshuffleMode_t"
-        "nvcompANSType_t"
-        "bitcompMode_t"
-        "nvcompCascadedMode_t"
-        "nvcompBatchedGzipDecompressAlgorithm_t"
-        "nvcompCRC32KernelKind_t"
-        "nvcompCRC32SegmentKind_t"
-    )
-    enum_args=$(for enum in "${num_enums[@]}"; do echo -n "--with-derive-custom $enum=TryFromPrimitive,IntoPrimitive "; done)
-
     nvcomp_headers=(
         "nvcomp/ans.h"
         "nvcomp/bitcomp.h"
@@ -34,7 +20,6 @@ generate:
     include_args=$(for header in "${nvcomp_headers[@]}"; do echo -n "-include $header "; done)
 
     bindgen {{nvcomp_include_path}}/nvcomp.h \
-        $enum_args \
         --allowlist-item "^nvcomp.*" \
         --allowlist-item "^NVCOMP.*" \
         --blocklist-item "^cuda.*" \
@@ -53,7 +38,7 @@ generate:
         --with-derive-hash \
         --with-derive-ord \
         --use-core \
-        --default-enum-style=rust \
+        --default-enum-style=newtype \
         -- \
             -fparse-all-comments \
             -fretain-comments-from-system-headers \
@@ -75,7 +60,7 @@ generate:
 
     bindgen cpp/bridge.h \
         --allowlist-item "^(singe_nvcomp_|SingeNvcomp).*" \
-        --no-layout-tests --with-derive-default --use-core --default-enum-style=rust \
+        --no-layout-tests --with-derive-default --use-core --default-enum-style=newtype \
         > src/manager_sys.rs
 
     # Each declared function loads its symbol at run time, through singe-loader.

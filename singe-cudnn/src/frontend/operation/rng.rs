@@ -1,10 +1,8 @@
 use serde::{Deserialize, Serialize};
 
-pub use crate::backend::execution::rng::{RandomNumberDistribution, RandomNumberSeedSource};
 use crate::{
-    backend::{
-        execution::rng::{RngDescriptor, RngOperation},
-        tensor::TensorId,
+    backend::operation::rng::{
+        RandomNumberDistribution, RandomNumberSeedSource, RngDescriptor, RngOperation,
     },
     data_type::DataType,
     error::Result,
@@ -12,6 +10,7 @@ use crate::{
         graph::Graph,
         lower::{LoweredOperation, LoweringContext, tensor_at},
     },
+    tensor::TensorId,
 };
 
 const RNG_SEED: &str = "rng seed";

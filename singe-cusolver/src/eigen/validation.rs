@@ -11,7 +11,7 @@ use crate::{
     utility::{to_i32, to_usize},
 };
 
-pub fn batch_layout(
+pub(crate) fn batch_layout(
     n: usize,
     layout: MatrixLayout,
     batch: usize,
@@ -33,21 +33,28 @@ pub fn batch_layout(
     Ok(values)
 }
 
-pub fn output<T: DeviceRepr>(value: &DeviceOutputView<'_, T>, required: usize) -> Result<()> {
+pub(crate) fn output<T: DeviceRepr>(
+    value: &DeviceOutputView<'_, T>,
+    required: usize,
+) -> Result<()> {
     if value.len() < required {
         return Err(Error::InvalidVectorShape);
     }
     Ok(())
 }
 
-pub fn workspace(actual: usize, required: usize) -> Result<()> {
+pub(crate) fn workspace(actual: usize, required: usize) -> Result<()> {
     if actual < required {
-        return Err(Error::InsufficientWorkspaceSize { required, actual });
+        return Err(Error::BufferTooSmall {
+            name: "workspace".into(),
+            required,
+            actual,
+        });
     }
     Ok(())
 }
 
-pub fn native_selection<T: SolverReal>(
+pub(crate) fn native_selection<T: SolverReal>(
     selection: &EigenSelection<T>,
     n: usize,
 ) -> Result<(EigenRange, &T, &T, usize, usize)> {
@@ -79,18 +86,24 @@ pub fn native_selection<T: SolverReal>(
     }
 }
 
-pub fn check_completed_status(info: &DeviceOutputView<'_, i32>) -> Result<()> {
+pub(crate) fn check_completed_status(
+    operation: &'static str,
+    info: &DeviceOutputView<'_, i32>,
+) -> Result<()> {
     // SAFETY: a completed successful native call initializes its first status entry.
     let value =
         unsafe { DeviceView::<i32>::from_raw_parts(info.region().slice(..size_of::<i32>())?, 1)? };
     let info = value.copy_to_host_vec()?[0];
     if info != 0 {
-        return Err(Error::ComputationFailed { info });
+        return Err(Error::OperationFailed {
+            operation: operation.into(),
+            info,
+        });
     }
     Ok(())
 }
 
-pub fn selected_count(value: impl TryInto<usize>, maximum: usize) -> Result<usize> {
+pub(crate) fn selected_count(value: impl TryInto<usize>, maximum: usize) -> Result<usize> {
     let actual = to_usize(value, "selected eigenvalue count")?;
     if actual > maximum {
         return Err(Error::InvalidEigenvalueCount { actual, maximum });

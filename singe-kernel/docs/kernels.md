@@ -52,12 +52,12 @@ We have CPU kernels that don't need CUDA.
 With `kernel_matmul` enabled, multiply two row-major matrices:
 
 ```rust,no_run
-use singe_cuda::{context::Context, device::Device, memory::DeviceMemory};
+use singe_cuda::{context::Context, device::Device, memory::DeviceMemory, stream::StreamOptions};
 use singe_kernel::cuda::matmul::{self, MatmulConfig};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-	let context = Context::retain_primary_for_device(Device::new(0))?;
-	let stream = context.create_stream()?;
+	let context = Context::create_for_device(Device::new(0))?;
+	let stream = context.create_stream(StreamOptions::default())?;
 	let a = DeviceMemory::from_slice(&context, &[1.0_f32, 2.0, 3.0, 4.0])?;
 	let b = DeviceMemory::from_slice(&context, &[5.0_f32, 6.0, 7.0, 8.0])?;
 	let mut output = DeviceMemory::<f32>::create_uninit(&context, 4)?;
@@ -148,12 +148,12 @@ For example, fill a device buffer with an explicit grid:
 
 ```rust,no_run
 use cutile::cuda_async::device_operation::DeviceOp;
-use singe_cuda::{context::Context, device::Device, memory::DeviceMemory};
+use singe_cuda::{context::Context, device::Device, memory::DeviceMemory, stream::StreamOptions};
 use singe_kernel::cuda::cutile::{DevicePointer, TileKernel, kernel::vector};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-	let context = Context::retain_primary_for_device(Device::new(0))?;
-	let stream = context.create_stream()?;
+	let context = Context::create_for_device(Device::new(0))?;
+	let stream = context.create_stream(StreamOptions::default())?;
 	let cuda_stream = stream.to_cuda_core()?;
 	let output = DeviceMemory::<f32>::create_uninit(&context, 4)?;
 	// SAFETY: the allocation has room for four f32 values.

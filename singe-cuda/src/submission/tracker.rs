@@ -9,11 +9,11 @@ use std::{
 
 use crate::{
     error::{Error, Result},
-    event::Event,
+    event::{Event, EventWaitFlags},
     stream::Stream,
     submission::{Access, AccessMode, Resources},
-    utility::lock_for_cleanup,
-    view::{AllocationId, DeviceRegion, ranges_overlap},
+    utility::{lock_for_cleanup, ranges_overlap},
+    view::{AllocationId, DeviceRegion},
 };
 
 thread_local! { static ACCESS_HELD: Cell<bool> = const { Cell::new(false) }; }
@@ -101,7 +101,7 @@ struct AccessCell {
 }
 
 #[derive(Debug, Default)]
-pub struct AccessTracker {
+pub(crate) struct AccessTracker {
     failed: bool,
 }
 
@@ -110,13 +110,10 @@ impl AccessTracker {
     pub(crate) fn for_context(handle: usize) -> Result<Arc<Mutex<Self>>> {
         static TRACKERS: OnceLock<Mutex<HashMap<usize, Weak<Mutex<AccessTracker>>>>> =
             OnceLock::new();
-        let mut trackers =
-            TRACKERS
-                .get_or_init(Mutex::default)
-                .lock()
-                .map_err(|_| Error::ResourcePoisoned {
-                    name: "access trackers",
-                })?;
+        let mut trackers = TRACKERS
+            .get_or_init(Mutex::default)
+            .lock()
+            .map_err(|_| Error::lock_poisoned("access trackers"))?;
         trackers.retain(|_, tracker| tracker.strong_count() != 0);
         if let Some(tracker) = trackers.get(&handle).and_then(Weak::upgrade) {
             return Ok(tracker);
@@ -136,7 +133,7 @@ impl AccessTracker {
 // Gates are acquired in allocation order, then held through enqueue or host access.
 // No mutex guard is held across user code, so unwind releases gates without poisoning them.
 // The marker keeps this thread-local reentrancy guard on its originating thread.
-pub struct AccessGuard<'a> {
+pub(crate) struct AccessGuard<'a> {
     tracker: &'a Mutex<AccessTracker>,
     cells: Vec<Arc<AccessCell>>,
     acquired: usize,
@@ -154,7 +151,7 @@ fn by_allocation(accesses: &[Access]) -> HashMap<AllocationId, Vec<AccessKey>> {
     grouped
 }
 
-pub fn lock_access<'a>(
+pub(crate) fn lock_access<'a>(
     tracker: &'a Mutex<AccessTracker>,
     accesses: &[Access],
 ) -> Result<AccessGuard<'a>> {
@@ -165,17 +162,17 @@ pub fn lock_access<'a>(
 
     if tracker
         .lock()
-        .map_err(|_| Error::AccessTrackingPoisoned)?
+        .map_err(|_| Error::lock_poisoned("access tracker"))?
         .failed
     {
-        return Err(Error::AccessTrackingPoisoned);
+        return Err(Error::lock_poisoned("access tracker"));
     }
 
     let cells = {
         let mut allocations = ALLOCATIONS
             .get_or_init(Mutex::default)
             .lock()
-            .map_err(|_| Error::AccessTrackingPoisoned)?;
+            .map_err(|_| Error::lock_poisoned("access allocations"))?;
         allocations.retain(|_, cell| cell.strong_count() != 0);
         let mut ids: Vec<_> = accesses.iter().map(|access| access.id).collect();
         ids.sort_unstable();
@@ -210,16 +207,16 @@ pub fn lock_access<'a>(
         let mut state = cell
             .state
             .lock()
-            .map_err(|_| Error::AccessTrackingPoisoned)?;
+            .map_err(|_| Error::lock_poisoned("allocation access state"))?;
         while state.occupied {
             state = cell
                 .available
                 .wait(state)
-                .map_err(|_| Error::AccessTrackingPoisoned)?;
+                .map_err(|_| Error::lock_poisoned("allocation access state"))?;
         }
 
         if state.failed {
-            return Err(Error::AccessTrackingPoisoned);
+            return Err(Error::lock_poisoned("allocation access state"));
         }
 
         state.occupied = true;
@@ -229,10 +226,10 @@ pub fn lock_access<'a>(
 
     if tracker
         .lock()
-        .map_err(|_| Error::AccessTrackingPoisoned)?
+        .map_err(|_| Error::lock_poisoned("access tracker"))?
         .failed
     {
-        return Err(Error::AccessTrackingPoisoned);
+        return Err(Error::lock_poisoned("access tracker"));
     }
     Ok(guard)
 }
@@ -282,14 +279,14 @@ impl AccessGuard<'_> {
             let mut state = cell
                 .state
                 .lock()
-                .map_err(|_| Error::AccessTrackingPoisoned)?;
+                .map_err(|_| Error::lock_poisoned("allocation access state"))?;
             state.prune_completed()?;
             for pending in &state.pending {
                 if keys.iter().any(|key| pending.conflicts(key))
                     && let Some(event) = pending.event.upgrade()
                 {
                     if event.context() == stream.context() {
-                        stream.wait_event(&event)?;
+                        stream.wait_event(&event, EventWaitFlags::DEFAULT)?;
                     } else {
                         // Avoid propagating a failed context's event wait into another context.
                         event.synchronize()?;
@@ -339,7 +336,7 @@ impl AccessGuard<'_> {
             let mut state = cell
                 .state
                 .lock()
-                .map_err(|_| Error::AccessTrackingPoisoned)?;
+                .map_err(|_| Error::lock_poisoned("allocation access state"))?;
             for pending in &state.pending {
                 if pending.conflicts(&access)
                     && let Some(event) = pending.event.upgrade()

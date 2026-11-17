@@ -1,4 +1,47 @@
-//! ONNX model utilities.
+//! Decodes ONNX models from their protobuf encoding into typed Rust values.
+//! Singe's ONNX import reads its models through this crate.
+//!
+//! This crate provides:
+//!
+//! - **Parsing:** [`Model::from_path`] and [`Model::from_bytes`] parse a whole model, including inline tensor data.
+//! - **Structure-only parsing:** [`Model::structure_from_bytes`] skips inline tensor payloads, so a large model's weights are never allocated.
+//! - **Typed model:** [`Model`], [`Graph`], [`Node`], [`Attribute`], [`Tensor`], [`ValueInfo`], [`Type`], and the other ONNX values, with optional fields as [`Option`] and metadata as a sorted [`PropertyMap`] that rejects duplicate keys.
+//! - **Raw protobuf:** [`proto`], the [`prost`] types generated from the ONNX schema, and [`TryFrom`] conversions from them into [`Model`].
+//! - **Errors:** [`Error`] separates read failures ([`Io`](Error::Io)), invalid protobuf bytes ([`Decode`](Error::Decode)), and decoded messages that break the typed model's rules ([`Format`](Error::Format)).
+//!
+//! # Example
+//!
+//! Parse the structure of the model file given as the first argument, and print its operator sets and nodes:
+//!
+//! ```rust,no_run
+//! use std::{env, fs};
+//!
+//! use singe_onnx::Model;
+//!
+//! fn main() -> anyhow::Result<()> {
+//!     let path = env::args()
+//!         .nth(1)
+//!         .ok_or_else(|| anyhow::anyhow!("pass the path of an ONNX model"))?;
+//!     let model = Model::structure_from_bytes(&fs::read(path)?)?;
+//!     println!(
+//!         "{} {}, IR version {}",
+//!         model.producer_name, model.producer_version, model.ir_version
+//!     );
+//!     for import in &model.operator_set_imports {
+//!         let domain = import.domain.as_deref().unwrap_or("ai.onnx");
+//!         println!("operator set {domain} version {}", import.version);
+//!     }
+//!     for node in &model.graph.nodes {
+//!         println!(
+//!             "{} ({}): {:?} -> {:?}",
+//!             node.name, node.operator_type, node.inputs, node.outputs
+//!         );
+//!     }
+//!     Ok(())
+//! }
+//! ```
+//!
+//! Use [`Model::from_path`] or [`Model::from_bytes`] when you need the initializers' tensor data.
 
 /// Error types returned by ONNX decoding and parser conversion.
 pub mod error;
@@ -6,63 +49,10 @@ pub mod error;
 /// Typed ONNX model representation parsed from generated protobuf values.
 pub mod model;
 
-/// Generated ONNX protobuf types.
-///
-/// These types are generated from `proto/onnx.proto` at build time and kept public for callers that need raw ONNX protobuf access.
-pub mod proto {
-    /// Raw ONNX protobuf module generated from `proto/onnx.proto`.
-    #[allow(
-        clippy::absolute_paths,
-        reason = "generated protobuf code uses fully qualified paths"
-    )]
-    #[allow(
-        clippy::derive_partial_eq_without_eq,
-        clippy::doc_markdown,
-        clippy::must_use_candidate,
-        clippy::doc_lazy_continuation,
-        clippy::doc_overindented_list_items,
-        clippy::useless_conversion,
-        clippy::used_underscore_items,
-        reason = "protobuf docs preserve upstream layout, generated adapters use uniform conversions, and generated enums name their protobuf values, which start with an underscore"
-    )]
-    #[allow(missing_docs)]
-    #[allow(unused_qualifications)]
-    pub mod onnx {
-        bomboni_proto::include_proto!("onnx");
-
-        bomboni_proto::include_proto!("onnx.plus");
-    }
-
-    /// Structure-only ONNX protobuf module generated from `proto/onnx_structure.proto`.
-    #[allow(
-        clippy::absolute_paths,
-        reason = "generated protobuf code uses fully qualified paths"
-    )]
-    #[allow(
-        clippy::derive_partial_eq_without_eq,
-        clippy::doc_markdown,
-        clippy::must_use_candidate,
-        clippy::doc_lazy_continuation,
-        clippy::doc_overindented_list_items,
-        clippy::useless_conversion,
-        reason = "protobuf docs preserve upstream layout and generated adapters use uniform conversions"
-    )]
-    #[allow(missing_docs)]
-    #[allow(unused_qualifications)]
-    pub mod onnx_structure {
-        bomboni_proto::include_proto!("onnx_structure");
-
-        bomboni_proto::include_proto!("onnx_structure.plus");
-    }
-}
-
-use std::{fs::File, io::Read, path::Path};
-
-use bomboni_request::parse::RequestParseInto;
-use prost::Message;
+pub mod proto;
 
 pub use crate::{
-    error::{Error, Result},
+    error::{Error, FormatError, Result},
     model::{
         Attribute, AttributeType, AttributeValue, Dimension, DimensionValue, Function, Graph,
         Model, Node, OperatorSetId, PropertyMap, SparseTensor, SparseTensorType, Tensor,
@@ -71,122 +61,3 @@ pub use crate::{
         TypeValue, ValueInfo,
     },
 };
-
-/// Reads and parses an ONNX model from a reader.
-///
-/// # Errors
-///
-/// Returns an error if the reader cannot supply the model bytes, the bytes are not a valid ONNX protobuf message, or the decoded model violates the typed ONNX format requirements.
-pub fn read<R>(mut reader: R) -> Result<Model>
-where
-    R: Read,
-{
-    let mut bytes = Vec::new();
-    reader.read_to_end(&mut bytes)?;
-    decode(&bytes)
-}
-
-/// Reads and parses an ONNX model from a file.
-///
-/// # Errors
-///
-/// Returns an error if the file cannot be opened or read, the bytes are not a valid ONNX protobuf message, or the decoded model violates the typed ONNX format requirements.
-pub fn read_path(path: impl AsRef<Path>) -> Result<Model> {
-    read(File::open(path)?)
-}
-
-/// Decodes and parses an ONNX model from protobuf bytes.
-///
-/// # Errors
-///
-/// Returns an error if the bytes are not a valid ONNX protobuf message, or the decoded model violates the typed ONNX format requirements.
-pub fn decode(bytes: &[u8]) -> Result<Model> {
-    let proto = proto::onnx::ModelProto::decode(bytes)?;
-    Ok(proto.parse_into()?)
-}
-
-/// Decodes ONNX protobuf bytes without converting them to Singe's typed parser model.
-///
-/// # Errors
-///
-/// Returns an error if the bytes are not a valid ONNX protobuf message.
-pub fn decode_proto(bytes: &[u8]) -> Result<proto::onnx::ModelProto> {
-    Ok(proto::onnx::ModelProto::decode(bytes)?)
-}
-
-/// Encodes an ONNX protobuf model, including its inline tensor payloads.
-#[must_use]
-pub fn encode_proto(model: &proto::onnx::ModelProto) -> Vec<u8> {
-    model.encode_to_vec()
-}
-
-/// Reads and parses an ONNX model using the structure-only protobuf view.
-///
-/// # Errors
-///
-/// Returns an error if the reader cannot supply the model bytes, the bytes are not a valid ONNX protobuf message, or the decoded model violates the typed ONNX format requirements.
-pub fn read_structure<R>(mut reader: R) -> Result<Model>
-where
-    R: Read,
-{
-    let mut bytes = Vec::new();
-    reader.read_to_end(&mut bytes)?;
-    decode_structure(&bytes)
-}
-
-/// Reads and parses an ONNX model file using the structure-only protobuf view.
-///
-/// # Errors
-///
-/// Returns an error if the file cannot be opened or read, the bytes are not a valid ONNX protobuf message, or the decoded model violates the typed ONNX format requirements.
-pub fn read_structure_path(path: impl AsRef<Path>) -> Result<Model> {
-    read_structure(File::open(path)?)
-}
-
-/// Decodes and parses ONNX protobuf bytes using the structure-only protobuf view.
-///
-/// Inline tensor payload fields are omitted from this schema, so `prost` skips them as unknown protobuf fields instead of allocating weight buffers.
-///
-/// # Errors
-///
-/// Returns an error if the bytes are not a valid ONNX protobuf message, or the decoded model violates the typed ONNX format requirements.
-pub fn decode_structure(bytes: &[u8]) -> Result<Model> {
-    let proto = proto::onnx_structure::ModelProto::decode(bytes)?;
-    Ok(proto.parse_into()?)
-}
-
-/// Reads and decodes an ONNX model using the structure-only protobuf view.
-///
-/// # Errors
-///
-/// Returns an error if the reader cannot supply the model bytes, or the bytes are not a valid ONNX protobuf message.
-pub fn read_structure_proto<R>(mut reader: R) -> Result<proto::onnx_structure::ModelProto>
-where
-    R: Read,
-{
-    let mut bytes = Vec::new();
-    reader.read_to_end(&mut bytes)?;
-    decode_structure_proto(&bytes)
-}
-
-/// Reads and decodes an ONNX model file using the structure-only protobuf view.
-///
-/// # Errors
-///
-/// Returns an error if the file cannot be opened or read, or the bytes are not a valid ONNX protobuf message.
-pub fn read_structure_proto_path(
-    path: impl AsRef<Path>,
-) -> Result<proto::onnx_structure::ModelProto> {
-    read_structure_proto(File::open(path)?)
-}
-
-/// Decodes ONNX protobuf bytes using the structure-only protobuf view.
-///
-/// Inline tensor payload fields are omitted from this schema, so `prost` skips them as unknown protobuf fields instead of allocating weight buffers.
-///
-/// # Errors
-///
-/// Returns an error if the bytes are not a valid ONNX protobuf message.
-pub fn decode_structure_proto(bytes: &[u8]) -> Result<proto::onnx_structure::ModelProto> {
-    Ok(proto::onnx_structure::ModelProto::decode(bytes)?)
-}

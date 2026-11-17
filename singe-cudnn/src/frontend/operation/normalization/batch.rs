@@ -1,14 +1,12 @@
 use serde::{Deserialize, Serialize};
 
-pub use crate::backend::execution::normalization::{
-    BatchNormalizationBackwardWeightsInputs, BatchNormalizationBackwardWeightsOutputs,
-    BatchNormalizationFinalizeInputs, BatchNormalizationFinalizeOutputs,
-    BatchNormalizationRunningStatistics, BatchNormalizationRunningStats,
-};
 use crate::{
-    backend::{execution::normalization::BatchNormalizationFinalizeStatsMode, tensor::TensorId},
+    backend::operation::normalization::{
+        BatchNormalizationFinalizeStatsMode, BatchNormalizationRunningStatistics,
+        BatchNormalizationRunningStats, NormalizationSavedStatistics,
+    },
     data_type::DataType,
-    frontend::operation::NormalizationSavedStatistics,
+    tensor::TensorId,
 };
 
 /// Math precision and optional scope for `BatchNorm` weight gradients and equivalent coefficients.

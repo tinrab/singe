@@ -48,50 +48,30 @@ pub type nvtxStringRegistration = nvtxStringRegistration_st;
 ///
 /// This structure is opaque to the user and is used as a handle to reference a registered string.  This type is returned from tools when using the NVTX API to create a registered string.
 pub type nvtxStringHandle_t = *mut nvtxStringRegistration;
-/// --------------------------------------------------------------------------- Color Types -------------------------------------------------------------------------
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum nvtxColorType_t {
+impl nvtxColorType_t {
     /// Color attribute is unused.
-    NVTX_COLOR_UNKNOWN = 0,
+    pub const NVTX_COLOR_UNKNOWN: nvtxColorType_t = nvtxColorType_t(0);
     /// An ARGB color is provided.
-    NVTX_COLOR_ARGB = 1,
+    pub const NVTX_COLOR_ARGB: nvtxColorType_t = nvtxColorType_t(1);
+}
+/// --------------------------------------------------------------------------- Color Types -------------------------------------------------------------------------
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct nvtxColorType_t(pub ::core::ffi::c_uint);
+impl nvtxMessageType_t {
+    /// Message attribute is unused.
+    pub const NVTX_MESSAGE_UNKNOWN: nvtxMessageType_t = nvtxMessageType_t(0);
+    /// A character sequence is used as payload.
+    pub const NVTX_MESSAGE_TYPE_ASCII: nvtxMessageType_t = nvtxMessageType_t(1);
+    /// A wide character sequence is used as payload.
+    pub const NVTX_MESSAGE_TYPE_UNICODE: nvtxMessageType_t = nvtxMessageType_t(2);
+    /// A unique string handle that was registered with [`nvtxDomainRegisterStringA`] or nvtxDomainRegisterStringW().
+    pub const NVTX_MESSAGE_TYPE_REGISTERED: nvtxMessageType_t = nvtxMessageType_t(3);
 }
 /// --------------------------------------------------------------------------- Message Types -------------------------------------------------------------------------
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum nvtxMessageType_t {
-    /// Message attribute is unused.
-    NVTX_MESSAGE_UNKNOWN = 0,
-    /// A character sequence is used as payload.
-    NVTX_MESSAGE_TYPE_ASCII = 1,
-    /// A wide character sequence is used as payload.
-    NVTX_MESSAGE_TYPE_UNICODE = 2,
-    /// A unique string handle that was registered with [`nvtxDomainRegisterStringA`] or nvtxDomainRegisterStringW().
-    NVTX_MESSAGE_TYPE_REGISTERED = 3,
-}
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct nvtxMessageType_t(pub ::core::ffi::c_uint);
 /// NVTX message representation selected by an event or resource message-type field.
 #[repr(C)]
 #[derive(Copy, Clone)]
@@ -122,36 +102,26 @@ singe_loader::functions! { crate::NVTX;
     /// - `reserved`: must be zero or NULL.
     pub fn nvtxInitialize(reserved: *const ::core::ffi::c_void);
 }
-/// --------------------------------------------------------------------------- Payload Types -------------------------------------------------------------------------
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum nvtxPayloadType_t {
+impl nvtxPayloadType_t {
     /// Payload attribute is unused.
-    NVTX_PAYLOAD_UNKNOWN = 0,
+    pub const NVTX_PAYLOAD_UNKNOWN: nvtxPayloadType_t = nvtxPayloadType_t(0);
     /// A 64 bit unsigned integer value is used as payload.
-    NVTX_PAYLOAD_TYPE_UNSIGNED_INT64 = 1,
+    pub const NVTX_PAYLOAD_TYPE_UNSIGNED_INT64: nvtxPayloadType_t = nvtxPayloadType_t(1);
     /// A 64 bit signed integer value is used as payload.
-    NVTX_PAYLOAD_TYPE_INT64 = 2,
+    pub const NVTX_PAYLOAD_TYPE_INT64: nvtxPayloadType_t = nvtxPayloadType_t(2);
     /// A 64 bit floating point value is used as payload.
-    NVTX_PAYLOAD_TYPE_DOUBLE = 3,
+    pub const NVTX_PAYLOAD_TYPE_DOUBLE: nvtxPayloadType_t = nvtxPayloadType_t(3);
     /// A 32-bit unsigned integer value is used as payload.
-    NVTX_PAYLOAD_TYPE_UNSIGNED_INT32 = 4,
+    pub const NVTX_PAYLOAD_TYPE_UNSIGNED_INT32: nvtxPayloadType_t = nvtxPayloadType_t(4);
     /// A 32-bit signed integer value is used as payload.
-    NVTX_PAYLOAD_TYPE_INT32 = 5,
+    pub const NVTX_PAYLOAD_TYPE_INT32: nvtxPayloadType_t = nvtxPayloadType_t(5);
     /// A 32 bit floating point value is used as payload.
-    NVTX_PAYLOAD_TYPE_FLOAT = 6,
+    pub const NVTX_PAYLOAD_TYPE_FLOAT: nvtxPayloadType_t = nvtxPayloadType_t(6);
 }
+/// --------------------------------------------------------------------------- Payload Types -------------------------------------------------------------------------
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct nvtxPayloadType_t(pub ::core::ffi::c_uint);
 /// Event Attribute Structure.
 ///
 /// This structure is used to describe the attributes of an event. The layout of the structure is defined by a specific version of the tools extension library and can change between different versions of the Tools Extension library.
@@ -505,32 +475,32 @@ singe_loader::functions! { crate::NVTX;
     /// Ends a nested thread range.
     pub fn nvtxRangePop() -> ::core::ffi::c_int;
 }
-/// Generic resource type for when a resource class is not available.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum nvtxResourceGenericType_t {
+impl nvtxResourceGenericType_t {
     /// No supported NVTX resource identifier type is selected.
-    NVTX_RESOURCE_TYPE_UNKNOWN = 0,
+    pub const NVTX_RESOURCE_TYPE_UNKNOWN: nvtxResourceGenericType_t = nvtxResourceGenericType_t(
+        0,
+    );
     /// Generic pointer assumed to have no collisions with other pointers.
-    NVTX_RESOURCE_TYPE_GENERIC_POINTER = 65537,
+    pub const NVTX_RESOURCE_TYPE_GENERIC_POINTER: nvtxResourceGenericType_t = nvtxResourceGenericType_t(
+        65537,
+    );
     /// Generic handle assumed to have no collisions with other handles.
-    NVTX_RESOURCE_TYPE_GENERIC_HANDLE = 65538,
+    pub const NVTX_RESOURCE_TYPE_GENERIC_HANDLE: nvtxResourceGenericType_t = nvtxResourceGenericType_t(
+        65538,
+    );
     /// OS native thread identifier.
-    NVTX_RESOURCE_TYPE_GENERIC_THREAD_NATIVE = 65539,
+    pub const NVTX_RESOURCE_TYPE_GENERIC_THREAD_NATIVE: nvtxResourceGenericType_t = nvtxResourceGenericType_t(
+        65539,
+    );
     /// POSIX pthread identifier.
-    NVTX_RESOURCE_TYPE_GENERIC_THREAD_POSIX = 65540,
+    pub const NVTX_RESOURCE_TYPE_GENERIC_THREAD_POSIX: nvtxResourceGenericType_t = nvtxResourceGenericType_t(
+        65540,
+    );
 }
+/// Generic resource type for when a resource class is not available.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct nvtxResourceGenericType_t(pub ::core::ffi::c_uint);
 /// Resource Attribute Structure.
 ///
 /// This structure is used to describe the attributes of a resource. The layout of the structure is defined by a specific version of the tools extension library and can change between different versions of the Tools Extension library.

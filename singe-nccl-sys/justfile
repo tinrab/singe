@@ -5,17 +5,7 @@ generate:
     #!/usr/bin/env bash
     set -euxo pipefail
 
-    num_enums=(
-        "ncclResult_t"
-        "ncclRedOp_t"
-        "ncclDataType_t"
-        "ncclScalarResidence_t"
-        "ncclHostCftMode_t"
-    )
-    enum_args=$(for enum in "${num_enums[@]}"; do echo -n "--with-derive-custom $enum=TryFromPrimitive,IntoPrimitive "; done)
-
     bindgen {{nccl_include_path}}/nccl.h \
-        $enum_args \
         --allowlist-item "^nccl.*" \
         --allowlist-item "^NCCL.*" \
         --blocklist-item "^cuda.*" \
@@ -28,7 +18,7 @@ generate:
         --with-derive-hash \
         --with-derive-ord \
         --use-core \
-        --default-enum-style=rust \
+        --default-enum-style=newtype \
         -- \
             -fparse-all-comments \
             -fretain-comments-from-system-headers \

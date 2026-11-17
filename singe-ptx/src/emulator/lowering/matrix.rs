@@ -12,7 +12,7 @@ use crate::{
     },
 };
 
-pub fn load(
+pub(crate) fn load(
     compiler: &FunctionCompiler<'_, '_>,
     instruction: &Instruction,
     head: &mut Head<'_>,
@@ -45,7 +45,7 @@ pub fn load(
     }))
 }
 
-pub fn multiply(
+pub(crate) fn multiply(
     compiler: &FunctionCompiler<'_, '_>,
     instruction: &Instruction,
     head: &mut Head<'_>,

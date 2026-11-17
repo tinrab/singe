@@ -174,10 +174,8 @@ where
         }
 
         self.stream_context.stream().ensure_not_capturing()?;
-        if let Some(producer) = self.view()?.region().stream() {
-            producer.ensure_not_capturing()?;
-        }
-        Ok(())
+        // Every pipeline operation reads the current backing, so wait for its producer on another stream here.
+        self.stream_context.prepare_region(&self.view()?)
     }
 
     /// Returns the pixel dimensions of the current backing.

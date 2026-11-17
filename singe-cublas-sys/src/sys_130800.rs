@@ -44,397 +44,308 @@ pub type cuFloatComplex = float2;
 pub type cuDoubleComplex = double2;
 /// Single-precision complex scalar with `x` as its real component and `y` as its imaginary component.
 pub type cuComplex = cuFloatComplex;
-/// The type is used for function status returns. All cuBLAS library functions return their status, which can have the following values.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cublasStatus_t {
+impl cublasStatus_t {
     /// The operation completed successfully.
-    CUBLAS_STATUS_SUCCESS = 0,
+    pub const CUBLAS_STATUS_SUCCESS: cublasStatus_t = cublasStatus_t(0);
     /// The cuBLAS library was not initialized. This is usually caused by the lack of a prior [`cublasCreate_v2`] call, an error in the CUDA Runtime API called by the cuBLAS routine, or an error in the hardware setup.
     ///
     /// To correct: call [`cublasCreate_v2`] before the function call; and check that the hardware, an appropriate version of the driver, and the cuBLAS library are correctly installed.
-    CUBLAS_STATUS_NOT_INITIALIZED = 1,
+    pub const CUBLAS_STATUS_NOT_INITIALIZED: cublasStatus_t = cublasStatus_t(1);
     /// Resource allocation failed inside the cuBLAS library. This is usually caused by a `cudaMalloc()` failure.
     ///
     /// To correct: prior to the function call, deallocate previously allocated memory as much as possible.
-    CUBLAS_STATUS_ALLOC_FAILED = 3,
+    pub const CUBLAS_STATUS_ALLOC_FAILED: cublasStatus_t = cublasStatus_t(3);
     /// An unsupported value or parameter was passed to the function (a negative vector size, for example).
     ///
     /// To correct: ensure that all the parameters being passed have valid values.
-    CUBLAS_STATUS_INVALID_VALUE = 7,
+    pub const CUBLAS_STATUS_INVALID_VALUE: cublasStatus_t = cublasStatus_t(7);
     /// The function requires a feature absent from the device architecture; usually caused by compute capability lower than 5.0.
     ///
     /// To correct: compile and run the application on a device with appropriate compute capability.
-    CUBLAS_STATUS_ARCH_MISMATCH = 8,
+    pub const CUBLAS_STATUS_ARCH_MISMATCH: cublasStatus_t = cublasStatus_t(8);
     /// An access to GPU memory space failed, which is usually caused by a failure to bind a texture.
     ///
     /// To correct: before the function call, unbind any previously bound textures.
-    CUBLAS_STATUS_MAPPING_ERROR = 11,
+    pub const CUBLAS_STATUS_MAPPING_ERROR: cublasStatus_t = cublasStatus_t(11);
     /// The GPU program failed to execute. This is often caused by a launch failure of the kernel on the GPU, which can be caused by multiple reasons.
     ///
     /// To correct: check that the hardware, an appropriate version of the driver, and the cuBLAS library are correctly installed.
-    CUBLAS_STATUS_EXECUTION_FAILED = 13,
+    pub const CUBLAS_STATUS_EXECUTION_FAILED: cublasStatus_t = cublasStatus_t(13);
     /// An internal cuBLAS operation failed. This error is usually caused by a `cudaMemcpyAsync()` failure.
     ///
     /// To correct: check that the hardware, an appropriate version of the driver, and the cuBLAS library are correctly installed. Also, check that the memory passed as a parameter to the routine is not being deallocated prior to the routine’s completion.
-    CUBLAS_STATUS_INTERNAL_ERROR = 14,
+    pub const CUBLAS_STATUS_INTERNAL_ERROR: cublasStatus_t = cublasStatus_t(14);
     /// The functionality requested is not supported.
-    CUBLAS_STATUS_NOT_SUPPORTED = 15,
+    pub const CUBLAS_STATUS_NOT_SUPPORTED: cublasStatus_t = cublasStatus_t(15);
     /// The functionality requested requires some license and an error was detected when trying to check the current licensing. This error can happen if the license is not present or is expired or if the environment variable NVIDIA_LICENSE_FILE is not set properly.
-    CUBLAS_STATUS_LICENSE_ERROR = 16,
+    pub const CUBLAS_STATUS_LICENSE_ERROR: cublasStatus_t = cublasStatus_t(16);
+}
+/// The type is used for function status returns. All cuBLAS library functions return their status, which can have the following values.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cublasStatus_t(pub ::core::ffi::c_uint);
+impl cublasFillMode_t {
+    /// The lower part of the matrix is filled.
+    pub const CUBLAS_FILL_MODE_LOWER: cublasFillMode_t = cublasFillMode_t(0);
+    /// The upper part of the matrix is filled.
+    pub const CUBLAS_FILL_MODE_UPPER: cublasFillMode_t = cublasFillMode_t(1);
+    /// The full matrix is filled.
+    pub const CUBLAS_FILL_MODE_FULL: cublasFillMode_t = cublasFillMode_t(2);
 }
 /// The type indicates which part (lower or upper) of the dense matrix was filled and consequently should be used by the function. Its values correspond to Fortran characters `L` or `l` (lower) and `U` or `u` (upper) that are often used as parameters to legacy BLAS implementations.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cublasFillMode_t {
-    /// The lower part of the matrix is filled.
-    CUBLAS_FILL_MODE_LOWER = 0,
-    /// The upper part of the matrix is filled.
-    CUBLAS_FILL_MODE_UPPER = 1,
-    /// The full matrix is filled.
-    CUBLAS_FILL_MODE_FULL = 2,
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cublasFillMode_t(pub ::core::ffi::c_uint);
+impl cublasDiagType_t {
+    /// The matrix diagonal has non-unit elements.
+    pub const CUBLAS_DIAG_NON_UNIT: cublasDiagType_t = cublasDiagType_t(0);
+    /// The matrix diagonal has unit elements.
+    pub const CUBLAS_DIAG_UNIT: cublasDiagType_t = cublasDiagType_t(1);
 }
 /// The type indicates whether the main diagonal of the dense matrix is unity and consequently should not be touched or modified by the function. Its values correspond to Fortran characters `‘N’` or `‘n’` (non-unit) and `‘U’` or `‘u’` (unit) that are often used as parameters to legacy BLAS implementations.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cublasDiagType_t {
-    /// The matrix diagonal has non-unit elements.
-    CUBLAS_DIAG_NON_UNIT = 0,
-    /// The matrix diagonal has unit elements.
-    CUBLAS_DIAG_UNIT = 1,
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cublasDiagType_t(pub ::core::ffi::c_uint);
+impl cublasSideMode_t {
+    /// The matrix is on the left side in the equation.
+    pub const CUBLAS_SIDE_LEFT: cublasSideMode_t = cublasSideMode_t(0);
+    /// The matrix is on the right side in the equation.
+    pub const CUBLAS_SIDE_RIGHT: cublasSideMode_t = cublasSideMode_t(1);
 }
 /// The type indicates whether the dense matrix is on the left or right side in the matrix equation solved by a particular function. Its values correspond to Fortran characters `‘L’` or `‘l’` (left) and `‘R’` or `‘r’` (right) that are often used as parameters to legacy BLAS implementations.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cublasSideMode_t {
-    /// The matrix is on the left side in the equation.
-    CUBLAS_SIDE_LEFT = 0,
-    /// The matrix is on the right side in the equation.
-    CUBLAS_SIDE_RIGHT = 1,
-}
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cublasSideMode_t(pub ::core::ffi::c_uint);
 impl cublasOperation_t {
+    /// The non-transpose operation is selected.
+    pub const CUBLAS_OP_N: cublasOperation_t = cublasOperation_t(0);
+    /// The transpose operation is selected.
+    pub const CUBLAS_OP_T: cublasOperation_t = cublasOperation_t(1);
+    /// The conjugate transpose operation is selected.
+    pub const CUBLAS_OP_C: cublasOperation_t = cublasOperation_t(2);
     /// synonym if CUBLAS_OP_C
-    pub const CUBLAS_OP_HERMITAN: cublasOperation_t = cublasOperation_t::CUBLAS_OP_C;
+    pub const CUBLAS_OP_HERMITAN: cublasOperation_t = cublasOperation_t(2);
+    /// conjugate, placeholder - not supported in the current release
+    pub const CUBLAS_OP_CONJG: cublasOperation_t = cublasOperation_t(3);
 }
 /// The [`cublasOperation_t`] type indicates which operation needs to be performed with the dense matrix. Its values correspond to Fortran characters `‘N’` or `‘n’` (non-transpose), `‘T’` or `‘t’` (transpose) and `‘C’` or `‘c’` (conjugate transpose) that are often used as parameters to legacy BLAS implementations.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cublasOperation_t {
-    /// The non-transpose operation is selected.
-    CUBLAS_OP_N = 0,
-    /// The transpose operation is selected.
-    CUBLAS_OP_T = 1,
-    /// The conjugate transpose operation is selected.
-    CUBLAS_OP_C = 2,
-    /// conjugate, placeholder - not supported in the current release
-    CUBLAS_OP_CONJG = 3,
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cublasOperation_t(pub ::core::ffi::c_uint);
+impl cublasPointerMode_t {
+    /// The scalars are passed by reference on the host.
+    pub const CUBLAS_POINTER_MODE_HOST: cublasPointerMode_t = cublasPointerMode_t(0);
+    /// The scalars are passed by reference on the device.
+    pub const CUBLAS_POINTER_MODE_DEVICE: cublasPointerMode_t = cublasPointerMode_t(1);
 }
 /// The [`cublasPointerMode_t`] type indicates whether the scalar values are passed by reference on the host or device. It is important to point out that if several scalar values are present in the function call, all of them must conform to the same single pointer mode. The pointer mode can be set and retrieved using [`cublasSetPointerMode_v2`] and [`cublasGetPointerMode_v2`] routines, respectively.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cublasPointerMode_t {
-    /// The scalars are passed by reference on the host.
-    CUBLAS_POINTER_MODE_HOST = 0,
-    /// The scalars are passed by reference on the device.
-    CUBLAS_POINTER_MODE_DEVICE = 1,
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cublasPointerMode_t(pub ::core::ffi::c_uint);
+impl cublasAtomicsMode_t {
+    /// The usage of atomics is not allowed.
+    pub const CUBLAS_ATOMICS_NOT_ALLOWED: cublasAtomicsMode_t = cublasAtomicsMode_t(0);
+    /// The usage of atomics is allowed.
+    pub const CUBLAS_ATOMICS_ALLOWED: cublasAtomicsMode_t = cublasAtomicsMode_t(1);
 }
 /// The type indicates whether cuBLAS routines which has an alternate implementation using atomics can be used. The atomics mode can be set and queried using [`cublasSetAtomicsMode`] and [`cublasGetAtomicsMode`] and routines, respectively.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cublasAtomicsMode_t {
-    /// The usage of atomics is not allowed.
-    CUBLAS_ATOMICS_NOT_ALLOWED = 0,
-    /// The usage of atomics is allowed.
-    CUBLAS_ATOMICS_ALLOWED = 1,
-}
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cublasAtomicsMode_t(pub ::core::ffi::c_uint);
 impl cublasGemmAlgo_t {
-    /// Apply Heuristics to select the GEMM algorithm
-    pub const CUBLAS_GEMM_DEFAULT: cublasGemmAlgo_t = cublasGemmAlgo_t::CUBLAS_GEMM_DFALT;
-}
-impl cublasGemmAlgo_t {
-    /// Alias for the deprecated default Tensor Core GEMM algorithm selector. It permits reduced-precision [`cublasComputeType_t::CUBLAS_COMPUTE_32F_FAST_16F`] kernels for backward compatibility and has no effect on Ampere or later architectures.
-    pub const CUBLAS_GEMM_DFALT_TENSOR_OP: cublasGemmAlgo_t = cublasGemmAlgo_t::CUBLAS_GEMM_DEFAULT_TENSOR_OP;
-}
-/// cublasGemmAlgo_t type is an enumerant to specify the algorithm for matrix-matrix multiplication on GPU architectures up to `sm_75`. On `sm_80` and newer GPU architectures, this enumerant has no effect. cuBLAS has the following algorithm options.
-#[repr(i32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cublasGemmAlgo_t {
     /// Heuristic selection of the native GEMM algorithm. This selector has no effect on Ampere or later GPU architectures.
-    CUBLAS_GEMM_DFALT = -1,
+    pub const CUBLAS_GEMM_DFALT: cublasGemmAlgo_t = cublasGemmAlgo_t(-1);
+    /// Apply Heuristics to select the GEMM algorithm.
+    pub const CUBLAS_GEMM_DEFAULT: cublasGemmAlgo_t = cublasGemmAlgo_t(-1);
     /// Explicitly choose an Algorithm `0..23`. Note: Doesn’t have effect on NVIDIA Ampere architecture GPUs and newer.
-    CUBLAS_GEMM_ALGO0 = 0,
+    pub const CUBLAS_GEMM_ALGO0: cublasGemmAlgo_t = cublasGemmAlgo_t(0);
     /// Explicitly choose an Algorithm `0..23`. Note: Doesn’t have effect on NVIDIA Ampere architecture GPUs and newer.
-    CUBLAS_GEMM_ALGO1 = 1,
+    pub const CUBLAS_GEMM_ALGO1: cublasGemmAlgo_t = cublasGemmAlgo_t(1);
     /// Explicitly choose an Algorithm `0..23`. Note: Doesn’t have effect on NVIDIA Ampere architecture GPUs and newer.
-    CUBLAS_GEMM_ALGO2 = 2,
+    pub const CUBLAS_GEMM_ALGO2: cublasGemmAlgo_t = cublasGemmAlgo_t(2);
     /// Explicitly choose an Algorithm `0..23`. Note: Doesn’t have effect on NVIDIA Ampere architecture GPUs and newer.
-    CUBLAS_GEMM_ALGO3 = 3,
+    pub const CUBLAS_GEMM_ALGO3: cublasGemmAlgo_t = cublasGemmAlgo_t(3);
     /// Explicitly choose an Algorithm `0..23`. Note: Doesn’t have effect on NVIDIA Ampere architecture GPUs and newer.
-    CUBLAS_GEMM_ALGO4 = 4,
+    pub const CUBLAS_GEMM_ALGO4: cublasGemmAlgo_t = cublasGemmAlgo_t(4);
     /// Explicitly choose an Algorithm `0..23`. Note: Doesn’t have effect on NVIDIA Ampere architecture GPUs and newer.
-    CUBLAS_GEMM_ALGO5 = 5,
+    pub const CUBLAS_GEMM_ALGO5: cublasGemmAlgo_t = cublasGemmAlgo_t(5);
     /// Explicitly choose an Algorithm `0..23`. Note: Doesn’t have effect on NVIDIA Ampere architecture GPUs and newer.
-    CUBLAS_GEMM_ALGO6 = 6,
+    pub const CUBLAS_GEMM_ALGO6: cublasGemmAlgo_t = cublasGemmAlgo_t(6);
     /// Explicitly choose an Algorithm `0..23`. Note: Doesn’t have effect on NVIDIA Ampere architecture GPUs and newer.
-    CUBLAS_GEMM_ALGO7 = 7,
+    pub const CUBLAS_GEMM_ALGO7: cublasGemmAlgo_t = cublasGemmAlgo_t(7);
     /// Explicitly choose an Algorithm `0..23`. Note: Doesn’t have effect on NVIDIA Ampere architecture GPUs and newer.
-    CUBLAS_GEMM_ALGO8 = 8,
+    pub const CUBLAS_GEMM_ALGO8: cublasGemmAlgo_t = cublasGemmAlgo_t(8);
     /// Explicitly choose an Algorithm `0..23`. Note: Doesn’t have effect on NVIDIA Ampere architecture GPUs and newer.
-    CUBLAS_GEMM_ALGO9 = 9,
+    pub const CUBLAS_GEMM_ALGO9: cublasGemmAlgo_t = cublasGemmAlgo_t(9);
     /// Explicitly choose an Algorithm `0..23`. Note: Doesn’t have effect on NVIDIA Ampere architecture GPUs and newer.
-    CUBLAS_GEMM_ALGO10 = 10,
+    pub const CUBLAS_GEMM_ALGO10: cublasGemmAlgo_t = cublasGemmAlgo_t(10);
     /// Explicitly choose an Algorithm `0..23`. Note: Doesn’t have effect on NVIDIA Ampere architecture GPUs and newer.
-    CUBLAS_GEMM_ALGO11 = 11,
+    pub const CUBLAS_GEMM_ALGO11: cublasGemmAlgo_t = cublasGemmAlgo_t(11);
     /// Explicitly choose an Algorithm `0..23`. Note: Doesn’t have effect on NVIDIA Ampere architecture GPUs and newer.
-    CUBLAS_GEMM_ALGO12 = 12,
+    pub const CUBLAS_GEMM_ALGO12: cublasGemmAlgo_t = cublasGemmAlgo_t(12);
     /// Explicitly choose an Algorithm `0..23`. Note: Doesn’t have effect on NVIDIA Ampere architecture GPUs and newer.
-    CUBLAS_GEMM_ALGO13 = 13,
+    pub const CUBLAS_GEMM_ALGO13: cublasGemmAlgo_t = cublasGemmAlgo_t(13);
     /// Explicitly choose an Algorithm `0..23`. Note: Doesn’t have effect on NVIDIA Ampere architecture GPUs and newer.
-    CUBLAS_GEMM_ALGO14 = 14,
+    pub const CUBLAS_GEMM_ALGO14: cublasGemmAlgo_t = cublasGemmAlgo_t(14);
     /// Explicitly choose an Algorithm `0..23`. Note: Doesn’t have effect on NVIDIA Ampere architecture GPUs and newer.
-    CUBLAS_GEMM_ALGO15 = 15,
+    pub const CUBLAS_GEMM_ALGO15: cublasGemmAlgo_t = cublasGemmAlgo_t(15);
     /// Explicitly choose an Algorithm `0..23`. Note: Doesn’t have effect on NVIDIA Ampere architecture GPUs and newer.
-    CUBLAS_GEMM_ALGO16 = 16,
+    pub const CUBLAS_GEMM_ALGO16: cublasGemmAlgo_t = cublasGemmAlgo_t(16);
     /// Explicitly choose an Algorithm `0..23`. Note: Doesn’t have effect on NVIDIA Ampere architecture GPUs and newer.
-    CUBLAS_GEMM_ALGO17 = 17,
+    pub const CUBLAS_GEMM_ALGO17: cublasGemmAlgo_t = cublasGemmAlgo_t(17);
     /// Explicitly choose an Algorithm `0..23`. Note: Doesn’t have effect on NVIDIA Ampere architecture GPUs and newer.
-    CUBLAS_GEMM_ALGO18 = 18,
+    pub const CUBLAS_GEMM_ALGO18: cublasGemmAlgo_t = cublasGemmAlgo_t(18);
     /// Explicitly choose an Algorithm `0..23`. Note: Doesn’t have effect on NVIDIA Ampere architecture GPUs and newer.
-    CUBLAS_GEMM_ALGO19 = 19,
+    pub const CUBLAS_GEMM_ALGO19: cublasGemmAlgo_t = cublasGemmAlgo_t(19);
     /// Explicitly choose an Algorithm `0..23`. Note: Doesn’t have effect on NVIDIA Ampere architecture GPUs and newer.
-    CUBLAS_GEMM_ALGO20 = 20,
+    pub const CUBLAS_GEMM_ALGO20: cublasGemmAlgo_t = cublasGemmAlgo_t(20);
     /// Explicitly choose an Algorithm `0..23`. Note: Doesn’t have effect on NVIDIA Ampere architecture GPUs and newer.
-    CUBLAS_GEMM_ALGO21 = 21,
+    pub const CUBLAS_GEMM_ALGO21: cublasGemmAlgo_t = cublasGemmAlgo_t(21);
     /// Explicitly choose an Algorithm `0..23`. Note: Doesn’t have effect on NVIDIA Ampere architecture GPUs and newer.
-    CUBLAS_GEMM_ALGO22 = 22,
+    pub const CUBLAS_GEMM_ALGO22: cublasGemmAlgo_t = cublasGemmAlgo_t(22);
     /// Explicitly choose an Algorithm `0..23`. Note: Doesn’t have effect on NVIDIA Ampere architecture GPUs and newer.
-    CUBLAS_GEMM_ALGO23 = 23,
+    pub const CUBLAS_GEMM_ALGO23: cublasGemmAlgo_t = cublasGemmAlgo_t(23);
     /// Deprecated heuristic GEMM algorithm selection permitting reduced-precision [`cublasComputeType_t::CUBLAS_COMPUTE_32F_FAST_16F`] kernels for backward compatibility. This selector has no effect on Ampere or later GPU architectures.
     #[deprecated]
-    CUBLAS_GEMM_DEFAULT_TENSOR_OP = 99,
+    pub const CUBLAS_GEMM_DEFAULT_TENSOR_OP: cublasGemmAlgo_t = cublasGemmAlgo_t(99);
+    /// Alias for the deprecated default Tensor Core GEMM algorithm selector. It permits reduced-precision [`cublasComputeType_t::CUBLAS_COMPUTE_32F_FAST_16F`] kernels for backward compatibility and has no effect on Ampere or later architectures.
+    pub const CUBLAS_GEMM_DFALT_TENSOR_OP: cublasGemmAlgo_t = cublasGemmAlgo_t(99);
     /// Those values are deprecated and will be removed in a future release. Explicitly choose a Tensor core GEMM Algorithm `0..15`. Allows use of reduced precision CUBLAS_COMPUTE_32F_FAST_16F kernels (for backward compatibility). Note: Doesn’t have effect on NVIDIA Ampere architecture GPUs and newer.
     #[deprecated]
-    CUBLAS_GEMM_ALGO0_TENSOR_OP = 100,
+    pub const CUBLAS_GEMM_ALGO0_TENSOR_OP: cublasGemmAlgo_t = cublasGemmAlgo_t(100);
     /// Those values are deprecated and will be removed in a future release. Explicitly choose a Tensor core GEMM Algorithm `0..15`. Allows use of reduced precision CUBLAS_COMPUTE_32F_FAST_16F kernels (for backward compatibility). Note: Doesn’t have effect on NVIDIA Ampere architecture GPUs and newer.
     #[deprecated]
-    CUBLAS_GEMM_ALGO1_TENSOR_OP = 101,
+    pub const CUBLAS_GEMM_ALGO1_TENSOR_OP: cublasGemmAlgo_t = cublasGemmAlgo_t(101);
     /// Those values are deprecated and will be removed in a future release. Explicitly choose a Tensor core GEMM Algorithm `0..15`. Allows use of reduced precision CUBLAS_COMPUTE_32F_FAST_16F kernels (for backward compatibility). Note: Doesn’t have effect on NVIDIA Ampere architecture GPUs and newer.
     #[deprecated]
-    CUBLAS_GEMM_ALGO2_TENSOR_OP = 102,
+    pub const CUBLAS_GEMM_ALGO2_TENSOR_OP: cublasGemmAlgo_t = cublasGemmAlgo_t(102);
     /// Those values are deprecated and will be removed in a future release. Explicitly choose a Tensor core GEMM Algorithm `0..15`. Allows use of reduced precision CUBLAS_COMPUTE_32F_FAST_16F kernels (for backward compatibility). Note: Doesn’t have effect on NVIDIA Ampere architecture GPUs and newer.
     #[deprecated]
-    CUBLAS_GEMM_ALGO3_TENSOR_OP = 103,
+    pub const CUBLAS_GEMM_ALGO3_TENSOR_OP: cublasGemmAlgo_t = cublasGemmAlgo_t(103);
     /// Those values are deprecated and will be removed in a future release. Explicitly choose a Tensor core GEMM Algorithm `0..15`. Allows use of reduced precision CUBLAS_COMPUTE_32F_FAST_16F kernels (for backward compatibility). Note: Doesn’t have effect on NVIDIA Ampere architecture GPUs and newer.
     #[deprecated]
-    CUBLAS_GEMM_ALGO4_TENSOR_OP = 104,
+    pub const CUBLAS_GEMM_ALGO4_TENSOR_OP: cublasGemmAlgo_t = cublasGemmAlgo_t(104);
     /// Those values are deprecated and will be removed in a future release. Explicitly choose a Tensor core GEMM Algorithm `0..15`. Allows use of reduced precision CUBLAS_COMPUTE_32F_FAST_16F kernels (for backward compatibility). Note: Doesn’t have effect on NVIDIA Ampere architecture GPUs and newer.
     #[deprecated]
-    CUBLAS_GEMM_ALGO5_TENSOR_OP = 105,
+    pub const CUBLAS_GEMM_ALGO5_TENSOR_OP: cublasGemmAlgo_t = cublasGemmAlgo_t(105);
     /// Those values are deprecated and will be removed in a future release. Explicitly choose a Tensor core GEMM Algorithm `0..15`. Allows use of reduced precision CUBLAS_COMPUTE_32F_FAST_16F kernels (for backward compatibility). Note: Doesn’t have effect on NVIDIA Ampere architecture GPUs and newer.
     #[deprecated]
-    CUBLAS_GEMM_ALGO6_TENSOR_OP = 106,
+    pub const CUBLAS_GEMM_ALGO6_TENSOR_OP: cublasGemmAlgo_t = cublasGemmAlgo_t(106);
     /// Those values are deprecated and will be removed in a future release. Explicitly choose a Tensor core GEMM Algorithm `0..15`. Allows use of reduced precision CUBLAS_COMPUTE_32F_FAST_16F kernels (for backward compatibility). Note: Doesn’t have effect on NVIDIA Ampere architecture GPUs and newer.
     #[deprecated]
-    CUBLAS_GEMM_ALGO7_TENSOR_OP = 107,
+    pub const CUBLAS_GEMM_ALGO7_TENSOR_OP: cublasGemmAlgo_t = cublasGemmAlgo_t(107);
     /// Those values are deprecated and will be removed in a future release. Explicitly choose a Tensor core GEMM Algorithm `0..15`. Allows use of reduced precision CUBLAS_COMPUTE_32F_FAST_16F kernels (for backward compatibility). Note: Doesn’t have effect on NVIDIA Ampere architecture GPUs and newer.
     #[deprecated]
-    CUBLAS_GEMM_ALGO8_TENSOR_OP = 108,
+    pub const CUBLAS_GEMM_ALGO8_TENSOR_OP: cublasGemmAlgo_t = cublasGemmAlgo_t(108);
     /// Those values are deprecated and will be removed in a future release. Explicitly choose a Tensor core GEMM Algorithm `0..15`. Allows use of reduced precision CUBLAS_COMPUTE_32F_FAST_16F kernels (for backward compatibility). Note: Doesn’t have effect on NVIDIA Ampere architecture GPUs and newer.
     #[deprecated]
-    CUBLAS_GEMM_ALGO9_TENSOR_OP = 109,
+    pub const CUBLAS_GEMM_ALGO9_TENSOR_OP: cublasGemmAlgo_t = cublasGemmAlgo_t(109);
     /// Those values are deprecated and will be removed in a future release. Explicitly choose a Tensor core GEMM Algorithm `0..15`. Allows use of reduced precision CUBLAS_COMPUTE_32F_FAST_16F kernels (for backward compatibility). Note: Doesn’t have effect on NVIDIA Ampere architecture GPUs and newer.
     #[deprecated]
-    CUBLAS_GEMM_ALGO10_TENSOR_OP = 110,
+    pub const CUBLAS_GEMM_ALGO10_TENSOR_OP: cublasGemmAlgo_t = cublasGemmAlgo_t(110);
     /// Those values are deprecated and will be removed in a future release. Explicitly choose a Tensor core GEMM Algorithm `0..15`. Allows use of reduced precision CUBLAS_COMPUTE_32F_FAST_16F kernels (for backward compatibility). Note: Doesn’t have effect on NVIDIA Ampere architecture GPUs and newer.
     #[deprecated]
-    CUBLAS_GEMM_ALGO11_TENSOR_OP = 111,
+    pub const CUBLAS_GEMM_ALGO11_TENSOR_OP: cublasGemmAlgo_t = cublasGemmAlgo_t(111);
     /// Those values are deprecated and will be removed in a future release. Explicitly choose a Tensor core GEMM Algorithm `0..15`. Allows use of reduced precision CUBLAS_COMPUTE_32F_FAST_16F kernels (for backward compatibility). Note: Doesn’t have effect on NVIDIA Ampere architecture GPUs and newer.
     #[deprecated]
-    CUBLAS_GEMM_ALGO12_TENSOR_OP = 112,
+    pub const CUBLAS_GEMM_ALGO12_TENSOR_OP: cublasGemmAlgo_t = cublasGemmAlgo_t(112);
     /// Those values are deprecated and will be removed in a future release. Explicitly choose a Tensor core GEMM Algorithm `0..15`. Allows use of reduced precision CUBLAS_COMPUTE_32F_FAST_16F kernels (for backward compatibility). Note: Doesn’t have effect on NVIDIA Ampere architecture GPUs and newer.
     #[deprecated]
-    CUBLAS_GEMM_ALGO13_TENSOR_OP = 113,
+    pub const CUBLAS_GEMM_ALGO13_TENSOR_OP: cublasGemmAlgo_t = cublasGemmAlgo_t(113);
     /// Those values are deprecated and will be removed in a future release. Explicitly choose a Tensor core GEMM Algorithm `0..15`. Allows use of reduced precision CUBLAS_COMPUTE_32F_FAST_16F kernels (for backward compatibility). Note: Doesn’t have effect on NVIDIA Ampere architecture GPUs and newer.
     #[deprecated]
-    CUBLAS_GEMM_ALGO14_TENSOR_OP = 114,
+    pub const CUBLAS_GEMM_ALGO14_TENSOR_OP: cublasGemmAlgo_t = cublasGemmAlgo_t(114);
     /// Those values are deprecated and will be removed in a future release. Explicitly choose a Tensor core GEMM Algorithm `0..15`. Allows use of reduced precision CUBLAS_COMPUTE_32F_FAST_16F kernels (for backward compatibility). Note: Doesn’t have effect on NVIDIA Ampere architecture GPUs and newer.
     #[deprecated]
-    CUBLAS_GEMM_ALGO15_TENSOR_OP = 115,
+    pub const CUBLAS_GEMM_ALGO15_TENSOR_OP: cublasGemmAlgo_t = cublasGemmAlgo_t(115);
     /// \[EXPERIMENTAL\] The library will benchmark a number of available algorithms and choose the optimal one for the given problem configuration. Solution is cached in cublas handle so that next calls with the problem size will use the cached configuration. Note: To avoid overwriting the user’s data, the library will allocate the amount of memory corresponding to the size of the output. Note: The benchmarking is not supported during stream capture; [`cublasStatus_t::CUBLAS_STATUS_NOT_SUPPORTED`] will be returned under stream capture if no configuration was found in the cache for the given problem size.
-    CUBLAS_GEMM_AUTOTUNE = 999,
+    pub const CUBLAS_GEMM_AUTOTUNE: cublasGemmAlgo_t = cublasGemmAlgo_t(999);
 }
-/// [`cublasMath_t`] enumerate type is used in [`cublasSetMathMode`] to choose compute precision modes as defined in the following table. Since this setting does not directly control the use of Tensor Cores, the mode [`cublasMath_t::CUBLAS_TENSOR_OP_MATH`] is being deprecated, and will be removed in a future release.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cublasMath_t {
+/// cublasGemmAlgo_t type is an enumerant to specify the algorithm for matrix-matrix multiplication on GPU architectures up to `sm_75`. On `sm_80` and newer GPU architectures, this enumerant has no effect. cuBLAS has the following algorithm options.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cublasGemmAlgo_t(pub ::core::ffi::c_int);
+impl cublasMath_t {
     /// This is the default and highest-performance mode that uses compute and intermediate storage precisions with at least the same number of mantissa and exponent bits as requested. Tensor Cores will be used whenever possible.
-    CUBLAS_DEFAULT_MATH = 0,
+    pub const CUBLAS_DEFAULT_MATH: cublasMath_t = cublasMath_t(0);
     /// deprecated, same effect as using CUBLAS_COMPUTE_32F_FAST_16F, will be removed in a future release
     #[deprecated]
-    CUBLAS_TENSOR_OP_MATH = 1,
+    pub const CUBLAS_TENSOR_OP_MATH: cublasMath_t = cublasMath_t(1);
     /// This mode uses the prescribed precision and standardized arithmetic for all phases of calculations and is primarily intended for numerical robustness studies, testing, and debugging. This mode might not be as performant as the other modes.
-    CUBLAS_PEDANTIC_MATH = 2,
+    pub const CUBLAS_PEDANTIC_MATH: cublasMath_t = cublasMath_t(2);
     /// Enable acceleration of single-precision routines using TF32 tensor cores. Note that input conversions round to nearest even.
-    CUBLAS_TF32_TENSOR_OP_MATH = 3,
+    pub const CUBLAS_TF32_TENSOR_OP_MATH: cublasMath_t = cublasMath_t(3);
     /// Enable acceleration of single-precision routines using the BF16x9 algorithm. See [Floating Point Emulation](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#floating-point-emulation) for more details. For single precision GEMM routines cuBLAS will use the [`cublasComputeType_t::CUBLAS_COMPUTE_32F_EMULATED_16BFX9`] compute type.
-    CUBLAS_FP32_EMULATED_BF16X9_MATH = 4,
+    pub const CUBLAS_FP32_EMULATED_BF16X9_MATH: cublasMath_t = cublasMath_t(4);
     /// Enable acceleration of double-precision routines using fixed-point emulation algorithms. See [Floating Point Emulation](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#floating-point-emulation) for more details.
-    CUBLAS_FP64_EMULATED_FIXEDPOINT_MATH = 8,
+    pub const CUBLAS_FP64_EMULATED_FIXEDPOINT_MATH: cublasMath_t = cublasMath_t(8);
     /// Forces any reductions during matrix multiplications to use the accumulator type (that is, compute type) and not the output type in case of mixed precision routines where output type precision is less than the compute type precision. This is a flag that can be set (using a bitwise or operation) alongside any of the other values.
-    CUBLAS_MATH_DISALLOW_REDUCED_PRECISION_REDUCTION = 16,
+    pub const CUBLAS_MATH_DISALLOW_REDUCED_PRECISION_REDUCTION: cublasMath_t = cublasMath_t(
+        16,
+    );
+}
+/// [`cublasMath_t`] enumerate type is used in [`cublasSetMathMode`] to choose compute precision modes as defined in the following table. Since this setting does not directly control the use of Tensor Cores, the mode [`cublasMath_t::CUBLAS_TENSOR_OP_MATH`] is being deprecated, and will be removed in a future release.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cublasMath_t(pub ::core::ffi::c_uint);
+impl cublasComputeType_t {
+    /// This is the default and highest-performance mode for 16-bit half precision floating point and all compute and intermediate storage precisions with at least 16-bit half precision. Tensor Cores will be used whenever possible.
+    pub const CUBLAS_COMPUTE_16F: cublasComputeType_t = cublasComputeType_t(64);
+    /// This mode uses 16-bit half precision floating point standardized arithmetic for all phases of calculations and is primarily intended for numerical robustness studies, testing, and debugging. This mode might not be as performant as the other modes since it disables use of tensor cores.
+    pub const CUBLAS_COMPUTE_16F_PEDANTIC: cublasComputeType_t = cublasComputeType_t(65);
+    /// This is the default 32-bit single precision floating point and uses compute and intermediate storage precisions of at least 32-bits.
+    pub const CUBLAS_COMPUTE_32F: cublasComputeType_t = cublasComputeType_t(68);
+    /// Uses 32-bit single precision floating point arithmetic for all phases of calculations and also disables algorithmic optimizations such as Gaussian complexity reduction (3M).
+    pub const CUBLAS_COMPUTE_32F_PEDANTIC: cublasComputeType_t = cublasComputeType_t(69);
+    /// Allows the library to use Tensor Cores with automatic down-conversion and 16-bit half-precision compute for 32-bit input and output matrices.
+    pub const CUBLAS_COMPUTE_32F_FAST_16F: cublasComputeType_t = cublasComputeType_t(74);
+    /// Allows the library to use Tensor Cores with automatic down-convesion and bfloat16 compute for 32-bit input and output matrices. See [Alternate Floating Point](http://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#wmma-altfp) section for more details on bfloat16.
+    pub const CUBLAS_COMPUTE_32F_FAST_16BF: cublasComputeType_t = cublasComputeType_t(
+        75,
+    );
+    /// Allows the library to use Tensor Cores with TF32 compute for 32-bit floating point input and output matrices. Note that input conversions round to nearest even. See [Alternate Floating Point](http://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#wmma-altfp) section for more details on TF32 compute.
+    pub const CUBLAS_COMPUTE_32F_FAST_TF32: cublasComputeType_t = cublasComputeType_t(
+        77,
+    );
+    /// Allows the library to use the BF16x9 floating point emulation algorithm for 32-bit floating point arithmetic. See [Floating Point Emulation](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#floating-point-emulation) for more details.
+    pub const CUBLAS_COMPUTE_32F_EMULATED_16BFX9: cublasComputeType_t = cublasComputeType_t(
+        78,
+    );
+    /// This is the default 64-bit double precision floating point and uses compute and intermediate storage precisions of at least 64-bits.
+    pub const CUBLAS_COMPUTE_64F: cublasComputeType_t = cublasComputeType_t(70);
+    /// Uses 64-bit double precision floating point arithmetic for all phases of calculations and also disables algorithmic optimizations such as Gaussian complexity reduction (3M).
+    pub const CUBLAS_COMPUTE_64F_PEDANTIC: cublasComputeType_t = cublasComputeType_t(71);
+    /// Allows the library to use fixed-point emulation algorithms for 64-bit double precision floating point arithmetic. See [Floating Point Emulation](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#floating-point-emulation) for more details.
+    pub const CUBLAS_COMPUTE_64F_EMULATED_FIXEDPOINT: cublasComputeType_t = cublasComputeType_t(
+        79,
+    );
+    /// This is the default 32-bit integer mode and uses compute and intermediate storage precisions of at least 32-bits.
+    pub const CUBLAS_COMPUTE_32I: cublasComputeType_t = cublasComputeType_t(72);
+    /// Uses 32-bit integer arithmetic for all phases of calculations.
+    pub const CUBLAS_COMPUTE_32I_PEDANTIC: cublasComputeType_t = cublasComputeType_t(73);
 }
 /// [`cublasComputeType_t`] enumerate type is used in [`cublasGemmEx`] and [cublasLtMatmul()](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#cublasltmatmul) (including all batched and strided batched variants) to choose compute precision modes as defined below.
-#[repr(u32)]
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Hash,
-    PartialOrd,
-    Ord,
-    PartialEq,
-    Eq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-pub enum cublasComputeType_t {
-    /// This is the default and highest-performance mode for 16-bit half precision floating point and all compute and intermediate storage precisions with at least 16-bit half precision. Tensor Cores will be used whenever possible.
-    CUBLAS_COMPUTE_16F = 64,
-    /// This mode uses 16-bit half precision floating point standardized arithmetic for all phases of calculations and is primarily intended for numerical robustness studies, testing, and debugging. This mode might not be as performant as the other modes since it disables use of tensor cores.
-    CUBLAS_COMPUTE_16F_PEDANTIC = 65,
-    /// This is the default 32-bit single precision floating point and uses compute and intermediate storage precisions of at least 32-bits.
-    CUBLAS_COMPUTE_32F = 68,
-    /// Uses 32-bit single precision floating point arithmetic for all phases of calculations and also disables algorithmic optimizations such as Gaussian complexity reduction (3M).
-    CUBLAS_COMPUTE_32F_PEDANTIC = 69,
-    /// Allows the library to use Tensor Cores with automatic down-conversion and 16-bit half-precision compute for 32-bit input and output matrices.
-    CUBLAS_COMPUTE_32F_FAST_16F = 74,
-    /// Allows the library to use Tensor Cores with automatic down-convesion and bfloat16 compute for 32-bit input and output matrices. See [Alternate Floating Point](http://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#wmma-altfp) section for more details on bfloat16.
-    CUBLAS_COMPUTE_32F_FAST_16BF = 75,
-    /// Allows the library to use Tensor Cores with TF32 compute for 32-bit floating point input and output matrices. Note that input conversions round to nearest even. See [Alternate Floating Point](http://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#wmma-altfp) section for more details on TF32 compute.
-    CUBLAS_COMPUTE_32F_FAST_TF32 = 77,
-    /// Allows the library to use the BF16x9 floating point emulation algorithm for 32-bit floating point arithmetic. See [Floating Point Emulation](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#floating-point-emulation) for more details.
-    CUBLAS_COMPUTE_32F_EMULATED_16BFX9 = 78,
-    /// This is the default 64-bit double precision floating point and uses compute and intermediate storage precisions of at least 64-bits.
-    CUBLAS_COMPUTE_64F = 70,
-    /// Uses 64-bit double precision floating point arithmetic for all phases of calculations and also disables algorithmic optimizations such as Gaussian complexity reduction (3M).
-    CUBLAS_COMPUTE_64F_PEDANTIC = 71,
-    /// Allows the library to use fixed-point emulation algorithms for 64-bit double precision floating point arithmetic. See [Floating Point Emulation](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#floating-point-emulation) for more details.
-    CUBLAS_COMPUTE_64F_EMULATED_FIXEDPOINT = 79,
-    /// This is the default 32-bit integer mode and uses compute and intermediate storage precisions of at least 32-bits.
-    CUBLAS_COMPUTE_32I = 72,
-    /// Uses 32-bit integer arithmetic for all phases of calculations.
-    CUBLAS_COMPUTE_32I_PEDANTIC = 73,
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cublasComputeType_t(pub ::core::ffi::c_uint);
+impl cublasEmulationStrategy_t {
+    /// This is the default emulation strategy and is equivalent to [`cublasEmulationStrategy_t::CUBLAS_EMULATION_STRATEGY_PERFORMANT`] unless the `CUBLAS_EMULATION_STRATEGY` environment variable is set.
+    pub const CUBLAS_EMULATION_STRATEGY_DEFAULT: cublasEmulationStrategy_t = cublasEmulationStrategy_t(
+        0,
+    );
+    /// A strategy which utilizes emulation whenever it provides a performance benefit.
+    pub const CUBLAS_EMULATION_STRATEGY_PERFORMANT: cublasEmulationStrategy_t = cublasEmulationStrategy_t(
+        1,
+    );
+    /// A strategy which utilizes emulation whenever possible.
+    pub const CUBLAS_EMULATION_STRATEGY_EAGER: cublasEmulationStrategy_t = cublasEmulationStrategy_t(
+        2,
+    );
 }
 /// [`cublasEmulationStrategy_t`] enumerate type is used in [`cublasSetEmulationStrategy`] to choose how to leverage floating point emulation algorithms.
-#[repr(u32)]
+#[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub enum cublasEmulationStrategy_t {
-    /// This is the default emulation strategy and is equivalent to [`cublasEmulationStrategy_t::CUBLAS_EMULATION_STRATEGY_PERFORMANT`] unless the `CUBLAS_EMULATION_STRATEGY` environment variable is set.
-    CUBLAS_EMULATION_STRATEGY_DEFAULT = 0,
-    /// A strategy which utilizes emulation whenever it provides a performance benefit.
-    CUBLAS_EMULATION_STRATEGY_PERFORMANT = 1,
-    /// A strategy which utilizes emulation whenever possible.
-    CUBLAS_EMULATION_STRATEGY_EAGER = 2,
-}
+pub struct cublasEmulationStrategy_t(pub ::core::ffi::c_uint);
 /// Opaque structure holding CUBLAS library context
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]

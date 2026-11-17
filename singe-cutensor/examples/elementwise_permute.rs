@@ -1,8 +1,7 @@
-use singe_cuda::{context::Context as CudaContext, memory::DeviceMemory, stream::StreamBinding};
+use singe_cuda::{context::Context as CudaContext, memory::DeviceMemory, stream::StreamOptions};
 
 use singe_cutensor::{
     context::Context,
-    error::Result,
     operation::{ComputeDescriptor, OperationDescriptor, TensorOperand},
     plan::{Plan, PlanPreference},
     tensor::TensorDescriptor,
@@ -14,17 +13,19 @@ fn packed_offset(indices: &[u64], extents: &[u64]) -> usize {
     let mut offset = 0_usize;
 
     for (&index, &extent) in indices.iter().zip(extents) {
-        offset += index as usize * stride;
-        stride *= extent as usize;
+        offset += usize::try_from(index).unwrap() * stride;
+        stride *= usize::try_from(extent).unwrap();
     }
 
     offset
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
+    const ALIGNMENT: u32 = 128;
+
     let cuda_context = CudaContext::create()?;
     let context = Context::create(&cuda_context)?;
-    let stream = cuda_context.create_stream()?;
+    let stream = cuda_context.create_stream(StreamOptions::default())?;
 
     let extent_a = vec![2, 3, 2, 2];
     let extent_c = vec![2, 2, 3, 2];
@@ -37,8 +38,6 @@ fn main() -> Result<()> {
 
     let device_a = DeviceMemory::from_slice(&cuda_context, &host_a)?;
     let mut device_c = DeviceMemory::<f32>::create_uninit(&cuda_context, host_a.len())?;
-
-    const ALIGNMENT: u32 = 128;
 
     let descriptor_a = TensorDescriptor::create_for::<f32>(&context, &extent_a, ALIGNMENT)?;
     let descriptor_c = TensorDescriptor::create_for::<f32>(&context, &extent_c, ALIGNMENT)?;
@@ -55,10 +54,7 @@ fn main() -> Result<()> {
     let plan = Plan::create(&context, &operation, &preference, workspace_size)?;
 
     let alpha = 1.0_f32;
-    StreamBinding::Borrowed(stream.to_borrowed()).sync_scope(|| {
-        // SAFETY: these buffers match the descriptors and stay borrowed through scope completion.
-        unsafe { plan.permute(&alpha, &device_a, &mut device_c.output(), &stream) }
-    })?;
+    plan.permute(&alpha, &device_a, &mut device_c.output(), &stream)?;
 
     // SAFETY: the completed operation produced the full contiguous descriptor output.
     let device_c = unsafe { device_c.assume_init() };

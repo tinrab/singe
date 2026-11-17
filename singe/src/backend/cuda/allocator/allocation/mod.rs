@@ -43,7 +43,7 @@ impl CudaCachingAllocator {
                         memory.as_mut_ptr().cast(),
                         0,
                         memory.len(),
-                        &self.stream,
+                        &*self.stream,
                     )?;
                 }
 

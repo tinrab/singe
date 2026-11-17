@@ -21,7 +21,7 @@ use crate::{
 };
 
 #[derive(Default)]
-pub struct AsyncLane {
+pub(crate) struct AsyncLane {
     pending: ChargedQueue<PendingEvent>,
     groups: ChargedQueue<Group>,
     pub(crate) issued: u64,
@@ -35,7 +35,7 @@ pub struct AsyncLane {
 }
 
 #[derive(Default)]
-pub struct AsyncState {
+pub(crate) struct AsyncState {
     barriers: BTreeMap<u64, Barrier>,
     ready: Option<usize>,
     last_ready: Option<usize>,
@@ -526,7 +526,7 @@ impl Engine {
 }
 
 impl Engine {
-    pub fn execute_async(
+    pub(crate) fn execute_async(
         &mut self,
         global: &mut Memory,
         lane: usize,

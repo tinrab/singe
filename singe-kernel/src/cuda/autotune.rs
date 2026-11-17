@@ -20,7 +20,7 @@ use std::{
 
 use singe_cuda::{
     device::Device,
-    event::EventRecordFlags,
+    event::{EventFlags, EventRecordFlags},
     stream::{Stream, StreamCaptureStatus},
 };
 
@@ -638,8 +638,8 @@ where
     }
 
     let context = stream.context();
-    let start = context.create_event()?;
-    let stop = context.create_event()?;
+    let start = context.create_event(EventFlags::DEFAULT)?;
+    let stop = context.create_event(EventFlags::DEFAULT)?;
 
     let mut measurements = Vec::with_capacity(candidates.len());
     for candidate in candidates {

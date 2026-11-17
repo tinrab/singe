@@ -2,6 +2,7 @@
 
 use std::{ffi::c_void, marker::PhantomData, mem::MaybeUninit, path::Path, ptr};
 
+use singe_core::{path_to_cstring, report_cleanup_failure};
 use singe_nvtiff_sys as sys;
 
 use crate::{
@@ -11,17 +12,21 @@ use crate::{
     types::{
         GeoKey, GeoKeyDataType, GeoKeyInfo, GeoKeyValue, TagDataType, TagInfo, TagValue, Variant,
     },
-    utility::{path_c_string, to_size_t, to_u32, to_usize},
+    utility::{bytes_to_values, to_size_t, to_u32, to_usize},
 };
 
 /// Parsed TIFF file.
 ///
 /// nvTIFF reads the header when opening and each image directory when first used.
+/// It is `Send` and not `Sync`.
 #[derive(Debug)]
 pub struct TiffStream<'data> {
     raw: sys::nvtiffStream_t,
     _data: PhantomData<&'data [u8]>,
 }
+
+// SAFETY: a parsed stream has no thread affinity, and the borrowed data is `Sync`; without `Sync`, calls on one stream never overlap.
+unsafe impl Send for TiffStream<'_> {}
 
 /// Header of a TIFF file.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -55,9 +60,9 @@ impl TiffStream<'static> {
     ///
     /// Returns an error if `path` contains a NUL byte, the file cannot be read, the header is invalid, or nvTIFF returns a null handle.
     pub fn open_file(path: impl AsRef<Path>) -> Result<Self> {
-        let path = path_c_string(path)?;
+        let path = path_to_cstring(path.as_ref())?;
         let mut raw = ptr::null_mut();
-        // SAFETY: `nvtiffStreamOpenFromFile` receives valid output locations and pointers into buffers borrowed for the call.
+        // SAFETY: `path` is a NUL-terminated string that outlives the call, and `raw` is a writable handle location.
         unsafe {
             try_ffi!(sys::nvtiffStreamOpenFromFile(path.as_ptr(), &raw mut raw))?;
         }
@@ -83,7 +88,7 @@ impl<'data> TiffStream<'data> {
     /// Returns an error if `data` is too long for nvTIFF, the header is invalid, or nvTIFF returns a null handle.
     pub fn open(data: &'data [u8]) -> Result<Self> {
         let mut raw = ptr::null_mut();
-        // SAFETY: `nvtiffStreamOpen` receives valid output locations and pointers into buffers borrowed for the call.
+        // SAFETY: `data` holds the passed length and is borrowed for `'data`, which the returned stream carries, so nvTIFF's later reads of it stay valid; `raw` is a writable handle location.
         unsafe {
             try_ffi!(sys::nvtiffStreamOpen(
                 data.as_ptr(),
@@ -108,7 +113,7 @@ impl<'data> TiffStream<'data> {
     /// Returns an error if nvTIFF cannot read the header or the first offset does not fit `usize`.
     pub fn header(&self) -> Result<StreamHeader> {
         let mut header = MaybeUninit::<sys::nvtiffStreamHeader_t>::uninit();
-        // SAFETY: `nvtiffStreamGetHeader` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `self.raw` is a live stream owned by this value, and `header` is writable for one header.
         unsafe {
             try_ffi!(sys::nvtiffStreamGetHeader(self.raw, header.as_mut_ptr()))?;
         }
@@ -116,7 +121,7 @@ impl<'data> TiffStream<'data> {
         // SAFETY: successful header parsing writes both fields with valid values.
         let header = unsafe { header.assume_init() };
         Ok(StreamHeader {
-            variant: header.variant.into(),
+            variant: header.variant.try_into()?,
             first_ifd_offset: IfdOffset::new(to_usize(
                 header.first_ifd_offset,
                 "first IFD offset",
@@ -134,11 +139,11 @@ impl<'data> TiffStream<'data> {
     /// Returns an error if nvTIFF cannot read the directory at `offset`, or the next offset does not fit `usize`.
     pub fn next_ifd_offset(&self, offset: IfdOffset) -> Result<Option<IfdOffset>> {
         let mut next = 0;
-        // SAFETY: `nvtiffStreamGetNextIFDOffset` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `self.raw` is a live stream owned by this value, and `next` is a writable offset.
         unsafe {
             try_ffi!(sys::nvtiffStreamGetNextIFDOffset(
                 self.raw,
-                offset.raw() as sys::size_t,
+                to_size_t(offset.raw(), "ifd_offset")?,
                 &raw mut next,
             ))?;
         }
@@ -163,16 +168,6 @@ impl<'data> TiffStream<'data> {
         })
     }
 
-    /// Prints the file's metadata to standard output.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if nvTIFF cannot read the metadata.
-    pub fn print(&self) -> Result<()> {
-        // SAFETY: `nvtiffStreamPrint` receives live handles owned by the wrappers.
-        unsafe { try_ffi!(sys::nvtiffStreamPrint(self.raw)) }
-    }
-
     /// Returns information about the image at `offset`.
     ///
     /// # Errors
@@ -180,11 +175,11 @@ impl<'data> TiffStream<'data> {
     /// Returns an error if `offset` is not an image directory or nvTIFF cannot read it.
     pub fn image_info(&self, offset: IfdOffset) -> Result<ImageInfo> {
         let mut image_info = sys::nvtiffImageInfo_t::default();
-        // SAFETY: `nvtiffStreamGetImageInfo` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `self.raw` is a live stream owned by this value, and `image_info` is writable for one description.
         unsafe {
             try_ffi!(sys::nvtiffStreamGetImageInfo(
                 self.raw,
-                offset.raw() as sys::size_t,
+                to_size_t(offset.raw(), "ifd_offset")?,
                 &raw mut image_info,
             ))?;
         }
@@ -198,11 +193,11 @@ impl<'data> TiffStream<'data> {
     /// Returns an error if `offset` is not an image directory or nvTIFF cannot read it.
     pub fn image_geometry(&self, offset: IfdOffset) -> Result<ImageGeometry> {
         let mut geometry = sys::nvtiffImageGeometry_t::default();
-        // SAFETY: `nvtiffStreamGetImageGeometry` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `self.raw` is a live stream owned by this value, and `geometry` is writable for one layout.
         unsafe {
             try_ffi!(sys::nvtiffStreamGetImageGeometry(
                 self.raw,
-                offset.raw() as sys::size_t,
+                to_size_t(offset.raw(), "ifd_offset")?,
                 &raw mut geometry,
             ))?;
         }
@@ -215,9 +210,9 @@ impl<'data> TiffStream<'data> {
     ///
     /// Returns an error if `offset` is not an image directory or nvTIFF cannot read its tags.
     pub fn tags(&self, offset: IfdOffset) -> Result<Vec<u16>> {
-        let offset = offset.raw() as sys::size_t;
+        let offset = to_size_t(offset.raw(), "ifd_offset")?;
         let mut num_tags = 0;
-        // SAFETY: `nvtiffStreamGetNumberOfTags` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `self.raw` is a live stream owned by this value, a null tag array asks only for the count, and `num_tags` is writable.
         unsafe {
             try_ffi!(sys::nvtiffStreamGetNumberOfTags(
                 self.raw,
@@ -227,8 +222,8 @@ impl<'data> TiffStream<'data> {
             ))?;
         }
 
-        let mut tags = vec![0_u16; num_tags as usize];
-        // SAFETY: `nvtiffStreamGetNumberOfTags` receives live handles owned by the wrappers and valid output locations.
+        let mut tags = vec![0_u16; to_usize(num_tags, "tags")?];
+        // SAFETY: `self.raw` is a live stream owned by this value, and `tags` has room for the `num_tags` IDs reported for this image.
         unsafe {
             try_ffi!(sys::nvtiffStreamGetNumberOfTags(
                 self.raw,
@@ -238,7 +233,7 @@ impl<'data> TiffStream<'data> {
             ))?;
         }
 
-        tags.truncate(num_tags as usize);
+        tags.truncate(to_usize(num_tags, "tags")?);
         Ok(tags)
     }
 
@@ -250,11 +245,11 @@ impl<'data> TiffStream<'data> {
     pub fn has_tag(&self, offset: IfdOffset, tag: impl Into<u16>) -> Result<bool> {
         let tag = tag.into();
         let mut has_tag = 0;
-        // SAFETY: `nvtiffStreamHasTag` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `self.raw` is a live stream owned by this value, and `has_tag` is writable.
         unsafe {
             try_ffi!(sys::nvtiffStreamHasTag(
                 self.raw,
-                offset.raw() as sys::size_t,
+                to_size_t(offset.raw(), "ifd_offset")?,
                 tag,
                 &raw mut has_tag,
             ))?;
@@ -272,11 +267,11 @@ impl<'data> TiffStream<'data> {
         let mut data_type = sys::nvtiffTagDataType_t::NVTIFF_TAG_TYPE_UNDEFINED;
         let mut size = 0;
         let mut count = 0;
-        // SAFETY: `nvtiffStreamGetTagInfo` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `self.raw` is a live stream owned by this value, and the type, size, and count are writable locals.
         unsafe {
             try_ffi!(sys::nvtiffStreamGetTagInfo(
                 self.raw,
-                offset.raw() as sys::size_t,
+                to_size_t(offset.raw(), "ifd_offset")?,
                 tag,
                 &raw mut data_type,
                 &raw mut size,
@@ -284,7 +279,7 @@ impl<'data> TiffStream<'data> {
             ))?;
         }
         Ok(TagInfo {
-            data_type: data_type.into(),
+            data_type: data_type.try_into()?,
             size,
             count,
         })
@@ -313,11 +308,11 @@ impl<'data> TiffStream<'data> {
                 actual: output.len(),
             });
         }
-        // SAFETY: `nvtiffStreamGetTagValue` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `self.raw` is a live stream owned by this value, and `output` was checked to hold the `size * count` bytes of `info.count` values.
         unsafe {
             try_ffi!(sys::nvtiffStreamGetTagValue(
                 self.raw,
-                offset.raw() as sys::size_t,
+                to_size_t(offset.raw(), "ifd_offset")?,
                 tag,
                 output.as_mut_ptr().cast::<c_void>(),
                 info.count,
@@ -347,7 +342,7 @@ impl<'data> TiffStream<'data> {
         let mut size = 0;
         let mut count = 0;
         let mut data_type = sys::nvtiffGeoKeyDataType_t::NVTIFF_GEOKEY_TYPE_UNKNOWN;
-        // SAFETY: `nvtiffStreamGetGeoKeyInfo` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `self.raw` is a live stream owned by this value, and the size, count, and type are writable locals.
         unsafe {
             try_ffi!(sys::nvtiffStreamGetGeoKeyInfo(
                 self.raw,
@@ -360,7 +355,7 @@ impl<'data> TiffStream<'data> {
         Ok(GeoKeyInfo {
             size,
             count,
-            data_type: data_type.into(),
+            data_type: data_type.try_into()?,
         })
     }
 
@@ -371,7 +366,7 @@ impl<'data> TiffStream<'data> {
     /// Returns an error if nvTIFF cannot read the keys.
     pub fn geo_keys(&self) -> Result<Vec<GeoKey>> {
         let mut num_keys = 0;
-        // SAFETY: `nvtiffStreamGetNumberOfGeoKeys` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `self.raw` is a live stream owned by this value, a null key array asks only for the count, and `num_keys` is writable.
         unsafe {
             try_ffi!(sys::nvtiffStreamGetNumberOfGeoKeys(
                 self.raw,
@@ -380,8 +375,9 @@ impl<'data> TiffStream<'data> {
             ))?;
         }
 
-        let mut keys = vec![sys::nvtiffGeoKey_t::NVTIFF_GEOKEY_END; num_keys as usize];
-        // SAFETY: `nvtiffStreamGetNumberOfGeoKeys` receives live handles owned by the wrappers and valid output locations.
+        let mut keys =
+            vec![sys::nvtiffGeoKey_t::NVTIFF_GEOKEY_END; to_usize(num_keys, "geo keys")?];
+        // SAFETY: `self.raw` is a live stream owned by this value, and `keys` has room for the `num_keys` keys reported for the file.
         unsafe {
             try_ffi!(sys::nvtiffStreamGetNumberOfGeoKeys(
                 self.raw,
@@ -390,8 +386,10 @@ impl<'data> TiffStream<'data> {
             ))?;
         }
 
-        keys.truncate(num_keys as usize);
-        Ok(keys.into_iter().map(GeoKey::from).collect())
+        keys.truncate(to_usize(num_keys, "geo keys")?);
+        keys.into_iter()
+            .map(|key| Ok(GeoKey::try_from(key)?))
+            .collect()
     }
 
     /// Copies the value of `GeoTIFF` key `key` into `output` and returns its type and size.
@@ -410,7 +408,7 @@ impl<'data> TiffStream<'data> {
             });
         }
 
-        // SAFETY: `nvtiffStreamGetGeoKey` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `self.raw` is a live stream owned by this value, and `output` was checked to hold the `size * count` bytes of `info.count` values.
         unsafe {
             try_ffi!(sys::nvtiffStreamGetGeoKey(
                 self.raw,
@@ -431,12 +429,12 @@ impl<'data> TiffStream<'data> {
         let info = self.geo_key_info(key)?;
         match info.data_type {
             GeoKeyDataType::Short => {
-                let mut values = vec![0_u16; info.count as usize];
+                let mut values = vec![0_u16; to_usize(info.count, "geo key count")?];
                 self.geo_key_short(key, 0, &mut values)?;
                 Ok(GeoKeyValue::Short(values))
             }
             GeoKeyDataType::Double => {
-                let mut values = vec![0_f64; info.count as usize];
+                let mut values = vec![0_f64; to_usize(info.count, "geo key count")?];
                 self.geo_key_double(key, 0, &mut values)?;
                 Ok(GeoKeyValue::Double(values))
             }
@@ -456,8 +454,8 @@ impl<'data> TiffStream<'data> {
     /// Returns an error if `max_len` does not fit a `u32`, or nvTIFF rejects the key, its type, or the length.
     pub fn geo_key_ascii(&self, key: GeoKey, max_len: impl TryInto<u32>) -> Result<String> {
         let max_len = to_u32(max_len, "max_len")?;
-        let mut buffer = vec![0_u8; max_len as usize];
-        // SAFETY: `nvtiffStreamGetGeoKeyASCII` receives live handles owned by the wrappers and valid output locations.
+        let mut buffer = vec![0_u8; to_usize(max_len, "max_len")?];
+        // SAFETY: `self.raw` is a live stream owned by this value, and `buffer` holds the `max_len` bytes passed as its size.
         unsafe {
             try_ffi!(sys::nvtiffStreamGetGeoKeyASCII(
                 self.raw,
@@ -485,7 +483,7 @@ impl<'data> TiffStream<'data> {
         index: impl TryInto<u32>,
         output: &mut [u16],
     ) -> Result<()> {
-        // SAFETY: `nvtiffStreamGetGeoKeySHORT` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `self.raw` is a live stream owned by this value, and `output` holds the count of values passed with it.
         unsafe {
             try_ffi!(sys::nvtiffStreamGetGeoKeySHORT(
                 self.raw,
@@ -508,7 +506,7 @@ impl<'data> TiffStream<'data> {
         index: impl TryInto<u32>,
         output: &mut [f64],
     ) -> Result<()> {
-        // SAFETY: `nvtiffStreamGetGeoKeyDOUBLE` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `self.raw` is a live stream owned by this value, and `output` holds the count of values passed with it.
         unsafe {
             try_ffi!(sys::nvtiffStreamGetGeoKeyDOUBLE(
                 self.raw,
@@ -530,14 +528,9 @@ impl<'data> TiffStream<'data> {
 impl Drop for TiffStream<'_> {
     fn drop(&mut self) {
         if !self.raw.is_null() {
-            // SAFETY: `nvtiffStreamClose` receives live handles owned by the wrappers.
-            unsafe {
-                if let Err(error) = try_ffi!(sys::nvtiffStreamClose(self.raw)) {
-                    eprintln!(
-                        "failed to destroy nvtiff stream: {}",
-                        singe_core::ErrorChain(&error)
-                    );
-                }
+            // SAFETY: `self.raw` is owned by this value and closed once; safe decodes have finished, and raw decode callers keep the stream alive until their work finishes.
+            if let Err(error) = unsafe { try_ffi!(sys::nvtiffStreamClose(self.raw)) } {
+                report_cleanup_failure("close", "nvtiff stream", &error);
             }
         }
     }
@@ -631,27 +624,4 @@ fn string_from_nul_terminated(bytes: &[u8]) -> String {
         .position(|byte| *byte == 0)
         .unwrap_or(bytes.len());
     String::from_utf8_lossy(&bytes[..len]).into_owned()
-}
-
-fn bytes_to_values<T: Copy>(bytes: &[u8]) -> Result<Vec<T>> {
-    if !bytes.len().is_multiple_of(size_of::<T>()) {
-        return Err(Error::LengthMismatch {
-            name: "tag value".into(),
-            expected: bytes.len().next_multiple_of(size_of::<T>()),
-            actual: bytes.len(),
-        });
-    }
-
-    let count = bytes.len() / size_of::<T>();
-    let mut values = Vec::<T>::with_capacity(count);
-    // SAFETY: `values` has capacity for `count` elements, `bytes` holds exactly that many, and every caller's `T` (`u16`, `u32`, `f64`) accepts any bit pattern.
-    unsafe {
-        ptr::copy_nonoverlapping(
-            bytes.as_ptr(),
-            values.as_mut_ptr().cast::<u8>(),
-            bytes.len(),
-        );
-        values.set_len(count);
-    }
-    Ok(values)
 }

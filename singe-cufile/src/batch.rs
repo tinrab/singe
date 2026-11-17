@@ -1,24 +1,25 @@
 use std::{
-    ffi,
     fmt::{self, Debug, Formatter},
+    io,
     marker::PhantomData,
     mem::ManuallyDrop,
-    process, ptr,
+    ptr,
     sync::Arc,
     time::Duration,
 };
 
+use singe_core::{abort_after_cleanup_failure, report_cleanup_failure};
 use singe_cuda::{context::Context, error::Error as CudaError, view::DeviceRegion};
 use singe_cufile_sys as sys;
 
 use crate::{
-    buffer::{IoInput, IoOutput},
+    buffer::{IoSlice, IoSliceMut, IoSpan},
     driver::Driver,
     error::{Error, Result},
-    file::{FileHandle, io_pointer, operation_result, prepare_buffer},
+    file::{FileHandle, operation_result, prepare_host_access},
     try_ffi,
     types::{BatchStatus, Operation},
-    utility::{checked_io_size, to_i64, to_u32, to_u64},
+    utility::{to_i64, to_u32, to_u64, to_usize},
 };
 
 /// An owned cuFile batch queue retaining its driver session.
@@ -29,9 +30,8 @@ pub struct Batch {
     driver: Arc<Driver>,
 }
 
-// SAFETY: cuFile batch handles own submission state. The owner may move between
-// threads, while status polling and submission stay tied to Rust borrows of the
-// batch and request buffers.
+// SAFETY: NVIDIA documents every cuFile API as thread-safe, so the batch handle may be used and destroyed from any thread.
+// It is not `Sync`, so a submission and its status polling stay with the thread that holds the batch.
 unsafe impl Send for Batch {}
 
 /// Transferred native ownership of a batch handle and the driver session it belongs to.
@@ -49,11 +49,12 @@ impl Batch {
     /// Takes ownership of a native batch handle; dropping the batch destroys it.
     ///
     /// # Safety
-    /// `raw.handle` must be a live batch handle created by `cuFileBatchIOSetUp` with `raw.capacity` entries in the session kept open by `raw.driver`, with no other owner.
+    ///
+    /// `raw.handle` must be a live native batch handle with `raw.capacity` entries, created in the session kept open by `raw.driver`, such as one from [`Self::into_raw`], with no other owner.
     ///
     /// # Errors
     ///
-    /// Returns [`Error::NullHandle`] if `raw.handle` is null.
+    /// Returns an error if `raw.handle` is null.
     pub unsafe fn from_raw(raw: RawBatch) -> Result<Self> {
         if raw.handle.is_null() {
             return Err(Error::NullHandle);
@@ -95,7 +96,7 @@ impl Batch {
         }
 
         let mut handle = ptr::null_mut();
-        // SAFETY: `cuFileBatchIOSetUp` receives valid output locations.
+        // SAFETY: `handle` is a local output checked for null below, and `driver` keeps the cuFile session open.
         unsafe {
             try_ffi!(sys::cuFileBatchIOSetUp(&raw mut handle, capacity))?;
         }
@@ -125,14 +126,14 @@ impl Batch {
     /// Errors while polling for completion are propagated.
     /// Inspect each returned event with [`BatchEvent::bytes_transferred`] for request-specific failures.
     pub fn execute(&mut self, requests: Vec<BatchRequest<'_>>) -> Result<Vec<BatchEvent>> {
-        // SAFETY: request builders establish representation and lifetime contracts.
-        // The local submission cannot escape or be forgotten before wait drains it.
-        unsafe { self.submit(requests) }?.wait()
+        // SAFETY: each request borrows its file and buffer for `'_`, and `wait` drains this local submission before those borrows end.
+        unsafe { self.execute_async(requests) }?.wait()
     }
 
     /// Enqueues borrowed requests; completion is established by wait or native status polling.
     ///
     /// # Safety
+    ///
     /// Retain every request buffer and prevent conflicting access until terminal native completion.
     /// This obligation includes forgotten submissions.
     ///
@@ -140,7 +141,7 @@ impl Batch {
     ///
     /// Returns an error if the request count exceeds the batch capacity, CUDA-associated requests use different contexts, or readiness synchronization or context binding fails.
     /// Also returns an error if cuFile rejects the batch submission.
-    pub unsafe fn submit<'batch, 'request>(
+    pub unsafe fn execute_async<'batch, 'request>(
         &'batch mut self,
         requests: Vec<BatchRequest<'request>>,
     ) -> Result<BatchSubmission<'batch, 'request>> {
@@ -180,7 +181,7 @@ impl Batch {
 
         let mut raw_requests: Vec<_> = requests.iter().map(|request| request.handle).collect();
         // cuFile documents unsuccessful API calls as having no application or filesystem side effects.
-        // SAFETY: `cuFileBatchIOSubmit` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `self.handle` is the live batch this wrapper owns, `count` is at most its capacity and is the length of `raw_requests`, and the returned submission retains every request's file and buffer borrow until it drains.
         unsafe {
             try_ffi!(sys::cuFileBatchIOSubmit(
                 self.handle,
@@ -205,11 +206,11 @@ impl Batch {
         timeout: Option<Duration>,
     ) -> Result<Vec<BatchEvent>> {
         let mut count = max_count;
-        let mut events = vec![sys::CUfileIOEvents_t::default(); count as usize];
+        let mut events = vec![sys::CUfileIOEvents_t::default(); to_usize(count, "max_count")?];
         let mut timeout = timeout.map(duration_to_timespec);
         let timeout_ptr = timeout.as_mut().map_or(ptr::null_mut(), ptr::from_mut);
 
-        // SAFETY: `cuFileBatchIOGetStatus` receives live handles owned by the wrappers and valid output locations.
+        // SAFETY: `self.handle` is the live batch this wrapper owns, `events` holds `count` entries for cuFile to fill, and `timeout_ptr` is null or points to the local `timeout`.
         unsafe {
             try_ffi!(sys::cuFileBatchIOGetStatus(
                 self.handle,
@@ -220,12 +221,12 @@ impl Batch {
             ))?;
         }
 
-        events.truncate(count as usize);
-        Ok(events.into_iter().map(BatchEvent::from).collect())
+        events.truncate(to_usize(count, "count")?);
+        events.into_iter().map(BatchEvent::try_from).collect()
     }
 
     fn cancel(&self) -> Result<()> {
-        // SAFETY: `cuFileBatchIOCancel` receives live handles owned by the wrappers.
+        // SAFETY: `self.handle` is the live batch this wrapper owns, and cancellation only stops its pending requests.
         unsafe {
             try_ffi!(sys::cuFileBatchIOCancel(self.handle))?;
         }
@@ -354,12 +355,7 @@ impl Drop for BatchSubmission<'_, '_> {
         }
 
         if let Err(error) = self.batch.cancel() {
-            {
-                let remaining = self.remaining_count();
-                eprintln!(
-                    "failed to cancel cufile batch submission with {remaining} pending requests: {error}"
-                );
-            }
+            report_cleanup_failure("cancel", "cufile batch submission", &error);
         }
 
         while !self.is_complete() {
@@ -371,24 +367,13 @@ impl Drop for BatchSubmission<'_, '_> {
             ) {
                 Ok(events) if !events.is_empty() => {}
                 Ok(_) => {
-                    {
-                        let remaining = self.remaining_count();
-                        eprintln!(
-                            "cufile batch status made no progress with {remaining} pending requests after cancellation"
-                        );
-                    }
-
-                    process::abort();
+                    let error = Error::Io(io::Error::other(
+                        "batch status returned no completion events after cancellation",
+                    ));
+                    abort_after_cleanup_failure("drain", "cufile batch submission", &error);
                 }
                 Err(error) => {
-                    {
-                        let remaining = self.remaining_count();
-                        eprintln!(
-                            "failed to drain cancelled cufile batch submission with {remaining} pending requests: {error}"
-                        );
-                    }
-
-                    process::abort();
+                    abort_after_cleanup_failure("drain", "cufile batch submission", &error);
                 }
             }
         }
@@ -397,7 +382,7 @@ impl Drop for BatchSubmission<'_, '_> {
 
 impl Drop for Batch {
     fn drop(&mut self) {
-        // SAFETY: `cuFileBatchIODestroy` receives live handles owned by the wrappers.
+        // SAFETY: `self.handle` is the batch this wrapper owns, `into_raw` skips this drop, and every `BatchSubmission` borrowing it drained before its borrow ended.
         unsafe {
             if !self.handle.is_null() {
                 sys::cuFileBatchIODestroy(self.handle);
@@ -424,111 +409,62 @@ impl Debug for BatchRequest<'_> {
 }
 
 impl<'a> BatchRequest<'a> {
-    /// Builds a read request targeting an exclusively borrowed buffer.
+    /// Builds a request that reads file bytes starting at `file_offset` into `buffer`.
     ///
-    /// `size`, `file_offset`, and `buffer_offset` are in bytes; `cookie` is returned with the completion event.
+    /// `cookie` is returned with the completion event.
     ///
     /// # Errors
     ///
-    /// Returns an error if the buffer length cannot be computed, the requested byte range exceeds the buffer, or a size or offset exceeds its native integer range.
-    /// Also returns an error if CUDA readiness, capture checks, or context binding fails.
-    pub fn read<B>(
+    /// Returns an error if an offset or length exceeds its native range, or the buffer's producers cannot be waited for or its context is capturing or cannot be bound.
+    pub fn read(
         file: &FileHandle,
-        buffer: &'a mut B,
-        size: usize,
+        buffer: IoSliceMut<'a>,
         file_offset: u64,
-        buffer_offset: u64,
         cookie: BatchCookie,
-    ) -> Result<Self>
-    where
-        B: IoOutput + ?Sized,
-    {
-        prepare_buffer(buffer, None)?;
-        let pointer = buffer.ptr_mut();
-        let (pointer, native_offset) = io_pointer(buffer, pointer, size, buffer_offset)?;
-        let region = buffer.device_region();
-        let context = buffer.context().cloned();
-        let mut request = Self::create(
+    ) -> Result<Self> {
+        Self::create(
             Operation::Read,
             file,
-            pointer.cast(),
-            if buffer.is_registered() {
-                buffer.byte_len()?
-            } else {
-                size
-            },
-            size,
+            buffer.into_span(),
             file_offset,
-            native_offset as u64,
             cookie,
-        )?;
-        request.region = region;
-        request.context = context;
-        Ok(request)
+        )
     }
 
-    /// Builds a write request from initialized buffer bytes.
+    /// Builds a request that writes the bytes of `buffer` to the file starting at `file_offset`.
     ///
-    /// `size`, `file_offset`, and `buffer_offset` are in bytes; `cookie` is returned with the completion event.
+    /// `cookie` is returned with the completion event.
     ///
     /// # Errors
     ///
-    /// Returns an error if the buffer length cannot be computed, the requested byte range exceeds the buffer, or a size or offset exceeds its native integer range.
-    /// Also returns an error if CUDA readiness, capture checks, or context binding fails.
-    pub fn write<B>(
+    /// Returns an error if an offset or length exceeds its native range, or the buffer's producers cannot be waited for or its context is capturing or cannot be bound.
+    pub fn write(
         file: &FileHandle,
-        buffer: &'a B,
-        size: usize,
+        buffer: IoSlice<'a>,
         file_offset: u64,
-        buffer_offset: u64,
         cookie: BatchCookie,
-    ) -> Result<Self>
-    where
-        B: IoInput + ?Sized,
-    {
-        prepare_buffer(buffer, None)?;
-        let (pointer, native_offset) = io_pointer(buffer, buffer.ptr(), size, buffer_offset)?;
-        let region = buffer.device_region();
-        let context = buffer.context().cloned();
-        let mut request = Self::create(
-            Operation::Write,
-            file,
-            pointer.cast(),
-            if buffer.is_registered() {
-                buffer.byte_len()?
-            } else {
-                size
-            },
-            size,
-            file_offset,
-            native_offset as u64,
-            cookie,
-        )?;
-        request.region = region;
-        request.context = context;
-        Ok(request)
+    ) -> Result<Self> {
+        Self::create(Operation::Write, file, buffer.span, file_offset, cookie)
     }
 
     fn create(
         operation: Operation,
         file: &FileHandle,
-        buffer: *mut ffi::c_void,
-        buffer_size: usize,
-        size: usize,
+        span: IoSpan<'a>,
         file_offset: u64,
-        buffer_offset: u64,
         cookie: BatchCookie,
     ) -> Result<Self> {
-        let size = checked_io_size(buffer_size, size, buffer_offset)?;
+        prepare_host_access(span.region, span.context)?;
+        let (pointer, buffer_offset) = span.native_address()?;
         Ok(Self {
             handle: sys::CUfileIOParams_t {
                 mode: sys::cufileBatchMode::CUFILE_BATCH,
                 u: sys::CUfileIOParams__bindgen_ty_1 {
                     batch: sys::CUfileIOParams__bindgen_ty_1__bindgen_ty_1 {
-                        devPtr_base: buffer,
+                        devPtr_base: pointer,
                         file_offset: to_i64(file_offset, "file_offset")?,
-                        devPtr_offset: to_i64(buffer_offset, "buffer_offset")?,
-                        size: to_u64(size, "size")?,
+                        devPtr_offset: buffer_offset,
+                        size: to_u64(span.byte_len(), "byte length")?,
                     },
                 },
                 fh: file.as_raw(),
@@ -537,8 +473,8 @@ impl<'a> BatchRequest<'a> {
             },
             _borrows: PhantomData,
             _file: file.clone(),
-            context: None,
-            region: None,
+            context: span.context.cloned(),
+            region: span.region,
         })
     }
 }
@@ -558,8 +494,8 @@ impl BatchEvent {
     ///
     /// # Errors
     ///
-    /// Returns a cuFile or operating-system error for a negative native result.
-    /// Returns [`Error::BatchOperationFailed`] when no successful byte count is available for the event status, or an error if the result cannot be represented as `usize`.
+    /// Returns an error if the native result is negative, as a cuFile or operating-system error.
+    /// Returns an error if the event status has no successful byte count, as [`Error::BatchOperationFailed`], or if the result cannot be represented as `usize`.
     pub fn bytes_transferred(self) -> Result<usize> {
         match self.raw_result {
             Some(value) if self.status == BatchStatus::Complete || value < 0 => {
@@ -578,11 +514,13 @@ impl BatchEvent {
     }
 }
 
-impl From<sys::CUfileIOEvents_t> for BatchEvent {
-    fn from(value: sys::CUfileIOEvents_t) -> Self {
-        Self {
+impl TryFrom<sys::CUfileIOEvents_t> for BatchEvent {
+    type Error = Error;
+
+    fn try_from(value: sys::CUfileIOEvents_t) -> Result<Self> {
+        Ok(Self {
             cookie: BatchCookie::from_raw(value.cookie.cast()),
-            status: value.status.into(),
+            status: value.status.try_into()?,
             raw_result: if matches!(
                 value.status,
                 sys::CUFILEStatus_enum::CUFILE_COMPLETE | sys::CUFILEStatus_enum::CUFILE_FAILED
@@ -591,7 +529,7 @@ impl From<sys::CUfileIOEvents_t> for BatchEvent {
             } else {
                 None
             },
-        }
+        })
     }
 }
 
@@ -613,14 +551,14 @@ impl BatchCookie {
     #[must_use]
     pub const fn new(value: usize) -> Self {
         Self {
-            handle: value as *mut (),
+            handle: ptr::without_provenance_mut(value),
         }
     }
 
     /// Returns the integer value encoded in this cookie.
     #[must_use]
     pub fn get(self) -> usize {
-        self.handle as usize
+        self.handle.addr()
     }
 
     pub(crate) const fn from_raw(raw: *mut ()) -> Self {
@@ -652,12 +590,13 @@ mod tests {
 
     #[test]
     fn test_batch_event_preserves_negative_results() {
-        let raw_error = -(sys::CUfileOpError::CU_FILE_INVALID_VALUE as i64);
-        let event = BatchEvent::from(sys::CUfileIOEvents_t {
+        let raw_error = -i64::from(sys::CUfileOpError::CU_FILE_INVALID_VALUE.0);
+        let event = BatchEvent::try_from(sys::CUfileIOEvents_t {
             cookie: ptr::null_mut(),
             status: sys::CUFILEStatus_enum::CUFILE_FAILED,
             ret: raw_error as sys::size_t,
-        });
+        })
+        .unwrap();
 
         assert_eq!(event.status, BatchStatus::Failed);
         assert_eq!(event.raw_result(), Some(raw_error));

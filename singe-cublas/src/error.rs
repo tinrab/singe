@@ -1,17 +1,19 @@
-use std::{
-    borrow::Cow,
-    ffi::{self, CStr},
-    result,
-};
+use std::{borrow::Cow, ffi::NulError, result};
 
-use singe_core::status_enum;
 use singe_cublas_sys as sys;
-use singe_cuda::error::Error as CudaError;
+use singe_cuda::{data_type::DataType, error::Error as CudaError};
 use thiserror::Error;
 
-status_enum! {
+singe_core::wrapper_status! {
+    library = "cublas",
+    error = Error::Cublas,
+    raw = sys::cublasStatus_t,
+    success = CUBLAS_STATUS_SUCCESS,
+    absence = sys::take_absence,
+    unknown = "UNKNOWN_CUBLAS_STATUS",
+    description = sys::cublasGetStatusString,
     /// cuBLAS status returned by library calls.
-    pub enum Status: u32 => sys::cublasStatus_t, unknown = "UNKNOWN_CUBLAS_STATUS" {
+    pub enum Status: u32 {
         /// The operation completed successfully.
         Success = CUBLAS_STATUS_SUCCESS,
         /// The cuBLAS library was not initialized.
@@ -48,45 +50,23 @@ status_enum! {
     }
 }
 
-impl Status {
-    /// Returns a short description of this status.
-    #[must_use]
-    pub const fn description(self) -> &'static str {
-        match self {
-            Self::Success => "success",
-            Self::NotInitialized => "not initialized",
-            Self::AllocFailed => "allocation failed",
-            Self::InvalidValue => "invalid value",
-            Self::ArchitectureMismatch => "architecture mismatch",
-            Self::MappingError => "mapping error",
-            Self::ExecutionFailed => "execution failed",
-            Self::InternalError => "internal error",
-            Self::NotSupported => "not supported",
-            Self::LicenseError => "license error",
-            Self::Unknown(_) => "unknown cublas error",
-        }
-    }
-}
-
 /// An error from CUDA, cuBLAS, or validation of wrapper arguments.
 #[derive(Error, Debug)]
 #[non_exhaustive]
 pub enum Error {
-    // Its library would not load.
+    /// cuBLAS or one of its symbols would not load.
     #[error(transparent)]
-    Load(#[from] singe_cublas_sys::LoadError),
+    Load(#[from] sys::LoadError),
 
     /// A CUDA operation failed.
     #[error(transparent)]
-    Cuda(#[from] CudaError),
+    Cuda(CudaError),
 
-    /// A cuBLAS operation returned a failure status.
-    #[error("cublas error ({code}): {message}")]
+    /// A cuBLAS or cuBLASLt operation returned a failure status.
+    #[error("cublas error ({code}): {}", code.description())]
     Cublas {
         /// The native cuBLAS status.
         code: Status,
-        /// The status description reported by cuBLAS.
-        message: String,
     },
 
     /// A string contains an interior NUL byte.
@@ -97,6 +77,15 @@ pub enum Error {
     #[error("unexpected null handle")]
     NullHandle,
 
+    /// A native enum or attribute value has no typed variant in this crate.
+    #[error("unknown `{name}` value {value}")]
+    UnknownEnumValue {
+        /// Name of the typed enum or attribute.
+        name: Cow<'static, str>,
+        /// Unrecognized native value.
+        value: i64,
+    },
+
     /// A value or computed size cannot be represented by the required integer type.
     #[error("`{name}` is out of range")]
     OutOfRange {
@@ -104,22 +93,15 @@ pub enum Error {
         name: Cow<'static, str>,
     },
 
-    /// The native attribute size differs from the requested Rust representation.
-    #[error("unexpected attribute size: expected {expected} bytes, got {actual}")]
-    AttributeSizeMismatch {
+    /// A native value's size differs from the requested Rust representation.
+    #[error("`{name}` size mismatch (expected {expected} bytes, got {actual})")]
+    SizeMismatch {
+        /// The value being read.
+        name: Cow<'static, str>,
         /// The size of the requested Rust representation, in bytes.
         expected: usize,
-        /// The attribute size returned by cuBLAS, in bytes.
+        /// The size returned by cuBLAS, in bytes.
         actual: usize,
-    },
-
-    /// A native attribute value is not a recognized variant of the requested enum.
-    #[error("invalid value {value} for attribute `{name}`")]
-    InvalidAttributeValue {
-        /// The attribute being decoded.
-        name: Cow<'static, str>,
-        /// The unrecognized native value.
-        value: u32,
     },
 
     /// An argument has a different number of elements than required.
@@ -130,6 +112,17 @@ pub enum Error {
         /// The required number of elements.
         expected: usize,
         /// The supplied number of elements.
+        actual: usize,
+    },
+
+    /// A buffer holds fewer elements or bytes than the operation requires.
+    #[error("`{name}` is too small (requires {required}, got {actual})")]
+    BufferTooSmall {
+        /// Name of the buffer.
+        name: Cow<'static, str>,
+        /// Required length.
+        required: usize,
+        /// Supplied length.
         actual: usize,
     },
 
@@ -153,13 +146,20 @@ pub enum Error {
     #[error("stream belongs to a different cuda context")]
     StreamContextMismatch,
 
-    /// The operation requires the handle to use host scalar pointers.
-    #[error("operation requires host pointer mode")]
-    RequiresHostPointerMode,
-
     /// The scalar arguments use different pointer modes.
     #[error("scalar pointer modes do not match")]
     ScalarPointerModeMismatch,
+
+    /// A data type argument, or the Rust type of a value, differs from the data type the operation requires.
+    #[error("`{name}` is {actual}, but the operation requires {expected}")]
+    DataTypeMismatch {
+        /// The data type argument or value.
+        name: Cow<'static, str>,
+        /// The required data type.
+        expected: DataType,
+        /// The supplied data type.
+        actual: DataType,
+    },
 }
 
 /// A cuBLAS wrapper result with [`enum@Error`] as its error type.
@@ -169,66 +169,49 @@ impl Error {
     pub(crate) fn out_of_range(name: impl Into<Cow<'static, str>>) -> Self {
         Self::OutOfRange { name: name.into() }
     }
-}
 
-impl From<sys::cublasStatus_t> for Error {
-    fn from(status: sys::cublasStatus_t) -> Self {
-        if status == sys::cublasStatus_t::CUBLAS_STATUS_NOT_INITIALIZED
-            && let Err(error) = singe_cublas_sys::load()
-        {
-            return Self::Load(error);
-        }
-
-        if status == sys::cublasStatus_t::CUBLAS_STATUS_NOT_INITIALIZED
-            && let Err(error) = singe_cublas_sys::load_lt()
-        {
-            return Self::Load(error);
-        }
-
-        // SAFETY: `cublasGetStatusString` returns null or a static NUL-terminated string.
-        let message = unsafe {
-            let c_ptr = sys::cublasGetStatusString(status);
-            if c_ptr.is_null() {
-                String::from("unknown cublas error")
-            } else {
-                CStr::from_ptr(c_ptr).to_string_lossy().into_owned()
-            }
-        };
-
-        Self::Cublas {
-            code: status.into(),
-            message,
+    pub(crate) fn buffer_too_small(
+        name: impl Into<Cow<'static, str>>,
+        required: usize,
+        actual: usize,
+    ) -> Self {
+        Self::BufferTooSmall {
+            name: name.into(),
+            required,
+            actual,
         }
     }
 }
 
-impl From<Status> for Error {
-    fn from(status: Status) -> Self {
-        match sys::cublasStatus_t::try_from(status) {
-            Ok(status) => status.into(),
-            Err(code) => Self::Cublas {
-                code,
-                message: code.description().into(),
-            },
+impl From<CudaError> for Error {
+    fn from(error: CudaError) -> Self {
+        match error {
+            CudaError::StreamContextMismatch => Self::StreamContextMismatch,
+            error => Self::Cuda(error),
         }
     }
 }
 
-impl From<ffi::NulError> for Error {
-    fn from(_: ffi::NulError) -> Self {
+impl From<singe_core::UnknownEnumValue> for Error {
+    fn from(error: singe_core::UnknownEnumValue) -> Self {
+        Self::UnknownEnumValue {
+            name: error.name.into(),
+            value: error.value,
+        }
+    }
+}
+
+impl From<NulError> for Error {
+    fn from(_: NulError) -> Self {
         Self::InteriorNul
     }
 }
 
-/// Converts a raw cuBLAS status-returning expression into a crate [`Result`](crate::error::Result).
-#[macro_export]
+// Converts a raw cuBLAS or cuBLASLt status into this crate's `Result`.
 macro_rules! try_ffi {
-    ($expr:expr) => {{
-        let status = { $expr };
-        if status != singe_cublas_sys::cublasStatus_t::CUBLAS_STATUS_SUCCESS {
-            Err($crate::error::Error::from(status))
-        } else {
-            Ok(())
-        }
-    }};
+    ($expr:expr) => {
+        $crate::error::Error::check($expr)
+    };
 }
+
+pub(crate) use try_ffi;

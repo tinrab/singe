@@ -1,5 +1,6 @@
-//! Low-level FFI bindings for the NVIDIA nvTIFF library.
-
+//! Low-level FFI bindings for nvTIFF 0.8, the NVIDIA GPU TIFF codec library, generated from `nvtiff.h`.
+//! [`singe-loader`](singe_loader) loads the library at run time, on the first call or through [`load`], so building links no NVIDIA library.
+//! Most users want the safe `singe-nvtiff` crate.
 #![allow(
     unpredictable_function_pointer_comparisons,
     non_upper_case_globals,
@@ -10,6 +11,9 @@
     unnecessary_transmutes,
     unused_imports,
     unused_qualifications,
+    missing_debug_implementations,
+    unnameable_types,
+    unreachable_pub,
     clippy::correctness,
     clippy::suspicious,
     clippy::complexity,
@@ -18,10 +22,13 @@
     clippy::absolute_paths,
     clippy::pedantic,
     clippy::nursery,
+    clippy::undocumented_unsafe_blocks,
     reason = "generated bindings preserve upstream ABI conventions and documentation"
 )]
 
-use num_enum::{IntoPrimitive, TryFromPrimitive};
+#[cfg(not(feature = "nvtiff_0_8"))]
+compile_error!("singe-nvtiff-sys requires a version feature, such as `nvtiff_0_8`");
+
 use singe_cuda_sys::{
     library_types::libraryPropertyType,
     runtime::{cudaError_t, cudaStream_t},
@@ -29,8 +36,7 @@ use singe_cuda_sys::{
 
 include!("sys_800.rs");
 
-// Zero is not a valid nvtiffVariant. Keep bindgen from generating a zeroed
-// Default for this struct and provide a fully initialized TIFF header instead.
+// nvTIFF defines no zero variant, so the default header names a regular TIFF.
 impl Default for nvtiffStreamHeader {
     fn default() -> Self {
         Self {
@@ -40,11 +46,15 @@ impl Default for nvtiffStreamHeader {
     }
 }
 
-pub use singe_loader::LoadError;
+pub use singe_loader::{Absence, LoadError, take_absence};
 
 static LIBRARY: singe_loader::Library = singe_loader::Library::nvtiff();
 
-// Loads nvTIFF, which each of its functions otherwise does on first call.
+/// Loads nvTIFF now, instead of on the first call of one of its functions.
+///
+/// # Errors
+///
+/// Returns an error if the library has no files on this platform or one of its files would not load.
 pub fn load() -> Result<(), LoadError> {
     LIBRARY.load()
 }
