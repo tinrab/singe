@@ -10,7 +10,7 @@ mod swin;
 mod unet;
 
 pub use self::{
-    attention::{Attention, AttentionSpec},
+    attention::{Attention, AttentionCache, AttentionSpec, causal_mask},
     decoder::{
         CausalLmSpec, DecoderConfig, DraftLayer, GroupedDecoder, causal, causal_lm, decoder,
         gated_mlp, grouped_attention, grouped_decoder, grouped_decoder_parts, hidden_states,

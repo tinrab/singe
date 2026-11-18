@@ -45,7 +45,7 @@ pub use self::{
     masked_lm::{MaskedLm, MaskedLmConfig, MaskedLmLayers},
     question_answering::{QuestionAnswerer, QuestionAnswererLayers},
     retrieval::{DocumentRetriever, late_interaction},
-    seq2seq::{Seq2SeqGeneration, Seq2SeqInput, Seq2SeqLayers, Seq2SeqLm},
+    seq2seq::{DecoderCache, Seq2SeqGeneration, Seq2SeqInput, Seq2SeqLayers, Seq2SeqLm},
     sequence_classification::{
         ClassifierConfig, ClassifierLayout, ScoreFunction, SequenceClassifier,
         SequenceClassifierLayers, argmax,

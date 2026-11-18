@@ -13,7 +13,7 @@ pub use self::stack::{BartStack, BartStackConfig, stack_rules};
 use crate::{
     error::Result,
     format::{Loader, transformers::seq2seq_generation},
-    head::{HeadLoader, Seq2SeqInput, Seq2SeqLayers, Seq2SeqLm},
+    head::{DecoderCache, HeadLoader, Seq2SeqInput, Seq2SeqLayers, Seq2SeqLm},
     model::ModelEntry,
     schema::Schema,
     source::Format,
@@ -38,17 +38,21 @@ impl Seq2SeqLayers for BartLayers {
         let Seq2SeqInput::Tokens(batch) = input else {
             return Err(singe::Error::invalid_argument("BART reads tokens"));
         };
-        self.encoder.forward(batch.tokens(), None, state)
+        self.encoder.forward(batch.tokens(), state)
+    }
+
+    fn start(&self, encoded: &Tensor, state: &ModelState) -> SingeResult<DecoderCache> {
+        self.decoder.start(encoded, state)
     }
 
     fn next_scores(
         &self,
-        encoded: &Tensor,
+        cache: &mut DecoderCache,
         tokens: &[i64],
         state: &ModelState,
     ) -> SingeResult<Tensor> {
         self.decoder
-            .last_state(encoded, tokens, state)?
+            .last_state(cache, tokens, state)?
             .apply(&self.head, state)?
             .add(&state.tensor(&self.logits_bias)?.squeeze(0)?)
     }

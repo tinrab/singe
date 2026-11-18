@@ -1,5 +1,5 @@
 // Encoder-decoder generation, as `transformers`' `generate` runs it greedily for T5, BART, TrOCR, and Donut: the input encoded once, then each token the decoder's best after the tokens before it, under the snapshot's generation config.
-// The decoder reads every token so far at each step, which no cache shortens.
+// The decoder keeps each block's keys and values between steps, so a step reads only its new token; beam search keeps them per beam.
 
 use std::{collections::HashSet, fmt::Debug};
 
@@ -9,7 +9,10 @@ use singe::{
     nn::{Model, ModelState, TokenBatch},
 };
 
-use crate::error::{Error, Result};
+use crate::{
+    assembly::AttentionCache,
+    error::{Error, Result},
+};
 
 // What an encoder-decoder reads: tokens, or images' pixels.
 #[derive(Debug, Clone, Copy)]
@@ -18,16 +21,29 @@ pub enum Seq2SeqInput<'a> {
     Pixels(&'a Tensor),
 }
 
-// What an encoder-decoder's layers give: the encoder's states for one input, `[1, S, D]`, and the decoder's scores for the token after `tokens`, `[V]`, against those states.
+// What an encoder-decoder's layers give: the encoder's states for one input, `[1, S, D]`, the decoder's state before its first token against those states, and its scores for the token after `tokens`, `[V]`.
 pub trait Seq2SeqLayers: Debug + Send + Sync {
     fn encode(&self, input: Seq2SeqInput<'_>, state: &ModelState) -> SingeResult<Tensor>;
 
+    // Each block's cross-attention keys and values over `encoded`, with no token read yet.
+    fn start(&self, encoded: &Tensor, state: &ModelState) -> SingeResult<DecoderCache>;
+
+    // The decoder reads the tokens of `tokens` past those `cache` has read, adding them to it.
     fn next_scores(
         &self,
-        encoded: &Tensor,
+        cache: &mut DecoderCache,
         tokens: &[i64],
         state: &ModelState,
     ) -> SingeResult<Tensor>;
+}
+
+// A decoder's state between steps.
+#[derive(Debug, Clone)]
+pub struct DecoderCache {
+    // Each block's self-attention keys and values over the tokens read, and its cross-attention's over the encoder's states.
+    pub blocks: Vec<(Option<AttentionCache>, AttentionCache)>,
+    // The tokens read.
+    pub read: usize,
 }
 
 // How a snapshot generates, from its `generation_config.json`: the token the decoder starts from, those that end a sequence, tokens forced first and last, the bounds of a sequence's length, counted with the start token, the size of n-grams that may not repeat, tokens never chosen, and the beams searched, one for greedy generation, with the power of a finished beam's length its score is divided by and whether search stops once every beam has finished.
@@ -51,6 +67,8 @@ pub struct Seq2SeqGeneration {
 struct Beam {
     tokens: Vec<i64>,
     score: f32,
+    // The decoder's state after all but the last token, which a running beam reads next, and a finished one drops.
+    cache: Option<DecoderCache>,
 }
 
 // The log-softmax of `scores`.
@@ -174,8 +192,9 @@ impl Seq2SeqLm {
         let config = &self.generation;
         let mut tokens = prefix.to_vec();
         let mut generated = Vec::new();
+        let mut cache = self.start(encoded)?;
         while tokens.len() < max_length {
-            let scores = self.scores(encoded, &tokens)?;
+            let scores = self.scores(&mut cache, &tokens)?;
             let (forced, banned) = config.constraints(&tokens, max_length);
             let token = match forced {
                 Some(token) => token,
@@ -204,11 +223,15 @@ impl Seq2SeqLm {
         Ok(generated)
     }
 
-    fn scores(&self, encoded: &Tensor, tokens: &[i64]) -> Result<Vec<f32>> {
+    fn start(&self, encoded: &Tensor) -> Result<DecoderCache> {
+        Ok(self.model.layer().start(encoded, self.model.state())?)
+    }
+
+    fn scores(&self, cache: &mut DecoderCache, tokens: &[i64]) -> Result<Vec<f32>> {
         Ok(self
             .model
             .layer()
-            .next_scores(encoded, tokens, self.model.state())?
+            .next_scores(cache, tokens, self.model.state())?
             .cast(DataType::F32)?
             .to_vec::<f32>()?)
     }
@@ -221,10 +244,12 @@ impl Seq2SeqLm {
         let beams = config.beams;
         let keep = (1 + config.stop_tokens.len()).max(2) * beams;
         let prompt = prefix.len();
+        let start = self.start(encoded)?;
         let mut running = (0..beams)
             .map(|index| Beam {
                 tokens: prefix.to_vec(),
                 score: if index == 0 { 0.0 } else { UNREACHABLE },
+                cache: Some(start.clone()),
             })
             .collect::<Vec<_>>();
         let mut finished = vec![
@@ -232,6 +257,7 @@ impl Seq2SeqLm {
                 Beam {
                     tokens: prefix.to_vec(),
                     score: UNREACHABLE,
+                    cache: None,
                 },
                 false
             );
@@ -242,9 +268,13 @@ impl Seq2SeqLm {
         loop {
             let mut accumulated = Vec::new();
             let mut vocabulary = 0;
-            for beam in &running {
+            for beam in &mut running {
+                let cache = beam
+                    .cache
+                    .as_mut()
+                    .ok_or_else(|| Error::unsupported("a running beam without a decoder state"))?;
                 let log_probabilities = config.log_probabilities(
-                    &self.scores(encoded, &beam.tokens)?,
+                    &self.scores(cache, &beam.tokens)?,
                     &beam.tokens,
                     max_length,
                 );
@@ -268,6 +298,7 @@ impl Seq2SeqLm {
                     Beam {
                         tokens,
                         score: accumulated[index],
+                        cache: running[index / vocabulary].cache.clone(),
                     }
                 })
                 .collect::<Vec<_>>();
@@ -291,6 +322,7 @@ impl Seq2SeqLm {
                 .map(|index| Beam {
                     tokens: candidates[index].tokens.clone(),
                     score: continuing[index],
+                    cache: candidates[index].cache.clone(),
                 })
                 .collect::<Vec<_>>();
 
@@ -317,6 +349,7 @@ impl Seq2SeqLm {
                     Beam {
                         tokens: beam.tokens.clone(),
                         score,
+                        cache: None,
                     },
                     just_finished,
                 ));

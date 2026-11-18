@@ -12,7 +12,7 @@ use crate::{
     assembly::{PreNormEncoder, PreNormEncoderSpec, Swin, SwinConfig},
     error::Result,
     format::{Loader, transformers::seq2seq_generation},
-    head::{HeadLoader, Seq2SeqInput, Seq2SeqLayers, Seq2SeqLm},
+    head::{DecoderCache, HeadLoader, Seq2SeqInput, Seq2SeqLayers, Seq2SeqLm},
     model::{
         ModelEntry,
         text::bart::{BartStack, BartStackConfig},
@@ -100,14 +100,18 @@ impl Seq2SeqLayers for VisionEncoderDecoderLayers {
         pixels.apply(&self.encoder, state)
     }
 
+    fn start(&self, encoded: &Tensor, state: &ModelState) -> SingeResult<DecoderCache> {
+        self.decoder.start(encoded, state)
+    }
+
     fn next_scores(
         &self,
-        encoded: &Tensor,
+        cache: &mut DecoderCache,
         tokens: &[i64],
         state: &ModelState,
     ) -> SingeResult<Tensor> {
         self.decoder
-            .last_state(encoded, tokens, state)?
+            .last_state(cache, tokens, state)?
             .apply(&self.head, state)
     }
 }
