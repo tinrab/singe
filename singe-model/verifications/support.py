@@ -425,7 +425,7 @@ class Verification:
             self.written += 1
             return
         results = [
-            compare(case["task"], want, got)
+            (compare_loose if case.get("loose") else compare)(case["task"], want, got)
             for want, got in zip(case["expected"], outputs)
         ]
         details = [detail for _, detail in results]
@@ -465,6 +465,37 @@ def recorded(task, output):
 
 
 # Comparisons, as `support/compare.rs` makes them.
+
+
+# A half-precision case's looser match: the top label's or answer's score within `LOOSE_SCORE`, and the first `LOOSE_TOKENS` tokens of a generation.
+LOOSE_SCORE = 0.05
+LOOSE_TOKENS = 8
+
+
+def compare_loose(task, want, got):
+    """A half-precision case's match, as `support/compare.rs` makes it: the same top label or answer with its score within `LOOSE_SCORE`, or the same first `LOOSE_TOKENS` generated tokens."""
+
+    def top(value):
+        while isinstance(value, list):
+            value = value[0] if value else {}
+        return value
+
+    if task == "text-generation":
+        want, got = want["generated_token_ids"], got["generated_token_ids"]
+        count = min(LOOSE_TOKENS, len(want))
+        same = 0
+        while same < min(len(want), len(got)) and want[same] == got[same]:
+            same += 1
+        return same >= count, f"{same} of {len(want)} tokens, {count} needed"
+    if task in ("text-classification", "question-answering"):
+        key = "label" if task == "text-classification" else "answer"
+        want, got = top(want), top(got)
+        error = abs(want["score"] - got["score"])
+        return (
+            want[key] == got[key] and error < LOOSE_SCORE,
+            f"top {key} {got[key]!r}, score difference {error:.1e}",
+        )
+    raise ValueError(f"no loose comparison for {task}")
 
 
 def compare(task, want, got):

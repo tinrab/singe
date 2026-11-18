@@ -46,6 +46,52 @@
       ]
     },
     {
+      "name": "prompt-bf16",
+      "snapshot": "QWEN3",
+      "task": "text-generation",
+      "inputs": [
+        "The most important resource in Factorio is"
+      ],
+      "parameters": {
+        "max_new_tokens": 24
+      },
+      "expected": [
+        {
+          "generated_token_ids": [
+            279,
+            4802,
+            13,
+            576,
+            4802,
+            374,
+            279,
+            1887,
+            2530,
+            315,
+            678,
+            279,
+            1008,
+            4963,
+            13,
+            576,
+            4802,
+            374,
+            1083,
+            279,
+            1887,
+            2530,
+            315,
+            279
+          ],
+          "end_token_ids": [
+            151645,
+            151643
+          ]
+        }
+      ],
+      "loose": true
+    },
+    {
       "name": "chat",
       "snapshot": "QWEN3",
       "task": "text-generation",

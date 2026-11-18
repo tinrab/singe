@@ -19,6 +19,7 @@ pub fn verify(session: &mut Session) {
     session.check::<TokenClassificationPipeline>("entities-first", DataType::F32);
     session.check::<QuestionAnsweringPipeline>("answers", DataType::F32);
     session.check::<QuestionAnsweringPipeline>("answers-small-windows", DataType::F32);
+    session.check::<QuestionAnsweringPipeline>("answers-bf16", DataType::Bf16);
     session.check::<FillMaskPipeline>("fill", DataType::F32);
     session.check::<SentenceSimilarityPipeline>("similarity-max", DataType::F32);
 }

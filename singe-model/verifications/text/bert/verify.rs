@@ -13,6 +13,7 @@ use crate::support::Session;
 pub fn verify(session: &mut Session) {
     session.check::<TextClassificationPipeline>("toxicity", DataType::F32);
     session.check::<TextClassificationPipeline>("spam", DataType::F32);
+    session.check::<TextClassificationPipeline>("toxicity-bf16", DataType::Bf16);
     session.check::<TextRankingPipeline>("ranking", DataType::F32);
     for strategy in ["none", "simple", "first", "average", "max"] {
         session

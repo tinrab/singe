@@ -42,6 +42,9 @@ struct Case {
     #[serde(default)]
     parameters: Value,
     expected: Vec<Value>,
+    // Whether the case runs in half precision and matches looser, by `compare::loose`.
+    #[serde(default)]
+    loose: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -170,7 +173,11 @@ impl Session {
         let mut details = Vec::new();
         for (want, got) in case.expected.iter().zip(&outputs) {
             let got = serde_json::to_value(got)?;
-            let (matched, detail) = compare::outputs(&case.task, want, &got);
+            let (matched, detail) = if case.loose {
+                compare::loose(&case.task, want, &got)
+            } else {
+                compare::outputs(&case.task, want, &got)
+            };
             failed |= !matched;
             details.push(detail);
         }

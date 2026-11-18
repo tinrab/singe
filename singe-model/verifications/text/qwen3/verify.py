@@ -14,10 +14,10 @@ from transformers import AutoModelForCausalLM, AutoTokenizer  # noqa: E402
 from support import DEVICE, Verification, generation  # noqa: E402
 
 
-def text_generation(snapshot):
+def text_generation(snapshot, dtype=torch.float32):
     tokenizer = AutoTokenizer.from_pretrained(snapshot)
     model = (
-        AutoModelForCausalLM.from_pretrained(snapshot, dtype=torch.float32)
+        AutoModelForCausalLM.from_pretrained(snapshot, dtype=dtype)
         .to(DEVICE)
         .eval()
     )
@@ -51,6 +51,9 @@ def text_generation(snapshot):
 verification = Verification(__file__)
 verification.check("prompt", text_generation)
 verification.check("chat", text_generation)
+verification.check(
+    "prompt-bf16", lambda snapshot: text_generation(snapshot, torch.bfloat16)
+)
 
 
 # The generic prompt of `transformers`' decision pipeline, which the installed release predates: `DECISION_PROMPT` of `transformers/decision/template_utils.py`.

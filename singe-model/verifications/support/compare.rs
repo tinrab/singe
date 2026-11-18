@@ -632,3 +632,57 @@ fn without_scores(value: &Value) -> Value {
         other => other.clone(),
     }
 }
+
+// A half-precision case's looser match: the top label's or answer's score within this, and the first `LOOSE_TOKENS` tokens of a generation.
+const LOOSE_SCORE: f64 = 0.05;
+
+const LOOSE_TOKENS: usize = 8;
+
+// A half-precision case's match, as `support.py` makes it: the same top label or answer with its score within `LOOSE_SCORE`, or the same first `LOOSE_TOKENS` generated tokens.
+pub fn loose(task: &str, want: &Value, got: &Value) -> (bool, String) {
+    fn top(mut value: &Value) -> &Value {
+        while let Value::Array(items) = value {
+            match items.first() {
+                Some(first) => value = first,
+                None => return &Value::Null,
+            }
+        }
+        value
+    }
+
+    match task {
+        "text-generation" => {
+            let (want, got) = (
+                numbers(&want["generated_token_ids"]),
+                numbers(&got["generated_token_ids"]),
+            );
+            let count = LOOSE_TOKENS.min(want.len());
+            let same = want
+                .iter()
+                .zip(&got)
+                .take_while(|(want, got)| want == got)
+                .count();
+            (
+                same >= count,
+                format!("{same} of {} tokens, {count} needed", want.len()),
+            )
+        }
+        "text-classification" | "question-answering" => {
+            let key = if task == "text-classification" {
+                "label"
+            } else {
+                "answer"
+            };
+            let (want, got) = (top(want), top(got));
+            let error = match (want["score"].as_f64(), got["score"].as_f64()) {
+                (Some(want), Some(got)) => (want - got).abs(),
+                _ => f64::INFINITY,
+            };
+            (
+                want[key] == got[key] && error < LOOSE_SCORE,
+                format!("top {key} {}, score difference {error:.1e}", got[key]),
+            )
+        }
+        _ => (false, format!("no loose comparison for {task}")),
+    }
+}

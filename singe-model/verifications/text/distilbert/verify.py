@@ -38,11 +38,11 @@ def token_classification(snapshot):
     return lambda texts, parameters: [tag(text, **parameters) for text in texts]
 
 
-def question_answering(snapshot):
+def question_answering(snapshot, dtype=torch.float32):
     """`transformers` 5 removed the question-answering pipeline, so this is its model with `transformers` 4.57's span selection, ported from `pipelines/question_answering.py`: windows of the context, softmaxed start and end scores over the context, spans of at most `max_answer_len` tokens aligned to words, and one answer's scores summed across windows."""
     tokenizer = AutoTokenizer.from_pretrained(snapshot)
     model = (
-        AutoModelForQuestionAnswering.from_pretrained(snapshot, dtype=torch.float32)
+        AutoModelForQuestionAnswering.from_pretrained(snapshot, dtype=dtype)
         .to(DEVICE)
         .eval()
     )
@@ -87,7 +87,7 @@ def question_answering(snapshot):
             )
 
             def normalized(logits):
-                logits = numpy.where(answerable, logits[window].cpu().numpy(), -10000.0)
+                logits = numpy.where(answerable, logits[window].float().cpu().numpy(), -10000.0)
                 scores = numpy.exp(logits - logits.max())
                 return scores / scores.sum()
 
@@ -173,6 +173,9 @@ verification.check("entities-simple", token_classification)
 verification.check("entities-first", token_classification)
 verification.check("answers", question_answering)
 verification.check("answers-small-windows", question_answering)
+verification.check(
+    "answers-bf16", lambda snapshot: question_answering(snapshot, torch.bfloat16)
+)
 verification.check("fill", fill_mask)
 verification.check("similarity-max", sentence_similarity)
 verification.finish()

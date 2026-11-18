@@ -67,6 +67,73 @@
       ]
     },
     {
+      "name": "toxicity-bf16",
+      "snapshot": "TOXIC_BERT",
+      "task": "text-classification",
+      "inputs": [
+        "Your main bus is a wonderful piece of engineering.",
+        "You are an idiot and your spaghetti base is garbage."
+      ],
+      "parameters": {
+        "top_k": null
+      },
+      "expected": [
+        [
+          {
+            "label": "toxic",
+            "score": 0.000883046
+          },
+          {
+            "label": "insult",
+            "score": 0.000203427
+          },
+          {
+            "label": "obscene",
+            "score": 0.000168653
+          },
+          {
+            "label": "identity_hate",
+            "score": 0.000139822
+          },
+          {
+            "label": "threat",
+            "score": 0.000115919
+          },
+          {
+            "label": "severe_toxic",
+            "score": 0.0001023
+          }
+        ],
+        [
+          {
+            "label": "toxic",
+            "score": 0.989347
+          },
+          {
+            "label": "insult",
+            "score": 0.951863
+          },
+          {
+            "label": "obscene",
+            "score": 0.76908
+          },
+          {
+            "label": "severe_toxic",
+            "score": 0.0420877
+          },
+          {
+            "label": "identity_hate",
+            "score": 0.0140636
+          },
+          {
+            "label": "threat",
+            "score": 0.00116951
+          }
+        ]
+      ],
+      "loose": true
+    },
+    {
       "name": "spam",
       "snapshot": "BERT_TINY_SPAM",
       "task": "text-classification",

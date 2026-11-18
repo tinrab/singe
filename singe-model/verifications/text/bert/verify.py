@@ -13,10 +13,8 @@ from transformers import pipeline  # noqa: E402
 from support import DEVICE, Verification  # noqa: E402
 
 
-def text_classification(snapshot):
-    classify = pipeline(
-        "text-classification", model=snapshot, dtype=torch.float32, device=DEVICE
-    )
+def text_classification(snapshot, dtype=torch.float32):
+    classify = pipeline("text-classification", model=snapshot, dtype=dtype, device=DEVICE)
     # Without `top_k`, `transformers` gives a single text's best label in a list.
     return lambda texts, parameters: [
         classify(text, **parameters) if "top_k" in parameters else classify(text)[0]
@@ -70,6 +68,9 @@ def fill_mask(snapshot):
 verification = Verification(__file__)
 verification.check("toxicity", text_classification)
 verification.check("spam", text_classification)
+verification.check(
+    "toxicity-bf16", lambda snapshot: text_classification(snapshot, torch.bfloat16)
+)
 verification.check("ranking", text_ranking)
 for strategy in ("none", "simple", "first", "average", "max"):
     verification.check(f"entities-{strategy}", token_classification)

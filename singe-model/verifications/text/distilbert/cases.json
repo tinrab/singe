@@ -252,6 +252,38 @@
       ]
     },
     {
+      "name": "answers-bf16",
+      "snapshot": "DISTILBERT_SQUAD",
+      "task": "question-answering",
+      "inputs": [
+        {
+          "question": "Where do I build factories?",
+          "context": "My name is Kovarex and I build factories on Nauvis."
+        }
+      ],
+      "parameters": {
+        "top_k": 2,
+        "handle_impossible_answer": true
+      },
+      "expected": [
+        [
+          {
+            "score": 0.754935,
+            "start": 44,
+            "end": 50,
+            "answer": "Nauvis"
+          },
+          {
+            "score": 0.190751,
+            "start": 41,
+            "end": 50,
+            "answer": "on Nauvis"
+          }
+        ]
+      ],
+      "loose": true
+    },
+    {
       "name": "answers-small-windows",
       "snapshot": "DISTILBERT_SQUAD",
       "task": "question-answering",
