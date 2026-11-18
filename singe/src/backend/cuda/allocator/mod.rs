@@ -6,10 +6,14 @@ mod traits;
 
 use std::{
     collections::HashMap,
+    mem::MaybeUninit,
     sync::{Arc, Mutex, OnceLock},
 };
 
-use singe_cuda::{context::Context as CudaContext, stream::Stream};
+use singe_cuda::{
+    context::Context as CudaContext, error::Result as CudaResult, memory::DeviceMemory,
+    stream::Stream,
+};
 
 use self::cache::CudaCachingAllocatorCache;
 pub use self::{stats::CudaAllocatorStats, traits::CudaAllocator};
@@ -31,6 +35,19 @@ pub struct CudaCachingAllocator {
     stream: Arc<Stream>,
     // Whether `stream` is the runtime's eager stream rather than a caller's.
     eager: bool,
+}
+
+// Scratch memory a library asks for, outside the cache: when the device has no room, the cache's free blocks are released and it is asked once more, as the allocator retries its own blocks.
+pub(crate) fn allocate_scratch(
+    context: &Arc<CudaContext>,
+    bytes: usize,
+) -> CudaResult<DeviceMemory<MaybeUninit<u8>>> {
+    DeviceMemory::<u8>::create_uninit(context, bytes).or_else(|error| {
+        match CudaCachingAllocator::clear_cache_for_device(Device::Cuda(context.device().id())) {
+            Ok(()) => DeviceMemory::<u8>::create_uninit(context, bytes),
+            Err(_) => Err(error),
+        }
+    })
 }
 
 #[cfg(all(test, feature = "testing"))]

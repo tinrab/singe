@@ -1,6 +1,6 @@
 """AnimateDiff, generating a clip from a prompt and a seed with `diffusers`' `AnimateDiffPipeline` over Stable Diffusion 1.5 and its motion adapter, as `verify.rs` generates it in Singe.
 Both draw the noise from PyTorch's CPU generator seeded alike, and both run in F16, since the UNet and its adapter do not fit the GPU in F32.
-Guidance stays low: in F16, guidance 7.5 makes the clip chaotic enough that `diffusers` against itself with another attention kernel differs by more than the comparison allows."""
+Guidance stays low: at 256² in F16, `diffusers` against itself with another attention kernel differs by 33 dB at guidance 3 and by 47.5 dB at 1.5, so a higher guidance makes the clip too chaotic to compare."""
 
 import sys
 from pathlib import Path
