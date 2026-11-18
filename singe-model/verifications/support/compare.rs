@@ -36,6 +36,7 @@ pub fn outputs(task: &str, want: &Value, got: &Value) -> (bool, String) {
         | "visual-document-retrieval"
         | "time-series-forecasting"
         | "reinforcement-learning"
+        | "sentence-embeddings"
         | "tabular-classification"
         | "tabular-regression" => match largest_difference(want, got) {
             Some(error) => (error < TOLERANCE, format!("largest difference {error:.1e}")),

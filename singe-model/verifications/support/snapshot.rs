@@ -19,7 +19,7 @@ pub fn find(root: &Path, name: &str) -> Result<Option<PathBuf>> {
     let document = text
         .parse::<DocumentMut>()
         .with_context(|| format!("parse {}", path.display()))?;
-    // An entry is the repository; a table of its `repository`, the `revision` to read, such as the safetensors conversion bot's `refs/pr/N`, and the `files` to download, which only the download reads; or a pipeline table of a `pipeline` class, a `base` entry, and the `components` entries added to it.
+    // An entry is the repository; a table of its `repository`, the `revision` to read, such as the safetensors conversion bot's `refs/pr/N`, and the `files` to download, which only the download reads; a pipeline table of a `pipeline` class, a `base` entry, and the `components` entries added to it; or a derived table of a `base` entry and the files it `replace`s, each with a file under `verifications/`.
     let entry = document
         .get("snapshots")
         .and_then(|snapshots| snapshots.get(name))
@@ -45,6 +45,22 @@ pub fn find(root: &Path, name: &str) -> Result<Option<PathBuf>> {
             })
             .unwrap_or_default();
         return assemble(root, name, pipeline, base, &added);
+    }
+    if let Some(replace) = entry.get("replace").and_then(|item| item.as_table_like()) {
+        let base = entry
+            .get("base")
+            .and_then(|item| item.as_str())
+            .with_context(|| format!("derived snapshot {name} names no base snapshot"))?;
+        let replaced = replace
+            .iter()
+            .map(|(file, source)| {
+                (
+                    file.to_owned(),
+                    source.as_str().unwrap_or_default().to_owned(),
+                )
+            })
+            .collect::<Vec<_>>();
+        return derive(root, name, base, &replaced);
     }
     let (repository, revision) = match entry.as_str() {
         Some(repository) => (repository, "main"),
@@ -83,6 +99,54 @@ fn cached(repository: &str, revision: &str) -> Option<PathBuf> {
     let commit = fs::read_to_string(directory.join("refs").join(revision)).ok()?;
     let snapshot = directory.join("snapshots").join(commit.trim());
     snapshot.is_dir().then_some(snapshot)
+}
+
+// A snapshot derived from `base`, as `support.py` derives it: the base's files linked under the tests' temporary directory, but for each of `replaced`, copied from its file under `root` in its place; `None` when the base is missing.
+fn derive(
+    root: &Path,
+    name: &str,
+    base: &str,
+    replaced: &[(String, String)],
+) -> Result<Option<PathBuf>> {
+    let Some(base) = find(root, base)? else {
+        return Ok(None);
+    };
+    let directory = Path::new(env!("CARGO_TARGET_TMPDIR"))
+        .join("snapshots")
+        .join(name);
+    let mut pending = vec![base.clone()];
+    while let Some(folder) = pending.pop() {
+        for entry in fs::read_dir(&folder).with_context(|| format!("read {}", folder.display()))? {
+            let path = entry?.path();
+            if path.is_dir() {
+                pending.push(path);
+                continue;
+            }
+
+            let relative = path.strip_prefix(&base)?;
+            let target = directory.join(relative);
+            if let Some(parent) = target.parent() {
+                fs::create_dir_all(parent)
+                    .with_context(|| format!("create {}", parent.display()))?;
+            }
+            if target.symlink_metadata().is_ok() {
+                fs::remove_file(&target).with_context(|| format!("remove {}", target.display()))?;
+            }
+            let key = relative.to_string_lossy().replace('\\', "/");
+            match replaced.iter().find(|(file, _)| *file == key) {
+                Some((_, source)) => {
+                    fs::copy(root.join(source), &target)
+                        .with_context(|| format!("copy {source} into {}", target.display()))?;
+                }
+                None => {
+                    let resolved = path.canonicalize()?;
+                    std::os::unix::fs::symlink(&resolved, &target)
+                        .with_context(|| format!("link {}", target.display()))?;
+                }
+            }
+        }
+    }
+    Ok(Some(directory))
 }
 
 // A `diffusers` pipeline assembled from snapshots, as `support.py` assembles it: `base`'s components and the `added` snapshots, linked under the tests' temporary directory beside a `model_index.json` naming `pipeline`; `None` when a part is missing.

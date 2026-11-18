@@ -42,6 +42,8 @@ INSTRUCT_PIX2PIX = { repository = "timbrooks/instruct-pix2pix", files = [
 ] }
 LIGHTGLUE = "ETH-CVG/lightglue_superpoint"
 MINILM = "sentence-transformers/all-MiniLM-L6-v2"
+# MiniLM pooling by the mean over the square root of the length, which no published model with safetensors does, without normalizing, which would hide the pooling's scale.
+MINILM_SQRT_POOLING = { base = "MINILM", replace = { "1_Pooling/config.json" = "text/bert/mean-sqrt-pooling.json", "modules.json" = "text/bert/mean-sqrt-modules.json" } }
 MITRA_CLASSIFIER = "autogluon/mitra-classifier"
 MITRA_REGRESSOR = "autogluon/mitra-regressor"
 MMS_TTS = "facebook/mms-tts-eng"

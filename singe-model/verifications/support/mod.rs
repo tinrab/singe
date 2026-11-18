@@ -17,7 +17,10 @@ use anyhow::{Context as _, Result, bail};
 use serde::Deserialize;
 use serde_json::Value;
 use singe::{DataType, Device};
-use singe_model::{LoadOptions, Source, task::Pipeline};
+use singe_model::{
+    LoadOptions, Source,
+    task::{Pipeline, text::sentence_similarity::SentenceSimilarityPipeline},
+};
 
 use self::profile::{GpuWork, profiled};
 
@@ -113,6 +116,59 @@ impl Session {
 
         let outcome = self.run_exported(name, &label);
         self.record(&label, outcome);
+    }
+
+    // Embeds case `name`'s sentences with a `sentence-transformers` snapshot's pipeline and compares the pooled vectors with the reference's, whose scale a similarity would hide.
+    pub fn check_embeddings(&mut self, name: &str) {
+        let label = format!("{}/{name}", self.name);
+        if !label.contains(&self.filter) {
+            return;
+        }
+
+        let outcome = self.run_embeddings(name, &label);
+        self.record(&label, outcome);
+    }
+
+    fn run_embeddings(&self, name: &str, label: &str) -> Result<Outcome> {
+        let case = self
+            .cases
+            .iter()
+            .find(|case| case.name == name)
+            .with_context(|| format!("cases.json has no case {name}"))?;
+        let Some(snapshot) = snapshot::find(&root(), &case.snapshot)? else {
+            println!(
+                "{label}: skipped, snapshot {} is not downloaded (`just snapshot {}`)",
+                case.snapshot, case.snapshot
+            );
+            return Ok(Outcome::Skipped);
+        };
+
+        let pipeline = SentenceSimilarityPipeline::load(
+            &Source::open(snapshot)?,
+            LoadOptions::new(DEVICE, DataType::F32),
+        )?;
+        let texts = case
+            .inputs
+            .iter()
+            .map(|input| input.as_str().context("a sentence to embed"))
+            .collect::<Result<Vec<_>>>()?;
+        let vectors = pipeline.embed(&texts, None)?;
+        let width = usize::try_from(vectors.shape().dimensions()[1])?;
+        let values = vectors.to_vec::<f32>()?;
+        let mut matched = values.len() == width * case.expected.len();
+        let mut details = Vec::new();
+        for (want, got) in case.expected.iter().zip(values.chunks(width)) {
+            let (same, detail) = compare::outputs(&case.task, want, &serde_json::json!(got));
+            matched &= same;
+            details.push(detail);
+        }
+        let verdict = if matched { "ok" } else { "MISMATCH" };
+        println!("{label}: {verdict}; {}", details.join("; "));
+        Ok(if matched {
+            Outcome::Passed
+        } else {
+            Outcome::Failed
+        })
     }
 
     fn record(&mut self, label: &str, outcome: Result<Outcome>) {

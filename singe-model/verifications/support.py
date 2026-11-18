@@ -125,6 +125,8 @@ def find_snapshot(name):
     entry = repositories()[name]
     if isinstance(entry, dict) and "pipeline" in entry:
         return assembled(name, entry)
+    if isinstance(entry, dict) and "replace" in entry:
+        return derived(name, entry)
     from huggingface_hub import snapshot_download
     from huggingface_hub.errors import LocalEntryNotFoundError
 
@@ -174,6 +176,27 @@ def assembled(name, entry):
             link.unlink()
         link.symlink_to(part.resolve())
     (directory / "model_index.json").write_text(json.dumps(index, indent=2) + "\n")
+    return str(directory)
+
+
+def derived(name, entry):
+    """A snapshot derived from another, as `support/snapshot.rs` derives it: the `base` snapshot's files linked under `target/tmp/snapshots/<NAME>`, but for those `replace` maps to files under `verifications/`, copied in their place; `None` when the base is missing."""
+    base = find_snapshot(entry["base"])
+    if base is None:
+        return None
+    directory = ROOT.parents[1] / "target" / "tmp" / "snapshots" / name
+    for file in Path(base).rglob("*"):
+        if file.is_dir():
+            continue
+        relative = file.relative_to(base).as_posix()
+        target = directory / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if target.is_symlink() or target.exists():
+            target.unlink()
+        if relative in entry["replace"]:
+            target.write_bytes((ROOT / entry["replace"][relative]).read_bytes())
+        else:
+            target.symlink_to(file.resolve())
     return str(directory)
 
 
@@ -331,6 +354,9 @@ def download(names):
         entry = repositories()[name]
         if isinstance(entry, dict) and "pipeline" in entry:
             download([entry["base"], *entry.get("components", {}).values()])
+            continue
+        if isinstance(entry, dict) and "replace" in entry:
+            download([entry["base"]])
             continue
         repository, revision, files = snapshot_entry(name)
         snapshot_download(
@@ -550,6 +576,7 @@ def compare(task, want, got):
         "visual-document-retrieval",
         "time-series-forecasting",
         "reinforcement-learning",
+        "sentence-embeddings",
         "tabular-classification",
         "tabular-regression",
     ):
