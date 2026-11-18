@@ -1,6 +1,7 @@
 // What every verification shares: its cases, the snapshot each reads, running a case through its pipeline and timing it, comparing the outputs with the expected ones, and the report.
 
 mod compare;
+mod export;
 mod profile;
 mod snapshot;
 
@@ -100,6 +101,21 @@ impl Session {
         }
 
         let outcome = self.run::<P>(name, &label, data_type);
+        self.record(&label, outcome);
+    }
+
+    // Exports case `name`'s snapshot as a CUDA C++ program, builds its runner with `nvcc`, runs it on the case's inputs, and compares what it gives with the reference's outputs, as `export::run` does.
+    pub fn check_exported(&mut self, name: &str) {
+        let label = format!("{}/{name}/exported", self.name);
+        if !label.contains(&self.filter) {
+            return;
+        }
+
+        let outcome = self.run_exported(name, &label);
+        self.record(&label, outcome);
+    }
+
+    fn record(&mut self, label: &str, outcome: Result<Outcome>) {
         // The allocator keeps freed memory cached, which the next model needs on a small GPU, as `support.py` empties torch's.
         let cleared =
             singe::backend::cuda::clear_cache(DEVICE).context("clear the allocator's cache");
@@ -112,6 +128,33 @@ impl Session {
                 self.failed += 1;
             }
         }
+    }
+
+    fn run_exported(&self, name: &str, label: &str) -> Result<Outcome> {
+        let case = self
+            .cases
+            .iter()
+            .find(|case| case.name == name)
+            .with_context(|| format!("cases.json has no case {name}"))?;
+        let Some(snapshot) = snapshot::find(&root(), &case.snapshot)? else {
+            println!(
+                "{label}: skipped, snapshot {} is not downloaded (`just snapshot {}`)",
+                case.snapshot, case.snapshot
+            );
+            return Ok(Outcome::Skipped);
+        };
+
+        let directory = Path::new(env!("CARGO_TARGET_TMPDIR"))
+            .join("exports")
+            .join(label.replace('/', "-"));
+        let (matched, details) = export::run(case, &snapshot, &directory)?;
+        let verdict = if matched { "ok" } else { "MISMATCH" };
+        println!("{label}: {verdict}; {}", details.join("; "));
+        Ok(if matched {
+            Outcome::Passed
+        } else {
+            Outcome::Failed
+        })
     }
 
     fn run<P: Pipeline>(&self, name: &str, label: &str, data_type: DataType) -> Result<Outcome> {

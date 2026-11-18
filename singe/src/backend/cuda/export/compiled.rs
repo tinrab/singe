@@ -279,6 +279,15 @@ pub fn build_set_generation_loop(
 // Returns an error if the program has no runner, or writing or compiling fails.
 pub fn build_runner(program: &CudaProgram, directory: &Path) -> Result<PathBuf, ProgramError> {
     program.write_to(directory, "model")?;
+    build_written_runner(directory)
+}
+
+// Builds the runner of the program `directory` holds, written as `model`, as its manifest says, returning the executable, which reads its weights from the same directory.
+//
+// # Errors
+//
+// Returns an error if the program has no runner, or reading its manifest or compiling fails.
+pub fn build_written_runner(directory: &Path) -> Result<PathBuf, ProgramError> {
     let manifest = read_manifest(directory, "model")?;
     let command = manifest["run"]
         .as_str()
