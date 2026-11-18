@@ -11,8 +11,49 @@ use crate::{
 pub enum InterpolateMode {
     // The input point at `floor(i · in / out)`.
     Nearest,
-    // The linear blend of the two nearest input points, with corners not aligned, separately along each axis.
+    // The linear blend of the two nearest input points, separately along each axis.
     Bilinear,
+    // The cubic convolution of the four nearest input points, separately along each axis, with `A = -0.75`, or `-0.5` when antialiased, as PyTorch computes it.
+    Bicubic,
+}
+
+// How `interpolate` resamples, as PyTorch's `mode`, `align_corners`, and `antialias` choose it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Interpolation {
+    pub mode: InterpolateMode,
+    // Maps the corner points of the input and output onto each other, rather than the corners of their pixels.
+    pub align_corners: bool,
+    // Widens the filter by the downscaling factor, so a smaller output averages every input point it covers, as PIL and torchvision resize.
+    pub antialias: bool,
+}
+
+impl Interpolation {
+    #[must_use]
+    pub const fn new(mode: InterpolateMode) -> Self {
+        Self {
+            mode,
+            align_corners: false,
+            antialias: false,
+        }
+    }
+
+    #[must_use]
+    pub const fn with_align_corners(mut self, align_corners: bool) -> Self {
+        self.align_corners = align_corners;
+        self
+    }
+
+    #[must_use]
+    pub const fn with_antialias(mut self, antialias: bool) -> Self {
+        self.antialias = antialias;
+        self
+    }
+}
+
+impl From<InterpolateMode> for Interpolation {
+    fn from(mode: InterpolateMode) -> Self {
+        Self::new(mode)
+    }
 }
 
 // Pooling and resampling composed from 2D pooling, slices, means, index selections, and element-wise blends.
@@ -68,9 +109,14 @@ impl Tensor {
     }
 
     // Resamples the last two axes to `size`.
-    pub fn interpolate(&self, size: (i64, i64), mode: InterpolateMode) -> Result<Self> {
-        self.resampled(-2, size.0, mode)?
-            .resampled(-1, size.1, mode)
+    pub fn interpolate(
+        &self,
+        size: (i64, i64),
+        interpolation: impl Into<Interpolation>,
+    ) -> Result<Self> {
+        let interpolation = interpolation.into();
+        self.resampled(-2, size.0, interpolation)?
+            .resampled(-1, size.1, interpolation)
     }
 
     // Takes the maximum of the last axis's windows, divided as `adaptive_avg_pool1d` divides them.
@@ -210,7 +256,7 @@ impl Tensor {
         Self::concat(&windows, dim)
     }
 
-    fn resampled(&self, dim: i64, size: i64, mode: InterpolateMode) -> Result<Self> {
+    fn resampled(&self, dim: i64, size: i64, interpolation: Interpolation) -> Result<Self> {
         let extent = self.extent(dim)?;
         if size <= 0 || extent <= 0 {
             return Err(Error::invalid_argument(
@@ -228,7 +274,11 @@ impl Tensor {
                 Self::from_vec(device, Shape::create([size])?, positions)
             })
         };
-        match mode {
+        let plain = !interpolation.align_corners && !interpolation.antialias;
+        match interpolation.mode {
+            InterpolateMode::Nearest if !plain => Err(Error::invalid_argument(
+                "nearest interpolation neither aligns corners nor antialiases",
+            )),
             InterpolateMode::Nearest => {
                 #[expect(
                     clippy::cast_possible_truncation,
@@ -240,7 +290,7 @@ impl Tensor {
                     .collect();
                 self.index_select(dim, &indices(positions)?)
             }
-            InterpolateMode::Bilinear => {
+            InterpolateMode::Bilinear if plain => {
                 let (mut low, mut high, mut weights) = (Vec::new(), Vec::new(), Vec::new());
                 for index in 0..size {
                     // PyTorch rounds the product before subtracting, so a fused multiply-add could pick another source point.
@@ -292,6 +342,9 @@ impl Tensor {
                 );
                 low.add(&high.sub(&low)?.mul(&weight)?)
             }
+            InterpolateMode::Bilinear | InterpolateMode::Bicubic => {
+                self.resampled_by_matrix(dim, size, interpolation)
+            }
         }
     }
 
@@ -304,5 +357,146 @@ impl Tensor {
             .and_then(|axis| dimensions.get(axis))
             .copied()
             .ok_or(Error::DimensionOutOfBounds)
+    }
+}
+
+impl Tensor {
+    // Resamples `dim` by a matrix whose column `i` holds output point `i`'s weights over the input points.
+    fn resampled_by_matrix(
+        &self,
+        dim: i64,
+        size: i64,
+        interpolation: Interpolation,
+    ) -> Result<Self> {
+        let extent = self.extent(dim)?;
+        let weights = resampling_weights(extent, size, interpolation)?;
+        let shape = Shape::create([extent, size])?;
+        // The literal holds `F64` or `F32` values, cast outside it to a half-precision input's type, as `resampled` builds its blend weights.
+        let matrix = if self.data_type() == DataType::F64 {
+            capture::literal(self.device(), |device| {
+                Self::from_vec(device, shape.clone(), weights)
+            })?
+        } else {
+            #[expect(
+                clippy::cast_possible_truncation,
+                reason = "resampling weights are small values"
+            )]
+            let weights = weights
+                .iter()
+                .map(|&weight| weight as f32)
+                .collect::<Vec<_>>();
+            capture::literal(self.device(), |device| {
+                Self::from_vec(device, shape.clone(), weights)
+            })?
+            .cast(self.data_type())?
+        };
+        self.movedim(dim, -1)?.matmul(&matrix)?.movedim(-1, dim)
+    }
+}
+
+// The weights of `size` output points over `extent` input points, `[extent, size]` in row-major order, as PyTorch's `interpolate` computes them for bilinear and bicubic modes.
+#[expect(
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::suboptimal_flops,
+    reason = "positions are small values, truncated and rounded as PyTorch truncates and rounds them"
+)]
+fn resampling_weights(extent: i64, size: i64, interpolation: Interpolation) -> Result<Vec<f64>> {
+    let (input, output) = (extent as f64, size as f64);
+    let scale = match (interpolation.align_corners, size > 1) {
+        (true, true) => (input - 1.0) / (output - 1.0),
+        (true, false) => 0.0,
+        (false, _) => input / output,
+    };
+    let cubic = interpolation.mode == InterpolateMode::Bicubic;
+    let count = usize::try_from(extent * size).map_err(|_| Error::DimensionOutOfBounds)?;
+    let mut weights = vec![0.0; count];
+    let mut add = |point: i64, source: i64, weight: f64| {
+        if let Ok(at) = usize::try_from(source * size + point) {
+            weights[at] += weight;
+        }
+    };
+    for point in 0..size {
+        let position = point as f64;
+        if interpolation.antialias {
+            // PIL's filters, widened by the scale when downscaling: a triangle, or Keys' cubic with `A = -0.5`.
+            let taps = if cubic { 4.0 } else { 2.0 };
+            let (support, inverse) = if scale >= 1.0 {
+                (taps * 0.5 * scale, 1.0 / scale)
+            } else {
+                (taps * 0.5, 1.0)
+            };
+            let center = scale * (position + 0.5);
+            let first = ((center - support + 0.5) as i64).max(0);
+            let widest = (support.ceil() as i64) * 2 + 1;
+            let taken = (((center + support + 0.5) as i64).min(extent) - first).clamp(0, widest);
+            let filter = |offset: f64| {
+                if cubic {
+                    keys(offset, -0.5)
+                } else {
+                    (1.0 - offset.abs()).max(0.0)
+                }
+            };
+            let taps = (0..taken)
+                .map(|tap| filter(((tap + first) as f64 - center + 0.5) * inverse))
+                .collect::<Vec<_>>();
+            let total = taps.iter().sum::<f64>();
+            for (source, weight) in (first..).zip(taps) {
+                add(
+                    point,
+                    source,
+                    if total == 0.0 { weight } else { weight / total },
+                );
+            }
+
+            continue;
+        }
+
+        let source = if interpolation.align_corners {
+            scale * position
+        } else {
+            (position + 0.5) * scale - 0.5
+        };
+        if cubic {
+            // Unclamped, so the four points around a position before the first keep their weights, and the border repeats.
+            let floor = source.floor();
+            let fraction = source - floor;
+            let coefficients = [
+                keys(fraction + 1.0, -0.75),
+                keys(fraction, -0.75),
+                keys(1.0 - fraction, -0.75),
+                keys(2.0 - fraction, -0.75),
+            ];
+            for (offset, coefficient) in (-1..).zip(coefficients) {
+                add(
+                    point,
+                    (floor as i64 + offset).clamp(0, extent - 1),
+                    coefficient,
+                );
+            }
+        } else {
+            let source = source.max(0.0);
+            let low = (source.floor() as i64).min(extent - 1);
+            let weight = (source - low as f64).clamp(0.0, 1.0);
+            add(point, low, 1.0 - weight);
+            add(point, (low + 1).min(extent - 1), weight);
+        }
+    }
+    Ok(weights)
+}
+
+// Keys' cubic convolution kernel with parameter `a`.
+#[expect(
+    clippy::suboptimal_flops,
+    reason = "the kernel is written as PyTorch writes it"
+)]
+fn keys(offset: f64, a: f64) -> f64 {
+    let x = offset.abs();
+    if x < 1.0 {
+        ((a + 2.0) * x - (a + 3.0)) * x * x + 1.0
+    } else if x < 2.0 {
+        ((a * x - 5.0 * a) * x + 8.0 * a) * x - 4.0 * a
+    } else {
+        0.0
     }
 }

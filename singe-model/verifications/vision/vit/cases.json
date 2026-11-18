@@ -1,0 +1,56 @@
+{
+  "cases": [
+    {
+      "name": "classification",
+      "snapshot": "VIT",
+      "task": "image-classification",
+      "inputs": ["media/coco-cats.png", "media/cat-448x320.png"],
+      "expected": [
+        [
+          {
+            "label": "Egyptian cat",
+            "score": 0.937489
+          },
+          {
+            "label": "tabby, tabby cat",
+            "score": 0.0384212
+          },
+          {
+            "label": "tiger cat",
+            "score": 0.0144024
+          },
+          {
+            "label": "lynx, catamount",
+            "score": 0.00327473
+          },
+          {
+            "label": "Siamese cat, Siamese",
+            "score": 0.000679107
+          }
+        ],
+        [
+          {
+            "label": "lynx, catamount",
+            "score": 0.439348
+          },
+          {
+            "label": "cougar, puma, catamount, mountain lion, painter, panther, Felis concolor",
+            "score": 0.034193
+          },
+          {
+            "label": "snow leopard, ounce, Panthera uncia",
+            "score": 0.0323091
+          },
+          {
+            "label": "Egyptian cat",
+            "score": 0.0235421
+          },
+          {
+            "label": "tiger cat",
+            "score": 0.0229605
+          }
+        ]
+      ]
+    }
+  ]
+}

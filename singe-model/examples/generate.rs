@@ -1,6 +1,6 @@
 // Generates text after each `--prompt` in one batch, printing it as it is generated.
 //
-// Runs any model `singe_model::text::text_generation::load_decoder` knows on plain text prompts; chat templates are left to the caller, who can write one into `--prompt`.
+// Runs any model the registry loads as a causal language model on plain text prompts; `--chat` reads each prompt as a user turn through the snapshot's chat template, without thinking.
 // `--max-new-tokens N`, `--type f16|f32` for other than BF16, `--eager`, `--sample`, `--report` for what the compiled steps prepared, and `--tokens` to print each prompt's token ids after its text.
 // `--drafts N` decodes one prompt of a Qwen3.5 snapshot greedily with its multi-token prediction layer drafting `N` tokens before each step, and says how many the decoder kept.
 
@@ -12,6 +12,7 @@ use std::{
 };
 
 use anyhow::{Result, bail};
+use serde_json::{Map, Value};
 use singe::{
     DataType,
     generation::{DecoderOptions, GenerationOptions, SpeculativeDecoder, generate_batch},
@@ -19,9 +20,14 @@ use singe::{
     tensor::SamplingOptions,
 };
 use singe_model::{
-    config::Snapshot,
-    text::text_generation::{load_decoder, qwen3_5},
-    tokenization::{TextStream, TextTokenizer},
+    LoadOptions, Source,
+    format::Loader,
+    head::CausalLm,
+    model::{self, text::qwen3_5},
+    processing::{
+        chat::{ChatTemplate, Message},
+        text::{TextStream, TextTokenizer},
+    },
 };
 
 use crate::support::Arguments;
@@ -72,25 +78,36 @@ impl Printer<'_> {
 }
 
 fn main() -> Result<()> {
-    let arguments = Arguments::parse(&["eager", "sample", "report", "tokens"])?;
+    let arguments = Arguments::parse(&["eager", "sample", "report", "tokens", "chat"])?;
+    let source = Source::open(&arguments.snapshot)?;
     let texts = match arguments.values("prompt") {
-        texts if texts.is_empty() => vec!["What is the capital of France?"],
+        texts if texts.is_empty() => vec!["What is the most important resource in Factorio?"],
         texts => texts,
     };
     let max_new_tokens = arguments
         .value("max-new-tokens")
         .map_or(Ok(64), str::parse::<usize>)?;
-    let data_type = match arguments.value("type") {
-        None | Some("bf16") => DataType::Bf16,
-        Some("f16") => DataType::F16,
-        Some("f32") => DataType::F32,
-        Some(other) => bail!("unknown --type {other}"),
-    };
+    let data_type = arguments.data_type(DataType::Bf16)?;
 
     let tokenizer = TextTokenizer::load(&arguments.snapshot)?;
+    let template = if arguments.flag("chat") {
+        Some(
+            ChatTemplate::load(&source)?
+                .ok_or_else(|| anyhow::anyhow!("the snapshot has no chat template"))?,
+        )
+    } else {
+        None
+    };
+    let thinking = Map::from_iter([("enable_thinking".to_owned(), Value::Bool(false))]);
     let prompts = texts
         .iter()
-        .map(|text| tokenizer.encode(text, false))
+        .map(|text| {
+            let text = match &template {
+                Some(template) => template.render(&[Message::user(text)], true, &thinking)?,
+                None => (*text).to_owned(),
+            };
+            tokenizer.encode(&text, false)
+        })
         .collect::<singe_model::Result<Vec<_>>>()?;
     let longest = prompts.iter().map(Vec::len).max().unwrap_or(0);
     if let Some(drafts) = arguments.value("drafts") {
@@ -109,18 +126,17 @@ fn main() -> Result<()> {
 
     let started = Instant::now();
     let capacity = i64::try_from(longest + max_new_tokens)?;
-    let mut decoder = load_decoder(
-        &arguments.snapshot,
-        arguments.device,
-        data_type,
-        DecoderOptions::new(prompts.len(), capacity),
-        !arguments.flag("eager"),
-    )?;
+    let mut decoder =
+        model::load::<Box<dyn CausalLm>>(&source, LoadOptions::new(arguments.device, data_type))?
+            .decoder(
+            DecoderOptions::new(prompts.len(), capacity),
+            !arguments.flag("eager"),
+        )?;
     eprintln!("load and prepare: {:?}", started.elapsed());
 
     let options = GenerationOptions {
         max_new_tokens,
-        stop_tokens: Snapshot::new(&arguments.snapshot).stop_tokens()?,
+        stop_tokens: source.stop_tokens()?,
         sampling: arguments.flag("sample").then(|| {
             SamplingOptions::new()
                 .with_temperature(0.6)
@@ -191,7 +207,9 @@ fn speculate(
     drafts: usize,
 ) -> Result<()> {
     let started = Instant::now();
-    let model = qwen3_5::load_drafting(&arguments.snapshot, arguments.device, data_type)?;
+    let source = Source::open(&arguments.snapshot)?;
+    let options = LoadOptions::new(arguments.device, data_type);
+    let model = qwen3_5::load_drafting(&mut Loader::new(&source, options))?;
     // A check writes its drafts past the last token it keeps.
     let capacity = i64::try_from(prompt.len() + max_new_tokens + drafts)?;
     let mut decoder = SpeculativeDecoder::create(&model, DecoderOptions::new(1, capacity), drafts)?;
@@ -202,7 +220,7 @@ fn speculate(
     eprintln!("load and prepare: {:?}", started.elapsed());
     let options = GenerationOptions {
         max_new_tokens,
-        stop_tokens: Snapshot::new(&arguments.snapshot).stop_tokens()?,
+        stop_tokens: source.stop_tokens()?,
         ..GenerationOptions::default()
     };
     let started = Instant::now();

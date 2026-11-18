@@ -220,3 +220,41 @@ impl Layer for LayerScale {
         input.mul(state.tensor(&self.scale)?)
     }
 }
+
+// Normalizes each sample's channels in `groups` groups over the channels and every spatial position, then scales and shifts each channel, as `torch.nn.GroupNorm` computes it on `[B, C, …]`.
+#[derive(Debug, Clone)]
+pub struct GroupNorm {
+    weight: Option<StateKey>,
+    bias: Option<StateKey>,
+    groups: i64,
+    eps: f32,
+}
+
+impl GroupNorm {
+    #[must_use]
+    pub const fn new(
+        weight: Option<StateKey>,
+        bias: Option<StateKey>,
+        groups: i64,
+        eps: f32,
+    ) -> Self {
+        Self {
+            weight,
+            bias,
+            groups,
+            eps,
+        }
+    }
+}
+
+impl Layer for GroupNorm {
+    fn forward(&self, input: &Tensor, state: &ModelState) -> Result<Tensor> {
+        let tensor = |key: &Option<StateKey>| key.as_ref().map(|key| state.tensor(key)).transpose();
+        input.group_norm(
+            self.groups,
+            tensor(&self.weight)?,
+            tensor(&self.bias)?,
+            self.eps,
+        )
+    }
+}

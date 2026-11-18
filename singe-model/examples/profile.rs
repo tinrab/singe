@@ -25,8 +25,13 @@ use singe_cupti::{
     types::{ActivityFlushFlag, ActivityKind},
 };
 use singe_model::{
-    config::Snapshot,
-    text::text_generation::{load_decoder, qwen3, qwen3_5},
+    LoadOptions, Source,
+    format::Loader,
+    head::CausalLm,
+    model::{
+        self,
+        text::{qwen3, qwen3_5},
+    },
 };
 
 use crate::support::Arguments;
@@ -87,14 +92,12 @@ fn main() -> Result<()> {
     let steps = arguments
         .value("steps")
         .map_or(Ok(100), str::parse::<u32>)?;
-    let data_type = match arguments.value("type") {
-        Some("f16") => DataType::F16,
-        Some("f32") => DataType::F32,
-        _ => DataType::Bf16,
-    };
+    let data_type = arguments.data_type(DataType::Bf16)?;
     let tokens = arguments
         .value("prompt")
         .map_or(Ok(1), str::parse::<usize>)?;
+    let source = Source::open(&arguments.snapshot)?;
+    let options = LoadOptions::new(arguments.device, data_type);
     let libraries = arguments.values("library");
     let mut decoder = if arguments.flag("tune") || !libraries.is_empty() {
         let libraries = if libraries.is_empty() {
@@ -106,16 +109,15 @@ fn main() -> Result<()> {
                 .collect::<Result<Vec<Library>, _>>()?
         };
         let tune = arguments.flag("tune");
-        let (snapshot, device) = (&arguments.snapshot, arguments.device);
-        match Snapshot::new(snapshot).model_type()?.as_str() {
+        match model::find(&source)?.name {
             "qwen3" => compiled(
-                &qwen3::load(snapshot, device, data_type)?,
+                &qwen3::load(&mut Loader::new(&source, options))?,
                 tokens,
                 &libraries,
                 tune,
             )?,
-            "qwen3_5" | "qwen3_5_text" => compiled(
-                &qwen3_5::load(snapshot, device, data_type)?,
+            "qwen3_5" => compiled(
+                &qwen3_5::load(&mut Loader::new(&source, options))?,
                 tokens,
                 &libraries,
                 tune,
@@ -123,13 +125,8 @@ fn main() -> Result<()> {
             other => anyhow::bail!("--tune and --library take Qwen3 or Qwen3.5, not {other}"),
         }
     } else {
-        load_decoder(
-            &arguments.snapshot,
-            arguments.device,
-            data_type,
-            DecoderOptions::new(1, 512),
-            !arguments.flag("eager"),
-        )?
+        model::load::<Box<dyn CausalLm>>(&source, options)?
+            .decoder(DecoderOptions::new(1, 512), !arguments.flag("eager"))?
     };
     let profiled = arguments
         .value("prompt")

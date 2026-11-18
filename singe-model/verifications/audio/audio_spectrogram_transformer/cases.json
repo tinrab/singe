@@ -1,0 +1,37 @@
+{
+  "cases": [
+    {
+      "name": "speech",
+      "snapshot": "AST",
+      "task": "audio-classification",
+      "inputs": ["media/clip.wav"],
+      "parameters": {
+        "top_k": 5
+      },
+      "expected": [
+        [
+          {
+            "score": 0.890684,
+            "label": "Speech"
+          },
+          {
+            "score": 0.0132288,
+            "label": "Speech synthesizer"
+          },
+          {
+            "score": 0.0105408,
+            "label": "Narration, monologue"
+          },
+          {
+            "score": 0.00823252,
+            "label": "Male speech, man speaking"
+          },
+          {
+            "score": 0.00792471,
+            "label": "Single-lens reflex camera"
+          }
+        ]
+      ]
+    }
+  ]
+}

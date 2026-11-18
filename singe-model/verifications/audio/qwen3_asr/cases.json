@@ -1,0 +1,37 @@
+{
+  "cases": [
+    {
+      "name": "transcription",
+      "snapshot": "QWEN3_ASR",
+      "task": "automatic-speech-recognition",
+      "inputs": ["media/clip.wav"],
+      "parameters": {
+        "max_new_tokens": 128
+      },
+      "expected": [
+        {
+          "text": "Nor is Mister Quilter's manner less interesting than his matter."
+        }
+      ]
+    },
+    {
+      "name": "instructed",
+      "snapshot": "QWEN3_ASR",
+      "task": "audio-text-to-text",
+      "inputs": [
+        {
+          "audio": "media/clip.wav",
+          "text": "Mr. Quilter"
+        }
+      ],
+      "parameters": {
+        "max_new_tokens": 128
+      },
+      "expected": [
+        {
+          "generated_text": "language English<asr_text>Nor is Mister Quilter's manner less interesting than his matter."
+        }
+      ]
+    }
+  ]
+}

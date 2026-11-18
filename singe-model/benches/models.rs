@@ -9,23 +9,26 @@ use singe::{
     nn::{DecoderModel, Model, TensorGroup},
 };
 use singe_model::{
-    audio::automatic_speech_recognition::whisper::{self, WhisperTask, prompt},
-    text::{
-        sentence_similarity::load_sentence_embedder,
-        text_generation::{qwen3, qwen3_5},
+    LoadOptions, Source,
+    format::Loader,
+    head::{Autoencoder, ImageEncoder},
+    model::{
+        self,
+        audio::whisper::{self, WhisperTask, prompt},
+        text::{qwen3, qwen3_5},
     },
-    tokenization::TextTokenizer,
-    vision::{image_feature_extraction::load_image_encoder, image_to_image::load_autoencoder},
+    processing::text::TextTokenizer,
+    task::{Pipeline, text::sentence_similarity::SentenceSimilarityPipeline},
 };
 use singe_testing::{Benches, lock_device, pattern_image, snapshot_if_set, tone_and_chirp};
 
 const DEVICE: Device = Device::Cuda(0);
 
 const SENTENCES: [&str; 4] = [
-    "A man is playing a guitar on a stage.",
-    "Someone performs music with a guitar in front of an audience.",
-    "The stock market fell sharply on Tuesday after the announcement.",
-    "Cats sleep for most of the day.",
+    "An engineer is placing transport belts beside the smelters.",
+    "Someone builds a conveyor line next to the furnaces.",
+    "The biters attacked the northern wall after the pollution spread.",
+    "The train delivers iron ore to the outpost every few minutes.",
 ];
 
 // Reads a result back, which waits for the work behind it.
@@ -38,6 +41,10 @@ fn step(decoder: &mut dyn Decoder) {
     let rows = vec![[1_i64]; decoder.sequences()];
     let tokens = rows.iter().map(<[i64; 1]>::as_slice).collect::<Vec<_>>();
     wait(&decoder.step(&tokens, None).unwrap());
+}
+
+fn source(snapshot: &Path) -> Source {
+    Source::open(snapshot).unwrap()
 }
 
 fn minilm(benches: &mut Benches) {
@@ -55,8 +62,12 @@ fn minilm(benches: &mut Benches) {
             continue;
         }
 
-        let model = load_sentence_embedder(&snapshot, DEVICE, data_type).unwrap();
-        let (graph, _) = model.capture_group(&tokens).unwrap();
+        let pipeline = SentenceSimilarityPipeline::load(
+            &source(&snapshot),
+            LoadOptions::new(DEVICE, data_type),
+        )
+        .unwrap();
+        let (graph, _) = pipeline.model().capture_group(&tokens).unwrap();
         let mut executor = graph.prepare(GraphPrepareOptions::new(DEVICE)).unwrap();
         benches.run(&name, || {
             wait(&executor.run(&inputs).unwrap()[0]);
@@ -77,7 +88,11 @@ fn whisper(benches: &mut Benches) {
             continue;
         }
 
-        let model = whisper::load(&snapshot, DEVICE, data_type).unwrap();
+        let model = whisper::load(&mut Loader::new(
+            &source(&snapshot),
+            LoadOptions::new(DEVICE, data_type),
+        ))
+        .unwrap();
         let features = model.features(&tone_and_chirp(160_000, DEVICE)).unwrap();
         let mut encoded = model.encode(&features).unwrap();
         benches.run(&encode, || {
@@ -88,7 +103,7 @@ fn whisper(benches: &mut Benches) {
         let extra = prefix.len() - 1;
         let mut decoder = model
             .create_decoder(
-                DecoderOptions::new(1, model.config().max_target_positions).with_prompt_chunks(
+                DecoderOptions::new(1, model.config().target_positions).with_prompt_chunks(
                     PromptChunks {
                         smallest: extra,
                         largest: extra,
@@ -103,7 +118,7 @@ fn whisper(benches: &mut Benches) {
         // A step past the model's positions fails, so the decoder starts over when it is full.
         let mut held = prefix.len();
         benches.run(&decode, || {
-            if held + 1 >= usize::try_from(model.config().max_target_positions).unwrap() {
+            if held + 1 >= usize::try_from(model.config().target_positions).unwrap() {
                 decoder.reset();
                 model.write_sources(&decoder, 0, &sources).unwrap();
                 decoder.step(&[&prefix], None).unwrap();
@@ -172,7 +187,8 @@ fn dinov2(benches: &mut Benches) {
             continue;
         }
 
-        let model = load_image_encoder(&snapshot, DEVICE, data_type).unwrap();
+        let model: ImageEncoder =
+            model::load(&source(&snapshot), LoadOptions::new(DEVICE, data_type)).unwrap();
         let image = pattern_image(518, DEVICE).cast(data_type).unwrap();
         let (graph, _) = model.capture_graph("images", image.clone()).unwrap();
         let inputs = HashMap::from([("images".to_owned(), image)]);
@@ -193,7 +209,8 @@ fn taesd(benches: &mut Benches) {
             continue;
         }
 
-        let model = load_autoencoder(&snapshot, DEVICE, data_type).unwrap();
+        let model: Autoencoder =
+            model::load(&source(&snapshot), LoadOptions::new(DEVICE, data_type)).unwrap();
         let image = pattern_image(256, DEVICE).cast(data_type).unwrap();
         benches.run(&name, || {
             let latents = model.encode(&image).unwrap();
@@ -211,10 +228,18 @@ fn main() {
     minilm(&mut benches);
     whisper(&mut benches);
     text_decoder(&mut benches, "QWEN3", "qwen3-0.6b", |snapshot| {
-        qwen3::load(snapshot, DEVICE, DataType::Bf16).unwrap()
+        qwen3::load(&mut Loader::new(
+            &source(snapshot),
+            LoadOptions::new(DEVICE, DataType::Bf16),
+        ))
+        .unwrap()
     });
     text_decoder(&mut benches, "QWEN35", "qwen3.5-0.8b", |snapshot| {
-        qwen3_5::load(snapshot, DEVICE, DataType::Bf16).unwrap()
+        qwen3_5::load(&mut Loader::new(
+            &source(snapshot),
+            LoadOptions::new(DEVICE, DataType::Bf16),
+        ))
+        .unwrap()
     });
     dinov2(&mut benches);
     taesd(&mut benches);

@@ -13,6 +13,13 @@ Explore the relevant crates before changing them, and inspect the closest existi
 
 Private notes for this checkout, such as the current plan and where reference material lives, are in `wip/AGENTS.md` when it exists; read it before starting larger work.
 
+## Working order
+
+Finish the whole piece of work before verifying any of it.
+Write every change the task needs first, and compile, lint, and test only at the very end, once, when the work is complete.
+Compiling, linting, and testing between steps is slow in this workspace and is not how progress is measured; a compile error or lint finding found at the end is fixed then.
+Verify earlier only to answer a question the work cannot go on without, such as whether an API behaves as assumed.
+
 ## Environment
 
 The toolchain comes from `flake.nix`, loaded by direnv (`.envrc`: `use flake`).
@@ -34,7 +41,6 @@ Use `uv` for Python helpers.
 | Write or check other generated files            | `just references` (`--check`, suite names)                     |
 | Benchmarks, saved and compared by name          | `just bench` (`--save NAME`, `--compare NAME`, filters)        |
 | No NVIDIA library linked at build time          | `just check-linking`                                           |
-| Everything a change must pass                   | `just gate`                                                    |
 | API documentation                               | `just docs` or `just docs-open`                                |
 | Regenerate bindings, kernels, and injected docs | `just generate`                                                |
 | cuDNN frontend examples                         | `just frontend-examples`                                       |
@@ -48,12 +54,14 @@ Use `uv` for Python helpers.
   GPU tests depend on hardware and driver state and must run serialized.
 - Build one crate's docs with warnings denied using `RUSTDOCFLAGS="-D warnings" cargo doc -p <crate> --no-deps --all-features`, and again with default features when a module is feature-gated.
 - Do not run several cargo commands at once against the shared `target/` directory; concurrent builds delete each other's artifacts.
-- Batch changes before compiling or testing; the workspace is large, and every build and test run is slow.
+- Batch changes before compiling or testing, as "Working order" says; the workspace is large, and every build and test run is slow.
+- Run only the most specific check for the change at hand: one test or test filter, one crate's lint, or one model's verification (`just verify MODEL`).
+  No recipe runs everything; run a wider recipe such as `just test` only when asked.
 
 ## Workspace layout
 
 - `singe`: the framework: tensors, graphs, ONNX import, the CPU and CUDA backends, layers, caches, generation, and exported CUDA C++ programs.
-- `singe-model`: model configs and architectures built on `singe`; its README gives the steps for adding a model.
+- `singe-model`: models built on `singe`, one module per kind under `model/<category>`, each declaring its registry entry, with Singe's own tensor names and configs and importers for `transformers` and `diffusers` snapshots; the heads models serve under `head`; and one pipeline per Hugging Face task under `task/<category>`; its README gives the steps for adding a model.
 - `singe-core`: shared low-level macros and helpers, such as `wrapper_status!`, `native_enum!`, `checked_conversions!`, and the `logger` callback slot.
 - `singe-kernel`, `singe-codegen`: reusable kernels, with generated cuTile kernels under `singe-kernel/src/-generated/`, and the kernel IR with its emitters.
 - `singe-testing`: comparing with PyTorch's references, and the benchmark runner; see its README.
@@ -67,16 +75,19 @@ Use `uv` for Python helpers.
 ## Tests and references
 
 - Tests cover `singe`'s core components, operations, blocks, and modules, for correctness, as few as that takes.
-  Models have no tests; `singe-model`'s examples show them working, and `scripts/check_generation.py` compares a text model's greedy tokens with `transformers`.
+  Models are checked by verifications, not tests: `singe-model/verifications/<category>/<model>/` holds `cases.json`, `verify.py`, which runs the reference library (`transformers`, `sentence-transformers`, or `diffusers`) and records or asserts the expected outputs, and `verify.rs`, which runs Singe's pipelines on the same cases and asserts the same outputs; both sides time each case.
+  `just verify FILTER` runs both sides of the matching cases, and `just snapshot NAME` downloads a snapshot `singe-model/verifications/snapshots.toml` names.
+  A new model comes with its verification, and a change to a model, or to what models share (`assembly`, `head`, `format`, `processing`), is done when the verifications of the models it touches pass.
+  A model's import rules must map every stored tensor; a load refuses one they leave.
 - `singe/tests` has five targets, `tensor`, `graph`, `kernels`, `nn`, and `onnx`, each a `main.rs` with a module per subject.
 - A test that compares with PyTorch reads a reference with `singe_testing::reference!` and compares with `assert_matches` under a named `Tolerance`.
 - References live under `singe/tests/references` and are generated, never edited by hand.
   `scripts/references` writes them with PyTorch, one module per suite, through `just prepare-tests`, which `check`, `lint`, and the test recipes run first, since `singe`'s tests and examples embed some of them when they compile.
   It skips the work when `target/references` records a run with the same scripts and `uv.lock`.
 - Baselines of Singe's own results, which tests compare with to catch a change either way, live under `singe/tests/baselines` and are checked in; `SINGE_UPDATE_CONFORMANCE=1` and `SINGE_UPDATE_ONNX_CONFORMANCE=1` rewrite them.
-- Examples and benchmarks of real models read `SINGE_SNAPSHOT_<MODEL>`, a local Hugging Face snapshot directory.
+- Verifications find their snapshots in the Hugging Face cache; examples and benchmarks of real models read `SINGE_SNAPSHOT_<MODEL>`, a local Hugging Face snapshot directory, which also overrides a verification's.
 - Generated kernels and exported programs built with `nvcc` are cached across runs under `~/.cache/singe/kernels`; deleting it rebuilds them.
-- Nothing in a test times anything; timing belongs in the `benches/` targets, through `singe_testing::Benches`.
+- Nothing in a test times anything; timing belongs in the `benches/` targets, through `singe_testing::Benches`, and in verifications, which time each case beside its reference.
 
 ## Generated data
 
@@ -156,6 +167,8 @@ Keep these out of commits:
 - agent handoff notes, plans, research notes, raw evidence, logs, benchmark results, profiler reports, and other temporary files.
   Keep them in `wip/`, which is gitignored, as is `benchmarks/`, where `just bench` saves its baselines;
 - copies of third-party source kept for reference; they belong in `wip/` too, and code that ports from one says where it came from by project and path.
+
+A commit message is a single line, with no body paragraphs.
 
 ## Constraints
 

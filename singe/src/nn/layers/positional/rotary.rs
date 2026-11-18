@@ -1,5 +1,7 @@
 use std::f64::consts::PI;
 
+use serde::{Deserialize, Serialize};
+
 use crate::{
     data_type::DataType,
     device::Device,
@@ -21,7 +23,7 @@ pub enum RotaryLayout {
 }
 
 // YaRN's scaling of rotary frequencies for positions beyond what a model was trained on.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct YarnFrequencies {
     pub factor: f64,
     pub original_max_positions: i64,
@@ -64,7 +66,7 @@ fn mscale_of(factor: f64, mscale: f64) -> f64 {
 }
 
 // The frequencies a rotary table is computed from.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct RotaryFrequencies {
     pub theta: f64,
     pub yarn: Option<YarnFrequencies>,

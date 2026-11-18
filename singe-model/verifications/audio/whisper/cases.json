@@ -1,0 +1,18 @@
+{
+  "cases": [
+    {
+      "name": "transcription",
+      "snapshot": "WHISPER",
+      "task": "automatic-speech-recognition",
+      "inputs": ["media/clip.wav"],
+      "parameters": {
+        "max_new_tokens": 128
+      },
+      "expected": [
+        {
+          "text": " Nor is Mr. Quilters' manner less interesting than his matter."
+        }
+      ]
+    }
+  ]
+}

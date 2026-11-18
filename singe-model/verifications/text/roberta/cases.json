@@ -1,0 +1,184 @@
+{
+  "cases": [
+    {
+      "name": "fill",
+      "snapshot": "DISTILROBERTA",
+      "task": "fill-mask",
+      "inputs": ["The factory must <mask>.", "The <mask> sat on the <mask> belt."],
+      "expected": [
+        [
+          {
+            "score": 0.429672,
+            "token": 13490,
+            "token_str": " reopen",
+            "sequence": "The factory must reopen."
+          },
+          {
+            "score": 0.152043,
+            "token": 593,
+            "token_str": " close",
+            "sequence": "The factory must close."
+          },
+          {
+            "score": 0.048955,
+            "token": 9648,
+            "token_str": " rebuild",
+            "sequence": "The factory must rebuild."
+          },
+          {
+            "score": 0.0474587,
+            "token": 12721,
+            "token_str": " restart",
+            "sequence": "The factory must restart."
+          },
+          {
+            "score": 0.0382873,
+            "token": 2572,
+            "token_str": " shut",
+            "sequence": "The factory must shut."
+          }
+        ],
+        [
+          [
+            {
+              "score": 0.0166065,
+              "token": 11642,
+              "token_str": " rifle",
+              "sequence": "<s>The rifle sat on the<mask> belt.</s>"
+            },
+            {
+              "score": 0.0117887,
+              "token": 8071,
+              "token_str": " trophy",
+              "sequence": "<s>The trophy sat on the<mask> belt.</s>"
+            },
+            {
+              "score": 0.011491,
+              "token": 20744,
+              "token_str": " sword",
+              "sequence": "<s>The sword sat on the<mask> belt.</s>"
+            },
+            {
+              "score": 0.0109208,
+              "token": 7023,
+              "token_str": " knife",
+              "sequence": "<s>The knife sat on the<mask> belt.</s>"
+            },
+            {
+              "score": 0.00942356,
+              "token": 1751,
+              "token_str": " gun",
+              "sequence": "<s>The gun sat on the<mask> belt.</s>"
+            }
+          ],
+          [
+            {
+              "score": 0.147183,
+              "token": 2418,
+              "token_str": " seat",
+              "sequence": "<s>The<mask> sat on the seat belt.</s>"
+            },
+            {
+              "score": 0.0586142,
+              "token": 9219,
+              "token_str": " leather",
+              "sequence": "<s>The<mask> sat on the leather belt.</s>"
+            },
+            {
+              "score": 0.0333822,
+              "token": 13977,
+              "token_str": " waist",
+              "sequence": "<s>The<mask> sat on the waist belt.</s>"
+            },
+            {
+              "score": 0.0215003,
+              "token": 909,
+              "token_str": " black",
+              "sequence": "<s>The<mask> sat on the black belt.</s>"
+            },
+            {
+              "score": 0.0211568,
+              "token": 35466,
+              "token_str": " buckle",
+              "sequence": "<s>The<mask> sat on the buckle belt.</s>"
+            }
+          ]
+        ]
+      ]
+    },
+    {
+      "name": "fill-targets",
+      "snapshot": "DISTILROBERTA",
+      "task": "fill-mask",
+      "inputs": ["The factory must <mask>."],
+      "parameters": {
+        "top_k": 2,
+        "targets": ["Ġgrow", "Ġexpand", " survive"]
+      },
+      "expected": [
+        [
+          {
+            "score": 0.00669413,
+            "token": 6008,
+            "token_str": " survive",
+            "sequence": "The factory must survive."
+          },
+          {
+            "score": 0.00466965,
+            "token": 3003,
+            "token_str": " expand",
+            "sequence": "The factory must expand."
+          }
+        ]
+      ]
+    },
+    {
+      "name": "zero-shot",
+      "snapshot": "ROBERTA_NLI",
+      "task": "zero-shot-classification",
+      "inputs": [
+        {
+          "sequences": "One day I will launch a rocket into space.",
+          "candidate_labels": ["space travel", "logistics", "cooking"]
+        }
+      ],
+      "expected": [
+        {
+          "sequence": "One day I will launch a rocket into space.",
+          "labels": ["space travel", "logistics", "cooking"],
+          "scores": [0.953462, 0.0421349, 0.00440278]
+        }
+      ]
+    },
+    {
+      "name": "pairs",
+      "snapshot": "ROBERTA_NLI",
+      "task": "text-classification",
+      "inputs": [
+        {
+          "text": "The engineer is building a factory.",
+          "text_pair": "Nobody is building anything."
+        }
+      ],
+      "parameters": {
+        "top_k": null
+      },
+      "expected": [
+        [
+          {
+            "label": "contradiction",
+            "score": 0.998689
+          },
+          {
+            "label": "neutral",
+            "score": 0.000991689
+          },
+          {
+            "label": "entailment",
+            "score": 0.000319675
+          }
+        ]
+      ]
+    }
+  ]
+}

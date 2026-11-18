@@ -27,6 +27,13 @@ pub struct GroupedQueryAttention {
 }
 
 impl GroupedQueryAttention {
+    // Masks each query from the keys after it, as a causal text encoder attends.
+    #[must_use]
+    pub const fn causal(mut self) -> Self {
+        self.options.causal = true;
+        self
+    }
+
     // Stores `layers`, whose key and value heads must divide the query heads and share their dimension.
     pub fn create(layers: GroupedQueryLayers, options: AttentionOptions) -> Result<Self> {
         let (query, key, value) = (&layers.query, &layers.key, &layers.value);

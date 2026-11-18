@@ -1,16 +1,18 @@
 pub mod assembly;
-pub mod audio;
 mod batch;
-pub mod config;
 mod error;
 #[cfg(feature = "cuda_13_4")]
 pub mod export;
+pub mod format;
+pub mod head;
+pub mod model;
+pub mod processing;
 pub mod schema;
-pub mod text;
-pub mod tokenization;
-pub mod vision;
+pub mod source;
+pub mod task;
 
 pub use self::{
     batch::BatchOptions,
     error::{Error, Result},
+    source::{Format, LoadOptions, Source},
 };

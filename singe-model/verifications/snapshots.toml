@@ -1,0 +1,101 @@
+# The snapshots verifications read, by the names their cases give them, each a Hugging Face repository.
+# A case reads `SINGE_SNAPSHOT_<NAME>` when it is set, and otherwise the repository's snapshot in the Hugging Face cache, which `just snapshot NAME` downloads.
+# An entry with `pipeline`, `base`, and `components` is a `diffusers` pipeline assembled from other entries, the base's components and the added ones, for adapters that ship alone.
+
+[snapshots]
+ANIMATEDIFF = { pipeline = "AnimateDiffPipeline", base = "SD15", components = { motion_adapter = "ANIMATEDIFF_MOTION_ADAPTER" } }
+ANIMATEDIFF_MOTION_ADAPTER = "guoyww/animatediff-motion-adapter-v1-5-2"
+AST = "MIT/ast-finetuned-audioset-10-10-0.4593"
+BERT_NER = "dslim/bert-base-NER"
+BERT_TINY_SPAM = "mrm8488/bert-tiny-finetuned-sms-spam-detection"
+CLAP = { repository = "laion/clap-htsat-unfused", revision = "refs/pr/3" }
+CLIP = "openai/clip-vit-large-patch14"
+COLMODERNVBERT = "ModernVBERT/colmodernvbert-merged"
+DAC = "descript/dac_16khz"
+DDPM = "google/ddpm-cifar10-32"
+DECISION_TRANSFORMER = { repository = "edbeeching/decision-transformer-gym-hopper-medium", revision = "refs/pr/1" }
+DEPTH_ANYTHING = "depth-anything/Depth-Anything-V2-Small-hf"
+DETR = "facebook/detr-resnet-50"
+DINOV2 = "facebook/dinov2-small"
+DISTILBERT_MNLI = "typeform/distilbert-base-uncased-mnli"
+DISTILBERT_NER = "dslim/distilbert-NER"
+DISTILBERT_SQUAD = "distilbert/distilbert-base-cased-distilled-squad"
+DISTILBERT_SST2 = "distilbert/distilbert-base-uncased-finetuned-sst-2-english"
+DISTILROBERTA = "distilbert/distilroberta-base"
+DONUT = { repository = "naver-clova-ix/donut-base-finetuned-docvqa", revision = "refs/pr/23" }
+GPT2 = "openai-community/gpt2"
+INSTRUCT_PIX2PIX = { repository = "timbrooks/instruct-pix2pix", files = [
+    "model_index.json",
+    "scheduler/*",
+    "text_encoder/config.json",
+    "text_encoder/model.safetensors",
+    "tokenizer/*",
+    "unet/config.json",
+    "unet/diffusion_pytorch_model.safetensors",
+    "vae/config.json",
+    "vae/diffusion_pytorch_model.safetensors",
+] }
+LIGHTGLUE = "ETH-CVG/lightglue_superpoint"
+MINILM = "sentence-transformers/all-MiniLM-L6-v2"
+MITRA_CLASSIFIER = "autogluon/mitra-classifier"
+MITRA_REGRESSOR = "autogluon/mitra-regressor"
+MMS_TTS = "facebook/mms-tts-eng"
+MSMARCO_MINILM = "cross-encoder/ms-marco-MiniLM-L6-v2"
+OWLVIT = "google/owlvit-base-patch32"
+PIA = { pipeline = "PIAPipeline", base = "SD15", components = { motion_adapter = "PIA_ADAPTER" } }
+PIA_ADAPTER = "openmmlab/PIA-condition-adapter"
+QWEN3 = "Qwen/Qwen3-0.6B"
+QWEN35 = "Qwen/Qwen3.5-0.8B"
+QWEN3_ASR = "Qwen/Qwen3-ASR-0.6B-hf"
+QWEN3_EMBEDDING = "Qwen/Qwen3-Embedding-0.6B"
+ROBERTA_NLI = "cross-encoder/nli-MiniLM2-L6-H768"
+SAM = "facebook/sam-vit-base"
+SD15 = { repository = "stable-diffusion-v1-5/stable-diffusion-v1-5", files = [
+    "model_index.json",
+    "scheduler/*",
+    "text_encoder/config.json",
+    "text_encoder/model.safetensors",
+    "tokenizer/*",
+    "unet/config.json",
+    "unet/diffusion_pytorch_model.safetensors",
+    "vae/config.json",
+    "vae/diffusion_pytorch_model.safetensors",
+] }
+SD_TURBO = { repository = "stabilityai/sd-turbo", files = [
+    "model_index.json",
+    "scheduler/*",
+    "text_encoder/config.json",
+    "text_encoder/model.safetensors",
+    "tokenizer/*",
+    "unet/config.json",
+    "unet/diffusion_pytorch_model.safetensors",
+    "vae/config.json",
+    "vae/diffusion_pytorch_model.safetensors",
+] }
+SEGFORMER = "nvidia/segformer-b0-finetuned-ade-512-512"
+SHAP_E = { repository = "openai/shap-e", revision = "refs/pr/11", files = [
+    "*.json",
+    "*.txt",
+    "*.fp16.safetensors",
+] }
+SHAP_E_IMG2IMG = { repository = "openai/shap-e-img2img", revision = "refs/pr/8", files = [
+    "*.json",
+    "*.txt",
+    "*.fp16.safetensors",
+] }
+SMOLLM2 = "HuggingFaceTB/SmolLM2-135M"
+SMOLVLM2 = "HuggingFaceTB/SmolVLM2-256M-Video-Instruct"
+SUPERPOINT = "magic-leap-community/superpoint"
+SWIN2SR = "caidas/swin2SR-classical-sr-x2-64"
+T5 = "google-t5/t5-small"
+TAESD = "madebyollin/taesd"
+TAPEX = "microsoft/tapex-base-finetuned-wtq"
+TIMESFM = "google/timesfm-2.5-200m-transformers"
+TOXIC_BERT = "unitary/toxic-bert"
+TROCR = "microsoft/trocr-small-printed"
+VIDEOMAE = "MCG-NJU/videomae-base-finetuned-kinetics"
+VIT = "google/vit-base-patch16-224"
+WAV2VEC2 = "facebook/wav2vec2-base-960h"
+WHISPER = "openai/whisper-tiny"
+XLM_ROBERTA = "FacebookAI/xlm-roberta-base"
+YOLOS = "hustvl/yolos-tiny"

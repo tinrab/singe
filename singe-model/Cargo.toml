@@ -17,6 +17,9 @@ cuda_13_4 = ["singe/cuda_13_4", "singe-testing/cuda_13_4"]
 
 [dependencies]
 singe.workspace = true
+image.workspace = true
+minijinja.workspace = true
+minijinja-contrib.workspace = true
 regex-syntax.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -26,36 +29,33 @@ unicode-normalization-alignments.workspace = true
 
 [dev-dependencies]
 anyhow.workspace = true
-image.workspace = true
+clap.workspace = true
 singe-cupti.workspace = true
 singe-testing.workspace = true
+toml_edit.workspace = true
 
 [[example]]
 name = "generate"
 required-features = ["cuda_13_4"]
 
 [[example]]
-name = "embed"
+name = "pipeline"
 required-features = ["cuda_13_4"]
 
 [[example]]
-name = "transcribe"
-required-features = ["cuda_13_4"]
-
-[[example]]
-name = "image_features"
-required-features = ["cuda_13_4"]
-
-[[example]]
-name = "image_chat"
-required-features = ["cuda_13_4"]
-
-[[example]]
-name = "autoencode"
+name = "convert"
 required-features = ["cuda_13_4"]
 
 [[example]]
 name = "profile"
+required-features = ["cuda_13_4"]
+
+# Run only when named, as `just verify` names it, since each loads models from local snapshots.
+[[test]]
+name = "verifications"
+path = "verifications/main.rs"
+harness = false
+test = false
 required-features = ["cuda_13_4"]
 
 [[bench]]

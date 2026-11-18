@@ -1,0 +1,40 @@
+{
+  "cases": [
+    {
+      "name": "zero-shot",
+      "snapshot": "CLIP",
+      "task": "zero-shot-image-classification",
+      "inputs": [
+        {
+          "image": "media/coco-cats.png",
+          "candidate_labels": [
+            "two cats on a couch",
+            "a conveyor belt",
+            "a cargo train",
+            "a rocket silo"
+          ]
+        }
+      ],
+      "expected": [
+        [
+          {
+            "score": 0.999982,
+            "label": "two cats on a couch"
+          },
+          {
+            "score": 9.3016e-6,
+            "label": "a cargo train"
+          },
+          {
+            "score": 8.42138e-6,
+            "label": "a conveyor belt"
+          },
+          {
+            "score": 1.20418e-8,
+            "label": "a rocket silo"
+          }
+        ]
+      ]
+    }
+  ]
+}

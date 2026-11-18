@@ -1,0 +1,90 @@
+{
+  "cases": [
+    {
+      "name": "prompt",
+      "snapshot": "QWEN35",
+      "task": "text-generation",
+      "inputs": ["Three basic science packs are"],
+      "parameters": {
+        "max_new_tokens": 24
+      },
+      "expected": [
+        {
+          "generated_token_ids": [
+            2420, 25, 198, 12, 2972, 29683, 357, 92217, 220, 16, 15, 15, 15, 7896, 314, 357, 11,
+            220, 16, 15, 15, 15, 7896, 314
+          ]
+        }
+      ]
+    },
+    {
+      "name": "image",
+      "snapshot": "QWEN35",
+      "task": "image-text-to-text",
+      "inputs": [
+        [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "image",
+                "image": "media/cat-448x320.png"
+              },
+              {
+                "type": "text",
+                "text": "What animal is this?"
+              }
+            ]
+          }
+        ]
+      ],
+      "parameters": {
+        "max_new_tokens": 24,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        }
+      },
+      "expected": [
+        {
+          "generated_token_ids": [
+            1919, 369, 264, 2972, 4466, 93868, 11352, 264, 2972, 36954, 786, 58435, 7993, 159034,
+            271, 1536, 23812, 4275, 25, 198, 12, 2972, 37, 322
+          ]
+        }
+      ]
+    },
+    {
+      "name": "any",
+      "snapshot": "QWEN35",
+      "task": "any-to-any",
+      "inputs": [
+        [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "image",
+                "image": "media/cat-448x320.png"
+              },
+              {
+                "type": "text",
+                "text": "Describe this image in one sentence."
+              }
+            ]
+          }
+        ]
+      ],
+      "parameters": {
+        "max_new_tokens": 24,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        }
+      },
+      "expected": [
+        {
+          "generated_text": "A fluffy, snow-covered cat with a striped coat walks across a snowy ground in front of a chain-link fence."
+        }
+      ]
+    }
+  ]
+}

@@ -9,7 +9,7 @@ mod model;
 mod state;
 
 pub use self::{
-    checkpoint::{CheckpointOptions, StateNameMap, StatePiece, StatePieceMap},
+    checkpoint::{Checkpoint, CheckpointOptions, Derivation, LoadPlan, StatePiece, TensorSource},
     decode::{
         CacheSize, DecodeCache, DecodeStep, DecoderModel, DecodingLayer, EncoderDecoderCache,
         EncoderDecoderCacheSpec, HybridCache, HybridCacheSpec, InputGroup, KvCache, KvCacheSpec,

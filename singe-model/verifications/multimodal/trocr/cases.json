@@ -1,0 +1,18 @@
+{
+  "cases": [
+    {
+      "name": "printed",
+      "snapshot": "TROCR",
+      "task": "image-to-text",
+      "inputs": ["media/printed-line.png"],
+      "parameters": {
+        "max_new_tokens": 24
+      },
+      "expected": [
+        {
+          "generated_text": "TOTAL 12.50 EUR"
+        }
+      ]
+    }
+  ]
+}

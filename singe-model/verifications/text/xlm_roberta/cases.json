@@ -1,0 +1,76 @@
+{
+  "cases": [
+    {
+      "name": "fill",
+      "snapshot": "XLM_ROBERTA",
+      "task": "fill-mask",
+      "inputs": ["The factory must <mask>.", "Die Fabrik muss <mask>."],
+      "expected": [
+        [
+          {
+            "score": 0.228973,
+            "token": 186,
+            "token_str": "be",
+            "sequence": "The factory must be ."
+          },
+          {
+            "score": 0.218584,
+            "token": 765,
+            "token_str": "have",
+            "sequence": "The factory must have ."
+          },
+          {
+            "score": 0.0330723,
+            "token": 738,
+            "token_str": "go",
+            "sequence": "The factory must go ."
+          },
+          {
+            "score": 0.0183956,
+            "token": 11675,
+            "token_str": "run",
+            "sequence": "The factory must run ."
+          },
+          {
+            "score": 0.0136356,
+            "token": 5,
+            "token_str": ".",
+            "sequence": "The factory must. ."
+          }
+        ],
+        [
+          {
+            "score": 0.0488236,
+            "token": 749,
+            "token_str": "nicht",
+            "sequence": "Die Fabrik muss nicht ."
+          },
+          {
+            "score": 0.0429852,
+            "token": 2988,
+            "token_str": "sein",
+            "sequence": "Die Fabrik muss sein ."
+          },
+          {
+            "score": 0.0418356,
+            "token": 4077,
+            "token_str": "wieder",
+            "sequence": "Die Fabrik muss wieder ."
+          },
+          {
+            "score": 0.0337927,
+            "token": 23,
+            "token_str": "in",
+            "sequence": "Die Fabrik muss in ."
+          },
+          {
+            "score": 0.0325339,
+            "token": 5,
+            "token_str": ".",
+            "sequence": "Die Fabrik muss. ."
+          }
+        ]
+      ]
+    }
+  ]
+}

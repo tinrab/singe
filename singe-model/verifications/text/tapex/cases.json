@@ -1,0 +1,33 @@
+{
+  "cases": [
+    {
+      "name": "machines",
+      "snapshot": "TAPEX",
+      "task": "table-question-answering",
+      "inputs": [
+        {
+          "table": {
+            "Machine": ["Assembling machine 1", "Assembling machine 2", "Assembling machine 3"],
+            "Crafting speed": ["0.5", "0.75", "1.25"]
+          },
+          "query": "What is the crafting speed of Assembling machine 2?"
+        },
+        {
+          "table": {
+            "Machine": ["Assembling machine 1", "Assembling machine 2", "Assembling machine 3"],
+            "Crafting speed": ["0.5", "0.75", "1.25"]
+          },
+          "query": "Which machine has the highest crafting speed?"
+        }
+      ],
+      "expected": [
+        {
+          "answer": " 0.75"
+        },
+        {
+          "answer": " assembling machine 3"
+        }
+      ]
+    }
+  ]
+}

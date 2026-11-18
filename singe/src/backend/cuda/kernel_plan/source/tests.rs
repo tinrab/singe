@@ -744,13 +744,13 @@ fn test_scaled_matmuls_on_fp8_tensor_cores_match_their_decomposition() {
                 }
                 let compiled_output = compiled
                     .run(&HashMap::from([
-                        ("lhs".to_owned(), lhs.clone()),
+                        ("lhs".to_owned(), lhs),
                         (
                             "weight".to_owned(),
                             rhs.transpose(0, 1).unwrap().contiguous().unwrap(),
                         ),
-                        ("lhs_scale".to_owned(), lhs_scale.clone()),
-                        ("rhs_scale".to_owned(), rhs_scale.clone()),
+                        ("lhs_scale".to_owned(), lhs_scale),
+                        ("rhs_scale".to_owned(), rhs_scale),
                     ]))
                     .unwrap()
                     .remove(0);

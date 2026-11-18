@@ -1,0 +1,23 @@
+{
+  "cases": [
+    {
+      "name": "retrieval",
+      "snapshot": "COLMODERNVBERT",
+      "task": "visual-document-retrieval",
+      "inputs": [
+        {
+          "queries": ["What is the invoice number?", "Who is the bill sent to?"],
+          "documents": ["media/invoice.png", "media/printed-line.png"]
+        }
+      ],
+      "expected": [
+        {
+          "scores": [
+            [14.4464, 8.93946],
+            [12.3793, 7.37051]
+          ]
+        }
+      ]
+    }
+  ]
+}

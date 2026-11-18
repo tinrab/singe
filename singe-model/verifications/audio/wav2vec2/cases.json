@@ -1,0 +1,15 @@
+{
+  "cases": [
+    {
+      "name": "transcription",
+      "snapshot": "WAV2VEC2",
+      "task": "automatic-speech-recognition",
+      "inputs": ["media/clip.wav"],
+      "expected": [
+        {
+          "text": "NOR IS MISTER QUILTER'S MANNER LESS INTERESTING THAN HIS MATTER"
+        }
+      ]
+    }
+  ]
+}

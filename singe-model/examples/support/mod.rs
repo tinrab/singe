@@ -1,12 +1,11 @@
-// What the examples share: reading their arguments and files, which Singe leaves to its callers.
+// What the examples share: reading their arguments.
 
 #![allow(dead_code, reason = "each example uses its own part of this module")]
 
-use std::{env, fs, path::PathBuf};
+use std::{env, path::PathBuf};
 
 use anyhow::{Context as _, Result, anyhow, bail};
-use image::{ImageBuffer, Rgb, imageops::FilterType};
-use singe::Device;
+use singe::{DataType, Device};
 
 // The arguments every example takes: `--snapshot DIR`, or `SNAPSHOT_PATH`, and `--cpu`, and the rest by name, each with a value but the flags an example names.
 pub struct Arguments {
@@ -73,101 +72,15 @@ impl Arguments {
     pub fn required(&self, name: &str) -> Result<&str> {
         self.value(name).with_context(|| format!("pass --{name}"))
     }
-}
 
-// Reads a mono 16-bit PCM WAV file at 16 kHz, as Whisper hears, to samples in [-1, 1).
-pub fn read_wav(path: &str) -> Result<Vec<f32>> {
-    let bytes = fs::read(path).with_context(|| format!("reading {path}"))?;
-    if bytes.len() < 12 || &bytes[0..4] != b"RIFF" || &bytes[8..12] != b"WAVE" {
-        bail!("{path} is not a WAV file");
+    // Returns the weights' type `--type f32|f16|bf16` names, or `default` without one.
+    pub fn data_type(&self, default: DataType) -> Result<DataType> {
+        Ok(match self.value("type") {
+            None => default,
+            Some("f32") => DataType::F32,
+            Some("f16") => DataType::F16,
+            Some("bf16") => DataType::Bf16,
+            Some(other) => bail!("unknown --type {other}"),
+        })
     }
-
-    let (mut format, mut data) = (None, None);
-    let mut offset = 12;
-    while offset + 8 <= bytes.len() {
-        let id = &bytes[offset..offset + 4];
-        let size = usize::try_from(u32::from_le_bytes(
-            bytes[offset + 4..offset + 8].try_into()?,
-        ))?;
-        let body = &bytes[offset + 8..(offset + 8 + size).min(bytes.len())];
-        match id {
-            b"fmt " => format = Some(body),
-            b"data" => data = Some(body),
-            _ => {}
-        }
-
-        offset += 8 + size + size % 2;
-    }
-
-    let format = format.context("a WAV file without a format chunk")?;
-    let field = |at: usize| u16::from_le_bytes([format[at], format[at + 1]]);
-    let rate = u32::from_le_bytes(format[4..8].try_into()?);
-    if field(0) != 1 || field(2) != 1 || rate != 16_000 || field(14) != 16 {
-        bail!("{path} is not mono 16-bit PCM at 16 kHz");
-    }
-    Ok(data
-        .context("a WAV file without data")?
-        .as_chunks::<2>()
-        .0
-        .iter()
-        .map(|pair| f32::from(i16::from_le_bytes(*pair)) / 32_768.0)
-        .collect())
-}
-
-// Reads an image file resized to `width` by `height`, as channel-major RGB in [0, 1].
-pub fn read_image(path: &str, width: u32, height: u32) -> Result<Vec<f32>> {
-    let image = image::open(path)
-        .with_context(|| format!("reading {path}"))?
-        .resize_exact(width, height, FilterType::Triangle)
-        .to_rgb8();
-    let plane = usize::try_from(width * height)?;
-    let mut values = vec![0.0; 3 * plane];
-    for (index, pixel) in image.pixels().enumerate() {
-        for channel in 0..3 {
-            values[channel * plane + index] = f32::from(pixel[channel]) / 255.0;
-        }
-    }
-    Ok(values)
-}
-
-// Reads an image file at the size `size` gives for its own, `(width, height)`, resizing it bicubically only when that differs, as channel-major RGB in [0, 1].
-pub fn read_image_sized(
-    path: &str,
-    size: impl FnOnce(u32, u32) -> Result<(u32, u32)>,
-) -> Result<(Vec<f32>, u32, u32)> {
-    let image = image::open(path).with_context(|| format!("reading {path}"))?;
-    let (width, height) = size(image.width(), image.height())?;
-    let image = if (width, height) == (image.width(), image.height()) {
-        image.to_rgb8()
-    } else {
-        image
-            .resize_exact(width, height, FilterType::CatmullRom)
-            .to_rgb8()
-    };
-    let plane = usize::try_from(width * height)?;
-    let mut values = vec![0.0; 3 * plane];
-    for (index, pixel) in image.pixels().enumerate() {
-        for channel in 0..3 {
-            values[channel * plane + index] = f32::from(pixel[channel]) / 255.0;
-        }
-    }
-    Ok((values, width, height))
-}
-
-// Writes channel-major RGB in [0, 1] as an image file, whose extension picks the format.
-pub fn write_image(path: &str, values: &[f32], width: u32, height: u32) -> Result<()> {
-    let plane = usize::try_from(width * height)?;
-    let image = ImageBuffer::from_fn(width, height, |x, y| {
-        let index = usize::try_from(y * width + x).unwrap_or(0);
-        Rgb([0, 1, 2].map(|channel| {
-            #[expect(
-                clippy::cast_possible_truncation,
-                clippy::cast_sign_loss,
-                reason = "the value is clamped to a byte's range"
-            )]
-            let byte = (values[channel * plane + index].clamp(0.0, 1.0) * 255.0).round() as u8;
-            byte
-        }))
-    });
-    image.save(path).with_context(|| format!("writing {path}"))
 }

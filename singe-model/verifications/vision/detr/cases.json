@@ -1,0 +1,86 @@
+{
+  "cases": [
+    {
+      "name": "detection",
+      "snapshot": "DETR",
+      "task": "object-detection",
+      "inputs": ["media/coco-cats.png", "media/cat-448x320.png"],
+      "expected": [
+        [
+          {
+            "score": 0.99822,
+            "label": "remote",
+            "box": {
+              "xmin": 40,
+              "ymin": 70,
+              "xmax": 175,
+              "ymax": 117
+            }
+          },
+          {
+            "score": 0.995999,
+            "label": "remote",
+            "box": {
+              "xmin": 333,
+              "ymin": 72,
+              "xmax": 368,
+              "ymax": 187
+            }
+          },
+          {
+            "score": 0.995481,
+            "label": "couch",
+            "box": {
+              "xmin": 0,
+              "ymin": 1,
+              "xmax": 639,
+              "ymax": 473
+            }
+          },
+          {
+            "score": 0.998801,
+            "label": "cat",
+            "box": {
+              "xmin": 13,
+              "ymin": 52,
+              "xmax": 314,
+              "ymax": 470
+            }
+          },
+          {
+            "score": 0.998679,
+            "label": "cat",
+            "box": {
+              "xmin": 345,
+              "ymin": 23,
+              "xmax": 640,
+              "ymax": 368
+            }
+          }
+        ],
+        [
+          {
+            "score": 0.952046,
+            "label": "cat",
+            "box": {
+              "xmin": 83,
+              "ymin": 72,
+              "xmax": 413,
+              "ymax": 279
+            }
+          },
+          {
+            "score": 0.562927,
+            "label": "cat",
+            "box": {
+              "xmin": 80,
+              "ymin": 71,
+              "xmax": 448,
+              "ymax": 279
+            }
+          }
+        ]
+      ]
+    }
+  ]
+}

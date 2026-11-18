@@ -1,0 +1,74 @@
+{
+  "cases": [
+    {
+      "name": "detection",
+      "snapshot": "YOLOS",
+      "task": "object-detection",
+      "inputs": ["media/coco-cats.png"],
+      "expected": [
+        [
+          {
+            "score": 0.991173,
+            "label": "remote",
+            "box": {
+              "xmin": 46,
+              "ymin": 72,
+              "xmax": 178,
+              "ymax": 119
+            }
+          },
+          {
+            "score": 0.908745,
+            "label": "remote",
+            "box": {
+              "xmin": 336,
+              "ymin": 79,
+              "xmax": 368,
+              "ymax": 192
+            }
+          },
+          {
+            "score": 0.933114,
+            "label": "cat",
+            "box": {
+              "xmin": 337,
+              "ymin": 17,
+              "xmax": 638,
+              "ymax": 373
+            }
+          },
+          {
+            "score": 0.979391,
+            "label": "cat",
+            "box": {
+              "xmin": 10,
+              "ymin": 53,
+              "xmax": 313,
+              "ymax": 470
+            }
+          },
+          {
+            "score": 0.500253,
+            "label": "bed",
+            "box": {
+              "xmin": 0,
+              "ymin": 1,
+              "xmax": 640,
+              "ymax": 474
+            }
+          },
+          {
+            "score": 0.973695,
+            "label": "remote",
+            "box": {
+              "xmin": 41,
+              "ymin": 72,
+              "xmax": 178,
+              "ymax": 119
+            }
+          }
+        ]
+      ]
+    }
+  ]
+}

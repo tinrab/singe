@@ -48,6 +48,13 @@ impl SelfAttention {
             )?,
         })
     }
+
+    // Masks each query from the keys after it, as CLIP's text encoder attends.
+    #[must_use]
+    pub fn causal(mut self) -> Self {
+        self.attention = self.attention.causal();
+        self
+    }
 }
 
 impl Layer for SelfAttention {

@@ -173,3 +173,170 @@ impl Layer for PatchEmbedding {
         patches.flatten(2, 3)?.transpose(1, 2)
     }
 }
+
+// Transposed convolution options along each spatial axis: stride, padding taken off each side, output padding added after, dilation, and groups, as `torch.nn.ConvTranspose2d` takes them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ConvTransposeConfig<const N: usize> {
+    pub stride: [i64; N],
+    pub padding: [i64; N],
+    pub output_padding: [i64; N],
+    pub dilation: [i64; N],
+    pub groups: i64,
+}
+
+impl<const N: usize> Default for ConvTransposeConfig<N> {
+    fn default() -> Self {
+        Self {
+            stride: [1; N],
+            padding: [0; N],
+            output_padding: [0; N],
+            dilation: [1; N],
+            groups: 1,
+        }
+    }
+}
+
+// A transposed convolution over `[B, C, L]` with weights `[C, O / groups, K]`, as `torch.nn.ConvTranspose1d` computes it.
+#[derive(Debug, Clone)]
+pub struct ConvTranspose1d {
+    weight: StateKey,
+    bias: Option<StateKey>,
+    config: ConvTransposeConfig<1>,
+}
+
+impl ConvTranspose1d {
+    #[must_use]
+    pub const fn new(
+        weight: StateKey,
+        bias: Option<StateKey>,
+        config: ConvTransposeConfig<1>,
+    ) -> Self {
+        Self {
+            weight,
+            bias,
+            config,
+        }
+    }
+}
+
+impl Layer for ConvTranspose1d {
+    fn forward(&self, input: &Tensor, state: &ModelState) -> Result<Tensor> {
+        let config = self.config;
+        let bias = self
+            .bias
+            .as_ref()
+            .map(|key| state.tensor(key))
+            .transpose()?;
+        input.convolution_transpose1d(
+            state.tensor(&self.weight)?,
+            bias,
+            config.stride[0],
+            config.padding[0],
+            config.output_padding[0],
+            config.dilation[0],
+            config.groups,
+        )
+    }
+}
+
+// A transposed convolution over `[B, C, H, W]` with weights `[C, O / groups, KH, KW]`, as `torch.nn.ConvTranspose2d` computes it.
+#[derive(Debug, Clone)]
+pub struct ConvTranspose2d {
+    weight: StateKey,
+    bias: Option<StateKey>,
+    config: ConvTransposeConfig<2>,
+}
+
+impl ConvTranspose2d {
+    #[must_use]
+    pub const fn new(
+        weight: StateKey,
+        bias: Option<StateKey>,
+        config: ConvTransposeConfig<2>,
+    ) -> Self {
+        Self {
+            weight,
+            bias,
+            config,
+        }
+    }
+}
+
+impl Layer for ConvTranspose2d {
+    fn forward(&self, input: &Tensor, state: &ModelState) -> Result<Tensor> {
+        let config = self.config;
+        let bias = self
+            .bias
+            .as_ref()
+            .map(|key| state.tensor(key))
+            .transpose()?;
+        let pair = <(i64, i64)>::from;
+        input.convolution_transpose2d(
+            state.tensor(&self.weight)?,
+            bias,
+            pair(config.stride),
+            pair(config.padding),
+            pair(config.output_padding),
+            pair(config.dilation),
+            config.groups,
+        )
+    }
+}
+
+// Three-dimensional convolution options: stride, padding on both sides, and dilation along depth, height, and width, and groups.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Conv3dConfig {
+    pub stride: (i64, i64, i64),
+    pub padding: (i64, i64, i64),
+    pub dilation: (i64, i64, i64),
+    pub groups: i64,
+}
+
+impl Default for Conv3dConfig {
+    fn default() -> Self {
+        Self {
+            stride: (1, 1, 1),
+            padding: (0, 0, 0),
+            dilation: (1, 1, 1),
+            groups: 1,
+        }
+    }
+}
+
+// A convolution over `[B, C, D, H, W]` with weights `[O, C / groups, KD, KH, KW]`, as `torch.nn.Conv3d` computes it, such as a video model's tubelet embedding.
+#[derive(Debug, Clone)]
+pub struct Conv3d {
+    weight: StateKey,
+    bias: Option<StateKey>,
+    config: Conv3dConfig,
+}
+
+impl Conv3d {
+    #[must_use]
+    pub const fn new(weight: StateKey, bias: Option<StateKey>, config: Conv3dConfig) -> Self {
+        Self {
+            weight,
+            bias,
+            config,
+        }
+    }
+}
+
+impl Layer for Conv3d {
+    fn forward(&self, input: &Tensor, state: &ModelState) -> Result<Tensor> {
+        let config = self.config;
+        let bias = self
+            .bias
+            .as_ref()
+            .map(|key| state.tensor(key))
+            .transpose()?;
+        input.convolution3d(
+            state.tensor(&self.weight)?,
+            bias,
+            config.stride,
+            config.padding,
+            config.dilation,
+            config.groups,
+        )
+    }
+}

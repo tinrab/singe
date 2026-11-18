@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+
 use crate::{
     data_type::DataType,
     error::{Error, Result},
@@ -11,7 +13,7 @@ use crate::{
 };
 
 // The sizes of a [`GatedDeltaNet`]: `key_heads` heads of `key_dim` for queries and keys, `value_heads` heads of `value_dim` for values, and a convolution of `kernel` taps.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GatedDeltaNetSpec {
     pub key_heads: i64,
     pub key_dim: i64,

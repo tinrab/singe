@@ -1,8 +1,6 @@
 // Element-wise activations a configuration names.
 
-use std::result::Result as StdResult;
-
-use serde::{Deserialize, Deserializer, de::Error as DeError};
+use serde::{Deserialize, Serialize};
 
 use crate::{
     backend::registry::{Operation, OperationAttributes},
@@ -13,7 +11,8 @@ use crate::{
 };
 
 /// A stateless elementwise activation layer.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum Activation {
     /// Rectified linear activation, `max(x, 0)`.
     Relu,
@@ -27,31 +26,8 @@ pub enum Activation {
     Sigmoid,
     /// Hyperbolic tangent activation.
     Tanh,
-}
-
-// Deserializes from the name a Hugging Face config uses.
-impl<'de> Deserialize<'de> for Activation {
-    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> StdResult<Self, D::Error> {
-        let name = String::deserialize(deserializer)?;
-        Self::from_config_name(&name)
-            .ok_or_else(|| DeError::custom(format!("unknown activation `{name}`")))
-    }
-}
-
-impl Activation {
-    // Returns the activation a Hugging Face config names, as `transformers` maps these names.
-    #[must_use]
-    pub fn from_config_name(name: &str) -> Option<Self> {
-        match name {
-            "relu" => Some(Self::Relu),
-            "gelu" => Some(Self::GeluExact),
-            "gelu_new" | "gelu_pytorch_tanh" => Some(Self::Gelu),
-            "silu" | "swish" => Some(Self::Silu),
-            "sigmoid" => Some(Self::Sigmoid),
-            "tanh" => Some(Self::Tanh),
-            _ => None,
-        }
-    }
+    // GELU as CLIP approximates it, `x * sigmoid(1.702 x)`.
+    QuickGelu,
 }
 
 impl Layer for Activation {
@@ -63,6 +39,14 @@ impl Layer for Activation {
             Self::Silu => Operation::Silu,
             Self::Sigmoid => Operation::Sigmoid,
             Self::Tanh => Operation::Tanh,
+            Self::QuickGelu => {
+                let gate = call_one(
+                    Operation::Sigmoid,
+                    OperationAttributes::None,
+                    &[&input.mul_scalar(1.702)?],
+                )?;
+                return input.mul(&gate);
+            }
         };
         call_one(operation, OperationAttributes::None, &[input])
     }

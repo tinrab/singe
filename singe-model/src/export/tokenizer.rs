@@ -10,8 +10,8 @@ use unicode_normalization_alignments::char::{
 };
 
 use crate::{
-    config::{Snapshot, unsupported},
-    error::Result,
+    error::{Error, Result},
+    source::Source,
 };
 
 const QWEN3_SPLIT: &str = r"(?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\r\n\p{L}\p{N}]?\p{L}+|\p{N}| ?[^\s\p{L}\p{N}]+[\r\n]*|\s*[\r\n]+|\s+(?!\S)|\s+";
@@ -22,17 +22,6 @@ pub struct PromptTemplate {
     pub before: String,
     pub after: String,
     pub placeholder: Option<i64>,
-}
-
-impl PromptTemplate {
-    #[must_use]
-    pub fn qwen_chat(prefix: &str, placeholder: Option<i64>) -> Self {
-        Self {
-            before: format!("<|im_start|>user\n{prefix}"),
-            after: "<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n".to_owned(),
-            placeholder,
-        }
-    }
 }
 
 fn byte_alphabet() -> HashMap<char, u8> {
@@ -54,18 +43,18 @@ fn id_of(vocabulary: &serde_json::Map<String, Value>, token: &str) -> Result<i64
     vocabulary
         .get(token)
         .and_then(Value::as_i64)
-        .ok_or_else(|| unsupported("a merge of tokens outside the vocabulary"))
+        .ok_or_else(|| Error::unsupported("a merge of tokens outside the vocabulary"))
 }
 
 fn class_ranges(pattern: &str) -> Result<Vec<[u32; 2]>> {
-    let hir = regex_syntax::parse(pattern).map_err(|_| unsupported("a character class"))?;
+    let hir = regex_syntax::parse(pattern).map_err(|_| Error::unsupported("a character class"))?;
     match hir.kind() {
         HirKind::Class(Class::Unicode(class)) => Ok(class
             .ranges()
             .iter()
             .map(|range| [u32::from(range.start()), u32::from(range.end())])
             .collect()),
-        _ => Err(unsupported("a character class")),
+        _ => Err(Error::unsupported("a character class")),
     }
 }
 
@@ -117,14 +106,14 @@ fn encoder(
     let composes = match &json["normalizer"] {
         Value::Null => false,
         normalizer if normalizer["type"] == "NFC" => true,
-        _ => return Err(unsupported("a normalizer other than NFC")),
+        _ => return Err(Error::unsupported("a normalizer other than NFC")),
     };
     let steps = &json["pre_tokenizer"]["pretokenizers"];
     let (split, bytes) = (&steps[0], &steps[1]);
     let marks_are_letters = match split["pattern"]["Regex"].as_str() {
         Some(QWEN3_SPLIT) => false,
         Some(QWEN35_SPLIT) => true,
-        _ => return Err(unsupported("a pre-tokenizer other than Qwen's")),
+        _ => return Err(Error::unsupported("a pre-tokenizer other than Qwen's")),
     };
     if json["pre_tokenizer"]["type"] != "Sequence"
         || steps.as_array().map(Vec::len) != Some(2)
@@ -135,23 +124,23 @@ fn encoder(
         || bytes["use_regex"] != false
         || bytes["add_prefix_space"] != false
     {
-        return Err(unsupported("a pre-tokenizer other than Qwen's"));
+        return Err(Error::unsupported("a pre-tokenizer other than Qwen's"));
     }
 
     let merges = json["model"]["merges"]
         .as_array()
-        .ok_or_else(|| unsupported("a BPE model without merges"))?
+        .ok_or_else(|| Error::unsupported("a BPE model without merges"))?
         .iter()
         .map(|merge| {
             let (left, right) = match merge {
                 Value::String(merge) => merge
                     .split_once(' ')
-                    .ok_or_else(|| unsupported("a merge that is not a pair"))?,
+                    .ok_or_else(|| Error::unsupported("a merge that is not a pair"))?,
                 Value::Array(pair) => match pair.as_slice() {
                     [Value::String(left), Value::String(right)] => (left.as_str(), right.as_str()),
-                    _ => return Err(unsupported("a merge that is not a pair")),
+                    _ => return Err(Error::unsupported("a merge that is not a pair")),
                 },
-                _ => return Err(unsupported("a merge that is not a pair")),
+                _ => return Err(Error::unsupported("a merge that is not a pair")),
             };
             Ok([
                 id_of(vocabulary, left)?,
@@ -177,10 +166,10 @@ fn encoder(
 }
 
 pub fn loop_tokenizer(
-    files: &Snapshot,
+    source: &Source,
     template: Option<PromptTemplate>,
 ) -> Result<Option<LoopTokenizer>> {
-    let json: Value = files.json("tokenizer.json")?;
+    let json: Value = source.json("tokenizer.json")?;
     let model = &json["model"];
     let affixes = ["continuing_subword_prefix", "end_of_word_suffix"]
         .iter()
@@ -195,13 +184,13 @@ pub fn loop_tokenizer(
 
     let vocabulary = model["vocab"]
         .as_object()
-        .ok_or_else(|| unsupported("a BPE model without a vocabulary"))?;
+        .ok_or_else(|| Error::unsupported("a BPE model without a vocabulary"))?;
     let alphabet = byte_alphabet();
     let mut tokens = Vec::new();
     let mut place = |id: Option<i64>, token: LoopToken| {
         let index = id
             .and_then(|id| usize::try_from(id).ok())
-            .ok_or_else(|| unsupported("a token without an id"))?;
+            .ok_or_else(|| Error::unsupported("a token without an id"))?;
         if tokens.len() <= index {
             tokens.resize(
                 index + 1,
@@ -220,7 +209,7 @@ pub fn loop_tokenizer(
             .chars()
             .map(|character| alphabet.get(&character).copied())
             .collect::<Option<Vec<_>>>()
-            .ok_or_else(|| unsupported("a byte-level token outside its alphabet"))?;
+            .ok_or_else(|| Error::unsupported("a byte-level token outside its alphabet"))?;
         place(
             id.as_i64(),
             LoopToken {
@@ -234,7 +223,7 @@ pub fn loop_tokenizer(
     for token in json["added_tokens"].as_array().into_iter().flatten() {
         let content = token["content"]
             .as_str()
-            .ok_or_else(|| unsupported("an added token without content"))?;
+            .ok_or_else(|| Error::unsupported("an added token without content"))?;
         place(
             token["id"].as_i64(),
             LoopToken {

@@ -1,0 +1,40 @@
+{
+  "cases": [
+    {
+      "name": "sounds",
+      "snapshot": "CLAP",
+      "task": "zero-shot-audio-classification",
+      "inputs": [
+        {
+          "audio": "media/clip-48k.wav",
+          "candidate_labels": [
+            "a man speaking",
+            "an assembling machine humming",
+            "a train horn",
+            "biters screeching"
+          ]
+        }
+      ],
+      "expected": [
+        [
+          {
+            "score": 0.992218,
+            "label": "a man speaking"
+          },
+          {
+            "score": 0.00317436,
+            "label": "biters screeching"
+          },
+          {
+            "score": 0.00268271,
+            "label": "a train horn"
+          },
+          {
+            "score": 0.00192467,
+            "label": "an assembling machine humming"
+          }
+        ]
+      ]
+    }
+  ]
+}

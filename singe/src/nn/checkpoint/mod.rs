@@ -1,17 +1,17 @@
 mod shard;
 
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     fmt::{Debug, Formatter, Result as FmtResult},
     fs, iter, mem,
     path::Path,
+    sync::Arc,
 };
 
 use safetensors::{
     Dtype,
     tensor::{self, TensorInfo, TensorView},
 };
-use serde::Deserialize;
 
 use self::shard::{AlignedBytes, Shard, shape_of, stored_type};
 #[cfg(feature = "cuda")]
@@ -22,12 +22,10 @@ use crate::{
     error::{CheckpointError, Error, Result},
     nn::ModelState,
     shape::Shape,
+    state::StateBindingSpec,
     tensor::Tensor,
     utility::{to_i64, to_usize},
 };
-
-// The names a snapshot's checkpoint goes by: `transformers`' first, then `diffusers`'.
-const CHECKPOINT_STEMS: [&str; 2] = ["model", "diffusion_pytorch_model"];
 
 impl ModelState {
     /// Serializes all named parameters and persistent buffers.
@@ -79,7 +77,9 @@ impl ModelState {
     ///
     /// Returns an error if the file cannot be read or checkpoint parsing, schema validation, device transfer, or state replacement fails.
     pub fn load_safetensors(&self, path: impl AsRef<Path>) -> Result<Self> {
-        self.load_shards(vec![Shard::open(path)?], &CheckpointOptions::default())
+        let mut checkpoint = Checkpoint::open([path])?;
+        let plan = LoadPlan::identity(&checkpoint);
+        self.load_exactly(&mut checkpoint, &plan)
     }
 
     /// Checks keys, dtype, shape, and all tied entries before publication.
@@ -89,92 +89,48 @@ impl ModelState {
     ///
     /// Returns an error if the checkpoint is malformed, keys are missing or unexpected, data types or shapes differ from the state schema, tied values disagree, dimensions cannot be represented, tensor construction or device transfer fails, or state replacement validation fails.
     pub fn load_safetensors_bytes(&self, bytes: &[u8]) -> Result<Self> {
-        self.load_shards(
-            vec![Shard::from_bytes(bytes)?],
-            &CheckpointOptions::default(),
-        )
+        let mut checkpoint = Checkpoint::from_bytes(bytes)?;
+        let plan = LoadPlan::identity(&checkpoint);
+        self.load_exactly(&mut checkpoint, &plan)
     }
 
-    // Loads the checkpoint of a Hugging Face snapshot directory: `model.safetensors`, or the shards `model.safetensors.index.json` names.
-    // A `diffusers` snapshot names the same files `diffusion_pytorch_model`.
-    // Each tensor is read from its file straight to its device, so no shard is held whole on the host.
+    fn load_exactly(&self, checkpoint: &mut Checkpoint<'_>, plan: &LoadPlan) -> Result<Self> {
+        self.load_checkpoint(checkpoint, plan, CheckpointOptions::default())
+    }
+
+    // Loads the state `plan` gives each binding from `checkpoint`, and publishes it only once every binding has its tensor.
+    // A stored tensor that serves a binding whole streams from its file straight to the device, so no file is held whole on the host.
+    // Stored tensors `plan` does not read are left alone; whether any may be left is the caller's to decide.
     pub fn load_checkpoint(
         &self,
-        directory: impl AsRef<Path>,
-        options: &CheckpointOptions<'_>,
+        checkpoint: &mut Checkpoint<'_>,
+        plan: &LoadPlan,
+        options: CheckpointOptions,
     ) -> Result<Self> {
-        let directory = directory.as_ref();
-        let stem = CHECKPOINT_STEMS
-            .into_iter()
-            .find(|stem| {
-                directory.join(format!("{stem}.safetensors")).exists()
-                    || directory
-                        .join(format!("{stem}.safetensors.index.json"))
-                        .exists()
-            })
-            .unwrap_or(CHECKPOINT_STEMS[0]);
-        let index = directory.join(format!("{stem}.safetensors.index.json"));
-        if !index.exists() {
-            let shard = Shard::open(directory.join(format!("{stem}.safetensors")))?;
-            return self.load_shards(vec![shard], options);
-        }
-
-        let index: ShardIndex =
-            serde_json::from_slice(&fs::read(index)?).map_err(CheckpointError::Index)?;
-        let mut files = index.weight_map.values().collect::<Vec<_>>();
-        files.sort();
-        files.dedup();
-        let shards = files
-            .into_iter()
-            .map(|file| Shard::open(directory.join(file)))
-            .collect::<Result<Vec<_>>>()?;
-        self.load_shards(shards, options)
-    }
-
-    // Checks the names `shards` hold, reads each tensor, and publishes the state they make.
-    fn load_shards(
-        &self,
-        mut shards: Vec<Shard<'_>>,
-        options: &CheckpointOptions<'_>,
-    ) -> Result<Self> {
-        let names = shards.iter().flat_map(Shard::names).collect::<Vec<_>>();
-        self.check_keys(names.iter().map(String::as_str), options)?;
+        self.check_plan(checkpoint, plan)?;
         let mut loading = Loading::default();
-        for shard in 0..shards.len() {
-            self.load_shard(&mut shards, shard, options, &mut loading)?;
-        }
-
-        self.finish_pieces(options, &mut loading)?;
+        self.load_stored(checkpoint, plan, options, &mut loading)?;
+        self.load_derived(checkpoint, plan, options, &mut loading)?;
         self.publish(&loading)
     }
 
-    // Refuses a checkpoint whose names, under `options`, do not cover this state's or name something else.
-    fn check_keys<'a>(
-        &self,
-        names: impl Iterator<Item = &'a str>,
-        options: &CheckpointOptions<'_>,
-    ) -> Result<()> {
-        let names = names
-            .filter_map(|name| {
-                options
-                    .piece(name)
-                    .map(|piece| piece.state)
-                    .or_else(|| options.state_name(name))
-            })
-            .collect::<HashSet<_>>();
-        let provided = self
-            .bindings()
-            .filter(|(binding, _)| names.contains(binding.name()))
-            .map(|(binding, _)| binding.id())
+    // Refuses a plan that names a target outside this state's schema, leaves a binding without a source, or reads a tensor `checkpoint` lacks.
+    fn check_plan(&self, checkpoint: &Checkpoint<'_>, plan: &LoadPlan) -> Result<()> {
+        let bindings = &self.snapshot.schema.bindings;
+        let provided = plan
+            .targets
+            .keys()
+            .filter_map(|name| bindings.get(name).map(StateBindingSpec::id))
             .collect::<HashSet<_>>();
         let mut missing = self
             .bindings()
             .filter(|(binding, _)| !provided.contains(&binding.id()))
             .map(|(binding, _)| binding.name().to_owned())
             .collect::<Vec<_>>();
-        let mut unexpected = names
-            .iter()
-            .filter(|name| !self.snapshot.schema.bindings.contains_key(*name))
+        let mut unexpected = plan
+            .targets
+            .keys()
+            .filter(|name| !bindings.contains_key(*name))
             .cloned()
             .collect::<Vec<_>>();
         missing.sort();
@@ -186,105 +142,221 @@ impl ModelState {
             }
             .into());
         }
+
+        let absent = plan
+            .stored_names()
+            .into_iter()
+            .filter(|name| !checkpoint.contains(name))
+            .map(str::to_owned)
+            .collect::<Vec<_>>();
+        if !absent.is_empty() {
+            return Err(CheckpointError::Absent { names: absent }.into());
+        }
         Ok(())
     }
 
-    // Reads, casts, and places each tensor of one shard, in the order its bytes lie.
-    fn load_shard(
+    // Reads each stored tensor the plan takes whole or as a piece, shard by shard in the order their bytes lie, then assembles the pieces.
+    fn load_stored(
         &self,
-        shards: &mut [Shard<'_>],
-        shard: usize,
-        options: &CheckpointOptions<'_>,
+        checkpoint: &mut Checkpoint<'_>,
+        plan: &LoadPlan,
+        options: CheckpointOptions,
         loading: &mut Loading,
     ) -> Result<()> {
-        for stored_name in shards[shard].names() {
-            let piece = options.piece(&stored_name);
-            let Some(name) = piece
-                .as_ref()
-                .map(|piece| piece.state.clone())
-                .or_else(|| options.state_name(&stored_name))
-            else {
-                continue;
-            };
-            let info = shards[shard].info(&stored_name)?;
-            let binding = &self.snapshot.schema.bindings[&name];
-            let target = binding.spec().data_type();
-            let source = stored_type(info.dtype)?;
-            if source != target && !(options.convert && source.is_float() && target.is_float()) {
-                return Err(Error::unsupported_operation_with_details(
-                    "checkpoint dtype",
-                    format!("`{name}` expected {target}, got {source}"),
-                ));
-            }
-
-            let shape = shape_of(&info)?;
-            if let Some(piece) = piece {
-                let host = shards[shard].tensor_as(&info, target)?;
-                loading
-                    .pieces
-                    .entry(binding.id())
-                    .or_insert_with(|| PieceAssembly {
-                        name: name.clone(),
-                        data_type: target,
-                        shape: binding.spec().shape().clone(),
-                        bytes: vec![
-                            0;
-                            binding.spec().shape().element_count() * target.size_bytes()
-                        ],
-                        placed: Vec::new(),
-                    })
-                    .place(&piece.origin, shape.dimensions(), &host.to_bytes()?)?;
-                continue;
-            }
-
-            if &shape != binding.spec().shape() {
-                return Err(Error::shape_mismatch(
-                    name,
-                    binding.spec().shape().dimensions().to_vec(),
-                    shape.dimensions().to_vec(),
-                ));
-            }
-
-            // Ties compare as the schema's type, a chunk at a time from their files, before the second uploads.
-            if let Some(tied) = loading.tied.get(&binding.id()) {
-                if !same_values(shards, tied, (shard, &info), target)? {
-                    return Err(Error::invalid_argument(format!(
-                        "conflicting tied state bindings at `{name}`"
-                    )));
+        let mut uses = HashMap::<&str, Vec<(&str, Option<&[i64]>)>>::new();
+        for (target, source) in &plan.targets {
+            match source {
+                TensorSource::Stored(name) => {
+                    uses.entry(name).or_default().push((target, None));
                 }
-
-                continue;
+                TensorSource::Pieces(pieces) => {
+                    for piece in pieces {
+                        uses.entry(&piece.name)
+                            .or_default()
+                            .push((target, Some(&piece.origin)));
+                    }
+                }
+                TensorSource::Derived(_) => {}
             }
+        }
 
-            let device = options
-                .device
-                .map_or_else(|| self.named_tensor(&name).map(Tensor::device), Some)
-                .ok_or_else(|| Error::missing_input("checkpoint tensor's binding"))?;
-            if self.has_tie(binding.id()) {
-                loading.tied.insert(binding.id(), (shard, info.clone()));
+        for shard in 0..checkpoint.shards.len() {
+            for stored_name in checkpoint.shards[shard].names() {
+                let Some(targets) = uses.get(stored_name.as_str()) else {
+                    continue;
+                };
+                let info = checkpoint.shards[shard].info(&stored_name)?;
+                for &(target, origin) in targets {
+                    if let Some(origin) = origin {
+                        self.load_piece(
+                            &mut checkpoint.shards[shard],
+                            &info,
+                            (target, origin),
+                            options,
+                            loading,
+                        )?;
+                    } else {
+                        self.load_whole(
+                            &mut checkpoint.shards,
+                            (shard, &info),
+                            target,
+                            options,
+                            loading,
+                        )?;
+                    }
+                }
             }
+        }
 
-            let tensor = loading.read(&mut shards[shard], &info, target, &shape, device)?;
-            loading.tensors.insert(binding.id(), tensor);
+        for (id, assembly) in mem::take(&mut loading.pieces) {
+            let device = self.target_device(&assembly.name, options)?;
+            let name = assembly.name.clone();
+            let tensor = assembly.finish()?.to_device(device)?;
+            loading.insert(id, &name, tensor)?;
         }
         Ok(())
     }
 
-    // Turns the pieces gathered across shards into their tensors, refusing one left partly unset.
-    fn finish_pieces(&self, options: &CheckpointOptions<'_>, loading: &mut Loading) -> Result<()> {
-        for (id, assembly) in mem::take(&mut loading.pieces) {
-            let device = options
-                .device
-                .map_or_else(
-                    || self.named_tensor(&assembly.name).map(Tensor::device),
-                    Some,
-                )
-                .ok_or_else(|| Error::missing_input("checkpoint tensor's binding"))?;
-            loading
-                .tensors
-                .insert(id, assembly.finish()?.to_device(device)?);
+    // Reads a stored tensor that is the whole of `target`.
+    fn load_whole(
+        &self,
+        shards: &mut [Shard<'_>],
+        (shard, info): (usize, &TensorInfo),
+        target: &str,
+        options: CheckpointOptions,
+        loading: &mut Loading,
+    ) -> Result<()> {
+        let binding = &self.snapshot.schema.bindings[target];
+        let data_type = binding.spec().data_type();
+        accept_type(target, stored_type(info.dtype)?, data_type, options.convert)?;
+        let shape = shape_of(info)?;
+        if &shape != binding.spec().shape() {
+            return Err(Error::shape_mismatch(
+                target.to_owned(),
+                binding.spec().shape().dimensions().to_vec(),
+                shape.dimensions().to_vec(),
+            ));
+        }
+
+        // Ties compare as the schema's type, a chunk at a time from their files, before the second uploads.
+        if let Some(tied) = loading.tied.get(&binding.id()) {
+            if !same_values(shards, tied, (shard, info), data_type)? {
+                return Err(Error::invalid_argument(format!(
+                    "conflicting tied state bindings at `{target}`"
+                )));
+            }
+
+            return Ok(());
+        }
+
+        let device = self.target_device(target, options)?;
+        if self.has_tie(binding.id()) {
+            loading.tied.insert(binding.id(), (shard, info.clone()));
+        }
+
+        let tensor = loading.read(&mut shards[shard], info, data_type, &shape, device)?;
+        loading.insert(binding.id(), target, tensor)
+    }
+
+    // Places a stored tensor into the host copy of `target` being assembled from pieces.
+    fn load_piece(
+        &self,
+        shard: &mut Shard<'_>,
+        info: &TensorInfo,
+        (target, origin): (&str, &[i64]),
+        options: CheckpointOptions,
+        loading: &mut Loading,
+    ) -> Result<()> {
+        let binding = &self.snapshot.schema.bindings[target];
+        let data_type = binding.spec().data_type();
+        accept_type(target, stored_type(info.dtype)?, data_type, options.convert)?;
+        let host = shard.tensor_as(info, data_type)?;
+        let shape = shape_of(info)?;
+        loading
+            .pieces
+            .entry(binding.id())
+            .or_insert_with(|| PieceAssembly {
+                name: target.to_owned(),
+                data_type,
+                shape: binding.spec().shape().clone(),
+                bytes: vec![0; binding.spec().shape().element_count() * data_type.size_bytes()],
+                placed: Vec::new(),
+            })
+            .place(origin, shape.dimensions(), &host.to_bytes()?)
+    }
+
+    // Reads the inputs of each derived target onto its device as they are stored, and keeps what its derivation makes of them.
+    fn load_derived(
+        &self,
+        checkpoint: &mut Checkpoint<'_>,
+        plan: &LoadPlan,
+        options: CheckpointOptions,
+        loading: &mut Loading,
+    ) -> Result<()> {
+        // A stored tensor several derivations read, such as a fused projection split into parts, is read once and kept until its last reader.
+        let derivations = plan
+            .targets
+            .iter()
+            .filter_map(|(target, source)| match source {
+                TensorSource::Derived(derivation) => Some((target, derivation)),
+                TensorSource::Stored(_) | TensorSource::Pieces(_) => None,
+            })
+            .map(|(target, derivation)| {
+                Ok((target, derivation, self.target_device(target, options)?))
+            })
+            .collect::<Result<Vec<_>>>()?;
+        let mut readers = HashMap::<(&str, Device), usize>::new();
+        for (_, derivation, device) in &derivations {
+            for name in &derivation.inputs {
+                *readers.entry((name.as_str(), *device)).or_default() += 1;
+            }
+        }
+
+        let mut kept = HashMap::<(&str, Device), Tensor>::new();
+        for (target, derivation, device) in derivations {
+            let binding = &self.snapshot.schema.bindings[target];
+            let mut inputs = Vec::with_capacity(derivation.inputs.len());
+            for name in &derivation.inputs {
+                let key = (name.as_str(), device);
+                let input = if let Some(input) = kept.remove(&key) {
+                    input
+                } else {
+                    let (shard, info) = checkpoint.info(name)?;
+                    let stored = stored_type(info.dtype)?;
+                    let shape = shape_of(&info)?;
+                    loading.read(&mut checkpoint.shards[shard], &info, stored, &shape, device)?
+                };
+                let left = readers.entry(key).or_default();
+                *left = left.saturating_sub(1);
+                if *left > 0 {
+                    kept.insert(key, input.clone());
+                }
+
+                inputs.push(input);
+            }
+
+            let derived = (derivation.derive)(&inputs)?;
+            let data_type = binding.spec().data_type();
+            accept_type(target, derived.data_type(), data_type, options.convert)?;
+            if derived.shape() != binding.spec().shape() {
+                return Err(Error::shape_mismatch(
+                    target.clone(),
+                    binding.spec().shape().dimensions().to_vec(),
+                    derived.shape().dimensions().to_vec(),
+                ));
+            }
+
+            loading.insert(binding.id(), target, derived.cast(data_type)?)?;
         }
         Ok(())
+    }
+
+    // Where `target`'s tensor goes: the options' device, or its binding's current one.
+    fn target_device(&self, target: &str, options: CheckpointOptions) -> Result<Device> {
+        options
+            .device
+            .map_or_else(|| self.named_tensor(target).map(Tensor::device), Some)
+            .ok_or_else(|| Error::missing_input("checkpoint tensor's binding"))
     }
 
     fn has_tie(&self, id: usize) -> bool {
@@ -314,58 +386,208 @@ impl ModelState {
     }
 }
 
-// Maps a checkpoint name to its state name, or to `None` to ignore it.
-pub type StateNameMap = dyn Fn(&str) -> Option<String>;
-
-// A checkpoint tensor that holds part of a state tensor, starting at `origin`, as checkpoints hold each expert of what state packs together.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StatePiece {
-    pub state: String,
-    pub origin: Vec<i64>,
-}
-
-// Maps a checkpoint name to the piece it holds, or to `None` for a whole tensor.
-pub type StatePieceMap = dyn Fn(&str) -> Option<StatePiece>;
-
-// How a checkpoint becomes state.
-#[derive(Clone, Copy, Default)]
-pub struct CheckpointOptions<'a> {
-    // Where tensors go, or each binding's current device for `None`.
-    pub device: Option<Device>,
-    // Casts floating tensors to the schema's type rather than refusing a different one.
-    pub convert: bool,
-    // How checkpoint names become state names; they map to themselves without this.
-    pub names: Option<&'a StateNameMap>,
-    // Which checkpoint tensors are pieces of a state tensor, which `names` then does not see.
-    pub pieces: Option<&'a StatePieceMap>,
-}
-
-impl CheckpointOptions<'_> {
-    fn state_name(&self, name: &str) -> Option<String> {
-        self.names
-            .map_or_else(|| Some(name.to_owned()), |names| names(name))
+// Refuses a tensor of `source` type for a binding of `target` type, unless both are floating and `convert` allows the cast.
+fn accept_type(name: &str, source: DataType, target: DataType, convert: bool) -> Result<()> {
+    if source != target && !(convert && source.is_float() && target.is_float()) {
+        return Err(Error::unsupported_operation_with_details(
+            "checkpoint dtype",
+            format!("`{name}` expected {target}, got {source}"),
+        ));
     }
+    Ok(())
+}
 
-    fn piece(&self, name: &str) -> Option<StatePiece> {
-        self.pieces.and_then(|pieces| pieces(name))
+// Safetensors files read as one checkpoint, whose tensors stay where they lie until a load reads them.
+pub struct Checkpoint<'a> {
+    shards: Vec<Shard<'a>>,
+    // The shard each stored name is in.
+    locations: HashMap<String, usize>,
+}
+
+impl Checkpoint<'static> {
+    // Reads the headers of `files`, which together hold each tensor once.
+    pub fn open<P: AsRef<Path>>(files: impl IntoIterator<Item = P>) -> Result<Self> {
+        let shards = files
+            .into_iter()
+            .map(Shard::open)
+            .collect::<Result<Vec<_>>>()?;
+        Self::from_shards(shards)
     }
 }
 
-impl Debug for CheckpointOptions<'_> {
+impl<'a> Checkpoint<'a> {
+    pub fn from_bytes(bytes: &'a [u8]) -> Result<Self> {
+        Self::from_shards(vec![Shard::from_bytes(bytes)?])
+    }
+
+    fn from_shards(shards: Vec<Shard<'a>>) -> Result<Self> {
+        let mut locations = HashMap::new();
+        for (index, shard) in shards.iter().enumerate() {
+            for name in shard.names() {
+                if locations.insert(name.clone(), index).is_some() {
+                    return Err(Error::invalid_argument(format!(
+                        "checkpoint tensor `{name}` stored twice"
+                    )));
+                }
+            }
+        }
+        Ok(Self { shards, locations })
+    }
+
+    // Returns the stored names, sorted.
+    #[must_use]
+    pub fn names(&self) -> Vec<&str> {
+        let mut names = self
+            .locations
+            .keys()
+            .map(String::as_str)
+            .collect::<Vec<_>>();
+        names.sort_unstable();
+        names
+    }
+
+    #[must_use]
+    pub fn contains(&self, name: &str) -> bool {
+        self.locations.contains_key(name)
+    }
+
+    fn info(&self, name: &str) -> Result<(usize, TensorInfo)> {
+        let shard = *self
+            .locations
+            .get(name)
+            .ok_or_else(|| Error::missing_input(format!("checkpoint tensor `{name}`")))?;
+        Ok((shard, self.shards[shard].info(name)?))
+    }
+}
+
+impl Debug for Checkpoint<'_> {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
         formatter
-            .debug_struct("CheckpointOptions")
-            .field("device", &self.device)
-            .field("convert", &self.convert)
-            .field("names", &self.names.is_some())
-            .field("pieces", &self.pieces.is_some())
+            .debug_struct("Checkpoint")
+            .field("shards", &self.shards.len())
+            .field("tensors", &self.locations.len())
             .finish()
     }
 }
 
-#[derive(Deserialize)]
-struct ShardIndex {
-    weight_map: BTreeMap<String, String>,
+// Where each state tensor comes from in a checkpoint, by the state's names.
+#[derive(Debug, Clone, Default)]
+pub struct LoadPlan {
+    targets: BTreeMap<String, TensorSource>,
+}
+
+impl LoadPlan {
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    // Reads every stored tensor into the binding of its own name, as Singe stores state.
+    #[must_use]
+    pub fn identity(checkpoint: &Checkpoint<'_>) -> Self {
+        Self {
+            targets: checkpoint
+                .names()
+                .into_iter()
+                .map(|name| (name.to_owned(), TensorSource::Stored(name.to_owned())))
+                .collect(),
+        }
+    }
+
+    // Gives `target` its source, refusing a second one; pieces of one target gather into one source.
+    pub fn insert(&mut self, target: impl Into<String>, source: TensorSource) -> Result<()> {
+        let target = target.into();
+        match (self.targets.get_mut(&target), source) {
+            (None, source) => {
+                self.targets.insert(target, source);
+                Ok(())
+            }
+            (Some(TensorSource::Pieces(pieces)), TensorSource::Pieces(more)) => {
+                pieces.extend(more);
+                Ok(())
+            }
+            (Some(_), _) => Err(Error::invalid_argument(format!(
+                "load plan gives `{target}` two sources"
+            ))),
+        }
+    }
+
+    // Returns every stored name the plan reads.
+    #[must_use]
+    pub fn stored_names(&self) -> BTreeSet<&str> {
+        self.targets
+            .values()
+            .flat_map(|source| -> Vec<&str> {
+                match source {
+                    TensorSource::Stored(name) => vec![name],
+                    TensorSource::Pieces(pieces) => {
+                        pieces.iter().map(|piece| piece.name.as_str()).collect()
+                    }
+                    TensorSource::Derived(derivation) => {
+                        derivation.inputs.iter().map(String::as_str).collect()
+                    }
+                }
+            })
+            .collect()
+    }
+}
+
+// Where one state tensor comes from.
+#[derive(Debug, Clone)]
+pub enum TensorSource {
+    // One stored tensor, as it is stored.
+    Stored(String),
+    // Stored tensors placed into it, together covering it once, as checkpoints hold each expert of what state packs together.
+    Pieces(Vec<StatePiece>),
+    // A tensor computed on the device from stored ones.
+    Derived(Derivation),
+}
+
+// A stored tensor that holds part of a state tensor, starting at `origin`; it may leave out leading axes of extent one.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StatePiece {
+    pub name: String,
+    pub origin: Vec<i64>,
+}
+
+type Derive = dyn Fn(&[Tensor]) -> Result<Tensor> + Send + Sync;
+
+// A state tensor computed from stored `inputs`, which arrive on its device as they are stored, such as a transposed weight, one part of a fused one, or a weight folded from a weight-normed pair.
+// What it returns is cast to the binding's type when the load converts.
+#[derive(Clone)]
+pub struct Derivation {
+    inputs: Vec<String>,
+    derive: Arc<Derive>,
+}
+
+impl Derivation {
+    pub fn new(
+        inputs: Vec<String>,
+        derive: impl Fn(&[Tensor]) -> Result<Tensor> + Send + Sync + 'static,
+    ) -> Self {
+        Self {
+            inputs,
+            derive: Arc::new(derive),
+        }
+    }
+}
+
+impl Debug for Derivation {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
+        formatter
+            .debug_struct("Derivation")
+            .field("inputs", &self.inputs)
+            .finish_non_exhaustive()
+    }
+}
+
+// How a load places and types what it reads.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct CheckpointOptions {
+    // Where tensors go, or each binding's current device for `None`.
+    pub device: Option<Device>,
+    // Casts floating tensors to the schema's type rather than refusing a different one.
+    pub convert: bool,
 }
 
 // What a load has gathered: each logical binding's tensor, and where the first of each tie lies, across shards.
@@ -380,6 +602,22 @@ struct Loading {
 }
 
 impl Loading {
+    // Keeps `tensor` as a binding's, or checks it against the tensor another name of the same tied binding already gave.
+    fn insert(&mut self, id: usize, name: &str, tensor: Tensor) -> Result<()> {
+        if let Some(existing) = self.tensors.get(&id) {
+            if existing.to_bytes()? != tensor.to_bytes()? {
+                return Err(Error::invalid_argument(format!(
+                    "conflicting tied state bindings at `{name}`"
+                )));
+            }
+
+            return Ok(());
+        }
+
+        self.tensors.insert(id, tensor);
+        Ok(())
+    }
+
     // Reads `info`'s tensor as `target` onto `device`: a chunk at a time on CUDA, and whole on the host otherwise.
     fn read(
         &mut self,

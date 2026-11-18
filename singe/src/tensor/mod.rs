@@ -34,7 +34,7 @@ pub use self::{
     loss::LossReduction,
     neural::{AttentionOptions, Paging, SequenceSpans},
     reduction::NormOrder,
-    resample::InterpolateMode,
+    resample::{InterpolateMode, Interpolation},
     sampling::SamplingOptions,
 };
 pub use crate::tensor::{

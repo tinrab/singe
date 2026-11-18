@@ -13,8 +13,6 @@ use crate::{
 pub struct Linear {
     weight: StateKey,
     bias: Option<StateKey>,
-    input_first: bool,
-    outputs: Option<(i64, i64)>,
 }
 
 impl Linear {
@@ -23,30 +21,9 @@ impl Linear {
     /// Weights are interpreted in `[out_features, in_features]` order when the layer runs.
     #[must_use]
     pub fn new(weight: StateKey, bias: Option<StateKey>) -> Self {
-        Self {
-            weight,
-            bias,
-            input_first: false,
-            outputs: None,
-        }
+        Self { weight, bias }
     }
 
-    // Reads a weight stored `[in_features, out_features]`, as GPT-2's `Conv1D` stores it.
-    #[must_use]
-    pub const fn with_input_first(mut self) -> Self {
-        self.input_first = true;
-        self
-    }
-
-    // Computes only `count` outputs from `first`, for a checkpoint that stores several projections in one weight.
-    #[must_use]
-    pub const fn with_outputs(mut self, first: i64, count: i64) -> Self {
-        self.outputs = Some((first, count));
-        self
-    }
-}
-
-impl Linear {
     #[must_use]
     pub const fn weight(&self) -> &StateKey {
         &self.weight
@@ -58,23 +35,10 @@ impl Linear {
         weight: &Tensor,
         state: &ModelState,
     ) -> Result<Tensor> {
-        let mut weight = if self.input_first {
-            weight.clone()
-        } else {
-            weight.transpose(0, 1)?
-        };
-        if let Some((first, count)) = self.outputs {
-            weight = weight.narrow(1, first, count)?;
-        }
-
-        let output = input.matmul(&weight)?;
-        let Some(bias) = &self.bias else {
-            return Ok(output);
-        };
-        let bias = state.tensor(bias)?;
-        match self.outputs {
-            Some((first, count)) => output.add(&bias.narrow(0, first, count)?),
-            None => output.add(bias),
+        let output = input.matmul(&weight.transpose(0, 1)?)?;
+        match &self.bias {
+            Some(bias) => output.add(state.tensor(bias)?),
+            None => Ok(output),
         }
     }
 }

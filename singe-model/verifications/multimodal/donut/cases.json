@@ -1,0 +1,31 @@
+{
+  "cases": [
+    {
+      "name": "invoice",
+      "snapshot": "DONUT",
+      "task": "document-question-answering",
+      "inputs": [
+        {
+          "image": "media/invoice.png",
+          "question": "What is the invoice number?"
+        },
+        {
+          "image": "media/invoice.png",
+          "question": "What is the total due?"
+        }
+      ],
+      "expected": [
+        [
+          {
+            "answer": "4521"
+          }
+        ],
+        [
+          {
+            "answer": "37.80 euro"
+          }
+        ]
+      ]
+    }
+  ]
+}

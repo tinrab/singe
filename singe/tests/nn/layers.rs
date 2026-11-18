@@ -11,9 +11,9 @@ use singe::{
     error::CheckpointError,
     graph::{GraphInputSpec, GraphPrepareOptions},
     nn::{
-        Activation, BatchNorm2d, CheckpointOptions, Conv2d, Conv2dConfig, EncoderBlock, Flatten,
-        LayerNorm, Linear, Model, ModelState, Pool2d, Pool2dConfig, Pool2dKind, SelfAttention,
-        Sequential, StateBuilder, StateKey, StatePiece,
+        Activation, BatchNorm2d, Checkpoint, CheckpointOptions, Conv2d, Conv2dConfig, EncoderBlock,
+        Flatten, LayerNorm, Linear, LoadPlan, Model, ModelState, Pool2d, Pool2dConfig, Pool2dKind,
+        SelfAttention, Sequential, StateBuilder, StateKey, StatePiece, TensorSource,
     },
     value::ValueSpec,
 };
@@ -1187,24 +1187,23 @@ fn test_checkpoints_read_shards_cast_to_the_schema_and_map_names() {
         &[("first", vec![1., 2.]), ("stale", vec![9.])],
     );
     write_shard(&directory.join("b.safetensors"), &[("renamed", vec![3.])]);
-    fs::write(
-        directory.join("model.safetensors.index.json"),
-        r#"{"weight_map": {"first": "a.safetensors", "stale": "a.safetensors", "renamed": "b.safetensors"}}"#,
-    )
+    let mut checkpoint = Checkpoint::open([
+        directory.join("a.safetensors"),
+        directory.join("b.safetensors"),
+    ])
     .unwrap();
-    let names = |name: &str| match name {
-        "stale" => None,
-        "renamed" => Some("second".to_owned()),
-        other => Some(other.to_owned()),
-    };
+    // The plan leaves `stale` unread.
+    let mut plan = LoadPlan::new();
+    plan.insert("first", TensorSource::Stored("first".to_owned()))
+        .unwrap();
+    plan.insert("second", TensorSource::Stored("renamed".to_owned()))
+        .unwrap();
     let options = CheckpointOptions {
         device: Some(Device::Cpu),
         convert: true,
-        names: Some(&names),
-        pieces: None,
     };
     let state = checkpoint_schema(DataType::F64)
-        .load_checkpoint(&directory, &options)
+        .load_checkpoint(&mut checkpoint, &plan, options)
         .unwrap();
     assert_eq!(state.device().unwrap(), Device::Cpu);
     assert_eq!(state.floating_type().unwrap(), DataType::F64);
@@ -1224,23 +1223,28 @@ fn test_checkpoints_read_shards_cast_to_the_schema_and_map_names() {
             .unwrap(),
         [3.]
     );
-    // Nothing maps the names, so the checkpoint's own are unexpected and the schema's are missing.
+    // The checkpoint's own names are unexpected and the schema's are missing.
+    let identity = LoadPlan::identity(&checkpoint);
     assert!(matches!(
-        checkpoint_schema(DataType::F64).load_checkpoint(
-            &directory,
-            &CheckpointOptions {
-                names: None,
-                ..options
-            }
-        ),
+        checkpoint_schema(DataType::F64).load_checkpoint(&mut checkpoint, &identity, options),
         Err(Error::Checkpoint(CheckpointError::Keys { .. }))
+    ));
+    // A plan may not read what the checkpoint lacks.
+    let mut absent = plan.clone();
+    absent
+        .insert("alias", TensorSource::Stored("gone".to_owned()))
+        .unwrap();
+    assert!(matches!(
+        checkpoint_schema(DataType::F64).load_checkpoint(&mut checkpoint, &absent, options),
+        Err(Error::Checkpoint(CheckpointError::Absent { .. }))
     ));
     // Without conversion a checkpoint must already be in the schema's type.
     assert!(
         checkpoint_schema(DataType::F64)
             .load_checkpoint(
-                &directory,
-                &CheckpointOptions {
+                &mut checkpoint,
+                &plan,
+                CheckpointOptions {
                     convert: false,
                     ..options
                 }
@@ -1258,20 +1262,19 @@ fn test_checkpoints_refuse_ties_that_differ_across_shards() {
         &[("first", vec![1., 2.]), ("second", vec![3.])],
     );
     write_shard(&directory.join("b.safetensors"), &[("alias", vec![1., 5.])]);
-    fs::write(
-        directory.join("model.safetensors.index.json"),
-        r#"{"weight_map": {"first": "a.safetensors", "second": "a.safetensors", "alias": "b.safetensors"}}"#,
-    )
+    let mut checkpoint = Checkpoint::open([
+        directory.join("a.safetensors"),
+        directory.join("b.safetensors"),
+    ])
     .unwrap();
+    let plan = LoadPlan::identity(&checkpoint);
     let options = CheckpointOptions {
         device: Some(Device::Cpu),
         convert: false,
-        names: None,
-        pieces: None,
     };
     assert!(
         checkpoint_schema(DataType::F32)
-            .load_checkpoint(&directory, &options)
+            .load_checkpoint(&mut checkpoint, &plan, options)
             .is_err()
     );
     fs::remove_dir_all(&directory).unwrap();
@@ -1300,50 +1303,36 @@ fn test_checkpoints_assemble_a_tensor_from_pieces_and_refuse_a_bad_cover() {
         .parameter("packed", values(&[2, 2, 3], 0.0))
         .unwrap();
     let state = builder.finish().unwrap();
-    let map = |name: &str| {
-        let (expert, row) = match name {
-            "a" => (0, 0),
-            "b" | "again" => (0, 1),
-            "c" => (1, 0),
-            "outside" => (1, 2),
-            _ => return None,
-        };
-        Some(StatePiece {
-            state: "packed".to_owned(),
-            origin: vec![expert, row, 0],
-        })
+    let origin = |name: &str| match name {
+        "a" => [0, 0, 0],
+        "b" | "again" => [0, 1, 0],
+        "c" => [1, 0, 0],
+        _ => [1, 2, 0],
     };
-    let load = |case: &str, tensors: Vec<(&str, Tensor)>| {
-        let directory = env::temp_dir().join(format!("singe-pieces-{case}-{}", process::id()));
-        fs::create_dir_all(&directory).unwrap();
+    let load = |tensors: Vec<(&str, Tensor)>| {
         let mut builder = StateBuilder::new();
+        let mut plan = LoadPlan::new();
         for (name, tensor) in tensors {
             builder.parameter(name, tensor).unwrap();
-        }
-        builder
-            .finish()
-            .unwrap()
-            .save_safetensors(directory.join("model.safetensors"))
+            plan.insert(
+                "packed",
+                TensorSource::Pieces(vec![StatePiece {
+                    name: name.to_owned(),
+                    origin: origin(name).to_vec(),
+                }]),
+            )
             .unwrap();
-        let result = state.load_checkpoint(
-            &directory,
-            &CheckpointOptions {
-                pieces: Some(&map),
-                ..CheckpointOptions::default()
-            },
-        );
-        fs::remove_dir_all(&directory).unwrap();
-        result
+        }
+        let bytes = builder.finish().unwrap().safetensors_bytes().unwrap();
+        let mut checkpoint = Checkpoint::from_bytes(&bytes).unwrap();
+        state.load_checkpoint(&mut checkpoint, &plan, CheckpointOptions::default())
     };
-    let loaded = load(
-        "whole",
-        vec![
-            // A piece may leave out leading axes of extent one.
-            ("a", values(&[1, 3], 100.0)),
-            ("b", values(&[1, 1, 3], 200.0)),
-            ("c", values(&[1, 2, 3], 300.0)),
-        ],
-    )
+    let loaded = load(vec![
+        // A piece may leave out leading axes of extent one.
+        ("a", values(&[1, 3], 100.0)),
+        ("b", values(&[1, 1, 3], 200.0)),
+        ("c", values(&[1, 2, 3], 300.0)),
+    ])
     .unwrap();
     assert_eq!(
         loaded.tensor(&packed).unwrap().to_vec::<f32>().unwrap(),
@@ -1356,14 +1345,14 @@ fn test_checkpoints_assemble_a_tensor_from_pieces_and_refuse_a_bad_cover() {
         ("a", values(&[1, 1, 3], 0.0)),
         ("c", values(&[1, 2, 3], 0.0)),
     ];
-    assert!(load("partial", partial).is_err());
+    assert!(load(partial).is_err());
     let twice = vec![
         ("a", values(&[1, 1, 3], 0.0)),
         ("b", values(&[1, 1, 3], 0.0)),
         ("again", values(&[1, 1, 3], 0.0)),
         ("c", values(&[1, 2, 3], 0.0)),
     ];
-    assert!(load("twice", twice).is_err());
+    assert!(load(twice).is_err());
     let outside = vec![("outside", values(&[1, 1, 3], 0.0))];
-    assert!(load("outside", outside).is_err());
+    assert!(load(outside).is_err());
 }

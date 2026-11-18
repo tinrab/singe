@@ -1,14 +1,18 @@
-// Exports a snapshot as CUDA C++ programs that run with nothing of Singe: `--snapshot DIR --directory OUT`.
+// Exports a model as CUDA C++ programs for one task that run with nothing of Singe: `--snapshot DIR --directory OUT`, and `--task ID` for other than the first task the model serves.
 //
 // A generating model writes `model_generate.cu` beside its program set, a transcriber's reading a file of F32 samples, and any other model `model_run.cu`, which maps input files to output files; `model.json` says how to build each.
-// `--architecture sm_120` for other than this machine's GPU, `--library NAME` for each library a program may call, every one if none is named, `--type f32|f16` for other than BF16, and the sizes a program fixes: `--capacity` tokens, `--rows` sequences at once, `--seconds` of audio, `--length` tokens of a sentence, `--image-size` of an autoencoder's square image, and `--image-patches`, for a Qwen3.5 loop that reads images, the most patches of one, each 16 pixels square.
+// `--architecture sm_120` for other than this machine's GPU, `--library NAME` for each library a program may call, every one if none is named, `--type f32|f16` for other than BF16, and the sizes a program fixes: `--capacity` tokens, `--rows` sequences at once, `--seconds` of audio, `--length` tokens of a sentence, `--image-size` of an autoencoder's square image, and `--image-patches`, for `--task image-text-to-text`, the most patches of one, each 16 pixels square.
 // A generating model's loop takes the most likely token unless `--temperature`, `--top-k`, or `--top-p` asks it to sample, and its `--seed` then starts the draws.
 
 mod support;
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result};
 use singe::{DataType, backend::cuda::export::compiled::program_target, tensor::SamplingOptions};
-use singe_model::export::{ExportOptions, export_snapshot};
+use singe_model::{
+    Source,
+    export::{ExportOptions, default_task, export},
+    task::Task,
+};
 
 use crate::support::Arguments;
 
@@ -31,12 +35,7 @@ fn main() -> Result<()> {
             .collect::<Result<_, _>>()?;
     }
 
-    options.data_type = match arguments.value("type") {
-        None | Some("bf16") => DataType::Bf16,
-        Some("f16") => DataType::F16,
-        Some("f32") => DataType::F32,
-        Some(other) => bail!("unknown --type {other}"),
-    };
+    options.data_type = arguments.data_type(DataType::Bf16)?;
     if let Some(rows) = arguments.value("rows") {
         options.rows = rows.parse()?;
     }
@@ -68,7 +67,15 @@ fn main() -> Result<()> {
         options.image_patches = Some(patches.parse()?);
     }
 
-    let exported = export_snapshot(&arguments.snapshot, directory, &options)?;
-    println!("wrote {exported:?} programs to {directory}; model.json says how to build them");
+    let source = Source::open(&arguments.snapshot)?;
+    let task = match arguments.value("task") {
+        Some(task) => Task::from_id(task)?,
+        None => default_task(&source)?,
+    };
+    let exported = export(&source, task, directory, &options)?;
+    println!(
+        "wrote {exported:?} programs for {} to {directory}; model.json says how to build them",
+        task.id()
+    );
     Ok(())
 }

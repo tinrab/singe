@@ -1,0 +1,89 @@
+{
+  "cases": [
+    {
+      "name": "question",
+      "snapshot": "SMOLVLM2",
+      "task": "visual-question-answering",
+      "inputs": [
+        {
+          "image": "media/cat-448x320.png",
+          "question": "What animal is this?"
+        }
+      ],
+      "parameters": {
+        "max_new_tokens": 24
+      },
+      "expected": [
+        {
+          "answer": " a fox"
+        }
+      ]
+    },
+    {
+      "name": "image",
+      "snapshot": "SMOLVLM2",
+      "task": "image-text-to-text",
+      "inputs": [
+        [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "image",
+                "image": "media/cat-448x320.png"
+              },
+              {
+                "type": "text",
+                "text": "Describe this image in one sentence."
+              }
+            ]
+          }
+        ]
+      ],
+      "parameters": {
+        "max_new_tokens": 24
+      },
+      "expected": [
+        {
+          "generated_token_ids": [
+            330, 11013, 284, 6354, 2644, 314, 6139, 335, 5806, 281, 253, 38833, 3150, 30, 49279
+          ]
+        }
+      ]
+    },
+    {
+      "name": "clip",
+      "snapshot": "SMOLVLM2",
+      "task": "video-text-to-text",
+      "inputs": [
+        [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "video",
+                "video": "media/spaghetti",
+                "fps": 4
+              },
+              {
+                "type": "text",
+                "text": "Describe what happens in this video."
+              }
+            ]
+          }
+        ]
+      ],
+      "parameters": {
+        "max_new_tokens": 24
+      },
+      "expected": [
+        {
+          "generated_token_ids": [
+            378, 3341, 2744, 253, 1055, 281, 253, 2654, 3942, 571, 8312, 253, 6960, 28, 2003, 253,
+            19904, 8626, 28, 351, 253, 2537, 6496, 5085
+          ]
+        }
+      ]
+    }
+  ]
+}

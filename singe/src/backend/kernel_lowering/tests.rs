@@ -385,7 +385,7 @@ fn test_lowered_reductions_softmax_and_normalizations_match_the_cpu() {
             eps: 1e-5,
         };
         let inputs = [
-            input.clone(),
+            input,
             sample(&[3], 2, data_type),
             sample(&[3], 3, data_type),
             sample(&[3], 4, data_type),
@@ -1026,12 +1026,8 @@ fn test_argument_reductions_match_the_cpu_with_ties_and_nans() {
             .collect::<Vec<_>>();
         values[count / 2] = f32::NAN;
         values[count / 2 + 1] = f32::NAN;
-        let input = Tensor::from_vec(
-            Device::Cpu,
-            Shape::create(dimensions.clone()).unwrap(),
-            values,
-        )
-        .unwrap();
+        let input =
+            Tensor::from_vec(Device::Cpu, Shape::create(dimensions).unwrap(), values).unwrap();
         for operation in [Operation::ArgMax, Operation::ArgMin] {
             let expected =
                 call_one(operation, OperationAttributes::Dimension(dim), &[&input]).unwrap();

@@ -2955,14 +2955,33 @@ def composite_samples(pool, dtype):
         ]
         samples["interpolate"] = [
             Sample(
-                f"{mode} {h}x{w}",
+                f"{mode}{' aligned' if aligned else ''}{' antialiased' if antialias else ''} {h}x{w}",
                 [picture],
-                lambda x, h=h, w=w, mode=mode: functional.interpolate(
-                    x, size=(h, w), mode=mode
+                lambda x, h=h, w=w, mode=mode, aligned=aligned, antialias=antialias: (
+                    functional.interpolate(
+                        x,
+                        size=(h, w),
+                        mode=mode,
+                        align_corners=None if mode == "nearest" else aligned,
+                        antialias=antialias,
+                    )
                 ),
-                {"size": [h, w], "mode": mode},
+                {
+                    "size": [h, w],
+                    "mode": mode,
+                    "align_corners": aligned,
+                    "antialias": antialias,
+                },
             )
-            for mode in ("nearest", "bilinear")
+            for mode, aligned, antialias in (
+                ("nearest", False, False),
+                ("bilinear", False, False),
+                ("bilinear", True, False),
+                ("bicubic", False, False),
+                ("bicubic", True, False),
+                ("bilinear", False, True),
+                ("bicubic", False, True),
+            )
             for h, w in ((10, 14), (3, 4), (7, 3))
         ]
         logits = plain(pool, dtype, [4, 5])

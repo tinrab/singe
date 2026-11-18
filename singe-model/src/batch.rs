@@ -22,15 +22,30 @@ impl BatchOptions {
     }
 
     #[must_use]
-    pub const fn with_rows(mut self, rows: usize) -> Self {
-        self.rows = rows;
-        self
-    }
-
-    #[must_use]
     pub const fn with_compile(mut self, compile: bool) -> Self {
         self.compile = compile;
         self
+    }
+
+    // Adds `generation`'s stop and suppressed tokens to these options' own, such as a model's that its snapshot names.
+    #[must_use]
+    pub fn with_tokens_of(&self, generation: &GenerationOptions) -> Self {
+        let join = |tokens: &mut Vec<i64>, more: &[i64]| {
+            for &token in more {
+                if !tokens.contains(&token) {
+                    tokens.push(token);
+                }
+            }
+        };
+        let mut options = self.clone();
+        let own = &mut options.generation;
+        join(&mut own.stop_tokens, &generation.stop_tokens);
+        join(&mut own.suppressed_tokens, &generation.suppressed_tokens);
+        join(
+            &mut own.first_suppressed_tokens,
+            &generation.first_suppressed_tokens,
+        );
+        options
     }
 
     pub fn decoder<L: DecoderModel>(

@@ -2,11 +2,12 @@
 
 use crate::{
     backend::registry::{Operation, OperationAttributes},
+    data_type::DataType,
     dispatch::call_one,
     error::{Error, Result},
     nn::{Layer, LayerNorm, ModelState, PatchEmbedding, StateKey, TokenBatch},
     shape::Shape,
-    tensor::Tensor,
+    tensor::{InterpolateMode, Tensor},
 };
 
 /// A layer selecting rows from a named embedding weight table using input indices.
@@ -38,6 +39,8 @@ impl Layer for Embedding {
 pub struct TokenEmbeddings {
     words: Embedding,
     positions: Option<StateKey>,
+    // The table row of a sequence's first position.
+    first_position: i64,
     token_types: Option<Embedding>,
     norm: Option<LayerNorm>,
 }
@@ -48,15 +51,23 @@ impl TokenEmbeddings {
         Self {
             words,
             positions: None,
+            first_position: 0,
             token_types: None,
             norm: None,
         }
     }
 
-    // Adds learned absolute positions from a table `[P, W]`, of which a batch of `T` tokens reads the first `T` rows.
+    // Adds learned absolute positions from a table `[P, W]`, of which a batch of `T` tokens reads `T` rows from its first position.
     #[must_use]
     pub fn with_positions(mut self, table: StateKey) -> Self {
         self.positions = Some(table);
+        self
+    }
+
+    // Numbers a sequence's positions from `first`, as RoBERTa numbers them after its padding id.
+    #[must_use]
+    pub const fn with_first_position(mut self, first: i64) -> Self {
+        self.first_position = first;
         self
     }
 
@@ -78,7 +89,11 @@ impl Layer<TokenBatch> for TokenEmbeddings {
         let mut hidden = input.tokens().apply(&self.words, state)?;
         if let Some(table) = &self.positions {
             let length = input.tokens().shape().dimensions()[1];
-            hidden = hidden.add(&state.tensor(table)?.narrow(0, 0, length)?)?;
+            hidden = hidden.add(
+                &state
+                    .tensor(table)?
+                    .narrow(0, self.first_position, length)?,
+            )?;
         }
 
         if let Some(token_types) = &self.token_types {
@@ -98,6 +113,8 @@ pub struct PatchTokens {
     patches: PatchEmbedding,
     class_token: Option<StateKey>,
     positions: Option<StateKey>,
+    // The patch side, when positions learned for one square grid resize to another.
+    resized_positions: Option<i64>,
 }
 
 impl PatchTokens {
@@ -107,6 +124,7 @@ impl PatchTokens {
             patches,
             class_token: None,
             positions: None,
+            resized_positions: None,
         }
     }
 
@@ -121,6 +139,13 @@ impl PatchTokens {
     #[must_use]
     pub fn with_positions(mut self, positions: StateKey) -> Self {
         self.positions = Some(positions);
+        self
+    }
+
+    // Resizes the positions of a square grid of patches to an image's grid of `patch`-pixel patches bicubically, as DINOv2 and other vision transformers read images of other sizes; a class token's position stays as it is.
+    #[must_use]
+    pub const fn with_resized_positions(mut self, patch: i64) -> Self {
+        self.resized_positions = Some(patch);
         self
     }
 }
@@ -141,13 +166,62 @@ impl Layer for PatchTokens {
         let Some(positions) = &self.positions else {
             return Ok(tokens);
         };
-        let positions = state.tensor(positions)?;
-        // Interpolating positions to another grid is not here yet, so another image size is an error rather than a different result.
+        let mut positions = state.tensor(positions)?.clone();
+        if let Some(patch) = self.resized_positions {
+            let leading = i64::from(self.class_token.is_some());
+            positions = resized_positions(&positions, input, patch, leading)?;
+        }
+
         if positions.shape().dimensions().get(1) != tokens.shape().dimensions().get(1) {
             return Err(Error::invalid_argument(
                 "an image size whose patch count differs from the learned positions",
             ));
         }
-        tokens.add(positions)
+        tokens.add(&positions)
     }
+}
+
+// Positions `[1, leading + S · S, D]` resized to `images`' grid of `patch`-pixel patches, unless the grid is square and of the same size, as `transformers`' `interpolate_pos_encoding` computes them in `F32`.
+fn resized_positions(
+    positions: &Tensor,
+    images: &Tensor,
+    patch: i64,
+    leading: i64,
+) -> Result<Tensor> {
+    let &[_, count, width] = positions.shape().dimensions() else {
+        return Err(Error::invalid_argument(
+            "positions of other than three axes",
+        ));
+    };
+    let &[.., height, image_width] = images.shape().dimensions() else {
+        return Err(Error::invalid_argument("images of fewer than two axes"));
+    };
+    let (rows, columns) = (height / patch, image_width / patch);
+    let stored = count - leading;
+    #[expect(
+        clippy::cast_possible_truncation,
+        clippy::cast_precision_loss,
+        reason = "grids are far below 2^53 patches"
+    )]
+    let side = (stored as f64).sqrt() as i64;
+    if side * side != stored {
+        return Err(Error::invalid_argument(
+            "positions of other than a square grid",
+        ));
+    }
+
+    if rows == columns && rows * columns == stored {
+        return Ok(positions.clone());
+    }
+
+    let grid = positions
+        .narrow(1, leading, stored)?
+        .reshape([1, side, side, width])?
+        .permute(&[0, 3, 1, 2])?
+        .cast(DataType::F32)?
+        .interpolate((rows, columns), InterpolateMode::Bicubic)?
+        .cast(positions.data_type())?
+        .permute(&[0, 2, 3, 1])?
+        .reshape([1, rows * columns, width])?;
+    Tensor::concat(&[positions.narrow(1, 0, leading)?, grid], 1)
 }

@@ -1,0 +1,277 @@
+{
+  "cases": [
+    {
+      "name": "sentiment",
+      "snapshot": "DISTILBERT_SST2",
+      "task": "text-classification",
+      "inputs": [
+        "I loved this game, launching the rocket was wonderful.",
+        "The train network deadlocked and the grind was far too long."
+      ],
+      "parameters": {
+        "top_k": null
+      },
+      "expected": [
+        [
+          {
+            "label": "POSITIVE",
+            "score": 0.999884
+          },
+          {
+            "label": "NEGATIVE",
+            "score": 0.000115902
+          }
+        ],
+        [
+          {
+            "label": "NEGATIVE",
+            "score": 0.999769
+          },
+          {
+            "label": "POSITIVE",
+            "score": 0.000230882
+          }
+        ]
+      ]
+    },
+    {
+      "name": "zero-shot",
+      "snapshot": "DISTILBERT_MNLI",
+      "task": "zero-shot-classification",
+      "inputs": [
+        {
+          "sequences": "One day I will launch a rocket into space.",
+          "candidate_labels": ["space travel", "logistics", "cooking"]
+        }
+      ],
+      "expected": [
+        {
+          "sequence": "One day I will launch a rocket into space.",
+          "labels": ["space travel", "logistics", "cooking"],
+          "scores": [0.980725, 0.0132752, 0.00599973]
+        }
+      ]
+    },
+    {
+      "name": "zero-shot-multi-label",
+      "snapshot": "DISTILBERT_MNLI",
+      "task": "zero-shot-classification",
+      "inputs": [
+        {
+          "sequences": "One day I will launch a rocket into space.",
+          "candidate_labels": ["space travel", "logistics", "cooking"]
+        }
+      ],
+      "parameters": {
+        "multi_label": true,
+        "hypothesis_template": "The topic is {}."
+      },
+      "expected": [
+        {
+          "sequence": "One day I will launch a rocket into space.",
+          "labels": ["space travel", "logistics", "cooking"],
+          "scores": [0.997883, 0.212331, 0.000115065]
+        }
+      ]
+    },
+    {
+      "name": "entities-simple",
+      "snapshot": "DISTILBERT_NER",
+      "task": "token-classification",
+      "inputs": ["Michal Kovařík leads Wube Software from Prague."],
+      "parameters": {
+        "aggregation_strategy": "simple"
+      },
+      "expected": [
+        [
+          {
+            "entity_group": "PER",
+            "score": 0.999213,
+            "word": "Mi",
+            "start": 0,
+            "end": 2
+          },
+          {
+            "entity_group": "PER",
+            "score": 0.998588,
+            "word": "##chal Kovařík",
+            "start": 2,
+            "end": 14
+          },
+          {
+            "entity_group": "ORG",
+            "score": 0.997407,
+            "word": "Wu",
+            "start": 21,
+            "end": 23
+          },
+          {
+            "entity_group": "ORG",
+            "score": 0.997294,
+            "word": "##be Software",
+            "start": 23,
+            "end": 34
+          },
+          {
+            "entity_group": "LOC",
+            "score": 0.978887,
+            "word": "Prague",
+            "start": 40,
+            "end": 46
+          }
+        ]
+      ]
+    },
+    {
+      "name": "entities-first",
+      "snapshot": "DISTILBERT_NER",
+      "task": "token-classification",
+      "inputs": ["Michal Kovařík leads Wube Software from Prague."],
+      "parameters": {
+        "aggregation_strategy": "first"
+      },
+      "expected": [
+        [
+          {
+            "entity_group": "PER",
+            "score": 0.999033,
+            "word": "Michal Kovařík",
+            "start": 0,
+            "end": 14
+          },
+          {
+            "entity_group": "ORG",
+            "score": 0.996815,
+            "word": "Wube Software",
+            "start": 21,
+            "end": 34
+          },
+          {
+            "entity_group": "LOC",
+            "score": 0.978887,
+            "word": "Prague",
+            "start": 40,
+            "end": 46
+          }
+        ]
+      ]
+    },
+    {
+      "name": "answers",
+      "snapshot": "DISTILBERT_SQUAD",
+      "task": "question-answering",
+      "inputs": [
+        {
+          "question": "Where do I build factories?",
+          "context": "My name is Kovarex and I build factories on Nauvis."
+        },
+        {
+          "question": "Who built the first rocket silo?",
+          "context": "Nauvis, an alien planet rich in iron, copper, coal, and stone, is where the engineer crash-lands and must build a factory to launch a rocket into space. Its wilderness is crossed by cliffs and lakes, and guarded by biters that attack polluting factories. Nauvis, an alien planet rich in iron, copper, coal, and stone, is where the engineer crash-lands and must build a factory to launch a rocket into space. Its wilderness is crossed by cliffs and lakes, and guarded by biters that attack polluting factories. Nauvis, an alien planet rich in iron, copper, coal, and stone, is where the engineer crash-lands and must build a factory to launch a rocket into space. Its wilderness is crossed by cliffs and lakes, and guarded by biters that attack polluting factories. Nauvis, an alien planet rich in iron, copper, coal, and stone, is where the engineer crash-lands and must build a factory to launch a rocket into space. Its wilderness is crossed by cliffs and lakes, and guarded by biters that attack polluting factories. Nauvis, an alien planet rich in iron, copper, coal, and stone, is where the engineer crash-lands and must build a factory to launch a rocket into space. Its wilderness is crossed by cliffs and lakes, and guarded by biters that attack polluting factories. Nauvis, an alien planet rich in iron, copper, coal, and stone, is where the engineer crash-lands and must build a factory to launch a rocket into space. Its wilderness is crossed by cliffs and lakes, and guarded by biters that attack polluting factories. Nauvis, an alien planet rich in iron, copper, coal, and stone, is where the engineer crash-lands and must build a factory to launch a rocket into space. Its wilderness is crossed by cliffs and lakes, and guarded by biters that attack polluting factories. Nauvis, an alien planet rich in iron, copper, coal, and stone, is where the engineer crash-lands and must build a factory to launch a rocket into space. Its wilderness is crossed by cliffs and lakes, and guarded by biters that attack polluting factories. Nauvis, an alien planet rich in iron, copper, coal, and stone, is where the engineer crash-lands and must build a factory to launch a rocket into space. Its wilderness is crossed by cliffs and lakes, and guarded by biters that attack polluting factories. The first rocket silo on Nauvis was built in 2020 by an engineer named Kovarex. Nauvis, an alien planet rich in iron, copper, coal, and stone, is where the engineer crash-lands and must build a factory to launch a rocket into space. Its wilderness is crossed by cliffs and lakes, and guarded by biters that attack polluting factories. Nauvis, an alien planet rich in iron, copper, coal, and stone, is where the engineer crash-lands and must build a factory to launch a rocket into space. Its wilderness is crossed by cliffs and lakes, and guarded by biters that attack polluting factories. Nauvis, an alien planet rich in iron, copper, coal, and stone, is where the engineer crash-lands and must build a factory to launch a rocket into space. Its wilderness is crossed by cliffs and lakes, and guarded by biters that attack polluting factories. Nauvis, an alien planet rich in iron, copper, coal, and stone, is where the engineer crash-lands and must build a factory to launch a rocket into space. Its wilderness is crossed by cliffs and lakes, and guarded by biters that attack polluting factories. Nauvis, an alien planet rich in iron, copper, coal, and stone, is where the engineer crash-lands and must build a factory to launch a rocket into space. Its wilderness is crossed by cliffs and lakes, and guarded by biters that attack polluting factories. Nauvis, an alien planet rich in iron, copper, coal, and stone, is where the engineer crash-lands and must build a factory to launch a rocket into space. Its wilderness is crossed by cliffs and lakes, and guarded by biters that attack polluting factories. "
+        },
+        {
+          "question": "Which river is powerful?",
+          "context": "Nauvis, an alien planet rich in iron, copper, coal, and stone, is where the engineer crash-lands and must build a factory to launch a rocket into space. Its wilderness is crossed by cliffs and lakes, and guarded by biters that attack polluting factories. Nauvis, an alien planet rich in iron, copper, coal, and stone, is where the engineer crash-lands and must build a factory to launch a rocket into space. Its wilderness is crossed by cliffs and lakes, and guarded by biters that attack polluting factories. Nauvis, an alien planet rich in iron, copper, coal, and stone, is where the engineer crash-lands and must build a factory to launch a rocket into space. Its wilderness is crossed by cliffs and lakes, and guarded by biters that attack polluting factories. Nauvis, an alien planet rich in iron, copper, coal, and stone, is where the engineer crash-lands and must build a factory to launch a rocket into space. Its wilderness is crossed by cliffs and lakes, and guarded by biters that attack polluting factories. Nauvis, an alien planet rich in iron, copper, coal, and stone, is where the engineer crash-lands and must build a factory to launch a rocket into space. Its wilderness is crossed by cliffs and lakes, and guarded by biters that attack polluting factories. Nauvis, an alien planet rich in iron, copper, coal, and stone, is where the engineer crash-lands and must build a factory to launch a rocket into space. Its wilderness is crossed by cliffs and lakes, and guarded by biters that attack polluting factories. Nauvis, an alien planet rich in iron, copper, coal, and stone, is where the engineer crash-lands and must build a factory to launch a rocket into space. Its wilderness is crossed by cliffs and lakes, and guarded by biters that attack polluting factories. Nauvis, an alien planet rich in iron, copper, coal, and stone, is where the engineer crash-lands and must build a factory to launch a rocket into space. Its wilderness is crossed by cliffs and lakes, and guarded by biters that attack polluting factories. Nauvis, an alien planet rich in iron, copper, coal, and stone, is where the engineer crash-lands and must build a factory to launch a rocket into space. Its wilderness is crossed by cliffs and lakes, and guarded by biters that attack polluting factories. The first rocket silo on Nauvis was built in 2020 by an engineer named Kovarex. Nauvis, an alien planet rich in iron, copper, coal, and stone, is where the engineer crash-lands and must build a factory to launch a rocket into space. Its wilderness is crossed by cliffs and lakes, and guarded by biters that attack polluting factories. Nauvis, an alien planet rich in iron, copper, coal, and stone, is where the engineer crash-lands and must build a factory to launch a rocket into space. Its wilderness is crossed by cliffs and lakes, and guarded by biters that attack polluting factories. Nauvis, an alien planet rich in iron, copper, coal, and stone, is where the engineer crash-lands and must build a factory to launch a rocket into space. Its wilderness is crossed by cliffs and lakes, and guarded by biters that attack polluting factories. Nauvis, an alien planet rich in iron, copper, coal, and stone, is where the engineer crash-lands and must build a factory to launch a rocket into space. Its wilderness is crossed by cliffs and lakes, and guarded by biters that attack polluting factories. Nauvis, an alien planet rich in iron, copper, coal, and stone, is where the engineer crash-lands and must build a factory to launch a rocket into space. Its wilderness is crossed by cliffs and lakes, and guarded by biters that attack polluting factories. Nauvis, an alien planet rich in iron, copper, coal, and stone, is where the engineer crash-lands and must build a factory to launch a rocket into space. Its wilderness is crossed by cliffs and lakes, and guarded by biters that attack polluting factories. "
+        }
+      ],
+      "parameters": {
+        "top_k": 2,
+        "handle_impossible_answer": true
+      },
+      "expected": [
+        [
+          {
+            "score": 0.75872,
+            "start": 44,
+            "end": 50,
+            "answer": "Nauvis"
+          },
+          {
+            "score": 0.186383,
+            "start": 41,
+            "end": 50,
+            "answer": "on Nauvis"
+          }
+        ],
+        [
+          {
+            "score": 1.89895,
+            "start": 2366,
+            "end": 2373,
+            "answer": "Kovarex"
+          },
+          {
+            "score": 0.715547,
+            "start": 510,
+            "end": 516,
+            "answer": "Nauvis"
+          }
+        ],
+        [
+          {
+            "score": 0.739622,
+            "start": 0,
+            "end": 6,
+            "answer": "Nauvis"
+          },
+          {
+            "score": 0.00398766,
+            "start": 0,
+            "end": 7,
+            "answer": "Nauvis,"
+          }
+        ]
+      ]
+    },
+    {
+      "name": "answers-small-windows",
+      "snapshot": "DISTILBERT_SQUAD",
+      "task": "question-answering",
+      "inputs": [
+        {
+          "question": "Who built the first rocket silo?",
+          "context": "Nauvis, an alien planet rich in iron, copper, coal, and stone, is where the engineer crash-lands and must build a factory to launch a rocket into space. Its wilderness is crossed by cliffs and lakes, and guarded by biters that attack polluting factories. Nauvis, an alien planet rich in iron, copper, coal, and stone, is where the engineer crash-lands and must build a factory to launch a rocket into space. Its wilderness is crossed by cliffs and lakes, and guarded by biters that attack polluting factories. Nauvis, an alien planet rich in iron, copper, coal, and stone, is where the engineer crash-lands and must build a factory to launch a rocket into space. Its wilderness is crossed by cliffs and lakes, and guarded by biters that attack polluting factories. Nauvis, an alien planet rich in iron, copper, coal, and stone, is where the engineer crash-lands and must build a factory to launch a rocket into space. Its wilderness is crossed by cliffs and lakes, and guarded by biters that attack polluting factories. Nauvis, an alien planet rich in iron, copper, coal, and stone, is where the engineer crash-lands and must build a factory to launch a rocket into space. Its wilderness is crossed by cliffs and lakes, and guarded by biters that attack polluting factories. Nauvis, an alien planet rich in iron, copper, coal, and stone, is where the engineer crash-lands and must build a factory to launch a rocket into space. Its wilderness is crossed by cliffs and lakes, and guarded by biters that attack polluting factories. Nauvis, an alien planet rich in iron, copper, coal, and stone, is where the engineer crash-lands and must build a factory to launch a rocket into space. Its wilderness is crossed by cliffs and lakes, and guarded by biters that attack polluting factories. Nauvis, an alien planet rich in iron, copper, coal, and stone, is where the engineer crash-lands and must build a factory to launch a rocket into space. Its wilderness is crossed by cliffs and lakes, and guarded by biters that attack polluting factories. Nauvis, an alien planet rich in iron, copper, coal, and stone, is where the engineer crash-lands and must build a factory to launch a rocket into space. Its wilderness is crossed by cliffs and lakes, and guarded by biters that attack polluting factories. The first rocket silo on Nauvis was built in 2020 by an engineer named Kovarex. Nauvis, an alien planet rich in iron, copper, coal, and stone, is where the engineer crash-lands and must build a factory to launch a rocket into space. Its wilderness is crossed by cliffs and lakes, and guarded by biters that attack polluting factories. Nauvis, an alien planet rich in iron, copper, coal, and stone, is where the engineer crash-lands and must build a factory to launch a rocket into space. Its wilderness is crossed by cliffs and lakes, and guarded by biters that attack polluting factories. Nauvis, an alien planet rich in iron, copper, coal, and stone, is where the engineer crash-lands and must build a factory to launch a rocket into space. Its wilderness is crossed by cliffs and lakes, and guarded by biters that attack polluting factories. Nauvis, an alien planet rich in iron, copper, coal, and stone, is where the engineer crash-lands and must build a factory to launch a rocket into space. Its wilderness is crossed by cliffs and lakes, and guarded by biters that attack polluting factories. Nauvis, an alien planet rich in iron, copper, coal, and stone, is where the engineer crash-lands and must build a factory to launch a rocket into space. Its wilderness is crossed by cliffs and lakes, and guarded by biters that attack polluting factories. Nauvis, an alien planet rich in iron, copper, coal, and stone, is where the engineer crash-lands and must build a factory to launch a rocket into space. Its wilderness is crossed by cliffs and lakes, and guarded by biters that attack polluting factories. "
+        },
+        {
+          "question": "Which river is powerful?",
+          "context": "Nauvis, an alien planet rich in iron, copper, coal, and stone, is where the engineer crash-lands and must build a factory to launch a rocket into space. Its wilderness is crossed by cliffs and lakes, and guarded by biters that attack polluting factories. Nauvis, an alien planet rich in iron, copper, coal, and stone, is where the engineer crash-lands and must build a factory to launch a rocket into space. Its wilderness is crossed by cliffs and lakes, and guarded by biters that attack polluting factories. Nauvis, an alien planet rich in iron, copper, coal, and stone, is where the engineer crash-lands and must build a factory to launch a rocket into space. Its wilderness is crossed by cliffs and lakes, and guarded by biters that attack polluting factories. Nauvis, an alien planet rich in iron, copper, coal, and stone, is where the engineer crash-lands and must build a factory to launch a rocket into space. Its wilderness is crossed by cliffs and lakes, and guarded by biters that attack polluting factories. Nauvis, an alien planet rich in iron, copper, coal, and stone, is where the engineer crash-lands and must build a factory to launch a rocket into space. Its wilderness is crossed by cliffs and lakes, and guarded by biters that attack polluting factories. Nauvis, an alien planet rich in iron, copper, coal, and stone, is where the engineer crash-lands and must build a factory to launch a rocket into space. Its wilderness is crossed by cliffs and lakes, and guarded by biters that attack polluting factories. Nauvis, an alien planet rich in iron, copper, coal, and stone, is where the engineer crash-lands and must build a factory to launch a rocket into space. Its wilderness is crossed by cliffs and lakes, and guarded by biters that attack polluting factories. Nauvis, an alien planet rich in iron, copper, coal, and stone, is where the engineer crash-lands and must build a factory to launch a rocket into space. Its wilderness is crossed by cliffs and lakes, and guarded by biters that attack polluting factories. Nauvis, an alien planet rich in iron, copper, coal, and stone, is where the engineer crash-lands and must build a factory to launch a rocket into space. Its wilderness is crossed by cliffs and lakes, and guarded by biters that attack polluting factories. The first rocket silo on Nauvis was built in 2020 by an engineer named Kovarex. Nauvis, an alien planet rich in iron, copper, coal, and stone, is where the engineer crash-lands and must build a factory to launch a rocket into space. Its wilderness is crossed by cliffs and lakes, and guarded by biters that attack polluting factories. Nauvis, an alien planet rich in iron, copper, coal, and stone, is where the engineer crash-lands and must build a factory to launch a rocket into space. Its wilderness is crossed by cliffs and lakes, and guarded by biters that attack polluting factories. Nauvis, an alien planet rich in iron, copper, coal, and stone, is where the engineer crash-lands and must build a factory to launch a rocket into space. Its wilderness is crossed by cliffs and lakes, and guarded by biters that attack polluting factories. Nauvis, an alien planet rich in iron, copper, coal, and stone, is where the engineer crash-lands and must build a factory to launch a rocket into space. Its wilderness is crossed by cliffs and lakes, and guarded by biters that attack polluting factories. Nauvis, an alien planet rich in iron, copper, coal, and stone, is where the engineer crash-lands and must build a factory to launch a rocket into space. Its wilderness is crossed by cliffs and lakes, and guarded by biters that attack polluting factories. Nauvis, an alien planet rich in iron, copper, coal, and stone, is where the engineer crash-lands and must build a factory to launch a rocket into space. Its wilderness is crossed by cliffs and lakes, and guarded by biters that attack polluting factories. "
+        }
+      ],
+      "parameters": {
+        "max_seq_len": 128,
+        "doc_stride": 32,
+        "top_k": 2
+      },
+      "expected": [
+        [
+          {
+            "score": 2.85327,
+            "start": 72,
+            "end": 84,
+            "answer": "the engineer"
+          },
+          {
+            "score": 2.19312,
+            "start": 76,
+            "end": 84,
+            "answer": "engineer"
+          }
+        ],
+        [
+          {
+            "score": 7.28595,
+            "start": 0,
+            "end": 6,
+            "answer": "Nauvis"
+          },
+          {
+            "score": 0.0587037,
+            "start": 0,
+            "end": 7,
+            "answer": "Nauvis,"
+          }
+        ]
+      ]
+    }
+  ]
+}

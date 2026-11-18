@@ -21,9 +21,8 @@ use crate::{
             graph_binding::{InPlaceWrites, WritableInputs, graph_users},
             runtime::runtime_for_device,
             tuning::{
-                GraphTuneOptions, Measurement, TunedChoice, TunedRecord, TunedWay,
-                TuningEnvironment, TuningRecords, group_key, library_key, merged_projections_key,
-                tune_graph, way_key,
+                GraphTuneOptions, Measurement, TunedChoice, TunedWay, TuningEnvironment,
+                TuningRecords, group_key, library_key, merged_projections_key, tune_graph, way_key,
             },
         },
         registry::Operation,

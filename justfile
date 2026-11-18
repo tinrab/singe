@@ -200,16 +200,42 @@ check-linking: prepare-tests
     done
     exit "$found"
 
-gate:
-    #!/usr/bin/env bash
-    set -euxo pipefail
+# Downloads the snapshots verifications name, as `singe-model/verifications/snapshots.toml` lists them, into the Hugging Face cache: `just snapshot QWEN3 MINILM`.
+snapshot +names:
+    uv run --locked python singe-model/verifications/support.py download {{ names }}
 
-    just references --check onnx_schemas
-    cargo xtask no-slop
-    just check
-    just lint
-    just test-singe
-    just check-linking
+# Runs the model verifications whose `model/case` labels contain the filter, Singe's side and then the reference's, each reading its snapshots from the Hugging Face cache or `SINGE_SNAPSHOT_<NAME>`: `just verify text/bert`, `just verify bert/ranking`, `just verify ranking`.
+# Both sides run even when Singe's fails, and the recipe fails when either side has a failed case or ran none.
+verify filter="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    filter="{{ filter }}"
+    uv run --locked python singe-model/verifications/support.py media
+    status=0
+    cargo test -p singe-model --features cuda_13_4 --test verifications -- "$filter" || status=1
+    ran=0
+    for script in singe-model/verifications/*/*/verify.py; do
+        directory="${script%/verify.py}"
+        name="${directory#singe-model/verifications/}"
+        labels="$(jq -r --arg name "$name" '.cases[] | "\($name)/\(.name)"' "$directory/cases.json")"
+        if ! grep -qF -- "$filter" <<< "$labels"; then
+            continue
+        fi
+        # A script exits 3 when every case it selected was skipped, which fails the recipe only when no script ran a case.
+        code=0
+        uv run --locked python "$script" "$filter" || code=$?
+        case "$code" in
+            0) ran=1 ;;
+            3) ;;
+            *) ran=1; status=1 ;;
+        esac
+    done
+    if [[ "$ran" == 0 ]]; then
+        echo "no reference case ran"
+        status=1
+    fi
+    exit "$status"
 
 frontend-examples:
     #!/usr/bin/env bash

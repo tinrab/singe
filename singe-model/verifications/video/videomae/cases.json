@@ -1,0 +1,34 @@
+{
+  "cases": [
+    {
+      "name": "classification",
+      "snapshot": "VIDEOMAE",
+      "task": "video-classification",
+      "inputs": ["media/spaghetti"],
+      "expected": [
+        [
+          {
+            "score": 0.792283,
+            "label": "eating spaghetti"
+          },
+          {
+            "score": 0.00792125,
+            "label": "eating ice cream"
+          },
+          {
+            "score": 0.00432576,
+            "label": "dining"
+          },
+          {
+            "score": 0.00394862,
+            "label": "tasting food"
+          },
+          {
+            "score": 0.00189205,
+            "label": "cooking chicken"
+          }
+        ]
+      ]
+    }
+  ]
+}

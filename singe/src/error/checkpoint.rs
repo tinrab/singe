@@ -1,7 +1,6 @@
 use std::io::Error as IoError;
 
 use safetensors::SafeTensorError;
-use serde_json::Error as JsonError;
 use thiserror::Error;
 
 /// Errors from reading and writing named-state checkpoints.
@@ -16,9 +15,12 @@ pub enum CheckpointError {
     #[error("checkpoint format")]
     Format(#[from] SafeTensorError),
 
-    /// A shard index is malformed.
-    #[error("checkpoint shard index")]
-    Index(#[source] JsonError),
+    // A load plan reads tensors the checkpoint does not store.
+    #[error("checkpoint lacks tensors {names:?}")]
+    Absent {
+        // Sorted stored names the plan reads.
+        names: Vec<String>,
+    },
 
     /// Checkpoint names do not match the model schema.
     #[error("checkpoint keys: missing {missing:?}, unexpected {unexpected:?}")]

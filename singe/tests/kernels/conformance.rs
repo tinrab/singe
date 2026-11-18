@@ -35,7 +35,7 @@ use singe::{
     dispatch::{call, call_one},
     error::Result,
     scalar::Scalar,
-    tensor::{InterpolateMode, LossReduction, NormOrder},
+    tensor::{InterpolateMode, Interpolation, LossReduction, NormOrder},
 };
 #[cfg(all(feature = "testing", feature = "cuda"))]
 use singe::{
@@ -754,9 +754,14 @@ fn composite(name: &str, arguments: &Value, inputs: &[Tensor]) -> Result<Vec<Ten
             let size = integers(&arguments["size"]);
             let mode = match arguments["mode"].as_str().unwrap() {
                 "nearest" => InterpolateMode::Nearest,
+                "bicubic" => InterpolateMode::Bicubic,
                 _ => InterpolateMode::Bilinear,
             };
-            inputs[0].interpolate((size[0], size[1]), mode)?
+            let flag = |name: &str| arguments[name].as_bool().unwrap_or(false);
+            let interpolation = Interpolation::new(mode)
+                .with_align_corners(flag("align_corners"))
+                .with_antialias(flag("antialias"));
+            inputs[0].interpolate((size[0], size[1]), interpolation)?
         }
         "cross_entropy" => {
             let reduction = match arguments["reduction"].as_str().unwrap() {

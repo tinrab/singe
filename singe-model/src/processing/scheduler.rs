@@ -1,0 +1,907 @@
+// `diffusers`' noise schedulers: the timesteps a pipeline denoises at and each step from one sample to the next, computed on the host in `F32` as `diffusers` computes them with PyTorch's CPU tensors.
+
+use serde::Deserialize;
+use singe::Tensor;
+
+use crate::{
+    error::{Error, Result},
+    source::Source,
+};
+
+const fn train_timesteps() -> usize {
+    1000
+}
+
+fn linear() -> String {
+    "linear".to_owned()
+}
+
+fn epsilon() -> String {
+    "epsilon".to_owned()
+}
+
+fn fixed_small() -> String {
+    "fixed_small".to_owned()
+}
+
+fn zero() -> String {
+    "zero".to_owned()
+}
+
+fn discrete() -> String {
+    "discrete".to_owned()
+}
+
+const fn one() -> f32 {
+    1.0
+}
+
+// A scheduler's `scheduler_config.json`, with `diffusers`' defaults; the fields whose defaults differ between classes stay `None` until the class resolves them.
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "the fields are `scheduler_config.json`'s"
+)]
+pub struct SchedulerConfig {
+    // The scheduler's class, such as `EulerDiscreteScheduler`.
+    #[serde(rename = "_class_name")]
+    pub class: String,
+    #[serde(default = "train_timesteps")]
+    pub num_train_timesteps: usize,
+    #[serde(default)]
+    beta_start: Option<f32>,
+    #[serde(default)]
+    beta_end: Option<f32>,
+    #[serde(default = "linear")]
+    pub beta_schedule: String,
+    // Betas given outright, which no scheduler here reads.
+    #[serde(default)]
+    trained_betas: Option<Vec<f64>>,
+    #[serde(default = "epsilon")]
+    pub prediction_type: String,
+    #[serde(default)]
+    clip_sample: Option<bool>,
+    #[serde(default = "one")]
+    pub clip_sample_range: f32,
+    #[serde(default = "fixed_small")]
+    pub variance_type: String,
+    #[serde(default)]
+    timestep_spacing: Option<String>,
+    #[serde(default)]
+    pub steps_offset: i64,
+    #[serde(default)]
+    pub thresholding: bool,
+    #[serde(default)]
+    pub skip_prk_steps: bool,
+    #[serde(default)]
+    pub set_alpha_to_one: bool,
+    #[serde(default)]
+    pub rescale_betas_zero_snr: bool,
+    // The noise level conversions, which `diffusers` lets a config leave null.
+    #[serde(default)]
+    use_karras_sigmas: Option<bool>,
+    #[serde(default)]
+    use_exponential_sigmas: Option<bool>,
+    #[serde(default)]
+    use_beta_sigmas: Option<bool>,
+    #[serde(default = "linear")]
+    pub interpolation_type: String,
+    #[serde(default = "zero")]
+    pub final_sigmas_type: String,
+    #[serde(default = "discrete")]
+    pub timestep_type: String,
+}
+
+impl SchedulerConfig {
+    // How timesteps are spaced: as the config says, or as its class does by default, `linspace` for the Euler and Heun schedulers and `leading` for the others.
+    #[must_use]
+    pub fn timestep_spacing(&self) -> &str {
+        self.timestep_spacing
+            .as_deref()
+            .unwrap_or(match self.class.as_str() {
+                "EulerDiscreteScheduler"
+                | "EulerAncestralDiscreteScheduler"
+                | "HeunDiscreteScheduler" => "linspace",
+                _ => "leading",
+            })
+    }
+
+    // Reads a pipeline's `scheduler/scheduler_config.json`, or a model directory's own `scheduler_config.json`.
+    pub fn load(source: &Source) -> Result<Self> {
+        source
+            .optional_json("scheduler/scheduler_config.json")?
+            .map_or_else(|| source.json("scheduler_config.json"), Ok)
+    }
+
+    // The first and last training betas: as the config gives them, or as its class defaults them, `0.00085` and `0.012` for Heun's scheduler and `0.0001` and `0.02` for the others.
+    fn beta_range(&self) -> (f32, f32) {
+        let (start, end) = if self.class == "HeunDiscreteScheduler" {
+            (0.00085, 0.012)
+        } else {
+            (0.0001, 0.02)
+        };
+        (
+            self.beta_start.unwrap_or(start),
+            self.beta_end.unwrap_or(end),
+        )
+    }
+
+    // The range the predicted clean sample is clipped to, where the config clips it, as only DDPM's scheduler does by default.
+    fn clip(&self) -> Option<f32> {
+        self.clip_sample
+            .unwrap_or(self.class == "DDPMScheduler")
+            .then_some(self.clip_sample_range)
+    }
+
+    // Each training timestep's cumulative product of `1 - β`, `torch.cumprod` accumulating in `F64` and keeping `F32`.
+    fn alphas_cumprod(&self) -> Result<Vec<f32>> {
+        if self.trained_betas.is_some() {
+            return Err(Error::unsupported("a scheduler with trained betas"));
+        }
+
+        if self.rescale_betas_zero_snr {
+            return Err(Error::unsupported(
+                "a scheduler rescaling its betas to a zero terminal SNR",
+            ));
+        }
+
+        let (start, end) = self.beta_range();
+        let betas = match self.beta_schedule.as_str() {
+            "linear" => torch_linspace(start, end, self.num_train_timesteps),
+            "scaled_linear" => torch_linspace(start.sqrt(), end.sqrt(), self.num_train_timesteps)
+                .into_iter()
+                .map(|beta| beta * beta)
+                .collect(),
+            // `betas_for_alpha_bar` with `exp(-12 t)`, in `F64`, kept as `F32`, which only Heun's scheduler offers.
+            #[expect(
+                clippy::cast_possible_truncation,
+                clippy::cast_precision_loss,
+                reason = "PyTorch keeps the betas in F32"
+            )]
+            "exp" if self.class == "HeunDiscreteScheduler" => {
+                let count = self.num_train_timesteps as f64;
+                let alpha_bar = |t: f64| (t * -12.0).exp();
+                (0..self.num_train_timesteps)
+                    .map(|index| {
+                        let (t1, t2) = (index as f64 / count, (index + 1) as f64 / count);
+                        (1.0 - alpha_bar(t2) / alpha_bar(t1)).min(0.999) as f32
+                    })
+                    .collect()
+            }
+            other => {
+                return Err(Error::UnsupportedConfig(format!(
+                    "beta schedule {other} for {}",
+                    self.class
+                )));
+            }
+        };
+        let mut product = 1.0_f64;
+        #[expect(
+            clippy::cast_possible_truncation,
+            reason = "PyTorch keeps each product in F32"
+        )]
+        Ok(betas
+            .iter()
+            .map(|beta| {
+                product *= f64::from(1.0 - beta);
+                product as f32
+            })
+            .collect())
+    }
+
+    // The timesteps of `steps` inference steps, last first, as `set_timesteps` spaces them.
+    #[expect(
+        clippy::cast_possible_truncation,
+        clippy::cast_possible_wrap,
+        clippy::cast_precision_loss,
+        reason = "timestep counts are small"
+    )]
+    #[expect(
+        clippy::suboptimal_flops,
+        reason = "rounds each product as the reference does, which the verifications compare with"
+    )]
+    pub fn timesteps(&self, steps: usize) -> Result<Vec<i64>> {
+        let train = self.num_train_timesteps;
+        if steps == 0 || steps > train {
+            return Err(Error::unsupported(
+                "inference steps outside the training timesteps",
+            ));
+        }
+        Ok(match self.timestep_spacing() {
+            "leading" => (0..steps)
+                .rev()
+                .map(|step| (step * (train / steps)) as i64 + self.steps_offset)
+                .collect(),
+            // `numpy.arange(T, 0, -T / n)`, which counts from its first value by the difference of its first two, rounded half to even, less one.
+            "trailing" => {
+                let start = train as f64;
+                let delta = (start - start / steps as f64) - start;
+                (0..steps)
+                    .map(|step| (start + step as f64 * delta).round_ties_even() as i64 - 1)
+                    .collect()
+            }
+            "linspace" => numpy_linspace(0.0, (train - 1) as f64, steps)
+                .into_iter()
+                .rev()
+                .map(|timestep| timestep.round_ties_even() as i64)
+                .collect(),
+            other => {
+                return Err(Error::UnsupportedConfig(format!(
+                    "timestep spacing {other}"
+                )));
+            }
+        })
+    }
+
+    // `numpy.linspace(0, T − 1, n, dtype=float32)`, last first, as the Euler and Heun schedulers space their timesteps.
+    #[expect(
+        clippy::cast_possible_truncation,
+        clippy::cast_precision_loss,
+        reason = "NumPy computes the timesteps in F64 and keeps them in F32"
+    )]
+    fn linspace_timesteps(&self, steps: usize) -> Vec<f32> {
+        numpy_linspace(0.0, (self.num_train_timesteps - 1) as f64, steps)
+            .into_iter()
+            .rev()
+            .map(|timestep| timestep as f32)
+            .collect()
+    }
+
+    // Each training timestep's noise level, `√((1 − ᾱ) / ᾱ)` in `F32`.
+    fn train_sigmas(&self) -> Result<Vec<f32>> {
+        Ok(self
+            .alphas_cumprod()?
+            .into_iter()
+            .map(|alpha| ((1.0 - alpha) / alpha).sqrt())
+            .collect())
+    }
+
+    // The Euler schedulers' timesteps, as `F32`, and their noise levels, each interpolated linearly between the training timesteps' and a zero after the last.
+    #[expect(
+        clippy::cast_possible_truncation,
+        clippy::cast_precision_loss,
+        reason = "timesteps are small"
+    )]
+    fn euler_schedule(&self, steps: usize) -> Result<(Vec<f32>, Vec<f32>)> {
+        let timesteps = if self.timestep_spacing() == "linspace" {
+            if steps == 0 {
+                return Err(Error::unsupported("no inference steps"));
+            }
+            self.linspace_timesteps(steps)
+        } else {
+            self.timesteps(steps)?
+                .into_iter()
+                .map(|timestep| timestep as f32)
+                .collect()
+        };
+        let trained = self.train_sigmas()?;
+        let mut sigmas = timesteps
+            .iter()
+            .map(|&timestep| numpy_interp(f64::from(timestep), &trained) as f32)
+            .collect::<Vec<f32>>();
+        sigmas.push(0.0);
+        Ok((timesteps, sigmas))
+    }
+}
+
+// `torch.linspace` in `F32`: the first half counted up from `start`, and the second down from `end`.
+#[expect(clippy::cast_precision_loss, reason = "counts are small")]
+#[expect(
+    clippy::suboptimal_flops,
+    reason = "rounds each product as the reference does, which the verifications compare with"
+)]
+fn torch_linspace(start: f32, end: f32, count: usize) -> Vec<f32> {
+    if count == 1 {
+        return vec![start];
+    }
+
+    let step = (end - start) / (count - 1) as f32;
+    (0..count)
+        .map(|index| {
+            if index < count / 2 {
+                start + step * index as f32
+            } else {
+                end - step * (count - index - 1) as f32
+            }
+        })
+        .collect()
+}
+
+// `numpy.linspace(start, stop, count)` in `F64`: each index times the step, plus `start`, and `stop` itself last.
+#[expect(clippy::cast_precision_loss, reason = "counts are small")]
+#[expect(
+    clippy::suboptimal_flops,
+    reason = "rounds each product as the reference does, which the verifications compare with"
+)]
+fn numpy_linspace(start: f64, stop: f64, count: usize) -> Vec<f64> {
+    if count <= 1 {
+        return vec![start; count];
+    }
+
+    let spacing = (stop - start) / (count - 1) as f64;
+    (0..count)
+        .map(|index| {
+            if index == count - 1 {
+                stop
+            } else {
+                index as f64 * spacing + start
+            }
+        })
+        .collect()
+}
+
+// `numpy.interp(at, [0, 1, …], values)` in `F64`: `values` interpolated linearly at `at`, held at their ends outside them.
+#[expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_precision_loss,
+    clippy::cast_sign_loss,
+    reason = "the positions are small and clamped to the values"
+)]
+#[expect(
+    clippy::suboptimal_flops,
+    reason = "rounds each product as the reference does, which the verifications compare with"
+)]
+fn numpy_interp(at: f64, values: &[f32]) -> f64 {
+    let last = values.len() - 1;
+    let at = at.clamp(0.0, last as f64);
+    let below = at.floor() as usize;
+    let above = (below + 1).min(last);
+    let (low, high) = (f64::from(values[below]), f64::from(values[above]));
+    if below == above {
+        low
+    } else {
+        (high - low) * (at - below as f64) + low
+    }
+}
+
+// What DDPM's step scales its noise by the square root of: the posterior's variance, or the step's beta.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DdpmVariance {
+    FixedSmall,
+    FixedLarge,
+}
+
+// `DDPMScheduler`: ancestral sampling, a step's prediction of the clean sample mixed with the sample and noise added but at the last step.
+#[derive(Debug, Clone)]
+pub struct DdpmScheduler {
+    alphas_cumprod: Vec<f32>,
+    timesteps: Vec<i64>,
+    clip: Option<f32>,
+    variance: DdpmVariance,
+}
+
+impl DdpmScheduler {
+    pub fn create(config: &SchedulerConfig, steps: usize) -> Result<Self> {
+        if config.thresholding || config.prediction_type != "epsilon" {
+            return Err(Error::unsupported(
+                "a DDPM scheduler other than one predicting noise",
+            ));
+        }
+
+        let variance = match config.variance_type.as_str() {
+            "fixed_small" => DdpmVariance::FixedSmall,
+            "fixed_large" => DdpmVariance::FixedLarge,
+            other => return Err(Error::UnsupportedConfig(format!("DDPM variance {other}"))),
+        };
+        Ok(Self {
+            alphas_cumprod: config.alphas_cumprod()?,
+            timesteps: config.timesteps(steps)?,
+            clip: config.clip(),
+            variance,
+        })
+    }
+
+    #[must_use]
+    pub fn timesteps(&self) -> &[i64] {
+        &self.timesteps
+    }
+
+    fn alpha_product(&self, timestep: i64) -> f32 {
+        usize::try_from(timestep).map_or(1.0, |timestep| self.alphas_cumprod[timestep])
+    }
+
+    // The sample at the step after `index`, from the model's predicted noise, `noise` drawn for the variance but at the last step.
+    pub fn step(
+        &self,
+        index: usize,
+        predicted: &Tensor,
+        sample: &Tensor,
+        noise: impl FnOnce() -> Result<Tensor>,
+    ) -> Result<Tensor> {
+        let timestep = self.timesteps[index];
+        let previous = self.timesteps.get(index + 1).copied().unwrap_or(-1);
+        let (alpha, alpha_previous) = (self.alpha_product(timestep), self.alpha_product(previous));
+        let (beta, beta_previous) = (1.0 - alpha, 1.0 - alpha_previous);
+        let current_alpha = alpha / alpha_previous;
+        let current_beta = 1.0 - current_alpha;
+        // PyTorch's CUDA kernels divide by a host scalar by multiplying with its reciprocal.
+        let mut original = sample
+            .sub(&predicted.mul_scalar(f64::from(beta.sqrt()))?)?
+            .mul_scalar(f64::from(1.0 / alpha.sqrt()))?;
+        if let Some(range) = self.clip {
+            original = original.clamp(-range, range)?;
+        }
+
+        let original_coefficient = alpha_previous.sqrt() * current_beta / beta;
+        let sample_coefficient = current_alpha.sqrt() * beta_previous / beta;
+        let next = original
+            .mul_scalar(f64::from(original_coefficient))?
+            .add(&sample.mul_scalar(f64::from(sample_coefficient))?)?;
+        if timestep <= 0 {
+            return Ok(next);
+        }
+
+        let variance = match self.variance {
+            DdpmVariance::FixedLarge => current_beta,
+            DdpmVariance::FixedSmall => {
+                ((1.0 - alpha_previous) / (1.0 - alpha) * current_beta).max(1e-20)
+            }
+        };
+        Ok(next.add(&noise()?.mul_scalar(f64::from(variance.sqrt()))?)?)
+    }
+}
+
+// `EulerDiscreteScheduler` without churn, Euler steps of the probability flow between noise levels that draw no noise, or, when `ancestral`, `EulerAncestralDiscreteScheduler`, each step an Euler step down to a lower noise level and noise drawn to add back up to the next.
+#[derive(Debug, Clone)]
+struct EulerScheduler {
+    timesteps: Vec<f32>,
+    sigmas: Vec<f32>,
+    spacing: String,
+    ancestral: bool,
+}
+
+impl EulerScheduler {
+    fn create(config: &SchedulerConfig, steps: usize, ancestral: bool) -> Result<Self> {
+        if config.prediction_type != "epsilon" {
+            return Err(Error::unsupported(
+                "an Euler scheduler other than one predicting noise",
+            ));
+        }
+
+        // The options only `EulerDiscreteScheduler` reads.
+        if !ancestral
+            && [
+                config.use_karras_sigmas,
+                config.use_exponential_sigmas,
+                config.use_beta_sigmas,
+            ]
+            .contains(&Some(true))
+        {
+            return Err(Error::unsupported(
+                "an Euler scheduler with Karras, exponential, or beta noise levels",
+            ));
+        }
+
+        if !ancestral
+            && (config.interpolation_type != "linear"
+                || config.final_sigmas_type != "zero"
+                || config.timestep_type != "discrete")
+        {
+            return Err(Error::unsupported(
+                "an Euler scheduler other than one of discrete timesteps, linearly interpolated noise levels, and a final zero",
+            ));
+        }
+
+        let (timesteps, sigmas) = config.euler_schedule(steps)?;
+        Ok(Self {
+            timesteps,
+            sigmas,
+            spacing: config.timestep_spacing().to_owned(),
+            ancestral,
+        })
+    }
+
+    // What the first noise is scaled by: the largest noise level, or `√(σ² + 1)` of it for leading timesteps.
+    #[expect(
+        clippy::suboptimal_flops,
+        reason = "rounds each product as the reference does, which the verifications compare with"
+    )]
+    fn initial_scale(&self) -> f32 {
+        let largest = self.sigmas.iter().copied().fold(0.0_f32, f32::max);
+        if self.spacing == "linspace" || self.spacing == "trailing" {
+            largest
+        } else {
+            (largest * largest + 1.0).sqrt()
+        }
+    }
+
+    // The model's input at step `index`: the sample over `√(σ² + 1)`.
+    #[expect(
+        clippy::suboptimal_flops,
+        reason = "rounds each product as the reference does, which the verifications compare with"
+    )]
+    fn scale_input(&self, index: usize, sample: &Tensor) -> Result<Tensor> {
+        let sigma = self.sigmas[index];
+        Ok(sample.mul_scalar(f64::from(1.0 / (sigma * sigma + 1.0).sqrt()))?)
+    }
+
+    // The sample after step `index`, from the model's predicted noise, drawing `noise` where the step is ancestral.
+    #[expect(
+        clippy::suboptimal_flops,
+        reason = "rounds each product as the reference does, which the verifications compare with"
+    )]
+    fn step(
+        &self,
+        index: usize,
+        predicted: &Tensor,
+        sample: &Tensor,
+        noise: impl FnOnce() -> Result<Tensor>,
+    ) -> Result<Tensor> {
+        let (sigma, next) = (self.sigmas[index], self.sigmas[index + 1]);
+        let original = sample.sub(&predicted.mul_scalar(f64::from(sigma))?)?;
+        let derivative = sample.sub(&original)?.mul_scalar(f64::from(1.0 / sigma))?;
+        if !self.ancestral {
+            return Ok(sample.add(&derivative.mul_scalar(f64::from(next - sigma))?)?);
+        }
+
+        let up = (next * next * (sigma * sigma - next * next) / (sigma * sigma)).sqrt();
+        let down = (next * next - up * up).sqrt();
+        Ok(sample
+            .add(&derivative.mul_scalar(f64::from(down - sigma))?)?
+            .add(&noise()?.mul_scalar(f64::from(up))?)?)
+    }
+}
+
+// `PNDMScheduler` with its Runge–Kutta steps skipped, as Stable Diffusion 1.5's is: linear multistep updates of the predicted noise over the steps before, starting with one step taken twice.
+#[derive(Debug, Clone)]
+struct PndmScheduler {
+    alphas_cumprod: Vec<f32>,
+    final_alpha: f32,
+    // The timesteps as `set_timesteps` lists them, the second-last repeated, and the training timesteps between two of them.
+    timesteps: Vec<i64>,
+    stride: i64,
+}
+
+// The multistep state of one generation: the noise predictions so far, and the sample the first step started from.
+#[derive(Debug, Default)]
+struct PndmState {
+    predictions: Vec<Tensor>,
+    first_sample: Option<Tensor>,
+    counter: usize,
+}
+
+impl PndmScheduler {
+    #[expect(clippy::cast_possible_wrap, reason = "timestep counts are small")]
+    fn create(config: &SchedulerConfig, steps: usize) -> Result<Self> {
+        if !config.skip_prk_steps || config.prediction_type != "epsilon" {
+            return Err(Error::unsupported(
+                "a PNDM scheduler other than one skipping its Runge-Kutta steps and predicting noise",
+            ));
+        }
+
+        let alphas_cumprod = config.alphas_cumprod()?;
+        // `set_timesteps`' timesteps, first to last, before PNDM reverses them; listing them refuses zero steps.
+        let mut ascending = config.timesteps(steps)?;
+        ascending.reverse();
+        let count = ascending.len();
+        let mut timesteps = ascending[..count - 1].to_vec();
+        timesteps.extend(&ascending[count.saturating_sub(2)..count - 1]);
+        timesteps.push(ascending[count - 1]);
+        timesteps.reverse();
+        Ok(Self {
+            final_alpha: if config.set_alpha_to_one {
+                1.0
+            } else {
+                alphas_cumprod[0]
+            },
+            alphas_cumprod,
+            timesteps,
+            stride: (config.num_train_timesteps / steps) as i64,
+        })
+    }
+
+    fn alpha(&self, timestep: i64) -> f32 {
+        usize::try_from(timestep).map_or(self.final_alpha, |timestep| self.alphas_cumprod[timestep])
+    }
+
+    // The sample after the step at `timestep`, from the model's predicted noise, as `step_plms` takes it.
+    #[expect(
+        clippy::suboptimal_flops,
+        reason = "rounds each product as the reference does, which the verifications compare with"
+    )]
+    fn step(
+        &self,
+        state: &mut PndmState,
+        timestep: i64,
+        predicted: &Tensor,
+        sample: &Tensor,
+    ) -> Result<Tensor> {
+        let (mut timestep, mut previous) = (timestep, timestep - self.stride);
+        if state.counter == 1 {
+            (previous, timestep) = (timestep, timestep + self.stride);
+        } else {
+            let keep = state.predictions.len().saturating_sub(3);
+            state.predictions.drain(..keep);
+            state.predictions.push(predicted.clone());
+        }
+
+        let history = &state.predictions;
+        let last = |back: usize| &history[history.len() - back];
+        let mut sample = sample.clone();
+        let combined = match (history.len(), state.counter) {
+            (1, 0) => {
+                state.first_sample = Some(sample.clone());
+                predicted.clone()
+            }
+            (1, 1) => {
+                sample = state
+                    .first_sample
+                    .take()
+                    .ok_or_else(|| Error::unsupported("a PNDM step without its first sample"))?;
+                predicted.add(last(1))?.mul_scalar(0.5)?
+            }
+            (2, _) => last(1).mul_scalar(3.0)?.sub(last(2))?.mul_scalar(0.5)?,
+            (3, _) => last(1)
+                .mul_scalar(23.0)?
+                .sub(&last(2).mul_scalar(16.0)?)?
+                .add(&last(3).mul_scalar(5.0)?)?
+                .mul_scalar(f64::from(1.0_f32 / 12.0))?,
+            _ => last(1)
+                .mul_scalar(55.0)?
+                .sub(&last(2).mul_scalar(59.0)?)?
+                .add(&last(3).mul_scalar(37.0)?)?
+                .sub(&last(4).mul_scalar(9.0)?)?
+                .mul_scalar(f64::from(1.0_f32 / 24.0))?,
+        };
+        state.counter += 1;
+        let (alpha, alpha_previous) = (self.alpha(timestep), self.alpha(previous));
+        let (beta, beta_previous) = (1.0 - alpha, 1.0 - alpha_previous);
+        let sample_coefficient = (alpha_previous / alpha).sqrt();
+        let denominator = alpha * beta_previous.sqrt() + (alpha * beta * alpha_previous).sqrt();
+        Ok(sample.mul_scalar(f64::from(sample_coefficient))?.sub(
+            &combined
+                .mul_scalar(f64::from(alpha_previous - alpha))?
+                .mul_scalar(f64::from(1.0 / denominator))?,
+        )?)
+    }
+}
+
+#[derive(Debug)]
+enum Kind {
+    Pndm(PndmScheduler, PndmState),
+    Euler(EulerScheduler),
+}
+
+// The scheduler a latent diffusion pipeline's config names, behind one interface: its timesteps, its first noise's scale, its input scaling, its steps, which draw noise where the scheduler does, and noise added to a clean sample for pipelines that start from one.
+#[derive(Debug)]
+pub struct Sampler {
+    kind: Kind,
+    // Every step's timestep, last first, as the model reads it.
+    timesteps: Vec<f32>,
+    // The step the schedule starts at, as a pipeline's `strength` skips the first.
+    begin: usize,
+}
+
+impl Sampler {
+    #[expect(clippy::cast_precision_loss, reason = "timesteps are small")]
+    pub fn create(config: &SchedulerConfig, steps: usize) -> Result<Self> {
+        let kind = match config.class.as_str() {
+            "PNDMScheduler" => {
+                Kind::Pndm(PndmScheduler::create(config, steps)?, PndmState::default())
+            }
+            "EulerDiscreteScheduler" => Kind::Euler(EulerScheduler::create(config, steps, false)?),
+            "EulerAncestralDiscreteScheduler" => {
+                Kind::Euler(EulerScheduler::create(config, steps, true)?)
+            }
+            other => return Err(Error::UnsupportedConfig(format!("scheduler {other}"))),
+        };
+        let timesteps = match &kind {
+            Kind::Pndm(scheduler, _) => scheduler
+                .timesteps
+                .iter()
+                .map(|&timestep| timestep as f32)
+                .collect(),
+            Kind::Euler(scheduler) => scheduler.timesteps.clone(),
+        };
+        Ok(Self {
+            kind,
+            timesteps,
+            begin: 0,
+        })
+    }
+
+    // Starts the schedule `count` steps in, as `get_timesteps` does for a `strength` below one.
+    pub fn skip(&mut self, count: usize) {
+        self.begin = count.min(self.timesteps.len());
+    }
+
+    // The timesteps the model reads from the first kept step, last first.
+    #[must_use]
+    pub fn timesteps(&self) -> &[f32] {
+        &self.timesteps[self.begin..]
+    }
+
+    #[must_use]
+    pub fn initial_scale(&self) -> f32 {
+        match &self.kind {
+            Kind::Pndm(..) => 1.0,
+            Kind::Euler(scheduler) => scheduler.initial_scale(),
+        }
+    }
+
+    pub fn scale_input(&self, index: usize, sample: &Tensor) -> Result<Tensor> {
+        let index = self.begin + index;
+        match &self.kind {
+            Kind::Pndm(..) => Ok(sample.clone()),
+            Kind::Euler(scheduler) => scheduler.scale_input(index, sample),
+        }
+    }
+
+    // A clean sample noised to the first kept step: `√ᾱ x + √(1 − ᾱ) ε` for PNDM's discrete timesteps, and `x + σ ε` for Euler's noise levels.
+    pub fn add_noise(&self, sample: &Tensor, noise: &Tensor) -> Result<Tensor> {
+        match &self.kind {
+            Kind::Pndm(scheduler, _) => {
+                let alpha = scheduler.alpha(scheduler.timesteps[self.begin]);
+                Ok(sample
+                    .mul_scalar(f64::from(alpha.sqrt()))?
+                    .add(&noise.mul_scalar(f64::from((1.0 - alpha).sqrt()))?)?)
+            }
+            Kind::Euler(scheduler) => {
+                Ok(sample.add(&noise.mul_scalar(f64::from(scheduler.sigmas[self.begin]))?)?)
+            }
+        }
+    }
+
+    // The sample after step `index` of the kept steps, drawing `noise` where the scheduler adds noise.
+    pub fn step(
+        &mut self,
+        index: usize,
+        predicted: &Tensor,
+        sample: &Tensor,
+        noise: impl FnOnce() -> Result<Tensor>,
+    ) -> Result<Tensor> {
+        let index = self.begin + index;
+        match &mut self.kind {
+            Kind::Pndm(scheduler, state) => {
+                let timestep = scheduler.timesteps[index];
+                scheduler.step(state, timestep, predicted, sample)
+            }
+            Kind::Euler(scheduler) => scheduler.step(index, predicted, sample, noise),
+        }
+    }
+}
+
+// `HeunDiscreteScheduler` with Karras sigmas or linearly spaced timesteps: each step an Euler step to the next noise level, then a second evaluation there averaging the two derivatives, the last step Euler's alone.
+#[derive(Debug, Clone)]
+pub struct HeunScheduler {
+    // The noise levels, the middle ones twice, and a zero.
+    sigmas: Vec<f32>,
+    // The timesteps the model reads, the ones after the first twice.
+    timesteps: Vec<f32>,
+    clip: Option<f32>,
+    // The first evaluation's derivative, step, and sample, while a step waits for its second.
+    pending: Option<(Tensor, f32, Tensor)>,
+}
+
+impl HeunScheduler {
+    #[expect(
+        clippy::cast_possible_truncation,
+        clippy::cast_precision_loss,
+        reason = "timestep counts are small, and NumPy keeps the schedule in F32"
+    )]
+    #[expect(
+        clippy::suboptimal_flops,
+        reason = "rounds each product as the reference does, which the verifications compare with"
+    )]
+    pub fn create(config: &SchedulerConfig, steps: usize) -> Result<Self> {
+        if config.prediction_type != "sample" {
+            return Err(Error::unsupported(
+                "a Heun scheduler predicting other than the clean sample",
+            ));
+        }
+
+        if config.timestep_spacing() != "linspace" || steps < 2 {
+            return Err(Error::unsupported(
+                "a Heun scheduler other than one of linearly spaced timesteps",
+            ));
+        }
+
+        if [config.use_exponential_sigmas, config.use_beta_sigmas].contains(&Some(true)) {
+            return Err(Error::unsupported(
+                "a Heun scheduler with exponential or beta noise levels",
+            ));
+        }
+
+        let train = config.num_train_timesteps;
+        let trained = config.train_sigmas()?;
+        let log_trained = trained.iter().map(|sigma| sigma.ln()).collect::<Vec<f32>>();
+        // The timesteps, last first, and the noise levels interpolated there.
+        let timesteps = config.linspace_timesteps(steps);
+        let interpolated = timesteps
+            .iter()
+            .map(|&timestep| numpy_interp(f64::from(timestep), &trained))
+            .collect::<Vec<f64>>();
+        let (sigmas, timesteps) = if config.use_karras_sigmas == Some(true) {
+            let (low, high) = (interpolated[steps - 1], interpolated[0]);
+            let (low_root, high_root) = (low.powf(1.0 / 7.0), high.powf(1.0 / 7.0));
+            let sigmas = numpy_linspace(0.0, 1.0, steps)
+                .into_iter()
+                .map(|ramp| (high_root + ramp * (low_root - high_root)).powi(7))
+                .collect::<Vec<f64>>();
+            // `_sigma_to_t`: each noise level's place between the training noise levels whose logs bracket its log.
+            let timesteps = sigmas
+                .iter()
+                .map(|&sigma| {
+                    let log = sigma.max(1e-10).ln();
+                    let low_index = log_trained
+                        .iter()
+                        .rposition(|&trained| log - f64::from(trained) >= 0.0)
+                        .unwrap_or(0)
+                        .min(train - 2);
+                    let (low, high) = (
+                        f64::from(log_trained[low_index]),
+                        f64::from(log_trained[low_index + 1]),
+                    );
+                    let weight = ((low - log) / (low - high)).clamp(0.0, 1.0);
+                    ((1.0 - weight) * low_index as f64 + weight * (low_index + 1) as f64) as f32
+                })
+                .collect::<Vec<f32>>();
+            (sigmas, timesteps)
+        } else {
+            (interpolated, timesteps)
+        };
+        let mut doubled_sigmas = vec![sigmas[0] as f32];
+        for &sigma in &sigmas[1..] {
+            doubled_sigmas.extend([sigma as f32, sigma as f32]);
+        }
+
+        doubled_sigmas.push(0.0);
+        let mut doubled_timesteps = vec![timesteps[0]];
+        for &timestep in &timesteps[1..] {
+            doubled_timesteps.extend([timestep, timestep]);
+        }
+        Ok(Self {
+            sigmas: doubled_sigmas,
+            timesteps: doubled_timesteps,
+            clip: config.clip(),
+            pending: None,
+        })
+    }
+
+    #[must_use]
+    pub fn timesteps(&self) -> &[f32] {
+        &self.timesteps
+    }
+
+    // The largest noise level, as linearly spaced timesteps scale the first noise by.
+    #[must_use]
+    pub fn initial_scale(&self) -> f32 {
+        self.sigmas.iter().copied().fold(0.0_f32, f32::max)
+    }
+
+    #[expect(
+        clippy::suboptimal_flops,
+        reason = "rounds each product as the reference does, which the verifications compare with"
+    )]
+    pub fn scale_input(&self, index: usize, sample: &Tensor) -> Result<Tensor> {
+        let sigma = self.sigmas[index];
+        Ok(sample.mul_scalar(f64::from(1.0 / (sigma * sigma + 1.0).sqrt()))?)
+    }
+
+    // The sample after evaluation `index`, from the model's predicted clean sample.
+    pub fn step(&mut self, index: usize, predicted: &Tensor, sample: &Tensor) -> Result<Tensor> {
+        let original = match self.clip {
+            Some(range) => predicted.clamp(-range, range)?,
+            None => predicted.clone(),
+        };
+        match self.pending.take() {
+            None => {
+                let (sigma, next) = (self.sigmas[index], self.sigmas[index + 1]);
+                let derivative = sample.sub(&original)?.mul_scalar(f64::from(1.0 / sigma))?;
+                let step = next - sigma;
+                let output = sample.add(&derivative.mul_scalar(f64::from(step))?)?;
+                self.pending = Some((derivative, step, sample.clone()));
+                Ok(output)
+            }
+            Some((first, step, start)) => {
+                let next = self.sigmas[index];
+                let derivative = sample
+                    .sub(&original)?
+                    .mul_scalar(f64::from(1.0 / next))?
+                    .add(&first)?
+                    .mul_scalar(0.5)?;
+                Ok(start.add(&derivative.mul_scalar(f64::from(step))?)?)
+            }
+        }
+    }
+}
