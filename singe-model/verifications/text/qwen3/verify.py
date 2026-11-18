@@ -11,7 +11,7 @@ import torch  # noqa: E402
 from jinja2.sandbox import ImmutableSandboxedEnvironment  # noqa: E402
 from transformers import AutoModelForCausalLM, AutoTokenizer  # noqa: E402
 
-from support import DEVICE, Verification  # noqa: E402
+from support import DEVICE, Verification, generation  # noqa: E402
 
 
 def text_generation(snapshot):
@@ -41,7 +41,7 @@ def text_generation(snapshot):
                     ids, max_new_tokens=parameters["max_new_tokens"], do_sample=False
                 )
             outputs.append(
-                {"generated_token_ids": generated[0, ids.shape[1] :].tolist()}
+                generation(model, generated[0, ids.shape[1] :].tolist())
             )
         return outputs
 

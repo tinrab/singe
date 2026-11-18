@@ -53,9 +53,9 @@ fn numbers(value: &Value) -> Vec<f64> {
     }
 }
 
-// The same tokens; a generation that stops early, at the tokenizer's end token where `generate` goes on, matches if what it gave is a non-empty start of the reference's.
-// Cases record no end tokens, so an early stop is not checked to fall where the reference generated one.
+// The same tokens, or a non-empty start of the reference's that stops where the reference generated one of the end tokens it records, which `generate` keeps and Singe leaves out.
 fn tokens(want: &Value, got: &Value) -> (bool, String) {
+    let ends = numbers(&want["end_token_ids"]);
     let (want, got) = (
         numbers(&want["generated_token_ids"]),
         numbers(&got["generated_token_ids"]),
@@ -69,7 +69,7 @@ fn tokens(want: &Value, got: &Value) -> (bool, String) {
         .zip(&got)
         .take_while(|(want, got)| want == got)
         .count();
-    if same == got.len() && got.len() < want.len() {
+    if same == got.len() && got.len() < want.len() && ends.contains(&want[same]) {
         return (
             true,
             format!("{same} of {} tokens, stopping at the end token", want.len()),

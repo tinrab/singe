@@ -7,7 +7,11 @@ use singe::{
     tensor::AttentionOptions,
 };
 
-use crate::{format::Rules, schema::Schema};
+use crate::{
+    assembly::{Attention, AttentionSpec},
+    format::Rules,
+    schema::Schema,
+};
 
 // The positions BART's learned position table skips before the first, as its padding once took them.
 const POSITION_OFFSET: i64 = 2;
@@ -30,58 +34,6 @@ pub struct BartStackConfig {
     // The width of the encoder states a decoder's cross-attention reads.
     pub cross_width: i64,
     pub eps: f32,
-}
-
-#[derive(Debug, Clone)]
-struct Attention {
-    query: Linear,
-    key: Linear,
-    value: Linear,
-    output: Linear,
-    heads: i64,
-}
-
-impl Attention {
-    fn create(schema: &mut Schema<'_>, width: i64, context: i64, heads: i64) -> SingeResult<Self> {
-        Ok(Self {
-            query: schema.linear("query", width, width, true)?,
-            key: schema.linear("key", context, width, true)?,
-            value: schema.linear("value", context, width, true)?,
-            output: schema.linear("output", width, width, true)?,
-            heads,
-        })
-    }
-
-    fn forward(
-        &self,
-        hidden: &Tensor,
-        context: &Tensor,
-        causal: bool,
-        state: &ModelState,
-    ) -> SingeResult<Tensor> {
-        let split = |tensor: Tensor| -> SingeResult<Tensor> {
-            let dimensions = tensor.shape().dimensions();
-            let (batch, length, width) = (dimensions[0], dimensions[1], dimensions[2]);
-            tensor
-                .reshape([batch, length, self.heads, width / self.heads])?
-                .transpose(1, 2)
-        };
-        let attended = split(hidden.apply(&self.query, state)?)?.attend(
-            &split(context.apply(&self.key, state)?)?,
-            &split(context.apply(&self.value, state)?)?,
-            None,
-            None,
-            AttentionOptions {
-                causal,
-                ..AttentionOptions::default()
-            },
-        )?;
-        let dimensions = attended.shape().dimensions();
-        attended
-            .transpose(1, 2)?
-            .reshape([dimensions[0], dimensions[2], dimensions[1] * dimensions[3]])?
-            .apply(&self.output, state)
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -142,9 +94,10 @@ impl BartStack {
                         Ok((
                             Attention::create(
                                 &mut schema.scope("cross_attention"),
-                                width,
-                                config.cross_width,
-                                config.heads,
+                                AttentionSpec {
+                                    context: config.cross_width,
+                                    ..AttentionSpec::square(width, config.heads)
+                                },
                             )?,
                             schema.layer_norm("cross_norm", width, config.eps)?,
                         ))
@@ -153,9 +106,7 @@ impl BartStack {
                 Ok(Block {
                     attention: Attention::create(
                         &mut schema.scope("attention"),
-                        width,
-                        width,
-                        config.heads,
+                        AttentionSpec::square(width, config.heads),
                     )?,
                     attention_norm: schema.layer_norm("attention_norm", width, config.eps)?,
                     cross,
@@ -217,11 +168,21 @@ impl BartStack {
         let decoder = encoded.is_some();
         for block in &self.blocks {
             hidden = part(&hidden, &block.attention_norm, &|input| {
-                block.attention.forward(input, input, decoder, state)
+                block.attention.attend(
+                    input,
+                    input,
+                    input,
+                    None,
+                    AttentionOptions {
+                        causal: decoder,
+                        ..AttentionOptions::default()
+                    },
+                    state,
+                )
             })?;
             if let (Some((attention, norm)), Some(encoded)) = (&block.cross, encoded) {
                 hidden = part(&hidden, norm, &|input| {
-                    attention.forward(input, encoded, false, state)
+                    attention.forward(input, encoded, encoded, state)
                 })?;
             }
 

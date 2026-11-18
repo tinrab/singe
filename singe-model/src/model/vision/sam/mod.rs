@@ -14,7 +14,7 @@ use singe::{
 };
 
 use crate::{
-    assembly::{Attention, Mlp},
+    assembly::{Attention, AttentionSpec, Mlp},
     error::Result,
     format::Loader,
     head::{HeadLoader, MaskGenerator, PromptableLayers},
@@ -519,16 +519,18 @@ pub fn load_generator(loader: &mut Loader<'_>) -> Result<MaskGenerator> {
                 Ok(TwoWayBlock {
                     self_attention: Attention::create(
                         &mut schema.scope("self_attention"),
-                        embedding,
-                        embedding,
-                        config.decoder_heads,
+                        AttentionSpec::square(embedding, config.decoder_heads),
                     )?,
                     norm1: schema.layer_norm("norm1", embedding, config.eps)?,
                     token_to_image: Attention::create(
                         &mut schema.scope("token_to_image"),
-                        embedding,
-                        decoder_inner,
-                        config.decoder_heads,
+                        AttentionSpec {
+                            width: embedding,
+                            context: embedding,
+                            inner: decoder_inner,
+                            heads: config.decoder_heads,
+                            bias: true,
+                        },
                     )?,
                     norm2: schema.layer_norm("norm2", embedding, config.eps)?,
                     up: schema.linear("up", embedding, config.decoder_inner, true)?,
@@ -536,9 +538,13 @@ pub fn load_generator(loader: &mut Loader<'_>) -> Result<MaskGenerator> {
                     norm3: schema.layer_norm("norm3", embedding, config.eps)?,
                     image_to_token: Attention::create(
                         &mut schema.scope("image_to_token"),
-                        embedding,
-                        decoder_inner,
-                        config.decoder_heads,
+                        AttentionSpec {
+                            width: embedding,
+                            context: embedding,
+                            inner: decoder_inner,
+                            heads: config.decoder_heads,
+                            bias: true,
+                        },
                     )?,
                     norm4: schema.layer_norm("norm4", embedding, config.eps)?,
                 })
@@ -546,9 +552,13 @@ pub fn load_generator(loader: &mut Loader<'_>) -> Result<MaskGenerator> {
             .collect::<SingeResult<Vec<_>>>()?;
         let final_attention = Attention::create(
             &mut schema.scope("final_attention"),
-            embedding,
-            decoder_inner,
-            config.decoder_heads,
+            AttentionSpec {
+                width: embedding,
+                context: embedding,
+                inner: decoder_inner,
+                heads: config.decoder_heads,
+                bias: true,
+            },
         )?;
         // `nn.LayerNorm`'s default, which the two-way transformer's last norm keeps.
         let final_norm = schema.layer_norm("final_norm", embedding, 1e-5)?;

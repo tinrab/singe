@@ -4,15 +4,42 @@
       "name": "prompt",
       "snapshot": "GPT2",
       "task": "text-generation",
-      "inputs": ["The most important resource in Factorio is"],
+      "inputs": [
+        "The most important resource in Factorio is"
+      ],
       "parameters": {
         "max_new_tokens": 24
       },
       "expected": [
         {
           "generated_token_ids": [
-            262, 6831, 13, 632, 318, 257, 6831, 286, 477, 262, 1366, 287, 262, 6831, 13, 632, 318,
-            257, 6831, 286, 477, 262, 1366, 287
+            262,
+            6831,
+            13,
+            632,
+            318,
+            257,
+            6831,
+            286,
+            477,
+            262,
+            1366,
+            287,
+            262,
+            6831,
+            13,
+            632,
+            318,
+            257,
+            6831,
+            286,
+            477,
+            262,
+            1366,
+            287
+          ],
+          "end_token_ids": [
+            50256
           ]
         }
       ]
@@ -21,15 +48,42 @@
       "name": "story",
       "snapshot": "GPT2",
       "task": "text-generation",
-      "inputs": ["Once upon a time, on a planet rich in iron ore,"],
+      "inputs": [
+        "Once upon a time, on a planet rich in iron ore,"
+      ],
       "parameters": {
         "max_new_tokens": 24
       },
       "expected": [
         {
           "generated_token_ids": [
-            262, 5440, 338, 17622, 547, 262, 691, 3392, 508, 714, 7866, 13, 198, 198, 464, 5440,
-            373, 257, 39497, 46045, 11, 351, 691, 257
+            262,
+            5440,
+            338,
+            17622,
+            547,
+            262,
+            691,
+            3392,
+            508,
+            714,
+            7866,
+            13,
+            198,
+            198,
+            464,
+            5440,
+            373,
+            257,
+            39497,
+            46045,
+            11,
+            351,
+            691,
+            257
+          ],
+          "end_token_ids": [
+            50256
           ]
         }
       ]

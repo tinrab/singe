@@ -11,3 +11,10 @@ pub mod scheduler;
 mod sentencepiece;
 pub mod text;
 pub mod video;
+
+use singe::{DataType, Result as SingeResult, Tensor};
+
+// A tensor's values on the host, as `F32`, for the work a pipeline or head does there.
+pub(crate) fn host_values(tensor: &Tensor) -> SingeResult<Vec<f32>> {
+    tensor.cast(DataType::F32)?.contiguous()?.to_vec::<f32>()
+}

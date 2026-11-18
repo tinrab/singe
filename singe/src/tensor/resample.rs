@@ -3,7 +3,7 @@ use crate::{
     error::{Error, Result},
     graph::capture,
     shape::Shape,
-    tensor::Tensor,
+    tensor::{Tensor, TensorDataType},
 };
 
 // How `interpolate` computes a value between input points, as PyTorch's `mode` names it.
@@ -373,9 +373,7 @@ impl Tensor {
         let shape = Shape::create([extent, size])?;
         // The literal holds `F64` or `F32` values, cast outside it to a half-precision input's type, as `resampled` builds its blend weights.
         let matrix = if self.data_type() == DataType::F64 {
-            capture::literal(self.device(), |device| {
-                Self::from_vec(device, shape.clone(), weights)
-            })?
+            literal_matrix(self, shape, weights)?
         } else {
             #[expect(
                 clippy::cast_possible_truncation,
@@ -385,13 +383,21 @@ impl Tensor {
                 .iter()
                 .map(|&weight| weight as f32)
                 .collect::<Vec<_>>();
-            capture::literal(self.device(), |device| {
-                Self::from_vec(device, shape.clone(), weights)
-            })?
-            .cast(self.data_type())?
+            literal_matrix(self, shape, weights)?.cast(self.data_type())?
         };
         self.movedim(dim, -1)?.matmul(&matrix)?.movedim(-1, dim)
     }
+}
+
+// `values` as a captured literal of `shape` on `like`'s device.
+fn literal_matrix<T: TensorDataType>(
+    like: &Tensor,
+    shape: Shape,
+    values: Vec<T>,
+) -> Result<Tensor> {
+    capture::literal(like.device(), |device| {
+        Tensor::from_vec(device, shape, values)
+    })
 }
 
 // The weights of `size` output points over `extent` input points, `[extent, size]` in row-major order, as PyTorch's `interpolate` computes them for bilinear and bicubic modes.

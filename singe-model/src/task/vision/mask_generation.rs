@@ -9,7 +9,10 @@ use crate::{
     error::Result,
     head::MaskGenerator,
     model,
-    processing::image::{Image, ImageTransforms, longest_edge},
+    processing::{
+        host_values,
+        image::{Image, ImageTransforms, longest_edge},
+    },
     source::{LoadOptions, Source},
     task::{Pipeline, Task, vision::image_segmentation::mask},
 };
@@ -209,7 +212,7 @@ impl Pipeline for MaskGenerationPipeline {
                         .narrow(3, 0, resized_width)?
                         .interpolate((height, width), InterpolateMode::Bilinear)?
                         .reshape([count * candidates, height, width])?;
-                    let quality = quality.cast(DataType::F32)?.contiguous()?.to_vec::<f32>()?;
+                    let quality = host_values(&quality)?;
                     let intersections = count_where(&resized_masks, &above)?;
                     let unions = count_where(&resized_masks, &below)?;
                     for (index, &score) in quality.iter().enumerate() {

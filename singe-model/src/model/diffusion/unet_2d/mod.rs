@@ -12,7 +12,7 @@ use singe::{
 
 use crate::{
     assembly::{
-        Norms, ResnetBlock, SpatialAttention, TimeEmbedding, UpsampleBlock, conv3x3, downsample,
+        Norms, SpatialAttention, TimeEmbedding, UnetLayout, UnetSite, UnetStages, conv3x3,
         timestep_input,
     },
     error::Result,
@@ -44,21 +44,11 @@ pub struct Unet2dConfig {
 }
 
 #[derive(Debug, Clone)]
-struct Stage {
-    resnets: Vec<ResnetBlock>,
-    attentions: Vec<SpatialAttention>,
-    downsample: Option<Conv2d>,
-    upsample: Option<UpsampleBlock>,
-}
-
-#[derive(Debug, Clone)]
 pub struct Unet2dLayers {
     config: Unet2dConfig,
     input: Conv2d,
     time: TimeEmbedding,
-    down: Vec<Stage>,
-    middle: Stage,
-    up: Vec<Stage>,
+    stages: UnetStages<SpatialAttention>,
     norm: GroupNorm,
     output: Conv2d,
 }
@@ -71,138 +61,31 @@ impl Unet2dLayers {
         };
         let widths = &config.widths;
         let time_width = widths[0] * 4;
-        let heads = |channels: i64| config.head_width.map_or(1, |width| channels / width);
-        let last = widths.len() - 1;
-        let down = widths
-            .iter()
-            .enumerate()
-            .map(|(index, &output)| {
-                let mut stage = schema.scope(format!("down.{index}"));
-                let input = if index == 0 {
-                    widths[0]
-                } else {
-                    widths[index - 1]
-                };
-                let resnets = (0..config.layers_per_block)
-                    .map(|layer| {
-                        ResnetBlock::create(
-                            &mut stage.scope(format!("resnets.{layer}")),
-                            [if layer == 0 { input } else { output }, output],
-                            Some(time_width),
-                            norms,
-                            1.0,
-                        )
-                    })
-                    .collect::<SingeResult<Vec<_>>>()?;
-                let attentions = if config.down_attention[index] {
-                    (0..config.layers_per_block)
-                        .map(|layer| {
-                            SpatialAttention::create(
-                                &mut stage.scope(format!("attentions.{layer}")),
-                                output,
-                                heads(output),
-                                norms,
-                                1.0,
-                            )
-                        })
-                        .collect::<SingeResult<Vec<_>>>()?
-                } else {
-                    Vec::new()
-                };
-                let downsample = (index < last)
-                    .then(|| {
-                        downsample(&mut stage, "downsample", output, config.downsample_padding)
-                    })
-                    .transpose()?;
-                Ok(Stage {
-                    resnets,
-                    attentions,
-                    downsample,
-                    upsample: None,
-                })
-            })
-            .collect::<SingeResult<Vec<_>>>()?;
-        let middle = {
-            let mut stage = schema.scope("middle");
-            let width = widths[last];
-            let block = |stage: &mut Schema<'_>, layer: usize| {
-                ResnetBlock::create(
-                    &mut stage.scope(format!("resnets.{layer}")),
-                    [width, width],
-                    Some(time_width),
-                    norms,
-                    config.middle_scale,
-                )
-            };
-            let first = block(&mut stage, 0)?;
-            let attention = SpatialAttention::create(
-                &mut stage.scope("attentions.0"),
-                width,
-                config.head_width.map_or(1, |head| width / head),
-                norms,
-                config.middle_scale,
-            )?;
-            Stage {
-                resnets: vec![first, block(&mut stage, 1)?],
-                attentions: vec![attention],
-                downsample: None,
-                upsample: None,
-            }
+        let layout = UnetLayout {
+            widths,
+            layers_per_block: config.layers_per_block,
+            down_attention: &config.down_attention,
+            up_attention: &config.up_attention,
+            time_width,
+            norms,
+            middle_scale: config.middle_scale,
+            downsample_padding: config.downsample_padding,
         };
-        let reversed = widths.iter().rev().copied().collect::<Vec<_>>();
-        let up = (0..widths.len())
-            .map(|index| {
-                let mut stage = schema.scope(format!("up.{index}"));
-                let previous = reversed[index.saturating_sub(1)];
-                let output = reversed[index];
-                let input = reversed[(index + 1).min(last)];
-                let layers = config.layers_per_block + 1;
-                let resnets = (0..layers)
-                    .map(|layer| {
-                        let skip = if layer == layers - 1 { input } else { output };
-                        let from = if layer == 0 { previous } else { output };
-                        ResnetBlock::create(
-                            &mut stage.scope(format!("resnets.{layer}")),
-                            [from + skip, output],
-                            Some(time_width),
-                            norms,
-                            1.0,
-                        )
-                    })
-                    .collect::<SingeResult<Vec<_>>>()?;
-                let attentions = if config.up_attention[index] {
-                    (0..layers)
-                        .map(|layer| {
-                            SpatialAttention::create(
-                                &mut stage.scope(format!("attentions.{layer}")),
-                                output,
-                                heads(output),
-                                norms,
-                                1.0,
-                            )
-                        })
-                        .collect::<SingeResult<Vec<_>>>()?
-                } else {
-                    Vec::new()
-                };
-                let upsample = (index < last)
-                    .then(|| UpsampleBlock::create(&mut stage, "upsample", output))
-                    .transpose()?;
-                Ok(Stage {
-                    resnets,
-                    attentions,
-                    downsample: None,
-                    upsample,
-                })
-            })
-            .collect::<SingeResult<Vec<_>>>()?;
+        let stages = UnetStages::create(schema, &layout, |schema, site, width| {
+            let heads = config.head_width.map_or(1, |head| width / head);
+            // The middle block's attention divides its sum as its residual blocks do.
+            let rescale = if site == UnetSite::Middle {
+                config.middle_scale
+            } else {
+                1.0
+            };
+            SpatialAttention::create(schema, width, heads, norms, rescale)
+        })?;
         Ok(Self {
             config: config.clone(),
             input: conv3x3(schema, "input", config.in_channels, widths[0])?,
             time: TimeEmbedding::create(schema, "time", widths[0], time_width)?,
-            down,
-            middle,
-            up,
+            stages,
             norm: schema.group_norm("norm", widths[0], config.groups, config.eps)?,
             output: conv3x3(schema, "output", widths[0], config.out_channels)?,
         })
@@ -211,48 +94,16 @@ impl Unet2dLayers {
     // The predicted noise of `sample`, `[B, C, H, W]`, at the timestep whose features `time` holds, `[1, F]`.
     fn predict(&self, sample: &Tensor, time: &Tensor, state: &ModelState) -> SingeResult<Tensor> {
         let time = time.apply(&self.time, state)?;
-        let mut hidden = sample.apply(&self.input, state)?;
-        let mut skips = vec![hidden.clone()];
-        for stage in &self.down {
-            for (index, resnet) in stage.resnets.iter().enumerate() {
-                hidden = resnet.forward(&hidden, Some(&time), state)?;
-                if let Some(attention) = stage.attentions.get(index) {
-                    hidden = hidden.apply(attention, state)?;
-                }
-
-                skips.push(hidden.clone());
-            }
-            if let Some(downsample) = &stage.downsample {
-                hidden = hidden.apply(downsample, state)?;
-                skips.push(hidden.clone());
-            }
-        }
-
-        let middle = &self.middle;
-        hidden = middle.resnets[0].forward(&hidden, Some(&time), state)?;
-        hidden = hidden.apply(&middle.attentions[0], state)?;
-        hidden = middle.resnets[1].forward(&hidden, Some(&time), state)?;
-        for stage in &self.up {
-            for (index, resnet) in stage.resnets.iter().enumerate() {
-                let skip = skips
-                    .pop()
-                    .ok_or_else(|| singe::Error::missing_input("a skip connection"))?;
-                hidden =
-                    resnet.forward(&Tensor::concat(&[hidden, skip], 1)?, Some(&time), state)?;
-                if let Some(attention) = stage.attentions.get(index) {
-                    hidden = hidden.apply(attention, state)?;
-                }
-            }
-            if let Some(upsample) = &stage.upsample {
-                // The next skip's size, which doubling misses after an odd size was halved.
-                let size = skips
-                    .last()
-                    .map(|skip| skip.shape().dimensions()[2..].to_vec())
-                    .ok_or_else(|| singe::Error::missing_input("a skip connection"))?;
-                hidden = upsample.forward_to(&hidden, size[0], size[1], state)?;
-            }
-        }
-        hidden
+        self.stages
+            .forward(
+                sample.apply(&self.input, state)?,
+                &time,
+                state,
+                |hidden, attention, _, _| match attention {
+                    Some(attention) => hidden.apply(attention, state),
+                    None => Ok(hidden),
+                },
+            )?
             .apply(&self.norm, state)?
             .apply(&Activation::Silu, state)?
             .apply(&self.output, state)

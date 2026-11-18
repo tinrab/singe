@@ -566,16 +566,25 @@ def largest_difference(want, got):
     return None if None in differences else max(differences, default=0.0)
 
 
+def generation(model, tokens):
+    """A generation's record: the tokens `generate` gave after the prompt, and the end tokens of the model's generation config, where a generation that leaves the end token out may stop early."""
+    end = model.generation_config.eos_token_id
+    return {
+        "generated_token_ids": tokens,
+        "end_token_ids": [end] if isinstance(end, int) else list(end or []),
+    }
+
+
 def compare_tokens(want, got):
-    """The same tokens; a generation that stops early, at the tokenizer's end token where `generate` goes on, matches if what it gave is a non-empty start of the reference's.
-    Cases record no end tokens, so an early stop is not checked to fall where the reference generated one."""
+    """The same tokens, or a non-empty start of the reference's that stops where the reference generated an end token, which `generate` keeps and Singe leaves out."""
+    ends = want.get("end_token_ids", [])
     want, got = want["generated_token_ids"], got["generated_token_ids"]
     if not got:
         return False, f"no tokens, expected {len(want)}"
     same = 0
     while same < min(len(want), len(got)) and want[same] == got[same]:
         same += 1
-    if same == len(got) < len(want):
+    if same == len(got) < len(want) and want[same] in ends:
         return True, f"{same} of {len(want)} tokens, stopping at the end token"
     return same == len(want) == len(got), f"{same} of {len(want)} tokens"
 

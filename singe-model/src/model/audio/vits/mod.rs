@@ -18,7 +18,8 @@ use crate::{
     error::Result,
     format::Loader,
     head::{HeadLoader, Speech, SpeechLayers, TextToSpeech},
-    model::{ModelEntry, vision::host},
+    model::ModelEntry,
+    processing::host_values,
     schema::Schema,
     source::Format,
 };
@@ -297,12 +298,12 @@ impl VitsLayers {
         for flow in self.duration_flows.iter().skip(1).rev() {
             latents = flip_channels(&latents)?;
             let first = latents.narrow(1, 0, 1)?;
-            let second = host(&latents.narrow(1, 1, 1)?)?;
+            let second = host_values(&latents.narrow(1, 1, 1)?)?;
             let parameters = flow
                 .dds
                 .forward(&first.apply(&flow.pre, state)?, Some(&condition), state)?
                 .apply(&flow.projection, state)?;
-            let parameters = host(&parameters.squeeze(0)?.transpose(0, 1)?.contiguous()?)?;
+            let parameters = host_values(&parameters.squeeze(0)?.transpose(0, 1)?.contiguous()?)?;
             let per_point = parameters.len() / second.len();
             let inverted = second
                 .iter()
@@ -335,7 +336,7 @@ impl VitsLayers {
         latents = flip_channels(&latents)?;
         let (shift, log_scale) = (state.tensor(&self.affine.0)?, state.tensor(&self.affine.1)?);
         latents = latents.sub(shift)?.mul(&log_scale.neg()?.exp()?)?;
-        host(&latents.narrow(1, 0, 1)?)
+        host_values(&latents.narrow(1, 0, 1)?)
     }
 }
 
@@ -470,7 +471,7 @@ impl SpeechLayers for VitsLayers {
             .leaky_relu(0.01)?
             .apply(&self.decoder_post, state)?
             .apply(&Activation::Tanh, state)?;
-        host(&waveform)
+        host_values(&waveform)
     }
 }
 

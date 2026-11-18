@@ -8,10 +8,10 @@ use serde::{Deserialize, Serialize};
 use singe::{
     DataType, Error as SingeError, Result as SingeResult, Shape, Tensor,
     nn::{Activation, Embedding, LayerNorm, Linear, Model, ModelState, StateBuilder},
-    tensor::AttentionOptions,
 };
 
 use crate::{
+    assembly::{Attention, AttentionSpec},
     error::{Error, Result},
     format::Loader,
     head::{HeadLoader, TabularClassifier, TabularRegressor},
@@ -40,56 +40,6 @@ pub struct MitraConfig {
 }
 
 #[derive(Debug, Clone)]
-struct MitraAttention {
-    query: Linear,
-    key: Linear,
-    value: Linear,
-    output: Linear,
-    heads: i64,
-}
-
-impl MitraAttention {
-    fn create(schema: &mut Schema<'_>, width: i64, heads: i64) -> SingeResult<Self> {
-        Ok(Self {
-            query: schema.linear("query", width, width, true)?,
-            key: schema.linear("key", width, width, true)?,
-            value: schema.linear("value", width, width, true)?,
-            output: schema.linear("output", width, width, true)?,
-            heads,
-        })
-    }
-
-    // `queries`, `[B, L, W]`, attending to `keys`, `[B, M, W]`, sequence by sequence.
-    fn attend(&self, queries: &Tensor, keys: &Tensor, state: &ModelState) -> SingeResult<Tensor> {
-        let heads = |input: &Tensor, projection: &Linear| -> SingeResult<Tensor> {
-            let dimensions = input.shape().dimensions();
-            input
-                .apply(projection, state)?
-                .reshape([
-                    dimensions[0],
-                    dimensions[1],
-                    self.heads,
-                    dimensions[2] / self.heads,
-                ])?
-                .permute(&[0, 2, 1, 3])
-        };
-        let dimensions = queries.shape().dimensions();
-        heads(queries, &self.query)?
-            .attend(
-                &heads(keys, &self.key)?,
-                &heads(keys, &self.value)?,
-                None,
-                None,
-                AttentionOptions::default(),
-            )?
-            .permute(&[0, 2, 1, 3])?
-            .contiguous()?
-            .reshape([dimensions[0], dimensions[1], dimensions[2]])?
-            .apply(&self.output, state)
-    }
-}
-
-#[derive(Debug, Clone)]
 struct FeedForward {
     up: Linear,
     down: Linear,
@@ -114,11 +64,11 @@ impl FeedForward {
 #[derive(Debug, Clone)]
 struct MitraBlock {
     rows_norm: LayerNorm,
-    rows: MitraAttention,
+    rows: Attention,
     rows_feed_forward_norm: LayerNorm,
     rows_feed_forward: FeedForward,
     cells_norm: LayerNorm,
-    cells: MitraAttention,
+    cells: Attention,
     cells_feed_forward_norm: LayerNorm,
     cells_feed_forward: FeedForward,
 }
@@ -137,13 +87,13 @@ impl MitraBlock {
         let context = context.add(
             &self
                 .rows
-                .attend(&context_columns, &context_columns, state)?
+                .forward(&context_columns, &context_columns, &context_columns, state)?
                 .permute(&[1, 0, 2])?,
         )?;
         let queries = queries.add(
             &self
                 .rows
-                .attend(&query_columns, &context_columns, state)?
+                .forward(&query_columns, &context_columns, &context_columns, state)?
                 .permute(&[1, 0, 2])?,
         )?;
         let fed =
@@ -164,7 +114,7 @@ impl MitraBlock {
         // Along each row: its cells attend to each other.
         let across = |cells: Tensor| -> SingeResult<Tensor> {
             let normed = cells.apply(&self.cells_norm, state)?;
-            let update = self.cells.attend(&normed, &normed, state)?;
+            let update = self.cells.forward(&normed, &normed, &normed, state)?;
             cells.add(&update)
         };
         let context = across(context)?;
@@ -210,7 +160,10 @@ impl MitraLayers {
                 let mut block = schema.scope(format!("blocks.{index}"));
                 Ok(MitraBlock {
                     rows_norm: block.layer_norm("rows_norm", width, eps)?,
-                    rows: MitraAttention::create(&mut block.scope("rows"), width, config.heads)?,
+                    rows: Attention::create(
+                        &mut block.scope("rows"),
+                        AttentionSpec::square(width, config.heads),
+                    )?,
                     rows_feed_forward_norm: block.layer_norm(
                         "rows_feed_forward_norm",
                         width,
@@ -221,7 +174,10 @@ impl MitraLayers {
                         width,
                     )?,
                     cells_norm: block.layer_norm("cells_norm", width, eps)?,
-                    cells: MitraAttention::create(&mut block.scope("cells"), width, config.heads)?,
+                    cells: Attention::create(
+                        &mut block.scope("cells"),
+                        AttentionSpec::square(width, config.heads),
+                    )?,
                     cells_feed_forward_norm: block.layer_norm(
                         "cells_feed_forward_norm",
                         width,

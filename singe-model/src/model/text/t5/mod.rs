@@ -12,6 +12,7 @@ use singe::{
 };
 
 use crate::{
+    assembly::{Attention, AttentionSpec},
     error::Result,
     format::{Loader, transformers::seq2seq_generation},
     head::{HeadLoader, Seq2SeqInput, Seq2SeqLayers, Seq2SeqLm},
@@ -69,47 +70,13 @@ fn bucket(relative: i64, bidirectional: bool, buckets: i64, max_distance: i64) -
     bucket
 }
 
-#[derive(Debug, Clone)]
-struct Attention {
-    query: Linear,
-    key: Linear,
-    value: Linear,
-    output: Linear,
-    heads: i64,
-}
-
-impl Attention {
-    fn forward(
-        &self,
-        hidden: &Tensor,
-        context: &Tensor,
-        bias: Option<&Tensor>,
-        state: &ModelState,
-    ) -> SingeResult<Tensor> {
-        let split = |tensor: Tensor| -> SingeResult<Tensor> {
-            let dimensions = tensor.shape().dimensions();
-            let (batch, length, width) = (dimensions[0], dimensions[1], dimensions[2]);
-            tensor
-                .reshape([batch, length, self.heads, width / self.heads])?
-                .transpose(1, 2)
-        };
-        let attended = split(hidden.apply(&self.query, state)?)?.attend(
-            &split(context.apply(&self.key, state)?)?,
-            &split(context.apply(&self.value, state)?)?,
-            bias,
-            None,
-            AttentionOptions {
-                scale: Some(1.0),
-                ..AttentionOptions::default()
-            },
-        )?;
-        let dimensions = attended.shape().dimensions();
-        attended
-            .transpose(1, 2)?
-            .reshape([dimensions[0], dimensions[2], dimensions[1] * dimensions[3]])?
-            .apply(&self.output, state)
-    }
-}
+// T5's scores go unscaled, its initialization having folded the scale into the queries.
+const UNSCALED: AttentionOptions = AttentionOptions {
+    scale: Some(1.0),
+    causal: false,
+    window: None,
+    softcap: None,
+};
 
 #[derive(Debug, Clone)]
 struct FeedForward {
@@ -149,15 +116,18 @@ impl Block {
         state: &ModelState,
     ) -> SingeResult<Tensor> {
         let normed = hidden.apply(&self.attention_norm, state)?;
-        let mut hidden = hidden.add(&self.attention.forward(
+        let mut hidden = hidden.add(&self.attention.attend(
+            &normed,
             &normed,
             &normed,
             Some(bias),
+            UNSCALED,
             state,
         )?)?;
         if let (Some((norm, attention)), Some(encoded)) = (&self.cross, encoded) {
             let normed = hidden.apply(norm, state)?;
-            hidden = hidden.add(&attention.forward(&normed, encoded, None, state)?)?;
+            hidden =
+                hidden.add(&attention.attend(&normed, encoded, encoded, None, UNSCALED, state)?)?;
         }
 
         let normed = hidden.apply(&self.feed_forward_norm, state)?;
@@ -299,14 +269,17 @@ fn stack(
     decoder: bool,
 ) -> SingeResult<Stack> {
     let (width, inner) = (config.width, config.head * config.heads);
-    let attention = |schema: &mut Schema<'_>| -> SingeResult<Attention> {
-        Ok(Attention {
-            query: schema.linear("query", width, inner, false)?,
-            key: schema.linear("key", width, inner, false)?,
-            value: schema.linear("value", width, inner, false)?,
-            output: schema.linear("output", inner, width, false)?,
-            heads: config.heads,
-        })
+    let attention = |schema: &mut Schema<'_>| {
+        Attention::create(
+            schema,
+            AttentionSpec {
+                width,
+                context: width,
+                inner,
+                heads: config.heads,
+                bias: false,
+            },
+        )
     };
     let blocks = (0..layers)
         .map(|index| {
