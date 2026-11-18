@@ -249,16 +249,12 @@ def write_media():
         spaghetti.mkdir()
         for index, frame in enumerate(numpy.load(path)):
             Image.fromarray(frame).save(spaghetti / f"frame-{index:03}.png")
-    small = directory / "spaghetti-small"
-    if not small.exists():
-        from PIL import Image
-
-        # The clip's first 8 frames at 128 × 72, whose sides latent diffusion reads without resizing.
-        small.mkdir()
+    short = directory / "spaghetti-8"
+    if not short.exists():
+        # The clip's first 8 frames, which video-to-video resizes to the size it is asked for.
+        short.mkdir()
         for frame in sorted(spaghetti.glob("*.png"))[:8]:
-            Image.open(frame).convert("RGB").resize((128, 72), Image.LANCZOS).save(
-                small / frame.name
-            )
+            (short / frame.name).write_bytes(frame.read_bytes())
     sphere = directory / "sphere.png"
     if not sphere.exists():
         from PIL import Image
