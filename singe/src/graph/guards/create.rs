@@ -29,7 +29,7 @@ impl GraphGuards {
             let binding = ir.required_value_binding_details(value_id)?;
             if let Some(name) = binding.input_name() {
                 if !input_names.insert(name.to_string()) {
-                    return Err(Error::DuplicateInput);
+                    return Err(Error::DuplicateInput(name.to_owned()));
                 }
 
                 let initializer = binding

@@ -333,8 +333,8 @@ pub enum Error {
     },
 
     /// Duplicate input name was supplied.
-    #[error("duplicate input")]
-    DuplicateInput,
+    #[error("duplicate input `{0}`")]
+    DuplicateInput(String),
 
     /// Input name was not declared by the graph.
     #[error("unexpected input `{0}`")]

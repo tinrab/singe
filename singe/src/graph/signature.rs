@@ -48,7 +48,7 @@ impl GraphSignature {
         let mut input_names = HashSet::new();
         for (_, name, metadata) in graph.input_entries() {
             if !input_names.insert(name.to_owned()) {
-                return Err(Error::DuplicateInput);
+                return Err(Error::DuplicateInput(name.to_owned()));
             }
 
             let initializer = graph.initializers.get(name).cloned();

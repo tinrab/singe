@@ -595,7 +595,7 @@ impl SpeechToText for Qwen3Asr {
     }
 }
 
-// The encoder's state: `convolutions.0` to `convolutions.2`, `convolutions.output`, which projects their channels and frequencies to the width, `blocks.N`, `norm`, and `projector.0` and `projector.1`.
+// The encoder's state, under `encoder.` so it shares no name with the decoder's in a graph of both: `convolutions.0` to `convolutions.2`, `convolutions.output`, which projects their channels and frequencies to the width, `blocks.N`, `norm`, and `projector.0` and `projector.1`.
 fn encoder_schema(
     config: &Qwen3AsrEncoderConfig,
     data_type: DataType,
@@ -603,7 +603,8 @@ fn encoder_schema(
     let (width, channels) = (config.width, config.channels);
     let mut builder = StateBuilder::new();
     let layers = {
-        let mut model = Schema::root(&mut builder, data_type);
+        let mut root = Schema::root(&mut builder, data_type);
+        let mut model = root.scope("encoder");
         let mut convolutions = model.scope("convolutions");
         let convolution = |schema: &mut Schema<'_>, name: &str, input: i64| {
             schema.conv2d(

@@ -444,7 +444,7 @@ fn decoder_block(
     }))
 }
 
-// The encoder's state: `convolutions.0` and `convolutions.1`, `embeddings.positions`, `blocks.N`, and `norm`.
+// The encoder's state, under `encoder.` so it shares no name with the decoder's in a graph of both: `convolutions.0` and `convolutions.1`, `embeddings.positions`, `blocks.N`, and `norm`.
 fn encoder_schema(
     config: &WhisperConfig,
     data_type: DataType,
@@ -452,7 +452,8 @@ fn encoder_schema(
     let width = config.width;
     let mut builder = StateBuilder::new();
     let layers = {
-        let mut model = Schema::root(&mut builder, data_type);
+        let mut root = Schema::root(&mut builder, data_type);
+        let mut model = root.scope("encoder");
         let convolution = |schema: &mut Schema<'_>, index: usize, input: i64, stride: i64| {
             let weight =
                 schema.parameter(&format!("convolutions.{index}.weight"), [width, input, 3])?;
@@ -497,7 +498,7 @@ fn encoder_schema(
     Ok(Model::new(layers, builder.finish()?))
 }
 
-// The decoder's state: `embeddings.tokens`, `embeddings.positions`, `blocks.N`, `norm`, and `head`, tied to the token embeddings.
+// The decoder's state, under `decoder.`: `embeddings.tokens`, `embeddings.positions`, `blocks.N`, `norm`, and `head`, tied to the token embeddings.
 fn decoder_schema(
     config: &WhisperConfig,
     data_type: DataType,
@@ -505,7 +506,8 @@ fn decoder_schema(
     let width = config.width;
     let mut builder = StateBuilder::new();
     let (tokens, positions, blocks, norm) = {
-        let mut model = Schema::root(&mut builder, data_type);
+        let mut root = Schema::root(&mut builder, data_type);
+        let mut model = root.scope("decoder");
         let tokens = model.parameter("embeddings.tokens.weight", [config.vocab_size, width])?;
         let positions = model.parameter(
             "embeddings.positions.weight",
@@ -517,7 +519,7 @@ fn decoder_schema(
         let norm = model.layer_norm("norm", width, LAYER_NORM_EPS)?;
         (tokens, positions, blocks, norm)
     };
-    let head = builder.tie("head.weight", &tokens)?;
+    let head = builder.tie("decoder.head.weight", &tokens)?;
     Ok(Model::new(
         WhisperDecoderLayers {
             tokens: Embedding::new(tokens),

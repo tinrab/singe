@@ -54,7 +54,7 @@ fn test_graph_run_rejects_duplicate_input_names() {
         "x".to_string(),
         Tensor::from_vec(Device::Cpu, &shape, vec![1.0_f32, 2.0]).unwrap(),
     );
-    assert!(matches!(graph.run(&inputs), Err(Error::DuplicateInput)));
+    assert!(matches!(graph.run(&inputs), Err(Error::DuplicateInput(_))));
 }
 
 #[test]
@@ -76,7 +76,7 @@ fn test_graph_compile_rejects_duplicate_input_names_even_if_dead() {
     graph.set_outputs(vec![live_output]).unwrap();
 
     let error = graph.compile();
-    assert!(matches!(error, Err(Error::DuplicateInput)));
+    assert!(matches!(error, Err(Error::DuplicateInput(_))));
 }
 
 #[test]

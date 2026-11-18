@@ -256,7 +256,7 @@ impl Graph {
         let mut input_names = HashSet::new();
         for (_, name, _) in self.input_entries() {
             if !input_names.insert(name.to_string()) {
-                return Err(Error::DuplicateInput);
+                return Err(Error::DuplicateInput(name.to_string()));
             }
         }
         Ok(input_names)

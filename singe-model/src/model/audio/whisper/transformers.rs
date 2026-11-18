@@ -54,11 +54,11 @@ pub(crate) fn config(source: &Source) -> Result<WhisperConfig> {
 pub(crate) fn encoder_rules() -> Rules {
     let encoder = |name: &str| format!("model.encoder.{name}");
     Rules::new()
-        .rename(&encoder("conv1"), "convolutions.0")
-        .rename(&encoder("conv2"), "convolutions.1")
-        .rename(&encoder("embed_positions"), "embeddings.positions")
-        .rename(&encoder("layer_norm"), "norm")
-        .then(pre_norm_encoder_rules(&encoder("layers"), "blocks"))
+        .rename(&encoder("conv1"), "encoder.convolutions.0")
+        .rename(&encoder("conv2"), "encoder.convolutions.1")
+        .rename(&encoder("embed_positions"), "encoder.embeddings.positions")
+        .rename(&encoder("layer_norm"), "encoder.norm")
+        .then(pre_norm_encoder_rules(&encoder("layers"), "encoder.blocks"))
 }
 
 // A decoder layer's self-attention and feed-forward layer are stored as an encoder layer's are, and its cross-attention as `encoder_attn`.
@@ -66,30 +66,30 @@ pub(crate) fn decoder_rules() -> Rules {
     let decoder = |name: &str| format!("model.decoder.{name}");
     let layer = |name: &str| decoder(&format!("layers.*.{name}"));
     Rules::new()
-        .rename(&decoder("embed_tokens"), "embeddings.tokens")
-        .rename(&decoder("embed_positions"), "embeddings.positions")
+        .rename(&decoder("embed_tokens"), "decoder.embeddings.tokens")
+        .rename(&decoder("embed_positions"), "decoder.embeddings.positions")
         .rename(
             &layer("encoder_attn_layer_norm"),
-            "blocks.*.cross_attention_norm",
+            "decoder.blocks.*.cross_attention_norm",
         )
         .rename(
             &layer("encoder_attn.q_proj"),
-            "blocks.*.cross_attention.query",
+            "decoder.blocks.*.cross_attention.query",
         )
         .rename(
             &layer("encoder_attn.k_proj"),
-            "blocks.*.cross_attention.key",
+            "decoder.blocks.*.cross_attention.key",
         )
         .rename(
             &layer("encoder_attn.v_proj"),
-            "blocks.*.cross_attention.value",
+            "decoder.blocks.*.cross_attention.value",
         )
         .rename(
             &layer("encoder_attn.out_proj"),
-            "blocks.*.cross_attention.output",
+            "decoder.blocks.*.cross_attention.output",
         )
-        .then(pre_norm_encoder_rules(&decoder("layers"), "blocks"))
-        .rename(&decoder("layer_norm"), "norm")
+        .then(pre_norm_encoder_rules(&decoder("layers"), "decoder.blocks"))
+        .rename(&decoder("layer_norm"), "decoder.norm")
         // The head is tied to the token embeddings; a checkpoint that stores it too has it checked against them.
-        .rename("proj_out", "head")
+        .rename("proj_out", "decoder.head")
 }

@@ -42,7 +42,7 @@ fn test_graph_capture_rejects_duplicate_input_names() {
     })
     .unwrap_err();
 
-    assert!(matches!(error, Error::DuplicateInput));
+    assert!(matches!(error, Error::DuplicateInput(_)));
 }
 
 #[test]

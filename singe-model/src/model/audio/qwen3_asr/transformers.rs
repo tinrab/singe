@@ -107,14 +107,14 @@ pub(crate) fn encoder_rules() -> Rules {
     let tower = |name: &str| format!("model.audio_tower.{name}");
     let projector = |name: &str| format!("model.multi_modal_projector.{name}");
     Rules::new()
-        .rename(&tower("conv2d1"), "convolutions.0")
-        .rename(&tower("conv2d2"), "convolutions.1")
-        .rename(&tower("conv2d3"), "convolutions.2")
-        .rename(&tower("conv_out"), "convolutions.output")
-        .rename(&tower("ln_post"), "norm")
-        .then(pre_norm_encoder_rules(&tower("layers"), "blocks"))
-        .rename(&projector("linear_1"), "projector.0")
-        .rename(&projector("linear_2"), "projector.1")
+        .rename(&tower("conv2d1"), "encoder.convolutions.0")
+        .rename(&tower("conv2d2"), "encoder.convolutions.1")
+        .rename(&tower("conv2d3"), "encoder.convolutions.2")
+        .rename(&tower("conv_out"), "encoder.convolutions.output")
+        .rename(&tower("ln_post"), "encoder.norm")
+        .then(pre_norm_encoder_rules(&tower("layers"), "encoder.blocks"))
+        .rename(&projector("linear_1"), "encoder.projector.0")
+        .rename(&projector("linear_2"), "encoder.projector.1")
 }
 
 pub(crate) fn decoder_rules() -> Rules {
