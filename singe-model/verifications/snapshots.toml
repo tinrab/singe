@@ -6,6 +6,7 @@
 ANIMATEDIFF = { pipeline = "AnimateDiffPipeline", base = "SD15", components = { motion_adapter = "ANIMATEDIFF_MOTION_ADAPTER" } }
 ANIMATEDIFF_MOTION_ADAPTER = "guoyww/animatediff-motion-adapter-v1-5-2"
 AST = "MIT/ast-finetuned-audioset-10-10-0.4593"
+BERT_BASE = "google-bert/bert-base-uncased"
 BERT_NER = "dslim/bert-base-NER"
 BERT_TINY_SPAM = "mrm8488/bert-tiny-finetuned-sms-spam-detection"
 CLAP = { repository = "laion/clap-htsat-unfused", revision = "refs/pr/3" }
@@ -14,15 +15,19 @@ COLMODERNVBERT = "ModernVBERT/colmodernvbert-merged"
 DAC = "descript/dac_16khz"
 DDPM = "google/ddpm-cifar10-32"
 DECISION_TRANSFORMER = { repository = "edbeeching/decision-transformer-gym-hopper-medium", revision = "refs/pr/1" }
+DEEPSEEK_V3_TINY = "yujiepan/deepseek-v3-tiny-random"
 DEPTH_ANYTHING = "depth-anything/Depth-Anything-V2-Small-hf"
 DETR = "facebook/detr-resnet-50"
 DINOV2 = "facebook/dinov2-small"
+DISTILBERT_BASE = "distilbert/distilbert-base-uncased"
+DISTILBERT_MAX_POOLING = "sentence-transformers/distilbert-base-nli-max-tokens"
 DISTILBERT_MNLI = "typeform/distilbert-base-uncased-mnli"
 DISTILBERT_NER = "dslim/distilbert-NER"
 DISTILBERT_SQUAD = "distilbert/distilbert-base-cased-distilled-squad"
 DISTILBERT_SST2 = "distilbert/distilbert-base-uncased-finetuned-sst-2-english"
 DISTILROBERTA = "distilbert/distilroberta-base"
 DONUT = { repository = "naver-clova-ix/donut-base-finetuned-docvqa", revision = "refs/pr/23" }
+GEMMA2_TINY = "hf-internal-testing/tiny-random-Gemma2ForCausalLM"
 GPT2 = "openai-community/gpt2"
 INSTRUCT_PIX2PIX = { repository = "timbrooks/instruct-pix2pix", files = [
     "model_index.json",

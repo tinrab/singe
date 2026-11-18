@@ -1,0 +1,76 @@
+{
+  "cases": [
+    {
+      "name": "prompt",
+      "snapshot": "DEEPSEEK_V3_TINY",
+      "task": "text-generation",
+      "inputs": [
+        "The factory must"
+      ],
+      "parameters": {
+        "max_new_tokens": 16
+      },
+      "expected": [
+        {
+          "generated_token_ids": [
+            24953,
+            26552,
+            118969,
+            117885,
+            67770,
+            41763,
+            31055,
+            37785,
+            108563,
+            120632,
+            118825,
+            108562,
+            15078,
+            112615,
+            56651,
+            117955
+          ],
+          "end_token_ids": [
+            1
+          ]
+        }
+      ]
+    },
+    {
+      "name": "story",
+      "snapshot": "DEEPSEEK_V3_TINY",
+      "task": "text-generation",
+      "inputs": [
+        "Once upon a time, on a planet rich in iron ore,"
+      ],
+      "parameters": {
+        "max_new_tokens": 16
+      },
+      "expected": [
+        {
+          "generated_token_ids": [
+            24233,
+            104740,
+            47611,
+            90036,
+            108233,
+            89062,
+            27324,
+            97077,
+            55722,
+            1665,
+            38288,
+            81396,
+            111082,
+            10658,
+            92172,
+            94118
+          ],
+          "end_token_ids": [
+            1
+          ]
+        }
+      ]
+    }
+  ]
+}

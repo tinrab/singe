@@ -2,8 +2,12 @@
 
 #[path = "bert/verify.rs"]
 mod bert;
+#[path = "deepseek_v3/verify.rs"]
+mod deepseek_v3;
 #[path = "distilbert/verify.rs"]
 mod distilbert;
+#[path = "gemma2/verify.rs"]
+mod gemma2;
 #[path = "gpt2/verify.rs"]
 mod gpt2;
 #[path = "llama/verify.rs"]
@@ -31,8 +35,16 @@ pub const VERIFICATIONS: &[Verification] = &[
         verify: bert::verify,
     },
     Verification {
+        name: "text/deepseek_v3",
+        verify: deepseek_v3::verify,
+    },
+    Verification {
         name: "text/distilbert",
         verify: distilbert::verify,
+    },
+    Verification {
+        name: "text/gemma2",
+        verify: gemma2::verify,
     },
     Verification {
         name: "text/gpt2",

@@ -1,8 +1,9 @@
-// BERT, through every task a BERT snapshot here serves, as `verify.py` runs them in `transformers`: a toxicity classifier, a spam classifier, a cross-encoder ranking texts, a named-entity tagger with each way of grouping words, and a sentence embedder.
+// BERT, through every task a BERT snapshot here serves, as `verify.py` runs them in `transformers`: a toxicity classifier, a spam classifier, a cross-encoder ranking texts, a named-entity tagger with each way of grouping words, a sentence embedder, and the pretrained masked language model filling blanks.
 
 use singe::DataType;
 use singe_model::task::text::{
-    feature_extraction::FeatureExtractionPipeline, sentence_similarity::SentenceSimilarityPipeline,
+    feature_extraction::FeatureExtractionPipeline, fill_mask::FillMaskPipeline,
+    sentence_similarity::SentenceSimilarityPipeline,
     text_classification::TextClassificationPipeline, text_ranking::TextRankingPipeline,
     token_classification::TokenClassificationPipeline,
 };
@@ -19,4 +20,5 @@ pub fn verify(session: &mut Session) {
     }
     session.check::<FeatureExtractionPipeline>("features", DataType::F32);
     session.check::<SentenceSimilarityPipeline>("similarity", DataType::F32);
+    session.check::<FillMaskPipeline>("fill", DataType::F32);
 }

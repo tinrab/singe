@@ -1,4 +1,4 @@
-"""BERT, through every task a BERT snapshot here serves, as `verify.rs` runs them in Singe: a toxicity classifier, a spam classifier, a cross-encoder ranking texts, a named-entity tagger with each way of grouping words, and a sentence embedder."""
+"""BERT, through every task a BERT snapshot here serves, as `verify.rs` runs them in Singe: a toxicity classifier, a spam classifier, a cross-encoder ranking texts, a named-entity tagger with each way of grouping words, a sentence embedder, and the pretrained masked language model filling blanks."""
 
 import sys
 from pathlib import Path
@@ -62,6 +62,11 @@ def sentence_similarity(snapshot):
     return run
 
 
+def fill_mask(snapshot):
+    fill = pipeline("fill-mask", model=snapshot, dtype=torch.float32, device=DEVICE)
+    return lambda texts, parameters: [fill(text, **parameters) for text in texts]
+
+
 verification = Verification(__file__)
 verification.check("toxicity", text_classification)
 verification.check("spam", text_classification)
@@ -70,4 +75,5 @@ for strategy in ("none", "simple", "first", "average", "max"):
     verification.check(f"entities-{strategy}", token_classification)
 verification.check("features", feature_extraction)
 verification.check("similarity", sentence_similarity)
+verification.check("fill", fill_mask)
 verification.finish()
