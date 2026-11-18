@@ -374,6 +374,75 @@ fn length_mask(lengths: &Tensor, keys: i64, data_type: DataType) -> Result<Tenso
     .reshape([batch, 1, 1, keys])
 }
 
+// Attention of `chunk` queries at a time, each query's softmax reading only its own row of scores, so the chunks give the rows the whole would.
+// Causal and window masks depend on each query's place, so they are built whole and cut with the queries.
+fn chunked_attention(
+    query: &Tensor,
+    key: &Tensor,
+    value: &Tensor,
+    mask: Option<&Tensor>,
+    sinks: Option<&Tensor>,
+    attention: &ScaledDotProductAttentionAttributes,
+    chunk: i64,
+) -> Result<Tensor> {
+    let (rows, keys) = (query.shape().dimensions()[2], key.shape().dimensions()[2]);
+    let placed = (attention.causal || attention.window.is_some())
+        .then(|| {
+            capture::literal(query.device(), |device| {
+                Tensor::attention_mask(
+                    device,
+                    DataType::F32,
+                    rows,
+                    keys,
+                    attention.causal,
+                    attention.window,
+                )
+            })?
+            .cast(mask.map_or_else(|| query.data_type(), Tensor::data_type))
+        })
+        .transpose()?;
+    let unplaced = ScaledDotProductAttentionAttributes {
+        causal: false,
+        window: None,
+        ..*attention
+    };
+    let mut parts = Vec::new();
+    let mut start = 0;
+    while start < rows {
+        let length = chunk.min(rows - start);
+        // A mask broadcast along the queries keeps its one row.
+        let cut = |mask: &Tensor| -> Result<Tensor> {
+            let dimensions = mask.shape().dimensions();
+            match dimensions.len().checked_sub(2) {
+                Some(axis) if dimensions[axis] == rows => {
+                    mask.narrow(to_i64(axis, "attention mask axis")?, start, length)
+                }
+                _ => Ok(mask.clone()),
+            }
+        };
+        let rows_mask = match (
+            mask.map(cut).transpose()?,
+            placed.as_ref().map(cut).transpose()?,
+        ) {
+            (Some(mask), Some(placed)) => Some(mask.add(&placed)?),
+            (mask, placed) => mask.or(placed),
+        };
+        parts.push(scaled_dot_product_attention(
+            &query.narrow(2, start, length)?,
+            key,
+            value,
+            rows_mask.as_ref(),
+            sinks,
+            &unplaced,
+        )?);
+        start += length;
+    }
+    Tensor::concat(&parts, 2)
+}
+
+// The scores one decomposed attention holds at once, past which its queries attend in chunks.
+const CHUNK_SCORES: i64 = 1 << 24;
+
 fn scaled_dot_product_attention(
     query: &Tensor,
     key: &Tensor,
@@ -382,6 +451,15 @@ fn scaled_dot_product_attention(
     sinks: Option<&Tensor>,
     attention: &ScaledDotProductAttentionAttributes,
 ) -> Result<Tensor> {
+    if let (&[batch, heads, rows, _], &[_, _, keys, _]) =
+        (query.shape().dimensions(), key.shape().dimensions())
+    {
+        let chunk = (CHUNK_SCORES / (batch * heads * keys).max(1)).max(1);
+        if chunk < rows {
+            return chunked_attention(query, key, value, mask, sinks, attention, chunk);
+        }
+    }
+
     let data_type = query.data_type();
     if matches!(data_type, DataType::F16 | DataType::Bf16) {
         let wide = |tensor: &Tensor| tensor.cast(DataType::F32);
