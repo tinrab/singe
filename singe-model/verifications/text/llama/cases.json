@@ -4,43 +4,17 @@
       "name": "prompt",
       "snapshot": "SMOLLM2",
       "task": "text-generation",
-      "inputs": [
-        "The most important resource in Factorio is"
-      ],
+      "inputs": ["The most important resource in Factorio is"],
       "parameters": {
         "max_new_tokens": 24
       },
       "expected": [
         {
           "generated_token_ids": [
-            260,
-            12077,
-            30,
-            657,
-            314,
-            253,
-            2232,
-            28,
-            2807,
-            288,
-            722,
-            12077,
-            338,
-            2518,
-            346,
-            288,
-            1464,
-            28,
-            4511,
-            28,
-            284,
-            2298,
-            351,
-            469
+            260, 12077, 30, 657, 314, 253, 2232, 28, 2807, 288, 722, 12077, 338, 2518, 346, 288,
+            1464, 28, 4511, 28, 284, 2298, 351, 469
           ],
-          "end_token_ids": [
-            0
-          ]
+          "end_token_ids": [0]
         }
       ]
     },
@@ -48,43 +22,17 @@
       "name": "story",
       "snapshot": "SMOLLM2",
       "task": "text-generation",
-      "inputs": [
-        "Once upon a time, on a planet rich in iron ore,"
-      ],
+      "inputs": ["Once upon a time, on a planet rich in iron ore,"],
       "parameters": {
         "max_new_tokens": 24
       },
       "expected": [
         {
           "generated_token_ids": [
-            4161,
-            253,
-            1528,
-            282,
-            7952,
-            6734,
-            1217,
-            260,
-            13200,
-            17562,
-            30,
-            1069,
-            592,
-            1343,
-            327,
-            480,
-            2606,
-            282,
-            1891,
-            1592,
-            284,
-            1625,
-            1495,
-            30
+            4161, 253, 1528, 282, 7952, 6734, 1217, 260, 13200, 17562, 30, 1069, 592, 1343, 327,
+            480, 2606, 282, 1891, 1592, 284, 1625, 1495, 30
           ],
-          "end_token_ids": [
-            0
-          ]
+          "end_token_ids": [0]
         }
       ]
     }

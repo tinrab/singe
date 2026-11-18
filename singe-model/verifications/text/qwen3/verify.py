@@ -17,9 +17,7 @@ from support import DEVICE, Verification, generation  # noqa: E402
 def text_generation(snapshot, dtype=torch.float32):
     tokenizer = AutoTokenizer.from_pretrained(snapshot)
     model = (
-        AutoModelForCausalLM.from_pretrained(snapshot, dtype=dtype)
-        .to(DEVICE)
-        .eval()
+        AutoModelForCausalLM.from_pretrained(snapshot, dtype=dtype).to(DEVICE).eval()
     )
 
     def run(prompts, parameters):
@@ -40,9 +38,7 @@ def text_generation(snapshot, dtype=torch.float32):
                 generated = model.generate(
                     ids, max_new_tokens=parameters["max_new_tokens"], do_sample=False
                 )
-            outputs.append(
-                generation(model, generated[0, ids.shape[1] :].tolist())
-            )
+            outputs.append(generation(model, generated[0, ids.shape[1] :].tolist()))
         return outputs
 
     return run

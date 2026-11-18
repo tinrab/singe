@@ -41,26 +41,14 @@
       "inputs": [
         {
           "sequences": "One day I will launch a rocket into space.",
-          "candidate_labels": [
-            "space travel",
-            "logistics",
-            "cooking"
-          ]
+          "candidate_labels": ["space travel", "logistics", "cooking"]
         }
       ],
       "expected": [
         {
           "sequence": "One day I will launch a rocket into space.",
-          "labels": [
-            "space travel",
-            "logistics",
-            "cooking"
-          ],
-          "scores": [
-            0.980725,
-            0.0132752,
-            0.00599973
-          ]
+          "labels": ["space travel", "logistics", "cooking"],
+          "scores": [0.980725, 0.0132752, 0.00599973]
         }
       ]
     },
@@ -71,11 +59,7 @@
       "inputs": [
         {
           "sequences": "One day I will launch a rocket into space.",
-          "candidate_labels": [
-            "space travel",
-            "logistics",
-            "cooking"
-          ]
+          "candidate_labels": ["space travel", "logistics", "cooking"]
         }
       ],
       "parameters": {
@@ -85,16 +69,8 @@
       "expected": [
         {
           "sequence": "One day I will launch a rocket into space.",
-          "labels": [
-            "space travel",
-            "logistics",
-            "cooking"
-          ],
-          "scores": [
-            0.997883,
-            0.212331,
-            0.000115065
-          ]
+          "labels": ["space travel", "logistics", "cooking"],
+          "scores": [0.997883, 0.212331, 0.000115065]
         }
       ]
     },
@@ -102,9 +78,7 @@
       "name": "entities-simple",
       "snapshot": "DISTILBERT_NER",
       "task": "token-classification",
-      "inputs": [
-        "Michal Kovařík leads Wube Software from Prague."
-      ],
+      "inputs": ["Michal Kovařík leads Wube Software from Prague."],
       "parameters": {
         "aggregation_strategy": "simple"
       },
@@ -152,9 +126,7 @@
       "name": "entities-first",
       "snapshot": "DISTILBERT_NER",
       "task": "token-classification",
-      "inputs": [
-        "Michal Kovařík leads Wube Software from Prague."
-      ],
+      "inputs": ["Michal Kovařík leads Wube Software from Prague."],
       "parameters": {
         "aggregation_strategy": "first"
       },
@@ -425,10 +397,7 @@
       "parameters": null,
       "expected": [
         {
-          "scores": [
-            0.91066,
-            0.571384
-          ]
+          "scores": [0.91066, 0.571384]
         }
       ]
     }

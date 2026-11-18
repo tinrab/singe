@@ -87,7 +87,9 @@ def question_answering(snapshot, dtype=torch.float32):
             )
 
             def normalized(logits):
-                logits = numpy.where(answerable, logits[window].float().cpu().numpy(), -10000.0)
+                logits = numpy.where(
+                    answerable, logits[window].float().cpu().numpy(), -10000.0
+                )
                 scores = numpy.exp(logits - logits.max())
                 return scores / scores.sum()
 

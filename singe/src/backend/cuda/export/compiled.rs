@@ -279,16 +279,16 @@ pub fn build_set_generation_loop(
 // Returns an error if the program has no runner, or writing or compiling fails.
 pub fn build_runner(program: &CudaProgram, directory: &Path) -> Result<PathBuf, ProgramError> {
     program.write_to(directory, "model")?;
-    build_written_runner(directory)
+    build_written_runner(directory, "model")
 }
 
-// Builds the runner of the program `directory` holds, written as `model`, as its manifest says, returning the executable, which reads its weights from the same directory.
+// Builds the runner of the program `directory` holds, written as `prefix`, as its manifest says, returning the executable, `{prefix}_run`, which reads its weights from the same directory.
 //
 // # Errors
 //
 // Returns an error if the program has no runner, or reading its manifest or compiling fails.
-pub fn build_written_runner(directory: &Path) -> Result<PathBuf, ProgramError> {
-    let manifest = read_manifest(directory, "model")?;
+pub fn build_written_runner(directory: &Path, prefix: &str) -> Result<PathBuf, ProgramError> {
+    let manifest = read_manifest(directory, prefix)?;
     let command = manifest["run"]
         .as_str()
         .ok_or_else(|| Error::invalid_argument("program has no runner"))?;
@@ -299,10 +299,15 @@ pub fn build_written_runner(directory: &Path) -> Result<PathBuf, ProgramError> {
         .collect::<Vec<_>>();
     library_flags(&mut arguments);
     run_compiler(&arguments, directory)?;
-    Ok(directory.join("model_run"))
+    Ok(directory.join(format!("{prefix}_run")))
 }
 
-fn build_written_loop(directory: &Path) -> Result<PathBuf, ProgramError> {
+// Builds the generation loop of the program set `directory` holds, written as `model`, as its manifest says, returning the executable, `model_generate`.
+//
+// # Errors
+//
+// Returns an error if the set has no generation loop, or reading its manifest or compiling fails.
+pub fn build_written_loop(directory: &Path) -> Result<PathBuf, ProgramError> {
     let manifest = read_manifest(directory, "model")?;
     let command = manifest["decoding"]["generate"]
         .as_str()

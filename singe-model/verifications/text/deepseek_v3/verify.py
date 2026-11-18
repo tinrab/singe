@@ -30,9 +30,7 @@ def text_generation(snapshot):
                 generated = model.generate(
                     ids, max_new_tokens=parameters["max_new_tokens"], do_sample=False
                 )
-            outputs.append(
-                generation(model, generated[0, ids.shape[1] :].tolist())
-            )
+            outputs.append(generation(model, generated[0, ids.shape[1] :].tolist()))
         return outputs
 
     return run
