@@ -9,7 +9,9 @@ use singe_codegen::{
 use crate::{
     backend::{
         cuda::{
-            codegen::test_support::{assert_matches, bf16_buffer, f32_buffer, rows_kernel},
+            codegen::test_support::{
+                RowsKernel, assert_matches, bf16_buffer, f32_buffer, rows_kernel,
+            },
             runtime::runtime_for_device,
         },
         kernel_lowering::{ElementGroup, reduction, scan},
@@ -214,22 +216,27 @@ fn test_emitted_row_kernels_match_the_interpreter() {
         };
         let size = element.size_bytes();
         // A static width lets row schedules keep each row in registers.
-        for (weighted, baked) in [(false, false), (true, false), (false, true), (true, true)] {
+        for (operation, baked) in [
+            (RowsKernel::Softmax, false),
+            (RowsKernel::RmsNorm, false),
+            (RowsKernel::Softmax, true),
+            (RowsKernel::RmsNorm, true),
+        ] {
             for (rows, width) in [(3_usize, 1_usize), (5, 33), (2, 513)] {
-                let (mut kernel, _) = rows_kernel("singe_test_rows", element, weighted);
+                let (mut kernel, _) = rows_kernel("singe_test_rows", element, operation);
                 let mut sizes = vec![rows as u64, width as u64];
                 if baked {
                     kernel.sizes[1] = Size::Static(width as u64);
                     sizes.pop();
                 }
                 let mut buffers = vec![buffer(rows * width, 1)];
-                if weighted {
+                if operation == RowsKernel::RmsNorm {
                     buffers.push(buffer(width, 2));
                 }
                 buffers.push(vec![0; rows * width * size]);
                 let bindings = Bindings {
                     sizes,
-                    scalars: if weighted {
+                    scalars: if operation == RowsKernel::RmsNorm {
                         vec![Literal::Float(width as f64), Literal::Float(1e-6)]
                     } else {
                         Vec::new()
@@ -283,10 +290,6 @@ fn test_emitted_row_kernels_match_the_interpreter() {
 }
 
 #[test]
-#[expect(
-    clippy::many_single_char_names,
-    reason = "the operands and axes take the names of the formula"
-)]
 fn test_vectors_wider_than_the_innermost_reduction_axis_cover_every_point() {
     let Some(_lock) = maybe_lock_device() else {
         return;
@@ -370,10 +373,6 @@ fn test_vectors_wider_than_the_innermost_reduction_axis_cover_every_point() {
 }
 
 #[test]
-#[expect(
-    clippy::many_single_char_names,
-    reason = "the operands and axes take the names of the attention formula"
-)]
 fn test_softmax_sums_over_nested_reductions_match_the_interpreter() {
     let Some(_lock) = maybe_lock_device() else {
         return;

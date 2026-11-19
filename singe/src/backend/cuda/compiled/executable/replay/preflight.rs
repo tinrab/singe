@@ -29,7 +29,7 @@ impl CudaCompiledGraph {
             ));
         }
 
-        let _sync_range = CudaNvtxRange::create("singe cuda graph replay synchronize");
+        let _sync_range = CudaNvtxRange::new(|| "singe cuda graph replay synchronize");
         if let Err(error) = self.runtime.context().bind() {
             self.record_replay_preflight_failure();
             return Err(Error::from(error));

@@ -107,19 +107,18 @@ pub fn format_tensor_recursive<T: TensorDisplayValue>(
     dimension_index: usize,
     mut offset: usize,
 ) -> fmt::Result {
-    if dimensions.is_empty() {
+    let &[current, ref remaining_dims @ ..] = dimensions else {
         if let Some(val) = data.get(offset) {
             val.fmt_tensor_value(f)?;
         } else {
             write!(f, "???")?;
         }
         return Ok(());
-    }
+    };
 
-    let Ok(current_dim) = usize::try_from(dimensions[0]) else {
+    let Ok(current_dim) = usize::try_from(current) else {
         return write!(f, "???");
     };
-    let remaining_dims = &dimensions[1..];
 
     write!(f, "[")?;
 

@@ -1,8 +1,10 @@
 use std::collections::HashMap;
 
-use super::in_place::{InPlaceWrites, ScatterTarget, WritableInputs};
 use crate::{
-    backend::{cuda::graph_binding::graph_users, registry::Operation},
+    backend::{
+        cuda::graph_binding::{InPlaceWrites, ScatterTarget, WritableInputs, graph_users},
+        registry::Operation,
+    },
     data_type::DataType,
     device::Device,
     error::Result,

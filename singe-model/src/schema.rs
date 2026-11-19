@@ -1,9 +1,11 @@
+use std::result::Result as StdResult;
+
 use singe::{
-    DataType, Device, Result, Shape, Tensor,
+    DataType, Device, Error as SingeError, Result, Shape, Tensor,
     nn::{
-        BatchNorm2d, Conv1d, Conv1dConfig, Conv2d, Conv2dConfig, Conv3d, Conv3dConfig,
-        ConvTranspose1d, ConvTranspose2d, ConvTransposeConfig, GroupNorm, LayerNorm, Linear,
-        OffsetRmsNorm, RmsNorm, StateBuilder, StateKey, StateScope,
+        Activation, BatchNorm2d, Conv1d, Conv1dConfig, Conv2d, Conv2dConfig, Conv3d, Conv3dConfig,
+        ConvTranspose1d, ConvTranspose2d, ConvTransposeConfig, GatedMlp, GroupNorm, LayerNorm,
+        Linear, Mlp, Model, OffsetRmsNorm, RmsNorm, StateBuilder, StateKey, StateScope,
     },
 };
 
@@ -37,15 +39,17 @@ pub struct Schema<'a> {
     data_type: DataType,
 }
 
-impl<'a> Schema<'a> {
-    #[must_use]
-    pub const fn new(scope: StateScope<'a>, data_type: DataType) -> Self {
-        Self { scope, data_type }
-    }
-
-    // Returns a schema with no prefix, for tensors at a checkpoint's top level.
-    pub fn root(builder: &'a mut StateBuilder, data_type: DataType) -> Self {
-        Self::new(builder.unscoped(), data_type)
+impl Schema<'_> {
+    pub fn model<L, E: From<SingeError>>(
+        data_type: DataType,
+        build: impl FnOnce(&mut Schema<'_>) -> StdResult<L, E>,
+    ) -> StdResult<Model<L>, E> {
+        let mut builder = StateBuilder::new();
+        let layer = build(&mut Schema {
+            scope: builder.unscoped(),
+            data_type,
+        })?;
+        Ok(Model::new(layer, builder.finish()?))
     }
 
     // Returns a narrower schema, whose names also start with `name`.
@@ -79,10 +83,55 @@ impl<'a> Schema<'a> {
     // Registers `{name}.weight`, stored `[out, in]`, and with `bias`, `{name}.bias`.
     pub fn linear(&mut self, name: &str, input: i64, out: i64, bias: bool) -> Result<Linear> {
         let weight = self.parameter(&format!("{name}.weight"), [out, input])?;
-        let bias = bias
-            .then(|| self.parameter(&format!("{name}.bias"), [out]))
-            .transpose()?;
+        let bias = self.bias(name, out, bias)?;
         Ok(Linear::new(weight, bias))
+    }
+
+    pub fn join_rows(&mut self, linears: &[&Linear]) -> Result<()> {
+        self.scope.join_rows(linears)
+    }
+
+    pub fn attention_projections(&mut self, width: i64, biases: [bool; 4]) -> Result<[Linear; 4]> {
+        let [query, key, value, output] = biases;
+        let projections = [
+            self.linear("query", width, width, query)?,
+            self.linear("key", width, width, key)?,
+            self.linear("value", width, width, value)?,
+            self.linear("output", width, width, output)?,
+        ];
+        self.join_rows(&[&projections[0], &projections[1], &projections[2]])?;
+        Ok(projections)
+    }
+
+    pub fn mlp(
+        &mut self,
+        name: &str,
+        [input, inner, output]: [i64; 3],
+        activation: Activation,
+        bias: bool,
+    ) -> Result<Mlp> {
+        Ok(Mlp::new(
+            self.linear(&format!("{name}.up"), input, inner, bias)?,
+            self.linear(&format!("{name}.down"), inner, output, bias)?,
+            activation,
+        ))
+    }
+
+    pub fn gated_mlp(
+        &mut self,
+        name: &str,
+        [input, inner, output]: [i64; 3],
+        activation: Activation,
+        bias: bool,
+    ) -> Result<GatedMlp> {
+        let mlp = GatedMlp::new(
+            self.linear(&format!("{name}.gate"), input, inner, bias)?,
+            self.linear(&format!("{name}.up"), input, inner, bias)?,
+            self.linear(&format!("{name}.down"), inner, output, bias)?,
+            activation,
+        );
+        self.join_rows(&mlp.siblings())?;
+        Ok(mlp)
     }
 
     // Registers a square convolution: `{name}.weight`, stored `[out, in / groups, kernel, kernel]`, and with `bias`, `{name}.bias`.
@@ -99,9 +148,7 @@ impl<'a> Schema<'a> {
             &format!("{name}.weight"),
             [out, input / config.groups, kernel, kernel],
         )?;
-        let bias = bias
-            .then(|| self.parameter(&format!("{name}.bias"), [out]))
-            .transpose()?;
+        let bias = self.bias(name, out, bias)?;
         Ok(Conv2d::new(weight, bias, config))
     }
 
@@ -119,9 +166,7 @@ impl<'a> Schema<'a> {
             &format!("{name}.weight"),
             [out, input / config.groups, kernel[0], kernel[1], kernel[2]],
         )?;
-        let bias = bias
-            .then(|| self.parameter(&format!("{name}.bias"), [out]))
-            .transpose()?;
+        let bias = self.bias(name, out, bias)?;
         Ok(Conv3d::new(weight, bias, config))
     }
 
@@ -139,9 +184,7 @@ impl<'a> Schema<'a> {
             &format!("{name}.weight"),
             [out, input / config.groups, kernel],
         )?;
-        let bias = bias
-            .then(|| self.parameter(&format!("{name}.bias"), [out]))
-            .transpose()?;
+        let bias = self.bias(name, out, bias)?;
         Ok(Conv1d::new(weight, bias, config))
     }
 
@@ -175,9 +218,7 @@ impl<'a> Schema<'a> {
             &format!("{name}.weight"),
             [input, out / config.groups, kernel],
         )?;
-        let bias = bias
-            .then(|| self.parameter(&format!("{name}.bias"), [out]))
-            .transpose()?;
+        let bias = self.bias(name, out, bias)?;
         Ok(ConvTranspose1d::new(weight, bias, config))
     }
 
@@ -195,9 +236,7 @@ impl<'a> Schema<'a> {
             &format!("{name}.weight"),
             [input, out / config.groups, kernel, kernel],
         )?;
-        let bias = bias
-            .then(|| self.parameter(&format!("{name}.bias"), [out]))
-            .transpose()?;
+        let bias = self.bias(name, out, bias)?;
         Ok(ConvTranspose2d::new(weight, bias, config))
     }
 
@@ -235,5 +274,10 @@ impl<'a> Schema<'a> {
     pub fn unbiased_layer_norm(&mut self, name: &str, width: i64, eps: f32) -> Result<LayerNorm> {
         let weight = self.parameter(&format!("{name}.weight"), [width])?;
         Ok(LayerNorm::new(vec![width], Some(weight), None, eps))
+    }
+
+    fn bias(&mut self, name: &str, width: i64, bias: bool) -> Result<Option<StateKey>> {
+        bias.then(|| self.parameter(&format!("{name}.bias"), [width]))
+            .transpose()
     }
 }

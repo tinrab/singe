@@ -143,10 +143,6 @@ impl Value {
         }
     }
 
-    #[expect(
-        clippy::cast_possible_truncation,
-        reason = "float-to-integer conversion truncates toward zero and saturates by definition"
-    )]
     fn int(self) -> i128 {
         match self {
             Self::Int(value) => value,
@@ -440,10 +436,6 @@ fn literal_value(literal: Literal) -> Value {
 }
 
 /// Converts `value` to `element`'s representation, rounding floats to the type's precision and wrapping integers to its width.
-#[expect(
-    clippy::cast_possible_truncation,
-    reason = "rounding an `F64` to `F32` is the conversion this performs"
-)]
 fn round(element: ElementType, value: Value) -> Value {
     match element {
         ElementType::Bool => Value::Bool(value.truth()),
@@ -770,10 +762,6 @@ fn element_range(
     Ok(start..end)
 }
 
-#[expect(
-    clippy::cast_possible_truncation,
-    reason = "the raw bits of an element narrower than 64 bits occupy the low bits"
-)]
 fn read(
     buffer: &[u8],
     operand: usize,
@@ -802,10 +790,6 @@ fn read(
     })
 }
 
-#[expect(
-    clippy::cast_possible_truncation,
-    reason = "elements keep the low bits of their wrapped value, and `F32` stores round"
-)]
 fn write(
     buffer: &mut [u8],
     operand: usize,

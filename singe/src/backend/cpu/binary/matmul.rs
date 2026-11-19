@@ -9,7 +9,7 @@ use crate::{
     device::Device,
     error::{Error, Result},
     layout::Layout,
-    parallel,
+    parallel::{self, Parallelism},
     shape::Shape,
     tensor::{Tensor, TensorDataType},
     utility::to_usize,
@@ -148,7 +148,6 @@ fn multiply<T: MatmulElement>(lhs: &Tensor, rhs: &Tensor) -> Result<Tensor> {
         return Tensor::from_vec(Device::Cpu, problem.output_shape, output);
     }
 
-    let rank = lhs_layout.dimensions().len();
     let rows = usize::try_from(problem.lhs_rows).expect("validated matrix rows fit the host size");
     let columns =
         usize::try_from(problem.rhs_cols).expect("validated matrix columns fit the host size");
@@ -157,11 +156,8 @@ fn multiply<T: MatmulElement>(lhs: &Tensor, rhs: &Tensor) -> Result<Tensor> {
     let matrix_len = rows
         .checked_mul(columns)
         .ok_or_else(|| Error::out_of_range("cpu matmul output elements"))?;
-    let stride = |layout: &Layout, axis: usize| {
-        usize::try_from(layout.strides()[axis]).expect("validated matrix stride fits the host size")
-    };
-    let lhs_strides = [stride(&lhs_layout, rank - 2), stride(&lhs_layout, rank - 1)];
-    let rhs_strides = [stride(&rhs_layout, rank - 2), stride(&rhs_layout, rank - 1)];
+    let lhs_strides = matrix_strides(&lhs_layout)?;
+    let rhs_strides = matrix_strides(&rhs_layout)?;
     // Split each batch's rows across threads when the work outweighs spawning them.
     let work = rows.saturating_mul(columns).saturating_mul(reduction);
     let threads = parallel::num_threads()
@@ -170,8 +166,8 @@ fn multiply<T: MatmulElement>(lhs: &Tensor, rhs: &Tensor) -> Result<Tensor> {
         .max(1);
     let chunk_rows = rows.div_ceil(threads);
     for batch in 0..batches {
-        let lhs_start = batch_offset(&lhs_layout, batch);
-        let rhs_start = batch_offset(&rhs_layout, batch);
+        let lhs_start = batch_offset(&lhs_layout, batch)?;
+        let rhs_start = batch_offset(&rhs_layout, batch)?;
         if matrix_len == 0 || reduction == 0 {
             continue;
         }
@@ -179,7 +175,11 @@ fn multiply<T: MatmulElement>(lhs: &Tensor, rhs: &Tensor) -> Result<Tensor> {
         parallel::for_each_chunk_mut(
             &mut output[batch * matrix_len..(batch + 1) * matrix_len],
             chunk_rows * columns,
-            threads > 1,
+            if threads > 1 {
+                Parallelism::Pool
+            } else {
+                Parallelism::Serial
+            },
             |chunk, values| {
                 T::multiply(
                     &lhs_values[lhs_start + chunk * chunk_rows * lhs_strides[0]..],
@@ -197,19 +197,30 @@ fn multiply<T: MatmulElement>(lhs: &Tensor, rhs: &Tensor) -> Result<Tensor> {
     Tensor::from_vec(Device::Cpu, problem.output_shape, output)
 }
 
-fn batch_offset(layout: &Layout, mut linear: usize) -> usize {
+fn matrix_strides(layout: &Layout) -> Result<[usize; 2]> {
+    let Some((_, &[rows, columns])) = layout.strides().split_last_chunk::<2>() else {
+        return Err(Error::invalid_argument("cpu matmul operand rank"));
+    };
+    Ok([
+        to_usize(rows, "cpu matmul row stride")?,
+        to_usize(columns, "cpu matmul column stride")?,
+    ])
+}
+
+fn batch_offset(layout: &Layout, mut linear: usize) -> Result<usize> {
+    let (Some((batch, _)), Some((batch_strides, _))) = (
+        layout.dimensions().split_last_chunk::<2>(),
+        layout.strides().split_last_chunk::<2>(),
+    ) else {
+        return Err(Error::invalid_argument("cpu matmul operand rank"));
+    };
     let mut offset = layout.storage_offset();
-    for (&dimension, &stride) in layout.dimensions()[..layout.dimensions().len() - 2]
-        .iter()
-        .zip(&layout.strides()[..layout.strides().len() - 2])
-        .rev()
-    {
-        offset += (linear
-            % usize::try_from(dimension).expect("validated dimension fits the host size"))
-            * usize::try_from(stride).expect("validated stride fits the host size");
-        linear /= usize::try_from(dimension).expect("validated dimension fits the host size");
+    for (&dimension, &stride) in batch.iter().zip(batch_strides).rev() {
+        let dimension = to_usize(dimension, "cpu matmul batch dimension")?;
+        offset += linear % dimension * to_usize(stride, "cpu matmul batch stride")?;
+        linear /= dimension;
     }
-    offset
+    Ok(offset)
 }
 
 // Rows sorted by group times their group's weight, in `F64`, rounded once to the rows' type.
@@ -235,7 +246,9 @@ pub fn grouped_matmul(input: &Tensor, weights: &Tensor, offsets: &Tensor) -> Res
     let &[rows, inner] = input.shape().dimensions() else {
         return Err(Error::invalid_argument("cpu grouped matmul rows"));
     };
-    let columns = shape.dimensions()[1];
+    let &[_, columns] = shape.dimensions() else {
+        return Err(Error::invalid_argument("cpu grouped matmul columns"));
+    };
     let extent = |value: i64| to_usize(value, "cpu grouped matmul extent");
     let (rows, inner, columns) = (extent(rows)?, extent(inner)?, extent(columns)?);
     let values = |tensor: &Tensor| tensor.cast(DataType::F64)?.contiguous()?.to_vec::<f64>();

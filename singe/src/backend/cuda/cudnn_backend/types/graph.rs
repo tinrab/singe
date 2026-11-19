@@ -1,4 +1,7 @@
-use std::sync::{Arc, Mutex};
+use std::{
+    mem,
+    sync::{Arc, Mutex},
+};
 
 use singe_cudnn::backend::{
     execution::{
@@ -12,7 +15,10 @@ use singe_cudnn::backend::{
 };
 
 use crate::{
-    backend::{cuda::cudnn_backend::types::CudnnBackendOperation, registry::Operation},
+    backend::{
+        cuda::cudnn_backend::{PlanCandidate, types::CudnnBackendOperation},
+        registry::Operation,
+    },
     data_type::DataType,
     graph::NumericalPolicy,
 };
@@ -56,6 +62,8 @@ pub struct CudnnBackendGraphKey {
     parameters: Vec<i64>,
     input_shapes: Vec<CudnnBackendTensorKey>,
     output_shape: CudnnBackendTensorKey,
+    // Whether the plan runs eagerly, which takes cuDNN's best engine where a compiled graph prefers one with the native CUDA graph API.
+    eager: bool,
 }
 
 /// Element type, dimensions, element strides, and byte alignment used in cuDNN graph cache keys.
@@ -91,6 +99,8 @@ pub struct CudnnBackendGraphTemplate {
     workspace_size: usize,
     operation: CudnnBackendOperation,
     graph: CudnnOperationGraph,
+    // Other plans the heuristics offered, with their workspaces, which the first eager call times against `plan`.
+    candidates: Vec<PlanCandidate>,
 }
 
 // What a forced engine adds to a graph's key, so one forced choice is never served another's plan.
@@ -139,7 +149,15 @@ impl CudnnBackendGraphKey {
             parameters,
             input_shapes,
             output_shape,
+            eager: false,
         }
+    }
+
+    // The key of the same graph planned for eager execution.
+    #[must_use]
+    pub(crate) const fn for_eager(mut self) -> Self {
+        self.eager = true;
+        self
     }
 }
 
@@ -177,7 +195,25 @@ impl CudnnBackendGraphTemplate {
             workspace_size,
             operation,
             graph,
+            candidates: Vec::new(),
         }
+    }
+
+    // This template with `candidates` to time against its plan.
+    #[must_use]
+    pub(crate) fn with_candidates(mut self, candidates: Vec<PlanCandidate>) -> Self {
+        self.candidates = candidates;
+        self
+    }
+
+    // Takes the plans still to time, leaving none.
+    pub(crate) fn take_candidates(&mut self) -> Vec<PlanCandidate> {
+        mem::take(&mut self.candidates)
+    }
+
+    pub(crate) fn set_plan(&mut self, candidate: PlanCandidate) {
+        self.plan = candidate.plan;
+        self.workspace_size = candidate.workspace_size;
     }
 
     // The native graph this plan runs, which also lists what else could run it.

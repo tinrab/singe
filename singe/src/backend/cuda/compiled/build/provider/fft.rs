@@ -114,7 +114,7 @@ fn build_fft_graph(
     let stream = CudaStream::create(device)?;
     let graph = if operation == Operation::Rfft {
         if !input.is_contiguous() {
-            return Err(Error::ContiguousRequired);
+            return Err(Error::contiguous_required("cuda graph rfft input"));
         }
 
         let pairs = output.element_count() / 2;
@@ -153,7 +153,9 @@ fn build_fft_graph(
     } else {
         // The half spectrum a length-`length` signal has, divided by the length, in a buffer the graph keeps.
         let needed = length / 2 + 1;
-        let frequencies = dimensions[dimensions.len() - 2];
+        let &[.., frequencies, _] = dimensions else {
+            return Err(Error::invalid_argument("cuda graph irfft input dimensions"));
+        };
         if frequencies < needed {
             return Err(Error::unsupported_operation(
                 "cuda graph irfft of fewer frequencies than its signal has",
@@ -165,10 +167,6 @@ fn build_fft_graph(
         spectrum[axis] = needed;
         let buffer = Tensor::zeroed_on(device, data_type, &Shape::create(spectrum)?)?;
         let narrowed = input.layout().slice(-2, 0, needed, 1)?;
-        #[expect(
-            clippy::cast_precision_loss,
-            reason = "signal lengths are far below 2^53"
-        )]
         let inverse = 1.0 / length as f64;
         let scale = KernelPlanner::default().create(
             Operation::Scale,

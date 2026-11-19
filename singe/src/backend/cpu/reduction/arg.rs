@@ -41,7 +41,8 @@ where
 
     let input = a.contiguous()?;
     let shape = input.shape();
-    let dim = normalize_dim_usize(dim, shape.rank()).map_err(|_| Error::DimensionOutOfBounds)?;
+    let dim = normalize_dim_usize(dim, shape.rank())
+        .map_err(|_| Error::dimension_out_of_bounds("arg reduction dim"))?;
 
     let mut output_dims = shape.dimensions().to_vec();
     output_dims.remove(dim);

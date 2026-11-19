@@ -279,7 +279,7 @@ impl GraphInputSpec {
             .dimensions()
             .get(axis)
             .copied()
-            .ok_or(Error::DimensionOutOfBounds)?;
+            .ok_or_else(|| Error::dimension_out_of_bounds("input dimension guard axis"))?;
         if symbol.is_empty()
             || min.is_some_and(|min| min < 0 || value < min)
             || max.is_some_and(|max| max < 0 || value > max)

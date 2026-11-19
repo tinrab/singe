@@ -114,14 +114,6 @@ mod kernels {
     }
 
     #[cutile::entry()]
-    #[expect(
-        clippy::similar_names,
-        reason = "query, key, and value operands and their tensor layouts follow the mathematical kernel notation"
-    )]
-    #[expect(
-        clippy::too_many_lines,
-        reason = "the kernel keeps its complete indexing and operation dispatch in one auditable unit"
-    )]
     pub unsafe fn avg_pool2d_f32(
         out: *mut f32,
         input: *mut f32,

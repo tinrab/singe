@@ -1,5 +1,7 @@
 use crate::{
+    backend::registry::{Operation, OperationAttributes},
     data_type::DataType,
+    dispatch::call_one,
     error::{Error, Result},
     graph::capture,
     shape::Shape,
@@ -239,10 +241,12 @@ impl Tensor {
         if extent % size == 0 {
             let window = extent / size;
             let mut grouped = self.shape().dimensions().to_vec();
-            let axis =
-                grouped.len() - usize::try_from(-dim).map_err(|_| Error::DimensionOutOfBounds)?;
+            let axis = grouped.len()
+                - usize::try_from(-dim)
+                    .map_err(|_| Error::dimension_out_of_bounds("adaptive pooling dim"))?;
             grouped.splice(axis..=axis, [size, window]);
-            let reduced = i64::try_from(axis + 1).map_err(|_| Error::DimensionOutOfBounds)?;
+            let reduced = i64::try_from(axis + 1)
+                .map_err(|_| Error::dimension_out_of_bounds("adaptive pooling axis"))?;
             return reduce(&self.reshape(grouped)?, &[reduced], false);
         }
 
@@ -264,10 +268,6 @@ impl Tensor {
             ));
         }
 
-        #[expect(
-            clippy::cast_precision_loss,
-            reason = "spatial extents are far below 2^53"
-        )]
         let scale = extent as f64 / size as f64;
         let indices = |positions: Vec<i64>| {
             capture::literal(self.device(), |device| {
@@ -280,11 +280,6 @@ impl Tensor {
                 "nearest interpolation neither aligns corners nor antialiases",
             )),
             InterpolateMode::Nearest => {
-                #[expect(
-                    clippy::cast_possible_truncation,
-                    clippy::cast_precision_loss,
-                    reason = "positions are small nonnegative values"
-                )]
                 let positions = (0..size)
                     .map(|index| ((index as f64 * scale).floor() as i64).min(extent - 1))
                     .collect();
@@ -294,38 +289,19 @@ impl Tensor {
                 let (mut low, mut high, mut weights) = (Vec::new(), Vec::new(), Vec::new());
                 for index in 0..size {
                     // PyTorch rounds the product before subtracting, so a fused multiply-add could pick another source point.
-                    #[expect(
-                        clippy::cast_precision_loss,
-                        clippy::suboptimal_flops,
-                        reason = "positions are small values, rounded as PyTorch rounds them"
-                    )]
                     let source = ((index as f64 + 0.5) * scale - 0.5).max(0.0);
-                    #[expect(
-                        clippy::cast_possible_truncation,
-                        reason = "positions are small nonnegative values"
-                    )]
                     let first = (source.floor() as i64).min(extent - 1);
                     low.push(first);
                     high.push((first + 1).min(extent - 1));
-                    #[expect(clippy::cast_precision_loss, reason = "positions are small values")]
                     weights.push(source - first as f64);
                 }
 
-                // The blend weights vary along `dim` and broadcast over the other axes.
-                let mut shape = vec![1; self.shape().dimensions().len()];
-                let axis =
-                    shape.len() - usize::try_from(-dim).map_err(|_| Error::DimensionOutOfBounds)?;
-                shape[axis] = size;
                 // The literal holds `F64` or `F32` values, cast outside it to a half-precision input's type, since graphs capture literals as they are created.
                 let weight = if self.data_type() == DataType::F64 {
                     capture::literal(self.device(), |device| {
                         Self::from_vec(device, Shape::create([size])?, weights)
                     })?
                 } else {
-                    #[expect(
-                        clippy::cast_possible_truncation,
-                        reason = "blend weights lie in [0, 1]"
-                    )]
                     let weights = weights
                         .iter()
                         .map(|&weight| weight as f32)
@@ -334,13 +310,9 @@ impl Tensor {
                         Self::from_vec(device, Shape::create([size])?, weights)
                     })?
                     .cast(self.data_type())?
-                }
-                .reshape(shape)?;
-                let (low, high) = (
-                    self.index_select(dim, &indices(low)?)?,
-                    self.index_select(dim, &indices(high)?)?,
-                );
-                low.add(&high.sub(&low)?.mul(&weight)?)
+                };
+                // One kernel gathers each output point's two source points and blends them by its weight.
+                self.resample_linear(dim, &indices(low)?, &indices(high)?, &weight)
             }
             InterpolateMode::Bilinear | InterpolateMode::Bicubic => {
                 self.resampled_by_matrix(dim, size, interpolation)
@@ -348,15 +320,31 @@ impl Tensor {
         }
     }
 
+    pub(crate) fn resample_linear(
+        &self,
+        dim: i64,
+        low: &Self,
+        high: &Self,
+        weight: &Self,
+    ) -> Result<Self> {
+        call_one(
+            Operation::ResampleLinear,
+            OperationAttributes::Dimension(dim),
+            &[self, low, high, weight],
+        )
+    }
+
     // The extent of a negative `dim` counted from the last axis.
     fn extent(&self, dim: i64) -> Result<i64> {
         let dimensions = self.shape().dimensions();
-        let axis = i64::try_from(dimensions.len()).map_err(|_| Error::DimensionOutOfBounds)? + dim;
+        let axis = i64::try_from(dimensions.len())
+            .map_err(|_| Error::dimension_out_of_bounds("resample rank"))?
+            + dim;
         usize::try_from(axis)
             .ok()
             .and_then(|axis| dimensions.get(axis))
             .copied()
-            .ok_or(Error::DimensionOutOfBounds)
+            .ok_or_else(|| Error::dimension_out_of_bounds(format!("resample dim {dim}")))
     }
 }
 
@@ -375,10 +363,6 @@ impl Tensor {
         let matrix = if self.data_type() == DataType::F64 {
             literal_matrix(self, shape, weights)?
         } else {
-            #[expect(
-                clippy::cast_possible_truncation,
-                reason = "resampling weights are small values"
-            )]
             let weights = weights
                 .iter()
                 .map(|&weight| weight as f32)
@@ -401,12 +385,6 @@ fn literal_matrix<T: TensorDataType>(
 }
 
 // The weights of `size` output points over `extent` input points, `[extent, size]` in row-major order, as PyTorch's `interpolate` computes them for bilinear and bicubic modes.
-#[expect(
-    clippy::cast_precision_loss,
-    clippy::cast_possible_truncation,
-    clippy::suboptimal_flops,
-    reason = "positions are small values, truncated and rounded as PyTorch truncates and rounds them"
-)]
 fn resampling_weights(extent: i64, size: i64, interpolation: Interpolation) -> Result<Vec<f64>> {
     let (input, output) = (extent as f64, size as f64);
     let scale = match (interpolation.align_corners, size > 1) {
@@ -415,7 +393,8 @@ fn resampling_weights(extent: i64, size: i64, interpolation: Interpolation) -> R
         (false, _) => input / output,
     };
     let cubic = interpolation.mode == InterpolateMode::Bicubic;
-    let count = usize::try_from(extent * size).map_err(|_| Error::DimensionOutOfBounds)?;
+    let count = usize::try_from(extent * size)
+        .map_err(|_| Error::dimension_out_of_bounds("resampling weight count"))?;
     let mut weights = vec![0.0; count];
     let mut add = |point: i64, source: i64, weight: f64| {
         if let Ok(at) = usize::try_from(source * size + point) {
@@ -492,10 +471,6 @@ fn resampling_weights(extent: i64, size: i64, interpolation: Interpolation) -> R
 }
 
 // Keys' cubic convolution kernel with parameter `a`.
-#[expect(
-    clippy::suboptimal_flops,
-    reason = "the kernel is written as PyTorch writes it"
-)]
 fn keys(offset: f64, a: f64) -> f64 {
     let x = offset.abs();
     if x < 1.0 {

@@ -42,10 +42,6 @@ struct SdpaGraph {
     stats: TensorId,
 }
 
-#[expect(
-    clippy::many_single_char_names,
-    reason = "keeps the upstream sample's single-letter dimension names"
-)]
 fn create_sdpa_forward_graph() -> Result<SdpaGraph> {
     let b = 3_i64;
     let h = 4_i64;

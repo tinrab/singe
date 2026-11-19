@@ -50,16 +50,10 @@ impl Video {
             .checked_mul(rate)
             .and_then(|span| span.checked_sub(1))
             .ok_or_else(|| {
-                Error::UnsupportedConfig(format!("a sample of {count} frames at a rate of {rate}"))
+                Error::invalid(format!("a sample of {count} frames at a rate of {rate}"))
             })?;
         (0..count)
             .map(|index| {
-                #[expect(
-                    clippy::cast_possible_truncation,
-                    clippy::cast_precision_loss,
-                    clippy::cast_sign_loss,
-                    reason = "frame indices are small, and `numpy` truncates them"
-                )]
                 let frame = if count == 1 {
                     0
                 } else {

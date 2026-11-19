@@ -135,7 +135,7 @@ impl StateSnapshot {
         schema: Arc<StateSchema>,
         tensors: &HashMap<String, Tensor>,
     ) -> Result<Self> {
-        let tensors = normalize_bindings(&schema, tensors, true)?;
+        let tensors = normalize_bindings(&schema, tensors, BindingCoverage::Complete)?;
         let id = next_counter(&NEXT_STATE_ID, "state identity")?;
         Ok(Self {
             schema,
@@ -226,7 +226,8 @@ impl StateSnapshot {
             return Ok(self.clone());
         }
 
-        let replacements = normalize_bindings(&self.schema, replacements, false)?;
+        let replacements =
+            normalize_bindings(&self.schema, replacements, BindingCoverage::Partial)?;
         let mut tensors = (*self.tensors).clone();
         tensors.extend(replacements);
         separate_binding_descriptors(&self.schema, &mut tensors);
@@ -240,10 +241,16 @@ impl StateSnapshot {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum BindingCoverage {
+    Complete,
+    Partial,
+}
+
 pub(crate) fn normalize_bindings(
     schema: &StateSchema,
     tensors: &HashMap<String, Tensor>,
-    require_all: bool,
+    coverage: BindingCoverage,
 ) -> Result<HashMap<String, Tensor>> {
     for name in tensors.keys() {
         if !schema.bindings.contains_key(name) {
@@ -286,7 +293,7 @@ pub(crate) fn normalize_bindings(
     for (name, binding) in &schema.bindings {
         if let Some((_, tensor)) = groups.get(&binding.id) {
             normalized.insert(name.clone(), Tensor::clone(tensor));
-        } else if require_all {
+        } else if coverage == BindingCoverage::Complete {
             return Err(Error::missing_input("normalize bindings"));
         }
     }

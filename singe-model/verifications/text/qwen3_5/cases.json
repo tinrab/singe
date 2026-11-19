@@ -4,6 +4,7 @@
       "name": "prompt",
       "snapshot": "QWEN35",
       "task": "text-generation",
+      "data_type": "f32",
       "inputs": ["Three basic science packs are"],
       "parameters": {
         "max_new_tokens": 24
@@ -22,6 +23,7 @@
       "name": "image",
       "snapshot": "QWEN35",
       "task": "image-text-to-text",
+      "data_type": "f32",
       "inputs": [
         [
           {
@@ -59,6 +61,7 @@
       "name": "any",
       "snapshot": "QWEN35",
       "task": "any-to-any",
+      "data_type": "f32",
       "inputs": [
         [
           {

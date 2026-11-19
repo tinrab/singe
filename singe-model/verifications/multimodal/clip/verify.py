@@ -1,21 +1,15 @@
-"""CLIP, classifying an image among candidate labels with `transformers`' zero-shot image classification pipeline, as `verify.rs` classifies it in Singe."""
+"""CLIP, classifying an image among candidate labels with `transformers`' zero-shot image classification pipeline, as `mod.rs` classifies it in Singe."""
 
-import sys
-from pathlib import Path
+from transformers import pipeline
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-
-import torch  # noqa: E402
-from transformers import pipeline  # noqa: E402
-
-from support import DEVICE, Verification  # noqa: E402
+from support import DEVICE, Verification
 
 
-def zero_shot_image_classification(snapshot):
+def zero_shot_image_classification(snapshot, dtype):
     classify = pipeline(
         "zero-shot-image-classification",
         model=snapshot,
-        dtype=torch.float32,
+        dtype=dtype,
         device=DEVICE,
     )
     return lambda inputs, parameters: [

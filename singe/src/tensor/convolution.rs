@@ -31,10 +31,6 @@ impl Tensor {
     }
 
     // The transposed convolution of `[N, C, H, W]` with `[C, O / groups, KH, KW]` weights, as PyTorch's `conv_transpose2d` defines it: a convolution, with flipped weights whose input and output channels swap within each group, of the input with `stride - 1` zeros between its points and `dilation · (kernel - 1) - padding` zeros around them, plus `output_padding` more after.
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "the arguments are PyTorch's conv_transpose2d's"
-    )]
     pub fn convolution_transpose2d(
         &self,
         weight: &Self,
@@ -45,15 +41,35 @@ impl Tensor {
         dilation: (i64, i64),
         groups: i64,
     ) -> Result<Self> {
+        let &[batch, _, height, width] = self.shape().dimensions() else {
+            return Err(Error::invalid_argument(
+                "transposed convolution needs [N, C, H, W] input",
+            ));
+        };
         let &[inputs, per_group, kernel_height, kernel_width] = weight.shape().dimensions() else {
             return Err(Error::invalid_argument(
                 "transposed convolution needs [C, O / groups, KH, KW] weights",
             ));
         };
-        if groups <= 0 || inputs % groups != 0 || self.shape().rank() != 4 {
+        if groups <= 0 || inputs % groups != 0 {
             return Err(Error::invalid_argument(
                 "invalid transposed convolution geometry",
             ));
+        }
+
+        // A stride of the kernel's size, with no padding, spreads each input point over its own block of the output: one matmul of the points by the weights, laid out block by block, does it without the zeros.
+        if stride == (kernel_height, kernel_width)
+            && padding == (0, 0)
+            && output_padding == (0, 0)
+            && dilation == (1, 1)
+            && groups == 1
+        {
+            return self.convolution_transpose2d_by_blocks(
+                weight,
+                bias,
+                [batch, height, width],
+                [inputs, per_group, kernel_height, kernel_width],
+            );
         }
 
         let flipped = weight
@@ -87,7 +103,8 @@ impl Tensor {
             let crop_before = (-before).max(0);
             let crop_after = (-after).max(0);
             spread = spread.narrow(
-                i64::try_from(axis).map_err(|_| Error::DimensionOutOfBounds)?,
+                i64::try_from(axis)
+                    .map_err(|_| Error::dimension_out_of_bounds("transposed convolution axis"))?,
                 crop_before,
                 extent - crop_before - crop_after,
             )?;
@@ -103,10 +120,6 @@ impl Tensor {
         )
     }
 
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "the arguments are PyTorch's conv_transpose1d's"
-    )]
     pub fn convolution_transpose1d(
         &self,
         weight: &Self,
@@ -130,6 +143,29 @@ impl Tensor {
             .squeeze(2)
     }
 
+    // The transposed convolution whose stride is its kernel's size: `[N, C, H, W]` points by `[C, O, KH, KW]` weights into `[N, O, H · KH, W · KW]`.
+    fn convolution_transpose2d_by_blocks(
+        &self,
+        weight: &Self,
+        bias: Option<&Self>,
+        [batch, height, width]: [i64; 3],
+        [inputs, outputs, kernel_height, kernel_width]: [i64; 4],
+    ) -> Result<Self> {
+        let blocks = self
+            .permute(&[0, 2, 3, 1])?
+            .contiguous()?
+            .reshape([batch * height * width, inputs])?
+            .matmul(&weight.reshape([inputs, outputs * kernel_height * kernel_width])?)?
+            .reshape([batch, height, width, outputs, kernel_height, kernel_width])?
+            .permute(&[0, 3, 1, 4, 2, 5])?
+            .contiguous()?
+            .reshape([batch, outputs, height * kernel_height, width * kernel_width])?;
+        match bias {
+            Some(bias) => blocks.add(&bias.reshape([1, outputs, 1, 1])?),
+            None => Ok(blocks),
+        }
+    }
+
     // This tensor with `stride - 1` zeros between consecutive points along `dim`.
     fn with_zeros_between(&self, dim: usize, stride: i64) -> Result<Self> {
         if stride <= 0 {
@@ -144,7 +180,8 @@ impl Tensor {
             return Ok(self.clone());
         }
 
-        let axis = i64::try_from(dim).map_err(|_| Error::DimensionOutOfBounds)?;
+        let axis =
+            i64::try_from(dim).map_err(|_| Error::dimension_out_of_bounds("zero insertion dim"))?;
         let mut padding = vec![(0, 0); dimensions.len() + 1];
         padding[dim + 1] = (0, stride - 1);
         let mut merged = dimensions.to_vec();

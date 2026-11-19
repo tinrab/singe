@@ -4,6 +4,7 @@
       "name": "speech",
       "snapshot": "MMS_TTS",
       "task": "text-to-audio",
+      "data_type": "f32",
       "inputs": ["The factory must grow."],
       "parameters": {
         "noise_scale": 0.0,

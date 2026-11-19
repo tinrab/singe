@@ -197,7 +197,10 @@ impl Layer<CrossAttentionInput<'_>> for CrossAttention {
         let (chunks, [page_offsets, pages, last_page_lengths]) = self.paging(input.keys)?;
         // Each chunk's queries are the step's, offset by the chunk's place.
         let offsets = input.step.paging().query_offsets;
-        let sequences = offsets.shape().dimensions()[0] - 1;
+        let &[offset_count, ..] = offsets.shape().dimensions() else {
+            return Err(Error::invalid_argument("cross attention query offsets"));
+        };
+        let sequences = offset_count - 1;
         let shifts = capture::literal(offsets.device(), |device| {
             Tensor::from_vec(
                 device,

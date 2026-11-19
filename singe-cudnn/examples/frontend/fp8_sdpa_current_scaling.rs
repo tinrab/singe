@@ -18,10 +18,6 @@ use singe_cudnn::{
     tensor::{Shape, TensorSpec},
 };
 
-#[expect(
-    clippy::many_single_char_names,
-    reason = "keeps the upstream sample's single-letter dimension names"
-)]
 fn run() -> Result<()> {
     let example = common::ExampleContext::create()?;
 

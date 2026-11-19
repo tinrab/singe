@@ -2,12 +2,17 @@
 
 use serde::Deserialize;
 
-use super::AstConfig;
 use crate::{
     error::{Error, Result},
-    format::{Rules, transformers::classifier_config},
-    head::FilterBankOptions,
-    model::vision::vit::transformers::{VitFields, encoder_rules},
+    format::{
+        Rules,
+        transformers::{classifier_config, default_true},
+    },
+    model::{
+        audio::audio_spectrogram_transformer::AstConfig,
+        vision::vit::transformers::{VitFields, encoder_rules},
+    },
+    processor::fbank::FilterBankOptions,
     source::Source,
 };
 
@@ -28,12 +33,8 @@ struct Extractor {
     max_length: usize,
     mean: f64,
     std: f64,
-    #[serde(default = "enabled")]
+    #[serde(default = "default_true")]
     do_normalize: bool,
-}
-
-const fn enabled() -> bool {
-    true
 }
 
 pub(crate) fn config(source: &Source) -> Result<AstConfig> {
@@ -62,7 +63,7 @@ pub(crate) fn config(source: &Source) -> Result<AstConfig> {
 }
 
 pub(crate) fn rules() -> Rules {
-    encoder_rules("audio_spectrogram_transformer.", "")
+    encoder_rules("audio_spectrogram_transformer", "")
         .rename(
             "audio_spectrogram_transformer.embeddings.distillation_token",
             "embeddings.distillation",

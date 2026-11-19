@@ -50,7 +50,8 @@ pub fn flatten_indices(indices: &[i64], strides: &[i64]) -> Result<usize> {
         .zip(strides.iter())
         .try_fold(0usize, |acc, (&index, &stride)| {
             let index = to_usize(index, "cpu contraction index")?;
-            let stride = usize::try_from(stride).map_err(|_| Error::InvalidStride)?;
+            let stride = usize::try_from(stride)
+                .map_err(|_| Error::invalid_stride("cpu contraction stride"))?;
             let offset = checked_mul(index, stride, "cpu contraction offset")?;
             checked_add(acc, offset, "cpu contraction offset")
         })

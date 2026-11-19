@@ -1,22 +1,15 @@
-"""DDPM, generating a CIFAR-10 image from a seed with `diffusers`' `DDPMPipeline`, as `verify.rs` generates it in Singe.
+"""DDPM, generating a CIFAR-10 image from a seed with `diffusers`' `DDPMPipeline`, as `mod.rs` generates it in Singe.
 Both draw the noise from PyTorch's CPU generator seeded alike."""
 
-import sys
-from pathlib import Path
+import numpy
+import torch
+from diffusers import DDPMPipeline
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-
-import numpy  # noqa: E402
-import torch  # noqa: E402
-from diffusers import DDPMPipeline  # noqa: E402
-
-from support import DEVICE, Verification, data_url  # noqa: E402
+from support import DEVICE, Verification, data_url
 
 
-def unconditional_image_generation(snapshot):
-    generate = DDPMPipeline.from_pretrained(snapshot, torch_dtype=torch.float32).to(
-        DEVICE
-    )
+def unconditional_image_generation(snapshot, dtype):
+    generate = DDPMPipeline.from_pretrained(snapshot, torch_dtype=dtype).to(DEVICE)
     generate.set_progress_bar_config(disable=True)
 
     def run(inputs, parameters):

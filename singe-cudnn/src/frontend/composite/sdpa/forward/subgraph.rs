@@ -121,10 +121,6 @@ impl Graph {
         self.sdpa_native_window_mask(scores, sequence, band.left_window(), band.right_window())
     }
 
-    #[expect(
-        clippy::cast_precision_loss,
-        reason = "unbound sequence masks use f32 tensors to represent diagonal offsets"
-    )]
     fn sdpa_native_window_mask(
         &mut self,
         mut scores: TensorId,
@@ -185,10 +181,6 @@ impl Graph {
         Ok(scores)
     }
 
-    #[expect(
-        clippy::too_many_lines,
-        reason = "the composite attention operation builds and validates its complete tensor graph"
-    )]
     pub(crate) fn build_sdpa_unified_subgraph(
         &self,
         q: TensorId,
@@ -411,10 +403,6 @@ impl Graph {
         Ok(output)
     }
 
-    #[expect(
-        clippy::too_many_lines,
-        reason = "the composite attention operation builds and validates its complete tensor graph"
-    )]
     fn import_score_subgraph_in_place(
         &mut self,
         score_subgraph: &SdpaScoreSubgraph,

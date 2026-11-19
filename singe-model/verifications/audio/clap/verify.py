@@ -1,21 +1,15 @@
-"""CLAP, classifying a clip among candidate labels with `transformers`' zero-shot audio classification pipeline, as `verify.rs` classifies it in Singe."""
+"""CLAP, classifying a clip among candidate labels with `transformers`' zero-shot audio classification pipeline, as `mod.rs` classifies it in Singe."""
 
-import sys
-from pathlib import Path
+from transformers import pipeline
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-
-import torch  # noqa: E402
-from transformers import pipeline  # noqa: E402
-
-from support import DEVICE, Verification, read_wav  # noqa: E402
+from support import DEVICE, Verification, read_wav
 
 
-def zero_shot_audio_classification(snapshot):
+def zero_shot_audio_classification(snapshot, dtype):
     classify = pipeline(
         "zero-shot-audio-classification",
         model=snapshot,
-        dtype=torch.float32,
+        dtype=dtype,
         device=DEVICE,
     )
 

@@ -1,20 +1,15 @@
-"""Whisper, transcribing a clip greedily in English with `transformers`' `generate`, as `verify.rs` transcribes it in Singe."""
+"""Whisper, transcribing a clip greedily in English with `transformers`' `generate`, as `mod.rs` transcribes it in Singe."""
 
-import sys
-from pathlib import Path
+import torch
+from transformers import AutoProcessor, WhisperForConditionalGeneration
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-
-import torch  # noqa: E402
-from transformers import AutoProcessor, WhisperForConditionalGeneration  # noqa: E402
-
-from support import DEVICE, Verification, read_wav  # noqa: E402
+from support import DEVICE, Verification, read_wav
 
 
-def automatic_speech_recognition(snapshot):
+def automatic_speech_recognition(snapshot, dtype):
     processor = AutoProcessor.from_pretrained(snapshot)
     model = (
-        WhisperForConditionalGeneration.from_pretrained(snapshot, dtype=torch.float32)
+        WhisperForConditionalGeneration.from_pretrained(snapshot, dtype=dtype)
         .to(DEVICE)
         .eval()
     )

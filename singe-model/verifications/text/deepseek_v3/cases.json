@@ -4,6 +4,7 @@
       "name": "prompt",
       "snapshot": "DEEPSEEK_V3_TINY",
       "task": "text-generation",
+      "data_type": "f32",
       "inputs": ["The factory must"],
       "parameters": {
         "max_new_tokens": 16
@@ -22,6 +23,7 @@
       "name": "story",
       "snapshot": "DEEPSEEK_V3_TINY",
       "task": "text-generation",
+      "data_type": "f32",
       "inputs": ["Once upon a time, on a planet rich in iron ore,"],
       "parameters": {
         "max_new_tokens": 16

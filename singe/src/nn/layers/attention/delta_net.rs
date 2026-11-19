@@ -112,10 +112,6 @@ fn unit(heads: &Tensor) -> Result<Tensor> {
 impl DecodingLayer for GatedDeltaNet {
     type Cache = StateCache;
 
-    #[expect(
-        clippy::cast_precision_loss,
-        reason = "a head dimension is far below where `F64` rounds it"
-    )]
     fn decode(&self, input: &AttentionInput<'_, StateCache>, state: &ModelState) -> Result<Tensor> {
         let (layers, spec) = (&self.layers, self.spec);
         let (hidden, cache, spans) = (input.hidden, input.cache, input.step.spans());
@@ -170,7 +166,7 @@ impl DecodingLayer for GatedDeltaNet {
         let (attended, left) =
             query.gated_delta_rule(&key, &value, &decay, &strength, cache.recurrent(), spans)?;
         // Each trail row runs the rule and the convolution's state again over a sequence's first rows alone, so a check of drafted tokens keeps the state its accepted rows leave.
-        let trail = cache.trail_rows();
+        let trail = cache.trail_rows()?;
         if trail > 0 {
             let mut convolutions = Vec::new();
             let mut states = Vec::new();

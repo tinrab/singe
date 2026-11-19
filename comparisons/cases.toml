@@ -1,0 +1,48 @@
+# What Singe and vLLM each generate in the comparison, which both sides read: `singe-model/examples/compare.rs` and `comparisons/vllm/generate.py`.
+#
+# Prompts are token ids that both sides make the same way, so no tokenizer can differ: row `r` of a batch is a sequence of `prompt_tokens` ids from a 64-bit linear congruential generator seeded with `r`, each id `first_id + state % id_span`.
+# Rows differ, so vLLM's prefix cache reuses nothing between them.
+# Each case generates exactly `new_tokens` tokens per row, greedily, with no stop token.
+
+# Ids from the middle of every model's vocabulary, past their special tokens.
+first_id = 1000
+id_span = 8000
+new_tokens = 128
+# The timed runs of each case, after one untimed run.
+runs = 5
+
+# `snapshot` names an entry of `singe-model/verifications/snapshots.toml`; `context` bounds every case's prompt and new tokens, and sizes vLLM's `max_model_len` and Singe's decoder capacity.
+[[models]]
+name = "smollm2"
+snapshot = "SMOLLM2"
+context = 1024
+
+[[models]]
+name = "qwen3"
+snapshot = "QWEN3"
+context = 1024
+
+[[cases]]
+name = "short"
+prompt_tokens = 8
+batch = 1
+
+[[cases]]
+name = "medium"
+prompt_tokens = 128
+batch = 1
+
+[[cases]]
+name = "long"
+prompt_tokens = 512
+batch = 1
+
+[[cases]]
+name = "batch-8"
+prompt_tokens = 128
+batch = 8
+
+[[cases]]
+name = "batch-32"
+prompt_tokens = 128
+batch = 32

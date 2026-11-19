@@ -10,7 +10,10 @@ use singe::{
     },
 };
 
-use crate::{format::Rules, schema::Schema};
+use crate::{
+    format::{Rules, join},
+    schema::Schema,
+};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PostNormEncoderConfig {
@@ -25,6 +28,28 @@ pub struct PostNormEncoderConfig {
     pub first_position: i64,
     // The token types the model embeds; none for a model without token type embeddings.
     pub token_types: i64,
+    pub eps: f32,
+}
+
+impl PostNormEncoderConfig {
+    #[must_use]
+    pub const fn block(&self) -> PostNormBlockConfig {
+        PostNormBlockConfig {
+            width: self.width,
+            heads: self.heads,
+            inner: self.inner,
+            activation: self.activation,
+            eps: self.eps,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct PostNormBlockConfig {
+    pub width: i64,
+    pub heads: i64,
+    pub inner: i64,
+    pub activation: Activation,
     pub eps: f32,
 }
 
@@ -58,8 +83,11 @@ impl PostNormEncoder {
                 tokens,
             )
         };
+        let block = config.block();
         let blocks = (0..config.layers)
-            .map(|layer| block(&mut schema.scope(format!("blocks.{layer}")), config))
+            .map(|layer| {
+                post_norm_encoder_block(&mut schema.scope(format!("blocks.{layer}")), &block)
+            })
             .collect::<SingeResult<Vec<_>>>()?;
         Ok(Self {
             embeddings,
@@ -81,37 +109,22 @@ impl PostNormEncoder {
     }
 }
 
-fn block(schema: &mut Schema<'_>, config: &PostNormEncoderConfig) -> SingeResult<EncoderBlock> {
-    encoder_block(
-        schema,
-        config.width,
-        config.heads,
-        config.inner,
-        config.activation,
-        config.eps,
-    )
-}
-
 // Registers one post-norm block, BERT's: `attention` (`query`, `key`, `value`, `output`), `attention_norm`, `feed_forward` (`up`, `down`), and `feed_forward_norm`.
-pub fn encoder_block(
+pub fn post_norm_encoder_block(
     schema: &mut Schema<'_>,
-    width: i64,
-    heads: i64,
-    inner: i64,
-    activation: Activation,
-    eps: f32,
+    config: &PostNormBlockConfig,
 ) -> SingeResult<EncoderBlock> {
-    let attention = {
-        let mut schema = schema.scope("attention");
-        SelfAttention::create(
-            schema.linear("query", width, width, true)?,
-            schema.linear("key", width, width, true)?,
-            schema.linear("value", width, width, true)?,
-            schema.linear("output", width, width, true)?,
-            heads,
-            width,
-        )?
-    };
+    let &PostNormBlockConfig {
+        width,
+        heads,
+        inner,
+        activation,
+        eps,
+    } = config;
+    let [query, key, value, output] = schema
+        .scope("attention")
+        .attention_projections(width, [true; 4])?;
+    let attention = SelfAttention::create(query, key, value, output, heads, width)?;
     let attention_norm = schema.layer_norm("attention_norm", width, eps)?;
     let (up, down) = {
         let mut schema = schema.scope("feed_forward");
@@ -145,76 +158,38 @@ impl Layer<TokenBatch> for PostNormEncoder {
     }
 }
 
-// Renames a LayerNorm, whose parameters older checkpoints name `gamma` and `beta`.
-fn norm(rules: Rules, from: &str, to: &str) -> Rules {
-    rules
-        .rename(&format!("{from}.gamma"), &format!("{to}.weight"))
-        .rename(&format!("{from}.beta"), &format!("{to}.bias"))
-        .rename(from, to)
-}
-
-// Imports the encoder `transformers`' BERT layout stores after `prefix` (such as `bert.`, `roberta.`, or nothing): `embeddings` and `encoder.layer.N`, to the schema's names under `to`.
+// Imports the encoder `transformers`' BERT layout stores under `from` (such as `bert`, `roberta`, or nothing): `embeddings` and `encoder.layer.N`, to the schema's names under `to`.
 #[must_use]
-pub fn post_norm_encoder_rules(prefix: &str, to: &str) -> Rules {
-    let target = |name: &str| format!("{to}{name}");
-    let embeddings = format!("{prefix}embeddings");
-    let layer = |name: &str| format!("{prefix}encoder.layer.*.{name}");
-    let rules = Rules::new()
-        .rename(
-            &format!("{embeddings}.word_embeddings"),
-            &target("embeddings.tokens"),
-        )
-        .rename(
-            &format!("{embeddings}.position_embeddings"),
-            &target("embeddings.positions"),
-        )
-        .rename(
-            &format!("{embeddings}.token_type_embeddings"),
-            &target("embeddings.token_types"),
+pub fn post_norm_encoder_rules(from: &str, to: &str) -> Rules {
+    let embeddings = join(from, "embeddings");
+    Rules::new()
+        .rename_each(
+            &embeddings,
+            &join(to, "embeddings"),
+            &[
+                ("word_embeddings", "tokens"),
+                ("position_embeddings", "positions"),
+                ("token_type_embeddings", "token_types"),
+                ("LayerNorm", "norm"),
+            ],
         )
         // Buffers of the positions and token types an input leaves out, which the embeddings compute.
-        .skip(&format!("{embeddings}.position_ids"))
-        .skip(&format!("{embeddings}.token_type_ids"))
-        .rename(
-            &layer("attention.self.query"),
-            &target("blocks.*.attention.query"),
-        )
-        .rename(
-            &layer("attention.self.key"),
-            &target("blocks.*.attention.key"),
-        )
-        .rename(
-            &layer("attention.self.value"),
-            &target("blocks.*.attention.value"),
-        )
-        .rename(
-            &layer("attention.output.dense"),
-            &target("blocks.*.attention.output"),
-        )
-        .rename(
-            &layer("intermediate.dense"),
-            &target("blocks.*.feed_forward.up"),
-        )
-        .rename(
-            &layer("output.dense"),
-            &target("blocks.*.feed_forward.down"),
+        .skip(&join(&embeddings, "position_ids"))
+        .skip(&join(&embeddings, "token_type_ids"))
+        .rename_each(
+            &join(from, "encoder.layer.*"),
+            &join(to, "blocks.*"),
+            &[
+                ("attention.self.query", "attention.query"),
+                ("attention.self.key", "attention.key"),
+                ("attention.self.value", "attention.value"),
+                ("attention.output.dense", "attention.output"),
+                ("attention.output.LayerNorm", "attention_norm"),
+                ("intermediate.dense", "feed_forward.up"),
+                ("output.dense", "feed_forward.down"),
+                ("output.LayerNorm", "feed_forward_norm"),
+            ],
         )
         // The pooler serves only a classifier, whose rules read it first.
-        .skip(&format!("{prefix}pooler"));
-    [
-        (
-            format!("{embeddings}.LayerNorm"),
-            &target("embeddings.norm"),
-        ),
-        (
-            layer("attention.output.LayerNorm"),
-            &target("blocks.*.attention_norm"),
-        ),
-        (
-            layer("output.LayerNorm"),
-            &target("blocks.*.feed_forward_norm"),
-        ),
-    ]
-    .into_iter()
-    .fold(rules, |rules, (from, to)| norm(rules, &from, to))
+        .skip(&join(from, "pooler"))
 }

@@ -12,6 +12,7 @@ fn test_numerical_scopes_restore_after_nesting_and_unwinding_and_do_not_leak_to_
     let requested = NumericalPolicy {
         precision: ComputePrecision::AllowTf32,
         determinism: Determinism::Require,
+        ..NumericalPolicy::default()
     };
     assert_eq!(NumericalPolicy::current(), default);
     {
@@ -83,6 +84,7 @@ fn test_cuda_engine_algorithm_autotune_and_native_keys_include_every_numerical_p
             let _scope = NumericalScope::enter(NumericalPolicy {
                 precision,
                 determinism,
+                ..NumericalPolicy::default()
             });
             let tensor = || CudnnBackendTensorKey::new(DataType::F32, vec![2, 2], vec![2, 1], 16);
             engines.insert(CudnnBackendGraphKey::new(

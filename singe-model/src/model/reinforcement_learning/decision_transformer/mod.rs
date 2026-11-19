@@ -9,12 +9,12 @@ use std::iter;
 use serde::{Deserialize, Serialize};
 use singe::{
     DataType, Error as SingeError, Result as SingeResult, Shape, Tensor,
-    nn::{Embedding, Layer, LayerNorm, Linear, Model, ModelState, StateBuilder, StateKey},
+    nn::{Embedding, Layer, LayerNorm, Linear, Model, ModelState, StateKey},
 };
 
 use crate::{
-    assembly::{PreNormEncoder, PreNormEncoderSpec},
-    error::{Error, Result},
+    assembly::{FinalNorm, PreNormEncoder, PreNormEncoderConfig},
+    error::Result,
     format::Loader,
     head::{HeadLoader, Trajectory, TrajectoryModel, TrajectoryPredictions},
     model::ModelEntry,
@@ -24,13 +24,13 @@ use crate::{
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DecisionTransformerConfig {
-    pub encoder: PreNormEncoderSpec,
+    pub encoder: PreNormEncoderConfig,
     pub layers: i64,
     pub state_dim: i64,
     pub action_dim: i64,
     // The timesteps an episode's steps embed.
     pub episode: i64,
-    pub positions: i64,
+    pub max_positions: i64,
     // Whether actions are squashed into `(-1, 1)`.
     pub action_tanh: bool,
 }
@@ -64,10 +64,11 @@ impl DecisionTransformerLayers {
                 embeddings.linear("action", config.action_dim, width, true)?,
                 Embedding::new(embeddings.parameter("timestep.weight", [config.episode, width])?),
                 embeddings.layer_norm("norm", width, config.encoder.eps)?,
-                embeddings.parameter("positions.weight", [config.positions, width])?,
+                embeddings.parameter("positions.weight", [config.max_positions, width])?,
             )
         };
-        let encoder = PreNormEncoder::create(schema, &config.encoder, config.layers, true)?;
+        let encoder =
+            PreNormEncoder::create(schema, &config.encoder, config.layers, FinalNorm::Included)?;
         let mut predict = schema.scope("predict");
         Ok(Self {
             config: config.clone(),
@@ -91,7 +92,9 @@ impl DecisionTransformerLayers {
         state: &ModelState,
     ) -> SingeResult<[Tensor; 3]> {
         let width = self.config.encoder.width;
-        let steps = states.shape().dimensions()[0];
+        let &[steps, _] = states.shape().dimensions() else {
+            return Err(SingeError::invalid_argument("a trajectory's states"));
+        };
         let time = timesteps.apply(&self.timesteps, state)?;
         let tokens = [
             returns.apply(&self.returns, state)?,
@@ -144,35 +147,14 @@ impl Layer for DecisionTransformerLayers {
 
 pub type DecisionTransformer = Model<DecisionTransformerLayers>;
 
-pub(crate) const MODEL: ModelEntry = ModelEntry {
-    name: "decision_transformer",
-    formats: &[(Format::Transformers, &["decision_transformer"])],
-    heads: &[HeadLoader::Trajectory(|loader| Ok(Box::new(load(loader)?)))],
-};
-
-pub fn load(loader: &mut Loader<'_>) -> Result<DecisionTransformer> {
-    let config: DecisionTransformerConfig = loader.config(transformers::config)?;
-    let mut builder = StateBuilder::new();
-    let layers = {
-        let mut schema = Schema::root(&mut builder, loader.options().data_type);
-        DecisionTransformerLayers::create(&mut schema, &config)?
-    };
-    let model = loader.load(
-        "model",
-        &Model::new(layers, builder.finish()?),
-        &transformers::rules(),
-    )?;
-    loader.finish()?;
-    Ok(model)
-}
-
 impl TrajectoryModel for DecisionTransformer {
     fn predict(&self, trajectory: &Trajectory) -> Result<TrajectoryPredictions> {
         let config = &self.layer().config;
         let (states, actions) = (
-            usize::try_from(config.state_dim).map_err(|_| Error::unsupported("a state width"))?,
+            usize::try_from(config.state_dim)
+                .map_err(|_| SingeError::out_of_range("state width"))?,
             usize::try_from(config.action_dim)
-                .map_err(|_| Error::unsupported("an action width"))?,
+                .map_err(|_| SingeError::out_of_range("action width"))?,
         );
         let steps = trajectory.states.len();
         for (name, length) in [
@@ -199,10 +181,6 @@ impl TrajectoryModel for DecisionTransformer {
             }
         }
 
-        #[expect(
-            clippy::cast_precision_loss,
-            reason = "timesteps are below the episode length"
-        )]
         let packed = (0..steps)
             .flat_map(|step| {
                 iter::once(trajectory.returns_to_go[step])
@@ -229,4 +207,18 @@ impl TrajectoryModel for DecisionTransformer {
             return_preds: rows.map(|row| row[states + actions]).collect(),
         })
     }
+}
+
+pub(crate) const MODEL: ModelEntry = ModelEntry {
+    name: "decision_transformer",
+    formats: &[(Format::Transformers, &["decision_transformer"])],
+    loaders: &[HeadLoader::Trajectory(|loader| Ok(Box::new(load(loader)?)))],
+};
+
+pub fn load(loader: &mut Loader<'_>) -> Result<DecisionTransformer> {
+    let config: DecisionTransformerConfig = loader.config(transformers::config)?;
+    let model = Schema::model(loader.options().data_type, |schema| {
+        DecisionTransformerLayers::create(schema, &config)
+    })?;
+    loader.load_whole(&model, &transformers::rules())
 }

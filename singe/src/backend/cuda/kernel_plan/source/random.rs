@@ -119,8 +119,8 @@ const float unit = unit_float(lanes[index % 4]);
             let state = writer.input(DataType::I64, "state")?;
             let output = writer.output(DataType::I64, "output")?;
             let mut shape = vec![random.samples];
-            if dimensions.len() == 2 {
-                shape.insert(0, dimensions[0]);
+            if let &[rows, _] = dimensions {
+                shape.insert(0, rows);
             }
 
             let samples = random.samples;

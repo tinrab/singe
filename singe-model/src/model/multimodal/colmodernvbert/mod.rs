@@ -8,11 +8,12 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use singe::{
     DataType, Device, Error as SingeError, Result as SingeResult, Shape, Tensor,
-    nn::{Layer, Linear, Model, ModelState, StateBuilder},
+    nn::{Layer, Linear, Model, ModelState},
 };
 
 pub use self::modernbert::{ModernBert, ModernBertConfig};
 use crate::{
+    assembly::unit_vectors,
     error::{Error, Result},
     format::Loader,
     head::{DocumentRetriever, HeadLoader},
@@ -49,6 +50,13 @@ pub struct ColModernVBertText {
 }
 
 impl ColModernVBertText {
+    pub fn create(schema: &mut Schema<'_>, config: &ColModernVBertConfig) -> SingeResult<Self> {
+        Ok(Self {
+            encoder: ModernBert::create(schema, &config.text)?,
+            projection: schema.linear("projection", config.text.width, config.embedding, true)?,
+        })
+    }
+
     // Each token's unit embedding, `[T, D]`, from the sequence's embeddings, `[T, W]`.
     fn embeddings(&self, embedded: &Tensor, state: &ModelState) -> SingeResult<Tensor> {
         let projected = self
@@ -56,12 +64,7 @@ impl ColModernVBertText {
             .encode(embedded, state)?
             .apply(&self.projection, state)?
             .cast(DataType::F32)?;
-        let norms = projected
-            .mul(&projected)?
-            .sum(&[1], true)?
-            .sqrt()?
-            .clamp(1e-12, f32::MAX)?;
-        projected.div(&norms)
+        unit_vectors(&projected, 1)
     }
 }
 
@@ -78,54 +81,6 @@ pub struct ColModernVBert {
     text: Model<ColModernVBertText>,
     template: ChatTemplate,
     device: Device,
-}
-
-pub(crate) const MODEL: ModelEntry = ModelEntry {
-    name: "colmodernvbert",
-    formats: &[(Format::Transformers, &["modernvbert"])],
-    heads: &[HeadLoader::DocumentRetrieval(|loader| {
-        Ok(Box::new(load(loader)?))
-    })],
-};
-
-// Loads the vision tower, as part `vision`, and the encoder with its projection, as part `text`.
-pub fn load(loader: &mut Loader<'_>) -> Result<ColModernVBert> {
-    let config: ColModernVBertConfig = loader.config(transformers::config)?;
-    let data_type = loader.options().data_type;
-    let mut builder = StateBuilder::new();
-    let vision = {
-        let mut schema = Schema::root(&mut builder, data_type);
-        SmolVlmVision::create(&mut schema, &config.vision, config.text.width)?
-    };
-    let vision = loader.load(
-        "vision",
-        &Model::new(vision, builder.finish()?),
-        &transformers::vision_rules(),
-    )?;
-    let mut builder = StateBuilder::new();
-    let text = {
-        let mut schema = Schema::root(&mut builder, data_type);
-        ColModernVBertText {
-            encoder: ModernBert::create(&mut schema, &config.text)?,
-            projection: schema.linear("projection", config.text.width, config.embedding, true)?,
-        }
-    };
-    let text = loader.load(
-        "text",
-        &Model::new(text, builder.finish()?),
-        &transformers::text_rules(),
-    )?;
-    loader.finish()?;
-    let template = ChatTemplate::load(loader.source())?
-        .ok_or_else(|| Error::unsupported("a retriever without a chat template"))?
-        .with_template(&config.template);
-    Ok(ColModernVBert {
-        config,
-        vision,
-        text,
-        template,
-        device: loader.options().device,
-    })
 }
 
 impl ColModernVBert {
@@ -162,7 +117,7 @@ impl DocumentRetriever for ColModernVBert {
             }]),
             "document",
         )?;
-        let (tiles, grid) = processor.tiles(image);
+        let (tiles, grid) = processor.tiles(image)?;
         let text = processor.expand(
             &prompt,
             &processor.image_token,
@@ -171,8 +126,11 @@ impl DocumentRetriever for ColModernVBert {
         let (tokens, tensor) = self.tokens(tokenizer, &text)?;
         let pixels = processor.pixels(&tiles, self.device, self.vision.state().floating_type()?)?;
         let rows = self.vision.forward(&pixels)?;
-        let dimensions = rows.shape().dimensions();
-        let rows = rows.reshape([dimensions[0] * dimensions[1], dimensions[2]])?;
+        let &[tile_count, per_tile, width] = rows.shape().dimensions() else {
+            return Err(SingeError::invalid_argument("the vision tower's rows").into());
+        };
+        let image_rows = tile_count * per_tile;
+        let rows = rows.reshape([image_rows, width])?;
         let state = self.text.state();
         let text = self.text.layer();
         let embedded = text.encoder.embed(&tensor, state)?;
@@ -191,11 +149,10 @@ impl DocumentRetriever for ColModernVBert {
                 }
             })
             .collect::<Vec<i64>>();
-        if next - count != rows.shape().dimensions()[0] {
+        if next - count != image_rows {
             return Err(SingeError::invalid_argument(format!(
-                "a page of {} image tokens for {} image rows",
+                "a page of {} image tokens for {image_rows} image rows",
                 next - count,
-                rows.shape().dimensions()[0]
             ))
             .into());
         }
@@ -205,4 +162,37 @@ impl DocumentRetriever for ColModernVBert {
         let embedded = Tensor::concat(&[embedded, rows], 0)?.index_select(0, &places)?;
         Ok(text.embeddings(&embedded, state)?)
     }
+}
+
+pub(crate) const MODEL: ModelEntry = ModelEntry {
+    name: "colmodernvbert",
+    formats: &[(Format::Transformers, &["modernvbert"])],
+    loaders: &[HeadLoader::DocumentRetrieval(|loader| {
+        Ok(Box::new(load(loader)?))
+    })],
+};
+
+// Loads the vision tower, as part `vision`, and the encoder with its projection, as part `text`.
+pub fn load(loader: &mut Loader<'_>) -> Result<ColModernVBert> {
+    let config: ColModernVBertConfig = loader.config(transformers::config)?;
+    let data_type = loader.options().data_type;
+    let vision = Schema::model(data_type, |schema| {
+        SmolVlmVision::create(schema, &config.vision, config.text.width)
+    })?;
+    let vision = loader.load("vision", &vision, &transformers::vision_rules())?;
+    let text = Schema::model(data_type, |schema| {
+        ColModernVBertText::create(schema, &config)
+    })?;
+    let text = loader.load("text", &text, &transformers::text_rules())?;
+    loader.finish()?;
+    let template = ChatTemplate::load(loader.source())?
+        .ok_or_else(|| Error::unsupported("a retriever without a chat template"))?
+        .with_template(&config.template);
+    Ok(ColModernVBert {
+        config,
+        vision,
+        text,
+        template,
+        device: loader.options().device,
+    })
 }

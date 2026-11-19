@@ -13,10 +13,6 @@ use crate::{
 /// # Errors
 ///
 /// Returns an error if the head count is nonpositive or cannot fit `usize`.
-#[expect(
-    clippy::cast_precision_loss,
-    reason = "ALiBi slopes are computed in the f32 tensor precision"
-)]
 pub fn alibi_slopes(heads: i64) -> Result<Vec<f32>> {
     let heads = to_usize(heads, "alibi head count")?;
     if heads == 0 {

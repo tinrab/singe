@@ -8,7 +8,7 @@ use crate::{
     },
     data_type::DataType,
     error::{Error, Result},
-    scalar::Scalar,
+    scalar::{Scalar, ScalarPromotion},
     shape::Shape,
     value::ValueSpec,
 };
@@ -171,15 +171,18 @@ pub fn where_select(context: &InferenceContext<'_>) -> Result<OperationInference
 
 /// Combines the operand with a scalar, promoting its data type.
 pub fn scalar(context: &InferenceContext<'_>) -> Result<OperationInference> {
-    scalar_with(context, false)
+    scalar_with(context, ScalarPromotion::Arithmetic)
 }
 
 /// Divides a scalar by the operand, promoting integer operands to floating point.
 pub fn reverse_divide_scalar(context: &InferenceContext<'_>) -> Result<OperationInference> {
-    scalar_with(context, true)
+    scalar_with(context, ScalarPromotion::TrueDivision)
 }
 
-fn scalar_with(context: &InferenceContext<'_>, true_division: bool) -> Result<OperationInference> {
+fn scalar_with(
+    context: &InferenceContext<'_>,
+    promotion: ScalarPromotion,
+) -> Result<OperationInference> {
     let value = context.value(OperationAttributes::scalar)?;
     let subtraction = matches!(
         context.operation,
@@ -191,7 +194,7 @@ fn scalar_with(context: &InferenceContext<'_>, true_division: bool) -> Result<Op
         return Err(Error::invalid_argument("boolean subtraction"));
     }
 
-    let data_type = value.promoted_type(context.first().data_type(), true_division)?;
+    let data_type = value.promoted_type(context.first().data_type(), promotion)?;
     Ok(context.finish(context.shape(), data_type))
 }
 

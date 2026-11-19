@@ -166,10 +166,6 @@ pub fn encode(
     })
 }
 
-#[expect(
-    clippy::too_many_lines,
-    reason = "half-precision decoding keeps all format-specific native conversion paths together"
-)]
 pub fn decode(
     context: &StreamContext,
     source: &VideoView<'_, u8>,

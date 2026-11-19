@@ -42,7 +42,7 @@ impl Importer {
                     .output_shape()
                     .dimensions()
                     .get(axis)
-                    .ok_or(SingeError::DimensionOutOfBounds)?,
+                    .ok_or_else(|| SingeError::dimension_out_of_bounds("onnx shape axis"))?,
             ))
         } else {
             Ok(DimensionExpr::axis(None, source.index(), axis))
@@ -237,7 +237,7 @@ impl Importer {
                         .dimensions()
                         .get(axis)
                         .copied()
-                        .ok_or(SingeError::DimensionOutOfBounds)
+                        .ok_or_else(|| SingeError::dimension_out_of_bounds("onnx shape value axis"))
                 })
                 .map_err(Into::into)
             })

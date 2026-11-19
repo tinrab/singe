@@ -20,6 +20,12 @@ static THREADS: AtomicUsize = AtomicUsize::new(0);
 /// The persistent worker pool and the thread count it was built for.
 static POOL: Mutex<Option<(usize, Arc<ThreadPool>)>> = Mutex::new(None);
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Parallelism {
+    Serial,
+    Pool,
+}
+
 /// Returns the number of threads CPU kernels use, which defaults to the available parallelism.
 #[must_use]
 pub fn num_threads() -> usize {
@@ -65,7 +71,7 @@ pub(crate) fn collect<T: Send>(count: usize, produce: impl Fn(usize) -> T + Sync
     collect_with_grain(count, GRAIN_SIZE, produce)
 }
 
-/// Calls `work(index, chunk)` on consecutive `chunk_len`-element chunks of `data`, in parallel when `parallel` is true and there are several chunks.
+/// Calls `work(index, chunk)` on consecutive `chunk_len`-element chunks of `data`, on the worker pool when `parallelism` is `Pool` and there are several chunks.
 ///
 /// # Errors
 ///
@@ -73,10 +79,12 @@ pub(crate) fn collect<T: Send>(count: usize, produce: impl Fn(usize) -> T + Sync
 pub(crate) fn for_each_chunk_mut<T: Send>(
     data: &mut [T],
     chunk_len: usize,
-    parallel: bool,
+    parallelism: Parallelism,
     work: impl Fn(usize, &mut [T]) -> Result<()> + Sync,
 ) -> Result<()> {
-    let pool = (parallel && data.len() > chunk_len).then(pool).flatten();
+    let pool = (parallelism == Parallelism::Pool && data.len() > chunk_len)
+        .then(pool)
+        .flatten();
     let Some(pool) = pool else {
         return data
             .chunks_mut(chunk_len.max(1))
@@ -148,7 +156,11 @@ pub(crate) fn for_each_row_mut<T: Send>(
     for_each_chunk_mut(
         data,
         rows_per_thread * row_len,
-        threads > 1,
+        if threads > 1 {
+            Parallelism::Pool
+        } else {
+            Parallelism::Serial
+        },
         |group, chunk| {
             chunk
                 .chunks_mut(row_len)

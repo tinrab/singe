@@ -3,6 +3,7 @@ use crate::{
         cuda::kernel_plan::source::KernelInput, kernel_lowering::STATUS_INDEX_OUT_OF_BOUNDS,
     },
     data_type::DataType,
+    error::{Error, Result},
     shape::Shape,
 };
 
@@ -79,4 +80,14 @@ const unsigned int keys = page_count == 0U ? 0U : (page_count - 1U) * {page_size
 // The shape and type of each paging operand, as `spec`'s problems read them.
 pub fn paged_indices(operands: [&KernelInput; 4]) -> [(&Shape, DataType); 4] {
     operands.map(|input| (input.layout.shape(), input.data_type))
+}
+
+pub fn leading_dimension(input: &KernelInput, name: &'static str) -> Result<i64> {
+    input
+        .layout
+        .shape()
+        .dimensions()
+        .first()
+        .copied()
+        .ok_or_else(|| Error::invalid_argument(name))
 }

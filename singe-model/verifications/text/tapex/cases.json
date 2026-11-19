@@ -4,6 +4,7 @@
       "name": "machines",
       "snapshot": "TAPEX",
       "task": "table-question-answering",
+      "data_type": "f32",
       "inputs": [
         {
           "table": {

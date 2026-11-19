@@ -209,10 +209,6 @@ impl SdpaBackwardOperation {
     /// # Errors
     ///
     /// Returns an error if cumulative lengths are unsupported or cuDNN rejects a descriptor attribute.
-    #[expect(
-        clippy::too_many_lines,
-        reason = "the composite attention operation builds and validates its complete tensor graph"
-    )]
     pub fn create(
         tensors: SdpaBackwardTensors<&Tensor>,
         config: SdpaBackwardOptions<'_>,

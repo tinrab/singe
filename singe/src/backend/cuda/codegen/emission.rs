@@ -198,10 +198,6 @@ pub fn emit_kernel(
 }
 
 /// Returns `literal` as the argument a scalar of `element` passes.
-#[expect(
-    clippy::cast_possible_truncation,
-    reason = "an `F32` scalar is its value rounded to `F32`"
-)]
 fn scalar_argument(element: ElementType, literal: Literal) -> Result<KernelArgument> {
     Ok(match (element, literal) {
         (ElementType::Bool, Literal::Bool(value)) => KernelArgument::Bool(value),

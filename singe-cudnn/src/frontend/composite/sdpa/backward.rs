@@ -36,10 +36,6 @@ struct FloatingBackwardPreparation {
 }
 
 impl Graph {
-    #[expect(
-        clippy::too_many_lines,
-        reason = "the composite attention operation builds and validates its complete tensor graph"
-    )]
     pub(crate) fn expand_floating_attention_backward(
         &mut self,
         inputs: SdpaBackwardInputs,

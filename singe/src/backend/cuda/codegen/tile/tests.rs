@@ -13,7 +13,7 @@ use crate::{
         cuda::{
             codegen::{
                 KernelLanguage, PlanningContext,
-                test_support::{assert_matches, bf16_buffer, f32_buffer, rows_kernel},
+                test_support::{RowsKernel, assert_matches, bf16_buffer, f32_buffer, rows_kernel},
             },
             kernel_plan::{self, KernelInput, KernelPlanner},
             runtime::runtime_for_device,
@@ -43,10 +43,6 @@ fn contiguous(operand: OperandId, axis: AxisId, one: SizeId) -> Access {
 }
 
 #[test]
-#[expect(
-    clippy::many_single_char_names,
-    reason = "the operands and axes take the names of the formula"
-)]
 fn test_tile_element_kernels_match_the_interpreter_exactly() {
     let Some(_lock) = maybe_lock_device() else {
         return;
@@ -253,22 +249,27 @@ fn test_tile_row_kernels_match_the_interpreter() {
             _ => bf16_buffer(count, seed),
         };
         let size = element.size_bytes();
-        for (weighted, baked) in [(false, false), (true, false), (false, true), (true, true)] {
+        for (operation, baked) in [
+            (RowsKernel::Softmax, false),
+            (RowsKernel::RmsNorm, false),
+            (RowsKernel::Softmax, true),
+            (RowsKernel::RmsNorm, true),
+        ] {
             for (rows, width) in [(3_usize, 1_usize), (5, 33), (2, 513)] {
-                let (mut kernel, _) = rows_kernel("singe_tile_rows", element, weighted);
+                let (mut kernel, _) = rows_kernel("singe_tile_rows", element, operation);
                 let mut sizes = vec![rows as u64, width as u64];
                 if baked {
                     kernel.sizes[1] = Size::Static(width as u64);
                     sizes.pop();
                 }
                 let mut buffers = vec![buffer(rows * width, 1)];
-                if weighted {
+                if operation == RowsKernel::RmsNorm {
                     buffers.push(buffer(width, 2));
                 }
                 buffers.push(vec![0; rows * width * size]);
                 let bindings = Bindings {
                     sizes,
-                    scalars: if weighted {
+                    scalars: if operation == RowsKernel::RmsNorm {
                         vec![Literal::Float(width as f64), Literal::Float(1e-6)]
                     } else {
                         Vec::new()
@@ -382,10 +383,25 @@ fn test_tile_kernels_report_status_codes_and_add_atomically() {
     )
     .unwrap();
 
-    let quantized_values = quantize([&values, &unit_scale, &zero_point]);
-    let in_range = gather(&indices(vec![2, 0, 1]));
-    let out_of_range = gather(&indices(vec![0, 3]));
-    let invalid_scale = dequantize();
+    assert_eq!(
+        quantize([&values, &unit_scale, &zero_point])
+            .unwrap()
+            .to_vec::<i8>()
+            .unwrap(),
+        expected_quantized.to_vec::<i8>().unwrap()
+    );
+    assert_eq!(
+        gather(&indices(vec![2, 0, 1]))
+            .unwrap()
+            .to_vec::<f32>()
+            .unwrap(),
+        vec![5., 6., 1., 2., 3., 4.]
+    );
+    assert!(matches!(
+        gather(&indices(vec![0, 3])).and_then(|output| output.to_vec::<f32>()),
+        Err(Error::IndexOutOfBounds { .. })
+    ));
+    assert!(dequantize().and_then(|output| output.to_bytes()).is_err());
     let accumulated = planner
         .index_put(
             &KernelInput::from_source(&table),
@@ -404,17 +420,6 @@ fn test_tile_kernels_report_status_codes_and_add_atomically() {
             kernel_plan::run_into(&plan, &[&updates, &repeated], &output)?;
             Ok(output)
         });
-
-    assert_eq!(
-        in_range.unwrap().to_vec::<f32>().unwrap(),
-        vec![5., 6., 1., 2., 3., 4.]
-    );
-    assert!(matches!(out_of_range, Err(Error::IndexOutOfBounds)));
-    assert_eq!(
-        quantized_values.unwrap().to_vec::<i8>().unwrap(),
-        expected_quantized.to_vec::<i8>().unwrap()
-    );
-    assert!(invalid_scale.is_err());
     assert_eq!(
         accumulated.unwrap().to_vec::<f32>().unwrap(),
         expected.to_vec::<f32>().unwrap()

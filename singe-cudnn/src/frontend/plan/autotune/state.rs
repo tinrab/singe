@@ -55,10 +55,6 @@ pub(crate) struct AutotuneState<'a> {
 }
 
 impl<'a> AutotuneState<'a> {
-    #[expect(
-        clippy::too_many_lines,
-        reason = "plan construction and selection keep the complete native execution lifecycle together"
-    )]
     pub(crate) fn create(
         compiled: &'a CompiledGraph,
         context: &Context,

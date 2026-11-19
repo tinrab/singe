@@ -4,6 +4,7 @@
       "name": "retrieval",
       "snapshot": "COLMODERNVBERT",
       "task": "visual-document-retrieval",
+      "data_type": "f32",
       "inputs": [
         {
           "queries": ["What is the invoice number?", "Who is the bill sent to?"],

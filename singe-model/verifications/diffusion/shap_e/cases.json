@@ -4,6 +4,7 @@
       "name": "mesh",
       "snapshot": "SHAP_E",
       "task": "text-to-3d",
+      "data_type": "f32",
       "inputs": [
         {
           "prompt": "a gear",

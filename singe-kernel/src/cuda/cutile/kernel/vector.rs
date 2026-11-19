@@ -11981,10 +11981,6 @@ mod kernels {
         }
     }
 
-    #[expect(
-        clippy::similar_names,
-        reason = "query, key, and value operands and their tensor layouts follow the mathematical kernel notation"
-    )]
     unsafe fn load_position_start(position_start: *mut u32) -> i32 {
         let offset: Tile<i32, { [1] }> = constant(0i32, const_shape![1]);
         let mask: Tile<bool, { [1] }> = constant(true, const_shape![1]);

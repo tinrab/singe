@@ -139,12 +139,15 @@ pub fn identity_index_select_input(
     let Some(indices) = constant_input(graph, indices)? else {
         return Ok(None);
     };
-    if indices.data_type() != DataType::I64 || indices.shape().rank() != 1 {
+    let &[length] = indices.shape().dimensions() else {
+        return Ok(None);
+    };
+    if indices.data_type() != DataType::I64 {
         return Ok(None);
     }
 
     let expected_len = to_usize(dimension, "identity index_select dimension")?;
-    if indices.shape().dimensions()[0] != dimension {
+    if length != dimension {
         return Ok(None);
     }
 

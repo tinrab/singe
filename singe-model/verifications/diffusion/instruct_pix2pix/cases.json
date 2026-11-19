@@ -4,6 +4,7 @@
       "name": "edit",
       "snapshot": "INSTRUCT_PIX2PIX",
       "task": "image-text-to-image",
+      "data_type": "f32",
       "inputs": [
         {
           "image": "media/cat-448x320.png",

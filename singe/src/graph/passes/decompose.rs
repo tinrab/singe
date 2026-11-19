@@ -167,8 +167,7 @@ fn decomposes(
                     )
             }
             (_, OperationAttributes::Length(length)) => {
-                dimensions.len() >= 2
-                    && dimensions[dimensions.len() - 2] > length / 2
+                matches!(*dimensions, [.., rows, _] if rows > length / 2)
                     && spec::transforms_with_cufft(length, input.output_data_type())
             }
             _ => false,

@@ -18,7 +18,7 @@ fn test_reduction_spec_rejects_negative_dimension_underflow() {
     let shape = Shape::create([2, 3, 4]).unwrap();
     assert!(matches!(
         reduction_problem(&shape, &[i64::MIN], false),
-        Err(Error::DimensionOutOfBounds)
+        Err(Error::DimensionOutOfBounds { .. })
     ));
 }
 
@@ -45,7 +45,7 @@ fn test_softmax_problem_rejects_out_of_range_axis() {
     let shape = Shape::create([2, 3, 4]).unwrap();
     assert!(matches!(
         softmax_problem(&shape, 3),
-        Err(Error::DimensionOutOfBounds)
+        Err(Error::DimensionOutOfBounds { .. })
     ));
 }
 

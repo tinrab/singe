@@ -12,6 +12,7 @@ pub mod keypoint_detection;
 pub mod keypoint_matching;
 pub mod mask_generation;
 pub mod object_detection;
+pub mod pixels;
 pub mod text_to_3d;
 pub mod text_to_image;
 pub mod text_to_video;

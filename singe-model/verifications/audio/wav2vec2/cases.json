@@ -4,6 +4,7 @@
       "name": "transcription",
       "snapshot": "WAV2VEC2",
       "task": "automatic-speech-recognition",
+      "data_type": "f32",
       "inputs": ["media/clip.wav"],
       "expected": [
         {

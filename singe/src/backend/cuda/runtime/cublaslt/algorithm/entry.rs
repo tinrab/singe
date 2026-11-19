@@ -110,10 +110,6 @@ impl CublasLtMatmulAlgorithmEntry {
     /// Returns whether this entry has a lower wave count, or an equal wave count and fewer workspace bytes.
     /// The comparison uses exact floating-point equality and does not use measured execution time.
     #[must_use]
-    #[expect(
-        clippy::float_cmp,
-        reason = "exact equality selects an identity, specialization, or deterministic tie; approximate equality changes semantics"
-    )]
     pub fn is_preferred_to(&self, other: &Self) -> bool {
         self.waves_count < other.waves_count
             || (self.waves_count == other.waves_count

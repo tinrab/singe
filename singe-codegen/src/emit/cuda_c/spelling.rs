@@ -56,10 +56,6 @@ pub fn store_expression(element: ElementType, value: &str) -> String {
     }
 }
 
-#[expect(
-    clippy::cast_possible_truncation,
-    reason = "an `F32` literal is its value rounded to `F32`"
-)]
 #[must_use]
 pub fn literal_expression(element: ElementType, literal: Literal) -> String {
     match (element, literal) {

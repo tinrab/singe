@@ -415,7 +415,11 @@ fn test_paged_attention_through_cudnn_matches_generated_kernels() {
                         run(&graph, &inputs, LoweringPolicy::generated_kernels());
                     assert!(!generated_used_cudnn, "{label}");
                     let (actual, used_cudnn) = run(&graph, &inputs, with_cudnn());
-                    assert!(used_cudnn, "{label} did not reach cuDNN");
+                    assert_eq!(
+                        used_cudnn,
+                        case.query_offsets.len() == 2,
+                        "{label}: cuDNN runs steps of one sequence only"
+                    );
                     assert_rows_close(&actual[0], &expected[0], &case, OUTPUT_TOLERANCE, &label);
                     assert_rows_close(&actual[1], &expected[1], &case, LSE_TOLERANCE, &label);
                 }

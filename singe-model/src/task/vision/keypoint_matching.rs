@@ -1,22 +1,22 @@
 // `keypoint-matching`: a pair of images to their matched keypoints, each at its image's whole pixels, with the match's score, best first, as `transformers`' pipeline gives them.
 
 use serde::{Deserialize, Serialize};
-use singe::DataType;
+use singe::Error as SingeError;
 
 use crate::{
     error::Result,
     head::KeypointMatcher,
-    model,
+    host, model,
     processor::image::{Image, ImageTransforms},
     source::{LoadOptions, Source},
-    task::{Pipeline, Task, vision::keypoint_detection::rescaled_point},
+    task::{Pipeline, vision::pixels::rescaled_point},
 };
 
 #[derive(Debug)]
 pub struct KeypointMatchingPipeline {
     model: KeypointMatcher,
     processor: ImageTransforms,
-    data_type: DataType,
+    options: LoadOptions,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
@@ -52,8 +52,6 @@ fn rescaled(point: [f32; 2], from: (i64, i64), image: &Image) -> Keypoint {
 }
 
 impl Pipeline for KeypointMatchingPipeline {
-    const TASK: Task = Task::KeypointMatching;
-
     type Input = [Image; 2];
 
     type Parameters = MatchingParameters;
@@ -64,42 +62,36 @@ impl Pipeline for KeypointMatchingPipeline {
         Ok(Self {
             model: model::load(source, options)?,
             processor: ImageTransforms::load(source)?,
-            data_type: options.data_type,
+            options,
         })
     }
 
-    fn run(
-        &self,
-        inputs: &[Self::Input],
-        parameters: &Self::Parameters,
-    ) -> Result<Vec<Self::Output>> {
-        let device = self.model.model().state().device()?;
-        inputs
+    fn run_one(&self, pair: &Self::Input, parameters: &Self::Parameters) -> Result<Self::Output> {
+        let pixels =
+            self.processor
+                .preprocess_batch(pair, self.options.device, self.options.data_type)?;
+        let &[_, _, height, width] = pixels.shape().dimensions() else {
+            return Err(SingeError::invalid_argument("images, [B, C, H, W]").into());
+        };
+        let size = (height, width);
+        let found = self.model.match_pair(&pixels)?;
+        let mut matches = found
+            .matches
             .iter()
-            .map(|pair| {
-                let pixels = self.processor.preprocess(pair, device, self.data_type)?;
-                let dimensions = pixels.shape().dimensions();
-                let size = (dimensions[2], dimensions[3]);
-                let found = self.model.match_pair(&pixels)?;
-                let mut matches = found
-                    .matches
-                    .iter()
-                    .zip(&found.scores)
-                    .enumerate()
-                    .filter(|&(_, (&other, &score))| other >= 0 && score > parameters.threshold)
-                    .filter_map(|(index, (&other, &score))| {
-                        let other = found.keypoints[1].get(usize::try_from(other).ok()?)?;
-                        Some(Match {
-                            keypoint_image_0: rescaled(found.keypoints[0][index], size, &pair[0]),
-                            keypoint_image_1: rescaled(*other, size, &pair[1]),
-                            score,
-                        })
-                    })
-                    .collect::<Vec<_>>();
-                // Best first, equal scores in the first image's order, as Python's stable sort leaves them.
-                matches.sort_by(|left, right| right.score.total_cmp(&left.score));
-                Ok(matches)
+            .zip(&found.scores)
+            .enumerate()
+            .filter(|&(_, (&other, &score))| other >= 0 && score > parameters.threshold)
+            .filter_map(|(index, (&other, &score))| {
+                let other = found.keypoints[1].get(usize::try_from(other).ok()?)?;
+                Some(Match {
+                    keypoint_image_0: rescaled(found.keypoints[0][index], size, &pair[0]),
+                    keypoint_image_1: rescaled(*other, size, &pair[1]),
+                    score,
+                })
             })
-            .collect()
+            .collect::<Vec<_>>();
+        // Best first, equal scores in the first image's order, as Python's stable sort leaves them.
+        host::best_first(&mut matches, usize::MAX, |found| found.score);
+        Ok(matches)
     }
 }

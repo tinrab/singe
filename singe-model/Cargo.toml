@@ -16,6 +16,7 @@ default = []
 cuda_13_4 = ["singe/cuda_13_4", "singe-testing/cuda_13_4"]
 
 [dependencies]
+rayon.workspace = true
 singe.workspace = true
 image.workspace = true
 minijinja.workspace = true
@@ -30,12 +31,15 @@ unicode-normalization-alignments.workspace = true
 [dev-dependencies]
 anyhow.workspace = true
 clap.workspace = true
-singe-cupti.workspace = true
 singe-testing.workspace = true
 toml_edit.workspace = true
 
 [[example]]
 name = "generate"
+required-features = ["cuda_13_4"]
+
+[[example]]
+name = "compare"
 required-features = ["cuda_13_4"]
 
 [[example]]

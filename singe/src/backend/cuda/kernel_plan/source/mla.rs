@@ -12,7 +12,7 @@ use crate::{
             kernel_plan::source::{
                 KernelInput, KernelPlan, KernelPlanner,
                 paged_general::{GeneralPaged, ScoreTerm, general_paged},
-                paging::{PagedSequence, paged_indices, report_index_error},
+                paging::{PagedSequence, leading_dimension, paged_indices, report_index_error},
                 parameters::{KernelParameters, MlaParameters, parameter_key},
                 tensor_core::{operand_kind, row_accumulators, tensor_core_helpers},
                 writer::KernelWriter,
@@ -167,14 +167,13 @@ impl KernelPlanner {
                 tokens,
                 heads,
                 page_size,
-                cache_pages: extent(latent_cache.layout.shape().dimensions()[0])?,
+                cache_pages: extent(leading_dimension(
+                    latent_cache,
+                    "cuda mla attention latent cache dimensions",
+                )?)?,
                 sequences,
                 output: ValueSpec::new(data_type, problem.output_shape.clone()),
                 lse: ValueSpec::new(DataType::F32, problem.lse_shape),
-                #[expect(
-                    clippy::cast_precision_loss,
-                    reason = "head dimensions round to the score's precision"
-                )]
                 default_scale: 1.0 / (width as f32).sqrt(),
             });
         }
@@ -193,10 +192,6 @@ impl KernelPlanner {
             .clamp(1, MAX_SPLITS);
         let blocks = (sequences * tiles * splits).max(1);
         let rows_total = tokens * heads;
-        #[expect(
-            clippy::cast_precision_loss,
-            reason = "head dimensions are at most 640"
-        )]
         let scale = attention
             .scale
             .unwrap_or_else(|| 1.0 / (width as f32).sqrt());
@@ -260,7 +255,7 @@ impl KernelPlanner {
         writer.status();
         let report = report_index_error();
         let page_total = to_usize(
-            latent_cache.layout.shape().dimensions()[0],
+            leading_dimension(latent_cache, "cuda mla attention latent cache dimensions")?,
             "cuda mla attention pages",
         )?;
         let sequence_values = PagedSequence {
@@ -269,7 +264,7 @@ impl KernelPlanner {
             last_page_lengths: &lp,
             tokens,
             page_table: to_usize(
-                pages.layout.shape().dimensions()[0],
+                leading_dimension(pages, "cuda mla attention page table dimensions")?,
                 "cuda mla attention page table",
             )?,
             page_size,

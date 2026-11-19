@@ -3,7 +3,9 @@ mod cublas;
 mod cublaslt;
 mod validation;
 
-use singe_cuda::graph::Graph as NativeCudaGraph;
+use std::mem::MaybeUninit;
+
+use singe_cuda::{graph::Graph as NativeCudaGraph, memory::DeviceMemory};
 
 pub use self::{
     activation::build_cublaslt_matmul_activation_graph,
@@ -14,19 +16,22 @@ pub use self::{
     },
 };
 
-/// A captured cuBLASLt matrix multiplication child graph and its workspace byte count.
-/// Tensor bindings and workspace allocations are retained separately by compilation and replay resources.
+/// A captured cuBLASLt matrix multiplication child graph and the workspace its captured call reads.
 #[derive(Debug)]
 pub struct CublasLtMatmulGraph {
     child_graph: NativeCudaGraph,
-    workspace_byte_size: usize,
+    // The workspace the captured call reads, which every replay reads again.
+    workspace: Option<DeviceMemory<MaybeUninit<u8>>>,
 }
 
 impl CublasLtMatmulGraph {
-    pub(crate) fn new(child_graph: NativeCudaGraph, workspace_byte_size: usize) -> Self {
+    pub(crate) fn new(
+        child_graph: NativeCudaGraph,
+        workspace: Option<DeviceMemory<MaybeUninit<u8>>>,
+    ) -> Self {
         Self {
             child_graph,
-            workspace_byte_size,
+            workspace,
         }
     }
 
@@ -36,16 +41,9 @@ impl CublasLtMatmulGraph {
         &self.child_graph
     }
 
-    /// Returns the workspace byte count recorded during capture.
+    /// Returns the byte count of the workspace the captured call reads.
     #[must_use]
     pub fn workspace_byte_size(&self) -> usize {
-        self.workspace_byte_size
-    }
-
-    /// Transfers ownership of the captured child graph.
-    /// The caller must preserve the separately retained tensor and workspace allocations through execution.
-    #[must_use]
-    pub fn into_native(self) -> NativeCudaGraph {
-        self.child_graph
+        self.workspace.as_ref().map_or(0, DeviceMemory::byte_len)
     }
 }

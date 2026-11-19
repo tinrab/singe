@@ -1,11 +1,13 @@
 // Reads a `transformers` VITS config and imports its checkpoint, folding its WaveNets' weight norms and leaving the parts only training reads.
 
 use serde::Deserialize;
+use singe::nn::Activation;
 
-use super::VitsConfig;
 use crate::{
+    assembly::attention_rules,
     error::{Error, Result},
-    format::Rules,
+    format::{Rules, transformers::activation_field},
+    model::audio::vits::VitsConfig,
     source::Source,
 };
 
@@ -42,19 +44,52 @@ struct Fields {
     speaking_rate: f32,
     use_stochastic_duration_prediction: bool,
     speaker_embedding_size: i64,
-    hidden_act: String,
+    #[serde(deserialize_with = "activation_field")]
+    hidden_act: Activation,
 }
 
 pub(crate) fn config(source: &Source) -> Result<VitsConfig> {
     let fields: Fields = source.json("config.json")?;
-    // One speaker, the stochastic duration predictor, ReLU feed-forwards, and undilated WaveNets of two channels' flows.
-    if !fields.use_stochastic_duration_prediction
-        || fields.speaker_embedding_size != 0
-        || fields.hidden_act != "relu"
-        || fields.wavenet_dilation_rate != 1
-        || fields.depth_separable_channels != 2
+    if !fields.use_stochastic_duration_prediction {
+        return Err(Error::unsupported(
+            "a VITS without `use_stochastic_duration_prediction`",
+        ));
+    }
+
+    if fields.speaker_embedding_size != 0 {
+        return Err(Error::unsupported(
+            "a VITS `speaker_embedding_size` other than zero",
+        ));
+    }
+
+    if fields.hidden_act != Activation::Relu {
+        return Err(Error::unsupported("a VITS `hidden_act` other than `relu`"));
+    }
+
+    if fields.wavenet_dilation_rate != 1 {
+        return Err(Error::unsupported(
+            "a VITS `wavenet_dilation_rate` other than one",
+        ));
+    }
+
+    if fields.depth_separable_channels != 2 {
+        return Err(Error::unsupported(
+            "a VITS `depth_separable_channels` other than two",
+        ));
+    }
+
+    if fields.upsample_kernel_sizes.len() != fields.upsample_rates.len() {
+        return Err(Error::unsupported(
+            "VITS `upsample_rates` and `upsample_kernel_sizes` of different lengths",
+        ));
+    }
+
+    if fields.resblock_kernel_sizes.is_empty()
+        || fields.resblock_dilation_sizes.len() != fields.resblock_kernel_sizes.len()
     {
-        return Err(Error::unsupported("this VITS config"));
+        return Err(Error::unsupported(
+            "VITS `resblock_kernel_sizes` and `resblock_dilation_sizes` of other than one nonzero length",
+        ));
     }
 
     Ok(VitsConfig {
@@ -88,19 +123,23 @@ pub(crate) fn config(source: &Source) -> Result<VitsConfig> {
     })
 }
 
-fn depth_separable(rules: Rules, from: &str, to: &str) -> Rules {
-    rules
-        .rename(&format!("{from}.convs_dilated"), &format!("{to}.dilated"))
-        .rename(
-            &format!("{from}.convs_pointwise"),
-            &format!("{to}.pointwise"),
-        )
-        .rename(&format!("{from}.norms_1"), &format!("{to}.first_norms"))
-        .rename(&format!("{from}.norms_2"), &format!("{to}.second_norms"))
+fn conv_flow_rules(from: &str, to: &str) -> Rules {
+    Rules::new().rename_each(
+        from,
+        to,
+        &[
+            ("conv_pre", "pre"),
+            ("conv_proj", "projection"),
+            ("conv_dds.convs_dilated", "dds.dilated"),
+            ("conv_dds.convs_pointwise", "dds.pointwise"),
+            ("conv_dds.norms_1", "dds.first_norms"),
+            ("conv_dds.norms_2", "dds.second_norms"),
+        ],
+    )
 }
 
-pub(crate) fn rules() -> Rules {
-    let layer = |name: &str| format!("text_encoder.encoder.layers.*.{name}");
+pub(crate) fn rules(config: &VitsConfig) -> Rules {
+    let layers = "text_encoder.encoder.layers.*";
     let mut rules = Rules::new()
         // The posterior encoder and the duration predictor's posterior flows serve only training.
         .skip("posterior_encoder")
@@ -109,36 +148,35 @@ pub(crate) fn rules() -> Rules {
         .skip("duration_predictor.post_conv_proj")
         .skip("duration_predictor.post_flows")
         .rename("text_encoder.embed_tokens", "tokens")
-        .rename(&layer("attention.q_proj"), "layers.*.query")
-        .rename(&layer("attention.k_proj"), "layers.*.key")
-        .rename(&layer("attention.v_proj"), "layers.*.value")
-        .rename(&layer("attention.out_proj"), "layers.*.output")
-        .rename(&layer("attention.emb_rel_k"), "layers.*.relative_keys")
-        .rename(&layer("attention.emb_rel_v"), "layers.*.relative_values")
-        .rename(&layer("layer_norm"), "layers.*.attention_norm")
-        .rename(&layer("feed_forward.conv_1"), "layers.*.up")
-        .rename(&layer("feed_forward.conv_2"), "layers.*.down")
-        .rename(&layer("final_layer_norm"), "layers.*.feed_forward_norm")
-        .rename("text_encoder.project", "prior")
-        .rename("duration_predictor.conv_pre", "duration.pre")
-        .rename("duration_predictor.conv_proj", "duration.projection")
-        .rename(
-            "duration_predictor.flows.0.translate",
-            "duration.affine.shift",
+        .then(attention_rules(
+            &format!("{layers}.attention"),
+            "blocks.*.attention",
+        ))
+        .rename_each(
+            layers,
+            "blocks.*",
+            &[
+                ("attention.emb_rel_k", "attention.relative_keys"),
+                ("attention.emb_rel_v", "attention.relative_values"),
+                ("layer_norm", "attention_norm"),
+                ("feed_forward.conv_1", "feed_forward.up"),
+                ("feed_forward.conv_2", "feed_forward.down"),
+                ("final_layer_norm", "feed_forward_norm"),
+            ],
         )
-        .rename(
-            "duration_predictor.flows.0.log_scale",
-            "duration.affine.log_scale",
+        .rename("text_encoder.project", "prior")
+        .then(conv_flow_rules("duration_predictor", "duration"))
+        .rename_each(
+            "duration_predictor.flows.0",
+            "duration.affine",
+            &[("translate", "shift"), ("log_scale", "log_scale")],
         );
-    rules = depth_separable(rules, "duration_predictor.conv_dds", "duration.dds");
     // The convolutional flows after the affine one, numbered from one.
-    for flow in 1..=8 {
-        let from = format!("duration_predictor.flows.{flow}");
-        let to = format!("duration.flows.{}", flow - 1);
-        rules = rules
-            .rename(&format!("{from}.conv_pre"), &format!("{to}.pre"))
-            .rename(&format!("{from}.conv_proj"), &format!("{to}.projection"));
-        rules = depth_separable(rules, &format!("{from}.conv_dds"), &format!("{to}.dds"));
+    for flow in 1..=config.duration_flows {
+        rules = rules.then(conv_flow_rules(
+            &format!("duration_predictor.flows.{flow}"),
+            &format!("duration.flows.{}", flow - 1),
+        ));
     }
     rules
         .weight_norm(

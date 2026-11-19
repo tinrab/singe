@@ -44,7 +44,7 @@ impl Graph {
             .strides()
             .get(axis)
             .copied()
-            .ok_or(Error::DimensionOutOfBounds)?;
+            .ok_or_else(|| Error::dimension_out_of_bounds("slice dim stride"))?;
         let offset_delta = start
             .checked_mul(stride)
             .ok_or_else(|| Error::out_of_range("graph slice offset".to_string()))?;

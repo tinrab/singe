@@ -1,22 +1,17 @@
-"""TrOCR, reading a printed line with `transformers`' image processor, `VisionEncoderDecoderModel`, and `generate`, as the image-to-text pipeline did before `transformers` 5 removed it, and as `verify.rs` reads it in Singe."""
+"""TrOCR, reading a printed line with `transformers`' image processor, `VisionEncoderDecoderModel`, and `generate`, as the image-to-text pipeline did before `transformers` 5 removed it, and as `mod.rs` reads it in Singe."""
 
-import sys
-from pathlib import Path
+import torch
+from PIL import Image
+from transformers import AutoImageProcessor, AutoTokenizer, VisionEncoderDecoderModel
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-
-import torch  # noqa: E402
-from PIL import Image  # noqa: E402
-from transformers import AutoImageProcessor, AutoTokenizer, VisionEncoderDecoderModel  # noqa: E402
-
-from support import DEVICE, Verification  # noqa: E402
+from support import DEVICE, Verification
 
 
-def image_to_text(snapshot):
+def image_to_text(snapshot, dtype):
     processor = AutoImageProcessor.from_pretrained(snapshot)
     tokenizer = AutoTokenizer.from_pretrained(snapshot)
     model = (
-        VisionEncoderDecoderModel.from_pretrained(snapshot, dtype=torch.float32)
+        VisionEncoderDecoderModel.from_pretrained(snapshot, dtype=dtype)
         .to(DEVICE)
         .eval()
     )

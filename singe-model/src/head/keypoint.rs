@@ -4,11 +4,11 @@ use std::fmt::Debug;
 
 use serde::{Deserialize, Serialize};
 use singe::{
-    Result as SingeResult, Tensor,
+    DataType, Error as SingeError, Result as SingeResult, Tensor,
     nn::{Model, ModelState},
 };
 
-use crate::{error::Result, processor::host_values};
+use crate::{error::Result, head::Boxed, host};
 
 // What a keypoint detector's layers give: each pixel's keypoint probability, `[B, H, W]`, and unit descriptors over a coarser map, `[B, D, h, w]`.
 pub trait KeypointLayers: Debug + Send + Sync {
@@ -37,7 +37,7 @@ pub struct Keypoints {
 
 #[derive(Debug)]
 pub struct KeypointDetector {
-    model: Model<Box<dyn KeypointLayers>>,
+    model: Model<Boxed<dyn KeypointLayers>>,
     config: KeypointConfig,
 }
 
@@ -121,16 +121,6 @@ fn suppressed(scores: &[f32], height: usize, width: usize, radius: usize) -> Vec
 }
 
 // Samples `descriptors`, `[D, h, w]` row-major, bilinearly at a keypoint, as SuperPoint's `_sample_descriptors` does through `grid_sample` with aligned corners and zeros outside, and scales the result to unit length.
-#[expect(
-    clippy::cast_precision_loss,
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    reason = "map sides are small, and the floors are of points near the map"
-)]
-#[expect(
-    clippy::suboptimal_flops,
-    reason = "rounds each product as the reference does, which the verifications compare with"
-)]
 fn sample(
     descriptors: &[f32],
     depth: usize,
@@ -181,12 +171,12 @@ fn sample(
 
 impl KeypointDetector {
     #[must_use]
-    pub const fn new(model: Model<Box<dyn KeypointLayers>>, config: KeypointConfig) -> Self {
+    pub const fn new(model: Model<Boxed<dyn KeypointLayers>>, config: KeypointConfig) -> Self {
         Self { model, config }
     }
 
     #[must_use]
-    pub const fn model(&self) -> &Model<Box<dyn KeypointLayers>> {
+    pub const fn model(&self) -> &Model<Boxed<dyn KeypointLayers>> {
         &self.model
     }
 
@@ -209,18 +199,20 @@ pub fn extract_keypoints(
     config: &KeypointConfig,
 ) -> SingeResult<Vec<Keypoints>> {
     let side = |dimension: i64| {
-        usize::try_from(dimension).map_err(|_| singe::Error::out_of_range("map size"))
+        usize::try_from(dimension).map_err(|_| SingeError::out_of_range("map size"))
     };
-    let dimensions = scores.shape().dimensions();
-    let (batch, height, width) = (
-        side(dimensions[0])?,
-        side(dimensions[1])?,
-        side(dimensions[2])?,
-    );
-    let map = descriptors.shape().dimensions();
-    let (depth, rows, columns) = (side(map[1])?, side(map[2])?, side(map[3])?);
-    let scores = host_values(scores)?;
-    let descriptors = host_values(descriptors)?;
+    let &[batch, height, width] = scores.shape().dimensions() else {
+        return Err(SingeError::invalid_argument(
+            "keypoint probabilities, [B, H, W]",
+        ));
+    };
+    let &[_, depth, rows, columns] = descriptors.shape().dimensions() else {
+        return Err(SingeError::invalid_argument("descriptors, [B, D, h, w]"));
+    };
+    let (batch, height, width) = (side(batch)?, side(height)?, side(width)?);
+    let (depth, rows, columns) = (side(depth)?, side(rows)?, side(columns)?);
+    let scores = scores.cast(DataType::F32)?.to_vec::<f32>()?;
+    let descriptors = descriptors.cast(DataType::F32)?.to_vec::<f32>()?;
     Ok((0..batch)
         .map(|image| {
             let scores = suppressed(
@@ -242,13 +234,11 @@ pub fn extract_keypoints(
                 .map(|(row, column)| ((row, column), scores[row * width + column]))
                 .collect::<Vec<_>>();
             if let Some(most) = config.max_keypoints.filter(|&most| most < found.len()) {
-                found.sort_by(|left, right| right.1.total_cmp(&left.1));
-                found.truncate(most);
+                host::best_first(&mut found, most, |&(_, score)| score);
             }
 
             let map =
                 &descriptors[image * depth * rows * columns..(image + 1) * depth * rows * columns];
-            #[expect(clippy::cast_precision_loss, reason = "pixel indices are small")]
             let keypoints = found
                 .iter()
                 .map(|&((row, column), _)| [column as f32, row as f32])
@@ -279,17 +269,17 @@ pub struct PairMatches {
 
 #[derive(Debug)]
 pub struct KeypointMatcher {
-    model: Model<Box<dyn MatchingLayers>>,
+    model: Model<Boxed<dyn MatchingLayers>>,
 }
 
 impl KeypointMatcher {
     #[must_use]
-    pub const fn new(model: Model<Box<dyn MatchingLayers>>) -> Self {
+    pub const fn new(model: Model<Boxed<dyn MatchingLayers>>) -> Self {
         Self { model }
     }
 
     #[must_use]
-    pub const fn model(&self) -> &Model<Box<dyn MatchingLayers>> {
+    pub const fn model(&self) -> &Model<Boxed<dyn MatchingLayers>> {
         &self.model
     }
 

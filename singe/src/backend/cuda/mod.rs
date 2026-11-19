@@ -32,8 +32,8 @@ pub(crate) mod graph_value;
 mod kernel_plan;
 pub mod kernel_tuning;
 pub(crate) mod kernels;
-mod nvtx;
-mod provider_selection;
+pub(crate) mod nvtx;
+pub(crate) mod provider_selection;
 
 /// Shared CUDA library handles and bounded provider caches.
 pub(crate) mod runtime;

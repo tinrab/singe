@@ -24,15 +24,10 @@ impl TorchGenerator {
     #[must_use]
     pub fn seeded(seed: u64) -> Self {
         let mut state = [0_u32; STATE];
-        #[expect(
-            clippy::cast_possible_truncation,
-            reason = "MT19937 reads the low 32 bits"
-        )]
         let first = seed as u32;
         state[0] = first;
         for index in 1..STATE {
             let previous = state[index - 1];
-            #[expect(clippy::cast_possible_truncation, reason = "the index is below 624")]
             let step = index as u32;
             state[index] = 1_812_433_253_u32
                 .wrapping_mul(previous ^ (previous >> 30))
@@ -74,13 +69,11 @@ impl TorchGenerator {
     }
 
     // `uniform_real_distribution<float>(0, 1)`: the draw's low 24 bits over `2^24`.
-    #[expect(clippy::cast_precision_loss, reason = "24 bits fit `F32` exactly")]
     fn uniform(&mut self) -> f32 {
         (self.next_u32() & 0x00ff_ffff) as f32 / 16_777_216.0
     }
 
     // `uniform_real_distribution<double>(0, 1)`: the low 53 bits of two draws, the first high, over `2^53`.
-    #[expect(clippy::cast_precision_loss, reason = "53 bits fit `F64` exactly")]
     fn uniform_f64(&mut self) -> f64 {
         let high = u64::from(self.next_u32());
         let low = u64::from(self.next_u32());
@@ -88,10 +81,6 @@ impl TorchGenerator {
     }
 
     // `normal_distribution<double>` with mean 0 and deviation 1, rounded to `F32`: the cached value where there is one, or else Box–Muller over two uniforms, caching the sine's value.
-    #[expect(
-        clippy::cast_possible_truncation,
-        reason = "PyTorch rounds each value to the tensor's `F32`"
-    )]
     fn serial_normal(&mut self) -> f32 {
         if let Some(value) = self.next_normal.take() {
             return value as f32;
@@ -149,16 +138,7 @@ fn box_muller(values: &mut [f32]) {
 // `log256_ps`: Cephes' polynomial on the mantissa.
 #[expect(
     clippy::cast_possible_wrap,
-    clippy::cast_precision_loss,
     reason = "the bit manipulations are `avx_mathfun.h`'s"
-)]
-#[expect(
-    clippy::excessive_precision,
-    reason = "the constants are `avx_mathfun.h`'s"
-)]
-#[expect(
-    clippy::suboptimal_flops,
-    reason = "rounds each product as the reference does, which the verifications compare with"
 )]
 fn log(value: f32) -> f32 {
     let invalid = value <= 0.0;
@@ -199,20 +179,6 @@ fn log(value: f32) -> f32 {
 }
 
 // `sincos256_ps`: Cephes' sine and cosine after reducing by multiples of `π / 4`.
-#[expect(
-    clippy::cast_possible_truncation,
-    clippy::cast_precision_loss,
-    clippy::cast_sign_loss,
-    reason = "the conversions are `avx_mathfun.h`'s"
-)]
-#[expect(
-    clippy::excessive_precision,
-    reason = "the constants are `avx_mathfun.h`'s"
-)]
-#[expect(
-    clippy::suboptimal_flops,
-    reason = "rounds each product as the reference does, which the verifications compare with"
-)]
 fn sincos(value: f32) -> (f32, f32) {
     let sign_sin = value.to_bits() & 0x8000_0000;
     let mut x = value.abs();

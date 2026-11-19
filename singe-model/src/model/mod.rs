@@ -18,7 +18,7 @@ use serde_json::Value;
 
 use crate::{
     error::{Error, Result},
-    format::Loader,
+    format::{Loader, NativeConfig},
     head::{Head, HeadLoader, LoadHead},
     source::{Format, LoadOptions, Source},
 };
@@ -29,18 +29,18 @@ pub struct ModelEntry {
     pub name: &'static str,
     pub formats: &'static [(Format, &'static [&'static str])],
     // The heads in the order a snapshot that names none chooses them.
-    pub heads: &'static [HeadLoader],
+    pub loaders: &'static [HeadLoader],
 }
 
 impl ModelEntry {
     pub fn heads(&self) -> impl Iterator<Item = Head> {
-        self.heads.iter().map(HeadLoader::head)
+        self.loaders.iter().map(HeadLoader::head)
     }
 
     fn named(&self, format: Format, name: &str) -> bool {
         match format {
             Format::Native => self.name == name,
-            Format::Transformers | Format::Diffusers | Format::AutoGluon => self
+            _ => self
                 .formats
                 .iter()
                 .any(|(stored, names)| *stored == format && names.contains(&name)),
@@ -48,12 +48,14 @@ impl ModelEntry {
     }
 
     fn loader(&self, head: Head) -> Result<&HeadLoader> {
-        self.heads
+        self.loaders
             .iter()
             .find(|loader| loader.head() == head)
-            .ok_or_else(|| {
-                Error::UnsupportedConfig(format!("model {} as {}", self.name, head.id()))
-            })
+            .ok_or_else(|| self.unserved(head))
+    }
+
+    fn unserved(&self, head: Head) -> Error {
+        Error::unsupported(format!("model {} as {}", self.name, head.id()))
     }
 }
 
@@ -79,9 +81,9 @@ pub fn find(source: &Source) -> Result<&'static ModelEntry> {
     let mut found = all().filter(|model| model.named(source.format(), source.kind()));
     let model = found
         .next()
-        .ok_or_else(|| Error::UnsupportedConfig(format!("model kind {}", source.kind())))?;
+        .ok_or_else(|| Error::unsupported(format!("model kind {}", source.kind())))?;
     if let Some(other) = found.next() {
-        return Err(Error::UnsupportedConfig(format!(
+        return Err(Error::unsupported(format!(
             "model kind {}, which both {} and {} claim",
             source.kind(),
             model.name,
@@ -94,9 +96,7 @@ pub fn find(source: &Source) -> Result<&'static ModelEntry> {
 // Loads `source`'s model as head `H`.
 pub fn load<H: LoadHead>(source: &Source, options: LoadOptions) -> Result<H> {
     let model = find(source)?;
-    let load = model.heads.iter().find_map(H::loader).ok_or_else(|| {
-        Error::UnsupportedConfig(format!("model {} as {}", model.name, H::HEAD.id()))
-    })?;
+    let load = H::loader(model.loader(H::HEAD)?).ok_or_else(|| model.unserved(H::HEAD))?;
     let mut loader = Loader::new(source, options);
     load(&mut loader).map_err(|error| with_classes(source, H::HEAD, error))
 }
@@ -104,7 +104,9 @@ pub fn load<H: LoadHead>(source: &Source, options: LoadOptions) -> Result<H> {
 // Adds the snapshot's classes to the failed load of a head none of them names, whose weights the snapshot may lack.
 fn with_classes(source: &Source, head: Head, error: Error) -> Error {
     match source.classes() {
-        Ok(classes) if !classes.is_empty() && !classes.iter().any(|class| head.names(class)) => {
+        Ok(classes)
+            if !classes.is_empty() && !classes.iter().any(|class| head.holds_class(class)) =>
+        {
             Error::HeadWeights {
                 head: head.id(),
                 classes,
@@ -116,21 +118,19 @@ fn with_classes(source: &Source, head: Head, error: Error) -> Error {
 }
 
 // The head `source`'s weights hold: the one a native config records, or the first of the model's heads a `transformers` class in `architectures` names, or the model's first.
-pub fn head(source: &Source) -> Result<Head> {
+pub fn default_head(source: &Source) -> Result<Head> {
     let model = find(source)?;
-    let first = model.heads().next().ok_or_else(|| {
-        Error::UnsupportedConfig(format!("model {}, which serves no head", model.name))
-    })?;
+    let first = model
+        .heads()
+        .next()
+        .ok_or_else(|| Error::unsupported(format!("model {}, which serves no head", model.name)))?;
     match source.format() {
-        Format::Native => source.json::<Value>("config.json")?["singe"]["head"]
-            .as_str()
-            .and_then(Head::from_id)
-            .ok_or_else(|| Error::unsupported("a native config that names no head")),
+        Format::Native => Head::from_id(&NativeConfig::read(source.directory())?.head),
         Format::Transformers => {
             let classes = source.classes()?;
             Ok(model
                 .heads()
-                .find(|head| classes.iter().any(|class| head.names(class)))
+                .find(|head| classes.iter().any(|class| head.holds_class(class)))
                 .unwrap_or(first))
         }
         Format::Diffusers => Ok(first),
@@ -147,12 +147,7 @@ pub fn head(source: &Source) -> Result<Head> {
 }
 
 // Loads `source`'s model as `head`, and writes what it read to `directory` in Singe's format.
-pub fn convert(
-    source: &Source,
-    head: Head,
-    directory: impl AsRef<Path>,
-    options: LoadOptions,
-) -> Result<()> {
+pub fn convert(source: &Source, head: Head, directory: &Path, options: LoadOptions) -> Result<()> {
     let model = find(source)?;
     let mut loader = Loader::new(source, options);
     model

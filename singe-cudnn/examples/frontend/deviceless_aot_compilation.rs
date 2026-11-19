@@ -61,10 +61,6 @@ fn is_deviceless_not_supported(error: &Error) -> bool {
     )
 }
 
-#[expect(
-    clippy::many_single_char_names,
-    reason = "keeps the upstream sample's single-letter dimension names"
-)]
 fn build_graph(device_properties: DeviceProperties) -> Result<Graph> {
     let n = 16_i64;
     let c = 128_i64;

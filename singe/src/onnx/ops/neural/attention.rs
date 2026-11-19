@@ -136,31 +136,36 @@ pub fn attention_output_shape(
     key: &ImportedValue,
     value: &ImportedValue,
 ) -> Result<Shape> {
-    let query_dims = query.shape.dimensions();
-    let key_dims = key.shape.dimensions();
-    let value_dims = value.shape.dimensions();
-    if query_dims[0] != key_dims[0]
-        || query_dims[0] != value_dims[0]
-        || query_dims[1] != key_dims[1]
-        || query_dims[1] != value_dims[1]
-        || query_dims[3] != key_dims[3]
-        || key_dims[2] != value_dims[2]
-        || query_dims[0] < 0
-        || query_dims[1] < 0
-        || query_dims[2] < 0
-        || query_dims[3] <= 0
-        || key_dims[2] <= 0
-        || value_dims[3] < 0
+    let unsupported = || Error::UnsupportedShape {
+        name: node_label(node),
+        reason: "unsupported attention input shapes".into(),
+    };
+    let (
+        &[batch, heads, queries, width],
+        &[key_batch, key_heads, keys, key_width],
+        &[value_batch, value_heads, values, value_width],
+    ) = (
+        query.shape.dimensions(),
+        key.shape.dimensions(),
+        value.shape.dimensions(),
+    )
+    else {
+        return Err(unsupported());
+    };
+    if batch != key_batch
+        || batch != value_batch
+        || heads != key_heads
+        || heads != value_heads
+        || width != key_width
+        || keys != values
+        || batch < 0
+        || heads < 0
+        || queries < 0
+        || width <= 0
+        || keys <= 0
+        || value_width < 0
     {
-        return Err(Error::UnsupportedShape {
-            name: node_label(node),
-            reason: "unsupported attention input shapes".into(),
-        });
+        return Err(unsupported());
     }
-    Ok(Shape::create([
-        query_dims[0],
-        query_dims[1],
-        query_dims[2],
-        value_dims[3],
-    ])?)
+    Ok(Shape::create([batch, heads, queries, value_width])?)
 }

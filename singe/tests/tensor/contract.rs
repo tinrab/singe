@@ -30,7 +30,7 @@ fn assert_invalid_reductions(device: Device) {
     ));
     assert!(matches!(
         input.mean(&[2], false),
-        Err(Error::DimensionOutOfBounds)
+        Err(Error::DimensionOutOfBounds { .. })
     ));
 }
 
@@ -44,7 +44,7 @@ fn test_scalar_views_reject_axes_outside_the_virtual_scalar_axis() {
             scalar.flatten(invalid, 0),
             scalar.flatten(0, invalid),
         ] {
-            assert!(matches!(result, Err(Error::DimensionOutOfBounds)));
+            assert!(matches!(result, Err(Error::DimensionOutOfBounds { .. })));
         }
     }
 }

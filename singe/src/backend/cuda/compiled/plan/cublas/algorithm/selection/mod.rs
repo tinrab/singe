@@ -46,15 +46,23 @@ pub fn cublaslt_matmul_algorithm(
     output: &CudaGraphValue,
     epilogue: Epilogue,
     bias: Option<&CudaGraphValue>,
+    workspace_limit_bytes: usize,
 ) -> Result<CublasLtMatmulAlgorithmEntry> {
     cublaslt_matmul_algorithm_with_workspace_limit(
-        runtime, a_layout, b_layout, output, epilogue, bias, 0, None,
+        runtime,
+        a_layout,
+        b_layout,
+        output,
+        epilogue,
+        bias,
+        workspace_limit_bytes,
+        None,
     )?
     .ok_or_else(|| {
         Error::library_refused(
             "cuBLASLt",
             Error::unsupported_operation_with_details(
-                "cuda graph cuBLASLt matmul has no zero-workspace heuristic algorithm",
+                "cuda graph cuBLASLt matmul has no heuristic algorithm within its workspace limit",
                 format!(
                     "a {a_layout:?}, b {b_layout:?}, output {:?} {:?}, epilogue {epilogue:?}, bias {:?}",
                     output.data_type(),

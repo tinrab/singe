@@ -130,9 +130,12 @@ impl Problem {
             lhs.layout.shape().dimensions(),
             rhs.layout.shape().dimensions(),
         );
-        if left.len() < 2
-            || right.len() < 2
-            || !lhs.layout.is_contiguous()
+        let (&[ref left_batch @ .., rows, inner], &[ref right_batch @ .., rhs_inner, columns]) =
+            (left, right)
+        else {
+            return Ok(None);
+        };
+        if !lhs.layout.is_contiguous()
             || !lhs.layout.storage_offset().is_multiple_of(8)
             || !rhs.layout.storage_offset().is_multiple_of(8)
         {
@@ -140,7 +143,8 @@ impl Problem {
         }
 
         // The right operand is contiguous `[k, n]`, or the transpose of contiguous `[n, k]`.
-        let rank = i64::try_from(right.len()).map_err(|_| Error::DimensionOutOfBounds)?;
+        let rank = i64::try_from(right.len())
+            .map_err(|_| Error::dimension_out_of_bounds("mma right operand rank"))?;
         let rhs_transposed = if rhs.layout.is_contiguous() {
             false
         } else if rhs.layout.transpose(rank - 2, rank - 1)?.is_contiguous() {
@@ -149,12 +153,8 @@ impl Problem {
             return Ok(None);
         };
         let extent = |value: i64| to_usize(value, "cuda mma extent");
-        let (m, k) = (extent(left[left.len() - 2])?, extent(left[left.len() - 1])?);
-        let (rhs_k, n) = (
-            extent(right[right.len() - 2])?,
-            extent(right[right.len() - 1])?,
-        );
-        let (left_batch, right_batch) = (&left[..left.len() - 2], &right[..right.len() - 2]);
+        let (m, k) = (extent(rows)?, extent(inner)?);
+        let (rhs_k, n) = (extent(rhs_inner)?, extent(columns)?);
         let count = |dimensions: &[i64]| dimensions.iter().product::<i64>();
         // A batched operand gives the product's batch dimensions, and the other has fewer dimensions, all of extent one.
         let (batch_dimensions, lhs_batched, rhs_batched) =
@@ -179,7 +179,7 @@ impl Problem {
         }
 
         let mut output = batch_dimensions.to_vec();
-        output.extend([left[left.len() - 2], right[right.len() - 1]]);
+        output.extend([rows, columns]);
         Ok(Some(Self {
             batch: extent(count(batch_dimensions))?,
             m,

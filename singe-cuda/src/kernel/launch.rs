@@ -660,10 +660,6 @@ fn volume(dim: Dim3) -> u128 {
     u128::from(dim.x) * u128::from(dim.y) * u128::from(dim.z)
 }
 
-#[expect(
-    clippy::too_many_lines,
-    reason = "launch geometry is checked against the complete kernel and device contract"
-)]
 fn validate_geometry(
     function: &KernelFunction,
     geometry: &LaunchGeometry,

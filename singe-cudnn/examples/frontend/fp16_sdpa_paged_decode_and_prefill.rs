@@ -37,10 +37,6 @@ fn index_value(value: i64) -> Result<i32> {
     })
 }
 
-#[expect(
-    clippy::many_single_char_names,
-    reason = "keeps the upstream sample's single-letter dimension names"
-)]
 fn run_phase(example: &common::ExampleContext, phase: Phase, block_size: i64) -> Result<()> {
     let is_ragged_prefill = matches!(phase, Phase::Prefill);
     let [b, h_q, h_k, h_v, s_kv, d_qk, d_v] = [8_i64, 8, 1, 1, 32 * 1024, 128, 128];

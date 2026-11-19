@@ -38,10 +38,6 @@ fn floating(values: Vec<f32>, shape: Shape, data_type: DataType, state: &Tensor)
 }
 
 /// Samples `first + (second - first) * u` for uniform `u` in `[0, 1)`.
-#[expect(
-    clippy::suboptimal_flops,
-    reason = "CUDA kernels compile without fused multiply-add, and matching their rounding keeps samples identical"
-)]
 pub fn uniform(state: &Tensor, random: &RandomAttributes) -> Result<Tensor> {
     let shape = Shape::create(&random.dimensions)?;
     let values = unit_values(
@@ -56,10 +52,6 @@ pub fn uniform(state: &Tensor, random: &RandomAttributes) -> Result<Tensor> {
 }
 
 /// Samples `first + second * z` for standard normal `z`.
-#[expect(
-    clippy::suboptimal_flops,
-    reason = "CUDA kernels compile without fused multiply-add, and matching their rounding keeps samples identical"
-)]
 pub fn normal(state: &Tensor, random: &RandomAttributes) -> Result<Tensor> {
     let shape = Shape::create(&random.dimensions)?;
     let values = normal_values(
@@ -140,8 +132,8 @@ pub fn multinomial(weights: &Tensor, state: &Tensor, random: &RandomAttributes) 
         _ => return Err(Error::unsupported_data_type("multinomial weights")),
     };
     let mut output = vec![random.samples];
-    if dimensions.len() == 2 {
-        output.insert(0, dimensions[0]);
+    if let &[rows, _] = dimensions {
+        output.insert(0, rows);
     }
     Tensor::from_vec(weights.device(), Shape::create(output)?, indices)
 }

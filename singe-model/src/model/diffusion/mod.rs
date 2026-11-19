@@ -6,7 +6,7 @@ pub mod shap_e;
 pub mod unet_2d;
 pub mod unet_2d_condition;
 
-use super::ModelEntry;
+use crate::model::ModelEntry;
 
 pub(crate) const MODELS: &[&ModelEntry] = &[
     &autoencoder_kl::MODEL,

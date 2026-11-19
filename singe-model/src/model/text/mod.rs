@@ -12,7 +12,7 @@ pub mod qwen3_5;
 pub mod roberta;
 pub mod t5;
 
-use super::ModelEntry;
+use crate::model::ModelEntry;
 
 pub(crate) const MODELS: &[&ModelEntry] = &[
     &bart::MODEL,

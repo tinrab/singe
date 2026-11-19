@@ -1,17 +1,17 @@
 // Reads a `transformers` CLAP config, its HTSAT audio tower's, its RoBERTa text tower's, and its feature extractor's, and imports its checkpoint.
 
 use serde::Deserialize;
-use singe::nn::Activation;
+use singe::{Error as SingeError, nn::Activation};
 
-use super::ClapConfig;
 use crate::{
     assembly::{SwinConfig, post_norm_encoder_rules, swin_rules},
     error::{Error, Result},
     format::{
-        Rules,
-        transformers::{EncoderFields, activation_field},
+        Rules, join,
+        transformers::{EncoderFields, activation_field, default_true},
     },
-    head::SpectrogramOptions,
+    model::audio::clap::ClapConfig,
+    processor::fbank::SpectrogramOptions,
     source::Source,
 };
 
@@ -26,16 +26,12 @@ struct Audio {
     patch_size: i64,
     patch_stride: Vec<i64>,
     enable_fusion: bool,
-    #[serde(default = "enabled")]
+    #[serde(default = "default_true")]
     enable_patch_layer_norm: bool,
     mlp_ratio: f64,
     #[serde(deserialize_with = "activation_field")]
     hidden_act: Activation,
     layer_norm_eps: f32,
-}
-
-const fn enabled() -> bool {
-    true
 }
 
 const fn relu() -> Activation {
@@ -76,22 +72,46 @@ pub(crate) fn config(source: &Source) -> Result<ClapConfig> {
     let fields: Fields = source.json("config.json")?;
     let extractor: Extractor = source.json("preprocessor_config.json")?;
     let audio = fields.audio_config;
-    // The unfused model, whose patches do not overlap, reading clips no longer than its window repeated to fill it, in at least one mel.
-    if audio.enable_fusion
-        || !audio.enable_patch_layer_norm
-        || audio
-            .patch_stride
-            .iter()
-            .any(|&stride| stride != audio.patch_size)
-        || extractor.truncation != "rand_trunc"
-        || extractor.padding != "repeatpad"
-        || audio.num_mel_bins <= 0
+    if audio.enable_fusion {
+        return Err(Error::unsupported("fused CLAP audio (`enable_fusion`)"));
+    }
+
+    if !audio.enable_patch_layer_norm {
+        return Err(Error::unsupported(
+            "CLAP patches without a norm (`enable_patch_layer_norm`)",
+        ));
+    }
+
+    if audio
+        .patch_stride
+        .iter()
+        .any(|&stride| stride != audio.patch_size)
     {
-        return Err(Error::unsupported("this CLAP config"));
+        return Err(Error::unsupported(
+            "a CLAP `patch_stride` other than its `patch_size`",
+        ));
+    }
+
+    if extractor.truncation != "rand_trunc" {
+        return Err(Error::unsupported(format!(
+            "CLAP truncation `{}`",
+            extractor.truncation
+        )));
+    }
+
+    if extractor.padding != "repeatpad" {
+        return Err(Error::unsupported(format!(
+            "CLAP padding `{}`",
+            extractor.padding
+        )));
+    }
+
+    if audio.num_mel_bins <= 0 {
+        return Err(Error::unsupported("a CLAP `num_mel_bins` below one"));
     }
 
     let rate = usize::try_from(extractor.sampling_rate)
-        .map_err(|_| Error::unsupported("this sample rate"))?;
+        .map_err(|_| SingeError::out_of_range("sampling_rate"))?;
     Ok(ClapConfig {
         audio: SwinConfig {
             width: audio.patch_embeds_hidden_size,
@@ -120,7 +140,7 @@ pub(crate) fn config(source: &Source) -> Result<ClapConfig> {
             fft: extractor.fft_window_size,
             hop: extractor.hop_length,
             mels: usize::try_from(audio.num_mel_bins)
-                .map_err(|_| Error::unsupported("this many mels"))?,
+                .map_err(|_| SingeError::out_of_range("num_mel_bins"))?,
             low: extractor.frequency_min,
             high: extractor.frequency_max,
         },
@@ -128,24 +148,23 @@ pub(crate) fn config(source: &Source) -> Result<ClapConfig> {
 }
 
 pub(crate) fn rules() -> Rules {
-    let encoder = "audio_model.audio_encoder.";
+    let encoder = "audio_model.audio_encoder";
+    let projection = [("linear1", "up"), ("linear2", "down")];
     Rules::new()
         // Counts training updates, which evaluation never reads.
-        .skip(&format!("{encoder}batch_norm.num_batches_tracked"))
-        .rename(&format!("{encoder}batch_norm"), "audio.norm")
-        .rename(&format!("{encoder}norm"), "audio.final_norm")
+        .skip(&join(encoder, "batch_norm.num_batches_tracked"))
+        .rename(&join(encoder, "batch_norm"), "audio.norm")
+        .rename(&join(encoder, "norm"), "audio.final_norm")
         .then(swin_rules(
             encoder,
-            &format!("{encoder}patch_embed.proj"),
-            &format!("{encoder}patch_embed.norm"),
-            "audio.",
+            &join(encoder, "patch_embed.proj"),
+            &join(encoder, "patch_embed.norm"),
+            "audio",
         ))
-        .rename("audio_projection.linear1", "audio_projection.first")
-        .rename("audio_projection.linear2", "audio_projection.second")
+        .rename_each("audio_projection", "audio_projection", &projection)
         .rename("text_model.pooler.dense", "text.pooler")
-        .then(post_norm_encoder_rules("text_model.", "text."))
-        .rename("text_projection.linear1", "text_projection.first")
-        .rename("text_projection.linear2", "text_projection.second")
+        .then(post_norm_encoder_rules("text_model", "text"))
+        .rename_each("text_projection", "text_projection", &projection)
         .rename("logit_scale_a", "logit_scale")
         // The text side's own scale, which `logits_per_audio` leaves unread.
         .skip("logit_scale_t")

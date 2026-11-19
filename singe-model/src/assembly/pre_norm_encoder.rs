@@ -4,58 +4,69 @@ use serde::{Deserialize, Serialize};
 use singe::{
     Result as SingeResult, Tensor,
     nn::{
-        Activation, DenseAttentionInput, Layer, LayerNorm, Mlp, ModelState, PreNormBlock,
-        SelfAttention,
+        Activation, DenseAttentionInput, Layer, LayerNorm, LayerScale, Mlp, ModelState,
+        PreNormBlock, SelfAttention,
     },
 };
 
-use crate::{format::Rules, schema::Schema};
+use crate::{
+    format::{Rules, join},
+    schema::Schema,
+};
 
 pub type PreNormEncoderBlock = PreNormBlock<SelfAttention, Mlp, LayerNorm>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-pub struct PreNormEncoderSpec {
+pub struct PreNormEncoderConfig {
     pub width: i64,
     pub heads: i64,
     pub inner: i64,
     pub activation: Activation,
     pub eps: f32,
-    // Whether the keys have a bias, which Whisper's and VideoMAE's lack.
-    pub key_bias: bool,
+    pub projection_biases: [bool; 4],
     // Whether each token attends only to those before it, as CLIP's text encoder does.
     pub causal: bool,
+    pub layer_scale: bool,
 }
 
-// Every projection has a bias but, where the spec says so, the keys'.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FinalNorm {
+    Included,
+    Omitted,
+}
+
 pub fn pre_norm_encoder_block(
     schema: &mut Schema<'_>,
-    spec: &PreNormEncoderSpec,
+    config: &PreNormEncoderConfig,
 ) -> SingeResult<PreNormEncoderBlock> {
-    let width = spec.width;
-    let mut attention = schema.scope("attention");
-    let mut attention = SelfAttention::create(
-        attention.linear("query", width, width, true)?,
-        attention.linear("key", width, width, spec.key_bias)?,
-        attention.linear("value", width, width, true)?,
-        attention.linear("output", width, width, true)?,
-        spec.heads,
-        width,
-    )?;
-    if spec.causal {
+    let width = config.width;
+    let [query, key, value, output] = schema
+        .scope("attention")
+        .attention_projections(width, config.projection_biases)?;
+    let mut attention = SelfAttention::create(query, key, value, output, config.heads, width)?;
+    if config.causal {
         attention = attention.causal();
     }
 
-    let mut feed_forward = schema.scope("feed_forward");
-    let mlp = Mlp::new(
-        feed_forward.linear("up", width, spec.inner, true)?,
-        feed_forward.linear("down", spec.inner, width, true)?,
-        spec.activation,
-    );
-    Ok(PreNormBlock::new(
-        schema.layer_norm("attention_norm", width, spec.eps)?,
+    let feed_forward = schema.mlp(
+        "feed_forward",
+        [width, config.inner, width],
+        config.activation,
+        true,
+    )?;
+    let block = PreNormBlock::new(
+        schema.layer_norm("attention_norm", width, config.eps)?,
         attention,
-        schema.layer_norm("feed_forward_norm", width, spec.eps)?,
-        mlp,
+        schema.layer_norm("feed_forward_norm", width, config.eps)?,
+        feed_forward,
+    );
+    if !config.layer_scale {
+        return Ok(block);
+    }
+
+    Ok(block.with_layer_scales(
+        LayerScale::new(schema.parameter("attention_scale.scale", [width])?),
+        LayerScale::new(schema.parameter("feed_forward_scale.scale", [width])?),
     ))
 }
 
@@ -67,19 +78,21 @@ pub struct PreNormEncoder {
 }
 
 impl PreNormEncoder {
-    // Registers `layers` blocks under `blocks` and, with `norm`, a final `norm`.
     pub fn create(
         schema: &mut Schema<'_>,
-        spec: &PreNormEncoderSpec,
+        config: &PreNormEncoderConfig,
         layers: i64,
-        norm: bool,
+        final_norm: FinalNorm,
     ) -> SingeResult<Self> {
         let blocks = (0..layers)
-            .map(|layer| pre_norm_encoder_block(&mut schema.scope(format!("blocks.{layer}")), spec))
+            .map(|layer| {
+                pre_norm_encoder_block(&mut schema.scope(format!("blocks.{layer}")), config)
+            })
             .collect::<SingeResult<Vec<_>>>()?;
-        let norm = norm
-            .then(|| schema.layer_norm("norm", spec.width, spec.eps))
-            .transpose()?;
+        let norm = match final_norm {
+            FinalNorm::Included => Some(schema.layer_norm("norm", config.width, config.eps)?),
+            FinalNorm::Omitted => None,
+        };
         Ok(Self { blocks, norm })
     }
 
@@ -92,20 +105,50 @@ impl PreNormEncoder {
     ) -> SingeResult<Tensor> {
         let mut hidden = hidden.clone();
         for block in &self.blocks {
-            hidden = block.forward(
-                &DenseAttentionInput {
-                    hidden: &hidden,
-                    angles: None,
-                    key_lengths,
-                },
-                state,
-            )?;
+            hidden = run_block(block, &hidden, key_lengths, state)?;
         }
+        self.normed(hidden, state)
+    }
+
+    pub fn features(
+        &self,
+        hidden: &Tensor,
+        stages: &[usize],
+        state: &ModelState,
+    ) -> SingeResult<Vec<Tensor>> {
+        let mut hidden = hidden.clone();
+        let mut features = Vec::with_capacity(stages.len());
+        for (index, block) in self.blocks.iter().enumerate() {
+            hidden = run_block(block, &hidden, None, state)?;
+            if stages.contains(&(index + 1)) {
+                features.push(self.normed(hidden.clone(), state)?);
+            }
+        }
+        Ok(features)
+    }
+
+    fn normed(&self, hidden: Tensor, state: &ModelState) -> SingeResult<Tensor> {
         match &self.norm {
             Some(norm) => hidden.apply(norm, state),
             None => Ok(hidden),
         }
     }
+}
+
+fn run_block(
+    block: &PreNormEncoderBlock,
+    hidden: &Tensor,
+    key_lengths: Option<&Tensor>,
+    state: &ModelState,
+) -> SingeResult<Tensor> {
+    block.forward(
+        &DenseAttentionInput {
+            hidden,
+            angles: None,
+            key_lengths,
+        },
+        state,
+    )
 }
 
 impl Layer for PreNormEncoder {
@@ -114,19 +157,12 @@ impl Layer for PreNormEncoder {
     }
 }
 
-// Renames each layer `from.N.<name>` to `to.N.<target>`, for each pair of `names`.
-fn layer_rules(from: &str, to: &str, names: &[(&str, &str)]) -> Rules {
-    names.iter().fold(Rules::new(), |rules, (name, target)| {
-        rules.rename(&format!("{from}.*.{name}"), &format!("{to}.*.{target}"))
-    })
-}
-
 // Imports `transformers`' Whisper-style layers under `from` (such as `model.encoder.layers`) into encoder blocks under `to` (such as `blocks`).
 #[must_use]
 pub fn pre_norm_encoder_rules(from: &str, to: &str) -> Rules {
-    layer_rules(
-        from,
-        to,
+    Rules::new().rename_each(
+        &join(from, "*"),
+        &join(to, "*"),
         &[
             ("self_attn_layer_norm", "attention_norm"),
             ("self_attn.q_proj", "attention.query"),
@@ -143,9 +179,9 @@ pub fn pre_norm_encoder_rules(from: &str, to: &str) -> Rules {
 // Imports `transformers`' ViT-style layers under `from` (such as `vit.encoder.layer`), which ViT, YOLOS, and VideoMAE store.
 #[must_use]
 pub fn vit_layer_rules(from: &str, to: &str) -> Rules {
-    layer_rules(
-        from,
-        to,
+    Rules::new().rename_each(
+        &join(from, "*"),
+        &join(to, "*"),
         &[
             ("layernorm_before", "attention_norm"),
             ("attention.attention.query", "attention.query"),
@@ -162,9 +198,9 @@ pub fn vit_layer_rules(from: &str, to: &str) -> Rules {
 // Imports `transformers`' CLIP-style layers under `from` (such as `text_model.encoder.layers`), which CLIP's and OWL-ViT's towers store.
 #[must_use]
 pub fn clip_layer_rules(from: &str, to: &str) -> Rules {
-    layer_rules(
-        from,
-        to,
+    Rules::new().rename_each(
+        &join(from, "*"),
+        &join(to, "*"),
         &[
             ("layer_norm1", "attention_norm"),
             ("self_attn.q_proj", "attention.query"),

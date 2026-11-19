@@ -23,10 +23,6 @@ use crate::{
 
 use self::compatibility::{validate_inputs, validated_opsets};
 
-#[expect(
-    clippy::too_many_lines,
-    reason = "the import transaction keeps model validation and graph assembly together"
-)]
 pub fn import_model(
     model: Model,
     mut options: OnnxOptions,

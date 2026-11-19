@@ -4,6 +4,7 @@
       "name": "transcription",
       "snapshot": "QWEN3_ASR",
       "task": "automatic-speech-recognition",
+      "data_type": "f32",
       "inputs": ["media/clip.wav"],
       "parameters": {
         "max_new_tokens": 128
@@ -18,6 +19,7 @@
       "name": "instructed",
       "snapshot": "QWEN3_ASR",
       "task": "audio-text-to-text",
+      "data_type": "f32",
       "inputs": [
         {
           "audio": "media/clip.wav",

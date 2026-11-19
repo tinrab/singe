@@ -4,27 +4,33 @@ mod transformers;
 
 use serde::{Deserialize, Serialize};
 use singe::{
-    Result as SingeResult, Tensor,
+    Error as SingeError, Result as SingeResult, Tensor,
     nn::{
         Activation, Conv1d, Conv1dConfig, DenseAttentionInput, EncoderBlock, GroupNorm, Layer,
-        LayerNorm, Linear, Model, ModelState, StateBuilder,
+        LayerNorm, Linear, ModelState,
     },
 };
 
 use crate::{
-    assembly::encoder_block,
+    assembly::{PYTORCH_NORM_EPS, PostNormBlockConfig, post_norm_encoder_block},
     error::Result,
     format::Loader,
-    head::{AudioLayers, CtcRecognizer, HeadLoader},
+    head::{Boxed, CtcRecognizer, HeadLoader},
     model::ModelEntry,
     schema::Schema,
     source::Format,
 };
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FeatureConvolution {
+    pub channels: i64,
+    pub kernel: i64,
+    pub stride: i64,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Wav2Vec2Config {
-    // Each convolution's channels, kernel, and stride.
-    pub convolutions: Vec<(i64, i64, i64)>,
+    pub convolutions: Vec<FeatureConvolution>,
     pub convolution_bias: bool,
     pub feature_activation: Activation,
     pub width: i64,
@@ -52,12 +58,79 @@ pub struct Wav2Vec2Layers {
     norm: LayerNorm,
     blocks: Vec<EncoderBlock>,
     head: Linear,
-    config: Wav2Vec2Config,
+    feature_activation: Activation,
+}
+
+impl Wav2Vec2Layers {
+    pub fn create(schema: &mut Schema<'_>, config: &Wav2Vec2Config) -> SingeResult<Self> {
+        let width = config.width;
+        let Some(first) = config.convolutions.first() else {
+            return Err(SingeError::invalid_argument(
+                "a Wav2Vec2 without feature convolutions",
+            ));
+        };
+        let mut input = 1;
+        let mut convolutions = Vec::with_capacity(config.convolutions.len());
+        for (index, convolution) in config.convolutions.iter().enumerate() {
+            convolutions.push(schema.conv1d(
+                &format!("convolutions.{index}"),
+                input,
+                convolution.channels,
+                convolution.kernel,
+                Conv1dConfig {
+                    stride: convolution.stride,
+                    ..Conv1dConfig::default()
+                },
+                config.convolution_bias,
+            )?);
+            input = convolution.channels;
+        }
+
+        let half = config.position_kernel / 2;
+        let block = PostNormBlockConfig {
+            width,
+            heads: config.heads,
+            inner: config.inner,
+            activation: config.activation,
+            eps: config.eps,
+        };
+        Ok(Self {
+            convolutions,
+            first_norm: schema.group_norm(
+                "first_norm",
+                first.channels,
+                first.channels,
+                PYTORCH_NORM_EPS,
+            )?,
+            projection_norm: schema.layer_norm("projection_norm", input, config.eps)?,
+            projection: schema.linear("projection", input, width, true)?,
+            positions: schema.conv1d(
+                "positions",
+                width,
+                width,
+                config.position_kernel,
+                Conv1dConfig {
+                    padding: (half, half),
+                    groups: config.position_groups,
+                    ..Conv1dConfig::default()
+                },
+                true,
+            )?,
+            norm: schema.layer_norm("norm", width, config.eps)?,
+            blocks: (0..config.layers)
+                .map(|index| {
+                    post_norm_encoder_block(&mut schema.scope(format!("blocks.{index}")), &block)
+                })
+                .collect::<SingeResult<Vec<_>>>()?,
+            head: schema.linear("head", width, config.vocab_size, true)?,
+            feature_activation: config.feature_activation,
+        })
+    }
 }
 
 impl Layer for Wav2Vec2Layers {
     fn forward(&self, input: &Tensor, state: &ModelState) -> SingeResult<Tensor> {
-        let activation = self.config.feature_activation;
+        let activation = self.feature_activation;
         let mut hidden = input.unsqueeze(1)?;
         for (index, convolution) in self.convolutions.iter().enumerate() {
             hidden = hidden.apply(convolution, state)?;
@@ -73,7 +146,9 @@ impl Layer for Wav2Vec2Layers {
             .apply(&self.projection_norm, state)?
             .apply(&self.projection, state)?;
         // An even kernel leaves one frame too many, which `Wav2Vec2SamePadLayer` drops.
-        let frames = hidden.shape().dimensions()[1];
+        let &[_, frames, _] = hidden.shape().dimensions() else {
+            return Err(SingeError::invalid_argument("Wav2Vec2 frames"));
+        };
         let positions = hidden
             .transpose(1, 2)?
             .apply(&self.positions, state)?
@@ -98,76 +173,16 @@ impl Layer for Wav2Vec2Layers {
 pub(crate) const MODEL: ModelEntry = ModelEntry {
     name: "wav2vec2",
     formats: &[(Format::Transformers, &["wav2vec2"])],
-    heads: &[HeadLoader::Ctc(load_ctc)],
+    loaders: &[HeadLoader::Ctc(load_ctc)],
 };
 
 pub fn load_ctc(loader: &mut Loader<'_>) -> Result<CtcRecognizer> {
     let config: Wav2Vec2Config = loader.config(transformers::config)?;
-    let width = config.width;
-    let mut builder = StateBuilder::new();
-    let layers = {
-        let mut schema = Schema::root(&mut builder, loader.options().data_type);
-        let mut input = 1;
-        let mut convolutions = Vec::new();
-        for (index, &(channels, kernel, stride)) in config.convolutions.iter().enumerate() {
-            convolutions.push(schema.conv1d(
-                &format!("convolutions.{index}"),
-                input,
-                channels,
-                kernel,
-                Conv1dConfig {
-                    stride,
-                    ..Conv1dConfig::default()
-                },
-                config.convolution_bias,
-            )?);
-            input = channels;
-        }
-
-        let first = config
-            .convolutions
-            .first()
-            .map_or(0, |&(channels, _, _)| channels);
-        let half = config.position_kernel / 2;
-        Wav2Vec2Layers {
-            convolutions,
-            first_norm: schema.group_norm("first_norm", first, first, 1e-5)?,
-            projection_norm: schema.layer_norm("projection_norm", input, config.eps)?,
-            projection: schema.linear("projection", input, width, true)?,
-            positions: schema.conv1d(
-                "positions",
-                width,
-                width,
-                config.position_kernel,
-                Conv1dConfig {
-                    padding: (half, half),
-                    groups: config.position_groups,
-                    ..Conv1dConfig::default()
-                },
-                true,
-            )?,
-            norm: schema.layer_norm("norm", width, config.eps)?,
-            blocks: (0..config.layers)
-                .map(|index| {
-                    encoder_block(
-                        &mut schema.scope(format!("blocks.{index}")),
-                        width,
-                        config.heads,
-                        config.inner,
-                        config.activation,
-                        config.eps,
-                    )
-                })
-                .collect::<SingeResult<Vec<_>>>()?,
-            head: schema.linear("head", width, config.vocab_size, true)?,
-            config: config.clone(),
-        }
-    };
-    let schema = Model::new(AudioLayers(Box::new(layers)), builder.finish()?);
-    let model = loader.load("model", &schema, &transformers::rules())?;
-    loader.finish()?;
+    let model = Schema::model(loader.options().data_type, |schema| {
+        Wav2Vec2Layers::create(schema, &config).map(|layers| Boxed::<dyn Layer>(Box::new(layers)))
+    })?;
     Ok(CtcRecognizer::new(
-        model,
+        loader.load_whole(&model, &transformers::rules())?,
         config.sample_rate,
         config.normalize,
     ))

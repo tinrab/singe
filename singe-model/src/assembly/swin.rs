@@ -1,16 +1,18 @@
 // Swin, as Donut's encoder and CLAP's HTSAT have it: patches embedded and normed, then stages of pre-norm blocks attending within windows, shifted every other block, with a learned bias of relative positions, each stage but the last merging two by two patches.
-// The rolls, windows, shift masks, and token reshapes it is built from serve Swin2SR and SegFormer too.
 
 use serde::{Deserialize, Serialize};
 use singe::{
     Result as SingeResult, Shape, Tensor,
-    nn::{Activation, Conv2d, Conv2dConfig, Layer, LayerNorm, Linear, ModelState, StateKey},
+    nn::{Activation, Conv2d, Conv2dConfig, Layer, LayerNorm, Linear, Mlp, ModelState, StateKey},
 };
 
-use crate::{format::Rules, schema::Schema};
-
-// `nn.LayerNorm`'s default epsilon.
-const DEFAULT_EPS: f32 = 1e-5;
+use crate::{
+    assembly::{
+        PYTORCH_NORM_EPS, merge_heads, merge_windows, partition_windows, split_heads, to_tokens,
+    },
+    format::{Rules, join},
+    schema::Schema,
+};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SwinConfig {
@@ -25,6 +27,13 @@ pub struct SwinConfig {
     pub eps: f32,
 }
 
+impl SwinConfig {
+    #[must_use]
+    pub fn out_width(&self) -> i64 {
+        self.width << self.stages.len().saturating_sub(1)
+    }
+}
+
 #[derive(Debug, Clone)]
 struct Block {
     attention_norm: LayerNorm,
@@ -34,16 +43,67 @@ struct Block {
     output: Linear,
     bias_table: StateKey,
     feed_forward_norm: LayerNorm,
-    up: Linear,
-    down: Linear,
+    feed_forward: Mlp,
     heads: i64,
     shift: i64,
+}
+
+impl Block {
+    fn create(
+        schema: &mut Schema<'_>,
+        config: &SwinConfig,
+        width: i64,
+        heads: i64,
+        shift: i64,
+    ) -> SingeResult<Self> {
+        let inner = (width as f64 * config.mlp_ratio) as i64;
+        let side = 2 * config.window - 1;
+        let (query, key, value, output, bias_table) = {
+            let mut schema = schema.scope("attention");
+            let projections = (
+                schema.linear("query", width, width, true)?,
+                schema.linear("key", width, width, true)?,
+                schema.linear("value", width, width, true)?,
+                schema.linear("output", width, width, true)?,
+                schema.parameter("bias_table", [side * side, heads])?,
+            );
+            schema.join_rows(&[&projections.0, &projections.1, &projections.2])?;
+            projections
+        };
+        Ok(Self {
+            attention_norm: schema.layer_norm("attention_norm", width, config.eps)?,
+            query,
+            key,
+            value,
+            output,
+            bias_table,
+            feed_forward_norm: schema.layer_norm("feed_forward_norm", width, config.eps)?,
+            feed_forward: schema.mlp(
+                "feed_forward",
+                [width, inner, width],
+                config.activation,
+                true,
+            )?,
+            heads,
+            shift,
+        })
+    }
 }
 
 #[derive(Debug, Clone)]
 struct Merge {
     norm: LayerNorm,
     reduction: Linear,
+}
+
+impl Merge {
+    fn create(schema: &mut Schema<'_>, width: i64) -> SingeResult<Self> {
+        let mut schema = schema.scope("merge");
+        Ok(Self {
+            norm: schema.layer_norm("norm", 4 * width, PYTORCH_NORM_EPS)?,
+            reduction: schema.linear("reduction", 4 * width, 2 * width, false)?,
+        })
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -58,87 +118,11 @@ pub struct Swin {
     patch_norm: LayerNorm,
     stages: Vec<Stage>,
     window: i64,
-    activation: Activation,
-}
-
-// Rolls `[B, H, W, C]` by `shift` along height and width, as `torch.roll` does.
-pub fn roll(input: &Tensor, shift: i64) -> SingeResult<Tensor> {
-    let mut rolled = input.clone();
-    for (axis, index) in [(1_i64, 1_usize), (2, 2)] {
-        let length = rolled.shape().dimensions()[index];
-        let split = shift.rem_euclid(length);
-        if split == 0 {
-            continue;
-        }
-
-        let at = length - split;
-        rolled = Tensor::concat(
-            &[rolled.narrow(axis, at, split)?, rolled.narrow(axis, 0, at)?],
-            axis,
-        )?;
-    }
-    Ok(rolled)
-}
-
-// `[B, H, W, C]` as windows of `window × window` points, `[B · windows, window², C]`, row by row.
-pub fn partition_windows(input: &Tensor, window: i64) -> SingeResult<Tensor> {
-    let &[batch, height, width, channels] = input.shape().dimensions() else {
-        return Err(singe::Error::invalid_argument("window partition input"));
-    };
-    input
-        .reshape([
-            batch,
-            height / window,
-            window,
-            width / window,
-            window,
-            channels,
-        ])?
-        .permute(&[0, 1, 3, 2, 4, 5])?
-        .reshape([
-            batch * (height / window) * (width / window),
-            window * window,
-            channels,
-        ])
-}
-
-// Windows, `[B · windows, window², C]`, back into `[B, H, W, C]`.
-pub fn merge_windows(
-    windows: &Tensor,
-    window: i64,
-    (batch, height, width): (i64, i64, i64),
-) -> SingeResult<Tensor> {
-    let channels = windows.shape().dimensions()[2];
-    windows
-        .reshape([
-            batch,
-            height / window,
-            width / window,
-            window,
-            window,
-            channels,
-        ])?
-        .permute(&[0, 1, 3, 2, 4, 5])?
-        .reshape([batch, height, width, channels])
-}
-
-// A map `[B, C, H, W]` as tokens `[B, H · W, C]`.
-pub fn to_tokens(map: &Tensor) -> SingeResult<Tensor> {
-    map.flatten(2, 3)?.transpose(1, 2)
-}
-
-// Tokens `[B, H · W, C]` as a map `[B, C, H, W]`.
-pub fn to_map(tokens: &Tensor, (height, width): (i64, i64)) -> SingeResult<Tensor> {
-    let &[batch, _, channels] = tokens.shape().dimensions() else {
-        return Err(singe::Error::invalid_argument("tokens"));
-    };
-    tokens
-        .transpose(1, 2)?
-        .reshape([batch, channels, height, width])
 }
 
 // Each pair of a window's points' index into the relative position table, `[w⁴]`.
-fn relative_index(window: i64) -> Vec<i64> {
+#[must_use]
+pub fn relative_index(window: i64) -> Vec<i64> {
     let points = (0..window)
         .flat_map(|row| (0..window).map(move |column| (row, column)))
         .collect::<Vec<_>>();
@@ -195,7 +179,7 @@ impl Swin {
             true,
         )?;
         // The patch norm and the merges' norms keep `nn.LayerNorm`'s default epsilon instead of `layer_norm_eps`, in Donut's Swin and in HTSAT.
-        let patch_norm = schema.layer_norm("embeddings.norm", width, DEFAULT_EPS)?;
+        let patch_norm = schema.layer_norm("embeddings.norm", width, PYTORCH_NORM_EPS)?;
         let count = config.stages.len();
         let stages = config
             .stages
@@ -203,52 +187,21 @@ impl Swin {
             .enumerate()
             .map(|(index, &(depth, heads))| {
                 let width = width << index;
-                #[expect(
-                    clippy::cast_possible_truncation,
-                    clippy::cast_precision_loss,
-                    reason = "widths are small"
-                )]
-                let inner = (width as f64 * config.mlp_ratio) as i64;
                 let mut schema = schema.scope(format!("stages.{index}"));
-                let side = 2 * config.window - 1;
                 let blocks = (0..depth)
                     .map(|block| {
-                        let mut schema = schema.scope(format!("blocks.{block}"));
-                        Ok(Block {
-                            attention_norm: schema.layer_norm(
-                                "attention_norm",
-                                width,
-                                config.eps,
-                            )?,
-                            query: schema.linear("query", width, width, true)?,
-                            key: schema.linear("key", width, width, true)?,
-                            value: schema.linear("value", width, width, true)?,
-                            output: schema.linear("output", width, width, true)?,
-                            bias_table: schema.parameter("bias_table", [side * side, heads])?,
-                            feed_forward_norm: schema.layer_norm(
-                                "feed_forward_norm",
-                                width,
-                                config.eps,
-                            )?,
-                            up: schema.linear("up", width, inner, true)?,
-                            down: schema.linear("down", inner, width, true)?,
+                        let shift = if block % 2 == 0 { 0 } else { config.window / 2 };
+                        Block::create(
+                            &mut schema.scope(format!("blocks.{block}")),
+                            config,
+                            width,
                             heads,
-                            shift: if block % 2 == 0 { 0 } else { config.window / 2 },
-                        })
+                            shift,
+                        )
                     })
                     .collect::<SingeResult<Vec<_>>>()?;
                 let merge = (index + 1 < count)
-                    .then(|| -> SingeResult<Merge> {
-                        Ok(Merge {
-                            norm: schema.layer_norm("merge.norm", 4 * width, DEFAULT_EPS)?,
-                            reduction: schema.linear(
-                                "merge.reduction",
-                                4 * width,
-                                2 * width,
-                                false,
-                            )?,
-                        })
-                    })
+                    .then(|| Merge::create(&mut schema, width))
                     .transpose()?;
                 Ok(Stage { blocks, merge })
             })
@@ -258,7 +211,6 @@ impl Swin {
             patch_norm,
             stages,
             window: config.window,
-            activation: config.activation,
         })
     }
 
@@ -293,14 +245,13 @@ impl Swin {
             )?;
         let (rows, columns) = (padded_height / window, padded_width / window);
         let area = window * window;
-        let windows = partition_windows(&roll(&normed, -shift)?, window)?;
+        let windows = partition_windows(&normed.roll(&[-shift, -shift], &[1, 2])?, window)?;
         let count = batch * rows * columns;
         let heads = block.heads;
         let head = channels / heads;
-        let split = |tensor: Tensor| tensor.reshape([count, area, heads, head])?.transpose(1, 2);
-        let query = split(windows.apply(&block.query, state)?)?;
-        let key = split(windows.apply(&block.key, state)?)?;
-        let value = split(windows.apply(&block.value, state)?)?;
+        let query = split_heads(&windows.apply(&block.query, state)?, heads)?;
+        let key = split_heads(&windows.apply(&block.key, state)?, heads)?;
+        let value = split_heads(&windows.apply(&block.value, state)?, heads)?;
         let device = hidden.device();
         let index = Tensor::from_vec(
             device,
@@ -314,7 +265,6 @@ impl Swin {
             .reshape([area, area, heads])?
             .permute(&[2, 0, 1])?
             .unsqueeze(0)?;
-        #[expect(clippy::cast_precision_loss, reason = "head widths are small")]
         let scale = (head as f64).powf(-0.5);
         let mut scores = query
             .mul_scalar(scale)?
@@ -333,25 +283,17 @@ impl Swin {
                 .reshape([count, heads, area, area])?;
         }
 
-        let attended = scores
-            .softmax(-1)?
-            .matmul(&value)?
-            .transpose(1, 2)?
-            .reshape([count, area, channels])?
-            .apply(&block.output, state)?;
-        let attended = roll(
-            &merge_windows(&attended, window, (batch, padded_height, padded_width))?,
-            shift,
-        )?
-        .narrow(1, 0, height)?
-        .narrow(2, 0, width)?
-        .reshape([batch, height * width, channels])?;
+        let attended =
+            merge_heads(&scores.softmax(-1)?.matmul(&value)?)?.apply(&block.output, state)?;
+        let attended = merge_windows(&attended, window, (batch, padded_height, padded_width))?
+            .roll(&[shift, shift], &[1, 2])?
+            .narrow(1, 0, height)?
+            .narrow(2, 0, width)?
+            .reshape([batch, height * width, channels])?;
         let hidden = hidden.add(&attended)?;
         hidden
             .apply(&block.feed_forward_norm, state)?
-            .apply(&block.up, state)?
-            .apply(&self.activation, state)?
-            .apply(&block.down, state)?
+            .apply(&block.feed_forward, state)?
             .add(&hidden)
     }
 }
@@ -397,30 +339,35 @@ impl Layer for Swin {
     }
 }
 
-// Imports a Swin stored as `transformers` names it, its stages under `{from}layers` and its patch projection and norm at `patches` and `patch_norm`, to the schema's names under `to`.
+// Imports a Swin stored as `transformers` names it, its stages under `{from}.layers` and its patch projection and norm at `patches` and `patch_norm`, to the schema's names under `to`.
 #[must_use]
 pub fn swin_rules(from: &str, patches: &str, patch_norm: &str, to: &str) -> Rules {
-    let block = |name: &str| format!("{from}layers.*.blocks.*.{name}");
-    let target = |name: &str| format!("{to}stages.*.blocks.*.{name}");
+    let blocks = join(from, "layers.*.blocks.*");
     Rules::new()
-        .rename(patches, &format!("{to}embeddings.patches"))
-        .rename(patch_norm, &format!("{to}embeddings.norm"))
-        .rename(&block("layernorm_before"), &target("attention_norm"))
-        .rename(&block("attention.self.query"), &target("query"))
-        .rename(&block("attention.self.key"), &target("key"))
-        .rename(&block("attention.self.value"), &target("value"))
-        .rename(
-            &block("attention.self.relative_position_bias_table"),
-            &target("bias_table"),
+        .rename(patches, &join(to, "embeddings.patches"))
+        .rename(patch_norm, &join(to, "embeddings.norm"))
+        .rename_each(
+            &blocks,
+            &join(to, "stages.*.blocks.*"),
+            &[
+                ("layernorm_before", "attention_norm"),
+                ("attention.self.query", "attention.query"),
+                ("attention.self.key", "attention.key"),
+                ("attention.self.value", "attention.value"),
+                (
+                    "attention.self.relative_position_bias_table",
+                    "attention.bias_table",
+                ),
+                ("attention.output.dense", "attention.output"),
+                ("layernorm_after", "feed_forward_norm"),
+                ("intermediate.dense", "feed_forward.up"),
+                ("output.dense", "feed_forward.down"),
+            ],
         )
         // The table's index, which the encoder computes.
-        .skip(&block("attention.self.relative_position_index"))
-        .rename(&block("attention.output.dense"), &target("output"))
-        .rename(&block("layernorm_after"), &target("feed_forward_norm"))
-        .rename(&block("intermediate.dense"), &target("up"))
-        .rename(&block("output.dense"), &target("down"))
+        .skip(&join(&blocks, "attention.self.relative_position_index"))
         .rename(
-            &format!("{from}layers.*.downsample"),
-            &format!("{to}stages.*.merge"),
+            &join(from, "layers.*.downsample"),
+            &join(to, "stages.*.merge"),
         )
 }

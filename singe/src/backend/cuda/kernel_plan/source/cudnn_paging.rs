@@ -56,11 +56,18 @@ pub fn cudnn_paging(
         paged_indices([query_offsets, page_offsets, pages, last_page_lengths]),
         "cuda paged attention",
     )?;
-    let table = pages.layout.dimensions()[0];
-    let cache_pages = key_cache.layout.dimensions()[0];
+    let (Some(&table), Some(&cache_pages)) = (
+        pages.layout.dimensions().first(),
+        key_cache.layout.dimensions().first(),
+    ) else {
+        return Err(Error::invalid_argument(
+            "cuda paged attention page table and key cache dimensions",
+        ));
+    };
     // cuDNN only takes pages of a power of two.
+    // cuDNN's paged attention spreads one sequence's heads across the GPU but runs a step's sequences one after another: at 32 sequences a decoding call took 84 µs on 9 blocks, where the generated kernel takes 25 µs, so it runs only steps of one sequence.
     if problem.tokens == 0
-        || problem.sequences == 0
+        || problem.sequences != 1
         || table == 0
         || cache_pages == 0
         || problem.page_size.count_ones() != 1
@@ -151,12 +158,12 @@ if (table_entry < page_end) {{
     {page_table}[index] = static_cast<int>(page);
 }}"
     ));
-    let (offsets_dimensions, _) = paging.offsets_shape();
+    let ([offset_count, ..], _) = paging.offsets_shape();
     let output = |dimensions: Vec<i64>| -> Result<ValueSpec> {
         Ok(ValueSpec::new(DataType::I32, Shape::create(dimensions)?))
     };
     let specs = vec![
-        output(vec![offsets_dimensions[0]])?,
+        output(vec![offset_count])?,
         output(vec![paging.sequences])?,
         output(vec![paging.sequences])?,
         output(vec![paging.sequences * paging.table])?,

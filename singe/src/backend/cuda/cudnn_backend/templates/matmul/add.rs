@@ -27,8 +27,8 @@ use crate::{
         templates::tensors::{
             CUDNN_GRAPH_BIAS_TENSOR_ID, CUDNN_GRAPH_INPUT0_TENSOR_ID, CUDNN_GRAPH_INPUT1_TENSOR_ID,
             CUDNN_GRAPH_OUTPUT_TENSOR_ID, CUDNN_GRAPH_VIRTUAL0_TENSOR_ID,
-            CUDNN_GRAPH_VIRTUAL1_TENSOR_ID, CudnnBackendTensorMetadata, cudnn_backend_tensor,
-            cudnn_backend_virtual_tensor, cudnn_matmul_graph_execution_plan,
+            CUDNN_GRAPH_VIRTUAL1_TENSOR_ID, CudnnBackendTensorMetadata, PlanSelection,
+            cudnn_backend_tensor, cudnn_backend_virtual_tensor, cudnn_matmul_graph_execution_plan,
         },
         types::{
             CudnnBackendGraphTemplate, CudnnBackendMatmulAddReluTensors,
@@ -94,7 +94,12 @@ pub fn build_cudnn_matmul_add_template(
         &[matmul_operation.descriptor(), add_operation.descriptor()],
         CudnnOperationGraphOptions::default(),
     )?;
-    let plan = cudnn_matmul_graph_execution_plan(cudnn, &operation_graph, a.data_type())?;
+    let (plan, _) = cudnn_matmul_graph_execution_plan(
+        cudnn,
+        &operation_graph,
+        a.data_type(),
+        PlanSelection::Graph,
+    )?;
     let workspace_size = plan.workspace_size()?;
 
     Ok(CudnnBackendGraphTemplate::new(
@@ -194,7 +199,12 @@ pub fn build_cudnn_matmul_add_relu_template(
         ],
         CudnnOperationGraphOptions::default(),
     )?;
-    let plan = cudnn_matmul_graph_execution_plan(cudnn, &operation_graph, a.data_type())?;
+    let (plan, _) = cudnn_matmul_graph_execution_plan(
+        cudnn,
+        &operation_graph,
+        a.data_type(),
+        PlanSelection::Graph,
+    )?;
     let workspace_size = plan.workspace_size()?;
 
     Ok(CudnnBackendGraphTemplate::new(

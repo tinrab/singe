@@ -3,6 +3,7 @@
 use std::{collections::HashMap, env, fs, path::Path};
 
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use singe::{
     DataType, Device, OnnxModel, OnnxOptions, Shape, Tensor,
     error::Error,
@@ -67,7 +68,7 @@ fn unsupported(error: &Error) -> bool {
 fn record_rejection(case: &Case, device: Device, mode: &str, stage: &str, error: &impl ToString) {
     eprintln!(
         "{}",
-        serde_json::json!({
+        json!({
             "case": case.name, "device": device.to_string(), "mode": mode,
             "stage": stage, "reason": error.to_string(),
         })
@@ -281,7 +282,7 @@ mod programs {
         testing::{CompiledProgram, program_target},
     };
 
-    use super::{Case, Support, decode, record_rejection};
+    use crate::conformance::{Case, Support, decode, record_rejection};
 
     // The steps one compiler run builds, which keeps each build's source and memory bounded.
     const SET_STEPS: usize = 64;

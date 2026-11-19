@@ -88,13 +88,22 @@ pub fn rotary_input_values(
         .collect()
 }
 
-pub fn rotary_trig_values(sequence: usize, rotary_pairs: usize, is_cos: bool) -> Vec<f32> {
+#[derive(Clone, Copy)]
+pub enum Trig {
+    Cos,
+    Sin,
+}
+
+pub fn rotary_trig_values(sequence: usize, rotary_pairs: usize, trig: Trig) -> Vec<f32> {
     (0..sequence * rotary_pairs)
         .map(|index| {
             let position = index / rotary_pairs;
             let pair = index % rotary_pairs;
             let angle = (pair as f32).mul_add(0.25, position as f32 * 0.125);
-            if is_cos { angle.cos() } else { angle.sin() }
+            match trig {
+                Trig::Cos => angle.cos(),
+                Trig::Sin => angle.sin(),
+            }
         })
         .collect()
 }

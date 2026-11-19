@@ -2,42 +2,37 @@
 // It is written once for every model; its state is `span.output`.
 
 use singe::{
-    DataType, Error as SingeError, Result as SingeResult, Tensor,
-    nn::{Layer, Linear, Model, ModelState, TokenBatch},
+    DataType, Error as SingeError, Result as SingeResult,
+    nn::{Model, TokenBatch},
 };
 
-use super::{EncoderHead, HeadLayouts};
-use crate::{assembly::PostNormEncoder, error::Result, schema::Schema, source::Source};
-
-#[derive(Debug)]
-pub struct QuestionAnswererLayers {
-    encoder: Box<dyn Layer<TokenBatch>>,
-    output: Linear,
-}
-
-impl Layer<TokenBatch> for QuestionAnswererLayers {
-    fn forward(&self, input: &TokenBatch, state: &ModelState) -> SingeResult<Tensor> {
-        self.output
-            .forward(&self.encoder.forward(input, state)?, state)
-    }
-}
+use crate::{
+    assembly::PostNormEncoder,
+    error::Result,
+    head::{EncoderHead, HeadLayouts, TokenScoreLayers},
+    schema::Schema,
+    source::Source,
+};
 
 // A loaded question answerer, whose scores' last axis holds each token's start score, then its end score.
 #[derive(Debug)]
 pub struct QuestionAnswerer {
-    model: Model<QuestionAnswererLayers>,
+    model: Model<TokenScoreLayers>,
 }
 
 impl QuestionAnswerer {
     #[must_use]
-    pub const fn model(&self) -> &Model<QuestionAnswererLayers> {
+    pub const fn model(&self) -> &Model<TokenScoreLayers> {
         &self.model
     }
 
     // Returns each row's tokens' start and end scores, padded tokens included.
     pub fn scores(&self, batch: &TokenBatch) -> Result<Vec<Vec<[f32; 2]>>> {
-        let length = usize::try_from(batch.tokens().shape().dimensions()[1])
-            .map_err(|_| SingeError::out_of_range("batch length"))?;
+        let &[_, length] = batch.tokens().shape().dimensions() else {
+            return Err(SingeError::invalid_argument("token batch, [B, T]").into());
+        };
+        let length =
+            usize::try_from(length).map_err(|_| SingeError::out_of_range("batch length"))?;
         let scores = self
             .model
             .forward_group(batch)?
@@ -45,7 +40,7 @@ impl QuestionAnswerer {
             .to_vec::<f32>()?;
         Ok(scores
             .chunks(length * 2)
-            .map(|row| row.chunks(2).map(|pair| [pair[0], pair[1]]).collect())
+            .map(|row| row.as_chunks::<2>().0.to_vec())
             .collect())
     }
 }
@@ -53,7 +48,7 @@ impl QuestionAnswerer {
 impl EncoderHead for QuestionAnswerer {
     type Config = ();
 
-    type Layers = QuestionAnswererLayers;
+    type Layers = TokenScoreLayers;
 
     fn transformers_config(_source: &Source) -> Result<()> {
         Ok(())
@@ -64,17 +59,11 @@ impl EncoderHead for QuestionAnswerer {
         encoder: PostNormEncoder,
         (): &(),
         _layouts: &HeadLayouts,
-    ) -> SingeResult<QuestionAnswererLayers> {
-        let output = schema
-            .scope("span")
-            .linear("output", encoder.config().width, 2, true)?;
-        Ok(QuestionAnswererLayers {
-            encoder: Box::new(encoder),
-            output,
-        })
+    ) -> SingeResult<TokenScoreLayers> {
+        TokenScoreLayers::create(schema, "span", encoder, 2)
     }
 
-    fn new(model: Model<QuestionAnswererLayers>, (): ()) -> Self {
+    fn new(model: Model<TokenScoreLayers>, (): ()) -> Self {
         Self { model }
     }
 }

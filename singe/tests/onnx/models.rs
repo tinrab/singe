@@ -19,6 +19,7 @@ use singe::{
     backend::cuda::export::{CudaExport, CudaProgram, Library, StateKind},
     testing::{CompiledProgram, build_runner, maybe_lock_device, program_target},
 };
+use singe_testing::reference;
 
 // Missing required exports fail compilation.
 // Regenerate with the pinned exporter.
@@ -31,10 +32,6 @@ const MODELS: [(&str, &[u8]); 3] = [
     ),
 ];
 
-#[expect(
-    clippy::cast_possible_truncation,
-    reason = "fixture values are float32 values stored as f64 JSON numbers"
-)]
 fn values(value: &Value) -> Vec<f32> {
     value["values"]
         .as_array()
@@ -64,7 +61,7 @@ fn assert_output(actual: &Tensor, expected: &Value) {
 }
 
 fn check_exports(device: Device) {
-    let references: Value = singe_testing::reference!("layers").resolved();
+    let references: Value = reference!("layers").resolved();
     for (name, bytes) in MODELS {
         let model = OnnxModel::from_reader(bytes, OnnxOptions::new().with_device(device)).unwrap();
         assert_eq!(model.inputs().len(), 1, "{name}");
@@ -133,7 +130,7 @@ fn test_required_pytorch_exports_run_as_cuda_programs() {
     let Some(architecture) = program_target(device) else {
         return;
     };
-    let references: Value = singe_testing::reference!("layers").resolved();
+    let references: Value = reference!("layers").resolved();
     for (name, bytes) in MODELS {
         let model = OnnxModel::from_reader(bytes, OnnxOptions::new().with_device(device)).unwrap();
         let graph = model.graph().unwrap();

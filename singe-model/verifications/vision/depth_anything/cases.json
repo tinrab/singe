@@ -4,6 +4,7 @@
       "name": "depth",
       "snapshot": "DEPTH_ANYTHING",
       "task": "depth-estimation",
+      "data_type": "f32",
       "inputs": ["media/coco-cats.png", "media/cat-320x512.png"],
       "expected": [
         {

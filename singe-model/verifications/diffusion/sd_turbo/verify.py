@@ -1,23 +1,18 @@
-"""SD-Turbo, generating an image from a prompt and a seed in one step with `diffusers`' `StableDiffusionPipeline`, as `verify.rs` generates it in Singe.
+"""SD-Turbo, generating an image from a prompt and a seed in one step with `diffusers`' `StableDiffusionPipeline`, as `mod.rs` generates it in Singe.
 Both draw the noise from PyTorch's CPU generator seeded alike.
 Both run in F16: in F32 its weights alone take 5 GB, which leaves no headroom on an 8 GB GPU shared with other processes."""
 
-import sys
-from pathlib import Path
+import numpy
+import torch
+from diffusers import StableDiffusionPipeline
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-
-import numpy  # noqa: E402
-import torch  # noqa: E402
-from diffusers import StableDiffusionPipeline  # noqa: E402
-
-from support import DEVICE, Verification, data_url  # noqa: E402
+from support import DEVICE, Verification, data_url
 
 
-def text_to_image(snapshot):
-    generate = StableDiffusionPipeline.from_pretrained(
-        snapshot, torch_dtype=torch.float16
-    ).to(DEVICE)
+def text_to_image(snapshot, dtype):
+    generate = StableDiffusionPipeline.from_pretrained(snapshot, torch_dtype=dtype).to(
+        DEVICE
+    )
     generate.set_progress_bar_config(disable=True)
 
     def run(inputs, parameters):

@@ -7,8 +7,8 @@ use crate::{
     processor::audio::Audio,
     source::{LoadOptions, Source},
     task::{
-        Pipeline, Task,
-        vision::image_classification::{ClassificationParameters, LabelScore, ranked},
+        Pipeline,
+        ranking::{ClassificationParameters, LabelScore, ranked},
     },
 };
 
@@ -18,8 +18,6 @@ pub struct AudioClassificationPipeline {
 }
 
 impl Pipeline for AudioClassificationPipeline {
-    const TASK: Task = Task::AudioClassification;
-
     type Input = Audio;
 
     type Parameters = ClassificationParameters;
@@ -32,20 +30,17 @@ impl Pipeline for AudioClassificationPipeline {
         })
     }
 
-    fn run(
-        &self,
-        inputs: &[Self::Input],
-        parameters: &Self::Parameters,
-    ) -> Result<Vec<Self::Output>> {
+    fn run_one(&self, clip: &Self::Input, parameters: &Self::Parameters) -> Result<Self::Output> {
         let config = self.model.classifier.config();
-        let function = parameters.function_to_apply.unwrap_or(config.function);
-        inputs
-            .iter()
-            .map(|clip| {
-                clip.expect_rate(self.model.features.sample_rate)?;
-                let scores = self.model.scores(&clip.samples)?;
-                Ok(ranked(&scores, &config.labels, function, parameters.top_k))
-            })
-            .collect()
+        clip.expect_rate(self.model.sample_rate())?;
+        let scores = self.model.scores(&clip.samples)?;
+        Ok(ranked(
+            &scores,
+            config.labels(),
+            parameters
+                .function_to_apply
+                .unwrap_or_else(|| config.function()),
+            parameters.top_k,
+        ))
     }
 }

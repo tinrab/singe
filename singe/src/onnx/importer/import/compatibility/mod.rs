@@ -165,10 +165,6 @@ fn validate_schema(node: &Node, version: i64) -> Result<()> {
     Ok(())
 }
 
-#[expect(
-    clippy::float_cmp,
-    reason = "exact equality selects an identity, specialization, or deterministic tie; approximate equality changes semantics"
-)]
 pub fn validated_opsets(model: &Model) -> Result<BTreeMap<Option<String>, i64>> {
     if !(7..=10).contains(&model.ir_version) {
         return Err(Error::InvalidModel {

@@ -1,20 +1,15 @@
-"""TimesFM 2.5, forecasting a series with `transformers`' `TimesFm2_5ModelForPrediction` under its defaults, as `verify.rs` forecasts it in Singe.
+"""TimesFM 2.5, forecasting a series with `transformers`' `TimesFm2_5ModelForPrediction` under its defaults, as `mod.rs` forecasts it in Singe.
 `transformers` has no time series forecasting pipeline."""
 
-import sys
-from pathlib import Path
+import torch
+from transformers import TimesFm2_5ModelForPrediction
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-
-import torch  # noqa: E402
-from transformers import TimesFm2_5ModelForPrediction  # noqa: E402
-
-from support import DEVICE, Verification  # noqa: E402
+from support import DEVICE, Verification
 
 
-def time_series_forecasting(snapshot):
+def time_series_forecasting(snapshot, dtype):
     model = (
-        TimesFm2_5ModelForPrediction.from_pretrained(snapshot, dtype=torch.float32)
+        TimesFm2_5ModelForPrediction.from_pretrained(snapshot, dtype=dtype)
         .to(DEVICE)
         .eval()
     )
@@ -22,9 +17,7 @@ def time_series_forecasting(snapshot):
     def run(inputs, parameters):
         outputs = []
         for item in inputs:
-            series = torch.tensor(
-                item["past_values"], dtype=torch.float32, device=DEVICE
-            )
+            series = torch.tensor(item["past_values"], dtype=dtype, device=DEVICE)
             with torch.no_grad():
                 forecast = model(past_values=[series])
             outputs.append(

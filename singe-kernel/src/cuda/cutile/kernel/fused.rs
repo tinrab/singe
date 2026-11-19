@@ -893,10 +893,6 @@ mod kernels {
     }
 
     #[cutile::entry()]
-    #[expect(
-        clippy::many_single_char_names,
-        reason = "kernel operand names follow the mathematical formula"
-    )]
     pub unsafe fn mhc_gemm_rms_scale_f32(
         y: *mut f32,
         r: *mut f32,

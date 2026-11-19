@@ -2,17 +2,6 @@ use std::{collections::HashMap, fs, path::PathBuf, process, time::Duration};
 
 use singe_cudnn::backend::{engine::EngineIndex, execution::EngineChoice};
 
-use super::{
-    measure::{Measurer, WholeGraphRunner, export_program, listed_library_choices},
-    plan::{
-        Alternative, Candidate, ChoicePoint, MeasureError, Measured, PlanLimits, PlanRunner,
-        check_plan, plan_records,
-    },
-    reference::{Expected, agrees, evaluate},
-    report::{CandidateOutcome, DropReason, SecondReference},
-    small_graph::{SmallGraph, subgraph, whole_graph},
-    tune::{forced_records, held_record},
-};
 use crate::{
     backend::{
         cuda::{
@@ -22,7 +11,18 @@ use crate::{
             runtime::runtime_for_device,
             tuning::{
                 GraphTuneOptions, Measurement, TunedChoice, TunedWay, TuningEnvironment,
-                TuningRecords, group_key, library_key, merged_projections_key, tune_graph, way_key,
+                TuningRecords, group_key, library_key,
+                measure::{Measurer, WholeGraphRunner, export_program, listed_library_choices},
+                merged_projections_key,
+                plan::{
+                    Alternative, Candidate, ChoicePoint, MeasureError, Measured, PlanLimits,
+                    PlanRunner, check_plan, plan_records,
+                },
+                reference::{Expected, agrees, evaluate},
+                report::{CandidateOutcome, DropReason, SecondReference},
+                small_graph::{SmallGraph, subgraph, whole_graph},
+                tune::{forced_records, held_record},
+                tune_graph, way_key,
             },
         },
         registry::Operation,

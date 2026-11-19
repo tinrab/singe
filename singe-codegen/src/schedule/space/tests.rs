@@ -163,10 +163,6 @@ fn test_operand_lengths_bound_computed_indices_and_reject_loaded_ones() {
 }
 
 #[test]
-#[expect(
-    clippy::many_single_char_names,
-    reason = "the operands and axes take the names of the contraction formula"
-)]
 fn test_plain_contractions_get_tensor_core_tiles_over_their_rows_and_columns() {
     // out[i, j] = Σ_k x[i, k] · y[k, j], with 37 rows, 45 columns, and 70 points of contraction.
     let mut kernel = Kernel::new("singe_space_matmul");

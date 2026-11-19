@@ -1,9 +1,3 @@
-#![allow(
-    clippy::too_many_arguments,
-    clippy::many_single_char_names,
-    reason = "BLAS operations take each operand, dimension, and scalar separately, named as in BLAS"
-)]
-
 use singe_cuda::{
     memory::DeviceMemory,
     stream::AsStream,

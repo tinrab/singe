@@ -19,7 +19,7 @@ use crate::{
         registry::{Operation, OperationAttributes, SliceAttributes},
     },
     data_type::DataType,
-    error::Result,
+    error::{Error, Result},
     graph::ir::ValueId,
     shape::normalize_dim_usize,
 };
@@ -387,8 +387,10 @@ impl<S: BuildHasher, T: BuildHasher> Planner<'_, S, T> {
             return Ok(None);
         };
         let shape = ir.required_value_shape(id)?;
-        let rank = shape.rank();
-        if rank != 3 || normalize_dim_usize(dim, rank)? != 2 {
+        let &[tokens, _, width] = shape.dimensions() else {
+            return Ok(None);
+        };
+        if normalize_dim_usize(dim, 3)? != 2 {
             return Ok(None);
         }
 
@@ -429,18 +431,17 @@ impl<S: BuildHasher, T: BuildHasher> Planner<'_, S, T> {
         else {
             return Ok(None);
         };
-        let dimensions = shape.dimensions();
         if source != other
             || start != half
             || length != half
             || half <= 0
-            || dimensions[2] != 2 * half
+            || width != 2 * half
             || ir.required_value_shape(source)? != shape
         {
             return Ok(None);
         }
 
-        let angle = [dimensions[0], 1, half];
+        let angle = [tokens, 1, half];
         let data_type = ir.required_value_data_type(id)?;
         if !matches!(
             data_type,
@@ -502,8 +503,11 @@ impl<S: BuildHasher, T: BuildHasher> Planner<'_, S, T> {
         else {
             return Ok(None);
         };
-        let shape = self.ir.required_value_shape(source)?;
-        let head = shape.dimensions()[2];
+        let &[_, _, head, ..] = self.ir.required_value_shape(source)?.dimensions() else {
+            return Err(Error::invalid_argument(
+                "cuda rotation norm input dimensions",
+            ));
+        };
         let readers = self.readers(source);
         if attributes.has_bias
             || attributes.normalized_shape != [head]
@@ -576,16 +580,24 @@ impl<S: BuildHasher, T: BuildHasher> Planner<'_, S, T> {
         let key_shape = ir.required_value_shape(key.rotation.output)?.dimensions();
         let data_type = ir.required_value_data_type(key.rotation.output)?;
         let value_shape = ir.required_value_shape(value_write.values)?.dimensions();
-        // Both writes have heads in their caches, or neither does.
+        let &[key_tokens, _, key_width, ..] = key_shape else {
+            return Err(Error::invalid_argument("cuda rotary cache key dimensions"));
+        };
         let value_fits = if reshape.is_some() {
-            value_shape.len() == 2 && value_shape[0] == key_shape[0]
+            matches!(*value_shape, [tokens, _] if tokens == key_tokens)
         } else {
             value_shape == key_shape
         };
         if let Some(query) = query {
-            let query_shape = ir.required_value_shape(query.rotation.output)?.dimensions();
-            if query_shape[0] != key_shape[0]
-                || query_shape[2] != key_shape[2]
+            let &[query_tokens, _, query_width, ..] =
+                ir.required_value_shape(query.rotation.output)?.dimensions()
+            else {
+                return Err(Error::invalid_argument(
+                    "cuda rotary cache query dimensions",
+                ));
+            };
+            if query_tokens != key_tokens
+                || query_width != key_width
                 || ir.required_value_data_type(query.rotation.output)? != data_type
             {
                 return Ok(None);

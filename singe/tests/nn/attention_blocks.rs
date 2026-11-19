@@ -269,10 +269,6 @@ fn check_block(fixture: &Fixture<'_>, tolerance: Tolerance) {
 fn check_mla(fixture: &Fixture<'_>, tolerance: Tolerance) {
     let (heads, key_dim, rotary_dim, value_dim, latent_dim) = (2, 16, 8, 16, 32);
     let mut builder = StateBuilder::new();
-    #[expect(
-        clippy::cast_precision_loss,
-        reason = "the scale is defined in F32, as the references compute it"
-    )]
     let scale = 1.0 / ((key_dim + rotary_dim) as f32).sqrt();
     let query = LatentQuery::LowRank {
         compress: fixture.linear(&mut builder, "mla.q_a"),

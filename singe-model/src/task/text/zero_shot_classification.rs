@@ -6,10 +6,10 @@ use serde::{Deserialize, Serialize};
 use crate::{
     error::{Error, Result},
     head::{ScoreFunction, SequenceClassifier},
-    model,
+    host, model,
     processor::text::{EncodeOptions, TextInput, TextTokenizer, Truncation},
     source::{LoadOptions, Source},
-    task::{Pipeline, Task, hypotheses},
+    task::{Pipeline, hypotheses},
 };
 
 #[derive(Debug)]
@@ -19,6 +19,7 @@ pub struct ZeroShotClassificationPipeline {
     // The labels of the model's entailment and contradiction scores.
     entailment: usize,
     contradiction: usize,
+    options: LoadOptions,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
@@ -57,8 +58,6 @@ pub struct ZeroShotClassificationOutput {
 }
 
 impl Pipeline for ZeroShotClassificationPipeline {
-    const TASK: Task = Task::ZeroShotClassification;
-
     type Input = ZeroShotClassificationInput;
 
     type Parameters = ZeroShotClassificationParameters;
@@ -68,7 +67,7 @@ impl Pipeline for ZeroShotClassificationPipeline {
     // The entailment label is the first whose name starts with "entail", and the contradiction label the last, or the first when entailment is the last, as `transformers` finds them.
     fn load(source: &Source, options: LoadOptions) -> Result<Self> {
         let model: SequenceClassifier = model::load(source, options)?;
-        let labels = &model.config().labels;
+        let labels = model.config().labels();
         let entailment = labels
             .iter()
             .position(|label| label.to_lowercase().starts_with("entail"))
@@ -76,60 +75,52 @@ impl Pipeline for ZeroShotClassificationPipeline {
         let contradiction = if entailment == 0 { labels.len() - 1 } else { 0 };
         Ok(Self {
             model,
-            tokenizer: TextTokenizer::load(source.directory())?,
+            tokenizer: TextTokenizer::load(source)?,
             entailment,
             contradiction,
+            options,
         })
     }
 
-    fn run(
-        &self,
-        inputs: &[Self::Input],
-        parameters: &Self::Parameters,
-    ) -> Result<Vec<Self::Output>> {
-        let device = self.model.model().state().device()?;
-        inputs
+    fn run_one(&self, input: &Self::Input, parameters: &Self::Parameters) -> Result<Self::Output> {
+        let hypotheses = hypotheses(&parameters.hypothesis_template, &input.candidate_labels)?;
+        let pairs = hypotheses
             .iter()
-            .map(|input| {
-                let hypotheses =
-                    hypotheses(&parameters.hypothesis_template, &input.candidate_labels)?;
-                let pairs = hypotheses
-                    .iter()
-                    .map(|hypothesis| TextInput::Pair(&input.sequences, hypothesis))
-                    .collect::<Vec<_>>();
-                let options = EncodeOptions {
-                    max_length: parameters.max_length,
-                    truncation: Truncation::OnlyFirst,
-                    stride: None,
-                };
-                let encoded = self.tokenizer.encode_inputs(&pairs, &options, device)?;
-                let scores = self.model.scores(&encoded.batch)?;
-                let scores = if parameters.multi_label || scores.len() == 1 {
-                    scores
-                        .iter()
-                        .map(|row| {
-                            ScoreFunction::Softmax
-                                .apply(&[row[self.contradiction], row[self.entailment]])[1]
-                        })
-                        .collect::<Vec<_>>()
-                } else {
-                    let entailments = scores
-                        .iter()
-                        .map(|row| row[self.entailment])
-                        .collect::<Vec<_>>();
-                    ScoreFunction::Softmax.apply(&entailments)
-                };
-                let mut order = (0..scores.len()).collect::<Vec<_>>();
-                order.sort_by(|&left, &right| scores[right].total_cmp(&scores[left]));
-                Ok(ZeroShotClassificationOutput {
-                    sequence: input.sequences.clone(),
-                    labels: order
-                        .iter()
-                        .map(|&index| input.candidate_labels[index].clone())
-                        .collect(),
-                    scores: order.iter().map(|&index| scores[index]).collect(),
+            .map(|hypothesis| TextInput::Pair(&input.sequences, hypothesis))
+            .collect::<Vec<_>>();
+        let options = EncodeOptions {
+            max_length: parameters.max_length,
+            truncation: Truncation::OnlyFirst,
+            stride: None,
+        };
+        let encoded = self
+            .tokenizer
+            .encode_inputs(&pairs, &options, self.options.device)?;
+        let scores = self.model.scores(&encoded.batch)?;
+        let scores = if parameters.multi_label || scores.len() == 1 {
+            scores
+                .iter()
+                .map(|row| {
+                    ScoreFunction::Softmax.apply(&[row[self.contradiction], row[self.entailment]])
+                        [1]
                 })
-            })
-            .collect()
+                .collect::<Vec<_>>()
+        } else {
+            let entailments = scores
+                .iter()
+                .map(|row| row[self.entailment])
+                .collect::<Vec<_>>();
+            ScoreFunction::Softmax.apply(&entailments)
+        };
+        let mut order = (0..scores.len()).collect::<Vec<_>>();
+        host::best_first(&mut order, usize::MAX, |&index| scores[index]);
+        Ok(ZeroShotClassificationOutput {
+            sequence: input.sequences.clone(),
+            labels: order
+                .iter()
+                .map(|&index| input.candidate_labels[index].clone())
+                .collect(),
+            scores: order.iter().map(|&index| scores[index]).collect(),
+        })
     }
 }

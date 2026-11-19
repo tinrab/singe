@@ -107,10 +107,6 @@ impl Expressions<'_> {
     }
 
     /// Returns `value` as a literal of `element`, an integer or Boolean one for those types.
-    #[expect(
-        clippy::cast_possible_truncation,
-        reason = "integer constants of element-wise expressions are small whole numbers"
-    )]
     fn constant(&mut self, element: ElementType, value: f64) -> NodeId {
         let literal = if element == ElementType::Bool {
             Literal::Bool(value != 0.0)
@@ -154,10 +150,6 @@ impl Expressions<'_> {
         }
     }
 
-    #[expect(
-        clippy::too_many_lines,
-        reason = "the element-wise operations define their expressions together"
-    )]
     fn expression(
         &mut self,
         operation: Operation,

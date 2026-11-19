@@ -15,6 +15,7 @@ mod mask;
 mod masked_lm;
 mod question_answering;
 mod retrieval;
+mod sentence_embedder;
 mod seq2seq;
 mod sequence_classification;
 mod speech_to_text;
@@ -25,17 +26,24 @@ mod token_classification;
 mod trajectory;
 mod vision;
 
+use std::ops::Deref;
+
+use singe::{
+    Result as SingeResult, Shape, Tensor,
+    nn::{Layer, ModelState},
+};
+
 pub use self::{
     audio::{
-        AudioClassifier, AudioCodec, AudioLayers, CtcRecognizer, FilterBankOptions,
-        SpectrogramOptions, Speech, SpeechLayers, TextToSpeech, ZeroShotAudioClassifier,
+        AudioClassifier, AudioCodec, CtcRecognizer, Speech, SpeechLayers, TextToSpeech,
+        ZeroShotAudioClassifier,
     },
     autoencoder::Autoencoder,
     causal_lm::CausalLm,
     denoiser::{ConditionalDenoiser, Denoiser},
     encoder::{EncoderHead, EncoderModel, HeadLayouts, encoder_heads, load_encoder_head},
     generation_loop::{LoopLimits, LoopSteps},
-    image_encoder::{ImageEncoder, ImageEncoderLayers, PooledLayer},
+    image_encoder::{ImageEncoder, PooledLayer},
     image_text_to_text::ImageTextToText,
     keypoint::{
         KeypointConfig, KeypointDetector, KeypointLayers, KeypointMatcher, Keypoints,
@@ -43,28 +51,58 @@ pub use self::{
     },
     mask::{MaskGenerator, PromptableLayers},
     masked_lm::{MaskedLm, MaskedLmConfig, MaskedLmLayers},
-    question_answering::{QuestionAnswerer, QuestionAnswererLayers},
+    question_answering::QuestionAnswerer,
     retrieval::{DocumentRetriever, late_interaction},
-    seq2seq::{DecoderCache, Seq2SeqGeneration, Seq2SeqInput, Seq2SeqLayers, Seq2SeqLm},
+    sentence_embedder::{SentenceEmbedder, SentenceLayers},
+    seq2seq::{Seq2SeqDecoding, Seq2SeqGeneration, Seq2SeqInput, Seq2SeqLayers, Seq2SeqLm},
     sequence_classification::{
         ClassifierConfig, ClassifierLayout, ScoreFunction, SequenceClassifier,
         SequenceClassifierLayers, argmax,
     },
     speech_to_text::{SpeechToText, Transcription},
     tabular::{TabularClassifier, TabularRegressor},
-    text_encoder::{TextEncoder, TextEncoderLayers},
+    text_encoder::TextEncoder,
     time_series::{Forecast, Forecaster},
-    token_classification::{TokenClassifier, TokenClassifierLayers},
+    token_classification::{TokenClassifier, TokenScoreLayers},
     trajectory::{Trajectory, TrajectoryModel, TrajectoryPredictions},
     vision::{
         Classifier, ContrastiveEncoder, DepthEstimator, Detection, ImageClassifier, ImageUpscaler,
-        ObjectDetector, OpenVocabularyDetector, PixelLayers, QueryDetection, SemanticSegmenter,
-        TextEmbeddingLayers, VideoClassifier,
+        ObjectDetector, OpenVocabularyDetector, QueryDetection, SemanticSegmenter, VideoClassifier,
     },
 };
-use crate::{error::Result, format::Loader};
+use crate::{
+    error::{Error, Result},
+    format::Loader,
+};
 
 pub type LoadFn<T> = fn(&mut Loader<'_>) -> Result<T>;
+
+pub(crate) fn upload<const N: usize>(
+    state: &ModelState,
+    dimensions: [i64; N],
+    values: Vec<f32>,
+) -> SingeResult<Tensor> {
+    Tensor::from_vec(state.device()?, Shape::create(dimensions)?, values)?
+        .cast(state.floating_type()?)
+}
+
+// A model's layers behind a box, which a head holds whatever the model: `Boxed<dyn Layer>` for layers from pixels, `Boxed<dyn KeypointLayers>` for a keypoint detector's.
+#[derive(Debug)]
+pub struct Boxed<L: ?Sized>(pub Box<L>);
+
+impl<L: ?Sized> Deref for Boxed<L> {
+    type Target = L;
+
+    fn deref(&self) -> &L {
+        &self.0
+    }
+}
+
+impl<I, L: Layer<I> + ?Sized> Layer<I> for Boxed<L> {
+    fn forward(&self, input: &I, state: &ModelState) -> SingeResult<Tensor> {
+        self.0.forward(input, state)
+    }
+}
 
 // What loading a head gives, which names the head to load: `model::load::<Box<dyn CausalLm>>` loads a causal language model.
 pub trait LoadHead: Sized {
@@ -96,13 +134,16 @@ macro_rules! heads {
 
             // Whether the `transformers` class `class` holds this head's weights.
             #[must_use]
-            pub fn names(self, class: &str) -> bool {
+            pub fn holds_class(self, class: &str) -> bool {
                 self.class_suffixes().iter().any(|suffix| class.ends_with(suffix))
             }
 
-            #[must_use]
-            pub fn from_id(id: &str) -> Option<Self> {
-                Self::ALL.iter().copied().find(|head| head.id() == id)
+            pub fn from_id(id: &str) -> Result<Self> {
+                Self::ALL
+                    .iter()
+                    .copied()
+                    .find(|head| head.id() == id)
+                    .ok_or_else(|| Error::unsupported(format!("head {id}")))
             }
 
             // The endings of the `transformers` class names, in a config's `architectures`, whose weights hold this head.

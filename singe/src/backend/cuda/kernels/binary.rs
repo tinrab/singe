@@ -97,7 +97,7 @@ fn cublaslt_scaled_matmul(
         output: product.region().region(),
     };
     context.sync_scope(|| {
-        let cublaslt = context.runtime().cublaslt().locked("cuda runtime cache")?;
+        let cublaslt = context.runtime().cublaslt()?.locked("cuda runtime cache")?;
         // SAFETY: the operands, scales, and output live through the synchronized scope.
         unsafe {
             enqueue_scaled_matmul(

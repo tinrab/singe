@@ -58,10 +58,6 @@ pub fn dequantize_i8_grouped(
 }
 
 #[must_use]
-#[expect(
-    clippy::cast_precision_loss,
-    reason = "the f32 algorithm converts integer dimensions and accumulators to its floating-point working precision"
-)]
 pub fn matmul_i8_i8_f32(
     activations: &[i8],
     weights: &[i8],
@@ -188,14 +184,6 @@ pub fn per_token_group_quant_i8_f32(
 }
 
 #[cfg(all(feature = "dtype_f32", feature = "dtype_i8"))]
-#[expect(
-    clippy::float_cmp,
-    reason = "exact ties and half-integer cases determine deterministic numerical selection"
-)]
-#[expect(
-    clippy::cast_possible_truncation,
-    reason = "the rounded value is clamped to the i8 range; NaN follows Rust saturating cast semantics"
-)]
 fn quantize_i8_round_nearest_even(value: f32) -> i8 {
     let clamped = value.clamp(-128.0, 127.0);
     let floored = clamped.floor();

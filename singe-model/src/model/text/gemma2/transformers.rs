@@ -3,24 +3,18 @@
 use serde::{Deserialize, de::IgnoredAny};
 use singe::nn::Activation;
 
-use super::Gemma2Config;
 use crate::{
     assembly::{DecoderConfig, llama_rules},
     error::{Error, Result},
     format::{
         Rules,
-        transformers::{DecoderDefaults, DecoderFields, activation_field},
+        transformers::{DecoderDefaults, DecoderFields, LayerType, activation_field},
     },
+    model::text::gemma2::Gemma2Config,
     source::Source,
 };
 
 // The defaults `transformers`' `Gemma2Config` gives the fields a config leaves out; an explicit `null` turns the window or a cap off.
-const WINDOW: Option<i64> = Some(4096);
-
-const ATTENTION_SOFTCAP: Option<f32> = Some(50.0);
-
-const LOGIT_SOFTCAP: Option<f32> = Some(30.0);
-
 const fn default_activation() -> Activation {
     Activation::Gelu
 }
@@ -29,16 +23,28 @@ const fn default_query_scalar() -> f64 {
     256.0
 }
 
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "an explicit null in the config turns the window off"
+)]
 const fn default_window() -> Option<i64> {
-    WINDOW
+    Some(4096)
 }
 
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "an explicit null in the config turns the cap off"
+)]
 const fn default_attention_softcap() -> Option<f32> {
-    ATTENTION_SOFTCAP
+    Some(50.0)
 }
 
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "an explicit null in the config turns the cap off"
+)]
 const fn default_logit_softcap() -> Option<f32> {
-    LOGIT_SOFTCAP
+    Some(30.0)
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
@@ -63,10 +69,6 @@ struct Fields {
     use_bidirectional_attention: Option<bool>,
 }
 
-#[expect(
-    clippy::cast_possible_truncation,
-    reason = "the scale is defined in F32, as the references compute it"
-)]
 pub(crate) fn config(source: &Source) -> Result<Gemma2Config> {
     let fields: Fields = source.json("config.json")?;
     // A checkpoint using this would load and then compute something else.
@@ -81,29 +83,22 @@ pub(crate) fn config(source: &Source) -> Result<Gemma2Config> {
             head_dim: Some(256),
         })?
     };
-    let layers = usize::try_from(decoder.layers)
-        .map_err(|_| Error::unsupported("a negative number of layers"))?;
     // Without layer types, `transformers` slides every other layer, starting with the first.
-    let layer_types = fields.decoder.layer_types.clone().unwrap_or_else(|| {
-        (0..layers)
-            .map(|index| {
-                if index.is_multiple_of(2) {
-                    "sliding_attention"
-                } else {
-                    "full_attention"
-                }
-            })
-            .map(str::to_owned)
-            .collect()
-    });
-    let windows = (0..layers)
-        .map(|index| match layer_types.get(index).map(String::as_str) {
-            Some("sliding_attention") => Ok(fields.sliding_window),
-            Some("full_attention") => Ok(None),
+    let windows = fields
+        .decoder
+        .layer_types(|index| {
+            if index.is_multiple_of(2) {
+                LayerType::SlidingAttention
+            } else {
+                LayerType::FullAttention
+            }
+        })?
+        .into_iter()
+        .map(|layer| match layer {
+            LayerType::SlidingAttention => Ok(fields.sliding_window),
+            LayerType::FullAttention => Ok(None),
             // A checkpoint using one of these would load and then compute something else.
-            _ => Err(Error::unsupported(
-                "a layer that is neither full nor sliding",
-            )),
+            LayerType::LinearAttention => Err(Error::unsupported("a linear attention layer")),
         })
         .collect::<Result<Vec<_>>>()?;
     Ok(Gemma2Config {
@@ -117,19 +112,15 @@ pub(crate) fn config(source: &Source) -> Result<Gemma2Config> {
 
 // Gemma 2's `post_attention_layernorm` norms what attention returns, where Llama's norms the feed-forward layer's input, so these rules go before Llama's.
 pub(crate) fn rules() -> Rules {
-    let layer = |name: &str| format!("model.layers.*.{name}");
     Rules::new()
-        .rename(
-            &layer("post_attention_layernorm"),
-            "blocks.*.attention_output_norm",
-        )
-        .rename(
-            &layer("pre_feedforward_layernorm"),
-            "blocks.*.feed_forward_norm",
-        )
-        .rename(
-            &layer("post_feedforward_layernorm"),
-            "blocks.*.feed_forward_output_norm",
+        .rename_each(
+            "model.layers.*",
+            "blocks.*",
+            &[
+                ("post_attention_layernorm", "attention_output_norm"),
+                ("pre_feedforward_layernorm", "feed_forward_norm"),
+                ("post_feedforward_layernorm", "feed_forward_output_norm"),
+            ],
         )
         .then(llama_rules("model"))
 }

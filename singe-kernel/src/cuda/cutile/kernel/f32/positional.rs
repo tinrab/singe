@@ -9,10 +9,6 @@ mod kernels {
     use crate::cuda::cutile::runtime as cutile;
 
     #[cutile::entry()]
-    #[expect(
-        clippy::too_many_lines,
-        reason = "the kernel keeps its complete indexing and operation dispatch in one auditable unit"
-    )]
     pub unsafe fn rotary_embedding_f32(
         out: *mut f32,
         input: *mut f32,

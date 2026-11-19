@@ -34,9 +34,8 @@ impl Default for CudaRuntimeCacheLimits {
             autotune: ProviderCacheLimits::default(),
             fft: ProviderCacheLimits::default(),
             generated_kernels: ProviderCacheLimits {
-                entries: 256,
-                accounted_bytes: 8 << 20,
-                workspace_bytes: 0,
+                entries: 4096,
+                accounted_bytes: 64 << 20,
             },
         }
     }

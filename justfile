@@ -159,6 +159,11 @@ lint fix="false" package="" features=LINT_FEATURES: prepare-tests
         trivial_numeric_casts
         clippy::cast_sign_loss
         clippy::cast_precision_loss
+        clippy::cast_possible_truncation
+        clippy::many_single_char_names
+        clippy::suboptimal_flops
+        clippy::similar_names
+        clippy::excessive_precision
         clippy::assert_is_empty
         clippy::too_many_lines
         clippy::float_cmp
@@ -224,7 +229,7 @@ verify filter="":
         fi
         # A script exits 3 when every case it selected was skipped, which fails the recipe only when no script ran a case.
         code=0
-        uv run --locked python "$script" "$filter" || code=$?
+        PYTHONPATH=singe-model/verifications uv run --locked python "$script" "$filter" || code=$?
         case "$code" in
             0) ran=1 ;;
             3) ;;
@@ -236,6 +241,18 @@ verify filter="":
         status=1
     fi
     exit "$status"
+
+# Singe's side builds in release, as vLLM runs optimized code; each side runs in a process of its own, so one never holds the GPU while the other runs.
+# Compares Singe's compiled text generation with vLLM's on a model of `comparisons/cases.toml` and prints the table: `just compare smollm2`.
+compare model:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    snapshot="$(PYTHONPATH=singe-model/verifications uv run --locked python comparisons/snapshot.py {{ model }})"
+    lines="$(mktemp)"
+    trap 'rm -f "$lines"' EXIT
+    cargo run -q --release -p singe-model --features cuda_13_4 --example compare -- --snapshot "$snapshot" --model {{ model }} >> "$lines"
+    (cd comparisons/vllm && uv run --locked python generate.py --model {{ model }} --snapshot "$snapshot") >> "$lines"
+    (cd comparisons/vllm && uv run --locked python report.py "$lines")
 
 frontend-examples:
     #!/usr/bin/env bash

@@ -7,7 +7,7 @@ use singe::{
     nn::{Model, ModelState},
 };
 
-use crate::error::Result;
+use crate::{error::Result, head::Boxed};
 
 // What a promptable segmenter's layers give: an image's embedding from its pixels at the model's input size, and for points on that image, `[x, y]` pixels, each point's candidate masks' scores at a quarter of the input size, `[P, M, S / 4, S / 4]`, and their predicted quality, `[P, M]`.
 pub trait PromptableLayers: Debug + Send + Sync {
@@ -26,17 +26,17 @@ pub trait PromptableLayers: Debug + Send + Sync {
 
 #[derive(Debug)]
 pub struct MaskGenerator {
-    model: Model<Box<dyn PromptableLayers>>,
+    model: Model<Boxed<dyn PromptableLayers>>,
 }
 
 impl MaskGenerator {
     #[must_use]
-    pub const fn new(model: Model<Box<dyn PromptableLayers>>) -> Self {
+    pub const fn new(model: Model<Boxed<dyn PromptableLayers>>) -> Self {
         Self { model }
     }
 
     #[must_use]
-    pub const fn model(&self) -> &Model<Box<dyn PromptableLayers>> {
+    pub const fn model(&self) -> &Model<Boxed<dyn PromptableLayers>> {
         &self.model
     }
 

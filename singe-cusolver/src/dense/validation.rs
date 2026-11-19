@@ -1,7 +1,3 @@
-#![expect(
-    clippy::similar_names,
-    reason = "BLAS and factorization operand names follow the standard mathematical API"
-)]
 use singe_cuda::{data_type::DataType, view::DeviceRepr};
 
 use crate::{

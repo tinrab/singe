@@ -1,22 +1,14 @@
-"""ColModernVBert, scoring document pages for text queries with `sentence-transformers`' multi-vector encoder, as `verify.rs` scores them in Singe.
+"""ColModernVBert, scoring document pages for text queries with `sentence-transformers`' multi-vector encoder, as `mod.rs` scores them in Singe.
 `transformers` has no pipeline for visual document retrieval; the snapshot is served by `sentence-transformers`, which scores by late interaction."""
 
-import sys
-from pathlib import Path
+from PIL import Image
+from sentence_transformers import MultiVectorEncoder
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-
-import torch  # noqa: E402
-from PIL import Image  # noqa: E402
-from sentence_transformers import MultiVectorEncoder  # noqa: E402
-
-from support import DEVICE, Verification  # noqa: E402
+from support import DEVICE, Verification
 
 
-def visual_document_retrieval(snapshot):
-    model = MultiVectorEncoder(
-        snapshot, device=DEVICE, model_kwargs={"dtype": torch.float32}
-    )
+def visual_document_retrieval(snapshot, dtype):
+    model = MultiVectorEncoder(snapshot, device=DEVICE, model_kwargs={"dtype": dtype})
 
     def run(inputs, parameters):
         outputs = []

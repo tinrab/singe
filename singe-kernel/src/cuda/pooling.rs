@@ -101,10 +101,6 @@ pool2d_fns!(max_pool2d_f16, avg_pool2d_f16, f16);
 #[cfg(feature = "dtype_f64")]
 pool2d_fns!(max_pool2d_f64, avg_pool2d_f64, f64);
 
-#[expect(
-    clippy::similar_names,
-    reason = "query, key, and value operands and their tensor layouts follow the mathematical kernel notation"
-)]
 fn validate_pool2d(out_len: usize, input_len: usize, config: Pool2dConfig) -> Result<()> {
     if config.batch == 0
         || config.channels == 0

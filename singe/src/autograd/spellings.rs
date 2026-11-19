@@ -60,7 +60,9 @@ pub fn layer_norm(inputs: &[Tensor], norm: &LayerNormalizationAttributes) -> Res
 pub fn batch_norm(inputs: &[Tensor], batch: &BatchNormalizationAttributes) -> Result<Tensor> {
     let x = &inputs[0];
     let dimensions = x.shape().dimensions();
-    let channels = dimensions[1];
+    let &[_, channels, ..] = dimensions else {
+        return Err(Error::invalid_argument("batch normalization input rank"));
+    };
     let mut shape = vec![1; dimensions.len()];
     shape[1] = channels;
     let axes = (0..dimensions.len())
@@ -116,7 +118,10 @@ pub fn conv2d(inputs: &[Tensor], conv: &Conv2dAttributes, output: &[i64]) -> Res
         return Err(Error::invalid_argument("conv2d needs an OIHW weight"));
     };
     let group_outputs = out_channels / conv.groups;
-    let extents = (output[2], output[3]);
+    let &[_, _, height, width] = output else {
+        return Err(Error::invalid_argument("conv2d needs an NCHW output"));
+    };
+    let extents = (height, width);
     let mut total: Option<Tensor> = None;
     for i in 0..kernel_height {
         for j in 0..kernel_width {
@@ -169,6 +174,9 @@ fn pool_padding(
 }
 
 fn pool_taps(padded: &Tensor, pool: &Pool2dAttributes, output: &[i64]) -> Result<Vec<Tensor>> {
+    let &[_, _, height, width] = output else {
+        return Err(Error::invalid_argument("pool2d needs an NCHW output"));
+    };
     let mut taps = Vec::new();
     for i in 0..pool.kernel_size.0 {
         for j in 0..pool.kernel_size.1 {
@@ -177,7 +185,7 @@ fn pool_taps(padded: &Tensor, pool: &Pool2dAttributes, output: &[i64]) -> Result
                 (i, j),
                 pool.dilation,
                 pool.stride,
-                (output[2], output[3]),
+                (height, width),
             )?);
         }
     }

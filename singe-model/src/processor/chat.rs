@@ -11,7 +11,7 @@ use serde_json::{Map, Value as JsonValue};
 
 use crate::{
     error::{Error, Result},
-    processor::text::special_token,
+    processor::conversion::{special_or, tokenizer_config},
     source::Source,
 };
 
@@ -57,16 +57,26 @@ pub enum Part {
 }
 
 impl Content {
-    // The files of the parts `select` picks, in order.
-    pub fn files(&self, select: impl Fn(&Part) -> Option<&str>) -> Vec<String> {
+    #[must_use]
+    pub fn parts(&self) -> &[Part] {
         match self {
-            Self::Text(_) => Vec::new(),
-            Self::Parts(parts) => parts
-                .iter()
-                .filter_map(|part| select(part).map(str::to_owned))
-                .collect(),
+            Self::Text(_) => &[],
+            Self::Parts(parts) => parts,
         }
     }
+}
+
+pub(crate) fn environment<'source>() -> Result<Environment<'source>> {
+    let mut environment = Environment::new();
+    environment.set_syntax(
+        SyntaxConfig::builder()
+            .trim_blocks(true)
+            .lstrip_blocks(true)
+            .build()
+            .map_err(Error::Template)?,
+    );
+    minijinja_contrib::add_to_environment(&mut environment);
+    Ok(environment)
 }
 
 // A snapshot's chat template, with the special tokens it may write.
@@ -80,9 +90,7 @@ pub struct ChatTemplate {
 impl ChatTemplate {
     // Reads `chat_template.jinja`, or `tokenizer_config.json`'s `chat_template`, choosing the template named `default` among several; a snapshot without one has none.
     pub fn load(source: &Source) -> Result<Option<Self>> {
-        let config = source
-            .optional_json::<JsonValue>("tokenizer_config.json")?
-            .unwrap_or_default();
+        let config = tokenizer_config(source)?;
         let path = source.directory().join("chat_template.jinja");
         let template = if path.exists() {
             Some(fs::read_to_string(&path).map_err(Error::io(&path))?)
@@ -97,11 +105,10 @@ impl ChatTemplate {
                 _ => None,
             }
         };
-        let token = |name: &str| special_token(&config, name).unwrap_or_default().to_owned();
         Ok(template.map(|template| Self {
             template,
-            bos_token: token("bos_token"),
-            eos_token: token("eos_token"),
+            bos_token: special_or(&config, "bos_token", ""),
+            eos_token: special_or(&config, "eos_token", ""),
         }))
     }
 
@@ -121,16 +128,8 @@ impl ChatTemplate {
         generation_prompt: bool,
         arguments: &Map<String, JsonValue>,
     ) -> Result<String> {
-        let mut environment = Environment::new();
         // `transformers` renders with these settings and Python's string methods.
-        environment.set_syntax(
-            SyntaxConfig::builder()
-                .trim_blocks(true)
-                .lstrip_blocks(true)
-                .build()
-                .map_err(Error::Template)?,
-        );
-        minijinja_contrib::add_to_environment(&mut environment);
+        let mut environment = environment()?;
         environment.set_unknown_method_callback(unknown_method_callback);
         environment.add_function(
             "raise_exception",

@@ -3,13 +3,13 @@
 use serde::Deserialize;
 use singe::nn::Activation;
 
-use super::{SegformerConfig, SegformerStageConfig};
 use crate::{
     error::{Error, Result},
     format::{
         Rules,
-        transformers::{activation_field, classifier_config},
+        transformers::{activation_field, classifier_config, default_true},
     },
+    model::vision::segformer::{SegformerConfig, SegformerStageConfig},
     source::Source,
 };
 
@@ -26,12 +26,8 @@ struct Fields {
     #[serde(deserialize_with = "activation_field")]
     hidden_act: Activation,
     decoder_hidden_size: i64,
-    #[serde(default = "enabled")]
+    #[serde(default = "default_true")]
     reshape_last_stage: bool,
-}
-
-const fn enabled() -> bool {
-    true
 }
 
 pub(crate) fn config(source: &Source) -> Result<SegformerConfig> {
@@ -47,9 +43,16 @@ pub(crate) fn config(source: &Source) -> Result<SegformerConfig> {
     ]
     .iter()
     .any(|&length| length != count)
-        || !fields.reshape_last_stage
     {
-        return Err(Error::unsupported("this SegFormer config"));
+        return Err(Error::unsupported(format!(
+            "SegFormer stage lists of other than {count} entries, as `hidden_sizes` has"
+        )));
+    }
+
+    if !fields.reshape_last_stage {
+        return Err(Error::unsupported(
+            "a SegFormer without `reshape_last_stage`",
+        ));
     }
 
     let stages = (0..count)
@@ -73,50 +76,33 @@ pub(crate) fn config(source: &Source) -> Result<SegformerConfig> {
 }
 
 pub(crate) fn rules() -> Rules {
-    let encoder = |name: &str| format!("segformer.encoder.{name}");
-    let block = |name: &str| format!("segformer.encoder.block.*.*.{name}");
     Rules::new()
-        .rename(&encoder("patch_embeddings.*.proj"), "stages.*.patches")
-        .rename(
-            &encoder("patch_embeddings.*.layer_norm"),
-            "stages.*.patch_norm",
+        .rename_each(
+            "segformer.encoder",
+            "stages",
+            &[
+                ("patch_embeddings.*.proj", "*.patches"),
+                ("patch_embeddings.*.layer_norm", "*.patch_norm"),
+            ],
         )
-        .rename(&block("layer_norm_1"), "stages.*.blocks.*.attention_norm")
-        .rename(
-            &block("attention.self.query"),
-            "stages.*.blocks.*.attention.query",
+        .rename_each(
+            "segformer.encoder.block.*.*",
+            "stages.*.blocks.*",
+            &[
+                ("layer_norm_1", "attention_norm"),
+                ("attention.self.query", "attention.query"),
+                ("attention.self.key", "attention.key"),
+                ("attention.self.value", "attention.value"),
+                ("attention.self.sr", "attention.reduction"),
+                ("attention.self.layer_norm", "attention.reduction_norm"),
+                ("attention.output.dense", "attention.output"),
+                ("layer_norm_2", "feed_forward_norm"),
+                ("mlp.dense1", "feed_forward.up"),
+                ("mlp.dwconv.dwconv", "feed_forward.depthwise"),
+                ("mlp.dense2", "feed_forward.down"),
+            ],
         )
-        .rename(
-            &block("attention.self.key"),
-            "stages.*.blocks.*.attention.key",
-        )
-        .rename(
-            &block("attention.self.value"),
-            "stages.*.blocks.*.attention.value",
-        )
-        .rename(
-            &block("attention.self.sr"),
-            "stages.*.blocks.*.attention.reduction",
-        )
-        .rename(
-            &block("attention.self.layer_norm"),
-            "stages.*.blocks.*.attention.reduction_norm",
-        )
-        .rename(
-            &block("attention.output.dense"),
-            "stages.*.blocks.*.attention.output",
-        )
-        .rename(
-            &block("layer_norm_2"),
-            "stages.*.blocks.*.feed_forward_norm",
-        )
-        .rename(&block("mlp.dense1"), "stages.*.blocks.*.feed_forward.up")
-        .rename(
-            &block("mlp.dwconv.dwconv"),
-            "stages.*.blocks.*.feed_forward.depthwise",
-        )
-        .rename(&block("mlp.dense2"), "stages.*.blocks.*.feed_forward.down")
-        .rename(&encoder("layer_norm.*"), "stages.*.norm")
+        .rename("segformer.encoder.layer_norm.*", "stages.*.norm")
         .rename("decode_head.linear_c.*.proj", "projections.*")
         .rename("decode_head.linear_fuse", "fuse")
         // A count training updates, which evaluation never reads.

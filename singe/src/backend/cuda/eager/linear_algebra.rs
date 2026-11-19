@@ -5,7 +5,8 @@ use crate::{
             eager::unsupported_eager_operation,
             gemm::GemmLayout,
             kernel_plan,
-            provider_selection::{KernelChoice, Operand, matmul_kernel},
+            nvtx::CudaNvtxRange,
+            provider_selection::{KernelChoice, Operand, cublas_copies, matmul_kernel},
             stream::ensure_not_stream_capturing,
             utility::ensure_same_device,
         },
@@ -47,6 +48,32 @@ pub fn matmul(lhs: &Tensor, rhs: &Tensor) -> Result<Tensor> {
     if matmul_kernel(operands[0], operands[1]) == KernelChoice::Library {
         return cublas_matmul(lhs, rhs);
     }
+
+    if let Some(copied) = cublas_copies(operands[0], operands[1])? {
+        let copy = |tensor: &Tensor, copies: bool| {
+            if copies {
+                tensor.contiguous()
+            } else {
+                Ok(tensor.clone())
+            }
+        };
+        return cublas_matmul(
+            &copy(lhs, copied.copies_lhs())?,
+            &copy(rhs, copied.copies_rhs())?,
+        );
+    }
+
+    // A matmul no library takes shows under `nsys` with its operands, since the general kernel runs it far slower.
+    let _range = CudaNvtxRange::new(|| {
+        format!(
+            "singe eager matmul fallback {} {:?} strides {:?} x {:?} strides {:?}",
+            lhs.data_type(),
+            lhs.shape().dimensions(),
+            lhs.layout().strides(),
+            rhs.shape().dimensions(),
+            rhs.layout().strides(),
+        )
+    });
     kernel_plan::execute(Operation::MatMul, &OperationAttributes::None, &[lhs, rhs])
 }
 

@@ -11,7 +11,7 @@ pub use crate::backend::cpu::{
     elementwise::{cast, clamp, dequantize, lerp, quantize, where_op},
     normalization::{
         batch_norm, layer_norm, paged_attention, paged_mla_attention, rms_norm, rotary_embedding,
-        scaled_dot_product_attention,
+        rotary_halves, scaled_dot_product_attention,
     },
     pooling::{avg_pool2d, max_pool2d},
     recurrence::state_recurrence,

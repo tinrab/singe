@@ -15,7 +15,8 @@ use std::{
     time::{Duration, Instant},
 };
 
-use libloading::Library;
+use libloading::{Error as LibraryError, Library};
+use serde_json::{Error as JsonError, Value};
 use sha2::{Digest, Sha256};
 use singe_cuda::architecture::GpuArchitecture;
 use thiserror::Error as ThisError;
@@ -44,9 +45,9 @@ pub enum ProgramError {
     #[error("failed to access the program's files")]
     Io(#[from] io::Error),
     #[error("the manifest is not valid json")]
-    Manifest(#[from] serde_json::Error),
+    Manifest(#[from] JsonError),
     #[error("failed to load the program")]
-    Load(#[from] libloading::Error),
+    Load(#[from] LibraryError),
     #[error("nvcc failed in {directory}:\n{output}")]
     Compiler { directory: PathBuf, output: String },
     #[error("{entry} returned {status} with status word {word} in {directory}: {failure}")]
@@ -131,17 +132,17 @@ impl Drop for Built {
     }
 }
 
-fn read_manifest(directory: &Path, prefix: &str) -> Result<serde_json::Value, ProgramError> {
+fn read_manifest(directory: &Path, prefix: &str) -> Result<Value, ProgramError> {
     let manifest = fs::read_to_string(directory.join(format!("{prefix}.json")))?;
     Ok(serde_json::from_str(&manifest)?)
 }
 
-fn field(manifest: &serde_json::Value, name: &str) -> String {
+fn field(manifest: &Value, name: &str) -> String {
     manifest[name].as_str().unwrap_or_default().to_owned()
 }
 
 // A manifest's compile command, without the compiler's own name.
-fn compile_arguments(manifest: &serde_json::Value) -> Vec<String> {
+fn compile_arguments(manifest: &Value) -> Vec<String> {
     field(manifest, "compile")
         .split_whitespace()
         .skip(1)

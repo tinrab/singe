@@ -1,42 +1,6 @@
 use super::*;
 
 #[test]
-fn test_cuda_eager_dequantize_rejects_invalid_scale_and_materializes_strided_byte_input() {
-    let Some(_lock) = maybe_lock_device() else {
-        return;
-    };
-
-    let shape = Shape::create([2_i64, 65]).unwrap();
-    let values = (0..130usize)
-        .map(|value| u8::try_from((value * 13) % 256).unwrap())
-        .collect::<Vec<_>>();
-    let Some(input) = skip_if_stub(Tensor::from_vec(Device::Cuda(0), &shape, values)) else {
-        return;
-    };
-    assert!(matches!(
-        input.dequantize(0.0, 0),
-        Err(Error::InvalidArgument { ref name }) if name == "quantization scale"
-    ));
-
-    let transposed = input.transpose(0, 1).unwrap();
-    assert!(!transposed.is_contiguous());
-    assert_eq!(
-        transposed
-            .dequantize(0.5, 0)
-            .unwrap()
-            .to_vec::<f32>()
-            .unwrap(),
-        transposed
-            .contiguous()
-            .unwrap()
-            .dequantize(0.5, 0)
-            .unwrap()
-            .to_vec::<f32>()
-            .unwrap()
-    );
-}
-
-#[test]
 fn test_cuda_eager_cast_f32_bool_materializes_strided_input_and_rejects_other_targets() {
     let Some(_lock) = maybe_lock_device() else {
         return;

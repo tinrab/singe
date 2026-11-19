@@ -43,10 +43,11 @@ impl Problem {
             lhs.layout.shape().dimensions(),
             rhs.layout.shape().dimensions(),
         );
-        let (&[.., rows, depth], &[weight_depth, columns]) = (left, right) else {
+        let (&[ref batch @ .., rows, depth], &[weight_depth, columns]) = (left, right) else {
             return Ok(None);
         };
-        let leading = left[..left.len() - 2].iter().product::<i64>();
+        let depths_match = weight_depth == depth;
+        let leading = batch.iter().product::<i64>();
         let extent = |value: i64| to_usize(value, "cuda dot product extent");
         let (rows, depth, columns) = (extent(leading * rows)?, extent(depth)?, extent(columns)?);
         if !matches!(data_type, DataType::F16 | DataType::Bf16 | DataType::F32)
@@ -56,7 +57,7 @@ impl Problem {
             || !rhs.layout.transpose(0, 1)?.is_contiguous()
             || !lhs.layout.storage_offset().is_multiple_of(8)
             || !rhs.layout.storage_offset().is_multiple_of(8)
-            || weight_depth != left[left.len() - 1]
+            || !depths_match
             || rows == 0
             || rows > MAX_ROWS
             || columns == 0
@@ -228,10 +229,16 @@ for (int r = 0; r < {rows}; ++r) {{
 }}",
             staged = rows * depth,
         ));
-        let left = lhs.layout.shape().dimensions();
-        let right = rhs.layout.shape().dimensions();
-        let mut output = left[..left.len() - 1].to_vec();
-        output.push(right[1]);
+        let (&[ref leading @ .., _], &[_, output_columns]) = (
+            lhs.layout.shape().dimensions(),
+            rhs.layout.shape().dimensions(),
+        ) else {
+            return Err(Error::invalid_argument(
+                "cuda dot product operand dimensions",
+            ));
+        };
+        let mut output = leading.to_vec();
+        output.push(output_columns);
         let output = ValueSpec::new(data_type, Shape::create(output)?);
         Ok(Some(writer.finish(
             "dot_product",

@@ -20,12 +20,13 @@ use crate::{
     backend::cuda::cudnn_backend::{
         templates::tensors::{
             CUDNN_GRAPH_INPUT0_TENSOR_ID, CUDNN_GRAPH_INPUT1_TENSOR_ID,
-            CUDNN_GRAPH_OUTPUT_TENSOR_ID, CudnnBackendTensorMetadata, cudnn_backend_tensor,
-            cudnn_forced_execution_plan, cudnn_matmul_graph_execution_plan,
+            CUDNN_GRAPH_OUTPUT_TENSOR_ID, CudnnBackendTensorMetadata, PlanSelection,
+            cudnn_backend_tensor, cudnn_forced_execution_plan, cudnn_matmul_graph_execution_plan,
         },
         types::{CudnnBackendGraphTemplate, CudnnBackendOperation},
     },
     error::Result,
+    graph::CudnnGraphKind,
 };
 
 /// Builds a cuDNN matrix multiplication template with descriptor ranks promoted to at least three.
@@ -45,6 +46,7 @@ pub fn build_cudnn_matmul_template(
     b: &CudnnBackendTensorMetadata,
     output: &CudnnBackendTensorMetadata,
     engine: Option<&EngineChoice>,
+    selection: PlanSelection,
 ) -> Result<CudnnBackendGraphTemplate> {
     let rank = a.rank().max(b.rank()).max(output.rank()).max(3);
     let a = a.promote_rank(rank)?;
@@ -66,11 +68,20 @@ pub fn build_cudnn_matmul_template(
         &[operation.descriptor()],
         CudnnOperationGraphOptions::default(),
     )?;
-    let plan = match engine {
-        Some(choice) => {
-            cudnn_forced_execution_plan(cudnn, &operation_graph, a.data_type(), true, choice)?
+    let (plan, candidates) = match engine {
+        Some(choice) => (
+            cudnn_forced_execution_plan(
+                cudnn,
+                &operation_graph,
+                a.data_type(),
+                CudnnGraphKind::Matmul,
+                choice,
+            )?,
+            Vec::new(),
+        ),
+        None => {
+            cudnn_matmul_graph_execution_plan(cudnn, &operation_graph, a.data_type(), selection)?
         }
-        None => cudnn_matmul_graph_execution_plan(cudnn, &operation_graph, a.data_type())?,
     };
     let workspace_size = plan.workspace_size()?;
 
@@ -85,5 +96,6 @@ pub fn build_cudnn_matmul_template(
             operation,
         ),
         operation_graph,
-    ))
+    )
+    .with_candidates(candidates))
 }

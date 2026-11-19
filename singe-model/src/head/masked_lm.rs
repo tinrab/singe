@@ -7,8 +7,13 @@ use singe::{
     nn::{Activation, Layer, LayerNorm, Linear, Model, ModelState, TokenBatch},
 };
 
-use super::{EncoderHead, HeadLayouts};
-use crate::{assembly::PostNormEncoder, error::Result, schema::Schema, source::Source};
+use crate::{
+    assembly::PostNormEncoder,
+    error::Result,
+    head::{EncoderHead, HeadLayouts},
+    schema::Schema,
+    source::Source,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MaskedLmConfig {
@@ -27,12 +32,12 @@ pub struct MaskedLmLayers {
 
 impl Layer<TokenBatch> for MaskedLmLayers {
     fn forward(&self, input: &TokenBatch, state: &ModelState) -> SingeResult<Tensor> {
-        let hidden = self.encoder.forward(input, state)?;
-        let hidden = self
-            .activation
-            .forward(&self.projection.forward(&hidden, state)?, state)?;
-        self.output
-            .forward(&self.norm.forward(&hidden, state)?, state)
+        self.encoder
+            .forward(input, state)?
+            .apply(&self.projection, state)?
+            .apply(&self.activation, state)?
+            .apply(&self.norm, state)?
+            .apply(&self.output, state)
     }
 }
 

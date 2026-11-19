@@ -1,58 +1,44 @@
 // Heads over images and clips: classification of an image or a clip, object detection, and the contrastive image-text models zero-shot classification and detection run.
 // A model builds its layers to these outputs itself, since vision models differ in what their heads read: a class token, a mean of the patches, or detection tokens.
 
+use std::ops::Deref;
+
 use singe::{
     DataType, Error as SingeError, Result as SingeResult, Tensor,
-    nn::{Layer, Model, ModelState, StateKey, TokenBatch},
+    nn::{Layer, Model, StateKey, TokenBatch},
 };
 
-use super::ClassifierConfig;
-use crate::error::{Error, Result};
-
-// A model's layers from pixels, or from a clip's frames, to one tensor of outputs, which its head reads.
-#[derive(Debug)]
-pub struct PixelLayers(pub Box<dyn Layer>);
-
-impl Layer for PixelLayers {
-    fn forward(&self, input: &Tensor, state: &ModelState) -> SingeResult<Tensor> {
-        self.0.forward(input, state)
-    }
-}
-
-// A text tower's layers from a batch of token sequences to each sequence's embedding, `[N, D]`.
-#[derive(Debug)]
-pub struct TextEmbeddingLayers(pub Box<dyn Layer<TokenBatch>>);
-
-impl Layer<TokenBatch> for TextEmbeddingLayers {
-    fn forward(&self, input: &TokenBatch, state: &ModelState) -> SingeResult<Tensor> {
-        self.0.forward(input, state)
-    }
-}
+use crate::{
+    error::{Error, Result},
+    head::{Boxed, ClassifierConfig},
+    host,
+};
 
 // The rows of a `[B, …, N]` tensor's last axis, as host vectors.
 fn rows(tensor: &Tensor) -> Result<Vec<Vec<f32>>> {
-    let dimensions = tensor.shape().dimensions();
-    let width = usize::try_from(dimensions[dimensions.len() - 1])
-        .map_err(|_| SingeError::out_of_range("output width"))?;
+    let Some(&width) = tensor.shape().dimensions().last() else {
+        return Err(SingeError::invalid_argument("output, [B, …, N]").into());
+    };
+    let width = usize::try_from(width).map_err(|_| SingeError::out_of_range("output width"))?;
     let values = tensor.cast(DataType::F32)?.to_vec::<f32>()?;
-    Ok(values.chunks(width).map(<[f32]>::to_vec).collect())
+    Ok(host::rows(&values, width))
 }
 
 // A classifier of images or clips: its layers to each input's scores, `[B, labels]`, and its labels.
 #[derive(Debug)]
 pub struct Classifier {
-    model: Model<PixelLayers>,
+    model: Model<Boxed<dyn Layer>>,
     config: ClassifierConfig,
 }
 
 impl Classifier {
     #[must_use]
-    pub const fn new(model: Model<PixelLayers>, config: ClassifierConfig) -> Self {
+    pub const fn new(model: Model<Boxed<dyn Layer>>, config: ClassifierConfig) -> Self {
         Self { model, config }
     }
 
     #[must_use]
-    pub const fn model(&self) -> &Model<PixelLayers> {
+    pub const fn model(&self) -> &Model<Boxed<dyn Layer>> {
         &self.model
     }
 
@@ -71,9 +57,25 @@ impl Classifier {
 #[derive(Debug)]
 pub struct ImageClassifier(pub Classifier);
 
+impl Deref for ImageClassifier {
+    type Target = Classifier;
+
+    fn deref(&self) -> &Classifier {
+        &self.0
+    }
+}
+
 // A clip classifier, as `*ForVideoClassification` heads are; its input is `[B, T, C, H, W]`.
 #[derive(Debug)]
 pub struct VideoClassifier(pub Classifier);
+
+impl Deref for VideoClassifier {
+    type Target = Classifier;
+
+    fn deref(&self) -> &Classifier {
+        &self.0
+    }
+}
 
 // One query of a detector: each label's score, the last for no object, and its box, normalized `[cx, cy, w, h]`.
 #[derive(Debug, Clone, PartialEq)]
@@ -85,18 +87,18 @@ pub struct Detection {
 // An object detector, as `*ForObjectDetection` heads are: its layers give each query's label scores, the last for no object, then its box, `[B, Q, labels + 1 + 4]`.
 #[derive(Debug)]
 pub struct ObjectDetector {
-    model: Model<PixelLayers>,
+    model: Model<Boxed<dyn Layer>>,
     config: ClassifierConfig,
 }
 
 impl ObjectDetector {
     #[must_use]
-    pub const fn new(model: Model<PixelLayers>, config: ClassifierConfig) -> Self {
+    pub const fn new(model: Model<Boxed<dyn Layer>>, config: ClassifierConfig) -> Self {
         Self { model, config }
     }
 
     #[must_use]
-    pub const fn model(&self) -> &Model<PixelLayers> {
+    pub const fn model(&self) -> &Model<Boxed<dyn Layer>> {
         &self.model
     }
 
@@ -108,9 +110,11 @@ impl ObjectDetector {
     // Returns each image's queries.
     pub fn detect(&self, pixels: &Tensor) -> Result<Vec<Vec<Detection>>> {
         let output = self.model.forward(pixels)?;
-        let queries = usize::try_from(output.shape().dimensions()[1])
-            .map_err(|_| SingeError::out_of_range("queries"))?;
-        let labels = self.config.labels.len() + 1;
+        let &[_, queries, _] = output.shape().dimensions() else {
+            return Err(SingeError::invalid_argument("detections, [B, Q, N]").into());
+        };
+        let queries = usize::try_from(queries).map_err(|_| SingeError::out_of_range("queries"))?;
+        let labels = self.config.labels().len() + 1;
         let detections = rows(&output)?
             .into_iter()
             .map(|row| Detection {
@@ -123,18 +127,15 @@ impl ObjectDetector {
                 ],
             })
             .collect::<Vec<_>>();
-        Ok(detections
-            .chunks(queries)
-            .map(<[Detection]>::to_vec)
-            .collect())
+        Ok(host::rows(&detections, queries))
     }
 }
 
 // A contrastive model, as CLIP's and CLAP's `*Model` are: a tower of images or clips and a tower of texts to embeddings of one space, and the scale of their cosines.
 #[derive(Debug)]
 pub struct ContrastiveEncoder {
-    inputs: Model<PixelLayers>,
-    texts: Model<TextEmbeddingLayers>,
+    inputs: Model<Boxed<dyn Layer>>,
+    texts: Model<Boxed<dyn Layer<TokenBatch>>>,
     // The learned log of the cosines' scale.
     logit_scale: StateKey,
 }
@@ -142,8 +143,8 @@ pub struct ContrastiveEncoder {
 impl ContrastiveEncoder {
     #[must_use]
     pub const fn new(
-        inputs: Model<PixelLayers>,
-        texts: Model<TextEmbeddingLayers>,
+        inputs: Model<Boxed<dyn Layer>>,
+        texts: Model<Boxed<dyn Layer<TokenBatch>>>,
         logit_scale: StateKey,
     ) -> Self {
         Self {
@@ -154,12 +155,12 @@ impl ContrastiveEncoder {
     }
 
     #[must_use]
-    pub const fn inputs(&self) -> &Model<PixelLayers> {
+    pub const fn inputs(&self) -> &Model<Boxed<dyn Layer>> {
         &self.inputs
     }
 
     #[must_use]
-    pub const fn texts(&self) -> &Model<TextEmbeddingLayers> {
+    pub const fn texts(&self) -> &Model<Boxed<dyn Layer<TokenBatch>>> {
         &self.texts
     }
 
@@ -193,8 +194,8 @@ impl ContrastiveEncoder {
 // An open-vocabulary detector, as OWL-ViT's `*ForObjectDetection` is: an image tower to each patch's class embedding, box, logit shift, and logit scale, `[B, P, D + 4 + 2]`, and a text tower to each query's embedding, `[N, D]`.
 #[derive(Debug)]
 pub struct OpenVocabularyDetector {
-    images: Model<PixelLayers>,
-    texts: Model<TextEmbeddingLayers>,
+    images: Model<Boxed<dyn Layer>>,
+    texts: Model<Boxed<dyn Layer<TokenBatch>>>,
 }
 
 // One patch of an open-vocabulary detector: its score for each query, before the sigmoid, and its box, normalized `[cx, cy, w, h]`.
@@ -206,20 +207,25 @@ pub struct QueryDetection {
 
 impl OpenVocabularyDetector {
     #[must_use]
-    pub const fn new(images: Model<PixelLayers>, texts: Model<TextEmbeddingLayers>) -> Self {
+    pub const fn new(
+        images: Model<Boxed<dyn Layer>>,
+        texts: Model<Boxed<dyn Layer<TokenBatch>>>,
+    ) -> Self {
         Self { images, texts }
     }
 
     #[must_use]
-    pub const fn images(&self) -> &Model<PixelLayers> {
+    pub const fn images(&self) -> &Model<Boxed<dyn Layer>> {
         &self.images
     }
 
     // Returns each image's patches, scored against each text, as OWL-ViT's class head scores them: cosines shifted, then scaled.
     pub fn detect(&self, pixels: &Tensor, texts: &TokenBatch) -> Result<Vec<Vec<QueryDetection>>> {
         let output = self.images.forward(pixels)?;
-        let patches = usize::try_from(output.shape().dimensions()[1])
-            .map_err(|_| SingeError::out_of_range("patches"))?;
+        let &[_, patches, _] = output.shape().dimensions() else {
+            return Err(SingeError::invalid_argument("patch detections, [B, P, N]").into());
+        };
+        let patches = usize::try_from(patches).map_err(|_| SingeError::out_of_range("patches"))?;
         let queries = rows(&self.texts.forward_group(texts)?)?;
         let norm = |values: &[f32]| values.iter().map(|value| value * value).sum::<f32>().sqrt();
         let queries = queries
@@ -258,27 +264,24 @@ impl OpenVocabularyDetector {
                 }
             })
             .collect::<Vec<_>>();
-        Ok(detections
-            .chunks(patches)
-            .map(<[QueryDetection]>::to_vec)
-            .collect())
+        Ok(host::rows(&detections, patches))
     }
 }
 
 // A depth estimator, as `*ForDepthEstimation` heads are: its layers give each pixel's depth at the size the model reads, `[B, H, W]`.
 #[derive(Debug)]
 pub struct DepthEstimator {
-    model: Model<PixelLayers>,
+    model: Model<Boxed<dyn Layer>>,
 }
 
 impl DepthEstimator {
     #[must_use]
-    pub const fn new(model: Model<PixelLayers>) -> Self {
+    pub const fn new(model: Model<Boxed<dyn Layer>>) -> Self {
         Self { model }
     }
 
     #[must_use]
-    pub const fn model(&self) -> &Model<PixelLayers> {
+    pub const fn model(&self) -> &Model<Boxed<dyn Layer>> {
         &self.model
     }
 
@@ -290,18 +293,18 @@ impl DepthEstimator {
 // A semantic segmenter, as `*ForSemanticSegmentation` heads are: its layers give each label's score at each point of a map, `[B, labels, h, w]`, which the pipeline resizes to the image.
 #[derive(Debug)]
 pub struct SemanticSegmenter {
-    model: Model<PixelLayers>,
+    model: Model<Boxed<dyn Layer>>,
     config: ClassifierConfig,
 }
 
 impl SemanticSegmenter {
     #[must_use]
-    pub const fn new(model: Model<PixelLayers>, config: ClassifierConfig) -> Self {
+    pub const fn new(model: Model<Boxed<dyn Layer>>, config: ClassifierConfig) -> Self {
         Self { model, config }
     }
 
     #[must_use]
-    pub const fn model(&self) -> &Model<PixelLayers> {
+    pub const fn model(&self) -> &Model<Boxed<dyn Layer>> {
         &self.model
     }
 
@@ -318,18 +321,18 @@ impl SemanticSegmenter {
 // A super-resolution model, as `*ForImageSuperResolution` heads are: its layers take images in [0, 1] whose sides are whole windows and give them larger, `[B, 3, H · s, W · s]`.
 #[derive(Debug)]
 pub struct ImageUpscaler {
-    model: Model<PixelLayers>,
+    model: Model<Boxed<dyn Layer>>,
     window: i64,
 }
 
 impl ImageUpscaler {
     #[must_use]
-    pub const fn new(model: Model<PixelLayers>, window: i64) -> Self {
+    pub const fn new(model: Model<Boxed<dyn Layer>>, window: i64) -> Self {
         Self { model, window }
     }
 
     #[must_use]
-    pub const fn model(&self) -> &Model<PixelLayers> {
+    pub const fn model(&self) -> &Model<Boxed<dyn Layer>> {
         &self.model
     }
 

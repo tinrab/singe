@@ -4,23 +4,21 @@ mod transformers;
 
 use serde::{Deserialize, Serialize};
 use singe::{
-    Result as SingeResult, Tensor,
+    Error as SingeError, Result as SingeResult, Tensor,
     nn::{
-        Activation, BatchNorm2d, Layer, LayerNorm, Linear, Model, ModelState, StateBuilder,
+        Activation, BatchNorm2d, Layer, LayerNorm, Linear, Mlp, Model, ModelState, StateKey,
         TokenBatch,
     },
     tensor::{InterpolateMode, Interpolation},
 };
 
 use crate::{
-    assembly::{PostNormEncoder, PostNormEncoderConfig, Swin, SwinConfig},
+    assembly::{PYTORCH_NORM_EPS, PostNormEncoder, PostNormEncoderConfig, Swin, SwinConfig},
     error::Result,
     format::Loader,
-    head::{
-        ContrastiveEncoder, HeadLoader, PixelLayers, SpectrogramOptions, TextEmbeddingLayers,
-        ZeroShotAudioClassifier,
-    },
+    head::{Boxed, ContrastiveEncoder, HeadLoader, ZeroShotAudioClassifier},
     model::ModelEntry,
+    processor::fbank::SpectrogramOptions,
     schema::Schema,
     source::Format,
 };
@@ -36,31 +34,35 @@ pub struct ClapConfig {
     pub features: SpectrogramOptions,
 }
 
-// A projection: two linear layers with an activation between them.
-#[derive(Debug, Clone)]
-struct Projection {
-    first: Linear,
-    second: Linear,
-    activation: Activation,
-}
-
-impl Layer for Projection {
-    fn forward(&self, input: &Tensor, state: &ModelState) -> SingeResult<Tensor> {
-        input
-            .apply(&self.first, state)?
-            .apply(&self.activation, state)?
-            .apply(&self.second, state)
-    }
-}
-
 // HTSAT's spectrograms `[B, 1, frames, mels]` to their projected embeddings, `[B, P]`.
 #[derive(Debug, Clone)]
 struct ClapAudioLayers {
     norm: BatchNorm2d,
     swin: Swin,
     final_norm: LayerNorm,
-    projection: Projection,
+    projection: Mlp,
     spec_size: i64,
+}
+
+impl ClapAudioLayers {
+    fn create(schema: &mut Schema<'_>, config: &ClapConfig) -> SingeResult<Self> {
+        let width = config.audio.out_width();
+        let mels =
+            i64::try_from(config.features.mels).map_err(|_| SingeError::out_of_range("mels"))?;
+        Ok(Self {
+            norm: schema.batch_norm2d("audio.norm", mels, PYTORCH_NORM_EPS)?,
+            swin: Swin::create(&mut schema.scope("audio"), &config.audio)?,
+            // HTSAT's final norm keeps `nn.LayerNorm`'s default epsilon instead of `layer_norm_eps`.
+            final_norm: schema.layer_norm("audio.final_norm", width, PYTORCH_NORM_EPS)?,
+            projection: schema.mlp(
+                "audio_projection",
+                [width, config.projection, config.projection],
+                config.projection_activation,
+                true,
+            )?,
+            spec_size: config.spec_size,
+        })
+    }
 }
 
 impl Layer for ClapAudioLayers {
@@ -70,8 +72,9 @@ impl Layer for ClapAudioLayers {
             .transpose(1, 3)?
             .apply(&self.norm, state)?
             .transpose(1, 3)?;
-        let dimensions = normalized.shape().dimensions();
-        let (batch, frames, mels) = (dimensions[0], dimensions[2], dimensions[3]);
+        let &[batch, _, frames, mels] = normalized.shape().dimensions() else {
+            return Err(SingeError::invalid_argument("CLAP spectrograms"));
+        };
         let ratio = self.spec_size / mels;
         let width = self.spec_size * ratio;
         // Stretched to the image's width in frames, then folded: each quarter of the time becomes a band of the image's height, as `reshape_mel2img` does.
@@ -83,15 +86,14 @@ impl Layer for ClapAudioLayers {
         } else {
             normalized
         };
-        let image = stretched
+        stretched
             .reshape([batch, ratio, width / ratio, mels])?
             .permute(&[0, 1, 3, 2])?
-            .reshape([batch, 1, mels * ratio, width / ratio])?;
-        let pooled = image
+            .reshape([batch, 1, mels * ratio, width / ratio])?
             .apply(&self.swin, state)?
             .apply(&self.final_norm, state)?
-            .mean(&[1], false)?;
-        pooled.apply(&self.projection, state)
+            .mean(&[1], false)?
+            .apply(&self.projection, state)
     }
 }
 
@@ -100,7 +102,23 @@ impl Layer for ClapAudioLayers {
 struct ClapTextLayers {
     encoder: PostNormEncoder,
     pooler: Linear,
-    projection: Projection,
+    projection: Mlp,
+}
+
+impl ClapTextLayers {
+    fn create(schema: &mut Schema<'_>, config: &ClapConfig) -> SingeResult<Self> {
+        let width = config.text.width;
+        Ok(Self {
+            encoder: PostNormEncoder::create(&mut schema.scope("text"), &config.text)?,
+            pooler: schema.linear("text.pooler", width, width, true)?,
+            projection: schema.mlp(
+                "text_projection",
+                [width, config.projection, config.projection],
+                config.projection_activation,
+                true,
+            )?,
+        })
+    }
 }
 
 impl Layer<TokenBatch> for ClapTextLayers {
@@ -118,76 +136,41 @@ impl Layer<TokenBatch> for ClapTextLayers {
 struct ClapLayers {
     audio: ClapAudioLayers,
     text: ClapTextLayers,
+    logit_scale: StateKey,
+}
+
+impl ClapLayers {
+    fn create(schema: &mut Schema<'_>, config: &ClapConfig) -> SingeResult<Self> {
+        Ok(Self {
+            audio: ClapAudioLayers::create(schema, config)?,
+            text: ClapTextLayers::create(schema, config)?,
+            logit_scale: schema.parameter("logit_scale", [])?,
+        })
+    }
 }
 
 pub(crate) const MODEL: ModelEntry = ModelEntry {
     name: "clap",
     formats: &[(Format::Transformers, &["clap"])],
-    heads: &[HeadLoader::ZeroShotAudioClassification(load_contrastive)],
+    loaders: &[HeadLoader::ZeroShotAudioClassification(load_contrastive)],
 };
-
-fn projection(
-    schema: &mut Schema<'_>,
-    input: i64,
-    width: i64,
-    activation: Activation,
-) -> SingeResult<Projection> {
-    Ok(Projection {
-        first: schema.linear("first", input, width, true)?,
-        second: schema.linear("second", width, width, true)?,
-        activation,
-    })
-}
 
 pub fn load_contrastive(loader: &mut Loader<'_>) -> Result<ZeroShotAudioClassifier> {
     let config: ClapConfig = loader.config(transformers::config)?;
-    let audio_width = config.audio.width << (config.audio.stages.len().saturating_sub(1));
-    let mels =
-        i64::try_from(config.features.mels).map_err(|_| singe::Error::out_of_range("mels"))?;
-    let mut builder = StateBuilder::new();
-    let (layers, logit_scale) = {
-        let mut schema = Schema::root(&mut builder, loader.options().data_type);
-        let audio = ClapAudioLayers {
-            norm: schema.batch_norm2d("audio.norm", mels, 1e-5)?,
-            swin: Swin::create(&mut schema.scope("audio"), &config.audio)?,
-            // HTSAT's final norm keeps `nn.LayerNorm`'s default epsilon instead of `layer_norm_eps`.
-            final_norm: schema.layer_norm("audio.final_norm", audio_width, 1e-5)?,
-            projection: projection(
-                &mut schema.scope("audio_projection"),
-                audio_width,
-                config.projection,
-                config.projection_activation,
-            )?,
-            spec_size: config.spec_size,
-        };
-        let text_width = config.text.width;
-        let text = ClapTextLayers {
-            encoder: PostNormEncoder::create(&mut schema.scope("text"), &config.text)?,
-            pooler: schema.linear("text.pooler", text_width, text_width, true)?,
-            projection: projection(
-                &mut schema.scope("text_projection"),
-                text_width,
-                config.projection,
-                config.projection_activation,
-            )?,
-        };
-        let logit_scale = schema.parameter("logit_scale", [])?;
-        (ClapLayers { audio, text }, logit_scale)
-    };
-    let schema = Model::new(layers, builder.finish()?);
-    let model = loader.load("model", &schema, &transformers::rules())?;
-    loader.finish()?;
+    let model = Schema::model(loader.options().data_type, |schema| {
+        ClapLayers::create(schema, &config)
+    })?;
+    let model = loader.load_whole(&model, &transformers::rules())?;
+    let ClapLayers {
+        audio,
+        text,
+        logit_scale,
+    } = model.layer().clone();
     let state = model.state().clone();
     Ok(ZeroShotAudioClassifier {
         encoder: ContrastiveEncoder::new(
-            Model::new(
-                PixelLayers(Box::new(model.layer().audio.clone())),
-                state.clone(),
-            ),
-            Model::new(
-                TextEmbeddingLayers(Box::new(model.layer().text.clone())),
-                state,
-            ),
+            Model::new(Boxed::<dyn Layer>(Box::new(audio)), state.clone()),
+            Model::new(Boxed::<dyn Layer<TokenBatch>>(Box::new(text)), state),
             logit_scale,
         ),
         spectrogram: config.features,

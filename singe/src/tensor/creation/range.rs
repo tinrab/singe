@@ -93,10 +93,6 @@ fn floating_length(start: f64, end: f64, step: f64) -> Result<usize> {
         .ok_or_else(|| Error::out_of_range("arange length"))
 }
 
-#[expect(
-    clippy::cast_precision_loss,
-    reason = "interpolation weights intentionally round sample indices to floating point"
-)]
 fn interpolate(start: f64, end: f64, index: usize, denominator: usize) -> f64 {
     let weight = index as f64 / denominator as f64;
     if start.is_sign_negative() == end.is_sign_negative() {
@@ -131,7 +127,6 @@ macro_rules! floating_element {
                 floating_length(f64::from(start), f64::from(end), f64::from(step))
             }
 
-            #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, reason = "floating ranges evaluate indices in f64 and round to the requested f32 or f64 dtype")]
             fn range_value(start: Self, step: Self, index: usize) -> Result<Self> {
                 Ok(if index == 0 {
                     start
@@ -152,7 +147,6 @@ macro_rules! floating_element {
                 }
             }
 
-            #[allow(clippy::cast_possible_truncation, reason = "linspace interpolation rounds to the requested f32 or f64 dtype")]
             fn interpolate(start: Self, end: Self, index: usize, denominator: usize) -> Self {
                 interpolate(f64::from(start), f64::from(end), index, denominator) as Self
             }

@@ -33,7 +33,6 @@ const EPS: f32 = 1e-6;
 type TinyDecoder = CausalLm<PreNormBlock<GroupedQueryAttention, GatedMlp>>;
 
 // Values spread over [-scale, scale], different for each `seed`, so every weight differs from its neighbours.
-#[expect(clippy::cast_precision_loss, reason = "weights have few elements")]
 fn weights(shape: &[i64], seed: f32, scale: f32) -> Tensor {
     let count = shape.iter().product::<i64>();
     let values = (0..count)

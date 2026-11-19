@@ -32,8 +32,8 @@ use crate::{
                 CUDNN_GRAPH_BIAS_TENSOR_ID, CUDNN_GRAPH_INPUT0_TENSOR_ID,
                 CUDNN_GRAPH_INPUT1_TENSOR_ID, CUDNN_GRAPH_OUTPUT_TENSOR_ID,
                 CUDNN_GRAPH_VIRTUAL0_TENSOR_ID, CUDNN_GRAPH_VIRTUAL1_TENSOR_ID,
-                CudnnBackendTensorMetadata, cudnn_backend_tensor, cudnn_backend_virtual_tensor,
-                cudnn_native_graph_execution_plan,
+                CudnnBackendTensorMetadata, PlanSelection, cudnn_backend_tensor,
+                cudnn_backend_virtual_tensor, cudnn_native_graph_execution_plan,
             },
             types::{
                 CudnnBackendConv2dBiasReluTensors, CudnnBackendGraphTemplate, CudnnBackendOperation,
@@ -121,7 +121,12 @@ pub fn build_cudnn_conv2d_bias_relu_template(
         ],
         CudnnOperationGraphOptions::default(),
     )?;
-    let plan = cudnn_native_graph_execution_plan(cudnn, &operation_graph, input.data_type())?;
+    let (plan, _) = cudnn_native_graph_execution_plan(
+        cudnn,
+        &operation_graph,
+        input.data_type(),
+        PlanSelection::Graph,
+    )?;
     let workspace_size = plan.workspace_size()?;
 
     Ok(CudnnBackendGraphTemplate::new(
@@ -155,6 +160,7 @@ pub fn build_cudnn_convolution_template(
     bias: Option<&CudnnBackendTensorMetadata>,
     output: &CudnnBackendTensorMetadata,
     geometry: CudnnConvolutionGeometry,
+    selection: PlanSelection,
 ) -> Result<CudnnBackendGraphTemplate> {
     let input_descriptor = cudnn_backend_tensor(CUDNN_GRAPH_INPUT0_TENSOR_ID, input)?;
     let weight_descriptor = cudnn_backend_tensor(CUDNN_GRAPH_INPUT1_TENSOR_ID, weight)?;
@@ -227,15 +233,14 @@ pub fn build_cudnn_convolution_template(
         );
         (graph, operation)
     };
-    let plan = cudnn_native_graph_execution_plan(cudnn, &operation_graph, input.data_type())?;
+    let (plan, candidates) =
+        cudnn_native_graph_execution_plan(cudnn, &operation_graph, input.data_type(), selection)?;
     let workspace_size = plan.workspace_size()?;
 
-    Ok(CudnnBackendGraphTemplate::new(
-        plan,
-        workspace_size,
-        operation,
-        operation_graph,
-    ))
+    Ok(
+        CudnnBackendGraphTemplate::new(plan, workspace_size, operation, operation_graph)
+            .with_candidates(candidates),
+    )
 }
 
 pub fn cudnn_convolution_geometry(window: &ConvolutionWindow) -> Result<CudnnConvolutionGeometry> {

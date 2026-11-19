@@ -2,6 +2,6 @@
 
 pub mod timesfm2_5;
 
-use super::ModelEntry;
+use crate::model::ModelEntry;
 
 pub(crate) const MODELS: &[&ModelEntry] = &[&timesfm2_5::MODEL];

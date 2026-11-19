@@ -153,7 +153,7 @@ impl CaptureSession {
                 .get(position)
                 .and_then(|tensor| tensor.shape().dimensions().get(dimension.axis()))
                 .copied()
-                .ok_or(Error::DimensionOutOfBounds)?;
+                .ok_or_else(|| Error::dimension_out_of_bounds("capture dimension guard axis"))?;
             if symbols
                 .insert(dimension.name().to_owned(), value)
                 .is_some_and(|previous| previous != value)
@@ -184,7 +184,7 @@ impl CaptureSession {
             .shape()
             .dimensions()
             .get(axis)
-            .ok_or(Error::DimensionOutOfBounds)?;
+            .ok_or_else(|| Error::dimension_out_of_bounds("capture dimension axis"))?;
         if !self
             .written
             .contains_key(&tensor.storage().storage_identity())
@@ -214,7 +214,9 @@ impl CaptureSession {
                             .dimensions()
                             .get(axis)
                             .copied()
-                            .ok_or(Error::DimensionOutOfBounds)
+                            .ok_or_else(|| {
+                                Error::dimension_out_of_bounds("capture shape value axis")
+                            })
                     })
             })
             .collect()

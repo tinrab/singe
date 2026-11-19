@@ -1,15 +1,17 @@
 use std::{collections::HashMap, thread, time::Duration};
 
-use super::{
-    comparison::Comparison,
-    plan::{
-        Alternative, Candidate, ChoicePoint, MeasureError, Measured, Plan, PlanLimits, PlanRunner,
-        PlanSearchOptions, check_plan, confirm, decide, search_plans,
+use crate::backend::{
+    cuda::tuning::{
+        comparison::Comparison,
+        plan::{
+            Alternative, Candidate, ChoicePoint, MeasureError, Measured, Plan, PlanLimits,
+            PlanRunner, PlanSearchOptions, check_plan, confirm, decide, search_plans,
+        },
+        records::{TunedChoice, TunedWay, TuningRecords},
+        report::{CandidateFailure, CandidateOutcome, DropReason, FailureStage, TuningReport},
     },
-    records::{TunedChoice, TunedWay, TuningRecords},
-    report::{CandidateFailure, CandidateOutcome, DropReason, FailureStage, TuningReport},
+    registry::CudaGraphProvider,
 };
-use crate::backend::registry::CudaGraphProvider;
 
 fn way(key: &str, way: TunedWay) -> Candidate {
     Candidate {
@@ -393,7 +395,8 @@ fn test_search_finds_a_pair_that_only_wins_together() {
 #[test]
 fn test_search_never_accepts_a_plan_that_disagrees_or_does_not_fit() {
     let points = points(2, &[]);
-    let mut fake = Fake::new(|records: &TuningRecords| wrong_when_paired(records, false));
+    let mut fake =
+        Fake::new(|records: &TuningRecords| wrong_when_paired(records, PairedFailure::Disagrees));
     let (plan, report) = search_plans(
         &points,
         chosen(&points),
@@ -405,7 +408,8 @@ fn test_search_never_accepts_a_plan_that_disagrees_or_does_not_fit() {
     assert!(report.disagreed >= 1);
     assert_eq!(report.accepted, 0);
 
-    let mut fake = Fake::new(|records: &TuningRecords| wrong_when_paired(records, true));
+    let mut fake =
+        Fake::new(|records: &TuningRecords| wrong_when_paired(records, PairedFailure::TooLarge));
     let mut options = search_options(Duration::from_secs(5), 1);
     options.memory_limit = Some(10);
     let (plan, report) = search_plans(&points, chosen(&points), None, options, &mut fake);
@@ -414,18 +418,23 @@ fn test_search_never_accepts_a_plan_that_disagrees_or_does_not_fit() {
     assert_eq!(report.accepted, 0);
 }
 
+#[derive(Clone, Copy)]
+enum PairedFailure {
+    Disagrees,
+    TooLarge,
+}
+
 // The pair of second alternatives is fastest, but disagrees, or allocates too much.
 fn wrong_when_paired(
     records: &TuningRecords,
-    too_large: bool,
+    failure: PairedFailure,
 ) -> Result<Measured, CandidateFailure> {
     let paired = has(records, "p0", TunedWay::Separate) && has(records, "p1", TunedWay::Separate);
     if !paired {
         return plain(100, 0);
     }
-    if too_large {
-        plain(1, 11)
-    } else {
-        wrong(plain(1, 0))
+    match failure {
+        PairedFailure::TooLarge => plain(1, 11),
+        PairedFailure::Disagrees => wrong(plain(1, 0)),
     }
 }

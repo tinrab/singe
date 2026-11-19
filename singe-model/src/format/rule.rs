@@ -110,6 +110,13 @@ impl Rules {
         self.with(from, Action::Rename(to.to_owned()))
     }
 
+    #[must_use]
+    pub fn rename_each(self, from: &str, to: &str, pairs: &[(&str, &str)]) -> Self {
+        pairs.iter().fold(self, |rules, (name, target)| {
+            rules.rename(&join(from, name), &join(to, target))
+        })
+    }
+
     // Leaves what `from` matches unread; the call site says why.
     #[must_use]
     pub fn skip(self, from: &str) -> Self {
@@ -245,6 +252,15 @@ impl Rules {
             }
         }
         Ok((plan, matched))
+    }
+}
+
+#[must_use]
+pub fn join(prefix: &str, name: &str) -> String {
+    if prefix.is_empty() {
+        name.to_owned()
+    } else {
+        format!("{prefix}.{name}")
     }
 }
 

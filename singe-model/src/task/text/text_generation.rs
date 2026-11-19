@@ -1,14 +1,15 @@
 // `text-generation`: a prompt or a conversation to the text a causal language model generates after it.
 
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::{Map, Value};
 use singe::{
-    generation::{DecoderOptions, GenerationOptions, generate_batch},
+    generation::{Decoder, DecoderOptions, GenerationOptions, generate_batch},
     random::Generator,
     tensor::SamplingOptions,
 };
 
 use crate::{
+    decoder_cache::{DecoderKey, Decoders, bucketed_capacity},
     error::{Error, Result},
     head::CausalLm,
     model,
@@ -17,7 +18,7 @@ use crate::{
         text::TextTokenizer,
     },
     source::{LoadOptions, Source},
-    task::{Pipeline, Task},
+    task::{Pipeline, outputs::GeneratedSequence, run_alone},
 };
 
 #[derive(Debug)]
@@ -26,6 +27,7 @@ pub struct TextGenerationPipeline {
     tokenizer: TextTokenizer,
     template: Option<ChatTemplate>,
     stop_tokens: Vec<i64>,
+    decoders: Decoders<DecoderKey, Box<dyn Decoder>>,
 }
 
 // A prompt, read as it is, or a conversation, which the snapshot's chat template turns into one.
@@ -67,13 +69,6 @@ impl Default for TextGenerationParameters {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct TextGenerationOutput {
-    // The generated text alone, as `return_full_text=False` gives it.
-    pub generated_text: String,
-    pub generated_token_ids: Vec<i64>,
-}
-
 impl TextGenerationPipeline {
     // Returns an input's prompt tokens: a text as it is, without special tokens, or a conversation through the chat template, ending where the assistant's turn starts.
     fn prompt(
@@ -96,21 +91,24 @@ impl TextGenerationPipeline {
 }
 
 impl Pipeline for TextGenerationPipeline {
-    const TASK: Task = Task::TextGeneration;
-
     type Input = TextGenerationInput;
 
     type Parameters = TextGenerationParameters;
 
-    type Output = TextGenerationOutput;
+    type Output = GeneratedSequence;
 
     fn load(source: &Source, options: LoadOptions) -> Result<Self> {
         Ok(Self {
             model: model::load(source, options)?,
-            tokenizer: TextTokenizer::load(source.directory())?,
+            tokenizer: TextTokenizer::load(source)?,
             template: ChatTemplate::load(source)?,
             stop_tokens: source.stop_tokens()?,
+            decoders: Decoders::default(),
         })
+    }
+
+    fn run_one(&self, input: &Self::Input, parameters: &Self::Parameters) -> Result<Self::Output> {
+        run_alone(self, input, parameters)
     }
 
     fn run(
@@ -123,12 +121,6 @@ impl Pipeline for TextGenerationPipeline {
             .map(|input| self.prompt(input, &parameters.chat_template_kwargs))
             .collect::<Result<Vec<_>>>()?;
         let longest = prompts.iter().map(Vec::len).max().unwrap_or(0);
-        let capacity = i64::try_from(longest + parameters.max_new_tokens)
-            .map_err(|_| Error::unsupported("a sequence this long"))?;
-        let mut decoder = self.model.decoder(
-            DecoderOptions::new(prompts.len(), capacity),
-            parameters.compile,
-        )?;
         let options = GenerationOptions {
             max_new_tokens: parameters.max_new_tokens,
             stop_tokens: self.stop_tokens.clone(),
@@ -149,18 +141,30 @@ impl Pipeline for TextGenerationPipeline {
         };
         let generator = Generator::new(parameters.seed);
         let rows = prompts.iter().map(Vec::as_slice).collect::<Vec<_>>();
-        let tokens = generate_batch(
-            decoder.as_mut(),
-            &rows,
-            &options,
-            Some(&generator),
-            |_, _, _| Ok(()),
-            |_, _| Ok(()),
+        let capacity = bucketed_capacity(longest + parameters.max_new_tokens);
+        let tokens = self.decoders.run(
+            (prompts.len(), capacity, parameters.compile),
+            || {
+                self.model.decoder(
+                    DecoderOptions::new(prompts.len(), capacity),
+                    parameters.compile,
+                )
+            },
+            |decoder| {
+                Ok(generate_batch(
+                    decoder,
+                    &rows,
+                    &options,
+                    Some(&generator),
+                    |_, _, _| Ok(()),
+                    |_, _| Ok(()),
+                )?)
+            },
         )?;
         tokens
             .into_iter()
             .map(|tokens| {
-                Ok(TextGenerationOutput {
+                Ok(GeneratedSequence {
                     generated_text: self.tokenizer.decode(&tokens, true)?,
                     generated_token_ids: tokens,
                 })

@@ -4,6 +4,7 @@
       "name": "similarity",
       "snapshot": "QWEN3_EMBEDDING",
       "task": "sentence-similarity",
+      "data_type": "f32",
       "inputs": [
         {
           "source_sentence": "What does an assembling machine need to run?",
@@ -23,6 +24,7 @@
       "name": "features",
       "snapshot": "QWEN3_EMBEDDING",
       "task": "feature-extraction",
+      "data_type": "f32",
       "inputs": ["What does an assembling machine need to run?"],
       "expected": [
         [

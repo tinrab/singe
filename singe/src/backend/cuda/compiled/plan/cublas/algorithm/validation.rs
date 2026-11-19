@@ -54,19 +54,18 @@ impl CublasLtMatmulDTypePlan {
 pub fn validate_cublaslt_bias(output: &CudaGraphValue, bias: &CudaGraphValue) -> Result<()> {
     ensure_same_device(bias, output)?;
     ensure_f32(bias)?;
-    let output_shape = output.shape().dimensions();
-    let bias_shape = bias.shape().dimensions();
-    if output_shape.len() != 2 || bias_shape.len() != 1 {
+    let (&[_, columns], &[bias_count]) = (output.shape().dimensions(), bias.shape().dimensions())
+    else {
         return Err(Error::unsupported_operation(
             "cuda graph cuBLASLt bias epilogue requires a rank-1 bias for a rank-2 output",
         ));
-    }
+    };
 
-    if bias_shape[0] != output_shape[1] {
+    if bias_count != columns {
         return Err(Error::shape_mismatch(
             "cuda graph cuBLASLt bias epilogue shape",
-            vec![output_shape[1]],
-            bias_shape.to_vec(),
+            vec![columns],
+            vec![bias_count],
         ));
     }
 

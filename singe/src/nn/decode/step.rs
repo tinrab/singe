@@ -93,12 +93,15 @@ impl DecodeStep {
     }
 
     pub fn repacked(&self, packed: &Tensor) -> Result<Self> {
-        let length = |part: &Tensor| part.shape().dimensions()[0];
+        let length = |part: &Tensor| match *part.shape().dimensions() {
+            [length, ..] => Ok(length),
+            [] => Err(Error::invalid_argument("decode step part")),
+        };
         Self::unpack(
             packed,
-            length(&self.tokens),
-            length(&self.last_rows),
-            length(&self.pages),
+            length(&self.tokens)?,
+            length(&self.last_rows)?,
+            length(&self.pages)?,
         )
     }
 

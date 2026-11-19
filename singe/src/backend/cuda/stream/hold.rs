@@ -7,8 +7,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use super::CudaStream;
-use crate::error::Result;
+use crate::{backend::cuda::stream::CudaStream, error::Result};
 
 // How long a hold waits to be released, in case what was enqueued behind it waits for the stream itself.
 const LONGEST_HOLD: Duration = Duration::from_secs(5);

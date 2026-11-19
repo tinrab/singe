@@ -6,7 +6,7 @@ pub mod owlvit;
 pub mod smolvlm;
 pub mod vision_encoder_decoder;
 
-use super::ModelEntry;
+use crate::model::ModelEntry;
 
 pub(crate) const MODELS: &[&ModelEntry] = &[
     &clip::MODEL,

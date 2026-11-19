@@ -1,7 +1,10 @@
 // Resizing bytes as `transformers`' processors resize them through torchvision on the CPU: PyTorch's antialiased separable filter with weights quantized to `i16`, a horizontal pass into bytes and then a vertical one, ported from `aten/src/ATen/native/cpu/UpSampleKernel.cpp` and `UpSampleKernelAVXAntialias.h`.
 
-use super::image::{Image, Resample};
 use std::f64::consts::PI;
+
+use rayon::prelude::*;
+
+use crate::processor::image::{Image, Resample};
 
 // Each output position's first input, its weights, and the bits they are scaled by.
 struct Weights {
@@ -16,10 +19,6 @@ fn triangle(x: f64) -> f64 {
 }
 
 // Keys' cubic with `a = -0.5`, as PIL and antialiased PyTorch use it.
-#[expect(
-    clippy::suboptimal_flops,
-    reason = "rounds each product as the reference does, which the verifications compare with"
-)]
 fn keys_cubic(x: f64) -> f64 {
     const A: f64 = -0.5;
     let x = x.abs();
@@ -52,15 +51,8 @@ fn lanczos(x: f64) -> f64 {
 
 // The weights `_compute_index_ranges_int16_weights` gives a resize of `input` positions to `output`.
 #[expect(
-    clippy::cast_possible_truncation,
-    clippy::cast_precision_loss,
-    clippy::cast_sign_loss,
     clippy::cast_possible_wrap,
     reason = "image sides are far below 2^53, and the truncations are PyTorch's"
-)]
-#[expect(
-    clippy::suboptimal_flops,
-    reason = "rounds each product as the reference does, which the verifications compare with"
 )]
 fn weights(input: usize, output: usize, filter: fn(f64) -> f64, span: f64) -> Weights {
     let scale = input as f64 / output as f64;
@@ -125,9 +117,7 @@ fn weights(input: usize, output: usize, filter: fn(f64) -> f64, span: f64) -> We
 }
 
 fn byte(sum: i32, precision: u32) -> u8 {
-    #[expect(clippy::cast_sign_loss, reason = "clamped to a byte")]
-    let value = (sum >> precision).clamp(0, 255) as u8;
-    value
+    (sum >> precision).clamp(0, 255) as u8
 }
 
 // The filter and the width in input positions it spans at scale 1, or `None` for nearest.
@@ -144,12 +134,6 @@ fn filter(resample: Resample) -> Option<Filter> {
 }
 
 // The input position PyTorch's `nearest-exact` mode reads for each of `output` positions, the one under each output position's center, from an `F32` scale, as torchvision resizes for PIL's `NEAREST`, which `transformers` maps to `NEAREST_EXACT`.
-#[expect(
-    clippy::cast_possible_truncation,
-    clippy::cast_precision_loss,
-    clippy::cast_sign_loss,
-    reason = "image sides are far below 2^24"
-)]
 fn nearest(input: usize, output: usize) -> Vec<usize> {
     let scale = input as f32 / output as f32;
     (0..output)
@@ -161,38 +145,35 @@ fn nearest(input: usize, output: usize) -> Vec<usize> {
         .collect()
 }
 
-impl Image {
-    // Returns the image resized to `height × width` with `resample`, antialiased as `transformers` resizes images.
-    #[must_use]
-    pub fn resized(&self, height: u32, width: u32, resample: Resample) -> Self {
-        let (in_height, in_width) = (self.height as usize, self.width as usize);
-        let (out_height, out_width) = (height as usize, width as usize);
-        let Some((filter, span)) = filter(resample) else {
-            let rows = nearest(in_height, out_height);
-            let columns = nearest(in_width, out_width);
-            let pixels = rows
-                .iter()
-                .flat_map(|&row| {
-                    columns.iter().flat_map(move |&column| {
-                        let at = (row * in_width + column) * 3;
-                        self.pixels[at..at + 3].iter().copied()
-                    })
+pub(crate) fn pixels(image: &Image, height: u32, width: u32, resample: Resample) -> Vec<u8> {
+    let (in_height, in_width) = (image.height as usize, image.width as usize);
+    let (out_height, out_width) = (height as usize, width as usize);
+    let Some((filter, span)) = filter(resample) else {
+        let rows = nearest(in_height, out_height);
+        let columns = nearest(in_width, out_width);
+        return rows
+            .iter()
+            .flat_map(|&row| {
+                columns.iter().flat_map(move |&column| {
+                    let at = (row * in_width + column) * 3;
+                    image.pixels[at..at + 3].iter().copied()
                 })
-                .collect();
-            return Self {
-                width,
-                height,
-                pixels,
-            };
-        };
+            })
+            .collect();
+    };
 
-        // Each pass runs only when its side changes, as PyTorch's does.
-        let mut pixels = self.pixels.clone();
-        if out_width != in_width {
-            let columns = weights(in_width, out_width, filter, span);
-            let rounding = 1 << (columns.precision - 1);
-            let mut resized = Vec::with_capacity(in_height * out_width * 3);
-            for row in pixels.chunks_exact(in_width * 3) {
+    // Each pass runs only when its side changes, as PyTorch's does.
+    let mut pixels = image.pixels.clone();
+    if out_width != in_width {
+        let columns = weights(in_width, out_width, filter, span);
+        let rounding = 1 << (columns.precision - 1);
+        let mut resized = vec![0; in_height * out_width * 3];
+        // Rows resize apart, so they run on all cores.
+        resized
+            .par_chunks_mut(out_width * 3)
+            .zip(pixels.par_chunks_exact(in_width * 3))
+            .for_each(|(out, row)| {
+                let mut out = out.iter_mut();
                 for (start, weights) in columns.starts.iter().zip(&columns.rows) {
                     for channel in 0..3 {
                         let sum =
@@ -202,37 +183,39 @@ impl Image {
                                 .fold(rounding, |sum, (offset, weight)| {
                                     sum + i32::from(row[(start + offset) * 3 + channel]) * weight
                                 });
-                        resized.push(byte(sum, columns.precision));
+                        if let Some(slot) = out.next() {
+                            *slot = byte(sum, columns.precision);
+                        }
                     }
                 }
-            }
+            });
 
-            pixels = resized;
-        }
-
-        if out_height != in_height {
-            let rows = weights(in_height, out_height, filter, span);
-            let rounding = 1 << (rows.precision - 1);
-            let stride = out_width * 3;
-            let mut resized = Vec::with_capacity(out_height * stride);
-            for (start, weights) in rows.starts.iter().zip(&rows.rows) {
-                for at in 0..stride {
-                    let sum = weights
-                        .iter()
-                        .enumerate()
-                        .fold(rounding, |sum, (offset, weight)| {
-                            sum + i32::from(pixels[(start + offset) * stride + at]) * weight
-                        });
-                    resized.push(byte(sum, rows.precision));
-                }
-            }
-
-            pixels = resized;
-        }
-        Self {
-            width,
-            height,
-            pixels,
-        }
+        pixels = resized;
     }
+
+    if out_height != in_height {
+        let rows = weights(in_height, out_height, filter, span);
+        let rounding = 1 << (rows.precision - 1);
+        let stride = out_width * 3;
+        let mut resized = vec![0; out_height * stride];
+        // Each output row sums whole input rows, which reads memory in order and vectorizes, and rows run on all cores.
+        resized
+            .par_chunks_mut(stride)
+            .zip(rows.starts.par_iter().zip(rows.rows.par_iter()))
+            .for_each(|(out, (start, weights))| {
+                let mut sums = vec![rounding; stride];
+                for (offset, &weight) in weights.iter().enumerate() {
+                    let row = &pixels[(start + offset) * stride..(start + offset + 1) * stride];
+                    for (sum, &pixel) in sums.iter_mut().zip(row) {
+                        *sum += i32::from(pixel) * weight;
+                    }
+                }
+                for (slot, sum) in out.iter_mut().zip(sums) {
+                    *slot = byte(sum, rows.precision);
+                }
+            });
+
+        pixels = resized;
+    }
+    pixels
 }

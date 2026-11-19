@@ -108,6 +108,9 @@ macro_rules! backend_kernels {
         single!(builder, key, RotaryEmbedding, |call: &KernelCall<'_>| {
             $kernels::rotary_embedding(call.input(0)?, call.input(1)?, call.input(2)?)
         });
+        single!(builder, key, RotaryHalves, |call: &KernelCall<'_>| {
+            $kernels::rotary_halves(call.input(0)?, call.input(1)?, call.input(2)?)
+        });
         single!(builder, key, Copy, |call: &KernelCall<'_>| {
             let input = call.input(0)?;
             $kernels::copy_to(input, input.device())
@@ -451,6 +454,8 @@ pub fn register_kernels(builder: &mut RegistryBuilder) {
             Operation::Conv3d,
             Operation::BatchNorm,
             Operation::RotaryEmbedding,
+            Operation::RotaryHalves,
+            Operation::ResampleLinear,
             Operation::Softmax,
             Operation::LogSoftmax,
             Operation::MatMul,
@@ -517,6 +522,21 @@ pub fn register_kernels(builder: &mut RegistryBuilder) {
             );
         }
 
+        single!(
+            builder,
+            DispatchKey::Cuda,
+            ResampleLinear,
+            |call: &KernelCall<'_>| {
+                let dim = attributes!(call, Attributes::Dimension(dim) => *dim);
+                cuda_kernels::resample_linear(
+                    call.input(0)?,
+                    dim,
+                    call.input(1)?,
+                    call.input(2)?,
+                    call.input(3)?,
+                )
+            }
+        );
         register_widened_kernels(builder, DispatchKey::Cuda, &[Operation::RotaryEmbedding]);
         register_composed_kernels(builder, DispatchKey::Cuda);
         register_decomposed_fallbacks(
@@ -651,11 +671,12 @@ fn register_interpreted_kernels(builder: &mut RegistryBuilder) {
 }
 
 // CPU operations whose native kernels compute only in `F32` and `F64`, which half precision widens to.
-const CPU_WIDENED: [Operation; 5] = [
+const CPU_WIDENED: [Operation; 6] = [
     Operation::Conv2d,
     Operation::MaxPool2d,
     Operation::AvgPool2d,
     Operation::RotaryEmbedding,
+    Operation::RotaryHalves,
     Operation::ScaledDotProductAttention,
 ];
 
@@ -827,7 +848,7 @@ fn reshape(input: &Tensor, shape: &Shape) -> Result<Tensor> {
     let layout = contiguous
         .layout()
         .reshape_view(shape)?
-        .ok_or(Error::InvalidStride)?;
+        .ok_or_else(|| Error::invalid_stride("reshape view"))?;
     contiguous.view_unrecorded(layout)
 }
 

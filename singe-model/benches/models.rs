@@ -3,7 +3,7 @@
 use std::{collections::HashMap, path::Path};
 
 use singe::{
-    DataType, Device, Tensor,
+    DataType, Device,
     generation::{CachedDecoder, Decoder, DecoderOptions, PromptChunks},
     graph::GraphPrepareOptions,
     nn::{DecoderModel, Model, TensorGroup},
@@ -20,7 +20,10 @@ use singe_model::{
     processor::text::TextTokenizer,
     task::{Pipeline, text::sentence_similarity::SentenceSimilarityPipeline},
 };
-use singe_testing::{Benches, lock_device, pattern_image, snapshot_if_set, tone_and_chirp};
+use singe_testing::{
+    Benches, decode_step_or_restart, lock_device, pattern_image, snapshot_if_set, tone_and_chirp,
+    wait,
+};
 
 const DEVICE: Device = Device::Cuda(0);
 
@@ -31,18 +34,6 @@ const SENTENCES: [&str; 4] = [
     "The train delivers iron ore to the outpost every few minutes.",
 ];
 
-// Reads a result back, which waits for the work behind it.
-fn wait(tensor: &Tensor) {
-    tensor.cast(DataType::F32).unwrap().to_vec::<f32>().unwrap();
-}
-
-// One token per sequence, which is what a decoding step takes.
-fn step(decoder: &mut dyn Decoder) {
-    let rows = vec![[1_i64]; decoder.sequences()];
-    let tokens = rows.iter().map(<[i64; 1]>::as_slice).collect::<Vec<_>>();
-    wait(&decoder.step(&tokens, None).unwrap());
-}
-
 fn source(snapshot: &Path) -> Source {
     Source::open(snapshot).unwrap()
 }
@@ -51,7 +42,7 @@ fn minilm(benches: &mut Benches) {
     let Some(snapshot) = snapshot_if_set("MINILM") else {
         return;
     };
-    let tokens = TextTokenizer::load(&snapshot)
+    let tokens = TextTokenizer::load(&source(&snapshot))
         .unwrap()
         .encode_batch(&SENTENCES, None, DEVICE)
         .unwrap();
@@ -70,7 +61,7 @@ fn minilm(benches: &mut Benches) {
         let (graph, _) = pipeline.model().capture_group(&tokens).unwrap();
         let mut executor = graph.prepare(GraphPrepareOptions::new(DEVICE)).unwrap();
         benches.run(&name, || {
-            wait(&executor.run(&inputs).unwrap()[0]);
+            wait(&executor.run(&inputs).unwrap()[0]).unwrap();
         });
     }
 }
@@ -79,7 +70,7 @@ fn whisper(benches: &mut Benches) {
     let Some(snapshot) = snapshot_if_set("WHISPER") else {
         return;
     };
-    let tokenizer = TextTokenizer::load(&snapshot).unwrap();
+    let tokenizer = TextTokenizer::load(&source(&snapshot)).unwrap();
     let prefix = prompt(&tokenizer, "en", WhisperTask::Transcribe).unwrap();
     for data_type in [DataType::F32, DataType::Bf16] {
         let encode = format!("whisper-tiny/encode/{data_type:?}");
@@ -97,7 +88,7 @@ fn whisper(benches: &mut Benches) {
         let mut encoded = model.encode(&features).unwrap();
         benches.run(&encode, || {
             encoded = model.encode(&features).unwrap();
-            wait(&encoded);
+            wait(&encoded).unwrap();
         });
         // The prefix is the only prompt, so it is the only prompt step compiled.
         let extra = prefix.len() - 1;
@@ -115,18 +106,15 @@ fn whisper(benches: &mut Benches) {
         model.write_sources(&decoder, 0, &sources).unwrap();
         decoder.compile().unwrap();
         decoder.step(&[&prefix], None).unwrap();
-        // A step past the model's positions fails, so the decoder starts over when it is full.
+        let capacity = usize::try_from(model.config().target_positions).unwrap();
         let mut held = prefix.len();
         benches.run(&decode, || {
-            if held + 1 >= usize::try_from(model.config().target_positions).unwrap() {
-                decoder.reset();
-                model.write_sources(&decoder, 0, &sources).unwrap();
-                decoder.step(&[&prefix], None).unwrap();
-                held = prefix.len();
-            }
-
-            step(&mut decoder);
-            held += 1;
+            decode_step_or_restart(&mut decoder, &mut held, capacity, |decoder| {
+                model.write_sources(decoder, 0, &sources)?;
+                decoder.step(&[&prefix], None)?;
+                Ok(prefix.len())
+            })
+            .unwrap();
         });
     }
 }
@@ -152,7 +140,11 @@ fn text_decoder<L: DecoderModel>(
         }
 
         let model = load(&snapshot);
-        let mut decoder = CachedDecoder::create(&model, DecoderOptions::new(1, capacity)).unwrap();
+        let mut decoder = CachedDecoder::create(
+            &model,
+            DecoderOptions::new(1, i64::try_from(capacity).unwrap()),
+        )
+        .unwrap();
         if compiled {
             decoder.compile().unwrap();
         }
@@ -161,18 +153,15 @@ fn text_decoder<L: DecoderModel>(
         decoder.step(&[&prompt], None).unwrap();
         let mut held = prompt.len();
         benches.run(&step_name, || {
-            if held + 1 >= usize::try_from(capacity).unwrap() {
-                decoder.reset();
-                decoder.step(&[&prompt], None).unwrap();
-                held = prompt.len();
-            }
-
-            step(&mut decoder);
-            held += 1;
+            decode_step_or_restart(&mut decoder, &mut held, capacity, |decoder| {
+                decoder.step(&[&prompt], None)?;
+                Ok(prompt.len())
+            })
+            .unwrap();
         });
         benches.run(&chunk_name, || {
             decoder.reset();
-            wait(&decoder.step(&[&chunk], None).unwrap());
+            wait(&decoder.step(&[&chunk], None).unwrap()).unwrap();
         });
     }
 }
@@ -194,7 +183,7 @@ fn dinov2(benches: &mut Benches) {
         let inputs = HashMap::from([("images".to_owned(), image)]);
         let mut executor = graph.prepare(GraphPrepareOptions::new(DEVICE)).unwrap();
         benches.run(&name, || {
-            wait(&executor.run(&inputs).unwrap()[0]);
+            wait(&executor.run(&inputs).unwrap()[0]).unwrap();
         });
     }
 }
@@ -214,7 +203,7 @@ fn taesd(benches: &mut Benches) {
         let image = pattern_image(256, DEVICE).cast(data_type).unwrap();
         benches.run(&name, || {
             let latents = model.encode(&image).unwrap();
-            wait(&model.decode(&latents).unwrap());
+            wait(&model.decode(&latents).unwrap()).unwrap();
         });
     }
 }

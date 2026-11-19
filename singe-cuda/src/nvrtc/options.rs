@@ -726,10 +726,6 @@ impl<'a> CompileOptions<'a> {
     /// Renders configured options as owned NVRTC command-line argument strings.
     /// This performs no native compilation or option validation.
     #[must_use]
-    #[expect(
-        clippy::too_many_lines,
-        reason = "NVRTC option switches are emitted from one complete option catalog"
-    )]
     pub fn as_arguments(&self) -> Vec<String> {
         let mut arguments = Vec::new();
 

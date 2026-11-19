@@ -6,7 +6,8 @@ use num_traits::ToPrimitive;
 
 pub use self::{
     attention::{
-        paged_attention, paged_mla_attention, rotary_embedding, scaled_dot_product_attention,
+        paged_attention, paged_mla_attention, rotary_embedding, rotary_halves,
+        scaled_dot_product_attention,
     },
     batch::batch_norm,
     standard::{layer_norm, rms_norm},

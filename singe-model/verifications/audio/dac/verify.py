@@ -1,19 +1,14 @@
-"""DAC, encoding a clip to its codes and decoding it back with `transformers`' feature extractor and `DacModel`, which no `transformers` pipeline serves, as `verify.rs` reconstructs it in Singe."""
+"""DAC, encoding a clip to its codes and decoding it back with `transformers`' feature extractor and `DacModel`, which no `transformers` pipeline serves, as `mod.rs` reconstructs it in Singe."""
 
-import sys
-from pathlib import Path
+import torch
+from transformers import AutoFeatureExtractor, DacModel
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-
-import torch  # noqa: E402
-from transformers import AutoFeatureExtractor, DacModel  # noqa: E402
-
-from support import DEVICE, Verification, read_wav  # noqa: E402
+from support import DEVICE, Verification, read_wav
 
 
-def audio_to_audio(snapshot):
+def audio_to_audio(snapshot, dtype):
     extractor = AutoFeatureExtractor.from_pretrained(snapshot)
-    model = DacModel.from_pretrained(snapshot, dtype=torch.float32).to(DEVICE).eval()
+    model = DacModel.from_pretrained(snapshot, dtype=dtype).to(DEVICE).eval()
 
     def run(paths, parameters):
         outputs = []

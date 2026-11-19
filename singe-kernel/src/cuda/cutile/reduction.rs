@@ -124,10 +124,6 @@ trait ReductionDenominator {
 }
 
 impl ReductionDenominator for f32 {
-    #[expect(
-        clippy::cast_precision_loss,
-        reason = "the f32 algorithm converts integer dimensions and accumulators to its floating-point working precision"
-    )]
     fn from_usize(value: usize) -> Self {
         value as Self
     }
@@ -141,10 +137,6 @@ impl ReductionDenominator for f16 {
 }
 
 impl ReductionDenominator for f64 {
-    #[expect(
-        clippy::cast_precision_loss,
-        reason = "floating-point reduction denominators use the output dtype precision"
-    )]
     fn from_usize(value: usize) -> Self {
         value as Self
     }

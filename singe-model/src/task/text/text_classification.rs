@@ -10,13 +10,18 @@ use crate::{
     model,
     processor::text::{EncodeOptions, TextInput, TextTokenizer},
     source::{LoadOptions, Source},
-    task::{Pipeline, Task},
+    task::{
+        Pipeline,
+        ranking::{LabelScore, ranked},
+        run_alone,
+    },
 };
 
 #[derive(Debug)]
 pub struct TextClassificationPipeline {
     model: SequenceClassifier,
     tokenizer: TextTokenizer,
+    options: LoadOptions,
 }
 
 // A text, or a pair of texts, as `transformers` takes `{"text", "text_pair"}`.
@@ -62,12 +67,6 @@ impl<'de> Deserialize<'de> for TopK {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
-pub struct LabelScore {
-    pub label: String,
-    pub score: f32,
-}
-
 // The best label of a text, or its labels from the best when `top_k` is given.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(untagged)]
@@ -77,8 +76,6 @@ pub enum TextClassificationOutput {
 }
 
 impl Pipeline for TextClassificationPipeline {
-    const TASK: Task = Task::TextClassification;
-
     type Input = TextClassificationInput;
 
     type Parameters = TextClassificationParameters;
@@ -88,8 +85,13 @@ impl Pipeline for TextClassificationPipeline {
     fn load(source: &Source, options: LoadOptions) -> Result<Self> {
         Ok(Self {
             model: model::load(source, options)?,
-            tokenizer: TextTokenizer::load(source.directory())?,
+            tokenizer: TextTokenizer::load(source)?,
+            options,
         })
+    }
+
+    fn run_one(&self, input: &Self::Input, parameters: &Self::Parameters) -> Result<Self::Output> {
+        run_alone(self, input, parameters)
     }
 
     fn run(
@@ -105,25 +107,23 @@ impl Pipeline for TextClassificationPipeline {
             max_length: parameters.max_length,
             ..EncodeOptions::default()
         };
-        let encoded =
-            self.tokenizer
-                .encode_inputs(&texts, &options, self.model.model().state().device()?)?;
+        let encoded = self
+            .tokenizer
+            .encode_inputs(&texts, &options, self.options.device)?;
         let config = self.model.config();
-        let function = parameters.function_to_apply.unwrap_or(config.function);
+        let function = parameters
+            .function_to_apply
+            .unwrap_or_else(|| config.function());
+        let count = match parameters.top_k {
+            TopK::Best => 1,
+            TopK::Labels(count) => count,
+            TopK::All => usize::MAX,
+        };
         self.model
             .scores(&encoded.batch)?
             .iter()
             .map(|row| {
-                let mut ranked = function
-                    .apply(row)
-                    .into_iter()
-                    .zip(&config.labels)
-                    .map(|(score, label)| LabelScore {
-                        label: label.clone(),
-                        score,
-                    })
-                    .collect::<Vec<_>>();
-                ranked.sort_by(|left, right| right.score.total_cmp(&left.score));
+                let ranked = ranked(row, config.labels(), function, count);
                 Ok(match parameters.top_k {
                     TopK::Best => TextClassificationOutput::Best(
                         ranked
@@ -131,11 +131,7 @@ impl Pipeline for TextClassificationPipeline {
                             .next()
                             .ok_or_else(|| Error::unsupported("a classifier of no labels"))?,
                     ),
-                    TopK::Labels(count) => {
-                        ranked.truncate(count);
-                        TextClassificationOutput::Ranked(ranked)
-                    }
-                    TopK::All => TextClassificationOutput::Ranked(ranked),
+                    TopK::Labels(_) | TopK::All => TextClassificationOutput::Ranked(ranked),
                 })
             })
             .collect()

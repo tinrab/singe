@@ -151,7 +151,7 @@ impl ShapeProgram {
                                 .dimensions()
                                 .get(axis)
                                 .copied()
-                                .ok_or(Error::DimensionOutOfBounds)
+                                .ok_or_else(|| Error::dimension_out_of_bounds("shape program axis"))
                         })
                     })
                     .collect::<Result<Vec<_>>>()
@@ -208,30 +208,27 @@ impl Evaluator<'_> {
                 .map(|&input| self.spec(input))
                 .collect::<Result<Vec<_>>>()?;
             let attributes = if let Some(expression) = self.program.reshapes.get(&id).cloned() {
-                let mut dimensions = expression
-                    .dimensions
-                    .iter()
-                    .map(|dim| {
-                        dim.evaluate(&mut |source, axis| {
-                            let spec = self.spec(ValueId::new(source))?;
-                            spec.shape()
-                                .dimensions()
-                                .get(axis)
-                                .copied()
-                                .ok_or(Error::DimensionOutOfBounds)
+                let mut dimensions =
+                    expression
+                        .dimensions
+                        .iter()
+                        .map(|dim| {
+                            dim.evaluate(&mut |source, axis| {
+                                let spec = self.spec(ValueId::new(source))?;
+                                spec.shape().dimensions().get(axis).copied().ok_or_else(|| {
+                                    Error::dimension_out_of_bounds("shape program axis")
+                                })
+                            })
                         })
-                    })
-                    .collect::<Result<Vec<_>>>()
-                    .map_err(|error| error.with_graph_source(node.source_location()))?;
+                        .collect::<Result<Vec<_>>>()
+                        .map_err(|error| error.with_graph_source(node.source_location()))?;
                 let source = inputs.first().ok_or_else(|| Error::missing_input("spec"))?;
                 if !expression.allow_zero {
                     for (axis, dim) in dimensions.iter_mut().enumerate() {
                         if *dim == 0 {
-                            *dim = *source
-                                .shape()
-                                .dimensions()
-                                .get(axis)
-                                .ok_or(Error::DimensionOutOfBounds)?;
+                            *dim = *source.shape().dimensions().get(axis).ok_or_else(|| {
+                                Error::dimension_out_of_bounds("shape program axis")
+                            })?;
                         }
                     }
                 } else if dimensions.contains(&0) && dimensions.contains(&-1) {

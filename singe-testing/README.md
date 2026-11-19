@@ -9,6 +9,7 @@ This crate provides:
 - **Comparison:** `assert_matches` compares two `f32` slices under a `Tolerance`, which is exact, absolute, or relative, and states why that bound holds; `host` reads a tensor back as `f32` values.
 - **Benchmarks:** `Benches` runs each named closure for a warm-up and a measured period, prints the median and spread, and saves or compares results under `benchmarks/<name>.json`.
 - **Inputs and snapshots:** `pattern_image` and `tone_and_chirp` build deterministic test inputs, and `snapshot_if_set` reads a model snapshot directory from `SINGE_SNAPSHOT_<NAME>`.
+- **Measuring:** `wait` reads a tensor back so the work behind it finishes, `decode_step` steps a decoder one token per sequence, and `decode_step_or_restart` starts the decoder over when the step would fill it.
 
 ## Example
 
@@ -50,3 +51,4 @@ fn main() {
 ## Features
 
 - `cuda_13_4`: builds `singe` with CUDA, and re-exports `lock_device`, which locks CUDA device 0 so GPU tests run one at a time, or returns `None` when no CUDA driver loads.
+  It also adds `profiled`, which runs work and returns, from CUPTI's activity records, each kernel's GPU time and launches by name and the copies' time.

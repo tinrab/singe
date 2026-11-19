@@ -5,7 +5,10 @@ use singe_cuda::submission::AccessMode;
 use crate::{
     backend::{
         cuda::{
-            compiled::executable::{CudaCompiledGraph, replay::ReplaySubmission},
+            compiled::executable::{
+                CudaCompiledGraph,
+                replay::{ReplayOutputTarget, ReplaySubmission},
+            },
             context::CudaExecutionContext,
             graph_binding::copy_cuda_tensor_data_on,
             graph_value::CudaGraphValue,
@@ -27,7 +30,7 @@ impl CudaCompiledGraph {
         cache: &HashMap<ValueId, CudaGraphValue>,
         stream: &CudaStream,
         submission: &mut ReplaySubmission,
-        retained: bool,
+        output_target: ReplayOutputTarget,
     ) -> Result<Vec<CudaGraphValue>> {
         let context = CudaExecutionContext::create_with_stream(self.device, Some(stream.clone()))?;
         let mut outputs = Vec::with_capacity(self.outputs.len());
@@ -44,12 +47,12 @@ impl CudaCompiledGraph {
             let copied =
                 CudaGraphValue::create(storage, output.data_type(), Layout::new(shape, 0))?;
             let mut resources = output.submission_resources(AccessMode::Read)?;
-            // Retain before submission, including native errors and unwinding, unless the copy is allocated in the stream's order, which orders its reuse after the copy.
-            if retained {
-                submission.record_output_copy(copied.clone());
-                resources.extend(copied.submission_resources(AccessMode::Write)?);
-            } else {
-                submission.count_output_copy();
+            match output_target {
+                ReplayOutputTarget::Allocate => {
+                    submission.record_output_copy(copied.clone());
+                    resources.extend(copied.submission_resources(AccessMode::Write)?);
+                }
+                ReplayOutputTarget::Ordered => submission.count_output_copy(),
             }
 
             // SAFETY: the declared resources retain every buffer but an unretained copy, whose allocation the stream orders, and the stream orders all access to them.

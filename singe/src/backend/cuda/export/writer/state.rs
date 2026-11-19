@@ -13,6 +13,12 @@ use crate::{
     utility::emit,
 };
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ValueStruct {
+    Inputs,
+    Outputs,
+}
+
 impl Renderer<'_> {
     const fn has_functions(&self, state: &ProgramState) -> bool {
         self.program.state_functions || matches!(state.kind, StateKind::Generator { .. })
@@ -93,13 +99,12 @@ impl Renderer<'_> {
         Ok(out)
     }
 
-    pub fn value_struct(
-        &self,
-        kind: &str,
-        values: &[ProgramValue],
-        constant: bool,
-    ) -> Result<String> {
-        let mut out = format!("struct {}_{kind} {{\n", self.prefix);
+    pub fn value_struct(&self, kind: ValueStruct, values: &[ProgramValue]) -> Result<String> {
+        let name = match kind {
+            ValueStruct::Inputs => "inputs",
+            ValueStruct::Outputs => "outputs",
+        };
+        let mut out = format!("struct {}_{name} {{\n", self.prefix);
         for value in values {
             let rows = value.count.map_or_else(String::new, |count| {
                 format!(
@@ -107,7 +112,7 @@ impl Renderer<'_> {
                     values[count].name
                 )
             });
-            let qualifier = if constant && !value.written {
+            let qualifier = if kind == ValueStruct::Inputs && !value.written {
                 "const "
             } else {
                 ""
@@ -131,8 +136,8 @@ impl Renderer<'_> {
     pub fn header(&self) -> Result<String> {
         let prefix = self.prefix;
         let guard = prefix.to_uppercase();
-        let inputs = self.value_struct("inputs", &self.program.inputs, true)?;
-        let outputs = self.value_struct("outputs", &self.program.outputs, false)?;
+        let inputs = self.value_struct(ValueStruct::Inputs, &self.program.inputs)?;
+        let outputs = self.value_struct(ValueStruct::Outputs, &self.program.outputs)?;
         let state = self.state_declarations()?;
         Ok(fill_template(
             include_str!("program.h.in"),

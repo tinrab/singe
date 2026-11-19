@@ -160,10 +160,6 @@ impl Graph {
         )
     }
 
-    #[expect(
-        clippy::too_many_lines,
-        reason = "the composite attention operation builds and validates its complete tensor graph"
-    )]
     fn sdpa_fp8_composite_infer(
         &mut self,
         inputs: SdpaFp8Inputs,

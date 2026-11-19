@@ -6,10 +6,10 @@ use serde::{Deserialize, Serialize};
 use crate::{
     error::{Error, Result},
     head::{QuestionAnswerer, ScoreFunction},
-    model,
+    host, model,
     processor::text::{EncodeOptions, EncodedRow, TextInput, TextTokenizer, Truncation},
     source::{LoadOptions, Source},
-    task::{Pipeline, Task},
+    task::{Pipeline, run_alone},
 };
 
 // The longest window when a tokenizer does not limit it to less.
@@ -23,6 +23,7 @@ pub struct QuestionAnsweringPipeline {
     model: QuestionAnswerer,
     tokenizer: TextTokenizer,
     classifier: Option<i64>,
+    options: LoadOptions,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
@@ -77,8 +78,6 @@ pub enum QuestionAnsweringOutput {
 }
 
 impl Pipeline for QuestionAnsweringPipeline {
-    const TASK: Task = Task::QuestionAnswering;
-
     type Input = QuestionAnsweringInput;
 
     type Parameters = QuestionAnsweringParameters;
@@ -86,12 +85,17 @@ impl Pipeline for QuestionAnsweringPipeline {
     type Output = QuestionAnsweringOutput;
 
     fn load(source: &Source, options: LoadOptions) -> Result<Self> {
-        let tokenizer = TextTokenizer::load(source.directory())?;
+        let tokenizer = TextTokenizer::load(source)?;
         Ok(Self {
             model: model::load(source, options)?,
             classifier: tokenizer.classifier_id()?,
             tokenizer,
+            options,
         })
+    }
+
+    fn run_one(&self, input: &Self::Input, parameters: &Self::Parameters) -> Result<Self::Output> {
+        run_alone(self, input, parameters)
     }
 
     fn run(
@@ -100,9 +104,7 @@ impl Pipeline for QuestionAnsweringPipeline {
         parameters: &Self::Parameters,
     ) -> Result<Vec<Self::Output>> {
         if parameters.top_k == 0 {
-            return Err(Error::unsupported(
-                "question answering with `top_k` of zero",
-            ));
+            return Err(Error::invalid("question answering with `top_k` of zero"));
         }
 
         let window = parameters.max_seq_len.unwrap_or_else(|| {
@@ -114,7 +116,7 @@ impl Pipeline for QuestionAnsweringPipeline {
             .doc_stride
             .unwrap_or_else(|| (window / 2).min(128));
         if stride > window {
-            return Err(Error::unsupported("a stride longer than its window"));
+            return Err(Error::invalid("a stride longer than its window"));
         }
 
         let pairs = inputs
@@ -126,9 +128,9 @@ impl Pipeline for QuestionAnsweringPipeline {
             truncation: Truncation::OnlySecond,
             stride: Some(stride),
         };
-        let encoded =
-            self.tokenizer
-                .encode_inputs(&pairs, &options, self.model.model().state().device()?)?;
+        let encoded = self
+            .tokenizer
+            .encode_inputs(&pairs, &options, self.options.device)?;
         let scores = self.model.scores(&encoded.batch)?;
         inputs
             .iter()
@@ -156,53 +158,7 @@ impl QuestionAnsweringPipeline {
         let mut null = f32::INFINITY;
         let mut answers = Vec::<Answer>::new();
         for (row, scores) in windows {
-            // A window's context tokens may answer, and so may its classifier token, whose scores the softmax counts.
-            let answerable = (0..row.ids.len())
-                .map(|token| {
-                    row.sequences[token] == Some(1) || Some(row.ids[token]) == self.classifier
-                })
-                .collect::<Vec<_>>();
-            let normalized = |side: usize| {
-                let logits = (0..row.ids.len())
-                    .map(|token| {
-                        if answerable[token] {
-                            scores[token][side]
-                        } else {
-                            MASKED
-                        }
-                    })
-                    .collect::<Vec<_>>();
-                ScoreFunction::Softmax.apply(&logits)
-            };
-            let (mut starts, mut ends) = (normalized(0), normalized(1));
-            null = null.min(starts[0] * ends[0]);
-            starts[0] = 0.0;
-            ends[0] = 0.0;
-            for (start, end, score) in spans(&starts, &ends, parameters) {
-                // The first token stays a candidate whatever it is, as `transformers`' filter lets it.
-                if !(start == 0 || answerable[start]) || !(end == 0 || answerable[end]) {
-                    continue;
-                }
-
-                let (first, last) = if parameters.align_to_words {
-                    (word_chars(row, start).0, word_chars(row, end).1)
-                } else {
-                    (row.offsets[start].0, row.offsets[end].1)
-                };
-                let text = context[first.min(last)..last].iter().collect::<String>();
-                match answers
-                    .iter_mut()
-                    .find(|answer| answer.answer.to_lowercase() == text.to_lowercase())
-                {
-                    Some(answer) => answer.score += score,
-                    None => answers.push(Answer {
-                        score,
-                        start: first,
-                        end: last,
-                        answer: text,
-                    }),
-                }
-            }
+            null = null.min(self.window_answers(&context, row, scores, parameters, &mut answers));
         }
 
         if parameters.handle_impossible_answer {
@@ -214,13 +170,68 @@ impl QuestionAnsweringPipeline {
             });
         }
 
-        answers.sort_by(|left, right| right.score.total_cmp(&left.score));
-        answers.truncate(parameters.top_k);
+        host::best_first(&mut answers, parameters.top_k, |answer| answer.score);
         if answers.len() == 1 {
             QuestionAnsweringOutput::One(answers.remove(0))
         } else {
             QuestionAnsweringOutput::Many(answers)
         }
+    }
+
+    fn window_answers(
+        &self,
+        context: &[char],
+        row: &EncodedRow,
+        scores: &[[f32; 2]],
+        parameters: &QuestionAnsweringParameters,
+        answers: &mut Vec<Answer>,
+    ) -> f32 {
+        // A window's context tokens may answer, and so may its classifier token, whose scores the softmax counts.
+        let answerable = (0..row.ids.len())
+            .map(|token| row.sequences[token] == Some(1) || Some(row.ids[token]) == self.classifier)
+            .collect::<Vec<_>>();
+        let normalized = |side: usize| {
+            let logits = (0..row.ids.len())
+                .map(|token| {
+                    if answerable[token] {
+                        scores[token][side]
+                    } else {
+                        MASKED
+                    }
+                })
+                .collect::<Vec<_>>();
+            ScoreFunction::Softmax.apply(&logits)
+        };
+        let (mut starts, mut ends) = (normalized(0), normalized(1));
+        let null = starts[0] * ends[0];
+        starts[0] = 0.0;
+        ends[0] = 0.0;
+        for (start, end, score) in spans(&starts, &ends, parameters) {
+            // The first token stays a candidate whatever it is, as `transformers`' filter lets it.
+            if !(start == 0 || answerable[start]) || !(end == 0 || answerable[end]) {
+                continue;
+            }
+
+            let (first, last) = if parameters.align_to_words {
+                (word_chars(row, start).0, word_chars(row, end).1)
+            } else {
+                (row.offsets[start].0, row.offsets[end].1)
+            };
+            let text = context[first.min(last)..last].iter().collect::<String>();
+            match answers
+                .iter_mut()
+                .find(|answer| answer.answer.to_lowercase() == text.to_lowercase())
+            {
+                Some(answer) => answer.score += score,
+                None => answers.push(Answer {
+                    score,
+                    start: first,
+                    end: last,
+                    answer: text,
+                }),
+            }
+        }
+        null
     }
 }
 
@@ -244,8 +255,7 @@ fn spans(
     }
 
     // Ties keep their order, start then end, as the first of equal scores comes first.
-    candidates.sort_by(|left, right| right.2.total_cmp(&left.2));
-    candidates.truncate(kept);
+    host::best_first(&mut candidates, kept, |&(_, _, score)| score);
     candidates
 }
 

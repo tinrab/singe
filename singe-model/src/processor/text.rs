@@ -1,17 +1,20 @@
 // Text to token ids and back, through a snapshot's `tokenizer.json`, as `transformers`' fast tokenizers read it.
 // A snapshot with only BERT's `vocab.txt` gets the tokenizer `transformers` converts it to.
 
-use std::{collections::HashMap, fs, path::Path, result::Result as StdResult, str::FromStr};
+use std::{collections::HashMap, result::Result as StdResult};
 
-use serde::de::DeserializeOwned;
-use serde_json::{Map, Value, json};
-use singe::{DataType, Device, Shape, Tensor, nn::TokenBatch};
+use serde_json::{Map, Value};
+use singe::{DataType, Device, Error as SingeError, Shape, Tensor, nn::TokenBatch};
 use tokenizers::{
     DecodeStream, Decoder, DecoderWrapper, EncodeInput, Encoding, ModelWrapper, NormalizerWrapper,
     PostProcessorWrapper, PreTokenizerWrapper, Tokenizer, TruncationParams, TruncationStrategy,
 };
 
-use crate::{Error, Result};
+use crate::{
+    error::{Error, Result},
+    processor::conversion::{self, special_or, tokenizer_config},
+    source::Source,
+};
 
 // A snapshot's tokenizer.
 #[derive(Debug, Clone)]
@@ -20,7 +23,7 @@ pub struct TextTokenizer {
     // The longest input the snapshot's model reads, as `tokenizer_config.json`'s `model_max_length` gives it.
     max_length: Option<usize>,
     // The special tokens `tokenizer_config.json` and `special_tokens_map.json` name by role, such as `mask_token`, in one object.
-    special: Value,
+    config: Value,
 }
 
 // What a pipeline encodes: one text, or a pair whose second text follows the first, as an encoder reads a question and its context.
@@ -156,8 +159,10 @@ fn batch(rows: &[EncodedRow], device: Device) -> Result<TokenBatch> {
         .map(|row| row.ids.as_slice())
         .collect::<Vec<_>>();
     let batch = TokenBatch::from_sequences(device, &sequences)?;
-    let length = batch.tokens().shape().dimensions()[1];
-    let width = usize::try_from(length).map_err(|_| Error::unsupported("a batch this long"))?;
+    let &[_, length] = batch.tokens().shape().dimensions() else {
+        return Err(SingeError::invalid_argument("token batch").into());
+    };
+    let width = usize::try_from(length).map_err(|_| SingeError::out_of_range("batch length"))?;
     let padded = rows
         .iter()
         .flat_map(|row| {
@@ -166,264 +171,16 @@ fn batch(rows: &[EncodedRow], device: Device) -> Result<TokenBatch> {
             types
         })
         .collect::<Vec<_>>();
-    let count = i64::try_from(rows.len()).map_err(|_| Error::unsupported("this many texts"))?;
+    let count = i64::try_from(rows.len()).map_err(|_| SingeError::out_of_range("texts"))?;
     let token_types =
         Tensor::from_vec(device, Shape::create([count, length])?, padded)?.cast(DataType::I64)?;
     Ok(batch.with_token_types(token_types)?)
-}
-
-// The tokenizer `transformers`' `BertConverter` makes of a slow `BertTokenizer`: `vocab.txt`'s WordPiece vocabulary, with the casing, accents, and special tokens `tokenizer_config.json` gives.
-fn wordpiece(directory: &Path) -> Result<Tokenizer> {
-    let config = read_optional(&directory.join("tokenizer_config.json"))?.unwrap_or(Value::Null);
-    let special =
-        |name: &str, default: &str| special_token(&config, name).unwrap_or(default).to_owned();
-    let flag = |name: &str| config[name].as_bool().unwrap_or(true);
-    let (unknown, separator, padding, classifier, mask) = (
-        special("unk_token", "[UNK]"),
-        special("sep_token", "[SEP]"),
-        special("pad_token", "[PAD]"),
-        special("cls_token", "[CLS]"),
-        special("mask_token", "[MASK]"),
-    );
-
-    let path = directory.join("vocab.txt");
-    let text = fs::read_to_string(&path).map_err(Error::io(&path))?;
-    let mut vocabulary = Map::new();
-    // A token listed twice takes its later id, as `transformers`' `load_vocab` reads it.
-    for (id, token) in text.lines().enumerate() {
-        vocabulary.insert(token.to_owned(), json!(id));
-    }
-
-    let id = |token: &str| vocabulary_id(&vocabulary, "vocab.txt", token);
-    let added = [&padding, &unknown, &classifier, &separator, &mask]
-        .into_iter()
-        .map(|token| added_token(&vocabulary, "vocab.txt", token, false))
-        .collect::<Result<Vec<_>>>()?;
-    let piece = |id: &str, type_id: u32| json!({"SpecialToken": {"id": id, "type_id": type_id}});
-    let sequence = |id: &str, type_id: u32| json!({"Sequence": {"id": id, "type_id": type_id}});
-    let tokenizer = json!({
-        "version": "1.0",
-        "added_tokens": added,
-        "normalizer": {
-            "type": "BertNormalizer",
-            "clean_text": true,
-            "handle_chinese_chars": flag("tokenize_chinese_chars"),
-            "strip_accents": config["strip_accents"].as_bool(),
-            "lowercase": flag("do_lower_case"),
-        },
-        "pre_tokenizer": {"type": "BertPreTokenizer"},
-        "post_processor": {
-            "type": "TemplateProcessing",
-            "single": [piece(&classifier, 0), sequence("A", 0), piece(&separator, 0)],
-            "pair": [
-                piece(&classifier, 0), sequence("A", 0), piece(&separator, 0),
-                sequence("B", 1), piece(&separator, 1),
-            ],
-            "special_tokens": {
-                &classifier: {"id": &classifier, "ids": [id(&classifier)?], "tokens": [&classifier]},
-                &separator: {"id": &separator, "ids": [id(&separator)?], "tokens": [&separator]},
-            },
-        },
-        "decoder": {"type": "WordPiece", "prefix": "##", "cleanup": true},
-        "model": {
-            "type": "WordPiece",
-            "unk_token": unknown,
-            "continuing_subword_prefix": "##",
-            "max_input_chars_per_word": 100,
-            "vocab": vocabulary,
-        },
-    });
-    Tokenizer::from_str(&tokenizer.to_string()).map_err(|source| Error::Tokenizer {
-        what: "build a WordPiece tokenizer from vocab.txt",
-        source,
-    })
-}
-
-// CLIP's byte-level BPE tokenizer, built from `vocab.json` and `merges.txt` as `transformers`' `CLIPTokenizer` builds it: text normalized, lowercased, and split into words, each word's last piece marked with `</w>`, between `<|startoftext|>` and `<|endoftext|>`.
-fn clip_bpe(directory: &Path) -> Result<Tokenizer> {
-    let config = read_optional(&directory.join("tokenizer_config.json"))?.unwrap_or(Value::Null);
-    let class = config["tokenizer_class"].as_str().unwrap_or_default();
-    if ["Bart", "Roberta", "Tapex"]
-        .iter()
-        .any(|prefix| class.starts_with(prefix))
-    {
-        return roberta_bpe(directory, &config);
-    }
-
-    if !class.starts_with("CLIP") {
-        return Err(Error::UnsupportedConfig(format!(
-            "a {class} snapshot with merges.txt but no tokenizer.json"
-        )));
-    }
-
-    let special =
-        |name: &str, default: &str| special_token(&config, name).unwrap_or(default).to_owned();
-    let (start, end, unknown) = (
-        special("bos_token", "<|startoftext|>"),
-        special("eos_token", "<|endoftext|>"),
-        special("unk_token", "<|endoftext|>"),
-    );
-    let (vocabulary, merges) = bpe_files(directory)?;
-    let id = |token: &str| vocabulary_id(&vocabulary, "vocab.json", token);
-    let added = [&start, &end]
-        .into_iter()
-        .map(|token| added_token(&vocabulary, "vocab.json", token, false))
-        .collect::<Result<Vec<_>>>()?;
-    let tokenizer = json!({
-        "version": "1.0",
-        "added_tokens": added,
-        "normalizer": {
-            "type": "Sequence",
-            "normalizers": [
-                {"type": "NFC"},
-                {"type": "Replace", "pattern": {"Regex": r"\s+"}, "content": " "},
-                {"type": "Lowercase"},
-            ],
-        },
-        "pre_tokenizer": {
-            "type": "Sequence",
-            "pretokenizers": [
-                {
-                    "type": "Split",
-                    "pattern": {
-                        "Regex": r"<\|startoftext\|>|<\|endoftext\|>|'s|'t|'re|'ve|'m|'ll|'d|[\p{L}]+|[\p{N}]|[^\s\p{L}\p{N}]+",
-                    },
-                    "behavior": "Removed",
-                    "invert": true,
-                },
-                {"type": "ByteLevel", "add_prefix_space": false, "trim_offsets": true, "use_regex": true},
-            ],
-        },
-        "post_processor": {
-            "type": "RobertaProcessing",
-            "sep": [&end, id(&end)?],
-            "cls": [&start, id(&start)?],
-            "trim_offsets": false,
-            "add_prefix_space": false,
-        },
-        "decoder": {"type": "ByteLevel", "add_prefix_space": true, "trim_offsets": true, "use_regex": true},
-        "model": {
-            "type": "BPE",
-            "dropout": null,
-            "unk_token": unknown,
-            "continuing_subword_prefix": "",
-            "end_of_word_suffix": "</w>",
-            "fuse_unk": false,
-            "byte_fallback": false,
-            "ignore_merges": false,
-            "vocab": vocabulary,
-            "merges": merges,
-        },
-    });
-    Tokenizer::from_str(&tokenizer.to_string()).map_err(|source| Error::Tokenizer {
-        what: "build CLIP's BPE tokenizer from vocab.json and merges.txt",
-        source,
-    })
-}
-
-// RoBERTa's byte-level BPE tokenizer, which BART and TAPEX share, built from `vocab.json` and `merges.txt` as `transformers`' `RobertaTokenizer` builds it: bytes as characters, words with their leading space, between `<s>` and `</s>`.
-fn roberta_bpe(directory: &Path, config: &Value) -> Result<Tokenizer> {
-    let special =
-        |name: &str, default: &str| special_token(config, name).unwrap_or(default).to_owned();
-    let (vocabulary, merges) = bpe_files(directory)?;
-    let id = |token: &str| vocabulary_id(&vocabulary, "vocab.json", token);
-    let (start, end, unknown, padding, mask) = (
-        special("bos_token", "<s>"),
-        special("eos_token", "</s>"),
-        special("unk_token", "<unk>"),
-        special("pad_token", "<pad>"),
-        special("mask_token", "<mask>"),
-    );
-    let added = [&start, &padding, &end, &unknown, &mask]
-        .into_iter()
-        .map(|token| added_token(&vocabulary, "vocab.json", token, token == &mask))
-        .collect::<Result<Vec<_>>>()?;
-    let add_prefix_space = config["add_prefix_space"].as_bool().unwrap_or(false);
-    let tokenizer = json!({
-        "version": "1.0",
-        "added_tokens": added,
-        "normalizer": null,
-        "pre_tokenizer": {"type": "ByteLevel", "add_prefix_space": add_prefix_space, "trim_offsets": true, "use_regex": true},
-        "post_processor": {
-            "type": "RobertaProcessing",
-            "sep": [&end, id(&end)?],
-            "cls": [&start, id(&start)?],
-            "trim_offsets": true,
-            "add_prefix_space": add_prefix_space,
-        },
-        "decoder": {"type": "ByteLevel", "add_prefix_space": true, "trim_offsets": true, "use_regex": true},
-        "model": {
-            "type": "BPE",
-            "dropout": null,
-            "unk_token": null,
-            "continuing_subword_prefix": "",
-            "end_of_word_suffix": "",
-            "fuse_unk": false,
-            "byte_fallback": false,
-            "ignore_merges": false,
-            "vocab": vocabulary,
-            "merges": merges,
-        },
-    });
-    Tokenizer::from_str(&tokenizer.to_string()).map_err(|source| Error::Tokenizer {
-        what: "build RoBERTa's BPE tokenizer from vocab.json and merges.txt",
-        source,
-    })
 }
 
 // The text of the special token `name` a tokenizer config gives, as a string or, in newer configs, an object of its `content`.
 pub(crate) fn special_token<'a>(config: &'a Value, name: &str) -> Option<&'a str> {
     let value = &config[name];
     value.as_str().or_else(|| value["content"].as_str())
-}
-
-// The id `vocabulary`, read from `file`, gives `token`.
-fn vocabulary_id(vocabulary: &Map<String, Value>, file: &str, token: &str) -> Result<Value> {
-    vocabulary
-        .get(token)
-        .cloned()
-        .ok_or_else(|| Error::UnsupportedConfig(format!("a {file} without {token}")))
-}
-
-// The special token `token` as `tokenizer.json` lists an added token, with the id `vocabulary`, read from `file`, gives it.
-fn added_token(
-    vocabulary: &Map<String, Value>,
-    file: &str,
-    token: &str,
-    lstrip: bool,
-) -> Result<Value> {
-    Ok(json!({
-        "id": vocabulary_id(vocabulary, file, token)?, "content": token, "single_word": false,
-        "lstrip": lstrip, "rstrip": false, "normalized": false, "special": true,
-    }))
-}
-
-// A byte-level BPE snapshot's vocabulary and its merges' pairs.
-type BpeFiles = (Map<String, Value>, Vec<Vec<String>>);
-
-// A byte-level BPE snapshot's `vocab.json`, and the merges of its `merges.txt`, whose first line may name the format's version.
-fn bpe_files(directory: &Path) -> Result<BpeFiles> {
-    let vocabulary = read_optional(&directory.join("vocab.json"))?
-        .ok_or_else(|| Error::unsupported("a BPE snapshot without vocab.json"))?;
-    let path = directory.join("merges.txt");
-    let text = fs::read_to_string(&path).map_err(Error::io(&path))?;
-    let merges = text
-        .lines()
-        .filter(|line| !line.is_empty() && !line.starts_with("#version"))
-        .map(|line| line.split(' ').map(str::to_owned).collect())
-        .collect();
-    Ok((vocabulary, merges))
-}
-
-fn read_optional<T: DeserializeOwned>(path: &Path) -> Result<Option<T>> {
-    if !path.exists() {
-        return Ok(None);
-    }
-
-    let text = fs::read_to_string(path).map_err(Error::io(path))?;
-    serde_json::from_str(&text)
-        .map(Some)
-        .map_err(Error::json("parse a tokenizer file"))
 }
 
 // Removes the spaces a word-piece decode leaves before punctuation and contractions, as `clean_up_tokenization` does.
@@ -450,25 +207,16 @@ fn ids(ids: &[u32]) -> Vec<i64> {
 
 impl TextTokenizer {
     // Loads `tokenizer.json` from a snapshot directory, or builds BERT's WordPiece tokenizer from its `vocab.txt`, CLIP's byte-level BPE from its `vocab.json` and `merges.txt`, or XLM-RoBERTa's from its `sentencepiece.bpe.model`, when it has only those.
-    pub fn load(snapshot: impl AsRef<Path>) -> Result<Self> {
-        let directory = snapshot.as_ref();
-        let path = directory.join("tokenizer.json");
-        let mut inner = if !path.exists() && directory.join("vocab.txt").exists() {
-            wordpiece(directory)?
-        } else if !path.exists() && directory.join("merges.txt").exists() {
-            clip_bpe(directory)?
-        } else if !path.exists() && directory.join("sentencepiece.bpe.model").exists() {
-            let built =
-                super::sentencepiece::xlm_roberta(&directory.join("sentencepiece.bpe.model"))?;
-            Tokenizer::from_str(&built.to_string()).map_err(|source| Error::Tokenizer {
-                what: "build XLM-RoBERTa's tokenizer from sentencepiece.bpe.model",
-                source,
+    pub fn load(source: &Source) -> Result<Self> {
+        let mut inner = if source.has("tokenizer.json") {
+            Tokenizer::from_file(source.directory().join("tokenizer.json")).map_err(|source| {
+                Error::Tokenizer {
+                    what: "load tokenizer.json",
+                    source,
+                }
             })?
         } else {
-            Tokenizer::from_file(&path).map_err(|source| Error::Tokenizer {
-                what: "load tokenizer.json",
-                source,
-            })?
+            conversion::convert(source)?
         };
         // A snapshot's padding and truncation settings are what it was trained with, which `transformers` drops on loading and applies only when asked.
         inner.with_padding(None);
@@ -478,21 +226,21 @@ impl TextTokenizer {
                 what: "clear truncation",
                 source,
             })?;
-        let mut special = Map::new();
+        let mut config = Map::new();
         for file in ["special_tokens_map.json", "tokenizer_config.json"] {
-            if let Some(Value::Object(fields)) = read_optional(&directory.join(file))? {
-                special.extend(fields);
+            if let Some(Value::Object(fields)) = source.optional_json(file)? {
+                config.extend(fields);
             }
         }
 
-        let max_length = special
+        let max_length = config
             .get("model_max_length")
             .and_then(Value::as_u64)
             .and_then(|length| usize::try_from(length).ok());
         Ok(Self {
             inner,
             max_length,
-            special: Value::Object(special),
+            config: Value::Object(config),
         })
     }
 
@@ -586,7 +334,7 @@ impl TextTokenizer {
             .iter()
             .map(|&id| u32::try_from(id))
             .collect::<StdResult<Vec<_>, _>>()
-            .map_err(|_| Error::unsupported("a token id outside u32"))?;
+            .map_err(|_| Error::invalid("a token id outside u32"))?;
         let text = self
             .inner
             .decode(&ids, skip_special_tokens)
@@ -595,7 +343,7 @@ impl TextTokenizer {
                 source,
             })?;
         // `transformers` cleans up only when the config asks, and never a BPE model's text, unless told to anyway.
-        let flag = |name: &str| self.special[name].as_bool().unwrap_or(false);
+        let flag = |name: &str| self.config[name].as_bool().unwrap_or(false);
         let bpe = matches!(self.inner.get_model(), ModelWrapper::BPE(_));
         if flag("clean_up_tokenization_spaces")
             && (!bpe
@@ -619,7 +367,7 @@ impl TextTokenizer {
         self.inner
             .token_to_id(token)
             .map(i64::from)
-            .ok_or_else(|| Error::UnsupportedConfig(format!("a tokenizer without {token}")))
+            .ok_or_else(|| Error::unsupported(format!("a tokenizer without {token}")))
     }
 
     // Returns the token of `id` as the vocabulary writes it, such as WordPiece's `##ing`.
@@ -661,7 +409,7 @@ impl TextTokenizer {
     // The id of the special token the tokenizer's configs name for `role`, such as `mask_token`, as a string or an object of its `content`.
     #[must_use]
     pub fn special_id(&self, role: &str) -> Option<i64> {
-        let token = special_token(&self.special, role)?;
+        let token = special_token(&self.config, role)?;
         self.inner.token_to_id(token).map(i64::from)
     }
 
@@ -729,7 +477,7 @@ pub struct TextStream<'a> {
 impl TextStream<'_> {
     // Adds the next id, and returns the text it completes, or `None` while the text it starts is not whole.
     pub fn push(&mut self, id: i64) -> Result<Option<String>> {
-        let id = u32::try_from(id).map_err(|_| Error::unsupported("a token id outside u32"))?;
+        let id = u32::try_from(id).map_err(|_| Error::invalid("a token id outside u32"))?;
         self.inner.step(id).map_err(|source| Error::Tokenizer {
             what: "decode a streamed id",
             source,
@@ -739,7 +487,7 @@ impl TextStream<'_> {
 
 // A CTC model's characters, as `Wav2Vec2CTCTokenizer` reads them from `vocab.json`, and how it turns frames' tokens into text: repeats collapsed, the blank padding token dropped, and the word delimiter a space.
 #[derive(Debug, Clone)]
-pub struct CtcVocabulary {
+pub struct CtcTokenizer {
     tokens: Vec<String>,
     padding: String,
     delimiter: String,
@@ -747,21 +495,18 @@ pub struct CtcVocabulary {
     clean_up: bool,
 }
 
-impl CtcVocabulary {
-    pub fn load(snapshot: impl AsRef<Path>) -> Result<Self> {
-        let directory = snapshot.as_ref();
-        let vocabulary: Map<String, Value> = read_optional(&directory.join("vocab.json"))?
+impl CtcTokenizer {
+    pub fn load(source: &Source) -> Result<Self> {
+        let vocabulary: Map<String, Value> = source
+            .optional_json("vocab.json")?
             .ok_or_else(|| Error::unsupported("a CTC snapshot without vocab.json"))?;
-        let config =
-            read_optional(&directory.join("tokenizer_config.json"))?.unwrap_or(Value::Null);
-        let text =
-            |name: &str, default: &str| special_token(&config, name).unwrap_or(default).to_owned();
+        let config = tokenizer_config(source)?;
         let mut tokens = Vec::new();
         for (token, id) in &vocabulary {
             let id = id
                 .as_u64()
                 .and_then(|id| usize::try_from(id).ok())
-                .ok_or_else(|| Error::UnsupportedConfig(format!("a vocab.json id for {token}")))?;
+                .ok_or_else(|| Error::unsupported(format!("a vocab.json id for {token}")))?;
             if tokens.len() <= id {
                 tokens.resize(id + 1, String::new());
             }
@@ -770,8 +515,8 @@ impl CtcVocabulary {
         }
         Ok(Self {
             tokens,
-            padding: text("pad_token", "<pad>"),
-            delimiter: text("word_delimiter_token", "|"),
+            padding: special_or(&config, "pad_token", "<pad>"),
+            delimiter: special_or(&config, "word_delimiter_token", "|"),
             lowercase: config["do_lower_case"].as_bool().unwrap_or(false),
             clean_up: config["clean_up_tokenization_spaces"]
                 .as_bool()
@@ -792,9 +537,7 @@ impl CtcVocabulary {
             let token = usize::try_from(id)
                 .ok()
                 .and_then(|id| self.tokens.get(id))
-                .ok_or_else(|| {
-                    Error::UnsupportedConfig(format!("token {id} outside vocab.json"))
-                })?;
+                .ok_or_else(|| Error::invalid(format!("token {id} outside vocab.json")))?;
             if *token == self.padding {
                 continue;
             }
@@ -823,12 +566,11 @@ pub struct CharacterTokenizer {
 }
 
 impl CharacterTokenizer {
-    pub fn load(snapshot: impl AsRef<Path>) -> Result<Self> {
-        let directory = snapshot.as_ref();
-        let vocabulary: Map<String, Value> = read_optional(&directory.join("vocab.json"))?
+    pub fn load(source: &Source) -> Result<Self> {
+        let vocabulary: Map<String, Value> = source
+            .optional_json("vocab.json")?
             .ok_or_else(|| Error::unsupported("a character snapshot without vocab.json"))?;
-        let config =
-            read_optional(&directory.join("tokenizer_config.json"))?.unwrap_or(Value::Null);
+        let config = tokenizer_config(source)?;
         let mut characters = HashMap::new();
         for (token, id) in &vocabulary {
             let mut chars = token.chars();

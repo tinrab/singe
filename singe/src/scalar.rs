@@ -3,6 +3,7 @@ use std::hash::{Hash, Hasher};
 use singe_codegen::interpret::{E4M3, E5M2};
 
 use crate::{
+    backend::registry::Operation,
     data_type::{DataType, bf16, f16},
     device::Device,
     error::{Error, Result},
@@ -27,6 +28,22 @@ pub enum Scalar {
     Float(f64),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ScalarPromotion {
+    Arithmetic,
+    TrueDivision,
+}
+
+impl ScalarPromotion {
+    pub(crate) fn of(operation: Operation) -> Self {
+        if operation == Operation::RDivScalar {
+            Self::TrueDivision
+        } else {
+            Self::Arithmetic
+        }
+    }
+}
+
 impl Scalar {
     fn key(self) -> (u8, u64) {
         match self {
@@ -38,7 +55,11 @@ impl Scalar {
     }
 
     /// Returns the data type an operation on a tensor of `input` and this scalar computes in, by `PyTorch`'s rules: a scalar of a higher category than the tensor promotes it to the default type of that category.
-    pub(crate) fn promoted_type(self, input: DataType, division: bool) -> Result<DataType> {
+    pub(crate) fn promoted_type(
+        self,
+        input: DataType,
+        promotion: ScalarPromotion,
+    ) -> Result<DataType> {
         if input == DataType::F4E2M1 {
             return Err(Error::unsupported_data_type("scalar arithmetic input"));
         }
@@ -53,11 +74,13 @@ impl Scalar {
         {
             return Err(Error::out_of_range("integer scalar argument"));
         }
-        Ok(if division && !result.is_float() {
-            DataType::F32
-        } else {
-            result
-        })
+        Ok(
+            if promotion == ScalarPromotion::TrueDivision && !result.is_float() {
+                DataType::F32
+            } else {
+                result
+            },
+        )
     }
 
     pub(crate) fn tensor(self, device: Device, data_type: DataType) -> Result<Tensor> {
@@ -92,10 +115,6 @@ impl Scalar {
         tensor_data_type_cases!(create_scalar)
     }
 
-    #[expect(
-        clippy::cast_precision_loss,
-        reason = "scalar conversion uses the target IEEE floating-point precision"
-    )]
     pub(crate) fn float(self) -> f64 {
         match self {
             Self::Bool(value) => f64::from(u8::from(value)),
@@ -105,11 +124,6 @@ impl Scalar {
         }
     }
 
-    #[expect(
-        clippy::cast_precision_loss,
-        clippy::cast_possible_truncation,
-        reason = "scalar conversion uses the target IEEE floating-point precision"
-    )]
     pub(crate) fn single(self) -> f32 {
         match self {
             Self::Bool(value) => f32::from(u8::from(value)),
@@ -119,10 +133,6 @@ impl Scalar {
         }
     }
 
-    #[expect(
-        clippy::cast_possible_truncation,
-        reason = "Rust float-to-integer casts saturate and map NaN to zero, matching scalar conversion semantics"
-    )]
     pub(crate) fn signed(self) -> i64 {
         match self {
             Self::Bool(value) => i64::from(value),
@@ -134,10 +144,6 @@ impl Scalar {
         }
     }
 
-    #[expect(
-        clippy::cast_possible_truncation,
-        reason = "Rust float-to-integer casts saturate and map NaN to zero, matching scalar conversion semantics"
-    )]
     pub(crate) fn unsigned(self) -> u64 {
         match self {
             Self::Bool(value) => u64::from(value),
@@ -172,8 +178,12 @@ impl Hash for Scalar {
 }
 
 impl Tensor {
-    pub(crate) fn scalar_operand(&self, scalar: Scalar, division: bool) -> Result<Self> {
-        let data_type = scalar.promoted_type(self.data_type(), division)?;
+    pub(crate) fn scalar_operand(
+        &self,
+        scalar: Scalar,
+        promotion: ScalarPromotion,
+    ) -> Result<Self> {
+        let data_type = scalar.promoted_type(self.data_type(), promotion)?;
         if data_type == self.data_type() {
             Ok(self.clone())
         } else {

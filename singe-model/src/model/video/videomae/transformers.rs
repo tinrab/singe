@@ -2,12 +2,11 @@
 
 use serde::Deserialize;
 
-use super::VideoMaeConfig;
 use crate::{
     assembly::vit_layer_rules,
     error::{Error, Result},
     format::{Rules, transformers::classifier_config},
-    model::vision::vit::transformers::VitFields,
+    model::{video::videomae::VideoMaeConfig, vision::vit::transformers::VitFields},
     source::Source,
 };
 
@@ -30,7 +29,7 @@ pub(crate) fn config(source: &Source) -> Result<VideoMaeConfig> {
     }
 
     let mut encoder = fields.vit.encoder()?;
-    encoder.key_bias = false;
+    encoder.projection_biases = [true, false, true, true];
     Ok(VideoMaeConfig {
         encoder,
         layers: fields.vit.num_hidden_layers,
@@ -49,13 +48,10 @@ pub(crate) fn rules() -> Rules {
             "videomae.embeddings.patch_embeddings.projection",
             "embeddings.tubelets",
         )
-        .rename(
-            "videomae.encoder.layer.*.attention.attention.q_bias",
-            "blocks.*.attention.query.bias",
-        )
-        .rename(
-            "videomae.encoder.layer.*.attention.attention.v_bias",
-            "blocks.*.attention.value.bias",
+        .rename_each(
+            "videomae.encoder.layer.*.attention.attention",
+            "blocks.*.attention",
+            &[("q_bias", "query.bias"), ("v_bias", "value.bias")],
         )
         .then(vit_layer_rules("videomae.encoder.layer", "blocks"))
         .rename("fc_norm", "norm")

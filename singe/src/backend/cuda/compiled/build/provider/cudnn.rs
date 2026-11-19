@@ -20,7 +20,7 @@ use crate::{
         registry::ScaledDotProductAttentionAttributes,
     },
     error::Result,
-    graph::ir::ValueId,
+    graph::{CudnnGraphKind, ir::ValueId},
 };
 
 pub fn try_add_convolution_provider_node(
@@ -90,7 +90,7 @@ pub fn try_add_attention_provider_node(
                     engine,
                 )
             })?;
-            note_cudnn_engines(request, &graph.1, false)?;
+            note_cudnn_engines(request, &graph.1, CudnnGraphKind::NonMatmul)?;
             Ok(graph)
         },
         |(child_graph, executable), lowering| {
@@ -117,14 +117,14 @@ pub fn try_add_attention_provider_node(
 pub fn note_cudnn_engines(
     request: &GraphProviderRequest<'_>,
     executable: &CudnnBackendExecutable,
-    matmul: bool,
+    kind: CudnnGraphKind,
 ) -> Result<()> {
     if let Some(recorder) = request.library_recorder {
         recorder.note(
             &way_key(request.ir, request.id)?,
             CudaGraphProvider::CudnnBackend,
             executable
-                .engine_choices(request.runtime, request.output_data_type, matmul)?
+                .engine_choices(request.runtime, request.output_data_type, kind)?
                 .into_iter()
                 .map(TunedChoice::Cudnn)
                 .collect(),

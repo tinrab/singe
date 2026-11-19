@@ -58,6 +58,12 @@ impl Epilogue {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AddendLayout {
+    Strided,
+    Contiguous,
+}
+
 // Which allowed libraries can run a matmul.
 #[derive(Debug, Clone, Default)]
 pub struct MatmulLibraries {
@@ -182,9 +188,9 @@ impl Builder<'_> {
         };
         // What follows joins the call, so every option computes the same operations.
         let epilogue = if libraries.cudnn {
-            self.epilogue(id, false)?
+            self.epilogue(id, AddendLayout::Strided)?
         } else if libraries.cublaslt.is_some() {
-            self.epilogue(id, true)?
+            self.epilogue(id, AddendLayout::Contiguous)?
         } else {
             Epilogue::default()
         };
@@ -375,7 +381,7 @@ impl Builder<'_> {
     }
 
     // What a library can compute inside its call to `base`, which saves the steps and buffers between them: an add of a ready value of the same shape, then an activation.
-    pub fn epilogue(&self, base: ValueId, contiguous_addend: bool) -> Result<Epilogue> {
+    pub fn epilogue(&self, base: ValueId, addend_layout: AddendLayout) -> Result<Epilogue> {
         let ir = self.ir;
         let data_type = ir.required_value_data_type(base)?;
         let shape = ir.required_value_shape(base)?;
@@ -391,7 +397,7 @@ impl Builder<'_> {
                 view.data_type == data_type
                     && view.layout.shape() == shape
                     && view.layout.strides().iter().all(|&stride| stride > 0)
-                    && (!contiguous_addend
+                    && (addend_layout == AddendLayout::Strided
                         || (view.layout.is_contiguous() && view.layout.storage_offset() == 0))
             });
             if fits

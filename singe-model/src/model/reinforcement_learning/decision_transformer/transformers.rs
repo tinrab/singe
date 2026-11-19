@@ -3,12 +3,14 @@
 use serde::Deserialize;
 use singe::nn::Activation;
 
-use super::DecisionTransformerConfig;
 use crate::{
-    assembly::PreNormEncoderSpec,
+    assembly::PreNormEncoderConfig,
     error::Result,
     format::{Rules, transformers::activation_field},
-    model::text::gpt2::transformers::{AttentionFields, model_rules},
+    model::{
+        reinforcement_learning::decision_transformer::DecisionTransformerConfig,
+        text::gpt2::transformers::{AttentionFields, model_rules},
+    },
     source::Source,
 };
 
@@ -36,20 +38,21 @@ pub(crate) fn config(source: &Source) -> Result<DecisionTransformerConfig> {
     fields.attention.refuse_other_scaling()?;
     let width = fields.hidden_size;
     Ok(DecisionTransformerConfig {
-        encoder: PreNormEncoderSpec {
+        encoder: PreNormEncoderConfig {
             width,
             heads: fields.n_head,
             inner: fields.n_inner.unwrap_or(4 * width),
             activation: fields.activation_function,
             eps: fields.layer_norm_epsilon,
-            key_bias: true,
+            projection_biases: [true; 4],
             causal: true,
+            layer_scale: false,
         },
         layers: fields.n_layer,
         state_dim: fields.state_dim,
         action_dim: fields.act_dim,
         episode: fields.max_ep_len,
-        positions: fields.n_positions,
+        max_positions: fields.n_positions,
         action_tanh: fields.action_tanh,
     })
 }
@@ -63,7 +66,7 @@ pub(crate) fn rules() -> Rules {
         .rename("embed_ln", "embeddings.norm")
         // The steps are embedded, never looked up as tokens.
         .skip("encoder.wte")
-        .then(model_rules("encoder."))
+        .then(model_rules("encoder"))
         .rename("predict_state", "predict.state")
         .rename("predict_action.0", "predict.action")
         .rename("predict_return", "predict.return")

@@ -1,32 +1,21 @@
 // `image-to-video`: an image and a seed to a clip that animates it, as `diffusers`' `PIAPipeline` generates one from an empty prompt.
 
-use serde::Deserialize;
-
 use crate::{
     error::Result,
     processor::image::Image,
     source::{LoadOptions, Source},
     task::{
-        Pipeline, Task,
-        multimodal::image_text_to_video::{
-            ImageTextToVideoInput, ImageTextToVideoParameters, ImageTextToVideoPipeline,
-        },
+        Pipeline,
+        inputs::{SeededImage, SeededImagePrompt},
+        multimodal::image_text_to_video::{ImageTextToVideoParameters, ImageTextToVideoPipeline},
     },
 };
 
 #[derive(Debug)]
 pub struct ImageToVideoPipeline(ImageTextToVideoPipeline);
 
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-pub struct ImageToVideoInput {
-    pub image: Image,
-    pub seed: u64,
-}
-
 impl Pipeline for ImageToVideoPipeline {
-    const TASK: Task = Task::ImageToVideo;
-
-    type Input = ImageToVideoInput;
+    type Input = SeededImage;
 
     type Parameters = ImageTextToVideoParameters;
 
@@ -36,23 +25,14 @@ impl Pipeline for ImageToVideoPipeline {
         Ok(Self(ImageTextToVideoPipeline::load(source, options)?))
     }
 
-    fn run(
-        &self,
-        inputs: &[Self::Input],
-        parameters: &Self::Parameters,
-    ) -> Result<Vec<Self::Output>> {
-        inputs
-            .iter()
-            .map(|input| {
-                self.0.generate(
-                    &ImageTextToVideoInput {
-                        image: input.image.clone(),
-                        prompt: String::new(),
-                        seed: input.seed,
-                    },
-                    parameters,
-                )
-            })
-            .collect()
+    fn run_one(&self, input: &Self::Input, parameters: &Self::Parameters) -> Result<Self::Output> {
+        self.0.run_one(
+            &SeededImagePrompt {
+                image: input.image.clone(),
+                prompt: String::new(),
+                seed: input.seed,
+            },
+            parameters,
+        )
     }
 }

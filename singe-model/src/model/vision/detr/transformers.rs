@@ -3,13 +3,14 @@
 use serde::Deserialize;
 use singe::nn::Activation;
 
-use super::{DetrConfig, ResNetConfig};
 use crate::{
+    assembly::attention_rules,
     error::{Error, Result},
     format::{
-        Rules,
+        Rules, join,
         transformers::{activation_field, classifier_config},
     },
+    model::vision::detr::{DetrConfig, ResNetConfig},
     source::Source,
 };
 
@@ -34,11 +35,20 @@ struct Fields {
 pub(crate) fn config(source: &Source) -> Result<DetrConfig> {
     let fields: Fields = source.json("config.json")?;
     // timm's ResNet-50 without dilation, and sine positions, as `facebook/detr-resnet-50` has them.
-    if fields.backbone.as_deref() != Some("resnet50")
-        || fields.dilation
-        || fields.position_embedding_type != "sine"
-    {
-        return Err(Error::unsupported("this DETR backbone"));
+    let backbone = fields.backbone.as_deref().unwrap_or_default();
+    if backbone != "resnet50" {
+        return Err(Error::unsupported(format!("DETR backbone `{backbone}`")));
+    }
+
+    if fields.dilation {
+        return Err(Error::unsupported("a DETR backbone with dilation"));
+    }
+
+    if fields.position_embedding_type != "sine" {
+        return Err(Error::unsupported(format!(
+            "DETR position embedding type `{}`",
+            fields.position_embedding_type
+        )));
     }
 
     Ok(DetrConfig {
@@ -70,34 +80,28 @@ pub(crate) fn rules() -> Rules {
         .rename("class_labels_classifier", "classes")
         .rename("bbox_predictor.layers", "boxes");
     for part in ["encoder", "decoder"] {
-        let layer = |name: &str| format!("model.{part}.layers.*.{name}");
-        let target = |name: &str| format!("{part}.*.{name}");
-        for (from, to) in [
-            ("self_attn", "attention"),
-            ("encoder_attn", "cross_attention"),
-        ] {
-            for (projection, name) in [
-                ("q_proj", "query"),
-                ("k_proj", "key"),
-                ("v_proj", "value"),
-                ("out_proj", "output"),
-            ] {
-                rules = rules.rename(
-                    &layer(&format!("{from}.{projection}")),
-                    &target(&format!("{to}.{name}")),
-                );
-            }
-        }
-
+        let layers = format!("model.{part}.layers.*");
+        let blocks = format!("{part}.*");
         rules = rules
-            .rename(&layer("self_attn_layer_norm"), &target("attention_norm"))
-            .rename(
-                &layer("encoder_attn_layer_norm"),
-                &target("cross_attention_norm"),
-            )
-            .rename(&layer("fc1"), &target("feed_forward.up"))
-            .rename(&layer("fc2"), &target("feed_forward.down"))
-            .rename(&layer("final_layer_norm"), &target("feed_forward_norm"));
+            .then(attention_rules(
+                &join(&layers, "self_attn"),
+                &join(&blocks, "attention"),
+            ))
+            .then(attention_rules(
+                &join(&layers, "encoder_attn"),
+                &join(&blocks, "cross_attention"),
+            ))
+            .rename_each(
+                &layers,
+                &blocks,
+                &[
+                    ("self_attn_layer_norm", "attention_norm"),
+                    ("encoder_attn_layer_norm", "cross_attention_norm"),
+                    ("fc1", "feed_forward.up"),
+                    ("fc2", "feed_forward.down"),
+                    ("final_layer_norm", "feed_forward_norm"),
+                ],
+            );
     }
     rules
 }

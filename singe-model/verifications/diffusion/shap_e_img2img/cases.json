@@ -4,6 +4,7 @@
       "name": "mesh",
       "snapshot": "SHAP_E_IMG2IMG",
       "task": "image-to-3d",
+      "data_type": "f32",
       "inputs": [
         {
           "image": "media/sphere.png",

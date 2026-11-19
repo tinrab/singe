@@ -7,14 +7,14 @@ mod diffusers;
 use serde::{Deserialize, Serialize};
 use singe::{
     Result as SingeResult, Tensor,
-    nn::{
-        Activation, Conv2d, Conv2dConfig, GroupNorm, Layer, Model, ModelState, Sequential,
-        StateBuilder,
-    },
+    nn::{Activation, Conv2d, GroupNorm, Layer, ModelState, Sequential},
 };
 
 use crate::{
-    assembly::{Norms, ResnetBlock, SpatialAttention, UpsampleBlock, downsample},
+    assembly::{
+        MiddleBlock, Norms, ResnetBlock, SpatialAttention, UpsampleBlock, downsample, resnet_stack,
+        same_2d,
+    },
     error::Result,
     format::Loader,
     head::{Autoencoder, HeadLoader},
@@ -22,6 +22,8 @@ use crate::{
     schema::Schema,
     source::Format,
 };
+
+const NORM_EPS: f32 = 1e-6;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AutoencoderKlConfig {
@@ -37,7 +39,7 @@ impl AutoencoderKlConfig {
     const fn norms(&self) -> Norms {
         Norms {
             groups: self.groups,
-            eps: 1e-6,
+            eps: NORM_EPS,
         }
     }
 }
@@ -45,240 +47,189 @@ impl AutoencoderKlConfig {
 fn conv(
     schema: &mut Schema<'_>,
     name: &str,
-    input: i64,
-    output: i64,
+    [input, output]: [i64; 2],
     kernel: i64,
 ) -> SingeResult<Conv2d> {
-    let padding = kernel / 2;
-    schema.conv2d(
-        name,
-        input,
-        output,
-        kernel,
-        Conv2dConfig {
-            padding: (padding, padding, padding, padding),
-            ..Conv2dConfig::default()
-        },
-        true,
-    )
+    schema.conv2d(name, input, output, kernel, same_2d(kernel, 1), true)
 }
 
 // `UNetMidBlock2D` without a timestep: a residual block, self-attention with one head, and another residual block.
-#[derive(Debug, Clone)]
-struct Middle {
-    first: ResnetBlock,
-    attention: SpatialAttention,
-    second: ResnetBlock,
-}
-
-impl Middle {
-    fn create(schema: &mut Schema<'_>, width: i64, norms: Norms) -> SingeResult<Self> {
-        let mut schema = schema.scope("middle");
-        Ok(Self {
-            first: ResnetBlock::create(
-                &mut schema.scope("resnets.0"),
-                [width, width],
-                None,
-                norms,
-                1.0,
-            )?,
-            attention: SpatialAttention::create(
-                &mut schema.scope("attentions.0"),
-                width,
-                1,
-                norms,
-                1.0,
-            )?,
-            second: ResnetBlock::create(
-                &mut schema.scope("resnets.1"),
-                [width, width],
-                None,
-                norms,
-                1.0,
-            )?,
-        })
-    }
-}
-
-impl Layer for Middle {
-    fn forward(&self, input: &Tensor, state: &ModelState) -> SingeResult<Tensor> {
-        let hidden = self
-            .first
-            .forward(input, None, state)?
-            .apply(&self.attention, state)?;
-        self.second.forward(&hidden, None, state)
-    }
+fn middle(
+    schema: &mut Schema<'_>,
+    width: i64,
+    norms: Norms,
+) -> SingeResult<MiddleBlock<SpatialAttention>> {
+    MiddleBlock::create(
+        &mut schema.scope("middle"),
+        width,
+        None,
+        norms,
+        1.0,
+        |schema| SpatialAttention::create(schema, width, 1, norms, 1.0),
+    )
 }
 
 #[derive(Debug, Clone)]
-struct Stage {
+struct Stage<R> {
     resnets: Vec<ResnetBlock>,
-    downsample: Option<Conv2d>,
-    upsample: Option<UpsampleBlock>,
+    resample: Option<R>,
 }
 
-impl Layer for Stage {
+impl<R: Layer> Layer for Stage<R> {
     fn forward(&self, input: &Tensor, state: &ModelState) -> SingeResult<Tensor> {
         let mut hidden = input.clone();
         for resnet in &self.resnets {
             hidden = resnet.forward(&hidden, None, state)?;
         }
 
-        if let Some(downsample) = &self.downsample {
-            hidden = hidden.apply(downsample, state)?;
+        match &self.resample {
+            Some(resample) => hidden.apply(resample, state),
+            None => Ok(hidden),
         }
-
-        if let Some(upsample) = &self.upsample {
-            hidden = hidden.apply(upsample, state)?;
-        }
-        Ok(hidden)
     }
 }
 
-// Either half: for the encoder, its stages, the middle, and the output, then `quant`, to the latent distribution's means and log-variances; for the decoder, `quant`, then the middle, its stages, and the output.
+// The encoder: its stages, the middle, and the output, then `quant`, to the latent distribution's means and log-variances.
 #[derive(Debug, Clone)]
-struct Half {
-    quant: Conv2d,
+struct Encoder {
     input: Conv2d,
-    stages: Vec<Stage>,
-    middle: Middle,
+    stages: Vec<Stage<Conv2d>>,
+    middle: MiddleBlock<SpatialAttention>,
     norm: GroupNorm,
     output: Conv2d,
-    // Whether this half encodes, to the latent distribution's means and log-variances.
-    encodes: bool,
+    quant: Conv2d,
 }
 
-impl Layer for Half {
-    fn forward(&self, input: &Tensor, state: &ModelState) -> SingeResult<Tensor> {
-        let finish = |hidden: Tensor| -> SingeResult<Tensor> {
-            hidden
-                .apply(&self.norm, state)?
-                .apply(&Activation::Silu, state)?
-                .apply(&self.output, state)
-        };
-        if self.encodes {
-            let mut hidden = input.apply(&self.input, state)?;
-            for stage in &self.stages {
-                hidden = hidden.apply(stage, state)?;
-            }
-            finish(hidden.apply(&self.middle, state)?)?.apply(&self.quant, state)
-        } else {
-            let mut hidden = input
-                .apply(&self.quant, state)?
-                .apply(&self.input, state)?
-                .apply(&self.middle, state)?;
-            for stage in &self.stages {
-                hidden = hidden.apply(stage, state)?;
-            }
-            finish(hidden)
-        }
+impl Encoder {
+    fn create(schema: &mut Schema<'_>, config: &AutoencoderKlConfig) -> SingeResult<Self> {
+        let (widths, norms) = (&config.widths, config.norms());
+        let last = widths.len() - 1;
+        let stages = widths
+            .iter()
+            .enumerate()
+            .map(|(index, &output)| {
+                let mut stage = schema.scope(format!("stages.{index}"));
+                Ok(Stage {
+                    resnets: resnet_stack(
+                        &mut stage,
+                        config.layers_per_block,
+                        [widths[index.saturating_sub(1)], output],
+                        None,
+                        norms,
+                    )?,
+                    resample: (index < last)
+                        .then(|| downsample(&mut stage, "downsample", output, 0))
+                        .transpose()?,
+                })
+            })
+            .collect::<SingeResult<Vec<_>>>()?;
+        let latent = config.latent_channels;
+        Ok(Self {
+            input: conv(schema, "input", [config.in_channels, widths[0]], 3)?,
+            stages,
+            middle: middle(schema, widths[last], norms)?,
+            norm: schema.group_norm("norm", widths[last], norms.groups, norms.eps)?,
+            output: conv(schema, "output", [widths[last], 2 * latent], 3)?,
+            quant: conv(schema, "quant", [2 * latent, 2 * latent], 1)?,
+        })
     }
 }
 
-fn encoder(schema: &mut Schema<'_>, config: &AutoencoderKlConfig) -> SingeResult<Half> {
-    let (widths, norms) = (&config.widths, config.norms());
-    let last = widths.len() - 1;
-    let stages = widths
-        .iter()
-        .enumerate()
-        .map(|(index, &output)| {
-            let mut stage = schema.scope(format!("stages.{index}"));
-            let input = if index == 0 {
-                widths[0]
-            } else {
-                widths[index - 1]
-            };
-            Ok(Stage {
-                resnets: (0..config.layers_per_block)
-                    .map(|layer| {
-                        ResnetBlock::create(
-                            &mut stage.scope(format!("resnets.{layer}")),
-                            [if layer == 0 { input } else { output }, output],
-                            None,
-                            norms,
-                            1.0,
-                        )
-                    })
-                    .collect::<SingeResult<Vec<_>>>()?,
-                downsample: (index < last)
-                    .then(|| downsample(&mut stage, "downsample", output, 0))
-                    .transpose()?,
-                upsample: None,
-            })
-        })
-        .collect::<SingeResult<Vec<_>>>()?;
-    let latent = config.latent_channels;
-    Ok(Half {
-        input: conv(schema, "input", config.in_channels, widths[0], 3)?,
-        stages,
-        middle: Middle::create(schema, widths[last], norms)?,
-        norm: schema.group_norm("norm", widths[last], config.groups, 1e-6)?,
-        output: conv(schema, "output", widths[last], 2 * latent, 3)?,
-        quant: conv(schema, "quant", 2 * latent, 2 * latent, 1)?,
-        encodes: true,
-    })
+impl Layer for Encoder {
+    fn forward(&self, input: &Tensor, state: &ModelState) -> SingeResult<Tensor> {
+        let mut hidden = input.apply(&self.input, state)?;
+        for stage in &self.stages {
+            hidden = hidden.apply(stage, state)?;
+        }
+        hidden
+            .apply(&self.middle, state)?
+            .apply(&self.norm, state)?
+            .apply(&Activation::Silu, state)?
+            .apply(&self.output, state)?
+            .apply(&self.quant, state)
+    }
 }
 
-fn decoder(schema: &mut Schema<'_>, config: &AutoencoderKlConfig) -> SingeResult<Half> {
-    let norms = config.norms();
-    let reversed = config.widths.iter().rev().copied().collect::<Vec<_>>();
-    let last = reversed.len() - 1;
-    let stages = reversed
-        .iter()
-        .enumerate()
-        .map(|(index, &output)| {
-            let mut stage = schema.scope(format!("stages.{index}"));
-            let input = reversed[index.saturating_sub(1)];
-            Ok(Stage {
-                resnets: (0..=config.layers_per_block)
-                    .map(|layer| {
-                        ResnetBlock::create(
-                            &mut stage.scope(format!("resnets.{layer}")),
-                            [if layer == 0 { input } else { output }, output],
-                            None,
-                            norms,
-                            1.0,
-                        )
-                    })
-                    .collect::<SingeResult<Vec<_>>>()?,
-                downsample: None,
-                upsample: (index < last)
-                    .then(|| UpsampleBlock::create(&mut stage, "upsample", output))
-                    .transpose()?,
+// The decoder: `quant`, then the middle, its stages, and the output.
+#[derive(Debug, Clone)]
+struct Decoder {
+    quant: Conv2d,
+    input: Conv2d,
+    middle: MiddleBlock<SpatialAttention>,
+    stages: Vec<Stage<UpsampleBlock>>,
+    norm: GroupNorm,
+    output: Conv2d,
+}
+
+impl Decoder {
+    fn create(schema: &mut Schema<'_>, config: &AutoencoderKlConfig) -> SingeResult<Self> {
+        let norms = config.norms();
+        let reversed = config.widths.iter().rev().copied().collect::<Vec<_>>();
+        let last = reversed.len() - 1;
+        let stages = reversed
+            .iter()
+            .enumerate()
+            .map(|(index, &output)| {
+                let mut stage = schema.scope(format!("stages.{index}"));
+                Ok(Stage {
+                    resnets: resnet_stack(
+                        &mut stage,
+                        config.layers_per_block + 1,
+                        [reversed[index.saturating_sub(1)], output],
+                        None,
+                        norms,
+                    )?,
+                    resample: (index < last)
+                        .then(|| UpsampleBlock::create(&mut stage, "upsample", output))
+                        .transpose()?,
+                })
             })
+            .collect::<SingeResult<Vec<_>>>()?;
+        let latent = config.latent_channels;
+        Ok(Self {
+            quant: conv(schema, "quant", [latent, latent], 1)?,
+            input: conv(schema, "input", [latent, reversed[0]], 3)?,
+            middle: middle(schema, reversed[0], norms)?,
+            stages,
+            norm: schema.group_norm("norm", reversed[last], norms.groups, norms.eps)?,
+            output: conv(schema, "output", [reversed[last], config.out_channels], 3)?,
         })
-        .collect::<SingeResult<Vec<_>>>()?;
-    let latent = config.latent_channels;
-    Ok(Half {
-        quant: conv(schema, "quant", latent, latent, 1)?,
-        input: conv(schema, "input", latent, reversed[0], 3)?,
-        stages,
-        middle: Middle::create(schema, reversed[0], norms)?,
-        norm: schema.group_norm("norm", reversed[last], config.groups, 1e-6)?,
-        output: conv(schema, "output", reversed[last], config.out_channels, 3)?,
-        encodes: false,
-    })
+    }
+}
+
+impl Layer for Decoder {
+    fn forward(&self, input: &Tensor, state: &ModelState) -> SingeResult<Tensor> {
+        let mut hidden = input
+            .apply(&self.quant, state)?
+            .apply(&self.input, state)?
+            .apply(&self.middle, state)?;
+        for stage in &self.stages {
+            hidden = hidden.apply(stage, state)?;
+        }
+        hidden
+            .apply(&self.norm, state)?
+            .apply(&Activation::Silu, state)?
+            .apply(&self.output, state)
+    }
 }
 
 pub(crate) const MODEL: ModelEntry = ModelEntry {
     name: "autoencoder_kl",
     formats: &[(Format::Diffusers, &["AutoencoderKL"])],
-    heads: &[HeadLoader::Autoencoder(load)],
+    loaders: &[HeadLoader::Autoencoder(load)],
 };
 
 pub fn load(loader: &mut Loader<'_>) -> Result<Autoencoder> {
     let config: AutoencoderKlConfig = loader.config(diffusers::config)?;
     let data_type = loader.options().data_type;
-    let part = |build: fn(&mut Schema<'_>, &AutoencoderKlConfig) -> SingeResult<Half>| -> Result<Model<Sequential>> {
-        let mut builder = StateBuilder::new();
-        let half = {
-            let mut schema = Schema::root(&mut builder, data_type);
-            build(&mut schema, &config)?
-        };
-        Ok(Model::new(Sequential::new().with(half), builder.finish()?))
-    };
-    let encoder = loader.load("encoder", &part(encoder)?, &diffusers::encoder_rules())?;
-    let decoder = loader.load("decoder", &part(decoder)?, &diffusers::decoder_rules())?;
+    let encoder = Schema::model(data_type, |schema| {
+        Encoder::create(schema, &config).map(|encoder| Sequential::new().with(encoder))
+    })?;
+    let decoder = Schema::model(data_type, |schema| {
+        Decoder::create(schema, &config).map(|decoder| Sequential::new().with(decoder))
+    })?;
+    let encoder = loader.load("encoder", &encoder, &diffusers::encoder_rules())?;
+    let decoder = loader.load("decoder", &decoder, &diffusers::decoder_rules())?;
     loader.finish()?;
     Ok(Autoencoder::new(encoder, decoder).with_distribution(config.latent_channels))
 }

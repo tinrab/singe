@@ -4,6 +4,7 @@
       "name": "sentiment",
       "snapshot": "DISTILBERT_SST2",
       "task": "text-classification",
+      "data_type": "f32",
       "inputs": [
         "I loved this game, launching the rocket was wonderful.",
         "The train network deadlocked and the grind was far too long."
@@ -38,6 +39,7 @@
       "name": "zero-shot",
       "snapshot": "DISTILBERT_MNLI",
       "task": "zero-shot-classification",
+      "data_type": "f32",
       "inputs": [
         {
           "sequences": "One day I will launch a rocket into space.",
@@ -56,6 +58,7 @@
       "name": "zero-shot-multi-label",
       "snapshot": "DISTILBERT_MNLI",
       "task": "zero-shot-classification",
+      "data_type": "f32",
       "inputs": [
         {
           "sequences": "One day I will launch a rocket into space.",
@@ -78,6 +81,7 @@
       "name": "entities-simple",
       "snapshot": "DISTILBERT_NER",
       "task": "token-classification",
+      "data_type": "f32",
       "inputs": ["Michal Kovařík leads Wube Software from Prague."],
       "parameters": {
         "aggregation_strategy": "simple"
@@ -126,6 +130,7 @@
       "name": "entities-first",
       "snapshot": "DISTILBERT_NER",
       "task": "token-classification",
+      "data_type": "f32",
       "inputs": ["Michal Kovařík leads Wube Software from Prague."],
       "parameters": {
         "aggregation_strategy": "first"
@@ -160,6 +165,7 @@
       "name": "answers",
       "snapshot": "DISTILBERT_SQUAD",
       "task": "question-answering",
+      "data_type": "f32",
       "inputs": [
         {
           "question": "Where do I build factories?",
@@ -227,6 +233,7 @@
       "name": "answers-bf16",
       "snapshot": "DISTILBERT_SQUAD",
       "task": "question-answering",
+      "data_type": "bf16",
       "inputs": [
         {
           "question": "Where do I build factories?",
@@ -252,13 +259,13 @@
             "answer": "on Nauvis"
           }
         ]
-      ],
-      "loose": true
+      ]
     },
     {
       "name": "answers-small-windows",
       "snapshot": "DISTILBERT_SQUAD",
       "task": "question-answering",
+      "data_type": "f32",
       "inputs": [
         {
           "question": "Who built the first rocket silo?",
@@ -309,6 +316,7 @@
       "name": "fill",
       "snapshot": "DISTILBERT_BASE",
       "task": "fill-mask",
+      "data_type": "f32",
       "inputs": [
         "The factory must [MASK].",
         "The engineer placed a [MASK] belt next to the furnace."
@@ -385,6 +393,7 @@
       "name": "similarity-max",
       "snapshot": "DISTILBERT_MAX_POOLING",
       "task": "sentence-similarity",
+      "data_type": "f32",
       "inputs": [
         {
           "source_sentence": "An engineer is placing a transport belt.",

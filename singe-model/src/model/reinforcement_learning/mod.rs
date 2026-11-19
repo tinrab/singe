@@ -2,6 +2,6 @@
 
 pub mod decision_transformer;
 
-use super::ModelEntry;
+use crate::model::ModelEntry;
 
 pub(crate) const MODELS: &[&ModelEntry] = &[&decision_transformer::MODEL];

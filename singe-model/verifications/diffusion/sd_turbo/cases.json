@@ -4,6 +4,7 @@
       "name": "generation",
       "snapshot": "SD_TURBO",
       "task": "text-to-image",
+      "data_type": "f16",
       "inputs": [
         {
           "prompt": "an isometric factory with conveyor belts and smelting furnaces",

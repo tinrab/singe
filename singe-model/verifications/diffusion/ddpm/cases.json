@@ -4,6 +4,7 @@
       "name": "generation",
       "snapshot": "DDPM",
       "task": "unconditional-image-generation",
+      "data_type": "f32",
       "inputs": [
         {
           "seed": 0

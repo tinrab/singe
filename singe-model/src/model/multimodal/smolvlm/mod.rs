@@ -9,17 +9,21 @@ use std::iter;
 use serde::{Deserialize, Serialize};
 use singe::{
     DataType, Device, Error as SingeError, Result as SingeResult, Shape, Tensor,
-    generation::{CachedDecoder, DecoderOptions, GenerationOptions, generate_batch},
+    generation::{CachedDecoder, GenerationOptions, generate_batch},
     nn::{
-        Conv2dConfig, GatedMlp, GroupedQueryAttention, Layer, Linear, Model, ModelState,
-        PatchEmbedding, PatchTokens, PreNormBlock, SourcedCausalLm, StateBuilder,
+        GatedMlp, GroupedQueryAttention, Layer, Linear, Model, ModelState, PatchTokens,
+        PreNormBlock, SourcedCausalLm,
     },
 };
 
 pub use self::processor::{SmolVlmProcessor, VideoSampling};
 use crate::{
     BatchOptions,
-    assembly::{DecoderConfig, PreNormEncoder, PreNormEncoderSpec, causal, grouped_decoder_parts},
+    assembly::{
+        DecoderConfig, FinalNorm, PreNormEncoder, VisionTowerConfig, causal, grouped_decoder,
+        patch_embedding,
+    },
+    decoder_cache::{DecoderKey, Decoders},
     error::Result,
     format::Loader,
     head::{HeadLoader, ImageTextToText, LoopLimits, LoopSteps},
@@ -31,11 +35,7 @@ use crate::{
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SmolVlmVisionConfig {
-    pub encoder: PreNormEncoderSpec,
-    pub layers: i64,
-    pub image_size: i64,
-    pub patch_size: i64,
-    pub channels: i64,
+    pub tower: VisionTowerConfig,
     // The side of each square of patches the pixel shuffle folds into one row.
     pub scale: i64,
 }
@@ -66,31 +66,23 @@ impl SmolVlmVision {
         config: &SmolVlmVisionConfig,
         out_width: i64,
     ) -> SingeResult<Self> {
-        let width = config.encoder.width;
-        let side = config.image_size / config.patch_size;
+        let tower = &config.tower;
+        let width = tower.encoder.width;
         let embeddings = {
             let mut schema = schema.scope("embeddings");
-            let patches = schema.conv2d(
-                "patches",
-                config.channels,
-                width,
-                config.patch_size,
-                Conv2dConfig {
-                    stride: (config.patch_size, config.patch_size),
-                    ..Conv2dConfig::default()
-                },
-                true,
-            )?;
-            PatchTokens::new(PatchEmbedding::new(patches))
-                .with_positions(schema.parameter("positions", [1, side * side, width])?)
+            let patches =
+                patch_embedding(&mut schema, tower.channels, width, tower.patch_size, true)?;
+            PatchTokens::new(patches)
+                .with_positions(schema.parameter("positions", [1, tower.patches(), width])?)
         };
-        let encoder = PreNormEncoder::create(schema, &config.encoder, config.layers, true)?;
+        let encoder =
+            PreNormEncoder::create(schema, &tower.encoder, tower.layers, FinalNorm::Included)?;
         let folded = width * config.scale * config.scale;
         Ok(Self {
             embeddings,
             encoder,
             connector: schema.linear("connector", folded, out_width, false)?,
-            side,
+            side: tower.side(),
             scale: config.scale,
         })
     }
@@ -102,8 +94,9 @@ impl Layer for SmolVlmVision {
         let hidden = self
             .encoder
             .forward(&input.apply(&self.embeddings, state)?, state)?;
-        let dimensions = hidden.shape().dimensions();
-        let (tiles, width) = (dimensions[0], dimensions[2]);
+        let &[tiles, _, width] = hidden.shape().dimensions() else {
+            return Err(SingeError::invalid_argument("the vision tower's states"));
+        };
         let (side, scale) = (self.side, self.scale);
         // `transformers`' `pixel_shuffle`: each `scale × scale` square of patches becomes one row of their features side by side.
         hidden
@@ -127,54 +120,17 @@ pub struct SmolVlm {
     vision: Model<SmolVlmVision>,
     decoder: Model<SmolVlmDecoder>,
     device: Device,
-}
-
-pub(crate) const MODEL: ModelEntry = ModelEntry {
-    name: "smolvlm",
-    formats: &[(Format::Transformers, &["smolvlm"])],
-    heads: &[HeadLoader::ImageTextToText(|loader| {
-        Ok(Box::new(load(loader)?))
-    })],
-};
-
-// Loads the vision tower, as part `vision`, and the decoder reading its rows, as part `decoder`.
-pub fn load(loader: &mut Loader<'_>) -> Result<SmolVlm> {
-    let config: SmolVlmConfig = loader.config(transformers::config)?;
-    let data_type = loader.options().data_type;
-    let mut builder = StateBuilder::new();
-    let vision = {
-        let mut schema = Schema::root(&mut builder, data_type);
-        SmolVlmVision::create(&mut schema, &config.vision, config.text.width)?
-    };
-    let vision = loader.load(
-        "vision",
-        &Model::new(vision, builder.finish()?),
-        &transformers::vision_rules(
-            "model.vision_model",
-            "model.connector.modality_projection.proj",
-        ),
-    )?;
-    let (text, state) = grouped_decoder_parts(&config.text, data_type, causal())?;
-    let schema = Model::new(
-        SourcedCausalLm::new(text, config.image_token_id, config.text.width),
-        state,
-    );
-    let decoder = loader.load("decoder", &schema, &transformers::decoder_rules())?;
-    loader.finish()?;
-    Ok(SmolVlm {
-        config,
-        vision,
-        decoder,
-        device: loader.options().device,
-    })
+    decoders: Decoders<DecoderKey, CachedDecoder<SmolVlmDecoder>>,
 }
 
 impl SmolVlm {
     // Encodes tiles, `[N, C, S, S]` normalized, into their image tokens' rows, `[N · R, W]`.
     pub fn encode(&self, tiles: &Tensor) -> Result<Tensor> {
         let rows = self.vision.forward(tiles)?;
-        let dimensions = rows.shape().dimensions();
-        Ok(rows.reshape([dimensions[0] * dimensions[1], dimensions[2]])?)
+        let &[count, per_tile, width] = rows.shape().dimensions() else {
+            return Err(SingeError::invalid_argument("the vision tower's rows").into());
+        };
+        Ok(rows.reshape([count * per_tile, width])?)
     }
 
     // Generates after `tokens`, writing `rows`, `[N, W]`, in place of its image tokens in order.
@@ -191,7 +147,9 @@ impl SmolVlm {
             .filter(|&(_, &token)| token == image)
             .map(|(place, _)| i64::try_from(place).map_err(|_| SingeError::out_of_range("prompt")))
             .collect::<SingeResult<Vec<_>>>()?;
-        let count = rows.shape().dimensions()[0];
+        let &[count, _] = rows.shape().dimensions() else {
+            return Err(SingeError::invalid_argument("an image's rows").into());
+        };
         if i64::try_from(places.len()).ok() != Some(count) {
             return Err(SingeError::invalid_argument(format!(
                 "a prompt of {} image tokens for {count} image rows",
@@ -201,26 +159,34 @@ impl SmolVlm {
         }
 
         let places = Tensor::from_vec(self.device, Shape::create([count])?, places)?;
-        let mut decoder = options.decoder(&self.decoder, iter::once(tokens.len()))?;
-        let mut generated = generate_batch(
-            &mut decoder,
-            &[tokens],
-            &options.generation,
-            None,
-            |decoder, row, _| {
-                SmolVlmDecoder::write_sources_at(decoder.caches(), row, &places, rows)
+        let mut generated = options.run_decoder(
+            &self.decoders,
+            &self.decoder,
+            options.decoder_options(iter::once(tokens.len())),
+            |decoder| {
+                generate_batch(
+                    decoder,
+                    &[tokens],
+                    &options.generation,
+                    None,
+                    |decoder, row, _| {
+                        SmolVlmDecoder::write_sources_at(decoder.caches(), row, &places, rows)
+                    },
+                    |_, _| Ok(()),
+                )
             },
-            |_, _| Ok(()),
         )?;
         Ok(generated.pop().unwrap_or_default())
+    }
+
+    fn vision_type(&self) -> Result<DataType> {
+        Ok(self.vision.state().floating_type()?)
     }
 }
 
 impl ImageTextToText for SmolVlm {
     fn loop_steps(&self, limits: &LoopLimits, generation: &GenerationOptions) -> Result<LoopSteps> {
-        let decoder =
-            CachedDecoder::create(&self.decoder, DecoderOptions::new(1, limits.capacity))?;
-        LoopSteps::create(&decoder, None, generation, Some(limits.prompt_rows))
+        LoopSteps::one_sequence(&self.decoder, limits, generation, |_| Ok(None))
     }
 
     fn image_token(&self) -> i64 {
@@ -239,7 +205,7 @@ impl ImageTextToText for SmolVlm {
         let mut tiles = Vec::new();
         let mut expansions = Vec::new();
         for image in images {
-            let (cut, grid) = processor.tiles(image);
+            let (cut, grid) = processor.tiles(image)?;
             expansions.push(processor.image_prompt(grid));
             tiles.extend(cut);
         }
@@ -272,8 +238,40 @@ impl ImageTextToText for SmolVlm {
     }
 }
 
-impl SmolVlm {
-    fn vision_type(&self) -> Result<DataType> {
-        Ok(self.vision.state().floating_type()?)
-    }
+pub(crate) const MODEL: ModelEntry = ModelEntry {
+    name: "smolvlm",
+    formats: &[(Format::Transformers, &["smolvlm"])],
+    loaders: &[HeadLoader::ImageTextToText(|loader| {
+        Ok(Box::new(load(loader)?))
+    })],
+};
+
+// Loads the vision tower, as part `vision`, and the decoder reading its rows, as part `decoder`.
+pub fn load(loader: &mut Loader<'_>) -> Result<SmolVlm> {
+    let config: SmolVlmConfig = loader.config(transformers::config)?;
+    let data_type = loader.options().data_type;
+    let vision = Schema::model(data_type, |schema| {
+        SmolVlmVision::create(schema, &config.vision, config.text.width)
+    })?;
+    let vision = loader.load(
+        "vision",
+        &vision,
+        &transformers::vision_rules(
+            "model.vision_model",
+            "model.connector.modality_projection.proj",
+        ),
+    )?;
+    let decoder = Schema::model(data_type, |schema| {
+        grouped_decoder(schema, &config.text, causal())
+            .map(|text| SourcedCausalLm::new(text, config.image_token_id, config.text.width))
+    })?;
+    let decoder = loader.load("decoder", &decoder, &transformers::decoder_rules())?;
+    loader.finish()?;
+    Ok(SmolVlm {
+        config,
+        vision,
+        decoder,
+        device: loader.options().device,
+        decoders: Decoders::default(),
+    })
 }

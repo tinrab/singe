@@ -1,24 +1,19 @@
-"""SuperPoint, detecting and describing keypoints with `transformers`' image processor, model, and `post_process_keypoint_detection`, which `transformers` has no pipeline for, as `verify.rs` detects them in Singe."""
+"""SuperPoint, detecting and describing keypoints with `transformers`' image processor, model, and `post_process_keypoint_detection`, which `transformers` has no pipeline for, as `mod.rs` detects them in Singe."""
 
-import sys
-from pathlib import Path
+import torch
+from PIL import Image
+from transformers import AutoImageProcessor, SuperPointForKeypointDetection
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-
-import torch  # noqa: E402
-from PIL import Image  # noqa: E402
-from transformers import AutoImageProcessor, SuperPointForKeypointDetection  # noqa: E402
-
-from support import DEVICE, Verification  # noqa: E402
+from support import DEVICE, Verification
 
 # The keypoints whose descriptors a case records, the first of each image's, to keep `cases.json` small.
 DESCRIBED = 16
 
 
-def keypoint_detection(snapshot):
+def keypoint_detection(snapshot, dtype):
     processor = AutoImageProcessor.from_pretrained(snapshot)
     model = (
-        SuperPointForKeypointDetection.from_pretrained(snapshot, dtype=torch.float32)
+        SuperPointForKeypointDetection.from_pretrained(snapshot, dtype=dtype)
         .to(DEVICE)
         .eval()
     )

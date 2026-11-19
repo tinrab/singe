@@ -96,28 +96,19 @@ impl CublasLtMatrixLayout {
     pub(crate) fn create_for_layout(shape: &Layout, name: &str) -> Result<Self> {
         let dimensions = shape.dimensions();
         let strides = shape.strides();
-        if dimensions.len() < 2 || dimensions.len() != strides.len() {
+        let (&[ref batch @ .., matrix_rows, matrix_columns], true) =
+            (dimensions, dimensions.len() == strides.len())
+        else {
             return Err(Error::unsupported_operation(format!(
                 "cuda graph cuBLASLt {name} only supports rank-2 matrices or strided batches"
             )));
-        }
+        };
 
-        if shape.storage_offset() != 0 {
-            return Err(Error::unsupported_operation(format!(
-                "cuda graph cuBLASLt {name} does not support non-zero storage offsets"
-            )));
-        }
-
-        let matrix_dimension_offset = dimensions.len() - 2;
-        let batch_count = cublaslt_batch_count(&dimensions[..matrix_dimension_offset])?;
-        let rows = to_u64(
-            dimensions[matrix_dimension_offset],
-            "cuda graph cuBLASLt matrix rows",
-        )?;
-        let cols = to_u64(
-            dimensions[matrix_dimension_offset + 1],
-            "cuda graph cuBLASLt matrix columns",
-        )?;
+        // An offset needs nothing here: operands' regions start at it (`CudaGraphValue::region`).
+        let (batch_strides, matrix_strides) = strides.split_at(batch.len());
+        let batch_count = cublaslt_batch_count(batch)?;
+        let rows = to_u64(matrix_rows, "cuda graph cuBLASLt matrix rows")?;
+        let cols = to_u64(matrix_columns, "cuda graph cuBLASLt matrix columns")?;
         let matrix_element_count =
             checked_mul_u64(rows, cols, "cuda graph cuBLASLt matrix element count")?;
         let element_count = to_usize(
@@ -138,32 +129,26 @@ impl CublasLtMatrixLayout {
         } else {
             0
         };
-        let is_valid_batch_stride = cublaslt_batch_prefix_is_contiguous(
-            &dimensions[..matrix_dimension_offset],
-            &strides[..matrix_dimension_offset],
-            expected_batch_stride,
-        )?;
-        let matrix_strides = &strides[matrix_dimension_offset..];
-        if is_valid_batch_stride && matrix_strides == [dimensions[matrix_dimension_offset + 1], 1] {
+        let is_valid_batch_stride =
+            cublaslt_batch_prefix_is_contiguous(batch, batch_strides, expected_batch_stride)?;
+        if is_valid_batch_stride && matrix_strides == [matrix_columns, 1] {
             Ok(Self::new(
                 CublasOperation::NonTranspose,
                 rows,
                 cols,
-                dimensions[matrix_dimension_offset + 1],
+                matrix_columns,
                 batch_count,
                 strided_batch_offset,
                 rows,
                 cols,
                 element_count,
             ))
-        } else if is_valid_batch_stride
-            && matrix_strides == [1, dimensions[matrix_dimension_offset]]
-        {
+        } else if is_valid_batch_stride && matrix_strides == [1, matrix_rows] {
             Ok(Self::new(
                 CublasOperation::Transpose,
                 cols,
                 rows,
-                dimensions[matrix_dimension_offset],
+                matrix_rows,
                 batch_count,
                 strided_batch_offset,
                 rows,
@@ -171,7 +156,7 @@ impl CublasLtMatrixLayout {
                 element_count,
             ))
         } else {
-            let details = if dimensions.len() == 2 {
+            let details = if batch.is_empty() {
                 format!(
                     "cuda graph cuBLASLt {name} supports only contiguous or transposed-contiguous rank-2 layouts"
                 )
@@ -198,14 +183,16 @@ impl CublasLtMatmulOutputLayout {
         let cols_i64 = to_i64(cols, "cuda graph cuBLASLt output columns")?;
         let dimensions = shape.dimensions();
         let strides = shape.strides();
-        if dimensions.len() < 2 || dimensions.len() != strides.len() {
+        let (&[ref batch @ .., matrix_rows, matrix_columns], true) =
+            (dimensions, dimensions.len() == strides.len())
+        else {
             return Err(Error::unsupported_operation(
                 "cuda graph cuBLASLt output supports only rank-2 matrices or strided batches",
             ));
-        }
+        };
 
-        let matrix_dimension_offset = dimensions.len() - 2;
-        let actual_batch_count = cublaslt_batch_count(&dimensions[..matrix_dimension_offset])?;
+        let (batch_strides, matrix_strides) = strides.split_at(batch.len());
+        let actual_batch_count = cublaslt_batch_count(batch)?;
         if actual_batch_count != batch_count {
             return Err(Error::length_mismatch(
                 "cublaslt matmul output batch count",
@@ -214,10 +201,8 @@ impl CublasLtMatmulOutputLayout {
             ));
         }
 
-        if dimensions[matrix_dimension_offset] != rows_i64
-            || dimensions[matrix_dimension_offset + 1] != cols_i64
-        {
-            let mut expected_dimensions = dimensions[..matrix_dimension_offset].to_vec();
+        if matrix_rows != rows_i64 || matrix_columns != cols_i64 {
+            let mut expected_dimensions = batch.to_vec();
             expected_dimensions.push(rows_i64);
             expected_dimensions.push(cols_i64);
             return Err(Error::shape_mismatch(
@@ -237,19 +222,16 @@ impl CublasLtMatmulOutputLayout {
                 matrix_element_count,
                 "cuda graph cuBLASLt output batch stride",
             )?;
-            let batch_prefix_is_contiguous = cublaslt_batch_prefix_is_contiguous(
-                &dimensions[..matrix_dimension_offset],
-                &strides[..matrix_dimension_offset],
-                expected_stride,
-            )?;
-            if !batch_prefix_is_contiguous || strides[matrix_dimension_offset..] != [cols_i64, 1] {
+            let batch_prefix_is_contiguous =
+                cublaslt_batch_prefix_is_contiguous(batch, batch_strides, expected_stride)?;
+            if !batch_prefix_is_contiguous || matrix_strides != [cols_i64, 1] {
                 return Err(Error::unsupported_operation(
                     "cuda graph cuBLASLt output supports only contiguous strided-batch layouts",
                 ));
             }
             expected_stride
         } else {
-            if strides[matrix_dimension_offset..] != [cols_i64, 1] {
+            if matrix_strides != [cols_i64, 1] {
                 return Err(Error::unsupported_operation(
                     "cuda graph cuBLASLt output supports only contiguous rank-2 layouts",
                 ));

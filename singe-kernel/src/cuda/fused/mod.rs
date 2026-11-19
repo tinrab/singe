@@ -4126,10 +4126,6 @@ pub use self::normalization::*;
 ))]
 pub use self::ternary::*;
 
-#[expect(
-    clippy::similar_names,
-    reason = "query, key, and value operands and their tensor layouts follow the mathematical kernel notation"
-)]
 fn validate_kv_cache_sliding_window_append(
     k_cache_len: usize,
     v_cache_len: usize,

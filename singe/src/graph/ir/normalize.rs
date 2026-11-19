@@ -30,10 +30,6 @@ struct TopKResults {
 impl Graph {
     /// Construction still permits individual result projections.
     /// Lower them into one schema invocation before any execution or provider analysis.
-    #[expect(
-        clippy::too_many_lines,
-        reason = "the normalization pass keeps its ordered graph rewrites in one traversal"
-    )]
     pub(crate) fn normalize_results(&mut self) -> Result<()> {
         let mut groups = Vec::<TopKResults>::new();
         let mut candidates = HashMap::<TopKKey, Vec<usize>>::new();

@@ -2,10 +2,16 @@ use super::*;
 
 #[test]
 fn test_graph_fingerprint_ignores_pruned_dead_node_ids() {
-    fn live_scale_graph(with_dead_prefix: bool) -> Graph {
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    enum Prefix {
+        Empty,
+        DeadNode,
+    }
+
+    fn live_scale_graph(prefix: Prefix) -> Graph {
         let shape = Shape::create(vec![2]).unwrap();
         let mut graph = Graph::new();
-        if with_dead_prefix {
+        if prefix == Prefix::DeadNode {
             let dead =
                 graph.add_constant(Tensor::zeroed_on(Device::Cpu, DataType::F32, &shape).unwrap());
             let output = Tensor::zeroed_on(Device::Cpu, DataType::F32, &shape).unwrap();
@@ -20,14 +26,14 @@ fn test_graph_fingerprint_ignores_pruned_dead_node_ids() {
         graph
     }
 
-    fn live_graph_local_constant_graph(with_dead_prefix: bool) -> Graph {
+    fn live_graph_local_constant_graph(prefix: Prefix) -> Graph {
         let shape = Shape::create(vec![2, 2]).unwrap();
         let constant = Tensor::from_vec(Device::Cpu, &shape, vec![1.0_f32, 2.0, 3.0, 4.0])
             .unwrap()
             .transpose(0, 1)
             .unwrap();
         let mut graph = Graph::new();
-        if with_dead_prefix {
+        if prefix == Prefix::DeadNode {
             let dead =
                 graph.add_constant(Tensor::zeroed_on(Device::Cpu, DataType::F32, &shape).unwrap());
             let output = Tensor::zeroed_on(Device::Cpu, DataType::F32, &shape).unwrap();
@@ -40,16 +46,18 @@ fn test_graph_fingerprint_ignores_pruned_dead_node_ids() {
     }
 
     assert_eq!(
-        live_scale_graph(false).fingerprint().unwrap(),
-        live_scale_graph(true).fingerprint().unwrap()
+        live_scale_graph(Prefix::Empty).fingerprint().unwrap(),
+        live_scale_graph(Prefix::DeadNode).fingerprint().unwrap()
     );
-    let graph_local = live_graph_local_constant_graph(false)
+    let graph_local = live_graph_local_constant_graph(Prefix::Empty)
         .fingerprint()
         .unwrap();
     assert!(!graph_local.is_cacheable());
     assert_eq!(
         graph_local,
-        live_graph_local_constant_graph(true).fingerprint().unwrap()
+        live_graph_local_constant_graph(Prefix::DeadNode)
+            .fingerprint()
+            .unwrap()
     );
 }
 

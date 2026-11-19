@@ -1,26 +1,18 @@
 // Reads a `transformers` DeepSeek-V3 config, and imports its checkpoint.
 
 use serde::Deserialize;
-use singe::nn::Activation;
+use singe::nn::{Activation, RotaryLayout};
 
-use super::{DeepseekV3Config, ExpertsConfig, LatentAttentionConfig};
 use crate::{
-    assembly::{DecoderConfig, expert_rules, llama_rules},
+    assembly::{DecoderConfig, ExpertRouting, ExpertsConfig, expert_rules, llama_rules},
     error::{Error, Result},
     format::{
         Rules,
-        transformers::{DecoderDefaults, DecoderFields},
+        transformers::{DecoderDefaults, DecoderFields, default_true},
     },
+    model::text::deepseek_v3::{DeepseekV3Config, LatentAttentionConfig},
     source::Source,
 };
-
-const fn default_interleave() -> bool {
-    true
-}
-
-const fn default_true() -> bool {
-    true
-}
 
 const fn default_one() -> i64 {
     1
@@ -70,7 +62,7 @@ struct Fields {
     qk_nope_head_dim: i64,
     v_head_dim: i64,
     first_k_dense_replace: i64,
-    #[serde(default = "default_interleave")]
+    #[serde(default = "default_true")]
     rope_interleave: bool,
     #[serde(default = "default_moe_intermediate")]
     moe_intermediate_size: i64,
@@ -161,6 +153,11 @@ pub(crate) fn config(source: &Source) -> Result<DeepseekV3Config> {
     let decoder = DecoderConfig {
         head_dim: fields.qk_nope_head_dim + fields.qk_rope_head_dim,
         rotary_dim: fields.qk_rope_head_dim,
+        rotary_layout: if fields.rope_interleave {
+            RotaryLayout::Interleaved
+        } else {
+            RotaryLayout::HalfSplit
+        },
         ..fields.decoder.config(DecoderDefaults {
             tied: false,
             head_dim: None,
@@ -173,46 +170,47 @@ pub(crate) fn config(source: &Source) -> Result<DeepseekV3Config> {
             latent_dim: fields.kv_lora_rank,
             key_dim: fields.qk_nope_head_dim,
             value_dim: fields.v_head_dim,
-            interleaved: fields.rope_interleave,
         },
         dense_blocks: fields.first_k_dense_replace,
         experts: ExpertsConfig {
             count: fields.n_routed_experts,
+            top_k: fields.num_experts_per_tok,
             inner: fields.moe_intermediate_size,
             shared_inner: fields.moe_intermediate_size * fields.n_shared_experts,
-            top_k: fields.num_experts_per_tok,
-            groups: fields.n_group,
-            kept_groups: fields.topk_group,
-            scale: fields.routed_scaling_factor,
+            routing: ExpertRouting::Grouped {
+                groups: fields.n_group,
+                kept_groups: fields.topk_group,
+                scale: fields.routed_scaling_factor,
+            },
         },
     })
 }
 
 // Rules for latent attention, routers, and shared experts go before the experts' and Llama's, which import the rest.
 pub(crate) fn rules(config: &DeepseekV3Config) -> Rules {
-    let layer = |name: &str| format!("model.layers.*.{name}");
-    // The checkpoints store a multi-token-prediction layer after the last block, which `transformers` leaves unread.
-    let draft = Rules::new().skip(&format!("model.layers.{}", config.decoder.layers));
-    [
-        ("self_attn.q_a_proj", "attention.query_compress"),
-        ("self_attn.q_a_layernorm", "attention.query_latent_norm"),
-        ("self_attn.q_b_proj", "attention.query_expand"),
-        ("self_attn.kv_a_proj_with_mqa", "attention.latent_compress"),
-        ("self_attn.kv_a_layernorm", "attention.latent_norm"),
-        ("self_attn.kv_b_proj", "attention.latent_expand"),
-        ("mlp.gate.weight", "feed_forward.router.weight"),
-        (
-            "mlp.gate.e_score_correction_bias",
-            "feed_forward.router.bias",
-        ),
-        ("mlp.shared_experts.gate_proj", "feed_forward.shared.gate"),
-        ("mlp.shared_experts.up_proj", "feed_forward.shared.up"),
-        ("mlp.shared_experts.down_proj", "feed_forward.shared.down"),
-    ]
-    .into_iter()
-    .fold(draft, |rules, (name, target)| {
-        rules.rename(&layer(name), &format!("blocks.*.{target}"))
-    })
-    .then(expert_rules("model", config.experts.inner))
-    .then(llama_rules("model"))
+    Rules::new()
+        // The checkpoints store a multi-token-prediction layer after the last block, which `transformers` leaves unread.
+        .skip(&format!("model.layers.{}", config.decoder.layers))
+        .rename_each(
+            "model.layers.*",
+            "blocks.*",
+            &[
+                ("self_attn.q_a_proj", "attention.query_compress"),
+                ("self_attn.q_a_layernorm", "attention.query_latent_norm"),
+                ("self_attn.q_b_proj", "attention.query_expand"),
+                ("self_attn.kv_a_proj_with_mqa", "attention.latent_compress"),
+                ("self_attn.kv_a_layernorm", "attention.latent_norm"),
+                ("self_attn.kv_b_proj", "attention.latent_expand"),
+                ("mlp.gate.weight", "feed_forward.router.weight"),
+                (
+                    "mlp.gate.e_score_correction_bias",
+                    "feed_forward.router.bias",
+                ),
+                ("mlp.shared_experts.gate_proj", "feed_forward.shared.gate"),
+                ("mlp.shared_experts.up_proj", "feed_forward.shared.up"),
+                ("mlp.shared_experts.down_proj", "feed_forward.shared.down"),
+            ],
+        )
+        .then(expert_rules("model", config.experts.inner))
+        .then(llama_rules("model"))
 }

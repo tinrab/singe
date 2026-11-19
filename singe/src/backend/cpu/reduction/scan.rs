@@ -33,7 +33,7 @@ impl Slices {
                     inner: 1,
                 })
             } else {
-                Err(Error::DimensionOutOfBounds)
+                Err(Error::dimension_out_of_bounds(context))
             };
         }
 

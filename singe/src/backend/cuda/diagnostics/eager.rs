@@ -54,6 +54,7 @@ pub fn eager_operation_error(
         operation: operation_name(operation).into(),
         target: UnsupportedTarget::DataType,
         details: details.into(),
+        source: None,
     }
 }
 

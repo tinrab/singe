@@ -127,6 +127,30 @@ pub fn rms_norm(
     )
 }
 
+// Resamples one axis in one generated kernel, and decomposes what the kernel does not take.
+pub fn resample_linear(
+    input: &Tensor,
+    dim: i64,
+    low: &Tensor,
+    high: &Tensor,
+    weight: &Tensor,
+) -> Result<Tensor> {
+    generated_or_decomposed(
+        Operation::ResampleLinear,
+        &OperationAttributes::Dimension(dim),
+        &[input, low, high, weight],
+    )
+}
+
+// Rotates the halves of each head in one generated kernel, and decomposes what the kernel does not take.
+pub fn rotary_halves(input: &Tensor, cos: &Tensor, sin: &Tensor) -> Result<Tensor> {
+    generated_or_decomposed(
+        Operation::RotaryHalves,
+        &OperationAttributes::None,
+        &[input, cos, sin],
+    )
+}
+
 // Rotates every pair of each head in one generated kernel, and decomposes rotations of part of a head.
 pub fn rotary_embedding(input: &Tensor, cos: &Tensor, sin: &Tensor) -> Result<Tensor> {
     // A rotation of no pairs leaves every value as it is.
@@ -134,35 +158,39 @@ pub fn rotary_embedding(input: &Tensor, cos: &Tensor, sin: &Tensor) -> Result<Te
         return input.copy();
     }
 
-    let inputs = [input, cos, sin];
-    match kernel_plan::execute(
+    generated_or_decomposed(
         Operation::RotaryEmbedding,
         &OperationAttributes::None,
-        &inputs,
-    ) {
-        Ok(output) => Ok(output),
-        Err(_) => decomposition::decompose(
-            Operation::RotaryEmbedding,
-            &OperationAttributes::None,
-            &inputs,
-        )?
-        .pop()
-        .ok_or_else(|| Error::missing_output("rotary embedding")),
+        &[input, cos, sin],
+    )
+}
+
+fn generated_or_decomposed(
+    operation: Operation,
+    attributes: &OperationAttributes,
+    inputs: &[&Tensor],
+) -> Result<Tensor> {
+    match kernel_plan::execute(operation, attributes, inputs) {
+        Err(Error::Unsupported { .. }) => decomposition::decompose(operation, attributes, inputs)?
+            .pop()
+            .ok_or_else(|| Error::missing_output("generated or decomposed")),
+        result => result,
     }
 }
 
 // The head width the fused kernel would take attention of these operands at, when their own is not a multiple of 16 but pads to one within its 128: half-precision `[B, H, L, D]` queries over keys and values of one shape and width.
-fn padded_head(query: &Tensor, key: &Tensor, value: &Tensor) -> Option<i64> {
-    let (q, k) = (query.shape().dimensions(), key.shape().dimensions());
-    let width = *q.get(3)?;
+fn padded_head(query: &Tensor, key: &Tensor, value: &Tensor) -> Option<(i64, i64)> {
+    let (&[_, _, _, width], &[_, _, _, key_width]) =
+        (query.shape().dimensions(), key.shape().dimensions())
+    else {
+        return None;
+    };
     (matches!(query.data_type(), DataType::F16 | DataType::Bf16)
-        && q.len() == 4
-        && k.len() == 4
         && key.shape() == value.shape()
-        && k[3] == width
+        && key_width == width
         && width % 16 != 0
         && width < 128)
-        .then(|| width.div_euclid(16) * 16 + 16)
+        .then(|| (width, width.div_euclid(16) * 16 + 16))
 }
 
 pub fn scaled_dot_product_attention(
@@ -181,11 +209,9 @@ pub fn scaled_dot_product_attention(
         .chain(key_lengths)
         .collect::<Vec<_>>();
     ensure_cuda_eager_same_device_inputs(query, &inputs[1..])?;
-    if let Some(padded) = padded_head(query, key, value) {
+    if let Some((width, padded)) = padded_head(query, key, value) {
         // Zeros past a head leave `q kᵀ` as it is and give zero outputs, so the head pads to the fused kernel's widths, scaled by its own width, and is cut back after.
-        let width = query.shape().dimensions()[3];
         let pad = |tensor: &Tensor| tensor.pad(&[(0, 0), (0, 0), (0, 0), (0, padded - width)], 0.0);
-        #[expect(clippy::cast_precision_loss, reason = "head widths are below 128")]
         let scale = attention
             .scale
             .unwrap_or_else(|| 1.0 / (width as f32).sqrt());

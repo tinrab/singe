@@ -226,10 +226,12 @@ fn plan(
         for (position, value) in positions.iter_mut().zip(values) {
             let value = if value < 0 { value + size } else { value };
             if !(0..size).contains(&value) {
-                return Err(Error::IndexOutOfBounds);
+                return Err(Error::index_out_of_bounds("multi-index position"));
             }
 
-            *position += usize::try_from(value).map_err(|_| Error::IndexOutOfBounds)? * scale;
+            *position += usize::try_from(value)
+                .map_err(|_| Error::index_out_of_bounds("multi-index position"))?
+                * scale;
         }
 
         scale *= to_usize(size, "index dimension")?;

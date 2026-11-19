@@ -4,6 +4,7 @@
       "name": "printed",
       "snapshot": "TROCR",
       "task": "image-to-text",
+      "data_type": "f32",
       "inputs": ["media/printed-line.png"],
       "parameters": {
         "max_new_tokens": 24

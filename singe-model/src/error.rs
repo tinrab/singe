@@ -4,6 +4,7 @@ use std::{
     result::Result as StdResult,
 };
 
+use image::ImageError;
 use serde_json::Error as JsonError;
 use singe::Error as SingeError;
 use thiserror::Error;
@@ -14,28 +15,40 @@ use tokenizers::Error as TokenizerError;
 pub enum Error {
     #[error(transparent)]
     Singe(#[from] SingeError),
-    #[error("failed to read model config")]
-    ConfigIo(#[source] IoError),
-    #[error("failed to parse model config")]
-    ConfigFormat(#[source] JsonError),
     #[error("failed to access {}", path.display())]
     Io {
         path: PathBuf,
         #[source]
         source: IoError,
     },
-    #[error("failed to {what}")]
+    #[error("failed to parse {}", path.display())]
     Json {
+        path: PathBuf,
+        #[source]
+        source: JsonError,
+    },
+    #[error("failed to {what}")]
+    JsonValue {
         what: &'static str,
         #[source]
         source: JsonError,
     },
     #[error("unsupported model config: {0}")]
     UnsupportedConfig(String),
+    #[error("invalid input: {0}")]
+    InvalidInput(String),
     #[error("checkpoint tensors no rule maps: {0:?}")]
     UnmappedTensors(Vec<String>),
     #[error("failed to render chat template")]
     Template(#[source] minijinja::Error),
+    #[error("failed to access the image {}", path.display())]
+    Image {
+        path: PathBuf,
+        #[source]
+        source: ImageError,
+    },
+    #[error("failed to encode an image as PNG")]
+    ImageEncoding(#[source] ImageError),
     #[error("unreadable media: {0}")]
     Media(String),
     // A load of a head the snapshot's classes do not name, which fails where its weights are missing.
@@ -58,8 +71,13 @@ pub type Result<T> = StdResult<T, Error>;
 
 impl Error {
     #[must_use]
-    pub fn unsupported(what: &str) -> Self {
-        Self::UnsupportedConfig(what.to_owned())
+    pub fn unsupported(what: impl Into<String>) -> Self {
+        Self::UnsupportedConfig(what.into())
+    }
+
+    #[must_use]
+    pub fn invalid(what: impl Into<String>) -> Self {
+        Self::InvalidInput(what.into())
     }
 
     // Wraps a failed access to `path`, as `map_err` takes it.
@@ -68,8 +86,17 @@ impl Error {
         move |source| Self::Io { path, source }
     }
 
-    // Wraps a failure to `what` a JSON value, as `map_err` takes it.
-    pub(crate) fn json(what: &'static str) -> impl FnOnce(JsonError) -> Self + use<> {
-        move |source| Self::Json { what, source }
+    pub(crate) fn json(path: &Path) -> impl FnOnce(JsonError) -> Self + use<> {
+        let path = path.to_owned();
+        move |source| Self::Json { path, source }
+    }
+
+    pub(crate) fn json_value(what: &'static str) -> impl FnOnce(JsonError) -> Self + use<> {
+        move |source| Self::JsonValue { what, source }
+    }
+
+    pub(crate) fn image(path: &Path) -> impl FnOnce(ImageError) -> Self + use<> {
+        let path = path.to_owned();
+        move |source| Self::Image { path, source }
     }
 }

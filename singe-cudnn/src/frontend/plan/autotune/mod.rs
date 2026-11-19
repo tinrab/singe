@@ -91,10 +91,6 @@ impl CompiledGraph {
     /// # Errors
     ///
     /// Returns an error if preparation, the workspace, CUDA, or the strategy fails, timings are invalid or duplicated, or the strategy returns no timings.
-    #[expect(
-        clippy::too_many_lines,
-        reason = "plan construction and selection keep the complete native execution lifecycle together"
-    )]
     pub unsafe fn autotune_with(
         &self,
         context: &Context,

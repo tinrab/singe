@@ -1,19 +1,13 @@
-"""BERT, through every task a BERT snapshot here serves, as `verify.rs` runs them in Singe: a toxicity classifier, a spam classifier, a cross-encoder ranking texts, a named-entity tagger with each way of grouping words, a sentence embedder, and its embeddings pooled by the mean over the square root of the length in a snapshot derived from it, and the pretrained masked language model filling blanks."""
+"""BERT, through every task a BERT snapshot here serves, as `mod.rs` runs them in Singe: a toxicity classifier, a spam classifier, a cross-encoder ranking texts, a named-entity tagger with each way of grouping words, a sentence embedder, and its embeddings pooled by the mean over the square root of the length in a snapshot derived from it, and the pretrained masked language model filling blanks."""
 
-import sys
-from pathlib import Path
+from sentence_transformers import CrossEncoder, SentenceTransformer
+from sentence_transformers.util import cos_sim
+from transformers import pipeline
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-
-import torch  # noqa: E402
-from sentence_transformers import CrossEncoder, SentenceTransformer  # noqa: E402
-from sentence_transformers.util import cos_sim  # noqa: E402
-from transformers import pipeline  # noqa: E402
-
-from support import DEVICE, Verification  # noqa: E402
+from support import DEVICE, Verification
 
 
-def text_classification(snapshot, dtype=torch.float32):
+def text_classification(snapshot, dtype):
     classify = pipeline(
         "text-classification", model=snapshot, dtype=dtype, device=DEVICE
     )
@@ -24,29 +18,25 @@ def text_classification(snapshot, dtype=torch.float32):
     ]
 
 
-def text_ranking(snapshot):
-    model = CrossEncoder(snapshot, device=DEVICE)
+def text_ranking(snapshot, dtype):
+    model = CrossEncoder(snapshot, device=DEVICE, model_kwargs={"dtype": dtype})
     return lambda inputs, parameters: [
         model.rank(item["query"], item["texts"]) for item in inputs
     ]
 
 
-def token_classification(snapshot):
-    tag = pipeline(
-        "token-classification", model=snapshot, dtype=torch.float32, device=DEVICE
-    )
+def token_classification(snapshot, dtype):
+    tag = pipeline("token-classification", model=snapshot, dtype=dtype, device=DEVICE)
     return lambda texts, parameters: [tag(text, **parameters) for text in texts]
 
 
-def feature_extraction(snapshot):
-    extract = pipeline(
-        "feature-extraction", model=snapshot, dtype=torch.float32, device=DEVICE
-    )
+def feature_extraction(snapshot, dtype):
+    extract = pipeline("feature-extraction", model=snapshot, dtype=dtype, device=DEVICE)
     return lambda texts, parameters: [extract(text)[0] for text in texts]
 
 
-def sentence_similarity(snapshot):
-    model = SentenceTransformer(snapshot, device=DEVICE)
+def sentence_similarity(snapshot, dtype):
+    model = SentenceTransformer(snapshot, device=DEVICE, model_kwargs={"dtype": dtype})
 
     def run(inputs, parameters):
         outputs = []
@@ -62,22 +52,20 @@ def sentence_similarity(snapshot):
     return run
 
 
-def fill_mask(snapshot):
-    fill = pipeline("fill-mask", model=snapshot, dtype=torch.float32, device=DEVICE)
+def fill_mask(snapshot, dtype):
+    fill = pipeline("fill-mask", model=snapshot, dtype=dtype, device=DEVICE)
     return lambda texts, parameters: [fill(text, **parameters) for text in texts]
 
 
-def sentence_embeddings(snapshot):
-    model = SentenceTransformer(snapshot, device=DEVICE)
+def sentence_embeddings(snapshot, dtype):
+    model = SentenceTransformer(snapshot, device=DEVICE, model_kwargs={"dtype": dtype})
     return lambda texts, parameters: model.encode(texts).tolist()
 
 
 verification = Verification(__file__)
 verification.check("toxicity", text_classification)
 verification.check("spam", text_classification)
-verification.check(
-    "toxicity-bf16", lambda snapshot: text_classification(snapshot, torch.bfloat16)
-)
+verification.check("toxicity-bf16", text_classification)
 verification.check("ranking", text_ranking)
 for strategy in ("none", "simple", "first", "average", "max"):
     verification.check(f"entities-{strategy}", token_classification)

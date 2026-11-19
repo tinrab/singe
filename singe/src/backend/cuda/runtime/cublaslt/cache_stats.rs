@@ -46,10 +46,6 @@ impl CudaRuntime {
     }
 }
 
-#[expect(
-    clippy::similar_names,
-    reason = "BLAS cache metrics distinguish standard precision modes and left/right matrix operands"
-)]
 pub fn supported_algorithm_cache_stats(
     cache: &ProviderCache<CublasLtMatmulAlgorithmKey, CublasLtMatmulAlgorithmEntry>,
 ) -> CublasLtMatmulSupportedAlgorithmCacheStats {
@@ -126,10 +122,6 @@ pub fn supported_algorithm_cache_stats(
     }
 }
 
-#[expect(
-    clippy::similar_names,
-    reason = "BLAS cache metrics distinguish standard precision modes and left/right matrix operands"
-)]
 pub fn unsupported_algorithm_cache_stats(
     cache: &ProviderCache<CublasLtMatmulAlgorithmKey, ()>,
 ) -> CublasLtMatmulUnsupportedAlgorithmCacheStats {

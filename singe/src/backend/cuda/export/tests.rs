@@ -24,7 +24,7 @@ use crate::{
     error::Result,
     graph::{
         CaptureBindings, ComputePrecision, Determinism, Graph, NumericalPolicy, NumericalScope,
-        capture, test_support::patterned_tensor,
+        capture, test_support::patterned_tensor, with_convolution_precision,
     },
     index::TensorIndex,
     random::Generator,
@@ -362,36 +362,38 @@ fn test_programs_call_libraries_and_kernels_together() {
         },
     );
     assert_eq!(library_steps(&program), ["cutensor"]);
-    let program = check(
-        &export(Library::Cudnn),
-        "cudnn",
-        &[
-            ("x", values(&[2, 3, 16, 16], 6)),
-            ("w", values(&[8, 3, 3, 3], 7)),
-            ("b", values(&[8], 8)),
-            ("second", values(&[4, 8, 3, 3], 9)),
-        ],
-        1e-4,
-        |inputs| {
-            // A chain writes channels-last strides between its convolutions, and the second has no bias.
-            let hidden = inputs[0].convolution2d(
-                &inputs[1],
-                Some(&inputs[2]),
-                (1, 1),
-                (1, 1, 1, 1),
-                (1, 1),
-                1,
-            )?;
-            Ok(vec![hidden.convolution2d(
-                &inputs[3],
-                None,
-                (1, 1),
-                (0, 0, 0, 0),
-                (1, 1),
-                1,
-            )?])
-        },
-    );
+    let program = with_convolution_precision(ComputePrecision::Full, || {
+        check(
+            &export(Library::Cudnn),
+            "cudnn",
+            &[
+                ("x", values(&[2, 3, 16, 16], 6)),
+                ("w", values(&[8, 3, 3, 3], 7)),
+                ("b", values(&[8], 8)),
+                ("second", values(&[4, 8, 3, 3], 9)),
+            ],
+            1e-4,
+            |inputs| {
+                // A chain writes channels-last strides between its convolutions, and the second has no bias.
+                let hidden = inputs[0].convolution2d(
+                    &inputs[1],
+                    Some(&inputs[2]),
+                    (1, 1),
+                    (1, 1, 1, 1),
+                    (1, 1),
+                    1,
+                )?;
+                Ok(vec![hidden.convolution2d(
+                    &inputs[3],
+                    None,
+                    (1, 1),
+                    (0, 0, 0, 0),
+                    (1, 1),
+                    1,
+                )?])
+            },
+        )
+    });
     assert_eq!(library_steps(&program), ["cudnn", "cudnn"]);
     let scale = |value: f32| {
         Tensor::from_vec(Device::Cpu, Shape::create([1]).unwrap(), vec![value]).unwrap()
@@ -745,6 +747,7 @@ fn test_programs_follow_the_numerical_policy() {
         let _scope = NumericalScope::enter(NumericalPolicy {
             precision: ComputePrecision::Relaxed,
             determinism: Determinism::Require,
+            ..NumericalPolicy::default()
         });
         export.export(&graph).unwrap().render("model").unwrap()
     };
@@ -944,16 +947,18 @@ fn test_cudnn_runs_every_convolution_when_allowed() {
                     ("b", cast(&[weight[0]], 3)),
                 ];
                 let label = format!("{data_type}-{name}-{bias}-{relu}");
-                let program = check(&export, &label, &inputs, tolerance, |inputs| {
-                    let result = inputs[0].convolution2d(
-                        &inputs[1],
-                        bias.then_some(&inputs[2]),
-                        (1, 1),
-                        (1, 1, 1, 1),
-                        (1, 1),
-                        groups,
-                    )?;
-                    Ok(vec![if relu { result.relu()? } else { result }])
+                let program = with_convolution_precision(ComputePrecision::Full, || {
+                    check(&export, &label, &inputs, tolerance, |inputs| {
+                        let result = inputs[0].convolution2d(
+                            &inputs[1],
+                            bias.then_some(&inputs[2]),
+                            (1, 1),
+                            (1, 1, 1, 1),
+                            (1, 1),
+                            groups,
+                        )?;
+                        Ok(vec![if relu { result.relu()? } else { result }])
+                    })
                 });
                 assert_eq!(library_steps(&program), ["cudnn"], "{label}");
                 // cuDNN's engines fuse an activation only after a bias.

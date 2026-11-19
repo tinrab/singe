@@ -22,6 +22,7 @@ use crate::{
             kernel::{CompileRequirements, KernelArtifact, KernelCode},
             render::KernelOutput,
         },
+        nvtx::CudaNvtxRange,
         runtime::CudaRuntime,
     },
     error::{Error, Result},
@@ -153,7 +154,11 @@ impl CudaRuntime {
                 disk_cache::tile_cubin(name, bytecode, &architecture)
             }
         };
-        let (cubin, origin) = compile()?;
+        let (cubin, origin) = {
+            let _range = CudaNvtxRange::new(|| "singe kernel compile");
+            compile()?
+        };
+        let _range = CudaNvtxRange::new(|| "singe kernel load");
         // SAFETY: NVRTC or tileiras wrote these bytes as a cubin, now or into the kernel cache, which publishes only complete entries by renaming them.
         let image = unsafe { ModuleImage::from_bytes_unchecked(cubin) };
         let module = match self.context().load_module(&image, JitOptions::default()) {

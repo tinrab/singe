@@ -18,6 +18,7 @@ use crate::{
     format::Loader,
     head::HeadLoader,
     model::ModelEntry,
+    schema::Schema,
     source::Format,
 };
 
@@ -45,14 +46,6 @@ pub struct Gemma2Layers {
     decoder: Decoder<GroupedQueryAttention, GatedMlp, OffsetRmsNorm>,
     final_cap: Option<f32>,
 }
-
-pub type Gemma2 = Model<Gemma2Layers>;
-
-pub(crate) const MODEL: ModelEntry = ModelEntry {
-    name: "gemma2",
-    formats: &[(Format::Transformers, &["gemma2"])],
-    heads: &[HeadLoader::CausalLm(|loader| Ok(Box::new(load(loader)?)))],
-};
 
 impl DecoderModel for Gemma2Layers {
     type Cache = KvCache;
@@ -92,54 +85,58 @@ impl DecoderModel for Gemma2Layers {
     }
 }
 
-#[expect(
-    clippy::cast_precision_loss,
-    clippy::cast_possible_truncation,
-    reason = "the embedding scale is defined in F32, as the references compute it"
-)]
-fn schema(config: &Gemma2Config, data_type: DataType) -> SingeResult<Gemma2> {
-    let decoder = &config.decoder;
-    let (width, eps) = (decoder.width, decoder.eps);
-    let options = AttentionOptions {
-        scale: Some(config.attention_scale),
-        softcap: config.attention_softcap,
-        ..causal()
-    };
-    let (layers, state) = causal_lm(
-        decoder,
-        data_type,
-        CausalLmSpec::new(decoder.rotary(), |_| decoder.kv_cache())
-            .with_embedding_scale((width as f64).sqrt() as f32),
-        |schema, index| {
-            let block = pre_norm_block(schema, decoder, |schema| {
-                grouped_attention(
-                    schema,
-                    decoder,
-                    AttentionOptions {
-                        window: config.window(index),
-                        ..options
-                    },
-                )
-            })?;
-            Ok(block.with_output_norms(
-                schema.offset_rms_norm("attention_output_norm", width, eps)?,
-                schema.offset_rms_norm("feed_forward_output_norm", width, eps)?,
-            ))
-        },
-    )?;
-    Ok(Model::new(
-        Gemma2Layers {
+impl Gemma2Layers {
+    pub fn create(schema: &mut Schema<'_>, config: &Gemma2Config) -> SingeResult<Self> {
+        let decoder = &config.decoder;
+        let (width, eps) = (decoder.width, decoder.eps);
+        let options = AttentionOptions {
+            scale: Some(config.attention_scale),
+            softcap: config.attention_softcap,
+            ..causal()
+        };
+        let layers = causal_lm(
+            schema,
+            decoder,
+            CausalLmSpec {
+                embedding_scale: Some((width as f64).sqrt() as f32),
+                ..CausalLmSpec::new(decoder.rotary(), |_| decoder.kv_cache())
+            },
+            |schema, index| {
+                let block = pre_norm_block(schema, decoder, |schema| {
+                    grouped_attention(
+                        schema,
+                        decoder,
+                        AttentionOptions {
+                            window: config.window(index),
+                            ..options
+                        },
+                    )
+                })?;
+                Ok(block.with_output_norms(
+                    schema.offset_rms_norm("attention_output_norm", width, eps)?,
+                    schema.offset_rms_norm("feed_forward_output_norm", width, eps)?,
+                ))
+            },
+        )?;
+        Ok(Self {
             decoder: layers,
             final_cap: config.logit_softcap,
-        },
-        state,
-    ))
+        })
+    }
 }
+
+pub type Gemma2 = Model<Gemma2Layers>;
+
+pub(crate) const MODEL: ModelEntry = ModelEntry {
+    name: "gemma2",
+    formats: &[(Format::Transformers, &["gemma2"])],
+    loaders: &[HeadLoader::CausalLm(|loader| Ok(Box::new(load(loader)?)))],
+};
 
 pub fn load(loader: &mut Loader<'_>) -> Result<Gemma2> {
     let config: Gemma2Config = loader.config(transformers::config)?;
-    let schema = schema(&config, loader.options().data_type)?;
-    let model = loader.load("model", &schema, &transformers::rules())?;
-    loader.finish()?;
-    Ok(model)
+    let model = Schema::model(loader.options().data_type, |schema| {
+        Gemma2Layers::create(schema, &config)
+    })?;
+    loader.load_whole(&model, &transformers::rules())
 }

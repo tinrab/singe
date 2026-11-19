@@ -133,10 +133,6 @@ impl VariantPack {
 
     /// Reserves a frontend scratch prefix while exposing the remaining bytes to cuDNN.
     /// The raw pointer lifetime and access contracts of `create_with_overrides` apply.
-    #[expect(
-        clippy::too_many_lines,
-        reason = "native operation construction keeps its resource ownership and descriptor ordering together"
-    )]
     pub(crate) unsafe fn create_with_workspace_prefix(
         allocation_context: &Arc<CudaContext>,
         bindings: &[(BackendTensorUid, DevicePtr)],

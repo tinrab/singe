@@ -32,10 +32,6 @@ fn scalar_tensor(name: &str, value: f32) -> Result<TensorSpec> {
     .with_name(name))
 }
 
-#[expect(
-    clippy::many_single_char_names,
-    reason = "keeps the upstream sample's single-letter dimension names"
-)]
 fn run() -> anyhow::Result<()> {
     let window_size = common::positive_usize_argument("--build-window", 2)?;
     let context = common::ExampleContext::create()?;

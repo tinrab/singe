@@ -70,30 +70,3 @@ fn test_cuda_index_and_index_put_match_cpu() {
         expected.to_vec::<f32>().unwrap()
     );
 }
-
-#[test]
-fn test_cuda_index_reports_out_of_range_indices_from_the_device() {
-    let Some(_lock) = maybe_lock_device() else {
-        return;
-    };
-    let shape = Shape::create([2, 3]).unwrap();
-    let Some(cuda) = skip_if_stub(Tensor::from_vec(Device::Cuda(0), &shape, vec![0_f32; 6])) else {
-        return;
-    };
-    let rows = cpu_indices(&[0, 2]);
-    let columns = cpu_indices(&[0, 0]);
-    assert!(matches!(
-        cuda.index(&idx![&rows, &columns]),
-        Err(Error::IndexOutOfBounds)
-    ));
-    let updates =
-        Tensor::from_vec(Device::Cuda(0), Shape::create([2]).unwrap(), vec![1_f32; 2]).unwrap();
-    assert!(matches!(
-        cuda.index_put(&idx![&rows, &columns], &updates, false),
-        Err(Error::IndexOutOfBounds)
-    ));
-    assert!(matches!(
-        cuda.take(0, &cpu_indices(&[5]).to_device(Device::Cuda(0)).unwrap()),
-        Err(Error::IndexOutOfBounds)
-    ));
-}

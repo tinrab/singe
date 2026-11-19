@@ -1,8 +1,3 @@
-#![allow(
-    clippy::many_single_char_names,
-    clippy::similar_names,
-    reason = "BLAS and factorization operand names follow the standard mathematical API"
-)]
 use singe_cuda::{
     types::{Complex32, Complex64},
     view::DeviceOutputView,

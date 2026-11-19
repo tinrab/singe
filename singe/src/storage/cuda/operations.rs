@@ -2,6 +2,7 @@ use std::ptr;
 
 use crate::{
     activity,
+    backend::cuda::runtime::runtime_for_device,
     data_type::DataType,
     device::Device,
     error::{Error, Result},
@@ -93,7 +94,9 @@ impl CudaStorage {
 
         self.context().bind()?;
         activity::cuda_readback();
-        self.data.copy_to_host(dst).map_err(Error::from)
+        self.data.copy_to_host(dst)?;
+        // The copy waited for the eager stream, so what its checking kernels reported is final.
+        runtime_for_device(self.device())?.take_eager_status()
     }
 
     /// Clones this allocation to the CUDA device `device`.

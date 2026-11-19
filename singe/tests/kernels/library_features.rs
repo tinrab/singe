@@ -5,7 +5,7 @@
 use std::collections::HashMap;
 
 use singe::{
-    Device, Shape, Tensor,
+    DataType, Device, Shape, Tensor,
     backend::cuda::{CudnnFeature, LoweringPolicy, export::CudaExport},
     graph::{Graph, GraphCudaOptions, GraphPrepareOptions},
     tensor::AttentionOptions,
@@ -30,7 +30,7 @@ fn random(device: Device, dimensions: &[i64], seed: u32) -> Tensor {
 fn cudnn_graph(device: Device) -> (Graph, Vec<(&'static str, Tensor)>) {
     let half = |dimensions: &[i64], seed| {
         random(device, dimensions, seed)
-            .cast(singe::DataType::F16)
+            .cast(DataType::F16)
             .unwrap()
     };
     let inputs = vec![
@@ -97,13 +97,7 @@ fn test_graphs_and_programs_match_with_one_feature_allowed() {
         let outputs = prepared.run(&named).unwrap();
         (outputs, prepared.report().unwrap())
     };
-    let values = |tensor: &Tensor| {
-        tensor
-            .cast(singe::DataType::F32)
-            .unwrap()
-            .to_vec::<f32>()
-            .unwrap()
-    };
+    let values = |tensor: &Tensor| tensor.cast(DataType::F32).unwrap().to_vec::<f32>().unwrap();
     let assert_close = |actual: &[Tensor], expected: &[Tensor], label: &str| {
         for (actual, expected) in actual.iter().zip(expected) {
             for (a, e) in values(actual).iter().zip(values(expected)) {

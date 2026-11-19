@@ -19,7 +19,7 @@ pub fn populate_cudnn_conv2d_graph(
 ) -> Result<(NativeCudaGraph, CudnnBackendExecutable)> {
     let mut child_graph = runtime.context().create_graph()?;
     let variant_pack = executable.variant_pack(output, cache)?;
-    let mut cudnn = runtime.cudnn().locked("cuda runtime cache")?;
+    let mut cudnn = runtime.cudnn()?.locked("cuda runtime cache")?;
     // SAFETY: compiler graph values retain tensor allocations, and the returned executable retains its workspace and plan through graph replay resources.
     unsafe { executable.populate_graph(&mut cudnn, &variant_pack, &mut child_graph) }?;
     drop(cudnn);

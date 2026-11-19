@@ -265,7 +265,7 @@ fn copy_plans(
     };
     let output = input(id)?;
     if !output.layout().is_contiguous() {
-        return Err(Error::ContiguousRequired);
+        return Err(Error::contiguous_required("copy plan output"));
     }
     match (operation.opcode(), operation.attributes()) {
         (Some(Operation::Concat), &OperationAttributes::Concat(dim)) => {

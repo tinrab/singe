@@ -15,7 +15,7 @@ use crate::{
 };
 
 pub use self::{
-    measure::{KernelBench, Timing},
+    measure::{CacheState, KernelBench, Timing},
     search::{Outcome, TuneOptions, TuningResult, tune},
 };
 

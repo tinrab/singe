@@ -10,6 +10,7 @@ use std::{
 use crate::{
     backend::cuda::{
         self, CudaCompiledGraph, CudaStream, compiled::executable::GraphCompileProviderDecision,
+        runtime::runtime_for_device,
     },
     error::Error,
     graph::{GraphExecutionMode, run::write_targets},
@@ -31,6 +32,12 @@ use crate::{
     tensor::Tensor,
     utility::emit,
 };
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Completion {
+    Wait,
+    Enqueue,
+}
 
 impl GraphExecutor {
     pub(crate) fn create(
@@ -174,16 +181,20 @@ impl GraphExecutor {
     ///
     /// Returns an error if runtime inputs fail signature guards, specializing or preparing an uncached plan fails, backend execution or native graph replay fails, or synchronizing work or copying output snapshots fails.
     pub fn run(&mut self, inputs: &HashMap<String, Tensor>) -> Result<Vec<Tensor>> {
-        self.execute(inputs, true)
+        self.execute(inputs, Completion::Wait)
     }
 
     pub fn enqueue(&mut self, inputs: &HashMap<String, Tensor>) -> Result<Vec<Tensor>> {
-        self.execute(inputs, false)
+        self.execute(inputs, Completion::Enqueue)
     }
 
-    fn execute(&mut self, inputs: &HashMap<String, Tensor>, waits: bool) -> Result<Vec<Tensor>> {
+    fn execute(
+        &mut self,
+        inputs: &HashMap<String, Tensor>,
+        completion: Completion,
+    ) -> Result<Vec<Tensor>> {
         #[cfg(not(feature = "cuda"))]
-        let _: bool = waits;
+        let _: Completion = completion;
         let _numerics = NumericalScope::enter(self.options.numerics);
         let inputs = with_generator_states(&self.program.logical_graph().generators, inputs)?;
         let inputs = inputs.as_ref();
@@ -207,13 +218,12 @@ impl GraphExecutor {
                 outputs
             }
             #[cfg(feature = "cuda")]
-            PreparedBackend::Cuda { graph, stream } => {
-                if waits {
+            PreparedBackend::Cuda { graph, stream } => match completion {
+                Completion::Wait => {
                     run_cuda(&self.active.compiled, graph, inputs, stream, |_| Ok(()))?.0
-                } else {
-                    enqueue_cuda(&self.active.compiled, graph, inputs, device)?
                 }
-            }
+                Completion::Enqueue => enqueue_cuda(&self.active.compiled, graph, inputs, device)?,
+            },
         };
         self.runs = self.runs.saturating_add(1);
         Ok(outputs)
@@ -615,9 +625,7 @@ fn enqueue_cuda(
     inputs: &HashMap<String, Tensor>,
     device: Device,
 ) -> Result<Vec<Tensor>> {
-    let stream = cuda::runtime::runtime_for_device(device)?
-        .eager_stream()?
-        .clone();
+    let stream = runtime_for_device(device)?.eager_stream()?.clone();
     write_back(compiled, graph, inputs, |graph, live| {
         graph.enqueue_ordered(live, &stream)
     })

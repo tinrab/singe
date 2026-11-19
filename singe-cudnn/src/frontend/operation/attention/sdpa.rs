@@ -449,10 +449,6 @@ impl SdpaOperation {
         self.lower_with_tensors(context.backend_tensors(), subgraph)
     }
 
-    #[expect(
-        clippy::too_many_lines,
-        reason = "the composite attention operation builds and validates its complete tensor graph"
-    )]
     pub(crate) fn lower_with_tensors(
         &self,
         tensors: &BTreeMap<TensorId, Tensor>,

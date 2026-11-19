@@ -1,7 +1,9 @@
 use singe::{
     Result as SingeResult, Tensor,
-    nn::{Layer, Model, ModelState},
+    nn::{Layer, Model},
 };
+
+use crate::head::Boxed;
 
 // An image encoder's layers, from images `[B, C, H, W]` to each token's last hidden state, `[B, T, D]`, with the pooling its model gives one vector per image by.
 pub trait PooledLayer: Layer {
@@ -9,19 +11,4 @@ pub trait PooledLayer: Layer {
     fn pooled(&self, hidden: &Tensor) -> SingeResult<Tensor>;
 }
 
-#[derive(Debug)]
-pub struct ImageEncoderLayers(pub Box<dyn PooledLayer>);
-
-impl ImageEncoderLayers {
-    pub fn pooled(&self, hidden: &Tensor) -> SingeResult<Tensor> {
-        self.0.pooled(hidden)
-    }
-}
-
-impl Layer for ImageEncoderLayers {
-    fn forward(&self, input: &Tensor, state: &ModelState) -> SingeResult<Tensor> {
-        self.0.forward(input, state)
-    }
-}
-
-pub type ImageEncoder = Model<ImageEncoderLayers>;
+pub type ImageEncoder = Model<Boxed<dyn PooledLayer>>;

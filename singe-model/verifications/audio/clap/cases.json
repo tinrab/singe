@@ -4,6 +4,7 @@
       "name": "sounds",
       "snapshot": "CLAP",
       "task": "zero-shot-audio-classification",
+      "data_type": "f32",
       "inputs": [
         {
           "audio": "media/clip-48k.wav",

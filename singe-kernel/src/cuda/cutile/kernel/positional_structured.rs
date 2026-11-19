@@ -911,10 +911,6 @@ mod kernels {
     // Forward-only multiaxis RoPE for contiguous Q/K tensors shaped
     // (batch, seq, heads, head_dim) with half-split real/imag layout.
     #[cutile::entry()]
-    #[expect(
-        clippy::similar_names,
-        reason = "query, key, and value operands and their tensor layouts follow the mathematical kernel notation"
-    )]
     pub unsafe fn multiaxis_rope_qk_f32(
         query: *mut f32,
         key: *mut f32,

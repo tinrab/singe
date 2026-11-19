@@ -7,7 +7,7 @@ use crate::{
     head::TabularRegressor,
     model,
     source::{LoadOptions, Source},
-    task::{Pipeline, Task},
+    task::Pipeline,
 };
 
 #[derive(Debug)]
@@ -28,8 +28,6 @@ pub struct TabularRegressionOutput {
 }
 
 impl Pipeline for TabularRegressionPipeline {
-    const TASK: Task = Task::TabularRegression;
-
     type Input = TabularRegressionInput;
 
     type Parameters = ();
@@ -42,18 +40,13 @@ impl Pipeline for TabularRegressionPipeline {
         })
     }
 
-    fn run(&self, inputs: &[Self::Input], (): &Self::Parameters) -> Result<Vec<Self::Output>> {
-        inputs
-            .iter()
-            .map(|input| {
-                Ok(TabularRegressionOutput {
-                    predictions: self.model.regress(
-                        &input.training_rows,
-                        &input.training_targets,
-                        &input.rows,
-                    )?,
-                })
-            })
-            .collect()
+    fn run_one(&self, input: &Self::Input, (): &Self::Parameters) -> Result<Self::Output> {
+        Ok(TabularRegressionOutput {
+            predictions: self.model.regress(
+                &input.training_rows,
+                &input.training_targets,
+                &input.rows,
+            )?,
+        })
     }
 }

@@ -35,6 +35,7 @@ use crate::{
             cache_key::{
                 ConcreteShapeBucket, DynamicShapePolicy, GraphCacheKey, SymbolicDimensionKey,
             },
+            cublas::CublasLtMatmulGraph,
             fusion::FusionPlan,
             lowering::{LoweringPlan, RealizedLoweringPlan},
         },
@@ -60,6 +61,7 @@ use crate::{
 pub enum LibraryResource {
     Graph(NativeCudaGraph),
     FftPlan(Plan),
+    CublasLt(CublasLtMatmulGraph),
 }
 
 impl fmt::Debug for LibraryResource {
@@ -67,6 +69,7 @@ impl fmt::Debug for LibraryResource {
         formatter.write_str(match self {
             Self::Graph(_) => "graph",
             Self::FftPlan(_) => "fft plan",
+            Self::CublasLt(_) => "cublaslt graph",
         })
     }
 }

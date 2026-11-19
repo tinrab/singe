@@ -656,10 +656,6 @@ pub unsafe fn rope_quantize_f8e4m3_f32_interleaved(
 /// # Safety
 /// Pointers must reference correctly sized buffers on the stream's device.
 /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
-#[expect(
-    clippy::similar_names,
-    reason = "query, key, and value operands and their tensor layouts follow the mathematical kernel notation"
-)]
 pub unsafe fn qk_rope_quantize_f8e4m3_f32_interleaved_single_kernel(
     stream: &Arc<Stream>,
     q_rope_out: DevicePointer<u8>,
@@ -1218,10 +1214,6 @@ pub unsafe fn per_token_group_quant_f8e4m3_f32_column_major_ue8m0_scales(
 /// # Safety
 /// Pointers must reference correctly sized buffers on the stream's device.
 /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
-#[expect(
-    clippy::cast_precision_loss,
-    reason = "the f32 algorithm converts integer dimensions and accumulators to its floating-point working precision"
-)]
 pub unsafe fn matmul_i8_i8_f32(
     stream: &Arc<Stream>,
     out: DevicePointer<f32>,

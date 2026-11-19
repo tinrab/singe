@@ -4,15 +4,18 @@
 
 use serde::{Deserialize, Serialize};
 use singe::{
-    Result as SingeResult, Shape, Tensor,
+    Error as SingeError, Result as SingeResult, Shape, Tensor,
     nn::{
-        Activation, Embedding, GatedMlp, HeadProjection, LayerNorm, Linear, ModelState,
+        Activation, Embedding, GatedMlp, GroupedQueryLayers, HeadProjection, LayerNorm, ModelState,
         RotaryAngles, RotaryFrequencies, RotaryLayout, RotarySpec, RotaryTable,
     },
     tensor::AttentionOptions,
 };
 
-use crate::schema::Schema;
+use crate::{
+    assembly::{GroupedAttentionSpec, grouped_attention_layers},
+    schema::Schema,
+};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ModernBertConfig {
@@ -33,16 +36,42 @@ pub struct ModernBertConfig {
 #[derive(Debug, Clone)]
 struct ModernBertBlock {
     attention_norm: Option<LayerNorm>,
-    query: HeadProjection,
-    key: HeadProjection,
-    value: HeadProjection,
-    output: Linear,
+    attention: GroupedQueryLayers,
     feed_forward_norm: LayerNorm,
     feed_forward: GatedMlp,
     local: bool,
 }
 
 impl ModernBertBlock {
+    fn create(
+        schema: &mut Schema<'_>,
+        config: &ModernBertConfig,
+        index: usize,
+        local: bool,
+    ) -> SingeResult<Self> {
+        let (width, eps) = (config.width, config.eps);
+        // The first block reads the normed embeddings as they are.
+        let attention_norm = (index > 0)
+            .then(|| schema.unbiased_layer_norm("attention_norm", width, eps))
+            .transpose()?;
+        let attention = grouped_attention_layers(
+            &mut schema.scope("attention"),
+            &GroupedAttentionSpec::multi_head(width, config.heads, false),
+        )?;
+        Ok(Self {
+            attention_norm,
+            attention,
+            feed_forward_norm: schema.unbiased_layer_norm("feed_forward_norm", width, eps)?,
+            feed_forward: schema.gated_mlp(
+                "feed_forward",
+                [width, config.inner, width],
+                config.activation,
+                false,
+            )?,
+            local,
+        })
+    }
+
     fn forward(
         &self,
         hidden: &Tensor,
@@ -63,19 +92,22 @@ impl ModernBertBlock {
             };
             heads.permute(&[0, 2, 1, 3])
         };
-        let dimensions = hidden.shape().dimensions();
-        let attended = heads(&self.query, true)?
+        let &[batch, length, width] = hidden.shape().dimensions() else {
+            return Err(SingeError::invalid_argument("a ModernBERT block's input"));
+        };
+        let attention = &self.attention;
+        let attended = heads(&attention.query, true)?
             .attend(
-                &heads(&self.key, true)?,
-                &heads(&self.value, false)?,
+                &heads(&attention.key, true)?,
+                &heads(&attention.value, false)?,
                 mask,
                 None,
                 AttentionOptions::default(),
             )?
             .permute(&[0, 2, 1, 3])?
             .contiguous()?
-            .reshape([dimensions[0], dimensions[1], dimensions[2]])?
-            .apply(&self.output, state)?;
+            .reshape([batch, length, width])?
+            .apply(&attention.output, state)?;
         let hidden = hidden.add(&attended)?;
         let fed = hidden
             .apply(&self.feed_forward_norm, state)?
@@ -96,46 +128,17 @@ pub struct ModernBert {
 impl ModernBert {
     pub fn create(schema: &mut Schema<'_>, config: &ModernBertConfig) -> SingeResult<Self> {
         let (width, eps) = (config.width, config.eps);
-        let head_dim = width / config.heads;
         let blocks = config
             .local
             .iter()
             .enumerate()
             .map(|(index, &local)| {
-                let mut block = schema.scope(format!("blocks.{index}"));
-                // The first block reads the normed embeddings as they are.
-                let attention_norm = (index > 0)
-                    .then(|| block.unbiased_layer_norm("attention_norm", width, eps))
-                    .transpose()?;
-                let mut attention = block.scope("attention");
-                let mut head = |name: &str| -> SingeResult<HeadProjection> {
-                    Ok(HeadProjection::new(
-                        attention.linear(name, width, width, false)?,
-                        config.heads,
-                        head_dim,
-                    ))
-                };
-                let (query, key, value) = (head("query")?, head("key")?, head("value")?);
-                let output = attention.linear("output", width, width, false)?;
-                let feed_forward_norm =
-                    block.unbiased_layer_norm("feed_forward_norm", width, eps)?;
-                let mut feed_forward = block.scope("feed_forward");
-                let feed_forward = GatedMlp::new(
-                    feed_forward.linear("gate", width, config.inner, false)?,
-                    feed_forward.linear("up", width, config.inner, false)?,
-                    feed_forward.linear("down", config.inner, width, false)?,
-                    config.activation,
-                );
-                Ok(ModernBertBlock {
-                    attention_norm,
-                    query,
-                    key,
-                    value,
-                    output,
-                    feed_forward_norm,
-                    feed_forward,
+                ModernBertBlock::create(
+                    &mut schema.scope(format!("blocks.{index}")),
+                    config,
+                    index,
                     local,
-                })
+                )
             })
             .collect::<SingeResult<Vec<_>>>()?;
         Ok(Self {
@@ -157,7 +160,9 @@ impl ModernBert {
         let config = &self.config;
         let device = embeddings.device();
         let data_type = embeddings.data_type();
-        let length = embeddings.shape().dimensions()[0];
+        let &[length, _] = embeddings.shape().dimensions() else {
+            return Err(SingeError::invalid_argument("a sequence's embeddings"));
+        };
         let positions = Tensor::from_vec(
             device,
             Shape::create([length])?,
@@ -178,7 +183,7 @@ impl ModernBert {
         };
         let (global, local) = (angles(config.global_theta)?, angles(config.local_theta)?);
         // A local block's tokens see those at most `window` places away, as `transformers`' bidirectional sliding mask allows.
-        let size = usize::try_from(length).map_err(|_| singe::Error::out_of_range("tokens"))?;
+        let size = usize::try_from(length).map_err(|_| SingeError::out_of_range("tokens"))?;
         let window = config.window;
         let mask = Tensor::from_vec(
             device,

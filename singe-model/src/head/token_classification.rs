@@ -6,38 +6,56 @@ use singe::{
     nn::{Layer, Linear, Model, ModelState, TokenBatch},
 };
 
-use super::{ClassifierConfig, EncoderHead, HeadLayouts};
 use crate::{
     assembly::PostNormEncoder,
-    error::{Error, Result},
+    error::Result,
     format::transformers::classifier_config,
+    head::{ClassifierConfig, EncoderHead, HeadLayouts},
+    host,
     schema::Schema,
     source::Source,
 };
 
+// A text encoder and a linear layer that scores each token's last hidden state, as token classifiers and question answerers have.
 #[derive(Debug)]
-pub struct TokenClassifierLayers {
-    encoder: Box<dyn Layer<TokenBatch>>,
+pub struct TokenScoreLayers {
+    encoder: PostNormEncoder,
     output: Linear,
 }
 
-impl Layer<TokenBatch> for TokenClassifierLayers {
+impl TokenScoreLayers {
+    // Registers `{name}.output`, from `encoder`'s width to `scores` scores per token.
+    pub fn create(
+        schema: &mut Schema<'_>,
+        name: &str,
+        encoder: PostNormEncoder,
+        scores: i64,
+    ) -> SingeResult<Self> {
+        let output = schema
+            .scope(name)
+            .linear("output", encoder.config().width, scores, true)?;
+        Ok(Self { encoder, output })
+    }
+}
+
+impl Layer<TokenBatch> for TokenScoreLayers {
     fn forward(&self, input: &TokenBatch, state: &ModelState) -> SingeResult<Tensor> {
-        self.output
-            .forward(&self.encoder.forward(input, state)?, state)
+        self.encoder
+            .forward(input, state)?
+            .apply(&self.output, state)
     }
 }
 
 // A loaded token classifier: its layers and state, and its labels.
 #[derive(Debug)]
 pub struct TokenClassifier {
-    model: Model<TokenClassifierLayers>,
+    model: Model<TokenScoreLayers>,
     config: ClassifierConfig,
 }
 
 impl TokenClassifier {
     #[must_use]
-    pub const fn model(&self) -> &Model<TokenClassifierLayers> {
+    pub const fn model(&self) -> &Model<TokenScoreLayers> {
         &self.model
     }
 
@@ -48,13 +66,12 @@ impl TokenClassifier {
 
     // Returns each row's tokens' scores, one per label, before any score function, padded tokens included.
     pub fn scores(&self, batch: &TokenBatch) -> Result<Vec<Vec<Vec<f32>>>> {
-        if self.config.labels.is_empty() {
-            return Err(Error::unsupported("a classifier of no labels"));
-        }
-
-        let length = usize::try_from(batch.tokens().shape().dimensions()[1])
-            .map_err(|_| SingeError::out_of_range("batch length"))?;
-        let labels = self.config.labels.len();
+        let &[_, length] = batch.tokens().shape().dimensions() else {
+            return Err(SingeError::invalid_argument("token batch, [B, T]").into());
+        };
+        let length =
+            usize::try_from(length).map_err(|_| SingeError::out_of_range("batch length"))?;
+        let labels = self.config.labels().len();
         let scores = self
             .model
             .forward_group(batch)?
@@ -62,7 +79,7 @@ impl TokenClassifier {
             .to_vec::<f32>()?;
         Ok(scores
             .chunks(length * labels)
-            .map(|row| row.chunks(labels).map(<[f32]>::to_vec).collect())
+            .map(|row| host::rows(row, labels))
             .collect())
     }
 }
@@ -70,7 +87,7 @@ impl TokenClassifier {
 impl EncoderHead for TokenClassifier {
     type Config = ClassifierConfig;
 
-    type Layers = TokenClassifierLayers;
+    type Layers = TokenScoreLayers;
 
     fn transformers_config(source: &Source) -> Result<ClassifierConfig> {
         classifier_config(source)
@@ -81,20 +98,11 @@ impl EncoderHead for TokenClassifier {
         encoder: PostNormEncoder,
         config: &ClassifierConfig,
         _layouts: &HeadLayouts,
-    ) -> SingeResult<TokenClassifierLayers> {
-        let labels = i64::try_from(config.labels.len())
-            .map_err(|_| SingeError::out_of_range("classifier labels"))?;
-        let output =
-            schema
-                .scope("classifier")
-                .linear("output", encoder.config().width, labels, true)?;
-        Ok(TokenClassifierLayers {
-            encoder: Box::new(encoder),
-            output,
-        })
+    ) -> SingeResult<TokenScoreLayers> {
+        TokenScoreLayers::create(schema, "classifier", encoder, config.label_count()?)
     }
 
-    fn new(model: Model<TokenClassifierLayers>, config: ClassifierConfig) -> Self {
+    fn new(model: Model<TokenScoreLayers>, config: ClassifierConfig) -> Self {
         Self { model, config }
     }
 }

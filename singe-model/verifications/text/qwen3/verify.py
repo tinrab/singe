@@ -1,55 +1,17 @@
-"""Qwen3, answering decision questions as the decision pipeline of `transformers`' main branch does, and generating greedily after a prompt and after a chat with `transformers`' `generate`, as `verify.rs` generates in Singe."""
+"""Qwen3, answering decision questions as the decision pipeline of `transformers`' main branch does, and generating greedily after a prompt and after a chat with `transformers`' `generate`, as `mod.rs` generates in Singe."""
 
-import sys
-from pathlib import Path
+import string
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import torch
+from jinja2.sandbox import ImmutableSandboxedEnvironment
+from transformers import AutoModelForCausalLM, AutoTokenizer
 
-import string  # noqa: E402
-
-import torch  # noqa: E402
-from jinja2.sandbox import ImmutableSandboxedEnvironment  # noqa: E402
-from transformers import AutoModelForCausalLM, AutoTokenizer  # noqa: E402
-
-from support import DEVICE, Verification, generation  # noqa: E402
-
-
-def text_generation(snapshot, dtype=torch.float32):
-    tokenizer = AutoTokenizer.from_pretrained(snapshot)
-    model = (
-        AutoModelForCausalLM.from_pretrained(snapshot, dtype=dtype).to(DEVICE).eval()
-    )
-
-    def run(prompts, parameters):
-        outputs = []
-        for prompt in prompts:
-            # A chat is rendered with the snapshot's template, after which the model answers.
-            if isinstance(prompt, list):
-                prompt = tokenizer.apply_chat_template(
-                    prompt,
-                    tokenize=False,
-                    add_generation_prompt=True,
-                    **parameters.get("chat_template_kwargs", {}),
-                )
-            ids = tokenizer(
-                prompt, add_special_tokens=False, return_tensors="pt"
-            ).input_ids.to(DEVICE)
-            with torch.no_grad():
-                generated = model.generate(
-                    ids, max_new_tokens=parameters["max_new_tokens"], do_sample=False
-                )
-            outputs.append(generation(model, generated[0, ids.shape[1] :].tolist()))
-        return outputs
-
-    return run
-
+from support import DEVICE, Verification, text_generation
 
 verification = Verification(__file__)
 verification.check("prompt", text_generation)
 verification.check("chat", text_generation)
-verification.check(
-    "prompt-bf16", lambda snapshot: text_generation(snapshot, torch.bfloat16)
-)
+verification.check("prompt-bf16", text_generation)
 
 
 # The generic prompt of `transformers`' decision pipeline, which the installed release predates: `DECISION_PROMPT` of `transformers/decision/template_utils.py`.
@@ -130,13 +92,11 @@ def answer(question, probabilities):
     }
 
 
-def decision(snapshot):
+def decision(snapshot, dtype):
     """`transformers`' decision pipeline for a model without a decision head: per question, the generic prompt as the user's message of the chat template, one forward pass, and the softmax of the option labels' logits after the prompt."""
     tokenizer = AutoTokenizer.from_pretrained(snapshot)
     model = (
-        AutoModelForCausalLM.from_pretrained(snapshot, dtype=torch.float32)
-        .to(DEVICE)
-        .eval()
+        AutoModelForCausalLM.from_pretrained(snapshot, dtype=dtype).to(DEVICE).eval()
     )
     prompt = ImmutableSandboxedEnvironment(
         trim_blocks=True, lstrip_blocks=True

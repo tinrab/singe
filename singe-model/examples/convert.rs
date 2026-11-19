@@ -3,6 +3,8 @@
 
 mod support;
 
+use std::path::Path;
+
 use anyhow::{Context as _, Result};
 use singe::DataType;
 use singe_model::{LoadOptions, Source, model, task::Task};
@@ -12,21 +14,27 @@ use crate::support::Arguments;
 fn main() -> Result<()> {
     let arguments = Arguments::parse(&[])?;
     let task = Task::from_id(arguments.required("task")?)?;
-    let head = task.head().with_context(|| {
-        format!(
-            "{}'s pipeline loads `diffusers` components itself, not a model's head to convert",
-            task.id()
-        )
-    })?;
     let data_type = arguments.data_type(DataType::F32)?;
-    let source = Source::open(&arguments.snapshot)?;
+    let source = Source::open(arguments.snapshot())?;
     let model = model::find(&source)?;
+    let head = task
+        .heads()
+        .iter()
+        .copied()
+        .find(|head| model.heads().any(|served| served == *head))
+        .with_context(|| {
+            format!(
+                "{} serves none of the heads {}'s pipeline loads",
+                model.name,
+                task.id()
+            )
+        })?;
     let directory = arguments.required("directory")?;
     model::convert(
         &source,
         head,
-        directory,
-        LoadOptions::new(arguments.device, data_type),
+        Path::new(directory),
+        LoadOptions::new(arguments.device(), data_type),
     )?;
     println!("saved {} in Singe's format to {directory}", model.name);
     Ok(())

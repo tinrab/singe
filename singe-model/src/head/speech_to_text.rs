@@ -1,12 +1,17 @@
 use std::fmt::Debug;
 
+use serde::Serialize;
 use singe::{Tensor, generation::GenerationOptions};
 
-use super::{LoopLimits, LoopSteps};
-use crate::{BatchOptions, error::Result, processor::text::TextTokenizer};
+use crate::{
+    BatchOptions,
+    error::{Error, Result},
+    head::{LoopLimits, LoopSteps},
+    processor::text::TextTokenizer,
+};
 
 // What a transcription says: the language the model names, if any, and the text.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Transcription {
     pub language: Option<String>,
     pub text: String,
@@ -34,7 +39,7 @@ pub trait SpeechToText: Debug {
         _instruction: &str,
         _options: &BatchOptions,
     ) -> Result<String> {
-        Err(crate::Error::unsupported("an instruction beside the clip"))
+        Err(Error::unsupported("an instruction beside the clip"))
     }
 
     // The steps an exported transcription loop runs within `limits`: the encode step, which reads samples, and the decoder's steps, choosing as `generation` asks beside the model's own suppressed tokens.

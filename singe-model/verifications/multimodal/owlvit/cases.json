@@ -4,6 +4,7 @@
       "name": "detection",
       "snapshot": "OWLVIT",
       "task": "zero-shot-object-detection",
+      "data_type": "f32",
       "inputs": [
         {
           "image": "media/coco-cats.png",

@@ -20,7 +20,7 @@ pub use self::{
     domain::{ArgumentLabels, LoweredKernel},
     element_wise::{ElementWiseKernel, copy},
     epilogue::{EpilogueNode, EpilogueValue, RowEpilogue},
-    gather::{Selection, gather, scatter},
+    gather::{Selection, gather, resample_linear, scatter},
     group::{
         ElementGroup, FusedOperand, FusedStep, FusedStores, is_fusible, is_row_opcode,
         is_row_operation,
@@ -28,9 +28,9 @@ pub use self::{
     matmul::{Epilogue, Lhs, Weight, contraction, matmul},
     quantization::quantization,
     reduction::{reduction, scan},
-    rotary::rotary_embedding,
+    rotary::{rotary_embedding, rotary_halves},
     row::{batch_norm, normalization, softmax},
-    window::{conv2d, pool2d},
+    window::{ConvolutionGrouping, conv2d, pool2d},
 };
 
 use crate::{
@@ -55,7 +55,7 @@ pub const STATUS_DIVISION_BY_ZERO: u32 = 3;
 pub fn check_status_code(code: u32) -> Result<()> {
     match code {
         0 => Ok(()),
-        STATUS_INDEX_OUT_OF_BOUNDS => Err(Error::IndexOutOfBounds),
+        STATUS_INDEX_OUT_OF_BOUNDS => Err(Error::index_out_of_bounds("generated kernel index")),
         STATUS_INVALID_QUANTIZATION_SCALE => Err(Error::invalid_argument("quantization scale")),
         STATUS_DIVISION_BY_ZERO => Err(Error::invalid_argument("integer division by zero")),
         _ => Err(Error::invalid_argument("kernel status code")),

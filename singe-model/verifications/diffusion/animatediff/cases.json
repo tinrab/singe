@@ -4,6 +4,7 @@
       "name": "generation",
       "snapshot": "ANIMATEDIFF",
       "task": "text-to-video",
+      "data_type": "f16",
       "inputs": [
         {
           "prompt": "a cargo train driving through a factory, isometric",

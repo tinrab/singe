@@ -4,6 +4,7 @@
       "name": "fill",
       "snapshot": "XLM_ROBERTA",
       "task": "fill-mask",
+      "data_type": "f32",
       "inputs": ["The factory must <mask>.", "Die Fabrik muss <mask>."],
       "expected": [
         [

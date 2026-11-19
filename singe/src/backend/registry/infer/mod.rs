@@ -17,15 +17,15 @@ pub use self::{
         conv3d, embedding, gated_delta_rule, gated_delta_rule_output, gated_delta_rule_state,
         grouped_matmul, irfft, layer_norm, matmul, max_pool2d, paged_attention,
         paged_attention_lse, paged_attention_output, paged_mla_attention, paged_mla_attention_lse,
-        paged_mla_attention_output, quantized_matmul, rfft, rotary_embedding, scaled_matmul,
-        softmax,
+        paged_mla_attention_output, quantized_matmul, rfft, rotary_embedding, rotary_halves,
+        scaled_matmul, softmax,
     },
     random::{bernoulli, multinomial, normal, uniform},
     reduction::{arg_reduction, argsort, cumulative, reduction, topk},
     shape::{
         as_strided, assign, concat, expand, flatten, index, index_put, index_select, index_write,
-        pad, permute, repeat_kv, reshape, slice, squeeze, strided_scatter, take, transpose,
-        unsqueeze,
+        pad, permute, repeat_kv, resample_linear, reshape, slice, squeeze, strided_scatter, take,
+        transpose, unsqueeze,
     },
 };
 use crate::{

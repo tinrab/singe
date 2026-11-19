@@ -91,7 +91,7 @@ impl CudaCompiledGraph {
         output_target: ReplayOutputTarget,
     ) -> Result<Vec<CudaGraphValue>> {
         self.replay_stats.asynchronous_runs = self.replay_stats.asynchronous_runs.saturating_add(1);
-        let _replay_range = CudaNvtxRange::create("singe cuda graph replay");
+        let _replay_range = CudaNvtxRange::new(|| "singe cuda graph replay");
         // Inputs come from eager work, which runs on its own stream without waiting.
         runtime_for_device(self.device)?.order_after_eager(stream.raw())?;
         self.prepare_replay_on_stream(stream)?;
@@ -126,25 +126,25 @@ pub fn run_replay_submission(
     submission: &mut ReplaySubmission,
 ) -> Result<Vec<CudaGraphValue>> {
     let cache = {
-        let _input_range = CudaNvtxRange::create("singe cuda graph replay prepare inputs");
+        let _input_range = CudaNvtxRange::new(|| "singe cuda graph replay prepare inputs");
         graph.runtime_cache(inputs, stream, submission)?
     };
     if let Some(executable_owner) = &graph.executable {
         let mut executable = executable_owner.locked("cuda runtime cache")?;
         {
-            let _update_range = CudaNvtxRange::create("singe cuda graph replay update parameters");
+            let _update_range = CudaNvtxRange::new(|| "singe cuda graph replay update parameters");
             for step in &mut graph.cudnn_steps {
                 if !step.update_on_replay() {
                     continue;
                 }
 
-                let mut cudnn = graph.runtime.cudnn().locked("cuda runtime cache")?;
+                let mut cudnn = graph.runtime.cudnn()?.locked("cuda runtime cache")?;
                 step.update_graph(&mut cudnn, &cache)?;
                 executable.set_child_graph_node(&step.graph_node(), step.child_graph())?;
             }
         }
 
-        let _launch_range = CudaNvtxRange::create("singe cuda graph replay launch");
+        let _launch_range = CudaNvtxRange::new(|| "singe cuda graph replay launch");
         submission.record_native_launch();
         let mut resources = Resources::new();
         resources.retain(Arc::clone(executable_owner));
@@ -175,15 +175,8 @@ pub fn run_replay_submission(
     }
 
     let outputs = {
-        let _output_range = CudaNvtxRange::create("singe cuda graph replay copy outputs");
-        match output_target {
-            ReplayOutputTarget::Allocate => {
-                graph.copy_outputs_for_run(&cache, stream, submission, true)?
-            }
-            ReplayOutputTarget::Ordered => {
-                graph.copy_outputs_for_run(&cache, stream, submission, false)?
-            }
-        }
+        let _output_range = CudaNvtxRange::new(|| "singe cuda graph replay copy outputs");
+        graph.copy_outputs_for_run(&cache, stream, submission, output_target)?
     };
     graph.finish_replay_submission(submission, stream)?;
     Ok(outputs)

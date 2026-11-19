@@ -1118,10 +1118,6 @@ mod kernels {
         };
     }
 
-    #[expect(
-        clippy::too_many_lines,
-        reason = "the kernel keeps its complete indexing and operation dispatch in one auditable unit"
-    )]
     unsafe fn concat_rank3_f32_impl<const AXIS: i32>(
         out: *mut f32,
         lhs: *mut f32,
@@ -1461,10 +1457,6 @@ mod kernels {
         );
     }
 
-    #[expect(
-        clippy::too_many_lines,
-        reason = "the kernel keeps its complete indexing and operation dispatch in one auditable unit"
-    )]
     unsafe fn concat_rank4_f32_impl<const AXIS: i32>(
         out: *mut f32,
         lhs: *mut f32,

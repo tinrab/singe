@@ -4,6 +4,7 @@
       "name": "detection",
       "snapshot": "YOLOS",
       "task": "object-detection",
+      "data_type": "f32",
       "inputs": ["media/coco-cats.png"],
       "expected": [
         [

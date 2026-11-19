@@ -11,10 +11,6 @@ use crate::{
 
 /// Hashes the logical shape recipe rather than a representative specialization.
 /// Intermediate shapes follow from the named inputs, operations, and expressions.
-#[expect(
-    clippy::too_many_lines,
-    reason = "the exhaustive shape-expression traversal keeps the fingerprint encoding visible together"
-)]
 pub fn hash_shape_program(graph: &Graph, hasher: &mut StableHasher) -> Result<()> {
     let mut live = HashSet::new();
     let mut pending = graph

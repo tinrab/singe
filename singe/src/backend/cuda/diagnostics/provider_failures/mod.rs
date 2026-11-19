@@ -83,7 +83,7 @@ fn rejection(error: &Error) -> Option<Rejection> {
         Error::GraphSource { source, .. } => rejection(source),
         Error::Cudnn(_) => stable_cudnn_rejection(error).then_some(Rejection::Library),
         Error::Unsupported { .. }
-        | Error::ContiguousRequired
+        | Error::ContiguousRequired { .. }
         | Error::Cuda(
             CudaError::UnsupportedArchitecture { .. } | CudaError::NoCompatibleArtifact { .. },
         ) => Some(Rejection::Checked),

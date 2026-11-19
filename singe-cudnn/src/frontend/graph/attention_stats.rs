@@ -68,14 +68,6 @@ fn storage_view_preserves_stats_values(
 }
 
 impl Graph {
-    #[expect(
-        clippy::too_many_lines,
-        reason = "native operation construction keeps its resource ownership and descriptor ordering together"
-    )]
-    #[expect(
-        clippy::float_cmp,
-        reason = "statistics provenance recognizes exact copies with unit coefficients"
-    )]
     pub(crate) fn validate_attention_statistics_bases(&self) -> Result<()> {
         let aliases = self
             .storage_views

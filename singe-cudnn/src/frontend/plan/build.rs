@@ -155,10 +155,6 @@ fn record_build_result(
     };
 }
 
-#[expect(
-    clippy::too_many_lines,
-    reason = "plan construction and selection keep the complete native execution lifecycle together"
-)]
 pub(crate) fn build_execution_plan_entries(
     context: Option<&Context>,
     operation_graph: &OperationGraph,

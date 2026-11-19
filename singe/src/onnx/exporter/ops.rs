@@ -610,10 +610,13 @@ impl Exporter<'_> {
             data_type,
             ..
         } = op;
-        let channels = self
+        let &[_, channels, ..] = self
             .source
             .required_value_shape(node.inputs()[0])?
-            .dimensions()[1];
+            .dimensions()
+        else {
+            return Err(unsupported("batch normalization without a channel axis"));
+        };
         let weight = if has_weight {
             inputs[1].clone()
         } else {

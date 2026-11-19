@@ -17,10 +17,7 @@ use crate::{
     model,
     processor::text::TextTokenizer,
     source::{LoadOptions, Source},
-    task::{
-        Pipeline, Task,
-        text::summarization::{Seq2SeqParameters, generate_text},
-    },
+    task::{Pipeline, seq2seq::Seq2SeqParameters},
 };
 
 #[derive(Debug)]
@@ -108,8 +105,6 @@ pub struct TableAnswer {
 }
 
 impl Pipeline for TableQuestionAnsweringPipeline {
-    const TASK: Task = Task::TableQuestionAnswering;
-
     type Input = TableQuestion;
 
     type Parameters = Seq2SeqParameters;
@@ -120,34 +115,25 @@ impl Pipeline for TableQuestionAnsweringPipeline {
         let config: Value = source.json("tokenizer_config.json")?;
         Ok(Self {
             model: model::load(source, options)?,
-            tokenizer: TextTokenizer::load(source.directory())?,
+            tokenizer: TextTokenizer::load(source)?,
             lowercase: config["do_lower_case"].as_bool().unwrap_or(false),
         })
     }
 
-    fn run(
-        &self,
-        inputs: &[Self::Input],
-        parameters: &Self::Parameters,
-    ) -> Result<Vec<Self::Output>> {
-        inputs
-            .iter()
-            .map(|input| {
-                // The question, then the table, lowercased when the tokenizer lowercases.
-                let mut text = format!("{} {}", input.query, input.table.linearized());
-                if self.lowercase {
-                    text = text.to_lowercase();
-                }
+    fn run_one(&self, input: &Self::Input, parameters: &Self::Parameters) -> Result<Self::Output> {
+        // The question, then the table, lowercased when the tokenizer lowercases.
+        let mut text = format!("{} {}", input.query, input.table.linearized());
+        if self.lowercase {
+            text = text.to_lowercase();
+        }
 
-                Ok(TableAnswer {
-                    answer: generate_text(
-                        &self.model,
-                        &self.tokenizer,
-                        &text,
-                        parameters.max_new_tokens,
-                    )?,
-                })
-            })
-            .collect()
+        Ok(TableAnswer {
+            answer: self.model.generate_from_text(
+                &self.tokenizer,
+                &text,
+                parameters.max_new_tokens,
+                parameters.compile,
+            )?,
+        })
     }
 }

@@ -34,6 +34,7 @@ use singe::{
     },
     dispatch::{call, call_one},
     error::Result,
+    graph::{ComputePrecision, with_convolution_precision},
     scalar::Scalar,
     tensor::{InterpolateMode, Interpolation, LossReduction, NormOrder},
 };
@@ -73,7 +74,15 @@ const DATA_TYPES: [DataType; 16] = [
 ];
 
 /// Registry operations the fixture has no cases for, and why.
-const UNCOVERED: [(&str, &str); 13] = [
+const UNCOVERED: [(&str, &str); 15] = [
+    (
+        "resample_linear",
+        "is how `interpolate` resamples an axis in bilinear mode without aligned corners or antialiasing; its cases cover it",
+    ),
+    (
+        "rotary_halves",
+        "is how `RotaryAngles` rotates the half-split layout; the decoder tests in `tests/nn` run it",
+    ),
     (
         "paged_attention_output",
         "is `paged_attention`'s first result as graph capture records it; its cases cover it",
@@ -306,10 +315,6 @@ fn quad(value: &Value) -> (i64, i64, i64, i64) {
     (values[0], values[1], values[2], values[3])
 }
 
-#[expect(
-    clippy::cast_possible_truncation,
-    reason = "fixture attributes are written from F32 values"
-)]
 fn float(value: &Value) -> f32 {
     value.as_f64().unwrap() as f32
 }
@@ -510,7 +515,11 @@ fn execute(fixture: &Fixture, case: &Case, path: ExecutionPath) -> Result<Vec<Te
     match path {
         ExecutionPath::Cpu | ExecutionPath::Meta => run(&inputs),
         #[cfg(all(feature = "testing", feature = "cuda"))]
-        ExecutionPath::Cuda => run(&inputs),
+        ExecutionPath::Cuda => {
+            let outputs = run(&inputs)?;
+            cuda::synchronize(path.device())?;
+            Ok(outputs)
+        }
         #[cfg(all(feature = "testing", feature = "cuda"))]
         ExecutionPath::Graph | ExecutionPath::TileGraph => {
             let named = inputs
@@ -519,6 +528,7 @@ fn execute(fixture: &Fixture, case: &Case, path: ExecutionPath) -> Result<Vec<Te
                 .map(|(index, input)| (format!("input{index}"), input.clone()))
                 .collect::<Vec<_>>();
             let (graph, _) = Graph::capture(named.clone(), |inputs| run(inputs))?;
+            cuda::synchronize(path.device())?;
             let options = if path == ExecutionPath::TileGraph {
                 GraphCudaOptions::default().with_kernel_language(KernelLanguage::TileIr)
             } else {
@@ -546,10 +556,6 @@ fn composite(name: &str, arguments: &Value, inputs: &[Tensor]) -> Result<Vec<Ten
     let integer = |key: &str| arguments[key].as_i64().unwrap();
     let integer_list = |key: &str| integers(&arguments[key]);
     let float = |key: &str| arguments[key].as_f64().unwrap();
-    #[expect(
-        clippy::cast_possible_truncation,
-        reason = "the fixture writes these arguments as `F32` values"
-    )]
     let single = |key: &str| arguments[key].as_f64().unwrap() as f32;
     let boolean = |key: &str| arguments[key].as_bool().unwrap();
     let several = match name {
@@ -933,7 +939,9 @@ fn hex(bytes: &[u8]) -> String {
 ///
 /// A case both reject passes whatever the reasons, since Singe may decline a data type before it reaches the check `PyTorch` failed.
 fn check(fixture: &Fixture, case: &Case, path: ExecutionPath) -> (Outcome, String) {
-    let result = catch_unwind(AssertUnwindSafe(|| execute(fixture, case, path)));
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        with_convolution_precision(ComputePrecision::Full, || execute(fixture, case, path))
+    }));
     let Ok(result) = result else {
         return (Outcome::Panicked, "panicked".to_owned());
     };
@@ -971,8 +979,14 @@ fn read_baseline(path: &str) -> BTreeMap<String, Outcome> {
         .collect()
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Baseline {
+    Check,
+    Update,
+}
+
 /// Runs every case on `path`, checks the outcomes against its baseline, and returns them.
-fn replay(fixture: &Fixture, path: ExecutionPath, update: bool) -> Vec<Outcome> {
+fn replay(fixture: &Fixture, path: ExecutionPath, mode: Baseline) -> Vec<Outcome> {
     let mut outcomes = Vec::with_capacity(fixture.cases.len());
     let mut report = String::new();
     for case in &fixture.cases {
@@ -995,7 +1009,7 @@ fn replay(fixture: &Fixture, path: ExecutionPath, update: bool) -> Vec<Outcome> 
             writeln!(lines, "{} {}", outcome.name(), case.name).unwrap();
             lines
         });
-    if update {
+    if mode == Baseline::Update {
         fs::write(baseline_path(path.name()), lines).unwrap();
         return outcomes;
     }
@@ -1047,20 +1061,24 @@ fn test_every_registry_operation_has_conformance_cases_or_a_reason() {
 #[test]
 fn test_operations_match_pytorch_on_every_path() {
     let fixture = Fixture::load();
-    let update = env::var_os("SINGE_UPDATE_CONFORMANCE").is_some();
+    let baseline = if env::var_os("SINGE_UPDATE_CONFORMANCE").is_some() {
+        Baseline::Update
+    } else {
+        Baseline::Check
+    };
     #[cfg_attr(
         not(all(feature = "testing", feature = "cuda")),
         expect(unused_mut, reason = "only CUDA builds replay more paths")
     )]
     let mut summaries = vec![(
         ExecutionPath::Cpu,
-        replay(&fixture, ExecutionPath::Cpu, update),
+        replay(&fixture, ExecutionPath::Cpu, baseline),
     )];
     #[cfg(all(feature = "testing", feature = "cuda"))]
     {
         let _lock = device_lock(CudaDevice::new(0)).unwrap();
         for path in [ExecutionPath::Cuda, ExecutionPath::Graph] {
-            summaries.push((path, replay(&fixture, path, update)));
+            summaries.push((path, replay(&fixture, path, baseline)));
         }
     }
     for (path, outcomes) in summaries {
@@ -1210,6 +1228,13 @@ fn test_cuda_tile_kernels_match_the_cuda_baseline() {
     );
 }
 
+#[cfg(all(feature = "testing", feature = "cuda"))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ProgramSteps {
+    Any,
+    NeedsLibrary,
+}
+
 // Runs `case` as a program, and returns whether it ran; only a program that must call a library can decline.
 #[cfg(all(feature = "testing", feature = "cuda"))]
 fn check_program(
@@ -1217,7 +1242,7 @@ fn check_program(
     case: &Case,
     export: &CudaExport,
     label: &str,
-    with_library_only: bool,
+    steps: ProgramSteps,
 ) -> anyhow::Result<bool> {
     let device = ExecutionPath::Graph.device();
     let named = case
@@ -1229,8 +1254,9 @@ fn check_program(
         })
         .collect::<Result<Vec<_>>>()?;
     let (graph, _) = Graph::capture(named.clone(), |inputs| run_case(case, inputs))?;
+    cuda::synchronize(device)?;
     let program: CudaProgram = export.export(&graph)?;
-    if with_library_only
+    if steps == ProgramSteps::NeedsLibrary
         && !program
             .steps
             .iter()
@@ -1296,10 +1322,12 @@ fn test_exported_programs_match_pytorch_on_a_sample_of_cases() {
         let case = cases[cases.len() / 2];
         let exports = library_exports
             .iter()
-            .map(|(label, export)| (label.as_str(), export, true));
-        for (label, export, library_only) in once(("generated", &generated, false)).chain(exports) {
+            .map(|(label, export)| (label.as_str(), export, ProgramSteps::NeedsLibrary));
+        for (label, export, steps) in
+            once(("generated", &generated, ProgramSteps::Any)).chain(exports)
+        {
             let result = catch_unwind(AssertUnwindSafe(|| {
-                check_program(&fixture, case, export, label, library_only)
+                check_program(&fixture, case, export, label, steps)
             }));
             match result {
                 Ok(Ok(true)) => ran += 1,

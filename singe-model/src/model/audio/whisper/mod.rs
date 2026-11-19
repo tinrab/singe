@@ -11,21 +11,23 @@ use singe::{
     graph::Graph,
     nn::{
         Activation, AttentionInput, CacheSize, Conv1d, Conv1dConfig, CrossAttention, DecodeCache,
-        DecodeStep, DecoderModel, DecodingLayer, DenseAttentionInput, Embedding,
-        EncoderDecoderBlock, EncoderDecoderCache, EncoderDecoderCacheSpec, EncoderDecoderParts,
-        GroupedQueryAttention, GroupedQueryLayers, HeadProjection, Layer, LayerNorm, Linear, Mlp,
-        Model, ModelState, StateBuilder, StateKey,
+        DecodeStep, DecoderModel, DecodingLayer, Embedding, EncoderDecoderBlock,
+        EncoderDecoderCache, EncoderDecoderCacheSpec, EncoderDecoderParts, GroupedQueryAttention,
+        GroupedQueryLayers, HeadProjection, Layer, LayerNorm, Linear, ModelState, StateKey,
     },
     signal::{LogMelOptions, LogMelSpectrogram},
 };
 
 use crate::{
     BatchOptions,
-    assembly::{PreNormEncoderBlock, PreNormEncoderSpec, causal, pre_norm_encoder_block},
+    assembly::{
+        FinalNorm, PYTORCH_NORM_EPS, PreNormEncoder, PreNormEncoderConfig, causal, same_1d,
+    },
+    decoder_cache::cached_decoder,
     error::Result,
-    format::{Loader, transformers::generation_options},
+    format::Loader,
     head::{HeadLoader, LoopLimits, LoopSteps, SpeechToText, Transcription},
-    model::ModelEntry,
+    model::{ModelEntry, audio::speech::SpeechModel},
     processor::text::TextTokenizer,
     schema::Schema,
     source::Format,
@@ -34,8 +36,8 @@ use crate::{
 // The slots of a cross-attention cache page.
 const SOURCE_PAGE: i64 = 32;
 
-// `torch.nn.LayerNorm`'s default, which every Whisper norm uses.
-const LAYER_NORM_EPS: f32 = 1e-5;
+// Whisper's attention projections: biases on queries, values, and outputs, and none on keys.
+const PROJECTION_BIASES: [bool; 4] = [true, false, true, true];
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WhisperConfig {
@@ -61,47 +63,74 @@ impl WhisperConfig {
     pub const fn frames(&self) -> i64 {
         2 * self.source_positions
     }
-}
 
-pub(crate) const MODEL: ModelEntry = ModelEntry {
-    name: "whisper",
-    formats: &[(Format::Transformers, &["whisper"])],
-    heads: &[HeadLoader::SpeechToText(|loader| {
-        Ok(Box::new(load(loader)?))
-    })],
-};
+    const fn encoder(&self) -> PreNormEncoderConfig {
+        PreNormEncoderConfig {
+            width: self.width,
+            heads: self.encoder_heads,
+            inner: self.encoder_inner,
+            activation: self.activation,
+            eps: PYTORCH_NORM_EPS,
+            projection_biases: PROJECTION_BIASES,
+            causal: false,
+            layer_scale: false,
+        }
+    }
+}
 
 // Whisper's encoder: two convolutions with GELU, the second halving the frames, learned positions for every frame, and pre-norm blocks of attention without a mask.
 // It turns log-mel features, `[B, mels, 2F]`, into `[B, F, D]`.
 #[derive(Debug, Clone)]
 pub struct WhisperEncoderLayers {
+    features: LogMelSpectrogram,
     first: Conv1d,
     second: Conv1d,
     positions: StateKey,
-    blocks: Vec<PreNormEncoderBlock>,
-    norm: LayerNorm,
+    encoder: PreNormEncoder,
+}
+
+impl WhisperEncoderLayers {
+    // The encoder's state, under `encoder.` so it shares no name with the decoder's in a graph of both: `convolutions.0` and `convolutions.1`, `embeddings.positions`, `blocks.N`, and `norm`.
+    pub fn create(schema: &mut Schema<'_>, config: &WhisperConfig) -> SingeResult<Self> {
+        let mut schema = schema.scope("encoder");
+        let width = config.width;
+        let strided = |stride| Conv1dConfig {
+            stride,
+            ..same_1d(3, 1)
+        };
+        let options = LogMelOptions::whisper(config.mels);
+        Ok(Self {
+            // As many samples as the encoder reads frames, a hop each: 30 seconds for the published models.
+            features: LogMelSpectrogram::create(LogMelOptions {
+                samples: config.frames() * options.hop,
+                ..options
+            })?,
+            first: schema.conv1d("convolutions.0", config.mels, width, 3, strided(1), true)?,
+            second: schema.conv1d("convolutions.1", width, width, 3, strided(2), true)?,
+            positions: schema.parameter(
+                "embeddings.positions.weight",
+                [config.source_positions, width],
+            )?,
+            encoder: PreNormEncoder::create(
+                &mut schema,
+                &config.encoder(),
+                config.encoder_layers,
+                FinalNorm::Included,
+            )?,
+        })
+    }
 }
 
 impl Layer for WhisperEncoderLayers {
     fn forward(&self, input: &Tensor, state: &ModelState) -> SingeResult<Tensor> {
-        let mut hidden = input
+        let hidden = input
             .apply(&self.first, state)?
             .apply(&Activation::GeluExact, state)?
             .apply(&self.second, state)?
             .apply(&Activation::GeluExact, state)?
             .transpose(1, 2)?
             .add(state.tensor(&self.positions)?)?;
-        for block in &self.blocks {
-            hidden = block.forward(
-                &DenseAttentionInput {
-                    hidden: &hidden,
-                    angles: None,
-                    key_lengths: None,
-                },
-                state,
-            )?;
-        }
-        hidden.apply(&self.norm, state)
+        self.encoder.encode(&hidden, None, state)
     }
 }
 
@@ -117,6 +146,77 @@ pub struct WhisperDecoderLayers {
 }
 
 impl WhisperDecoderLayers {
+    // The decoder's state, under `decoder.`: `embeddings.tokens`, `embeddings.positions`, `blocks.N`, `norm`, and `head`, tied to the token embeddings.
+    pub fn create(schema: &mut Schema<'_>, config: &WhisperConfig) -> SingeResult<Self> {
+        let mut schema = schema.scope("decoder");
+        let width = config.width;
+        let tokens = schema.parameter("embeddings.tokens.weight", [config.vocab_size, width])?;
+        let positions = schema.parameter(
+            "embeddings.positions.weight",
+            [config.target_positions, width],
+        )?;
+        let blocks = (0..config.decoder_layers)
+            .map(|layer| Self::block(&mut schema.scope(format!("blocks.{layer}")), config))
+            .collect::<SingeResult<Vec<_>>>()?;
+        Ok(Self {
+            head: Linear::new(schema.tie("head.weight", &tokens)?, None),
+            tokens: Embedding::new(tokens),
+            positions: Embedding::new(positions),
+            blocks,
+            norm: schema.layer_norm("norm", width, PYTORCH_NORM_EPS)?,
+            cache: EncoderDecoderCacheSpec {
+                heads: config.decoder_heads,
+                head_dim: width / config.decoder_heads,
+                sources: config.source_positions,
+                source_page: SOURCE_PAGE,
+            },
+        })
+    }
+
+    fn block(schema: &mut Schema<'_>, config: &WhisperConfig) -> SingeResult<EncoderDecoderBlock> {
+        let width = config.width;
+        let heads = config.decoder_heads;
+        let head_dim = width / heads;
+        let [query, key, value, output] = schema
+            .scope("attention")
+            .attention_projections(width, PROJECTION_BIASES)?;
+        let head = |linear| HeadProjection::new(linear, heads, head_dim);
+        let self_attention = GroupedQueryAttention::create(
+            GroupedQueryLayers {
+                query: head(query),
+                key: head(key),
+                value: head(value),
+                output,
+            },
+            causal(),
+        )?;
+        let [query, key, value, output] = schema
+            .scope("cross_attention")
+            .attention_projections(width, PROJECTION_BIASES)?;
+        let cross_attention = CrossAttention::create(
+            query,
+            key,
+            value,
+            output,
+            heads,
+            width,
+            config.source_positions,
+        )?;
+        Ok(EncoderDecoderBlock::new(EncoderDecoderParts {
+            self_norm: schema.layer_norm("attention_norm", width, PYTORCH_NORM_EPS)?,
+            self_attention,
+            cross_norm: schema.layer_norm("cross_attention_norm", width, PYTORCH_NORM_EPS)?,
+            cross_attention,
+            feed_forward_norm: schema.layer_norm("feed_forward_norm", width, PYTORCH_NORM_EPS)?,
+            feed_forward: schema.mlp(
+                "feed_forward",
+                [width, config.decoder_inner, width],
+                config.activation,
+                true,
+            )?,
+        }))
+    }
+
     // Writes one sequence's cross-attention keys and values to `caches`, from its encoder's outputs, `[F, D]`.
     pub fn write_sources(
         &self,
@@ -183,58 +283,29 @@ impl DecoderModel for WhisperDecoderLayers {
     }
 }
 
-// Whisper: its log-mel front end, its encoder, and its decoder, each half with state of its own, and how its snapshot generates.
-#[derive(Debug, Clone)]
-pub struct Whisper {
-    config: WhisperConfig,
-    features: LogMelSpectrogram,
-    encoder: Model<WhisperEncoderLayers>,
-    decoder: Model<WhisperDecoderLayers>,
-    // The snapshot's stop and suppressed tokens, generating nothing until a caller sets `max_new_tokens`.
-    generation: GenerationOptions,
-}
+// Whisper: its log-mel front end with its encoder, its decoder, and how its snapshot generates.
+pub type Whisper = SpeechModel<WhisperConfig, WhisperEncoderLayers, WhisperDecoderLayers>;
 
 impl Whisper {
-    #[must_use]
-    pub const fn config(&self) -> &WhisperConfig {
-        &self.config
-    }
-
     // The samples the front end reads, to which a clip is padded with silence or cut.
     #[must_use]
-    pub const fn samples(&self) -> i64 {
-        self.features.options().samples
-    }
-
-    #[must_use]
-    pub const fn encoder(&self) -> &Model<WhisperEncoderLayers> {
-        &self.encoder
-    }
-
-    #[must_use]
-    pub const fn decoder(&self) -> &Model<WhisperDecoderLayers> {
-        &self.decoder
-    }
-
-    // How `transformers`' `generate` continues a prompt for this snapshot, greedily, up to `max_new_tokens`: the generation config's end of text stops a sequence, its `suppress_tokens` are never chosen, and its `begin_suppress_tokens` are not chosen first.
-    #[must_use]
-    pub fn generation_options(&self, max_new_tokens: usize) -> GenerationOptions {
-        GenerationOptions {
-            max_new_tokens,
-            ..self.generation.clone()
-        }
+    pub fn samples(&self) -> i64 {
+        self.encoder().layer().features.options().samples
     }
 
     // Turns 16 kHz samples, `[B, N]` or `[N]`, into the log-mel features the encoder reads, `[B, mels, frames]`.
     pub fn features(&self, samples: &Tensor) -> SingeResult<Tensor> {
-        self.features
-            .forward(samples, self.encoder.state())?
-            .cast(self.encoder.state().floating_type()?)
+        let encoder = self.encoder();
+        encoder
+            .layer()
+            .features
+            .forward(samples, encoder.state())?
+            .cast(encoder.state().floating_type()?)
     }
 
     // Encodes log-mel features, `[B, mels, frames]`, to `[B, F, D]`.
     pub fn encode(&self, features: &Tensor) -> SingeResult<Tensor> {
-        self.encoder.forward(features)
+        self.encoder().forward(features)
     }
 
     // A decoder of `options.sequences` sequences, each of which reads an encoding written with `write_sources` before its first step.
@@ -242,7 +313,7 @@ impl Whisper {
         &self,
         options: DecoderOptions,
     ) -> SingeResult<CachedDecoder<WhisperDecoderLayers>> {
-        CachedDecoder::create(&self.decoder, options)
+        CachedDecoder::create(self.decoder(), options)
     }
 
     // Writes one sequence's encoding, `[F, D]`, to `decoder`'s cross-attention caches.
@@ -252,11 +323,11 @@ impl Whisper {
         sequence: usize,
         encoded: &Tensor,
     ) -> SingeResult<()> {
-        self.decoder.layer().write_sources(
+        self.decoder().layer().write_sources(
             encoded,
             sequence,
             decoder.caches(),
-            self.decoder.state(),
+            self.decoder().state(),
         )
     }
 
@@ -267,36 +338,21 @@ impl Whisper {
         decoder: &CachedDecoder<WhisperDecoderLayers>,
         samples: &Tensor,
     ) -> SingeResult<(Graph, HashMap<String, Tensor>)> {
-        let layers = self.decoder.layer();
+        let layers = self.decoder().layer();
         decoder.encode_step_graph(
-            self.encoder.state(),
+            self.encoder().state(),
             vec![("samples".to_owned(), samples.clone())],
             |inputs, caches| {
-                let sources = self
-                    .encoder
-                    .forward(&self.features(&inputs[0])?)?
-                    .squeeze(0)?;
-                layers.write_sources(&sources, 0, caches, self.decoder.state())?;
+                let sources = self.encode(&self.features(&inputs[0])?)?.squeeze(0)?;
+                layers.write_sources(&sources, 0, caches, self.decoder().state())?;
                 Ok(vec![sources])
             },
         )
     }
 
-    // Generates after `prefix` for one clip of 16 kHz samples, `[N]`, as `generate_clips` does for a batch of one.
-    pub fn generate(
-        &self,
-        samples: &Tensor,
-        prefix: &[i64],
-        options: &BatchOptions,
-    ) -> SingeResult<Vec<i64>> {
-        self.generate_clips(slice::from_ref(samples), prefix, options)?
-            .pop()
-            .ok_or_else(|| SingeError::missing_output("transcription"))
-    }
-
     // Generates for clips of 16 kHz samples, each `[N]`: encodes them in one batch, then generates after `prefix` in `options.rows` rows, each clip joining the running batch as a row frees, with its encoding written to its row first.
     // Returns each clip's generated tokens, in order.
-    pub fn generate_clips(
+    pub fn generate(
         &self,
         clips: &[Tensor],
         prefix: &[i64],
@@ -316,32 +372,43 @@ impl Whisper {
             smallest: prefix.len().saturating_sub(1),
             largest: prefix.len().saturating_sub(1),
         };
-        let mut decoder = self.create_decoder(
-            DecoderOptions::new(options.rows, self.config.target_positions)
-                .with_prompt_chunks(chunks),
-        )?;
-        if options.compile {
-            decoder.compile()?;
-        }
-
         let prompts = vec![prefix; clips.len()];
-        generate_batch(
-            &mut decoder,
-            &prompts,
-            &options.generation,
-            None,
-            |decoder, row, clip| {
-                let clip = i64::try_from(clip).map_err(|_| SingeError::out_of_range("clips"))?;
-                self.write_sources(decoder, row, &encoded.narrow(0, clip, 1)?.squeeze(0)?)
+        let key = (
+            options.rows,
+            i64::try_from(prefix.len()).map_err(|_| SingeError::out_of_range("prefix"))?,
+            options.compile,
+        );
+        self.decoders().run(
+            key,
+            || {
+                cached_decoder(
+                    self.decoder(),
+                    DecoderOptions::new(options.rows, self.config().target_positions)
+                        .with_prompt_chunks(chunks),
+                    options.compile,
+                )
             },
-            |_, _| Ok(()),
+            |decoder| {
+                generate_batch(
+                    decoder,
+                    &prompts,
+                    &options.generation,
+                    None,
+                    |decoder, row, clip| {
+                        let clip =
+                            i64::try_from(clip).map_err(|_| SingeError::out_of_range("clips"))?;
+                        self.write_sources(decoder, row, &encoded.narrow(0, clip, 1)?.squeeze(0)?)
+                    },
+                    |_, _| Ok(()),
+                )
+            },
         )
     }
 }
 
 impl SpeechToText for Whisper {
     fn sample_rate(&self) -> i64 {
-        self.features.options().sample_rate
+        self.encoder().layer().features.options().sample_rate
     }
 
     // Whisper's loop runs one sequence over its whole context, prompted by its prefix, so it has no prompt step.
@@ -354,9 +421,10 @@ impl SpeechToText for Whisper {
             sampling: generation.sampling,
             ..self.generation_options(1)
         };
-        let decoder = self.create_decoder(DecoderOptions::new(1, self.config.target_positions))?;
+        let decoder =
+            self.create_decoder(DecoderOptions::new(1, self.config().target_positions))?;
         let samples = Tensor::zeroed_on(
-            self.encoder.state().device()?,
+            self.encoder().state().device()?,
             DataType::F32,
             Shape::create([self.samples()])?,
         )?;
@@ -374,196 +442,19 @@ impl SpeechToText for Whisper {
     ) -> Result<Transcription> {
         let language = language.unwrap_or("en");
         let prefix = prompt(tokenizer, language, WhisperTask::Transcribe)?;
-        let tokens = self.generate(samples, &prefix, &options.with_tokens_of(&self.generation))?;
+        let tokens = self
+            .generate(
+                slice::from_ref(samples),
+                &prefix,
+                &options.including_tokens_of(self.generation()),
+            )?
+            .pop()
+            .ok_or_else(|| SingeError::missing_output("transcription"))?;
         Ok(Transcription {
             language: Some(language.to_owned()),
             text: tokenizer.decode(&tokens, true)?.trim().to_owned(),
         })
     }
-}
-
-fn mlp(
-    schema: &mut Schema<'_>,
-    width: i64,
-    inner: i64,
-    activation: Activation,
-) -> SingeResult<Mlp> {
-    let mut schema = schema.scope("feed_forward");
-    Ok(Mlp::new(
-        schema.linear("up", width, inner, true)?,
-        schema.linear("down", inner, width, true)?,
-        activation,
-    ))
-}
-
-// Whisper's attention projections: biases on queries, values, and outputs, and none on keys.
-fn projections(schema: &mut Schema<'_>, width: i64) -> SingeResult<[Linear; 4]> {
-    Ok([
-        schema.linear("query", width, width, true)?,
-        schema.linear("key", width, width, false)?,
-        schema.linear("value", width, width, true)?,
-        schema.linear("output", width, width, true)?,
-    ])
-}
-
-fn decoder_block(
-    schema: &mut Schema<'_>,
-    config: &WhisperConfig,
-) -> SingeResult<EncoderDecoderBlock> {
-    let width = config.width;
-    let heads = config.decoder_heads;
-    let head_dim = width / heads;
-    let [query, key, value, output] = projections(&mut schema.scope("attention"), width)?;
-    let head = |linear| HeadProjection::new(linear, heads, head_dim);
-    let self_attention = GroupedQueryAttention::create(
-        GroupedQueryLayers {
-            query: head(query),
-            key: head(key),
-            value: head(value),
-            output,
-        },
-        causal(),
-    )?;
-    let [query, key, value, output] = projections(&mut schema.scope("cross_attention"), width)?;
-    let cross_attention = CrossAttention::create(
-        query,
-        key,
-        value,
-        output,
-        heads,
-        width,
-        config.source_positions,
-    )?;
-    Ok(EncoderDecoderBlock::new(EncoderDecoderParts {
-        self_norm: schema.layer_norm("attention_norm", width, LAYER_NORM_EPS)?,
-        self_attention,
-        cross_norm: schema.layer_norm("cross_attention_norm", width, LAYER_NORM_EPS)?,
-        cross_attention,
-        feed_forward_norm: schema.layer_norm("feed_forward_norm", width, LAYER_NORM_EPS)?,
-        feed_forward: mlp(schema, width, config.decoder_inner, config.activation)?,
-    }))
-}
-
-// The encoder's state, under `encoder.` so it shares no name with the decoder's in a graph of both: `convolutions.0` and `convolutions.1`, `embeddings.positions`, `blocks.N`, and `norm`.
-fn encoder_schema(
-    config: &WhisperConfig,
-    data_type: DataType,
-) -> Result<Model<WhisperEncoderLayers>> {
-    let width = config.width;
-    let mut builder = StateBuilder::new();
-    let layers = {
-        let mut root = Schema::root(&mut builder, data_type);
-        let mut model = root.scope("encoder");
-        let convolution = |schema: &mut Schema<'_>, index: usize, input: i64, stride: i64| {
-            let weight =
-                schema.parameter(&format!("convolutions.{index}.weight"), [width, input, 3])?;
-            let bias = schema.parameter(&format!("convolutions.{index}.bias"), [width])?;
-            SingeResult::Ok(Conv1d::new(
-                weight,
-                Some(bias),
-                Conv1dConfig {
-                    stride,
-                    padding: (1, 1),
-                    ..Conv1dConfig::default()
-                },
-            ))
-        };
-        let first = convolution(&mut model, 0, config.mels, 1)?;
-        let second = convolution(&mut model, 1, width, 2)?;
-        let positions = model.parameter(
-            "embeddings.positions.weight",
-            [config.source_positions, width],
-        )?;
-        let spec = PreNormEncoderSpec {
-            width,
-            heads: config.encoder_heads,
-            inner: config.encoder_inner,
-            activation: config.activation,
-            eps: LAYER_NORM_EPS,
-            key_bias: false,
-            causal: false,
-        };
-        let blocks = (0..config.encoder_layers)
-            .map(|layer| pre_norm_encoder_block(&mut model.scope(format!("blocks.{layer}")), &spec))
-            .collect::<SingeResult<Vec<_>>>()?;
-        let norm = model.layer_norm("norm", width, LAYER_NORM_EPS)?;
-        WhisperEncoderLayers {
-            first,
-            second,
-            positions,
-            blocks,
-            norm,
-        }
-    };
-    Ok(Model::new(layers, builder.finish()?))
-}
-
-// The decoder's state, under `decoder.`: `embeddings.tokens`, `embeddings.positions`, `blocks.N`, `norm`, and `head`, tied to the token embeddings.
-fn decoder_schema(
-    config: &WhisperConfig,
-    data_type: DataType,
-) -> Result<Model<WhisperDecoderLayers>> {
-    let width = config.width;
-    let mut builder = StateBuilder::new();
-    let (tokens, positions, blocks, norm) = {
-        let mut root = Schema::root(&mut builder, data_type);
-        let mut model = root.scope("decoder");
-        let tokens = model.parameter("embeddings.tokens.weight", [config.vocab_size, width])?;
-        let positions = model.parameter(
-            "embeddings.positions.weight",
-            [config.target_positions, width],
-        )?;
-        let blocks = (0..config.decoder_layers)
-            .map(|layer| decoder_block(&mut model.scope(format!("blocks.{layer}")), config))
-            .collect::<SingeResult<Vec<_>>>()?;
-        let norm = model.layer_norm("norm", width, LAYER_NORM_EPS)?;
-        (tokens, positions, blocks, norm)
-    };
-    let head = builder.tie("decoder.head.weight", &tokens)?;
-    Ok(Model::new(
-        WhisperDecoderLayers {
-            tokens: Embedding::new(tokens),
-            positions: Embedding::new(positions),
-            blocks,
-            norm,
-            head: Linear::new(head, None),
-            cache: EncoderDecoderCacheSpec {
-                heads: config.decoder_heads,
-                head_dim: width / config.decoder_heads,
-                sources: config.source_positions,
-                source_page: SOURCE_PAGE,
-            },
-        },
-        builder.finish()?,
-    ))
-}
-
-pub fn load(loader: &mut Loader<'_>) -> Result<Whisper> {
-    let config: WhisperConfig = loader.config(transformers::config)?;
-    let generation = generation_options(loader.source())?;
-    let data_type = loader.options().data_type;
-    let encoder = loader.load(
-        "encoder",
-        &encoder_schema(&config, data_type)?,
-        &transformers::encoder_rules(),
-    )?;
-    let decoder = loader.load(
-        "decoder",
-        &decoder_schema(&config, data_type)?,
-        &transformers::decoder_rules(),
-    )?;
-    loader.finish()?;
-    Ok(Whisper {
-        // As many samples as the encoder reads frames, a hop each: 30 seconds for the published models.
-        features: LogMelSpectrogram::create(LogMelOptions {
-            samples: config.frames() * LogMelOptions::whisper(config.mels).hop,
-            ..LogMelOptions::whisper(config.mels)
-        })?,
-        encoder,
-        decoder,
-        generation,
-        config,
-    })
 }
 
 // What Whisper does with its audio.
@@ -588,4 +479,29 @@ pub fn prompt(tokenizer: &TextTokenizer, language: &str, task: WhisperTask) -> R
     .into_iter()
     .map(|token| tokenizer.token_id(token))
     .collect()
+}
+
+pub(crate) const MODEL: ModelEntry = ModelEntry {
+    name: "whisper",
+    formats: &[(Format::Transformers, &["whisper"])],
+    loaders: &[HeadLoader::SpeechToText(|loader| {
+        Ok(Box::new(load(loader)?))
+    })],
+};
+
+pub fn load(loader: &mut Loader<'_>) -> Result<Whisper> {
+    let config: WhisperConfig = loader.config(transformers::config)?;
+    let data_type = loader.options().data_type;
+    let encoder = Schema::model(data_type, |schema| {
+        WhisperEncoderLayers::create(schema, &config)
+    })?;
+    let decoder = Schema::model(data_type, |schema| {
+        WhisperDecoderLayers::create(schema, &config)
+    })?;
+    SpeechModel::load(
+        loader,
+        config,
+        (&encoder, &transformers::encoder_rules()),
+        (&decoder, &transformers::decoder_rules()),
+    )
 }

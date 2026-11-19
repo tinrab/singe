@@ -15,7 +15,9 @@ use prost::Message;
 use singe::{DataType, OnnxModel, OnnxOptions, onnx::Error};
 use singe_onnx::proto::onnx::{
     GraphProto, ModelProto, NodeProto, OperatorSetIdProto, StringStringEntryProto, TensorProto,
-    TensorShapeProto, TypeProto, ValueInfoProto, tensor_proto, tensor_shape_proto, type_proto,
+    TensorShapeProto, TypeProto, ValueInfoProto, tensor_proto,
+    tensor_shape_proto::{self, dimension::Value as DimensionValue},
+    type_proto,
 };
 
 static NEXT_DIR: AtomicU64 = AtomicU64::new(0);
@@ -69,9 +71,7 @@ fn constant_model(tensor: TensorProto) -> ModelProto {
                             dim: shape
                                 .into_iter()
                                 .map(|size| tensor_shape_proto::Dimension {
-                                    value: Some(tensor_shape_proto::dimension::Value::DimValue(
-                                        size,
-                                    )),
+                                    value: Some(DimensionValue::DimValue(size)),
                                     ..Default::default()
                                 })
                                 .collect(),
@@ -179,7 +179,7 @@ fn test_external_paths_cannot_escape_the_model_directory() {
     ] {
         assert!(matches!(
             directory.load(&constant_model(external_tensor(location, "0", Some("8")))),
-            Err(Error::InvalidExternalData { .. })
+            Err(Error::ExternalDataOutside { .. })
         ));
     }
     #[cfg(unix)]
@@ -195,7 +195,7 @@ fn test_external_paths_cannot_escape_the_model_directory() {
                 "0",
                 Some("8")
             ))),
-            Err(Error::InvalidExternalData { .. })
+            Err(Error::ExternalDataOutside { .. })
         ));
     }
 }

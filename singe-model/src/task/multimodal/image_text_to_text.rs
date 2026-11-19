@@ -1,8 +1,7 @@
 // `image-text-to-text`: a conversation whose messages hold images to the text a vision-language model writes after it.
 
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::{Map, Value};
-use singe::generation::GenerationOptions;
 
 use crate::{
     BatchOptions,
@@ -13,9 +12,10 @@ use crate::{
         chat::{ChatTemplate, Message, Part},
         image::Image,
         text::TextTokenizer,
+        video::Video,
     },
     source::{LoadOptions, Source},
-    task::{Pipeline, Task},
+    task::{Pipeline, outputs::GeneratedSequence},
 };
 
 #[derive(Debug)]
@@ -24,6 +24,18 @@ pub struct ImageTextToTextPipeline {
     tokenizer: TextTokenizer,
     template: ChatTemplate,
     stop_tokens: Vec<i64>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum MediaKind {
+    Images,
+    Clip,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) enum Media {
+    Images(Vec<Image>),
+    Clip { video: Video, fps: f64 },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
@@ -45,105 +57,80 @@ impl Default for ImageTextToTextParameters {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct ImageTextToTextOutput {
-    pub generated_text: String,
-    pub generated_token_ids: Vec<i64>,
-}
-
 impl ImageTextToTextPipeline {
-    // Loads the pipeline, whose conversations render through the template the model keeps for clips when `clips` is set and the model keeps one, as its processor renders a conversation about a clip.
-    pub(crate) fn load_for(source: &Source, options: LoadOptions, clips: bool) -> Result<Self> {
+    pub(crate) fn load_for(
+        source: &Source,
+        options: LoadOptions,
+        media: MediaKind,
+    ) -> Result<Self> {
         let model: Box<dyn ImageTextToText> = model::load(source, options)?;
         let template = ChatTemplate::load(source)?
             .ok_or_else(|| Error::unsupported("a vision-language model without a chat template"))?;
-        let template = match model.video_template().filter(|_| clips) {
+        let template = match model.video_template().filter(|_| media == MediaKind::Clip) {
             Some(video) => template.with_template(video),
             None => template,
         };
         Ok(Self {
             model,
-            tokenizer: TextTokenizer::load(source.directory())?,
+            tokenizer: TextTokenizer::load(source)?,
             template,
             stop_tokens: source.stop_tokens()?,
         })
     }
 
-    // Generates after each conversation of `inputs`, rendered through the template, by `generate`, which reads the conversation's media and is given the model, the tokenizer, the conversation, its prompt, and the options `parameters` ask for.
-    pub(crate) fn generate_each(
+    pub(crate) fn respond(
         &self,
-        inputs: &[Vec<Message>],
+        messages: &[Message],
         parameters: &ImageTextToTextParameters,
-        generate: impl Fn(
-            &dyn ImageTextToText,
-            &TextTokenizer,
-            &[Message],
-            &str,
-            &BatchOptions,
-        ) -> Result<Vec<i64>>,
-    ) -> Result<Vec<ImageTextToTextOutput>> {
-        let options = BatchOptions::new(GenerationOptions {
-            max_new_tokens: parameters.max_new_tokens,
-            stop_tokens: self.stop_tokens.clone(),
-            ..GenerationOptions::default()
+        media: &Media,
+    ) -> Result<GeneratedSequence> {
+        let mut options = BatchOptions::new(parameters.max_new_tokens, parameters.compile);
+        options.generation.stop_tokens.clone_from(&self.stop_tokens);
+        let prompt = self
+            .template
+            .render(messages, true, &parameters.chat_template_kwargs)?;
+        let tokens = match media {
+            Media::Images(images) => {
+                self.model
+                    .generate(&self.tokenizer, &prompt, images, &options)?
+            }
+            Media::Clip { video, fps } => {
+                self.model
+                    .generate_video(&self.tokenizer, &prompt, video, *fps, &options)?
+            }
+        };
+        Ok(GeneratedSequence {
+            generated_text: self.tokenizer.decode(&tokens, true)?,
+            generated_token_ids: tokens,
         })
-        .with_compile(parameters.compile);
-        inputs
-            .iter()
-            .map(|messages| {
-                let prompt =
-                    self.template
-                        .render(messages, true, &parameters.chat_template_kwargs)?;
-                let tokens = generate(
-                    self.model.as_ref(),
-                    &self.tokenizer,
-                    messages,
-                    &prompt,
-                    &options,
-                )?;
-                Ok(ImageTextToTextOutput {
-                    generated_text: self.tokenizer.decode(&tokens, true)?,
-                    generated_token_ids: tokens,
-                })
-            })
-            .collect()
     }
 }
 
 impl Pipeline for ImageTextToTextPipeline {
-    const TASK: Task = Task::ImageTextToText;
-
     type Input = Vec<Message>;
 
     type Parameters = ImageTextToTextParameters;
 
-    type Output = ImageTextToTextOutput;
+    type Output = GeneratedSequence;
 
     fn load(source: &Source, options: LoadOptions) -> Result<Self> {
-        Self::load_for(source, options, false)
+        Self::load_for(source, options, MediaKind::Images)
     }
 
-    fn run(
+    fn run_one(
         &self,
-        inputs: &[Self::Input],
+        messages: &Self::Input,
         parameters: &Self::Parameters,
-    ) -> Result<Vec<Self::Output>> {
-        self.generate_each(
-            inputs,
-            parameters,
-            |model, tokenizer, messages, prompt, options| {
-                let images = messages
-                    .iter()
-                    .flat_map(|message| {
-                        message.content.files(|part| match part {
-                            Part::Image { image } => Some(image),
-                            Part::Text { .. } | Part::Audio { .. } | Part::Video { .. } => None,
-                        })
-                    })
-                    .map(Image::open)
-                    .collect::<Result<Vec<_>>>()?;
-                model.generate(tokenizer, prompt, &images, options)
-            },
-        )
+    ) -> Result<Self::Output> {
+        let images = messages
+            .iter()
+            .flat_map(|message| message.content.parts())
+            .filter_map(|part| match part {
+                Part::Image { image } => Some(image),
+                Part::Text { .. } | Part::Audio { .. } | Part::Video { .. } => None,
+            })
+            .map(Image::open)
+            .collect::<Result<Vec<_>>>()?;
+        self.respond(messages, parameters, &Media::Images(images))
     }
 }

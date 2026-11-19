@@ -16,6 +16,7 @@ pub use self::{capture::CaptureError, checkpoint::CheckpointError, compile::Comp
 #[cfg(feature = "cuda")]
 use cutile_ir::Error as TileIrError;
 use safetensors::SafeTensorError;
+use serde_json::Error as JsonError;
 use singe_codegen::{emit::EmitError, interpret::InterpretError, schedule::ScheduleError};
 #[cfg(feature = "cuda")]
 use singe_cublas::error::Error as CublasError;
@@ -149,10 +150,6 @@ pub enum Error {
         rank: i64,
     },
 
-    /// Shape metadata is invalid or would overflow internal calculations.
-    #[error("invalid shape")]
-    InvalidShape,
-
     /// Tensor rank did not satisfy an operation-specific requirement.
     #[error(
         "{operation} expects {expected_rank}D {layout} tensor for {name}, got rank \
@@ -174,8 +171,8 @@ pub enum Error {
     },
 
     /// Stride metadata is invalid or would overflow address calculations.
-    #[error("invalid stride")]
-    InvalidStride,
+    #[error("invalid stride for `{name}`")]
+    InvalidStride { name: Cow<'static, str> },
 
     /// Named value is out of its supported range.
     #[error("`{name}` is out of range")]
@@ -222,6 +219,8 @@ pub enum Error {
         target: UnsupportedTarget,
         /// Human-readable support diagnostics.
         details: Cow<'static, str>,
+        #[source]
+        source: Option<Box<Self>>,
     },
 
     /// A library refused a step planning decided it runs, which nothing else then runs.
@@ -258,12 +257,12 @@ pub enum Error {
     },
 
     /// Tensor index is out of bounds.
-    #[error("index out of bounds")]
-    IndexOutOfBounds,
+    #[error("index out of bounds for `{name}`")]
+    IndexOutOfBounds { name: Cow<'static, str> },
 
     /// Tensor dimension is out of bounds.
-    #[error("dimension out of bounds")]
-    DimensionOutOfBounds,
+    #[error("dimension out of bounds for `{name}`")]
+    DimensionOutOfBounds { name: Cow<'static, str> },
 
     /// Shapes cannot be broadcast together.
     #[error("broadcast mismatch for `{name}`: left {left:?}, right {right:?}")]
@@ -277,8 +276,8 @@ pub enum Error {
     },
 
     /// Operation requires contiguous tensor storage.
-    #[error("contiguous required")]
-    ContiguousRequired,
+    #[error("`{name}` must be contiguous")]
+    ContiguousRequired { name: Cow<'static, str> },
 
     /// CUDA allocation failed with contextual request metadata.
     #[error(
@@ -382,7 +381,7 @@ pub enum Error {
     Export { failures: Vec<ExportFailure> },
 
     /// A generated kernel failed.
-    #[error("kernel")]
+    #[error("generated kernel failed")]
     Kernel(#[from] KernelError),
 }
 
@@ -406,7 +405,7 @@ through!(
     InterpretError => CompileError,
     #[cfg(feature = "cuda")]
     TileIrError => CompileError,
-    serde_json::Error => CompileError,
+    JsonError => CompileError,
     IoError => CheckpointError,
     SafeTensorError => CheckpointError,
 );
@@ -543,6 +542,7 @@ impl Error {
             operation: operation.into(),
             target: UnsupportedTarget::Operation,
             details: "unsupported operation".into(),
+            source: None,
         }
     }
 
@@ -555,6 +555,7 @@ impl Error {
             operation: operation.into(),
             target: UnsupportedTarget::Operation,
             details: details.into(),
+            source: None,
         }
     }
 
@@ -564,6 +565,7 @@ impl Error {
             operation: "device".into(),
             target: UnsupportedTarget::Device,
             details: details.into(),
+            source: None,
         }
     }
 
@@ -599,6 +601,7 @@ impl Error {
             operation: operation.into(),
             target: UnsupportedTarget::DataType,
             details: "unsupported data type".into(),
+            source: None,
         }
     }
 }
@@ -616,6 +619,22 @@ impl Error {
     /// Creates a named invalid argument error.
     pub fn invalid_argument(name: impl Into<Cow<'static, str>>) -> Self {
         Self::InvalidArgument { name: name.into() }
+    }
+
+    pub fn invalid_stride(name: impl Into<Cow<'static, str>>) -> Self {
+        Self::InvalidStride { name: name.into() }
+    }
+
+    pub fn index_out_of_bounds(name: impl Into<Cow<'static, str>>) -> Self {
+        Self::IndexOutOfBounds { name: name.into() }
+    }
+
+    pub fn dimension_out_of_bounds(name: impl Into<Cow<'static, str>>) -> Self {
+        Self::DimensionOutOfBounds { name: name.into() }
+    }
+
+    pub fn contiguous_required(name: impl Into<Cow<'static, str>>) -> Self {
+        Self::ContiguousRequired { name: name.into() }
     }
 
     pub fn missing_node(context: impl Into<Cow<'static, str>>) -> Self {

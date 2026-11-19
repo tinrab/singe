@@ -1,5 +1,5 @@
 use crate::{
-    backend::spec::{dimension_product_usize, validate_rank},
+    backend::spec::{Extents, dimension_product_usize, validate_rank},
     error::{Error, Result},
     shape::{Shape, normalize_dim_usize},
     utility::{checked_add_i64, checked_mul_i64, to_usize},
@@ -147,12 +147,12 @@ pub fn concat_problem(
     let outer_size = dimension_product_usize(
         format!("{diagnostic_prefix} outer size"),
         &first_dimensions[..axis],
-        true,
+        Extents::NonNegative,
     )?;
     let inner_size = dimension_product_usize(
         format!("{diagnostic_prefix} inner size"),
         &first_dimensions[axis + 1..],
-        true,
+        Extents::NonNegative,
     )?;
 
     Ok(ConcatProblem {
@@ -260,12 +260,12 @@ pub fn gather_problem(
     let outer_size = dimension_product_usize(
         format!("{diagnostic_prefix} outer size"),
         &input_dimensions[..axis],
-        true,
+        Extents::NonNegative,
     )?;
     let inner_size = dimension_product_usize(
         format!("{diagnostic_prefix} inner size"),
         &input_dimensions[axis + 1..],
-        true,
+        Extents::NonNegative,
     )?;
 
     let output_dimensions = input_dimensions[..axis]
@@ -323,7 +323,7 @@ pub fn multi_index_problem(
     let end = axis + indices.len();
     let input_dimensions = input.dimensions();
     if end > input_dimensions.len() {
-        return Err(Error::DimensionOutOfBounds);
+        return Err(Error::dimension_out_of_bounds("multi-index axes"));
     }
 
     let mut index_shape = Shape::scalar();
@@ -331,8 +331,16 @@ pub fn multi_index_problem(
         index_shape = index_shape.broadcast_with(shape)?;
     }
 
-    let outer_size = dimension_product_usize("index outer size", &input_dimensions[..axis], true)?;
-    let inner_size = dimension_product_usize("index inner size", &input_dimensions[end..], true)?;
+    let outer_size = dimension_product_usize(
+        "index outer size",
+        &input_dimensions[..axis],
+        Extents::NonNegative,
+    )?;
+    let inner_size = dimension_product_usize(
+        "index inner size",
+        &input_dimensions[end..],
+        Extents::NonNegative,
+    )?;
     let output_dimensions = input_dimensions[..axis]
         .iter()
         .chain(index_shape.dimensions())

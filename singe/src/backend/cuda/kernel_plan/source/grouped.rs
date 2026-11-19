@@ -69,12 +69,19 @@ impl KernelPlanner {
         }
 
         let extent = |value: i64| to_usize(value, "cuda grouped matmul extent");
-        let dimensions = weights.layout.shape().dimensions();
+        let (&[rows, ..], &[groups, inner, columns, ..]) = (
+            input.layout.shape().dimensions(),
+            weights.layout.shape().dimensions(),
+        ) else {
+            return Err(Error::invalid_argument(
+                "cuda grouped matmul input and weight dimensions",
+            ));
+        };
         let (rows, inner, groups, columns) = (
-            extent(input.layout.shape().dimensions()[0])?,
-            extent(dimensions[1])?,
-            extent(dimensions[0])?,
-            extent(dimensions[2])?,
+            extent(rows)?,
+            extent(inner)?,
+            extent(groups)?,
+            extent(columns)?,
         );
         let (input_strides, weight_strides) = (input.layout.strides(), weights.layout.strides());
         let geometry = Geometry {

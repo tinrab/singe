@@ -2,19 +2,37 @@
 
 use std::{collections::BTreeMap, result::Result as StdResult};
 
-use serde::{Deserialize, Deserializer, de::Error as DeError};
+use serde::{
+    Deserialize, Deserializer,
+    de::{DeserializeOwned, Error as DeError},
+};
 use serde_json::Value;
 use singe::{
+    Error as SingeError,
     generation::GenerationOptions,
-    nn::{Activation, RotaryFrequencies, YarnFrequencies},
+    nn::{Activation, RotaryFrequencies, RotaryLayout, YarnFrequencies},
 };
 
 use crate::{
     assembly::{DecoderConfig, PostNormEncoderConfig},
     error::{Error, Result},
     head::{ClassifierConfig, ScoreFunction, Seq2SeqGeneration},
-    source::Source,
+    source::{Source, token_ids},
 };
+
+pub fn parse<T: DeserializeOwned>(value: Value) -> Result<T> {
+    serde_json::from_value(value).map_err(Error::json_value("parse a model config"))
+}
+
+#[must_use]
+pub const fn default_true() -> bool {
+    true
+}
+
+#[must_use]
+pub const fn default_channels() -> i64 {
+    3
+}
 
 // Returns the activation a config names, as `transformers` maps these names.
 pub fn activation(name: &str) -> Result<Activation> {
@@ -26,7 +44,7 @@ pub fn activation(name: &str) -> Result<Activation> {
         "sigmoid" => Activation::Sigmoid,
         "tanh" => Activation::Tanh,
         "quick_gelu" => Activation::QuickGelu,
-        other => return Err(Error::UnsupportedConfig(format!("activation {other}"))),
+        other => return Err(Error::unsupported(format!("activation {other}"))),
     })
 }
 
@@ -79,24 +97,43 @@ struct RopeFields {
     mscale_all_dim: Option<f64>,
     #[serde(default)]
     truncate: Option<bool>,
+    #[serde(default)]
+    mrope_section: Option<Vec<i64>>,
+    #[serde(default)]
+    mrope_interleaved: Option<bool>,
 }
 
 // The theta `transformers` falls back on.
 const DEFAULT_ROTARY_THETA: f64 = 10_000.0;
 
 impl RotaryFields {
+    fn fields(&self) -> Option<&RopeFields> {
+        self.rope_parameters.as_ref().or(self.rope_scaling.as_ref())
+    }
+
     // The fraction of each head the rotation turns, its leading features; the rest pass through.
     #[must_use]
     pub fn rotated_fraction(&self) -> f64 {
-        self.rope_parameters
-            .as_ref()
-            .or(self.rope_scaling.as_ref())
+        self.fields()
             .and_then(|fields| fields.partial_rotary_factor)
             .unwrap_or(1.0)
     }
 
+    #[must_use]
+    pub fn mrope_section(&self) -> Option<&[i64]> {
+        self.fields()
+            .and_then(|fields| fields.mrope_section.as_deref())
+    }
+
+    #[must_use]
+    pub fn mrope_interleaved(&self) -> bool {
+        self.fields()
+            .and_then(|fields| fields.mrope_interleaved)
+            .unwrap_or(false)
+    }
+
     pub fn frequencies(&self) -> Result<RotaryFrequencies> {
-        let fields = self.rope_parameters.as_ref().or(self.rope_scaling.as_ref());
+        let fields = self.fields();
         let theta = fields
             .and_then(|fields| fields.rope_theta)
             .or(self.rope_theta)
@@ -121,7 +158,7 @@ impl RotaryFields {
                 mscale_all_dim: fields.mscale_all_dim,
                 truncate: fields.truncate.unwrap_or(true),
             })),
-            Some(other) => Err(Error::UnsupportedConfig(format!("rotary type {other}"))),
+            Some(other) => Err(Error::unsupported(format!("rotary type {other}"))),
         }
     }
 }
@@ -165,9 +202,17 @@ pub struct DecoderFields {
     #[serde(default)]
     pub tie_word_embeddings: Option<bool>,
     #[serde(default)]
-    pub layer_types: Option<Vec<String>>,
+    pub layer_types: Option<Vec<LayerType>>,
     #[serde(flatten)]
     pub rotary: RotaryFields,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LayerType {
+    FullAttention,
+    SlidingAttention,
+    LinearAttention,
 }
 
 // What a model's `transformers` config class gives the fields its config leaves out, where models differ.
@@ -186,11 +231,24 @@ impl DecoderFields {
             .layer_types
             .iter()
             .flatten()
-            .any(|layer| layer != "full_attention")
+            .any(|&layer| layer != LayerType::FullAttention)
         {
             return Err(Error::unsupported("a layer other than full attention"));
         }
         Ok(())
+    }
+
+    pub fn layer_types(&self, default: impl Fn(usize) -> LayerType) -> Result<Vec<LayerType>> {
+        let layers = usize::try_from(self.num_hidden_layers)
+            .map_err(|_| SingeError::out_of_range("num_hidden_layers"))?;
+        match &self.layer_types {
+            Some(types) if types.len() == layers => Ok(types.clone()),
+            Some(types) => Err(Error::unsupported(format!(
+                "{} layer types for {layers} layers",
+                types.len()
+            ))),
+            None => Ok((0..layers).map(default).collect()),
+        }
     }
 
     // Returns the decoder's config, filling what the config leaves out from `defaults`.
@@ -216,6 +274,7 @@ impl DecoderFields {
             tied: self.tie_word_embeddings.unwrap_or(defaults.tied),
             head_norms: false,
             frequencies: self.rotary.frequencies()?,
+            rotary_layout: RotaryLayout::HalfSplit,
         })
     }
 }
@@ -270,15 +329,10 @@ impl EncoderFields {
 }
 
 // The features of a head of `head_dim` that a rotation of `fraction` of it turns, as `transformers` rounds them down.
-#[expect(
-    clippy::cast_possible_truncation,
-    clippy::cast_precision_loss,
-    reason = "head dimensions are far below where `F64` rounds them, and `transformers` truncates"
-)]
-pub fn rotated_features(head_dim: i64, fraction: f64) -> Result<i64> {
+fn rotated_features(head_dim: i64, fraction: f64) -> Result<i64> {
     let features = (head_dim as f64 * fraction) as i64;
     if features <= 0 || features > head_dim || features % 2 != 0 {
-        return Err(Error::UnsupportedConfig(format!(
+        return Err(Error::unsupported(format!(
             "a rotation of {features} of {head_dim} features"
         )));
     }
@@ -337,7 +391,7 @@ pub fn seq2seq_generation(source: &Source) -> Result<Seq2SeqGeneration> {
                     }
                 }
             }
-            serde_json::from_value(merged).map_err(Error::ConfigFormat)?
+            parse(merged)?
         };
     // `"never"` searches as `false` does when the length penalty is not positive.
     let early_stopping = match &fields.early_stopping {
@@ -348,12 +402,11 @@ pub fn seq2seq_generation(source: &Source) -> Result<Seq2SeqGeneration> {
         {
             false
         }
-        Some(other) => return Err(Error::UnsupportedConfig(format!("early stopping {other}"))),
+        Some(other) => return Err(Error::unsupported(format!("early stopping {other}"))),
     };
-    let stop_tokens = match fields.eos_token_id {
-        Some(Value::Number(token)) => token.as_i64().into_iter().collect(),
-        Some(Value::Array(tokens)) => tokens.iter().filter_map(Value::as_i64).collect(),
-        _ => source.stop_tokens()?,
+    let stop_tokens = match fields.eos_token_id.as_ref().and_then(token_ids) {
+        Some(tokens) => tokens,
+        None => source.stop_tokens()?,
     };
     // A banned token is a one-token sequence; longer ones would ban only their last token after the rest.
     let banned = fields
@@ -401,7 +454,7 @@ fn activation_function(path: &str) -> Result<ScoreFunction> {
     match path.rsplit('.').next() {
         Some("Sigmoid") => Ok(ScoreFunction::Sigmoid),
         Some("Identity") => Ok(ScoreFunction::None),
-        _ => Err(Error::UnsupportedConfig(format!(
+        _ => Err(Error::unsupported(format!(
             "cross-encoder activation {path}"
         ))),
     }
@@ -437,10 +490,6 @@ pub fn classifier_config(source: &Source) -> Result<ClassifierConfig> {
             .map(|index| format!("LABEL_{index}"))
             .collect::<Vec<_>>(),
     };
-    if labels.is_empty() {
-        return Err(Error::unsupported("a classifier without labels"));
-    }
-
     let function = match fields.problem_type.as_deref() {
         Some("regression") => ScoreFunction::None,
         Some("multi_label_classification") => ScoreFunction::Sigmoid,
@@ -453,9 +502,5 @@ pub fn classifier_config(source: &Source) -> Result<ClassifierConfig> {
         .or(fields.sbert_ce_default_activation_function)
         .map(|path| activation_function(&path))
         .transpose()?;
-    Ok(ClassifierConfig {
-        labels,
-        function,
-        ranking_function,
-    })
+    ClassifierConfig::create(labels, function, ranking_function)
 }

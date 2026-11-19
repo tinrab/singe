@@ -611,10 +611,6 @@ pub fn cache_miss_error(op: &'static str, capture_status: StreamCaptureStatus) -
 ///
 /// Returns an error if tuning is attempted during capture, stream capture status cannot be queried, no candidates remain after applying the limit, timing events cannot be created, or no candidate completes all measurements successfully.
 /// Individual candidate launch and timing failures are retained in the report when another candidate succeeds.
-#[expect(
-    clippy::cast_precision_loss,
-    reason = "the f32 algorithm converts integer dimensions and accumulators to its floating-point working precision"
-)]
 pub fn tune_candidates<C, F>(
     stream: &Stream,
     op: &'static str,

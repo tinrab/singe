@@ -4,6 +4,7 @@
       "name": "animation",
       "snapshot": "PIA",
       "task": "image-text-to-video",
+      "data_type": "f16",
       "inputs": [
         {
           "image": "media/cat-448x320.png",
@@ -35,6 +36,7 @@
       "name": "image",
       "snapshot": "PIA",
       "task": "image-to-video",
+      "data_type": "f16",
       "inputs": [
         {
           "image": "media/cat-448x320.png",

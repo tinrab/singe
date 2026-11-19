@@ -1,25 +1,22 @@
-"""AnimateDiff, redrawing a clip after a prompt with `diffusers`' `AnimateDiffVideoToVideoPipeline` over Stable Diffusion 1.5 and its motion adapter, as `verify.rs` redraws it in Singe.
+"""AnimateDiff, redrawing a clip after a prompt with `diffusers`' `AnimateDiffVideoToVideoPipeline` over Stable Diffusion 1.5 and its motion adapter, as `mod.rs` redraws it in Singe.
 Both draw the noise from PyTorch's CPU generator seeded alike, and both run in F16, since the UNet and its adapter do not fit the GPU in F32."""
 
-import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import numpy
+import torch
+from diffusers import AnimateDiffVideoToVideoPipeline, MotionAdapter
+from PIL import Image
 
-import numpy  # noqa: E402
-import torch  # noqa: E402
-from diffusers import AnimateDiffVideoToVideoPipeline, MotionAdapter  # noqa: E402
-from PIL import Image  # noqa: E402
-
-from support import DEVICE, Verification, data_url  # noqa: E402
+from support import DEVICE, Verification, data_url
 
 
-def video_to_video(snapshot):
+def video_to_video(snapshot, dtype):
     adapter = MotionAdapter.from_pretrained(
-        f"{snapshot}/motion_adapter", torch_dtype=torch.float16
+        f"{snapshot}/motion_adapter", torch_dtype=dtype
     )
     redraw = AnimateDiffVideoToVideoPipeline.from_pretrained(
-        snapshot, motion_adapter=adapter, torch_dtype=torch.float16
+        snapshot, motion_adapter=adapter, torch_dtype=dtype
     ).to(DEVICE)
     redraw.set_progress_bar_config(disable=True)
 

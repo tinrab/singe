@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 #[cfg(feature = "cuda")]
 use singe::graph::GraphPrepareOptions;
-use singe::{Device, Shape, Tensor, graph::Graph};
+use singe::{Device, Result, Shape, Tensor, graph::Graph};
 
 #[cfg(all(feature = "testing", feature = "cuda"))]
 use singe_cuda::{device::Device as CudaDevice, testing::device_lock};
@@ -154,7 +154,7 @@ fn test_cuda_capture_records_writes_and_replay_writes_back() {
 }
 
 /// Writes `x` into row `position` of `cache`, then attends from `x` over the cache.
-fn decoder_step(cache: &Tensor, x: &Tensor, position: i64) -> singe::Result<Tensor> {
+fn decoder_step(cache: &Tensor, x: &Tensor, position: i64) -> Result<Tensor> {
     cache.narrow(0, position, 1)?.assign(x)?;
     let scores = x.matmul(&cache.transpose(0, 1)?)?.softmax(1)?;
     scores.matmul(cache)

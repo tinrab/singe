@@ -176,7 +176,9 @@ fn test_cuda_quantization_reads_parameters_on_the_device_and_matches_cpu() {
     let invalid = Tensor::scalar(cuda, -1_f32).unwrap();
     let zero = Tensor::scalar(cuda, 0_i64).unwrap();
     assert!(matches!(
-        device_input.quantize_with(&invalid, &zero, None, None, DataType::I8),
+        device_input
+            .quantize_with(&invalid, &zero, None, None, DataType::I8)
+            .and_then(|output| output.to_bytes()),
         Err(Error::InvalidArgument { .. })
     ));
 

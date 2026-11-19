@@ -1,7 +1,7 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
     fmt::Debug,
-    fs, io,
+    fs,
     path::Path,
     sync::{Arc, Mutex},
 };
@@ -181,9 +181,12 @@ impl TuningRecords {
     // Returns an error if the file cannot be read or parsed.
     pub fn read(path: impl AsRef<Path>) -> Result<Self> {
         let path = path.as_ref();
-        let bytes = fs::read(path).map_err(CompileError::TuningIo)?;
-        let file: RecordsFile = serde_json::from_slice(&bytes)
-            .map_err(|error| CompileError::TuningIo(io::Error::other(error)))?;
+        let bytes = fs::read(path).map_err(|source| CompileError::TuningIo {
+            path: path.to_owned(),
+            source,
+        })?;
+        let file: RecordsFile =
+            serde_json::from_slice(&bytes).map_err(CompileError::TuningFormat)?;
         Ok(Self {
             environment: file.environment,
             entries: file.entries,
@@ -204,12 +207,17 @@ impl TuningRecords {
             entries: self.entries.clone(),
             report: self.report.clone(),
         };
-        let bytes = serde_json::to_vec_pretty(&file)
-            .map_err(|error| CompileError::TuningIo(io::Error::other(error)))?;
+        let bytes = serde_json::to_vec_pretty(&file).map_err(CompileError::TuningFormat)?;
         let temporary = path.with_extension("tmp");
         fs::write(&temporary, bytes)
             .and_then(|()| fs::rename(&temporary, path))
-            .map_err(|error| CompileError::TuningIo(error).into())
+            .map_err(|source| {
+                CompileError::TuningIo {
+                    path: path.to_owned(),
+                    source,
+                }
+                .into()
+            })
     }
 
     #[must_use]

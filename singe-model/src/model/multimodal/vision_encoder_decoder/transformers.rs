@@ -4,13 +4,18 @@ use serde::Deserialize;
 use serde_json::Value;
 use singe::nn::Activation;
 
-use super::{ImageEncoderConfig, VisionEncoderDecoderConfig};
 use crate::{
-    assembly::{SwinConfig, swin_rules},
+    assembly::{
+        BartStackConfig, PYTORCH_NORM_EPS, SwinConfig, bart_stack_rules, embedding_scale,
+        swin_rules,
+    },
     error::{Error, Result},
-    format::{Rules, transformers::activation_field},
+    format::{
+        Rules,
+        transformers::{activation_field, default_true, parse},
+    },
     model::{
-        text::bart::{BartStackConfig, stack_rules},
+        multimodal::vision_encoder_decoder::{ImageEncoderConfig, VisionEncoderDecoderConfig},
         vision::vit::transformers::{VitFields, encoder_rules},
     },
     source::Source,
@@ -41,7 +46,7 @@ struct TrOcr {
     layernorm_embedding: bool,
     use_learned_position_embeddings: bool,
     cross_attention_hidden_size: Option<i64>,
-    #[serde(default = "enabled")]
+    #[serde(default = "default_true")]
     tie_word_embeddings: bool,
 }
 
@@ -59,12 +64,8 @@ struct DonutSwin {
     layer_norm_eps: f32,
     #[serde(default)]
     use_absolute_embeddings: bool,
-    #[serde(default = "enabled")]
+    #[serde(default = "default_true")]
     qkv_bias: bool,
-}
-
-const fn enabled() -> bool {
-    true
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
@@ -78,15 +79,14 @@ struct MBart {
     activation_function: Activation,
     max_position_embeddings: i64,
     scale_embedding: bool,
-    #[serde(default = "enabled")]
+    #[serde(default = "default_true")]
     tie_word_embeddings: bool,
 }
 
 fn encoder(value: &Value) -> Result<ImageEncoderConfig> {
     match value["model_type"].as_str() {
         Some("donut-swin") => {
-            let fields: DonutSwin =
-                serde_json::from_value(value.clone()).map_err(Error::ConfigFormat)?;
+            let fields: DonutSwin = parse(value.clone())?;
             if fields.use_absolute_embeddings {
                 return Err(Error::unsupported(
                     "a Donut Swin encoder with absolute position embeddings",
@@ -116,17 +116,12 @@ fn encoder(value: &Value) -> Result<ImageEncoderConfig> {
             }))
         }
         Some("deit") => {
-            let fields: Deit =
-                serde_json::from_value(value.clone()).map_err(Error::ConfigFormat)?;
-            Ok(ImageEncoderConfig::Deit {
-                encoder: fields.vit.encoder()?,
-                layers: fields.vit.num_hidden_layers,
-                image_size: fields.image_size,
-                patch_size: fields.vit.patch_size,
-                channels: fields.vit.num_channels,
-            })
+            let fields: Deit = parse(value.clone())?;
+            Ok(ImageEncoderConfig::Deit(
+                fields.vit.tower(fields.image_size)?,
+            ))
         }
-        other => Err(Error::UnsupportedConfig(format!(
+        other => Err(Error::unsupported(format!(
             "an image encoder of type {other:?}"
         ))),
     }
@@ -136,8 +131,7 @@ fn decoder(value: &Value, encoder_width: i64) -> Result<(BartStackConfig, bool)>
     match value["model_type"].as_str() {
         // MBart's decoder norms before each part and after its last block.
         Some("mbart") => {
-            let fields: MBart =
-                serde_json::from_value(value.clone()).map_err(Error::ConfigFormat)?;
+            let fields: MBart = parse(value.clone())?;
             Ok((
                 BartStackConfig {
                     vocab_size: fields.vocab_size,
@@ -146,20 +140,19 @@ fn decoder(value: &Value, encoder_width: i64) -> Result<(BartStackConfig, bool)>
                     heads: fields.decoder_attention_heads,
                     inner: fields.decoder_ffn_dim,
                     activation: fields.activation_function,
-                    positions: fields.max_position_embeddings,
-                    scale_embedding: fields.scale_embedding,
+                    max_positions: fields.max_position_embeddings,
+                    embedding_scale: embedding_scale(fields.scale_embedding, fields.d_model),
                     embedding_norm: true,
                     pre_norm: true,
                     cross_width: encoder_width,
-                    eps: 1e-5,
+                    eps: PYTORCH_NORM_EPS,
                 },
                 fields.tie_word_embeddings,
             ))
         }
         // TrOCR's decoder norms after each residual and has no norm after its last block.
         Some("trocr") => {
-            let fields: TrOcr =
-                serde_json::from_value(value.clone()).map_err(Error::ConfigFormat)?;
+            let fields: TrOcr = parse(value.clone())?;
             if !fields.use_learned_position_embeddings {
                 return Err(Error::unsupported("TrOCR with sinusoidal positions"));
             }
@@ -171,17 +164,17 @@ fn decoder(value: &Value, encoder_width: i64) -> Result<(BartStackConfig, bool)>
                     heads: fields.decoder_attention_heads,
                     inner: fields.decoder_ffn_dim,
                     activation: fields.activation_function,
-                    positions: fields.max_position_embeddings,
-                    scale_embedding: fields.scale_embedding,
+                    max_positions: fields.max_position_embeddings,
+                    embedding_scale: embedding_scale(fields.scale_embedding, fields.d_model),
                     embedding_norm: fields.layernorm_embedding,
                     pre_norm: false,
                     cross_width: fields.cross_attention_hidden_size.unwrap_or(encoder_width),
-                    eps: 1e-5,
+                    eps: PYTORCH_NORM_EPS,
                 },
                 fields.tie_word_embeddings,
             ))
         }
-        other => Err(Error::UnsupportedConfig(format!(
+        other => Err(Error::unsupported(format!(
             "a text decoder of type {other:?}"
         ))),
     }
@@ -191,9 +184,8 @@ pub(crate) fn config(source: &Source) -> Result<VisionEncoderDecoderConfig> {
     let fields: Value = source.json("config.json")?;
     let encoder = encoder(&fields["encoder"])?;
     let width = match &encoder {
-        ImageEncoderConfig::Deit { encoder, .. } => encoder.width,
-        // Each merge doubles the width.
-        ImageEncoderConfig::Swin(swin) => swin.width << (swin.stages.len().saturating_sub(1)),
+        ImageEncoderConfig::Deit(tower) => tower.encoder.width,
+        ImageEncoderConfig::Swin(swin) => swin.out_width(),
     };
     let (decoder, tied) = decoder(&fields["decoder"], width)?;
     Ok(VisionEncoderDecoderConfig {
@@ -205,19 +197,19 @@ pub(crate) fn config(source: &Source) -> Result<VisionEncoderDecoderConfig> {
 
 pub(crate) fn rules(config: &VisionEncoderDecoderConfig) -> Rules {
     let encoder = match config.encoder {
-        ImageEncoderConfig::Deit { .. } => encoder_rules("encoder.", "encoder.").rename(
+        ImageEncoderConfig::Deit(_) => encoder_rules("encoder", "encoder").rename(
             "encoder.embeddings.distillation_token",
             "encoder.embeddings.distillation",
         ),
         ImageEncoderConfig::Swin(_) => swin_rules(
-            "encoder.encoder.",
+            "encoder.encoder",
             "encoder.embeddings.patch_embeddings.projection",
             "encoder.embeddings.norm",
-            "encoder.",
+            "encoder",
         ),
     };
     encoder
-        .then(stack_rules("decoder.model.decoder.", "decoder."))
+        .then(bart_stack_rules("decoder.model.decoder", "decoder"))
         .rename("decoder.output_projection", "head")
         .rename("decoder.lm_head", "head")
 }

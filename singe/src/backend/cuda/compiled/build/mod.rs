@@ -54,7 +54,7 @@ use crate::{
         registry::Operation,
     },
     error::Result,
-    graph::{CompiledGraph, GraphCudaOptions},
+    graph::{CompiledGraph, GraphCudaOptions, ir::OperationNode},
 };
 
 /// Compiles a logical graph into a replayable CUDA graph with the providers and shape policy of `options`.
@@ -66,9 +66,9 @@ use crate::{
 ///
 /// Returns an error if a provider, allocation, or native graph construction fails.
 pub fn compile(compiled: &CompiledGraph, options: &GraphCudaOptions) -> Result<CudaCompiledGraph> {
-    let _compile_range = CudaNvtxRange::create("singe cuda graph compile");
+    let _compile_range = CudaNvtxRange::new(|| "singe cuda graph compile");
     let prepared = {
-        let _prepare_range = CudaNvtxRange::create("singe cuda graph compile prepare");
+        let _prepare_range = CudaNvtxRange::new(|| "singe cuda graph compile prepare");
         prepare_cuda_graph_compile(
             compiled,
             &options.shapes,
@@ -112,7 +112,7 @@ pub fn compile(compiled: &CompiledGraph, options: &GraphCudaOptions) -> Result<C
     let users = graph_users(&ir, &execution_order)?;
     let graph_outputs = ir.output_value_set();
     let fusion_plan = {
-        let _plan_range = CudaNvtxRange::create("singe cuda graph compile plan fusion");
+        let _plan_range = CudaNvtxRange::new(|| "singe cuda graph compile plan fusion");
         plan_fusion(
             &ir,
             &execution_order,
@@ -127,7 +127,7 @@ pub fn compile(compiled: &CompiledGraph, options: &GraphCudaOptions) -> Result<C
     let execution_order = fusion_plan.order().to_vec();
     let node_plans;
     {
-        let _compile_kernels_range = CudaNvtxRange::create("singe cuda graph compile kernels");
+        let _compile_kernels_range = CudaNvtxRange::new(|| "singe cuda graph compile kernels");
         // Nodes fusion may take are planned and compiled as they lower, so a kernel a fused group replaces is never compiled or tuned.
         node_plans = execution_order
             .iter()
@@ -181,7 +181,7 @@ pub fn compile(compiled: &CompiledGraph, options: &GraphCudaOptions) -> Result<C
     )?;
 
     {
-        let _lower_range = CudaNvtxRange::create("singe cuda graph compile lower");
+        let _lower_range = CudaNvtxRange::new(|| "singe cuda graph compile lower");
         for (index, &id) in execution_order.iter().enumerate() {
             if lowering_state.skipped_nodes.contains(&id) {
                 continue;
@@ -191,6 +191,14 @@ pub fn compile(compiled: &CompiledGraph, options: &GraphCudaOptions) -> Result<C
                 continue;
             }
 
+            let _operation_range = CudaNvtxRange::new(|| {
+                let name = ir
+                    .required_operation_for_value(id)
+                    .ok()
+                    .and_then(OperationNode::opcode)
+                    .map_or("none", |opcode| opcode.name());
+                format!("singe cuda graph lower {name}")
+            });
             lower_cuda_graph_operation(
                 GraphOperationLoweringRequest {
                     runtime,

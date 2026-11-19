@@ -5,8 +5,11 @@ use singe::{
     nn::{DecoderModel, Model},
 };
 
-use super::{LoopLimits, LoopSteps};
-use crate::{assembly, error::Result};
+use crate::{
+    decoder_cache::cached_decoder,
+    error::Result,
+    head::{LoopLimits, LoopSteps},
+};
 
 // A decoder that generates text a token at a time.
 pub trait CausalLm: Debug {
@@ -19,7 +22,7 @@ pub trait CausalLm: Debug {
 
 impl<L: DecoderModel> CausalLm for Model<L> {
     fn decoder(&self, options: DecoderOptions, compile: bool) -> Result<Box<dyn Decoder>> {
-        assembly::decoder(self, options, compile)
+        Ok(Box::new(cached_decoder(self, options, compile)?))
     }
 
     fn loop_steps(&self, limits: &LoopLimits, generation: &GenerationOptions) -> Result<LoopSteps> {

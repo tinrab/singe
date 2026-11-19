@@ -5,20 +5,18 @@
 use serde::{Deserialize, Serialize};
 use singe::{
     DataType, Device, Error as SingeError, Result as SingeResult, Tensor,
-    generation::{CachedDecoder, Decoder as GenerationDecoder, DecoderOptions, DraftingModel},
+    generation::{DecoderOptions, DraftingModel},
     nn::{
         Activation, CacheSize, CausalLm, CausalLmParts, DecodeCache, Decoder, DecoderModel,
         DecodingLayer, Embedding, GatedMlp, GroupedQueryAttention, GroupedQueryLayers,
-        HeadProjection, KvCache, KvCacheSpec, Layer, Linear, Model, ModelState,
-        MultiTokenPrediction, PreNormBlock, RotaryFrequencies, RotaryLayout, RotarySpec,
-        StateBuilder,
+        HeadProjection, KvCache, KvCacheSpec, Layer, Linear, ModelState, MultiTokenPrediction,
+        PreNormBlock, RotaryFrequencies, RotaryLayout, RotarySpec,
     },
     tensor::AttentionOptions,
 };
 
 use crate::{
-    error::Result,
-    format::Rules,
+    format::{Rules, join},
     schema::{Schema, SchemaNorm},
 };
 
@@ -46,16 +44,33 @@ pub struct DecoderConfig {
     // Whether queries and keys are normed per head, as Qwen3's are.
     pub head_norms: bool,
     pub frequencies: RotaryFrequencies,
+    pub rotary_layout: RotaryLayout,
 }
 
 impl DecoderConfig {
-    // The rotary table of grouped-query attention, which turns each head's first `rotary_dim` features.
     #[must_use]
     pub const fn rotary(&self) -> RotarySpec {
         RotarySpec {
             head_dim: self.rotary_dim,
             frequencies: self.frequencies,
-            layout: RotaryLayout::HalfSplit,
+            layout: self.rotary_layout,
+        }
+    }
+
+    #[must_use]
+    pub const fn attention_spec(&self) -> GroupedAttentionSpec {
+        GroupedAttentionSpec {
+            width: self.width,
+            heads: self.heads,
+            kv_heads: self.kv_heads,
+            head_dim: self.head_dim,
+            bias: self.attention_bias,
+            head_norms: if self.head_norms {
+                HeadNorms::Rms(self.eps)
+            } else {
+                HeadNorms::Omitted
+            },
+            output_gate: false,
         }
     }
 
@@ -73,23 +88,13 @@ pub type GroupedDecoder = Decoder<GroupedQueryAttention>;
 
 // Builds that decoder on `Device::Meta`.
 pub fn grouped_decoder(
+    schema: &mut Schema<'_>,
     config: &DecoderConfig,
-    data_type: DataType,
     options: AttentionOptions,
-) -> SingeResult<Model<GroupedDecoder>> {
-    let (layer, state) = grouped_decoder_parts(config, data_type, options)?;
-    Ok(Model::new(layer, state))
-}
-
-// The decoder and its state apart, for a model that wraps the decoder, as one reading images does.
-pub fn grouped_decoder_parts(
-    config: &DecoderConfig,
-    data_type: DataType,
-    options: AttentionOptions,
-) -> SingeResult<(GroupedDecoder, ModelState)> {
+) -> SingeResult<GroupedDecoder> {
     causal_lm(
+        schema,
         config,
-        data_type,
         CausalLmSpec::new(config.rotary(), |_| config.kv_cache()),
         |schema, _| {
             pre_norm_block(schema, config, |schema| {
@@ -101,17 +106,16 @@ pub fn grouped_decoder_parts(
 
 // Registers `feed_forward`'s `gate`, `up`, and `down`.
 pub fn gated_mlp(schema: &mut Schema<'_>, config: &DecoderConfig) -> SingeResult<GatedMlp> {
-    let (width, bias) = (config.width, config.mlp_bias);
+    let width = config.width;
     let inner = config
         .inner
         .ok_or_else(|| SingeError::missing_input("a dense feed-forward layer's width"))?;
-    let mut schema = schema.scope("feed_forward");
-    Ok(GatedMlp::new(
-        schema.linear("gate", width, inner, bias)?,
-        schema.linear("up", width, inner, bias)?,
-        schema.linear("down", inner, width, bias)?,
+    schema.gated_mlp(
+        "feed_forward",
+        [width, inner, width],
         config.activation,
-    ))
+        config.mlp_bias,
+    )
 }
 
 // A block with `attention_norm`, `attention`, `feed_forward_norm`, and a gated `feed_forward`.
@@ -144,32 +148,94 @@ pub fn pre_norm_block_with<A, F, N: SchemaNorm>(
     ))
 }
 
-// Registers `query`, `key`, `value`, and `output`, and with `config.head_norms`, `query_norm` and `key_norm`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum HeadNorms {
+    Omitted,
+    Rms(f32),
+    OffsetRms(f32),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct GroupedAttentionSpec {
+    pub width: i64,
+    pub heads: i64,
+    pub kv_heads: i64,
+    pub head_dim: i64,
+    pub bias: bool,
+    pub head_norms: HeadNorms,
+    pub output_gate: bool,
+}
+
+impl GroupedAttentionSpec {
+    #[must_use]
+    pub const fn multi_head(width: i64, heads: i64, bias: bool) -> Self {
+        Self {
+            width,
+            heads,
+            kv_heads: heads,
+            head_dim: width / heads,
+            bias,
+            head_norms: HeadNorms::Omitted,
+            output_gate: false,
+        }
+    }
+}
+
+pub fn grouped_attention_layers(
+    schema: &mut Schema<'_>,
+    spec: &GroupedAttentionSpec,
+) -> SingeResult<GroupedQueryLayers> {
+    let GroupedAttentionSpec {
+        width,
+        heads,
+        kv_heads,
+        head_dim,
+        bias,
+        head_norms,
+        output_gate,
+    } = *spec;
+    let mut head = |name: &str,
+                    norm: Option<&str>,
+                    heads: i64,
+                    features: i64|
+     -> SingeResult<HeadProjection> {
+        let linear = schema.linear(name, width, features, bias)?;
+        let projection = HeadProjection::new(linear, heads, head_dim);
+        Ok(match (norm, head_norms) {
+            (Some(norm), HeadNorms::Rms(eps)) => {
+                projection.with_norm(schema.rms_norm(norm, head_dim, eps)?)
+            }
+            (Some(norm), HeadNorms::OffsetRms(eps)) => {
+                projection.with_norm(schema.offset_rms_norm(norm, head_dim, eps)?)
+            }
+            _ => projection,
+        })
+    };
+    let query = if output_gate {
+        head("query", Some("query_norm"), heads, 2 * heads * head_dim)?.with_output_gate()
+    } else {
+        head("query", Some("query_norm"), heads, heads * head_dim)?
+    };
+    let key = head("key", Some("key_norm"), kv_heads, kv_heads * head_dim)?;
+    let value = head("value", None, kv_heads, kv_heads * head_dim)?;
+    let output = schema.linear("output", heads * head_dim, width, bias)?;
+    let layers = GroupedQueryLayers {
+        query,
+        key,
+        value,
+        output,
+    };
+    schema.join_rows(&layers.siblings())?;
+    Ok(layers)
+}
+
 pub fn grouped_attention(
     schema: &mut Schema<'_>,
     config: &DecoderConfig,
     options: AttentionOptions,
 ) -> SingeResult<GroupedQueryAttention> {
-    let (width, head_dim, bias) = (config.width, config.head_dim, config.attention_bias);
-    let mut head = |name: &str, norm: Option<&str>, heads: i64| -> SingeResult<HeadProjection> {
-        let linear = schema.linear(name, width, heads * head_dim, bias)?;
-        let projection = HeadProjection::new(linear, heads, head_dim);
-        Ok(match norm.filter(|_| config.head_norms) {
-            Some(norm) => projection.with_norm(schema.rms_norm(norm, head_dim, config.eps)?),
-            None => projection,
-        })
-    };
-    let query = head("query", Some("query_norm"), config.heads)?;
-    let key = head("key", Some("key_norm"), config.kv_heads)?;
-    let value = head("value", None, config.kv_heads)?;
-    let output = schema.linear("output", config.heads * head_dim, width, bias)?;
     GroupedQueryAttention::create(
-        GroupedQueryLayers {
-            query,
-            key,
-            value,
-            output,
-        },
+        grouped_attention_layers(schema, &config.attention_spec())?,
         options,
     )
 }
@@ -184,7 +250,7 @@ pub fn causal() -> AttentionOptions {
 }
 
 pub type DraftLayer<'a, B, N> =
-    &'a dyn Fn(&mut StateBuilder) -> SingeResult<MultiTokenPrediction<B, N>>;
+    &'a dyn Fn(&mut Schema<'_>) -> SingeResult<MultiTokenPrediction<B, N>>;
 
 // What a causal model takes beside its blocks: its rotary table, each block's cache by index, a scale of its embeddings, and a draft layer.
 pub struct CausalLmSpec<'a, C, B: DecodingLayer, N> {
@@ -194,7 +260,7 @@ pub struct CausalLmSpec<'a, C, B: DecodingLayer, N> {
     pub draft: Option<DraftLayer<'a, B, N>>,
 }
 
-impl<'a, C, B: DecodingLayer, N> CausalLmSpec<'a, C, B, N>
+impl<C, B: DecodingLayer, N> CausalLmSpec<'_, C, B, N>
 where
     C: Fn(usize) -> <B::Cache as DecodeCache>::Spec,
 {
@@ -206,51 +272,34 @@ where
             draft: None,
         }
     }
-
-    #[must_use]
-    pub const fn with_embedding_scale(mut self, scale: f32) -> Self {
-        self.embedding_scale = Some(scale);
-        self
-    }
-
-    #[must_use]
-    pub const fn with_draft(mut self, draft: DraftLayer<'a, B, N>) -> Self {
-        self.draft = Some(draft);
-        self
-    }
 }
 
 // Builds a causal model on `Device::Meta`: `embeddings.tokens`, `blocks.N` from `block`, `norm`, and `head`, tied to the embeddings when the config says so, and `draft` from the spec's draft layer.
 pub fn causal_lm<B, N, C>(
+    schema: &mut Schema<'_>,
     config: &DecoderConfig,
-    data_type: DataType,
     spec: CausalLmSpec<'_, C, B, N>,
     block: impl Fn(&mut Schema<'_>, usize) -> SingeResult<B>,
-) -> SingeResult<(CausalLm<B, N>, ModelState)>
+) -> SingeResult<CausalLm<B, N>>
 where
     B: DecodingLayer,
     N: SchemaNorm + Layer,
     C: Fn(usize) -> <B::Cache as DecodeCache>::Spec,
 {
     let table = [config.vocab_size, config.width];
-    let mut builder = StateBuilder::new();
-    let (embedding, blocks, norm) = {
-        let mut model = Schema::root(&mut builder, data_type);
-        let embedding = model.parameter("embeddings.tokens.weight", table)?;
-        let blocks = (0..config.layers)
-            .zip(0_usize..)
-            .map(|(layer, index)| block(&mut model.scope(format!("blocks.{layer}")), index))
-            .collect::<SingeResult<Vec<_>>>()?;
-        let norm = N::register(&mut model, "norm", config.width, config.eps)?;
-        (embedding, blocks, norm)
-    };
+    let embedding = schema.parameter("embeddings.tokens.weight", table)?;
+    let blocks = (0..config.layers)
+        .zip(0_usize..)
+        .map(|(layer, index)| block(&mut schema.scope(format!("blocks.{layer}")), index))
+        .collect::<SingeResult<Vec<_>>>()?;
+    let norm = N::register(schema, "norm", config.width, config.eps)?;
     let caches = (0..blocks.len()).map(spec.cache).collect();
     let head = if config.tied {
-        builder.tie("head.weight", &embedding)?
+        schema.tie("head.weight", &embedding)?
     } else {
-        Schema::root(&mut builder, data_type).parameter("head.weight", table)?
+        schema.parameter("head.weight", table)?
     };
-    let mut model = CausalLm::new(CausalLmParts {
+    let model = CausalLm::new(CausalLmParts {
         embedding: Embedding::new(embedding),
         embedding_scale: spec.embedding_scale,
         rotary: spec.rotary,
@@ -259,59 +308,45 @@ where
         head: Linear::new(head, None),
         caches,
     });
-    if let Some(draft) = spec.draft {
-        model = model.with_draft_layer(draft(&mut builder)?);
+    match spec.draft {
+        Some(draft) => Ok(model.with_draft_layer(draft(schema)?)),
+        None => Ok(model),
     }
-
-    Ok((model, builder.finish()?))
 }
 
 // Imports a Llama-family checkpoint whose decoder lies under `model` (`model`, or `model.language_model` in a model that also reads images or audio) into `causal_lm`'s names.
 // Rules for a model's other weights go before these, since the first rule that matches a name decides it.
 #[must_use]
 pub fn llama_rules(model: &str) -> Rules {
-    // An empty prefix reads a bare `*Model`, as embedding models store it.
-    let at = |name: &str| {
-        if model.is_empty() {
-            name.to_owned()
-        } else {
-            format!("{model}.{name}")
-        }
-    };
-    let layer = |name: &str| at(&format!("layers.*.{name}"));
+    let layers = join(model, "layers.*");
     Rules::new()
-        .rename(&at("embed_tokens"), "embeddings.tokens")
-        .rename(&layer("input_layernorm"), "blocks.*.attention_norm")
-        .rename(
-            &layer("post_attention_layernorm"),
-            "blocks.*.feed_forward_norm",
-        )
-        .rename(&layer("self_attn.q_proj"), "blocks.*.attention.query")
-        .rename(&layer("self_attn.k_proj"), "blocks.*.attention.key")
-        .rename(&layer("self_attn.v_proj"), "blocks.*.attention.value")
-        .rename(&layer("self_attn.o_proj"), "blocks.*.attention.output")
-        .rename(&layer("self_attn.q_norm"), "blocks.*.attention.query_norm")
-        .rename(&layer("self_attn.k_norm"), "blocks.*.attention.key_norm")
+        .rename(&join(model, "embed_tokens"), "embeddings.tokens")
+        .then(llama_block_rules(&layers, "blocks.*"))
         // Older checkpoints store the rotary frequencies, which the rotary table computes.
-        .skip(&layer("self_attn.rotary_emb"))
-        .rename(&layer("mlp.gate_proj"), "blocks.*.feed_forward.gate")
-        .rename(&layer("mlp.up_proj"), "blocks.*.feed_forward.up")
-        .rename(&layer("mlp.down_proj"), "blocks.*.feed_forward.down")
-        .rename(&at("norm"), "norm")
+        .skip(&join(&layers, "self_attn.rotary_emb"))
+        .rename(&join(model, "norm"), "norm")
         .rename("lm_head", "head")
 }
 
-// Returns a decoder over `model`, compiled if asked.
-pub fn decoder<L: DecoderModel>(
-    model: &Model<L>,
-    options: DecoderOptions,
-    compile: bool,
-) -> Result<Box<dyn GenerationDecoder>> {
-    let mut decoder = CachedDecoder::create(model, options)?;
-    if compile {
-        decoder.compile()?;
-    }
-    Ok(Box::new(decoder))
+#[must_use]
+pub fn llama_block_rules(from: &str, to: &str) -> Rules {
+    Rules::new().rename_each(
+        from,
+        to,
+        &[
+            ("input_layernorm", "attention_norm"),
+            ("self_attn.q_proj", "attention.query"),
+            ("self_attn.k_proj", "attention.key"),
+            ("self_attn.v_proj", "attention.value"),
+            ("self_attn.o_proj", "attention.output"),
+            ("self_attn.q_norm", "attention.query_norm"),
+            ("self_attn.k_norm", "attention.key_norm"),
+            ("post_attention_layernorm", "feed_forward_norm"),
+            ("mlp.gate_proj", "feed_forward.gate"),
+            ("mlp.up_proj", "feed_forward.up"),
+            ("mlp.down_proj", "feed_forward.down"),
+        ],
+    )
 }
 
 // Caches for `blocks` blocks of keys and values, for a hand-written [`DecoderModel`].

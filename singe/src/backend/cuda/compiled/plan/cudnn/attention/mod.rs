@@ -113,7 +113,7 @@ fn finish(
     .with_scalars(scalars);
     let mut child_graph = runtime.context().create_graph()?;
     let variant_pack = executable.variant_pack(output, cache)?;
-    let mut cudnn = runtime.cudnn().locked("cuda runtime cache")?;
+    let mut cudnn = runtime.cudnn()?.locked("cuda runtime cache")?;
     // SAFETY: compiler graph values retain tensor allocations, and the returned executable retains its workspace, its scalars, and the values only it binds.
     unsafe { executable.populate_graph(&mut cudnn, &variant_pack, &mut child_graph) }?;
     drop(cudnn);
@@ -170,7 +170,9 @@ pub fn build_cudnn_attention_graph(
     }
 
     let [query, key, value] = inputs;
-    let dim = ir.required_value_shape(query)?.dimensions()[3];
+    let &[_, _, _, dim, ..] = ir.required_value_shape(query)?.dimensions() else {
+        return Err(Error::invalid_argument("cudnn attention query dimensions"));
+    };
     let (input_keys, output_key) = key_material(ir, inputs, id)?;
     let graph_key = CudnnBackendGraphKey::new(
         CudnnBackendGraphKind::Attention,
@@ -189,16 +191,15 @@ pub fn build_cudnn_attention_graph(
     // cuDNN reads the query lengths with the key lengths: every batch's is the queries' count, which the executable holds.
     let values = key_lengths
         .map(|_| {
-            let query_shape = ir.required_value_shape(query)?.dimensions();
-            let count = i32::try_from(query_shape[2])
+            let &[batch, _, queries, ..] = ir.required_value_shape(query)?.dimensions() else {
+                return Err(Error::invalid_argument("cudnn attention query dimensions"));
+            };
+            let count = i32::try_from(queries)
                 .map_err(|_| Error::out_of_range("cudnn attention queries"))?;
-            let batch = usize::try_from(query_shape[0])
-                .map_err(|_| Error::out_of_range("cudnn attention batch"))?;
-            let lengths = Tensor::from_vec(
-                output.device(),
-                Shape::create([query_shape[0]])?,
-                vec![count; batch],
-            )?;
+            let rows =
+                usize::try_from(batch).map_err(|_| Error::out_of_range("cudnn attention batch"))?;
+            let lengths =
+                Tensor::from_vec(output.device(), Shape::create([batch])?, vec![count; rows])?;
             Ok::<_, Error>((
                 CUDNN_ATTENTION_QUERY_LENGTHS_TENSOR_ID,
                 CudaGraphValue::from_tensor(lengths)?,

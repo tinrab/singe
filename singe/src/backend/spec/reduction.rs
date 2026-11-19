@@ -90,7 +90,7 @@ pub fn reduction_problem(
     let rank = shape.rank();
     if rank == 0 {
         if dimensions.iter().any(|&axis| axis != 0 && axis != -1) {
-            return Err(Error::DimensionOutOfBounds);
+            return Err(Error::dimension_out_of_bounds("reduction dimensions"));
         }
 
         if dimensions.len() > 1 {

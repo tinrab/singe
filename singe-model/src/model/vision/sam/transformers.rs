@@ -3,10 +3,11 @@
 use serde::Deserialize;
 use singe::nn::Activation;
 
-use super::SamConfig;
 use crate::{
+    assembly::attention_rules,
     error::{Error, Result},
-    format::{Rules, transformers::activation_field},
+    format::{Rules, join, transformers::activation_field},
+    model::vision::sam::SamConfig,
     source::Source,
 };
 
@@ -54,15 +55,50 @@ pub(crate) fn config(source: &Source) -> Result<SamConfig> {
     let fields: Fields = source.json("config.json")?;
     let (vision, decoder) = (fields.vision_config, fields.mask_decoder_config);
     // SAM's own encoder: absolute and relative positions, biased queries, keys, and values, and exact GELU.
-    if !vision.use_abs_pos
-        || !vision.use_rel_pos
-        || !vision.qkv_bias
-        || vision.hidden_act != Activation::GeluExact
-        || decoder.hidden_size != vision.output_channels
-        || (vision.layer_norm_eps - decoder.layer_norm_eps).abs() > f32::EPSILON
-        || decoder.iou_head_depth < 2
-    {
-        return Err(Error::unsupported("this SAM config"));
+    if !vision.use_abs_pos {
+        return Err(Error::unsupported(
+            "a SAM vision encoder without absolute positions",
+        ));
+    }
+
+    if !vision.use_rel_pos {
+        return Err(Error::unsupported(
+            "a SAM vision encoder without relative positions",
+        ));
+    }
+
+    if !vision.qkv_bias {
+        return Err(Error::unsupported(
+            "a SAM vision encoder without query, key, and value biases",
+        ));
+    }
+
+    if vision.hidden_act != Activation::GeluExact {
+        return Err(Error::unsupported(format!(
+            "SAM vision activation {:?}",
+            vision.hidden_act
+        )));
+    }
+
+    if decoder.hidden_size != vision.output_channels {
+        return Err(Error::unsupported(format!(
+            "a SAM mask decoder of width {} over vision embeddings of width {}",
+            decoder.hidden_size, vision.output_channels
+        )));
+    }
+
+    if (vision.layer_norm_eps - decoder.layer_norm_eps).abs() > f32::EPSILON {
+        return Err(Error::unsupported(format!(
+            "SAM vision norm epsilon {} beside mask decoder norm epsilon {}",
+            vision.layer_norm_eps, decoder.layer_norm_eps
+        )));
+    }
+
+    if decoder.iou_head_depth < 2 {
+        return Err(Error::unsupported(format!(
+            "SAM IoU head depth {}",
+            decoder.iou_head_depth
+        )));
     }
 
     Ok(SamConfig {
@@ -88,107 +124,108 @@ pub(crate) fn config(source: &Source) -> Result<SamConfig> {
 }
 
 // A `SamFeedForward`'s layers stored as `proj_in`, `layers.N`, and `proj_out`, numbered in order.
-fn feed_forward(rules: Rules, from: &str, to: &str, depth: i64) -> Rules {
-    let mut rules = rules
-        .rename(&format!("{from}.proj_in"), &format!("{to}.0"))
-        .rename(&format!("{from}.proj_out"), &format!("{to}.{}", depth - 1));
+fn linear_stack_rules(from: &str, to: &str, depth: i64) -> Rules {
+    let mut rules = Rules::new()
+        .rename(&join(from, "proj_in"), &join(to, "0"))
+        .rename(&join(from, "proj_out"), &join(to, &(depth - 1).to_string()));
     for index in 0..depth - 2 {
         rules = rules.rename(
-            &format!("{from}.layers.{index}"),
-            &format!("{to}.{}", index + 1),
+            &join(from, &format!("layers.{index}")),
+            &join(to, &(index + 1).to_string()),
         );
     }
     rules
-}
-
-fn attention(rules: Rules, from: &str, to: &str) -> Rules {
-    rules
-        .rename(&format!("{from}.q_proj"), &format!("{to}.query"))
-        .rename(&format!("{from}.k_proj"), &format!("{to}.key"))
-        .rename(&format!("{from}.v_proj"), &format!("{to}.value"))
-        .rename(&format!("{from}.out_proj"), &format!("{to}.output"))
 }
 
 pub(crate) fn rules(iou_depth: i64) -> Rules {
-    let vision = |name: &str| format!("vision_encoder.layers.*.{name}");
-    let mut rules = Rules::new()
+    let two_way = "mask_decoder.transformer.layers.*";
+    Rules::new()
         .rename("vision_encoder.patch_embed.projection", "patches")
         .rename("vision_encoder.pos_embed", "positions")
-        .rename(&vision("layer_norm1"), "blocks.*.attention_norm")
-        .rename(&vision("attn.qkv"), "blocks.*.qkv")
-        .rename(&vision("attn.proj"), "blocks.*.output")
-        .rename(&vision("attn.rel_pos_h"), "blocks.*.relative_height")
-        .rename(&vision("attn.rel_pos_w"), "blocks.*.relative_width")
-        .rename(&vision("layer_norm2"), "blocks.*.feed_forward_norm")
-        .rename(&vision("mlp.lin1"), "blocks.*.up")
-        .rename(&vision("mlp.lin2"), "blocks.*.down")
-        .rename("vision_encoder.neck.conv1", "neck.0")
-        .rename("vision_encoder.neck.conv2", "neck.1")
-        .rename("vision_encoder.neck.layer_norm1", "neck_norms.0")
-        .rename("vision_encoder.neck.layer_norm2", "neck_norms.1")
+        .rename_each(
+            "vision_encoder.layers.*",
+            "blocks.*",
+            &[
+                ("layer_norm1", "attention_norm"),
+                ("attn.qkv", "attention.qkv"),
+                ("attn.proj", "attention.output"),
+                ("attn.rel_pos_h", "attention.relative_height"),
+                ("attn.rel_pos_w", "attention.relative_width"),
+                ("layer_norm2", "feed_forward_norm"),
+                ("mlp.lin1", "feed_forward.up"),
+                ("mlp.lin2", "feed_forward.down"),
+            ],
+        )
+        .rename_each(
+            "vision_encoder.neck",
+            "",
+            &[
+                ("conv1", "neck.0"),
+                ("conv2", "neck.1"),
+                ("layer_norm1", "neck_norms.0"),
+                ("layer_norm2", "neck_norms.1"),
+            ],
+        )
         .rename("shared_image_embedding.positional_embedding", "gaussian")
-        .rename("prompt_encoder.point_embed.*.weight", "point_embeddings.*")
-        .rename("prompt_encoder.not_a_point_embed.weight", "not_a_point")
-        .rename("prompt_encoder.no_mask_embed.weight", "no_mask")
+        .rename_each(
+            "prompt_encoder",
+            "",
+            &[
+                ("point_embed.*.weight", "point_embeddings.*"),
+                ("not_a_point_embed.weight", "not_a_point"),
+                ("no_mask_embed.weight", "no_mask"),
+            ],
+        )
         // Embeds input masks, which the pipeline never gives.
         .skip("prompt_encoder.mask_embed")
-        .rename("mask_decoder.iou_token.weight", "iou_token")
-        .rename("mask_decoder.mask_tokens.weight", "mask_tokens")
-        .rename(
-            "mask_decoder.transformer.layers.*.layer_norm1",
-            "two_way.*.norm1",
+        .rename_each(
+            "mask_decoder",
+            "",
+            &[
+                ("iou_token.weight", "iou_token"),
+                ("mask_tokens.weight", "mask_tokens"),
+                ("transformer.layer_norm_final_attn", "final_norm"),
+                ("upscale_conv1", "upscale.0"),
+                ("upscale_conv2", "upscale.1"),
+                ("upscale_layer_norm", "upscale_norm"),
+            ],
         )
-        .rename(
-            "mask_decoder.transformer.layers.*.layer_norm2",
-            "two_way.*.norm2",
+        .rename_each(
+            two_way,
+            "two_way.*",
+            &[
+                ("layer_norm1", "attention_norm"),
+                ("layer_norm2", "token_to_image_norm"),
+                ("mlp.lin1", "feed_forward.up"),
+                ("mlp.lin2", "feed_forward.down"),
+                ("layer_norm3", "feed_forward_norm"),
+                ("layer_norm4", "image_to_token_norm"),
+            ],
         )
-        .rename(
-            "mask_decoder.transformer.layers.*.layer_norm3",
-            "two_way.*.norm3",
-        )
-        .rename(
-            "mask_decoder.transformer.layers.*.layer_norm4",
-            "two_way.*.norm4",
-        )
-        .rename("mask_decoder.transformer.layers.*.mlp.lin1", "two_way.*.up")
-        .rename(
-            "mask_decoder.transformer.layers.*.mlp.lin2",
-            "two_way.*.down",
-        )
-        .rename(
-            "mask_decoder.transformer.layer_norm_final_attn",
-            "final_norm",
-        )
-        .rename("mask_decoder.upscale_conv1", "upscale.0")
-        .rename("mask_decoder.upscale_conv2", "upscale.1")
-        .rename("mask_decoder.upscale_layer_norm", "upscale_norm");
-    for (from, to) in [
-        ("self_attn", "self_attention"),
-        ("cross_attn_token_to_image", "token_to_image"),
-        ("cross_attn_image_to_token", "image_to_token"),
-    ] {
-        rules = attention(
-            rules,
-            &format!("mask_decoder.transformer.layers.*.{from}"),
-            &format!("two_way.*.{to}"),
-        );
-    }
-
-    rules = attention(
-        rules,
-        "mask_decoder.transformer.final_attn_token_to_image",
-        "final_attention",
-    );
-    rules = feed_forward(
-        rules,
-        "mask_decoder.output_hypernetworks_mlps.*",
-        "hypernetworks.*",
-        3,
-    );
-    feed_forward(
-        rules,
-        "mask_decoder.iou_prediction_head",
-        "iou_head",
-        iou_depth,
-    )
+        .then(attention_rules(
+            &join(two_way, "self_attn"),
+            "two_way.*.attention",
+        ))
+        .then(attention_rules(
+            &join(two_way, "cross_attn_token_to_image"),
+            "two_way.*.token_to_image",
+        ))
+        .then(attention_rules(
+            &join(two_way, "cross_attn_image_to_token"),
+            "two_way.*.image_to_token",
+        ))
+        .then(attention_rules(
+            "mask_decoder.transformer.final_attn_token_to_image",
+            "final_attention",
+        ))
+        .then(linear_stack_rules(
+            "mask_decoder.output_hypernetworks_mlps.*",
+            "hypernetworks.*",
+            3,
+        ))
+        .then(linear_stack_rules(
+            "mask_decoder.iou_prediction_head",
+            "iou_head",
+            iou_depth,
+        ))
 }

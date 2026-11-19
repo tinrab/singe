@@ -4,6 +4,7 @@
       "name": "everything",
       "snapshot": "SAM",
       "task": "mask-generation",
+      "data_type": "f32",
       "inputs": ["media/cat-448x320.png"],
       "expected": [
         {

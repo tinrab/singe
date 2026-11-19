@@ -72,10 +72,6 @@ impl Tensor {
             .product::<i64>();
         let deviation = |x: &Self| x.sub(&x.mean(dimensions, true)?);
         // Too few points leave no degrees of freedom, which divides by zero or a negative count, as `PyTorch` does.
-        #[expect(
-            clippy::cast_precision_loss,
-            reason = "point counts are far below 2^53"
-        )]
         let degrees = (points - correction).max(0) as f64;
         self.rounding_once(|x| {
             let deviation = deviation(x)?;

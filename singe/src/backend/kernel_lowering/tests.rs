@@ -5,8 +5,8 @@ use singe_codegen::interpret;
 use crate::{
     backend::{
         kernel_lowering::{
-            ElementGroup, ElementWiseKernel, EpilogueNode, EpilogueValue, FusedOperand, FusedStep,
-            Lhs, LoweredKernel, RowEpilogue, STATUS_INDEX_OUT_OF_BOUNDS,
+            ConvolutionGrouping, ElementGroup, ElementWiseKernel, EpilogueNode, EpilogueValue,
+            FusedOperand, FusedStep, Lhs, LoweredKernel, RowEpilogue, STATUS_INDEX_OUT_OF_BOUNDS,
             STATUS_INVALID_QUANTIZATION_SCALE, Selection, Weight, batch_norm, contraction, conv2d,
             gather, normalization, pool2d, quantization, reduction, scan, scatter, softmax,
         },
@@ -1000,7 +1000,7 @@ fn test_window_reductions_match_the_cpu_pools_and_depthwise_convolutions() {
         )
         .unwrap();
         let lowered = conv2d(
-            false,
+            ConvolutionGrouping::Depthwise,
             &attributes,
             DataType::F32,
             input.layout(),

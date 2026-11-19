@@ -784,10 +784,6 @@ pub unsafe fn quantize_f32_to_f8e4m3_scaled(
 /// Input values must be valid when read; order their producers before use.
 /// Follow the [raw kernel execution contract](crate::cuda#raw-kernel-execution).
 /// Writable output and scratch ranges must also be mutually disjoint.
-#[expect(
-    clippy::similar_names,
-    reason = "query, key, and value operands and their tensor layouts follow the mathematical kernel notation"
-)]
 pub unsafe fn qk_rope_quantize_f8e4m3_f32_interleaved(
     stream: &Stream,
     q_rope_out: &mut impl DeviceOutput<u8>,
@@ -926,10 +922,6 @@ pub unsafe fn qk_rope_quantize_f8e4m3_f32_interleaved_rope_only(
 /// Input values must be valid when read; order their producers before use.
 /// Follow the [raw kernel execution contract](crate::cuda#raw-kernel-execution).
 /// Writable output and scratch ranges must also be mutually disjoint.
-#[expect(
-    clippy::similar_names,
-    reason = "query, key, and value operands and their tensor layouts follow the mathematical kernel notation"
-)]
 pub unsafe fn mla_rope_quantize_f8e4m3_f32_interleaved(
     stream: &Stream,
     q_rope_out: &mut impl DeviceOutput<u8>,
@@ -1692,10 +1684,6 @@ fn validate_per_token_group_quant(
 }
 
 #[cfg(all(feature = "dtype_f32", any(feature = "dtype_i8", feature = "dtype_f8")))]
-#[expect(
-    clippy::similar_names,
-    reason = "query, key, and value operands and their tensor layouts follow the mathematical kernel notation"
-)]
 fn validate_per_token_group_quant_column_major(
     out_len: usize,
     scales_len: usize,
@@ -1857,10 +1845,6 @@ fn validate_rope_quantize_fp8(
 }
 
 #[cfg(all(feature = "dtype_f32", feature = "dtype_f8"))]
-#[expect(
-    clippy::similar_names,
-    reason = "query, key, and value operands and their tensor layouts follow the mathematical kernel notation"
-)]
 fn validate_qk_rope_quantize_fp8(
     q_rope_out_len: usize,
     k_rope_out_len: usize,
@@ -1946,10 +1930,6 @@ fn validate_qk_rope_quantize_fp8_rope_only(
 }
 
 #[cfg(all(feature = "dtype_f32", feature = "dtype_f8"))]
-#[expect(
-    clippy::similar_names,
-    reason = "query, key, and value operands and their tensor layouts follow the mathematical kernel notation"
-)]
 fn validate_mla_rope_quantize_fp8(
     q_rope_out_len: usize,
     k_rope_out_len: usize,

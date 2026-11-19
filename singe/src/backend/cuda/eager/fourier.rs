@@ -89,8 +89,10 @@ fn decomposed(
 // `rfft` along the last axis: through cuFFT where `spec::transforms_with_cufft` says, after widening half precision, and as the basis matmul otherwise.
 pub fn rfft(input: &Tensor) -> Result<Tensor> {
     let dimensions = input.shape().dimensions();
-    let length = dimensions.last().copied().unwrap_or(0);
     let data_type = input.data_type();
+    let Some((&length, leading)) = dimensions.split_last() else {
+        return decomposed(Operation::Rfft, &OperationAttributes::None, input);
+    };
     if !spec::transforms_with_cufft(length, widened(data_type)) {
         return decomposed(Operation::Rfft, &OperationAttributes::None, input);
     }
@@ -103,7 +105,7 @@ pub fn rfft(input: &Tensor) -> Result<Tensor> {
     let input = input.contiguous()?;
     let frequencies = length / 2 + 1;
     let batch = input.element_count() / to_usize(length, "cuda fft extent")?;
-    let mut shape = dimensions[..dimensions.len() - 1].to_vec();
+    let mut shape = leading.to_vec();
     shape.extend([frequencies, 2]);
     let shape = Shape::create(shape)?;
     let context = cuda::execution_context(input.device())?;
@@ -169,7 +171,7 @@ pub fn irfft(input: &Tensor, length: i64) -> Result<Tensor> {
     }
 
     let dimensions = input.shape().dimensions();
-    let (&[.., frequencies, 2], true) = (dimensions, dimensions.len() >= 2) else {
+    let &[ref leading @ .., frequencies, 2] = dimensions else {
         return decomposed(Operation::Irfft, &attributes, input);
     };
     ensure_not_stream_capturing(input.device(), "cuda eager irfft during stream capture")?;
@@ -189,7 +191,6 @@ pub fn irfft(input: &Tensor, length: i64) -> Result<Tensor> {
             -2,
         )?
     };
-    let leading = &dimensions[..dimensions.len() - 2];
     let batch = to_usize(leading.iter().product::<i64>(), "cuda fft extent")?;
     let mut shape = leading.to_vec();
     shape.push(length);
@@ -254,9 +255,5 @@ pub fn irfft(input: &Tensor, length: i64) -> Result<Tensor> {
     )?;
     // SAFETY: cuFFT wrote every point; the transform is unnormalized, as `torch.fft.irfft` divides it by the length.
     let signal = unsafe { output.assume_init() };
-    #[expect(
-        clippy::cast_precision_loss,
-        reason = "signal lengths are far below 2^53"
-    )]
     signal.div_scalar(length as f64)
 }

@@ -32,6 +32,12 @@ use crate::{
 
 /// The time one kernel took over several launches.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CacheState {
+    Warm,
+    Cold,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Timing {
     pub median: Duration,
     pub minimum: Duration,
@@ -134,7 +140,7 @@ impl KernelBench {
     /// Times each of `kernels` over `rounds` rounds, timing each once per round in turn so drifting clocks affect them alike.
     ///
     /// A CUDA event pair resolves about 2 µs on the development GPU, and stream launches cannot start closer than about 2 µs apart, so each sample replays a CUDA graph of back-to-back launches lasting at least 50 µs and divides by its length, as a compiled graph runs its kernels.
-    /// Batched launches find their data in the L2 cache, as a graph's kernels mostly find what the kernel before them wrote; with `cold`, every launch in a batch follows a kernel that reads twice the L2 cache's size, and the sample subtracts a graph of those reads alone.
+    /// Batched launches find their data in the L2 cache, as a graph's kernels mostly find what the kernel before them wrote; with `CacheState::Cold`, every launch in a batch follows a kernel that reads twice the L2 cache's size, and the sample subtracts a graph of those reads alone.
     /// That subtraction leaves the reads' own variation, so cold samples of kernels much shorter than the reads are noisy.
     ///
     /// # Errors
@@ -144,10 +150,10 @@ impl KernelBench {
         &self,
         kernels: &[KernelArtifact],
         rounds: usize,
-        cold: bool,
+        cache: CacheState,
     ) -> Result<Vec<Timing>> {
         Ok(self
-            .time_rounds(kernels, rounds, cold)?
+            .time_rounds(kernels, rounds, cache)?
             .into_iter()
             .map(Timing::of)
             .collect())
@@ -162,7 +168,7 @@ impl KernelBench {
         &self,
         kernels: &[KernelArtifact],
         rounds: usize,
-        cold: bool,
+        cache: CacheState,
     ) -> Result<Vec<Vec<Duration>>> {
         let launches = kernels
             .iter()
@@ -178,7 +184,7 @@ impl KernelBench {
         let flush_buffers = self.flush_buffers();
         let graph = |launch: Option<&Prepared>, count: usize| {
             self.captured(count, || {
-                if cold || launch.is_none() {
+                if cache == CacheState::Cold || launch.is_none() {
                     self.enqueue(&flush, &flush_buffers)?;
                 }
                 launch.map_or(Ok(()), |launch| self.enqueue(launch, &buffers))
@@ -211,7 +217,7 @@ impl KernelBench {
             let per_launch = (replay(&probe)?.as_nanos() / 10).max(1);
             let count = BATCH.as_nanos().div_ceil(per_launch).clamp(1, 2000);
             let count = usize::try_from(count).unwrap_or(1);
-            let flushes = if cold {
+            let flushes = if cache == CacheState::Cold {
                 Some(graph(None, count)?)
             } else {
                 None

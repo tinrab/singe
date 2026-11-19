@@ -59,6 +59,8 @@ pub(crate) use self::prepare::SharedBuffers;
 use self::{ir::ValueId, outputs::GraphOutput};
 
 #[cfg(feature = "cuda")]
+pub(crate) use self::numerics::CudnnGraphKind;
+#[cfg(feature = "cuda")]
 pub(crate) use self::run::narrow_counted;
 pub use self::{
     dimensions::{DimensionExpr, GraphInputSpec},
@@ -66,7 +68,7 @@ pub use self::{
     guards::GraphGuardFailure,
     inputs::{GraphInputClass, InputDimensionGuard},
     ir::Graph,
-    numerics::{ComputePrecision, Determinism},
+    numerics::{ComputePrecision, Determinism, with_convolution_precision},
     operation::{GraphOperationInputs, GraphOperationOutput, GraphOperationRequest},
     prepare::{
         GraphExecutionCacheStats, GraphExecutionMemoryStats, GraphExecutionMode,

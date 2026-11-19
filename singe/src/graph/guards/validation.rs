@@ -3,7 +3,6 @@ use std::{collections::HashMap, result::Result as StdResult};
 use crate::{
     data_type::DataType,
     device::Device,
-    error::Error,
     graph::{
         InputDimensionGuard,
         guards::{GraphGuardFailure, storage::storage_span_bytes},
@@ -22,11 +21,11 @@ pub fn check_tensor_metadata(
     tensor: &Tensor,
 ) -> StdResult<(), GraphGuardFailure> {
     if tensor.data_type() != expected_data_type {
-        return Err(GraphGuardFailure::from(Error::data_type_mismatch(
-            name.to_owned(),
-            expected_data_type,
-            tensor.data_type(),
-        )));
+        return Err(GraphGuardFailure::DataTypeMismatch {
+            name: name.to_owned(),
+            expected: expected_data_type,
+            actual: tensor.data_type(),
+        });
     }
 
     check_dimensions(
@@ -38,40 +37,44 @@ pub fn check_tensor_metadata(
     )?;
     let actual_layout = Layout::from_tensor(tensor);
     if !layout_matches_expected_shape_guard(expected_layout, &actual_layout, dimension_guards) {
-        return Err(GraphGuardFailure::from(Error::layout_mismatch(
-            name.to_owned(),
-            expected_layout.dimensions().to_vec(),
-            expected_layout.strides().to_vec(),
-            expected_layout.storage_offset(),
-            actual_layout.dimensions().to_vec(),
-            actual_layout.strides().to_vec(),
-            actual_layout.storage_offset(),
-        )));
+        return Err(GraphGuardFailure::LayoutMismatch {
+            name: name.to_owned(),
+            expected_dimensions: expected_layout.dimensions().into(),
+            expected_strides: expected_layout.strides().into(),
+            expected_offset: expected_layout.storage_offset(),
+            actual_dimensions: actual_layout.dimensions().into(),
+            actual_strides: actual_layout.strides().into(),
+            actual_offset: actual_layout.storage_offset(),
+        });
     }
 
     if dimension_guards.is_empty() && actual_layout.dimensions() != expected_layout.dimensions() {
-        return Err(GraphGuardFailure::from(Error::shape_mismatch(
-            name.to_owned(),
-            expected_layout.dimensions().to_vec(),
-            tensor.shape().dimensions().to_vec(),
-        )));
+        return Err(GraphGuardFailure::ShapeMismatch {
+            name: name.to_owned(),
+            expected: expected_layout.dimensions().to_vec(),
+            actual: tensor.shape().dimensions().to_vec(),
+        });
     }
 
     if tensor.device() != expected_device {
-        return Err(GraphGuardFailure::from(Error::device_mismatch(
-            name.to_owned(),
-            expected_device,
-            tensor.device(),
-        )));
+        return Err(GraphGuardFailure::DeviceMismatch {
+            name: name.to_owned(),
+            expected: expected_device,
+            actual: tensor.device(),
+        });
     }
 
-    let required = storage_span_bytes(tensor.layout(), tensor.data_type())?;
+    let required = storage_span_bytes(tensor.layout(), tensor.data_type()).map_err(|_| {
+        GraphGuardFailure::OutOfRange {
+            name: format!("{name} storage span"),
+        }
+    })?;
     if required > tensor.storage().byte_size() {
-        return Err(GraphGuardFailure::from(Error::length_mismatch(
-            format!("{name} storage bytes"),
-            required,
-            tensor.storage().byte_size(),
-        )));
+        return Err(GraphGuardFailure::LengthMismatch {
+            name: format!("{name} storage bytes"),
+            expected: required,
+            actual: tensor.storage().byte_size(),
+        });
     }
     Ok(())
 }
@@ -115,11 +118,11 @@ pub fn check_dimensions(
     symbol_values: &mut HashMap<String, i64>,
 ) -> StdResult<(), GraphGuardFailure> {
     if expected.len() != actual.len() {
-        return Err(GraphGuardFailure::from(Error::shape_mismatch(
-            input_name.to_owned(),
-            expected.to_vec(),
-            actual.to_vec(),
-        )));
+        return Err(GraphGuardFailure::ShapeMismatch {
+            name: input_name.to_owned(),
+            expected: expected.to_vec(),
+            actual: actual.to_vec(),
+        });
     }
 
     for (axis, (&expected_dimension, &actual_dimension)) in expected.iter().zip(actual).enumerate()
@@ -128,11 +131,11 @@ pub fn check_dimensions(
             check_guard_range(guard, actual_dimension)?;
             check_guard_symbol(guard, actual_dimension, symbol_values)?;
         } else if expected_dimension != actual_dimension {
-            return Err(GraphGuardFailure::from(Error::shape_mismatch(
-                input_name.to_owned(),
-                expected.to_vec(),
-                actual.to_vec(),
-            )));
+            return Err(GraphGuardFailure::ShapeMismatch {
+                name: input_name.to_owned(),
+                expected: expected.to_vec(),
+                actual: actual.to_vec(),
+            });
         }
     }
     Ok(())
@@ -177,11 +180,11 @@ fn check_guard_symbol(
 ) -> StdResult<(), GraphGuardFailure> {
     match symbol_values.get(guard.name()).copied() {
         Some(expected_symbol) if expected_symbol != actual_dimension => {
-            return Err(GraphGuardFailure::from(Error::shape_mismatch(
-                format!("symbolic dimension `{}`", guard.name()),
-                vec![expected_symbol],
-                vec![actual_dimension],
-            )));
+            return Err(GraphGuardFailure::ShapeMismatch {
+                name: format!("symbolic dimension `{}`", guard.name()),
+                expected: vec![expected_symbol],
+                actual: vec![actual_dimension],
+            });
         }
         Some(_) => {}
         None => {

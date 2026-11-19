@@ -65,8 +65,7 @@ fn test_remove_redundant_ops_pass_rejects_invalid_identity_index_select_axis() {
     let pipeline = validating_remove_redundant_ops_pipeline();
     assert!(matches!(
         pipeline.normalize(&graph),
-        Err(Error::InvalidShape
-            | Error::DimensionOutOfBounds
+        Err(Error::DimensionOutOfBounds { .. }
             | Error::InvalidDimension { .. }
             | Error::InvalidArgument { .. }
             | Error::OutOfRange { .. }

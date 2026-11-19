@@ -420,10 +420,6 @@ fn visit_saved_statistics(
 }
 
 impl NormalizationOperation {
-    #[expect(
-        clippy::too_many_lines,
-        reason = "the operation table enumerates every supported variant and its tensor contract"
-    )]
     fn visit_tensor_ids(&mut self, visit: &mut TensorVisitor<'_>) -> Result<()> {
         use TensorRole::{Read, ReadWrite, Write};
         match self {

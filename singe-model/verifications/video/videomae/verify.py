@@ -1,22 +1,19 @@
-"""VideoMAE, classifying a clip's frames with `transformers`' image processor and model, sampled as its video-classification pipeline samples them, as `verify.rs` classifies them in Singe."""
+"""VideoMAE, classifying a clip's frames with `transformers`' image processor and model, sampled as its video-classification pipeline samples them, as `mod.rs` classifies them in Singe."""
 
-import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import numpy
+import torch
+from PIL import Image
+from transformers import AutoImageProcessor, AutoModelForVideoClassification
 
-import numpy  # noqa: E402
-import torch  # noqa: E402
-from PIL import Image  # noqa: E402
-from transformers import AutoImageProcessor, AutoModelForVideoClassification  # noqa: E402
-
-from support import DEVICE, Verification  # noqa: E402
+from support import DEVICE, Verification
 
 
-def video_classification(snapshot):
+def video_classification(snapshot, dtype):
     processor = AutoImageProcessor.from_pretrained(snapshot)
     model = (
-        AutoModelForVideoClassification.from_pretrained(snapshot, dtype=torch.float32)
+        AutoModelForVideoClassification.from_pretrained(snapshot, dtype=dtype)
         .to(DEVICE)
         .eval()
     )

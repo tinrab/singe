@@ -1,20 +1,15 @@
-"""The Decision Transformer, predicting each step of a trajectory with `transformers`' `DecisionTransformerModel`, as `verify.rs` predicts them in Singe.
+"""The Decision Transformer, predicting each step of a trajectory with `transformers`' `DecisionTransformerModel`, as `mod.rs` predicts them in Singe.
 `transformers` has no reinforcement learning pipeline."""
 
-import sys
-from pathlib import Path
+import torch
+from transformers import DecisionTransformerModel
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-
-import torch  # noqa: E402
-from transformers import DecisionTransformerModel  # noqa: E402
-
-from support import DEVICE, Verification  # noqa: E402
+from support import DEVICE, Verification
 
 
-def reinforcement_learning(snapshot):
+def reinforcement_learning(snapshot, dtype):
     model = (
-        DecisionTransformerModel.from_pretrained(snapshot, dtype=torch.float32)
+        DecisionTransformerModel.from_pretrained(snapshot, dtype=dtype)
         .to(DEVICE)
         .eval()
     )
@@ -27,11 +22,11 @@ def reinforcement_learning(snapshot):
             ).unsqueeze(0)  # noqa: E731
             with torch.no_grad():
                 predicted = model(
-                    states=tensor(item["states"], dtype=torch.float32),
-                    actions=tensor(item["actions"], dtype=torch.float32),
-                    returns_to_go=tensor(
-                        item["returns_to_go"], dtype=torch.float32
-                    ).unsqueeze(-1),
+                    states=tensor(item["states"], dtype=dtype),
+                    actions=tensor(item["actions"], dtype=dtype),
+                    returns_to_go=tensor(item["returns_to_go"], dtype=dtype).unsqueeze(
+                        -1
+                    ),
                     timesteps=tensor(item["timesteps"], dtype=torch.long),
                 )
             outputs.append(

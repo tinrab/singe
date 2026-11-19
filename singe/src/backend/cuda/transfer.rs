@@ -13,6 +13,7 @@ use crate::{
         self, EventTiming,
         eager::storage::peer_copy,
         event::CudaEvent,
+        runtime::runtime_for_device,
         stream::CudaStream,
         tensor_region::{CudaTensorSource, PendingCudaTensor},
     },
@@ -75,6 +76,13 @@ impl CudaTransfer {
     /// Returns an error if the copy failed.
     pub fn wait_with_source(mut self) -> Result<(Tensor, Tensor)> {
         self.event.synchronize()?;
+        // A copy from the device waited for what eager checking kernels wrote into its source.
+        if let Some(pending) = &self.pending
+            && pending.source.device().is_cuda()
+        {
+            runtime_for_device(pending.source.device())?.take_eager_status()?;
+        }
+
         let Pending {
             source,
             destination,

@@ -1,6 +1,8 @@
 use singe_onnx::proto::onnx::{
     AttributeProto, TensorProto, TensorShapeProto, TypeProto, ValueInfoProto, attribute_proto,
-    tensor_proto, tensor_shape_proto, type_proto,
+    tensor_proto,
+    tensor_shape_proto::{self, dimension::Value as DimensionValue},
+    type_proto,
 };
 
 use crate::{
@@ -89,7 +91,7 @@ pub fn scalar_bytes(value: Scalar, dtype: DataType) -> Result<Vec<u8>> {
 pub fn value_info(
     name: String,
     data_type: DataType,
-    dimensions: Vec<Option<tensor_shape_proto::dimension::Value>>,
+    dimensions: Vec<Option<DimensionValue>>,
 ) -> Result<ValueInfoProto> {
     Ok(ValueInfoProto {
         name,

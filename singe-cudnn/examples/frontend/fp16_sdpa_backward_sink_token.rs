@@ -25,10 +25,6 @@ fn init_bf16_image(size: usize, seed: &mut u32) -> Vec<bf16> {
         .collect()
 }
 
-#[expect(
-    clippy::many_single_char_names,
-    reason = "keeps the upstream sample's single-letter dimension names"
-)]
 fn run() -> Result<()> {
     let example = common::ExampleContext::create()?;
 

@@ -5,12 +5,13 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use serde::de::DeserializeOwned;
+use serde::{Deserialize, de::DeserializeOwned};
 use serde_json::Value;
 use singe::{DataType, Device};
 
 use crate::{
     error::{Error, Result},
+    format::NativeConfig,
     processor::text::special_token,
 };
 
@@ -47,8 +48,8 @@ impl Source {
             read_json::<Value>(&index)?
         };
         let field = |name: &str| config[name].as_str().map(str::to_owned);
-        let (format, kind) = if let Some(kind) = config["singe"]["model"].as_str() {
-            (Format::Native, kind.to_owned())
+        let (format, kind) = if config.get("singe").is_some() {
+            (Format::Native, NativeConfig::read(&directory)?.model)
         } else if let Some(kind) = field("model_type") {
             (Format::Transformers, kind)
         } else if let Some(kind) = field("_class_name") {
@@ -56,7 +57,7 @@ impl Source {
         } else if config["task"].is_string() && config["n_layers"].is_number() {
             (Format::AutoGluon, "tab2d".to_owned())
         } else {
-            return Err(Error::UnsupportedConfig(format!(
+            return Err(Error::unsupported(format!(
                 "a model directory whose config names no model: {}",
                 directory.display()
             )));
@@ -72,7 +73,7 @@ impl Source {
     pub fn component(&self, name: &str) -> Result<Self> {
         let index = self.json::<Value>("model_index.json")?;
         if !index[name].is_array() {
-            return Err(Error::UnsupportedConfig(format!(
+            return Err(Error::unsupported(format!(
                 "a pipeline without the component {name}"
             )));
         }
@@ -144,15 +145,13 @@ impl Source {
     // Returns the tokens that end generation: those a native config records, or `generation_config.json`'s `eos_token_id`, a `transformers` config's or its `text_config`'s, and the tokenizer's end token, which chat models such as Qwen3.5 name only there.
     pub fn stop_tokens(&self) -> Result<Vec<i64>> {
         if self.format == Format::Native {
-            let config = self.json::<Value>("config.json")?;
-            return serde_json::from_value(config["singe"]["stop_tokens"].clone())
-                .map_err(Error::ConfigFormat);
+            return Ok(NativeConfig::read(&self.directory)?.stop_tokens);
         }
 
         let generation = self.optional_json::<Value>("generation_config.json")?;
         let config = match self.format {
             Format::Transformers => Some(self.json::<Value>("config.json")?),
-            Format::Native | Format::Diffusers | Format::AutoGluon => None,
+            _ => None,
         };
         let tokens = generation
             .iter()
@@ -163,11 +162,7 @@ impl Source {
             )
             .map(|fields| &fields["eos_token_id"])
             .find(|tokens| !tokens.is_null());
-        let mut tokens = match tokens {
-            Some(Value::Number(token)) => token.as_i64().into_iter().collect(),
-            Some(Value::Array(tokens)) => tokens.iter().filter_map(Value::as_i64).collect(),
-            _ => Vec::new(),
-        };
+        let mut tokens = tokens.and_then(token_ids).unwrap_or_default();
         if let Some(token) = self.tokenizer_end_token()?
             && !tokens.contains(&token)
         {
@@ -178,27 +173,48 @@ impl Source {
 
     // The id of `tokenizer_config.json`'s `eos_token`, among `tokenizer.json`'s added tokens, if both files name it.
     fn tokenizer_end_token(&self) -> Result<Option<i64>> {
-        let (Some(config), Some(tokenizer)) = (
-            self.optional_json::<Value>("tokenizer_config.json")?,
-            self.optional_json::<Value>("tokenizer.json")?,
-        ) else {
+        let Some(config) = self.optional_json::<Value>("tokenizer_config.json")? else {
             return Ok(None);
         };
         let Some(name) = special_token(&config, "eos_token") else {
             return Ok(None);
         };
-        Ok(tokenizer["added_tokens"]
-            .as_array()
-            .into_iter()
-            .flatten()
-            .find(|token| token["content"].as_str() == Some(name))
-            .and_then(|token| token["id"].as_i64()))
+        // Only the added tokens are read, so the vocabulary and merges, most of the file, are skipped rather than built into values.
+        let Some(tokenizer) = self.optional_json::<AddedTokens>("tokenizer.json")? else {
+            return Ok(None);
+        };
+        Ok(tokenizer
+            .added_tokens
+            .iter()
+            .find(|token| token.content == name)
+            .map(|token| token.id))
     }
 }
 
-fn read_json<T: DeserializeOwned>(path: &Path) -> Result<T> {
-    let text = fs::read_to_string(path).map_err(Error::ConfigIo)?;
-    serde_json::from_str(&text).map_err(Error::ConfigFormat)
+// The added tokens of a `tokenizer.json`.
+#[derive(Deserialize)]
+struct AddedTokens {
+    #[serde(default)]
+    added_tokens: Vec<AddedToken>,
+}
+
+#[derive(Deserialize)]
+struct AddedToken {
+    id: i64,
+    content: String,
+}
+
+pub(crate) fn token_ids(value: &Value) -> Option<Vec<i64>> {
+    match value {
+        Value::Number(token) => Some(token.as_i64().into_iter().collect()),
+        Value::Array(tokens) => Some(tokens.iter().filter_map(Value::as_i64).collect()),
+        _ => None,
+    }
+}
+
+pub(crate) fn read_json<T: DeserializeOwned>(path: &Path) -> Result<T> {
+    let text = fs::read_to_string(path).map_err(Error::io(path))?;
+    serde_json::from_str(&text).map_err(Error::json(path))
 }
 
 // Where a model's weights go and in what type.
@@ -206,11 +222,17 @@ fn read_json<T: DeserializeOwned>(path: &Path) -> Result<T> {
 pub struct LoadOptions {
     pub device: Device,
     pub data_type: DataType,
+    // Whether each group of sibling projections is stored joined, so eager layers run it as one matmul; an export, which traces its graphs and runs no layer eagerly, keeps each weight apart.
+    pub join_projections: bool,
 }
 
 impl LoadOptions {
     #[must_use]
     pub const fn new(device: Device, data_type: DataType) -> Self {
-        Self { device, data_type }
+        Self {
+            device,
+            data_type,
+            join_projections: true,
+        }
     }
 }

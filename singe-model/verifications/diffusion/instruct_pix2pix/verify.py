@@ -1,23 +1,18 @@
-"""InstructPix2Pix, editing an image by an instruction with `diffusers`' `StableDiffusionInstructPix2PixPipeline`, as `verify.rs` edits it in Singe.
+"""InstructPix2Pix, editing an image by an instruction with `diffusers`' `StableDiffusionInstructPix2PixPipeline`, as `mod.rs` edits it in Singe.
 Both draw the noise from PyTorch's CPU generator seeded alike; the pipeline runs without its safety checker, which Singe's has none of."""
 
-import sys
-from pathlib import Path
+import numpy
+import torch
+from diffusers import StableDiffusionInstructPix2PixPipeline
+from PIL import Image
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-
-import numpy  # noqa: E402
-import torch  # noqa: E402
-from diffusers import StableDiffusionInstructPix2PixPipeline  # noqa: E402
-from PIL import Image  # noqa: E402
-
-from support import DEVICE, Verification, data_url  # noqa: E402
+from support import DEVICE, Verification, data_url
 
 
-def image_text_to_image(snapshot):
+def image_text_to_image(snapshot, dtype):
     edit = StableDiffusionInstructPix2PixPipeline.from_pretrained(
         snapshot,
-        torch_dtype=torch.float32,
+        torch_dtype=dtype,
         safety_checker=None,
         feature_extractor=None,
         requires_safety_checker=False,

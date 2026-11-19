@@ -1984,10 +1984,6 @@ where
     )
 }
 
-#[allow(
-    clippy::too_many_arguments,
-    reason = "autotuning forwards the full kernel configuration"
-)]
 fn normalization_autotuned<T, A: Copy, W, B, FDefault, FTuned>(
     stream: &Stream,
     out: &mut impl DeviceOutput<T>,
@@ -2135,10 +2131,6 @@ where
     )
 }
 
-#[allow(
-    clippy::too_many_arguments,
-    reason = "autotuning forwards the full kernel configuration"
-)]
 fn tune_normalization<T, A: Copy, W, B, F>(
     stream: &Stream,
     out: &mut impl DeviceOutput<T>,

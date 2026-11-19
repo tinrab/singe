@@ -1,4 +1,4 @@
-use std::{path::PathBuf, result::Result as StdResult};
+use std::{io::Error as IoError, num::ParseIntError, path::PathBuf, result::Result as StdResult};
 
 use singe_onnx::{Error as OnnxError, TensorDataType};
 use thiserror::Error;
@@ -91,15 +91,36 @@ pub enum Error {
     },
 
     /// ONNX external tensor data cannot be read.
-    #[error("invalid onnx external data `{name}` at {path}: {reason}")]
-    InvalidExternalData {
+    #[error("cannot read onnx external data `{name}` at {path}")]
+    ExternalDataIo {
         /// Tensor name.
         name: String,
         /// External data path.
         path: PathBuf,
-        /// Diagnostic reason.
-        reason: String,
+        #[source]
+        source: IoError,
     },
+
+    #[error("invalid `{key}` for onnx external data `{name}`")]
+    ExternalDataEntry {
+        name: String,
+        key: &'static str,
+        #[source]
+        source: ParseIntError,
+    },
+
+    #[error(
+        "onnx external data `{name}` at offset {offset} with length {length} lies outside {path}"
+    )]
+    ExternalDataRange {
+        name: String,
+        path: PathBuf,
+        offset: usize,
+        length: usize,
+    },
+
+    #[error("onnx external data `{name}` at {path} lies outside the model directory")]
+    ExternalDataOutside { name: String, path: PathBuf },
 }
 
 impl Error {

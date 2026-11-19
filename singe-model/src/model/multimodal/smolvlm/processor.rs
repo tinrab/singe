@@ -8,7 +8,7 @@ use singe::{DataType, Device, Error as SingeError, Shape, Tensor};
 use crate::{
     error::{Error, Result},
     processor::{
-        image::{Image, Resample},
+        image::{Image, Resample, extent},
         video::Video,
     },
 };
@@ -25,6 +25,9 @@ const MAX_IMAGE_SIZE: i64 = 4096;
 // The seconds `sample_frames` skips at each end of a clip long enough.
 const SKIPPED_SECONDS: f64 = 1.0;
 
+pub type TileGrid = (i64, i64);
+
+// no-slop-allow: no-vague-type-names -- this is `SmolVLMImageProcessor`, a `transformers` image processor.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SmolVlmProcessor {
     // The longest side an image is resized to before it is cut.
@@ -56,16 +59,6 @@ pub struct VideoSampling {
 
 impl VideoSampling {
     // The frames `sample_frames` takes from a clip of `total` frames at `fps`: about `fps` a second, up to `max_frames`, spread evenly, skipping a second at each end of a long clip.
-    #[expect(
-        clippy::cast_precision_loss,
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        reason = "frame counts are small, and `numpy` truncates its indices"
-    )]
-    #[expect(
-        clippy::suboptimal_flops,
-        reason = "rounds each product as the reference does, which the verifications compare with"
-    )]
     fn sampled(&self, total: usize, fps: f64) -> Result<Vec<usize>> {
         if total == 0 || fps <= 0.0 {
             return Err(Error::Media(
@@ -106,24 +99,11 @@ impl VideoSampling {
     }
 }
 
-// A side as `u32`, which every side here fits.
-fn side(value: i64) -> u32 {
-    u32::try_from(value.clamp(1, MAX_IMAGE_SIZE)).unwrap_or(1)
-}
-
 // Python's `int` of a positive float.
-#[expect(
-    clippy::cast_possible_truncation,
-    reason = "sides are far below where `F64` loses whole numbers"
-)]
 const fn truncated(value: f64) -> i64 {
     value as i64
 }
 
-#[expect(
-    clippy::cast_precision_loss,
-    reason = "sides are far below where `F64` loses whole numbers"
-)]
 const fn float(value: i64) -> f64 {
     value as f64
 }
@@ -214,48 +194,48 @@ fn number_words(number: usize) -> String {
 }
 
 impl SmolVlmProcessor {
-    fn resized(&self, image: &Image, height: i64, width: i64) -> Image {
-        let (height, width) = (side(height), side(width));
-        if (image.height, image.width) == (height, width) {
+    fn resized(&self, image: &Image, height: i64, width: i64) -> Result<Image> {
+        let side = |value: i64| extent(value.clamp(1, MAX_IMAGE_SIZE));
+        let (height, width) = (side(height)?, side(width)?);
+        Ok(if (image.height, image.width) == (height, width) {
             image.clone()
         } else {
             image.resized(height, width, self.resample)
-        }
+        })
     }
 
     // An image's tiles, row by row and then the whole image shrunk to one, and its grid of tiles, or the image as one tile and no grid when it fits one, as `SmolVLMImageProcessor` cuts it.
-    #[must_use]
-    pub fn tiles(&self, image: &Image) -> (Vec<Image>, Option<(i64, i64)>) {
+    pub fn tiles(&self, image: &Image) -> Result<(Vec<Image>, Option<TileGrid>)> {
         let (height, width) = (i64::from(image.height), i64::from(image.width));
         let (height, width) = rescaled_to_longest(height, width, self.longest_edge);
         let (height, width) = bounded(height, width);
-        let image = self.resized(image, height, width);
+        let image = self.resized(image, height, width)?;
         let tile = self.tile;
         if !self.splitting {
-            return (vec![self.resized(&image, tile, tile)], None);
+            return Ok((vec![self.resized(&image, tile, tile)?], None));
         }
 
         let (height, width) = whole_tiles(height, width, tile);
-        let image = self.resized(&image, height, width);
+        let image = self.resized(&image, height, width)?;
         if height <= tile && width <= tile {
-            return (vec![image], None);
+            return Ok((vec![image], None));
         }
 
         let (rows, columns) = (height / tile, width / tile);
         let mut tiles = Vec::new();
         for row in 0..rows {
             for column in 0..columns {
-                tiles.push(crop(&image, row * tile, column * tile, tile));
+                tiles.push(crop(&image, row * tile, column * tile, tile)?);
             }
         }
 
-        tiles.push(self.resized(&image, tile, tile));
-        (tiles, Some((rows, columns)))
+        tiles.push(self.resized(&image, tile, tile)?);
+        Ok((tiles, Some((rows, columns))))
     }
 
     // The text an image's placeholder becomes: each tile's marker and image tokens, row by row, then the whole image's, as `get_image_prompt_string` writes it.
     #[must_use]
-    pub fn image_prompt(&self, grid: Option<(i64, i64)>) -> String {
+    pub fn image_prompt(&self, grid: Option<TileGrid>) -> String {
         let tokens = self.image_token.repeat(self.image_tokens);
         let whole = format!(
             "{fake}{global}{tokens}{fake}",
@@ -317,16 +297,10 @@ impl SmolVlmProcessor {
                     i64::from(frame.width),
                     sampling.edge.min(MAX_IMAGE_SIZE),
                 );
-                let frame = self.resized(frame, height, width);
+                let frame = self.resized(frame, height, width)?;
                 self.resized(&frame, self.tile, self.tile)
             })
-            .collect::<Vec<_>>();
-        #[expect(
-            clippy::cast_precision_loss,
-            clippy::cast_possible_truncation,
-            clippy::cast_sign_loss,
-            reason = "frame counts and seconds are small"
-        )]
+            .collect::<Result<Vec<_>>>()?;
         let (duration, seconds) = (
             (video.frames.len() as f64 / fps) as u64,
             indices
@@ -357,7 +331,7 @@ impl SmolVlmProcessor {
 
     // Tiles as the tower reads them, `[N, 3, S, S]`, rescaled and normalized as `transformers` fuses the two.
     pub fn pixels(&self, tiles: &[Image], device: Device, data_type: DataType) -> Result<Tensor> {
-        let side = usize::try_from(self.tile).map_err(|_| Error::unsupported("a tile side"))?;
+        let side = usize::try_from(self.tile).map_err(|_| SingeError::out_of_range("tile side"))?;
         let mut values = Vec::with_capacity(tiles.len() * 3 * side * side);
         for tile in tiles {
             for channel in 0..3 {
@@ -372,7 +346,7 @@ impl SmolVlmProcessor {
             }
         }
 
-        let count = i64::try_from(tiles.len()).map_err(|_| Error::unsupported("so many tiles"))?;
+        let count = i64::try_from(tiles.len()).map_err(|_| SingeError::out_of_range("tiles"))?;
         Ok(Tensor::from_vec(
             device,
             Shape::create([count, 3, self.tile, self.tile])?,
@@ -383,12 +357,7 @@ impl SmolVlmProcessor {
 }
 
 // The `side × side` square of `image` from `top`, `left`.
-#[expect(
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    reason = "a tile lies within its image"
-)]
-fn crop(image: &Image, top: i64, left: i64, side: i64) -> Image {
+fn crop(image: &Image, top: i64, left: i64, side: i64) -> Result<Image> {
     let width = image.width as usize;
     let (top, left, side) = (top as usize, left as usize, side as usize);
     let pixels = (top..top + side)
@@ -397,10 +366,10 @@ fn crop(image: &Image, top: i64, left: i64, side: i64) -> Image {
             image.pixels[start..start + side * 3].iter().copied()
         })
         .collect();
-    let side = u32::try_from(side).unwrap_or(0);
-    Image {
+    let side = u32::try_from(side).map_err(|_| SingeError::out_of_range("tile side"))?;
+    Ok(Image {
         width: side,
         height: side,
         pixels,
-    }
+    })
 }

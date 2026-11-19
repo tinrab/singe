@@ -1,5 +1,8 @@
 use crate::{
-    backend::{registry::PackedFormat, spec::dimension_product_usize},
+    backend::{
+        registry::PackedFormat,
+        spec::{Extents, dimension_product_usize},
+    },
     data_type::DataType,
     error::{Error, Result},
     shape::{Shape, normalize_dim_usize},
@@ -79,8 +82,11 @@ pub fn quantization_problem(
     let dimensions = input.dimensions();
     let extent = dimensions[axis];
     let axis_size = to_usize(extent, "quantization axis extent")?;
-    let inner_size =
-        dimension_product_usize("quantization inner size", &dimensions[axis + 1..], true)?;
+    let inner_size = dimension_product_usize(
+        "quantization inner size",
+        &dimensions[axis + 1..],
+        Extents::NonNegative,
+    )?;
     let Some(block_size) = block_size else {
         return Ok(QuantizationProblem {
             parameter_shape: Shape::create([extent])?,

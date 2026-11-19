@@ -6,6 +6,8 @@ use std::{
 };
 
 use serde_json::Value;
+#[cfg(feature = "onnx")]
+use serde_json::json;
 use singe::{
     DataType, Device, Error, Shape, Tensor,
     error::CheckpointError,
@@ -19,12 +21,8 @@ use singe::{
 };
 #[cfg(feature = "testing")]
 use singe::{storage::cpu::CpuStorage, testing::TensorActivity};
-use singe_testing::{Tolerance, assert_matches, host, integers};
+use singe_testing::{Tolerance, assert_matches, host, integers, reference};
 
-#[expect(
-    clippy::cast_possible_truncation,
-    reason = "fixture values are float32 values stored as f64 JSON numbers"
-)]
 fn value_f32(value: &Value) -> f32 {
     value.as_f64().unwrap() as f32
 }
@@ -182,7 +180,7 @@ fn record_onnx_export(name: &str, device: Device, bytes: &[u8], cases: &Value) {
         let device = if device == Device::Cpu { "cpu" } else { "cuda" };
         let name = format!("{name}_{device}");
         fs::write(directory.join(format!("{name}.onnx")), bytes).unwrap();
-        let reference = serde_json::json!({"cases": cases, "input_dtype": "float32", "atol": 2e-5, "rtol": 2e-5, "reference_evaluator": true});
+        let reference = json!({"cases": cases, "input_dtype": "float32", "atol": 2e-5, "rtol": 2e-5, "reference_evaluator": true});
         fs::write(
             directory.join(format!("{name}.json")),
             serde_json::to_vec_pretty(&reference).unwrap(),
@@ -198,7 +196,7 @@ fn exercise_native_onnx_exports(device: Device) {
         graph::{GraphExecutionMode, ProgramInputBinding},
         onnx,
     };
-    let references: Value = singe_testing::reference!("layers").resolved();
+    let references: Value = reference!("layers").resolved();
     for name in ["mlp", "cnn", "encoder"] {
         let reference = &references["models"][name];
         let model = fixture_model(name, reference).to(device, None).unwrap();
@@ -265,7 +263,7 @@ fn exercise_native_onnx_exports(device: Device) {
             );
         }
     }
-    let dynamic: Value = singe_testing::reference!("shapes").resolved();
+    let dynamic: Value = reference!("shapes").resolved();
     let model = fixture_model("encoder", &references["models"]["encoder"])
         .to(device, None)
         .unwrap();
@@ -332,7 +330,7 @@ fn test_native_onnx_export_roundtrips_models_cpu() {
 }
 
 fn exercise_models(device: Device) {
-    let references: Value = singe_testing::reference!("layers").resolved();
+    let references: Value = reference!("layers").resolved();
     assert_eq!(references["reference"]["version"], "2.12.0");
     for name in ["mlp", "cnn", "encoder"] {
         let reference = &references["models"][name];
@@ -411,8 +409,8 @@ fn test_checkpoint_models_match_pytorch_through_eager_and_prepared_cpu() {
 fn exercise_dynamic_encoder(device: Device) {
     use singe::graph::GraphExecutionMode;
 
-    let references: Value = singe_testing::reference!("layers").resolved();
-    let dynamic: Value = singe_testing::reference!("shapes").resolved();
+    let references: Value = reference!("layers").resolved();
+    let dynamic: Value = reference!("shapes").resolved();
     let model = fixture_model("encoder", &references["models"]["encoder"])
         .to(device, None)
         .unwrap();
@@ -510,7 +508,7 @@ fn test_native_dynamic_encoder_resolves_shapes_and_bounds_cache_on_cuda() {
 #[cfg(feature = "onnx")]
 fn exercise_dynamic_onnx_encoder(device: Device) {
     use singe::{OnnxModel, OnnxOptions, graph::GraphExecutionMode};
-    let dynamic: Value = singe_testing::reference!("shapes").resolved();
+    let dynamic: Value = reference!("shapes").resolved();
     let imported = OnnxModel::from_reader(
         include_bytes!("../references/shapes/encoder.onnx").as_slice(),
         OnnxOptions::new()
@@ -855,11 +853,11 @@ fn exercise_embedding(device: Device) {
         let input = indices(tokens);
         assert!(matches!(
             model.forward(&input),
-            Err(Error::IndexOutOfBounds)
+            Err(Error::IndexOutOfBounds { .. })
         ));
         assert!(matches!(
             executor.run(&HashMap::from([("tokens".into(), input)])),
-            Err(Error::IndexOutOfBounds)
+            Err(Error::IndexOutOfBounds { .. })
         ));
     }
     let input = indices(vec![0, 1, 2]);
@@ -1051,7 +1049,7 @@ fn test_empty_embedding_shapes_are_valid_on_cpu() {
 #[test]
 fn test_workers_share_one_module_description_and_immutable_checkpoint_state() {
     use std::thread;
-    let references: Value = singe_testing::reference!("layers").resolved();
+    let references: Value = reference!("layers").resolved();
     let reference = &references["models"]["mlp"];
     let model = fixture_model("mlp", reference);
     let revision = model.state().snapshot().revision();

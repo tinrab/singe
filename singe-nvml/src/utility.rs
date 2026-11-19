@@ -22,10 +22,6 @@ pub(crate) fn reported_entries<T>(entries: &[T], count: impl TryInto<usize>) -> 
     &entries[..count]
 }
 
-#[expect(
-    clippy::cast_possible_truncation,
-    reason = "the assertion limits NVML structure sizes to their 24-bit size field"
-)]
 pub(crate) const fn struct_version<T>(version: u32) -> u32 {
     assert!(
         size_of::<T>() <= 0x00ff_ffff,

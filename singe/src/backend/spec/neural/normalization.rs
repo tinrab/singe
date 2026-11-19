@@ -1,5 +1,5 @@
 use crate::{
-    backend::spec::dimension_product_usize,
+    backend::spec::{Extents, dimension_product_usize},
     error::{Error, Result},
     shape::Shape,
     utility::to_usize,
@@ -36,16 +36,13 @@ pub fn batch_norm_problem(
     diagnostic_prefix: &'static str,
 ) -> Result<BatchNormProblem> {
     let dimensions = input.dimensions();
-    if dimensions.len() < 2 {
+    let &[batch_size, feature_count, ref spatial @ ..] = dimensions else {
         return Err(Error::length_mismatch(
             format!("{diagnostic_prefix} minimum rank"),
             2,
             dimensions.len(),
         ));
-    }
-
-    let batch_size = dimensions[0];
-    let feature_count = dimensions[1];
+    };
     if batch_size < 0 {
         return Err(Error::invalid_argument(format!(
             "{diagnostic_prefix} batch size"
@@ -60,8 +57,8 @@ pub fn batch_norm_problem(
 
     let spatial_len = dimension_product_usize(
         format!("{diagnostic_prefix} spatial length"),
-        &dimensions[2..],
-        false,
+        spatial,
+        Extents::Positive,
     )?;
     let feature_count = to_usize(feature_count, "backend spec dimension")?;
     for (name, parameter) in [
@@ -171,12 +168,12 @@ pub fn normalization_problem(
     let feature_size = dimension_product_usize(
         format!("{diagnostic_prefix} feature size"),
         normalized_shape,
-        false,
+        Extents::Positive,
     )?;
     let batch_count = dimension_product_usize(
         format!("{diagnostic_prefix} batch count"),
         &input_dimensions[..split_axis],
-        true,
+        Extents::NonNegative,
     )?;
 
     Ok(NormalizationProblem {

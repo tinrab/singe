@@ -46,7 +46,7 @@ impl ScanSlices {
                     inner: 1,
                 })
             } else {
-                Err(Error::DimensionOutOfBounds)
+                Err(Error::dimension_out_of_bounds(format!("scan dim {dim}")))
             };
         }
 
@@ -293,17 +293,17 @@ impl KernelPlan {
 
         let data_type = input.data_type;
         let shape = input.layout.shape();
-        let dimensions = shape.dimensions();
-        let rank = dimensions.len();
+        let Some(&width) = shape.dimensions().last() else {
+            return Ok(None);
+        };
         if !data_type.is_float()
             || !input.layout.is_contiguous()
-            || rank == 0
-            || normalize_dim_usize(dim, shape.rank())? != rank - 1
+            || normalize_dim_usize(dim, shape.rank())? != shape.dimensions().len() - 1
         {
             return Ok(None);
         }
 
-        let width = to_usize(dimensions[rank - 1], "cuda split scan width")?;
+        let width = to_usize(width, "cuda split scan width")?;
         let rows = shape.element_count() / width.max(1);
         if rows == 0 || rows >= SPLIT_BELOW_ROWS || width < SPLIT_FROM_WIDTH {
             return Ok(None);

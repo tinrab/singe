@@ -297,10 +297,6 @@ impl Graph {
         Ok(self.inferred_tensor(spec, scope, port))
     }
 
-    #[expect(
-        clippy::too_many_lines,
-        reason = "the composite attention operation builds and validates its complete tensor graph"
-    )]
     pub(crate) fn expand_attention_backward_requests(&mut self) -> Result<()> {
         if !self
             .operations

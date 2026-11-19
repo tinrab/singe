@@ -1,22 +1,15 @@
-"""T5, summarizing and translating with `transformers`' tokenizer and `generate`, after the prefixes its config's `task_specific_params` names, as the summarization and translation pipelines did before `transformers` 5 removed them, and as `verify.rs` does in Singe."""
+"""T5, summarizing and translating with `transformers`' tokenizer and `generate`, after the prefixes its config's `task_specific_params` names, as the summarization and translation pipelines did before `transformers` 5 removed them, and as `mod.rs` does in Singe."""
 
-import sys
-from pathlib import Path
+import torch
+from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-
-import torch  # noqa: E402
-from transformers import AutoModelForSeq2SeqLM, AutoTokenizer  # noqa: E402
-
-from support import DEVICE, Verification  # noqa: E402
+from support import DEVICE, Verification
 
 
-def generator(snapshot, task, key):
+def generator(snapshot, dtype, task, key):
     tokenizer = AutoTokenizer.from_pretrained(snapshot)
     model = (
-        AutoModelForSeq2SeqLM.from_pretrained(snapshot, dtype=torch.float32)
-        .to(DEVICE)
-        .eval()
+        AutoModelForSeq2SeqLM.from_pretrained(snapshot, dtype=dtype).to(DEVICE).eval()
     )
 
     def run(texts, parameters):
@@ -46,9 +39,13 @@ def generator(snapshot, task, key):
 
 verification = Verification(__file__)
 verification.check(
-    "summary", lambda snapshot: generator(snapshot, "summarization", "summary_text")
+    "summary",
+    lambda snapshot, dtype: generator(snapshot, dtype, "summarization", "summary_text"),
 )
 verification.check(
-    "german", lambda snapshot: generator(snapshot, "translation", "translation_text")
+    "german",
+    lambda snapshot, dtype: generator(
+        snapshot, dtype, "translation", "translation_text"
+    ),
 )
 verification.finish()

@@ -19,7 +19,6 @@ macro_rules! impl_signed_distance_transform_pba_image {
         unsafe impl<'a> SignedDistanceTransformPbaImage<$source_ty, $destination_ty>
             for ImagePipeline<'a, $source_ty, C1>
         {
-            #[allow(clippy::cast_possible_truncation, reason = "each dispatch specialization converts shifts to the native f32 or f64 precision")]
             fn signed_distance_transform_pba_image(
                 stream_context: &StreamContext,
                 source: &ImageView<'_, $source_ty, C1>,
@@ -47,7 +46,6 @@ macro_rules! impl_signed_distance_transform_pba_image {
                 }
             }
 
-            #[allow(clippy::cast_possible_truncation, reason = "each dispatch specialization converts shifts to the native f32 or f64 precision")]
             fn signed_distance_transform_abs_pba_image(
                 stream_context: &StreamContext,
                 source: &ImageView<'_, $source_ty, C1>,

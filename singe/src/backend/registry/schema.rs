@@ -222,6 +222,14 @@ pub const CONTRACTION_OPERANDS: &[OperandRole] =
 /// Selection operands ordered as input values and integer indices.
 pub const INDEX_SELECT_OPERANDS: &[OperandRole] = &[OperandRole::Input, OperandRole::Indices];
 
+// Linear resampling's operands: the input, each output point's lower and upper source points, and its weight toward the upper one.
+pub const RESAMPLE_LINEAR_OPERANDS: &[OperandRole] = &[
+    OperandRole::Input,
+    OperandRole::Indices,
+    OperandRole::Indices,
+    OperandRole::Weight,
+];
+
 /// Embedding operands ordered as weight table and lookup indices.
 pub const EMBEDDING_OPERANDS: &[OperandRole] = &[OperandRole::Weight, OperandRole::Indices];
 

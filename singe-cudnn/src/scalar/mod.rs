@@ -330,10 +330,6 @@ impl_scalar_from! {
 }
 
 /// Rounds a scalar coefficient to the precision used by non-f64 native operations.
-#[expect(
-    clippy::cast_possible_truncation,
-    reason = "native f32 computation requires rounding the caller's f64 coefficient"
-)]
 pub(crate) fn native_f32(value: f64) -> f32 {
     value as f32
 }

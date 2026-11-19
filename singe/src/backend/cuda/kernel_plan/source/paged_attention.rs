@@ -12,7 +12,7 @@ use crate::{
                 KernelInput, KernelPlan, KernelPlanner,
                 attention::PAD,
                 paged_general::{GeneralPaged, ScoreTerm, general_paged},
-                paging::{PagedSequence, paged_indices, report_index_error},
+                paging::{PagedSequence, leading_dimension, paged_indices, report_index_error},
                 parameters::{AttentionParameters, has_tcgen05, parameter_key},
                 rotary_cache::RotationNorm,
                 tcgen05_attention::{EngineAttention, engine_attention},
@@ -144,18 +144,17 @@ const long long delta = static_cast<long long>(keys) - static_cast<long long>(qu
             ),
         },
     )?;
+    let &[query_tokens, query_heads, ..] = query.layout.shape().dimensions() else {
+        return Err(Error::invalid_argument(
+            "cuda paged attention query dimensions",
+        ));
+    };
     Ok(writer.finish(
         "tcgen05_paged_attention",
         launch,
         vec![
             ValueSpec::new(data_type, query.layout.shape().clone()),
-            ValueSpec::new(
-                DataType::F32,
-                Shape::create([
-                    query.layout.shape().dimensions()[0],
-                    query.layout.shape().dimensions()[1],
-                ])?,
-            ),
+            ValueSpec::new(DataType::F32, Shape::create([query_tokens, query_heads])?),
         ],
         inputs,
         &[Operation::PagedAttention],
@@ -181,10 +180,12 @@ impl KernelPlanner {
         let [query, key_cache, value_cache, indices @ ..] = inputs else {
             return Ok(false);
         };
-        let dim = to_usize(
-            query.layout.shape().dimensions()[2],
-            "cuda paged attention head",
-        )?;
+        let &[_, _, dim, ..] = query.layout.shape().dimensions() else {
+            return Err(Error::invalid_argument(
+                "cuda paged attention query dimensions",
+            ));
+        };
+        let dim = to_usize(dim, "cuda paged attention head")?;
         Ok(!attention.masked
             && !attention.sinks
             && !has_tcgen05(self.context.target)
@@ -271,17 +272,13 @@ impl KernelPlanner {
                 tokens,
                 heads,
                 page_size,
-                cache_pages: extent(key_cache.layout.shape().dimensions()[0])?,
+                cache_pages: cache_pages(inputs)?,
                 sequences,
                 output: ValueSpec::new(data_type, problem.output_shape.clone()),
                 lse: ValueSpec::new(
                     DataType::F32,
                     Shape::create([problem.tokens, problem.heads])?,
                 ),
-                #[expect(
-                    clippy::cast_precision_loss,
-                    reason = "head dimensions round to the score's precision"
-                )]
                 default_scale: 1.0 / (dim as f32).sqrt(),
             });
         }
@@ -675,7 +672,7 @@ fn paged_sequence(
         last_page_lengths,
         tokens,
         page_table: to_usize(
-            pages.layout.shape().dimensions()[0],
+            leading_dimension(pages, "cuda paged attention page table dimensions")?,
             "cuda paged attention page table",
         )?,
         page_size,
@@ -689,15 +686,11 @@ fn cache_pages(inputs: &[KernelInput]) -> Result<usize> {
         .get(1)
         .ok_or_else(|| Error::missing_input("cuda paged attention key cache"))?;
     to_usize(
-        key_cache.layout.shape().dimensions()[0],
+        leading_dimension(key_cache, "cuda paged attention key cache dimensions")?,
         "cuda paged attention pages",
     )
 }
 
-#[expect(
-    clippy::cast_precision_loss,
-    reason = "head dimensions are at most 128"
-)]
 fn default_scale(dim: usize) -> f32 {
     1.0 / (dim as f32).sqrt()
 }

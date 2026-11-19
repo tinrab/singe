@@ -35,7 +35,10 @@ use crate::{
             runtime::CudaRuntime,
             tensor_region::CudaTensorSource,
         },
-        kernel_lowering::{self, ArgumentLabels, ElementGroup, Epilogue, Lhs, RowEpilogue, Weight},
+        kernel_lowering::{
+            self, ArgumentLabels, ConvolutionGrouping, ElementGroup, Epilogue, Lhs, RowEpilogue,
+            Weight,
+        },
         registry::{Operation, OperationAttributes, operation_schema_for_attributes},
     },
     data_type::DataType,
@@ -43,7 +46,7 @@ use crate::{
     error::{Error, Result},
     graph::{ComputePrecision, NumericalPolicy},
     layout::Layout,
-    shape::Shape,
+    shape::{Shape, normalize_dim_usize},
     utility::{Locked, to_i64},
     value::ValueSpec,
 };
@@ -427,6 +430,35 @@ impl KernelPlanner {
                     .ok_or_else(|| Error::missing_node("source create"))?;
                 return self.strided_scatter(base, source, &strided.layout(0)?);
             }
+            (Operation::ResampleLinear, [input, low, high, weight]) => {
+                let dim = attributes
+                    .dimension()
+                    .ok_or_else(|| Error::missing_node("source create"))?;
+                let axis = normalize_dim_usize(dim, input.layout.shape().rank())?;
+                return self.lowered(
+                    kernel_lowering::resample_linear(
+                        input.data_type,
+                        &input.layout,
+                        axis,
+                        [(low.data_type, &low.layout), (high.data_type, &high.layout)],
+                        (weight.data_type, &weight.layout),
+                    )?,
+                    inputs,
+                    &[operation],
+                );
+            }
+            (Operation::RotaryHalves, [input, cos, sin]) => {
+                return self.lowered(
+                    kernel_lowering::rotary_halves(
+                        input.data_type,
+                        &input.layout,
+                        (cos.data_type, &cos.layout),
+                        (sin.data_type, &sin.layout),
+                    )?,
+                    inputs,
+                    &[operation],
+                );
+            }
             (Operation::RotaryEmbedding, [input, cos, sin]) => {
                 return self.lowered(
                     kernel_lowering::rotary_embedding(
@@ -471,9 +503,14 @@ impl KernelPlanner {
                 let convolution = attributes
                     .conv2d()
                     .ok_or_else(|| Error::missing_node("source create"))?;
+                let grouping = if self.context.generated_convolutions {
+                    ConvolutionGrouping::Any
+                } else {
+                    ConvolutionGrouping::Depthwise
+                };
                 return self.lowered(
                     kernel_lowering::conv2d(
-                        self.context.generated_convolutions,
+                        grouping,
                         convolution,
                         input.data_type,
                         &input.layout,
@@ -711,7 +748,7 @@ impl KernelPlanner {
                 .layout
                 .dimensions()
                 .get(axis)
-                .ok_or(Error::DimensionOutOfBounds)?;
+                .ok_or_else(|| Error::dimension_out_of_bounds("concat input axis"))?;
             if input.layout.element_count() != 0 {
                 let slice = output.layout.slice(axis_index, start, extent, 1)?;
                 let offset = slice.storage_offset() - output.layout.storage_offset();
@@ -736,7 +773,7 @@ impl KernelPlanner {
             return Err(Error::invalid_argument("cuda repeat_kv input rank"));
         };
         if !output.layout.is_contiguous() {
-            return Err(Error::ContiguousRequired);
+            return Err(Error::contiguous_required("cuda repeat_kv output"));
         }
 
         let shape = Shape::create([*batch, *heads, repeats, *sequence, *head_dim])?;

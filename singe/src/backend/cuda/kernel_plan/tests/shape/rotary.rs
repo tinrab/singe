@@ -9,8 +9,8 @@ fn test_cuda_eager_rotary_embedding_f32_materializes_tail_output() {
     let input_shape = Shape::create([2_i64, 3, 5, 7]).unwrap();
     let trig_shape = Shape::create([5_i64, 3]).unwrap();
     let input_values = rotary_input_values(2, 3, 5, 7);
-    let cos_values = rotary_trig_values(5, 3, true);
-    let sin_values = rotary_trig_values(5, 3, false);
+    let cos_values = rotary_trig_values(5, 3, Trig::Cos);
+    let sin_values = rotary_trig_values(5, 3, Trig::Sin);
     let expected =
         expected_rotary_embedding_f32(&input_values, &cos_values, &sin_values, 2, 3, 5, 7, 3);
     let Some(input) = skip_if_stub(Tensor::from_vec(
@@ -40,8 +40,8 @@ fn test_cuda_eager_rotary_embedding_f32_materializes_strided_input() {
     let input_values = (0..210usize)
         .map(|value| ((value % 23) as f32 - 11.0) * 0.03125)
         .collect::<Vec<_>>();
-    let cos_values = rotary_trig_values(5, 2, true);
-    let sin_values = rotary_trig_values(5, 2, false);
+    let cos_values = rotary_trig_values(5, 2, Trig::Cos);
+    let sin_values = rotary_trig_values(5, 2, Trig::Sin);
     let Some(input) = skip_if_stub(Tensor::from_vec(
         Device::Cuda(0),
         &input_shape,

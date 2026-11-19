@@ -13,16 +13,17 @@ use crate::{
 #[must_use]
 pub fn fuses_attention(data_type: DataType, query: &Shape, key: &Shape, value: &Shape) -> bool {
     let (q, k) = (query.dimensions(), key.dimensions());
+    let (&[batch, heads, _, width], &[key_batch, key_heads, _, key_width]) = (q, k) else {
+        return false;
+    };
     matches!(data_type, DataType::F16 | DataType::Bf16)
-        && q.len() == 4
-        && k.len() == 4
         && key == value
-        && q[0] == k[0]
-        && q[3] == k[3]
+        && batch == key_batch
+        && width == key_width
         && q.iter().chain(k).all(|&extent| extent > 0)
-        && q[1] % k[1] == 0
-        && q[3] % 16 == 0
-        && q[3] <= 128
+        && heads % key_heads == 0
+        && width % 16 == 0
+        && width <= 128
 }
 
 /// Validated dimensions for repeating key or value heads in a rank-four tensor.
@@ -84,6 +85,54 @@ pub fn repeat_kv_problem(
         head_dim,
         repeats,
     })
+}
+
+// Checks a half-split rotation: `input`, `[..., 2 · H]`, turned by `cos` and `sin`, which broadcast to `[..., H]` from the right, and returns `H`.
+pub fn rotary_halves_width(
+    input: &Shape,
+    cos: &Shape,
+    sin: &Shape,
+    diagnostic_prefix: &'static str,
+) -> Result<i64> {
+    let dimensions = input.dimensions();
+    let Some((&width, leading)) = dimensions.split_last() else {
+        return Err(Error::invalid_argument(format!(
+            "{diagnostic_prefix} input of rank zero"
+        )));
+    };
+    if width % 2 != 0 {
+        return Err(Error::invalid_argument(format!(
+            "{diagnostic_prefix} input of an odd width"
+        )));
+    }
+
+    let half = width / 2;
+    let mut angles = leading.to_vec();
+    angles.push(half);
+    if sin.dimensions() != cos.dimensions() {
+        return Err(Error::shape_mismatch(
+            format!("{diagnostic_prefix} sin shape"),
+            cos.dimensions().to_vec(),
+            sin.dimensions().to_vec(),
+        ));
+    }
+
+    let table = cos.dimensions();
+    let broadcasts = table.len() <= angles.len()
+        && table
+            .iter()
+            .rev()
+            .zip(angles.iter().rev())
+            .enumerate()
+            .all(|(axis, (&have, &want))| have == want || (axis > 0 && have == 1));
+    if !broadcasts {
+        return Err(Error::shape_mismatch(
+            format!("{diagnostic_prefix} cos shape"),
+            angles,
+            table.to_vec(),
+        ));
+    }
+    Ok(half)
 }
 
 /// Validated input and factor dimensions for adjacent-pair rotary embeddings.
@@ -375,14 +424,15 @@ pub fn check_paged_values(
     cache_pages: i64,
     page_size: i64,
 ) -> Result<()> {
-    let table = i64::try_from(pages.len()).map_err(|_| Error::IndexOutOfBounds)?;
+    let table = i64::try_from(pages.len())
+        .map_err(|_| Error::index_out_of_bounds("paged attention page table"))?;
     let ordered = |offsets: &[i64], end: i64, sequence: usize| {
         let (first, last) = (offsets[sequence], offsets[sequence + 1]);
         0 <= first && first <= last && last <= end
     };
     for sequence in 0..last_page_lengths.len() {
         if !ordered(query_offsets, tokens, sequence) || !ordered(page_offsets, table, sequence) {
-            return Err(Error::IndexOutOfBounds);
+            return Err(Error::index_out_of_bounds("paged attention offsets"));
         }
 
         let (first, last) = (page_offsets[sequence], page_offsets[sequence + 1]);
@@ -398,7 +448,7 @@ pub fn check_paged_values(
                 .iter()
                 .all(|page| (0..cache_pages).contains(page))
         {
-            return Err(Error::IndexOutOfBounds);
+            return Err(Error::index_out_of_bounds("paged attention pages"));
         }
     }
     Ok(())

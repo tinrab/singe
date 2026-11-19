@@ -1,21 +1,13 @@
-"""Depth Anything V2, estimating each pixel's depth with `transformers`' depth-estimation pipeline, as `verify.rs` estimates it in Singe."""
+"""Depth Anything V2, estimating each pixel's depth with `transformers`' depth-estimation pipeline, as `mod.rs` estimates it in Singe."""
 
-import sys
-from pathlib import Path
+import numpy
+from transformers import pipeline
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-
-import numpy  # noqa: E402
-import torch  # noqa: E402
-from transformers import pipeline  # noqa: E402
-
-from support import DEVICE, Verification, data_url  # noqa: E402
+from support import DEVICE, Verification, data_url
 
 
-def depth_estimation(snapshot):
-    estimate = pipeline(
-        "depth-estimation", model=snapshot, dtype=torch.float32, device=DEVICE
-    )
+def depth_estimation(snapshot, dtype):
+    estimate = pipeline("depth-estimation", model=snapshot, dtype=dtype, device=DEVICE)
 
     def run(paths, parameters):
         outputs = []

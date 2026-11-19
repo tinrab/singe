@@ -21,10 +21,6 @@ use singe_cudnn::{
     version,
 };
 
-#[expect(
-    clippy::many_single_char_names,
-    reason = "keeps the upstream sample's single-letter dimension names"
-)]
 fn run() -> Result<()> {
     let context = common::ExampleContext::create()?;
 

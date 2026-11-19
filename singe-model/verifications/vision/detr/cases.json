@@ -4,6 +4,7 @@
       "name": "detection",
       "snapshot": "DETR",
       "task": "object-detection",
+      "data_type": "f32",
       "inputs": ["media/coco-cats.png", "media/cat-448x320.png"],
       "expected": [
         [

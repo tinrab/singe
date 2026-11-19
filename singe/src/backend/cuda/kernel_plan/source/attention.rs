@@ -50,10 +50,6 @@ fn engine_plain_attention(
         || "false".to_owned(),
         |window| format!("static_cast<long long>(key) + {window}LL <= position"),
     );
-    #[expect(
-        clippy::cast_precision_loss,
-        reason = "head dimensions are at most 128"
-    )]
     let scale = attention.scale.unwrap_or_else(|| 1.0 / (dim as f32).sqrt());
     let score =
         scaled_score_expression(scale, attention.softcap).replace("scores[j][r]", "scores[column]");
@@ -201,7 +197,6 @@ impl KernelPlanner {
 
         let data_type = query.data_type;
         let kind = operand_kind(data_type);
-        let (q, k) = (dimensions(query), dimensions(key));
         if !self.takes_tensor_cores(&[query, key, value])
             || [mask, sinks]
                 .into_iter()
@@ -220,10 +215,22 @@ impl KernelPlanner {
             return Ok(None);
         }
 
+        let (&[batch, heads, queries, dim], &[_, groups, keys, _]) =
+            (dimensions(query), dimensions(key))
+        else {
+            return Err(Error::invalid_argument(
+                "cuda fused attention query and key dimensions",
+            ));
+        };
+        let score_dimensions = [batch, heads, queries, keys];
         let extent = |value: i64| to_usize(value, "cuda attention extent");
-        let (batch, heads, queries, dim) =
-            (extent(q[0])?, extent(q[1])?, extent(q[2])?, extent(q[3])?);
-        let (groups, keys) = (heads / extent(k[1])?, extent(k[2])?);
+        let (batch, heads, queries, dim) = (
+            extent(batch)?,
+            extent(heads)?,
+            extent(queries)?,
+            extent(dim)?,
+        );
+        let (groups, keys) = (heads / extent(groups)?, extent(keys)?);
         if has_tcgen05(self.context.target)
             && mask.is_none()
             && sinks.is_none()
@@ -257,10 +264,6 @@ impl KernelPlanner {
             min_blocks,
         } = parameters;
         let query_rows = warps * 16;
-        #[expect(
-            clippy::cast_precision_loss,
-            reason = "head dimensions are at most 128"
-        )]
         let scale = scale.unwrap_or_else(|| 1.0 / (dim as f32).sqrt());
         let scaled = scaled_score_expression(scale, softcap);
         let window = window
@@ -305,7 +308,7 @@ impl KernelPlanner {
         let (mask_rows, masked_score) = match mask {
             Some(mask) => {
                 let name = writer.input(data_type, "mask")?;
-                let scores = Shape::create([q[0], q[1], q[2], k[2]])?;
+                let scores = Shape::create(score_dimensions)?;
                 let strides = mask
                     .layout
                     .expand(&scores)?

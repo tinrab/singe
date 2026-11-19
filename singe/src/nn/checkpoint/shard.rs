@@ -1,9 +1,8 @@
-use std::{
-    fs::File,
-    io::{Read, Seek, SeekFrom},
-    path::Path,
-    slice,
-};
+#[cfg(not(unix))]
+use std::io::{Seek, SeekFrom};
+#[cfg(unix)]
+use std::os::unix::fs::FileExt;
+use std::{fs::File, io::Read, path::Path, slice};
 
 use safetensors::{
     Dtype, SafeTensorError, SafeTensors,
@@ -14,6 +13,7 @@ use crate::{
     data_type::{DataType, bf16, f16},
     device::Device,
     error::{Error, Result},
+    parallel::{self, Parallelism},
     shape::Shape,
     tensor::{Tensor, TensorDataType},
     utility::{checked_mul, to_i64},
@@ -130,13 +130,27 @@ impl<'a> Shard<'a> {
                 let from = to_usize_u64(self.data)? + from;
                 buffer.copy_from_slice(&bytes[from..from + buffer.len()]);
             }
-            Source::File(file) => {
-                file.seek(SeekFrom::Start(self.data + from as u64))?;
-                file.read_exact(buffer)?;
-            }
+            Source::File(file) => read_file_at(file, self.data + from as u64, buffer)?,
         }
         Ok(())
     }
+}
+
+// The bytes each thread reads of a larger range.
+const READ_PART: usize = 1 << 20;
+
+// Fills `buffer` from `file` at byte `at`, in parts of `READ_PART` on all cores: a single thread copies from the page cache at about 3 GB/s, which was most of a warm load of Qwen3-0.6B.
+#[cfg(unix)]
+fn read_file_at(file: &File, at: u64, buffer: &mut [u8]) -> Result<()> {
+    parallel::for_each_chunk_mut(buffer, READ_PART, Parallelism::Pool, |index, part| {
+        Ok(file.read_exact_at(part, at + (index * READ_PART) as u64)?)
+    })
+}
+
+#[cfg(not(unix))]
+fn read_file_at(file: &mut File, at: u64, buffer: &mut [u8]) -> Result<()> {
+    file.seek(SeekFrom::Start(at))?;
+    Ok(file.read_exact(buffer)?)
 }
 
 pub struct AlignedBytes {

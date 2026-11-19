@@ -81,8 +81,22 @@ impl HeadProjection {
         self.head_dim
     }
 
+    pub(crate) const fn linear(&self) -> &Linear {
+        &self.linear
+    }
+
     // Projects `input` to heads `[..., H, D]`, and to the gate `[..., H, D]` if this projection reads one.
     pub fn project(&self, input: &Tensor, state: &ModelState) -> Result<(Tensor, Option<Tensor>)> {
+        self.split_heads(input, &input.apply(&self.linear, state)?, state)
+    }
+
+    // Splits `projected`, this projection's linear output for `input`, into heads and the gate.
+    pub(crate) fn split_heads(
+        &self,
+        input: &Tensor,
+        projected: &Tensor,
+        state: &ModelState,
+    ) -> Result<(Tensor, Option<Tensor>)> {
         let rank = input.shape().dimensions().len();
         let mut shape = (0..rank.saturating_sub(1))
             .map(|axis| input.dimension(axis))
@@ -93,7 +107,7 @@ impl HeadProjection {
             self.head_dim
         };
         shape.extend([self.heads.into(), per_head.into()]);
-        let projected = input.apply(&self.linear, state)?.reshape_with(&shape)?;
+        let projected = projected.reshape_with(&shape)?;
         let (heads, gate) = if self.output_gate {
             (
                 projected.narrow(-1, 0, self.head_dim)?,

@@ -12,10 +12,6 @@ mod kernels {
 
     use crate::cuda::cutile::{kernel::tiled::kernels::ue8m0_round_scale_f32, runtime as cutile};
 
-    #[expect(
-        clippy::too_many_lines,
-        reason = "the kernel keeps its complete indexing and operation dispatch in one auditable unit"
-    )]
     pub fn activation_unary_store<const OP: i32, const B: i32>(
         out: &mut Tensor<f32, { [B] }>,
         input: &Tensor<f32, { [-1] }>,
@@ -871,14 +867,6 @@ mod kernels {
     }
 
     #[cutile::entry()]
-    #[expect(
-        clippy::similar_names,
-        reason = "query, key, and value operands and their tensor layouts follow the mathematical kernel notation"
-    )]
-    #[expect(
-        clippy::too_many_lines,
-        reason = "the kernel keeps its complete indexing and operation dispatch in one auditable unit"
-    )]
     pub unsafe fn qk_rope_quantize_f8e4m3_f32_interleaved_single_kernel(
         q_rope_out: *mut f8e4m3fn,
         k_rope_out: *mut f8e4m3fn,
@@ -2353,10 +2341,6 @@ mod kernels {
         out.store(value.reshape(const_shape![1i32, 1i32]));
     }
 
-    #[expect(
-        clippy::too_many_lines,
-        reason = "the kernel keeps its complete indexing and operation dispatch in one auditable unit"
-    )]
     pub fn unary_store<const OP: i32, const B: i32>(
         out: &mut Tensor<f32, { [B] }>,
         input: &Tensor<f32, { [-1] }>,
@@ -2497,10 +2481,6 @@ mod kernels {
         out.store(value);
     }
 
-    #[expect(
-        clippy::similar_names,
-        reason = "query, key, and value operands and their tensor layouts follow the mathematical kernel notation"
-    )]
     pub fn nan_to_num_store<const B: i32>(
         out: &mut Tensor<f32, { [B] }>,
         input: &Tensor<f32, { [-1] }>,

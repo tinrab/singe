@@ -101,10 +101,6 @@ fn test_weak_scalar_promotion_and_true_division_use_the_tensor_contract() {
 }
 
 #[test]
-#[expect(
-    clippy::cast_possible_truncation,
-    reason = "the test compares direct and double-rounded conversions"
-)]
 fn test_integer_to_fp32_conversion_does_not_round_through_fp64() {
     // Just above a binary32 midpoint; binary64 would first round back to the midpoint.
     let value = (1_i64 << 62) + (1_i64 << 38) + 1;

@@ -4,6 +4,7 @@
 use std::{fs, path::Path, result::Result as StdResult};
 
 use serde::{Deserialize, Deserializer, de::Error as DeError};
+use singe::{Device, Error as SingeError, Shape, Tensor};
 
 use crate::error::{Error, Result};
 
@@ -61,15 +62,21 @@ impl Audio {
             .iter()
             .map(|pair| f32::from(i16::from_le_bytes(*pair)) / 32_768.0)
             .collect::<Vec<_>>();
-        #[expect(
-            clippy::cast_precision_loss,
-            reason = "a WAV file has at most 65535 channels"
-        )]
         let samples = values
             .chunks_exact(channels)
             .map(|frame| frame.iter().sum::<f32>() / channels as f32)
             .collect();
         Ok(Self { samples, rate })
+    }
+
+    pub fn to_tensor(&self, device: Device) -> Result<Tensor> {
+        let count = i64::try_from(self.samples.len())
+            .map_err(|_| SingeError::out_of_range("clip samples"))?;
+        Ok(Tensor::from_vec(
+            device,
+            Shape::create([count])?,
+            self.samples.clone(),
+        )?)
     }
 
     // Refuses a clip at another rate than `rate`, since no pipeline resamples yet.

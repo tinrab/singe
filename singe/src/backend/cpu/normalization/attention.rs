@@ -187,6 +187,81 @@ pub fn rotary_embedding(input: &Tensor, cos: &Tensor, sin: &Tensor) -> Result<Te
     Tensor::from_vec(Device::Cpu, output_shape, output_data)
 }
 
+pub fn rotary_halves(input: &Tensor, cos: &Tensor, sin: &Tensor) -> Result<Tensor> {
+    if input.device() != Device::Cpu || cos.device() != Device::Cpu || sin.device() != Device::Cpu {
+        let actual = [input, cos, sin]
+            .into_iter()
+            .map(Tensor::device)
+            .find(|device| *device != Device::Cpu)
+            .unwrap_or(Device::Cpu);
+        return Err(cpu_device_mismatch("cpu rotary_halves input", actual));
+    }
+
+    for tensor in [input, cos, sin] {
+        if tensor.data_type() != DataType::F32 {
+            return Err(Error::unsupported_data_type("cpu rotary_halves"));
+        }
+    }
+
+    let half =
+        spec::rotary_halves_width(input.shape(), cos.shape(), sin.shape(), "cpu rotary_halves")?;
+    let output_shape = input.shape().clone();
+    let input = input.contiguous()?;
+    let input_data = get_f32_data(&input)?;
+    let cos_data = get_f32_data(cos)?;
+    let sin_data = get_f32_data(sin)?;
+    let mut output_data = vec![0.0; input_data.len()];
+    if input_data.is_empty() {
+        return Tensor::from_vec(Device::Cpu, output_shape, output_data);
+    }
+
+    let Some((_, leading)) = output_shape.dimensions().split_last() else {
+        return Err(Error::invalid_argument("cpu rotary_halves input rank"));
+    };
+    let leading = leading
+        .iter()
+        .map(|&dimension| to_usize(dimension, "cpu rotary_halves dimension"))
+        .collect::<Result<Vec<_>>>()?;
+    let half = to_usize(half, "cpu rotary_halves width")?;
+    let table = cos.shape().dimensions();
+    let Some(broadcast) = (leading.len() + 1).checked_sub(table.len()) else {
+        return Err(Error::invalid_argument("cpu rotary_halves angle rank"));
+    };
+    let mut strides = vec![0; broadcast];
+    let mut stride = 1;
+    for &dimension in table.iter().rev() {
+        strides.insert(broadcast, if dimension == 1 { 0 } else { stride });
+        stride *= to_usize(dimension, "cpu rotary_halves angle dimension")?;
+    }
+
+    let Some((&column, strides)) = strides.split_last() else {
+        return Err(Error::invalid_argument("cpu rotary_halves angle rank"));
+    };
+    parallel::for_each_row_mut(&mut output_data, 2 * half, GRAIN_SIZE, |row, output| {
+        let token = &input_data[row * 2 * half..(row + 1) * 2 * half];
+        let mut rest = row;
+        let mut angle = 0;
+        for (&dimension, &stride) in leading.iter().zip(strides).rev() {
+            angle += rest % dimension * stride;
+            rest /= dimension;
+        }
+
+        for pair in 0..half {
+            let cos_value = cos_data[angle + pair * column];
+            let sin_value = sin_data[angle + pair * column];
+            let (first, second) = (token[pair], token[half + pair]);
+            output[pair] = f32::mul_add(second, -sin_value, first * cos_value);
+            output[half + pair] = f32::mul_add(first, sin_value, second * cos_value);
+        }
+        Ok(())
+    })?;
+    drop(sin_data);
+    drop(cos_data);
+    drop(input_data);
+
+    Tensor::from_vec(Device::Cpu, output_shape, output_data)
+}
+
 /// Computes attention one query row at a time, splitting rows across threads; each row is computed by one thread in a fixed order.
 pub fn execute_scaled_dot_product_attention<T: NativeFloat>(
     query_data: &[T],
@@ -350,10 +425,15 @@ pub fn paged_attention(
         ],
         "cpu paged_attention",
     )?;
+    let &[cache_pages, ..] = key_cache.shape().dimensions() else {
+        return Err(Error::invalid_argument(
+            "cpu paged_attention key cache rank",
+        ));
+    };
     let [query_offsets, page_offsets, pages, last_page_lengths] = checked_paged_values(
         [query_offsets, page_offsets, pages, last_page_lengths],
         problem.tokens,
-        key_cache.shape().dimensions()[0],
+        cache_pages,
         problem.page_size,
     )?;
     let geometry = PagedGeometry {
@@ -528,8 +608,9 @@ fn attend_paged<T: NativeFloat>(
     drop(key_data);
     drop(query_data);
     let lse_shape = Shape::create([
-        i64::try_from(lse.len() / heads.max(1)).map_err(|_| Error::IndexOutOfBounds)?,
-        i64::try_from(heads).map_err(|_| Error::IndexOutOfBounds)?,
+        i64::try_from(lse.len() / heads.max(1))
+            .map_err(|_| Error::index_out_of_bounds("paged attention log-sum-exp rows"))?,
+        i64::try_from(heads).map_err(|_| Error::index_out_of_bounds("paged attention heads"))?,
     ])?;
     Ok(vec![
         Tensor::from_vec(Device::Cpu, query.shape().clone(), output)?,
@@ -584,10 +665,15 @@ pub fn paged_mla_attention(
         extent(problem.position_dim)?,
         extent(problem.page_size)?,
     );
+    let &[cache_pages, ..] = latent_cache.shape().dimensions() else {
+        return Err(Error::invalid_argument(
+            "cpu paged_mla_attention latent cache rank",
+        ));
+    };
     let [query_offsets, page_offsets, pages, last_page_lengths] = checked_paged_values(
         [query_offsets, page_offsets, pages, last_page_lengths],
         problem.tokens,
-        latent_cache.shape().dimensions()[0],
+        cache_pages,
         problem.page_size,
     )?;
     let values = |tensor: &Tensor| tensor.cast(DataType::F64)?.contiguous()?.to_vec::<f64>();
@@ -597,10 +683,6 @@ pub fn paged_mla_attention(
         values(latent_cache)?,
         values(position_cache)?,
     );
-    #[expect(
-        clippy::cast_precision_loss,
-        reason = "head dimensions are far below 2^52"
-    )]
     let scale = attention.scale.map_or_else(
         || 1.0 / ((latent + positional) as f64).sqrt(),
         <f64 as From<f32>>::from,
@@ -654,10 +736,6 @@ pub fn paged_mla_attention(
                     .map(|score| (score - largest).exp())
                     .collect::<Vec<_>>();
                 let total = weights.iter().sum::<f64>();
-                #[expect(
-                    clippy::cast_possible_truncation,
-                    reason = "the log-sum-exp output is F32"
-                )]
                 {
                     lse[row] = ((largest + total.ln()) / LN_2) as f32;
                 }

@@ -15,10 +15,6 @@ use crate::{
 };
 
 /// Returns the gradient of each input of `operation`, or `None` for inputs without one.
-#[expect(
-    clippy::too_many_lines,
-    reason = "the formula table keeps every differentiable operation together"
-)]
 pub fn backward(
     operation: Operation,
     attributes: &OperationAttributes,
@@ -118,10 +114,6 @@ pub fn backward(
             }
 
             let count = source.element_count() / output()?.element_count().max(1);
-            #[expect(
-                clippy::cast_precision_loss,
-                reason = "reduced element counts are far below 2^52"
-            )]
             let scale = 1.0 / count.max(1) as f64;
             unary(expanded.mul_scalar(scale)?)
         }
@@ -156,13 +148,18 @@ pub fn backward(
             let order = attributes
                 .permutation_order()
                 .ok_or_else(|| Error::invalid_argument("permute attributes"))?;
-            let rank = i64::try_from(order.len()).map_err(|_| Error::DimensionOutOfBounds)?;
+            let rank = i64::try_from(order.len())
+                .map_err(|_| Error::dimension_out_of_bounds("permute rank"))?;
             let mut inverse = vec![0_i64; order.len()];
             for (position, &axis) in order.iter().enumerate() {
                 let axis = if axis < 0 { axis + rank } else { axis };
-                let slot = usize::try_from(axis).map_err(|_| Error::DimensionOutOfBounds)?;
-                *inverse.get_mut(slot).ok_or(Error::DimensionOutOfBounds)? =
-                    i64::try_from(position).map_err(|_| Error::DimensionOutOfBounds)?;
+                let slot = usize::try_from(axis)
+                    .map_err(|_| Error::dimension_out_of_bounds("permute order axis"))?;
+                *inverse
+                    .get_mut(slot)
+                    .ok_or_else(|| Error::dimension_out_of_bounds("permute order axis"))? =
+                    i64::try_from(position)
+                        .map_err(|_| Error::dimension_out_of_bounds("permute order position"))?;
             }
             unary(gradient.permute(&inverse)?)
         }
@@ -190,7 +187,8 @@ pub fn backward(
                 .ok_or_else(|| Error::invalid_argument("concat attributes"))?;
             let rank = gradient.shape().rank();
             let axis = if dim < 0 { dim + rank } else { dim };
-            let axis_index = usize::try_from(axis).map_err(|_| Error::DimensionOutOfBounds)?;
+            let axis_index = usize::try_from(axis)
+                .map_err(|_| Error::dimension_out_of_bounds("concat gradient axis"))?;
             let mut start = 0;
             inputs
                 .iter()
@@ -220,14 +218,20 @@ pub fn backward(
         Op::Cast => unary(gradient.cast(input(0)?.data_type())?),
         Op::Embedding => {
             let (weight, indices) = (input(0)?, input(1)?);
-            let width = weight.shape().dimensions()[1..].iter().product::<i64>();
-            let count =
-                i64::try_from(indices.element_count()).map_err(|_| Error::DimensionOutOfBounds)?;
+            let &[vocabulary, ref row @ ..] = weight.shape().dimensions() else {
+                return Err(unsupported(
+                    operation,
+                    "embedding weights have rank one or more",
+                ));
+            };
+            let width = row.iter().product::<i64>();
+            let count = i64::try_from(indices.element_count())
+                .map_err(|_| Error::dimension_out_of_bounds("embedding gradient index count"))?;
             let rows = gradient.reshape([count, width])?;
             let flat = indices.reshape([count])?;
             let accumulated = weight
                 .zeros_like()?
-                .reshape([weight.shape().dimensions()[0], width])?
+                .reshape([vocabulary, width])?
                 .index_add(0, &flat, &rows)?;
             Ok(vec![
                 Some(accumulated.reshape(weight.shape().dimensions())?),
@@ -243,7 +247,13 @@ pub fn backward(
                     "repeated keys and values have rank four",
                 ));
             };
-            let repeats = gradient.shape().dimensions()[1] / heads.max(1);
+            let &[_, repeated_heads, ..] = gradient.shape().dimensions() else {
+                return Err(unsupported(
+                    operation,
+                    "repeated keys and values have rank four",
+                ));
+            };
+            let repeats = repeated_heads / heads.max(1);
             unary(
                 gradient
                     .contiguous()?
@@ -362,7 +372,9 @@ fn sum_to(gradient: &Tensor, shape: &Shape) -> Result<Tensor> {
         .filter(|&axis| {
             axis < leading || (shape.dimensions()[axis - leading] == 1 && dimensions[axis] != 1)
         })
-        .map(|axis| i64::try_from(axis).map_err(|_| Error::DimensionOutOfBounds))
+        .map(|axis| {
+            i64::try_from(axis).map_err(|_| Error::dimension_out_of_bounds("sum_to reduced axis"))
+        })
         .collect::<Result<Vec<_>>>()?;
     let summed = if reduced.is_empty() {
         gradient.clone()

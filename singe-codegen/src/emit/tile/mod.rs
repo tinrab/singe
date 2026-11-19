@@ -1260,10 +1260,6 @@ fn storage_scalar(element: ElementType) -> ScalarType {
 }
 
 /// Returns the little-endian bytes of `literal` as a `scalar`; `bool` true is all ones.
-#[expect(
-    clippy::cast_possible_truncation,
-    reason = "a literal is its value in the constant's type"
-)]
 fn literal_bytes(scalar: ScalarType, literal: Literal) -> Vec<u8> {
     match (scalar, literal) {
         (ScalarType::I1, Literal::Bool(value)) => vec![if value { 0xff } else { 0 }],

@@ -220,10 +220,10 @@ impl KernelPlanner {
         &self,
         inputs: &RotaryCacheInputs,
     ) -> Result<(String, Vec<KernelParameters>)> {
-        let head_dim = to_usize(
-            inputs.key.layout.shape().dimensions()[2],
-            "cuda rotary cache head",
-        )?;
+        let &[_, _, head_dim, ..] = inputs.key.layout.shape().dimensions() else {
+            return Err(Error::invalid_argument("cuda rotary cache key dimensions"));
+        };
+        let head_dim = to_usize(head_dim, "cuda rotary cache head")?;
         Ok((
             inputs.parameter_key(),
             self.rotary_cache_candidates(head_dim)
@@ -237,17 +237,35 @@ impl KernelPlanner {
     // The caller fills the caches first, since only the selected slots are written.
     pub(crate) fn rotary_cache_write(&self, inputs: &RotaryCacheInputs) -> Result<KernelPlan> {
         let extent = |value: i64| to_usize(value, "cuda rotary cache extent");
-        let key_shape = inputs.key.layout.shape().dimensions();
-        let cache_shape = inputs.key_cache.layout.shape().dimensions();
-        let (tokens, head_dim) = (extent(key_shape[0])?, extent(key_shape[2])?);
-        let query_heads = inputs
-            .query
-            .as_ref()
-            .map_or(Ok(0), |query| extent(query.layout.shape().dimensions()[1]))?;
-        let cache_heads = extent(key_shape[1])?;
+        let &[tokens, cache_heads, head_dim, ..] = inputs.key.layout.shape().dimensions() else {
+            return Err(Error::invalid_argument("cuda rotary cache key dimensions"));
+        };
+        let &[pages, slots, ..] = inputs.key_cache.layout.shape().dimensions() else {
+            return Err(Error::invalid_argument(
+                "cuda rotary cache key cache dimensions",
+            ));
+        };
         let value_shape = inputs.value.layout.shape().dimensions();
-        let value_dim = extent(value_shape[value_shape.len() - 1])?;
-        let (pages, slots) = (extent(cache_shape[0])?, extent(cache_shape[1])?);
+        let Some(&value_dim) = value_shape.last() else {
+            return Err(Error::invalid_argument(
+                "cuda rotary cache value dimensions",
+            ));
+        };
+        let query_heads = match &inputs.query {
+            Some(query) => {
+                let &[_, heads, ..] = query.layout.shape().dimensions() else {
+                    return Err(Error::invalid_argument(
+                        "cuda rotary cache query dimensions",
+                    ));
+                };
+                extent(heads)?
+            }
+            None => 0,
+        };
+        let (tokens, head_dim) = (extent(tokens)?, extent(head_dim)?);
+        let cache_heads = extent(cache_heads)?;
+        let value_dim = extent(value_dim)?;
+        let (pages, slots) = (extent(pages)?, extent(slots)?);
         let half = head_dim / 2;
         let default = RotaryCacheParameters::for_head(head_dim);
         let key = inputs.parameter_key();

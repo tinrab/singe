@@ -3,20 +3,25 @@
 // A model that reads only text keeps its decoder under `model`; one that also reads images keeps it under `model.language_model`, beside the vision encoder under `model.visual`.
 // Either keeps its multi-token-prediction layer under `mtp`.
 
-use serde::{Deserialize, de::DeserializeOwned};
+use serde::Deserialize;
 use serde_json::Value;
 use singe::nn::{Activation, GatedDeltaNetSpec};
 
-use super::{
-    ImageSizeBounds, Qwen35Config, Qwen35ExpertsConfig, Qwen35ImageProcessorConfig, Qwen35Mixer,
-    Qwen35TextConfig, Qwen35VisionConfig, Qwen35VisionLanguageConfig,
-};
 use crate::{
-    assembly::{DecoderConfig, expert_rules, llama_rules},
+    assembly::{
+        DecoderConfig, ExpertRouting, ExpertsConfig, expert_rules, llama_block_rules, llama_rules,
+    },
     error::{Error, Result},
     format::{
-        Rules,
-        transformers::{DecoderDefaults, DecoderFields, activation_field},
+        Rules, join,
+        transformers::{
+            DecoderDefaults, DecoderFields, LayerType, RotaryFields, activation_field,
+            default_true, parse,
+        },
+    },
+    model::text::qwen3_5::{
+        Draft, ImageSizeBounds, Qwen35Config, Qwen35ImageProcessor, Qwen35Mixer, Qwen35TextConfig,
+        Qwen35VisionConfig, Qwen35VisionLanguageConfig,
     },
     source::Source,
 };
@@ -34,7 +39,7 @@ struct TextFields {
     // Every fourth layer is full attention when the config names no layer types.
     #[serde(default = "default_full_attention_interval")]
     full_attention_interval: usize,
-    #[serde(default = "default_output_gate")]
+    #[serde(default = "default_true")]
     attn_output_gate: bool,
     // Present in a mixture-of-experts model, every block of which has experts.
     #[serde(default)]
@@ -49,10 +54,6 @@ struct TextFields {
 
 const fn default_full_attention_interval() -> usize {
     4
-}
-
-const fn default_output_gate() -> bool {
-    true
 }
 
 // The defaults `transformers`' `Qwen3_5MoeTextConfig` gives its experts.
@@ -71,17 +72,6 @@ impl TextFields {
             return Err(Error::unsupported("full attention without an output gate"));
         }
 
-        let layer_types = self.decoder.layer_types.as_ref();
-        if layer_types
-            .into_iter()
-            .flatten()
-            .any(|layer| layer != "full_attention" && layer != "linear_attention")
-        {
-            return Err(Error::unsupported(
-                "a layer that is neither full nor linear attention",
-            ));
-        }
-
         let decoder = DecoderConfig {
             head_norms: true,
             ..self.decoder.config(DecoderDefaults {
@@ -89,30 +79,29 @@ impl TextFields {
                 head_dim: Some(256),
             })?
         };
-        let layers = usize::try_from(decoder.layers)
-            .map_err(|_| Error::unsupported("a negative number of layers"))?;
-        let mixers = (0..layers)
-            .map(|index| {
-                let full = layer_types.map_or_else(
-                    || (index + 1).is_multiple_of(self.full_attention_interval.max(1)),
-                    |types| {
-                        types
-                            .get(index)
-                            .is_some_and(|layer| layer == "full_attention")
-                    },
-                );
-                if full {
-                    Qwen35Mixer::Attention
+        let interval = self.full_attention_interval.max(1);
+        let mixers = self
+            .decoder
+            .layer_types(|index| {
+                if (index + 1).is_multiple_of(interval) {
+                    LayerType::FullAttention
                 } else {
-                    Qwen35Mixer::DeltaNet
+                    LayerType::LinearAttention
                 }
+            })?
+            .into_iter()
+            .map(|layer| match layer {
+                LayerType::FullAttention => Ok(Qwen35Mixer::Attention),
+                LayerType::LinearAttention => Ok(Qwen35Mixer::DeltaNet),
+                LayerType::SlidingAttention => Err(Error::unsupported("a sliding attention layer")),
             })
-            .collect();
-        let experts = self.num_experts.map(|experts| Qwen35ExpertsConfig {
-            experts,
+            .collect::<Result<Vec<_>>>()?;
+        let experts = self.num_experts.map(|count| ExpertsConfig {
+            count,
             top_k: self.num_experts_per_tok,
             inner: self.moe_intermediate_size,
             shared_inner: self.shared_expert_intermediate_size,
+            routing: ExpertRouting::Softmax,
         });
         Ok(Qwen35TextConfig {
             decoder,
@@ -159,7 +148,7 @@ impl VisionFields {
             heads: self.num_heads,
             inner: self.intermediate_size,
             activation: self.hidden_act,
-            positions: self.num_position_embeddings,
+            max_positions: self.num_position_embeddings,
             out_width: self.out_hidden_size,
             patch_size: self.patch_size,
             merge_size: self.spatial_merge_size,
@@ -172,7 +161,7 @@ impl VisionFields {
 // The fields of a `config.json` of a model that reads images.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 struct VisionLanguageFields {
-    text_config: Value,
+    text_config: TextFields,
     vision_config: VisionFields,
     image_token_id: i64,
     // Whether the output head shares the embedding's weight, which `transformers` reads here and not from `text_config`.
@@ -194,10 +183,6 @@ struct SizeFields {
     longest_edge: i64,
 }
 
-fn parse<T: DeserializeOwned>(value: Value) -> Result<T> {
-    serde_json::from_value(value).map_err(Error::ConfigFormat)
-}
-
 // Reads `config.json`, and for a model that reads images, `preprocessor_config.json`.
 pub(crate) fn config(source: &Source) -> Result<Qwen35Config> {
     let file: Value = source.json("config.json")?;
@@ -210,15 +195,15 @@ pub(crate) fn config(source: &Source) -> Result<Qwen35Config> {
 
     let fields: VisionLanguageFields = parse(file)?;
     let processor: ProcessorFields = source.json("preprocessor_config.json")?;
-    let mut text = parse::<TextFields>(fields.text_config.clone())?.config()?;
+    let mut text = fields.text_config.config()?;
     text.decoder.tied = fields.tie_word_embeddings;
     Ok(Qwen35Config {
         text,
         vision: Some(Qwen35VisionLanguageConfig {
             encoder: fields.vision_config.config()?,
             image_token_id: fields.image_token_id,
-            position_sections: sections(&fields.text_config)?,
-            processor: Qwen35ImageProcessorConfig {
+            position_sections: sections(&fields.text_config.decoder.rotary)?,
+            processor: Qwen35ImageProcessor {
                 bounds: ImageSizeBounds {
                     min_pixels: processor.size.shortest_edge,
                     max_pixels: processor.size.longest_edge,
@@ -230,129 +215,109 @@ pub(crate) fn config(source: &Source) -> Result<Qwen35Config> {
     })
 }
 
-// Reads `text_config.rope_parameters.mrope_section`, the frequencies each of M-RoPE's axes takes.
-fn sections(text: &Value) -> Result<[i64; 3]> {
-    let parameters = text
-        .get("rope_parameters")
-        .or_else(|| text.get("rope_scaling"))
-        .ok_or_else(|| Error::unsupported("a text config without rope parameters"))?;
-    if parameters.get("mrope_interleaved").and_then(Value::as_bool) != Some(true) {
+fn sections(rotary: &RotaryFields) -> Result<[i64; 3]> {
+    if !rotary.mrope_interleaved() {
         return Err(Error::unsupported(
             "M-RoPE whose sections are not interleaved",
         ));
     }
 
-    parse(
-        parameters
-            .get("mrope_section")
-            .cloned()
-            .ok_or_else(|| Error::unsupported("rope parameters without `mrope_section`"))?,
-    )
+    let section = rotary
+        .mrope_section()
+        .ok_or_else(|| Error::unsupported("rope parameters without `mrope_section`"))?;
+    <[i64; 3]>::try_from(section)
+        .map_err(|_| Error::unsupported(format!("an `mrope_section` of {} axes", section.len())))
 }
 
-// A gated delta net's stored names, and Singe's.
-const DELTA_NET: [(&str, &str); 9] = [
-    ("in_proj_qkv", "qkv"),
-    ("in_proj_z", "gate"),
-    ("in_proj_b", "strength"),
-    ("in_proj_a", "decay"),
-    ("conv1d", "convolution"),
-    ("A_log", "decay_log"),
-    ("dt_bias", "decay_bias"),
-    ("norm", "norm"),
-    ("out_proj", "output"),
-];
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Vision {
+    Loaded,
+    Skipped,
+}
 
-// A block of full attention and a dense feed-forward layer's stored names, and Singe's.
-const ATTENTION_BLOCK: [(&str, &str); 11] = [
-    ("input_layernorm", "attention_norm"),
-    ("self_attn.q_proj", "attention.query"),
-    ("self_attn.k_proj", "attention.key"),
-    ("self_attn.v_proj", "attention.value"),
-    ("self_attn.o_proj", "attention.output"),
-    ("self_attn.q_norm", "attention.query_norm"),
-    ("self_attn.k_norm", "attention.key_norm"),
-    ("post_attention_layernorm", "feed_forward_norm"),
-    ("mlp.gate_proj", "feed_forward.gate"),
-    ("mlp.up_proj", "feed_forward.up"),
-    ("mlp.down_proj", "feed_forward.down"),
-];
-
-// Imports the text decoder, and its draft layer if `drafting`; `images` says whether the vision encoder loads too, as a part of its own.
-pub(crate) fn decoder_rules(config: &Qwen35Config, drafting: bool, images: bool) -> Rules {
+pub(crate) fn decoder_rules(config: &Qwen35Config, draft: Draft, vision: Vision) -> Rules {
     let model = if config.vision.is_some() {
         "model.language_model"
     } else {
         "model"
     };
-    let layer = |name: &str| format!("{model}.layers.*.{name}");
-    let mut rules = Rules::new();
-    if !images {
+    let layers = join(model, "layers.*");
+    let rules = match vision {
+        Vision::Loaded => Rules::new(),
         // Decoding text reads no image.
-        rules = rules.skip("model.visual");
-    }
-
-    rules = if drafting {
-        rules.then(draft_rules())
-    } else {
-        // The multi-token-prediction layer only drafts tokens, which this load does not.
-        rules.skip("mtp")
+        Vision::Skipped => Rules::new().skip("model.visual"),
     };
-    rules = DELTA_NET.iter().fold(rules, |rules, (from, to)| {
-        rules.rename(
-            &layer(&format!("linear_attn.{from}")),
-            &format!("blocks.*.delta_net.{to}"),
-        )
-    });
-    if let Some(experts) = &config.text.experts {
-        rules = rules
-            .rename(&layer("mlp.gate"), "blocks.*.feed_forward.router")
-            .rename(
-                &layer("mlp.shared_expert_gate"),
-                "blocks.*.feed_forward.shared_gate",
+    let rules = match draft {
+        Draft::Included => rules.then(draft_rules()),
+        // The multi-token-prediction layer only drafts tokens, which this load does not.
+        Draft::Omitted => rules.skip("mtp"),
+    };
+    let rules = rules.rename_each(
+        &join(&layers, "linear_attn"),
+        "blocks.*.delta_net",
+        &[
+            ("in_proj_qkv", "qkv"),
+            ("in_proj_z", "gate"),
+            ("in_proj_b", "strength"),
+            ("in_proj_a", "decay"),
+            ("conv1d", "convolution"),
+            ("A_log", "decay_log"),
+            ("dt_bias", "decay_bias"),
+            ("norm", "norm"),
+            ("out_proj", "output"),
+        ],
+    );
+    let rules = match &config.text.experts {
+        Some(experts) => rules
+            .rename_each(
+                &join(&layers, "mlp"),
+                "blocks.*.feed_forward",
+                &[
+                    ("gate", "router"),
+                    ("shared_expert_gate", "shared_gate"),
+                    ("shared_expert.gate_proj", "shared.gate"),
+                    ("shared_expert.up_proj", "shared.up"),
+                    ("shared_expert.down_proj", "shared.down"),
+                ],
             )
-            .rename(
-                &layer("mlp.shared_expert.gate_proj"),
-                "blocks.*.feed_forward.shared.gate",
-            )
-            .rename(
-                &layer("mlp.shared_expert.up_proj"),
-                "blocks.*.feed_forward.shared.up",
-            )
-            .rename(
-                &layer("mlp.shared_expert.down_proj"),
-                "blocks.*.feed_forward.shared.down",
-            )
-            .then(expert_rules(model, experts.inner));
-    }
+            .then(expert_rules(model, experts.inner)),
+        None => rules,
+    };
     rules.then(llama_rules(model))
 }
 
 // Imports the one multi-token-prediction layer into `draft`.
 fn draft_rules() -> Rules {
-    let rules = Rules::new()
-        .rename("mtp.pre_fc_norm_embedding", "draft.embedding_norm")
-        .rename("mtp.pre_fc_norm_hidden", "draft.hidden_norm")
-        .rename("mtp.fc", "draft.projection")
-        .rename("mtp.norm", "draft.norm");
-    ATTENTION_BLOCK.iter().fold(rules, |rules, (from, to)| {
-        rules.rename(
-            &format!("mtp.layers.0.{from}"),
-            &format!("draft.block.{to}"),
+    Rules::new()
+        .rename_each(
+            "mtp",
+            "draft",
+            &[
+                ("pre_fc_norm_embedding", "embedding_norm"),
+                ("pre_fc_norm_hidden", "hidden_norm"),
+                ("fc", "projection"),
+                ("norm", "norm"),
+            ],
         )
-    })
+        .then(llama_block_rules("mtp.layers.0", "draft.block"))
 }
 
 // Imports the vision encoder.
 pub(crate) fn vision_rules() -> Rules {
-    let block = |name: &str| format!("model.visual.blocks.*.{name}");
+    let blocks = "model.visual.blocks.*";
     Rules::new()
-        .rename("model.visual.patch_embed.proj", "embeddings.patches")
-        .rename("model.visual.pos_embed", "embeddings.positions")
-        .rename(&block("norm1"), "blocks.*.attention_norm")
+        .rename_each(
+            "model.visual",
+            "",
+            &[
+                ("patch_embed.proj", "embeddings.patches"),
+                ("pos_embed", "embeddings.positions"),
+            ],
+        )
+        .rename(&join(blocks, "norm1"), "blocks.*.attention_norm")
         // One weight and one bias hold every head's queries, then keys, then values.
         .split(
-            &block("attn.qkv"),
+            &join(blocks, "attn.qkv"),
             0,
             &[
                 "blocks.*.attention.query",
@@ -360,11 +325,23 @@ pub(crate) fn vision_rules() -> Rules {
                 "blocks.*.attention.value",
             ],
         )
-        .rename(&block("attn.proj"), "blocks.*.attention.output")
-        .rename(&block("norm2"), "blocks.*.feed_forward_norm")
-        .rename(&block("mlp.linear_fc1"), "blocks.*.feed_forward.up")
-        .rename(&block("mlp.linear_fc2"), "blocks.*.feed_forward.down")
-        .rename("model.visual.merger.norm", "merger.norm")
-        .rename("model.visual.merger.linear_fc1", "merger.up")
-        .rename("model.visual.merger.linear_fc2", "merger.down")
+        .rename_each(
+            blocks,
+            "blocks.*",
+            &[
+                ("attn.proj", "attention.output"),
+                ("norm2", "feed_forward_norm"),
+                ("mlp.linear_fc1", "feed_forward.up"),
+                ("mlp.linear_fc2", "feed_forward.down"),
+            ],
+        )
+        .rename_each(
+            "model.visual.merger",
+            "merger",
+            &[
+                ("norm", "norm"),
+                ("linear_fc1", "up"),
+                ("linear_fc2", "down"),
+            ],
+        )
 }

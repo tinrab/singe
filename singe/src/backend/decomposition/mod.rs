@@ -14,9 +14,9 @@ use crate::{
     error::{Error, Result},
     graph::capture,
     scalar::Scalar,
-    shape::Shape,
+    shape::{Shape, normalize_dim_usize},
     tensor::Tensor,
-    utility::to_i64,
+    utility::{to_i64, to_usize},
 };
 
 // Decompositions write an operation as others, which run on every backend and lower in compiled graphs.
@@ -30,6 +30,8 @@ pub fn has_decomposition(operation: Operation) -> bool {
             | Operation::TopKIndices
             | Operation::Pad
             | Operation::RotaryEmbedding
+            | Operation::RotaryHalves
+            | Operation::ResampleLinear
             | Operation::ScaledDotProductAttention
             | Operation::Contraction
             | Operation::BatchNorm
@@ -58,7 +60,7 @@ pub fn replaces_kernels(
             .batch_normalization()
             .is_some_and(|batch| batch.training),
         // Rotary kernels compute `F32` and widen half precision.
-        Operation::RotaryEmbedding => data_type == DataType::F64,
+        Operation::RotaryEmbedding | Operation::RotaryHalves => data_type == DataType::F64,
         // Inference holds only the empty tensors of these, which kernels have no type for.
         Operation::Softmax | Operation::LogSoftmax => !matches!(
             data_type,
@@ -82,6 +84,8 @@ pub fn decomposes_in_graphs(
             | Operation::TopKIndices
             | Operation::Pad
             | Operation::RotaryEmbedding
+            | Operation::RotaryHalves
+            | Operation::ResampleLinear
             | Operation::QuantizedMatMul
     ) || replaces_kernels(operation, attributes, data_type)
 }
@@ -115,6 +119,19 @@ pub fn decompose(
             };
             Ok(vec![rotary_embedding(input, cos, sin)?])
         }
+        Operation::RotaryHalves => {
+            let [_, cos, sin] = inputs else {
+                return Err(Error::missing_input("decompose"));
+            };
+            Ok(vec![rotary_halves(input, cos, sin)?])
+        }
+        Operation::ResampleLinear => {
+            let [_, low, high, weight] = inputs else {
+                return Err(Error::missing_input("decompose"));
+            };
+            let dim = attributes.dimension().ok_or_else(attribute_error)?;
+            Ok(vec![resample_linear(input, dim, low, high, weight)?])
+        }
         Operation::ScaledDotProductAttention => {
             let [_, key, value, rest @ ..] = inputs else {
                 return Err(Error::missing_input("decompose"));
@@ -134,8 +151,12 @@ pub fn decompose(
             // Decomposed, key lengths are the mask that hides each batch's keys past its count.
             let mask = match lengths {
                 Some(lengths) => {
-                    let hidden =
-                        length_mask(lengths, key.shape().dimensions()[2], input.data_type())?;
+                    let &[_, _, keys, ..] = key.shape().dimensions() else {
+                        return Err(Error::invalid_argument(
+                            "scaled_dot_product_attention key rank",
+                        ));
+                    };
+                    let hidden = length_mask(lengths, keys, input.data_type())?;
                     Some(match mask {
                         Some(mask) => mask.add(&hidden)?,
                         None => hidden,
@@ -277,7 +298,7 @@ fn pad_of(input: &Tensor, padding: &[(i64, i64)], value: f32) -> Result<Tensor> 
     let problem = spec::pad_problem(input.shape(), padding, "pad")?;
     let mut output = input.clone();
     for (axis, &(before, after)) in problem.padding.iter().enumerate() {
-        let dim = i64::try_from(axis).map_err(|_| Error::DimensionOutOfBounds)?;
+        let dim = i64::try_from(axis).map_err(|_| Error::dimension_out_of_bounds("pad axis"))?;
         let extent = output.shape().dimensions()[axis];
         let (start, end) = ((-before).max(0), (-after).max(0));
         if start > 0 || end > 0 {
@@ -321,6 +342,36 @@ fn pad_of(input: &Tensor, padding: &[(i64, i64)], value: f32) -> Result<Tensor> 
 }
 
 // Rotates each adjacent pair of the leading `2 · pairs` features by its position's angle.
+// Gathers each output point's two source points along `dim` and blends them, with the weight broadcast along every other axis.
+fn resample_linear(
+    input: &Tensor,
+    dim: i64,
+    low: &Tensor,
+    high: &Tensor,
+    weight: &Tensor,
+) -> Result<Tensor> {
+    let rank = input.shape().rank();
+    let axis = normalize_dim_usize(dim, rank)?;
+    let mut shape = vec![1; to_usize(rank, "resample linear rank")?];
+    shape[axis] = to_i64(weight.shape().element_count(), "resample linear weights")?;
+    let weight = weight.reshape(shape)?;
+    let (low, high) = (
+        input.index_select(dim, low)?,
+        input.index_select(dim, high)?,
+    );
+    low.add(&high.sub(&low)?.mul(&weight)?)
+}
+
+// Compiled graphs recognize this form, with the head's RMS norm before it and the cache write after it, as one kernel.
+fn rotary_halves(input: &Tensor, cos: &Tensor, sin: &Tensor) -> Result<Tensor> {
+    let half = spec::rotary_halves_width(input.shape(), cos.shape(), sin.shape(), "rotary_halves")?;
+    let first = input.narrow(-1, 0, half)?;
+    let second = input.narrow(-1, half, half)?;
+    let rotated_first = first.mul(cos)?.sub(&second.mul(sin)?)?;
+    let rotated_second = second.mul(cos)?.add(&first.mul(sin)?)?;
+    Tensor::concat(&[rotated_first, rotated_second], -1)
+}
+
 fn rotary_embedding(input: &Tensor, cos: &Tensor, sin: &Tensor) -> Result<Tensor> {
     let problem = spec::rotary_embedding_problem(
         input.shape(),
@@ -329,14 +380,15 @@ fn rotary_embedding(input: &Tensor, cos: &Tensor, sin: &Tensor) -> Result<Tensor
         "rotary_embedding",
     )?;
     let (pairs, head_dim) = (problem.rotary_pairs, problem.head_dim);
-    let mut paired = input.shape().dimensions()[..3].to_vec();
-    paired.extend([pairs, 2]);
+    let &[batch, heads, sequence, _] = input.shape().dimensions() else {
+        return Err(Error::invalid_argument("rotary_embedding input rank"));
+    };
+    let paired = vec![batch, heads, sequence, pairs, 2];
     let rotated = input.narrow(3, 0, 2 * pairs)?.reshape(paired)?;
     let (even, odd) = (rotated.select(4, 0)?, rotated.select(4, 1)?);
     let first = even.mul(cos)?.sub(&odd.mul(sin)?)?;
     let second = even.mul(sin)?.add(&odd.mul(cos)?)?;
-    let mut interleaved = input.shape().dimensions()[..3].to_vec();
-    interleaved.push(2 * pairs);
+    let interleaved = vec![batch, heads, sequence, 2 * pairs];
     let rotated =
         Tensor::concat(&[first.unsqueeze(4)?, second.unsqueeze(4)?], 4)?.reshape(interleaved)?;
     if 2 * pairs == head_dim {
@@ -351,7 +403,9 @@ fn rotary_embedding(input: &Tensor, cos: &Tensor, sin: &Tensor) -> Result<Tensor
 // `softmax(q kᵀ · scale + mask) v`; half precision computes in `F32` and rounds once, as PyTorch's attention does, since rounding the scores and weights loses what the exponentials amplify.
 // The additive mask, `[B, 1, 1, S]` of `data_type`, that hides each batch's keys from its count in `lengths` on.
 fn length_mask(lengths: &Tensor, keys: i64, data_type: DataType) -> Result<Tensor> {
-    let batch = lengths.shape().dimensions()[0];
+    let &[batch, ..] = lengths.shape().dimensions() else {
+        return Err(Error::invalid_argument("attention key lengths rank"));
+    };
     let positions = capture::literal(lengths.device(), |device| {
         Tensor::from_vec(
             device,
@@ -385,7 +439,11 @@ fn chunked_attention(
     attention: &ScaledDotProductAttentionAttributes,
     chunk: i64,
 ) -> Result<Tensor> {
-    let (rows, keys) = (query.shape().dimensions()[2], key.shape().dimensions()[2]);
+    let (&[_, _, rows, ..], &[_, _, keys, ..]) =
+        (query.shape().dimensions(), key.shape().dimensions())
+    else {
+        return Err(Error::invalid_argument("chunked attention operand rank"));
+    };
     let placed = (attention.causal || attention.window.is_some())
         .then(|| {
             capture::literal(query.device(), |device| {
@@ -406,6 +464,8 @@ fn chunked_attention(
         window: None,
         ..*attention
     };
+    // Every chunk reads the whole key and value, so a layout a library cannot read in place is copied once here rather than in each chunk's product.
+    let (key, value) = (&key.contiguous()?, &value.contiguous()?);
     let mut parts = Vec::new();
     let mut start = 0;
     while start < rows {
@@ -483,7 +543,12 @@ fn scaled_dot_product_attention(
         "scaled_dot_product_attention",
     )?;
     // Grouped key and value heads repeat for the query heads that share them.
-    let groups = query.shape().dimensions()[1] / key.shape().dimensions()[1];
+    let &[_, key_heads, ..] = key.shape().dimensions() else {
+        return Err(Error::invalid_argument(
+            "scaled_dot_product_attention key rank",
+        ));
+    };
+    let groups = problem.heads / key_heads;
     if groups > 1 {
         return scaled_dot_product_attention(
             query,
@@ -495,13 +560,14 @@ fn scaled_dot_product_attention(
         );
     }
 
-    let head_dim = query.shape().dimensions()[3];
+    let head_dim = problem.head_dim;
     let scale = attention
         .scale
         .map_or_else(|| (head_dim as f64).sqrt().recip(), f64::from);
+    // The query, `[.., L, D]`, scales before the product rather than its scores, `[.., L, S]`, which are wider whenever the keys outnumber a head's features.
     let mut scores = query
-        .matmul(&key.transpose(2, 3)?)?
-        .mul_scalar(Scalar::Float(scale))?;
+        .mul_scalar(Scalar::Float(scale))?
+        .matmul(&key.transpose(2, 3)?)?;
     if let Some(cap) = attention.softcap {
         let cap = f64::from(cap);
         scores = scores
@@ -613,7 +679,10 @@ fn contraction_of(
                 .iter()
                 .enumerate()
                 .filter(|&(_, &mode)| !has(other, mode) && !has(d_mode, mode))
-                .map(|(axis, _)| i64::try_from(axis).map_err(|_| Error::DimensionOutOfBounds))
+                .map(|(axis, _)| {
+                    i64::try_from(axis)
+                        .map_err(|_| Error::dimension_out_of_bounds("contraction summed mode"))
+                })
                 .collect::<Result<Vec<_>>>()?;
             let (tensor, modes) = if summed.is_empty() {
                 (tensor.clone(), modes.to_vec())
@@ -641,7 +710,7 @@ fn contraction_of(
                 group.iter().try_fold(1_i64, |size, &mode| {
                     Ok(size
                         * tensor.shape().dimensions()[usize::try_from(position(mode)?)
-                            .map_err(|_| Error::DimensionOutOfBounds)?])
+                            .map_err(|_| Error::dimension_out_of_bounds("contraction mode"))?])
                 })
             };
             let sizes = [extent(order[0])?, extent(order[1])?, extent(order[2])?];
@@ -737,10 +806,6 @@ pub fn batch_norm_training(
     if let Some(running_var) = running_var {
         let channels = x.shape().dimensions().get(1).copied().unwrap_or(1).max(1);
         let samples = to_i64(x.shape().element_count(), "batch norm sample count")? / channels;
-        #[expect(
-            clippy::cast_precision_loss,
-            reason = "sample counts are far below 2^52"
-        )]
         let correction = samples as f64 / (samples - 1) as f64;
         update(
             running_var,

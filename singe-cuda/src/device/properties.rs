@@ -212,10 +212,6 @@ pub struct DeviceProperties {
 impl TryFrom<runtime::cudaDeviceProp> for DeviceProperties {
     type Error = Error;
 
-    #[expect(
-        clippy::too_many_lines,
-        reason = "the complete native device property record is converted field by field"
-    )]
     fn try_from(value: runtime::cudaDeviceProp) -> Result<Self> {
         let end = value
             .name

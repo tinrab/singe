@@ -2,7 +2,9 @@
 // Processing a model alone needs, such as Whisper's log-mel front end or Qwen3.5's image patches, lives with the model, as `transformers` keeps it.
 
 pub mod audio;
+mod base64;
 pub mod chat;
+mod conversion;
 pub mod fbank;
 pub mod image;
 pub mod random;
@@ -11,10 +13,3 @@ pub mod scheduler;
 mod sentencepiece;
 pub mod text;
 pub mod video;
-
-use singe::{DataType, Result as SingeResult, Tensor};
-
-// A tensor's values on the host, as `F32`, for the work a pipeline or head does there.
-pub(crate) fn host_values(tensor: &Tensor) -> SingeResult<Vec<f32>> {
-    tensor.cast(DataType::F32)?.contiguous()?.to_vec::<f32>()
-}

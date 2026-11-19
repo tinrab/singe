@@ -5,10 +5,10 @@ use serde::{Deserialize, Serialize};
 use crate::{
     error::{Error, Result},
     head::{MaskedLm, ScoreFunction},
-    model,
+    host, model,
     processor::text::{EncodeOptions, TextInput, TextTokenizer},
     source::{LoadOptions, Source},
-    task::{Pipeline, Task},
+    task::{Pipeline, run_alone},
 };
 
 #[derive(Debug)]
@@ -16,6 +16,7 @@ pub struct FillMaskPipeline {
     model: MaskedLm,
     tokenizer: TextTokenizer,
     mask: i64,
+    options: LoadOptions,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
@@ -53,8 +54,6 @@ pub enum FillMaskOutput {
 }
 
 impl Pipeline for FillMaskPipeline {
-    const TASK: Task = Task::FillMask;
-
     type Input = String;
 
     type Parameters = FillMaskParameters;
@@ -62,7 +61,7 @@ impl Pipeline for FillMaskPipeline {
     type Output = FillMaskOutput;
 
     fn load(source: &Source, options: LoadOptions) -> Result<Self> {
-        let tokenizer = TextTokenizer::load(source.directory())?;
+        let tokenizer = TextTokenizer::load(source)?;
         let mask = tokenizer
             .mask_id()
             .ok_or_else(|| Error::unsupported("a tokenizer without a mask token"))?;
@@ -70,7 +69,12 @@ impl Pipeline for FillMaskPipeline {
             model: model::load(source, options)?,
             tokenizer,
             mask,
+            options,
         })
+    }
+
+    fn run_one(&self, input: &Self::Input, parameters: &Self::Parameters) -> Result<Self::Output> {
+        run_alone(self, input, parameters)
     }
 
     fn run(
@@ -87,11 +91,9 @@ impl Pipeline for FillMaskPipeline {
             .iter()
             .map(|text| TextInput::Single(text))
             .collect::<Vec<_>>();
-        let encoded = self.tokenizer.encode_inputs(
-            &texts,
-            &EncodeOptions::default(),
-            self.model.model().state().device()?,
-        )?;
+        let encoded =
+            self.tokenizer
+                .encode_inputs(&texts, &EncodeOptions::default(), self.options.device)?;
         let positions = encoded
             .rows
             .iter()
@@ -118,7 +120,7 @@ impl Pipeline for FillMaskPipeline {
                     .map(|((_, token), scores)| (*token, scores))
                     .collect::<Vec<_>>();
                 if masks.is_empty() {
-                    return Err(Error::unsupported("a text without the mask token"));
+                    return Err(Error::invalid("a text without the mask token"));
                 }
 
                 // A text of one mask decodes without its special tokens, and one of several with them, as `transformers` does.
@@ -161,9 +163,7 @@ impl FillMaskPipeline {
         }
 
         if ids.is_empty() {
-            return Err(Error::unsupported(
-                "fill-mask targets that encode to no token",
-            ));
+            return Err(Error::invalid("fill-mask targets that encode to no token"));
         }
 
         Ok(ids)
@@ -188,7 +188,7 @@ impl FillMaskPipeline {
                         .ok()
                         .and_then(|index| probabilities.get(index))
                         .ok_or_else(|| {
-                            Error::UnsupportedConfig(format!(
+                            Error::unsupported(format!(
                                 "target token {id} outside the model's vocabulary"
                             ))
                         })?;
@@ -199,8 +199,7 @@ impl FillMaskPipeline {
                 .zip(probabilities.iter().copied())
                 .collect::<Vec<_>>(),
         };
-        candidates.sort_by(|left, right| right.1.total_cmp(&left.1));
-        candidates.truncate(top_k);
+        host::best_first(&mut candidates, top_k, |&(_, score)| score);
         candidates
             .into_iter()
             .map(|(token, score)| {

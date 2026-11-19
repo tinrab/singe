@@ -6,6 +6,6 @@ pub fn with_cublaslt<T>(
     runtime: &CudaRuntime,
     f: impl FnOnce(&CublasLtContext) -> Result<T>,
 ) -> Result<T> {
-    let cublaslt = runtime.cublaslt().locked("cuda runtime cache")?;
+    let cublaslt = runtime.cublaslt()?.locked("cuda runtime cache")?;
     f(&cublaslt)
 }

@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 
 use safetensors::{Dtype, SafeTensors};
-use serde_json::Value;
+use serde_json::{Value, json};
 use singe::{
     DataType, Device, OnnxModel, OnnxOptions, Result, Shape, Tensor,
     backend::registry::{Operation, OperationAttributes, ReductionAttributes},
@@ -16,6 +16,7 @@ use singe::{
     onnx,
     value::ValueSpec,
 };
+use singe_testing::reference;
 
 #[derive(Debug)]
 struct Pool;
@@ -151,16 +152,12 @@ fn compare(actual: &Tensor, expected: &Value, atol: f32, rtol: f32) {
     }
 }
 
-#[expect(
-    clippy::cast_possible_truncation,
-    reason = "references are float32 values stored as f64 JSON numbers"
-)]
 fn reference_f32(value: &Value) -> f32 {
     value.as_f64().unwrap() as f32
 }
 
 fn exercise(name: &str, device: Device) {
-    let references: Value = singe_testing::reference!("set_encoder").resolved();
+    let references: Value = reference!("set_encoder").resolved();
     let reference = &references["models"][name];
     let cases = &reference["cases"];
     let atol = reference_f32(&reference["atol"]);
@@ -243,7 +240,7 @@ fn record_export(name: &str, bytes: &[u8], reference: &Value) {
         fs::create_dir_all(&directory).unwrap();
         let path = directory.join(format!("set_encoder_{name}_cpu"));
         fs::write(path.with_extension("onnx"), bytes).unwrap();
-        let reference = serde_json::json!({"cases": reference["cases"], "input_dtype": "int64", "atol": reference["atol"], "rtol": reference["rtol"], "reference_evaluator": name != "bf16"});
+        let reference = json!({"cases": reference["cases"], "input_dtype": "int64", "atol": reference["atol"], "rtol": reference["rtol"], "reference_evaluator": name != "bf16"});
         fs::write(
             path.with_extension("json"),
             serde_json::to_vec_pretty(&reference).unwrap(),

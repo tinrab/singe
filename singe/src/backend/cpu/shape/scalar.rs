@@ -6,12 +6,12 @@ use crate::{
     data_type::DataType,
     device::Device,
     error::{Error, Result},
-    scalar::Scalar,
+    scalar::{Scalar, ScalarPromotion},
     tensor::Tensor,
 };
 
 fn scalar_operation(input: &Tensor, scalar: Scalar, operation: Operation) -> Result<Tensor> {
-    let input = input.scalar_operand(scalar, operation == Operation::RDivScalar)?;
+    let input = input.scalar_operand(scalar, ScalarPromotion::of(operation))?;
     let plan = ElementwisePlan::create(&[&input])?;
     macro_rules! floating {
         ($ty:ty, $coefficient:expr) => {{

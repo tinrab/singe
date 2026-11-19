@@ -1,21 +1,13 @@
-"""SAM, generating masks of everything in an image with `transformers`' mask-generation pipeline, as `verify.rs` generates them in Singe."""
+"""SAM, generating masks of everything in an image with `transformers`' mask-generation pipeline, as `mod.rs` generates them in Singe."""
 
-import sys
-from pathlib import Path
+import numpy
+from transformers import pipeline
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-
-import numpy  # noqa: E402
-import torch  # noqa: E402
-from transformers import pipeline  # noqa: E402
-
-from support import DEVICE, Verification, data_url  # noqa: E402
+from support import DEVICE, Verification, data_url
 
 
-def mask_generation(snapshot):
-    generate = pipeline(
-        "mask-generation", model=snapshot, dtype=torch.float32, device=DEVICE
-    )
+def mask_generation(snapshot, dtype):
+    generate = pipeline("mask-generation", model=snapshot, dtype=dtype, device=DEVICE)
 
     def run(paths, parameters):
         outputs = []

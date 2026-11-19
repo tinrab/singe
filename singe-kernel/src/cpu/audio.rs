@@ -251,10 +251,6 @@ fn validate_stft_config(config: StftConfig) -> Result<()> {
     Ok(())
 }
 
-#[expect(
-    clippy::cast_precision_loss,
-    reason = "the f32 algorithm converts integer dimensions and accumulators to its floating-point working precision"
-)]
 fn validate_mel_filter_config(config: MelFilterConfig) -> Result<()> {
     if config.sample_rate == 0 || config.frequency_bin_count == 0 || config.mel_bin_count == 0 {
         return Err(Error::InvalidLength);
@@ -272,10 +268,6 @@ fn validate_mel_filter_config(config: MelFilterConfig) -> Result<()> {
     Ok(())
 }
 
-#[expect(
-    clippy::cast_precision_loss,
-    reason = "the f32 algorithm converts integer dimensions and accumulators to its floating-point working precision"
-)]
 fn stft_window(kind: WindowKind, len: usize) -> Vec<f32> {
     match kind {
         WindowKind::Rectangular => vec![1.0; len],
@@ -298,10 +290,6 @@ fn stft_window(kind: WindowKind, len: usize) -> Vec<f32> {
     }
 }
 
-#[expect(
-    clippy::cast_precision_loss,
-    reason = "the f32 algorithm converts integer dimensions and accumulators to its floating-point working precision"
-)]
 fn dft_tables(n_fft: usize, frequency_bin_count: usize) -> Result<(Vec<f32>, Vec<f32>)> {
     let len = checked_element_count(n_fft, frequency_bin_count)?;
     let mut real = Vec::with_capacity(len);
@@ -316,10 +304,6 @@ fn dft_tables(n_fft: usize, frequency_bin_count: usize) -> Result<(Vec<f32>, Vec
     Ok((real, imag))
 }
 
-#[expect(
-    clippy::cast_precision_loss,
-    reason = "the f32 algorithm converts integer dimensions and accumulators to its floating-point working precision"
-)]
 fn slaney_mel_filters(config: MelFilterConfig) -> Result<Vec<f32>> {
     validate_mel_filter_config(config)?;
     let len = checked_element_count(config.mel_bin_count, config.frequency_bin_count)?;

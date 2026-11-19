@@ -2,11 +2,13 @@
 
 use serde::Deserialize;
 
-use super::DepthAnythingConfig;
 use crate::{
     error::{Error, Result},
-    format::Rules,
-    model::vision::dinov2::transformers::{Fields as Dinov2Fields, encoder_rules, fields_config},
+    format::{Rules, transformers::default_true},
+    model::vision::{
+        depth_anything::DepthAnythingConfig,
+        dinov2::transformers::{Fields as Dinov2Fields, encoder_rules, fields_config},
+    },
     source::Source,
 };
 
@@ -17,12 +19,16 @@ struct Backbone {
     out_indices: Vec<usize>,
     #[serde(default)]
     reshape_hidden_states: bool,
-    #[serde(default = "enabled")]
+    #[serde(default = "default_true")]
     apply_layernorm: bool,
 }
 
-const fn enabled() -> bool {
-    true
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize)]
+#[serde(rename_all = "lowercase")]
+enum DepthEstimationType {
+    #[default]
+    Relative,
+    Metric,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
@@ -33,18 +39,19 @@ struct Fields {
     reassemble_hidden_size: i64,
     fusion_hidden_size: i64,
     head_hidden_size: i64,
-    #[serde(default = "last")]
+    #[serde(default = "default_head_in_index")]
     head_in_index: i64,
-    depth_estimation_type: Option<String>,
-    #[serde(default = "unit")]
+    #[serde(default)]
+    depth_estimation_type: Option<DepthEstimationType>,
+    #[serde(default = "default_max_depth")]
     max_depth: f64,
 }
 
-const fn last() -> i64 {
+const fn default_head_in_index() -> i64 {
     -1
 }
 
-const fn unit() -> f64 {
+const fn default_max_depth() -> f64 {
     1.0
 }
 
@@ -52,25 +59,42 @@ pub(crate) fn config(source: &Source) -> Result<DepthAnythingConfig> {
     let fields: Fields = source.json("config.json")?;
     let backbone = fields_config(&fields.backbone_config.fields)?;
     // The neck reads the normed states as tokens, and the head the finest fused map.
-    if fields.backbone_config.reshape_hidden_states
-        || !fields.backbone_config.apply_layernorm
-        || fields.head_in_index != -1
-        || fields.reassemble_hidden_size != backbone.width
-        || fields.neck_hidden_sizes.len() != fields.reassemble_factors.len()
-        || fields.neck_hidden_sizes.len() != fields.backbone_config.out_indices.len()
-    {
-        return Err(Error::unsupported("this Depth Anything neck"));
+    if fields.backbone_config.reshape_hidden_states {
+        return Err(Error::unsupported(
+            "a Depth Anything backbone with `reshape_hidden_states`",
+        ));
     }
 
-    let metric = match fields.depth_estimation_type.as_deref() {
-        None | Some("relative") => false,
-        Some("metric") => true,
-        Some(other) => {
-            return Err(Error::UnsupportedConfig(format!(
-                "depth estimation of type {other}"
-            )));
-        }
-    };
+    if !fields.backbone_config.apply_layernorm {
+        return Err(Error::unsupported(
+            "a Depth Anything backbone without `apply_layernorm`",
+        ));
+    }
+
+    if fields.head_in_index != -1 {
+        return Err(Error::unsupported(format!(
+            "a Depth Anything head reading stage {}",
+            fields.head_in_index
+        )));
+    }
+
+    if fields.reassemble_hidden_size != backbone.encoder.width {
+        return Err(Error::unsupported(format!(
+            "a Depth Anything `reassemble_hidden_size` of {} beside a backbone width of {}",
+            fields.reassemble_hidden_size, backbone.encoder.width
+        )));
+    }
+
+    let stages = fields.neck_hidden_sizes.len();
+    if fields.reassemble_factors.len() != stages
+        || fields.backbone_config.out_indices.len() != stages
+    {
+        return Err(Error::unsupported(format!(
+            "Depth Anything `reassemble_factors` or `out_indices` of other than {stages} entries"
+        )));
+    }
+
+    let metric = fields.depth_estimation_type.unwrap_or_default() == DepthEstimationType::Metric;
     Ok(DepthAnythingConfig {
         backbone,
         stages: fields.backbone_config.out_indices,
@@ -87,28 +111,23 @@ pub(crate) fn config(source: &Source) -> Result<DepthAnythingConfig> {
 }
 
 pub(crate) fn rules() -> Rules {
-    let fusion = |name: &str| format!("neck.fusion_stage.layers.*.{name}");
-    encoder_rules("backbone.", "backbone.")
+    encoder_rules("backbone", "backbone")
         .rename("neck.reassemble_stage.layers", "reassemble")
         .rename("neck.convs", "convolutions")
-        .rename(
-            &fusion("residual_layer1.convolution1"),
-            "fusions.*.residual.first",
+        .rename_each(
+            "neck.fusion_stage.layers.*",
+            "fusions.*",
+            &[
+                ("residual_layer1.convolution1", "residual.first"),
+                ("residual_layer1.convolution2", "residual.second"),
+                ("residual_layer2.convolution1", "refine.first"),
+                ("residual_layer2.convolution2", "refine.second"),
+                ("projection", "projection"),
+            ],
         )
-        .rename(
-            &fusion("residual_layer1.convolution2"),
-            "fusions.*.residual.second",
+        .rename_each(
+            "head",
+            "head",
+            &[("conv1", "0"), ("conv2", "1"), ("conv3", "2")],
         )
-        .rename(
-            &fusion("residual_layer2.convolution1"),
-            "fusions.*.refine.first",
-        )
-        .rename(
-            &fusion("residual_layer2.convolution2"),
-            "fusions.*.refine.second",
-        )
-        .rename(&fusion("projection"), "fusions.*.projection")
-        .rename("head.conv1", "head.0")
-        .rename("head.conv2", "head.1")
-        .rename("head.conv3", "head.2")
 }

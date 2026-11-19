@@ -1,9 +1,5 @@
 //! Mixed-precision iterative-refinement parameters, results, and linear solvers.
 
-#![expect(
-    clippy::many_single_char_names,
-    reason = "BLAS and factorization operand names follow the standard mathematical API"
-)]
 use std::{mem, ptr};
 
 use singe_core::report_cleanup_failure;

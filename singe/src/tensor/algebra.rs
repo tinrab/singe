@@ -244,7 +244,10 @@ impl Tensor {
             .iter()
             .enumerate()
             .filter(|(_, index)| !output.contains(index))
-            .map(|(axis, _)| i64::try_from(axis).map_err(|_| Error::DimensionOutOfBounds))
+            .map(|(axis, _)| {
+                i64::try_from(axis)
+                    .map_err(|_| Error::dimension_out_of_bounds("einsum summed axis"))
+            })
             .collect::<Result<Vec<_>>>()?;
         let remaining = indices
             .iter()
@@ -263,7 +266,7 @@ impl Tensor {
                     .iter()
                     .position(|other| other == index)
                     .and_then(|axis| i64::try_from(axis).ok())
-                    .ok_or(Error::DimensionOutOfBounds)
+                    .ok_or_else(|| Error::dimension_out_of_bounds("einsum output index"))
             })
             .collect::<Result<Vec<_>>>()?;
         if order.iter().copied().eq(0..) {
@@ -374,7 +377,10 @@ fn without_repeated_indices(tensor: Tensor, indices: Vec<char>) -> Result<(Tenso
             ));
         }
 
-        let axis = |axis: usize| i64::try_from(axis).map_err(|_| Error::DimensionOutOfBounds);
+        let axis = |axis: usize| {
+            i64::try_from(axis)
+                .map_err(|_| Error::dimension_out_of_bounds("einsum repeated index axis"))
+        };
         tensor = tensor.diagonal(0, axis(first)?, axis(second)?)?;
         let index = indices.remove(second);
         indices.remove(first);
@@ -390,7 +396,8 @@ fn without_broadcast_indices(
     let mut tensor = tensor;
     let mut kept = Vec::with_capacity(indices.len());
     for index in indices {
-        let axis = i64::try_from(kept.len()).map_err(|_| Error::DimensionOutOfBounds)?;
+        let axis = i64::try_from(kept.len())
+            .map_err(|_| Error::dimension_out_of_bounds("einsum kept axis"))?;
         let extent = tensor.shape().dimensions()[kept.len()];
         if extent == 1 && extents.get(&index).is_some_and(|&known| known != 1) {
             tensor = tensor.squeeze(axis)?;
@@ -410,7 +417,9 @@ fn sum_out(
         .iter()
         .enumerate()
         .filter(|(_, index)| !keep(index))
-        .map(|(axis, _)| i64::try_from(axis).map_err(|_| Error::DimensionOutOfBounds))
+        .map(|(axis, _)| {
+            i64::try_from(axis).map_err(|_| Error::dimension_out_of_bounds("einsum summed axis"))
+        })
         .collect::<Result<Vec<_>>>()?;
     if summed.is_empty() {
         return Ok((tensor, indices));

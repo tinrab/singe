@@ -1,9 +1,5 @@
 // Per-precision cuBLAS entry points behind one trait per routine, so the public operations are generic over the element type.
 // Real-valued scalars of complex routines are passed as untyped pointers; the public signatures type them through `Element::Real`.
-#![allow(
-    clippy::too_many_arguments,
-    reason = "each entry point mirrors one native BLAS signature"
-)]
 
 use std::ffi::c_int;
 

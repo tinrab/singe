@@ -136,10 +136,6 @@ fn validate_stft_config(config: StftConfig) -> Result<()> {
     Ok(())
 }
 
-#[expect(
-    clippy::cast_precision_loss,
-    reason = "the f32 algorithm converts integer dimensions and accumulators to its floating-point working precision"
-)]
 fn validate_mel_filter_config(config: MelFilterConfig) -> Result<()> {
     if config.sample_rate == 0 || config.frequency_bin_count == 0 || config.mel_bin_count == 0 {
         return Err(Error::InvalidLength);

@@ -3,16 +3,16 @@
 use serde::Deserialize;
 use singe::nn::Activation;
 
-use super::T5Config;
 use crate::{
+    assembly::StackRole,
     error::{Error, Result},
-    format::{Rules, transformers::activation},
+    format::{
+        Rules, join,
+        transformers::{activation, default_true},
+    },
+    model::text::t5::T5Config,
     source::Source,
 };
-
-const fn enabled() -> bool {
-    true
-}
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 struct Fields {
@@ -29,7 +29,7 @@ struct Fields {
     layer_norm_epsilon: f32,
     #[serde(default = "relu")]
     feed_forward_proj: String,
-    #[serde(default = "enabled")]
+    #[serde(default = "default_true")]
     tie_word_embeddings: bool,
 }
 
@@ -61,7 +61,7 @@ pub(crate) fn config(source: &Source) -> Result<T5Config> {
     Ok(T5Config {
         vocab_size: fields.vocab_size,
         width: fields.d_model,
-        head: fields.d_kv,
+        head_dim: fields.d_kv,
         heads: fields.num_heads,
         inner: fields.d_ff,
         encoder_layers: fields.num_layers,
@@ -75,72 +75,82 @@ pub(crate) fn config(source: &Source) -> Result<T5Config> {
     })
 }
 
-fn attention(rules: Rules, from: &str, to: &str) -> Rules {
-    rules
-        .rename(&format!("{from}.q"), &format!("{to}.query"))
-        .rename(&format!("{from}.k"), &format!("{to}.key"))
-        .rename(&format!("{from}.v"), &format!("{to}.value"))
-        .rename(&format!("{from}.o"), &format!("{to}.output"))
+fn projection_rules(from: &str, to: &str) -> Rules {
+    Rules::new().rename_each(
+        from,
+        to,
+        &[
+            ("q", "query"),
+            ("k", "key"),
+            ("v", "value"),
+            ("o", "output"),
+        ],
+    )
+}
+
+fn stack_rules(stack: &str, role: StackRole) -> Rules {
+    let blocks = format!("{stack}.blocks.*");
+    let part = |index: usize| format!("{stack}.block.*.layer.{index}");
+    // A decoder block's cross-attention is its part 1, which moves its feed-forward layer to part 2.
+    let (cross, feed_forward) = match role {
+        StackRole::Encoder => (Rules::new(), part(1)),
+        StackRole::Decoder => (
+            projection_rules(
+                &join(&part(1), "EncDecAttention"),
+                &join(&blocks, "cross_attention"),
+            )
+            .rename(
+                &join(&part(1), "layer_norm"),
+                &join(&blocks, "cross_attention_norm"),
+            ),
+            part(2),
+        ),
+    };
+    Rules::new()
+        .rename(
+            &format!("{stack}.block.0.layer.0.SelfAttention.relative_attention_bias.weight"),
+            &format!("{stack}.position_bias"),
+        )
+        .then(projection_rules(
+            &join(&part(0), "SelfAttention"),
+            &join(&blocks, "attention"),
+        ))
+        .rename(
+            &join(&part(0), "layer_norm"),
+            &join(&blocks, "attention_norm"),
+        )
+        .then(cross)
+        .rename_each(
+            &feed_forward,
+            &blocks,
+            &[
+                ("layer_norm", "feed_forward_norm"),
+                ("DenseReluDense.wi", "feed_forward.up"),
+                ("DenseReluDense.wi_0", "feed_forward.gate"),
+                ("DenseReluDense.wi_1", "feed_forward.up"),
+                ("DenseReluDense.wo", "feed_forward.down"),
+            ],
+        )
+        .rename(
+            &format!("{stack}.final_layer_norm"),
+            &format!("{stack}.norm"),
+        )
 }
 
 pub(crate) fn rules(tied: bool) -> Rules {
-    let mut rules = Rules::new()
+    let rules = Rules::new()
         .rename("shared", "tokens")
         // Each stack's copy of the shared embedding.
         .skip("encoder.embed_tokens")
         .skip("decoder.embed_tokens")
         // A cross-attention position bias the original checkpoints store and `transformers` never reads.
         .skip("decoder.block.0.layer.1.EncDecAttention.relative_attention_bias");
-    rules = if tied {
+    let rules = if tied {
         rules.skip("lm_head")
     } else {
         rules.rename("lm_head", "head")
     };
-    for (stack, decoder) in [("encoder", false), ("decoder", true)] {
-        // A decoder block's cross-attention is its part 1, which moves its feed-forward layer to part 2.
-        let feed_forward = if decoder { 2 } else { 1 };
-        let block = |part: usize, name: &str| format!("{stack}.block.*.layer.{part}.{name}");
-        let target = |name: &str| format!("{stack}.blocks.*.{name}");
-        rules = rules.rename(
-            &format!("{stack}.block.0.layer.0.SelfAttention.relative_attention_bias.weight"),
-            &format!("{stack}.position_bias"),
-        );
-        rules = attention(rules, &block(0, "SelfAttention"), &target("attention"));
-        rules = rules.rename(&block(0, "layer_norm"), &target("attention_norm"));
-        if decoder {
-            rules = attention(
-                rules,
-                &block(1, "EncDecAttention"),
-                &target("cross_attention"),
-            );
-            rules = rules.rename(&block(1, "layer_norm"), &target("cross_norm"));
-        }
-
-        rules = rules
-            .rename(
-                &block(feed_forward, "layer_norm"),
-                &target("feed_forward_norm"),
-            )
-            .rename(
-                &block(feed_forward, "DenseReluDense.wi"),
-                &target("feed_forward.up"),
-            )
-            .rename(
-                &block(feed_forward, "DenseReluDense.wi_0"),
-                &target("feed_forward.up"),
-            )
-            .rename(
-                &block(feed_forward, "DenseReluDense.wi_1"),
-                &target("feed_forward.gate"),
-            )
-            .rename(
-                &block(feed_forward, "DenseReluDense.wo"),
-                &target("feed_forward.down"),
-            )
-            .rename(
-                &format!("{stack}.final_layer_norm"),
-                &format!("{stack}.norm"),
-            );
-    }
     rules
+        .then(stack_rules("encoder", StackRole::Encoder))
+        .then(stack_rules("decoder", StackRole::Decoder))
 }

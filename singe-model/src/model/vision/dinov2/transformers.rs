@@ -3,170 +3,154 @@
 use serde::Deserialize;
 use singe::nn::Activation;
 
-use super::Dinov2Config;
 use crate::{
+    assembly::{PreNormEncoderConfig, VisionTowerConfig},
     error::{Error, Result},
-    format::{Rules, transformers::activation_field},
+    format::{
+        Rules, join,
+        transformers::{activation_field, default_channels, default_true},
+    },
     source::Source,
 };
 
 // `Dinov2Config`'s defaults, which a backbone's partial config leaves to them.
-const fn enabled() -> bool {
-    true
-}
-
-const fn width() -> i64 {
+const fn default_width() -> i64 {
     768
 }
 
-const fn twelve() -> i64 {
+const fn default_layers() -> i64 {
     12
 }
 
-const fn four() -> f64 {
+const fn default_heads() -> i64 {
+    12
+}
+
+const fn default_mlp_ratio() -> f64 {
     4.0
 }
 
-const fn gelu() -> Activation {
+const fn default_activation() -> Activation {
     Activation::GeluExact
 }
 
-const fn eps() -> f32 {
+const fn default_eps() -> f32 {
     1e-6
 }
 
-const fn image_size() -> i64 {
+const fn default_image_size() -> i64 {
     224
 }
 
-const fn patch_size() -> i64 {
+const fn default_patch_size() -> i64 {
     14
-}
-
-const fn three() -> i64 {
-    3
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub(crate) struct Fields {
-    #[serde(default = "width")]
+    #[serde(default = "default_width")]
     hidden_size: i64,
-    #[serde(default = "twelve")]
+    #[serde(default = "default_layers")]
     num_hidden_layers: i64,
-    #[serde(default = "twelve")]
+    #[serde(default = "default_heads")]
     num_attention_heads: i64,
-    #[serde(default = "four")]
+    #[serde(default = "default_mlp_ratio")]
     mlp_ratio: f64,
-    #[serde(default = "gelu", deserialize_with = "activation_field")]
+    #[serde(default = "default_activation", deserialize_with = "activation_field")]
     hidden_act: Activation,
-    #[serde(default = "eps")]
+    #[serde(default = "default_eps")]
     layer_norm_eps: f32,
-    #[serde(default = "image_size")]
+    #[serde(default = "default_image_size")]
     image_size: i64,
-    #[serde(default = "patch_size")]
+    #[serde(default = "default_patch_size")]
     patch_size: i64,
-    #[serde(default = "three")]
+    #[serde(default = "default_channels")]
     num_channels: i64,
-    #[serde(default = "enabled")]
+    #[serde(default = "default_true")]
     qkv_bias: bool,
     #[serde(default)]
     use_swiglu_ffn: bool,
 }
 
 impl Fields {
-    #[expect(
-        clippy::cast_possible_truncation,
-        clippy::cast_precision_loss,
-        reason = "`transformers` truncates the product to an integer the same way"
-    )]
     fn inner(&self) -> i64 {
         (self.hidden_size as f64 * self.mlp_ratio) as i64
     }
 }
 
-pub(crate) fn config(source: &Source) -> Result<Dinov2Config> {
+pub(crate) fn config(source: &Source) -> Result<VisionTowerConfig> {
     fields_config(&source.json("config.json")?)
 }
 
-pub(crate) fn fields_config(fields: &Fields) -> Result<Dinov2Config> {
+pub(crate) fn fields_config(fields: &Fields) -> Result<VisionTowerConfig> {
     if fields.use_swiglu_ffn {
         return Err(Error::unsupported("a SwiGLU feed-forward"));
     }
 
     if fields.patch_size <= 0 || fields.image_size % fields.patch_size != 0 {
-        return Err(Error::unsupported(
-            "an image size that is not whole patches",
-        ));
+        return Err(Error::unsupported(format!(
+            "an image size of {} that is not whole patches of {}",
+            fields.image_size, fields.patch_size
+        )));
     }
-    Ok(Dinov2Config {
-        width: fields.hidden_size,
+
+    let bias = fields.qkv_bias;
+    Ok(VisionTowerConfig {
+        encoder: PreNormEncoderConfig {
+            width: fields.hidden_size,
+            heads: fields.num_attention_heads,
+            inner: fields.inner(),
+            activation: fields.hidden_act,
+            eps: fields.layer_norm_eps,
+            projection_biases: [bias, bias, bias, true],
+            causal: false,
+            layer_scale: true,
+        },
         layers: fields.num_hidden_layers,
-        heads: fields.num_attention_heads,
-        inner: fields.inner(),
-        activation: fields.hidden_act,
-        eps: fields.layer_norm_eps,
         image_size: fields.image_size,
         patch_size: fields.patch_size,
         channels: fields.num_channels,
-        attention_bias: fields.qkv_bias,
     })
 }
 
-// Imports the encoder stored under `prefix` to the schema's names under `to`.
-pub(crate) fn encoder_rules(prefix: &str, to: &str) -> Rules {
-    let embeddings = format!("{prefix}embeddings");
-    let layer = |name: &str| format!("{prefix}encoder.layer.*.{name}");
-    let target = |name: &str| format!("{to}{name}");
+// Imports the encoder stored under `from` to the schema's names under `to`.
+pub(crate) fn encoder_rules(from: &str, to: &str) -> Rules {
+    let embeddings = join(from, "embeddings");
     Rules::new()
-        .rename(
-            &format!("{embeddings}.patch_embeddings.projection"),
-            &target("embeddings.patches"),
-        )
-        .rename(
-            &format!("{embeddings}.cls_token"),
-            &target("embeddings.class"),
-        )
-        .rename(
-            &format!("{embeddings}.position_embeddings"),
-            &target("embeddings.positions"),
+        .rename_each(
+            &embeddings,
+            &join(to, "embeddings"),
+            &[
+                ("patch_embeddings.projection", "patches"),
+                ("cls_token", "class"),
+                ("position_embeddings", "positions"),
+            ],
         )
         // The mask token serves only masked pretraining.
-        .skip(&format!("{embeddings}.mask_token"))
-        .rename(&layer("norm1"), &target("blocks.*.attention_norm"))
-        .rename(
-            &layer("attention.attention.query"),
-            &target("blocks.*.attention.query"),
+        .skip(&join(&embeddings, "mask_token"))
+        .rename_each(
+            &join(from, "encoder.layer.*"),
+            &join(to, "blocks.*"),
+            &[
+                ("norm1", "attention_norm"),
+                ("attention.attention.query", "attention.query"),
+                ("attention.attention.key", "attention.key"),
+                ("attention.attention.value", "attention.value"),
+                ("attention.output.dense", "attention.output"),
+                ("layer_scale1.lambda1", "attention_scale.scale"),
+                ("norm2", "feed_forward_norm"),
+                ("mlp.fc1", "feed_forward.up"),
+                ("mlp.fc2", "feed_forward.down"),
+                ("layer_scale2.lambda1", "feed_forward_scale.scale"),
+            ],
         )
-        .rename(
-            &layer("attention.attention.key"),
-            &target("blocks.*.attention.key"),
-        )
-        .rename(
-            &layer("attention.attention.value"),
-            &target("blocks.*.attention.value"),
-        )
-        .rename(
-            &layer("attention.output.dense"),
-            &target("blocks.*.attention.output"),
-        )
-        .rename(
-            &layer("layer_scale1.lambda1"),
-            &target("blocks.*.attention_scale.scale"),
-        )
-        .rename(&layer("norm2"), &target("blocks.*.feed_forward_norm"))
-        .rename(&layer("mlp.fc1"), &target("blocks.*.feed_forward.up"))
-        .rename(&layer("mlp.fc2"), &target("blocks.*.feed_forward.down"))
-        .rename(
-            &layer("layer_scale2.lambda1"),
-            &target("blocks.*.feed_forward_scale.scale"),
-        )
-        .rename(&format!("{prefix}layernorm"), &target("norm"))
+        .rename(&join(from, "layernorm"), &join(to, "norm"))
 }
 
 // Checkpoints of a classifier store the encoder under `dinov2.`.
 pub(crate) fn rules() -> Rules {
     encoder_rules("", "")
-        .then(encoder_rules("dinov2.", ""))
+        .then(encoder_rules("dinov2", ""))
         // The classifier serves image classification, which no head loads yet.
         .skip("classifier")
 }

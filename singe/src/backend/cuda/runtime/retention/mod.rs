@@ -8,23 +8,20 @@ use std::{
 /// Independent bounds for one process-wide provider cache.
 /// An entry limit of zero disables retention.
 /// Accounted bytes cover keys and cache-entry records, not container overhead or opaque native-library allocations.
-/// Workspace bytes bound the plans' workspace requirements; the cache does not allocate it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ProviderCacheLimits {
     /// Maximum retained entry count; zero disables retention.
     pub entries: usize,
     /// Maximum sum of retained key and entry weights in bytes, excluding opaque native allocations.
     pub accounted_bytes: usize,
-    /// Maximum sum of retained plans' workspace requirements in bytes; workspace itself is not allocated by the cache.
-    pub workspace_bytes: usize,
 }
 
 impl Default for ProviderCacheLimits {
     fn default() -> Self {
+        // A model holds a few hundred distinct library plans (SD-Turbo's U-Net, text encoder, and decoder together pass a hundred cuDNN graphs), and evicting one rebuilds it, loading its engine's modules again, on every run.
         Self {
-            entries: 64,
-            accounted_bytes: 16 << 20,
-            workspace_bytes: 1 << 30,
+            entries: 1024,
+            accounted_bytes: 64 << 20,
         }
     }
 }
@@ -96,7 +93,6 @@ impl<K: Clone + Eq + Hash, V> ProviderCache<K, V> {
         self.limits = limits;
         while self.len() > limits.entries
             || self.stats.get().accounted_bytes > limits.accounted_bytes
-            || self.stats.get().workspace_bytes > limits.workspace_bytes
         {
             self.evict_oldest();
         }
@@ -176,10 +172,7 @@ impl<K: Clone + Eq + Hash, V> ProviderCache<K, V> {
             self.order.retain(|existing| existing != &key);
             entry.value
         });
-        if self.limits.entries == 0
-            || weight.accounted_bytes > self.limits.accounted_bytes
-            || weight.workspace_bytes > self.limits.workspace_bytes
-        {
+        if self.limits.entries == 0 || weight.accounted_bytes > self.limits.accounted_bytes {
             let mut stats = self.stats.get();
             stats.rejected_admissions = stats.rejected_admissions.saturating_add(1);
             self.stats.set(stats);
@@ -189,8 +182,6 @@ impl<K: Clone + Eq + Hash, V> ProviderCache<K, V> {
         while self.len() >= self.limits.entries
             || self.stats.get().accounted_bytes
                 > self.limits.accounted_bytes - weight.accounted_bytes
-            || self.stats.get().workspace_bytes
-                > self.limits.workspace_bytes - weight.workspace_bytes
         {
             self.evict_oldest();
         }

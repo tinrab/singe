@@ -189,11 +189,18 @@ pub fn bf16_buffer(count: usize, seed: usize) -> Vec<u8> {
         .collect()
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RowsKernel {
+    Softmax,
+    RmsNorm,
+}
+
 /// Builds `out[row, column] = f(x[row, column])` for rows of `width` over a parallel row axis and a reduction column axis.
-pub fn rows_kernel(name: &str, element: ElementType, weighted: bool) -> (Kernel, OperandId) {
+pub fn rows_kernel(name: &str, element: ElementType, operation: RowsKernel) -> (Kernel, OperandId) {
     let mut kernel = Kernel::new(name);
     let x = kernel.add_operand(element, OperandRole::Input);
-    let weight = weighted.then(|| kernel.add_operand(element, OperandRole::Input));
+    let weight =
+        (operation == RowsKernel::RmsNorm).then(|| kernel.add_operand(element, OperandRole::Input));
     let out = kernel.add_operand(element, OperandRole::Output);
     let rows = kernel.add_size(Size::Argument);
     let width = kernel.add_size(Size::Argument);

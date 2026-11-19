@@ -64,10 +64,6 @@ pub(crate) fn validate_alignment(name: &str, aligned: bool, alignment: usize) ->
     Ok(())
 }
 
-#[expect(
-    clippy::cast_possible_truncation,
-    reason = "native codec constants are asserted to fit the host size before conversion"
-)]
 pub(crate) const fn codec_size(value: u64) -> usize {
     assert!(
         value <= usize::MAX as u64,

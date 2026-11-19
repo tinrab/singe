@@ -48,13 +48,15 @@ impl Tensor {
                 idx
             };
             if normalized < 0 || normalized >= self.shape().dimensions()[i] {
-                return Err(Error::IndexOutOfBounds);
+                return Err(Error::index_out_of_bounds(format!(
+                    "get_element index at axis {i}"
+                )));
             }
 
             let normalized = usize::try_from(normalized)
                 .map_err(|_| Error::out_of_range("tensor get_element index".to_string()))?;
-            let stride =
-                usize::try_from(self.layout().strides()[i]).map_err(|_| Error::InvalidStride)?;
+            let stride = usize::try_from(self.layout().strides()[i])
+                .map_err(|_| Error::invalid_stride(format!("get_element stride at axis {i}")))?;
             let offset = normalized
                 .checked_mul(stride)
                 .ok_or_else(|| Error::out_of_range("tensor get_element offset".to_string()))?;

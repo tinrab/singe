@@ -2,11 +2,13 @@
 
 use serde::Deserialize;
 
-use super::YolosConfig;
 use crate::{
     error::{Error, Result},
     format::{Rules, transformers::classifier_config},
-    model::vision::vit::transformers::{VitFields, encoder_rules},
+    model::vision::{
+        vit::transformers::{VitFields, encoder_rules},
+        yolos::YolosConfig,
+    },
     source::Source,
 };
 
@@ -39,8 +41,8 @@ pub(crate) fn config(source: &Source) -> Result<YolosConfig> {
 }
 
 pub(crate) fn rules() -> Rules {
-    encoder_rules("vit.", "")
+    encoder_rules("vit", "")
         .rename("vit.embeddings.detection_tokens", "embeddings.detection")
-        .rename("class_labels_classifier", "classes")
-        .rename("bbox_predictor", "boxes")
+        .rename("class_labels_classifier.layers", "classes")
+        .rename("bbox_predictor.layers", "boxes")
 }

@@ -191,10 +191,6 @@ fn main() -> anyhow::Result<()> {
 
     let mut block_size = HashMap::new();
     block_size.insert(m0, 16);
-    #[expect(
-        clippy::cast_possible_truncation,
-        reason = "mirrors the upstream sample, which rounds the block size up to a whole number"
-    )]
     block_size.insert(
         m1,
         ((m as f64 / (m as f64 / 4096.0 / f64::from(num_devices_m)).ceil()).ceil()
@@ -205,10 +201,6 @@ fn main() -> anyhow::Result<()> {
     );
     block_size.insert(m2, 8);
     block_size.insert(n0, 16);
-    #[expect(
-        clippy::cast_possible_truncation,
-        reason = "mirrors the upstream sample, which rounds the block size up to a whole number"
-    )]
     block_size.insert(
         n1,
         ((n as f64 / (n as f64 / 4096.0 / f64::from(num_devices_n)).ceil()).ceil()

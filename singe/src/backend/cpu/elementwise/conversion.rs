@@ -241,10 +241,6 @@ fn dequantize_packed(
         .map(|linear| {
             let (scale, zero_point) = parameters.at(linear)?;
             let value = unpacked_value(bytes[linear / 2], linear % 2, input.data_type(), format);
-            #[expect(
-                clippy::cast_precision_loss,
-                reason = "8-bit zero points are exact in F32"
-            )]
             Ok((value - zero_point as f32) * scale)
         })
         .collect::<Result<Vec<_>>>()?;

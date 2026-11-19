@@ -6,11 +6,14 @@ mod support;
 
 use std::{collections::HashMap, env};
 
+use anyhow::{Result, anyhow, bail};
 use serde_json::Value;
 use singe::{DataType, Device, Shape, Tensor, graph::GraphPrepareOptions, value::ValueSpec};
-use support::models::{dimensions, example_model, values, verify};
+use singe_testing::reference;
 
-fn main() -> anyhow::Result<()> {
+use crate::support::models::{dimensions, example_model, values, verify};
+
+fn main() -> Result<()> {
     let mut arguments = env::args().skip(1);
     let mut name = "mlp".to_owned();
     let mut device = Device::Cpu;
@@ -22,21 +25,21 @@ fn main() -> anyhow::Result<()> {
             "--model" => {
                 name = arguments
                     .next()
-                    .ok_or_else(|| anyhow::anyhow!("missing model name"))?;
+                    .ok_or_else(|| anyhow!("missing model name"))?;
             }
             _ => {
-                anyhow::bail!("unknown argument `{argument}`");
+                bail!("unknown argument `{argument}`");
             }
         }
     }
 
-    let references: Value = singe_testing::reference!("layers").resolved();
+    let references: Value = reference!("layers").resolved();
     let reference = &references["models"][&name];
     let model = example_model(&name, reference, device)?;
     let cases = reference["cases"]
         .as_array()
-        .ok_or_else(|| anyhow::anyhow!("example cases"))?;
-    let input = |value: &Value| -> anyhow::Result<Tensor> {
+        .ok_or_else(|| anyhow!("example cases"))?;
+    let input = |value: &Value| -> Result<Tensor> {
         Ok(Tensor::from_vec(
             device,
             Shape::create(dimensions(value)?)?,

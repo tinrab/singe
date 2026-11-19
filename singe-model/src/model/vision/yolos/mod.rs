@@ -5,17 +5,15 @@ mod transformers;
 use serde::{Deserialize, Serialize};
 use singe::{
     Error as SingeError, Result as SingeResult, Shape, Tensor,
-    nn::{
-        Activation, Conv2dConfig, Layer, Model, ModelState, PatchEmbedding, StateBuilder, StateKey,
-    },
+    nn::{Activation, Layer, ModelState, PatchEmbedding, StateKey},
     tensor::InterpolateMode,
 };
 
 use crate::{
-    assembly::{Mlp, PreNormEncoder, PreNormEncoderSpec},
+    assembly::{FinalNorm, LinearStack, PreNormEncoder, PreNormEncoderConfig, patch_embedding},
     error::Result,
     format::Loader,
-    head::{ClassifierConfig, HeadLoader, ObjectDetector, PixelLayers},
+    head::{Boxed, ClassifierConfig, HeadLoader, ObjectDetector},
     model::ModelEntry,
     schema::Schema,
     source::Format,
@@ -23,7 +21,7 @@ use crate::{
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct YolosConfig {
-    pub encoder: PreNormEncoderSpec,
+    pub encoder: PreNormEncoderConfig,
     pub layers: i64,
     // The image height and width the positions are learned for.
     pub image_size: [i64; 2],
@@ -46,6 +44,25 @@ struct YolosTokens {
     patch_size: i64,
 }
 
+impl YolosTokens {
+    fn create(schema: &mut Schema<'_>, config: &YolosConfig) -> SingeResult<Self> {
+        let width = config.encoder.width;
+        let [height, image_width] = config.image_size;
+        let grid = [height / config.patch_size, image_width / config.patch_size];
+        Ok(Self {
+            patches: patch_embedding(schema, config.channels, width, config.patch_size, true)?,
+            class: schema.parameter("class", [1, 1, width])?,
+            detection: schema.parameter("detection", [1, config.detection_tokens, width])?,
+            positions: schema.parameter(
+                "positions",
+                [1, 1 + grid[0] * grid[1] + config.detection_tokens, width],
+            )?,
+            grid,
+            patch_size: config.patch_size,
+        })
+    }
+}
+
 impl Layer for YolosTokens {
     fn forward(&self, input: &Tensor, state: &ModelState) -> SingeResult<Tensor> {
         let patches = input.apply(&self.patches, state)?;
@@ -54,21 +71,26 @@ impl Layer for YolosTokens {
         };
         let expand = |key: &StateKey| -> SingeResult<Tensor> {
             let tensor = state.tensor(key)?;
-            let count = tensor.shape().dimensions()[1];
+            let &[_, count, _] = tensor.shape().dimensions() else {
+                return Err(SingeError::invalid_argument("learned tokens"));
+            };
             tensor.expand(Shape::create([batch, count, width])?)
         };
         let detection = expand(&self.detection)?;
-        let tokens = Tensor::concat(&[expand(&self.class)?, patches, detection.clone()], 1)?;
+        let &[_, detections, _] = detection.shape().dimensions() else {
+            return Err(SingeError::invalid_argument("detection tokens"));
+        };
+        let tokens = Tensor::concat(&[expand(&self.class)?, patches, detection], 1)?;
 
         let positions = state.tensor(&self.positions)?;
-        let count = positions.shape().dimensions()[1];
-        let detections = detection.shape().dimensions()[1];
+        let &[_, count, _] = positions.shape().dimensions() else {
+            return Err(SingeError::invalid_argument("positions"));
+        };
+        let &[.., height, image_width] = input.shape().dimensions() else {
+            return Err(SingeError::invalid_argument("images"));
+        };
         let [rows, columns] = self.grid;
-        let dimensions = input.shape().dimensions();
-        let size = (
-            dimensions[2] / self.patch_size,
-            dimensions[3] / self.patch_size,
-        );
+        let size = (height / self.patch_size, image_width / self.patch_size);
         let patch_positions = positions
             .narrow(1, 1, count - 1 - detections)?
             .transpose(1, 2)?
@@ -93,9 +115,36 @@ impl Layer for YolosTokens {
 pub struct YolosDetectorLayers {
     embeddings: YolosTokens,
     encoder: PreNormEncoder,
-    classes: Mlp,
-    boxes: Mlp,
+    classes: LinearStack,
+    boxes: LinearStack,
     detection_tokens: i64,
+}
+
+impl YolosDetectorLayers {
+    pub fn create(schema: &mut Schema<'_>, config: &YolosConfig) -> SingeResult<Self> {
+        let width = config.encoder.width;
+        let embeddings = YolosTokens::create(&mut schema.scope("embeddings"), config)?;
+        let encoder =
+            PreNormEncoder::create(schema, &config.encoder, config.layers, FinalNorm::Included)?;
+        let labels = config.classifier.label_count()?;
+        Ok(Self {
+            embeddings,
+            encoder,
+            classes: LinearStack::create(
+                &mut schema.scope("classes"),
+                [width, width, labels + 1],
+                3,
+                Activation::Relu,
+            )?,
+            boxes: LinearStack::create(
+                &mut schema.scope("boxes"),
+                [width, width, 4],
+                3,
+                Activation::Relu,
+            )?,
+            detection_tokens: config.detection_tokens,
+        })
+    }
 }
 
 impl Layer for YolosDetectorLayers {
@@ -103,7 +152,9 @@ impl Layer for YolosDetectorLayers {
         let hidden = self
             .encoder
             .forward(&input.apply(&self.embeddings, state)?, state)?;
-        let count = hidden.shape().dimensions()[1];
+        let &[_, count, _] = hidden.shape().dimensions() else {
+            return Err(SingeError::invalid_argument("encoder states"));
+        };
         let detections = hidden.narrow(1, count - self.detection_tokens, self.detection_tokens)?;
         let scores = detections.apply(&self.classes, state)?;
         let boxes = detections
@@ -116,60 +167,15 @@ impl Layer for YolosDetectorLayers {
 pub(crate) const MODEL: ModelEntry = ModelEntry {
     name: "yolos",
     formats: &[(Format::Transformers, &["yolos"])],
-    heads: &[HeadLoader::ObjectDetection(load_detector)],
+    loaders: &[HeadLoader::ObjectDetection(load_detector)],
 };
 
 pub fn load_detector(loader: &mut Loader<'_>) -> Result<ObjectDetector> {
     let config: YolosConfig = loader.config(transformers::config)?;
-    let width = config.encoder.width;
-    let [height, image_width] = config.image_size;
-    let grid = [height / config.patch_size, image_width / config.patch_size];
-    let mut builder = StateBuilder::new();
-    let layers = {
-        let mut schema = Schema::root(&mut builder, loader.options().data_type);
-        let embeddings = {
-            let mut schema = schema.scope("embeddings");
-            YolosTokens {
-                patches: PatchEmbedding::new(schema.conv2d(
-                    "patches",
-                    config.channels,
-                    width,
-                    config.patch_size,
-                    Conv2dConfig {
-                        stride: (config.patch_size, config.patch_size),
-                        ..Conv2dConfig::default()
-                    },
-                    true,
-                )?),
-                class: schema.parameter("class", [1, 1, width])?,
-                detection: schema.parameter("detection", [1, config.detection_tokens, width])?,
-                positions: schema.parameter(
-                    "positions",
-                    [1, 1 + grid[0] * grid[1] + config.detection_tokens, width],
-                )?,
-                grid,
-                patch_size: config.patch_size,
-            }
-        };
-        let encoder = PreNormEncoder::create(&mut schema, &config.encoder, config.layers, true)?;
-        let labels = i64::try_from(config.classifier.labels.len())
-            .map_err(|_| SingeError::out_of_range("labels"))?;
-        YolosDetectorLayers {
-            embeddings,
-            encoder,
-            classes: Mlp::create(
-                &mut schema.scope("classes.layers"),
-                width,
-                width,
-                labels + 1,
-                3,
-            )?,
-            boxes: Mlp::create(&mut schema.scope("boxes.layers"), width, width, 4, 3)?,
-            detection_tokens: config.detection_tokens,
-        }
-    };
-    let schema = Model::new(PixelLayers(Box::new(layers)), builder.finish()?);
-    let model = loader.load("model", &schema, &transformers::rules())?;
-    loader.finish()?;
+    let model = Schema::model(loader.options().data_type, |schema| {
+        YolosDetectorLayers::create(schema, &config)
+            .map(|layers| Boxed::<dyn Layer>(Box::new(layers)))
+    })?;
+    let model = loader.load_whole(&model, &transformers::rules())?;
     Ok(ObjectDetector::new(model, config.classifier))
 }

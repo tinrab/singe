@@ -27,10 +27,6 @@ fn interleaved_shape(b: i64, h: i64, s: i64, d: i64) -> Result<Shape> {
     )
 }
 
-#[expect(
-    clippy::many_single_char_names,
-    reason = "keeps the upstream sample's single-letter dimension names"
-)]
 fn run() -> Result<()> {
     let example = common::ExampleContext::create()?;
     let b = 2_i64;

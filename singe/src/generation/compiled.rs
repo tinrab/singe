@@ -1,5 +1,7 @@
 use std::collections::{BTreeMap, HashMap};
 
+#[cfg(feature = "cuda")]
+use crate::backend::cuda::nvtx::CudaNvtxRange;
 use crate::{
     device::Device,
     error::{Error, Result},
@@ -33,10 +35,6 @@ impl CompiledSteps {
         self.executors.values()
     }
 
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "a step is the model, its pages and tables, its caches on metadata and for real, its extra inputs, how it prepares, and what it computes"
-    )]
     pub fn compile<L, C>(
         &mut self,
         model: &Model<L>,
@@ -58,14 +56,20 @@ impl CompiledSteps {
         let sequences =
             i64::try_from(pages.sequences()).map_err(|_| Error::out_of_range("sequences"))?;
         let tokens = i64::try_from(rows).map_err(|_| Error::out_of_range("step rows"))?;
-        let (graph, _) = capture_step(
-            &real.to(Device::Meta, None)?,
-            &layer.tables(data_type, Device::Meta, pages.capacity())?,
-            &DecodeStep::meta(tokens, sequences, pages.table_length()?)?,
-            meta,
-            extra,
-            forward,
-        )?;
+        let (graph, _) = {
+            #[cfg(feature = "cuda")]
+            let _range = CudaNvtxRange::new(|| "singe decoder step capture");
+            capture_step(
+                &real.to(Device::Meta, None)?,
+                &layer.tables(data_type, Device::Meta, pages.capacity())?,
+                &DecodeStep::meta(tokens, sequences, pages.table_length()?)?,
+                meta,
+                extra,
+                forward,
+            )?
+        };
+        #[cfg(feature = "cuda")]
+        let _range = CudaNvtxRange::new(|| "singe decoder step prepare");
         let bound = real.with_buffers(tables.named_tensors())?;
         let options = options.with_inputs_in_place(named_cache_inputs(caches));
         let executor = bound.program(&graph)?.prepare(bound.snapshot(), options)?;

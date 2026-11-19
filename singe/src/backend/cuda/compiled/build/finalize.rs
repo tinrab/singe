@@ -61,7 +61,7 @@ pub fn finalize_cuda_graph_compile(mut input: GraphFinalizeInput<'_>) -> Result<
     }
 
     let (executable, report) = {
-        let _instantiate_range = CudaNvtxRange::create("singe cuda graph compile instantiate");
+        let _instantiate_range = CudaNvtxRange::new(|| "singe cuda graph compile instantiate");
         let executable = input
             .has_native_nodes
             .then(|| {

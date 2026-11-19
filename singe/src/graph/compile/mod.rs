@@ -26,7 +26,7 @@ pub struct GraphCompileOptions {
     prune_dead_nodes: bool,
     // The providers a graph meant for CUDA may use, wherever it is placed, so its passes write what they cannot run as decompositions.
     cuda_providers: Option<CudaGraphProviderSet>,
-    // Whether sibling matmuls run as one.
+    // Whether sibling matmuls run as one when their weights must be copied to join; compiling always merges those already joined.
     merged_projections: bool,
 }
 
@@ -67,7 +67,7 @@ impl GraphCompileOptions {
         }
     }
 
-    // Runs sibling matmuls as one, when `merged`.
+    // Runs sibling matmuls as one even when their weights must be copied to join, when `merged`.
     #[must_use]
     pub const fn with_merged_projections(mut self, merged: bool) -> Self {
         self.merged_projections = merged;

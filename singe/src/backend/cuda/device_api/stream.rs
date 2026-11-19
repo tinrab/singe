@@ -63,6 +63,7 @@ pub fn set_current_stream(stream: &CudaStream) -> Result<CudaStreamGuard> {
 ///
 /// Returns an error if the CUDA runtime cannot be initialized for `device` or if CUDA context synchronization fails.
 pub fn synchronize(device: Device) -> Result<()> {
-    runtime_for_device(device)?.context().synchronize()?;
-    Ok(())
+    let runtime = runtime_for_device(device)?;
+    runtime.context().synchronize()?;
+    runtime.take_eager_status()
 }

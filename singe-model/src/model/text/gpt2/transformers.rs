@@ -3,16 +3,15 @@
 use serde::Deserialize;
 use singe::nn::Activation;
 
-use super::Gpt2Config;
 use crate::{
     error::{Error, Result},
-    format::{Rules, transformers::activation_field},
+    format::{
+        Rules, join,
+        transformers::{activation_field, default_true},
+    },
+    model::text::gpt2::Gpt2Config,
     source::Source,
 };
-
-const fn default_scale_attention() -> bool {
-    true
-}
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 struct Fields {
@@ -33,7 +32,7 @@ struct Fields {
 // How GPT-2's attention scales its scores, which models with its blocks share.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 pub(crate) struct AttentionFields {
-    #[serde(default = "default_scale_attention")]
+    #[serde(default = "default_true")]
     scale_attn_weights: bool,
     #[serde(default)]
     scale_attn_by_inverse_layer_idx: bool,
@@ -62,31 +61,31 @@ pub(crate) fn config(source: &Source) -> Result<Gpt2Config> {
         width: fields.n_embd,
         heads: fields.n_head,
         layers: fields.n_layer,
-        positions: fields.n_positions,
+        max_positions: fields.n_positions,
         inner: fields.n_inner.unwrap_or(4 * fields.n_embd),
         eps: fields.layer_norm_epsilon,
         activation: fields.activation_function,
     })
 }
 
-// Older checkpoints store blocks without `transformer.`.
+// Older checkpoints store blocks without `transformer`.
 pub(crate) fn rules() -> Rules {
-    model_rules("transformer.")
+    model_rules("transformer")
         .then(model_rules(""))
         .rename("lm_head", "head")
 }
 
 // The rules for a model whose names start with `prefix`.
 pub(crate) fn model_rules(prefix: &str) -> Rules {
-    let model = |name: &str| format!("{prefix}{name}");
-    let layer = |name: &str| format!("{prefix}h.*.{name}");
+    let layer = |name: &str| join(prefix, &format!("h.*.{name}"));
+    let block = |name: &str| format!("blocks.*.{name}");
     Rules::new()
-        .rename(&model("wte"), "embeddings.tokens")
-        .rename(&model("wpe"), "embeddings.positions")
+        .rename(&join(prefix, "wte"), "embeddings.tokens")
+        .rename(&join(prefix, "wpe"), "embeddings.positions")
         // Older checkpoints also store attention masks, which this definition computes itself.
         .skip(&layer("attn.bias"))
         .skip(&layer("attn.masked_bias"))
-        .rename(&layer("ln_1"), "blocks.*.attention_norm")
+        .rename(&layer("ln_1"), &block("attention_norm"))
         .transpose_split(
             &layer("attn.c_attn.weight"),
             &[
@@ -106,16 +105,16 @@ pub(crate) fn model_rules(prefix: &str) -> Rules {
         )
         .transpose(
             &layer("attn.c_proj.weight"),
-            "blocks.*.attention.output.weight",
+            &block("attention.output.weight"),
         )
-        .rename(&layer("attn.c_proj.bias"), "blocks.*.attention.output.bias")
-        .rename(&layer("ln_2"), "blocks.*.feed_forward_norm")
-        .transpose(&layer("mlp.c_fc.weight"), "blocks.*.feed_forward.up.weight")
-        .rename(&layer("mlp.c_fc.bias"), "blocks.*.feed_forward.up.bias")
+        .rename(&layer("attn.c_proj.bias"), &block("attention.output.bias"))
+        .rename(&layer("ln_2"), &block("feed_forward_norm"))
+        .transpose(&layer("mlp.c_fc.weight"), &block("feed_forward.up.weight"))
+        .rename(&layer("mlp.c_fc.bias"), &block("feed_forward.up.bias"))
         .transpose(
             &layer("mlp.c_proj.weight"),
-            "blocks.*.feed_forward.down.weight",
+            &block("feed_forward.down.weight"),
         )
-        .rename(&layer("mlp.c_proj.bias"), "blocks.*.feed_forward.down.bias")
-        .rename(&model("ln_f"), "norm")
+        .rename(&layer("mlp.c_proj.bias"), &block("feed_forward.down.bias"))
+        .rename(&join(prefix, "ln_f"), "norm")
 }

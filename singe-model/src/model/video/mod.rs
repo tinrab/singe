@@ -2,6 +2,6 @@
 
 pub mod videomae;
 
-use super::ModelEntry;
+use crate::model::ModelEntry;
 
 pub(crate) const MODELS: &[&ModelEntry] = &[&videomae::MODEL];

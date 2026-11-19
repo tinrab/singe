@@ -6,7 +6,7 @@ use crate::{
                 InferenceContext, elementwise::check_quantization_parameters, require_indices,
             },
         },
-        spec,
+        spec::{self, PoolReduction},
     },
     data_type::DataType,
     error::{Error, Result},
@@ -84,7 +84,7 @@ pub fn softmax(context: &InferenceContext<'_>) -> Result<OperationInference> {
         return if matches!(dim, 0 | -1) {
             Ok(context.same_type(context.shape()))
         } else {
-            Err(Error::DimensionOutOfBounds)
+            Err(Error::dimension_out_of_bounds(format!("softmax dim {dim}")))
         };
     }
     Ok(context.same_type(&spec::softmax_problem(context.shape(), dim)?.output_shape))
@@ -107,6 +107,18 @@ pub fn rotary_embedding(context: &InferenceContext<'_>) -> Result<OperationInfer
         "operation rotary embedding",
     )?;
     Ok(context.same_type(&problem.output_shape))
+}
+
+// Rotates the halves of the input's last axis by cosine and sine tables of its type.
+pub fn rotary_halves(context: &InferenceContext<'_>) -> Result<OperationInference> {
+    context.require_same_types()?;
+    spec::rotary_halves_width(
+        context.shape(),
+        context.input(1)?.shape(),
+        context.input(2)?.shape(),
+        "operation rotary halves",
+    )?;
+    Ok(context.same_type(context.shape()))
 }
 
 /// Convolves the input with a weight and an optional bias.
@@ -134,8 +146,11 @@ pub fn conv3d(context: &InferenceContext<'_>) -> Result<OperationInference> {
     let conv = context.attributes(OperationAttributes::conv3d)?;
     let output = spec::ConvolutionWindow::conv3d(conv)
         .output_shape(context.shape(), context.input(1)?.shape())?;
+    let &[_, channels, ..] = output.dimensions() else {
+        return Err(Error::invalid_argument("operation conv3d output rank"));
+    };
     if let Some(bias) = context.optional_shape(2, conv.has_bias)?
-        && bias.dimensions() != [output.dimensions()[1]]
+        && bias.dimensions() != [channels]
     {
         return Err(Error::invalid_argument(
             "operation conv3d needs one bias per output channel",
@@ -146,15 +161,15 @@ pub fn conv3d(context: &InferenceContext<'_>) -> Result<OperationInference> {
 
 /// Reduces spatial windows to their maximum.
 pub fn max_pool2d(context: &InferenceContext<'_>) -> Result<OperationInference> {
-    pool2d(context, false)
+    pool2d(context, PoolReduction::Maximum)
 }
 
 /// Averages spatial windows.
 pub fn avg_pool2d(context: &InferenceContext<'_>) -> Result<OperationInference> {
-    pool2d(context, true)
+    pool2d(context, PoolReduction::Average)
 }
 
-fn pool2d(context: &InferenceContext<'_>, average: bool) -> Result<OperationInference> {
+fn pool2d(context: &InferenceContext<'_>, reduction: PoolReduction) -> Result<OperationInference> {
     let pool = context.attributes(OperationAttributes::pool2d)?;
     let problem = spec::pool2d_problem(
         context.shape(),
@@ -163,7 +178,7 @@ fn pool2d(context: &InferenceContext<'_>, average: bool) -> Result<OperationInfe
         pool.padding,
         pool.dilation,
         pool.ceil_mode,
-        average,
+        reduction,
         "operation pool2d",
     )?;
     Ok(context.same_type(&problem.output_shape))
@@ -355,7 +370,10 @@ fn check_sequence_spans(
 }
 
 // A causal convolution's inputs `[T, C]`, taps `[C, K]`, and state `[S, C, K − 1]`, all of one type, giving `[T, C]`.
-fn causal_conv1d_shapes(context: &InferenceContext<'_>, state: usize) -> Result<(i64, i64, i64)> {
+fn causal_conv1d_shapes(
+    context: &InferenceContext<'_>,
+    state: usize,
+) -> Result<(i64, i64, i64, i64)> {
     let (input, state) = (context.input(0)?, context.input(state)?);
     let (&[tokens, channels], &[sequences, state_channels, history]) =
         (input.shape().dimensions(), state.shape().dimensions())
@@ -380,14 +398,13 @@ fn causal_conv1d_shapes(context: &InferenceContext<'_>, state: usize) -> Result<
         ));
     }
 
-    Ok((tokens, sequences, history))
+    Ok((tokens, channels, sequences, history))
 }
 
 // Convolves each sequence's rows after its state, giving the inputs' shape and type.
 pub fn causal_conv1d(context: &InferenceContext<'_>) -> Result<OperationInference> {
-    let (tokens, sequences, history) = causal_conv1d_shapes(context, 2)?;
+    let (tokens, channels, sequences, history) = causal_conv1d_shapes(context, 2)?;
     let (input, weight) = (context.input(0)?, context.input(1)?);
-    let channels = input.shape().dimensions()[1];
     if weight.shape().dimensions() != [channels, history + 1] {
         return Err(Error::shape_mismatch(
             "causal convolution taps",
@@ -410,7 +427,7 @@ pub fn causal_conv1d(context: &InferenceContext<'_>) -> Result<OperationInferenc
 
 // A causal convolution's state after the step, of the state's shape and type.
 pub fn causal_conv1d_state(context: &InferenceContext<'_>) -> Result<OperationInference> {
-    let (tokens, sequences, _) = causal_conv1d_shapes(context, 1)?;
+    let (tokens, _, sequences, _) = causal_conv1d_shapes(context, 1)?;
     check_sequence_spans(context, 2, sequences, tokens, "causal convolution spans")?;
     let state = context.input(1)?;
     let mut inference = context.same_type(state.shape());
@@ -618,7 +635,7 @@ pub fn rfft(context: &InferenceContext<'_>) -> Result<OperationInference> {
 pub fn irfft(context: &InferenceContext<'_>) -> Result<OperationInference> {
     let length = context.value(OperationAttributes::length)?;
     let dimensions = context.shape().dimensions();
-    let (&[.., _, 2], true) = (dimensions, length > 0) else {
+    let (&[ref leading @ .., _, 2], true) = (dimensions, length > 0) else {
         return Err(Error::invalid_argument(
             "operation irfft needs [..., k, 2] frequencies and a positive length",
         ));
@@ -627,7 +644,7 @@ pub fn irfft(context: &InferenceContext<'_>) -> Result<OperationInference> {
         return Err(Error::unsupported_data_type("operation irfft"));
     }
 
-    let mut output = dimensions[..dimensions.len() - 2].to_vec();
+    let mut output = leading.to_vec();
     output.push(length);
     Ok(context.same_type(&Shape::create(output)?))
 }

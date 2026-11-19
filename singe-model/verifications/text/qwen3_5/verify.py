@@ -1,20 +1,15 @@
-"""Qwen3.5, generating greedily after a prompt and about an image with `transformers`' `generate`, as `verify.rs` generates in Singe."""
+"""Qwen3.5, generating greedily after a prompt and about an image with `transformers`' `generate`, as `mod.rs` generates in Singe."""
 
-import sys
-from pathlib import Path
+import torch
+from transformers import AutoModelForImageTextToText, AutoProcessor, pipeline
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-
-import torch  # noqa: E402
-from transformers import AutoModelForImageTextToText, AutoProcessor, pipeline  # noqa: E402
-
-from support import DEVICE, Verification, generation  # noqa: E402
+from support import DEVICE, Verification, generation
 
 
-def text_generation(snapshot):
+def text_generation(snapshot, dtype):
     processor = AutoProcessor.from_pretrained(snapshot)
     model = (
-        AutoModelForImageTextToText.from_pretrained(snapshot, dtype=torch.float32)
+        AutoModelForImageTextToText.from_pretrained(snapshot, dtype=dtype)
         .to(DEVICE)
         .eval()
     )
@@ -37,10 +32,10 @@ def text_generation(snapshot):
     return run
 
 
-def image_text_to_text(snapshot):
+def image_text_to_text(snapshot, dtype):
     processor = AutoProcessor.from_pretrained(snapshot)
     model = (
-        AutoModelForImageTextToText.from_pretrained(snapshot, dtype=torch.float32)
+        AutoModelForImageTextToText.from_pretrained(snapshot, dtype=dtype)
         .to(DEVICE)
         .eval()
     )
@@ -75,10 +70,8 @@ verification.check("prompt", text_generation)
 verification.check("image", image_text_to_text)
 
 
-def any_to_any(snapshot):
-    generate = pipeline(
-        "any-to-any", model=snapshot, dtype=torch.float32, device=DEVICE
-    )
+def any_to_any(snapshot, dtype):
+    generate = pipeline("any-to-any", model=snapshot, dtype=dtype, device=DEVICE)
 
     def run(chats, parameters):
         return [

@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use serde_json::Value;
 use singe::{
-    Device, OnnxModel, OnnxOptions, Shape, Tensor,
+    DataType, Device, OnnxModel, OnnxOptions, Shape, Tensor,
     error::ErrorChain,
     graph::{GraphExecutionMode, GraphPrepareOptions},
 };
@@ -16,6 +16,7 @@ use singe::{
     backend::cuda::export::CudaExport,
     testing::{CompiledProgram, maybe_lock_device, program_target},
 };
+use singe_testing::reference;
 
 const MODELS: [(&str, &[u8]); 4] = [
     (
@@ -53,23 +54,14 @@ fn check_compiled_shape_constants(device: Device) {
         let compiled = model.compile().unwrap();
         let original = HashMap::from([(
             "x".into(),
-            Tensor::zeroed_on(
-                device,
-                singe::DataType::F32,
-                Shape::create([2, 3, 4]).unwrap(),
-            )
-            .unwrap(),
+            Tensor::zeroed_on(device, DataType::F32, Shape::create([2, 3, 4]).unwrap()).unwrap(),
         )]);
         compiled.run(&original).unwrap();
         for dimensions in [[3, 5, 4], [3, 3, 4], [2, 5, 4]] {
             let changed = HashMap::from([(
                 "x".into(),
-                Tensor::zeroed_on(
-                    device,
-                    singe::DataType::F32,
-                    Shape::create(dimensions).unwrap(),
-                )
-                .unwrap(),
+                Tensor::zeroed_on(device, DataType::F32, Shape::create(dimensions).unwrap())
+                    .unwrap(),
             )]);
             #[cfg(feature = "testing")]
             let before = TensorActivity::current();
@@ -83,10 +75,6 @@ fn check_compiled_shape_constants(device: Device) {
     }
 }
 
-#[expect(
-    clippy::cast_possible_truncation,
-    reason = "fixture values are float32 values stored as f64 JSON numbers"
-)]
 fn value_f32(value: &Value) -> f32 {
     value.as_f64().unwrap() as f32
 }
@@ -145,7 +133,7 @@ fn compare(output: &Tensor, expected: &Value, dtype: &str) {
 }
 
 fn exercise(device: Device) {
-    let references: Value = singe_testing::reference!("shapes/shape_cases").resolved();
+    let references: Value = reference!("shapes/shape_cases").resolved();
     for (name, bytes) in MODELS {
         #[cfg(feature = "testing")]
         let dispatched = TensorActivity::current().checked_invocations;
@@ -391,13 +379,9 @@ fn test_programs_export_models_with_symbolic_dimensions_at_any_chosen_size() {
             assert_eq!(actual.len(), expected.len(), "{label}");
             for (actual, expected) in actual.iter().zip(&expected) {
                 assert_eq!(actual.shape(), expected.shape(), "{label}");
-                let actual = actual
-                    .cast(singe::DataType::F32)
-                    .unwrap()
-                    .to_vec::<f32>()
-                    .unwrap();
+                let actual = actual.cast(DataType::F32).unwrap().to_vec::<f32>().unwrap();
                 let expected = expected
-                    .cast(singe::DataType::F32)
+                    .cast(DataType::F32)
                     .unwrap()
                     .to_vec::<f32>()
                     .unwrap();

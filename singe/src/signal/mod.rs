@@ -75,9 +75,19 @@ impl LogMelSpectrogram {
         {
             return Err(Error::invalid_argument("log-mel spectrogram options"));
         }
+
+        let bins = usize::try_from(options.bins())
+            .map_err(|_| Error::out_of_range("log-mel frequency bins"))?;
+        let mels =
+            usize::try_from(options.mels).map_err(|_| Error::out_of_range("log-mel mels"))?;
+        let filters =
+            slaney_mel_filters(options.sample_rate, bins, mels, 0.0, options.max_frequency)
+                .into_iter()
+                .map(|weight| weight as f32)
+                .collect();
         Ok(Self {
             window: hann_window(options.window),
-            filters: mel_filters(&options),
+            filters,
             options,
         })
     }
@@ -95,62 +105,54 @@ impl LogMelSpectrogram {
 }
 
 // A periodic Hann window of `length` samples, as `torch.hann_window` makes it.
-#[expect(
-    clippy::cast_possible_truncation,
-    clippy::cast_precision_loss,
-    reason = "window lengths are small, and the values lie in [0, 1]"
-)]
 fn hann_window(length: i64) -> Vec<f32> {
     (0..length)
         .map(|index| (-(2.0 * PI * index as f64 / length as f64).cos()).mul_add(0.5, 0.5) as f32)
         .collect()
 }
 
-// The Slaney mel scale: linear below 1 kHz and logarithmic above.
-const SLANEY_STEP: f64 = 200.0 / 3.0;
-const SLANEY_KNEE_HZ: f64 = 1_000.0;
-
-fn slaney_log_step() -> f64 {
-    6.4_f64.ln() / 27.0
+fn slaney_mels_per_log() -> f64 {
+    27.0 / 6.4_f64.ln()
 }
 
 fn hertz_to_mel(hertz: f64) -> f64 {
-    if hertz < SLANEY_KNEE_HZ {
-        return hertz / SLANEY_STEP;
+    if hertz >= 1_000.0 {
+        15.0 + (hertz / 1_000.0).ln() * slaney_mels_per_log()
+    } else {
+        3.0 * hertz / 200.0
     }
-    SLANEY_KNEE_HZ / SLANEY_STEP + (hertz / SLANEY_KNEE_HZ).ln() / slaney_log_step()
 }
 
 fn mel_to_hertz(mel: f64) -> f64 {
-    let knee = SLANEY_KNEE_HZ / SLANEY_STEP;
-    if mel < knee {
-        return mel * SLANEY_STEP;
+    if mel >= 15.0 {
+        1_000.0 * ((mel - 15.0) / slaney_mels_per_log()).exp()
+    } else {
+        200.0 * mel / 3.0
     }
-    SLANEY_KNEE_HZ * (slaney_log_step() * (mel - knee)).exp()
 }
 
-// Triangular filters, `[bins, mels]`, between mel-spaced edges from zero to the highest frequency, each scaled to unit area, as `transformers`' `mel_filter_bank` computes them with Slaney's norm and scale.
-#[expect(
-    clippy::cast_possible_truncation,
-    clippy::cast_precision_loss,
-    reason = "bin and filter counts are small, and filter weights fit F32"
-)]
-fn mel_filters(options: &LogMelOptions) -> Vec<f32> {
-    let bins = options.bins();
-    let mels = options.mels;
-    let top = hertz_to_mel(options.max_frequency);
+// Triangular filters, `[bins, mels]` row-major, between edges spaced evenly on the Slaney mel scale from `low` to `high` hertz, each scaled to unit area, over `bins` frequencies from zero to half of `sample_rate`, as `transformers`' `mel_filter_bank` computes them with Slaney's norm and scale.
+#[must_use]
+pub fn slaney_mel_filters(
+    sample_rate: i64,
+    bins: usize,
+    mels: usize,
+    low: f64,
+    high: f64,
+) -> Vec<f64> {
+    let (low, high) = (hertz_to_mel(low), hertz_to_mel(high));
     let edges = (0..mels + 2)
-        .map(|index| mel_to_hertz(top * index as f64 / (mels + 1) as f64))
+        .map(|index| mel_to_hertz(low + (high - low) * index as f64 / (mels + 1) as f64))
         .collect::<Vec<_>>();
-    let nyquist = (options.sample_rate / 2) as f64;
-    let mut filters = Vec::with_capacity(usize::try_from(bins * mels).unwrap_or(0));
+    let nyquist = (sample_rate / 2) as f64;
+    let mut filters = Vec::with_capacity(bins * mels);
     for bin in 0..bins {
         let frequency = nyquist * bin as f64 / (bins - 1) as f64;
-        for mel in 0..usize::try_from(mels).unwrap_or(0) {
+        for mel in 0..mels {
             let rising = (frequency - edges[mel]) / (edges[mel + 1] - edges[mel]);
             let falling = (edges[mel + 2] - frequency) / (edges[mel + 2] - edges[mel + 1]);
             let area = 2.0 / (edges[mel + 2] - edges[mel]);
-            filters.push((rising.min(falling).max(0.0) * area) as f32);
+            filters.push(rising.min(falling).max(0.0) * area);
         }
     }
     filters
@@ -182,7 +184,6 @@ impl LogMelSpectrogram {
             .unfold(1, options.window, options.hop)?
             .mul(&window)?
             .rfft()?;
-        #[expect(clippy::cast_possible_truncation, reason = "a constant that fits F32")]
         let decade = LN_10 as f32;
         spectrum
             .mul(&spectrum)?
@@ -195,20 +196,12 @@ impl LogMelSpectrogram {
             .narrow(2, 0, options.frames())
     }
 
-    #[expect(
-        clippy::cast_possible_truncation,
-        reason = "the range is a few decades"
-    )]
     const fn range(&self) -> f32 {
         self.options.dynamic_range as f32
     }
 
     // The spectrogram of one clip, `[1, mels, frames]`, whose first `count` of `samples` are its own, `[N]` with `N` the options' samples, and `count` an `I64` `[1]`.
     // It reflects the clip at its own end rather than the buffer's, clamps against the loudest of the clip's own frames, `count / hop` of them, and leaves the frames after them zero, as Qwen3-ASR's extractor computes a clip alone and then pads its features.
-    #[expect(
-        clippy::cast_precision_loss,
-        reason = "sample and frame indices are far below where `F32` rounds them"
-    )]
     pub fn counted(&self, samples: &Tensor, count: &Tensor) -> Result<Tensor> {
         let options = &self.options;
         if samples.shape().dimensions() != [options.samples] {
@@ -267,17 +260,16 @@ impl LogMelSpectrogram {
 impl Layer for LogMelSpectrogram {
     fn forward(&self, input: &Tensor, _state: &ModelState) -> Result<Tensor> {
         let options = &self.options;
-        let samples = match input.shape().dimensions().len() {
-            1 => input.unsqueeze(0)?,
-            2 => input.clone(),
+        let (samples, length) = match *input.shape().dimensions() {
+            [length] => (input.unsqueeze(0)?, length),
+            [_, length] => (input.clone(), length),
             _ => {
                 return Err(Error::invalid_argument(
                     "a log-mel spectrogram reads samples [batch, samples] or [samples]",
                 ));
             }
-        }
-        .cast(DataType::F32)?;
-        let length = samples.shape().dimensions()[1];
+        };
+        let samples = samples.cast(DataType::F32)?;
         let samples = if length < options.samples {
             samples.pad(&[(0, 0), (0, options.samples - length)], 0.0)?
         } else {

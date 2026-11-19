@@ -536,10 +536,6 @@ impl Compressor<Configured> {
     /// # Errors
     ///
     /// Returns an error if stream capture is active or invalidated, the chunk size is zero or not a multiple of the codec's element size, the CUDA context cannot be bound, or nvCOMP rejects the settings or fails to create the manager.
-    #[expect(
-        clippy::too_many_lines,
-        reason = "native operation construction keeps its resource ownership and descriptor ordering together"
-    )]
     pub fn create(codec: CodecOptions, options: ManagerOptions, stream: &Stream) -> Result<Self> {
         stream.ensure_not_capturing()?;
         let configuration = Configured::create(codec, options)?;

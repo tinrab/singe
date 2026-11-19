@@ -1,21 +1,15 @@
-"""DINOv2, pooling each image's features, as `verify.rs` extracts them in Singe, on images of two sizes, whose positions it resizes."""
+"""DINOv2, pooling each image's features, as `mod.rs` extracts them in Singe, on images of two sizes, whose positions it resizes."""
 
-import sys
-from pathlib import Path
+import numpy
+from PIL import Image
+from transformers import pipeline
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-
-import numpy  # noqa: E402
-import torch  # noqa: E402
-from PIL import Image  # noqa: E402
-from transformers import pipeline  # noqa: E402
-
-from support import DEVICE, Verification  # noqa: E402
+from support import DEVICE, Verification
 
 
-def image_feature_extraction(snapshot):
+def image_feature_extraction(snapshot, dtype):
     extract = pipeline(
-        "image-feature-extraction", model=snapshot, dtype=torch.float32, device=DEVICE
+        "image-feature-extraction", model=snapshot, dtype=dtype, device=DEVICE
     )
 
     def run(paths, parameters):

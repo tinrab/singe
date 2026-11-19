@@ -73,10 +73,13 @@ pub fn validate_cudnn_conv2d_bias(
     }
 
     let bias_count = to_i64(bias_shape.element_count(), "shape")?;
-    if bias_count != weight_shape.dimensions()[0] {
+    let Some(&output_channels) = weight_shape.dimensions().first() else {
+        return Err(Error::invalid_argument("cudnn conv2d weight dimensions"));
+    };
+    if bias_count != output_channels {
         return Err(Error::shape_mismatch(
             "cudnn conv2d bias element count",
-            vec![weight_shape.dimensions()[0]],
+            vec![output_channels],
             vec![bias_count],
         ));
     }

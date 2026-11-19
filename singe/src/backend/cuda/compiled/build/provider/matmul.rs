@@ -40,7 +40,7 @@ use crate::{
     },
     data_type::DataType,
     error::{Error, Result},
-    graph::ir::ValueId,
+    graph::{CudnnGraphKind, ir::ValueId},
     utility::Locked,
 };
 
@@ -79,16 +79,17 @@ fn try_add_nonzero_matmul_provider_node(
         return Ok(graph_node);
     }
 
-    // cuBLAS reads every operand layout the selector accepts in place and measured faster than cuDNN on a decoder block, so it has the lowest cost.
+    // cuBLASLt goes first: its algorithm is chosen once per problem and cached on the runtime, while cuBLAS runs its heuristic again inside every captured call, about half a millisecond each.
+    if let Some(graph_node) = try_add_cublaslt_matmul_provider_node(request, inputs, lowering)? {
+        return Ok(graph_node);
+    }
+
+    // cuBLAS reads every operand layout the selector accepts in place and measured faster than cuDNN on a decoder block.
     if let Some(graph_node) = try_add_cublas_matmul_provider_node(request, inputs, lowering)? {
         return Ok(graph_node);
     }
 
     if let Some(graph_node) = try_add_cudnn_matmul_provider_node(request, inputs, lowering)? {
-        return Ok(graph_node);
-    }
-
-    if let Some(graph_node) = try_add_cublaslt_matmul_provider_node(request, inputs, lowering)? {
         return Ok(graph_node);
     }
 
@@ -218,7 +219,7 @@ pub fn try_add_cudnn_matmul_provider_node(
                     engine,
                 )
             })?;
-            note_cudnn_engines(request, &graph.1, true)?;
+            note_cudnn_engines(request, &graph.1, CudnnGraphKind::Matmul)?;
             Ok(graph)
         },
         |(child_graph, executable), lowering| {
@@ -316,7 +317,7 @@ fn build_scaled_matmul_graph(
         output: request.output.tensor_region()?.region(),
     };
     let stream = CudaStream::create(request.output.device())?;
-    let cublaslt = request.runtime.cublaslt().locked("cuda runtime cache")?;
+    let cublaslt = request.runtime.cublaslt()?.locked("cuda runtime cache")?;
     let (graph, ()) = stream.capture(StreamCaptureMode::ThreadLocal, || {
         // SAFETY: the compiled graph keeps the operands, scales, and output alive while it replays.
         unsafe {

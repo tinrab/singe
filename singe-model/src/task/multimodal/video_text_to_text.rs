@@ -3,15 +3,16 @@
 use crate::{
     error::{Error, Result},
     processor::{
-        chat::{Content, Message, Part},
+        chat::{Message, Part},
         video::Video,
     },
     source::{LoadOptions, Source},
     task::{
-        Pipeline, Task,
+        Pipeline,
         multimodal::image_text_to_text::{
-            ImageTextToTextOutput, ImageTextToTextParameters, ImageTextToTextPipeline,
+            ImageTextToTextParameters, ImageTextToTextPipeline, Media, MediaKind,
         },
+        outputs::GeneratedSequence,
     },
 };
 
@@ -19,46 +20,40 @@ use crate::{
 pub struct VideoTextToTextPipeline(ImageTextToTextPipeline);
 
 impl Pipeline for VideoTextToTextPipeline {
-    const TASK: Task = Task::VideoTextToText;
-
     type Input = Vec<Message>;
 
     type Parameters = ImageTextToTextParameters;
 
-    type Output = ImageTextToTextOutput;
+    type Output = GeneratedSequence;
 
     fn load(source: &Source, options: LoadOptions) -> Result<Self> {
         Ok(Self(ImageTextToTextPipeline::load_for(
-            source, options, true,
+            source,
+            options,
+            MediaKind::Clip,
         )?))
     }
 
-    fn run(
+    fn run_one(
         &self,
-        inputs: &[Self::Input],
+        messages: &Self::Input,
         parameters: &Self::Parameters,
-    ) -> Result<Vec<Self::Output>> {
-        self.0.generate_each(
-            inputs,
-            parameters,
-            |model, tokenizer, messages, prompt, options| {
-                let clips = messages
-                    .iter()
-                    .filter_map(|message| match &message.content {
-                        Content::Parts(parts) => Some(parts),
-                        Content::Text(_) => None,
-                    })
-                    .flatten()
-                    .filter_map(|part| match part {
-                        Part::Video { video, fps } => Some((video, *fps)),
-                        Part::Text { .. } | Part::Image { .. } | Part::Audio { .. } => None,
-                    })
-                    .collect::<Vec<_>>();
-                let [(video, fps)] = clips.as_slice() else {
-                    return Err(Error::unsupported("a conversation of other than one clip"));
-                };
-                model.generate_video(tokenizer, prompt, &Video::open(video)?, *fps, options)
-            },
-        )
+    ) -> Result<Self::Output> {
+        let clips = messages
+            .iter()
+            .flat_map(|message| message.content.parts())
+            .filter_map(|part| match part {
+                Part::Video { video, fps } => Some((video, *fps)),
+                Part::Text { .. } | Part::Image { .. } | Part::Audio { .. } => None,
+            })
+            .collect::<Vec<_>>();
+        let [(video, fps)] = clips.as_slice() else {
+            return Err(Error::invalid("a conversation of other than one clip"));
+        };
+        let media = Media::Clip {
+            video: Video::open(video)?,
+            fps: *fps,
+        };
+        self.0.respond(messages, parameters, &media)
     }
 }

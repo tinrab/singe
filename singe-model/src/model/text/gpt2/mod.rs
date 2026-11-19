@@ -7,13 +7,13 @@ use singe::{
     DataType, Device, Result as SingeResult, Tensor,
     nn::{
         Activation, AttentionInput, CacheSize, DecodeStep, DecoderModel, DecodingLayer, Embedding,
-        GroupedQueryAttention, GroupedQueryLayers, HeadProjection, KvCache, KvCacheSpec, LayerNorm,
-        Linear, Mlp, Model, ModelState, PreNormBlock, StateBuilder,
+        GroupedQueryAttention, KvCache, KvCacheSpec, LayerNorm, Linear, Mlp, Model, ModelState,
+        PreNormBlock,
     },
 };
 
 use crate::{
-    assembly::{causal, kv_caches},
+    assembly::{GroupedAttentionSpec, causal, grouped_attention_layers, kv_caches},
     error::Result,
     format::Loader,
     head::HeadLoader,
@@ -29,13 +29,38 @@ pub struct Gpt2Config {
     pub heads: i64,
     pub layers: i64,
     // The positions the learned position table holds.
-    pub positions: i64,
+    pub max_positions: i64,
     pub inner: i64,
     pub eps: f32,
     pub activation: Activation,
 }
 
 type Block = PreNormBlock<GroupedQueryAttention, Mlp, LayerNorm>;
+
+fn block(schema: &mut Schema<'_>, config: &Gpt2Config) -> SingeResult<Block> {
+    let (width, eps) = (config.width, config.eps);
+    let attention_norm = schema.layer_norm("attention_norm", width, eps)?;
+    let attention = GroupedQueryAttention::create(
+        grouped_attention_layers(
+            &mut schema.scope("attention"),
+            &GroupedAttentionSpec::multi_head(width, config.heads, true),
+        )?,
+        causal(),
+    )?;
+    let feed_forward_norm = schema.layer_norm("feed_forward_norm", width, eps)?;
+    let feed_forward = schema.mlp(
+        "feed_forward",
+        [width, config.inner, width],
+        config.activation,
+        true,
+    )?;
+    Ok(PreNormBlock::new(
+        attention_norm,
+        attention,
+        feed_forward_norm,
+        feed_forward,
+    ))
+}
 
 // GPT-2 shares no assembly with the Llama family, so its layer and its `forward` are written out here.
 #[derive(Debug)]
@@ -48,13 +73,31 @@ pub struct Gpt2Layers {
     cache: KvCacheSpec,
 }
 
-pub type Gpt2 = Model<Gpt2Layers>;
-
-pub(crate) const MODEL: ModelEntry = ModelEntry {
-    name: "gpt2",
-    formats: &[(Format::Transformers, &["gpt2"])],
-    heads: &[HeadLoader::CausalLm(|loader| Ok(Box::new(load(loader)?)))],
-};
+impl Gpt2Layers {
+    // The output head shares the token embedding's weight.
+    pub fn create(schema: &mut Schema<'_>, config: &Gpt2Config) -> SingeResult<Self> {
+        let width = config.width;
+        let tokens = schema.parameter("embeddings.tokens.weight", [config.vocab_size, width])?;
+        let positions =
+            schema.parameter("embeddings.positions.weight", [config.max_positions, width])?;
+        let blocks = (0..config.layers)
+            .map(|layer| block(&mut schema.scope(format!("blocks.{layer}")), config))
+            .collect::<SingeResult<Vec<_>>>()?;
+        let norm = schema.layer_norm("norm", width, config.eps)?;
+        let head = schema.tie("head.weight", &tokens)?;
+        Ok(Self {
+            tokens: Embedding::new(tokens),
+            positions: Embedding::new(positions),
+            blocks,
+            norm,
+            head: Linear::new(head, None),
+            cache: KvCacheSpec {
+                kv_heads: config.heads,
+                head_dim: width / config.heads,
+            },
+        })
+    }
+}
 
 impl DecoderModel for Gpt2Layers {
     type Cache = KvCache;
@@ -104,84 +147,18 @@ impl DecoderModel for Gpt2Layers {
     }
 }
 
-fn attention(schema: &mut Schema<'_>, config: &Gpt2Config) -> SingeResult<GroupedQueryAttention> {
-    let (width, heads) = (config.width, config.heads);
-    let mut head = |name: &str| -> SingeResult<HeadProjection> {
-        let linear = schema.linear(name, width, width, true)?;
-        Ok(HeadProjection::new(linear, heads, width / heads))
-    };
-    let query = head("query")?;
-    let key = head("key")?;
-    let value = head("value")?;
-    let output = schema.linear("output", width, width, true)?;
-    GroupedQueryAttention::create(
-        GroupedQueryLayers {
-            query,
-            key,
-            value,
-            output,
-        },
-        causal(),
-    )
-}
+pub type Gpt2 = Model<Gpt2Layers>;
 
-fn block(schema: &mut Schema<'_>, config: &Gpt2Config) -> SingeResult<Block> {
-    let (width, inner, eps) = (config.width, config.inner, config.eps);
-    let attention_norm = schema.layer_norm("attention_norm", width, eps)?;
-    let attention = attention(&mut schema.scope("attention"), config)?;
-    let feed_forward_norm = schema.layer_norm("feed_forward_norm", width, eps)?;
-    let feed_forward = {
-        let mut schema = schema.scope("feed_forward");
-        Mlp::new(
-            schema.linear("up", width, inner, true)?,
-            schema.linear("down", inner, width, true)?,
-            config.activation,
-        )
-    };
-    Ok(PreNormBlock::new(
-        attention_norm,
-        attention,
-        feed_forward_norm,
-        feed_forward,
-    ))
-}
-
-// The output head shares the token embedding's weight.
-fn schema(config: &Gpt2Config, data_type: DataType) -> SingeResult<Gpt2> {
-    let width = config.width;
-    let mut builder = StateBuilder::new();
-    let (tokens, positions, blocks, norm) = {
-        let mut model = Schema::root(&mut builder, data_type);
-        let tokens = model.parameter("embeddings.tokens.weight", [config.vocab_size, width])?;
-        let positions =
-            model.parameter("embeddings.positions.weight", [config.positions, width])?;
-        let blocks = (0..config.layers)
-            .map(|layer| block(&mut model.scope(format!("blocks.{layer}")), config))
-            .collect::<SingeResult<Vec<_>>>()?;
-        let norm = model.layer_norm("norm", width, config.eps)?;
-        (tokens, positions, blocks, norm)
-    };
-    let head = builder.tie("head.weight", &tokens)?;
-    Ok(Model::new(
-        Gpt2Layers {
-            tokens: Embedding::new(tokens),
-            positions: Embedding::new(positions),
-            blocks,
-            norm,
-            head: Linear::new(head, None),
-            cache: KvCacheSpec {
-                kv_heads: config.heads,
-                head_dim: width / config.heads,
-            },
-        },
-        builder.finish()?,
-    ))
-}
+pub(crate) const MODEL: ModelEntry = ModelEntry {
+    name: "gpt2",
+    formats: &[(Format::Transformers, &["gpt2"])],
+    loaders: &[HeadLoader::CausalLm(|loader| Ok(Box::new(load(loader)?)))],
+};
 
 pub fn load(loader: &mut Loader<'_>) -> Result<Gpt2> {
     let config: Gpt2Config = loader.config(transformers::config)?;
-    let schema = schema(&config, loader.options().data_type)?;
-    let model = loader.load("model", &schema, &transformers::rules())?;
-    loader.finish()?;
-    Ok(model)
+    let model = Schema::model(loader.options().data_type, |schema| {
+        Gpt2Layers::create(schema, &config)
+    })?;
+    loader.load_whole(&model, &transformers::rules())
 }

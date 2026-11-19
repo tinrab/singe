@@ -34,10 +34,6 @@ pub fn lower_gemm(importer: &mut Importer, node: &Node) -> Result<()> {
     register_node_outputs(importer, node, vec![current])
 }
 
-#[expect(
-    clippy::float_cmp,
-    reason = "exact equality selects an identity, specialization, or deterministic tie; approximate equality changes semantics"
-)]
 pub fn build_gemm(
     importer: &mut Importer,
     node: &Node,
@@ -77,10 +73,6 @@ pub fn build_gemm(
     Ok(current)
 }
 
-#[expect(
-    clippy::float_cmp,
-    reason = "exact equality selects an identity, specialization, or deterministic tie; approximate equality changes semantics"
-)]
 fn add_bias(
     importer: &mut Importer,
     current: &ImportedValue,

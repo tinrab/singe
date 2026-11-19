@@ -80,10 +80,6 @@ pub fn round_bfloat_vec(values: &[f32]) -> Vec<f32> {
 }
 
 #[must_use]
-#[expect(
-    clippy::cast_precision_loss,
-    reason = "the f32 algorithm converts integer dimensions and accumulators to its floating-point working precision"
-)]
 pub fn recurrent_gated_delta_rule(
     query: &[f32],
     key: &[f32],

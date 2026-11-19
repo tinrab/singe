@@ -107,39 +107,48 @@ fn options() -> AttentionOptions {
     }
 }
 
+fn read((output, lse): (Tensor, Tensor)) -> Result<(Tensor, Tensor)> {
+    output.to_bytes()?;
+    Ok((output, lse))
+}
+
 fn attend(device: Device, data_type: DataType, paging: Paging) -> Result<(Tensor, Tensor)> {
     let queries = zeros(device, data_type, &[TOKENS, HEADS, DIM]);
     let cache = zeros(device, data_type, &[PAGES, SLOTS, HEADS, DIM]);
     let [query_offsets, page_offsets, pages, last] = paging.tensors(device);
-    queries.paged_attention(
-        &cache,
-        &cache,
-        TensorPaging {
-            query_offsets: &query_offsets,
-            page_offsets: &page_offsets,
-            pages: &pages,
-            last_page_lengths: &last,
-        },
-        options(),
-    )
+    queries
+        .paged_attention(
+            &cache,
+            &cache,
+            TensorPaging {
+                query_offsets: &query_offsets,
+                page_offsets: &page_offsets,
+                pages: &pages,
+                last_page_lengths: &last,
+            },
+            options(),
+        )
+        .and_then(read)
 }
 
 fn attend_mla(device: Device, data_type: DataType, paging: Paging) -> Result<(Tensor, Tensor)> {
     let queries = zeros(device, data_type, &[TOKENS, HEADS, MLA_DIM]);
     let cache = zeros(device, data_type, &[PAGES, SLOTS, MLA_DIM]);
     let [query_offsets, page_offsets, pages, last] = paging.tensors(device);
-    queries.paged_mla_attention(
-        &queries,
-        &cache,
-        &cache,
-        TensorPaging {
-            query_offsets: &query_offsets,
-            page_offsets: &page_offsets,
-            pages: &pages,
-            last_page_lengths: &last,
-        },
-        options(),
-    )
+    queries
+        .paged_mla_attention(
+            &queries,
+            &cache,
+            &cache,
+            TensorPaging {
+                query_offsets: &query_offsets,
+                page_offsets: &page_offsets,
+                pages: &pages,
+                last_page_lengths: &last,
+            },
+            options(),
+        )
+        .and_then(read)
 }
 
 fn check_refusals(device: Device, data_type: DataType) {
@@ -149,14 +158,14 @@ fn check_refusals(device: Device, data_type: DataType) {
         assert!(
             matches!(
                 attend(device, data_type, paging),
-                Err(Error::IndexOutOfBounds)
+                Err(Error::IndexOutOfBounds { .. })
             ),
             "{paging:?}"
         );
         assert!(
             matches!(
                 attend_mla(device, data_type, paging),
-                Err(Error::IndexOutOfBounds)
+                Err(Error::IndexOutOfBounds { .. })
             ),
             "mla {paging:?}"
         );
@@ -259,7 +268,7 @@ fn test_compiled_graphs_refuse_paging_values_at_run_time() {
         assert!(
             matches!(
                 executor.run(&run_inputs(paging)),
-                Err(Error::IndexOutOfBounds)
+                Err(Error::IndexOutOfBounds { .. })
             ),
             "{paging:?}"
         );

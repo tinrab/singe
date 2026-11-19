@@ -1,20 +1,15 @@
-"""Shap-E, generating a mesh from a prompt and a seed with `diffusers`' `ShapEPipeline`, as `verify.rs` generates it in Singe.
+"""Shap-E, generating a mesh from a prompt and a seed with `diffusers`' `ShapEPipeline`, as `mod.rs` generates it in Singe.
 Both draw the noise from PyTorch's CPU generator seeded alike, and both read the half-precision weights, the only safetensors of the snapshot, in F32; the case records a summary of the mesh, its counts and sampled vertices and colors."""
 
-import sys
-from pathlib import Path
+import torch
+from diffusers import ShapEPipeline
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-
-import torch  # noqa: E402
-from diffusers import ShapEPipeline  # noqa: E402
-
-from support import DEVICE, Verification  # noqa: E402
+from support import DEVICE, Verification
 
 
-def text_to_3d(snapshot):
+def text_to_3d(snapshot, dtype):
     generate = ShapEPipeline.from_pretrained(
-        snapshot, variant="fp16", torch_dtype=torch.float32
+        snapshot, variant="fp16", torch_dtype=dtype
     ).to(DEVICE)
     generate.set_progress_bar_config(disable=True)
 

@@ -52,6 +52,7 @@ fn test_numerical_notes_distinguish_tf32_permission_determinism_and_accumulator_
     let policy = NumericalPolicy {
         precision: ComputePrecision::AllowTf32,
         determinism: Determinism::Require,
+        ..NumericalPolicy::default()
     };
     assert!(accepts_numerical_notes(
         policy,

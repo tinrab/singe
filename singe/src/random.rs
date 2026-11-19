@@ -163,10 +163,6 @@ pub fn blocks(elements: usize, lanes: usize) -> u64 {
 
 /// Computes Philox 4x32-10 of a 64-bit counter under a 64-bit key.
 #[must_use]
-#[expect(
-    clippy::cast_possible_truncation,
-    reason = "Philox splits 64-bit keys, counters, and products into 32-bit halves"
-)]
 pub fn philox(seed: u64, counter: u64) -> [u32; 4] {
     let mut key = [seed as u32, (seed >> 32) as u32];
     let mut lanes = [counter as u32, (counter >> 32) as u32, 0, 0];

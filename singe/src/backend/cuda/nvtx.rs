@@ -11,11 +11,11 @@ pub struct CudaNvtxRange {
 }
 
 impl CudaNvtxRange {
-    pub fn create(message: &'static str) -> Self {
+    pub fn new<M: Into<Vec<u8>>>(message: impl FnOnce() -> M) -> Self {
         #[cfg(feature = "cuda_nvtx")]
         {
             let range = nvtx_enabled()
-                .then(|| CString::new(message).ok())
+                .then(|| CString::new(message()).ok())
                 .flatten()
                 .map(|message| LocalRange::push(&message));
             Self { _range: range }

@@ -51,7 +51,7 @@ pub fn tensor_input_view_with_len<'a, T: DeviceRepr>(
     }
 
     if !tensor.is_contiguous() {
-        return Err(Error::ContiguousRequired);
+        return Err(Error::contiguous_required(name));
     }
 
     let bytes = checked_mul(length, size_of::<T>(), "cuda input view bytes")?;
@@ -176,7 +176,7 @@ pub fn tensor_output_view_with_len<'a, T: DeviceRepr>(
     }
 
     if !tensor.is_contiguous() {
-        return Err(Error::ContiguousRequired);
+        return Err(Error::contiguous_required(name));
     }
 
     let bytes = checked_mul(length, size_of::<T>(), "cuda output view bytes")?;

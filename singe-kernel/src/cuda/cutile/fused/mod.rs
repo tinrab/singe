@@ -1635,10 +1635,6 @@ pub unsafe fn mhc_sinkhorn_f32(
 /// # Safety
 /// Pointers must reference correctly sized buffers on the stream's device.
 /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
-#[expect(
-    clippy::many_single_char_names,
-    reason = "kernel operand names follow the mathematical formula"
-)]
 pub unsafe fn mhc_gemm_rms_scale_f32(
     stream: &Arc<Stream>,
     y: DevicePointer<f32>,
@@ -8441,7 +8437,6 @@ macro_rules! rope_qk_cache_update_fn {
         /// # Safety
         /// Pointers must reference correctly sized buffers on the stream's device.
         /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
-        #[expect(clippy::too_many_lines, reason = "the kernel keeps its complete indexing and operation dispatch in one auditable unit")]
         pub unsafe fn $name(
             stream: &Arc<Stream>,
             q_out: DevicePointer<$ty>,

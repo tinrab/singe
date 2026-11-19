@@ -27,7 +27,10 @@ mod kernel_lowering;
 
 pub(crate) use self::kernels::register_kernels;
 
+#[cfg(feature = "cuda")]
+use crate::backend::cuda::eager::storage::{cuda_zeroed_tensor, tensor_from_bytes};
 use crate::{
+    backend::cpu::storage::{create_from_bytes, zeros},
     data_type::DataType,
     device::Device,
     error::{Error, Result},
@@ -42,10 +45,10 @@ use crate::{
 /// Returns an error if the device is unavailable in this build, the byte count overflows, or allocation fails.
 pub(crate) fn zeros_on(device: Device, data_type: DataType, shape: &Shape) -> Result<Tensor> {
     match device {
-        Device::Cpu => cpu::storage::zeros(device, data_type, shape),
+        Device::Cpu => zeros(device, data_type, shape),
         Device::Cuda(id) if id < 0 => Err(Error::negative_cuda_device_id(id)),
         #[cfg(feature = "cuda")]
-        Device::Cuda(_) => cuda::eager::storage::cuda_zeroed_tensor(device, data_type, shape),
+        Device::Cuda(_) => cuda_zeroed_tensor(device, data_type, shape),
         #[cfg(not(feature = "cuda"))]
         Device::Cuda(_) => Err(Error::cuda_support_disabled()),
         Device::Meta => meta::zeros(device, data_type, shape),
@@ -64,10 +67,10 @@ pub(crate) fn from_bytes_on(
     data: &[u8],
 ) -> Result<Tensor> {
     match device {
-        Device::Cpu => cpu::storage::create_from_bytes(device, data_type, shape, data),
+        Device::Cpu => create_from_bytes(device, data_type, shape, data),
         Device::Cuda(id) if id < 0 => Err(Error::negative_cuda_device_id(id)),
         #[cfg(feature = "cuda")]
-        Device::Cuda(_) => cuda::eager::storage::tensor_from_bytes(device, data_type, shape, data),
+        Device::Cuda(_) => tensor_from_bytes(device, data_type, shape, data),
         #[cfg(not(feature = "cuda"))]
         Device::Cuda(_) => Err(Error::cuda_support_disabled()),
         Device::Meta => meta::from_bytes(device, data_type, shape, data),

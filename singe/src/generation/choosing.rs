@@ -20,7 +20,9 @@ pub fn choose(
         if options.suppressed_tokens.is_empty() && options.first_suppressed_tokens.is_empty() {
             logits.clone()
         } else {
-            let vocabulary = logits.shape().dimensions()[1];
+            let &[_, vocabulary, ..] = logits.shape().dimensions() else {
+                return Err(Error::invalid_argument("generation logits"));
+            };
             let width = usize::try_from(vocabulary)
                 .map_err(|_| Error::out_of_range("generation vocabulary"))?;
             // What each suppression adds to the logits, `[2, V]`: the first row for later tokens, the second for a sequence's first.

@@ -888,10 +888,6 @@ impl Graph {
         Ok(())
     }
 
-    #[expect(
-        clippy::too_many_lines,
-        reason = "the complete attention tensor contract is validated together"
-    )]
     pub(crate) fn validate_sdpa_backward_tensors(
         &self,
         inputs: &SdpaBackwardInputs,

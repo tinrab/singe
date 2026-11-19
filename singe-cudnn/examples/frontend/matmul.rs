@@ -36,10 +36,6 @@ fn count_nonfinite_f32(values: &[f32]) -> usize {
     values.iter().filter(|value| !value.is_finite()).count()
 }
 
-#[expect(
-    clippy::many_single_char_names,
-    reason = "keeps the upstream sample's single-letter dimension names"
-)]
 fn run() -> anyhow::Result<()> {
     let example = common::ExampleContext::create()?;
 

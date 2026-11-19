@@ -10,7 +10,7 @@ use anyhow::{Context, Result};
 use singe::{DataType, backend::cuda::export::compiled::program_target, tensor::SamplingOptions};
 use singe_model::{
     Source,
-    export::{ExportOptions, default_task, export},
+    export::{ExportOptions, export},
     task::Task,
 };
 
@@ -21,28 +21,21 @@ fn main() -> Result<()> {
     let directory = arguments.required("directory")?;
     let architecture = match arguments.value("architecture") {
         Some(architecture) => architecture.parse()?,
-        None => program_target(arguments.device).context(
+        None => program_target(arguments.device()).context(
             "name an --architecture, since this machine has no GPU and nvcc to read it from",
         )?,
     };
     let mut options = ExportOptions::new(architecture);
-    options.device = arguments.device;
-    let libraries = arguments.values("library");
-    if !libraries.is_empty() {
-        options.libraries = libraries
-            .into_iter()
-            .map(str::parse)
-            .collect::<Result<_, _>>()?;
-    }
-
+    options.device = arguments.device();
+    options.libraries = arguments.libraries()?;
     options.data_type = arguments.data_type(DataType::Bf16)?;
-    if let Some(rows) = arguments.value("rows") {
-        options.rows = rows.parse()?;
+    if let Some(rows) = arguments.parsed("rows")? {
+        options.rows = rows;
     }
 
-    let temperature = arguments.value("temperature").map(str::parse).transpose()?;
-    let top_k = arguments.value("top-k").map(str::parse).transpose()?;
-    let top_p = arguments.value("top-p").map(str::parse).transpose()?;
+    let temperature = arguments.parsed("temperature")?;
+    let top_k = arguments.parsed("top-k")?;
+    let top_p = arguments.parsed("top-p")?;
     if temperature.is_some() || top_k.is_some() || top_p.is_some() {
         options.sampling = Some(
             SamplingOptions::new()
@@ -58,19 +51,16 @@ fn main() -> Result<()> {
         ("length", &mut options.sequence_length),
         ("image-size", &mut options.image_size),
     ] {
-        if let Some(value) = arguments.value(name) {
-            *field = value.parse()?;
+        if let Some(value) = arguments.parsed(name)? {
+            *field = value;
         }
     }
 
-    if let Some(patches) = arguments.value("image-patches") {
-        options.image_patches = Some(patches.parse()?);
-    }
-
-    let source = Source::open(&arguments.snapshot)?;
+    options.image_patches = arguments.parsed("image-patches")?;
+    let source = Source::open(arguments.snapshot())?;
     let task = match arguments.value("task") {
         Some(task) => Task::from_id(task)?,
-        None => default_task(&source)?,
+        None => Task::default_for(&source)?,
     };
     let exported = export(&source, task, directory, &options)?;
     println!(

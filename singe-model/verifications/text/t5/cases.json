@@ -4,6 +4,7 @@
       "name": "summary",
       "snapshot": "T5",
       "task": "summarization",
+      "data_type": "f32",
       "inputs": [
         "Factorio is a game about building and maintaining factories. The player is an engineer who crash-lands on the planet Nauvis and must mine resources, research technologies, and build automated production lines to launch a rocket into space. The factory grows from a few burner drills into a vast network of conveyor belts, assembling machines, and trains, while the native biters attack the polluting structures. Wube Software released the game in 2020 after eight years of early access."
       ],
@@ -20,6 +21,7 @@
       "name": "german",
       "snapshot": "T5",
       "task": "translation",
+      "data_type": "f32",
       "inputs": ["The factory is wonderful.", "I would like more iron plates, please."],
       "parameters": {
         "src_lang": "en",

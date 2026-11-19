@@ -18,7 +18,7 @@ use crate::{
                 CUDNN_GRAPH_BIAS_TENSOR_ID, CUDNN_GRAPH_INPUT0_TENSOR_ID,
                 CUDNN_GRAPH_INPUT1_TENSOR_ID, CUDNN_GRAPH_OUTPUT_TENSOR_ID, CudnnBackendExecutable,
                 CudnnBackendGraphKey, CudnnBackendGraphKind, CudnnGraphBinding,
-                CudnnGraphBindingSource, build_cudnn_convolution_template,
+                CudnnGraphBindingSource, PlanSelection, build_cudnn_convolution_template,
                 cached_cudnn_backend_graph_template, cudnn_backend_template_workspace_size,
                 cudnn_backend_tensor_metadata_key, cudnn_convolution_geometry,
             },
@@ -111,6 +111,7 @@ pub fn build_cudnn_convolution_graph(
             bias_metadata.as_ref(),
             &value_metadata,
             cudnn_convolution_geometry(window)?,
+            PlanSelection::Graph,
         )
     })?;
     let workspace_size = cudnn_backend_template_workspace_size(&template)?;

@@ -22,6 +22,8 @@ pub(crate) use self::{
     key::{ExcludeGuard, excluded},
     registry::Registry,
 };
+#[cfg(feature = "cuda")]
+use crate::backend::cuda::nvtx::CudaNvtxRange;
 use crate::{
     activity, autograd,
     backend::{
@@ -131,6 +133,7 @@ pub(crate) fn dispatch_checked(
             operation: request.operation().name().into(),
             target: UnsupportedTarget::Operation,
             details: format!("no kernel registered for the {backend} backend").into(),
+            source: None,
         })?;
     let _guard = ExcludeGuard::new(DispatchKeySet::frontend());
     execute_backend(request, inputs, backend, kernel)
@@ -217,6 +220,10 @@ fn execute_backend(
         check_write(&converted)?;
     }
 
+    // Under `nsys`, each eager CUDA operation's kernels and library calls fall inside a range named for it.
+    #[cfg(feature = "cuda")]
+    let _range = (backend == DispatchKey::Cuda)
+        .then(|| CudaNvtxRange::new(|| format!("singe eager {}", request.operation().name())));
     let outputs = kernel.call(&KernelCall::new(request, &converted, backend))?;
     check_outputs(request, &outputs, device)?;
     if writes {

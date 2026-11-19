@@ -1,9 +1,9 @@
 // What an exported generation loop runs, which the generating heads give.
 
 use singe::{
-    generation::{CachedDecoder, DecoderStepGraph, GenerationOptions},
+    generation::{CachedDecoder, DecoderOptions, DecoderStepGraph, GenerationOptions},
     graph::Graph,
-    nn::DecoderModel,
+    nn::{DecoderModel, Model},
     random::Generator,
 };
 
@@ -59,5 +59,16 @@ impl LoopSteps {
             prompt,
             generation: generation.clone(),
         })
+    }
+
+    pub fn one_sequence<L: DecoderModel>(
+        model: &Model<L>,
+        limits: &LoopLimits,
+        generation: &GenerationOptions,
+        encode: impl FnOnce(&CachedDecoder<L>) -> Result<Option<Graph>>,
+    ) -> Result<Self> {
+        let decoder = CachedDecoder::create(model, DecoderOptions::new(1, limits.capacity))?;
+        let encode = encode(&decoder)?;
+        Self::create(&decoder, encode, generation, Some(limits.prompt_rows))
     }
 }

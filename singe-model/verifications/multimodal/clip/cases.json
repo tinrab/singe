@@ -4,6 +4,7 @@
       "name": "zero-shot",
       "snapshot": "CLIP",
       "task": "zero-shot-image-classification",
+      "data_type": "f32",
       "inputs": [
         {
           "image": "media/coco-cats.png",

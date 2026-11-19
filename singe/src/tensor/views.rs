@@ -104,7 +104,11 @@ impl Tensor {
         }
 
         let axis = normalize_dim_usize(dim, rank)?;
-        let ones = vec![1_i64; usize::try_from(rank).map_err(|_| Error::DimensionOutOfBounds)?];
+        let ones = vec![
+            1_i64;
+            usize::try_from(rank)
+                .map_err(|_| Error::dimension_out_of_bounds("gather rank"))?
+        ];
         let mut positions = Vec::with_capacity(ones.len());
         for (current, &extent) in indices.shape().dimensions().iter().enumerate() {
             if current == axis {
@@ -191,7 +195,7 @@ impl Tensor {
         let inferred = self
             .layout()
             .reshape_view(&shape.into())?
-            .ok_or(Error::InvalidStride)?;
+            .ok_or_else(|| Error::invalid_stride("view shape"))?;
         call_one(
             Operation::Reshape,
             OperationAttributes::Shape(inferred.shape().clone()),
@@ -230,7 +234,7 @@ impl Tensor {
             .get(axis)
             .copied()
             .map(DimensionExpr::constant)
-            .ok_or(Error::DimensionOutOfBounds)
+            .ok_or_else(|| Error::dimension_out_of_bounds(format!("dimension axis {axis}")))
     }
 
     // Reshapes to `dimensions`, which may depend on [`Self::dimension`], so a captured program's reshape follows its run-time shapes.

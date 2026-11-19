@@ -153,10 +153,6 @@ pub fn softmax(
 /// # Errors
 ///
 /// Returns an error if the attributes or parameters do not match the input, or the types are not floating-point, and with an epilogue, if the normalization covers more than one axis or the epilogue's values do not fit the row.
-#[expect(
-    clippy::too_many_lines,
-    reason = "the normalization's reductions, its epilogue's columns, and the recomputation of its output at other points share the kernel's columns"
-)]
 pub fn normalization(
     operation: Operation,
     attributes: &LayerNormalizationAttributes,

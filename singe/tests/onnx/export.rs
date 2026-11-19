@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use prost::Message;
 use singe::{
-    DataType, Device, OnnxModel, OnnxOptions, Shape, Tensor,
+    DataType, Device, OnnxModel, OnnxOptions, Result, Shape, Tensor,
     backend::registry::{Operation, OperationAttributes},
     dispatch::call_one,
     graph::{CaptureBindings, CaptureOptions, Graph, GraphInputSpec, GraphProgram},
@@ -545,7 +545,7 @@ fn test_malformed_versioned_shape_metadata_is_rejected_at_import() {
 fn test_graphs_that_write_inputs_export_present_outputs_and_round_trip() {
     let cache = tensor(vec![0.; 6], &[3, 2]);
     let row = tensor(vec![1., 2.], &[1, 2]);
-    let step = |cache: &Tensor, row: &Tensor| -> singe::Result<Tensor> {
+    let step = |cache: &Tensor, row: &Tensor| -> Result<Tensor> {
         cache.narrow(0, 1, 1)?.assign(row)?;
         cache.add(cache)
     };

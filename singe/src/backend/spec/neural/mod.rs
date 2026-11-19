@@ -7,11 +7,11 @@ pub use self::{
     attention::{
         attention_mask_shape, attention_problem, check_paged_values, fuses_attention,
         paged_attention_problem, paged_mla_attention_problem, repeat_kv_problem,
-        rotary_embedding_problem,
+        rotary_embedding_problem, rotary_halves_width,
     },
     conv::{ConvolutionWindow, conv2d_problem, validate_conv2d_bias},
     normalization::{batch_norm_problem, normalization_problem, validate_normalization_parameters},
-    pooling::pool2d_problem,
+    pooling::{PoolReduction, pool2d_problem},
 };
 #[cfg(any(test, feature = "onnx"))]
 pub use self::{conv::conv2d_output_shape, pooling::pool2d_output_shape};

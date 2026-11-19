@@ -67,10 +67,6 @@ checked_arithmetic!(Error {
 /// # Panics
 ///
 /// Panics, including during constant evaluation, if `value` exceeds `u16::MAX`.
-#[expect(
-    clippy::cast_possible_truncation,
-    reason = "the preceding assertion checks the ABI field width"
-)]
 pub(crate) const fn usage_bits(value: u32) -> u16 {
     assert!(
         value <= u16::MAX as u32,

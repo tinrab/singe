@@ -79,14 +79,6 @@ pub mod tile_kernel {
     {
         /// Compiles and caches the specialization for the supplied execution context.
         #[doc(hidden)]
-        #[allow(
-            clippy::too_many_arguments,
-            reason = "mirrors the upstream kernel signature"
-        )]
-        #[expect(
-            clippy::too_many_lines,
-            reason = "the kernel keeps its complete indexing and operation dispatch in one auditable unit"
-        )]
         fn jit_compile<F: Fn() -> Module>(
             &mut self,
             context: &ExecutionContext,
@@ -296,10 +288,6 @@ pub mod tile_kernel {
     pub struct SiteResolution;
 
     impl SiteResolution {
-        #[allow(
-            clippy::too_many_arguments,
-            reason = "mirrors the upstream kernel signature"
-        )]
         pub fn new(
             _: usize,
             _: Vec<String>,

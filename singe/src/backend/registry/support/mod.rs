@@ -17,7 +17,7 @@ pub use self::{
 use crate::{
     backend::registry::{AliasBehavior, OperandRole, Operation, OperationExecutorFamily, table},
     data_type::DataType,
-    scalar::Scalar,
+    scalar::{Scalar, ScalarPromotion},
     value::ValueSpec,
 };
 
@@ -247,7 +247,7 @@ impl OperationSupport {
         }
 
         let Ok(computation) =
-            scalar.promoted_type(input.data_type(), self.operation == Operation::RDivScalar)
+            scalar.promoted_type(input.data_type(), ScalarPromotion::of(self.operation))
         else {
             return false;
         };

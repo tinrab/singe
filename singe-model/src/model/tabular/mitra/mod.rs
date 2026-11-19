@@ -7,14 +7,15 @@ mod autogluon;
 use serde::{Deserialize, Serialize};
 use singe::{
     DataType, Error as SingeError, Result as SingeResult, Shape, Tensor,
-    nn::{Activation, Embedding, LayerNorm, Linear, Model, ModelState, StateBuilder},
+    nn::{Activation, Embedding, LayerNorm, Linear, Mlp, Model, ModelState},
 };
 
 use crate::{
-    assembly::{Attention, AttentionSpec},
-    error::{Error, Result},
+    assembly::{Attention, AttentionSpec, PYTORCH_NORM_EPS},
+    error::Result,
     format::Loader,
     head::{HeadLoader, TabularClassifier, TabularRegressor},
+    host,
     model::ModelEntry,
     schema::Schema,
     source::Format,
@@ -40,40 +41,50 @@ pub struct MitraConfig {
 }
 
 #[derive(Debug, Clone)]
-struct FeedForward {
-    up: Linear,
-    down: Linear,
-}
-
-impl FeedForward {
-    fn create(schema: &mut Schema<'_>, width: i64) -> SingeResult<Self> {
-        Ok(Self {
-            up: schema.linear("up", width, 4 * width, true)?,
-            down: schema.linear("down", 4 * width, width, true)?,
-        })
-    }
-
-    fn forward(&self, input: &Tensor, state: &ModelState) -> SingeResult<Tensor> {
-        input
-            .apply(&self.up, state)?
-            .apply(&Activation::GeluExact, state)?
-            .apply(&self.down, state)
-    }
-}
-
-#[derive(Debug, Clone)]
 struct MitraBlock {
     rows_norm: LayerNorm,
     rows: Attention,
     rows_feed_forward_norm: LayerNorm,
-    rows_feed_forward: FeedForward,
+    rows_feed_forward: Mlp,
     cells_norm: LayerNorm,
     cells: Attention,
     cells_feed_forward_norm: LayerNorm,
-    cells_feed_forward: FeedForward,
+    cells_feed_forward: Mlp,
 }
 
 impl MitraBlock {
+    fn create(schema: &mut Schema<'_>, config: &MitraConfig) -> SingeResult<Self> {
+        let width = config.width;
+        let eps = PYTORCH_NORM_EPS;
+        let sizes = [width, 4 * width, width];
+        Ok(Self {
+            rows_norm: schema.layer_norm("rows_norm", width, eps)?,
+            rows: Attention::create(
+                &mut schema.scope("rows"),
+                AttentionSpec::square(width, config.heads),
+            )?,
+            rows_feed_forward_norm: schema.layer_norm("rows_feed_forward_norm", width, eps)?,
+            rows_feed_forward: schema.mlp(
+                "rows_feed_forward",
+                sizes,
+                Activation::GeluExact,
+                true,
+            )?,
+            cells_norm: schema.layer_norm("cells_norm", width, eps)?,
+            cells: Attention::create(
+                &mut schema.scope("cells"),
+                AttentionSpec::square(width, config.heads),
+            )?,
+            cells_feed_forward_norm: schema.layer_norm("cells_feed_forward_norm", width, eps)?,
+            cells_feed_forward: schema.mlp(
+                "cells_feed_forward",
+                sizes,
+                Activation::GeluExact,
+                true,
+            )?,
+        })
+    }
+
     // The context's cells, `[S, C, W]`, and the cells to predict, `[Q, C, W]`, after the block.
     fn forward(
         &self,
@@ -96,11 +107,10 @@ impl MitraBlock {
                 .forward(&query_columns, &context_columns, &context_columns, state)?
                 .permute(&[1, 0, 2])?,
         )?;
-        let fed =
-            |cells: Tensor, norm: &LayerNorm, feed_forward: &FeedForward| -> SingeResult<Tensor> {
-                let update = feed_forward.forward(&cells.apply(norm, state)?, state)?;
-                cells.add(&update)
-            };
+        let fed = |cells: Tensor, norm: &LayerNorm, feed_forward: &Mlp| -> SingeResult<Tensor> {
+            let update = cells.apply(norm, state)?.apply(feed_forward, state)?;
+            cells.add(&update)
+        };
         let context = fed(
             context,
             &self.rows_feed_forward_norm,
@@ -154,41 +164,8 @@ pub struct MitraLayers {
 impl MitraLayers {
     pub fn create(schema: &mut Schema<'_>, config: &MitraConfig) -> SingeResult<Self> {
         let width = config.width;
-        let eps = 1e-5;
         let blocks = (0..config.layers)
-            .map(|index| {
-                let mut block = schema.scope(format!("blocks.{index}"));
-                Ok(MitraBlock {
-                    rows_norm: block.layer_norm("rows_norm", width, eps)?,
-                    rows: Attention::create(
-                        &mut block.scope("rows"),
-                        AttentionSpec::square(width, config.heads),
-                    )?,
-                    rows_feed_forward_norm: block.layer_norm(
-                        "rows_feed_forward_norm",
-                        width,
-                        eps,
-                    )?,
-                    rows_feed_forward: FeedForward::create(
-                        &mut block.scope("rows_feed_forward"),
-                        width,
-                    )?,
-                    cells_norm: block.layer_norm("cells_norm", width, eps)?,
-                    cells: Attention::create(
-                        &mut block.scope("cells"),
-                        AttentionSpec::square(width, config.heads),
-                    )?,
-                    cells_feed_forward_norm: block.layer_norm(
-                        "cells_feed_forward_norm",
-                        width,
-                        eps,
-                    )?,
-                    cells_feed_forward: FeedForward::create(
-                        &mut block.scope("cells_feed_forward"),
-                        width,
-                    )?,
-                })
-            })
+            .map(|index| MitraBlock::create(&mut schema.scope(format!("blocks.{index}")), config))
             .collect::<SingeResult<Vec<_>>>()?;
         Ok(Self {
             config: config.clone(),
@@ -203,7 +180,7 @@ impl MitraLayers {
             },
             unknown: Embedding::new(schema.parameter("unknown.weight", [1, width])?),
             blocks,
-            norm: schema.layer_norm("norm", width, eps)?,
+            norm: schema.layer_norm("norm", width, PYTORCH_NORM_EPS)?,
             output: schema.linear("output", width, config.outputs, true)?,
         })
     }
@@ -231,11 +208,13 @@ impl MitraLayers {
                 .apply(linear, state)?,
         }
         .unsqueeze(1)?;
-        let count = queries.shape().dimensions()[0];
+        let &[count, _] = queries.shape().dimensions() else {
+            return Err(SingeError::invalid_argument("the rows to predict"));
+        };
         let unknown = Tensor::from_vec(
             queries.device(),
             Shape::create([count])?,
-            vec![0_i64; usize::try_from(count).unwrap_or(0)],
+            vec![0_i64; usize::try_from(count).map_err(|_| SingeError::out_of_range("rows"))?],
         )?
         .apply(&self.unknown, state)?
         .unsqueeze(1)?;
@@ -248,33 +227,55 @@ impl MitraLayers {
             .apply(&self.norm, state)?
             .apply(&self.output, state)
     }
-}
 
-pub type Mitra = Model<MitraLayers>;
+    fn run(
+        &self,
+        rows: &[Vec<f32>],
+        targets: &Tensor,
+        queries: &[Vec<f32>],
+        state: &ModelState,
+    ) -> Result<Vec<Vec<f32>>> {
+        let features = rows.first().map_or(0, Vec::len);
+        if features == 0 {
+            return Err(SingeError::invalid_argument("rows without features").into());
+        }
 
-pub(crate) const MODEL: ModelEntry = ModelEntry {
-    name: "mitra",
-    formats: &[(Format::AutoGluon, &["tab2d"])],
-    heads: &[
-        HeadLoader::TabularClassification(|loader| Ok(Box::new(load(loader)?))),
-        HeadLoader::TabularRegression(|loader| Ok(Box::new(load(loader)?))),
-    ],
-};
+        for (name, table) in [("rows", rows), ("queries", queries)] {
+            if let Some((index, row)) = table
+                .iter()
+                .enumerate()
+                .find(|(_, row)| row.len() != features)
+            {
+                return Err(SingeError::length_mismatch(
+                    format!("{name}[{index}]"),
+                    features,
+                    row.len(),
+                )
+                .into());
+            }
+        }
 
-pub fn load(loader: &mut Loader<'_>) -> Result<Mitra> {
-    let config: MitraConfig = loader.config(autogluon::config)?;
-    let mut builder = StateBuilder::new();
-    let layers = {
-        let mut schema = Schema::root(&mut builder, loader.options().data_type);
-        MitraLayers::create(&mut schema, &config)?
-    };
-    let model = loader.load(
-        "model",
-        &Model::new(layers, builder.finish()?),
-        &autogluon::rules(),
-    )?;
-    loader.finish()?;
-    Ok(model)
+        let (context, predicted) = bucketed(rows, queries);
+        let device = state.device()?;
+        let shape = |count: usize| -> Result<Shape> {
+            let count = i64::try_from(count).map_err(|_| SingeError::out_of_range("rows"))?;
+            let features =
+                i64::try_from(features).map_err(|_| SingeError::out_of_range("features"))?;
+            Ok(Shape::create([count, features])?)
+        };
+        let outputs = self.predict(
+            &Tensor::from_vec(device, shape(rows.len())?, context)?,
+            targets,
+            &Tensor::from_vec(device, shape(queries.len())?, predicted)?,
+            state,
+        )?;
+        let width = usize::try_from(self.config.outputs)
+            .map_err(|_| SingeError::out_of_range("outputs"))?;
+        Ok(host::rows(
+            &outputs.cast(DataType::F32)?.to_vec::<f32>()?,
+            width,
+        ))
+    }
 }
 
 // `torch.lerp` in `F32`, as CUDA's kernel computes it with fused multiply-adds.
@@ -288,12 +289,6 @@ fn lerp(start: f32, end: f32, weight: f32) -> f32 {
 }
 
 // Each context row's and each row to predict's features, `[S · F]` and `[Q · F]` row-major, as Tab2D's quantile embedding gives them: a feature's bucket among the context's quantiles of it, over the context's rows, then centered and scaled by the context's mean and deviation of those, or zero where the context's are all one.
-#[expect(
-    clippy::cast_possible_truncation,
-    clippy::cast_precision_loss,
-    clippy::cast_sign_loss,
-    reason = "row counts are far below where `F32` and `F64` lose whole numbers"
-)]
 fn bucketed(rows: &[Vec<f32>], queries: &[Vec<f32>]) -> (Vec<f32>, Vec<f32>) {
     let (count, features) = (rows.len(), rows.first().map_or(0, Vec::len));
     let mut context = vec![0.0; count * features];
@@ -342,58 +337,7 @@ fn bucketed(rows: &[Vec<f32>], queries: &[Vec<f32>]) -> (Vec<f32>, Vec<f32>) {
     (context, predicted)
 }
 
-impl MitraLayers {
-    fn run(
-        &self,
-        rows: &[Vec<f32>],
-        targets: &Tensor,
-        queries: &[Vec<f32>],
-        state: &ModelState,
-    ) -> Result<Vec<Vec<f32>>> {
-        let features = rows.first().map_or(0, Vec::len);
-        if features == 0 {
-            return Err(SingeError::invalid_argument("rows without features").into());
-        }
-
-        for (name, table) in [("rows", rows), ("queries", queries)] {
-            if let Some((index, row)) = table
-                .iter()
-                .enumerate()
-                .find(|(_, row)| row.len() != features)
-            {
-                return Err(SingeError::length_mismatch(
-                    format!("{name}[{index}]"),
-                    features,
-                    row.len(),
-                )
-                .into());
-            }
-        }
-
-        let (context, predicted) = bucketed(rows, queries);
-        let device = state.device()?;
-        let shape = |count: usize| -> Result<Shape> {
-            let count = i64::try_from(count).map_err(|_| SingeError::out_of_range("rows"))?;
-            let features =
-                i64::try_from(features).map_err(|_| SingeError::out_of_range("features"))?;
-            Ok(Shape::create([count, features])?)
-        };
-        let outputs = self.predict(
-            &Tensor::from_vec(device, shape(rows.len())?, context)?,
-            targets,
-            &Tensor::from_vec(device, shape(queries.len())?, predicted)?,
-            state,
-        )?;
-        let width =
-            usize::try_from(self.config.outputs).map_err(|_| Error::unsupported("outputs"))?;
-        Ok(outputs
-            .cast(DataType::F32)?
-            .to_vec::<f32>()?
-            .chunks(width)
-            .map(<[f32]>::to_vec)
-            .collect())
-    }
-}
+pub type Mitra = Model<MitraLayers>;
 
 impl TabularClassifier for Mitra {
     // The softmax of each row's scores for the classes the labels hold, as `MitraClassifier.predict_proba` gives it without fine-tuning.
@@ -444,10 +388,6 @@ impl TabularClassifier for Mitra {
 
 impl TabularRegressor for Mitra {
     // The targets scaled to `[0, 1]` by the context's range, and the predictions scaled back, as `MitraRegressor.predict` gives them without fine-tuning or mirroring.
-    #[expect(
-        clippy::suboptimal_flops,
-        reason = "rounds each product as the reference does, which the verifications compare with"
-    )]
     fn regress(
         &self,
         rows: &[Vec<f32>],
@@ -479,4 +419,21 @@ impl TabularRegressor for Mitra {
             .map(|outputs| outputs[0] * range + smallest)
             .collect())
     }
+}
+
+pub(crate) const MODEL: ModelEntry = ModelEntry {
+    name: "mitra",
+    formats: &[(Format::AutoGluon, &["tab2d"])],
+    loaders: &[
+        HeadLoader::TabularClassification(|loader| Ok(Box::new(load(loader)?))),
+        HeadLoader::TabularRegression(|loader| Ok(Box::new(load(loader)?))),
+    ],
+};
+
+pub fn load(loader: &mut Loader<'_>) -> Result<Mitra> {
+    let config: MitraConfig = loader.config(autogluon::config)?;
+    let model = Schema::model(loader.options().data_type, |schema| {
+        MitraLayers::create(schema, &config)
+    })?;
+    loader.load_whole(&model, &autogluon::rules())
 }

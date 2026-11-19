@@ -186,6 +186,39 @@ pub fn index_select(context: &InferenceContext<'_>) -> Result<OperationInference
     Ok(context.same_type(&problem.output_shape))
 }
 
+// Resamples the input's `dim` to the length of its `I64` index vectors, blending by weights of its type.
+pub fn resample_linear(context: &InferenceContext<'_>) -> Result<OperationInference> {
+    let dim = context.value(OperationAttributes::dimension)?;
+    let (low, high, weight) = (context.input(1)?, context.input(2)?, context.input(3)?);
+    require_indices(low)?;
+    require_indices(high)?;
+    if weight.data_type() != context.first().data_type() {
+        return Err(Error::data_type_mismatch(
+            "operation resample linear weight",
+            context.first().data_type(),
+            weight.data_type(),
+        ));
+    }
+
+    for other in [high, weight] {
+        if other.shape() != low.shape() {
+            return Err(Error::shape_mismatch(
+                "operation resample linear operands",
+                low.shape().dimensions().to_vec(),
+                other.shape().dimensions().to_vec(),
+            ));
+        }
+    }
+
+    let problem = spec::index_select_problem(
+        context.shape(),
+        low.shape(),
+        dim,
+        "operation resample linear",
+    )?;
+    Ok(context.same_type(&problem.output_shape))
+}
+
 /// Selects elements of consecutive dimensions with broadcast `I64` index tensors.
 pub fn index(context: &InferenceContext<'_>) -> Result<OperationInference> {
     let dim = context.value(OperationAttributes::dimension)?;

@@ -1,15 +1,21 @@
 // Reads a `transformers` ModernVBert snapshot that `sentence-transformers` serves as a multi-vector encoder: its config, the template it renders inputs through, and its tensors' names.
 
-use serde::Deserialize;
 use std::fs;
 
-use super::{ColModernVBertConfig, ModernBertConfig};
+use serde::Deserialize;
+use singe::nn::Activation;
+
 use crate::{
     error::{Error, Result},
-    format::{Rules, transformers::activation},
+    format::{
+        Rules, join,
+        transformers::{LayerType, activation_field},
+    },
     model::multimodal::{
-        smolvlm,
-        smolvlm::transformers::{VisionFields, processor, vision_config},
+        colmodernvbert::{ColModernVBertConfig, ModernBertConfig},
+        smolvlm::transformers::{
+            VisionFields, processor, vision_config, vision_rules as tower_rules,
+        },
     },
     source::Source,
 };
@@ -21,8 +27,9 @@ struct TextFields {
     intermediate_size: i64,
     num_attention_heads: i64,
     norm_eps: f32,
-    hidden_activation: String,
-    layer_types: Vec<String>,
+    #[serde(deserialize_with = "activation_field")]
+    hidden_activation: Activation,
+    layer_types: Vec<LayerType>,
     local_attention: i64,
     global_rope_theta: f64,
     local_rope_theta: f64,
@@ -72,10 +79,10 @@ pub(crate) fn config(source: &Source) -> Result<ColModernVBertConfig> {
     let local = text
         .layer_types
         .iter()
-        .map(|kind| match kind.as_str() {
-            "full_attention" => Ok(false),
-            "sliding_attention" => Ok(true),
-            other => Err(Error::UnsupportedConfig(format!("layer type {other}"))),
+        .map(|layer| match layer {
+            LayerType::FullAttention => Ok(false),
+            LayerType::SlidingAttention => Ok(true),
+            LayerType::LinearAttention => Err(Error::unsupported("a linear attention layer")),
         })
         .collect::<Result<Vec<_>>>()?;
     let dense: DenseFields = source.json("1_Dense/config.json")?;
@@ -86,14 +93,14 @@ pub(crate) fn config(source: &Source) -> Result<ColModernVBertConfig> {
         .join(format!("additional_chat_templates/{name}.jinja"));
     let template = fs::read_to_string(&path).map_err(Error::io(&path))?;
     Ok(ColModernVBertConfig {
-        vision: vision_config(&fields.vision_config, fields.pixel_shuffle_factor)?,
+        vision: vision_config(&fields.vision_config, fields.pixel_shuffle_factor),
         text: ModernBertConfig {
             vocab_size: text.vocab_size,
             width: text.hidden_size,
             inner: text.intermediate_size,
             heads: text.num_attention_heads,
             eps: text.norm_eps,
-            activation: activation(&text.hidden_activation)?,
+            activation: text.hidden_activation,
             local,
             // `local_attention` spans both sides.
             window: text.local_attention / 2,
@@ -111,7 +118,7 @@ pub(crate) fn config(source: &Source) -> Result<ColModernVBertConfig> {
 pub(crate) fn vision_rules() -> Rules {
     Rules::new()
         .skip("model.vision_model.vision_model.head")
-        .then(smolvlm::transformers::vision_rules(
+        .then(tower_rules(
             "model.vision_model.vision_model",
             "model.connector.modality_projection",
         ))
@@ -119,8 +126,8 @@ pub(crate) fn vision_rules() -> Rules {
 
 // Imports ModernBERT, splitting its fused projections, and the projection to each token's embedding, which `sentence-transformers`' `1_Dense` holds again.
 pub(crate) fn text_rules() -> Rules {
-    let text = |name: &str| format!("model.text_model.{name}");
-    let layer = |name: &str| text(&format!("layers.*.{name}"));
+    let text = |name: &str| join("model.text_model", name);
+    let layer = |name: &str| join("model.text_model.layers.*", name);
     Rules::new()
         .rename(&text("embeddings.tok_embeddings"), "tokens")
         .rename(&text("embeddings.norm"), "embedding_norm")

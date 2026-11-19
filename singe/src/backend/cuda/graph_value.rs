@@ -285,7 +285,7 @@ impl CudaGraphValue {
         }
 
         if !value.is_contiguous() {
-            return Err(Error::ContiguousRequired);
+            return Err(Error::contiguous_required("cuda graph output"));
         }
         // SAFETY: the region checks type and bounds; the caller establishes exclusivity.
         Ok(unsafe { DeviceOutputView::from_raw_parts(value.region(), value.element_count())? })

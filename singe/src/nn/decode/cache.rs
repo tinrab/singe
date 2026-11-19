@@ -344,11 +344,14 @@ impl TensorGroup for StateCache {
 }
 
 impl StateCache {
-    #[must_use]
-    pub fn trail_rows(&self) -> i64 {
-        self.trail
-            .as_ref()
-            .map_or(0, |[convolution, _]| convolution.shape().dimensions()[0])
+    pub fn trail_rows(&self) -> Result<i64> {
+        let Some([convolution, _]) = &self.trail else {
+            return Ok(0);
+        };
+        let &[rows, ..] = convolution.shape().dimensions() else {
+            return Err(Error::invalid_argument("state cache trail rank"));
+        };
+        Ok(rows)
     }
 
     pub fn write_trail(&self, convolution: &Tensor, recurrent: &Tensor) -> Result<()> {

@@ -4,6 +4,8 @@
 //! The directory defaults to `singe/kernels` under the user's cache directory, [`enable_kernel_cache`] names another, and [`disable_kernel_cache`] turns it off.
 //! Each entry is named by a hash of the kernel's code, its name, the compile options or target architecture, and the compiler's version, NVRTC's or `tileiras`', so a toolkit or option change compiles again instead of loading a stale kernel.
 
+// TODO: Use `directories` crate.
+
 use std::{
     env, fs,
     io::ErrorKind,
@@ -76,7 +78,10 @@ fn directory() -> Result<Option<PathBuf>> {
 /// Returns an error if `directory` cannot be created or the cache setting is poisoned.
 pub fn enable_kernel_cache(directory: impl Into<PathBuf>) -> Result<()> {
     let directory = directory.into();
-    fs::create_dir_all(&directory).map_err(CompileError::KernelCacheIo)?;
+    fs::create_dir_all(&directory).map_err(|source| CompileError::KernelCacheIo {
+        path: directory.clone(),
+        source,
+    })?;
     *DIRECTORY
         .write()
         .map_err(|_| Error::poisoned("cuda kernel cache setting"))? = CacheSetting::On(directory);
@@ -89,7 +94,10 @@ pub fn program_directory() -> Result<Option<PathBuf>> {
         return Ok(None);
     };
     let programs = directory.join("programs");
-    fs::create_dir_all(&programs).map_err(CompileError::KernelCacheIo)?;
+    fs::create_dir_all(&programs).map_err(|source| CompileError::KernelCacheIo {
+        path: programs.clone(),
+        source,
+    })?;
     Ok(Some(programs))
 }
 
@@ -149,7 +157,7 @@ fn cached(key: &str, compile: impl FnOnce() -> Result<Vec<u8>>) -> Result<(Vec<u
         Ok(bytes) if !bytes.is_empty() => return Ok((bytes, CubinOrigin::Cached)),
         Ok(_) => {}
         Err(error) if error.kind() == ErrorKind::NotFound => {}
-        Err(error) => return Err(CompileError::KernelCacheIo(error).into()),
+        Err(source) => return Err(CompileError::KernelCacheIo { path, source }.into()),
     }
 
     let bytes = compile()?;
@@ -179,9 +187,10 @@ fn forget_key(key: &str) -> Result<()> {
     let Some(directory) = directory()? else {
         return Ok(());
     };
-    match fs::remove_file(directory.join(format!("{key}.cubin"))) {
-        Err(error) if error.kind() != ErrorKind::NotFound => {
-            Err(CompileError::KernelCacheIo(error).into())
+    let path = directory.join(format!("{key}.cubin"));
+    match fs::remove_file(&path) {
+        Err(source) if source.kind() != ErrorKind::NotFound => {
+            Err(CompileError::KernelCacheIo { path, source }.into())
         }
         _ => Ok(()),
     }
@@ -243,10 +252,14 @@ fn write(path: &Path, bytes: &[u8]) -> Result<()> {
     let partial = path.with_extension(format!("cubin.{}", process::id()));
     fs::write(&partial, bytes)
         .and_then(|()| fs::rename(&partial, path))
-        .map_err(|error| {
+        .map_err(|source| {
             // The write already failed; a partial file left behind is never read, since only renamed files are.
             fs::remove_file(&partial).ok();
-            CompileError::KernelCacheIo(error).into()
+            CompileError::KernelCacheIo {
+                path: path.to_owned(),
+                source,
+            }
+            .into()
         })
 }
 

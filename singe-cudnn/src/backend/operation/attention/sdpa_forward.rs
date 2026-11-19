@@ -283,10 +283,6 @@ impl SdpaForwardOperation {
     /// # Errors
     ///
     /// Returns an error if sequence lengths are unpaired, statistics are not FP32, including statistics attached through a softmax descriptor, or the native descriptor fails.
-    #[expect(
-        clippy::too_many_lines,
-        reason = "the composite attention operation builds and validates its complete tensor graph"
-    )]
     pub fn create(
         tensors: SdpaForwardTensors<&Tensor>,
         config: SdpaForwardOptions<'_>,

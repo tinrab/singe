@@ -3,17 +3,17 @@
 use std::iter;
 
 use serde::Deserialize;
+use singe::nn::Activation;
 
-use super::{PriorConfig, RendererConfig};
 use crate::{
     error::{Error, Result},
-    format::Rules,
+    format::{
+        Rules,
+        diffusers::{activation_field, silu},
+    },
+    model::diffusion::shap_e::{PriorConfig, RendererConfig},
     source::Source,
 };
-
-fn silu() -> String {
-    "silu".to_owned()
-}
 
 #[expect(
     clippy::unnecessary_wraps,
@@ -50,8 +50,8 @@ struct PriorFields {
     clip_embed_dim: Option<i64>,
     #[serde(default)]
     time_embed_dim: Option<i64>,
-    #[serde(default = "silu")]
-    time_embed_act_fn: String,
+    #[serde(default = "silu", deserialize_with = "activation_field")]
+    time_embed_act_fn: Activation,
     #[serde(default)]
     norm_in_type: Option<String>,
     #[serde(default = "prd")]
@@ -69,12 +69,14 @@ pub(crate) fn prior_config(source: &Source) -> Result<PriorConfig> {
         || fields.additional_embeddings != 0
         || fields.encoder_hid_proj_type.is_some()
     {
-        return Err(Error::unsupported("a prior other than Shap-E's"));
+        return Err(Error::unsupported(
+            "PriorTransformer norm_in_type, added_emb_type, additional_embeddings, or encoder_hid_proj_type other than Shap-E's",
+        ));
     }
 
-    if fields.time_embed_act_fn != "gelu" {
+    if fields.time_embed_act_fn != Activation::GeluExact {
         return Err(Error::unsupported(
-            "a prior whose time embedding activates other than by GELU",
+            "PriorTransformer time_embed_act_fn other than gelu",
         ));
     }
 
@@ -82,8 +84,8 @@ pub(crate) fn prior_config(source: &Source) -> Result<PriorConfig> {
         None => false,
         Some("layer") => true,
         Some(other) => {
-            return Err(Error::UnsupportedConfig(format!(
-                "prior condition norm {other}"
+            return Err(Error::unsupported(format!(
+                "PriorTransformer embedding_proj_norm_type {other}"
             )));
         }
     };
@@ -102,20 +104,25 @@ pub(crate) fn prior_config(source: &Source) -> Result<PriorConfig> {
 }
 
 pub(crate) fn prior_rules() -> Rules {
-    let block = |name: &str| format!("transformer_blocks.*.{name}");
     Rules::new()
-        .rename("time_embedding.linear_1", "time.input")
-        .rename("time_embedding.linear_2", "time.output")
+        .rename("time_embedding.linear_1", "time.up")
+        .rename("time_embedding.linear_2", "time.down")
         .rename("embedding_proj_norm", "embedding_norm")
         .rename("positional_embedding", "positions")
-        .rename(&block("attn1.to_q"), "blocks.*.attention.query")
-        .rename(&block("attn1.to_k"), "blocks.*.attention.key")
-        .rename(&block("attn1.to_v"), "blocks.*.attention.value")
-        .rename(&block("attn1.to_out.0"), "blocks.*.attention.output")
-        .rename(&block("ff.net.0.proj"), "blocks.*.feed_forward.up")
-        .rename(&block("ff.net.2"), "blocks.*.feed_forward.down")
-        .rename(&block("norm1"), "blocks.*.norm1")
-        .rename(&block("norm3"), "blocks.*.norm3")
+        .rename_each(
+            "transformer_blocks.*",
+            "blocks.*",
+            &[
+                ("norm1", "attention_norm"),
+                ("attn1.to_q", "attention.query"),
+                ("attn1.to_k", "attention.key"),
+                ("attn1.to_v", "attention.value"),
+                ("attn1.to_out.0", "attention.output"),
+                ("norm3", "feed_forward_norm"),
+                ("ff.net.0.proj", "feed_forward.up"),
+                ("ff.net.2", "feed_forward.down"),
+            ],
+        )
         .rename("proj_to_clip_embeddings", "proj_to_clip")
         .rename("proj_in", "proj_in")
         .rename("embedding_proj", "embedding_proj")
@@ -134,15 +141,14 @@ struct RendererFields {
     n_output: i64,
     n_hidden_layers: usize,
     insert_direction_at: usize,
-    act_fn: String,
+    #[serde(deserialize_with = "activation_field")]
+    act_fn: Activation,
 }
 
 pub(crate) fn renderer_config(source: &Source) -> Result<RendererConfig> {
     let fields: RendererFields = source.json("config.json")?;
-    if fields.act_fn != "swish" {
-        return Err(Error::unsupported(
-            "a renderer MLP other than one with SiLU",
-        ));
+    if fields.act_fn != Activation::Silu {
+        return Err(Error::unsupported("ShapERenderer act_fn other than silu"));
     }
 
     // NeRF's encodings: a position's 3 features and 90 sines, and a direction's 3 and 48.
@@ -165,13 +171,20 @@ pub(crate) fn renderer_config(source: &Source) -> Result<RendererConfig> {
 }
 
 pub(crate) fn renderer_rules(config: &RendererConfig) -> Rules {
-    let rules = (0..config.projected.len()).fold(Rules::new(), |rules, index| {
-        rules.rename(
-            &format!("params_proj.projections.nerstf__mlp__{index}__weight"),
-            &format!("params_proj.{index}"),
-        )
-    });
-    rules
+    let projections = (0..config.projected.len())
+        .map(|index| {
+            (
+                format!("projections.nerstf__mlp__{index}__weight"),
+                index.to_string(),
+            )
+        })
+        .collect::<Vec<_>>();
+    let projections = projections
+        .iter()
+        .map(|(stored, index)| (stored.as_str(), index.as_str()))
+        .collect::<Vec<_>>();
+    Rules::new()
+        .rename_each("params_proj", "params_proj", &projections)
         .rename("mlp.mlp", "mlp")
         .rename("mesh_decoder.cases", "cases")
         .rename("mesh_decoder.masks", "masks")

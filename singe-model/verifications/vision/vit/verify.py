@@ -1,19 +1,13 @@
-"""ViT, classifying images with `transformers`' image-classification pipeline, as `verify.rs` classifies them in Singe."""
+"""ViT, classifying images with `transformers`' image-classification pipeline, as `mod.rs` classifies them in Singe."""
 
-import sys
-from pathlib import Path
+from transformers import pipeline
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-
-import torch  # noqa: E402
-from transformers import pipeline  # noqa: E402
-
-from support import DEVICE, Verification  # noqa: E402
+from support import DEVICE, Verification
 
 
-def image_classification(snapshot):
+def image_classification(snapshot, dtype):
     classify = pipeline(
-        "image-classification", model=snapshot, dtype=torch.float32, device=DEVICE
+        "image-classification", model=snapshot, dtype=dtype, device=DEVICE
     )
     return lambda paths, parameters: [classify(path, **parameters) for path in paths]
 

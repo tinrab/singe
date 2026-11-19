@@ -37,7 +37,6 @@ macro_rules! float_serde {
 
             struct FloatVisitor;
 
-            #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss, reason = "Serde numeric visitors convert incoming numbers to the requested IEEE dtype")]
             impl<'de> Visitor<'de> for FloatVisitor {
                 type Value = $float;
 

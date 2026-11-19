@@ -1,10 +1,3 @@
-#![allow(
-    clippy::too_many_arguments,
-    clippy::similar_names,
-    clippy::many_single_char_names,
-    reason = "BLAS operations take each operand, dimension, and scalar separately, named as in BLAS"
-)]
-
 use singe_cuda::{
     data_type::{DataType, DataTypeLike},
     memory::DeviceMemory,

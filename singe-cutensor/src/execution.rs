@@ -543,10 +543,6 @@ impl Plan {
     /// # Errors
     ///
     /// Returns an error if `stream`, an operand, or the workspace belongs to another CUDA context, the plan encodes another operation, scalar or tensor types differ from the plan, a tensor is shorter than the storage its descriptor reaches, the workspace is smaller than [`Plan::workspace_size`] or misaligned, or cuTENSOR rejects or fails the operation.
-    #[expect(
-        clippy::many_single_char_names,
-        reason = "tensor operand names follow the native trinary contraction formula"
-    )]
     pub unsafe fn contract_trinary_async<TA, TB, TC, TD, TE, TScalar>(
         &self,
         alpha: &TScalar,
@@ -612,10 +608,6 @@ impl Plan {
     /// # Errors
     ///
     /// Returns an error if `stream` is capturing, the checks of [`Self::contract_trinary_async`] fail, cuTENSOR rejects or fails the operation, or the stream reports an error.
-    #[expect(
-        clippy::many_single_char_names,
-        reason = "tensor operand names follow the native trinary contraction formula"
-    )]
     pub fn contract_trinary<TA, TB, TC, TD, TE, TScalar>(
         &self,
         alpha: &TScalar,
@@ -1138,10 +1130,6 @@ impl Plan {
     /// # Errors
     ///
     /// Returns an error if access tracking fails, the checks of [`Self::contract_trinary_async`] fail, or cuTENSOR rejects or fails the operation.
-    #[expect(
-        clippy::many_single_char_names,
-        reason = "tensor operand names follow the native trinary contraction formula"
-    )]
     pub fn contract_trinary_scoped<'env, TA, TB, TC, TD, TE, TScalar>(
         &'env self,
         alpha: &'env TScalar,

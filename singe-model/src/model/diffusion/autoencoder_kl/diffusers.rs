@@ -1,18 +1,19 @@
 // Reads a `diffusers` `AutoencoderKL`: its config and its tensors' names.
 
 use serde::Deserialize;
+use singe::nn::Activation;
 
-use super::AutoencoderKlConfig;
 use crate::{
     assembly::unet_block_rules,
     error::{Error, Result},
-    format::Rules,
+    format::{
+        Rules,
+        diffusers::{activation_field, default_true, silu},
+        join,
+    },
+    model::diffusion::autoencoder_kl::AutoencoderKlConfig,
     source::Source,
 };
-
-fn silu() -> String {
-    "silu".to_owned()
-}
 
 fn down_blocks() -> Vec<String> {
     vec!["DownEncoderBlock2D".to_owned()]
@@ -20,10 +21,6 @@ fn down_blocks() -> Vec<String> {
 
 fn up_blocks() -> Vec<String> {
     vec!["UpDecoderBlock2D".to_owned()]
-}
-
-const fn yes() -> bool {
-    true
 }
 
 #[derive(Debug, Deserialize)]
@@ -38,20 +35,20 @@ struct Fields {
     up_block_types: Vec<String>,
     layers_per_block: usize,
     norm_num_groups: i64,
-    #[serde(default = "silu")]
-    act_fn: String,
-    #[serde(default = "yes")]
+    #[serde(default = "silu", deserialize_with = "activation_field")]
+    act_fn: Activation,
+    #[serde(default = "default_true")]
     mid_block_add_attention: bool,
-    #[serde(default = "yes")]
+    #[serde(default = "default_true")]
     use_quant_conv: bool,
-    #[serde(default = "yes")]
+    #[serde(default = "default_true")]
     use_post_quant_conv: bool,
 }
 
 impl Fields {
     // Refuses the options `diffusers` offers that the model does not build.
     fn validate(&self) -> Result<()> {
-        if self.act_fn != "silu" || !self.mid_block_add_attention {
+        if self.act_fn != Activation::Silu || !self.mid_block_add_attention {
             return Err(Error::unsupported(
                 "an AutoencoderKL other than one with SiLU and attending middle blocks",
             ));
@@ -95,11 +92,20 @@ pub(crate) fn config(source: &Source) -> Result<AutoencoderKlConfig> {
 // Imports one half, stored under `half` (`encoder` or `decoder`), its blocks under `blocks` (`down_blocks` or `up_blocks`), and the 1 × 1 convolution `quant` beside it.
 fn half_rules(half: &str, blocks: &str, quant: &str) -> Rules {
     Rules::new()
-        .rename(&format!("{half}.conv_in"), "input")
-        .then(unet_block_rules(&format!("{half}.{blocks}.*"), "stages.*"))
-        .then(unet_block_rules(&format!("{half}.mid_block"), "middle"))
-        .rename(&format!("{half}.conv_norm_out"), "norm")
-        .rename(&format!("{half}.conv_out"), "output")
+        .rename_each(
+            half,
+            "",
+            &[
+                ("conv_in", "input"),
+                ("conv_norm_out", "norm"),
+                ("conv_out", "output"),
+            ],
+        )
+        .then(unet_block_rules(
+            &join(half, &join(blocks, "*")),
+            "stages.*",
+        ))
+        .then(unet_block_rules(&join(half, "mid_block"), "middle"))
         .rename(quant, "quant")
 }
 

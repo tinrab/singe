@@ -81,7 +81,7 @@ pub fn attach_cublaslt_graph(
 ) -> Result<GraphNode> {
     stats.add_cublaslt_workspace_bytes(graph.workspace_byte_size())?;
     let graph_node = native_graph.add_child_graph_node(dependencies, graph.child_graph())?;
-    library_resources.push(LibraryResource::Graph(graph.into_native()));
+    library_resources.push(LibraryResource::CublasLt(graph));
     stats.record_cublas_child_graph_node();
     record_realized_cuda_lowering(realized_lowering, id, ir, CudaGraphProvider::CublasLt)?;
     Ok(graph_node)

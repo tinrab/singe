@@ -12,10 +12,6 @@ use singe_cudnn::{
     tensor::{Shape, TensorId, TensorSpec},
 };
 
-#[expect(
-    clippy::many_single_char_names,
-    reason = "keeps the upstream sample's single-letter dimension names"
-)]
 fn run() -> Result<()> {
     let window_size = common::positive_usize_argument("--build-window", 8)?;
     let context = common::ExampleContext::create()?;

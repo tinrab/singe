@@ -25,7 +25,7 @@ fn main() -> Result<()> {
         Some(inputs) => serde_json::from_str(inputs)?,
         None => Value::Array(
             arguments
-                .positional
+                .positional()
                 .iter()
                 .map(|input| {
                     serde_json::from_str(input).unwrap_or_else(|_| Value::String(input.clone()))
@@ -38,8 +38,8 @@ fn main() -> Result<()> {
         .map(serde_json::from_str)
         .transpose()?
         .unwrap_or(Value::Null);
-    let source = Source::open(&arguments.snapshot)?;
-    let options = LoadOptions::new(arguments.device, data_type);
+    let source = Source::open(arguments.snapshot())?;
+    let options = LoadOptions::new(arguments.device(), data_type);
     for output in run_json(task, &source, options, &inputs, &parameters)? {
         println!("{output}");
     }

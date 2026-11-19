@@ -11,10 +11,6 @@ pub enum FftDirection {
 }
 
 #[must_use]
-#[expect(
-    clippy::cast_precision_loss,
-    reason = "the f32 algorithm converts integer dimensions and accumulators to its floating-point working precision"
-)]
 pub fn c2c(input: &[Complex32], batch: usize, n: usize, direction: FftDirection) -> Vec<Complex32> {
     let sign = match direction {
         FftDirection::Forward => -1.0,
@@ -40,10 +36,6 @@ pub fn c2c(input: &[Complex32], batch: usize, n: usize, direction: FftDirection)
 }
 
 #[must_use]
-#[expect(
-    clippy::cast_precision_loss,
-    reason = "the f32 algorithm converts integer dimensions and accumulators to its floating-point working precision"
-)]
 pub fn r2c(input: &[f32], batch: usize, n: usize) -> Vec<Complex32> {
     let frequency_bins = n / 2 + 1;
     let mut output = vec![Complex32::new(0.0, 0.0); batch * frequency_bins];
@@ -67,10 +59,6 @@ pub fn r2c(input: &[f32], batch: usize, n: usize) -> Vec<Complex32> {
 }
 
 #[must_use]
-#[expect(
-    clippy::cast_precision_loss,
-    reason = "the f32 algorithm converts integer dimensions and accumulators to its floating-point working precision"
-)]
 pub fn c2r_unscaled(input: &[Complex32], batch: usize, n: usize) -> Vec<f32> {
     let frequency_bins = n / 2 + 1;
     let mut output = vec![0.0; batch * n];
@@ -94,10 +82,6 @@ pub fn c2r_unscaled(input: &[Complex32], batch: usize, n: usize) -> Vec<f32> {
 }
 
 #[must_use]
-#[expect(
-    clippy::cast_precision_loss,
-    reason = "the f32 algorithm converts integer dimensions and accumulators to its floating-point working precision"
-)]
 pub fn dft_c2c_f32_interleaved(input: &[f32], batch: usize, n: usize) -> Vec<f32> {
     let mut output = vec![0.0; input.len()];
     for batch_index in 0..batch {
@@ -124,10 +108,6 @@ pub fn dft_c2c_f32_interleaved(input: &[f32], batch: usize, n: usize) -> Vec<f32
 }
 
 #[must_use]
-#[expect(
-    clippy::cast_precision_loss,
-    reason = "the f32 algorithm converts integer dimensions and accumulators to its floating-point working precision"
-)]
 pub fn twiddle_tables(n: usize) -> (Vec<f32>, Vec<f32>) {
     let mut real = Vec::with_capacity(n);
     let mut imag = Vec::with_capacity(n);

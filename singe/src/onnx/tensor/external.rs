@@ -23,46 +23,33 @@ pub fn read_external_data(
         .get("location")
         .ok_or_else(|| Error::invalid_initializer(name, "external data missing location"))?;
     let path = external_data_path(name, model_dir, location)?;
-    let bytes = fs::read(&path).map_err(|error| Error::InvalidExternalData {
+    let bytes = fs::read(&path).map_err(|source| Error::ExternalDataIo {
         name: name.into(),
         path: path.clone(),
-        reason: error.to_string(),
+        source,
     })?;
-    let offset = tensor
-        .external_data
-        .get("offset")
-        .map(|value| value.parse::<usize>())
-        .transpose()
-        .map_err(|error| Error::InvalidExternalData {
-            name: name.into(),
-            path: path.clone(),
-            reason: error.to_string(),
-        })?
-        .unwrap_or(0);
-    let length = tensor
-        .external_data
-        .get("length")
-        .map(|value| value.parse::<usize>())
-        .transpose()
-        .map_err(|error| Error::InvalidExternalData {
-            name: name.into(),
-            path: path.clone(),
-            reason: error.to_string(),
-        })?
-        .unwrap_or_else(|| bytes.len().saturating_sub(offset));
-    let end = offset
+    let entry = |key: &'static str| {
+        tensor
+            .external_data
+            .get(key)
+            .map(|value| value.parse::<usize>())
+            .transpose()
+            .map_err(|source| Error::ExternalDataEntry {
+                name: name.into(),
+                key,
+                source,
+            })
+    };
+    let offset = entry("offset")?.unwrap_or(0);
+    let length = entry("length")?.unwrap_or_else(|| bytes.len().saturating_sub(offset));
+    let slice = offset
         .checked_add(length)
-        .ok_or_else(|| Error::InvalidExternalData {
-            name: name.into(),
-            path: path.clone(),
-            reason: "external data range overflow".into(),
-        })?;
-    let slice = bytes
-        .get(offset..end)
-        .ok_or_else(|| Error::InvalidExternalData {
+        .and_then(|end| bytes.get(offset..end))
+        .ok_or_else(|| Error::ExternalDataRange {
             name: name.into(),
             path,
-            reason: "external data range out of bounds".into(),
+            offset,
+            length,
         })?;
     Ok(slice.to_vec())
 }
@@ -77,33 +64,31 @@ pub fn external_data_path(name: &str, model_dir: &Path, location: &str) -> Resul
             )
         })
     {
-        return Err(Error::InvalidExternalData {
+        return Err(Error::ExternalDataOutside {
             name: name.into(),
             path: location_path.into(),
-            reason: "external data location must stay within the model directory".into(),
         });
     }
 
     let model_dir = model_dir
         .canonicalize()
-        .map_err(|error| Error::InvalidExternalData {
+        .map_err(|source| Error::ExternalDataIo {
             name: name.into(),
             path: model_dir.into(),
-            reason: error.to_string(),
+            source,
         })?;
     let path = model_dir.join(location_path);
     let canonical_path = path
         .canonicalize()
-        .map_err(|error| Error::InvalidExternalData {
+        .map_err(|source| Error::ExternalDataIo {
             name: name.into(),
             path: path.clone(),
-            reason: error.to_string(),
+            source,
         })?;
     if !canonical_path.starts_with(&model_dir) {
-        return Err(Error::InvalidExternalData {
+        return Err(Error::ExternalDataOutside {
             name: name.into(),
             path,
-            reason: "external data location must stay within the model directory".into(),
         });
     }
     Ok(canonical_path)

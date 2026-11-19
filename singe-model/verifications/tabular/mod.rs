@@ -1,11 +1,7 @@
 // Verifications of the models under `model::tabular`.
 
-#[path = "mitra/verify.rs"]
 mod mitra;
 
-use crate::support::Verification;
+use crate::support::verifications;
 
-pub const VERIFICATIONS: &[Verification] = &[Verification {
-    name: "tabular/mitra",
-    verify: mitra::verify,
-}];
+verifications!("tabular", [mitra]);

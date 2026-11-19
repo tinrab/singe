@@ -13,7 +13,7 @@ use crate::{
         cudnn_backend::{
             CUDNN_GRAPH_INPUT0_TENSOR_ID, CUDNN_GRAPH_INPUT1_TENSOR_ID,
             CUDNN_GRAPH_OUTPUT_TENSOR_ID, CudnnBackendExecutable, CudnnBackendGraphKey,
-            CudnnBackendGraphKind, CudnnGraphBinding, CudnnGraphBindingSource,
+            CudnnBackendGraphKind, CudnnGraphBinding, CudnnGraphBindingSource, PlanSelection,
             build_cudnn_matmul_template, cached_cudnn_backend_graph_template,
             cudnn_backend_template_workspace_size, cudnn_backend_tensor_metadata_key,
             cudnn_engine_key_parameters,
@@ -77,7 +77,14 @@ pub fn build_cudnn_matmul_graph(
         cudnn_backend_tensor_metadata_key(data_type, value_shape, value_layout),
     );
     let template = cached_cudnn_backend_graph_template(runtime, key, |cudnn| {
-        build_cudnn_matmul_template(cudnn, &a_metadata, &b_metadata, &value_metadata, engine)
+        build_cudnn_matmul_template(
+            cudnn,
+            &a_metadata,
+            &b_metadata,
+            &value_metadata,
+            engine,
+            PlanSelection::Graph,
+        )
     })?;
     let workspace_size = cudnn_backend_template_workspace_size(&template)?;
     let a_id = CUDNN_GRAPH_INPUT0_TENSOR_ID;
@@ -94,7 +101,7 @@ pub fn build_cudnn_matmul_graph(
     );
     let mut child_graph = runtime.context().create_graph()?;
     let variant_pack = executable.variant_pack(output, cache)?;
-    let mut cudnn = runtime.cudnn().locked("cuda runtime cache")?;
+    let mut cudnn = runtime.cudnn()?.locked("cuda runtime cache")?;
     // SAFETY: compiler graph values retain tensor allocations, and the returned executable retains its workspace and plan through graph replay resources.
     unsafe { executable.populate_graph(&mut cudnn, &variant_pack, &mut child_graph) }?;
     drop(cudnn);

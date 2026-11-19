@@ -1,22 +1,19 @@
-"""SmolVLM2, answering a question about an image with `transformers`' image-text-to-text pipeline, and describing an image and a clip with its processor and `generate`, as `verify.rs` does all three in Singe.
+"""SmolVLM2, answering a question about an image with `transformers`' image-text-to-text pipeline, and describing an image and a clip with its processor and `generate`, as `mod.rs` does all three in Singe.
 `transformers` has no pipeline for visual question answering or video-text-to-text: it answers visual questions through image-text-to-text, and a clip's frames are passed with their frame rate, which the processor samples them by."""
 
-import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import numpy
+import torch
+from PIL import Image
+from transformers import AutoModelForImageTextToText, AutoProcessor, pipeline
 
-import numpy  # noqa: E402
-import torch  # noqa: E402
-from PIL import Image  # noqa: E402
-from transformers import AutoModelForImageTextToText, AutoProcessor, pipeline  # noqa: E402
-
-from support import DEVICE, Verification, generation  # noqa: E402
+from support import DEVICE, Verification, generation
 
 
-def visual_question_answering(snapshot):
+def visual_question_answering(snapshot, dtype):
     generate = pipeline(
-        "image-text-to-text", model=snapshot, dtype=torch.float32, device=DEVICE
+        "image-text-to-text", model=snapshot, dtype=dtype, device=DEVICE
     )
 
     def run(inputs, parameters):
@@ -43,10 +40,10 @@ def visual_question_answering(snapshot):
     return run
 
 
-def image_text_to_text(snapshot):
+def image_text_to_text(snapshot, dtype):
     processor = AutoProcessor.from_pretrained(snapshot)
     model = (
-        AutoModelForImageTextToText.from_pretrained(snapshot, dtype=torch.float32)
+        AutoModelForImageTextToText.from_pretrained(snapshot, dtype=dtype)
         .to(DEVICE)
         .eval()
     )
@@ -75,10 +72,10 @@ def image_text_to_text(snapshot):
     return run
 
 
-def video_text_to_text(snapshot):
+def video_text_to_text(snapshot, dtype):
     processor = AutoProcessor.from_pretrained(snapshot)
     model = (
-        AutoModelForImageTextToText.from_pretrained(snapshot, dtype=torch.float32)
+        AutoModelForImageTextToText.from_pretrained(snapshot, dtype=dtype)
         .to(DEVICE)
         .eval()
     )

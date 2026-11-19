@@ -11,11 +11,12 @@ use singe::{
     },
 };
 
-use super::{EncoderHead, HeadLayouts};
 use crate::{
     assembly::PostNormEncoder,
     error::{Error, Result},
     format::transformers::classifier_config,
+    head::{EncoderHead, HeadLayouts},
+    host,
     schema::Schema,
     source::Source,
 };
@@ -52,13 +53,10 @@ impl ScoreFunction {
     }
 }
 
-// Returns the index and value of the first largest score, as NumPy's `argmax` picks it, or `None` for no scores.
 #[must_use]
-pub fn argmax(scores: &[f32]) -> Option<(usize, f32)> {
+pub fn argmax(scores: impl IntoIterator<Item = (usize, f32)>) -> Option<(usize, f32)> {
     scores
-        .iter()
-        .copied()
-        .enumerate()
+        .into_iter()
         .fold(None, |best, (index, score)| match best {
             Some((_, kept)) if kept >= score => best,
             _ => Some((index, score)),
@@ -67,11 +65,64 @@ pub fn argmax(scores: &[f32]) -> Option<(usize, f32)> {
 
 // A classifier's labels, in the order of its scores, and the function its scores go through unless a caller names another.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(try_from = "StoredClassifierConfig")]
 pub struct ClassifierConfig {
-    pub labels: Vec<String>,
-    pub function: ScoreFunction,
+    labels: Vec<String>,
+    function: ScoreFunction,
     // The function a `sentence-transformers` cross-encoder's config names for its ranking scores, when it names one.
-    pub ranking_function: Option<ScoreFunction>,
+    ranking_function: Option<ScoreFunction>,
+}
+
+#[derive(Deserialize)]
+struct StoredClassifierConfig {
+    labels: Vec<String>,
+    function: ScoreFunction,
+    ranking_function: Option<ScoreFunction>,
+}
+
+impl TryFrom<StoredClassifierConfig> for ClassifierConfig {
+    type Error = Error;
+
+    fn try_from(stored: StoredClassifierConfig) -> Result<Self> {
+        Self::create(stored.labels, stored.function, stored.ranking_function)
+    }
+}
+
+impl ClassifierConfig {
+    pub fn create(
+        labels: Vec<String>,
+        function: ScoreFunction,
+        ranking_function: Option<ScoreFunction>,
+    ) -> Result<Self> {
+        if labels.is_empty() {
+            return Err(Error::unsupported("a classifier without labels"));
+        }
+
+        Ok(Self {
+            labels,
+            function,
+            ranking_function,
+        })
+    }
+
+    #[must_use]
+    pub fn labels(&self) -> &[String] {
+        &self.labels
+    }
+
+    pub fn label_count(&self) -> SingeResult<i64> {
+        i64::try_from(self.labels.len()).map_err(|_| SingeError::out_of_range("classifier labels"))
+    }
+
+    #[must_use]
+    pub const fn function(&self) -> ScoreFunction {
+        self.function
+    }
+
+    #[must_use]
+    pub const fn ranking_function(&self) -> Option<ScoreFunction> {
+        self.ranking_function
+    }
 }
 
 // What a model's classifier reads, and what it does before its output projection.
@@ -132,9 +183,9 @@ impl Layer<TokenBatch> for SequenceClassifierLayers {
             state,
         )?;
         if let Some((projection, activation)) = &self.projection {
-            pooled = activation.forward(&projection.forward(&pooled, state)?, state)?;
+            pooled = pooled.apply(projection, state)?.apply(activation, state)?;
         }
-        self.output.forward(&pooled, state)
+        pooled.apply(&self.output, state)
     }
 }
 
@@ -158,19 +209,12 @@ impl SequenceClassifier {
 
     // Returns each row's scores, one per label, before any score function.
     pub fn scores(&self, batch: &TokenBatch) -> Result<Vec<Vec<f32>>> {
-        if self.config.labels.is_empty() {
-            return Err(Error::unsupported("a classifier of no labels"));
-        }
-
         let scores = self
             .model
             .forward_group(batch)?
             .cast(DataType::F32)?
             .to_vec::<f32>()?;
-        Ok(scores
-            .chunks(self.config.labels.len())
-            .map(<[f32]>::to_vec)
-            .collect())
+        Ok(host::rows(&scores, self.config.labels.len()))
     }
 }
 
@@ -194,7 +238,7 @@ impl EncoderHead for SequenceClassifier {
             schema,
             Box::new(encoder),
             width,
-            config.labels.len(),
+            config.labels().len(),
             layouts.classifier,
         )
     }

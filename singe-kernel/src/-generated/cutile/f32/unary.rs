@@ -9,10 +9,6 @@ mod kernels {
         reason = "cuTile-generated dtype kernels share the core DSL prelude and its expansion traits"
     )]
     use cutile::core::*;
-    #[expect(
-        clippy::too_many_lines,
-        reason = "the kernel keeps its complete indexing and operation dispatch in one auditable unit"
-    )]
     pub fn unary_store<const OP: i32, const B: i32>(
         out: &mut Tensor<f32, { [B] }>,
         input: &Tensor<f32, { [-1] }>,
@@ -152,10 +148,6 @@ mod kernels {
         };
         out.store(value);
     }
-    #[expect(
-        clippy::similar_names,
-        reason = "query, key, and value operands and their tensor layouts follow the mathematical kernel notation"
-    )]
     pub fn nan_to_num_store<const B: i32>(
         out: &mut Tensor<f32, { [B] }>,
         input: &Tensor<f32, { [-1] }>,

@@ -91,7 +91,7 @@ impl Layout {
     /// Returns an error if the target rank is smaller, an existing nonunit dimension differs from its target dimension, or the resulting shape or stride metadata is invalid.
     pub fn expand(&self, target: &Shape) -> Result<Self> {
         if self.dimensions().len() > target.dimensions().len() {
-            return Err(Error::InvalidStride);
+            return Err(Error::invalid_stride("expand target rank"));
         }
 
         let leading = target.dimensions().len() - self.dimensions().len();
@@ -164,7 +164,7 @@ impl Layout {
         }
 
         if strides.iter().any(|&stride| stride < 0) {
-            return Err(Error::InvalidStride);
+            return Err(Error::invalid_stride("layout strides"));
         }
         Ok(Self {
             shape,

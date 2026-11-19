@@ -77,9 +77,9 @@ pub fn normalized_indices(
                 index
             };
             if index < 0 || index >= dimension {
-                return Err(Error::IndexOutOfBounds);
+                return Err(Error::index_out_of_bounds("index tensor value"));
             }
-            usize::try_from(index).map_err(|_| Error::IndexOutOfBounds)
+            usize::try_from(index).map_err(|_| Error::index_out_of_bounds("index tensor value"))
         })
         .collect()
 }

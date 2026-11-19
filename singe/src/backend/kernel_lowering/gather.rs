@@ -3,7 +3,7 @@
 use std::iter::repeat_n;
 
 use singe_codegen::{
-    ir::{Access, AxisKind, ElementType, NodeId, SizeId},
+    ir::{Access, AxisKind, BinaryOp, ElementType, NodeId, SizeId},
     schedule::element_schedule,
 };
 
@@ -40,7 +40,7 @@ impl Selection<'_> {
     fn dimensions(&self, dimensions: &[i64]) -> Result<Vec<i64>> {
         let end = self.axis + self.extents.len();
         if end > dimensions.len() {
-            return Err(Error::DimensionOutOfBounds);
+            return Err(Error::dimension_out_of_bounds("selection axes"));
         }
         Ok(dimensions[..self.axis]
             .iter()
@@ -138,6 +138,79 @@ pub fn gather(
     let access = Access { indirect, ..direct };
     let value = builder.kernel.load(access);
     let output = builder.output(bits, columns.len() - 1);
+    builder.kernel.store(output, value);
+    let schedule = element_schedule(&builder.kernel, 128);
+    Ok(builder.finish(
+        ValueSpec::new(data_type, Shape::create(dimensions)?),
+        schedule,
+    ))
+}
+
+// Lowers linear resampling of `input`'s `axis`: each output point loads the input at its `low` and `high` indices along the axis and blends them by its `weight`, `low + (high - low) · weight`.
+// An index out of range reports [`STATUS_INDEX_OUT_OF_BOUNDS`].
+pub fn resample_linear(
+    data_type: DataType,
+    input: &Layout,
+    axis: usize,
+    indices: [(DataType, &Layout); 2],
+    weight: (DataType, &Layout),
+) -> Result<LoweredKernel> {
+    if !data_type.is_float() || weight.0 != data_type {
+        return Err(Error::unsupported_data_type("cuda linear resampling"));
+    }
+
+    let extent = input.dimensions()[axis];
+    let points = weight.1.shape();
+    let selection = Selection {
+        axis,
+        extents: &[extent],
+        index_shape: points,
+        indices: &[indices[0], indices[1], weight],
+        wrap: false,
+    };
+    let dimensions = selection.dimensions(input.dimensions())?;
+    let mut columns = vec![selection.direct_strides(input.strides())];
+    // The low and high indices and the weight walk the output's resampled axis alike.
+    columns.extend(selection.index_strides(dimensions.len())?);
+    columns.push(
+        Layout::contiguous(dimensions.as_slice())?
+            .strides()
+            .to_vec(),
+    );
+    let kinds = vec![AxisKind::Parallel; dimensions.len()];
+    let mut builder = DomainKernel::create("singe_resample_linear", &dimensions, &kinds, &columns)?;
+    let element = element_type(data_type)?;
+    let compute = element.compute();
+    let stride = builder.size(to_u64(input.strides()[axis], "cuda resampled stride")?);
+    let bound = builder.size(to_u64(extent, "cuda resampled extent")?);
+    let direct = builder.input(element, 0);
+    let point = |builder: &mut DomainKernel, column: usize| -> Result<NodeId> {
+        let (index_type, _) = indices[column - 1];
+        if index_type != DataType::I64 {
+            return Err(Error::unsupported_data_type("cuda index tensor"));
+        }
+
+        let access = builder.input(ElementType::I64, column);
+        let index = builder.kernel.load(access);
+        let index = builder
+            .kernel
+            .check_index(index, bound, false, STATUS_INDEX_OUT_OF_BOUNDS);
+        let access = Access {
+            indirect: vec![(index, stride)],
+            ..direct.clone()
+        };
+        let value = builder.kernel.load(access);
+        Ok(builder.convert(value, compute))
+    };
+    let low = point(&mut builder, 1)?;
+    let high = point(&mut builder, 2)?;
+    let access = builder.input(element, 3);
+    let blend = builder.kernel.load(access);
+    let blend = builder.convert(blend, compute);
+    let difference = builder.kernel.binary(BinaryOp::Sub, high, low);
+    let scaled = builder.kernel.binary(BinaryOp::Mul, difference, blend);
+    let value = builder.kernel.binary(BinaryOp::Add, low, scaled);
+    let output = builder.output(element, columns.len() - 1);
     builder.kernel.store(output, value);
     let schedule = element_schedule(&builder.kernel, 128);
     Ok(builder.finish(

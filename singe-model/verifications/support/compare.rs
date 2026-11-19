@@ -1,5 +1,7 @@
 // How an output is compared with the reference's, by task, as `support.py` compares them: generated tokens exactly, features by cosine, and scores within `TOLERANCE` with their labels, spans, or order exactly.
 
+use std::collections::HashMap;
+
 use serde_json::Value;
 
 const TOLERANCE: f64 = 1e-3;
@@ -116,10 +118,6 @@ fn features(want: &Value, got: &Value) -> (bool, String) {
         .map(|(want, got)| cosine(want, got))
         .collect::<Vec<_>>();
     let lowest = similarities.iter().copied().fold(f64::INFINITY, f64::min);
-    #[expect(
-        clippy::cast_precision_loss,
-        reason = "an output has far fewer rows than `f64` counts exactly"
-    )]
     let mean = similarities.iter().sum::<f64>() / similarities.len() as f64;
     (
         mean > 0.999 && lowest > 0.99,
@@ -179,7 +177,6 @@ fn meshes(want: &Value, got: &Value) -> (bool, String) {
     let faces = got["faces"].as_array().map_or(0, Vec::len);
     let close = |got: usize, want: &Value| {
         want.as_f64().is_some_and(|want| {
-            #[expect(clippy::cast_precision_loss, reason = "mesh sizes are far below 2^52")]
             let got = got as f64;
             (got - want).abs() <= want * 1e-3
         })
@@ -197,14 +194,10 @@ fn meshes(want: &Value, got: &Value) -> (bool, String) {
     }
     // Singe's vertices by cell of a grid as fine as the field's, to find each sampled vertex's nearest.
     let cell = |point: &[f64; 3]| {
-        #[expect(
-            clippy::cast_possible_truncation,
-            reason = "coordinates lie in [-1, 1]"
-        )]
         let index = |value: f64| ((value + 1.0) * 64.0).floor() as i64;
         (index(point[0]), index(point[1]), index(point[2]))
     };
-    let mut cells = std::collections::HashMap::<(i64, i64, i64), Vec<usize>>::new();
+    let mut cells = HashMap::<(i64, i64, i64), Vec<usize>>::new();
     for (index, vertex) in vertices.iter().enumerate() {
         cells.entry(cell(vertex)).or_default().push(index);
     }
@@ -310,10 +303,6 @@ fn psnr(want: &Value, got: &Value) -> (Option<f64>, String) {
         .zip(got.as_raw())
         .map(|(&want, &got)| (f64::from(want) - f64::from(got)).powi(2))
         .sum::<f64>();
-    #[expect(
-        clippy::cast_precision_loss,
-        reason = "an image has far fewer bytes than `f64` counts exactly"
-    )]
     let error = squares / want.as_raw().len() as f64;
     let psnr = if error == 0.0 {
         f64::INFINITY
@@ -419,10 +408,6 @@ fn masks(want: &Value, got: &Value) -> (bool, String) {
             .zip(got.pixels())
             .filter(|(want, got)| want != got)
             .count();
-        #[expect(
-            clippy::cast_precision_loss,
-            reason = "an image has far fewer pixels than `f64` counts exactly"
-        )]
         let share = differing as f64 / f64::from(want.width() * want.height());
         worst = worst.max(share);
     }
@@ -639,7 +624,7 @@ const LOOSE_SCORE: f64 = 0.05;
 
 const LOOSE_TOKENS: usize = 8;
 
-// A half-precision case's match, as `support.py` makes it: the same top label or answer with its score within `LOOSE_SCORE`, or the same first `LOOSE_TOKENS` generated tokens.
+// A half-precision case's match, as `support.py` makes it: the same top label or answer with its score within `LOOSE_SCORE`, or the same first `LOOSE_TOKENS` generated tokens, and for other tasks the match `outputs` makes.
 pub fn loose(task: &str, want: &Value, got: &Value) -> (bool, String) {
     fn top(mut value: &Value) -> &Value {
         while let Value::Array(items) = value {
@@ -684,6 +669,6 @@ pub fn loose(task: &str, want: &Value, got: &Value) -> (bool, String) {
                 format!("top {key} {}, score difference {error:.1e}", got[key]),
             )
         }
-        _ => (false, format!("no loose comparison for {task}")),
+        _ => outputs(task, want, got),
     }
 }

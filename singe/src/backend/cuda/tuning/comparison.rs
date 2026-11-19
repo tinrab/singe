@@ -107,11 +107,6 @@ impl Comparison {
     }
 }
 
-#[expect(
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    reason = "a ratio of times is not negative, and a cast takes what is too large to the largest value"
-)]
 fn ppm(ratio: f64) -> u32 {
     (ratio * f64::from(ONE_PPM)).round() as u32
 }

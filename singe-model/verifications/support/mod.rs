@@ -2,11 +2,9 @@
 
 mod compare;
 mod export;
-mod profile;
 mod snapshot;
 
 use std::{
-    env,
     fmt::{Display, Formatter, Result as FmtResult},
     fs,
     path::{Path, PathBuf},
@@ -14,15 +12,17 @@ use std::{
 };
 
 use anyhow::{Context as _, Result, bail};
-use serde::Deserialize;
+use serde::{
+    Deserialize, Deserializer, Serialize,
+    de::{DeserializeOwned, Error as _},
+};
 use serde_json::Value;
-use singe::{DataType, Device};
+use singe::{DataType, Device, backend::cuda::clear_cache};
 use singe_model::{
     LoadOptions, Source,
-    task::{Pipeline, text::sentence_similarity::SentenceSimilarityPipeline},
+    task::{self, Pipeline},
 };
-
-use self::profile::{GpuWork, profiled};
+use singe_testing::{GpuWork, profiled};
 
 // The runs a case is timed over, after one that warms it up.
 const TIMED_RUNS: usize = 5;
@@ -36,19 +36,72 @@ pub struct Verification {
     pub verify: fn(&mut Session),
 }
 
-// A case of `cases.json`: the snapshot it reads, by the variable naming it, the task, its inputs and parameters, and the reference's output for each input.
+macro_rules! verifications {
+    ($category:literal, [$($model:ident),+ $(,)?]) => {
+        pub const VERIFICATIONS: &[$crate::support::Verification] = &[$(
+            $crate::support::Verification {
+                name: concat!($category, "/", stringify!($model)),
+                verify: $model::verify,
+            }
+        ),+];
+    };
+}
+
+pub(crate) use verifications;
+
+pub trait Runner: Sized {
+    const TASK: &'static str;
+
+    type Input: DeserializeOwned;
+
+    type Parameters: DeserializeOwned + Default;
+
+    type Output: Serialize;
+
+    fn load(source: &Source, options: LoadOptions) -> Result<Self>;
+
+    fn run(
+        &self,
+        inputs: &[Self::Input],
+        parameters: &Self::Parameters,
+    ) -> Result<Vec<Self::Output>>;
+}
+
+impl<P: Pipeline> Runner for P {
+    const TASK: &'static str = P::TASK.id();
+
+    type Input = P::Input;
+
+    type Parameters = P::Parameters;
+
+    type Output = P::Output;
+
+    fn load(source: &Source, options: LoadOptions) -> Result<Self> {
+        Ok(<P as Pipeline>::load(source, options)?)
+    }
+
+    fn run(
+        &self,
+        inputs: &[Self::Input],
+        parameters: &Self::Parameters,
+    ) -> Result<Vec<Self::Output>> {
+        Ok(<P as Pipeline>::run(self, inputs, parameters)?)
+    }
+}
+
+// A case of `cases.json`: the snapshot it reads, by the variable naming it, the task, the type its weights load in, its inputs and parameters, and the reference's output for each input.
 #[derive(Debug, Deserialize)]
 struct Case {
     name: String,
     snapshot: String,
     task: String,
+    // A case in half precision matches looser, by `compare::loose`.
+    #[serde(deserialize_with = "data_type")]
+    data_type: DataType,
     inputs: Vec<Value>,
     #[serde(default)]
     parameters: Value,
     expected: Vec<Value>,
-    // Whether the case runs in half precision and matches looser, by `compare::loose`.
-    #[serde(default)]
-    loose: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -74,11 +127,6 @@ pub struct Session {
     pub skipped: usize,
 }
 
-// The directory verifications live in, which cases name media files relative to.
-fn root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("verifications")
-}
-
 impl Session {
     pub fn open(name: &'static str, filter: &str) -> Result<Self> {
         let path = root().join(name).join("cases.json");
@@ -95,86 +143,48 @@ impl Session {
         })
     }
 
-    // Loads pipeline `P` in `data_type` from case `name`'s snapshot, as its reference loads it, runs the case through it, compares each output with the expected one, and reports it with the median time of a run.
-    // A case whose snapshot is not downloaded is skipped, and one that fails to load or run fails, and the next case runs.
-    pub fn check<P: Pipeline>(&mut self, name: &str, data_type: DataType) {
+    // Loads `R` from case `name`'s snapshot in the case's data type, as its reference loads it, runs the case through it, compares each output with the expected one, and reports it with the median time of a run.
+    pub fn check<R: Runner>(&mut self, name: &str) {
         let label = format!("{}/{name}", self.name);
-        if !label.contains(&self.filter) {
-            return;
-        }
-
-        let outcome = self.run::<P>(name, &label, data_type);
-        self.record(&label, outcome);
+        self.checked(&label, name, run::<R>);
     }
 
     // Exports case `name`'s snapshot as a CUDA C++ program, builds its runner with `nvcc`, runs it on the case's inputs, and compares what it gives with the reference's outputs, as `export::run` does.
     pub fn check_exported(&mut self, name: &str) {
         let label = format!("{}/{name}/exported", self.name);
+        self.checked(&label, name, run_exported);
+    }
+
+    // A case whose snapshot is not downloaded is skipped, and one that fails to load or run fails, and the next case runs.
+    fn checked(
+        &mut self,
+        label: &str,
+        name: &str,
+        check: impl FnOnce(&Case, &Path, &str) -> Result<Outcome>,
+    ) {
         if !label.contains(&self.filter) {
             return;
         }
 
-        let outcome = self.run_exported(name, &label);
-        self.record(&label, outcome);
+        let outcome = self
+            .case(name)
+            .and_then(|case| match snapshot(case, label)? {
+                Some(snapshot) => check(case, &snapshot, label),
+                None => Ok(Outcome::Skipped),
+            });
+        self.record(label, outcome);
     }
 
-    // Embeds case `name`'s sentences with a `sentence-transformers` snapshot's pipeline and compares the pooled vectors with the reference's, whose scale a similarity would hide.
-    pub fn check_embeddings(&mut self, name: &str) {
-        let label = format!("{}/{name}", self.name);
-        if !label.contains(&self.filter) {
-            return;
-        }
-
-        let outcome = self.run_embeddings(name, &label);
-        self.record(&label, outcome);
-    }
-
-    fn run_embeddings(&self, name: &str, label: &str) -> Result<Outcome> {
-        let case = self
-            .cases
+    fn case(&self, name: &str) -> Result<&Case> {
+        self.cases
             .iter()
             .find(|case| case.name == name)
-            .with_context(|| format!("cases.json has no case {name}"))?;
-        let Some(snapshot) = snapshot::find(&root(), &case.snapshot)? else {
-            println!(
-                "{label}: skipped, snapshot {} is not downloaded (`just snapshot {}`)",
-                case.snapshot, case.snapshot
-            );
-            return Ok(Outcome::Skipped);
-        };
-
-        let pipeline = SentenceSimilarityPipeline::load(
-            &Source::open(snapshot)?,
-            LoadOptions::new(DEVICE, DataType::F32),
-        )?;
-        let texts = case
-            .inputs
-            .iter()
-            .map(|input| input.as_str().context("a sentence to embed"))
-            .collect::<Result<Vec<_>>>()?;
-        let vectors = pipeline.embed(&texts, None)?;
-        let width = usize::try_from(vectors.shape().dimensions()[1])?;
-        let values = vectors.to_vec::<f32>()?;
-        let mut matched = values.len() == width * case.expected.len();
-        let mut details = Vec::new();
-        for (want, got) in case.expected.iter().zip(values.chunks(width)) {
-            let (same, detail) = compare::outputs(&case.task, want, &serde_json::json!(got));
-            matched &= same;
-            details.push(detail);
-        }
-        let verdict = if matched { "ok" } else { "MISMATCH" };
-        println!("{label}: {verdict}; {}", details.join("; "));
-        Ok(if matched {
-            Outcome::Passed
-        } else {
-            Outcome::Failed
-        })
+            .with_context(|| format!("cases.json has no case {name}"))
     }
 
     fn record(&mut self, label: &str, outcome: Result<Outcome>) {
         // The allocator keeps freed memory cached, which the next model needs on a small GPU, as `support.py` empties torch's.
-        let cleared =
-            singe::backend::cuda::clear_cache(DEVICE).context("clear the allocator's cache");
+        let cleared = clear_cache(DEVICE).context("clear the allocator's cache");
         match outcome.and_then(|outcome| cleared.map(|()| outcome)) {
             Ok(Outcome::Passed) => self.passed += 1,
             Ok(Outcome::Failed) => self.failed += 1,
@@ -185,121 +195,114 @@ impl Session {
             }
         }
     }
+}
 
-    fn run_exported(&self, name: &str, label: &str) -> Result<Outcome> {
-        let case = self
-            .cases
-            .iter()
-            .find(|case| case.name == name)
-            .with_context(|| format!("cases.json has no case {name}"))?;
-        let Some(snapshot) = snapshot::find(&root(), &case.snapshot)? else {
-            println!(
-                "{label}: skipped, snapshot {} is not downloaded (`just snapshot {}`)",
-                case.snapshot, case.snapshot
-            );
-            return Ok(Outcome::Skipped);
-        };
-
-        let directory = Path::new(env!("CARGO_TARGET_TMPDIR"))
-            .join("exports")
-            .join(label.replace('/', "-"));
-        let (matched, details) = export::run(case, &snapshot, &directory)?;
-        let verdict = if matched { "ok" } else { "MISMATCH" };
-        println!("{label}: {verdict}; {}", details.join("; "));
-        Ok(if matched {
-            Outcome::Passed
-        } else {
-            Outcome::Failed
-        })
-    }
-
-    fn run<P: Pipeline>(&self, name: &str, label: &str, data_type: DataType) -> Result<Outcome> {
-        let case = self
-            .cases
-            .iter()
-            .find(|case| case.name == name)
-            .with_context(|| format!("cases.json has no case {name}"))?;
-        if case.task != P::TASK.id() {
-            bail!("a {} case run as {}", case.task, P::TASK.id());
-        }
-
-        let Some(snapshot) = snapshot::find(&root(), &case.snapshot)? else {
-            println!(
-                "{label}: skipped, snapshot {} is not downloaded (`just snapshot {}`)",
-                case.snapshot, case.snapshot
-            );
-            return Ok(Outcome::Skipped);
-        };
-
-        let source = Source::open(snapshot)?;
-        let (pipeline, load_time, load_gpu) =
-            profiled(|| Ok(P::load(&source, LoadOptions::new(DEVICE, data_type))?))?;
-        let inputs = case
-            .inputs
-            .iter()
-            .map(|input| Ok(serde_json::from_value(media(input.clone()))?))
-            .collect::<Result<Vec<P::Input>>>()?;
-        let parameters = if case.parameters.is_null() {
-            P::Parameters::default()
-        } else {
-            serde_json::from_value(case.parameters.clone())?
-        };
-
-        // The first run warms the pipeline up, and its outputs are the ones compared.
-        let start = Instant::now();
-        let outputs = pipeline.run(&inputs, &parameters)?;
-        let first = start.elapsed();
-        // The timed runs are not profiled, so profiling slows none of them; one more run is, for what the GPU did in a run.
-        let mut times = (0..TIMED_RUNS)
-            .map(|_| {
-                let start = Instant::now();
-                pipeline.run(&inputs, &parameters)?;
-                Ok(start.elapsed())
-            })
-            .collect::<Result<Vec<Duration>>>()?;
-        times.sort();
-        let (_, _, run_gpu) = profiled(|| Ok(pipeline.run(&inputs, &parameters)?))?;
-        let timing = Timing {
-            load: load_time,
-            load_copies: load_gpu.copies,
-            first,
-            run: times[TIMED_RUNS / 2],
-            run_gpu,
-        };
-        drop(pipeline);
-
-        let mut failed = false;
-        let mut details = Vec::new();
-        for (want, got) in case.expected.iter().zip(&outputs) {
-            let got = serde_json::to_value(got)?;
-            let (matched, detail) = if case.loose {
-                compare::loose(&case.task, want, &got)
-            } else {
-                compare::outputs(&case.task, want, &got)
-            };
-            failed |= !matched;
-            details.push(detail);
-        }
-        if outputs.len() != case.expected.len() {
-            failed = true;
-            details.push(format!(
-                "{} outputs for {} expected",
-                outputs.len(),
-                case.expected.len()
-            ));
-        }
-
-        let verdict = if failed { "MISMATCH" } else { "ok" };
+fn snapshot(case: &Case, label: &str) -> Result<Option<PathBuf>> {
+    let found = snapshot::find(&root(), &case.snapshot)?;
+    if found.is_none() {
         println!(
-            "{label}: {verdict}; {}\n    singe: {timing}",
-            details.join("; ")
+            "{label}: skipped, snapshot {} is not downloaded (`just snapshot {}`)",
+            case.snapshot, case.snapshot
         );
-        Ok(if failed {
-            Outcome::Failed
-        } else {
-            Outcome::Passed
-        })
     }
+    Ok(found)
+}
+
+fn verdict(label: &str, matched: bool, details: &[String]) -> Outcome {
+    let verdict = if matched { "ok" } else { "MISMATCH" };
+    println!("{label}: {verdict}; {}", details.join("; "));
+    if matched {
+        Outcome::Passed
+    } else {
+        Outcome::Failed
+    }
+}
+
+fn run<R: Runner>(case: &Case, snapshot: &Path, label: &str) -> Result<Outcome> {
+    if case.task != R::TASK {
+        bail!("a {} case run as {}", case.task, R::TASK);
+    }
+
+    let source = Source::open(snapshot)?;
+    let (pipeline, load_time, load_gpu) =
+        profiled(|| R::load(&source, LoadOptions::new(DEVICE, case.data_type)))?;
+    let pipeline = pipeline?;
+    let inputs = case
+        .inputs
+        .iter()
+        .map(|input| Ok(serde_json::from_value(media(input.clone()))?))
+        .collect::<Result<Vec<R::Input>>>()?;
+    let parameters = task::parameters::<R::Parameters>(&case.parameters)?;
+
+    // The first run warms the pipeline up, and its outputs are the ones compared.
+    let start = Instant::now();
+    let outputs = pipeline.run(&inputs, &parameters)?;
+    let first = start.elapsed();
+    // The timed runs are not profiled, so profiling slows none of them; one more run is, for what the GPU did in a run.
+    let mut times = (0..TIMED_RUNS)
+        .map(|_| {
+            let start = Instant::now();
+            pipeline.run(&inputs, &parameters)?;
+            Ok(start.elapsed())
+        })
+        .collect::<Result<Vec<Duration>>>()?;
+    times.sort();
+    let (ran, _, run_gpu) = profiled(|| pipeline.run(&inputs, &parameters))?;
+    ran?;
+    let timing = Timing {
+        load: load_time,
+        load_copies: load_gpu.copies,
+        first,
+        run: times[TIMED_RUNS / 2],
+        run_gpu,
+    };
+    drop(pipeline);
+
+    let compare = if case.data_type == DataType::F32 {
+        compare::outputs
+    } else {
+        compare::loose
+    };
+    let mut matched = outputs.len() == case.expected.len();
+    let mut details = Vec::new();
+    for (want, got) in case.expected.iter().zip(&outputs) {
+        let (same, detail) = compare(&case.task, want, &serde_json::to_value(got)?);
+        matched &= same;
+        details.push(detail);
+    }
+    if outputs.len() != case.expected.len() {
+        details.push(format!(
+            "{} outputs for {} expected",
+            outputs.len(),
+            case.expected.len()
+        ));
+    }
+
+    let outcome = verdict(label, matched, &details);
+    println!("    singe: {timing}");
+    Ok(outcome)
+}
+
+fn run_exported(case: &Case, snapshot: &Path, label: &str) -> Result<Outcome> {
+    let directory = Path::new(env!("CARGO_TARGET_TMPDIR"))
+        .join("exports")
+        .join(label.replace('/', "-"));
+    let (matched, details) = export::run(case, snapshot, &directory)?;
+    Ok(verdict(label, matched, &details))
+}
+
+fn data_type<'de, D: Deserializer<'de>>(deserializer: D) -> Result<DataType, D::Error> {
+    match String::deserialize(deserializer)?.as_str() {
+        "f32" => Ok(DataType::F32),
+        "f16" => Ok(DataType::F16),
+        "bf16" => Ok(DataType::Bf16),
+        other => Err(D::Error::custom(format!("unknown data type {other}"))),
+    }
+}
+
+// The directory verifications live in, which cases name media files relative to.
+fn root() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("verifications")
 }
 
 // Rewrites each string naming a file under `media/` to its path, as cases name the clips and images they read.
@@ -339,7 +342,7 @@ impl Display for Timing {
             time(self.first),
             time(self.run),
             time(busy),
-            self.run_gpu.launches,
+            self.run_gpu.launches(),
             time(self.run.saturating_sub(busy)),
         )
     }

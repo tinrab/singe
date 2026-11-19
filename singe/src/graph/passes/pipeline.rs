@@ -5,10 +5,13 @@ use crate::{
         Graph,
         ir::ValueId,
         passes::{
+            contiguous::CopyElision,
             decompose_operations, decompose_scaled_dot_product_attention, elide_contiguous_copies,
             fold_grouped_query_attention, fold_small_constants, infer_value_metadata,
-            materialize_contiguous_operands, merge_sibling_projections, prune_dead_nodes_with_map,
-            recognize_row_operations, remove_redundant_ops_with_map,
+            materialize_contiguous_operands,
+            merge::ProjectionMerge,
+            merge_sibling_projections, prune_dead_nodes_with_map, recognize_row_operations,
+            remove_redundant_ops_with_map,
             validation::{
                 validate_initializers, validate_node_contracts, validate_outputs,
                 validate_value_metadata,
@@ -42,21 +45,23 @@ impl GraphPassPipeline {
         self
     }
 
-    // Returns a pipeline that also runs sibling matmuls as one, before anything fuses them.
+    // Returns a pipeline that also runs sibling matmuls as one when their weights must be copied to join, not only when they are joined already.
     pub(crate) fn with_merged_projections(self, merged: bool) -> Self {
         if !merged {
             return self;
         }
 
         let cuda_providers = self.cuda_providers;
-        let mut passes = Vec::with_capacity(self.passes.len() + 1);
-        for pass in self.passes {
-            if pass == GraphPassKind::DecomposeOperations {
-                passes.push(GraphPassKind::MergeSiblingProjections);
-            }
-
-            passes.push(pass);
-        }
+        let passes = self
+            .passes
+            .into_iter()
+            .map(|pass| match pass {
+                GraphPassKind::MergeSiblingProjections(_) => {
+                    GraphPassKind::MergeSiblingProjections(ProjectionMerge::All)
+                }
+                pass => pass,
+            })
+            .collect::<Vec<_>>();
 
         Self::new(passes).with_cuda_providers(cuda_providers)
     }
@@ -94,9 +99,9 @@ impl GraphPassPipeline {
                         remapped_nodes,
                     ));
                 }
-                GraphPassKind::MergeSiblingProjections => {
+                GraphPassKind::MergeSiblingProjections(merge) => {
                     let checked_nodes = graph.node_count();
-                    let (merged, remapped_nodes) = merge_sibling_projections(&graph)?;
+                    let (merged, remapped_nodes) = merge_sibling_projections(&graph, merge)?;
                     graph = merged;
                     results.push(GraphPassResult::new(pass, checked_nodes, remapped_nodes));
                 }
@@ -141,14 +146,19 @@ impl GraphPassPipeline {
                 }
                 GraphPassKind::ElideContiguousCopies => {
                     let checked_nodes = graph.node_count();
-                    let (elided, remapped_nodes) =
-                        elide_contiguous_copies(&graph, self.cuda_providers.is_some())?;
+                    let elision = if self.cuda_providers.is_some() {
+                        CopyElision::AllDevices
+                    } else {
+                        CopyElision::CudaDevices
+                    };
+                    let (elided, remapped_nodes) = elide_contiguous_copies(&graph, elision)?;
                     graph = elided;
                     results.push(GraphPassResult::new(pass, checked_nodes, remapped_nodes));
                 }
                 GraphPassKind::MaterializeContiguousOperands => {
                     let checked_nodes = graph.node_count();
-                    let (copied, remapped_nodes) = materialize_contiguous_operands(&graph)?;
+                    let (copied, remapped_nodes) =
+                        materialize_contiguous_operands(&graph, self.cuda_providers)?;
                     graph = copied;
                     results.push(GraphPassResult::new(pass, checked_nodes, remapped_nodes));
                 }
@@ -175,6 +185,7 @@ impl Default for GraphPassPipeline {
             GraphPassKind::ValidateValueMetadata,
             GraphPassKind::ValidateNodeContracts,
             GraphPassKind::ValidateOutputs,
+            GraphPassKind::MergeSiblingProjections(ProjectionMerge::Joined),
             GraphPassKind::DecomposeOperations,
             GraphPassKind::FoldSmallConstants,
             GraphPassKind::RemoveRedundantOps,
@@ -204,8 +215,8 @@ pub enum GraphPassKind {
     FoldGroupedQueryAttention,
     /// Writes the operations compiled graphs have no kernel for as their decompositions.
     DecomposeOperations,
-    // Writes matmuls of one left side by different weights as one matmul by their weights joined.
-    MergeSiblingProjections,
+    // Writes matmuls of one left side by different weights as one matmul by their weights joined: weights already joined in one tensor, and when `copies`, any others, copied together.
+    MergeSiblingProjections(ProjectionMerge),
     /// Removes explicit contiguous copies whose readers read strided operands with the same generated kernels.
     ElideContiguousCopies,
     /// Copies the strided operands of operations whose kernels read contiguous operands.
@@ -261,7 +272,7 @@ impl GraphPassKind {
             Self::DecomposeAttention => "decompose_scaled_dot_product_attention",
             Self::FoldGroupedQueryAttention => "fold_grouped_query_attention",
             Self::DecomposeOperations => "decompose_operations",
-            Self::MergeSiblingProjections => "merge_sibling_projections",
+            Self::MergeSiblingProjections(_) => "merge_sibling_projections",
             Self::ElideContiguousCopies => "elide_contiguous_copies",
             Self::MaterializeContiguousOperands => "materialize_contiguous_operands",
             Self::InferValueMetadata => "infer_value_metadata",
@@ -285,9 +296,9 @@ impl GraphPassKind {
                 let (graph, remapped_nodes) = prune_dead_nodes_with_map(graph)?;
                 (graph.node_count(), remapped_nodes)
             }
-            Self::MergeSiblingProjections => {
+            Self::MergeSiblingProjections(merge) => {
                 let checked_nodes = graph.node_count();
-                let (_, remapped_nodes) = merge_sibling_projections(graph)?;
+                let (_, remapped_nodes) = merge_sibling_projections(graph, merge)?;
                 (checked_nodes, remapped_nodes)
             }
             Self::FoldSmallConstants => (fold_small_constants(graph)?.node_count(), Vec::new()),
@@ -318,12 +329,12 @@ impl GraphPassKind {
             }
             Self::ElideContiguousCopies => {
                 let checked_nodes = graph.node_count();
-                let (_, remapped_nodes) = elide_contiguous_copies(graph, false)?;
+                let (_, remapped_nodes) = elide_contiguous_copies(graph, CopyElision::CudaDevices)?;
                 (checked_nodes, remapped_nodes)
             }
             Self::MaterializeContiguousOperands => {
                 let checked_nodes = graph.node_count();
-                let (_, remapped_nodes) = materialize_contiguous_operands(graph)?;
+                let (_, remapped_nodes) = materialize_contiguous_operands(graph, None)?;
                 (checked_nodes, remapped_nodes)
             }
             Self::InferValueMetadata => {

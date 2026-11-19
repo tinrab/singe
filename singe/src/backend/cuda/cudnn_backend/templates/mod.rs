@@ -24,6 +24,7 @@ pub use self::{
     },
     tensors::{
         CUDNN_GRAPH_BIAS_TENSOR_ID, CUDNN_GRAPH_INPUT0_TENSOR_ID, CUDNN_GRAPH_INPUT1_TENSOR_ID,
-        CUDNN_GRAPH_OUTPUT_TENSOR_ID, CudnnBackendTensorMetadata, cudnn_engine_choices,
+        CUDNN_GRAPH_OUTPUT_TENSOR_ID, CudnnBackendTensorMetadata, PlanCandidate, PlanSelection,
+        cudnn_engine_choices,
     },
 };

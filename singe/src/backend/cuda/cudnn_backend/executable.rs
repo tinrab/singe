@@ -38,7 +38,7 @@ use crate::{
     },
     data_type::DataType,
     error::{Error, Result},
-    graph::ir::ValueId,
+    graph::{CudnnGraphKind, ir::ValueId},
     utility::Locked,
 };
 
@@ -118,16 +118,11 @@ impl CudnnBackendExecutable {
         &self,
         runtime: &CudaRuntime,
         storage_data_type: DataType,
-        matmul: bool,
+        kind: CudnnGraphKind,
     ) -> Result<Vec<EngineChoice>> {
         let template = self.template.locked("cudnn backend template")?;
-        let cudnn = runtime.cudnn().locked("cuda runtime cache")?;
-        cudnn_engine_choices(
-            &cudnn,
-            template.operation_graph(),
-            storage_data_type,
-            matmul,
-        )
+        let cudnn = runtime.cudnn()?.locked("cuda runtime cache")?;
+        cudnn_engine_choices(&cudnn, template.operation_graph(), storage_data_type, kind)
     }
 
     pub(crate) fn submission_resources(&self) -> Resources {

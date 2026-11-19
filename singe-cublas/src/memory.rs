@@ -1,8 +1,4 @@
 //! Strided host/device copies using the handle-independent cuBLAS transfer API.
-#![expect(
-    clippy::similar_names,
-    reason = "BLAS and factorization operand names follow the standard mathematical API"
-)]
 
 use std::{mem::size_of, ptr, sync::Arc};
 

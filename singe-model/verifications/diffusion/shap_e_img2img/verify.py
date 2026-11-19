@@ -1,21 +1,16 @@
-"""Shap-E's image variant, generating a mesh from an image and a seed with `diffusers`' `ShapEImg2ImgPipeline`, as `verify.rs` generates it in Singe.
+"""Shap-E's image variant, generating a mesh from an image and a seed with `diffusers`' `ShapEImg2ImgPipeline`, as `mod.rs` generates it in Singe.
 Both draw the noise from PyTorch's CPU generator seeded alike, and both read the half-precision weights, the only safetensors of the snapshot, in F32; the case records a summary of the mesh, its counts and sampled vertices and colors."""
 
-import sys
-from pathlib import Path
+import torch
+from diffusers import ShapEImg2ImgPipeline
+from PIL import Image
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-
-import torch  # noqa: E402
-from diffusers import ShapEImg2ImgPipeline  # noqa: E402
-from PIL import Image  # noqa: E402
-
-from support import DEVICE, Verification  # noqa: E402
+from support import DEVICE, Verification
 
 
-def image_to_3d(snapshot):
+def image_to_3d(snapshot, dtype):
     generate = ShapEImg2ImgPipeline.from_pretrained(
-        snapshot, variant="fp16", torch_dtype=torch.float32
+        snapshot, variant="fp16", torch_dtype=dtype
     ).to(DEVICE)
     generate.set_progress_bar_config(disable=True)
 

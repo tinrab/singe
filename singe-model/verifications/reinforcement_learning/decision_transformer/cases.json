@@ -4,6 +4,7 @@
       "name": "trajectory",
       "snapshot": "DECISION_TRANSFORMER",
       "task": "reinforcement-learning",
+      "data_type": "f32",
       "inputs": [
         {
           "states": [

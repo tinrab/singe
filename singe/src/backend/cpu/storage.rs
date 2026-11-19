@@ -111,7 +111,8 @@ fn source_element_offset(strides: &[i64], base_offset: usize, indices: &[i64]) -
     let mut offset = base_offset;
     for (axis, index) in indices.iter().enumerate() {
         let index = to_usize(*index, &format!("cpu contiguous index axis {axis}"))?;
-        let stride = usize::try_from(strides[axis]).map_err(|_| Error::InvalidStride)?;
+        let stride = usize::try_from(strides[axis])
+            .map_err(|_| Error::invalid_stride(format!("cpu contiguous stride axis {axis}")))?;
         let axis_offset = checked_mul(index, stride, "cpu contiguous source offset")?;
         offset = checked_add(offset, axis_offset, "cpu contiguous source offset")?;
     }

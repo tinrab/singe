@@ -47,7 +47,8 @@ pub fn flatten_indices(indices: &[i64], strides: &[i64]) -> Result<usize> {
         .zip(strides.iter())
         .try_fold(0usize, |acc, (&index, &stride)| {
             let index = to_usize(index, "cpu reduction index")?;
-            let stride = usize::try_from(stride).map_err(|_| Error::InvalidStride)?;
+            let stride = usize::try_from(stride)
+                .map_err(|_| Error::invalid_stride("cpu reduction stride"))?;
             let offset = checked_mul(index, stride, "cpu reduction offset")?;
             checked_add(acc, offset, "cpu reduction offset")
         })

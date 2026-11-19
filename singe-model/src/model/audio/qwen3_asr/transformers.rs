@@ -3,14 +3,14 @@
 use serde::Deserialize;
 use singe::nn::Activation;
 
-use super::{Qwen3AsrConfig, Qwen3AsrEncoderConfig};
 use crate::{
     assembly::{DecoderConfig, llama_rules, pre_norm_encoder_rules},
     error::{Error, Result},
     format::{
-        Rules,
+        Rules, join,
         transformers::{DecoderDefaults, DecoderFields, activation_field},
     },
+    model::audio::qwen3_asr::{Qwen3AsrConfig, Qwen3AsrEncoderConfig},
     source::Source,
 };
 
@@ -79,7 +79,9 @@ pub(crate) fn config(source: &Source) -> Result<Qwen3AsrConfig> {
         activation: audio.activation_function,
     };
     if encoder.chunk_positions() != audio.max_position_embeddings {
-        return Err(Error::unsupported("a chunk of other than its positions"));
+        return Err(Error::unsupported(
+            "a Qwen3-ASR `max_position_embeddings` other than a chunk's positions",
+        ));
     }
 
     let text = &fields.text_config;
@@ -104,17 +106,28 @@ pub(crate) fn config(source: &Source) -> Result<Qwen3AsrConfig> {
 }
 
 pub(crate) fn encoder_rules() -> Rules {
-    let tower = |name: &str| format!("model.audio_tower.{name}");
-    let projector = |name: &str| format!("model.multi_modal_projector.{name}");
+    let tower = "model.audio_tower";
     Rules::new()
-        .rename(&tower("conv2d1"), "encoder.convolutions.0")
-        .rename(&tower("conv2d2"), "encoder.convolutions.1")
-        .rename(&tower("conv2d3"), "encoder.convolutions.2")
-        .rename(&tower("conv_out"), "encoder.convolutions.output")
-        .rename(&tower("ln_post"), "encoder.norm")
-        .then(pre_norm_encoder_rules(&tower("layers"), "encoder.blocks"))
-        .rename(&projector("linear_1"), "encoder.projector.0")
-        .rename(&projector("linear_2"), "encoder.projector.1")
+        .rename_each(
+            tower,
+            "encoder",
+            &[
+                ("conv2d1", "convolutions.0"),
+                ("conv2d2", "convolutions.1"),
+                ("conv2d3", "convolutions.2"),
+                ("conv_out", "convolutions.output"),
+                ("ln_post", "norm"),
+            ],
+        )
+        .then(pre_norm_encoder_rules(
+            &join(tower, "layers"),
+            "encoder.blocks",
+        ))
+        .rename_each(
+            "model.multi_modal_projector",
+            "encoder.projector",
+            &[("linear_1", "up"), ("linear_2", "down")],
+        )
 }
 
 pub(crate) fn decoder_rules() -> Rules {

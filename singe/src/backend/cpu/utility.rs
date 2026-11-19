@@ -73,7 +73,8 @@ pub fn broadcast_offset(indices: &[i64], dimensions: &[i64], strides: &[i64]) ->
         .try_fold(0usize, |acc, (axis, (&index, (&dim, &stride)))| {
             let index = if dim == 1 { 0 } else { index };
             let index = to_usize(index, &format!("cpu broadcast index axis {axis}"))?;
-            let stride = usize::try_from(stride).map_err(|_| Error::InvalidStride)?;
+            let stride = usize::try_from(stride)
+                .map_err(|_| Error::invalid_stride(format!("cpu broadcast stride axis {axis}")))?;
             let offset = checked_mul(index, stride, "cpu broadcast offset")?;
             checked_add(acc, offset, "cpu broadcast offset")
         })

@@ -10,23 +10,22 @@ use crate::{
     format::Loader,
     head::HeadLoader,
     model::ModelEntry,
+    schema::Schema,
     source::Format,
 };
 
-pub type LlamaLayers = GroupedDecoder;
-
-pub type Llama = Model<LlamaLayers>;
+pub type Llama = Model<GroupedDecoder>;
 
 pub(crate) const MODEL: ModelEntry = ModelEntry {
     name: "llama",
     formats: &[(Format::Transformers, &["llama"])],
-    heads: &[HeadLoader::CausalLm(|loader| Ok(Box::new(load(loader)?)))],
+    loaders: &[HeadLoader::CausalLm(|loader| Ok(Box::new(load(loader)?)))],
 };
 
 pub fn load(loader: &mut Loader<'_>) -> Result<Llama> {
     let config: DecoderConfig = loader.config(transformers::config)?;
-    let schema = grouped_decoder(&config, loader.options().data_type, causal())?;
-    let model = loader.load("model", &schema, &llama_rules("model"))?;
-    loader.finish()?;
-    Ok(model)
+    let model = Schema::model(loader.options().data_type, |schema| {
+        grouped_decoder(schema, &config, causal())
+    })?;
+    loader.load_whole(&model, &llama_rules("model"))
 }

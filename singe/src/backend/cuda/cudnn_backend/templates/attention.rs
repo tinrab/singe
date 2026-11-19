@@ -25,8 +25,8 @@ use crate::{
         cuda::cudnn_backend::{
             data_type::storage_type,
             templates::tensors::{
-                CudnnBackendTensorMetadata, cudnn_backend_tensor, cudnn_forced_execution_plan,
-                cudnn_native_graph_execution_plan,
+                CudnnBackendTensorMetadata, PlanSelection, cudnn_backend_tensor,
+                cudnn_forced_execution_plan, cudnn_native_graph_execution_plan,
             },
             types::{CudnnBackendGraphTemplate, CudnnBackendOperation},
         },
@@ -35,7 +35,7 @@ use crate::{
     data_type::DataType,
     error::{Error, Result},
     graph::{
-        ComputePrecision, NumericalPolicy,
+        ComputePrecision, CudnnGraphKind, NumericalPolicy,
         ir::{Graph, ValueId},
     },
     layout::Layout,
@@ -119,10 +119,6 @@ pub fn cudnn_takes_matmul(data_type: DataType, lhs: &Layout, rhs: &Layout) -> bo
 
 // The scale attention multiplies its scores by.
 #[must_use]
-#[expect(
-    clippy::cast_precision_loss,
-    reason = "head dimensions round to the score's precision"
-)]
 pub fn cudnn_attention_scale(attention: &ScaledDotProductAttentionAttributes, dim: i64) -> f32 {
     attention.scale.unwrap_or_else(|| 1.0 / (dim as f32).sqrt())
 }
@@ -254,10 +250,6 @@ pub fn cudnn_attention_scalars(
         let bits = if paged {
             to_i32(window, "cudnn attention window")?.cast_unsigned()
         } else {
-            #[expect(
-                clippy::cast_precision_loss,
-                reason = "windows are far below a float's exact integers"
-            )]
             (window as f32).to_bits()
         };
         scalars.push((WINDOW_TENSOR_ID, bits));
@@ -295,9 +287,13 @@ fn packed(
     offsets: &CudnnBackendTensor,
 ) -> Result<CudnnBackendTensor> {
     let shape = CudnnShape::with_strides(metadata.dimensions(), metadata.strides())?;
-    let elements =
-        usize::try_from(shape.dimensions()[1] * shape.dimensions()[2] * shape.dimensions()[3])
-            .map_err(|_| Error::DimensionOutOfBounds)?;
+    let &[_, heads, sequence, width] = shape.dimensions() else {
+        return Err(Error::invalid_argument(
+            "cudnn packed attention tensor dimensions",
+        ));
+    };
+    let elements = usize::try_from(heads * sequence * width)
+        .map_err(|_| Error::dimension_out_of_bounds("cudnn packed attention elements"))?;
     let mut spec = TensorSpec::new(storage_type(metadata.data_type())?, shape)
         .with_byte_alignment(metadata.byte_alignment())?
         .with_ragged_byte_capacity(elements * metadata.data_type().size_bytes());
@@ -511,7 +507,10 @@ fn build_template(
     // Dense attention's key lengths are `[B]` to `singe`, and `[B, 1, 1, 1]` to cuDNN, in one buffer, and cuDNN reads the query lengths with them, each the queries' count.
     let lengths = (problem.key_lengths && paged.is_none())
         .then(|| {
-            let shape = ([problem.query.dimensions()[0], 1, 1, 1], [1, 1, 1, 1]);
+            let Some(&batch) = problem.query.dimensions().first() else {
+                return Err(Error::invalid_argument("cudnn attention query dimensions"));
+            };
+            let shape = ([batch, 1, 1, 1], [1, 1, 1, 1]);
             Result::Ok((
                 indices(CUDNN_ATTENTION_QUERY_LENGTHS_TENSOR_ID, shape)?,
                 indices(CUDNN_ATTENTION_KEY_LENGTHS_TENSOR_ID, shape)?,
@@ -519,18 +518,18 @@ fn build_template(
         })
         .transpose()?;
     let scale = by_value(SCALE_TENSOR_ID, CudnnDataType::F32, 1)?;
-    let query_dimensions = problem.query.dimensions();
-    let scores = problem.paging.as_ref().map_or_else(
-        || {
-            [
-                query_dimensions[0],
-                query_dimensions[1],
-                query_dimensions[2],
-                problem.key.dimensions()[2],
-            ]
-        },
-        CudnnPaging::scores,
-    );
+    let scores = if let Some(paging) = &problem.paging {
+        paging.scores()
+    } else {
+        let (&[batch, heads, queries, _], &[_, _, keys, _]) =
+            (problem.query.dimensions(), problem.key.dimensions())
+        else {
+            return Err(Error::invalid_argument(
+                "cudnn attention query and key dimensions",
+            ));
+        };
+        [batch, heads, queries, keys]
+    };
     let masks = ScoreMasks::create(
         cudnn,
         scores,
@@ -583,11 +582,17 @@ fn build_template(
             cudnn,
             &operation_graph,
             problem.query.data_type(),
-            false,
+            CudnnGraphKind::NonMatmul,
             choice,
         )?,
         None => {
-            cudnn_native_graph_execution_plan(cudnn, &operation_graph, problem.query.data_type())?
+            cudnn_native_graph_execution_plan(
+                cudnn,
+                &operation_graph,
+                problem.query.data_type(),
+                PlanSelection::Graph,
+            )?
+            .0
         }
     };
     let workspace_size = plan.workspace_size()?;

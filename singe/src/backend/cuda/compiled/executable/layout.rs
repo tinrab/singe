@@ -12,7 +12,7 @@ use crate::{
     },
     error::{Error, Result},
     graph::ir::{Graph, ValueId},
-    utility::{checked_mul_i64, checked_product_i64},
+    utility::checked_mul_i64,
 };
 
 impl CudaCompiledGraph {
@@ -78,38 +78,35 @@ fn graph_cublaslt_matmul_layout_supported(tensor: &CudaGraphValue) -> bool {
         return false;
     }
 
-    let dimensions = tensor.shape().dimensions();
-    let strides = tensor.layout().strides();
-    match dimensions.len() {
-        2 => strides == [dimensions[1], 1] || strides == [1, dimensions[0]],
-        rank if rank > 2 => {
-            let matrix_offset = rank - 2;
-            let Ok(matrix_element_count) = checked_product_i64(
-                &dimensions[matrix_offset..],
-                "cuda graph cuBLASLt matrix element count",
-            ) else {
-                return false;
-            };
-            let mut expected_stride = matrix_element_count;
-            for index in (0..matrix_offset).rev() {
-                if strides[index] != expected_stride {
-                    return false;
-                }
-
-                let Ok(next_stride) = checked_mul_i64(
-                    expected_stride,
-                    dimensions[index],
-                    "cuda graph cuBLASLt batch stride",
-                ) else {
-                    return false;
-                };
-                expected_stride = next_stride;
-            }
-
-            let matrix_strides = &strides[matrix_offset..];
-            matrix_strides == [dimensions[matrix_offset + 1], 1]
-                || matrix_strides == [1, dimensions[matrix_offset]]
-        }
-        _ => false,
+    let (Some((batch, &[rows, columns])), Some((batch_strides, matrix_strides))) = (
+        tensor.shape().dimensions().split_last_chunk::<2>(),
+        tensor.layout().strides().split_last_chunk::<2>(),
+    ) else {
+        return false;
+    };
+    if batch.len() != batch_strides.len() {
+        return false;
     }
+
+    let Ok(mut expected_stride) =
+        checked_mul_i64(rows, columns, "cuda graph cuBLASLt matrix element count")
+    else {
+        return false;
+    };
+    for (&dimension, &stride) in batch.iter().zip(batch_strides).rev() {
+        if stride != expected_stride {
+            return false;
+        }
+
+        let Ok(next_stride) = checked_mul_i64(
+            expected_stride,
+            dimension,
+            "cuda graph cuBLASLt batch stride",
+        ) else {
+            return false;
+        };
+        expected_stride = next_stride;
+    }
+
+    *matrix_strides == [columns, 1] || *matrix_strides == [1, rows]
 }

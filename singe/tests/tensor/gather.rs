@@ -1,15 +1,20 @@
 use std::collections::HashMap;
 
 use singe::{
-    DataType, Device, Error, Shape, Tensor,
+    DataType, Device, Error, Result, Shape, Tensor,
     graph::{Graph, GraphExecutionMode, GraphPrepareOptions},
+    idx,
 };
 
 fn assert_index_error(mut error: &Error) {
     while let Error::GraphSource { source, .. } = error {
         error = source;
     }
-    assert!(matches!(error, Error::IndexOutOfBounds), "{error}");
+    assert!(matches!(error, Error::IndexOutOfBounds { .. }), "{error}");
+}
+
+fn read_error(result: Result<Tensor>) -> Error {
+    result.and_then(|tensor| tensor.to_bytes()).unwrap_err()
 }
 
 fn exercise(device: Device) {
@@ -76,11 +81,14 @@ fn exercise(device: Device) {
     );
     for value in [i64::MIN, -4, 3, i64::MAX] {
         let indices = Tensor::from_vec(device, Shape::scalar(), vec![value]).unwrap();
-        assert_index_error(&table.take(1, &indices).unwrap_err());
+        assert_index_error(&read_error(table.take(1, &indices)));
     }
     let negative = Tensor::from_vec(device, Shape::create([1]).unwrap(), vec![-1_i64]).unwrap();
-    assert_index_error(&table.index_select(1, &negative).unwrap_err());
-    assert_index_error(&table.embedding(&negative).unwrap_err());
+    assert_index_error(&read_error(table.index_select(1, &negative)));
+    assert_index_error(&read_error(table.embedding(&negative)));
+    let rows = Tensor::from_vec(device, Shape::create([2]).unwrap(), vec![0_i64, 4]).unwrap();
+    let updates = Tensor::from_vec(device, Shape::create([2, 3]).unwrap(), vec![1_f32; 6]).unwrap();
+    assert_index_error(&read_error(table.index_put(&idx![&rows], &updates, false)));
 }
 
 fn exercise_storage(device: Device) {

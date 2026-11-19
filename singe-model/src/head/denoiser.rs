@@ -11,7 +11,7 @@ pub trait Denoiser: Debug {
     fn sample_shape(&self) -> [i64; 3];
 
     // Its prediction for `sample`, `[B, C, H, W]`, at `timestep`, in `F32`.
-    fn predict(&self, sample: &Tensor, timestep: i64) -> Result<Tensor>;
+    fn predict(&self, sample: &Tensor, timestep: f32) -> Result<Tensor>;
 }
 
 // A denoiser conditioned on a context, as Stable Diffusion's UNets are on their text encoder's states.

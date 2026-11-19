@@ -4,6 +4,7 @@
       "name": "fill",
       "snapshot": "DISTILROBERTA",
       "task": "fill-mask",
+      "data_type": "f32",
       "inputs": ["The factory must <mask>.", "The <mask> sat on the <mask> belt."],
       "expected": [
         [
@@ -110,6 +111,7 @@
       "name": "fill-targets",
       "snapshot": "DISTILROBERTA",
       "task": "fill-mask",
+      "data_type": "f32",
       "inputs": ["The factory must <mask>."],
       "parameters": {
         "top_k": 2,
@@ -136,6 +138,7 @@
       "name": "zero-shot",
       "snapshot": "ROBERTA_NLI",
       "task": "zero-shot-classification",
+      "data_type": "f32",
       "inputs": [
         {
           "sequences": "One day I will launch a rocket into space.",
@@ -154,6 +157,7 @@
       "name": "pairs",
       "snapshot": "ROBERTA_NLI",
       "task": "text-classification",
+      "data_type": "f32",
       "inputs": [
         {
           "text": "The engineer is building a factory.",

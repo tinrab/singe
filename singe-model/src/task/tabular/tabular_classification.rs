@@ -1,13 +1,14 @@
 // `tabular-classification`: labeled rows of numeric features and other rows to each other row's class probabilities and likeliest class, by an in-context model that reads the labeled rows as context.
 
 use serde::{Deserialize, Serialize};
+use singe::{Error as SingeError, Result as SingeResult};
 
 use crate::{
     error::Result,
     head::{TabularClassifier, argmax},
     model,
     source::{LoadOptions, Source},
-    task::{Pipeline, Task},
+    task::Pipeline,
 };
 
 #[derive(Debug)]
@@ -30,8 +31,6 @@ pub struct TabularClassificationOutput {
 }
 
 impl Pipeline for TabularClassificationPipeline {
-    const TASK: Task = Task::TabularClassification;
-
     type Input = TabularClassificationInput;
 
     type Parameters = ();
@@ -44,25 +43,20 @@ impl Pipeline for TabularClassificationPipeline {
         })
     }
 
-    fn run(&self, inputs: &[Self::Input], (): &Self::Parameters) -> Result<Vec<Self::Output>> {
-        inputs
+    fn run_one(&self, input: &Self::Input, (): &Self::Parameters) -> Result<Self::Output> {
+        let probabilities =
+            self.model
+                .classify(&input.training_rows, &input.training_labels, &input.rows)?;
+        let labels = probabilities
             .iter()
-            .map(|input| {
-                let probabilities = self.model.classify(
-                    &input.training_rows,
-                    &input.training_labels,
-                    &input.rows,
-                )?;
-                let labels = probabilities
-                    .iter()
-                    .map(|row| argmax(row).map_or(0, |(index, _)| index))
-                    .map(|index| i64::try_from(index).unwrap_or(0))
-                    .collect();
-                Ok(TabularClassificationOutput {
-                    labels,
-                    probabilities,
-                })
+            .map(|row| {
+                let best = argmax(row.iter().copied().enumerate()).map_or(0, |(index, _)| index);
+                i64::try_from(best).map_err(|_| SingeError::out_of_range("class"))
             })
-            .collect()
+            .collect::<SingeResult<_>>()?;
+        Ok(TabularClassificationOutput {
+            labels,
+            probabilities,
+        })
     }
 }

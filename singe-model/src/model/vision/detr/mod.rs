@@ -7,26 +7,21 @@ use std::f32::consts::PI;
 
 use serde::{Deserialize, Serialize};
 use singe::{
-    Device, Result as SingeResult, Shape, Tensor,
-    nn::{
-        Activation, Conv2d, Conv2dConfig, Layer, LayerNorm, Linear, Model, ModelState,
-        StateBuilder, StateKey,
-    },
+    Device, Error as SingeError, Result as SingeResult, Shape, Tensor,
+    graph::{ComputePrecision, with_convolution_precision},
+    nn::{Activation, Conv2d, Conv2dConfig, Layer, LayerNorm, Linear, Mlp, ModelState, StateKey},
 };
 
 pub use self::resnet::{ResNet, ResNetConfig};
 use crate::{
-    assembly::{Attention, AttentionSpec, Mlp},
+    assembly::{Attention, AttentionSpec, LinearStack, PYTORCH_NORM_EPS, to_tokens},
     error::Result,
     format::Loader,
-    head::{ClassifierConfig, HeadLoader, ObjectDetector, PixelLayers},
+    head::{Boxed, ClassifierConfig, HeadLoader, ObjectDetector},
     model::ModelEntry,
     schema::Schema,
     source::Format,
 };
-
-// `nn.LayerNorm`'s default, which DETR's norms keep.
-const EPS: f32 = 1e-5;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DetrConfig {
@@ -45,40 +40,31 @@ pub struct DetrConfig {
 }
 
 #[derive(Debug, Clone)]
-struct FeedForward {
-    up: Linear,
-    down: Linear,
-    activation: Activation,
-}
-
-impl Layer for FeedForward {
-    fn forward(&self, input: &Tensor, state: &ModelState) -> SingeResult<Tensor> {
-        input
-            .apply(&self.up, state)?
-            .apply(&self.activation, state)?
-            .apply(&self.down, state)
-    }
-}
-
-fn feed_forward(
-    schema: &mut Schema<'_>,
-    width: i64,
-    inner: i64,
-    activation: Activation,
-) -> SingeResult<FeedForward> {
-    Ok(FeedForward {
-        up: schema.linear("up", width, inner, true)?,
-        down: schema.linear("down", inner, width, true)?,
-        activation,
-    })
-}
-
-#[derive(Debug, Clone)]
 struct EncoderBlock {
     attention: Attention,
     attention_norm: LayerNorm,
-    feed_forward: FeedForward,
+    feed_forward: Mlp,
     feed_forward_norm: LayerNorm,
+}
+
+impl EncoderBlock {
+    fn create(schema: &mut Schema<'_>, config: &DetrConfig) -> SingeResult<Self> {
+        let width = config.width;
+        Ok(Self {
+            attention: Attention::create(
+                &mut schema.scope("attention"),
+                AttentionSpec::square(width, config.encoder_heads),
+            )?,
+            attention_norm: schema.layer_norm("attention_norm", width, PYTORCH_NORM_EPS)?,
+            feed_forward: schema.mlp(
+                "feed_forward",
+                [width, config.encoder_inner, width],
+                config.activation,
+                true,
+            )?,
+            feed_forward_norm: schema.layer_norm("feed_forward_norm", width, PYTORCH_NORM_EPS)?,
+        })
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -87,14 +73,42 @@ struct DecoderBlock {
     attention_norm: LayerNorm,
     cross_attention: Attention,
     cross_attention_norm: LayerNorm,
-    feed_forward: FeedForward,
+    feed_forward: Mlp,
     feed_forward_norm: LayerNorm,
 }
 
+impl DecoderBlock {
+    fn create(schema: &mut Schema<'_>, config: &DetrConfig) -> SingeResult<Self> {
+        let width = config.width;
+        Ok(Self {
+            attention: Attention::create(
+                &mut schema.scope("attention"),
+                AttentionSpec::square(width, config.decoder_heads),
+            )?,
+            attention_norm: schema.layer_norm("attention_norm", width, PYTORCH_NORM_EPS)?,
+            cross_attention: Attention::create(
+                &mut schema.scope("cross_attention"),
+                AttentionSpec::square(width, config.decoder_heads),
+            )?,
+            cross_attention_norm: schema.layer_norm(
+                "cross_attention_norm",
+                width,
+                PYTORCH_NORM_EPS,
+            )?,
+            feed_forward: schema.mlp(
+                "feed_forward",
+                [width, config.decoder_inner, width],
+                config.activation,
+                true,
+            )?,
+            feed_forward_norm: schema.layer_norm("feed_forward_norm", width, PYTORCH_NORM_EPS)?,
+        })
+    }
+}
+
 // The sine positions of each point of a `height × width` map, `[1, H · W, width]`: half the features for its row and half for its column, each from its coordinate counted from one, scaled to [0, 2π], over 10000 to the power of each feature pair's share, as `DetrSinePositionEmbedding` with normalization computes them.
-#[expect(clippy::cast_precision_loss, reason = "map sides and widths are small")]
 fn sine_positions(height: i64, width: i64, features: i64, device: Device) -> SingeResult<Tensor> {
-    const EPS: f32 = 1e-6;
+    const SIDE_OFFSET: f32 = 1e-6;
     let scale = 2.0 * PI;
     let half = features / 2;
     let periods = (0..half)
@@ -113,8 +127,8 @@ fn sine_positions(height: i64, width: i64, features: i64, device: Device) -> Sin
     let mut values = Vec::new();
     for row in 0..height {
         for column in 0..width {
-            let y = (row + 1) as f32 / (height as f32 + EPS) * scale;
-            let x = (column + 1) as f32 / (width as f32 + EPS) * scale;
+            let y = (row + 1) as f32 / (height as f32 + SIDE_OFFSET) * scale;
+            let x = (column + 1) as f32 / (width as f32 + SIDE_OFFSET) * scale;
             encode(y, &mut values);
             encode(x, &mut values);
         }
@@ -136,21 +150,67 @@ pub struct DetrLayers {
     decoder_norm: LayerNorm,
     queries: StateKey,
     classes: Linear,
-    boxes: Mlp,
+    boxes: LinearStack,
+}
+
+impl DetrLayers {
+    pub fn create(schema: &mut Schema<'_>, config: &DetrConfig) -> SingeResult<Self> {
+        let width = config.width;
+        let backbone = ResNet::create(&mut schema.scope("backbone"), &config.backbone)?;
+        let channels = config.backbone.stem * 32;
+        let projection = schema.conv2d(
+            "projection",
+            channels,
+            width,
+            1,
+            Conv2dConfig::default(),
+            true,
+        )?;
+        let encoder = (0..config.encoder_layers)
+            .map(|index| {
+                EncoderBlock::create(&mut schema.scope(format!("encoder.{index}")), config)
+            })
+            .collect::<SingeResult<Vec<_>>>()?;
+        let decoder = (0..config.decoder_layers)
+            .map(|index| {
+                DecoderBlock::create(&mut schema.scope(format!("decoder.{index}")), config)
+            })
+            .collect::<SingeResult<Vec<_>>>()?;
+        let labels = config.classifier.label_count()?;
+        let boxes = LinearStack::create(
+            &mut schema.scope("boxes"),
+            [width, width, 4],
+            3,
+            Activation::Relu,
+        )?;
+        Ok(Self {
+            backbone,
+            projection,
+            encoder,
+            decoder,
+            decoder_norm: schema.layer_norm("decoder_norm", width, PYTORCH_NORM_EPS)?,
+            queries: schema.parameter("queries", [config.queries, width])?,
+            classes: schema.linear("classes", width, labels + 1, true)?,
+            boxes,
+        })
+    }
 }
 
 impl Layer for DetrLayers {
     fn forward(&self, input: &Tensor, state: &ModelState) -> SingeResult<Tensor> {
-        let map = input
-            .apply(&self.backbone, state)?
-            .apply(&self.projection, state)?;
-        let dimensions = map.shape().dimensions();
-        let (batch, width, height, columns) =
-            (dimensions[0], dimensions[1], dimensions[2], dimensions[3]);
+        // Detections are thresholded scores, which TF32 convolutions in the backbone move by about 1e-3 from `transformers`' own, as with SuperPoint's keypoints.
+        let map = with_convolution_precision(ComputePrecision::Full, || {
+            input
+                .apply(&self.backbone, state)?
+                .apply(&self.projection, state)
+        })?;
+        let &[batch, width, height, columns] = map.shape().dimensions() else {
+            return Err(SingeError::invalid_argument("DETR feature map"));
+        };
         let positions = sine_positions(height, columns, width, input.device())?
             .cast(map.data_type())?
             .expand(Shape::create([batch, height * columns, width])?)?;
-        let mut memory = map.flatten(2, 3)?.transpose(1, 2)?;
+        let mut memory = to_tokens(&map)?;
         for block in &self.encoder {
             let keyed = memory.add(&positions)?;
             memory = block
@@ -165,7 +225,9 @@ impl Layer for DetrLayers {
         }
 
         let queries = state.tensor(&self.queries)?;
-        let count = queries.shape().dimensions()[0];
+        let &[count, _] = queries.shape().dimensions() else {
+            return Err(SingeError::invalid_argument("DETR queries"));
+        };
         let queries = queries
             .unsqueeze(0)?
             .expand(Shape::create([batch, count, width])?)?;
@@ -202,84 +264,14 @@ impl Layer for DetrLayers {
 pub(crate) const MODEL: ModelEntry = ModelEntry {
     name: "detr",
     formats: &[(Format::Transformers, &["detr"])],
-    heads: &[HeadLoader::ObjectDetection(load_detector)],
+    loaders: &[HeadLoader::ObjectDetection(load_detector)],
 };
 
 pub fn load_detector(loader: &mut Loader<'_>) -> Result<ObjectDetector> {
     let config: DetrConfig = loader.config(transformers::config)?;
-    let width = config.width;
-    let mut builder = StateBuilder::new();
-    let layers = {
-        let mut schema = Schema::root(&mut builder, loader.options().data_type);
-        let backbone = ResNet::create(&mut schema.scope("backbone"), &config.backbone)?;
-        let channels = config.backbone.stem * 32;
-        let projection = schema.conv2d(
-            "projection",
-            channels,
-            width,
-            1,
-            Conv2dConfig::default(),
-            true,
-        )?;
-        let encoder = (0..config.encoder_layers)
-            .map(|index| {
-                let mut schema = schema.scope(format!("encoder.{index}"));
-                Ok(EncoderBlock {
-                    attention: Attention::create(
-                        &mut schema.scope("attention"),
-                        AttentionSpec::square(width, config.encoder_heads),
-                    )?,
-                    attention_norm: schema.layer_norm("attention_norm", width, EPS)?,
-                    feed_forward: feed_forward(
-                        &mut schema.scope("feed_forward"),
-                        width,
-                        config.encoder_inner,
-                        config.activation,
-                    )?,
-                    feed_forward_norm: schema.layer_norm("feed_forward_norm", width, EPS)?,
-                })
-            })
-            .collect::<SingeResult<Vec<_>>>()?;
-        let decoder = (0..config.decoder_layers)
-            .map(|index| {
-                let mut schema = schema.scope(format!("decoder.{index}"));
-                Ok(DecoderBlock {
-                    attention: Attention::create(
-                        &mut schema.scope("attention"),
-                        AttentionSpec::square(width, config.decoder_heads),
-                    )?,
-                    attention_norm: schema.layer_norm("attention_norm", width, EPS)?,
-                    cross_attention: Attention::create(
-                        &mut schema.scope("cross_attention"),
-                        AttentionSpec::square(width, config.decoder_heads),
-                    )?,
-                    cross_attention_norm: schema.layer_norm("cross_attention_norm", width, EPS)?,
-                    feed_forward: feed_forward(
-                        &mut schema.scope("feed_forward"),
-                        width,
-                        config.decoder_inner,
-                        config.activation,
-                    )?,
-                    feed_forward_norm: schema.layer_norm("feed_forward_norm", width, EPS)?,
-                })
-            })
-            .collect::<SingeResult<Vec<_>>>()?;
-        let labels = i64::try_from(config.classifier.labels.len())
-            .map_err(|_| singe::Error::out_of_range("labels"))?;
-        let boxes = Mlp::create(&mut schema.scope("boxes"), width, width, 4, 3)?;
-        DetrLayers {
-            backbone,
-            projection,
-            encoder,
-            decoder,
-            decoder_norm: schema.layer_norm("decoder_norm", width, EPS)?,
-            queries: schema.parameter("queries", [config.queries, width])?,
-            classes: schema.linear("classes", width, labels + 1, true)?,
-            boxes,
-        }
-    };
-    let schema = Model::new(PixelLayers(Box::new(layers)), builder.finish()?);
-    let model = loader.load("model", &schema, &transformers::rules())?;
-    loader.finish()?;
+    let model = Schema::model(loader.options().data_type, |schema| {
+        DetrLayers::create(schema, &config).map(|layers| Boxed::<dyn Layer>(Box::new(layers)))
+    })?;
+    let model = loader.load_whole(&model, &transformers::rules())?;
     Ok(ObjectDetector::new(model, config.classifier))
 }

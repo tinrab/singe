@@ -353,17 +353,17 @@ fn literal(argument: KernelArgument) -> Option<String> {
         KernelArgument::I64(value) => format!("{value}LL"),
         KernelArgument::U64(value) | KernelArgument::Size(value) => format!("{value}ULL"),
         KernelArgument::F32(value) if value.is_finite() => format!("{value:?}f"),
-        KernelArgument::F32(value) => non_finite_literal("float", value.is_nan(), value > 0.0),
+        KernelArgument::F32(value) => non_finite_literal("float", f64::from(value)),
         KernelArgument::F64(value) if value.is_finite() => format!("{value:?}"),
-        KernelArgument::F64(value) => non_finite_literal("double", value.is_nan(), value > 0.0),
+        KernelArgument::F64(value) => non_finite_literal("double", value),
     })
 }
 
-fn non_finite_literal(ty: &str, nan: bool, positive: bool) -> String {
+fn non_finite_literal(ty: &str, value: f64) -> String {
     let limits = format!("std::numeric_limits<{ty}>");
-    if nan {
+    if value.is_nan() {
         format!("{limits}::quiet_NaN()")
-    } else if positive {
+    } else if value > 0.0 {
         format!("{limits}::infinity()")
     } else {
         format!("-{limits}::infinity()")

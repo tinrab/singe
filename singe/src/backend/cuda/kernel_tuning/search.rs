@@ -12,7 +12,7 @@ use singe_codegen::{
 use crate::{
     backend::cuda::{
         codegen::{KernelArtifact, KernelDescription, emit_kernel},
-        kernel_tuning::measure::{KernelBench, Timing},
+        kernel_tuning::measure::{CacheState, KernelBench, Timing},
         runtime::runtime_for_device,
         tuning::{CandidateFailure, Comparison, FailureStage},
     },
@@ -144,7 +144,7 @@ pub fn tune(
         .iter()
         .map(|(_, generated)| generated.clone())
         .collect::<Vec<KernelArtifact>>();
-    let rounds = bench.time_rounds(&kernels, options.rounds, false)?;
+    let rounds = bench.time_rounds(&kernels, options.rounds, CacheState::Warm)?;
     let timings = rounds.iter().cloned().map(Timing::of).collect::<Vec<_>>();
     for ((index, _), timing) in timed.iter().zip(&timings) {
         outcomes[*index] = Outcome::Timed(*timing);

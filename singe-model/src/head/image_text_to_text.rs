@@ -2,10 +2,10 @@ use std::fmt::Debug;
 
 use singe::generation::GenerationOptions;
 
-use super::{LoopLimits, LoopSteps};
 use crate::{
     BatchOptions,
     error::{Error, Result},
+    head::{LoopLimits, LoopSteps},
     processor::{image::Image, text::TextTokenizer, video::Video},
 };
 

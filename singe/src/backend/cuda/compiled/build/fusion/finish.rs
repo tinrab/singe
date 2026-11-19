@@ -98,9 +98,8 @@ impl GraphFusionLowering<'_> {
         let graph_node = self
             .native_graph
             .add_child_graph_node(&dependencies, cublaslt_graph.child_graph())?;
-        let child_graph = cublaslt_graph.into_native();
         self.library_resources
-            .push(LibraryResource::Graph(child_graph));
+            .push(LibraryResource::CublasLt(cublaslt_graph));
         self.cache
             .insert(completion.output_id, completion.output.clone());
         self.values.insert(completion.output_id, completion.output);

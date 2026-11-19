@@ -150,10 +150,12 @@ pub fn module_parameters(
         }
         ModuleKind::RotaryAttention(module) => {
             let (metadata, _, attention) = rotary_attention_operands(ir, module)?;
-            let dim = to_usize(
-                ir.required_value_shape(module.query.input)?.dimensions()[2],
-                "cuda rotary attention head",
-            )?;
+            let &[_, _, dim, ..] = ir.required_value_shape(module.query.input)?.dimensions() else {
+                return Err(Error::invalid_argument(
+                    "cuda rotary attention query dimensions",
+                ));
+            };
+            let dim = to_usize(dim, "cuda rotary attention head")?;
             Ok((
                 parameter_key("paged_attention", &metadata, &format!("{attention:?}")),
                 planner

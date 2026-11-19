@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use anyhow::{Result, anyhow, bail};
 use serde_json::Value;
 use singe::{
     DataType, Device, Shape, Tensor,
@@ -9,16 +10,12 @@ use singe::{
     },
 };
 
-pub fn example_model(
-    name: &str,
-    reference: &Value,
-    device: Device,
-) -> anyhow::Result<Model<Sequential>> {
+pub fn example_model(name: &str, reference: &Value, device: Device) -> Result<Model<Sequential>> {
     let checkpoint = match name {
         "mlp" => include_bytes!("../../tests/references/layers/mlp.safetensors").as_slice(),
         "cnn" => include_bytes!("../../tests/references/layers/cnn.safetensors").as_slice(),
         "encoder" => include_bytes!("../../tests/references/layers/encoder.safetensors").as_slice(),
-        _ => anyhow::bail!("unknown example model `{name}`"),
+        _ => bail!("unknown example model `{name}`"),
     };
     model_from_checkpoint(name, reference, device, checkpoint)
 }
@@ -28,12 +25,12 @@ pub fn model_from_checkpoint(
     reference: &Value,
     device: Device,
     checkpoint: &[u8],
-) -> anyhow::Result<Model<Sequential>> {
+) -> Result<Model<Sequential>> {
     let mut builder = StateBuilder::new();
     let mut keys = HashMap::new();
     let entries = reference["state"]
         .as_object()
-        .ok_or_else(|| anyhow::anyhow!("example state schema"))?;
+        .ok_or_else(|| anyhow!("example state schema"))?;
     for (name, specification) in entries {
         let shape = dimensions(specification)?;
         let tensor = Tensor::zeroed_on(device, DataType::F32, Shape::create(shape)?)?;
@@ -48,15 +45,15 @@ pub fn model_from_checkpoint(
     let key = |name: &str| {
         keys.get(name)
             .cloned()
-            .ok_or_else(|| anyhow::anyhow!("missing example state `{name}`"))
+            .ok_or_else(|| anyhow!("missing example state `{name}`"))
     };
-    let linear = |name: &str| -> anyhow::Result<Linear> {
+    let linear = |name: &str| -> Result<Linear> {
         Ok(Linear::new(
             key(&format!("{name}.weight"))?,
             Some(key(&format!("{name}.bias"))?),
         ))
     };
-    let norm = |name: &str| -> anyhow::Result<LayerNorm> {
+    let norm = |name: &str| -> Result<LayerNorm> {
         Ok(LayerNorm::new(
             dimensions(&reference["state"][format!("{name}.weight")])?,
             Some(key(&format!("{name}.weight"))?),
@@ -109,7 +106,7 @@ pub fn model_from_checkpoint(
             norm("norm2")?,
         )),
         _ => {
-            anyhow::bail!("example model must be mlp, cnn, or encoder");
+            bail!("example model must be mlp, cnn, or encoder");
         }
     };
     Ok(Model::new(
@@ -118,38 +115,34 @@ pub fn model_from_checkpoint(
     ))
 }
 
-pub fn dimensions(value: &Value) -> anyhow::Result<Vec<i64>> {
+pub fn dimensions(value: &Value) -> Result<Vec<i64>> {
     value["shape"]
         .as_array()
-        .ok_or_else(|| anyhow::anyhow!("example dimensions"))?
+        .ok_or_else(|| anyhow!("example dimensions"))?
         .iter()
         .map(|dimension| {
             dimension
                 .as_i64()
-                .ok_or_else(|| anyhow::anyhow!("example dimension"))
+                .ok_or_else(|| anyhow!("example dimension"))
         })
         .collect()
 }
 
-#[expect(
-    clippy::cast_possible_truncation,
-    reason = "example values are float32 values stored as f64 JSON numbers"
-)]
-pub fn values(value: &Value) -> anyhow::Result<Vec<f32>> {
+pub fn values(value: &Value) -> Result<Vec<f32>> {
     value["values"]
         .as_array()
-        .ok_or_else(|| anyhow::anyhow!("example values"))?
+        .ok_or_else(|| anyhow!("example values"))?
         .iter()
         .map(|value| {
             value
                 .as_f64()
                 .map(|value| value as f32)
-                .ok_or_else(|| anyhow::anyhow!("example value"))
+                .ok_or_else(|| anyhow!("example value"))
         })
         .collect()
 }
 
-pub fn verify(actual: &Tensor, expected: &Value) -> anyhow::Result<()> {
+pub fn verify(actual: &Tensor, expected: &Value) -> Result<()> {
     let values = values(expected)?;
     let actual_values = actual.to_vec::<f32>()?;
     if actual.shape().dimensions() != dimensions(expected)?
@@ -160,7 +153,7 @@ pub fn verify(actual: &Tensor, expected: &Value) -> anyhow::Result<()> {
                 || (actual - expected).abs() > f32::mul_add(expected.abs(), 2e-5, 2e-5)
         })
     {
-        anyhow::bail!("model output differs from the pinned PyTorch reference");
+        bail!("model output differs from the pinned PyTorch reference");
     }
     Ok(())
 }

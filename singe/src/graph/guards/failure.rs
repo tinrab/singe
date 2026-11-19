@@ -1,9 +1,8 @@
-use singe_core::ErrorChain;
-
 use crate::{
     data_type::DataType,
     device::Device,
     error::{Error, UnsupportedTarget},
+    graph::ValueId,
 };
 
 /// Structured runtime guard validation failure.
@@ -93,80 +92,7 @@ pub enum GraphGuardFailure {
         /// Runtime dimension value.
         actual: i64,
     },
-    /// Fallback for guard errors that are not yet classified.
-    Other(String),
-}
-
-impl From<Error> for GraphGuardFailure {
-    fn from(error: Error) -> Self {
-        Self::from(&error)
-    }
-}
-
-impl From<&Error> for GraphGuardFailure {
-    fn from(error: &Error) -> Self {
-        match error {
-            Error::MissingInput { .. } => Self::MissingInput,
-            Error::UnexpectedInput(name) => Self::UnexpectedInput(name.clone()),
-            Error::DataTypeMismatch {
-                name,
-                expected,
-                actual,
-            } => Self::DataTypeMismatch {
-                name: name.to_string(),
-                expected: *expected,
-                actual: *actual,
-            },
-            Error::ShapeMismatch {
-                name,
-                expected,
-                actual,
-            } => Self::ShapeMismatch {
-                name: name.to_string(),
-                expected: expected.clone(),
-                actual: actual.clone(),
-            },
-            Error::LayoutMismatch {
-                name,
-                expected_dimensions,
-                expected_strides,
-                expected_offset,
-                actual_dimensions,
-                actual_strides,
-                actual_offset,
-            } => Self::LayoutMismatch {
-                name: name.to_string(),
-                expected_dimensions: expected_dimensions.clone(),
-                expected_strides: expected_strides.clone(),
-                expected_offset: *expected_offset,
-                actual_dimensions: actual_dimensions.clone(),
-                actual_strides: actual_strides.clone(),
-                actual_offset: *actual_offset,
-            },
-            Error::DeviceMismatch {
-                name,
-                expected,
-                actual,
-            } => Self::DeviceMismatch {
-                name: name.to_string(),
-                expected: *expected,
-                actual: *actual,
-            },
-            Error::LengthMismatch {
-                name,
-                expected,
-                actual,
-            } => Self::LengthMismatch {
-                name: name.to_string(),
-                expected: *expected,
-                actual: *actual,
-            },
-            Error::OutOfRange { name } => Self::OutOfRange {
-                name: name.to_string(),
-            },
-            _ => Self::Other(ErrorChain(error).to_string()),
-        }
-    }
+    MissingValue(ValueId),
 }
 
 impl From<GraphGuardFailure> for Error {
@@ -178,11 +104,13 @@ impl From<GraphGuardFailure> for Error {
                 target: UnsupportedTarget::Operation,
                 operation: "static graph input override".into(),
                 details: format!("input `{name}` is a static initializer").into(),
+                source: None,
             },
             GraphGuardFailure::StaticInputStorageMismatch { name } => Self::Unsupported {
                 target: UnsupportedTarget::Operation,
                 operation: "static graph input storage identity".into(),
                 details: format!("input `{name}` static initializer storage changed").into(),
+                source: None,
             },
             GraphGuardFailure::DataTypeMismatch {
                 name,
@@ -237,8 +165,8 @@ impl From<GraphGuardFailure> for Error {
                 )
                 .into(),
             },
-            GraphGuardFailure::Other(error) => {
-                Self::unsupported_operation_with_details("graph guard", error)
+            GraphGuardFailure::MissingValue(value) => {
+                Self::missing_node(format!("graph guard of value {}", value.0))
             }
         }
     }

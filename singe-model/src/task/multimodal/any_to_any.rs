@@ -5,10 +5,9 @@ use crate::{
     processor::chat::Message,
     source::{LoadOptions, Source},
     task::{
-        Pipeline, Task,
-        multimodal::image_text_to_text::{
-            ImageTextToTextOutput, ImageTextToTextParameters, ImageTextToTextPipeline,
-        },
+        Pipeline,
+        multimodal::image_text_to_text::{ImageTextToTextParameters, ImageTextToTextPipeline},
+        outputs::GeneratedSequence,
     },
 };
 
@@ -16,23 +15,21 @@ use crate::{
 pub struct AnyToAnyPipeline(ImageTextToTextPipeline);
 
 impl Pipeline for AnyToAnyPipeline {
-    const TASK: Task = Task::AnyToAny;
-
     type Input = Vec<Message>;
 
     type Parameters = ImageTextToTextParameters;
 
-    type Output = ImageTextToTextOutput;
+    type Output = GeneratedSequence;
 
     fn load(source: &Source, options: LoadOptions) -> Result<Self> {
         Ok(Self(ImageTextToTextPipeline::load(source, options)?))
     }
 
-    fn run(
+    fn run_one(
         &self,
-        inputs: &[Self::Input],
+        messages: &Self::Input,
         parameters: &Self::Parameters,
-    ) -> Result<Vec<Self::Output>> {
-        self.0.run(inputs, parameters)
+    ) -> Result<Self::Output> {
+        self.0.run_one(messages, parameters)
     }
 }

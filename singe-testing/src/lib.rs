@@ -1,16 +1,23 @@
 mod bench;
 mod compare;
 mod inputs;
+mod measure;
+#[cfg(feature = "cuda_13_4")]
+mod profile;
 mod reference;
 mod snapshot;
 
 #[cfg(feature = "cuda_13_4")]
 pub use singe::testing::{maybe_lock_device as lock_device, program_target};
 
+#[cfg(feature = "cuda_13_4")]
+pub use self::profile::{GpuWork, KernelWork, profiled};
+
 pub use self::{
     bench::{Benches, Summary},
     compare::{Tolerance, assert_matches, host},
     inputs::{pattern_image, tone_and_chirp},
+    measure::{decode_step, decode_step_or_restart, wait},
     reference::{Reference, integers},
     snapshot::snapshot_if_set,
 };

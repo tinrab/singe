@@ -157,7 +157,7 @@ pub struct CachedDecoder<L: DecoderModel> {
     tables: L::Tables,
     caches: Vec<L::Cache>,
     chunks: Vec<usize>,
-    compiled: CompiledSteps,
+    compiled: Option<(CompiledSteps, GraphPrepareOptions)>,
     unfollowed: Tensor,
 }
 
@@ -206,7 +206,7 @@ impl<L: DecoderModel> CachedDecoder<L> {
             unfollowed: previous_tokens(device, pages.sequences())?,
             pages,
             chunks: options.chunk_sizes(),
-            compiled: CompiledSteps::default(),
+            compiled: None,
         })
     }
 
@@ -226,30 +226,57 @@ impl<L: DecoderModel> CachedDecoder<L> {
     fn compile_under(&mut self, options: GraphPrepareOptions) -> Result<()> {
         // Only one step runs at a time, so the steps share their buffers.
         let options = options.sharing_buffers(&SharedBuffers::default());
+        self.compiled = Some((CompiledSteps::default(), options));
+        let compiled = self.compile_chunk(0);
+        if compiled.is_err() {
+            self.compiled = None;
+        }
+        compiled
+    }
+
+    // Compiles the step that reads `chunk` extra tokens per sequence, under the options `compile` took.
+    fn compile_chunk(&mut self, chunk: usize) -> Result<()> {
         let (layer, data_type) = (self.model.layer(), self.model.state().floating_type()?);
         let meta = layer.caches(data_type, Device::Meta, self.pages.cache_size()?)?;
-        let mut compiled = CompiledSteps::default();
-        for &chunk in iter::once(&0).chain(&self.chunks) {
-            compiled.compile(
-                &self.model,
-                &self.tables,
-                &self.pages,
-                self.pages.sequences() + chunk,
-                &meta,
-                &self.caches,
-                vec![(
-                    PREVIOUS.to_owned(),
-                    previous_tokens(Device::Meta, self.pages.sequences())?,
-                )],
-                options.clone(),
-                |step, tables, caches, extra, state| {
-                    step_forward(layer, None, step, tables, caches, extra, state)
-                },
-            )?;
-        }
+        let (steps, options) = self
+            .compiled
+            .as_mut()
+            .ok_or_else(|| Error::invalid_argument("a decoder that did not compile"))?;
+        steps.compile(
+            &self.model,
+            &self.tables,
+            &self.pages,
+            self.pages.sequences() + chunk,
+            &meta,
+            &self.caches,
+            vec![(
+                PREVIOUS.to_owned(),
+                previous_tokens(Device::Meta, self.pages.sequences())?,
+            )],
+            options.clone(),
+            |step, tables, caches, extra, state| {
+                step_forward(layer, None, step, tables, caches, extra, state)
+            },
+        )
+    }
 
-        self.compiled = compiled;
-        Ok(())
+    // Compiles the step a step of `tokens` runs, the smallest of the planned sizes that holds it, if it is not yet compiled.
+    fn compile_for(&mut self, tokens: &[&[i64]]) -> Result<()> {
+        let (total, sequences) = (PageTable::step_tokens(tokens), self.pages.sequences());
+        let needed = iter::once(0)
+            .chain(self.chunks.iter().copied())
+            .find(|&chunk| chunk + sequences >= total);
+        match needed {
+            Some(chunk)
+                if self
+                    .compiled
+                    .as_ref()
+                    .is_some_and(|(steps, _)| steps.get(chunk + sequences).is_none()) =>
+            {
+                self.compile_chunk(chunk)
+            }
+            _ => Ok(()),
+        }
     }
 
     // The step of one token per sequence over this model's weights, with inputs of its own, which tuning and exporting take.
@@ -359,11 +386,11 @@ impl<L: DecoderModel> CachedDecoder<L> {
 
     // Takes the step `other` compiled, for this decoder's own caches, so a new sequence does not prepare again.
     pub fn share_compiled(&mut self, other: &Self) -> Result<()> {
-        if other.compiled.is_empty() {
+        let Some((steps, options)) = &other.compiled else {
             return Err(Error::invalid_argument(
                 "decoder has no compiled step to share",
             ));
-        }
+        };
 
         if self.pages.sequences() != other.pages.sequences()
             || self.pages.capacity() != other.pages.capacity()
@@ -384,19 +411,23 @@ impl<L: DecoderModel> CachedDecoder<L> {
             ));
         }
 
-        self.compiled = other.compiled.shared_with(&self.caches)?;
+        self.compiled = Some((steps.shared_with(&self.caches)?, options.clone()));
         Ok(())
     }
 
     // The executor of the compiled step of one token per sequence, whose report says how many specializations it needed.
     #[must_use]
     pub fn executor(&self) -> Option<&GraphExecutor> {
-        self.compiled.get(self.pages.sequences())
+        self.compiled
+            .as_ref()
+            .and_then(|(steps, _)| steps.get(self.pages.sequences()))
     }
 
     // Every compiled step's executor.
     pub fn executors(&self) -> impl Iterator<Item = &GraphExecutor> {
-        self.compiled.executors()
+        self.compiled
+            .iter()
+            .flat_map(|(steps, _)| steps.executors())
     }
 
     // Returns each block's cache, which a model may write outside a step, such as an encoder-decoder's cross-attention keys and values.
@@ -430,10 +461,10 @@ impl<L: DecoderModel> Decoder for CachedDecoder<L> {
     }
 
     fn step(&mut self, tokens: &[&[i64]], previous: Option<&Tensor>) -> Result<Tensor> {
-        if !self.compiled.is_empty() {
+        self.compile_for(tokens)?;
+        if let Some((steps, _)) = &mut self.compiled {
             let previous = previous.unwrap_or(&self.unfollowed).clone();
-            return self
-                .compiled
+            return steps
                 .run(
                     &mut self.pages,
                     self.device,
@@ -470,17 +501,18 @@ impl<L: DecoderModel> Decoder for CachedDecoder<L> {
     }
 
     fn largest_chunk(&self) -> Option<usize> {
+        let (steps, _) = self.compiled.as_ref()?;
         let sequences = self.pages.sequences();
-        self.compiled.largest().map(|tokens| tokens - sequences)
+        let compiled = steps.largest().map(|tokens| tokens - sequences);
+        compiled.max(self.chunks.last().copied())
     }
 
     fn report(&self) -> Result<Option<String>> {
-        if self.compiled.is_empty() {
+        let Some((steps, _)) = &self.compiled else {
             return Ok(None);
-        }
+        };
 
-        let reports = self
-            .compiled
+        let reports = steps
             .executors()
             .map(GraphExecutor::report)
             .collect::<Result<Vec<_>>>()?;

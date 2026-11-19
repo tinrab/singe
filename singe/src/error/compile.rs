@@ -1,7 +1,8 @@
-use std::io::Error as IoError;
+use std::{io::Error as IoError, path::PathBuf};
 
 #[cfg(feature = "cuda")]
 use cutile_ir::Error as TileIrError;
+use serde_json::Error as JsonError;
 use singe_codegen::{emit::EmitError, interpret::InterpretError, schedule::ScheduleError};
 #[cfg(feature = "cuda")]
 use singe_cuda::error::Error as CudaError;
@@ -47,14 +48,22 @@ pub enum CompileError {
     TileirasIo(#[source] IoError),
 
     /// A file in the generated-kernel cache directory could not be read or written.
-    #[error("kernel cache io")]
-    KernelCacheIo(#[source] IoError),
+    #[error("kernel cache io at {path}")]
+    KernelCacheIo {
+        path: PathBuf,
+        #[source]
+        source: IoError,
+    },
 
     /// A tuning file could not be read or written.
-    #[error("tuning file io")]
-    TuningIo(#[source] IoError),
+    #[error("tuning file io at {path}")]
+    TuningIo {
+        path: PathBuf,
+        #[source]
+        source: IoError,
+    },
 
     /// A tuning file is malformed.
     #[error("tuning file format")]
-    TuningFormat(#[from] serde_json::Error),
+    TuningFormat(#[from] JsonError),
 }

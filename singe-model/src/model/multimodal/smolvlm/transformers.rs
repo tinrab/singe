@@ -2,14 +2,19 @@
 
 use serde::Deserialize;
 use serde_json::Value;
+use singe::nn::Activation;
 
-use super::{SmolVlmConfig, SmolVlmProcessor, SmolVlmVisionConfig, processor::VideoSampling};
 use crate::{
-    assembly::{PreNormEncoderSpec, clip_layer_rules, llama_rules},
-    error::{Error, Result},
+    assembly::{PreNormEncoderConfig, VisionTowerConfig, clip_layer_rules, llama_rules},
+    error::Result,
     format::{
-        Rules,
-        transformers::{DecoderDefaults, DecoderFields, activation},
+        Rules, join,
+        transformers::{
+            DecoderDefaults, DecoderFields, activation_field, default_channels, default_true,
+        },
+    },
+    model::multimodal::smolvlm::{
+        SmolVlmConfig, SmolVlmProcessor, SmolVlmVisionConfig, VideoSampling,
     },
     processor::image::Resample,
     source::Source,
@@ -23,12 +28,12 @@ pub(crate) struct VisionFields {
     #[serde(default = "layers")]
     num_hidden_layers: i64,
     num_attention_heads: i64,
-    #[serde(default = "channels")]
+    #[serde(default = "default_channels")]
     num_channels: i64,
     image_size: i64,
     patch_size: i64,
-    #[serde(default = "tanh_gelu")]
-    hidden_act: String,
+    #[serde(default = "tanh_gelu", deserialize_with = "activation_field")]
+    hidden_act: Activation,
     #[serde(default = "eps")]
     layer_norm_eps: f32,
 }
@@ -41,12 +46,8 @@ const fn layers() -> i64 {
     12
 }
 
-const fn channels() -> i64 {
-    3
-}
-
-fn tanh_gelu() -> String {
-    "gelu_pytorch_tanh".to_owned()
+const fn tanh_gelu() -> Activation {
+    Activation::Gelu
 }
 
 const fn eps() -> f32 {
@@ -56,7 +57,8 @@ const fn eps() -> f32 {
 #[derive(Debug, Deserialize)]
 struct Fields {
     vision_config: VisionFields,
-    text_config: Value,
+    // A Llama config, whose defaults fill what SmolVLM's text configs leave out.
+    text_config: DecoderFields,
     scale_factor: i64,
     image_token_id: i64,
     #[serde(default)]
@@ -79,7 +81,7 @@ struct VideoFields {
 struct ProcessorFields {
     size: Edge,
     max_image_size: Edge,
-    #[serde(default = "yes")]
+    #[serde(default = "default_true")]
     do_image_splitting: bool,
     image_mean: [f32; 3],
     image_std: [f32; 3],
@@ -87,10 +89,6 @@ struct ProcessorFields {
     resample: i64,
     #[serde(default)]
     video_sampling: Option<VideoFields>,
-}
-
-const fn yes() -> bool {
-    true
 }
 
 const fn lanczos() -> i64 {
@@ -104,12 +102,9 @@ struct SequenceFields {
 
 pub(crate) fn config(source: &Source) -> Result<SmolVlmConfig> {
     let fields: Fields = source.json("config.json")?;
-    // A Llama config, whose defaults fill what SmolVLM's text configs leave out.
-    let text: DecoderFields =
-        serde_json::from_value(fields.text_config).map_err(Error::ConfigFormat)?;
     Ok(SmolVlmConfig {
-        vision: vision_config(&fields.vision_config, fields.scale_factor)?,
-        text: text.config(DecoderDefaults {
+        vision: vision_config(&fields.vision_config, fields.scale_factor),
+        text: fields.text_config.config(DecoderDefaults {
             tied: fields.tie_word_embeddings,
             head_dim: None,
         })?,
@@ -119,40 +114,32 @@ pub(crate) fn config(source: &Source) -> Result<SmolVlmConfig> {
 }
 
 // The vision tower's config, folding each `scale × scale` square of patches into one row.
-pub(crate) fn vision_config(vision: &VisionFields, scale: i64) -> Result<SmolVlmVisionConfig> {
-    Ok(SmolVlmVisionConfig {
-        encoder: PreNormEncoderSpec {
-            width: vision.hidden_size,
-            heads: vision.num_attention_heads,
-            inner: vision.intermediate_size,
-            activation: activation(&vision.hidden_act)?,
-            eps: vision.layer_norm_eps,
-            key_bias: true,
-            causal: false,
+pub(crate) const fn vision_config(vision: &VisionFields, scale: i64) -> SmolVlmVisionConfig {
+    SmolVlmVisionConfig {
+        tower: VisionTowerConfig {
+            encoder: PreNormEncoderConfig {
+                width: vision.hidden_size,
+                heads: vision.num_attention_heads,
+                inner: vision.intermediate_size,
+                activation: vision.hidden_act,
+                eps: vision.layer_norm_eps,
+                projection_biases: [true; 4],
+                causal: false,
+                layer_scale: false,
+            },
+            layers: vision.num_hidden_layers,
+            image_size: vision.image_size,
+            patch_size: vision.patch_size,
+            channels: vision.num_channels,
         },
-        layers: vision.num_hidden_layers,
-        image_size: vision.image_size,
-        patch_size: vision.patch_size,
-        channels: vision.num_channels,
         scale,
-    })
+    }
 }
 
 // The settings of an Idefics3-style processor, which SmolVLM's extends with clips: `preprocessor_config.json`, `processor_config.json`, and the tokenizer's image tokens.
 pub(crate) fn processor(source: &Source) -> Result<SmolVlmProcessor> {
     let processor: ProcessorFields = source.json("preprocessor_config.json")?;
-    // PIL's filter numbers.
-    let resample = match processor.resample {
-        0 => Resample::Nearest,
-        1 => Resample::Lanczos,
-        2 => Resample::Bilinear,
-        3 => Resample::Bicubic,
-        other => {
-            return Err(Error::UnsupportedConfig(format!(
-                "resampling filter {other}"
-            )));
-        }
-    };
+    let resample = Resample::from_pil(processor.resample)?;
 
     let sequence: SequenceFields = source.json("processor_config.json")?;
     let tokens = source
@@ -180,7 +167,7 @@ pub(crate) fn processor(source: &Source) -> Result<SmolVlmProcessor> {
 
 // Imports the vision tower stored under `prefix` and the connector stored at `connector`, reshaping the learned positions to the layout `PatchTokens` reads.
 pub(crate) fn vision_rules(prefix: &str, connector: &str) -> Rules {
-    let vision = |name: &str| format!("{prefix}.{name}");
+    let vision = |name: &str| join(prefix, name);
     Rules::new()
         .rename(&vision("embeddings.patch_embedding"), "embeddings.patches")
         .derive(

@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     data_type::DataType,
-    error::Result,
+    error::{Error, Result},
     nn::{Layer, ModelState},
     shape::Shape,
     tensor::Tensor,
@@ -85,8 +85,9 @@ impl Layer<PoolingInput<'_>> for Pooling {
                     .cast(hidden.data_type())?
             }
             PoolingMode::LastToken => {
-                let dimensions = hidden.shape().dimensions();
-                let (rows, width) = (dimensions[0], dimensions[2]);
+                let &[rows, _, width, ..] = hidden.shape().dimensions() else {
+                    return Err(Error::invalid_argument("last-token pooling input"));
+                };
                 let last = input
                     .padding
                     .cast(DataType::I64)?

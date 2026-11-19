@@ -3,7 +3,7 @@ use crate::{
     dispatch::call_one,
     error::Result,
     graph::capture,
-    scalar::Scalar,
+    scalar::{Scalar, ScalarPromotion},
     tensor::Tensor,
 };
 
@@ -31,7 +31,7 @@ macro_rules! binary_operator {
 macro_rules! right_scalar_operator {
     ($function:ident => $operation:ident) => {
         pub fn $function(lhs: &Tensor, rhs: Scalar) -> Result<Tensor> {
-            let lhs = lhs.scalar_operand(rhs, false)?;
+            let lhs = lhs.scalar_operand(rhs, ScalarPromotion::Arithmetic)?;
             call_one(
                 Operation::$operation,
                 OperationAttributes::Scalar(rhs),
@@ -44,7 +44,7 @@ macro_rules! right_scalar_operator {
 macro_rules! left_scalar_operator {
     ($function:ident => $operation:ident) => {
         pub fn $function(rhs: &Tensor, lhs: Scalar) -> Result<Tensor> {
-            let rhs = rhs.scalar_operand(lhs, Operation::$operation == Operation::RDivScalar)?;
+            let rhs = rhs.scalar_operand(lhs, ScalarPromotion::of(Operation::$operation))?;
             call_one(
                 Operation::$operation,
                 OperationAttributes::Scalar(lhs),
@@ -75,7 +75,7 @@ right_scalar_operator!(mul_tensor_scalar => Scale);
 right_scalar_operator!(pow_tensor_scalar => PowScalar);
 
 pub fn div_tensor_scalar(lhs: &Tensor, rhs: Scalar) -> Result<Tensor> {
-    let lhs = lhs.scalar_operand(rhs, true)?;
+    let lhs = lhs.scalar_operand(rhs, ScalarPromotion::TrueDivision)?;
     let divisor = capture::literal(lhs.device(), |device| rhs.tensor(device, lhs.data_type()))?;
     lhs.div(&divisor)
 }

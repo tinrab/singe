@@ -1,7 +1,7 @@
-use std::{collections::HashMap, hash::RandomState, sync::Arc};
+use std::{collections::HashMap, hash::RandomState, mem::MaybeUninit, sync::Arc};
 
 use singe_cublas::lt::types::Epilogue;
-use singe_cuda::stream::StreamCaptureMode;
+use singe_cuda::{memory::DeviceMemory, stream::StreamCaptureMode};
 
 use crate::{
     backend::cuda::{
@@ -14,17 +14,21 @@ use crate::{
             graph::{CublasLtMatmulGraph, validation::validate_cublaslt_matmul_input},
             launch::{CublasLtMatmulLaunch, launch_cublaslt_matmul},
             layout::CublasLtMatrixLayout,
+            tuning::cublaslt_workspace,
         },
         gemm::{cublaslt_takes_bias, cublaslt_takes_strides},
         graph_binding::{
             validate_graph_matmul, validate_graph_matmul_add, validate_graph_node_value_tensor,
         },
         graph_value::CudaGraphValue,
-        runtime::{CublasLtMatmulAlgorithmFingerprint, CudaRuntime},
+        runtime::{CublasLtMatmulAlgorithmEntry, CublasLtMatmulAlgorithmFingerprint, CudaRuntime},
     },
     error::{Error, Result},
     graph::ir::{Graph, ValueId},
 };
+
+// The most workspace one compiled cuBLASLt matmul takes, which its graph keeps: enough for a split reduction, and small beside the weights.
+pub const COMPILED_WORKSPACE_BYTES: usize = 1 << 20;
 
 /// Captures cuBLASLt matrix multiplication into a child CUDA graph.
 /// The compiled graph retains input, output, and any workspace allocations through replay.
@@ -168,10 +172,10 @@ fn build_matmul_graph(
             output,
             Epilogue::Default,
             None,
+            COMPILED_WORKSPACE_BYTES,
         )?,
     };
-    let stream = CudaStream::create(ir.required_value(output_value)?.device())?;
-    let (graph, ()) = stream.capture(StreamCaptureMode::ThreadLocal, || {
+    capture_matmul(runtime, ir, output_value, &algorithm, |workspace| {
         launch_cublaslt_matmul(CublasLtMatmulLaunch {
             runtime,
             a,
@@ -184,14 +188,25 @@ fn build_matmul_graph(
             epilogue: Epilogue::Default,
             bias: None,
             addend: addend.map(|(_, addend)| addend),
-            workspace: None,
+            workspace,
             stream: None,
         })
+    })
+}
+
+pub fn capture_matmul(
+    runtime: &CudaRuntime,
+    ir: &Graph,
+    output_value: ValueId,
+    algorithm: &CublasLtMatmulAlgorithmEntry,
+    launch: impl FnOnce(Option<&mut DeviceMemory<MaybeUninit<u8>>>) -> Result<()>,
+) -> Result<CublasLtMatmulGraph> {
+    let mut workspace = cublaslt_workspace(runtime.context(), algorithm.workspace_bytes())?;
+    let stream = CudaStream::create(ir.required_value(output_value)?.device())?;
+    let (graph, ()) = stream.capture(StreamCaptureMode::ThreadLocal, || {
+        launch(workspace.as_mut())
     })?;
-    Ok(CublasLtMatmulGraph::new(
-        graph.into_native(),
-        algorithm.workspace_bytes(),
-    ))
+    Ok(CublasLtMatmulGraph::new(graph.into_native(), workspace))
 }
 
 /// Captures cuBLASLt matrix multiplication with a bias epilogue into a child CUDA graph.
@@ -245,9 +260,9 @@ pub fn build_cublaslt_matmul_add_graph(
         output,
         Epilogue::Bias,
         Some(bias_tensor),
+        COMPILED_WORKSPACE_BYTES,
     )?;
-    let stream = CudaStream::create(ir.required_value(output_value)?.device())?;
-    let (graph, ()) = stream.capture(StreamCaptureMode::ThreadLocal, || {
+    capture_matmul(runtime, ir, output_value, &algorithm, |workspace| {
         launch_cublaslt_matmul(CublasLtMatmulLaunch {
             runtime,
             a,
@@ -260,12 +275,8 @@ pub fn build_cublaslt_matmul_add_graph(
             epilogue: Epilogue::Bias,
             bias: Some(bias_tensor),
             addend: None,
-            workspace: None,
+            workspace,
             stream: None,
         })
-    })?;
-    Ok(CublasLtMatmulGraph::new(
-        graph.into_native(),
-        algorithm.workspace_bytes(),
-    ))
+    })
 }

@@ -13,7 +13,7 @@ use crate::{
     },
     data_type::DataType,
     device::Device,
-    graph::{Graph, GraphCudaOptions},
+    graph::{ComputePrecision, Graph, GraphCudaOptions, with_convolution_precision},
     shape::Shape,
     tensor::Tensor,
     testing::{maybe_lock_device, skip_if_stub},
@@ -97,8 +97,8 @@ fn test_cudnn_matmul_selects_full_precision_plan_or_rejects_it() {
         &shape,
         CudnnBackendGraphKind::Matmul,
         vec![],
-        |context, inputs, output| {
-            build_cudnn_matmul_template(context, &inputs[0], &inputs[1], output, None)
+        |context, inputs, output, selection| {
+            build_cudnn_matmul_template(context, &inputs[0], &inputs[1], output, None, selection)
         },
     );
     match result {
@@ -244,30 +244,38 @@ fn test_compiled_conv3d_runs_as_one_cudnn_node() {
     let convolve = |input: &Tensor, weight: &Tensor, bias: &Tensor| {
         input.convolution3d(weight, Some(bias), (1, 2, 2), (1, 1, 1), (1, 1, 1), 1)
     };
-    let (graph, _) = Graph::capture(
-        [
-            ("input", input.clone()),
-            ("weight", weight.clone()),
-            ("bias", bias.clone()),
-        ],
-        |inputs| Ok(vec![convolve(&inputs[0], &inputs[1], &inputs[2])?]),
-    )
-    .unwrap();
-    let mut compiled = cuda::compile_graph(&graph, &GraphCudaOptions::new()).unwrap();
-    assert_eq!(compiled.stats().cudnn_backend_graph_nodes(), 1);
-    let output = compiled
-        .run(&HashMap::from([
-            ("input".to_string(), input.clone()),
-            ("weight".to_string(), weight.clone()),
-            ("bias".to_string(), bias.clone()),
-        ]))
-        .unwrap()
-        .remove(0)
-        .to_vec::<f32>()
+    with_convolution_precision(ComputePrecision::Full, || {
+        let (graph, _) = Graph::capture(
+            [
+                ("input", input.clone()),
+                ("weight", weight.clone()),
+                ("bias", bias.clone()),
+            ],
+            |inputs| Ok(vec![convolve(&inputs[0], &inputs[1], &inputs[2])?]),
+        )
         .unwrap();
-    let expected = convolve(&input, &weight, &bias)
-        .unwrap()
-        .to_vec::<f32>()
-        .unwrap();
-    assert_eq!(output, expected);
+        let mut compiled = cuda::compile_graph(&graph, &GraphCudaOptions::new()).unwrap();
+        assert_eq!(compiled.stats().cudnn_backend_graph_nodes(), 1);
+        let output = compiled
+            .run(&HashMap::from([
+                ("input".to_string(), input.clone()),
+                ("weight".to_string(), weight.clone()),
+                ("bias".to_string(), bias.clone()),
+            ]))
+            .unwrap()
+            .remove(0)
+            .to_vec::<f32>()
+            .unwrap();
+        let expected = convolve(&input, &weight, &bias)
+            .unwrap()
+            .to_vec::<f32>()
+            .unwrap();
+        assert_eq!(output.len(), expected.len());
+        for (output, expected) in output.iter().zip(&expected) {
+            assert!(
+                (output - expected).abs() <= 1e-5 * (1.0 + expected.abs()),
+                "{output} != {expected}"
+            );
+        }
+    });
 }

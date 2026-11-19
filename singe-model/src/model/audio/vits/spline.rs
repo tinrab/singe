@@ -25,12 +25,7 @@ fn softplus(value: f32) -> f32 {
 }
 
 // A bin edge's positions in `[-bound, bound]`, from unnormalized sizes, each at least `least`.
-#[expect(
-    clippy::suboptimal_flops,
-    reason = "rounds each product as the reference does, which the verifications compare with"
-)]
 fn edges(unnormalized: &[f32], least: f32, bound: f32) -> Vec<f32> {
-    #[expect(clippy::cast_precision_loss, reason = "bin counts are small")]
     let count = unnormalized.len() as f32;
     let mut cumulative = vec![0.0_f32];
     let mut total = 0.0_f32;
@@ -51,10 +46,6 @@ fn edges(unnormalized: &[f32], least: f32, bound: f32) -> Vec<f32> {
 
 // Inverts the spline at `input`, given one point's unnormalized widths and heights, `bins` each, and its unnormalized interior derivatives, `bins - 1`.
 #[must_use]
-#[expect(
-    clippy::suboptimal_flops,
-    reason = "rounds each product as the reference does, which the verifications compare with"
-)]
 pub fn inverse(
     input: f32,
     widths: &[f32],
@@ -69,10 +60,6 @@ pub fn inverse(
     let width_edges = edges(widths, MIN_BIN_WIDTH, bound);
     let height_edges = edges(heights, MIN_BIN_HEIGHT, bound);
     // The outer derivatives are those that make the spline meet the identity's slope.
-    #[expect(
-        clippy::cast_possible_truncation,
-        reason = "`transformers` stores the constant in `F32`"
-    )]
     #[expect(
         clippy::imprecise_flops,
         reason = "`transformers` computes `log(exp(1 - min) - 1)`"

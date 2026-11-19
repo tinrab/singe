@@ -4,6 +4,7 @@
       "name": "invoice",
       "snapshot": "DONUT",
       "task": "document-question-answering",
+      "data_type": "f32",
       "inputs": [
         {
           "image": "media/invoice.png",

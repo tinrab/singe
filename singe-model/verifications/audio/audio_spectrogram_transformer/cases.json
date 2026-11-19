@@ -4,6 +4,7 @@
       "name": "speech",
       "snapshot": "AST",
       "task": "audio-classification",
+      "data_type": "f32",
       "inputs": ["media/clip.wav"],
       "parameters": {
         "top_k": 5

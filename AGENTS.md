@@ -1,196 +1,73 @@
 Singe is an inference-focused machine learning framework written in Rust, with safe wrappers for the CUDA ecosystem.
 
-This is a greenfield project with no users to keep compatible with:
-
-- No backwards compatibility.
-- No deprecated aliases, migration layers, or temporary shims.
-- No legacy code paths.
-
+This is a greenfield project with no users to keep compatible with.
+There is no backwards compatibility, no deprecated aliases or shims, and no legacy code paths.
 When an API changes, update every caller in the same change and delete the old form.
-Public APIs may change whenever that produces a cleaner design.
 
-Explore the relevant crates before changing them, and inspect the closest existing implementation before adding an API, especially in a wrapper crate.
-
-Private notes for this checkout, such as the current plan and where reference material lives, are in `wip/AGENTS.md` when it exists; read it before starting larger work.
+Explore the relevant code, and the closest existing implementation, before changing or adding anything.
+Private notes for this checkout are in `wip/AGENTS.md` when it exists; read it before larger work.
 
 ## Working order
 
-Finish the whole piece of work before verifying any of it.
-Write every change the task needs first, and compile, lint, and test only at the very end, once, when the work is complete.
-Compiling, linting, and testing between steps is slow in this workspace and is not how progress is measured; a compile error or lint finding found at the end is fixed then.
-Verify earlier only to answer a question the work cannot go on without, such as whether an API behaves as assumed.
+- Write every change the task needs first, then compile, lint, and test once at the end.
+- Run only the most specific check for the change, such as one test, one crate's lint, or one model's verification.
+- Never run several cargo commands at once; they share `target/`.
 
-## Environment
+## Environment and commands
 
-The toolchain comes from `flake.nix`, loaded by direnv (`.envrc`: `use flake`).
-That shell pins CUDA and the NVIDIA library versions and exports `CUDA_PATH`, `CUDA_CCBIN`, `LD_LIBRARY_PATH`, and related variables; the justfile assumes its tools are on `PATH`.
-Find CUDA headers through `CUDA_PATH`, for example `grep CUDA_VERSION "$CUDA_PATH/include/cuda.h"`.
-Use `uv` for Python helpers.
+The toolchain, CUDA, and the NVIDIA libraries come from `flake.nix` through direnv.
+Use `uv` for Python.
+The root `justfile` has the recipes for formatting, checking, linting, testing, verifying models, generating code, and benchmarks; read it for the details.
 
-## Commands
+- `just lint` is the authority on warnings, and its recipe owns the list of allowed lints; don't suppress those per site.
+- GPU tests depend on hardware and run serialized.
 
-| Task                                            | Command                                                        |
-| ----------------------------------------------- | -------------------------------------------------------------- |
-| Format                                          | `just format`                                                  |
-| Check libraries, tests, and examples            | `just check`                                                   |
-| Clippy for the workspace                        | `just lint` (`just lint --fix` applies fixes)                  |
-| Clippy for one crate                            | `just lint --package <crate> --features <features>`            |
-| Full verification, including doctests           | `just test`                                                    |
-| Framework tests, CPU feature sets then CUDA     | `just test-singe` (`just test-singe --test nn attention`)      |
-| Write the PyTorch references the tests read     | `just prepare-tests`                                           |
-| Write or check other generated files            | `just references` (`--check`, suite names)                     |
-| Benchmarks, saved and compared by name          | `just bench` (`--save NAME`, `--compare NAME`, filters)        |
-| No NVIDIA library linked at build time          | `just check-linking`                                           |
-| API documentation                               | `just docs` or `just docs-open`                                |
-| Regenerate bindings, kernels, and injected docs | `just generate`                                                |
-| cuDNN frontend examples                         | `just frontend-examples`                                       |
-| Repository syntax rules                         | `cargo xtask no-slop` (`--fix`, `--fix-dry-run`, `-p <crate>`) |
+## Workspace
 
-- The root `justfile` exports `RUSTFLAGS=-Awarnings`, so `just check` and plain cargo builds hide warnings; `just lint` is the authority on warnings and Clippy.
-- `just lint --package` uses `--no-default-features` and all targets, so name the crate's version feature too.
-  Feature names differ per crate, such as `nvjpeg_13_2,k2,testing`, `nvtiff_0_8,testing`, or `testing`; check the crate's `Cargo.toml`.
-- The `justfile` defines the recipe feature sets in `TEST_FEATURES`, `LINT_FEATURES`, and `SINGE_TEST_FEATURES`.
-- A focused CUDA test runs as `RUST_TEST_THREADS=1 cargo test -p <crate> --features testing -- --nocapture`, adding the features the tested path needs, such as `cuda_13_4` for `singe`.
-  GPU tests depend on hardware and driver state and must run serialized.
-- Build one crate's docs with warnings denied using `RUSTDOCFLAGS="-D warnings" cargo doc -p <crate> --no-deps --all-features`, and again with default features when a module is feature-gated.
-- Do not run several cargo commands at once against the shared `target/` directory; concurrent builds delete each other's artifacts.
-- Batch changes before compiling or testing, as "Working order" says; the workspace is large, and every build and test run is slow.
-- Run only the most specific check for the change at hand: one test or test filter, one crate's lint, or one model's verification (`just verify MODEL`).
-  No recipe runs everything; run a wider recipe such as `just test` only when asked.
+- `singe` is the framework; `singe-model` holds the models built on it.
+- The NVIDIA wrapper crates are safe wrappers over `*-sys` crates of generated bindings, loaded at run time through `singe-loader`.
+- `xtask` holds code generation and the `no-slop` checker.
+- Dependency versions, lints, and profiles live only in the root `Cargo.toml`.
 
-## Workspace layout
+## Tests
 
-- `singe`: the framework: tensors, graphs, ONNX import, the CPU and CUDA backends, layers, caches, generation, and exported CUDA C++ programs.
-- `singe-model`: models built on `singe`, one module per kind under `model/<category>`, each declaring its registry entry, with Singe's own tensor names and configs and importers for `transformers` and `diffusers` snapshots; the heads models serve under `head`; and one pipeline per Hugging Face task under `task/<category>`; its README gives the steps for adding a model.
-- `singe-core`: shared low-level macros and helpers, such as `wrapper_status!`, `native_enum!`, `checked_conversions!`, and the `logger` callback slot.
-- `singe-kernel`, `singe-codegen`: reusable kernels, with generated cuTile kernels under `singe-kernel/src/-generated/`, and the kernel IR with its emitters.
-- `singe-testing`: comparing with PyTorch's references, and the benchmark runner; see its README.
-- `singe-onnx`, `singe-ptx`: ONNX utilities, and a PTX parser and CPU emulator.
-- NVIDIA wrapper crates (`singe-cuda`, `singe-cudnn`, `singe-cublas`, and the rest), each over a raw `*-sys` crate whose bindings are generated and checked in, while its `src/lib.rs` and `justfile` are handwritten.
-- `singe-loader` loads every NVIDIA library at run time, so no `*-sys` crate links one at build time, except nvCOMP's C++ manager bridge behind its opt-in `manager` feature.
-- `singe-macros` and `singe-cuda-macros` are proc-macro crates, and `singe-cuda-find` discovers CUDA installations.
-- `xtask`: documentation injection, kernel generation, and the `no-slop` checker.
-- Dependency versions are declared only in the root `[workspace.dependencies]`, and members use `x.workspace = true`; lints and profiles also live at the root.
+- Keep tests few: they cover `singe`'s core components for correctness, and no new ones are added without need.
+- Models are checked by verifications against their reference libraries, not by tests; a change to a model, or to what models share, is done when the touched models' verifications pass.
+- References are generated, never edited by hand.
+- Nothing in a test times anything; timing belongs in benchmarks and verifications.
 
-## Tests and references
+## Generated code
 
-- Tests cover `singe`'s core components, operations, blocks, and modules, for correctness, as few as that takes.
-  Models are checked by verifications, not tests: `singe-model/verifications/<category>/<model>/` holds `cases.json`, `verify.py`, which runs the reference library (`transformers`, `sentence-transformers`, or `diffusers`) and records or asserts the expected outputs, and `verify.rs`, which runs Singe's pipelines on the same cases and asserts the same outputs; both sides time each case.
-  `just verify FILTER` runs both sides of the matching cases, and `just snapshot NAME` downloads a snapshot `singe-model/verifications/snapshots.toml` names.
-  A new model comes with its verification, and a change to a model, or to what models share (`assembly`, `head`, `format`, `processor`), is done when the verifications of the models it touches pass.
-  A model's import rules must map every stored tensor; a load refuses one they leave.
-- `singe/tests` has five targets, `tensor`, `graph`, `kernels`, `nn`, and `onnx`, each a `main.rs` with a module per subject.
-- A test that compares with PyTorch reads a reference with `singe_testing::reference!` and compares with `assert_matches` under a named `Tolerance`.
-- References live under `singe/tests/references` and are generated, never edited by hand.
-  `scripts/references` writes them with PyTorch, one module per suite, through `just prepare-tests`, which `check`, `lint`, and the test recipes run first, since `singe`'s tests and examples embed some of them when they compile.
-  It skips the work when `target/references` records a run with the same scripts and `uv.lock`.
-- Baselines of Singe's own results, which tests compare with to catch a change either way, live under `singe/tests/baselines` and are checked in; `SINGE_UPDATE_CONFORMANCE=1` and `SINGE_UPDATE_ONNX_CONFORMANCE=1` rewrite them.
-- Verifications find their snapshots in the Hugging Face cache; examples and benchmarks of real models read `SINGE_SNAPSHOT_<MODEL>`, a local Hugging Face snapshot directory, which also overrides a verification's.
-- Generated kernels and exported programs built with `nvcc` are cached across runs under `~/.cache/singe/kernels`; deleting it rebuilds them.
-- Nothing in a test times anything; timing belongs in the `benches/` targets, through `singe_testing::Benches`, and in verifications, which time each case beside its reference.
+Never hand-edit generated bindings, kernels, or injected documentation; change the generator or its inputs and regenerate.
 
-## Generated data
+## Wrapper crates
 
-- Do not hand-edit generated FFI declarations, generated kernels, or generated rustdoc unless the task targets them; change the recipe or its inputs and regenerate.
-- Bindgen recipes live in the `*-sys/justfile`s, and each ends by rewriting the bindings' `unsafe extern "C"` blocks into `singe_loader::functions!` blocks, whose functions keep their names and load their symbols on first call.
-- A `*-sys` crate declares each library it loads through `singe_loader::Library`'s constructor for it, such as `Library::cusparse()`; it adds a `load` function per library, `singe_loader::missing_status!` for each status type, which is what a function returns when its library or symbol is missing, and `missing_value!` for other returned values.
-  A missing status-returning function records which library or symbol was missing, and the `-sys` crate re-exports `take_absence`, which its safe crate's `wrapper_status!` conversion reads to return `Error::Load`.
-- Injected NVIDIA documentation comes from `xtask/docs/` through `xtask/src/document.rs`; fix the inputs or the injection logic, then regenerate, and use `jq` for the large JSON files.
-- Generated binding filenames do not always match documentation versions; check the crate's `justfile`, `src/lib.rs`, and the generated filename together.
-
-## Wrapper crate conventions
-
-Follow the nearest existing wrapper; the style guide covers the details.
-
-- Each wrapper has `error.rs` with a `#[non_exhaustive]` `Error`, a `Result` alias, a `Status` declared with `singe_core::wrapper_status!`, and a crate-private `try_ffi!` over the generated `Error::check`; `lib.rs` keeps `pub use singe_<lib>_sys as sys;`.
-  Libraries without an error-string function write `Variant = CONSTANT => "description"` so the macro generates `description()`.
-  The library variant is `<Lib> { code: Status }`, and shared failures use the shared variants (`OutOfRange`, `LengthMismatch`, `BufferTooSmall`, `ContextMismatch`, and the rest) listed in the style guide.
-- A process-wide native logger keeps a `singe_core::logger::CallbackSlot` in a `static`, with `set_callback` taking a closure and returning a `CallbackGuard`.
-- Use typed enums and `bitflags` wrappers, checked conversions for C integer types, and narrow `unsafe` blocks with `// SAFETY:` comments.
-- Plain settings values are `*Options`, with public fields when every combination is valid and `with_*` setters otherwise; wrappers of native parameter structs or handles are `*Params`, with `set_*` methods.
-- Safe calls wait for their GPU work; `unsafe` functions that only enqueue work are named `<operation>_async` and take wrapper types, never raw `sys` handles.
-  A safe, lifetime-checked asynchronous form takes a `StreamScope` and is named `<operation>_scoped`; `_unchecked` only means a validity check is skipped, and an `async fn` carries no `_async` suffix.
-- A stream in another CUDA context is the crate's `Error::StreamContextMismatch`; memory in another context is `CudaError::MemoryContextMismatch`.
-- GPU work goes through `singe-cuda`'s stream machinery:
-    - `Stream::sync_scope` runs eager work and waits for it even on failure;
-    - `Stream::ensure_not_capturing` rejects graph capture before eager work;
-    - `Stream::defer_drop_until_capture_end` keeps native owners alive through capture.
-      An owner retained that way holds a `BorrowedStream` instead of the stream wrapper, to avoid a reference cycle.
-- Keep ported examples close to upstream sample names while making the Rust APIs idiomatic.
+Follow the nearest existing wrapper and the style guide: typed errors and enums, checked conversions, narrow `unsafe` blocks with `// SAFETY:` comments, and GPU work through `singe-cuda`'s stream machinery.
 
 ## The no-slop checker
 
 `cargo xtask no-slop` must report no findings.
-Its rules live in `xtask/src/no_slop/rules/`, one module per rule, registered in `rules/mod.rs`; rule levels and exclusions can be set in a `[workspace.metadata.no-slop]` table in the root `Cargo.toml`.
-Fixes may only change whitespace, comments, import grouping, or line breaks inside doc comments; `fix::validate` rejects anything else.
-`no-dense-statement-runs` is off, and `xtask/src/no_slop/UPSTREAM.md` records why, along with where this copy differs from upstream.
-
-The rules include:
-
-- test functions start with `test_`;
-- fallible constructors are named `create`;
-- error messages are lowercase, do not end in punctuation, preserve their sources, and avoid vague text;
-- imports are grouped into standard, external, and local roots;
-- sibling declarations are separated by blank lines;
-- module trees use `name/mod.rs`, never a sibling `name.rs`;
-- a module's `mod` declarations come before its imports, and `mod tests` comes last;
-- visibility is private, `pub(crate)`, or `pub`, never `pub(super)` or `pub(in …)`;
-- each sentence of a doc comment is on its own line;
-- lint suppressions name specific lints instead of `warnings` or `clippy::all`;
-- a multi-line block is followed by a blank line, unless the next statement returns the final value;
-- an error that exposes a source through `source()` does not also print it, so a wrapper that adds nothing is `#[error(transparent)]`;
-- error contracts name a type instead of `String` or `Box<dyn Error>`, which only `main` and trait implementations may return;
-- modules are named for a responsibility, never `utils`, `helpers`, or `common`.
-
-In the released crates, `unreachable_pub` decides visibility: an item the crate root cannot reach is `pub(crate)`, never plain `pub`, and Clippy's `redundant_pub_crate` is off.
-Re-export a private child module's items as `pub use self::child::…`, so rustfmt and no-slop agree on import grouping.
-Exceptions take the form `// no-slop-allow: <rule> -- <reason>` on the line before the target.
+Its rules cover naming, error messages, imports, blank lines, module layout, visibility, and lint suppressions; read them in `xtask/src/no_slop/rules/`.
 
 ## This repo is public
 
-Everything pushed stays public in history.
 Before committing, check the staged diff:
 
 ```sh
 git diff --cached | rg -n '/home/|/tmp/|/run/user/|/nix/store/|\.cache/huggingface|\.ts\.net|ses_[A-Za-z0-9]{20}'
 ```
 
-Keep these out of commits:
-
-- secrets, tokens, and the contents of credential files;
-- anything from the development machine's filesystem: real paths, mount points, user and group names, machine names, and hostnames.
-  Write repo-relative paths, and use made-up names in tests and fixtures;
-- anything that identifies a real GPU or machine: device UUIDs, serial numbers, PCI bus IDs, and the output of NVML, `nvidia-smi`, or profilers that carries them;
-- local model snapshot paths; benchmarks and examples read them from `SINGE_SNAPSHOT_<MODEL>`, and nothing checked in records them;
-- session IDs, chat or issue-tracker links, and quotes from private sessions, chats, or calls;
-- people's names attached to their plans, opinions, or private discussions, and private repos or branches;
-- agent handoff notes, plans, research notes, raw evidence, logs, benchmark results, profiler reports, and other temporary files.
-  Keep them in `wip/`, which is gitignored, as is `benchmarks/`, where `just bench` saves its baselines;
-- copies of third-party source kept for reference; they belong in `wip/` too, and code that ports from one says where it came from by project and path.
-
-A commit message is a single line, with no body paragraphs.
+Keep out of commits anything private or local: secrets, machine paths and names, hardware identifiers, snapshot paths, session IDs, private quotes and people's names, notes, plans, logs, benchmark results, and copies of third-party source.
+These belong in `wip/`, which is gitignored.
+A commit message is a single line.
 
 ## Constraints
 
-- **Style guide:** [docs/RUST_STYLE_GUIDE.md](docs/RUST_STYLE_GUIDE.md) is the source of truth for Rust engineering and style; read the relevant section before changing a crate, and don't edit it.
-    - Rust tests are named `test_*`.
-    - Use `pub(crate)`, never `pub(super)`.
-    - Use typed errors (thiserror) with lowercase messages, not `String` errors.
-- **Doc comments on public items only:** in the released crates (`singe-core`, `singe-loader`, `singe-cuda` and its `-sys` and macros crates, the NVIDIA wrappers and their `-sys` crates, `singe-ptx`, `singe-onnx`), give public items short doc comments that follow the Documentation section; private items get none.
-  The unreleased crates (`singe`, `singe-codegen`, `singe-macros`, `singe-model`, `singe-kernel`, `singe-testing`) get no new doc comments, even where surrounding code has them, such as the operation table's entries: write a `//` comment there instead.
-  Existing doc comments stay as they are; update one only when the code it describes changes, and move it with its code.
-  Write an inline `//` comment only where the code cannot say something itself, such as why a non-obvious rule holds.
-- **One sentence per line:** write Markdown prose and comments with each sentence on its own line, as the style guide describes.
-- **Lock files:** don't edit `uv.lock` by hand; let uv manage it.
-  `Cargo.lock` is gitignored.
-- **Work files:** temporary work files, notes, and todo lists go in `wip/`.
-
-## Documentation
-
-These rules apply to doc comments on the released crates' public items.
-
-- Seed a safe crate's doc comments from its `*-sys` bindings, then rewrite the result in Rust terms instead of keeping C names, `# Parameters`, or return-value sections.
-- Summaries start with a third-person verb, `# Errors` sentences start with "Returns an error if", and `# Safety` comes before `# Errors`.
-- Crates with `unsafe` `*_async` functions state their shared rules once, in a `# Raw execution` section of the crate docs.
-- Module documentation goes at the top of the module file as `//!`.
-- State observable behavior instead of vague claims, framing, or hedges.
+- [docs/RUST_STYLE_GUIDE.md](docs/RUST_STYLE_GUIDE.md) is the source of truth for Rust style.
+- Don't edit this file or the style guide unless asked.
+- Use typed errors with lowercase messages.
+- Don't write new doc comments (`///`, `//!`) unless a task asks for them; existing ones stay, updated only when their code changes.
+- Write an inline comment only where the code cannot say something itself.
+- Write each sentence of prose and comments on its own line.
+- Don't edit `uv.lock` by hand.
+- Temporary files, notes, and todo lists go in `wip/`.

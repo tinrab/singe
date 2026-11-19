@@ -6,7 +6,7 @@ use crate::{
             iteration::Window2d,
             utility::{NativeFloat, cpu_device_mismatch, logical_values},
         },
-        spec,
+        spec::{self, PoolReduction},
     },
     data_type::DataType,
     device::Device,
@@ -35,8 +35,20 @@ pub fn max_pool2d(
     }
     let options = (kernel_size, stride, padding, dilation, ceil_mode);
     match input.data_type() {
-        DataType::F32 => pool2d(input, options, false, "cpu max_pool2d", maximum::<f32>),
-        DataType::F64 => pool2d(input, options, false, "cpu max_pool2d", maximum::<f64>),
+        DataType::F32 => pool2d(
+            input,
+            options,
+            PoolReduction::Maximum,
+            "cpu max_pool2d",
+            maximum::<f32>,
+        ),
+        DataType::F64 => pool2d(
+            input,
+            options,
+            PoolReduction::Maximum,
+            "cpu max_pool2d",
+            maximum::<f64>,
+        ),
         _ => Err(Error::unsupported_data_type("cpu max_pool2d")),
     }
 }
@@ -68,12 +80,20 @@ pub fn avg_pool2d(
     }
     let options = (kernel_size, stride, padding, dilation, ceil_mode);
     match input.data_type() {
-        DataType::F32 => pool2d(input, options, true, "cpu avg_pool2d", |taps| {
-            average::<f32>(taps, count_include_pad)
-        }),
-        DataType::F64 => pool2d(input, options, true, "cpu avg_pool2d", |taps| {
-            average::<f64>(taps, count_include_pad)
-        }),
+        DataType::F32 => pool2d(
+            input,
+            options,
+            PoolReduction::Average,
+            "cpu avg_pool2d",
+            |taps| average::<f32>(taps, count_include_pad),
+        ),
+        DataType::F64 => pool2d(
+            input,
+            options,
+            PoolReduction::Average,
+            "cpu avg_pool2d",
+            |taps| average::<f64>(taps, count_include_pad),
+        ),
         _ => Err(Error::unsupported_data_type("cpu avg_pool2d")),
     }
 }
@@ -110,7 +130,7 @@ type PoolOptions = (
 fn pool2d<T: NativeFloat>(
     input: &Tensor,
     (kernel_size, stride, padding, dilation, ceil_mode): PoolOptions,
-    average: bool,
+    reduction: PoolReduction,
     diagnostic_prefix: &'static str,
     reduce: impl Fn(&Taps<'_, T>) -> T + Sync,
 ) -> Result<Tensor> {
@@ -125,7 +145,7 @@ fn pool2d<T: NativeFloat>(
         padding,
         dilation,
         ceil_mode,
-        average,
+        reduction,
         diagnostic_prefix,
     )?;
     let window = Window2d::create(

@@ -2,11 +2,11 @@
 
 use serde::Deserialize;
 
-use super::SuperPointConfig;
 use crate::{
     error::{Error, Result},
     format::Rules,
     head::KeypointConfig,
+    model::vision::superpoint::SuperPointConfig,
     source::Source,
 };
 
@@ -23,17 +23,27 @@ pub(crate) struct Fields {
 }
 
 pub(crate) fn config(source: &Source) -> Result<SuperPointConfig> {
-    fields_config(source.json("config.json")?)
+    fields_config(&source.json("config.json")?)
 }
 
-pub(crate) fn fields_config(fields: Fields) -> Result<SuperPointConfig> {
+pub(crate) fn fields_config(fields: &Fields) -> Result<SuperPointConfig> {
     // Three halvings and a cell of 8 × 8 pixels and one class for none.
-    if fields.encoder_hidden_sizes.len() != 4 || fields.keypoint_decoder_dim != 65 {
-        return Err(Error::unsupported("this SuperPoint config"));
+    if fields.encoder_hidden_sizes.len() != 4 {
+        return Err(Error::unsupported(format!(
+            "a SuperPoint encoder of {} blocks",
+            fields.encoder_hidden_sizes.len()
+        )));
+    }
+
+    if fields.keypoint_decoder_dim != 65 {
+        return Err(Error::unsupported(format!(
+            "a SuperPoint keypoint decoder of {} classes",
+            fields.keypoint_decoder_dim
+        )));
     }
 
     Ok(SuperPointConfig {
-        encoder: fields.encoder_hidden_sizes,
+        encoder: fields.encoder_hidden_sizes.clone(),
         decoder: fields.decoder_hidden_size,
         descriptor: fields.descriptor_decoder_dim,
         keypoints: KeypointConfig {
@@ -45,32 +55,20 @@ pub(crate) fn fields_config(fields: Fields) -> Result<SuperPointConfig> {
     })
 }
 
-// Imports the detector stored under `prefix`, as LightGlue's checkpoints store it under `keypoint_detector.`, to the schema's names under `to`.
-pub(crate) fn detector_rules(prefix: &str, to: &str) -> Rules {
-    let name = |name: &str| format!("{prefix}{name}");
-    let target = |name: &str| format!("{to}{name}");
-    Rules::new()
-        .rename(
-            &name("encoder.conv_blocks.*.conv_a"),
-            &target("blocks.*.first"),
-        )
-        .rename(
-            &name("encoder.conv_blocks.*.conv_b"),
-            &target("blocks.*.second"),
-        )
-        .rename(
-            &name("keypoint_decoder.conv_score_a"),
-            &target("score_hidden"),
-        )
-        .rename(&name("keypoint_decoder.conv_score_b"), &target("score"))
-        .rename(
-            &name("descriptor_decoder.conv_descriptor_a"),
-            &target("descriptor_hidden"),
-        )
-        .rename(
-            &name("descriptor_decoder.conv_descriptor_b"),
-            &target("descriptor"),
-        )
+// Imports the detector stored under `from`, as LightGlue's checkpoints store it under `keypoint_detector`, to the schema's names under `to`.
+pub(crate) fn detector_rules(from: &str, to: &str) -> Rules {
+    Rules::new().rename_each(
+        from,
+        to,
+        &[
+            ("encoder.conv_blocks.*.conv_a", "blocks.*.first"),
+            ("encoder.conv_blocks.*.conv_b", "blocks.*.second"),
+            ("keypoint_decoder.conv_score_a", "score_hidden"),
+            ("keypoint_decoder.conv_score_b", "score"),
+            ("descriptor_decoder.conv_descriptor_a", "descriptor_hidden"),
+            ("descriptor_decoder.conv_descriptor_b", "descriptor"),
+        ],
+    )
 }
 
 pub(crate) fn rules() -> Rules {

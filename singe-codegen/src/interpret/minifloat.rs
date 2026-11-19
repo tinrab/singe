@@ -92,8 +92,6 @@ impl Minifloat {
     /// Returns the bits of `value` rounded to the nearest value of the format, ties to even.
     #[must_use]
     #[expect(
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
         clippy::cast_possible_wrap,
         reason = "the rounded mantissa is a whole number below 32, and exponents fit in 8 bits"
     )]

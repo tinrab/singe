@@ -321,10 +321,6 @@ fn constant_value(graph: &Graph, id: ValueId) -> Option<f64> {
         .copied()
 }
 
-#[expect(
-    clippy::cast_precision_loss,
-    reason = "the scalars these patterns compare are small exact values"
-)]
 const fn scalar_value(scalar: Scalar) -> Option<f64> {
     match scalar {
         Scalar::Float(value) => Some(value),
@@ -334,10 +330,6 @@ const fn scalar_value(scalar: Scalar) -> Option<f64> {
     }
 }
 
-#[expect(
-    clippy::cast_possible_truncation,
-    reason = "normalization epsilons are `f32` attributes"
-)]
 fn f32_value(value: f64) -> Option<f32> {
     (value.is_finite() && value > 0.0).then_some(value as f32)
 }

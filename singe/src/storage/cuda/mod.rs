@@ -43,7 +43,9 @@ pub(crate) trait CudaMemoryRecycler: fmt::Debug + Send + Sync {
 pub trait CudaStorageByte: DeviceRepr + private::Byte {}
 
 mod private {
-    use super::{DeviceMemory, DeviceRepr, MaybeUninit};
+    use std::mem::MaybeUninit;
+
+    use singe_cuda::{memory::DeviceMemory, view::DeviceRepr};
 
     pub trait Byte: DeviceRepr {
         fn into_pending(memory: DeviceMemory<Self>) -> DeviceMemory<MaybeUninit<u8>>;

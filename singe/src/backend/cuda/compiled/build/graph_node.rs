@@ -33,7 +33,7 @@ pub fn add_cuda_graph_device_copy_node(
         .ok_or_else(|| Error::missing_input("add cuda graph device copy node"))?;
     validate_graph_input_value_tensor(ir, input, input_tensor)?;
     if !input_tensor.is_contiguous() || !output.is_contiguous() {
-        return Err(Error::ContiguousRequired);
+        return Err(Error::contiguous_required("cuda graph device copy"));
     }
 
     let byte_size = output.byte_size()?;

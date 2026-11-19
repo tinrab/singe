@@ -66,7 +66,11 @@ impl Builder<'_> {
             self.view_of(key)?,
             self.view_of(value)?,
         );
-        let dim = query.layout.dimensions()[3];
+        let &[_, _, _, dim, ..] = query.layout.dimensions() else {
+            return Err(Error::invalid_argument(
+                "cuda program attention query dimensions",
+            ));
+        };
         let lengths = key_lengths
             .map(|lengths| {
                 let [batch, _, queries, _] = query.layout.dimensions()[..] else {
@@ -263,20 +267,23 @@ impl Builder<'_> {
         } else {
             source.layout.element_count()
         };
-        let batch = signals / usize::try_from(length).map_err(|_| Error::DimensionOutOfBounds)?;
+        let batch = signals
+            / usize::try_from(length)
+                .map_err(|_| Error::dimension_out_of_bounds("fft signal length"))?;
         let double = data_type == DataType::F64;
         let spectrum = if inverse {
             // cuFFT overwrites what it reads and leaves its result unnormalized, so it reads a scaled copy of the frequencies the signal has.
             let needed = length / 2 + 1;
-            if dimensions[dimensions.len() - 2] < needed {
+            let &[.., frequencies, _] = dimensions.as_slice() else {
+                return Err(Error::invalid_argument(
+                    "cuda program irfft input dimensions",
+                ));
+            };
+            if frequencies < needed {
                 return Ok(false);
             }
 
             let narrowed = source.layout.slice(-2, 0, needed, 1)?;
-            #[expect(
-                clippy::cast_precision_loss,
-                reason = "signal lengths are far below 2^53"
-            )]
             let scale = 1.0 / length as f64;
             let plan = self.planner.create(
                 Operation::Scale,

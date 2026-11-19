@@ -4,6 +4,7 @@
       "name": "classification",
       "snapshot": "VIDEOMAE",
       "task": "video-classification",
+      "data_type": "f32",
       "inputs": ["media/spaghetti"],
       "expected": [
         [

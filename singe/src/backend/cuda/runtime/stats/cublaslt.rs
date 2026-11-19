@@ -80,10 +80,6 @@ pub fn cublaslt_matmul_algorithm_dtype_counts<'a>(
 /// Returns saturated counts for `F32`, `F32FastTf32`, `F32FastF16`, and `F32FastBf16` compute modes, in that order.
 ///
 /// Other compute modes contribute to none of these counts.
-#[expect(
-    clippy::similar_names,
-    reason = "BLAS cache metrics distinguish standard precision modes and left/right matrix operands"
-)]
 pub fn cublaslt_matmul_algorithm_compute_counts<'a>(
     keys: impl IntoIterator<Item = &'a CublasLtMatmulAlgorithmKey>,
 ) -> (usize, usize, usize, usize) {
@@ -192,10 +188,6 @@ pub fn cublaslt_matmul_algorithm_dimension_maxima<'a>(
 ///
 /// Batched keys have batch count greater than one.
 /// The maximum is zero for an empty input.
-#[expect(
-    clippy::similar_names,
-    reason = "BLAS cache metrics distinguish standard precision modes and left/right matrix operands"
-)]
 pub fn cublaslt_matmul_algorithm_batch_counts<'a>(
     keys: impl IntoIterator<Item = &'a CublasLtMatmulAlgorithmKey>,
 ) -> (usize, usize, usize, usize, usize) {

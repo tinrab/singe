@@ -42,10 +42,6 @@ pub(crate) fn init_f32_image(size: usize, seed: &mut u32) -> Vec<f32> {
 }
 
 #[allow(dead_code)]
-#[expect(
-    clippy::cast_possible_truncation,
-    reason = "mirrors the upstream sample, which truncates values in [0, 15) to int8"
-)]
 pub(crate) fn init_i8_image(size: usize, seed: &mut u32) -> Vec<i8> {
     init_f32_image(size, seed)
         .into_iter()

@@ -3,12 +3,28 @@
 use serde::Deserialize;
 use singe::nn::Activation;
 
-use super::Swin2SrConfig;
 use crate::{
     error::{Error, Result},
     format::{Rules, transformers::activation_field},
+    model::vision::swin2sr::Swin2SrConfig,
     source::Source,
 };
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+enum Upsampler {
+    #[serde(rename = "pixelshuffle")]
+    PixelShuffle,
+    #[serde(other)]
+    Other,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+enum ResidualConnection {
+    #[serde(rename = "1conv")]
+    OneConvolution,
+    #[serde(other)]
+    Other,
+}
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 struct Fields {
@@ -22,8 +38,8 @@ struct Fields {
     window_size: i64,
     num_channels: i64,
     upscale: i64,
-    upsampler: String,
-    resi_connection: String,
+    upsampler: Upsampler,
+    resi_connection: ResidualConnection,
     img_range: f64,
     patch_size: i64,
     #[serde(default)]
@@ -31,27 +47,73 @@ struct Fields {
     image_size: i64,
 }
 
-pub(crate) fn config(source: &Source) -> Result<Swin2SrConfig> {
-    let fields: Fields = source.json("config.json")?;
-    // The classical models' upsampler, one convolution closing each stage, patches of one point, and windows the configured image size does not shrink.
-    if fields.upsampler != "pixelshuffle"
-        || fields.resi_connection != "1conv"
-        || fields.patch_size != 1
-        || fields.use_absolute_embeddings
-        || (fields.img_range - 1.0).abs() > f64::EPSILON
-        || fields.depths.len() != fields.num_heads.len()
-        || fields.upscale <= 0
-        || fields.upscale & (fields.upscale - 1) != 0
-        || fields.image_size <= fields.window_size
-    {
-        return Err(Error::unsupported("this Swin2SR config"));
+// The classical models' upsampler, one convolution closing each stage, patches of one point, and windows the configured image size does not shrink.
+fn check_supported(fields: &Fields) -> Result<()> {
+    if fields.num_channels != 3 {
+        return Err(Error::unsupported(format!(
+            "a Swin2SR of {} channels, not three",
+            fields.num_channels
+        )));
     }
 
-    #[expect(
-        clippy::cast_possible_truncation,
-        clippy::cast_precision_loss,
-        reason = "`transformers` truncates the product to an integer the same way"
-    )]
+    if fields.upsampler != Upsampler::PixelShuffle {
+        return Err(Error::unsupported(
+            "a Swin2SR upsampler other than `pixelshuffle`",
+        ));
+    }
+
+    if fields.resi_connection != ResidualConnection::OneConvolution {
+        return Err(Error::unsupported(
+            "a Swin2SR `resi_connection` other than `1conv`",
+        ));
+    }
+
+    if fields.patch_size != 1 {
+        return Err(Error::unsupported(format!(
+            "a Swin2SR `patch_size` of {}, not one",
+            fields.patch_size
+        )));
+    }
+
+    if fields.use_absolute_embeddings {
+        return Err(Error::unsupported("Swin2SR's absolute embeddings"));
+    }
+
+    if (fields.img_range - 1.0).abs() > f64::EPSILON {
+        return Err(Error::unsupported(format!(
+            "a Swin2SR `img_range` of {}, not one",
+            fields.img_range
+        )));
+    }
+
+    if fields.depths.len() != fields.num_heads.len() {
+        return Err(Error::unsupported(format!(
+            "Swin2SR `depths` of {} stages beside `num_heads` of {}",
+            fields.depths.len(),
+            fields.num_heads.len()
+        )));
+    }
+
+    if fields.upscale <= 0 || fields.upscale & (fields.upscale - 1) != 0 {
+        return Err(Error::unsupported(format!(
+            "a Swin2SR `upscale` of {}, not a power of two",
+            fields.upscale
+        )));
+    }
+
+    if fields.image_size <= fields.window_size {
+        return Err(Error::unsupported(format!(
+            "a Swin2SR `image_size` of {} within one window of {}",
+            fields.image_size, fields.window_size
+        )));
+    }
+    Ok(())
+}
+
+pub(crate) fn config(source: &Source) -> Result<Swin2SrConfig> {
+    let fields: Fields = source.json("config.json")?;
+    check_supported(&fields)?;
+
     let inner = (fields.mlp_ratio * fields.embed_dim as f64) as i64;
     Ok(Swin2SrConfig {
         width: fields.embed_dim,
@@ -67,54 +129,66 @@ pub(crate) fn config(source: &Source) -> Result<Swin2SrConfig> {
 }
 
 pub(crate) fn rules() -> Rules {
-    let mut rules = Rules::new();
-    // One convolution before each doubling, numbered in its name.
-    for index in 0..4 {
-        rules = rules.rename(
-            &format!("upsample.upsample.convolution_{index}"),
-            &format!("upsample.{index}"),
-        );
-    }
-
-    let layer = |name: &str| format!("swin2sr.encoder.stages.*.layers.*.{name}");
-    let block = |name: &str| format!("stages.*.blocks.*.{name}");
-    rules
+    Rules::new()
+        // One convolution before each doubling, numbered in its name.
+        .rename_each(
+            "upsample.upsample",
+            "upsample",
+            &[
+                ("convolution_0", "0"),
+                ("convolution_1", "1"),
+                ("convolution_2", "2"),
+                ("convolution_3", "3"),
+            ],
+        )
         .rename("swin2sr.first_convolution", "first")
-        .rename(
-            "swin2sr.embeddings.patch_embeddings.projection",
-            "projection",
+        .rename_each(
+            "swin2sr.embeddings.patch_embeddings",
+            "",
+            &[
+                ("projection", "projection"),
+                ("layernorm", "projection_norm"),
+            ],
         )
-        .rename(
-            "swin2sr.embeddings.patch_embeddings.layernorm",
-            "projection_norm",
+        .rename_each(
+            "swin2sr.encoder.stages.*.layers.*",
+            "stages.*.blocks.*",
+            &[
+                ("attention.self.query", "attention.query"),
+                ("attention.self.key", "attention.key"),
+                ("attention.self.value", "attention.value"),
+                ("attention.self.logit_scale", "attention.logit_scale"),
+                (
+                    "attention.self.continuous_position_bias_mlp.0",
+                    "attention.bias_hidden",
+                ),
+                (
+                    "attention.self.continuous_position_bias_mlp.2",
+                    "attention.bias_out",
+                ),
+                ("attention.output.dense", "attention.output"),
+                ("layernorm_before", "attention_norm"),
+                ("intermediate.dense", "feed_forward.up"),
+                ("output.dense", "feed_forward.down"),
+                ("layernorm_after", "feed_forward_norm"),
+            ],
         )
-        .rename(&layer("attention.self.query"), &block("attention.query"))
-        .rename(&layer("attention.self.key"), &block("attention.key"))
-        .rename(&layer("attention.self.value"), &block("attention.value"))
-        .rename(
-            &layer("attention.self.logit_scale"),
-            &block("attention.logit_scale"),
-        )
-        .rename(
-            &layer("attention.self.continuous_position_bias_mlp.0"),
-            &block("attention.bias_hidden"),
-        )
-        .rename(
-            &layer("attention.self.continuous_position_bias_mlp.2"),
-            &block("attention.bias_out"),
-        )
-        .rename(&layer("attention.output.dense"), &block("attention.output"))
-        .rename(&layer("layernorm_before"), &block("attention_norm"))
-        .rename(&layer("intermediate.dense"), &block("up"))
-        .rename(&layer("output.dense"), &block("down"))
-        .rename(&layer("layernorm_after"), &block("feed_forward_norm"))
-        .rename("swin2sr.encoder.stages.*.conv", "stages.*.convolution")
-        .rename(
-            "swin2sr.encoder.stages.*.patch_embed.projection",
-            "stages.*.projection",
+        .rename_each(
+            "swin2sr.encoder.stages.*",
+            "stages.*",
+            &[
+                ("conv", "convolution"),
+                ("patch_embed.projection", "projection"),
+            ],
         )
         .rename("swin2sr.layernorm", "norm")
         .rename("swin2sr.conv_after_body", "after_body")
-        .rename("upsample.conv_before_upsample", "before_upsample")
-        .rename("upsample.final_convolution", "last")
+        .rename_each(
+            "upsample",
+            "",
+            &[
+                ("conv_before_upsample", "before_upsample"),
+                ("final_convolution", "last"),
+            ],
+        )
 }

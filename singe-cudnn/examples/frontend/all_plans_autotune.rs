@@ -73,10 +73,6 @@ fn trimmed_mean_autotune(session: &mut AutotuneSession<'_, '_>) -> Result<Vec<Pl
     Ok(timings)
 }
 
-#[expect(
-    clippy::many_single_char_names,
-    reason = "keeps the upstream sample's single-letter dimension names"
-)]
 fn run() -> anyhow::Result<()> {
     let worker_count = common::positive_usize_argument("--workers", 8)?;
     let mut context = common::ExampleContext::create()?;

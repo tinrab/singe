@@ -19,8 +19,11 @@ pub trait DocumentRetriever: Debug {
 
 // The late interaction of a query's and a document's token embeddings, as ColBERT's MaxSim scores them: the sum over the query's tokens of each one's largest dot product with a document token.
 pub fn late_interaction(query: &Tensor, document: &Tensor) -> Result<f32> {
-    let columns = usize::try_from(document.shape().dimensions()[0])
-        .map_err(|_| SingeError::out_of_range("document tokens"))?;
+    let &[columns, _] = document.shape().dimensions() else {
+        return Err(SingeError::invalid_argument("document embeddings, [T, D]").into());
+    };
+    let columns =
+        usize::try_from(columns).map_err(|_| SingeError::out_of_range("document tokens"))?;
     let products = query
         .cast(DataType::F32)?
         .matmul(&document.cast(DataType::F32)?.transpose(0, 1)?)?

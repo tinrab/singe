@@ -1,6 +1,6 @@
 // Paged attention for what the tensor-core kernels refuse: other floating types, other head dimensions, strided or misaligned operands, and targets before `sm_80`.
-// One warp per row of queries reads any layout, finds its sequence, and goes over its keys once, its lanes splitting each dot product and each value, with a running largest score that keeps the exponentials in range.
-// A decoding step has few rows and many keys, as Whisper's cross-attention over 1500 encoder outputs does, so the lanes share a row rather than each taking one.
+// One warp per row of queries reads any layout, finds its sequence, and goes over its keys once, with a running largest score that keeps the exponentials in range.
+// A decoding step has few rows and many keys, as Whisper's cross-attention over 1500 encoder outputs does, so a block of warps shares a row: each warp takes every `WARPS`-th slice of keys, groups of its lanes each take a key at a time, splitting its dot product and value, and the groups' and then the warps' running sums merge at the end, as FlashInfer's split-KV decoding splits a row's keys.
 // Key counts are run-time values, so this is one kernel rather than a decomposition, which would have fixed shapes.
 
 use std::f64::consts::LOG2_E;
@@ -24,8 +24,17 @@ use crate::{
     value::ValueSpec,
 };
 
-// The lanes that share a row.
+// The lanes of a warp.
 const WARP: usize = 32;
+
+// The warps that share a row, each taking every `WARPS`-th slice of its keys.
+const WARPS: usize = 8;
+
+const THREADS: u32 = 256;
+
+const _: () = assert!(THREADS as usize == WARPS * WARP);
+
+const LANE_ELEMENTS: usize = 16;
 
 // One part of a score: the dot product of a query, by `query` in the plan's inputs, with a cached key, by `key`.
 #[derive(Debug, Clone, Copy)]
@@ -112,9 +121,22 @@ pub fn general_paged(plan: &GeneralPaged<'_>) -> Result<KernelPlan> {
     let lse = writer.output(DataType::F32, "lse")?;
     writer.status();
     let rows = tokens * heads;
-    let launch = writer.elements(rows * WARP);
-    // Each lane holds the value dimensions `lane`, `lane + 32`, and so on.
-    let per_lane = value_width.div_ceil(WARP);
+    let launch = writer.rows(rows, THREADS);
+    // The lanes that share a key, as few as keep each lane's share of a value to about 16 elements, and the keys a warp takes at once.
+    let widest = terms
+        .iter()
+        .map(|term| term.width)
+        .chain([value_width])
+        .max()
+        .unwrap_or(1);
+    let lanes = widest
+        .div_ceil(LANE_ELEMENTS)
+        .next_power_of_two()
+        .clamp(1, WARP);
+    let groups = WARP / lanes;
+    let stride = WARPS * groups;
+    // Each lane holds the value dimensions `sub`, `sub + lanes`, and so on.
+    let per_lane = value_width.div_ceil(lanes);
     let load = |value: String| match data_type {
         DataType::F16 => format!("load_half({value})"),
         DataType::Bf16 => format!("load_bfloat({value})"),
@@ -141,13 +163,23 @@ pub fn general_paged(plan: &GeneralPaged<'_>) -> Result<KernelPlan> {
             vec!["page", "slot", dimension]
         }
     };
+    // Each lane's share of the query, read once per row rather than once per key.
+    let mut query = String::new();
     let mut score = String::new();
-    for term in terms {
+    for (index, term) in terms.iter().enumerate() {
+        let parts = term.width.div_ceil(lanes);
+        emit!(
+            query,
+            "{accumulator} query_{index}[{parts}];
+for (unsigned int part = 0; part < {parts}U; ++part) {{ const unsigned long long d = sub + {lanes}ULL * part; query_{index}[part] = d < {width}ULL ? {read} : 0; }}
+",
+            width = term.width,
+            read = read(term.query, &["token", "head", "d"]),
+        );
         emit!(
             score,
-            "for (unsigned long long d = lane; d < {width}ULL; d += 32ULL) score += {query} * {key};",
+            "if (live) for (unsigned int part = 0; part < {parts}U; ++part) {{ const unsigned long long d = sub + {lanes}ULL * part; if (d < {width}ULL) score += query_{index}[part] * {key}; }}",
             width = term.width,
-            query = read(term.query, &["token", "head", "d"]),
             key = read(term.key, &key_indices("d")),
         );
     }
@@ -178,9 +210,10 @@ pub fn general_paged(plan: &GeneralPaged<'_>) -> Result<KernelPlan> {
     }
     .checked_values();
     let read_page = format!(
-        "const long long table_entry = page_start + key / {page_size}LL;
+        "const long long table_entry = page_start + (live ? key : start) / {page_size}LL;
 const unsigned long long page = static_cast<unsigned long long>({page_value});
-if (page >= {cache_pages}ULL) {{ {report} return; }}
+// A page past the cache reports and takes no part, since returning would leave the other groups' shuffles short.
+if (live && page >= {cache_pages}ULL) {{ {report} live = false; }}
 const unsigned long long slot = static_cast<unsigned long long>(key) % {page_size}ULL;",
         page_value = index_value(indices + 2, "table_entry"),
         report = report_index_error(),
@@ -193,13 +226,14 @@ const unsigned long long slot = static_cast<unsigned long long>(key) % {page_siz
     let stored = store_expression(element, "result");
     writer.lines(&format!(
         "
-const unsigned long long row = index / 32ULL;
-const unsigned long long lane = index % 32ULL;
+const unsigned int warp = lane / 32U;
+const unsigned long long sub = (lane % 32U) % {lanes}ULL, group = (lane % 32U) / {lanes}ULL;
 const unsigned long long token = row / {heads}ULL, head = row % {heads}ULL;
 {key_head}
 {accumulator} values[{per_lane}];
 for (unsigned int part = 0; part < {per_lane}U; ++part) values[part] = 0;
-{accumulator} largest = -__uint_as_float(0x7f800000U);
+const {accumulator} lowest = -__uint_as_float(0x7f800000U);
+{accumulator} largest = lowest;
 {accumulator} total = 0;
 for (unsigned int sequence = 0; sequence < {sequences}U; ++sequence) {{
 {sequence_values}
@@ -208,34 +242,75 @@ if (static_cast<long long>(token) < query_start || static_cast<long long>(token)
 const long long position = keys - (query_end - query_start) + (static_cast<long long>(token) - query_start);
 const long long end = {causal} ? (position + 1LL < keys ? position + 1LL : keys) : keys;
 const long long start = {first_key};
-for (long long key = start; key < end; ++key) {{
+{query}
+for (long long base = start + static_cast<long long>(warp) * {groups}LL; base < end; base += {stride}LL) {{
+    const long long key = base + static_cast<long long>(group);
+    bool live = key < end;
     {read_page}
     {accumulator} score = 0;
     {score}
-    // Every lane ends with the whole dot product, so all of them weigh the key alike.
-    for (int offset = 16; offset > 0; offset /= 2) score += __shfl_xor_sync(0xffffffffU, score, offset);
-    const {accumulator} scaled = {scaled};
-    const {accumulator} next = scaled > largest ? scaled : largest;
-    const {accumulator} correction = {exp}(largest - next);
-    const {accumulator} weight = {exp}(scaled - next);
-    total = total * correction + weight;
-    for (unsigned int part = 0; part < {per_lane}U; ++part) {{
-        const unsigned long long d = lane + 32ULL * part;
-        if (d < {value_width}ULL) values[part] = values[part] * correction + weight * {value_read};
+    // The lanes of a group end with its key's whole dot product.
+    for (int offset = {lanes} / 2; offset > 0; offset /= 2) score += __shfl_xor_sync(0xffffffffU, score, offset);
+    if (live) {{
+        const {accumulator} scaled = {scaled};
+        const {accumulator} next = scaled > largest ? scaled : largest;
+        const {accumulator} correction = {exp}(largest - next);
+        const {accumulator} weight = {exp}(scaled - next);
+        total = total * correction + weight;
+        for (unsigned int part = 0; part < {per_lane}U; ++part) {{
+            const unsigned long long d = sub + {lanes}ULL * part;
+            if (d < {value_width}ULL) values[part] = values[part] * correction + weight * {value_read};
+        }}
+        largest = next;
     }}
-    largest = next;
 }}
 break;
 }}
-// A row that sees no key keeps a zero output and a log-sum-exp of negative infinity.
-const {accumulator} inverse = total > 0 ? 1 / total : 0;
+// The groups merge their running sums, each rescaled to the larger of two largest scores; a group that saw no key adds nothing.
+for (int offset = {lanes}; offset < 32; offset *= 2) {{
+    const {accumulator} other_largest = __shfl_xor_sync(0xffffffffU, largest, offset);
+    const {accumulator} other_total = __shfl_xor_sync(0xffffffffU, total, offset);
+    const {accumulator} next = other_largest > largest ? other_largest : largest;
+    const {accumulator} mine = largest == lowest ? 0 : {exp}(largest - next);
+    const {accumulator} theirs = other_largest == lowest ? 0 : {exp}(other_largest - next);
+    total = total * mine + other_total * theirs;
+    for (unsigned int part = 0; part < {per_lane}U; ++part) {{
+        const {accumulator} other = __shfl_xor_sync(0xffffffffU, values[part], offset);
+        values[part] = values[part] * mine + other * theirs;
+    }}
+    largest = next;
+}}
+// The warps merge through shared memory: the lanes of each warp's first group hold its sums, which the first warp rescales and adds.
+__shared__ {accumulator} warp_largest[{WARPS}];
+__shared__ {accumulator} warp_total[{WARPS}];
+__shared__ {accumulator} warp_values[{WARPS}][{value_width}];
+if (group == 0) {{
 for (unsigned int part = 0; part < {per_lane}U; ++part) {{
-const unsigned long long d = lane + 32ULL * part;
-if (d >= {value_width}ULL) break;
-const {accumulator} result = values[part] * inverse;
+const unsigned long long d = sub + {lanes}ULL * part;
+if (d < {value_width}ULL) warp_values[warp][d] = values[part];
+}}
+if (sub == 0) {{ warp_largest[warp] = largest; warp_total[warp] = total; }}
+}}
+__syncthreads();
+if (warp == 0) {{
+{accumulator} best = lowest;
+for (unsigned int other = 0; other < {WARPS}U; ++other) best = warp_largest[other] > best ? warp_largest[other] : best;
+{accumulator} scales[{WARPS}];
+{accumulator} sum = 0;
+for (unsigned int other = 0; other < {WARPS}U; ++other) {{
+scales[other] = warp_largest[other] == lowest ? 0 : {exp}(warp_largest[other] - best);
+sum += warp_total[other] * scales[other];
+}}
+// A row that sees no key keeps a zero output and a log-sum-exp of negative infinity.
+const {accumulator} inverse = sum > 0 ? 1 / sum : 0;
+for (unsigned long long d = lane; d < {value_width}ULL; d += 32ULL) {{
+{accumulator} weighted = 0;
+for (unsigned int other = 0; other < {WARPS}U; ++other) weighted += warp_values[other][d] * scales[other];
+const {accumulator} result = weighted * inverse;
 {output}[row * {value_width}ULL + d] = {stored};
 }}
-if (lane == 0) {lse}[row] = total > 0 ? static_cast<float>((largest + {log}(total)) * {LOG2_E:?}{suffix}) : -__uint_as_float(0x7f800000U);"
+if (lane == 0) {lse}[row] = sum > 0 ? static_cast<float>((best + {log}(sum)) * {LOG2_E:?}{suffix}) : lowest;
+}}"
     ));
     Ok(writer.finish(
         plan.label,

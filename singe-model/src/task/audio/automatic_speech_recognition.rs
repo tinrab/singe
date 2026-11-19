@@ -1,7 +1,6 @@
 // `automatic-speech-recognition`: a clip of speech to the text it says.
 
 use serde::Deserialize;
-use singe::{Device, Shape, Tensor, generation::GenerationOptions};
 
 use crate::{
     BatchOptions,
@@ -10,10 +9,10 @@ use crate::{
     model,
     processor::{
         audio::Audio,
-        text::{CtcVocabulary, TextTokenizer},
+        text::{CtcTokenizer, TextTokenizer},
     },
     source::{LoadOptions, Source},
-    task::{Pipeline, Task},
+    task::Pipeline,
 };
 
 // A model that writes text, or one whose frames' characters CTC decoding reads.
@@ -25,14 +24,14 @@ enum Recognizer {
     },
     Ctc {
         model: CtcRecognizer,
-        vocabulary: CtcVocabulary,
+        vocabulary: CtcTokenizer,
     },
 }
 
 #[derive(Debug)]
 pub struct AutomaticSpeechRecognitionPipeline {
     model: Recognizer,
-    device: Device,
+    options: LoadOptions,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
@@ -55,8 +54,6 @@ impl Default for AutomaticSpeechRecognitionParameters {
 }
 
 impl Pipeline for AutomaticSpeechRecognitionPipeline {
-    const TASK: Task = Task::AutomaticSpeechRecognition;
-
     type Input = Audio;
 
     type Parameters = AutomaticSpeechRecognitionParameters;
@@ -64,60 +61,38 @@ impl Pipeline for AutomaticSpeechRecognitionPipeline {
     type Output = Transcription;
 
     fn load(source: &Source, options: LoadOptions) -> Result<Self> {
-        let model = if model::head(source)? == Head::Ctc {
+        let model = if model::default_head(source)? == Head::Ctc {
             Recognizer::Ctc {
                 model: model::load(source, options)?,
-                vocabulary: CtcVocabulary::load(source.directory())?,
+                vocabulary: CtcTokenizer::load(source)?,
             }
         } else {
             Recognizer::Generative {
                 model: model::load(source, options)?,
-                tokenizer: Box::new(TextTokenizer::load(source.directory())?),
+                tokenizer: Box::new(TextTokenizer::load(source)?),
             }
         };
-        Ok(Self {
-            model,
-            device: options.device,
-        })
+        Ok(Self { model, options })
     }
 
-    fn run(
-        &self,
-        inputs: &[Self::Input],
-        parameters: &Self::Parameters,
-    ) -> Result<Vec<Self::Output>> {
-        let options = BatchOptions::new(GenerationOptions {
-            max_new_tokens: parameters.max_new_tokens,
-            ..GenerationOptions::default()
-        })
-        .with_compile(parameters.compile);
-        inputs
-            .iter()
-            .map(|clip| match &self.model {
-                Recognizer::Generative { model, tokenizer } => {
-                    clip.expect_rate(model.sample_rate())?;
-                    let count = i64::try_from(clip.samples.len())
-                        .map_err(|_| crate::Error::unsupported("a clip this long"))?;
-                    let samples = Tensor::from_vec(
-                        self.device,
-                        Shape::create([count])?,
-                        clip.samples.clone(),
-                    )?;
-                    model.transcribe(
-                        tokenizer,
-                        &samples,
-                        parameters.language.as_deref(),
-                        &options,
-                    )
-                }
-                Recognizer::Ctc { model, vocabulary } => {
-                    clip.expect_rate(model.sample_rate())?;
-                    Ok(Transcription {
-                        language: None,
-                        text: vocabulary.decode(&model.best_tokens(&clip.samples)?)?,
-                    })
-                }
-            })
-            .collect()
+    fn run_one(&self, clip: &Self::Input, parameters: &Self::Parameters) -> Result<Self::Output> {
+        match &self.model {
+            Recognizer::Generative { model, tokenizer } => {
+                clip.expect_rate(model.sample_rate())?;
+                model.transcribe(
+                    tokenizer,
+                    &clip.to_tensor(self.options.device)?,
+                    parameters.language.as_deref(),
+                    &BatchOptions::new(parameters.max_new_tokens, parameters.compile),
+                )
+            }
+            Recognizer::Ctc { model, vocabulary } => {
+                clip.expect_rate(model.sample_rate())?;
+                Ok(Transcription {
+                    language: None,
+                    text: vocabulary.decode(&model.best_tokens(&clip.samples)?)?,
+                })
+            }
+        }
     }
 }

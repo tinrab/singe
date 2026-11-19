@@ -7,7 +7,7 @@ use crate::{
     head::Forecaster,
     model,
     source::{LoadOptions, Source},
-    task::{Pipeline, Task},
+    task::Pipeline,
 };
 
 #[derive(Debug)]
@@ -27,8 +27,6 @@ pub struct ForecastOutput {
 }
 
 impl Pipeline for TimeSeriesForecastingPipeline {
-    const TASK: Task = Task::TimeSeriesForecasting;
-
     type Input = SeriesInput;
 
     type Parameters = ();
@@ -41,16 +39,11 @@ impl Pipeline for TimeSeriesForecastingPipeline {
         })
     }
 
-    fn run(&self, inputs: &[Self::Input], (): &Self::Parameters) -> Result<Vec<Self::Output>> {
-        inputs
-            .iter()
-            .map(|input| {
-                let forecast = self.model.forecast(&input.past_values)?;
-                Ok(ForecastOutput {
-                    mean_predictions: forecast.mean,
-                    full_predictions: forecast.full,
-                })
-            })
-            .collect()
+    fn run_one(&self, input: &Self::Input, (): &Self::Parameters) -> Result<Self::Output> {
+        let forecast = self.model.forecast(&input.past_values)?;
+        Ok(ForecastOutput {
+            mean_predictions: forecast.mean,
+            full_predictions: forecast.full,
+        })
     }
 }

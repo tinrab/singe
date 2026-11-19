@@ -23,10 +23,6 @@ pub(crate) struct SoftmaxTensors {
 }
 
 impl Graph {
-    #[expect(
-        clippy::too_many_lines,
-        reason = "the normalization graph keeps its coupled shape and execution contracts together"
-    )]
     pub(crate) fn expand_softmax(
         &mut self,
         tensors: SoftmaxTensors,

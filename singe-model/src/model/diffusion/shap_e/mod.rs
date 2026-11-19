@@ -1,22 +1,24 @@
 // Shap-E: a prior transformer that denoises a 3-D asset's latent, 1024 vectors, conditioned on a CLIP embedding of a text or an image, and a renderer that projects the latent into a NeRF-STF MLP's weights, queries its signed distance on a grid, and meshes it by marching cubes, coloring each vertex by the MLP's texture.
 //
-// The prior's state is `time` (`input`, `output`), `proj_in`, `embedding_norm` where it norms its condition, `embedding_proj`, `positions`, `norm_in`, `blocks.N` (`norm1`, `attention` with `query`, `key`, `value`, and `output`, `norm3`, and `feed_forward` with `up` and `down`), `norm_out`, and `proj_to_clip`.
+// The prior's state is `time` (`up`, `down`), `proj_in`, `embedding_norm` where it norms its condition, `embedding_proj`, `positions`, `norm_in`, `blocks.N` (`attention_norm`, `attention` with `query`, `key`, `value`, and `output`, `feed_forward_norm`, and `feed_forward` with `up` and `down`), `norm_out`, and `proj_to_clip`.
 // The renderer's is `params_proj.N` (`proj`, `norm`) for each projected weight, `mlp.N`, and the marching cubes tables `cases` and `masks`.
 
 mod diffusers;
 
-use std::f64::consts::FRAC_PI_2;
+use std::{collections::BTreeMap, f64::consts::FRAC_PI_2};
 
 use serde::{Deserialize, Serialize};
 use singe::{
-    DataType, Result as SingeResult, Shape, Tensor,
-    nn::{Activation, LayerNorm, Linear, Model, ModelState, StateBuilder, StateKey},
-    tensor::AttentionOptions,
+    DataType, Error as SingeError, Result as SingeResult, Shape, Tensor,
+    nn::{Activation, LayerNorm, Linear, Mlp, Model, ModelState, StateKey},
 };
 
 use crate::{
-    assembly::timestep_input,
-    error::{Error, Result},
+    assembly::{
+        FinalNorm, PYTORCH_NORM_EPS, PreNormEncoder, PreNormEncoderConfig, SinusoidOrder,
+        timestep_input,
+    },
+    error::Result,
     format::Loader,
     schema::Schema,
     source::{LoadOptions, Source},
@@ -37,64 +39,17 @@ pub struct PriorConfig {
     pub time_width: i64,
 }
 
-#[derive(Debug, Clone)]
-struct PriorBlock {
-    norm1: LayerNorm,
-    query: Linear,
-    key: Linear,
-    value: Linear,
-    output: Linear,
-    norm3: LayerNorm,
-    up: Linear,
-    down: Linear,
-    heads: i64,
-}
-
-impl PriorBlock {
-    fn forward(&self, hidden: &Tensor, state: &ModelState) -> SingeResult<Tensor> {
-        let dimensions = hidden.shape().dimensions();
-        let (batch, length, width) = (dimensions[0], dimensions[1], dimensions[2]);
-        let normed = hidden.apply(&self.norm1, state)?;
-        let heads = |projection: &Linear| -> SingeResult<Tensor> {
-            normed
-                .apply(projection, state)?
-                .reshape([batch, length, self.heads, width / self.heads])?
-                .permute(&[0, 2, 1, 3])
-        };
-        let attended = heads(&self.query)?
-            .attend(
-                &heads(&self.key)?,
-                &heads(&self.value)?,
-                None,
-                None,
-                AttentionOptions::default(),
-            )?
-            .permute(&[0, 2, 1, 3])?
-            .contiguous()?
-            .reshape([batch, length, width])?
-            .apply(&self.output, state)?;
-        let hidden = hidden.add(&attended)?;
-        let fed = hidden
-            .apply(&self.norm3, state)?
-            .apply(&self.up, state)?
-            .apply(&Activation::GeluExact, state)?
-            .apply(&self.down, state)?;
-        hidden.add(&fed)
-    }
-}
-
 // `PriorTransformer` as Shap-E uses it: the condition's tokens, the timestep's, and the latent's vectors, attending to each other with no mask, and the latent's predicted again.
 #[derive(Debug, Clone)]
 pub struct PriorLayers {
     config: PriorConfig,
-    time_input: Linear,
-    time_output: Linear,
+    time: Mlp,
     proj_in: Linear,
     embedding_norm: Option<LayerNorm>,
     embedding_proj: Linear,
     positions: StateKey,
     norm_in: LayerNorm,
-    blocks: Vec<PriorBlock>,
+    encoder: PreNormEncoder,
     norm_out: LayerNorm,
     proj_to_clip: Linear,
 }
@@ -102,55 +57,36 @@ pub struct PriorLayers {
 impl PriorLayers {
     pub fn create(schema: &mut Schema<'_>, config: &PriorConfig) -> SingeResult<Self> {
         let width = config.width;
-        let blocks = (0..config.layers)
-            .map(|index| {
-                let mut block = schema.scope(format!("blocks.{index}"));
-                let (query, key, value, output) = {
-                    let mut attention = block.scope("attention");
-                    (
-                        attention.linear("query", width, width, true)?,
-                        attention.linear("key", width, width, true)?,
-                        attention.linear("value", width, width, true)?,
-                        attention.linear("output", width, width, true)?,
-                    )
-                };
-                let mut feed_forward = block.scope("feed_forward");
-                let (up, down) = (
-                    feed_forward.linear("up", width, 4 * width, true)?,
-                    feed_forward.linear("down", 4 * width, width, true)?,
-                );
-                Ok(PriorBlock {
-                    norm1: block.layer_norm("norm1", width, 1e-5)?,
-                    query,
-                    key,
-                    value,
-                    output,
-                    norm3: block.layer_norm("norm3", width, 1e-5)?,
-                    up,
-                    down,
-                    heads: config.heads,
-                })
-            })
-            .collect::<SingeResult<Vec<_>>>()?;
-        let mut time = schema.scope("time");
-        let (time_input, time_output) = (
-            time.linear("input", width, config.time_width, true)?,
-            time.linear("output", config.time_width, width, true)?,
-        );
+        let encoder = PreNormEncoderConfig {
+            width,
+            heads: config.heads,
+            inner: 4 * width,
+            activation: Activation::GeluExact,
+            eps: PYTORCH_NORM_EPS,
+            projection_biases: [true; 4],
+            causal: false,
+            layer_scale: false,
+        };
         Ok(Self {
             config: config.clone(),
-            time_input,
-            time_output,
+            time: schema.mlp(
+                "time",
+                [width, config.time_width, width],
+                Activation::GeluExact,
+                true,
+            )?,
             proj_in: schema.linear("proj_in", config.embedding_width, width, true)?,
             embedding_norm: config
                 .condition_norm
-                .then(|| schema.layer_norm("embedding_norm", config.condition_width, 1e-5))
+                .then(|| {
+                    schema.layer_norm("embedding_norm", config.condition_width, PYTORCH_NORM_EPS)
+                })
                 .transpose()?,
             embedding_proj: schema.linear("embedding_proj", config.condition_width, width, true)?,
             positions: schema.parameter("positions", [1, config.embeddings, width])?,
-            norm_in: schema.layer_norm("norm_in", width, 1e-5)?,
-            blocks,
-            norm_out: schema.layer_norm("norm_out", width, 1e-5)?,
+            norm_in: schema.layer_norm("norm_in", width, PYTORCH_NORM_EPS)?,
+            encoder: PreNormEncoder::create(schema, &encoder, config.layers, FinalNorm::Omitted)?,
+            norm_out: schema.layer_norm("norm_out", width, PYTORCH_NORM_EPS)?,
             proj_to_clip: schema.linear("proj_to_clip", width, config.clip_width, true)?,
         })
     }
@@ -163,13 +99,12 @@ impl PriorLayers {
         condition: &Tensor,
         state: &ModelState,
     ) -> SingeResult<Tensor> {
-        let batch = latent.shape().dimensions()[0];
-        let width = self.config.width;
+        let &[batch, _, _] = latent.shape().dimensions() else {
+            return Err(SingeError::invalid_argument("prior latent"));
+        };
         let time = time
-            .apply(&self.time_input, state)?
-            .apply(&Activation::GeluExact, state)?
-            .apply(&self.time_output, state)?
-            .expand(Shape::create([batch, width])?)?
+            .apply(&self.time, state)?
+            .expand(Shape::create([batch, self.config.width])?)?
             .unsqueeze(1)?;
         let condition = match &self.embedding_norm {
             Some(norm) => condition.apply(norm, state)?,
@@ -180,20 +115,22 @@ impl PriorLayers {
             condition = condition.unsqueeze(1)?;
         }
 
-        let prefix = condition.shape().dimensions()[1] + 1;
+        let &[_, tokens, _] = condition.shape().dimensions() else {
+            return Err(SingeError::invalid_argument("prior condition"));
+        };
+        let prefix = tokens + 1;
         let latent = latent.apply(&self.proj_in, state)?;
         // The condition's and the timestep's tokens take no learned positions.
         let positions = state
             .tensor(&self.positions)?
             .pad(&[(0, 0), (prefix, 0), (0, 0)], 0.0)?;
-        let mut hidden = Tensor::concat(&[condition, time, latent], 1)?
+        let hidden = Tensor::concat(&[condition, time, latent], 1)?
             .add(&positions)?
             .apply(&self.norm_in, state)?;
-        for block in &self.blocks {
-            hidden = block.forward(&hidden, state)?;
-        }
-
-        let length = hidden.shape().dimensions()[1];
+        let hidden = self.encoder.encode(&hidden, None, state)?;
+        let &[_, length, _] = hidden.shape().dimensions() else {
+            return Err(SingeError::invalid_argument("prior hidden states"));
+        };
         hidden
             .narrow(1, prefix, length - prefix)?
             .apply(&self.norm_out, state)?
@@ -202,56 +139,37 @@ impl PriorLayers {
     }
 }
 
-pub type Prior = Model<PriorLayers>;
+#[derive(Debug)]
+pub struct Prior {
+    model: Model<PriorLayers>,
+}
 
-impl PriorLayers {
+impl Prior {
     #[must_use]
-    pub const fn config(&self) -> &PriorConfig {
-        &self.config
+    pub fn config(&self) -> &PriorConfig {
+        &self.model.layer().config
     }
-}
 
-pub fn load_prior(source: &Source, options: LoadOptions) -> Result<Prior> {
-    let mut loader = Loader::new(source, options);
-    let config: PriorConfig = loader.config(diffusers::prior_config)?;
-    let mut builder = StateBuilder::new();
-    let layers = {
-        let mut schema = Schema::root(&mut builder, options.data_type);
-        PriorLayers::create(&mut schema, &config)?
-    };
-    let model = loader.load(
-        "prior",
-        &Model::new(layers, builder.finish()?),
-        &diffusers::prior_rules(),
-    )?;
-    loader.finish()?;
-    Ok(model)
-}
-
-// The prior's prediction for `latent` at `timestep`, in `F32`.
-pub fn predict(
-    prior: &Prior,
-    latent: &Tensor,
-    timestep: f32,
-    condition: &Tensor,
-) -> Result<Tensor> {
-    let data_type = prior.state().floating_type()?;
-    let time = timestep_input(
-        timestep,
-        prior.layer().config().width,
-        true,
-        0.0,
-        prior.state(),
-    )?;
-    Ok(prior
-        .layer()
-        .predict(
-            &latent.cast(data_type)?,
-            &time,
-            &condition.cast(data_type)?,
-            prior.state(),
-        )?
-        .cast(DataType::F32)?)
+    // The prediction for `latent` at `timestep`, in `F32`.
+    pub fn predict(&self, latent: &Tensor, timestep: f32, condition: &Tensor) -> Result<Tensor> {
+        let (layers, state) = (self.model.layer(), self.model.state());
+        let data_type = state.floating_type()?;
+        let time = timestep_input(
+            timestep,
+            layers.config.width,
+            SinusoidOrder::CosinesFirst,
+            0.0,
+            state,
+        )?;
+        Ok(layers
+            .predict(
+                &latent.cast(data_type)?,
+                &time,
+                &condition.cast(data_type)?,
+                state,
+            )?
+            .cast(DataType::F32)?)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -296,7 +214,7 @@ impl RendererLayers {
                     weight: projection
                         .parameter("proj.weight", [rows * columns, config.latent_width])?,
                     bias: projection.parameter("proj.bias", [rows * columns])?,
-                    norm: projection.layer_norm("norm", columns, 1e-5)?,
+                    norm: projection.layer_norm("norm", columns, PYTORCH_NORM_EPS)?,
                     rows,
                     columns,
                 })
@@ -361,15 +279,21 @@ impl RendererLayers {
         weights: &[Tensor],
         state: &ModelState,
     ) -> SingeResult<Tensor> {
-        let count = positions.shape().dimensions()[0];
+        let &[count, _] = positions.shape().dimensions() else {
+            return Err(SingeError::invalid_argument("renderer query positions"));
+        };
         // NeRF's encoding: the position, then the sines of it scaled by 2^0 to 2^14, and of those shifted by π/2.
         let encode = |degrees: i64| -> SingeResult<Tensor> {
             let factors = Tensor::from_vec(
                 positions.device(),
                 Shape::create([1, degrees, 1])?,
                 (0..degrees)
-                    .map(|degree| 2.0_f32.powi(i32::try_from(degree).unwrap_or(0)))
-                    .collect::<Vec<_>>(),
+                    .map(|degree| {
+                        let degree = i32::try_from(degree)
+                            .map_err(|_| SingeError::out_of_range("encoding degree"))?;
+                        Ok(2.0_f32.powi(degree))
+                    })
+                    .collect::<SingeResult<Vec<_>>>()?,
             )?;
             let scaled = positions
                 .unsqueeze(1)?
@@ -408,25 +332,6 @@ impl RendererLayers {
     }
 }
 
-pub type Renderer = Model<RendererLayers>;
-
-pub fn load_renderer(source: &Source, options: LoadOptions) -> Result<Renderer> {
-    let mut loader = Loader::new(source, options);
-    let config: RendererConfig = loader.config(diffusers::renderer_config)?;
-    let mut builder = StateBuilder::new();
-    let layers = {
-        let mut schema = Schema::root(&mut builder, options.data_type);
-        RendererLayers::create(&mut schema, &config)?
-    };
-    let model = loader.load(
-        "renderer",
-        &Model::new(layers, builder.finish()?),
-        &diffusers::renderer_rules(&config),
-    )?;
-    loader.finish()?;
-    Ok(model)
-}
-
 // A mesh with a color for each vertex, in [0, 1] and linear.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Mesh {
@@ -439,122 +344,119 @@ pub struct Mesh {
 const GRID: usize = 128;
 const BATCH: usize = 4096 * 16;
 
-// `decode_to_mesh`: the latent's MLP's signed distance on a 128³ grid over [-1, 1]³, bordered by -1, meshed by marching cubes, and each vertex colored by the MLP's texture, converted from sRGB to linear.
-#[expect(clippy::cast_precision_loss, reason = "grid indices are small")]
-#[expect(
-    clippy::suboptimal_flops,
-    reason = "rounds each product as the reference does, which the verifications compare with"
-)]
-pub fn decode_mesh(renderer: &Renderer, latent: &Tensor) -> Result<Mesh> {
-    let layers = renderer.layer();
-    let state = renderer.state();
-    let device = state.device()?;
-    let data_type = state.floating_type()?;
-    let weights = layers.weights(&latent.cast(data_type)?, state)?;
-    // `volume_query_points`, computed on the CPU: x slowest and z fastest, each at `index / 127 · 2 − 1`.
-    let coordinate = |index: usize| (index as f32 / (GRID - 1) as f32) * 2.0 + -1.0;
-    let points = (0..GRID * GRID * GRID)
-        .flat_map(|index| {
-            [
-                coordinate(index / (GRID * GRID)),
-                coordinate(index / GRID % GRID),
-                coordinate(index % GRID),
-            ]
-        })
-        .collect::<Vec<f32>>();
-    let mut field = Vec::with_capacity(GRID * GRID * GRID);
-    for chunk in points.chunks(BATCH * 3) {
-        let count = i64::try_from(chunk.len() / 3).map_err(|_| Error::unsupported("a batch"))?;
-        let positions = Tensor::from_vec(device, Shape::create([count, 3])?, chunk.to_vec())?
-            .cast(data_type)?;
-        let outputs = layers
-            .query(&positions, &weights, state)?
-            .narrow(1, 0, 1)?
-            .tanh()?;
-        field.extend(outputs.cast(DataType::F32)?.to_vec::<f32>()?);
-    }
-
-    let cases = state
-        .tensor(&layers.cases)?
-        .cast(DataType::I64)?
-        .to_vec::<i64>()?;
-    let masks = state
-        .tensor(&layers.masks)?
-        .cast(DataType::I64)?
-        .to_vec::<i64>()?;
-    let (vertices, faces) = marching_cubes(&field, &cases, &masks);
-    if vertices.is_empty() {
-        return Ok(Mesh {
-            vertices,
-            faces,
-            colors: Vec::new(),
-        });
-    }
-
-    let mut colors = Vec::with_capacity(vertices.len());
-    for chunk in vertices.chunks(BATCH) {
-        let count = i64::try_from(chunk.len()).map_err(|_| Error::unsupported("a batch"))?;
-        let flat = chunk.iter().flatten().copied().collect::<Vec<f32>>();
-        let positions =
-            Tensor::from_vec(device, Shape::create([count, 3])?, flat)?.cast(data_type)?;
-        let texture = layers
-            .query(&positions, &weights, state)?
-            .narrow(1, 3, 3)?
-            .sigmoid()?
-            .cast(DataType::F32)?
-            .to_vec::<f32>()?;
-        colors.extend(texture.chunks(3).map(|color| {
-            let linear = |value: f32| {
-                if value <= 0.040_45 {
-                    value / 12.92
-                } else {
-                    ((value + 0.055) / 1.055).powf(2.4)
-                }
-            };
-            [linear(color[0]), linear(color[1]), linear(color[2])]
-        }));
-    }
-    Ok(Mesh {
-        vertices,
-        faces,
-        colors,
-    })
+#[derive(Debug)]
+pub struct Renderer {
+    model: Model<RendererLayers>,
 }
 
-// `MeshDecoder`: marching cubes over `field`, `GRID³` x slowest, bordered by -1 to `(GRID + 2)³`, with Shap-E's tables of each cube's triangles, as edge numbers, and which of its five are used; vertices are the used edges' crossings, in edge order, over [-1, 1]³.
-#[expect(
-    clippy::cast_possible_truncation,
-    clippy::cast_possible_wrap,
-    clippy::cast_precision_loss,
-    clippy::cast_sign_loss,
-    reason = "grid indices are small"
-)]
-#[expect(
-    clippy::suboptimal_flops,
-    reason = "rounds each product as the reference does, which the verifications compare with"
-)]
-fn marching_cubes(field: &[f32], cases: &[i64], masks: &[i64]) -> (Vec<[f32; 3]>, Vec<[i64; 3]>) {
-    let side = GRID + 2;
-    let value = |x: usize, y: usize, z: usize| {
-        if x == 0 || y == 0 || z == 0 || x == side - 1 || y == side - 1 || z == side - 1 {
-            -1.0
-        } else {
-            field[((x - 1) * GRID + (y - 1)) * GRID + (z - 1)]
+impl Renderer {
+    // `decode_to_mesh`: the latent's MLP's signed distance on a 128³ grid over [-1, 1]³, bordered by -1, meshed by marching cubes, and each vertex colored by the MLP's texture, converted from sRGB to linear.
+    pub fn decode_mesh(&self, latent: &Tensor) -> Result<Mesh> {
+        let (layers, state) = (self.model.layer(), self.model.state());
+        let device = state.device()?;
+        let data_type = state.floating_type()?;
+        let weights = layers.weights(&latent.cast(data_type)?, state)?;
+        // `volume_query_points`, computed on the CPU: x slowest and z fastest, each at `index / 127 · 2 − 1`.
+        let coordinate = |index: usize| (index as f32 / (GRID - 1) as f32) * 2.0 + -1.0;
+        let points = (0..GRID * GRID * GRID)
+            .flat_map(|index| {
+                [
+                    coordinate(index / (GRID * GRID)),
+                    coordinate(index / GRID % GRID),
+                    coordinate(index % GRID),
+                ]
+            })
+            .collect::<Vec<f32>>();
+        let mut field = Vec::with_capacity(GRID * GRID * GRID);
+        for chunk in points.chunks(BATCH * 3) {
+            let count = i64::try_from(chunk.len() / 3)
+                .map_err(|_| SingeError::out_of_range("query batch"))?;
+            let positions = Tensor::from_vec(device, Shape::create([count, 3])?, chunk.to_vec())?
+                .cast(data_type)?;
+            let outputs = layers
+                .query(&positions, &weights, state)?
+                .narrow(1, 0, 1)?
+                .tanh()?;
+            field.extend(outputs.cast(DataType::F32)?.to_vec::<f32>()?);
         }
-    };
-    let cells = side - 1;
-    // Each axis's edges, numbered x-edges first, then y-edges, then z-edges, each in its grid's order.
-    let x_edges = cells * side * side;
-    let y_edges = side * cells * side;
-    let edge = |axis: usize, x: usize, y: usize, z: usize| match axis {
-        0 => (x * side + y) * side + z,
-        1 => x_edges + (x * cells + y) * side + z,
-        _ => x_edges + y_edges + (x * side + y) * cells + z,
-    };
+
+        let cases = state
+            .tensor(&layers.cases)?
+            .cast(DataType::I64)?
+            .to_vec::<i64>()?;
+        let masks = state
+            .tensor(&layers.masks)?
+            .cast(DataType::I64)?
+            .to_vec::<i64>()?;
+        let (vertices, faces) = marching_cubes(&field, &cases, &masks);
+        if vertices.is_empty() {
+            return Ok(Mesh {
+                vertices,
+                faces,
+                colors: Vec::new(),
+            });
+        }
+
+        let mut colors = Vec::with_capacity(vertices.len());
+        for chunk in vertices.chunks(BATCH) {
+            let count =
+                i64::try_from(chunk.len()).map_err(|_| SingeError::out_of_range("query batch"))?;
+            let flat = chunk.iter().flatten().copied().collect::<Vec<f32>>();
+            let positions =
+                Tensor::from_vec(device, Shape::create([count, 3])?, flat)?.cast(data_type)?;
+            let texture = layers
+                .query(&positions, &weights, state)?
+                .narrow(1, 3, 3)?
+                .sigmoid()?
+                .cast(DataType::F32)?
+                .to_vec::<f32>()?;
+            colors.extend(texture.chunks(3).map(|color| {
+                let linear = |value: f32| {
+                    if value <= 0.040_45 {
+                        value / 12.92
+                    } else {
+                        ((value + 0.055) / 1.055).powf(2.4)
+                    }
+                };
+                [linear(color[0]), linear(color[1]), linear(color[2])]
+            }));
+        }
+        Ok(Mesh {
+            vertices,
+            faces,
+            colors,
+        })
+    }
+}
+
+// `MeshDecoder`'s grid: `GRID³` values x slowest, bordered by -1 to `SIDE³`, whose edges are numbered x-edges first, then y-edges, then z-edges, each in its grid's order.
+const SIDE: usize = GRID + 2;
+const CELLS: usize = SIDE - 1;
+const X_EDGES: usize = CELLS * SIDE * SIDE;
+const Y_EDGES: usize = SIDE * CELLS * SIDE;
+
+const fn grid_value(field: &[f32], [x, y, z]: [usize; 3]) -> f32 {
+    if x == 0 || y == 0 || z == 0 || x == SIDE - 1 || y == SIDE - 1 || z == SIDE - 1 {
+        -1.0
+    } else {
+        field[((x - 1) * GRID + (y - 1)) * GRID + (z - 1)]
+    }
+}
+
+const fn edge(axis: usize, x: usize, y: usize, z: usize) -> usize {
+    match axis {
+        0 => (x * SIDE + y) * SIDE + z,
+        1 => X_EDGES + (x * CELLS + y) * SIDE + z,
+        _ => X_EDGES + Y_EDGES + (x * SIDE + y) * CELLS + z,
+    }
+}
+
+// The triangles of each cube of the grid, as edge numbers, from Shap-E's tables of each cube's triangles, as its own edges, and which of its five are used.
+fn triangles(field: &[f32], cases: &[i64], masks: &[i64]) -> Vec<[usize; 3]> {
     let mut triangles = Vec::new();
-    for x in 0..cells {
-        for y in 0..cells {
-            for z in 0..cells {
+    for x in 0..CELLS {
+        for y in 0..CELLS {
+            for z in 0..CELLS {
                 let mut bits = 0usize;
                 for (bit, (dx, dy, dz)) in [
                     (0, 0, 0),
@@ -569,7 +471,7 @@ fn marching_cubes(field: &[f32], cases: &[i64], masks: &[i64]) -> (Vec<[f32; 3]>
                 .iter()
                 .enumerate()
                 {
-                    if value(x + dx, y + dy, z + dz) > 0.0 {
+                    if grid_value(field, [x + dx, y + dy, z + dz]) > 0.0 {
                         bits |= 1 << bit;
                     }
                 }
@@ -602,60 +504,77 @@ fn marching_cubes(field: &[f32], cases: &[i64], masks: &[i64]) -> (Vec<[f32; 3]>
             }
         }
     }
+    triangles
+}
 
-    let mut used = triangles.iter().flatten().copied().collect::<Vec<usize>>();
-    used.sort_unstable();
-    used.dedup();
-    let renumbered = |edge: usize| used.binary_search(&edge).unwrap_or(0) as i64;
+// Where the field crosses zero on edge `number`, between its two corners, over [-1, 1]³.
+fn crossing(field: &[f32], number: usize) -> [f32; 3] {
+    let (axis, rest) = if number < X_EDGES {
+        (0, number)
+    } else if number < X_EDGES + Y_EDGES {
+        (1, number - X_EDGES)
+    } else {
+        (2, number - X_EDGES - Y_EDGES)
+    };
+    let (spans_y, spans_z) = match axis {
+        0 => (SIDE, SIDE),
+        1 => (CELLS, SIDE),
+        _ => (SIDE, CELLS),
+    };
+    let first = [
+        rest / (spans_y * spans_z),
+        rest / spans_z % spans_y,
+        rest % spans_z,
+    ];
+    let mut second = first;
+    second[axis] += 1;
+    let (s1, s2) = (grid_value(field, first), grid_value(field, second));
+    let t = s1 / (s1 - s2);
+    let place = |index: usize| (index as f32 / (SIDE - 1) as f32) * 2.0 + -1.0;
+    [0, 1, 2].map(|index| t * place(second[index]) + (1.0 - t) * place(first[index]))
+}
+
+// `MeshDecoder`: marching cubes over `field`, `GRID³` x slowest, with Shap-E's tables; vertices are the used edges' crossings, in edge order.
+fn marching_cubes(field: &[f32], cases: &[i64], masks: &[i64]) -> (Vec<[f32; 3]>, Vec<[i64; 3]>) {
+    let triangles = triangles(field, cases, masks);
+    let mut numbers = triangles
+        .iter()
+        .flatten()
+        .map(|&edge| (edge, 0))
+        .collect::<BTreeMap<usize, i64>>();
+    for (number, renumbered) in numbers.values_mut().zip(0_i64..) {
+        *number = renumbered;
+    }
+
     let faces = triangles
         .iter()
-        .map(|triangle| {
-            [
-                renumbered(triangle[0]),
-                renumbered(triangle[1]),
-                renumbered(triangle[2]),
-            ]
-        })
+        .map(|triangle| triangle.map(|edge| numbers[&edge]))
         .collect();
-    // Each used edge's two corners, the field's values there, and the crossing between them.
-    let place = |index: usize| (index as f32 / (side - 1) as f32) * 2.0 + -1.0;
-    let vertices = used
-        .iter()
-        .map(|&number| {
-            let (axis, rest) = if number < x_edges {
-                (0, number)
-            } else if number < x_edges + y_edges {
-                (1, number - x_edges)
-            } else {
-                (2, number - x_edges - y_edges)
-            };
-            let (spans_y, spans_z) = match axis {
-                0 => (side, side),
-                1 => (cells, side),
-                _ => (side, cells),
-            };
-            let (x, y, z) = (
-                rest / (spans_y * spans_z),
-                rest / spans_z % spans_y,
-                rest % spans_z,
-            );
-            let (x2, y2, z2) = match axis {
-                0 => (x + 1, y, z),
-                1 => (x, y + 1, z),
-                _ => (x, y, z + 1),
-            };
-            let (s1, s2) = (value(x, y, z), value(x2, y2, z2));
-            let t = s1 / (s1 - s2);
-            let (p1, p2) = (
-                [place(x), place(y), place(z)],
-                [place(x2), place(y2), place(z2)],
-            );
-            [
-                t * p2[0] + (1.0 - t) * p1[0],
-                t * p2[1] + (1.0 - t) * p1[1],
-                t * p2[2] + (1.0 - t) * p1[2],
-            ]
-        })
+    let vertices = numbers
+        .keys()
+        .map(|&number| crossing(field, number))
         .collect();
     (vertices, faces)
+}
+
+pub fn load_prior(source: &Source, options: LoadOptions) -> Result<Prior> {
+    let mut loader = Loader::new(source, options);
+    let config: PriorConfig = loader.config(diffusers::prior_config)?;
+    let model = Schema::model(options.data_type, |schema| {
+        PriorLayers::create(schema, &config)
+    })?;
+    Ok(Prior {
+        model: loader.load_whole(&model, &diffusers::prior_rules())?,
+    })
+}
+
+pub fn load_renderer(source: &Source, options: LoadOptions) -> Result<Renderer> {
+    let mut loader = Loader::new(source, options);
+    let config: RendererConfig = loader.config(diffusers::renderer_config)?;
+    let model = Schema::model(options.data_type, |schema| {
+        RendererLayers::create(schema, &config)
+    })?;
+    Ok(Renderer {
+        model: loader.load_whole(&model, &diffusers::renderer_rules(&config))?,
+    })
 }

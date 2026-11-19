@@ -11,7 +11,7 @@ use self::{
     measure::measure_cached_cublaslt_matmul_algorithms_with_workspace_limit,
 };
 
-pub use self::validation::validate_cublaslt_matmul_tensors;
+pub use self::validation::{cublaslt_workspace, validate_cublaslt_matmul_tensors};
 use crate::{
     backend::cuda::{
         CudaStream,

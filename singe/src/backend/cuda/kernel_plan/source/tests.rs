@@ -1,12 +1,11 @@
 use std::{collections::HashMap, iter};
 
-use super::SplitParameters;
 use crate::{
     backend::{
         cuda::{
             self,
             compiled::executable::GraphCompileProviderDecision,
-            kernel_plan::{self, KernelInput, KernelPlan, KernelPlanner},
+            kernel_plan::{self, KernelInput, KernelPlan, KernelPlanner, source::SplitParameters},
         },
         registry::{
             LayerNormalizationAttributes, Operation, OperationAttributes, ReductionAttributes,

@@ -77,10 +77,6 @@ impl NormalizationOperation {
         }
     }
 
-    #[expect(
-        clippy::too_many_lines,
-        reason = "the normalization graph keeps its coupled shape and execution contracts together"
-    )]
     pub(crate) fn lower(&self, context: &LoweringContext<'_>) -> Result<LoweredOperation> {
         let tensors = context.backend_tensors();
         Ok(match self {

@@ -1,8 +1,3 @@
-#![allow(
-    clippy::too_many_arguments,
-    reason = "GEMM operations take each matrix and scalar separately"
-)]
-
 use singe_cuda::view::{DeviceInputView, DeviceOutput, DeviceOutputView, DeviceRange, DeviceRepr};
 
 use crate::{

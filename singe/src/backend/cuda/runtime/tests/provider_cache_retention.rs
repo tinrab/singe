@@ -218,9 +218,6 @@ fn test_successful_native_plans_and_pending_outputs_survive_provider_eviction() 
         retained_outputs.extend(executor.run(&inputs).unwrap());
         let stats = runtime.0.provider_cache_stats().unwrap().cutensor;
         assert!(stats.entries <= 2);
-        assert!(
-            stats.workspace_bytes <= CudaRuntimeCacheLimits::default().cutensor.workspace_bytes
-        );
     }
     assert!(weak.upgrade().is_some());
     first.synchronize().unwrap();

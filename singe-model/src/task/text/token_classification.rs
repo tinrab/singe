@@ -8,13 +8,14 @@ use crate::{
     model,
     processor::text::{EncodeOptions, EncodedRow, TextInput, TextTokenizer},
     source::{LoadOptions, Source},
-    task::{Pipeline, Task},
+    task::{Pipeline, run_alone},
 };
 
 #[derive(Debug)]
 pub struct TokenClassificationPipeline {
     model: TokenClassifier,
     tokenizer: TextTokenizer,
+    options: LoadOptions,
 }
 
 // How tokens become entities: each token alone (`none`), adjacent tokens of one entity grouped (`simple`), or first each word's tokens agreed on one label by its first token's, the average of their scores, or its most confident token's.
@@ -83,8 +84,6 @@ struct Labeled {
 }
 
 impl Pipeline for TokenClassificationPipeline {
-    const TASK: Task = Task::TokenClassification;
-
     type Input = String;
 
     type Parameters = TokenClassificationParameters;
@@ -94,8 +93,13 @@ impl Pipeline for TokenClassificationPipeline {
     fn load(source: &Source, options: LoadOptions) -> Result<Self> {
         Ok(Self {
             model: model::load(source, options)?,
-            tokenizer: TextTokenizer::load(source.directory())?,
+            tokenizer: TextTokenizer::load(source)?,
+            options,
         })
+    }
+
+    fn run_one(&self, input: &Self::Input, parameters: &Self::Parameters) -> Result<Self::Output> {
+        run_alone(self, input, parameters)
     }
 
     fn run(
@@ -111,9 +115,9 @@ impl Pipeline for TokenClassificationPipeline {
             max_length: parameters.max_length,
             ..EncodeOptions::default()
         };
-        let encoded =
-            self.tokenizer
-                .encode_inputs(&texts, &options, self.model.model().state().device()?)?;
+        let encoded = self
+            .tokenizer
+            .encode_inputs(&texts, &options, self.options.device)?;
         let scores = self.model.scores(&encoded.batch)?;
         let ignored = parameters
             .ignore_labels
@@ -216,7 +220,7 @@ impl TokenClassificationPipeline {
     }
 
     fn label(&self, index: usize) -> String {
-        self.model.config().labels[index].clone()
+        self.model.config().labels()[index].clone()
     }
 
     // Gives each word one label, from its pieces' scores as `strategy` combines them.
@@ -235,7 +239,9 @@ impl TokenClassificationPipeline {
                 let scores = match strategy {
                     // The first of the most confident pieces, as Python's `max` keeps.
                     AggregationStrategy::Max => {
-                        let top = |scores: &[f32]| argmax(scores).map(|(_, score)| score);
+                        let top = |scores: &[f32]| {
+                            argmax(scores.iter().copied().enumerate()).map(|(_, score)| score)
+                        };
                         pieces
                             .iter()
                             .map(|piece| &piece.scores)
@@ -247,10 +253,6 @@ impl TokenClassificationPipeline {
                             .unwrap_or_default()
                     }
                     AggregationStrategy::Average => {
-                        #[expect(
-                            clippy::cast_precision_loss,
-                            reason = "a word has far fewer pieces than `F32` counts exactly"
-                        )]
                         let count = pieces.len() as f32;
                         (0..pieces[0].scores.len())
                             .map(|label| {
@@ -301,10 +303,6 @@ impl TokenClassificationPipeline {
                     .split_once('-')
                     .map_or(group[0].entity.as_str(), |(_, tag)| tag)
                     .to_owned();
-                #[expect(
-                    clippy::cast_precision_loss,
-                    reason = "a group has far fewer tokens than `F32` counts exactly"
-                )]
                 let score = group.iter().map(|item| item.score).sum::<f32>() / group.len() as f32;
                 Ok(Entity::Group {
                     entity_group,
@@ -322,7 +320,8 @@ impl TokenClassificationPipeline {
 
 // The best label of `scores` and its score.
 fn best(scores: &[f32]) -> Result<(usize, f32)> {
-    argmax(scores).ok_or_else(|| Error::unsupported("a classifier of no labels"))
+    argmax(scores.iter().copied().enumerate())
+        .ok_or_else(|| Error::unsupported("a classifier of no labels"))
 }
 
 // Whether a label begins an entity, and the entity's tag: `B-PER` begins `PER`, `I-PER` continues it, and a label without a prefix continues its own tag.

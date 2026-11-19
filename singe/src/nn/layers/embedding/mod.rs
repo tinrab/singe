@@ -88,7 +88,9 @@ impl Layer<TokenBatch> for TokenEmbeddings {
     fn forward(&self, input: &TokenBatch, state: &ModelState) -> Result<Tensor> {
         let mut hidden = input.tokens().apply(&self.words, state)?;
         if let Some(table) = &self.positions {
-            let length = input.tokens().shape().dimensions()[1];
+            let &[_, length, ..] = input.tokens().shape().dimensions() else {
+                return Err(Error::invalid_argument("token embedding input"));
+            };
             hidden = hidden.add(
                 &state
                     .tensor(table)?
@@ -107,11 +109,11 @@ impl Layer<TokenBatch> for TokenEmbeddings {
     }
 }
 
-// An image's tokens as a vision transformer starts from them: its patches' embeddings, after a learned class token if the model has one, plus learned positions if it has them.
+// An image's tokens as a vision transformer starts from them: its patches' embeddings, after the learned tokens the model puts first, such as a class token, plus learned positions if it has them.
 #[derive(Debug, Clone)]
 pub struct PatchTokens {
     patches: PatchEmbedding,
-    class_token: Option<StateKey>,
+    leading: Vec<StateKey>,
     positions: Option<StateKey>,
     // The patch side, when positions learned for one square grid resize to another.
     resized_positions: Option<i64>,
@@ -122,16 +124,16 @@ impl PatchTokens {
     pub const fn new(patches: PatchEmbedding) -> Self {
         Self {
             patches,
-            class_token: None,
+            leading: Vec::new(),
             positions: None,
             resized_positions: None,
         }
     }
 
-    // Puts a learned token, `[1, 1, D]`, before each image's patches.
+    // Puts a learned token, `[1, 1, D]`, after the leading tokens added before it and before each image's patches, as a class or a distillation token.
     #[must_use]
-    pub fn with_class_token(mut self, class_token: StateKey) -> Self {
-        self.class_token = Some(class_token);
+    pub fn with_leading_token(mut self, token: StateKey) -> Self {
+        self.leading.push(token);
         self
     }
 
@@ -142,7 +144,7 @@ impl PatchTokens {
         self
     }
 
-    // Resizes the positions of a square grid of patches to an image's grid of `patch`-pixel patches bicubically, as DINOv2 and other vision transformers read images of other sizes; a class token's position stays as it is.
+    // Resizes the positions of a square grid of patches to an image's grid of `patch`-pixel patches bicubically, as DINOv2 and other vision transformers read images of other sizes; the leading tokens' positions stay as they are.
     #[must_use]
     pub const fn with_resized_positions(mut self, patch: i64) -> Self {
         self.resized_positions = Some(patch);
@@ -156,11 +158,18 @@ impl Layer for PatchTokens {
         let &[batch, _, width] = tokens.shape().dimensions() else {
             return Err(Error::invalid_argument("patch tokens"));
         };
-        if let Some(class_token) = &self.class_token {
-            let class_token = state
-                .tensor(class_token)?
-                .expand(Shape::create([batch, 1, width])?)?;
-            tokens = Tensor::concat(&[class_token, tokens], 1)?;
+        if !self.leading.is_empty() {
+            let mut parts = self
+                .leading
+                .iter()
+                .map(|token| {
+                    state
+                        .tensor(token)?
+                        .expand(Shape::create([batch, 1, width])?)
+                })
+                .collect::<Result<Vec<_>>>()?;
+            parts.push(tokens);
+            tokens = Tensor::concat(&parts, 1)?;
         }
 
         let Some(positions) = &self.positions else {
@@ -168,7 +177,8 @@ impl Layer for PatchTokens {
         };
         let mut positions = state.tensor(positions)?.clone();
         if let Some(patch) = self.resized_positions {
-            let leading = i64::from(self.class_token.is_some());
+            let leading = i64::try_from(self.leading.len())
+                .map_err(|_| Error::out_of_range("leading tokens"))?;
             positions = resized_positions(&positions, input, patch, leading)?;
         }
 
@@ -198,11 +208,6 @@ fn resized_positions(
     };
     let (rows, columns) = (height / patch, image_width / patch);
     let stored = count - leading;
-    #[expect(
-        clippy::cast_possible_truncation,
-        clippy::cast_precision_loss,
-        reason = "grids are far below 2^53 patches"
-    )]
     let side = (stored as f64).sqrt() as i64;
     if side * side != stored {
         return Err(Error::invalid_argument(

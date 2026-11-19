@@ -5,10 +5,6 @@ mod blocked;
 pub use self::blocked::{matmul_strided_f32, matmul_strided_f64};
 
 #[must_use]
-#[expect(
-    clippy::suboptimal_flops,
-    reason = "the portable GEMM reference requires separate multiply and add rounding in reduction order"
-)]
 pub fn matmul_f32(
     lhs: &[f32],
     rhs: &[f32],
@@ -45,10 +41,6 @@ pub fn matmul_f32(
 }
 
 #[must_use]
-#[expect(
-    clippy::suboptimal_flops,
-    reason = "the portable GEMM reference requires separate multiply and add rounding in reduction order"
-)]
 pub fn matmul_f64(
     lhs: &[f64],
     rhs: &[f64],

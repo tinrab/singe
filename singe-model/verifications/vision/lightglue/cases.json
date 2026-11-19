@@ -4,6 +4,7 @@
       "name": "matches",
       "snapshot": "LIGHTGLUE",
       "task": "keypoint-matching",
+      "data_type": "f32",
       "inputs": [["media/cat-448x320.png", "media/cat-320x512.png"]],
       "expected": [
         [

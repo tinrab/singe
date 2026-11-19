@@ -34,6 +34,7 @@ use crate::{
             },
             graph_value::CudaGraphValue,
             kernel_plan::KernelPlanner,
+            nvtx::CudaNvtxRange,
             runtime::CudaRuntime,
             tuning::{ForcedLibrary, LibraryRecorder},
         },
@@ -107,6 +108,8 @@ pub fn try_provider<T>(
     {
         return Ok(None);
     }
+
+    let _range = CudaNvtxRange::new(|| format!("singe cuda graph provider {provider:?}"));
     match build(lowering) {
         Ok(value) => attach(value, lowering).map(Some),
         Err(error) => {

@@ -192,9 +192,10 @@ impl<L: DraftingModel> SpeculativeDecoder<L> {
         let rows = tokens.len();
         let write = |step: &DecodeStep| -> Result<()> {
             if let Some((offset, values)) = written {
-                step.tokens()
-                    .narrow(0, offset, values.shape().dimensions()[0])?
-                    .assign(values)?;
+                let &[length, ..] = values.shape().dimensions() else {
+                    return Err(Error::invalid_argument("written token values"));
+                };
+                step.tokens().narrow(0, offset, length)?.assign(values)?;
             }
             Ok(())
         };
@@ -229,10 +230,13 @@ impl<L: DraftingModel> SpeculativeDecoder<L> {
                 let padded = if padding == 0 {
                     hidden.copy()?
                 } else {
+                    let &[_, width, ..] = hidden.shape().dimensions() else {
+                        return Err(Error::invalid_argument("draft hidden states"));
+                    };
                     let zeros = Tensor::zeroed_on(
                         device,
                         hidden.data_type(),
-                        Shape::create([padding, hidden.shape().dimensions()[1]])?,
+                        Shape::create([padding, width])?,
                     )?;
                     Tensor::concat(&[hidden.clone(), zeros], 0)?
                 };

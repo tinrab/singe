@@ -48,14 +48,20 @@ pub fn gelu(input: &Tensor) -> Result<Tensor> {
 }
 
 pub fn softmax(a: &Tensor, dim: i64) -> Result<Tensor> {
-    softmax_impl(a, dim, false)
+    softmax_impl(a, dim, SoftmaxOutput::Probabilities)
 }
 
 pub fn log_softmax(a: &Tensor, dim: i64) -> Result<Tensor> {
-    softmax_impl(a, dim, true)
+    softmax_impl(a, dim, SoftmaxOutput::Logarithms)
 }
 
-fn softmax_impl(a: &Tensor, dim: i64, log_output: bool) -> Result<Tensor> {
+#[derive(Clone, Copy)]
+enum SoftmaxOutput {
+    Probabilities,
+    Logarithms,
+}
+
+fn softmax_impl(a: &Tensor, dim: i64, output: SoftmaxOutput) -> Result<Tensor> {
     if a.device() != Device::Cpu {
         return Err(cpu_device_mismatch("cpu softmax input", a.device()));
     }
@@ -63,7 +69,8 @@ fn softmax_impl(a: &Tensor, dim: i64, log_output: bool) -> Result<Tensor> {
     let input = a.contiguous()?;
     let dims = input.shape().dimensions();
     let rank = input.shape().rank();
-    let dim = normalize_dim_usize(dim, rank).map_err(|_| Error::DimensionOutOfBounds)?;
+    let dim = normalize_dim_usize(dim, rank)
+        .map_err(|_| Error::dimension_out_of_bounds("softmax dim"))?;
 
     let input_data = get_f32_data(&input)?;
     if input_data.is_empty() {
@@ -102,7 +109,7 @@ fn softmax_impl(a: &Tensor, dim: i64, log_output: bool) -> Result<Tensor> {
         dim,
         dim_size,
         total_iters,
-        log_output,
+        output,
         &mut output_data,
     )?;
     drop(input_data);
@@ -110,18 +117,19 @@ fn softmax_impl(a: &Tensor, dim: i64, log_output: bool) -> Result<Tensor> {
     Tensor::from_vec(Device::Cpu, input.shape().clone(), output_data)
 }
 
-pub fn execute_softmax(
+fn execute_softmax(
     input_data: &[f32],
     input_strides: &[i64],
     dimensions: &[i64],
     dim: usize,
     dim_size: usize,
     total_iters: usize,
-    log_output: bool,
+    output: SoftmaxOutput,
     output_data: &mut [f32],
 ) -> Result<()> {
     let rank = dimensions.len();
-    let dim_stride = usize::try_from(input_strides[dim]).map_err(|_| Error::InvalidStride)?;
+    let dim_stride = usize::try_from(input_strides[dim])
+        .map_err(|_| Error::invalid_stride("softmax input stride"))?;
     let mut indices = vec![0usize; rank];
     let mut bases = Vec::with_capacity(total_iters);
     for _ in 0..total_iters {
@@ -131,7 +139,7 @@ pub fn execute_softmax(
 
     let rows =
         parallel::collect_with_grain(bases.len(), parallel::GRAIN_SIZE / dim_size.max(1), |row| {
-            softmax_row(input_data, bases[row], dim_size, dim_stride, log_output)
+            softmax_row(input_data, bases[row], dim_size, dim_stride, output)
         });
     for (&base, row) in bases.iter().zip(rows) {
         for (i, value) in row?.into_iter().enumerate() {
@@ -147,7 +155,7 @@ fn softmax_row(
     base_offset: usize,
     dim_size: usize,
     dim_stride: usize,
-    log_output: bool,
+    output: SoftmaxOutput,
 ) -> Result<Vec<f32>> {
     let mut max_val = f32::NEG_INFINITY;
     for i in 0..dim_size {
@@ -166,10 +174,9 @@ fn softmax_row(
     (0..dim_size)
         .map(|i| {
             let shifted = input_data[softmax_axis_offset(base_offset, i, dim_stride)?] - max_val;
-            Ok(if log_output {
-                shifted - log_sum_exp
-            } else {
-                shifted.exp() / sum_exp
+            Ok(match output {
+                SoftmaxOutput::Logarithms => shifted - log_sum_exp,
+                SoftmaxOutput::Probabilities => shifted.exp() / sum_exp,
             })
         })
         .collect()
@@ -207,7 +214,8 @@ fn flat_offset(indices: &[usize], strides: &[i64]) -> Result<usize> {
         .iter()
         .zip(strides)
         .try_fold(0usize, |acc, (&index, &stride)| {
-            let stride = usize::try_from(stride).map_err(|_| Error::InvalidStride)?;
+            let stride = usize::try_from(stride)
+                .map_err(|_| Error::invalid_stride("softmax input stride"))?;
             let offset = checked_mul(index, stride, "cpu softmax flat offset")?;
             checked_add(acc, offset, "cpu softmax flat offset")
         })

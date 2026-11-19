@@ -26,7 +26,6 @@ const DIM: i64 = 64;
 // Each batch's count of keys: all of them, one, and some.
 const LENGTHS: [i32; 3] = [40, 1, 23];
 
-#[expect(clippy::cast_precision_loss, reason = "test values have few elements")]
 fn values(shape: &[i64], seed: f32, device: Device, data_type: DataType) -> Tensor {
     let count = shape.iter().product::<i64>();
     let values = (0..count)

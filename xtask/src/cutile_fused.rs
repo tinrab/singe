@@ -426,10 +426,6 @@ fn emit_binary_expr(binary: &ExprBinary, cfg: DtypeConfig, shape: Shape) -> Resu
     }
 }
 
-#[expect(
-    clippy::too_many_lines,
-    reason = "the operation table keeps each fused numerical formula next to its operation name"
-)]
 fn emit_call_expr(call: &ExprCall, cfg: DtypeConfig, shape: Shape) -> Result<TokenStream> {
     let name = call_ident(call)?;
     if name == "where_" {

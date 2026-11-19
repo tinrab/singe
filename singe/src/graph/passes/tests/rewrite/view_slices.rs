@@ -57,7 +57,7 @@ fn test_remove_redundant_ops_pass_rejects_invalid_full_range_slice_axis() {
         output.shape(),
         output.device(),
     );
-    assert!(matches!(result, Err(Error::DimensionOutOfBounds)));
+    assert!(matches!(result, Err(Error::DimensionOutOfBounds { .. })));
 }
 
 #[test]
@@ -98,6 +98,6 @@ fn test_remove_redundant_ops_pass_rejects_out_of_range_parent_slice_chain_window
     let pipeline = validating_remove_redundant_ops_pipeline();
     assert!(matches!(
         pipeline.normalize(&graph),
-        Err(Error::IndexOutOfBounds)
+        Err(Error::IndexOutOfBounds { .. })
     ));
 }

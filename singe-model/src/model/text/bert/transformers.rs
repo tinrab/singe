@@ -1,40 +1,59 @@
-// Reads a `transformers` BERT config and imports its checkpoint, whose task heads store the encoder under `bert.`.
+// Reads a `transformers` BERT config and imports its checkpoint, whose task heads store the encoder under `bert`.
+
+use singe::nn::{Activation, PoolingMode};
 
 use crate::{
     assembly::{PostNormEncoderConfig, post_norm_encoder_rules},
     error::Result,
     format::{Rules, transformers::EncoderFields},
-    head::Head,
+    head::{ClassifierLayout, EncoderModel, Head, HeadLayouts},
+    model::text::bert::Bert,
     source::Source,
 };
 
-pub(crate) fn config(source: &Source) -> Result<PostNormEncoderConfig> {
-    source.json::<EncoderFields>("config.json")?.config(0)
-}
+impl EncoderModel for Bert {
+    // A classifier reads the pooler, a tanh projection of the first token's state.
+    const LAYOUTS: HeadLayouts = HeadLayouts {
+        classifier: ClassifierLayout {
+            pooling: PoolingMode::Cls,
+            projection: Some(Activation::Tanh),
+            output_bias: true,
+        },
+        masked_lm_activation: None,
+    };
 
-pub(crate) fn encoder_rules() -> Rules {
-    post_norm_encoder_rules("", "")
-        .then(post_norm_encoder_rules("bert.", ""))
-        // The heads' tensors, which only their own head's rules read.
-        .skip("cls")
-        .skip("classifier")
-        .skip("qa_outputs")
-}
+    fn config(source: &Source) -> Result<PostNormEncoderConfig> {
+        source.json::<EncoderFields>("config.json")?.config(0)
+    }
 
-pub(crate) fn head_rules(head: Head) -> Rules {
-    match head {
-        Head::SequenceClassification => Rules::new()
-            .rename("bert.pooler.dense", "classifier.projection")
-            .rename("classifier", "classifier.output"),
-        Head::TokenClassification => Rules::new().rename("classifier", "classifier.output"),
-        Head::QuestionAnswering => Rules::new().rename("qa_outputs", "span.output"),
-        Head::MaskedLm => Rules::new()
-            .rename("cls.predictions.transform.dense", "masked_lm.projection")
-            .rename("cls.predictions.transform.LayerNorm", "masked_lm.norm")
-            .rename("cls.predictions.decoder.weight", "masked_lm.output.weight")
-            .rename("cls.predictions.bias", "masked_lm.output.bias")
-            // The same parameter as `cls.predictions.bias`.
-            .skip("cls.predictions.decoder.bias"),
-        _ => Rules::new(),
+    fn encoder_rules() -> Rules {
+        post_norm_encoder_rules("", "")
+            .then(post_norm_encoder_rules("bert", ""))
+            // The heads' tensors, which only their own head's rules read.
+            .skip("cls")
+            .skip("classifier")
+            .skip("qa_outputs")
+    }
+
+    fn head_rules(head: Head) -> Rules {
+        match head {
+            Head::SequenceClassification => Rules::new()
+                .rename("bert.pooler.dense", "classifier.projection")
+                .rename("classifier", "classifier.output"),
+            Head::MaskedLm => Rules::new()
+                .rename_each(
+                    "cls.predictions",
+                    "masked_lm",
+                    &[
+                        ("transform.dense", "projection"),
+                        ("transform.LayerNorm", "norm"),
+                        ("decoder.weight", "output.weight"),
+                        ("bias", "output.bias"),
+                    ],
+                )
+                // The same parameter as `cls.predictions.bias`.
+                .skip("cls.predictions.decoder.bias"),
+            _ => Rules::new(),
+        }
     }
 }

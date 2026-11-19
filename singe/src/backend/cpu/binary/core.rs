@@ -28,10 +28,6 @@ impl<'a> Values<'a> {
         })
     }
 
-    #[expect(
-        clippy::cast_precision_loss,
-        reason = "tensor promotion rounds integer operands to f64 precision"
-    )]
     fn float(&self, index: usize) -> f64 {
         match self {
             Self::F32(values) => f64::from(values[index]),
@@ -49,11 +45,6 @@ impl<'a> Values<'a> {
         }
     }
 
-    #[expect(
-        clippy::cast_precision_loss,
-        clippy::cast_possible_truncation,
-        reason = "tensor promotion rounds operands to f32 precision"
-    )]
     fn single(&self, index: usize) -> f32 {
         match self {
             Self::F32(values) => values[index],

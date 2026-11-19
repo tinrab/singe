@@ -5,6 +5,12 @@ use crate::{
     utility::{checked_add_i64, checked_mul_i64, checked_sub_i64},
 };
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PoolReduction {
+    Maximum,
+    Average,
+}
+
 /// Validated two-dimensional pooling dimensions for channel-height-width or batch-channel-height-width tensors.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Pool2dProblem {
@@ -63,43 +69,28 @@ pub fn pool2d_problem(
     padding: (i64, i64, i64, i64),
     dilation: (i64, i64),
     ceil_mode: bool,
-    is_avg_pool: bool,
+    reduction: PoolReduction,
     diagnostic_prefix: &'static str,
 ) -> Result<Pool2dProblem> {
-    if is_avg_pool && dilation != (1, 1) {
+    if reduction == PoolReduction::Average && dilation != (1, 1) {
         return Err(Error::invalid_argument(format!(
             "{diagnostic_prefix} avg pool dilation"
         )));
     }
 
+    let rank_error = || Error::invalid_argument(format!("{diagnostic_prefix} input rank"));
     let input_dimensions = input.dimensions();
     let rank = input_dimensions.len();
-    if rank != 3 && rank != 4 {
-        return Err(Error::invalid_argument(format!(
-            "{diagnostic_prefix} input rank"
-        )));
-    }
-
-    let (batch, channels, input_height, input_width) = if rank == 4 {
-        (
-            input_dimensions[0],
-            input_dimensions[1],
-            input_dimensions[2],
-            input_dimensions[3],
-        )
-    } else {
-        (
-            1,
-            input_dimensions[0],
-            input_dimensions[1],
-            input_dimensions[2],
-        )
+    let (batch, channels, input_height, input_width) = match *input_dimensions {
+        [batch, channels, height, width] => (batch, channels, height, width),
+        [channels, height, width] => (1, channels, height, width),
+        _ => return Err(rank_error()),
     };
     let output_shape =
         pool2d_output_shape(input, kernel_size, stride, padding, dilation, ceil_mode)?;
-    let output_dimensions = output_shape.dimensions();
-    let output_height = output_dimensions[rank - 2];
-    let output_width = output_dimensions[rank - 1];
+    let [.., output_height, output_width] = *output_shape.dimensions() else {
+        return Err(rank_error());
+    };
     let (kernel_height, kernel_width) = kernel_size;
     let (stride_height, stride_width) = stride;
     let (pad_height_start, pad_height_end, pad_width_start, pad_width_end) = padding;
@@ -141,32 +132,19 @@ pub fn pool2d_output_shape(
     ceil_mode: bool,
 ) -> Result<Shape> {
     let input_dimensions = input.dimensions();
-    let rank = input_dimensions.len();
-    if rank != 3 && rank != 4 {
-        return Err(Error::InvalidTensorRank {
-            operation: "pool2d".into(),
-            name: "input".into(),
-            expected_rank: 4,
-            actual_rank: rank,
-            layout: "CHW or NCHW".into(),
-            shape: input_dimensions.to_vec(),
-        });
-    }
-
-    let (batch, channels, input_height, input_width) = if rank == 4 {
-        (
-            Some(input_dimensions[0]),
-            input_dimensions[1],
-            input_dimensions[2],
-            input_dimensions[3],
-        )
-    } else {
-        (
-            None,
-            input_dimensions[0],
-            input_dimensions[1],
-            input_dimensions[2],
-        )
+    let (batch, channels, input_height, input_width) = match *input_dimensions {
+        [batch, channels, height, width] => (Some(batch), channels, height, width),
+        [channels, height, width] => (None, channels, height, width),
+        _ => {
+            return Err(Error::InvalidTensorRank {
+                operation: "pool2d".into(),
+                name: "input".into(),
+                expected_rank: 4,
+                actual_rank: input_dimensions.len(),
+                layout: "CHW or NCHW".into(),
+                shape: input_dimensions.to_vec(),
+            });
+        }
     };
     validate_pool2d_shape(
         batch.unwrap_or(1),

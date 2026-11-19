@@ -22,6 +22,18 @@ use crate::{
     utility::{to_i64, to_usize},
 };
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Truth {
+    Any,
+    All,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Triangle {
+    Upper,
+    Lower,
+}
+
 impl Tensor {
     /// Returns the view of the slice at `index` along `dim`, which removes `dim`, as `torch.select` does.
     ///
@@ -406,25 +418,26 @@ impl Tensor {
     }
 
     pub fn any(&self, dims: &[i64], keepdim: bool) -> Result<Self> {
-        self.truth_reduction(dims, keepdim, true)
+        self.truth_reduction(dims, keepdim, Truth::Any)
     }
 
     pub fn all(&self, dims: &[i64], keepdim: bool) -> Result<Self> {
-        self.truth_reduction(dims, keepdim, false)
+        self.truth_reduction(dims, keepdim, Truth::All)
     }
 
     // A Boolean maximum is a disjunction and a minimum a conjunction, so `any` and `all` are those reductions of the truth values; over no elements they are their identities, false and true.
-    fn truth_reduction(&self, dims: &[i64], keepdim: bool, any: bool) -> Result<Self> {
+    fn truth_reduction(&self, dims: &[i64], keepdim: bool, kind: Truth) -> Result<Self> {
         let output = spec::reduction_problem(self.shape(), dims, keepdim)?.output_shape;
         let truth = self.cast(DataType::Bool)?;
         let result = if self.shape().element_count() == 0 {
             capture::literal(self.device(), |device| {
-                Scalar::Bool(!any).full(device, DataType::Bool, &output)
+                Scalar::Bool(kind == Truth::All).full(device, DataType::Bool, &output)
             })?
-        } else if any {
-            truth.max_reduce(dims, keepdim)?
         } else {
-            truth.min_reduce(dims, keepdim)?
+            match kind {
+                Truth::Any => truth.max_reduce(dims, keepdim)?,
+                Truth::All => truth.min_reduce(dims, keepdim)?,
+            }
         };
         // PyTorch keeps `uint8` for `uint8` operands, as its older masks were bytes.
         if self.data_type() == DataType::U8 {
@@ -459,12 +472,12 @@ impl Tensor {
 
     // The elements on and above diagonal `diagonal` of the last two dimensions, and zeros below.
     pub fn triu(&self, diagonal: i64) -> Result<Self> {
-        self.triangle(diagonal, true)
+        self.triangle(diagonal, Triangle::Upper)
     }
 
     // The elements on and below diagonal `diagonal` of the last two dimensions, and zeros above.
     pub fn tril(&self, diagonal: i64) -> Result<Self> {
-        self.triangle(diagonal, false)
+        self.triangle(diagonal, Triangle::Lower)
     }
 
     // An `rows` by `columns` matrix of `data_type` with ones on its main diagonal.
@@ -488,9 +501,12 @@ impl Tensor {
         expanded.insert(axis + 1, repeats);
         let mut merged = self.shape().dimensions().to_vec();
         merged[axis] *= repeats;
-        self.unsqueeze(i64::try_from(axis + 1).map_err(|_| Error::DimensionOutOfBounds)?)?
-            .expand(&Shape::create(expanded)?)?
-            .reshape(merged)
+        self.unsqueeze(
+            i64::try_from(axis + 1)
+                .map_err(|_| Error::dimension_out_of_bounds("repeat_interleave dim"))?,
+        )?
+        .expand(&Shape::create(expanded)?)?
+        .reshape(merged)
     }
 
     // A view with dimension `source` moved to position `destination`.
@@ -518,7 +534,7 @@ impl Tensor {
         Self::where_select(mask, &fill, self)
     }
 
-    fn triangle(&self, diagonal: i64, upper: bool) -> Result<Self> {
+    fn triangle(&self, diagonal: i64, part: Triangle) -> Result<Self> {
         let dimensions = self.shape().dimensions();
         let [.., rows, columns] = dimensions else {
             return Err(Error::invalid_argument(
@@ -527,10 +543,9 @@ impl Tensor {
         };
         let offsets = Self::diagonal_offsets(self.device(), *rows, *columns)?;
         let diagonal = capture::literal(self.device(), |device| Self::scalar(device, diagonal))?;
-        let keep = if upper {
-            offsets.greater_equal(&diagonal)?
-        } else {
-            offsets.less_equal(&diagonal)?
+        let keep = match part {
+            Triangle::Upper => offsets.greater_equal(&diagonal)?,
+            Triangle::Lower => offsets.less_equal(&diagonal)?,
         };
         let data_type = self.data_type();
         let zero = capture::literal(self.device(), |device| {
@@ -579,7 +594,8 @@ impl Tensor {
         let mut values = source.clone();
         let mut coordinates = Vec::with_capacity(rank);
         for (position, &extent) in extents.iter().enumerate() {
-            let dimension = i64::try_from(position).map_err(|_| Error::DimensionOutOfBounds)?;
+            let dimension = i64::try_from(position)
+                .map_err(|_| Error::dimension_out_of_bounds("scatter index position"))?;
             values = values.narrow(dimension, 0, extent)?;
             if position == axis {
                 coordinates.push(index.clone());

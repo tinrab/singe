@@ -3,13 +3,13 @@
 use serde::{Deserialize, Serialize};
 use singe::{
     Result as SingeResult, Tensor,
-    nn::{Activation, BatchNorm2d, Conv2d, Conv2dConfig, Layer, ModelState},
+    nn::{Activation, BatchNorm2d, Conv2d, Layer, ModelState},
 };
 
-use crate::schema::Schema;
-
-// timm's batch norms keep `nn.BatchNorm2d`'s default.
-const EPS: f32 = 1e-5;
+use crate::{
+    assembly::{PYTORCH_NORM_EPS, same_2d},
+    schema::Schema,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ResNetConfig {
@@ -33,21 +33,16 @@ impl ConvNorm {
         kernel: i64,
         stride: i64,
     ) -> SingeResult<Self> {
-        let padding = kernel / 2;
         Ok(Self {
             convolution: schema.conv2d(
                 convolution,
                 input,
                 out,
                 kernel,
-                Conv2dConfig {
-                    stride: (stride, stride),
-                    padding: (padding, padding, padding, padding),
-                    ..Conv2dConfig::default()
-                },
+                same_2d(kernel, stride),
                 false,
             )?,
-            norm: schema.batch_norm2d(norm, out, EPS)?,
+            norm: schema.batch_norm2d(norm, out, PYTORCH_NORM_EPS)?,
         })
     }
 }
@@ -67,6 +62,33 @@ struct Bottleneck {
     spatial: ConvNorm,
     expand: ConvNorm,
     shortcut: Option<ConvNorm>,
+}
+
+impl Bottleneck {
+    fn create(schema: &mut Schema<'_>, input: i64, width: i64, stride: i64) -> SingeResult<Self> {
+        let out = width * 4;
+        let reduce = ConvNorm::create(schema, ("conv1", "bn1"), input, width, 1, 1)?;
+        let spatial = ConvNorm::create(schema, ("conv2", "bn2"), width, width, 3, stride)?;
+        let expand = ConvNorm::create(schema, ("conv3", "bn3"), width, out, 1, 1)?;
+        let shortcut = (input != out || stride != 1)
+            .then(|| {
+                ConvNorm::create(
+                    schema,
+                    ("downsample.0", "downsample.1"),
+                    input,
+                    out,
+                    1,
+                    stride,
+                )
+            })
+            .transpose()?;
+        Ok(Self {
+            reduce,
+            spatial,
+            expand,
+            shortcut,
+        })
+    }
 }
 
 impl Layer for Bottleneck {
@@ -106,37 +128,7 @@ impl ResNet {
                     let mut schema = schema.scope(format!("layer{}.{block}", index + 1));
                     let stride = if block == 0 && index > 0 { 2 } else { 1 };
                     let block_input = if block == 0 { input } else { out };
-                    Ok(Bottleneck {
-                        reduce: ConvNorm::create(
-                            &mut schema,
-                            ("conv1", "bn1"),
-                            block_input,
-                            width,
-                            1,
-                            1,
-                        )?,
-                        spatial: ConvNorm::create(
-                            &mut schema,
-                            ("conv2", "bn2"),
-                            width,
-                            width,
-                            3,
-                            stride,
-                        )?,
-                        expand: ConvNorm::create(&mut schema, ("conv3", "bn3"), width, out, 1, 1)?,
-                        shortcut: (block == 0)
-                            .then(|| {
-                                ConvNorm::create(
-                                    &mut schema,
-                                    ("downsample.0", "downsample.1"),
-                                    block_input,
-                                    out,
-                                    1,
-                                    stride,
-                                )
-                            })
-                            .transpose()?,
-                    })
+                    Bottleneck::create(&mut schema, block_input, width, stride)
                 })
                 .collect::<SingeResult<Vec<_>>>()?;
             stages.push(blocks);

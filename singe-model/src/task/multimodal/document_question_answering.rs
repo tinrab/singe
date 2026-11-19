@@ -1,9 +1,6 @@
 // `document-question-answering`: an image of a document and a question to the answer's text, here from Donut, which reads the image without OCR and writes its answer after a prompt naming the question, as `transformers`' pipeline asks it.
 
-use std::slice;
-
 use serde::{Deserialize, Serialize};
-use singe::DataType;
 
 use crate::{
     error::Result,
@@ -14,7 +11,7 @@ use crate::{
         text::TextTokenizer,
     },
     source::{LoadOptions, Source},
-    task::{Pipeline, Task, text::summarization::Seq2SeqParameters},
+    task::{Pipeline, seq2seq::Seq2SeqParameters},
 };
 
 #[derive(Debug)]
@@ -22,7 +19,7 @@ pub struct DocumentQuestionAnsweringPipeline {
     model: Seq2SeqLm,
     processor: ImageTransforms,
     tokenizer: TextTokenizer,
-    data_type: DataType,
+    options: LoadOptions,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -69,8 +66,6 @@ fn answer(sequence: &str) -> Option<String> {
 }
 
 impl Pipeline for DocumentQuestionAnsweringPipeline {
-    const TASK: Task = Task::DocumentQuestionAnswering;
-
     type Input = DocumentQuestion;
 
     type Parameters = Seq2SeqParameters;
@@ -81,45 +76,35 @@ impl Pipeline for DocumentQuestionAnsweringPipeline {
         Ok(Self {
             model: model::load(source, options)?,
             processor: ImageTransforms::load(source)?,
-            tokenizer: TextTokenizer::load(source.directory())?,
-            data_type: options.data_type,
+            tokenizer: TextTokenizer::load(source)?,
+            options,
         })
     }
 
-    fn run(
-        &self,
-        inputs: &[Self::Input],
-        parameters: &Self::Parameters,
-    ) -> Result<Vec<Self::Output>> {
-        let device = self.model.model().state().device()?;
-        inputs
-            .iter()
-            .map(|input| {
-                let pixels = self.processor.preprocess(
-                    slice::from_ref(&input.image),
-                    device,
-                    self.data_type,
-                )?;
-                let encoded = self.model.encode(Seq2SeqInput::Pixels(&pixels))?;
-                let prompt = format!(
-                    "<s_docvqa><s_question>{}</s_question><s_answer>",
-                    input.question
-                );
-                let mut tokens = self.tokenizer.encode(&prompt, false)?;
-                tokens.extend(
-                    self.model
-                        .generate(&encoded, &tokens, parameters.max_new_tokens)?,
-                );
-                // The sequence with its special tokens, but its end and padding tokens.
-                let sequence = self
-                    .tokenizer
-                    .decode(&tokens, false)?
-                    .replace("</s>", "")
-                    .replace("<pad>", "");
-                Ok(vec![DocumentAnswer {
-                    answer: answer(&sequence),
-                }])
-            })
-            .collect()
+    fn run_one(&self, input: &Self::Input, parameters: &Self::Parameters) -> Result<Self::Output> {
+        let pixels =
+            self.processor
+                .preprocess(&input.image, self.options.device, self.options.data_type)?;
+        let encoded = self.model.encode(Seq2SeqInput::Pixels(&pixels))?;
+        let prompt = format!(
+            "<s_docvqa><s_question>{}</s_question><s_answer>",
+            input.question
+        );
+        let mut tokens = self.tokenizer.encode(&prompt, false)?;
+        tokens.extend(self.model.generate(
+            &encoded,
+            &tokens,
+            parameters.max_new_tokens,
+            parameters.compile,
+        )?);
+        // The sequence with its special tokens, but its end and padding tokens.
+        let sequence = self
+            .tokenizer
+            .decode(&tokens, false)?
+            .replace("</s>", "")
+            .replace("<pad>", "");
+        Ok(vec![DocumentAnswer {
+            answer: answer(&sequence),
+        }])
     }
 }

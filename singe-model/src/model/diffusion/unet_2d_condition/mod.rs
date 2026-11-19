@@ -1,21 +1,23 @@
 // `diffusers`' `UNet2DConditionModel`, Stable Diffusion's denoiser: residual blocks reading the timestep, and in the blocks that ask for it transformers whose blocks attend to the image's positions and then to the text's states, down to a middle block and back up.
 //
-// Its state is that of `UNet2DModel` (`input`, `time`, `down.N`, `middle`, `up.N`, `norm`, `output`), with transformers at `attentions.M` (`norm`, `proj_in`, `blocks.K`, `proj_out`), each block's `norm1`, `attn1`, `norm2`, `attn2`, `norm3`, and `feed_forward` (`gate`, `up`, `down`).
+// Its state is that of `UNet2DModel` (`input`, `time`, `down.N`, `middle`, `up.N`, `norm`, `output`), with transformers at `attentions.M` (`norm`, `proj_in`, `blocks.K`, `proj_out`), each block's `attention_norm`, `attention`, `cross_attention_norm`, `cross_attention`, `feed_forward_norm`, and `feed_forward` (`gate`, `up`, `down`).
 
 mod diffusers;
 
 use serde::{Deserialize, Serialize};
 use singe::{
-    DataType, Result as SingeResult, Shape, Tensor,
+    DataType, Error as SingeError, Result as SingeResult, Shape, Tensor,
     nn::{
         Activation, Conv2d, Conv2dConfig, GatedMlp, GroupNorm, LayerNorm, Linear, Model,
-        ModelState, StateBuilder, StateKey,
+        ModelState, StateKey,
     },
-    tensor::AttentionOptions,
 };
 
 use crate::{
-    assembly::{Norms, TimeEmbedding, UnetLayout, UnetSite, UnetStages, conv3x3, timestep_input},
+    assembly::{
+        Attention, AttentionSpec, PYTORCH_NORM_EPS, Unet, UnetConfig, UnetSite, same_2d, spatial,
+        to_map, to_tokens,
+    },
     error::Result,
     format::Loader,
     head::{ConditionalDenoiser, HeadLoader},
@@ -24,93 +26,26 @@ use crate::{
     source::{Format, LoadOptions, Source},
 };
 
+const TRANSFORMER_NORM_EPS: f32 = 1e-6;
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Unet2dConditionConfig {
-    pub in_channels: i64,
-    pub out_channels: i64,
-    pub sample_size: i64,
-    pub widths: Vec<i64>,
-    // Whether each down block, and each up block, has transformers.
-    pub down_attention: Vec<bool>,
-    pub up_attention: Vec<bool>,
+    #[serde(flatten)]
+    pub unet: UnetConfig,
     // Each down block's heads; the up blocks take them reversed, and the middle the last.
     pub heads: Vec<i64>,
-    pub layers_per_block: usize,
     pub context_width: i64,
     pub linear_projection: bool,
-    pub groups: i64,
-    pub eps: f32,
-    pub downsample_padding: i64,
-    pub flip_sin_to_cos: bool,
-    pub freq_shift: f32,
-    // What the middle block's residual blocks divide their sums by.
-    pub middle_scale: f64,
-}
-
-#[derive(Debug, Clone)]
-pub struct Attention {
-    query: Linear,
-    key: Linear,
-    value: Linear,
-    output: Linear,
-    heads: i64,
-}
-
-impl Attention {
-    pub fn create(
-        schema: &mut Schema<'_>,
-        width: i64,
-        context: i64,
-        heads: i64,
-    ) -> SingeResult<Self> {
-        Ok(Self {
-            query: schema.linear("query", width, width, false)?,
-            key: schema.linear("key", context, width, false)?,
-            value: schema.linear("value", context, width, false)?,
-            output: schema.linear("output", width, width, true)?,
-            heads,
-        })
-    }
-
-    // `hidden`, `[B, L, W]`, attending to `context`, `[B, M, C]`, each sequence alone.
-    pub fn forward(
-        &self,
-        hidden: &Tensor,
-        context: &Tensor,
-        state: &ModelState,
-    ) -> SingeResult<Tensor> {
-        let dimensions = hidden.shape().dimensions();
-        let width = dimensions[2];
-        let heads = |input: &Tensor, projection: &Linear| -> SingeResult<Tensor> {
-            let dimensions = input.shape().dimensions();
-            input
-                .apply(projection, state)?
-                .reshape([dimensions[0], dimensions[1], self.heads, width / self.heads])?
-                .permute(&[0, 2, 1, 3])
-        };
-        heads(hidden, &self.query)?
-            .attend(
-                &heads(context, &self.key)?,
-                &heads(context, &self.value)?,
-                None,
-                None,
-                AttentionOptions::default(),
-            )?
-            .permute(&[0, 2, 1, 3])?
-            .contiguous()?
-            .reshape([dimensions[0], dimensions[1], width])?
-            .apply(&self.output, state)
-    }
 }
 
 // `BasicTransformerBlock`: self-attention, attention to the context, and a GEGLU feed-forward layer, each after a layer norm and added to its input.
 #[derive(Debug, Clone)]
 pub struct TransformerBlock {
-    norm1: LayerNorm,
-    attn1: Attention,
-    norm2: LayerNorm,
-    attn2: Attention,
-    norm3: LayerNorm,
+    attention_norm: LayerNorm,
+    attention: Attention,
+    cross_attention_norm: LayerNorm,
+    cross_attention: Attention,
+    feed_forward_norm: LayerNorm,
     feed_forward: GatedMlp,
 }
 
@@ -122,35 +57,62 @@ impl TransformerBlock {
         heads: i64,
     ) -> SingeResult<Self> {
         let inner = 4 * width;
-        let mut feed_forward = schema.scope("feed_forward");
+        let spec = |context| AttentionSpec {
+            width,
+            context,
+            inner: width,
+            heads,
+            qkv_bias: false,
+            output_bias: true,
+        };
+        let mut scope = schema.scope("feed_forward");
         let feed_forward = GatedMlp::new(
-            feed_forward.linear("gate", width, inner, true)?,
-            feed_forward.linear("up", width, inner, true)?,
-            feed_forward.linear("down", inner, width, true)?,
+            scope.linear("gate", width, inner, true)?,
+            scope.linear("up", width, inner, true)?,
+            scope.linear("down", inner, width, true)?,
             Activation::GeluExact,
         );
+        scope.join_rows(&feed_forward.siblings())?;
         Ok(Self {
-            norm1: schema.layer_norm("norm1", width, 1e-5)?,
-            attn1: Attention::create(&mut schema.scope("attn1"), width, width, heads)?,
-            norm2: schema.layer_norm("norm2", width, 1e-5)?,
-            attn2: Attention::create(&mut schema.scope("attn2"), width, context, heads)?,
-            norm3: schema.layer_norm("norm3", width, 1e-5)?,
+            attention_norm: schema.layer_norm("attention_norm", width, PYTORCH_NORM_EPS)?,
+            attention: Attention::create(&mut schema.scope("attention"), spec(width))?,
+            cross_attention_norm: schema.layer_norm(
+                "cross_attention_norm",
+                width,
+                PYTORCH_NORM_EPS,
+            )?,
+            cross_attention: Attention::create(
+                &mut schema.scope("cross_attention"),
+                spec(context),
+            )?,
+            feed_forward_norm: schema.layer_norm("feed_forward_norm", width, PYTORCH_NORM_EPS)?,
             feed_forward,
         })
     }
 
+    // `hidden`, `[B, L, W]`, with `positions` added to each attention's normed input where given, its second attention attending to `context`, `[B, M, C]`, or, without one, to `hidden` itself.
     pub fn forward(
         &self,
         hidden: &Tensor,
-        context: &Tensor,
+        positions: Option<&Tensor>,
+        context: Option<&Tensor>,
         state: &ModelState,
     ) -> SingeResult<Tensor> {
-        let normed = hidden.apply(&self.norm1, state)?;
-        let hidden = hidden.add(&self.attn1.forward(&normed, &normed, state)?)?;
-        let normed = hidden.apply(&self.norm2, state)?;
-        let hidden = hidden.add(&self.attn2.forward(&normed, context, state)?)?;
+        let positioned = |normed: Tensor| match positions {
+            Some(positions) => normed.add(positions),
+            None => Ok(normed),
+        };
+        let normed = positioned(hidden.apply(&self.attention_norm, state)?)?;
+        let hidden = hidden.add(&self.attention.forward(&normed, &normed, &normed, state)?)?;
+        let normed = positioned(hidden.apply(&self.cross_attention_norm, state)?)?;
+        let context = context.unwrap_or(&normed);
+        let hidden = hidden.add(
+            &self
+                .cross_attention
+                .forward(&normed, context, context, state)?,
+        )?;
         let fed = hidden
-            .apply(&self.norm3, state)?
+            .apply(&self.feed_forward_norm, state)?
             .apply(&self.feed_forward, state)?;
         hidden.add(&fed)
     }
@@ -195,7 +157,7 @@ impl Transformer2d {
             })
         };
         Ok(Self {
-            norm: schema.group_norm("norm", width, groups, 1e-6)?,
+            norm: schema.group_norm("norm", width, groups, TRANSFORMER_NORM_EPS)?,
             proj_in: projection(schema, "proj_in")?,
             blocks: vec![TransformerBlock::create(
                 &mut schema.scope("blocks.0"),
@@ -213,32 +175,19 @@ impl Transformer2d {
         context: &Tensor,
         state: &ModelState,
     ) -> SingeResult<Tensor> {
-        let dimensions = input.shape().dimensions();
-        let (batch, width, height, columns) =
-            (dimensions[0], dimensions[1], dimensions[2], dimensions[3]);
-        let flatten = |image: &Tensor| -> SingeResult<Tensor> {
-            image
-                .permute(&[0, 2, 3, 1])?
-                .reshape([batch, height * columns, width])
-        };
-        let unflatten = |sequence: &Tensor| -> SingeResult<Tensor> {
-            sequence
-                .reshape([batch, height, columns, width])?
-                .permute(&[0, 3, 1, 2])?
-                .contiguous()
-        };
+        let size = spatial(input)?;
         let normed = input.apply(&self.norm, state)?;
         let mut hidden = match &self.proj_in {
-            Projection::Linear(linear) => flatten(&normed)?.apply(linear, state)?,
-            Projection::Convolution(conv) => flatten(&normed.apply(conv, state)?)?,
+            Projection::Linear(linear) => to_tokens(&normed)?.apply(linear, state)?,
+            Projection::Convolution(conv) => to_tokens(&normed.apply(conv, state)?)?,
         };
         for block in &self.blocks {
-            hidden = block.forward(&hidden, context, state)?;
+            hidden = block.forward(&hidden, None, Some(context), state)?;
         }
 
         let output = match &self.proj_out {
-            Projection::Linear(linear) => unflatten(&hidden.apply(linear, state)?)?,
-            Projection::Convolution(conv) => unflatten(&hidden)?.apply(conv, state)?,
+            Projection::Linear(linear) => to_map(&hidden.apply(linear, state)?, size)?,
+            Projection::Convolution(conv) => to_map(&hidden, size)?.apply(conv, state)?,
         };
         output.add(input)
     }
@@ -247,60 +196,35 @@ impl Transformer2d {
 #[derive(Debug, Clone)]
 pub struct Unet2dConditionLayers {
     config: Unet2dConditionConfig,
-    input: Conv2d,
-    time: TimeEmbedding,
-    stages: UnetStages<Transformer2d>,
-    norm: GroupNorm,
-    output: Conv2d,
+    unet: Unet<Transformer2d>,
 }
 
 impl Unet2dConditionLayers {
+    pub fn create(schema: &mut Schema<'_>, config: &Unet2dConditionConfig) -> SingeResult<Self> {
+        let last = config.unet.widths.len() - 1;
+        Ok(Self {
+            config: config.clone(),
+            unet: Unet::create(schema, &config.unet, |schema, site, width| {
+                let heads = match site {
+                    UnetSite::Down(index) => config.heads[index],
+                    UnetSite::Middle => config.heads[last],
+                    UnetSite::Up(index) => config.heads[last - index],
+                };
+                Transformer2d::create(
+                    schema,
+                    width,
+                    config.context_width,
+                    heads,
+                    config.linear_projection,
+                    config.unet.groups,
+                )
+            })?,
+        })
+    }
+
     #[must_use]
     pub const fn config(&self) -> &Unet2dConditionConfig {
         &self.config
-    }
-
-    pub fn create(schema: &mut Schema<'_>, config: &Unet2dConditionConfig) -> SingeResult<Self> {
-        let norms = Norms {
-            groups: config.groups,
-            eps: config.eps,
-        };
-        let widths = &config.widths;
-        let time_width = widths[0] * 4;
-        let last = widths.len() - 1;
-        let layout = UnetLayout {
-            widths,
-            layers_per_block: config.layers_per_block,
-            down_attention: &config.down_attention,
-            up_attention: &config.up_attention,
-            time_width,
-            norms,
-            middle_scale: config.middle_scale,
-            downsample_padding: config.downsample_padding,
-        };
-        let stages = UnetStages::create(schema, &layout, |schema, site, width| {
-            let heads = match site {
-                UnetSite::Down(index) => config.heads[index],
-                UnetSite::Middle => config.heads[last],
-                UnetSite::Up(index) => config.heads[last - index],
-            };
-            Transformer2d::create(
-                schema,
-                width,
-                config.context_width,
-                heads,
-                config.linear_projection,
-                config.groups,
-            )
-        })?;
-        Ok(Self {
-            config: config.clone(),
-            input: conv3x3(schema, "input", config.in_channels, widths[0])?,
-            time: TimeEmbedding::create(schema, "time", widths[0], time_width)?,
-            stages,
-            norm: schema.group_norm("norm", widths[0], config.groups, config.eps)?,
-            output: conv3x3(schema, "output", widths[0], config.out_channels)?,
-        })
     }
 
     // The predicted noise of `sample`, `[B, C, H, W]`, at the timestep whose features `time` holds, `[1, F]`, conditioned on `context`, `[B, T, D]`, with `motion`'s temporal transformers after each block that has one, where frames of clips make up the batch.
@@ -312,26 +236,26 @@ impl Unet2dConditionLayers {
         motion: Option<&Motion<'_>>,
         state: &ModelState,
     ) -> SingeResult<Tensor> {
-        let time = time.apply(&self.time, state)?;
-        let input = match motion
-            .and_then(|motion| Some((motion.modules.input.as_ref()?, motion.state)))
-        {
-            // The UNet's channels through its own convolution, and those past them through the adapter's.
-            Some((input, motion_state)) => {
-                let (channels, latents) = (sample.shape().dimensions()[1], self.config.in_channels);
-                sample
-                    .narrow(1, 0, latents)?
-                    .apply(&self.input, state)?
-                    .add(
-                        &sample
-                            .narrow(1, latents, channels - latents)?
-                            .apply(input, motion_state)?,
-                    )?
-            }
-            None => sample.apply(&self.input, state)?,
-        };
-        self.stages
-            .forward(input, &time, state, |hidden, attention, site, index| {
+        let input =
+            match motion.and_then(|motion| Some((motion.modules.input.as_ref()?, motion.state))) {
+                // The UNet's channels through its own convolution, and those past them through the adapter's.
+                Some((input, motion_state)) => {
+                    let &[_, channels, _, _] = sample.shape().dimensions() else {
+                        return Err(SingeError::invalid_argument("UNet sample"));
+                    };
+                    let latents = self.config.unet.in_channels;
+                    self.unet
+                        .embed(&sample.narrow(1, 0, latents)?, state)?
+                        .add(
+                            &sample
+                                .narrow(1, latents, channels - latents)?
+                                .apply(input, motion_state)?,
+                        )?
+                }
+                None => self.unet.embed(sample, state)?,
+            };
+        self.unet
+            .denoise(input, time, state, |hidden, attention, site, index| {
                 let hidden = match attention {
                     Some(attention) => attention.forward(&hidden, context, state)?,
                     None => hidden,
@@ -353,54 +277,24 @@ impl Unet2dConditionLayers {
                     Some(module) => module.forward(&hidden, motion.frames, motion.state),
                     None => Ok(hidden),
                 }
-            })?
-            .apply(&self.norm, state)?
-            .apply(&Activation::Silu, state)?
-            .apply(&self.output, state)
+            })
     }
 }
 
 pub type Unet2dCondition = Model<Unet2dConditionLayers>;
 
-pub(crate) const MODEL: ModelEntry = ModelEntry {
-    name: "unet_2d_condition",
-    formats: &[(Format::Diffusers, &["UNet2DConditionModel"])],
-    heads: &[HeadLoader::ConditionalDenoiser(|loader| {
-        Ok(Box::new(load(loader)?))
-    })],
-};
-
-pub fn load(loader: &mut Loader<'_>) -> Result<Unet2dCondition> {
-    let config: Unet2dConditionConfig = loader.config(diffusers::config)?;
-    let mut builder = StateBuilder::new();
-    let layers = {
-        let mut schema = Schema::root(&mut builder, loader.options().data_type);
-        Unet2dConditionLayers::create(&mut schema, &config)?
-    };
-    let model = loader.load(
-        "unet",
-        &Model::new(layers, builder.finish()?),
-        &diffusers::rules(),
-    )?;
-    loader.finish()?;
-    Ok(model)
-}
-
 impl ConditionalDenoiser for Unet2dCondition {
     fn in_channels(&self) -> i64 {
-        self.layer().config.in_channels
+        self.layer().config.unet.in_channels
     }
 
     fn predict(&self, sample: &Tensor, timestep: f32, context: &Tensor) -> Result<Tensor> {
-        let config = &self.layer().config;
         let data_type = self.state().floating_type()?;
-        let time = timestep_input(
-            timestep,
-            config.widths[0],
-            config.flip_sin_to_cos,
-            config.freq_shift,
-            self.state(),
-        )?;
+        let time = self
+            .layer()
+            .config
+            .unet
+            .time_input(timestep, self.state())?;
         Ok(self
             .layer()
             .predict(
@@ -420,33 +314,18 @@ pub struct MotionConfig {
     pub layers_per_block: usize,
     pub heads: i64,
     // The most frames the learned positions cover.
-    pub positions: i64,
+    pub max_positions: i64,
     pub middle: bool,
     pub groups: i64,
     // The input channels of the adapter's own input convolution, which replaces the UNet's, as PIA's reads its image condition.
     pub in_channels: Option<i64>,
 }
 
-// `BasicTransformerBlock` over frames: a transformer block whose second attention attends to the frames themselves, each attention reading its input with the frames' sinusoidal positions added.
+// `BasicTransformerBlock` over frames, whose second attention attends to the frames themselves, each attention reading its input with the frames' sinusoidal positions added.
 #[derive(Debug, Clone)]
 struct TemporalBlock {
     block: TransformerBlock,
     positions: StateKey,
-}
-
-impl TemporalBlock {
-    fn forward(&self, hidden: &Tensor, frames: i64, state: &ModelState) -> SingeResult<Tensor> {
-        let block = &self.block;
-        let positions = state.tensor(&self.positions)?.narrow(1, 0, frames)?;
-        let normed = hidden.apply(&block.norm1, state)?.add(&positions)?;
-        let hidden = hidden.add(&block.attn1.forward(&normed, &normed, state)?)?;
-        let normed = hidden.apply(&block.norm2, state)?.add(&positions)?;
-        let hidden = hidden.add(&block.attn2.forward(&normed, &normed, state)?)?;
-        let fed = hidden
-            .apply(&block.norm3, state)?
-            .apply(&block.feed_forward, state)?;
-        hidden.add(&fed)
-    }
 }
 
 // `AnimateDiffTransformer3D`: each position of a clip's frames attending across the frames, group-normed over the whole clip, and added to its input.
@@ -463,10 +342,10 @@ impl TemporalTransformer {
         let mut scope = schema.scope("blocks.0");
         let block = TemporalBlock {
             block: TransformerBlock::create(&mut scope, width, width, config.heads)?,
-            positions: scope.parameter("positions", [1, config.positions, width])?,
+            positions: scope.parameter("positions", [1, config.max_positions, width])?,
         };
         Ok(Self {
-            norm: schema.group_norm("norm", width, config.groups, 1e-6)?,
+            norm: schema.group_norm("norm", width, config.groups, TRANSFORMER_NORM_EPS)?,
             proj_in: schema.linear("proj_in", width, width, true)?,
             blocks: vec![block],
             proj_out: schema.linear("proj_out", width, width, true)?,
@@ -475,9 +354,9 @@ impl TemporalTransformer {
 
     // `input`, `[B · F, C, H, W]` with each clip's frames together, through the transformer.
     fn forward(&self, input: &Tensor, frames: i64, state: &ModelState) -> SingeResult<Tensor> {
-        let dimensions = input.shape().dimensions();
-        let (rows, channels, height, width) =
-            (dimensions[0], dimensions[1], dimensions[2], dimensions[3]);
+        let &[rows, channels, height, width] = input.shape().dimensions() else {
+            return Err(SingeError::invalid_argument("temporal transformer input"));
+        };
         let clips = rows / frames;
         // The norm's statistics span each clip's frames, as a 5-D group norm's do.
         let normed = input
@@ -492,8 +371,9 @@ impl TemporalTransformer {
             .contiguous()?
             .reshape([clips * height * width, frames, channels])?
             .apply(&self.proj_in, state)?;
-        for block in &self.blocks {
-            hidden = block.forward(&hidden, frames, state)?;
+        for TemporalBlock { block, positions } in &self.blocks {
+            let positions = state.tensor(positions)?.narrow(1, 0, frames)?;
+            hidden = block.forward(&hidden, Some(&positions), None, state)?;
         }
         hidden
             .apply(&self.proj_out, state)?
@@ -539,23 +419,13 @@ impl MotionModules {
                 .collect::<SingeResult<Vec<_>>>()
         };
         let reversed = config.widths.iter().rev().copied().collect::<Vec<_>>();
-        let last = config.widths[config.widths.len() - 1];
+        let (first, last) = (config.widths[0], reversed[0]);
         Ok(Self {
             // The adapter's weights for the channels past the latents', which `from_unet2d` splices after the UNet's own, with the UNet's bias.
             input: config
                 .in_channels
                 .map(|channels| {
-                    schema.conv2d(
-                        "input",
-                        channels - latents,
-                        config.widths[0],
-                        3,
-                        Conv2dConfig {
-                            padding: (1, 1, 1, 1),
-                            ..Conv2dConfig::default()
-                        },
-                        false,
-                    )
+                    schema.conv2d("input", channels - latents, first, 3, same_2d(3, 1), false)
                 })
                 .transpose()?,
             down: stages(schema, "down", &config.widths, config.layers_per_block)?,
@@ -588,72 +458,36 @@ pub struct UnetMotion {
     pub motion: Model<MotionModules>,
 }
 
-// Loads the UNet from `unet` and its motion adapter from `adapter`.
-pub fn load_motion(unet: &Source, adapter: &Source, options: LoadOptions) -> Result<UnetMotion> {
-    let unet = load(&mut Loader::new(unet, options))?;
-    let latents = unet.layer().config.in_channels;
-    let mut loader = Loader::new(adapter, options);
-    let config: MotionConfig = loader.config(diffusers::motion_config)?;
-    let mut builder = StateBuilder::new();
-    let modules = {
-        let mut schema = Schema::root(&mut builder, options.data_type);
-        MotionModules::create(&mut schema, &config, latents)?
-    };
-    let motion = loader.load(
-        "motion",
-        &Model::new(modules, builder.finish()?),
-        &diffusers::motion_rules(latents),
-    )?;
-    loader.finish()?;
-    Ok(UnetMotion { unet, motion })
-}
-
 impl UnetMotion {
     // The predicted noise of clips' latents, `[B, C, F, H, W]`, at `timestep`, each clip conditioned on its row of `context`, `[B, T, D]`, in the model's type, as `diffusers` keeps a pipeline's latents in it.
     pub fn predict(&self, sample: &Tensor, timestep: f32, context: &Tensor) -> Result<Tensor> {
-        let dimensions = sample.shape().dimensions();
-        let (clips, channels, frames, height, width) = (
-            dimensions[0],
-            dimensions[1],
-            dimensions[2],
-            dimensions[3],
-            dimensions[4],
-        );
-        let config = &self.unet.layer().config;
+        let &[clips, channels, frames, height, width] = sample.shape().dimensions() else {
+            return Err(SingeError::invalid_argument("clip latents").into());
+        };
+        let &[_, tokens, features] = context.shape().dimensions() else {
+            return Err(SingeError::invalid_argument("clip context").into());
+        };
+        let unet = self.unet.layer();
         let data_type = self.unet.state().floating_type()?;
-        let time = timestep_input(
-            timestep,
-            config.widths[0],
-            config.flip_sin_to_cos,
-            config.freq_shift,
-            self.unet.state(),
-        )?;
+        let time = unet.config.unet.time_input(timestep, self.unet.state())?;
         let frames_first = sample
             .permute(&[0, 2, 1, 3, 4])?
             .contiguous()?
             .reshape([clips * frames, channels, height, width])?
             .cast(data_type)?;
         // Each clip's text states, once for each of its frames.
-        let context_dimensions = context.shape().dimensions();
         let repeated = context
             .cast(data_type)?
             .unsqueeze(1)?
-            .expand(Shape::create([
-                clips,
-                frames,
-                context_dimensions[1],
-                context_dimensions[2],
-            ])?)?
+            .expand(Shape::create([clips, frames, tokens, features])?)?
             .contiguous()?
-            .reshape([clips * frames, context_dimensions[1], context_dimensions[2]])?;
+            .reshape([clips * frames, tokens, features])?;
         let motion = Motion {
             modules: self.motion.layer(),
             state: self.motion.state(),
             frames,
         };
-        Ok(self
-            .unet
-            .layer()
+        Ok(unet
             .predict(
                 &frames_first,
                 &time,
@@ -665,4 +499,33 @@ impl UnetMotion {
             .permute(&[0, 2, 1, 3, 4])?
             .contiguous()?)
     }
+}
+
+pub(crate) const MODEL: ModelEntry = ModelEntry {
+    name: "unet_2d_condition",
+    formats: &[(Format::Diffusers, &["UNet2DConditionModel"])],
+    loaders: &[HeadLoader::ConditionalDenoiser(|loader| {
+        Ok(Box::new(load(loader)?))
+    })],
+};
+
+pub fn load(loader: &mut Loader<'_>) -> Result<Unet2dCondition> {
+    let config: Unet2dConditionConfig = loader.config(diffusers::config)?;
+    let model = Schema::model(loader.options().data_type, |schema| {
+        Unet2dConditionLayers::create(schema, &config)
+    })?;
+    loader.load_whole(&model, &diffusers::rules())
+}
+
+// Loads the UNet from `unet` and its motion adapter from `adapter`.
+pub fn load_motion(unet: &Source, adapter: &Source, options: LoadOptions) -> Result<UnetMotion> {
+    let unet = load(&mut Loader::new(unet, options))?;
+    let latents = unet.layer().config.unet.in_channels;
+    let mut loader = Loader::new(adapter, options);
+    let config: MotionConfig = loader.config(diffusers::motion_config)?;
+    let motion = Schema::model(options.data_type, |schema| {
+        MotionModules::create(schema, &config, latents)
+    })?;
+    let motion = loader.load_whole(&motion, &diffusers::motion_rules(latents))?;
+    Ok(UnetMotion { unet, motion })
 }

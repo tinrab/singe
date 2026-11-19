@@ -3,11 +3,10 @@ use std::sync::Arc;
 use super::*;
 
 #[test]
-fn test_entry_byte_and_workspace_limits_apply_to_replacements_and_active_owners() {
+fn test_entry_and_byte_limits_apply_to_replacements_and_active_owners() {
     let limits = ProviderCacheLimits {
         entries: 2,
-        accounted_bytes: 12,
-        workspace_bytes: 8,
+        accounted_bytes: 8,
     };
     let mut cache = ProviderCache::new(limits, |_: &usize, value: &Arc<usize>| CacheWeight {
         accounted_bytes: **value,

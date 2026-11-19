@@ -3,17 +3,16 @@
 use serde::Deserialize;
 use singe::nn::Activation;
 
-use super::{BartConfig, BartStackConfig};
 use crate::{
+    assembly::{BartStackConfig, PYTORCH_NORM_EPS, bart_stack_rules, embedding_scale},
     error::{Error, Result},
-    format::{Rules, transformers::activation_field},
-    model::text::bart::stack_rules,
+    format::{
+        Rules,
+        transformers::{activation_field, default_true},
+    },
+    model::text::bart::BartConfig,
     source::Source,
 };
-
-const fn enabled() -> bool {
-    true
-}
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 struct Fields {
@@ -30,7 +29,7 @@ struct Fields {
     max_position_embeddings: i64,
     #[serde(default)]
     scale_embedding: bool,
-    #[serde(default = "enabled")]
+    #[serde(default = "default_true")]
     tie_word_embeddings: bool,
 }
 
@@ -50,12 +49,12 @@ pub(crate) fn config(source: &Source) -> Result<BartConfig> {
         heads,
         inner,
         activation: fields.activation_function,
-        positions: fields.max_position_embeddings,
-        scale_embedding: fields.scale_embedding,
+        max_positions: fields.max_position_embeddings,
+        embedding_scale: embedding_scale(fields.scale_embedding, fields.d_model),
         embedding_norm: true,
         pre_norm: false,
         cross_width: fields.d_model,
-        eps: 1e-5,
+        eps: PYTORCH_NORM_EPS,
     };
     Ok(BartConfig {
         encoder: stack(
@@ -79,6 +78,6 @@ pub(crate) fn rules() -> Rules {
         .skip("model.encoder.embed_tokens")
         .skip("model.decoder.embed_tokens")
         .skip("lm_head")
-        .then(stack_rules("model.encoder.", "encoder."))
-        .then(stack_rules("model.decoder.", "decoder."))
+        .then(bart_stack_rules("model.encoder", "encoder"))
+        .then(bart_stack_rules("model.decoder", "decoder"))
 }

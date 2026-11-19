@@ -18,8 +18,9 @@ pub use self::tokenizer::{PromptTemplate, loop_tokenizer};
 use crate::{
     error::{Error, Result},
     head::{
-        Autoencoder, CausalLm, Head, ImageEncoder, ImageTextToText, LoopLimits, LoopSteps,
-        MaskedLm, QuestionAnswerer, SequenceClassifier, SpeechToText, TokenClassifier,
+        Autoencoder, CausalLm, ImageEncoder, ImageTextToText, LoopLimits, LoopSteps, MaskedLm,
+        QuestionAnswerer, SentenceEmbedder, SequenceClassifier, SpeechToText, TextEncoder,
+        TokenClassifier,
     },
     model,
     processor::{
@@ -27,13 +28,7 @@ use crate::{
         image::{ImageTransforms, Resize},
     },
     source::{LoadOptions, Source},
-    task::{
-        Pipeline, Task,
-        text::{
-            feature_extraction::FeatureExtractionPipeline,
-            sentence_similarity::SentenceSimilarityPipeline,
-        },
-    },
+    task::Task,
 };
 
 // How a model exports: the target and libraries, the type of its weights, and the sizes its programs fix.
@@ -86,7 +81,10 @@ impl ExportOptions {
     }
 
     const fn load(&self) -> LoadOptions {
-        LoadOptions::new(self.device, self.data_type)
+        LoadOptions {
+            join_projections: false,
+            ..LoadOptions::new(self.device, self.data_type)
+        }
     }
 
     const fn limits(&self) -> LoopLimits {
@@ -109,46 +107,6 @@ pub enum Exported {
     Runner,
     // `encoder_run` and `decoder_run`, an autoencoder's halves.
     Autoencoder,
-}
-
-// The task a model exports for when none is named: the task of the head its weights hold.
-pub fn default_task(source: &Source) -> Result<Task> {
-    Ok(match model::head(source)? {
-        Head::CausalLm => Task::TextGeneration,
-        Head::SpeechToText | Head::Ctc => Task::AutomaticSpeechRecognition,
-        Head::ImageTextToText => Task::ImageTextToText,
-        // A `sentence-transformers` snapshot pools its encoder's states into one vector.
-        Head::TextEncoder if source.has("modules.json") => Task::SentenceSimilarity,
-        Head::TextEncoder => Task::FeatureExtraction,
-        Head::ImageEncoder => Task::ImageFeatureExtraction,
-        Head::Autoencoder | Head::SuperResolution => Task::ImageToImage,
-        Head::SequenceClassification => Task::TextClassification,
-        Head::TokenClassification => Task::TokenClassification,
-        Head::QuestionAnswering => Task::QuestionAnswering,
-        Head::MaskedLm => Task::FillMask,
-        Head::ImageClassification => Task::ImageClassification,
-        Head::VideoClassification => Task::VideoClassification,
-        Head::ObjectDetection => Task::ObjectDetection,
-        Head::ZeroShotImageClassification => Task::ZeroShotImageClassification,
-        Head::ZeroShotObjectDetection => Task::ZeroShotObjectDetection,
-        Head::DepthEstimation => Task::DepthEstimation,
-        Head::ImageSegmentation => Task::ImageSegmentation,
-        Head::KeypointDetection => Task::KeypointDetection,
-        Head::KeypointMatching => Task::KeypointMatching,
-        Head::MaskGeneration => Task::MaskGeneration,
-        Head::Seq2SeqLm => Task::Summarization,
-        Head::AudioClassification => Task::AudioClassification,
-        Head::AudioCodec => Task::AudioToAudio,
-        Head::ZeroShotAudioClassification => Task::ZeroShotAudioClassification,
-        Head::TextToSpeech => Task::TextToAudio,
-        Head::DocumentRetrieval => Task::VisualDocumentRetrieval,
-        Head::TimeSeriesForecasting => Task::TimeSeriesForecasting,
-        Head::Trajectory => Task::ReinforcementLearning,
-        Head::TabularClassification => Task::TabularClassification,
-        Head::TabularRegression => Task::TabularRegression,
-        Head::Denoiser => Task::UnconditionalImageGeneration,
-        Head::ConditionalDenoiser => Task::TextToImage,
-    })
 }
 
 // Writes `source`'s programs for `task` to `directory`.
@@ -183,8 +141,8 @@ pub fn export(
             Ok(Exported::Generator)
         }
         Task::FeatureExtraction => {
-            let pipeline = FeatureExtractionPipeline::load(source, load)?;
-            token_runner(pipeline.model(), directory, options)
+            let model: TextEncoder = model::load(source, load)?;
+            token_runner(&model, directory, options)
         }
         Task::TextClassification | Task::TextRanking | Task::ZeroShotClassification => {
             let model: SequenceClassifier = model::load(source, load)?;
@@ -203,8 +161,8 @@ pub fn export(
             token_runner(model.model(), directory, options)
         }
         Task::SentenceSimilarity => {
-            let pipeline = SentenceSimilarityPipeline::load(source, load)?;
-            token_runner(pipeline.model(), directory, options)
+            let model = SentenceEmbedder::load(source, load)?;
+            token_runner(model.model(), directory, options)
         }
         Task::ImageFeatureExtraction => {
             let model: ImageEncoder = model::load(source, load)?;
@@ -222,10 +180,7 @@ pub fn export(
             autoencoder(source, directory, options)?;
             Ok(Exported::Autoencoder)
         }
-        other => Err(Error::UnsupportedConfig(format!(
-            "exporting task {}",
-            other.id()
-        ))),
+        other => Err(Error::unsupported(format!("exporting task {}", other.id()))),
     }
 }
 
@@ -315,8 +270,7 @@ fn token_batch(options: &ExportOptions) -> Result<TokenBatch> {
 
 // The size an image processor gives every image, which an image encoder's program reads.
 fn image_size(processor: &ImageTransforms) -> Result<[i64; 2]> {
-    let config = processor.config();
-    match (config.crop, config.resize) {
+    match (processor.crop, processor.resize) {
         (Some(crop), _) => Ok(crop),
         (None, Some(Resize::Exact { height, width })) => Ok([height, width]),
         _ => Err(Error::unsupported(

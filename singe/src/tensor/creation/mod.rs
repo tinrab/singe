@@ -12,7 +12,7 @@ use crate::{
     },
     data_type::DataType,
     device::Device,
-    dispatch::call_one,
+    dispatch::{DispatchKeySet, ExcludeGuard, call_one},
     error::{Error, Result},
     layout::Layout,
     scalar::Scalar,
@@ -127,6 +127,15 @@ impl Tensor {
         let shape = shape.into();
         shape.byte_size(T::data_type().size_bytes())?;
         let element_count = shape.element_count();
+        // A device fills from one uploaded value rather than copying every element from the host, which for a padded activation is hundreds of megabytes.
+        if device.is_cuda() && element_count > 1 {
+            let _guard = ExcludeGuard::new(DispatchKeySet::frontend());
+            let one = Shape::create(vec![1; shape.dimensions().len()])?;
+            return Self::from_vec(device, one, vec![value])?
+                .expand(shape)?
+                .contiguous();
+        }
+
         Self::from_vec(device, shape, vec![value; element_count])
     }
 }

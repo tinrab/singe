@@ -4,6 +4,7 @@
       "name": "question",
       "snapshot": "SMOLVLM2",
       "task": "visual-question-answering",
+      "data_type": "f32",
       "inputs": [
         {
           "image": "media/cat-448x320.png",
@@ -23,6 +24,7 @@
       "name": "image",
       "snapshot": "SMOLVLM2",
       "task": "image-text-to-text",
+      "data_type": "f32",
       "inputs": [
         [
           {
@@ -56,6 +58,7 @@
       "name": "clip",
       "snapshot": "SMOLVLM2",
       "task": "video-text-to-text",
+      "data_type": "f32",
       "inputs": [
         [
           {

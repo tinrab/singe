@@ -5,7 +5,7 @@ use crate::{
     head::{Trajectory, TrajectoryModel, TrajectoryPredictions},
     model,
     source::{LoadOptions, Source},
-    task::{Pipeline, Task},
+    task::Pipeline,
 };
 
 #[derive(Debug)]
@@ -14,8 +14,6 @@ pub struct ReinforcementLearningPipeline {
 }
 
 impl Pipeline for ReinforcementLearningPipeline {
-    const TASK: Task = Task::ReinforcementLearning;
-
     type Input = Trajectory;
 
     type Parameters = ();
@@ -28,10 +26,7 @@ impl Pipeline for ReinforcementLearningPipeline {
         })
     }
 
-    fn run(&self, inputs: &[Self::Input], (): &Self::Parameters) -> Result<Vec<Self::Output>> {
-        inputs
-            .iter()
-            .map(|trajectory| self.model.predict(trajectory))
-            .collect()
+    fn run_one(&self, trajectory: &Self::Input, (): &Self::Parameters) -> Result<Self::Output> {
+        self.model.predict(trajectory)
     }
 }

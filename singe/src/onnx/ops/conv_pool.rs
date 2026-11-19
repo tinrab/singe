@@ -190,7 +190,7 @@ pub fn lower_global_avg_pool(importer: &mut Importer, node: &Node) -> Result<()>
     expect_outputs(importer, node, 1)?;
     let input = importer.required_input(node, 0)?;
     let dimensions = input.shape.dimensions();
-    if dimensions.len() != 4 {
+    let &[batch, channels, height, width] = dimensions else {
         return Err(Error::UnsupportedShape {
             name: node_label(node),
             reason: format!(
@@ -199,10 +199,9 @@ pub fn lower_global_avg_pool(importer: &mut Importer, node: &Node) -> Result<()>
                 dimensions
             ),
         });
-    }
-
-    let kernel = (dimensions[2], dimensions[3]);
-    let shape = Shape::create([dimensions[0], dimensions[1], 1, 1])?;
+    };
+    let kernel = (height, width);
+    let shape = Shape::create([batch, channels, 1, 1])?;
     let device = importer.options().device;
     let id = importer
         .graph()

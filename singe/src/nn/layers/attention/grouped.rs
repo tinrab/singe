@@ -3,7 +3,7 @@ use crate::{
     graph::DimensionExpr,
     nn::{
         AttentionInput, DecodingLayer, DenseAttentionInput, HeadProjection, KvCache, Layer, Linear,
-        ModelState,
+        ModelState, layers::linear::joined_forward,
     },
     tensor::{AttentionOptions, Tensor},
 };
@@ -15,6 +15,35 @@ pub struct GroupedQueryLayers {
     pub key: HeadProjection,
     pub value: HeadProjection,
     pub output: Linear,
+}
+
+impl GroupedQueryLayers {
+    #[must_use]
+    pub const fn siblings(&self) -> [&Linear; 3] {
+        [self.query.linear(), self.key.linear(), self.value.linear()]
+    }
+
+    // Projects `hidden` to the query heads, the query's gate if it reads one, and the key and value heads, with one matmul when their weights are joined.
+    fn project(
+        &self,
+        hidden: &Tensor,
+        state: &ModelState,
+    ) -> Result<(Tensor, Option<Tensor>, Tensor, Tensor)> {
+        if let Some([query, key, value]) = joined_forward(&self.siblings(), hidden, state)? {
+            let (query, gate) = self.query.split_heads(hidden, &query, state)?;
+            let (key, _) = self.key.split_heads(hidden, &key, state)?;
+            let (value, _) = self.value.split_heads(hidden, &value, state)?;
+            return Ok((query, gate, key, value));
+        }
+
+        let (query, gate) = self.query.project(hidden, state)?;
+        Ok((
+            query,
+            gate,
+            hidden.apply(&self.key, state)?,
+            hidden.apply(&self.value, state)?,
+        ))
+    }
 }
 
 // Attention of `H` query heads over `G` key and value heads, reading and extending a [`KvCache`].
@@ -62,11 +91,11 @@ impl Layer<DenseAttentionInput<'_>> for GroupedQueryAttention {
             }?
             .permute(&[0, 2, 1, 3])
         };
-        let (query, gate) = layers.query.project(hidden, state)?;
+        let (query, gate, key, value) = layers.project(hidden, state)?;
         let (query, key, value) = (
             rotate_heads(query, true)?,
-            rotate_heads(hidden.apply(&layers.key, state)?, true)?,
-            rotate_heads(hidden.apply(&layers.value, state)?, false)?,
+            rotate_heads(key, true)?,
+            rotate_heads(value, false)?,
         );
         // Each sequence's count of keys hides its padded keys from every query and head.
         let attended = input
@@ -103,10 +132,9 @@ impl DecodingLayer for GroupedQueryAttention {
             Some(angles) => angles.rotate(&heads),
             None => Ok(heads),
         };
-        let (query, gate) = layers.query.project(hidden, state)?;
+        let (query, gate, key, value) = layers.project(hidden, state)?;
         let query = rotate(query)?;
-        let key = rotate(hidden.apply(&layers.key, state)?)?;
-        let value = hidden.apply(&layers.value, state)?;
+        let key = rotate(key)?;
         input.cache.write(input.step, &key, &value)?;
         let (attended, _) = query.paged_attention(
             input.cache.keys(),

@@ -6,10 +6,6 @@ use half::bf16;
 use half::f16;
 
 #[must_use]
-#[expect(
-    clippy::cast_precision_loss,
-    reason = "the f32 algorithm converts integer dimensions and accumulators to its floating-point working precision"
-)]
 pub fn rms_norm_gated_silu(
     input: &[f32],
     gate: &[f32],
@@ -39,10 +35,6 @@ pub fn rms_norm_gated_silu(
 }
 
 #[must_use]
-#[expect(
-    clippy::cast_precision_loss,
-    reason = "the f32 algorithm converts integer dimensions and accumulators to its floating-point working precision"
-)]
 pub fn rms_norm(input: &[f32], weight: &[f32], rows: usize, cols: usize, eps: f32) -> Vec<f32> {
     let mut out = vec![0.0f32; rows * cols];
     for row in 0..rows {
@@ -62,10 +54,6 @@ pub fn rms_norm(input: &[f32], weight: &[f32], rows: usize, cols: usize, eps: f3
 }
 
 #[must_use]
-#[expect(
-    clippy::cast_precision_loss,
-    reason = "the f32 algorithm converts integer dimensions and accumulators to its floating-point working precision"
-)]
 pub fn rms_norm_weight_offset(
     input: &[f32],
     weight: &[f32],
@@ -171,14 +159,6 @@ pub fn mhc_sinkhorn_f32(y: &[f32], batch: usize, n: usize) -> Vec<f32> {
 }
 
 #[must_use]
-#[expect(
-    clippy::many_single_char_names,
-    reason = "kernel operand names follow the mathematical formula"
-)]
-#[expect(
-    clippy::cast_precision_loss,
-    reason = "the f32 algorithm converts integer dimensions and accumulators to its floating-point working precision"
-)]
 pub fn mhc_gemm_rms_scale_f32(
     x: &[f32],
     w: &[f32],

@@ -50,15 +50,27 @@ impl Conv2dParameters {
             )));
         }
 
+        let (
+            &[batch_size, input_channels, input_height, input_width],
+            &[
+                output_channels,
+                weight_channels,
+                kernel_height,
+                kernel_width,
+            ],
+        ) = (input_dimensions, weight_dimensions)
+        else {
+            return Err(Error::invalid_argument(format!("{diagnostic_prefix} rank")));
+        };
         let parameters = Self {
-            batch_size: input_dimensions[0],
-            input_channels: input_dimensions[1],
-            input_height: input_dimensions[2],
-            input_width: input_dimensions[3],
-            output_channels: weight_dimensions[0],
-            weight_channels: weight_dimensions[1],
-            kernel_height: weight_dimensions[2],
-            kernel_width: weight_dimensions[3],
+            batch_size,
+            input_channels,
+            input_height,
+            input_width,
+            output_channels,
+            weight_channels,
+            kernel_height,
+            kernel_width,
             stride_height: stride.0,
             stride_width: stride.1,
             pad_height_start: padding.0,
@@ -522,10 +534,13 @@ impl ConvolutionWindow {
 
         validate_positive("convolution groups", groups)?;
 
-        let batch = input_dimensions[0];
-        let input_channels = input_dimensions[1];
-        let output_channels = weight_dimensions[0];
-        let weight_channels = weight_dimensions[1];
+        let (
+            &[batch, input_channels, ref input_spatial @ ..],
+            &[output_channels, weight_channels, ref weight_spatial @ ..],
+        ) = (input_dimensions, weight_dimensions)
+        else {
+            return Err(Error::invalid_argument("convolution rank"));
+        };
         validate_non_negative("convolution batch", batch)?;
         validate_positive("convolution input channels", input_channels)?;
         validate_positive("convolution output channels", output_channels)?;
@@ -550,16 +565,14 @@ impl ConvolutionWindow {
         }
 
         let mut output = vec![batch, output_channels];
-        for (axis, ((&stride, &(before, after)), &dilation)) in
-            stride.iter().zip(padding).zip(dilation).enumerate()
+        for (((&stride, &(before, after)), &dilation), (&input, &kernel)) in stride
+            .iter()
+            .zip(padding)
+            .zip(dilation)
+            .zip(input_spatial.iter().zip(weight_spatial))
         {
             output.push(conv2d_output_dimension(
-                input_dimensions[axis + 2],
-                weight_dimensions[axis + 2],
-                before,
-                after,
-                stride,
-                dilation,
+                input, kernel, before, after, stride, dilation,
             )?);
         }
         Shape::create(output)

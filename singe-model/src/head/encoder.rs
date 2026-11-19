@@ -4,17 +4,17 @@
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use singe::{
     Result as SingeResult,
-    nn::{Activation, Model, StateBuilder},
+    nn::{Activation, Model},
 };
 
-use super::{
-    ClassifierLayout, Head, HeadLoader, LoadHead, MaskedLm, QuestionAnswerer, SequenceClassifier,
-    TextEncoder, TokenClassifier,
-};
 use crate::{
     assembly::{PostNormEncoder, PostNormEncoderConfig},
     error::Result,
     format::{Loader, Rules},
+    head::{
+        ClassifierLayout, Head, HeadLoader, LoadHead, MaskedLm, QuestionAnswerer,
+        SequenceClassifier, TextEncoder, TokenClassifier,
+    },
     schema::Schema,
     source::Source,
 };
@@ -76,17 +76,23 @@ pub fn load_encoder_head<M: EncoderModel, H: EncoderHead>(loader: &mut Loader<'_
             head: H::transformers_config(source)?,
         })
     })?;
-    let mut builder = StateBuilder::new();
-    let layers = {
-        let mut schema = Schema::root(&mut builder, loader.options().data_type);
-        let encoder = PostNormEncoder::create(&mut schema, &config.encoder)?;
-        H::layers(&mut schema, encoder, &config.head, &M::LAYOUTS)?
-    };
-    let schema = Model::new(layers, builder.finish()?);
-    let rules = M::head_rules(H::HEAD).then(M::encoder_rules());
-    let model = loader.load("model", &schema, &rules)?;
-    loader.finish()?;
+    let model = Schema::model(loader.options().data_type, |schema| {
+        let encoder = PostNormEncoder::create(schema, &config.encoder)?;
+        H::layers(schema, encoder, &config.head, &M::LAYOUTS)
+    })?;
+    let rules = M::head_rules(H::HEAD)
+        .then(shared_head_rules(H::HEAD))
+        .then(M::encoder_rules());
+    let model = loader.load_whole(&model, &rules)?;
     Ok(H::new(model, config.head))
+}
+
+fn shared_head_rules(head: Head) -> Rules {
+    match head {
+        Head::TokenClassification => Rules::new().rename("classifier", "classifier.output"),
+        Head::QuestionAnswering => Rules::new().rename("qa_outputs", "span.output"),
+        _ => Rules::new(),
+    }
 }
 
 // A loader for every head over a text encoder, for a model that serves them all; the bare encoder comes first, which a snapshot that names no head serves.

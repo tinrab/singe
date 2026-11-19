@@ -60,12 +60,15 @@ pub fn conv3d(
     ensure_same_data_type(input, weight)?;
     let window = ConvolutionWindow::conv3d(attributes);
     let output_shape = window.output_shape(input.shape(), weight.shape())?;
-    if let Some(bias) = bias
-        && bias.shape().dimensions() != [output_shape.dimensions()[1]]
-    {
-        return Err(Error::invalid_argument(
-            "cuda conv3d needs one bias per output channel",
-        ));
+    if let Some(bias) = bias {
+        let &[_, channels, ..] = output_shape.dimensions() else {
+            return Err(Error::invalid_argument("cuda conv3d output dimensions"));
+        };
+        if bias.shape().dimensions() != [channels] {
+            return Err(Error::invalid_argument(
+                "cuda conv3d needs one bias per output channel",
+            ));
+        }
     }
     cudnn_convolution(
         Operation::Conv3d,
@@ -105,7 +108,7 @@ fn cudnn_convolution(
         output_shape,
         kind,
         window.parameters(),
-        |context, inputs, output| {
+        |context, inputs, output, selection| {
             build_cudnn_convolution_template(
                 context,
                 &inputs[0],
@@ -113,6 +116,7 @@ fn cudnn_convolution(
                 inputs.get(2),
                 output,
                 cudnn_convolution_geometry(window)?,
+                selection,
             )
         },
     )

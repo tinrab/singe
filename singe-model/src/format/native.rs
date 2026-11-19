@@ -3,14 +3,34 @@
 
 use std::{fs, path::Path};
 
-use serde_json::{Value, json};
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use singe::nn::ModelState;
 
 use crate::{
     error::{Error, Result},
     head::Head,
-    source::Source,
+    source::{Source, read_json},
 };
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub(crate) struct NativeConfig {
+    pub(crate) model: String,
+    pub(crate) head: String,
+    pub(crate) config: Value,
+    pub(crate) stop_tokens: Vec<i64>,
+}
+
+#[derive(Serialize, Deserialize)]
+struct NativeFile {
+    singe: NativeConfig,
+}
+
+impl NativeConfig {
+    pub(crate) fn read(directory: &Path) -> Result<Self> {
+        Ok(read_json::<NativeFile>(&directory.join("config.json"))?.singe)
+    }
+}
 
 // Files that hold another format's weights, or its model config at the top, which the native files replace.
 fn replaced(name: &str, top: bool) -> bool {
@@ -41,21 +61,23 @@ pub(crate) fn save(
     // Copying into the source would copy each file onto itself or recurse into its own copy.
     let canonical = |path: &Path| fs::canonicalize(path).map_err(Error::io(path));
     if canonical(directory)?.starts_with(canonical(source.directory())?) {
-        return Err(Error::unsupported(
-            "saving a model inside its source directory",
+        return Err(Error::invalid(
+            "a save directory inside the source directory",
         ));
     }
 
     copy_files(source.directory(), directory, true)?;
     // The stop tokens, which the source may name only in the config this one replaces.
-    let file = json!({"singe": {
-        "model": model,
-        "head": head.id(),
-        "config": config,
-        "stop_tokens": source.stop_tokens()?,
-    }});
-    let text =
-        serde_json::to_string_pretty(&file).map_err(Error::json("write the native config"))?;
+    let file = NativeFile {
+        singe: NativeConfig {
+            model: model.to_owned(),
+            head: head.id().to_owned(),
+            config: config.clone(),
+            stop_tokens: source.stop_tokens()?,
+        },
+    };
+    let text = serde_json::to_string_pretty(&file)
+        .map_err(Error::json_value("write the native config"))?;
     let path = directory.join("config.json");
     fs::write(&path, text).map_err(Error::io(&path))?;
     for (part, state) in parts {

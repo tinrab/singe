@@ -1,29 +1,24 @@
-"""DistilBERT, through every task a DistilBERT snapshot here serves, as `verify.rs` runs them in Singe: a sentiment classifier, an inference model classifying zero-shot, a named-entity tagger, a question answerer over short and long contexts, the pretrained masked language model filling blanks, and a sentence embedder that max-pools its tokens."""
+"""DistilBERT, through every task a DistilBERT snapshot here serves, as `mod.rs` runs them in Singe: a sentiment classifier, an inference model classifying zero-shot, a named-entity tagger, a question answerer over short and long contexts, the pretrained masked language model filling blanks, and a sentence embedder that max-pools its tokens."""
 
-import sys
-from pathlib import Path
+import numpy
+import torch
+from sentence_transformers import SentenceTransformer
+from sentence_transformers.util import cos_sim
+from transformers import AutoModelForQuestionAnswering, AutoTokenizer, pipeline
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-
-import numpy  # noqa: E402
-import torch  # noqa: E402
-from sentence_transformers import SentenceTransformer  # noqa: E402
-from sentence_transformers.util import cos_sim  # noqa: E402
-from transformers import AutoModelForQuestionAnswering, AutoTokenizer, pipeline  # noqa: E402
-
-from support import DEVICE, Verification  # noqa: E402
+from support import DEVICE, Verification
 
 
-def text_classification(snapshot):
+def text_classification(snapshot, dtype):
     classify = pipeline(
-        "text-classification", model=snapshot, dtype=torch.float32, device=DEVICE
+        "text-classification", model=snapshot, dtype=dtype, device=DEVICE
     )
     return lambda texts, parameters: [classify(text, **parameters) for text in texts]
 
 
-def zero_shot_classification(snapshot):
+def zero_shot_classification(snapshot, dtype):
     classify = pipeline(
-        "zero-shot-classification", model=snapshot, dtype=torch.float32, device=DEVICE
+        "zero-shot-classification", model=snapshot, dtype=dtype, device=DEVICE
     )
     return lambda inputs, parameters: [
         classify(item["sequences"], item["candidate_labels"], **parameters)
@@ -31,14 +26,12 @@ def zero_shot_classification(snapshot):
     ]
 
 
-def token_classification(snapshot):
-    tag = pipeline(
-        "token-classification", model=snapshot, dtype=torch.float32, device=DEVICE
-    )
+def token_classification(snapshot, dtype):
+    tag = pipeline("token-classification", model=snapshot, dtype=dtype, device=DEVICE)
     return lambda texts, parameters: [tag(text, **parameters) for text in texts]
 
 
-def question_answering(snapshot, dtype=torch.float32):
+def question_answering(snapshot, dtype):
     """`transformers` 5 removed the question-answering pipeline, so this is its model with `transformers` 4.57's span selection, ported from `pipelines/question_answering.py`: windows of the context, softmaxed start and end scores over the context, spans of at most `max_answer_len` tokens aligned to words, and one answer's scores summed across windows."""
     tokenizer = AutoTokenizer.from_pretrained(snapshot)
     model = (
@@ -145,13 +138,13 @@ def question_answering(snapshot, dtype=torch.float32):
     return lambda inputs, parameters: [answers(item, parameters) for item in inputs]
 
 
-def fill_mask(snapshot):
-    fill = pipeline("fill-mask", model=snapshot, dtype=torch.float32, device=DEVICE)
+def fill_mask(snapshot, dtype):
+    fill = pipeline("fill-mask", model=snapshot, dtype=dtype, device=DEVICE)
     return lambda texts, parameters: [fill(text, **parameters) for text in texts]
 
 
-def sentence_similarity(snapshot):
-    model = SentenceTransformer(snapshot, device=DEVICE)
+def sentence_similarity(snapshot, dtype):
+    model = SentenceTransformer(snapshot, device=DEVICE, model_kwargs={"dtype": dtype})
 
     def run(inputs, parameters):
         outputs = []
@@ -175,9 +168,7 @@ verification.check("entities-simple", token_classification)
 verification.check("entities-first", token_classification)
 verification.check("answers", question_answering)
 verification.check("answers-small-windows", question_answering)
-verification.check(
-    "answers-bf16", lambda snapshot: question_answering(snapshot, torch.bfloat16)
-)
+verification.check("answers-bf16", question_answering)
 verification.check("fill", fill_mask)
 verification.check("similarity-max", sentence_similarity)
 verification.finish()

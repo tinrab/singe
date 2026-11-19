@@ -4,13 +4,15 @@
 
 use singe_cuda::graph::GraphNode;
 
-use super::paged_cudnn::try_lower_cudnn_paged_attention;
 use crate::{
     backend::{
         cuda::{
             compiled::{
                 build::{
-                    lower::GraphOperationLoweringRequest, realized::record_realized_cuda_lowering,
+                    lower::{
+                        GraphOperationLoweringRequest, paged_cudnn::try_lower_cudnn_paged_attention,
+                    },
+                    realized::record_realized_cuda_lowering,
                     state::GraphLoweringState,
                 },
                 executable::LibraryResource,

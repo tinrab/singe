@@ -17,7 +17,6 @@ const HEADS: i64 = 2;
 const HEAD_DIM: i64 = WIDTH / HEADS;
 
 // Values that differ everywhere and stay small, so no score saturates the softmax.
-#[expect(clippy::cast_precision_loss, reason = "test values have few elements")]
 fn values(shape: &[i64], seed: f32, device: Device, data_type: DataType) -> Tensor {
     let count = shape.iter().product::<i64>();
     let values = (0..count)
@@ -61,7 +60,6 @@ fn case(sources: i64, sequences: usize, device: Device, data_type: DataType) -> 
     )
     .unwrap();
     let state = builder.finish().unwrap();
-    #[expect(clippy::cast_precision_loss, reason = "a few sequences")]
     let sources = (0..sequences)
         .map(|sequence| {
             let encoded = values(&[sources, WIDTH], 1.0 + sequence as f32, device, data_type);

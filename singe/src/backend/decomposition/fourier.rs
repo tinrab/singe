@@ -32,7 +32,7 @@ impl Tensor {
     // The length-`length` real signal of `[..., k, 2]` frequencies, as `torch.fft.irfft` computes it: the imaginary parts of the constant and, for even lengths, the highest frequency are ignored, and the result is divided by `length`.
     pub fn irfft_by_basis(&self, length: i64) -> Result<Self> {
         let dimensions = self.shape().dimensions();
-        let &[.., frequencies, pair] = dimensions else {
+        let &[ref leading @ .., frequencies, pair] = dimensions else {
             return Err(Error::invalid_argument(
                 "irfft needs [..., k, 2] frequencies",
             ));
@@ -62,7 +62,7 @@ impl Tensor {
             };
             weight * unscaled / count(length)
         })?;
-        let mut flat = dimensions[..dimensions.len() - 2].to_vec();
+        let mut flat = leading.to_vec();
         flat.push(used * 2);
         self.narrow(-2, 0, used)?.reshape(flat)?.matmul(&basis)
     }
@@ -96,10 +96,6 @@ impl Tensor {
             });
         }
 
-        #[expect(
-            clippy::cast_possible_truncation,
-            reason = "basis entries lie in [-2, 2]"
-        )]
         let values = values.iter().map(|&value| value as f32).collect::<Vec<_>>();
         let basis = capture::literal(self.device(), |device| {
             Self::from_vec(device, shape, values)
@@ -117,10 +113,6 @@ fn angle(product: i64, length: i64) -> f64 {
     TAU * count(product % length) / count(length)
 }
 
-#[expect(
-    clippy::cast_precision_loss,
-    reason = "signal lengths are far below 2^53"
-)]
 const fn count(value: i64) -> f64 {
     value as f64
 }

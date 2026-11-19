@@ -59,7 +59,7 @@ pub fn lower_leaky_relu(importer: &mut Importer, node: &Node) -> Result<()> {
     )
 }
 
-pub fn lower_softmax(importer: &mut Importer, node: &Node, log: bool) -> Result<()> {
+pub fn lower_softmax(importer: &mut Importer, node: &Node, operation: Operation) -> Result<()> {
     expect_input_count(importer, node, 1)?;
     expect_outputs(importer, node, 1)?;
     let attrs = Attributes::create(node)?;
@@ -75,11 +75,6 @@ pub fn lower_softmax(importer: &mut Importer, node: &Node, log: bool) -> Result<
             ),
         )
     })?;
-    let operation = if log {
-        Operation::LogSoftmax
-    } else {
-        Operation::Softmax
-    };
     let device = importer.options().device;
     let id = importer
         .graph()
@@ -128,10 +123,6 @@ pub fn lower_pow(importer: &mut Importer, node: &Node) -> Result<()> {
     )
 }
 
-#[expect(
-    clippy::float_cmp,
-    reason = "exact equality selects an identity, specialization, or deterministic tie; approximate equality changes semantics"
-)]
 pub fn pow_operation(importer: &Importer, node: &Node, exponent: f32) -> Result<Operation> {
     if exponent == 2.0 {
         Ok(Operation::Square)

@@ -8,7 +8,7 @@ use crate::{
         writer::{CUDNN_BASE, LibraryCode, Renderer, alignment, cudnn_type, integers},
     },
     data_type::DataType,
-    error::Result,
+    error::{Error, Result},
     graph::{ComputePrecision, Determinism},
     utility::{emit, to_i64},
 };
@@ -309,7 +309,12 @@ impl Renderer<'_> {
             key_lengths,
         }) = lengths
         {
-            let shape = ([query.layout.dimensions()[0], 1, 1, 1], [1, 1, 1, 1]);
+            let Some(&batch) = query.layout.dimensions().first() else {
+                return Err(Error::invalid_argument(
+                    "cuda program attention query dimensions",
+                ));
+            };
+            let shape = ([batch, 1, 1, 1], [1, 1, 1, 1]);
             for (name, view) in [
                 ("query_lengths", query_lengths),
                 ("key_lengths", key_lengths),
@@ -393,17 +398,18 @@ impl Renderer<'_> {
 
         let bound_count = names.len();
         if masked {
-            let scores = paged.as_ref().map_or_else(
-                || {
-                    [
-                        query.layout.dimensions()[0],
-                        query.layout.dimensions()[1],
-                        query.layout.dimensions()[2],
-                        key.layout.dimensions()[2],
-                    ]
-                },
-                |paged| paged.paging.scores(),
-            );
+            let scores = if let Some(paged) = &paged {
+                paged.paging.scores()
+            } else {
+                let (&[batch, heads, queries, _], &[_, _, keys, _]) =
+                    (query.layout.dimensions(), key.layout.dimensions())
+                else {
+                    return Err(Error::invalid_argument(
+                        "cuda program attention query and key dimensions",
+                    ));
+                };
+                [batch, heads, queries, keys]
+            };
             let strides = [
                 scores[1] * scores[2] * scores[3],
                 scores[2] * scores[3],
@@ -492,7 +498,11 @@ impl Renderer<'_> {
         let rank = stride.len();
         // A bias holds a value per channel, broadcast over the batch and the spatial axes, and the sum rounds once.
         let bias = bias.map(|bias| {
-            let channels = output.layout.dimensions()[1];
+            let &[_, channels, ..] = output.layout.dimensions() else {
+                return Err(Error::invalid_argument(
+                    "cuda program convolution output dimensions",
+                ));
+            };
             let stride = bias.layout.strides().first().copied().unwrap_or(1);
             let span = channels * stride.max(1);
             let dimensions = [1, channels]
@@ -503,8 +513,9 @@ impl Renderer<'_> {
                 .into_iter()
                 .chain(repeat_n(span, rank))
                 .collect::<Vec<_>>();
-            (bias, dimensions, strides)
+            Ok((bias, dimensions, strides))
         });
+        let bias = bias.transpose()?;
         let (before, after): (Vec<_>, Vec<_>) = padding.iter().copied().unzip();
         let (stride, before, after, dilation) = (
             integers(stride.iter().copied()),

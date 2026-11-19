@@ -112,11 +112,11 @@ fn test_permute_rejects_invalid_dimensions_without_panicking() {
 
     assert!(matches!(
         shape.permute(&[0, 1, 3]),
-        Err(Error::DimensionOutOfBounds)
+        Err(Error::DimensionOutOfBounds { .. })
     ));
     assert!(matches!(
         shape.permute(&[0, 1, i64::MIN]),
-        Err(Error::DimensionOutOfBounds)
+        Err(Error::DimensionOutOfBounds { .. })
     ));
 }
 

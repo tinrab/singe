@@ -201,7 +201,7 @@ impl<'a> CudaTensorRegion<'a> {
         }
 
         if !self.is_contiguous() {
-            return Err(Error::ContiguousRequired);
+            return Err(Error::contiguous_required("cuda tensor input region"));
         }
         Ok(DeviceInputView::create(self.region)?)
     }

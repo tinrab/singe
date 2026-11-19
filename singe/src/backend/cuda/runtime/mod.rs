@@ -6,9 +6,9 @@ mod retention;
 mod stats;
 mod weight;
 
-use std::{
-    collections::HashMap,
-    sync::{Arc, Mutex, OnceLock},
+use std::sync::{
+    Arc, Mutex, OnceLock,
+    atomic::{AtomicBool, Ordering},
 };
 
 use singe_cufft::{plan::Plan, types::TransformType};
@@ -18,7 +18,9 @@ use singe_cuda::{
     architecture::GpuArchitecture,
     context::Context as CudaContext,
     module::KernelFunction,
-    stream::{Stream, StreamCaptureStatus, StreamOptions},
+    stream::{
+        Stream, StreamCaptureMode, StreamCaptureStatus, StreamOptions, exchange_capture_mode,
+    },
 };
 use singe_cudnn::context::Context as CudnnContext;
 use singe_cutensor::context::Context as CutensorContext;
@@ -37,11 +39,16 @@ use crate::{
     backend::cuda::{
         cudnn_backend::{CudnnBackendGraphCacheEntry, CudnnBackendGraphKey},
         cutensor::{CachedCutensorContractionPlan, CutensorContractionPlanKey},
+        device_count, kernel_plan,
+        nvtx::CudaNvtxRange,
         stream::CudaStream,
     },
+    data_type::DataType,
     device::Device,
     error::{Error, Result},
+    shape::Shape,
     storage::cuda::{cuda_context_for_device, cuda_device_id},
+    tensor::Tensor,
     utility::Locked,
 };
 
@@ -52,10 +59,11 @@ pub struct CudaRuntime {
     context: Arc<CudaContext>,
     /// The real architecture generated kernels compile for, such as `sm_120`.
     architecture: GpuArchitecture,
-    cublas: Mutex<CublasContext>,
-    cublaslt: Mutex<CublasLtContext>,
-    cudnn: Mutex<CudnnContext>,
-    cutensor: Mutex<CutensorContext>,
+    // Each library's handle, created on first use: creating them all costs about half a second, mostly cuTENSOR's, which most models never call.
+    cublas: OnceLock<Mutex<CublasContext>>,
+    cublaslt: OnceLock<Mutex<CublasLtContext>>,
+    cudnn: OnceLock<Mutex<CudnnContext>>,
+    cutensor: OnceLock<Mutex<CutensorContext>>,
     cudnn_backend_graphs: Mutex<ProviderCache<CudnnBackendGraphKey, CudnnBackendGraphCacheEntry>>,
     cutensor_contraction_plans:
         Mutex<ProviderCache<CutensorContractionPlanKey, CachedCutensorContractionPlan>>,
@@ -67,6 +75,10 @@ pub struct CudaRuntime {
     generated_kernels: Mutex<ProviderCache<String, KernelFunction>>,
     // The stream eager kernels launch on when their context names none, created once rather than for each launch.
     eager_stream: OnceLock<CudaStream>,
+    // The status word eager checking kernels share, and whether one ran since it was last read.
+    // Eager work reads it at the next readback or synchronization, as compiled replay reads its own, rather than draining the stream after each checking kernel.
+    eager_status: OnceLock<Tensor>,
+    eager_status_pending: AtomicBool,
 }
 
 // The transform, signal length, and batch a cuFFT plan runs.
@@ -74,21 +86,21 @@ pub type FftPlanKey = (TransformType, usize, usize);
 
 impl CudaRuntime {
     fn create(device_id: i32) -> Result<Self> {
-        let context = cuda_context_for_device(device_id)?;
+        let _range = CudaNvtxRange::new(|| "singe cuda runtime create");
+        let context = {
+            let _range = CudaNvtxRange::new(|| "singe cuda context");
+            cuda_context_for_device(device_id)?
+        };
         context.bind()?;
-        let cublas = CublasContext::create(&context)?;
-        let cublaslt = CublasLtContext::create(&context)?;
-        let cudnn = CudnnContext::create(&context)?;
-        let cutensor = CutensorContext::create(&context)?;
         let properties = context.device().properties()?;
         let architecture = format!("sm_{}{}", properties.major, properties.minor).parse()?;
         Ok(Self {
             context,
             architecture,
-            cublas: Mutex::new(cublas),
-            cublaslt: Mutex::new(cublaslt),
-            cudnn: Mutex::new(cudnn),
-            cutensor: Mutex::new(cutensor),
+            cublas: OnceLock::new(),
+            cublaslt: OnceLock::new(),
+            cudnn: OnceLock::new(),
+            cutensor: OnceLock::new(),
             cudnn_backend_graphs: Mutex::new(ProviderCache::new(
                 ProviderCacheLimits::default(),
                 weight::cudnn,
@@ -118,6 +130,8 @@ impl CudaRuntime {
                 weight::compiled_kernel,
             )),
             eager_stream: OnceLock::new(),
+            eager_status: OnceLock::new(),
+            eager_status_pending: AtomicBool::new(false),
         })
     }
 
@@ -132,6 +146,31 @@ impl CudaRuntime {
         Ok(self
             .eager_stream
             .get_or_init(|| CudaStream::new(Arc::new(stream))))
+    }
+
+    // Returns the status word an eager checking kernel about to launch writes, zeroed when created, and notes that it needs reading.
+    pub(crate) fn eager_status_for_write(&self) -> Result<&Tensor> {
+        let status = if let Some(status) = self.eager_status.get() {
+            status
+        } else {
+            let device = Device::Cuda(self.context.device().id());
+            let status = Tensor::zeroed_on(device, DataType::I32, &Shape::create([1])?)?;
+            self.eager_status.get_or_init(|| status)
+        };
+        self.eager_status_pending.store(true, Ordering::Release);
+        Ok(status)
+    }
+
+    // Reads and clears what eager checking kernels reported since the last read, and returns the error it records.
+    // The caller has waited for the eager stream, or reads through a copy ordered after it.
+    pub(crate) fn take_eager_status(&self) -> Result<()> {
+        if !self.eager_status_pending.swap(false, Ordering::AcqRel) {
+            return Ok(());
+        }
+
+        self.eager_status
+            .get()
+            .map_or(Ok(()), kernel_plan::take_status)
     }
 
     // Orders the work enqueued on `stream` from now on after what the eager stream holds, as a stream not ordered with it does before reading what eager work wrote.
@@ -166,24 +205,70 @@ impl CudaRuntime {
         &self.context
     }
 
-    /// Returns the mutex-protected cuBLAS handle associated with this runtime's CUDA context.
-    pub fn cublas(&self) -> &Mutex<CublasContext> {
-        &self.cublas
+    /// Returns the mutex-protected cuBLAS handle associated with this runtime's CUDA context, creating it on first use.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if binding the context or creating the handle fails.
+    pub fn cublas(&self) -> Result<&Mutex<CublasContext>> {
+        self.handle(&self.cublas, "singe cublas create", |context| {
+            Ok(CublasContext::create(context)?)
+        })
     }
 
-    /// Returns the mutex-protected cuBLASLt handle associated with this runtime's CUDA context.
-    pub fn cublaslt(&self) -> &Mutex<CublasLtContext> {
-        &self.cublaslt
+    /// Returns the mutex-protected cuBLASLt handle associated with this runtime's CUDA context, creating it on first use.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if binding the context or creating the handle fails.
+    pub fn cublaslt(&self) -> Result<&Mutex<CublasLtContext>> {
+        self.handle(&self.cublaslt, "singe cublaslt create", |context| {
+            Ok(CublasLtContext::create(context)?)
+        })
     }
 
-    /// Returns the mutex-protected cuDNN handle associated with this runtime's CUDA context.
-    pub fn cudnn(&self) -> &Mutex<CudnnContext> {
-        &self.cudnn
+    /// Returns the mutex-protected cuDNN handle associated with this runtime's CUDA context, creating it on first use.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if binding the context or creating the handle fails.
+    pub fn cudnn(&self) -> Result<&Mutex<CudnnContext>> {
+        self.handle(&self.cudnn, "singe cudnn create", |context| {
+            Ok(CudnnContext::create(context)?)
+        })
     }
 
-    /// Returns the mutex-protected cuTENSOR handle associated with this runtime's CUDA context.
-    pub fn cutensor(&self) -> &Mutex<CutensorContext> {
-        &self.cutensor
+    /// Returns the mutex-protected cuTENSOR handle associated with this runtime's CUDA context, creating it on first use.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if binding the context or creating the handle fails.
+    pub fn cutensor(&self) -> Result<&Mutex<CutensorContext>> {
+        self.handle(&self.cutensor, "singe cutensor create", |context| {
+            Ok(CutensorContext::create(context)?)
+        })
+    }
+
+    // The handle `slot` holds, created by `create` on its first use.
+    // Two threads may both create one, and the second's is dropped.
+    fn handle<'a, T>(
+        &'a self,
+        slot: &'a OnceLock<Mutex<T>>,
+        range: &'static str,
+        create: impl FnOnce(&Arc<CudaContext>) -> Result<T>,
+    ) -> Result<&'a Mutex<T>> {
+        if let Some(handle) = slot.get() {
+            return Ok(handle);
+        }
+
+        let _range = CudaNvtxRange::new(|| range);
+        self.context.bind()?;
+        // A first use may fall inside a stream capture, where the strict modes refuse the allocations creating a handle makes.
+        let previous = exchange_capture_mode(StreamCaptureMode::Relaxed)?;
+        let created = create(&self.context);
+        exchange_capture_mode(previous)?;
+        let created = created?;
+        Ok(slot.get_or_init(|| Mutex::new(created)))
     }
 }
 
@@ -194,27 +279,31 @@ impl CudaRuntime {
 ///
 /// Returns an error if `device` is not CUDA, its ordinal cannot be represented, the runtime registry mutex is poisoned, or CUDA context binding or library handle creation fails.
 pub fn runtime_for_device(device: Device) -> Result<Arc<CudaRuntime>> {
-    static RUNTIMES: OnceLock<Mutex<HashMap<i32, Arc<CudaRuntime>>>> = OnceLock::new();
+    static RUNTIMES: OnceLock<Box<[OnceLock<Arc<CudaRuntime>>]>> = OnceLock::new();
+    static CREATING: Mutex<()> = Mutex::new(());
 
-    if !device.is_cuda() {
-        return Err(Error::device_mismatch(
-            "cuda runtime device",
-            Device::Cuda(0),
-            device,
-        ));
+    let ordinal = |device_id: i32| usize::try_from(device_id).ok();
+    if let Some(runtime) = device
+        .cuda_id()
+        .and_then(ordinal)
+        .and_then(|index| RUNTIMES.get()?.get(index)?.get())
+    {
+        return Ok(Arc::clone(runtime));
     }
 
     let device_id = cuda_device_id(device)?;
-    let runtimes = RUNTIMES.get_or_init(|| Mutex::new(HashMap::new()));
-    let mut runtimes = runtimes.locked("cuda runtime cache")?;
-    if let Some(runtime) = runtimes.get(&device_id) {
+    let count = device_count()?;
+    let runtimes = RUNTIMES.get_or_init(|| (0..count).map(|_| OnceLock::new()).collect());
+    let slot = ordinal(device_id)
+        .and_then(|index| runtimes.get(index))
+        .ok_or_else(|| Error::cuda_device_out_of_range(device_id, count))?;
+    let _creating = CREATING.locked("cuda runtime creation")?;
+    if let Some(runtime) = slot.get() {
         return Ok(Arc::clone(runtime));
     }
 
     let runtime = Arc::new(CudaRuntime::create(device_id)?);
-    runtimes.insert(device_id, Arc::clone(&runtime));
-    drop(runtimes);
-    Ok(runtime)
+    Ok(Arc::clone(slot.get_or_init(|| runtime)))
 }
 
 #[cfg(all(test, feature = "testing"))]

@@ -2,8 +2,12 @@
 
 use serde::Deserialize;
 
-use super::DacConfig;
-use crate::{error::Result, format::Rules, source::Source};
+use crate::{
+    error::{Error, Result},
+    format::Rules,
+    model::audio::dac::{DILATIONS, DacConfig},
+    source::Source,
+};
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 struct Fields {
@@ -20,6 +24,10 @@ struct Fields {
 
 pub(crate) fn config(source: &Source) -> Result<DacConfig> {
     let fields: Fields = source.json("config.json")?;
+    if fields.n_codebooks < 1 {
+        return Err(Error::unsupported("a DAC `n_codebooks` below one"));
+    }
+
     Ok(DacConfig {
         encoder_width: fields.encoder_hidden_size,
         decoder_width: fields.decoder_hidden_size,
@@ -40,12 +48,15 @@ pub(crate) fn rules() -> Rules {
         .rename("encoder.conv2", "encoder_out")
         .rename("encoder.block.*.snake1.alpha", "encoder.*.snake")
         .rename("encoder.block.*.conv1", "encoder.*.resample")
-        .rename("quantizer.quantizers.*.in_proj", "codebooks.*.project_in")
-        .rename(
-            "quantizer.quantizers.*.codebook.weight",
-            "codebooks.*.entries",
+        .rename_each(
+            "quantizer.quantizers.*",
+            "codebooks.*",
+            &[
+                ("in_proj", "project_in"),
+                ("codebook.weight", "entries"),
+                ("out_proj", "project_out"),
+            ],
         )
-        .rename("quantizer.quantizers.*.out_proj", "codebooks.*.project_out")
         .rename("decoder.conv1", "decoder_in")
         .rename("decoder.snake1.alpha", "decoder_snake")
         .rename("decoder.conv2", "decoder_out")
@@ -53,14 +64,17 @@ pub(crate) fn rules() -> Rules {
         .rename("decoder.block.*.conv_t1", "decoder.*.resample");
     // Each block's residual units, numbered from one.
     for part in ["encoder", "decoder"] {
-        for unit in 0..3 {
-            let from = |name: &str| format!("{part}.block.*.res_unit{}.{name}", unit + 1);
-            let to = |name: &str| format!("{part}.*.units.{unit}.{name}");
-            rules = rules
-                .rename(&from("snake1.alpha"), &to("first_snake"))
-                .rename(&from("conv1"), &to("first"))
-                .rename(&from("snake2.alpha"), &to("second_snake"))
-                .rename(&from("conv2"), &to("second"));
+        for unit in 0..DILATIONS.len() {
+            rules = rules.rename_each(
+                &format!("{part}.block.*.res_unit{}", unit + 1),
+                &format!("{part}.*.units.{unit}"),
+                &[
+                    ("snake1.alpha", "first_snake"),
+                    ("conv1", "first"),
+                    ("snake2.alpha", "second_snake"),
+                    ("conv2", "second"),
+                ],
+            );
         }
     }
     rules

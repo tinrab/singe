@@ -1,10 +1,6 @@
 //! RMS norm, layer norm, group norm, sparsemax, and related reductions.
 
 #[must_use]
-#[expect(
-    clippy::cast_precision_loss,
-    reason = "the f32 algorithm converts integer dimensions and accumulators to its floating-point working precision"
-)]
 pub fn sparsemax(input: &[f32], rows: usize, cols: usize) -> Vec<f32> {
     let mut out = vec![0.0f32; rows * cols];
     for row in 0..rows {
@@ -30,10 +26,6 @@ pub fn sparsemax(input: &[f32], rows: usize, cols: usize) -> Vec<f32> {
 }
 
 #[must_use]
-#[expect(
-    clippy::cast_precision_loss,
-    reason = "the f32 algorithm converts integer dimensions and accumulators to its floating-point working precision"
-)]
 pub fn group_norm(
     input: &[f32],
     weight: &[f32],

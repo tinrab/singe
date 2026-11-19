@@ -8,7 +8,7 @@ use crate::{
     model,
     processor::text::CharacterTokenizer,
     source::{LoadOptions, Source},
-    task::{Pipeline, Task, audio::audio_to_audio::GeneratedAudio},
+    task::{Pipeline, outputs::GeneratedAudio},
 };
 
 #[derive(Debug)]
@@ -27,8 +27,6 @@ pub struct TextToAudioParameters {
 }
 
 impl Pipeline for TextToAudioPipeline {
-    const TASK: Task = Task::TextToAudio;
-
     type Input = String;
 
     type Parameters = TextToAudioParameters;
@@ -38,28 +36,19 @@ impl Pipeline for TextToAudioPipeline {
     fn load(source: &Source, options: LoadOptions) -> Result<Self> {
         Ok(Self {
             model: model::load(source, options)?,
-            tokenizer: CharacterTokenizer::load(source.directory())?,
+            tokenizer: CharacterTokenizer::load(source)?,
         })
     }
 
-    fn run(
-        &self,
-        inputs: &[Self::Input],
-        parameters: &Self::Parameters,
-    ) -> Result<Vec<Self::Output>> {
-        inputs
-            .iter()
-            .map(|text| {
-                let tokens = self.tokenizer.encode(text);
-                Ok(GeneratedAudio {
-                    audio: self.model.speak(
-                        &tokens,
-                        (parameters.noise_scale, parameters.noise_scale_duration),
-                        parameters.seed,
-                    )?,
-                    sampling_rate: self.model.speech().sample_rate,
-                })
-            })
-            .collect()
+    fn run_one(&self, text: &Self::Input, parameters: &Self::Parameters) -> Result<Self::Output> {
+        let tokens = self.tokenizer.encode(text);
+        Ok(GeneratedAudio {
+            audio: self.model.speak(
+                &tokens,
+                (parameters.noise_scale, parameters.noise_scale_duration),
+                parameters.seed,
+            )?,
+            sampling_rate: self.model.sample_rate(),
+        })
     }
 }

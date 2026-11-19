@@ -8,6 +8,7 @@ mod layers;
 mod model;
 mod state;
 
+pub(crate) use self::state::joined_rows;
 pub use self::{
     checkpoint::{Checkpoint, CheckpointOptions, Derivation, LoadPlan, StatePiece, TensorSource},
     decode::{

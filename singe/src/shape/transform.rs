@@ -12,19 +12,23 @@ pub fn normalize_dim(dim: i64, rank: i64) -> Result<i64> {
     }
 
     let normalized = if dim < 0 {
-        rank.checked_add(dim).ok_or(Error::DimensionOutOfBounds)?
+        rank.checked_add(dim)
+            .ok_or_else(|| Error::dimension_out_of_bounds(format!("dim {dim} at rank {rank}")))?
     } else {
         dim
     };
     if normalized < 0 || normalized >= rank {
-        Err(Error::DimensionOutOfBounds)
+        Err(Error::dimension_out_of_bounds(format!(
+            "dim {dim} at rank {rank}"
+        )))
     } else {
         Ok(normalized)
     }
 }
 
 pub fn normalize_dim_usize(dim: i64, rank: i64) -> Result<usize> {
-    usize::try_from(normalize_dim(dim, rank)?).map_err(|_| Error::DimensionOutOfBounds)
+    usize::try_from(normalize_dim(dim, rank)?)
+        .map_err(|_| Error::dimension_out_of_bounds(format!("dim {dim} at rank {rank}")))
 }
 
 // The axes of a valid `order` for a tensor of `rank`, each once.

@@ -1,7 +1,3 @@
-#![expect(
-    clippy::many_single_char_names,
-    reason = "BLAS and factorization operand names follow the standard mathematical API"
-)]
 use std::ptr;
 
 use singe_cuda::{

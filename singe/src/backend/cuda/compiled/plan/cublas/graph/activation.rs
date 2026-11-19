@@ -1,14 +1,16 @@
 use std::{collections::HashMap, hash::RandomState, sync::Arc};
 
 use singe_cublas::lt::types::Epilogue;
-use singe_cuda::stream::StreamCaptureMode;
 
 use crate::{
     backend::cuda::{
-        CudaStream,
         compiled::plan::cublas::{
             algorithm::cublaslt_matmul_algorithm,
-            graph::{CublasLtMatmulGraph, validation::validate_cublaslt_matmul_input},
+            graph::{
+                CublasLtMatmulGraph,
+                cublaslt::{COMPILED_WORKSPACE_BYTES, capture_matmul},
+                validation::validate_cublaslt_matmul_input,
+            },
             launch::{CublasLtMatmulLaunch, launch_cublaslt_matmul},
             layout::CublasLtMatrixLayout,
         },
@@ -48,13 +50,18 @@ pub fn build_cublaslt_matmul_activation_graph(
     validate_cublaslt_matmul_input(ir, inputs[1], b)?;
     validate_graph_node_value_tensor(ir, activation, output)?;
 
-    let output_value = activation;
     let a_layout = CublasLtMatrixLayout::create(a, "lhs")?;
     let b_layout = CublasLtMatrixLayout::create(b, "rhs")?;
-    let algorithm =
-        cublaslt_matmul_algorithm(runtime, &a_layout, &b_layout, output, epilogue, None)?;
-    let stream = CudaStream::create(ir.required_value(output_value)?.device())?;
-    let (graph, ()) = stream.capture(StreamCaptureMode::ThreadLocal, || {
+    let algorithm = cublaslt_matmul_algorithm(
+        runtime,
+        &a_layout,
+        &b_layout,
+        output,
+        epilogue,
+        None,
+        COMPILED_WORKSPACE_BYTES,
+    )?;
+    capture_matmul(runtime, ir, activation, &algorithm, |workspace| {
         launch_cublaslt_matmul(CublasLtMatmulLaunch {
             runtime,
             a,
@@ -67,12 +74,8 @@ pub fn build_cublaslt_matmul_activation_graph(
             epilogue,
             bias: None,
             addend: None,
-            workspace: None,
+            workspace,
             stream: None,
         })
-    })?;
-    Ok(CublasLtMatmulGraph::new(
-        graph.into_native(),
-        algorithm.workspace_bytes(),
-    ))
+    })
 }

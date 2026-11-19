@@ -22,7 +22,7 @@ use crate::{
                 plan::{MeasureError, Measured, PlanRunner, nanoseconds},
                 records::{Measurement, TunedChoice, TuningEnvironment, TuningRecords},
                 report::{Attempt, CandidateFailure, FailureStage, SelfComparison, TimeSpent},
-                small_graph::{SmallGraph, judged, restore_written},
+                small_graph::{Judging, SmallGraph, judged, restore_written},
                 tune::GraphTuneOptions,
             },
         },
@@ -351,14 +351,12 @@ impl<'a> Measurer<'a> {
         compiled
     }
 
-    // Readies `small` under `records` the way they will be read, having run it once, and judges what that computed if `judge` asks.
-    // A plan over `refuse_over` bytes goes no further.
     fn prepare<'s>(
         &mut self,
         small: &'s SmallGraph,
         records: &TuningRecords,
         refuse_over: Option<u64>,
-        judge: bool,
+        judging: Judging,
     ) -> Attempt<Prepared<'s>, MeasureError> {
         restore_written(small)?;
         if Self::is_program(records) {
@@ -366,9 +364,9 @@ impl<'a> Measurer<'a> {
             let bytes = program_bytes(&program);
             refuse(bytes, refuse_over)?;
             let compiled = self.compiled(&program, &files)?;
-            return self.prepare_program(small, &program, &files, &compiled, bytes, judge);
+            return self.prepare_program(small, &program, &files, &compiled, bytes, judging);
         }
-        self.prepare_replay(small, records, refuse_over, judge)
+        self.prepare_replay(small, records, refuse_over, judging)
     }
 
     fn prepare_replay<'s>(
@@ -376,7 +374,7 @@ impl<'a> Measurer<'a> {
         small: &'s SmallGraph,
         records: &TuningRecords,
         refuse_over: Option<u64>,
-        judge: bool,
+        judging: Judging,
     ) -> Attempt<Prepared<'s>, MeasureError> {
         let failed = |error: &Error| CandidateFailure::from_error(FailureStage::Run, error);
         let started = Instant::now();
@@ -403,7 +401,7 @@ impl<'a> Measurer<'a> {
         stream.synchronize().map_err(|error| failed(&error))?;
         self.spent.run_ns += nanoseconds(started.elapsed());
         let started = Instant::now();
-        let agrees = judged(small, judge, outputs, || {
+        let agrees = judged(small, judging, outputs, || {
             let outputs = executor
                 .run_on(&small.inputs, &stream)
                 .map_err(|error| failed(&error))?;
@@ -431,7 +429,7 @@ impl<'a> Measurer<'a> {
         files: &ProgramFiles,
         compiled: &CompiledProgram,
         bytes: u64,
-        judge: bool,
+        judging: Judging,
     ) -> Attempt<Prepared<'s>, MeasureError> {
         let failed = |error: &(dyn StdError + 'static)| {
             CandidateFailure::from_error(FailureStage::Run, error)
@@ -462,7 +460,7 @@ impl<'a> Measurer<'a> {
         let outputs = instance.run(&operands, 1).map_err(|error| failed(&error))?;
         self.spent.run_ns += nanoseconds(started.elapsed());
         let started = Instant::now();
-        let agrees = judged(small, judge, outputs, || {
+        let agrees = judged(small, judging, outputs, || {
             instance.run(&operands, 1).map_err(|error| failed(&error))
         })?;
         self.spent.check_ns += nanoseconds(started.elapsed());
@@ -486,7 +484,7 @@ impl<'a> Measurer<'a> {
         refuse_over: Option<u64>,
         abandon_above: Option<Duration>,
     ) -> Attempt<Measured, MeasureError> {
-        let mut prepared = self.prepare(small, records, refuse_over, true)?;
+        let mut prepared = self.prepare(small, records, refuse_over, Judging::Compare)?;
         let started = Instant::now();
         let mut samples = prepared.timed(1)?;
         let first = measured_median(samples.clone())?;
@@ -545,8 +543,8 @@ impl<'a> Measurer<'a> {
         second: &TuningRecords,
     ) -> Attempt<Option<Comparison>, MeasureError> {
         self.free_for_program(first)?;
-        let mut first = self.prepare(small, first, None, false)?;
-        let Ok(mut second) = self.prepare(small, second, None, false) else {
+        let mut first = self.prepare(small, first, None, Judging::Skip)?;
+        let Ok(mut second) = self.prepare(small, second, None, Judging::Skip) else {
             return Ok(None);
         };
 
@@ -591,7 +589,7 @@ impl<'a> Measurer<'a> {
             for is_candidate in order {
                 let records = if is_candidate { candidate } else { baseline };
                 self.free_for_program(records)?;
-                let mut prepared = self.prepare(small, records, None, false)?;
+                let mut prepared = self.prepare(small, records, None, Judging::Skip)?;
                 let started = Instant::now();
                 let time = measured_median(prepared.timed(runs)?)?;
                 self.spent.run_ns += nanoseconds(started.elapsed());

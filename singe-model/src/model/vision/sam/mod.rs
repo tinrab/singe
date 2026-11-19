@@ -6,18 +6,21 @@ use std::f64::consts::PI;
 
 use serde::{Deserialize, Serialize};
 use singe::{
-    Device, Result as SingeResult, Shape, Tensor,
+    Device, Error as SingeError, Result as SingeResult, Shape, Tensor,
     nn::{
         Activation, Conv2d, Conv2dConfig, ConvTranspose2d, ConvTransposeConfig, LayerNorm, Linear,
-        Model, ModelState, StateBuilder, StateKey,
+        Mlp, ModelState, PatchEmbedding, StateKey,
     },
 };
 
 use crate::{
-    assembly::{Attention, AttentionSpec, Mlp},
+    assembly::{
+        Attention, AttentionSpec, LinearStack, PYTORCH_NORM_EPS, merge_windows, partition_windows,
+        patch_embedding, same_2d, to_map, to_tokens,
+    },
     error::Result,
     format::Loader,
-    head::{HeadLoader, MaskGenerator, PromptableLayers},
+    head::{Boxed, HeadLoader, MaskGenerator, PromptableLayers},
     model::ModelEntry,
     schema::Schema,
     source::Format,
@@ -46,12 +49,42 @@ pub struct SamConfig {
     pub iou_hidden: i64,
 }
 
+impl SamConfig {
+    const fn side(&self) -> i64 {
+        self.image_size / self.patch_size
+    }
+
+    const fn cross_attention(&self) -> AttentionSpec {
+        AttentionSpec {
+            width: self.embedding,
+            context: self.embedding,
+            inner: self.embedding / self.downsample,
+            heads: self.decoder_heads,
+            qkv_bias: true,
+            output_bias: true,
+        }
+    }
+}
+
 // A layer norm over the channels of `[B, C, H, W]`.
 fn channel_norm(input: &Tensor, norm: &LayerNorm, state: &ModelState) -> SingeResult<Tensor> {
     input
         .permute(&[0, 2, 3, 1])?
         .apply(norm, state)?
         .permute(&[0, 3, 1, 2])
+}
+
+// Each pair of a side's positions' relative embedding, `[side, side, C]`, from a table of `2 · side - 1` offsets, as `get_rel_pos` reads it when queries and keys have one size.
+fn relative(table: &Tensor, side: i64) -> SingeResult<Tensor> {
+    let &[_, channels] = table.shape().dimensions() else {
+        return Err(SingeError::invalid_argument("SAM relative position table"));
+    };
+    let index = (0..side)
+        .flat_map(|query| (0..side).map(move |key| query - key + side - 1))
+        .collect::<Vec<_>>();
+    let index = Tensor::from_vec(table.device(), Shape::create([side * side, 1])?, index)?
+        .expand(Shape::create([side * side, channels])?)?;
+    table.gather(0, &index)?.reshape([side, side, channels])
 }
 
 #[derive(Debug, Clone)]
@@ -62,34 +95,55 @@ struct VisionBlock {
     relative_height: StateKey,
     relative_width: StateKey,
     feed_forward_norm: LayerNorm,
-    up: Linear,
-    down: Linear,
+    feed_forward: Mlp,
+    heads: i64,
     window: i64,
 }
 
-// Each pair of a side's positions' relative embedding, `[side, side, C]`, from a table of `2 · side - 1` offsets, as `get_rel_pos` reads it when queries and keys have one size.
-fn relative(table: &Tensor, side: i64) -> SingeResult<Tensor> {
-    let channels = table.shape().dimensions()[1];
-    let index = (0..side)
-        .flat_map(|query| (0..side).map(move |key| query - key + side - 1))
-        .collect::<Vec<_>>();
-    let index = Tensor::from_vec(table.device(), Shape::create([side * side, 1])?, index)?
-        .expand(Shape::create([side * side, channels])?)?;
-    table.gather(0, &index)?.reshape([side, side, channels])
-}
-
 impl VisionBlock {
+    fn create(schema: &mut Schema<'_>, config: &SamConfig, window: i64) -> SingeResult<Self> {
+        let width = config.width;
+        let span = if window > 0 { window } else { config.side() };
+        let head = width / config.heads;
+        let attention_norm = schema.layer_norm("attention_norm", width, config.eps)?;
+        let mut attention = schema.scope("attention");
+        let qkv = attention.linear("qkv", width, 3 * width, true)?;
+        let output = attention.linear("output", width, width, true)?;
+        let relative_height = attention.parameter("relative_height", [2 * span - 1, head])?;
+        let relative_width = attention.parameter("relative_width", [2 * span - 1, head])?;
+        Ok(Self {
+            attention_norm,
+            qkv,
+            output,
+            relative_height,
+            relative_width,
+            feed_forward_norm: schema.layer_norm("feed_forward_norm", width, config.eps)?,
+            feed_forward: schema.mlp(
+                "feed_forward",
+                [width, config.inner, width],
+                Activation::GeluExact,
+                true,
+            )?,
+            heads: config.heads,
+            window,
+        })
+    }
+
     // Attention among `[N, side, side, C]` tokens, with decomposed relative positions.
-    fn attend(&self, hidden: &Tensor, heads: i64, state: &ModelState) -> SingeResult<Tensor> {
-        let dimensions = hidden.shape().dimensions();
-        let (count, side, width) = (dimensions[0], dimensions[1], dimensions[3]);
+    fn attend(&self, hidden: &Tensor, state: &ModelState) -> SingeResult<Tensor> {
+        let &[count, side, _, width] = hidden.shape().dimensions() else {
+            return Err(SingeError::invalid_argument("SAM attention input"));
+        };
+        let heads = self.heads;
         let head = width / heads;
         let length = side * side;
         let qkv = hidden
             .reshape([count, length, width])?
             .apply(&self.qkv, state)?
             .reshape([count, length, 3, heads, head])?
-            .permute(&[2, 0, 3, 1, 4])?;
+            .permute(&[2, 0, 3, 1, 4])?
+            // One copy lays each head out whole, so the matmuls below read it as cuBLAS's strided batches rather than falling to a generated kernel.
+            .contiguous()?;
         let part = |index: i64| qkv.select(0, index);
         let (query, key, value) = (part(0)?, part(1)?, part(2)?);
 
@@ -120,7 +174,6 @@ impl VisionBlock {
             .add(&columns.unsqueeze(3)?)?
             .reshape([count, heads, length, length])?;
 
-        #[expect(clippy::cast_precision_loss, reason = "head widths are small")]
         let scale = (head as f64).powf(-0.5);
         query
             .mul_scalar(scale)?
@@ -133,10 +186,10 @@ impl VisionBlock {
             .apply(&self.output, state)
     }
 
-    fn forward(&self, hidden: &Tensor, heads: i64, state: &ModelState) -> SingeResult<Tensor> {
-        let dimensions = hidden.shape().dimensions();
-        let (batch, height, width, channels) =
-            (dimensions[0], dimensions[1], dimensions[2], dimensions[3]);
+    fn forward(&self, hidden: &Tensor, state: &ModelState) -> SingeResult<Tensor> {
+        let &[batch, height, width, _] = hidden.shape().dimensions() else {
+            return Err(SingeError::invalid_argument("SAM vision block input"));
+        };
         let normed = hidden.apply(&self.attention_norm, state)?;
         let attended = if self.window > 0 {
             let window = self.window;
@@ -151,64 +204,124 @@ impl VisionBlock {
                 ],
                 0.0,
             )?;
-            let windows = padded
-                .reshape([
-                    batch,
-                    padded_height / window,
-                    window,
-                    padded_width / window,
-                    window,
-                    channels,
-                ])?
-                .permute(&[0, 1, 3, 2, 4, 5])?
-                .reshape([
-                    batch * (padded_height / window) * (padded_width / window),
-                    window,
-                    window,
-                    channels,
-                ])?;
-            self.attend(&windows, heads, state)?
-                .reshape([
-                    batch,
-                    padded_height / window,
-                    padded_width / window,
-                    window,
-                    window,
-                    channels,
-                ])?
-                .permute(&[0, 1, 3, 2, 4, 5])?
-                .reshape([batch, padded_height, padded_width, channels])?
+            let windows = partition_windows(&padded, window)?;
+            let &[count, _, channels] = windows.shape().dimensions() else {
+                return Err(SingeError::invalid_argument("SAM windows"));
+            };
+            let attended = self
+                .attend(&windows.reshape([count, window, window, channels])?, state)?
+                .reshape([count, window * window, channels])?;
+            merge_windows(&attended, window, (batch, padded_height, padded_width))?
                 .narrow(1, 0, height)?
                 .narrow(2, 0, width)?
         } else {
-            self.attend(&normed, heads, state)?
+            self.attend(&normed, state)?
         };
         let hidden = hidden.add(&attended)?;
         hidden
             .apply(&self.feed_forward_norm, state)?
-            .apply(&self.up, state)?
-            .apply(&Activation::GeluExact, state)?
-            .apply(&self.down, state)?
+            .apply(&self.feed_forward, state)?
             .add(&hidden)
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PromptPositions {
+    Skipped,
+    Added,
+}
+
 #[derive(Debug, Clone)]
 struct TwoWayBlock {
-    self_attention: Attention,
-    norm1: LayerNorm,
+    attention: Attention,
+    attention_norm: LayerNorm,
     token_to_image: Attention,
-    norm2: LayerNorm,
-    up: Linear,
-    down: Linear,
-    norm3: LayerNorm,
+    token_to_image_norm: LayerNorm,
+    feed_forward: Mlp,
+    feed_forward_norm: LayerNorm,
     image_to_token: Attention,
-    norm4: LayerNorm,
+    image_to_token_norm: LayerNorm,
+    prompt_positions: PromptPositions,
+}
+
+impl TwoWayBlock {
+    fn create(
+        schema: &mut Schema<'_>,
+        config: &SamConfig,
+        prompt_positions: PromptPositions,
+    ) -> SingeResult<Self> {
+        let embedding = config.embedding;
+        Ok(Self {
+            attention: Attention::create(
+                &mut schema.scope("attention"),
+                AttentionSpec::square(embedding, config.decoder_heads),
+            )?,
+            attention_norm: schema.layer_norm("attention_norm", embedding, config.eps)?,
+            token_to_image: Attention::create(
+                &mut schema.scope("token_to_image"),
+                config.cross_attention(),
+            )?,
+            token_to_image_norm: schema.layer_norm("token_to_image_norm", embedding, config.eps)?,
+            feed_forward: schema.mlp(
+                "feed_forward",
+                [embedding, config.decoder_inner, embedding],
+                config.decoder_activation,
+                true,
+            )?,
+            feed_forward_norm: schema.layer_norm("feed_forward_norm", embedding, config.eps)?,
+            image_to_token: Attention::create(
+                &mut schema.scope("image_to_token"),
+                config.cross_attention(),
+            )?,
+            image_to_token_norm: schema.layer_norm("image_to_token_norm", embedding, config.eps)?,
+            prompt_positions,
+        })
+    }
+
+    fn forward(
+        &self,
+        (queries, keys): (&Tensor, &Tensor),
+        (prompts, image_positions): (&Tensor, &Tensor),
+        state: &ModelState,
+    ) -> SingeResult<(Tensor, Tensor)> {
+        let queries = match self.prompt_positions {
+            PromptPositions::Skipped => self.attention.forward(queries, queries, queries, state)?,
+            PromptPositions::Added => {
+                let positioned = queries.add(prompts)?;
+                queries.add(
+                    &self
+                        .attention
+                        .forward(&positioned, &positioned, queries, state)?,
+                )?
+            }
+        }
+        .apply(&self.attention_norm, state)?;
+        let key = keys.add(image_positions)?;
+        let queries = queries
+            .add(
+                &self
+                    .token_to_image
+                    .forward(&queries.add(prompts)?, &key, keys, state)?,
+            )?
+            .apply(&self.token_to_image_norm, state)?;
+        let fed = queries.apply(&self.feed_forward, state)?;
+        let queries = queries.add(&fed)?.apply(&self.feed_forward_norm, state)?;
+        let query = queries.add(prompts)?;
+        let keys = keys
+            .add(&self.image_to_token.forward(
+                &keys.add(image_positions)?,
+                &query,
+                &queries,
+                state,
+            )?)?
+            .apply(&self.image_to_token_norm, state)?;
+        Ok((queries, keys))
+    }
 }
 
 #[derive(Debug, Clone)]
 pub struct SamLayers {
-    patches: Conv2d,
+    patches: PatchEmbedding,
     positions: StateKey,
     blocks: Vec<VisionBlock>,
     neck: [Conv2d; 2],
@@ -223,12 +336,125 @@ pub struct SamLayers {
     final_norm: LayerNorm,
     upscale: [ConvTranspose2d; 2],
     upscale_norm: LayerNorm,
-    hypernetworks: Vec<Mlp>,
-    iou_head: Mlp,
+    hypernetworks: Vec<LinearStack>,
+    iou_head: LinearStack,
     config: SamConfig,
 }
 
 impl SamLayers {
+    pub fn create(schema: &mut Schema<'_>, config: &SamConfig) -> SingeResult<Self> {
+        let (width, embedding) = (config.width, config.embedding);
+        let side = config.side();
+        let patches = patch_embedding(schema, 3, width, config.patch_size, true)?;
+        let positions = schema.parameter("positions", [1, side, side, width])?;
+        let blocks = (0..config.layers)
+            .map(|index| {
+                let window = if config.global.contains(&index) {
+                    0
+                } else {
+                    config.window
+                };
+                VisionBlock::create(&mut schema.scope(format!("blocks.{index}")), config, window)
+            })
+            .collect::<SingeResult<Vec<_>>>()?;
+        let neck = [
+            schema.conv2d(
+                "neck.0",
+                width,
+                embedding,
+                1,
+                Conv2dConfig::default(),
+                false,
+            )?,
+            schema.conv2d("neck.1", embedding, embedding, 3, same_2d(3, 1), false)?,
+        ];
+        let neck_norms = [
+            schema.layer_norm("neck_norms.0", embedding, 1e-6)?,
+            schema.layer_norm("neck_norms.1", embedding, 1e-6)?,
+        ];
+        let gaussian = schema.parameter("gaussian", [2, embedding / 2])?;
+        let point_embeddings = (0..4)
+            .map(|index| schema.parameter(&format!("point_embeddings.{index}"), [1, embedding]))
+            .collect::<SingeResult<Vec<_>>>()?;
+        let not_a_point = schema.parameter("not_a_point", [1, embedding])?;
+        let no_mask = schema.parameter("no_mask", [1, embedding])?;
+        let output_tokens = [
+            schema.parameter("iou_token", [1, embedding])?,
+            schema.parameter("mask_tokens", [config.masks + 1, embedding])?,
+        ];
+        let two_way = (0..config.decoder_layers)
+            .map(|index| {
+                let prompt_positions = if index == 0 {
+                    PromptPositions::Skipped
+                } else {
+                    PromptPositions::Added
+                };
+                TwoWayBlock::create(
+                    &mut schema.scope(format!("two_way.{index}")),
+                    config,
+                    prompt_positions,
+                )
+            })
+            .collect::<SingeResult<Vec<_>>>()?;
+        let final_attention = Attention::create(
+            &mut schema.scope("final_attention"),
+            config.cross_attention(),
+        )?;
+        let final_norm = schema.layer_norm("final_norm", embedding, PYTORCH_NORM_EPS)?;
+        let doubling = ConvTransposeConfig {
+            stride: [2, 2],
+            ..ConvTransposeConfig::default()
+        };
+        let upscale = [
+            schema.conv_transpose2d("upscale.0", embedding, embedding / 4, 2, doubling, true)?,
+            schema.conv_transpose2d(
+                "upscale.1",
+                embedding / 4,
+                embedding / 8,
+                2,
+                doubling,
+                true,
+            )?,
+        ];
+        let upscale_norm = schema.layer_norm("upscale_norm", embedding / 4, 1e-6)?;
+        let hypernetworks = (0..=config.masks)
+            .map(|index| {
+                LinearStack::create(
+                    &mut schema.scope(format!("hypernetworks.{index}")),
+                    [embedding, embedding, embedding / 8],
+                    3,
+                    Activation::Relu,
+                )
+            })
+            .collect::<SingeResult<Vec<_>>>()?;
+        let iou_head = LinearStack::create(
+            &mut schema.scope("iou_head"),
+            [embedding, config.iou_hidden, config.masks + 1],
+            config.iou_depth,
+            Activation::Relu,
+        )?;
+        Ok(Self {
+            patches,
+            positions,
+            blocks,
+            neck,
+            neck_norms,
+            gaussian,
+            point_embeddings,
+            not_a_point,
+            no_mask,
+            output_tokens,
+            two_way,
+            final_attention,
+            final_norm,
+            upscale,
+            upscale_norm,
+            hypernetworks,
+            iou_head,
+            config: config.clone(),
+        })
+    }
+
     // Random Fourier features of coordinates in [0, 1], `[..., 2]` to `[..., 2 · F]`: sines and cosines of `2π (2c - 1) G`.
     fn fourier(&self, coordinates: &Tensor, state: &ModelState) -> SingeResult<Tensor> {
         let projected = coordinates
@@ -241,7 +467,6 @@ impl SamLayers {
     }
 
     // The positions of the embedding's grid, `[1, H · W, C]`, each point at its center.
-    #[expect(clippy::cast_precision_loss, reason = "grid sides are small")]
     fn grid_positions(&self, side: i64, device: Device, state: &ModelState) -> SingeResult<Tensor> {
         let coordinates = (0..side)
             .flat_map(|row| {
@@ -261,12 +486,16 @@ impl SamLayers {
 
 impl PromptableLayers for SamLayers {
     fn embed(&self, pixels: &Tensor, state: &ModelState) -> SingeResult<Tensor> {
-        let mut hidden = pixels
-            .apply(&self.patches, state)?
-            .permute(&[0, 2, 3, 1])?
+        let side = self.config.side();
+        let tokens = pixels.apply(&self.patches, state)?;
+        let &[batch, _, width] = tokens.shape().dimensions() else {
+            return Err(SingeError::invalid_argument("SAM patches"));
+        };
+        let mut hidden = tokens
+            .reshape([batch, side, side, width])?
             .add(state.tensor(&self.positions)?)?;
         for block in &self.blocks {
-            hidden = block.forward(&hidden, self.config.heads, state)?;
+            hidden = block.forward(&hidden, state)?;
         }
 
         let hidden = hidden.permute(&[0, 3, 1, 2])?;
@@ -289,11 +518,10 @@ impl PromptableLayers for SamLayers {
         state: &ModelState,
     ) -> SingeResult<(Tensor, Tensor)> {
         let device = embedding.device();
-        let dimensions = embedding.shape().dimensions();
-        let (channels, side) = (dimensions[1], dimensions[2]);
-        let count =
-            i64::try_from(points.len()).map_err(|_| singe::Error::out_of_range("points"))?;
-        #[expect(clippy::cast_precision_loss, reason = "image sides are small")]
+        let &[_, channels, side, _] = embedding.shape().dimensions() else {
+            return Err(SingeError::invalid_argument("SAM image embedding"));
+        };
+        let count = i64::try_from(points.len()).map_err(|_| SingeError::out_of_range("points"))?;
         let input = self.config.image_size as f32;
 
         // Each point, shifted to its pixel's center, as a positive point, and a padding point after it.
@@ -315,60 +543,27 @@ impl PromptableLayers for SamLayers {
             ],
             0,
         )?;
-        let output_count = tokens.shape().dimensions()[0];
+        let &[output_count, _] = tokens.shape().dimensions() else {
+            return Err(SingeError::invalid_argument("SAM output tokens"));
+        };
         let tokens =
             tokens
                 .unsqueeze(0)?
                 .expand(Shape::create([count, output_count, channels])?)?;
         let prompts = Tensor::concat(&[tokens, points, padding], 1)?;
 
-        let image = embedding
-            .add(&state.tensor(&self.no_mask)?.reshape([1, channels, 1, 1])?)?
-            .flatten(2, 3)?
-            .transpose(1, 2)?
-            .expand(Shape::create([count, side * side, channels])?)?;
+        let image = to_tokens(
+            &embedding.add(&state.tensor(&self.no_mask)?.reshape([1, channels, 1, 1])?)?,
+        )?
+        .expand(Shape::create([count, side * side, channels])?)?;
         let image_positions = self
             .grid_positions(side, device, state)?
             .expand(Shape::create([count, side * side, channels])?)?;
 
         let (mut queries, mut keys) = (prompts.clone(), image);
-        for (index, block) in self.two_way.iter().enumerate() {
-            queries = if index == 0 {
-                block
-                    .self_attention
-                    .forward(&queries, &queries, &queries, state)?
-            } else {
-                let positioned = queries.add(&prompts)?;
-                queries.add(&block.self_attention.forward(
-                    &positioned,
-                    &positioned,
-                    &queries,
-                    state,
-                )?)?
-            }
-            .apply(&block.norm1, state)?;
-            let key = keys.add(&image_positions)?;
-            queries = queries
-                .add(
-                    &block
-                        .token_to_image
-                        .forward(&queries.add(&prompts)?, &key, &keys, state)?,
-                )?
-                .apply(&block.norm2, state)?;
-            let fed = queries
-                .apply(&block.up, state)?
-                .apply(&self.config.decoder_activation, state)?
-                .apply(&block.down, state)?;
-            queries = queries.add(&fed)?.apply(&block.norm3, state)?;
-            let query = queries.add(&prompts)?;
-            keys = keys
-                .add(&block.image_to_token.forward(
-                    &keys.add(&image_positions)?,
-                    &query,
-                    &queries,
-                    state,
-                )?)?
-                .apply(&block.norm4, state)?;
+        for block in &self.two_way {
+            (queries, keys) =
+                block.forward((&queries, &keys), (&prompts, &image_positions), state)?;
         }
 
         let attended = self.final_attention.forward(
@@ -379,9 +574,7 @@ impl PromptableLayers for SamLayers {
         )?;
         let queries = queries.add(&attended)?.apply(&self.final_norm, state)?;
 
-        let image = keys
-            .transpose(1, 2)?
-            .reshape([count, channels, side, side])?;
+        let image = to_map(&keys, (side, side))?;
         let upscaled = channel_norm(
             &image.apply(&self.upscale[0], state)?,
             &self.upscale_norm,
@@ -390,21 +583,13 @@ impl PromptableLayers for SamLayers {
         .apply(&Activation::GeluExact, state)?
         .apply(&self.upscale[1], state)?
         .apply(&Activation::GeluExact, state)?;
-        let upscaled_dimensions = upscaled.shape().dimensions();
-        let (features, height, width) = (
-            upscaled_dimensions[1],
-            upscaled_dimensions[2],
-            upscaled_dimensions[3],
-        );
+        let &[_, features, height, width] = upscaled.shape().dimensions() else {
+            return Err(SingeError::invalid_argument("SAM upscaled embedding"));
+        };
         let masks = self.config.masks + 1;
-        let hyper = (0..masks)
-            .map(|index| {
-                queries.narrow(1, 1 + index, 1)?.apply(
-                    &self.hypernetworks[usize::try_from(index)
-                        .map_err(|_| singe::Error::out_of_range("masks"))?],
-                    state,
-                )
-            })
+        let hyper = (1..)
+            .zip(&self.hypernetworks)
+            .map(|(token, network)| queries.narrow(1, token, 1)?.apply(network, state))
             .collect::<SingeResult<Vec<_>>>()?;
         let masks_out = Tensor::concat(&hyper, 1)?
             .matmul(&upscaled.reshape([count, features, height * width])?)?
@@ -428,198 +613,15 @@ impl PromptableLayers for SamLayers {
 pub(crate) const MODEL: ModelEntry = ModelEntry {
     name: "sam",
     formats: &[(Format::Transformers, &["sam"])],
-    heads: &[HeadLoader::MaskGeneration(load_generator)],
+    loaders: &[HeadLoader::MaskGeneration(load_generator)],
 };
 
-#[expect(
-    clippy::too_many_lines,
-    reason = "the schema lists every part of the model once"
-)]
 pub fn load_generator(loader: &mut Loader<'_>) -> Result<MaskGenerator> {
     let config: SamConfig = loader.config(transformers::config)?;
-    let (width, embedding, iou_depth) = (config.width, config.embedding, config.iou_depth);
-    let side = config.image_size / config.patch_size;
-    let decoder_inner = embedding / config.downsample;
-    let mut builder = StateBuilder::new();
-    let layers = {
-        let mut schema = Schema::root(&mut builder, loader.options().data_type);
-        let patches = schema.conv2d(
-            "patches",
-            3,
-            width,
-            config.patch_size,
-            Conv2dConfig {
-                stride: (config.patch_size, config.patch_size),
-                ..Conv2dConfig::default()
-            },
-            true,
-        )?;
-        let positions = schema.parameter("positions", [1, side, side, width])?;
-        let head = width / config.heads;
-        let blocks = (0..config.layers)
-            .map(|index| {
-                let mut schema = schema.scope(format!("blocks.{index}"));
-                let window = if config.global.contains(&index) {
-                    0
-                } else {
-                    config.window
-                };
-                let span = if window > 0 { window } else { side };
-                Ok(VisionBlock {
-                    attention_norm: schema.layer_norm("attention_norm", width, config.eps)?,
-                    qkv: schema.linear("qkv", width, 3 * width, true)?,
-                    output: schema.linear("output", width, width, true)?,
-                    relative_height: schema.parameter("relative_height", [2 * span - 1, head])?,
-                    relative_width: schema.parameter("relative_width", [2 * span - 1, head])?,
-                    feed_forward_norm: schema.layer_norm("feed_forward_norm", width, config.eps)?,
-                    up: schema.linear("up", width, config.inner, true)?,
-                    down: schema.linear("down", config.inner, width, true)?,
-                    window,
-                })
-            })
-            .collect::<SingeResult<Vec<_>>>()?;
-        let neck = [
-            schema.conv2d(
-                "neck.0",
-                width,
-                embedding,
-                1,
-                Conv2dConfig::default(),
-                false,
-            )?,
-            schema.conv2d(
-                "neck.1",
-                embedding,
-                embedding,
-                3,
-                Conv2dConfig {
-                    padding: (1, 1, 1, 1),
-                    ..Conv2dConfig::default()
-                },
-                false,
-            )?,
-        ];
-        let neck_norms = [
-            schema.layer_norm("neck_norms.0", embedding, 1e-6)?,
-            schema.layer_norm("neck_norms.1", embedding, 1e-6)?,
-        ];
-        let gaussian = schema.parameter("gaussian", [2, embedding / 2])?;
-        let point_embeddings = (0..4)
-            .map(|index| schema.parameter(&format!("point_embeddings.{index}"), [1, embedding]))
-            .collect::<SingeResult<Vec<_>>>()?;
-        let not_a_point = schema.parameter("not_a_point", [1, embedding])?;
-        let no_mask = schema.parameter("no_mask", [1, embedding])?;
-        let output_tokens = [
-            schema.parameter("iou_token", [1, embedding])?,
-            schema.parameter("mask_tokens", [config.masks + 1, embedding])?,
-        ];
-        let two_way = (0..config.decoder_layers)
-            .map(|index| {
-                let mut schema = schema.scope(format!("two_way.{index}"));
-                Ok(TwoWayBlock {
-                    self_attention: Attention::create(
-                        &mut schema.scope("self_attention"),
-                        AttentionSpec::square(embedding, config.decoder_heads),
-                    )?,
-                    norm1: schema.layer_norm("norm1", embedding, config.eps)?,
-                    token_to_image: Attention::create(
-                        &mut schema.scope("token_to_image"),
-                        AttentionSpec {
-                            width: embedding,
-                            context: embedding,
-                            inner: decoder_inner,
-                            heads: config.decoder_heads,
-                            bias: true,
-                        },
-                    )?,
-                    norm2: schema.layer_norm("norm2", embedding, config.eps)?,
-                    up: schema.linear("up", embedding, config.decoder_inner, true)?,
-                    down: schema.linear("down", config.decoder_inner, embedding, true)?,
-                    norm3: schema.layer_norm("norm3", embedding, config.eps)?,
-                    image_to_token: Attention::create(
-                        &mut schema.scope("image_to_token"),
-                        AttentionSpec {
-                            width: embedding,
-                            context: embedding,
-                            inner: decoder_inner,
-                            heads: config.decoder_heads,
-                            bias: true,
-                        },
-                    )?,
-                    norm4: schema.layer_norm("norm4", embedding, config.eps)?,
-                })
-            })
-            .collect::<SingeResult<Vec<_>>>()?;
-        let final_attention = Attention::create(
-            &mut schema.scope("final_attention"),
-            AttentionSpec {
-                width: embedding,
-                context: embedding,
-                inner: decoder_inner,
-                heads: config.decoder_heads,
-                bias: true,
-            },
-        )?;
-        // `nn.LayerNorm`'s default, which the two-way transformer's last norm keeps.
-        let final_norm = schema.layer_norm("final_norm", embedding, 1e-5)?;
-        let doubling = ConvTransposeConfig {
-            stride: [2, 2],
-            ..ConvTransposeConfig::default()
-        };
-        let upscale = [
-            schema.conv_transpose2d("upscale.0", embedding, embedding / 4, 2, doubling, true)?,
-            schema.conv_transpose2d(
-                "upscale.1",
-                embedding / 4,
-                embedding / 8,
-                2,
-                doubling,
-                true,
-            )?,
-        ];
-        let upscale_norm = schema.layer_norm("upscale_norm", embedding / 4, 1e-6)?;
-        let hypernetworks = (0..=config.masks)
-            .map(|index| {
-                Mlp::create(
-                    &mut schema.scope(format!("hypernetworks.{index}")),
-                    embedding,
-                    embedding,
-                    embedding / 8,
-                    3,
-                )
-            })
-            .collect::<SingeResult<Vec<_>>>()?;
-        let iou_head = Mlp::create(
-            &mut schema.scope("iou_head"),
-            embedding,
-            config.iou_hidden,
-            config.masks + 1,
-            config.iou_depth,
-        )?;
-        SamLayers {
-            patches,
-            positions,
-            blocks,
-            neck,
-            neck_norms,
-            gaussian,
-            point_embeddings,
-            not_a_point,
-            no_mask,
-            output_tokens,
-            two_way,
-            final_attention,
-            final_norm,
-            upscale,
-            upscale_norm,
-            hypernetworks,
-            iou_head,
-            config,
-        }
-    };
-    let layers: Box<dyn PromptableLayers> = Box::new(layers);
-    let schema = Model::new(layers, builder.finish()?);
-    let model = loader.load("model", &schema, &transformers::rules(iou_depth))?;
-    loader.finish()?;
+    let model = Schema::model(loader.options().data_type, |schema| {
+        SamLayers::create(schema, &config)
+            .map(|layers| Boxed::<dyn PromptableLayers>(Box::new(layers)))
+    })?;
+    let model = loader.load_whole(&model, &transformers::rules(config.iou_depth))?;
     Ok(MaskGenerator::new(model))
 }

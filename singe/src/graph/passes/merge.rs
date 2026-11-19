@@ -1,7 +1,8 @@
 // Several matmuls of one left side by different weights can run as one matmul by their weights joined, as vLLM's `qkv` and `gate_up` do, which shares the load of that left side.
 //
-// A record asks for this, since a merge also copies the weights and can break a fusion worth more, which only timing a whole plan shows.
-// The joined weights are built where the graph is compiled, from the values it is compiled with, so preparing with other state rebuilds them, and they are never stale.
+// Weights that are already adjacent rows of one tensor, as `ModelState::join_projection_rows` stores them, merge always: the joined matmul reads them in place, as eager layers do.
+// Other weights merge only when a record asks for it, since that merge copies them and can break a fusion worth more, which only timing a whole plan shows.
+// The copies are built where the graph is compiled, from the values it is compiled with, so preparing with other state rebuilds them, and they are never stale.
 
 use std::collections::HashMap;
 
@@ -19,6 +20,7 @@ use crate::{
         },
     },
     layout::Layout,
+    nn::joined_rows,
     tensor::Tensor,
 };
 
@@ -29,16 +31,42 @@ struct Sibling {
     outputs: i64,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ProjectionMerge {
+    Joined,
+    All,
+}
+
 // Matmuls that may run as one.
 struct SiblingGroup {
     left: ValueId,
     // Whether the right side is the weight transposed, as a linear layer reads it.
     transposed: bool,
     siblings: Vec<Sibling>,
+    joined: Option<Tensor>,
 }
 
 impl SiblingGroup {
+    // The weights as one tensor in place, when they are adjacent rows of one storage; only weights read transposed join by rows.
+    fn join(&mut self) {
+        if !self.transposed {
+            return;
+        }
+
+        self.joined = joined_rows(
+            &self
+                .siblings
+                .iter()
+                .map(|sibling| &sibling.weight)
+                .collect::<Vec<_>>(),
+        );
+    }
+
     fn merged_weight(&self) -> Result<Tensor> {
+        if let Some(joined) = &self.joined {
+            return Ok(joined.clone());
+        }
+
         let weights = self
             .siblings
             .iter()
@@ -47,8 +75,13 @@ impl SiblingGroup {
         Tensor::concat(&weights, i64::from(!self.transposed))
     }
 
+    // The bytes merging copies, which are zero for weights already joined.
     #[cfg(feature = "cuda")]
     fn bytes(&self) -> u64 {
+        if self.joined.is_some() {
+            return 0;
+        }
+
         self.siblings
             .iter()
             .map(|sibling| {
@@ -98,7 +131,8 @@ fn weight_of(graph: &Graph, right: ValueId) -> Result<Option<(Tensor, bool)>> {
         .map(|weight| (weight, true)))
 }
 
-fn sibling_groups(graph: &Graph) -> Result<Vec<SiblingGroup>> {
+// The groups to merge: those whose weights are joined already, and when `copies`, the rest too.
+fn sibling_groups(graph: &Graph, merge: ProjectionMerge) -> Result<Vec<SiblingGroup>> {
     let mut groups = HashMap::<(ValueId, DataType, bool, i64), SiblingGroup>::new();
     for id in graph.node_ids() {
         let node = graph.required_node(id)?;
@@ -113,11 +147,13 @@ fn sibling_groups(graph: &Graph) -> Result<Vec<SiblingGroup>> {
             continue;
         };
         let left_node = graph.required_node(left)?;
-        let dimensions = weight.shape().dimensions();
+        let &[rows, columns] = weight.shape().dimensions() else {
+            continue;
+        };
         let (depth, outputs) = if transposed {
-            (dimensions[1], dimensions[0])
+            (columns, rows)
         } else {
-            (dimensions[0], dimensions[1])
+            (rows, columns)
         };
         // A left side of one dimension gives a result with no axis of outputs to slice.
         if left_node.output_layout().shape().rank() < 2
@@ -133,6 +169,7 @@ fn sibling_groups(graph: &Graph) -> Result<Vec<SiblingGroup>> {
                 left,
                 transposed,
                 siblings: Vec::new(),
+                joined: None,
             })
             .siblings
             .push(Sibling {
@@ -145,25 +182,36 @@ fn sibling_groups(graph: &Graph) -> Result<Vec<SiblingGroup>> {
     let mut groups = groups
         .into_values()
         .filter(|group| group.siblings.len() > 1)
+        .map(|mut group| {
+            group.join();
+            group
+        })
+        .filter(|group| merge == ProjectionMerge::All || group.joined.is_some())
         .collect::<Vec<_>>();
     // Which matmul comes first decides the order of what this adds, which must not depend on a map's.
     groups.sort_by_key(|group| group.siblings[0].id);
     Ok(groups)
 }
 
-// The bytes of weights a merge would copy, which are zero if the graph has nothing to merge.
+// The bytes of weights a record's merge would copy, which are zero if it has nothing to merge beyond the joined weights every compile merges.
 //
 // # Errors
 //
 // Returns an error if the graph is malformed.
 #[cfg(feature = "cuda")]
 pub fn merged_projection_bytes(graph: &Graph) -> Result<u64> {
-    Ok(sibling_groups(graph)?.iter().map(SiblingGroup::bytes).sum())
+    Ok(sibling_groups(graph, ProjectionMerge::All)?
+        .iter()
+        .map(SiblingGroup::bytes)
+        .sum())
 }
 
-// Returns `graph` with each group of sibling matmuls written as one matmul, and its results as views of that.
-pub fn merge_sibling_projections(graph: &Graph) -> Result<(Graph, Vec<(ValueId, ValueId)>)> {
-    let groups = sibling_groups(graph)?;
+// Returns `graph` with each group of sibling matmuls written as one matmul, and its results as views of that: groups whose weights are joined already, and when `copies`, the rest too.
+pub fn merge_sibling_projections(
+    graph: &Graph,
+    merge: ProjectionMerge,
+) -> Result<(Graph, Vec<(ValueId, ValueId)>)> {
+    let groups = sibling_groups(graph, merge)?;
     if groups.is_empty() {
         return Ok((graph.clone(), Vec::new()));
     }

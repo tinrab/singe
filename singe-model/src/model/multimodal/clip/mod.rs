@@ -4,21 +4,20 @@ pub(crate) mod transformers;
 
 use serde::{Deserialize, Serialize};
 use singe::{
-    Result as SingeResult, Tensor,
+    Error as SingeError, Result as SingeResult, Tensor,
     nn::{
-        Conv2dConfig, Embedding, Layer, LayerNorm, Linear, Model, ModelState, PatchEmbedding,
-        PatchTokens, Pooling, PoolingInput, PoolingMode, StateBuilder, TokenBatch, TokenEmbeddings,
+        Embedding, Layer, LayerNorm, Linear, Model, ModelState, PatchTokens, Pooling, PoolingInput,
+        PoolingMode, StateKey, TokenBatch, TokenEmbeddings,
     },
 };
 
 use crate::{
-    assembly::{PreNormEncoder, PreNormEncoderSpec},
+    assembly::{
+        FinalNorm, PreNormEncoder, PreNormEncoderConfig, VisionTowerConfig, patch_embedding,
+    },
     error::Result,
     format::Loader,
-    head::{
-        ContrastiveEncoder, HeadLoader, PixelLayers, TextEmbeddingLayers, TextEncoder,
-        TextEncoderLayers,
-    },
+    head::{Boxed, ContrastiveEncoder, HeadLoader, TextEncoder},
     model::ModelEntry,
     schema::Schema,
     source::{Format, LoadOptions, Source},
@@ -26,26 +25,23 @@ use crate::{
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ClipTextConfig {
-    pub encoder: PreNormEncoderSpec,
+    pub encoder: PreNormEncoderConfig,
     pub layers: i64,
     pub vocab_size: i64,
-    pub positions: i64,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct ClipVisionConfig {
-    pub encoder: PreNormEncoderSpec,
-    pub layers: i64,
-    pub image_size: i64,
-    pub patch_size: i64,
-    pub channels: i64,
+    pub max_positions: i64,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ClipConfig {
     pub text: ClipTextConfig,
-    pub vision: ClipVisionConfig,
+    pub vision: VisionTowerConfig,
     // The width of the space both towers project into.
+    pub projection: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ClipTextProjectionConfig {
+    pub text: ClipTextConfig,
     pub projection: i64,
 }
 
@@ -65,9 +61,10 @@ impl ClipText {
             TokenEmbeddings::new(Embedding::new(
                 schema.parameter("tokens.weight", [config.vocab_size, width])?,
             ))
-            .with_positions(schema.parameter("positions.weight", [config.positions, width])?)
+            .with_positions(schema.parameter("positions.weight", [config.max_positions, width])?)
         };
-        let encoder = PreNormEncoder::create(schema, &config.encoder, config.layers, true)?;
+        let encoder =
+            PreNormEncoder::create(schema, &config.encoder, config.layers, FinalNorm::Included)?;
         Ok(Self {
             embeddings,
             encoder,
@@ -91,6 +88,17 @@ impl ClipText {
     }
 }
 
+// Every token's normed final state, `[B, T, W]`, as `CLIPTextModel`'s `last_hidden_state` is, which Stable Diffusion conditions on.
+impl Layer<TokenBatch> for ClipText {
+    fn forward(&self, input: &TokenBatch, state: &ModelState) -> SingeResult<Tensor> {
+        self.encoder.encode(
+            &self.embeddings.forward(input, state)?,
+            Some(&input.key_lengths()?),
+            state,
+        )
+    }
+}
+
 // CLIP's vision tower: a class token and patches with learned positions, normed before pre-norm blocks, from images to every token's final state, `[B, 1 + N, W]`, before the `post_norm` a pooled or per-patch output takes.
 #[derive(Debug, Clone)]
 pub struct ClipVision {
@@ -102,28 +110,24 @@ pub struct ClipVision {
 
 impl ClipVision {
     // Registers the tower in `schema`: `embeddings` (`patches`, `class`, `positions`), `pre_norm`, `blocks`, and `post_norm`.
-    pub fn create(schema: &mut Schema<'_>, config: &ClipVisionConfig) -> SingeResult<Self> {
+    pub fn create(schema: &mut Schema<'_>, config: &VisionTowerConfig) -> SingeResult<Self> {
         let width = config.encoder.width;
-        let side = config.image_size / config.patch_size;
         let embeddings = {
             let mut schema = schema.scope("embeddings");
-            let patches = schema.conv2d(
-                "patches",
+            let patches = patch_embedding(
+                &mut schema,
                 config.channels,
                 width,
                 config.patch_size,
-                Conv2dConfig {
-                    stride: (config.patch_size, config.patch_size),
-                    ..Conv2dConfig::default()
-                },
                 false,
             )?;
-            PatchTokens::new(PatchEmbedding::new(patches))
-                .with_class_token(schema.parameter("class", [1, 1, width])?)
-                .with_positions(schema.parameter("positions", [1, side * side + 1, width])?)
+            PatchTokens::new(patches)
+                .with_leading_token(schema.parameter("class", [1, 1, width])?)
+                .with_positions(schema.parameter("positions", [1, config.patches() + 1, width])?)
         };
         let pre_norm = schema.layer_norm("pre_norm", width, config.encoder.eps)?;
-        let encoder = PreNormEncoder::create(schema, &config.encoder, config.layers, false)?;
+        let encoder =
+            PreNormEncoder::create(schema, &config.encoder, config.layers, FinalNorm::Omitted)?;
         let post_norm = schema.layer_norm("post_norm", width, config.encoder.eps)?;
         Ok(Self {
             embeddings,
@@ -179,119 +183,34 @@ impl Layer<TokenBatch> for ClipTextLayers {
 }
 
 #[derive(Debug, Clone)]
-struct ClipLayers {
-    images: ClipImageLayers,
-    texts: ClipTextLayers,
+pub(crate) struct ImageTextLayers<I, T> {
+    pub(crate) images: I,
+    pub(crate) texts: T,
 }
 
-// Every token's normed final state, `[B, T, W]`, as `CLIPTextModel`'s `last_hidden_state` is, which Stable Diffusion conditions on.
-impl Layer<TokenBatch> for ClipText {
-    fn forward(&self, input: &TokenBatch, state: &ModelState) -> SingeResult<Tensor> {
-        self.encoder.encode(
-            &self.embeddings.forward(input, state)?,
-            Some(&input.key_lengths()?),
-            state,
+impl<I: Layer + Clone + 'static, T: Layer<TokenBatch> + Clone + 'static> ImageTextLayers<I, T> {
+    pub(crate) fn split(&self, state: &ModelState) -> (Model<Boxed<dyn Layer>>, TextEncoder) {
+        (
+            Model::new(
+                Boxed::<dyn Layer>(Box::new(self.images.clone())),
+                state.clone(),
+            ),
+            Model::new(
+                Boxed::<dyn Layer<TokenBatch>>(Box::new(self.texts.clone())),
+                state.clone(),
+            ),
         )
     }
 }
 
-// CLIP's text tower alone, as `CLIPTextModel` stores it.
-pub(crate) const TEXT_MODEL: ModelEntry = ModelEntry {
-    name: "clip_text",
-    formats: &[(Format::Transformers, &["clip_text_model"])],
-    heads: &[HeadLoader::TextEncoder(load_text)],
-};
-
-pub fn load_text(loader: &mut Loader<'_>) -> Result<TextEncoder> {
-    let config: ClipTextConfig = loader.config(transformers::text_model_config)?;
-    let mut builder = StateBuilder::new();
-    let text = {
-        let mut schema = Schema::root(&mut builder, loader.options().data_type);
-        ClipText::create(&mut schema, &config)?
-    };
-    let model = loader.load(
-        "model",
-        &Model::new(TextEncoderLayers(Box::new(text)), builder.finish()?),
-        &transformers::text_rules("text_model", ""),
-    )?;
-    loader.finish()?;
-    Ok(model)
-}
-
-// Loads a `CLIPTextModelWithProjection` from `source`: each text's end-of-text state projected, as its `text_embeds` are.
-pub fn load_text_with_projection(
-    source: &Source,
-    options: LoadOptions,
-) -> Result<Model<TextEmbeddingLayers>> {
-    let mut loader = Loader::new(source, options);
-    let config: ClipTextConfig = loader.config(transformers::text_model_config)?;
-    let projection: transformers::ProjectionFields = source.json("config.json")?;
-    let mut builder = StateBuilder::new();
-    let layers = {
-        let mut schema = Schema::root(&mut builder, options.data_type);
-        ClipTextLayers {
-            text: ClipText::create(&mut schema.scope("text"), &config)?,
-            projection: schema.linear(
-                "projection",
-                config.encoder.width,
-                projection.projection_dim,
-                false,
-            )?,
-        }
-    };
-    let model = loader.load(
-        "model",
-        &Model::new(TextEmbeddingLayers(Box::new(layers)), builder.finish()?),
-        &transformers::text_rules("text_model", "text.").rename("text_projection", "projection"),
-    )?;
-    loader.finish()?;
-    Ok(model)
-}
-
-// The patches' final states, `[B, N, W]`, before the post-norm, as `CLIPVisionModel`'s `last_hidden_state` past its class token is.
 #[derive(Debug, Clone)]
-struct ClipPatchStates(ClipVision);
-
-impl Layer for ClipPatchStates {
-    fn forward(&self, input: &Tensor, state: &ModelState) -> SingeResult<Tensor> {
-        let hidden = self.0.hidden(input, state)?;
-        let length = hidden.shape().dimensions()[1];
-        hidden.narrow(1, 1, length - 1)
-    }
+struct ClipLayers {
+    sides: ImageTextLayers<ClipImageLayers, ClipTextLayers>,
+    logit_scale: StateKey,
 }
 
-// Loads a `CLIPVisionModel` from `source` as its patches' final states.
-pub fn load_vision_states(source: &Source, options: LoadOptions) -> Result<Model<PixelLayers>> {
-    let mut loader = Loader::new(source, options);
-    let config: ClipVisionConfig = loader.config(transformers::vision_model_config)?;
-    let mut builder = StateBuilder::new();
-    let vision = {
-        let mut schema = Schema::root(&mut builder, options.data_type);
-        ClipVision::create(&mut schema.scope("vision"), &config)?
-    };
-    let model = loader.load(
-        "model",
-        &Model::new(
-            PixelLayers(Box::new(ClipPatchStates(vision))),
-            builder.finish()?,
-        ),
-        &transformers::vision_rules("vision_model", "vision."),
-    )?;
-    loader.finish()?;
-    Ok(model)
-}
-
-pub(crate) const MODEL: ModelEntry = ModelEntry {
-    name: "clip",
-    formats: &[(Format::Transformers, &["clip"])],
-    heads: &[HeadLoader::ZeroShotImageClassification(load_image_text)],
-};
-
-pub fn load_image_text(loader: &mut Loader<'_>) -> Result<ContrastiveEncoder> {
-    let config: ClipConfig = loader.config(transformers::config)?;
-    let mut builder = StateBuilder::new();
-    let (layers, logit_scale) = {
-        let mut schema = Schema::root(&mut builder, loader.options().data_type);
+impl ClipLayers {
+    fn create(schema: &mut Schema<'_>, config: &ClipConfig) -> SingeResult<Self> {
         let vision = ClipVision::create(&mut schema.scope("vision"), &config.vision)?;
         let text = ClipText::create(&mut schema.scope("text"), &config.text)?;
         let image_projection = schema.linear(
@@ -306,9 +225,8 @@ pub fn load_image_text(loader: &mut Loader<'_>) -> Result<ContrastiveEncoder> {
             config.projection,
             false,
         )?;
-        let logit_scale = schema.parameter("logit_scale", [])?;
-        (
-            ClipLayers {
+        Ok(Self {
+            sides: ImageTextLayers {
                 images: ClipImageLayers {
                     vision,
                     projection: image_projection,
@@ -318,22 +236,100 @@ pub fn load_image_text(loader: &mut Loader<'_>) -> Result<ContrastiveEncoder> {
                     projection: text_projection,
                 },
             },
-            logit_scale,
-        )
-    };
-    let schema = Model::new(layers, builder.finish()?);
-    let model = loader.load("model", &schema, &transformers::clip_rules(""))?;
-    loader.finish()?;
-    let state = model.state().clone();
+            logit_scale: schema.parameter("logit_scale", [])?,
+        })
+    }
+}
+
+// The patches' final states, `[B, N, W]`, before the post-norm, as `CLIPVisionModel`'s `last_hidden_state` past its class token is.
+#[derive(Debug, Clone)]
+struct ClipPatchStates(ClipVision);
+
+impl Layer for ClipPatchStates {
+    fn forward(&self, input: &Tensor, state: &ModelState) -> SingeResult<Tensor> {
+        let hidden = self.0.hidden(input, state)?;
+        let &[_, length, _] = hidden.shape().dimensions() else {
+            return Err(SingeError::invalid_argument("the vision tower's states"));
+        };
+        hidden.narrow(1, 1, length - 1)
+    }
+}
+
+// CLIP's text tower alone, as `CLIPTextModel` stores it.
+pub(crate) const TEXT_MODEL: ModelEntry = ModelEntry {
+    name: "clip_text",
+    formats: &[(Format::Transformers, &["clip_text_model"])],
+    loaders: &[HeadLoader::TextEncoder(load_text)],
+};
+
+pub(crate) const MODEL: ModelEntry = ModelEntry {
+    name: "clip",
+    formats: &[(Format::Transformers, &["clip"])],
+    loaders: &[HeadLoader::ZeroShotImageClassification(load_image_text)],
+};
+
+pub fn load_text(loader: &mut Loader<'_>) -> Result<TextEncoder> {
+    let config: ClipTextConfig = loader.config(transformers::text_model_config)?;
+    let model = Schema::model(loader.options().data_type, |schema| {
+        ClipText::create(schema, &config).map(|text| Boxed::<dyn Layer<TokenBatch>>(Box::new(text)))
+    })?;
+    loader.load_whole(&model, &transformers::text_rules("text_model", ""))
+}
+
+// Loads a `CLIPTextModelWithProjection` from `source`: each text's end-of-text state projected, as its `text_embeds` are.
+pub fn load_text_with_projection(
+    source: &Source,
+    options: LoadOptions,
+) -> Result<Model<Boxed<dyn Layer<TokenBatch>>>> {
+    let mut loader = Loader::new(source, options);
+    let config: ClipTextProjectionConfig =
+        loader.config(transformers::text_projection_model_config)?;
+    let model = Schema::model(options.data_type, |schema| {
+        let layers = ClipTextLayers {
+            text: ClipText::create(&mut schema.scope("text"), &config.text)?,
+            projection: schema.linear(
+                "projection",
+                config.text.encoder.width,
+                config.projection,
+                false,
+            )?,
+        };
+        Ok::<_, SingeError>(Boxed::<dyn Layer<TokenBatch>>(Box::new(layers)))
+    })?;
+    loader.load_whole(
+        &model,
+        &transformers::text_rules("text_model", "text").rename("text_projection", "projection"),
+    )
+}
+
+// Loads a `CLIPVisionModel` from `source` as its patches' final states.
+pub fn load_vision_states(
+    source: &Source,
+    options: LoadOptions,
+) -> Result<Model<Boxed<dyn Layer>>> {
+    let mut loader = Loader::new(source, options);
+    let config: VisionTowerConfig = loader.config(transformers::vision_model_config)?;
+    let model = Schema::model(options.data_type, |schema| {
+        ClipVision::create(&mut schema.scope("vision"), &config)
+            .map(|vision| Boxed::<dyn Layer>(Box::new(ClipPatchStates(vision))))
+    })?;
+    loader.load_whole(
+        &model,
+        &transformers::vision_rules("vision_model", "vision"),
+    )
+}
+
+pub fn load_image_text(loader: &mut Loader<'_>) -> Result<ContrastiveEncoder> {
+    let config: ClipConfig = loader.config(transformers::config)?;
+    let model = Schema::model(loader.options().data_type, |schema| {
+        ClipLayers::create(schema, &config)
+    })?;
+    let model = loader.load_whole(&model, &transformers::clip_rules(""))?;
+    let layers = model.layer();
+    let (images, texts) = layers.sides.split(model.state());
     Ok(ContrastiveEncoder::new(
-        Model::new(
-            PixelLayers(Box::new(model.layer().images.clone())),
-            state.clone(),
-        ),
-        Model::new(
-            TextEmbeddingLayers(Box::new(model.layer().texts.clone())),
-            state,
-        ),
-        logit_scale,
+        images,
+        texts,
+        layers.logit_scale.clone(),
     ))
 }

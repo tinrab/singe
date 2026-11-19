@@ -15,7 +15,7 @@ use crate::{
             element_type,
         },
         registry::{Conv2dAttributes, Operation, Pool2dAttributes},
-        spec,
+        spec::{self, PoolReduction},
     },
     data_type::DataType,
     error::{Error, Result},
@@ -62,6 +62,18 @@ impl Span {
 struct Position {
     inside: NodeId,
     inside_padding: NodeId,
+}
+
+#[derive(Clone, Copy)]
+enum Bounds {
+    Input,
+    PaddedInput,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConvolutionGrouping {
+    Depthwise,
+    Any,
 }
 
 struct Window {
@@ -192,17 +204,13 @@ impl Window {
         Ok(self.builder.convert(value, element.compute()))
     }
 
-    // Whether the tap lies inside the input along every axis with bounds, or `None` when every tap does.
-    fn inside(&mut self, padding: bool) -> Option<NodeId> {
+    fn inside(&mut self, bounds: Bounds) -> Option<NodeId> {
         let kernel = &mut self.builder.kernel;
         self.positions
             .iter()
-            .map(|position| {
-                if padding {
-                    position.inside_padding
-                } else {
-                    position.inside
-                }
+            .map(|position| match bounds {
+                Bounds::Input => position.inside,
+                Bounds::PaddedInput => position.inside_padding,
             })
             .reduce(|lhs, rhs| kernel.binary(BinaryOp::And, lhs, rhs))
     }
@@ -265,7 +273,11 @@ pub fn pool2d(
         return Err(Error::unsupported_data_type("cuda generated pool2d"));
     }
 
-    let average = operation == Operation::AvgPool2d;
+    let reduction = if operation == Operation::AvgPool2d {
+        PoolReduction::Average
+    } else {
+        PoolReduction::Maximum
+    };
     let problem = spec::pool2d_problem(
         input.shape(),
         attributes.kernel_size,
@@ -273,7 +285,7 @@ pub fn pool2d(
         attributes.padding,
         attributes.dilation,
         attributes.ceil_mode,
-        average,
+        reduction,
         "cuda generated pool2d",
     )?;
     // A `[C, H, W]` input is one image.
@@ -302,10 +314,9 @@ pub fn pool2d(
         pad_end: problem.pad_width_end,
     };
     let mut window = Window::create(
-        if average {
-            "singe_avg_pool2d"
-        } else {
-            "singe_max_pool2d"
+        match reduction {
+            PoolReduction::Average => "singe_avg_pool2d",
+            PoolReduction::Maximum => "singe_max_pool2d",
         },
         [problem.batch, problem.channels, 1, 1],
         rows,
@@ -318,9 +329,9 @@ pub fn pool2d(
     let element = element_type(data_type)?;
     let compute = element.compute();
     let value = window.load_input(data_type)?;
-    let inside = window.inside(false);
+    let inside = window.inside(Bounds::Input);
     let taps = window.taps();
-    let result = if average {
+    let result = if reduction == PoolReduction::Average {
         let zero = window.builder.constant(compute, 0.0);
         let value = match inside {
             Some(inside) => window.builder.kernel.select(inside, value, zero),
@@ -333,7 +344,7 @@ pub fn pool2d(
         // The divisor counts the window's taps inside the input, or inside the padded input when padding counts, which ceil-mode windows can still overhang.
         let counted = if attributes.count_include_pad.unwrap_or(true) {
             if rows.reaches_past_padding() || columns.reaches_past_padding() {
-                window.inside(true)
+                window.inside(Bounds::PaddedInput)
             } else {
                 None
             }
@@ -369,9 +380,9 @@ pub fn pool2d(
         .finish(ValueSpec::new(data_type, problem.output_shape), schedule))
 }
 
-// Lowers a `conv2d` of a floating `[N, C, H, W]` input by `[O, C / G, KH, KW]` weights in `G` groups as a window reduction over the weight's taps and each group's input channels, when it is depthwise or `general` allows any grouping, with an optional bias of `O` values.
+// Lowers a `conv2d` of a floating `[N, C, H, W]` input by `[O, C / G, KH, KW]` weights in `G` groups as a window reduction over the weight's taps and each group's input channels, when it is depthwise or `grouping` allows any grouping, with an optional bias of `O` values.
 pub fn conv2d(
-    general: bool,
+    grouping: ConvolutionGrouping,
     attributes: &Conv2dAttributes,
     data_type: DataType,
     input: &Layout,
@@ -390,7 +401,7 @@ pub fn conv2d(
     if !data_type.is_float()
         || weight.0 != data_type
         || bias.is_some_and(|(bias_type, _)| !bias_type.is_float())
-        || (!general && problem.groups != problem.input_channels)
+        || (grouping == ConvolutionGrouping::Depthwise && problem.groups != problem.input_channels)
     {
         return Err(Error::unsupported_operation(
             "cuda generated conv2d that is not depthwise",
@@ -456,7 +467,7 @@ pub fn conv2d(
     let element = element_type(data_type)?;
     let compute = element.compute();
     let value = window.load_input(data_type)?;
-    let value = match window.inside(false) {
+    let value = match window.inside(Bounds::Input) {
         Some(inside) => {
             let zero = window.builder.constant(compute, 0.0);
             window.builder.kernel.select(inside, value, zero)

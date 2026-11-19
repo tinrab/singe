@@ -116,14 +116,14 @@ impl Tensor {
     ///
     /// Returns an error if the logits are not a floating vector or matrix, an option is out of range, or the backend fails.
     pub fn sample(&self, options: &SamplingOptions, generator: Option<&Generator>) -> Result<Self> {
-        let rank = self.shape().rank();
-        if !matches!(rank, 1 | 2) || !self.data_type().is_float() {
-            return Err(Error::invalid_argument(
-                "sampling needs a floating vector or matrix of logits",
-            ));
-        }
-
-        let vocabulary = self.shape().dimensions()[usize::try_from(rank - 1).unwrap_or(0)];
+        let vocabulary = match *self.shape().dimensions() {
+            [vocabulary] | [_, vocabulary] if self.data_type().is_float() => vocabulary,
+            _ => {
+                return Err(Error::invalid_argument(
+                    "sampling needs a floating vector or matrix of logits",
+                ));
+            }
+        };
         options.validate(vocabulary)?;
         let logits = if self.data_type() == DataType::F32 {
             self.clone()

@@ -95,11 +95,11 @@ fn test_index_rejects_invalid_entries() {
     let t = range_tensor(&[2, 3]);
     assert!(matches!(
         t.index(&[TensorIndex::Single(i64::MIN)]).unwrap_err(),
-        Error::IndexOutOfBounds
+        Error::IndexOutOfBounds { .. }
     ));
     assert!(matches!(
         t.index(&idx![0, 0, 0]).unwrap_err(),
-        Error::DimensionOutOfBounds
+        Error::DimensionOutOfBounds { .. }
     ));
     assert!(t.index(&idx![..., 0, ...]).is_err());
     assert!(t.index(&idx![..;0]).is_err());
@@ -181,7 +181,7 @@ fn test_index_with_several_tensors_is_captured_and_replays_new_indices() {
     assert_eq!(values(&run(&[1, 1], &[0, 3]).unwrap()[0]), [4., 7.]);
     assert!(matches!(
         run(&[3, 0], &[0, 0]),
-        Err(Error::IndexOutOfBounds)
+        Err(Error::IndexOutOfBounds { .. })
     ));
 }
 

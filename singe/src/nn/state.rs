@@ -8,6 +8,8 @@ use crate::{
     device::Device,
     error::{Error, Result},
     graph::{CaptureBindings, Graph, GraphProgram},
+    layout::Layout,
+    nn::Linear,
     state::{StateBindingKind, StateBindingSpec, StateSchema, StateSnapshot},
     tensor::Tensor,
     value::ValueSpec,
@@ -36,6 +38,7 @@ pub struct StateBuilder {
     owner: Arc<()>,
     bindings: BTreeMap<String, StateBindingSpec>,
     tensors: HashMap<String, Tensor>,
+    row_groups: Vec<Vec<String>>,
 }
 
 impl StateBuilder {
@@ -122,6 +125,27 @@ impl StateBuilder {
         })
     }
 
+    pub fn join_rows(&mut self, linears: &[&Linear]) -> Result<()> {
+        let weights = || linears.iter().map(|linear| linear.weight());
+        if weights()
+            .chain(linears.iter().filter_map(|linear| linear.bias()))
+            .any(|key| !Arc::ptr_eq(&self.owner, &key.owner))
+        {
+            return Err(Error::invalid_argument("foreign model state key"));
+        }
+
+        self.row_groups
+            .push(weights().map(|key| key.name.clone()).collect());
+        if let Some(biases) = linears
+            .iter()
+            .map(|linear| linear.bias().map(|key| key.name.clone()))
+            .collect::<Option<Vec<_>>>()
+        {
+            self.row_groups.push(biases);
+        }
+        Ok(())
+    }
+
     fn validate_name(&self, name: &str) -> Result<()> {
         if name.split('.').any(str::is_empty) || self.bindings.contains_key(name) {
             return Err(Error::invalid_argument(format!(
@@ -145,6 +169,7 @@ impl StateBuilder {
                 }),
                 &self.tensors,
             )?,
+            row_groups: Arc::from(self.row_groups),
         })
     }
 }
@@ -190,6 +215,10 @@ impl StateScope<'_> {
         let name = self.named(name.as_ref());
         self.builder.tie(name, target)
     }
+
+    pub fn join_rows(&mut self, linears: &[&Linear]) -> Result<()> {
+        self.builder.join_rows(linears)
+    }
 }
 
 /// Immutable model state with explicit tied-name groups and publication identity.
@@ -197,6 +226,7 @@ impl StateScope<'_> {
 pub struct ModelState {
     pub(crate) snapshot: StateSnapshot,
     owner: Arc<()>,
+    row_groups: Arc<[Vec<String>]>,
 }
 
 impl ModelState {
@@ -257,6 +287,7 @@ impl ModelState {
         Ok(Self {
             owner: Arc::clone(&self.owner),
             snapshot: StateSnapshot::create(Arc::new(StateSchema { bindings }), &tensors)?,
+            row_groups: Arc::clone(&self.row_groups),
         })
     }
 
@@ -386,7 +417,40 @@ impl ModelState {
         Ok(Self {
             owner: Arc::clone(&self.owner),
             snapshot: self.snapshot.replace(replacements)?,
+            row_groups: Arc::clone(&self.row_groups),
         })
+    }
+
+    // The layers keep their keys, and memory holds each weight once; a layer whose parts are adjacent views of one tensor multiplies by them together (see `joined_rows`).
+    // Groups are replaced one at a time, so memory peaks at one group's copy.
+    pub fn join_projection_rows(&self) -> Result<Self> {
+        let mut state = self.clone();
+        for members in &*self.row_groups {
+            let Some(parts) = members
+                .iter()
+                .map(|member| state.named_tensor(member).cloned())
+                .collect::<Option<Vec<_>>>()
+            else {
+                continue;
+            };
+            if !joinable(&parts) {
+                continue;
+            }
+
+            let joined = Tensor::concat(&parts, 0)?;
+            let mut replacements = HashMap::new();
+            let mut start = 0;
+            for (member, part) in members.iter().zip(&parts) {
+                let &[rows, ..] = part.shape().dimensions() else {
+                    return Err(Error::invalid_argument("joined projection rows"));
+                };
+                replacements.insert(member.clone(), joined.narrow(0, start, rows)?);
+                start += rows;
+            }
+
+            state = state.replace(&replacements)?;
+        }
+        Ok(state)
     }
 
     /// Visits each logical binding once.
@@ -414,6 +478,7 @@ impl ModelState {
             return Ok(Self {
                 owner: Arc::clone(&self.owner),
                 snapshot: self.snapshot.to_device(device)?,
+                row_groups: Arc::clone(&self.row_groups),
             });
         }
 
@@ -450,6 +515,55 @@ impl ModelState {
         Ok(Self {
             owner: Arc::clone(&self.owner),
             snapshot,
+            row_groups: Arc::clone(&self.row_groups),
         })
     }
+}
+
+fn stacks_by_rows(first: &Tensor, part: &Tensor) -> bool {
+    matches!(first.shape().rank(), 1 | 2)
+        && part.is_contiguous()
+        && part.shape().dimensions().get(1..) == first.shape().dimensions().get(1..)
+}
+
+// Whether projections' weights or biases, each laid out whole, share a floating type, a device, and every axis but the first, and are separate tensors.
+fn joinable(parts: &[Tensor]) -> bool {
+    let Some(first) = parts.first() else {
+        return false;
+    };
+    let mut ids = HashSet::new();
+    matches!(
+        first.data_type(),
+        DataType::F16 | DataType::Bf16 | DataType::F32 | DataType::F64
+    ) && parts.iter().all(|part| {
+        stacks_by_rows(first, part)
+            && part.data_type() == first.data_type()
+            && part.device() == first.device()
+            && ids.insert(part.id())
+    })
+}
+
+// The tensor `parts`' rows make together, when they are adjacent row views of one storage in order, as `ModelState::join_projection_rows` binds them; `None` otherwise.
+pub(crate) fn joined_rows(parts: &[&Tensor]) -> Option<Tensor> {
+    let first = *parts.first()?;
+    let row = *first.layout().strides().first()?;
+    let mut rows = 0;
+    for part in parts {
+        let adjacent = stacks_by_rows(first, part)
+            && Arc::ptr_eq(part.storage(), first.storage())
+            && i64::try_from(part.storage_offset()).ok()?
+                == i64::try_from(first.storage_offset()).ok()? + rows * row;
+        if !adjacent {
+            return None;
+        }
+
+        rows += *part.shape().dimensions().first()?;
+    }
+
+    let mut dimensions = first.shape().dimensions().to_vec();
+    dimensions[0] = rows;
+    let layout = Layout::contiguous(dimensions)
+        .ok()?
+        .with_offset(first.storage_offset());
+    first.strided_view_unrecorded(layout).ok()
 }

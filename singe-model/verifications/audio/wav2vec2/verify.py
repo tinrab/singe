@@ -1,21 +1,15 @@
-"""Wav2Vec2, transcribing a clip by CTC with `transformers`' automatic-speech-recognition pipeline, as `verify.rs` transcribes it in Singe."""
+"""Wav2Vec2, transcribing a clip by CTC with `transformers`' automatic-speech-recognition pipeline, as `mod.rs` transcribes it in Singe."""
 
-import sys
-from pathlib import Path
+from transformers import pipeline
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-
-import torch  # noqa: E402
-from transformers import pipeline  # noqa: E402
-
-from support import DEVICE, Verification, read_wav  # noqa: E402
+from support import DEVICE, Verification, read_wav
 
 
-def automatic_speech_recognition(snapshot):
+def automatic_speech_recognition(snapshot, dtype):
     recognize = pipeline(
         "automatic-speech-recognition",
         model=snapshot,
-        dtype=torch.float32,
+        dtype=dtype,
         device=DEVICE,
     )
 

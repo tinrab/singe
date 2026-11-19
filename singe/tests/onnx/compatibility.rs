@@ -11,7 +11,8 @@ use singe::{
 };
 use singe_onnx::proto::onnx::{
     AttributeProto, GraphProto, ModelProto, NodeProto, OperatorSetIdProto, TensorProto,
-    TensorShapeProto, TypeProto, ValueInfoProto, attribute_proto, tensor_proto, tensor_shape_proto,
+    TensorShapeProto, TypeProto, ValueInfoProto, attribute_proto, tensor_proto,
+    tensor_shape_proto::{self, dimension::Value as DimensionValue},
     type_proto,
 };
 
@@ -57,7 +58,7 @@ fn typed_value_info(
                         .iter()
                         .copied()
                         .map(|dimension| tensor_shape_proto::Dimension {
-                            value: Some(tensor_shape_proto::dimension::Value::DimValue(dimension)),
+                            value: Some(DimensionValue::DimValue(dimension)),
                             ..Default::default()
                         })
                         .collect(),
@@ -550,8 +551,7 @@ fn test_conflicting_shape_overrides_and_output_symbols_are_rejected() {
         else {
             unreachable!()
         };
-        tensor.shape.as_mut().unwrap().dim[0].value =
-            Some(tensor_shape_proto::dimension::Value::DimParam("n".into()));
+        tensor.shape.as_mut().unwrap().dim[0].value = Some(DimensionValue::DimParam("n".into()));
     }
     assert!(matches!(
         OnnxModel::from_reader(

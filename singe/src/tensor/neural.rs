@@ -78,6 +78,15 @@ impl Tensor {
         )
     }
 
+    // Rotates the halves of the last axis against each other, `concat(first · cos − second · sin, second · cos + first · sin)`, by `cos` and `sin` of this tensor's type, which broadcast to `[..., D / 2]`.
+    pub fn rotary_halves(&self, cos: &Self, sin: &Self) -> Result<Self> {
+        call_one(
+            Operation::RotaryHalves,
+            OperationAttributes::None,
+            &[self, cos, sin],
+        )
+    }
+
     /// Applies scaled dot-product attention to rank-4 F32 tensors.
     ///
     /// `self` is the query tensor shaped `[batch, heads, query, head_dim]`, `key` is shaped `[batch, heads, key, head_dim]`, and `value` is shaped `[batch, heads, key, value_dim]`.
@@ -358,7 +367,7 @@ impl Tensor {
         eps: f32,
     ) -> Result<Self> {
         let dimensions = self.shape().dimensions();
-        let [batch, channels, ..] = *dimensions else {
+        let &[batch, channels, ref spatial @ ..] = dimensions else {
             return Err(Error::invalid_argument(
                 "group normalization needs batch and channel dimensions",
             ));
@@ -369,7 +378,7 @@ impl Tensor {
             ));
         }
 
-        let points = dimensions[2..].iter().product::<i64>() * (channels / groups);
+        let points = spatial.iter().product::<i64>() * (channels / groups);
         let mut normalized = self
             .reshape([batch, groups, points])?
             .layer_norm(&[points], None, None, eps)?
@@ -713,16 +722,17 @@ impl Tensor {
     pub fn dequantize_blocks(&self, scales: &Self, block: (i64, i64)) -> Result<Self> {
         let dimensions = self.shape().dimensions();
         let rank = dimensions.len();
-        if rank < 2 || scales.shape().dimensions().len() != rank {
+        let (&[.., rows, columns], true) = (dimensions, scales.shape().dimensions().len() == rank)
+        else {
             return Err(Error::invalid_argument(
                 "block dequantization needs values and scales of one rank of at least two",
             ));
-        }
-
-        let (rows, columns) = (dimensions[rank - 2], dimensions[rank - 1]);
+        };
         let (row_axis, column_axis) = (
-            i64::try_from(rank - 2).map_err(|_| Error::DimensionOutOfBounds)?,
-            i64::try_from(rank - 1).map_err(|_| Error::DimensionOutOfBounds)?,
+            i64::try_from(rank - 2)
+                .map_err(|_| Error::dimension_out_of_bounds("block dequantization row axis"))?,
+            i64::try_from(rank - 1)
+                .map_err(|_| Error::dimension_out_of_bounds("block dequantization column axis"))?,
         );
         let expanded = scales
             .cast(DataType::F32)?

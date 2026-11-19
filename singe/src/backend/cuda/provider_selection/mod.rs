@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     backend::{cuda::gemm::GemmLayout, registry::Operation},
     data_type::DataType,
+    error::Result,
     layout::Layout,
     tensor::Tensor,
 };
@@ -76,4 +77,61 @@ pub fn library_matmul_accepts(lhs: Operand<'_>, rhs: Operand<'_>) -> bool {
             DataType::F16 | DataType::Bf16 | DataType::F32
         )
         && GemmLayout::create(lhs.layout, rhs.layout).is_some()
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CopiedOperands {
+    Lhs,
+    Rhs,
+    Both,
+}
+
+impl CopiedOperands {
+    pub const fn copies_lhs(self) -> bool {
+        matches!(self, Self::Lhs | Self::Both)
+    }
+
+    pub const fn copies_rhs(self) -> bool {
+        matches!(self, Self::Rhs | Self::Both)
+    }
+}
+
+// Operands cuBLAS cannot read in place, such as two batch axes whose strides do not merge, copied whole so it can, as PyTorch's `bmm` copies them, copying the fewest elements that works.
+// A copy reads and writes each element once, where the general kernel runs the whole product several times slower.
+pub fn cublas_copies(lhs: Operand<'_>, rhs: Operand<'_>) -> Result<Option<CopiedOperands>> {
+    if library_matmul_accepts(lhs, rhs)
+        || lhs.data_type != rhs.data_type
+        || !matches!(
+            lhs.data_type,
+            DataType::F16 | DataType::Bf16 | DataType::F32
+        )
+    {
+        return Ok(None);
+    }
+
+    let (lhs_elements, rhs_elements) = (
+        lhs.layout.shape().element_count(),
+        rhs.layout.shape().element_count(),
+    );
+    let mut choices = [
+        (CopiedOperands::Rhs, rhs_elements),
+        (CopiedOperands::Lhs, lhs_elements),
+        (CopiedOperands::Both, lhs_elements + rhs_elements),
+    ];
+    choices.sort_by_key(|&(_, copied)| copied);
+    let layout = |operand: Operand<'_>, copied: bool| {
+        if copied {
+            Layout::contiguous(operand.layout.shape().dimensions())
+        } else {
+            Ok(operand.layout.clone())
+        }
+    };
+    for (copied, _) in choices {
+        let lhs_layout = layout(lhs, copied.copies_lhs())?;
+        let rhs_layout = layout(rhs, copied.copies_rhs())?;
+        if GemmLayout::create(&lhs_layout, &rhs_layout).is_some() {
+            return Ok(Some(copied));
+        }
+    }
+    Ok(None)
 }

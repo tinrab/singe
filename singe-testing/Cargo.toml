@@ -12,9 +12,10 @@ publish = false
 
 [features]
 default = []
-cuda_13_4 = ["singe/cuda_13_4", "singe/testing"]
+cuda_13_4 = ["singe/cuda_13_4", "singe/testing", "dep:singe-cupti"]
 
 [dependencies]
 singe.workspace = true
+singe-cupti = { workspace = true, optional = true }
 safetensors.workspace = true
 serde_json.workspace = true

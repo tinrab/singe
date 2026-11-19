@@ -41,10 +41,6 @@ struct SdpaForwardGraph {
     outputs: SdpaForwardOutputTensors,
 }
 
-#[expect(
-    clippy::many_single_char_names,
-    reason = "keeps the upstream sample's single-letter dimension names"
-)]
 fn create_sdpa_forward_graph(
     b: i64,
     h_q: i64,

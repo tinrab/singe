@@ -281,11 +281,6 @@ fn reduction_schedule(builder: &DomainKernel, whole: bool) -> Schedule {
         && !reduces_contiguously(&builder.kernel)
         && builder.count(AxisKind::Reduction) >= 128.0
     {
-        #[expect(
-            clippy::cast_possible_truncation,
-            clippy::cast_sign_loss,
-            reason = "the point count is positive and clamped below"
-        )]
         let points = ((builder.count(AxisKind::Parallel) / 64.0).ceil().max(1.0) as u32)
             .next_power_of_two()
             .clamp(8, 128);

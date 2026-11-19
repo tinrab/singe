@@ -4,6 +4,7 @@
       "name": "redraw",
       "snapshot": "ANIMATEDIFF",
       "task": "video-to-video",
+      "data_type": "f16",
       "inputs": [
         {
           "video": "media/spaghetti-8",

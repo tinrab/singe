@@ -19,7 +19,7 @@ impl Layout {
         }
 
         if start < 0 || length < 0 {
-            return Err(Error::IndexOutOfBounds);
+            return Err(Error::index_out_of_bounds("slice start or length"));
         }
 
         let end = length
@@ -29,7 +29,7 @@ impl Layout {
             .and_then(|last| last.checked_add(1))
             .ok_or_else(|| Error::out_of_range("slice end"))?;
         if start > size || (length > 0 && end > size) {
-            return Err(Error::IndexOutOfBounds);
+            return Err(Error::index_out_of_bounds("slice range"));
         }
 
         let stride = self.strides[axis];

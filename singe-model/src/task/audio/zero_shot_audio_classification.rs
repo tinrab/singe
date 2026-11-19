@@ -9,8 +9,8 @@ use crate::{
     processor::{audio::Audio, text::TextTokenizer},
     source::{LoadOptions, Source},
     task::{
-        Pipeline, Task, hypotheses,
-        vision::image_classification::{LabelScore, ranked},
+        Pipeline, hypotheses,
+        ranking::{LabelScore, ranked},
     },
 };
 
@@ -18,6 +18,7 @@ use crate::{
 pub struct ZeroShotAudioClassificationPipeline {
     model: ZeroShotAudioClassifier,
     tokenizer: TextTokenizer,
+    options: LoadOptions,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -42,8 +43,6 @@ impl Default for ZeroShotAudioClassificationParameters {
 }
 
 impl Pipeline for ZeroShotAudioClassificationPipeline {
-    const TASK: Task = Task::ZeroShotAudioClassification;
-
     type Input = ZeroShotAudioInput;
 
     type Parameters = ZeroShotAudioClassificationParameters;
@@ -53,35 +52,25 @@ impl Pipeline for ZeroShotAudioClassificationPipeline {
     fn load(source: &Source, options: LoadOptions) -> Result<Self> {
         Ok(Self {
             model: model::load(source, options)?,
-            tokenizer: TextTokenizer::load(source.directory())?,
+            tokenizer: TextTokenizer::load(source)?,
+            options,
         })
     }
 
-    fn run(
-        &self,
-        inputs: &[Self::Input],
-        parameters: &Self::Parameters,
-    ) -> Result<Vec<Self::Output>> {
-        let device = self.model.encoder.inputs().state().device()?;
-        inputs
-            .iter()
-            .map(|input| {
-                let hypotheses =
-                    hypotheses(&parameters.hypothesis_template, &input.candidate_labels)?;
-                input
-                    .audio
-                    .expect_rate(self.model.spectrogram.sample_rate)?;
-                let texts = hypotheses.iter().map(String::as_str).collect::<Vec<_>>();
-                let tokens = self.tokenizer.encode_batch(&texts, None, device)?;
-                let features = self.model.features(&input.audio.samples)?;
-                let logits = self.model.encoder.logits(&features, &tokens)?;
-                Ok(ranked(
-                    &logits[0],
-                    &input.candidate_labels,
-                    ScoreFunction::Softmax,
-                    usize::MAX,
-                ))
-            })
-            .collect()
+    fn run_one(&self, input: &Self::Input, parameters: &Self::Parameters) -> Result<Self::Output> {
+        let hypotheses = hypotheses(&parameters.hypothesis_template, &input.candidate_labels)?;
+        input.audio.expect_rate(self.model.sample_rate())?;
+        let texts = hypotheses.iter().map(String::as_str).collect::<Vec<_>>();
+        let tokens = self
+            .tokenizer
+            .encode_batch(&texts, None, self.options.device)?;
+        let features = self.model.features(&input.audio.samples)?;
+        let logits = self.model.encoder.logits(&features, &tokens)?;
+        Ok(ranked(
+            &logits[0],
+            &input.candidate_labels,
+            ScoreFunction::Softmax,
+            usize::MAX,
+        ))
     }
 }

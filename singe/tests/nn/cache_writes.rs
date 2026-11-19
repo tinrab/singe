@@ -17,7 +17,6 @@ const PAGE_SIZE: i64 = 4;
 const HEADS: i64 = 2;
 const DIM: i64 = 8;
 
-#[expect(clippy::cast_precision_loss, reason = "test values have few elements")]
 fn values(shape: &[i64], seed: f32, device: Device) -> Tensor {
     let count = shape.iter().product::<i64>();
     let values = (0..count)

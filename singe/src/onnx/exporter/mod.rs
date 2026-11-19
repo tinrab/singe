@@ -33,10 +33,6 @@ use crate::{
 /// # Errors
 ///
 /// Returns an error if state differs from the program schema, capture or state was specialized to observed values, the graph contains unsupported operations, types, shape expressions, or output projections, or initializer readback or graph conversion fails.
-#[expect(
-    clippy::too_many_lines,
-    reason = "the export transaction keeps model sections and their cross-references together"
-)]
 pub fn export(program: &GraphProgram, state: &StateSnapshot) -> Result<Vec<u8>> {
     program.validate_state_schema(state)?;
     if program

@@ -2,16 +2,18 @@
 
 use std::{
     env, fs,
+    os::unix::fs::symlink,
     path::{Path, PathBuf},
 };
 
 use anyhow::{Context as _, Result};
+use singe_testing::snapshot_if_set;
 use toml_edit::DocumentMut;
 
 // The directory of snapshot `name`, or `None` when neither the variable nor the cache has it.
 pub fn find(root: &Path, name: &str) -> Result<Option<PathBuf>> {
-    if let Some(directory) = env::var_os(format!("SINGE_SNAPSHOT_{name}")) {
-        return Ok(Some(PathBuf::from(directory)));
+    if let Some(directory) = snapshot_if_set(name) {
+        return Ok(Some(directory));
     }
 
     let path = root.join("snapshots.toml");
@@ -111,9 +113,7 @@ fn derive(
     let Some(base) = find(root, base)? else {
         return Ok(None);
     };
-    let directory = Path::new(env!("CARGO_TARGET_TMPDIR"))
-        .join("snapshots")
-        .join(name);
+    let directory = made(name);
     let mut pending = vec![base.clone()];
     while let Some(folder) = pending.pop() {
         for entry in fs::read_dir(&folder).with_context(|| format!("read {}", folder.display()))? {
@@ -129,20 +129,14 @@ fn derive(
                 fs::create_dir_all(parent)
                     .with_context(|| format!("create {}", parent.display()))?;
             }
-            if target.symlink_metadata().is_ok() {
-                fs::remove_file(&target).with_context(|| format!("remove {}", target.display()))?;
-            }
             let key = relative.to_string_lossy().replace('\\', "/");
             match replaced.iter().find(|(file, _)| *file == key) {
                 Some((_, source)) => {
+                    remove_link(&target)?;
                     fs::copy(root.join(source), &target)
                         .with_context(|| format!("copy {source} into {}", target.display()))?;
                 }
-                None => {
-                    let resolved = path.canonicalize()?;
-                    std::os::unix::fs::symlink(&resolved, &target)
-                        .with_context(|| format!("link {}", target.display()))?;
-                }
+                None => link(&path, &target)?,
             }
         }
     }
@@ -160,9 +154,7 @@ fn assemble(
     let Some(base) = find(root, base)? else {
         return Ok(None);
     };
-    let directory = Path::new(env!("CARGO_TARGET_TMPDIR"))
-        .join("snapshots")
-        .join(name);
+    let directory = made(name);
     fs::create_dir_all(&directory).with_context(|| format!("create {}", directory.display()))?;
     let read = |path: &Path| -> Result<serde_json::Value> {
         let text = fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?;
@@ -191,17 +183,30 @@ fn assemble(
         });
     }
     for (component, part) in parts {
-        let link = directory.join(&component);
-        if link.symlink_metadata().is_ok() {
-            fs::remove_file(&link).with_context(|| format!("remove {}", link.display()))?;
-        }
-        let target =
-            fs::canonicalize(&part).with_context(|| format!("resolve {}", part.display()))?;
-        std::os::unix::fs::symlink(&target, &link)
-            .with_context(|| format!("link {}", link.display()))?;
+        link(&part, &directory.join(&component))?;
     }
     let path = directory.join("model_index.json");
     fs::write(&path, format!("{index:#}\n"))
         .with_context(|| format!("write {}", path.display()))?;
     Ok(Some(directory))
+}
+
+fn made(name: &str) -> PathBuf {
+    Path::new(env!("CARGO_TARGET_TMPDIR"))
+        .join("snapshots")
+        .join(name)
+}
+
+fn remove_link(path: &Path) -> Result<()> {
+    if path.symlink_metadata().is_ok() {
+        fs::remove_file(path).with_context(|| format!("remove {}", path.display()))?;
+    }
+    Ok(())
+}
+
+fn link(target: &Path, link: &Path) -> Result<()> {
+    remove_link(link)?;
+    let resolved =
+        fs::canonicalize(target).with_context(|| format!("resolve {}", target.display()))?;
+    symlink(&resolved, link).with_context(|| format!("link {}", link.display()))
 }

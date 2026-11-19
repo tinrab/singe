@@ -4,6 +4,7 @@
       "name": "reconstruction",
       "snapshot": "DAC",
       "task": "audio-to-audio",
+      "data_type": "f32",
       "inputs": ["media/clip-1s.wav"],
       "expected": [
         {

@@ -72,8 +72,8 @@ impl GemmLayout {
         let inner = usize::try_from(problem.inner).ok()?;
         let columns = usize::try_from(problem.rhs_cols).ok()?;
         let batch = &problem.batch_dimensions;
-        let (lhs_matrix, lhs_batch) = promoted_strides(lhs, true, batch)?;
-        let (rhs_matrix, rhs_batch) = promoted_strides(rhs, false, batch)?;
+        let (lhs_matrix, lhs_batch) = promoted_strides(lhs, MatmulOperand::Lhs, batch)?;
+        let (rhs_matrix, rhs_batch) = promoted_strides(rhs, MatmulOperand::Rhs, batch)?;
         let (lhs_operation, lhs_leading) = matrix(rows, inner, lhs_matrix)?;
         let (rhs_operation, rhs_leading) = matrix(inner, columns, rhs_matrix)?;
         let rhs_broadcast = rhs_batch.iter().all(|&stride| stride == 0);
@@ -205,18 +205,28 @@ impl GemmLayout {
     }
 }
 
+#[derive(Clone, Copy)]
+enum MatmulOperand {
+    Lhs,
+    Rhs,
+}
+
 /// Returns the strides of `layout`'s last two dimensions after vector promotion, and its strides along `batch`, zero where it broadcasts.
-fn promoted_strides(layout: &Layout, lhs: bool, batch: &[i64]) -> Option<([i64; 2], Vec<i64>)> {
+fn promoted_strides(
+    layout: &Layout,
+    operand: MatmulOperand,
+    batch: &[i64],
+) -> Option<([i64; 2], Vec<i64>)> {
     let dimensions = layout.dimensions();
     let strides = layout.strides();
     if strides.iter().any(|&stride| stride < 0) {
         return None;
     }
 
-    let (matrix, batch_strides) = match (dimensions.len(), lhs) {
+    let (matrix, batch_strides) = match (dimensions.len(), operand) {
         (0, _) => return None,
-        (1, true) => ([0, strides[0]], &[][..]),
-        (1, false) => ([strides[0], 0], &[][..]),
+        (1, MatmulOperand::Lhs) => ([0, strides[0]], &[][..]),
+        (1, MatmulOperand::Rhs) => ([strides[0], 0], &[][..]),
         (rank, _) => ([strides[rank - 2], strides[rank - 1]], &strides[..rank - 2]),
     };
     let batch_dimensions = &dimensions[..dimensions.len().saturating_sub(2)];

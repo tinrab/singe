@@ -7,7 +7,7 @@ use crate::{
     processor::chat::{Content, Message, Part},
     source::{LoadOptions, Source},
     task::{
-        Pipeline, Task,
+        Pipeline,
         multimodal::image_text_to_text::{ImageTextToTextParameters, ImageTextToTextPipeline},
     },
 };
@@ -28,8 +28,6 @@ pub struct VisualAnswer {
 }
 
 impl Pipeline for VisualQuestionAnsweringPipeline {
-    const TASK: Task = Task::VisualQuestionAnswering;
-
     type Input = VisualQuestion;
 
     type Parameters = ImageTextToTextParameters;
@@ -40,34 +38,20 @@ impl Pipeline for VisualQuestionAnsweringPipeline {
         Ok(Self(ImageTextToTextPipeline::load(source, options)?))
     }
 
-    fn run(
-        &self,
-        inputs: &[Self::Input],
-        parameters: &Self::Parameters,
-    ) -> Result<Vec<Self::Output>> {
-        let chats = inputs
-            .iter()
-            .map(|input| {
-                vec![Message::new(
-                    "user",
-                    Content::Parts(vec![
-                        Part::Image {
-                            image: input.image.clone(),
-                        },
-                        Part::Text {
-                            text: input.question.clone(),
-                        },
-                    ]),
-                )]
-            })
-            .collect::<Vec<_>>();
-        Ok(self
-            .0
-            .run(&chats, parameters)?
-            .into_iter()
-            .map(|output| VisualAnswer {
-                answer: output.generated_text,
-            })
-            .collect())
+    fn run_one(&self, input: &Self::Input, parameters: &Self::Parameters) -> Result<Self::Output> {
+        let chat = vec![Message::new(
+            "user",
+            Content::Parts(vec![
+                Part::Image {
+                    image: input.image.clone(),
+                },
+                Part::Text {
+                    text: input.question.clone(),
+                },
+            ]),
+        )];
+        Ok(VisualAnswer {
+            answer: self.0.run_one(&chat, parameters)?.generated_text,
+        })
     }
 }

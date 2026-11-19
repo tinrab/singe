@@ -17,10 +17,11 @@ pub use self::{
         scaled_matmul_problem, takes_scaled_matmul,
     },
     neural::{
-        ConvolutionWindow, attention_mask_shape, attention_problem, batch_norm_problem,
-        check_paged_values, conv2d_problem, fuses_attention, normalization_problem,
-        paged_attention_problem, paged_mla_attention_problem, pool2d_problem, repeat_kv_problem,
-        rotary_embedding_problem, validate_conv2d_bias, validate_normalization_parameters,
+        ConvolutionWindow, PoolReduction, attention_mask_shape, attention_problem,
+        batch_norm_problem, check_paged_values, conv2d_problem, fuses_attention,
+        normalization_problem, paged_attention_problem, paged_mla_attention_problem,
+        pool2d_problem, repeat_kv_problem, rotary_embedding_problem, rotary_halves_width,
+        validate_conv2d_bias, validate_normalization_parameters,
     },
     quantization::{
         QuantizationGranularity, QuantizationProblem, quantization_problem, unpacked_shape,
@@ -44,14 +45,20 @@ use crate::{
     utility::to_usize,
 };
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Extents {
+    NonNegative,
+    Positive,
+}
+
 pub fn dimension_product_usize(
     name: impl Into<Cow<'static, str>>,
     dimensions: &[i64],
-    allow_zero: bool,
+    extents: Extents,
 ) -> Result<usize> {
     let name = name.into();
     dimensions.iter().try_fold(1_usize, |acc, &dimension| {
-        if !allow_zero && dimension <= 0 {
+        if extents == Extents::Positive && dimension <= 0 {
             return Err(Error::invalid_argument(name.clone()));
         }
 

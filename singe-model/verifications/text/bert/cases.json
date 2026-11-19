@@ -4,6 +4,7 @@
       "name": "toxicity",
       "snapshot": "TOXIC_BERT",
       "task": "text-classification",
+      "data_type": "f32",
       "inputs": [
         "Your main bus is a wonderful piece of engineering.",
         "You are an idiot and your spaghetti base is garbage."
@@ -70,6 +71,7 @@
       "name": "toxicity-bf16",
       "snapshot": "TOXIC_BERT",
       "task": "text-classification",
+      "data_type": "bf16",
       "inputs": [
         "Your main bus is a wonderful piece of engineering.",
         "You are an idiot and your spaghetti base is garbage."
@@ -130,13 +132,13 @@
             "score": 0.00116951
           }
         ]
-      ],
-      "loose": true
+      ]
     },
     {
       "name": "spam",
       "snapshot": "BERT_TINY_SPAM",
       "task": "text-classification",
+      "data_type": "f32",
       "inputs": [
         "WINNER!! Claim your free stack of legendary modules now, call 0800 123",
         "Want to expand the iron mine together tomorrow?"
@@ -156,6 +158,7 @@
       "name": "ranking",
       "snapshot": "MSMARCO_MINILM",
       "task": "text-ranking",
+      "data_type": "f32",
       "inputs": [
         {
           "query": "How many iron plates does an iron gear wheel need?",
@@ -187,6 +190,7 @@
       "name": "entities-none",
       "snapshot": "BERT_NER",
       "task": "token-classification",
+      "data_type": "f32",
       "inputs": [
         "Wube Software is a company based in Prague, founded by Michal Kovařík.",
         "My name is Kovarex and I build factories on Nauvis."
@@ -333,6 +337,7 @@
       "name": "entities-simple",
       "snapshot": "BERT_NER",
       "task": "token-classification",
+      "data_type": "f32",
       "inputs": [
         "Wube Software is a company based in Prague, founded by Michal Kovařík.",
         "My name is Kovarex and I build factories on Nauvis."
@@ -400,6 +405,7 @@
       "name": "entities-first",
       "snapshot": "BERT_NER",
       "task": "token-classification",
+      "data_type": "f32",
       "inputs": [
         "Wube Software is a company based in Prague, founded by Michal Kovařík.",
         "My name is Kovarex and I build factories on Nauvis."
@@ -453,6 +459,7 @@
       "name": "entities-average",
       "snapshot": "BERT_NER",
       "task": "token-classification",
+      "data_type": "f32",
       "inputs": [
         "Wube Software is a company based in Prague, founded by Michal Kovařík.",
         "My name is Kovarex and I build factories on Nauvis."
@@ -506,6 +513,7 @@
       "name": "entities-max",
       "snapshot": "BERT_NER",
       "task": "token-classification",
+      "data_type": "f32",
       "inputs": [
         "Wube Software is a company based in Prague, founded by Michal Kovařík.",
         "My name is Kovarex and I build factories on Nauvis."
@@ -559,6 +567,7 @@
       "name": "features",
       "snapshot": "MINILM",
       "task": "feature-extraction",
+      "data_type": "f32",
       "inputs": ["An engineer is placing a transport belt."],
       "expected": [
         [
@@ -1074,6 +1083,7 @@
       "name": "similarity",
       "snapshot": "MINILM",
       "task": "sentence-similarity",
+      "data_type": "f32",
       "inputs": [
         {
           "source_sentence": "An engineer is placing a transport belt.",
@@ -1093,6 +1103,7 @@
       "name": "embeddings-sqrt",
       "snapshot": "MINILM_SQRT_POOLING",
       "task": "sentence-embeddings",
+      "data_type": "f32",
       "inputs": [
         "An engineer is placing a transport belt.",
         "The biters are attacking the northern wall after the pollution spread."
@@ -1201,6 +1212,7 @@
       "name": "fill",
       "snapshot": "BERT_BASE",
       "task": "fill-mask",
+      "data_type": "f32",
       "inputs": [
         "The factory must [MASK].",
         "The engineer placed a [MASK] belt next to the furnace."

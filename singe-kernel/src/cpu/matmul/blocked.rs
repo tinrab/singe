@@ -31,7 +31,6 @@ macro_rules! blocked_matmul {
         /// Output is contiguous and overwritten.
         /// Accumulation visits reduction indices in ascending order without reassociation or reduced precision.
         /// No input packing is required.
-        #[expect(clippy::suboptimal_flops, reason = "the CPU reference keeps separate multiply and add rounding for reproducible comparisons")]
         pub fn $name(
             lhs: &[$ty],
             rhs: &[$ty],

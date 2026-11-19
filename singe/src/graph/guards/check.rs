@@ -91,10 +91,10 @@ impl GraphGuards {
         tensor: &Tensor,
         symbols: Option<&[Option<SymbolicDimension>]>,
     ) -> StdResult<(), GraphGuardFailure> {
-        let name = ir
-            .required_value_name(value)?
-            .unwrap_or("input")
-            .to_string();
+        let ir_value = ir
+            .value(value)
+            .ok_or(GraphGuardFailure::MissingValue(value))?;
+        let name = ir_value.name().unwrap_or("input").to_string();
         let dimension_guards = symbols.map_or_default(|symbols| {
             symbols
                 .iter()
@@ -112,14 +112,11 @@ impl GraphGuards {
                 })
                 .collect::<Vec<_>>()
         });
-        let data_type = ir.required_value_data_type(value)?;
-        let layout = ir.required_value_layout(value)?;
-        let device = ir.required_value(value)?.device();
         check_tensor_metadata(
             &name,
-            data_type,
-            layout,
-            device,
+            ir_value.data_type(),
+            ir_value.layout(),
+            ir_value.device(),
             &dimension_guards,
             &mut HashMap::new(),
             tensor,

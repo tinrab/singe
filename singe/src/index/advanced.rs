@@ -117,10 +117,11 @@ impl Tensor {
         }
 
         if consumed > rank {
-            return Err(Error::DimensionOutOfBounds);
+            return Err(Error::dimension_out_of_bounds("tensor index count"));
         }
 
-        let fill = usize::try_from(rank - consumed).map_err(|_| Error::DimensionOutOfBounds)?;
+        let fill = usize::try_from(rank - consumed)
+            .map_err(|_| Error::dimension_out_of_bounds("tensor index count"))?;
         let mut expanded = Vec::with_capacity(indices.len() + fill);
         for index in indices {
             if matches!(index, TensorIndex::Ellipsis) {
@@ -147,7 +148,7 @@ impl Tensor {
                         position
                     };
                     if !(0..size).contains(&position) {
-                        return Err(Error::IndexOutOfBounds);
+                        return Err(Error::index_out_of_bounds("tensor index position"));
                     }
 
                     view = slice(&view, axis, position, 1, 1)?.squeeze(axis)?;
@@ -183,9 +184,10 @@ impl Tensor {
                 }
                 TensorIndex::Mask(mask) => {
                     let count = mask.shape().rank();
-                    let start = usize::try_from(axis).map_err(|_| Error::DimensionOutOfBounds)?;
-                    let end =
-                        usize::try_from(axis + count).map_err(|_| Error::DimensionOutOfBounds)?;
+                    let start = usize::try_from(axis)
+                        .map_err(|_| Error::dimension_out_of_bounds("mask index axis"))?;
+                    let end = usize::try_from(axis + count)
+                        .map_err(|_| Error::dimension_out_of_bounds("mask index axis"))?;
                     if view.shape().dimensions()[start..end] != *mask.shape().dimensions() {
                         return Err(Error::shape_mismatch(
                             "tensor index mask",
@@ -195,8 +197,8 @@ impl Tensor {
                     }
 
                     for (offset, positions) in mask_positions(&mask)?.into_iter().enumerate() {
-                        let offset =
-                            i64::try_from(offset).map_err(|_| Error::DimensionOutOfBounds)?;
+                        let offset = i64::try_from(offset)
+                            .map_err(|_| Error::dimension_out_of_bounds("mask index offset"))?;
                         advanced.push(Advanced {
                             axis: axis + offset,
                             index: positions,
@@ -231,7 +233,7 @@ fn dimension(tensor: &Tensor, axis: i64) -> Result<i64> {
     usize::try_from(axis)
         .ok()
         .and_then(|axis| tensor.shape().dimensions().get(axis).copied())
-        .ok_or(Error::DimensionOutOfBounds)
+        .ok_or_else(|| Error::dimension_out_of_bounds("tensor index axis"))
 }
 
 /// Normalizes a negative bound from the end and clamps it to `[0, size]`.

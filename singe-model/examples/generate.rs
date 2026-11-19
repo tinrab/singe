@@ -11,7 +11,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use anyhow::{Result, bail};
+use anyhow::{Result, anyhow, bail};
 use serde_json::{Map, Value};
 use singe::{
     DataType,
@@ -30,7 +30,7 @@ use singe_model::{
     },
 };
 
-use crate::support::Arguments;
+use crate::support::{Arguments, start_runtime};
 
 // Where each sequence's text goes as it arrives: straight to the terminal for one prompt, and a line at a time, tagged with its prompt's number, for several.
 struct Printer<'a> {
@@ -79,21 +79,19 @@ impl Printer<'_> {
 
 fn main() -> Result<()> {
     let arguments = Arguments::parse(&["eager", "sample", "report", "tokens", "chat"])?;
-    let source = Source::open(&arguments.snapshot)?;
+    let source = Source::open(arguments.snapshot())?;
     let texts = match arguments.values("prompt") {
         texts if texts.is_empty() => vec!["What is the most important resource in Factorio?"],
         texts => texts,
     };
-    let max_new_tokens = arguments
-        .value("max-new-tokens")
-        .map_or(Ok(64), str::parse::<usize>)?;
+    let max_new_tokens = arguments.parsed("max-new-tokens")?.unwrap_or(64);
     let data_type = arguments.data_type(DataType::Bf16)?;
 
-    let tokenizer = TextTokenizer::load(&arguments.snapshot)?;
+    let tokenizer = TextTokenizer::load(&source)?;
     let template = if arguments.flag("chat") {
         Some(
             ChatTemplate::load(&source)?
-                .ok_or_else(|| anyhow::anyhow!("the snapshot has no chat template"))?,
+                .ok_or_else(|| anyhow!("the snapshot has no chat template"))?,
         )
     } else {
         None
@@ -110,29 +108,36 @@ fn main() -> Result<()> {
         })
         .collect::<singe_model::Result<Vec<_>>>()?;
     let longest = prompts.iter().map(Vec::len).max().unwrap_or(0);
-    if let Some(drafts) = arguments.value("drafts") {
+    if let Some(drafts) = arguments.parsed("drafts")? {
         let [prompt] = prompts.as_slice() else {
             bail!("--drafts decodes one prompt");
         };
         return speculate(
             &arguments,
+            &source,
             &tokenizer,
             prompt,
             max_new_tokens,
             data_type,
-            drafts.parse()?,
+            drafts,
         );
     }
 
+    let runtime = start_runtime(arguments.device())?;
     let started = Instant::now();
     let capacity = i64::try_from(longest + max_new_tokens)?;
-    let mut decoder =
-        model::load::<Box<dyn CausalLm>>(&source, LoadOptions::new(arguments.device, data_type))?
-            .decoder(
-            DecoderOptions::new(prompts.len(), capacity),
-            !arguments.flag("eager"),
-        )?;
-    eprintln!("load and prepare: {:?}", started.elapsed());
+    let model =
+        model::load::<Box<dyn CausalLm>>(&source, LoadOptions::new(arguments.device(), data_type))?;
+    let load = started.elapsed();
+    let started = Instant::now();
+    let mut decoder = model.decoder(
+        DecoderOptions::new(prompts.len(), capacity),
+        !arguments.flag("eager"),
+    )?;
+    eprintln!(
+        "runtime: {runtime:?}; load: {load:?}; prepare: {:?}",
+        started.elapsed()
+    );
 
     let options = GenerationOptions {
         max_new_tokens,
@@ -200,6 +205,7 @@ fn main() -> Result<()> {
 
 fn speculate(
     arguments: &Arguments,
+    source: &Source,
     tokenizer: &TextTokenizer,
     prompt: &[i64],
     max_new_tokens: usize,
@@ -207,9 +213,8 @@ fn speculate(
     drafts: usize,
 ) -> Result<()> {
     let started = Instant::now();
-    let source = Source::open(&arguments.snapshot)?;
-    let options = LoadOptions::new(arguments.device, data_type);
-    let model = qwen3_5::load_drafting(&mut Loader::new(&source, options))?;
+    let options = LoadOptions::new(arguments.device(), data_type);
+    let model = qwen3_5::load_drafting(&mut Loader::new(source, options))?;
     // A check writes its drafts past the last token it keeps.
     let capacity = i64::try_from(prompt.len() + max_new_tokens + drafts)?;
     let mut decoder = SpeculativeDecoder::create(&model, DecoderOptions::new(1, capacity), drafts)?;

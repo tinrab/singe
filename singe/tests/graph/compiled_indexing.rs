@@ -44,7 +44,7 @@ fn test_compiled_cuda_graphs_report_out_of_range_indices_after_replay() {
     inputs.insert("rows".to_owned(), bad);
     assert!(matches!(
         prepared.run(&inputs),
-        Err(Error::IndexOutOfBounds)
+        Err(Error::IndexOutOfBounds { .. })
     ));
 
     // The status word is cleared, so a valid replay succeeds again.

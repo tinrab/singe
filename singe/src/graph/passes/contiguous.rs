@@ -1,9 +1,14 @@
 use std::collections::{HashMap, HashSet};
 
+#[cfg(feature = "cuda")]
+use crate::backend::{
+    cuda::provider_selection::{Operand, cublas_copies},
+    registry::CudaGraphProvider,
+};
 use crate::{
     backend::{
         cpu::interpreted,
-        registry::{AliasBehavior, LayoutSupport, Operation},
+        registry::{AliasBehavior, CudaGraphProviderSet, LayoutSupport, Operation},
     },
     error::Result,
     graph::{
@@ -15,31 +20,36 @@ use crate::{
     layout::Layout,
 };
 
-// Returns `graph` with a contiguous copy of each strided operand of an operation whose kernels read contiguous operands, and the map from old values to new ones, which is empty when no operand is strided.
-// Eager kernels copy such operands themselves; a compiled graph runs the copy as a node of its own.
-pub fn materialize_contiguous_operands(graph: &Graph) -> Result<(Graph, Vec<(ValueId, ValueId)>)> {
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CopyElision {
+    AllDevices,
+    CudaDevices,
+}
+
+pub fn materialize_contiguous_operands(
+    graph: &Graph,
+    cuda_providers: Option<CudaGraphProviderSet>,
+) -> Result<(Graph, Vec<(ValueId, ValueId)>)> {
     let mut id_map = HashMap::with_capacity(graph.node_count());
     let mut nodes = Vec::with_capacity(graph.node_count());
     let mut changed = false;
     for id in graph.node_ids() {
         let node = graph.required_node(id)?;
         let mut copies = HashMap::new();
-        if reads_contiguous(&node) {
-            for &input in node.inputs() {
-                let operand = graph.required_node(input)?;
-                if copies.contains_key(&input) || !strided(operand.output_layout()) {
-                    continue;
-                }
-
-                let copy = Node::create_with_shape(
-                    NodeKind::contiguous(remap_node_id(input, &id_map)?),
-                    None,
-                    operand.output_data_type(),
-                    operand.output_shape().clone(),
-                    operand.output_device(),
-                );
-                copies.insert(input, push(&mut nodes, copy));
+        for input in copied_operands(graph, &node, cuda_providers)? {
+            if copies.contains_key(&input) {
+                continue;
             }
+
+            let operand = graph.required_node(input)?;
+            let copy = Node::create_with_shape(
+                NodeKind::contiguous(remap_node_id(input, &id_map)?),
+                None,
+                operand.output_data_type(),
+                operand.output_shape().clone(),
+                operand.output_device(),
+            );
+            copies.insert(input, push(&mut nodes, copy));
         }
 
         changed |= !copies.is_empty();
@@ -56,6 +66,73 @@ pub fn materialize_contiguous_operands(graph: &Graph) -> Result<(Graph, Vec<(Val
 
     let remapped = graph.remapped_node_pairs(&id_map)?;
     Ok((Graph::from_retained_nodes(graph, &id_map, nodes)?, remapped))
+}
+
+fn copied_operands(
+    graph: &Graph,
+    node: &NodeRef<'_>,
+    cuda_providers: Option<CudaGraphProviderSet>,
+) -> Result<Vec<ValueId>> {
+    if !reads_contiguous(node) {
+        return cublas_operands(graph, node, cuda_providers);
+    }
+
+    let mut copied = Vec::new();
+    for &input in node.inputs() {
+        if strided(graph.required_node(input)?.output_layout()) {
+            copied.push(input);
+        }
+    }
+    Ok(copied)
+}
+
+#[cfg(feature = "cuda")]
+fn cublas_operands(
+    graph: &Graph,
+    node: &NodeRef<'_>,
+    cuda_providers: Option<CudaGraphProviderSet>,
+) -> Result<Vec<ValueId>> {
+    let &[lhs, rhs] = node.inputs() else {
+        return Ok(Vec::new());
+    };
+    let takes_cublas = cuda_providers.is_none_or(|providers: CudaGraphProviderSet| {
+        providers.allows(CudaGraphProvider::Cublas, Operation::MatMul)
+            || providers.allows(CudaGraphProvider::CublasLt, Operation::MatMul)
+    });
+    if node.operation() != Some(Operation::MatMul)
+        || !(cuda_providers.is_some() || node.output_device().is_cuda())
+        || !takes_cublas
+    {
+        return Ok(Vec::new());
+    }
+
+    let (lhs_node, rhs_node) = (graph.required_node(lhs)?, graph.required_node(rhs)?);
+    let Some(copied) = cublas_copies(
+        Operand {
+            data_type: lhs_node.output_data_type(),
+            layout: lhs_node.output_layout(),
+        },
+        Operand {
+            data_type: rhs_node.output_data_type(),
+            layout: rhs_node.output_layout(),
+        },
+    )?
+    else {
+        return Ok(Vec::new());
+    };
+    Ok([(lhs, copied.copies_lhs()), (rhs, copied.copies_rhs())]
+        .into_iter()
+        .filter_map(|(input, copies)| copies.then_some(input))
+        .collect())
+}
+
+#[cfg(not(feature = "cuda"))]
+fn cublas_operands(
+    _graph: &Graph,
+    _node: &NodeRef<'_>,
+    _cuda_providers: Option<CudaGraphProviderSet>,
+) -> Result<Vec<ValueId>> {
+    Ok(Vec::new())
 }
 
 fn reads_contiguous(node: &NodeRef<'_>) -> bool {
@@ -75,7 +152,7 @@ fn push(nodes: &mut Vec<Node>, node: Node) -> ValueId {
 // Returns `graph` with each explicit `contiguous` copy removed whose readers read strided operands with the same generated kernels, and the map from old values to new ones.
 pub fn elide_contiguous_copies(
     graph: &Graph,
-    for_cuda: bool,
+    elision: CopyElision,
 ) -> Result<(Graph, Vec<(ValueId, ValueId)>)> {
     let mut readers = HashMap::<ValueId, Vec<ValueId>>::new();
     for id in graph.node_ids() {
@@ -94,12 +171,12 @@ pub fn elide_contiguous_copies(
     let mut changed = false;
     for id in graph.node_ids() {
         let node = graph.required_node(id)?;
-        let elided =
-            if !outputs.contains(&id) && elidable(graph, &node, readers.get(&id), for_cuda)? {
-                node.inputs().first().copied()
-            } else {
-                None
-            };
+        let elided = if !outputs.contains(&id) && elidable(graph, &node, readers.get(&id), elision)?
+        {
+            node.inputs().first().copied()
+        } else {
+            None
+        };
         let new_id = if let Some(input) = elided {
             changed = true;
             remap_node_id(input, &id_map)?
@@ -121,10 +198,10 @@ fn elidable(
     graph: &Graph,
     node: &NodeRef<'_>,
     readers: Option<&Vec<ValueId>>,
-    for_cuda: bool,
+    elision: CopyElision,
 ) -> Result<bool> {
     if node.operation() != Some(Operation::Contiguous)
-        || !(for_cuda || node.output_device().is_cuda())
+        || !(elision == CopyElision::AllDevices || node.output_device().is_cuda())
     {
         return Ok(false);
     }

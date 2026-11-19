@@ -43,7 +43,7 @@ pub fn cached_cudnn_backend_graph_template(
     }
 
     let build_result = {
-        let cudnn = runtime.cudnn().locked("cuda runtime cache")?;
+        let cudnn = runtime.cudnn()?.locked("cuda runtime cache")?;
         build(&cudnn)
     };
 

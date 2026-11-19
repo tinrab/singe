@@ -1,24 +1,18 @@
-"""RoBERTa, through the tasks its snapshots here serve, as `verify.rs` runs them in Singe: filling masks, among targets or not, and an inference model classifying zero-shot and text pairs."""
+"""RoBERTa, through the tasks its snapshots here serve, as `mod.rs` runs them in Singe: filling masks, among targets or not, and an inference model classifying zero-shot and text pairs."""
 
-import sys
-from pathlib import Path
+from transformers import pipeline
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-
-import torch  # noqa: E402
-from transformers import pipeline  # noqa: E402
-
-from support import DEVICE, Verification  # noqa: E402
+from support import DEVICE, Verification
 
 
-def fill_mask(snapshot):
-    fill = pipeline("fill-mask", model=snapshot, dtype=torch.float32, device=DEVICE)
+def fill_mask(snapshot, dtype):
+    fill = pipeline("fill-mask", model=snapshot, dtype=dtype, device=DEVICE)
     return lambda texts, parameters: [fill(text, **parameters) for text in texts]
 
 
-def zero_shot_classification(snapshot):
+def zero_shot_classification(snapshot, dtype):
     classify = pipeline(
-        "zero-shot-classification", model=snapshot, dtype=torch.float32, device=DEVICE
+        "zero-shot-classification", model=snapshot, dtype=dtype, device=DEVICE
     )
     return lambda inputs, parameters: [
         classify(item["sequences"], item["candidate_labels"], **parameters)
@@ -26,9 +20,9 @@ def zero_shot_classification(snapshot):
     ]
 
 
-def text_classification(snapshot):
+def text_classification(snapshot, dtype):
     classify = pipeline(
-        "text-classification", model=snapshot, dtype=torch.float32, device=DEVICE
+        "text-classification", model=snapshot, dtype=dtype, device=DEVICE
     )
     return lambda inputs, parameters: [classify(item, **parameters) for item in inputs]
 

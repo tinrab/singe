@@ -71,7 +71,7 @@ fn scan_dimension(context: &InferenceContext<'_>, dim: i64) -> Result<()> {
         return if matches!(dim, 0 | -1) {
             Ok(())
         } else {
-            Err(Error::DimensionOutOfBounds)
+            Err(Error::dimension_out_of_bounds(format!("scan dim {dim}")))
         };
     }
     normalize_dim_usize(dim, rank).map(|_| ())

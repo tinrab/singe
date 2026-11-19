@@ -35,17 +35,38 @@ pub enum Determinism {
     Require,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+#[cfg(feature = "cuda")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CudnnGraphKind {
+    Matmul,
+    NonMatmul,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct NumericalPolicy {
     pub(crate) precision: ComputePrecision,
     pub(crate) determinism: Determinism,
+    // The precision of FP32 convolutions and the other cuDNN graphs that are not matmuls, apart from `precision`: TF32 by default, as PyTorch's `torch.backends.cudnn.allow_tf32` is on while its matmuls' TF32 is off.
+    // A model whose outputs are thresholded or are themselves the signal, such as SuperPoint's keypoints or DAC's reconstruction, runs its convolutions at full precision (`with_convolution_precision`), since TF32 engines round apart from PyTorch's.
+    pub(crate) cudnn_precision: ComputePrecision,
+}
+
+impl NumericalPolicy {
+    const DEFAULT: Self = Self {
+        precision: ComputePrecision::Full,
+        determinism: Determinism::Allow,
+        cudnn_precision: ComputePrecision::AllowTf32,
+    };
+}
+
+impl Default for NumericalPolicy {
+    fn default() -> Self {
+        Self::DEFAULT
+    }
 }
 
 thread_local! {
-    static CURRENT: Cell<NumericalPolicy> = const { Cell::new(NumericalPolicy {
-        precision: ComputePrecision::Full,
-        determinism: Determinism::Allow,
-    }) };
+    static CURRENT: Cell<NumericalPolicy> = const { Cell::new(NumericalPolicy::DEFAULT) };
 }
 
 impl NumericalPolicy {
@@ -65,6 +86,26 @@ impl NumericalPolicy {
     pub(crate) fn current() -> Self {
         CURRENT.with(Cell::get)
     }
+
+    #[cfg(feature = "cuda")]
+    pub(crate) const fn for_cudnn(self, kind: CudnnGraphKind) -> Self {
+        match kind {
+            CudnnGraphKind::Matmul => self,
+            CudnnGraphKind::NonMatmul => Self {
+                precision: self.cudnn_precision,
+                ..self
+            },
+        }
+    }
+}
+
+// Runs `f` with eager FP32 convolutions on this thread at `precision`, such as `AllowTf32` for PyTorch's default speed.
+pub fn with_convolution_precision<T>(precision: ComputePrecision, f: impl FnOnce() -> T) -> T {
+    let _scope = NumericalScope::enter(NumericalPolicy {
+        cudnn_precision: precision,
+        ..NumericalPolicy::current()
+    });
+    f()
 }
 
 /// Bridges an instance's explicit configuration to eager backend dispatch and native preparation.

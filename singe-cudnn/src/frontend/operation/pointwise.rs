@@ -412,10 +412,6 @@ impl<O> PointwiseOperation<O> {
         }
     }
 
-    #[expect(
-        clippy::too_many_lines,
-        reason = "the operation table enumerates every supported variant and its tensor contract"
-    )]
     pub(crate) fn map_output<P>(self, map: impl FnOnce(O) -> P) -> PointwiseOperation<P> {
         match self {
             Self::Unary {
@@ -561,10 +557,6 @@ impl PointwiseOperation {
         Ok(())
     }
 
-    #[expect(
-        clippy::too_many_lines,
-        reason = "the operation table enumerates every supported variant and its tensor contract"
-    )]
     pub(crate) fn lower(&self, context: &LoweringContext<'_>) -> Result<LoweredOperation> {
         let (descriptor_config, operation_config) = match self {
             Self::Unary {

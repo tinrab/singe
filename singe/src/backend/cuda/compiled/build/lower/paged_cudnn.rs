@@ -28,6 +28,7 @@ use crate::{
     },
     data_type::DataType,
     error::{Error, Result},
+    graph::CudnnGraphKind,
     shape::Shape,
     tensor::Tensor,
     value::ValueSpec,
@@ -109,7 +110,11 @@ pub fn try_lower_cudnn_paged_attention(
             &way_key(ir, request.id)?,
             CudaGraphProvider::CudnnBackend,
             executable
-                .engine_choices(request.runtime, ir.required_value_data_type(query)?, false)?
+                .engine_choices(
+                    request.runtime,
+                    ir.required_value_data_type(query)?,
+                    CudnnGraphKind::NonMatmul,
+                )?
                 .into_iter()
                 .map(TunedChoice::Cudnn)
                 .collect(),

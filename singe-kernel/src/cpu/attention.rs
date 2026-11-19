@@ -397,10 +397,6 @@ pub fn minimax_sparse_attention_gathered_gqa_f32(
 }
 
 #[must_use]
-#[expect(
-    clippy::float_cmp,
-    reason = "exact ties and half-integer cases determine deterministic numerical selection"
-)]
 pub fn minimax_sparse_attention_select_topk_blocks_f32(
     block_scores: &[f32],
     local_blocks: &[i32],
@@ -507,10 +503,6 @@ pub fn minimax_sparse_attention_selected_token_positions_i32(
 }
 
 #[must_use]
-#[expect(
-    clippy::similar_names,
-    reason = "query, key, and value operands and their tensor layouts follow the mathematical kernel notation"
-)]
 pub fn compressed_sparse_attention_compress_f32(
     hidden: &[f32],
     weight_a_kv: &[f32],
@@ -628,10 +620,6 @@ pub fn compressed_sparse_attention_lightning_indexer_f32(
 }
 
 #[must_use]
-#[expect(
-    clippy::float_cmp,
-    reason = "exact ties and half-integer cases determine deterministic numerical selection"
-)]
 pub fn compressed_sparse_attention_topk_selector_f32(
     scores: &[f32],
     compressed_kv: &[f32],
@@ -845,10 +833,6 @@ pub fn heavily_compressed_attention_compress_f32(
 }
 
 #[must_use]
-#[expect(
-    clippy::cast_precision_loss,
-    reason = "the f32 algorithm converts integer dimensions and accumulators to its floating-point working precision"
-)]
 pub fn heavily_compressed_attention_f32(
     query: &[f32],
     compressed_kv: &[f32],
@@ -1049,10 +1033,6 @@ pub fn multi_token_attention_f32(
 }
 
 #[must_use]
-#[expect(
-    clippy::cast_precision_loss,
-    reason = "the f32 algorithm converts integer dimensions and accumulators to its floating-point working precision"
-)]
 pub fn sparsemax_tau(values: &[f32]) -> f32 {
     let mut sorted = values.to_vec();
     sorted.sort_by(|left, right| right.partial_cmp(left).unwrap());

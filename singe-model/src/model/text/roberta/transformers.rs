@@ -1,12 +1,14 @@
-// Reads a `transformers` RoBERTa config and imports its checkpoint, whose task heads store the encoder under `roberta.`.
+// Reads a `transformers` RoBERTa config and imports its checkpoint, whose task heads store the encoder under `roberta`.
 
 use serde::Deserialize;
+use singe::nn::{Activation, PoolingMode};
 
 use crate::{
     assembly::{PostNormEncoderConfig, post_norm_encoder_rules},
     error::Result,
     format::{Rules, transformers::EncoderFields},
-    head::Head,
+    head::{ClassifierLayout, EncoderModel, Head, HeadLayouts},
+    model::text::roberta::Roberta,
     source::Source,
 };
 
@@ -17,35 +19,53 @@ struct Fields {
     pad_token_id: i64,
 }
 
-// RoBERTa numbers a sequence's positions from just after its padding id, as fairseq did.
-pub(crate) fn config(source: &Source) -> Result<PostNormEncoderConfig> {
-    let fields: Fields = source.json("config.json")?;
-    fields.encoder.config(fields.pad_token_id + 1)
-}
+impl EncoderModel for Roberta {
+    // A classifier reads the first token's state through a tanh projection, with no pooler, and the masked language model's projection is exact GELU whatever the encoder's activation.
+    const LAYOUTS: HeadLayouts = HeadLayouts {
+        classifier: ClassifierLayout {
+            pooling: PoolingMode::Cls,
+            projection: Some(Activation::Tanh),
+            output_bias: true,
+        },
+        masked_lm_activation: Some(Activation::GeluExact),
+    };
 
-pub(crate) fn encoder_rules() -> Rules {
-    post_norm_encoder_rules("", "")
-        .then(post_norm_encoder_rules("roberta.", ""))
-        // The heads' tensors, which only their own head's rules read.
-        .skip("classifier")
-        .skip("qa_outputs")
-        .skip("lm_head")
-}
+    // RoBERTa numbers a sequence's positions from just after its padding id, as fairseq did.
+    fn config(source: &Source) -> Result<PostNormEncoderConfig> {
+        let fields: Fields = source.json("config.json")?;
+        fields.encoder.config(fields.pad_token_id + 1)
+    }
 
-pub(crate) fn head_rules(head: Head) -> Rules {
-    match head {
-        Head::SequenceClassification => Rules::new()
-            .rename("classifier.dense", "classifier.projection")
-            .rename("classifier.out_proj", "classifier.output"),
-        Head::TokenClassification => Rules::new().rename("classifier", "classifier.output"),
-        Head::QuestionAnswering => Rules::new().rename("qa_outputs", "span.output"),
-        Head::MaskedLm => Rules::new()
-            .rename("lm_head.dense", "masked_lm.projection")
-            .rename("lm_head.layer_norm", "masked_lm.norm")
-            .rename("lm_head.decoder.weight", "masked_lm.output.weight")
-            .rename("lm_head.bias", "masked_lm.output.bias")
-            // The same parameter as `lm_head.bias`.
-            .skip("lm_head.decoder.bias"),
-        _ => Rules::new(),
+    fn encoder_rules() -> Rules {
+        post_norm_encoder_rules("", "")
+            .then(post_norm_encoder_rules("roberta", ""))
+            // The heads' tensors, which only their own head's rules read.
+            .skip("classifier")
+            .skip("qa_outputs")
+            .skip("lm_head")
+    }
+
+    fn head_rules(head: Head) -> Rules {
+        match head {
+            Head::SequenceClassification => Rules::new().rename_each(
+                "classifier",
+                "classifier",
+                &[("dense", "projection"), ("out_proj", "output")],
+            ),
+            Head::MaskedLm => Rules::new()
+                .rename_each(
+                    "lm_head",
+                    "masked_lm",
+                    &[
+                        ("dense", "projection"),
+                        ("layer_norm", "norm"),
+                        ("decoder.weight", "output.weight"),
+                        ("bias", "output.bias"),
+                    ],
+                )
+                // The same parameter as `lm_head.bias`.
+                .skip("lm_head.decoder.bias"),
+            _ => Rules::new(),
+        }
     }
 }

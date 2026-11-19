@@ -405,14 +405,19 @@ fn computed_agrees_with(
     Ok(true)
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Judging {
+    Compare,
+    Skip,
+}
+
 pub fn judged(
     small: &SmallGraph,
-    judge: bool,
+    judging: Judging,
     outputs: Vec<Tensor>,
     rerun: impl FnOnce() -> Attempt<Vec<Tensor>>,
 ) -> Attempt<bool> {
-    // A candidate that computes the evaluated values is run again on the second inputs, and its first outputs go before that run takes their place.
-    if !judge {
+    if judging == Judging::Skip {
         return Ok(true);
     }
 

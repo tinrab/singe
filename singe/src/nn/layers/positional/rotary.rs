@@ -14,7 +14,7 @@ use crate::{
 };
 
 // How a head's features pair up for rotation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RotaryLayout {
     // Each feature pairs with the one half a head away, as `rotate_half` writes it.
     HalfSplit,
@@ -37,10 +37,6 @@ pub struct YarnFrequencies {
 
 impl YarnFrequencies {
     fn correction_dim(&self, rotations: f64, head_dim: f64, theta: f64) -> f64 {
-        #[expect(
-            clippy::cast_precision_loss,
-            reason = "position counts round to the frequency's precision"
-        )]
         let positions = self.original_max_positions as f64;
         head_dim * (positions / (rotations * 2.0 * PI)).ln() / (2.0 * theta.ln())
     }
@@ -97,11 +93,6 @@ impl RotaryFrequencies {
     }
 
     // Computes `1 / theta^(2i / D)` in F32, as the references do, with YaRN's interpolation when enabled.
-    #[expect(
-        clippy::cast_precision_loss,
-        clippy::cast_possible_truncation,
-        reason = "rotary phases are defined in F32, as the references compute them"
-    )]
     fn inverse(&self, head_dim: i64, pairs: usize) -> Vec<f32> {
         let extrapolation = (0..pairs)
             .map(|pair| 1.0 / (self.theta as f32).powf((2 * pair) as f32 / head_dim as f32))
@@ -131,10 +122,6 @@ impl RotaryFrequencies {
             .collect()
     }
 
-    #[expect(
-        clippy::cast_possible_truncation,
-        reason = "the table holds the scale at its own precision"
-    )]
     fn table_scale(&self) -> f32 {
         self.yarn.map_or(1.0, |yarn| yarn.table_scale() as f32)
     }
@@ -197,10 +184,6 @@ impl RotaryTable {
         let mut cos = Vec::with_capacity(positions * pairs);
         let mut sin = Vec::with_capacity(positions * pairs);
         for position in 0..positions {
-            #[expect(
-                clippy::cast_precision_loss,
-                reason = "rotary phases are defined in F32, as the references compute them"
-            )]
             let position = position as f32;
             for frequency in &inverse {
                 let (sine, cosine) = (frequency * position).sin_cos();
@@ -303,12 +286,12 @@ impl RotaryAngles {
             .shape()
             .dimensions()
             .last()
-            .ok_or(Error::DimensionOutOfBounds)?;
+            .ok_or_else(|| Error::dimension_out_of_bounds("rotary cos"))?;
         let features = *input
             .shape()
             .dimensions()
             .last()
-            .ok_or(Error::DimensionOutOfBounds)?;
+            .ok_or_else(|| Error::dimension_out_of_bounds("rotary input"))?;
         if features == 2 * half {
             return self.rotate_pairs(input, half);
         }
@@ -351,11 +334,7 @@ impl RotaryAngles {
                     .reshape_with(&whole)?
             }
         };
-        let first = ordered.narrow(-1, 0, half)?;
-        let second = ordered.narrow(-1, half, half)?;
-        let rotated_first = first.mul(&self.cos)?.sub(&second.mul(&self.sin)?)?;
-        let rotated_second = second.mul(&self.cos)?.add(&first.mul(&self.sin)?)?;
-        Tensor::concat(&[rotated_first, rotated_second], -1)
+        ordered.rotary_halves(&self.cos, &self.sin)
     }
 }
 

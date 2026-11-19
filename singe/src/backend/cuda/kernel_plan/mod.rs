@@ -199,8 +199,10 @@ pub fn launch<S: CudaTensorSource + ?Sized>(
 
     let scratch = scratch_buffers(plan, context.device())?;
     let scratch_pointers = input_pointers(&scratch.iter().collect::<Vec<_>>())?;
-    // Kernels report data errors through a status word that eager calls read after they synchronize; under stream capture nobody could read it, so it is null.
-    let status = if plan.kernels().any(|kernel| kernel.abi.checks()) && !capturing {
+    // Kernels report data errors through a status word.
+    // On the eager stream it is the runtime's, read at the next readback or synchronization; on another stream this call reads its own after the launch; under stream capture nobody could read it, so it is null.
+    let checks = plan.kernels().any(|kernel| kernel.abi.checks()) && !capturing;
+    let own_status = if checks && !context.is_eager() {
         Some(Tensor::zeroed_on(
             context.device(),
             DataType::I32,
@@ -209,7 +211,12 @@ pub fn launch<S: CudaTensorSource + ?Sized>(
     } else {
         None
     };
-    let status_pointer = match &status {
+    let status = if checks && context.is_eager() {
+        Some(context.runtime().eager_status_for_write()?)
+    } else {
+        own_status.as_ref()
+    };
+    let status_pointer = match status {
         Some(status) => status.tensor_region()?.region().as_ptr(),
         None => ptr::null_mut(),
     };
@@ -237,7 +244,7 @@ pub fn launch<S: CudaTensorSource + ?Sized>(
             Ok(())
         })?;
     }
-    status.map_or(Ok(()), |status| check_status(&status))
+    own_status.map_or(Ok(()), |status| check_status(&status))
 }
 
 /// Reads the status word that checking kernels of a compiled graph wrote, clearing it for the next replay, and returns the error it records.

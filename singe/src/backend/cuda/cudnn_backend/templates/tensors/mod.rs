@@ -22,7 +22,7 @@ use crate::{
     backend::cuda::cudnn_backend::data_type::{compute_type, storage_type},
     data_type::DataType,
     error::{Error, Result},
-    graph::{ComputePrecision, Determinism, NumericalPolicy},
+    graph::{ComputePrecision, CudnnGraphKind, Determinism, NumericalPolicy},
     layout::Layout,
     shape::Shape,
 };
@@ -235,16 +235,30 @@ pub fn cudnn_native_graph_execution_plan(
     cudnn: &CudnnContext,
     operation_graph: &CudnnOperationGraph,
     storage_data_type: DataType,
-) -> Result<CudnnExecutionPlan> {
-    cudnn_execution_plan(cudnn, operation_graph, storage_data_type, false)
+    selection: PlanSelection,
+) -> Result<(CudnnExecutionPlan, Vec<PlanCandidate>)> {
+    cudnn_execution_plan(
+        cudnn,
+        operation_graph,
+        storage_data_type,
+        CudnnGraphKind::NonMatmul,
+        selection,
+    )
 }
 
 pub fn cudnn_matmul_graph_execution_plan(
     cudnn: &CudnnContext,
     operation_graph: &CudnnOperationGraph,
     storage_data_type: DataType,
-) -> Result<CudnnExecutionPlan> {
-    cudnn_execution_plan(cudnn, operation_graph, storage_data_type, true)
+    selection: PlanSelection,
+) -> Result<(CudnnExecutionPlan, Vec<PlanCandidate>)> {
+    cudnn_execution_plan(
+        cudnn,
+        operation_graph,
+        storage_data_type,
+        CudnnGraphKind::Matmul,
+        selection,
+    )
 }
 
 const HEURISTIC_MODES: [CudnnBackendHeuristicMode; 3] = [
@@ -257,24 +271,21 @@ const HEURISTIC_MODES: [CudnnBackendHeuristicMode; 3] = [
 fn engine_refusal(
     config: &CudnnEngineConfig,
     storage_data_type: DataType,
-    matmul: bool,
+    kind: CudnnGraphKind,
 ) -> Result<Option<Error>> {
     let engine = config.engine()?;
-    if !accepts_numerical_notes(
-        NumericalPolicy::current(),
-        storage_data_type,
-        engine.numerical_notes()?,
-    ) {
+    let policy = NumericalPolicy::current().for_cudnn(kind);
+    if !accepts_numerical_notes(policy, storage_data_type, engine.numerical_notes()?) {
         return Ok(Some(Error::unsupported_operation(
             "cuDNN engine violates precision or determinism policy",
         )));
     }
 
     // Legacy BLAS matmul engine 0 can use TF32 without reporting numerical notes.
-    if matmul
+    if kind == CudnnGraphKind::Matmul
         && storage_data_type == DataType::F32
         && engine.index() == EngineIndex::new(0)
-        && NumericalPolicy::current().precision == ComputePrecision::Full
+        && policy.precision == ComputePrecision::Full
     {
         return Ok(Some(Error::unsupported_operation(
             "cuDNN legacy matmul engine does not guarantee FP32 input precision",
@@ -314,7 +325,7 @@ pub fn cudnn_forced_execution_plan(
     cudnn: &CudnnContext,
     operation_graph: &CudnnOperationGraph,
     storage_data_type: DataType,
-    matmul: bool,
+    kind: CudnnGraphKind,
     choice: &EngineChoice,
 ) -> Result<CudnnExecutionPlan> {
     let offered = if choice.knob_choices.is_empty() {
@@ -338,7 +349,7 @@ pub fn cudnn_forced_execution_plan(
             CudnnEnginePlanningOptions::default(),
         )?,
     };
-    if let Some(refusal) = engine_refusal(&config, storage_data_type, matmul)? {
+    if let Some(refusal) = engine_refusal(&config, storage_data_type, kind)? {
         return Err(refusal);
     }
     Ok(CudnnExecutionPlan::create(cudnn, &config, None, None)?)
@@ -362,7 +373,7 @@ pub fn cudnn_engine_choices(
     cudnn: &CudnnContext,
     operation_graph: &CudnnOperationGraph,
     storage_data_type: DataType,
-    matmul: bool,
+    kind: CudnnGraphKind,
 ) -> Result<Vec<EngineChoice>> {
     let mut engines = Vec::<(EngineIndex, Vec<EngineKnobInfo>)>::new();
     let offered = heuristic_configs(cudnn, operation_graph);
@@ -382,7 +393,7 @@ pub fn cudnn_engine_choices(
     for config in offered.into_iter().chain(built) {
         let index = config.engine()?.index();
         if engines.iter().all(|(engine, _)| *engine != index)
-            && engine_refusal(&config, storage_data_type, matmul)?.is_none()
+            && engine_refusal(&config, storage_data_type, kind)?.is_none()
         {
             engines.push((index, config.knob_infos()?.to_vec()));
         }
@@ -414,7 +425,7 @@ pub fn cudnn_engine_choices(
                     &choice,
                     None,
                     CudnnEnginePlanningOptions::default(),
-                ) && engine_refusal(&config, storage_data_type, matmul)?.is_none()
+                ) && engine_refusal(&config, storage_data_type, kind)?.is_none()
                 {
                     choices.push(choice);
                     of_knob += 1;
@@ -430,17 +441,44 @@ pub fn cudnn_engine_choices(
     Ok(choices)
 }
 
+// The plans one eager graph keeps to time, the heuristics' first among them.
+const EAGER_CANDIDATES: usize = 4;
+
+// A candidate needing far more workspace than the first is passed over, since timing allocates the largest: one of InstructPix2Pix's asked for 7 GB.
+const CANDIDATE_WORKSPACE_BYTES: usize = 256 << 20;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlanSelection {
+    Graph,
+    Eager { candidates: usize },
+}
+
+impl PlanSelection {
+    pub const EAGER: Self = Self::Eager {
+        candidates: EAGER_CANDIDATES,
+    };
+}
+
+#[derive(Debug, Clone)]
+pub struct PlanCandidate {
+    pub plan: CudnnExecutionPlan,
+    pub workspace_size: usize,
+}
+
 fn cudnn_execution_plan(
     cudnn: &CudnnContext,
     operation_graph: &CudnnOperationGraph,
     storage_data_type: DataType,
-    matmul: bool,
-) -> Result<CudnnExecutionPlan> {
+    kind: CudnnGraphKind,
+    selection: PlanSelection,
+) -> Result<(CudnnExecutionPlan, Vec<PlanCandidate>)> {
+    let mut chosen = None;
+    let mut candidates = Vec::new();
     let mut last_error = None;
     // Engines without the native CUDA graph API are recorded through stream capture instead.
     let mut captured_fallback = None;
 
-    for mode in HEURISTIC_MODES {
+    'modes: for mode in HEURISTIC_MODES {
         let heuristics = match CudnnEngineHeuristics::create(
             cudnn,
             operation_graph,
@@ -462,47 +500,78 @@ fn cudnn_execution_plan(
             }
         };
         for config in configs {
-            let notes = match engine_refusal(&config, storage_data_type, matmul) {
-                Ok(None) => config
-                    .engine()
-                    .and_then(|engine| Ok(engine.behavior_notes()?.to_vec())),
-                Ok(Some(refusal)) => {
-                    last_error = Some(refusal);
-                    continue;
-                }
-                Err(error) => {
+            match engine_refusal(&config, storage_data_type, kind) {
+                Ok(None) => {}
+                Ok(Some(error)) | Err(error) => {
                     last_error = Some(error);
                     continue;
                 }
-            };
-            let notes = match notes {
+            }
+
+            if let PlanSelection::Eager { candidates: limit } = selection {
+                let plan = match CudnnExecutionPlan::create(cudnn, &config, None, None) {
+                    Ok(plan) => plan,
+                    Err(error) => {
+                        last_error = Some(Error::from(error));
+                        continue;
+                    }
+                };
+                match chosen {
+                    None => chosen = Some(plan),
+                    Some(ref first) => {
+                        let workspace_size = plan.workspace_size().unwrap_or(usize::MAX);
+                        let workspace_limit = first
+                            .workspace_size()
+                            .unwrap_or(0)
+                            .max(CANDIDATE_WORKSPACE_BYTES);
+                        if workspace_size <= workspace_limit {
+                            candidates.push(PlanCandidate {
+                                plan,
+                                workspace_size,
+                            });
+                        }
+                    }
+                }
+
+                if candidates.len() + 1 >= limit {
+                    break 'modes;
+                }
+
+                continue;
+            }
+
+            let notes = match config
+                .engine()
+                .and_then(|engine| Ok(engine.behavior_notes()?.to_vec()))
+            {
                 Ok(notes) => notes,
                 Err(error) => {
                     last_error = Some(error.into());
                     continue;
                 }
             };
-
             let native = notes.contains(&BackendBehaviorNote::SupportsCudaGraphNativeApi);
             if !native && captured_fallback.is_some() {
                 continue;
             }
             match CudnnExecutionPlan::create(cudnn, &config, None, None) {
-                Ok(plan) if native => return Ok(plan),
+                Ok(plan) if native => return Ok((plan, candidates)),
                 Ok(plan) => captured_fallback = Some(plan),
                 Err(error) => last_error = Some(Error::from(error)),
             }
         }
     }
 
-    captured_fallback.ok_or_else(|| {
-        last_error.unwrap_or_else(|| {
-            Error::library_refused(
-                "cuDNN",
-                Error::unsupported_operation("cuda graph cuDNN native graph execution plan"),
-            )
-        })
-    })
+    if let Some(plan) = chosen.or(captured_fallback) {
+        return Ok((plan, candidates));
+    }
+
+    Err(last_error.unwrap_or_else(|| {
+        Error::library_refused(
+            "cuDNN",
+            Error::unsupported_operation("cuda graph cuDNN native graph execution plan"),
+        )
+    }))
 }
 
 fn accepts_numerical_notes(

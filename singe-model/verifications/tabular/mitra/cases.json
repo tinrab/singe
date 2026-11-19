@@ -4,6 +4,7 @@
       "name": "classification",
       "snapshot": "MITRA_CLASSIFIER",
       "task": "tabular-classification",
+      "data_type": "f32",
       "inputs": [
         {
           "training_rows": [
@@ -100,6 +101,7 @@
       "name": "regression",
       "snapshot": "MITRA_REGRESSOR",
       "task": "tabular-regression",
+      "data_type": "f32",
       "inputs": [
         {
           "training_rows": [

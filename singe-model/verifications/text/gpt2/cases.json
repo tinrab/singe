@@ -4,6 +4,7 @@
       "name": "prompt",
       "snapshot": "GPT2",
       "task": "text-generation",
+      "data_type": "f32",
       "inputs": ["The most important resource in Factorio is"],
       "parameters": {
         "max_new_tokens": 24
@@ -22,6 +23,7 @@
       "name": "story",
       "snapshot": "GPT2",
       "task": "text-generation",
+      "data_type": "f32",
       "inputs": ["Once upon a time, on a planet rich in iron ore,"],
       "parameters": {
         "max_new_tokens": 24

@@ -1,7 +1,7 @@
 use crate::{
     data_type::DataType,
     error::Result,
-    nn::{Activation, Layer, Linear, ModelState, StateKey},
+    nn::{Activation, Layer, Linear, ModelState, StateKey, layers::linear::joined_forward},
     tensor::Tensor,
 };
 
@@ -53,15 +53,30 @@ impl GatedMlp {
             activation,
         }
     }
+
+    #[must_use]
+    pub const fn siblings(&self) -> [&Linear; 2] {
+        [&self.gate, &self.up]
+    }
 }
 
 impl Layer for GatedMlp {
     fn forward(&self, input: &Tensor, state: &ModelState) -> Result<Tensor> {
-        input
-            .apply(&self.gate, state)?
-            .apply(&self.activation, state)?
-            .mul(&input.apply(&self.up, state)?)?
-            .apply(&self.down, state)
+        let [gate, up] = if let Some(joined) = joined_forward(&self.siblings(), input, state)? {
+            joined
+        } else {
+            [
+                input.apply(&self.gate, state)?,
+                input.apply(&self.up, state)?,
+            ]
+        };
+        // SiLU's gate and the product run as one kernel.
+        let gated = if matches!(self.activation, Activation::Silu) {
+            up.swiglu(&gate)?
+        } else {
+            gate.apply(&self.activation, state)?.mul(&up)?
+        };
+        gated.apply(&self.down, state)
     }
 }
 

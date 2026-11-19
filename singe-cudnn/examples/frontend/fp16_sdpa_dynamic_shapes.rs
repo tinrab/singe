@@ -39,10 +39,6 @@ fn is_not_supported(error: &Error) -> bool {
     )
 }
 
-#[expect(
-    clippy::many_single_char_names,
-    reason = "keeps the upstream sample's single-letter dimension names"
-)]
 fn run() -> anyhow::Result<()> {
     let context = common::ExampleContext::create()?;
 

@@ -95,10 +95,6 @@ impl Graph {
         result
     }
 
-    #[expect(
-        clippy::too_many_lines,
-        reason = "the composite attention operation builds and validates its complete tensor graph"
-    )]
     pub(crate) fn expand_mxfp8_attention_backward(
         &mut self,
         inputs: SdpaMxfp8BackwardInputs,
@@ -332,10 +328,6 @@ impl Graph {
         Ok(())
     }
 
-    #[expect(
-        clippy::too_many_lines,
-        reason = "the composite attention operation builds and validates its complete tensor graph"
-    )]
     fn prepare_mxfp8_backward(
         &mut self,
         inputs: &SdpaMxfp8BackwardInputs,

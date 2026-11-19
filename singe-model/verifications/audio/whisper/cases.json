@@ -4,6 +4,7 @@
       "name": "transcription",
       "snapshot": "WHISPER",
       "task": "automatic-speech-recognition",
+      "data_type": "f32",
       "inputs": ["media/clip.wav"],
       "parameters": {
         "max_new_tokens": 128

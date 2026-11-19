@@ -1,10 +1,14 @@
+use std::result::Result as StdResult;
+
 use singe::{
-    Result,
+    Error as SingeError,
     generation::{CachedDecoder, DecoderOptions, GenerationOptions},
     nn::{DecoderModel, Model},
 };
 
-#[derive(Debug, Clone, Default)]
+use crate::decoder_cache::{DecoderKey, Decoders, bucketed_capacity, cached_decoder};
+
+#[derive(Debug, Clone)]
 pub struct BatchOptions {
     pub generation: GenerationOptions,
     pub rows: usize,
@@ -13,23 +17,20 @@ pub struct BatchOptions {
 
 impl BatchOptions {
     #[must_use]
-    pub const fn new(generation: GenerationOptions) -> Self {
+    pub fn new(max_new_tokens: usize, compile: bool) -> Self {
         Self {
-            generation,
+            generation: GenerationOptions {
+                max_new_tokens,
+                ..GenerationOptions::default()
+            },
             rows: 1,
-            compile: false,
+            compile,
         }
-    }
-
-    #[must_use]
-    pub const fn with_compile(mut self, compile: bool) -> Self {
-        self.compile = compile;
-        self
     }
 
     // Adds `generation`'s stop and suppressed tokens to these options' own, such as a model's that its snapshot names.
     #[must_use]
-    pub fn with_tokens_of(&self, generation: &GenerationOptions) -> Self {
+    pub fn including_tokens_of(&self, generation: &GenerationOptions) -> Self {
         let join = |tokens: &mut Vec<i64>, more: &[i64]| {
             for &token in more {
                 if !tokens.contains(&token) {
@@ -48,20 +49,24 @@ impl BatchOptions {
         options
     }
 
-    pub fn decoder<L: DecoderModel>(
-        &self,
-        model: &Model<L>,
-        prompts: impl Iterator<Item = usize>,
-    ) -> Result<CachedDecoder<L>> {
-        // Each row holds the longest prompt and the tokens generated after it.
-        let longest = prompts.max().unwrap_or(0) + self.generation.max_new_tokens;
+    #[must_use]
+    pub fn decoder_options(&self, prompts: impl Iterator<Item = usize>) -> DecoderOptions {
         let capacity =
-            i64::try_from(longest).map_err(|_| singe::Error::out_of_range("batch capacity"))?;
-        let mut decoder = CachedDecoder::create(model, DecoderOptions::new(self.rows, capacity))?;
-        if self.compile {
-            decoder.compile()?;
-        }
+            bucketed_capacity(prompts.max().unwrap_or(0) + self.generation.max_new_tokens);
+        DecoderOptions::new(self.rows, capacity)
+    }
 
-        Ok(decoder)
+    pub(crate) fn run_decoder<L: DecoderModel, T, E: From<SingeError>>(
+        &self,
+        decoders: &Decoders<DecoderKey, CachedDecoder<L>>,
+        model: &Model<L>,
+        options: DecoderOptions,
+        run: impl FnOnce(&mut CachedDecoder<L>) -> StdResult<T, E>,
+    ) -> StdResult<T, E> {
+        decoders.run(
+            (options.sequences, options.capacity, self.compile),
+            || Ok(cached_decoder(model, options, self.compile)?),
+            run,
+        )
     }
 }

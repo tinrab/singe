@@ -1,20 +1,15 @@
-"""Qwen3-ASR, transcribing a clip and answering an instruction about one greedily with `transformers`' `generate`, as `verify.rs` does both in Singe."""
+"""Qwen3-ASR, transcribing a clip and answering an instruction about one greedily with `transformers`' `generate`, as `mod.rs` does both in Singe."""
 
-import sys
-from pathlib import Path
+import torch
+from transformers import AutoModelForMultimodalLM, AutoProcessor
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-
-import torch  # noqa: E402
-from transformers import AutoModelForMultimodalLM, AutoProcessor  # noqa: E402
-
-from support import DEVICE, Verification, read_wav  # noqa: E402
+from support import DEVICE, Verification, read_wav
 
 
-def automatic_speech_recognition(snapshot):
+def automatic_speech_recognition(snapshot, dtype):
     processor = AutoProcessor.from_pretrained(snapshot)
     model = (
-        AutoModelForMultimodalLM.from_pretrained(snapshot, dtype=torch.float32)
+        AutoModelForMultimodalLM.from_pretrained(snapshot, dtype=dtype)
         .to(DEVICE)
         .eval()
     )
@@ -45,10 +40,10 @@ verification = Verification(__file__)
 verification.check("transcription", automatic_speech_recognition)
 
 
-def audio_text_to_text(snapshot):
+def audio_text_to_text(snapshot, dtype):
     processor = AutoProcessor.from_pretrained(snapshot)
     model = (
-        AutoModelForMultimodalLM.from_pretrained(snapshot, dtype=torch.float32)
+        AutoModelForMultimodalLM.from_pretrained(snapshot, dtype=dtype)
         .to(DEVICE)
         .eval()
     )

@@ -1,12 +1,16 @@
 // Multi-head attention whose queries, keys, and values each project their own input, as DETR's, SAM's, BART's, T5's, and Mitra's are, with `query`, `key`, `value`, and `output` projections.
 
 use singe::{
-    DataType, Device, Error as SingeError, Result as SingeResult, Shape, Tensor,
+    Error as SingeError, Result as SingeResult, Tensor,
     nn::{Linear, ModelState},
     tensor::AttentionOptions,
 };
 
-use crate::schema::Schema;
+use crate::{
+    assembly::{Seq2SeqCache, StepRows},
+    format::Rules,
+    schema::Schema,
+};
 
 // The widths of an attention's projections.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -18,7 +22,8 @@ pub struct AttentionSpec {
     // The width the heads split.
     pub inner: i64,
     pub heads: i64,
-    pub bias: bool,
+    pub qkv_bias: bool,
+    pub output_bias: bool,
 }
 
 impl AttentionSpec {
@@ -30,7 +35,8 @@ impl AttentionSpec {
             context: width,
             inner: width,
             heads,
-            bias: true,
+            qkv_bias: true,
+            output_bias: true,
         }
     }
 }
@@ -52,15 +58,18 @@ impl Attention {
             context,
             inner,
             heads,
-            bias,
+            qkv_bias,
+            output_bias,
         } = spec;
-        Ok(Self {
-            query: schema.linear("query", width, inner, bias)?,
-            key: schema.linear("key", context, inner, bias)?,
-            value: schema.linear("value", context, inner, bias)?,
-            output: schema.linear("output", inner, width, bias)?,
+        let attention = Self {
+            query: schema.linear("query", width, inner, qkv_bias)?,
+            key: schema.linear("key", context, inner, qkv_bias)?,
+            value: schema.linear("value", context, inner, qkv_bias)?,
+            output: schema.linear("output", inner, width, output_bias)?,
             heads,
-        })
+        };
+        schema.join_rows(&[&attention.query, &attention.key, &attention.value])?;
+        Ok(attention)
     }
 
     // Queries from `query`, `[B, L, W]`, attending to keys from `key` and values from `value`, `[B, S, C]`, to `[B, L, W]`.
@@ -84,107 +93,124 @@ impl Attention {
         options: AttentionOptions,
         state: &ModelState,
     ) -> SingeResult<Tensor> {
-        let context = AttentionCache {
-            keys: self.heads(&key.apply(&self.key, state)?)?,
-            values: self.heads(&value.apply(&self.value, state)?)?,
-        };
-        self.attend_cache(query, &context, mask, options, state)
-    }
-
-    // The keys and values `context`, `[B, S, C]`, projects to, which attention over it reads every step.
-    pub fn project(&self, context: &Tensor, state: &ModelState) -> SingeResult<AttentionCache> {
-        Ok(AttentionCache {
-            keys: self.heads(&context.apply(&self.key, state)?)?,
-            values: self.heads(&context.apply(&self.value, state)?)?,
-        })
-    }
-
-    // `cache`, or nothing before the first step, followed by the keys and values of `input`'s tokens, `[B, N, C]`.
-    pub fn extend(
-        &self,
-        cache: Option<&AttentionCache>,
-        input: &Tensor,
-        state: &ModelState,
-    ) -> SingeResult<AttentionCache> {
-        let added = self.project(input, state)?;
-        let Some(cache) = cache else {
-            return Ok(added);
-        };
-        Ok(AttentionCache {
-            keys: Tensor::concat(&[cache.keys.clone(), added.keys], 2)?,
-            values: Tensor::concat(&[cache.values.clone(), added.values], 2)?,
-        })
-    }
-
-    // Queries from `query`, `[B, L, W]`, attending to the keys and values `cache` holds, to `[B, L, W]`.
-    pub fn attend_cache(
-        &self,
-        query: &Tensor,
-        cache: &AttentionCache,
-        mask: Option<&Tensor>,
-        options: AttentionOptions,
-        state: &ModelState,
-    ) -> SingeResult<Tensor> {
-        let attended = self.heads(&query.apply(&self.query, state)?)?.attend(
-            &cache.keys,
-            &cache.values,
+        let heads =
+            |input: &Tensor, linear: &Linear| split_heads(&input.apply(linear, state)?, self.heads);
+        let attended = heads(query, &self.query)?.attend(
+            &heads(key, &self.key)?,
+            &heads(value, &self.value)?,
             mask,
             None,
             options,
         )?;
-        let &[batch, heads, length, head] = attended.shape().dimensions() else {
-            return Err(SingeError::invalid_argument("attention output"));
+        merge_heads(&attended)?.apply(&self.output, state)
+    }
+
+    // The keys and values cross-attention reads from an encoder's states, `[F, C]`, `[F, H, D]` each.
+    pub fn project_sources(
+        &self,
+        encoded: &Tensor,
+        state: &ModelState,
+    ) -> SingeResult<(Tensor, Tensor)> {
+        Ok((
+            self.row_heads(encoded, &self.key, state)?,
+            self.row_heads(encoded, &self.value, state)?,
+        ))
+    }
+
+    // Self-attention of a decode step's rows, `[T, W]`: writes their keys and values to `cache`, then attends over their sequences' keys with `mask` added to the scores, `[T, H, 1, C]` or broadcast to it.
+    pub fn decode(
+        &self,
+        hidden: &Tensor,
+        rows: &StepRows,
+        cache: &Seq2SeqCache,
+        mask: &Tensor,
+        options: AttentionOptions,
+        state: &ModelState,
+    ) -> SingeResult<Tensor> {
+        cache.write(
+            rows,
+            &self.row_heads(hidden, &self.key, state)?,
+            &self.row_heads(hidden, &self.value, state)?,
+        )?;
+        let (keys, values) = cache.read(rows)?;
+        let attended = self
+            .row_heads(hidden, &self.query, state)?
+            .unsqueeze(2)?
+            .attend(&keys, &values, Some(mask), None, options)?;
+        self.merge_rows(&attended, state)
+    }
+
+    // Cross-attention of a decode step's rows, `[T, W]`, over their sequences' encoder states in `cache`.
+    pub fn attend_sources(
+        &self,
+        hidden: &Tensor,
+        rows: &StepRows,
+        cache: &Seq2SeqCache,
+        options: AttentionOptions,
+        state: &ModelState,
+    ) -> SingeResult<Tensor> {
+        let (keys, values, lengths) = cache.read_sources(rows)?;
+        let attended = self
+            .row_heads(hidden, &self.query, state)?
+            .unsqueeze(2)?
+            .attend_padded(&keys, &values, &lengths, options)?;
+        self.merge_rows(&attended, state)
+    }
+
+    // `input`'s rows, `[N, C]`, through `linear`, split into heads, `[N, H, D]`.
+    fn row_heads(
+        &self,
+        input: &Tensor,
+        linear: &Linear,
+        state: &ModelState,
+    ) -> SingeResult<Tensor> {
+        let projected = input.apply(linear, state)?;
+        let &[rows, inner] = projected.shape().dimensions() else {
+            return Err(SingeError::invalid_argument("attention rows"));
+        };
+        projected.reshape([rows, self.heads, inner / self.heads])
+    }
+
+    // Each row's heads, `[T, H, 1, D]`, joined and through the output projection, `[T, W]`.
+    fn merge_rows(&self, attended: &Tensor, state: &ModelState) -> SingeResult<Tensor> {
+        let &[rows, heads, _, dim] = attended.shape().dimensions() else {
+            return Err(SingeError::invalid_argument("attended rows"));
         };
         attended
-            .transpose(1, 2)?
-            .reshape([batch, length, heads * head])?
+            .reshape([rows, heads * dim])?
             .apply(&self.output, state)
     }
-
-    // A projection's `[B, L, inner]` split into heads, `[B, H, L, inner / H]`.
-    fn heads(&self, tensor: &Tensor) -> SingeResult<Tensor> {
-        let &[batch, length, inner] = tensor.shape().dimensions() else {
-            return Err(SingeError::invalid_argument("attention input"));
-        };
-        tensor
-            .reshape([batch, length, self.heads, inner / self.heads])?
-            .transpose(1, 2)
-    }
 }
 
-// The keys and values an attention reads, `[B, H, S, D]` each: a decoder's own, which each step extends, or those of the encoder's states, which stay.
-#[derive(Debug, Clone)]
-pub struct AttentionCache {
-    keys: Tensor,
-    values: Tensor,
+// A projection's `[B, L, inner]` split into `heads` heads, `[B, H, L, inner / H]`.
+pub fn split_heads(tensor: &Tensor, heads: i64) -> SingeResult<Tensor> {
+    let &[batch, length, inner] = tensor.shape().dimensions() else {
+        return Err(SingeError::invalid_argument("attention heads' input"));
+    };
+    tensor
+        .reshape([batch, length, heads, inner / heads])?
+        .transpose(1, 2)
 }
 
-impl AttentionCache {
-    // The tokens whose keys and values it holds.
-    #[must_use]
-    pub fn length(&self) -> i64 {
-        self.keys.shape().dimensions()[2]
-    }
+pub fn merge_heads(tensor: &Tensor) -> SingeResult<Tensor> {
+    let &[batch, heads, length, head] = tensor.shape().dimensions() else {
+        return Err(SingeError::invalid_argument("attention heads' output"));
+    };
+    tensor
+        .transpose(1, 2)?
+        .reshape([batch, length, heads * head])
 }
 
-// The additive mask of `queries` queries after `first` earlier tokens over all `first + queries` keys, `[queries, first + queries]`: negative infinity where a key comes after its query, and zero elsewhere.
-pub fn causal_mask(
-    device: Device,
-    data_type: DataType,
-    first: i64,
-    queries: i64,
-) -> SingeResult<Tensor> {
-    let keys = first + queries;
-    let values = (0..queries)
-        .flat_map(|query| {
-            (0..keys).map(move |key| {
-                if key > first + query {
-                    f32::NEG_INFINITY
-                } else {
-                    0.0
-                }
-            })
-        })
-        .collect::<Vec<_>>();
-    Tensor::from_vec(device, Shape::create([queries, keys])?, values)?.cast(data_type)
+#[must_use]
+pub fn attention_rules(from: &str, to: &str) -> Rules {
+    Rules::new().rename_each(
+        from,
+        to,
+        &[
+            ("q_proj", "query"),
+            ("k_proj", "key"),
+            ("v_proj", "value"),
+            ("out_proj", "output"),
+        ],
+    )
 }

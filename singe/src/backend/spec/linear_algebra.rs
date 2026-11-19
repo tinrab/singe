@@ -138,10 +138,19 @@ pub fn gemm_output_shape(a: &Shape, b: &Shape, trans_a: bool, trans_b: bool) -> 
     let b_dims = b.dimensions();
     validate_rank("gemm a", "input", a_dims, 2, "MK")?;
     validate_rank("gemm b", "input", b_dims, 2, "KN")?;
-    let m = if trans_a { a_dims[1] } else { a_dims[0] };
-    let k_a = if trans_a { a_dims[0] } else { a_dims[1] };
-    let k_b = if trans_b { b_dims[1] } else { b_dims[0] };
-    let n = if trans_b { b_dims[0] } else { b_dims[1] };
+    let (&[a_rows, a_columns], &[b_rows, b_columns]) = (a_dims, b_dims) else {
+        return Err(Error::invalid_argument("gemm input rank"));
+    };
+    let (m, k_a) = if trans_a {
+        (a_columns, a_rows)
+    } else {
+        (a_rows, a_columns)
+    };
+    let (k_b, n) = if trans_b {
+        (b_columns, b_rows)
+    } else {
+        (b_rows, b_columns)
+    };
     validate_non_negative("gemm rows", m)?;
     validate_non_negative("gemm columns", n)?;
     validate_non_negative("gemm lhs inner dimension", k_a)?;
@@ -203,20 +212,21 @@ pub fn matmul_problem(
         rhs_dimensions.push(1);
     }
 
-    for (name, dimensions) in [("lhs", &lhs_dimensions), ("rhs", &rhs_dimensions)] {
-        if dimensions.len() < 2 {
-            return Err(Error::length_mismatch(
-                format!("{diagnostic_prefix} {name} minimum rank"),
-                2,
-                dimensions.len(),
-            ));
-        }
-    }
-
-    let lhs_matrix = lhs_dimensions.len() - 2;
-    let rhs_matrix = rhs_dimensions.len() - 2;
-    let batch_dimensions = Shape::create(&lhs_dimensions[..lhs_matrix])?
-        .broadcast_with(&Shape::create(&rhs_dimensions[..rhs_matrix])?)
+    let rank_error = |name: &str, dimensions: &[i64]| {
+        Error::length_mismatch(
+            format!("{diagnostic_prefix} {name} minimum rank"),
+            2,
+            dimensions.len(),
+        )
+    };
+    let [ref lhs_batch @ .., lhs_rows, inner] = lhs_dimensions[..] else {
+        return Err(rank_error("lhs", &lhs_dimensions));
+    };
+    let [ref rhs_batch @ .., rhs_rows, rhs_cols] = rhs_dimensions[..] else {
+        return Err(rank_error("rhs", &rhs_dimensions));
+    };
+    let batch_dimensions = Shape::create(lhs_batch)?
+        .broadcast_with(&Shape::create(rhs_batch)?)
         .map_err(|error| match error {
             Error::BroadcastMismatch { left, right, .. } => Error::broadcast_mismatch(
                 format!("{diagnostic_prefix} batch dimensions"),
@@ -227,10 +237,6 @@ pub fn matmul_problem(
         })?
         .dimensions()
         .to_vec();
-    let lhs_rows = lhs_dimensions[lhs_matrix];
-    let inner = lhs_dimensions[lhs_matrix + 1];
-    let rhs_rows = rhs_dimensions[rhs_matrix];
-    let rhs_cols = rhs_dimensions[rhs_matrix + 1];
     if inner != rhs_rows {
         return Err(Error::length_mismatch(
             format!("{diagnostic_prefix} inner dimension"),

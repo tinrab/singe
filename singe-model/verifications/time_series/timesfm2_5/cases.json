@@ -4,6 +4,7 @@
       "name": "forecast",
       "snapshot": "TIMESFM",
       "task": "time-series-forecasting",
+      "data_type": "f32",
       "inputs": [
         {
           "past_values": [

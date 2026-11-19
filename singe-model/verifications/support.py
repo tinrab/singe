@@ -1,7 +1,7 @@
 """What every verification's Python side shares: its cases, comparing outputs with the expected ones, timing, and the report.
 
-A model's `verify.py` holds the reference code itself, written as `transformers`, `sentence-transformers`, or `diffusers` would be used, so it reads beside `verify.rs`.
-Each of its functions takes a snapshot, loads the reference in the type `verify.rs` loads Singe's pipeline in, and returns what runs a case's inputs with its parameters.
+A model's `verify.py` holds the reference code itself, written as `transformers`, `sentence-transformers`, or `diffusers` would be used, so it reads beside `mod.rs`.
+Each of its functions takes a snapshot and the torch type of the case's `data_type`, which Singe's pipeline loads in too, loads the reference in it, and returns what runs a case's inputs with its parameters.
 `Verification.check` runs it, compares its outputs with `cases.json`'s expected ones by the rules `support/compare.rs` compares Singe's by, and times it.
 `verify.py --write` records the reference's outputs as the expected ones instead.
 A script exits 1 when a case failed, and `NOTHING_RAN` when its filter matched no case or every matching case was skipped.
@@ -32,6 +32,7 @@ TOLERANCE = 1e-3
 TIMED_RUNS = 5
 # The exit status of a script that ran no case, which `just verify` tells apart from a failure.
 NOTHING_RAN = 3
+DTYPES = {"f32": torch.float32, "f16": torch.float16, "bf16": torch.bfloat16}
 
 # The references run without cuDNN, whose libraries on the path may not be the ones torch was built against.
 torch.backends.cudnn.enabled = False
@@ -427,7 +428,8 @@ class Verification:
             return
 
         inputs, parameters = media(case["inputs"]), case.get("parameters") or {}
-        run, load, load_gpu = profiled(lambda: reference(snapshot))
+        dtype = DTYPES[case["data_type"]]
+        run, load, load_gpu = profiled(lambda: reference(snapshot, dtype))
         # The first run warms the reference up, and its outputs are the ones compared or recorded.
         start = time.perf_counter()
         outputs = plain(run(inputs, parameters))
@@ -450,8 +452,9 @@ class Verification:
             print(f"{label}: written\n    reference: {timing}")
             self.written += 1
             return
+        matches = compare if dtype == torch.float32 else compare_loose
         results = [
-            (compare_loose if case.get("loose") else compare)(case["task"], want, got)
+            matches(case["task"], want, got)
             for want, got in zip(case["expected"], outputs)
         ]
         details = [detail for _, detail in results]
@@ -499,7 +502,7 @@ LOOSE_TOKENS = 8
 
 
 def compare_loose(task, want, got):
-    """A half-precision case's match, as `support/compare.rs` makes it: the same top label or answer with its score within `LOOSE_SCORE`, or the same first `LOOSE_TOKENS` generated tokens."""
+    """A half-precision case's match, as `support/compare.rs` makes it: the same top label or answer with its score within `LOOSE_SCORE`, or the same first `LOOSE_TOKENS` generated tokens, and for other tasks the match `compare` makes."""
 
     def top(value):
         while isinstance(value, list):
@@ -521,7 +524,7 @@ def compare_loose(task, want, got):
             want[key] == got[key] and error < LOOSE_SCORE,
             f"top {key} {got[key]!r}, score difference {error:.1e}",
         )
-    raise ValueError(f"no loose comparison for {task}")
+    return compare(task, want, got)
 
 
 def compare(task, want, got):
@@ -618,6 +621,38 @@ def largest_difference(want, got):
     else:
         return 0.0 if want == got else None
     return None if None in differences else max(differences, default=0.0)
+
+
+def text_generation(snapshot, dtype):
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+
+    tokenizer = AutoTokenizer.from_pretrained(snapshot)
+    model = (
+        AutoModelForCausalLM.from_pretrained(snapshot, dtype=dtype).to(DEVICE).eval()
+    )
+
+    def run(prompts, parameters):
+        outputs = []
+        for prompt in prompts:
+            # A chat is rendered with the snapshot's template, after which the model answers.
+            if isinstance(prompt, list):
+                prompt = tokenizer.apply_chat_template(
+                    prompt,
+                    tokenize=False,
+                    add_generation_prompt=True,
+                    **parameters.get("chat_template_kwargs", {}),
+                )
+            ids = tokenizer(
+                prompt, add_special_tokens=False, return_tensors="pt"
+            ).input_ids.to(DEVICE)
+            with torch.no_grad():
+                generated = model.generate(
+                    ids, max_new_tokens=parameters["max_new_tokens"], do_sample=False
+                )
+            outputs.append(generation(model, generated[0, ids.shape[1] :].tolist()))
+        return outputs
+
+    return run
 
 
 def generation(model, tokens):

@@ -37,7 +37,7 @@ pub fn cached_cutensor_contraction_plan(
     }
 
     let plan = {
-        let cutensor = runtime.cutensor().locked("cuda runtime cache")?;
+        let cutensor = runtime.cutensor()?.locked("cuda runtime cache")?;
         create_cutensor_contraction_plan_handle(
             &cutensor, a, a_mode, b, b_mode, c, c_mode, d_mode, output,
         )?

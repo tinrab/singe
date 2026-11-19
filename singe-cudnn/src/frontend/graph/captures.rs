@@ -56,10 +56,6 @@ impl Graph {
     }
 
     /// Rewrites external declarations while retaining local tensor scopes and process-local graph state.
-    #[expect(
-        clippy::too_many_lines,
-        reason = "native operation construction keeps its resource ownership and descriptor ordering together"
-    )]
     pub(crate) fn try_map_captures(
         &self,
         input: TensorId,

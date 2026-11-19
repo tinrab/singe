@@ -25,7 +25,7 @@ use crate::{
             },
             export::{
                 builder::{
-                    matmul::{Epilogue, MatmulLibraries, matmul_libraries},
+                    matmul::{AddendLayout, Epilogue, MatmulLibraries, matmul_libraries},
                     names::identifier,
                 },
                 program::{
@@ -81,7 +81,8 @@ pub fn constant_bytes(tensor: &Tensor, layout: &Layout) -> Result<Vec<u8>> {
             .zip(strides)
             .map(|(&coordinate, &stride)| coordinate * stride)
             .sum::<i64>();
-        let start = (usize::try_from(offset).map_err(|_| Error::DimensionOutOfBounds)?
+        let start = (usize::try_from(offset)
+            .map_err(|_| Error::dimension_out_of_bounds("constant offset"))?
             + layout.storage_offset())
             * size;
         bytes[start..start + size].copy_from_slice(element);
@@ -369,7 +370,7 @@ impl Builder<'_> {
                 let convolution = convolution_operation(self.ir, id)?
                     .ok_or_else(|| Error::missing_node("program convolution"))?;
                 // cuDNN's engines fuse an activation only after a bias, and only one that reads the convolution itself, since an activation after an add belongs to the sum.
-                let epilogue = match self.epilogue(id, false)? {
+                let epilogue = match self.epilogue(id, AddendLayout::Strided)? {
                     found if convolution.bias.is_some() && found.add.is_none() => found,
                     _ => Epilogue::default(),
                 };

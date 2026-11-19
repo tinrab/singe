@@ -33,10 +33,6 @@ fn init_f16_image(size: usize, seed: &mut u32) -> Vec<f16> {
         .collect()
 }
 
-#[expect(
-    clippy::many_single_char_names,
-    reason = "keeps the upstream sample's single-letter dimension names"
-)]
 fn build_graph() -> Result<Graph> {
     let n = 4_i64;
     let c = 32_i64;

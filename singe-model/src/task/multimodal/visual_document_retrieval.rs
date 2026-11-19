@@ -8,7 +8,7 @@ use crate::{
     model,
     processor::{image::Image, text::TextTokenizer},
     source::{LoadOptions, Source},
-    task::{Pipeline, Task},
+    task::Pipeline,
 };
 
 #[derive(Debug)]
@@ -30,8 +30,6 @@ pub struct RetrievalOutput {
 }
 
 impl Pipeline for VisualDocumentRetrievalPipeline {
-    const TASK: Task = Task::VisualDocumentRetrieval;
-
     type Input = RetrievalInput;
 
     type Parameters = ();
@@ -41,32 +39,27 @@ impl Pipeline for VisualDocumentRetrievalPipeline {
     fn load(source: &Source, options: LoadOptions) -> Result<Self> {
         Ok(Self {
             model: model::load(source, options)?,
-            tokenizer: TextTokenizer::load(source.directory())?,
+            tokenizer: TextTokenizer::load(source)?,
         })
     }
 
-    fn run(&self, inputs: &[Self::Input], (): &Self::Parameters) -> Result<Vec<Self::Output>> {
-        inputs
+    fn run_one(&self, input: &Self::Input, (): &Self::Parameters) -> Result<Self::Output> {
+        let documents = input
+            .documents
             .iter()
-            .map(|input| {
-                let documents = input
-                    .documents
+            .map(|image| self.model.document(&self.tokenizer, image))
+            .collect::<Result<Vec<_>>>()?;
+        let scores = input
+            .queries
+            .iter()
+            .map(|query| {
+                let query = self.model.query(&self.tokenizer, query)?;
+                documents
                     .iter()
-                    .map(|image| self.model.document(&self.tokenizer, image))
-                    .collect::<Result<Vec<_>>>()?;
-                let scores = input
-                    .queries
-                    .iter()
-                    .map(|query| {
-                        let query = self.model.query(&self.tokenizer, query)?;
-                        documents
-                            .iter()
-                            .map(|document| late_interaction(&query, document))
-                            .collect::<Result<Vec<_>>>()
-                    })
-                    .collect::<Result<Vec<_>>>()?;
-                Ok(RetrievalOutput { scores })
+                    .map(|document| late_interaction(&query, document))
+                    .collect::<Result<Vec<_>>>()
             })
-            .collect()
+            .collect::<Result<Vec<_>>>()?;
+        Ok(RetrievalOutput { scores })
     }
 }

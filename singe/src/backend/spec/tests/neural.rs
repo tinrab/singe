@@ -1,7 +1,8 @@
 use crate::{
     backend::spec::{
-        attention_problem, batch_norm_problem, conv2d_problem, normalization_problem,
-        pool2d_problem, repeat_kv_problem, rotary_embedding_problem, validate_conv2d_bias,
+        PoolReduction, attention_problem, batch_norm_problem, conv2d_problem,
+        normalization_problem, pool2d_problem, repeat_kv_problem, rotary_embedding_problem,
+        validate_conv2d_bias,
     },
     error::Error,
     shape::Shape,
@@ -274,7 +275,7 @@ fn test_pool2d_problem_rejects_avg_pool_dilation() {
             (0, 0, 0, 0),
             (2, 1),
             false,
-            true,
+            PoolReduction::Average,
             "test pool2d",
         ),
         Err(Error::InvalidArgument { ref name }) if name == "test pool2d avg pool dilation"
