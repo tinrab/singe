@@ -7,7 +7,7 @@ use crate::{
     error::Result,
     head::KeypointMatcher,
     model,
-    processing::image::{Image, ImageTransforms},
+    processor::image::{Image, ImageTransforms},
     source::{LoadOptions, Source},
     task::{Pipeline, Task, vision::keypoint_detection::rescaled_point},
 };

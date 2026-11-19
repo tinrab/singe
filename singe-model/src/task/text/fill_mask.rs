@@ -6,7 +6,7 @@ use crate::{
     error::{Error, Result},
     head::{MaskedLm, ScoreFunction},
     model,
-    processing::text::{EncodeOptions, TextInput, TextTokenizer},
+    processor::text::{EncodeOptions, TextInput, TextTokenizer},
     source::{LoadOptions, Source},
     task::{Pipeline, Task},
 };

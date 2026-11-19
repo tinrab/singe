@@ -11,7 +11,7 @@ use singe::{DataType, Device};
 
 use crate::{
     error::{Error, Result},
-    processing::text::special_token,
+    processor::text::special_token,
 };
 
 // The layout of a model directory.

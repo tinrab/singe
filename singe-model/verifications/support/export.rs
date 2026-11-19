@@ -17,7 +17,7 @@ use singe_model::{
     Source,
     export::{ExportOptions, export},
     model::audio::whisper::{self, WhisperTask},
-    processing::{audio::Audio, image::Image, text::TextTokenizer},
+    processor::{audio::Audio, image::Image, text::TextTokenizer},
     task::Task,
 };
 

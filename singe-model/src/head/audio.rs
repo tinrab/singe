@@ -11,7 +11,7 @@ use singe::{
 use super::{Classifier, ContrastiveEncoder};
 use crate::{
     error::Result,
-    processing::fbank::{ast_features, clap_features},
+    processor::fbank::{ast_features, clap_features},
 };
 
 // Layers that read raw samples, `[B, N]`.

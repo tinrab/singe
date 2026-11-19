@@ -7,7 +7,7 @@ use crate::{
     error::Result,
     head::{ScoreFunction, VideoClassifier},
     model,
-    processing::{image::ImageTransforms, video::Video},
+    processor::{image::ImageTransforms, video::Video},
     source::{LoadOptions, Source},
     task::{
         Pipeline, Task,

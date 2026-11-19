@@ -11,7 +11,7 @@ use serde_json::{Map, Value as JsonValue};
 
 use crate::{
     error::{Error, Result},
-    processing::text::special_token,
+    processor::text::special_token,
     source::Source,
 };
 

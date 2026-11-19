@@ -24,7 +24,7 @@ use singe_model::{
     format::Loader,
     head::CausalLm,
     model::{self, text::qwen3_5},
-    processing::{
+    processor::{
         chat::{ChatTemplate, Message},
         text::{TextStream, TextTokenizer},
     },

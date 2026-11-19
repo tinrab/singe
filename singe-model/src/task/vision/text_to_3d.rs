@@ -15,7 +15,7 @@ use crate::{
         },
         multimodal::clip::load_text_with_projection,
     },
-    processing::{
+    processor::{
         random::TorchGenerator,
         scheduler::{HeunScheduler, SchedulerConfig},
         text::TextTokenizer,

@@ -8,7 +8,7 @@ use crate::{
     error::Result,
     head::SpeechToText,
     model,
-    processing::{audio::Audio, text::TextTokenizer},
+    processor::{audio::Audio, text::TextTokenizer},
     source::{LoadOptions, Source},
     task::{Pipeline, Task},
 };

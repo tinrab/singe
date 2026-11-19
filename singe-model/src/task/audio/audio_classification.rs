@@ -4,7 +4,7 @@ use crate::{
     error::Result,
     head::AudioClassifier,
     model,
-    processing::audio::Audio,
+    processor::audio::Audio,
     source::{LoadOptions, Source},
     task::{
         Pipeline, Task,

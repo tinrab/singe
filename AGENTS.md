@@ -77,7 +77,7 @@ Use `uv` for Python helpers.
 - Tests cover `singe`'s core components, operations, blocks, and modules, for correctness, as few as that takes.
   Models are checked by verifications, not tests: `singe-model/verifications/<category>/<model>/` holds `cases.json`, `verify.py`, which runs the reference library (`transformers`, `sentence-transformers`, or `diffusers`) and records or asserts the expected outputs, and `verify.rs`, which runs Singe's pipelines on the same cases and asserts the same outputs; both sides time each case.
   `just verify FILTER` runs both sides of the matching cases, and `just snapshot NAME` downloads a snapshot `singe-model/verifications/snapshots.toml` names.
-  A new model comes with its verification, and a change to a model, or to what models share (`assembly`, `head`, `format`, `processing`), is done when the verifications of the models it touches pass.
+  A new model comes with its verification, and a change to a model, or to what models share (`assembly`, `head`, `format`, `processor`), is done when the verifications of the models it touches pass.
   A model's import rules must map every stored tensor; a load refuses one they leave.
 - `singe/tests` has five targets, `tensor`, `graph`, `kernels`, `nn`, and `onnx`, each a `main.rs` with a module per subject.
 - A test that compares with PyTorch reads a reference with `singe_testing::reference!` and compares with `assert_matches` under a named `Tolerance`.

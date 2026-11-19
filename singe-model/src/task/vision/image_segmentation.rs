@@ -9,7 +9,7 @@ use crate::{
     error::{Error, Result},
     head::SemanticSegmenter,
     model,
-    processing::image::{Image, ImageTransforms},
+    processor::image::{Image, ImageTransforms},
     source::{LoadOptions, Source},
     task::{Pipeline, Task},
 };

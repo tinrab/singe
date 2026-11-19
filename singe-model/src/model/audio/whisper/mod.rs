@@ -26,7 +26,7 @@ use crate::{
     format::{Loader, transformers::generation_options},
     head::{HeadLoader, LoopLimits, LoopSteps, SpeechToText, Transcription},
     model::ModelEntry,
-    processing::text::TextTokenizer,
+    processor::text::TextTokenizer,
     schema::Schema,
     source::Format,
 };

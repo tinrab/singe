@@ -17,7 +17,7 @@ use singe_model::{
         audio::whisper::{self, WhisperTask, prompt},
         text::{qwen3, qwen3_5},
     },
-    processing::text::TextTokenizer,
+    processor::text::TextTokenizer,
     task::{Pipeline, text::sentence_similarity::SentenceSimilarityPipeline},
 };
 use singe_testing::{Benches, lock_device, pattern_image, snapshot_if_set, tone_and_chirp};

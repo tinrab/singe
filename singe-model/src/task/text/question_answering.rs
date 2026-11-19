@@ -7,7 +7,7 @@ use crate::{
     error::{Error, Result},
     head::{QuestionAnswerer, ScoreFunction},
     model,
-    processing::text::{EncodeOptions, EncodedRow, TextInput, TextTokenizer, Truncation},
+    processor::text::{EncodeOptions, EncodedRow, TextInput, TextTokenizer, Truncation},
     source::{LoadOptions, Source},
     task::{Pipeline, Task},
 };

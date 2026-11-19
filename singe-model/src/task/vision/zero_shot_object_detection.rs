@@ -9,7 +9,7 @@ use crate::{
     error::Result,
     head::{OpenVocabularyDetector, ScoreFunction},
     model,
-    processing::{
+    processor::{
         image::{Image, ImageTransforms},
         text::TextTokenizer,
     },

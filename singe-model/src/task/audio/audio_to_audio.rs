@@ -6,7 +6,7 @@ use crate::{
     error::Result,
     head::AudioCodec,
     model,
-    processing::audio::Audio,
+    processor::audio::Audio,
     source::{LoadOptions, Source},
     task::{Pipeline, Task},
 };

@@ -6,7 +6,7 @@ use crate::{
     error::Result,
     head::TextToSpeech,
     model,
-    processing::text::CharacterTokenizer,
+    processor::text::CharacterTokenizer,
     source::{LoadOptions, Source},
     task::{Pipeline, Task, audio::audio_to_audio::GeneratedAudio},
 };

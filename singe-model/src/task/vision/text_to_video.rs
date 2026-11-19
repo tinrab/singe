@@ -6,7 +6,7 @@ use singe::Tensor;
 use crate::{
     error::Result,
     model::diffusion::unet_2d_condition::{UnetMotion, load_motion},
-    processing::{image::Image, random::TorchGenerator, scheduler::Sampler},
+    processor::{image::Image, random::TorchGenerator, scheduler::Sampler},
     source::{LoadOptions, Source},
     task::{
         Pipeline, Task,

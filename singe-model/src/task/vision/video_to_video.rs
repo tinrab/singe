@@ -5,7 +5,7 @@ use singe::Tensor;
 
 use crate::{
     error::{Error, Result},
-    processing::{image::Image, random::TorchGenerator, scheduler::Sampler, video::Video},
+    processor::{image::Image, random::TorchGenerator, scheduler::Sampler, video::Video},
     source::{LoadOptions, Source},
     task::{
         Pipeline, Task,

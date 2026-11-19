@@ -2,7 +2,7 @@
 
 use crate::{
     error::Result,
-    processing::chat::Message,
+    processor::chat::Message,
     source::{LoadOptions, Source},
     task::{
         Pipeline, Task,

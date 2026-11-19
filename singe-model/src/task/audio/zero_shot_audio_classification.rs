@@ -6,7 +6,7 @@ use crate::{
     error::Result,
     head::{ScoreFunction, ZeroShotAudioClassifier},
     model,
-    processing::{audio::Audio, text::TextTokenizer},
+    processor::{audio::Audio, text::TextTokenizer},
     source::{LoadOptions, Source},
     task::{
         Pipeline, Task, hypotheses,

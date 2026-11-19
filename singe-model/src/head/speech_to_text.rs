@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use singe::{Tensor, generation::GenerationOptions};
 
 use super::{LoopLimits, LoopSteps};
-use crate::{BatchOptions, error::Result, processing::text::TextTokenizer};
+use crate::{BatchOptions, error::Result, processor::text::TextTokenizer};
 
 // What a transcription says: the language the model names, if any, and the text.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]

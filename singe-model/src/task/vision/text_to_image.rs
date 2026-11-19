@@ -7,7 +7,7 @@ use crate::{
     error::{Error, Result},
     head::{Autoencoder, ConditionalDenoiser, TextEncoder},
     model,
-    processing::{
+    processor::{
         image::{Image, Resample},
         random::TorchGenerator,
         scheduler::{Sampler, SchedulerConfig},

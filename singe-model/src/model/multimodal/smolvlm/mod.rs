@@ -1,7 +1,7 @@
 // SmolVLM: a SigLIP vision tower whose patches a pixel shuffle folds into fewer, wider rows and a linear connector projects to the decoder's width, and a Llama decoder whose prompts read those rows in place of their image tokens.
 // An image is cut into tiles the tower reads at its own size, plus the whole image shrunk to one tile, and a clip's sampled frames each become one tile.
 
-mod processing;
+mod processor;
 pub(crate) mod transformers;
 
 use std::iter;
@@ -16,7 +16,7 @@ use singe::{
     },
 };
 
-pub use self::processing::{SmolVlmPreprocessing, VideoSampling};
+pub use self::processor::{SmolVlmProcessor, VideoSampling};
 use crate::{
     BatchOptions,
     assembly::{DecoderConfig, PreNormEncoder, PreNormEncoderSpec, causal, grouped_decoder_parts},
@@ -24,7 +24,7 @@ use crate::{
     format::Loader,
     head::{HeadLoader, ImageTextToText, LoopLimits, LoopSteps},
     model::ModelEntry,
-    processing::{image::Image, text::TextTokenizer, video::Video},
+    processor::{image::Image, text::TextTokenizer, video::Video},
     schema::Schema,
     source::Format,
 };
@@ -45,7 +45,7 @@ pub struct SmolVlmConfig {
     pub vision: SmolVlmVisionConfig,
     pub text: DecoderConfig,
     pub image_token_id: i64,
-    pub processor: SmolVlmPreprocessing,
+    pub processor: SmolVlmProcessor,
 }
 
 // The vision tower and connector: tiles, `[N, C, S, S]`, to the rows the decoder reads in place of their image tokens, `[N, (S / P)² / scale², W]`.
@@ -251,7 +251,7 @@ impl ImageTextToText for SmolVlm {
     }
 
     fn video_template(&self) -> Option<&str> {
-        Some(processing::VIDEO_CHAT_TEMPLATE)
+        Some(processor::VIDEO_CHAT_TEMPLATE)
     }
 
     // The clip's frames are sampled and each read as one tile, and its placeholder becomes an introduction and each frame's timestamp and image tokens, as `SmolVLMProcessor` expands it.
@@ -265,7 +265,7 @@ impl ImageTextToText for SmolVlm {
     ) -> Result<Vec<i64>> {
         let processor = &self.config.processor;
         let (frames, expansion) = processor.frames(video, fps)?;
-        let text = processor.expand(prompt, processing::VIDEO_TOKEN, &[expansion])?;
+        let text = processor.expand(prompt, processor::VIDEO_TOKEN, &[expansion])?;
         let pixels = processor.pixels(&frames, self.device, self.vision_type()?)?;
         let rows = self.encode(&pixels)?;
         self.generate_tokens(&tokenizer.encode(&text, true)?, &rows, options)

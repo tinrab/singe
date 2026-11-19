@@ -9,7 +9,7 @@ use crate::{
     error::{Error, Result},
     head::ImageTextToText,
     model,
-    processing::{
+    processor::{
         chat::{ChatTemplate, Message, Part},
         image::Image,
         text::TextTokenizer,

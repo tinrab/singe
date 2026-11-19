@@ -12,7 +12,7 @@ use crate::{
     error::{Error, Result},
     head::CausalLm,
     model,
-    processing::{
+    processor::{
         chat::{ChatTemplate, Message},
         text::TextTokenizer,
     },

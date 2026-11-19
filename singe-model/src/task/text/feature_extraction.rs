@@ -7,7 +7,7 @@ use crate::{
     error::{Error, Result},
     head::TextEncoder,
     model,
-    processing::text::TextTokenizer,
+    processor::text::TextTokenizer,
     source::{LoadOptions, Source},
     task::{Pipeline, Task},
 };

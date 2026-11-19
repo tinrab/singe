@@ -9,7 +9,7 @@ use crate::{
     error::Result,
     head::PixelLayers,
     model::{diffusion::shap_e::Mesh, multimodal::clip::load_vision_states},
-    processing::image::{Image, ImageTransforms},
+    processor::image::{Image, ImageTransforms},
     source::{LoadOptions, Source},
     task::{
         Pipeline, Task,

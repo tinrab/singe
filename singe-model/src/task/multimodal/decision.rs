@@ -10,7 +10,7 @@ use crate::{
     error::{Error, Result},
     head::{CausalLm, ScoreFunction, argmax},
     model,
-    processing::{
+    processor::{
         chat::{ChatTemplate, Message},
         text::TextTokenizer,
     },

@@ -4,7 +4,7 @@ use serde::Deserialize;
 
 use crate::{
     error::Result,
-    processing::image::Image,
+    processor::image::Image,
     source::{LoadOptions, Source},
     task::{
         Pipeline, Task,

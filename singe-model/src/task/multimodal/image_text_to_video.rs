@@ -7,7 +7,7 @@ use singe::{DataType, Shape, Tensor, tensor::InterpolateMode};
 
 use crate::{
     error::{Error, Result},
-    processing::{image::Image, random::TorchGenerator, scheduler::Sampler},
+    processor::{image::Image, random::TorchGenerator, scheduler::Sampler},
     source::{LoadOptions, Source},
     task::{
         Pipeline, Task,

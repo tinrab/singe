@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     error::Result,
-    processing::chat::{Content, Message, Part},
+    processor::chat::{Content, Message, Part},
     source::{LoadOptions, Source},
     task::{
         Pipeline, Task,

@@ -9,7 +9,7 @@ use crate::{
     error::Result,
     head::{Seq2SeqInput, Seq2SeqLm},
     model,
-    processing::{
+    processor::{
         image::{Image, ImageTransforms},
         text::TextTokenizer,
     },

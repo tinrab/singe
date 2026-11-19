@@ -9,7 +9,7 @@ use crate::{
     error::Result,
     head::{ContrastiveEncoder, ScoreFunction},
     model,
-    processing::{
+    processor::{
         image::{Image, ImageTransforms},
         text::TextTokenizer,
     },

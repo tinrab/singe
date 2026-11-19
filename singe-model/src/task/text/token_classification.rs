@@ -6,7 +6,7 @@ use crate::{
     error::{Error, Result},
     head::{ScoreFunction, TokenClassifier, argmax},
     model,
-    processing::text::{EncodeOptions, EncodedRow, TextInput, TextTokenizer},
+    processor::text::{EncodeOptions, EncodedRow, TextInput, TextTokenizer},
     source::{LoadOptions, Source},
     task::{Pipeline, Task},
 };

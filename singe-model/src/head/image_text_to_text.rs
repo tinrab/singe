@@ -6,7 +6,7 @@ use super::{LoopLimits, LoopSteps};
 use crate::{
     BatchOptions,
     error::{Error, Result},
-    processing::{image::Image, text::TextTokenizer, video::Video},
+    processor::{image::Image, text::TextTokenizer, video::Video},
 };
 
 // A model that writes text about images and a prompt.

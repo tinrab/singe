@@ -7,7 +7,7 @@ use crate::{
     error::Result,
     head::{Seq2SeqInput, Seq2SeqLm},
     model,
-    processing::text::TextTokenizer,
+    processor::text::TextTokenizer,
     source::{LoadOptions, Source},
     task::{Pipeline, Task},
 };

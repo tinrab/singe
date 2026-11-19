@@ -8,7 +8,7 @@ use singe::{
     nn::{Model, ModelState},
 };
 
-use crate::{error::Result, processing::host_values};
+use crate::{error::Result, processor::host_values};
 
 // What a keypoint detector's layers give: each pixel's keypoint probability, `[B, H, W]`, and unit descriptors over a coarser map, `[B, D, h, w]`.
 pub trait KeypointLayers: Debug + Send + Sync {

@@ -9,7 +9,7 @@ use crate::{
     error::Result,
     head::MaskGenerator,
     model,
-    processing::{
+    processor::{
         host_values,
         image::{Image, ImageTransforms, longest_edge},
     },

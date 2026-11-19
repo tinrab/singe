@@ -3,7 +3,7 @@
 use serde::Deserialize;
 use serde_json::Value;
 
-use super::{SmolVlmConfig, SmolVlmPreprocessing, SmolVlmVisionConfig, processing::VideoSampling};
+use super::{SmolVlmConfig, SmolVlmProcessor, SmolVlmVisionConfig, processor::VideoSampling};
 use crate::{
     assembly::{PreNormEncoderSpec, clip_layer_rules, llama_rules},
     error::{Error, Result},
@@ -11,7 +11,7 @@ use crate::{
         Rules,
         transformers::{DecoderDefaults, DecoderFields, activation},
     },
-    processing::image::Resample,
+    processor::image::Resample,
     source::Source,
 };
 
@@ -139,7 +139,7 @@ pub(crate) fn vision_config(vision: &VisionFields, scale: i64) -> Result<SmolVlm
 }
 
 // The settings of an Idefics3-style processor, which SmolVLM's extends with clips: `preprocessor_config.json`, `processor_config.json`, and the tokenizer's image tokens.
-pub(crate) fn processor(source: &Source) -> Result<SmolVlmPreprocessing> {
+pub(crate) fn processor(source: &Source) -> Result<SmolVlmProcessor> {
     let processor: ProcessorFields = source.json("preprocessor_config.json")?;
     // PIL's filter numbers.
     let resample = match processor.resample {
@@ -159,7 +159,7 @@ pub(crate) fn processor(source: &Source) -> Result<SmolVlmPreprocessing> {
         .optional_json::<Value>("tokenizer_config.json")?
         .unwrap_or_default();
     let token = |name: &str, default: &str| tokens[name].as_str().unwrap_or(default).to_owned();
-    Ok(SmolVlmPreprocessing {
+    Ok(SmolVlmProcessor {
         longest_edge: processor.size.longest_edge,
         tile: processor.max_image_size.longest_edge,
         splitting: processor.do_image_splitting,

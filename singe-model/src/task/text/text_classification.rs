@@ -8,7 +8,7 @@ use crate::{
     error::{Error, Result},
     head::{ScoreFunction, SequenceClassifier},
     model,
-    processing::text::{EncodeOptions, TextInput, TextTokenizer},
+    processor::text::{EncodeOptions, TextInput, TextTokenizer},
     source::{LoadOptions, Source},
     task::{Pipeline, Task},
 };

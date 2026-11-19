@@ -22,7 +22,7 @@ use crate::{
         MaskedLm, QuestionAnswerer, SequenceClassifier, SpeechToText, TokenClassifier,
     },
     model,
-    processing::{
+    processor::{
         chat::{ChatTemplate, Content, Message, Part},
         image::{ImageTransforms, Resize},
     },

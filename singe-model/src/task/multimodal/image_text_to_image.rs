@@ -5,7 +5,7 @@ use singe::{DataType, Tensor};
 
 use crate::{
     error::Result,
-    processing::{image::Image, random::TorchGenerator, scheduler::Sampler},
+    processor::{image::Image, random::TorchGenerator, scheduler::Sampler},
     source::{LoadOptions, Source},
     task::{Pipeline, Task, vision::text_to_image::StableDiffusion},
 };

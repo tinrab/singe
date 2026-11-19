@@ -6,7 +6,7 @@ use singe::{DataType, Error as SingeError, Tensor};
 
 use crate::{
     error::Result,
-    processing::{image::Image, text::TextTokenizer},
+    processor::{image::Image, text::TextTokenizer},
 };
 
 pub trait DocumentRetriever: Debug {

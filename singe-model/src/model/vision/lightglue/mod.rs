@@ -18,7 +18,7 @@ use crate::{
         ModelEntry,
         vision::superpoint::{self, SuperPointConfig, SuperPointLayers},
     },
-    processing::host_values,
+    processor::host_values,
     schema::Schema,
     source::Format,
 };

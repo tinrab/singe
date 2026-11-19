@@ -7,7 +7,7 @@ use crate::{
     error::{Error, Result},
     head::Denoiser,
     model,
-    processing::{
+    processor::{
         image::Image,
         random::TorchGenerator,
         scheduler::{DdpmScheduler, SchedulerConfig},

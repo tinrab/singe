@@ -18,9 +18,9 @@ use crate::{
     head::{DocumentRetriever, HeadLoader},
     model::{
         ModelEntry,
-        multimodal::smolvlm::{SmolVlmPreprocessing, SmolVlmVision, SmolVlmVisionConfig},
+        multimodal::smolvlm::{SmolVlmProcessor, SmolVlmVision, SmolVlmVisionConfig},
     },
-    processing::{
+    processor::{
         chat::{ChatTemplate, Content, Message, Part},
         image::Image,
         text::TextTokenizer,
@@ -36,7 +36,7 @@ pub struct ColModernVBertConfig {
     pub image_token_id: i64,
     // The width of each token's embedding.
     pub embedding: i64,
-    pub processor: SmolVlmPreprocessing,
+    pub processor: SmolVlmProcessor,
     // The template `sentence-transformers` renders queries and pages through.
     pub template: String,
 }

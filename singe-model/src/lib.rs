@@ -6,7 +6,7 @@ pub mod export;
 pub mod format;
 pub mod head;
 pub mod model;
-pub mod processing;
+pub mod processor;
 pub mod schema;
 pub mod source;
 pub mod task;

@@ -7,7 +7,7 @@ use singe::{DataType, Device, Error as SingeError, Shape, Tensor};
 
 use crate::{
     error::{Error, Result},
-    processing::{
+    processor::{
         image::{Image, Resample},
         video::Video,
     },
@@ -26,7 +26,7 @@ const MAX_IMAGE_SIZE: i64 = 4096;
 const SKIPPED_SECONDS: f64 = 1.0;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct SmolVlmPreprocessing {
+pub struct SmolVlmProcessor {
     // The longest side an image is resized to before it is cut.
     pub longest_edge: i64,
     // The side of a tile, which the vision tower reads.
@@ -213,7 +213,7 @@ fn number_words(number: usize) -> String {
     }
 }
 
-impl SmolVlmPreprocessing {
+impl SmolVlmProcessor {
     fn resized(&self, image: &Image, height: i64, width: i64) -> Image {
         let (height, width) = (side(height), side(width));
         if (image.height, image.width) == (height, width) {

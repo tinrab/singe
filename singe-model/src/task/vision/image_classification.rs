@@ -9,7 +9,7 @@ use crate::{
     error::Result,
     head::{ImageClassifier, ScoreFunction},
     model,
-    processing::image::{Image, ImageTransforms},
+    processor::image::{Image, ImageTransforms},
     source::{LoadOptions, Source},
     task::{Pipeline, Task},
 };

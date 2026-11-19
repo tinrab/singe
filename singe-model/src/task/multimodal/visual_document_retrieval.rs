@@ -6,7 +6,7 @@ use crate::{
     error::Result,
     head::{DocumentRetriever, late_interaction},
     model,
-    processing::{image::Image, text::TextTokenizer},
+    processor::{image::Image, text::TextTokenizer},
     source::{LoadOptions, Source},
     task::{Pipeline, Task},
 };

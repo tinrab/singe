@@ -7,7 +7,7 @@ use serde::{Deserialize, Deserializer, de::Error as DeError};
 
 use crate::{
     error::{Error, Result},
-    processing::image::Image,
+    processor::image::Image,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]

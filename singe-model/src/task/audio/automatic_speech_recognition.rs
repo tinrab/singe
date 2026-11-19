@@ -8,7 +8,7 @@ use crate::{
     error::Result,
     head::{CtcRecognizer, Head, SpeechToText, Transcription},
     model,
-    processing::{
+    processor::{
         audio::Audio,
         text::{CtcVocabulary, TextTokenizer},
     },

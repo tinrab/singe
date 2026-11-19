@@ -21,7 +21,7 @@ use crate::{
     assembly::{PreNormEncoderBlock, PreNormEncoderSpec, pre_norm_encoder_block},
     error::Result,
     head::{ImageTextToText, LoopLimits, LoopSteps},
-    processing::{image::Image, text::TextTokenizer},
+    processor::{image::Image, text::TextTokenizer},
     schema::Schema,
 };
 

@@ -2,7 +2,7 @@
 
 use crate::{
     error::{Error, Result},
-    processing::{
+    processor::{
         chat::{Content, Message, Part},
         video::Video,
     },
