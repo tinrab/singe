@@ -224,6 +224,38 @@
       ]
     },
     {
+      "name": "answers-bf16",
+      "snapshot": "DISTILBERT_SQUAD",
+      "task": "question-answering",
+      "inputs": [
+        {
+          "question": "Where do I build factories?",
+          "context": "My name is Kovarex and I build factories on Nauvis."
+        }
+      ],
+      "parameters": {
+        "top_k": 2,
+        "handle_impossible_answer": true
+      },
+      "expected": [
+        [
+          {
+            "score": 0.754935,
+            "start": 44,
+            "end": 50,
+            "answer": "Nauvis"
+          },
+          {
+            "score": 0.190751,
+            "start": 41,
+            "end": 50,
+            "answer": "on Nauvis"
+          }
+        ]
+      ],
+      "loose": true
+    },
+    {
       "name": "answers-small-windows",
       "snapshot": "DISTILBERT_SQUAD",
       "task": "question-answering",
@@ -271,6 +303,102 @@
             "answer": "Nauvis,"
           }
         ]
+      ]
+    },
+    {
+      "name": "fill",
+      "snapshot": "DISTILBERT_BASE",
+      "task": "fill-mask",
+      "inputs": [
+        "The factory must [MASK].",
+        "The engineer placed a [MASK] belt next to the furnace."
+      ],
+      "parameters": null,
+      "expected": [
+        [
+          {
+            "score": 0.104804,
+            "token": 5788,
+            "token_str": "survive",
+            "sequence": "the factory must survive."
+          },
+          {
+            "score": 0.0728921,
+            "token": 5452,
+            "token_str": "operate",
+            "sequence": "the factory must operate."
+          },
+          {
+            "score": 0.0488417,
+            "token": 14037,
+            "token_str": "comply",
+            "sequence": "the factory must comply."
+          },
+          {
+            "score": 0.0412261,
+            "token": 7818,
+            "token_str": "expand",
+            "sequence": "the factory must expand."
+          },
+          {
+            "score": 0.0318897,
+            "token": 2485,
+            "token_str": "close",
+            "sequence": "the factory must close."
+          }
+        ],
+        [
+          {
+            "score": 0.116434,
+            "token": 6967,
+            "token_str": "copper",
+            "sequence": "the engineer placed a copper belt next to the furnace."
+          },
+          {
+            "score": 0.0875541,
+            "token": 3384,
+            "token_str": "metal",
+            "sequence": "the engineer placed a metal belt next to the furnace."
+          },
+          {
+            "score": 0.0393247,
+            "token": 8782,
+            "token_str": "brass",
+            "sequence": "the engineer placed a brass belt next to the furnace."
+          },
+          {
+            "score": 0.0367119,
+            "token": 3886,
+            "token_str": "steel",
+            "sequence": "the engineer placed a steel belt next to the furnace."
+          },
+          {
+            "score": 0.026052,
+            "token": 3707,
+            "token_str": "iron",
+            "sequence": "the engineer placed a iron belt next to the furnace."
+          }
+        ]
+      ]
+    },
+    {
+      "name": "similarity-max",
+      "snapshot": "DISTILBERT_MAX_POOLING",
+      "task": "sentence-similarity",
+      "inputs": [
+        {
+          "source_sentence": "An engineer is placing a transport belt.",
+          "sentences": [
+            "An engineer is building a conveyor belt.",
+            "The biters are attacking the northern wall."
+          ]
+        }
+      ],
+      "parameters": null,
+      "expected": [
+        {
+          "scores": [0.91066, 0.571384]
+        }
       ]
     }
   ]

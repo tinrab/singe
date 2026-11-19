@@ -2,12 +2,17 @@
 
 use serde::{Deserialize, Serialize};
 use singe::{
-    Result as SingeResult, Shape, Tensor,
+    Error as SingeError, Result as SingeResult, Shape, Tensor,
     nn::{Activation, Embedding, LayerNorm, Linear, ModelState, StateKey},
     tensor::AttentionOptions,
 };
 
-use crate::{format::Rules, schema::Schema};
+use crate::{
+    assembly::{Attention, AttentionSpec, causal_mask},
+    format::Rules,
+    head::DecoderCache,
+    schema::Schema,
+};
 
 // The positions BART's learned position table skips before the first, as its padding once took them.
 const POSITION_OFFSET: i64 = 2;
@@ -30,58 +35,6 @@ pub struct BartStackConfig {
     // The width of the encoder states a decoder's cross-attention reads.
     pub cross_width: i64,
     pub eps: f32,
-}
-
-#[derive(Debug, Clone)]
-struct Attention {
-    query: Linear,
-    key: Linear,
-    value: Linear,
-    output: Linear,
-    heads: i64,
-}
-
-impl Attention {
-    fn create(schema: &mut Schema<'_>, width: i64, context: i64, heads: i64) -> SingeResult<Self> {
-        Ok(Self {
-            query: schema.linear("query", width, width, true)?,
-            key: schema.linear("key", context, width, true)?,
-            value: schema.linear("value", context, width, true)?,
-            output: schema.linear("output", width, width, true)?,
-            heads,
-        })
-    }
-
-    fn forward(
-        &self,
-        hidden: &Tensor,
-        context: &Tensor,
-        causal: bool,
-        state: &ModelState,
-    ) -> SingeResult<Tensor> {
-        let split = |tensor: Tensor| -> SingeResult<Tensor> {
-            let dimensions = tensor.shape().dimensions();
-            let (batch, length, width) = (dimensions[0], dimensions[1], dimensions[2]);
-            tensor
-                .reshape([batch, length, self.heads, width / self.heads])?
-                .transpose(1, 2)
-        };
-        let attended = split(hidden.apply(&self.query, state)?)?.attend(
-            &split(context.apply(&self.key, state)?)?,
-            &split(context.apply(&self.value, state)?)?,
-            None,
-            None,
-            AttentionOptions {
-                causal,
-                ..AttentionOptions::default()
-            },
-        )?;
-        let dimensions = attended.shape().dimensions();
-        attended
-            .transpose(1, 2)?
-            .reshape([dimensions[0], dimensions[2], dimensions[1] * dimensions[3]])?
-            .apply(&self.output, state)
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -142,9 +95,10 @@ impl BartStack {
                         Ok((
                             Attention::create(
                                 &mut schema.scope("cross_attention"),
-                                width,
-                                config.cross_width,
-                                config.heads,
+                                AttentionSpec {
+                                    context: config.cross_width,
+                                    ..AttentionSpec::square(width, config.heads)
+                                },
                             )?,
                             schema.layer_norm("cross_norm", width, config.eps)?,
                         ))
@@ -153,9 +107,7 @@ impl BartStack {
                 Ok(Block {
                     attention: Attention::create(
                         &mut schema.scope("attention"),
-                        width,
-                        width,
-                        config.heads,
+                        AttentionSpec::square(width, config.heads),
                     )?,
                     attention_norm: schema.layer_norm("attention_norm", width, config.eps)?,
                     cross,
@@ -180,18 +132,61 @@ impl BartStack {
         })
     }
 
-    // Runs the stack over `tokens`, `[1, T]`, against `encoded` for a decoder, returning each token's final state, `[1, T, W]`.
-    pub fn forward(
+    // Runs an encoder over `tokens`, `[1, T]`, returning each token's final state, `[1, T, W]`.
+    pub fn forward(&self, tokens: &Tensor, state: &ModelState) -> SingeResult<Tensor> {
+        self.run(tokens, None, state)
+    }
+
+    // A decoder's state before its first token: each block's cross-attention keys and values over `encoded`.
+    pub fn start(&self, encoded: &Tensor, state: &ModelState) -> SingeResult<DecoderCache> {
+        let blocks = self
+            .blocks
+            .iter()
+            .map(|block| {
+                let (attention, _) = block
+                    .cross
+                    .as_ref()
+                    .ok_or_else(|| SingeError::invalid_argument("an encoder stack decoding"))?;
+                Ok((None, attention.project(encoded, state)?))
+            })
+            .collect::<SingeResult<Vec<_>>>()?;
+        Ok(DecoderCache { blocks, read: 0 })
+    }
+
+    // Runs a decoder over the tokens of `tokens` past those `cache` has read, adding them to it, and returns the last token's final state, `[W]`.
+    pub fn last_state(
+        &self,
+        cache: &mut DecoderCache,
+        tokens: &[i64],
+        state: &ModelState,
+    ) -> SingeResult<Tensor> {
+        let device = state.device()?;
+        let new = tokens
+            .get(cache.read..)
+            .filter(|new| !new.is_empty())
+            .ok_or_else(|| SingeError::invalid_argument("a decoding step without a new token"))?;
+        let count = i64::try_from(new.len()).map_err(|_| SingeError::out_of_range("tokens"))?;
+        let new = Tensor::from_vec(device, Shape::create([1, count])?, new.to_vec())?;
+        let hidden = self.run(&new, Some(cache), state)?;
+        cache.read = tokens.len();
+        hidden.narrow(1, count - 1, 1)?.squeeze(1)?.squeeze(0)
+    }
+
+    // Runs the stack over `tokens`, `[1, T]`, an encoder's whole input, or a decoder's tokens after those `cache` has read, which it adds to `cache`.
+    fn run(
         &self,
         tokens: &Tensor,
-        encoded: Option<&Tensor>,
+        mut cache: Option<&mut DecoderCache>,
         state: &ModelState,
     ) -> SingeResult<Tensor> {
         let length = tokens.shape().dimensions()[1];
+        let first = cache.as_ref().map_or(Ok(0), |cache| {
+            i64::try_from(cache.read).map_err(|_| SingeError::out_of_range("tokens"))
+        })?;
         let positions = Tensor::from_vec(
             tokens.device(),
             Shape::create([length])?,
-            (POSITION_OFFSET..length + POSITION_OFFSET).collect::<Vec<_>>(),
+            (first + POSITION_OFFSET..first + length + POSITION_OFFSET).collect::<Vec<_>>(),
         )?;
         let table = state.tensor(&self.positions)?;
         let mut hidden = tokens
@@ -202,60 +197,74 @@ impl BartStack {
             hidden = hidden.apply(norm, state)?;
         }
 
+        // A part's input, normed before it when blocks norm first.
         let pre_norm = self.config.pre_norm;
-        // A part with its residual, normed before it or after the sum.
-        let part = |hidden: &Tensor,
-                    norm: &LayerNorm,
-                    run: &dyn Fn(&Tensor) -> SingeResult<Tensor>|
-         -> SingeResult<Tensor> {
+        let input = |hidden: &Tensor, norm: &LayerNorm| {
             if pre_norm {
-                hidden.add(&run(&hidden.apply(norm, state)?)?)
+                hidden.apply(norm, state)
             } else {
-                hidden.add(&run(hidden)?)?.apply(norm, state)
+                Ok(hidden.clone())
             }
         };
-        let decoder = encoded.is_some();
-        for block in &self.blocks {
-            hidden = part(&hidden, &block.attention_norm, &|input| {
-                block.attention.forward(input, input, decoder, state)
-            })?;
-            if let (Some((attention, norm)), Some(encoded)) = (&block.cross, encoded) {
-                hidden = part(&hidden, norm, &|input| {
-                    attention.forward(input, encoded, false, state)
-                })?;
+        // A part's output added to its residual, normed after the sum when blocks norm last.
+        let residual = |hidden: &Tensor, output: &Tensor, norm: &LayerNorm| {
+            let sum = hidden.add(output)?;
+            if pre_norm {
+                Ok(sum)
+            } else {
+                sum.apply(norm, state)
+            }
+        };
+        for (index, block) in self.blocks.iter().enumerate() {
+            let normed = input(&hidden, &block.attention_norm)?;
+            let attended = match cache.as_deref_mut() {
+                // A decoder's tokens see the keys up to their own: all of them for one token, under a causal mask for its first tokens, and under one past those read for several later.
+                Some(cache) => {
+                    let (own, _) = &mut cache.blocks[index];
+                    let keys = block.attention.extend(own.as_ref(), &normed, state)?;
+                    let mask = (first > 0 && length > 1)
+                        .then(|| causal_mask(normed.device(), normed.data_type(), first, length))
+                        .transpose()?;
+                    let options = AttentionOptions {
+                        causal: first == 0,
+                        ..AttentionOptions::default()
+                    };
+                    let attended = block.attention.attend_cache(
+                        &normed,
+                        &keys,
+                        mask.as_ref(),
+                        options,
+                        state,
+                    )?;
+                    *own = Some(keys);
+                    attended
+                }
+                None => block.attention.forward(&normed, &normed, &normed, state)?,
+            };
+            hidden = residual(&hidden, &attended, &block.attention_norm)?;
+            if let (Some((attention, norm)), Some(cache)) = (&block.cross, cache.as_deref()) {
+                let normed = input(&hidden, norm)?;
+                let attended = attention.attend_cache(
+                    &normed,
+                    &cache.blocks[index].1,
+                    None,
+                    AttentionOptions::default(),
+                    state,
+                )?;
+                hidden = residual(&hidden, &attended, norm)?;
             }
 
-            hidden = part(&hidden, &block.feed_forward_norm, &|input| {
-                input
-                    .apply(&block.up, state)?
-                    .apply(&self.config.activation, state)?
-                    .apply(&block.down, state)
-            })?;
+            let normed = input(&hidden, &block.feed_forward_norm)?;
+            let output = normed
+                .apply(&block.up, state)?
+                .apply(&self.config.activation, state)?
+                .apply(&block.down, state)?;
+            hidden = residual(&hidden, &output, &block.feed_forward_norm)?;
         }
         match &self.norm {
             Some(norm) => hidden.apply(norm, state),
             None => Ok(hidden),
         }
-    }
-
-    // Runs a decoder over `tokens` against `encoded`, returning the last token's final state, `[W]`.
-    pub fn last_state(
-        &self,
-        encoded: &Tensor,
-        tokens: &[i64],
-        state: &ModelState,
-    ) -> SingeResult<Tensor> {
-        let count =
-            i64::try_from(tokens.len()).map_err(|_| singe::Error::out_of_range("tokens"))?;
-        let tokens = Tensor::from_vec(
-            encoded.device(),
-            Shape::create([1, count])?,
-            tokens.to_vec(),
-        )?;
-        self.forward(&tokens, Some(encoded), state)?
-            .narrow(1, count - 1, 1)?
-            .squeeze(1)?
-            .squeeze(0)
     }
 }
 

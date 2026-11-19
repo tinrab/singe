@@ -1,6 +1,7 @@
 // What every verification shares: its cases, the snapshot each reads, running a case through its pipeline and timing it, comparing the outputs with the expected ones, and the report.
 
 mod compare;
+mod export;
 mod profile;
 mod snapshot;
 
@@ -16,7 +17,10 @@ use anyhow::{Context as _, Result, bail};
 use serde::Deserialize;
 use serde_json::Value;
 use singe::{DataType, Device};
-use singe_model::{LoadOptions, Source, task::Pipeline};
+use singe_model::{
+    LoadOptions, Source,
+    task::{Pipeline, text::sentence_similarity::SentenceSimilarityPipeline},
+};
 
 use self::profile::{GpuWork, profiled};
 
@@ -42,6 +46,9 @@ struct Case {
     #[serde(default)]
     parameters: Value,
     expected: Vec<Value>,
+    // Whether the case runs in half precision and matches looser, by `compare::loose`.
+    #[serde(default)]
+    loose: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -97,6 +104,74 @@ impl Session {
         }
 
         let outcome = self.run::<P>(name, &label, data_type);
+        self.record(&label, outcome);
+    }
+
+    // Exports case `name`'s snapshot as a CUDA C++ program, builds its runner with `nvcc`, runs it on the case's inputs, and compares what it gives with the reference's outputs, as `export::run` does.
+    pub fn check_exported(&mut self, name: &str) {
+        let label = format!("{}/{name}/exported", self.name);
+        if !label.contains(&self.filter) {
+            return;
+        }
+
+        let outcome = self.run_exported(name, &label);
+        self.record(&label, outcome);
+    }
+
+    // Embeds case `name`'s sentences with a `sentence-transformers` snapshot's pipeline and compares the pooled vectors with the reference's, whose scale a similarity would hide.
+    pub fn check_embeddings(&mut self, name: &str) {
+        let label = format!("{}/{name}", self.name);
+        if !label.contains(&self.filter) {
+            return;
+        }
+
+        let outcome = self.run_embeddings(name, &label);
+        self.record(&label, outcome);
+    }
+
+    fn run_embeddings(&self, name: &str, label: &str) -> Result<Outcome> {
+        let case = self
+            .cases
+            .iter()
+            .find(|case| case.name == name)
+            .with_context(|| format!("cases.json has no case {name}"))?;
+        let Some(snapshot) = snapshot::find(&root(), &case.snapshot)? else {
+            println!(
+                "{label}: skipped, snapshot {} is not downloaded (`just snapshot {}`)",
+                case.snapshot, case.snapshot
+            );
+            return Ok(Outcome::Skipped);
+        };
+
+        let pipeline = SentenceSimilarityPipeline::load(
+            &Source::open(snapshot)?,
+            LoadOptions::new(DEVICE, DataType::F32),
+        )?;
+        let texts = case
+            .inputs
+            .iter()
+            .map(|input| input.as_str().context("a sentence to embed"))
+            .collect::<Result<Vec<_>>>()?;
+        let vectors = pipeline.embed(&texts, None)?;
+        let width = usize::try_from(vectors.shape().dimensions()[1])?;
+        let values = vectors.to_vec::<f32>()?;
+        let mut matched = values.len() == width * case.expected.len();
+        let mut details = Vec::new();
+        for (want, got) in case.expected.iter().zip(values.chunks(width)) {
+            let (same, detail) = compare::outputs(&case.task, want, &serde_json::json!(got));
+            matched &= same;
+            details.push(detail);
+        }
+        let verdict = if matched { "ok" } else { "MISMATCH" };
+        println!("{label}: {verdict}; {}", details.join("; "));
+        Ok(if matched {
+            Outcome::Passed
+        } else {
+            Outcome::Failed
+        })
+    }
+
+    fn record(&mut self, label: &str, outcome: Result<Outcome>) {
         // The allocator keeps freed memory cached, which the next model needs on a small GPU, as `support.py` empties torch's.
         let cleared =
             singe::backend::cuda::clear_cache(DEVICE).context("clear the allocator's cache");
@@ -109,6 +184,33 @@ impl Session {
                 self.failed += 1;
             }
         }
+    }
+
+    fn run_exported(&self, name: &str, label: &str) -> Result<Outcome> {
+        let case = self
+            .cases
+            .iter()
+            .find(|case| case.name == name)
+            .with_context(|| format!("cases.json has no case {name}"))?;
+        let Some(snapshot) = snapshot::find(&root(), &case.snapshot)? else {
+            println!(
+                "{label}: skipped, snapshot {} is not downloaded (`just snapshot {}`)",
+                case.snapshot, case.snapshot
+            );
+            return Ok(Outcome::Skipped);
+        };
+
+        let directory = Path::new(env!("CARGO_TARGET_TMPDIR"))
+            .join("exports")
+            .join(label.replace('/', "-"));
+        let (matched, details) = export::run(case, &snapshot, &directory)?;
+        let verdict = if matched { "ok" } else { "MISMATCH" };
+        println!("{label}: {verdict}; {}", details.join("; "));
+        Ok(if matched {
+            Outcome::Passed
+        } else {
+            Outcome::Failed
+        })
     }
 
     fn run<P: Pipeline>(&self, name: &str, label: &str, data_type: DataType) -> Result<Outcome> {
@@ -170,7 +272,11 @@ impl Session {
         let mut details = Vec::new();
         for (want, got) in case.expected.iter().zip(&outputs) {
             let got = serde_json::to_value(got)?;
-            let (matched, detail) = compare::outputs(&case.task, want, &got);
+            let (matched, detail) = if case.loose {
+                compare::loose(&case.task, want, &got)
+            } else {
+                compare::outputs(&case.task, want, &got)
+            };
             failed |= !matched;
             details.push(detail);
         }

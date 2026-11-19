@@ -84,22 +84,15 @@ impl Pipeline for VideoToVideoPipeline {
                     return Err(Error::unsupported("a strength that keeps no step"));
                 }
 
-                if input.video.frames.iter().any(|frame| {
-                    i64::from(frame.height) != parameters.height
-                        || i64::from(frame.width) != parameters.width
-                }) {
-                    return Err(Error::unsupported(
-                        "frames other than the size the parameters give",
-                    ));
-                }
-
                 let mut generator = TorchGenerator::seeded(input.seed);
                 // Each frame's latents sampled from the VAE, 16 frames at a time, scaled and noised to the first kept step.
                 let pixels = input
                     .video
                     .frames
                     .iter()
-                    .map(|frame| parts.image_pixels(frame))
+                    .map(|frame| {
+                        parts.image_pixels(frame, Some((parameters.height, parameters.width)))
+                    })
                     .collect::<Result<Vec<_>>>()?;
                 let mut sampled = Vec::new();
                 for chunk in pixels.chunks(16) {

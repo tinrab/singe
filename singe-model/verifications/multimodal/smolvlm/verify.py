@@ -11,7 +11,7 @@ import torch  # noqa: E402
 from PIL import Image  # noqa: E402
 from transformers import AutoModelForImageTextToText, AutoProcessor, pipeline  # noqa: E402
 
-from support import DEVICE, Verification  # noqa: E402
+from support import DEVICE, Verification, generation  # noqa: E402
 
 
 def visual_question_answering(snapshot):
@@ -68,11 +68,7 @@ def image_text_to_text(snapshot):
                     do_sample=False,
                 )
             outputs.append(
-                {
-                    "generated_token_ids": generated[
-                        0, batch["input_ids"].shape[1] :
-                    ].tolist()
-                }
+                generation(model, generated[0, batch["input_ids"].shape[1] :].tolist())
             )
         return outputs
 
@@ -125,11 +121,7 @@ def video_text_to_text(snapshot):
                     do_sample=False,
                 )
             outputs.append(
-                {
-                    "generated_token_ids": generated[
-                        0, batch["input_ids"].shape[1] :
-                    ].tolist()
-                }
+                generation(model, generated[0, batch["input_ids"].shape[1] :].tolist())
             )
         return outputs
 

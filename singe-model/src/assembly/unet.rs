@@ -3,7 +3,7 @@
 // A residual block's state is `norm1`, `conv1`, `time` where it reads a timestep, `norm2`, `conv2`, and `shortcut` where its widths differ; an attention's is `norm`, `query`, `key`, `value`, and `output`; a resampler's is its convolution.
 
 use singe::{
-    Result as SingeResult, Shape, Tensor,
+    Error as SingeError, Result as SingeResult, Shape, Tensor,
     nn::{Activation, Conv2d, Conv2dConfig, GroupNorm, Layer, Linear, ModelState, Upsample},
     tensor::{AttentionOptions, InterpolateMode},
 };
@@ -321,6 +321,214 @@ pub fn timestep_input(
         timestep_features(timestep, count, flip, shift),
     )?
     .cast(state.floating_type()?)
+}
+
+// Where in a UNet a block sits: in a down stage, the middle, or an up stage, by the stage's index.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UnetSite {
+    Down(usize),
+    Middle,
+    Up(usize),
+}
+
+// The shape of a UNet's stages, as `UNet2DModel` and `UNet2DConditionModel` lay them out.
+#[derive(Debug, Clone, Copy)]
+pub struct UnetLayout<'a> {
+    pub widths: &'a [i64],
+    pub layers_per_block: usize,
+    // Whether each down stage attends, and each up stage, in the order they run.
+    pub down_attention: &'a [bool],
+    pub up_attention: &'a [bool],
+    pub time_width: i64,
+    pub norms: Norms,
+    // What the middle stage's residual blocks divide their sums by.
+    pub middle_scale: f64,
+    pub downsample_padding: i64,
+}
+
+#[derive(Debug, Clone)]
+struct Stage<A> {
+    resnets: Vec<ResnetBlock>,
+    attentions: Vec<A>,
+    downsample: Option<Conv2d>,
+    upsample: Option<UpsampleBlock>,
+}
+
+// A UNet's `down.N`, `middle`, and `up.N` stages: residual blocks reading the timestep, each followed by an attention of type `A` where its stage attends, down to a middle of a block, an attention, and a block, and back up, each up block reading the down blocks' outputs in reverse.
+#[derive(Debug, Clone)]
+pub struct UnetStages<A> {
+    down: Vec<Stage<A>>,
+    middle: Stage<A>,
+    up: Vec<Stage<A>>,
+}
+
+impl<A> UnetStages<A> {
+    // Registers the stages of `layout`, with `attention` building the attention at a site in its scope, for the stage's width.
+    pub fn create(
+        schema: &mut Schema<'_>,
+        layout: &UnetLayout<'_>,
+        mut attention: impl FnMut(&mut Schema<'_>, UnetSite, i64) -> SingeResult<A>,
+    ) -> SingeResult<Self> {
+        let UnetLayout {
+            widths,
+            layers_per_block,
+            time_width,
+            norms,
+            middle_scale,
+            ..
+        } = *layout;
+        let last = widths.len() - 1;
+        let resnet = |stage: &mut Schema<'_>, layer: usize, channels: [i64; 2], scale: f64| {
+            ResnetBlock::create(
+                &mut stage.scope(format!("resnets.{layer}")),
+                channels,
+                Some(time_width),
+                norms,
+                scale,
+            )
+        };
+        let mut attentions = |stage: &mut Schema<'_>, attends: bool, count, site, width| {
+            if !attends {
+                return Ok(Vec::new());
+            }
+
+            (0..count)
+                .map(|layer| {
+                    attention(&mut stage.scope(format!("attentions.{layer}")), site, width)
+                })
+                .collect::<SingeResult<Vec<_>>>()
+        };
+        let mut down = Vec::with_capacity(widths.len());
+        for (index, &output) in widths.iter().enumerate() {
+            let mut stage = schema.scope(format!("down.{index}"));
+            let input = widths[index.saturating_sub(1)];
+            let resnets = (0..layers_per_block)
+                .map(|layer| {
+                    let from = if layer == 0 { input } else { output };
+                    resnet(&mut stage, layer, [from, output], 1.0)
+                })
+                .collect::<SingeResult<Vec<_>>>()?;
+            let attentions = attentions(
+                &mut stage,
+                layout.down_attention[index],
+                layers_per_block,
+                UnetSite::Down(index),
+                output,
+            )?;
+            let downsample = (index < last)
+                .then(|| downsample(&mut stage, "downsample", output, layout.downsample_padding))
+                .transpose()?;
+            down.push(Stage {
+                resnets,
+                attentions,
+                downsample,
+                upsample: None,
+            });
+        }
+
+        let middle = {
+            let mut stage = schema.scope("middle");
+            let width = widths[last];
+            let first = resnet(&mut stage, 0, [width, width], middle_scale)?;
+            let attentions = attentions(&mut stage, true, 1, UnetSite::Middle, width)?;
+            Stage {
+                resnets: vec![first, resnet(&mut stage, 1, [width, width], middle_scale)?],
+                attentions,
+                downsample: None,
+                upsample: None,
+            }
+        };
+        let reversed = widths.iter().rev().copied().collect::<Vec<_>>();
+        let layers = layers_per_block + 1;
+        let mut up = Vec::with_capacity(widths.len());
+        for index in 0..widths.len() {
+            let mut stage = schema.scope(format!("up.{index}"));
+            let previous = reversed[index.saturating_sub(1)];
+            let output = reversed[index];
+            let input = reversed[(index + 1).min(last)];
+            let resnets = (0..layers)
+                .map(|layer| {
+                    let skip = if layer == layers - 1 { input } else { output };
+                    let from = if layer == 0 { previous } else { output };
+                    resnet(&mut stage, layer, [from + skip, output], 1.0)
+                })
+                .collect::<SingeResult<Vec<_>>>()?;
+            let attentions = attentions(
+                &mut stage,
+                layout.up_attention[index],
+                layers,
+                UnetSite::Up(index),
+                output,
+            )?;
+            let upsample = (index < last)
+                .then(|| UpsampleBlock::create(&mut stage, "upsample", output))
+                .transpose()?;
+            up.push(Stage {
+                resnets,
+                attentions,
+                downsample: None,
+                upsample,
+            });
+        }
+
+        Ok(Self { down, middle, up })
+    }
+
+    // `input` through the stages, each residual block reading `time`, and `block` after each block but the middle's second, given the block's attention where its stage attends, its site, and its index in the stage.
+    pub fn forward(
+        &self,
+        input: Tensor,
+        time: &Tensor,
+        state: &ModelState,
+        mut block: impl FnMut(Tensor, Option<&A>, UnetSite, usize) -> SingeResult<Tensor>,
+    ) -> SingeResult<Tensor> {
+        let mut hidden = input;
+        let mut skips = vec![hidden.clone()];
+        for (number, stage) in self.down.iter().enumerate() {
+            for (index, resnet) in stage.resnets.iter().enumerate() {
+                hidden = resnet.forward(&hidden, Some(time), state)?;
+                hidden = block(
+                    hidden,
+                    stage.attentions.get(index),
+                    UnetSite::Down(number),
+                    index,
+                )?;
+                skips.push(hidden.clone());
+            }
+            if let Some(downsample) = &stage.downsample {
+                hidden = hidden.apply(downsample, state)?;
+                skips.push(hidden.clone());
+            }
+        }
+
+        let middle = &self.middle;
+        hidden = middle.resnets[0].forward(&hidden, Some(time), state)?;
+        hidden = block(hidden, middle.attentions.first(), UnetSite::Middle, 0)?;
+        hidden = middle.resnets[1].forward(&hidden, Some(time), state)?;
+        for (number, stage) in self.up.iter().enumerate() {
+            for (index, resnet) in stage.resnets.iter().enumerate() {
+                let skip = skips
+                    .pop()
+                    .ok_or_else(|| SingeError::missing_input("a skip connection"))?;
+                hidden = resnet.forward(&Tensor::concat(&[hidden, skip], 1)?, Some(time), state)?;
+                hidden = block(
+                    hidden,
+                    stage.attentions.get(index),
+                    UnetSite::Up(number),
+                    index,
+                )?;
+            }
+            if let Some(upsample) = &stage.upsample {
+                // The next skip's size, which doubling misses after an odd size was halved.
+                let size = skips
+                    .last()
+                    .map(|skip| skip.shape().dimensions()[2..].to_vec())
+                    .ok_or_else(|| SingeError::missing_input("a skip connection"))?;
+                hidden = upsample.forward_to(&hidden, size[0], size[1], state)?;
+            }
+        }
+        Ok(hidden)
+    }
 }
 
 // Whether each of a UNet's blocks attends, from its types, refusing a type other than `plain` and `attending`.

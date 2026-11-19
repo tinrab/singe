@@ -8,7 +8,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 import torch  # noqa: E402
 from transformers import AutoModelForImageTextToText, AutoProcessor, pipeline  # noqa: E402
 
-from support import DEVICE, Verification  # noqa: E402
+from support import DEVICE, Verification, generation  # noqa: E402
 
 
 def text_generation(snapshot):
@@ -31,9 +31,7 @@ def text_generation(snapshot):
                     max_new_tokens=parameters["max_new_tokens"],
                     do_sample=False,
                 )
-            outputs.append(
-                {"generated_token_ids": generated[0, ids.shape[1] :].tolist()}
-            )
+            outputs.append(generation(model, generated[0, ids.shape[1] :].tolist()))
         return outputs
 
     return run
@@ -65,11 +63,7 @@ def image_text_to_text(snapshot):
                     do_sample=False,
                 )
             outputs.append(
-                {
-                    "generated_token_ids": generated[
-                        0, batch["input_ids"].shape[1] :
-                    ].tolist()
-                }
+                generation(model, generated[0, batch["input_ids"].shape[1] :].tolist())
             )
         return outputs
 

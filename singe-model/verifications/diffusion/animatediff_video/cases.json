@@ -6,7 +6,7 @@
       "task": "video-to-video",
       "inputs": [
         {
-          "video": "media/spaghetti-small",
+          "video": "media/spaghetti-8",
           "prompt": "a tangle of conveyor belts, factory spaghetti, watercolor painting",
           "seed": 0
         }

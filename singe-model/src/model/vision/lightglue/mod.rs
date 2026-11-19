@@ -16,11 +16,9 @@ use crate::{
     },
     model::{
         ModelEntry,
-        vision::{
-            host,
-            superpoint::{self, SuperPointConfig, SuperPointLayers},
-        },
+        vision::superpoint::{self, SuperPointConfig, SuperPointLayers},
     },
+    processing::host_values,
     schema::Schema,
     source::Format,
 };
@@ -283,9 +281,9 @@ impl LightGlueLayers {
                 .mul_scalar(scale)
         };
         let similarity =
-            host(&projected(&sides[0])?.matmul(&projected(&sides[1])?.transpose(1, 2)?)?)?;
+            host_values(&projected(&sides[0])?.matmul(&projected(&sides[1])?.transpose(1, 2)?)?)?;
         let matchability =
-            |side: &Side| host(&side.descriptors.apply(&assignment.matchability, state)?);
+            |side: &Side| host_values(&side.descriptors.apply(&assignment.matchability, state)?);
         let (first, second) = (matchability(&sides[0])?, matchability(&sides[1])?);
         let (rows, columns) = (first.len(), second.len());
 
@@ -407,7 +405,7 @@ impl MatchingLayers for LightGlueLayers {
                 .iter()
                 .map(|side| {
                     Ok(
-                        host(&side.descriptors.apply(&self.confidences[layer], state)?)?
+                        host_values(&side.descriptors.apply(&self.confidences[layer], state)?)?
                             .into_iter()
                             .map(sigmoid)
                             .collect::<Vec<_>>(),
@@ -428,7 +426,7 @@ impl MatchingLayers for LightGlueLayers {
 
             // Keeps the keypoints that may match, and those not yet confident.
             for (side, confidences) in sides.iter_mut().zip(&confidences) {
-                let matchability = host(
+                let matchability = host_values(
                     &side
                         .descriptors
                         .apply(&self.assignments[layer].matchability, state)?,

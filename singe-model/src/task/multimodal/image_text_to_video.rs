@@ -118,9 +118,13 @@ impl ImageTextToVideoPipeline {
             .clip_noise(&mut generator, &shape)?
             .mul_scalar(f64::from(scheduler.initial_scale()))?;
         // The image's latents at the latents' size, scaled, as each frame's condition, and each frame's mask of how much it keeps the image.
-        let image = sampled_latents(parts, &parts.image_pixels(&input.image)?, &mut generator)?
-            .interpolate((height, width), InterpolateMode::Nearest)?
-            .mul_scalar(f64::from(parts.scaling))?;
+        let image = sampled_latents(
+            parts,
+            &parts.image_pixels(&input.image, None)?,
+            &mut generator,
+        )?
+        .interpolate((height, width), InterpolateMode::Nearest)?
+        .mul_scalar(f64::from(parts.scaling))?;
         let image_channels = image.shape().dimensions()[1];
         let masked = image
             .unsqueeze(2)?

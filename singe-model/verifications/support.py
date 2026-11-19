@@ -125,6 +125,8 @@ def find_snapshot(name):
     entry = repositories()[name]
     if isinstance(entry, dict) and "pipeline" in entry:
         return assembled(name, entry)
+    if isinstance(entry, dict) and "replace" in entry:
+        return derived(name, entry)
     from huggingface_hub import snapshot_download
     from huggingface_hub.errors import LocalEntryNotFoundError
 
@@ -174,6 +176,27 @@ def assembled(name, entry):
             link.unlink()
         link.symlink_to(part.resolve())
     (directory / "model_index.json").write_text(json.dumps(index, indent=2) + "\n")
+    return str(directory)
+
+
+def derived(name, entry):
+    """A snapshot derived from another, as `support/snapshot.rs` derives it: the `base` snapshot's files linked under `target/tmp/snapshots/<NAME>`, but for those `replace` maps to files under `verifications/`, copied in their place; `None` when the base is missing."""
+    base = find_snapshot(entry["base"])
+    if base is None:
+        return None
+    directory = ROOT.parents[1] / "target" / "tmp" / "snapshots" / name
+    for file in Path(base).rglob("*"):
+        if file.is_dir():
+            continue
+        relative = file.relative_to(base).as_posix()
+        target = directory / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if target.is_symlink() or target.exists():
+            target.unlink()
+        if relative in entry["replace"]:
+            target.write_bytes((ROOT / entry["replace"][relative]).read_bytes())
+        else:
+            target.symlink_to(file.resolve())
     return str(directory)
 
 
@@ -249,16 +272,12 @@ def write_media():
         spaghetti.mkdir()
         for index, frame in enumerate(numpy.load(path)):
             Image.fromarray(frame).save(spaghetti / f"frame-{index:03}.png")
-    small = directory / "spaghetti-small"
-    if not small.exists():
-        from PIL import Image
-
-        # The clip's first 8 frames at 128 × 72, whose sides latent diffusion reads without resizing.
-        small.mkdir()
+    short = directory / "spaghetti-8"
+    if not short.exists():
+        # The clip's first 8 frames, which video-to-video resizes to the size it is asked for.
+        short.mkdir()
         for frame in sorted(spaghetti.glob("*.png"))[:8]:
-            Image.open(frame).convert("RGB").resize((128, 72), Image.LANCZOS).save(
-                small / frame.name
-            )
+            (short / frame.name).write_bytes(frame.read_bytes())
     sphere = directory / "sphere.png"
     if not sphere.exists():
         from PIL import Image
@@ -335,6 +354,9 @@ def download(names):
         entry = repositories()[name]
         if isinstance(entry, dict) and "pipeline" in entry:
             download([entry["base"], *entry.get("components", {}).values()])
+            continue
+        if isinstance(entry, dict) and "replace" in entry:
+            download([entry["base"]])
             continue
         repository, revision, files = snapshot_entry(name)
         snapshot_download(
@@ -429,7 +451,7 @@ class Verification:
             self.written += 1
             return
         results = [
-            compare(case["task"], want, got)
+            (compare_loose if case.get("loose") else compare)(case["task"], want, got)
             for want, got in zip(case["expected"], outputs)
         ]
         details = [detail for _, detail in results]
@@ -469,6 +491,37 @@ def recorded(task, output):
 
 
 # Comparisons, as `support/compare.rs` makes them.
+
+
+# A half-precision case's looser match: the top label's or answer's score within `LOOSE_SCORE`, and the first `LOOSE_TOKENS` tokens of a generation.
+LOOSE_SCORE = 0.05
+LOOSE_TOKENS = 8
+
+
+def compare_loose(task, want, got):
+    """A half-precision case's match, as `support/compare.rs` makes it: the same top label or answer with its score within `LOOSE_SCORE`, or the same first `LOOSE_TOKENS` generated tokens."""
+
+    def top(value):
+        while isinstance(value, list):
+            value = value[0] if value else {}
+        return value
+
+    if task == "text-generation":
+        want, got = want["generated_token_ids"], got["generated_token_ids"]
+        count = min(LOOSE_TOKENS, len(want))
+        same = 0
+        while same < min(len(want), len(got)) and want[same] == got[same]:
+            same += 1
+        return same >= count, f"{same} of {len(want)} tokens, {count} needed"
+    if task in ("text-classification", "question-answering"):
+        key = "label" if task == "text-classification" else "answer"
+        want, got = top(want), top(got)
+        error = abs(want["score"] - got["score"])
+        return (
+            want[key] == got[key] and error < LOOSE_SCORE,
+            f"top {key} {got[key]!r}, score difference {error:.1e}",
+        )
+    raise ValueError(f"no loose comparison for {task}")
 
 
 def compare(task, want, got):
@@ -523,6 +576,7 @@ def compare(task, want, got):
         "visual-document-retrieval",
         "time-series-forecasting",
         "reinforcement-learning",
+        "sentence-embeddings",
         "tabular-classification",
         "tabular-regression",
     ):
@@ -566,16 +620,25 @@ def largest_difference(want, got):
     return None if None in differences else max(differences, default=0.0)
 
 
+def generation(model, tokens):
+    """A generation's record: the tokens `generate` gave after the prompt, and the end tokens of the model's generation config, where a generation that leaves the end token out may stop early."""
+    end = model.generation_config.eos_token_id
+    return {
+        "generated_token_ids": tokens,
+        "end_token_ids": [end] if isinstance(end, int) else list(end or []),
+    }
+
+
 def compare_tokens(want, got):
-    """The same tokens; a generation that stops early, at the tokenizer's end token where `generate` goes on, matches if what it gave is a non-empty start of the reference's.
-    Cases record no end tokens, so an early stop is not checked to fall where the reference generated one."""
+    """The same tokens, or a non-empty start of the reference's that stops where the reference generated an end token, which `generate` keeps and Singe leaves out."""
+    ends = want.get("end_token_ids", [])
     want, got = want["generated_token_ids"], got["generated_token_ids"]
     if not got:
         return False, f"no tokens, expected {len(want)}"
     same = 0
     while same < min(len(want), len(got)) and want[same] == got[same]:
         same += 1
-    if same == len(got) < len(want):
+    if same == len(got) < len(want) and want[same] in ends:
         return True, f"{same} of {len(want)} tokens, stopping at the end token"
     return same == len(want) == len(got), f"{same} of {len(want)} tokens"
 

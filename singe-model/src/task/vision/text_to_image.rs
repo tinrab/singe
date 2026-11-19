@@ -8,7 +8,7 @@ use crate::{
     head::{Autoencoder, ConditionalDenoiser, TextEncoder},
     model,
     processing::{
-        image::Image,
+        image::{Image, Resample},
         random::TorchGenerator,
         scheduler::{Sampler, SchedulerConfig},
         text::TextTokenizer,
@@ -139,15 +139,31 @@ impl<U> StableDiffusion<U> {
         Ok((height / self.vae_scale, width / self.vae_scale))
     }
 
-    // An image in [-1, 1], `[1, 3, H, W]` in the model's type, as `VaeImageProcessor` normalizes one whose sides are multiples of the VAE's scale factor, which it would resize any other image to.
-    pub fn image_pixels(&self, image: &Image) -> Result<Tensor> {
-        if i64::from(image.width) % self.vae_scale != 0
-            || i64::from(image.height) % self.vae_scale != 0
-        {
+    // An image in [-1, 1], `[1, 3, H, W]` in the model's type, as `VaeImageProcessor.preprocess` gives it: resized with PIL's Lanczos filter to `size`, `(height, width)`, or without one to its sides floored to multiples of the VAE's scale factor, where it differs.
+    pub fn image_pixels(&self, image: &Image, size: Option<(i64, i64)>) -> Result<Tensor> {
+        let (height, width) = size.unwrap_or_else(|| {
+            let floored = |length: u32| {
+                let length = i64::from(length);
+                length - length % self.vae_scale
+            };
+            (floored(image.height), floored(image.width))
+        });
+        let pixels =
+            |length: i64| u32::try_from(length).map_err(|_| Error::unsupported("an image side"));
+        let (height, width) = (pixels(height)?, pixels(width)?);
+        if height == 0 || width == 0 {
             return Err(Error::unsupported(
-                "an image whose sides are not multiples of the VAE's scale factor",
+                "an image smaller than the VAE's scale factor",
             ));
         }
+
+        let resized;
+        let image = if (image.height, image.width) == (height, width) {
+            image
+        } else {
+            resized = image.resized(height, width, Resample::Lanczos);
+            &resized
+        };
         Ok(image
             .to_tensor(self.options.device)?
             .div_scalar(255.0)?

@@ -1,4 +1,4 @@
-"""BERT, through every task a BERT snapshot here serves, as `verify.rs` runs them in Singe: a toxicity classifier, a spam classifier, a cross-encoder ranking texts, a named-entity tagger with each way of grouping words, and a sentence embedder."""
+"""BERT, through every task a BERT snapshot here serves, as `verify.rs` runs them in Singe: a toxicity classifier, a spam classifier, a cross-encoder ranking texts, a named-entity tagger with each way of grouping words, a sentence embedder, and its embeddings pooled by the mean over the square root of the length in a snapshot derived from it, and the pretrained masked language model filling blanks."""
 
 import sys
 from pathlib import Path
@@ -13,9 +13,9 @@ from transformers import pipeline  # noqa: E402
 from support import DEVICE, Verification  # noqa: E402
 
 
-def text_classification(snapshot):
+def text_classification(snapshot, dtype=torch.float32):
     classify = pipeline(
-        "text-classification", model=snapshot, dtype=torch.float32, device=DEVICE
+        "text-classification", model=snapshot, dtype=dtype, device=DEVICE
     )
     # Without `top_k`, `transformers` gives a single text's best label in a list.
     return lambda texts, parameters: [
@@ -62,12 +62,27 @@ def sentence_similarity(snapshot):
     return run
 
 
+def fill_mask(snapshot):
+    fill = pipeline("fill-mask", model=snapshot, dtype=torch.float32, device=DEVICE)
+    return lambda texts, parameters: [fill(text, **parameters) for text in texts]
+
+
+def sentence_embeddings(snapshot):
+    model = SentenceTransformer(snapshot, device=DEVICE)
+    return lambda texts, parameters: model.encode(texts).tolist()
+
+
 verification = Verification(__file__)
 verification.check("toxicity", text_classification)
 verification.check("spam", text_classification)
+verification.check(
+    "toxicity-bf16", lambda snapshot: text_classification(snapshot, torch.bfloat16)
+)
 verification.check("ranking", text_ranking)
 for strategy in ("none", "simple", "first", "average", "max"):
     verification.check(f"entities-{strategy}", token_classification)
 verification.check("features", feature_extraction)
 verification.check("similarity", sentence_similarity)
+verification.check("embeddings-sqrt", sentence_embeddings)
+verification.check("fill", fill_mask)
 verification.finish()

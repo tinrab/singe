@@ -15,9 +15,7 @@ use singe::{
 };
 
 use crate::{
-    assembly::{
-        Norms, ResnetBlock, TimeEmbedding, UpsampleBlock, conv3x3, downsample, timestep_input,
-    },
+    assembly::{Norms, TimeEmbedding, UnetLayout, UnetSite, UnetStages, conv3x3, timestep_input},
     error::Result,
     format::Loader,
     head::{ConditionalDenoiser, HeadLoader},
@@ -247,21 +245,11 @@ impl Transformer2d {
 }
 
 #[derive(Debug, Clone)]
-struct Stage {
-    resnets: Vec<ResnetBlock>,
-    attentions: Vec<Transformer2d>,
-    downsample: Option<Conv2d>,
-    upsample: Option<UpsampleBlock>,
-}
-
-#[derive(Debug, Clone)]
 pub struct Unet2dConditionLayers {
     config: Unet2dConditionConfig,
     input: Conv2d,
     time: TimeEmbedding,
-    down: Vec<Stage>,
-    middle: Stage,
-    up: Vec<Stage>,
+    stages: UnetStages<Transformer2d>,
     norm: GroupNorm,
     output: Conv2d,
 }
@@ -280,127 +268,36 @@ impl Unet2dConditionLayers {
         let widths = &config.widths;
         let time_width = widths[0] * 4;
         let last = widths.len() - 1;
-        let transformers = |stage: &mut Schema<'_>, count: usize, width: i64, heads: i64| {
-            (0..count)
-                .map(|layer| {
-                    Transformer2d::create(
-                        &mut stage.scope(format!("attentions.{layer}")),
-                        width,
-                        config.context_width,
-                        heads,
-                        config.linear_projection,
-                        config.groups,
-                    )
-                })
-                .collect::<SingeResult<Vec<_>>>()
+        let layout = UnetLayout {
+            widths,
+            layers_per_block: config.layers_per_block,
+            down_attention: &config.down_attention,
+            up_attention: &config.up_attention,
+            time_width,
+            norms,
+            middle_scale: config.middle_scale,
+            downsample_padding: config.downsample_padding,
         };
-        let down = widths
-            .iter()
-            .enumerate()
-            .map(|(index, &output)| {
-                let mut stage = schema.scope(format!("down.{index}"));
-                let input = if index == 0 {
-                    widths[0]
-                } else {
-                    widths[index - 1]
-                };
-                let resnets = (0..config.layers_per_block)
-                    .map(|layer| {
-                        ResnetBlock::create(
-                            &mut stage.scope(format!("resnets.{layer}")),
-                            [if layer == 0 { input } else { output }, output],
-                            Some(time_width),
-                            norms,
-                            1.0,
-                        )
-                    })
-                    .collect::<SingeResult<Vec<_>>>()?;
-                let attentions = if config.down_attention[index] {
-                    transformers(
-                        &mut stage,
-                        config.layers_per_block,
-                        output,
-                        config.heads[index],
-                    )?
-                } else {
-                    Vec::new()
-                };
-                Ok(Stage {
-                    resnets,
-                    attentions,
-                    downsample: (index < last)
-                        .then(|| {
-                            downsample(&mut stage, "downsample", output, config.downsample_padding)
-                        })
-                        .transpose()?,
-                    upsample: None,
-                })
-            })
-            .collect::<SingeResult<Vec<_>>>()?;
-        let middle = {
-            let mut stage = schema.scope("middle");
-            let width = widths[last];
-            let block = |stage: &mut Schema<'_>, layer: usize| {
-                ResnetBlock::create(
-                    &mut stage.scope(format!("resnets.{layer}")),
-                    [width, width],
-                    Some(time_width),
-                    norms,
-                    config.middle_scale,
-                )
+        let stages = UnetStages::create(schema, &layout, |schema, site, width| {
+            let heads = match site {
+                UnetSite::Down(index) => config.heads[index],
+                UnetSite::Middle => config.heads[last],
+                UnetSite::Up(index) => config.heads[last - index],
             };
-            let first = block(&mut stage, 0)?;
-            let attentions = transformers(&mut stage, 1, width, config.heads[last])?;
-            Stage {
-                resnets: vec![first, block(&mut stage, 1)?],
-                attentions,
-                downsample: None,
-                upsample: None,
-            }
-        };
-        let reversed = widths.iter().rev().copied().collect::<Vec<_>>();
-        let up = (0..widths.len())
-            .map(|index| {
-                let mut stage = schema.scope(format!("up.{index}"));
-                let previous = reversed[index.saturating_sub(1)];
-                let output = reversed[index];
-                let input = reversed[(index + 1).min(last)];
-                let layers = config.layers_per_block + 1;
-                let resnets = (0..layers)
-                    .map(|layer| {
-                        let skip = if layer == layers - 1 { input } else { output };
-                        let from = if layer == 0 { previous } else { output };
-                        ResnetBlock::create(
-                            &mut stage.scope(format!("resnets.{layer}")),
-                            [from + skip, output],
-                            Some(time_width),
-                            norms,
-                            1.0,
-                        )
-                    })
-                    .collect::<SingeResult<Vec<_>>>()?;
-                let attentions = if config.up_attention[index] {
-                    transformers(&mut stage, layers, output, config.heads[last - index])?
-                } else {
-                    Vec::new()
-                };
-                Ok(Stage {
-                    resnets,
-                    attentions,
-                    downsample: None,
-                    upsample: (index < last)
-                        .then(|| UpsampleBlock::create(&mut stage, "upsample", output))
-                        .transpose()?,
-                })
-            })
-            .collect::<SingeResult<Vec<_>>>()?;
+            Transformer2d::create(
+                schema,
+                width,
+                config.context_width,
+                heads,
+                config.linear_projection,
+                config.groups,
+            )
+        })?;
         Ok(Self {
             config: config.clone(),
             input: conv3x3(schema, "input", config.in_channels, widths[0])?,
             time: TimeEmbedding::create(schema, "time", widths[0], time_width)?,
-            down,
-            middle,
-            up,
+            stages,
             norm: schema.group_norm("norm", widths[0], config.groups, config.eps)?,
             output: conv3x3(schema, "output", widths[0], config.out_channels)?,
         })
@@ -415,22 +312,8 @@ impl Unet2dConditionLayers {
         motion: Option<&Motion<'_>>,
         state: &ModelState,
     ) -> SingeResult<Tensor> {
-        let temporal =
-            |hidden: Tensor, module: Option<&TemporalTransformer>| -> SingeResult<Tensor> {
-                match (motion, module) {
-                    (Some(motion), Some(module)) => {
-                        module.forward(&hidden, motion.frames, motion.state)
-                    }
-                    _ => Ok(hidden),
-                }
-            };
-        let modules = |stages: fn(&MotionModules) -> &Vec<Vec<TemporalTransformer>>,
-                       stage: usize,
-                       index: usize| {
-            motion.and_then(|motion| stages(motion.modules).get(stage)?.get(index))
-        };
         let time = time.apply(&self.time, state)?;
-        let mut hidden = match motion
+        let input = match motion
             .and_then(|motion| Some((motion.modules.input.as_ref()?, motion.state)))
         {
             // The UNet's channels through its own convolution, and those past them through the adapter's.
@@ -447,54 +330,30 @@ impl Unet2dConditionLayers {
             }
             None => sample.apply(&self.input, state)?,
         };
-        let mut skips = vec![hidden.clone()];
-        for (number, stage) in self.down.iter().enumerate() {
-            for (index, resnet) in stage.resnets.iter().enumerate() {
-                hidden = resnet.forward(&hidden, Some(&time), state)?;
-                if let Some(attention) = stage.attentions.get(index) {
-                    hidden = attention.forward(&hidden, context, state)?;
+        self.stages
+            .forward(input, &time, state, |hidden, attention, site, index| {
+                let hidden = match attention {
+                    Some(attention) => attention.forward(&hidden, context, state)?,
+                    None => hidden,
+                };
+                let Some(motion) = motion else {
+                    return Ok(hidden);
+                };
+                let modules = motion.modules;
+                let module = match site {
+                    UnetSite::Down(number) => {
+                        modules.down.get(number).and_then(|stage| stage.get(index))
+                    }
+                    UnetSite::Middle => modules.middle.first(),
+                    UnetSite::Up(number) => {
+                        modules.up.get(number).and_then(|stage| stage.get(index))
+                    }
+                };
+                match module {
+                    Some(module) => module.forward(&hidden, motion.frames, motion.state),
+                    None => Ok(hidden),
                 }
-
-                hidden = temporal(hidden, modules(|modules| &modules.down, number, index))?;
-                skips.push(hidden.clone());
-            }
-            if let Some(downsample) = &stage.downsample {
-                hidden = hidden.apply(downsample, state)?;
-                skips.push(hidden.clone());
-            }
-        }
-
-        let middle = &self.middle;
-        hidden = middle.resnets[0].forward(&hidden, Some(&time), state)?;
-        hidden = middle.attentions[0].forward(&hidden, context, state)?;
-        hidden = temporal(
-            hidden,
-            motion.and_then(|motion| motion.modules.middle.first()),
-        )?;
-        hidden = middle.resnets[1].forward(&hidden, Some(&time), state)?;
-        for (number, stage) in self.up.iter().enumerate() {
-            for (index, resnet) in stage.resnets.iter().enumerate() {
-                let skip = skips
-                    .pop()
-                    .ok_or_else(|| singe::Error::missing_input("a skip connection"))?;
-                hidden =
-                    resnet.forward(&Tensor::concat(&[hidden, skip], 1)?, Some(&time), state)?;
-                if let Some(attention) = stage.attentions.get(index) {
-                    hidden = attention.forward(&hidden, context, state)?;
-                }
-
-                hidden = temporal(hidden, modules(|modules| &modules.up, number, index))?;
-            }
-            if let Some(upsample) = &stage.upsample {
-                // The next skip's size, which doubling misses after an odd size was halved.
-                let size = skips
-                    .last()
-                    .map(|skip| skip.shape().dimensions()[2..].to_vec())
-                    .ok_or_else(|| singe::Error::missing_input("a skip connection"))?;
-                hidden = upsample.forward_to(&hidden, size[0], size[1], state)?;
-            }
-        }
-        hidden
+            })?
             .apply(&self.norm, state)?
             .apply(&Activation::Silu, state)?
             .apply(&self.output, state)

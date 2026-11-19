@@ -50,7 +50,6 @@ required-features = ["cuda_13_4"]
 name = "profile"
 required-features = ["cuda_13_4"]
 
-# Run only when named, as `just verify` names it, since each loads models from local snapshots.
 [[test]]
 name = "verifications"
 path = "verifications/main.rs"

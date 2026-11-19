@@ -24,7 +24,8 @@ pub use self::{
 use crate::{
     backend::{
         cuda::{
-            compiled::plan::lowering::LoweringProvider, cudnn_backend::CudnnBackendTensorMetadata,
+            allocator::allocate_scratch, compiled::plan::lowering::LoweringProvider,
+            cudnn_backend::CudnnBackendTensorMetadata,
             graph_binding::validate_graph_node_value_operand,
         },
         registry::{CudaGraphProvider, Operation, operation_support},
@@ -98,7 +99,7 @@ pub fn allocate_cudnn_workspace(
 ) -> Result<DeviceMemory<MaybeUninit<u8>>> {
     let shape = vec![to_i64(workspace_size, "cudnn workspace byte size")?];
     let device = Device::Cuda(context.device().id());
-    DeviceMemory::<u8>::create_uninit(context, workspace_size).map_err(|error| {
+    allocate_scratch(context, workspace_size).map_err(|error| {
         map_cuda_allocation_error(error, device, workspace_size, DataType::U8, Some(shape))
     })
 }

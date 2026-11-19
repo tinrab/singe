@@ -16,7 +16,7 @@ use singe::{
 
 pub use self::resnet::{ResNet, ResNetConfig};
 use crate::{
-    assembly::{Attention, Mlp},
+    assembly::{Attention, AttentionSpec, Mlp},
     error::Result,
     format::Loader,
     head::{ClassifierConfig, HeadLoader, ObjectDetector, PixelLayers},
@@ -227,9 +227,7 @@ pub fn load_detector(loader: &mut Loader<'_>) -> Result<ObjectDetector> {
                 Ok(EncoderBlock {
                     attention: Attention::create(
                         &mut schema.scope("attention"),
-                        width,
-                        width,
-                        config.encoder_heads,
+                        AttentionSpec::square(width, config.encoder_heads),
                     )?,
                     attention_norm: schema.layer_norm("attention_norm", width, EPS)?,
                     feed_forward: feed_forward(
@@ -248,16 +246,12 @@ pub fn load_detector(loader: &mut Loader<'_>) -> Result<ObjectDetector> {
                 Ok(DecoderBlock {
                     attention: Attention::create(
                         &mut schema.scope("attention"),
-                        width,
-                        width,
-                        config.decoder_heads,
+                        AttentionSpec::square(width, config.decoder_heads),
                     )?,
                     attention_norm: schema.layer_norm("attention_norm", width, EPS)?,
                     cross_attention: Attention::create(
                         &mut schema.scope("cross_attention"),
-                        width,
-                        width,
-                        config.decoder_heads,
+                        AttentionSpec::square(width, config.decoder_heads),
                     )?,
                     cross_attention_norm: schema.layer_norm("cross_attention_norm", width, EPS)?,
                     feed_forward: feed_forward(

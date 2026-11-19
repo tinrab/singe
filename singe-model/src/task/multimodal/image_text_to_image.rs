@@ -66,7 +66,7 @@ impl Pipeline for ImageTextToImagePipeline {
                 // The image's latents' mean, unscaled.
                 let image_latents = parts
                     .vae
-                    .encode(&parts.image_pixels(&input.image)?)?
+                    .encode(&parts.image_pixels(&input.image, None)?)?
                     .cast(DataType::F32)?;
                 let dimensions = image_latents.shape().dimensions();
                 let shape = [1, dimensions[1], dimensions[2], dimensions[3]];

@@ -10,7 +10,7 @@ mod swin;
 mod unet;
 
 pub use self::{
-    attention::Attention,
+    attention::{Attention, AttentionCache, AttentionSpec, causal_mask},
     decoder::{
         CausalLmSpec, DecoderConfig, DraftLayer, GroupedDecoder, causal, causal_lm, decoder,
         gated_mlp, grouped_attention, grouped_decoder, grouped_decoder_parts, hidden_states,
@@ -30,7 +30,7 @@ pub use self::{
         to_tokens,
     },
     unet::{
-        Norms, ResnetBlock, SpatialAttention, TimeEmbedding, UpsampleBlock, attends, conv3x3,
-        downsample, timestep_input, unet_block_rules,
+        Norms, ResnetBlock, SpatialAttention, TimeEmbedding, UnetLayout, UnetSite, UnetStages,
+        UpsampleBlock, attends, conv3x3, downsample, timestep_input, unet_block_rules,
     },
 };

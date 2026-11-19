@@ -263,7 +263,7 @@ impl CaptureSession {
 
     fn require_new_binding(&mut self, name: &str, tensor: &Tensor) -> Result<()> {
         if !self.binding_names.insert(name.to_owned()) {
-            return Err(Error::DuplicateInput);
+            return Err(Error::DuplicateInput(name.to_owned()));
         }
 
         if self.tensor_nodes.contains_key(&tensor.id()) {

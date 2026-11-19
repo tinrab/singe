@@ -1,0 +1,40 @@
+{
+  "cases": [
+    {
+      "name": "prompt",
+      "snapshot": "GEMMA2_TINY",
+      "task": "text-generation",
+      "inputs": ["The factory must"],
+      "parameters": {
+        "max_new_tokens": 16
+      },
+      "expected": [
+        {
+          "generated_token_ids": [
+            182147, 182147, 211682, 211682, 211682, 211682, 135680, 135680, 135680, 135680, 252451,
+            252451, 16570, 16570, 16570, 16570
+          ],
+          "end_token_ids": [1]
+        }
+      ]
+    },
+    {
+      "name": "story",
+      "snapshot": "GEMMA2_TINY",
+      "task": "text-generation",
+      "inputs": ["Once upon a time, on a planet rich in iron ore,"],
+      "parameters": {
+        "max_new_tokens": 16
+      },
+      "expected": [
+        {
+          "generated_token_ids": [
+            43401, 43401, 43401, 20697, 20697, 20697, 152919, 152919, 152919, 152919, 152919,
+            152919, 152919, 152919, 152919, 152919
+          ],
+          "end_token_ids": [1]
+        }
+      ]
+    }
+  ]
+}

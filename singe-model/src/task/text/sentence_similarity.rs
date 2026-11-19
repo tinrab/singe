@@ -45,7 +45,7 @@ pub type SentenceEmbedder = Model<SentenceLayers>;
 pub struct SentenceSimilarityPipeline {
     model: SentenceEmbedder,
     tokenizer: TextTokenizer,
-    // The most tokens of a sentence unless a caller names another: `sentence_bert_config.json`'s `max_seq_length`, or else the tokenizer's longest input, as `sentence-transformers` truncates.
+    // The most tokens of a sentence unless a caller names another: `sentence_bert_config.json`'s `max_seq_length`, or else the tokenizer's longest input capped at the model's positions, as `sentence-transformers` truncates.
     max_length: Option<usize>,
 }
 
@@ -101,11 +101,19 @@ impl Pipeline for SentenceSimilarityPipeline {
             pooling,
         };
         let tokenizer = TextTokenizer::load(source.directory())?;
-        let max_length = source
-            .optional_json::<Value>("sentence_bert_config.json")?
-            .and_then(|config| config["max_seq_length"].as_u64())
-            .and_then(|length| usize::try_from(length).ok())
-            .or_else(|| tokenizer.max_length());
+        let length = |file: &str, key: &str| -> Result<Option<usize>> {
+            Ok(source
+                .optional_json::<Value>(file)?
+                .and_then(|config| config[key].as_u64())
+                .and_then(|length| usize::try_from(length).ok()))
+        };
+        // The tokenizer's limit is capped at the model's positions, as `sentence-transformers` caps it.
+        let positions = length("config.json", "max_position_embeddings")?;
+        let capped = match (tokenizer.max_length(), positions) {
+            (Some(tokenizer), Some(positions)) => Some(tokenizer.min(positions)),
+            (tokenizer, positions) => tokenizer.or(positions),
+        };
+        let max_length = length("sentence_bert_config.json", "max_seq_length")?.or(capped);
         Ok(Self {
             model: Model::new(layers, encoder.state().clone()),
             tokenizer,

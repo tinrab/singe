@@ -4,11 +4,11 @@ use std::fmt::Debug;
 
 use serde::{Deserialize, Serialize};
 use singe::{
-    DataType, Result as SingeResult, Tensor,
+    Result as SingeResult, Tensor,
     nn::{Model, ModelState},
 };
 
-use crate::error::Result;
+use crate::{error::Result, processing::host_values};
 
 // What a keypoint detector's layers give: each pixel's keypoint probability, `[B, H, W]`, and unit descriptors over a coarser map, `[B, D, h, w]`.
 pub trait KeypointLayers: Debug + Send + Sync {
@@ -219,11 +219,8 @@ pub fn extract_keypoints(
     );
     let map = descriptors.shape().dimensions();
     let (depth, rows, columns) = (side(map[1])?, side(map[2])?, side(map[3])?);
-    let scores = scores.cast(DataType::F32)?.contiguous()?.to_vec::<f32>()?;
-    let descriptors = descriptors
-        .cast(DataType::F32)?
-        .contiguous()?
-        .to_vec::<f32>()?;
+    let scores = host_values(scores)?;
+    let descriptors = host_values(descriptors)?;
     Ok((0..batch)
         .map(|image| {
             let scores = suppressed(

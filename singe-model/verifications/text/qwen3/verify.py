@@ -11,15 +11,13 @@ import torch  # noqa: E402
 from jinja2.sandbox import ImmutableSandboxedEnvironment  # noqa: E402
 from transformers import AutoModelForCausalLM, AutoTokenizer  # noqa: E402
 
-from support import DEVICE, Verification  # noqa: E402
+from support import DEVICE, Verification, generation  # noqa: E402
 
 
-def text_generation(snapshot):
+def text_generation(snapshot, dtype=torch.float32):
     tokenizer = AutoTokenizer.from_pretrained(snapshot)
     model = (
-        AutoModelForCausalLM.from_pretrained(snapshot, dtype=torch.float32)
-        .to(DEVICE)
-        .eval()
+        AutoModelForCausalLM.from_pretrained(snapshot, dtype=dtype).to(DEVICE).eval()
     )
 
     def run(prompts, parameters):
@@ -40,9 +38,7 @@ def text_generation(snapshot):
                 generated = model.generate(
                     ids, max_new_tokens=parameters["max_new_tokens"], do_sample=False
                 )
-            outputs.append(
-                {"generated_token_ids": generated[0, ids.shape[1] :].tolist()}
-            )
+            outputs.append(generation(model, generated[0, ids.shape[1] :].tolist()))
         return outputs
 
     return run
@@ -51,6 +47,9 @@ def text_generation(snapshot):
 verification = Verification(__file__)
 verification.check("prompt", text_generation)
 verification.check("chat", text_generation)
+verification.check(
+    "prompt-bf16", lambda snapshot: text_generation(snapshot, torch.bfloat16)
+)
 
 
 # The generic prompt of `transformers`' decision pipeline, which the installed release predates: `DECISION_PROMPT` of `transformers/decision/template_utils.py`.

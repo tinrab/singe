@@ -5,6 +5,7 @@
 // Each `*` of a target takes the next segment a `*` of its pattern matched.
 
 use std::{
+    borrow::Cow,
     fmt::{Debug, Formatter, Result as FmtResult},
     sync::Arc,
 };
@@ -232,11 +233,10 @@ impl Rules {
         let mut plan = LoadPlan::new();
         let mut matched = Vec::new();
         for name in names {
-            let Some((rule, found)) = self
-                .rules
-                .iter()
-                .find_map(|rule| matches(&rule.pattern, name).map(|found| (rule, found)))
-            else {
+            let loaded = loaded_name(name);
+            let Some((rule, found)) = self.rules.iter().find_map(|rule| {
+                matches(&rule.pattern, &loaded).map(|found| (rule, Matched { name, ..found }))
+            }) else {
                 continue;
             };
             matched.push(name);
@@ -245,6 +245,18 @@ impl Rules {
             }
         }
         Ok((plan, matched))
+    }
+}
+
+// `name` as `transformers` loads it in every model, whose old checkpoints call a layer norm's weight and bias `gamma` and `beta`.
+fn loaded_name(name: &str) -> Cow<'_, str> {
+    if name.contains("LayerNorm.gamma") || name.contains("LayerNorm.beta") {
+        Cow::Owned(
+            name.replace("LayerNorm.gamma", "LayerNorm.weight")
+                .replace("LayerNorm.beta", "LayerNorm.bias"),
+        )
+    } else {
+        Cow::Borrowed(name)
     }
 }
 

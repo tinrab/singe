@@ -1,6 +1,6 @@
 """PIA, animating an image after a prompt, and after an empty one, with `diffusers`' `PIAPipeline` over Stable Diffusion 1.5 and PIA's condition adapter, as `verify.rs` animates it in Singe.
 Both draw the noise from PyTorch's CPU generator seeded alike, and both run in F16, since the UNet and its adapter do not fit the GPU in F32.
-Guidance stays low: in F16, guidance 7.5 makes the clip chaotic enough that `diffusers` against itself with another attention kernel differs by more than the comparison allows."""
+Guidance stays low, as AnimateDiff's does: in F16, a higher guidance makes the clip chaotic enough that `diffusers` against itself with another attention kernel differs by more than the comparison allows."""
 
 import sys
 from pathlib import Path

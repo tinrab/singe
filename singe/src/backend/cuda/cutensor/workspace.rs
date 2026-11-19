@@ -2,7 +2,7 @@ use std::{mem::MaybeUninit, sync::Arc};
 
 use singe_cuda::{context::Context as CudaContext, memory::DeviceMemory};
 
-use crate::error::Result;
+use crate::{backend::cuda::allocator::allocate_scratch, error::Result};
 
 pub fn cutensor_workspace(
     context: &Arc<CudaContext>,
@@ -11,9 +11,6 @@ pub fn cutensor_workspace(
     if workspace_size == 0 {
         Ok(None)
     } else {
-        Ok(Some(DeviceMemory::<u8>::create_uninit(
-            context,
-            workspace_size,
-        )?))
+        Ok(Some(allocate_scratch(context, workspace_size)?))
     }
 }
