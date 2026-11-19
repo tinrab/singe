@@ -34,6 +34,7 @@ cuda = [
     "dep:singe-cutensor",
     "dep:sha2",
     "dep:hex",
+    "dep:directories",
     "singe-cublas/lt",
 ]
 cuda_13_4 = ["cuda"]
@@ -54,6 +55,7 @@ singe-onnx = { workspace = true, optional = true }
 thiserror.workspace = true
 sha2 = { workspace = true, optional = true }
 hex = { workspace = true, optional = true }
+directories = { workspace = true, optional = true }
 num-traits.workspace = true
 num_enum.workspace = true
 half.workspace = true

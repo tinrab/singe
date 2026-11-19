@@ -5,7 +5,7 @@ use std::{
     ffi::{CStr, c_char, c_void},
     fs, io,
     path::{Path, PathBuf},
-    process::{self, Command, Output},
+    process::{Command, Output},
     ptr,
     sync::{
         Arc, OnceLock,
@@ -17,13 +17,12 @@ use std::{
 
 use libloading::{Error as LibraryError, Library};
 use serde_json::{Error as JsonError, Value};
-use sha2::{Digest, Sha256};
 use singe_cuda::architecture::GpuArchitecture;
 use thiserror::Error as ThisError;
 
 use crate::{
     backend::cuda::{
-        codegen::disk_cache,
+        codegen::disk_cache::{self, EntryKind},
         export::{
             CudaProgram, CudaProgramSet,
             writer::{CONFIGURATION_REFUSED, CUBLAS_BASE, LIBRARY_VERSION, ProgramFiles},
@@ -173,32 +172,27 @@ fn compiler_version() -> &'static str {
 //
 // Tuning builds the same candidates in each tune, and test runs build the same programs each time, at seconds a build.
 fn build_library(arguments: &[String], directory: &Path) -> Result<(), ProgramError> {
-    let Some(cache) = disk_cache::program_directory()? else {
+    let header = fs::read(directory.join("model.h"))?;
+    let source = fs::read(directory.join("model.cu"))?;
+    let Some(entry) = disk_cache::entry(
+        EntryKind::Program,
+        [
+            compiler_version().as_bytes(),
+            header.as_slice(),
+            source.as_slice(),
+        ]
+        .into_iter()
+        .chain(arguments.iter().map(String::as_bytes)),
+    ) else {
         return run_compiler(arguments, directory);
     };
-    let mut hasher = Sha256::new();
-    for part in [
-        compiler_version().as_bytes(),
-        arguments.join("\0").as_bytes(),
-        &fs::read(directory.join("model.h"))?,
-        &fs::read(directory.join("model.cu"))?,
-    ] {
-        hasher.update(part.len().to_le_bytes());
-        hasher.update(part);
-    }
-
-    let cached = cache.join(format!("{}.so", hex::encode(hasher.finalize())));
     let library = directory.join("libmodel.so");
-    if fs::copy(&cached, &library).is_ok() {
+    if entry.copy_to(&library) {
         return Ok(());
     }
 
     run_compiler(arguments, directory)?;
-    // Another process may keep the same build, so each writes its own file and renames it into place.
-    let partial = cached.with_extension(format!("{}.partial", process::id()));
-    if fs::copy(&library, &partial).is_ok() && fs::rename(&partial, &cached).is_err() {
-        let _ = fs::remove_file(&partial);
-    }
+    entry.store(&library);
     Ok(())
 }
 

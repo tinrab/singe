@@ -18,9 +18,8 @@ use singe_cuda::{
 use crate::{
     backend::cuda::{
         codegen::{
-            disk_cache::{self, CubinOrigin},
-            kernel::{CompileRequirements, KernelArtifact, KernelCode},
-            render::KernelOutput,
+            disk_cache::{self, CompilerInput, CubinOrigin},
+            kernel::{CompileRequirements, KernelArtifact},
         },
         nvtx::CudaNvtxRange,
         runtime::CudaRuntime,
@@ -36,7 +35,7 @@ const COMPILE_THREADS: usize = 8;
 impl CudaRuntime {
     /// Compiles and loads `kernel`, caching it by its code and compile options.
     ///
-    /// The kernel compiles to cubin for this device's architecture, with the options the current [`ComputePrecision`] selects, through the kernel cache directory when one is enabled.
+    /// The kernel compiles to cubin for this device's architecture, with the options the current [`ComputePrecision`] selects, through the disk cache when it is on.
     /// Compilation runs without holding the cache lock, so threads can compile different kernels at once.
     ///
     /// # Errors
@@ -128,13 +127,13 @@ impl CudaRuntime {
         }
 
         let options = kernel_compile_options(self.architecture(), requirements, precision)?;
+        let input = CompilerInput::create(kernel, options, self.architecture())?;
         // The options join a CUDA C++ key, so exact and relaxed builds of one source coexist; Tile IR has no such options.
-        let input = CompilerInput::create(kernel)?;
         let key = match &input {
-            CompilerInput::Nvrtc(source) => {
+            CompilerInput::Cuda { source, options } => {
                 format!("{}\n{source}", options.as_arguments().join(" "))
             }
-            CompilerInput::Tileiras(bytecode) => {
+            CompilerInput::Tile { bytecode, .. } => {
                 format!("tile\n{}", hex::encode(Sha256::digest(bytecode)))
             }
         };
@@ -147,33 +146,19 @@ impl CudaRuntime {
         }
 
         self.context().bind()?;
-        let architecture = self.architecture().to_string();
-        let compile = || match &input {
-            CompilerInput::Nvrtc(source) => disk_cache::cubin(name, source, &options),
-            CompilerInput::Tileiras(bytecode) => {
-                disk_cache::tile_cubin(name, bytecode, &architecture)
-            }
-        };
         let (cubin, origin) = {
             let _range = CudaNvtxRange::new(|| "singe kernel compile");
-            compile()?
+            disk_cache::cubin(name, &input)?
         };
         let _range = CudaNvtxRange::new(|| "singe kernel load");
-        // SAFETY: NVRTC or tileiras wrote these bytes as a cubin, now or into the kernel cache, which publishes only complete entries by renaming them.
+        // SAFETY: NVRTC or tileiras wrote these bytes as a cubin, now or into the disk cache, which publishes only complete entries by renaming them.
         let image = unsafe { ModuleImage::from_bytes_unchecked(cubin) };
         let module = match self.context().load_module(&image, JitOptions::default()) {
             Ok(module) => module,
             // A damaged cache entry compiles again.
             Err(_) if origin == CubinOrigin::Cached => {
-                match &input {
-                    CompilerInput::Nvrtc(source) => disk_cache::forget(name, source, &options)?,
-                    CompilerInput::Tileiras(bytecode) => {
-                        disk_cache::forget_tile(name, bytecode, &architecture)?;
-                    }
-                }
-
-                let (cubin, _) = compile()?;
-                // SAFETY: NVRTC or tileiras wrote these bytes as a cubin, now or into the kernel cache, which publishes only complete entries by renaming them.
+                let cubin = disk_cache::recompile(name, &input)?;
+                // SAFETY: NVRTC or tileiras wrote these bytes as a cubin in this call.
                 let image = unsafe { ModuleImage::from_bytes_unchecked(cubin) };
                 self.context().load_module(&image, JitOptions::default())?
             }
@@ -228,22 +213,6 @@ pub fn kernel_compile_options(
         precise_square_root: Some(true),
         ..CompileOptions::default()
     })
-}
-
-// What the compiler of a kernel's code reads: NVRTC the text of CUDA C++, `tileiras` Tile IR bytecode.
-enum CompilerInput<'a> {
-    Nvrtc(String),
-    Tileiras(&'a [u8]),
-}
-
-impl<'a> CompilerInput<'a> {
-    fn create(kernel: &'a KernelArtifact) -> Result<Self> {
-        match &kernel.code {
-            // Rendering rejects source in a language other backends compile, which reaches no CUDA compiler.
-            KernelCode::Source(_) => Ok(Self::Nvrtc(kernel.render(KernelOutput::Nvrtc)?)),
-            KernelCode::TileIr(bytecode) => Ok(Self::Tileiras(bytecode)),
-        }
-    }
 }
 
 // The architecture-specific variant of `architecture`, such as `sm_120a` for `sm_120`, whose instructions only that architecture runs.

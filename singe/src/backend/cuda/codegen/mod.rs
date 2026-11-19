@@ -1,7 +1,7 @@
 //! Compiles and caches generated kernels, whatever produced their code.
 //!
 //! A [`KernelArtifact`] is a kernel's name, its [`KernelCode`], its argument layout, its launch shape, and a [`KernelDescription`] of what its arguments hold, which [`KernelOutput`] can render as documentation.
-//! Producers of kernels build one and hand it to [`CudaRuntime::kernel`](crate::backend::cuda::runtime::CudaRuntime::kernel), which compiles its code to cubin for the device, through the disk cache when [`enable_kernel_cache`] names a directory.
+//! Producers of kernels build one and hand it to [`CudaRuntime::kernel`](crate::backend::cuda::runtime::CudaRuntime::kernel), which compiles its code to cubin for the device, through the disk cache unless [`disable_disk_cache`] turned it off.
 //! Code generation stays with the producers, so a new code language is a new [`KernelCode`] variant and its compiler here, not a change to the kernels' callers.
 
 mod compile;
@@ -19,7 +19,7 @@ mod tile;
 pub use self::{
     compile::kernel_compile_options,
     description::{BufferDescription, KernelDescription},
-    disk_cache::{disable_kernel_cache, enable_kernel_cache},
+    disk_cache::{disable_disk_cache, enable_disk_cache},
     emission::{KernelLanguage, emit_kernel, plan_kernel},
     kernel::{
         CompileRequirements, KernelAbi, KernelArgument, KernelArtifact, KernelCode, KernelLaunch,

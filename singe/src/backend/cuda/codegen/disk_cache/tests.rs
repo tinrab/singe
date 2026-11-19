@@ -7,8 +7,8 @@ use crate::{
         self,
         codegen::{
             CompileRequirements, KernelAbi, KernelArgument, KernelArtifact, KernelCode,
-            KernelDescription, KernelLaunch, KernelOutput,
-            disk_cache::{CubinOrigin, cubin},
+            KernelDescription, KernelLaunch,
+            disk_cache::{CompilerInput, CubinOrigin, cubin},
             kernel_compile_options,
         },
         runtime::runtime_for_device,
@@ -30,7 +30,7 @@ fn test_kernel_cache_loads_cubins_it_wrote_and_recompiles_damaged_entries() {
         .join("../target/test-kernel-cache")
         .join(process::id().to_string());
     let _ = fs::remove_dir_all(&directory);
-    cuda::enable_kernel_cache(&directory).unwrap();
+    cuda::enable_disk_cache(&directory).unwrap();
     // The process id keeps the source, and so the entry, unique to this run.
     let name = "singe_cache_probe";
     let kernel = KernelArtifact {
@@ -59,21 +59,21 @@ fn test_kernel_cache_loads_cubins_it_wrote_and_recompiles_damaged_entries() {
         target: None,
         requirements: CompileRequirements::default(),
     };
-    let source = kernel.render(KernelOutput::Nvrtc).unwrap();
     let options = kernel_compile_options(
         runtime.architecture(),
         CompileRequirements::default(),
         ComputePrecision::Full,
     )
     .unwrap();
+    let input = CompilerInput::create(&kernel, options, runtime.architecture()).unwrap();
 
-    let (compiled, origin) = cubin(name, &source, &options).unwrap();
+    let (compiled, origin) = cubin(name, &input).unwrap();
     assert_eq!(origin, CubinOrigin::Compiled);
-    let (cached, origin) = cubin(name, &source, &options).unwrap();
+    let (cached, origin) = cubin(name, &input).unwrap();
     assert_eq!(origin, CubinOrigin::Cached);
     assert_eq!(cached, compiled);
 
-    let entries = fs::read_dir(&directory)
+    let entries = fs::read_dir(directory.join("v1/kernels"))
         .unwrap()
         .map(|entry| entry.unwrap().path())
         .collect::<Vec<_>>();
@@ -82,8 +82,8 @@ fn test_kernel_cache_loads_cubins_it_wrote_and_recompiles_damaged_entries() {
     runtime.kernel(&kernel).unwrap();
     assert_ne!(fs::read(&entries[0]).unwrap(), b"not a cubin");
 
-    cuda::disable_kernel_cache();
-    let (_, origin) = cubin(name, &source, &options).unwrap();
+    cuda::disable_disk_cache();
+    let (_, origin) = cubin(name, &input).unwrap();
     assert_eq!(origin, CubinOrigin::Compiled);
     fs::remove_dir_all(&directory).unwrap();
 }

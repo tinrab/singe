@@ -47,9 +47,9 @@ pub enum CompileError {
     #[error("tileiras io")]
     TileirasIo(#[source] IoError),
 
-    /// A file in the generated-kernel cache directory could not be read or written.
-    #[error("kernel cache io at {path}")]
-    KernelCacheIo {
+    /// The disk cache directory could not be created.
+    #[error("disk cache io at {path}")]
+    CacheIo {
         path: PathBuf,
         #[source]
         source: IoError,

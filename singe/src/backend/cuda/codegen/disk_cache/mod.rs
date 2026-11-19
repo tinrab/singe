@@ -1,202 +1,274 @@
-//! Compiles generated kernels to cubin for one GPU architecture, and keeps the results in a directory across processes.
+//! Keeps compiled generated kernels and built exported programs in a directory across processes.
 //!
 //! NVRTC spends about 12 ms per kernel parsing C++ even when the driver's cache holds its output, while loading a cubin takes about 0.05 ms.
-//! The directory defaults to `singe/kernels` under the user's cache directory, [`enable_kernel_cache`] names another, and [`disable_kernel_cache`] turns it off.
-//! Each entry is named by a hash of the kernel's code, its name, the compile options or target architecture, and the compiler's version, NVRTC's or `tileiras`', so a toolkit or option change compiles again instead of loading a stale kernel.
-
-// TODO: Use `directories` crate.
+//! The directory defaults to the user's cache directory for `singe`, [`enable_disk_cache`] names another, and [`disable_disk_cache`] turns it off.
+//! Entries live under `v1/kernels` and `v1/programs`, each named by a hash of everything that built it, including the compiler's version, so a toolkit or option change builds again instead of loading a stale entry.
+//! Reading and writing entries is best-effort: a failed read builds again, and a failed write keeps the result in memory only.
 
 use std::{
-    env, fs,
-    io::ErrorKind,
+    fs, io,
     path::{Path, PathBuf},
     process,
-    sync::RwLock,
+    sync::{
+        LazyLock, PoisonError, RwLock,
+        atomic::{AtomicUsize, Ordering},
+    },
 };
 
+use directories::ProjectDirs;
 use sha2::{Digest, Sha256};
-use singe_cuda::nvrtc::{self, CompileOptions, Program};
+use singe_cuda::{
+    architecture::GpuArchitecture,
+    nvrtc::{self, CompileOptions, Program},
+};
 
 use crate::{
-    backend::cuda::codegen::tile,
-    error::{CompileError, Error, Result},
+    backend::cuda::codegen::{
+        kernel::{KernelArtifact, KernelCode},
+        render::KernelOutput,
+        tile,
+    },
+    error::{CompileError, Result},
 };
 
-/// Increments when the entry format or key changes, so old entries stop matching.
-const FORMAT: &str = "singe-kernel-cache-2";
+const VERSION: &str = "v1";
 
-// What the cache directory is.
 #[derive(Debug, Clone)]
 enum CacheSetting {
-    // Nothing has chosen, so the first use resolves the default.
     Default,
     On(PathBuf),
     Off,
 }
 
-static DIRECTORY: RwLock<CacheSetting> = RwLock::new(CacheSetting::Default);
+static SETTING: RwLock<CacheSetting> = RwLock::new(CacheSetting::Default);
 
-// `$XDG_CACHE_HOME/singe/kernels` or `~/.cache/singe/kernels`, or nothing when neither is set.
-fn default_directory() -> Option<PathBuf> {
-    env::var_os("XDG_CACHE_HOME")
-        .filter(|path| !path.is_empty())
-        .map(PathBuf::from)
-        .or_else(|| {
-            env::var_os("HOME")
-                .filter(|path| !path.is_empty())
-                .map(|home| PathBuf::from(home).join(".cache"))
-        })
-        .map(|cache| cache.join("singe/kernels"))
-        .filter(|directory| fs::create_dir_all(directory).is_ok())
-}
+static DEFAULT_ROOT: LazyLock<Option<PathBuf>> = LazyLock::new(|| {
+    ProjectDirs::from("", "", "singe").map(|directories| directories.cache_dir().to_owned())
+});
 
-// Returns the directory in force, resolving the default once.
-fn directory() -> Result<Option<PathBuf>> {
-    let chosen = DIRECTORY
-        .read()
-        .map_err(|_| Error::poisoned("cuda kernel cache setting"))?
-        .clone();
-    match chosen {
-        CacheSetting::On(directory) => return Ok(Some(directory)),
-        CacheSetting::Off => return Ok(None),
-        CacheSetting::Default => {}
+fn root() -> Option<PathBuf> {
+    match &*SETTING.read().unwrap_or_else(PoisonError::into_inner) {
+        CacheSetting::Default => DEFAULT_ROOT.clone(),
+        CacheSetting::On(root) => Some(root.clone()),
+        CacheSetting::Off => None,
     }
-
-    let directory = default_directory();
-    *DIRECTORY
-        .write()
-        .map_err(|_| Error::poisoned("cuda kernel cache setting"))? = directory
-        .clone()
-        .map_or(CacheSetting::Off, CacheSetting::On);
-    Ok(directory)
 }
 
-/// Keeps compiled generated kernels in `directory`, creating it, so later processes load them instead of compiling them.
+/// Keeps compiled generated kernels and built programs in `directory`, creating it, so later processes load them instead of building them.
 ///
 /// # Errors
 ///
-/// Returns an error if `directory` cannot be created or the cache setting is poisoned.
-pub fn enable_kernel_cache(directory: impl Into<PathBuf>) -> Result<()> {
+/// Returns an error if `directory` cannot be created.
+pub fn enable_disk_cache(directory: impl Into<PathBuf>) -> Result<()> {
     let directory = directory.into();
-    fs::create_dir_all(&directory).map_err(|source| CompileError::KernelCacheIo {
+    fs::create_dir_all(&directory).map_err(|source| CompileError::CacheIo {
         path: directory.clone(),
         source,
     })?;
-    *DIRECTORY
-        .write()
-        .map_err(|_| Error::poisoned("cuda kernel cache setting"))? = CacheSetting::On(directory);
+    *SETTING.write().unwrap_or_else(PoisonError::into_inner) = CacheSetting::On(directory);
     Ok(())
 }
 
-// The directory exported programs' built libraries are kept in, `programs` under the kernel cache's, which the same setting turns off.
-pub fn program_directory() -> Result<Option<PathBuf>> {
-    let Some(directory) = directory()? else {
-        return Ok(None);
-    };
-    let programs = directory.join("programs");
-    fs::create_dir_all(&programs).map_err(|source| CompileError::KernelCacheIo {
-        path: programs.clone(),
-        source,
-    })?;
-    Ok(Some(programs))
+/// Stops reading and writing the disk cache; compiled kernels stay cached in memory.
+pub fn disable_disk_cache() {
+    *SETTING.write().unwrap_or_else(PoisonError::into_inner) = CacheSetting::Off;
 }
 
-/// Stops reading and writing the kernel cache directory; compiled kernels stay cached in memory.
-pub fn disable_kernel_cache() {
-    if let Ok(mut directory) = DIRECTORY.write() {
-        *directory = CacheSetting::Off;
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum EntryKind {
+    Kernel,
+    Program,
+}
+
+impl EntryKind {
+    const fn directory(self) -> &'static str {
+        match self {
+            Self::Kernel => "kernels",
+            Self::Program => "programs",
+        }
     }
+
+    const fn extension(self) -> &'static str {
+        match self {
+            Self::Kernel => "cubin",
+            Self::Program => "so",
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct Entry {
+    path: PathBuf,
+}
+
+impl Entry {
+    pub(crate) fn read(&self) -> Option<Vec<u8>> {
+        fs::read(&self.path).ok().filter(|bytes| !bytes.is_empty())
+    }
+
+    pub(crate) fn copy_to(&self, destination: &Path) -> bool {
+        fs::copy(&self.path, destination).is_ok_and(|bytes| bytes > 0)
+    }
+
+    pub(crate) fn write(&self, bytes: &[u8]) {
+        self.publish(|partial| fs::write(partial, bytes));
+    }
+
+    pub(crate) fn store(&self, file: &Path) {
+        self.publish(|partial| fs::copy(file, partial).map(drop));
+    }
+
+    // Writes through a file private to this call, then renames it into place, so readers never see a partial entry.
+    fn publish(&self, write: impl FnOnce(&Path) -> io::Result<()>) {
+        static NEXT: AtomicUsize = AtomicUsize::new(0);
+        let partial = self.path.with_extension(format!(
+            "{}.{}.partial",
+            process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
+        let published = self
+            .path
+            .parent()
+            .map_or(Ok(()), fs::create_dir_all)
+            .and_then(|()| write(&partial))
+            .and_then(|()| fs::rename(&partial, &self.path));
+        if published.is_err() {
+            fs::remove_file(&partial).ok();
+        }
+    }
+}
+
+// The entry of `kind` that `parts` build, or nothing when the cache is off.
+pub(crate) fn entry<'a>(
+    kind: EntryKind,
+    parts: impl IntoIterator<Item = &'a [u8]>,
+) -> Option<Entry> {
+    let mut hasher = Sha256::new();
+    for part in parts {
+        hasher.update(part.len().to_le_bytes());
+        hasher.update(part);
+    }
+
+    let name = format!("{}.{}", hex::encode(hasher.finalize()), kind.extension());
+    let path = root()?.join(VERSION).join(kind.directory()).join(name);
+    Some(Entry { path })
 }
 
 /// Where a compiled kernel came from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CubinOrigin {
+pub(crate) enum CubinOrigin {
     /// NVRTC compiled the source in this call.
     Compiled,
     /// The cache directory held the cubin.
     Cached,
 }
 
-/// Returns the cubin of kernel `name` that `source` defines, compiled with `options`, from the cache directory when it holds one.
-///
-/// # Errors
-///
-/// Returns an error if NVRTC rejects the source, or the cache directory cannot be read or written.
-pub fn cubin(
-    name: &str,
-    source: &str,
-    options: &CompileOptions<'_>,
-) -> Result<(Vec<u8>, CubinOrigin)> {
-    cached(&nvrtc_key(name, source, options)?, || {
-        compile(name, source, options)
-    })
+// What a kernel's compiler reads: NVRTC the text of CUDA C++ with its options, `tileiras` Tile IR bytecode for an architecture.
+pub(crate) enum CompilerInput<'a> {
+    Cuda {
+        source: String,
+        options: Box<CompileOptions<'static>>,
+    },
+    Tile {
+        bytecode: &'a [u8],
+        architecture: String,
+    },
 }
 
-/// Returns the cubin of Tile IR kernel `name` that `bytecode` defines, compiled for `architecture` by `tileiras`, from the cache directory when it holds one.
-///
-/// # Errors
-///
-/// Returns an error if `tileiras` cannot run or rejects the bytecode, or the cache directory cannot be read or written.
-pub fn tile_cubin(
-    name: &str,
-    bytecode: &[u8],
-    architecture: &str,
-) -> Result<(Vec<u8>, CubinOrigin)> {
-    cached(&tile_key(name, bytecode, architecture)?, || {
-        tile::compile(name, bytecode, architecture)
-    })
-}
-
-/// Returns the cubin the cache directory holds under `key`, or compiles it with `compile` and stores it there.
-fn cached(key: &str, compile: impl FnOnce() -> Result<Vec<u8>>) -> Result<(Vec<u8>, CubinOrigin)> {
-    let Some(directory) = directory()? else {
-        return Ok((compile()?, CubinOrigin::Compiled));
-    };
-    let path = directory.join(format!("{key}.cubin"));
-    match fs::read(&path) {
-        Ok(bytes) if !bytes.is_empty() => return Ok((bytes, CubinOrigin::Cached)),
-        Ok(_) => {}
-        Err(error) if error.kind() == ErrorKind::NotFound => {}
-        Err(source) => return Err(CompileError::KernelCacheIo { path, source }.into()),
+impl<'a> CompilerInput<'a> {
+    pub(crate) fn create(
+        kernel: &'a KernelArtifact,
+        options: CompileOptions<'static>,
+        architecture: GpuArchitecture,
+    ) -> Result<Self> {
+        match &kernel.code {
+            // Rendering rejects source in a language other backends compile, which reaches no CUDA compiler.
+            KernelCode::Source(_) => Ok(Self::Cuda {
+                source: kernel.render(KernelOutput::Nvrtc)?,
+                options: Box::new(options),
+            }),
+            KernelCode::TileIr(bytecode) => Ok(Self::Tile {
+                bytecode,
+                architecture: architecture.to_string(),
+            }),
+        }
     }
 
-    let bytes = compile()?;
-    write(&path, &bytes)?;
+    fn entry(&self, name: &str) -> Result<Option<Entry>> {
+        Ok(match self {
+            Self::Cuda { source, options } => {
+                let version = nvrtc::version()?.to_string();
+                let arguments = options.as_arguments();
+                entry(
+                    EntryKind::Kernel,
+                    [
+                        b"nvrtc".as_slice(),
+                        version.as_bytes(),
+                        name.as_bytes(),
+                        source.as_bytes(),
+                    ]
+                    .into_iter()
+                    .chain(arguments.iter().map(String::as_bytes)),
+                )
+            }
+            Self::Tile {
+                bytecode,
+                architecture,
+            } => {
+                let version = tile::version()?;
+                entry(
+                    EntryKind::Kernel,
+                    [
+                        b"tileiras".as_slice(),
+                        version.as_bytes(),
+                        name.as_bytes(),
+                        architecture.as_bytes(),
+                        bytecode,
+                    ],
+                )
+            }
+        })
+    }
+
+    fn compile(&self, name: &str) -> Result<Vec<u8>> {
+        match self {
+            Self::Cuda { source, options } => compile_cuda(name, source, options),
+            Self::Tile {
+                bytecode,
+                architecture,
+            } => tile::compile(name, bytecode, architecture),
+        }
+    }
+}
+
+/// Returns the cubin of kernel `name` that `input` defines, from the cache directory when it holds one.
+///
+/// # Errors
+///
+/// Returns an error if the compiler rejects the input or cannot run.
+pub(crate) fn cubin(name: &str, input: &CompilerInput<'_>) -> Result<(Vec<u8>, CubinOrigin)> {
+    let entry = input.entry(name)?;
+    if let Some(bytes) = entry.as_ref().and_then(Entry::read) {
+        return Ok((bytes, CubinOrigin::Cached));
+    }
+
+    let bytes = input.compile(name)?;
+    if let Some(entry) = entry {
+        entry.write(&bytes);
+    }
     Ok((bytes, CubinOrigin::Compiled))
 }
 
-/// Removes the cache entry for a CUDA C++ kernel whose cached cubin failed to load, so the next call compiles it again.
-///
-/// # Errors
-///
-/// Returns an error if the entry exists but cannot be removed.
-pub fn forget(name: &str, source: &str, options: &CompileOptions<'_>) -> Result<()> {
-    forget_key(&nvrtc_key(name, source, options)?)
-}
-
-/// Removes the cache entry for a Tile IR kernel whose cached cubin failed to load.
-///
-/// # Errors
-///
-/// Returns an error if the entry exists but cannot be removed.
-pub fn forget_tile(name: &str, bytecode: &[u8], architecture: &str) -> Result<()> {
-    forget_key(&tile_key(name, bytecode, architecture)?)
-}
-
-fn forget_key(key: &str) -> Result<()> {
-    let Some(directory) = directory()? else {
-        return Ok(());
-    };
-    let path = directory.join(format!("{key}.cubin"));
-    match fs::remove_file(&path) {
-        Err(source) if source.kind() != ErrorKind::NotFound => {
-            Err(CompileError::KernelCacheIo { path, source }.into())
-        }
-        _ => Ok(()),
+// Compiles kernel `name` again and replaces its entry, whose cubin failed to load.
+pub(crate) fn recompile(name: &str, input: &CompilerInput<'_>) -> Result<Vec<u8>> {
+    let bytes = input.compile(name)?;
+    if let Some(entry) = input.entry(name)? {
+        entry.write(&bytes);
     }
+    Ok(bytes)
 }
 
-fn compile(name: &str, source: &str, options: &CompileOptions<'_>) -> Result<Vec<u8>> {
+fn compile_cuda(name: &str, source: &str, options: &CompileOptions<'_>) -> Result<Vec<u8>> {
     let program = Program::from_source(source).with_name(&format!("{name}.cu"));
     if let Err(source) = program.compile(options) {
         return Err(CompileError::Nvrtc {
@@ -207,60 +279,6 @@ fn compile(name: &str, source: &str, options: &CompileOptions<'_>) -> Result<Vec
         .into());
     }
     Ok(program.cubin()?)
-}
-
-/// Returns the key of a CUDA C++ kernel: its source, name, and options, and the NVRTC version.
-fn nvrtc_key(name: &str, source: &str, options: &CompileOptions<'_>) -> Result<String> {
-    let version = nvrtc::version()?.to_string();
-    let options = options.as_arguments();
-    Ok(key([
-        b"nvrtc".as_slice(),
-        version.as_bytes(),
-        name.as_bytes(),
-        source.as_bytes(),
-    ]
-    .into_iter()
-    .chain(options.iter().map(String::as_bytes))))
-}
-
-/// Returns the key of a Tile IR kernel: its bytecode, name, and architecture, and the `tileiras` version.
-fn tile_key(name: &str, bytecode: &[u8], architecture: &str) -> Result<String> {
-    let version = tile::version()?;
-    Ok(key([
-        b"tileiras".as_slice(),
-        version.as_bytes(),
-        name.as_bytes(),
-        architecture.as_bytes(),
-        bytecode,
-    ]))
-}
-
-/// Returns the hexadecimal SHA-256 of the entry format and `parts`, each terminated by a zero byte.
-fn key<'a>(parts: impl IntoIterator<Item = &'a [u8]>) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(FORMAT.as_bytes());
-    hasher.update([0]);
-    for part in parts {
-        hasher.update(part);
-        hasher.update([0]);
-    }
-    hex::encode(hasher.finalize())
-}
-
-/// Writes an entry through a file private to this process, then renames it, so readers never see a partial cubin.
-fn write(path: &Path, bytes: &[u8]) -> Result<()> {
-    let partial = path.with_extension(format!("cubin.{}", process::id()));
-    fs::write(&partial, bytes)
-        .and_then(|()| fs::rename(&partial, path))
-        .map_err(|source| {
-            // The write already failed; a partial file left behind is never read, since only renamed files are.
-            fs::remove_file(&partial).ok();
-            CompileError::KernelCacheIo {
-                path: path.to_owned(),
-                source,
-            }
-            .into()
-        })
 }
 
 #[cfg(test)]

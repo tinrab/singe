@@ -56,7 +56,7 @@ pub use self::{
     codegen::{
         BufferDescription, KernelAbi, KernelArgument, KernelArtifact, KernelCode,
         KernelDescription, KernelLanguage, KernelLaunch, KernelOutput, KernelRecorder,
-        PlanningContext, disable_kernel_cache, enable_kernel_cache,
+        PlanningContext, disable_disk_cache, enable_disk_cache,
     },
     compiled::{
         build::compile_graph,
