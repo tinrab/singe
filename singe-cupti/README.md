@@ -17,49 +17,52 @@ This crate provides:
 
 ## Example
 
-Print the CUPTI version, then count the CUDA driver API callbacks made while a context and a stream are created:
+Trace which CUDA driver functions are called while copying an array to the GPU:
 
 ```rust,no_run
-use std::sync::{
-    Arc,
-    atomic::{AtomicUsize, Ordering},
-};
+use std::sync::{Arc, Mutex};
 
-use singe_cuda::{context::Context, stream::StreamOptions};
+use singe_cuda::{context::Context, memory::DeviceMemory};
 use singe_cupti::{
-    callback::{Subscriber, SubscriberOptions},
-    types::CallbackDomain,
+    callback::{CallbackPayload, Subscriber, SubscriberOptions},
+    types::{ApiCallbackSite, CallbackDomain},
 };
 
 fn main() -> anyhow::Result<()> {
-    println!("CUPTI {}", singe_cupti::version()?);
-
-    let callbacks = Arc::new(AtomicUsize::new(0));
-    let counter = Arc::clone(&callbacks);
+    let context = Context::create()?;
+    let input = [1.0_f32, 2.0, 3.0, 4.0];
+    let calls = Arc::new(Mutex::new(Vec::new()));
+    let recorded = Arc::clone(&calls);
     let subscriber = Subscriber::create(
-        move |_domain, _callback_id, _data| {
-            counter.fetch_add(1, Ordering::Relaxed);
+        move |_domain, _callback_id, data| {
+            data.with_decoded(|data| {
+                if let CallbackPayload::Api(api) = data
+                    && api.site().is_ok_and(|site| site == ApiCallbackSite::Enter)
+                    && let Some(name) = api.function_name()
+                {
+                    recorded.lock().unwrap().push(name.to_string_lossy().into_owned());
+                }
+            });
         },
         &SubscriberOptions::default(),
     )?;
     subscriber.set_domain_enabled(CallbackDomain::DriverApi, true)?;
-
-    let context = Context::create()?;
-    let _stream = context.create_stream(StreamOptions::default())?;
+    DeviceMemory::from_slice(&context, &input)?;
     subscriber.unsubscribe()?;
 
-    println!("driver API callbacks: {}", callbacks.load(Ordering::Relaxed));
+    for name in calls.lock().unwrap().iter() {
+        println!("{name}");
+    }
+
     Ok(())
 }
 ```
 
-A new `Subscriber` has every callback disabled until a domain or callback ID is enabled.
-CUPTI calls the closure on the thread that makes the traced call, once on entry and once on exit of each API function.
-After `unsubscribe` returns, CUPTI makes no more calls to the closure; dropping the `Subscriber` also unsubscribes.
-CUPTI allows one subscriber per process unless every subscriber sets `SubscriberOptions::allow_multiple_subscribers`, so an attached profiler or debugger can make `Subscriber::create` fail.
+This prints `cuMemAlloc_v2`, `cuMemcpyHtoDAsync_v2`, `cuStreamSynchronize`, and `cuMemFree_v2`, between a few context and stream lookups.
+Only one subscriber may exist per process unless each sets `SubscriberOptions::allow_multiple_subscribers`, so an attached profiler can make `Subscriber::create` fail.
 
 Hardware metrics need a GPU that supports them, and the NVIDIA driver restricts performance counters to administrators unless it is configured to allow every user.
 
 ## More examples
 
-- [Callback trace](./examples/callback_trace.rs): count the CUDA driver functions entered during a device transfer, by name.
+- [Callback trace](./examples/callback_trace.rs): count the driver functions called by name, from creating a context to reading a copy back.
