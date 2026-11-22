@@ -93,5 +93,3 @@ Each emulator command returns a submission; `wait()` blocks until it finishes, a
 
 - [Vector addition](./examples/vector_add.rs): run a PTX kernel on the CPU emulator and check its output.
 - [CPU emulator tour](./examples/cpu_emulator.rs): parameter inspection, streams and events, `async` submissions, and debugging a kernel that faults.
-
-Run one with `cargo run -p singe-ptx --example cpu_emulator`.

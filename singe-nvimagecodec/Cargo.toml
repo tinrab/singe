@@ -1,7 +1,7 @@
 [package]
 name = "singe-nvimagecodec"
 description = "Safe Rust wrappers for NVIDIA nvImageCodec, for decoding and encoding images on the GPU."
-version.workspace = true
+version = "0.1.0"
 edition.workspace = true
 rust-version.workspace = true
 repository.workspace = true

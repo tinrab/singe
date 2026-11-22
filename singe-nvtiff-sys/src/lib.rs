@@ -1,4 +1,4 @@
-//! Low-level FFI bindings for nvTIFF 0.8, the NVIDIA GPU TIFF codec library, generated from `nvtiff.h`.
+//! Low-level FFI bindings for nvTIFF, the NVIDIA GPU TIFF codec library, generated from `nvtiff.h`.
 //! [`singe-loader`](singe_loader) loads the library at run time, on the first call or through [`load`], so building links no NVIDIA library.
 //! Most users want the safe `singe-nvtiff` crate.
 #![allow(

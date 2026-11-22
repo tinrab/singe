@@ -1,4 +1,4 @@
-//! Low-level FFI bindings for nvImageCodec 0.9, the NVIDIA image codec library, generated from `nvimgcodec.h`.
+//! Low-level FFI bindings for nvImageCodec, the NVIDIA image codec library, generated from `nvimgcodec.h`.
 //! [`singe-loader`](singe_loader) loads the library at run time, on the first call or through [`load`], so building links no NVIDIA library.
 //! Most users want the safe `singe-nvimagecodec` crate.
 #![allow(

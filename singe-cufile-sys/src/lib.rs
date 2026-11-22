@@ -1,4 +1,4 @@
-//! Low-level FFI bindings for cuFile 1.19, the NVIDIA `GPUDirect` Storage library, generated from `cufile.h`.
+//! Low-level FFI bindings for cuFile, the NVIDIA `GPUDirect` Storage library, generated from `cufile.h`.
 //! [`singe-loader`](singe_loader) loads `libcufile.so.0` at run time, on the first call or through [`load`], so building links no NVIDIA library.
 //! Most users want the safe `singe-cufile` crate.
 #![allow(

@@ -1,4 +1,4 @@
-//! Low-level FFI bindings for the nvCOMP 6.0 C API, the NVIDIA GPU compression library, generated from `nvcomp.h`.
+//! Low-level FFI bindings for the nvCOMP C API, the NVIDIA GPU compression library, generated from `nvcomp.h`.
 //! [`singe-loader`](singe_loader) loads the library at run time, on the first call or through [`load`], so building links no NVIDIA library unless the `manager` feature is on.
 //! Most users want the safe `singe-nvcomp` crate.
 //!

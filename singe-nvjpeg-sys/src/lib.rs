@@ -1,4 +1,4 @@
-//! Low-level FFI bindings for nvJPEG 13.2, from the CUDA Toolkit, and for nvJPEG 2000 0.11, generated from `nvjpeg.h` and `nvjpeg2k.h`.
+//! Low-level FFI bindings for nvJPEG, from the CUDA Toolkit, and for nvJPEG 2000 0.11, generated from `nvjpeg.h` and `nvjpeg2k.h`.
 //! [`singe-loader`](singe_loader) loads each library at run time, on the first call or through [`load`] and `load_k2`, so building links no NVIDIA library.
 //! Most users want the safe `singe-nvjpeg` crate.
 //!

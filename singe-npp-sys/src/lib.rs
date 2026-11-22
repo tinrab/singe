@@ -1,4 +1,4 @@
-//! Low-level FFI bindings for NPP 13.2, the NVIDIA Performance Primitives, generated from `npp.h`.
+//! Low-level FFI bindings for NPP, the NVIDIA Performance Primitives, generated from `npp.h`.
 //! NPP is split into several libraries, such as `nppc` for core functions, `nppi*` for image processing, and `npps` for signal processing.
 //! [`singe-loader`](singe_loader) loads each library at run time, on the first call or through [`load`], so building links no NVIDIA library.
 //! Most users want the safe `singe-npp` crate.

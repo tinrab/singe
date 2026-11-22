@@ -1,7 +1,7 @@
 [package]
 name = "singe-cudss-sys"
 description = "Low-level FFI bindings for the NVIDIA Direct Sparse Solvers (cuDSS) library."
-version.workspace = true
+version = "0.1.0"
 edition.workspace = true
 rust-version.workspace = true
 repository.workspace = true

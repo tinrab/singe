@@ -1,4 +1,4 @@
-//! Low-level FFI bindings for NCCL 2.32, the NVIDIA Collective Communications Library, generated from `nccl.h`.
+//! Low-level FFI bindings for NCCL, the NVIDIA Collective Communications Library, generated from `nccl.h`.
 //! [`singe-loader`](singe_loader) loads the library at run time, on the first call or through [`load`], so building links no NVIDIA library.
 //! Most users want the safe `singe-nccl` crate.
 #![allow(
