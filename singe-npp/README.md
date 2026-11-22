@@ -6,7 +6,7 @@
 [![Documentation](https://docs.rs/singe-npp/badge.svg)](https://docs.rs/singe-npp)
 ![License](https://img.shields.io/crates/l/singe-npp.svg)
 
-Safe Rust wrappers for NPP, the NVIDIA Performance Primitives, for image and signal processing on the GPU.
+Safe Rust wrappers for NVIDIA Performance Primitives (NPP), for image and signal processing on the GPU.
 
 This crate provides:
 
@@ -49,5 +49,3 @@ Each pipeline step waits for its GPU work before returning.
 - [Contours](./examples/find_contour.rs): label regions and extract contour geometry.
 - [Watershed](./examples/watershed_segmentation.rs): segment an image into regions.
 - [Batched labeling](./examples/batched_label_markers_and_compression.rs): label connected regions in several images in one batch and compress the labels.
-
-The examples write their results under `examples/output`.

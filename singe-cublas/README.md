@@ -6,8 +6,7 @@
 [![Documentation](https://docs.rs/singe-cublas/badge.svg)](https://docs.rs/singe-cublas)
 ![License](https://img.shields.io/crates/l/singe-cublas.svg)
 
-Safe Rust wrappers for cuBLAS, NVIDIA's dense linear algebra library, with optional cuBLASLt and cuBLASXt support.
-A `Context` owns a cuBLAS handle in a `singe-cuda` context, and the BLAS routines take it with their device buffers.
+Safe Rust wrappers for NVIDIA cuBLAS dense linear algebra on the GPU: the classic BLAS API, cuBLASLt for configurable matrix multiplication, and cuBLASXt for BLAS3 across several GPUs.
 
 This crate provides:
 
@@ -54,6 +53,8 @@ fn main() -> anyhow::Result<()> {
     Ok(())
 }
 ```
+
+A `Context` owns a cuBLAS handle in a `singe-cuda` context, and the BLAS routines take it with their device buffers.
 
 `gemm` checks the shape, the leading dimensions, and the CUDA context of every operand, then waits for the handle's stream before it returns.
 Each routine also has an `unsafe` `<operation>_async` form that only enqueues the work and can be captured into a CUDA graph; its caller keeps the operands alive until the work finishes.

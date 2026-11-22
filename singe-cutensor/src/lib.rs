@@ -1,5 +1,4 @@
-//! Safe Rust wrappers for cuTENSOR, NVIDIA's library for tensor contractions, reductions, permutations, and elementwise operations on the GPU.
-//! An operation is described by [`TensorDescriptor`](crate::tensor::TensorDescriptor)s and an [`OperationDescriptor`](crate::operation::OperationDescriptor), planned into a [`Plan`](crate::plan::Plan), and run through methods on the plan.
+//! Safe Rust wrappers for NVIDIA cuTENSOR, for tensor contractions, reductions, permutations, and elementwise operations on the GPU.
 //!
 //! This crate provides:
 //!
@@ -73,6 +72,8 @@
 //!     Ok(())
 //! }
 //! ```
+//!
+//! An operation is described by [`TensorDescriptor`](crate::tensor::TensorDescriptor)s and an [`OperationDescriptor`](crate::operation::OperationDescriptor), planned into a [`Plan`](crate::plan::Plan), and run through methods on the plan.
 //!
 //! [`Plan::contract`](crate::plan::Plan::contract) checks every operand against the plan, rejects stream capture, and waits for the stream before it returns.
 //! Each operation also has an `unsafe` `*_async` form that runs the same checks and only enqueues the work; its caller keeps the plan, operands, workspace, and scalars alive until the work finishes.

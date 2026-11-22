@@ -6,7 +6,7 @@
 [![Documentation](https://docs.rs/singe-cusparse/badge.svg)](https://docs.rs/singe-cusparse)
 ![License](https://img.shields.io/crates/l/singe-cusparse.svg)
 
-Safe Rust wrappers for cuSPARSE, NVIDIA's sparse linear algebra library.
+Safe Rust wrappers for NVIDIA cuSPARSE, for sparse linear algebra on the GPU.
 A `Context` owns a cuSPARSE handle in a `singe-cuda` context, and the descriptors in `matrix` and `vector` borrow device buffers.
 Creating and configuring descriptors is safe; every operation and workspace-size query is `unsafe`, because a descriptor does not check that its sparse indices are in bounds or its values initialized.
 

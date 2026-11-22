@@ -1,4 +1,4 @@
-//! Safe Rust wrappers for NCCL, the NVIDIA Collective Communications Library, which moves and reduces data between GPUs.
+//! Safe Rust wrappers for NCCL, the NVIDIA Collective Communications Library, for exchanging data between GPUs.
 //!
 //! This crate provides:
 //!

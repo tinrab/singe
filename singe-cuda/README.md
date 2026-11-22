@@ -6,8 +6,7 @@
 [![Documentation](https://docs.rs/singe-cuda/badge.svg)](https://docs.rs/singe-cuda)
 ![License](https://img.shields.io/crates/l/singe-cuda.svg)
 
-Safe Rust wrappers for the CUDA driver and runtime APIs, including runtime compilation of CUDA C++ and NVTX annotations.
-The other Singe wrapper crates take their contexts, streams, and device memory from this crate.
+Safe Rust wrappers for the CUDA driver and runtime APIs.
 
 This crate provides:
 
@@ -65,7 +64,6 @@ for ordinal in 0..Device::count()? {
 ## Streams and events
 
 Split work across streams and time it with events.
-The kernel launches come from `cuda_module!`, which needs the `macros` feature:
 
 ```rust,ignore
 use singe_cuda::event::{EventFlags, EventRecordFlags, EventWaitFlags};
@@ -80,6 +78,7 @@ start.record(&streams[0], EventRecordFlags::DEFAULT)?;
 streams[1].wait_event(&start, EventWaitFlags::DEFAULT)?;
 
 for (stream, chunk) in streams.iter().zip(&mut chunks) {
+    // The demo kernel launch comes from a `cuda_module!` module.
     // SAFETY: each chunk is written by one stream and outlives the synchronization below.
     unsafe { module.scale_async(chunk, 2.0, len, &config, stream)? };
 }
@@ -158,7 +157,6 @@ for (job, submission) in submissions {
 ## CUDA graphs
 
 Record kernel launches once and replay them with little CPU overhead.
-The generated `_record` method takes the capture scope first, then the same arguments as the `_async` launch without its stream:
 
 ```rust,ignore
 use singe_cuda::{graph::GraphInstantiateFlags, stream::StreamCaptureMode};
@@ -176,12 +174,15 @@ for _ in 0..5 {
 stream.synchronize()?;
 ```
 
+With `cuda_module!` macro, the generated `_record` method takes the capture scope first, then the same arguments as the `_async` launch without its stream.
+
 Capturing records the work without running it.
 See [`graph_replay`](./examples/graph_replay.rs) for the complete program.
 
 ## Memory pools
 
 Allocate and free on a stream from a memory pool, so repeated allocations reuse the pool's memory.
+
 Assume `pool` is a `MemoryPool` created for the device:
 
 ```rust,ignore
@@ -239,7 +240,7 @@ See [`pinned_memory`](./examples/pinned_memory.rs) for the complete program.
 ## Typed kernels
 
 With the `macros` feature, `cuda_module!` reads the kernel's parameter list and generates Rust methods with matching argument types.
-Marking a pointer `read`, `write`, or `read_write` decides how the methods borrow the buffer:
+Marking a pointer `read`, `write`, or `read_write` decides how the methods borrow the buffer.
 
 ```rust,ignore
 cuda_module! {
@@ -266,6 +267,9 @@ unsafe { module.saxpy_async(2.0, &x, &mut y, 4, &config, &stream)? };
 stream.synchronize()?;
 assert_eq!(y.copy_to_host_vec()?, [12.0, 14.0, 16.0, 18.0]);
 ```
+
+Note; writing CUDA code like this isn't necessary, obviously.
+You can write it in CUDA C++ and use `cc` to build and link it with your Rust crate.
 
 Here `x` is borrowed immutably and `y` mutably, so passing a `DeviceMemory<f64>` or the same buffer twice fails to compile.
 A `write` parameter also accepts uninitialized memory, such as `DeviceMemory<MaybeUninit<f32>>`, which cannot be read back until it is marked initialized.
@@ -339,7 +343,8 @@ The adapters keep the original owner alive, so neither side releases a context o
 
 Every resource keeps its CUDA context alive.
 Safe calls wait for their GPU work, `sync_scope` borrows its buffers until the stream finishes, and a submitted operation owns its buffers until its result is ready.
-Nothing keeps a buffer alive for an `unsafe` `*_async` call, a generated kernel launch, or a graph launch: the caller keeps every buffer valid, and conflicting accesses ordered, until that work finishes, including every graph replay.
+Nothing keeps a buffer alive for an `unsafe` `*_async` call, a generated kernel launch, or a graph launch.
+The caller keeps every buffer valid, and conflicting accesses ordered, until that work finishes, including every graph replay.
 Only types that implement `DeviceRepr` can be transferred, and its derive checks the layout of your own structs.
 
 Raw kernel launches and external pointers are `unsafe`.
@@ -361,5 +366,3 @@ The caller must make sure every access stays in bounds.
 - [Memory pool](./examples/memory_pool.rs): reuse pool-backed allocations, free them on a stream, and trim unused memory.
 - [Pinned memory](./examples/pinned_memory.rs): fill a pinned vector, copy it through the device, and reuse the pool's memory.
 - [Stream pool](./examples/stream_pool.rs): distribute independent jobs across streams and collect their results.
-
-Run one with `cargo run -p singe-cuda --example device_query`.

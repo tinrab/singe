@@ -1,6 +1,6 @@
 [package]
 name = "singe-cutensor"
-description = "Safe Rust wrappers for NVIDIA cuTENSOR, for tensor contractions and other tensor operations on the GPU."
+description = "Safe Rust wrappers for NVIDIA cuTENSOR, for tensor contractions, reductions, permutations, and elementwise operations on the GPU."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

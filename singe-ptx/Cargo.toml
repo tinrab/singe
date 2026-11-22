@@ -1,6 +1,6 @@
 [package]
 name = "singe-ptx"
-description = "A PTX parser and a CPU emulator that runs PTX kernels without an NVIDIA GPU."
+description = "PTX parser and emulator."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

@@ -1,6 +1,6 @@
 [package]
 name = "singe-cusolver"
-description = "Safe Rust wrappers for NVIDIA cuSOLVER, for dense matrix factorizations and solvers on the GPU."
+description = "Safe Rust wrappers for NVIDIA cuSOLVER, for matrix factorizations, linear solves, eigenvalue problems, and singular value decompositions on the GPU."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

@@ -6,7 +6,7 @@
 [![Documentation](https://docs.rs/singe-cufile/badge.svg)](https://docs.rs/singe-cufile)
 ![License](https://img.shields.io/crates/l/singe-cufile.svg)
 
-Safe Rust wrappers for cuFile, the NVIDIA `GPUDirect` Storage library, which reads and writes files directly to and from GPU memory.
+Safe Rust wrappers for the NVIDIA cuFile, which moves data directly between files and GPU memory with `GPUDirect` Storage.
 
 This crate provides:
 

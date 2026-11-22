@@ -1,6 +1,6 @@
 [package]
 name = "singe-curand"
-description = "Safe Rust wrappers for the NVIDIA cuRAND host API, for random number generation on the GPU or CPU."
+description = "Safe Rust wrappers for the NVIDIA cuRAND, for random number generation."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

@@ -6,7 +6,7 @@
 [![Documentation](https://docs.rs/singe-cupti/badge.svg)](https://docs.rs/singe-cupti)
 ![License](https://img.shields.io/crates/l/singe-cupti.svg)
 
-Safe Rust wrappers for CUPTI, the CUDA Profiling Tools Interface, for tracing and profiling CUDA programs from inside the process.
+Safe Rust wrappers for NVIDIA CUPTI, for tracing and profiling CUDA applications.
 
 This crate provides:
 

@@ -6,8 +6,7 @@
 [![Documentation](https://docs.rs/singe-cufft/badge.svg)](https://docs.rs/singe-cufft)
 ![License](https://img.shields.io/crates/l/singe-cufft.svg)
 
-Safe Rust wrappers for cuFFT, NVIDIA's library for fast Fourier transforms on the GPU.
-A `Plan` describes a transform, manages its workspace, and runs it on a stream.
+Safe Rust wrappers for NVIDIA cuFFT, for Fourier transforms on the GPU.
 
 This crate provides:
 
@@ -46,6 +45,8 @@ fn main() -> anyhow::Result<()> {
     Ok(())
 }
 ```
+
+A `Plan` describes a transform, manages its workspace, and runs it on a stream.
 
 `execute_in_place` returns once the transform has finished on `stream`.
 When a plan runs on a different stream than last time, the new stream first waits for the work queued on the previous one.

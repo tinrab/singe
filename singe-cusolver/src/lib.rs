@@ -1,5 +1,4 @@
-//! Safe Rust wrappers for cuSOLVER's dense API: matrix factorizations, linear solves, eigenvalue problems, and singular value decompositions on the GPU.
-//! Each operation is a typed description, such as [`dense::Getrf`], that reports its workspace sizes and runs with a bindings struct of borrowed matrices, outputs, and workspaces.
+//! Safe Rust wrappers for NVIDIA cuSOLVER, for matrix factorizations, linear solves, eigenvalue problems, and singular value decompositions on the GPU.
 //!
 //! This crate provides:
 //!
@@ -77,6 +76,8 @@
 //!     Ok(())
 //! }
 //! ```
+//!
+//! Each operation is a typed description, such as [`dense::Getrf`], that reports its workspace sizes and runs with a bindings struct of borrowed matrices, outputs, and workspaces.
 //!
 //! [`execute`](crate::dense::Getrf::execute) waits for the context's stream, even when enqueuing fails.
 //! Most operations also have an `unsafe` [`execute_async`](crate::dense::Getrf::execute_async) that only enqueues the work and can be captured into a CUDA graph; the eigenvalue solves that read back a count have none.

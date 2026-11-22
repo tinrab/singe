@@ -1,5 +1,4 @@
-//! Safe Rust wrappers for the CUDA driver and runtime APIs, including runtime compilation of CUDA C++ and NVTX annotations.
-//! The other Singe wrapper crates take their contexts, streams, and device memory from this crate.
+//! Safe Rust wrappers for the CUDA driver and runtime APIs.
 //!
 //! This crate provides:
 //!
@@ -57,7 +56,6 @@
 //! # Streams and events
 //!
 //! Split work across streams and time it with events.
-//! The kernel launches come from [`cuda_module!`](crate::cuda_module), which needs the `macros` feature:
 //!
 //! ```rust,ignore
 //! use singe_cuda::event::{EventFlags, EventRecordFlags, EventWaitFlags};
@@ -72,6 +70,7 @@
 //! streams[1].wait_event(&start, EventWaitFlags::DEFAULT)?;
 //!
 //! for (stream, chunk) in streams.iter().zip(&mut chunks) {
+//!     // The demo kernel launch comes from a `cuda_module!` module.
 //!     // SAFETY: each chunk is written by one stream and outlives the synchronization below.
 //!     unsafe { module.scale_async(chunk, 2.0, len, &config, stream)? };
 //! }
@@ -150,7 +149,6 @@
 //! # CUDA graphs
 //!
 //! Record kernel launches once and replay them with little CPU overhead.
-//! The generated `_record` method takes the capture scope first, then the same arguments as the `_async` launch without its stream:
 //!
 //! ```rust,ignore
 //! use singe_cuda::{graph::GraphInstantiateFlags, stream::StreamCaptureMode};
@@ -168,12 +166,14 @@
 //! stream.synchronize()?;
 //! ```
 //!
+//! With [`cuda_module!`](crate::cuda_module) macro, the generated `_record` method takes the capture scope first, then the same arguments as the `_async` launch without its stream.
+//!
 //! Capturing records the work without running it.
-//! See `graph_replay` for the complete program.
 //!
 //! # Memory pools
 //!
 //! Allocate and free on a stream from a memory pool, so repeated allocations reuse the pool's memory.
+//!
 //! Assume `pool` is a [`MemoryPool`](crate::memory::MemoryPool) created for the device:
 //!
 //! ```rust,ignore
@@ -184,8 +184,6 @@
 //! assert_eq!(transfer::copy_to_host_vec(&buffer)?, vec![7; 4096]);
 //! buffer.release()?;
 //! ```
-//!
-//! The `memory_pool` example also creates the pool, keeps memory reserved between allocations, and trims it at the end.
 //!
 //! # Pinned host memory
 //!
@@ -226,12 +224,10 @@
 //! [`PinnedVecExt::mapped_device_view`](crate::memory::PinnedVecExt::mapped_device_view) and [`mapped_device_view_mut`](crate::memory::PinnedVecExt::mapped_device_view_mut) give a kernel or copy direct access to a [`PinnedVec`](crate::memory::PinnedVec), with no copy to device memory first.
 //! Every such access crosses the bus, so a view suits data the device touches once, such as a few values a kernel reports back.
 //!
-//! See `pinned_memory` for the complete program.
-//!
 //! # Typed kernels
 //!
 //! With the `macros` feature, [`cuda_module!`](crate::cuda_module) reads the kernel's parameter list and generates Rust methods with matching argument types.
-//! Marking a pointer `read`, `write`, or `read_write` decides how the methods borrow the buffer:
+//! Marking a pointer `read`, `write`, or `read_write` decides how the methods borrow the buffer.
 //!
 //! ```rust,ignore
 //! cuda_module! {
@@ -258,6 +254,9 @@
 //! stream.synchronize()?;
 //! assert_eq!(y.copy_to_host_vec()?, [12.0, 14.0, 16.0, 18.0]);
 //! ```
+//!
+//! Note; writing CUDA code like this isn't necessary, obviously.
+//! You can write it in CUDA C++ and use `cc` to build and link it with your Rust crate.
 //!
 //! Here `x` is borrowed immutably and `y` mutably, so passing a [`DeviceMemory<f64>`](crate::memory::DeviceMemory) or the same buffer twice fails to compile.
 //! A `write` parameter also accepts uninitialized memory, such as [`DeviceMemory<MaybeUninit<f32>>`](crate::memory::DeviceMemory), which cannot be read back until it is marked initialized.
@@ -331,7 +330,8 @@
 //!
 //! Every resource keeps its CUDA context alive.
 //! Safe calls wait for their GPU work, [`sync_scope`](crate::stream::Stream::sync_scope) borrows its buffers until the stream finishes, and a submitted operation owns its buffers until its result is ready.
-//! Nothing keeps a buffer alive for an `unsafe` `*_async` call, a generated kernel launch, or a graph launch: the caller keeps every buffer valid, and conflicting accesses ordered, until that work finishes, including every graph replay.
+//! Nothing keeps a buffer alive for an `unsafe` `*_async` call, a generated kernel launch, or a graph launch.
+//! The caller keeps every buffer valid, and conflicting accesses ordered, until that work finishes, including every graph replay.
 //! Only types that implement [`DeviceRepr`] can be transferred, and its derive checks the layout of your own structs.
 //!
 //! Raw kernel launches and external pointers are `unsafe`.

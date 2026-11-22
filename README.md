@@ -1,6 +1,10 @@
-# Singe
+<p align="center">
+  <img height="200" src="./assets/logo-text.svg" alt="Singe">
+</p>
 
-A machine learning framework that sets tensors ablaze.
+<p align="center">
+    A machine learning framework that sets tensors ablaze.
+</p>
 
 <div align="center">
 🚧 WORK IN PROGRESS 🚧
@@ -9,32 +13,32 @@ A machine learning framework that sets tensors ablaze.
 ## CUDA
 
 - [singe-cuda](./singe-cuda): the CUDA driver and runtime APIs, including runtime compilation of CUDA C++ and NVTX annotations.
-- [singe-cuda-macros](./singe-cuda-macros): derive macros for types that can be copied to the GPU, and `cuda_module!` for typed kernel launches.
-- [singe-cuda-find](./singe-cuda-find): finds the CUDA Toolkit and NVIDIA libraries for build scripts.
+- [singe-cuda-macros](./singe-cuda-macros): derive macros for types that can be copied to the GPU, and `cuda_module!` for type-safe kernel launches.
+- [singe-cuda-find](./singe-cuda-find): CUDA Toolkit and NVIDIA libraries path finder for build scripts.
 
 ## NVIDIA libraries
 
-Each wrapper crate has a `-sys` crate of raw bindings beside it, such as [singe-cuda-sys](./singe-cuda-sys).
+Raw bindings and safe Rust wrapper crates for NVIDIA libraries.
 
-- [singe-cublas](./singe-cublas): cuBLAS dense linear algebra, cuBLASLt matrix multiplication, and cuBLASXt BLAS3 across several GPUs.
-- [singe-cudnn](./singe-cudnn): cuDNN deep neural network primitives, including a Rust port of NVIDIA's cuDNN Frontend.
-- [singe-cudss](./singe-cudss): cuDSS direct sparse solvers.
-- [singe-cufft](./singe-cufft): cuFFT Fourier transforms.
-- [singe-cufile](./singe-cufile): cuFile, which moves data between files and GPU memory with GPUDirect Storage.
-- [singe-cupti](./singe-cupti): CUPTI tracing and profiling.
-- [singe-curand](./singe-curand): cuRAND random number generation on the GPU or CPU.
-- [singe-cusolver](./singe-cusolver): cuSOLVER dense matrix factorizations and solvers.
-- [singe-cusparse](./singe-cusparse): cuSPARSE sparse linear algebra.
-- [singe-cutensor](./singe-cutensor): cuTENSOR tensor contractions, reductions, and elementwise operations.
-- [singe-nccl](./singe-nccl): NCCL collective communication between GPUs.
-- [singe-npp](./singe-npp): NPP image and signal processing.
-- [singe-nvcomp](./singe-nvcomp): nvCOMP compression and decompression on the GPU.
-- [singe-nvimagecodec](./singe-nvimagecodec): nvImageCodec image decoding and encoding.
-- [singe-nvjpeg](./singe-nvjpeg): nvJPEG and nvJPEG 2000 image decoding and encoding.
-- [singe-nvml](./singe-nvml): NVML GPU monitoring and management.
-- [singe-nvtiff](./singe-nvtiff): nvTIFF TIFF decoding and encoding.
+- [singe-cublas](./singe-cublas): cuBLAS dense linear algebra on the GPU: the classic BLAS API, cuBLASLt for configurable matrix multiplication, and cuBLASXt for BLAS3 across several GPUs.
+- [singe-cudnn](./singe-cudnn): cuDNN, the deep neural network library, including a Rust port of NVIDIA's cuDNN Frontend.
+- [singe-cudss](./singe-cudss): cuDSS, the CUDA direct sparse solver library.
+- [singe-cufft](./singe-cufft): cuFFT, for Fourier transforms on the GPU.
+- [singe-cufile](./singe-cufile): the NVIDIA cuFile, which moves data directly between files and GPU memory with GPUDirect Storage.
+- [singe-cupti](./singe-cupti): CUPTI, for tracing and profiling CUDA applications.
+- [singe-curand](./singe-curand): cuRAND, for random number generation.
+- [singe-cusolver](./singe-cusolver): cuSOLVER, for matrix factorizations, linear solves, eigenvalue problems, and singular value decompositions on the GPU.
+- [singe-cusparse](./singe-cusparse): cuSPARSE, for sparse linear algebra on the GPU.
+- [singe-cutensor](./singe-cutensor): cuTENSOR, for tensor contractions, reductions, permutations, and elementwise operations on the GPU.
+- [singe-nccl](./singe-nccl): NCCL, the NVIDIA Collective Communications Library, for exchanging data between GPUs.
+- [singe-npp](./singe-npp): NVIDIA Performance Primitives (NPP), for image and signal processing on the GPU.
+- [singe-nvcomp](./singe-nvcomp): nvCOMP, for compressing and decompressing data on the GPU.
+- [singe-nvimagecodec](./singe-nvimagecodec): nvImageCodec, for decoding and encoding images on the GPU.
+- [singe-nvjpeg](./singe-nvjpeg): the nvJPEG and nvJPEG 2000 libraries.
+- [singe-nvml](./singe-nvml): the NVIDIA Management Library (NVML), for monitoring and managing GPUs.
+- [singe-nvtiff](./singe-nvtiff): nvTIFF, for decoding and encoding TIFF images on the GPU.
 
-## Other tools
+## Tools
 
-- [singe-onnx](./singe-onnx): decodes ONNX models from their protobuf encoding into typed Rust values.
-- [singe-ptx](./singe-ptx): a PTX parser, and a CPU emulator that runs PTX kernels without an NVIDIA GPU.
+- [singe-onnx](./singe-onnx): ONNX model format utilities.
+- [singe-ptx](./singe-ptx): PTX parser and emulator.

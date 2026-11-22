@@ -1,4 +1,4 @@
-//! Safe Rust wrappers for nvTIFF, which decodes and encodes TIFF images on the GPU.
+//! Safe Rust wrappers for NVIDIA nvTIFF, for decoding and encoding TIFF images on the GPU.
 //!
 //! This crate provides:
 //!

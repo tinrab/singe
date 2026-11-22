@@ -1,6 +1,6 @@
 [package]
 name = "singe-onnx"
-description = "Decodes ONNX models from their protobuf encoding into typed Rust values."
+description = "ONNX model format utilities."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

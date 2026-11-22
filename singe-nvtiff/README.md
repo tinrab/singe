@@ -6,7 +6,7 @@
 [![Documentation](https://docs.rs/singe-nvtiff/badge.svg)](https://docs.rs/singe-nvtiff)
 ![License](https://img.shields.io/crates/l/singe-nvtiff.svg)
 
-Safe Rust wrappers for nvTIFF, which decodes and encodes TIFF images on the GPU.
+Safe Rust wrappers for NVIDIA nvTIFF, for decoding and encoding TIFF images on the GPU.
 
 This crate provides:
 
@@ -56,5 +56,3 @@ The `unsafe` `decode_async`, `encode_async`, and `finalize_async` functions enqu
 - [Decode and encode](./examples/decode_encode.rs): decode a range of images, print their metadata, write them as PNM files, and optionally encode them into a new TIFF file.
 - [Region decode](./examples/decode_image_roi.rs): decode a region of one image and write it as a PNM file.
 - [`GeoTIFF` decode](./examples/geotiff_decode.rs): print TIFF tags and `GeoTIFF` keys, decode a range of images, and write them as PNM files.
-
-Without arguments, each example reads the bundled sample image and writes to the system temporary directory; `--help` lists the options.

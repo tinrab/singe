@@ -6,8 +6,7 @@
 [![Documentation](https://docs.rs/singe-cutensor/badge.svg)](https://docs.rs/singe-cutensor)
 ![License](https://img.shields.io/crates/l/singe-cutensor.svg)
 
-Safe Rust wrappers for cuTENSOR, NVIDIA's library for tensor contractions, reductions, permutations, and elementwise operations on the GPU.
-An operation is described by `TensorDescriptor`s and an `OperationDescriptor`, planned into a `Plan`, and run through methods on the plan.
+Safe Rust wrappers for NVIDIA cuTENSOR, for tensor contractions, reductions, permutations, and elementwise operations on the GPU.
 
 This crate provides:
 
@@ -81,6 +80,8 @@ fn main() -> anyhow::Result<()> {
     Ok(())
 }
 ```
+
+An operation is described by `TensorDescriptor`s and an `OperationDescriptor`, planned into a `Plan`, and run through methods on the plan.
 
 `Plan::contract` checks every operand against the plan, rejects stream capture, and waits for the stream before it returns.
 Each operation also has an `unsafe` `*_async` form that runs the same checks and only enqueues the work; its caller keeps the plan, operands, workspace, and scalars alive until the work finishes.

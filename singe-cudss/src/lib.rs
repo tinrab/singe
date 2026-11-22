@@ -1,6 +1,4 @@
-//! Safe Rust wrappers for cuDSS, NVIDIA's direct sparse solver library.
-//! A [`Context`](crate::context::Context) owns a cuDSS handle in a [`singe-cuda`](singe_cuda) context and runs the analysis, factorization, and solve phases on matrices that borrow device buffers.
-//! [`SolverState`](crate::solver_state::SolverState) carries the analysis, the factors, and the results from one phase to the next.
+//! Safe Rust wrappers for NVIDIA cuDSS, the CUDA direct sparse solver library.
 //!
 //! This crate provides:
 //!
@@ -82,6 +80,9 @@
 //!     Ok(())
 //! }
 //! ```
+//!
+//! A [`Context`](crate::context::Context) owns a cuDSS handle in a [`singe-cuda`](singe_cuda) context and runs the analysis, factorization, and solve phases on matrices that borrow device buffers.
+//! [`SolverState`](crate::solver_state::SolverState) carries the analysis, the factors, and the results from one phase to the next.
 //!
 //! [`execute_async`](crate::context::Context::execute_async) checks that the solver state and the matrices belong to the context, enqueues the phase on the context's stream, and returns without waiting.
 //! [`Context::sync_scope`](crate::context::Context::sync_scope) runs a closure of [`execute_async`](crate::context::Context::execute_async) calls, rejects stream capture, and waits for the installed stream even when the closure fails; it does not wait for the per-device streams of a multi-GPU handle.

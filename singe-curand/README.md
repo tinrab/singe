@@ -6,7 +6,7 @@
 [![Documentation](https://docs.rs/singe-curand/badge.svg)](https://docs.rs/singe-curand)
 ![License](https://img.shields.io/crates/l/singe-curand.svg)
 
-Safe Rust wrappers for the cuRAND host API, NVIDIA's random number generation library.
+Safe Rust wrappers for the NVIDIA cuRAND, for random number generation.
 A `Generator` fills device memory on a CUDA stream, and a `HostGenerator` fills host slices on the calling thread with the same algorithms.
 
 This crate provides:

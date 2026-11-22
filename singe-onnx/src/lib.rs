@@ -1,5 +1,4 @@
-//! Decodes ONNX models from their protobuf encoding into typed Rust values.
-//! Singe's ONNX import reads its models through this crate.
+//! ONNX model format utilities.
 //!
 //! This crate provides:
 //!
@@ -7,7 +6,6 @@
 //! - **Structure-only parsing:** [`Model::structure_from_bytes`] skips inline tensor payloads, so a large model's weights are never allocated.
 //! - **Typed model:** [`Model`], [`Graph`], [`Node`], [`Attribute`], [`Tensor`], [`ValueInfo`], [`Type`], and the other ONNX values, with optional fields as [`Option`] and metadata as a sorted [`PropertyMap`] that rejects duplicate keys.
 //! - **Raw protobuf:** [`proto`], the [`prost`] types generated from the ONNX schema, and [`TryFrom`] conversions from them into [`Model`].
-//! - **Errors:** [`Error`] separates read failures ([`Io`](Error::Io)), invalid protobuf bytes ([`Decode`](Error::Decode)), and decoded messages that break the typed model's rules ([`Format`](Error::Format)).
 //!
 //! # Example
 //!

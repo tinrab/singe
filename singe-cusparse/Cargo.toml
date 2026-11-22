@@ -1,6 +1,6 @@
 [package]
 name = "singe-cusparse"
-description = "Rust wrappers for NVIDIA cuSPARSE, for sparse linear algebra on the GPU."
+description = "Safe Rust wrappers for NVIDIA cuSPARSE, for sparse linear algebra on the GPU."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

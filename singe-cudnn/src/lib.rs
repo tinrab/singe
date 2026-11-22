@@ -1,6 +1,4 @@
 //! Safe Rust wrappers for cuDNN, NVIDIA's deep neural network library, including a Rust port of NVIDIA's cuDNN Frontend graph API.
-//! A [`Context`](crate::context::Context) owns a cuDNN handle in a [`singe-cuda`](singe_cuda) context.
-//! Building a graph and compiling a plan are safe; running a plan is `unsafe`, because its bindings record device addresses without borrowing the buffers.
 //!
 //! This crate provides:
 //!
@@ -80,6 +78,9 @@
 //!     Ok(())
 //! }
 //! ```
+//!
+//! A [`Context`](crate::context::Context) owns a cuDNN handle in a [`singe-cuda`](singe_cuda) context.
+//! Building a graph and compiling a plan are safe; running a plan is `unsafe`, because its bindings record device addresses without borrowing the buffers.
 //!
 //! [`Graph::compile`](crate::frontend::graph::Graph::compile) asks cuDNN's heuristics for engine configurations and builds the first one that supports the graph on this GPU.
 //! The handle starts on the legacy default stream; [`Context::set_stream`](crate::context::Context::set_stream) installs another one.

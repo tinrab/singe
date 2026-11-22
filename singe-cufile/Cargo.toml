@@ -1,6 +1,6 @@
 [package]
 name = "singe-cufile"
-description = "Safe Rust wrappers for the NVIDIA cuFile library, which moves data directly between files and GPU memory with GPUDirect Storage."
+description = "Safe Rust wrappers for the NVIDIA cuFile, which moves data directly between files and GPU memory with GPUDirect Storage."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
