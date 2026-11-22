@@ -11,10 +11,10 @@ Safe Rust wrappers for NVIDIA cuDSS, the CUDA direct sparse solver library.
 This crate provides:
 
 - **Matrices:** CSR and dense descriptors over borrowed device storage, including uniform and non-uniform batches, with read-only inputs kept apart from write-only outputs.
-- **Solver settings:** `Config` with typed parameters for the algorithms, hybrid CPU and GPU execution and memory modes, and the devices of a multi-GPU solve.
+- **Solver settings:** `Config` with typed parameters for the algorithms, transposed solves, reduced-precision factors, hybrid CPU and GPU execution and memory modes, and the devices of a multi-GPU solve.
 - **Solver state:** typed queries such as `info`, `lu_nnz`, `memory_estimates`, and `schur_shape`.
 - **Multi-GPU and multi-node solves:** handles over several GPUs, plus the communication and threading layers for multi-node multi-GPU (MGMN) and multithreaded modes.
-- **Memory handlers:** custom device allocators for the memory cuDSS allocates.
+- **Memory handlers:** custom device and pinned host allocators for the memory cuDSS allocates.
 
 ## Example
 

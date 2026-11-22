@@ -16,7 +16,7 @@ use crate::{
     config::Config,
     error::{Error, Result},
     matrix::Matrix,
-    memory::DeviceMemoryHandler,
+    memory::{DeviceMemoryHandler, PinnedMemoryHandler},
     solver_state::SolverState,
     try_ffi,
     types::{DataParameter, Phase},
@@ -386,6 +386,44 @@ impl Context {
         unsafe { try_ffi!(sys::cudssSetThreadingLayer(self.as_raw(), ptr::null())) }
     }
 
+    /// Sets the directory of the on-disk cache for kernels cuDSS compiles at run time, taking precedence over `CUDSS_JIT_CACHE_DIR`.
+    ///
+    /// The directory applies to kernels compiled or loaded by later analysis phases on this handle.
+    /// A kernel another handle of the process already compiled or loaded is reused as is.
+    /// cuDSS runs the kernels it loads from the directory, so only trusted users must be able to write to it.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `path` cannot be converted to a C string, the context cannot be bound, or cuDSS rejects the directory.
+    pub fn set_jit_cache_directory(&mut self, path: impl AsRef<Path>) -> Result<()> {
+        let path = path_to_cstring(path.as_ref())?;
+        self.bind()?;
+        // SAFETY: the handle is live in the bound context, and `path` is a NUL-terminated string borrowed for the call.
+        unsafe { try_ffi!(sys::cudssSetJitCacheDir(self.as_raw(), path.as_ptr())) }
+    }
+
+    /// Uses the on-disk kernel cache directory named by `CUDSS_JIT_CACHE_DIR`, which is the default.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the context cannot be bound or cuDSS rejects the change.
+    pub fn set_default_jit_cache_directory(&mut self) -> Result<()> {
+        self.bind()?;
+        // SAFETY: the handle is live in the bound context, and null selects the environment's directory.
+        unsafe { try_ffi!(sys::cudssSetJitCacheDir(self.as_raw(), ptr::null())) }
+    }
+
+    /// Disables the on-disk cache for kernels cuDSS compiles at run time, regardless of the environment.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the context cannot be bound or cuDSS rejects the change.
+    pub fn disable_jit_cache(&mut self) -> Result<()> {
+        self.bind()?;
+        // SAFETY: the handle is live in the bound context, and an empty NUL-terminated string disables the cache.
+        unsafe { try_ffi!(sys::cudssSetJitCacheDir(self.as_raw(), c"".as_ptr())) }
+    }
+
     /// Enqueues one or more solver phases.
     ///
     /// The usual solve sequence is analysis, factorization, then solve.
@@ -542,6 +580,68 @@ impl Context {
         self.bind()?;
         // SAFETY: the handle is live in the bound context, and null detaches the handler.
         unsafe { try_ffi!(sys::cudssSetDeviceMemHandler(self.as_raw(), ptr::null())) }
+    }
+
+    /// Returns the current pinned host memory handler.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if no handler is set or cuDSS cannot report it.
+    pub fn pinned_memory_handler(&self) -> Result<PinnedMemoryHandler> {
+        self.bind()?;
+        let mut handler = sys::cudssPinnedMemHandler_t::default();
+        // SAFETY: the handle is live in the bound context, and `handler` is a valid output location.
+        unsafe {
+            try_ffi!(sys::cudssGetPinnedMemHandler(
+                self.as_raw(),
+                &raw mut handler
+            ))?;
+        }
+        // SAFETY: cuDSS reports the handler installed on this context, which already satisfies the handler invariants.
+        Ok(unsafe { PinnedMemoryHandler::from_raw(handler) })
+    }
+
+    /// Sets the pinned host memory handler used by this context.
+    ///
+    /// cuDSS routes a subset of its internal host allocations, chosen by cuDSS, through the handler; without one, those allocations use ordinary host memory.
+    /// [`Self::execute_async`] returns [`Status::NotSupported`](crate::error::Status::NotSupported) while a handler is set and [`ConfigParameter::UseCudaRegisterMemory`](crate::types::ConfigParameter::UseCudaRegisterMemory) is disabled.
+    ///
+    /// Detach the existing handler with [`Self::clear_pinned_memory_handler`] before setting a different handler.
+    ///
+    /// # Safety
+    ///
+    /// The handler callbacks and backing memory pool must satisfy [`PinnedMemoryHandler`] invariants.
+    /// The memory pool must outlive this context.
+    /// It is undefined behavior to replace a handler without first detaching it, or to let the context outlive the attached memory pool.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the context cannot be bound or cuDSS rejects the handler.
+    pub unsafe fn set_pinned_memory_handler(
+        &mut self,
+        handler: &PinnedMemoryHandler,
+    ) -> Result<()> {
+        self.bind()?;
+        // SAFETY: the handle is live in the bound context; cuDSS copies the handler struct, and the caller guarantees the callbacks and memory pool meet `PinnedMemoryHandler`'s invariants.
+        unsafe {
+            try_ffi!(sys::cudssSetPinnedMemHandler(
+                self.as_raw(),
+                ptr::from_ref(handler.as_raw()),
+            ))
+        }
+    }
+
+    /// Detaches the current pinned host memory handler.
+    ///
+    /// Later routed host allocations use ordinary host memory.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the context cannot be bound, or cuDSS refuses because buffers allocated through the handler are still live.
+    pub fn clear_pinned_memory_handler(&mut self) -> Result<()> {
+        self.bind()?;
+        // SAFETY: the handle is live in the bound context, null detaches the handler, and cuDSS refuses while the handler's buffers are live.
+        unsafe { try_ffi!(sys::cudssSetPinnedMemHandler(self.as_raw(), ptr::null())) }
     }
 
     pub(crate) fn bind_data_query(&self, param: DataParameter) -> Result<()> {

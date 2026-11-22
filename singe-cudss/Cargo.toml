@@ -16,13 +16,13 @@ include.workspace = true
 rustdoc-args = ["--cfg", "docsrs", "--html-in-header", "dist/katex_header.html"]
 
 [features]
-default = ["cudss_0_8"]
+default = ["cudss_1_0"]
 
-cudss_0_8 = [
+cudss_1_0 = [
     "singe-cuda/runtime_13_4",
     "singe-cuda/macros",
     "singe-cuda-sys/runtime_13_4",
-    "singe-cudss-sys/cudss_0_8",
+    "singe-cudss-sys/cudss_1_0",
 ]
 
 [dependencies]

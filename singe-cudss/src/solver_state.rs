@@ -16,7 +16,7 @@ use crate::{
     context::Context,
     error::{Error, Result},
     try_ffi,
-    types::DataParameter,
+    types::{DataParameter, MemoryEstimateState},
     utility::{ensure_exact_size, to_size_t, to_usize, validate_min_len},
 };
 
@@ -24,10 +24,32 @@ use crate::{
 ///
 /// cuDSS stores analysis products, factors, memory allocations, and user-provided data associated with one solve in this object.
 /// The state borrows the [`Context`] that created it, since cuDSS destroys it through that handle.
+/// The borrow also keeps the context's streams installed while the state exists: cuDSS runs a state's phases on the stream installed at its analysis and the per-device streams installed at its first execution.
 #[derive(Debug)]
 pub struct SolverState<'ctx> {
     raw: sys::cudssData_t,
     context: &'ctx Context,
+}
+
+/// Host and device memory estimates, in bytes, for an analyzed solve.
+///
+/// Returned by [`SolverState::memory_estimates`]; see [`DataParameter::MemoryEstimates`] for when the estimates go stale.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct MemoryEstimates {
+    /// Device memory held from analysis until the state is destroyed.
+    pub device_permanent: i64,
+    /// Peak device memory.
+    pub device_peak: i64,
+    /// Host memory held from analysis until the state is destroyed.
+    pub host_permanent: i64,
+    /// Peak host memory.
+    pub host_peak: i64,
+    /// Minimum device memory hybrid memory mode needs for factorization and solve.
+    pub hybrid_device_min: i64,
+    /// Maximum host memory hybrid memory mode uses over analysis, factorization, and solve.
+    pub hybrid_host_max: i64,
+    /// Completeness of the estimates.
+    pub state: MemoryEstimateState,
 }
 
 impl<'ctx> SolverState<'ctx> {
@@ -56,6 +78,7 @@ impl<'ctx> SolverState<'ctx> {
     /// # Safety
     ///
     /// `raw` must be a uniquely owned cuDSS data handle created with `context`'s handle.
+    /// If `raw` has run execution phases, the streams it is bound to must be the ones `context` has installed.
     ///
     /// # Errors
     ///
@@ -338,10 +361,54 @@ impl<'ctx> SolverState<'ctx> {
     ///
     /// # Errors
     ///
-    /// Returns an error if cuDSS cannot report the values.
-    pub fn memory_estimates(&self) -> Result<[i64; 16]> {
+    /// Returns an error if cuDSS cannot report the values, or reports a negative completeness state.
+    pub fn memory_estimates(&self) -> Result<MemoryEstimates> {
         // SAFETY: this parameter is a host `int64_t[16]`.
-        unsafe { self.get_raw(DataParameter::MemoryEstimates) }
+        let raw: [i64; 16] = unsafe { self.get_raw(DataParameter::MemoryEstimates) }?;
+        let state =
+            u32::try_from(raw[6]).map_err(|_| Error::out_of_range("memory estimate state"))?;
+        Ok(MemoryEstimates {
+            device_permanent: raw[0],
+            device_peak: raw[1],
+            host_permanent: raw[2],
+            host_peak: raw[3],
+            hybrid_device_min: raw[4],
+            hybrid_host_max: raw[5],
+            state: sys::cudssMemoryEstimateState_t(state).into(),
+        })
+    }
+
+    /// Selects the systems of a uniform batch that factorization and solve process.
+    ///
+    /// `selected` holds one flag per system, so its length must be [`ConfigParameter::UniformBatchSize`](crate::types::ConfigParameter::UniformBatchSize).
+    /// Set the mask before [`Phase::ANALYSIS`](crate::types::Phase::ANALYSIS) or the first factorization; [`DataParameter::UniformBatchMask`] describes how it applies.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the context cannot be bound or cuDSS rejects the mask.
+    pub fn set_uniform_batch_mask(&mut self, selected: &[bool]) -> Result<()> {
+        let mask: Vec<i32> = selected.iter().map(|&flag| i32::from(flag)).collect();
+        // SAFETY: the parameter is an `int` array with one element per system, which cuDSS copies.
+        unsafe { self.set_raw_slice(DataParameter::UniformBatchMask, &mask) }
+    }
+
+    /// Clears the uniform batch mask, so factorization and solve process every system.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the context cannot be bound or cuDSS rejects the change.
+    pub fn clear_uniform_batch_mask(&mut self) -> Result<()> {
+        self.context.bind()?;
+        // SAFETY: the handles are live in the bound context, and a null value with zero size clears the mask.
+        unsafe {
+            try_ffi!(sys::cudssDataSet(
+                self.context.as_raw(),
+                self.raw,
+                DataParameter::UniformBatchMask.into(),
+                ptr::null(),
+                0,
+            ))
+        }
     }
 
     /// Returns the minimum device memory required for hybrid memory mode.

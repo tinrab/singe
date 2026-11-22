@@ -120,7 +120,7 @@ libraries! {
         linux [["libcudnn.so." major]],
         windows [["cudnn64_" major ".dll"]];
 
-    cudss => "cuDSS", major "0",
+    cudss => "cuDSS", major "1",
         linux [["libcudss.so." major]],
         windows [["cudss64_" major ".dll"]];
 

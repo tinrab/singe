@@ -3,10 +3,10 @@
 //! This crate provides:
 //!
 //! - **Matrices:** CSR and dense descriptors over borrowed device storage, including uniform and non-uniform batches, with read-only inputs kept apart from write-only outputs.
-//! - **Solver settings:** [`Config`](crate::config::Config) with typed parameters for the algorithms, hybrid CPU and GPU execution and memory modes, and the devices of a multi-GPU solve.
+//! - **Solver settings:** [`Config`](crate::config::Config) with typed parameters for the algorithms, transposed solves, reduced-precision factors, hybrid CPU and GPU execution and memory modes, and the devices of a multi-GPU solve.
 //! - **Solver state:** typed queries such as [`info`](crate::solver_state::SolverState::info), [`lu_nnz`](crate::solver_state::SolverState::lu_nnz), [`memory_estimates`](crate::solver_state::SolverState::memory_estimates), and [`schur_shape`](crate::solver_state::SolverState::schur_shape).
 //! - **Multi-GPU and multi-node solves:** handles over several GPUs, plus the communication and threading layers for multi-node multi-GPU (MGMN) and multithreaded modes.
-//! - **Memory handlers:** custom device allocators for the memory cuDSS allocates.
+//! - **Memory handlers:** custom device and pinned host allocators for the memory cuDSS allocates.
 //!
 //! # Example
 //!
@@ -100,8 +100,8 @@
 //!
 //! [`Context::sync_scope`](context::Context::sync_scope) runs `execute_async` calls and waits for the installed stream.
 
-#[cfg(not(feature = "cudss_0_8"))]
-compile_error!("singe-cudss requires a version feature, such as `cudss_0_8`");
+#[cfg(not(feature = "cudss_1_0"))]
+compile_error!("singe-cudss requires a version feature, such as `cudss_1_0`");
 
 /// Solver configuration and typed configuration parameters.
 pub mod config;

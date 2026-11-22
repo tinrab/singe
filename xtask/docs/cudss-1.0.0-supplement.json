@@ -2,62 +2,62 @@
   "CUDA_C_32F": {
     "doc": "[`CUDSS_C_32F`](types.md#c.cudssDataType_t.CUDSS_C_32F \"CUDSS_C_32F\")",
     "kind": "enum_member",
-    "source": "cuda-docs-scraper/docs/cudss/v0.8.0"
+    "source": "cuda-docs-scraper/docs/cudss/v1.0.0"
   },
   "CUDA_C_64F": {
     "doc": "[`CUDSS_C_64F`](types.md#c.cudssDataType_t.CUDSS_C_64F \"CUDSS_C_64F\")",
     "kind": "enum_member",
-    "source": "cuda-docs-scraper/docs/cudss/v0.8.0"
+    "source": "cuda-docs-scraper/docs/cudss/v1.0.0"
   },
   "CUDA_R_32F": {
     "doc": "[`CUDSS_R_32F`](types.md#c.cudssDataType_t.CUDSS_R_32F \"CUDSS_R_32F\")",
     "kind": "enum_member",
-    "source": "cuda-docs-scraper/docs/cudss/v0.8.0"
+    "source": "cuda-docs-scraper/docs/cudss/v1.0.0"
   },
   "CUDA_R_32I": {
     "doc": "[`CUDSS_R_32I`](types.md#c.cudssDataType_t.CUDSS_R_32I \"CUDSS_R_32I\")",
     "kind": "enum_member",
-    "source": "cuda-docs-scraper/docs/cudss/v0.8.0"
+    "source": "cuda-docs-scraper/docs/cudss/v1.0.0"
   },
   "CUDA_R_64F": {
     "doc": "[`CUDSS_R_64F`](types.md#c.cudssDataType_t.CUDSS_R_64F \"CUDSS_R_64F\")",
     "kind": "enum_member",
-    "source": "cuda-docs-scraper/docs/cudss/v0.8.0"
+    "source": "cuda-docs-scraper/docs/cudss/v1.0.0"
   },
   "CUDA_R_64I": {
     "doc": "[`CUDSS_R_64I`](types.md#c.cudssDataType_t.CUDSS_R_64I \"CUDSS_R_64I\")",
     "kind": "enum_member",
-    "source": "cuda-docs-scraper/docs/cudss/v0.8.0"
+    "source": "cuda-docs-scraper/docs/cudss/v1.0.0"
   },
   "CUDSS_ALG_1": {
     "doc": "[`CUDSS_REORDERING_ALG_BTF_COLAMD`](types.md#c.cudssReorderingAlg_t.CUDSS_REORDERING_ALG_BTF_COLAMD \"CUDSS_REORDERING_ALG_BTF_COLAMD\")",
     "kind": "enum_member",
-    "source": "cuda-docs-scraper/docs/cudss/v0.8.0"
+    "source": "cuda-docs-scraper/docs/cudss/v1.0.0"
   },
   "CUDSS_ALG_2": {
     "doc": "[`CUDSS_REORDERING_ALG_COLAMD`](types.md#c.cudssReorderingAlg_t.CUDSS_REORDERING_ALG_COLAMD \"CUDSS_REORDERING_ALG_COLAMD\")",
     "kind": "enum_member",
-    "source": "cuda-docs-scraper/docs/cudss/v0.8.0"
+    "source": "cuda-docs-scraper/docs/cudss/v1.0.0"
   },
   "CUDSS_ALG_3": {
     "doc": "[`CUDSS_REORDERING_ALG_AMD`](types.md#c.cudssReorderingAlg_t.CUDSS_REORDERING_ALG_AMD \"CUDSS_REORDERING_ALG_AMD\")",
     "kind": "enum_member",
-    "source": "cuda-docs-scraper/docs/cudss/v0.8.0"
+    "source": "cuda-docs-scraper/docs/cudss/v1.0.0"
   },
   "CUDSS_ALG_4": {
     "doc": "[`CUDSS_MATCHING_ALG_MAX_DIAG_SUM`](types.md#c.cudssMatchingAlg_t.CUDSS_MATCHING_ALG_MAX_DIAG_SUM \"CUDSS_MATCHING_ALG_MAX_DIAG_SUM\")",
     "kind": "enum_member",
-    "source": "cuda-docs-scraper/docs/cudss/v0.8.0"
+    "source": "cuda-docs-scraper/docs/cudss/v1.0.0"
   },
   "CUDSS_ALG_5": {
     "doc": "[`CUDSS_MATCHING_ALG_MAX_DIAG_PRODUCT`](types.md#c.cudssMatchingAlg_t.CUDSS_MATCHING_ALG_MAX_DIAG_PRODUCT \"CUDSS_MATCHING_ALG_MAX_DIAG_PRODUCT\")",
     "kind": "enum_member",
-    "source": "cuda-docs-scraper/docs/cudss/v0.8.0"
+    "source": "cuda-docs-scraper/docs/cudss/v1.0.0"
   },
   "CUDSS_ALG_DEFAULT": {
     "doc": "[`CUDSS_REORDERING_ALG_DEFAULT`](types.md#c.cudssReorderingAlg_t.CUDSS_REORDERING_ALG_DEFAULT \"CUDSS_REORDERING_ALG_DEFAULT\") [`CUDSS_REORDERING_ALG_NESTED_DISSECTION`](types.md#c.cudssReorderingAlg_t.CUDSS_REORDERING_ALG_NESTED_DISSECTION \"CUDSS_REORDERING_ALG_NESTED_DISSECTION\")",
     "kind": "enum_member",
-    "source": "cuda-docs-scraper/docs/cudss/v0.8.0"
+    "source": "cuda-docs-scraper/docs/cudss/v1.0.0"
   },
   "CUDSS_BASE_ONE": {
     "doc": "One-based indexing.",
@@ -72,7 +72,7 @@
   "CUDSS_COMM_LIB": {
     "doc": "Name or path for the [communication layer library](advanced-features.md#mgmn-enabling-label)",
     "kind": "enum_member",
-    "source": "cuda-docs-scraper/docs/cudss/v0.8.0"
+    "source": "cuda-docs-scraper/docs/cudss/v1.0.0"
   },
   "CUDSS_CONFIG_DETERMINISTIC_MODE": {
     "doc": "Enable deterministic mode.\nIn deterministic mode, cuDSS is guaranteed to provide the bit-wise identical result at every run when executed on GPUs with the same architecture\nand the same number of SMs (assuming the input data and solver settings are also bit-wise identical).\n\nNote: in deterministic mode cuDSS uses a different set of kernels which often might be slower than the kernels used in the default mode.\n\nAssociated parameter type: `int`\n\nDefault value: `0` (disabled).\n\nCurrently the feature is supported only for single-gpu, single rhs, and with both hybrid host/device memory mode ([`CUDSS_CONFIG_HYBRID_MEMORY_MODE`](https://docs.nvidia.com/cuda/cudss/types.html#cudssconfigparam-t \"CUDSS_CONFIG_HYBRID_MEMORY_MODE\")) and hybrid host/device execute mode ([`CUDSS_CONFIG_HYBRID_EXECUTE_MODE`](https://docs.nvidia.com/cuda/cudss/types.html#cudssconfigparam-t \"CUDSS_CONFIG_HYBRID_EXECUTE_MODE\")) disabled.\nAlso, this feature does not support iterative refinement or reordering algorithms [`CUDSS_REORDERING_ALG_BTF_COLAMD`](https://docs.nvidia.com/cuda/cudss/types.html#cudssreorderingalg-t \"CUDSS_REORDERING_ALG_BTF_COLAMD\") and [`CUDSS_REORDERING_ALG_COLAMD`](https://docs.nvidia.com/cuda/cudss/types.html#cudssreorderingalg-t \"CUDSS_REORDERING_ALG_COLAMD\").",
@@ -117,7 +117,7 @@
   "CUDSS_CONFIG_HYBRID_MODE": {
     "doc": "[`CUDSS_CONFIG_HYBRID_MEMORY_MODE`](types.md#c.cudssConfigParam_t.CUDSS_CONFIG_HYBRID_MEMORY_MODE \"CUDSS_CONFIG_HYBRID_MEMORY_MODE\")",
     "kind": "enum_member",
-    "source": "cuda-docs-scraper/docs/cudss/v0.8.0"
+    "source": "cuda-docs-scraper/docs/cudss/v1.0.0"
   },
   "CUDSS_CONFIG_IR_N_STEPS": {
     "doc": "Maximum number of steps during the iterative refinement. Refer to [`CUDSS_CONFIG_IR_TOL`](https://docs.nvidia.com/cuda/cudss/types.html#cudssconfigparam-t \"CUDSS_CONFIG_IR_TOL\") for the details.\n\nAssociated parameter type: `int`\n\nDefault value: `0`.",
@@ -237,7 +237,7 @@
   "CUDSS_DATA_ELIMINATION_TREE": {
     "doc": "[`CUDSS_DATA_ND_PARTITION_TREE`](types.md#c.cudssDataParam_t.CUDSS_DATA_ND_PARTITION_TREE \"CUDSS_DATA_ND_PARTITION_TREE\")",
     "kind": "enum_member",
-    "source": "cuda-docs-scraper/docs/cudss/v0.8.0"
+    "source": "cuda-docs-scraper/docs/cudss/v1.0.0"
   },
   "CUDSS_DATA_FLOPS": {
     "doc": "Floating-point operation count for the factorization phase.\n\nNote: the value is available after the [`CUDSS_PHASE_ANALYSIS`](https://docs.nvidia.com/cuda/cudss/types.html#cudssphase-t \"CUDSS_PHASE_ANALYSIS\") step.\n\nDirection: out\n\nMemory: host\n\nAssociated parameter type: `int64_t`.",
@@ -347,7 +347,7 @@
   "CUDSS_DATA_USER_ELIMINATION_TREE": {
     "doc": "[`CUDSS_DATA_USER_ND_PARTITION_TREE`](types.md#c.cudssDataParam_t.CUDSS_DATA_USER_ND_PARTITION_TREE \"CUDSS_DATA_USER_ND_PARTITION_TREE\")",
     "kind": "enum_member",
-    "source": "cuda-docs-scraper/docs/cudss/v0.8.0"
+    "source": "cuda-docs-scraper/docs/cudss/v1.0.0"
   },
   "CUDSS_DATA_USER_HOST_INTERRUPT": {
     "doc": "User-provided host interrupt pointer. Setting this pointer to a non-`NULL` value enables user interruption of cuDSS routines on the host.\nSpecifically, in the calls to [`cudssExecute()`](https://docs.nvidia.com/cuda/cudss/functions.html#cudssexecute \"cudssExecute\") cuDSS will perform checks on the host for the value of the pointer.\nIf it is non-zero, execution stops and cuDSS returns early (before the phase execution completes) with the status [`CUDSS_STATUS_EXECUTION_FAILED`](https://docs.nvidia.com/cuda/cudss/types.html#cudssstatus-t \"CUDSS_STATUS_EXECUTION_FAILED\").\nTo resume after an interruption, set the value at that location back to `0` and call again.\nTo remove the (small) overhead of checking for the host interruption, the interruption can be completely disabled by setting [`cudssDataParam_t::CUDSS_DATA_USER_HOST_INTERRUPT`] to `NULL`.\n\nNote: since most of device kernels inside cuDSS are launched asynchronously,\nexecution on the GPU may continue some time after the host execution has been interrupted.\n\nDirection: in\n\nMemory: host\n\nDefault value: `NULL` (user interruption disabled)\n\nAssociated parameter type: pointer to a 4-byte integer (e.g. `int32_t` or `int`).\n\nNote: When setting the flag from another thread, the user must use an atomic store with release semantics so the library observes the write. A plain write to a non-atomic object from another thread is a data race and undefined behavior.\n\nNote: `std::atomic&lt;int>` (C++) or `_Atomic(int)*` (C) may be used when the object representation is a single 4-byte integer; the library does not guarantee correct behavior for all atomic types.\n\nNote: The host interruption feature is not supported when [MGMN mode](https://docs.nvidia.com/cuda/cudss/advanced_features.html#multi-gpu-multi-node-mgmn-mode) or [MG mode](https://docs.nvidia.com/cuda/cudss/advanced_features.html#multi-gpu-mg-mode) is used.\nAlso, reordering algorithms [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_BTF_COLAMD`] and [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_COLAMD`] do not support the user interrupt currently.",
@@ -397,17 +397,17 @@
   "CUDSS_LOG_FILE": {
     "doc": "Controls [logging](logging.md#logging-label) output file name",
     "kind": "enum_member",
-    "source": "cuda-docs-scraper/docs/cudss/v0.8.0"
+    "source": "cuda-docs-scraper/docs/cudss/v1.0.0"
   },
   "CUDSS_LOG_LEVEL": {
     "doc": "Controls [logging](logging.md#logging-label) level",
     "kind": "enum_member",
-    "source": "cuda-docs-scraper/docs/cudss/v0.8.0"
+    "source": "cuda-docs-scraper/docs/cudss/v1.0.0"
   },
   "CUDSS_LOG_MASK": {
     "doc": "Controls [logging](logging.md#logging-label) mask",
     "kind": "enum_member",
-    "source": "cuda-docs-scraper/docs/cudss/v0.8.0"
+    "source": "cuda-docs-scraper/docs/cudss/v1.0.0"
   },
   "CUDSS_MATCHING_ALG_AUTO": {
     "doc": "Same as [`CUDSS_MATCHING_ALG_MAX_DIAG_PRODUCT`](https://docs.nvidia.com/cuda/cudss/types.html#cudssmatchingalg-t \"CUDSS_MATCHING_ALG_MAX_DIAG_PRODUCT\") (the most robust option). Matching with scaling; requires matrix values during analysis.",
@@ -587,7 +587,7 @@
   "CUDSS_PIVOT_COL": {
     "doc": "[`CUDSS_PIVOT_GLOBAL_COL`](types.md#c.cudssPivotType_t.CUDSS_PIVOT_GLOBAL_COL \"CUDSS_PIVOT_GLOBAL_COL\")",
     "kind": "enum_member",
-    "source": "cuda-docs-scraper/docs/cudss/v0.8.0"
+    "source": "cuda-docs-scraper/docs/cudss/v1.0.0"
   },
   "CUDSS_PIVOT_DIAGONAL": {
     "doc": "Diagonal pivoting. Used only with reordering algorithms\n[`CUDSS_REORDERING_ALG_NESTED_DISSECTION`](https://docs.nvidia.com/cuda/cudss/types.html#cudssreorderingalg-t \"CUDSS_REORDERING_ALG_NESTED_DISSECTION\") and\n[`CUDSS_REORDERING_ALG_AMD`](https://docs.nvidia.com/cuda/cudss/types.html#cudssreorderingalg-t \"CUDSS_REORDERING_ALG_AMD\") (MetisND and AMD).\nFor symmetric/Hermitian indefinite matrices, searches for pivot elements\nonly within the diagonal of the supernode.",
@@ -632,7 +632,7 @@
   "CUDSS_PIVOT_ROW": {
     "doc": "[`CUDSS_PIVOT_GLOBAL_ROW`](types.md#c.cudssPivotType_t.CUDSS_PIVOT_GLOBAL_ROW \"CUDSS_PIVOT_GLOBAL_ROW\")",
     "kind": "enum_member",
-    "source": "cuda-docs-scraper/docs/cudss/v0.8.0"
+    "source": "cuda-docs-scraper/docs/cudss/v1.0.0"
   },
   "CUDSS_REORDERING_ALG_AMD": {
     "doc": "Approximate minimum degree (AMD) reordering.",
@@ -747,6 +747,6 @@
   "CUDSS_THREADING_LIB": {
     "doc": "Name or path for the [threading layer library](advanced-features.md#mt-enabling-label)",
     "kind": "enum_member",
-    "source": "cuda-docs-scraper/docs/cudss/v0.8.0"
+    "source": "cuda-docs-scraper/docs/cudss/v1.0.0"
   }
 }

@@ -11,8 +11,9 @@ use crate::{
     error::{Error, Result},
     try_ffi,
     types::{
-        ConfigParameter, FactorizationAlgorithm, MatchingAlgorithm, PivotEpsilonAlgorithm,
-        PivotType, ReorderingAlgorithm, SolveAlgorithm,
+        ConfigParameter, DowncastFactorsMode, FactorizationAlgorithm, MatchingAlgorithm,
+        MemoryOptimization, PivotEpsilonAlgorithm, PivotType, ReorderingAlgorithm, SolveAlgorithm,
+        SolveMode,
     },
     utility::{ensure_exact_size, to_i32, to_size_t, to_usize},
 };
@@ -219,6 +220,74 @@ impl Config {
             name: "matching_algorithm".into(),
             value: raw.into(),
         })
+    }
+
+    /// Forces nonsymmetric matching for matrix types other than [`MatrixType::General`](crate::types::MatrixType::General).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if cuDSS rejects the setting.
+    pub fn set_force_nonsymmetric_matching(&mut self, enabled: bool) -> Result<()> {
+        self.set_bool(ConfigParameter::ForceNonsymmetricMatching, enabled)
+    }
+
+    /// Sets the matrix modifier used during the solve phase.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if cuDSS rejects the setting.
+    pub fn set_solve_mode(&mut self, mode: SolveMode) -> Result<()> {
+        // SAFETY: the value's enum is `#[repr(u32)]`, matching the parameter's native enum type.
+        unsafe { self.set_raw(ConfigParameter::SolveMode, &mode) }
+    }
+
+    /// Returns the configured solve mode.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if cuDSS cannot report the setting.
+    pub fn solve_mode(&self) -> Result<SolveMode> {
+        // SAFETY: cuDSS writes the parameter as its native enum type, a `u32`, and every `u32` is a valid value.
+        let raw = unsafe { self.get_raw::<u32>(ConfigParameter::SolveMode) }?;
+        SolveMode::try_from(raw).map_err(|_| Error::UnknownEnumValue {
+            name: "solve_mode".into(),
+            value: raw.into(),
+        })
+    }
+
+    /// Sets the mantissa bits floating-point emulation preserves during factorization, or `0` to disable emulation.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if cuDSS rejects the setting.
+    pub fn set_emulation_mantissa_bit_count(&mut self, bits: i32) -> Result<()> {
+        // SAFETY: the parameter's native type is `int`, which `i32` matches.
+        unsafe { self.set_raw(ConfigParameter::EmulationMantissaBitCount, &bits) }
+    }
+
+    /// Sets the precision cuDSS keeps the factors in after factorization.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if cuDSS rejects the setting.
+    pub fn set_downcast_factors(&mut self, mode: DowncastFactorsMode) -> Result<()> {
+        // SAFETY: the value's enum is `#[repr(u32)]`, matching the parameter's native enum type.
+        unsafe { self.set_raw(ConfigParameter::DowncastFactors, &mode) }
+    }
+
+    /// Sets the memory optimizations cuDSS may apply.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if cuDSS rejects the setting.
+    pub fn set_memory_optimization(&mut self, optimization: MemoryOptimization) -> Result<()> {
+        // SAFETY: the flags are a `u32`, matching the parameter's native enum type.
+        unsafe {
+            self.set_raw(
+                ConfigParameter::MemoryOptimizationSetting,
+                &optimization.bits(),
+            )
+        }
     }
 
     /// Sets the pivot type.

@@ -5,16 +5,17 @@ use std::{
 
 use bitflags::parser;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
-use singe_core::impl_enum_display;
+use singe_core::{UnknownEnumValue, impl_enum_display, try_enum_from_raw};
 use singe_cuda::{
     types::{Complex32, Complex64},
     view::{AnyBitPatternDeviceRepr, NoUninitDeviceRepr},
 };
+use singe_cuda_sys::library_types::cudaDataType_t;
 use singe_cudss_sys as sys;
 
 /// Extended-precision real value stored as a double-double pair.
 ///
-/// This type maps to [`DataType::F64F64`] and has the same layout as cuDSS' double-double scalar type.
+/// This type maps to [`DataType::F64Mp2`] and has the layout cuDSS documents for double-double values: two `f64` values aligned to 16 bytes.
 #[derive(
     Debug,
     Clone,
@@ -37,8 +38,8 @@ pub struct Fp64Mp2 {
 }
 
 const _: () = {
-    ["Fp64Mp2 size"][size_of::<sys::cudss_fp64mp2_t>() - size_of::<Fp64Mp2>()];
-    ["Fp64Mp2 alignment"][align_of::<sys::cudss_fp64mp2_t>() - align_of::<Fp64Mp2>()];
+    assert!(size_of::<Fp64Mp2>() == 2 * size_of::<f64>());
+    assert!(align_of::<Fp64Mp2>() == 2 * size_of::<f64>());
 };
 
 impl Fp64Mp2 {
@@ -58,36 +59,6 @@ impl Fp64Mp2 {
     #[must_use]
     pub fn abs(self) -> f64 {
         (self.hi + self.lo).abs()
-    }
-
-    /// Copies both components from the native cuDSS representation.
-    #[must_use]
-    pub const fn from_raw(raw: sys::cudss_fp64mp2_t) -> Self {
-        Self {
-            hi: raw.hi,
-            lo: raw.lo,
-        }
-    }
-
-    /// Copies both components into the native cuDSS representation.
-    #[must_use]
-    pub const fn into_raw(self) -> sys::cudss_fp64mp2_t {
-        sys::cudss_fp64mp2_t {
-            hi: self.hi,
-            lo: self.lo,
-        }
-    }
-}
-
-impl From<sys::cudss_fp64mp2_t> for Fp64Mp2 {
-    fn from(raw: sys::cudss_fp64mp2_t) -> Self {
-        Self::from_raw(raw)
-    }
-}
-
-impl From<Fp64Mp2> for sys::cudss_fp64mp2_t {
-    fn from(value: Fp64Mp2) -> Self {
-        value.into_raw()
     }
 }
 
@@ -115,36 +86,49 @@ impl Sub for Fp64Mp2 {
     }
 }
 
-singe_core::native_enum! {
-    /// Data type for matrix values, offsets, and indices.
+/// Data type for matrix values, offsets, and indices.
+///
+/// The discriminants are CUDA's `cudaDataType_t` values, except for [`Self::Unset`] and [`Self::F64Mp2`], which only cuDSS defines.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+#[repr(u32)]
+#[non_exhaustive]
+pub enum DataType {
+    /// Unset data type sentinel.
     ///
-    /// The real and complex floating-point values use the same discriminants as the corresponding CUDA data-type constants.
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-    #[repr(u32)]
-    #[non_exhaustive]
-    pub enum DataType: sys::cudssDataType_t {
-        /// Unset data type sentinel.
-        ///
-        /// This is not valid for user-facing API calls.
-        Unset = CUDSS_DATA_TYPE_UNSET,
-        /// 32-bit real single-precision floating point (`f32`).
-        F32 = CUDSS_R_32F,
-        /// 64-bit real double-precision floating point (`f64`).
-        F64 = CUDSS_R_64F,
-        /// 32-bit complex single-precision floating point ([`Complex32`]).
-        C32 = CUDSS_C_32F,
-        /// 64-bit complex double-precision floating point ([`Complex64`]).
-        C64 = CUDSS_C_64F,
-        /// 128-bit real double-double floating point ([`Fp64Mp2`]).
-        ///
-        /// The value is stored as the unevaluated sum of two `f64` values.
-        F64F64 = CUDSS_R_64F_64F,
-        /// 32-bit signed integer (`int32_t`).
-        /// Used for index and offset arrays.
-        I32 = CUDSS_R_32I,
-        /// 64-bit signed integer (`int64_t`).
-        /// Used for index and offset arrays.
-        I64 = CUDSS_R_64I,
+    /// This is not valid for user-facing API calls.
+    Unset = sys::CUDSS_DATA_TYPE_UNSET.0,
+    /// 32-bit real single-precision floating point (`f32`).
+    F32 = cudaDataType_t::CUDA_R_32F.0,
+    /// 64-bit real double-precision floating point (`f64`).
+    F64 = cudaDataType_t::CUDA_R_64F.0,
+    /// 32-bit complex single-precision floating point ([`Complex32`]).
+    C32 = cudaDataType_t::CUDA_C_32F.0,
+    /// 64-bit complex double-precision floating point ([`Complex64`]).
+    C64 = cudaDataType_t::CUDA_C_64F.0,
+    /// 128-bit real double-double floating point ([`Fp64Mp2`]).
+    ///
+    /// The value is stored as the unevaluated sum of two normalized `f64` values.
+    /// cuDSS marks its support for this type as experimental.
+    F64Mp2 = sys::CUDSS_R_64F_MP2.0,
+    /// 32-bit signed integer (`int32_t`).
+    /// Used for index and offset arrays.
+    I32 = cudaDataType_t::CUDA_R_32I.0,
+    /// 64-bit signed integer (`int64_t`).
+    /// Used for index and offset arrays.
+    I64 = cudaDataType_t::CUDA_R_64I.0,
+}
+
+impl From<DataType> for cudaDataType_t {
+    fn from(value: DataType) -> Self {
+        Self(value.into())
+    }
+}
+
+impl TryFrom<cudaDataType_t> for DataType {
+    type Error = UnknownEnumValue;
+
+    fn try_from(value: cudaDataType_t) -> Result<Self, UnknownEnumValue> {
+        try_enum_from_raw("DataType", value.0)
     }
 }
 
@@ -154,7 +138,7 @@ impl_enum_display!(DataType, {
     Self::F64 => "CUDSS_R_64F",
     Self::C32 => "CUDSS_C_32F",
     Self::C64 => "CUDSS_C_64F",
-    Self::F64F64 => "CUDSS_R_64F_64F",
+    Self::F64Mp2 => "CUDSS_R_64F_MP2",
     Self::I32 => "CUDSS_R_32I",
     Self::I64 => "CUDSS_R_64I",
 });
@@ -204,7 +188,7 @@ impl DataTypeLike for Complex64 {
 }
 
 impl DataTypeLike for Fp64Mp2 {
-    const DATA_TYPE: DataType = DataType::F64F64;
+    const DATA_TYPE: DataType = DataType::F64Mp2;
 }
 
 singe_core::native_enum! {
@@ -239,15 +223,18 @@ singe_core::native_enum! {
         /// Matching computes a column permutation, and some algorithms also compute scaling vectors.
         /// It can improve accuracy for ill-conditioned or badly scaled matrices, but it adds analysis overhead and can change factor sparsity.
         ///
-        /// Value type: [`MatchingAlgorithm`].
-        /// Default: [`MatchingAlgorithm::None`].
-        /// Matching is not supported with [`ReorderingAlgorithm::BtfColamd`], [`ReorderingAlgorithm::Colamd`], [`DataType::F64F64`], or distributed matrices.
-        MatchingAlgorithm = CUDSS_CONFIG_MATCHING_ALG,
-        /// Matrix solve modifier.
+        /// For matrix types other than [`MatrixType::General`], matching preserves symmetry unless [`Self::ForceNonsymmetricMatching`] is set.
         ///
-        /// Value type: `i32`.
-        /// Default: `0` for no modifier.
-        /// Other values are not currently supported.
+        /// Value type: [`MatchingAlgorithm`].
+        /// Default: [`MatchingAlgorithm::Auto`].
+        /// Matching is not supported with non-uniform batches, uniform-batch settings, [`ReorderingAlgorithm::BtfColamd`], [`ReorderingAlgorithm::Colamd`], Schur complement mode, or [`PivotEpsilonAlgorithm::Scaled`].
+        /// [`MatchingAlgorithm::Auto`] disables matching for these combinations; another explicit algorithm makes analysis return [`Status::NotSupported`](crate::error::Status::NotSupported).
+        MatchingAlgorithm = CUDSS_CONFIG_MATCHING_ALG,
+        /// Matrix modifier used during the solve phase.
+        ///
+        /// Value type: [`SolveMode`].
+        /// Default: [`SolveMode::Normal`].
+        /// Transposed solves are not supported with Schur complement mode, [`ReorderingAlgorithm::BtfColamd`], [`ReorderingAlgorithm::Colamd`], or non-uniform batches.
         SolveMode = CUDSS_CONFIG_SOLVE_MODE,
         /// Maximum number of iterative refinement steps.
         ///
@@ -281,7 +268,8 @@ singe_core::native_enum! {
         ///
         /// Value type: `f64`.
         /// Default: `1.0`.
-        /// This setting is only supported with [`ReorderingAlgorithm::BtfColamd`] or [`ReorderingAlgorithm::Colamd`].
+        /// This setting is supported with [`ReorderingAlgorithm::BtfColamd`] or [`ReorderingAlgorithm::Colamd`].
+        /// With [`PivotType::BunchKaufman`], an explicitly set value replaces the α constant that chooses between 1x1 and 2x2 pivots, by default `(1 + √17) / 8`.
         PivotThreshold = CUDSS_CONFIG_PIVOT_THRESHOLD,
         /// Pivoting epsilon.
         ///
@@ -392,6 +380,7 @@ singe_core::native_enum! {
         /// When run on GPUs with the same architecture and SM count, deterministic mode produces bitwise-identical results for bitwise-identical input data and solver settings.
         ///
         /// Deterministic mode may use slower kernels.
+        /// The setting is part of the analyzed state; after a change, rerun [`Phase::ANALYSIS`], or later phases return [`Status::InvalidValue`](crate::error::Status::InvalidValue).
         ///
         /// Value type: `i32` boolean.
         /// Default: `0` (disabled).
@@ -407,6 +396,42 @@ singe_core::native_enum! {
         /// Default: `20`.
         /// For multi-GPU and MGMN modes, NVIDIA recommends smaller values such as `2..=5`.
         NestedDissectionUnbalanceFactor = CUDSS_CONFIG_ND_UBFACTOR,
+        /// Mantissa bits that floating-point emulation must preserve during factorization.
+        ///
+        /// A positive value makes factorization use emulated kernels with at least that many mantissa bits; values from `53` to `55` recover close to full double precision.
+        /// Analysis, solve, and iterative refinement keep the regular kernels.
+        /// Emulation applies only to [`DataType::F64`] and [`DataType::C64`], and is ignored on GPUs with compute capability 8.0 or earlier and 9.0.
+        ///
+        /// Value type: `i32`.
+        /// Default: `0`, which disables emulation.
+        /// Not supported with [`PivotType::BunchKaufman`] when superpanels are formed.
+        EmulationMantissaBitCount = CUDSS_CONFIG_EMULATION_MANTISSA_BIT_COUNT,
+        /// Forces nonsymmetric matching for matrix types other than [`MatrixType::General`].
+        ///
+        /// This has no effect when matching is disabled.
+        ///
+        /// Value type: `i32` boolean.
+        /// Default: `0`, which preserves symmetry.
+        /// Not supported together with [`PivotType::BunchKaufman`] and an explicit matching algorithm other than [`MatchingAlgorithm::Auto`].
+        ForceNonsymmetricMatching = CUDSS_CONFIG_FORCE_NONSYMMETRIC_MATCHING,
+        /// Stores double-precision factors in single precision after factorization.
+        ///
+        /// Set this before [`Phase::FACTORIZATION`] and keep it unchanged through every solve that reuses those factors.
+        /// Single-precision right-hand side and solution matrices run the whole solve in single precision; double-precision ones run a mixed-precision solve.
+        ///
+        /// Value type: [`DowncastFactorsMode`].
+        /// Default: [`DowncastFactorsMode::Disabled`].
+        /// Supported for [`DataType::F64`] and [`DataType::C64`] matrices.
+        /// Not supported with [`ReorderingAlgorithm::BtfColamd`], [`ReorderingAlgorithm::Colamd`], [`Self::DeterministicMode`], [`Self::SchurMode`], or transposed solves in single precision.
+        DowncastFactors = CUDSS_CONFIG_DOWNCAST_FACTORS,
+        /// Memory optimizations cuDSS may apply.
+        ///
+        /// The setting applies to the factorization or refactorization phase it is set before.
+        /// [`DataParameter::MemoryEstimates`] reports the requirement before any optimization.
+        ///
+        /// Value type: [`MemoryOptimization`].
+        /// Default: [`MemoryOptimization::empty`].
+        MemoryOptimizationSetting = CUDSS_CONFIG_MEMORY_OPTIMIZATION_SETTING,
     }
 }
 
@@ -514,8 +539,9 @@ singe_core::native_enum! {
         UserPermutation = CUDSS_DATA_USER_PERM,
         /// Minimum device memory, in bytes, required by hybrid memory mode.
         ///
-        /// Query this after analysis.
+        /// cuDSS refuses this query until analysis has completed.
         /// In multi-GPU mode, the value is reported for the current CUDA device.
+        /// In MGMN mode, the query is collective and every rank must make it.
         ///
         /// Read with [`SolverState::get_raw`](crate::solver_state::SolverState::get_raw).
         /// Memory: host.
@@ -539,7 +565,7 @@ singe_core::native_enum! {
         CommunicationHost = CUDSS_DATA_COMM_HOST,
         /// Host and device memory estimates, in bytes, for the analyzed solve.
         ///
-        /// Query this after analysis.
+        /// The query is available once analysis knows the fill-in of the factors, including after a failed analysis, and returns [`Status::NotSupported`](crate::error::Status::NotSupported) before that.
         /// Estimates depend on the configuration, input matrix, and right-hand side count used during analysis; changing those inputs can make the estimates stale.
         ///
         /// The returned array uses these positions:
@@ -550,11 +576,14 @@ singe_core::native_enum! {
         /// * `3`: peak host memory
         /// * `4`: minimum device memory for hybrid memory mode
         /// * `5`: maximum host memory for hybrid memory mode
-        /// * `6..=15`: reserved
+        /// * `6`: the completeness of the estimate, a [`MemoryEstimateState`]
+        /// * `7..=15`: reserved
         ///
+        /// Positions `4` and `5` are `0` until the estimate is [`MemoryEstimateState::Final`].
         /// In multi-GPU mode, the estimate is reported for the current CUDA device.
+        /// In MGMN mode, the query is collective and every rank must make it.
         ///
-        /// Read with [`SolverState::get_raw`](crate::solver_state::SolverState::get_raw).
+        /// Read with [`SolverState::memory_estimates`](crate::solver_state::SolverState::memory_estimates).
         /// Memory: host.
         /// Value type: `[i64; 16]`.
         MemoryEstimates = CUDSS_DATA_MEMORY_ESTIMATES,
@@ -663,18 +692,19 @@ singe_core::native_enum! {
         /// Memory: host.
         /// Value type: `i32`.
         IterativeRefinementSteps = CUDSS_DATA_IR_N_STEPS,
-        /// A bitmask specifying the subset of problems to be factorized or solved in the uniform batch case.
-        /// Each bit position corresponds to the index of a matrix in the uniform batch; setting a bit to `1` includes that matrix in the operation.
+        /// Systems of a uniform batch that factorization and solve process.
         ///
-        /// This can be used instead of [`ConfigParameter::UniformBatchIndex`] to select multiple specific systems in one call.
+        /// The mask holds one integer per system; a nonzero element selects the system at that index.
+        /// It is an alternative to [`ConfigParameter::UniformBatchIndex`], and the two are mutually exclusive.
+        /// Set it before [`Phase::ANALYSIS`] or the first factorization; a mask introduced after a factorization that ran without one is not supported.
+        /// A solve leaves the solution entries of unselected systems unchanged, and fails with [`Status::NotSupported`](crate::error::Status::NotSupported) if it selects a system no factorization since the last analysis covered.
+        /// Clear it by setting a null pointer with zero size.
         ///
-        /// This may be set after [`Phase::FACTORIZATION`] to solve only a subset of systems.
-        ///
-        /// Set with [`SolverState::set_raw`](crate::solver_state::SolverState::set_raw).
+        /// Set with [`SolverState::set_uniform_batch_mask`](crate::solver_state::SolverState::set_uniform_batch_mask).
         /// Memory: host.
-        /// Value type: `i64`.
-        /// Default: `-1`, which selects all systems.
-        /// Not supported with hybrid modes, MGMN mode, [`ReorderingAlgorithm::BtfColamd`], or [`ReorderingAlgorithm::Colamd`].
+        /// Value type: [`ConfigParameter::UniformBatchSize`] values of `i32`.
+        /// Default: no mask, which selects all systems.
+        /// Not supported with hybrid modes, multi-GPU or MGMN mode, [`ReorderingAlgorithm::BtfColamd`], or [`ReorderingAlgorithm::Colamd`].
         UniformBatchMask = CUDSS_DATA_UBATCH_MASK,
         /// Floating-point operation count for the factorization phase.
         ///
@@ -957,7 +987,8 @@ singe_core::native_enum! {
         MaxDiagProduct = CUDSS_MATCHING_ALG_MAX_DIAG_PRODUCT,
         /// Let cuDSS choose the matching algorithm.
         ///
-        /// Currently equivalent to [`Self::MaxDiagProduct`].
+        /// Resolves to [`Self::None`] for [`MatrixType::Spd`] and [`MatrixType::Hpd`], and to [`Self::MaxDiagProduct`] for the other matrix types.
+        /// Falls back to [`Self::None`] when analysis has no matrix values or the configuration does not support matching.
         Auto = CUDSS_MATCHING_ALG_AUTO,
     }
 }
@@ -972,9 +1003,7 @@ singe_core::native_enum! {
         ///
         /// cuDSS currently chooses based on the reordering algorithm and matrix type:
         ///
-        /// * [`ReorderingAlgorithm::NestedDissection`] and
-        ///   [`ReorderingAlgorithm::Amd`]: [`Self::Diagonal`] for symmetric or
-        ///   Hermitian indefinite matrices, [`Self::LocalBlock`] for general matrices.
+        /// * [`ReorderingAlgorithm::NestedDissection`], [`ReorderingAlgorithm::Amd`], and [`ReorderingAlgorithm::None`]: [`Self::BunchKaufman`] for symmetric or Hermitian indefinite matrices where supported, otherwise [`Self::Diagonal`]; [`Self::LocalBlock`] for general matrices.
         /// * [`ReorderingAlgorithm::BtfColamd`] and [`ReorderingAlgorithm::Colamd`]: [`Self::GlobalColumn`].
         Auto = CUDSS_PIVOT_AUTO,
         /// No pivoting.
@@ -1001,10 +1030,92 @@ singe_core::native_enum! {
         /// Used only with [`ReorderingAlgorithm::NestedDissection`] and [`ReorderingAlgorithm::Amd`].
         /// For general matrices, searches for pivot elements within the entire diagonal block of the supernode.
         LocalBlock = CUDSS_PIVOT_LOCAL_BLOCK,
-        /// Bunch-Kaufman pivoting.
-        /// Reserved for future use.
-        /// Currently not supported.
+        /// Bunch-Kaufman pivoting with 1x1 and 2x2 pivots.
+        ///
+        /// For symmetric and Hermitian indefinite matrices.
+        /// [`ConfigParameter::PivotThreshold`] overrides its α constant, which must be in `(0, 1]`.
+        /// Solves with Bunch-Kaufman pivoting cannot be stream-captured.
         BunchKaufman = CUDSS_PIVOT_BUNCH_KAUFMAN,
+    }
+}
+
+singe_core::native_enum! {
+    /// Matrix modifier used during the solve phase.
+    ///
+    /// Used with [`ConfigParameter::SolveMode`].
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum SolveMode: sys::cudssSolveMode_t {
+        /// Solves `A x = b`.
+        Normal = CUDSS_SOLVE_MODE_NORMAL,
+        /// Solves `A^T x = b`.
+        ///
+        /// This is the normal solve for [`MatrixType::Symmetric`] and [`MatrixType::Spd`].
+        /// Not supported for [`MatrixType::Hermitian`] and [`MatrixType::Hpd`].
+        Transpose = CUDSS_SOLVE_MODE_TRANSPOSE,
+        /// Solves `A^H x = b`.
+        ///
+        /// Supported for complex [`MatrixType::General`] matrices, and the normal solve for [`MatrixType::Hermitian`] and [`MatrixType::Hpd`].
+        /// Not supported for real data types.
+        ConjugateTranspose = CUDSS_SOLVE_MODE_CONJUGATE_TRANSPOSE,
+    }
+}
+
+singe_core::native_enum! {
+    /// Precision cuDSS keeps the numeric factors in after factorization.
+    ///
+    /// Used with [`ConfigParameter::DowncastFactors`].
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+    #[repr(u32)]
+    #[non_exhaustive]
+    pub enum DowncastFactorsMode: sys::cudssDowncastFactorsMode_t {
+        /// Keeps the factors in full precision.
+        Disabled = CUDSS_DOWNCAST_FACTORS_MODE_DISABLED,
+        /// Stores the factors in single precision, keeping the diagonal block of every supernode in full precision.
+        KeepBlockDiagonal = CUDSS_DOWNCAST_FACTORS_MODE_KEEP_BLOCK_DIAGONAL,
+        /// Stores the factors in single precision, keeping only the diagonal, one value per column, in full precision.
+        ///
+        /// With [`PivotType::BunchKaufman`], the off-diagonal of each 2x2 diagonal block also stays in full precision.
+        KeepStrictDiagonal = CUDSS_DOWNCAST_FACTORS_MODE_KEEP_STRICT_DIAGONAL,
+    }
+}
+
+bitflags::bitflags! {
+    /// Memory optimizations cuDSS may apply, each trading some capability for a lower memory footprint.
+    ///
+    /// Used with [`ConfigParameter::MemoryOptimizationSetting`].
+    /// The empty set requests none of them.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub struct MemoryOptimization: u32 {
+        /// Releases, at the end of factorization, the state only a further factorization reads.
+        ///
+        /// Solves may be slower.
+        /// A later [`Phase::FACTORIZATION`] or [`Phase::REFACTORIZATION`] on the same solver state returns [`Status::NotSupported`](crate::error::Status::NotSupported) until [`Phase::ANALYSIS`] runs again.
+        /// Not supported with a partial uniform-batch factorization, [`ReorderingAlgorithm::BtfColamd`], or [`ReorderingAlgorithm::Colamd`].
+        const SOLVE_ONLY = sys::cudssMemoryOptimizationFlags_t::CUDSS_MEMORY_OPTIMIZATION_SOLVE_ONLY.0;
+    }
+}
+
+impl Display for MemoryOptimization {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        parser::to_writer(self, f)
+    }
+}
+
+singe_core::native_enum! {
+    /// Completeness of a memory estimate, by how far analysis had progressed when cuDSS produced it.
+    ///
+    /// Reported in [`MemoryEstimates::state`](crate::solver_state::MemoryEstimates::state).
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    #[non_exhaustive]
+    pub enum MemoryEstimateState: sys::cudssMemoryEstimateState_t, unknown = Unknown(u32) {
+        /// The device and host estimates include the factors, but analysis has not yet sized every workspace.
+        ///
+        /// The value is neither a lower nor an upper bound, and the hybrid memory mode estimates are `0`.
+        FillKnown = CUDSS_MEMORY_ESTIMATE_STATE_FILL_KNOWN,
+        /// Analysis completed, and every estimate is final.
+        Final = CUDSS_MEMORY_ESTIMATE_STATE_FINAL,
     }
 }
 
@@ -1062,6 +1173,10 @@ impl_enum_display!(ConfigParameter, {
     ConfigParameter::SchurMode => "CUDSS_CONFIG_SCHUR_MODE",
     ConfigParameter::DeterministicMode => "CUDSS_CONFIG_DETERMINISTIC_MODE",
     ConfigParameter::NestedDissectionUnbalanceFactor => "CUDSS_CONFIG_ND_UBFACTOR",
+    ConfigParameter::EmulationMantissaBitCount => "CUDSS_CONFIG_EMULATION_MANTISSA_BIT_COUNT",
+    ConfigParameter::ForceNonsymmetricMatching => "CUDSS_CONFIG_FORCE_NONSYMMETRIC_MATCHING",
+    ConfigParameter::DowncastFactors => "CUDSS_CONFIG_DOWNCAST_FACTORS",
+    ConfigParameter::MemoryOptimizationSetting => "CUDSS_CONFIG_MEMORY_OPTIMIZATION_SETTING",
 });
 
 impl_enum_display!(DataParameter, {
@@ -1163,3 +1278,25 @@ impl_enum_display!(PivotType, {
     PivotType::LocalBlock => "CUDSS_PIVOT_LOCAL_BLOCK",
     PivotType::BunchKaufman => "CUDSS_PIVOT_BUNCH_KAUFMAN",
 });
+
+impl_enum_display!(SolveMode, {
+    SolveMode::Normal => "CUDSS_SOLVE_MODE_NORMAL",
+    SolveMode::Transpose => "CUDSS_SOLVE_MODE_TRANSPOSE",
+    SolveMode::ConjugateTranspose => "CUDSS_SOLVE_MODE_CONJUGATE_TRANSPOSE",
+});
+
+impl_enum_display!(DowncastFactorsMode, {
+    DowncastFactorsMode::Disabled => "CUDSS_DOWNCAST_FACTORS_MODE_DISABLED",
+    DowncastFactorsMode::KeepBlockDiagonal => "CUDSS_DOWNCAST_FACTORS_MODE_KEEP_BLOCK_DIAGONAL",
+    DowncastFactorsMode::KeepStrictDiagonal => "CUDSS_DOWNCAST_FACTORS_MODE_KEEP_STRICT_DIAGONAL",
+});
+
+impl Display for MemoryEstimateState {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::FillKnown => f.write_str("CUDSS_MEMORY_ESTIMATE_STATE_FILL_KNOWN"),
+            Self::Final => f.write_str("CUDSS_MEMORY_ESTIMATE_STATE_FINAL"),
+            Self::Unknown(code) => write!(f, "unknown memory estimate state {code}"),
+        }
+    }
+}

@@ -1,4 +1,4 @@
-//! Low-level FFI bindings for cuDSS 0.8 (`cudss.h`).
+//! Low-level FFI bindings for cuDSS (`cudss.h`).
 //! The library loads at run time through [`singe-loader`](singe_loader), on the first call of one of its functions or up front with [`load`], so building links no NVIDIA library.
 //! If the library or one of its symbols is missing, a function that returns a status returns a failure status, and [`take_absence`] reports what was missing.
 //! Most users want the safe `singe-cudss` crate.
@@ -27,16 +27,14 @@
     reason = "generated bindings preserve upstream ABI conventions and documentation"
 )]
 
-#[cfg(not(feature = "cudss_0_8"))]
-compile_error!("singe-cudss-sys requires a version feature, such as `cudss_0_8`");
+#[cfg(not(feature = "cudss_1_0"))]
+compile_error!("singe-cudss-sys requires a version feature, such as `cudss_1_0`");
 
-use singe_cuda_sys::{
-    library_types::{cudaDataType_t, libraryPropertyType},
-    runtime::cudaStream_t,
-};
+pub use singe_cuda_sys::library_types::cudaDataType_t;
+use singe_cuda_sys::{library_types::libraryPropertyType, runtime::cudaStream_t};
 
-#[cfg(feature = "cudss_0_8")]
-include!("sys_800.rs");
+#[cfg(feature = "cudss_1_0")]
+include!("sys_10000.rs");
 
 pub use singe_loader::{Absence, LoadError, take_absence};
 
@@ -51,12 +49,19 @@ pub fn load() -> Result<(), LoadError> {
     LIBRARY.load()
 }
 
-#[cfg(feature = "cudss_0_8")]
+#[cfg(feature = "cudss_1_0")]
 singe_loader::missing_status!(
     cudssStatus_t,
     library: cudssStatus_t::CUDSS_STATUS_NOT_INITIALIZED,
     symbol: cudssStatus_t::CUDSS_STATUS_NOT_SUPPORTED,
 );
+
+// Data-type values of `cudss_data_types.h` outside CUDA's `cudaDataType_t`, which the header defines as casts bindgen cannot translate.
+#[cfg(feature = "cudss_1_0")]
+pub const CUDSS_R_64F_MP2: cudaDataType_t = cudaDataType_t(62);
+
+#[cfg(feature = "cudss_1_0")]
+pub const CUDSS_DATA_TYPE_UNSET: cudaDataType_t = cudaDataType_t(63);
 
 #[cfg(test)]
 mod tests {
@@ -64,15 +69,15 @@ mod tests {
 
     #[test]
     fn test_it_works() {
-        let mut minor = 0;
+        let mut major = 0;
         // SAFETY: the version query writes only into the local output locations.
         unsafe {
             assert_eq!(
-                cudssGetProperty(libraryPropertyType::MINOR_VERSION, &raw mut minor),
+                cudssGetProperty(libraryPropertyType::MAJOR_VERSION, &raw mut major),
                 cudssStatus_t::CUDSS_STATUS_SUCCESS,
             );
         }
-        println!("cuDSS minor version: {}", minor);
-        assert_ne!(minor, 0);
+        println!("cuDSS major version: {}", major);
+        assert_ne!(major, 0);
     }
 }

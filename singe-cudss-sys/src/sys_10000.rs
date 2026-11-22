@@ -207,13 +207,13 @@ where
 /// Byte capacity of the inline device-memory-handler name, including its terminating NUL.
 pub const CUDSS_ALLOCATOR_NAME_LEN: u32 = 64;
 /// Major component of the cuDSS version used to generate these bindings.
-pub const CUDSS_VERSION_MAJOR: u32 = 0;
+pub const CUDSS_VERSION_MAJOR: u32 = 1;
 /// Minor component of the cuDSS version used to generate these bindings.
-pub const CUDSS_VERSION_MINOR: u32 = 8;
+pub const CUDSS_VERSION_MINOR: u32 = 0;
 /// Patch component of the cuDSS version used to generate these bindings.
 pub const CUDSS_VERSION_PATCH: u32 = 0;
 /// Compile-time cuDSS version code. This identifies the headers used to generate these bindings, which may differ from the loaded library.
-pub const CUDSS_VERSION: u32 = 800;
+pub const CUDSS_VERSION: u32 = 10000;
 /// Unsigned C `size_t`, used for byte counts and object sizes in the native ABI.
 pub type size_t = ::core::ffi::c_ulong;
 /// Incomplete CUDA driver stream type. Use a native stream handle; its layout is owned by the CUDA driver.
@@ -413,7 +413,7 @@ pub struct cudssContext {
 }
 /// The structure holds the cuDSS library context (device properties, system information, execution controls like [`cudaStream_t`], etc.).
 ///
-/// The handle must be initialized prior to calling any other cuDSS API with [`cudssCreate`] or [`cudssCreateMg`].
+/// The handle must be initialized with [`cudssCreate`] or [`cudssCreateMg`] prior to calling any cuDSS API which takes it as an argument.
 /// The handle must be destroyed to free up resources after using cuDSS with [`cudssDestroy`].
 pub type cudssHandle_t = *mut cudssContext;
 /// Incomplete native type used by [`cudssMatrix_t`] handles. The native API owns its layout.
@@ -447,7 +447,7 @@ pub struct cudssData {
 /// A single object of this type should be associated with solving a specific linear system.
 /// If multiple systems with the same datatype(!) are solved consecutively the object can be re-used (all necessary internal buffers will be re-created per necessity).
 ///
-/// Note: by default, the library allocates device memory required for performing LU factorization and storing the LU factors internally. All data buffers are of this kind are kept inside the data object.
+/// Note: by default, the library allocates device memory required for performing LU factorization and storing the LU factors internally. All data buffers of this kind are kept inside the data object.
 /// To change this default behavior, one can set a [`cudssDeviceMemHandler_t`] which will then be used for allocating device memory inside the solver.
 ///
 /// The object should be created via [`cudssDataCreate`] and destroyed via [`cudssDataDestroy`].
@@ -471,30 +471,104 @@ pub struct cudssConfig {
 /// Configuration settings can be updated or retrieved by calling [`cudssConfigSet`] or [`cudssConfigGet`] respectively.
 /// Note: certain settings need to be set before a corresponding solver stage is executed (e.g., reordering algorithm must be set prior to the phase [`cudssPhase_t::CUDSS_PHASE_ANALYSIS`]).
 pub type cudssConfig_t = *mut cudssConfig;
-impl cudssDataType_t {
-    /// Sentinel value indicating an uninitialized or unset data type. Not a valid value for user-facing API calls.
-    pub const CUDSS_DATA_TYPE_UNSET: cudssDataType_t = cudssDataType_t(1024);
-    /// 32-bit real single-precision floating-point (`float`).
-    pub const CUDSS_R_32F: cudssDataType_t = cudssDataType_t(0);
-    /// 64-bit real double-precision floating-point (`double`).
-    pub const CUDSS_R_64F: cudssDataType_t = cudssDataType_t(1);
-    /// 32-bit complex single-precision floating-point (`cuComplex`).
-    pub const CUDSS_C_32F: cudssDataType_t = cudssDataType_t(4);
-    /// 64-bit complex double-precision floating-point (`cuDoubleComplex`).
-    pub const CUDSS_C_64F: cudssDataType_t = cudssDataType_t(5);
-    /// 128-bit real double-double floating-point ([`cudss_fp64mp2_t`]). This extended-precision type stores a value as the unevaluated sum of two `double` values (hi + lo).
-    pub const CUDSS_R_64F_64F: cudssDataType_t = cudssDataType_t(1026);
-    /// 32-bit signed integer (`int32_t`). Used for index and offset arrays.
-    pub const CUDSS_R_32I: cudssDataType_t = cudssDataType_t(10);
-    /// 64-bit signed integer (`int64_t`). Used for index and offset arrays.
-    pub const CUDSS_R_64I: cudssDataType_t = cudssDataType_t(24);
+pub use self::cudaDataType_t as cudssDataType_t;
+impl cudssSolveMode_t {
+    /// Solve $A x = b$.
+    pub const CUDSS_SOLVE_MODE_NORMAL: cudssSolveMode_t = cudssSolveMode_t(0);
+    /// Solve $A^T x = b$.
+    pub const CUDSS_SOLVE_MODE_TRANSPOSE: cudssSolveMode_t = cudssSolveMode_t(1);
+    /// Solve $A^H x = b$.
+    pub const CUDSS_SOLVE_MODE_CONJUGATE_TRANSPOSE: cudssSolveMode_t = cudssSolveMode_t(
+        2,
+    );
 }
-/// The enumerator specifies the data type of values, offsets and indices used in cuDSS matrix objects and API calls.
+/// The enumerator specifies which system matrix modifier is used in the solve phase.
 ///
-/// The enumerator values for real and complex floating-point types alias the corresponding [`cudaDataType_t`] values and are interchangeable with them.
+/// Used with [`cudssConfigParam_t::CUDSS_CONFIG_SOLVE_MODE`].
 #[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
-pub struct cudssDataType_t(pub ::core::ffi::c_uint);
+pub struct cudssSolveMode_t(pub ::core::ffi::c_uint);
+impl cudssMemoryEstimateState_t {
+    /// Internal state before the non-zero count of the factors is known; it is never returned at
+    /// position 6. A query in this state returns [`cudssStatus_t::CUDSS_STATUS_NOT_INITIALIZED`] before the first
+    /// [`cudssExecute`] call on the data object, and after one that failed early enough to
+    /// leave it unusable; otherwise it returns [`cudssStatus_t::CUDSS_STATUS_NOT_SUPPORTED`]. In particular, an
+    /// estimate is **not**
+    /// available after the reordering phase alone: until the fill-in is known any number would
+    /// exclude the factors, which dominate the requirement.
+    pub const CUDSS_MEMORY_ESTIMATE_STATE_NONE: cudssMemoryEstimateState_t = cudssMemoryEstimateState_t(
+        0,
+    );
+    /// Positions 0-3 include the factors, but the estimate is preliminary because later analysis
+    /// steps have not sized every workspace. When a
+    /// [`cudssData_t`] object is reused, it can also include allocation capacity retained from its
+    /// preceding analysis. Do not interpret this value as either a lower or an upper bound. On multi-GPU
+    /// ([`cudssCreateMg`]) and multi-process runs this state is only reached once the
+    /// per-device split exists, and positions 0-3 then hold that per-device requirement.
+    /// Positions 4-5 (the hybrid memory mode minimums) are reported as `0` below
+    /// [`cudssMemoryEstimateState_t::CUDSS_MEMORY_ESTIMATE_STATE_FINAL`].
+    pub const CUDSS_MEMORY_ESTIMATE_STATE_FILL_KNOWN: cudssMemoryEstimateState_t = cudssMemoryEstimateState_t(
+        1,
+    );
+    /// The analysis phase completed and positions 0-5 are the final estimate.
+    pub const CUDSS_MEMORY_ESTIMATE_STATE_FINAL: cudssMemoryEstimateState_t = cudssMemoryEstimateState_t(
+        2,
+    );
+}
+/// The enumerator specifies how complete a memory estimate is, i.e. how far the analysis phase
+/// had progressed when it was produced.
+///
+/// Returned at position 6 of [`cudssDataParam_t::CUDSS_DATA_MEMORY_ESTIMATES`].
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudssMemoryEstimateState_t(pub ::core::ffi::c_uint);
+impl cudssDowncastFactorsMode_t {
+    /// Keep the factors in full precision (no downcasting).
+    pub const CUDSS_DOWNCAST_FACTORS_MODE_DISABLED: cudssDowncastFactorsMode_t = cudssDowncastFactorsMode_t(
+        0,
+    );
+    /// Store the factors in reduced (single) precision and release the full-precision factors, retaining the full-precision diagonal block of every supernode.
+    pub const CUDSS_DOWNCAST_FACTORS_MODE_KEEP_BLOCK_DIAGONAL: cudssDowncastFactorsMode_t = cudssDowncastFactorsMode_t(
+        1,
+    );
+    /// Store the factors in reduced (single) precision and release the full-precision factors, retaining only the full-precision strict diagonal (one value per column). With Bunch-Kaufman pivoting, the off-diagonal of each 2x2 diagonal block is also retained in full precision for mixed solves.
+    pub const CUDSS_DOWNCAST_FACTORS_MODE_KEEP_STRICT_DIAGONAL: cudssDowncastFactorsMode_t = cudssDowncastFactorsMode_t(
+        2,
+    );
+}
+/// Selects how cuDSS keeps the numeric factors after factorization. By default ([`cudssDowncastFactorsMode_t::CUDSS_DOWNCAST_FACTORS_MODE_DISABLED`]) the factors are kept in full precision. The KEEP modes instead store the factors in single (reduced) precision and release the full-precision factors.
+///
+/// Used with [`cudssConfigParam_t::CUDSS_CONFIG_DOWNCAST_FACTORS`].
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudssDowncastFactorsMode_t(pub ::core::ffi::c_uint);
+impl cudssMemoryOptimizationFlags_t {
+    /// No additional memory optimizations are applied.
+    pub const CUDSS_MEMORY_OPTIMIZATION_DEFAULT: cudssMemoryOptimizationFlags_t = cudssMemoryOptimizationFlags_t(
+        0,
+    );
+    /// Declares that the factors will not be recomputed, so the state which only a further factorization would read is released at the end of the factorization phase instead of being held through the solve. Solve phase performance may be slower.
+    ///
+    /// A subsequent [`cudssPhase_t::CUDSS_PHASE_FACTORIZATION`] or [`cudssPhase_t::CUDSS_PHASE_REFACTORIZATION`] on the same [`cudssData_t`] returns [`cudssStatus_t::CUDSS_STATUS_NOT_SUPPORTED`]; running [`cudssPhase_t::CUDSS_PHASE_ANALYSIS`] again makes factorization legal once more. Any number of solves may still be performed. The refusal depends on whether the state was actually released, not on the current setting, so clearing the flag afterwards does not lift it.
+    ///
+    /// Unsupported configurations are:
+    ///
+    /// * A partial uniform-batch factorization using [`cudssDataParam_t::CUDSS_DATA_UBATCH_MASK`] or [`cudssConfigParam_t::CUDSS_CONFIG_UBATCH_INDEX`], because the state released after the first pass is what the remaining passes would need.
+    /// * [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_BTF_COLAMD`] or [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_COLAMD`] reordering.
+    ///
+    /// These configurations return [`cudssStatus_t::CUDSS_STATUS_NOT_SUPPORTED`] from [`cudssExecute`].
+    ///
+    /// Eligible single-GPU, single-process, in-core symmetric-family configurations may release additional solve state. After it has been released, changing the configuration to require an incompatible solve path returns [`cudssStatus_t::CUDSS_STATUS_NOT_SUPPORTED`].
+    pub const CUDSS_MEMORY_OPTIMIZATION_SOLVE_ONLY: cudssMemoryOptimizationFlags_t = cudssMemoryOptimizationFlags_t(
+        1,
+    );
+}
+/// Flags naming the memory optimizations cuDSS may apply. The flags are independent and are combined with a bitwise OR; they are not positions on a scale, and new flags may be added without changing the meaning of the existing ones.
+///
+/// Used with [`cudssConfigParam_t::CUDSS_CONFIG_MEMORY_OPTIMIZATION_SETTING`].
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudssMemoryOptimizationFlags_t(pub ::core::ffi::c_uint);
 impl cudssConfigParam_t {
     /// Algorithm for the reordering phase. Supported options are:
     ///
@@ -539,12 +613,24 @@ impl cudssConfigParam_t {
     ///
     /// Default value: [`cudssSolveAlg_t::CUDSS_SOLVE_ALG_DEFAULT`], currently equivalent to [`cudssSolveAlg_t::CUDSS_SOLVE_ALG_GENERAL`].
     pub const CUDSS_CONFIG_SOLVE_ALG: cudssConfigParam_t = cudssConfigParam_t(2);
-    /// Matching is an optional preprocessing step which computes a (non-symmetric column) permutation to put larger values on the diagonal which often improves the accuracy of the solution.
+    /// Matching is an optional preprocessing step which computes a permutation to put larger values on the diagonal which often improves the accuracy of the solution.
     /// This permutation is then combined with the permutation from the reordering.
     /// Set to [`cudssMatchingAlg_t::CUDSS_MATCHING_ALG_NONE`] to disable matching; for any other value, matching is enabled.
     /// While matching often reduces the number of perturbed pivots and improves accuracy of the solution
     /// (especially for ill-conditioned and badly scaled matrices) there are no guarantees that the accuracy will improve.
     /// Enabling matching brings an overhead during the analysis step and changes the non-zero pattern of the factors and therefore, can slow down factorization and solve.
+    ///
+    /// For matrix types other than [`cudssMatrixType_t::CUDSS_MTYPE_GENERAL`] ([`cudssMatrixType_t::CUDSS_MTYPE_SYMMETRIC`], [`cudssMatrixType_t::CUDSS_MTYPE_HERMITIAN`], [`cudssMatrixType_t::CUDSS_MTYPE_SPD`], [`cudssMatrixType_t::CUDSS_MTYPE_HPD`]), matching preserves the matrix symmetry by default.
+    /// Use [`cudssConfigParam_t::CUDSS_CONFIG_FORCE_NONSYMMETRIC_MATCHING`] to force the non-symmetric matching path for these matrix types.
+    ///
+    /// When [`cudssPivotType_t::CUDSS_PIVOT_BUNCH_KAUFMAN`] is selected, symmetry-preserving
+    /// matching also derives 2x2 pivot candidates and keeps each candidate’s columns
+    /// consecutive during nested-dissection reordering. This does not force a 2x2 numerical
+    /// pivot; the Bunch-Kaufman test still selects 1x1 or 2x2 pivots from the reordered
+    /// matrix. This combination requires
+    /// [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_NESTED_DISSECTION`], a single process (which may
+    /// use multiple GPUs), and no user permutation or user nested-dissection partition tree.
+    /// Forcing non-symmetric matching in this combination is not supported.
     ///
     /// Note: matching routines require their internal workspace size to fit into the limit of 32-bit integers. The workspace limit depend on the choice of the matching algorithm.
     /// The biggest requirement among them is to have `10 * nrows + nnz` &lt; `INT_MAX` (`nrows` and `nnz` for the input matrix without accounting for symmetry).
@@ -561,26 +647,102 @@ impl cudssConfigParam_t {
     /// * [`cudssMatchingAlg_t::CUDSS_MATCHING_ALG_MAX_DIAG_SUM`] - this option is based on `job = 4` from MC64 algorithm (HSL). Computes a column permutation of the matrix so that the sum of the diagonal entries of the permuted matrix is maximized.
     /// * [`cudssMatchingAlg_t::CUDSS_MATCHING_ALG_MAX_DIAG_PRODUCT`] - this option is based on `job = 5` from MC64 algorithm (HSL). Computes a column permutation of the matrix so that the product of the diagonal entries of the permuted matrix is maximized.
     ///   In addition, this algorithm computes the row/col scaling vectors which can further improve accuracy of the solution.
-    /// * [`cudssMatchingAlg_t::CUDSS_MATCHING_ALG_AUTO`] - the library selects the alg to apply, currently the same as [`cudssMatchingAlg_t::CUDSS_MATCHING_ALG_MAX_DIAG_PRODUCT`] (matching with scaling, requires matrix values, the most robust option).
+    /// * [`cudssMatchingAlg_t::CUDSS_MATCHING_ALG_AUTO`] - the library selects the alg to apply. For [`cudssMatrixType_t::CUDSS_MTYPE_SPD`] and [`cudssMatrixType_t::CUDSS_MTYPE_HPD`] matrices this resolves to [`cudssMatchingAlg_t::CUDSS_MATCHING_ALG_NONE`]; for all other matrix types it resolves to [`cudssMatchingAlg_t::CUDSS_MATCHING_ALG_MAX_DIAG_PRODUCT`] (matching with scaling, the most robust option). Since [`cudssMatchingAlg_t::CUDSS_MATCHING_ALG_MAX_DIAG_PRODUCT`] requires matrix values, [`cudssMatchingAlg_t::CUDSS_MATCHING_ALG_AUTO`] falls back to [`cudssMatchingAlg_t::CUDSS_MATCHING_ALG_NONE`] when values are not provided during analysis, rather than failing.
     ///
     /// Note: one of the options, [`cudssMatchingAlg_t::CUDSS_MATCHING_ALG_MAX_DIAG_PRODUCT`], computes scaling vectors in addition to the matching permutation. This option is considered to be the most impactful and it is recommended to use this option if accuracy of the solution needs to be improved.
     /// However, this option requires matrix values to be present during the analysis step.
     ///
-    /// Note: matching is not supported for [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_BTF_COLAMD`] and [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_COLAMD`] reordering algorithms (which use global pivoting to make the solution more accurate) or for matrices with type [`cudssDataType_t::CUDSS_R_64F_64F`] or for distributed matrices.
+    /// Matching is not supported with:
+    ///
+    /// * non-uniform batches;
+    /// * uniform-batch settings ([`cudssConfigParam_t::CUDSS_CONFIG_UBATCH_SIZE`] greater
+    ///   than 1 or [`cudssConfigParam_t::CUDSS_CONFIG_UBATCH_INDEX`] other than -1);
+    /// * [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_BTF_COLAMD`] or
+    ///   [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_COLAMD`];
+    /// * Schur complement mode;
+    /// * [`cudssPivotEpsilonAlg_t::CUDSS_PIVOT_EPSILON_ALG_SCALED`];
+    /// * more than $2^{30}$ nonzeros with 32-bit matrix indices.
+    ///
+    /// During reordering, [`cudssMatchingAlg_t::CUDSS_MATCHING_ALG_AUTO`] disables matching
+    /// for these combinations instead of failing; an explicitly enabled matching
+    /// algorithm returns [`cudssStatus_t::CUDSS_STATUS_NOT_SUPPORTED`].
+    /// Later configuration changes do not trigger AUTO fallback and can return
+    /// [`cudssStatus_t::CUDSS_STATUS_NOT_SUPPORTED`]. Rerun analysis after changing
+    /// options that affect matching compatibility.
+    ///
+    /// With an effective [`cudssPivotType_t::CUDSS_PIVOT_BUNCH_KAUFMAN`] pivot type,
+    /// [`cudssMatchingAlg_t::CUDSS_MATCHING_ALG_AUTO`] disables matching when it is incompatible
+    /// with the Bunch-Kaufman matching requirements above. See
+    /// [`cudssPivotType_t::CUDSS_PIVOT_AUTO`] for pivot-selection fallback rules.
+    ///
+    /// Distributed inputs have additional requirements when matching runs.
+    /// When row ranges do not overlap, they must cover the matrix without gaps
+    /// in ascending rank order. With 32-bit matrix offsets, the sum of local nonzero
+    /// counts must fit in `INT32_MAX`. Violations return
+    /// [`cudssStatus_t::CUDSS_STATUS_NOT_SUPPORTED`], including when matching was
+    /// selected by [`cudssMatchingAlg_t::CUDSS_MATCHING_ALG_AUTO`], without falling back to
+    /// no matching.
+    ///
+    /// For matrices with type [`CUDSS_R_64F_MP2`](https://docs.nvidia.com/cuda/cudss/1.0.0/types.html#cudadatatype-t "CUDSS_R_64F_MP2"), value-dependent matching algorithms
+    /// evaluate magnitudes in double precision after summing the `hi` and `lo` components.
+    /// Consequently, matching can ignore value differences that are representable in double-double
+    /// precision but not in double precision, which can affect the selected permutation in edge
+    /// cases. Scaling factors are also computed in double precision and are therefore less accurate
+    /// than scaling factors computed in full double-double precision. Scaling vectors returned
+    /// through [`cudssDataParam_t::CUDSS_DATA_SCALE_ROW`] and [`cudssDataParam_t::CUDSS_DATA_SCALE_COL`] use
+    /// the double-double layout ([Double-double values (CUDSS_R_64F_MP2)](https://docs.nvidia.com/cuda/cudss/1.0.0/types.html#double-double-values-cudss-r-64f-mp2)), with the double-precision scaling value stored in `hi` and
+    /// `lo` set to zero.
     ///
     /// Associated parameter type: [`cudssMatchingAlg_t`]
     ///
-    /// Default value: [`cudssMatchingAlg_t::CUDSS_MATCHING_ALG_NONE`] (matching disabled).
+    /// Default value: [`cudssMatchingAlg_t::CUDSS_MATCHING_ALG_AUTO`].
     pub const CUDSS_CONFIG_MATCHING_ALG: cudssConfigParam_t = cudssConfigParam_t(3);
-    /// Potential modifier on the system matrix (e.g. transpose or conjugate transpose)
+    /// Modifier on the system matrix used during the solve phase.
     ///
-    /// Associated parameter type: `int`
+    /// | Value | Solved system | Notes |
+    /// | --- | --- | --- |
+    /// | [`cudssSolveMode_t::CUDSS_SOLVE_MODE_NORMAL`] | $A x = b$ | Default. |
+    /// | [`cudssSolveMode_t::CUDSS_SOLVE_MODE_TRANSPOSE`] | $A^T x = b$ | No effect for [`cudssMatrixType_t::CUDSS_MTYPE_SYMMETRIC`] and [`cudssMatrixType_t::CUDSS_MTYPE_SPD`] because $A = A^T$. |
+    /// | [`cudssSolveMode_t::CUDSS_SOLVE_MODE_CONJUGATE_TRANSPOSE`] | $A^H x = b$ | Supported for GENERAL complex matrices. No effect for complex [`cudssMatrixType_t::CUDSS_MTYPE_HERMITIAN`] and [`cudssMatrixType_t::CUDSS_MTYPE_HPD`] because $A = A^H$. |
     ///
-    /// Default value: `0` (no modifier).
+    /// Associated parameter type: [`cudssSolveMode_t`]
     ///
-    /// Other values are not supported.
+    /// Default value: [`cudssSolveMode_t::CUDSS_SOLVE_MODE_NORMAL`].
+    ///
+    /// For matrix types [`cudssMatrixType_t::CUDSS_MTYPE_SYMMETRIC`] and [`cudssMatrixType_t::CUDSS_MTYPE_SPD`]
+    /// the transposed solve is a no-op ($A = A^T$).
+    ///
+    /// For complex matrix types [`cudssMatrixType_t::CUDSS_MTYPE_HERMITIAN`] and
+    /// [`cudssMatrixType_t::CUDSS_MTYPE_HPD`], the conjugate-transposed solve is a no-op
+    /// ($A = A^H$).
+    ///
+    /// Transpose solve returns [`cudssStatus_t::CUDSS_STATUS_NOT_SUPPORTED`] in the following cases:
+    ///
+    /// * matrix types [`cudssMatrixType_t::CUDSS_MTYPE_HERMITIAN`] and [`cudssMatrixType_t::CUDSS_MTYPE_HPD`]
+    ///   because they satisfy $A = A^H$, not necessarily $A = A^T$;
+    /// * together with the Schur complement (a non-zero [`cudssConfigParam_t::CUDSS_CONFIG_SCHUR_MODE`]);
+    /// * together with BTF / COLAMD reordering ([`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_BTF_COLAMD`]
+    ///   or [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_COLAMD`]);
+    /// * for non-uniform matrix batches (`batchCount > 0` matrix objects).
+    ///
+    /// Conjugate-transpose solve returns [`cudssStatus_t::CUDSS_STATUS_NOT_SUPPORTED`] for real data
+    /// types and for non-GENERAL matrix types except [`cudssMatrixType_t::CUDSS_MTYPE_HERMITIAN`] and
+    /// [`cudssMatrixType_t::CUDSS_MTYPE_HPD`]. It otherwise shares the same Schur complement,
+    /// BTF / COLAMD, and non-uniform matrix-batch restrictions as transpose solve.
     pub const CUDSS_CONFIG_SOLVE_MODE: cudssConfigParam_t = cudssConfigParam_t(4);
     /// Maximum number of steps during the iterative refinement. Refer to [`cudssConfigParam_t::CUDSS_CONFIG_IR_TOL`] for the details.
+    ///
+    /// Note: In-place iterative refinement is not supported in deterministic mode, for
+    /// non-uniform batch solves, or in MGMN mode unless both the right-hand side and
+    /// solution are distributed matrices. It is supported for uniform batches, including
+    /// with [`cudssConfigParam_t::CUDSS_CONFIG_UBATCH_INDEX`] and with
+    /// [`cudssDataParam_t::CUDSS_DATA_UBATCH_MASK`].
+    ///
+    /// Note: for a uniform batch the convergence check is evaluated on a single system –
+    /// the first system selected by the current selection – and the resulting decision to
+    /// stop, together with the reported number of steps actually taken, applies to the whole
+    /// batch. Entries other than that one do not take part in the
+    /// [`cudssConfigParam_t::CUDSS_CONFIG_IR_TOL`] comparison.
     ///
     /// Associated parameter type: `int`
     ///
@@ -608,23 +770,30 @@ impl cudssConfigParam_t {
     /// Type of pivoting
     ///
     /// The exact meaning of this parameter depends on the choice of the reordering algorithm which can be changed through [`cudssConfigParam_t::CUDSS_CONFIG_REORDERING_ALG`].
-    /// For [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_BTF_COLAMD`] and [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_COLAMD`] the parameter refers to the global pivoting, while for [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_NESTED_DISSECTION`] and others it refers to the partial 1x1 pivoting procedure.
+    /// For [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_BTF_COLAMD`] and [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_COLAMD`] the parameter refers to the global pivoting, while for [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_NESTED_DISSECTION`] and others it refers to the partial pivoting procedure (1x1 pivots, or 1x1 and 2x2 pivots with [`cudssPivotType_t::CUDSS_PIVOT_BUNCH_KAUFMAN`]).
     ///
-    /// Note that in the latter case, if the matrix type is symmetric but not positive-definite, then the pivoting is also symmetric and the pivot is searched for on the diagonal of the block, if only the pivot type is not equal to [`cudssPivotType_t::CUDSS_PIVOT_NONE`].
+    /// Note that in the latter case, if the matrix type is symmetric but not positive-definite, then the pivoting is also symmetric and the pivot is searched for within the diagonal of the block (by default via Bunch-Kaufman, see [`cudssPivotType_t::CUDSS_PIVOT_BUNCH_KAUFMAN`]), if only the pivot type is not equal to [`cudssPivotType_t::CUDSS_PIVOT_NONE`].
     ///
-    /// For more details, see the description of the [pivoting strategies](https://docs.nvidia.com/cuda/cudss/advanced_features.html#numerical-pivoting).
+    /// cuDSS resolves the effective pivot type during the reordering phase. Changing this
+    /// parameter after reordering does not change the analyzed solver data; the new value
+    /// takes effect on the next [`cudssExecute`] call that includes
+    /// [`cudssPhase_t::CUDSS_PHASE_REORDERING`].
+    ///
+    /// For more details, see the description of the [pivoting strategies](https://docs.nvidia.com/cuda/cudss/1.0.0/advanced_features.html#numerical-pivoting).
     ///
     /// Associated parameter type: [`cudssPivotType_t`]
     ///
     /// Default value: [`cudssPivotType_t::CUDSS_PIVOT_AUTO`].
     pub const CUDSS_CONFIG_PIVOT_TYPE: cudssConfigParam_t = cudssConfigParam_t(7);
-    /// Pivoting threshold $p_{threshold}$ which is used to determine if diagonal element is subject to pivoting and will be swapped with the maximum element in the row (or column) depending on the [type of pivoting](https://docs.nvidia.com/cuda/cudss/types.html#cudsspivottype-t).
+    /// Pivoting threshold $p_{threshold}$ which is used to determine if diagonal element is subject to pivoting and will be swapped with the maximum element in the row (or column) depending on the [type of pivoting](https://docs.nvidia.com/cuda/cudss/1.0.0/types.html#cudsspivottype-t).
     /// The diagonal element will be swapped if:
     /// $p_{threshold} \cdot max_{(sub)row \\, or \\, col} |a_{ij}| \geq |a_{ii}|$
     ///
-    /// For more details, see the description of the [pivoting strategies](https://docs.nvidia.com/cuda/cudss/advanced_features.html#numerical-pivoting).
+    /// For more details, see the description of the [pivoting strategies](https://docs.nvidia.com/cuda/cudss/1.0.0/advanced_features.html#numerical-pivoting).
     ///
-    /// Note: this parameter is only supported when reordering algorithm is set to [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_BTF_COLAMD`] or [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_COLAMD`].
+    /// Note: for the global pivoting strategies this parameter is only supported when the reordering algorithm is set to [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_BTF_COLAMD`] or [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_COLAMD`].
+    ///
+    /// Note: when [`cudssPivotType_t::CUDSS_PIVOT_BUNCH_KAUFMAN`] is selected, this parameter overrides the Bunch-Kaufman $\alpha$ constant that decides between a 1x1 and a 2x2 pivot. The value must be finite and in the range $0 &lt; \alpha \le 1$; otherwise [`cudssExecute`] returns [`cudssStatus_t::CUDSS_STATUS_INVALID_VALUE`]. The default Bunch-Kaufman value $\alpha = (1 + \sqrt{17}) / 8 \approx 0.64$ is used when this parameter has not been set explicitly. Explicitly setting the parameter to `1.0` uses $\alpha = 1$.
     ///
     /// Associated parameter type: `double`
     ///
@@ -641,7 +810,7 @@ impl cudssConfigParam_t {
     /// Default value: `1e-5` for single precision and `1e-13` for double precision.
     pub const CUDSS_CONFIG_PIVOT_EPSILON: cudssConfigParam_t = cudssConfigParam_t(9);
     /// Upper limit on the number of nonzero entries in LU factors. This is only relevant for non-symmetric matrices and reordering algorithm set to [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_BTF_COLAMD`] or [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_COLAMD`].
-    /// If the number of non-zero entries in L and U exceeds the set limit, a runtime error happen. See also the note for [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_BTF_COLAMD`] in the table entry for [`cudssConfigParam_t::CUDSS_CONFIG_REORDERING_ALG`].
+    /// If the number of non-zero entries in L and U exceeds the set limit, a runtime error occurs. See also the note for [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_BTF_COLAMD`] in the table entry for [`cudssConfigParam_t::CUDSS_CONFIG_REORDERING_ALG`].
     ///
     /// Associated parameter type: `int64_t`
     ///
@@ -655,7 +824,7 @@ impl cudssConfigParam_t {
     /// Note: Unlike the hybrid host/device execution mode (see [`cudssConfigParam_t::CUDSS_CONFIG_HYBRID_EXECUTE_MODE`]) which controls where compute kernels are executed, the hybrid memory mode
     /// only allows cuDSS to keep a part of the factor values (internal data) on the host and always uses the GPU for factorization and solve.
     ///
-    /// For more details, see [Hybrid host/device memory mode](https://docs.nvidia.com/cuda/cudss/advanced_features.html#hybrid-host-device-memory-mode) feature.
+    /// For more details, see [Hybrid host/device memory mode](https://docs.nvidia.com/cuda/cudss/1.0.0/advanced_features.html#hybrid-host-device-memory-mode) feature.
     ///
     /// Associated parameter type: `int`
     ///
@@ -668,9 +837,9 @@ impl cudssConfigParam_t {
     /// User-defined device memory limit (number of bytes) for the hybrid memory mode.
     ///
     /// This setting only affects execution when the hybrid host/device memory mode is enabled.
-    /// For more details, see [Hybrid host/device memory mode](https://docs.nvidia.com/cuda/cudss/advanced_features.html#hybrid-host-device-memory-mode) feature.
+    /// For more details, see [Hybrid host/device memory mode](https://docs.nvidia.com/cuda/cudss/1.0.0/advanced_features.html#hybrid-host-device-memory-mode) feature.
     ///
-    /// Note: In case of multiple devices ([`cudssCreateMg`]), this value must be set for each device separately by calling `cudaSetDevice()` prior to [`cudssConfigSet`]
+    /// Note: In case of multiple devices ([`cudssCreateMg`]), this value must be set for each device separately by calling `cudaSetDevice()` prior to [`cudssConfigSet`].
     ///
     /// Associated parameter type: `int64_t`
     ///
@@ -681,7 +850,8 @@ impl cudssConfigParam_t {
     /// A flag to enable or disable usage of `cudaHostRegister()` by cuDSS hybrid host/device memory mode. Since the hybrid memory mode of cuDSS uses host memory to store the factors,
     /// it can use `cudaHostRegister()` (if the HW supports it) to speedup associated host-to-device and device-to-host memory transfers.
     /// However, registering host memory has limitations and in some cases might lead to slowdowns. If the flag is set to `0`, cuDSS will not attempt to use `cudaHostRegister()` even if the HW supports it.
-    /// This setting only affects execution when the hybrid memory mode is enabled. For more details, see [Hybrid host/device memory mode](https://docs.nvidia.com/cuda/cudss/advanced_features.html#hybrid-host-device-memory-mode) feature.
+    /// If a [`cudssPinnedMemHandler_t`] is attached with [`cudssSetPinnedMemHandler`], registration of routed host allocations is controlled by the handler instead of this flag. Therefore, a pinned host memory handler is not supported when this flag is set to `0`.
+    /// This setting only affects execution when the hybrid memory mode is enabled. For more details, see [Hybrid host/device memory mode](https://docs.nvidia.com/cuda/cudss/1.0.0/advanced_features.html#hybrid-host-device-memory-mode) feature.
     ///
     /// Associated parameter type: `int`
     ///
@@ -689,7 +859,7 @@ impl cudssConfigParam_t {
     pub const CUDSS_CONFIG_USE_CUDA_REGISTER_MEMORY: cudssConfigParam_t = cudssConfigParam_t(
         13,
     );
-    /// Number of threads to be used by cuDSS in [MT mode](https://docs.nvidia.com/cuda/cudss/advanced_features.html#multi-threaded-mt-mode).
+    /// Number of threads to be used by cuDSS in [MT mode](https://docs.nvidia.com/cuda/cudss/1.0.0/advanced_features.html#multi-threaded-mt-mode).
     /// This setting only affects execution when the multi-threaded mode is enabled.
     ///
     /// Associated parameter type: `int`
@@ -708,13 +878,14 @@ impl cudssConfigParam_t {
     /// (and allows greater flexibility in placement of the input data), the hybrid host/device memory mode [`cudssConfigParam_t::CUDSS_CONFIG_HYBRID_MEMORY_MODE`] only allows cuDSS to keep part of the factor values (internal data)
     /// on the host while only the GPU is used for factorization and solve.
     ///
-    /// Note: If hybrid execute mode is enabled, input matrix, right hand side and solution can be host memory pointers.
+    /// Note: The input matrix can be passed with host memory pointers regardless of this setting. If hybrid execute mode
+    /// is enabled, right hand side and solution can be host memory pointers as well (single-process runs with `nrhs` = 1 only).
     ///
-    /// For more details, see the [Hybrid host/device execute mode](https://docs.nvidia.com/cuda/cudss/advanced_features.html#hybrid-host-device-execute-mode) feature.
+    /// For more details, see the [Hybrid host/device execute mode](https://docs.nvidia.com/cuda/cudss/1.0.0/advanced_features.html#hybrid-host-device-execute-mode) feature.
     ///
     /// Associated parameter type: `int`
     ///
-    /// Note: For `nrhs > 1`, any non-one value must be set before the analysis phase ([`cudssExecute`] with [`cudssPhase_t::CUDSS_PHASE_ANALYSIS`]); the exact value used during solve does not need to match.
+    /// Note: For `nrhs > 1`, the analysis phase must be run with `nrhs > 1`, i.e. the right-hand side passed to [`cudssExecute`] with [`cudssPhase_t::CUDSS_PHASE_ANALYSIS`] must have `nrhs > 1`; otherwise a later solve with `nrhs > 1` can return [`cudssStatus_t::CUDSS_STATUS_NOT_SUPPORTED`]. The host/device placement of the factorization and solve kernels is decided during analysis and takes `nrhs` from that right-hand side. The `nrhs` of subsequent solves does not need to match.
     ///
     /// Note: It is strongly recommended to enable the threading layer ([`cudssSetThreadingLayer`]) when hybrid execute mode is active, as all analysis step computations are enhanced by multi-threading. Expect significant performance improvements, especially for small and medium-sized matrices.
     ///
@@ -740,8 +911,9 @@ impl cudssConfigParam_t {
         16,
     );
     /// Minimum number of levels for the nested dissection reordering. The value for this parameter should be a positive integer.
-    /// Additionally, for the [MGMN mode](https://docs.nvidia.com/cuda/cudss/advanced_features.html#multi-gpu-multi-node-mgmn-mode) the number of levels will be automatically increased (if needed) to satisfy the requirement: $2^{n_{levels}-1} \geq n_{proc}$
-    /// where $n_{proc}$ is the number of processes in the communicator. This setting only works when reordering algorithm is [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_NESTED_DISSECTION`] (which is also [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_DEFAULT`]).
+    /// In [MGMN mode](https://docs.nvidia.com/cuda/cudss/1.0.0/advanced_features.html#multi-gpu-multi-node-mgmn-mode) and [MG mode](https://docs.nvidia.com/cuda/cudss/1.0.0/advanced_features.html#multi-gpu-mg-mode), cuDSS automatically increases the effective number of levels for an internally generated partition tree, if needed, to satisfy $2^{n_{levels}-1} \geq \max(n_{proc}, n_{device})$, where $n_{proc}$ is the number of processes and $n_{device}$ is the number of devices. The configuration getter continues to return the configured value.
+    /// When [`cudssDataParam_t::CUDSS_DATA_USER_ND_PARTITION_TREE`] is provided, the configured number of levels must already provide at least one leaf per process or device; cuDSS does not enlarge a user-provided tree.
+    /// This setting only works when reordering algorithm is [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_NESTED_DISSECTION`] (which is also [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_DEFAULT`]).
     ///
     /// Note: This is considered an advanced performance knob and it is recommended to use a non-default value only when optimizing for performance. Typical values to try should not be too far from the default value, e.g. from the range 8 - 11.
     ///
@@ -757,7 +929,12 @@ impl cudssConfigParam_t {
     ///
     /// Note: a single system can be viewed as a uniform batch with [`cudssConfigParam_t::CUDSS_CONFIG_UBATCH_SIZE`] set to 1.
     ///
+    /// Combining this parameter with matrices created by the non-uniform batch APIs returns
+    /// [`cudssStatus_t::CUDSS_STATUS_NOT_SUPPORTED`].
+    ///
     /// There are two ways how cuDSS can process a uniform batch based on the value of the [`cudssConfigParam_t::CUDSS_CONFIG_UBATCH_INDEX`]: either factorizing (or solving) all matrices at once or just one at a time.
+    ///
+    /// Benchmark factorization and solve separately when choosing a batch size: their performance crossover points can differ with the matrix and GPU.
     ///
     /// For details, see the description of [`cudssConfigParam_t::CUDSS_CONFIG_UBATCH_INDEX`].
     ///
@@ -767,25 +944,50 @@ impl cudssConfigParam_t {
     ///
     /// Default value: `1`.
     ///
-    /// Currently not supported when either [`cudssConfigParam_t::CUDSS_CONFIG_HYBRID_MEMORY_MODE`] (see [here](https://docs.nvidia.com/cuda/cudss/advanced_features.html#hybrid-host-device-memory-mode)) or [`cudssConfigParam_t::CUDSS_CONFIG_HYBRID_EXECUTE_MODE`] (see [here](https://docs.nvidia.com/cuda/cudss/advanced_features.html#hybrid-host-device-execute-mode))
-    /// are enabled, or [MGMN mode](https://docs.nvidia.com/cuda/cudss/advanced_features.html#multi-gpu-multi-node-mgmn-mode) is used, or with [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_BTF_COLAMD`] and [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_COLAMD`] reordering algorithms.
+    /// Currently not supported when either [`cudssConfigParam_t::CUDSS_CONFIG_HYBRID_MEMORY_MODE`] (see [here](https://docs.nvidia.com/cuda/cudss/1.0.0/advanced_features.html#hybrid-host-device-memory-mode)) or [`cudssConfigParam_t::CUDSS_CONFIG_HYBRID_EXECUTE_MODE`] (see [here](https://docs.nvidia.com/cuda/cudss/1.0.0/advanced_features.html#hybrid-host-device-execute-mode))
+    /// are enabled, or [MGMN mode](https://docs.nvidia.com/cuda/cudss/1.0.0/advanced_features.html#multi-gpu-multi-node-mgmn-mode) is used, or with [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_BTF_COLAMD`] and [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_COLAMD`] reordering algorithms.
     pub const CUDSS_CONFIG_UBATCH_SIZE: cudssConfigParam_t = cudssConfigParam_t(18);
     /// `-1` or a 0-based index of matrix in a uniform batch which will be processed during factorization or solve phase.
     /// Special value of `-1` can be used to tell cuDSS to process all matrices in the uniform batch at once.
     ///
-    /// Note: [`cudssConfigParam_t::CUDSS_CONFIG_UBATCH_INDEX`] must be less than [`cudssConfigParam_t::CUDSS_CONFIG_UBATCH_SIZE`].
+    /// The value must be less than [`cudssConfigParam_t::CUDSS_CONFIG_UBATCH_SIZE`]. It can be set after
+    /// [`cudssPhase_t::CUDSS_PHASE_FACTORIZATION`], which is how a whole-batch factorization is
+    /// followed by solves of individual systems.
     ///
-    /// Note: if [`cudssConfigParam_t::CUDSS_CONFIG_UBATCH_INDEX`] is set then cuDSS will treat the input sparse matrix, right hand side and solution as regular matrices (with just one set of values).
-    /// Thus, it allows to process a uniform batch of matrices one by one while re-using the result of the analysis and keeping corresponding factors for all matrices in a single [`cudssData_t`] object.
+    /// Combining this parameter with matrices created by the non-uniform batch APIs returns
+    /// [`cudssStatus_t::CUDSS_STATUS_NOT_SUPPORTED`].
     ///
-    /// Note: [`cudssConfigParam_t::CUDSS_CONFIG_UBATCH_INDEX`] can be set after [`cudssPhase_t::CUDSS_PHASE_FACTORIZATION`], in that case one could solve only one specific system
+    /// When [`cudssConfigParam_t::CUDSS_CONFIG_UBATCH_INDEX`] is set, cuDSS treats the input sparse matrix, right-hand
+    /// side and solution as regular matrices with just one set of values. This allows a uniform
+    /// batch to be processed one system at a time while re-using the result of the analysis and
+    /// keeping the factors of all the matrices in a single [`cudssData_t`] object.
+    ///
+    /// The two phases differ in which descriptors cuDSS offsets by [`cudssConfigParam_t::CUDSS_CONFIG_UBATCH_INDEX`]:
+    ///
+    /// | Descriptor | [`cudssPhase_t::CUDSS_PHASE_FACTORIZATION`] | [`cudssPhase_t::CUDSS_PHASE_SOLVE`] |
+    /// | --- | --- | --- |
+    /// | Sparse matrix | Not offset. The caller points the descriptor at item `k`. | Not used. |
+    /// | Factors | Written to slot `k`. | Read from slot `k` (internal). |
+    /// | Right-hand side, solution | Not offset; a single system. | Not offset; a single system. |
+    ///
+    /// Note: because the factorization does not offset the matrix values, leaving the matrix
+    /// descriptor at the base storage of the batch factorizes item `0` into slot `k`, and the
+    /// following solve then returns item `0`’s answer with a success status. To factorize batch
+    /// item `k`, point the matrix descriptor at item `k` first, for example with
+    /// [`cudssMatrixSetValues`].
+    ///
+    /// A solve may only cover systems that have factors. A factorization performed with
+    /// [`cudssConfigParam_t::CUDSS_CONFIG_UBATCH_INDEX`] set to `k` gives factors to item `k` alone, so a subsequent
+    /// solve with [`cudssConfigParam_t::CUDSS_CONFIG_UBATCH_INDEX`] reset to `-1` is rejected with
+    /// [`cudssStatus_t::CUDSS_STATUS_NOT_SUPPORTED`]: the remaining items were never factorized. Factorize the
+    /// whole batch, or keep the solve narrowed to the items that were.
     ///
     /// Associated parameter type: `int`
     ///
     /// Default value: `-1`
     ///
-    /// Currently not supported when either [`cudssConfigParam_t::CUDSS_CONFIG_HYBRID_MEMORY_MODE`] (see [here](https://docs.nvidia.com/cuda/cudss/advanced_features.html#hybrid-host-device-memory-mode)) or [`cudssConfigParam_t::CUDSS_CONFIG_HYBRID_EXECUTE_MODE`] (see [here](https://docs.nvidia.com/cuda/cudss/advanced_features.html#hybrid-host-device-execute-mode))
-    /// are enabled, or [MGMN mode](https://docs.nvidia.com/cuda/cudss/advanced_features.html#multi-gpu-multi-node-mgmn-mode) is used, or with [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_BTF_COLAMD`] and [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_COLAMD`] reordering algorithms.
+    /// Currently not supported when either [`cudssConfigParam_t::CUDSS_CONFIG_HYBRID_MEMORY_MODE`] (see [here](https://docs.nvidia.com/cuda/cudss/1.0.0/advanced_features.html#hybrid-host-device-memory-mode)) or [`cudssConfigParam_t::CUDSS_CONFIG_HYBRID_EXECUTE_MODE`] (see [here](https://docs.nvidia.com/cuda/cudss/1.0.0/advanced_features.html#hybrid-host-device-execute-mode))
+    /// are enabled, or [MGMN mode](https://docs.nvidia.com/cuda/cudss/1.0.0/advanced_features.html#multi-gpu-multi-node-mgmn-mode) is used, or with [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_BTF_COLAMD`] and [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_COLAMD`] reordering algorithms.
     pub const CUDSS_CONFIG_UBATCH_INDEX: cudssConfigParam_t = cudssConfigParam_t(19);
     /// Use superpanel optimization: `1` (default = enabled) or `0` (disabled).
     ///
@@ -798,29 +1000,43 @@ impl cudssConfigParam_t {
     pub const CUDSS_CONFIG_USE_SUPERPANELS: cudssConfigParam_t = cudssConfigParam_t(20);
     /// Device count in case of multiple device (see [`cudssCreateMg`])
     ///
-    /// Note: Maximum supported device count is 16
+    /// Note: Maximum supported device count is 16.
+    /// Set this parameter before [`cudssConfigParam_t::CUDSS_CONFIG_DEVICE_INDICES`].
+    ///
+    /// See [`cudssConfigParam_t::CUDSS_CONFIG_DEVICE_INDICES`] for how this parameter is matched against
+    /// multi-GPU handles (`device_count > 1`).
     ///
     /// Associated parameter type: `int`
     ///
     /// Default value: `1`.
     pub const CUDSS_CONFIG_DEVICE_COUNT: cudssConfigParam_t = cudssConfigParam_t(21);
-    /// A list of device indices as an integer array.
+    /// A list of device indices as an integer array of length [`cudssConfigParam_t::CUDSS_CONFIG_DEVICE_COUNT`].
     ///
-    /// Note: The calling device must be equal to the first device index from `device_indices` or `0` (if `device_indices` were `NULL` in the required prior call to [`cudssCreateMg`])
+    /// Note: Device indices must be unique and in the range 0 to `cudaGetDeviceCount()` - 1.
+    /// Setting this parameter initializes the CUDA runtime (via `cudaGetDeviceCount`) and can
+    /// return [`cudssStatus_t::CUDSS_STATUS_EXECUTION_FAILED`] if that call fails.
+    /// [`cudssConfigParam_t::CUDSS_CONFIG_DEVICE_COUNT`] must be set before this parameter;
+    /// for [`cudssConfigSet`], `sizeInBytes` must equal `device_count * sizeof(int)`;
+    /// for [`cudssConfigGet`], `sizeInBytes` must be at least that large.
+    /// For multi-GPU handles (`device_count > 1` from [`cudssCreateMg`]), if either this
+    /// parameter or [`cudssConfigParam_t::CUDSS_CONFIG_DEVICE_COUNT`] is set, the resulting count and
+    /// ordered indices must match the handle. Single-device handles do not enforce that match.
+    /// If neither of them is set, [`cudssExecute`] uses the handle topology.
+    /// A `NULL` value is invalid for [`cudssConfigSet`] (unlike [`cudssCreateMg`], where `NULL` selects `0..device_count-1`).
     ///
-    /// Associated parameter type: `int`
+    /// Associated parameter type: `int *` (array of [`cudssConfigParam_t::CUDSS_CONFIG_DEVICE_COUNT`] elements).
     ///
-    /// Default value: `NULL` (cuDSS will use devices from 0 to `device_count - 1`).
+    /// Default value: identity `0, 1, ..., device_count - 1` (after [`cudssConfigCreate`]).
     pub const CUDSS_CONFIG_DEVICE_INDICES: cudssConfigParam_t = cudssConfigParam_t(22);
     /// Schur complement mode: `0` (default = disabled) or `1` (enabled).
     ///
-    /// For more details regarding the Schur complement feature, see [Schur complement feature](https://docs.nvidia.com/cuda/cudss/advanced_features.html#schur-complement).
+    /// For more details regarding the Schur complement feature, see [Schur complement feature](https://docs.nvidia.com/cuda/cudss/1.0.0/advanced_features.html#schur-complement).
     ///
     /// Associated parameter type: `int`
     ///
     /// Default value: `0` (disabled).
     ///
-    /// Currently not supported when [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_BTF_COLAMD`] or [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_COLAMD`] is used for reordering, when [MGMN mode](https://docs.nvidia.com/cuda/cudss/advanced_features.html#multi-gpu-multi-node-mgmn-mode) or [multi-GPU mode](https://docs.nvidia.com/cuda/cudss/advanced_features.html#multi-gpu-mg-mode) is used,
+    /// Currently not supported when [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_BTF_COLAMD`] or [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_COLAMD`] is used for reordering, when [MGMN mode](https://docs.nvidia.com/cuda/cudss/1.0.0/advanced_features.html#multi-gpu-multi-node-mgmn-mode) or [multi-GPU mode](https://docs.nvidia.com/cuda/cudss/1.0.0/advanced_features.html#multi-gpu-mg-mode) is used,
     /// or, when [`cudssFactorizationAlg_t::CUDSS_FACTORIZATION_ALG_MULTIBLOCK`] is used for the factorization. It is also not supported for uniform and non-uniform batches, or when matching is enabled.
     pub const CUDSS_CONFIG_SCHUR_MODE: cudssConfigParam_t = cudssConfigParam_t(23);
     /// Enable deterministic mode.
@@ -834,18 +1050,124 @@ impl cudssConfigParam_t {
     /// Default value: `0` (disabled).
     ///
     /// Currently the feature is supported only for single-gpu, single rhs, and with both hybrid host/device memory mode ([`cudssConfigParam_t::CUDSS_CONFIG_HYBRID_MEMORY_MODE`]) and hybrid host/device execute mode ([`cudssConfigParam_t::CUDSS_CONFIG_HYBRID_EXECUTE_MODE`]) disabled.
-    /// Also, this feature does not support iterative refinement or reordering algorithms [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_BTF_COLAMD`] and [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_COLAMD`].
+    /// Uniform batches are not supported either: [`cudssConfigParam_t::CUDSS_CONFIG_UBATCH_SIZE`] greater than 1 together with deterministic mode returns [`cudssStatus_t::CUDSS_STATUS_NOT_SUPPORTED`].
+    /// Also, this feature does not support iterative refinement ([`cudssConfigParam_t::CUDSS_CONFIG_IR_N_STEPS`] greater than 0) or the reordering algorithms [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_BTF_COLAMD`] and [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_COLAMD`].
+    /// The deterministic-mode setting used during analysis is part of the analyzed state.
+    /// After analysis completes, changing this setting requires running analysis again;
+    /// otherwise factorization, refactorization, or solve returns
+    /// [`cudssStatus_t::CUDSS_STATUS_INVALID_VALUE`].
+    /// Bunch-Kaufman pivoting does not support deterministic mode when superpanels are formed.
     pub const CUDSS_CONFIG_DETERMINISTIC_MODE: cudssConfigParam_t = cudssConfigParam_t(
         24,
     );
     /// Controls the balance of the nested dissection partition tree. The value represents the allowed percentage of imbalance between the two children at each level of the partition tree. Possible values are from 1 to 100.
     ///
-    /// Note: Smaller values produce a more balanced partition tree. For [MGMN mode](https://docs.nvidia.com/cuda/cudss/advanced_features.html#multi-gpu-multi-node-mgmn-mode) and [MG mode](https://docs.nvidia.com/cuda/cudss/advanced_features.html#multi-gpu-mg-mode), it is recommended to use smaller values in the range 2 to 5.
+    /// Note: Smaller values produce a more balanced partition tree. For [MGMN mode](https://docs.nvidia.com/cuda/cudss/1.0.0/advanced_features.html#multi-gpu-multi-node-mgmn-mode) and [MG mode](https://docs.nvidia.com/cuda/cudss/1.0.0/advanced_features.html#multi-gpu-mg-mode), it is recommended to use smaller values in the range 2 to 5.
     ///
     /// Associated parameter type: `int`
     ///
     /// Default value: `20`.
     pub const CUDSS_CONFIG_ND_UBFACTOR: cudssConfigParam_t = cudssConfigParam_t(25);
+    /// Enables floating-point emulation in cuDSS and controls the working precision in bits of mantissa.
+    /// The value is the number of significand bits that the emulation must preserve. The original input
+    /// data type (e.g. [`CUDSS_R_64F`](https://docs.nvidia.com/cuda/cudss/1.0.0/types.html#cudadatatype-t "CUDSS_R_64F") or [`CUDSS_C_64F`](https://docs.nvidia.com/cuda/cudss/1.0.0/types.html#cudadatatype-t "CUDSS_C_64F")) and the format of the
+    /// produced factors are not changed; only the internal kernels switch to an emulated path.
+    ///
+    /// When this setting is `0` (default), emulation is disabled and cuDSS uses the regular floating-point
+    /// kernels. When set to a positive integer $b$, cuDSS uses emulated kernels that reproduce the
+    /// result with at least $b$ bits of mantissa precision. For example, to recover a near full
+    /// double-precision result (FP64 mantissa is 52 bits), values in the range of `53` to `55` are typical;
+    /// smaller values trade accuracy for performance.
+    ///
+    /// Note: this is a performance/accuracy tuning knob. Larger values produce more work, while smaller
+    /// values are faster but less accurate. Some of the accuracy lost to a smaller value can typically be
+    /// recovered by enabling iterative refinement via [`cudssConfigParam_t::CUDSS_CONFIG_IR_N_STEPS`] (and
+    /// optionally [`cudssConfigParam_t::CUDSS_CONFIG_IR_TOL`]).
+    ///
+    /// Note: emulation kernels are used only during the factorization phase. Other phases (analysis, solve,
+    /// iterative refinement) continue to use the regular floating-point kernels.
+    ///
+    /// Note: this setting is ignored on GPUs with compute capability 8.0 or earlier
+    /// and on GPUs with compute capability 9.0.
+    ///
+    /// Note: emulation is currently supported for double precision real ([`CUDSS_R_64F`](https://docs.nvidia.com/cuda/cudss/1.0.0/types.html#cudadatatype-t "CUDSS_R_64F")) and
+    /// double precision complex ([`CUDSS_C_64F`](https://docs.nvidia.com/cuda/cudss/1.0.0/types.html#cudadatatype-t "CUDSS_C_64F")) data types.
+    ///
+    /// Note: emulation is not supported with [`cudssPivotType_t::CUDSS_PIVOT_BUNCH_KAUFMAN`]
+    /// when superpanels are formed.
+    ///
+    /// Associated parameter type: `int`
+    ///
+    /// Default value: `0` (emulation disabled).
+    pub const CUDSS_CONFIG_EMULATION_MANTISSA_BIT_COUNT: cudssConfigParam_t = cudssConfigParam_t(
+        26,
+    );
+    /// Controls whether matching for matrix types other than [`cudssMatrixType_t::CUDSS_MTYPE_GENERAL`] ([`cudssMatrixType_t::CUDSS_MTYPE_SYMMETRIC`], [`cudssMatrixType_t::CUDSS_MTYPE_HERMITIAN`], [`cudssMatrixType_t::CUDSS_MTYPE_SPD`], [`cudssMatrixType_t::CUDSS_MTYPE_HPD`]) should preserve symmetry or use the non-symmetric matching path.
+    /// Set to `0` to preserve symmetry when matching is enabled for these matrix types.
+    /// Set to `1` to force non-symmetric matching for these matrix types.
+    /// This setting has no effect when matching is disabled. With
+    /// [`cudssMatchingAlg_t::CUDSS_MATCHING_ALG_AUTO`], matching is disabled for SPD/HPD matrices
+    /// and enabled for symmetric/Hermitian indefinite matrices when values are available
+    /// during analysis, subject to the compatibility restrictions in
+    /// [`cudssConfigParam_t::CUDSS_CONFIG_MATCHING_ALG`].
+    /// Setting it to `1` together with [`cudssPivotType_t::CUDSS_PIVOT_BUNCH_KAUFMAN`] while matching is
+    /// explicitly enabled (a non-`AUTO` [`cudssConfigParam_t::CUDSS_CONFIG_MATCHING_ALG`] value) is not supported;
+    /// if both come from their `AUTO` defaults, matching falls back to disabled instead of failing.
+    ///
+    /// Associated parameter type: `int`
+    ///
+    /// Default value: `0` (preserve symmetry).
+    pub const CUDSS_CONFIG_FORCE_NONSYMMETRIC_MATCHING: cudssConfigParam_t = cudssConfigParam_t(
+        27,
+    );
+    /// Controls whether cuDSS stores the double-precision factors in single (reduced) precision after factorization, releasing the full-precision factors. When disabled (the default) the factors are kept in full precision.
+    ///
+    /// Supported values:
+    ///
+    /// * [`cudssDowncastFactorsMode_t::CUDSS_DOWNCAST_FACTORS_MODE_DISABLED`] (default): disabled.
+    /// * [`cudssDowncastFactorsMode_t::CUDSS_DOWNCAST_FACTORS_MODE_KEEP_BLOCK_DIAGONAL`]: store downcast factors and release the full-precision factors, retaining the full-precision diagonal block of every supernode.
+    /// * [`cudssDowncastFactorsMode_t::CUDSS_DOWNCAST_FACTORS_MODE_KEEP_STRICT_DIAGONAL`]: as above but retain only the full-precision strict diagonal (one value per column). With Bunch-Kaufman pivoting, the off-diagonal of each 2x2 diagonal block is also retained in full precision for mixed solves.
+    ///
+    /// Numerical factorization is performed in the matrix value precision. Iterative refinement is also computed in the matrix value precision. The supported downcast conversions are [`CUDSS_R_64F`](https://docs.nvidia.com/cuda/cudss/1.0.0/types.html#cudadatatype-t "CUDSS_R_64F") to [`CUDSS_R_32F`](https://docs.nvidia.com/cuda/cudss/1.0.0/types.html#cudadatatype-t "CUDSS_R_32F") and [`CUDSS_C_64F`](https://docs.nvidia.com/cuda/cudss/1.0.0/types.html#cudadatatype-t "CUDSS_C_64F") to [`CUDSS_C_32F`](https://docs.nvidia.com/cuda/cudss/1.0.0/types.html#cudadatatype-t "CUDSS_C_32F").
+    ///
+    /// It is possible to perform the entire solve phase in the downcast factor precision by providing right-hand side and solution matrices in the single-precision counterpart of the matrix value type. The right-hand side and solution value types must match. Transpose and conjugate-transpose solves are supported when the right-hand side and solution use the matrix value precision (mixed-precision solve), but not when they use the downcast factor precision.
+    ///
+    /// For example, with a [`CUDSS_R_64F`](https://docs.nvidia.com/cuda/cudss/1.0.0/types.html#cudadatatype-t "CUDSS_R_64F") matrix and downcast factors enabled:
+    ///
+    /// * [`CUDSS_R_32F`](https://docs.nvidia.com/cuda/cudss/1.0.0/types.html#cudadatatype-t "CUDSS_R_32F") right-hand side and solution matrices run the entire solve in single precision over the downcast factors.
+    /// * [`CUDSS_R_64F`](https://docs.nvidia.com/cuda/cudss/1.0.0/types.html#cudadatatype-t "CUDSS_R_64F") right-hand side and solution matrices run a mixed-precision solve with double-precision arithmetic, single-precision off-diagonal factor sources, and retained double-precision diagonal factor sources.
+    ///
+    /// The corresponding complex value types are [`CUDSS_C_64F`](https://docs.nvidia.com/cuda/cudss/1.0.0/types.html#cudadatatype-t "CUDSS_C_64F") and [`CUDSS_C_32F`](https://docs.nvidia.com/cuda/cudss/1.0.0/types.html#cudadatatype-t "CUDSS_C_32F"). Any other right-hand side and solution value type returns [`cudssStatus_t::CUDSS_STATUS_NOT_SUPPORTED`] at the solve phase.
+    ///
+    /// [`cudssConfigParam_t::CUDSS_CONFIG_DOWNCAST_FACTORS`] must be set before the factorization phase and must remain unchanged through every solve that reuses those factors.
+    ///
+    /// Associated parameter type: [`cudssDowncastFactorsMode_t`]
+    ///
+    /// Default value: [`cudssDowncastFactorsMode_t::CUDSS_DOWNCAST_FACTORS_MODE_DISABLED`].
+    ///
+    /// Downcast factors are not supported in the following configurations:
+    ///
+    /// * With [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_BTF_COLAMD`] or [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_COLAMD`].
+    /// * When [`cudssConfigParam_t::CUDSS_CONFIG_DETERMINISTIC_MODE`] is enabled.
+    /// * When [`cudssConfigParam_t::CUDSS_CONFIG_SCHUR_MODE`] is enabled.
+    /// * For transpose or conjugate-transpose solves when the right-hand side and solution use the downcast factor precision.
+    ///
+    /// These unsupported configurations return [`cudssStatus_t::CUDSS_STATUS_NOT_SUPPORTED`].
+    pub const CUDSS_CONFIG_DOWNCAST_FACTORS: cudssConfigParam_t = cudssConfigParam_t(28);
+    /// Selects which memory optimizations cuDSS may apply. Each optimization trades some capability, or some other resource, for a lower memory footprint; none of them is applied unless it is requested here.
+    ///
+    /// The value is a bitwise OR of the flags in [`cudssMemoryOptimizationFlags_t`], which describes what each flag does and what it costs. The flags are independent and may be combined in any way; [`cudssMemoryOptimizationFlags_t::CUDSS_MEMORY_OPTIMIZATION_DEFAULT`] (zero) requests none of them. Setting a value with any bit that does not correspond to a defined flag returns [`cudssStatus_t::CUDSS_STATUS_INVALID_VALUE`] and leaves the configuration unchanged.
+    ///
+    /// The values reported by [`cudssDataParam_t::CUDSS_DATA_MEMORY_ESTIMATES`] are not affected by this setting: they describe the requirement before any optimization releases memory.
+    ///
+    /// The setting takes effect for the factorization or refactorization phase during which it is set; setting it afterwards has no effect on a factorization that has already run.
+    ///
+    /// Associated parameter type: [`cudssMemoryOptimizationFlags_t`]
+    ///
+    /// Default value: [`cudssMemoryOptimizationFlags_t::CUDSS_MEMORY_OPTIMIZATION_DEFAULT`].
+    pub const CUDSS_CONFIG_MEMORY_OPTIMIZATION_SETTING: cudssConfigParam_t = cudssConfigParam_t(
+        29,
+    );
 }
 /// The enumerator specifies possible names of solver configuration settings. For each setting there is a matching type to be used in [`cudssConfigSet`] or [`cudssConfigGet`].
 #[repr(transparent)]
@@ -853,7 +1175,7 @@ impl cudssConfigParam_t {
 pub struct cudssConfigParam_t(pub ::core::ffi::c_uint);
 impl cudssDataParam_t {
     /// By default, this parameter can be used to detect device-side asynchronous errors (primarily, during factorization and solve).
-    /// However, in the special case, when in [hybrid host/device execute mode](https://docs.nvidia.com/cuda/cudss/advanced_features.html#hybrid-host-device-execute-mode), factorization is done on the host at least partially,
+    /// However, in the special case, when in [hybrid host/device execute mode](https://docs.nvidia.com/cuda/cudss/1.0.0/advanced_features.html#hybrid-host-device-execute-mode), factorization is done on the host at least partially,
     /// this parameter can be used to retrieve host-side errors. In case execution is successful, the value is `0`.
     ///
     /// Note: the error returned via [`cudssDataParam_t::CUDSS_DATA_INFO`] is independent from the host side status of type [`cudssStatus_t`] returned by all cuDSS routines, including [`cudssExecute`].
@@ -862,9 +1184,15 @@ impl cudssDataParam_t {
     /// Then one can set the device error back to zero via [`cudssDataSet`], and either change the matrix type or adjust the matrix values (to make the matrix positive-definite) and call the factorization phase again.
     ///
     /// Note that the returned index is 1-based and is for the reordered matrix.
-    /// To get the corresponding original index, it should be combined with (inverse) permutation which can be extracted via [`cudssDataGet`] for [`cudssDataParam_t::CUDSS_DATA_PERM_REORDER_ROW`].
+    /// To get the corresponding original index, first map it through the permutation returned by [`cudssDataGet`] for [`cudssDataParam_t::CUDSS_DATA_PERM_REORDER_ROW`].
+    /// If symmetry-preserving matching is enabled, map that result through [`cudssDataParam_t::CUDSS_DATA_PERM_MATCHING`] as well; in 0-based notation the combined mapping is `matching\[reordering[index\]]`.
     ///
-    /// Direction: out
+    /// Another case is [`cudssPivotType_t::CUDSS_PIVOT_BUNCH_KAUFMAN`]: if the diagonal solve encounters 2x2 pivot metadata
+    /// which is internally inconsistent, the solve phase returns [`cudssStatus_t::CUDSS_STATUS_INTERNAL_ERROR`] and sets
+    /// [`cudssDataParam_t::CUDSS_DATA_INFO`] to `1`. Unlike the non-positive minor above this value is not an index, and it indicates a
+    /// failure inside cuDSS rather than a property of the input matrix.
+    ///
+    /// Direction: in, out
     ///
     /// Memory: host
     ///
@@ -881,7 +1209,8 @@ impl cudssDataParam_t {
     ///
     /// Associated parameter type: `int64_t`.
     pub const CUDSS_DATA_LU_NNZ: cudssDataParam_t = cudssDataParam_t(1);
-    /// Number of pivots encountered during factorization.
+    /// Number of perturbed 1x1 pivots during factorization. Stable, unperturbed 1x1 pivots
+    /// and 2x2 pivot blocks are not counted.
     ///
     /// Direction: out
     ///
@@ -900,7 +1229,13 @@ impl cudssDataParam_t {
     ///
     /// Associated parameter type: same as for the indices of the sparse matrix of the system.
     pub const CUDSS_DATA_INERTIA: cudssDataParam_t = cudssDataParam_t(3);
-    /// Row permutation `P` after reordering such that `A\[P,Q\]` is factorized.
+    /// Row permutation `P` produced by the reordering algorithm. If matching is enabled,
+    /// this permutation applies to the matrix after [`cudssDataParam_t::CUDSS_DATA_PERM_MATCHING`]
+    /// has been applied; it does not include the matching permutation.
+    ///
+    /// For reordering algorithms other than [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_BTF_COLAMD`]
+    /// and [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_COLAMD`], the row and column reordering
+    /// permutations are identical.
     ///
     /// Note: using this parameter in [`cudssDataGet`] in case `batchCount` > 1 is not supported.
     ///
@@ -910,7 +1245,13 @@ impl cudssDataParam_t {
     ///
     /// Associated parameter type: same as for the indices of the sparse matrix of the system.
     pub const CUDSS_DATA_PERM_REORDER_ROW: cudssDataParam_t = cudssDataParam_t(4);
-    /// Column permutation `Q` after reordering such that `A\[P,Q\]` is factorized.
+    /// Column permutation `Q` produced by the reordering algorithm. If matching is enabled,
+    /// this permutation applies to the matrix after [`cudssDataParam_t::CUDSS_DATA_PERM_MATCHING`]
+    /// has been applied; it does not include the matching permutation.
+    ///
+    /// For reordering algorithms other than [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_BTF_COLAMD`]
+    /// and [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_COLAMD`], the row and column reordering
+    /// permutations are identical.
     ///
     /// Note: using this parameter in [`cudssDataGet`] in case `batchCount` > 1 is not supported.
     ///
@@ -946,6 +1287,34 @@ impl cudssDataParam_t {
     pub const CUDSS_DATA_PERM_COL: cudssDataParam_t = cudssDataParam_t(7);
     /// Diagonal of the factorized matrix. The diagonal is returned in the original matrix order, taking into account all permutations applied during matching, reordering, and pivoting.
     ///
+    /// Note: when matching with scaling is enabled, the returned diagonal values retain
+    /// that scaling.
+    ///
+    /// Note: with Bunch-Kaufman pivoting, only the diagonal entries of `D` are returned;
+    /// off-diagonal entries of 2x2 pivot blocks are not included.
+    ///
+    /// Note: when a Schur complement is requested ([`cudssConfigParam_t::CUDSS_CONFIG_SCHUR_MODE`] is set to `1`),
+    /// the rows/columns belonging to the Schur complement are not factorized,
+    /// so no diagonal values exist for them. The returned buffer still has `n` entries, and the entries corresponding to
+    /// the Schur complement are **left unmodified**. They are the rows/columns for which the caller set
+    /// [`cudssDataParam_t::CUDSS_DATA_USER_SCHUR_INDICES`] to 1.
+    ///
+    /// For a diagonal query using neither [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_BTF_COLAMD`]
+    /// nor [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_COLAMD`], the CUDA device that is current
+    /// when [`cudssDataGet`] is called must belong to the cuDSS handle; otherwise
+    /// [`cudssStatus_t::CUDSS_STATUS_INVALID_VALUE`] is returned.
+    ///
+    /// With a Schur complement, a device output buffer must additionally belong to that current
+    /// CUDA device; otherwise [`cudssStatus_t::CUDSS_STATUS_NOT_SUPPORTED`] is returned. This
+    /// output-buffer restriction applies only when a Schur complement is requested: without one,
+    /// the whole buffer is written and it may be host memory or memory on any device.
+    ///
+    /// In MGMN mode, this query is collective. Every process must configure non-null host and
+    /// device communicators with the same participating processes and consistent ranks before
+    /// analysis, and keep them unchanged through the query. All processes must perform the same
+    /// operation: either query the required size or retrieve the value using that size. The output
+    /// is written only on rank 0.
+    ///
     /// Note: in case `batchCount` > 1 (non-uniform batch) [`cudssDataGet`] returns the accumulated values over all
     /// matrices in the batch.
     ///
@@ -953,32 +1322,37 @@ impl cudssDataParam_t {
     ///
     /// Memory: host or device
     ///
-    /// Associated parameter type: same as for the values of the sparse matrix of the system
-    ///
-    /// Currently supported only when [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_BTF_COLAMD`] or [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_COLAMD`] is used for reordering.
+    /// Associated parameter type: same as for the values of the sparse matrix of the system.
     pub const CUDSS_DATA_DIAG: cudssDataParam_t = cudssDataParam_t(8);
     /// User permutation to be used instead of running the reordering algorithms.
     /// The user permutation can be disabled by providing a `NULL` with zero size with [`cudssDataSet`].
     /// The provided buffer should be an integer array of size `n`, where `n` is the number of rows/columns of the system matrix.
     /// The integer type must match the one used for the system matrix.
-    /// The values should represent a valid permutation vector for the set $\\{ index base, ..., n - index base \\}$
+    /// The values should represent a valid permutation vector for the set $\\{ index base, ..., n - 1 + index base \\}$
     ///
     /// Note: after [`cudssDataSet`] is called with [`cudssDataParam_t::CUDSS_DATA_USER_PERM`], the data are copied into an internal buffer so that the user buffer can be deallocated or re-used.
     ///
     /// Note: using this parameter in [`cudssDataGet`] in case `batchCount` > 1 is not supported.
     ///
-    /// Direction: in
+    /// Direction: in, out
     ///
     /// Memory: host or device
     ///
     /// Associated parameter type: same as for the indices of the sparse matrix of the system
     ///
     /// Currently not supported when [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_BTF_COLAMD`] or [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_COLAMD`] is used for reordering.
+    ///
+    /// Also not supported together with matching (i.e. [`cudssConfigParam_t::CUDSS_CONFIG_MATCHING_ALG`] other than [`cudssMatchingAlg_t::CUDSS_MATCHING_ALG_NONE`]), except for the [`cudssPivotType_t::CUDSS_PIVOT_BUNCH_KAUFMAN`] symmetry-preserving matching path: matching computes its own row/column permutation, which cannot be composed with a user-supplied one.
+    /// With [`cudssMatchingAlg_t::CUDSS_MATCHING_ALG_AUTO`], cuDSS resolves matching to [`cudssMatchingAlg_t::CUDSS_MATCHING_ALG_NONE`] instead of erroring; an explicitly requested matching algorithm returns [`cudssStatus_t::CUDSS_STATUS_NOT_SUPPORTED`].
     pub const CUDSS_DATA_USER_PERM: cudssDataParam_t = cudssDataParam_t(9);
-    /// Minimal amount of device memory (number of bytes) required in the hybrid memory mode. This query must be done after the analysis phase and will return status [`cudssStatus_t::CUDSS_STATUS_NOT_SUPPORTED`] if it cannot be processed.
+    /// Minimal amount of device memory (number of bytes) required in the hybrid memory mode. This query must be done after the analysis phase and will return status [`cudssStatus_t::CUDSS_STATUS_NOT_SUPPORTED`] if it cannot be processed. Unlike [`cudssDataParam_t::CUDSS_DATA_MEMORY_ESTIMATES`], this query is refused until the analysis phase has completed.
+    ///
+    /// The returned value uses right-hand side and solution shapes. When the hybrid execute mode is enabled, it also uses user-provided RHS and solution buffer placement. For non-batch matrices, it also distinguishes an in-place solve, where the right-hand side and solution descriptors use the same value buffer, from an out-of-place solve. This information is captured during reordering or symbolic factorization. Analysis must be run again if these captured inputs change, including when switching between in-place and out-of-place solves. Changes to settings evaluated when the estimate is queried, such as iterative refinement or factor downcasting, are reflected by the next query and do not require another analysis. The query models the hybrid memory path even when [`cudssConfigParam_t::CUDSS_CONFIG_HYBRID_MEMORY_MODE`] is disabled.
+    ///
+    /// Note: in the multi-process (MGMN) mode this query is collective, including size probes with `sizeInBytes == 0`. Every rank must request the same parameter, use the same query form, and provide valid local arguments.
     ///
     /// Note: In case of multiple devices ([`cudssCreateMg`]), minimal memory will be returned for the calling device only.
-    /// Thus, `cudaSetDevice()` must be called prior to [`cudssDataGet`] to get minimal memory on corresponding device
+    /// Thus, `cudaSetDevice()` must be called prior to [`cudssDataGet`] to get the minimal memory for the corresponding device.
     ///
     /// Direction: out
     ///
@@ -986,55 +1360,76 @@ impl cudssDataParam_t {
     ///
     /// Associated parameter type: `int64_t`
     ///
-    /// For more details, see the [Hybrid host/device memory mode](https://docs.nvidia.com/cuda/cudss/advanced_features.html#hybrid-host-device-memory-mode) feature.
+    /// For more details, see the [Hybrid host/device memory mode](https://docs.nvidia.com/cuda/cudss/1.0.0/advanced_features.html#hybrid-host-device-memory-mode) feature.
     pub const CUDSS_DATA_HYBRID_DEVICE_MEMORY_MIN: cudssDataParam_t = cudssDataParam_t(
         10,
     );
-    /// Device communicator for [MGMN mode](https://docs.nvidia.com/cuda/cudss/advanced_features.html#multi-gpu-multi-node-mgmn-mode).
-    /// The actual type of the communicator must match the device communication backend of the [communication layer](https://docs.nvidia.com/cuda/cudss/advanced_features.html#communication-layer-library-in-cudss) which must be set via calling [`cudssSetCommLayer`].
+    /// Device communicator for [MGMN mode](https://docs.nvidia.com/cuda/cudss/1.0.0/advanced_features.html#multi-gpu-multi-node-mgmn-mode).
+    /// The device and host communicators must agree in size and rank ordering.
+    /// The actual type of the communicator must match the device communication backend of the [communication layer](https://docs.nvidia.com/cuda/cudss/1.0.0/advanced_features.html#communication-layer-library-in-cudss) which must be set via calling [`cudssSetCommLayer`].
     /// This communicator is used for communication involving device memory buffers.
     ///
+    /// Note: [`cudssDataSet`] stores the communicator pointer itself (the communicator is not copied), so it must remain valid until the parameter is set again or the [`cudssData_t`] object is destroyed.
+    ///
     /// Direction: in
     ///
     /// Memory: host
     ///
     /// Associated parameter type: `void*`
     ///
-    /// See [MGMN mode](https://docs.nvidia.com/cuda/cudss/advanced_features.html#multi-gpu-multi-node-mgmn-mode) for further details.
+    /// See [MGMN mode](https://docs.nvidia.com/cuda/cudss/1.0.0/advanced_features.html#multi-gpu-multi-node-mgmn-mode) for further details.
     pub const CUDSS_DATA_COMM_DEVICE: cudssDataParam_t = cudssDataParam_t(11);
-    /// Host communicator for [MGMN mode](https://docs.nvidia.com/cuda/cudss/advanced_features.html#multi-gpu-multi-node-mgmn-mode).
-    /// The actual type of the communicator must match the host communication backend of the [communication layer](https://docs.nvidia.com/cuda/cudss/advanced_features.html#communication-layer-library-in-cudss) which must be set via calling [`cudssSetCommLayer`].
+    /// Host communicator for [MGMN mode](https://docs.nvidia.com/cuda/cudss/1.0.0/advanced_features.html#multi-gpu-multi-node-mgmn-mode).
+    /// The actual type of the communicator must match the host communication backend of the [communication layer](https://docs.nvidia.com/cuda/cudss/1.0.0/advanced_features.html#communication-layer-library-in-cudss) which must be set via calling [`cudssSetCommLayer`].
     /// This communicator is used for communication involving host memory buffers.
     ///
+    /// Note: [`cudssDataSet`] stores the communicator pointer itself (the communicator is not copied), so it must remain valid until the parameter is set again or the [`cudssData_t`] object is destroyed.
+    ///
     /// Direction: in
     ///
     /// Memory: host
     ///
     /// Associated parameter type: `void*`
     ///
-    /// See [MGMN mode](https://docs.nvidia.com/cuda/cudss/advanced_features.html#multi-gpu-multi-node-mgmn-mode) for further details.
+    /// See [MGMN mode](https://docs.nvidia.com/cuda/cudss/1.0.0/advanced_features.html#multi-gpu-multi-node-mgmn-mode) for further details.
     pub const CUDSS_DATA_COMM_HOST: cudssDataParam_t = cudssDataParam_t(12);
     /// Memory estimates (in bytes) for host and device memory required for the chosen memory mode.
     /// The chosen memory mode is defined as the memory mode detected during the last executed analysis phase for the current [`cudssData_t`] object and the state of the corresponding [`cudssConfigParam_t`] object during the call.
     ///
     /// See [`cudssConfigParam_t`] for more details.
     ///
-    /// Note: the returned memory estimate depends not just on the settings from [`cudssConfig_t`] object but also on the input matrix and rhs (specifically, nrhs)
-    /// so if the objects (or the config) change after the analysis phase, memory estimates might be not accurate anymore.
+    /// Note: the returned memory estimate uses the input matrix, right-hand side, and solution descriptors and analysis-dependent settings captured during reordering or symbolic factorization. In particular, the estimate uses the number of right-hand sides, leading dimensions, batch or distributed formats, and user-provided RHS and solution buffer placement when the hybrid execute mode is enabled. For non-batch matrices, it also distinguishes an in-place solve, where the right-hand side and solution descriptors use the same value buffer, from an out-of-place solve. Analysis must be run again if these captured inputs change, including when switching between in-place and out-of-place solves. Changes to settings evaluated when the estimate is queried, such as iterative refinement or factor downcasting, are reflected by the next query and do not require another analysis.
+    ///
+    /// Note: for uniform batches ([`cudssConfigParam_t::CUDSS_CONFIG_UBATCH_SIZE`] greater than 1) cuDSS chooses between two
+    /// internal workspace layouts for the factorization, and the estimate reflects the layout that the
+    /// factorization is expected to use for the configuration as it stands at the time of the call. If
+    /// [`cudssDataParam_t::CUDSS_DATA_UBATCH_MASK`] is set, or [`cudssConfigParam_t::CUDSS_CONFIG_UBATCH_SIZE`] is changed, after the estimate has
+    /// been queried, the estimate may no longer describe the layout that will be used and should be
+    /// queried again. cuDSS may also fall back to the smaller layout if the larger one cannot be
+    /// allocated, in which case the factorization uses less memory than estimated.
     ///
     /// Values returned in the output array at position:
     /// \* 0 - permanent device memory
     /// \* 1 - peak device memory
     /// \* 2 - permanent host memory
     /// \* 3 - peak host memory
-    /// \* 4 - (if in hybrid memory mode) minimum device memory for the hybrid memory mode
-    /// \* 5 - (if in hybrid memory mode) maximum host memory for the hybrid memory mode
-    /// \* 6, … 15 - reserved for future use
+    /// \* 4 - minimum device memory required after analysis for hybrid factorization and solve
+    /// \* 5 - maximum host memory over analysis, factorization, and solve in hybrid memory mode
+    /// \* 6 - how far the analysis phase progressed when the estimate was produced (see below)
+    /// \* 7, … 15 - reserved for future use
     ///
-    /// This query must be done after the analysis phase and will return status [`cudssStatus_t::CUDSS_STATUS_NOT_SUPPORTED`] if it cannot be processed.
+    /// Slots 4 and 5 model the hybrid memory path even when [`cudssConfigParam_t::CUDSS_CONFIG_HYBRID_MEMORY_MODE`] is disabled.
+    ///
+    /// This query can be done once the non-zero count of the factors is known, and will return status [`cudssStatus_t::CUDSS_STATUS_NOT_SUPPORTED`] if it cannot be processed.
+    ///
+    /// The value at position 6 says how complete the estimate is, as one of [`cudssMemoryEstimateState_t`].
+    ///
+    /// Note: on multi-GPU ([`cudssCreateMg`]) and multi-process runs the per-device factor counts only become available later in the analysis phase, so the query stays unavailable for longer than on a single-GPU run.
+    ///
+    /// Note: in the multi-process (MGMN) mode this query is collective, including size probes with `sizeInBytes == 0`, and must be called by all ranks when inspecting an estimate after a failed [`cudssExecute`]. Every rank must request the same parameter, use the same query form, and provide valid local arguments. The same applies to [`cudssDataParam_t::CUDSS_DATA_HYBRID_DEVICE_MEMORY_MIN`].
     ///
     /// Note: In case of multiple devices ([`cudssCreateMg`]) memory estimate will be done for the calling device only.
-    /// Thus, `cudaSetDevice()` must be called prior to [`cudssDataGet`] to get memory estimate on corresponded device
+    /// Thus, `cudaSetDevice()` must be called prior to [`cudssDataGet`] to get the memory estimate for the corresponding device.
     ///
     /// Direction: out
     ///
@@ -1042,7 +1437,9 @@ impl cudssDataParam_t {
     ///
     /// Associated parameter type: `int64_t\[16\]`.
     pub const CUDSS_DATA_MEMORY_ESTIMATES: cudssDataParam_t = cudssDataParam_t(13);
-    /// Matching (column) permutation `Q` such that `A\[:,Q\]` is reordered and then factorized.
+    /// Matching permutation.
+    /// For non-symmetric matching, this is a column permutation `Q` such that `A\[:,Q\]` is reordered and then factorized.
+    /// For symmetry-preserving matching, this is a symmetric permutation applied to both rows and columns.
     ///
     /// Direction: out
     ///
@@ -1056,9 +1453,11 @@ impl cudssDataParam_t {
     ///
     /// Memory: host or device
     ///
-    /// Associated parameter type: floating point for the absolute values of the matrix of the system (i.e., always real, either float or double)
+    /// Associated parameter type: the real-valued counterpart of the sparse matrix value type
+    /// (`float`, `double`, or double-double, see [Double-double values (CUDSS_R_64F_MP2)](https://docs.nvidia.com/cuda/cudss/1.0.0/types.html#double-double-values-cudss-r-64f-mp2))
     ///
     /// Only supported when matching is enabled (i.e. [`cudssConfigParam_t::CUDSS_CONFIG_MATCHING_ALG`] is not [`cudssMatchingAlg_t::CUDSS_MATCHING_ALG_NONE`]) and the chosen matching algorithm computes the scaling.
+    /// For symmetry-preserving matching, users should not assume that row and column scaling vectors are different.
     pub const CUDSS_DATA_SCALE_ROW: cudssDataParam_t = cudssDataParam_t(15);
     /// Column scaling the factorized matrix (corresponding to the columns of the original matrix).
     ///
@@ -1066,7 +1465,11 @@ impl cudssDataParam_t {
     ///
     /// Memory: host or device
     ///
-    /// Associated parameter type: floating point for the absolute values of the matrix of the system (i.e., always real, either float or double). Only supported when matching is enabled (i.e. [`cudssConfigParam_t::CUDSS_CONFIG_MATCHING_ALG`] is not [`cudssMatchingAlg_t::CUDSS_MATCHING_ALG_NONE`]) and the chosen matching algorithm computes the scaling.
+    /// Associated parameter type: the real-valued counterpart of the sparse matrix value type
+    /// (`float`, `double`, or double-double, see [Double-double values (CUDSS_R_64F_MP2)](https://docs.nvidia.com/cuda/cudss/1.0.0/types.html#double-double-values-cudss-r-64f-mp2)).
+    ///
+    /// Only supported when matching is enabled (i.e. [`cudssConfigParam_t::CUDSS_CONFIG_MATCHING_ALG`] is not [`cudssMatchingAlg_t::CUDSS_MATCHING_ALG_NONE`]) and the chosen matching algorithm computes the scaling.
+    /// For symmetry-preserving matching, users should not assume that row and column scaling vectors are different.
     pub const CUDSS_DATA_SCALE_COL: cudssDataParam_t = cudssDataParam_t(16);
     /// Number of superpanels in the matrix.
     ///
@@ -1088,9 +1491,9 @@ impl cudssDataParam_t {
     ///
     /// Associated parameter type: same as for the indices of the sparse matrix of the system.
     pub const CUDSS_DATA_USER_SCHUR_INDICES: cudssDataParam_t = cudssDataParam_t(18);
-    /// Shape of the Schur complement matrix as a triplet `(nrows, ncols, sparse nnz)`. The last entry is only relevant when the Schur complement needs to be exported as a sparse matrix
-    /// By querying with [`cudssDataSet`] with [`cudssDataParam_t::CUDSS_DATA_SCHUR_SHAPE`], users can get the necessary allocation sizes for the Schur complement buffers
-    /// which can then be used to create a [`cudssMatrix_t`] object and passed back to cuDSS to fill in the Schur complement data via [`cudssDataSet`] with [`cudssDataParam_t::CUDSS_DATA_SCHUR_MATRIX`].
+    /// Shape of the Schur complement matrix as a triplet `(nrows, ncols, sparse nnz)`. The last entry is only relevant when the Schur complement needs to be exported as a sparse matrix.
+    /// By querying with [`cudssDataGet`] with [`cudssDataParam_t::CUDSS_DATA_SCHUR_SHAPE`], users can get the necessary allocation sizes for the Schur complement buffers
+    /// which can then be used to create a [`cudssMatrix_t`] object and passed back to cuDSS to fill in the Schur complement data via [`cudssDataGet`] with [`cudssDataParam_t::CUDSS_DATA_SCHUR_MATRIX`].
     ///
     /// Direction: out
     ///
@@ -1100,7 +1503,7 @@ impl cudssDataParam_t {
     pub const CUDSS_DATA_SCHUR_SHAPE: cudssDataParam_t = cudssDataParam_t(19);
     /// Schur complement matrix as a [`cudssMatrix_t`] object.
     ///
-    /// Direction: in
+    /// Direction: out
     ///
     /// Memory: host (with underlying buffers on host or device)
     ///
@@ -1116,10 +1519,12 @@ impl cudssDataParam_t {
     ///
     /// See [`cudssDataParam_t::CUDSS_DATA_ND_PARTITION_TREE`] for the size and usage information. The user ND partition tree can be disabled by providing a `NULL` with zero size with [`cudssDataSet`].
     ///
+    /// In [MGMN mode](https://docs.nvidia.com/cuda/cudss/1.0.0/advanced_features.html#multi-gpu-multi-node-mgmn-mode) and [MG mode](https://docs.nvidia.com/cuda/cudss/1.0.0/advanced_features.html#multi-gpu-mg-mode), the configured [`cudssConfigParam_t::CUDSS_CONFIG_ND_NLEVELS`] must provide at least one leaf per process or device. cuDSS does not enlarge a user-provided partition tree.
+    ///
     /// Note: While it is possible to construct this array outside cuDSS (e.g., extracting the so-called `sizes` array from METIS / ParMETIS), we recommend to only use this feature by extracting the ND partition tree from cuDSS,
     /// followed by passing it back in subsequent calls.
     ///
-    /// Direction: in
+    /// Direction: in, out
     ///
     /// Memory: host or device
     ///
@@ -1131,7 +1536,7 @@ impl cudssDataParam_t {
     /// [`cudssDataParam_t::CUDSS_DATA_USER_PERM`] and [`cudssDataParam_t::CUDSS_DATA_USER_ND_PARTITION_TREE`] for a matrix with the same sparsity structure.
     /// This avoids regenerating the same reordering information while retaining the same performance for the factorization and solve phases.
     ///
-    /// See the [Nested Dissection Partition Tree](https://docs.nvidia.com/cuda/cudss/advanced_features.html#user-provided-nested-dissection-nd-partition-tree-data-saving-reordering) section for more details.
+    /// See the [Nested Dissection Partition Tree](https://docs.nvidia.com/cuda/cudss/1.0.0/advanced_features.html#user-provided-nested-dissection-nd-partition-tree-data-saving-reordering) section for more details.
     ///
     /// Direction: out
     ///
@@ -1144,6 +1549,9 @@ impl cudssDataParam_t {
     /// If it is non-zero, execution stops and cuDSS returns early (before the phase execution completes) with the status [`cudssStatus_t::CUDSS_STATUS_EXECUTION_FAILED`].
     /// To resume after an interruption, set the value at that location back to `0` and call again.
     /// To remove the (small) overhead of checking for the host interruption, the interruption can be completely disabled by setting [`cudssDataParam_t::CUDSS_DATA_USER_HOST_INTERRUPT`] to `NULL`.
+    ///
+    /// Note: unlike the array parameters (e.g. [`cudssDataParam_t::CUDSS_DATA_USER_PERM`]), the pointer itself is stored and the pointed-to value is not copied by [`cudssDataSet`].
+    /// The location must remain valid until the parameter is set again or the [`cudssData_t`] object is destroyed.
     ///
     /// Note: since most of device kernels inside cuDSS are launched asynchronously,
     /// execution on the GPU may continue some time after the host execution has been interrupted.
@@ -1160,7 +1568,7 @@ impl cudssDataParam_t {
     ///
     /// Note: `std::atomic&lt;int>` (C++) or `_Atomic(int)*` (C) may be used when the object representation is a single 4-byte integer; the library does not guarantee correct behavior for all atomic types.
     ///
-    /// Note: The host interruption feature is not supported when [MGMN mode](https://docs.nvidia.com/cuda/cudss/advanced_features.html#multi-gpu-multi-node-mgmn-mode) or [MG mode](https://docs.nvidia.com/cuda/cudss/advanced_features.html#multi-gpu-mg-mode) is used.
+    /// Note: The host interruption feature is not supported when [MGMN mode](https://docs.nvidia.com/cuda/cudss/1.0.0/advanced_features.html#multi-gpu-multi-node-mgmn-mode) or [MG mode](https://docs.nvidia.com/cuda/cudss/1.0.0/advanced_features.html#multi-gpu-mg-mode) is used.
     /// Also, reordering algorithms [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_BTF_COLAMD`] and [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_COLAMD`] do not support the user interrupt currently.
     pub const CUDSS_DATA_USER_HOST_INTERRUPT: cudssDataParam_t = cudssDataParam_t(23);
     /// Actual number of iterative refinement steps performed
@@ -1176,22 +1584,37 @@ impl cudssDataParam_t {
     /// The value can be less than [`cudssConfigParam_t::CUDSS_CONFIG_IR_N_STEPS`] if user-specified convergence tolerance is reached.
     /// The value is 0 if iterative refinement is disabled or if the initial solution already satisfies the tolerance.
     pub const CUDSS_DATA_IR_N_STEPS: cudssDataParam_t = cudssDataParam_t(24);
-    /// A bitmask specifying the subset of problems to be factorized or solved in the uniform batch case. Each bit position corresponds to the index of a matrix in the uniform batch; setting a bit to `1` includes that matrix in the operation.
+    /// An array specifying the subset of problems to be processed in the uniform batch case, at factorization and at solve alike. It holds one `int` per problem in the batch, so its size must be `CUDSS_CONFIG_UBATCH_SIZE * sizeof(int)`; a non-zero element includes the problem at that index in the operation, a zero element excludes it. Not supported for non-uniform matrix batches.
     ///
-    /// Note: [`cudssDataParam_t::CUDSS_DATA_UBATCH_MASK`] can be used as an alternative to [`cudssConfigParam_t::CUDSS_CONFIG_UBATCH_INDEX`] to select multiple specific problems from the batch in a single call.
+    /// Note: [`cudssDataParam_t::CUDSS_DATA_UBATCH_MASK`] can be used as an alternative to [`cudssConfigParam_t::CUDSS_CONFIG_UBATCH_INDEX`] to select multiple specific problems from the batch in a single call. The two are mutually exclusive.
     ///
-    /// Note: [`cudssDataParam_t::CUDSS_DATA_UBATCH_MASK`] can be set after [`cudssPhase_t::CUDSS_PHASE_FACTORIZATION`], in that case one could solve only a specific subset of systems.
+    /// Note: [`cudssDataParam_t::CUDSS_DATA_UBATCH_MASK`] applies to the factorization and the solve. At the solve the selected systems are solved as usual and every other entry of the solution is left exactly as the caller supplied it, neither solved nor zeroed. Clear the mask, by calling [`cudssDataSet`] with a `NULL` value and a size of `0`, to solve the whole batch. A mask that selects no system at all is accepted and solves nothing.
     ///
-    /// Direction: in
+    /// Note: a solve may only select systems that have factors. cuDSS rejects the solve with [`cudssStatus_t::CUDSS_STATUS_NOT_SUPPORTED`] when the mask selects a system that no factorization since the last [`cudssPhase_t::CUDSS_PHASE_ANALYSIS`] covered.
+    ///
+    /// Note: the mask must be set before [`cudssPhase_t::CUDSS_PHASE_ANALYSIS`] or before the first factorization, as its internal device-side storage is allocated at that point. Introducing a mask after a factorization that ran without one is not supported. This applies to a mask intended only for the solve as well: set one (an all-ones mask selects the whole batch) before the analysis, then narrow it when the solve is issued.
+    ///
+    /// Note: the problems excluded by the mask keep the factors computed for them by a previous factorization; only the selected problems are refreshed. A mask that selects no problems at all is accepted and refreshes nothing, leaving all previously computed factors intact.
+    ///
+    /// Note: a solve without a mask covers the whole batch and therefore requires every problem to have been factorized. cuDSS accumulates the masks of all factorizations performed since the last [`cudssPhase_t::CUDSS_PHASE_ANALYSIS`], so factorizing the batch in several masked chunks and then solving once is supported. A solve that would cover a problem no factorization ever selected returns [`cudssStatus_t::CUDSS_STATUS_NOT_SUPPORTED`], since there are no factors to solve it with; setting a mask on the solve narrows both what is solved and what is therefore required.
+    ///
+    /// Note: when [`cudssConfigParam_t::CUDSS_CONFIG_DOWNCAST_FACTORS`] is enabled, the mask must select a single contiguous range of problems, and the value reported by [`cudssDataParam_t::CUDSS_DATA_MEMORY_ESTIMATES`] depends on the mask that is set when the estimate is queried. The transient full-precision factors are sized for the selected range, so querying with a narrow selection and then factorizing a wider one under-reports the peak. Query the estimate with the widest selection you intend to use.
+    ///
+    /// Note: the mask can be retrieved with [`cudssDataGet`] once the data object has been used in a call to [`cudssExecute`].
+    ///
+    /// Direction: in, out
     ///
     /// Memory: host
     ///
-    /// Associated parameter type: `int64_t`
+    /// Associated parameter type: `int *` (array of [`cudssConfigParam_t::CUDSS_CONFIG_UBATCH_SIZE`] elements).
     ///
-    /// Default value: `-1` (all problems selected).
+    /// Default value: `NULL` (no mask; all problems selected).
     ///
-    /// Currently not supported when either [`cudssConfigParam_t::CUDSS_CONFIG_HYBRID_MEMORY_MODE`] (see [here](https://docs.nvidia.com/cuda/cudss/advanced_features.html#hybrid-host-device-memory-mode)) or [`cudssConfigParam_t::CUDSS_CONFIG_HYBRID_EXECUTE_MODE`] (see [here](https://docs.nvidia.com/cuda/cudss/advanced_features.html#hybrid-host-device-execute-mode))
-    /// are enabled, or [MGMN mode](https://docs.nvidia.com/cuda/cudss/advanced_features.html#multi-gpu-multi-node-mgmn-mode) is used, or with [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_BTF_COLAMD`] and [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_COLAMD`] reordering algorithms.
+    /// Not supported when [`cudssConfigParam_t::CUDSS_CONFIG_HYBRID_MEMORY_MODE`] or
+    /// [`cudssConfigParam_t::CUDSS_CONFIG_HYBRID_EXECUTE_MODE`] is enabled, in
+    /// [MG mode](https://docs.nvidia.com/cuda/cudss/1.0.0/advanced_features.html#multi-gpu-mg-mode) or [MGMN mode](https://docs.nvidia.com/cuda/cudss/1.0.0/advanced_features.html#multi-gpu-multi-node-mgmn-mode),
+    /// or with [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_BTF_COLAMD`] or
+    /// [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_COLAMD`].
     pub const CUDSS_DATA_UBATCH_MASK: cudssDataParam_t = cudssDataParam_t(25);
     /// Floating-point operation count for the factorization phase.
     ///
@@ -1206,7 +1629,7 @@ impl cudssDataParam_t {
 }
 /// The enumerator specifies possible parameter names which can set or get in the [`cudssData_t`] object. For each parameter name
 /// there is an associated type to be used in [`cudssDataSet`] or [`cudssDataGet`]. Each parameter
-/// name is marked with “in” or “out” depending on whether a parameter can be only set, get or be involved in both.
+/// name is marked with “in”, “out”, or “in, out” depending on whether a parameter can be only set, only retrieved, or both.
 #[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
 pub struct cudssDataParam_t(pub ::core::ffi::c_uint);
@@ -1224,6 +1647,9 @@ impl cudssPhase_t {
     /// Numerical re-factorization.
     ///
     /// Note: For now it is only used if the reordering algorithm is set to [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_BTF_COLAMD`] or [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_COLAMD`]. Otherwise, it is the same as FACTORIZATION phase.
+    ///
+    /// Note: this phase returns [`cudssStatus_t::CUDSS_STATUS_NOT_SUPPORTED`] if
+    /// [`cudssMemoryOptimizationFlags_t::CUDSS_MEMORY_OPTIMIZATION_SOLVE_ONLY`] was set for the preceding factorization.
     pub const CUDSS_PHASE_REFACTORIZATION: cudssPhase_t = cudssPhase_t(8);
     /// Applying reordering permutation to the right hand side before the forward solve (forward substitution).
     ///
@@ -1247,7 +1673,7 @@ impl cudssPhase_t {
     ///
     /// Note: solve sub-phases are not supported when [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_BTF_COLAMD`] or [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_COLAMD`] are used for reordering.
     pub const CUDSS_PHASE_SOLVE_BWD: cudssPhase_t = cudssPhase_t(128);
-    /// Applying inverse reordering permutation to the intermediate solution after the backward (backward substitution).
+    /// Applying inverse reordering permutation to the intermediate solution after the backward solve (backward substitution).
     /// If matching (and scaling) is enabled, this phase also includes applying the inverse matching permutation and inverse scaling (as the matching permutation and scalings were used to modify the matrix before the factorization).
     ///
     /// Note: solve sub-phases are not supported when [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_BTF_COLAMD`] or [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_COLAMD`] are used for reordering.
@@ -1256,7 +1682,7 @@ impl cudssPhase_t {
     ///
     /// Note: solve sub-phases are not supported when [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_BTF_COLAMD`] or [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_COLAMD`] are used for reordering.
     pub const CUDSS_PHASE_SOLVE_REFINEMENT: cudssPhase_t = cudssPhase_t(512);
-    /// Full solving phase, combining all of the above (forward permutation + forward solve + diagonal solve + backward permutation + backward solve) and (optional) iterative refinement.
+    /// Full solving phase, combining all of the above (forward permutation + forward solve + diagonal solve + backward solve + backward permutation) and (optional) iterative refinement.
     ///
     /// Note: combining the solve sub-phases should be preferred to calling sub-phases separately.
     ///
@@ -1273,15 +1699,17 @@ impl cudssStatus_t {
     pub const CUDSS_STATUS_SUCCESS: cudssStatus_t = cudssStatus_t(0);
     /// One of the input operands was not properly initialized prior to the call to a cuDSS routine. This can usually be one of the opaque objects like [`cudssHandle_t`], [`cudssData_t`] or others.
     pub const CUDSS_STATUS_NOT_INITIALIZED: cudssStatus_t = cudssStatus_t(1);
-    /// Resource allocation failed inside the cuDSS library. This is usually caused by a device memory allocation (cudaMalloc()) or by a host memory allocation failure.
+    /// A resource allocation failed. This is usually caused by a device or host allocation
+    /// failure, and can also report a CUDA memory allocation error observed at a public API
+    /// boundary.
     pub const CUDSS_STATUS_ALLOC_FAILED: cudssStatus_t = cudssStatus_t(2);
     /// An incorrect value or parameter was passed to the function (a negative vector size, or a NULL pointer for a must-have buffer, for example).
     pub const CUDSS_STATUS_INVALID_VALUE: cudssStatus_t = cudssStatus_t(3);
     /// An unsupported (but otherwise reasonable) parameter was passed to the function.
     pub const CUDSS_STATUS_NOT_SUPPORTED: cudssStatus_t = cudssStatus_t(4);
-    /// The GPU program failed to execute. This is often caused by a launch failure of the kernel on the GPU, which can be caused by multiple reasons.
+    /// The GPU program failed to execute, or a non-allocation CUDA error was pending at a public API boundary.
     pub const CUDSS_STATUS_EXECUTION_FAILED: cudssStatus_t = cudssStatus_t(5);
-    /// An internal cuDSS operation failed.
+    /// An internal cuDSS operation failed, including an unexpected C++ exception.
     pub const CUDSS_STATUS_INTERNAL_ERROR: cudssStatus_t = cudssStatus_t(6);
     /// Iterative refinement failed to meet the requested convergence tolerance. In this case, the iterations were performed and the refined solution is still accessible.
     pub const CUDSS_STATUS_IR_FAILED: cudssStatus_t = cudssStatus_t(7);
@@ -1295,7 +1723,7 @@ pub struct cudssStatus_t(pub ::core::ffi::c_uint);
 impl cudssMatrixType_t {
     /// General matrix \[default\] `LDU` factorization will be computed with optional local or global pivoting.
     pub const CUDSS_MTYPE_GENERAL: cudssMatrixType_t = cudssMatrixType_t(0);
-    /// Real symmetric matrix. `LDL^T` factorization will be computed with optional local pivoting.
+    /// Real or complex symmetric matrix. `LDL^T` factorization will be computed with optional local pivoting.
     pub const CUDSS_MTYPE_SYMMETRIC: cudssMatrixType_t = cudssMatrixType_t(1);
     /// Complex Hermitian matrix. `LDL^H` factorization will be computed with optional local pivoting.
     pub const CUDSS_MTYPE_HERMITIAN: cudssMatrixType_t = cudssMatrixType_t(2);
@@ -1389,7 +1817,7 @@ impl cudssFactorizationAlg_t {
     pub const CUDSS_FACTORIZATION_ALG_DEFAULT: cudssFactorizationAlg_t = cudssFactorizationAlg_t(
         0,
     );
-    /// Multiblock factorization algorithm. Supported only for real double data type (CUDA_R_64F). Suggested for use with extremely sparse matrices.
+    /// Multiblock factorization algorithm. Supported only for real double data type ([`CUDSS_R_64F`](https://docs.nvidia.com/cuda/cudss/1.0.0/types.html#cudadatatype-t "CUDSS_R_64F")). Suggested for use with extremely sparse matrices.
     pub const CUDSS_FACTORIZATION_ALG_MULTIBLOCK: cudssFactorizationAlg_t = cudssFactorizationAlg_t(
         1,
     );
@@ -1462,9 +1890,11 @@ impl cudssMatchingAlg_t {
     /// Same as [`cudssMatchingAlg_t::CUDSS_MATCHING_ALG_MAX_DIAG_PRODUCT`] (the most robust option). Matching with scaling; requires matrix values during analysis.
     pub const CUDSS_MATCHING_ALG_AUTO: cudssMatchingAlg_t = cudssMatchingAlg_t(6);
 }
-/// The enumerator specifies the matching (column permutation) algorithm.
+/// The enumerator specifies the matching algorithm.
 ///
 /// Used with [`cudssConfigParam_t::CUDSS_CONFIG_MATCHING_ALG`]. Except for [`cudssMatchingAlg_t::CUDSS_MATCHING_ALG_NONE`] and [`cudssMatchingAlg_t::CUDSS_MATCHING_ALG_AUTO`], all options are based on the MC64 algorithm (HSL).
+///
+/// For matrix types other than [`cudssMatrixType_t::CUDSS_MTYPE_GENERAL`] ([`cudssMatrixType_t::CUDSS_MTYPE_SYMMETRIC`], [`cudssMatrixType_t::CUDSS_MTYPE_HERMITIAN`], [`cudssMatrixType_t::CUDSS_MTYPE_SPD`], [`cudssMatrixType_t::CUDSS_MTYPE_HPD`]), matching preserves symmetry by default.
 #[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
 pub struct cudssMatchingAlg_t(pub ::core::ffi::c_uint);
@@ -1472,12 +1902,33 @@ impl cudssPivotType_t {
     /// Automatic pivoting strategy \[default\]. Automatically selects the appropriate
     /// pivot type based on the reordering algorithm and matrix type:
     ///
-    /// * For [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_NESTED_DISSECTION`] and [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_AMD`]:
+    /// * For [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_NESTED_DISSECTION`],
+    ///   [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_AMD`], and
+    ///   [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_NONE`]:
     ///
-    ///   + Symmetric/Hermitian indefinite matrices: Uses [`cudssPivotType_t::CUDSS_PIVOT_DIAGONAL`]
+    ///   + Symmetric/Hermitian indefinite matrices: Uses [`cudssPivotType_t::CUDSS_PIVOT_BUNCH_KAUFMAN`]
+    /// ```text
+    /// whenever it is supported for the requested configuration (see below); otherwise
+    /// falls back to [`cudssPivotType_t::CUDSS_PIVOT_DIAGONAL`]
+    /// ```
     ///   + General matrices: Uses [`cudssPivotType_t::CUDSS_PIVOT_LOCAL_BLOCK`]
+    ///   + SPD/HPD matrices: Uses [`cudssPivotType_t::CUDSS_PIVOT_DIAGONAL`] (numerical pivoting is
+    /// effectively disabled, since the matrix type indicates no pivoting is needed)
     /// * For [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_BTF_COLAMD`] and [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_COLAMD`]:
-    ///   Uses [`cudssPivotType_t::CUDSS_PIVOT_GLOBAL_COL`].
+    ///   Uses [`cudssPivotType_t::CUDSS_PIVOT_GLOBAL_COL`]
+    ///
+    /// Unlike an explicit [`cudssPivotType_t::CUDSS_PIVOT_BUNCH_KAUFMAN`] request, AUTO never fails
+    /// due to a rejected combination in Symmetric/Hermitian indefinite matrices: it falls back to
+    /// [`cudssPivotType_t::CUDSS_PIVOT_DIAGONAL`] instead of selecting
+    /// [`cudssPivotType_t::CUDSS_PIVOT_BUNCH_KAUFMAN`] whenever the requested configuration
+    /// includes batching ([`cudssDataParam_t::CUDSS_DATA_NSUPERPANELS`]-style non-uniform batching,
+    /// or uniform batching combined with [`cudssConfigParam_t::CUDSS_CONFIG_HYBRID_MEMORY_MODE`]/
+    /// [`cudssConfigParam_t::CUDSS_CONFIG_HYBRID_EXECUTE_MODE`]), an explicitly requested matching
+    /// algorithm that would not use the Bunch-Kaufman symmetry-preserving matching path (see
+    /// [`cudssPivotType_t::CUDSS_PIVOT_BUNCH_KAUFMAN`]), or
+    /// [`cudssConfigParam_t::CUDSS_CONFIG_DETERMINISTIC_MODE`]/[`cudssConfigParam_t::CUDSS_CONFIG_EMULATION_MANTISSA_BIT_COUNT`]
+    /// combined with superpanels enabled. See [`cudssPivotType_t::CUDSS_PIVOT_BUNCH_KAUFMAN`] for the
+    /// full list of restrictions that still apply when it is requested explicitly.
     pub const CUDSS_PIVOT_AUTO: cudssPivotType_t = cudssPivotType_t(0);
     /// No pivoting. Used only with reordering algorithms
     /// [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_NESTED_DISSECTION`] and
@@ -1503,7 +1954,53 @@ impl cudssPivotType_t {
     /// For general matrices, searches for pivot elements within the entire
     /// diagonal block of the supernode.
     pub const CUDSS_PIVOT_LOCAL_BLOCK: cudssPivotType_t = cudssPivotType_t(5);
-    /// Bunch-Kaufman pivoting. Reserved for future use. Currently not supported.
+    /// Bunch-Kaufman pivoting for symmetric/Hermitian indefinite matrices. Unlike
+    /// [`cudssPivotType_t::CUDSS_PIVOT_DIAGONAL`], which only searches the diagonal and perturbs
+    /// tiny pivots, Bunch-Kaufman additionally forms stable 2x2 diagonal pivot blocks, which
+    /// improves accuracy on indefinite matrices where a 1x1 diagonal pivot would be unstable.
+    /// The 1x1-vs-2x2 selection threshold is controlled by
+    /// [`cudssConfigParam_t::CUDSS_CONFIG_PIVOT_THRESHOLD`] (see its description).
+    ///
+    /// Solves using this pivoting strategy are synchronous and cannot be stream-captured.
+    ///
+    /// At each numerical pivot step, Bunch-Kaufman applies this test inside the current local
+    /// active block. For pivot position $j$, let
+    /// $\lambda = \max_{i>j} |a_{ij}|$, and let $r$ be the row where that maximum
+    /// is attained. If $|a_{jj}| \ge \alpha \lambda$, cuDSS uses a 1x1 pivot at
+    /// $j$. Otherwise it computes $\sigma = \max_{k \ge j, k \ne r} |a_{rk}|$.
+    /// If $|a_{jj}| \sigma \ge \alpha \lambda^2$, cuDSS again uses a 1x1 pivot at
+    /// $j$; else if $|a_{rr}| \ge \alpha \sigma$, it interchanges $r$
+    /// with $j$ and uses a 1x1 pivot. In the remaining case, it interchanges
+    /// $r$ next to $j$ and forms a 2x2 pivot block.
+    ///
+    /// The number of perturbed 1x1 pivots can be queried after factorization via
+    /// [`cudssDataParam_t::CUDSS_DATA_NPIVOTS`].
+    ///
+    /// The following combinations are currently rejected with
+    /// [`cudssStatus_t::CUDSS_STATUS_NOT_SUPPORTED`]:
+    ///
+    /// * matrix types other than [`cudssMatrixType_t::CUDSS_MTYPE_SYMMETRIC`] and
+    ///   [`cudssMatrixType_t::CUDSS_MTYPE_HERMITIAN`];
+    /// * reordering algorithms other than
+    ///   [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_NESTED_DISSECTION`],
+    ///   [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_AMD`] (MetisND and AMD), or
+    ///   [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_NONE`];
+    /// * non-uniform batches;
+    /// * hybrid memory or hybrid execute mode with
+    ///   [`cudssConfigParam_t::CUDSS_CONFIG_UBATCH_SIZE`] greater than 1;
+    /// * deterministic mode when superpanels are formed;
+    /// * fp64 emulation ([`cudssConfigParam_t::CUDSS_CONFIG_EMULATION_MANTISSA_BIT_COUNT`] > 0)
+    ///   when superpanels are formed.
+    ///
+    /// Hybrid execute mode disables superpanel creation, so a request that combines hybrid execute
+    /// mode and [`cudssConfigParam_t::CUDSS_CONFIG_USE_SUPERPANELS`] is not rejected by the superpanel
+    /// restriction unless [`cudssConfigParam_t::CUDSS_CONFIG_UBATCH_SIZE`] is greater than 1.
+    /// Bunch-Kaufman supports all placements supported by hybrid execute mode.
+    ///
+    /// When matching is enabled, Bunch-Kaufman additionally requires symmetry-preserving
+    /// matching, [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_NESTED_DISSECTION`], a single process,
+    /// and no user permutation or user nested-dissection partition tree. A single process
+    /// may use multiple GPUs.
     pub const CUDSS_PIVOT_BUNCH_KAUFMAN: cudssPivotType_t = cudssPivotType_t(6);
 }
 /// The enumerator specifies the pivoting strategy for numerical factorization.
@@ -1519,7 +2016,7 @@ impl cudssMatrixFormat_t {
     pub const CUDSS_MFORMAT_CSR: cudssMatrixFormat_t = cudssMatrixFormat_t(2);
     /// Matrix object represents a batch of matrices.
     pub const CUDSS_MFORMAT_BATCH: cudssMatrixFormat_t = cudssMatrixFormat_t(4);
-    /// > Matrix object represents a distributed matrix (used in [MGMN mode](https://docs.nvidia.com/cuda/cudss/advanced_features.html#multi-gpu-multi-node-mgmn-mode))
+    /// > Matrix object represents a distributed matrix (used in [MGMN mode](https://docs.nvidia.com/cuda/cudss/1.0.0/advanced_features.html#multi-gpu-multi-node-mgmn-mode))
     ///
     /// Note: The format flags can be combined. E.g., creating a [`cudssMatrix_t`]
     /// via [`cudssMatrixCreateBatchCsr`] would set both
@@ -1594,17 +2091,66 @@ impl Default for cudssDeviceMemHandler_t {
         }
     }
 }
-/// The structure represents an extended-precision (double-double) floating-point value corresponding to [`cudssDataType_t::CUDSS_R_64F_64F`].
+/// This structure holds information about the user-provided pinned (page-locked) host memory pool (mempool).
 ///
-/// The value is stored as the unevaluated sum of two `double` components `hi + lo` and must be 16-byte aligned.
+/// It mirrors [`cudssDeviceMemHandler_t`], but for pinned host memory.
+///
+/// The object can be created by setting the struct members described below.
+///
+/// Once created, a pinned host memory handler can be set for the cuDSS library handle via [`cudssSetPinnedMemHandler`].
+///
+/// Once set for the cuDSS library handle, information about the set pinned host memory handler can be retrieved via [`cudssGetPinnedMemHandler`].
+///
+/// `char name\[CUDSS_ALLOCATOR_NAME_LEN\]`
+///
+/// The name of the provided mempool (must not exceed 64 characters).
 #[repr(C)]
-#[repr(align(16))]
-#[derive(Debug, Default, Copy, Clone, PartialOrd, PartialEq)]
-pub struct cudss_fp64mp2_t {
-    /// High-order part of the extended-precision value.
-    pub hi: f64,
-    /// Low-order part of the extended-precision value.
-    pub lo: f64,
+#[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct cudssPinnedMemHandler_t {
+    /// A pointer to the user-owned mempool/context object.
+    ///
+    /// Any allocation properties (for example, the flags passed to `cudaHostAlloc()` / `cudaHostRegister()`, or a huge-page / parallel pre-fault policy) are carried by `ctx` and are thus fixed for a given handler instance. The allocation routine may still dispatch internally based on `size` (for example, a registered huge-page path for large requests versus a `cudaHostAlloc()` path for small ones).
+    pub ctx: *mut ::core::ffi::c_void,
+    /// A function pointer to the user-provided routine for allocating pinned host memory of `size` bytes.
+    ///
+    /// The stream is the CUDA stream the data object is bound to (see [`cudssSetStream`]). Synchronous host allocators may ignore it; stream-aware allocators may use it to establish ordering with work enqueued by cuDSS.
+    ///
+    /// This routine must return pinned host memory, for example from `cudaHostAlloc()` or from ordinary host memory that this routine registers with `cudaHostRegister()` before returning. cuDSS treats the returned pointer as already pinned and does not call `cudaHostRegister()`/`cudaHostUnregister()` for it; it only tracks the buffer internally so the same `size` value can be passed back to `pinned_free`.
+    ///
+    /// If the allocator uses a threading runtime internally for parallel pre-faulting before `cudaHostRegister()`, make sure it is compatible with any threading runtime used by a cuDSS threading layer in the same process.
+    pub pinned_alloc: ::core::option::Option<
+        unsafe extern "C" fn(
+            ctx: *mut ::core::ffi::c_void,
+            ptr: *mut *mut ::core::ffi::c_void,
+            size: size_t,
+            stream: cudaStream_t,
+        ) -> ::core::ffi::c_int,
+    >,
+    /// A function pointer to the user-provided routine for deallocating the pinned host memory of `size` bytes pointed to by `ptr`.
+    ///
+    /// The `size` argument is the same value that was passed to `pinned_alloc()`, which makes size-aware releases (for example, `cudaHostUnregister()` followed by `munmap()`) possible.
+    ///
+    /// If the arguments `ctx` and `size` are not the same as those passed to `pinned_alloc` to allocate the memory pointed to by `ptr`, the behavior is undefined.
+    ///
+    /// The argument `stream` need not be identical to the one used for allocating `ptr`, as long as the stream order is correctly established. The behavior is undefined if this assumption is not held.
+    pub pinned_free: ::core::option::Option<
+        unsafe extern "C" fn(
+            ctx: *mut ::core::ffi::c_void,
+            ptr: *mut ::core::ffi::c_void,
+            size: size_t,
+            stream: cudaStream_t,
+        ) -> ::core::ffi::c_int,
+    >,
+    pub name: [::core::ffi::c_char; 64usize],
+}
+impl Default for cudssPinnedMemHandler_t {
+    fn default() -> Self {
+        let mut s = ::core::mem::MaybeUninit::<Self>::uninit();
+        unsafe {
+            ::core::ptr::write_bytes(s.as_mut_ptr(), 0, 1);
+            s.assume_init()
+        }
+    }
 }
 impl cudssOpType_t {
     /// Reduced elements are added together.
@@ -1616,13 +2162,15 @@ impl cudssOpType_t {
 }
 /// The enumerator specifies reduction operation to be used when calling
 ///
-/// communication layer APIs `cudssReduce()` or `cudssAllreduce()`.
+/// communication layer APIs `cudssReduceDevice()`, `cudssReduceHost()`,
+///
+/// `cudssAllreduceDevice()` or `cudssAllreduceHost()`.
 #[repr(transparent)]
 #[derive(Debug, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
 pub struct cudssOpType_t(pub ::core::ffi::c_uint);
 /// This struct defines all communication primitives which need to be implemented
 /// in (any) implementation of cuDSS communication layer, see for more details
-/// [communication layer](https://docs.nvidia.com/cuda/cudss/advanced_features.html#communication-layer-library-in-cudss) and [MGMN mode](https://docs.nvidia.com/cuda/cudss/advanced_features.html#multi-gpu-multi-node-mgmn-mode).
+/// [communication layer](https://docs.nvidia.com/cuda/cudss/1.0.0/advanced_features.html#communication-layer-library-in-cudss) and [MGMN mode](https://docs.nvidia.com/cuda/cudss/1.0.0/advanced_features.html#multi-gpu-multi-node-mgmn-mode).
 ///
 /// **Dual-backend structure**: Each communication primitive must be implemented **twice** —
 /// once for device (GPU) memory buffers (function pointer name ending in `Device`) and once
@@ -1658,7 +2206,7 @@ pub struct cudssDistributedInterface_t {
         unsafe extern "C" fn(
             buffer: *const ::core::ffi::c_void,
             count: ::core::ffi::c_int,
-            datatype: cudssDataType_t,
+            datatype: cudaDataType_t,
             dest: ::core::ffi::c_int,
             tag: ::core::ffi::c_int,
             comm: *mut ::core::ffi::c_void,
@@ -1670,8 +2218,8 @@ pub struct cudssDistributedInterface_t {
         unsafe extern "C" fn(
             buffer: *mut ::core::ffi::c_void,
             count: ::core::ffi::c_int,
-            datatype: cudssDataType_t,
-            root: ::core::ffi::c_int,
+            datatype: cudaDataType_t,
+            source: ::core::ffi::c_int,
             tag: ::core::ffi::c_int,
             comm: *mut ::core::ffi::c_void,
             stream: cudaStream_t,
@@ -1684,19 +2232,19 @@ pub struct cudssDistributedInterface_t {
         unsafe extern "C" fn(
             buffer: *mut ::core::ffi::c_void,
             count: ::core::ffi::c_int,
-            datatype: cudssDataType_t,
+            datatype: cudaDataType_t,
             root: ::core::ffi::c_int,
             comm: *mut ::core::ffi::c_void,
             stream: cudaStream_t,
         ) -> ::core::ffi::c_int,
     >,
-    /// Function pointers to a routine which performs a reduction to a single value on the root process.
+    /// Function pointers to a routine which performs a reduction and stores the result on the `root` process.
     pub cudssReduceDevice: ::core::option::Option<
         unsafe extern "C" fn(
             sendbuf: *const ::core::ffi::c_void,
             recvbuf: *mut ::core::ffi::c_void,
             count: ::core::ffi::c_int,
-            datatype: cudssDataType_t,
+            datatype: cudaDataType_t,
             op: cudssOpType_t,
             root: ::core::ffi::c_int,
             comm: *mut ::core::ffi::c_void,
@@ -1709,7 +2257,7 @@ pub struct cudssDistributedInterface_t {
             sendbuf: *const ::core::ffi::c_void,
             recvbuf: *mut ::core::ffi::c_void,
             count: ::core::ffi::c_int,
-            datatype: cudssDataType_t,
+            datatype: cudaDataType_t,
             op: cudssOpType_t,
             comm: *mut ::core::ffi::c_void,
             stream: cudaStream_t,
@@ -1721,10 +2269,10 @@ pub struct cudssDistributedInterface_t {
             sendbuf: *const ::core::ffi::c_void,
             sendcounts: *const ::core::ffi::c_int,
             displs: *const ::core::ffi::c_int,
-            sendtype: cudssDataType_t,
+            sendtype: cudaDataType_t,
             recvbuf: *mut ::core::ffi::c_void,
             recvcount: ::core::ffi::c_int,
-            recvtype: cudssDataType_t,
+            recvtype: cudaDataType_t,
             root: ::core::ffi::c_int,
             comm: *mut ::core::ffi::c_void,
             stream: cudaStream_t,
@@ -1762,7 +2310,7 @@ pub struct cudssDistributedInterface_t {
         unsafe extern "C" fn(
             buffer: *const ::core::ffi::c_void,
             count: ::core::ffi::c_int,
-            datatype: cudssDataType_t,
+            datatype: cudaDataType_t,
             dest: ::core::ffi::c_int,
             tag: ::core::ffi::c_int,
             comm: *mut ::core::ffi::c_void,
@@ -1774,8 +2322,8 @@ pub struct cudssDistributedInterface_t {
         unsafe extern "C" fn(
             buffer: *mut ::core::ffi::c_void,
             count: ::core::ffi::c_int,
-            datatype: cudssDataType_t,
-            root: ::core::ffi::c_int,
+            datatype: cudaDataType_t,
+            source: ::core::ffi::c_int,
             tag: ::core::ffi::c_int,
             comm: *mut ::core::ffi::c_void,
             stream: cudaStream_t,
@@ -1786,7 +2334,7 @@ pub struct cudssDistributedInterface_t {
         unsafe extern "C" fn(
             buffer: *mut ::core::ffi::c_void,
             count: ::core::ffi::c_int,
-            datatype: cudssDataType_t,
+            datatype: cudaDataType_t,
             root: ::core::ffi::c_int,
             comm: *mut ::core::ffi::c_void,
             stream: cudaStream_t,
@@ -1798,7 +2346,7 @@ pub struct cudssDistributedInterface_t {
             sendbuf: *const ::core::ffi::c_void,
             recvbuf: *mut ::core::ffi::c_void,
             count: ::core::ffi::c_int,
-            datatype: cudssDataType_t,
+            datatype: cudaDataType_t,
             op: cudssOpType_t,
             root: ::core::ffi::c_int,
             comm: *mut ::core::ffi::c_void,
@@ -1811,7 +2359,7 @@ pub struct cudssDistributedInterface_t {
             sendbuf: *const ::core::ffi::c_void,
             recvbuf: *mut ::core::ffi::c_void,
             count: ::core::ffi::c_int,
-            datatype: cudssDataType_t,
+            datatype: cudaDataType_t,
             op: cudssOpType_t,
             comm: *mut ::core::ffi::c_void,
             stream: cudaStream_t,
@@ -1823,10 +2371,10 @@ pub struct cudssDistributedInterface_t {
             sendbuf: *const ::core::ffi::c_void,
             sendcounts: *const ::core::ffi::c_int,
             displs: *const ::core::ffi::c_int,
-            sendtype: cudssDataType_t,
+            sendtype: cudaDataType_t,
             recvbuf: *mut ::core::ffi::c_void,
             recvcount: ::core::ffi::c_int,
-            recvtype: cudssDataType_t,
+            recvtype: cudaDataType_t,
             root: ::core::ffi::c_int,
             comm: *mut ::core::ffi::c_void,
             stream: cudaStream_t,
@@ -1863,7 +2411,7 @@ pub type cudss_thr_func_t = ::core::option::Option<
 ///
 /// in (any) implementation of cuDSS threading layer, see for more details
 ///
-/// [threading layer](https://docs.nvidia.com/cuda/cudss/advanced_features.html#threading-layer-library-in-cudss) and [MT mode](https://docs.nvidia.com/cuda/cudss/advanced_features.html#multi-threaded-mt-mode).
+/// [threading layer](https://docs.nvidia.com/cuda/cudss/1.0.0/advanced_features.html#threading-layer-library-in-cudss) and [MT mode](https://docs.nvidia.com/cuda/cudss/1.0.0/advanced_features.html#multi-threaded-mt-mode).
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
 pub struct cudssThreadingInterface_t {
@@ -1969,6 +2517,11 @@ singe_loader::functions! { crate::LIBRARY;
 singe_loader::functions! { crate::LIBRARY;
     /// The function executes a phase of the solution process. Prior to calling [`cudssExecute`],
     /// all objects passed as parameters must already be created and properly initialized.
+    /// For multi-GPU execution, the calling CUDA device is unchanged.
+    ///
+    /// After this function returns [`cudssStatus_t::CUDSS_STATUS_ALLOC_FAILED`] or
+    /// [`cudssStatus_t::CUDSS_STATUS_INTERNAL_ERROR`], do not call it again with the same data object.
+    /// Memory estimates may still be queried; destroy and recreate the data object before retrying.
     ///
     /// The simplest possible solution process consists of three main phases,
     /// analysis, factorization, and solve, following one another. During the analysis phase, reordering and symbolic factorization
@@ -1984,6 +2537,10 @@ singe_loader::functions! { crate::LIBRARY;
     /// -> [`cudssPhase_t::CUDSS_PHASE_SOLVE`].
     /// The optional refactorization is usually skipped before the first solve.
     /// Re-using the analysis results is supported. Users can change matrix values and only need to run the (re-)factorization and solve phases.
+    /// This is not available when [`cudssMemoryOptimizationFlags_t::CUDSS_MEMORY_OPTIMIZATION_SOLVE_ONLY`] was set in
+    /// [`cudssConfigParam_t::CUDSS_CONFIG_MEMORY_OPTIMIZATION_SETTING`] for the preceding factorization: that releases state which a
+    /// further factorization needs, and [`cudssExecute`] then returns [`cudssStatus_t::CUDSS_STATUS_NOT_SUPPORTED`] until
+    /// [`cudssPhase_t::CUDSS_PHASE_ANALYSIS`] is run again.
     ///
     /// Note: Combining phases is supported as long as the order is followed. As an example, combining
     /// [`cudssPhase_t::CUDSS_PHASE_REORDERING`] | [`cudssPhase_t::CUDSS_PHASE_SOLVE`] will result in an error, while [`cudssPhase_t::CUDSS_PHASE_ANALYSIS`] | [`cudssPhase_t::CUDSS_PHASE_FACTORIZATION`] is
@@ -1996,9 +2553,14 @@ singe_loader::functions! { crate::LIBRARY;
     /// > solution process via [`cudssConfigSet`], or
     /// > [`cudssDataGet`], respectively.
     ///
-    /// The data buffers in the matrix objects for the input matrix, solution and right-hand side matrices must hold device-visible data,
-    /// unless the [hybrid host/device execution mode](https://docs.nvidia.com/cuda/cudss/advanced_features.html#hybrid-host-device-execute-mode) is enabled.
-    /// For the hybrid execute mode, matrix, solution or right-hand side can be passed with host memory pointers.
+    /// The matrix creation and setter routines only store the data pointers and do not check where the data resides.
+    /// [`cudssExecute`] determines the location of the arrays for which host memory is allowed; pageable, pinned
+    /// and managed memory are all treated as host memory. The allowed memory locations are:
+    ///
+    /// | Matrix data | Non-batch matrix | Batch of matrices |
+    /// | --- | --- | --- |
+    /// | Input sparse matrix (CSR): `rowStart`, `rowEnd`, `colIndices`, `values` | Device or host memory, independently for each array, in all execution modes. Device memory only with [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_BTF_COLAMD`] or [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_COLAMD`] reordering, or with uniform batch options enabled. | Device memory only, both for the pointer arrays and for the arrays they point to. |
+    /// | Right-hand side and solution (dense): `values` | Device memory. Host memory only in the [hybrid execute mode](https://docs.nvidia.com/cuda/cudss/1.0.0/advanced_features.html#hybrid-host-device-execute-mode), for single-process runs (not [MGMN](https://docs.nvidia.com/cuda/cudss/1.0.0/advanced_features.html#multi-gpu-multi-node-mgmn-mode)) with `nrhs` = 1. | Device memory only, both for the pointer arrays and for the arrays they point to. |
     ///
     /// Note: The function has the following limitations on the [`cudssMatrix_t`] objects which can be used as call arguments,
     /// in addition to the limitations of the corresponding matrix creation routines (e.g., [`cudssMatrixCreateCsr`]):
@@ -2012,10 +2574,17 @@ singe_loader::functions! { crate::LIBRARY;
     /// * The input sparse matrix may change for the SOLVE phase (except when hybrid execution mode is used) but for distributed matrices, the range of rows (row distribution)
     ///   must remain the same.
     /// * The input sparse matrix, right hand side and solution must have the same datatypes for values and indices (if applicable).
+    /// * During reordering and symbolic factorization, supplied right-hand side and solution
+    ///   descriptors are used for memory estimates and must already have valid shapes. For a
+    ///   non-uniform batch, its count must match the system-matrix batch; the right-hand side
+    ///   column-count and both leading-dimension arrays must be present and contain nonnegative
+    ///   values. Supplied non-batch leading dimensions must be valid for their matrix shapes. The
+    ///   descriptors remain optional during analysis; omitted descriptors use the default estimate
+    ///   for one right-hand side.
     /// * For the non-uniform input batches, batches with varying shapes are supported. E.g., `nrows`, `ncols`, `nnz` can be different for each batch instance.
-    ///   However, the aggregate number of rows and non-zeroes must not exceed the `INT_MAX` limit.
+    ///   However, the aggregate number of rows and non-zeroes must be less than `INT_MAX`.
     /// * In MGMN mode all processes must have valid global `nrows`, `ncols`, `nnz` data for sparse matrices and
-    ///   valid global `nrows`, `ncols` and local `ld` for the dense matrices. In the batch case, all processes must additionally have a valid `batchCount`.
+    ///   valid global `nrows`, `ncols` and local `ld` for the dense matrices. MGMN and MG modes do not support matrix batches.
     /// * If [`cudssMatrixSetDistributionRow1d`] is not used then in MGMN mode full matrix data
     ///   (for the system’s matrix, solution and right-hand side) must be present on the root process, i.e. process with
     ///   `rank` = 0 in the provided communicator. The other processes may have the data pointers set to `NULL`.
@@ -2031,13 +2600,16 @@ singe_loader::functions! { crate::LIBRARY;
     ///
     /// - `handle`: \[host\] cuDSS library handle.
     /// - `phase`: \[host\] Execution phase(s).
+    /// - `config`: \[host\] Solver config object.
+    /// - `data`: \[host\] Solver data object.
+    /// - `inputMatrix`: \[host\] Input sparse matrix.
     /// - `solution`: \[host\] Solution matrix.
     /// - `rhs`: \[host\] Right-hand side matrix.
     pub fn cudssExecute(
         handle: cudssHandle_t,
         phase: ::core::ffi::c_int,
-        solverConfig: cudssConfig_t,
-        solverData: cudssData_t,
+        config: cudssConfig_t,
+        data: cudssData_t,
         inputMatrix: cudssMatrix_t,
         solution: cudssMatrix_t,
         rhs: cudssMatrix_t,
@@ -2045,6 +2617,17 @@ singe_loader::functions! { crate::LIBRARY;
 }
 singe_loader::functions! { crate::LIBRARY;
     /// The function sets the stream to be used by the cuDSS library to execute its routines.
+    ///
+    /// **Note:** A [`cudssData_t`] object is bound to the stream in effect when
+    /// [`cudssPhase_t::CUDSS_PHASE_ANALYSIS`] (or its sub-phases [`cudssPhase_t::CUDSS_PHASE_REORDERING`]
+    /// and [`cudssPhase_t::CUDSS_PHASE_SYMBOLIC_FACTORIZATION`]) is executed; all later phases of that
+    /// object run on that stream. For a single-GPU handle, a stream set with [`cudssSetStream`]
+    /// after analysis takes effect only when the analysis phase is executed again. For multi-GPU
+    /// handles see [`cudssSetMgStreams`].
+    ///
+    /// **Note:** In the multi-GPU (MG) mode, in case the application needs to set non-default streams
+    /// for cuDSS on each of the devices, there is another function [`cudssSetMgStreams`] specifically
+    /// for this purpose.
     ///
     /// # Parameters
     ///
@@ -2060,6 +2643,10 @@ singe_loader::functions! { crate::LIBRARY;
     /// Specifically, `streams\[i\]` will be used for operations on `device_indices\[i\]`.
     ///
     /// The `stream_count` parameter must match the `device_count` used in [`cudssCreateMg`].
+    ///
+    /// **Note:** Call this function before the first [`cudssExecute`] with a given
+    /// [`cudssData_t`]. A data object binds the per-device streams at its first execution and
+    /// keeps using them; streams set afterwards are not used by that object.
     ///
     /// **Note:** User is responsible for creating and destroying these streams. The streams must remain valid
     /// for the lifetime of the cuDSS handle. cuDSS will not destroy user-provided streams.
@@ -2079,7 +2666,7 @@ singe_loader::functions! { crate::LIBRARY;
     ) -> cudssStatus_t;
 }
 singe_loader::functions! { crate::LIBRARY;
-    /// The function sets the communication layer to be used in [MGMN mode](https://docs.nvidia.com/cuda/cudss/advanced_features.html#multi-gpu-multi-node-mgmn-mode)
+    /// The function sets the communication layer to be used in [MGMN mode](https://docs.nvidia.com/cuda/cudss/1.0.0/advanced_features.html#multi-gpu-multi-node-mgmn-mode)
     ///
     /// of cuDSS. The set communication layer will be used for all MGMN mode operations where the
     ///
@@ -2093,30 +2680,48 @@ singe_loader::functions! { crate::LIBRARY;
     ///
     /// For more details of when and how this function should be used, see
     ///
-    /// [MGMN mode](https://docs.nvidia.com/cuda/cudss/advanced_features.html#multi-gpu-multi-node-mgmn-mode).
+    /// [MGMN mode](https://docs.nvidia.com/cuda/cudss/1.0.0/advanced_features.html#multi-gpu-multi-node-mgmn-mode).
     ///
     /// # Parameters
     ///
     /// - `handle`: \[host\] cuDSS library handle.
-    /// - `commLibFileName`: \[host\] Library name or path (resolved by the platform dynamic loader, e.g. `dlopen` / `LoadLibrary`). If NULL, the name is read from [CUDSS_COMM_LIB](https://docs.nvidia.com/cuda/cudss/advanced_features.html#multi-gpu-multi-node-mgmn-mode).
+    /// - `commLibFileName`: \[host\] Library name or path (resolved by the platform dynamic loader, e.g. `dlopen` / `LoadLibrary`). If NULL, the name is read from [CUDSS_COMM_LIB](https://docs.nvidia.com/cuda/cudss/1.0.0/advanced_features.html#multi-gpu-multi-node-mgmn-mode).
     pub fn cudssSetCommLayer(
         handle: cudssHandle_t,
         commLibFileName: *const ::core::ffi::c_char,
     ) -> cudssStatus_t;
 }
 singe_loader::functions! { crate::LIBRARY;
-    /// The function sets the threading layer to be used in [MT mode](https://docs.nvidia.com/cuda/cudss/advanced_features.html#multi-threaded-mt-mode)
+    /// The function sets the threading layer to be used in [MT mode](https://docs.nvidia.com/cuda/cudss/1.0.0/advanced_features.html#multi-threaded-mt-mode)
     /// of cuDSS. The set threading layer will be used for all MT mode operations where the
     /// modified library handle is involved.
-    /// For more details of when and how this function should be used, see [MT mode](https://docs.nvidia.com/cuda/cudss/advanced_features.html#multi-threaded-mt-mode).
+    /// For more details of when and how this function should be used, see [MT mode](https://docs.nvidia.com/cuda/cudss/1.0.0/advanced_features.html#multi-threaded-mt-mode).
     ///
     /// # Parameters
     ///
     /// - `handle`: \[host\] cuDSS library handle.
-    /// - `thrLibFileName`: \[host\] Library name or path (resolved by the platform dynamic loader, e.g. `dlopen` / `LoadLibrary`). If NULL, the name is read from [CUDSS_THREADING_LIB](https://docs.nvidia.com/cuda/cudss/advanced_features.html#multi-threaded-mt-mode).
+    /// - `thrLibFileName`: \[host\] Library name or path (resolved by the platform dynamic loader, e.g. `dlopen` / `LoadLibrary`). If NULL, the name is read from [CUDSS_THREADING_LIB](https://docs.nvidia.com/cuda/cudss/1.0.0/advanced_features.html#multi-threaded-mt-mode).
     pub fn cudssSetThreadingLayer(
         handle: cudssHandle_t,
         thrLibFileName: *const ::core::ffi::c_char,
+    ) -> cudssStatus_t;
+}
+singe_loader::functions! { crate::LIBRARY;
+    /// The function sets the directory of the on-disk cache for [runtime-compiled kernels](https://docs.nvidia.com/cuda/cudss/1.0.0/general.html#runtime-kernel-compilation)
+    /// for the given library handle, taking precedence over the `CUDSS_JIT_CACHE_DIR` environment variable.
+    /// It applies to the kernels compiled or loaded during the analysis phases executed with this handle
+    /// after the call. Compiled kernels are shared by all handles of a process: a kernel that another
+    /// handle already compiled or loaded is reused as is, and the directory set here is read when this
+    /// handle is the first to need a kernel and receives every kernel this handle uses.
+    /// Like the environment variable, the directory must be writable only by trusted users.
+    ///
+    /// # Parameters
+    ///
+    /// - `handle`: \[host\] cuDSS library handle.
+    /// - `cacheDir`: \[host\] Directory for the on-disk cache. If NULL, the directory is read from `CUDSS_JIT_CACHE_DIR` (the default, and the state before the first call). If empty, no on-disk cache is used regardless of the environment.
+    pub fn cudssSetJitCacheDir(
+        handle: cudssHandle_t,
+        cacheDir: *const ::core::ffi::c_char,
     ) -> cudssStatus_t;
 }
 singe_loader::functions! { crate::LIBRARY;
@@ -2125,11 +2730,19 @@ singe_loader::functions! { crate::LIBRARY;
     /// to solving a specific linear system. It allocates light resources on the host.
     ///
     /// To release the allocated memory, [`cudssConfigDestroy`] must be called.
-    pub fn cudssConfigCreate(solverConfig: *mut cudssConfig_t) -> cudssStatus_t;
+    ///
+    /// # Parameters
+    ///
+    /// - `config`: \[host\] cuDSS config object.
+    pub fn cudssConfigCreate(config: *mut cudssConfig_t) -> cudssStatus_t;
 }
 singe_loader::functions! { crate::LIBRARY;
-    /// The function releases the host resources used by the cuDSS config object. Using the config object after this function call can lead to undefined behavior.
-    pub fn cudssConfigDestroy(solverConfig: cudssConfig_t) -> cudssStatus_t;
+    /// The function releases the host resources used by the cuDSS config object. A valid config object is consumed once cleanup begins, including when cleanup reports an error. An invalid-argument return does not consume a valid config object.
+    ///
+    /// # Parameters
+    ///
+    /// - `config`: \[host\] cuDSS config object to be destroyed.
+    pub fn cudssConfigDestroy(config: cudssConfig_t) -> cudssStatus_t;
 }
 singe_loader::functions! { crate::LIBRARY;
     /// The function initializes the cuDSS data object ([`cudssData_t`]) which holds the internal data (e.g., LU factors arrays)
@@ -2139,25 +2752,25 @@ singe_loader::functions! { crate::LIBRARY;
     /// # Parameters
     ///
     /// - `handle`: \[host\] cuDSS library handle.
+    /// - `data`: \[host\] cuDSS data object.
     pub fn cudssDataCreate(
         handle: cudssHandle_t,
-        solverData: *mut cudssData_t,
+        data: *mut cudssData_t,
     ) -> cudssStatus_t;
 }
 singe_loader::functions! { crate::LIBRARY;
-    /// The function releases the hardware resources used by the cuDSS data object. Using the data object after this function call can lead to undefined behavior.
+    /// The function releases the hardware resources used by the cuDSS data object. A valid data object is consumed once cleanup begins, including when cleanup reports an error. An invalid-argument return does not consume a valid data object.
     ///
     /// # Parameters
     ///
     /// - `handle`: \[host\] cuDSS library handle.
-    pub fn cudssDataDestroy(
-        handle: cudssHandle_t,
-        solverData: cudssData_t,
-    ) -> cudssStatus_t;
+    /// - `data`: \[host\] cuDSS data object to be destroyed.
+    pub fn cudssDataDestroy(handle: cudssHandle_t, data: cudssData_t) -> cudssStatus_t;
 }
 singe_loader::functions! { crate::LIBRARY;
     /// The function initializes the cuDSS library handle ([`cudssHandle_t`]) which holds the cuDSS library context.
-    /// It allocates light hardware resources on the host, and must be called prior to making any other cuDSS library calls.
+    /// It allocates light hardware resources on the host, and must be called prior to making any other cuDSS library calls which take a [`cudssHandle_t`] argument.
+    /// cuDSS functions without a handle argument (e.g. [`cudssConfigCreate`], [`cudssMatrixCreateDn`], [`cudssGetProperty`] and the `cudssLogger*` functions) do not depend on a prior [`cudssCreate`] call.
     /// Calling any cuDSS function which uses [`cudssHandle_t`] without a previous call of [`cudssCreate`] will return an error.
     /// The cuDSS library context is tied to the current CUDA device. To use the library on multiple devices, one cuDSS handle should be created for each device.
     ///
@@ -2170,20 +2783,28 @@ singe_loader::functions! { crate::LIBRARY;
     /// The function initializes the cuDSS library handle ([`cudssHandle_t`]) which holds the cuDSS library context for multiple devices.
     /// Calling any cuDSS function which uses [`cudssHandle_t`] without a previous call of [`cudssCreateMg`] will return an error.
     /// The cuDSS library context is tied to the CUDA devices defined by `device_count` number and `device_indices` array.
-    /// If `device_indices` is `NULL`, cuDSS will take devices from `0` to `device_count - 1`.
-    /// The calling device index must be equal to the first device number from `device_indices` or `0` (if `device_indices` is `NULL`)
+    /// If `device_indices` is `NULL` and `device_count > 1`, cuDSS uses devices from `0` to `device_count - 1` and the calling device must be `0`.
+    /// If `device_indices` is `NULL` and `device_count == 1`, the handle is bound to the calling device.
+    /// If `device_indices` is not `NULL`, the calling device must equal `device_indices\[0\]`.
+    /// Device indices must be unique and in the range 0 to `cudaGetDeviceCount()` - 1.
     ///
-    /// Note: Same `device_count` and `device_indices` must be passed to [`cudssConfig_t`] object
-    /// by calling [`cudssConfigSet`] with [`cudssConfigParam_t::CUDSS_CONFIG_DEVICE_COUNT`] and [`cudssConfigParam_t::CUDSS_CONFIG_DEVICE_INDICES`].
+    /// Note: The same `device_count` and `device_indices` (including order) should be set on the
+    /// [`cudssConfig_t`] via [`cudssConfigParam_t::CUDSS_CONFIG_DEVICE_COUNT`] and
+    /// [`cudssConfigParam_t::CUDSS_CONFIG_DEVICE_INDICES`] (set `DEVICE_COUNT` first).
+    /// If neither of them is set, [`cudssExecute`] uses the handle topology.
+    /// For multi-GPU handles (`device_count > 1`), if either of them is set, the resulting
+    /// count and ordered indices must match the handle. Single-device handles do not enforce
+    /// this config-vs-handle match.
     ///
-    /// Limitations: Some of the features are not supported, see [MG mode](https://docs.nvidia.com/cuda/cudss/advanced_features.html#multi-gpu-mg-mode) for details.
+    /// Limitations: Some of the features are not supported, see [MG mode](https://docs.nvidia.com/cuda/cudss/1.0.0/advanced_features.html#multi-gpu-mg-mode) for details.
     ///
     /// # Parameters
     ///
+    /// - `handle`: \[host\] cuDSS library handle.
     /// - `device_count`: \[host\] Number of devices.
-    /// - `device_indices`: \[host\] Integer array of size `device_count` which stores device indices. If set to `NULL`, device indices from `0` to `device_count - 1` are used.
+    /// - `device_indices`: \[host\] Integer array of size `device_count` which stores unique device indices. If `NULL` with `device_count > 1`, devices `0` to `device_count - 1` are used; if `NULL` with `device_count == 1`, the calling device is used.
     pub fn cudssCreateMg(
-        handle_pt: *mut cudssHandle_t,
+        handle: *mut cudssHandle_t,
         device_count: ::core::ffi::c_int,
         device_indices: *const ::core::ffi::c_int,
     ) -> cudssStatus_t;
@@ -2192,6 +2813,8 @@ singe_loader::functions! { crate::LIBRARY;
     /// The function releases hardware resources used by the cuDSS library.
     /// This function is the last call with a particular handle to the cuDSS library.
     /// Calling any cuDSS function which uses [`cudssHandle_t`] after [`cudssDestroy`] will return an error.
+    /// A valid handle is consumed once cleanup begins, including when cleanup reports an error.
+    /// An invalid-argument return does not consume a valid handle.
     ///
     /// # Parameters
     ///
@@ -2215,7 +2838,9 @@ singe_loader::functions! { crate::LIBRARY;
 }
 singe_loader::functions! { crate::LIBRARY;
     /// The function creates a matrix object wrapped around dense matrix data.
-    /// The provided data buffer for the matrix values must hold device-visible data.
+    /// The provided data buffer for the matrix values must hold device-visible data, unless the
+    /// [hybrid host/device execution mode](https://docs.nvidia.com/cuda/cudss/1.0.0/advanced_features.html#hybrid-host-device-execute-mode) is enabled (single-process runs with `nrhs` = 1 only).
+    /// The function does not check where the data resides; see the [allowed memory locations](https://docs.nvidia.com/cuda/cudss/1.0.0/functions.html#cudssexecute) in [`cudssExecute`].
     ///
     /// Note: In MGMN mode all processes must have valid `nrows`, `ncols` and `ld`.
     ///
@@ -2227,7 +2852,7 @@ singe_loader::functions! { crate::LIBRARY;
     /// - `nrows`: \[host\] Number of rows.
     /// - `ncols`: \[host\] Number of columns.
     /// - `ld`: \[host\] Leading dimension.
-    /// - `values`: \[device/host\] Values of the dense matrix.
+    /// - `values`: \[device/host\] Values of the dense matrix (host memory only in the hybrid execute mode).
     /// - `valueType`: \[host\] Data type of the matrix.
     /// - `layout`: \[host\] Memory layout.
     pub fn cudssMatrixCreateDn(
@@ -2236,7 +2861,7 @@ singe_loader::functions! { crate::LIBRARY;
         ncols: i64,
         ld: i64,
         values: *const ::core::ffi::c_void,
-        valueType: cudssDataType_t,
+        valueType: cudaDataType_t,
         layout: cudssLayout_t,
     ) -> cudssStatus_t;
 }
@@ -2245,8 +2870,9 @@ singe_loader::functions! { crate::LIBRARY;
     /// The provided data buffers for `rowStart`, `rowEnd`, `colIndices` and `values` can hold either device or host memory pointers.
     /// Passing host memory pointers avoids redundant device-to-host data movements when the data resides on the host.
     ///
-    /// Note: host memory input for the input matrix is not supported when `batchCount` > 1, when uniform batch options are enabled,
+    /// Note: host memory input for the input matrix is not supported for a batch of matrices ([`cudssMatrixCreateBatchCsr`]), when uniform batch options are enabled,
     /// or when [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_BTF_COLAMD`] or [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_COLAMD`] is used for reordering.
+    /// The function does not check where the data resides; see the [allowed memory locations](https://docs.nvidia.com/cuda/cudss/1.0.0/functions.html#cudssexecute) in [`cudssExecute`].
     ///
     /// Note: creating a cudssMatrix_t with CSR format does not perform any data consistency checks and thus currently it is
     /// the caller’s responsibility to have data description parameters matching the data.
@@ -2259,8 +2885,8 @@ singe_loader::functions! { crate::LIBRARY;
     /// # Parameters
     ///
     /// - `matrix`: \[host\] Created matrix object.
-    /// - `nrows`: \[host\] Number of rows.
-    /// - `ncols`: \[host\] Number of columns.
+    /// - `nrows`: \[host\] Number of rows (must be less than $2^{31}$, regardless of `offsetType` and `indexType`).
+    /// - `ncols`: \[host\] Number of columns (must be less than $2^{31}$).
     /// - `nnz`: \[host\] Number of non-zeroes.
     /// - `rowStart`: \[device/host\] Row start offsets.
     /// - `rowEnd`: \[device/host\] Row end offsets.
@@ -2281,9 +2907,9 @@ singe_loader::functions! { crate::LIBRARY;
         rowEnd: *const ::core::ffi::c_void,
         colIndices: *const ::core::ffi::c_void,
         values: *const ::core::ffi::c_void,
-        offsetType: cudssDataType_t,
-        indexType: cudssDataType_t,
-        valueType: cudssDataType_t,
+        offsetType: cudaDataType_t,
+        indexType: cudaDataType_t,
+        valueType: cudaDataType_t,
         mtype: cudssMatrixType_t,
         mview: cudssMatrixViewType_t,
         indexBase: cudssIndexBase_t,
@@ -2295,7 +2921,10 @@ singe_loader::functions! { crate::LIBRARY;
     ///
     /// Note: cuDSS supports non-uniform batches with varying shapes, e.g `nrows`, `ncols`, `ld` can be different for each batch instance.
     ///
-    /// Note: MGMN mode does not support matrix batches.
+    /// The shape arrays are stored in the matrix descriptor. [`cudssExecute`] validates the
+    /// arrays when it uses the descriptor during reordering or symbolic factorization.
+    ///
+    /// Note: MGMN and MG modes do not support matrix batches.
     ///
     /// See more limitations for using [`cudssMatrix_t`] objects in the documentation for the main routine, [`cudssExecute`].
     ///
@@ -2317,8 +2946,8 @@ singe_loader::functions! { crate::LIBRARY;
         ncols: *const ::core::ffi::c_void,
         ld: *const ::core::ffi::c_void,
         values: *const *const ::core::ffi::c_void,
-        integerType: cudssDataType_t,
-        valueType: cudssDataType_t,
+        integerType: cudaDataType_t,
+        valueType: cudaDataType_t,
         layout: cudssLayout_t,
     ) -> cudssStatus_t;
 }
@@ -2331,15 +2960,17 @@ singe_loader::functions! { crate::LIBRARY;
     /// Note: creating a cudssMatrix_t with a batch of matrices in CSR format does not perform any data consistency checks and thus currently it is
     /// the caller’s responsibility to have data description parameters matching the data.
     ///
+    /// Note: MGMN and MG modes do not support matrix batches.
+    ///
     /// See more limitations for using [`cudssMatrix_t`] objects in the documentation for the main routine, [`cudssExecute`].
     ///
     /// # Parameters
     ///
     /// - `matrix`: \[host\] Created matrix object.
     /// - `batchCount`: \[host\] Size of the batch.
-    /// - `nrows`: \[host\] Number of rows for each matrix in the batch.
+    /// - `nrows`: \[host\] Number of rows for each matrix in the batch (the sum over the batch must be less than `INT_MAX`).
     /// - `ncols`: \[host\] Number of columns for each matrix in the batch.
-    /// - `nnz`: \[host\] Numbers of non-zeroes for each matrix in the batch.
+    /// - `nnz`: \[host\] Numbers of non-zeroes for each matrix in the batch (the sum over the batch must be less than `INT_MAX`).
     /// - `rowStart`: \[device\] Pointer to row start offsets for each matrix in the batch.
     /// - `rowEnd`: \[device\] Pointer to row end offsets for each matrix in the batch.
     /// - `colIndices`: \[device\] Pointer to column indices for each matrix in the batch.
@@ -2360,9 +2991,9 @@ singe_loader::functions! { crate::LIBRARY;
         rowEnd: *const *const ::core::ffi::c_void,
         colIndices: *const *const ::core::ffi::c_void,
         values: *const *const ::core::ffi::c_void,
-        offsetType: cudssDataType_t,
-        indexType: cudssDataType_t,
-        valueType: cudssDataType_t,
+        offsetType: cudaDataType_t,
+        indexType: cudaDataType_t,
+        valueType: cudaDataType_t,
         mtype: cudssMatrixType_t,
         mview: cudssMatrixViewType_t,
         indexBase: cudssIndexBase_t,
@@ -2370,7 +3001,7 @@ singe_loader::functions! { crate::LIBRARY;
 }
 singe_loader::functions! { crate::LIBRARY;
     /// The function releases memory associated with the matrix wrapper. As cuDSS matrix objects are only lightweight wrappers around the user data,
-    /// the user data remains untouched.
+    /// the user data remains untouched. A valid matrix object is consumed once cleanup begins, including when cleanup reports an error. An invalid-argument return does not consume a valid matrix object.
     ///
     /// # Parameters
     ///
@@ -2378,7 +3009,8 @@ singe_loader::functions! { crate::LIBRARY;
     pub fn cudssMatrixDestroy(matrix: cudssMatrix_t) -> cudssStatus_t;
 }
 singe_loader::functions! { crate::LIBRARY;
-    /// The function retrieves dense matrix properties and data from a cuDSS matrix object which holds a dense matrix.
+    /// The function retrieves dense matrix properties and the data pointer from a cuDSS matrix object which holds a dense matrix.
+    /// The `values` output returns the pointer stored in the matrix object; no matrix data is copied.
     /// If on input any of the pointers is NULL, it is ignored and the corresponding value is not returned.
     ///
     /// # Parameters
@@ -2387,7 +3019,8 @@ singe_loader::functions! { crate::LIBRARY;
     /// - `nrows`: \[host\] Buffer for the number of rows.
     /// - `ncols`: \[host\] Buffer for the number of columns.
     /// - `ld`: \[host\] Buffer for the leading dimension.
-    /// - `values`: \[device/host\] Buffer for the values of the matrix.
+    /// - `values`: \[device/host\] Pointer to the values of the matrix.
+    /// - `valueType`: \[host\] Buffer for the data type of the matrix.
     /// - `layout`: \[host\] Buffer for the memory layout.
     pub fn cudssMatrixGetDn(
         matrix: cudssMatrix_t,
@@ -2395,12 +3028,13 @@ singe_loader::functions! { crate::LIBRARY;
         ncols: *mut i64,
         ld: *mut i64,
         values: *mut *mut ::core::ffi::c_void,
-        type_: *mut cudssDataType_t,
+        valueType: *mut cudaDataType_t,
         layout: *mut cudssLayout_t,
     ) -> cudssStatus_t;
 }
 singe_loader::functions! { crate::LIBRARY;
-    /// The function retrieves sparse matrix properties and data from a cuDSS matrix object which holds a CSR sparse matrix.
+    /// The function retrieves sparse matrix properties and data pointers from a cuDSS matrix object which holds a CSR sparse matrix.
+    /// The `rowStart`, `rowEnd`, `colIndices` and `values` outputs return the pointers stored in the matrix object; no matrix data is copied.
     /// If on input any of the pointers is NULL, it is ignored and the corresponding value is not returned.
     ///
     /// # Parameters
@@ -2409,10 +3043,10 @@ singe_loader::functions! { crate::LIBRARY;
     /// - `nrows`: \[host\] Buffer for the number of rows.
     /// - `ncols`: \[host\] Buffer for the number of columns.
     /// - `nnz`: \[host\] Buffer for the number of non-zeroes.
-    /// - `rowStart`: \[device/host\] Buffer for the row start offsets.
-    /// - `rowEnd`: \[device/host\] Buffer for the row end offsets.
-    /// - `colIndices`: \[device/host\] Buffer for the column indices of the matrix.
-    /// - `values`: \[device/host\] Buffer for the values of the CSR matrix.
+    /// - `rowStart`: \[device/host\] Pointer to the row start offsets.
+    /// - `rowEnd`: \[device/host\] Pointer to the row end offsets.
+    /// - `colIndices`: \[device/host\] Pointer to the column indices of the matrix.
+    /// - `values`: \[device/host\] Pointer to the values of the CSR matrix.
     /// - `offsetType`: \[host\] Buffer for the offset type (`rowStart` and `rowEnd`) of the matrix.
     /// - `indexType`: \[host\] Buffer for the index type of the matrix.
     /// - `valueType`: \[host\] Buffer for the data type of the matrix.
@@ -2428,9 +3062,9 @@ singe_loader::functions! { crate::LIBRARY;
         rowEnd: *mut *mut ::core::ffi::c_void,
         colIndices: *mut *mut ::core::ffi::c_void,
         values: *mut *mut ::core::ffi::c_void,
-        offsetType: *mut cudssDataType_t,
-        indexType: *mut cudssDataType_t,
-        valueType: *mut cudssDataType_t,
+        offsetType: *mut cudaDataType_t,
+        indexType: *mut cudaDataType_t,
+        valueType: *mut cudaDataType_t,
         mtype: *mut cudssMatrixType_t,
         mview: *mut cudssMatrixViewType_t,
         indexBase: *mut cudssIndexBase_t,
@@ -2438,7 +3072,10 @@ singe_loader::functions! { crate::LIBRARY;
 }
 singe_loader::functions! { crate::LIBRARY;
     /// The function resets the pointer to values inside the cuDSS matrix object to the provided buffer.
-    /// The provided data buffer must hold device-visible data.
+    /// For a sparse (CSR) matrix object, the provided data buffer can hold either device or host memory pointers.
+    /// For a dense matrix object (right-hand side or solution), the provided data buffer must hold device-visible data,
+    /// unless the [hybrid host/device execution mode](https://docs.nvidia.com/cuda/cudss/1.0.0/advanced_features.html#hybrid-host-device-execute-mode) is enabled (single-process runs with `nrhs` = 1 only).
+    /// The function does not check where the data resides; see the [allowed memory locations](https://docs.nvidia.com/cuda/cudss/1.0.0/functions.html#cudssexecute) in [`cudssExecute`].
     ///
     /// # Parameters
     ///
@@ -2451,24 +3088,28 @@ singe_loader::functions! { crate::LIBRARY;
 }
 singe_loader::functions! { crate::LIBRARY;
     /// The function resets the CSR pointers inside the cuDSS matrix object to the provided buffers.
-    /// The provided data buffers must hold device-visible data.
+    /// The provided data buffers for `rowStart`, `rowEnd`, `colIndices` and `values` can hold either device or host
+    /// memory pointers, independently for each buffer.
+    /// See [`cudssMatrixCreateCsr`] for the cases where host memory input is not supported.
     ///
     /// # Parameters
     ///
     /// - `matrix`: \[host\] cuDSS matrix object.
+    /// - `rowStart`: \[device/host\] Buffer with the new row start offsets.
     /// - `rowEnd`: \[device/host\] Buffer with the new row end offsets.
     /// - `colIndices`: \[device/host\] Buffer with the new column indices.
     /// - `values`: \[device/host\] Buffer with the new matrix values.
     pub fn cudssMatrixSetCsrPointers(
         matrix: cudssMatrix_t,
-        rowOffsets: *const ::core::ffi::c_void,
+        rowStart: *const ::core::ffi::c_void,
         rowEnd: *const ::core::ffi::c_void,
         colIndices: *const ::core::ffi::c_void,
         values: *const ::core::ffi::c_void,
     ) -> cudssStatus_t;
 }
 singe_loader::functions! { crate::LIBRARY;
-    /// The function retrieves dense matrix properties and data from a cuDSS matrix object which holds a batch of dense matrices.
+    /// The function retrieves dense matrix properties and data pointers from a cuDSS matrix object which holds a batch of dense matrices.
+    /// The `nrows`, `ncols`, `ld` and `values` outputs return the pointers stored in the matrix object; no matrix data is copied.
     /// If on input any of the pointers is NULL, it is ignored and the corresponding value is not returned.
     ///
     /// # Parameters
@@ -2479,7 +3120,7 @@ singe_loader::functions! { crate::LIBRARY;
     /// - `ncols`: \[host\] Pointer to the number of columns for dense matrix in the batch.
     /// - `ld`: \[host\] Pointer to the leading dimension for each dense matrix in the batch.
     /// - `values`: \[device\] Pointer to the values of each dense matrix in the batch.
-    /// - `indexType`: \[host\] Buffer for the index type of the matrix.
+    /// - `integerType`: \[host\] Buffer for the integer type of the scalar arrays (nrows, ncols, ld).
     /// - `valueType`: \[host\] Buffer for the data type of the matrix.
     /// - `layout`: \[host\] Buffer for the memory layout.
     pub fn cudssMatrixGetBatchDn(
@@ -2489,13 +3130,14 @@ singe_loader::functions! { crate::LIBRARY;
         ncols: *mut *mut ::core::ffi::c_void,
         ld: *mut *mut ::core::ffi::c_void,
         values: *mut *mut *mut ::core::ffi::c_void,
-        indexType: *mut cudssDataType_t,
-        valueType: *mut cudssDataType_t,
+        integerType: *mut cudaDataType_t,
+        valueType: *mut cudaDataType_t,
         layout: *mut cudssLayout_t,
     ) -> cudssStatus_t;
 }
 singe_loader::functions! { crate::LIBRARY;
-    /// The function retrieves sparse matrix properties and data from a cuDSS matrix object which holds a batch of CSR sparse matrices.
+    /// The function retrieves sparse matrix properties and data pointers from a cuDSS matrix object which holds a batch of CSR sparse matrices.
+    /// The `nrows`, `ncols`, `nnz`, `rowStart`, `rowEnd`, `colIndices` and `values` outputs return the pointers stored in the matrix object; no matrix data is copied.
     /// If on input any of the pointers is NULL, it is ignored and the corresponding value is not returned.
     ///
     /// # Parameters
@@ -2525,9 +3167,9 @@ singe_loader::functions! { crate::LIBRARY;
         rowEnd: *mut *mut *mut ::core::ffi::c_void,
         colIndices: *mut *mut *mut ::core::ffi::c_void,
         values: *mut *mut *mut ::core::ffi::c_void,
-        offsetType: *mut cudssDataType_t,
-        indexType: *mut cudssDataType_t,
-        valueType: *mut cudssDataType_t,
+        offsetType: *mut cudaDataType_t,
+        indexType: *mut cudaDataType_t,
+        valueType: *mut cudaDataType_t,
         mtype: *mut cudssMatrixType_t,
         mview: *mut cudssMatrixViewType_t,
         indexBase: *mut cudssIndexBase_t,
@@ -2540,7 +3182,7 @@ singe_loader::functions! { crate::LIBRARY;
     /// # Parameters
     ///
     /// - `matrix`: \[host\] cuDSS matrix object.
-    /// - `values`: \[device/host\] Pointer to the new values for each dense matrix in the batch.
+    /// - `values`: \[device\] Pointer to the new values for each matrix in the batch.
     pub fn cudssMatrixSetBatchValues(
         matrix: cudssMatrix_t,
         values: *const *const ::core::ffi::c_void,
@@ -2553,12 +3195,13 @@ singe_loader::functions! { crate::LIBRARY;
     /// # Parameters
     ///
     /// - `matrix`: \[host\] cuDSS matrix object.
-    /// - `rowEnd`: \[device/host\] Pointer to the new row end offsets for each CSR matrix in the batch.
-    /// - `colIndices`: \[device/host\] Pointer to the new column indices for each CSR matrix in the batch.
-    /// - `values`: \[device/host\] Pointer to the new values for each CSR matrix in the batch.
+    /// - `rowStart`: \[device\] Pointer to the new row start offsets for each CSR matrix in the batch.
+    /// - `rowEnd`: \[device\] Pointer to the new row end offsets for each CSR matrix in the batch.
+    /// - `colIndices`: \[device\] Pointer to the new column indices for each CSR matrix in the batch.
+    /// - `values`: \[device\] Pointer to the new values for each CSR matrix in the batch.
     pub fn cudssMatrixSetBatchCsrPointers(
         matrix: cudssMatrix_t,
-        rowOffsets: *const *const ::core::ffi::c_void,
+        rowStart: *const *const ::core::ffi::c_void,
         rowEnd: *const *const ::core::ffi::c_void,
         colIndices: *const *const ::core::ffi::c_void,
         values: *const *const ::core::ffi::c_void,
@@ -2581,9 +3224,11 @@ singe_loader::functions! { crate::LIBRARY;
     /// The function sets the 1D distribution for the matrix (CSR or Dense) for the MGMN mode.
     /// The provided `first_row` and `last_row` must be always 0-based and specify the first and the last (included) row indices of the local matrix on the calling process.
     /// Setting `first_row` > `last_row` means that the local matrix is empty for the calling process.
+    /// In this case, the data buffers of the matrix object (`rowStart`, `rowEnd`,
+    /// `colIndices` and `values` for CSR, `values` for dense) may be `NULL`.
     ///
-    /// > Note: input sparse matrix, right-hand-size and solution can have a different (from each other) distribution. For example, only
-    /// > the sparse matrix can be distributed, while right-hand-size or solution are not.
+    /// > Note: input sparse matrix, right-hand side and solution can have a different (from each other) distribution. For example, only
+    /// > the sparse matrix can be distributed, while right-hand side or solution are not.
     /// >
     /// > Note: if the sparse matrix or right-hand side are distributed with an overlap (between processes) then the overlapped part will be summed up, that is
     /// > the overlapped part will have a contribution from all related processes. if the solution is distributed with overlapping (between processes)
@@ -2616,12 +3261,12 @@ singe_loader::functions! { crate::LIBRARY;
     ) -> cudssStatus_t;
 }
 singe_loader::functions! { crate::LIBRARY;
-    /// Get the current device memory handler.
+    /// Get the current device memory handler. Returns [`cudssStatus_t::CUDSS_STATUS_INVALID_VALUE`] if no user-defined handler has been set.
     ///
     /// # Parameters
     ///
     /// - `handle`: \[host\] cuDSS library handle.
-    /// - `handler`: \[host\] A (deep) copy of the device memory handler that encapsulates the user’s mempool (if it was set) previously via calling [`cudssSetDeviceMemHandler`].
+    /// - `handler`: \[host\] A copy of the device memory handler struct (`ctx`, the callbacks and `name`) set via [`cudssSetDeviceMemHandler`]. The user-owned mempool object behind `ctx` is not copied; the lifetime rule stated for [`cudssSetDeviceMemHandler`] applies.
     pub fn cudssGetDeviceMemHandler(
         handle: cudssHandle_t,
         handler: *mut cudssDeviceMemHandler_t,
@@ -2632,6 +3277,7 @@ singe_loader::functions! { crate::LIBRARY;
     ///
     /// If `handler` argument is set to NULL, the library handle will detach its existing memory handler from the library handle.
     /// In case device memory handler needs to be changed after it is set for the first time, previously set device memory handler needs to be detached.
+    /// Detaching returns [`cudssStatus_t::CUDSS_STATUS_NOT_SUPPORTED`] while buffers allocated through the current device memory handler are still live.
     ///
     /// If a cuDSS API which needs to allocate device memory ([`cudssExecute`]) is called and there is no device memory handler
     /// attached to the library handle at the moment of the call, cuDSS will allocate device memory internally using a default memory handler.
@@ -2658,6 +3304,49 @@ singe_loader::functions! { crate::LIBRARY;
         handler: *const cudssDeviceMemHandler_t,
     ) -> cudssStatus_t;
 }
+singe_loader::functions! { crate::LIBRARY;
+    /// Get the current pinned (page-locked) host memory handler. Returns [`cudssStatus_t::CUDSS_STATUS_INVALID_VALUE`] if no user-defined handler has been set.
+    ///
+    /// # Parameters
+    ///
+    /// - `handle`: \[host\] cuDSS library handle.
+    /// - `handler`: \[host\] A copy of the pinned host memory handler struct (`ctx`, the callbacks and `name`) set via [`cudssSetPinnedMemHandler`]. The user-owned mempool object behind `ctx` is not copied; the lifetime rule stated for [`cudssSetPinnedMemHandler`] applies.
+    pub fn cudssGetPinnedMemHandler(
+        handle: cudssHandle_t,
+        handler: *mut cudssPinnedMemHandler_t,
+    ) -> cudssStatus_t;
+}
+singe_loader::functions! { crate::LIBRARY;
+    /// Set the current pinned (page-locked) host memory handler inside the library handle.
+    ///
+    /// If `handler` argument is set to NULL, the library handle will detach its existing pinned host memory handler from the library handle.
+    /// In case the pinned host memory handler needs to be changed after it is set for the first time, the previously set pinned host memory handler needs to be detached.
+    /// Detaching returns [`cudssStatus_t::CUDSS_STATUS_NOT_SUPPORTED`] while buffers allocated through the current pinned host memory handler are still live.
+    ///
+    /// The pinned host memory handler is opt-in. If no pinned host memory handler is attached to the library handle,
+    /// the internal host allocations that would otherwise use it fall back to the plain (non-pinned) host allocations cuDSS used before this API existed,
+    /// so not setting a handler leaves the default behavior unchanged.
+    ///
+    /// When the pinned host memory handler is set, cuDSS uses it only for the internal host allocations that it chooses to route through the handler
+    /// (a subset decided internally by cuDSS, not every host allocation cuDSS makes), allocating them with the `pinned_alloc()` member of the
+    /// pinned host memory handler struct and releasing them with the `pinned_free()` member of the struct.
+    /// `pinned_alloc()` must return pinned host memory; cuDSS treats the returned pointer as already pinned and does not call `cudaHostRegister()`/`cudaHostUnregister()` for it.
+    /// [`cudssExecute`] returns [`cudssStatus_t::CUDSS_STATUS_NOT_SUPPORTED`] if a pinned host memory handler is attached while [`cudssConfigParam_t::CUDSS_CONFIG_USE_CUDA_REGISTER_MEMORY`] is set to `0`.
+    /// cuDSS passes the CUDA stream the data object is bound to (see [`cudssSetStream`]) to both callbacks.
+    /// See [`cudssPinnedMemHandler_t`] for further details about `pinned_alloc()` and `pinned_free()`.
+    ///
+    /// Note: It is undefined behavior if the library handle is bound to a pinned host memory handler and subsequently to another handler (without detaching), or
+    /// the library handle outlives the attached memory pool.
+    ///
+    /// # Parameters
+    ///
+    /// - `handle`: \[host\] cuDSS library handle.
+    /// - `handler`: \[host\] The pinned host memory handler that encapsulates the user’s mempool. The struct content is copied internally.
+    pub fn cudssSetPinnedMemHandler(
+        handle: cudssHandle_t,
+        handler: *const cudssPinnedMemHandler_t,
+    ) -> cudssStatus_t;
+}
 /// A callback function pointer type for logging.
 pub type cudssLoggerCallback_t = ::core::option::Option<
     unsafe extern "C" fn(
@@ -2673,7 +3362,7 @@ singe_loader::functions! { crate::LIBRARY;
     ///
     /// Note
     ///
-    /// In [MGMN mode](https://docs.nvidia.com/cuda/cudss/advanced_features.html#multi-gpu-multi-node-mgmn-mode), each process has its own independent logger state and callback.
+    /// In [MGMN mode](https://docs.nvidia.com/cuda/cudss/1.0.0/advanced_features.html#multi-gpu-multi-node-mgmn-mode), each process has its own independent logger state and callback.
     /// The callback must be set in each process if needed.
     ///
     /// # Parameters
@@ -2693,7 +3382,7 @@ singe_loader::functions! { crate::LIBRARY;
     ///
     /// Note
     ///
-    /// In [MGMN mode](https://docs.nvidia.com/cuda/cudss/advanced_features.html#multi-gpu-multi-node-mgmn-mode), each process must use a different file handle to avoid
+    /// In [MGMN mode](https://docs.nvidia.com/cuda/cudss/1.0.0/advanced_features.html#multi-gpu-multi-node-mgmn-mode), each process must use a different file handle to avoid
     /// corrupted or interleaved output. Multiple processes writing to the same file concurrently is not safe.
     ///
     /// # Parameters
@@ -2708,7 +3397,7 @@ singe_loader::functions! { crate::LIBRARY;
     ///
     /// Note
     ///
-    /// In [MGMN mode](https://docs.nvidia.com/cuda/cudss/advanced_features.html#multi-gpu-multi-node-mgmn-mode), each process must open a different file to avoid
+    /// In [MGMN mode](https://docs.nvidia.com/cuda/cudss/1.0.0/advanced_features.html#multi-gpu-multi-node-mgmn-mode), each process must open a different file to avoid
     /// corrupted or interleaved output. Multiple processes writing to the same file concurrently is not safe.
     ///
     /// # Parameters
@@ -2721,7 +3410,7 @@ singe_loader::functions! { crate::LIBRARY;
     ///
     /// # Parameters
     ///
-    /// - `level`: \[host\] Log level. Refer to [cuDSS Logging Features](https://docs.nvidia.com/cuda/cudss/logging.html#cudss-logging-features) for specific logging level values.
+    /// - `level`: \[host\] Log level. Refer to [cuDSS Logging Features](https://docs.nvidia.com/cuda/cudss/1.0.0/logging.html#cudss-logging-features) for specific logging level values.
     pub fn cudssLoggerSetLevel(level: ::core::ffi::c_int) -> cudssStatus_t;
 }
 singe_loader::functions! { crate::LIBRARY;
@@ -2729,7 +3418,7 @@ singe_loader::functions! { crate::LIBRARY;
     ///
     /// # Parameters
     ///
-    /// - `mask`: \[host\] Bitwise OR of masks. Refer to [cuDSS Logging Features](https://docs.nvidia.com/cuda/cudss/logging.html#cudss-logging-features) for specific logging mask values.
+    /// - `mask`: \[host\] Bitwise OR of masks. Refer to [cuDSS Logging Features](https://docs.nvidia.com/cuda/cudss/1.0.0/logging.html#cudss-logging-features) for specific logging mask values.
     pub fn cudssLoggerSetMask(mask: ::core::ffi::c_int) -> cudssStatus_t;
 }
 singe_loader::functions! { crate::LIBRARY;

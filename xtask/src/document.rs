@@ -108,8 +108,8 @@ const DOCUMENT_TARGETS: &[DocumentTargetSpec] = &[
         scope_module: None,
     },
     DocumentTargetSpec {
-        json_paths: &["xtask/docs/cudss-0.8.0-api.json"],
-        rust_path: "singe-cudss-sys/src/sys_800.rs",
+        json_paths: &["xtask/docs/cudss-1.0.0-api.json"],
+        rust_path: "singe-cudss-sys/src/sys_10000.rs",
         scope_path: Some("singe-cudss-sys/src/lib.rs"),
         scope_module: None,
     },

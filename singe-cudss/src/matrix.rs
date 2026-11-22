@@ -801,7 +801,7 @@ impl<'a> Matrix<'a> {
             let mut columns = 0;
             let mut leading_dim = 0;
             let mut values = ptr::null_mut();
-            let mut value_type = sys::cudssDataType_t::CUDSS_DATA_TYPE_UNSET;
+            let mut value_type = sys::CUDSS_DATA_TYPE_UNSET;
             let mut layout = sys::cudssLayout_t::CUDSS_LAYOUT_COL_MAJOR;
             try_ffi!(sys::cudssMatrixGetDn(
                 self.handle,
@@ -838,9 +838,9 @@ impl<'a> Matrix<'a> {
             let mut row_end = ptr::null_mut();
             let mut col_indices = ptr::null_mut();
             let mut values = ptr::null_mut();
-            let mut offset_type = sys::cudssDataType_t::CUDSS_DATA_TYPE_UNSET;
-            let mut index_type = sys::cudssDataType_t::CUDSS_DATA_TYPE_UNSET;
-            let mut value_type = sys::cudssDataType_t::CUDSS_DATA_TYPE_UNSET;
+            let mut offset_type = sys::CUDSS_DATA_TYPE_UNSET;
+            let mut index_type = sys::CUDSS_DATA_TYPE_UNSET;
+            let mut value_type = sys::CUDSS_DATA_TYPE_UNSET;
             let mut matrix_type = sys::cudssMatrixType_t::CUDSS_MTYPE_GENERAL;
             let mut view_type = sys::cudssMatrixViewType_t::CUDSS_MVIEW_FULL;
             let mut index_base = sys::cudssIndexBase_t::CUDSS_BASE_ZERO;
@@ -892,8 +892,8 @@ impl<'a> Matrix<'a> {
             let mut columns = ptr::null_mut();
             let mut leading_dim = ptr::null_mut();
             let mut values = ptr::null_mut();
-            let mut index_type = sys::cudssDataType_t::CUDSS_DATA_TYPE_UNSET;
-            let mut value_type = sys::cudssDataType_t::CUDSS_DATA_TYPE_UNSET;
+            let mut index_type = sys::CUDSS_DATA_TYPE_UNSET;
+            let mut value_type = sys::CUDSS_DATA_TYPE_UNSET;
             let mut layout = sys::cudssLayout_t::CUDSS_LAYOUT_COL_MAJOR;
             try_ffi!(sys::cudssMatrixGetBatchDn(
                 self.handle,
@@ -937,9 +937,9 @@ impl<'a> Matrix<'a> {
             let mut row_end = ptr::null_mut();
             let mut col_indices = ptr::null_mut();
             let mut values = ptr::null_mut();
-            let mut offset_type = sys::cudssDataType_t::CUDSS_DATA_TYPE_UNSET;
-            let mut index_type = sys::cudssDataType_t::CUDSS_DATA_TYPE_UNSET;
-            let mut value_type = sys::cudssDataType_t::CUDSS_DATA_TYPE_UNSET;
+            let mut offset_type = sys::CUDSS_DATA_TYPE_UNSET;
+            let mut index_type = sys::CUDSS_DATA_TYPE_UNSET;
+            let mut value_type = sys::CUDSS_DATA_TYPE_UNSET;
             let mut matrix_type = sys::cudssMatrixType_t::CUDSS_MTYPE_GENERAL;
             let mut view_type = sys::cudssMatrixViewType_t::CUDSS_MVIEW_FULL;
             let mut index_base = sys::cudssIndexBase_t::CUDSS_BASE_ZERO;

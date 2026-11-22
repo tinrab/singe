@@ -34,7 +34,8 @@ fn main() -> anyhow::Result<()> {
     let mut data = SolverState::create(&context)?;
 
     let reordering = ReorderingAlgorithm::Default;
-    let matching = MatchingAlgorithm::Auto;
+    // `Auto` disables matching for this SPD matrix, so request the algorithm whose permutation and scaling the example reads.
+    let matching = MatchingAlgorithm::MaxDiagProduct;
     let use_superpanels = 0i32;
     // SAFETY: the value pointer and size describe a local of the parameter type.
     unsafe { config.set_raw(ConfigParameter::ReorderingAlgorithm, &reordering) }?;

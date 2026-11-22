@@ -293,9 +293,9 @@
           libcudss = cudaVariantRedist {
             base = cudssRedistBase;
             name = "libcudss";
-            version = "0.8.0.10";
+            version = "1.0.0.35";
             cudaVersion = "13";
-            sha256 = "ba18f5fd80dcbbe905d158caac5b3061d848442bb5abd477b5f296b4257a4937";
+            sha256 = "0a155540d7b90d42105d38886fa630f1ec91d7b05580a28bd1fa04fa16e19ffe";
           };
 
           libcutensor = cudaVariantRedist {

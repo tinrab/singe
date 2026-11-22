@@ -1,7 +1,7 @@
-//! Device memory handler support for cuDSS.
+//! Device and pinned host memory handler support for cuDSS.
 
 use std::{
-    ffi::{c_int, c_void},
+    ffi::{c_char, c_int, c_void},
     marker::PhantomData,
     sync::Arc,
 };
@@ -67,26 +67,12 @@ impl DeviceMemoryHandler {
         device_alloc: DeviceAllocFn,
         device_free: DeviceFreeFn,
     ) -> Result<Self> {
-        if name.len() > MAX_ALLOCATOR_NAME_BYTES {
-            return Err(Error::AllocatorNameTooLong {
-                max: MAX_ALLOCATOR_NAME_BYTES,
-                actual: name.len(),
-            });
-        }
-
-        if name.contains('\0') {
-            return Err(Error::InteriorNul);
-        }
-
-        let mut handler = sys::cudssDeviceMemHandler_t {
+        Ok(Self(sys::cudssDeviceMemHandler_t {
             ctx: context,
             device_alloc: Some(device_alloc),
             device_free: Some(device_free),
-            name: [0; sys::CUDSS_ALLOCATOR_NAME_LEN as usize],
-        };
-        copy_string_to_c_chars(&mut handler.name, name);
-
-        Ok(Self(handler))
+            name: allocator_name(name)?,
+        }))
     }
 
     /// Wraps a raw cuDSS device memory handler.
@@ -126,6 +112,119 @@ impl DeviceMemoryHandler {
     pub(crate) const fn as_raw(&self) -> &sys::cudssDeviceMemHandler_t {
         &self.0
     }
+}
+
+/// Callback used by cuDSS to allocate pinned host memory.
+///
+/// Return `0` on success.
+/// The memory must already be pinned, for example from `cudaHostAlloc()` or registered with `cudaHostRegister()`; cuDSS does not register it.
+/// The stream is the one the solver state is bound to; synchronous allocators may ignore it.
+pub type PinnedAllocFn = unsafe extern "C" fn(
+    context: *mut c_void,
+    ptr: *mut *mut c_void,
+    size: sys::size_t,
+    stream: cudaStream_t,
+) -> c_int;
+
+/// Callback used by cuDSS to free pinned host memory.
+///
+/// The callback receives the same context pointer and allocation size that were passed to [`PinnedAllocFn`].
+pub type PinnedFreeFn = unsafe extern "C" fn(
+    context: *mut c_void,
+    ptr: *mut c_void,
+    size: sys::size_t,
+    stream: cudaStream_t,
+) -> c_int;
+
+/// A user-provided pinned host memory handler for cuDSS.
+///
+/// cuDSS routes a subset of its internal host allocations through this handler, which can speed up hybrid memory mode.
+/// A handler must not be replaced without first detaching it, or outlive its backing memory pool while attached to a [`Context`](crate::context::Context).
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct PinnedMemoryHandler(sys::cudssPinnedMemHandler_t);
+
+impl PinnedMemoryHandler {
+    /// Creates a pinned host memory handler from allocator callbacks.
+    ///
+    /// The name is copied into cuDSS' fixed-size allocator name field and must fit with a trailing NUL byte.
+    ///
+    /// # Safety
+    ///
+    /// `context` must remain valid for every cuDSS call that can allocate or free through this handler.
+    /// The callbacks must return `0` on success, and `pinned_alloc` must return pinned host memory of at least the requested size.
+    /// `pinned_free` must accept the exact pointer and size pairs produced by `pinned_alloc`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `name` contains an interior NUL byte or exceeds cuDSS' allocator-name capacity, including the trailing NUL byte.
+    pub unsafe fn create(
+        name: &str,
+        context: *mut c_void,
+        pinned_alloc: PinnedAllocFn,
+        pinned_free: PinnedFreeFn,
+    ) -> Result<Self> {
+        Ok(Self(sys::cudssPinnedMemHandler_t {
+            ctx: context,
+            pinned_alloc: Some(pinned_alloc),
+            pinned_free: Some(pinned_free),
+            name: allocator_name(name)?,
+        }))
+    }
+
+    /// Wraps a raw cuDSS pinned host memory handler.
+    ///
+    /// # Safety
+    ///
+    /// The raw handler must satisfy the same callback and lifetime invariants as [`Self::create`].
+    #[must_use]
+    pub unsafe fn from_raw(raw: sys::cudssPinnedMemHandler_t) -> Self {
+        Self(raw)
+    }
+
+    /// Returns the handler name copied into the cuDSS struct.
+    #[must_use]
+    pub fn name(&self) -> String {
+        string_from_c_chars(&self.0.name)
+    }
+
+    /// Returns the opaque user context pointer passed to the callbacks.
+    #[must_use]
+    pub const fn context(&self) -> *mut c_void {
+        self.0.ctx
+    }
+
+    /// Returns the allocation callback.
+    #[must_use]
+    pub const fn pinned_alloc(&self) -> Option<PinnedAllocFn> {
+        self.0.pinned_alloc
+    }
+
+    /// Returns the free callback.
+    #[must_use]
+    pub const fn pinned_free(&self) -> Option<PinnedFreeFn> {
+        self.0.pinned_free
+    }
+
+    pub(crate) const fn as_raw(&self) -> &sys::cudssPinnedMemHandler_t {
+        &self.0
+    }
+}
+
+fn allocator_name(name: &str) -> Result<[c_char; sys::CUDSS_ALLOCATOR_NAME_LEN as usize]> {
+    if name.len() > MAX_ALLOCATOR_NAME_BYTES {
+        return Err(Error::AllocatorNameTooLong {
+            max: MAX_ALLOCATOR_NAME_BYTES,
+            actual: name.len(),
+        });
+    }
+
+    if name.contains('\0') {
+        return Err(Error::InteriorNul);
+    }
+
+    let mut chars = [0; sys::CUDSS_ALLOCATOR_NAME_LEN as usize];
+    copy_string_to_c_chars(&mut chars, name);
+    Ok(chars)
 }
 
 /// A borrowed, initialized device pointer table with its actual CUDA context.
