@@ -63,7 +63,12 @@ def main():
     if not pending or not arguments.publish:
         return
     # Cargo publishes the packages in dependency order.
-    command = ["cargo", "publish", *(f"--package={name}" for name in pending)]
+    command = [
+        "cargo",
+        "publish",
+        "--allow-dirty",
+        *(f"--package={name}" for name in pending),
+    ]
     sys.exit(subprocess.run(command, check=False).returncode)
 
 
