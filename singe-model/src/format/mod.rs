@@ -54,6 +54,24 @@ fn safetensors_files(directory: &Path, stem: &str) -> Result<Vec<PathBuf>> {
     Ok(files)
 }
 
+// How a native directory stores each part's state: `{part}.safetensors`, or `{part}.flashpack`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WeightFormat {
+    Safetensors,
+    Flashpack,
+}
+
+impl WeightFormat {
+    // The file that holds `part`'s state.
+    #[must_use]
+    pub fn file(self, part: &str) -> String {
+        match self {
+            Self::Safetensors => format!("{part}.safetensors"),
+            Self::Flashpack => format!("{part}.flashpack"),
+        }
+    }
+}
+
 // Reads one model from a source: its Singe config, and the state of each of its parts.
 // It records both, so what it loaded can be saved in Singe's format.
 #[derive(Debug)]
@@ -108,19 +126,23 @@ impl<'a> Loader<'a> {
     }
 
     // Loads part `part` of the model, whose layers and state `model` builds on metadata.
-    // A native directory stores each part under Singe's names in `{part}.safetensors`; another format's checkpoint goes through `rules`.
+    // A native directory stores each part under Singe's names in `{part}.flashpack` or `{part}.safetensors`, read in that order; another format's checkpoint goes through `rules`.
     pub fn load<L>(&mut self, part: &str, model: &Model<L>, rules: &Rules) -> Result<Model<L>> {
         let options = CheckpointOptions {
             device: Some(self.options.device),
             convert: true,
         };
         let state = if self.source.format() == Format::Native {
-            let mut checkpoint =
-                Checkpoint::open([self.source.directory().join(format!("{part}.safetensors"))])?;
+            let directory = self.source.directory();
+            let flashpack = directory.join(WeightFormat::Flashpack.file(part));
+            let file = if flashpack.exists() {
+                flashpack
+            } else {
+                directory.join(WeightFormat::Safetensors.file(part))
+            };
+            let checkpoint = Checkpoint::open([file])?;
             let plan = LoadPlan::identity(&checkpoint);
-            model
-                .state()
-                .load_checkpoint(&mut checkpoint, &plan, options)?
+            model.state().load_checkpoint(&checkpoint, &plan, options)?
         } else {
             let checkpoint = self.checkpoint()?;
             let (plan, matched) = rules.plan(checkpoint.names())?;
@@ -140,7 +162,7 @@ impl<'a> Loader<'a> {
     }
 
     // Opens the source's checkpoint on first use, and keeps it for the parts after.
-    fn checkpoint(&mut self) -> Result<&mut Checkpoint<'static>> {
+    fn checkpoint(&mut self) -> Result<&Checkpoint<'static>> {
         match &mut self.checkpoint {
             Some(checkpoint) => Ok(checkpoint),
             empty @ None => {
@@ -178,12 +200,24 @@ impl<'a> Loader<'a> {
         Ok(model)
     }
 
-    // Writes what this loader read to `directory` in Singe's format, as model `model` serving `head`.
-    pub fn save(&self, directory: &Path, model: &str, head: Head) -> Result<()> {
+    // Writes what this loader read to `directory` in Singe's format, as model `model` serving `head`, each part's state in `weights`, and returns each part with the file it wrote.
+    pub fn save(
+        &self,
+        directory: &Path,
+        model: &str,
+        head: Head,
+        weights: WeightFormat,
+    ) -> Result<Vec<(String, PathBuf)>> {
         let config = self
             .config
             .as_ref()
             .ok_or_else(|| Error::invalid("saving a model before reading its config"))?;
-        native::save(self.source, directory, (model, head), config, &self.parts)
+        native::save(
+            self.source,
+            directory,
+            (model, head),
+            (config, self.options.data_type),
+            (&self.parts, weights),
+        )
     }
 }

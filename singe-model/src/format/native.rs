@@ -1,12 +1,16 @@
-// Singe's own format: `config.json` holds `{"singe": {"model": name, "head": head, "config": …, "stop_tokens": […]}}`, and each part's state is `{part}.safetensors` under Singe's names.
+// Singe's own format: `config.json` holds `{"singe": {"model": name, "head": head, "config": …, "stop_tokens": […]}}`, and each part's state is `{part}.safetensors` or `{part}.flashpack` under Singe's names.
 // Tokenizer and processor files carry over as the source stores them, since processors read them as they are.
 
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use singe::nn::ModelState;
+use singe::{DataType, nn::ModelState};
 
+use super::WeightFormat;
 use crate::{
     error::{Error, Result},
     head::Head,
@@ -19,6 +23,8 @@ pub(crate) struct NativeConfig {
     pub(crate) head: String,
     pub(crate) config: Value,
     pub(crate) stop_tokens: Vec<i64>,
+    // The type of the saved floats, named as `torch_dtype` names it, such as `bfloat16`.
+    pub(crate) data_type: String,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -38,6 +44,7 @@ fn replaced(name: &str, top: bool) -> bool {
         || [
             ".safetensors",
             ".safetensors.index.json",
+            ".flashpack",
             ".bin",
             ".pt",
             ".pth",
@@ -54,9 +61,9 @@ pub(crate) fn save(
     source: &Source,
     directory: &Path,
     (model, head): (&str, Head),
-    config: &Value,
-    parts: &[(String, ModelState)],
-) -> Result<()> {
+    (config, data_type): (&Value, DataType),
+    (parts, weights): (&[(String, ModelState)], WeightFormat),
+) -> Result<Vec<(String, PathBuf)>> {
     fs::create_dir_all(directory).map_err(Error::io(directory))?;
     // Copying into the source would copy each file onto itself or recurse into its own copy.
     let canonical = |path: &Path| fs::canonicalize(path).map_err(Error::io(path));
@@ -74,16 +81,32 @@ pub(crate) fn save(
             head: head.id().to_owned(),
             config: config.clone(),
             stop_tokens: source.stop_tokens()?,
+            data_type: torch_name(data_type)?.to_owned(),
         },
     };
     let text = serde_json::to_string_pretty(&file)
         .map_err(Error::json_value("write the native config"))?;
     let path = directory.join("config.json");
     fs::write(&path, text).map_err(Error::io(&path))?;
+    let mut written = Vec::with_capacity(parts.len());
     for (part, state) in parts {
-        state.save_safetensors(directory.join(format!("{part}.safetensors")))?;
+        let path = directory.join(weights.file(part));
+        match weights {
+            WeightFormat::Safetensors => state.save_safetensors(&path)?,
+            WeightFormat::Flashpack => state.save_flashpack(&path)?,
+        }
+
+        // A part saved before in the other format would be read in place of this one.
+        for other in [WeightFormat::Safetensors, WeightFormat::Flashpack] {
+            let stale = directory.join(other.file(part));
+            if other != weights && stale.exists() {
+                fs::remove_file(&stale).map_err(Error::io(&stale))?;
+            }
+        }
+
+        written.push((part.clone(), path));
     }
-    Ok(())
+    Ok(written)
 }
 
 // Copies every file of `from` but those `replaced` names, keeping subdirectories, such as a sentence-transformers pooling config.
@@ -106,4 +129,16 @@ fn copy_files(from: &Path, to: &Path, top: bool) -> Result<()> {
         }
     }
     Ok(())
+}
+
+// The name `torch_dtype` gives a float type.
+fn torch_name(data_type: DataType) -> Result<&'static str> {
+    match data_type {
+        DataType::Bf16 => Ok("bfloat16"),
+        DataType::F16 => Ok("float16"),
+        DataType::F32 => Ok("float32"),
+        other => Err(Error::unsupported(format!(
+            "saving a model in Singe's format as {other}"
+        ))),
+    }
 }

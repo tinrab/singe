@@ -7,7 +7,7 @@ use std::path::Path;
 
 use anyhow::{Context as _, Result};
 use singe::DataType;
-use singe_model::{LoadOptions, Source, model, task::Task};
+use singe_model::{LoadOptions, Source, format::WeightFormat, model, task::Task};
 
 use crate::support::Arguments;
 
@@ -35,6 +35,7 @@ fn main() -> Result<()> {
         head,
         Path::new(directory),
         LoadOptions::new(arguments.device(), data_type),
+        WeightFormat::Safetensors,
     )?;
     println!("saved {} in Singe's format to {directory}", model.name);
     Ok(())

@@ -211,11 +211,7 @@ impl DataTypeChoice {
             Self::F32 => DataType::F32,
             Self::F16 => DataType::F16,
             Self::Bf16 => DataType::Bf16,
-            Self::Auto => match source.stored_data_type()?.as_deref() {
-                Some("bfloat16") => DataType::Bf16,
-                Some("float16") => DataType::F16,
-                _ => DataType::F32,
-            },
+            Self::Auto => source.default_data_type()?,
         })
     }
 }

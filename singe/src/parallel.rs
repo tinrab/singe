@@ -71,6 +71,15 @@ pub(crate) fn collect<T: Send>(count: usize, produce: impl Fn(usize) -> T + Sync
     collect_with_grain(count, GRAIN_SIZE, produce)
 }
 
+// Runs `body` on this thread with a scope whose spawned work runs on the pool, or on rayon's global pool when the workers cannot start.
+#[cfg(feature = "cuda")]
+pub(crate) fn in_place_scope<'scope, R>(body: impl FnOnce(&rayon::Scope<'scope>) -> R) -> R {
+    match pool() {
+        Some(pool) => pool.in_place_scope(body),
+        None => rayon::in_place_scope(body),
+    }
+}
+
 /// Calls `work(index, chunk)` on consecutive `chunk_len`-element chunks of `data`, on the worker pool when `parallelism` is `Pool` and there are several chunks.
 ///
 /// # Errors

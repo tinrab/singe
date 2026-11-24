@@ -1,0 +1,26 @@
+[package]
+name = "singe-cli"
+description = "Command-line tools for Singe."
+version = "0.1.0-alpha.2"
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+license-file.workspace = true
+keywords = ["singe", "inference", "cli"]
+categories = ["command-line-utilities", "science"]
+publish = false
+
+[features]
+default = []
+cuda_13_4 = ["singe-model/cuda_13_4"]
+
+[dependencies]
+anyhow.workspace = true
+bytesize.workspace = true
+clap.workspace = true
+singe.workspace = true
+singe-model.workspace = true
+
+[[bin]]
+name = "singe"
+path = "src/main.rs"

@@ -28,7 +28,6 @@ pub fn checked_sub(lhs: usize, rhs: usize, name: &str) -> Result<usize> {
         .ok_or_else(|| Error::out_of_range(name.to_owned()))
 }
 
-#[cfg(feature = "cuda")]
 pub fn checked_mul_u64(lhs: u64, rhs: u64, name: &str) -> Result<u64> {
     lhs.checked_mul(rhs)
         .ok_or_else(|| Error::out_of_range(name.to_owned()))

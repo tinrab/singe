@@ -12,7 +12,11 @@ use std::{
 
 pub use singe_core::ErrorChain;
 
-pub use self::{capture::CaptureError, checkpoint::CheckpointError, compile::CompileError};
+pub use self::{
+    capture::CaptureError,
+    checkpoint::{CheckpointError, FlashpackError},
+    compile::CompileError,
+};
 #[cfg(feature = "cuda")]
 use cutile_ir::Error as TileIrError;
 use safetensors::SafeTensorError;
@@ -408,6 +412,7 @@ through!(
     JsonError => CompileError,
     IoError => CheckpointError,
     SafeTensorError => CheckpointError,
+    FlashpackError => CheckpointError,
 );
 
 impl Error {

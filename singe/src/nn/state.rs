@@ -234,6 +234,12 @@ impl ModelState {
         Arc::ptr_eq(&self.owner, &other.owner)
     }
 
+    // The names of each group of sibling projections `join_projection_rows` joins.
+    #[cfg(feature = "cuda")]
+    pub(crate) fn row_groups(&self) -> &[Vec<String>] {
+        &self.row_groups
+    }
+
     // Returns the one device this state's tensors are on.
     pub fn device(&self) -> Result<Device> {
         let mut devices = self.bindings().map(|(_, tensor)| tensor.device());
@@ -526,11 +532,15 @@ fn stacks_by_rows(first: &Tensor, part: &Tensor) -> bool {
         && part.shape().dimensions().get(1..) == first.shape().dimensions().get(1..)
 }
 
-// Whether projections' weights or biases, each laid out whole, share a floating type, a device, and every axis but the first, and are separate tensors.
+// Whether projections' weights or biases, each laid out whole, share a floating type, a device, and every axis but the first, and are separate tensors not yet adjacent rows of one storage, as a checkpoint load on CUDA places them.
 fn joinable(parts: &[Tensor]) -> bool {
     let Some(first) = parts.first() else {
         return false;
     };
+    if joined_rows(&parts.iter().collect::<Vec<_>>()).is_some() {
+        return false;
+    }
+
     let mut ids = HashSet::new();
     matches!(
         first.data_type(),

@@ -175,8 +175,12 @@ impl Source {
             .and_then(|length| usize::try_from(length).ok()))
     }
 
-    // The type a config says its weights are stored in, such as `bfloat16`.
+    // The type a config says its weights are stored in, such as `bfloat16`: a native config's, or a `transformers` config's `torch_dtype` or `dtype`, or its `text_config`'s.
     pub fn stored_data_type(&self) -> Result<Option<String>> {
+        if self.format == Format::Native {
+            return Ok(Some(NativeConfig::read(&self.directory)?.data_type));
+        }
+
         let Some(config) = self.optional_json::<Value>("config.json")? else {
             return Ok(None);
         };
@@ -185,6 +189,15 @@ impl Source {
             .flat_map(|fields| ["torch_dtype", "dtype"].map(|key| &fields[key]))
             .find_map(Value::as_str)
             .map(str::to_owned))
+    }
+
+    // The float type a load defaults to: BF16 or F16 when the config says the weights are stored so, F32 otherwise.
+    pub fn default_data_type(&self) -> Result<DataType> {
+        Ok(match self.stored_data_type()?.as_deref() {
+            Some("bfloat16") => DataType::Bf16,
+            Some("float16") => DataType::F16,
+            _ => DataType::F32,
+        })
     }
 
     // Returns the tokens that end generation: those a native config records, or `generation_config.json`'s `eos_token_id`, a `transformers` config's or its `text_config`'s, and the tokenizer's end token, which chat models such as Qwen3.5 name only there.

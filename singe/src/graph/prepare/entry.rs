@@ -46,6 +46,19 @@ impl Graph {
             {
                 node.replace_output_metadata(tensor.data_type(), tensor.layout().clone(), device);
             }
+
+            // A moved tensor is compact, so a view of one that was a view into a larger allocation takes its layout from its moved source.
+            if let Some(input) = node.view().alias_input() {
+                let source = graph.required_node(input)?;
+                if source.output_layout() != self.required_node(input)?.output_layout()
+                    && node.view().view_output_device(source.output_device())
+                        == source.output_device()
+                {
+                    let layout = node.view().view_output_layout(source.output_layout())?;
+                    let data_type = node.view().output_data_type();
+                    node.replace_output_metadata(data_type, layout, device);
+                }
+            }
             Ok(node)
         })?;
         Ok(graph)

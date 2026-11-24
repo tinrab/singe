@@ -12,13 +12,13 @@ pub mod time_series;
 pub mod video;
 pub mod vision;
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use serde_json::Value;
 
 use crate::{
     error::{Error, Result},
-    format::{Loader, NativeConfig},
+    format::{Loader, NativeConfig, WeightFormat},
     head::{Head, HeadLoader, LoadHead},
     source::{Format, LoadOptions, Source},
 };
@@ -146,13 +146,19 @@ pub fn default_head(source: &Source) -> Result<Head> {
     }
 }
 
-// Loads `source`'s model as `head`, and writes what it read to `directory` in Singe's format.
-pub fn convert(source: &Source, head: Head, directory: &Path, options: LoadOptions) -> Result<()> {
+// Loads `source`'s model as `head`, and writes what it read to `directory` in Singe's format, each part's state in `weights`, returning each part with the file it wrote.
+pub fn convert(
+    source: &Source,
+    head: Head,
+    directory: &Path,
+    options: LoadOptions,
+    weights: WeightFormat,
+) -> Result<Vec<(String, PathBuf)>> {
     let model = find(source)?;
     let mut loader = Loader::new(source, options);
     model
         .loader(head)?
         .run(&mut loader)
         .map_err(|error| with_classes(source, head, error))?;
-    loader.save(directory, model.name, head)
+    loader.save(directory, model.name, head, weights)
 }

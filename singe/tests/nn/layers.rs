@@ -795,25 +795,40 @@ fn test_checkpoint_conflicts_metadata_errors_and_io_are_checked_before_replaceme
     assert!(
         matches!(original.load_safetensors_bytes(&bad), Err(Error::Checkpoint(CheckpointError::Keys { missing, unexpected })) if missing.len() == 4 && unexpected == ["unexpected"])
     );
-    let path = env::temp_dir().join(format!(
-        "singe-module-checkpoint-{}.safetensors",
-        process::id()
-    ));
-    original.save_safetensors(&path).unwrap();
-    let loaded = original.load_safetensors(&path).unwrap();
-    fs::remove_file(path).unwrap();
-    assert_eq!(
-        loaded
-            .named_tensor("steps")
-            .unwrap()
-            .to_vec::<i64>()
-            .unwrap(),
-        [7]
-    );
-    assert_eq!(
-        loaded.named_tensor("first.weight").unwrap().id(),
-        loaded.named_tensor("second.weight").unwrap().id()
-    );
+    // A flashpack file stores each tie once, and its scalars and booleans as they are.
+    for extension in ["safetensors", "flashpack"] {
+        let path = env::temp_dir().join(format!(
+            "singe-module-checkpoint-{}.{extension}",
+            process::id()
+        ));
+        if extension == "flashpack" {
+            original.save_flashpack(&path).unwrap();
+        } else {
+            original.save_safetensors(&path).unwrap();
+        }
+        let loaded = original.load_file(&path).unwrap();
+        fs::remove_file(path).unwrap();
+        assert_eq!(
+            loaded
+                .named_tensor("steps")
+                .unwrap()
+                .to_vec::<i64>()
+                .unwrap(),
+            [7]
+        );
+        assert_eq!(
+            loaded
+                .named_tensor("enabled")
+                .unwrap()
+                .to_vec::<bool>()
+                .unwrap(),
+            [true]
+        );
+        assert_eq!(
+            loaded.named_tensor("first.weight").unwrap().id(),
+            loaded.named_tensor("second.weight").unwrap().id()
+        );
+    }
 }
 
 fn exercise_embedding(device: Device) {
@@ -1185,7 +1200,7 @@ fn test_checkpoints_read_shards_cast_to_the_schema_and_map_names() {
         &[("first", vec![1., 2.]), ("stale", vec![9.])],
     );
     write_shard(&directory.join("b.safetensors"), &[("renamed", vec![3.])]);
-    let mut checkpoint = Checkpoint::open([
+    let checkpoint = Checkpoint::open([
         directory.join("a.safetensors"),
         directory.join("b.safetensors"),
     ])
@@ -1201,7 +1216,7 @@ fn test_checkpoints_read_shards_cast_to_the_schema_and_map_names() {
         convert: true,
     };
     let state = checkpoint_schema(DataType::F64)
-        .load_checkpoint(&mut checkpoint, &plan, options)
+        .load_checkpoint(&checkpoint, &plan, options)
         .unwrap();
     assert_eq!(state.device().unwrap(), Device::Cpu);
     assert_eq!(state.floating_type().unwrap(), DataType::F64);
@@ -1224,7 +1239,7 @@ fn test_checkpoints_read_shards_cast_to_the_schema_and_map_names() {
     // The checkpoint's own names are unexpected and the schema's are missing.
     let identity = LoadPlan::identity(&checkpoint);
     assert!(matches!(
-        checkpoint_schema(DataType::F64).load_checkpoint(&mut checkpoint, &identity, options),
+        checkpoint_schema(DataType::F64).load_checkpoint(&checkpoint, &identity, options),
         Err(Error::Checkpoint(CheckpointError::Keys { .. }))
     ));
     // A plan may not read what the checkpoint lacks.
@@ -1233,14 +1248,14 @@ fn test_checkpoints_read_shards_cast_to_the_schema_and_map_names() {
         .insert("alias", TensorSource::Stored("gone".to_owned()))
         .unwrap();
     assert!(matches!(
-        checkpoint_schema(DataType::F64).load_checkpoint(&mut checkpoint, &absent, options),
+        checkpoint_schema(DataType::F64).load_checkpoint(&checkpoint, &absent, options),
         Err(Error::Checkpoint(CheckpointError::Absent { .. }))
     ));
     // Without conversion a checkpoint must already be in the schema's type.
     assert!(
         checkpoint_schema(DataType::F64)
             .load_checkpoint(
-                &mut checkpoint,
+                &checkpoint,
                 &plan,
                 CheckpointOptions {
                     convert: false,
@@ -1260,7 +1275,7 @@ fn test_checkpoints_refuse_ties_that_differ_across_shards() {
         &[("first", vec![1., 2.]), ("second", vec![3.])],
     );
     write_shard(&directory.join("b.safetensors"), &[("alias", vec![1., 5.])]);
-    let mut checkpoint = Checkpoint::open([
+    let checkpoint = Checkpoint::open([
         directory.join("a.safetensors"),
         directory.join("b.safetensors"),
     ])
@@ -1272,7 +1287,7 @@ fn test_checkpoints_refuse_ties_that_differ_across_shards() {
     };
     assert!(
         checkpoint_schema(DataType::F32)
-            .load_checkpoint(&mut checkpoint, &plan, options)
+            .load_checkpoint(&checkpoint, &plan, options)
             .is_err()
     );
     fs::remove_dir_all(&directory).unwrap();
@@ -1322,8 +1337,8 @@ fn test_checkpoints_assemble_a_tensor_from_pieces_and_refuse_a_bad_cover() {
             .unwrap();
         }
         let bytes = builder.finish().unwrap().safetensors_bytes().unwrap();
-        let mut checkpoint = Checkpoint::from_bytes(&bytes).unwrap();
-        state.load_checkpoint(&mut checkpoint, &plan, CheckpointOptions::default())
+        let checkpoint = Checkpoint::from_bytes(&bytes).unwrap();
+        state.load_checkpoint(&checkpoint, &plan, CheckpointOptions::default())
     };
     let loaded = load(vec![
         // A piece may leave out leading axes of extent one.
