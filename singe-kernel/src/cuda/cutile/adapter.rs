@@ -5,7 +5,7 @@
 
 use std::{marker::PhantomData, mem::size_of, result::Result as StdResult};
 
-use async_launcher::AsyncKernelLaunch;
+use async_launcher::AsyncKernelLaunchBuilder;
 use cutile::{
     DType,
     cuda_async::{
@@ -163,7 +163,7 @@ fn grid(shape: &[i32], partition_shape: &[usize]) -> CutileResult<(u32, u32, u32
 }
 
 impl<T: DType> TensorAdapter<'_, T> {
-    fn push_tensor_args(&self, launcher: &mut AsyncKernelLaunch) {
+    fn push_tensor_args(&self, launcher: &mut AsyncKernelLaunchBuilder<'_>) {
         // SAFETY: the pointer belongs to the tensor that this adapter borrows for the launch.
         unsafe {
             launcher.push_device_ptr(self.ptr.cu_deviceptr());
@@ -179,7 +179,7 @@ impl<T: DType> TensorAdapter<'_, T> {
 }
 
 impl<T: DType> TensorAdapterPartition<'_, T> {
-    fn push_partition_args(&self, launcher: &mut AsyncKernelLaunch) {
+    fn push_partition_args(&self, launcher: &mut AsyncKernelLaunchBuilder<'_>) {
         self.tensor.push_tensor_args(launcher);
         for dim in &self.partition_shape {
             // Partition dimensions were checked to fit i32 at construction.
@@ -193,14 +193,16 @@ impl<T: DType> TensorAdapterPartition<'_, T> {
     }
 }
 
-impl<T: DType + Sync> KernelInputStored for TensorAdapter<'_, T> {
+// SAFETY: the dtype, shape, strides, and specialization bits come from the same checked construction as the pointer and the arguments `push_kernel_args` emits.
+// `retain` registers nothing because the adapter borrows Singe-owned allocations: every launch goes through `enqueue_on`, whose callers keep those allocations alive and their accesses ordered on the stream until the work completes.
+unsafe impl<T: DType + Sync> KernelInputStored for TensorAdapter<'_, T> {
     fn retain(&self, _ctx: &ExecutionContext) -> StdResult<(), DeviceError> {
         // This adapter borrows externally owned raw allocations.
         // enqueue_on requires the caller to retain them and order their accesses until GPU completion.
         Ok(())
     }
 
-    fn push_kernel_args(&self, launcher: &mut AsyncKernelLaunch) {
+    fn push_kernel_args(&self, launcher: &mut AsyncKernelLaunchBuilder<'_>) {
         self.push_tensor_args(launcher);
     }
 
@@ -243,12 +245,14 @@ impl<T: DType + Sync> IntoDeviceOp<Self> for TensorAdapter<'_, T> {
     }
 }
 
-impl<T: DType + Sync> KernelOutputStored<T> for TensorAdapterPartition<'_, T> {
+// SAFETY: the dtype, shape, strides, partition, grid, and specialization bits come from the same checked construction as the pointer and the arguments `push_kernel_args` emits.
+// `retain` registers nothing for the reason the input adapter gives: `enqueue_on`'s callers keep the allocation alive and its accesses ordered until the work completes.
+unsafe impl<T: DType + Sync> KernelOutputStored<T> for TensorAdapterPartition<'_, T> {
     fn retain(&self, context: &ExecutionContext) -> StdResult<(), DeviceError> {
         self.tensor.retain(context)
     }
 
-    fn push_kernel_args(&self, launcher: &mut AsyncKernelLaunch) {
+    fn push_kernel_args(&self, launcher: &mut AsyncKernelLaunchBuilder<'_>) {
         self.push_partition_args(launcher);
     }
 

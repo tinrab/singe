@@ -317,7 +317,7 @@
 //!
 //! ```rust,ignore
 //! // Hand a singe-cuda context and stream to cuda-core.
-//! let device = context.to_cuda_core()?;
+//! let foreign_context = context.to_cuda_core()?;
 //! let foreign_stream = stream.to_cuda_core()?;
 //!
 //! // Wrap a cudarc context in a singe-cuda context.

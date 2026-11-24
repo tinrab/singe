@@ -7,10 +7,10 @@ use crate::{cpu::matmul as cpu_matmul, error::Result};
 
 #[test]
 fn test_matmul_f32_square() -> Result<()> {
-    let Ok(device) = Device::new(0) else {
+    let Ok(context) = Context::new(0) else {
         return Ok(());
     };
-    let stream = device.new_stream()?;
+    let stream = context.new_stream()?;
     let (rows, columns, reduction) = (4usize, 5usize, 3usize);
     let lhs_host = (0..rows * reduction)
         .map(|index| (index as f32 % 7.0) - 3.0)
@@ -50,10 +50,10 @@ fn test_matmul_f32_square() -> Result<()> {
 
 #[test]
 fn test_matmul_mma_f32_with_padding() -> Result<()> {
-    let Ok(device) = Device::new(0) else {
+    let Ok(context) = Context::new(0) else {
         return Ok(());
     };
-    let stream = device.new_stream()?;
+    let stream = context.new_stream()?;
     let (rows, columns, reduction) = (17usize, 19usize, 10usize);
     let lhs_host = (0..rows * reduction)
         .map(|index| (index as f32 % 11.0) * 0.125 - 0.5)
@@ -93,10 +93,10 @@ fn test_matmul_mma_f32_with_padding() -> Result<()> {
 
 #[test]
 fn test_matmul_f32_transposed_inputs() -> Result<()> {
-    let Ok(device) = Device::new(0) else {
+    let Ok(context) = Context::new(0) else {
         return Ok(());
     };
-    let stream = device.new_stream()?;
+    let stream = context.new_stream()?;
     let (rows, columns, reduction) = (3usize, 4usize, 5usize);
     let lhs_host = (0..reduction * rows)
         .map(|index| (index as f32 % 11.0) * 0.25 - 1.0)
@@ -136,10 +136,10 @@ fn test_matmul_f32_transposed_inputs() -> Result<()> {
 
 #[test]
 fn test_matmul_f32_wide_projection_shape() -> Result<()> {
-    let Ok(device) = Device::new(0) else {
+    let Ok(context) = Context::new(0) else {
         return Ok(());
     };
-    let stream = device.new_stream()?;
+    let stream = context.new_stream()?;
     let (rows, columns, reduction) = (4usize, 768usize, 768usize);
     let lhs_host = (0..rows * reduction)
         .map(|index| ((index * 17 + 3) % 257) as f32 * 0.00390625 - 0.5)
@@ -183,10 +183,10 @@ fn test_matmul_f32_wide_projection_shape() -> Result<()> {
 
 #[test]
 fn test_matmul_f32_handles_skinny_wide_padded_strides() -> Result<()> {
-    let Ok(device) = Device::new(0) else {
+    let Ok(context) = Context::new(0) else {
         return Ok(());
     };
-    let stream = device.new_stream()?;
+    let stream = context.new_stream()?;
     let (rows, columns, reduction) = (2usize, 129usize, 7usize);
     let (lhs_row_stride, rhs_row_stride, output_row_stride) = (9usize, 133usize, 131usize);
     let lhs_host = (0..rows * lhs_row_stride)
@@ -242,10 +242,10 @@ fn test_matmul_f32_handles_skinny_wide_padded_strides() -> Result<()> {
 
 #[test]
 fn test_matmul_alpha_beta_f32() -> Result<()> {
-    let Ok(device) = Device::new(0) else {
+    let Ok(context) = Context::new(0) else {
         return Ok(());
     };
-    let stream = device.new_stream()?;
+    let stream = context.new_stream()?;
     let (rows, columns, reduction) = (3usize, 4usize, 2usize);
     let alpha = 1.5f32;
     let beta = -0.25f32;
@@ -296,10 +296,10 @@ fn test_matmul_alpha_beta_f32() -> Result<()> {
 #[cfg(feature = "dtype_f16")]
 #[test]
 fn test_matmul_alpha_beta_f16_f32() -> Result<()> {
-    let Ok(device) = Device::new(0) else {
+    let Ok(context) = Context::new(0) else {
         return Ok(());
     };
-    let stream = device.new_stream()?;
+    let stream = context.new_stream()?;
     let (rows, columns, reduction) = (3usize, 4usize, 2usize);
     let alpha = -0.75f32;
     let beta = 0.5f32;
@@ -370,10 +370,10 @@ fn test_matmul_alpha_beta_f16_f32() -> Result<()> {
 #[cfg(feature = "dtype_bf16")]
 #[test]
 fn test_matmul_alpha_beta_bf16_f32_transposed_lhs() -> Result<()> {
-    let Ok(device) = Device::new(0) else {
+    let Ok(context) = Context::new(0) else {
         return Ok(());
     };
-    let stream = device.new_stream()?;
+    let stream = context.new_stream()?;
     let (rows, columns, reduction) = (3usize, 4usize, 2usize);
     let alpha = 0.625f32;
     let beta = -0.375f32;
@@ -443,10 +443,10 @@ fn test_matmul_alpha_beta_bf16_f32_transposed_lhs() -> Result<()> {
 
 #[test]
 fn test_bmm_f32_transposed_rhs() -> Result<()> {
-    let Ok(device) = Device::new(0) else {
+    let Ok(context) = Context::new(0) else {
         return Ok(());
     };
-    let stream = device.new_stream()?;
+    let stream = context.new_stream()?;
     let (batch, rows, columns, reduction) = (2usize, 3usize, 4usize, 5usize);
     let lhs_batch_stride = rows * reduction;
     let rhs_batch_stride = columns * reduction;
@@ -504,10 +504,10 @@ fn test_bmm_f32_transposed_rhs() -> Result<()> {
 
 #[test]
 fn test_bmm_mma_f32_with_padding() -> Result<()> {
-    let Ok(device) = Device::new(0) else {
+    let Ok(context) = Context::new(0) else {
         return Ok(());
     };
-    let stream = device.new_stream()?;
+    let stream = context.new_stream()?;
     let (batch, rows, columns, reduction) = (2usize, 17usize, 19usize, 10usize);
     let lhs_batch_stride = rows * reduction;
     let rhs_batch_stride = reduction * columns;
@@ -565,10 +565,10 @@ fn test_bmm_mma_f32_with_padding() -> Result<()> {
 
 #[test]
 fn test_bmm_mma_transposed_f32_with_padding() -> Result<()> {
-    let Ok(device) = Device::new(0) else {
+    let Ok(context) = Context::new(0) else {
         return Ok(());
     };
-    let stream = device.new_stream()?;
+    let stream = context.new_stream()?;
     let (batch, rows, columns, reduction) = (2usize, 17usize, 19usize, 10usize);
     let lhs_batch_stride = reduction * rows;
     let rhs_batch_stride = columns * reduction;
@@ -626,10 +626,10 @@ fn test_bmm_mma_transposed_f32_with_padding() -> Result<()> {
 
 #[test]
 fn test_bmm_mma_transposed_f32_16x64_occupancy_variants_match_cpu() -> Result<()> {
-    let Ok(device) = Device::new(0) else {
+    let Ok(context) = Context::new(0) else {
         return Ok(());
     };
-    let stream = device.new_stream()?;
+    let stream = context.new_stream()?;
     let (batch, rows, columns, reduction) = (1usize, 17usize, 70usize, 18usize);
     let lhs_batch_stride = rows * reduction;
     let rhs_batch_stride = columns * reduction;
@@ -711,10 +711,10 @@ fn test_bmm_mma_transposed_f32_16x64_occupancy_variants_match_cpu() -> Result<()
 #[cfg(feature = "dtype_f16")]
 #[test]
 fn test_bmm_mma_f16_f32_with_padding() -> Result<()> {
-    let Ok(device) = Device::new(0) else {
+    let Ok(context) = Context::new(0) else {
         return Ok(());
     };
-    let stream = device.new_stream()?;
+    let stream = context.new_stream()?;
     let (batch, rows, columns, reduction) = (2usize, 17usize, 18usize, 11usize);
     let lhs_batch_stride = rows * reduction;
     let rhs_batch_stride = reduction * columns;
@@ -785,10 +785,10 @@ fn test_bmm_mma_f16_f32_with_padding() -> Result<()> {
 #[cfg(feature = "dtype_f16")]
 #[test]
 fn test_bmm_mma_transposed_rhs_f16_f32_with_padding() -> Result<()> {
-    let Ok(device) = Device::new(0) else {
+    let Ok(context) = Context::new(0) else {
         return Ok(());
     };
-    let stream = device.new_stream()?;
+    let stream = context.new_stream()?;
     let (batch, rows, columns, reduction) = (2usize, 17usize, 18usize, 11usize);
     let lhs_batch_stride = rows * reduction;
     let rhs_batch_stride = columns * reduction;
@@ -859,10 +859,10 @@ fn test_bmm_mma_transposed_rhs_f16_f32_with_padding() -> Result<()> {
 #[cfg(feature = "dtype_f16")]
 #[test]
 fn test_bmm_mma_transposed_inputs_f16_f32_with_padding() -> Result<()> {
-    let Ok(device) = Device::new(0) else {
+    let Ok(context) = Context::new(0) else {
         return Ok(());
     };
-    let stream = device.new_stream()?;
+    let stream = context.new_stream()?;
     let (batch, rows, columns, reduction) = (2usize, 17usize, 18usize, 11usize);
     let lhs_batch_stride = reduction * rows;
     let rhs_batch_stride = columns * reduction;
@@ -933,10 +933,10 @@ fn test_bmm_mma_transposed_inputs_f16_f32_with_padding() -> Result<()> {
 #[cfg(feature = "dtype_bf16")]
 #[test]
 fn test_bmm_mma_bf16_f32_with_padding() -> Result<()> {
-    let Ok(device) = Device::new(0) else {
+    let Ok(context) = Context::new(0) else {
         return Ok(());
     };
-    let stream = device.new_stream()?;
+    let stream = context.new_stream()?;
     let (batch, rows, columns, reduction) = (2usize, 17usize, 18usize, 11usize);
     let lhs_batch_stride = rows * reduction;
     let rhs_batch_stride = reduction * columns;
@@ -1007,10 +1007,10 @@ fn test_bmm_mma_bf16_f32_with_padding() -> Result<()> {
 #[cfg(feature = "dtype_bf16")]
 #[test]
 fn test_bmm_mma_transposed_inputs_bf16_f32_with_padding() -> Result<()> {
-    let Ok(device) = Device::new(0) else {
+    let Ok(context) = Context::new(0) else {
         return Ok(());
     };
-    let stream = device.new_stream()?;
+    let stream = context.new_stream()?;
     let (batch, rows, columns, reduction) = (2usize, 17usize, 18usize, 11usize);
     let lhs_batch_stride = reduction * rows;
     let rhs_batch_stride = columns * reduction;
@@ -1080,10 +1080,10 @@ fn test_bmm_mma_transposed_inputs_bf16_f32_with_padding() -> Result<()> {
 
 #[test]
 fn test_bmm_f32_handles_skinny_wide_padded_batches() -> Result<()> {
-    let Ok(device) = Device::new(0) else {
+    let Ok(context) = Context::new(0) else {
         return Ok(());
     };
-    let stream = device.new_stream()?;
+    let stream = context.new_stream()?;
     let (batch, rows, columns, reduction) = (2usize, 1usize, 131usize, 6usize);
     let lhs_row_stride = 8usize;
     let rhs_row_stride = 137usize;
@@ -1154,10 +1154,10 @@ fn test_bmm_f32_handles_skinny_wide_padded_batches() -> Result<()> {
 
 #[test]
 fn test_masked_bmm_f32_and_preserves_masked_rows() -> Result<()> {
-    let Ok(device) = Device::new(0) else {
+    let Ok(context) = Context::new(0) else {
         return Ok(());
     };
-    let stream = device.new_stream()?;
+    let stream = context.new_stream()?;
     let (batch, rows, columns, reduction) = (3usize, 4usize, 3usize, 5usize);
     let lhs_batch_stride = rows * reduction;
     let rhs_batch_stride = reduction * columns;
@@ -1222,10 +1222,10 @@ fn test_masked_bmm_f32_and_preserves_masked_rows() -> Result<()> {
 #[cfg(feature = "dtype_f16")]
 #[test]
 fn test_masked_bmm_f16_and_preserves_masked_rows() -> Result<()> {
-    let Ok(device) = Device::new(0) else {
+    let Ok(context) = Context::new(0) else {
         return Ok(());
     };
-    let stream = device.new_stream()?;
+    let stream = context.new_stream()?;
     let (batch, rows, columns, reduction) = (3usize, 4usize, 3usize, 5usize);
     let lhs_batch_stride = rows * reduction;
     let rhs_batch_stride = reduction * columns;
@@ -1307,10 +1307,10 @@ fn test_masked_bmm_f16_and_preserves_masked_rows() -> Result<()> {
 
 #[test]
 fn test_ragged_bmm_f32_transposed_rhs() -> Result<()> {
-    let Ok(device) = Device::new(0) else {
+    let Ok(context) = Context::new(0) else {
         return Ok(());
     };
-    let stream = device.new_stream()?;
+    let stream = context.new_stream()?;
     let (batch, total_rows, max_rows, columns, reduction) =
         (3usize, 6usize, 3usize, 4usize, 5usize);
     let rhs_batch_stride = columns * reduction;
@@ -1369,10 +1369,10 @@ fn test_ragged_bmm_f32_transposed_rhs() -> Result<()> {
 #[cfg(feature = "dtype_bf16")]
 #[test]
 fn test_ragged_bmm_bf16_transposed_rhs() -> Result<()> {
-    let Ok(device) = Device::new(0) else {
+    let Ok(context) = Context::new(0) else {
         return Ok(());
     };
-    let stream = device.new_stream()?;
+    let stream = context.new_stream()?;
     let (batch, total_rows, max_rows, columns, reduction) =
         (3usize, 6usize, 3usize, 4usize, 5usize);
     let rhs_batch_stride = columns * reduction;
@@ -1448,10 +1448,10 @@ fn test_ragged_bmm_bf16_transposed_rhs() -> Result<()> {
 
 #[test]
 fn test_group_gemm_f32_transposed_rhs() -> Result<()> {
-    let Ok(device) = Device::new(0) else {
+    let Ok(context) = Context::new(0) else {
         return Ok(());
     };
-    let stream = device.new_stream()?;
+    let stream = context.new_stream()?;
     let rows_host = vec![2i32, 3i32];
     let columns_host = vec![3i32, 2i32];
     let reductions_host = vec![4i32, 5i32];
@@ -1519,10 +1519,10 @@ fn test_group_gemm_f32_transposed_rhs() -> Result<()> {
 #[cfg(feature = "dtype_f16")]
 #[test]
 fn test_group_gemm_f16_transposed_rhs() -> Result<()> {
-    let Ok(device) = Device::new(0) else {
+    let Ok(context) = Context::new(0) else {
         return Ok(());
     };
-    let stream = device.new_stream()?;
+    let stream = context.new_stream()?;
     let rows_host = vec![2i32, 3i32];
     let columns_host = vec![3i32, 2i32];
     let reductions_host = vec![4i32, 5i32];
@@ -1608,10 +1608,10 @@ fn test_group_gemm_f16_transposed_rhs() -> Result<()> {
 #[cfg(feature = "dtype_bf16")]
 #[test]
 fn test_group_gemm_bf16() -> Result<()> {
-    let Ok(device) = Device::new(0) else {
+    let Ok(context) = Context::new(0) else {
         return Ok(());
     };
-    let stream = device.new_stream()?;
+    let stream = context.new_stream()?;
     let rows_host = vec![2i32, 3i32];
     let columns_host = vec![3i32, 2i32];
     let reductions_host = vec![4i32, 5i32];
@@ -1696,10 +1696,10 @@ fn test_group_gemm_bf16() -> Result<()> {
 
 #[test]
 fn test_grouped_gemm_f32_permuted_input() -> Result<()> {
-    let Ok(device) = Device::new(0) else {
+    let Ok(context) = Context::new(0) else {
         return Ok(());
     };
-    let stream = device.new_stream()?;
+    let stream = context.new_stream()?;
     let (total_tokens, input_rows, expert_count, columns, reduction, top_k) =
         (5usize, 3usize, 2usize, 4usize, 3usize, 2usize);
     let input_host = (0..input_rows * reduction)
@@ -1763,10 +1763,10 @@ fn test_grouped_gemm_f32_permuted_input() -> Result<()> {
 
 #[test]
 fn test_grouped_gemm_f32_permuted_output() -> Result<()> {
-    let Ok(device) = Device::new(0) else {
+    let Ok(context) = Context::new(0) else {
         return Ok(());
     };
-    let stream = device.new_stream()?;
+    let stream = context.new_stream()?;
     let (total_tokens, expert_count, columns, reduction) = (5usize, 2usize, 3usize, 4usize);
     let input_host = (0..total_tokens * reduction)
         .map(|index| (index as f32 % 13.0) * 0.125 - 0.75)
@@ -1830,10 +1830,10 @@ fn test_grouped_gemm_f32_permuted_output() -> Result<()> {
 #[cfg(feature = "dtype_f16")]
 #[test]
 fn test_grouped_gemm_f16_permuted_input() -> Result<()> {
-    let Ok(device) = Device::new(0) else {
+    let Ok(context) = Context::new(0) else {
         return Ok(());
     };
-    let stream = device.new_stream()?;
+    let stream = context.new_stream()?;
     let (total_tokens, input_rows, expert_count, columns, reduction, top_k) =
         (5usize, 3usize, 2usize, 4usize, 3usize, 2usize);
     let input_f32 = (0..input_rows * reduction)
@@ -1924,10 +1924,10 @@ fn test_grouped_gemm_f16_permuted_input() -> Result<()> {
 #[cfg(feature = "dtype_bf16")]
 #[test]
 fn test_grouped_gemm_bf16_permuted_output() -> Result<()> {
-    let Ok(device) = Device::new(0) else {
+    let Ok(context) = Context::new(0) else {
         return Ok(());
     };
-    let stream = device.new_stream()?;
+    let stream = context.new_stream()?;
     let (total_tokens, expert_count, columns, reduction) = (5usize, 2usize, 3usize, 4usize);
     let input_f32 = (0..total_tokens * reduction)
         .map(|index| (index as f32 % 13.0) * 0.125 - 0.75)
@@ -2017,10 +2017,10 @@ fn test_grouped_gemm_bf16_permuted_output() -> Result<()> {
 #[cfg(feature = "dtype_f8")]
 #[test]
 fn test_ragged_block_scaled_bmm_f8e4m3_f32() -> Result<()> {
-    let Ok(device) = Device::new(0) else {
+    let Ok(context) = Context::new(0) else {
         return Ok(());
     };
-    let stream = device.new_stream()?;
+    let stream = context.new_stream()?;
     let (batch, total_rows, max_rows, columns, reduction, scale_block) =
         (2usize, 5usize, 3usize, 4usize, 5usize, 2usize);
     let k_scale_tiles = reduction.div_ceil(scale_block);
@@ -2090,10 +2090,10 @@ fn test_ragged_block_scaled_bmm_f8e4m3_f32() -> Result<()> {
 #[cfg(feature = "dtype_f8")]
 #[test]
 fn test_ragged_block_scaled_bmm_f8e4m3_f32_handles_tail_column_scale_tile() -> Result<()> {
-    let Ok(device) = Device::new(0) else {
+    let Ok(context) = Context::new(0) else {
         return Ok(());
     };
-    let stream = device.new_stream()?;
+    let stream = context.new_stream()?;
     let (batch, total_rows, max_rows, columns, reduction, scale_block) =
         (2usize, 4usize, 3usize, 5usize, 5usize, 2usize);
     let k_scale_tiles = reduction.div_ceil(scale_block);
@@ -2174,10 +2174,10 @@ fn test_ragged_block_scaled_bmm_f8e4m3_f32_handles_tail_column_scale_tile() -> R
 #[cfg(all(feature = "dtype_f8", feature = "dtype_f16"))]
 #[test]
 fn test_ragged_block_scaled_bmm_f8e4m3_f16() -> Result<()> {
-    let Ok(device) = Device::new(0) else {
+    let Ok(context) = Context::new(0) else {
         return Ok(());
     };
-    let stream = device.new_stream()?;
+    let stream = context.new_stream()?;
     let (batch, total_rows, max_rows, columns, reduction, scale_block) =
         (2usize, 5usize, 3usize, 4usize, 5usize, 2usize);
     let k_scale_tiles = reduction.div_ceil(scale_block);
@@ -2254,10 +2254,10 @@ fn test_ragged_block_scaled_bmm_f8e4m3_f16() -> Result<()> {
 #[cfg(all(feature = "dtype_f8", feature = "dtype_bf16"))]
 #[test]
 fn test_ragged_block_scaled_bmm_f8e4m3_bf16() -> Result<()> {
-    let Ok(device) = Device::new(0) else {
+    let Ok(context) = Context::new(0) else {
         return Ok(());
     };
-    let stream = device.new_stream()?;
+    let stream = context.new_stream()?;
     let (batch, total_rows, max_rows, columns, reduction, scale_block) =
         (2usize, 5usize, 3usize, 4usize, 5usize, 2usize);
     let k_scale_tiles = reduction.div_ceil(scale_block);
@@ -2334,10 +2334,10 @@ fn test_ragged_block_scaled_bmm_f8e4m3_bf16() -> Result<()> {
 #[cfg(feature = "dtype_f64")]
 #[test]
 fn test_matmul_f64_transposed_lhs() -> Result<()> {
-    let Ok(device) = Device::new(0) else {
+    let Ok(context) = Context::new(0) else {
         return Ok(());
     };
-    let stream = device.new_stream()?;
+    let stream = context.new_stream()?;
     let (rows, columns, reduction) = (3usize, 4usize, 5usize);
     let lhs_host = (0..reduction * rows)
         .map(|index| (index as f64 % 11.0) * 0.125 - 0.75)
@@ -2378,10 +2378,10 @@ fn test_matmul_f64_transposed_lhs() -> Result<()> {
 #[cfg(feature = "dtype_f64")]
 #[test]
 fn test_matmul_alpha_beta_f64() -> Result<()> {
-    let Ok(device) = Device::new(0) else {
+    let Ok(context) = Context::new(0) else {
         return Ok(());
     };
-    let stream = device.new_stream()?;
+    let stream = context.new_stream()?;
     let (rows, columns, reduction) = (3usize, 4usize, 2usize);
     let alpha = -0.75f64;
     let beta = 0.5f64;
@@ -2432,10 +2432,10 @@ fn test_matmul_alpha_beta_f64() -> Result<()> {
 #[cfg(feature = "dtype_f64")]
 #[test]
 fn test_bmm_f64_transposed_inputs() -> Result<()> {
-    let Ok(device) = Device::new(0) else {
+    let Ok(context) = Context::new(0) else {
         return Ok(());
     };
-    let stream = device.new_stream()?;
+    let stream = context.new_stream()?;
     let (batch, rows, columns, reduction) = (2usize, 3usize, 4usize, 5usize);
     let lhs_batch_stride = reduction * rows;
     let rhs_batch_stride = columns * reduction;
@@ -2494,10 +2494,10 @@ fn test_bmm_f64_transposed_inputs() -> Result<()> {
 #[cfg(feature = "dtype_f16")]
 #[test]
 fn test_matmul_f16_f32_transposed_rhs() -> Result<()> {
-    let Ok(device) = Device::new(0) else {
+    let Ok(context) = Context::new(0) else {
         return Ok(());
     };
-    let stream = device.new_stream()?;
+    let stream = context.new_stream()?;
     let (rows, columns, reduction) = (3usize, 4usize, 5usize);
     let lhs_f32 = (0..rows * reduction)
         .map(|index| (index as f32 % 7.0) * 0.25 - 0.75)
@@ -2548,10 +2548,10 @@ fn test_matmul_f16_f32_transposed_rhs() -> Result<()> {
 #[cfg(feature = "dtype_f16")]
 #[test]
 fn test_matvec_transposed_rhs_f16_f32() -> Result<()> {
-    let Ok(device) = Device::new(0) else {
+    let Ok(context) = Context::new(0) else {
         return Ok(());
     };
-    let stream = device.new_stream()?;
+    let stream = context.new_stream()?;
     for reduction in [1024usize, 2048usize, 3072usize] {
         let (rows, columns) = (1usize, 37usize);
         let lhs_f32 = (0..rows * reduction)
@@ -2614,10 +2614,10 @@ fn test_matvec_transposed_rhs_f16_f32() -> Result<()> {
 #[cfg(feature = "dtype_f16")]
 #[test]
 fn test_matmul_mma_transposed_rhs_f16_f32_with_padding() -> Result<()> {
-    let Ok(device) = Device::new(0) else {
+    let Ok(context) = Context::new(0) else {
         return Ok(());
     };
-    let stream = device.new_stream()?;
+    let stream = context.new_stream()?;
     let (rows, columns, reduction) = (19usize, 35usize, 17usize);
     let lhs_f32 = (0..rows * reduction)
         .map(|index| (index as f32 % 17.0) * 0.03125 - 0.25)
@@ -2678,10 +2678,10 @@ fn test_matmul_mma_transposed_rhs_f16_f32_with_padding() -> Result<()> {
 #[cfg(feature = "dtype_f16")]
 #[test]
 fn test_matmul_mma_transposed_rhs_f16_f32_16x64_occupancy_variants_match_cpu() -> Result<()> {
-    let Ok(device) = Device::new(0) else {
+    let Ok(context) = Context::new(0) else {
         return Ok(());
     };
-    let stream = device.new_stream()?;
+    let stream = context.new_stream()?;
     let (rows, columns, reduction) = (19usize, 70usize, 17usize);
     let lhs_f32 = (0..rows * reduction)
         .map(|index| (index as f32 % 17.0) * 0.03125 - 0.25)
@@ -2761,10 +2761,10 @@ fn test_matmul_mma_transposed_rhs_f16_f32_16x64_occupancy_variants_match_cpu() -
 #[cfg(feature = "dtype_f16")]
 #[test]
 fn test_matmul_mma_f16_f32_with_padding() -> Result<()> {
-    let Ok(device) = Device::new(0) else {
+    let Ok(context) = Context::new(0) else {
         return Ok(());
     };
-    let stream = device.new_stream()?;
+    let stream = context.new_stream()?;
     let (rows, columns, reduction) = (17usize, 18usize, 11usize);
     let lhs_f32 = (0..rows * reduction)
         .map(|index| (index as f32 % 11.0) * 0.125 - 0.5)
@@ -2825,10 +2825,10 @@ fn test_matmul_mma_f16_f32_with_padding() -> Result<()> {
 #[cfg(feature = "dtype_bf16")]
 #[test]
 fn test_matmul_bf16_f32_transposed_lhs() -> Result<()> {
-    let Ok(device) = Device::new(0) else {
+    let Ok(context) = Context::new(0) else {
         return Ok(());
     };
-    let stream = device.new_stream()?;
+    let stream = context.new_stream()?;
     let (rows, columns, reduction) = (3usize, 4usize, 5usize);
     let lhs_f32 = (0..reduction * rows)
         .map(|index| (index as f32 % 5.0) * 0.5 - 1.0)
@@ -2889,10 +2889,10 @@ fn test_matmul_bf16_f32_transposed_lhs() -> Result<()> {
 #[cfg(feature = "dtype_bf16")]
 #[test]
 fn test_matmul_mma_bf16_f32_with_padding() -> Result<()> {
-    let Ok(device) = Device::new(0) else {
+    let Ok(context) = Context::new(0) else {
         return Ok(());
     };
-    let stream = device.new_stream()?;
+    let stream = context.new_stream()?;
     let (rows, columns, reduction) = (17usize, 18usize, 11usize);
     let lhs_f32 = (0..rows * reduction)
         .map(|index| (index as f32 % 11.0) * 0.125 - 0.5)
@@ -2953,10 +2953,10 @@ fn test_matmul_mma_bf16_f32_with_padding() -> Result<()> {
 #[cfg(feature = "dtype_f16")]
 #[test]
 fn test_bmm_f16_f32_transposed_inputs() -> Result<()> {
-    let Ok(device) = Device::new(0) else {
+    let Ok(context) = Context::new(0) else {
         return Ok(());
     };
-    let stream = device.new_stream()?;
+    let stream = context.new_stream()?;
     let (batch, rows, columns, reduction) = (2usize, 3usize, 4usize, 5usize);
     let lhs_batch_stride = reduction * rows;
     let rhs_batch_stride = columns * reduction;
@@ -3025,10 +3025,10 @@ fn test_bmm_f16_f32_transposed_inputs() -> Result<()> {
 #[cfg(feature = "dtype_bf16")]
 #[test]
 fn test_bmm_bf16_f32_transposed_rhs() -> Result<()> {
-    let Ok(device) = Device::new(0) else {
+    let Ok(context) = Context::new(0) else {
         return Ok(());
     };
-    let stream = device.new_stream()?;
+    let stream = context.new_stream()?;
     let (batch, rows, columns, reduction) = (2usize, 3usize, 4usize, 5usize);
     let lhs_batch_stride = rows * reduction;
     let rhs_batch_stride = columns * reduction;

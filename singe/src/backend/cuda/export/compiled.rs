@@ -580,12 +580,12 @@ impl CompiledProgram {
 
 impl Built {
     // The name of an entry point for the step at `step`.
-    fn symbol(&self, entry: &str, step: usize) -> Vec<u8> {
+    fn symbol(&self, entry: &str, step: usize) -> String {
         let name = &self.steps[step].0;
         if name.is_empty() {
-            format!("model_{entry}").into_bytes()
+            format!("model_{entry}")
         } else {
-            format!("model_{entry}_{name}").into_bytes()
+            format!("model_{entry}_{name}")
         }
     }
 

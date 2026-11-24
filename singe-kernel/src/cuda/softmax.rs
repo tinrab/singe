@@ -1662,7 +1662,7 @@ mod tests {
         let graph = stream
             .end_capture()?
             .instantiate(GraphInstantiateFlags::empty())?;
-        stream.sync_scope(|_| unsafe { graph.launch(&stream) })?;
+        stream.sync_scope(|_| unsafe { graph.launch_async(&stream) })?;
 
         assert_softmax_output(&graph_out, &expected, &stream)
     }

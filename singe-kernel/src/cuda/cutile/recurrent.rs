@@ -481,10 +481,10 @@ mod tests {
 
     #[test]
     fn test_gated_delta_rule_preprocess_f32() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let rows = 3usize;
         let hidden = 5usize;
         let b_host = vec![
@@ -535,10 +535,10 @@ mod tests {
     #[cfg(feature = "dtype_f16")]
     #[test]
     fn test_gated_delta_rule_preprocess_f16() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let rows = 3usize;
         let hidden = 5usize;
         let b_host = half_vec(&[
@@ -598,10 +598,10 @@ mod tests {
     #[cfg(feature = "dtype_f16")]
     #[test]
     fn test_gated_delta_rule_preprocess_f16_g_f32() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let rows = 3usize;
         let hidden = 5usize;
         let b_host = half_vec(&[
@@ -656,10 +656,10 @@ mod tests {
     #[cfg(feature = "dtype_bf16")]
     #[test]
     fn test_gated_delta_rule_preprocess_bf16() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let rows = 3usize;
         let hidden = 5usize;
         let b_host = bfloat_vec(&[
@@ -719,10 +719,10 @@ mod tests {
     #[cfg(feature = "dtype_bf16")]
     #[test]
     fn test_gated_delta_rule_preprocess_bf16_g_f32() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let rows = 3usize;
         let hidden = 5usize;
         let b_host = bfloat_vec(&[
@@ -776,10 +776,10 @@ mod tests {
 
     #[test]
     fn test_recurrent_gated_delta_rule_f32_with_state() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let (batch, time, query_heads, value_heads, qk_dim, value_dim) =
             (1usize, 3usize, 1usize, 2usize, 3usize, 4usize);
         let query_host = vec![0.2f32, -0.1, 0.4, 0.5, 0.3, -0.2, -0.4, 0.6, 0.1];
@@ -859,10 +859,10 @@ mod tests {
 
     #[test]
     fn test_recurrent_gated_delta_rule_decode_f32_matches_recurrent_t1() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let (batch, time, query_heads, value_heads, qk_dim, value_dim) =
             (1usize, 1usize, 1usize, 2usize, 3usize, 4usize);
         let query_host = vec![0.2f32, -0.1, 0.4];
@@ -950,10 +950,10 @@ mod tests {
     #[cfg(feature = "dtype_f16")]
     #[test]
     fn test_recurrent_gated_delta_rule_decode_f16_matches_recurrent_t1() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let (batch, time, query_heads, value_heads, qk_dim, value_dim) =
             (1usize, 1usize, 1usize, 2usize, 3usize, 4usize);
         let query_host = half_vec(&[0.2f32, -0.1, 0.4]);
@@ -1041,10 +1041,10 @@ mod tests {
     #[cfg(feature = "dtype_bf16")]
     #[test]
     fn test_recurrent_gated_delta_rule_decode_bf16_matches_recurrent_t1() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let (batch, time, query_heads, value_heads, qk_dim, value_dim) =
             (1usize, 1usize, 1usize, 2usize, 3usize, 4usize);
         let query_host = bfloat_vec(&[0.2f32, -0.1, 0.4]);
@@ -1131,10 +1131,10 @@ mod tests {
 
     #[test]
     fn test_recurrent_gated_delta_rule_f32_without_state() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let (batch, time, query_heads, value_heads, qk_dim, value_dim) =
             (1usize, 3usize, 1usize, 2usize, 3usize, 4usize);
         let query_host = vec![0.2f32, -0.1, 0.4, 0.5, 0.3, -0.2, -0.4, 0.6, 0.1];
@@ -1204,10 +1204,10 @@ mod tests {
     #[cfg(feature = "dtype_f16")]
     #[test]
     fn test_recurrent_gated_delta_rule_f16_with_state() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let (batch, time, query_heads, value_heads, qk_dim, value_dim) =
             (1usize, 3usize, 1usize, 2usize, 3usize, 4usize);
         let query_host = half_vec(&[0.2f32, -0.1, 0.4, 0.5, 0.3, -0.2, -0.4, 0.6, 0.1]);
@@ -1294,10 +1294,10 @@ mod tests {
     #[cfg(feature = "dtype_bf16")]
     #[test]
     fn test_recurrent_gated_delta_rule_bf16_with_state() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let (batch, time, query_heads, value_heads, qk_dim, value_dim) =
             (1usize, 3usize, 1usize, 2usize, 3usize, 4usize);
         let query_host = bfloat_vec(&[0.2f32, -0.1, 0.4, 0.5, 0.3, -0.2, -0.4, 0.6, 0.1]);
@@ -1383,10 +1383,10 @@ mod tests {
 
     #[test]
     fn test_chunk_gated_delta_rule_f32_with_state() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let (batch, time, heads, qk_dim, value_dim) = (1usize, 4usize, 2usize, 3usize, 3usize);
         let query_host = vec![
             0.2f32, -0.1, 0.4, -0.3, 0.6, 0.1, 0.5, 0.3, -0.2, 0.4, -0.4, 0.7, -0.6, 0.2, 0.5, 0.1,
@@ -1469,10 +1469,10 @@ mod tests {
     #[cfg(feature = "dtype_f16")]
     #[test]
     fn test_chunk_gated_delta_rule_f16_with_state() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let (batch, time, heads, qk_dim, value_dim) = (1usize, 4usize, 2usize, 3usize, 3usize);
         let query_host = half_vec(&[
             0.2f32, -0.1, 0.4, -0.3, 0.6, 0.1, 0.5, 0.3, -0.2, 0.4, -0.4, 0.7, -0.6, 0.2, 0.5, 0.1,
@@ -1561,10 +1561,10 @@ mod tests {
     #[cfg(feature = "dtype_bf16")]
     #[test]
     fn test_chunk_gated_delta_rule_bf16_with_state() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let (batch, time, heads, qk_dim, value_dim) = (1usize, 4usize, 2usize, 3usize, 3usize);
         let query_host = bfloat_vec(&[
             0.2f32, -0.1, 0.4, -0.3, 0.6, 0.1, 0.5, 0.3, -0.2, 0.4, -0.4, 0.7, -0.6, 0.2, 0.5, 0.1,

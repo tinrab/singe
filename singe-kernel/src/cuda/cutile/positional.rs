@@ -1764,10 +1764,10 @@ mod tests {
 
     #[test]
     fn test_rotary_embedding_qk_batched_f32_matches_single_tensor_launches() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let config = QkBatchedRotaryEmbeddingConfig {
             q_output_dimensions: [2, 3, 4, 8],
             k_output_dimensions: [2, 2, 4, 8],
@@ -1868,10 +1868,10 @@ mod tests {
 
     #[test]
     fn test_rope_bshd_f32() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let config = BshdRopeConfig {
             batch: 2,
             seq_len: 3,
@@ -1932,10 +1932,10 @@ mod tests {
     #[cfg(feature = "dtype_f16")]
     #[test]
     fn test_rope_bshd_dynpos_f16_matches_host_position_f16() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let config = BshdRopeConfig {
             batch: 2,
             seq_len: 1,
@@ -2009,10 +2009,10 @@ mod tests {
 
     #[test]
     fn test_rotary_embedding_qk_bnsd_f32_partial_rope() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let config = BnsdQkRopeConfig {
             batch: 2,
             seq_len: 3,
@@ -2072,10 +2072,10 @@ mod tests {
 
     #[test]
     fn test_rotary_embedding_qk_bnsd_in_place_f32_partial_rope() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let config = BnsdQkRopeConfig {
             batch: 2,
             seq_len: 3,
@@ -2132,10 +2132,10 @@ mod tests {
     #[cfg(feature = "dtype_f16")]
     #[test]
     fn test_rotary_embedding_qk_bnsd_f16_partial_rope() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let config = BnsdQkRopeConfig {
             batch: 2,
             seq_len: 2,
@@ -2206,10 +2206,10 @@ mod tests {
     #[cfg(feature = "dtype_f16")]
     #[test]
     fn test_rotary_embedding_qk_bnsd_in_place_f16_partial_rope() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let config = BnsdQkRopeConfig {
             batch: 2,
             seq_len: 2,
@@ -2276,10 +2276,10 @@ mod tests {
     #[cfg(feature = "dtype_bf16")]
     #[test]
     fn test_rotary_embedding_qk_bnsd_bf16_partial_rope() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let config = BnsdQkRopeConfig {
             batch: 2,
             seq_len: 3,
@@ -2352,10 +2352,10 @@ mod tests {
     #[cfg(feature = "dtype_bf16")]
     #[test]
     fn test_rotary_embedding_qk_bnsd_in_place_bf16_partial_rope() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let config = BnsdQkRopeConfig {
             batch: 2,
             seq_len: 3,
@@ -2421,10 +2421,10 @@ mod tests {
 
     #[test]
     fn test_interleaved_complex_rope_qk_f32() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let config = InterleavedComplexRopeConfig {
             batch: 2,
             seq_len: 3,
@@ -2487,10 +2487,10 @@ mod tests {
     #[cfg(feature = "dtype_f16")]
     #[test]
     fn test_interleaved_complex_rope_qk_f16() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let config = InterleavedComplexRopeConfig {
             batch: 1,
             seq_len: 3,
@@ -2548,10 +2548,10 @@ mod tests {
     #[cfg(feature = "dtype_bf16")]
     #[test]
     fn test_interleaved_complex_rope_qk_bf16() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let config = InterleavedComplexRopeConfig {
             batch: 1,
             seq_len: 2,
@@ -2608,10 +2608,10 @@ mod tests {
 
     #[test]
     fn test_multiaxis_rope_qk_f32() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let config = MultiaxisRopeConfig {
             batch: 2,
             seq_len: 3,
@@ -2671,10 +2671,10 @@ mod tests {
     #[cfg(feature = "dtype_f16")]
     #[test]
     fn test_multiaxis_rope_qk_f16() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let config = MultiaxisRopeConfig {
             batch: 1,
             seq_len: 2,
@@ -2738,10 +2738,10 @@ mod tests {
     #[cfg(feature = "dtype_bf16")]
     #[test]
     fn test_multiaxis_rope_qk_bf16() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let config = MultiaxisRopeConfig {
             batch: 1,
             seq_len: 2,

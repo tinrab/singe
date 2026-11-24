@@ -25,12 +25,13 @@ pub mod tile_kernel {
             recompile_after_disk_rejection_with_toolkit, serialize_tile_ir_bytecode_for_version,
         },
         specialization::{DivHint, SpecializationBits},
+        tile_library::{TileLibrarySnapshot, default_tile_libraries_generation},
     };
     use singe_cuda::context::Context;
 
     use crate::error::{Error as KernelError, Result as KernelResult};
 
-    type Resolution = (Arc<Function>, Arc<Validator>);
+    type Resolution = (Arc<Function>, Arc<Validator>, TileLibrarySnapshot);
 
     type Slot = Arc<Mutex<Option<Resolution>>>;
 
@@ -94,6 +95,8 @@ pub mod tile_kernel {
             options: CompileOptions,
             source_hash: &str,
         ) -> Result<Resolution, Error> {
+            // As `_specialization_from_context` does, read the libraries' generation before it resolves them into the key's options.
+            let tile_library_generation = default_tile_libraries_generation();
             let specialization = _specialization_from_context(
                 context,
                 &kernel_ast,
@@ -108,15 +111,19 @@ pub mod tile_kernel {
                 source_hash,
             );
             let key = specialization.into_l1_cache_key();
-            let device = context.get_cuda_stream().device();
-            device.bind_to_thread()?;
+            let tile_libraries = TileLibrarySnapshot::new(
+                tile_library_generation,
+                &key.compile_options.tile_libraries,
+            );
+            let cuda_context = context.get_cuda_stream().context();
+            cuda_context.bind_to_thread()?;
             let slot = {
                 let mut cache = CACHE.get_or_init(Mutex::default).lock().map_err(|_| {
                     Error::KernelLaunch(KernelLaunchError("kernel cache lock poisoned".into()))
                 })?;
                 Arc::clone(
                     cache
-                        .entry((device.cu_ctx().addr(), key.clone()))
+                        .entry((cuda_context.cu_ctx().addr(), key.clone()))
                         .or_default(),
                 )
             };
@@ -127,6 +134,7 @@ pub mod tile_kernel {
                 return Ok(resolution.clone());
             }
 
+            let compile_options = key.compile_options.with_jit_env_overrides()?;
             let modules = CUDATileModules::from_kernel(kernel_ast())?;
             let capabilities = ToolkitCapabilities::for_device(context.get_device_id())?;
             let strides: Vec<_> = key
@@ -154,7 +162,7 @@ pub mod tile_kernel {
                 &hints,
                 key.grid,
                 get_gpu_name(context.get_device_id()),
-                &key.compile_options,
+                &compile_options,
             )?
             .with_target_capabilities(capabilities.target.clone())?;
             let module = compiler.compile()?;
@@ -193,11 +201,15 @@ pub mod tile_kernel {
                 &module,
                 capabilities.target.bytecode_version,
             )?;
-            let options = TileirasOptions::from_compile_options(&key.compile_options);
+            // A kernel that calls into tile libraries links them.
+            let tilelibs = tile_libraries.link(&module)?;
+            let links_tile_libraries = !tilelibs.is_empty();
+            let options =
+                TileirasOptions::from_compile_options(&compile_options).with_tilelibs(tilelibs);
             let (cubin, source) =
                 compile_bytecode_cached_with_toolkit(&bytecode, &options, &capabilities)?;
             // SAFETY: the compiler or its checksum-verified artifact store supplied a complete cubin.
-            let module = match unsafe { device.load_module_from_bytes(&cubin) } {
+            let module = match unsafe { cuda_context.load_module_from_bytes(&cubin) } {
                 Ok(module) => module,
                 Err(error) => match source {
                     Stage2Source::DiskCache { store, key } => {
@@ -209,12 +221,23 @@ pub mod tile_kernel {
                             &capabilities,
                         )?;
                         // SAFETY: this is the complete cubin returned by the compiler.
-                        unsafe { device.load_module_from_bytes(&cubin) }?
+                        unsafe { cuda_context.load_module_from_bytes(&cubin) }?
                     }
                     Stage2Source::Tileiras => return Err(error.into()),
                 },
             };
-            let resolution = (Arc::new(module.load_function(function_entry)?), validator);
+            // A library rebuilt while the kernel compiled leaves unknown which build `tileiras` linked, so the result is not cached.
+            if links_tile_libraries && !tile_libraries.files_unchanged() {
+                return Err(Error::KernelLaunch(KernelLaunchError(format!(
+                    "a tile library that {module_name}::{function_name} links changed while it compiled; launch it again once the library is rebuilt"
+                ))));
+            }
+
+            let resolution = (
+                Arc::new(module.load_function(function_entry)?),
+                validator,
+                tile_libraries,
+            );
             *slot = Some(resolution.clone());
             drop(slot);
             Ok(resolution)
@@ -255,7 +278,7 @@ pub mod tile_kernel {
         }
     }
 
-    // cuTile 0.4's generated shortcut receives only a device ordinal.
+    // cuTile's generated shortcut receives only a device ordinal.
     // Bypass it and resolve every launch through the actual-context cache above.
     // Never infer the requested stream context from the calling thread's current context.
     #[derive(Default)]
@@ -278,7 +301,7 @@ pub mod tile_kernel {
             _: &[DivHint],
             _: Option<(u32, u32, u32)>,
             _: &CompileOptions,
-        ) -> Option<Resolution> {
+        ) -> Option<(Arc<Function>, Arc<Validator>)> {
             None
         }
 
@@ -297,6 +320,7 @@ pub mod tile_kernel {
             _: CompileOptions,
             _: Arc<Function>,
             _: Arc<Validator>,
+            _: TileLibrarySnapshot,
         ) -> Self {
             Self
         }

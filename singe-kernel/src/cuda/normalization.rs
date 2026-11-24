@@ -2724,7 +2724,7 @@ mod tests {
             .end_capture()?
             .instantiate(GraphInstantiateFlags::empty())?;
         // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
-        stream.sync_scope(|_| unsafe { graph.launch(&stream) })?;
+        stream.sync_scope(|_| unsafe { graph.launch_async(&stream) })?;
 
         assert_close_output(&graph_out, &expected, &stream)
     }
@@ -2872,7 +2872,7 @@ mod tests {
         let graph = stream
             .end_capture()?
             .instantiate(GraphInstantiateFlags::empty())?;
-        stream.sync_scope(|_| unsafe { graph.launch(&stream) })?;
+        stream.sync_scope(|_| unsafe { graph.launch_async(&stream) })?;
 
         assert_sparsemax_output(&graph_out, &expected, &stream)
     }

@@ -466,7 +466,7 @@ pub unsafe fn fused_moe_f8e4m3_block_scaled_f32(
     let input = unsafe { DevicePointer::<f8e4m3fn>::from_cu_deviceptr(input.cu_deviceptr()) };
     // SAFETY: the address comes from a live device buffer; wrapping it does not dereference it.
     let weight = unsafe { DevicePointer::<f8e4m3fn>::from_cu_deviceptr(weight.cu_deviceptr()) };
-    let properties = CudaDevice::new(stream.device().cu_device()).properties()?;
+    let properties = CudaDevice::new(stream.context().cu_device()).properties()?;
     let mode = if (properties.major, properties.minor) >= (8, 9) {
         1
     } else {
@@ -528,10 +528,10 @@ mod tests {
 
     #[test]
     fn test_moe_align_block_size_i32() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let topk_ids_host = vec![2, 3, 4, 1, 2, 4, 1, 3, 4, 1, 2, 3];
         let element_count = topk_ids_host.len();
         let expert_count = 5usize;
@@ -593,10 +593,10 @@ mod tests {
 
     #[test]
     fn test_fused_moe_f32_topk2() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let (tokens, top_k, experts, columns, reduction, block_size) =
             (3usize, 2usize, 4usize, 5usize, 3usize, 2usize);
         let topk_ids_host = vec![1, 0, 2, 1, 3, 2];
@@ -690,10 +690,10 @@ mod tests {
 
     #[test]
     fn test_fused_moe_f32_topk2_with_empty_experts() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let (tokens, top_k, experts, columns, reduction, block_size) =
             (4usize, 2usize, 5usize, 4usize, 4usize, 3usize);
         let topk_ids_host = vec![0, 2, 4, 2, 0, 4, 2, 4];
@@ -788,10 +788,10 @@ mod tests {
     #[cfg(feature = "dtype_f8")]
     #[test]
     fn test_fused_moe_f8e4m3_block_scaled_f32_topk2() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let (tokens, top_k, experts, columns, reduction, block_size) =
             (3usize, 2usize, 4usize, 5usize, 5usize, 2usize);
         let (group_n, group_k) = (2usize, 3usize);
@@ -913,10 +913,10 @@ mod tests {
     #[cfg(feature = "dtype_f16")]
     #[test]
     fn test_fused_moe_f16_topk2() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let (tokens, top_k, experts, columns, reduction, block_size) =
             (3usize, 2usize, 4usize, 5usize, 3usize, 2usize);
         let topk_ids_host = vec![1, 0, 2, 1, 3, 2];
@@ -1028,10 +1028,10 @@ mod tests {
     #[cfg(feature = "dtype_bf16")]
     #[test]
     fn test_fused_moe_bf16_topk2() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let (tokens, top_k, experts, columns, reduction, block_size) =
             (3usize, 2usize, 4usize, 5usize, 3usize, 2usize);
         let topk_ids_host = vec![1, 0, 2, 1, 3, 2];
@@ -1142,10 +1142,10 @@ mod tests {
 
     #[test]
     fn test_fused_moe_f32_topk1_without_routed_weight() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let (tokens, top_k, experts, columns, reduction, block_size) =
             (5usize, 1usize, 3usize, 4usize, 5usize, 3usize);
         let topk_ids_host = vec![2, 0, 1, 2, 1];
@@ -1238,10 +1238,10 @@ mod tests {
     #[cfg(feature = "dtype_f16")]
     #[test]
     fn test_fused_moe_f16_topk1_without_routed_weight() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let (tokens, top_k, experts, columns, reduction, block_size) =
             (5usize, 1usize, 3usize, 4usize, 5usize, 3usize);
         let topk_ids_host = vec![2, 0, 1, 2, 1];
@@ -1351,10 +1351,10 @@ mod tests {
     #[cfg(feature = "dtype_bf16")]
     #[test]
     fn test_fused_moe_bf16_topk1_without_routed_weight() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let (tokens, top_k, experts, columns, reduction, block_size) =
             (5usize, 1usize, 3usize, 4usize, 5usize, 3usize);
         let topk_ids_host = vec![2, 0, 1, 2, 1];

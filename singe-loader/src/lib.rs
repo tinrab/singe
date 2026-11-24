@@ -136,7 +136,7 @@ impl Library {
         let files = self.files().ok()?;
         files.iter().find_map(|file| {
             // SAFETY: the caller guarantees `F` is the symbol's type, and `files` keeps the library loaded.
-            unsafe { file.library.get::<F>(name.to_bytes_with_nul()) }
+            unsafe { file.library.get::<F>(name) }
                 .ok()
                 .map(|symbol| *symbol)
         })

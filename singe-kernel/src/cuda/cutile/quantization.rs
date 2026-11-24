@@ -1518,10 +1518,10 @@ mod tests {
     #[cfg(all(feature = "dtype_f32", feature = "dtype_f8"))]
     #[test]
     fn test_quantize_f32_to_f8e4m3_block_matches_expected_bytes() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let input_host = vec![1.0f32, 0.5, 0.0, -0.5, 0.0, 0.0, 0.0, 0.0];
         let expected_out = vec![0x7e, 0x76, 0x00, 0xf6, 0x00, 0x00, 0x00, 0x00];
         let expected_scales = vec![1.0f32 / 448.0, 1.0f32];
@@ -1555,10 +1555,10 @@ mod tests {
     #[cfg(all(feature = "dtype_f32", feature = "dtype_f8"))]
     #[test]
     fn test_dequantize_f8e4m3_block_to_f32() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let (rows, columns, block_size) = (3usize, 5usize, 2usize);
         let input_host = vec![
             0x38u8, 0x40, 0xb8, 0x30, 0x00, 0xc0, 0x38, 0x40, 0xb8, 0x30, 0x30, 0xb8, 0x38, 0x40,
@@ -1597,10 +1597,10 @@ mod tests {
     #[cfg(all(feature = "dtype_f32", feature = "dtype_f8"))]
     #[test]
     fn test_matmul_f8e4m3_f8e4m3_block_scaled_f32() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let (rows, columns, reduction, group_n, group_k) = (2usize, 3usize, 4usize, 2usize, 2usize);
         let activations_host = vec![0x38u8, 0x40, 0x30, 0xb8, 0xc0, 0x38, 0x40, 0x30];
         let weights_host = vec![
@@ -1653,10 +1653,10 @@ mod tests {
     #[cfg(all(feature = "dtype_f32", feature = "dtype_f8"))]
     #[test]
     fn test_matmul_f8e4m3_f8e4m3_block_scaled_f32_handles_tail_groups() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let (rows, columns, reduction, group_n, group_k) = (2usize, 5usize, 5usize, 2usize, 3usize);
         let activations_host = vec![0x38u8, 0x40, 0x30, 0xb8, 0xc0, 0xc0, 0x38, 0x40, 0x30, 0xb8];
         let weights_host = vec![
@@ -1710,10 +1710,10 @@ mod tests {
     #[cfg(all(feature = "dtype_f32", feature = "dtype_f8", feature = "dtype_f16"))]
     #[test]
     fn test_matmul_f8e4m3_f8e4m3_block_scaled_f16() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let (rows, columns, reduction, group_n, group_k) = (2usize, 3usize, 4usize, 2usize, 2usize);
         let activations_host = vec![0x38u8, 0x40, 0x30, 0xb8, 0xc0, 0x38, 0x40, 0x30];
         let weights_host = vec![
@@ -1773,10 +1773,10 @@ mod tests {
     #[cfg(all(feature = "dtype_f32", feature = "dtype_f8", feature = "dtype_bf16"))]
     #[test]
     fn test_matmul_f8e4m3_f8e4m3_block_scaled_bf16() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let (rows, columns, reduction, group_n, group_k) = (2usize, 3usize, 4usize, 2usize, 2usize);
         let activations_host = vec![0x38u8, 0x40, 0x30, 0xb8, 0xc0, 0x38, 0x40, 0x30];
         let weights_host = vec![
@@ -1836,10 +1836,10 @@ mod tests {
     #[cfg(all(feature = "dtype_f32", feature = "dtype_f8"))]
     #[test]
     fn test_rope_quantize_f8e4m3_f32_interleaved_matches_expected_bytes() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let (tokens, heads, rope_dim, stride) = (2usize, 2usize, 4usize, 4usize);
         let input_host = vec![
             224.0f32, 112.0, -224.0, -112.0, 448.0, 224.0, 112.0, -448.0, -448.0, 224.0, 112.0,
@@ -1881,10 +1881,10 @@ mod tests {
     #[cfg(all(feature = "dtype_f32", feature = "dtype_f8"))]
     #[test]
     fn test_qk_rope_quantize_f8e4m3_single_kernel_matches_composed() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let (tokens, q_heads, kv_heads, rope_dim, no_rope_dim, stride) =
             (2usize, 2usize, 1usize, 4usize, 3usize, 4usize);
         let q_rope_host = vec![
@@ -2015,10 +2015,10 @@ mod tests {
     #[cfg(all(feature = "dtype_f32", feature = "dtype_f8"))]
     #[test]
     fn test_qk_rope_quantize_f8e4m3_rope_only_matches_composed() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let (tokens, q_heads, kv_heads, rope_dim, stride) =
             (2usize, 2usize, 1usize, 4usize, 4usize);
         let q_scale = 0.5f32;
@@ -2106,10 +2106,10 @@ mod tests {
     #[cfg(all(feature = "dtype_f32", feature = "dtype_f8"))]
     #[test]
     fn test_qk_rope_quantize_f8e4m3_single_kernel_matches_mla_composed() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let (tokens, q_heads, rope_dim, no_rope_dim, stride) =
             (2usize, 3usize, 4usize, 5usize, 4usize);
         let q_scale = 0.5f32;
@@ -2246,10 +2246,10 @@ mod tests {
     #[cfg(all(feature = "dtype_f32", feature = "dtype_f8"))]
     #[test]
     fn test_quantize_f32_to_f8e4m3_scaled_matches_expected_bytes() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let input_host = vec![-224.0f32, -112.0, 0.0, 112.0, 224.0, 896.0, -896.0];
         let expected_out = vec![0xf6u8, 0xee, 0x00, 0x6e, 0x76, 0x7e, 0xfe];
 
@@ -2274,10 +2274,10 @@ mod tests {
     #[cfg(all(feature = "dtype_f32", feature = "dtype_i8"))]
     #[test]
     fn test_per_token_group_quant_i8_f32() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let group_size = 5usize;
         let eps = 1e-10f32;
         let input_host = vec![
@@ -2316,10 +2316,10 @@ mod tests {
     #[cfg(all(feature = "dtype_f32", feature = "dtype_i8"))]
     #[test]
     fn test_per_token_group_quant_i8_f32_column_major_scales() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let (rows, columns, group_size, scale_column_stride) = (2usize, 5usize, 5usize, 3usize);
         let eps = 1e-10f32;
         let input_host = vec![127.0f32, 1.5, 2.5, -1.5, -2.5, -127.0, 1.5, 2.5, -1.5, -2.5];
@@ -2357,10 +2357,10 @@ mod tests {
     #[cfg(all(feature = "dtype_f32", feature = "dtype_i8"))]
     #[test]
     fn test_per_token_group_quant_i8_f32_column_major_ue8m0_scales() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let (rows, columns, group_size, scale_column_stride) = (2usize, 5usize, 5usize, 3usize);
         let eps = 1e-10f32;
         let input_host = vec![127.0f32, 1.5, 2.5, -1.5, -2.5, -127.0, 1.5, 2.5, -1.5, -2.5];
@@ -2398,10 +2398,10 @@ mod tests {
     #[cfg(all(feature = "dtype_f32", feature = "dtype_f8"))]
     #[test]
     fn test_per_token_group_quant_f8e4m3_f32_matches_expected_bytes() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let group_size = 5usize;
         let eps = 1e-10f32;
         let input_host = vec![
@@ -2444,10 +2444,10 @@ mod tests {
     #[test]
     fn test_per_token_group_quant_f8e4m3_f32_column_major_scales_matches_expected_bytes()
     -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let (rows, columns, group_size, scale_column_stride) = (2usize, 6usize, 3usize, 3usize);
         let eps = 1e-10f32;
         let input_host = vec![
@@ -2490,10 +2490,10 @@ mod tests {
     #[test]
     fn test_per_token_group_quant_f8e4m3_f32_column_major_ue8m0_scales_matches_expected_bytes()
     -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let (rows, columns, group_size, scale_column_stride) = (2usize, 6usize, 3usize, 3usize);
         let eps = 1e-10f32;
         let input_host = vec![

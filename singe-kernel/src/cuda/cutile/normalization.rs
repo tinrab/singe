@@ -1342,10 +1342,10 @@ mod tests {
     #[cfg(feature = "dtype_f32")]
     #[test]
     fn test_layer_norm_affine_f32() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let rows = 2usize;
         let cols = 5usize;
         let eps = 1e-5f32;
@@ -1400,10 +1400,10 @@ mod tests {
     #[cfg(feature = "dtype_f32")]
     #[test]
     fn test_group_norm_f32() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let batch = 2usize;
         let channels = 4usize;
         let groups = 2usize;
@@ -1454,10 +1454,10 @@ mod tests {
     #[cfg(feature = "dtype_f16")]
     #[test]
     fn test_group_norm_f16() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let batch = 2usize;
         let channels = 4usize;
         let groups = 2usize;
@@ -1547,10 +1547,10 @@ mod tests {
     #[cfg(feature = "dtype_bf16")]
     #[test]
     fn test_group_norm_bf16() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let batch = 2usize;
         let channels = 4usize;
         let groups = 2usize;
@@ -1640,10 +1640,10 @@ mod tests {
     #[cfg(feature = "dtype_f32")]
     #[test]
     fn test_sparsemax_f32() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let rows = 3usize;
         let cols = 5usize;
         let input_host = vec![
@@ -1672,10 +1672,10 @@ mod tests {
     #[cfg(feature = "dtype_f32")]
     #[test]
     fn test_sparsemax_f32_wide() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let rows = 2usize;
         let cols = 1031usize;
         let input_host = (0..rows * cols)
@@ -1708,10 +1708,10 @@ mod tests {
     #[cfg(feature = "dtype_f16")]
     #[test]
     fn test_sparsemax_f16() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let rows = 3usize;
         let cols = 5usize;
         let input_f32 = vec![
@@ -1760,10 +1760,10 @@ mod tests {
     #[cfg(feature = "dtype_f16")]
     #[test]
     fn test_sparsemax_f16_wide() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let rows = 2usize;
         let cols = 1031usize;
         let input_host = (0..rows * cols)
@@ -1811,10 +1811,10 @@ mod tests {
     #[cfg(feature = "dtype_bf16")]
     #[test]
     fn test_sparsemax_bf16() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let rows = 3usize;
         let cols = 5usize;
         let input_f32 = vec![
@@ -1863,10 +1863,10 @@ mod tests {
     #[cfg(feature = "dtype_bf16")]
     #[test]
     fn test_sparsemax_bf16_wide() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let rows = 2usize;
         let cols = 1031usize;
         let input_host = (0..rows * cols)

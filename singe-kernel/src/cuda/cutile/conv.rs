@@ -1669,10 +1669,10 @@ mod tests {
     #[cfg(feature = "dtype_f32")]
     #[test]
     fn test_conv2d_bias_gelu_f32_matches_cpu() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let (batch, channels_in, channels_out) = (2usize, 4usize, 6usize);
         let (input_h, input_w) = (5usize, 7usize);
         let (kernel_h, kernel_w) = (3usize, 3usize);
@@ -1762,10 +1762,10 @@ mod tests {
     #[cfg(feature = "dtype_f16")]
     #[test]
     fn test_conv2d_bias_gelu_f16_matches_cpu() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let (batch, channels_in, channels_out) = (2usize, 4usize, 6usize);
         let (input_h, input_w) = (5usize, 7usize);
         let (kernel_h, kernel_w) = (3usize, 3usize);
@@ -1866,10 +1866,10 @@ mod tests {
     #[cfg(feature = "dtype_bf16")]
     #[test]
     fn test_conv2d_bias_gelu_bf16_matches_cpu() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let (batch, channels_in, channels_out) = (2usize, 4usize, 6usize);
         let (input_h, input_w) = (5usize, 7usize);
         let (kernel_h, kernel_w) = (3usize, 3usize);
@@ -1970,10 +1970,10 @@ mod tests {
     #[cfg(feature = "dtype_f32")]
     #[test]
     fn test_causal_conv1d_update_silu_f32_matches_cpu() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let (batch, channels, kernel_size) = (2usize, 5usize, 5usize);
         let input_host = (0..batch * channels)
             .map(|index| (index as f32 % 7.0) * 0.25 - 0.75)
@@ -2031,10 +2031,10 @@ mod tests {
     #[cfg(feature = "dtype_f16")]
     #[test]
     fn test_causal_conv1d_update_silu_f16_matches_cpu() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let (batch, channels, kernel_size) = (2usize, 5usize, 5usize);
         let input_host = half_vec(
             &(0..batch * channels)
@@ -2106,10 +2106,10 @@ mod tests {
     #[cfg(feature = "dtype_bf16")]
     #[test]
     fn test_causal_conv1d_update_silu_bf16_matches_cpu() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let (batch, channels, kernel_size) = (2usize, 5usize, 5usize);
         let input_host = bfloat_vec(
             &(0..batch * channels)
@@ -2181,10 +2181,10 @@ mod tests {
     #[cfg(feature = "dtype_f32")]
     #[test]
     fn test_causal_conv1d_prefill_silu_f32_matches_cpu() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let (batch, channels, kernel_size) = (2usize, 3usize, 5usize);
         let input_length = 4usize;
         let output_length = 4usize;
@@ -2243,10 +2243,10 @@ mod tests {
     #[cfg(feature = "dtype_f16")]
     #[test]
     fn test_causal_conv1d_prefill_silu_f16_matches_cpu() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let (batch, channels, kernel_size) = (2usize, 3usize, 5usize);
         let input_length = 4usize;
         let output_length = 4usize;
@@ -2317,10 +2317,10 @@ mod tests {
     #[cfg(feature = "dtype_bf16")]
     #[test]
     fn test_causal_conv1d_prefill_silu_bf16_matches_cpu() -> Result<()> {
-        let Ok(device) = Device::new(0) else {
+        let Ok(context) = Context::new(0) else {
             return Ok(());
         };
-        let stream = device.new_stream()?;
+        let stream = context.new_stream()?;
         let (batch, channels, kernel_size) = (2usize, 3usize, 5usize);
         let input_length = 4usize;
         let output_length = 4usize;

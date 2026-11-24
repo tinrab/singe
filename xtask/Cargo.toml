@@ -17,9 +17,9 @@ quote.workspace = true
 syn = { workspace = true, features = ["full", "visit-mut", "visit"] }
 prettyplease.workspace = true
 cargo_metadata = "^0.23.1"
-globset = "^0.4.20"
-ra-ap-rustc_lexer = "^0.125.0"
+globset = "^0.4.22"
+ra-ap-rustc_lexer = "^0.186.0"
 similar = { version = "^3.2", default-features = false, features = ["text"] }
-walkdir = "^2.5.0"
+walkdir = "^2.5.1"
 prost-build.workspace = true
 bomboni_prost.workspace = true
