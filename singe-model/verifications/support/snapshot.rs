@@ -1,12 +1,13 @@
 // Where a case's snapshot is: `SINGE_SNAPSHOT_<NAME>` when it is set, or else the snapshot in the Hugging Face cache of the repository and revision `snapshots.toml` gives the name, as `support.py` finds it.
 
 use std::{
-    env, fs,
+    fs,
     os::unix::fs::symlink,
     path::{Path, PathBuf},
 };
 
 use anyhow::{Context as _, Result};
+use singe_model::source::cached_snapshot;
 use singe_testing::snapshot_if_set;
 use toml_edit::DocumentMut;
 
@@ -82,25 +83,7 @@ pub fn find(root: &Path, name: &str) -> Result<Option<PathBuf>> {
             )
         }
     };
-    Ok(cached(repository, revision))
-}
-
-// The Hugging Face cache, as `huggingface_hub` finds it: `HF_HUB_CACHE`, or `hub` under `HF_HOME` or `~/.cache/huggingface`.
-fn cache() -> Option<PathBuf> {
-    env::var_os("HF_HUB_CACHE").map(PathBuf::from).or_else(|| {
-        env::var_os("HF_HOME")
-            .map(PathBuf::from)
-            .or_else(|| env::var_os("HOME").map(|home| Path::new(&home).join(".cache/huggingface")))
-            .map(|home| home.join("hub"))
-    })
-}
-
-// The cached snapshot of `repository` that `refs/<revision>` names, as `huggingface_hub` resolves a revision offline, such as `refs/refs/pr/3` for `refs/pr/3`.
-fn cached(repository: &str, revision: &str) -> Option<PathBuf> {
-    let directory = cache()?.join(format!("models--{}", repository.replace('/', "--")));
-    let commit = fs::read_to_string(directory.join("refs").join(revision)).ok()?;
-    let snapshot = directory.join("snapshots").join(commit.trim());
-    snapshot.is_dir().then_some(snapshot)
+    Ok(cached_snapshot(repository, revision))
 }
 
 // A snapshot derived from `base`, as `support.py` derives it: the base's files linked under the tests' temporary directory, but for each of `replaced`, copied from its file under `root` in its place; `None` when the base is missing.

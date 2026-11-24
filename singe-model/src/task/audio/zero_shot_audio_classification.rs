@@ -59,12 +59,12 @@ impl Pipeline for ZeroShotAudioClassificationPipeline {
 
     fn run_one(&self, input: &Self::Input, parameters: &Self::Parameters) -> Result<Self::Output> {
         let hypotheses = hypotheses(&parameters.hypothesis_template, &input.candidate_labels)?;
-        input.audio.expect_rate(self.model.sample_rate())?;
+        let audio = input.audio.at_rate(self.model.sample_rate())?;
         let texts = hypotheses.iter().map(String::as_str).collect::<Vec<_>>();
         let tokens = self
             .tokenizer
             .encode_batch(&texts, None, self.options.device)?;
-        let features = self.model.features(&input.audio.samples)?;
+        let features = self.model.features(&audio.samples)?;
         let logits = self.model.encoder.logits(&features, &tokens)?;
         Ok(ranked(
             &logits[0],

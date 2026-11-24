@@ -129,7 +129,7 @@ impl Pipeline for ImageTextToTextPipeline {
                 Part::Image { image } => Some(image),
                 Part::Text { .. } | Part::Audio { .. } | Part::Video { .. } => None,
             })
-            .map(Image::open)
+            .map(|image| Image::from_data(image))
             .collect::<Result<Vec<_>>>()?;
         self.respond(messages, parameters, &Media::Images(images))
     }

@@ -1,12 +1,13 @@
 [package]
 name = "singe-model"
 description = "Model definitions built on Singe."
-version = "0.0.0"
+version = "0.1.0-alpha.2"
 edition.workspace = true
 rust-version.workspace = true
 repository.workspace = true
+documentation = "https://docs.rs/singe-model"
 license-file.workspace = true
-publish = false
+readme = "README.md"
 keywords = ["singe", "inference", "model", "neural-network"]
 categories = ["science"]
 include.workspace = true

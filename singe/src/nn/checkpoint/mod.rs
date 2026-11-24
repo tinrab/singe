@@ -624,6 +624,10 @@ impl Loading {
         shard: &mut Shard<'_>,
         info: &TensorInfo,
         target: DataType,
+        #[cfg_attr(
+            not(feature = "cuda"),
+            expect(unused_variables, reason = "only CUDA uploads by shape")
+        )]
         shape: &Shape,
         device: Device,
     ) -> Result<Tensor> {

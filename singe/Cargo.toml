@@ -1,12 +1,13 @@
 [package]
 name = "singe"
 description = "A machine learning framework that sets tensors ablaze."
-version = "0.0.0"
+version = "0.1.0-alpha.2"
 edition.workspace = true
 rust-version.workspace = true
 repository.workspace = true
+documentation = "https://docs.rs/singe"
 license-file.workspace = true
-publish = false
+readme = "README.md"
 keywords = ["ai", "machine-learning", "deep-learning", "tensor", "cuda"]
 categories = ["science"]
 include = ["src/**", "/Cargo.toml", "/README.md", "/LICENSE*", "/dist/katex_header.html"]

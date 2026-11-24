@@ -78,7 +78,7 @@ impl Pipeline for AutomaticSpeechRecognitionPipeline {
     fn run_one(&self, clip: &Self::Input, parameters: &Self::Parameters) -> Result<Self::Output> {
         match &self.model {
             Recognizer::Generative { model, tokenizer } => {
-                clip.expect_rate(model.sample_rate())?;
+                let clip = clip.at_rate(model.sample_rate())?;
                 model.transcribe(
                     tokenizer,
                     &clip.to_tensor(self.options.device)?,
@@ -87,7 +87,7 @@ impl Pipeline for AutomaticSpeechRecognitionPipeline {
                 )
             }
             Recognizer::Ctc { model, vocabulary } => {
-                clip.expect_rate(model.sample_rate())?;
+                let clip = clip.at_rate(model.sample_rate())?;
                 Ok(Transcription {
                     language: None,
                     text: vocabulary.decode(&model.best_tokens(&clip.samples)?)?,

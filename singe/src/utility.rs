@@ -49,7 +49,7 @@ pub fn checked_mul_i64(lhs: i64, rhs: i64, name: &str) -> Result<i64> {
         .ok_or_else(|| Error::out_of_range(name.to_owned()))
 }
 
-#[cfg(any(feature = "cuda", feature = "onnx"))]
+#[cfg(feature = "onnx")]
 pub fn checked_product_i64(dimensions: &[i64], name: &str) -> Result<i64> {
     dimensions.iter().try_fold(1_i64, |product, &dimension| {
         if dimension < 0 {

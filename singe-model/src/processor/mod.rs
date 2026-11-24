@@ -2,7 +2,7 @@
 // Processing a model alone needs, such as Whisper's log-mel front end or Qwen3.5's image patches, lives with the model, as `transformers` keeps it.
 
 pub mod audio;
-mod base64;
+pub mod base64;
 pub mod chat;
 mod conversion;
 pub mod fbank;

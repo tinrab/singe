@@ -27,7 +27,20 @@ pub struct TextGenerationPipeline {
     tokenizer: TextTokenizer,
     template: Option<ChatTemplate>,
     stop_tokens: Vec<i64>,
+    defaults: GenerationDefaults,
+    context_length: Option<usize>,
     decoders: Decoders<DecoderKey, Box<dyn Decoder>>,
+}
+
+// The sampling `generation_config.json` asks for, which a server applies where a request names none.
+#[derive(Debug, Clone, Copy, PartialEq, Default, Deserialize)]
+#[serde(default)]
+pub struct GenerationDefaults {
+    pub do_sample: bool,
+    pub temperature: Option<f32>,
+    pub top_k: Option<usize>,
+    pub top_p: Option<f32>,
+    pub min_p: Option<f32>,
 }
 
 // A prompt, read as it is, or a conversation, which the snapshot's chat template turns into one.
@@ -70,8 +83,39 @@ impl Default for TextGenerationParameters {
 }
 
 impl TextGenerationPipeline {
+    // Returns a decoder over the model of `options`' rows and capacity, compiled if asked, for a caller that runs its own generation loop.
+    pub fn decoder(&self, options: DecoderOptions, compile: bool) -> Result<Box<dyn Decoder>> {
+        self.model.decoder(options, compile)
+    }
+
+    #[must_use]
+    pub const fn tokenizer(&self) -> &TextTokenizer {
+        &self.tokenizer
+    }
+
+    #[must_use]
+    pub const fn template(&self) -> Option<&ChatTemplate> {
+        self.template.as_ref()
+    }
+
+    #[must_use]
+    pub fn stop_tokens(&self) -> &[i64] {
+        &self.stop_tokens
+    }
+
+    #[must_use]
+    pub const fn defaults(&self) -> GenerationDefaults {
+        self.defaults
+    }
+
+    // The most tokens a sequence holds, prompt included, as the model's config limits its positions.
+    #[must_use]
+    pub const fn context_length(&self) -> Option<usize> {
+        self.context_length
+    }
+
     // Returns an input's prompt tokens: a text as it is, without special tokens, or a conversation through the chat template, ending where the assistant's turn starts.
-    fn prompt(
+    pub fn prompt(
         &self,
         input: &TextGenerationInput,
         template_arguments: &Map<String, Value>,
@@ -103,6 +147,10 @@ impl Pipeline for TextGenerationPipeline {
             tokenizer: TextTokenizer::load(source)?,
             template: ChatTemplate::load(source)?,
             stop_tokens: source.stop_tokens()?,
+            defaults: source
+                .optional_json("generation_config.json")?
+                .unwrap_or_default(),
+            context_length: source.context_length()?,
             decoders: Decoders::default(),
         })
     }

@@ -28,7 +28,7 @@ impl Pipeline for AudioToAudioPipeline {
     }
 
     fn run_one(&self, clip: &Self::Input, (): &Self::Parameters) -> Result<Self::Output> {
-        clip.expect_rate(self.model.sample_rate())?;
+        let clip = clip.at_rate(self.model.sample_rate())?;
         Ok(GeneratedAudio {
             audio: self.model.reconstruct(&clip.samples)?,
             sampling_rate: self.model.sample_rate(),

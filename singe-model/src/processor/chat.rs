@@ -45,15 +45,16 @@ pub enum Content {
     Parts(Vec<Part>),
 }
 
-// A part of a message; an image or a clip names the file it is read from, which the template sees as a placeholder.
+// A part of a message; an image or a clip carries its data, which the template sees as a placeholder.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Part {
     Text { text: String },
+    // An image, as a `data:` URL or bare base64 of its file.
     Image { image: String },
     Audio { audio: String },
-    // A clip: the directory of its decoded frames, and the frames per second they were decoded at.
-    Video { video: String, fps: f64 },
+    // A clip: its decoded frames, each as an image part carries one, and the frames per second they were decoded at.
+    Video { video: Vec<String>, fps: f64 },
 }
 
 impl Content {

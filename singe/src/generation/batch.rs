@@ -1,10 +1,10 @@
 use crate::{
     device::Device,
     error::{Error, Result},
-    generation::{Decoder, GenerationOptions, choose, reading::TokenReader},
+    generation::{Decoder, GenerationOptions, SequenceOptions, choose, reading::TokenReader},
     random::Generator,
     shape::Shape,
-    tensor::Tensor,
+    tensor::{SamplingOptions, Tensor},
 };
 
 // One token a running batch chose.
@@ -22,10 +22,12 @@ struct RunningSequence {
     // What its next step reads from the host: its prompt, or the token last chosen when no step read it on the device.
     pending: Vec<i64>,
     generated: usize,
+    options: SequenceOptions,
 }
 
-// A batch whose sequences join and leave while the others run, each in a row of its decoder.
+// A batch whose sequences join and leave while the others run, each in a row of its decoder, with its own limit, stop tokens, and sampling.
 // A finished sequence frees its row and its pages at once, and an idle row costs nothing but its place in a step.
+// The batch's options give the suppressed tokens every sequence shares, and the sequence options of `join` and `join_with`.
 pub struct RunningBatch<'a, D: Decoder + ?Sized> {
     decoder: &'a mut D,
     options: GenerationOptions,
@@ -61,20 +63,38 @@ impl<'a, D: Decoder + ?Sized> RunningBatch<'a, D> {
         })
     }
 
-    // Starts a sequence after `prompt` in a free row, and returns its id, or `None` when every row is taken.
+    // Starts a sequence after `prompt` in a free row, with the batch's sequence options, and returns its id, or `None` when every row is taken.
     pub fn join(&mut self, prompt: &[i64]) -> Result<Option<usize>> {
-        self.join_with(prompt, |_, _| Ok(()))
+        let options = self.options.sequence();
+        self.join_with_options(prompt, options, |_, _| Ok(()))
     }
 
     // Starts a sequence as `join` does, after `prepare` has run with the decoder and the row it takes, as an encoder-decoder writes the row's sources there before its first step.
-    // A sequence whose preparation fails does not join, and its row stays free.
     pub fn join_with(
         &mut self,
         prompt: &[i64],
         prepare: impl FnOnce(&D, usize) -> Result<()>,
     ) -> Result<Option<usize>> {
+        let options = self.options.sequence();
+        self.join_with_options(prompt, options, prepare)
+    }
+
+    // Starts a sequence as `join_with` does, generating as `options` asks rather than as the batch's options do.
+    // A sequence whose preparation fails does not join, and its row stays free.
+    pub fn join_with_options(
+        &mut self,
+        prompt: &[i64],
+        options: SequenceOptions,
+        prepare: impl FnOnce(&D, usize) -> Result<()>,
+    ) -> Result<Option<usize>> {
         if prompt.is_empty() {
             return Err(Error::invalid_argument("generation prompt is empty"));
+        }
+
+        if options.max_new_tokens == 0 {
+            return Err(Error::invalid_argument(
+                "a running batch generates at least one token per sequence",
+            ));
         }
 
         let Some(index) = self.rows.iter().position(Option::is_none) else {
@@ -87,9 +107,31 @@ impl<'a, D: Decoder + ?Sized> RunningBatch<'a, D> {
             id,
             pending: prompt.to_vec(),
             generated: 0,
+            options,
         });
         self.joined += 1;
         Ok(Some(id))
+    }
+
+    // Stops sequence `id` and frees its row and pages; returns whether it was running.
+    // A token an enqueued step chooses for it is dropped, as a finished sequence's is.
+    pub fn leave(&mut self, id: usize) -> Result<bool> {
+        let Some(index) = self
+            .rows
+            .iter()
+            .position(|row| row.as_ref().is_some_and(|row| row.id == id))
+        else {
+            return Ok(false);
+        };
+        self.rows[index] = None;
+        self.decoder.release(index)?;
+        Ok(true)
+    }
+
+    // Returns how many sequences are running.
+    #[must_use]
+    pub fn running(&self) -> usize {
+        self.rows.iter().flatten().count()
     }
 
     // Returns whether no sequence is running.
@@ -132,8 +174,8 @@ impl<'a, D: Decoder + ?Sized> RunningBatch<'a, D> {
             }
 
             running.generated += 1;
-            let finished = running.generated == self.options.max_new_tokens
-                || self.options.stop_tokens.contains(&token);
+            let finished = running.generated == running.options.max_new_tokens
+                || running.options.stop_tokens.contains(&token);
             generated.push(GeneratedToken {
                 sequence: running.id,
                 token,
@@ -159,7 +201,7 @@ impl<'a, D: Decoder + ?Sized> RunningBatch<'a, D> {
         previous: Option<&UnreadStep>,
         generator: Option<&Generator>,
     ) -> Result<Option<UnreadStep>> {
-        let reads = row_reads(&self.rows, previous, self.options.max_new_tokens);
+        let reads = row_reads(&self.rows, previous);
         if reads.iter().all(|tokens| tokens.is_empty()) {
             return Ok(None);
         }
@@ -187,7 +229,7 @@ impl<'a, D: Decoder + ?Sized> RunningBatch<'a, D> {
             })
             .collect::<Vec<_>>();
         let first = self.first_tokens(previous, &choosing, logits.device())?;
-        let chosen = choose(&logits, &first, &self.options, generator)?;
+        let chosen = self.choose_rows(&logits, &first, &choosing, generator)?;
         for (row, &portion) in self.rows.iter_mut().zip(&portions) {
             if let Some(row) = row {
                 let read = portion.min(row.pending.len());
@@ -195,6 +237,55 @@ impl<'a, D: Decoder + ?Sized> RunningBatch<'a, D> {
             }
         }
         Ok(Some(UnreadStep { chosen, choosing }))
+    }
+
+    // Chooses each row's token with its sequence's sampling: in one call when every choosing row samples alike, or else row by row.
+    fn choose_rows(
+        &self,
+        logits: &Tensor,
+        first: &Tensor,
+        choosing: &[Option<usize>],
+        generator: Option<&Generator>,
+    ) -> Result<Tensor> {
+        let samplings = self
+            .rows
+            .iter()
+            .zip(choosing)
+            .map(|(row, choosing)| {
+                row.as_ref()
+                    .filter(|_| choosing.is_some())
+                    .map(|row| row.options.sampling)
+            })
+            .collect::<Vec<_>>();
+        let mut kinds = samplings.iter().flatten();
+        let shared = kinds.next().copied().unwrap_or(None);
+        let options = |sampling: Option<SamplingOptions>| GenerationOptions {
+            sampling,
+            ..self.options.clone()
+        };
+        if kinds.all(|sampling| *sampling == shared) {
+            return choose(logits, first, &options(shared), generator);
+        }
+
+        let greedy = choose(logits, first, &options(None), generator)?;
+        let rows = samplings
+            .iter()
+            .enumerate()
+            .map(|(index, sampling)| {
+                let index =
+                    i64::try_from(index).map_err(|_| Error::out_of_range("generation row"))?;
+                match sampling {
+                    Some(Some(sampling)) => choose(
+                        &logits.narrow(0, index, 1)?,
+                        &first.narrow(0, index, 1)?,
+                        &options(Some(*sampling)),
+                        generator,
+                    ),
+                    _ => greedy.narrow(0, index, 1),
+                }
+            })
+            .collect::<Result<Vec<_>>>()?;
+        Tensor::concat(&rows, 0)
     }
 
     fn first_tokens(
@@ -229,7 +320,6 @@ const PREVIOUS_CHOICE: [i64; 1] = [-1];
 fn row_reads<'a>(
     rows: &'a [Option<RunningSequence>],
     previous: Option<&UnreadStep>,
-    max_new_tokens: usize,
 ) -> Vec<&'a [i64]> {
     // A row reads the rest of its prompt, or, if its sequence may take another token, the one `previous` chooses for it, which the step reads on the device as `DecodeStep::follow` reads a negative token.
     rows.iter()
@@ -238,7 +328,7 @@ fn row_reads<'a>(
             Some(row) if !row.pending.is_empty() => &row.pending[..],
             Some(row)
                 if previous.is_some_and(|previous| previous.chooses_for(index, row))
-                    && row.generated + 1 < max_new_tokens =>
+                    && row.generated + 1 < row.options.max_new_tokens =>
             {
                 &PREVIOUS_CHOICE[..]
             }

@@ -47,7 +47,7 @@ pub enum Error {
         #[source]
         source: ImageError,
     },
-    #[error("failed to encode an image as PNG")]
+    #[error("failed to encode an image")]
     ImageEncoding(#[source] ImageError),
     #[error("unreadable media: {0}")]
     Media(String),

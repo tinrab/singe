@@ -57,11 +57,11 @@ impl Pipeline for AudioTextToTextPipeline {
     }
 
     fn run_one(&self, input: &Self::Input, parameters: &Self::Parameters) -> Result<Self::Output> {
-        input.audio.expect_rate(self.model.sample_rate())?;
+        let audio = input.audio.at_rate(self.model.sample_rate())?;
         Ok(GeneratedText {
             generated_text: self.model.respond(
                 &self.tokenizer,
-                &input.audio.to_tensor(self.options.device)?,
+                &audio.to_tensor(self.options.device)?,
                 &input.text,
                 &BatchOptions::new(parameters.max_new_tokens, parameters.compile),
             )?,

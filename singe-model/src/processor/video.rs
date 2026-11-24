@@ -70,10 +70,13 @@ impl Video {
     }
 }
 
-// A clip in JSON names the directory its frames are read from.
+// A clip in JSON is its frames, each an image as JSON carries one.
 impl<'de> Deserialize<'de> for Video {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> StdResult<Self, D::Error> {
-        let path = String::deserialize(deserializer)?;
-        Self::open(&path).map_err(DeError::custom)
+        let frames = Vec::<Image>::deserialize(deserializer)?;
+        if frames.is_empty() {
+            return Err(DeError::custom("a clip without frames"));
+        }
+        Ok(Self { frames })
     }
 }

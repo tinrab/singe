@@ -32,7 +32,7 @@ impl Pipeline for AudioClassificationPipeline {
 
     fn run_one(&self, clip: &Self::Input, parameters: &Self::Parameters) -> Result<Self::Output> {
         let config = self.model.classifier.config();
-        clip.expect_rate(self.model.sample_rate())?;
+        let clip = clip.at_rate(self.model.sample_rate())?;
         let scores = self.model.scores(&clip.samples)?;
         Ok(ranked(
             &scores,

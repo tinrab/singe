@@ -20,6 +20,7 @@ use serde_json::Value;
 use singe::{DataType, Device, backend::cuda::clear_cache};
 use singe_model::{
     LoadOptions, Source,
+    processor::base64::file_value,
     task::{self, Pipeline},
 };
 use singe_testing::{GpuWork, profiled};
@@ -230,7 +231,7 @@ fn run<R: Runner>(case: &Case, snapshot: &Path, label: &str) -> Result<Outcome> 
     let inputs = case
         .inputs
         .iter()
-        .map(|input| Ok(serde_json::from_value(media(input.clone()))?))
+        .map(|input| Ok(serde_json::from_value(embedded(input.clone())?)?))
         .collect::<Result<Vec<R::Input>>>()?;
     let parameters = task::parameters::<R::Parameters>(&case.parameters)?;
 
@@ -320,6 +321,23 @@ fn media(value: Value) -> Value {
         ),
         other => other,
     }
+}
+
+// Replaces each string naming a file under `media/` with its contents, as pipelines take media from JSON.
+fn embedded(value: Value) -> Result<Value> {
+    Ok(match value {
+        Value::String(text) if text.starts_with("media/") => file_value(&root().join(text))?,
+        Value::Array(items) => {
+            Value::Array(items.into_iter().map(embedded).collect::<Result<_>>()?)
+        }
+        Value::Object(fields) => Value::Object(
+            fields
+                .into_iter()
+                .map(|(key, value)| Ok((key, embedded(value)?)))
+                .collect::<Result<_>>()?,
+        ),
+        other => other,
+    })
 }
 
 // Where a case's time went: loading (with its copies to the GPU), the first run (with any compiling and tuning), and the median run, split into the GPU's work and the host's.

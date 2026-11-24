@@ -13,6 +13,6 @@ pub use self::{
     batch::{GeneratedToken, RunningBatch},
     cached::{CachedDecoder, DecoderOptions, DecoderStepGraph, PromptChunks},
     choosing::choose,
-    decoder::{Decoder, GenerationOptions, generate, generate_batch},
+    decoder::{Decoder, GenerationOptions, SequenceOptions, generate, generate_batch},
     speculative::{DraftingModel, Speculation, SpeculativeDecoder},
 };

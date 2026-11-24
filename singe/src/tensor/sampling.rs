@@ -17,6 +17,7 @@ pub struct SamplingOptions {
     temperature: f32,
     top_k: Option<i64>,
     top_p: f32,
+    min_p: f32,
     samples: i64,
     replacement: bool,
 }
@@ -27,6 +28,7 @@ impl Default for SamplingOptions {
             temperature: 1.0,
             top_k: None,
             top_p: 1.0,
+            min_p: 0.0,
             samples: 1,
             replacement: true,
         }
@@ -61,6 +63,13 @@ impl SamplingOptions {
         self
     }
 
+    // Keeps only tokens at least `min_p` times as likely as the most likely one, or every token for zero.
+    #[must_use]
+    pub const fn with_min_p(mut self, min_p: f32) -> Self {
+        self.min_p = min_p;
+        self
+    }
+
     /// Draws `samples` indices per row.
     #[must_use]
     pub const fn with_samples(mut self, samples: i64) -> Self {
@@ -86,6 +95,10 @@ impl SamplingOptions {
             return Err(Error::out_of_range("sampling top-p"));
         }
 
+        if !(0.0..=1.0).contains(&self.min_p) {
+            return Err(Error::out_of_range("sampling min-p"));
+        }
+
         if self.top_k.is_some_and(|top_k| top_k < 1) {
             return Err(Error::out_of_range("sampling top-k"));
         }
@@ -108,7 +121,7 @@ impl SamplingOptions {
 impl Tensor {
     /// Draws token indices from logits of shape `[vocabulary]` or `[batch, vocabulary]`, returning `I64` indices of shape `[samples]` or `[batch, samples]`.
     ///
-    /// Logits are divided by the temperature, filtered by top-k and then top-p, and sampled from their softmax, with replacement through `multinomial` or without replacement through the Gumbel top-k trick.
+    /// Logits are divided by the temperature, filtered by min-p, top-k, and then top-p, and sampled from their softmax, with replacement through `multinomial` or without replacement through the Gumbel top-k trick.
     /// Filtered tokens are never drawn; tokens tied with the last one top-p keeps are kept too.
     /// The work runs on the logits' device from `generator`, or the device's default generator, so graph capture records it like other random operations.
     ///
@@ -137,6 +150,14 @@ impl Tensor {
         }
 
         let mut logits = logits.mul_scalar(1.0 / options.temperature)?;
+        if options.min_p > 0.0 {
+            // A token's probability over the likeliest's is the exponential of their logits' difference.
+            let threshold = logits
+                .max_reduce(&[-1], true)?
+                .add_scalar(f64::from(options.min_p.ln()))?;
+            logits = masked_below(&logits, &threshold)?;
+        }
+
         if let Some(top_k) = options.top_k.filter(|&top_k| top_k < vocabulary) {
             let (values, _) = logits.topk(top_k, -1, true, true)?;
             let threshold = values.narrow(-1, top_k - 1, 1)?;

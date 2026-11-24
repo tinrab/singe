@@ -362,6 +362,12 @@ impl TextTokenizer {
         }
     }
 
+    // The tokens the vocabulary holds, added tokens included.
+    #[must_use]
+    pub fn vocabulary_size(&self) -> i64 {
+        i64::try_from(self.inner.get_vocab_size(true)).unwrap_or(i64::MAX)
+    }
+
     // Returns the id of a token by its text, such as Whisper's `<|en|>`.
     pub fn token_id(&self, token: &str) -> Result<i64> {
         self.inner

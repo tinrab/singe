@@ -38,11 +38,40 @@ impl Image {
     pub fn open(path: impl AsRef<Path>) -> Result<Self> {
         let path = path.as_ref();
         let image = image::open(path).map_err(Error::image(path))?.to_rgb8();
-        Ok(Self {
+        Ok(Self::from_rgb(image))
+    }
+
+    // Decodes an image file's bytes, in any format the `image` crate reads, telling the format from its contents.
+    pub fn decode(bytes: &[u8]) -> Result<Self> {
+        let image = image::load_from_memory(bytes)
+            .map_err(|error| Error::Media(format!("an image that does not decode: {error}")))?
+            .to_rgb8();
+        Ok(Self::from_rgb(image))
+    }
+
+    // Decodes an image carried as JSON carries one: a `data:` URL or bare base64 of its file.
+    pub fn from_data(text: &str) -> Result<Self> {
+        let bytes = base64::data_bytes(text).ok_or_else(|| {
+            Error::Media("an image that is neither a data URL nor base64".to_owned())
+        })?;
+        Self::decode(&bytes)
+    }
+
+    fn from_rgb(image: RgbImage) -> Self {
+        Self {
             width: image.width(),
             height: image.height(),
             pixels: image.into_raw(),
-        })
+        }
+    }
+
+    // Encodes the image as a file of `format`, such as PNG, JPEG, or WebP.
+    pub fn encode(&self, format: ImageFormat) -> Result<Vec<u8>> {
+        let mut file = Cursor::new(Vec::new());
+        self.buffer()?
+            .write_to(&mut file, format)
+            .map_err(Error::ImageEncoding)?;
+        Ok(file.into_inner())
     }
 
     #[must_use]
@@ -183,23 +212,19 @@ impl Image {
     }
 
     // Returns the image as a PNG `data:` URL.
-    fn to_data_url(&self) -> Result<String> {
-        let mut png = Cursor::new(Vec::new());
-        self.buffer()?
-            .write_to(&mut png, ImageFormat::Png)
-            .map_err(Error::ImageEncoding)?;
-        Ok(format!(
-            "data:image/png;base64,{}",
-            base64::encode(png.get_ref())
+    pub fn to_data_url(&self) -> Result<String> {
+        Ok(base64::data_url(
+            "image/png",
+            &self.encode(ImageFormat::Png)?,
         ))
     }
 }
 
-// An image in JSON names the file it is read from.
+// An image in JSON is its file's bytes, as a `data:` URL or bare base64, so JSON from a client never names a file to read.
 impl<'de> Deserialize<'de> for Image {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> StdResult<Self, D::Error> {
-        let path = String::deserialize(deserializer)?;
-        Self::open(&path).map_err(DeError::custom)
+        let text = String::deserialize(deserializer)?;
+        Self::from_data(&text).map_err(DeError::custom)
     }
 }
 

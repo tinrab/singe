@@ -1,7 +1,7 @@
 // Where a model is read from: a directory in one of the formats `format` reads, and the options a load takes.
 
 use std::{
-    fs,
+    env, fs,
     path::{Path, PathBuf},
 };
 
@@ -67,6 +67,27 @@ impl Source {
             format,
             kind,
         })
+    }
+
+    // Opens `name`: a model directory, or a Hugging Face repository, as `owner/name` or `owner/name@revision`, whose snapshot the local cache holds.
+    pub fn find(name: &str) -> Result<Self> {
+        if Path::new(name).is_dir() {
+            return Self::open(name);
+        }
+
+        let (repository, revision) = name.split_once('@').unwrap_or((name, "main"));
+        if !repository.contains('/') {
+            return Err(Error::invalid(format!(
+                "model {name}, which is neither a directory nor a repository"
+            )));
+        }
+
+        let snapshot = cached_snapshot(repository, revision).ok_or_else(|| {
+            Error::invalid(format!(
+                "model {name}, which the Hugging Face cache does not hold"
+            ))
+        })?;
+        Self::open(snapshot)
     }
 
     // Opens the component `name` of a `diffusers` pipeline, such as its `unet` or `vae`, as its own source.
@@ -142,6 +163,30 @@ impl Source {
         self.directory.join(path).exists()
     }
 
+    // The most tokens a sequence holds, prompt included: a config's `max_position_embeddings`, or its `text_config`'s, or GPT-2's `n_positions`.
+    pub fn context_length(&self) -> Result<Option<usize>> {
+        let Some(config) = self.optional_json::<Value>("config.json")? else {
+            return Ok(None);
+        };
+        Ok([&config, &config["text_config"]]
+            .into_iter()
+            .flat_map(|fields| ["max_position_embeddings", "n_positions"].map(|key| &fields[key]))
+            .find_map(Value::as_u64)
+            .and_then(|length| usize::try_from(length).ok()))
+    }
+
+    // The type a config says its weights are stored in, such as `bfloat16`.
+    pub fn stored_data_type(&self) -> Result<Option<String>> {
+        let Some(config) = self.optional_json::<Value>("config.json")? else {
+            return Ok(None);
+        };
+        Ok([&config, &config["text_config"]]
+            .into_iter()
+            .flat_map(|fields| ["torch_dtype", "dtype"].map(|key| &fields[key]))
+            .find_map(Value::as_str)
+            .map(str::to_owned))
+    }
+
     // Returns the tokens that end generation: those a native config records, or `generation_config.json`'s `eos_token_id`, a `transformers` config's or its `text_config`'s, and the tokenizer's end token, which chat models such as Qwen3.5 name only there.
     pub fn stop_tokens(&self) -> Result<Vec<i64>> {
         if self.format == Format::Native {
@@ -202,6 +247,27 @@ struct AddedTokens {
 struct AddedToken {
     id: i64,
     content: String,
+}
+
+// The Hugging Face cache, as `huggingface_hub` finds it: `HF_HUB_CACHE`, or `hub` under `HF_HOME` or `~/.cache/huggingface`.
+fn hugging_face_cache() -> Option<PathBuf> {
+    env::var_os("HF_HUB_CACHE").map(PathBuf::from).or_else(|| {
+        env::var_os("HF_HOME")
+            .map(PathBuf::from)
+            .or_else(|| env::var_os("HOME").map(|home| Path::new(&home).join(".cache/huggingface")))
+            .map(|home| home.join("hub"))
+    })
+}
+
+// The cached snapshot of `repository` that `refs/<revision>` names, as `huggingface_hub` resolves a revision offline, such as `refs/refs/pr/3` for `refs/pr/3`, or the snapshot named by a commit hash.
+#[must_use]
+pub fn cached_snapshot(repository: &str, revision: &str) -> Option<PathBuf> {
+    let directory =
+        hugging_face_cache()?.join(format!("models--{}", repository.replace('/', "--")));
+    let commit = fs::read_to_string(directory.join("refs").join(revision))
+        .map_or_else(|_| revision.to_owned(), |commit| commit.trim().to_owned());
+    let snapshot = directory.join("snapshots").join(commit);
+    snapshot.is_dir().then_some(snapshot)
 }
 
 pub(crate) fn token_ids(value: &Value) -> Option<Vec<i64>> {

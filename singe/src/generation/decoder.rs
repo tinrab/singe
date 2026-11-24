@@ -76,6 +76,26 @@ pub struct GenerationOptions {
     pub first_suppressed_tokens: Vec<i64>,
 }
 
+impl GenerationOptions {
+    // The options a running batch's sequence takes from these.
+    #[must_use]
+    pub fn sequence(&self) -> SequenceOptions {
+        SequenceOptions {
+            max_new_tokens: self.max_new_tokens,
+            stop_tokens: self.stop_tokens.clone(),
+            sampling: self.sampling,
+        }
+    }
+}
+
+// What one sequence of a running batch generates, and when it stops.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct SequenceOptions {
+    pub max_new_tokens: usize,
+    pub stop_tokens: Vec<i64>,
+    pub sampling: Option<SamplingOptions>,
+}
+
 // Generates tokens after `prompt`, calling `on_token` with each as it is chosen, and returns them.
 pub fn generate(
     decoder: &mut (impl Decoder + ?Sized),

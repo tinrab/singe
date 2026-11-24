@@ -1,0 +1,360 @@
+//! A server of `singe-model` models: each loaded on its own thread while the port already answers, the routers behind keys, CORS, body limits, request ids, and logging, and a graceful stop on SIGINT or SIGTERM.
+
+use std::{future, io, sync::Arc, time::Duration};
+
+use axum::{
+    Router,
+    extract::DefaultBodyLimit,
+    http::{HeaderValue, Method},
+    middleware,
+};
+use singe_model::{
+    LoadOptions, Source,
+    processor::text::TextTokenizer,
+    task::{self, Pipeline, Task, text::text_generation::TextGenerationPipeline},
+};
+use tokio::{net::TcpListener, signal, sync::watch, time::timeout};
+use tower_http::{
+    cors::{AllowOrigin, Any, CorsLayer},
+    request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetRequestIdLayer},
+    trace::{DefaultMakeSpan, DefaultOnResponse, TraceLayer},
+};
+use tracing::Level;
+
+use crate::{
+    api::now,
+    auth::{ApiKeys, require_key},
+    config::{ModelConfig, ServerConfig},
+    error::error_chain,
+    generation::{
+        engine::{TextEngine, TextEngineOptions, TextLimits},
+        format::TextFormat,
+    },
+    handler::{
+        audio_router, chat_router, embedding_router, health_router, image_router, model_router,
+        task_router, tokenize_router,
+    },
+    registry::{DuplicateModel, Engine, Served, ServedModel},
+    worker::{ModelState, Worker},
+};
+
+/// The longest sequence a text generator holds unless configured otherwise.
+const DEFAULT_MAX_MODEL_LEN: usize = 4096;
+
+const PAGE_SIZE: usize = 32;
+
+/// Why a server could not start or stopped with a failure.
+#[derive(Debug, thiserror::Error)]
+pub enum ServerError {
+    /// The config has no models or an allowed origin that is not a valid header value.
+    #[error("invalid configuration: {0}")]
+    Config(String),
+    /// A model could not be opened, or failed to load on its thread.
+    #[error("model {name}: {message}")]
+    Model {
+        /// The model's served name.
+        name: String,
+        /// What went wrong, with its causes.
+        message: String,
+    },
+    /// The listener could not bind.
+    #[error("failed to listen on {address}")]
+    Bind {
+        /// The `host:port` it tried.
+        address: String,
+        /// The error binding it.
+        #[source]
+        source: io::Error,
+    },
+    /// A model's thread could not be spawned, or serving failed.
+    #[error("server io")]
+    Io(#[from] io::Error),
+    /// Two models share a name.
+    #[error(transparent)]
+    Duplicate(#[from] DuplicateModel),
+    /// A text generator's configured limits do not fit together.
+    #[error("model {name}'s limits")]
+    TextLimits {
+        /// The model's served name.
+        name: String,
+        /// Which limit is wrong.
+        #[source]
+        source: TextLimitError,
+    },
+}
+
+/// Opens `config`'s model and starts its engine, which loads it on its own thread.
+/// A text-generation model gets a [`TextEngine`]; any other task gets a [`Worker`].
+///
+/// # Errors
+///
+/// Returns an error if the model's snapshot, task, device, data type, or text format cannot be resolved, if its task has no pipeline, if a text generator's limits do not fit, or if its thread cannot be spawned.
+pub fn load_model(config: &ModelConfig) -> Result<ServedModel, ServerError> {
+    let name = config.served_name().to_owned();
+    let failed = |message: String| ServerError::Model {
+        name: name.clone(),
+        message,
+    };
+    let model_error = |error: singe_model::Error| failed(error_chain(&error));
+    let source = Source::find(&config.model).map_err(model_error)?;
+    let task = config
+        .task
+        .as_deref()
+        .map_or_else(|| Task::default_for(&source), Task::from_id)
+        .map_err(model_error)?;
+    if task.heads().is_empty() {
+        return Err(failed(format!("task {} has no pipeline yet", task.id())));
+    }
+
+    let device = config.device().map_err(|error| failed(error.to_string()))?;
+    let options = LoadOptions::new(
+        device,
+        config.data_type.resolve(&source).map_err(model_error)?,
+    );
+    let tokenizer = TextTokenizer::load(&source).ok().map(Arc::new);
+
+    let engine = if task == Task::TextGeneration {
+        let format = TextFormat::load(&source).map_err(model_error)?;
+        let engine_options = text_options(config, format.context_length).map_err(|source| {
+            ServerError::TextLimits {
+                name: name.clone(),
+                source,
+            }
+        })?;
+        let engine = TextEngine::spawn(&name, engine_options, move || {
+            Ok(TextGenerationPipeline::load(&source, options)?)
+        })?;
+        Engine::Text {
+            engine,
+            format: Arc::new(format),
+        }
+    } else {
+        let worker = Worker::spawn(&name, config.max_queued_requests, move || {
+            Ok(task::load(task, &source, options)?)
+        })?;
+        Engine::Pipeline(worker)
+    };
+    Ok(ServedModel {
+        name,
+        task: task.id().to_owned(),
+        engine,
+        tokenizer,
+        created: now(),
+    })
+}
+
+fn text_options(
+    config: &ModelConfig,
+    context: Option<usize>,
+) -> Result<TextEngineOptions, TextLimitError> {
+    let max_model_len = match (config.max_model_len, context) {
+        (Some(length), Some(context)) if length > context => {
+            return Err(TextLimitError::BeyondContext { length, context });
+        }
+        (Some(length), _) => length,
+        (None, context) => context
+            .unwrap_or(DEFAULT_MAX_MODEL_LEN)
+            .min(DEFAULT_MAX_MODEL_LEN),
+    };
+    if config.max_num_seqs == 0 {
+        return Err(TextLimitError::NoSequences);
+    }
+
+    let limits = TextLimits {
+        max_model_len,
+        cache_tokens: 0,
+        page_size: PAGE_SIZE,
+    };
+    let longest = limits.reservation(max_model_len);
+    let cache_tokens = config.cache_tokens.unwrap_or(longest * config.max_num_seqs);
+    if cache_tokens < longest {
+        return Err(TextLimitError::SmallCache {
+            cache_tokens,
+            max_model_len,
+        });
+    }
+
+    Ok(TextEngineOptions {
+        max_num_seqs: config.max_num_seqs,
+        max_model_len,
+        cache_tokens: limits.reservation(cache_tokens),
+        page_size: PAGE_SIZE,
+        compile: !config.eager,
+        max_queued_requests: config.max_queued_requests,
+        seed: config.seed.unwrap_or(0),
+    })
+}
+
+/// A text generator's configured limits that do not fit together.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+pub enum TextLimitError {
+    /// `max_model_len` exceeds the model's own context.
+    #[error("max_model_len {length} exceeds the model's context of {context}")]
+    BeyondContext {
+        /// The configured `max_model_len`.
+        length: usize,
+        /// The model's context length.
+        context: usize,
+    },
+    /// `max_num_seqs` is zero.
+    #[error("max_num_seqs of zero")]
+    NoSequences,
+    /// `cache_tokens` cannot hold one sequence of `max_model_len`.
+    #[error("cache_tokens {cache_tokens} hold less than one sequence of {max_model_len}")]
+    SmallCache {
+        /// The configured `cache_tokens`.
+        cache_tokens: usize,
+        /// The sequence length in effect.
+        max_model_len: usize,
+    },
+}
+
+/// Builds the application: every router over `served`, with `config`'s API keys on all but `/health`, its CORS origins and body limit, and `x-request-id` and request tracing on all.
+///
+/// # Errors
+///
+/// Returns [`ServerError::Config`] if an allowed origin is not a valid header value.
+pub fn app(served: Served, config: &ServerConfig) -> Result<Router, ServerError> {
+    let mut api = Router::new()
+        .merge(chat_router())
+        .merge(embedding_router())
+        .merge(audio_router())
+        .merge(image_router())
+        .merge(task_router())
+        .merge(model_router())
+        .merge(tokenize_router());
+    if !config.api_keys.is_empty() {
+        api = api.layer(middleware::from_fn_with_state(
+            ApiKeys::new(&config.api_keys),
+            require_key,
+        ));
+    }
+
+    let mut app = health_router()
+        .merge(api)
+        .with_state(served)
+        .layer(DefaultBodyLimit::max(config.max_body_size));
+    if !config.allowed_origins.is_empty() {
+        let origins = if config.allowed_origins.iter().any(|origin| origin == "*") {
+            AllowOrigin::from(Any)
+        } else {
+            AllowOrigin::list(
+                config
+                    .allowed_origins
+                    .iter()
+                    .map(|origin| {
+                        HeaderValue::from_str(origin)
+                            .map_err(|_| ServerError::Config(format!("an allowed origin {origin}")))
+                    })
+                    .collect::<Result<Vec<_>, _>>()?,
+            )
+        };
+        app = app.layer(
+            CorsLayer::new()
+                .allow_origin(origins)
+                .allow_methods([Method::GET, Method::POST])
+                .allow_headers(Any),
+        );
+    }
+    Ok(app
+        .layer(PropagateRequestIdLayer::x_request_id())
+        .layer(
+            TraceLayer::new_for_http()
+                .make_span_with(DefaultMakeSpan::new().level(Level::INFO))
+                .on_response(DefaultOnResponse::new().level(Level::INFO))
+                .on_failure(()),
+        )
+        .layer(SetRequestIdLayer::x_request_id(MakeRequestUuid)))
+}
+
+/// Serves `config` until SIGINT or SIGTERM, or until a model fails to load.
+/// The port answers while models load; on stopping, `/health` fails and running requests get `shutdown_grace_seconds` to finish before their connections close.
+///
+/// # Errors
+///
+/// Returns an error if the config has no models, a model cannot be opened or fails to load, two models share a name, or the address cannot be bound.
+pub async fn serve(config: ServerConfig) -> Result<(), ServerError> {
+    if config.models.is_empty() {
+        return Err(ServerError::Config("no models to serve".to_owned()));
+    }
+
+    let models = config
+        .models
+        .iter()
+        .map(load_model)
+        .collect::<Result<Vec<_>, _>>()?;
+    let served = Served::create(models)?;
+    let app = app(served.clone(), &config)?;
+    let address = format!("{}:{}", config.host, config.port);
+    let listener = TcpListener::bind(&address)
+        .await
+        .map_err(|source| ServerError::Bind {
+            address: address.clone(),
+            source,
+        })?;
+    tracing::info!("listening on http://{address}");
+
+    let (failures, mut failed) = watch::channel(None::<(String, String)>);
+    for model in served.models() {
+        let model = Arc::clone(model);
+        let failures = failures.clone();
+        tokio::spawn(async move {
+            match model.loaded().await {
+                ModelState::Ready => {
+                    tracing::info!(model = model.name, task = model.task, "loaded");
+                }
+                ModelState::Failed(message) => {
+                    failures.send_replace(Some((model.name.clone(), message)));
+                }
+                ModelState::Loading => {}
+            }
+        });
+    }
+
+    let (stopping, stop) = watch::channel(false);
+    let server = axum::serve(listener, app).with_graceful_shutdown({
+        let mut stop = stop.clone();
+        async move {
+            stop.wait_for(|stopping| *stopping).await.ok();
+        }
+    });
+    let server = server.into_future();
+    tokio::pin!(server);
+    let failure = tokio::select! {
+        result = &mut server => return Ok(result?),
+        () = stop_requested() => None,
+        failure = failed.wait_for(Option::is_some) => failure.ok().and_then(|failure| failure.clone()),
+    };
+    tracing::info!("stopping");
+    served.stop();
+    stopping.send_replace(true);
+    let grace = Duration::from_secs(config.shutdown_grace_seconds);
+    if timeout(grace, server).await.is_err() {
+        tracing::warn!("closing the connections still open after {grace:?}");
+    }
+    failure.map_or(Ok(()), |(name, message)| {
+        Err(ServerError::Model { name, message })
+    })
+}
+
+/// Resolves on SIGINT, or on SIGTERM where there is one.
+async fn stop_requested() {
+    let interrupt = async {
+        signal::ctrl_c().await.ok();
+    };
+    #[cfg(unix)]
+    let terminate = async {
+        match signal::unix::signal(signal::unix::SignalKind::terminate()) {
+            Ok(mut terminate) => {
+                terminate.recv().await;
+            }
+            Err(_) => future::pending().await,
+        }
+    };
+    #[cfg(not(unix))]
+    let terminate = future::pending::<()>();
+    tokio::select! {
+        () = interrupt => {}
+        () = terminate => {}
+    }
+}

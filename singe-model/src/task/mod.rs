@@ -14,7 +14,7 @@ pub mod tabular;
 pub mod text;
 pub mod vision;
 
-use std::{result::Result as StdResult, slice};
+use std::{any::Any, result::Result as StdResult, slice};
 
 use serde::{Serialize, de::DeserializeOwned};
 use serde_json::Value;
@@ -87,16 +87,10 @@ macro_rules! tasks {
             }
         )*
 
-        // Runs `task`'s pipeline on `inputs`, one input or an array of them, with `parameters`, as `transformers`' `pipeline(task)(inputs, **parameters)` takes them, and returns one output per input.
-        pub fn run_json(
-            task: Task,
-            source: &Source,
-            options: LoadOptions,
-            inputs: &Value,
-            parameters: &Value,
-        ) -> Result<Vec<Value>> {
+        // Loads `task`'s pipeline from `source`, to run many times through JSON or, downcast, through its own types.
+        pub fn load(task: Task, source: &Source, options: LoadOptions) -> Result<Box<dyn AnyPipeline>> {
             match task {
-                $(Task::$task => run::<$pipeline>(source, options, inputs, parameters)),*
+                $(Task::$task => Ok(Box::new(<$pipeline as Pipeline>::load(source, options)?))),*
             }
         }
     };
@@ -174,6 +168,14 @@ impl Task {
     }
 
     pub fn default_for(source: &Source) -> Result<Self> {
+        // A `diffusers` pipeline's class names its task, as its components' heads do not.
+        match source.kind() {
+            "StableDiffusionPipeline" => return Ok(Self::TextToImage),
+            "StableDiffusionInstructPix2PixPipeline" => return Ok(Self::ImageTextToImage),
+            "DDPMPipeline" => return Ok(Self::UnconditionalImageGeneration),
+            _ => {}
+        }
+
         let head = model::default_head(source)?;
         if head == Head::TextEncoder && source.has("modules.json") {
             return Ok(Self::SentenceSimilarity);
@@ -196,37 +198,70 @@ pub fn parameters<T: DeserializeOwned + Default>(parameters: &Value) -> Result<T
     }
 }
 
-fn run<P: Pipeline>(
-    source: &Source,
-    options: LoadOptions,
-    inputs: &Value,
-    parameters: &Value,
-) -> Result<Vec<Value>> {
-    // An array is one input when it reads as one, such as a conversation's messages, as `transformers` reads a list of messages as one chat.
-    let inputs = match (inputs, serde_json::from_value::<P::Input>(inputs.clone())) {
-        (Value::Array(items), Ok(_)) if items.is_empty() => Vec::new(),
-        (Value::Array(items), Err(_)) => items
-            .iter()
-            .cloned()
-            .map(serde_json::from_value)
-            .collect::<StdResult<Vec<P::Input>, _>>()
-            .map_err(Error::json_value("parse the pipeline's inputs"))?,
-        (_, input) => vec![input.map_err(Error::json_value("parse the pipeline's input"))?],
-    };
-    let parameters = self::parameters::<P::Parameters>(parameters)?;
+// A loaded pipeline of any task, run on JSON as `transformers`' `pipeline(task)(inputs, **parameters)` takes it.
+pub trait AnyPipeline: Any {
+    fn task(&self) -> Task;
 
-    // No inputs give no outputs, without loading the model.
-    if inputs.is_empty() {
-        return Ok(Vec::new());
+    // Runs the pipeline on `inputs`, one input or an array of them, with `parameters`, and returns one output for one input, or an array of one per input.
+    fn run_json(&self, inputs: &Value, parameters: &Value) -> Result<Value>;
+
+    fn as_any(&self) -> &dyn Any;
+}
+
+impl dyn AnyPipeline {
+    // The pipeline as `P`, when it is one.
+    #[must_use]
+    pub fn downcast<P: Pipeline + 'static>(&self) -> Option<&P> {
+        self.as_any().downcast_ref()
+    }
+}
+
+impl<P: Pipeline + 'static> AnyPipeline for P {
+    fn task(&self) -> Task {
+        P::TASK
     }
 
-    P::load(source, options)?
-        .run(&inputs, &parameters)?
-        .iter()
-        .map(|output| {
-            serde_json::to_value(output).map_err(Error::json_value("write a pipeline output"))
+    fn run_json(&self, inputs: &Value, parameters: &Value) -> Result<Value> {
+        // An array is one input when it reads as one, such as a conversation's messages, as `transformers` reads a list of messages as one chat.
+        let (inputs, many) = match (inputs, serde_json::from_value::<P::Input>(inputs.clone())) {
+            (Value::Array(items), Ok(_)) if items.is_empty() => (Vec::new(), true),
+            (Value::Array(items), Err(_)) => (
+                items
+                    .iter()
+                    .cloned()
+                    .map(serde_json::from_value)
+                    .collect::<StdResult<Vec<P::Input>, _>>()
+                    .map_err(Error::json_value("parse the pipeline's inputs"))?,
+                true,
+            ),
+            (_, input) => (
+                vec![input.map_err(Error::json_value("parse the pipeline's input"))?],
+                false,
+            ),
+        };
+        let parameters = self::parameters::<P::Parameters>(parameters)?;
+        let mut outputs = if inputs.is_empty() {
+            Vec::new()
+        } else {
+            self.run(&inputs, &parameters)?
+                .iter()
+                .map(|output| {
+                    serde_json::to_value(output)
+                        .map_err(Error::json_value("write a pipeline output"))
+                })
+                .collect::<Result<Vec<_>>>()?
+        };
+        if many {
+            return Ok(Value::Array(outputs));
+        }
+        outputs.pop().ok_or_else(|| {
+            SingeError::missing_output("a pipeline's output for its one input").into()
         })
-        .collect()
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
 }
 
 pub(crate) fn run_alone<P: Pipeline>(

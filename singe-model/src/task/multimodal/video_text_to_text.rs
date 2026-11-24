@@ -4,6 +4,7 @@ use crate::{
     error::{Error, Result},
     processor::{
         chat::{Message, Part},
+        image::Image,
         video::Video,
     },
     source::{LoadOptions, Source},
@@ -50,8 +51,17 @@ impl Pipeline for VideoTextToTextPipeline {
         let [(video, fps)] = clips.as_slice() else {
             return Err(Error::invalid("a conversation of other than one clip"));
         };
+        if video.is_empty() {
+            return Err(Error::Media("a clip without frames".to_owned()));
+        }
+
         let media = Media::Clip {
-            video: Video::open(video)?,
+            video: Video {
+                frames: video
+                    .iter()
+                    .map(|frame| Image::from_data(frame))
+                    .collect::<Result<_>>()?,
+            },
             fps: *fps,
         };
         self.0.respond(messages, parameters, &media)
