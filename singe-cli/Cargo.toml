@@ -1,14 +1,13 @@
 [package]
 name = "singe-cli"
 description = "Command-line tools for Singe."
-version = "0.1.0-alpha.2"
+version = "0.1.0-alpha.3"
 edition.workspace = true
 rust-version.workspace = true
 repository.workspace = true
 license-file.workspace = true
 keywords = ["singe", "inference", "cli"]
 categories = ["command-line-utilities", "science"]
-publish = false
 
 [features]
 default = ["cuda_13_4"]

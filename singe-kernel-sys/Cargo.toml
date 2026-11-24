@@ -10,6 +10,5 @@ readme = "README.md"
 keywords = ["singe", "cuda", "ffi", "placeholder"]
 categories = ["external-ffi-bindings"]
 include.workspace = true
-publish = false
 
 [dependencies]

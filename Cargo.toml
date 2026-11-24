@@ -94,10 +94,10 @@ singe-cutensor-sys = { path = "singe-cutensor-sys", version = "0.1.0", default-f
 singe-kernel = { path = "singe-kernel", version = "0.1.0" }
 singe-loader = { path = "singe-loader", version = "0.1.0" }
 singe-macros = { path = "singe-macros", version = "0.1.0-alpha.2" }
-singe = { path = "singe", version = "0.1.0-alpha.2" }
+singe = { path = "singe", version = "0.1.0-alpha.3" }
 singe-codegen = { path = "singe-codegen", version = "0.1.0-alpha.2" }
-singe-model = { path = "singe-model", version = "0.1.0-alpha.2" }
-singe-server = { path = "singe-server", version = "0.1.0-alpha.2", default-features = false }
+singe-model = { path = "singe-model", version = "0.1.0-alpha.3" }
+singe-server = { path = "singe-server", version = "0.1.0-alpha.3", default-features = false }
 singe-testing = { path = "singe-testing" }
 singe-nccl = { path = "singe-nccl", version = "0.1.0" }
 singe-nccl-sys = { path = "singe-nccl-sys", version = "0.1.0", default-features = false }
