@@ -11,15 +11,18 @@ categories = ["command-line-utilities", "science"]
 publish = false
 
 [features]
-default = []
-cuda_13_4 = ["singe-model/cuda_13_4"]
+default = ["cuda_13_4"]
+cuda_13_4 = ["singe-model/cuda_13_4", "singe-server/cuda_13_4"]
 
 [dependencies]
 anyhow.workspace = true
 bytesize.workspace = true
-clap.workspace = true
+clap = { workspace = true, features = ["env"] }
 singe.workspace = true
 singe-model.workspace = true
+singe-server.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread"] }
+tracing-subscriber.workspace = true
 
 [[bin]]
 name = "singe"

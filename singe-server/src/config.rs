@@ -186,7 +186,7 @@ pub enum ConfigError {
 }
 
 /// The type weights load in: the snapshot's own, or one named.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, clap::ValueEnum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum DataTypeChoice {
     /// The type the config says the weights are stored in: BF16 or F16 as stored, F32 otherwise.

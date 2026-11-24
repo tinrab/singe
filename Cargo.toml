@@ -97,6 +97,7 @@ singe-macros = { path = "singe-macros", version = "0.1.0-alpha.2" }
 singe = { path = "singe", version = "0.1.0-alpha.2" }
 singe-codegen = { path = "singe-codegen", version = "0.1.0-alpha.2" }
 singe-model = { path = "singe-model", version = "0.1.0-alpha.2" }
+singe-server = { path = "singe-server", version = "0.1.0-alpha.2", default-features = false }
 singe-testing = { path = "singe-testing" }
 singe-nccl = { path = "singe-nccl", version = "0.1.0" }
 singe-nccl-sys = { path = "singe-nccl-sys", version = "0.1.0", default-features = false }

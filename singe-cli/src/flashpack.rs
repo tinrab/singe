@@ -2,11 +2,14 @@
 
 use std::{fs, path::PathBuf};
 
-use anyhow::{Context as _, Result, bail};
+use anyhow::{Context as _, Result};
 use bytesize::ByteSize;
-use clap::{Args, Subcommand, ValueEnum};
-use singe::{DataType, Device, nn::Checkpoint};
+use clap::{Args, Subcommand};
+use singe::{Device, nn::Checkpoint};
 use singe_model::{LoadOptions, Source, format::WeightFormat, head::Head, model, task::Task};
+use singe_server::config::parse_device;
+
+use crate::arguments::TypeChoice;
 
 #[derive(Subcommand)]
 pub enum FlashpackCommand {
@@ -53,24 +56,10 @@ pub struct BuildArguments {
     device: Device,
 }
 
-#[derive(Clone, Copy, Default, ValueEnum)]
-enum TypeChoice {
-    #[default]
-    Auto,
-    F32,
-    F16,
-    Bf16,
-}
-
 fn build(arguments: &BuildArguments) -> Result<()> {
     let source = Source::find(&arguments.model)?;
     let head = head(&source, arguments.task.as_deref())?;
-    let data_type = match arguments.data_type {
-        TypeChoice::Auto => source.default_data_type()?,
-        TypeChoice::F32 => DataType::F32,
-        TypeChoice::F16 => DataType::F16,
-        TypeChoice::Bf16 => DataType::Bf16,
-    };
+    let data_type = arguments.data_type.choice().resolve(&source)?;
     let parts = model::convert(
         &source,
         head,
@@ -113,15 +102,4 @@ fn head(source: &Source, task: Option<&str>) -> Result<Head> {
                 task.id()
             )
         })
-}
-
-fn parse_device(device: &str) -> Result<Device> {
-    match device {
-        "cpu" => Ok(Device::Cpu),
-        "cuda" => Ok(Device::Cuda(0)),
-        other => match other.strip_prefix("cuda:").map(str::parse) {
-            Some(Ok(index)) => Ok(Device::Cuda(index)),
-            _ => bail!("device `{other}` is not `cpu`, `cuda`, or `cuda:N`"),
-        },
-    }
 }
