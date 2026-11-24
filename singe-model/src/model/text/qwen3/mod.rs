@@ -1,4 +1,4 @@
-// Qwen3: grouped-query attention with normed queries and keys, and a gated feed-forward layer; as Qwen3-Embedding, its final states embed texts.
+//! Qwen3: grouped-query attention with normed queries and keys, and a gated feed-forward layer; as Qwen3-Embedding, its final states embed texts.
 
 mod transformers;
 
@@ -21,7 +21,7 @@ use crate::{
 
 pub type Qwen3 = Model<GroupedDecoder>;
 
-// Qwen3 as a text encoder: each token's final normed state, `[B, T, W]`, from causal attention over the tokens before it, padding rows zero.
+/// Qwen3 as a text encoder: each token's final normed state, `[B, T, W]`, from causal attention over the tokens up to it, padding rows zero.
 #[derive(Debug)]
 pub struct Qwen3Encoder(Qwen3);
 

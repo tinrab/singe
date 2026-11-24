@@ -1,4 +1,4 @@
-// Writes a model as CUDA C++ programs for one task, with what runs them with nothing of Singe: a generation loop for a task that generates, and a runner for one that maps inputs to outputs.
+//! Writes a model as CUDA C++ programs for one task, with what runs them with nothing of Singe: a generation loop for a task that generates, and a runner for one that maps inputs to outputs.
 
 mod tokenizer;
 
@@ -31,29 +31,29 @@ use crate::{
     task::Task,
 };
 
-// How a model exports: the target and libraries, the type of its weights, and the sizes its programs fix.
+/// The settings of an export: the target and libraries, the type of the weights, and the sizes its programs fix.
 #[derive(Debug, Clone)]
 pub struct ExportOptions {
     pub architecture: GpuArchitecture,
     pub libraries: Vec<Library>,
     pub data_type: DataType,
-    // Where the model loads, whose captures run eagerly on it.
+    /// The device the model loads on, which runs its captures eagerly.
     pub device: Device,
-    // The tokens a generating model's sequence holds, prompt included.
+    /// The tokens a generating model's sequence holds, prompt included, 1024 by default.
     pub capacity: i64,
-    // The rows of a generating model's prompt step, beside its one-token step.
+    /// The rows of a generating model's prompt step, beside its one-token step, 64 by default.
     pub prompt_rows: usize,
-    // The sequences a generating model's loop runs at once, one per row.
+    /// The sequences a generating model's loop runs at once, one per row, 1 by default.
     pub rows: usize,
-    // How a generating model chooses each token, or the most likely one for `None`; the loop takes the seed.
+    /// How a generating model chooses each token, or the most likely one for `None`; the exported loop takes the seed when it runs.
     pub sampling: Option<SamplingOptions>,
-    // The seconds of audio a speech model's encode step reads.
+    /// The seconds of audio a speech model's encode step reads, 30 by default.
     pub audio_seconds: i64,
-    // The tokens a text encoder's sequence holds.
+    /// The tokens a text encoder's sequence holds, 128 by default.
     pub sequence_length: i64,
-    // The side of a square image an autoencoder reads.
+    /// The side of a square image an autoencoder reads, 256 by default.
     pub image_size: i64,
-    // The most patches of an image a vision-language model's encode step reads.
+    /// The most patches of an image a vision-language model's encode step reads, which exporting a model with an encode step, such as Qwen3.5, needs.
     pub image_patches: Option<i64>,
 }
 
@@ -98,18 +98,22 @@ impl ExportOptions {
     }
 }
 
-// What an export wrote, and the files that run it, each of which `model.json` or its own manifest says how to build.
+/// What an export wrote, and the files that run it, each of which `model.json` or its own manifest says how to build.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Exported {
-    // `model_generate`, a generation loop over a program set.
+    /// `model_generate`, a generation loop over a program set.
     Generator,
-    // `model_run`, which maps input files to output files.
+    /// `model_run`, which maps input files to output files.
     Runner,
-    // `encoder_run` and `decoder_run`, an autoencoder's halves.
+    /// `encoder_run` and `decoder_run`, an autoencoder's halves.
     Autoencoder,
 }
 
-// Writes `source`'s programs for `task` to `directory`.
+/// Writes `source`'s programs for `task` to `directory`, and returns what it wrote.
+///
+/// # Errors
+///
+/// Returns an error if exporting does not support `task`, if the model does not load for `task`, if an image encoder's processor keeps the aspect ratio, if the chat template drops the user's text, or if writing the programs fails.
 pub fn export(
     source: &Source,
     task: Task,
@@ -184,7 +188,7 @@ pub fn export(
     }
 }
 
-// What a generating model's steps choose and when its loop stops: the source's stop tokens, and the sampling `options` asks for.
+/// Returns what a generating model's steps choose and when its loop stops: the source's stop tokens, and the sampling `options` asks for.
 fn choices(source: &Source, options: &ExportOptions) -> Result<GenerationOptions> {
     Ok(GenerationOptions {
         stop_tokens: source.stop_tokens()?,
@@ -193,8 +197,8 @@ fn choices(source: &Source, options: &ExportOptions) -> Result<GenerationOptions
     })
 }
 
-// The text a prompt goes between in the source's chat template, for a user turn of one prompt, read after an image when `image` names the image token, without thinking.
-// A source without a chat template reads prompts as they are.
+/// Returns the text a prompt goes between in the source's chat template, for a user turn of one prompt, read after an image when `image` names the image token, without thinking.
+/// A source without a chat template gives `None`, and reads prompts as they are.
 fn prompt_template(source: &Source, image: Option<i64>) -> Result<Option<PromptTemplate>> {
     const MARKER: &str = "\u{e000}";
     let Some(template) = ChatTemplate::load(source)? else {
@@ -255,7 +259,7 @@ fn write_generator(
     Ok(())
 }
 
-// A batch of one sequence of `options.sequence_length` tokens, which a text encoder's program reads.
+/// Returns a batch of one sequence of `options.sequence_length` tokens, which a text encoder's program reads.
 fn token_batch(options: &ExportOptions) -> Result<TokenBatch> {
     let tokens = vec![
         0;
@@ -268,7 +272,7 @@ fn token_batch(options: &ExportOptions) -> Result<TokenBatch> {
     )?)
 }
 
-// The size an image processor gives every image, which an image encoder's program reads.
+/// Returns the `[height, width]` an image processor gives every image, which an image encoder's program reads.
 fn image_size(processor: &ImageTransforms) -> Result<[i64; 2]> {
     match (processor.crop, processor.resize) {
         (Some(crop), _) => Ok(crop),
@@ -279,7 +283,7 @@ fn image_size(processor: &ImageTransforms) -> Result<[i64; 2]> {
     }
 }
 
-// An autoencoder's halves, each a program with its runner: `encoder` from images, and `decoder` from the latents it gives.
+/// Writes an autoencoder's halves, each a program with its runner: `encoder` from images, and `decoder` from the latents it gives.
 fn autoencoder(source: &Source, directory: &Path, options: &ExportOptions) -> Result<()> {
     let model: Autoencoder = model::load(source, options.load())?;
     let size = options.image_size;
@@ -302,7 +306,7 @@ fn autoencoder(source: &Source, directory: &Path, options: &ExportOptions) -> Re
     Ok(())
 }
 
-// A runner of a model over a batch of one sequence of `options.sequence_length` tokens, as an encoder's heads read it.
+/// Writes a program of `model` and its runner, over a batch of one sequence of `options.sequence_length` tokens, as an encoder's heads read it.
 fn token_runner<L: Layer<TokenBatch>>(
     model: &Model<L>,
     directory: &Path,
@@ -313,7 +317,7 @@ fn token_runner<L: Layer<TokenBatch>>(
     Ok(Exported::Runner)
 }
 
-// One program and its runner.
+/// Writes `graph` as one program, `model`, with its runner.
 fn runner(graph: &Graph, directory: &Path, options: &ExportOptions) -> Result<()> {
     Ok(options
         .export()

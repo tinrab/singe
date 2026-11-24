@@ -1,4 +1,4 @@
-// Reads a `transformers` SegFormer config, whose stages are lists of one value per stage, and imports its checkpoint.
+//! Reads a `transformers` `SegFormer` config, whose stage settings are lists of one value per stage, and imports its checkpoint.
 
 use serde::Deserialize;
 use singe::nn::Activation;

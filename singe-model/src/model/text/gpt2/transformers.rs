@@ -1,4 +1,4 @@
-// Reads a `transformers` GPT-2 config, and imports its checkpoint, whose `Conv1D` weights are stored `[in, out]` and whose attention fuses its query, key, and value projections in `c_attn`.
+//! Reads a `transformers` GPT-2 config and imports its checkpoint, whose `Conv1D` weights are stored `[in, out]` and whose attention fuses its query, key, and value projections in `c_attn`.
 
 use serde::Deserialize;
 use singe::nn::Activation;
@@ -29,7 +29,7 @@ struct Fields {
     attention: AttentionFields,
 }
 
-// How GPT-2's attention scales its scores, which models with its blocks share.
+/// How GPT-2's attention scales its scores, which models with its blocks share.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 pub(crate) struct AttentionFields {
     #[serde(default = "default_true")]
@@ -41,7 +41,7 @@ pub(crate) struct AttentionFields {
 }
 
 impl AttentionFields {
-    // Refuses scaling other than by the root of the head width, which a checkpoint would load with and then compute something else.
+    /// Returns an error for scaling other than by the root of the head width, which a checkpoint would load with and then compute something else from.
     pub(crate) fn refuse_other_scaling(self) -> Result<()> {
         if !self.scale_attn_weights
             || self.scale_attn_by_inverse_layer_idx
@@ -68,14 +68,14 @@ pub(crate) fn config(source: &Source) -> Result<Gpt2Config> {
     })
 }
 
-// Older checkpoints store blocks without `transformer`.
+/// Returns the rules that import a checkpoint, whose names start with `transformer`, or in older checkpoints, without it.
 pub(crate) fn rules() -> Rules {
     model_rules("transformer")
         .then(model_rules(""))
         .rename("lm_head", "head")
 }
 
-// The rules for a model whose names start with `prefix`.
+/// Returns the rules that import a model whose names start with `prefix`.
 pub(crate) fn model_rules(prefix: &str) -> Rules {
     let layer = |name: &str| join(prefix, &format!("h.*.{name}"));
     let block = |name: &str| format!("blocks.*.{name}");

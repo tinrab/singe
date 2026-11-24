@@ -1,4 +1,4 @@
-// Models `transformers` documents among its vision models.
+//! Models `transformers` documents among its vision models.
 
 pub mod depth_anything;
 pub mod detr;

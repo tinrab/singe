@@ -1,4 +1,4 @@
-// Reads a `transformers` Qwen3-ASR snapshot: its config, and the rules that import its audio encoder's and Qwen3 decoder's tensors.
+//! Reads a `transformers` Qwen3-ASR snapshot: its config, and the rules that import its audio encoder's and Qwen3 decoder's tensors.
 
 use serde::Deserialize;
 use singe::nn::Activation;
@@ -29,11 +29,11 @@ struct AudioFields {
     encoder_attention_heads: i64,
     encoder_ffn_dim: i64,
     downsample_hidden_size: i64,
-    // The positions of one chunk after the convolutions.
+    /// The positions of one chunk after the convolutions.
     max_position_embeddings: i64,
-    // Half the mel frames of a chunk.
+    /// Half the mel frames of a chunk.
     n_window: i64,
-    // The mel frames of an attention window.
+    /// The mel frames of an attention window.
     n_window_infer: i64,
     output_dim: i64,
     #[serde(deserialize_with = "activation_field")]
@@ -42,7 +42,7 @@ struct AudioFields {
     scale_embedding: bool,
 }
 
-// Qwen3's fields, which the decoder's config holds.
+/// Qwen3's fields, which the decoder's config holds.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 struct TextFields {
     #[serde(flatten)]
@@ -51,7 +51,8 @@ struct TextFields {
     use_sliding_window: bool,
 }
 
-// A checkpoint using one of the settings this refuses would load and then compute something else.
+/// Reads a Qwen3-ASR config.
+/// It refuses settings that a checkpoint would load with and then compute something else from: scaled audio embeddings, attention windows that are not whole chunks of mel frames, a `max_position_embeddings` other than a chunk's positions, and sliding-window attention.
 pub(crate) fn config(source: &Source) -> Result<Qwen3AsrConfig> {
     let fields: Fields = source.json("config.json")?;
     let audio = &fields.audio_config;

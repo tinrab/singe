@@ -1,5 +1,5 @@
-// Singe's own format: `config.json` holds `{"singe": {"model": name, "head": head, "config": …, "stop_tokens": […]}}`, and each part's state is `{part}.safetensors` or `{part}.flashpack` under Singe's names.
-// Tokenizer and processor files carry over as the source stores them, since processors read them as they are.
+//! Singe's own format: `config.json` holds `{"singe": {"model": name, "head": head, "config": …, "stop_tokens": […], "data_type": …}}`, and each part's state is `{part}.safetensors` or `{part}.flashpack` under Singe's names.
+//! Tokenizer and processor files carry over as the source stores them, since processors read them as they are.
 
 use std::{
     fs,
@@ -23,7 +23,7 @@ pub(crate) struct NativeConfig {
     pub(crate) head: String,
     pub(crate) config: Value,
     pub(crate) stop_tokens: Vec<i64>,
-    // The type of the saved floats, named as `torch_dtype` names it, such as `bfloat16`.
+    /// The type of the saved floats, named as `torch_dtype` names it, such as `bfloat16`.
     pub(crate) data_type: String,
 }
 
@@ -38,7 +38,7 @@ impl NativeConfig {
     }
 }
 
-// Files that hold another format's weights, or its model config at the top, which the native files replace.
+/// Returns whether `name` is a file that the native files replace: another format's weights, or, when `top` is set, its model config.
 fn replaced(name: &str, top: bool) -> bool {
     (top && name == "config.json")
         || [
@@ -109,7 +109,7 @@ pub(crate) fn save(
     Ok(written)
 }
 
-// Copies every file of `from` but those `replaced` names, keeping subdirectories, such as a sentence-transformers pooling config.
+/// Copies every file of `from` but those [`replaced`] names, keeping subdirectories, such as a `sentence-transformers` pooling config, and skipping those whose names start with a dot.
 fn copy_files(from: &Path, to: &Path, top: bool) -> Result<()> {
     for entry in fs::read_dir(from).map_err(Error::io(from))? {
         let entry = entry.map_err(Error::io(from))?;
@@ -131,7 +131,7 @@ fn copy_files(from: &Path, to: &Path, top: bool) -> Result<()> {
     Ok(())
 }
 
-// The name `torch_dtype` gives a float type.
+/// Returns the name `torch_dtype` gives a float type.
 fn torch_name(data_type: DataType) -> Result<&'static str> {
     match data_type {
         DataType::Bf16 => Ok("bfloat16"),

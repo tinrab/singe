@@ -1,4 +1,4 @@
-// `mask-generation`: an image to masks of everything in it, as `transformers`' pipeline finds them with SAM: a grid of points, each decoded into candidate masks, kept by their predicted quality and their stability, resized to the image, and deduplicated by their boxes, best first.
+//! `mask-generation`: an image to masks of everything in it, as `transformers`' pipeline finds them with SAM: a grid of points, each decoded into candidate masks, kept by their predicted quality and their stability, resized to the image, and deduplicated by their boxes, best first.
 
 use serde::{Deserialize, Serialize};
 use singe::{DataType, Error as SingeError, Shape, Tensor, tensor::InterpolateMode};
@@ -22,18 +22,19 @@ pub struct MaskGenerationPipeline {
 #[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
 #[serde(default)]
 pub struct MaskGenerationParameters {
-    // The points along each side of the grid.
+    /// The points along each side of the grid, 32 by default.
     pub points_per_crop: usize,
-    // The points decoded together.
+    /// The points decoded together, 64 by default.
     pub points_per_batch: usize,
-    // The least predicted quality a mask keeps.
+    /// The predicted quality a mask must exceed to be kept, 0.88 by default.
     pub pred_iou_thresh: f32,
-    // The least share a mask keeps of its points when its cutoff moves by the offset either way.
+    /// The stability a mask must exceed to be kept, 0.95 by default: the share of its points above the cutoff raised by `stability_score_offset` among those above the cutoff lowered by as much.
     pub stability_score_thresh: f32,
+    /// How far the cutoff moves either way for a mask's stability, 1 by default.
     pub stability_score_offset: f32,
-    // The score a mask's points pass.
+    /// The cutoff a point's score must exceed for the point to be in a mask, 0 by default.
     pub mask_threshold: f32,
-    // The most a kept mask's box may overlap a better one's.
+    /// The most a kept mask's box may overlap a better kept one's, as intersection over union, 0.7 by default.
     pub crops_nms_thresh: f32,
 }
 
@@ -57,7 +58,7 @@ pub struct GeneratedMasks {
     pub scores: Vec<f32>,
 }
 
-// A grid of `side × side` points at its cells' centers, `[x, y]` in [0, 1], row by row, as `_build_point_grid` lays it out with `torch.linspace`.
+/// Returns a grid of `side × side` points at its cells' centers, `[x, y]` in `[0, 1]`, row by row, as `_build_point_grid` lays it out with `torch.linspace`.
 fn point_grid(side: usize) -> Vec<[f32; 2]> {
     let offset = 1.0 / (2.0 * side as f32);
     let step = (1.0 - 2.0 * offset) / (side as f32 - 1.0).max(1.0);
@@ -70,7 +71,7 @@ fn point_grid(side: usize) -> Vec<[f32; 2]> {
         .collect()
 }
 
-// A mask's box, `[left, top, right, bottom]` of its first and last rows and columns, or zeros when it is empty, as `_batched_mask_to_box` gives it.
+/// Returns a mask's box, `[left, top, right, bottom]` of its first and last rows and columns, or zeros when it is empty, as `_batched_mask_to_box` gives it.
 fn mask_box(inside: &[bool], width: usize) -> [f32; 4] {
     let (mut left, mut top, mut right, mut bottom) = (usize::MAX, usize::MAX, 0, 0);
     for index in (0..inside.len()).filter(|&index| inside[index]) {
@@ -95,7 +96,7 @@ fn overlap(first: &[f32; 4], second: &[f32; 4]) -> f32 {
     intersection / (area(first) + area(second) - intersection)
 }
 
-// The indices `torchvision.ops.nms` keeps, best first: each box overlapping no better kept box by more than `threshold`.
+/// Returns the indices `torchvision.ops.nms` keeps, best first: each box overlapping no better kept box by more than `threshold`.
 fn suppress(boxes: &[[f32; 4]], scores: &[f32], threshold: f32) -> Vec<usize> {
     let mut order = (0..scores.len()).collect::<Vec<_>>();
     host::best_first(&mut order, usize::MAX, |&index| scores[index]);

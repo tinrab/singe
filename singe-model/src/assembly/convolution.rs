@@ -1,4 +1,4 @@
-// Padding that keeps a convolution's length or size, as PyTorch's `padding="same"` and `kernel_size // 2` give it.
+//! Padding that keeps a convolution's length or size, as `PyTorch`'s `padding="same"` and `kernel_size // 2` give it.
 
 use singe::nn::{Conv1dConfig, Conv2dConfig};
 

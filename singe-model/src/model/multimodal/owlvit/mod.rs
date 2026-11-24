@@ -1,4 +1,4 @@
-// OWL-ViT: CLIP's towers made a detector, each image patch's state, scaled by the class token's, giving a box and an embedding scored against each text query's.
+//! OWL-ViT: CLIP's towers made a detector, each image patch's state, scaled by the class token's, giving a box and an embedding scored against each text query's.
 
 mod transformers;
 
@@ -22,7 +22,7 @@ use crate::{
     source::Format,
 };
 
-// The box head's bias for each patch of a `rows × columns` grid, `[cx, cy, w, h]` row by row: the logits of the patch's far corner and of a patch's size, as `compute_box_bias` computes them, so a head output of zero puts a box on its patch.
+/// Returns the box head's bias for each patch of a `rows × columns` grid, `[cx, cy, w, h]` row by row: the logits of the patch's far corner and of a patch's size, as `compute_box_bias` computes them, so a head output of zero gives a patch-sized box centered on the patch's far corner.
 fn box_bias(rows: i64, columns: i64) -> Vec<f32> {
     let logit = |value: f32| {
         let value = value.clamp(0.0, 1.0);
@@ -40,7 +40,7 @@ fn box_bias(rows: i64, columns: i64) -> Vec<f32> {
         .collect()
 }
 
-// OWL-ViT's image side: from images to each patch's class embedding, box, logit shift, and logit scale, `[B, P, D + 4 + 2]`.
+/// OWL-ViT's image side: from images to each patch's class embedding, box, logit shift, and logit scale, `[B, P, D + 4 + 2]`.
 #[derive(Debug, Clone)]
 struct OwlVitImageLayers {
     vision: ClipVision,

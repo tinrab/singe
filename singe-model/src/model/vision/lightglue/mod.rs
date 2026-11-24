@@ -1,4 +1,4 @@
-// LightGlue: SuperPoint's keypoints in two images, each described anew by layers of self-attention with rotary keypoint positions and cross-attention to the other image, pruned of keypoints confidently unmatchable, until enough are confident, then matched by a dual softmax over their similarities.
+//! `LightGlue`: `SuperPoint`'s keypoints in two images, each described anew by layers of self-attention with rotary keypoint positions and cross-attention to the other image, pruned of keypoints confidently unmatchable, until enough are confident, then matched by a dual softmax over their similarities.
 
 mod transformers;
 
@@ -32,11 +32,11 @@ pub struct LightGlueConfig {
     pub inner: i64,
     pub layers: i64,
     pub activation: Activation,
-    // The least score a match keeps.
+    /// The score a match must exceed to be kept.
     pub filter_threshold: f32,
-    // The share of confident keypoints at which matching stops early.
+    /// The share of confident keypoints above which matching stops early.
     pub depth_confidence: f32,
-    // One less the least matchability a confident keypoint keeps.
+    /// One minus the matchability a confident keypoint must exceed to escape pruning.
     pub width_confidence: f32,
 }
 
@@ -90,7 +90,7 @@ impl SelfAttention {
     }
 }
 
-// The feed-forward over a keypoint's descriptor beside what attention gave it.
+/// The feed-forward over a keypoint's descriptor beside what attention gave it.
 #[derive(Debug, Clone)]
 struct Update {
     up: Linear,
@@ -183,12 +183,12 @@ impl Assignment {
     }
 }
 
-// One image's keypoints as LightGlue carries them through its layers.
+/// One image's keypoints as `LightGlue` carries them through its layers.
 struct Side {
     descriptors: Tensor,
     cos: Tensor,
     sin: Tensor,
-    // Each kept keypoint's index among the image's keypoints.
+    /// Each kept keypoint's index among the image's keypoints.
     indices: Vec<usize>,
 }
 
@@ -268,7 +268,7 @@ impl LightGlueLayers {
             .ok_or_else(|| SingeError::invalid_argument("keypoint maps of no image"))
     }
 
-    // The rotary angles of keypoints at `[x, y]` pixels of a `height × width` image, centered and scaled by half the longer side.
+    /// Returns the cosines and sines of the rotary angles of keypoints at `[x, y]` pixels of a `height × width` image, centered and scaled by half the longer side.
     fn positions(
         &self,
         keypoints: &[[f32; 2]],
@@ -376,7 +376,7 @@ impl LightGlueLayers {
             .collect()
     }
 
-    // Keeps the keypoints that may match, and those not yet confident.
+    /// Keeps the keypoints that may match, and those not yet confident.
     fn prune(
         &self,
         layer: usize,
@@ -402,7 +402,9 @@ impl LightGlueLayers {
         Ok(())
     }
 
-    // Matches the two sides with layer `layer`'s assignment: each first keypoint's match in the second image and its score.
+    /// Matches the two sides with layer `layer`'s assignment.
+    ///
+    /// Returns each kept first keypoint's match among the second side's kept keypoints, or -1 for none, and its score.
     fn assign(
         &self,
         layer: usize,
@@ -497,12 +499,12 @@ fn sigmoid(value: f32) -> f32 {
     1.0 / (1.0 + (-value).exp())
 }
 
-// `log(sigmoid(value))`, computed without overflow.
+/// Returns `log(sigmoid(value))`, computed without overflow.
 fn log_sigmoid(value: f32) -> f32 {
     value.min(0.0) - (-value.abs()).exp().ln_1p()
 }
 
-// Each row's log-softmax, of a row-major `rows × columns` matrix.
+/// Returns each row's log-softmax, of a row-major `rows × columns` matrix.
 fn log_softmax_rows(values: &[f32], columns: usize) -> Vec<f32> {
     values
         .chunks_exact(columns)
@@ -518,7 +520,7 @@ fn log_softmax_rows(values: &[f32], columns: usize) -> Vec<f32> {
         .collect()
 }
 
-// The index and value of a slice's greatest value, the first of equals, as `max` gives them.
+/// Returns the index and value of the greatest of `values`, the first of equals, as `max` gives them.
 fn best(values: impl Iterator<Item = f32>) -> (usize, f32) {
     values
         .enumerate()
@@ -531,12 +533,12 @@ fn best(values: impl Iterator<Item = f32>) -> (usize, f32) {
         })
 }
 
-// The confidence a keypoint needs after layer `layer` of `layers`, falling from 0.9 toward 0.8, as `_get_confidence_threshold` gives it.
+/// Returns the confidence a keypoint needs after layer `layer` of `layers`, falling from 0.9 toward 0.8, as `_get_confidence_threshold` gives it.
 fn confidence_threshold(layer: usize, layers: usize) -> f32 {
     (0.8 + 0.1 * (-4.0 * layer as f64 / layers as f64).exp()).clamp(0.0, 1.0) as f32
 }
 
-// The kept keypoints' matches and scores at every first keypoint, through the kept indices, with no match and no score for the pruned.
+/// Spreads the kept keypoints' matches and scores back over every keypoint of the first image, through the kept indices, with -1 and a score of zero for the pruned.
 fn unpruned(
     sides: &[Side; 2],
     keypoints: &[Vec<[f32; 2]>; 2],

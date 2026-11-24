@@ -1,4 +1,4 @@
-// Reads a `transformers` SuperPoint config and imports its checkpoint.
+//! Reads a `transformers` `SuperPoint` config and imports its checkpoint.
 
 use serde::Deserialize;
 
@@ -55,7 +55,7 @@ pub(crate) fn fields_config(fields: &Fields) -> Result<SuperPointConfig> {
     })
 }
 
-// Imports the detector stored under `from`, as LightGlue's checkpoints store it under `keypoint_detector`, to the schema's names under `to`.
+/// Returns the rules that import the detector stored under `from`, as `LightGlue`'s checkpoints store it under `keypoint_detector`, to the schema's names under `to`.
 pub(crate) fn detector_rules(from: &str, to: &str) -> Rules {
     Rules::new().rename_each(
         from,

@@ -1,4 +1,4 @@
-// Reads a `transformers` VITS config and imports its checkpoint, folding its WaveNets' weight norms and leaving the parts only training reads.
+//! Reads a `transformers` VITS config and imports its checkpoint, folding its `WaveNets`' weight norms and leaving the parts only training reads.
 
 use serde::Deserialize;
 use singe::nn::Activation;

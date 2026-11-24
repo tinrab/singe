@@ -1,4 +1,4 @@
-// Times the real models a step, a batch, or an image at a time, each where its `SINGE_SNAPSHOT_<MODEL>` is set: `just bench`, `just bench whisper --compare main`.
+//! Times the real models a step, a batch, or an image at a time, each where its `SINGE_SNAPSHOT_<MODEL>` is set: `just bench`, `just bench whisper --compare main`.
 
 use std::{collections::HashMap, path::Path};
 
@@ -119,7 +119,7 @@ fn whisper(benches: &mut Benches) {
     }
 }
 
-// Times one decode step and a 128-token prompt of the decoder `load` makes from the snapshot `SINGE_SNAPSHOT_<name>` names, eagerly and compiled, under `label`.
+/// Times one decode step and a 128-token prompt of the decoder `load` makes from the snapshot `SINGE_SNAPSHOT_<name>` names, eagerly and compiled, under `label`.
 fn text_decoder<L: DecoderModel>(
     benches: &mut Benches,
     name: &str,

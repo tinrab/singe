@@ -3,7 +3,7 @@
 import torch
 from transformers import AutoProcessor, WhisperForConditionalGeneration
 
-from support import DEVICE, Verification, read_wav
+from support import DEVICE, Verification, read_audio
 
 
 def automatic_speech_recognition(snapshot, dtype):
@@ -17,7 +17,7 @@ def automatic_speech_recognition(snapshot, dtype):
     def run(paths, parameters):
         outputs = []
         for path in paths:
-            samples, rate = read_wav(path)
+            samples, rate = read_audio(path)
             features = processor(
                 samples, sampling_rate=rate, return_tensors="pt"
             ).input_features.to(DEVICE)

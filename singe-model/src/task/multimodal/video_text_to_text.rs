@@ -1,4 +1,4 @@
-// `video-text-to-text`: a conversation whose messages hold a clip to the text a vision-language model writes after it, as `transformers`' processors render and expand such a conversation before `generate`, here through the image-text-to-text pipeline's steps.
+//! `video-text-to-text`: a conversation whose messages hold a clip to the text a vision-language model writes after it, as `transformers`' processors render and expand such a conversation before `generate`, here through the image-text-to-text pipeline's steps.
 
 use crate::{
     error::{Error, Result},

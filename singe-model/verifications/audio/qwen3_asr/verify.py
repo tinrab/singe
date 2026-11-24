@@ -3,7 +3,7 @@
 import torch
 from transformers import AutoModelForMultimodalLM, AutoProcessor
 
-from support import DEVICE, Verification, read_wav
+from support import DEVICE, Verification, read_audio
 
 
 def automatic_speech_recognition(snapshot, dtype):
@@ -17,7 +17,7 @@ def automatic_speech_recognition(snapshot, dtype):
     def run(paths, parameters):
         outputs = []
         for path in paths:
-            samples, _ = read_wav(path)
+            samples, _ = read_audio(path)
             request = processor.apply_transcription_request(audio=samples).to(DEVICE)
             with torch.no_grad():
                 generated = model.generate(
@@ -51,7 +51,7 @@ def audio_text_to_text(snapshot, dtype):
     def run(inputs, parameters):
         outputs = []
         for item in inputs:
-            samples, _ = read_wav(item["audio"])
+            samples, _ = read_audio(item["audio"])
             # The instruction in the system's turn, where the chat template takes text; the user's turn holds the clip.
             messages = [
                 {"role": "system", "content": [{"type": "text", "text": item["text"]}]},

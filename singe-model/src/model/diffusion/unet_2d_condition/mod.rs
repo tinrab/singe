@@ -1,6 +1,6 @@
-// `diffusers`' `UNet2DConditionModel`, Stable Diffusion's denoiser: residual blocks reading the timestep, and in the blocks that ask for it transformers whose blocks attend to the image's positions and then to the text's states, down to a middle block and back up.
-//
-// Its state is that of `UNet2DModel` (`input`, `time`, `down.N`, `middle`, `up.N`, `norm`, `output`), with transformers at `attentions.M` (`norm`, `proj_in`, `blocks.K`, `proj_out`), each block's `attention_norm`, `attention`, `cross_attention_norm`, `cross_attention`, `feed_forward_norm`, and `feed_forward` (`gate`, `up`, `down`).
+//! `diffusers`' `UNet2DConditionModel`, Stable Diffusion's denoiser: residual blocks reading the timestep, and in the blocks that ask for it transformers whose blocks attend to the image's positions and then to the text's states, down to a middle block and back up.
+//!
+//! Its state is that of `UNet2DModel` (`input`, `time`, `down.N`, `middle`, `up.N`, `norm`, `output`), with transformers at `attentions.M` (`norm`, `proj_in`, `blocks.K`, `proj_out`), each block's `attention_norm`, `attention`, `cross_attention_norm`, `cross_attention`, `feed_forward_norm`, and `feed_forward` (`gate`, `up`, `down`).
 
 mod diffusers;
 
@@ -32,13 +32,13 @@ const TRANSFORMER_NORM_EPS: f32 = 1e-6;
 pub struct Unet2dConditionConfig {
     #[serde(flatten)]
     pub unet: UnetConfig,
-    // Each down block's heads; the up blocks take them reversed, and the middle the last.
+    /// Each down block's heads; the up blocks take them reversed, and the middle the last.
     pub heads: Vec<i64>,
     pub context_width: i64,
     pub linear_projection: bool,
 }
 
-// `BasicTransformerBlock`: self-attention, attention to the context, and a GEGLU feed-forward layer, each after a layer norm and added to its input.
+/// `BasicTransformerBlock`: self-attention, attention to the context, and a GEGLU feed-forward layer, each after a layer norm and added to its input.
 #[derive(Debug, Clone)]
 pub struct TransformerBlock {
     attention_norm: LayerNorm,
@@ -90,7 +90,7 @@ impl TransformerBlock {
         })
     }
 
-    // `hidden`, `[B, L, W]`, with `positions` added to each attention's normed input where given, its second attention attending to `context`, `[B, M, C]`, or, without one, to `hidden` itself.
+    /// Runs `hidden`, `[B, L, W]`, through the block, with `positions` added to each attention's normed input where given, its second attention attending to `context`, `[B, M, C]`, or, without one, to its own normed input.
     pub fn forward(
         &self,
         hidden: &Tensor,
@@ -124,7 +124,7 @@ enum Projection {
     Convolution(Conv2d),
 }
 
-// `Transformer2DModel` over an image's positions: group-normed, projected in, its blocks, projected out, and added to its input.
+/// `Transformer2DModel` over an image's positions: group-normed, projected in, its blocks, projected out, and added to its input.
 #[derive(Debug, Clone)]
 pub struct Transformer2d {
     norm: GroupNorm,
@@ -227,7 +227,9 @@ impl Unet2dConditionLayers {
         &self.config
     }
 
-    // The predicted noise of `sample`, `[B, C, H, W]`, at the timestep whose features `time` holds, `[1, F]`, conditioned on `context`, `[B, T, D]`, with `motion`'s temporal transformers after each block that has one, where frames of clips make up the batch.
+    /// Returns the predicted noise of `sample`, `[B, C, H, W]`, at the timestep whose features `time` holds, `[1, F]`, conditioned on `context`, `[B, T, D]`.
+    ///
+    /// With `motion`, whose clips' frames make up the batch, its temporal transformers run after each block that has one.
     pub fn predict(
         &self,
         sample: &Tensor,
@@ -313,22 +315,24 @@ pub struct MotionConfig {
     pub widths: Vec<i64>,
     pub layers_per_block: usize,
     pub heads: i64,
-    // The most frames the learned positions cover.
+    /// The most frames the stored positions cover.
     pub max_positions: i64,
     pub middle: bool,
     pub groups: i64,
-    // The input channels of the adapter's own input convolution, which replaces the UNet's, as PIA's reads its image condition.
+    /// The input channels of an adapter with its own input convolution, as PIA's reads its image condition beside the latents.
+    ///
+    /// The U-Net's input convolution reads the latents' channels, and the adapter's the channels past them.
     pub in_channels: Option<i64>,
 }
 
-// `BasicTransformerBlock` over frames, whose second attention attends to the frames themselves, each attention reading its input with the frames' sinusoidal positions added.
+/// `BasicTransformerBlock` over frames, whose second attention attends to the frames themselves, each attention reading its input with the frames' sinusoidal positions added.
 #[derive(Debug, Clone)]
 struct TemporalBlock {
     block: TransformerBlock,
     positions: StateKey,
 }
 
-// `AnimateDiffTransformer3D`: each position of a clip's frames attending across the frames, group-normed over the whole clip, and added to its input.
+/// `AnimateDiffTransformer3D`: each position of a clip's frames attending across the frames, group-normed over the whole clip, and added to its input.
 #[derive(Debug, Clone)]
 pub struct TemporalTransformer {
     norm: GroupNorm,
@@ -352,7 +356,7 @@ impl TemporalTransformer {
         })
     }
 
-    // `input`, `[B · F, C, H, W]` with each clip's frames together, through the transformer.
+    /// Runs `input`, `[B · F, C, H, W]` with each clip's `frames` together, through the transformer.
     fn forward(&self, input: &Tensor, frames: i64, state: &ModelState) -> SingeResult<Tensor> {
         let &[rows, channels, height, width] = input.shape().dimensions() else {
             return Err(SingeError::invalid_argument("temporal transformer input"));
@@ -385,7 +389,7 @@ impl TemporalTransformer {
     }
 }
 
-// A `MotionAdapter`'s temporal transformers, one after each of the UNet's down and up blocks' layers and, where it has one, after the middle's attention.
+/// A `MotionAdapter`'s temporal transformers, one after each of the U-Net's down and up blocks' layers and, where it has one, after the middle's attention.
 #[derive(Debug, Clone)]
 pub struct MotionModules {
     input: Option<Conv2d>,
@@ -395,7 +399,7 @@ pub struct MotionModules {
 }
 
 impl MotionModules {
-    // The modules for a UNet whose own input convolution reads `latents` channels.
+    /// Creates the modules for a U-Net whose own input convolution reads `latents` channels.
     pub fn create(
         schema: &mut Schema<'_>,
         config: &MotionConfig,
@@ -443,7 +447,7 @@ impl MotionModules {
     }
 }
 
-// The motion modules a UNet reads, their state, and the frames of each clip in its batch.
+/// The motion modules a U-Net reads, their state, and the frames of each clip in its batch.
 #[derive(Debug, Clone, Copy)]
 pub struct Motion<'a> {
     pub modules: &'a MotionModules,
@@ -451,7 +455,7 @@ pub struct Motion<'a> {
     pub frames: i64,
 }
 
-// A UNet with a motion adapter, as `UNetMotionModel` is, each with its own state.
+/// A U-Net with a motion adapter, as `UNetMotionModel` is, each with its own state.
 #[derive(Debug)]
 pub struct UnetMotion {
     pub unet: Unet2dCondition,
@@ -459,7 +463,7 @@ pub struct UnetMotion {
 }
 
 impl UnetMotion {
-    // The predicted noise of clips' latents, `[B, C, F, H, W]`, at `timestep`, each clip conditioned on its row of `context`, `[B, T, D]`, in the model's type, as `diffusers` keeps a pipeline's latents in it.
+    /// Returns the predicted noise of clips' latents, `[B, C, F, H, W]`, at `timestep`, each clip conditioned on its row of `context`, `[B, T, D]`, in the model's type, as `diffusers` keeps a pipeline's latents in it.
     pub fn predict(&self, sample: &Tensor, timestep: f32, context: &Tensor) -> Result<Tensor> {
         let &[clips, channels, frames, height, width] = sample.shape().dimensions() else {
             return Err(SingeError::invalid_argument("clip latents").into());
@@ -517,7 +521,7 @@ pub fn load(loader: &mut Loader<'_>) -> Result<Unet2dCondition> {
     loader.load_whole(&model, &diffusers::rules())
 }
 
-// Loads the UNet from `unet` and its motion adapter from `adapter`.
+/// Loads the U-Net from `unet` and its motion adapter from `adapter`.
 pub fn load_motion(unet: &Source, adapter: &Source, options: LoadOptions) -> Result<UnetMotion> {
     let unet = load(&mut Loader::new(unet, options))?;
     let latents = unet.layer().config.unet.in_channels;

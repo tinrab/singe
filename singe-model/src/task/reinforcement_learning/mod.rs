@@ -1,4 +1,4 @@
-// The tasks the Hub lists under reinforcement learning.
+//! The tasks the Hub lists under reinforcement learning.
 
 #[expect(
     clippy::module_inception,

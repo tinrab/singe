@@ -1,4 +1,4 @@
-// `any-to-any`: messages that mix text and images to the text a multimodal language model writes after them, as `transformers`' any-to-any pipeline gives it for models that write text, here through the image-text-to-text pipeline's steps.
+//! `any-to-any`: messages that mix text and images to the text a multimodal language model writes after them, as `transformers`' any-to-any pipeline gives it for models that write text, here through the image-text-to-text pipeline's steps.
 
 use crate::{
     error::Result,

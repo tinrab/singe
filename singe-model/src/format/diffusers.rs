@@ -71,7 +71,7 @@ fn attends(types: &[String], plain: &str, attending: &str) -> Result<Vec<bool>> 
         .collect()
 }
 
-// The fields `UNet2DModel`'s and `UNet2DConditionModel`'s `config.json` share.
+/// The fields `UNet2DModel`'s and `UNet2DConditionModel`'s `config.json` share.
 #[derive(Debug, Deserialize)]
 pub struct UnetFields {
     pub in_channels: i64,
@@ -112,7 +112,11 @@ pub struct UnetFields {
 }
 
 impl UnetFields {
-    // Refuses the options `diffusers` offers that `class`, whose middle block is `middle`, does not build.
+    /// Checks that the config sets none of the options `diffusers` offers that `class`, whose middle block is `middle`, does not build.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `act_fn` is not `silu`, if `time_embedding_type`, `time_embedding_dim`, `center_input_sample`, or `resnet_time_scale_shift` is not the default, if the config sets `mid_block_type` to other than `middle`, if it sets a class embedding, or if `block_out_channels` is empty or the down and up block types are not one per entry of it.
     pub fn validate(&self, class: &str, middle: &str) -> Result<()> {
         if self.act_fn != Activation::Silu {
             return Err(Error::unsupported(format!(
@@ -164,7 +168,11 @@ impl UnetFields {
         Ok(())
     }
 
-    // The shared config, each down block `DownBlock2D` or the attending `down`, and each up block `UpBlock2D` or the attending `up`.
+    /// Returns the shared config, reading each down block as `DownBlock2D` or the attending `down`, and each up block as `UpBlock2D` or the attending `up`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if a block type is neither.
     pub fn config(&self, [down, up]: [&str; 2]) -> Result<UnetConfig> {
         Ok(UnetConfig {
             in_channels: self.in_channels,

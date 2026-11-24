@@ -1,4 +1,4 @@
-// Reads a `transformers` SAM config, of a vision encoder, a prompt encoder, and a mask decoder, and imports its checkpoint.
+//! Reads a `transformers` SAM config, of a vision encoder, a prompt encoder, and a mask decoder, and imports its checkpoint.
 
 use serde::Deserialize;
 use singe::nn::Activation;
@@ -123,7 +123,7 @@ pub(crate) fn config(source: &Source) -> Result<SamConfig> {
     })
 }
 
-// A `SamFeedForward`'s layers stored as `proj_in`, `layers.N`, and `proj_out`, numbered in order.
+/// Returns the rules that import a `SamFeedForward`'s layers, stored as `proj_in`, `layers.N`, and `proj_out`, to layers under `to` numbered in order.
 fn linear_stack_rules(from: &str, to: &str, depth: i64) -> Rules {
     let mut rules = Rules::new()
         .rename(&join(from, "proj_in"), &join(to, "0"))

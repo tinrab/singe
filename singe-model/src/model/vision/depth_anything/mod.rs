@@ -1,4 +1,4 @@
-// Depth Anything: DINOv2's features after four blocks, reassembled into maps at four scales and fused coarsest first by DPT's neck, then a convolutional head that predicts each pixel's relative depth.
+//! Depth Anything: `DINOv2`'s features after the configured blocks, each reassembled into a map at its own scale and fused coarsest first by DPT's neck, then a convolutional head that predicts each pixel's relative or metric depth.
 
 mod transformers;
 
@@ -22,13 +22,13 @@ use crate::{
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DepthAnythingConfig {
     pub backbone: VisionTowerConfig,
-    // The blocks, counted from one, whose states the neck reads.
+    /// The blocks, counted from one, whose states the neck reads.
     pub stages: Vec<usize>,
-    // Each stage's channels in the neck, and the factor its map is resized by: up by a transposed convolution above one, down by a strided one below.
+    /// Each stage's channels in the neck, and the factor its map is resized by: up by a transposed convolution above one, down by a strided one below.
     pub neck: Vec<(i64, f64)>,
     pub fusion: i64,
     pub head: i64,
-    // Whether the head ends in a sigmoid, for metric depth, rather than a ReLU, for relative depth; either is scaled to `max_depth`.
+    /// Whether the head ends in a sigmoid, for metric depth, rather than a `ReLU`, for relative depth; either is multiplied by `max_depth`.
     pub metric: bool,
     pub max_depth: f64,
 }
@@ -95,7 +95,7 @@ impl Layer for Reassemble {
     }
 }
 
-// A residual unit that activates before each of its two convolutions.
+/// A residual unit that activates before each of its two convolutions.
 #[derive(Debug, Clone)]
 struct Residual {
     first: Conv2d,
@@ -138,7 +138,7 @@ impl Fusion {
         })
     }
 
-    // Adds `skip`, refined, to `hidden`, refines the sum, and resizes it to `size`, or doubles it.
+    /// Adds `skip`, refined, to `hidden`, refines the sum, resizes it to `size`, or to twice its size when `size` is `None`, and projects it.
     fn forward(
         &self,
         hidden: &Tensor,
@@ -170,7 +170,7 @@ fn bilinear(input: &Tensor, size: (i64, i64), align_corners: bool) -> SingeResul
     )
 }
 
-// Depth Anything: from images to each pixel's depth at the size the patches cover, `[B, H, W]`.
+/// Depth Anything: from images to each pixel's depth at the size the patches cover, `[B, H, W]`.
 #[derive(Debug, Clone)]
 pub struct DepthAnythingLayers {
     backbone: Dinov2Layers,

@@ -1,4 +1,4 @@
-// BART: an encoder and a decoder of blocks that norm after each residual, sharing one token embedding with the output, which adds a bias of its own; TAPEX is BART trained on tables.
+//! BART: an encoder and a decoder of blocks that norm after each residual, sharing one token embedding with the output, which adds a bias of its own; TAPEX is BART trained on tables.
 
 mod transformers;
 

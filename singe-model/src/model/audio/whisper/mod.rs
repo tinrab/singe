@@ -1,4 +1,4 @@
-// Whisper: an encoder of log-mel features and a decoder that cross-attends to it, each with state of its own, `encoder` and `decoder`.
+//! Whisper: an encoder of log-mel features and a decoder that cross-attends to it, each with state of its own, `encoder` and `decoder`.
 
 mod transformers;
 
@@ -33,10 +33,10 @@ use crate::{
     source::Format,
 };
 
-// The slots of a cross-attention cache page.
+/// The slots of a cross-attention cache page.
 const SOURCE_PAGE: i64 = 32;
 
-// Whisper's attention projections: biases on queries, values, and outputs, and none on keys.
+/// Whisper's attention projection biases: on queries, values, and outputs, and none on keys.
 const PROJECTION_BIASES: [bool; 4] = [true, false, true, true];
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -50,15 +50,15 @@ pub struct WhisperConfig {
     pub decoder_layers: i64,
     pub decoder_heads: i64,
     pub decoder_inner: i64,
-    // The positions the encoder gives a clip, half its mel frames.
+    /// The positions the encoder gives a clip, half its mel frames.
     pub source_positions: i64,
-    // The most tokens the decoder reads.
+    /// The most tokens the decoder reads.
     pub target_positions: i64,
     pub activation: Activation,
 }
 
 impl WhisperConfig {
-    // The mel frames the encoder reads, which its strided convolution halves.
+    /// Returns the mel frames the encoder reads, which its strided convolution halves.
     #[must_use]
     pub const fn frames(&self) -> i64 {
         2 * self.source_positions
@@ -78,8 +78,8 @@ impl WhisperConfig {
     }
 }
 
-// Whisper's encoder: two convolutions with GELU, the second halving the frames, learned positions for every frame, and pre-norm blocks of attention without a mask.
-// It turns log-mel features, `[B, mels, 2F]`, into `[B, F, D]`.
+/// Whisper's encoder: two convolutions with GELU, the second halving the frames, a position embedding added to each of the `F` rows, and pre-norm blocks of attention without a mask.
+/// It turns log-mel features, `[B, mels, 2F]`, into `[B, F, D]`, and holds the log-mel front end that pads or cuts a clip to the samples those frames take.
 #[derive(Debug, Clone)]
 pub struct WhisperEncoderLayers {
     features: LogMelSpectrogram,
@@ -90,7 +90,7 @@ pub struct WhisperEncoderLayers {
 }
 
 impl WhisperEncoderLayers {
-    // The encoder's state, under `encoder.` so it shares no name with the decoder's in a graph of both: `convolutions.0` and `convolutions.1`, `embeddings.positions`, `blocks.N`, and `norm`.
+    /// Creates the encoder's state under `encoder.`, so it shares no name with the decoder's in a graph of both: `convolutions.0` and `convolutions.1`, `embeddings.positions`, `blocks.N`, and `norm`.
     pub fn create(schema: &mut Schema<'_>, config: &WhisperConfig) -> SingeResult<Self> {
         let mut schema = schema.scope("encoder");
         let width = config.width;
@@ -134,7 +134,7 @@ impl Layer for WhisperEncoderLayers {
     }
 }
 
-// Whisper's decoder: token and learned position embeddings, pre-norm blocks of causal self-attention, cross-attention to the encoder, and a feed-forward, a final norm, and a head tied to the token embedding.
+/// Whisper's decoder: token and learned position embeddings, pre-norm blocks of causal self-attention, cross-attention to the encoder, and a feed-forward layer, then a final norm and a head tied to the token embeddings.
 #[derive(Debug, Clone)]
 pub struct WhisperDecoderLayers {
     tokens: Embedding,
@@ -146,7 +146,7 @@ pub struct WhisperDecoderLayers {
 }
 
 impl WhisperDecoderLayers {
-    // The decoder's state, under `decoder.`: `embeddings.tokens`, `embeddings.positions`, `blocks.N`, `norm`, and `head`, tied to the token embeddings.
+    /// Creates the decoder's state under `decoder.`: `embeddings.tokens`, `embeddings.positions`, `blocks.N`, `norm`, and `head`, tied to the token embeddings.
     pub fn create(schema: &mut Schema<'_>, config: &WhisperConfig) -> SingeResult<Self> {
         let mut schema = schema.scope("decoder");
         let width = config.width;
@@ -217,7 +217,7 @@ impl WhisperDecoderLayers {
         }))
     }
 
-    // Writes one sequence's cross-attention keys and values to `caches`, from its encoder's outputs, `[F, D]`.
+    /// Writes one sequence's cross-attention keys and values to `caches`, from its encoder's outputs, `[F, D]`.
     pub fn write_sources(
         &self,
         encoded: &Tensor,
@@ -235,7 +235,7 @@ impl WhisperDecoderLayers {
 impl DecoderModel for WhisperDecoderLayers {
     type Cache = EncoderDecoderCache;
 
-    // Positions are looked up in the state, so nothing depends on the capacity.
+    /// No tables: positions are looked up in the state, so nothing depends on the capacity.
     type Tables = ();
 
     fn tables(&self, _: DataType, _: Device, _: i64) -> SingeResult<()> {
@@ -283,17 +283,17 @@ impl DecoderModel for WhisperDecoderLayers {
     }
 }
 
-// Whisper: its log-mel front end with its encoder, its decoder, and how its snapshot generates.
+/// Whisper: its log-mel front end with its encoder, its decoder, and how its snapshot generates.
 pub type Whisper = SpeechModel<WhisperConfig, WhisperEncoderLayers, WhisperDecoderLayers>;
 
 impl Whisper {
-    // The samples the front end reads, to which a clip is padded with silence or cut.
+    /// Returns how many samples the front end reads, to which a clip is padded with silence or cut.
     #[must_use]
     pub fn samples(&self) -> i64 {
         self.encoder().layer().features.options().samples
     }
 
-    // Turns 16 kHz samples, `[B, N]` or `[N]`, into the log-mel features the encoder reads, `[B, mels, frames]`.
+    /// Returns the log-mel features the encoder reads, `[B, mels, frames]`, of 16 kHz samples, `[B, N]` or `[N]`.
     pub fn features(&self, samples: &Tensor) -> SingeResult<Tensor> {
         let encoder = self.encoder();
         encoder
@@ -303,12 +303,12 @@ impl Whisper {
             .cast(encoder.state().floating_type()?)
     }
 
-    // Encodes log-mel features, `[B, mels, frames]`, to `[B, F, D]`.
+    /// Encodes log-mel features, `[B, mels, frames]`, to `[B, F, D]`.
     pub fn encode(&self, features: &Tensor) -> SingeResult<Tensor> {
         self.encoder().forward(features)
     }
 
-    // A decoder of `options.sequences` sequences, each of which reads an encoding written with `write_sources` before its first step.
+    /// Creates a decoder of `options.sequences` sequences, each of which reads an encoding written with [`Self::write_sources`] before its first step.
     pub fn create_decoder(
         &self,
         options: DecoderOptions,
@@ -316,7 +316,7 @@ impl Whisper {
         CachedDecoder::create(self.decoder(), options)
     }
 
-    // Writes one sequence's encoding, `[F, D]`, to `decoder`'s cross-attention caches.
+    /// Writes one sequence's encoding, `[F, D]`, to `decoder`'s cross-attention caches.
     pub fn write_sources(
         &self,
         decoder: &CachedDecoder<WhisperDecoderLayers>,
@@ -331,8 +331,9 @@ impl Whisper {
         )
     }
 
-    // The step that encodes one clip of 16 kHz samples, `[N]` with `N` the front end's samples, a shorter clip padded with silence, and writes the cross-attention caches of `decoder`'s first sequence, as a graph whose inputs are `samples` and the caches, named as the decoder's steps name them.
-    // Exported with the decoder's step as `encode` and `decode`, it lets a generation loop transcribe samples with nothing of Singe.
+    /// Returns the step that encodes one clip of 16 kHz samples, `[N]` with `N` the front end's samples, a shorter clip padded with silence, and writes the cross-attention caches of `decoder`'s first sequence, and its example inputs.
+    /// The step is a graph whose inputs are `samples` and the caches, named as the decoder's steps name them.
+    /// Exported with the decoder's step as `encode` and `decode`, it lets a generation loop transcribe samples without Singe.
     pub fn encode_step_graph(
         &self,
         decoder: &CachedDecoder<WhisperDecoderLayers>,
@@ -350,8 +351,8 @@ impl Whisper {
         )
     }
 
-    // Generates for clips of 16 kHz samples, each `[N]`: encodes them in one batch, then generates after `prefix` in `options.rows` rows, each clip joining the running batch as a row frees, with its encoding written to its row first.
-    // Returns each clip's generated tokens, in order.
+    /// Generates for clips of 16 kHz samples, each `[N]`: encodes them in one batch, then generates after `prefix` in `options.rows` rows, each clip joining the running batch as a row frees, with its encoding written to its row first.
+    /// Returns each clip's generated tokens, in order.
     pub fn generate(
         &self,
         clips: &[Tensor],
@@ -411,7 +412,8 @@ impl SpeechToText for Whisper {
         self.encoder().layer().features.options().sample_rate
     }
 
-    // Whisper's loop runs one sequence over its whole context, prompted by its prefix, so it has no prompt step.
+    /// Returns the encode and one-token steps of a loop that runs one sequence over Whisper's whole context, with no prompt step.
+    /// The steps choose tokens with `generation`'s sampling and the snapshot's stop and suppressed tokens.
     fn loop_steps(
         &self,
         _limits: &LoopLimits,
@@ -432,7 +434,7 @@ impl SpeechToText for Whisper {
         LoopSteps::create(&decoder, Some(encode), &generation, None)
     }
 
-    // Transcribes in `language`, a Whisper language code, English when it names none.
+    /// Transcribes one clip in `language`, a Whisper language code, or in English without one.
     fn transcribe(
         &self,
         tokenizer: &TextTokenizer,
@@ -457,14 +459,19 @@ impl SpeechToText for Whisper {
     }
 }
 
-// What Whisper does with its audio.
+/// What Whisper does with its audio.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WhisperTask {
     Transcribe,
     Translate,
 }
 
-// The tokens a transcription without timestamps starts with: start of transcript, the language, the task, and no timestamps, as `transformers`' `generate` forces them, by name through the snapshot's tokenizer.
+/// Returns the tokens a transcription without timestamps starts with: start of transcript, the language, the task, and no timestamps, as `transformers`' `generate` forces them.
+/// It looks each token up by name in the snapshot's tokenizer.
+///
+/// # Errors
+///
+/// Returns an error if the tokenizer has no token of one of those names, such as for an unknown `language`.
 pub fn prompt(tokenizer: &TextTokenizer, language: &str, task: WhisperTask) -> Result<Vec<i64>> {
     let task = match task {
         WhisperTask::Transcribe => "<|transcribe|>",

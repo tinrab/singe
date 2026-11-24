@@ -1,4 +1,4 @@
-// Reads a `transformers` Depth Anything config, whose backbone is a partial DINOv2 config, and imports its checkpoint.
+//! Reads a `transformers` Depth Anything config, whose backbone is a partial `DINOv2` config, and imports its checkpoint.
 
 use serde::Deserialize;
 

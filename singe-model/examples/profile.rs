@@ -1,4 +1,4 @@
-// Profiles a text-generation snapshot's decoding step on the GPU through CUPTI, and prints each kernel's share of the GPU's time, the largest first: `--snapshot DIR`, `--steps N`, `--type f16|f32` in place of BF16, `--eager` for the step the model runs without compiling, `--tune` to compile it with the records tuning that step gives, `--library NAME` for each library it may call, every one if none is named, both for Llama, Qwen3, and Qwen3.5, and `--prompt N` to profile a prompt of `N` tokens from an empty cache in place of a one-token step.
+//! Profiles a text-generation snapshot's decoding step on the GPU through CUPTI, and prints each kernel's share of the GPU's time, the largest first: `--snapshot DIR`, `--steps N`, `--type f16|f32` in place of BF16, `--eager` for the step the model runs without compiling, `--tune` to compile it with the records tuning that step gives, `--library NAME` for each library it may call, every one if none is named, both for Llama, Qwen3, and Qwen3.5, and `--prompt N` to profile a prompt of `N` tokens from an empty cache in place of a one-token step.
 
 mod support;
 
@@ -30,7 +30,7 @@ use singe_testing::{decode_step, profiled, wait};
 
 use crate::support::Arguments;
 
-// The kernels a profile lists, of all it saw.
+/// The number of kernels a profile lists, the longest first.
 const SHOWN: usize = 25;
 
 fn step(decoder: &mut dyn Decoder, prompt: Option<&[i64]>) -> Result<()> {

@@ -3,6 +3,7 @@ mod delta_net;
 mod grouped;
 mod latent;
 mod projection;
+mod relative;
 mod self_attention;
 
 pub use self::{
@@ -11,6 +12,9 @@ pub use self::{
     grouped::{GroupedQueryAttention, GroupedQueryLayers},
     latent::{LatentQuery, MultiHeadLatentAttention, MultiHeadLatentLayers},
     projection::{HeadNorm, HeadProjection},
+    relative::{
+        LocalAttention, RelativeAttention, RelativeAttentionInput, RelativeAttentionLayers,
+    },
     self_attention::SelfAttention,
 };
 use crate::{

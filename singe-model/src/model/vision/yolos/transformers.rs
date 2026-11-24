@@ -1,4 +1,4 @@
-// Reads a `transformers` YOLOS config and imports its checkpoint, which stores the ViT encoder under `vit.`.
+//! Reads a `transformers` YOLOS config and imports its checkpoint, which stores the `ViT` encoder under `vit.`.
 
 use serde::Deserialize;
 

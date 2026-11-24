@@ -1,4 +1,4 @@
-// `audio-classification`: a clip to its labels' scores, best first, as `transformers`' pipeline ranks them.
+//! `audio-classification`: a clip to its labels' scores, best first, as `transformers`' pipeline ranks them.
 
 use crate::{
     error::Result,

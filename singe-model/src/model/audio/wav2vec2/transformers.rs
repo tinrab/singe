@@ -1,4 +1,4 @@
-// Reads a `transformers` Wav2Vec2 config and its feature extractor's, and imports its checkpoint.
+//! Reads a `transformers` `Wav2Vec2` config and its feature extractor's, and imports its checkpoint.
 
 use serde::Deserialize;
 use singe::nn::Activation;

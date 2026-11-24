@@ -1,4 +1,4 @@
-// Segment Anything: a vision transformer with windowed attention and decomposed relative positions embeds an image once, then a prompt encoder and a two-way transformer decode masks for points against that embedding.
+//! Segment Anything: a vision transformer with windowed attention and decomposed relative positions embeds an image once, then a prompt encoder and a two-way transformer decode masks for points against that embedding.
 
 mod transformers;
 
@@ -35,8 +35,9 @@ pub struct SamConfig {
     pub eps: f32,
     pub patch_size: i64,
     pub image_size: i64,
-    // The side of the windows most blocks attend within, and the blocks that attend globally.
+    /// The side of the windows most blocks attend within.
     pub window: i64,
+    /// The blocks, counted from zero, that attend globally instead.
     pub global: Vec<i64>,
     pub embedding: i64,
     pub decoder_layers: i64,
@@ -66,7 +67,7 @@ impl SamConfig {
     }
 }
 
-// A layer norm over the channels of `[B, C, H, W]`.
+/// Applies a layer norm over the channels of `[B, C, H, W]`.
 fn channel_norm(input: &Tensor, norm: &LayerNorm, state: &ModelState) -> SingeResult<Tensor> {
     input
         .permute(&[0, 2, 3, 1])?
@@ -74,7 +75,7 @@ fn channel_norm(input: &Tensor, norm: &LayerNorm, state: &ModelState) -> SingeRe
         .permute(&[0, 3, 1, 2])
 }
 
-// Each pair of a side's positions' relative embedding, `[side, side, C]`, from a table of `2 · side - 1` offsets, as `get_rel_pos` reads it when queries and keys have one size.
+/// Returns each pair of a side's positions' relative embedding, `[side, side, C]`, from a table of `2 · side - 1` offsets, as `get_rel_pos` reads it when queries and keys have one size.
 fn relative(table: &Tensor, side: i64) -> SingeResult<Tensor> {
     let &[_, channels] = table.shape().dimensions() else {
         return Err(SingeError::invalid_argument("SAM relative position table"));
@@ -129,7 +130,7 @@ impl VisionBlock {
         })
     }
 
-    // Attention among `[N, side, side, C]` tokens, with decomposed relative positions.
+    /// Attends among `[N, side, side, C]` tokens, with decomposed relative positions.
     fn attend(&self, hidden: &Tensor, state: &ModelState) -> SingeResult<Tensor> {
         let &[count, side, _, width] = hidden.shape().dimensions() else {
             return Err(SingeError::invalid_argument("SAM attention input"));
@@ -455,7 +456,7 @@ impl SamLayers {
         })
     }
 
-    // Random Fourier features of coordinates in [0, 1], `[..., 2]` to `[..., 2 · F]`: sines and cosines of `2π (2c - 1) G`.
+    /// Returns random Fourier features of coordinates in [0, 1], `[..., 2]` to `[..., 2 · F]`: sines and cosines of `2π (2c - 1) G`.
     fn fourier(&self, coordinates: &Tensor, state: &ModelState) -> SingeResult<Tensor> {
         let projected = coordinates
             .mul_scalar(2.0)?
@@ -466,7 +467,7 @@ impl SamLayers {
         Tensor::concat(&[projected.sin()?, projected.cos()?], last)
     }
 
-    // The positions of the embedding's grid, `[1, H · W, C]`, each point at its center.
+    /// Returns the positions of the embedding's `side × side` grid, `[1, side², C]`, each point at its center.
     fn grid_positions(&self, side: i64, device: Device, state: &ModelState) -> SingeResult<Tensor> {
         let coordinates = (0..side)
             .flat_map(|row| {

@@ -1,5 +1,5 @@
-// Saves a model in Singe's format: `--snapshot DIR --task ID --directory OUT`, reading the weights a task's pipeline loads, in F32 unless `--type bf16|f16` asks otherwise.
-// The saved directory loads with no import rules and runs every task the source ran.
+//! Saves a model in Singe's format: `--snapshot DIR --task ID --directory OUT`, reading the weights a task's pipeline loads, in F32 unless `--type bf16|f16` asks otherwise.
+//! The saved directory records the head that pipeline loads, loads with no import rules, and runs `--task` and the other tasks of that head.
 
 mod support;
 

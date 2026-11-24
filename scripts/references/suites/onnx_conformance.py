@@ -173,6 +173,77 @@ def fixture(op, version, variant="", constant=False):
             const("y_scale", 0.125, np.float32),
             const("y_zero", 0, np.uint8),
         ]
+    elif op in {"RNN", "GRU", "LSTM"}:
+        gates, hidden = {"RNN": 1, "GRU": 3, "LSTM": 4}[op], 3
+        runtime["x"] = np.arange(12, dtype=np.float32).reshape(3, 2, 2) / 6 - 1
+        rows = np.arange(gates * hidden * (2 + hidden), dtype=np.float32)
+        weight = (np.cos(rows[: gates * hidden * 2]) * 0.6).reshape(
+            1, gates * hidden, 2
+        )
+        recurrence = (np.sin(rows[: gates * hidden * hidden]) * 0.4).reshape(
+            1, gates * hidden, hidden
+        )
+        inputs = [
+            "x",
+            const("weight", weight),
+            const("recurrence", recurrence),
+            const(
+                "bias",
+                np.cos(np.arange(2 * gates * hidden, dtype=np.float32)).reshape(1, -1)
+                * 0.25,
+            ),
+            "",
+            const(
+                "initial",
+                np.linspace(-0.5, 0.5, 2 * hidden, dtype=np.float32).reshape(
+                    1, 2, hidden
+                ),
+            ),
+        ]
+        attrs["hidden_size"] = hidden
+        outputs.append("final")
+        if variant == "reset_after":
+            attrs["linear_before_reset"] = 1
+    elif op in {"HannWindow", "HammingWindow", "BlackmanWindow"}:
+        runtime = {}
+        inputs = [const("size", 8, np.int64)]
+        if variant == "symmetric":
+            attrs["periodic"] = 0
+    elif op == "MelWeightMatrix":
+        runtime = {}
+        inputs = [
+            const("mels", 4, np.int64),
+            const("length", 16, np.int64),
+            const("rate", 8000, np.int64),
+            const("lower", 0.0, np.float32),
+            const("upper", 4000.0, np.float32),
+        ]
+    elif op == "DFT":
+        runtime["x"] = (np.sin(np.arange(16, dtype=np.float32) * 0.7) + 0.25).reshape(
+            1, 8, 2
+        )
+        if variant != "complex" and variant != "inverse":
+            runtime["x"] = runtime["x"][..., :1]
+        if version < 20:
+            attrs["axis"] = 1
+        if variant == "inverse":
+            attrs["inverse"] = 1
+        elif variant == "onesided":
+            attrs["onesided"] = 1
+        elif variant == "padded":
+            inputs.append(const("length", 10, np.int64))
+    elif op == "STFT":
+        runtime["x"] = (np.cos(np.arange(16, dtype=np.float32) * 0.45)).reshape(
+            1, 16, 1
+        )
+        window = 0.5 - 0.5 * np.cos(2 * np.pi * np.arange(8) / 8)
+        inputs = [
+            "x",
+            const("step", 4, np.int64),
+            const("window", window, np.float32),
+        ]
+        if variant == "full":
+            attrs["onesided"] = 0
     if variant == "edges":
         runtime["x"] = np.array(
             [[np.nan, -0.0, 0.0], [-np.inf, np.inf, -1.0]], dtype=np.float32
@@ -374,6 +445,12 @@ def generate():
                             constant,
                         )
                     )
+    cases.append(fixture("GRU", 22, "reset_after"))
+    for op in ["HannWindow", "HammingWindow", "BlackmanWindow"]:
+        cases.append(fixture(op, 17, "symmetric"))
+    for variant in ["complex", "inverse", "onesided", "padded"]:
+        cases.append(fixture("DFT", 20, variant))
+    cases.append(fixture("STFT", 17, "full"))
     for constant in [False, True]:
         cases.append(fixture("Gelu", 20, "exact", constant))
         for version in [19, 20]:

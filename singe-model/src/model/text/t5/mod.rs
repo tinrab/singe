@@ -1,4 +1,5 @@
-// T5: an encoder and a decoder of pre-norm blocks with RMS norms, whose self-attention scores are unscaled and biased by buckets of each pair's relative position, learned once per stack, and whose decoder's output, scaled when tied, reads the token embedding.
+//! T5: an encoder and a decoder of pre-norm blocks with RMS norms, whose attention scores are unscaled and whose self-attention scores are biased by buckets of each pair's relative position, learned once per stack.
+//! A tied decoder's output reads the token embedding, after scaling the final states by `width^-0.5`.
 
 mod transformers;
 
@@ -31,7 +32,7 @@ use crate::{
 pub struct T5Config {
     pub vocab_size: i64,
     pub width: i64,
-    // Each head's width, which `heads` times need not be `width`.
+    /// Each head's width, which `heads` times need not be `width`.
     pub head_dim: i64,
     pub heads: i64,
     pub inner: i64,
@@ -41,13 +42,15 @@ pub struct T5Config {
     pub max_distance: i64,
     pub eps: f32,
     pub activation: Activation,
-    // Whether the feed-forward gates its activation with a second projection, as T5 v1.1 does.
+    /// Whether the feed-forward layer gates its activation with a second projection, as T5 v1.1's does.
     pub gated: bool,
-    // Whether the output reads the token embedding, scaled by `width^-0.5`.
+    /// Whether the output reads the token embedding, after scaling the decoder's final states by `width^-0.5`.
     pub tied: bool,
 }
 
-// The bucket of each relative position `key - query`, as `_relative_position_bucket` sorts them: exact below half the buckets, logarithmic up to `max_distance`, and, for an encoder, signed.
+/// Returns the bucket of the relative position `relative`, `key - query`, as `_relative_position_bucket` sorts them.
+/// An encoder gives each sign half the buckets, and a decoder gives all of them to keys at or before the query.
+/// Within those, distances below half the buckets have a bucket each, and longer ones share buckets logarithmically up to `max_distance`.
 fn bucket(relative: i64, role: StackRole, buckets: i64, max_distance: i64) -> i64 {
     let (buckets, mut bucket, distance) = match role {
         StackRole::Encoder => {
@@ -68,7 +71,7 @@ fn bucket(relative: i64, role: StackRole, buckets: i64, max_distance: i64) -> i6
     bucket
 }
 
-// T5's scores go unscaled, its initialization having folded the scale into the queries.
+/// The attention options of T5's unscaled scores, its initialization having folded the scale into the queries.
 const UNSCALED: AttentionOptions = AttentionOptions {
     scale: Some(1.0),
     causal: false,
@@ -133,7 +136,7 @@ impl Block {
         })
     }
 
-    // A block over `hidden`, an encoder's whole input, or a decode step's rows, which read and extend the block's cache, with `bias` added to its self-attention's scores.
+    /// Runs the block over `hidden`, an encoder's whole input, or a decode step's rows, which read and extend the block's cache, with `bias` added to its self-attention's scores.
     fn forward(
         &self,
         hidden: &Tensor,
@@ -166,7 +169,7 @@ impl Block {
 #[derive(Debug, Clone)]
 struct Stack {
     blocks: Vec<Block>,
-    // Each relative position bucket's bias for each head, `[buckets, heads]`.
+    /// Each relative position bucket's bias for each head, `[buckets, heads]`.
     position_bias: StateKey,
     norm: RmsNorm,
 }
@@ -188,7 +191,7 @@ impl Stack {
         })
     }
 
-    // The bias of an encoder's attention among `length` tokens, `[1, heads, length, length]`.
+    /// Returns the bias of an encoder's attention among `length` tokens, `[1, heads, length, length]`.
     fn encoder_bias(
         &self,
         length: i64,
@@ -218,7 +221,7 @@ impl Stack {
             .unsqueeze(0)
     }
 
-    // The bias of a decode step's rows' attention to every position of their sequences, `[T, heads, 1, C]`, with the positions after each row's hidden.
+    /// Returns the bias of a decode step's rows' attention to every position of their sequences, `[T, heads, 1, C]`, with each row's mask added, which hides the positions after the row's own.
     fn step_bias(
         &self,
         rows: &StepRows,
@@ -241,7 +244,7 @@ impl Stack {
             .add(rows.mask())
     }
 
-    // Runs an encoder over `hidden`, its whole input.
+    /// Runs the stack as an encoder over `hidden`, its whole input.
     fn forward(
         &self,
         hidden: &Tensor,
@@ -265,7 +268,7 @@ fn sequence_length(hidden: &Tensor) -> SingeResult<i64> {
     Ok(length)
 }
 
-// T5's decoder with its output, which reads the token embedding the encoder shares.
+/// T5's decoder and its output, embedding tokens with the embedding the encoder shares.
 #[derive(Debug, Clone)]
 struct T5Decoder {
     tokens: Embedding,

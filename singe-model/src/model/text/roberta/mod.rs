@@ -1,4 +1,4 @@
-// RoBERTa: `assembly`'s post-norm encoder with positions numbered after the padding id, serving every head over a text encoder.
+//! `RoBERTa`: [`assembly`](crate::assembly)'s post-norm encoder with positions numbered after the padding id, serving every head over a text encoder.
 
 mod transformers;
 

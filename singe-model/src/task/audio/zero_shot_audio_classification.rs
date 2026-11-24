@@ -1,4 +1,4 @@
-// `zero-shot-audio-classification`: a clip and candidate labels to each label's score, best first: the softmax of the clip's scaled cosines with each label's hypothesis, as `transformers`' pipeline scores them with CLAP.
+//! `zero-shot-audio-classification`: a clip and candidate labels to each label's score, best first: the softmax of the clip's scaled cosines with each label's hypothesis, as `transformers`' pipeline scores them with CLAP.
 
 use serde::Deserialize;
 
@@ -30,7 +30,7 @@ pub struct ZeroShotAudioInput {
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(default)]
 pub struct ZeroShotAudioClassificationParameters {
-    // Where a label goes in its hypothesis.
+    /// The hypothesis a label goes in, in place of its `{}`; `This is a sound of {}.` by default.
     pub hypothesis_template: String,
 }
 

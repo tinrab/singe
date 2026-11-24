@@ -1,5 +1,6 @@
-// SmolVLM: a SigLIP vision tower whose patches a pixel shuffle folds into fewer, wider rows and a linear connector projects to the decoder's width, and a Llama decoder whose prompts read those rows in place of their image tokens.
-// An image is cut into tiles the tower reads at its own size, plus the whole image shrunk to one tile, and a clip's sampled frames each become one tile.
+//! `SmolVLM`: a `SigLIP` vision tower whose patches a pixel shuffle folds into fewer, wider rows and a linear connector projects to the decoder's width, and a Llama decoder whose prompts read those rows in place of their image tokens.
+//!
+//! An image is cut into tiles the tower reads at its own size, plus the whole image shrunk to one tile, and a clip's sampled frames each become one tile.
 
 mod processor;
 pub(crate) mod transformers;
@@ -36,7 +37,7 @@ use crate::{
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SmolVlmVisionConfig {
     pub tower: VisionTowerConfig,
-    // The side of each square of patches the pixel shuffle folds into one row.
+    /// The side of each square of patches the pixel shuffle folds into one row.
     pub scale: i64,
 }
 
@@ -48,19 +49,19 @@ pub struct SmolVlmConfig {
     pub processor: SmolVlmProcessor,
 }
 
-// The vision tower and connector: tiles, `[N, C, S, S]`, to the rows the decoder reads in place of their image tokens, `[N, (S / P)² / scale², W]`.
+/// The vision tower and connector: from tiles, `[N, C, S, S]`, to the rows the decoder reads in place of their image tokens, `[N, (S / P)² / scale², W]`.
 #[derive(Debug, Clone)]
 pub struct SmolVlmVision {
     embeddings: PatchTokens,
     encoder: PreNormEncoder,
     connector: Linear,
-    // Patches along a tile's side.
+    /// The patches along a tile's side.
     side: i64,
     scale: i64,
 }
 
 impl SmolVlmVision {
-    // Registers the tower in `schema`: `embeddings` (`patches`, `positions`), `blocks`, `norm`, and `connector`.
+    /// Registers the tower in `schema`: `embeddings` (`patches`, `positions`), `blocks`, `norm`, and `connector`, which projects to `out_width`.
     pub fn create(
         schema: &mut Schema<'_>,
         config: &SmolVlmVisionConfig,
@@ -89,7 +90,9 @@ impl SmolVlmVision {
 }
 
 impl Layer for SmolVlmVision {
-    // Every tile fills the tower's size, so each patch takes the learned position of its own place, as `transformers`' bucketed positions give a tile without padding.
+    /// Returns each tile's rows, `[N, (S / P)² / scale², W]`.
+    ///
+    /// Every tile fills the tower's size, so each patch takes the learned position of its own place, as `transformers`' bucketed positions give a tile without padding.
     fn forward(&self, input: &Tensor, state: &ModelState) -> SingeResult<Tensor> {
         let hidden = self
             .encoder
@@ -113,7 +116,7 @@ impl Layer for SmolVlmVision {
 
 pub type SmolVlmDecoder = SourcedCausalLm<PreNormBlock<GroupedQueryAttention, GatedMlp>>;
 
-// SmolVLM reading images and clips: the processor's settings, the vision tower, and the decoder, each with state of its own.
+/// `SmolVLM` reading images and clips: the processor's settings, the vision tower, and the decoder, each with state of its own.
 #[derive(Debug, Clone)]
 pub struct SmolVlm {
     config: SmolVlmConfig,
@@ -124,7 +127,7 @@ pub struct SmolVlm {
 }
 
 impl SmolVlm {
-    // Encodes tiles, `[N, C, S, S]` normalized, into their image tokens' rows, `[N · R, W]`.
+    /// Encodes tiles, `[N, C, S, S]` normalized, into their image tokens' rows, `[N · R, W]` for `R` rows a tile.
     pub fn encode(&self, tiles: &Tensor) -> Result<Tensor> {
         let rows = self.vision.forward(tiles)?;
         let &[count, per_tile, width] = rows.shape().dimensions() else {
@@ -133,7 +136,7 @@ impl SmolVlm {
         Ok(rows.reshape([count * per_tile, width])?)
     }
 
-    // Generates after `tokens`, writing `rows`, `[N, W]`, in place of its image tokens in order.
+    /// Generates after `tokens`, writing `rows`, `[N, W]`, in place of its image tokens in order.
     fn generate_tokens(
         &self,
         tokens: &[i64],
@@ -193,7 +196,7 @@ impl ImageTextToText for SmolVlm {
         self.config.image_token_id
     }
 
-    // Each image is cut into tiles, and its placeholder in the prompt becomes the tiles' image tokens between their markers, as `SmolVLMProcessor` expands it before tokenizing.
+    /// Generates after `prompt`, each image cut into tiles and its placeholder in the prompt replaced by the tiles' image tokens between their markers, as `SmolVLMProcessor` expands it before tokenizing.
     fn generate(
         &self,
         tokenizer: &TextTokenizer,
@@ -220,7 +223,7 @@ impl ImageTextToText for SmolVlm {
         Some(processor::VIDEO_CHAT_TEMPLATE)
     }
 
-    // The clip's frames are sampled and each read as one tile, and its placeholder becomes an introduction and each frame's timestamp and image tokens, as `SmolVLMProcessor` expands it.
+    /// Generates after `prompt`, the clip's frames sampled and each read as one tile, and its placeholder replaced by an introduction and each frame's timestamp and image tokens, as `SmolVLMProcessor` expands it.
     fn generate_video(
         &self,
         tokenizer: &TextTokenizer,
@@ -246,7 +249,7 @@ pub(crate) const MODEL: ModelEntry = ModelEntry {
     })],
 };
 
-// Loads the vision tower, as part `vision`, and the decoder reading its rows, as part `decoder`.
+/// Loads the vision tower, as part `vision`, and the decoder reading its rows, as part `decoder`.
 pub fn load(loader: &mut Loader<'_>) -> Result<SmolVlm> {
     let config: SmolVlmConfig = loader.config(transformers::config)?;
     let data_type = loader.options().data_type;

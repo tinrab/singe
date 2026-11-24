@@ -1,4 +1,4 @@
-// Reads an AutoGluon Tab2D snapshot: its config and its tensors' names.
+//! Reads an `AutoGluon` `Tab2D` snapshot: its config and its tensors' names.
 
 use serde::Deserialize;
 

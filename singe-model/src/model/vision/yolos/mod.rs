@@ -1,4 +1,4 @@
-// YOLOS: a vision transformer whose detection tokens, after its patches, each find an object, read by a class head and a box head of three linear layers each.
+//! YOLOS: a vision transformer whose detection tokens, after its patches, each find an object, read by a class head and a box head of three linear layers each.
 
 mod transformers;
 
@@ -23,23 +23,23 @@ use crate::{
 pub struct YolosConfig {
     pub encoder: PreNormEncoderConfig,
     pub layers: i64,
-    // The image height and width the positions are learned for.
+    /// The image height and width the positions are learned for.
     pub image_size: [i64; 2],
     pub patch_size: i64,
     pub channels: i64,
     pub detection_tokens: i64,
-    // The labels, before the last score, which stands for no object.
+    /// The labels, before the last score, which stands for no object.
     pub classifier: ClassifierConfig,
 }
 
-// The class token, the patches, and the detection tokens, with learned positions whose patch part is resized bicubically to the image's grid, as `InterpolateInitialPositionEmbeddings` resizes it.
+/// The class token, the patches, and the detection tokens, with learned positions whose patch part is resized bicubically to the image's grid, as `InterpolateInitialPositionEmbeddings` resizes it.
 #[derive(Debug, Clone)]
 struct YolosTokens {
     patches: PatchEmbedding,
     class: StateKey,
     detection: StateKey,
     positions: StateKey,
-    // The patch grid the positions are learned for.
+    /// The patch grid the positions are learned for.
     grid: [i64; 2],
     patch_size: i64,
 }
@@ -110,7 +110,7 @@ impl Layer for YolosTokens {
     }
 }
 
-// YOLOS and its heads: from images to each detection token's label scores and box, `[B, Q, labels + 1 + 4]`.
+/// YOLOS and its heads: from images to each detection token's label scores and box, `[B, Q, labels + 1 + 4]`.
 #[derive(Debug, Clone)]
 pub struct YolosDetectorLayers {
     embeddings: YolosTokens,

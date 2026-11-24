@@ -1,4 +1,4 @@
-// Vision encoder-decoders, as `transformers`' `VisionEncoderDecoderModel` pairs them: an image encoder whose states a text decoder's cross-attention reads, such as TrOCR's DeiT and BART-style decoder, and Donut's Swin and MBart decoder.
+//! Vision encoder-decoders, as `transformers`' `VisionEncoderDecoderModel` pairs them: an image encoder whose states a text decoder's cross-attention reads, such as `TrOCR`'s `DeiT` and BART-style decoder, and Donut's Swin and `MBart` decoder.
 
 mod transformers;
 
@@ -25,7 +25,7 @@ use crate::{
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ImageEncoderConfig {
-    // DeiT: a ViT with a class token and a distillation token before the patches.
+    /// `DeiT`: a `ViT` with a class token and a distillation token before the patches.
     Deit(VisionTowerConfig),
     Swin(SwinConfig),
 }
@@ -34,7 +34,7 @@ pub enum ImageEncoderConfig {
 pub struct VisionEncoderDecoderConfig {
     pub encoder: ImageEncoderConfig,
     pub decoder: BartStackConfig,
-    // Whether the decoder's token embedding is its output's weight.
+    /// Whether the decoder's token embedding is its output's weight.
     pub tied: bool,
 }
 

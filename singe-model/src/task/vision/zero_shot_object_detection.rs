@@ -1,4 +1,4 @@
-// `zero-shot-object-detection`: an image and candidate labels to the objects found of each label, with scores and boxes in the image's pixels, best first, as `transformers`' pipeline post-processes OWL-ViT: each patch's sigmoid score for a label, kept above a threshold.
+//! `zero-shot-object-detection`: an image and candidate labels to the objects found of each label, with scores and boxes in the image's pixels, best first, as `transformers`' pipeline post-processes OWL-ViT: each patch's sigmoid score for a label, kept above a threshold.
 
 use serde::Deserialize;
 
@@ -26,9 +26,9 @@ pub struct ZeroShotObjectDetectionPipeline {
 #[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
 #[serde(default)]
 pub struct ZeroShotObjectDetectionParameters {
-    // The least score an object keeps.
+    /// The score an object must exceed to be kept, 0.1 by default.
     pub threshold: f32,
-    // Keeps the best this many objects, or all when absent.
+    /// The most objects to keep, best first, or every one for `None`.
     pub top_k: Option<usize>,
 }
 

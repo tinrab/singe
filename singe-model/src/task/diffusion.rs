@@ -115,7 +115,7 @@ fn guided(
     }
 }
 
-// A Stable Diffusion pipeline's components: its text encoder and tokenizer, its UNet, by default an image UNet, its VAE, and its scheduler's config.
+/// A Stable Diffusion pipeline's components: its text encoder and tokenizer, its `UNet`, by default an image `UNet`, its VAE, and its scheduler's config.
 #[derive(Debug)]
 pub struct StableDiffusion<U = Box<dyn ConditionalDenoiser>> {
     pub text_encoder: TextEncoder,
@@ -123,9 +123,9 @@ pub struct StableDiffusion<U = Box<dyn ConditionalDenoiser>> {
     pub unet: U,
     pub vae: Autoencoder,
     pub scheduler: SchedulerConfig,
-    // What the VAE's latents are multiplied by before denoising.
+    /// The VAE config's `scaling_factor`: encoded latents are multiplied by it before denoising, and denoised latents divided by it before decoding.
     pub scaling: f32,
-    // The pixels a latent spans along each side.
+    /// The pixels a latent spans along each side.
     pub vae_scale: i64,
     pub options: LoadOptions,
 }
@@ -134,18 +134,18 @@ pub struct StableDiffusion<U = Box<dyn ConditionalDenoiser>> {
 struct VaeConfig {
     #[serde(default = "stable_diffusion_scaling")]
     scaling_factor: f32,
-    // `AutoencoderTiny` saves these as its decoder's widths, `decoder_block_out_channels`, which `diffusers` registers as `block_out_channels`.
+    /// The widths of the VAE's blocks; `AutoencoderTiny` saves these as its decoder's widths, `decoder_block_out_channels`, which `diffusers` registers as `block_out_channels`.
     #[serde(alias = "decoder_block_out_channels")]
     block_out_channels: Vec<i64>,
 }
 
-// `AutoencoderKL`'s default, which older configs leave out.
+/// Returns `AutoencoderKL`'s default scaling factor, which older configs leave out.
 const fn stable_diffusion_scaling() -> f32 {
     0.18215
 }
 
 impl VaeConfig {
-    // `2^(blocks − 1)`, as `diffusers`' pipelines derive the VAE's scale factor.
+    /// Returns `2^(blocks − 1)`, as `diffusers`' pipelines derive the VAE's scale factor.
     fn scale_factor(&self) -> Result<i64> {
         self.block_out_channels
             .len()
@@ -156,10 +156,10 @@ impl VaeConfig {
     }
 }
 
-// The tokens a prompt takes, as CLIP's tokenizer pads and truncates a prompt for Stable Diffusion.
+/// The tokens a prompt takes, as CLIP's tokenizer pads and truncates a prompt for Stable Diffusion.
 const PROMPT_TOKENS: usize = 77;
 
-// A prompt's tokens, truncated to 77 with the end token kept, as CLIP's tokenizer truncates them.
+/// Returns a prompt's tokens, truncated to 77 with the end token kept, as CLIP's tokenizer truncates them.
 pub(crate) fn prompt_tokens(tokenizer: &TextTokenizer, prompt: &str) -> Result<Vec<i64>> {
     let mut tokens = tokenizer.encode(prompt, true)?;
     if tokens.len() > PROMPT_TOKENS {
@@ -171,7 +171,7 @@ pub(crate) fn prompt_tokens(tokenizer: &TextTokenizer, prompt: &str) -> Result<V
 }
 
 impl StableDiffusion {
-    // Loads the components `model_index.json` names from their directories.
+    /// Loads a Stable Diffusion pipeline from the components `model_index.json` names, each from its directory.
     pub fn load(source: &Source, options: LoadOptions) -> Result<Self> {
         Self::load_with(
             source,
@@ -197,7 +197,7 @@ impl StableDiffusion {
 }
 
 impl<U> StableDiffusion<U> {
-    // Loads the components but the UNet, which `unet` is.
+    /// Loads the components other than the `UNet`, and takes `unet` in its place.
     pub fn load_with(source: &Source, options: LoadOptions, unet: U) -> Result<Self> {
         let vae = source.component("vae")?;
         let vae_config = vae.json::<VaeConfig>("config.json")?;
@@ -213,7 +213,7 @@ impl<U> StableDiffusion<U> {
         })
     }
 
-    // A prompt's text states, `[1, 77, D]`: its tokens truncated, padded with the tokenizer's pad token, and encoded whole.
+    /// Encodes a prompt to its text states, `[1, 77, D]` in `F32`: its tokens truncated, padded with the tokenizer's pad token, and encoded whole.
     pub fn encode_prompt(&self, prompt: &str) -> Result<Tensor> {
         let mut tokens = prompt_tokens(&self.tokenizer, prompt)?;
         let pad = self
@@ -236,7 +236,11 @@ impl<U> StableDiffusion<U> {
         })
     }
 
-    // The latents' height and width for images of `height × width`, which `diffusers` refuses unless both are multiples of 8.
+    /// Returns the latents' height and width for images of `height × width`, which `diffusers` refuses unless both are multiples of 8.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `height` or `width` is not a multiple of 8.
     pub fn latent_size(&self, height: i64, width: i64) -> Result<(i64, i64)> {
         if height % 8 != 0 || width % 8 != 0 {
             return Err(Error::invalid(
@@ -246,7 +250,7 @@ impl<U> StableDiffusion<U> {
         Ok((height / self.vae_scale, width / self.vae_scale))
     }
 
-    // An image in [-1, 1], `[1, 3, H, W]` in the model's type, as `VaeImageProcessor.preprocess` gives it: resized with PIL's Lanczos filter to `size`, `(height, width)`, or without one to its sides floored to multiples of the VAE's scale factor, where it differs.
+    /// Returns an image in `[-1, 1]`, `[1, 3, H, W]` in the model's type, as `VaeImageProcessor.preprocess` gives it: resized with PIL's Lanczos filter to `size`, `(height, width)`, or without one to its sides floored to multiples of the VAE's scale factor, where it differs.
     pub fn image_pixels(&self, image: &Image, size: Option<(i64, i64)>) -> Result<Tensor> {
         let (height, width) = size.unwrap_or_else(|| {
             let floored = |length: u32| {
@@ -277,7 +281,7 @@ impl<U> StableDiffusion<U> {
             .cast(self.options.data_type)?)
     }
 
-    // Latents sampled from the VAE's distribution for `pixels`, drawing their noise from `generator`, as `latent_dist.sample(generator)` does.
+    /// Returns latents sampled from the VAE's distribution for `pixels`, drawing their noise from `generator`, as `latent_dist.sample(generator)` does.
     pub fn sampled_latents(
         &self,
         pixels: &Tensor,
@@ -294,7 +298,7 @@ impl<U> StableDiffusion<U> {
         Ok(mean.add(&deviation.mul(&noise)?)?)
     }
 
-    // Latents, `[B, 4, h, w]`, decoded to images.
+    /// Decodes latents, `[B, C, h, w]`, to images, dividing them by `scaling` first.
     pub fn decode(&self, latents: &Tensor) -> Result<Vec<Image>> {
         // The CUDA kernel divides by a host scalar through its reciprocal.
         let decoded = self
@@ -309,10 +313,10 @@ impl<U> StableDiffusion<U> {
     }
 }
 
-// An AnimateDiff pipeline: Stable Diffusion's components, its UNet joined by the `motion_adapter` component.
+/// An `AnimateDiff` pipeline: Stable Diffusion's components, its `UNet` joined by the `motion_adapter` component.
 pub type AnimateDiff = StableDiffusion<UnetMotion>;
 
-// Loads an AnimateDiff pipeline whose `unet` component the `motion_adapter` component extends.
+/// Loads an `AnimateDiff` pipeline whose `unet` component the `motion_adapter` component extends.
 pub fn load_animatediff(source: &Source, options: LoadOptions) -> Result<AnimateDiff> {
     let unet = load_motion(
         &source.component("unet")?,
@@ -328,7 +332,7 @@ impl AnimateDiff {
         self.unet.unet.layer().config().unet.in_channels
     }
 
-    // Noise of `shape` drawn from `generator` in the model's type, as `diffusers` keeps a clip's latents in it.
+    /// Returns noise of `shape` drawn from `generator` in the model's type, as `diffusers` keeps a clip's latents in it.
     pub fn clip_noise(&self, generator: &mut TorchGenerator, shape: &[i64]) -> Result<Tensor> {
         Ok(generator
             .normal_tensor(self.options.device, shape)?
@@ -369,7 +373,7 @@ impl AnimateDiff {
         })
     }
 
-    // A clip's latents, `[1, C, F, h, w]`, decoded frame by frame, as `decode_latents` decodes them in chunks of 16.
+    /// Decodes a clip's latents, `[1, C, F, h, w]`, to its frames, in chunks of 16 frames as `decode_latents` decodes them.
     pub fn decode_clip(&self, latents: &Tensor) -> Result<Vec<Image>> {
         let &[_, channels, frames, height, width] = latents.shape().dimensions() else {
             return Err(SingeError::invalid_argument("clip latents, [1, C, F, h, w]").into());
@@ -390,7 +394,7 @@ impl AnimateDiff {
     }
 }
 
-// Shap-E's prior, renderer, and scheduler, which its text and image pipelines share.
+/// Shap-E's prior, renderer, and scheduler, which its text and image pipelines share.
 #[derive(Debug)]
 pub struct ShapE {
     prior: Prior,
@@ -414,7 +418,7 @@ impl ShapE {
         self.options
     }
 
-    // A mesh from the latent the prior denoises from `seed`'s noise, conditioned on `condition`, `[1, C]` or `[1, K, C]`, and guided away from a zero condition.
+    /// Generates a mesh from the latent the prior denoises from `seed`'s noise, conditioned on `condition`, `[1, C]` or `[1, K, C]`, and guided away from a zero condition.
     pub fn generate(
         &self,
         condition: &Tensor,

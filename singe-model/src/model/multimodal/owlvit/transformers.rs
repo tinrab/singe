@@ -1,4 +1,4 @@
-// Imports a `transformers` OWL-ViT checkpoint, CLIP's with its towers under `owlvit`, whose config is CLIP's.
+//! Imports a `transformers` OWL-ViT checkpoint, CLIP's with its towers under `owlvit`, whose config is CLIP's.
 
 use crate::{format::Rules, model::multimodal::clip::transformers::clip_rules};
 

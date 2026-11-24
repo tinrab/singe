@@ -1,4 +1,4 @@
-// CLAP: HTSAT, a Swin over a clip's mel spectrogram folded into a square image, and RoBERTa, each projected into one space where a clip and a text compare by cosine.
+//! CLAP: HTSAT, a Swin over a clip's mel spectrogram folded into a square image, and `RoBERTa`, each projected into one space where a clip and a text compare by cosine.
 
 mod transformers;
 
@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use singe::{
     Error as SingeError, Result as SingeResult, Tensor,
     nn::{
-        Activation, BatchNorm2d, Layer, LayerNorm, Linear, Mlp, Model, ModelState, StateKey,
+        Activation, BatchNorm, Layer, LayerNorm, Linear, Mlp, Model, ModelState, StateKey,
         TokenBatch,
     },
     tensor::{InterpolateMode, Interpolation},
@@ -26,7 +26,7 @@ use crate::{
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ClapConfig {
     pub audio: SwinConfig,
-    // The side of the square image a spectrogram folds into.
+    /// The side of the square image a spectrogram folds into.
     pub spec_size: i64,
     pub text: PostNormEncoderConfig,
     pub projection: i64,
@@ -34,10 +34,10 @@ pub struct ClapConfig {
     pub features: SpectrogramOptions,
 }
 
-// HTSAT's spectrograms `[B, 1, frames, mels]` to their projected embeddings, `[B, P]`.
+/// The audio tower, HTSAT, from mel spectrograms, `[B, 1, frames, mels]`, to their projected embeddings, `[B, P]`.
 #[derive(Debug, Clone)]
 struct ClapAudioLayers {
-    norm: BatchNorm2d,
+    norm: BatchNorm,
     swin: Swin,
     final_norm: LayerNorm,
     projection: Mlp,
@@ -50,7 +50,7 @@ impl ClapAudioLayers {
         let mels =
             i64::try_from(config.features.mels).map_err(|_| SingeError::out_of_range("mels"))?;
         Ok(Self {
-            norm: schema.batch_norm2d("audio.norm", mels, PYTORCH_NORM_EPS)?,
+            norm: schema.batch_norm("audio.norm", mels, PYTORCH_NORM_EPS)?,
             swin: Swin::create(&mut schema.scope("audio"), &config.audio)?,
             // HTSAT's final norm keeps `nn.LayerNorm`'s default epsilon instead of `layer_norm_eps`.
             final_norm: schema.layer_norm("audio.final_norm", width, PYTORCH_NORM_EPS)?,
@@ -97,7 +97,7 @@ impl Layer for ClapAudioLayers {
     }
 }
 
-// RoBERTa's texts to their projected embeddings, `[N, P]`, from its pooler over the first token.
+/// The text tower, `RoBERTa` and its pooler over the first token, from token batches to their projected embeddings, `[N, P]`.
 #[derive(Debug, Clone)]
 struct ClapTextLayers {
     encoder: PostNormEncoder,

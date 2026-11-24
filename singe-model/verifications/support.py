@@ -18,7 +18,6 @@ import sys
 import time
 import tomllib
 import traceback
-import wave
 from pathlib import Path
 
 import numpy
@@ -207,7 +206,7 @@ LEFT = ["onnx/*", "openvino/*", "*.bin", "*.h5", "*.msgpack", "*.ot", "*.onnx"]
 
 
 def write_media():
-    """Writes the media cases read under `media/`, unless they are there: a LibriSpeech clip, a cat in three sizes, COCO's two cats, and a clip's frames, from Hugging Face's test datasets and COCO."""
+    """Writes the media cases read under `media/`, unless they are there: a LibriSpeech clip, also in FLAC and 8, 50, and 150 times over, a cat in three sizes, COCO's two cats, and a clip's frames, from Hugging Face's test datasets and COCO."""
     from huggingface_hub import hf_hub_download
 
     directory = ROOT / "media"
@@ -225,6 +224,13 @@ def write_media():
         row = pyarrow.parquet.read_table(path).to_pylist()[1]
         samples, rate = soundfile.read(io.BytesIO(row["audio"]["bytes"]), dtype="int16")
         soundfile.write(clip, samples, rate, subtype="PCM_16")
+    compressed = directory / "clip.flac"
+    if not compressed.exists():
+        import soundfile
+
+        # The clip losslessly compressed, which decodes to the WAV file's samples.
+        samples, rate = soundfile.read(clip, dtype="int16")
+        soundfile.write(compressed, samples, rate, subtype="PCM_16", format="FLAC")
     second = directory / "clip-1s.wav"
     if not second.exists():
         import soundfile
@@ -232,6 +238,32 @@ def write_media():
         # The clip's first second, which keeps a codec's samples in `cases.json` few.
         samples, rate = soundfile.read(clip, dtype="int16")
         soundfile.write(second, samples[:rate], rate, subtype="PCM_16")
+    long = directory / "clip-long.wav"
+    if not long.exists():
+        import soundfile
+
+        # The clip eight times over, 38.5 s, whose transcription runs past 128 tokens.
+        samples, rate = soundfile.read(clip, dtype="int16")
+        soundfile.write(long, numpy.tile(samples, 8), rate, subtype="PCM_16")
+    for name, times, note in [
+        (
+            "clip-4m.wav",
+            50,
+            "4 minutes 1 second, long enough that Parakeet subsamples it in spans and attends in chunks",
+        ),
+        (
+            "clip-12m.wav",
+            150,
+            "12 minutes 2 seconds, long enough that Parakeet attends locally",
+        ),
+    ]:
+        minutes = directory / name
+        if not minutes.exists():
+            import soundfile
+
+            # The clip `times` over: `note`.
+            samples, rate = soundfile.read(clip, dtype="int16")
+            soundfile.write(minutes, numpy.tile(samples, times), rate, subtype="PCM_16")
     high = directory / "clip-48k.wav"
     if not high.exists():
         import scipy.signal
@@ -965,13 +997,12 @@ def compare_scored(task, want, got):
     return error < TOLERANCE, f"largest score difference {error:.1e}"
 
 
-def read_wav(path):
-    """Reads a 16-bit PCM WAV file as samples in [-1, 1), its channels averaged, and its rate."""
-    with wave.open(path) as clip:
-        frames = clip.readframes(clip.getnframes())
-        channels, rate = clip.getnchannels(), clip.getframerate()
-    samples = numpy.frombuffer(frames, dtype="<i2").astype(numpy.float32) / 32768.0
-    return samples.reshape(-1, channels).mean(axis=1), rate
+def read_audio(path):
+    """Reads a clip of 16-bit PCM, in WAV, FLAC, or another format `soundfile` reads, as samples in [-1, 1), its channels averaged, and its rate."""
+    import soundfile
+
+    samples, rate = soundfile.read(path, dtype="int16", always_2d=True)
+    return (samples.astype(numpy.float32) / 32768.0).mean(axis=1), rate
 
 
 if __name__ == "__main__":

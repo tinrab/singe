@@ -1,5 +1,5 @@
-// Text to token ids and back, through a snapshot's `tokenizer.json`, as `transformers`' fast tokenizers read it.
-// A snapshot with only BERT's `vocab.txt` gets the tokenizer `transformers` converts it to.
+//! Text to token ids and back, through a snapshot's `tokenizer.json`, as `transformers`' fast tokenizers read it.
+//! A snapshot with only slow-tokenizer files, such as BERT's `vocab.txt`, gets the tokenizer `transformers` converts them to.
 
 use std::{collections::HashMap, result::Result as StdResult};
 
@@ -16,24 +16,24 @@ use crate::{
     source::Source,
 };
 
-// A snapshot's tokenizer.
+/// A snapshot's tokenizer, with the longest input its model reads and the special tokens its configs name.
 #[derive(Debug, Clone)]
 pub struct TextTokenizer {
     inner: Tokenizer,
-    // The longest input the snapshot's model reads, as `tokenizer_config.json`'s `model_max_length` gives it.
+    /// The longest input the snapshot's model reads, as `tokenizer_config.json`'s `model_max_length` gives it.
     max_length: Option<usize>,
-    // The special tokens `tokenizer_config.json` and `special_tokens_map.json` name by role, such as `mask_token`, in one object.
+    /// The fields of `special_tokens_map.json` and `tokenizer_config.json` in one object, the latter's winning, among them the special tokens they name by role, such as `mask_token`.
     config: Value,
 }
 
-// What a pipeline encodes: one text, or a pair whose second text follows the first, as an encoder reads a question and its context.
+/// What a pipeline encodes: one text, or a pair whose second text follows the first, as an encoder reads a question and its context.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TextInput<'a> {
     Single(&'a str),
     Pair(&'a str, &'a str),
 }
 
-// How an input longer than its limit is cut, as `transformers` names the strategies: from the longer text of a pair first, or from one text of it alone.
+/// How an input longer than its limit is cut, as `transformers` names the strategies: from the longer text of a pair first, or from one text of it alone.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Truncation {
     #[default]
@@ -54,14 +54,14 @@ impl Truncation {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct EncodeOptions {
-    // The most tokens of a row, special tokens included, or no limit.
+    /// The most tokens of a row, special tokens included, or no limit.
     pub max_length: Option<usize>,
     pub truncation: Truncation,
-    // With `max_length`, splits what truncation cuts into further rows, each repeating this many tokens of the window before it.
+    /// With `max_length`, splits what truncation cuts into further rows, each repeating this many tokens of the window before it.
     pub stride: Option<usize>,
 }
 
-// One row of an encoded batch: the input it came from, and for each of its tokens, its id, its characters in the text it came from, its word, and which text of the input it came from, none for a special token.
+/// One row of an encoded batch: the input it came from, and for each of its tokens, its id, its token type, its characters in the text it came from, its word, and which text of the input it came from, none for a special token.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EncodedRow {
     pub input: usize,
@@ -84,7 +84,7 @@ impl EncodedRow {
         }
     }
 
-    // The row's tokens at `indices`, in order.
+    /// Returns the row's tokens at `indices`, in order.
     fn select(&self, indices: impl Iterator<Item = usize> + Clone) -> Self {
         Self {
             input: self.input,
@@ -96,7 +96,7 @@ impl EncodedRow {
         }
     }
 
-    // Splits the row into windows of at most `max_length` tokens, cutting only the text `truncation` names, each window repeating `stride` of its tokens from the one before and keeping the special tokens and any other text whole, as `transformers`' fast tokenizers split a truncated input.
+    /// Splits the row into windows of at most `max_length` tokens, cutting only the text `truncation` names, each window repeating `stride` of its tokens from the one before and keeping the special tokens and any other text whole, as `transformers`' fast tokenizers split a truncated input.
     fn windows(
         self,
         truncation: Truncation,
@@ -145,14 +145,14 @@ impl EncodedRow {
     }
 }
 
-// A batch for an encoder, and the rows it was made of.
+/// A batch for an encoder, and the rows it was made of.
 #[derive(Debug)]
 pub struct Encoded {
     pub batch: TokenBatch,
     pub rows: Vec<EncodedRow>,
 }
 
-// Pads `rows` into a batch on `device`, with id zero and token type zero after each row's end.
+/// Pads `rows` into a batch on `device`, with id zero and token type zero after each row's end.
 fn batch(rows: &[EncodedRow], device: Device) -> Result<TokenBatch> {
     let sequences = rows
         .iter()
@@ -177,13 +177,13 @@ fn batch(rows: &[EncodedRow], device: Device) -> Result<TokenBatch> {
     Ok(batch.with_token_types(token_types)?)
 }
 
-// The text of the special token `name` a tokenizer config gives, as a string or, in newer configs, an object of its `content`.
+/// Returns the text of the special token `name` a tokenizer config gives, as a string or, in newer configs, an object of its `content`.
 pub(crate) fn special_token<'a>(config: &'a Value, name: &str) -> Option<&'a str> {
     let value = &config[name];
     value.as_str().or_else(|| value["content"].as_str())
 }
 
-// Removes the spaces a word-piece decode leaves before punctuation and contractions, as `clean_up_tokenization` does.
+/// Removes the spaces a word-piece decode leaves before punctuation and contractions, as `clean_up_tokenization` does.
 fn clean_up_tokenization(text: &str) -> String {
     [
         (" .", "."),
@@ -206,7 +206,11 @@ fn ids(ids: &[u32]) -> Vec<i64> {
 }
 
 impl TextTokenizer {
-    // Loads `tokenizer.json` from a snapshot directory, or builds BERT's WordPiece tokenizer from its `vocab.txt`, CLIP's byte-level BPE from its `vocab.json` and `merges.txt`, or XLM-RoBERTa's from its `sentencepiece.bpe.model`, when it has only those.
+    /// Loads `tokenizer.json` from a snapshot directory, or builds BERT's `WordPiece` tokenizer from its `vocab.txt`, CLIP's or `RoBERTa`'s byte-level BPE from its `vocab.json` and `merges.txt`, or `XLM-RoBERTa`'s from its `sentencepiece.bpe.model`, when it has only those.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `tokenizer.json` does not load, if the snapshot has neither it nor files to convert, or if `special_tokens_map.json` or `tokenizer_config.json` is there but cannot be read or parsed.
     pub fn load(source: &Source) -> Result<Self> {
         let mut inner = if source.has("tokenizer.json") {
             Tokenizer::from_file(source.directory().join("tokenizer.json")).map_err(|source| {
@@ -244,7 +248,7 @@ impl TextTokenizer {
         })
     }
 
-    // Encodes `text`, with the special tokens the tokenizer's post-processor adds when `special_tokens` is set, such as BERT's `[CLS]` and `[SEP]`.
+    /// Encodes `text`, with the special tokens the tokenizer's post-processor adds when `special_tokens` is set, such as BERT's `[CLS]` and `[SEP]`.
     pub fn encode(&self, text: &str, special_tokens: bool) -> Result<Vec<i64>> {
         let encoding =
             self.inner
@@ -256,7 +260,7 @@ impl TextTokenizer {
         Ok(ids(encoding.get_ids()))
     }
 
-    // Encodes `texts` with special tokens into a batch for an encoder on `device`, each truncated to `max_length` tokens if given, keeping its special tokens.
+    /// Encodes `texts` with special tokens into a batch for an encoder on `device`, each truncated to `max_length` tokens if given, keeping its special tokens.
     pub fn encode_batch(
         &self,
         texts: &[&str],
@@ -274,7 +278,11 @@ impl TextTokenizer {
         Ok(self.encode_inputs(&inputs, &options, device)?.batch)
     }
 
-    // Encodes `inputs` with special tokens into a batch for an encoder on `device`, one row per input and per window it overflows into, padded with id zero at each row's end, with the token types the tokenizer gives.
+    /// Encodes `inputs` with special tokens into a batch for an encoder on `device`, one row per input and per window it overflows into, padded with id zero at each row's end, with the token types the tokenizer gives.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the tokenizer fails to encode an input, or, with a stride, if the truncation would cut other than one text of an input, or if `max_length` leaves no more than `stride` tokens of the cut text in a window.
     pub fn encode_inputs(
         &self,
         inputs: &[TextInput<'_>],
@@ -328,7 +336,12 @@ impl TextTokenizer {
         Ok(Encoded { batch, rows })
     }
 
-    // Decodes generated ids to text, leaving out special tokens when `skip_special_tokens` is set.
+    /// Decodes generated ids to text, leaving out special tokens when `skip_special_tokens` is set.
+    /// It removes the spaces before punctuation and contractions where `transformers` would: when the config sets `clean_up_tokenization_spaces`, and for a BPE model only when the config also insists.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an id is outside `u32`, or if the tokenizer fails to decode the ids.
     pub fn decode(&self, ids: &[i64], skip_special_tokens: bool) -> Result<String> {
         let ids = ids
             .iter()
@@ -354,7 +367,7 @@ impl TextTokenizer {
         Ok(text)
     }
 
-    // Starts turning generated ids into text one at a time, leaving out special tokens when `skip_special_tokens` is set.
+    /// Starts turning generated ids into text one at a time, leaving out special tokens when `skip_special_tokens` is set.
     #[must_use]
     pub fn stream(&self, skip_special_tokens: bool) -> TextStream<'_> {
         TextStream {
@@ -362,13 +375,17 @@ impl TextTokenizer {
         }
     }
 
-    // The tokens the vocabulary holds, added tokens included.
+    /// Returns the number of tokens the vocabulary holds, added tokens included.
     #[must_use]
     pub fn vocabulary_size(&self) -> i64 {
         i64::try_from(self.inner.get_vocab_size(true)).unwrap_or(i64::MAX)
     }
 
-    // Returns the id of a token by its text, such as Whisper's `<|en|>`.
+    /// Returns the id of a token by its text, such as Whisper's `<|en|>`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the vocabulary has no token `token`.
     pub fn token_id(&self, token: &str) -> Result<i64> {
         self.inner
             .token_to_id(token)
@@ -376,7 +393,7 @@ impl TextTokenizer {
             .ok_or_else(|| Error::unsupported(format!("a tokenizer without {token}")))
     }
 
-    // Returns the token of `id` as the vocabulary writes it, such as WordPiece's `##ing`.
+    /// Returns the token of `id` as the vocabulary writes it, such as `WordPiece`'s `##ing`.
     #[must_use]
     pub fn token(&self, id: i64) -> Option<String> {
         u32::try_from(id)
@@ -384,7 +401,7 @@ impl TextTokenizer {
             .and_then(|id| self.inner.id_to_token(id))
     }
 
-    // Joins tokens into text with the tokenizer's decoder, or with spaces without one, as `transformers`' `convert_tokens_to_string` does.
+    /// Joins tokens into text with the tokenizer's decoder, or with spaces without one, as `transformers`' `convert_tokens_to_string` does.
     pub fn join_tokens(&self, tokens: Vec<String>) -> Result<String> {
         match self.inner.get_decoder() {
             Some(decoder) => decoder.decode(tokens).map_err(|source| Error::Tokenizer {
@@ -395,7 +412,7 @@ impl TextTokenizer {
         }
     }
 
-    // The prefix the model marks a word's continuing pieces with, such as WordPiece's `##`.
+    /// Returns the prefix the model marks a word's continuing pieces with, such as `WordPiece`'s `##`, or `None` if it marks none.
     #[must_use]
     pub fn subword_prefix(&self) -> Option<&str> {
         match self.inner.get_model() {
@@ -406,20 +423,20 @@ impl TextTokenizer {
         .filter(|prefix| !prefix.is_empty())
     }
 
-    // The longest input the model reads, if the snapshot says.
+    /// Returns the longest input the model reads, if the snapshot says.
     #[must_use]
     pub const fn max_length(&self) -> Option<usize> {
         self.max_length
     }
 
-    // The id of the special token the tokenizer's configs name for `role`, such as `mask_token`, as a string or an object of its `content`.
+    /// Returns the id of the special token the tokenizer's configs name for `role`, such as `mask_token`, as a string or an object of its `content`.
     #[must_use]
     pub fn special_id(&self, role: &str) -> Option<i64> {
         let token = special_token(&self.config, role)?;
         self.inner.token_to_id(token).map(i64::from)
     }
 
-    // The id of the mask token: the one the configs name, or the added special token named `mask` in brackets, as `[MASK]` and `<mask>` are.
+    /// Returns the id of the mask token: the one the configs name, or the added special token named `mask` in brackets, as `[MASK]` and `<mask>` are.
     #[must_use]
     pub fn mask_id(&self) -> Option<i64> {
         self.special_id("mask_token").or_else(|| {
@@ -437,7 +454,7 @@ impl TextTokenizer {
         })
     }
 
-    // The id of the token the post-processor puts before a text, as BERT's `[CLS]` and RoBERTa's `<s>` are, if it puts one.
+    /// Returns the id of the token the post-processor puts before a text, as BERT's `[CLS]` and `RoBERTa`'s `<s>` are, if it puts one.
     pub fn classifier_id(&self) -> Result<Option<i64>> {
         let encoding = self
             .inner
@@ -454,7 +471,7 @@ impl TextTokenizer {
             .map(|&id| i64::from(id)))
     }
 
-    // The id of the model's unknown token, if it has one.
+    /// Returns the id of the model's unknown token, if it has one.
     #[must_use]
     pub fn unknown_id(&self) -> Option<i64> {
         let token = match self.inner.get_model() {
@@ -466,9 +483,9 @@ impl TextTokenizer {
     }
 }
 
-// Generated ids turned into text as they arrive.
-//
-// An id that ends partway through a character, as byte-level tokenizers split one, gives no text until the ids after it complete the character, so each piece is whole text and the pieces join to what `decode` gives.
+/// Generated ids turned into text as they arrive.
+///
+/// An id that ends partway through a character, as byte-level tokenizers split one, gives no text until the ids after it complete the character, so each piece is whole text and the pieces join to what [`TextTokenizer::decode`] gives.
 pub struct TextStream<'a> {
     inner: DecodeStream<
         'a,
@@ -481,7 +498,11 @@ pub struct TextStream<'a> {
 }
 
 impl TextStream<'_> {
-    // Adds the next id, and returns the text it completes, or `None` while the text it starts is not whole.
+    /// Adds the next id, and returns the text it completes, or `None` while the text it starts is not whole.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `id` is outside `u32`, or if the tokenizer fails to decode it.
     pub fn push(&mut self, id: i64) -> Result<Option<String>> {
         let id = u32::try_from(id).map_err(|_| Error::invalid("a token id outside u32"))?;
         self.inner.step(id).map_err(|source| Error::Tokenizer {
@@ -491,9 +512,20 @@ impl TextStream<'_> {
     }
 }
 
-// A CTC model's characters, as `Wav2Vec2CTCTokenizer` reads them from `vocab.json`, and how it turns frames' tokens into text: repeats collapsed, the blank padding token dropped, and the word delimiter a space.
+/// How a CTC model's frames' best tokens become text: repeats collapsed, the blank dropped, and the rest read as the snapshot's tokenizer reads them.
 #[derive(Debug, Clone)]
-pub struct CtcTokenizer {
+pub enum CtcTokenizer {
+    /// Characters, as `Wav2Vec2CTCTokenizer` reads them from `vocab.json`: the blank is the padding token, and the word delimiter a space.
+    Characters(CtcCharacters),
+    /// Pieces of `tokenizer.json`, as `ParakeetTokenizer` decodes them: the blank is the padding token, and the rest decode without special tokens.
+    Pieces {
+        tokenizer: Box<TextTokenizer>,
+        blank: i64,
+    },
+}
+
+#[derive(Debug, Clone)]
+pub struct CtcCharacters {
     tokens: Vec<String>,
     padding: String,
     delimiter: String,
@@ -502,10 +534,22 @@ pub struct CtcTokenizer {
 }
 
 impl CtcTokenizer {
+    /// Reads `vocab.json`'s characters when the snapshot has one, and `tokenizer.json`'s pieces otherwise.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `vocab.json` has an id that is not a non-negative integer, if a snapshot without it has no tokenizer or no padding token, or if a tokenizer config cannot be read or parsed.
     pub fn load(source: &Source) -> Result<Self> {
-        let vocabulary: Map<String, Value> = source
-            .optional_json("vocab.json")?
-            .ok_or_else(|| Error::unsupported("a CTC snapshot without vocab.json"))?;
+        let Some(vocabulary) = source.optional_json::<Map<String, Value>>("vocab.json")? else {
+            let tokenizer = TextTokenizer::load(source)?;
+            let blank = tokenizer
+                .special_id("pad_token")
+                .ok_or_else(|| Error::unsupported("a CTC tokenizer without a padding token"))?;
+            return Ok(Self::Pieces {
+                tokenizer: Box::new(tokenizer),
+                blank,
+            });
+        };
         let config = tokenizer_config(source)?;
         let mut tokens = Vec::new();
         for (token, id) in &vocabulary {
@@ -519,7 +563,7 @@ impl CtcTokenizer {
 
             tokens[id].clone_from(token);
         }
-        Ok(Self {
+        Ok(Self::Characters(CtcCharacters {
             tokens,
             padding: special_or(&config, "pad_token", "<pad>"),
             delimiter: special_or(&config, "word_delimiter_token", "|"),
@@ -527,11 +571,36 @@ impl CtcTokenizer {
             clean_up: config["clean_up_tokenization_spaces"]
                 .as_bool()
                 .unwrap_or(false),
-        })
+        }))
     }
 
-    // The text of each frame's best token, as the speech recognition pipeline decodes a CTC model's, keeping special tokens but the blank.
+    /// Decodes `ids`, each frame's best token, to text, as the speech recognition pipeline decodes a CTC model's output.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an id is outside `vocab.json`'s characters, or, for pieces, if the tokenizer fails to decode the ids.
     pub fn decode(&self, ids: &[i64]) -> Result<String> {
+        match self {
+            Self::Characters(characters) => characters.decode(ids),
+            Self::Pieces { tokenizer, blank } => {
+                let mut kept = Vec::with_capacity(ids.len());
+                let mut previous = None;
+                for &id in ids {
+                    if previous != Some(id) && id != *blank {
+                        kept.push(id);
+                    }
+
+                    previous = Some(id);
+                }
+                Ok(tokenizer.decode(&kept, true)?.trim().to_owned())
+            }
+        }
+    }
+}
+
+impl CtcCharacters {
+    /// Decodes `ids`, collapsing repeats, dropping the blank but keeping other special tokens, and writing the word delimiter as a space.
+    fn decode(&self, ids: &[i64]) -> Result<String> {
         let mut text = String::new();
         let mut previous = None;
         for &id in ids {
@@ -563,7 +632,9 @@ impl CtcTokenizer {
     }
 }
 
-// A character tokenizer, as `VitsTokenizer` reads `vocab.json`: text lowercased where its characters are not in the vocabulary, characters still not in it dropped, and a blank, id zero, between every two characters and at both ends.
+/// A character tokenizer, as `VitsTokenizer` reads `vocab.json`.
+/// Unless the config turns `normalize` off, text is lowercased where its characters are not in the vocabulary, and characters still not in it are dropped.
+/// Unless the config turns `add_blank` off, a blank, id zero, goes between every two characters and at both ends.
 #[derive(Debug, Clone)]
 pub struct CharacterTokenizer {
     vocabulary: HashMap<char, i64>,

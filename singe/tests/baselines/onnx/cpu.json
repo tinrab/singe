@@ -210,6 +210,18 @@
     "compiled": true
   },
   {
+    "name": "BlackmanWindow_17",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "BlackmanWindow_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
     "name": "Cast_13",
     "importable": true,
     "eager": true,
@@ -390,6 +402,24 @@
     "compiled": true
   },
   {
+    "name": "DFT_17",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "DFT_20",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "DFT_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
     "name": "DequantizeLinear_13",
     "importable": true,
     "eager": true,
@@ -534,6 +564,24 @@
     "compiled": true
   },
   {
+    "name": "GRU_14",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "GRU_22",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "GRU_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
     "name": "Gather_13",
     "importable": true,
     "eager": true,
@@ -618,6 +666,30 @@
     "compiled": true
   },
   {
+    "name": "HammingWindow_17",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "HammingWindow_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "HannWindow_17",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "HannWindow_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
     "name": "Identity_13",
     "importable": true,
     "eager": true,
@@ -661,6 +733,24 @@
   },
   {
     "name": "Identity_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "LSTM_14",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "LSTM_22",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "LSTM_25",
     "importable": true,
     "eager": true,
     "compiled": true
@@ -792,6 +882,18 @@
     "compiled": true
   },
   {
+    "name": "MelWeightMatrix_17",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "MelWeightMatrix_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
     "name": "Min_13",
     "importable": true,
     "eager": true,
@@ -913,6 +1015,24 @@
   },
   {
     "name": "QuantizeLinear_18",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "RNN_14",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "RNN_22",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "RNN_25",
     "importable": true,
     "eager": true,
     "compiled": true
@@ -1171,6 +1291,18 @@
   },
   {
     "name": "Reshape_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "STFT_17",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "STFT_25",
     "importable": true,
     "eager": true,
     "compiled": true
@@ -1645,6 +1777,60 @@
   },
   {
     "name": "QuantizeLinear_18_halfway_uint8_3_constant",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "GRU_22_reset_after",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "HannWindow_17_symmetric",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "HammingWindow_17_symmetric",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "BlackmanWindow_17_symmetric",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "DFT_20_complex",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "DFT_20_inverse",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "DFT_20_onesided",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "DFT_20_padded",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "STFT_17_full",
     "importable": true,
     "eager": true,
     "compiled": true

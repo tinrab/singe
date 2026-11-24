@@ -1,4 +1,4 @@
-// Reads a `transformers` Gemma 2 config, and imports its checkpoint.
+//! Reads a `transformers` Gemma 2 config and imports its checkpoint.
 
 use serde::{Deserialize, de::IgnoredAny};
 use singe::nn::Activation;
@@ -14,7 +14,6 @@ use crate::{
     source::Source,
 };
 
-// The defaults `transformers`' `Gemma2Config` gives the fields a config leaves out; an explicit `null` turns the window or a cap off.
 const fn default_activation() -> Activation {
     Activation::Gelu
 }
@@ -47,14 +46,15 @@ const fn default_logit_softcap() -> Option<f32> {
     Some(30.0)
 }
 
+/// The config's fields; those it leaves out take the defaults of `transformers`' `Gemma2Config`, and an explicit `null` turns the window or a cap off.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 struct Fields {
     #[serde(flatten)]
     decoder: DecoderFields,
-    // The activation `transformers` reads, where it ignores the `hidden_act` Gemma 2 configs also carry.
+    /// The activation `transformers` reads, where it ignores the `hidden_act` Gemma 2 configs also carry.
     #[serde(default = "default_activation", deserialize_with = "activation_field")]
     hidden_activation: Activation,
-    // Taken here, so the decoder's fields do not read it.
+    /// The ignored `hidden_act`, taken here so the decoder's fields do not read it.
     #[serde(default, rename = "hidden_act")]
     ignored_activation: Option<IgnoredAny>,
     #[serde(default = "default_query_scalar")]
@@ -110,7 +110,8 @@ pub(crate) fn config(source: &Source) -> Result<Gemma2Config> {
     })
 }
 
-// Gemma 2's `post_attention_layernorm` norms what attention returns, where Llama's norms the feed-forward layer's input, so these rules go before Llama's.
+/// Returns the rules that import a checkpoint.
+/// Gemma 2's `post_attention_layernorm` norms what attention returns, where Llama's norms the feed-forward layer's input, so these rules go before Llama's.
 pub(crate) fn rules() -> Rules {
     Rules::new()
         .rename_each(

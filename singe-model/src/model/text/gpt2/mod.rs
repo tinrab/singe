@@ -1,4 +1,4 @@
-// GPT-2: learned positions, `LayerNorm`, and attention whose projections all have a bias.
+//! GPT-2: learned positions, `LayerNorm`, and attention whose projections all have a bias.
 
 pub(crate) mod transformers;
 
@@ -28,7 +28,7 @@ pub struct Gpt2Config {
     pub width: i64,
     pub heads: i64,
     pub layers: i64,
-    // The positions the learned position table holds.
+    /// The positions the learned position table holds.
     pub max_positions: i64,
     pub inner: i64,
     pub eps: f32,
@@ -62,7 +62,8 @@ fn block(schema: &mut Schema<'_>, config: &Gpt2Config) -> SingeResult<Block> {
     ))
 }
 
-// GPT-2 shares no assembly with the Llama family, so its layer and its `forward` are written out here.
+/// GPT-2's layers: token and learned position embeddings, pre-norm blocks, a final norm, and a head tied to the token embeddings.
+/// GPT-2 shares no assembly with the Llama family, so its layers and their `forward` are written out here.
 #[derive(Debug)]
 pub struct Gpt2Layers {
     tokens: Embedding,
@@ -74,7 +75,7 @@ pub struct Gpt2Layers {
 }
 
 impl Gpt2Layers {
-    // The output head shares the token embedding's weight.
+    /// Creates GPT-2's state: `embeddings.tokens`, `embeddings.positions`, `blocks.N`, `norm`, and `head`, which shares the token embeddings' weight.
     pub fn create(schema: &mut Schema<'_>, config: &Gpt2Config) -> SingeResult<Self> {
         let width = config.width;
         let tokens = schema.parameter("embeddings.tokens.weight", [config.vocab_size, width])?;
@@ -102,7 +103,7 @@ impl Gpt2Layers {
 impl DecoderModel for Gpt2Layers {
     type Cache = KvCache;
 
-    // Positions are looked up in the state, so nothing depends on the capacity.
+    /// No tables: positions are looked up in the state, so nothing depends on the capacity.
     type Tables = ();
 
     fn tables(&self, _: DataType, _: Device, _: i64) -> SingeResult<()> {

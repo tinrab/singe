@@ -1,4 +1,4 @@
-// Reads a `transformers` LightGlue config, which nests its keypoint detector's, and imports its checkpoint, which stores the detector under `keypoint_detector.`.
+//! Reads a `transformers` `LightGlue` config, which nests its keypoint detector's, and imports its checkpoint, which stores the detector under `keypoint_detector.`.
 
 use serde::Deserialize;
 use singe::nn::Activation;

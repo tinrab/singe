@@ -1,4 +1,4 @@
-// Reads a `transformers` Llama config.
+//! Reads a `transformers` Llama config.
 
 use crate::{
     assembly::DecoderConfig,

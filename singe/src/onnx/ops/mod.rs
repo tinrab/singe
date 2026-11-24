@@ -8,6 +8,7 @@ mod lowering;
 mod neural;
 mod reduction;
 mod shape_ops;
+mod signal;
 
 pub use self::{
     dispatch::lower_node,

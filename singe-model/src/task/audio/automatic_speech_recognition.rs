@@ -1,4 +1,4 @@
-// `automatic-speech-recognition`: a clip of speech to the text it says.
+//! `automatic-speech-recognition`: a clip of speech to the text it says.
 
 use serde::Deserialize;
 
@@ -15,7 +15,7 @@ use crate::{
     task::Pipeline,
 };
 
-// A model that writes text, or one whose frames' characters CTC decoding reads.
+/// A model that writes text, or a CTC recognizer whose frames' best tokens CTC decoding reads.
 #[derive(Debug)]
 enum Recognizer {
     Generative {
@@ -23,7 +23,7 @@ enum Recognizer {
         tokenizer: Box<TextTokenizer>,
     },
     Ctc {
-        model: CtcRecognizer,
+        model: Box<CtcRecognizer>,
         vocabulary: CtcTokenizer,
     },
 }
@@ -37,8 +37,9 @@ pub struct AutomaticSpeechRecognitionPipeline {
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(default)]
 pub struct AutomaticSpeechRecognitionParameters {
-    pub max_new_tokens: usize,
-    // The clip's language, which a model that names it itself otherwise detects.
+    /// The tokens a transcription generates at most, or the model's own limit, if it has one, when `None`.
+    pub max_new_tokens: Option<usize>,
+    /// The clip's language, or `None` to leave it to the model: Qwen3-ASR detects it, Whisper assumes English, and transducers and CTC models ignore it.
     pub language: Option<String>,
     pub compile: bool,
 }
@@ -46,7 +47,7 @@ pub struct AutomaticSpeechRecognitionParameters {
 impl Default for AutomaticSpeechRecognitionParameters {
     fn default() -> Self {
         Self {
-            max_new_tokens: 128,
+            max_new_tokens: None,
             language: None,
             compile: true,
         }
@@ -63,7 +64,7 @@ impl Pipeline for AutomaticSpeechRecognitionPipeline {
     fn load(source: &Source, options: LoadOptions) -> Result<Self> {
         let model = if model::default_head(source)? == Head::Ctc {
             Recognizer::Ctc {
-                model: model::load(source, options)?,
+                model: Box::new(model::load(source, options)?),
                 vocabulary: CtcTokenizer::load(source)?,
             }
         } else {
@@ -79,11 +80,15 @@ impl Pipeline for AutomaticSpeechRecognitionPipeline {
         match &self.model {
             Recognizer::Generative { model, tokenizer } => {
                 let clip = clip.at_rate(model.sample_rate())?;
+                let max_new_tokens = parameters
+                    .max_new_tokens
+                    .or_else(|| model.default_max_new_tokens())
+                    .unwrap_or(usize::MAX);
                 model.transcribe(
                     tokenizer,
                     &clip.to_tensor(self.options.device)?,
                     parameters.language.as_deref(),
-                    &BatchOptions::new(parameters.max_new_tokens, parameters.compile),
+                    &BatchOptions::new(max_new_tokens, parameters.compile),
                 )
             }
             Recognizer::Ctc { model, vocabulary } => {

@@ -1,4 +1,6 @@
-// PyTorch's CPU generator, so a pipeline seeded as `torch.Generator("cpu").manual_seed(seed)` draws the noise `diffusers` draws: MT19937 and the normal fill of `aten/src/ATen/native/cpu/DistributionTemplates.h`, whose AVX2 build transforms by `avx_mathfun.h`'s `log256_ps` and `sincos256_ps`, ported here lane by lane, and, for fewer than 16 values, the serial `normal_distribution<double>` of `aten/src/ATen/core/DistributionsHelper.h`.
+//! `PyTorch`'s CPU generator, so a pipeline seeded as `torch.Generator("cpu").manual_seed(seed)` draws the noise `diffusers` draws.
+//! It holds MT19937 and the normal fill of `aten/src/ATen/native/cpu/DistributionTemplates.h`, whose AVX2 build transforms by `avx_mathfun.h`'s `log256_ps` and `sincos256_ps`, ported here lane by lane.
+//! For fewer than 16 values, it draws with the serial `normal_distribution<double>` of `aten/src/ATen/core/DistributionsHelper.h`.
 
 use std::{
     f32::consts::{FRAC_1_SQRT_2, PI},
@@ -15,12 +17,12 @@ const STATE: usize = 624;
 pub struct TorchGenerator {
     state: [u32; STATE],
     index: usize,
-    // The second value of the serial normal draw's last Box–Muller pair, which the generator caches for the next serial draw.
+    /// The second value of the serial normal draw's last Box–Muller pair, which the generator caches for the next serial draw.
     next_normal: Option<f64>,
 }
 
 impl TorchGenerator {
-    // A generator as `manual_seed(seed)` leaves one, whose MT19937 reads the seed's low 32 bits.
+    /// Returns a generator as `manual_seed(seed)` leaves one, whose MT19937 reads the seed's low 32 bits.
     #[must_use]
     pub fn seeded(seed: u64) -> Self {
         let mut state = [0_u32; STATE];
@@ -68,19 +70,19 @@ impl TorchGenerator {
         value ^ (value >> 18)
     }
 
-    // `uniform_real_distribution<float>(0, 1)`: the draw's low 24 bits over `2^24`.
+    /// Draws as `uniform_real_distribution<float>(0, 1)` does: the draw's low 24 bits over `2^24`.
     fn uniform(&mut self) -> f32 {
         (self.next_u32() & 0x00ff_ffff) as f32 / 16_777_216.0
     }
 
-    // `uniform_real_distribution<double>(0, 1)`: the low 53 bits of two draws, the first high, over `2^53`.
+    /// Draws as `uniform_real_distribution<double>(0, 1)` does: the low 53 bits of two draws, the first high, over `2^53`.
     fn uniform_f64(&mut self) -> f64 {
         let high = u64::from(self.next_u32());
         let low = u64::from(self.next_u32());
         (((high << 32) | low) & ((1_u64 << 53) - 1)) as f64 / 9_007_199_254_740_992.0
     }
 
-    // `normal_distribution<double>` with mean 0 and deviation 1, rounded to `F32`: the cached value where there is one, or else Box–Muller over two uniforms, caching the sine's value.
+    /// Draws as `normal_distribution<double>` with mean 0 and deviation 1 does, rounded to `F32`: the cached value where there is one, or else Box–Muller over two uniforms, caching the sine's value.
     fn serial_normal(&mut self) -> f32 {
         if let Some(value) = self.next_normal.take() {
             return value as f32;
@@ -94,7 +96,8 @@ impl TorchGenerator {
         (radius * angle.cos()) as f32
     }
 
-    // `torch.randn(count)` in `F32`: for 16 or more values, uniforms for every value, Box–Muller over each run of 16, and the last 16 drawn again when the count is not a multiple of 16; for fewer, each value drawn serially.
+    /// Draws `count` values as `torch.randn(count)` does in `F32`.
+    /// For 16 or more values, it draws uniforms for every value, applies Box–Muller over each run of 16, and draws the last 16 again when `count` is not a multiple of 16; for fewer, it draws each value serially.
     pub fn normal(&mut self, count: usize) -> Vec<f32> {
         if count < 16 {
             return (0..count).map(|_| self.serial_normal()).collect();
@@ -116,7 +119,7 @@ impl TorchGenerator {
         values
     }
 
-    // `torch.randn(shape)` in `F32`, as a tensor on `device`.
+    /// Draws a tensor on `device` as `torch.randn(shape)` does in `F32`.
     pub fn normal_tensor(&mut self, device: Device, shape: &[i64]) -> Result<Tensor> {
         let shape = Shape::create(shape)?;
         let values = self.normal(shape.element_count());
@@ -124,7 +127,7 @@ impl TorchGenerator {
     }
 }
 
-// `NormalFill16` with mean 0 and deviation 1, as its AVX2 build computes it.
+/// Transforms 16 uniforms in place into normals with mean 0 and deviation 1, as `NormalFill16`'s AVX2 build does.
 fn box_muller(values: &mut [f32]) {
     const TWO_PI: f32 = 2.0 * PI;
     for lane in 0..8 {
@@ -135,7 +138,7 @@ fn box_muller(values: &mut [f32]) {
     }
 }
 
-// `log256_ps`: Cephes' polynomial on the mantissa.
+/// Returns the natural log of `value` as `log256_ps` computes it: Cephes' polynomial on the mantissa, and NaN for a value of 0 or less.
 #[expect(
     clippy::cast_possible_wrap,
     reason = "the bit manipulations are `avx_mathfun.h`'s"
@@ -178,7 +181,7 @@ fn log(value: f32) -> f32 {
     if invalid { f32::NAN } else { x }
 }
 
-// `sincos256_ps`: Cephes' sine and cosine after reducing by multiples of `π / 4`.
+/// Returns the sine and cosine of `value` as `sincos256_ps` computes them: Cephes' polynomials after reducing by multiples of `π / 4`.
 fn sincos(value: f32) -> (f32, f32) {
     let sign_sin = value.to_bits() & 0x8000_0000;
     let mut x = value.abs();

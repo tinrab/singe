@@ -1,4 +1,4 @@
-// Reads a `transformers` T5 config and imports its checkpoint, whose blocks number their parts `layer.0` to `layer.2` and whose first block holds its stack's position bias.
+//! Reads a `transformers` T5 config and imports its checkpoint, whose blocks number their parts `layer.0` to `layer.2` and whose first block holds its stack's position bias.
 
 use serde::Deserialize;
 use singe::nn::Activation;
@@ -37,7 +37,7 @@ const fn max_distance() -> i64 {
     128
 }
 
-// `T5Config`'s default, which the original T5 checkpoints leave to it.
+/// Returns `T5Config`'s default `feed_forward_proj`, which the original T5 checkpoints leave to it.
 fn relu() -> String {
     "relu".to_owned()
 }

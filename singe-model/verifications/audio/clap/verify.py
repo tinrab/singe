@@ -2,7 +2,7 @@
 
 from transformers import pipeline
 
-from support import DEVICE, Verification, read_wav
+from support import DEVICE, Verification, read_audio
 
 
 def zero_shot_audio_classification(snapshot, dtype):
@@ -16,7 +16,7 @@ def zero_shot_audio_classification(snapshot, dtype):
     def run(inputs, parameters):
         outputs = []
         for item in inputs:
-            samples, _ = read_wav(item["audio"])
+            samples, _ = read_audio(item["audio"])
             outputs.append(
                 classify(
                     samples, candidate_labels=item["candidate_labels"], **parameters

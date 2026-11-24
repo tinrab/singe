@@ -11,7 +11,7 @@ pub struct GeneratedSequence {
     pub generated_token_ids: Vec<i64>,
 }
 
-// A clip's samples and their rate, as `transformers`' audio pipelines give them.
+/// A clip's samples and their rate, as `transformers`' audio pipelines give them.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct GeneratedAudio {
     pub audio: Vec<f32>,

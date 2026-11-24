@@ -1,4 +1,4 @@
-// Reads a `transformers` CLAP config, its HTSAT audio tower's, its RoBERTa text tower's, and its feature extractor's, and imports its checkpoint.
+//! Reads a `transformers` CLAP config, its HTSAT audio tower's, its `RoBERTa` text tower's, and its feature extractor's, and imports its checkpoint.
 
 use serde::Deserialize;
 use singe::{Error as SingeError, nn::Activation};
@@ -50,7 +50,7 @@ struct Fields {
     audio_config: Audio,
     text_config: Text,
     projection_dim: i64,
-    // `ClapConfig` gives both towers this activation, whatever their own configs say.
+    /// The activation of both towers' projections, which `ClapConfig` gives them whatever their own configs say.
     #[serde(default = "relu", deserialize_with = "activation_field")]
     projection_hidden_act: Activation,
 }

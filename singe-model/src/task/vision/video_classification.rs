@@ -1,4 +1,4 @@
-// `video-classification`: a clip to its labels' scores, best first, from frames sampled evenly from its start, as `transformers`' pipeline samples them.
+//! `video-classification`: a clip to its labels' scores, best first, from frames sampled evenly from its start, as `transformers`' pipeline samples them.
 
 use serde::Deserialize;
 
@@ -19,7 +19,7 @@ pub struct VideoClassificationPipeline {
     model: VideoClassifier,
     processor: ImageTransforms,
     options: LoadOptions,
-    // The frames the model reads, as its config's `num_frames` gives them.
+    /// The frames the model reads, as its config's `num_frames` gives them.
     frames: usize,
 }
 
@@ -28,9 +28,9 @@ pub struct VideoClassificationPipeline {
 pub struct VideoClassificationParameters {
     #[serde(flatten)]
     pub classification: ClassificationParameters,
-    // The frames to sample, or the model's own count when absent.
+    /// The frames to sample, or the model's own count when `None`.
     pub num_frames: Option<usize>,
-    // The frames between two samples.
+    /// The multiple of `num_frames` the samples spread evenly over, the first `num_frames × frame_sampling_rate` frames, 1 by default.
     pub frame_sampling_rate: usize,
 }
 

@@ -1,4 +1,4 @@
-// The tasks the Hub lists under audio, with those of `transformers`' tasks that go with them.
+//! The tasks the Hub lists under audio, with those of `transformers`' tasks that go with them.
 
 pub mod audio_classification;
 pub mod audio_to_audio;

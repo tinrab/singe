@@ -1,4 +1,4 @@
-// Gemma 2: four norms per block, a scaled embedding, a norm that scales by one plus its weight, sliding-window attention in alternate blocks, and capped attention scores and logits.
+//! Gemma 2: four norms per block, a scaled embedding, a norm that scales by one plus its weight, sliding-window attention in alternate blocks, and capped attention scores and logits.
 
 mod transformers;
 
@@ -25,12 +25,13 @@ use crate::{
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Gemma2Config {
     pub decoder: DecoderConfig,
-    // What attention multiplies its scores by.
+    /// What attention multiplies its scores by.
     pub attention_scale: f32,
-    // Each block's window, whose keys are that many tokens up to each query's own, or `None` for full attention.
+    /// Each block's window, whose keys are that many tokens up to each query's own, or `None` for full attention.
     pub windows: Vec<Option<i64>>,
-    // The caps `tanh` holds attention scores and the logits under.
+    /// The cap `tanh` holds attention scores under, or `None` for no cap.
     pub attention_softcap: Option<f32>,
+    /// The cap `tanh` holds the logits under, or `None` for no cap.
     pub logit_softcap: Option<f32>,
 }
 
@@ -40,7 +41,7 @@ impl Gemma2Config {
     }
 }
 
-// Gemma 2 is a shared decoder except for the logits' cap, so its `DecoderModel` passes to that decoder and caps what comes back.
+/// Gemma 2's layers: the shared decoder, to which their [`DecoderModel`] implementation passes every call, and the cap on the logits that decoder returns.
 #[derive(Debug)]
 pub struct Gemma2Layers {
     decoder: Decoder<GroupedQueryAttention, GatedMlp, OffsetRmsNorm>,

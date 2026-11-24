@@ -1,5 +1,5 @@
-// Extractive question answering, as `transformers`' `*ForQuestionAnswering` heads: every token's hidden state to the scores of an answer starting and ending there, `[B, T, 2]`.
-// It is written once for every model; its state is `span.output`.
+//! Extractive question answering, as `transformers`' `*ForQuestionAnswering` heads: every token's hidden state to the scores of an answer starting and ending there, `[B, T, 2]`.
+//! It is written once for every model; its state is `span.output`.
 
 use singe::{
     DataType, Error as SingeError, Result as SingeResult,
@@ -14,7 +14,7 @@ use crate::{
     source::Source,
 };
 
-// A loaded question answerer, whose scores' last axis holds each token's start score, then its end score.
+/// A loaded question answerer, whose scores' last axis holds each token's start score, then its end score.
 #[derive(Debug)]
 pub struct QuestionAnswerer {
     model: Model<TokenScoreLayers>,
@@ -26,7 +26,11 @@ impl QuestionAnswerer {
         &self.model
     }
 
-    // Returns each row's tokens' start and end scores, padded tokens included.
+    /// Returns each row's tokens' start and end scores, padded tokens included.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `batch`'s tokens are not `[B, T]`, or if running the model fails.
     pub fn scores(&self, batch: &TokenBatch) -> Result<Vec<Vec<[f32; 2]>>> {
         let &[_, length] = batch.tokens().shape().dimensions() else {
             return Err(SingeError::invalid_argument("token batch, [B, T]").into());

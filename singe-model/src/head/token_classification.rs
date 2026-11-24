@@ -1,5 +1,5 @@
-// Token classification, as `transformers`' `*ForTokenClassification` heads: every token's hidden state to one score per label, `[B, T, labels]`.
-// It is written once for every model; its state is `classifier.output`.
+//! Token classification, as `transformers`' `*ForTokenClassification` heads: every token's hidden state to one score per label, `[B, T, labels]`.
+//! It is written once for every model; its state is `classifier.output`.
 
 use singe::{
     DataType, Error as SingeError, Result as SingeResult, Tensor,
@@ -16,7 +16,7 @@ use crate::{
     source::Source,
 };
 
-// A text encoder and a linear layer that scores each token's last hidden state, as token classifiers and question answerers have.
+/// A text encoder and a linear layer that scores each token's last hidden state, as token classifiers and question answerers have.
 #[derive(Debug)]
 pub struct TokenScoreLayers {
     encoder: PostNormEncoder,
@@ -24,7 +24,7 @@ pub struct TokenScoreLayers {
 }
 
 impl TokenScoreLayers {
-    // Registers `{name}.output`, from `encoder`'s width to `scores` scores per token.
+    /// Registers `{name}.output` in `schema`, from `encoder`'s width to `scores` scores per token.
     pub fn create(
         schema: &mut Schema<'_>,
         name: &str,
@@ -46,7 +46,7 @@ impl Layer<TokenBatch> for TokenScoreLayers {
     }
 }
 
-// A loaded token classifier: its layers and state, and its labels.
+/// A loaded token classifier: its layers and state, and its labels.
 #[derive(Debug)]
 pub struct TokenClassifier {
     model: Model<TokenScoreLayers>,
@@ -64,7 +64,11 @@ impl TokenClassifier {
         &self.config
     }
 
-    // Returns each row's tokens' scores, one per label, before any score function, padded tokens included.
+    /// Returns each row's tokens' scores, one per label, before any score function, padded tokens included.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `batch`'s tokens are not `[B, T]`, or if running the model fails.
     pub fn scores(&self, batch: &TokenBatch) -> Result<Vec<Vec<Vec<f32>>>> {
         let &[_, length] = batch.tokens().shape().dimensions() else {
             return Err(SingeError::invalid_argument("token batch, [B, T]").into());

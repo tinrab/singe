@@ -1,4 +1,4 @@
-// Resizing bytes as `transformers`' processors resize them through torchvision on the CPU: PyTorch's antialiased separable filter with weights quantized to `i16`, a horizontal pass into bytes and then a vertical one, ported from `aten/src/ATen/native/cpu/UpSampleKernel.cpp` and `UpSampleKernelAVXAntialias.h`.
+//! Resizing of RGB bytes as `transformers`' processors resize them through torchvision on the CPU: `PyTorch`'s antialiased separable filter with weights quantized to `i16`, a horizontal pass into bytes and then a vertical one, ported from `aten/src/ATen/native/cpu/UpSampleKernel.cpp` and `UpSampleKernelAVXAntialias.h`.
 
 use std::f64::consts::PI;
 
@@ -6,7 +6,7 @@ use rayon::prelude::*;
 
 use crate::processor::image::{Image, Resample};
 
-// Each output position's first input, its weights, and the bits they are scaled by.
+/// Each output position's first input, its weights, and the bits they are scaled by.
 struct Weights {
     starts: Vec<usize>,
     rows: Vec<Vec<i32>>,
@@ -18,7 +18,7 @@ fn triangle(x: f64) -> f64 {
     if x < 1.0 { 1.0 - x } else { 0.0 }
 }
 
-// Keys' cubic with `a = -0.5`, as PIL and antialiased PyTorch use it.
+/// Evaluates Keys' cubic with `a = -0.5`, as PIL and antialiased `PyTorch` use it.
 fn keys_cubic(x: f64) -> f64 {
     const A: f64 = -0.5;
     let x = x.abs();
@@ -31,7 +31,7 @@ fn keys_cubic(x: f64) -> f64 {
     }
 }
 
-// Lanczos with three lobes, `sinc(x) · sinc(x / 3)`, as PIL and PyTorch use it.
+/// Evaluates Lanczos with three lobes, `sinc(x) · sinc(x / 3)`, as PIL and `PyTorch` use it.
 fn lanczos(x: f64) -> f64 {
     let sinc = |x: f64| {
         if x == 0.0 {
@@ -49,7 +49,7 @@ fn lanczos(x: f64) -> f64 {
     }
 }
 
-// The weights `_compute_index_ranges_int16_weights` gives a resize of `input` positions to `output`.
+/// Returns the weights `_compute_index_ranges_int16_weights` gives a resize of `input` positions to `output`.
 #[expect(
     clippy::cast_possible_wrap,
     reason = "image sides are far below 2^53, and the truncations are PyTorch's"
@@ -120,10 +120,10 @@ fn byte(sum: i32, precision: u32) -> u8 {
     (sum >> precision).clamp(0, 255) as u8
 }
 
-// The filter and the width in input positions it spans at scale 1, or `None` for nearest.
-// A filter's kernel and its support.
+/// A filter's kernel and the width in input positions it spans at scale 1.
 type Filter = (fn(f64) -> f64, f64);
 
+/// Returns the filter `resample` names, or `None` for nearest.
 fn filter(resample: Resample) -> Option<Filter> {
     match resample {
         Resample::Nearest => None,
@@ -133,7 +133,8 @@ fn filter(resample: Resample) -> Option<Filter> {
     }
 }
 
-// The input position PyTorch's `nearest-exact` mode reads for each of `output` positions, the one under each output position's center, from an `F32` scale, as torchvision resizes for PIL's `NEAREST`, which `transformers` maps to `NEAREST_EXACT`.
+/// Returns the input position `PyTorch`'s `nearest-exact` mode reads for each of `output` positions, the one under each output position's center, from an `F32` scale.
+/// Torchvision resizes so for PIL's `NEAREST`, which `transformers` maps to `NEAREST_EXACT`.
 fn nearest(input: usize, output: usize) -> Vec<usize> {
     let scale = input as f32 / output as f32;
     (0..output)

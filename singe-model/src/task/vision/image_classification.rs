@@ -1,4 +1,4 @@
-// `image-classification`: an image to its labels' scores, best first, as `transformers`' pipeline ranks them.
+//! `image-classification`: an image to its labels' scores, best first, as `transformers`' pipeline ranks them.
 
 use crate::{
     error::Result,

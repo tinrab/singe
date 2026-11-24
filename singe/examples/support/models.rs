@@ -5,7 +5,7 @@ use serde_json::Value;
 use singe::{
     DataType, Device, Shape, Tensor,
     nn::{
-        Activation, BatchNorm2d, Conv2d, Conv2dConfig, EncoderBlock, Flatten, LayerNorm, Linear,
+        Activation, BatchNorm, Conv2d, Conv2dConfig, EncoderBlock, Flatten, LayerNorm, Linear,
         Model, Pool2d, Pool2dConfig, Pool2dKind, SelfAttention, Sequential, StateBuilder,
     },
 };
@@ -72,7 +72,7 @@ pub fn model_from_checkpoint(
                 Some(key("conv.bias")?),
                 Conv2dConfig::default(),
             ))
-            .with(BatchNorm2d::new(
+            .with(BatchNorm::new(
                 Some(key("norm.weight")?),
                 Some(key("norm.bias")?),
                 key("norm.running_mean")?,

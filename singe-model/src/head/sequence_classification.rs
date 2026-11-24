@@ -1,6 +1,6 @@
-// Sequence classification, as `transformers`' `*ForSequenceClassification` heads: a text encoder's hidden states pooled to one vector per sequence, through a projection and its activation where the model has one, to one score per label.
-// It is written once for every model: a model names its layout, and the import rules of its classifier's tensors.
-// Its state is `classifier.projection`, when the layout has one, and `classifier.output`.
+//! Sequence classification, as `transformers`' `*ForSequenceClassification` heads: a text encoder's hidden states pooled to one vector per sequence, through a projection and its activation where the model has one, to one score per label.
+//! It is written once for every model: a model names its layout, and the import rules of its classifier's tensors.
+//! Its state is `classifier.projection`, when the layout has one, and `classifier.output`.
 
 use serde::{Deserialize, Serialize};
 use singe::{
@@ -21,7 +21,7 @@ use crate::{
     source::Source,
 };
 
-// How scores become what a classification reports, as `transformers`' `function_to_apply` names them.
+/// How scores become what a classification reports, as `transformers`' `function_to_apply` names them.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ScoreFunction {
@@ -31,7 +31,7 @@ pub enum ScoreFunction {
 }
 
 impl ScoreFunction {
-    // Applies the function to one row's scores, as `transformers`' pipelines do with NumPy.
+    /// Applies the function to one row's scores, as `transformers`' pipelines do with `NumPy`.
     #[must_use]
     pub fn apply(self, scores: &[f32]) -> Vec<f32> {
         match self {
@@ -63,13 +63,13 @@ pub fn argmax(scores: impl IntoIterator<Item = (usize, f32)>) -> Option<(usize, 
         })
 }
 
-// A classifier's labels, in the order of its scores, and the function its scores go through unless a caller names another.
+/// A classifier's labels, in the order of its scores, and the function its scores go through unless a caller names another.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(try_from = "StoredClassifierConfig")]
 pub struct ClassifierConfig {
     labels: Vec<String>,
     function: ScoreFunction,
-    // The function a `sentence-transformers` cross-encoder's config names for its ranking scores, when it names one.
+    /// The function a `sentence-transformers` cross-encoder's config names for its ranking scores, when it names one.
     ranking_function: Option<ScoreFunction>,
 }
 
@@ -125,17 +125,17 @@ impl ClassifierConfig {
     }
 }
 
-// What a model's classifier reads, and what it does before its output projection.
+/// What a model's classifier reads, and what it does before its output projection.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ClassifierLayout {
-    // The state that stands for a sequence: the first token's for BERT, the last real token's for decoders.
+    /// The state that stands for a sequence: the first token's for BERT, the last real token's for decoders.
     pub pooling: PoolingMode,
-    // A projection that keeps the width, and its activation, before the output, as BERT's pooler (tanh) and DistilBERT's pre-classifier (ReLU) are.
+    /// The activation of a projection that keeps the width before the output, as BERT's pooler (tanh) and `DistilBERT`'s pre-classifier (`ReLU`) have; `None` for no projection.
     pub projection: Option<Activation>,
     pub output_bias: bool,
 }
 
-// A text encoder and its classifier, from a batch of token sequences to each sequence's scores, `[B, labels]`.
+/// A text encoder and its classifier, from a batch of token sequences to each sequence's scores, `[B, labels]`.
 #[derive(Debug)]
 pub struct SequenceClassifierLayers {
     encoder: Box<dyn Layer<TokenBatch>>,
@@ -145,7 +145,7 @@ pub struct SequenceClassifierLayers {
 }
 
 impl SequenceClassifierLayers {
-    // Registers the classifier in `schema` as `classifier.projection` and `classifier.output`, over `encoder`'s states of `width`.
+    /// Registers the classifier in `schema` over `encoder`'s states of `width`: `classifier.projection`, when `layout` has one, and `classifier.output`, with `labels` scores.
     pub fn create(
         schema: &mut Schema<'_>,
         encoder: Box<dyn Layer<TokenBatch>>,
@@ -189,7 +189,7 @@ impl Layer<TokenBatch> for SequenceClassifierLayers {
     }
 }
 
-// A loaded classifier: its layers and state, and its labels.
+/// A loaded classifier: its layers and state, and its labels.
 #[derive(Debug)]
 pub struct SequenceClassifier {
     model: Model<SequenceClassifierLayers>,
@@ -207,7 +207,7 @@ impl SequenceClassifier {
         &self.config
     }
 
-    // Returns each row's scores, one per label, before any score function.
+    /// Returns each row's scores, one per label, before any score function.
     pub fn scores(&self, batch: &TokenBatch) -> Result<Vec<Vec<f32>>> {
         let scores = self
             .model

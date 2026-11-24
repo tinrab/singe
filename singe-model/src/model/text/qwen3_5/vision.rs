@@ -1,6 +1,6 @@
-// Qwen3.5 reading images: the vision encoder, and the text decoder, whose prompts read the encoder's rows in place of their image tokens on M-RoPE's grid of positions.
-//
-// The encoder's state is `embeddings.patches`, a linear map of each patch's pixels stored as a convolution's `[W, C, T, P, P]`, `embeddings.positions`, `blocks.N` (`attention_norm`, `attention` with `query`, `key`, `value`, and `output`, `feed_forward_norm`, and `feed_forward` with `up` and `down`), and `merger` (`norm`, `up`, and `down`).
+//! Qwen3.5 reading images: the vision encoder, and the text decoder, whose prompts read the encoder's rows in place of their image tokens on `M-RoPE`'s grid of positions.
+//!
+//! The encoder's state is `embeddings.patches`, a linear map of each patch's pixels stored as a convolution's `[W, C, T, P, P]`, `embeddings.positions`, `blocks.N` (`attention_norm`, `attention` with `query`, `key`, `value`, and `output`, `feed_forward_norm`, and `feed_forward` with `up` and `down`), and `merger` (`norm`, `up`, and `down`).
 
 use std::{collections::HashMap, iter};
 
@@ -27,14 +27,14 @@ use crate::{
     schema::Schema,
 };
 
-// The eps of every vision LayerNorm.
+/// The epsilon of every vision `LayerNorm`.
 const LAYER_NORM_EPS: f32 = 1e-6;
 
-// Qwen3.5's vision encoder: patches embedded by a linear map of their pixels plus learned positions resampled to the image's grid, blocks of LayerNorm, attention rotated by each patch's row and column, and an MLP, and a merger of each 2 × 2 block of patches into one row of the decoder's width.
+/// Qwen3.5's vision encoder: patches embedded by a linear map of their pixels plus learned positions resampled to the image's grid, blocks of `LayerNorm`, attention rotated by each patch's row and column, and an MLP, and a merger of each `merge_size` × `merge_size` block of patches into one row of the decoder's width.
 #[derive(Debug, Clone)]
 pub struct Qwen35VisionEncoder {
     config: Qwen35VisionConfig,
-    // The side of the square table of learned positions.
+    /// The side of the square table of learned positions.
     side: i64,
     patch_weight: StateKey,
     patch_bias: StateKey,
@@ -94,8 +94,12 @@ impl Qwen35VisionEncoder {
         })
     }
 
-    // Encodes one image's patches, `[N, C · T · P · P]` in `F32` with `N` a multiple of the merged blocks' patches, into a row per merged block, `[N / 4, out]`.
-    // `grid`, `I64` `[2]`, is the image's grid of patches, rows then columns, whose patches come first; the rest are padding, which no real patch attends to.
+    /// Encodes one image's patches, `[N, C · T · P · P]` in `F32` with `N` a multiple of a merged block's patches, into a row per merged block, `[N / merge_size², out]`.
+    /// `grid`, `I64` `[2]`, is the image's grid of patches, rows then columns, whose patches come first; the rest are padding, which no real patch attends to.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `patches` is not two-dimensional.
     pub fn encode(
         &self,
         patches: &Tensor,
@@ -152,7 +156,7 @@ impl Qwen35VisionEncoder {
             .apply(&self.merger, state)
     }
 
-    // The four rows of the learned position table each patch reads, `[N · 4]`, and their weights, `[N, 4, 1]` in `F32`, resampling the square table to the image's grid bilinearly with its corners aligned, as `transformers`' `get_vision_interpolation_indices_and_weights` does.
+    /// Returns the four rows of the learned position table each patch reads, `[N · 4]`, and their weights, `[N, 4, 1]` in `F32`, resampling the square table to the image's grid bilinearly with its corners aligned, as `transformers`' `get_vision_interpolation_indices_and_weights` does.
     fn position_taps(
         &self,
         device: Device,
@@ -243,7 +247,7 @@ fn patch_places(
     Ok((rows, columns))
 }
 
-// Each patch's rotary cosines and sines, `[N, D / 2]` in `F32`: a quarter of a head turns by the patch's row and the next quarter by its column, as `transformers`' axial vision rotary does with base 10000.
+/// Returns each patch's rotary cosines and sines, `[N, D / 2]` in `F32`, as `transformers`' axial vision rotary computes them with base 10000: the first `D / 4` angles follow the patch's row and the next `D / 4` its column, so each axis turns half of a head's features.
 fn patch_angles(
     config: &Qwen35VisionConfig,
     device: Device,
@@ -264,10 +268,10 @@ fn patch_angles(
     Ok((angles.cos()?, angles.sin()?))
 }
 
-// Qwen3.5's text decoder reading images: its prompts take the encoder's rows in place of their image tokens, and rotary positions from M-RoPE's grid.
+/// Qwen3.5's text decoder reading images: its prompts take the encoder's rows in place of their image tokens, and rotary positions from `M-RoPE`'s grid.
 pub type Qwen35ImageDecoder = SourcedCausalLm<Qwen35Block, OffsetRmsNorm>;
 
-// Qwen3.5 reading images and text: the image front end's settings, the vision encoder, and the decoder, each with state of its own.
+/// Qwen3.5 reading images and text: the image front end's settings, the vision encoder, and the decoder, the last two with state of their own.
 #[derive(Debug, Clone)]
 pub struct Qwen35VisionLanguage {
     pub(crate) config: Qwen35VisionLanguageConfig,
@@ -277,7 +281,7 @@ pub struct Qwen35VisionLanguage {
     pub(crate) decoders: Decoders<DecoderKey, CachedDecoder<Qwen35ImageDecoder>>,
 }
 
-// A prompt that reads one image: its tokens, with one image token per row of `rows`, and the encoder's rows, `[N, W]`, of an image whose merged grid is `grid`.
+/// A prompt that reads one image: its tokens, with one image token per row of `rows`, and the encoder's rows, `[N, W]`, of an image whose merged grid is `grid`.
 #[derive(Debug, Clone)]
 struct ImagePrompt {
     tokens: Vec<i64>,
@@ -286,7 +290,7 @@ struct ImagePrompt {
 }
 
 impl Qwen35VisionLanguage {
-    // Encodes an image's patches into the rows its prompt's image tokens read, `[N, W]`, and returns them with its merged grid.
+    /// Encodes an image's patches into the rows its prompt's image tokens read, `[N, W]`, and returns them with its merged grid.
     fn encode(&self, image: &ImagePatches) -> Result<(Tensor, [i64; 2])> {
         let merge = self.config.encoder.merge_size;
         let grid = Tensor::from_vec(self.device, Shape::create([2])?, image.grid.to_vec())?;
@@ -297,8 +301,8 @@ impl Qwen35VisionLanguage {
         Ok((rows, [image.grid[0] / merge, image.grid[1] / merge]))
     }
 
-    // Generates after each prompt in `options.rows` rows, each prompt joining as a row frees, with its image's rows written to its row's sources and its grid to its row's rotary offsets first.
-    // Returns each prompt's generated tokens, in order.
+    /// Generates after each prompt in `options.rows` rows, each prompt joining as a row frees, with its image's rows written to its row's sources and its grid to its row's rotary offsets first.
+    /// Returns each prompt's generated tokens, in order.
     fn generate_tokens(
         &self,
         prompts: &[ImagePrompt],
@@ -355,9 +359,10 @@ impl Qwen35VisionLanguage {
         )
     }
 
-    // The step that encodes one image of up to `patches` patches into `decoder`'s first sequence's sources and rotary offsets, as a graph whose inputs are `patches`, `[patches, C · T · P · P]` in `F32` as `patches` cuts them, the image's first and the rest zero, `source_grid`, the image's grid of patches, `I64` `[2]`, `source_position`, where its prompt's image tokens start, `I64` `[1]`, and the caches, named as the decoder's steps name them.
-    // Its output, `source_rows`, is how many image tokens the prompt holds.
-    // Exported with the decoder's steps as `encode`, it lets a generation loop describe an image of any size up to `patches` with nothing of Singe, reading the grid and the patches from a file.
+    /// Returns the step that encodes one image of up to `patches` patches into `decoder`'s first sequence's sources and rotary offsets, and its example inputs.
+    /// The step is a graph whose inputs are `patches`, `[patches, C · T · P · P]` in `F32` as [`Qwen35ImageProcessor::patches`](crate::model::text::qwen3_5::Qwen35ImageProcessor::patches) cuts them, the image's first and the rest zero, `source_grid`, the image's grid of patches, `I64` `[2]`, `source_position`, where its prompt's image tokens start, `I64` `[1]`, and the caches, named as the decoder's steps name them.
+    /// Its output, `source_rows`, is how many image tokens the prompt holds.
+    /// Exported with the decoder's steps as `encode`, it lets a generation loop describe an image of any size up to `patches` without Singe, reading the grid and the patches from a file.
     fn encode_step_graph(
         &self,
         decoder: &CachedDecoder<Qwen35ImageDecoder>,
@@ -423,7 +428,7 @@ impl Qwen35VisionLanguage {
     }
 }
 
-// How far each of `capacity` cache positions' rotary positions lie from the position, `[capacity, 3]` of `I64`, on the axes of time, height, and width, for a sequence whose image's tokens start at `first`, `[1]`, on a merged grid of `merged`, `[2]`: an image token takes the image's start on time and its row and column after it on height and width, and the text after it continues from the start plus the grid's longer side, as `transformers`' `get_rope_index` places them.
+/// Returns how far each of `capacity` cache positions' rotary positions lie from the position, `[capacity, 3]` of `I64`, on the axes of time, height, and width, for a sequence whose image's tokens start at `first`, `[1]`, on a merged grid of `merged`, `[2]`: an image token takes the image's start on time and its row and column after it on height and width, and the text after it continues from the start plus the grid's longer side, as `transformers`' `get_rope_index` places them.
 fn rotary_offsets(
     device: Device,
     capacity: i64,

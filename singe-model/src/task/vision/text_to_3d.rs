@@ -1,4 +1,4 @@
-// `text-to-3d`: a prompt and a seed to a colored mesh, as `diffusers`' `ShapEPipeline` generates one: the prompt's CLIP embedding, normed and scaled, conditions the prior's denoising of a latent under Heun's scheduler, with classifier-free guidance against a zero embedding, and the renderer meshes the latent.
+//! `text-to-3d`: a prompt and a seed to a colored mesh, as `diffusers`' `ShapEPipeline` generates one: the prompt's CLIP embedding, normed and scaled, conditions the prior's denoising of a latent under the snapshot's scheduler, Heun's in Shap-E's, with classifier-free guidance against a zero embedding, and the renderer meshes the latent.
 
 use singe::{DataType, Error as SingeError, nn::TokenBatch};
 

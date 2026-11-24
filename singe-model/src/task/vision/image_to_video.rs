@@ -1,4 +1,4 @@
-// `image-to-video`: an image and a seed to a clip that animates it, as `diffusers`' `PIAPipeline` generates one from an empty prompt.
+//! `image-to-video`: an image and a seed to a clip that animates it, as `diffusers`' `PIAPipeline` generates one from an empty prompt.
 
 use crate::{
     error::Result,

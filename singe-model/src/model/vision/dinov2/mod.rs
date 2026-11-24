@@ -1,4 +1,4 @@
-// DINOv2: a vision transformer whose class token embeds the image, which image classifiers and Depth Anything build on.
+//! `DINOv2`: a vision transformer whose class token embeds the image, which Depth Anything builds on.
 
 pub(crate) mod transformers;
 
@@ -17,8 +17,9 @@ use crate::{
     source::Format,
 };
 
-// DINOv2: a class token and patches at the trained image size, pre-norm blocks with layer scale, and a final norm.
-// It returns every token's final hidden state, `[B, 1 + N, D]`, of which the class token's is the image's embedding.
+/// `DINOv2`: a class token and patches, with positions learned at the trained image size and resized to the image's grid, pre-norm blocks with layer scale, and a final norm.
+///
+/// It returns every token's final hidden state, `[B, 1 + N, D]`, of which the class token's is the image's embedding.
 #[derive(Debug, Clone)]
 pub struct Dinov2Layers {
     embeddings: PatchTokens,
@@ -26,7 +27,7 @@ pub struct Dinov2Layers {
 }
 
 impl Dinov2Layers {
-    // Registers the encoder in `schema`: `embeddings` (`patches`, `class`, `positions`), `blocks`, and `norm`.
+    /// Registers the encoder in `schema`: `embeddings` (`patches`, `class`, `positions`), `blocks`, and `norm`.
     pub fn create(schema: &mut Schema<'_>, config: &VisionTowerConfig) -> SingeResult<Self> {
         let width = config.encoder.width;
         let embeddings = {
@@ -46,7 +47,9 @@ impl Dinov2Layers {
         })
     }
 
-    // The final norm of every token's state after each block of `stages`, counted from one, `[B, 1 + N, D]` each, as `Dinov2Backbone` gives its feature maps.
+    /// Returns the final norm of every token's state after each block of `stages`, counted from one, `[B, 1 + N, D]` each, in block order.
+    ///
+    /// These are the normed states `Dinov2Backbone` reshapes into its feature maps.
     pub fn features(
         &self,
         input: &Tensor,
@@ -66,7 +69,7 @@ impl Layer for Dinov2Layers {
 }
 
 impl PooledLayer for Dinov2Layers {
-    // Each image's class token, `[B, D]`, which `transformers` returns as the pooled output.
+    /// Returns each image's class token, `[B, D]`, which `transformers` returns as the pooled output.
     fn pooled(&self, hidden: &Tensor) -> SingeResult<Tensor> {
         hidden.narrow(1, 0, 1)?.squeeze(1)
     }

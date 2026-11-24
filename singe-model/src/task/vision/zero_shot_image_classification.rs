@@ -1,4 +1,4 @@
-// `zero-shot-image-classification`: an image and candidate labels to each label's score, best first: the softmax of the image's scaled cosines with each label's hypothesis, as `transformers`' pipeline scores them with a CLIP-style model.
+//! `zero-shot-image-classification`: an image and candidate labels to each label's score, best first: the softmax of the image's scaled cosines with each label's hypothesis, as `transformers`' pipeline scores them with a CLIP-style model.
 
 use serde::Deserialize;
 
@@ -26,7 +26,7 @@ pub struct ZeroShotImageClassificationPipeline {
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(default)]
 pub struct ZeroShotImageClassificationParameters {
-    // Where a label goes in its hypothesis.
+    /// The hypothesis a label goes in, in place of its `{}`; `This is a photo of {}.` by default.
     pub hypothesis_template: String,
 }
 

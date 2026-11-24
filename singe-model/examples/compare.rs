@@ -1,7 +1,7 @@
-// Singe's side of the generation comparison with vLLM: runs every case of `comparisons/cases.toml` for one model and prints one JSON line of timings per case, as `comparisons/vllm/generate.py` does.
-//
-// `--snapshot DIR --model NAME`, `--case NAME` for one case, `--cases PATH` for another cases file, and `--eager` for the decoder Singe runs without compiling, which `just compare` leaves out, since vLLM is compared as it runs in production, compiled, but which checks Singe's compiled decoder against its own eager one.
-// Each case generates from the same token ids vLLM's side does, greedily and with no stop token, so both sides do the same work.
+//! Singe's side of the generation comparison with vLLM: runs every case of `comparisons/cases.toml` for one model and prints one JSON line of timings per case, as `comparisons/vllm/generate.py` does.
+//!
+//! `--snapshot DIR --model NAME`, `--case NAME` for one case, `--cases PATH` for another cases file, and `--eager` for the decoder Singe runs without compiling, which `just compare` leaves out, since vLLM is compared as it runs in production, compiled, but which checks Singe's compiled decoder against its own eager one.
+//! Each case generates from the same token ids vLLM's side does, greedily and with no stop token, so both sides do the same work.
 
 mod support;
 
@@ -22,7 +22,7 @@ use toml_edit::{DocumentMut, Item, Table};
 
 use crate::support::{Arguments, start_runtime};
 
-// What `cases.toml` sets for every case.
+/// The cases file and what it sets for every case.
 struct Cases {
     document: DocumentMut,
     first_id: u64,
@@ -52,7 +52,7 @@ impl Cases {
         })
     }
 
-    // Row `row`'s prompt of `length` ids, as `cases.toml` defines it and `generate.py` makes it.
+    /// Returns row `row`'s prompt of `length` ids, as `cases.toml` defines it and `generate.py` makes it.
     fn prompt(&self, row: u64, length: usize) -> Result<Vec<i64>> {
         let mut state = row;
         (0..length)
@@ -65,7 +65,7 @@ impl Cases {
             .collect()
     }
 
-    // The tables of the array of tables `name`.
+    /// Returns the tables of the array of tables `name`.
     fn tables(&self, name: &str) -> Result<Vec<&Table>> {
         Ok(self
             .document
@@ -92,7 +92,7 @@ fn string<'a>(table: &'a Table, key: &str) -> Result<&'a str> {
         .ok_or_else(|| anyhow!("a table of cases.toml sets no string `{key}`"))
 }
 
-// The median time of `runs` generations of `tokens` tokens from `rows`, after one untimed, each from an empty cache.
+/// Returns the median time of `runs` generations of `tokens` tokens from `rows`, after one untimed, each from an empty cache.
 fn timed(
     decoder: &mut dyn Decoder,
     rows: &[&[i64]],

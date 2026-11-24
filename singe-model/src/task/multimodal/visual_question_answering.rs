@@ -1,4 +1,4 @@
-// `visual-question-answering`: an image and a question to the answer a vision-language model writes, asked as one user message holding both, as `transformers` now answers it through image-text-to-text.
+//! `visual-question-answering`: an image and a question to the answer a vision-language model writes, asked as one user message holding both, as `transformers` now answers it through image-text-to-text.
 
 use serde::{Deserialize, Serialize};
 
@@ -15,7 +15,7 @@ use crate::{
 #[derive(Debug)]
 pub struct VisualQuestionAnsweringPipeline(ImageTextToTextPipeline);
 
-// An image, named by its file, and a question about it.
+/// An image, as a `data:` URL or bare base64 of its file, and a question about it.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct VisualQuestion {
     pub image: String,

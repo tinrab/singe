@@ -1,4 +1,4 @@
-// Models `transformers` documents among its text models.
+//! Models `transformers` documents among its text models.
 
 pub mod bart;
 pub mod bert;

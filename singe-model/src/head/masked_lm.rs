@@ -1,5 +1,5 @@
-// Masked language modeling, as `transformers`' `*ForMaskedLM` heads: every token's hidden state through a projection, its activation, and a norm, to the vocabulary's scores, `[B, T, vocab]`.
-// It is written once for every model; its state is `masked_lm.projection`, `masked_lm.norm`, and `masked_lm.output`, whose weight is the token embedding table when the model ties them.
+//! Masked language modeling, as `transformers`' `*ForMaskedLM` heads: every token's hidden state through a projection, its activation, and a norm, to the vocabulary's scores, `[B, T, vocab]`.
+//! It is written once for every model; its state is `masked_lm.projection`, `masked_lm.norm`, and `masked_lm.output`, whose weight is the token embedding table when the model ties them.
 
 use serde::{Deserialize, Serialize};
 use singe::{
@@ -17,7 +17,7 @@ use crate::{
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MaskedLmConfig {
-    // Whether the output's weight is the token embedding table.
+    /// Whether the output's weight is the token embedding table.
     pub tied: bool,
 }
 
@@ -41,7 +41,6 @@ impl Layer<TokenBatch> for MaskedLmLayers {
     }
 }
 
-// A loaded masked language model.
 #[derive(Debug)]
 pub struct MaskedLm {
     model: Model<MaskedLmLayers>,
@@ -53,7 +52,7 @@ impl MaskedLm {
         &self.model
     }
 
-    // Returns the vocabulary's scores at each of `positions`, a row and a token of `batch`.
+    /// Returns the vocabulary's scores at each of `positions`, a row and a token of `batch`.
     pub fn scores_at(
         &self,
         batch: &TokenBatch,
@@ -86,9 +85,9 @@ impl EncoderHead for MaskedLm {
 
     type Layers = MaskedLmLayers;
 
-    // `transformers` ties the output to the token embeddings unless the config says otherwise.
     fn transformers_config(source: &Source) -> Result<MaskedLmConfig> {
         let field: TieField = source.json("config.json")?;
+        // `transformers` ties the output to the token embeddings unless the config says otherwise.
         Ok(MaskedLmConfig {
             tied: field.tie_word_embeddings.unwrap_or(true),
         })

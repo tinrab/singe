@@ -16,6 +16,24 @@ use crate::{
 };
 
 impl Importer {
+    // Whether every axis of each of `values` has one size in every run, as a lowering traced on the import-time shapes needs.
+    pub(crate) fn have_fixed_shapes(&self, values: &[ValueId]) -> Result<bool> {
+        for &value in values {
+            let rank = self
+                .graph
+                .required_node(value)?
+                .output_shape()
+                .dimensions()
+                .len();
+            for axis in 0..rank {
+                if !self.metadata_dimension(value, axis)?.is_constant() {
+                    return Ok(false);
+                }
+            }
+        }
+        Ok(true)
+    }
+
     pub(crate) fn metadata_dimension(&self, source: ValueId, axis: usize) -> Result<DimensionExpr> {
         let node = &self.graph.required_node(source)?;
         let fixed = if let Some((name, ..)) = node.input_metadata() {

@@ -1,4 +1,4 @@
-// Llama: multi-head attention over rotary positions and a gated feed-forward layer.
+//! Llama: grouped-query attention over rotary positions and a gated feed-forward layer.
 
 mod transformers;
 

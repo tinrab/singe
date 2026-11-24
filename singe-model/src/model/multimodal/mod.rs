@@ -1,4 +1,4 @@
-// Models `transformers` documents among its multimodal models.
+//! Models `transformers` documents among its multimodal models.
 
 pub mod clip;
 pub mod colmodernvbert;

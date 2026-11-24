@@ -1,6 +1,9 @@
-// Mitra: AutoGluon's Tab2D, a table model that reads labeled rows as context; each cell is a token, each feature first replaced by its quantile bucket among the context rows and normalized over them, with each row's target as one more token, and its blocks attend across the rows of each column, a row to classify reading the context rows, and then across the cells of each row.
-//
-// Its state is `cells`, `targets` (a table of classes or a linear map of a target), `unknown`, the target token of a row to predict, `blocks.N` (`rows_norm`, `rows` with `query`, `key`, `value`, and `output`, `rows_feed_forward_norm`, `rows_feed_forward` with `up` and `down`, and the same four for `cells`), `norm`, and `output`.
+//! Mitra: `AutoGluon`'s `Tab2D`, a table model that reads labeled rows as context.
+//!
+//! Each cell is a token, each feature first replaced by its quantile bucket among the context rows and normalized over them, with each row's target as one more token.
+//! Its blocks attend across the rows of each column, a row to predict reading the context rows, and then across the cells of each row.
+//!
+//! Its state is `cells`, `targets` (a table of classes or a linear map of a target), `unknown`, the target token of a row to predict, `blocks.N` (`rows_norm`, `rows` with `query`, `key`, `value`, and `output`, `rows_feed_forward_norm`, `rows_feed_forward` with `up` and `down`, and the same four for `cells`), `norm`, and `output`.
 
 mod autogluon;
 
@@ -21,7 +24,7 @@ use crate::{
     source::Format,
 };
 
-// The quantiles each feature is bucketed by: `1 / 1000` to `999 / 1000`.
+/// The number of quantiles each feature is bucketed by: `1 / 1000` to `999 / 1000`.
 const QUANTILES: usize = 999;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -33,7 +36,7 @@ pub enum MitraTask {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MitraConfig {
     pub width: i64,
-    // The classes a classifier scores, or one for a regressor.
+    /// The classes a classifier scores, or one for a regressor.
     pub outputs: i64,
     pub layers: i64,
     pub heads: i64,
@@ -85,7 +88,7 @@ impl MitraBlock {
         })
     }
 
-    // The context's cells, `[S, C, W]`, and the cells to predict, `[Q, C, W]`, after the block.
+    /// Returns the context's cells, `[S, C, W]`, and the cells to predict, `[Q, C, W]`, after the block.
     fn forward(
         &self,
         context: &Tensor,
@@ -185,7 +188,7 @@ impl MitraLayers {
         })
     }
 
-    // Each row to predict's outputs, `[Q, outputs]`, from the context's normalized features, `[S, F]`, and targets, `[S]` (`I64` classes or `F32` values), and the normalized features of the rows to predict, `[Q, F]`.
+    /// Returns each row to predict's outputs, `[Q, outputs]`, from the context's normalized features, `[S, F]`, and targets, `[S]` (`I64` classes or `F32` values), and the normalized features of the rows to predict, `[Q, F]`.
     fn predict(
         &self,
         features: &Tensor,
@@ -278,7 +281,7 @@ impl MitraLayers {
     }
 }
 
-// `torch.lerp` in `F32`, as CUDA's kernel computes it with fused multiply-adds.
+/// Returns `torch.lerp` of `start`, `end`, and `weight` in `F32`, as CUDA's kernel computes it with fused multiply-adds.
 fn lerp(start: f32, end: f32, weight: f32) -> f32 {
     let difference = end - start;
     if weight.abs() < 0.5 {
@@ -288,7 +291,9 @@ fn lerp(start: f32, end: f32, weight: f32) -> f32 {
     }
 }
 
-// Each context row's and each row to predict's features, `[S · F]` and `[Q · F]` row-major, as Tab2D's quantile embedding gives them: a feature's bucket among the context's quantiles of it, over the context's rows, then centered and scaled by the context's mean and deviation of those, or zero where the context's are all one.
+/// Returns each context row's and each row to predict's features, `[S · F]` and `[Q · F]` row-major, as `Tab2D`'s quantile embedding gives them.
+///
+/// A feature becomes its bucket among the context's quantiles of it, over the number of context rows, then centered and scaled by the mean and deviation of the context's buckets, or zero where those buckets are all equal.
 fn bucketed(rows: &[Vec<f32>], queries: &[Vec<f32>]) -> (Vec<f32>, Vec<f32>) {
     let (count, features) = (rows.len(), rows.first().map_or(0, Vec::len));
     let mut context = vec![0.0; count * features];
@@ -340,7 +345,7 @@ fn bucketed(rows: &[Vec<f32>], queries: &[Vec<f32>]) -> (Vec<f32>, Vec<f32>) {
 pub type Mitra = Model<MitraLayers>;
 
 impl TabularClassifier for Mitra {
-    // The softmax of each row's scores for the classes the labels hold, as `MitraClassifier.predict_proba` gives it without fine-tuning.
+    /// Returns the softmax of each row's scores for the classes the labels hold, as `MitraClassifier.predict_proba` gives it without fine-tuning.
     fn classify(
         &self,
         rows: &[Vec<f32>],
@@ -387,7 +392,7 @@ impl TabularClassifier for Mitra {
 }
 
 impl TabularRegressor for Mitra {
-    // The targets scaled to `[0, 1]` by the context's range, and the predictions scaled back, as `MitraRegressor.predict` gives them without fine-tuning or mirroring.
+    /// Returns each row's prediction, with the targets scaled to `[0, 1]` by the context's range and the predictions scaled back, as `MitraRegressor.predict` gives them without fine-tuning or mirroring.
     fn regress(
         &self,
         rows: &[Vec<f32>],

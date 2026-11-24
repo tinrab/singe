@@ -1,7 +1,7 @@
-// Reads a `transformers` Qwen3.5 config and imports its checkpoint.
-//
-// A model that reads only text keeps its decoder under `model`; one that also reads images keeps it under `model.language_model`, beside the vision encoder under `model.visual`.
-// Either keeps its multi-token-prediction layer under `mtp`.
+//! Reads a `transformers` Qwen3.5 config and imports its checkpoint.
+//!
+//! A model that reads only text keeps its decoder under `model`; one that also reads images keeps it under `model.language_model`, beside the vision encoder under `model.visual`.
+//! Either keeps its multi-token-prediction layer under `mtp`.
 
 use serde::Deserialize;
 use serde_json::Value;
@@ -26,7 +26,8 @@ use crate::{
     source::Source,
 };
 
-// The text decoder's fields: the top level of a model that reads only text, or `text_config` of one that also reads images.
+/// The text decoder's fields: the top level of a model that reads only text, or `text_config` of one that also reads images.
+/// Expert settings other than `num_experts` that it leaves out take the defaults of `transformers`' `Qwen3_5MoeTextConfig`.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 struct TextFields {
     #[serde(flatten)]
@@ -36,12 +37,12 @@ struct TextFields {
     linear_num_key_heads: i64,
     linear_value_head_dim: i64,
     linear_num_value_heads: i64,
-    // Every fourth layer is full attention when the config names no layer types.
+    /// How often a layer is full attention when the config names no layer types, every fourth by default.
     #[serde(default = "default_full_attention_interval")]
     full_attention_interval: usize,
     #[serde(default = "default_true")]
     attn_output_gate: bool,
-    // Present in a mixture-of-experts model, every block of which has experts.
+    /// Present in a mixture-of-experts model, every block of which has experts.
     #[serde(default)]
     num_experts: Option<i64>,
     #[serde(default = "default_experts_per_token")]
@@ -56,7 +57,6 @@ const fn default_full_attention_interval() -> usize {
     4
 }
 
-// The defaults `transformers`' `Qwen3_5MoeTextConfig` gives its experts.
 const fn default_experts_per_token() -> i64 {
     8
 }
@@ -158,18 +158,18 @@ impl VisionFields {
     }
 }
 
-// The fields of a `config.json` of a model that reads images.
+/// The fields of a `config.json` of a model that reads images.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 struct VisionLanguageFields {
     text_config: TextFields,
     vision_config: VisionFields,
     image_token_id: i64,
-    // Whether the output head shares the embedding's weight, which `transformers` reads here and not from `text_config`.
+    /// Whether the output head shares the embedding's weight, which `transformers` reads here and not from `text_config`.
     #[serde(default)]
     tie_word_embeddings: bool,
 }
 
-// What the image front end reads from `preprocessor_config.json`.
+/// What the image front end reads from `preprocessor_config.json`.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 struct ProcessorFields {
     size: SizeFields,
@@ -183,7 +183,7 @@ struct SizeFields {
     longest_edge: i64,
 }
 
-// Reads `config.json`, and for a model that reads images, `preprocessor_config.json`.
+/// Reads `config.json`, and for a model that reads images, `preprocessor_config.json`.
 pub(crate) fn config(source: &Source) -> Result<Qwen35Config> {
     let file: Value = source.json("config.json")?;
     if file.get("text_config").is_none() {
@@ -286,7 +286,7 @@ pub(crate) fn decoder_rules(config: &Qwen35Config, draft: Draft, vision: Vision)
     rules.then(llama_rules(model))
 }
 
-// Imports the one multi-token-prediction layer into `draft`.
+/// Returns the rules that import the one multi-token-prediction layer into `draft`.
 fn draft_rules() -> Rules {
     Rules::new()
         .rename_each(
@@ -302,7 +302,6 @@ fn draft_rules() -> Rules {
         .then(llama_block_rules("mtp.layers.0", "draft.block"))
 }
 
-// Imports the vision encoder.
 pub(crate) fn vision_rules() -> Rules {
     let blocks = "model.visual.blocks.*";
     Rules::new()

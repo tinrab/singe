@@ -1,5 +1,5 @@
-// The text encoder BERT, DistilBERT, and RoBERTa share: token embeddings plus learned positions and, where the model has them, token types, normed; then blocks that norm after each residual.
-// Its state is `embeddings` (`tokens`, `positions`, `token_types`, `norm`) and each block's `attention` (`query`, `key`, `value`, `output`), `attention_norm`, `feed_forward` (`up`, `down`), and `feed_forward_norm`.
+//! The text encoder BERT, `DistilBERT`, and `RoBERTa` share: token embeddings plus learned positions and, where the model has them, token types, normed; then blocks that norm after each residual.
+//! Its state is `embeddings` (`tokens`, `positions`, `token_types`, `norm`) and each block's `attention` (`query`, `key`, `value`, `output`), `attention_norm`, `feed_forward` (`up`, `down`), and `feed_forward_norm`.
 
 use serde::{Deserialize, Serialize};
 use singe::{
@@ -23,10 +23,10 @@ pub struct PostNormEncoderConfig {
     pub heads: i64,
     pub inner: i64,
     pub activation: Activation,
-    // The rows of the position table, from which a sequence reads its positions starting at `first_position`.
+    /// The rows of the position table, from which a sequence reads its positions starting at `first_position`.
     pub max_positions: i64,
     pub first_position: i64,
-    // The token types the model embeds; none for a model without token type embeddings.
+    /// The token types the model embeds; 0 for a model without token type embeddings.
     pub token_types: i64,
     pub eps: f32,
 }
@@ -53,7 +53,7 @@ pub struct PostNormBlockConfig {
     pub eps: f32,
 }
 
-// The encoder's layers, from a batch of token sequences to each token's last hidden state, `[B, T, W]`, of which padded rows hold what attending to the real tokens gives.
+/// The encoder's layers, from a batch of token sequences to each token's last hidden state, `[B, T, W]`, of which padded rows hold what attending to the real tokens gives.
 #[derive(Debug, Clone)]
 pub struct PostNormEncoder {
     embeddings: TokenEmbeddings,
@@ -63,7 +63,7 @@ pub struct PostNormEncoder {
 }
 
 impl PostNormEncoder {
-    // Registers the encoder's state in `schema`.
+    /// Creates the encoder, registering its state in `schema`.
     pub fn create(schema: &mut Schema<'_>, config: &PostNormEncoderConfig) -> SingeResult<Self> {
         let width = config.width;
         let (embeddings, tokens) = {
@@ -102,14 +102,14 @@ impl PostNormEncoder {
         &self.config
     }
 
-    // The token embedding table, `[vocab, width]`, which a masked language model's output may share.
+    /// Returns the key of the token embedding table, `[vocab, width]`, which a masked language model's output may share.
     #[must_use]
     pub const fn tokens(&self) -> &StateKey {
         &self.tokens
     }
 }
 
-// Registers one post-norm block, BERT's: `attention` (`query`, `key`, `value`, `output`), `attention_norm`, `feed_forward` (`up`, `down`), and `feed_forward_norm`.
+/// Registers one post-norm block, BERT's: `attention` (`query`, `key`, `value`, `output`), `attention_norm`, `feed_forward` (`up`, `down`), and `feed_forward_norm`.
 pub fn post_norm_encoder_block(
     schema: &mut Schema<'_>,
     config: &PostNormBlockConfig,
@@ -158,7 +158,7 @@ impl Layer<TokenBatch> for PostNormEncoder {
     }
 }
 
-// Imports the encoder `transformers`' BERT layout stores under `from` (such as `bert`, `roberta`, or nothing): `embeddings` and `encoder.layer.N`, to the schema's names under `to`.
+/// Imports the encoder `transformers`' BERT layout stores under `from` (such as `bert`, `roberta`, or nothing): `embeddings` and `encoder.layer.N`, to the schema's names under `to`.
 #[must_use]
 pub fn post_norm_encoder_rules(from: &str, to: &str) -> Rules {
     let embeddings = join(from, "embeddings");

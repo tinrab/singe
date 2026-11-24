@@ -1,9 +1,9 @@
-// Runs any task's pipeline on JSON inputs and prints one JSON output per line, as `transformers.pipeline(task)(inputs, **parameters)` returns them.
-//
-// `--task ID --snapshot DIR` with the inputs as positional JSON values, or `--inputs JSON` for one value or an array; a positional value that is not JSON is read as a string.
-// A string naming an existing file or directory is replaced by its contents, as `processor::base64::file_value` reads them, so images, clips, and frames are given as paths; chat messages take `{"role", "content"}` with text or `[{"type": "image", "image": PATH}, {"type": "text", "text": …}]`.
-// `--parameters JSON` sets the pipeline's parameters, `--type f32|f16|bf16` the weights' type, F32 by default, and `--cpu` runs on the host.
-// For example: `--task text-generation --snapshot DIR "The capital of France is" --parameters '{"max_new_tokens": 24}'`.
+//! Runs any task's pipeline on JSON inputs and prints one JSON output per line, as `transformers.pipeline(task)(inputs, **parameters)` returns them.
+//!
+//! `--task ID --snapshot DIR` with the inputs as positional JSON values, or `--inputs JSON` for one value or an array; a positional value that is not JSON is read as a string.
+//! A string naming an existing file or directory is replaced by its contents, as [`file_value`](singe_model::processor::base64::file_value) reads them, so images, clips, and frames are given as paths; chat messages take `{"role", "content"}` with text or `[{"type": "image", "image": PATH}, {"type": "text", "text": …}]`.
+//! `--parameters JSON` sets the pipeline's parameters, `--type f32|f16|bf16` the weights' type, F32 by default, and `--cpu` runs on the host.
+//! For example: `--task text-generation --snapshot DIR "The capital of France is" --parameters '{"max_new_tokens": 24}'`.
 
 mod support;
 
@@ -55,7 +55,7 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-// Replaces each string naming an existing file or directory with its contents.
+/// Replaces each string naming an existing file or directory with its contents.
 fn files(value: Value) -> Result<Value> {
     Ok(match value {
         Value::String(text) if Path::new(&text).exists() => file_value(Path::new(&text))?,

@@ -1,4 +1,4 @@
-// `diffusers`' noise schedulers: the timesteps a pipeline denoises at and each step from one sample to the next, computed on the host in `F32` as `diffusers` computes them with PyTorch's CPU tensors.
+//! `diffusers`' noise schedulers: the timesteps a pipeline denoises at and each step from one sample to the next, computed on the host in `F32` as `diffusers` computes them with `PyTorch`'s CPU tensors.
 
 use serde::Deserialize;
 use singe::Tensor;
@@ -94,7 +94,7 @@ pub enum TimestepType {
     Continuous,
 }
 
-// A scheduler's `scheduler_config.json`, with `diffusers`' defaults; the fields whose defaults differ between classes stay `None` until the class resolves them.
+/// A scheduler's `scheduler_config.json`, with `diffusers`' defaults; the fields whose defaults differ between classes stay `None` until the class resolves them.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 #[expect(
     clippy::struct_excessive_bools,
@@ -111,7 +111,7 @@ pub struct SchedulerConfig {
     beta_end: Option<f32>,
     #[serde(default)]
     pub beta_schedule: BetaSchedule,
-    // Betas given outright, which no scheduler here reads.
+    /// Betas given outright, which no scheduler here supports; a config that gives them is refused.
     #[serde(default)]
     trained_betas: Option<Vec<f64>>,
     #[serde(default)]
@@ -134,7 +134,7 @@ pub struct SchedulerConfig {
     pub set_alpha_to_one: bool,
     #[serde(default)]
     pub rescale_betas_zero_snr: bool,
-    // The noise level conversions, which `diffusers` lets a config leave null.
+    /// Whether the noise levels follow Karras' spacing, which `diffusers` lets a config leave null, as it does `use_exponential_sigmas` and `use_beta_sigmas`.
     #[serde(default)]
     use_karras_sigmas: Option<bool>,
     #[serde(default)]
@@ -150,7 +150,7 @@ pub struct SchedulerConfig {
 }
 
 impl SchedulerConfig {
-    // How timesteps are spaced: as the config says, or as its class does by default, `linspace` for the Euler and Heun schedulers and `leading` for the others.
+    /// Returns how timesteps are spaced: as the config says, or as its class does by default, `linspace` for the Euler and Heun schedulers and `leading` for the others.
     #[must_use]
     pub fn timestep_spacing(&self) -> TimestepSpacing {
         self.timestep_spacing.unwrap_or(match self.class {
@@ -161,14 +161,18 @@ impl SchedulerConfig {
         })
     }
 
-    // Reads a pipeline's `scheduler/scheduler_config.json`, or a model directory's own `scheduler_config.json`.
+    /// Reads a pipeline's `scheduler/scheduler_config.json`, or a model directory's own `scheduler_config.json`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if neither file exists, or if the one found cannot be read or parsed as a scheduler config.
     pub fn load(source: &Source) -> Result<Self> {
         source
             .optional_json("scheduler/scheduler_config.json")?
             .map_or_else(|| source.json("scheduler_config.json"), Ok)
     }
 
-    // The first and last training betas: as the config gives them, or as its class defaults them, `0.00085` and `0.012` for Heun's scheduler and `0.0001` and `0.02` for the others.
+    /// Returns the first and last training betas: as the config gives them, or as its class defaults them, `0.00085` and `0.012` for Heun's scheduler and `0.0001` and `0.02` for the others.
     fn beta_range(&self) -> (f32, f32) {
         let (start, end) = if self.class == SchedulerClass::Heun {
             (0.00085, 0.012)
@@ -181,14 +185,14 @@ impl SchedulerConfig {
         )
     }
 
-    // The range the predicted clean sample is clipped to, where the config clips it, as only DDPM's scheduler does by default.
+    /// Returns the range the predicted clean sample is clipped to, or `None` where the config does not clip it; by default only DDPM's scheduler clips.
     fn clip(&self) -> Option<f32> {
         self.clip_sample
             .unwrap_or(self.class == SchedulerClass::Ddpm)
             .then_some(self.clip_sample_range)
     }
 
-    // Each training timestep's cumulative product of `1 - β`, `torch.cumprod` accumulating in `F64` and keeping `F32`.
+    /// Returns each training timestep's cumulative product of `1 - β`, as `torch.cumprod` computes it, accumulating in `F64` and keeping `F32`.
     fn alphas_cumprod(&self) -> Result<Vec<f32>> {
         if self.trained_betas.is_some() {
             return Err(Error::unsupported("a scheduler with trained betas"));
@@ -237,7 +241,11 @@ impl SchedulerConfig {
             .collect())
     }
 
-    // The timesteps of `steps` inference steps, last first, as `set_timesteps` spaces them.
+    /// Returns the timesteps of `steps` inference steps, last first, as `set_timesteps` spaces them.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `steps` is zero or more than the training timesteps.
     #[expect(clippy::cast_possible_wrap, reason = "timestep counts are small")]
     pub fn timesteps(&self, steps: usize) -> Result<Vec<i64>> {
         let train = self.num_train_timesteps;
@@ -267,7 +275,7 @@ impl SchedulerConfig {
         })
     }
 
-    // `numpy.linspace(0, T − 1, n, dtype=float32)`, last first, as the Euler and Heun schedulers space their timesteps.
+    /// Returns `numpy.linspace(0, T − 1, n, dtype=float32)` for `T` training timesteps and `n` steps, last first, as the Euler and Heun schedulers space their timesteps.
     fn linspace_timesteps(&self, steps: usize) -> Vec<f32> {
         numpy_linspace(0.0, (self.num_train_timesteps - 1) as f64, steps)
             .into_iter()
@@ -276,7 +284,7 @@ impl SchedulerConfig {
             .collect()
     }
 
-    // Each training timestep's noise level, `√((1 − ᾱ) / ᾱ)` in `F32`.
+    /// Returns each training timestep's noise level, `√((1 − ᾱ) / ᾱ)` in `F32`.
     fn train_sigmas(&self) -> Result<Vec<f32>> {
         Ok(self
             .alphas_cumprod()?
@@ -285,7 +293,7 @@ impl SchedulerConfig {
             .collect())
     }
 
-    // The Euler schedulers' timesteps, as `F32`, and their noise levels, each interpolated linearly between the training timesteps' and a zero after the last.
+    /// Returns the Euler schedulers' timesteps, as `F32`, and their noise levels, each interpolated linearly between the training timesteps', with a zero after the last.
     fn euler_schedule(&self, steps: usize) -> Result<(Vec<f32>, Vec<f32>)> {
         let timesteps = if self.timestep_spacing() == TimestepSpacing::Linspace {
             if steps == 0 {
@@ -308,7 +316,7 @@ impl SchedulerConfig {
     }
 }
 
-// `torch.linspace` in `F32`: the first half counted up from `start`, and the second down from `end`.
+/// Returns `torch.linspace(start, end, count)` in `F32`: the first half counted up from `start`, and the second down from `end`.
 fn torch_linspace(start: f32, end: f32, count: usize) -> Vec<f32> {
     if count == 1 {
         return vec![start];
@@ -326,7 +334,7 @@ fn torch_linspace(start: f32, end: f32, count: usize) -> Vec<f32> {
         .collect()
 }
 
-// `numpy.linspace(start, stop, count)` in `F64`: each index times the step, plus `start`, and `stop` itself last.
+/// Returns `numpy.linspace(start, stop, count)` in `F64`: each index times the step, plus `start`, and `stop` itself last.
 fn numpy_linspace(start: f64, stop: f64, count: usize) -> Vec<f64> {
     if count <= 1 {
         return vec![start; count];
@@ -344,7 +352,7 @@ fn numpy_linspace(start: f64, stop: f64, count: usize) -> Vec<f64> {
         .collect()
 }
 
-// `numpy.interp(at, [0, 1, …], values)` in `F64`: `values` interpolated linearly at `at`, held at their ends outside them.
+/// Returns `numpy.interp(at, [0, 1, …], values)` in `F64`: `values` interpolated linearly at `at`, held at their ends outside them.
 fn numpy_interp(at: f64, values: &[f32]) -> f64 {
     let last = values.len() - 1;
     let at = at.clamp(0.0, last as f64);
@@ -370,7 +378,7 @@ impl AlphaProducts {
     }
 }
 
-// What the first noise is scaled by: the largest noise level, or `√(σ² + 1)` of it for leading timesteps.
+/// Returns what the first noise is scaled by: the largest noise level, or `√(σ² + 1)` of it for leading timesteps.
 fn initial_scale(sigmas: &[f32], spacing: TimestepSpacing) -> f32 {
     let largest = sigmas.iter().copied().fold(0.0_f32, f32::max);
     match spacing {
@@ -379,18 +387,18 @@ fn initial_scale(sigmas: &[f32], spacing: TimestepSpacing) -> f32 {
     }
 }
 
-// The model's input at a step of noise level `sigma`: the sample over `√(σ² + 1)`.
+/// Returns the model's input at a step of noise level `sigma`: the sample over `√(σ² + 1)`.
 fn scale_input(sigma: f32, sample: &Tensor) -> Result<Tensor> {
     Ok(sample.mul_scalar(f64::from(1.0 / (sigma * sigma + 1.0).sqrt()))?)
 }
 
-// `DDPMScheduler`: ancestral sampling, a step's prediction of the clean sample mixed with the sample and noise added but at the last step.
+/// `DDPMScheduler`: ancestral sampling, a step's prediction of the clean sample mixed with the sample, and noise added at every timestep above zero.
 #[derive(Debug, Clone)]
 struct DdpmScheduler {
     alphas: AlphaProducts,
     timesteps: Vec<i64>,
     clip: Option<f32>,
-    // What the step scales its noise by the square root of: the posterior's variance, or the step's beta.
+    /// What the step scales its noise by the square root of: the posterior's variance for [`VarianceType::FixedSmall`], or the step's beta for [`VarianceType::FixedLarge`].
     variance: VarianceType,
 }
 
@@ -417,7 +425,7 @@ impl DdpmScheduler {
         })
     }
 
-    // The sample at the step after `index`, from the model's predicted noise, `noise` drawn for the variance but at the last step.
+    /// Returns the sample at the step after `index`, from the model's predicted noise, drawing `noise` for the variance at every timestep above zero.
     fn step(
         &self,
         index: usize,
@@ -458,7 +466,8 @@ impl DdpmScheduler {
     }
 }
 
-// `EulerDiscreteScheduler` without churn, Euler steps of the probability flow between noise levels that draw no noise, or, when `ancestral`, `EulerAncestralDiscreteScheduler`, each step an Euler step down to a lower noise level and noise drawn to add back up to the next.
+/// `EulerDiscreteScheduler` without churn: Euler steps of the probability flow between noise levels that draw no noise.
+/// When `ancestral`, `EulerAncestralDiscreteScheduler`: each step an Euler step down to a lower noise level and noise drawn to add back up to the next.
 #[derive(Debug, Clone)]
 struct EulerScheduler {
     timesteps: Vec<f32>,
@@ -508,7 +517,7 @@ impl EulerScheduler {
         })
     }
 
-    // The sample after step `index`, from the model's predicted noise, drawing `noise` where the step is ancestral.
+    /// Returns the sample after step `index`, from the model's predicted noise, drawing `noise` where the step is ancestral.
     fn step(
         &self,
         index: usize,
@@ -531,16 +540,17 @@ impl EulerScheduler {
     }
 }
 
-// `PNDMScheduler` with its Runge–Kutta steps skipped, as Stable Diffusion 1.5's is: linear multistep updates of the predicted noise over the steps before, starting with one step taken twice.
+/// `PNDMScheduler` with its Runge–Kutta steps skipped, as Stable Diffusion 1.5's is: linear multistep updates of the predicted noise over the steps before, starting with one step taken twice.
 #[derive(Debug, Clone)]
 struct PndmScheduler {
     alphas: AlphaProducts,
-    // The timesteps as `set_timesteps` lists them, the second-last repeated, and the training timesteps between two of them.
+    /// The timesteps as `set_timesteps` lists them for PLMS steps, last first, with the second-largest repeated.
     timesteps: Vec<i64>,
+    /// The training timesteps between two inference timesteps.
     stride: i64,
 }
 
-// The multistep state of one generation: the noise predictions so far, and the sample the first step started from.
+/// The multistep state of one generation: the last noise predictions, up to four, the sample the first step started from, and the steps taken.
 #[derive(Debug, Default)]
 struct PndmState {
     predictions: Vec<Tensor>,
@@ -580,7 +590,7 @@ impl PndmScheduler {
         })
     }
 
-    // The sample after the step at `timestep`, from the model's predicted noise, as `step_plms` takes it.
+    /// Returns the sample after the step at `timestep`, from the model's predicted noise, as `step_plms` takes it.
     fn step(
         &self,
         state: &mut PndmState,
@@ -638,15 +648,15 @@ impl PndmScheduler {
     }
 }
 
-// `HeunDiscreteScheduler` with Karras sigmas or linearly spaced timesteps: each step an Euler step to the next noise level, then a second evaluation there averaging the two derivatives, the last step Euler's alone.
+/// `HeunDiscreteScheduler` with linearly spaced timesteps, with or without Karras noise levels: each step an Euler step to the next noise level, then a second evaluation there averaging the two derivatives, the last step Euler's alone.
 #[derive(Debug, Clone)]
 struct HeunScheduler {
-    // The noise levels, the middle ones twice, and a zero.
+    /// The noise levels, the ones after the first twice, and a zero.
     sigmas: Vec<f32>,
-    // The timesteps the model reads, the ones after the first twice.
+    /// The timesteps the model reads, the ones after the first twice.
     timesteps: Vec<f32>,
     clip: Option<f32>,
-    // The first evaluation's derivative, step, and sample, while a step waits for its second.
+    /// The first evaluation's derivative, step, and sample, while a step waits for its second.
     pending: Option<(Tensor, f32, Tensor)>,
 }
 
@@ -726,7 +736,7 @@ impl HeunScheduler {
         })
     }
 
-    // The sample after evaluation `index`, from the model's predicted clean sample.
+    /// Returns the sample after evaluation `index`, from the model's predicted clean sample.
     fn step(&mut self, index: usize, predicted: &Tensor, sample: &Tensor) -> Result<Tensor> {
         let original = match self.clip {
             Some(range) => predicted.clamp(-range, range)?,
@@ -762,13 +772,13 @@ enum Kind {
     Heun(HeunScheduler),
 }
 
-// The scheduler a latent diffusion pipeline's config names, behind one interface: its timesteps, its first noise's scale, its input scaling, its steps, which draw noise where the scheduler does, and noise added to a clean sample for pipelines that start from one.
+/// The scheduler a latent diffusion pipeline's config names, behind one interface: its timesteps, its first noise's scale, its input scaling, its steps, which draw noise where the scheduler does, and noise added to a clean sample for pipelines that start from one.
 #[derive(Debug)]
 pub struct Sampler {
     kind: Kind,
-    // Every step's timestep, last first, as the model reads it.
+    /// Every step's timestep, last first, as the model reads it.
     timesteps: Vec<f32>,
-    // The step the schedule starts at, as a pipeline's `strength` skips the first.
+    /// The step the schedule starts at, as a pipeline's `strength` skips the first.
     begin: usize,
 }
 
@@ -801,12 +811,12 @@ impl Sampler {
         })
     }
 
-    // Starts the schedule `count` steps in, as `get_timesteps` does for a `strength` below one.
+    /// Starts the schedule `count` steps in, at most at its end, as `get_timesteps` does for a `strength` below one.
     pub fn skip(&mut self, count: usize) {
         self.begin = count.min(self.timesteps.len());
     }
 
-    // The timesteps the model reads from the first kept step, last first.
+    /// Returns the timesteps the model reads from the first kept step, last first.
     #[must_use]
     pub fn timesteps(&self) -> &[f32] {
         &self.timesteps[self.begin..]
@@ -830,7 +840,11 @@ impl Sampler {
         }
     }
 
-    // A clean sample noised to the first kept step: `√ᾱ x + √(1 − ᾱ) ε` for PNDM's discrete timesteps, and `x + σ ε` for Euler's noise levels.
+    /// Returns a clean sample noised to the first kept step: `√ᾱ x + √(1 − ᾱ) ε` for DDPM's and PNDM's discrete timesteps, and `x + σ ε` for Euler's noise levels.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error under Heun's scheduler, which this does not noise for.
     pub fn add_noise(&self, sample: &Tensor, noise: &Tensor) -> Result<Tensor> {
         let alpha = match &self.kind {
             Kind::Ddpm(scheduler) => scheduler.alphas.at(scheduler.timesteps[self.begin]),
@@ -849,7 +863,7 @@ impl Sampler {
             .add(&noise.mul_scalar(f64::from((1.0 - alpha).sqrt()))?)?)
     }
 
-    // The sample after step `index` of the kept steps, drawing `noise` where the scheduler adds noise.
+    /// Returns the sample after step `index` of the kept steps, drawing `noise` where the scheduler adds noise.
     pub fn step(
         &mut self,
         index: usize,

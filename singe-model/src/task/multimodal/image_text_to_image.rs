@@ -1,4 +1,4 @@
-// `image-text-to-image`: an image, an instruction, and a seed to the edited image, as `diffusers`' `StableDiffusionInstructPix2PixPipeline` edits one: the image's latents read beside the noisy latents, and guidance toward the instruction and toward the image.
+//! `image-text-to-image`: an image, an instruction, and a seed to the edited image, as `diffusers`' `StableDiffusionInstructPix2PixPipeline` edits one: the image's latents read beside the noisy latents, and guidance toward the instruction and toward the image.
 
 use serde::Deserialize;
 use singe::{DataType, Error as SingeError, Tensor};

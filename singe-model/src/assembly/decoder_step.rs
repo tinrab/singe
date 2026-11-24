@@ -1,5 +1,5 @@
-// What an encoder-decoder's decoder reads in a cached step: each block's keys and values per sequence, written at each row's position, its cross-attention's keys and values over each sequence's encoder states, and the masks that keep a row from reading past its own position.
-// Every sequence holds its rows densely, so one step's shapes serve every position, and beams take their parents' rows by reordering them.
+//! What an encoder-decoder's decoder reads in a cached step: each block's keys and values per sequence, written at each row's position, its cross-attention's keys and values over each sequence's encoder states, and the masks that keep a row from reading past its own position.
+//! Every sequence holds its rows densely, so one step's shapes serve every position, and beams take their parents' rows by reordering them.
 
 use singe::{
     DataType, Device, Error as SingeError, Result as SingeResult, Shape, Tensor,
@@ -8,7 +8,7 @@ use singe::{
     nn::{CacheSize, DecodeCache, DecodeStep, TensorGroup},
 };
 
-// What sizes a `Seq2SeqCache` besides its sequences and capacity: its attention's heads and their width, and the most encoder states a sequence's cross-attention reads.
+/// The sizes of a [`Seq2SeqCache`] beside its sequences and capacity: its attention's heads and their width, and the most encoder states a sequence's cross-attention reads.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Seq2SeqCacheSpec {
     pub heads: i64,
@@ -16,7 +16,7 @@ pub struct Seq2SeqCacheSpec {
     pub sources: i64,
 }
 
-// One decoder block's caches: its own keys and values, `[S, capacity + 1, H, D]`, whose last slot takes the writes of rows that hold or pad, and its cross-attention's over each sequence's encoder states, `[S, sources, H, D]`, with how many each sequence has, `[S]` of `I32`.
+/// One decoder block's caches: its own keys and values, `[S, capacity + 1, H, D]`, whose last slot takes the writes of rows that hold or pad, and its cross-attention's over each sequence's encoder states, `[S, sources, H, D]`, with how many each sequence has, `[S]` of `I32`.
 #[derive(Debug, Clone)]
 pub struct Seq2SeqCache {
     keys: Tensor,
@@ -27,7 +27,7 @@ pub struct Seq2SeqCache {
 }
 
 impl Seq2SeqCache {
-    // Writes the keys and values of a step's rows, `[T, H, D]` each, at their slots.
+    /// Writes the keys and values of a step's rows, `[T, H, D]` each, at their slots.
     pub fn write(&self, rows: &StepRows, keys: &Tensor, values: &Tensor) -> SingeResult<()> {
         let at = [
             TensorIndex::Indices(rows.sequences.clone()),
@@ -37,7 +37,7 @@ impl Seq2SeqCache {
         self.values.index_put_(&at, values)
     }
 
-    // Each row's sequence's keys and values at every position, `[T, H, capacity, D]` each.
+    /// Returns each row's sequence's keys and values at every position, `[T, H, capacity, D]` each.
     pub fn read(&self, rows: &StepRows) -> SingeResult<(Tensor, Tensor)> {
         let &[_, slots, _, _] = self.keys.shape().dimensions() else {
             return Err(SingeError::invalid_argument("a decoder cache's keys"));
@@ -51,7 +51,7 @@ impl Seq2SeqCache {
         Ok((read(&self.keys)?, read(&self.values)?))
     }
 
-    // Writes sequence `sequence`'s cross-attention keys and values, `[F, H, D]` each, and its count of encoder states.
+    /// Writes sequence `sequence`'s cross-attention keys and values, `[F, H, D]` each, and its count of encoder states.
     pub fn write_sources(
         &self,
         sequence: usize,
@@ -89,7 +89,7 @@ impl Seq2SeqCache {
         )
     }
 
-    // Each row's sequence's cross-attention keys and values, `[T, H, sources, D]` each, and how many of them it reads, `[T]` of `I32`.
+    /// Returns each row's sequence's cross-attention keys and values, `[T, H, sources, D]` each, and how many of them it reads, `[T]` of `I32`.
     pub fn read_sources(&self, rows: &StepRows) -> SingeResult<(Tensor, Tensor, Tensor)> {
         let read = |cache: &Tensor| cache.index_select(0, &rows.sequences)?.transpose(1, 2);
         Ok((
@@ -99,7 +99,7 @@ impl Seq2SeqCache {
         ))
     }
 
-    // Gives each sequence the keys and values sequence `parents[s]` held, `[S]` of `I64`, as beams continue their parents.
+    /// Gives each sequence `s` the self-attention keys and values sequence `parents[s]` held, `parents` being `[S]` of `I64`, as beams continue their parents.
     pub fn reorder(&self, parents: &Tensor) -> SingeResult<()> {
         self.keys.assign(&self.keys.index_select(0, parents)?)?;
         self.values.assign(&self.values.index_select(0, parents)?)
@@ -163,7 +163,7 @@ impl DecodeCache for Seq2SeqCache {
     }
 }
 
-// What a decoder looks up by position for a capacity: the mask of each query position over every key position, `[C, C]`, negative infinity where the key comes after the query, and, for T5, each pair's relative position bucket, `[C, C]` of `I64`.
+/// What a decoder looks up by position for a capacity: the mask of each query position over every key position, `[C, C]`, negative infinity where the key comes after the query, and, for T5, each pair's relative position bucket, `[C, C]` of `I64`.
 #[derive(Debug, Clone)]
 pub struct Seq2SeqTables {
     causal: Tensor,
@@ -171,7 +171,7 @@ pub struct Seq2SeqTables {
 }
 
 impl Seq2SeqTables {
-    // The tables for `capacity` positions, with the bucket `bucket` gives each key's position less its query's, when given.
+    /// Creates the tables for `capacity` positions, with the bucket `bucket` gives each key's position less its query's, when given.
     pub fn create(
         data_type: DataType,
         device: Device,
@@ -219,7 +219,7 @@ impl TensorGroup for Seq2SeqTables {
     }
 }
 
-// Where a decode step's rows read and write their sequences' caches: the sequence of each row, its position, the slot it writes, the capacity for a row that holds or pads, and its mask over its sequence's keys, `[T, 1, 1, C]`.
+/// Where a decode step's rows read and write their sequences' caches: the sequence of each row, its position, the slot it writes, which is the capacity for a row that holds or pads, and its mask over its sequence's keys, `[T, 1, 1, C]`.
 #[derive(Debug, Clone)]
 pub struct StepRows {
     sequences: Tensor,

@@ -1,4 +1,4 @@
-// The tokenizers `transformers` converts a snapshot's slow-tokenizer files to when it has no `tokenizer.json`: BERT's WordPiece from `vocab.txt`, CLIP's and RoBERTa's byte-level BPE from `vocab.json` and `merges.txt`, and XLM-RoBERTa's Unigram from `sentencepiece.bpe.model`.
+//! The tokenizers `transformers` converts a snapshot's slow-tokenizer files to when it has no `tokenizer.json`: BERT's `WordPiece` from `vocab.txt`, CLIP's and `RoBERTa`'s byte-level BPE from `vocab.json` and `merges.txt`, and `XLM-RoBERTa`'s Unigram from `sentencepiece.bpe.model`.
 
 use std::{fs, str::FromStr};
 
@@ -39,7 +39,7 @@ fn build(tokenizer: &Value, what: &'static str) -> Result<Tokenizer> {
     Tokenizer::from_str(&tokenizer.to_string()).map_err(|source| Error::Tokenizer { what, source })
 }
 
-// The tokenizer `transformers`' `BertConverter` makes of a slow `BertTokenizer`: `vocab.txt`'s WordPiece vocabulary, with the casing, accents, and special tokens `tokenizer_config.json` gives.
+/// Builds the tokenizer `transformers`' `BertConverter` makes of a slow `BertTokenizer`: `vocab.txt`'s `WordPiece` vocabulary, with the casing, accents, and special tokens `tokenizer_config.json` gives.
 fn wordpiece(source: &Source) -> Result<Tokenizer> {
     let config = tokenizer_config(source)?;
     let flag = |name: &str| config[name].as_bool().unwrap_or(true);
@@ -120,7 +120,7 @@ fn byte_level_bpe(source: &Source) -> Result<Tokenizer> {
     clip_bpe(source, &config)
 }
 
-// CLIP's byte-level BPE tokenizer, built from `vocab.json` and `merges.txt` as `transformers`' `CLIPTokenizer` builds it: text normalized, lowercased, and split into words, each word's last piece marked with `</w>`, between `<|startoftext|>` and `<|endoftext|>`.
+/// Builds CLIP's byte-level BPE tokenizer from `vocab.json` and `merges.txt` as `transformers`' `CLIPTokenizer` builds it: text normalized, lowercased, and split into words, each word's last piece marked with `</w>`, between `<|startoftext|>` and `<|endoftext|>`.
 fn clip_bpe(source: &Source, config: &Value) -> Result<Tokenizer> {
     let (start, end, unknown) = (
         special_or(config, "bos_token", "<|startoftext|>"),
@@ -174,7 +174,7 @@ fn clip_bpe(source: &Source, config: &Value) -> Result<Tokenizer> {
     )
 }
 
-// RoBERTa's byte-level BPE tokenizer, which BART and TAPEX share, built from `vocab.json` and `merges.txt` as `transformers`' `RobertaTokenizer` builds it: bytes as characters, words with their leading space, between `<s>` and `</s>`.
+/// Builds `RoBERTa`'s byte-level BPE tokenizer, which BART and TAPEX share, from `vocab.json` and `merges.txt` as `transformers`' `RobertaTokenizer` builds it: bytes as characters, words with their leading space, between `<s>` and `</s>`.
 fn roberta_bpe(source: &Source, config: &Value) -> Result<Tokenizer> {
     let (vocabulary, merges) = bpe_files(source)?;
     let id = |token: &str| vocabulary_id(&vocabulary, "vocab.json", token);
@@ -211,7 +211,7 @@ fn roberta_bpe(source: &Source, config: &Value) -> Result<Tokenizer> {
     )
 }
 
-// XLM-RoBERTa's tokenizer as `transformers`' converter builds it from `sentencepiece.bpe.model`: fairseq's four special tokens first, the model's pieces but its own first three, and `<mask>` last, under a Unigram model with the model's normalizer and `▁` for spaces.
+/// Builds `XLM-RoBERTa`'s tokenizer as `transformers`' converter builds it from `sentencepiece.bpe.model`: fairseq's four special tokens first, the model's pieces but its own first three, and `<mask>` last, under a Unigram model with the model's normalizer and `▁` for spaces.
 fn xlm_roberta(source: &Source) -> Result<Tokenizer> {
     let model = sentencepiece::read(&source.directory().join("sentencepiece.bpe.model"))?;
     let mut vocabulary = ["<s>", "<pad>", "</s>", "<unk>"]
@@ -269,7 +269,7 @@ fn xlm_roberta(source: &Source) -> Result<Tokenizer> {
     )
 }
 
-// The id `vocabulary`, read from `file`, gives `token`.
+/// Returns the id `vocabulary`, read from `file`, gives `token`, or an error naming `file` if it has none.
 fn vocabulary_id(vocabulary: &Map<String, Value>, file: &str, token: &str) -> Result<usize> {
     vocabulary
         .get(token)
@@ -278,7 +278,7 @@ fn vocabulary_id(vocabulary: &Map<String, Value>, file: &str, token: &str) -> Re
         .ok_or_else(|| Error::unsupported(format!("a {file} without {token}")))
 }
 
-// The special token `token` as `tokenizer.json` lists an added token.
+/// Returns the special token `token` as `tokenizer.json` lists an added token.
 fn added_token(id: usize, token: &str, lstrip: bool) -> Value {
     json!({
         "id": id, "content": token, "single_word": false,
@@ -318,10 +318,10 @@ fn bpe_model(
     })
 }
 
-// A byte-level BPE snapshot's vocabulary and its merges' pairs.
+/// A byte-level BPE snapshot's vocabulary and its merges' pairs.
 type BpeFiles = (Map<String, Value>, Vec<Vec<String>>);
 
-// A byte-level BPE snapshot's `vocab.json`, and the merges of its `merges.txt`, whose first line may name the format's version.
+/// Reads a byte-level BPE snapshot's `vocab.json`, and the merges of its `merges.txt`, whose first line may name the format's version.
 fn bpe_files(source: &Source) -> Result<BpeFiles> {
     let vocabulary = source
         .optional_json("vocab.json")?

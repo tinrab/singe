@@ -1,4 +1,4 @@
-// Swin2SR: a convolution into features, stages of Swin V2 blocks attending within windows, shifted every other block, by scaled cosine similarity and a learned bias of relative positions, then a convolution and pixel shuffles up to a larger image.
+//! `Swin2SR`: a convolution into features, stages of Swin V2 blocks attending within windows, shifted every other block, by scaled cosine similarity and a learned bias of relative positions, then a convolution and pixel shuffles up to a larger image.
 
 mod transformers;
 
@@ -21,13 +21,13 @@ use crate::{
     source::Format,
 };
 
-// The mean color DIV2K's images have, which the model subtracts from three-channel images.
+/// The mean color of DIV2K's images, which the model subtracts from its input and adds back to its output.
 const MEAN: [f32; 3] = [0.4488, 0.4371, 0.4040];
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Swin2SrConfig {
     pub width: i64,
-    // Each stage's blocks and heads.
+    /// Each stage's blocks and heads.
     pub stages: Vec<(i64, i64)>,
     pub inner: i64,
     pub activation: Activation,
@@ -35,11 +35,11 @@ pub struct Swin2SrConfig {
     pub window: i64,
     pub channels: i64,
     pub upscale: i64,
-    // The upsampler's features.
+    /// The upsampler's channels.
     pub upsampler: i64,
 }
 
-// A window's side, the log-spaced relative coordinates the position bias network reads, `[(2w - 1)², 2]`, and each pair of a window's points' index among them, `[w⁴]`, as `create_coords_table_and_index` makes them.
+/// A window's side, the log-spaced relative coordinates the position bias network reads, `[(2w - 1)², 2]`, and each pair of a window's points' index among them, `[w⁴]`, as `create_coords_table_and_index` makes them.
 #[derive(Debug, Clone)]
 struct Windows {
     window: i64,
@@ -295,7 +295,7 @@ impl Stage {
     }
 }
 
-// Swin2SR and its upsampler: from images in [0, 1] whose sides are whole windows to images `upscale` times larger.
+/// `Swin2SR` and its upsampler: from images in [0, 1] whose sides are whole windows to images `upscale` times larger.
 #[derive(Debug, Clone)]
 pub struct Swin2SrLayers {
     first: Conv2d,
@@ -391,7 +391,7 @@ fn mean(device: Device) -> SingeResult<Tensor> {
     Tensor::from_vec(device, Shape::create([1, 3, 1, 1])?, MEAN.to_vec())
 }
 
-// `[B, C · r², H, W]` as `[B, C, H · r, W · r]`, as `nn.PixelShuffle(r)` rearranges it.
+/// Rearranges `[B, C · r², H, W]` as `[B, C, H · r, W · r]`, where `r` is `factor`, as `nn.PixelShuffle(r)` does.
 fn pixel_shuffle(input: &Tensor, factor: i64) -> SingeResult<Tensor> {
     let &[batch, channels, height, width] = input.shape().dimensions() else {
         return Err(SingeError::invalid_argument("pixel shuffle input"));

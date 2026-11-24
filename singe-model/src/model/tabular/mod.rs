@@ -1,4 +1,4 @@
-// Models of tables, which `transformers` does not document; Mitra comes from AutoGluon.
+//! Models of tables, which `transformers` does not document; Mitra comes from `AutoGluon`.
 
 pub mod mitra;
 

@@ -1,4 +1,4 @@
-// SuperPoint: a VGG-style encoder over one channel at an eighth of the image, a head scoring each pixel as a keypoint, and a head describing each point of the map, which the keypoints sample.
+//! `SuperPoint`: a VGG-style encoder over one channel down to an eighth of the image, a head scoring each pixel as a keypoint, and a head describing each point of the map, which the keypoints sample.
 
 pub(crate) mod transformers;
 
@@ -21,14 +21,14 @@ use crate::{
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SuperPointConfig {
-    // Each block's channels; every block but the last halves the map.
+    /// Each block's channels; every block but the last halves the map.
     pub encoder: Vec<i64>,
     pub decoder: i64,
     pub descriptor: i64,
     pub keypoints: KeypointConfig,
 }
 
-// A cell's 64 pixels and one class for no keypoint.
+/// The keypoint head's classes: a cell's 64 pixels and one class for no keypoint.
 const CELL_CLASSES: i64 = 65;
 
 #[derive(Debug, Clone)]
@@ -48,7 +48,7 @@ pub struct SuperPointLayers {
 }
 
 impl SuperPointLayers {
-    // Registers SuperPoint in `schema`: `blocks` (`first`, `second`), `score_hidden`, `score`, `descriptor_hidden`, and `descriptor`.
+    /// Registers `SuperPoint` in `schema`: `blocks` (`first`, `second`), `score_hidden`, `score`, `descriptor_hidden`, and `descriptor`.
     pub fn create(schema: &mut Schema<'_>, config: &SuperPointConfig) -> SingeResult<Self> {
         let mut input = 1;
         let mut blocks = Vec::new();
@@ -100,7 +100,7 @@ impl SuperPointLayers {
 }
 
 impl KeypointLayers for SuperPointLayers {
-    // Each pixel's keypoint probability, `[B, H, W]`, and each map point's unit descriptor, `[B, D, H / 8, W / 8]`, from images whose first channel the model reads.
+    /// Returns each pixel's keypoint probability, `[B, H, W]`, and each map point's unit descriptor, `[B, D, H / 8, W / 8]`, from images whose first channel the model reads.
     fn maps(&self, pixels: &Tensor, state: &ModelState) -> SingeResult<(Tensor, Tensor)> {
         // Keypoints are thresholded scores, which TF32 convolutions move past `transformers`' own: full precision keeps them, here and in LightGlue, which reads them.
         with_convolution_precision(ComputePrecision::Full, || {

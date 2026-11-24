@@ -88,7 +88,7 @@ pub async fn transcribe(State(served): State<Served>, multipart: Multipart) -> A
         ..AutomaticSpeechRecognitionParameters::default()
     };
     if let Some(tokens) = form.parsed::<usize>("max_new_tokens")? {
-        parameters.max_new_tokens = tokens;
+        parameters.max_new_tokens = Some(tokens);
     }
 
     let file = form.required_file("file")?.to_vec();

@@ -1,4 +1,4 @@
-// The tasks the Hub lists under computer vision, with those of `transformers`' tasks that go with them.
+//! The tasks the Hub lists under computer vision, with those of `transformers`' tasks that go with them.
 
 pub mod depth_estimation;
 pub mod image_classification;

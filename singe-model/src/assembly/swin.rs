@@ -1,4 +1,4 @@
-// Swin, as Donut's encoder and CLAP's HTSAT have it: patches embedded and normed, then stages of pre-norm blocks attending within windows, shifted every other block, with a learned bias of relative positions, each stage but the last merging two by two patches.
+//! Swin, as Donut's encoder and CLAP's HTSAT have it: patches embedded and normed, then stages of pre-norm blocks attending within windows, shifted every other block, with a learned bias of relative positions, each stage but the last merging two by two patches.
 
 use serde::{Deserialize, Serialize};
 use singe::{
@@ -17,7 +17,7 @@ use crate::{
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SwinConfig {
     pub width: i64,
-    // Each stage's blocks and heads; widths double from stage to stage.
+    /// Each stage's blocks and heads; widths double from stage to stage.
     pub stages: Vec<(i64, i64)>,
     pub window: i64,
     pub patch_size: i64,
@@ -120,7 +120,7 @@ pub struct Swin {
     window: i64,
 }
 
-// Each pair of a window's points' index into the relative position table, `[w⁴]`.
+/// Returns each pair of a window's points' index into the relative position table, `[w⁴]`.
 #[must_use]
 pub fn relative_index(window: i64) -> Vec<i64> {
     let points = (0..window)
@@ -137,7 +137,7 @@ pub fn relative_index(window: i64) -> Vec<i64> {
         .collect()
 }
 
-// The mask of a shifted window's scores, `[windows, w², w²]`: `masked` between points of regions the roll brought together, and zero elsewhere.
+/// Returns the mask of a shifted window's scores, `[windows, w², w²]`: `masked` between points of regions the roll brought together, and zero elsewhere.
 #[must_use]
 pub fn shift_mask(height: i64, width: i64, window: i64, shift: i64, masked: f32) -> Vec<f32> {
     let region = |index: i64, side: i64| {
@@ -164,7 +164,7 @@ pub fn shift_mask(height: i64, width: i64, window: i64, shift: i64, masked: f32)
 }
 
 impl Swin {
-    // Registers the encoder under `transformers`' Swin names: `embeddings`, then `encoder.layers.N` of `blocks.M` and `downsample`.
+    /// Registers the encoder: `embeddings.patches` and `embeddings.norm`, then `stages.N`, each with `blocks.M` and, in every stage but the last, `merge`.
     pub fn create(schema: &mut Schema<'_>, config: &SwinConfig) -> SingeResult<Self> {
         let width = config.width;
         let patches = schema.conv2d(
@@ -299,7 +299,7 @@ impl Swin {
 }
 
 impl Layer for Swin {
-    // Images `[B, C, H, W]` to their last stage's tokens, `[B, h · w, W]`.
+    /// Encodes images `[B, C, H, W]` into their last stage's tokens, `[B, h · w, W]`.
     fn forward(&self, input: &Tensor, state: &ModelState) -> SingeResult<Tensor> {
         let patches = input.apply(&self.patches, state)?;
         let dimensions = patches.shape().dimensions();
@@ -339,7 +339,7 @@ impl Layer for Swin {
     }
 }
 
-// Imports a Swin stored as `transformers` names it, its stages under `{from}.layers` and its patch projection and norm at `patches` and `patch_norm`, to the schema's names under `to`.
+/// Imports a Swin stored as `transformers` names it, its stages under `{from}.layers` and its patch projection and norm at `patches` and `patch_norm`, to the schema's names under `to`.
 #[must_use]
 pub fn swin_rules(from: &str, patches: &str, patch_norm: &str, to: &str) -> Rules {
     let blocks = join(from, "layers.*.blocks.*");

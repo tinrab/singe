@@ -1,4 +1,4 @@
-// Reads a `diffusers` `UNet2DConditionModel`: its config and its tensors' names.
+//! Reads a `diffusers` `UNet2DConditionModel`: its config and its tensors' names.
 
 use serde::Deserialize;
 use serde_json::Value;
@@ -35,7 +35,7 @@ struct Fields {
     transformer_layers_per_block: usize,
     #[serde(default)]
     addition_embed_type: Option<String>,
-    // Whether blocks skip self-attention, one flag for all or one per block.
+    /// Whether blocks skip self-attention, one flag for all or one per block.
     #[serde(default)]
     only_cross_attention: Value,
     #[serde(default)]
@@ -64,7 +64,7 @@ struct Fields {
     cross_attention_norm: Option<String>,
 }
 
-// Whether a flag, or any of a list of flags, is set.
+/// Returns whether a flag, or any of a list of flags, is set.
 fn any_set(flags: &Value) -> bool {
     match flags {
         Value::Null | Value::Bool(false) => false,
@@ -74,8 +74,9 @@ fn any_set(flags: &Value) -> bool {
 }
 
 impl Fields {
-    // Refuses the options `diffusers` offers that the model does not build.
-    // It leaves `upcast_attention` unread, which changes nothing in `F32`.
+    /// Refuses the options `diffusers` offers that the model does not build.
+    ///
+    /// It leaves `upcast_attention` unread, which changes nothing in `F32`.
     fn validate(&self) -> Result<()> {
         self.unet.validate(CLASS, "UNetMidBlock2DCrossAttn")?;
         if self.time_embedding_act_fn.is_some()
@@ -127,7 +128,7 @@ impl Fields {
         Ok(())
     }
 
-    // Each down block's head count, which `diffusers` reads from `attention_head_dim`, as Stable Diffusion's configs were written, from one count for all or one per block.
+    /// Returns each down block's head count, which `diffusers` reads from `attention_head_dim`, as Stable Diffusion's configs were written, from one count for all or one per block.
     fn heads(&self) -> Result<Vec<i64>> {
         let blocks = self.unet.block_out_channels.len();
         let heads = match &self.unet.attention_head_dim {
@@ -161,7 +162,7 @@ pub(crate) fn config(source: &Source) -> Result<Unet2dConditionConfig> {
     })
 }
 
-// Imports the transformers stored under `from` (such as `down_blocks.*.attentions.*`) into `to` (such as `down.*.attentions.*`).
+/// Returns the rules that import the transformers stored under `from` (such as `down_blocks.*.attentions.*`) into `to` (such as `down.*.attentions.*`).
 fn transformer_rules(from: &str, to: &str) -> Rules {
     let (block, target) = (join(from, "transformer_blocks.*"), join(to, "blocks.*"));
     Rules::new()
@@ -228,7 +229,7 @@ pub(crate) fn rules() -> Rules {
         .rename("conv_out", "output")
 }
 
-// Imports a `MotionAdapter`'s temporal transformers into the motion modules' `down.N.motions.M`, `middle.motions.0`, and `up.N.motions.M`, and, for an adapter with its own input convolution, the weights past the `latents` channels the UNet's reads.
+/// Returns the rules that import a `MotionAdapter`'s temporal transformers into the motion modules' `down.N.motions.M`, `middle.motions.0`, and `up.N.motions.M`, and, for an adapter with its own input convolution, its weights for the channels past the `latents` channels that the U-Net's input convolution reads.
 pub(crate) fn motion_rules(latents: i64) -> Rules {
     Rules::new()
         // PIA's input convolution: only its channels past the latents' are its own.

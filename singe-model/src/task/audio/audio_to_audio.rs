@@ -1,4 +1,4 @@
-// `audio-to-audio`: a clip to another clip, here a codec's reconstruction of it from its codes.
+//! `audio-to-audio`: a clip to another clip, here a codec's reconstruction of it from its codes.
 
 use crate::{
     error::Result,

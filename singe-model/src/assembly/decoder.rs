@@ -1,6 +1,6 @@
-// What decoder definitions share: the parts of a causal model under Singe's names, and the rules that import Llama-family checkpoints into them.
-//
-// A causal model's state is `embeddings.tokens`, `blocks.N`, `norm`, and `head`, and a block's is `attention_norm`, `attention` (`query`, `key`, `value`, `output`, and `query_norm` and `key_norm` when heads are normed), `feed_forward_norm`, and `feed_forward` (`gate`, `up`, `down`).
+//! What decoder definitions share: the parts of a causal model under Singe's names, and the rules that import Llama-family checkpoints into them.
+//!
+//! A causal model's state is `embeddings.tokens`, `blocks.N`, `norm`, and `head`, and a block's is `attention_norm`, `attention` (`query`, `key`, `value`, `output`, and `query_norm` and `key_norm` when heads are normed), `feed_forward_norm`, and `feed_forward` (`gate`, `up`, `down`).
 
 use serde::{Deserialize, Serialize};
 use singe::{
@@ -20,7 +20,7 @@ use crate::{
     schema::{Schema, SchemaNorm},
 };
 
-// One place for a decoder's sizes, which its attention, cache, and rotary table all derive from.
+/// A decoder's sizes and settings, from which its attention, cache, and rotary table derive.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[expect(
     clippy::struct_excessive_bools,
@@ -34,14 +34,14 @@ pub struct DecoderConfig {
     pub heads: i64,
     pub kv_heads: i64,
     pub head_dim: i64,
-    // The leading features of each head the rotation turns.
+    /// The leading features of each head the rotation turns.
     pub rotary_dim: i64,
     pub eps: f32,
     pub activation: Activation,
     pub attention_bias: bool,
     pub mlp_bias: bool,
     pub tied: bool,
-    // Whether queries and keys are normed per head, as Qwen3's are.
+    /// Whether queries and keys are normed per head, as Qwen3's are.
     pub head_norms: bool,
     pub frequencies: RotaryFrequencies,
     pub rotary_layout: RotaryLayout,
@@ -83,10 +83,10 @@ impl DecoderConfig {
     }
 }
 
-// The decoder most Llama-family models are: grouped-query attention and a gated feed-forward layer.
+/// The decoder most Llama-family models are: grouped-query attention and a gated feed-forward layer.
 pub type GroupedDecoder = Decoder<GroupedQueryAttention>;
 
-// Builds that decoder on `Device::Meta`.
+/// Builds a [`GroupedDecoder`] on [`Device::Meta`].
 pub fn grouped_decoder(
     schema: &mut Schema<'_>,
     config: &DecoderConfig,
@@ -104,7 +104,11 @@ pub fn grouped_decoder(
     )
 }
 
-// Registers `feed_forward`'s `gate`, `up`, and `down`.
+/// Registers `feed_forward`'s `gate`, `up`, and `down`.
+///
+/// # Errors
+///
+/// Returns an error if `config.inner` is `None`.
 pub fn gated_mlp(schema: &mut Schema<'_>, config: &DecoderConfig) -> SingeResult<GatedMlp> {
     let width = config.width;
     let inner = config
@@ -118,7 +122,7 @@ pub fn gated_mlp(schema: &mut Schema<'_>, config: &DecoderConfig) -> SingeResult
     )
 }
 
-// A block with `attention_norm`, `attention`, `feed_forward_norm`, and a gated `feed_forward`.
+/// Registers a block with `attention_norm`, `attention`, `feed_forward_norm`, and a gated `feed_forward`.
 pub fn pre_norm_block<A, N: SchemaNorm>(
     schema: &mut Schema<'_>,
     config: &DecoderConfig,
@@ -129,7 +133,7 @@ pub fn pre_norm_block<A, N: SchemaNorm>(
     })
 }
 
-// A block as `pre_norm_block` makes, whose feed-forward layer is what `feed_forward` registers.
+/// Registers a block as [`pre_norm_block`] does, whose feed-forward layer is what `feed_forward` registers.
 pub fn pre_norm_block_with<A, F, N: SchemaNorm>(
     schema: &mut Schema<'_>,
     config: &DecoderConfig,
@@ -240,7 +244,7 @@ pub fn grouped_attention(
     )
 }
 
-// Options for the causal attention decoders use.
+/// Returns the attention options decoders use: causal, and otherwise the defaults.
 #[must_use]
 pub fn causal() -> AttentionOptions {
     AttentionOptions {
@@ -252,7 +256,7 @@ pub fn causal() -> AttentionOptions {
 pub type DraftLayer<'a, B, N> =
     &'a dyn Fn(&mut Schema<'_>) -> SingeResult<MultiTokenPrediction<B, N>>;
 
-// What a causal model takes beside its blocks: its rotary table, each block's cache by index, a scale of its embeddings, and a draft layer.
+/// What a causal model takes beside its blocks: its rotary table, each block's cache by index, a scale of its embeddings, and a draft layer.
 pub struct CausalLmSpec<'a, C, B: DecodingLayer, N> {
     pub rotary: RotarySpec,
     pub cache: C,
@@ -274,7 +278,7 @@ where
     }
 }
 
-// Builds a causal model on `Device::Meta`: `embeddings.tokens`, `blocks.N` from `block`, `norm`, and `head`, tied to the embeddings when the config says so, and `draft` from the spec's draft layer.
+/// Builds a causal model on [`Device::Meta`]: `embeddings.tokens`, `blocks.N` from `block`, `norm`, and `head`, tied to the embeddings when the config says so, and the spec's draft layer when it has one.
 pub fn causal_lm<B, N, C>(
     schema: &mut Schema<'_>,
     config: &DecoderConfig,
@@ -314,8 +318,8 @@ where
     }
 }
 
-// Imports a Llama-family checkpoint whose decoder lies under `model` (`model`, or `model.language_model` in a model that also reads images or audio) into `causal_lm`'s names.
-// Rules for a model's other weights go before these, since the first rule that matches a name decides it.
+/// Imports a Llama-family checkpoint whose decoder lies under `model` (`model`, or `model.language_model` in a model that also reads images or audio) into [`causal_lm`]'s names.
+/// Rules for a model's other weights go before these, since the first rule that matches a name decides it.
 #[must_use]
 pub fn llama_rules(model: &str) -> Rules {
     let layers = join(model, "layers.*");
@@ -349,7 +353,7 @@ pub fn llama_block_rules(from: &str, to: &str) -> Rules {
     )
 }
 
-// Caches for `blocks` blocks of keys and values, for a hand-written [`DecoderModel`].
+/// Creates caches for `blocks` blocks of keys and values, for a hand-written [`DecoderModel`].
 pub fn kv_caches(
     blocks: usize,
     data_type: DataType,
@@ -362,7 +366,7 @@ pub fn kv_caches(
         .collect()
 }
 
-// Each sequence's tokens' final normed states, `[ΣT, W]` in order, from one uncached step of a decoder over every sequence, as an embedding model reads a causal language model.
+/// Returns each sequence's tokens' final normed states, `[ΣT, W]` in order, from one uncached step of a decoder over every sequence, as an embedding model reads a causal language model.
 pub fn hidden_states<L: DecoderModel + DraftingModel>(
     layer: &L,
     sequences: &[&[i64]],

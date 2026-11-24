@@ -11,6 +11,7 @@ mod linear;
 mod networks;
 mod normalization;
 mod positional;
+mod recurrent;
 mod resampling;
 
 pub use self::{
@@ -18,7 +19,8 @@ pub use self::{
     attention::{
         AttentionInput, CrossAttention, CrossAttentionInput, DenseAttentionInput, GatedDeltaNet,
         GatedDeltaNetLayers, GatedDeltaNetSpec, GroupedQueryAttention, GroupedQueryLayers,
-        HeadNorm, HeadProjection, LatentQuery, MultiHeadLatentAttention, MultiHeadLatentLayers,
+        HeadNorm, HeadProjection, LatentQuery, LocalAttention, MultiHeadLatentAttention,
+        MultiHeadLatentLayers, RelativeAttention, RelativeAttentionInput, RelativeAttentionLayers,
         SelfAttention, SourcePages, pages_for,
     },
     blocks::{EncoderBlock, EncoderDecoderBlock, EncoderDecoderParts, HybridLayer, PreNormBlock},
@@ -31,9 +33,13 @@ pub use self::{
     heads::{Pooling, PoolingInput, PoolingMode},
     linear::{Flatten, Linear},
     networks::{CausalLm, CausalLmParts, Decoder, MultiTokenPrediction, SourcedCausalLm},
-    normalization::{BatchNorm2d, GroupNorm, LayerNorm, LayerScale, OffsetRmsNorm, RmsNorm},
+    normalization::{BatchNorm, GroupNorm, LayerNorm, LayerScale, OffsetRmsNorm, RmsNorm},
     positional::{
         RotaryAngles, RotaryFrequencies, RotaryLayout, RotarySpec, RotaryTable, YarnFrequencies,
+    },
+    recurrent::{
+        Recurrent, RecurrentCell, RecurrentConfig, RecurrentDirection, RecurrentLayer,
+        RecurrentState, cell_step, step_masks,
     },
     resampling::{Pool2d, Pool2dConfig, Pool2dKind, Upsample},
 };

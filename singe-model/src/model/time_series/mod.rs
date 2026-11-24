@@ -1,4 +1,4 @@
-// Models `transformers` documents among its time series models.
+//! Models `transformers` documents among its time series models.
 
 pub mod timesfm2_5;
 

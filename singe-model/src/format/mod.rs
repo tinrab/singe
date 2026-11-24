@@ -1,4 +1,4 @@
-// The model formats Singe reads: its own, and Hugging Face's `transformers` and `diffusers` snapshots, whose names and configs importers turn into Singe's.
+//! The model formats Singe reads: its own, and Hugging Face's `transformers` and `diffusers` snapshots, whose names and configs importers turn into Singe's.
 
 pub mod diffusers;
 mod native;
@@ -23,7 +23,8 @@ use crate::{
     source::{Format, LoadOptions, Source},
 };
 
-// The safetensors files a snapshot stores its checkpoint in under `stem`: `{stem}.safetensors`, or the shards `{stem}.safetensors.index.json` names.
+/// Returns the safetensors files a snapshot stores its checkpoint in under `stem`: the shards `{stem}.safetensors.index.json` names, or else `{stem}.safetensors`.
+/// When only `{stem}.fp16.safetensors` exists, returns that file.
 fn safetensors_files(directory: &Path, stem: &str) -> Result<Vec<PathBuf>> {
     #[derive(Deserialize)]
     struct Index {
@@ -54,7 +55,7 @@ fn safetensors_files(directory: &Path, stem: &str) -> Result<Vec<PathBuf>> {
     Ok(files)
 }
 
-// How a native directory stores each part's state: `{part}.safetensors`, or `{part}.flashpack`.
+/// How a native directory stores each part's state: `{part}.safetensors`, or `{part}.flashpack`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WeightFormat {
     Safetensors,
@@ -62,7 +63,7 @@ pub enum WeightFormat {
 }
 
 impl WeightFormat {
-    // The file that holds `part`'s state.
+    /// Returns the name of the file that holds `part`'s state.
     #[must_use]
     pub fn file(self, part: &str) -> String {
         match self {
@@ -72,14 +73,14 @@ impl WeightFormat {
     }
 }
 
-// Reads one model from a source: its Singe config, and the state of each of its parts.
-// It records both, so what it loaded can be saved in Singe's format.
+/// A reader of one model from a source: its Singe config, and the state of each of its parts.
+/// It records both, so [`Loader::save`] can write what it loaded in Singe's format.
 #[derive(Debug)]
 pub struct Loader<'a> {
     source: &'a Source,
     options: LoadOptions,
     checkpoint: Option<Checkpoint<'static>>,
-    // Stored names a part read or a rule skipped.
+    /// The stored names that a part read or a rule skipped.
     consumed: BTreeSet<String>,
     config: Option<Value>,
     parts: Vec<(String, ModelState)>,
@@ -108,7 +109,7 @@ impl<'a> Loader<'a> {
         self.options
     }
 
-    // Reads the model's Singe config: a native directory's own, or what `import` makes of another format's files.
+    /// Reads the model's Singe config: a native directory's own, or what `import` makes of another format's files.
     pub fn config<C: Serialize + DeserializeOwned>(
         &mut self,
         import: impl FnOnce(&Source) -> Result<C>,
@@ -125,8 +126,8 @@ impl<'a> Loader<'a> {
         Ok(config)
     }
 
-    // Loads part `part` of the model, whose layers and state `model` builds on metadata.
-    // A native directory stores each part under Singe's names in `{part}.flashpack` or `{part}.safetensors`, read in that order; another format's checkpoint goes through `rules`.
+    /// Loads part `part` of the model, whose layers and state `model` builds on metadata.
+    /// A native directory stores each part under Singe's names in `{part}.flashpack` or `{part}.safetensors`, read in that order; another format's checkpoint goes through `rules`.
     pub fn load<L>(&mut self, part: &str, model: &Model<L>, rules: &Rules) -> Result<Model<L>> {
         let options = CheckpointOptions {
             device: Some(self.options.device),
@@ -161,7 +162,7 @@ impl<'a> Loader<'a> {
         Ok(model.with_state(state)?)
     }
 
-    // Opens the source's checkpoint on first use, and keeps it for the parts after.
+    /// Opens the source's checkpoint on first use, and keeps it for the parts after.
     fn checkpoint(&mut self) -> Result<&Checkpoint<'static>> {
         match &mut self.checkpoint {
             Some(checkpoint) => Ok(checkpoint),
@@ -176,7 +177,11 @@ impl<'a> Loader<'a> {
         }
     }
 
-    // Refuses a checkpoint that stores a tensor no part read and no rule skipped.
+    /// Checks that every tensor in the source's checkpoint was read by a part or skipped by a rule.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::UnmappedTensors`] if the checkpoint stores a tensor that no part read and no rule skipped.
     pub fn finish(&mut self) -> Result<()> {
         let Some(checkpoint) = &self.checkpoint else {
             return Ok(());
@@ -200,7 +205,11 @@ impl<'a> Loader<'a> {
         Ok(model)
     }
 
-    // Writes what this loader read to `directory` in Singe's format, as model `model` serving `head`, each part's state in `weights`, and returns each part with the file it wrote.
+    /// Writes what this loader read to `directory` in Singe's format, as model `model` serving `head`, each part's state in `weights`, and returns each part with the file it wrote.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the loader has not read a config, if `directory` is inside the source directory, or if the load options' data type is not `bf16`, `f16`, or `f32`.
     pub fn save(
         &self,
         directory: &Path,

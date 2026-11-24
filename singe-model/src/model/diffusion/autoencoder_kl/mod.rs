@@ -1,6 +1,7 @@
-// `diffusers`' `AutoencoderKL`, Stable Diffusion's VAE: an encoder of residual blocks down to a latent distribution, its means and log-variances, and a decoder of residual blocks back up to an image, each with a self-attending middle block.
-// Its encoder and decoder load as two parts, `encoder` and `decoder`.
-// A part's state is `input`, its stages `stages.N` (`resnets.M`, and `downsample` or `upsample` but in the last), `middle` (`resnets.0`, `attentions.0`, `resnets.1`), `norm`, `output`, and `quant`, the 1 × 1 convolution after the encoder or before the decoder.
+//! `diffusers`' `AutoencoderKL`, Stable Diffusion's VAE: an encoder of residual blocks down to a latent distribution, its means and log-variances, and a decoder of residual blocks back up to an image, each with a self-attending middle block.
+//!
+//! Its encoder and decoder load as two parts, `encoder` and `decoder`.
+//! A part's state is `input`, its stages `stages.N` (`resnets.M`, and `downsample` or `upsample` but in the last), `middle` (`resnets.0`, `attentions.0`, `resnets.1`), `norm`, `output`, and `quant`, the 1 × 1 convolution after the encoder or before the decoder.
 
 mod diffusers;
 
@@ -53,7 +54,7 @@ fn conv(
     schema.conv2d(name, input, output, kernel, same_2d(kernel, 1), true)
 }
 
-// `UNetMidBlock2D` without a timestep: a residual block, self-attention with one head, and another residual block.
+/// Creates `UNetMidBlock2D` without a timestep: a residual block, self-attention with one head, and another residual block.
 fn middle(
     schema: &mut Schema<'_>,
     width: i64,
@@ -89,7 +90,7 @@ impl<R: Layer> Layer for Stage<R> {
     }
 }
 
-// The encoder: its stages, the middle, and the output, then `quant`, to the latent distribution's means and log-variances.
+/// The encoder: its input convolution, stages, middle, and output, then `quant`, from images to the latent distribution's means and log-variances.
 #[derive(Debug, Clone)]
 struct Encoder {
     input: Conv2d,
@@ -150,7 +151,7 @@ impl Layer for Encoder {
     }
 }
 
-// The decoder: `quant`, then the middle, its stages, and the output.
+/// The decoder: `quant`, then its input convolution, the middle, its stages, and the output.
 #[derive(Debug, Clone)]
 struct Decoder {
     quant: Conv2d,

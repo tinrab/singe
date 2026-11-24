@@ -1,10 +1,11 @@
-// Clips of audio as models hear them: mono samples in [-1, 1) at a known rate, decoded from WAV files.
-// Each model's feature extractor, such as Whisper's log-mel front end, lives with its model, as `transformers` keeps them.
+//! Clips of audio as models hear them: mono samples at a known rate, decoded from WAV, FLAC, MP3, Ogg, MP4, and the other files Symphonia reads.
+//! Each model's feature extractor, such as Whisper's log-mel front end, lives with its model, as `transformers` keeps them.
 
-use std::{borrow::Cow, f64::consts::PI, fs, path::Path, result::Result as StdResult};
+use std::{borrow::Cow, f64::consts::PI, fs, io::Cursor, path::Path, result::Result as StdResult};
 
 use serde::{Deserialize, Deserializer, de::Error as DeError};
 use singe::{Device, Error as SingeError, Shape, Tensor};
+use symphonium::{DecodeConfig, error::LoadError};
 
 use crate::{
     error::{Error, Result},
@@ -17,8 +18,12 @@ pub struct Audio {
     pub rate: u32,
 }
 
-// The zero crossings of the windowed sinc on each side of a resampled point.
+/// The zero crossings of the windowed sinc on each side of a resampled point.
 const RESAMPLING_TAPS: f64 = 16.0;
+
+/// The most bytes a clip's decoded `f32` samples may take, all channels together, 4 GiB.
+/// Three hours of 48 kHz stereo, 3.9 GiB, fits, where `symphonium`'s default of 1 GB stops at 43 minutes of it.
+const MAX_DECODED_BYTES: usize = 4 << 30;
 
 impl Audio {
     pub fn open(path: impl AsRef<Path>) -> Result<Self> {
@@ -30,86 +35,44 @@ impl Audio {
         })
     }
 
-    // Decodes a WAV file of 16-bit or 24-bit PCM or 32-bit floats, averaging its channels into one.
+    /// Decodes a clip in any format and encoding Symphonia reads, such as WAV, FLAC, MP3, Ogg Vorbis, or AAC in MP4, averaging its channels into one.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `symphonium` cannot decode `bytes`, if the decoded samples would take more than 4 GiB, or if the clip has no channels.
     pub fn decode(bytes: &[u8]) -> Result<Self> {
-        let invalid = |what: &str| Error::Media(format!("a WAV file with {what}"));
-        if bytes.len() < 12 || &bytes[0..4] != b"RIFF" || &bytes[8..12] != b"WAVE" {
-            return Err(Error::Media("audio that is not a WAV file".to_owned()));
-        }
-
-        let (mut format, mut data) = (None, None);
-        let mut offset = 12;
-        while offset + 8 <= bytes.len() {
-            let id = &bytes[offset..offset + 4];
-            let size = usize::try_from(u32::from_le_bytes([
-                bytes[offset + 4],
-                bytes[offset + 5],
-                bytes[offset + 6],
-                bytes[offset + 7],
-            ]))
-            .map_err(|_| invalid("a chunk too large"))?;
-            let body = &bytes[offset + 8..(offset + 8 + size).min(bytes.len())];
-            match id {
-                b"fmt " => format = Some(body),
-                b"data" => data = Some(body),
-                _ => {}
-            }
-
-            offset += 8 + size + size % 2;
-        }
-
-        let format = format
-            .filter(|format| format.len() >= 16)
-            .ok_or_else(|| invalid("no format chunk"))?;
-        let field = |at: usize| u16::from_le_bytes([format[at], format[at + 1]]);
-        let rate = u32::from_le_bytes([format[4], format[5], format[6], format[7]]);
-        let channels = usize::from(field(2));
-        // An extensible format names its encoding in its subformat's first two bytes.
-        let encoding = if field(0) == 0xfffe && format.len() >= 26 {
-            field(24)
-        } else {
-            field(0)
+        let undecodable = |error: LoadError| Error::Media(format!("undecodable audio: {error}"));
+        let probed =
+            symphonium::probe_from_source(Box::new(Cursor::new(bytes.to_vec())), None, None)
+                .map_err(undecodable)?;
+        let config = DecodeConfig {
+            max_bytes: MAX_DECODED_BYTES,
+            ..DecodeConfig::default()
         };
-        let data = data.ok_or_else(|| invalid("no data chunk"))?;
-        let values = match (encoding, field(14)) {
-            (1, 16) => data
-                .as_chunks::<2>()
-                .0
-                .iter()
-                .map(|pair| f32::from(i16::from_le_bytes(*pair)) / 32_768.0)
-                .collect::<Vec<_>>(),
-            (1, 24) => data
-                .as_chunks::<3>()
-                .0
-                .iter()
-                .map(|&[low, middle, high]| {
-                    i32::from_le_bytes([0, low, middle, high]) as f32 / 2_147_483_648.0
-                })
-                .collect(),
-            (3, 32) => data
-                .as_chunks::<4>()
-                .0
-                .iter()
-                .map(|bytes| f32::from_le_bytes(*bytes))
-                .collect(),
-            _ => {
-                return Err(invalid(
-                    "samples other than 16-bit or 24-bit PCM or 32-bit floats",
-                ));
-            }
-        };
-        if channels == 0 || rate == 0 {
-            return Err(invalid("no channels or no rate"));
+        let decoded =
+            symphonium::decode_f32(probed, &config, None, None, None).map_err(undecodable)?;
+        let channels = decoded.data.len();
+        if channels == 0 {
+            return Err(Error::Media("audio without channels".to_owned()));
         }
 
-        let samples = values
-            .chunks_exact(channels)
-            .map(|frame| frame.iter().sum::<f32>() / channels as f32)
+        let samples = (0..decoded.frames())
+            .map(|frame| {
+                decoded
+                    .data
+                    .iter()
+                    .map(|channel| channel[frame])
+                    .sum::<f32>()
+                    / channels as f32
+            })
             .collect();
-        Ok(Self { samples, rate })
+        Ok(Self {
+            samples,
+            rate: decoded.sample_rate.get(),
+        })
     }
 
-    // Encodes the clip as a WAV file of 16-bit PCM.
+    /// Encodes the clip as a mono WAV file of 16-bit PCM.
     #[must_use]
     pub fn to_wav(&self) -> Vec<u8> {
         let data = self.to_pcm();
@@ -131,7 +94,7 @@ impl Audio {
         file
     }
 
-    // The samples as 16-bit little-endian PCM, clipped to its range.
+    /// Returns the samples as 16-bit little-endian PCM, clipped to its range.
     #[must_use]
     pub fn to_pcm(&self) -> Vec<u8> {
         self.samples
@@ -158,7 +121,11 @@ impl Audio {
         self.samples.len() as f64 / f64::from(self.rate)
     }
 
-    // The clip at `rate`: itself when it is at that rate already, or else resampled.
+    /// Returns the clip at `rate`: itself when it is at that rate already, or else [`Audio::resampled`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `rate` is not a positive `u32`.
     pub fn at_rate(&self, rate: i64) -> Result<Cow<'_, Self>> {
         let rate = u32::try_from(rate)
             .ok()
@@ -170,7 +137,7 @@ impl Audio {
         Ok(Cow::Owned(self.resampled(rate)))
     }
 
-    // Resamples the clip to `rate` with a Hann-windowed sinc, low-passed below the lower rate's Nyquist frequency.
+    /// Resamples the clip to `rate` with a Hann-windowed sinc, low-passed below the lower rate's Nyquist frequency.
     #[must_use]
     pub fn resampled(&self, rate: u32) -> Self {
         let ratio = f64::from(rate) / f64::from(self.rate);
@@ -209,7 +176,7 @@ impl Audio {
     }
 }
 
-// A clip in JSON is its WAV file's bytes, as a `data:` URL or bare base64, so JSON from a client never names a file to read.
+/// A clip in JSON is its audio file's bytes, in any format [`Audio::decode`] reads, as a `data:` URL or bare base64, so JSON from a client never names a file to read.
 impl<'de> Deserialize<'de> for Audio {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> StdResult<Self, D::Error> {
         let text = String::deserialize(deserializer)?;

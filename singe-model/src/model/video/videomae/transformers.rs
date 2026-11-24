@@ -1,4 +1,4 @@
-// Reads a `transformers` VideoMAE config and imports its checkpoint, whose attention stores the query and value biases apart from their projections and has no key bias.
+//! Reads a `transformers` `VideoMAE` config and imports its checkpoint, whose attention stores the query and value biases apart from their projections and has no key bias.
 
 use serde::Deserialize;
 

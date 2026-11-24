@@ -1,4 +1,4 @@
-// `document-question-answering`: an image of a document and a question to the answer's text, here from Donut, which reads the image without OCR and writes its answer after a prompt naming the question, as `transformers`' pipeline asks it.
+//! `document-question-answering`: an image of a document and a question to the answer's text, here from Donut, which reads the image without OCR and writes its answer after a prompt naming the question, as `transformers`' pipeline asks it.
 
 use serde::{Deserialize, Serialize};
 
@@ -33,7 +33,7 @@ pub struct DocumentAnswer {
     pub answer: Option<String>,
 }
 
-// The answer in a generated sequence: after its first tag, the text between `<s_answer>` and the last `</s_answer>` on its line, as the pipeline's `<s_answer>(.*)</s_answer>` finds it.
+/// Returns the answer in a generated sequence: after its first tag, the text between `<s_answer>` and the last `</s_answer>` on its line, as the pipeline's `<s_answer>(.*)</s_answer>` finds it.
 fn answer(sequence: &str) -> Option<String> {
     // The first tag, `<.*?>`, which ends before any line break.
     let mut text = sequence.to_owned();

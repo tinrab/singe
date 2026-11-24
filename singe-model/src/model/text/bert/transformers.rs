@@ -1,4 +1,4 @@
-// Reads a `transformers` BERT config and imports its checkpoint, whose task heads store the encoder under `bert`.
+//! Reads a `transformers` BERT config and imports its checkpoint, whose task heads store the encoder under `bert`.
 
 use singe::nn::{Activation, PoolingMode};
 
@@ -12,7 +12,7 @@ use crate::{
 };
 
 impl EncoderModel for Bert {
-    // A classifier reads the pooler, a tanh projection of the first token's state.
+    /// A classifier reads the pooler, a tanh projection of the first token's state.
     const LAYOUTS: HeadLayouts = HeadLayouts {
         classifier: ClassifierLayout {
             pooling: PoolingMode::Cls,

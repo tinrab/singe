@@ -1,4 +1,4 @@
-// `visual-document-retrieval`: text queries and images of document pages to each page's score for each query, by late interaction of their tokens' embeddings, as `sentence-transformers`' multi-vector encoders score them; `transformers` has no pipeline for it.
+//! `visual-document-retrieval`: text queries and images of document pages to each page's score for each query, by late interaction of their tokens' embeddings, as `sentence-transformers`' multi-vector encoders score them; `transformers` has no pipeline for it.
 
 use serde::{Deserialize, Serialize};
 
@@ -23,7 +23,7 @@ pub struct RetrievalInput {
     pub documents: Vec<Image>,
 }
 
-// Each query's score for each document, in the inputs' order.
+/// Each query's score for each document, in the inputs' order.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct RetrievalOutput {
     pub scores: Vec<Vec<f32>>,

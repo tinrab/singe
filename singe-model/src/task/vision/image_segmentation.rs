@@ -1,4 +1,4 @@
-// `image-segmentation`: an image to labeled masks of its regions, here a semantic segmenter's: each pixel takes its best label, after the scores are resized to the image, and each label present gets a mask, as `transformers`' pipeline gives them.
+//! `image-segmentation`: an image to labeled masks of its regions, here a semantic segmenter's: each pixel takes its best label, after the scores are resized to the image, and each label present gets a mask, as `transformers`' pipeline gives them.
 
 use std::collections::BTreeSet;
 
@@ -21,7 +21,7 @@ pub struct ImageSegmentationPipeline {
     options: LoadOptions,
 }
 
-// A region: its label, a score when the model gives one, and its mask, white where the region is.
+/// A region: its label, a score when the model gives one, and its mask, white where the region is.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Segment {
     pub score: Option<f32>,

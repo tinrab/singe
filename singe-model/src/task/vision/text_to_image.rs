@@ -1,4 +1,4 @@
-// `text-to-image`: a prompt and a seed to an image, as `diffusers`' `StableDiffusionPipeline` generates one: the prompt's text states, latents denoised from the seed's noise under the scheduler, with classifier-free guidance where its scale exceeds one, and decoded by the VAE.
+//! `text-to-image`: a prompt and a seed to an image, as `diffusers`' `StableDiffusionPipeline` generates one: the prompt's text states, latents denoised from the seed's noise under the scheduler, with classifier-free guidance where its scale exceeds one, and decoded by the VAE.
 
 use serde::Deserialize;
 

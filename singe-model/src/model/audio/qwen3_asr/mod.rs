@@ -1,4 +1,4 @@
-// Qwen3-ASR: an audio encoder of log-mel features and a Qwen3 decoder whose prompt reads the encoder's rows, each with state of its own, `encoder` and `decoder`.
+//! Qwen3-ASR: an audio encoder of log-mel features and a Qwen3 decoder whose prompt reads the encoder's rows, each with state of its own, `encoder` and `decoder`.
 
 mod transformers;
 
@@ -31,7 +31,7 @@ use crate::{
     source::Format,
 };
 
-// The shortest clip the feature extractor reads, in samples, which it pads shorter clips to.
+/// The shortest clip the feature extractor reads, in samples, which it pads shorter clips to.
 const MIN_SAMPLES: i64 = 8_000;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -41,36 +41,36 @@ pub struct Qwen3AsrEncoderConfig {
     pub layers: i64,
     pub heads: i64,
     pub inner: i64,
-    // The channels of each convolution.
+    /// The channels of each convolution.
     pub channels: i64,
-    // The mel frames of a chunk, which the convolutions read apart.
+    /// The mel frames of a chunk, which the convolutions read apart.
     pub chunk_frames: i64,
-    // The mel frames of an attention window, a whole number of chunks.
+    /// The mel frames of an attention window, a whole number of chunks.
     pub window_frames: i64,
-    // The width of the projector's rows, which the decoder reads.
+    /// The width of the projector's rows, which the decoder reads.
     pub output_width: i64,
     pub activation: Activation,
 }
 
 impl Qwen3AsrEncoderConfig {
-    // The positions a chunk gives after the convolutions.
+    /// Returns how many positions a chunk gives after the convolutions.
     #[must_use]
     pub const fn chunk_positions(&self) -> i64 {
         downsampled(self.chunk_frames)
     }
 
-    // The positions an attention window holds after the convolutions: as many chunks' as fit its mel frames.
+    /// Returns how many positions an attention window holds after the convolutions: those of as many chunks as fit its mel frames.
     #[must_use]
     pub const fn window_positions(&self) -> i64 {
         self.chunk_positions() * (self.window_frames / self.chunk_frames)
     }
 
-    // The frequencies the convolutions leave of the mel bins.
+    /// Returns how many frequencies the convolutions leave of the mel bins.
     const fn frequencies(&self) -> i64 {
         downsampled(self.mels)
     }
 
-    // The positions the encoder gives `frames` valid mel frames: each chunk's, after three convolutions of stride two.
+    /// Returns how many positions the encoder gives `frames` valid mel frames: each chunk's, after three convolutions of stride two.
     #[must_use]
     pub const fn positions(&self, frames: i64) -> i64 {
         let chunk = self.chunk_frames;
@@ -96,7 +96,7 @@ impl Qwen3AsrEncoderConfig {
     }
 }
 
-// What three 3 × 3 convolutions of stride two and padding one leave of `length`, and nothing of nothing.
+/// Returns what three 3 × 3 convolutions of stride two and padding one leave of `length`, and zero of zero.
 const fn downsampled(length: i64) -> i64 {
     let mut length = length;
     let mut convolution = 0;
@@ -114,11 +114,13 @@ const fn downsampled(length: i64) -> i64 {
 pub struct Qwen3AsrConfig {
     pub encoder: Qwen3AsrEncoderConfig,
     pub decoder: DecoderConfig,
-    // The prompt's placeholder token, in whose place the decoder reads the encoder's rows.
+    /// The prompt's placeholder token, in whose place the decoder reads the encoder's rows.
     pub audio_token: i64,
 }
 
-// Qwen3-ASR's audio encoder: each chunk of mel frames through three convolutions of stride two with GELU, a projection of channels and frequencies, and sinusoid positions that restart each chunk; then the valid positions through pre-norm blocks attending within windows, a norm, and a projector of two linears around GELU into the decoder's width.
+/// Qwen3-ASR's audio encoder.
+/// Each chunk of mel frames goes through three convolutions of stride two with GELU, a projection of channels and frequencies, and sinusoid positions that restart each chunk.
+/// Then pre-norm blocks attend within windows of the clip's own positions, followed by a norm and a projector of two linears around the config's activation into the decoder's width.
 #[derive(Debug, Clone)]
 pub struct Qwen3AsrEncoderLayers {
     convolutions: [Conv2d; 3],
@@ -126,12 +128,12 @@ pub struct Qwen3AsrEncoderLayers {
     encoder: PreNormEncoder,
     projector: Mlp,
     config: Qwen3AsrEncoderConfig,
-    // The sinusoid positions of a chunk, `[positions, width]`, row-major.
+    /// The sinusoid positions of a chunk, `[positions, width]`, row-major.
     positions: Vec<f32>,
 }
 
 impl Qwen3AsrEncoderLayers {
-    // The encoder's state, under `encoder.` so it shares no name with the decoder's in a graph of both: `convolutions.0` to `convolutions.2`, `convolutions.output`, which projects their channels and frequencies to the width, `blocks.N`, `norm`, and `projector`.
+    /// Creates the encoder's state under `encoder.`, so it shares no name with the decoder's in a graph of both: `convolutions.0` to `convolutions.2`, `convolutions.output`, which projects their channels and frequencies to the width, `blocks.N`, `norm`, and `projector`.
     pub fn create(schema: &mut Schema<'_>, config: &Qwen3AsrEncoderConfig) -> SingeResult<Self> {
         let mut schema = schema.scope("encoder");
         let (width, channels) = (config.width, config.channels);
@@ -167,9 +169,13 @@ impl Qwen3AsrEncoderLayers {
         })
     }
 
-    // Encodes one clip's log-mel features, `[1, mels, F]` with `F` whole chunks, of which the first `frames`, an `I64` `[1]`, are its own.
-    // Returns a row per position of every chunk, `[F / chunk · positions, output]`, of which the first `count`, an `I64` `[1]`, are the rows the prompt's audio tokens read; the rest mean nothing.
-    // The valid positions and each window's length are computed from `frames` in the graph, so one captured encoder serves every clip of up to `F` frames.
+    /// Encodes one clip's log-mel features, `[1, mels, F]` with `F` whole chunks, of which the first `frames`, an `I64` `[1]`, are its own.
+    /// Returns a row per position of every chunk, `[F / chunk · positions, output]`, and `count`, an `I64` `[1]`: the first `count` rows are the ones the prompt's audio tokens read, and the rest mean nothing.
+    /// The valid positions and each window's length are computed from `frames` in the graph, so one captured encoder serves every clip of up to `F` frames.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `features` is not one clip's `[1, mels, F]`, or if `F` is not a whole number of chunks.
     pub fn encode(
         &self,
         features: &Tensor,
@@ -259,14 +265,16 @@ impl Qwen3AsrEncoderLayers {
     }
 }
 
-// Qwen3-ASR's decoder: Qwen3, whose prompt reads the encoder's rows in place of its audio tokens.
+/// Qwen3-ASR's decoder: Qwen3, whose prompt reads the encoder's rows in place of its audio tokens.
 pub type Qwen3AsrDecoderLayers =
     SourcedCausalLm<PreNormBlock<GroupedQueryAttention, GatedMlp>, RmsNorm>;
 
-// Qwen3-ASR: a Whisper-style log-mel front end at its own clip length, the audio encoder, a Qwen3 decoder whose prompt reads the encoder's rows, and how its snapshot generates.
+/// Qwen3-ASR: a Whisper-style log-mel front end at its own clip length, the audio encoder, a Qwen3 decoder whose prompt reads the encoder's rows, and how its snapshot generates.
 pub type Qwen3Asr = SpeechModel<Qwen3AsrConfig, Qwen3AsrEncoderLayers, Qwen3AsrDecoderLayers>;
 
-// Splits Qwen3-ASR's output, `language <name><asr_text>text`, into its language and text, as `transformers`' processor parses it.
+/// Splits Qwen3-ASR's output, `language <name><asr_text>text`, into its language and text.
+/// The language is the last line before `<asr_text>` that starts with `language `, and an empty name or `None` gives no language.
+/// An output without `<asr_text>` is all text.
 #[must_use]
 pub fn parse_transcription(output: &str) -> Transcription {
     let Some((prefix, text)) = output.split_once("<asr_text>") else {
@@ -289,14 +297,14 @@ pub fn parse_transcription(output: &str) -> Transcription {
 }
 
 impl Qwen3Asr {
-    // The samples of `chunks` chunks of mel frames, which a front end of that many chunks reads.
+    /// Returns how many samples `chunks` chunks of mel frames take, which a front end of that many chunks reads.
     #[must_use]
     pub const fn bucket_samples(&self, chunks: i64) -> i64 {
         let encoder = &self.config().encoder;
         chunks * encoder.chunk_frames * encoder.log_mel().hop
     }
 
-    // The chunks of mel frames a clip of `samples` samples takes, at least one.
+    /// Returns how many chunks of mel frames a clip of `samples` samples takes, at least one, counting a clip shorter than `MIN_SAMPLES` as that long.
     #[must_use]
     pub const fn chunks_of(&self, samples: i64) -> i64 {
         let encoder = &self.config().encoder;
@@ -310,8 +318,13 @@ impl Qwen3Asr {
         if chunks > 1 { chunks } else { 1 }
     }
 
-    // Turns one clip whose first `count` of `samples` are its own, `[N]` with `N` whole chunks' samples and `count` an `I64` `[1]`, into its log-mel features, `[1, mels, F]`, and the count of its own frames, an `I64` `[1]`.
-    // A clip shorter than half a second counts as half a second, its own samples then silence, as the feature extractor pads it; frames after the clip's own are zero.
+    /// Returns the log-mel features, `[1, mels, F]`, of one clip whose first `count` of `samples` are its own, and the count of its own frames, an `I64` `[1]`.
+    /// `samples` is `[N]` with `N` whole chunks' samples, and `count` is an `I64` `[1]`.
+    /// A clip shorter than half a second counts as half a second, its own samples then silence, as the feature extractor pads it; frames after the clip's own are zero.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `samples` is not one-dimensional, or if its length is not a whole number of chunks' samples.
     pub fn features(&self, samples: &Tensor, count: &Tensor) -> SingeResult<(Tensor, Tensor)> {
         let &[length] = samples.shape().dimensions() else {
             return Err(SingeError::invalid_argument(
@@ -343,14 +356,22 @@ impl Qwen3Asr {
         Ok((features, frames))
     }
 
-    // Encodes one clip's features, `[1, mels, F]`, of which the first `frames`, an `I64` `[1]`, are its own, to rows its prompt's audio tokens read and their count, as `Qwen3AsrEncoderLayers::encode` does.
+    /// Encodes one clip's features, `[1, mels, F]`, of which the first `frames`, an `I64` `[1]`, are its own, to rows its prompt's audio tokens read and their count, as [`Qwen3AsrEncoderLayers::encode`] does.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `features` is not one clip's `[1, mels, F]`, or if `F` is not a whole number of chunks.
     pub fn encode(&self, features: &Tensor, frames: &Tensor) -> SingeResult<(Tensor, Tensor)> {
         self.encoder()
             .layer()
             .encode(features, frames, self.encoder().state())
     }
 
-    // Encodes one clip of 16 kHz samples, `[N]`, to the rows its prompt's audio tokens read, `[R, W]`, eagerly over as few chunks as it takes.
+    /// Encodes one clip of 16 kHz samples, `[N]`, to the rows its prompt's audio tokens read, `[R, W]`, eagerly over as few chunks as it takes.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `samples` is not one-dimensional.
     pub fn encode_clip(&self, samples: &Tensor) -> SingeResult<Tensor> {
         let &[length] = samples.shape().dimensions() else {
             return Err(SingeError::invalid_argument(
@@ -370,9 +391,14 @@ impl Qwen3Asr {
         rows.narrow(0, 0, count)
     }
 
-    // The step that encodes one clip of a bucket of `chunks` chunks into `decoder`'s first sequence's sources, as a graph whose inputs are `samples`, `[N]`, `source_length`, the clip's own samples, `source_position`, where its prompt's audio tokens start, both `I64` `[1]`, and the caches, named as the decoder's steps name them.
-    // Its output, `source_rows`, is how many audio tokens the prompt holds.
-    // Exported with the decoder's steps as `encode`, it lets a generation loop transcribe samples with nothing of Singe; the decoder's capacity must hold the prompt's start and every row of the bucket.
+    /// Returns the step that encodes one clip of a bucket of `chunks` chunks into `decoder`'s first sequence's sources, and its example inputs.
+    /// The step is a graph whose inputs are `samples`, `[N]`, `source_length`, the clip's own samples, `source_position`, where its prompt's audio tokens start, both `I64` `[1]`, and the caches, named as the decoder's steps name them.
+    /// Its output, `source_rows`, is how many audio tokens the prompt holds.
+    /// Exported with the decoder's steps as `encode`, it lets a generation loop transcribe samples without Singe; the decoder's capacity must hold the prompt's start and every row of the bucket.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `decoder` has no caches.
     pub fn encode_step_graph(
         &self,
         decoder: &CachedDecoder<Qwen3AsrDecoderLayers>,
@@ -416,7 +442,12 @@ impl Qwen3Asr {
         Ok((graph.with_output_names(["source_rows"])?, inputs))
     }
 
-    // The prompt that asks for a transcription of audio of `audio_tokens` rows, as the snapshot's chat template writes it: the system's turn holds `system`, such as words the clip may say, the user's turn holds the audio, and the assistant's turn starts, given `language <name><asr_text>` when `language` forces one.
+    /// Returns the prompt that asks for a transcription of audio of `audio_tokens` rows, as the snapshot's chat template writes it.
+    /// The system's turn holds `system`, such as words the clip may say, the user's turn holds the audio, and the assistant's turn starts, given `language <name><asr_text>` when `language` forces one.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `audio_tokens` is negative.
     pub fn prompt(
         &self,
         tokenizer: &TextTokenizer,
@@ -438,8 +469,8 @@ impl Qwen3Asr {
         Ok(prompt)
     }
 
-    // Generates for clips of 16 kHz samples, each `[N]`: encodes each, then generates after its prompt in `options.rows` rows, each clip joining the running batch as a row frees, with its encoder's rows written to its row's sources first.
-    // Returns each clip's generated tokens, in order.
+    /// Generates for clips of 16 kHz samples, each `[N]`: encodes each, then generates after its prompt in `options.rows` rows, each clip joining the running batch as a row frees, with its encoder's rows written to its row's sources first.
+    /// Returns each clip's generated tokens, in order.
     pub fn generate(
         &self,
         tokenizer: &TextTokenizer,
@@ -463,8 +494,8 @@ impl Qwen3Asr {
         self.generate_prompts(&prompts, options)
     }
 
-    // Generates after each prompt in `options.rows` rows, each prompt joining the running batch as a row frees, with the encoder's rows its audio tokens read, `[N, W]`, written to its row's sources first.
-    // Returns each prompt's generated tokens, in order.
+    /// Generates after each prompt in `options.rows` rows, each prompt joining the running batch as a row frees, with the encoder's rows its audio tokens read, `[N, W]`, written to its row's sources first.
+    /// Returns each prompt's generated tokens, in order.
     fn generate_prompts(
         &self,
         prompts: &[(Vec<i64>, Tensor)],
@@ -540,7 +571,7 @@ impl SpeechToText for Qwen3Asr {
         tokenizer.decode(&tokens, true)
     }
 
-    // Names the language itself unless `language`, its full English name, forces one.
+    /// Transcribes one clip, naming its language itself unless `language`, the language's full English name, forces one.
     fn transcribe(
         &self,
         tokenizer: &TextTokenizer,
@@ -596,7 +627,7 @@ pub fn load(loader: &mut Loader<'_>) -> Result<Qwen3Asr> {
     )
 }
 
-// The sinusoids of `length` positions over `channels` features, sines then cosines, as Qwen3-ASR's `SinusoidsPositionEmbedding` computes them in `F64`.
+/// Returns the sinusoids of `length` positions over `channels` features, sines then cosines, as Qwen3-ASR's `SinusoidsPositionEmbedding` computes them in `F64`.
 fn positions(length: i64, channels: i64) -> SingeResult<Vec<f32>> {
     let width = usize::try_from(channels).map_err(|_| SingeError::out_of_range("channels"))?;
     Ok((0..length)

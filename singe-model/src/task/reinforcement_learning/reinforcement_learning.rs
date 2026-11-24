@@ -1,4 +1,4 @@
-// `reinforcement-learning`: a trajectory's states, actions, returns to go, and timesteps to each step's predicted action, next state, and next return, as `transformers`' `DecisionTransformerModel` returns them; `transformers` has no pipeline for it.
+//! `reinforcement-learning`: a trajectory's states, actions, returns to go, and timesteps to each step's predicted action, next state, and next return, as `transformers`' `DecisionTransformerModel` returns them; `transformers` has no pipeline for it.
 
 use crate::{
     error::Result,

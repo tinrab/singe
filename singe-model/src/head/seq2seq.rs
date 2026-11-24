@@ -1,5 +1,5 @@
-// Encoder-decoder generation, as `transformers`' `generate` runs it greedily for T5, BART, TrOCR, and Donut: the input encoded once, then each token the decoder's best after the tokens before it, under the snapshot's generation config.
-// The decoder is a cached decoder, compiled or eager, whose rows each read an encoding written to their cross-attention caches first; beam search runs a row per beam, each step taking its parents' rows.
+//! Encoder-decoder generation, as `transformers`' `generate` runs it for T5, BART, `TrOCR`, and Donut: the input encoded once, then each token chosen after the tokens before it, greedily or by beam search, under the snapshot's generation config.
+//! The decoder is a cached decoder, compiled or eager, whose rows each read an encoding written to their cross-attention caches first; beam search runs a row per beam, each step taking its parents' rows.
 
 use std::{collections::HashSet, fmt::Debug, slice, sync::Arc};
 
@@ -21,32 +21,37 @@ use crate::{
 
 const UNREACHABLE: f32 = -1.0e9;
 
-// A kept decoder's sequences read encoder states up to a multiple of this, so inputs of nearby lengths share one.
+/// The multiple a kept decoder's encoder states per sequence are rounded up to, so inputs of nearby lengths share one decoder.
 const SOURCE_BUCKET: i64 = 256;
 
-// What a kept decoder is for: its rows, its capacity, the encoder states each row reads at most, and whether it compiles.
+/// The key of a kept decoder: its rows, its capacity, the encoder states each row reads at most, and whether it compiles.
 type Seq2SeqKey = (usize, i64, i64, bool);
 
-// What an encoder-decoder reads: tokens, or images' pixels.
+/// What an encoder-decoder reads: tokens, or images' pixels.
 #[derive(Debug, Clone, Copy)]
 pub enum Seq2SeqInput<'a> {
     Tokens(&'a TokenBatch),
     Pixels(&'a Tensor),
 }
 
-// What an encoder-decoder's layers give: the encoder's states for one input, `[1, S, D]`, and the decoder that reads them.
+/// An encoder-decoder's layers.
 pub trait Seq2SeqLayers: Debug + Send + Sync {
+    /// Returns the encoder's states for one input, `[1, S, D]`.
     fn encode(&self, input: Seq2SeqInput<'_>, state: &ModelState) -> SingeResult<Tensor>;
 
+    /// Returns the decoder that reads the encoder's states.
     fn decoder(&self) -> Arc<dyn Seq2SeqDecoding>;
 }
 
-// An encoder-decoder's decoder, as a cached decoder runs it: each block's cross-attention, which reads the encoder's states, its caches' sizes for sequences of up to `sources` encoder states, the tables it looks up by position, and one step, which returns the logits of each sequence's last token, `[S, V]`.
+/// An encoder-decoder's decoder, as a cached decoder runs it.
 pub trait Seq2SeqDecoding: Debug + Send + Sync {
+    /// Returns each block's cross-attention, which reads the encoder's states.
     fn cross_attentions(&self) -> Vec<&Attention>;
 
+    /// Returns its caches' sizes for sequences of up to `sources` encoder states.
     fn cache_spec(&self, sources: i64) -> Seq2SeqCacheSpec;
 
+    /// Returns the tables it looks up by position.
     fn tables(
         &self,
         data_type: DataType,
@@ -56,6 +61,7 @@ pub trait Seq2SeqDecoding: Debug + Send + Sync {
         Seq2SeqTables::create(data_type, device, capacity, None)
     }
 
+    /// Runs one step and returns the logits of each sequence's last token, `[S, V]`.
     fn forward(
         &self,
         step: &DecodeStep,
@@ -65,7 +71,7 @@ pub trait Seq2SeqDecoding: Debug + Send + Sync {
     ) -> SingeResult<Tensor>;
 }
 
-// A decoder whose sequences read up to `sources` encoder states each.
+/// A decoder whose sequences read up to `sources` encoder states each.
 #[derive(Debug, Clone)]
 struct Seq2SeqDecoder {
     layers: Arc<dyn Seq2SeqDecoding>,
@@ -73,7 +79,7 @@ struct Seq2SeqDecoder {
 }
 
 impl Seq2SeqDecoder {
-    // Writes sequence `sequence`'s encoder states, `[F, C]`, to each block's cross-attention cache.
+    /// Writes sequence `sequence`'s encoder states, `[S, D]`, to each block's cross-attention cache.
     fn write_sources(
         &self,
         encoded: &Tensor,
@@ -128,32 +134,42 @@ impl DecoderModel for Seq2SeqDecoder {
     }
 }
 
-// How a snapshot generates, from its `generation_config.json`: the token the decoder starts from, those that end a sequence, tokens forced first and last, the bounds of a sequence's length, counted with the start token, the size of n-grams that may not repeat, tokens never chosen, and the beams searched, one for greedy generation, with the power of a finished beam's length its score is divided by and whether search stops once every beam has finished.
+/// How a snapshot generates, from its `generation_config.json`, or from its `config.json` when it has none.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Seq2SeqGeneration {
+    /// The token the decoder starts from.
     pub decoder_start: Option<i64>,
+    /// The tokens that end a sequence.
     pub stop_tokens: Vec<i64>,
+    /// The token forced right after the start token.
     pub forced_first: Option<i64>,
+    /// The token forced last, when a sequence reaches its maximum length.
     pub forced_last: Option<i64>,
+    /// The most tokens a sequence holds, counted with the start token.
     pub max_length: usize,
+    /// The fewest tokens a sequence holds before a stop token may end it, counted with the start token.
     pub min_length: usize,
+    /// The size of the n-grams that may not repeat, or 0 for none.
     pub no_repeat_ngram: usize,
+    /// The tokens never chosen.
     pub banned: Vec<i64>,
+    /// The beams searched, 1 for greedy generation.
     pub beams: usize,
+    /// The power of a finished beam's length that its score is divided by.
     pub length_penalty: f32,
+    /// Whether search stops once every beam has finished.
     pub early_stopping: bool,
 }
 
-// A beam: its tokens and its summed log-probability.
+/// A beam: its tokens and its summed log-probability.
 #[derive(Debug, Clone)]
 struct Beam {
     tokens: Vec<i64>,
     score: f32,
-    // The decoder row whose state, after all but the last token, a running beam continues from.
+    /// The decoder row whose state, after all but the last token, a running beam continues from.
     parent: usize,
 }
 
-// The log-softmax of `scores`.
 fn log_softmax(scores: &[f32]) -> Vec<f32> {
     let most = scores.iter().copied().fold(f32::NEG_INFINITY, f32::max);
     let total = scores
@@ -164,7 +180,7 @@ fn log_softmax(scores: &[f32]) -> Vec<f32> {
     scores.iter().map(|score| score - most - total).collect()
 }
 
-// The indices of `values`' `count` greatest, greatest first, the earlier of equals first.
+/// Returns the indices of `values`' `count` greatest, greatest first, the earlier of equals first.
 fn top(values: &[f32], count: usize) -> Vec<usize> {
     let mut order = (0..values.len()).collect::<Vec<_>>();
     host::best_first(&mut order, count, |&index| values[index]);
@@ -178,7 +194,7 @@ pub struct Seq2SeqLm {
     decoders: Decoders<Seq2SeqKey, CachedDecoder<Seq2SeqDecoder>>,
 }
 
-// The tokens that would complete an n-gram already in `tokens`, as `NoRepeatNGramLogitsProcessor` bans them.
+/// Returns the tokens that would complete an n-gram of `size` already in `tokens`, as `transformers`' `NoRepeatNGramLogitsProcessor` bans them.
 fn repeated_ngram_tokens(tokens: &[i64], size: usize) -> HashSet<i64> {
     if size == 0 || tokens.len() + 1 < size {
         return HashSet::new();
@@ -193,7 +209,8 @@ fn repeated_ngram_tokens(tokens: &[i64], size: usize) -> HashSet<i64> {
 }
 
 impl Seq2SeqGeneration {
-    // The tokens `generate`'s logits processors keep from being chosen after `tokens`, of a sequence at most `max_length` long: banned tokens, repeated n-grams, and stop tokens before the least length; or the one token forced first or last.
+    /// Returns what `generate`'s logits processors allow after `tokens`, in a sequence at most `max_length` long.
+    /// That is the one token forced first or last, if any, and the tokens kept from being chosen: banned tokens, repeated n-grams, and stop tokens while `tokens` is shorter than `min_length`.
     fn constraints(&self, tokens: &[i64], max_length: usize) -> (Option<i64>, HashSet<i64>) {
         let forced = if tokens.len() == 1 {
             self.forced_first
@@ -210,7 +227,7 @@ impl Seq2SeqGeneration {
         (forced, banned)
     }
 
-    // Log-probabilities of the token after `tokens` from the decoder's `scores`, with the constraints' tokens at negative infinity.
+    /// Returns the log-probabilities of the token after `tokens` from the decoder's `scores`, with the tokens the constraints rule out at negative infinity and a forced token at zero.
     #[expect(
         clippy::cast_possible_wrap,
         reason = "vocabularies are far smaller than `i64`"
@@ -298,7 +315,7 @@ impl Seq2SeqGeneration {
             .collect()
     }
 
-    // The best continuations of the running beams, each the next token after a beam, from each beam's decoder `scores`.
+    /// Returns the best `max(2, 1 + stop tokens) · beams` continuations of the running beams, each the next token after a beam, from each beam's decoder `scores`.
     fn continuations(&self, running: &[Beam], scores: &[Vec<f32>], max_length: usize) -> Vec<Beam> {
         let keep = (1 + self.stop_tokens.len()).max(2) * self.beams;
         let mut accumulated = Vec::new();
@@ -353,7 +370,11 @@ impl Seq2SeqLm {
         &self.generation
     }
 
-    // The token a decoder starts from, which a pipeline that gives no prompt of its own needs.
+    /// Returns the token a decoder starts from, which a pipeline that gives no prompt of its own needs.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the generation config names no decoder start token.
     pub fn decoder_start(&self) -> Result<i64> {
         self.generation
             .decoder_start
@@ -393,7 +414,13 @@ impl Seq2SeqLm {
         )
     }
 
-    // Generates after `prefix`, the decoder's start token and any prompt after it, from the encoder's states, `[1, S, D]`, until a stop token, `max_new_tokens` new tokens when given, or the config's maximum length, greedily or by the config's beam search, with the decoder's steps compiled when `compile` is set, and returns the new tokens.
+    /// Generates after `prefix`, the decoder's start token and any prompt after it, from the encoder's states, `[1, S, D]`, and returns the new tokens.
+    /// Generation ends at a stop token, or after `max_new_tokens` new tokens when given and at the config's maximum length otherwise.
+    /// It runs greedily or by the config's beam search, with the decoder's steps compiled when `compile` is set.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `encoded` is not `[1, S, D]`, if `prefix` is empty, if greedy generation finds every token banned, or if a decoder step fails.
     pub fn generate(
         &self,
         encoded: &Tensor,
@@ -482,7 +509,10 @@ impl Seq2SeqLm {
         }
     }
 
-    // Beam search as `transformers`' `_beam_search` runs it for one input, a decoder row per beam: each step, the best `2 · beams` continuations of the running beams, those that end joining the finished, scored by their summed log-probability over their length to the config's power, and the best `beams` that go on running, each row taking its parent's state, until no running beam could beat the worst finished one, as `early_stopping=False` judges it from the current length.
+    /// Runs beam search as `transformers`' `_beam_search` runs it for one input, with a decoder row per beam.
+    /// Each step takes the best `max(2, 1 + stop tokens) · beams` continuations of the running beams.
+    /// Those among the best `beams` that end join the finished beams, scored by their summed log-probability over their length to the config's power, and the best `beams` that do not end go on running, each row taking its parent's state.
+    /// Search stops once no running beam could beat the worst finished one, as `early_stopping=False` judges it from the current length, once every candidate ends, or, with `early_stopping`, once every beam has finished.
     fn beam_search(
         &self,
         decoder: &mut CachedDecoder<Seq2SeqDecoder>,
@@ -556,7 +586,7 @@ impl Seq2SeqLm {
     }
 }
 
-// Reads `prompt` in each of the decoder's rows, a token a step when its steps are compiled, and returns each row's scores for the token after it.
+/// Reads `prompt` in each of the decoder's rows, a token a step when its steps are compiled, and returns each row's scores for the token after it.
 fn read_prompt(
     decoder: &mut CachedDecoder<Seq2SeqDecoder>,
     prompt: &[i64],
@@ -573,7 +603,7 @@ fn read_prompt(
     scores.ok_or_else(|| SingeError::invalid_argument("an empty decoder prompt").into())
 }
 
-// Steps `decoder` over each row's `tokens`, and returns each row's scores for the token after them.
+/// Runs one step of `decoder` over each row's `tokens` and returns each row's scores for the token after them.
 fn step(decoder: &mut CachedDecoder<Seq2SeqDecoder>, tokens: &[&[i64]]) -> Result<Vec<Vec<f32>>> {
     let logits = decoder.step(tokens, None)?;
     let &[_, vocabulary] = logits.shape().dimensions() else {
@@ -587,7 +617,7 @@ fn step(decoder: &mut CachedDecoder<Seq2SeqDecoder>, tokens: &[&[i64]]) -> Resul
     ))
 }
 
-// Gives each of the decoder's rows the state of the running beam's parent it now holds.
+/// Gives each of the decoder's rows the state of the parent of the running beam it now holds.
 fn reorder(decoder: &CachedDecoder<Seq2SeqDecoder>, running: &[Beam]) -> Result<()> {
     if running
         .iter()

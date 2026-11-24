@@ -1,4 +1,4 @@
-// What a vision transformer's tower shares: its patches' embedding and the config of a tower of pre-norm blocks over patches of a square image, as ViT, DeiT, CLIP's and SmolVLM's vision towers have it.
+//! What a vision transformer's tower shares: its patches' embedding and the config of a tower of pre-norm blocks over patches of a square image, as `ViT`, `DeiT`, CLIP's and `SmolVLM`'s vision towers have it.
 
 use serde::{Deserialize, Serialize};
 use singe::{
@@ -12,7 +12,7 @@ use crate::{assembly::PreNormEncoderConfig, schema::Schema};
 pub struct VisionTowerConfig {
     pub encoder: PreNormEncoderConfig,
     pub layers: i64,
-    // The square image side the positions are learned for, a whole number of patches.
+    /// The square image side the positions are learned for, a whole number of patches.
     pub image_size: i64,
     pub patch_size: i64,
     pub channels: i64,

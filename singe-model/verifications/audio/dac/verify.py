@@ -3,7 +3,7 @@
 import torch
 from transformers import AutoFeatureExtractor, DacModel
 
-from support import DEVICE, Verification, read_wav
+from support import DEVICE, Verification, read_audio
 
 
 def audio_to_audio(snapshot, dtype):
@@ -13,7 +13,7 @@ def audio_to_audio(snapshot, dtype):
     def run(paths, parameters):
         outputs = []
         for path in paths:
-            samples, rate = read_wav(path)
+            samples, rate = read_audio(path)
             inputs = extractor(samples, sampling_rate=rate, return_tensors="pt").to(
                 DEVICE
             )

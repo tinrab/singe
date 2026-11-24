@@ -1,6 +1,6 @@
-// Reads a `diffusers` `AutoencoderTiny` config and imports its checkpoint.
-//
-// `diffusers` stores each half as a `torch.nn.Sequential`, `encoder.layers.N` and `decoder.layers.N`, whose stateless layers take an index too.
+//! Reads a `diffusers` `AutoencoderTiny` config and imports its checkpoint.
+//!
+//! `diffusers` stores each half as a `torch.nn.Sequential`, `encoder.layers.N` and `decoder.layers.N`, whose stateless layers take an index too.
 
 use std::mem;
 
@@ -14,7 +14,7 @@ use crate::{
     source::Source,
 };
 
-// The fields of an `AutoencoderTiny` `config.json` this reads, all of which `diffusers` writes.
+/// The fields of an `AutoencoderTiny` `config.json` that the importer reads, all of which `diffusers` writes.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 struct Fields {
     in_channels: i64,
@@ -24,7 +24,7 @@ struct Fields {
     decoder_block_out_channels: Vec<i64>,
     num_encoder_blocks: Vec<usize>,
     num_decoder_blocks: Vec<usize>,
-    // `diffusers` names activations as `transformers` does.
+    /// The activation, which `diffusers` names as `transformers` does.
     #[serde(deserialize_with = "activation_field")]
     act_fn: Activation,
     upsample_fn: Interpolation,
@@ -56,7 +56,7 @@ pub(crate) fn config(source: &Source) -> Result<AutoencoderTinyConfig> {
     })
 }
 
-// Numbers the layers of one half's `torch.nn.Sequential` in order, renaming each stateful one to its Singe name.
+/// The rules for one half's `torch.nn.Sequential`, numbering its layers in order and renaming each stateful one to its Singe name.
 #[derive(Debug)]
 struct Layers {
     half: &'static str,
@@ -79,7 +79,7 @@ impl Layers {
         name
     }
 
-    // Passes over a stateless layer, such as an activation or an upsampling.
+    /// Skips the index of a stateless layer, such as an activation or an upsampling.
     fn stateless(&mut self) {
         self.take();
     }
@@ -89,7 +89,7 @@ impl Layers {
         self.rules = mem::take(&mut self.rules).rename(&from, to);
     }
 
-    // Stage `stage`'s `AutoencoderTinyBlock`s, whose `conv` is a `torch.nn.Sequential` of convolutions and activations.
+    /// Renames the next `count` layers to stage `stage`'s `AutoencoderTinyBlock`s, whose `conv` is a `torch.nn.Sequential` of convolutions and activations.
     fn blocks(&mut self, stage: usize, count: usize) {
         for index in 0..count {
             let from = self.take();
@@ -106,7 +106,7 @@ impl Layers {
     }
 }
 
-// Imports `EncoderTiny`: per stage, a convolution and blocks, then the convolution to latents.
+/// Returns the rules that import `EncoderTiny`: per stage, a convolution and blocks, then the convolution to latents.
 pub(crate) fn encoder_rules(config: &AutoencoderTinyConfig) -> Rules {
     let mut layers = Layers::new("encoder");
     for (stage, &count) in config.encoder_blocks.iter().enumerate() {
@@ -123,7 +123,7 @@ pub(crate) fn encoder_rules(config: &AutoencoderTinyConfig) -> Rules {
     layers.rules
 }
 
-// Imports `DecoderTiny`: a convolution and the activation, then each stage's blocks, followed by an upsampling and a convolution in every stage but the last, which ends in the convolution to images.
+/// Returns the rules that import `DecoderTiny`: a convolution and the activation, then each stage's blocks, followed by an upsampling and a convolution in every stage but the last, which ends in the convolution to images.
 pub(crate) fn decoder_rules(config: &AutoencoderTinyConfig) -> Rules {
     let mut layers = Layers::new("decoder");
     layers.convolution("input");

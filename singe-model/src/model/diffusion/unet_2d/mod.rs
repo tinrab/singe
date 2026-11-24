@@ -1,6 +1,6 @@
-// `diffusers`' `UNet2DModel`: an unconditional denoiser of residual blocks, with self-attention in the blocks that ask for it, down to a middle block and back up, each up block reading the down blocks' outputs in reverse.
-//
-// Its state is `input`, `time` (`up`, `down`), `down.N` and `up.N` (`resnets.M`, `attentions.M` where the block attends, and `downsample` or `upsample` but in the last), `middle` (`resnets.0`, `attentions.0`, `resnets.1`), `norm`, and `output`.
+//! `diffusers`' `UNet2DModel`: an unconditional denoiser of residual blocks, with self-attention in the blocks that ask for it, down to a middle block and back up, each up block reading the down blocks' outputs in reverse.
+//!
+//! Its state is `input`, `time` (`up`, `down`), `down.N` and `up.N` (`resnets.M`, `attentions.M` where the block attends, and `downsample` or `upsample` but in the last), `middle` (`resnets.0`, `attentions.0`, `resnets.1`), `norm`, and `output`.
 
 mod diffusers;
 
@@ -24,7 +24,7 @@ use crate::{
 pub struct Unet2dConfig {
     #[serde(flatten)]
     pub unet: UnetConfig,
-    // Each attention's head width, or one head as wide as its block when absent.
+    /// Each attention's head width, or one head as wide as its block when absent.
     pub head_width: Option<i64>,
 }
 
@@ -53,7 +53,7 @@ impl Unet2dLayers {
         })
     }
 
-    // The predicted noise of `sample`, `[B, C, H, W]`, at the timestep whose features `time` holds, `[1, F]`.
+    /// Returns the predicted noise of `sample`, `[B, C, H, W]`, at the timestep whose features `time` holds, `[1, F]`.
     fn predict(&self, sample: &Tensor, time: &Tensor, state: &ModelState) -> SingeResult<Tensor> {
         self.unet.denoise(
             self.unet.embed(sample, state)?,

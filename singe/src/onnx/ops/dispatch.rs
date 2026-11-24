@@ -16,7 +16,8 @@ use crate::{
             },
             linear::{lower_gemm, lower_qlinear_matmul},
             neural::{
-                lower_attention, lower_batch_normalization, lower_layer_normalization, lower_topk,
+                OnnxRecurrence, lower_attention, lower_batch_normalization,
+                lower_layer_normalization, lower_recurrent, lower_topk,
             },
             reduction::{
                 ComposedSumReductionKind, NormReductionKind, ReductionKind, lower_arg_reduction,
@@ -27,6 +28,7 @@ use crate::{
                 lower_scatter_elements, lower_shape, lower_slice, lower_squeeze, lower_transpose,
                 lower_unsqueeze,
             },
+            signal::{OnnxWindow, lower_dft, lower_mel_weight_matrix, lower_stft, lower_window},
         },
     },
 };
@@ -85,6 +87,15 @@ pub fn lower_node(importer: &mut Importer, node: &Node) -> Result<()> {
         "TopK" => lower_topk(importer, node),
         "BatchNormalization" => lower_batch_normalization(importer, node),
         "LayerNormalization" => lower_layer_normalization(importer, node),
+        "RNN" => lower_recurrent(importer, node, OnnxRecurrence::Rnn),
+        "LSTM" => lower_recurrent(importer, node, OnnxRecurrence::Lstm),
+        "GRU" => lower_recurrent(importer, node, OnnxRecurrence::Gru),
+        "HannWindow" => lower_window(importer, node, OnnxWindow::Hann),
+        "HammingWindow" => lower_window(importer, node, OnnxWindow::Hamming),
+        "BlackmanWindow" => lower_window(importer, node, OnnxWindow::Blackman),
+        "MelWeightMatrix" => lower_mel_weight_matrix(importer, node),
+        "DFT" => lower_dft(importer, node),
+        "STFT" => lower_stft(importer, node),
         _ => Err(Error::unsupported_operator(
             node.domain.as_deref(),
             &node.operator_type,

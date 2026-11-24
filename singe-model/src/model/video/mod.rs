@@ -1,4 +1,4 @@
-// Models `transformers` documents among its video models.
+//! Models `transformers` documents among its video models.
 
 pub mod videomae;
 

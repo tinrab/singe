@@ -1,3 +1,5 @@
+//! Models built on Singe, loaded from Singe's own format or from Hugging Face snapshots, with the processors that turn a task's inputs into a model's and back.
+
 pub mod assembly;
 mod batch;
 mod decoder_cache;

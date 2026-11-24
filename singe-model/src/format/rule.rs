@@ -1,8 +1,8 @@
-// How another format's tensor names become Singe's: ordered rules, the first that matches a stored name deciding where it goes.
-//
-// A pattern is dot-separated segments, where `*` stands for any one segment.
-// It matches a stored name that starts with those segments, and the segments after them carry over to each target.
-// Each `*` of a target takes the next segment a `*` of its pattern matched.
+//! How another format's tensor names become Singe's: ordered rules, the first that matches a stored name deciding where it goes.
+//!
+//! A pattern is dot-separated segments, where `*` stands for any one segment.
+//! It matches a stored name that starts with those segments, and the segments after them carry over to each target.
+//! Each `*` of a target takes the next segment a `*` of its pattern matched.
 
 use std::{
     borrow::Cow,
@@ -17,17 +17,17 @@ use singe::{
 
 use crate::error::Result;
 
-// A stored name a pattern matched: what each `*` matched, and the segments past the pattern.
+/// A stored name a pattern matched: what each `*` matched, and the segments past the pattern.
 #[derive(Debug, Clone)]
 pub struct Matched<'a> {
     pub name: &'a str,
     pub captures: Vec<&'a str>,
-    // The segments past the pattern, with a leading dot, or empty.
+    /// The segments past the pattern, each with a leading dot, or empty.
     pub rest: String,
 }
 
 impl Matched<'_> {
-    // Fills `pattern`'s `*`s with the captures in order, and appends the rest.
+    /// Returns `pattern` with its `*`s filled by the captures in order, and the rest appended.
     #[must_use]
     pub fn target(&self, pattern: &str) -> String {
         let mut captures = self.captures.iter();
@@ -46,7 +46,11 @@ impl Matched<'_> {
         target
     }
 
-    // Reads capture `index` as a number, such as a layer's or an expert's.
+    /// Reads capture `index` as a number, such as a layer's or an expert's.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if there is no capture `index`, or it is not an integer.
     pub fn number(&self, index: usize) -> SingeResult<i64> {
         self.captures
             .get(index)
@@ -62,7 +66,7 @@ enum Action {
     Rename(String),
     Skip,
     Transpose(String),
-    // Splits a tensor evenly along `axis` into one part per target, after transposing it if asked.
+    /// An even split of a tensor along `axis` into one part per target, after a transpose if `transpose` is set.
     Split {
         axis: usize,
         targets: Vec<String>,
@@ -117,19 +121,19 @@ impl Rules {
         })
     }
 
-    // Leaves what `from` matches unread; the call site says why.
+    /// Leaves what `from` matches unread, without [`Loader::finish`](crate::format::Loader::finish) refusing it.
     #[must_use]
     pub fn skip(self, from: &str) -> Self {
         self.with(from, Action::Skip)
     }
 
-    // Swaps a matrix's two axes, as weights stored `[in, out]` need.
+    /// Renames what `from` matches to `to` with a matrix's two axes swapped, as weights stored `[in, out]` need.
     #[must_use]
     pub fn transpose(self, from: &str, to: &str) -> Self {
         self.with(from, Action::Transpose(to.to_owned()))
     }
 
-    // Splits one stored tensor evenly along `axis` into `to`, in order, as fused projections are stored.
+    /// Splits one stored tensor evenly along `axis` into `to`, in order, as fused projections are stored.
     #[must_use]
     pub fn split(self, from: &str, axis: usize, to: &[&str]) -> Self {
         self.with(
@@ -142,7 +146,7 @@ impl Rules {
         )
     }
 
-    // Transposes a fused matrix stored `[in, parts · out]`, then splits it into `to`.
+    /// Transposes a fused matrix stored `[in, parts · out]`, then splits it evenly into `to`, in order.
     #[must_use]
     pub fn transpose_split(self, from: &str, to: &[&str]) -> Self {
         self.with(
@@ -155,7 +159,7 @@ impl Rules {
         )
     }
 
-    // Gives each name `from` matches the targets and sources `map` makes, such as pieces of a packed tensor.
+    /// Gives each name `from` matches the targets and sources `map` makes, such as pieces of a packed tensor.
     #[must_use]
     pub fn custom(
         self,
@@ -165,7 +169,7 @@ impl Rules {
         self.with(from, Action::Custom(Arc::new(map)))
     }
 
-    // Imports what `from` matches through `transform`, such as a reshape to the layout Singe stores it in.
+    /// Imports what `from` matches to `to` through `transform`, such as a reshape to the layout Singe stores it in.
     #[must_use]
     pub fn derive(
         self,
@@ -187,7 +191,8 @@ impl Rules {
         })
     }
 
-    // Folds a weight stored by `torch.nn.utils.weight_norm` under `from` into one weight at `to`: its direction, `weight_v`, scaled to its magnitude, `weight_g`, over every axis but `dim`, under either the names `weight_norm` gives or those its parametrization does.
+    /// Folds a weight stored by `torch.nn.utils.weight_norm` under `from` into one weight at `to`: its direction, `weight_v`, scaled to its magnitude, `weight_g`, over every axis but `dim`.
+    /// It reads either the names `weight_norm` gives or those its parametrization does.
     #[must_use]
     pub fn weight_norm(self, from: &str, to: &str, dim: usize) -> Self {
         let mut rules = self;
@@ -225,14 +230,14 @@ impl Rules {
         rules
     }
 
-    // Appends `other`'s rules, which match only names these leave.
+    /// Appends `other`'s rules, which match only names these leave.
     #[must_use]
     pub fn then(mut self, other: Self) -> Self {
         self.rules.extend(other.rules);
         self
     }
 
-    // Plans the names any rule matches, returning the plan and those names; names no rule matches are left for another part.
+    /// Plans the names any rule matches, returning the plan and those names; names no rule matches are left for another part.
     pub fn plan<'n>(
         &self,
         names: impl IntoIterator<Item = &'n str>,
@@ -264,7 +269,7 @@ pub fn join(prefix: &str, name: &str) -> String {
     }
 }
 
-// `name` as `transformers` loads it in every model, whose old checkpoints call a layer norm's weight and bias `gamma` and `beta`.
+/// Returns `name` as `transformers` loads it in every model, whose old checkpoints call a layer norm's weight and bias `gamma` and `beta`.
 fn loaded_name(name: &str) -> Cow<'_, str> {
     if name.contains("LayerNorm.gamma") || name.contains("LayerNorm.beta") {
         Cow::Owned(
@@ -345,7 +350,7 @@ fn apply(action: &Action, found: &Matched<'_>) -> SingeResult<Vec<(String, Tenso
     })
 }
 
-// Part `index` of `count` equal parts of `tensor` along `axis`.
+/// Returns part `index` of `count` equal parts of `tensor` along `axis`.
 fn part(tensor: &Tensor, axis: usize, index: usize, count: usize) -> SingeResult<Tensor> {
     let extent = tensor
         .shape()

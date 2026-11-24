@@ -1,11 +1,11 @@
-// SegFormer: four stages of overlapping patch embeddings and blocks whose attention reads keys and values from a strided reduction of the map, each stage's map projected, resized to the first's, and fused into each pixel's label scores.
+//! `SegFormer`: stages of overlapping patch embeddings and blocks whose attention reads keys and values from a strided reduction of the map, each stage's map projected, resized to the first's, and fused into each pixel's label scores.
 
 mod transformers;
 
 use serde::{Deserialize, Serialize};
 use singe::{
     Error as SingeError, Result as SingeResult, Tensor,
-    nn::{Activation, BatchNorm2d, Conv2d, Conv2dConfig, Layer, LayerNorm, Linear, ModelState},
+    nn::{Activation, BatchNorm, Conv2d, Conv2dConfig, Layer, LayerNorm, Linear, ModelState},
     tensor::InterpolateMode,
 };
 
@@ -26,7 +26,7 @@ pub struct SegformerStageConfig {
     pub heads: i64,
     pub patch_size: i64,
     pub stride: i64,
-    // The side of the squares the keys and values are reduced over, or one for none.
+    /// The side of the squares the keys and values are reduced over, or one for none.
     pub reduction: i64,
     pub inner: i64,
 }
@@ -89,7 +89,7 @@ impl ReducedAttention {
     }
 }
 
-// A feed-forward whose depthwise convolution over the map stands in for positions.
+/// A feed-forward whose depthwise convolution over the map stands in for positions.
 #[derive(Debug, Clone)]
 struct MixFeedForward {
     up: Linear,
@@ -234,13 +234,13 @@ impl Layer for Stage {
     }
 }
 
-// SegFormer and its decode head: from images to each label's score at a quarter of the image's size, `[B, labels, H / 4, W / 4]`.
+/// `SegFormer` and its decode head: from images to each label's score at the first stage's resolution, `[B, labels, H / s, W / s]` for the first stage's stride `s`.
 #[derive(Debug, Clone)]
 pub struct SegformerLayers {
     stages: Vec<Stage>,
     projections: Vec<Linear>,
     fuse: Conv2d,
-    norm: BatchNorm2d,
+    norm: BatchNorm,
     classifier: Conv2d,
 }
 
@@ -280,7 +280,7 @@ impl SegformerLayers {
                 Conv2dConfig::default(),
                 false,
             )?,
-            norm: schema.batch_norm2d("norm", decoder, PYTORCH_NORM_EPS)?,
+            norm: schema.batch_norm("norm", decoder, PYTORCH_NORM_EPS)?,
             classifier: schema.conv2d(
                 "classifier",
                 decoder,

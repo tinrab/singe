@@ -1,4 +1,4 @@
-// `image-text-to-video`: an image, a prompt, and a seed to a clip that animates the image, as `diffusers`' `PIAPipeline` generates it: AnimateDiff whose UNet also reads, beside each frame's latents, a mask of how much each frame keeps the image and the image's latents.
+//! `image-text-to-video`: an image, a prompt, and a seed to a clip that animates the image, as `diffusers`' `PIAPipeline` generates it: `AnimateDiff` whose `UNet` also reads, beside each frame's latents, a mask of how much each frame keeps the image and the image's latents.
 
 use std::iter;
 
@@ -16,7 +16,7 @@ use crate::{
     },
 };
 
-// `RANGE_list`: how much each frame keeps the image, by motion scale, from the image's frame on; the last value repeats.
+/// How much each frame keeps the image, by motion scale, from the image's frame on, as `diffusers`' `RANGE_list` gives it; the last value repeats.
 const MOTION_SCALES: &[&[f32]] = &[
     &[1.0, 0.9, 0.85, 0.85, 0.85, 0.8],
     &[1.0, 0.8, 0.8, 0.8, 0.79, 0.78, 0.75],

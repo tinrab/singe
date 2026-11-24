@@ -8,10 +8,10 @@ use crate::{
     tensor::Tensor,
 };
 
-/// Evaluation batch normalization.
+/// Evaluation batch normalization over `[B, C, …]` of any rank, as `torch.nn.BatchNorm1d`, `2d`, and `3d` compute it.
 /// Running statistics are persistent buffers; forward neither updates them nor changes the model's state revision.
 #[derive(Debug, Clone)]
-pub struct BatchNorm2d {
+pub struct BatchNorm {
     weight: Option<StateKey>,
     bias: Option<StateKey>,
     running_mean: StateKey,
@@ -19,7 +19,7 @@ pub struct BatchNorm2d {
     eps: f32,
 }
 
-impl BatchNorm2d {
+impl BatchNorm {
     /// Stores affine keys, running-statistic keys, and numerical epsilon for evaluation batch normalization.
     ///
     /// Tensor resolution and parameter validation occur when the layer is applied.
@@ -41,7 +41,7 @@ impl BatchNorm2d {
     }
 }
 
-impl Layer for BatchNorm2d {
+impl Layer for BatchNorm {
     fn forward(&self, input: &Tensor, state: &ModelState) -> Result<Tensor> {
         let weight = self
             .weight

@@ -1,4 +1,4 @@
-// CLIP: a text tower and a vision tower of pre-norm blocks, each projected into one space where a text and an image compare by cosine; OWL-ViT builds on both towers.
+//! CLIP: a text tower and a vision tower of pre-norm blocks, each projected into one space where a text and an image compare by cosine; OWL-ViT builds on both towers.
 
 pub(crate) mod transformers;
 
@@ -35,7 +35,7 @@ pub struct ClipTextConfig {
 pub struct ClipConfig {
     pub text: ClipTextConfig,
     pub vision: VisionTowerConfig,
-    // The width of the space both towers project into.
+    /// The width of the space both towers project into.
     pub projection: i64,
 }
 
@@ -45,7 +45,9 @@ pub struct ClipTextProjectionConfig {
     pub projection: i64,
 }
 
-// CLIP's text tower: token and learned position embeddings, causal pre-norm blocks, and a final norm, from token sequences to their last hidden states, `[B, T, W]`; a sequence's embedding is its last token's, the end-of-text token's.
+/// CLIP's text tower: token and learned position embeddings, causal pre-norm blocks, and a final norm, from token sequences to their last hidden states, `[B, T, W]`.
+///
+/// A sequence's embedding is its last token's, the end-of-text token's.
 #[derive(Debug, Clone)]
 pub struct ClipText {
     embeddings: TokenEmbeddings,
@@ -53,7 +55,7 @@ pub struct ClipText {
 }
 
 impl ClipText {
-    // Registers the tower in `schema`: `embeddings` (`tokens`, `positions`), `blocks`, and `norm`.
+    /// Registers the tower in `schema`: `embeddings` (`tokens`, `positions`), `blocks`, and `norm`.
     pub fn create(schema: &mut Schema<'_>, config: &ClipTextConfig) -> SingeResult<Self> {
         let width = config.encoder.width;
         let embeddings = {
@@ -71,7 +73,7 @@ impl ClipText {
         })
     }
 
-    // Each sequence's last token's final state, `[B, W]`.
+    /// Returns each sequence's last token's final state, `[B, W]`.
     pub fn pooled(&self, input: &TokenBatch, state: &ModelState) -> SingeResult<Tensor> {
         let hidden = self.encoder.encode(
             &self.embeddings.forward(input, state)?,
@@ -88,8 +90,8 @@ impl ClipText {
     }
 }
 
-// Every token's normed final state, `[B, T, W]`, as `CLIPTextModel`'s `last_hidden_state` is, which Stable Diffusion conditions on.
 impl Layer<TokenBatch> for ClipText {
+    /// Returns every token's normed final state, `[B, T, W]`, as `CLIPTextModel`'s `last_hidden_state` is, which Stable Diffusion conditions on.
     fn forward(&self, input: &TokenBatch, state: &ModelState) -> SingeResult<Tensor> {
         self.encoder.encode(
             &self.embeddings.forward(input, state)?,
@@ -99,7 +101,7 @@ impl Layer<TokenBatch> for ClipText {
     }
 }
 
-// CLIP's vision tower: a class token and patches with learned positions, normed before pre-norm blocks, from images to every token's final state, `[B, 1 + N, W]`, before the `post_norm` a pooled or per-patch output takes.
+/// CLIP's vision tower: a class token and patches with learned positions, normed before pre-norm blocks, from images to every token's final state, `[B, 1 + N, W]`, before the `post_norm` a pooled or per-patch output takes.
 #[derive(Debug, Clone)]
 pub struct ClipVision {
     embeddings: PatchTokens,
@@ -109,7 +111,7 @@ pub struct ClipVision {
 }
 
 impl ClipVision {
-    // Registers the tower in `schema`: `embeddings` (`patches`, `class`, `positions`), `pre_norm`, `blocks`, and `post_norm`.
+    /// Registers the tower in `schema`: `embeddings` (`patches`, `class`, `positions`), `pre_norm`, `blocks`, and `post_norm`.
     pub fn create(schema: &mut Schema<'_>, config: &VisionTowerConfig) -> SingeResult<Self> {
         let width = config.encoder.width;
         let embeddings = {
@@ -150,7 +152,7 @@ impl ClipVision {
     }
 }
 
-// CLIP's images to their projected embeddings, `[B, P]`, from the class token's normed final state.
+/// CLIP's image side: from images to their projected embeddings, `[B, P]`, from the class token's normed final state.
 #[derive(Debug, Clone)]
 struct ClipImageLayers {
     vision: ClipVision,
@@ -167,7 +169,7 @@ impl Layer for ClipImageLayers {
     }
 }
 
-// CLIP's texts to their projected embeddings, `[N, P]`.
+/// CLIP's text side: from texts to their projected embeddings, `[N, P]`.
 #[derive(Debug, Clone)]
 pub(crate) struct ClipTextLayers {
     pub(crate) text: ClipText,
@@ -241,7 +243,7 @@ impl ClipLayers {
     }
 }
 
-// The patches' final states, `[B, N, W]`, before the post-norm, as `CLIPVisionModel`'s `last_hidden_state` past its class token is.
+/// The patches' final states, `[B, N, W]`, before the post-norm, as `CLIPVisionModel`'s `last_hidden_state` past its class token is.
 #[derive(Debug, Clone)]
 struct ClipPatchStates(ClipVision);
 
@@ -255,7 +257,7 @@ impl Layer for ClipPatchStates {
     }
 }
 
-// CLIP's text tower alone, as `CLIPTextModel` stores it.
+/// CLIP's text tower alone, as `CLIPTextModel` stores it.
 pub(crate) const TEXT_MODEL: ModelEntry = ModelEntry {
     name: "clip_text",
     formats: &[(Format::Transformers, &["clip_text_model"])],
@@ -276,7 +278,7 @@ pub fn load_text(loader: &mut Loader<'_>) -> Result<TextEncoder> {
     loader.load_whole(&model, &transformers::text_rules("text_model", ""))
 }
 
-// Loads a `CLIPTextModelWithProjection` from `source`: each text's end-of-text state projected, as its `text_embeds` are.
+/// Loads a `CLIPTextModelWithProjection` from `source` as a model from texts to their end-of-text states, projected, as its `text_embeds` are.
 pub fn load_text_with_projection(
     source: &Source,
     options: LoadOptions,
@@ -302,7 +304,7 @@ pub fn load_text_with_projection(
     )
 }
 
-// Loads a `CLIPVisionModel` from `source` as its patches' final states.
+/// Loads a `CLIPVisionModel` from `source` as a model from images to their patches' final states.
 pub fn load_vision_states(
     source: &Source,
     options: LoadOptions,

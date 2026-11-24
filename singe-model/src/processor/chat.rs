@@ -1,4 +1,4 @@
-// Chat messages to the prompt a chat model was trained on, through its snapshot's Jinja chat template, as `transformers`' `apply_chat_template` renders it.
+//! Chat messages rendered to the prompt a chat model was trained on, through its snapshot's Jinja chat template, as `transformers`' `apply_chat_template` renders it.
 
 use std::{fs, result::Result as StdResult};
 
@@ -15,7 +15,7 @@ use crate::{
     source::Source,
 };
 
-// One message of a conversation.
+/// One message of a conversation: its role, such as `user` or `assistant`, and its content.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Message {
     pub role: String,
@@ -37,7 +37,7 @@ impl Message {
     }
 }
 
-// What a message says: text alone, or parts of text, images, and audio, as `transformers`' multimodal messages hold them.
+/// What a message says: text alone, or parts of text, images, audio, and video, as `transformers`' multimodal messages hold them.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum Content {
@@ -45,16 +45,25 @@ pub enum Content {
     Parts(Vec<Part>),
 }
 
-// A part of a message; an image or a clip carries its data, which the template sees as a placeholder.
+/// A part of a message: text, or an image, audio, or video part that carries its data, for which a chat template writes the model's placeholder.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Part {
-    Text { text: String },
-    // An image, as a `data:` URL or bare base64 of its file.
-    Image { image: String },
-    Audio { audio: String },
-    // A clip: its decoded frames, each as an image part carries one, and the frames per second they were decoded at.
-    Video { video: Vec<String>, fps: f64 },
+    Text {
+        text: String,
+    },
+    /// An image, as a `data:` URL or bare base64 of its file.
+    Image {
+        image: String,
+    },
+    Audio {
+        audio: String,
+    },
+    /// A clip: its decoded frames, each as an image part carries one, and the frames per second they were decoded at.
+    Video {
+        video: Vec<String>,
+        fps: f64,
+    },
 }
 
 impl Content {
@@ -80,7 +89,7 @@ pub(crate) fn environment<'source>() -> Result<Environment<'source>> {
     Ok(environment)
 }
 
-// A snapshot's chat template, with the special tokens it may write.
+/// A snapshot's chat template, with the special tokens it may write.
 #[derive(Debug, Clone)]
 pub struct ChatTemplate {
     template: String,
@@ -89,7 +98,12 @@ pub struct ChatTemplate {
 }
 
 impl ChatTemplate {
-    // Reads `chat_template.jinja`, or `tokenizer_config.json`'s `chat_template`, choosing the template named `default` among several; a snapshot without one has none.
+    /// Loads the chat template from `chat_template.jinja`, or from `tokenizer_config.json`'s `chat_template`, choosing the template named `default` among several.
+    /// Returns `None` for a snapshot without one.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `tokenizer_config.json` or `chat_template.jinja` is there but cannot be read or parsed.
     pub fn load(source: &Source) -> Result<Option<Self>> {
         let config = tokenizer_config(source)?;
         let path = source.directory().join("chat_template.jinja");
@@ -113,7 +127,7 @@ impl ChatTemplate {
         }))
     }
 
-    // The same special tokens under another template, as a processor that renders some conversations through its own uses them.
+    /// Returns these special tokens under `template` instead, for a processor that renders some conversations through a template of its own.
     #[must_use]
     pub fn with_template(&self, template: &str) -> Self {
         Self {
@@ -122,7 +136,11 @@ impl ChatTemplate {
         }
     }
 
-    // Renders `messages`, ending with the start of the assistant's turn when `generation_prompt` is set, with `arguments` such as `enable_thinking` passed to the template.
+    /// Renders `messages`, ending with the start of the assistant's turn when `generation_prompt` is set, with `arguments` such as `enable_thinking` passed to the template.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the template does not parse, calls `raise_exception`, or fails to render.
     pub fn render(
         &self,
         messages: &[Message],

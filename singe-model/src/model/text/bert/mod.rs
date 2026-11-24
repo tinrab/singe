@@ -1,4 +1,4 @@
-// BERT: `assembly`'s post-norm encoder, serving every head over a text encoder.
+//! BERT: [`assembly`](crate::assembly)'s post-norm encoder, serving every head over a text encoder.
 
 mod transformers;
 

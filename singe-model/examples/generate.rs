@@ -1,8 +1,8 @@
-// Generates text after each `--prompt` in one batch, printing it as it is generated.
-//
-// Runs any model the registry loads as a causal language model on plain text prompts; `--chat` reads each prompt as a user turn through the snapshot's chat template, without thinking.
-// `--max-new-tokens N`, `--type f16|f32` for other than BF16, `--eager`, `--sample`, `--report` for what the compiled steps prepared, and `--tokens` to print each prompt's token ids after its text.
-// `--drafts N` decodes one prompt of a Qwen3.5 snapshot greedily with its multi-token prediction layer drafting `N` tokens before each step, and says how many the decoder kept.
+//! Generates text after each `--prompt` in one batch, printing it as it is generated.
+//!
+//! Runs any model the registry loads as a causal language model on plain text prompts; `--chat` reads each prompt as a user turn through the snapshot's chat template, without thinking.
+//! `--max-new-tokens N`, `--type f16|f32` for other than BF16, `--eager`, `--sample`, `--report` for what the compiled steps prepared, and `--tokens` to print each sequence's generated token ids after the text.
+//! `--drafts N` decodes one prompt of a Qwen3.5 snapshot greedily with its multi-token prediction layer drafting `N` tokens before each step, and says how many the decoder kept.
 
 mod support;
 
@@ -32,7 +32,7 @@ use singe_model::{
 
 use crate::support::{Arguments, start_runtime};
 
-// Where each sequence's text goes as it arrives: straight to the terminal for one prompt, and a line at a time, tagged with its prompt's number, for several.
+/// Where each sequence's text goes as it arrives: straight to the terminal for one prompt, and a line at a time, tagged with its prompt's number, for several.
 struct Printer<'a> {
     streams: Vec<TextStream<'a>>,
     lines: Vec<String>,

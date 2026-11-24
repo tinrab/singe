@@ -1,5 +1,5 @@
-// Clips as models see them: frames, read from a directory of images in name order, as cases store a clip's decoded frames.
-// A model's processor samples frames and transforms each as an image.
+//! Clips as models see them: frames, read from a directory of images in name order, as cases store a clip's decoded frames.
+//! A model's processor samples frames and transforms each as an image.
 
 use std::{fs, path::Path, result::Result as StdResult};
 
@@ -16,7 +16,11 @@ pub struct Video {
 }
 
 impl Video {
-    // Reads every image in `directory`, in name order, as the clip's frames.
+    /// Reads every `png` and `jpg` image in `directory`, in name order, as the clip's frames.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the directory or one of its images cannot be read, or if it holds no image.
     pub fn open(directory: impl AsRef<Path>) -> Result<Self> {
         let directory = directory.as_ref();
         let mut paths = fs::read_dir(directory)
@@ -44,7 +48,11 @@ impl Video {
         })
     }
 
-    // Samples `count` frames from the first `count · rate`, evenly, as `transformers`' video pipeline does: `numpy.linspace(0, count · rate - 1, count)` truncated to indices.
+    /// Samples `count` frames from the first `count · rate`, evenly, as `transformers`' video pipeline does: `numpy.linspace(0, count · rate - 1, count)` truncated to indices.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `count · rate` is zero or overflows, or if the clip lacks a sampled frame.
     pub fn sample(&self, count: usize, rate: usize) -> Result<Vec<&Image>> {
         let last = count
             .checked_mul(rate)
@@ -70,7 +78,7 @@ impl Video {
     }
 }
 
-// A clip in JSON is its frames, each an image as JSON carries one.
+/// A clip in JSON is its frames, each an image as JSON carries one.
 impl<'de> Deserialize<'de> for Video {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> StdResult<Self, D::Error> {
         let frames = Vec::<Image>::deserialize(deserializer)?;

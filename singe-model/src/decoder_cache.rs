@@ -12,8 +12,8 @@ use singe::{
     nn::{DecoderModel, Model},
 };
 
-// Decoders a model or pipeline keeps across its runs, by `K`, since preparing a compiled decoder costs far more than a run of it.
-// Each run resets the decoder it takes.
+/// Decoders a model or pipeline keeps across its runs, by `K`, since preparing a compiled decoder costs far more than a run of it.
+/// [`Decoders::run`] resets a kept decoder before it reuses it.
 pub(crate) struct Decoders<K, D> {
     held: Mutex<HashMap<K, D>>,
 }
@@ -26,7 +26,7 @@ impl<K, D> Default for Decoders<K, D> {
     }
 }
 
-// A clone prepares decoders of its own.
+/// A clone starts empty and prepares decoders of its own.
 impl<K, D> Clone for Decoders<K, D> {
     fn clone(&self) -> Self {
         Self::default()
@@ -44,7 +44,7 @@ impl<K, D> Debug for Decoders<K, D> {
 }
 
 impl<K: Hash + Eq, D: Decoder> Decoders<K, D> {
-    // Runs `run` on the decoder kept for `key`, made by `create` the first time and reset before each later run.
+    /// Runs `run` on the decoder kept for `key`, made by `create` the first time and reset before each later run.
     #[expect(
         clippy::significant_drop_tightening,
         reason = "a kept decoder serves one run at a time"
@@ -69,10 +69,10 @@ impl<K: Hash + Eq, D: Decoder> Decoders<K, D> {
     }
 }
 
-// What a kept decoder is for: its rows, its capacity, and whether it compiles.
+/// The key of a kept decoder: its rows, its capacity, and whether it compiles.
 pub(crate) type DecoderKey = (usize, i64, bool);
 
-// A capacity of at least `tokens`, rounded up to a power of two of at least 64, so runs of nearby lengths share one kept decoder.
+/// Returns a capacity of at least `tokens`, rounded up to a power of two of at least 64, so runs of nearby lengths share one kept decoder.
 #[must_use]
 pub(crate) fn bucketed_capacity(tokens: usize) -> i64 {
     i64::try_from(tokens.max(64).next_power_of_two()).unwrap_or(i64::MAX)

@@ -1,4 +1,4 @@
-// Linear layers with an activation between them, as SAM's `SamFeedForward`, DETR's and YOLOS's `*MLPPredictionHead`, and OWL-ViT's box head are, each layer named by its index.
+//! Linear layers with an activation between them, as SAM's `SamFeedForward`, DETR's and YOLOS's `*MLPPredictionHead`, and `OWL-ViT`'s box head are, each layer named by its index.
 
 use singe::{
     Result as SingeResult, Tensor,
@@ -14,7 +14,7 @@ pub struct LinearStack {
 }
 
 impl LinearStack {
-    // Registers `depth` layers, `0` to `depth - 1`: the first from `input` features, the last to `output`, and `hidden` between them.
+    /// Registers `depth` layers, `0` to `depth - 1`: the first from `input` features, the last to `output`, and `hidden` between them.
     pub fn create(
         schema: &mut Schema<'_>,
         [input, hidden, output]: [i64; 3],

@@ -1,6 +1,6 @@
-// What a task asks a model for, as `transformers`' `AutoModelFor*` classes are: a causal language model, a text encoder, and the rest.
-// Several tasks share a head, and a model serves each head its weights hold with a loader in its registry entry.
-// A head that adds layers on another's outputs, such as a classifier on a text encoder, is written once here and shared by every model whose layout fits.
+//! What a task asks a model for, as `transformers`' `AutoModelFor*` classes are: a causal language model, a text encoder, and the rest.
+//! Several tasks share a head, and a model serves each head it has a loader for in its registry entry, a [`ModelEntry`](crate::model::ModelEntry).
+//! A head that adds layers on another's outputs, such as a classifier on a text encoder, is written once here and shared by every model whose layout fits.
 
 mod audio;
 mod autoencoder;
@@ -35,7 +35,7 @@ use singe::{
 
 pub use self::{
     audio::{
-        AudioClassifier, AudioCodec, CtcRecognizer, Speech, SpeechLayers, TextToSpeech,
+        AudioClassifier, AudioCodec, CtcInput, CtcRecognizer, Speech, SpeechLayers, TextToSpeech,
         ZeroShotAudioClassifier,
     },
     autoencoder::Autoencoder,
@@ -86,7 +86,7 @@ pub(crate) fn upload<const N: usize>(
         .cast(state.floating_type()?)
 }
 
-// A model's layers behind a box, which a head holds whatever the model: `Boxed<dyn Layer>` for layers from pixels, `Boxed<dyn KeypointLayers>` for a keypoint detector's.
+/// A model's layers behind a box, which a head holds whatever the model: `Boxed<dyn Layer>` for layers from pixels, `Boxed<dyn KeypointLayers>` for a keypoint detector's.
 #[derive(Debug)]
 pub struct Boxed<L: ?Sized>(pub Box<L>);
 
@@ -104,16 +104,16 @@ impl<I, L: Layer<I> + ?Sized> Layer<I> for Boxed<L> {
     }
 }
 
-// What loading a head gives, which names the head to load: `model::load::<Box<dyn CausalLm>>` loads a causal language model.
+/// What loading a head gives, which names the head to load: [`model::load`](crate::model::load) into a `Box<dyn CausalLm>` loads a causal language model.
 pub trait LoadHead: Sized {
     const HEAD: Head;
 
-    // The loader of this head, if `loader` is one.
+    /// Returns the load function `loader` holds, if `loader` loads this head.
     fn loader(loader: &HeadLoader) -> Option<LoadFn<Self>>;
 }
 
-// Declares each head once: its name and id, what loading it gives, and the endings of the `transformers` class names whose weights hold it.
-// It writes `Head`, `HeadLoader`, and the `LoadHead` of each head's type.
+/// Declares each head once: its name and id, what loading it gives, and the endings of the `transformers` class names whose weights hold it.
+/// It writes `Head`, `HeadLoader`, and the [`LoadHead`] of each head's type.
 macro_rules! heads {
     ($($head:ident($id:literal): $output:ty = [$($suffix:literal),* $(,)?]),* $(,)?) => {
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -124,7 +124,7 @@ macro_rules! heads {
         impl Head {
             pub const ALL: &[Self] = &[$(Self::$head),*];
 
-            // The head's name, as a native config records it.
+            /// Returns the head's name, as a native config records it.
             #[must_use]
             pub const fn id(self) -> &'static str {
                 match self {
@@ -132,7 +132,7 @@ macro_rules! heads {
                 }
             }
 
-            // Whether the `transformers` class `class` holds this head's weights.
+            /// Returns whether the `transformers` class `class` holds this head's weights, by its name's ending.
             #[must_use]
             pub fn holds_class(self, class: &str) -> bool {
                 self.class_suffixes().iter().any(|suffix| class.ends_with(suffix))
@@ -146,7 +146,7 @@ macro_rules! heads {
                     .ok_or_else(|| Error::unsupported(format!("head {id}")))
             }
 
-            // The endings of the `transformers` class names, in a config's `architectures`, whose weights hold this head.
+            /// Returns the endings of the `transformers` class names, in a config's `architectures`, whose weights hold this head.
             #[must_use]
             pub const fn class_suffixes(self) -> &'static [&'static str] {
                 match self {
@@ -155,7 +155,7 @@ macro_rules! heads {
             }
         }
 
-        // A model's loader of one head.
+        /// A model's loader of one head.
         #[derive(Debug, Clone, Copy)]
         pub enum HeadLoader {
             $($head(LoadFn<$output>)),*
@@ -169,7 +169,7 @@ macro_rules! heads {
                 }
             }
 
-            // Loads the head and drops it, leaving what it read in `loader`.
+            /// Loads the head and drops it, leaving what it read in `loader`.
             pub fn run(&self, loader: &mut Loader<'_>) -> Result<()> {
                 match self {
                     $(Self::$head(load) => load(loader).map(drop)),*
@@ -194,7 +194,7 @@ macro_rules! heads {
 
 heads! {
     CausalLm("causal_lm"): Box<dyn CausalLm> = ["ForCausalLM", "LMHeadModel"],
-    SpeechToText("speech_to_text"): Box<dyn SpeechToText> = ["ForConditionalGeneration", "ForSpeechSeq2Seq"],
+    SpeechToText("speech_to_text"): Box<dyn SpeechToText> = ["ForConditionalGeneration", "ForSpeechSeq2Seq", "ForTDT", "ForRNNT"],
     ImageTextToText("image_text_to_text"): Box<dyn ImageTextToText> = ["ForConditionalGeneration", "ForImageTextToText"],
     TextEncoder("text_encoder"): TextEncoder = ["Model"],
     ImageEncoder("image_encoder"): ImageEncoder = ["Model"],

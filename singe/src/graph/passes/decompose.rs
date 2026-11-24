@@ -349,3 +349,68 @@ pub fn push(nodes: &mut Vec<Node>, node: Node) -> ValueId {
     nodes.push(node);
     ValueId::new(nodes.len() - 1)
 }
+
+#[cfg(feature = "onnx")]
+impl Graph {
+    // Appends what `trace` records on meta tensors laid out as the nodes `inputs`, placed on `device`, and returns the nodes of its results in order.
+    // Each result is read contiguously, so a view that `trace` returns becomes a copy.
+    pub(crate) fn append_traced(
+        &mut self,
+        inputs: &[ValueId],
+        device: Device,
+        trace: impl FnOnce(&[&Tensor]) -> Result<Vec<Tensor>>,
+    ) -> Result<Vec<ValueId>> {
+        let operands = inputs
+            .iter()
+            .enumerate()
+            .map(|(index, &input)| {
+                let node = self.required_node(input)?;
+                Ok((
+                    format!("input{index}"),
+                    meta_operand(node.output_data_type(), node.output_layout())?,
+                ))
+            })
+            .collect::<Result<Vec<_>>>()?;
+        let (traced, _) = Self::capture(operands, |operands| {
+            trace(&operands.iter().collect::<Vec<_>>())?
+                .into_iter()
+                .map(|output| {
+                    if output.is_contiguous() {
+                        Ok(output)
+                    } else {
+                        output.contiguous()
+                    }
+                })
+                .collect()
+        })?;
+        let traced = traced.placed_on(device)?;
+        let mut local = HashMap::with_capacity(traced.node_count());
+        for id in traced.node_ids() {
+            let traced_node = traced.required_node(id)?;
+            let new_id = if let Some((name, ..)) = traced_node.input_metadata() {
+                name.strip_prefix("input")
+                    .and_then(|index| index.parse::<usize>().ok())
+                    .and_then(|index| inputs.get(index))
+                    .copied()
+                    .ok_or_else(|| Error::missing_input("append traced"))?
+            } else {
+                let appended =
+                    traced_node.map_inputs(|input| Self::remapped_node(input, &local))?;
+                self.add_named_node_with_layout(appended)?
+            };
+            local.insert(id, new_id);
+        }
+        traced
+            .output_projections()
+            .iter()
+            .map(|output| {
+                if output.output_index() != 0 {
+                    return Err(Error::invalid_argument(
+                        "a traced result that is one of an operation's several",
+                    ));
+                }
+                Self::remapped_node(output.node(), &local)
+            })
+            .collect()
+    }
+}

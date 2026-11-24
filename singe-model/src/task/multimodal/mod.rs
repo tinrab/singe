@@ -1,4 +1,4 @@
-// The tasks the Hub lists under multimodal, with those of `transformers`' tasks that go with them.
+//! The tasks the Hub lists under multimodal, with those of `transformers`' tasks that go with them.
 
 pub mod any_to_any;
 pub mod audio_text_to_text;

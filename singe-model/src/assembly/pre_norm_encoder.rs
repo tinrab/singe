@@ -1,4 +1,5 @@
-// The encoder block that norms before attention and before the feed-forward, which Whisper, Qwen3-ASR's audio encoder, the vision transformers, and CLIP repeat, under Singe's names `attention_norm`, `attention` (`query`, `key`, `value`, `output`), `feed_forward_norm`, and `feed_forward` (`up`, `down`).
+//! The encoder block that norms before attention and before the feed-forward, which Whisper, Qwen3-ASR's audio encoder, the vision transformers, and CLIP repeat, under Singe's names `attention_norm`, `attention` (`query`, `key`, `value`, `output`), `feed_forward_norm`, and `feed_forward` (`up`, `down`).
+//! It also holds a stack of these blocks, and the rules that import `transformers`' layouts of them.
 
 use serde::{Deserialize, Serialize};
 use singe::{
@@ -24,7 +25,7 @@ pub struct PreNormEncoderConfig {
     pub activation: Activation,
     pub eps: f32,
     pub projection_biases: [bool; 4],
-    // Whether each token attends only to those before it, as CLIP's text encoder does.
+    /// Whether each token attends only to those before it, as CLIP's text encoder does.
     pub causal: bool,
     pub layer_scale: bool,
 }
@@ -70,7 +71,7 @@ pub fn pre_norm_encoder_block(
     ))
 }
 
-// A stack of pre-norm blocks, `blocks.N`, and, where the model has one, a final `norm`, from tokens `[B, T, W]` to their last hidden states.
+/// A stack of pre-norm blocks, `blocks.N`, and, where the model has one, a final `norm`, from tokens `[B, T, W]` to their last hidden states.
 #[derive(Debug, Clone)]
 pub struct PreNormEncoder {
     blocks: Vec<PreNormEncoderBlock>,
@@ -96,7 +97,7 @@ impl PreNormEncoder {
         Ok(Self { blocks, norm })
     }
 
-    // Runs the blocks over `hidden`, each sequence attending to its first `key_lengths` tokens when given.
+    /// Runs the blocks over `hidden`, each sequence attending to its first `key_lengths` tokens when given.
     pub fn encode(
         &self,
         hidden: &Tensor,
@@ -157,7 +158,7 @@ impl Layer for PreNormEncoder {
     }
 }
 
-// Imports `transformers`' Whisper-style layers under `from` (such as `model.encoder.layers`) into encoder blocks under `to` (such as `blocks`).
+/// Imports `transformers`' Whisper-style layers under `from` (such as `model.encoder.layers`) into encoder blocks under `to` (such as `blocks`).
 #[must_use]
 pub fn pre_norm_encoder_rules(from: &str, to: &str) -> Rules {
     Rules::new().rename_each(
@@ -176,7 +177,7 @@ pub fn pre_norm_encoder_rules(from: &str, to: &str) -> Rules {
     )
 }
 
-// Imports `transformers`' ViT-style layers under `from` (such as `vit.encoder.layer`), which ViT, YOLOS, and VideoMAE store.
+/// Imports `transformers`' `ViT`-style layers under `from` (such as `vit.encoder.layer`), which `ViT`, YOLOS, and `VideoMAE` store, into encoder blocks under `to`.
 #[must_use]
 pub fn vit_layer_rules(from: &str, to: &str) -> Rules {
     Rules::new().rename_each(
@@ -195,7 +196,7 @@ pub fn vit_layer_rules(from: &str, to: &str) -> Rules {
     )
 }
 
-// Imports `transformers`' CLIP-style layers under `from` (such as `text_model.encoder.layers`), which CLIP's and OWL-ViT's towers store.
+/// Imports `transformers`' CLIP-style layers under `from` (such as `text_model.encoder.layers`), which CLIP's and `OWL-ViT`'s towers store, into encoder blocks under `to`.
 #[must_use]
 pub fn clip_layer_rules(from: &str, to: &str) -> Rules {
     Rules::new().rename_each(

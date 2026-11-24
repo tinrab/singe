@@ -1,4 +1,4 @@
-// `image-feature-extraction`: an image to each token's last hidden state, or to one pooled vector.
+//! `image-feature-extraction`: an image to each token's last hidden state, or to one pooled vector.
 
 use serde::Deserialize;
 use singe::{DataType, Error as SingeError};
@@ -22,7 +22,7 @@ pub struct ImageFeatureExtractionPipeline {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize)]
 #[serde(default)]
 pub struct ImageFeatureExtractionParameters {
-    // Returns the model's pooled vector, as `pool=True` does, rather than every token's state.
+    /// Whether to return the model's pooled vector, as `pool=True` does, rather than every token's state.
     pub pool: bool,
 }
 
@@ -31,7 +31,7 @@ impl Pipeline for ImageFeatureExtractionPipeline {
 
     type Parameters = ImageFeatureExtractionParameters;
 
-    // Each token's state, `[T, D]`, or the pooled vector as one row.
+    /// Each token's state, `[T, D]`, or the pooled vector as one row.
     type Output = Vec<Vec<f32>>;
 
     fn load(source: &Source, options: LoadOptions) -> Result<Self> {

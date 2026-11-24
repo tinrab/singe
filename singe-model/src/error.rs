@@ -51,7 +51,7 @@ pub enum Error {
     ImageEncoding(#[source] ImageError),
     #[error("unreadable media: {0}")]
     Media(String),
-    // A load of a head the snapshot's classes do not name, which fails where its weights are missing.
+    /// A failed load of a head that none of the snapshot's classes names, so the snapshot may lack the head's weights.
     #[error("loading head {head} from a snapshot of {classes:?}")]
     HeadWeights {
         head: &'static str,
@@ -80,7 +80,7 @@ impl Error {
         Self::InvalidInput(what.into())
     }
 
-    // Wraps a failed access to `path`, as `map_err` takes it.
+    /// Returns a closure for `map_err` that wraps a failed access to `path` as [`Error::Io`].
     pub(crate) fn io(path: &Path) -> impl FnOnce(IoError) -> Self + use<> {
         let path = path.to_owned();
         move |source| Self::Io { path, source }

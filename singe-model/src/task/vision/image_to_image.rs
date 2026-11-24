@@ -1,4 +1,4 @@
-// `image-to-image`: an image to another image: a super-resolution model's larger image, as `transformers`' processor and model give it, or an autoencoder's reconstruction, as `diffusers`' autoencoders give it from images in [-1, 1].
+//! `image-to-image`: an image to another image: a super-resolution model's larger image, as `transformers`' processor and model give it, or an autoencoder's reconstruction, as `diffusers`' autoencoders give it from images in `[-1, 1]`.
 
 use singe::DataType;
 

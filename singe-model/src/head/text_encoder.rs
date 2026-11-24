@@ -13,7 +13,7 @@ use crate::{
 
 pub type TextEncoder = Model<Boxed<dyn Layer<TokenBatch>>>;
 
-// The bare encoder, whose snapshots' heads, if any, it leaves unread.
+/// The bare encoder, which leaves unread any head a snapshot holds.
 impl EncoderHead for TextEncoder {
     type Config = ();
 

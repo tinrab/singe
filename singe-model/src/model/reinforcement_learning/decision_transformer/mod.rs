@@ -1,6 +1,6 @@
-// The Decision Transformer: GPT-2's causal blocks over a trajectory's steps, each step three tokens, its return to go, its state, and its action, embedded linearly with its timestep's embedding added; a step's state token predicts its action, and its action token its next state and return.
-//
-// Its state is `embeddings` (`return`, `state`, `action`, `timestep`, `norm`, and `positions`, of which every token reads the first), `blocks`, `norm`, and `predict` (`state`, `action`, `return`).
+//! The Decision Transformer: GPT-2's causal blocks over a trajectory's steps, each step three tokens, its return to go, its state, and its action, embedded linearly with its timestep's embedding added; a step's state token predicts its action, and its action token its next state and return.
+//!
+//! Its state is `embeddings` (`return`, `state`, `action`, `timestep`, `norm`, and `positions`, of which every token reads the first), `blocks`, `norm`, and `predict` (`state`, `action`, `return`).
 
 mod transformers;
 
@@ -28,10 +28,10 @@ pub struct DecisionTransformerConfig {
     pub layers: i64,
     pub state_dim: i64,
     pub action_dim: i64,
-    // The timesteps an episode's steps embed.
+    /// The number of timesteps the timestep embedding holds, which bounds an episode's length.
     pub episode: i64,
     pub max_positions: i64,
-    // Whether actions are squashed into `(-1, 1)`.
+    /// Whether actions are squashed into `(-1, 1)`.
     pub action_tanh: bool,
 }
 
@@ -85,7 +85,7 @@ impl DecisionTransformerLayers {
         })
     }
 
-    // Each step's predicted states, `[T, S]`, actions, `[T, A]`, and returns, `[T, 1]`, from its returns to go, `[T, 1]`, states, `[T, S]`, actions, `[T, A]`, and timesteps, `[T]` of `I64`.
+    /// Returns each step's predicted state, `[T, S]`, action, `[T, A]`, and return, `[T, 1]`, from its returns to go, `[T, 1]`, states, `[T, S]`, actions, `[T, A]`, and timesteps, `[T]` of `I64`.
     fn predict(
         &self,
         [returns, states, actions, timesteps]: [&Tensor; 4],
@@ -128,7 +128,7 @@ impl DecisionTransformerLayers {
 }
 
 impl Layer for DecisionTransformerLayers {
-    // Reads a trajectory packed as `[T, 1 + S + A + 1]` in `F32`, which holds its timesteps exactly: each step's return to go, state, action, and timestep.
+    /// Returns each step's predicted state, action, and return, `[T, S + A + 1]`, from a trajectory packed as `[T, 1 + S + A + 1]`: each step's return to go, state, action, and timestep, in `F32`, which holds the timesteps exactly.
     fn forward(&self, input: &Tensor, state: &ModelState) -> SingeResult<Tensor> {
         let (states, actions) = (self.config.state_dim, self.config.action_dim);
         let data_type = state.floating_type()?;

@@ -1,9 +1,9 @@
-// ResNet's bottleneck network, as timm's `resnet50` lays it out and DETR's checkpoints store it: a strided stem and four stages of bottleneck blocks, each batch norm frozen at its running statistics.
+//! `ResNet`'s bottleneck network, as timm's `resnet50` lays it out and DETR's checkpoints store it: a strided stem and stages of bottleneck blocks, each batch norm frozen at its running statistics.
 
 use serde::{Deserialize, Serialize};
 use singe::{
     Result as SingeResult, Tensor,
-    nn::{Activation, BatchNorm2d, Conv2d, Layer, ModelState},
+    nn::{Activation, BatchNorm, Conv2d, Layer, ModelState},
 };
 
 use crate::{
@@ -13,7 +13,7 @@ use crate::{
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ResNetConfig {
-    // Each stage's blocks.
+    /// The number of blocks in each stage.
     pub depths: Vec<i64>,
     pub stem: i64,
 }
@@ -21,7 +21,7 @@ pub struct ResNetConfig {
 #[derive(Debug, Clone)]
 struct ConvNorm {
     convolution: Conv2d,
-    norm: BatchNorm2d,
+    norm: BatchNorm,
 }
 
 impl ConvNorm {
@@ -42,7 +42,7 @@ impl ConvNorm {
                 same_2d(kernel, stride),
                 false,
             )?,
-            norm: schema.batch_norm2d(norm, out, PYTORCH_NORM_EPS)?,
+            norm: schema.batch_norm(norm, out, PYTORCH_NORM_EPS)?,
         })
     }
 }
@@ -55,7 +55,7 @@ impl Layer for ConvNorm {
     }
 }
 
-// A bottleneck: a 1 × 1 reduction, a 3 × 3 convolution carrying the stride, and a 1 × 1 expansion by four, added to the input, or to its projection when the shape changes.
+/// A bottleneck: a 1 × 1 reduction, a 3 × 3 convolution carrying the stride, and a 1 × 1 expansion by four, added to the input, or to its projection when the shape or stride changes.
 #[derive(Debug, Clone)]
 struct Bottleneck {
     reduce: ConvNorm,
@@ -107,7 +107,7 @@ impl Layer for Bottleneck {
     }
 }
 
-// From images to the last stage's map, `[B, 32 · stem, H / 32, W / 32]`.
+/// A network from images to the last stage's map, `[B, 32 · stem, H / 32, W / 32]` when it has four stages.
 #[derive(Debug, Clone)]
 pub struct ResNet {
     stem: ConvNorm,
@@ -115,7 +115,7 @@ pub struct ResNet {
 }
 
 impl ResNet {
-    // Registers the network under timm's names: `conv1`, `bn1`, and `layer{N}.{block}` with `conv1`-`conv3`, `bn1`-`bn3`, and `downsample.0` and `.1`.
+    /// Registers the network under timm's names: `conv1`, `bn1`, and `layer{N}.{block}` with `conv1`-`conv3`, `bn1`-`bn3`, and `downsample.0` and `.1`.
     pub fn create(schema: &mut Schema<'_>, config: &ResNetConfig) -> SingeResult<Self> {
         let stem = ConvNorm::create(schema, ("conv1", "bn1"), 3, config.stem, 7, 2)?;
         let mut input = config.stem;

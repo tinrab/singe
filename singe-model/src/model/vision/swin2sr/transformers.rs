@@ -1,4 +1,4 @@
-// Reads a `transformers` Swin2SR config and imports its checkpoint.
+//! Reads a `transformers` `Swin2SR` config and imports its checkpoint.
 
 use serde::Deserialize;
 use singe::nn::Activation;
@@ -47,7 +47,7 @@ struct Fields {
     image_size: i64,
 }
 
-// The classical models' upsampler, one convolution closing each stage, patches of one point, and windows the configured image size does not shrink.
+/// Refuses a config other than the classical models': three channels, the pixel-shuffle upsampler, one convolution closing each stage, patches of one point, no absolute embeddings, an `img_range` of one, as many `num_heads` as `depths`, an `upscale` that is a power of two, and an `image_size` larger than one window.
 fn check_supported(fields: &Fields) -> Result<()> {
     if fields.num_channels != 3 {
         return Err(Error::unsupported(format!(

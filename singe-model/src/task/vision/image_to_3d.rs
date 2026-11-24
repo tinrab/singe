@@ -1,4 +1,4 @@
-// `image-to-3d`: an image and a seed to a colored mesh, as `diffusers`' `ShapEImg2ImgPipeline` generates one: the image's CLIP patch states condition the prior, with classifier-free guidance against zeros.
+//! `image-to-3d`: an image and a seed to a colored mesh, as `diffusers`' `ShapEImg2ImgPipeline` generates one: the image's CLIP patch states condition the prior, with classifier-free guidance against zeros.
 
 use singe::{
     DataType,

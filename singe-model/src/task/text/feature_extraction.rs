@@ -1,4 +1,4 @@
-// `feature-extraction`: text to each token's last hidden state.
+//! `feature-extraction`: text to each token's last hidden state.
 
 use serde::Deserialize;
 use singe::{DataType, Error as SingeError, Tensor, nn::TokenBatch};
@@ -22,7 +22,7 @@ pub struct FeatureExtractionPipeline {
 #[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize)]
 #[serde(default)]
 pub struct FeatureExtractionParameters {
-    // Truncates each text to this many tokens, keeping its special tokens.
+    /// The tokens each text is truncated to, keeping its special tokens, with no truncation for `None`.
     pub max_length: Option<usize>,
 }
 
@@ -31,7 +31,7 @@ impl Pipeline for FeatureExtractionPipeline {
 
     type Parameters = FeatureExtractionParameters;
 
-    // Each real token's hidden state, `[T, W]`, with special tokens.
+    /// Each real token's hidden state, `[T, W]`, with special tokens.
     type Output = Vec<Vec<f32>>;
 
     fn load(source: &Source, options: LoadOptions) -> Result<Self> {
@@ -60,7 +60,7 @@ impl Pipeline for FeatureExtractionPipeline {
     }
 }
 
-// Splits hidden states `[B, T, W]` into each row's real tokens.
+/// Splits hidden states `[B, T, W]` into each row's real tokens.
 fn rows(hidden: &Tensor, batch: &TokenBatch) -> Result<Vec<Vec<Vec<f32>>>> {
     let &[_, length, width] = hidden.shape().dimensions() else {
         return Err(SingeError::invalid_argument("hidden states, [B, T, W]").into());

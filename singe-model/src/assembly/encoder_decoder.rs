@@ -1,4 +1,4 @@
-// BART's encoder and decoder stacks, which TAPEX, MBart's decoder in Donut, and TrOCR's decoder share: token embeddings, scaled or not, and learned positions offset by two, normed, then blocks that norm after each residual, or before as MBart's do with a norm after the last.
+//! BART's encoder and decoder stacks, which TAPEX, `MBart`'s decoder in Donut, and `TrOCR`'s decoder share: token embeddings, scaled or not, and learned positions offset by two, normed where the model norms them, then blocks that norm after each residual, or before as `MBart`'s do with a norm after the last.
 
 use serde::{Deserialize, Serialize};
 use singe::{
@@ -17,7 +17,7 @@ use crate::{
     schema::Schema,
 };
 
-// The positions BART's learned position table skips before the first, as its padding once took them.
+/// The positions BART's learned position table skips before the first, as its padding once took them.
 const POSITION_OFFSET: i64 = 2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -34,14 +34,14 @@ pub struct BartStackConfig {
     pub heads: i64,
     pub inner: i64,
     pub activation: Activation,
-    // The positions the learned table covers.
+    /// The positions the learned table covers.
     pub max_positions: i64,
-    // What token embeddings are multiplied by.
+    /// What token embeddings are multiplied by.
     pub embedding_scale: f64,
     pub embedding_norm: bool,
-    // Whether blocks norm before each part, with a norm after the last block, as MBart's do, rather than after each residual.
+    /// Whether blocks norm before each part, with a norm after the last block, as `MBart`'s do, rather than after each residual.
     pub pre_norm: bool,
-    // The width of the encoder states a decoder's cross-attention reads.
+    /// The width of the encoder states a decoder's cross-attention reads.
     pub cross_width: i64,
     pub eps: f32,
 }
@@ -102,7 +102,7 @@ impl BartBlock {
     }
 }
 
-// One encoder or decoder stack.
+/// One encoder or decoder stack.
 #[derive(Debug, Clone)]
 pub struct BartStack {
     tokens: Embedding,
@@ -114,7 +114,7 @@ pub struct BartStack {
 }
 
 impl BartStack {
-    // Registers a stack in `schema`: `tokens.weight`, `positions.weight`, `embedding_norm`, `blocks.N` with `attention_norm`, `attention`, a decoder's `cross_attention_norm` and `cross_attention`, `feed_forward_norm`, and `feed_forward`, and a pre-norm stack's `norm`.
+    /// Registers a stack in `schema`: `tokens.weight`, tied to `tokens` when given, `positions.weight`, `embedding_norm` when the config norms embeddings, `blocks.N` with `attention_norm`, `attention`, a decoder's `cross_attention_norm` and `cross_attention`, `feed_forward_norm`, and `feed_forward`, and a pre-norm stack's `norm`.
     pub fn create(
         schema: &mut Schema<'_>,
         config: &BartStackConfig,
@@ -153,7 +153,7 @@ impl BartStack {
         })
     }
 
-    // Runs an encoder over `tokens`, `[1, T]`, returning each token's final state, `[1, T, W]`.
+    /// Runs an encoder over `tokens`, `[1, T]`, returning each token's final state, `[1, T, W]`.
     pub fn forward(&self, tokens: &Tensor, state: &ModelState) -> SingeResult<Tensor> {
         let &[_, length] = tokens.shape().dimensions() else {
             return Err(SingeError::invalid_argument("a stack's tokens"));
@@ -166,7 +166,7 @@ impl BartStack {
         self.run(&self.embed(tokens, &positions, state)?, None, state)
     }
 
-    // Runs a decoder over a decode step's tokens, reading and extending `caches`, and returns each row's final state, `[T, W]`.
+    /// Runs a decoder over a decode step's tokens, reading and extending `caches`, and returns each row's final state, `[T, W]`.
     pub fn decode(
         &self,
         step: &DecodeStep,
@@ -178,7 +178,7 @@ impl BartStack {
         self.run(&hidden, Some((rows, caches)), state)
     }
 
-    // Each token's embedding, scaled, with its position's added and normed when the stack norms its embeddings.
+    /// Returns each token's embedding, scaled, with its position's added, and normed when the stack norms its embeddings.
     fn embed(
         &self,
         tokens: &Tensor,
@@ -199,7 +199,7 @@ impl BartStack {
         }
     }
 
-    // Runs the blocks over `hidden`, an encoder's whole input, or a decode step's rows, which read and extend each block's cache.
+    /// Runs the blocks over `hidden`, an encoder's whole input, or a decode step's rows, which read and extend each block's cache.
     fn run(
         &self,
         hidden: &Tensor,
@@ -270,7 +270,7 @@ impl BartStack {
     }
 }
 
-// A BART-family decoder with its output: a decoder stack, the head over its last states, and the bias BART adds to the logits, `[1, V]`.
+/// A BART-family decoder with its output: a decoder stack, the head over its last states, and the bias BART adds to the logits, `[1, V]`.
 #[derive(Debug, Clone)]
 pub struct BartDecoder {
     stack: BartStack,
@@ -327,7 +327,7 @@ impl Seq2SeqDecoding for BartDecoder {
     }
 }
 
-// Imports a stack stored under `from`, as `transformers`' BART-family models name their parts, to the schema's names under `to`.
+/// Imports a stack stored under `from`, as `transformers`' BART-family models name their parts, to the schema's names under `to`.
 #[must_use]
 pub fn bart_stack_rules(from: &str, to: &str) -> Rules {
     let (layers, blocks) = (join(from, "layers.*"), join(to, "blocks.*"));

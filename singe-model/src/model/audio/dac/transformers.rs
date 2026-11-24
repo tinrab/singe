@@ -1,4 +1,4 @@
-// Reads a `transformers` DAC config and imports its checkpoint, whose weight norms are folded already.
+//! Reads a `transformers` DAC config and imports its checkpoint, whose weight norms are folded already.
 
 use serde::Deserialize;
 

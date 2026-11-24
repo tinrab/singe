@@ -1,4 +1,4 @@
-// Models `diffusers` reads, which it documents apart from `transformers`' models.
+//! Models that `diffusers` defines: its autoencoders, its U-Nets, and Shap-E's prior and renderer.
 
 pub mod autoencoder_kl;
 pub mod autoencoder_tiny;

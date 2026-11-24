@@ -1,4 +1,4 @@
-// Reads a `transformers` BART config and imports its checkpoint, whose output reads the shared embedding.
+//! Reads a `transformers` BART config and imports its checkpoint, whose output reads the shared embedding.
 
 use serde::Deserialize;
 use singe::nn::Activation;

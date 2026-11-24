@@ -1,4 +1,4 @@
-// `keypoint-detection`: an image to its keypoints, their scores, and their descriptors, at the image's own pixels, as `transformers`' `post_process_keypoint_detection` gives them; `transformers` has no pipeline for it.
+//! `keypoint-detection`: an image to its keypoints, their scores, and their descriptors, at the image's own pixels, as `transformers`' `post_process_keypoint_detection` gives them; `transformers` has no pipeline for it.
 
 use serde::Serialize;
 use singe::Error as SingeError;
@@ -19,7 +19,7 @@ pub struct KeypointDetectionPipeline {
     options: LoadOptions,
 }
 
-// An image's keypoints at its own whole pixels, `[x, y]`, their scores, and their descriptors.
+/// An image's keypoints at its own whole pixels, `[x, y]`, their scores, and their descriptors.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct DetectedKeypoints {
     pub keypoints: Vec<[i32; 2]>,

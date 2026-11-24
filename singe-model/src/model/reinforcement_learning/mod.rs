@@ -1,4 +1,4 @@
-// Models `transformers` documents among its reinforcement learning models.
+//! Models `transformers` documents among its reinforcement learning models.
 
 pub mod decision_transformer;
 

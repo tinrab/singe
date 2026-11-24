@@ -5,9 +5,9 @@ use singe::{
 
 use crate::head::Boxed;
 
-// An image encoder's layers, from images `[B, C, H, W]` to each token's last hidden state, `[B, T, D]`, with the pooling its model gives one vector per image by.
+/// An image encoder's layers, from images, `[B, C, H, W]`, to each token's last hidden state, `[B, T, D]`, with the pooling by which its model gives one vector per image.
 pub trait PooledLayer: Layer {
-    // Returns one vector per image, `[B, D]`, from the hidden states.
+    /// Returns one vector per image, `[B, D]`, from the hidden states.
     fn pooled(&self, hidden: &Tensor) -> SingeResult<Tensor>;
 }
 

@@ -1,4 +1,4 @@
-// DistilBERT: `assembly`'s post-norm encoder without token types, serving every head over a text encoder.
+//! `DistilBERT`: [`assembly`](crate::assembly)'s post-norm encoder without token types, serving every head over a text encoder.
 
 mod transformers;
 

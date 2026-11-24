@@ -11,12 +11,12 @@ use crate::{
     head::{LoopLimits, LoopSteps},
 };
 
-// A decoder that generates text a token at a time.
+/// A model that generates text a token at a time.
 pub trait CausalLm: Debug {
-    // Returns a decoder over the model, compiled if asked.
+    /// Returns a decoder over the model, compiled if `compile` is true.
     fn decoder(&self, options: DecoderOptions, compile: bool) -> Result<Box<dyn Decoder>>;
 
-    // The steps an exported generation loop runs within `limits`, each choosing as `generation` asks.
+    /// Returns the steps an exported generation loop runs within `limits`, each choosing tokens as `generation` asks.
     fn loop_steps(&self, limits: &LoopLimits, generation: &GenerationOptions) -> Result<LoopSteps>;
 }
 

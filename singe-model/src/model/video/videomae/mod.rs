@@ -1,4 +1,4 @@
-// VideoMAE: a vision transformer over a clip's tubelets, patches spanning frames, with fixed sinusoid positions, whose mean final state a video classifier reads.
+//! `VideoMAE`: a vision transformer over a clip's tubelets, patches spanning frames, with fixed sinusoid positions, whose mean final state a video classifier reads.
 
 mod transformers;
 
@@ -25,7 +25,7 @@ pub struct VideoMaeConfig {
     pub image_size: i64,
     pub patch_size: i64,
     pub frames: i64,
-    // The frames one tubelet spans.
+    /// The frames one tubelet spans.
     pub tubelet: i64,
     pub channels: i64,
     pub classifier: ClassifierConfig,
@@ -38,7 +38,7 @@ impl VideoMaeConfig {
     }
 }
 
-// The sinusoid table of `count` positions and `width` features, row by row, as `get_sinusoid_encoding_table` computes it in `F64`: sines in even features and cosines in odd ones, of each position over 10000 to the power of its feature pair's share of the width.
+/// Returns the sinusoid table of `count` positions and `width` features, row by row, as `get_sinusoid_encoding_table` computes it in `F64`: sines in even features and cosines in odd ones, of each position over 10000 to the power of its feature pair's share of the width.
 fn sinusoids(count: i64, width: i64) -> Vec<f32> {
     (0..count)
         .flat_map(|position| {
@@ -56,7 +56,7 @@ fn sinusoids(count: i64, width: i64) -> Vec<f32> {
         .collect()
 }
 
-// VideoMAE and its classifier: from clips `[B, T, C, H, W]` to each clip's scores, `[B, labels]`.
+/// `VideoMAE` and its classifier: from clips `[B, T, C, H, W]` to each clip's scores, `[B, labels]`.
 #[derive(Debug, Clone)]
 pub struct VideoMaeClassifierLayers {
     tubelets: Conv3d,

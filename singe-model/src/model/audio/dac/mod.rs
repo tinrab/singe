@@ -1,4 +1,4 @@
-// DAC, Descript's audio codec: strided convolutions with Snake activations encode a clip into frames, each quantized by a stack of codebooks, each coding the residual the codebooks before it leave, and transposed convolutions decode the codes back to samples.
+//! DAC, Descript's audio codec: strided convolutions with Snake activations encode a clip into frames, each quantized by a stack of codebooks, each coding the residual the codebooks before it leave, and transposed convolutions decode the codes back to samples.
 
 mod transformers;
 
@@ -37,7 +37,7 @@ pub struct DacConfig {
     pub sample_rate: i64,
 }
 
-// `x + sin(α x)² / (α + 1e-9)`, of each channel's `α`.
+/// The Snake activation, `x + sin(α x)² / (α + 1e-9)`, of each channel's `α`.
 #[derive(Debug, Clone)]
 struct Snake(StateKey);
 
@@ -323,7 +323,8 @@ impl DacLayers {
         })
     }
 
-    // The residual vector quantizer: each codebook's nearest entry by cosine to the residual's projection, its entry projected back and taken from the residual.
+    /// Returns the residual vector quantizer's reconstruction of `latents`.
+    /// Each codebook takes its entry nearest by cosine to the projection of the residual the codebooks before it leave, and the entries, projected back, are summed.
     fn quantize(&self, latents: &Tensor, state: &ModelState) -> SingeResult<Tensor> {
         let Some((first, rest)) = self.codebooks.split_first() else {
             return Err(SingeError::invalid_argument("a DAC without codebooks"));
@@ -364,7 +365,7 @@ impl DacLayers {
 }
 
 impl Layer for DacLayers {
-    // A batch of clips' samples, `[B, N]`, to their reconstructions, `[B, N]`.
+    /// Returns the reconstructions, `[B, N]`, of a batch of clips' samples, `[B, N]`.
     fn forward(&self, input: &Tensor, state: &ModelState) -> SingeResult<Tensor> {
         // A codec's reconstruction is its output, which TF32 convolutions take from 117 dB of SNR against `transformers`' to 29 dB: full precision.
         with_convolution_precision(ComputePrecision::Full, || {

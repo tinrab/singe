@@ -1,4 +1,4 @@
-// Reads a `diffusers` `AutoencoderKL`: its config and its tensors' names.
+//! Reads a `diffusers` `AutoencoderKL`: its config and its tensors' names.
 
 use serde::Deserialize;
 use singe::nn::Activation;
@@ -46,7 +46,7 @@ struct Fields {
 }
 
 impl Fields {
-    // Refuses the options `diffusers` offers that the model does not build.
+    /// Refuses the options `diffusers` offers that the model does not build.
     fn validate(&self) -> Result<()> {
         if self.act_fn != Activation::Silu || !self.mid_block_add_attention {
             return Err(Error::unsupported(
@@ -89,7 +89,7 @@ pub(crate) fn config(source: &Source) -> Result<AutoencoderKlConfig> {
     })
 }
 
-// Imports one half, stored under `half` (`encoder` or `decoder`), its blocks under `blocks` (`down_blocks` or `up_blocks`), and the 1 × 1 convolution `quant` beside it.
+/// Returns the rules that import one half, stored under `half` (`encoder` or `decoder`) with its blocks under `blocks` (`down_blocks` or `up_blocks`), and the 1 × 1 convolution stored at `quant` beside it.
 fn half_rules(half: &str, blocks: &str, quant: &str) -> Rules {
     Rules::new()
         .rename_each(

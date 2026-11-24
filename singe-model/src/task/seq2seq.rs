@@ -6,9 +6,9 @@ use crate::{error::Result, source::Source};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(default)]
 pub struct Seq2SeqParameters {
-    // The most tokens to generate, or as many as the snapshot's generation config allows.
+    /// The most tokens to generate, or as many as the snapshot's generation config allows when `None`.
     pub max_new_tokens: Option<usize>,
-    // Runs compiled steps rather than eager ones.
+    /// Whether the decoder runs compiled steps rather than eager ones, `true` by default.
     pub compile: bool,
 }
 
@@ -21,7 +21,7 @@ impl Default for Seq2SeqParameters {
     }
 }
 
-// `config.json`'s `task_specific_params`, which give each task's settings, such as T5's prefix `summarize: `.
+/// `config.json`'s `task_specific_params`, which give each task's settings, such as T5's prefix `summarize: `.
 #[derive(Debug, Clone)]
 pub(crate) struct TaskPrefixes(Value);
 

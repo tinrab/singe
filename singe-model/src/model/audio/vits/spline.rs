@@ -1,4 +1,4 @@
-// The inverse of the piecewise rational quadratic spline VITS's duration flows apply, as `_unconstrained_rational_quadratic_spline` computes it in `F32` with `reverse=True`: identity outside `[-bound, bound]`, and inside, the root of each bin's quadratic.
+//! The inverse of the piecewise rational quadratic spline VITS's duration flows apply, as `_unconstrained_rational_quadratic_spline` computes it in `F32` with `reverse=True`: identity outside `[-bound, bound]`, and inside, the root of each bin's quadratic.
 use std::iter;
 
 const MIN_BIN_WIDTH: f32 = 1e-3;
@@ -15,7 +15,7 @@ fn softmax(values: &[f32]) -> Vec<f32> {
     exponents.iter().map(|value| value / total).collect()
 }
 
-// `log(1 + exp(x))`, linear past 20 as `softplus` is.
+/// Returns `log(1 + exp(x))`, linear past 20 as `softplus` is.
 fn softplus(value: f32) -> f32 {
     if value > 20.0 {
         value
@@ -24,7 +24,7 @@ fn softplus(value: f32) -> f32 {
     }
 }
 
-// A bin edge's positions in `[-bound, bound]`, from unnormalized sizes, each at least `least`.
+/// Returns the bin edges' positions in `[-bound, bound]`, from the bins' unnormalized sizes, each bin at least `least` of the range.
 fn edges(unnormalized: &[f32], least: f32, bound: f32) -> Vec<f32> {
     let count = unnormalized.len() as f32;
     let mut cumulative = vec![0.0_f32];
@@ -44,7 +44,7 @@ fn edges(unnormalized: &[f32], least: f32, bound: f32) -> Vec<f32> {
     edges
 }
 
-// Inverts the spline at `input`, given one point's unnormalized widths and heights, `bins` each, and its unnormalized interior derivatives, `bins - 1`.
+/// Inverts the spline at `input`, given one point's unnormalized widths and heights, `bins` each, and its unnormalized interior derivatives, `bins - 1`.
 #[must_use]
 pub fn inverse(
     input: f32,

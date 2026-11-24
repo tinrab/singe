@@ -1,5 +1,5 @@
-// `text-ranking`: a query and texts to each text's relevance, best first, as `sentence-transformers`' `CrossEncoder.rank` ranks them.
-// The model is a cross-encoder: a sequence classification head of one label over the query and each text as a pair.
+//! `text-ranking`: a query and texts to each text's relevance, best first, as `sentence-transformers`' `CrossEncoder.rank` ranks them.
+//! The model is a cross-encoder: a sequence classification head of one label over the query and each text as a pair.
 
 use serde::{Deserialize, Serialize};
 
@@ -16,7 +16,7 @@ use crate::{
 pub struct TextRankingPipeline {
     model: SequenceClassifier,
     tokenizer: TextTokenizer,
-    // The function a score goes through unless a caller names another.
+    /// The function a score goes through unless a caller names another.
     function: ScoreFunction,
     options: LoadOptions,
 }
@@ -30,14 +30,14 @@ pub struct TextRankingInput {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize)]
 #[serde(default)]
 pub struct TextRankingParameters {
-    // Keeps the best this many texts, or all when absent.
+    /// The most texts to keep, best first, or every one for `None`.
     pub top_k: Option<usize>,
     pub function_to_apply: Option<ScoreFunction>,
-    // Truncates each pair to this many tokens, cutting the longer text first.
+    /// The tokens each pair is truncated to, cutting the longer text first, with no truncation for `None`.
     pub max_length: Option<usize>,
 }
 
-// A text's place among the input's texts, and its score.
+/// A text's place among the input's texts, and its score.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct RankedText {
     pub corpus_id: usize,

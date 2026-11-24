@@ -1,5 +1,5 @@
-// `sentence-similarity`: a source sentence and others to how alike each is to it, the cosine of their embeddings.
-// The model is a `sentence-transformers` one: a text encoder, and a pooling its `modules.json` describes.
+//! `sentence-similarity`: a source sentence and others to how alike each is to it, the cosine of their embeddings.
+//! The model is a `sentence-transformers` one: a text encoder, and a pooling its `modules.json` describes.
 
 use std::iter;
 
@@ -19,7 +19,7 @@ use crate::{
 pub struct SentenceSimilarityPipeline {
     model: SentenceEmbedder,
     tokenizer: TextTokenizer,
-    // The most tokens of a sentence unless a caller names another: `sentence_bert_config.json`'s `max_seq_length`, or else the tokenizer's longest input capped at the model's positions, as `sentence-transformers` truncates.
+    /// The most tokens of a sentence unless a caller names another: `sentence_bert_config.json`'s `max_seq_length`, or else the tokenizer's longest input capped at the model's positions, as `sentence-transformers` truncates.
     max_length: Option<usize>,
     options: LoadOptions,
 }
@@ -33,11 +33,11 @@ pub struct SentenceSimilarityInput {
 #[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize)]
 #[serde(default)]
 pub struct SentenceSimilarityParameters {
-    // Truncates each sentence to this many tokens, or to the snapshot's limit when absent.
+    /// The tokens each sentence is truncated to, or the snapshot's limit when `None`.
     pub max_length: Option<usize>,
 }
 
-// Each sentence's similarity to the source sentence.
+/// Each sentence's similarity to the source sentence.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct SentenceSimilarityOutput {
     pub scores: Vec<f32>,
@@ -49,7 +49,7 @@ impl SentenceSimilarityPipeline {
         self.model.model()
     }
 
-    // Returns each text's vector, `[B, W]` of `F32`.
+    /// Returns each text's vector, `[B, W]` of `F32`, truncated to `max_length` tokens, or to the snapshot's limit for `None`.
     pub fn embed(&self, texts: &[&str], max_length: Option<usize>) -> Result<Tensor> {
         let batch = self.tokenizer.encode_batch(
             texts,

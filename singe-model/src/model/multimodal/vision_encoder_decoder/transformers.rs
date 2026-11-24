@@ -1,4 +1,4 @@
-// Reads a `transformers` vision encoder-decoder config, which nests its encoder's and decoder's, and imports its checkpoint, which stores them under `encoder.` and `decoder.`.
+//! Reads a `transformers` vision encoder-decoder config, which nests its encoder's and decoder's, and imports its checkpoint, which stores them under `encoder.` and `decoder.`.
 
 use serde::Deserialize;
 use serde_json::Value;

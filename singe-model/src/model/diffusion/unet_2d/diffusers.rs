@@ -1,4 +1,4 @@
-// Reads a `diffusers` `UNet2DModel`: its config and its tensors' names.
+//! Reads a `diffusers` `UNet2DModel`: its config and its tensors' names.
 
 use serde::Deserialize;
 
@@ -34,7 +34,7 @@ struct Fields {
 }
 
 impl Fields {
-    // Refuses the options `diffusers` offers that the model does not build.
+    /// Refuses the options `diffusers` offers that the model does not build.
     fn validate(&self) -> Result<()> {
         self.unet.validate(CLASS, "UNetMidBlock2D")?;
         if self.downsample_type != "conv" || self.upsample_type != "conv" {

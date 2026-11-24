@@ -1,4 +1,4 @@
-// Where a model is read from: a directory in one of the formats `format` reads, and the options a load takes.
+//! Where a model is read from: a directory in one of the formats [`format`](crate::format) reads, and the options a load takes.
 
 use std::{
     env, fs,
@@ -15,30 +15,34 @@ use crate::{
     processor::text::special_token,
 };
 
-// The layout of a model directory.
+/// The layout of a model directory.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Format {
-    // Singe's own: its configs and state names, written by `format::native::save`.
+    /// Singe's own: its configs and state names, written by `format::native::save`.
     Native,
-    // A Hugging Face snapshot `transformers` reads, whose `config.json` names a `model_type`.
+    /// A Hugging Face snapshot `transformers` reads, whose `config.json` names a `model_type`.
     Transformers,
-    // A Hugging Face snapshot `diffusers` reads, whose `config.json` names a `_class_name`, or a pipeline of them, whose `model_index.json` names its class and its components' directories.
+    /// A Hugging Face snapshot `diffusers` reads, whose `config.json` names a `_class_name`, or a pipeline of them, whose `model_index.json` names its class and its components' directories.
     Diffusers,
-    // A Hugging Face snapshot of AutoGluon's Tab2D, which Mitra is, whose `config.json` names its `task` and its sizes but no model; its kind is `tab2d`.
+    /// A Hugging Face snapshot of `AutoGluon`'s `Tab2D`, which Mitra is, whose `config.json` names its `task` and its sizes but no model; its kind is `tab2d`.
     AutoGluon,
 }
 
-// A model directory and its format.
+/// A model directory, its format, and its model kind.
 #[derive(Debug, Clone)]
 pub struct Source {
     directory: PathBuf,
     format: Format,
-    // The model kind: a native config's `model`, a `model_type`, or a `_class_name`.
+    /// The model kind: a native config's `model`, a `model_type`, or a `_class_name`.
     kind: String,
 }
 
 impl Source {
-    // Opens `directory`, telling its format from its `config.json`, or from a `diffusers` pipeline's `model_index.json`.
+    /// Opens `directory`, telling its format from its `config.json`, or from a `diffusers` pipeline's `model_index.json`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the file it reads, `config.json` or else `model_index.json`, cannot be read or parsed, or if it names no model kind.
     pub fn open(directory: impl AsRef<Path>) -> Result<Self> {
         let directory = directory.as_ref().to_owned();
         let index = directory.join("model_index.json");
@@ -69,7 +73,11 @@ impl Source {
         })
     }
 
-    // Opens `name`: a model directory, or a Hugging Face repository, as `owner/name` or `owner/name@revision`, whose snapshot the local cache holds.
+    /// Opens `name`: a model directory, or a Hugging Face repository, as `owner/name` or `owner/name@revision`, whose snapshot the local cache holds.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `name` is neither a directory nor a repository, if the cache holds no snapshot of it, or if [`Source::open`] fails on the directory.
     pub fn find(name: &str) -> Result<Self> {
         if Path::new(name).is_dir() {
             return Self::open(name);
@@ -90,7 +98,11 @@ impl Source {
         Self::open(snapshot)
     }
 
-    // Opens the component `name` of a `diffusers` pipeline, such as its `unet` or `vae`, as its own source.
+    /// Opens the component `name` of a `diffusers` pipeline, such as its `unet` or `vae`, as its own source.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `model_index.json` cannot be read or does not list `name`, or if [`Source::open`] fails on the component's directory.
     pub fn component(&self, name: &str) -> Result<Self> {
         let index = self.json::<Value>("model_index.json")?;
         if !index[name].is_array() {
@@ -102,7 +114,7 @@ impl Source {
         Self::open(self.directory.join(name))
     }
 
-    // The same source read from its subdirectory `name`, as a pipeline's processor directory holds only its processor's config.
+    /// Returns this source read from its subdirectory `name`, with the same format and kind, for a pipeline's directory such as `tokenizer` that holds only a processor's config.
     #[must_use]
     pub fn subdirectory(&self, name: &str) -> Self {
         Self {
@@ -122,18 +134,18 @@ impl Source {
         self.format
     }
 
-    // Returns the model kind the registry looks up.
+    /// Returns the model kind the registry looks up.
     #[must_use]
     pub fn kind(&self) -> &str {
         &self.kind
     }
 
-    // Reads a JSON file at `path` inside the directory.
+    /// Reads the JSON file at `path` inside the directory.
     pub fn json<T: DeserializeOwned>(&self, path: impl AsRef<Path>) -> Result<T> {
         read_json(&self.directory.join(path))
     }
 
-    // Reads a JSON file at `path` inside the directory, if it is there.
+    /// Reads the JSON file at `path` inside the directory, or returns `None` if there is none.
     pub fn optional_json<T: DeserializeOwned>(&self, path: impl AsRef<Path>) -> Result<Option<T>> {
         let path = self.directory.join(path);
         if !path.exists() {
@@ -142,7 +154,7 @@ impl Source {
         read_json(&path).map(Some)
     }
 
-    // The `transformers` classes a config's `architectures` names, whose weights the snapshot holds; none for another format.
+    /// Returns the `transformers` classes a config's `architectures` names, whose weights the snapshot holds, or no classes for another format.
     pub fn classes(&self) -> Result<Vec<String>> {
         if self.format != Format::Transformers {
             return Ok(Vec::new());
@@ -163,7 +175,8 @@ impl Source {
         self.directory.join(path).exists()
     }
 
-    // The most tokens a sequence holds, prompt included: a config's `max_position_embeddings`, or its `text_config`'s, or GPT-2's `n_positions`.
+    /// Returns the most tokens a sequence holds, prompt included: a config's `max_position_embeddings`, or its `n_positions` as GPT-2 names it, or either field of its `text_config`.
+    /// Returns `None` without a `config.json` or either field.
     pub fn context_length(&self) -> Result<Option<usize>> {
         let Some(config) = self.optional_json::<Value>("config.json")? else {
             return Ok(None);
@@ -175,7 +188,7 @@ impl Source {
             .and_then(|length| usize::try_from(length).ok()))
     }
 
-    // The type a config says its weights are stored in, such as `bfloat16`: a native config's, or a `transformers` config's `torch_dtype` or `dtype`, or its `text_config`'s.
+    /// Returns the type a config says its weights are stored in, such as `bfloat16`: a native config's, or `config.json`'s `torch_dtype` or `dtype`, or its `text_config`'s.
     pub fn stored_data_type(&self) -> Result<Option<String>> {
         if self.format == Format::Native {
             return Ok(Some(NativeConfig::read(&self.directory)?.data_type));
@@ -191,7 +204,7 @@ impl Source {
             .map(str::to_owned))
     }
 
-    // The float type a load defaults to: BF16 or F16 when the config says the weights are stored so, F32 otherwise.
+    /// Returns the float type a load defaults to: [`DataType::Bf16`] or [`DataType::F16`] when the config says the weights are stored as `bfloat16` or `float16`, [`DataType::F32`] otherwise.
     pub fn default_data_type(&self) -> Result<DataType> {
         Ok(match self.stored_data_type()?.as_deref() {
             Some("bfloat16") => DataType::Bf16,
@@ -200,7 +213,9 @@ impl Source {
         })
     }
 
-    // Returns the tokens that end generation: those a native config records, or `generation_config.json`'s `eos_token_id`, a `transformers` config's or its `text_config`'s, and the tokenizer's end token, which chat models such as Qwen3.5 name only there.
+    /// Returns the tokens that end generation.
+    /// A native config records them.
+    /// Otherwise they are the `eos_token_id` of the first of `generation_config.json`, a `transformers` config, and its `text_config` that names one, and the tokenizer's end token, which chat models such as Qwen3.5 name only there.
     pub fn stop_tokens(&self) -> Result<Vec<i64>> {
         if self.format == Format::Native {
             return Ok(NativeConfig::read(&self.directory)?.stop_tokens);
@@ -229,7 +244,7 @@ impl Source {
         Ok(tokens)
     }
 
-    // The id of `tokenizer_config.json`'s `eos_token`, among `tokenizer.json`'s added tokens, if both files name it.
+    /// Returns the id of `tokenizer_config.json`'s `eos_token` among `tokenizer.json`'s added tokens, if both files name it.
     fn tokenizer_end_token(&self) -> Result<Option<i64>> {
         let Some(config) = self.optional_json::<Value>("tokenizer_config.json")? else {
             return Ok(None);
@@ -249,7 +264,7 @@ impl Source {
     }
 }
 
-// The added tokens of a `tokenizer.json`.
+/// The added tokens of a `tokenizer.json`.
 #[derive(Deserialize)]
 struct AddedTokens {
     #[serde(default)]
@@ -262,7 +277,7 @@ struct AddedToken {
     content: String,
 }
 
-// The Hugging Face cache, as `huggingface_hub` finds it: `HF_HUB_CACHE`, or `hub` under `HF_HOME` or `~/.cache/huggingface`.
+/// Returns the Hugging Face cache, as `huggingface_hub` finds it: `HF_HUB_CACHE`, or `hub` under `HF_HOME` or `~/.cache/huggingface`.
 fn hugging_face_cache() -> Option<PathBuf> {
     env::var_os("HF_HUB_CACHE").map(PathBuf::from).or_else(|| {
         env::var_os("HF_HOME")
@@ -272,7 +287,8 @@ fn hugging_face_cache() -> Option<PathBuf> {
     })
 }
 
-// The cached snapshot of `repository` that `refs/<revision>` names, as `huggingface_hub` resolves a revision offline, such as `refs/refs/pr/3` for `refs/pr/3`, or the snapshot named by a commit hash.
+/// Returns the cached snapshot of `repository` that `refs/<revision>` names, as `huggingface_hub` resolves a revision offline, such as `refs/refs/pr/3` for `refs/pr/3`.
+/// Without such a ref, `revision` names the snapshot itself, as a commit hash does.
 #[must_use]
 pub fn cached_snapshot(repository: &str, revision: &str) -> Option<PathBuf> {
     let directory =
@@ -296,12 +312,13 @@ pub(crate) fn read_json<T: DeserializeOwned>(path: &Path) -> Result<T> {
     serde_json::from_str(&text).map_err(Error::json(path))
 }
 
-// Where a model's weights go and in what type.
+/// Where a load puts a model's weights, in what type, and whether it joins sibling projections.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LoadOptions {
     pub device: Device,
     pub data_type: DataType,
-    // Whether each group of sibling projections is stored joined, so eager layers run it as one matmul; an export, which traces its graphs and runs no layer eagerly, keeps each weight apart.
+    /// Whether each group of sibling projections is stored joined, so eager layers run it as one matmul.
+    /// An export, which traces its graphs and runs no layer eagerly, keeps each weight apart.
     pub join_projections: bool,
 }
 

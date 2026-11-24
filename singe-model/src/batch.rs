@@ -28,7 +28,7 @@ impl BatchOptions {
         }
     }
 
-    // Adds `generation`'s stop and suppressed tokens to these options' own, such as a model's that its snapshot names.
+    /// Returns a copy of these options with `generation`'s stop, suppressed, and first-step suppressed tokens added to their own, such as those a model's snapshot names.
     #[must_use]
     pub fn including_tokens_of(&self, generation: &GenerationOptions) -> Self {
         let join = |tokens: &mut Vec<i64>, more: &[i64]| {

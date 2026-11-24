@@ -1,5 +1,5 @@
-// `question-answering`: a question and a context to the spans of the context that answer it, as `transformers` 4's pipeline found them; `transformers` 5 removed the pipeline but keeps the heads.
-// A context longer than a window is read in windows that overlap, and the same answer found in several windows sums its scores.
+//! `question-answering`: a question and a context to the spans of the context that answer it, as `transformers` 4's pipeline found them; `transformers` 5 removed the pipeline but keeps the heads.
+//! A context longer than a window is read in windows that overlap, and the same answer found in several windows sums its scores.
 
 use serde::{Deserialize, Serialize};
 
@@ -12,10 +12,10 @@ use crate::{
     task::{Pipeline, run_alone},
 };
 
-// The longest window when a tokenizer does not limit it to less.
+/// The longest window, in tokens, when a tokenizer does not limit it to less.
 const MAX_WINDOW: usize = 384;
 
-// What a token outside the context scores before the softmax, as `transformers` masks it.
+/// The score of a token outside the context before the softmax, as `transformers` masks it.
 const MASKED: f32 = -10_000.0;
 
 #[derive(Debug)]
@@ -36,15 +36,15 @@ pub struct QuestionAnsweringInput {
 #[serde(default)]
 pub struct QuestionAnsweringParameters {
     pub top_k: usize,
-    // The most tokens of an answer.
+    /// The most tokens of an answer, 15 by default.
     pub max_answer_len: usize,
-    // Also offers the empty answer, scored as the model scores the classifier token.
+    /// Whether to also offer the empty answer, scored as the model scores the classifier token.
     pub handle_impossible_answer: bool,
-    // The tokens of a window, question included; 384, or the tokenizer's limit if less, when absent.
+    /// The tokens of a window, question included; 384, or the tokenizer's limit if less, when `None`.
     pub max_seq_len: Option<usize>,
-    // The tokens each window repeats from the one before; half a window, at most 128, when absent.
+    /// The tokens each window repeats from the one before; half a window, at most 128, when `None`.
     pub doc_stride: Option<usize>,
-    // Widens an answer to the whole words its first and last tokens are in.
+    /// Whether to widen an answer to the whole words its first and last tokens are in, `true` by default.
     pub align_to_words: bool,
 }
 
@@ -69,7 +69,7 @@ pub struct Answer {
     pub answer: String,
 }
 
-// One answer, or several from the best when there are more, as `transformers` returns them.
+/// One answer, or several from the best when there are more, as `transformers` returns them.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(untagged)]
 pub enum QuestionAnsweringOutput {
@@ -235,7 +235,7 @@ impl QuestionAnsweringPipeline {
     }
 }
 
-// The likeliest spans of at most `max_answer_len` tokens, best first, as many as `transformers` keeps before it drops those outside the context: twice `top_k` and ten more when it aligns to words.
+/// Returns the likeliest spans of at most `max_answer_len` tokens, best first, as many as `transformers` keeps before it drops those outside the context: twice `top_k` and ten more when it aligns to words.
 fn spans(
     starts: &[f32],
     ends: &[f32],
@@ -259,7 +259,7 @@ fn spans(
     candidates
 }
 
-// The characters of the context word token `token` is in, or the token's own characters for a token of no context word.
+/// Returns the character range of the context word token `token` is in, or the token's own for a token of no context word.
 fn word_chars(row: &EncodedRow, token: usize) -> (usize, usize) {
     let Some(word) = row.words[token].filter(|_| row.sequences[token] == Some(1)) else {
         return row.offsets[token];

@@ -1,4 +1,4 @@
-// Reads a `transformers` ViT config and imports its checkpoint, whose classifier stores the encoder under `vit.`.
+//! Reads a `transformers` `ViT` config and imports its checkpoint, whose classifier stores the encoder under `vit.`.
 
 use serde::Deserialize;
 use singe::nn::Activation;
@@ -31,7 +31,7 @@ pub(crate) struct VitFields {
 }
 
 impl VitFields {
-    // The blocks' spec; a checkpoint without query, key, and value biases is refused, since the blocks always have them.
+    /// Returns the blocks' config, refusing a checkpoint without query, key, and value biases, since the blocks always have them.
     pub(crate) fn encoder(&self) -> Result<PreNormEncoderConfig> {
         if !self.qkv_bias {
             return Err(Error::unsupported(
@@ -77,7 +77,7 @@ pub(crate) fn config(source: &Source) -> Result<VitConfig> {
     })
 }
 
-// Imports a ViT encoder stored under `from`: its embeddings, `encoder.layer.N`, and a final `layernorm`, to the schema's names under `to`.
+/// Returns the rules that import a `ViT` encoder stored under `from`, its embeddings, `encoder.layer.N`, and a final `layernorm`, to the schema's names under `to`.
 pub(crate) fn encoder_rules(from: &str, to: &str) -> Rules {
     Rules::new()
         .rename_each(

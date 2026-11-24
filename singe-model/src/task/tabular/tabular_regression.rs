@@ -1,4 +1,4 @@
-// `tabular-regression`: rows of numeric features with their targets and other rows to each other row's predicted target, by an in-context model that reads the rows with targets as context.
+//! `tabular-regression`: rows of numeric features with their targets and other rows to each other row's predicted target, by an in-context model that reads the rows with targets as context.
 
 use serde::{Deserialize, Serialize};
 

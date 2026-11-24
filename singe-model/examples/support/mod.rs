@@ -1,4 +1,4 @@
-// What the examples share: reading their arguments, and starting the runtime.
+//! What the examples share: reading their arguments, and starting the runtime.
 
 #![allow(dead_code, reason = "each example uses its own part of this module")]
 
@@ -17,7 +17,7 @@ use singe::{
 };
 use singe_testing::snapshot_if_set;
 
-// The arguments every example takes: `--snapshot DIR`, or `--model NAME` with `SINGE_SNAPSHOT_<NAME>` set, and `--cpu`, and the rest by name, each with a value but the flags an example names.
+/// The arguments every example takes: `--snapshot DIR`, or `--model NAME` with `SINGE_SNAPSHOT_<NAME>` set, and `--cpu`, and the rest by name, each with a value but the flags an example names.
 pub struct Arguments {
     snapshot: PathBuf,
     device: Device,
@@ -27,7 +27,7 @@ pub struct Arguments {
 }
 
 impl Arguments {
-    // Reads the process's arguments, where each of `flags` takes no value.
+    /// Reads the process's arguments, where each of `flags` takes no value.
     pub fn parse(flags: &[&str]) -> Result<Self> {
         let mut snapshot = None;
         let mut device = Device::Cuda(0);
@@ -81,12 +81,12 @@ impl Arguments {
         &self.positional
     }
 
-    // Returns whether the flag `name` was passed.
+    /// Returns whether the flag `name` was passed.
     pub fn flag(&self, name: &str) -> bool {
         self.flags.iter().any(|flag| flag == name)
     }
 
-    // Returns every value given for `name`, in order, for an argument that may repeat.
+    /// Returns every value given for `name`, in order, for an argument that may repeat.
     pub fn values(&self, name: &str) -> Vec<&str> {
         self.named
             .iter()
@@ -120,7 +120,7 @@ impl Arguments {
             .transpose()
     }
 
-    // Returns the libraries each `--library NAME` names, or every one when none is named.
+    /// Returns the libraries each `--library NAME` names, or every one when none is named.
     pub fn libraries(&self) -> Result<Vec<Library>> {
         let libraries = self.values("library");
         if libraries.is_empty() {
@@ -137,7 +137,7 @@ impl Arguments {
             .collect()
     }
 
-    // Returns the weights' type `--type f32|f16|bf16` names, or `default` without one.
+    /// Returns the weights' type `--type f32|f16|bf16` names, or `default` without one.
     pub fn data_type(&self, default: DataType) -> Result<DataType> {
         Ok(match self.value("type") {
             None => default,
@@ -149,7 +149,7 @@ impl Arguments {
     }
 }
 
-// Starts `device`'s runtime apart from a load, which would otherwise start it, so each phase shows on its own, and returns how long it took.
+/// Starts `device`'s runtime apart from a load, which would otherwise start it, so each phase shows on its own, and returns how long it took.
 pub fn start_runtime(device: Device) -> Result<Duration> {
     let started = Instant::now();
     if device.is_cuda() {

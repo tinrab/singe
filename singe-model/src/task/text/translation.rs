@@ -1,4 +1,4 @@
-// `translation`: text in one language to text in another, from an encoder-decoder such as T5, after the prefix its config names for the pair of languages, as `transformers`' `translation_{src}_to_{tgt}` pipelines gave it before `transformers` 5.
+//! `translation`: text in one language to text in another, from an encoder-decoder such as T5, after the prefix its config names for the pair of languages, as `transformers`' `translation_{src}_to_{tgt}` pipelines gave it before `transformers` 5.
 
 use serde::{Deserialize, Serialize};
 
@@ -24,8 +24,9 @@ pub struct TranslationPipeline {
 #[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize)]
 #[serde(default)]
 pub struct TranslationParameters {
-    // The languages translated from and to, as the config's `translation_{src_lang}_to_{tgt_lang}` names them.
+    /// The language translated from, as the config's `translation_{src_lang}_to_{tgt_lang}` names it.
     pub src_lang: String,
+    /// The language translated to, as the config's `translation_{src_lang}_to_{tgt_lang}` names it.
     pub tgt_lang: String,
     #[serde(flatten)]
     pub generation: Seq2SeqParameters,

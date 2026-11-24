@@ -49,6 +49,11 @@ MITRA_REGRESSOR = "autogluon/mitra-regressor"
 MMS_TTS = "facebook/mms-tts-eng"
 MSMARCO_MINILM = "cross-encoder/ms-marco-MiniLM-L6-v2"
 OWLVIT = "google/owlvit-base-patch32"
+PARAKEET_CTC = "nvidia/parakeet-ctc-0.6b"
+PARAKEET_RNNT = "nvidia/parakeet-rnnt-0.6b"
+PARAKEET_TDT = "nvidia/parakeet-tdt-0.6b-v3"
+# Parakeet TDT with NeMo's `att_context_size` of 1,000 rows each side, which Singe reads and `transformers` does not, so Singe attends locally with a window wider than a 38.5 s clip's 482 rows and `transformers` attends to every row.
+PARAKEET_TDT_LOCAL = { base = "PARAKEET_TDT", replace = { "config.json" = "audio/parakeet/local-config.json" } }
 PIA = { pipeline = "PIAPipeline", base = "SD15", components = { motion_adapter = "PIA_ADAPTER" } }
 PIA_ADAPTER = "openmmlab/PIA-condition-adapter"
 QWEN3 = "Qwen/Qwen3-0.6B"

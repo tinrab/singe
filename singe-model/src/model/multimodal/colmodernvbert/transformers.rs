@@ -1,4 +1,4 @@
-// Reads a `transformers` ModernVBert snapshot that `sentence-transformers` serves as a multi-vector encoder: its config, the template it renders inputs through, and its tensors' names.
+//! Reads a `transformers` `ModernVBert` snapshot that `sentence-transformers` serves as a multi-vector encoder: its config, the template it renders inputs through, and its tensors' names.
 
 use std::fs;
 
@@ -114,7 +114,7 @@ pub(crate) fn config(source: &Source) -> Result<ColModernVBertConfig> {
     })
 }
 
-// Imports the SigLIP tower and the connector; the tower's pooling head is unused, since the encoder reads every patch.
+/// Returns the rules that import the `SigLIP` tower and the connector, skipping the tower's pooling head, since the encoder reads every patch.
 pub(crate) fn vision_rules() -> Rules {
     Rules::new()
         .skip("model.vision_model.vision_model.head")
@@ -124,7 +124,7 @@ pub(crate) fn vision_rules() -> Rules {
         ))
 }
 
-// Imports ModernBERT, splitting its fused projections, and the projection to each token's embedding, which `sentence-transformers`' `1_Dense` holds again.
+/// Returns the rules that import `ModernBERT`, splitting its fused projections, and the projection to each token's embedding, which `sentence-transformers`' `1_Dense` holds again.
 pub(crate) fn text_rules() -> Rules {
     let text = |name: &str| join("model.text_model", name);
     let layer = |name: &str| join("model.text_model.layers.*", name);

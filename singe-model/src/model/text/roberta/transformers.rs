@@ -1,4 +1,4 @@
-// Reads a `transformers` RoBERTa config and imports its checkpoint, whose task heads store the encoder under `roberta`.
+//! Reads a `transformers` `RoBERTa` config and imports its checkpoint, whose task heads store the encoder under `roberta`.
 
 use serde::Deserialize;
 use singe::nn::{Activation, PoolingMode};
@@ -20,7 +20,7 @@ struct Fields {
 }
 
 impl EncoderModel for Roberta {
-    // A classifier reads the first token's state through a tanh projection, with no pooler, and the masked language model's projection is exact GELU whatever the encoder's activation.
+    /// A classifier reads the first token's state through a tanh projection, with no pooler, and the masked language model's projection is exact GELU whatever the encoder's activation.
     const LAYOUTS: HeadLayouts = HeadLayouts {
         classifier: ClassifierLayout {
             pooling: PoolingMode::Cls,
@@ -30,7 +30,7 @@ impl EncoderModel for Roberta {
         masked_lm_activation: Some(Activation::GeluExact),
     };
 
-    // RoBERTa numbers a sequence's positions from just after its padding id, as fairseq did.
+    /// Reads a `RoBERTa` config, whose positions number from just after the padding id, as fairseq numbers them.
     fn config(source: &Source) -> Result<PostNormEncoderConfig> {
         let fields: Fields = source.json("config.json")?;
         fields.encoder.config(fields.pad_token_id + 1)

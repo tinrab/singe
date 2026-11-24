@@ -1,6 +1,7 @@
-// TAESD, `diffusers`' `AutoencoderTiny`: a tiny autoencoder of plain convolutions for Stable Diffusion's latents.
-// Its encoder and decoder load as two parts, `encoder` and `decoder`, each with its own state.
-// A part's state is its `input` convolution, its stages under `stages.S` (blocks `blocks.B`, and the encoder's strided `downsample` or the decoder's `upsample` convolution), and its `output` convolution.
+//! TAESD, `diffusers`' `AutoencoderTiny`: a tiny autoencoder of plain convolutions for Stable Diffusion's latents.
+//!
+//! Its encoder and decoder load as two parts, `encoder` and `decoder`, each with its own state.
+//! A part's state is its `input` convolution, its stages under `stages.S` (blocks `blocks.B`, and the encoder's strided `downsample` or the decoder's `upsample` convolution), and its `output` convolution.
 
 mod diffusers;
 
@@ -32,10 +33,13 @@ pub struct AutoencoderTinyConfig {
     pub input_channels: i64,
     pub output_channels: i64,
     pub latent_channels: i64,
-    // Each stage's width and block count, as many of one as of the other, and at least one stage.
+    /// Each encoder stage's width, one for each of `encoder_blocks`, with at least one stage.
     pub encoder_widths: Vec<i64>,
+    /// Each encoder stage's block count.
     pub encoder_blocks: Vec<usize>,
+    /// Each decoder stage's width, one for each of `decoder_blocks`, with at least one stage.
     pub decoder_widths: Vec<i64>,
+    /// Each decoder stage's block count.
     pub decoder_blocks: Vec<usize>,
     pub activation: Activation,
     pub upsampling: Interpolation,
@@ -51,7 +55,7 @@ impl AutoencoderTinyConfig {
     }
 }
 
-// `AutoencoderTinyBlock`: three padded 3 by 3 convolutions with the activation between them, plus the input, through a ReLU.
+/// `AutoencoderTinyBlock`: three padded 3 by 3 convolutions with the activation between them, plus the input, through a `ReLU`.
 #[derive(Debug, Clone)]
 struct TinyBlock {
     convolutions: [Conv2d; 3],
@@ -111,7 +115,7 @@ struct EncoderStage {
     blocks: Vec<TinyBlock>,
 }
 
-// `EncoderTiny`: a convolution and blocks per stage, each stage after the first halving the image with a strided convolution, from images in [-1, 1], which TAESD reads in [0, 1].
+/// `EncoderTiny`: a convolution and blocks per stage, each stage after the first halving the image with a strided convolution, from images in [-1, 1], which TAESD reads in [0, 1].
 #[derive(Debug, Clone)]
 struct TinyEncoder {
     input: Conv2d,
@@ -188,7 +192,7 @@ struct DecoderStage {
     upsample: Option<Conv2d>,
 }
 
-// `DecoderTiny`: latents kept within (-3, 3) smoothly, a convolution and the activation, then blocks per stage, each stage before the last doubling the image before its convolution, to images in [-1, 1].
+/// `DecoderTiny`: latents kept within (-3, 3) smoothly, a convolution and the activation, then blocks per stage, each stage before the last upsampling the image by `upsampling_factor` before its convolution, to images in [-1, 1].
 #[derive(Debug, Clone)]
 struct TinyDecoder {
     input: Conv2d,

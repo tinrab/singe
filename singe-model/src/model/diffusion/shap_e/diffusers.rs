@@ -1,4 +1,4 @@
-// Reads Shap-E's `diffusers` components: the prior's and the renderer's configs and their tensors' names.
+//! Reads Shap-E's `diffusers` components: the prior's and the renderer's configs and their tensors' names.
 
 use std::iter;
 

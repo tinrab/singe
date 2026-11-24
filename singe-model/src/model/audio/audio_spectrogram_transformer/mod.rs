@@ -1,4 +1,4 @@
-// The Audio Spectrogram Transformer: a ViT over a clip's log mel filter banks, whose overlapping patches follow a class and a distillation token, the two tokens' mean classified.
+//! The Audio Spectrogram Transformer: a `ViT` over a clip's log mel filter banks, whose overlapping patches follow a class and a distillation token, the two tokens' mean classified.
 
 mod transformers;
 
@@ -33,7 +33,7 @@ pub struct AstConfig {
 }
 
 impl AstConfig {
-    // The patches along frequency and time.
+    /// Returns how many patches fit along frequency and along time.
     const fn grid(&self) -> (i64, i64) {
         (
             (self.mels - self.patch_size) / self.frequency_stride + 1,
@@ -42,7 +42,7 @@ impl AstConfig {
     }
 }
 
-// From filter banks `[B, frames, mels]` to each label's score, `[B, labels]`.
+/// The layers that score filter banks, `[B, frames, mels]`, for each label, `[B, labels]`.
 #[derive(Debug, Clone)]
 pub struct AstLayers {
     tokens: PatchTokens,

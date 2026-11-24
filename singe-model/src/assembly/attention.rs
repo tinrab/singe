@@ -1,4 +1,4 @@
-// Multi-head attention whose queries, keys, and values each project their own input, as DETR's, SAM's, BART's, T5's, and Mitra's are, with `query`, `key`, `value`, and `output` projections.
+//! Multi-head attention whose queries, keys, and values each project their own input, as DETR's, SAM's, BART's, T5's, and Mitra's are, with `query`, `key`, `value`, and `output` projections.
 
 use singe::{
     Error as SingeError, Result as SingeResult, Tensor,
@@ -12,14 +12,14 @@ use crate::{
     schema::Schema,
 };
 
-// The widths of an attention's projections.
+/// The widths of an attention's projections.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AttentionSpec {
-    // The queries' input and the output's width.
+    /// The queries' input and the output's width.
     pub width: i64,
-    // The keys' and values' input width.
+    /// The keys' and values' input width.
     pub context: i64,
-    // The width the heads split.
+    /// The width the heads split.
     pub inner: i64,
     pub heads: i64,
     pub qkv_bias: bool,
@@ -27,7 +27,7 @@ pub struct AttentionSpec {
 }
 
 impl AttentionSpec {
-    // Self-attention's widths: keys and values read inputs as wide as the queries', projected to as many features, with biases.
+    /// Returns self-attention's widths: keys and values read inputs as wide as the queries', projected to as many features, with biases.
     #[must_use]
     pub const fn square(width: i64, heads: i64) -> Self {
         Self {
@@ -51,7 +51,7 @@ pub struct Attention {
 }
 
 impl Attention {
-    // Registers `query`, from `width` features to `inner`, `key` and `value`, from `context` to `inner`, and `output`, from `inner` back to `width`.
+    /// Registers `query`, from `width` features to `inner`, `key` and `value`, from `context` to `inner`, and `output`, from `inner` back to `width`.
     pub fn create(schema: &mut Schema<'_>, spec: AttentionSpec) -> SingeResult<Self> {
         let AttentionSpec {
             width,
@@ -72,7 +72,7 @@ impl Attention {
         Ok(attention)
     }
 
-    // Queries from `query`, `[B, L, W]`, attending to keys from `key` and values from `value`, `[B, S, C]`, to `[B, L, W]`.
+    /// Attends with queries from `query`, `[B, L, W]`, to keys from `key` and values from `value`, `[B, S, C]`, and returns `[B, L, W]`.
     pub fn forward(
         &self,
         query: &Tensor,
@@ -83,7 +83,7 @@ impl Attention {
         self.attend(query, key, value, None, AttentionOptions::default(), state)
     }
 
-    // As `forward`, with `mask` added to the scores, `[B, H, L, S]` or broadcast to it, and attention under `options`.
+    /// Attends as [`Attention::forward`] does, with `mask` added to the scores, `[B, H, L, S]` or broadcast to it, and attention under `options`.
     pub fn attend(
         &self,
         query: &Tensor,
@@ -105,7 +105,7 @@ impl Attention {
         merge_heads(&attended)?.apply(&self.output, state)
     }
 
-    // The keys and values cross-attention reads from an encoder's states, `[F, C]`, `[F, H, D]` each.
+    /// Returns the keys and values cross-attention reads from an encoder's states, `[F, C]`, `[F, H, D]` each.
     pub fn project_sources(
         &self,
         encoded: &Tensor,
@@ -117,7 +117,7 @@ impl Attention {
         ))
     }
 
-    // Self-attention of a decode step's rows, `[T, W]`: writes their keys and values to `cache`, then attends over their sequences' keys with `mask` added to the scores, `[T, H, 1, C]` or broadcast to it.
+    /// Computes self-attention of a decode step's rows, `[T, W]`: writes their keys and values to `cache`, then attends over their sequences' keys with `mask` added to the scores, `[T, H, 1, C]` or broadcast to it.
     pub fn decode(
         &self,
         hidden: &Tensor,
@@ -140,7 +140,7 @@ impl Attention {
         self.merge_rows(&attended, state)
     }
 
-    // Cross-attention of a decode step's rows, `[T, W]`, over their sequences' encoder states in `cache`.
+    /// Computes cross-attention of a decode step's rows, `[T, W]`, over their sequences' encoder states in `cache`.
     pub fn attend_sources(
         &self,
         hidden: &Tensor,
@@ -157,7 +157,7 @@ impl Attention {
         self.merge_rows(&attended, state)
     }
 
-    // `input`'s rows, `[N, C]`, through `linear`, split into heads, `[N, H, D]`.
+    /// Returns `input`'s rows, `[N, C]`, through `linear`, split into heads, `[N, H, D]`.
     fn row_heads(
         &self,
         input: &Tensor,
@@ -171,7 +171,7 @@ impl Attention {
         projected.reshape([rows, self.heads, inner / self.heads])
     }
 
-    // Each row's heads, `[T, H, 1, D]`, joined and through the output projection, `[T, W]`.
+    /// Returns each row's heads, `[T, H, 1, D]`, joined and through the output projection, `[T, W]`.
     fn merge_rows(&self, attended: &Tensor, state: &ModelState) -> SingeResult<Tensor> {
         let &[rows, heads, _, dim] = attended.shape().dimensions() else {
             return Err(SingeError::invalid_argument("attended rows"));
@@ -182,7 +182,7 @@ impl Attention {
     }
 }
 
-// A projection's `[B, L, inner]` split into `heads` heads, `[B, H, L, inner / H]`.
+/// Returns a projection's `[B, L, inner]` split into `heads` heads, `[B, H, L, inner / H]`.
 pub fn split_heads(tensor: &Tensor, heads: i64) -> SingeResult<Tensor> {
     let &[batch, length, inner] = tensor.shape().dimensions() else {
         return Err(SingeError::invalid_argument("attention heads' input"));

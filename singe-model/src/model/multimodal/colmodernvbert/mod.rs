@@ -1,5 +1,6 @@
-// ColModernVBert: ModernVBert's SigLIP tower and ModernBERT encoder, which reads an image's rows in place of its image tokens, and a projection of each final state to a unit embedding a query and a document page compare by late interaction.
-// Its images are cut into tiles as SmolVLM's are, through the same tower and connector.
+//! `ColModernVBert`: `ModernVBert`'s `SigLIP` tower and `ModernBERT` encoder, which reads an image's rows in place of its image tokens, and a projection of each final state to a unit embedding a query and a document page compare by late interaction.
+//!
+//! Its images are cut into tiles as `SmolVLM`'s are, through the same tower and connector.
 
 mod modernbert;
 mod transformers;
@@ -35,14 +36,14 @@ pub struct ColModernVBertConfig {
     pub vision: SmolVlmVisionConfig,
     pub text: ModernBertConfig,
     pub image_token_id: i64,
-    // The width of each token's embedding.
+    /// The width of each token's embedding.
     pub embedding: i64,
     pub processor: SmolVlmProcessor,
-    // The template `sentence-transformers` renders queries and pages through.
+    /// The template `sentence-transformers` renders queries and pages through.
     pub template: String,
 }
 
-// The encoder and the projection to each token's embedding.
+/// The encoder and the projection to each token's embedding.
 #[derive(Debug, Clone)]
 pub struct ColModernVBertText {
     encoder: ModernBert,
@@ -57,7 +58,7 @@ impl ColModernVBertText {
         })
     }
 
-    // Each token's unit embedding, `[T, D]`, from the sequence's embeddings, `[T, W]`.
+    /// Returns each token's unit embedding, `[T, D]`, from the sequence's embeddings, `[T, W]`.
     fn embeddings(&self, embedded: &Tensor, state: &ModelState) -> SingeResult<Tensor> {
         let projected = self
             .encoder
@@ -84,7 +85,7 @@ pub struct ColModernVBert {
 }
 
 impl ColModernVBert {
-    // Renders one user message holding `content` for `task`, as `sentence-transformers` does.
+    /// Renders one user message holding `content` for `task`, as `sentence-transformers` does.
     fn render(&self, content: Content, task: &str) -> Result<String> {
         let mut arguments = Map::new();
         arguments.insert("task".to_owned(), Value::String(task.to_owned()));
@@ -101,14 +102,14 @@ impl ColModernVBert {
 }
 
 impl DocumentRetriever for ColModernVBert {
-    // The query, followed by the end-of-utterance tokens the template appends to a query.
+    /// Returns each token's unit embedding, `[T, D]`, of the query rendered for the `query` task, followed by the end-of-utterance tokens the template appends to a query.
     fn query(&self, tokenizer: &TextTokenizer, query: &str) -> Result<Tensor> {
         let text = self.render(Content::Text(query.to_owned()), "query")?;
         let (_, tokens) = self.tokens(tokenizer, &text)?;
         Ok(self.text.forward(&tokens)?)
     }
 
-    // The page as the template's image prompt, its placeholder expanded into its tiles' image tokens, which read the tower's rows.
+    /// Returns each token's unit embedding, `[T, D]`, of the page rendered as the template's image prompt, its placeholder expanded into its tiles' image tokens, which read the tower's rows.
     fn document(&self, tokenizer: &TextTokenizer, image: &Image) -> Result<Tensor> {
         let processor = &self.config.processor;
         let prompt = self.render(
@@ -172,7 +173,11 @@ pub(crate) const MODEL: ModelEntry = ModelEntry {
     })],
 };
 
-// Loads the vision tower, as part `vision`, and the encoder with its projection, as part `text`.
+/// Loads the vision tower, as part `vision`, and the encoder with its projection, as part `text`.
+///
+/// # Errors
+///
+/// Returns an error if the config asks for a `ModernBERT` with biases or a linear attention layer, if the snapshot has no chat template, or if its files fail to read or either part fails to load.
 pub fn load(loader: &mut Loader<'_>) -> Result<ColModernVBert> {
     let config: ColModernVBertConfig = loader.config(transformers::config)?;
     let data_type = loader.options().data_type;

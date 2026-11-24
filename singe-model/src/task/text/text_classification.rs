@@ -1,4 +1,4 @@
-// `text-classification`: a text, or a pair of texts, to its labels' scores, from a sequence classification head.
+//! `text-classification`: a text, or a pair of texts, to its labels' scores, from a sequence classification head.
 
 use std::result::Result as StdResult;
 
@@ -24,7 +24,7 @@ pub struct TextClassificationPipeline {
     options: LoadOptions,
 }
 
-// A text, or a pair of texts, as `transformers` takes `{"text", "text_pair"}`.
+/// A text, or a pair of texts, as `transformers` takes `{"text", "text_pair"}`.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(untagged)]
 pub enum TextClassificationInput {
@@ -45,13 +45,13 @@ impl TextClassificationInput {
 #[serde(default)]
 pub struct TextClassificationParameters {
     pub top_k: TopK,
-    // How scores become what the output reports, or the model's own choice when absent.
+    /// How scores become what the output reports, or the model's own choice when `None`.
     pub function_to_apply: Option<ScoreFunction>,
-    // Truncates each input to this many tokens, keeping its special tokens.
+    /// The tokens each input is truncated to, keeping its special tokens, with no truncation for `None`.
     pub max_length: Option<usize>,
 }
 
-// Which labels a text's output lists, as `transformers`' `top_k` asks: the best alone when absent, that many from the best for a number, and every one from the best for `null`.
+/// Which labels a text's output lists, as `transformers`' `top_k` asks: the best alone when absent, that many from the best for a number, and every one from the best for `null`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum TopK {
     #[default]
@@ -67,7 +67,7 @@ impl<'de> Deserialize<'de> for TopK {
     }
 }
 
-// The best label of a text, or its labels from the best when `top_k` is given.
+/// The best label of a text, or its labels from the best when `top_k` is given.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(untagged)]
 pub enum TextClassificationOutput {

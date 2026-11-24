@@ -1,4 +1,4 @@
-// Standard base64 with padding, and the `data:` URLs media travels in through JSON.
+//! Base64, written standard with padding, and the `data:` URLs media travels in through JSON.
 
 use std::{fs, path::Path};
 
@@ -29,7 +29,8 @@ pub fn encode(bytes: &[u8]) -> String {
     text
 }
 
-// Decodes standard base64, with or without padding, ignoring whitespace; `None` when `text` is not base64.
+/// Decodes standard or URL-safe base64, with or without padding, skipping whitespace and stopping at the first `=`.
+/// Returns `None` when `text` holds any other character.
 #[must_use]
 pub fn decode(text: &str) -> Option<Vec<u8>> {
     let mut bytes = Vec::with_capacity(text.len() / 4 * 3);
@@ -55,7 +56,8 @@ pub fn decode(text: &str) -> Option<Vec<u8>> {
     Some(bytes)
 }
 
-// The bytes `text` carries: a `data:` URL's base64 payload, or bare base64.
+/// Returns the bytes `text` carries: a `data:` URL's base64 payload, or bare base64.
+/// Returns `None` for a `data:` URL that is not base64, or for text [`decode`] rejects.
 #[must_use]
 pub fn data_bytes(text: &str) -> Option<Vec<u8>> {
     let payload = match text.strip_prefix("data:") {
@@ -71,13 +73,17 @@ pub fn data_bytes(text: &str) -> Option<Vec<u8>> {
     decode(payload)
 }
 
-// `bytes` as a `data:` URL of media type `media_type`.
+/// Returns `bytes` as a base64 `data:` URL of media type `media_type`.
 #[must_use]
 pub fn data_url(media_type: &str, bytes: &[u8]) -> String {
     format!("data:{media_type};base64,{}", encode(bytes))
 }
 
-// A file as JSON carries media: a `data:` URL of its bytes, or for a directory, an array of one for each image in it, in name order, as a clip's frames.
+/// Returns a file as JSON carries media: a `data:` URL of its bytes, or for a directory, an array of one for each `png` or `jpg` image in it, in name order, as a clip's frames.
+///
+/// # Errors
+///
+/// Returns an error if the file or the directory cannot be read.
 pub fn file_value(path: &Path) -> Result<Value> {
     if !path.is_dir() {
         let bytes = fs::read(path).map_err(Error::io(path))?;

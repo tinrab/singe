@@ -1,5 +1,5 @@
-// Images as models read them, and the image processor most vision models share: resize on the CPU, then center crop, rescale, and normalize on the device, as `transformers`' default image processors compute them with torchvision.
-// A model whose processor does more, such as Qwen3.5's patches of any size, keeps it with the model, as `transformers` does.
+//! Images as models read them, and the image processor most vision models share: resize on the CPU, then center crop, rescale, and normalize on the device, as `transformers`' default image processors compute them with torchvision.
+//! A model whose processor does more, such as Qwen3.5's patches of any size, keeps it with the model, as `transformers` does.
 
 use std::{borrow::Cow, io::Cursor, path::Path, result::Result as StdResult};
 
@@ -16,7 +16,7 @@ use crate::{
     source::Source,
 };
 
-// An RGB image, `height × width × 3` bytes in row-major order.
+/// An RGB image, `height × width × 3` bytes in row-major order.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Image {
     pub width: u32,
@@ -41,7 +41,11 @@ impl Image {
         Ok(Self::from_rgb(image))
     }
 
-    // Decodes an image file's bytes, in any format the `image` crate reads, telling the format from its contents.
+    /// Decodes an image file's bytes, in any format the `image` crate reads, telling the format from its contents.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `bytes` do not decode as an image.
     pub fn decode(bytes: &[u8]) -> Result<Self> {
         let image = image::load_from_memory(bytes)
             .map_err(|error| Error::Media(format!("an image that does not decode: {error}")))?
@@ -49,7 +53,11 @@ impl Image {
         Ok(Self::from_rgb(image))
     }
 
-    // Decodes an image carried as JSON carries one: a `data:` URL or bare base64 of its file.
+    /// Decodes an image carried as JSON carries one: a `data:` URL or bare base64 of its file.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `text` is neither a `data:` URL nor base64, or if its bytes do not decode as an image.
     pub fn from_data(text: &str) -> Result<Self> {
         let bytes = base64::data_bytes(text).ok_or_else(|| {
             Error::Media("an image that is neither a data URL nor base64".to_owned())
@@ -65,7 +73,11 @@ impl Image {
         }
     }
 
-    // Encodes the image as a file of `format`, such as PNG, JPEG, or WebP.
+    /// Encodes the image as a file of `format`, such as PNG, JPEG, or WebP.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the pixels do not fill the image, or if the `image` crate cannot encode it as `format`.
     pub fn encode(&self, format: ImageFormat) -> Result<Vec<u8>> {
         let mut file = Cursor::new(Vec::new());
         self.buffer()?
@@ -111,7 +123,7 @@ impl Image {
         Ok(images)
     }
 
-    // Returns the image as `[1, 3, H, W]` of `F32` values in [0, 255] on `device`.
+    /// Returns the image as `[1, 3, H, W]` of `F32` values from 0 to 255 on `device`.
     pub fn to_tensor(&self, device: Device) -> Result<Tensor> {
         let values = self.pixels.iter().map(|&value| f32::from(value)).collect();
         let shape = Shape::create([i64::from(self.height), i64::from(self.width), 3])?;
@@ -120,7 +132,7 @@ impl Image {
             .unsqueeze(0)?)
     }
 
-    // Returns the image resized to `height × width` with `resample`, antialiased as `transformers` resizes images.
+    /// Returns the image resized to `height × width` with `resample`, as `transformers` resizes images through torchvision on the CPU.
     #[must_use]
     pub fn resized(&self, height: u32, width: u32, resample: Resample) -> Self {
         Self {
@@ -138,7 +150,7 @@ impl Image {
         }
     }
 
-    // Returns the image in the middle of a black `height × width` image, its odd pixel of margin at the bottom and right, as Donut's processor pads it.
+    /// Returns the image in the middle of a black `height × width` image, its odd pixel of margin at the bottom and right, as Donut's processor pads it.
     fn padded_centered(&self, height: i64, width: i64) -> Result<Self> {
         let (height, width) = (extent(height)?, extent(width)?);
         if height < self.height || width < self.width {
@@ -163,7 +175,7 @@ impl Image {
         })
     }
 
-    // Returns the image grown at the bottom and right to the next multiple of `multiple` past its sides, by rows and columns mirrored from its edge, the edge included, as torchvision's symmetric padding fills them.
+    /// Returns the image grown at the bottom and right to the next multiple of `multiple` past its sides, by rows and columns mirrored from its edge, the edge included, as torchvision's symmetric padding fills them.
     fn padded_symmetric(&self, multiple: i64) -> Result<Self> {
         let multiple = extent(multiple)?;
         let grown = |side: u32| (side / multiple + 1) * multiple;
@@ -200,7 +212,11 @@ impl Image {
             .all(|pixel| pixel[0] == pixel[1] && pixel[1] == pixel[2])
     }
 
-    // Writes the image to `path`, whose extension picks the format.
+    /// Writes the image to `path`, whose extension picks the format.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the pixels do not fill the image, or if the `image` crate cannot write it to `path`.
     pub fn save(&self, path: impl AsRef<Path>) -> Result<()> {
         let path = path.as_ref();
         self.buffer()?.save(path).map_err(Error::image(path))
@@ -211,7 +227,7 @@ impl Image {
             .ok_or_else(|| Error::invalid("pixels that do not fill the image"))
     }
 
-    // Returns the image as a PNG `data:` URL.
+    /// Returns the image as a PNG `data:` URL.
     pub fn to_data_url(&self) -> Result<String> {
         Ok(base64::data_url(
             "image/png",
@@ -220,7 +236,7 @@ impl Image {
     }
 }
 
-// An image in JSON is its file's bytes, as a `data:` URL or bare base64, so JSON from a client never names a file to read.
+/// An image in JSON is its file's bytes, as a `data:` URL or bare base64, so JSON from a client never names a file to read.
 impl<'de> Deserialize<'de> for Image {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> StdResult<Self, D::Error> {
         let text = String::deserialize(deserializer)?;
@@ -228,7 +244,7 @@ impl<'de> Deserialize<'de> for Image {
     }
 }
 
-// An image in JSON output is a PNG `data:` URL.
+/// An image in JSON output is a PNG `data:` URL.
 impl Serialize for Image {
     fn serialize<S: Serializer>(&self, serializer: S) -> StdResult<S::Ok, S::Error> {
         let url = self.to_data_url().map_err(SerError::custom)?;
@@ -236,7 +252,7 @@ impl Serialize for Image {
     }
 }
 
-// The filter a resize uses.
+/// The filter a resize uses.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Resample {
@@ -247,7 +263,7 @@ pub enum Resample {
 }
 
 impl Resample {
-    // PIL's filter numbers; torchvision on a GPU resizes Lanczos bicubically.
+    /// Returns the filter PIL's filter number `filter` names: 0 nearest, 1 Lanczos, 2 bilinear, and 3 bicubic.
     pub(crate) fn from_pil(filter: i64) -> Result<Self> {
         match filter {
             0 => Ok(Self::Nearest),
@@ -259,13 +275,13 @@ impl Resample {
     }
 }
 
-// The size a resize gives an image.
+/// The size a resize gives an image.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Resize {
-    // The shorter side becomes this long, and the longer keeps the aspect ratio, truncated.
+    /// The shorter side becomes this long, and the longer keeps the aspect ratio, truncated.
     ShortestEdge(i64),
-    // The shorter side becomes `shortest` unless the longer would pass `longest`, which then bounds it, and both sides round down to a multiple of `multiple`, as DETR-style processors size images.
+    /// The shorter side becomes `shortest` unless the longer would pass `longest`, which then bounds it, and both sides round down to a multiple of `multiple`, as DETR-style processors size images.
     Bounded {
         shortest: i64,
         longest: i64,
@@ -275,14 +291,14 @@ pub enum Resize {
         height: i64,
         width: i64,
     },
-    // The longer side becomes this long, and the shorter keeps the aspect ratio, rounded, as SAM's processor sizes images.
+    /// The longer side becomes this long, and the shorter keeps the aspect ratio, rounded, as SAM's processor sizes images.
     Longest(i64),
-    // The shorter side becomes the shorter of `height` and `width`, then the image shrinks, keeping its aspect ratio, until it fits within `height × width`, as Donut's processor resizes and thumbnails images.
+    /// The shorter side becomes the shorter of `height` and `width`, then the image shrinks, keeping its aspect ratio, until it fits within `height × width`, as Donut's processor resizes and thumbnails images.
     Thumbnail {
         height: i64,
         width: i64,
     },
-    // Toward `height × width`, scaling both sides alike by whichever of the two scales is nearer one when `keep_aspect_ratio` is set, each side rounded to a multiple of `multiple`, as DPT's processor sizes images.
+    /// Toward `height × width`, scaling both sides alike by whichever of the two scales is nearer one when `keep_aspect_ratio` is set, each side rounded to a multiple of `multiple`, as DPT's processor sizes images.
     Fitted {
         height: i64,
         width: i64,
@@ -375,7 +391,8 @@ impl Resize {
         }
     }
 
-    // The size Donut's `thumbnail` shrinks an image to so it fits within `most`, or `None` when it fits already: the sides capped, and the other side of the longer one scaled to keep the aspect ratio, truncated.
+    /// Returns the size Donut's `thumbnail` shrinks an image to so it fits within a [`Resize::Thumbnail`]'s `height × width`: each side capped, then the shorter side scaled by as much as the longer to keep the aspect ratio, truncated.
+    /// Returns `None` when the image fits already, or for another variant.
     fn thumbnail(self, height: i64, width: i64) -> Option<(i64, i64)> {
         let Self::Thumbnail {
             height: most_height,
@@ -399,19 +416,19 @@ impl Resize {
     }
 }
 
-// How an image grows at its bottom and right.
+/// How an image grows at its bottom and right.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Padding {
-    // Past the next multiple of `multiple`, by a whole multiple when the side is one already, mirroring the edge before rescaling, as Swin2SR's processor pads.
+    /// Past the next multiple of `multiple`, by a whole multiple when the side is one already, mirroring the edge before rescaling, as `Swin2SR`'s processor pads.
     Symmetric { multiple: i64 },
-    // To `height × width` with zeros after normalizing, as SAM's processor pads.
+    /// To `height × width` with zeros after normalizing, as SAM's processor pads.
     Zeros { height: i64, width: i64 },
-    // To `height × width` with black around the image, centered, before rescaling, as Donut's processor pads.
+    /// To `height × width` with black around the image, centered, before rescaling, as Donut's processor pads.
     Centered { height: i64, width: i64 },
 }
 
-// Per-channel normalization after rescaling: `(x - mean) / std`.
+/// Per-channel normalization after rescaling: `(x - mean) / std`.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct Normalization {
     pub mean: [f64; 3],
@@ -438,18 +455,22 @@ impl Normalization {
 pub struct ImageTransforms {
     pub resize: Option<Resize>,
     pub resample: Resample,
-    // The center crop's height and width.
+    /// The center crop's height and width.
     pub crop: Option<[i64; 2]>,
-    // What pixel values in [0, 255] are multiplied by, such as `1 / 255`.
+    /// What pixel values from 0 to 255 are multiplied by, such as `1 / 255`.
     pub rescale: Option<f64>,
     pub pad: Option<Padding>,
-    // Whether a color image becomes gray after rescaling, in each of its three channels, by the NTSC weights, as LightGlue's processor converts it.
+    /// Whether a color image becomes gray after rescaling, in each of its three channels, by the NTSC weights, as `LightGlue`'s processor converts it.
     pub grayscale: bool,
     pub normalization: Option<Normalization>,
 }
 
 impl ImageTransforms {
-    // Reads a snapshot's `preprocessor_config.json`, as `transformers`' default image processors read it.
+    /// Reads a snapshot's `preprocessor_config.json`, as `transformers`' default image processors read it.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `preprocessor_config.json` cannot be read or parsed, or if it asks for a size, crop, padding, normalization, or resampling filter these transforms do not support.
     pub fn load(source: &Source) -> Result<Self> {
         let fields: Value = source.json("preprocessor_config.json")?;
         // A processor's class, which decides what an older config's bare `size` means.
@@ -481,12 +502,20 @@ impl ImageTransforms {
         })
     }
 
-    // Returns the image as `[1, 3, H, W]` of `data_type` on `device`, resized, cropped, rescaled, and normalized.
+    /// Returns the image as `[1, 3, H, W]` of `data_type` on `device`, in this order resized, padded by mirroring or centering, center-cropped, rescaled, turned gray, normalized, and padded with zeros, as far as the transforms ask.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the resized image is larger than a centered or zero padding's size, or smaller than the center crop.
     pub fn preprocess(&self, image: &Image, device: Device, data_type: DataType) -> Result<Tensor> {
         Ok(self.one(image, device)?.cast(data_type)?)
     }
 
-    // Returns the images as one batch, `[B, 3, H, W]` of `data_type` on `device`, each resized, cropped, rescaled, and normalized; they must end at one size.
+    /// Returns the images as one batch, `[B, 3, H, W]` of `data_type` on `device`, each transformed as [`ImageTransforms::preprocess`] transforms one.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if [`ImageTransforms::preprocess`] would fail on an image, or if the transformed images differ in size.
     pub fn preprocess_batch(
         &self,
         images: &[Image],
@@ -591,7 +620,7 @@ fn zero_padded(tensor: &Tensor, padded_height: i64, padded_width: i64) -> Result
     )?)
 }
 
-// A `preprocessor_config.json`'s fields, and the processor class that decides what an older config's bare `size` means.
+/// A `preprocessor_config.json`'s fields, and the processor class that decides what an older config's bare `size` means.
 struct PreprocessorConfig<'a> {
     fields: &'a Value,
     class: &'a str,
@@ -651,7 +680,8 @@ impl PreprocessorConfig<'_> {
         }))
     }
 
-    // Donut's processor reads a list size as `[width, height]`, resizes the shorter side, thumbnails, and pads to the size, centered.
+    /// Returns the `(height, width)` a `DonutImageProcessor` config's size names, or `None` for another class.
+    /// Donut's processor reads a list size as `[width, height]`, resizes the shorter side, thumbnails, and pads to the size, centered.
     fn donut_size(&self) -> Result<Option<(i64, i64)>> {
         if self.class != "DonutImageProcessor" {
             return Ok(None);

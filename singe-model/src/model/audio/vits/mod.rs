@@ -1,4 +1,4 @@
-// VITS, as MMS-TTS has it: a text encoder of relative-position attention gives each character a prior and a hidden state, a stochastic duration predictor run backward through its flows says how many frames each character lasts, the priors repeated that long run backward through coupling flows, and HiFi-GAN turns the latents into samples.
+//! VITS, as MMS-TTS has it: a text encoder of relative-position attention gives each character a prior and a hidden state, a stochastic duration predictor run backward through its flows says how many frames each character lasts, latents sampled from the priors repeated that long run backward through coupling flows, and HiFi-GAN turns the latents into samples.
 
 mod spline;
 mod transformers;
@@ -55,12 +55,12 @@ pub struct VitsConfig {
     pub speaking_rate: f32,
 }
 
-// A layer norm over the channels of `[B, C, T]`.
+/// Returns the layer norm of `input`, `[B, C, T]`, over its channels.
 fn channel_norm(input: &Tensor, norm: &LayerNorm, state: &ModelState) -> SingeResult<Tensor> {
     input.transpose(1, 2)?.apply(norm, state)?.transpose(1, 2)
 }
 
-// Reverses the order of `[1, C, T]`'s channels.
+/// Reverses the order of the channels of `input`, `[B, C, T]`.
 fn flip_channels(input: &Tensor) -> SingeResult<Tensor> {
     let &[_, channels, _] = input.shape().dimensions() else {
         return Err(SingeError::invalid_argument("VITS flow latents"));
@@ -100,7 +100,7 @@ impl Attention {
         })
     }
 
-    // Each pair of positions' relative embedding of `table`, `[1, window · 2 + 1, head]`, `[T, T, head]`, zero beyond the window.
+    /// Returns each pair of positions' relative embedding from `table`, `[1, window · 2 + 1, head]`, as `[T, T, head]`, zero beyond the window.
     fn relative(&self, table: &Tensor, length: i64) -> SingeResult<Tensor> {
         let &[_, _, head] = table.shape().dimensions() else {
             return Err(SingeError::invalid_argument("VITS relative embeddings"));
@@ -224,7 +224,7 @@ struct DepthSeparableLayer {
     second_norm: LayerNorm,
 }
 
-// A stack of dilated depthwise and pointwise convolutions, each normed and activated, with residuals.
+/// A stack of dilated depthwise and pointwise convolutions, each normed and activated, with residuals, over its input plus the condition when one is given.
 #[derive(Debug, Clone)]
 struct DepthSeparable {
     layers: Vec<DepthSeparableLayer>,
@@ -377,7 +377,7 @@ impl DurationPredictor {
         })
     }
 
-    // The duration predictor run backward from `noise`, `[1, 2, T]`, conditioned on the text's states: each character's log duration.
+    /// Returns each character's log duration: the duration predictor run backward from `noise`, `[1, 2, T]`, conditioned on the text's states.
     fn log_durations(
         &self,
         hidden: &Tensor,

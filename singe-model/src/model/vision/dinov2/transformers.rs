@@ -1,4 +1,4 @@
-// Reads a `transformers` DINOv2 config and imports its checkpoint.
+//! Reads a `transformers` `DINOv2` config and imports its checkpoint.
 
 use serde::Deserialize;
 use singe::nn::Activation;
@@ -13,7 +13,6 @@ use crate::{
     source::Source,
 };
 
-// `Dinov2Config`'s defaults, which a backbone's partial config leaves to them.
 const fn default_width() -> i64 {
     768
 }
@@ -46,6 +45,7 @@ const fn default_patch_size() -> i64 {
     14
 }
 
+/// A `transformers` `DINOv2` config, whose fields a backbone's partial config may leave out to take `Dinov2Config`'s defaults.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub(crate) struct Fields {
     #[serde(default = "default_width")]
@@ -113,7 +113,7 @@ pub(crate) fn fields_config(fields: &Fields) -> Result<VisionTowerConfig> {
     })
 }
 
-// Imports the encoder stored under `from` to the schema's names under `to`.
+/// Returns the rules that import the encoder stored under `from` to the schema's names under `to`.
 pub(crate) fn encoder_rules(from: &str, to: &str) -> Rules {
     let embeddings = join(from, "embeddings");
     Rules::new()
@@ -147,7 +147,7 @@ pub(crate) fn encoder_rules(from: &str, to: &str) -> Rules {
         .rename(&join(from, "layernorm"), &join(to, "norm"))
 }
 
-// Checkpoints of a classifier store the encoder under `dinov2.`.
+/// Returns the rules that import a checkpoint's encoder, stored at its root or, in a classifier's checkpoint, under `dinov2.`.
 pub(crate) fn rules() -> Rules {
     encoder_rules("", "")
         .then(encoder_rules("dinov2", ""))

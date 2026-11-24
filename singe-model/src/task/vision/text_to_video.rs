@@ -1,4 +1,4 @@
-// `text-to-video`: a prompt and a seed to a clip's frames, as `diffusers`' `AnimateDiffPipeline` generates them: a Stable Diffusion UNet with a motion adapter denoising every frame's latents together, with classifier-free guidance where its scale exceeds one, and each frame decoded by the VAE.
+//! `text-to-video`: a prompt and a seed to a clip's frames, as `diffusers`' `AnimateDiffPipeline` generates them: a Stable Diffusion `UNet` with a motion adapter denoising every frame's latents together, with classifier-free guidance where its scale exceeds one, and each frame decoded by the VAE.
 
 use serde::Deserialize;
 

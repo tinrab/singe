@@ -1,4 +1,4 @@
-// `object-detection`: an image to the objects found in it, each a label, a score, and a box in the image's pixels, as `transformers`' pipeline post-processes a DETR-style detector.
+//! `object-detection`: an image to the objects found in it, each a label, a score, and a box in the image's pixels, as `transformers`' pipeline post-processes a DETR-style detector.
 
 use serde::{Deserialize, Serialize};
 
@@ -21,7 +21,7 @@ pub struct ObjectDetectionPipeline {
 #[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
 #[serde(default)]
 pub struct ObjectDetectionParameters {
-    // The least score an object keeps.
+    /// The score an object must exceed to be kept, 0.5 by default.
     pub threshold: f32,
 }
 
@@ -31,7 +31,7 @@ impl Default for ObjectDetectionParameters {
     }
 }
 
-// A box's corners in an image's pixels, truncated as `transformers` truncates them.
+/// A box's corners in an image's pixels, truncated as `transformers` truncates them.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub struct BoundingBox {
     pub xmin: i64,
@@ -41,7 +41,7 @@ pub struct BoundingBox {
 }
 
 impl BoundingBox {
-    // The corners of a normalized `[cx, cy, w, h]` box in an image of `width` and `height` pixels.
+    /// Returns the corners of a normalized `[cx, cy, w, h]` box in an image of `width` and `height` pixels.
     #[must_use]
     pub fn from_center([cx, cy, w, h]: [f32; 4], width: u32, height: u32) -> Self {
         let (width, height) = (width as f32, height as f32);
@@ -77,7 +77,7 @@ impl Pipeline for ObjectDetectionPipeline {
         })
     }
 
-    // Each query's labels go through a softmax with the no-object score, whose best real label it keeps above the threshold.
+    /// Detects the objects in `image`: each query's labels go through a softmax with the no-object score, and a query whose best real label scores above the threshold is kept with that label.
     fn run_one(&self, image: &Self::Input, parameters: &Self::Parameters) -> Result<Self::Output> {
         let labels = self.model.config().labels();
         let pixels =

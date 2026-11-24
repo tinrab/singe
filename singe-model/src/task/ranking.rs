@@ -5,9 +5,9 @@ use crate::{head::ScoreFunction, host};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(default)]
 pub struct ClassificationParameters {
-    // The labels to keep from the best, at most every one.
+    /// The most labels to keep, best first, 5 by default.
     pub top_k: usize,
-    // How scores become what the output reports, or the model's own choice when absent.
+    /// How scores become what the output reports, or the model's own choice when `None`.
     pub function_to_apply: Option<ScoreFunction>,
 }
 
@@ -26,7 +26,7 @@ pub struct LabelScore {
     pub label: String,
 }
 
-// Each label's score after `function`, best first, the first `top_k`.
+/// Returns each label's score after `function`, best first, the first `top_k`.
 #[must_use]
 pub fn ranked(
     scores: &[f32],

@@ -1,4 +1,4 @@
-// An encoder–decoder speech model, as Whisper and Qwen3-ASR are: its config, its encoder and its decoder, each with state of its own, `encoder` and `decoder`, and how its snapshot generates.
+//! An encoder–decoder speech model, as Whisper and Qwen3-ASR are: its config, its encoder and its decoder, each with state of its own, `encoder` and `decoder`, and how its snapshot generates.
 
 use singe::{
     generation::{CachedDecoder, GenerationOptions},
@@ -16,7 +16,7 @@ pub struct SpeechModel<C, E, D: DecoderModel> {
     config: C,
     encoder: Model<E>,
     decoder: Model<D>,
-    // The snapshot's stop and suppressed tokens, generating nothing until a caller sets `max_new_tokens`.
+    /// The snapshot's stop tokens, suppressed tokens and first suppressed tokens, with a `max_new_tokens` of zero until a caller sets one.
     generation: GenerationOptions,
     decoders: Decoders<DecoderKey, CachedDecoder<D>>,
 }
@@ -56,7 +56,8 @@ impl<C, E, D: DecoderModel> SpeechModel<C, E, D> {
         &self.decoder
     }
 
-    // How `transformers`' `generate` continues a prompt for this snapshot, greedily, up to `max_new_tokens`: the generation config's end of text stops a sequence, and its suppressed tokens are not chosen.
+    /// Returns the options with which `transformers`' `generate` continues a prompt for this snapshot greedily, up to `max_new_tokens`.
+    /// The snapshot's stop tokens end a sequence, the `suppress_tokens` of `generation_config.json` are never chosen, and its `begin_suppress_tokens` are never chosen first.
     #[must_use]
     pub fn generation_options(&self, max_new_tokens: usize) -> GenerationOptions {
         GenerationOptions {

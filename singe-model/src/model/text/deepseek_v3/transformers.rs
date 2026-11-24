@@ -1,4 +1,4 @@
-// Reads a `transformers` DeepSeek-V3 config, and imports its checkpoint.
+//! Reads a `transformers` `DeepSeek-V3` config and imports its checkpoint.
 
 use serde::Deserialize;
 use singe::nn::{Activation, RotaryLayout};
@@ -18,7 +18,6 @@ const fn default_one() -> i64 {
     1
 }
 
-// The defaults `transformers` gives these fields, which a real checkpoint's config states anyway.
 const fn default_moe_intermediate() -> i64 {
     2048
 }
@@ -51,6 +50,8 @@ fn default_scoring() -> String {
     "sigmoid".to_owned()
 }
 
+/// The config's fields.
+/// Expert fields the config leaves out take the defaults of `transformers`' `DeepseekV3Config`, except `topk_method`, `scoring_func`, and `moe_layer_freq`: `transformers` does not read them, and they default to the only values [`Fields::validate_moe`] accepts.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 struct Fields {
     #[serde(flatten)]
@@ -89,7 +90,7 @@ struct Fields {
 }
 
 impl Fields {
-    // A checkpoint using one of these would load and then compute something else.
+    /// Returns an error for a setting that a checkpoint would load with and then compute something else from.
     fn validate(&self) -> Result<()> {
         if self.decoder.attention_bias {
             return Err(Error::unsupported("attention bias"));
@@ -101,7 +102,7 @@ impl Fields {
         Ok(())
     }
 
-    // What `MixtureOfExperts` computes differently, or cannot take.
+    /// Returns an error for an expert setting that [`MixtureOfExperts`](singe::nn::MixtureOfExperts) computes differently or cannot take.
     fn validate_moe(&self) -> Result<()> {
         if !self.norm_topk_prob {
             return Err(Error::unsupported("unnormalized expert weights"));
@@ -186,7 +187,8 @@ pub(crate) fn config(source: &Source) -> Result<DeepseekV3Config> {
     })
 }
 
-// Rules for latent attention, routers, and shared experts go before the experts' and Llama's, which import the rest.
+/// Returns the rules that import a checkpoint.
+/// Rules for latent attention, routers, and shared experts go before the experts' and Llama's, which import the rest.
 pub(crate) fn rules(config: &DeepseekV3Config) -> Rules {
     Rules::new()
         // The checkpoints store a multi-token-prediction layer after the last block, which `transformers` leaves unread.

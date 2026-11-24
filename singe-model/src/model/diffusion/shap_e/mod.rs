@@ -1,7 +1,7 @@
-// Shap-E: a prior transformer that denoises a 3-D asset's latent, 1024 vectors, conditioned on a CLIP embedding of a text or an image, and a renderer that projects the latent into a NeRF-STF MLP's weights, queries its signed distance on a grid, and meshes it by marching cubes, coloring each vertex by the MLP's texture.
-//
-// The prior's state is `time` (`up`, `down`), `proj_in`, `embedding_norm` where it norms its condition, `embedding_proj`, `positions`, `norm_in`, `blocks.N` (`attention_norm`, `attention` with `query`, `key`, `value`, and `output`, `feed_forward_norm`, and `feed_forward` with `up` and `down`), `norm_out`, and `proj_to_clip`.
-// The renderer's is `params_proj.N` (`proj`, `norm`) for each projected weight, `mlp.N`, and the marching cubes tables `cases` and `masks`.
+//! Shap-E: a prior transformer that denoises a 3-D asset's latent, 1024 vectors, conditioned on a CLIP embedding of a text or an image, and a renderer that projects the latent into a NeRF-STF MLP's weights, queries its signed distance on a grid, and meshes it by marching cubes, coloring each vertex by the MLP's texture.
+//!
+//! The prior's state is `time` (`up`, `down`), `proj_in`, `embedding_norm` where it norms its condition, `embedding_proj`, `positions`, `norm_in`, `blocks.N` (`attention_norm`, `attention` with `query`, `key`, `value`, and `output`, `feed_forward_norm`, and `feed_forward` with `up` and `down`), `norm_out`, and `proj_to_clip`.
+//! The renderer's is `params_proj.N` (`proj`, `norm`) for each projected weight, `mlp.N`, and the marching cubes tables `cases` and `masks`.
 
 mod diffusers;
 
@@ -29,17 +29,19 @@ pub struct PriorConfig {
     pub width: i64,
     pub heads: i64,
     pub layers: i64,
-    // The latent's vectors and their width.
+    /// The number of the latent's vectors.
     pub embeddings: i64,
+    /// The width of each of the latent's vectors.
     pub embedding_width: i64,
-    // The width of the condition, and whether it is layer-normed first.
+    /// The width of the condition.
     pub condition_width: i64,
+    /// Whether the condition is layer-normed before its projection.
     pub condition_norm: bool,
     pub clip_width: i64,
     pub time_width: i64,
 }
 
-// `PriorTransformer` as Shap-E uses it: the condition's tokens, the timestep's, and the latent's vectors, attending to each other with no mask, and the latent's predicted again.
+/// `PriorTransformer` as Shap-E uses it: the condition's tokens, the timestep's, and the latent's vectors, attending to each other with no mask, and the latent's states read out as its prediction.
 #[derive(Debug, Clone)]
 pub struct PriorLayers {
     config: PriorConfig,
@@ -91,7 +93,7 @@ impl PriorLayers {
         })
     }
 
-    // The predicted latent, `[B, N, D]`, of `latent`, `[B, N, D]`, at the timestep whose features `time` holds, `[1, W]`, conditioned on `condition`, `[B, C]` or `[B, K, C]`.
+    /// Returns the predicted latent, `[B, N, D]`, of `latent`, `[B, N, D]`, at the timestep whose features `time` holds, `[1, W]`, conditioned on `condition`, `[B, C]` or `[B, K, C]`.
     fn predict(
         &self,
         latent: &Tensor,
@@ -150,7 +152,7 @@ impl Prior {
         &self.model.layer().config
     }
 
-    // The prediction for `latent` at `timestep`, in `F32`.
+    /// Returns the prediction for `latent`, `[B, N, D]`, at `timestep`, conditioned on `condition`, `[B, C]` or `[B, K, C]`, in `F32`.
     pub fn predict(&self, latent: &Tensor, timestep: f32, condition: &Tensor) -> Result<Tensor> {
         let (layers, state) = (self.model.layer(), self.model.state());
         let data_type = state.floating_type()?;
@@ -174,15 +176,15 @@ impl Prior {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RendererConfig {
-    // Each projected weight's rows and columns, which consecutive runs of the latent's vectors project to.
+    /// Each projected weight's rows and columns, which consecutive runs of the latent's vectors project to.
     pub projected: Vec<[i64; 2]>,
     pub latent_width: i64,
-    // The MLP's layers' input and output widths.
+    /// The MLP's layers' input and output widths.
     pub layers: Vec<[i64; 2]>,
     pub insert_direction_at: usize,
 }
 
-// `ChannelsProj`: each of a run of the latent's vectors to a row of a weight, normed, plus a bias.
+/// `ChannelsProj`: each of a run of the latent's vectors to a row of a weight, normed, plus a bias.
 #[derive(Debug, Clone)]
 struct ProjectedWeight {
     weight: StateKey,
@@ -196,7 +198,7 @@ struct ProjectedWeight {
 pub struct RendererLayers {
     config: RendererConfig,
     projected: Vec<ProjectedWeight>,
-    // The MLP's weights and biases; the first projected weights replace its first weights.
+    /// The MLP's weights and biases; the projected weights replace its first weights.
     mlp: Vec<(StateKey, StateKey)>,
     cases: StateKey,
     masks: StateKey,
@@ -240,7 +242,7 @@ impl RendererLayers {
         })
     }
 
-    // The MLP's weights for `latent`, `[N, D]`: the projected ones first, then its own.
+    /// Returns the MLP's weights for `latent`, `[N, D]`: the projected ones first, then its own.
     fn weights(&self, latent: &Tensor, state: &ModelState) -> SingeResult<Vec<Tensor>> {
         let mut start = 0;
         let mut weights = Vec::new();
@@ -272,7 +274,9 @@ impl RendererLayers {
         Ok(weights)
     }
 
-    // The MLP's outputs at `positions`, `[P, 3]`, with `weights`: `[P, 12]`, of which the first is the signed distance before its `tanh` and 3 to 5 the texture before its sigmoid.
+    /// Returns the MLP's outputs at `positions`, `[P, 3]`, computed with `weights`.
+    ///
+    /// Column 0 is the signed distance before its `tanh`, and columns 3 to 5 are the texture before its sigmoid.
     fn query(
         &self,
         positions: &Tensor,
@@ -332,7 +336,7 @@ impl RendererLayers {
     }
 }
 
-// A mesh with a color for each vertex, in [0, 1] and linear.
+/// A mesh with a color for each vertex, in [0, 1] and linear.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Mesh {
     pub vertices: Vec<[f32; 3]>,
@@ -340,8 +344,10 @@ pub struct Mesh {
     pub colors: Vec<[f32; 3]>,
 }
 
-// The grid's side and the points queried at once, as `decode_to_mesh` queries them.
+/// The side of the grid `decode_to_mesh` queries.
 const GRID: usize = 128;
+
+/// The points [`Renderer::decode_mesh`] queries at once, where `decode_to_mesh` queries 4096.
 const BATCH: usize = 4096 * 16;
 
 #[derive(Debug)]
@@ -350,7 +356,7 @@ pub struct Renderer {
 }
 
 impl Renderer {
-    // `decode_to_mesh`: the latent's MLP's signed distance on a 128³ grid over [-1, 1]³, bordered by -1, meshed by marching cubes, and each vertex colored by the MLP's texture, converted from sRGB to linear.
+    /// Decodes `latent`, `[N, D]`, to a mesh as `decode_to_mesh` does: the latent's MLP's signed distance on a 128³ grid over [-1, 1]³, bordered by -1, meshed by marching cubes, and each vertex colored by the MLP's texture, converted from sRGB to linear.
     pub fn decode_mesh(&self, latent: &Tensor) -> Result<Mesh> {
         let (layers, state) = (self.model.layer(), self.model.state());
         let device = state.device()?;
@@ -429,8 +435,9 @@ impl Renderer {
     }
 }
 
-// `MeshDecoder`'s grid: `GRID³` values x slowest, bordered by -1 to `SIDE³`, whose edges are numbered x-edges first, then y-edges, then z-edges, each in its grid's order.
+/// The side of `MeshDecoder`'s grid: `GRID³` values, x slowest, bordered by -1 to `SIDE³`.
 const SIDE: usize = GRID + 2;
+
 const CELLS: usize = SIDE - 1;
 const X_EDGES: usize = CELLS * SIDE * SIDE;
 const Y_EDGES: usize = SIDE * CELLS * SIDE;
@@ -443,6 +450,7 @@ const fn grid_value(field: &[f32], [x, y, z]: [usize; 3]) -> f32 {
     }
 }
 
+/// Returns the number of the edge along `axis` from point `x`, `y`, `z` of the bordered grid, numbering x-edges first, then y-edges, then z-edges, each in its grid's order.
 const fn edge(axis: usize, x: usize, y: usize, z: usize) -> usize {
     match axis {
         0 => (x * SIDE + y) * SIDE + z,
@@ -451,7 +459,7 @@ const fn edge(axis: usize, x: usize, y: usize, z: usize) -> usize {
     }
 }
 
-// The triangles of each cube of the grid, as edge numbers, from Shap-E's tables of each cube's triangles, as its own edges, and which of its five are used.
+/// Returns the triangles of each cube of the grid, as edge numbers, from Shap-E's tables: `cases`, each cube's triangles as its own edges, and `masks`, which of its five are used.
 fn triangles(field: &[f32], cases: &[i64], masks: &[i64]) -> Vec<[usize; 3]> {
     let mut triangles = Vec::new();
     for x in 0..CELLS {
@@ -507,7 +515,7 @@ fn triangles(field: &[f32], cases: &[i64], masks: &[i64]) -> Vec<[usize; 3]> {
     triangles
 }
 
-// Where the field crosses zero on edge `number`, between its two corners, over [-1, 1]³.
+/// Returns where the field crosses zero on edge `number`, between its two corners, over [-1, 1]³.
 fn crossing(field: &[f32], number: usize) -> [f32; 3] {
     let (axis, rest) = if number < X_EDGES {
         (0, number)
@@ -534,7 +542,7 @@ fn crossing(field: &[f32], number: usize) -> [f32; 3] {
     [0, 1, 2].map(|index| t * place(second[index]) + (1.0 - t) * place(first[index]))
 }
 
-// `MeshDecoder`: marching cubes over `field`, `GRID³` x slowest, with Shap-E's tables; vertices are the used edges' crossings, in edge order.
+/// Meshes `field`, `GRID³` x slowest, by marching cubes with Shap-E's tables, as `MeshDecoder` does, returning the vertices, which are the used edges' crossings in edge order, and the faces, as indices into the vertices.
 fn marching_cubes(field: &[f32], cases: &[i64], masks: &[i64]) -> (Vec<[f32; 3]>, Vec<[i64; 3]>) {
     let triangles = triangles(field, cases, masks);
     let mut numbers = triangles

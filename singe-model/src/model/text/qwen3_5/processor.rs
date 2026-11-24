@@ -1,4 +1,4 @@
-// Qwen3.5's image front end, as `transformers`' processor reads a still image: resized into `smart_resize`'s size, normalized, and cut into patches in the order that puts each merged block's patches together.
+//! Qwen3.5's image front end, as `transformers`' processor reads a still image: resized into `smart_resize`'s size, normalized, and cut into patches in the order that puts each merged block's patches together.
 
 use serde::{Deserialize, Serialize};
 use singe::{
@@ -8,15 +8,15 @@ use singe::{
 
 use crate::{error::Result, model::text::qwen3_5::Qwen35VisionConfig, processor::image::Image};
 
-// The fewest and most pixels an image is resized into.
+/// The fewest and most pixels an image is resized into.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ImageSizeBounds {
     pub min_pixels: i64,
     pub max_pixels: i64,
 }
 
-// How the image front end resizes and normalizes an image.
 // no-slop-allow: no-vague-type-names -- this mirrors a `transformers` image processor.
+/// How the image front end resizes and normalizes an image.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Qwen35ImageProcessor {
     pub bounds: ImageSizeBounds,
@@ -24,7 +24,7 @@ pub struct Qwen35ImageProcessor {
     pub std: [f32; 3],
 }
 
-// An image as the encoder reads it: its patches, `[N, C · T · P · P]` in `F32`, in the order that puts each merged block's patches together, and its grid of patches, rows then columns.
+/// An image as the encoder reads it: its patches, `[N, C · T · P · P]` in `F32`, in the order that puts each merged block's patches together, and its grid of patches, rows then columns.
 #[derive(Debug, Clone)]
 pub(crate) struct ImagePatches {
     pub(crate) patches: Tensor,
@@ -32,7 +32,7 @@ pub(crate) struct ImagePatches {
 }
 
 impl Qwen35ImageProcessor {
-    // Reads one image: resized bicubically into `smart_resize`'s size, as `transformers`' processor resizes it, and cut into patches.
+    /// Returns one image's patches: the image resized bicubically into `smart_resize`'s size, as `transformers`' processor resizes it, then normalized and cut into patches.
     pub(crate) fn patches(
         &self,
         image: &Image,
@@ -58,7 +58,7 @@ impl Qwen35ImageProcessor {
         self.cut(&pixels, resized_height, resized_width, vision, device)
     }
 
-    // Cuts an image, `[3, H, W]` channel-major RGB in `[0, 1]` with each side a multiple of the size factor, into normalized patches on `device`, each frame of a patch the image itself, as `transformers`' processor does for a still image.
+    /// Cuts an image, `[3, H, W]` channel-major RGB in `[0, 1]` with each side a multiple of the size factor, into normalized patches on `device`, each frame of a patch the image itself, as `transformers`' processor does for a still image.
     fn cut(
         &self,
         pixels: &[f32],
@@ -118,7 +118,7 @@ impl Qwen35ImageProcessor {
     }
 }
 
-// The size `transformers`' `smart_resize` gives an image of `height` by `width`: each side a multiple of `factor`, the area within `bounds`, and the aspect ratio kept as closely as that allows.
+/// Returns the size `transformers`' `smart_resize` gives an image of `height` by `width`: each side a multiple of `factor`, the area within `bounds`, and the aspect ratio kept as closely as that allows.
 fn smart_resize(height: i64, width: i64, factor: i64, bounds: ImageSizeBounds) -> (i64, i64) {
     let (h, w, f) = (height as f64, width as f64, factor as f64);
     let mut resized = (
@@ -141,7 +141,7 @@ fn smart_resize(height: i64, width: i64, factor: i64, bounds: ImageSizeBounds) -
     resized
 }
 
-// Each patch's row and column, in the order that puts each merged block's patches together, as the image front end cuts them.
+/// Returns each patch's row and column, in the order that puts each merged block's patches together, as the image front end cuts them.
 fn patch_order(config: &Qwen35VisionConfig, [rows, columns]: [i64; 2]) -> Vec<(i64, i64)> {
     let merge = config.merge_size;
     let mut places = Vec::with_capacity(usize::try_from(rows * columns).unwrap_or(0));

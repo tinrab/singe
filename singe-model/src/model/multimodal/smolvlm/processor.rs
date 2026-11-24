@@ -1,4 +1,4 @@
-// SmolVLM's processor, ported from `transformers`' `SmolVLMImageProcessor`, `SmolVLMVideoProcessor`, and `SmolVLMProcessor`: images cut into tiles, clips sampled into frames, both resized as torchvision resizes bytes, and the prompt's placeholders expanded into image tokens between their markers.
+//! `SmolVLM`'s processor, ported from `transformers`' `SmolVLMImageProcessor`, `SmolVLMVideoProcessor`, and `SmolVLMProcessor`: images cut into tiles, clips sampled into frames, both resized as torchvision resizes bytes, and the prompt's placeholders expanded into image tokens between their markers.
 
 use std::fmt::Write;
 
@@ -13,35 +13,38 @@ use crate::{
     },
 };
 
-// The placeholder a clip leaves in a rendered conversation.
+/// The placeholder a clip leaves in a rendered conversation.
 pub(crate) const VIDEO_TOKEN: &str = "<video>";
 
-// `SmolVLMProcessor`'s `DEFAULT_CHAT_TEMPLATE`, which it renders a conversation with a clip through instead of the snapshot's.
+/// `SmolVLMProcessor`'s `DEFAULT_CHAT_TEMPLATE`, which it renders a conversation with a clip through instead of the snapshot's.
+///
+/// Unlike the original, it also renders a message whose content is a plain string.
 pub(crate) const VIDEO_CHAT_TEMPLATE: &str = "<|im_start|>{% for message in messages %}{{message['role'] | capitalize}}{% if message['content'] is string %}{{': ' + message['content']}}{% else %}{% if message['content'][0]['type'] == 'image' %}{{':'}}{% else %}{{': '}}{% endif %}{% for line in message['content'] %}{% if line['type'] == 'text' %}{{line['text']}}{% elif line['type'] == 'image' %}{{ '<image>' }}{% elif line['type'] == 'video' %}{{ '<video>' }}{% endif %}{% endfor %}{% endif %}<end_of_utterance>\n{% endfor %}{% if add_generation_prompt %}{{ 'Assistant:' }}{% endif %}";
 
-// The largest side `transformers` resizes an image to.
+/// The largest side `transformers` resizes an image to.
 const MAX_IMAGE_SIZE: i64 = 4096;
 
-// The seconds `sample_frames` skips at each end of a clip long enough.
+/// The seconds `sample_frames` skips at each end of a long enough clip.
 const SKIPPED_SECONDS: f64 = 1.0;
 
 pub type TileGrid = (i64, i64);
 
 // no-slop-allow: no-vague-type-names -- this is `SmolVLMImageProcessor`, a `transformers` image processor.
+/// How `SmolVLM`'s front end splits images into tiles, samples video frames, normalizes pixels, and expands a prompt's image placeholders into tokens.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SmolVlmProcessor {
-    // The longest side an image is resized to before it is cut.
+    /// The longest side an image is resized to before it is cut.
     pub longest_edge: i64,
-    // The side of a tile, which the vision tower reads.
+    /// The side of a tile, which the vision tower reads.
     pub tile: i64,
-    // Whether an image larger than a tile is cut into tiles, rather than shrunk to one.
+    /// Whether an image larger than a tile is cut into tiles, rather than shrunk to one.
     pub splitting: bool,
     pub mean: [f32; 3],
     pub std: [f32; 3],
     pub resample: Resample,
-    // The image tokens one tile's rows take.
+    /// The number of image tokens one tile's rows take.
     pub image_tokens: usize,
-    // How clips are sampled, for a processor that reads them.
+    /// How clips are sampled, for a processor that reads them.
     pub video: Option<VideoSampling>,
     pub image_token: String,
     pub fake_image_token: String,
@@ -50,15 +53,18 @@ pub struct SmolVlmProcessor {
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct VideoSampling {
-    // The frames per second a clip is sampled at, and the most frames sampled.
+    /// The frames per second a clip is sampled at.
     pub fps: f64,
+    /// The most frames sampled from a clip.
     pub max_frames: usize,
-    // The longest side a frame is resized to before it is squared to a tile.
+    /// The longest side a frame is resized to before it is squared to a tile.
     pub edge: i64,
 }
 
 impl VideoSampling {
-    // The frames `sample_frames` takes from a clip of `total` frames at `fps`: about `fps` a second, up to `max_frames`, spread evenly, skipping a second at each end of a long clip.
+    /// Returns the indices of the frames `sample_frames` takes from a clip of `total` frames decoded at `fps` frames per second.
+    ///
+    /// It takes about [`fps`](Self::fps) frames a second, up to `max_frames`, spread evenly, skipping a second at each end of a long clip, and fails for a clip without frames or a positive frame rate.
     fn sampled(&self, total: usize, fps: f64) -> Result<Vec<usize>> {
         if total == 0 || fps <= 0.0 {
             return Err(Error::Media(
@@ -99,7 +105,7 @@ impl VideoSampling {
     }
 }
 
-// Python's `int` of a positive float.
+/// Returns `value` truncated toward zero, as Python's `int` gives it for a positive float.
 const fn truncated(value: f64) -> i64 {
     value as i64
 }
@@ -108,7 +114,7 @@ const fn float(value: i64) -> f64 {
     value as f64
 }
 
-// `_resize_output_size_rescale_to_max_len`: the longer side becomes `longest`, the other keeps the aspect ratio, truncated and rounded up to even.
+/// Returns the size `_resize_output_size_rescale_to_max_len` gives: the longer side becomes `longest`, and the other keeps the aspect ratio, truncated and rounded up to even.
 fn rescaled_to_longest(height: i64, width: i64, longest: i64) -> (i64, i64) {
     let aspect = float(width) / float(height);
     let (mut height, mut width) = (height, width);
@@ -124,7 +130,7 @@ fn rescaled_to_longest(height: i64, width: i64, longest: i64) -> (i64, i64) {
     (height.max(1), width.max(1))
 }
 
-// `_resize_output_size_scale_below_upper_bound`: a side above `MAX_IMAGE_SIZE` shrinks to it, keeping the aspect ratio.
+/// Returns the size `_resize_output_size_scale_below_upper_bound` gives: a side above [`MAX_IMAGE_SIZE`] shrinks to it, keeping the aspect ratio.
 fn bounded(height: i64, width: i64) -> (i64, i64) {
     let aspect = float(width) / float(height);
     let (mut height, mut width) = (height, width);
@@ -138,7 +144,7 @@ fn bounded(height: i64, width: i64) -> (i64, i64) {
     (height.max(1), width.max(1))
 }
 
-// `resize_for_vision_encoder`'s size: both sides rounded up to whole tiles, the shorter from the aspect ratio after the longer.
+/// Returns the size `resize_for_vision_encoder` gives: both sides rounded up to whole tiles, the shorter from the aspect ratio after the longer.
 fn whole_tiles(height: i64, width: i64, tile: i64) -> (i64, i64) {
     let aspect = float(width) / float(height);
     let up = |side: i64| (side + tile - 1) / tile * tile;
@@ -151,7 +157,7 @@ fn whole_tiles(height: i64, width: i64, tile: i64) -> (i64, i64) {
     }
 }
 
-// The English words `num2words` gives a count.
+/// Returns the English words `num2words` gives for `number` below 1000, and its digits from 1000 up.
 fn number_words(number: usize) -> String {
     const ONES: [&str; 20] = [
         "zero",
@@ -204,7 +210,9 @@ impl SmolVlmProcessor {
         })
     }
 
-    // An image's tiles, row by row and then the whole image shrunk to one, and its grid of tiles, or the image as one tile and no grid when it fits one, as `SmolVLMImageProcessor` cuts it.
+    /// Cuts `image` into tiles as `SmolVLMImageProcessor` does.
+    ///
+    /// Returns the tiles row by row, then the whole image shrunk to one, with the grid of tiles; or the image as one tile and no grid when it fits one or splitting is off.
     pub fn tiles(&self, image: &Image) -> Result<(Vec<Image>, Option<TileGrid>)> {
         let (height, width) = (i64::from(image.height), i64::from(image.width));
         let (height, width) = rescaled_to_longest(height, width, self.longest_edge);
@@ -233,7 +241,7 @@ impl SmolVlmProcessor {
         Ok((tiles, Some((rows, columns))))
     }
 
-    // The text an image's placeholder becomes: each tile's marker and image tokens, row by row, then the whole image's, as `get_image_prompt_string` writes it.
+    /// Returns the text an image's placeholder becomes: each tile's marker and image tokens, row by row, then the whole image's, as `get_image_prompt_string` writes it.
     #[must_use]
     pub fn image_prompt(&self, grid: Option<TileGrid>) -> String {
         let tokens = self.image_token.repeat(self.image_tokens);
@@ -262,7 +270,11 @@ impl SmolVlmProcessor {
         text + &whole
     }
 
-    // Replaces each `placeholder` in `prompt` with the next of `expansions`.
+    /// Replaces each `placeholder` in `prompt` with the next of `expansions`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `prompt` does not hold exactly one `placeholder` for each of `expansions`.
     pub fn expand(&self, prompt: &str, placeholder: &str, expansions: &[String]) -> Result<String> {
         let pieces = prompt.split(placeholder).collect::<Vec<_>>();
         if pieces.len() != expansions.len() + 1 {
@@ -282,7 +294,11 @@ impl SmolVlmProcessor {
         Ok(text)
     }
 
-    // A clip's sampled frames, each squared to a tile, and the text its placeholder becomes, as `SmolVLMVideoProcessor` samples and resizes them and `replace_video_token` introduces them, for a clip decoded at `fps` frames per second.
+    /// Returns a clip's sampled frames, each squared to a tile, and the text its placeholder becomes, as `SmolVLMVideoProcessor` samples and resizes them and `replace_video_token` introduces them, for a clip decoded at `fps` frames per second.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the processor reads no clips, or if the clip has no frames or `fps` is not positive.
     pub fn frames(&self, video: &Video, fps: f64) -> Result<(Vec<Image>, String)> {
         let sampling = self
             .video
@@ -329,7 +345,7 @@ impl SmolVlmProcessor {
         Ok((frames, text))
     }
 
-    // Tiles as the tower reads them, `[N, 3, S, S]`, rescaled and normalized as `transformers` fuses the two.
+    /// Returns tiles as the tower reads them, `[N, 3, S, S]`, rescaled and normalized as `transformers` fuses the two.
     pub fn pixels(&self, tiles: &[Image], device: Device, data_type: DataType) -> Result<Tensor> {
         let side = usize::try_from(self.tile).map_err(|_| SingeError::out_of_range("tile side"))?;
         let mut values = Vec::with_capacity(tiles.len() * 3 * side * side);
@@ -356,7 +372,7 @@ impl SmolVlmProcessor {
     }
 }
 
-// The `side × side` square of `image` from `top`, `left`.
+/// Returns the `side × side` square of `image` from `top`, `left`.
 fn crop(image: &Image, top: i64, left: i64, side: i64) -> Result<Image> {
     let width = image.width as usize;
     let (top, left, side) = (top as usize, left as usize, side as usize);

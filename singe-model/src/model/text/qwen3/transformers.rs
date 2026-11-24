@@ -1,4 +1,4 @@
-// Reads a `transformers` Qwen3 config.
+//! Reads a `transformers` Qwen3 config.
 
 use serde::Deserialize;
 

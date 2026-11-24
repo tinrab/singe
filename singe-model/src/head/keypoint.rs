@@ -1,4 +1,4 @@
-// Keypoint detection, as SuperPoint gives it: each pixel's keypoint probability and a map of descriptors on the device, then on the host the local maxima above a threshold away from the border, each described by the map sampled at it.
+//! Keypoint detection, as `SuperPoint` gives it: each pixel's keypoint probability and a map of descriptors on the device, then on the host the local maxima above a threshold away from the border, each described by the map sampled at it.
 
 use std::fmt::Debug;
 
@@ -10,24 +10,25 @@ use singe::{
 
 use crate::{error::Result, head::Boxed, host};
 
-// What a keypoint detector's layers give: each pixel's keypoint probability, `[B, H, W]`, and unit descriptors over a coarser map, `[B, D, h, w]`.
+/// A keypoint detector's layers.
 pub trait KeypointLayers: Debug + Send + Sync {
+    /// Returns each pixel's keypoint probability, `[B, H, W]`, and unit descriptors over a coarser map, `[B, D, h, w]`.
     fn maps(&self, pixels: &Tensor, state: &ModelState) -> SingeResult<(Tensor, Tensor)>;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct KeypointConfig {
-    // The least probability a keypoint has.
+    /// The probability a keypoint must exceed.
     pub threshold: f32,
-    // The most keypoints kept, the most probable, or every one.
+    /// The most keypoints kept, the most probable ones, or `None` to keep every one.
     pub max_keypoints: Option<usize>,
-    // The radius of the square within which a keypoint is the most probable.
+    /// The radius of the square within which a keypoint is the most probable.
     pub radius: usize,
-    // The pixels from each edge within which no keypoint is kept.
+    /// The pixels from each edge within which no keypoint is kept.
     pub border: usize,
 }
 
-// An image's keypoints at pixels of the image the model read, `[x, y]`, their probabilities, and their unit descriptors.
+/// An image's keypoints at pixels of the image the model read, `[x, y]`, their probabilities, and their unit descriptors.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Keypoints {
     pub keypoints: Vec<[f32; 2]>,
@@ -41,7 +42,7 @@ pub struct KeypointDetector {
     config: KeypointConfig,
 }
 
-// A row-major `height × width` map.
+/// A row-major `height × width` map.
 struct Plane<'a> {
     values: &'a [f32],
     height: usize,
@@ -49,7 +50,7 @@ struct Plane<'a> {
 }
 
 impl Plane<'_> {
-    // The maximum over each point's `(2 · radius + 1)`-sided square, separably, as `max_pool2d` with stride one and padding `radius` takes it.
+    /// Returns the maximum over each point's `(2 · radius + 1)`-sided square, taken separably, as `max_pool2d` with stride one and padding `radius` takes it.
     fn max_pool(&self, radius: usize) -> Vec<f32> {
         let (height, width) = (self.height, self.width);
         let mut rows = vec![f32::NEG_INFINITY; height * width];
@@ -79,7 +80,7 @@ impl Plane<'_> {
     }
 }
 
-// The scores but where a point is no local maximum, zero, as SuperPoint's `simple_nms` keeps them: maxima first, then twice, maxima among the points no kept maximum suppresses.
+/// Returns the scores with zero where a point is no local maximum, as `SuperPoint`'s `simple_nms` keeps them: the maxima first, then, twice, the maxima among the points no kept maximum suppresses.
 fn suppressed(scores: &[f32], height: usize, width: usize, radius: usize) -> Vec<f32> {
     let pool = |values: &[f32]| {
         Plane {
@@ -120,7 +121,7 @@ fn suppressed(scores: &[f32], height: usize, width: usize, radius: usize) -> Vec
         .collect()
 }
 
-// Samples `descriptors`, `[D, h, w]` row-major, bilinearly at a keypoint, as SuperPoint's `_sample_descriptors` does through `grid_sample` with aligned corners and zeros outside, and scales the result to unit length.
+/// Samples `descriptors`, `[D, h, w]` row-major, bilinearly at a keypoint, as `SuperPoint`'s `_sample_descriptors` does through `grid_sample` with aligned corners and zeros outside, and scales the result to unit length.
 fn sample(
     descriptors: &[f32],
     depth: usize,
@@ -185,14 +186,19 @@ impl KeypointDetector {
         &self.config
     }
 
-    // Returns each image's keypoints.
+    /// Returns each image's keypoints, as [`extract_keypoints`] finds them in the model's maps.
     pub fn detect(&self, pixels: &Tensor) -> Result<Vec<Keypoints>> {
         let (scores, descriptors) = self.model.layer().maps(pixels, self.model.state())?;
         Ok(extract_keypoints(&scores, &descriptors, &self.config)?)
     }
 }
 
-// Each image's keypoints from its probabilities and descriptors, as `KeypointLayers` give them, in the order of their rows and then columns, or the most probable first when `config` bounds their count.
+/// Returns each image's keypoints from its probabilities and descriptors, as [`KeypointLayers::maps`] gives them.
+/// The keypoints come in the order of their rows and then columns, or the most probable first when `config` keeps fewer than are found.
+///
+/// # Errors
+///
+/// Returns an error if `scores` is not `[B, H, W]` or `descriptors` is not `[B, D, h, w]`.
 pub fn extract_keypoints(
     scores: &Tensor,
     descriptors: &Tensor,
@@ -255,8 +261,9 @@ pub fn extract_keypoints(
         .collect())
 }
 
-// What a keypoint matcher's layers give for a pair of images, `[2, C, H, W]`: each image's keypoints at its pixels, `[x, y]`, and each first keypoint's match among the second's, or -1, with its score.
+/// A keypoint matcher's layers.
 pub trait MatchingLayers: Debug + Send + Sync {
+    /// Returns, for a pair of images, `pixels`, `[2, C, H, W]`, each image's keypoints at its pixels, `[x, y]`, and each of the first image's keypoints' match among the second's, or -1, with its score.
     fn match_pair(&self, pixels: &Tensor, state: &ModelState) -> SingeResult<PairMatches>;
 }
 

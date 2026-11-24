@@ -1,4 +1,4 @@
-// `token-classification`: text to its tokens' labels, or to the entities grouped from them, as `transformers`' pipeline finds them.
+//! `token-classification`: text to its tokens' labels, or to the entities grouped from them, as `transformers`' pipeline finds them.
 
 use serde::{Deserialize, Serialize};
 
@@ -18,7 +18,7 @@ pub struct TokenClassificationPipeline {
     options: LoadOptions,
 }
 
-// How tokens become entities: each token alone (`none`), adjacent tokens of one entity grouped (`simple`), or first each word's tokens agreed on one label by its first token's, the average of their scores, or its most confident token's.
+/// How tokens become entities: each token alone (`none`), adjacent tokens of one entity grouped (`simple`), or, for `first`, `average`, and `max`, each word's tokens first agreed on one label: its first token's, the average of their scores, or its most confident token's.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AggregationStrategy {
@@ -34,13 +34,13 @@ pub enum AggregationStrategy {
 #[serde(default)]
 pub struct TokenClassificationParameters {
     pub aggregation_strategy: AggregationStrategy,
-    // The labels left out of the output, `["O"]` when absent.
+    /// The labels left out of the output, `["O"]` when `None`.
     pub ignore_labels: Option<Vec<String>>,
-    // Truncates each text to this many tokens, keeping its special tokens.
+    /// The tokens each text is truncated to, keeping its special tokens, with no truncation for `None`.
     pub max_length: Option<usize>,
 }
 
-// A token and its label, or a group of tokens and the entity they share, with its characters in the text.
+/// A token and its label, or a group of tokens and the entity they share, with its characters in the text.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(untagged)]
 pub enum Entity {
@@ -61,7 +61,7 @@ pub enum Entity {
     },
 }
 
-// A token before aggregation: its text, its labels' probabilities, and whether it continues the word before it.
+/// A token before aggregation: its text, its labels' probabilities, and whether it continues the word before it.
 #[derive(Debug, Clone)]
 struct Piece {
     word: String,
@@ -72,7 +72,7 @@ struct Piece {
     subword: bool,
 }
 
-// A token or a word with the label it takes.
+/// A token or a word with the label it takes.
 #[derive(Debug, Clone)]
 struct Labeled {
     entity: String,
@@ -146,8 +146,8 @@ impl Pipeline for TokenClassificationPipeline {
 }
 
 impl TokenClassificationPipeline {
-    // A text's tokens but its special ones, each with its labels' probabilities.
-    // A token continues a word when its text differs from its characters in the text, as WordPiece's `##` piece does, or, for a tokenizer that marks no pieces, when no space comes before it.
+    /// Returns a text's tokens but its special ones, each with its labels' probabilities.
+    /// A token continues a word when its text differs from its characters in the text, as `WordPiece`'s `##` piece does, or, for a tokenizer that marks no pieces, when no space comes before it.
     fn pieces(&self, text: &str, row: &EncodedRow, scores: &[Vec<f32>]) -> Vec<Piece> {
         let characters = text.chars().collect::<Vec<_>>();
         let marked = self.tokenizer.subword_prefix().is_some();
@@ -223,7 +223,7 @@ impl TokenClassificationPipeline {
         self.model.config().labels()[index].clone()
     }
 
-    // Gives each word one label, from its pieces' scores as `strategy` combines them.
+    /// Gives each word one label, from its pieces' scores as `strategy` combines them.
     fn words(&self, pieces: Vec<Piece>, strategy: AggregationStrategy) -> Result<Vec<Labeled>> {
         let mut words = Vec::<Vec<Piece>>::new();
         for piece in pieces {
@@ -277,7 +277,7 @@ impl TokenClassificationPipeline {
             .collect()
     }
 
-    // Groups adjacent tokens or words of one entity, which a `B-` label begins and `I-` labels continue.
+    /// Groups adjacent tokens or words of one entity, which a `B-` label begins and `I-` labels continue.
     fn groups(&self, labeled: Vec<Labeled>) -> Result<Vec<Entity>> {
         let mut groups = Vec::<Vec<Labeled>>::new();
         for item in labeled {
@@ -318,13 +318,13 @@ impl TokenClassificationPipeline {
     }
 }
 
-// The best label of `scores` and its score.
+/// Returns the best label of `scores` and its score.
 fn best(scores: &[f32]) -> Result<(usize, f32)> {
     argmax(scores.iter().copied().enumerate())
         .ok_or_else(|| Error::unsupported("a classifier of no labels"))
 }
 
-// Whether a label begins an entity, and the entity's tag: `B-PER` begins `PER`, `I-PER` continues it, and a label without a prefix continues its own tag.
+/// Returns whether a label begins an entity, and the entity's tag: `B-PER` begins `PER`, `I-PER` continues it, and a label without a prefix continues its own tag.
 fn tag(label: &str) -> (bool, &str) {
     label
         .strip_prefix("B-")

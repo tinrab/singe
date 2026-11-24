@@ -1,4 +1,4 @@
-// `video-to-video`: a clip, a prompt, and a seed to a clip redrawn after the prompt, as `diffusers`' `AnimateDiffVideoToVideoPipeline` redraws it: the clip's latents sampled from the VAE, noised to the step `strength` starts from, and denoised from there.
+//! `video-to-video`: a clip, a prompt, and a seed to a clip redrawn after the prompt, as `diffusers`' `AnimateDiffVideoToVideoPipeline` redraws it: the clip's latents sampled from the VAE, noised to the step `strength` starts from, and denoised from there.
 
 use serde::Deserialize;
 use singe::Tensor;
@@ -29,8 +29,9 @@ pub struct VideoToVideoParameters {
     #[serde(flatten)]
     pub denoising: Denoising<StableDiffusionDefaults>,
     pub strength: f64,
-    // The frames' size, which the clip's frames must have, as the pipeline would resize them to it.
+    /// The height the clip's frames are resized to, 512 by default.
     pub height: i64,
+    /// The width the clip's frames are resized to, 512 by default.
     pub width: i64,
 }
 

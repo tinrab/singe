@@ -1,6 +1,7 @@
-// What model definitions share: the parts of Llama-family decoders, BERT-style post-norm encoders, Whisper-style pre-norm encoder blocks, Swin's windowed encoder, attention over separate queries, keys, and values, stacks of linear layers, and `diffusers`' UNet and VAE blocks under Singe's names, and the rules that import other formats into them.
+//! What model definitions share: parts such as Llama-family decoders, BERT-style post-norm encoders, Whisper-style pre-norm encoder blocks, Conformers, transducers, and `diffusers`' `UNet` and VAE blocks under Singe's names, and the rules that import other formats into them.
 
 mod attention;
+mod conformer;
 mod convolution;
 mod decoder;
 mod decoder_step;
@@ -11,13 +12,19 @@ mod feed_forward;
 mod normalization;
 mod post_norm_encoder;
 mod pre_norm_encoder;
+mod recurrent;
 mod sinusoid;
 mod swin;
+mod transducer;
 mod unet;
 mod vision_tower;
 
 pub use self::{
     attention::{Attention, AttentionSpec, attention_rules, merge_heads, split_heads},
+    conformer::{
+        ConformerBlock, ConformerConfig, ConformerEncoder, ConformerEncoderConfig, ConvSubsampling,
+        ConvolutionModule, SubsamplingConfig, SubsamplingKind, conformer_rules,
+    },
     convolution::{same_1d, same_2d},
     decoder::{
         CausalLmSpec, DecoderConfig, DraftLayer, GroupedAttentionSpec, GroupedDecoder, HeadNorms,
@@ -41,8 +48,13 @@ pub use self::{
         FinalNorm, PreNormEncoder, PreNormEncoderBlock, PreNormEncoderConfig, clip_layer_rules,
         pre_norm_encoder_block, pre_norm_encoder_rules, vit_layer_rules,
     },
-    sinusoid::{SinusoidArithmetic, SinusoidOrder, sinusoids},
+    recurrent::recurrent_rules,
+    sinusoid::{SinusoidArithmetic, SinusoidOrder, relative_sinusoids, sinusoids},
     swin::{Swin, SwinConfig, relative_index, shift_mask, swin_rules},
+    transducer::{
+        JointNetwork, PredictionNetwork, TransducerConfig, TransducerDecoding, TransducerLayers,
+        TransducerStep, greedy_decode, transducer_rules,
+    },
     unet::{
         MiddleBlock, Norms, ResnetBlock, SpatialAttention, Unet, UnetConfig, UnetSite,
         UpsampleBlock, downsample, resnet_stack, timestep_input, unet_block_rules,

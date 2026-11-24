@@ -1,4 +1,4 @@
-// Reads a `transformers` Audio Spectrogram Transformer config and imports its checkpoint, a ViT's under `audio_spectrogram_transformer.`.
+//! Reads a `transformers` Audio Spectrogram Transformer config and its feature extractor's, and imports its checkpoint, a `ViT`'s under `audio_spectrogram_transformer.`.
 
 use serde::Deserialize;
 

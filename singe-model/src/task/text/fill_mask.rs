@@ -1,4 +1,4 @@
-// `fill-mask`: text with mask tokens to the likeliest tokens for each mask, as `transformers`' pipeline fills them.
+//! `fill-mask`: text with mask tokens to the likeliest tokens for each mask, as `transformers`' pipeline fills them.
 
 use serde::{Deserialize, Serialize};
 
@@ -23,7 +23,7 @@ pub struct FillMaskPipeline {
 #[serde(default)]
 pub struct FillMaskParameters {
     pub top_k: usize,
-    // Scores only these tokens, each a token of the vocabulary or, if not, the first token its text encodes to.
+    /// The only tokens to score, each a token of the vocabulary or, if not, the first token its text encodes to.
     pub targets: Option<Vec<String>>,
 }
 
@@ -36,7 +36,7 @@ impl Default for FillMaskParameters {
     }
 }
 
-// A token for a mask, its probability, and the text with it in place.
+/// A token for a mask, its probability, and the text with it in place.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Fill {
     pub score: f32,
@@ -45,7 +45,7 @@ pub struct Fill {
     pub sequence: String,
 }
 
-// The fills of a text's one mask, or of each of its masks.
+/// The fills of a text's one mask, or of each of its masks.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(untagged)]
 pub enum FillMaskOutput {
@@ -149,7 +149,7 @@ impl Pipeline for FillMaskPipeline {
 }
 
 impl FillMaskPipeline {
-    // The ids of `targets`: each one's own id in the vocabulary, or the first id its text encodes to.
+    /// Returns the ids of `targets`: each one's own id in the vocabulary, or the first id its text encodes to.
     fn target_ids(&self, targets: &[String]) -> Result<Vec<i64>> {
         let mut ids = Vec::new();
         for target in targets {
@@ -169,7 +169,7 @@ impl FillMaskPipeline {
         Ok(ids)
     }
 
-    // The likeliest `top_k` tokens for the mask at `mask` of a row of `ids`, among `targets` if given, with their probabilities over the whole vocabulary.
+    /// Returns the likeliest `top_k` tokens for the mask at `mask` of a row of `ids`, among `targets` if given, with their probabilities over the whole vocabulary.
     fn fills(
         &self,
         ids: &[i64],

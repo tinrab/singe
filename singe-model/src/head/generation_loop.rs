@@ -1,4 +1,4 @@
-// What an exported generation loop runs, which the generating heads give.
+//! What an exported generation loop runs, which the generating heads give.
 
 use singe::{
     generation::{CachedDecoder, DecoderOptions, DecoderStepGraph, GenerationOptions},
@@ -9,22 +9,22 @@ use singe::{
 
 use crate::error::Result;
 
-// The sizes an exported generation loop fixes.
+/// The sizes an exported generation loop fixes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LoopLimits {
-    // The tokens a sequence holds, prompt included.
+    /// The tokens a sequence holds, prompt included.
     pub capacity: i64,
-    // The rows of the prompt step, beside the one-token step.
+    /// The rows the prompt step reads at once, beside the one-token step.
     pub prompt_rows: usize,
-    // The sequences the loop runs at once, one per row.
+    /// The sequences the loop runs at once, one per row.
     pub rows: usize,
-    // The seconds of audio an encode step reads.
+    /// The seconds of audio an encode step reads.
     pub audio_seconds: i64,
-    // The most patches of an image an encode step reads.
+    /// The most patches of an image an encode step reads.
     pub image_patches: Option<i64>,
 }
 
-// What an exported generation loop runs: an encode step that writes a prompt's sources, the one-token step, a prompt step, and how they choose tokens.
+/// What an exported generation loop runs: an encode step that writes a prompt's sources, the one-token step, a prompt step, and how they choose tokens.
 #[derive(Debug)]
 pub struct LoopSteps {
     pub encode: Option<Graph>,
@@ -34,7 +34,7 @@ pub struct LoopSteps {
 }
 
 impl LoopSteps {
-    // Captures `decoder`'s one-token step and, with `prompt_rows`, a step that reads that many more rows, each choosing as `generation` asks.
+    /// Captures `decoder`'s one-token step and, with `prompt_rows`, a step that reads that many rows at once, at least two, each choosing tokens as `generation` asks.
     pub fn create<L: DecoderModel>(
         decoder: &CachedDecoder<L>,
         encode: Option<Graph>,

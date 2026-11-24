@@ -1,4 +1,4 @@
-// ViT: a vision transformer of a class token and patches at a fixed image size, pre-norm blocks, and a final norm, whose class token an image classifier reads.
+//! `ViT`: a vision transformer of a class token and patches at a fixed image size, pre-norm blocks, and a final norm, whose class token an image classifier reads.
 
 pub(crate) mod transformers;
 
@@ -24,7 +24,7 @@ pub struct VitConfig {
     pub classifier: ClassifierConfig,
 }
 
-// ViT and its classifier: from images `[B, C, H, W]` to each image's scores, `[B, labels]`, read from the class token's final state.
+/// `ViT` and its classifier: from images `[B, C, H, W]` to each image's scores, `[B, labels]`, read from the class token's final state.
 #[derive(Debug, Clone)]
 pub struct VitClassifierLayers {
     embeddings: PatchTokens,

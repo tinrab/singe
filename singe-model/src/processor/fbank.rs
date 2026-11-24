@@ -1,11 +1,11 @@
-// Log mel spectrograms as `transformers`' NumPy feature extractors compute them in `F64`: AST's Kaldi-style filter banks, and CLAP's spectrograms in decibels through Slaney's filters.
+//! Log mel spectrograms as `transformers`' `NumPy` feature extractors compute them in `F64`: AST's Kaldi-style filter banks, and CLAP's spectrograms in decibels through Slaney's filters.
 
 use std::f64::consts::PI;
 
 use serde::{Deserialize, Serialize};
 use singe::signal::slaney_mel_filters;
 
-// The log mel filter banks an audio classifier reads, as AST's feature extractor computes them: `frames` of `mels` from clips at `sample_rate`, normalized by `mean` and twice `std`.
+/// The log mel filter banks an audio classifier reads, as AST's feature extractor computes them: `frames` of `mels` from clips at `sample_rate`, normalized by `mean` and twice `std`.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct FilterBankOptions {
     pub sample_rate: i64,
@@ -15,7 +15,7 @@ pub struct FilterBankOptions {
     pub std: f64,
 }
 
-// The spectrogram a contrastive audio model reads, as CLAP's feature extractor computes it: clips at `sample_rate` repeated to `samples`, frames of `fft` every `hop`, and `mels` Slaney filters between `low` and `high` Hz.
+/// The spectrogram a contrastive audio model reads, as CLAP's feature extractor computes it: clips at `sample_rate` cut or repeated to `samples`, frames of `fft` every `hop`, and `mels` Slaney filters between `low` and `high` Hz.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct SpectrogramOptions {
     pub sample_rate: i64,
@@ -27,7 +27,7 @@ pub struct SpectrogramOptions {
     pub high: f64,
 }
 
-// The FFT of `real`, whose length is a power of two, as `(re, im)` pairs of its first `n / 2 + 1` bins.
+/// Returns the FFT of `real`, whose length `n` is a power of two, as `(re, im)` pairs of its first `n / 2 + 1` bins.
 fn rfft(real: &[f64]) -> Vec<(f64, f64)> {
     let count = real.len();
     let mut values = real.iter().map(|&value| (value, 0.0)).collect::<Vec<_>>();
@@ -91,7 +91,7 @@ fn kaldi_mel(frequency: f64) -> f64 {
     mel
 }
 
-// Triangular filters `[bins, filters]`, row by row, spaced evenly in Kaldi's mel scale between `low` and `high` Hz and triangular in it, as `mel_filter_bank(..., mel_scale="kaldi", triangularize_in_mel_space=True)` makes them.
+/// Returns triangular filters `[bins, filters]`, row by row, spaced evenly in Kaldi's mel scale between `low` and `high` Hz and triangular in it, as `mel_filter_bank(..., mel_scale="kaldi", triangularize_in_mel_space=True)` makes them.
 fn mel_filters(bins: usize, filters: usize, low: f64, high: f64, rate: f64) -> Vec<f64> {
     let (low, high) = (kaldi_mel(low), kaldi_mel(high));
     let centers = (0..filters + 2)
@@ -110,7 +110,7 @@ fn mel_filters(bins: usize, filters: usize, low: f64, high: f64, rate: f64) -> V
     weights
 }
 
-// The features AST reads from 16 kHz samples: `frames × mels` log filter-bank energies, padded with zeros or cut to `frames`, then normalized by `mean` and twice `std`, row by row.
+/// Returns the features AST reads from samples at `options.sample_rate`, 16 kHz for AST: `frames × mels` log filter-bank energies of 400-sample frames every 160 samples, padded with zeros or cut to `frames`, then normalized by `mean` and twice `std`, row by row.
 #[must_use]
 pub fn ast_features(samples: &[f32], options: &FilterBankOptions) -> Vec<f32> {
     const FRAME: usize = 400;
@@ -170,7 +170,9 @@ pub fn ast_features(samples: &[f32], options: &FilterBankOptions) -> Vec<f32> {
         .collect()
 }
 
-// The spectrogram CLAP reads from samples at `rate`: the clip repeated whole to `length` samples and padded with silence, frames of `fft` samples every `hop` centered by reflection, a periodic Hann window, power spectra through Slaney's filters, in decibels, `frames × mels` row by row.
+/// Returns the spectrogram CLAP reads from samples at `options.sample_rate`, `frames × mels` row by row.
+/// The clip is cut to `options.samples` samples, or repeated whole and padded with silence up to it.
+/// Frames of `fft` samples every `hop`, centered by reflection, take a periodic Hann window, and their power spectra pass through Slaney's filters into decibels.
 #[must_use]
 pub fn clap_features(samples: &[f32], options: &SpectrogramOptions) -> Vec<f32> {
     let SpectrogramOptions {

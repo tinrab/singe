@@ -1,4 +1,4 @@
-// Reads a `transformers` SmolVLM snapshot: its config, its processor's settings, and its tensors' names.
+//! Reads a `transformers` `SmolVLM` snapshot: its config, its processor's settings, and its tensors' names.
 
 use serde::Deserialize;
 use serde_json::Value;
@@ -57,7 +57,7 @@ const fn eps() -> f32 {
 #[derive(Debug, Deserialize)]
 struct Fields {
     vision_config: VisionFields,
-    // A Llama config, whose defaults fill what SmolVLM's text configs leave out.
+    /// A Llama config, whose defaults fill what `SmolVLM`'s text configs leave out.
     text_config: DecoderFields,
     scale_factor: i64,
     image_token_id: i64,
@@ -113,7 +113,7 @@ pub(crate) fn config(source: &Source) -> Result<SmolVlmConfig> {
     })
 }
 
-// The vision tower's config, folding each `scale × scale` square of patches into one row.
+/// Returns the vision tower's config, folding each `scale × scale` square of patches into one row.
 pub(crate) const fn vision_config(vision: &VisionFields, scale: i64) -> SmolVlmVisionConfig {
     SmolVlmVisionConfig {
         tower: VisionTowerConfig {
@@ -136,7 +136,7 @@ pub(crate) const fn vision_config(vision: &VisionFields, scale: i64) -> SmolVlmV
     }
 }
 
-// The settings of an Idefics3-style processor, which SmolVLM's extends with clips: `preprocessor_config.json`, `processor_config.json`, and the tokenizer's image tokens.
+/// Reads the settings of an Idefics3-style processor, which `SmolVLM`'s extends with clips, from `preprocessor_config.json`, `processor_config.json`, and the image tokens in `tokenizer_config.json`.
 pub(crate) fn processor(source: &Source) -> Result<SmolVlmProcessor> {
     let processor: ProcessorFields = source.json("preprocessor_config.json")?;
     let resample = Resample::from_pil(processor.resample)?;
@@ -165,7 +165,7 @@ pub(crate) fn processor(source: &Source) -> Result<SmolVlmProcessor> {
     })
 }
 
-// Imports the vision tower stored under `prefix` and the connector stored at `connector`, reshaping the learned positions to the layout `PatchTokens` reads.
+/// Returns the rules that import the vision tower stored under `prefix` and the connector stored at `connector`, reshaping the learned positions to the layout [`PatchTokens`](singe::nn::PatchTokens) reads.
 pub(crate) fn vision_rules(prefix: &str, connector: &str) -> Rules {
     let vision = |name: &str| join(prefix, name);
     Rules::new()

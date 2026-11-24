@@ -1,4 +1,5 @@
-// `depth-estimation`: an image to its depth at each pixel, resized to the image, and that depth as a grayscale image from nearest to farthest, as `transformers`' pipeline gives them.
+//! `depth-estimation`: an image to its depth as a grayscale image of the image's size, as `transformers`' pipeline gives its `depth`: the model's depth resized to the image, then scaled from its least value, black, to its greatest, white.
+//! The pipeline does not return `transformers`' `predicted_depth`.
 
 use serde::Serialize;
 use singe::{DataType, tensor::InterpolateMode};
@@ -21,7 +22,7 @@ pub struct DepthEstimationPipeline {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct DepthEstimate {
-    // The depth scaled from its least to its greatest value onto bytes.
+    /// The depth scaled from its least to its greatest value onto bytes.
     pub depth: Image,
 }
 

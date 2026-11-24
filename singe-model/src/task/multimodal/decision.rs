@@ -1,4 +1,4 @@
-// `decision`: a state and typed questions about it to a probability for each option, from one forward pass of a language model per question, as `transformers`' decision pipeline asks a model without a decision head: the generic prompt in the model's chat template, and the logits of the options' labels after it.
+//! `decision`: a state and typed questions about it to a probability for each option, from one forward pass of a language model per question, as `transformers`' decision pipeline asks a model without a decision head: the generic prompt in the model's chat template, and the logits of the options' labels after it.
 
 use std::result::Result as StdResult;
 
@@ -19,7 +19,7 @@ use crate::{
     task::Pipeline,
 };
 
-// `transformers`' `DECISION_PROMPT`: the state, the instructions, each option's label and description, and how to answer.
+/// The prompt of `transformers`' `DECISION_PROMPT`: the state, the instructions, each option's label and description, and how to answer.
 const DECISION_PROMPT: &str = r#"
 {%- macro text(x) %}{{ "" if x is none else x if x is string else x|tojson }}{% endmacro -%}
 {%- set ns = namespace(lines=[text(question.instructions)]) -%}
@@ -49,7 +49,7 @@ pub struct DecisionPipeline {
     template: ChatTemplate,
 }
 
-// A request: the state questions ask about, and each question by its name.
+/// A request: the state questions ask about, and each question by its name.
 #[derive(Debug, Clone, Deserialize)]
 pub struct DecisionRequest {
     pub state: Value,
@@ -64,7 +64,7 @@ enum QuestionKind {
     Score,
 }
 
-// A question as the prompt reads it: its kind, its instructions, and its options with their labels and descriptions.
+/// A question as the prompt reads it: its kind, its instructions, and its options with their labels and descriptions.
 #[derive(Debug, Serialize)]
 struct Question {
     name: String,
@@ -105,7 +105,7 @@ impl Serialize for Answers {
 }
 
 impl Question {
-    // A question of the request, as `Question.from_request` reads it with the default decision config.
+    /// Reads the request's question `name`, as `Question.from_request` reads it with the default decision config.
     fn parse(name: &str, question: &Value) -> Result<Self> {
         let invalid = |what: &str| Error::invalid(format!("question {name}: {what}"));
         let kind = match question["type"].as_str() {
@@ -173,7 +173,7 @@ impl Question {
             .map_err(Error::Template)
     }
 
-    // The answer from each option's probability, as `Question.answer` writes it.
+    /// Returns the answer from each option's probability, as `Question.answer` writes it.
     fn answer(&self, probabilities: &[f32]) -> Answer {
         let by_option = self
             .options

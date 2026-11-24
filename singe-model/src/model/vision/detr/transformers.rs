@@ -1,4 +1,4 @@
-// Reads a `transformers` DETR config, whose backbone is timm's ResNet-50, and imports its checkpoint.
+//! Reads a `transformers` DETR config, whose backbone is timm's ResNet-50, and imports its checkpoint.
 
 use serde::Deserialize;
 use singe::nn::Activation;

@@ -66,6 +66,14 @@ impl<'a> Attributes<'a> {
         Ok(self.ints(name)?.unwrap_or_else(|| default.to_vec()))
     }
 
+    pub(crate) fn strings(&self, name: &str) -> Result<Option<Vec<String>>> {
+        match self.values.get(name) {
+            Some(AttributeValue::Strings(value)) => Ok(Some(value.clone())),
+            Some(_) => Err(self.invalid_type(name, "strings")),
+            None => Ok(None),
+        }
+    }
+
     pub(crate) fn value(&self, name: &str) -> Option<&'a AttributeValue> {
         self.values.get(name).copied()
     }

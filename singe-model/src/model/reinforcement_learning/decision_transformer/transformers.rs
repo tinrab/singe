@@ -1,4 +1,4 @@
-// Reads a `transformers` Decision Transformer snapshot: its config and its tensors' names, its blocks' as GPT-2's.
+//! Reads a `transformers` Decision Transformer snapshot: its config and its tensors' names, its blocks' as GPT-2's.
 
 use serde::Deserialize;
 use singe::nn::Activation;

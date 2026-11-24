@@ -1,4 +1,4 @@
-// Reads a `transformers` TimesFM 2.5 snapshot: its config and its tensors' names.
+//! Reads a `transformers` `TimesFM` 2.5 snapshot: its config and its tensors' names.
 
 use serde::Deserialize;
 use singe::nn::Activation;
@@ -64,7 +64,7 @@ pub(crate) fn config(source: &Source) -> Result<TimesFmConfig> {
     })
 }
 
-// Imports the model, folding each attention's stored scaling into the scale its queries are multiplied by: its softplus times `1.442695041 / √D`.
+/// Returns the rules that import the model, folding each attention's stored scaling into the scale its queries are multiplied by: its softplus times `1.442695041 / √D`.
 pub(crate) fn rules(head_dim: i64) -> Rules {
     const RESIDUAL: &[(&str, &str)] = &[
         ("input_layer", "input"),

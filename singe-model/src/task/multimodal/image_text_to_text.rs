@@ -1,4 +1,4 @@
-// `image-text-to-text`: a conversation whose messages hold images to the text a vision-language model writes after it.
+//! `image-text-to-text`: a conversation whose messages hold images to the text a vision-language model writes after it.
 
 use serde::Deserialize;
 use serde_json::{Map, Value};
@@ -43,7 +43,7 @@ pub(crate) enum Media {
 pub struct ImageTextToTextParameters {
     pub max_new_tokens: usize,
     pub compile: bool,
-    // Arguments the chat template reads, such as `enable_thinking`.
+    /// Arguments the chat template reads, such as `enable_thinking`.
     pub chat_template_kwargs: Map<String, Value>,
 }
 

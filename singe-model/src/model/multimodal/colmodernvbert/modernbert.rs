@@ -1,6 +1,6 @@
-// ModernBERT: an encoder of pre-norm blocks without biases, rotary positions, and a gated feed-forward layer, whose blocks attend to every token or, in its local layers, only to tokens within a window on either side.
-//
-// Its state is `tokens`, `embedding_norm`, `blocks.N` (`attention_norm` but in the first, `attention` with `query`, `key`, `value`, and `output`, `feed_forward_norm`, and `feed_forward` with `gate`, `up`, and `down`), and `norm`.
+//! `ModernBERT`: an encoder of pre-norm blocks without biases, rotary positions, and a gated feed-forward layer, whose blocks attend to every token or, in its local layers, only to tokens within a window on either side.
+//!
+//! Its state is `tokens`, `embedding_norm`, `blocks.N` (`attention_norm` but in the first, `attention` with `query`, `key`, `value`, and `output`, `feed_forward_norm`, and `feed_forward` with `gate`, `up`, and `down`), and `norm`.
 
 use serde::{Deserialize, Serialize};
 use singe::{
@@ -25,9 +25,9 @@ pub struct ModernBertConfig {
     pub heads: i64,
     pub eps: f32,
     pub activation: Activation,
-    // Whether each block attends locally, in order.
+    /// Whether each block attends locally, in order.
     pub local: Vec<bool>,
-    // How far a local block's tokens see on either side.
+    /// How many places a local block's tokens see on either side.
     pub window: i64,
     pub global_theta: f64,
     pub local_theta: f64,
@@ -150,12 +150,12 @@ impl ModernBert {
         })
     }
 
-    // Each token's embedding, `[T, W]`, before the norm `encode` applies.
+    /// Returns each token's embedding, `[T, W]`, before the norm [`encode`](Self::encode) applies.
     pub fn embed(&self, tokens: &Tensor, state: &ModelState) -> SingeResult<Tensor> {
         tokens.apply(&self.tokens, state)
     }
 
-    // Encodes one sequence's embeddings, `[T, W]`, into its tokens' final states, `[T, W]`.
+    /// Encodes one sequence's embeddings, `[T, W]`, into its tokens' final states, `[T, W]`.
     pub fn encode(&self, embeddings: &Tensor, state: &ModelState) -> SingeResult<Tensor> {
         let config = &self.config;
         let device = embeddings.device();

@@ -13,7 +13,7 @@ use crate::{
     source::{LoadOptions, Source},
 };
 
-// A text encoder and the pooling that turns its hidden states into each sentence's vector, `[B, W]`.
+/// A text encoder and the pooling that turns its hidden states into each sentence's vector, `[B, W]`.
 #[derive(Debug)]
 pub struct SentenceLayers {
     encoder: Boxed<dyn Layer<TokenBatch>>,
@@ -61,7 +61,7 @@ impl SentenceEmbedder {
     }
 }
 
-// A loaded encoder used as a layer, whose state is the embedder's own.
+/// A loaded encoder used as a layer, whose state is the embedder's own.
 #[derive(Debug)]
 struct EncoderLayer(TextEncoder);
 
@@ -71,7 +71,7 @@ impl Layer<TokenBatch> for EncoderLayer {
     }
 }
 
-// One entry of `modules.json`.
+/// One entry of a `sentence-transformers` snapshot's `modules.json`.
 #[derive(Debug, Deserialize)]
 struct Module {
     path: String,
@@ -79,7 +79,7 @@ struct Module {
     kind: String,
 }
 
-// The modes of a `Pooling` module's `config.json`, of which one may be set.
+/// The mode flags of a `sentence-transformers` `Pooling` module's `config.json`, of which [`pooling`] accepts exactly one set.
 #[derive(Debug, Deserialize)]
 #[expect(
     clippy::struct_excessive_bools,
@@ -104,7 +104,7 @@ const TRANSFORMER: &str = "sentence_transformers.models.Transformer";
 const POOLING: &str = "sentence_transformers.models.Pooling";
 const NORMALIZE: &str = "sentence_transformers.models.Normalize";
 
-// Reads the pooling `modules.json` describes: a transformer, one pooling mode, and an optional normalization.
+/// Reads the pooling `modules.json` describes: a transformer first, then one pooling mode, then an optional normalization.
 fn pooling(source: &Source) -> Result<Pooling> {
     let modules: Vec<Module> = source.json("modules.json")?;
     let Some((first, rest)) = modules.split_first() else {

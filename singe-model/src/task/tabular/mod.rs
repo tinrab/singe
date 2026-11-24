@@ -1,4 +1,4 @@
-// The tasks the Hub lists under tabular.
+//! The tasks the Hub lists under tabular.
 
 pub mod tabular_classification;
 pub mod tabular_regression;

@@ -1,4 +1,4 @@
-// `summarization`: text to a shorter text that keeps its content, from an encoder-decoder such as T5, after the prefix its config names for the task, as `transformers`' summarization pipeline gave it before `transformers` 5.
+//! `summarization`: text to a shorter text that keeps its content, from an encoder-decoder such as T5, after the prefix its config names for the task, as `transformers`' summarization pipeline gave it before `transformers` 5.
 
 use serde::Serialize;
 

@@ -1,4 +1,4 @@
-// DeepSeek-V3: multi-head latent attention, whose cache holds a compressed latent per token, and feed-forward layers that are dense in the first blocks and after them a mixture of grouped experts beside a shared expert.
+//! `DeepSeek-V3`: multi-head latent attention, whose cache holds a compressed latent per token, and feed-forward layers that are dense in the first blocks and after them a mixture of grouped experts beside a shared expert.
 
 mod transformers;
 
@@ -25,14 +25,14 @@ use crate::{
     source::Format,
 };
 
-// The sizes of multi-head latent attention, beside the decoder's heads and `rotary_dim`, the features of each query and key head that turn.
+/// The sizes of multi-head latent attention, beside the decoder's heads and `rotary_dim`, the features of each query and key head that turn.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LatentAttentionConfig {
-    // The rank queries are compressed to, or `None` for queries projected directly.
+    /// The rank queries are compressed to, or `None` for queries projected directly.
     pub query_rank: Option<i64>,
-    // The width of the latent that each token's keys and values are compressed to, which the cache holds.
+    /// The width of the latent that each token's keys and values are compressed to, which the cache holds.
     pub latent_dim: i64,
-    // The features of each query and key head that no rotation turns.
+    /// The features of each query and key head that no rotation turns.
     pub key_dim: i64,
     pub value_dim: i64,
 }
@@ -41,12 +41,12 @@ pub struct LatentAttentionConfig {
 pub struct DeepseekV3Config {
     pub decoder: DecoderConfig,
     pub attention: LatentAttentionConfig,
-    // The leading blocks whose feed-forward layer is dense; the rest have experts.
+    /// The leading blocks whose feed-forward layer is dense; the rest have experts.
     pub dense_blocks: i64,
     pub experts: ExpertsConfig,
 }
 
-// DeepSeek-V3's layers: multi-head latent attention, and a feed-forward layer that is dense in the first few and mixture-of-experts after them.
+/// `DeepSeek-V3`'s layers: multi-head latent attention, and a feed-forward layer that is dense in the first few blocks and a mixture of experts after them.
 pub type DeepseekV3Layers = Decoder<MultiHeadLatentAttention, DecoderFeedForward>;
 
 pub type DeepseekV3 = Model<DeepseekV3Layers>;

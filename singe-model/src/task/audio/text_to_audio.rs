@@ -1,4 +1,4 @@
-// `text-to-audio`: text to speech, here from VITS, as `transformers`' text-to-speech pipeline gives it; its noise is Singe's own, seeded, so it matches `transformers`' only with the noise scales at zero.
+//! `text-to-audio`: text to speech, here from VITS, as `transformers`' text-to-speech pipeline gives it; its noise is Singe's own, seeded, so it matches `transformers`' only with the noise scales at zero.
 
 use serde::Deserialize;
 
@@ -20,8 +20,9 @@ pub struct TextToAudioPipeline {
 #[derive(Debug, Clone, Copy, PartialEq, Default, Deserialize)]
 #[serde(default)]
 pub struct TextToAudioParameters {
-    // How much noise varies the voice and the durations, or the model's own amounts.
+    /// How much noise varies the voice, or the model's own amount when `None`.
     pub noise_scale: Option<f32>,
+    /// How much noise varies the durations, or the model's own amount when `None`.
     pub noise_scale_duration: Option<f32>,
     pub seed: u64,
 }

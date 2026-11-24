@@ -1,6 +1,6 @@
-// The blocks `diffusers`' UNets and VAEs build from: residual blocks of group norms and convolutions that read a timestep's embedding, strided and nearest-neighbor resamplers, and self-attention over an image's positions.
-//
-// A residual block's state is `norm1`, `conv1`, `time` where it reads a timestep, `norm2`, `conv2`, and `shortcut` where its widths differ; an attention's is `norm`, `query`, `key`, `value`, and `output`; a resampler's is its convolution.
+//! The blocks `diffusers`' `UNet` and VAE models build from: residual blocks of group norms and convolutions that read a timestep's embedding, strided and nearest-neighbor resamplers, and self-attention over an image's positions.
+//!
+//! A residual block's state is `norm1`, `conv1`, `time` where it reads a timestep, `norm2`, `conv2`, and `shortcut` where its widths differ; an attention's is `norm`, `query`, `key`, `value`, and `output`; a resampler's is its convolution.
 
 use serde::{Deserialize, Serialize};
 use singe::{
@@ -19,14 +19,14 @@ use crate::{
     schema::Schema,
 };
 
-// How a UNet's or a VAE's group norms are made.
+/// How a `UNet`'s or a VAE's group norms are made.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Norms {
     pub groups: i64,
     pub eps: f32,
 }
 
-// `ResnetBlock2D` with the default time scale shift: the timestep's embedding, activated and projected, is added between the two convolutions.
+/// `ResnetBlock2D` with the default time scale shift: the timestep's embedding, activated and projected, is added between the two convolutions.
 #[derive(Debug, Clone)]
 pub struct ResnetBlock {
     norm1: GroupNorm,
@@ -36,7 +36,7 @@ pub struct ResnetBlock {
     conv2: Conv2d,
     shortcut: Option<Conv2d>,
     activation: Activation,
-    // What the sum of the block and its shortcut is divided by.
+    /// What the sum of the block and its shortcut is divided by.
     output_scale: f64,
 }
 
@@ -64,7 +64,7 @@ impl ResnetBlock {
         })
     }
 
-    // `input`, `[B, C, H, W]`, through the block, reading `time`, the timestep's embedding, `[B, T]`, where the block has a projection of it.
+    /// Runs `input`, `[B, C, H, W]`, through the block, reading `time`, the timestep's embedding, `[B, T]`, where the block has a projection of it.
     pub fn forward(
         &self,
         input: &Tensor,
@@ -122,7 +122,7 @@ pub fn resnet_stack(
         .collect()
 }
 
-// `Downsample2D` with a convolution: stride two, padded by `padding` on every side, or, at zero, only below and to the right, as `diffusers` pads then.
+/// Registers the convolution of `Downsample2D` as `name`: a 3 × 3 kernel of stride two, padded by `padding` on every side, or, at zero, only below and to the right, as `diffusers` pads then.
 pub fn downsample(
     schema: &mut Schema<'_>,
     name: &str,
@@ -148,7 +148,7 @@ pub fn downsample(
     )
 }
 
-// `Upsample2D` with a convolution: each pixel repeated two by two, then a 3 × 3 convolution.
+/// `Upsample2D` with a convolution: each pixel repeated two by two, then a 3 × 3 convolution.
 #[derive(Debug, Clone)]
 pub struct UpsampleBlock {
     conv: Conv2d,
@@ -161,7 +161,7 @@ impl UpsampleBlock {
         })
     }
 
-    // Upsamples `input` to `height × width`, as `diffusers` does to meet a skip connection the doubled size would miss.
+    /// Upsamples `input` to `height × width`, as `diffusers` does to meet a skip connection the doubled size would miss.
     pub fn forward_to(
         &self,
         input: &Tensor,
@@ -183,7 +183,7 @@ impl Layer for UpsampleBlock {
     }
 }
 
-// `diffusers`' `Attention` over an image's positions: group-normed, attended with a residual connection, and divided by `rescale`.
+/// `diffusers`' `Attention` over an image's positions: group-normed, attended with a residual connection, and divided by `rescale`.
 #[derive(Debug, Clone)]
 pub struct SpatialAttention {
     norm: GroupNorm,
@@ -221,7 +221,7 @@ impl Layer for SpatialAttention {
     }
 }
 
-// `UNetMidBlock2D`: a residual block, an attention of type `A`, and another residual block, as `resnets.0`, `attentions.0`, and `resnets.1`.
+/// `UNetMidBlock2D`: a residual block, an attention of type `A`, and another residual block, as `resnets.0`, `attentions.0`, and `resnets.1`.
 #[derive(Debug, Clone)]
 pub struct MiddleBlock<A> {
     first: ResnetBlock,
@@ -279,7 +279,7 @@ impl<A: Layer> Layer for MiddleBlock<A> {
     }
 }
 
-// `get_timestep_embedding`'s `width` features of `timestep` as the `[1, width]` tensor a time embedding reads, in `state`'s floating type on its device.
+/// Returns `get_timestep_embedding`'s `width` features of `timestep` as the `[1, width]` tensor a time embedding reads, in `state`'s floating type on its device.
 pub fn timestep_input(
     timestep: f32,
     width: i64,
@@ -300,7 +300,7 @@ pub fn timestep_input(
     )
 }
 
-// Where in a UNet a block sits: in a down stage, the middle, or an up stage, by the stage's index.
+/// Where in a `UNet` a block sits: in a down stage, the middle, or an up stage, by the stage's index.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UnetSite {
     Down(usize),
@@ -308,15 +308,16 @@ pub enum UnetSite {
     Up(usize),
 }
 
-// What `UNet2DModel` and `UNet2DConditionModel` share.
+/// What `UNet2DModel` and `UNet2DConditionModel` share.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct UnetConfig {
     pub in_channels: i64,
     pub out_channels: i64,
     pub sample_size: i64,
     pub widths: Vec<i64>,
-    // Whether each down block, and each up block, attends.
+    /// Whether each down block attends.
     pub down_attention: Vec<bool>,
+    /// Whether each up block attends.
     pub up_attention: Vec<bool>,
     pub layers_per_block: usize,
     pub groups: i64,
@@ -324,7 +325,7 @@ pub struct UnetConfig {
     pub downsample_padding: i64,
     pub flip_sin_to_cos: bool,
     pub freq_shift: f32,
-    // What the middle block's residual blocks divide their sums by.
+    /// What the middle block's residual blocks divide their sums by.
     pub middle_scale: f64,
 }
 
@@ -448,7 +449,7 @@ impl<A> Stage<A, UpsampleBlock> {
     }
 }
 
-// A UNet's `input` convolution, `time` embedding, `down.N`, `middle`, and `up.N` stages, closing `norm`, and `output` convolution: residual blocks reading the timestep, each followed by an attention of type `A` where its stage attends, down to a middle of a block, an attention, and a block, and back up, each up block reading the down blocks' outputs in reverse.
+/// A `UNet`'s `input` convolution, `time` embedding, `down.N`, `middle`, and `up.N` stages, closing `norm`, and `output` convolution: residual blocks reading the timestep, each followed by an attention of type `A` where its stage attends, down to a middle of a block, an attention, and a block, and back up, each up block reading the down blocks' outputs in reverse.
 #[derive(Debug, Clone)]
 pub struct Unet<A> {
     input: Conv2d,
@@ -461,7 +462,7 @@ pub struct Unet<A> {
 }
 
 impl<A> Unet<A> {
-    // Registers the UNet of `config`, with `attention` building the attention at a site in its scope, for the stage's width.
+    /// Registers the `UNet` of `config`, with `attention` building the attention at a site in its scope, for the stage's width.
     pub fn create(
         schema: &mut Schema<'_>,
         config: &UnetConfig,
@@ -502,7 +503,7 @@ impl<A> Unet<A> {
         sample.apply(&self.input, state)
     }
 
-    // `input`, the embedded sample, through the stages at the timestep whose features `time` holds, `[1, F]`, each residual block reading the timestep's embedding, and `block` after each block but the middle's second, given the block's attention where its stage attends, its site, and its index in the stage.
+    /// Runs `input`, the embedded sample, through the stages at the timestep whose features `time` holds, `[1, F]`, each residual block reading the timestep's embedding, and `block` after each residual block but the middle's second, given the block's attention where its stage attends, its site, and its index in the stage.
     pub fn denoise(
         &self,
         input: Tensor,
@@ -565,7 +566,7 @@ impl<A> Unet<A> {
     }
 }
 
-// Imports the residual blocks, attentions, and resamplers of `diffusers`' block `from` (such as `down_blocks.*`) into `to` (such as `down.*`), under the attention's names of before and after `diffusers` renamed them.
+/// Imports the residual blocks, attentions, and resamplers of `diffusers`' block `from` (such as `down_blocks.*`) into `to` (such as `down.*`), under the attention's names of before and after `diffusers` renamed them.
 #[must_use]
 pub fn unet_block_rules(from: &str, to: &str) -> Rules {
     Rules::new().rename_each(

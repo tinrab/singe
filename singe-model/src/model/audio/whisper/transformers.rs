@@ -1,4 +1,4 @@
-// Reads a `transformers` Whisper snapshot: its config, and the rules that import its encoder's and decoder's tensors.
+//! Reads a `transformers` Whisper snapshot: its config, and the rules that import its encoder's and decoder's tensors.
 
 use serde::Deserialize;
 use singe::nn::Activation;
@@ -70,7 +70,8 @@ pub(crate) fn encoder_rules() -> Rules {
         ))
 }
 
-// A decoder layer's self-attention and feed-forward layer are stored as an encoder layer's are, and its cross-attention as `encoder_attn`.
+/// Returns the rules that import the decoder's tensors.
+/// A decoder layer's self-attention and feed-forward layer are stored as an encoder layer's are, and its cross-attention as `encoder_attn`.
 pub(crate) fn decoder_rules() -> Rules {
     let decoder = "model.decoder";
     let layers = join(decoder, "layers");

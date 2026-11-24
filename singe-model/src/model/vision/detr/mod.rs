@@ -1,4 +1,4 @@
-// DETR: a ResNet's last map, projected and flattened, through a post-norm transformer encoder with sine positions of each point, then a decoder of learned object queries, each read by a class head and a box head of three linear layers.
+//! DETR: a `ResNet`'s last map, projected and flattened, through a post-norm transformer encoder with sine positions of each point, then a decoder of learned object queries, each read by a class head and a box head of three linear layers.
 
 mod resnet;
 mod transformers;
@@ -35,7 +35,7 @@ pub struct DetrConfig {
     pub decoder_inner: i64,
     pub activation: Activation,
     pub queries: i64,
-    // The labels, before the last score, which stands for no object.
+    /// The labels, before the last score, which stands for no object.
     pub classifier: ClassifierConfig,
 }
 
@@ -106,7 +106,9 @@ impl DecoderBlock {
     }
 }
 
-// The sine positions of each point of a `height × width` map, `[1, H · W, width]`: half the features for its row and half for its column, each from its coordinate counted from one, scaled to [0, 2π], over 10000 to the power of each feature pair's share, as `DetrSinePositionEmbedding` with normalization computes them.
+/// Returns the sine positions of each point of a `height × width` map, `[1, H · W, features]`, as `DetrSinePositionEmbedding` with normalization computes them.
+///
+/// Half the features encode the point's row and half its column, each from its coordinate counted from one and scaled to (0, 2π), over 10000 to the power of each feature pair's share.
 fn sine_positions(height: i64, width: i64, features: i64, device: Device) -> SingeResult<Tensor> {
     const SIDE_OFFSET: f32 = 1e-6;
     let scale = 2.0 * PI;
@@ -140,7 +142,7 @@ fn sine_positions(height: i64, width: i64, features: i64, device: Device) -> Sin
     )
 }
 
-// DETR and its heads: from images to each query's label scores and box, `[B, Q, labels + 1 + 4]`.
+/// DETR and its heads: from images to each query's label scores and box, `[B, Q, labels + 1 + 4]`.
 #[derive(Debug, Clone)]
 pub struct DetrLayers {
     backbone: ResNet,

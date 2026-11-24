@@ -1,4 +1,4 @@
-// Reads a `transformers` CLIP config and imports its checkpoint; OWL-ViT's stores the same towers under `owlvit`.
+//! Reads a `transformers` CLIP config and imports its checkpoint; OWL-ViT's stores the same towers under `owlvit`.
 
 use serde::Deserialize;
 use singe::nn::Activation;
@@ -99,7 +99,7 @@ pub(crate) fn config(source: &Source) -> Result<ClipConfig> {
     })
 }
 
-// Imports CLIP's towers, projections, and logit scale stored under `prefix`, reshaping the class embedding and the vision positions to the layout `PatchTokens` reads.
+/// Returns the rules that import CLIP's towers, projections, and logit scale stored under `prefix`, reshaping the class embedding and the vision positions to the layout [`PatchTokens`](singe::nn::PatchTokens) reads.
 pub(crate) fn clip_rules(prefix: &str) -> Rules {
     text_rules(&join(prefix, "text_model"), "text")
         .then(vision_rules(&join(prefix, "vision_model"), "vision"))
@@ -108,7 +108,7 @@ pub(crate) fn clip_rules(prefix: &str) -> Rules {
         .rename(&join(prefix, "logit_scale"), "logit_scale")
 }
 
-// Imports a text tower stored under `from` (such as `text_model`) into the tower under `to` (such as `text`, or nothing for the tower alone).
+/// Returns the rules that import a text tower stored under `from` (such as `text_model`) into the tower under `to` (such as `text`, or nothing for the tower alone).
 pub(crate) fn text_rules(from: &str, to: &str) -> Rules {
     let text = |name: &str| join(from, name);
     let target = |name: &str| join(to, name);
@@ -127,12 +127,12 @@ pub(crate) fn text_rules(from: &str, to: &str) -> Rules {
         .rename(&text("final_layer_norm"), &target("norm"))
 }
 
-// A `CLIPTextModel`'s config, the text tower's fields at its top.
+/// Reads a `CLIPTextModel`'s config, which has the text tower's fields at its top.
 pub(crate) fn text_model_config(source: &Source) -> Result<ClipTextConfig> {
     Ok(text_config(&source.json::<TextFields>("config.json")?))
 }
 
-// The width a `CLIPTextModelWithProjection` projects into.
+/// A `CLIPTextModelWithProjection`'s config: the text tower's fields and the width it projects into.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 struct TextProjectionFields {
     #[serde(flatten)]
@@ -148,7 +148,7 @@ pub(crate) fn text_projection_model_config(source: &Source) -> Result<ClipTextPr
     })
 }
 
-// Imports a vision tower stored under `from` (such as `vision_model`) into the tower under `to`, reshaping the class embedding and the positions to the layout `PatchTokens` reads.
+/// Returns the rules that import a vision tower stored under `from` (such as `vision_model`) into the tower under `to`, reshaping the class embedding and the positions to the layout [`PatchTokens`](singe::nn::PatchTokens) reads.
 pub(crate) fn vision_rules(from: &str, to: &str) -> Rules {
     let vision = |name: &str| join(from, name);
     let target = |name: &str| join(to, name);
@@ -179,7 +179,7 @@ pub(crate) fn vision_rules(from: &str, to: &str) -> Rules {
         .rename(&vision("post_layernorm"), &target("post_norm"))
 }
 
-// A `CLIPVisionModel`'s config, the vision tower's fields at its top.
+/// Reads a `CLIPVisionModel`'s config, which has the vision tower's fields at its top.
 pub(crate) fn vision_model_config(source: &Source) -> Result<VisionTowerConfig> {
     Ok(vision_config(&source.json::<VisionFields>("config.json")?))
 }

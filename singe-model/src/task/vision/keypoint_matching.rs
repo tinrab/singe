@@ -1,4 +1,4 @@
-// `keypoint-matching`: a pair of images to their matched keypoints, each at its image's whole pixels, with the match's score, best first, as `transformers`' pipeline gives them.
+//! `keypoint-matching`: a pair of images to their matched keypoints, each at its image's whole pixels, with the match's score, best first, as `transformers`' pipeline gives them.
 
 use serde::{Deserialize, Serialize};
 use singe::Error as SingeError;
@@ -22,7 +22,7 @@ pub struct KeypointMatchingPipeline {
 #[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
 #[serde(default)]
 pub struct MatchingParameters {
-    // The score a match must pass to be kept.
+    /// The score a match must exceed to be kept, 0 by default.
     pub threshold: f32,
 }
 
@@ -45,7 +45,7 @@ pub struct Match {
     pub score: f32,
 }
 
-// A keypoint at the pixels of an image of `from` pixels, `(height, width)`, at `image`'s.
+/// Returns a keypoint at the pixels of an image of `from` pixels, `(height, width)`, moved to `image`'s.
 fn rescaled(point: [f32; 2], from: (i64, i64), image: &Image) -> Keypoint {
     let [x, y] = rescaled_point(point, from, image);
     Keypoint { x, y }

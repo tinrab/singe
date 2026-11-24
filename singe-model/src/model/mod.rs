@@ -1,6 +1,7 @@
-// Every model, one module each, under the category Hugging Face documents it in: `transformers`' docs sections, and `diffusion` for `diffusers`' models.
-// A model declares itself in its module's `MODEL`, and its category's `MODELS` lists it; a model left out of the list leaves `MODEL` unused, which the lints refuse.
-// A component only pipelines load, such as `diffusion::shap_e`'s, which no snapshot names as a model, has no entry.
+//! Every model, one module each, under the category Hugging Face documents it in: `transformers`' docs sections, and [`diffusion`] for `diffusers`' models.
+//!
+//! A model declares itself in its module's `MODEL`, and its category's `MODELS` lists it; a model left out of the list leaves `MODEL` unused, which the lints refuse.
+//! A component only pipelines load, such as [`diffusion::shap_e`]'s, which no snapshot names as a model, has no entry.
 
 pub mod audio;
 pub mod diffusion;
@@ -23,12 +24,14 @@ use crate::{
     source::{Format, LoadOptions, Source},
 };
 
-// What the registry knows of a model: Singe's name for it, which a native config records, each other format's names for it, and a loader for each head it serves.
+/// A model the registry knows.
 #[derive(Debug, Clone, Copy)]
 pub struct ModelEntry {
+    /// Singe's name for the model, which a native config records.
     pub name: &'static str,
+    /// Each other format's names for the model.
     pub formats: &'static [(Format, &'static [&'static str])],
-    // The heads in the order a snapshot that names none chooses them.
+    /// A loader for each head the model serves, in the order a snapshot that names none chooses them.
     pub loaders: &'static [HeadLoader],
 }
 
@@ -71,12 +74,16 @@ const CATEGORIES: &[&[&ModelEntry]] = &[
     vision::MODELS,
 ];
 
-// Every model the registry knows.
+/// Returns every model the registry knows.
 pub fn all() -> impl Iterator<Item = &'static ModelEntry> {
     CATEGORIES.iter().flat_map(|models| models.iter().copied())
 }
 
-// Returns the model `source` holds, refusing a name two models claim.
+/// Returns the model `source` holds.
+///
+/// # Errors
+///
+/// Returns an error if no model claims `source`'s kind, or if two models claim it.
 pub fn find(source: &Source) -> Result<&'static ModelEntry> {
     let mut found = all().filter(|model| model.named(source.format(), source.kind()));
     let model = found
@@ -93,7 +100,13 @@ pub fn find(source: &Source) -> Result<&'static ModelEntry> {
     Ok(model)
 }
 
-// Loads `source`'s model as head `H`.
+/// Loads `source`'s model as head `H`.
+///
+/// A failed load of a head that none of the snapshot's classes names returns [`Error::HeadWeights`], since the snapshot may lack that head's weights.
+///
+/// # Errors
+///
+/// Returns an error if [`find`] does, if the model does not serve `H`, or if loading fails.
 pub fn load<H: LoadHead>(source: &Source, options: LoadOptions) -> Result<H> {
     let model = find(source)?;
     let load = H::loader(model.loader(H::HEAD)?).ok_or_else(|| model.unserved(H::HEAD))?;
@@ -101,7 +114,7 @@ pub fn load<H: LoadHead>(source: &Source, options: LoadOptions) -> Result<H> {
     load(&mut loader).map_err(|error| with_classes(source, H::HEAD, error))
 }
 
-// Adds the snapshot's classes to the failed load of a head none of them names, whose weights the snapshot may lack.
+/// Adds the snapshot's classes to the failed load of a head none of them names, whose weights the snapshot may lack.
 fn with_classes(source: &Source, head: Head, error: Error) -> Error {
     match source.classes() {
         Ok(classes)
@@ -117,7 +130,9 @@ fn with_classes(source: &Source, head: Head, error: Error) -> Error {
     }
 }
 
-// The head `source`'s weights hold: the one a native config records, or the first of the model's heads a `transformers` class in `architectures` names, or the model's first.
+/// Returns the head `source`'s weights hold.
+///
+/// That is the head a native config records, the task an `AutoGluon` `config.json` names, or the first of the model's heads that a `transformers` class in `architectures` names; otherwise it is the model's first head.
 pub fn default_head(source: &Source) -> Result<Head> {
     let model = find(source)?;
     let first = model
@@ -146,7 +161,9 @@ pub fn default_head(source: &Source) -> Result<Head> {
     }
 }
 
-// Loads `source`'s model as `head`, and writes what it read to `directory` in Singe's format, each part's state in `weights`, returning each part with the file it wrote.
+/// Loads `source`'s model as `head` and writes it to `directory` in Singe's format, each part's state as a `weights` file.
+///
+/// Returns each part with the weight file it wrote.
 pub fn convert(
     source: &Source,
     head: Head,

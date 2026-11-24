@@ -1,4 +1,4 @@
-// Wav2Vec2: raw samples through strided convolutions into frames, projected, given positions by a grouped convolution, then post-norm blocks, whose states a CTC head reads as characters.
+//! `Wav2Vec2`: raw samples through strided convolutions into frames, projected, given positions by a grouped convolution, then post-norm blocks, whose states a CTC head reads as characters.
 
 mod transformers;
 
@@ -15,7 +15,7 @@ use crate::{
     assembly::{PYTORCH_NORM_EPS, PostNormBlockConfig, post_norm_encoder_block},
     error::Result,
     format::Loader,
-    head::{Boxed, CtcRecognizer, HeadLoader},
+    head::{Boxed, CtcInput, CtcRecognizer, HeadLoader},
     model::ModelEntry,
     schema::Schema,
     source::Format,
@@ -43,14 +43,14 @@ pub struct Wav2Vec2Config {
     pub position_groups: i64,
     pub vocab_size: i64,
     pub sample_rate: i64,
-    // Whether a clip is normalized to zero mean and unit variance first.
+    /// Whether a clip is normalized to zero mean and unit variance first.
     pub normalize: bool,
 }
 
 #[derive(Debug, Clone)]
 pub struct Wav2Vec2Layers {
     convolutions: Vec<Conv1d>,
-    // The first convolution's norm, of each channel over time.
+    /// The first convolution's norm, of each channel over time.
     first_norm: GroupNorm,
     projection_norm: LayerNorm,
     projection: Linear,
@@ -184,6 +184,8 @@ pub fn load_ctc(loader: &mut Loader<'_>) -> Result<CtcRecognizer> {
     Ok(CtcRecognizer::new(
         loader.load_whole(&model, &transformers::rules())?,
         config.sample_rate,
-        config.normalize,
+        CtcInput::Samples {
+            normalize: config.normalize,
+        },
     ))
 }

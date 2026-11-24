@@ -1,5 +1,5 @@
-// Heads over a text encoder, and the one loader every model built on `assembly`'s post-norm encoder shares.
-// A model gives its `transformers` config and rules and its heads' layouts; each head registers its own layers and reads its own config.
+//! Heads over a text encoder, and the one loader every model built on `assembly`'s post-norm encoder shares.
+//! A model gives its `transformers` config and rules and its heads' layouts; each head registers its own layers and reads its own config.
 
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use singe::{
@@ -19,24 +19,24 @@ use crate::{
     source::Source,
 };
 
-// How a model lays out the shared heads it serves.
+/// How a model lays out the shared heads it serves.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct HeadLayouts {
     pub classifier: ClassifierLayout,
-    // The activation of the masked language model's projection, or the encoder's when absent.
+    /// The activation of the masked language model's projection, or the encoder's when absent.
     pub masked_lm_activation: Option<Activation>,
 }
 
-// A head that sits on a text encoder: what it reads from a `transformers` config, the layers it registers beside the encoder, and what it wraps the loaded model in.
+/// A head that sits on a text encoder: what it reads from a `transformers` config, the layers it registers beside the encoder, and what it wraps the loaded model in.
 pub trait EncoderHead: LoadHead {
     type Config: Serialize + DeserializeOwned;
 
     type Layers;
 
-    // Reads what the head adds to a `transformers` config, such as a classifier's labels.
+    /// Reads what the head adds to a `transformers` config, such as a classifier's labels.
     fn transformers_config(source: &Source) -> Result<Self::Config>;
 
-    // Registers the head's layers over `encoder` in the encoder's schema, laid out as `layouts` says.
+    /// Registers the head's layers over `encoder` in the encoder's schema, laid out as `layouts` says.
     fn layers(
         schema: &mut Schema<'_>,
         encoder: PostNormEncoder,
@@ -47,28 +47,28 @@ pub trait EncoderHead: LoadHead {
     fn new(model: Model<Self::Layers>, config: Self::Config) -> Self;
 }
 
-// What a model built on the post-norm encoder gives the shared loader.
+/// What a model built on the post-norm encoder gives the shared loader.
 pub trait EncoderModel {
     const LAYOUTS: HeadLayouts;
 
-    // Reads the encoder's config from a `transformers` snapshot.
+    /// Reads the encoder's config from a `transformers` snapshot.
     fn config(source: &Source) -> Result<PostNormEncoderConfig>;
 
-    // The rules of the encoder's tensors, which skip every head's.
+    /// Returns the rules of the encoder's tensors, which skip every head's.
     fn encoder_rules() -> Rules;
 
-    // The rules of `head`'s tensors, which go before the encoder's.
+    /// Returns the rules of `head`'s tensors, which go before the encoder's.
     fn head_rules(head: Head) -> Rules;
 }
 
-// An encoder's config with its head's, as a native config stores them.
+/// An encoder's config with its head's, as a native config stores them.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 struct EncoderWithHead<C> {
     encoder: PostNormEncoderConfig,
     head: C,
 }
 
-// Loads model `M`'s encoder and head `H` over it.
+/// Loads model `M`'s encoder and head `H` over it.
 pub fn load_encoder_head<M: EncoderModel, H: EncoderHead>(loader: &mut Loader<'_>) -> Result<H> {
     let config: EncoderWithHead<H::Config> = loader.config(|source| {
         Ok(EncoderWithHead {
@@ -95,7 +95,8 @@ fn shared_head_rules(head: Head) -> Rules {
     }
 }
 
-// A loader for every head over a text encoder, for a model that serves them all; the bare encoder comes first, which a snapshot that names no head serves.
+/// Returns a loader for every head over a text encoder, for a model that serves them all.
+/// The bare encoder comes first, so a snapshot that names no head loads as a [`TextEncoder`].
 #[must_use]
 pub const fn encoder_heads<M: EncoderModel>() -> [HeadLoader; 5] {
     [

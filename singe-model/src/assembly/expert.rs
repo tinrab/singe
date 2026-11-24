@@ -1,6 +1,6 @@
-// Rules that import the experts of a Llama-family mixture of experts.
-//
-// Singe packs a layer's experts as `feed_forward.experts.gate_up`, `[E, 2 · I, W]`, each expert's gate rows then its up rows, and `feed_forward.experts.down`, `[E, W, I]`.
+//! The mixture of experts of a Llama-family decoder layer, and the rules that import its experts.
+//!
+//! Singe packs a layer's experts as `feed_forward.experts.gate_up`, `[E, 2 · I, W]`, each expert's gate rows then its up rows, and `feed_forward.experts.down`, `[E, W, I]`.
 
 use serde::{Deserialize, Serialize};
 use singe::{
@@ -26,11 +26,11 @@ pub enum ExpertRouting {
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct ExpertsConfig {
     pub count: i64,
-    // The experts the router chooses for each token.
+    /// The number of experts the router chooses for each token.
     pub top_k: i64,
-    // Each expert's inner width.
+    /// Each expert's inner width.
     pub inner: i64,
-    // The width of the shared expert every token also passes through.
+    /// The inner width of the shared expert every token also passes through.
     pub shared_inner: i64,
     pub routing: ExpertRouting,
 }
@@ -91,7 +91,7 @@ pub fn mixture_of_experts(
     ))
 }
 
-// Imports experts stored one by one (`mlp.experts.E.gate_proj`) or packed as `transformers` 5 holds them (`mlp.experts.gate_up_proj`), of a decoder under `model` whose experts are `inner` wide.
+/// Imports experts stored one by one (`mlp.experts.E.gate_proj`) or packed as `transformers` 5 holds them (`mlp.experts.gate_up_proj`), of a decoder under `model` whose experts are `inner` wide.
 #[must_use]
 pub fn expert_rules(model: &str, inner: i64) -> Rules {
     let piece = move |matched: &Matched<'_>, packed: &str, row: i64| {

@@ -1,4 +1,4 @@
-// What `transformers` configs share, read into Singe's configs: activation names, rotary fields, the fields of Llama-family decoders and BERT-style encoders, and a classifier's labels.
+//! What `transformers` configs share, read into Singe's configs: activation names, rotary fields, the fields of Llama-family decoders and BERT-style encoders, generation settings, and a classifier's labels.
 
 use std::{collections::BTreeMap, result::Result as StdResult};
 
@@ -34,7 +34,11 @@ pub const fn default_channels() -> i64 {
     3
 }
 
-// Returns the activation a config names, as `transformers` maps these names.
+/// Returns the activation a config names, as `transformers` maps these names.
+///
+/// # Errors
+///
+/// Returns an error if `name` is not `relu`, `gelu`, `gelu_new`, `gelu_pytorch_tanh`, `silu`, `swish`, `sigmoid`, `tanh`, or `quick_gelu`.
 pub fn activation(name: &str) -> Result<Activation> {
     Ok(match name {
         "relu" => Activation::Relu,
@@ -48,7 +52,7 @@ pub fn activation(name: &str) -> Result<Activation> {
     })
 }
 
-// Reads a config field that names an activation, for `#[serde(deserialize_with = …)]`.
+/// Reads a config field that names an activation, for `#[serde(deserialize_with = …)]`.
 pub fn activation_field<'de, D: Deserializer<'de>>(
     deserializer: D,
 ) -> StdResult<Activation, D::Error> {
@@ -56,7 +60,7 @@ pub fn activation_field<'de, D: Deserializer<'de>>(
     activation(&name).map_err(DeError::custom)
 }
 
-// The rotary fields of a `config.json`: `rope_parameters`, as `transformers` 5 saves them, or the older `rope_theta` and `rope_scaling`.
+/// The rotary fields of a `config.json`: `rope_parameters`, as `transformers` 5 saves them, or the older `rope_theta` and `rope_scaling`.
 #[derive(Debug, Clone, Default, PartialEq, Deserialize)]
 #[expect(
     clippy::struct_field_names,
@@ -103,7 +107,7 @@ struct RopeFields {
     mrope_interleaved: Option<bool>,
 }
 
-// The theta `transformers` falls back on.
+/// The theta `transformers` falls back on.
 const DEFAULT_ROTARY_THETA: f64 = 10_000.0;
 
 impl RotaryFields {
@@ -111,7 +115,8 @@ impl RotaryFields {
         self.rope_parameters.as_ref().or(self.rope_scaling.as_ref())
     }
 
-    // The fraction of each head the rotation turns, its leading features; the rest pass through.
+    /// Returns the fraction of each head's features that the rotation turns, from `partial_rotary_factor`, or 1 when the config gives none.
+    /// The rotation turns the leading features, and the rest pass through.
     #[must_use]
     pub fn rotated_fraction(&self) -> f64 {
         self.fields()
@@ -163,7 +168,7 @@ impl RotaryFields {
     }
 }
 
-// A Llama-family decoder's activation, which `transformers` makes SiLU when the config leaves it out or `null`.
+/// Returns [`Activation::Silu`], which `transformers` gives a Llama-family decoder whose config leaves `hidden_act` out.
 const fn silu() -> Activation {
     Activation::Silu
 }
@@ -176,7 +181,7 @@ fn decoder_activation<'de, D: Deserializer<'de>>(
     })
 }
 
-// The fields Llama-family configs share.
+/// The fields Llama-family configs share.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct DecoderFields {
     pub vocab_size: i64,
@@ -185,20 +190,21 @@ pub struct DecoderFields {
     pub intermediate_size: Option<i64>,
     pub num_hidden_layers: i64,
     pub num_attention_heads: i64,
-    // As many as there are query heads when absent.
+    /// The key and value heads, as many as the query heads when absent.
     #[serde(default)]
     pub num_key_value_heads: Option<i64>,
-    // The model's `DecoderDefaults::head_dim` when absent.
+    /// Each head's width; when absent, [`DecoderDefaults::head_dim`], or else the hidden size over the heads.
     #[serde(default)]
     pub head_dim: Option<i64>,
     pub rms_norm_eps: f32,
+    /// The activation, [`Activation::Silu`] when absent or `null`.
     #[serde(default = "silu", deserialize_with = "decoder_activation")]
     pub hidden_act: Activation,
     #[serde(default)]
     pub attention_bias: bool,
     #[serde(default)]
     pub mlp_bias: bool,
-    // Whether the output head shares the embedding's weight, whose default differs by model.
+    /// Whether the output head shares the embedding's weight; when absent, [`DecoderDefaults::tied`], since the default differs by model.
     #[serde(default)]
     pub tie_word_embeddings: Option<bool>,
     #[serde(default)]
@@ -215,17 +221,21 @@ pub enum LayerType {
     LinearAttention,
 }
 
-// What a model's `transformers` config class gives the fields its config leaves out, where models differ.
+/// What a model's `transformers` config class gives the fields its config leaves out, where models differ.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DecoderDefaults {
-    // Whether the output head shares the embedding's weight.
+    /// Whether the output head shares the embedding's weight.
     pub tied: bool,
-    // Each head's width, or `None` for the hidden size over the heads, as Llama's.
+    /// Each head's width, or `None` for the hidden size over the heads, as Llama's.
     pub head_dim: Option<i64>,
 }
 
 impl DecoderFields {
-    // Refuses a layer type other than full attention, which a definition would otherwise compute as full attention.
+    /// Checks that every layer in `layer_types` is full attention, since a definition would compute any other layer type as full attention.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `layer_types` names a layer other than full attention.
     pub fn refuse_sliding_layers(&self) -> Result<()> {
         if self
             .layer_types
@@ -251,7 +261,7 @@ impl DecoderFields {
         }
     }
 
-    // Returns the decoder's config, filling what the config leaves out from `defaults`.
+    /// Returns the decoder's config, filling the head width and the tying the config leaves out from `defaults`.
     pub fn config(&self, defaults: DecoderDefaults) -> Result<DecoderConfig> {
         let heads = self.num_attention_heads;
         let head_dim = self
@@ -283,7 +293,7 @@ fn absolute() -> String {
     "absolute".to_owned()
 }
 
-// The fields BERT-style encoder configs share, which BERT's and RoBERTa's are.
+/// The fields BERT-style encoder configs share, such as BERT's and `RoBERTa`'s.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct EncoderFields {
     pub vocab_size: i64,
@@ -303,7 +313,11 @@ pub struct EncoderFields {
 }
 
 impl EncoderFields {
-    // Returns the encoder's config, whose positions start at `first_position`.
+    /// Returns the encoder's config, whose positions start at `first_position`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `position_embedding_type` is not `absolute`, or `is_decoder` is set.
     pub fn config(&self, first_position: i64) -> Result<PostNormEncoderConfig> {
         // A checkpoint using one of these would load and then compute something else.
         if self.position_embedding_type != "absolute" {
@@ -328,7 +342,7 @@ impl EncoderFields {
     }
 }
 
-// The features of a head of `head_dim` that a rotation of `fraction` of it turns, as `transformers` rounds them down.
+/// Returns the features of a head of `head_dim` that a rotation of `fraction` of it turns, as `transformers` rounds them down.
 fn rotated_features(head_dim: i64, fraction: f64) -> Result<i64> {
     let features = (head_dim as f64 * fraction) as i64;
     if features <= 0 || features > head_dim || features % 2 != 0 {
@@ -347,8 +361,8 @@ struct GenerationFields {
     begin_suppress_tokens: Vec<i64>,
 }
 
-// How `transformers`' `generate` continues a prompt for a snapshot: its stop tokens end a sequence, `generation_config.json`'s `suppress_tokens` are never chosen, and its `begin_suppress_tokens` are not chosen first.
-// It generates no tokens until a caller sets `max_new_tokens`.
+/// Returns how `transformers`' `generate` continues a prompt for a snapshot: its stop tokens end a sequence, `generation_config.json`'s `suppress_tokens` are never chosen, and its `begin_suppress_tokens` are not chosen first.
+/// The options generate no tokens until a caller sets `max_new_tokens`.
 pub fn generation_options(source: &Source) -> Result<GenerationOptions> {
     let fields: GenerationFields = source.json("generation_config.json")?;
     Ok(GenerationOptions {
@@ -374,7 +388,12 @@ struct Seq2SeqFields {
     bad_words_ids: Option<Vec<Vec<i64>>>,
 }
 
-// How `transformers`' `generate` runs an encoder-decoder snapshot greedily: `generation_config.json`'s settings, or where a snapshot has none, the model config's, with a composite's decoder's filling what its own leaves out, and `generate`'s defaults of 20 tokens long and none short.
+/// Returns how `transformers`' `generate` runs an encoder-decoder snapshot: `generation_config.json`'s settings, or where a snapshot has none, the model config's, with a composite's decoder's filling what its own leaves out.
+/// Settings left out take `generate`'s defaults: at most 20 tokens, no fewer than 0, and one beam.
+///
+/// # Errors
+///
+/// Returns an error if the config it reads cannot be read or parsed, if `early_stopping` is neither a boolean nor `"never"` with a length penalty of at most 0, or if `bad_words_ids` bans a sequence longer than one token.
 pub fn seq2seq_generation(source: &Source) -> Result<Seq2SeqGeneration> {
     let fields: Seq2SeqFields =
         if let Some(fields) = source.optional_json::<Seq2SeqFields>("generation_config.json")? {
@@ -440,7 +459,7 @@ struct ClassifierFields {
     problem_type: Option<String>,
     #[serde(default)]
     sentence_transformers: Option<CrossEncoderFields>,
-    // Where `sentence-transformers` before 4.0 named a cross-encoder's activation.
+    /// Where `sentence-transformers` before 4.0 named a cross-encoder's activation.
     sbert_ce_default_activation_function: Option<String>,
 }
 
@@ -449,7 +468,7 @@ struct CrossEncoderFields {
     activation_fn: Option<String>,
 }
 
-// The score function of a `sentence-transformers` activation's class path, such as `torch.nn.modules.activation.Sigmoid`.
+/// Returns the score function of a `sentence-transformers` activation's class path, such as `torch.nn.modules.activation.Sigmoid`.
 fn activation_function(path: &str) -> Result<ScoreFunction> {
     match path.rsplit('.').next() {
         Some("Sigmoid") => Ok(ScoreFunction::Sigmoid),
@@ -460,9 +479,13 @@ fn activation_function(path: &str) -> Result<ScoreFunction> {
     }
 }
 
-// Reads a classifier's labels from `id2label` in index order, or `LABEL_{i}` for each of `num_labels` (2 when absent) as `transformers` names them.
-// A `sentence-transformers` cross-encoder's config also names the function its ranking scores go through.
-// Its scores stay as they are for a regression, go through a sigmoid for a multi-label problem or a single label, and through a softmax otherwise, as the text-classification pipeline chooses.
+/// Reads a classifier's labels from `id2label` in index order, or `LABEL_{i}` for each of `num_labels` (2 when absent) as `transformers` names them.
+/// The classifier's scores stay as they are for a regression, go through a sigmoid for a multi-label problem or a single label, and through a softmax otherwise, as the text-classification pipeline chooses.
+/// A `sentence-transformers` cross-encoder's config also names the function its ranking scores go through.
+///
+/// # Errors
+///
+/// Returns an error if `config.json` cannot be read or parsed, if an `id2label` key is not an index or the keys skip an index, if `num_labels` is 0, or if the cross-encoder's activation is neither `Sigmoid` nor `Identity`.
 pub fn classifier_config(source: &Source) -> Result<ClassifierConfig> {
     let fields: ClassifierFields = source.json("config.json")?;
     let labels = match fields.id2label {

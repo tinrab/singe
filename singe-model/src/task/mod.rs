@@ -1,6 +1,6 @@
-// One module per task, under the Hub's category of tasks, named for its id as the Hugging Face Hub and `transformers`' pipelines name it.
-// Each task has a pipeline: its inputs and outputs, what turns them into the model's and back, and the head it asks the registry for, or the `diffusers` components it loads itself.
-// A task `transformers` adds goes under the category of its nearest Hub task.
+//! One module per task, under the Hub's category of tasks, named for its id as the Hugging Face Hub and `transformers`' pipelines name it.
+//! Each task has a pipeline: its inputs and outputs, what turns them into the model's and back, and the head it asks the registry for, or the `diffusers` components it loads itself.
+//! A task `transformers` adds goes under the category of its nearest Hub task.
 
 pub mod audio;
 pub mod diffusion;
@@ -27,7 +27,7 @@ use crate::{
     source::{LoadOptions, Source},
 };
 
-// A task's pipeline: what it reads, how it runs, and what it returns, in the field names `transformers`' pipeline returns.
+/// A task's pipeline: what it reads, how it runs, and what it returns, in the field names `transformers`' pipeline returns.
 pub trait Pipeline: TaskPipeline + Sized {
     type Input: DeserializeOwned;
 
@@ -65,7 +65,7 @@ macro_rules! tasks {
         impl Task {
             pub const ALL: &[Self] = &[$(Self::$task),*];
 
-            // Returns the task's id, as `pipeline(task)` takes it.
+            /// Returns the task's id, as `pipeline(task)` takes it.
             #[must_use]
             pub const fn id(self) -> &'static str {
                 match self {
@@ -87,7 +87,7 @@ macro_rules! tasks {
             }
         )*
 
-        // Loads `task`'s pipeline from `source`, to run many times through JSON or, downcast, through its own types.
+        /// Loads `task`'s pipeline from `source`, to run many times through JSON or, downcast, through its own types.
         pub fn load(task: Task, source: &Source, options: LoadOptions) -> Result<Box<dyn AnyPipeline>> {
             match task {
                 $(Task::$task => Ok(Box::new(<$pipeline as Pipeline>::load(source, options)?))),*
@@ -151,7 +151,11 @@ tasks! {
 }
 
 impl Task {
-    // Reads a task id, or one of the aliases the Hub or `transformers` gives a task.
+    /// Returns the task `id` names, as a task id or one of the aliases the Hub or `transformers` gives a task.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `id` names no task.
     pub fn from_id(id: &str) -> Result<Self> {
         let id = match id {
             "sentiment-analysis" => "text-classification",
@@ -198,18 +202,22 @@ pub fn parameters<T: DeserializeOwned + Default>(parameters: &Value) -> Result<T
     }
 }
 
-// A loaded pipeline of any task, run on JSON as `transformers`' `pipeline(task)(inputs, **parameters)` takes it.
+/// A loaded pipeline of any task, run on JSON as `transformers`' `pipeline(task)(inputs, **parameters)` takes it.
 pub trait AnyPipeline: Any {
     fn task(&self) -> Task;
 
-    // Runs the pipeline on `inputs`, one input or an array of them, with `parameters`, and returns one output for one input, or an array of one per input.
+    /// Runs the pipeline on `inputs`, one input or an array of them, with `parameters`, and returns one output for one input, or an array of one per input.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `inputs` or `parameters` do not parse as the pipeline's, or if the pipeline fails.
     fn run_json(&self, inputs: &Value, parameters: &Value) -> Result<Value>;
 
     fn as_any(&self) -> &dyn Any;
 }
 
 impl dyn AnyPipeline {
-    // The pipeline as `P`, when it is one.
+    /// Returns the pipeline as `P`, when it is one.
     #[must_use]
     pub fn downcast<P: Pipeline + 'static>(&self) -> Option<&P> {
         self.as_any().downcast_ref()
@@ -276,7 +284,7 @@ pub(crate) fn run_alone<P: Pipeline>(
         .ok_or_else(|| SingeError::missing_output("a pipeline's output for its one input").into())
 }
 
-// The hypotheses a zero-shot pipeline scores its input against: `template` with each of `labels` in place of its `{}`.
+/// Returns the hypotheses a zero-shot pipeline scores its input against: `template` with each of `labels` in place of its `{}`.
 pub(crate) fn hypotheses(template: &str, labels: &[String]) -> Result<Vec<String>> {
     if labels.is_empty() {
         return Err(Error::invalid("zero-shot classification without labels"));

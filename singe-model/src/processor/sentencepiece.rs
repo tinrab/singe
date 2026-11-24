@@ -1,10 +1,10 @@
-// SentencePiece models, read from their protobuf files for the tokenizers `transformers` converts from them when a snapshot has no `tokenizer.json`: XLM-RoBERTa's, which TrOCR's snapshots name.
+//! SentencePiece models, read from their protobuf files for the tokenizers `transformers` converts from them when a snapshot has no `tokenizer.json`: `XLM-RoBERTa`'s, which `TrOCR`'s snapshots name.
 
 use std::{fs, path::Path};
 
 use crate::error::{Error, Result};
 
-// A protobuf field's value, by its wire type.
+/// A protobuf field's value, by its wire type.
 enum Field<'a> {
     Varint,
     Fixed64,
@@ -29,7 +29,7 @@ fn varint(bytes: &[u8], at: &mut usize) -> Result<u64> {
     ))
 }
 
-// A message's fields, each its number and value, in order.
+/// Returns a message's fields, each its number and value, in order.
 fn fields(bytes: &[u8]) -> Result<Vec<(u64, Field<'_>)>> {
     let truncated = || Error::unsupported("a truncated SentencePiece model");
     let mut at = 0;
@@ -67,7 +67,7 @@ fn fields(bytes: &[u8]) -> Result<Vec<(u64, Field<'_>)>> {
     Ok(found)
 }
 
-// A model's pieces with their scores, and its normalizer's precompiled character map.
+/// A model's pieces with their scores, and its normalizer's precompiled character map.
 pub(crate) struct Model {
     pub(crate) pieces: Vec<(String, f32)>,
     pub(crate) charsmap: Vec<u8>,

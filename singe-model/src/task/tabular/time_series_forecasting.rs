@@ -1,4 +1,4 @@
-// `time-series-forecasting`: a series' past values to its next values, a point forecast and quantiles for each step, as `transformers`' `*ModelForPrediction` returns them; `transformers` has no pipeline for it.
+//! `time-series-forecasting`: a series' past values to its next values, a point forecast and quantiles for each step, as `transformers`' `*ModelForPrediction` returns them; `transformers` has no pipeline for it.
 
 use serde::{Deserialize, Serialize};
 

@@ -1,4 +1,4 @@
-// `audio-text-to-text`: a clip and an instruction to the text a speech model writes, here Qwen3-ASR's transcription with the instruction as its context, as its chat template places it in the system's turn.
+//! `audio-text-to-text`: a clip and an instruction to the text a speech model writes, here Qwen3-ASR's transcription with the instruction as its context, as its chat template places it in the system's turn.
 
 use serde::Deserialize;
 

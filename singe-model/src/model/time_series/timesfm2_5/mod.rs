@@ -1,6 +1,7 @@
-// TimesFM 2.5: a decoder over patches of a series, each patch normalized by the running statistics of the series up to it and embedded by a residual block, causal blocks whose queries and keys are normed per head after their rotation, and residual blocks from the last patch to a point forecast and to quantile spreads, read twice, from the series and from its negation, and averaged so a flipped series forecasts the flipped forecast.
-//
-// Its state is `tokenizer`, `point`, and `quantiles` (each `input`, `output`, and `residual`), and `blocks.N` (`attention_norm`, `attention` with `query`, `key`, `value`, `output`, `query_norm`, `key_norm`, and `query_scale`, `post_attention_norm`, `feed_forward_norm`, `feed_forward` with `up` and `down`, and `post_feed_forward_norm`).
+//! `TimesFM` 2.5: a decoder over patches of a series, each patch normalized by the running statistics of the series up to it and embedded by a residual block, then causal blocks whose queries and keys are normed per head after their rotation, then residual blocks from the last patch to a point forecast and to quantile spreads.
+//! With `force_flip_invariance`, it also forecasts the negated series and averages in that forecast's negation, so a flipped series forecasts the flipped forecast.
+//!
+//! Its state is `tokenizer`, `point`, and `quantiles` (each `input`, `output`, and `residual`), and `blocks.N` (`attention_norm`, `attention` with `query`, `key`, `value`, `output`, `query_norm`, `key_norm`, and `query_scale`, `post_attention_norm`, `feed_forward_norm`, `feed_forward` with `up` and `down`, and `post_feed_forward_norm`).
 
 mod transformers;
 
@@ -26,20 +27,21 @@ use crate::{
     source::Format,
 };
 
-// The smallest scale a normalization divides by; a smaller one divides by one.
+/// The smallest scale a normalization divides by; a smaller one divides by one.
 const TOLERANCE: f32 = 1e-6;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TimesFmConfig {
     pub patch: usize,
-    // The steps the point forecast covers, and those the quantile spreads cover.
+    /// The steps the point forecast covers.
     pub horizon: usize,
+    /// The steps the quantile spreads cover.
     pub quantile_horizon: usize,
-    // The outputs of each step: the point forecast and then each quantile.
+    /// The number of outputs of each step: the mean and then each quantile.
     pub outputs: usize,
-    // The output the point forecast reads, the median's.
+    /// The output the point forecast reads, the median's.
     pub median: usize,
-    // The most past values read, and the length a shorter series is padded to before its global statistics.
+    /// The most past values read, and the length a shorter series is padded to before its global statistics.
     pub context: usize,
     pub width: i64,
     pub inner: i64,
@@ -49,16 +51,16 @@ pub struct TimesFmConfig {
     pub eps: f32,
     pub activation: Activation,
     pub frequencies: RotaryFrequencies,
-    // Whether the forecast averages in the negated series' forecast.
+    /// Whether the forecast averages in the negated series' forecast.
     pub flip_invariant: bool,
-    // Whether a series without negative values forecasts none.
+    /// Whether a series without negative values forecasts none.
     pub positive: bool,
-    // Whether the quantiles come from the quantile spreads around the median.
+    /// Whether the quantiles come from the quantile spreads around the median.
     pub continuous_quantiles: bool,
 }
 
 impl TimesFmConfig {
-    // Series `index`'s point outputs and quantile spreads among `outputs`, `[steps][outputs]`, denormalized by its last patch's statistics.
+    /// Returns series `index`'s point outputs and quantile spreads among `outputs`, each `[steps][outputs]`, denormalized by its last patch's statistics.
     fn denormalized(
         &self,
         outputs: &[f32],
@@ -82,7 +84,7 @@ impl TimesFmConfig {
     }
 }
 
-// `output(act(input(x))) + residual(x)`.
+/// A residual block, `output(act(input(x))) + residual(x)`.
 #[derive(Debug, Clone)]
 struct ResidualBlock {
     input: Linear,
@@ -127,7 +129,7 @@ struct TimesFmAttention {
     output: Linear,
     query_norm: RmsNorm,
     key_norm: RmsNorm,
-    // Each query feature's learned scale, the softplus of the stored one over `√D`, times `1 / ln 2`.
+    /// Each query feature's learned scale, the softplus of the stored one over `√D`, times `1 / ln 2`.
     query_scale: StateKey,
     heads: i64,
     head_dim: i64,
@@ -237,7 +239,7 @@ impl TimesFmBlock {
     }
 }
 
-// From each series' patches, normalized and joined to their masks, `[B, N, 2 · P]`, to the last patch's point outputs and then its quantile spreads, `[B, (H + Q) · outputs]`, before they are denormalized.
+/// `TimesFM` 2.5 from each series' patches, normalized and joined to their masks, `[B, N, 2 · P]`, to the last patch's point outputs and then its quantile spreads, `[B, (H + Q) · outputs]`, before they are denormalized.
 #[derive(Debug, Clone)]
 pub struct TimesFmLayers {
     config: TimesFmConfig,
@@ -333,7 +335,7 @@ impl Layer for TimesFmLayers {
 pub type TimesFm = Model<TimesFmLayers>;
 
 impl Forecaster for TimesFm {
-    // As `TimesFm2_5ModelForPrediction.forward` forecasts one series with its defaults.
+    /// Forecasts `series` as `TimesFm2_5ModelForPrediction.forward` forecasts one series with its defaults.
     fn forecast(&self, series: &[f32]) -> Result<Forecast> {
         let config = &self.layer().config;
         if series.is_empty() {
@@ -395,7 +397,7 @@ impl Forecaster for TimesFm {
     }
 }
 
-// A patch's running count, mean, and standard deviation of the valid values up to it, as `_update_running_stats` combines them.
+/// A patch's running count, mean, and standard deviation of the valid values up to it, as `_update_running_stats` combines them.
 #[derive(Debug, Clone, Copy, Default)]
 struct Running {
     count: f32,
@@ -451,7 +453,7 @@ fn safe_scale(scale: f32) -> f32 {
     if scale < TOLERANCE { 1.0 } else { scale }
 }
 
-// The series' mean and standard deviation as `_preprocess` pads it: with zeros in front up to the context's length.
+/// Returns the series' mean and standard deviation as `_preprocess` pads it: with zeros in front up to the context's length.
 fn statistics(inputs: &[f32], context: usize) -> (f32, f32) {
     let padded = context.max(inputs.len());
     let mean = inputs.iter().map(|&value| f64::from(value)).sum::<f64>() / padded as f64;
@@ -464,7 +466,7 @@ fn statistics(inputs: &[f32], context: usize) -> (f32, f32) {
     (mean as f32, variance.sqrt() as f32)
 }
 
-// Averages `values` with the negated series' `flipped`, whose quantiles mirror the series': the lowest becomes the highest.
+/// Averages `values` with the negation of `flipped`, the negated series' outputs, whose quantiles mirror the series': the lowest becomes the highest.
 fn unflip(values: &mut [Vec<f32>], flipped: &[Vec<f32>]) {
     for (step, flipped) in values.iter_mut().zip(flipped) {
         let mirrored = iter::once(flipped[0])
@@ -476,7 +478,7 @@ fn unflip(values: &mut [Vec<f32>], flipped: &[Vec<f32>]) {
     }
 }
 
-// Each series' last patch statistics and model inputs, `[B, N, 2 · P]`, for each of `series`, already normalized and of one length, padded at the front to whole patches.
+/// Returns each series' last patch statistics and the model's inputs, `[B, N, 2 · P]`, for `series`, already normalized and of one length, padded at the front to whole patches.
 fn patches(model: &TimesFm, series: &[Vec<f32>]) -> Result<(Vec<Running>, Tensor)> {
     let patch = model.layer().config.patch;
     let length = series.first().map_or(0, Vec::len);

@@ -1,4 +1,4 @@
-// `text-generation`: a prompt or a conversation to the text a causal language model generates after it.
+//! `text-generation`: a prompt or a conversation to the text a causal language model generates after it.
 
 use serde::Deserialize;
 use serde_json::{Map, Value};
@@ -32,7 +32,7 @@ pub struct TextGenerationPipeline {
     decoders: Decoders<DecoderKey, Box<dyn Decoder>>,
 }
 
-// The sampling `generation_config.json` asks for, which a server applies where a request names none.
+/// The sampling `generation_config.json` asks for, which a server applies where a request names none.
 #[derive(Debug, Clone, Copy, PartialEq, Default, Deserialize)]
 #[serde(default)]
 pub struct GenerationDefaults {
@@ -43,7 +43,7 @@ pub struct GenerationDefaults {
     pub min_p: Option<f32>,
 }
 
-// A prompt, read as it is, or a conversation, which the snapshot's chat template turns into one.
+/// A prompt, read as it is, or a conversation, which the snapshot's chat template turns into one.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(untagged)]
 pub enum TextGenerationInput {
@@ -55,15 +55,15 @@ pub enum TextGenerationInput {
 #[serde(default)]
 pub struct TextGenerationParameters {
     pub max_new_tokens: usize,
-    // Samples each token with these settings rather than taking the likeliest.
+    /// Whether to sample each token with `temperature`, `top_k`, and `top_p` rather than take the likeliest.
     pub do_sample: bool,
     pub temperature: f32,
     pub top_k: Option<usize>,
     pub top_p: f32,
     pub seed: u64,
-    // Runs compiled steps rather than eager ones.
+    /// Whether the decoder runs compiled steps rather than eager ones, `true` by default.
     pub compile: bool,
-    // Arguments the chat template reads, such as `enable_thinking`.
+    /// Arguments the chat template reads, such as `enable_thinking`.
     pub chat_template_kwargs: Map<String, Value>,
 }
 
@@ -83,7 +83,7 @@ impl Default for TextGenerationParameters {
 }
 
 impl TextGenerationPipeline {
-    // Returns a decoder over the model of `options`' rows and capacity, compiled if asked, for a caller that runs its own generation loop.
+    /// Returns a decoder over the model of `options`' rows and capacity, compiled if `compile` is set, for a caller that runs its own generation loop.
     pub fn decoder(&self, options: DecoderOptions, compile: bool) -> Result<Box<dyn Decoder>> {
         self.model.decoder(options, compile)
     }
@@ -108,13 +108,17 @@ impl TextGenerationPipeline {
         self.defaults
     }
 
-    // The most tokens a sequence holds, prompt included, as the model's config limits its positions.
+    /// Returns the most tokens a sequence holds, prompt included, as the model's config limits its positions, or `None` when the config sets no limit.
     #[must_use]
     pub const fn context_length(&self) -> Option<usize> {
         self.context_length
     }
 
-    // Returns an input's prompt tokens: a text as it is, without special tokens, or a conversation through the chat template, ending where the assistant's turn starts.
+    /// Returns an input's prompt tokens: a text as it is, without special tokens, or a conversation through the chat template, ending where the assistant's turn starts.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `input` is a conversation and the snapshot has no chat template, or if rendering or encoding fails.
     pub fn prompt(
         &self,
         input: &TextGenerationInput,

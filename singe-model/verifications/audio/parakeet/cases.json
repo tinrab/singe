@@ -1,0 +1,124 @@
+{
+  "cases": [
+    {
+      "name": "tdt",
+      "snapshot": "PARAKEET_TDT",
+      "task": "automatic-speech-recognition",
+      "data_type": "f32",
+      "inputs": ["media/clip.wav"],
+      "parameters": {
+        "max_new_tokens": 128
+      },
+      "expected": [
+        {
+          "text": "Nor is mister Quilter's manner less interesting than his matter."
+        }
+      ]
+    },
+    {
+      "name": "tdt-flac",
+      "snapshot": "PARAKEET_TDT",
+      "task": "automatic-speech-recognition",
+      "data_type": "f32",
+      "inputs": ["media/clip.flac"],
+      "parameters": {
+        "max_new_tokens": 128
+      },
+      "expected": [
+        {
+          "text": "Nor is mister Quilter's manner less interesting than his matter."
+        }
+      ]
+    },
+    {
+      "name": "tdt-short",
+      "snapshot": "PARAKEET_TDT",
+      "task": "automatic-speech-recognition",
+      "data_type": "f32",
+      "inputs": ["media/clip-1s.wav"],
+      "parameters": {
+        "max_new_tokens": 128
+      },
+      "expected": [
+        {
+          "text": "Nor is"
+        }
+      ]
+    },
+    {
+      "name": "tdt-long",
+      "snapshot": "PARAKEET_TDT",
+      "task": "automatic-speech-recognition",
+      "data_type": "f32",
+      "inputs": ["media/clip-long.wav"],
+      "expected": [
+        {
+          "text": "Nor is mister Quilter's manner less interesting than his matter Nor is mister Quilter's manner less interesting than his matter, nor is mister Quilter's manner less interesting than his matter, nor is mister Quilter's manner less interesting than his matter, nor is mister Quilter's manner less interesting than his matter, nor is mister Quilter's manner less interesting than his matter. Nor is mister Quilter's manner less interesting than his matter. Nor is mister Quilter's manner less interesting than his matter."
+        }
+      ]
+    },
+    {
+      "name": "tdt-long-local",
+      "snapshot": "PARAKEET_TDT_LOCAL",
+      "task": "automatic-speech-recognition",
+      "data_type": "f32",
+      "inputs": ["media/clip-long.wav"],
+      "expected": [
+        {
+          "text": "Nor is mister Quilter's manner less interesting than his matter Nor is mister Quilter's manner less interesting than his matter, nor is mister Quilter's manner less interesting than his matter, nor is mister Quilter's manner less interesting than his matter, nor is mister Quilter's manner less interesting than his matter, nor is mister Quilter's manner less interesting than his matter. Nor is mister Quilter's manner less interesting than his matter. Nor is mister Quilter's manner less interesting than his matter."
+        }
+      ]
+    },
+    {
+      "name": "tdt-4m",
+      "snapshot": "PARAKEET_TDT",
+      "task": "automatic-speech-recognition",
+      "data_type": "f32",
+      "inputs": ["media/clip-4m.wav"],
+      "expected": [
+        {
+          "text": "Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter, nor is Mr Quilter's manner less interesting than his matter, nor is Mr Quilter's manner less interesting than his matter, nor is Mr Quilter's manner less interesting than his matter, nor is Mr Quilter's manner less interesting than his matter, nor is Mr Quilter's manner less interesting than his matter, nor is Mr Quilter's manner less interesting than his matter, nor is Mr Quilter's manner less interesting than his matter, nor is Mr Quilter's manner less interesting than his matter, nor is Mr Quilter's manner less interesting than his matter, nor is Mr Quilter's manner less interesting than his matter, nor is Mr Quilter's manner less interesting than his matter, nor is Mr Quilter's manner less interesting than his matter, nor is Mr Quilter's manner less interesting than his matter, nor is Mr Quilter's manner less interesting than his matter, nor is Mr Quilter's manner less interesting than his matter, nor is Mr Quilter's manner less interesting than his matter, nor is Mr Quilter's manner less interesting than his matter, nor is Mr Quilter's manner less interesting than his matter, nor is Mr Quilter's manner less interesting than his matter, nor is Mr Quilter's manner less interesting than his matter, nor is Mr Quilter's manner less interesting than his matter, nor is Mr Quilter's manner less interesting than his matter, nor is Mr Quilter's manner less interesting than his matter, nor is Mr Quilter's manner less interesting than his matter, nor is Mr Quilter's manner less interesting than his matter, nor is Mr Quilter's manner less interesting than his matter, nor is Mr Quilter's manner less interesting than his matter, nor is Mr Quilter's manner less interesting than his matter, nor is Mr Quilter's manner less interesting than his matter, nor is Mr Quilter's manner less interesting than his matter, nor is Mr Quilter's manner less interesting than his matter, nor is Mr Quilter's manner less interesting than his matter, nor is Mr Quilter's manner less interesting than his matter, nor is Mr Quilter's manner less interesting than his matter, nor is Mr Quilter's manner less interesting than his matter, nor is Mr Quilter's manner less interesting than his matter, nor is Mr Quilter's manner less interesting than his matter, nor is Mr Quilter's manner less interesting than his matter, nor is Mr Quilter's manner less interesting than his matter, nor is Mr Quilter's manner less interesting than his matter, nor is Mr Quilter's manner less interesting than his matter, nor is Mr Quilter's manner less interesting than his matter, nor is Mr Quilter's manner less interesting than his matter, nor is Mr Quilter's manner less interesting than his matter, nor is Mr Quilter's manner less interesting than his matter, nor is Mr Quilter's manner less interesting than his matter, nor is Mr Quilter's manner less interesting than his matter, nor is Mr Quilter's manner less interesting than his matter."
+        }
+      ]
+    },
+    {
+      "name": "tdt-12m",
+      "snapshot": "PARAKEET_TDT",
+      "task": "automatic-speech-recognition",
+      "data_type": "f32",
+      "inputs": ["media/clip-12m.wav"],
+      "expected": [
+        {
+          "text": "Nor is Mr. Quilter's manner less interesting than his matter. Nor is Mr. Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr Quilter's manner less interesting than his matter. Nor is Mr. Quilter's manner less interesting than his matter."
+        }
+      ]
+    },
+    {
+      "name": "rnnt",
+      "snapshot": "PARAKEET_RNNT",
+      "task": "automatic-speech-recognition",
+      "data_type": "f32",
+      "inputs": ["media/clip.wav"],
+      "parameters": {
+        "max_new_tokens": 128
+      },
+      "expected": [
+        {
+          "text": "nor is mister quilter's manner less interesting than his matter"
+        }
+      ]
+    },
+    {
+      "name": "ctc",
+      "snapshot": "PARAKEET_CTC",
+      "task": "automatic-speech-recognition",
+      "data_type": "f32",
+      "inputs": ["media/clip.wav"],
+      "expected": [
+        {
+          "text": "nor is mister quilter's manner less interesting than his matter"
+        }
+      ]
+    }
+  ]
+}

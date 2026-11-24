@@ -1,4 +1,4 @@
-// `unconditional-image-generation`: a seed to an image, denoised from the seed's noise by a diffusion model under its scheduler, as `diffusers`' `DDPMPipeline` generates one with `torch.Generator("cpu").manual_seed(seed)`.
+//! `unconditional-image-generation`: a seed to an image, denoised from the seed's noise by a diffusion model under its scheduler, as `diffusers`' `DDPMPipeline` generates one with `torch.Generator("cpu").manual_seed(seed)`.
 
 use serde::Deserialize;
 

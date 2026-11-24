@@ -1,4 +1,4 @@
-// Promptable segmentation, as SAM gives it: an image embedded once, then masks decoded for points against the embedding.
+//! Promptable segmentation, as SAM gives it: an image embedded once, then masks decoded for points against the embedding.
 
 use std::fmt::Debug;
 
@@ -9,10 +9,12 @@ use singe::{
 
 use crate::{error::Result, head::Boxed};
 
-// What a promptable segmenter's layers give: an image's embedding from its pixels at the model's input size, and for points on that image, `[x, y]` pixels, each point's candidate masks' scores at a quarter of the input size, `[P, M, S / 4, S / 4]`, and their predicted quality, `[P, M]`.
+/// A promptable segmenter's layers, which embed an image once and decode masks for points against the embedding.
 pub trait PromptableLayers: Debug + Send + Sync {
+    /// Returns an image's embedding from its pixels at the model's input size.
     fn embed(&self, pixels: &Tensor, state: &ModelState) -> SingeResult<Tensor>;
 
+    /// Returns, for `points` on the embedded image, `[x, y]` in pixels, each point's candidate masks' scores at a quarter of the input size, `[P, M, S / 4, S / 4]`, and their predicted quality, `[P, M]`.
     fn decode(
         &self,
         embedding: &Tensor,
@@ -20,7 +22,7 @@ pub trait PromptableLayers: Debug + Send + Sync {
         state: &ModelState,
     ) -> SingeResult<(Tensor, Tensor)>;
 
-    // The side of the square images the model reads.
+    /// Returns the side of the square images the model reads.
     fn image_size(&self) -> i64;
 }
 

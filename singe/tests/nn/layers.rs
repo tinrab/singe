@@ -13,7 +13,7 @@ use singe::{
     error::CheckpointError,
     graph::{GraphInputSpec, GraphPrepareOptions},
     nn::{
-        Activation, BatchNorm2d, Checkpoint, CheckpointOptions, Conv2d, Conv2dConfig, EncoderBlock,
+        Activation, BatchNorm, Checkpoint, CheckpointOptions, Conv2d, Conv2dConfig, EncoderBlock,
         Flatten, LayerNorm, Linear, LoadPlan, Model, ModelState, Pool2d, Pool2dConfig, Pool2dKind,
         SelfAttention, Sequential, StateBuilder, StateKey, StatePiece, TensorSource,
     },
@@ -114,7 +114,7 @@ fn fixture_model(name: &str, reference: &Value) -> Model<Sequential> {
                 Some(key("conv.bias")),
                 Conv2dConfig::default(),
             ))
-            .with(BatchNorm2d::new(
+            .with(BatchNorm::new(
                 Some(key("norm.weight")),
                 Some(key("norm.bias")),
                 key("norm.running_mean"),
@@ -984,7 +984,7 @@ fn test_optimized_native_normalization_is_available_without_cudnn() {
             1e-5,
         )),
         Box::new(RmsNorm::new(vec![2], Some(weight.clone()), 1e-5)),
-        Box::new(BatchNorm2d::new(
+        Box::new(BatchNorm::new(
             Some(weight),
             Some(bias),
             mean,

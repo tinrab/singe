@@ -1,5 +1,5 @@
-// `zero-shot-classification`: a text and candidate labels to each label's score, from a natural language inference model, as `transformers` scores them.
-// Each label becomes a hypothesis the text is a premise of, and a label scores as the model finds the text entails its hypothesis.
+//! `zero-shot-classification`: a text and candidate labels to each label's score, from a natural language inference model, as `transformers` scores them.
+//! Each label becomes a hypothesis the text is a premise of, and a label scores as the model finds the text entails its hypothesis.
 
 use serde::{Deserialize, Serialize};
 
@@ -16,8 +16,9 @@ use crate::{
 pub struct ZeroShotClassificationPipeline {
     model: SequenceClassifier,
     tokenizer: TextTokenizer,
-    // The labels of the model's entailment and contradiction scores.
+    /// The index of the model's entailment label.
     entailment: usize,
+    /// The index of the model's contradiction label.
     contradiction: usize,
     options: LoadOptions,
 }
@@ -31,11 +32,11 @@ pub struct ZeroShotClassificationInput {
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(default)]
 pub struct ZeroShotClassificationParameters {
-    // Where a label goes in its hypothesis.
+    /// The hypothesis a label goes in, in place of its `{}`; `This example is {}.` by default.
     pub hypothesis_template: String,
-    // Scores each label alone, entailment against contradiction, instead of the labels against each other.
+    /// Whether to score each label alone, entailment against contradiction, instead of the labels against each other.
     pub multi_label: bool,
-    // Truncates each pair to this many tokens, cutting the text, not its hypothesis.
+    /// The tokens each pair is truncated to, cutting the text, not its hypothesis, with no truncation for `None`.
     pub max_length: Option<usize>,
 }
 
@@ -49,7 +50,7 @@ impl Default for ZeroShotClassificationParameters {
     }
 }
 
-// The labels from the best, and their scores.
+/// The input text, and the labels from the best with their scores.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct ZeroShotClassificationOutput {
     pub sequence: String,
@@ -64,7 +65,7 @@ impl Pipeline for ZeroShotClassificationPipeline {
 
     type Output = ZeroShotClassificationOutput;
 
-    // The entailment label is the first whose name starts with "entail", and the contradiction label the last, or the first when entailment is the last, as `transformers` finds them.
+    /// Loads the model and tokenizer, taking as the entailment label the first whose name starts with `entail`, and as the contradiction label the first, or the last when entailment is the first, as `transformers` finds them.
     fn load(source: &Source, options: LoadOptions) -> Result<Self> {
         let model: SequenceClassifier = model::load(source, options)?;
         let labels = model.config().labels();

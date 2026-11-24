@@ -1,4 +1,4 @@
-// Reads a `transformers` DistilBERT config and imports its checkpoint, whose task heads store the encoder under `distilbert`.
+//! Reads a `transformers` `DistilBERT` config and imports its checkpoint, whose task heads store the encoder under `distilbert`.
 
 use serde::Deserialize;
 use singe::nn::{Activation, PoolingMode};
@@ -12,7 +12,7 @@ use crate::{
     source::Source,
 };
 
-// The epsilon of every DistilBERT LayerNorm, which its config does not hold.
+/// The epsilon of every `DistilBERT` `LayerNorm`, which its config does not hold.
 const LAYER_NORM_EPS: f32 = 1e-12;
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
@@ -27,7 +27,7 @@ struct Fields {
     max_position_embeddings: i64,
 }
 
-// Imports the encoder stored under `prefix`.
+/// Returns the rules that import the encoder stored under `prefix`.
 fn prefixed_rules(prefix: &str) -> Rules {
     Rules::new()
         .rename_each(
@@ -56,7 +56,7 @@ fn prefixed_rules(prefix: &str) -> Rules {
 }
 
 impl EncoderModel for DistilBert {
-    // A classifier reads the first token's state through `pre_classifier` and ReLU.
+    /// A classifier reads the first token's state through `pre_classifier` and `ReLU`.
     const LAYOUTS: HeadLayouts = HeadLayouts {
         classifier: ClassifierLayout {
             pooling: PoolingMode::Cls,
@@ -66,7 +66,8 @@ impl EncoderModel for DistilBert {
         masked_lm_activation: None,
     };
 
-    // A snapshot with `sinusoidal_pos_embds` stores its sinusoid table as learned positions, which load as any others.
+    /// Reads a `DistilBERT` config.
+    /// A snapshot with `sinusoidal_pos_embds` stores its sinusoid table as learned positions, which load as any others.
     fn config(source: &Source) -> Result<PostNormEncoderConfig> {
         let fields: Fields = source.json("config.json")?;
         Ok(PostNormEncoderConfig {

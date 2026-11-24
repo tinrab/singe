@@ -29,6 +29,11 @@ RANGES = {
     "QLinearMatMul": (13, 20),
     "AveragePool": (13, 20),
     "ScatterElements": (16, 25),
+    **dict.fromkeys("GRU LSTM RNN".split(), (14, 25)),
+    **dict.fromkeys(
+        "BlackmanWindow DFT HammingWindow HannWindow MelWeightMatrix STFT".split(),
+        (17, 25),
+    ),
 }
 TYPES = {
     1: "Float",

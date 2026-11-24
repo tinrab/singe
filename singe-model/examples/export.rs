@@ -1,8 +1,8 @@
-// Exports a model as CUDA C++ programs for one task that run with nothing of Singe: `--snapshot DIR --directory OUT`, and `--task ID` for other than the first task the model serves.
-//
-// A generating model writes `model_generate.cu` beside its program set, a transcriber's reading a file of F32 samples, and any other model `model_run.cu`, which maps input files to output files; `model.json` says how to build each.
-// `--architecture sm_120` for other than this machine's GPU, `--library NAME` for each library a program may call, every one if none is named, `--type f32|f16` for other than BF16, and the sizes a program fixes: `--capacity` tokens, `--rows` sequences at once, `--seconds` of audio, `--length` tokens of a sentence, `--image-size` of an autoencoder's square image, and `--image-patches`, for `--task image-text-to-text`, the most patches of one, each 16 pixels square.
-// A generating model's loop takes the most likely token unless `--temperature`, `--top-k`, or `--top-p` asks it to sample, and its `--seed` then starts the draws.
+//! Exports a model as CUDA C++ programs for one task that run with nothing of Singe: `--snapshot DIR --directory OUT`, and `--task ID` for other than the task the snapshot's weights default to.
+//!
+//! A generating model writes `model_generate.cu` beside its program set, a transcriber's reading a file of F32 samples, and any other model `model_run.cu`, which maps input files to output files; `model.json` says how to build each.
+//! `--architecture sm_120` for other than this machine's GPU, `--library NAME` for each library a program may call, every one if none is named, `--type f32|f16` for other than BF16, and the sizes a program fixes: `--capacity` tokens, `--rows` sequences at once, `--seconds` of audio, `--length` tokens of a sentence, `--image-size` of an autoencoder's square image, and `--image-patches`, for `--task image-text-to-text`, the most patches of one, each 16 pixels square.
+//! A generating model's loop takes the most likely token unless `--temperature`, `--top-k`, or `--top-p` asks it to sample, and its `--seed` then starts the draws.
 
 mod support;
 

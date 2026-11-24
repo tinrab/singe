@@ -3,6 +3,7 @@
 mod audio_spectrogram_transformer;
 mod clap;
 mod dac;
+mod parakeet;
 mod qwen3_asr;
 mod vits;
 mod wav2vec2;
@@ -16,6 +17,7 @@ verifications!(
         audio_spectrogram_transformer,
         clap,
         dac,
+        parakeet,
         qwen3_asr,
         vits,
         wav2vec2,
