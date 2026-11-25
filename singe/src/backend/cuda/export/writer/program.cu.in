@@ -37,7 +37,7 @@ struct @prefix@_state {
 
 static int singe_create(@prefix@_state* s, void* const* shared) {
     (void)shared;
-@handles_create@    singe_step = "allocating buffers";
+@handles_create@@replay_create@    singe_step = "allocating buffers";
 @create@    return 0;
 }
 
@@ -85,12 +85,13 @@ extern "C" @prefix@_status @prefix@_load_weights(@prefix@_state* s, const void* 
     return static_cast<@prefix@_status>(singe_load_weights(s, weights));
 }
 
-@state_definitions@static int singe_run(@prefix@_state* s, const @prefix@_inputs* inputs, const @prefix@_outputs* outputs, cudaStream_t stream) {
+@state_definitions@static int singe_steps(@prefix@_state* s, const @prefix@_inputs* inputs, const @prefix@_outputs* outputs, cudaStream_t stream) {
 @inputs_used@    (void)outputs;
     singe_step = "starting a run";
 @generators@@body@    return 0;
 }
 
+@run@
 extern "C" @prefix@_status @prefix@_run(@prefix@_state* s, const @prefix@_inputs* inputs, const @prefix@_outputs* outputs, cudaStream_t stream) {
     return static_cast<@prefix@_status>(singe_run(s, inputs, outputs, stream));
 }
@@ -108,5 +109,5 @@ extern "C" @prefix@_status @prefix@_finish(@prefix@_state* s, cudaStream_t strea
 
 extern "C" void @prefix@_destroy(@prefix@_state* s) {
     if (s == nullptr) return;
-@destroy@@handles_destroy@    delete s;
+@replay_destroy@@destroy@@handles_destroy@    delete s;
 }

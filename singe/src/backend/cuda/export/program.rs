@@ -460,3 +460,19 @@ pub struct CudaProgram {
     // How a generation loop runs it, when the export writes one.
     pub decoding: Option<Decoding>,
 }
+
+impl CudaProgram {
+    // Whether it holds generator state, which a run copies from the host to draw samples.
+    #[must_use]
+    pub fn has_generators(&self) -> bool {
+        self.state
+            .iter()
+            .any(|state| matches!(state.kind, StateKind::Generator { .. }))
+    }
+
+    // Whether its runs replay as CUDA graphs: a decoder's steps replay in their generation loop instead, and a graph would replay a sampling run's generator state unchanged.
+    #[must_use]
+    pub fn is_replayed(&self) -> bool {
+        self.decoding.is_none() && !self.has_generators()
+    }
+}

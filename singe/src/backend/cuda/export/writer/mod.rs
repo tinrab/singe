@@ -24,6 +24,9 @@ use crate::{
 // Values larger than this go to the weights file rather than into the source.
 pub const EMBEDDED_VALUE_BYTES: usize = 16 << 10;
 
+// How many sets of input and output addresses a program keeps a captured graph for.
+pub const REPLAY_GRAPHS: usize = 4;
+
 // A program's status: zero, a `cudaError_t` below every base, a library's base plus that library's own status, or one of the statuses below, which Singe defines.
 // The library loaded has another major version than the headers the program compiled against.
 pub const LIBRARY_VERSION: i32 = 5_000_000;

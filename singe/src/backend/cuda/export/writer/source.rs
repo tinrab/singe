@@ -11,8 +11,8 @@ use crate::{
                 writer::{
                     CONFIGURATION_REFUSED, CUBLAS_BASE, CUDNN_BASE, CUFFT_BASE, CUTENSOR_BASE,
                     EMBEDDED_VALUE_BYTES, LIBRARY_VERSION, LIBRARY_VERSIONS, ProgramFiles,
-                    Renderer, cudnn::TABLE_KNOBS_HELPER, fill_template, steps::StepOutput,
-                    tokenizer::tokenizer_file,
+                    REPLAY_GRAPHS, Renderer, cudnn::TABLE_KNOBS_HELPER, fill_template,
+                    steps::StepOutput, tokenizer::tokenizer_file,
                 },
             },
             kernel_plan::value_type,
@@ -23,6 +23,16 @@ use crate::{
     graph::{ComputePrecision, Determinism, NumericalPolicy},
     utility::emit,
 };
+
+// C++ that keeps a program's runs as CUDA graphs, by where it goes in the source.
+#[derive(Default)]
+struct ReplayCode {
+    helpers: String,
+    members: &'static str,
+    create: &'static str,
+    destroy: &'static str,
+    run: String,
+}
 
 // C++ for the program's own buffers.
 #[derive(Default)]
@@ -222,6 +232,54 @@ impl Renderer<'_> {
         Ok(generators)
     }
 
+    // The code that keeps a program's runs as CUDA graphs and replays them, or a run of the steps alone.
+    fn replay_code(&self) -> ReplayCode {
+        let prefix = self.prefix;
+        let program = self.program;
+        if !program.is_replayed() {
+            return ReplayCode {
+                run: format!(
+                    "static int singe_run({prefix}_state* s, const {prefix}_inputs* inputs, const {prefix}_outputs* outputs, cudaStream_t stream) {{\n    return singe_steps(s, inputs, outputs, stream);\n}}\n"
+                ),
+                ..ReplayCode::default()
+            };
+        }
+
+        let key = program
+            .inputs
+            .iter()
+            .map(|value| format!("inputs->{}", value.name))
+            .chain(
+                program
+                    .outputs
+                    .iter()
+                    .map(|value| format!("outputs->{}", value.name)),
+            )
+            .collect::<Vec<_>>();
+        let key_length = key.len().max(1).to_string();
+        let key = if key.is_empty() {
+            "nullptr".to_owned()
+        } else {
+            key.join(", ")
+        };
+        ReplayCode {
+            helpers: fill_template(
+                include_str!("replay.cu.in"),
+                &[
+                    ("graphs", &REPLAY_GRAPHS.to_string()),
+                    ("key_length", &key_length),
+                ],
+            ),
+            members: "    singe_replay replay;\n",
+            create: "    singe_step = \"creating the replay stream\";\n    SINGE_CHECK(singe_replay_create(&s->replay));\n",
+            destroy: "    singe_replay_destroy(&s->replay);\n",
+            run: fill_template(
+                include_str!("replay_run.cu.in"),
+                &[("prefix", prefix), ("key", &key)],
+            ),
+        }
+    }
+
     // The statements that report a run's status word, or that it has none.
     fn finish_status(&self) -> String {
         let status = self
@@ -345,6 +403,8 @@ impl Renderer<'_> {
         let mut members = format!("    void* buffers[{}];\n", program.buffers.len().max(1));
 
         let generators = self.generators(&mut members, &mut create)?;
+        let replay = self.replay_code();
+        members.push_str(replay.members);
         let mut includes = String::new();
         let mut handles_create = String::new();
         let mut handles_destroy = String::new();
@@ -358,6 +418,8 @@ impl Renderer<'_> {
             handles_destroy.push_str(setup.destroy);
             helpers.push_str(setup.helpers);
         }
+
+        helpers.push_str(&replay.helpers);
 
         if program.library_table {
             emit!(
@@ -399,6 +461,7 @@ impl Renderer<'_> {
                 ("helpers", &helpers),
                 ("members", &members),
                 ("handles_create", &handles_create),
+                ("replay_create", replay.create),
                 ("state_buffer_cases", &self.state_buffer_cases()),
                 ("create", &create),
                 ("load", &buffers.load),
@@ -413,7 +476,9 @@ impl Renderer<'_> {
                 ),
                 ("generators", &generators),
                 ("body", &body),
+                ("run", &replay.run),
                 ("finish_status", &self.finish_status()),
+                ("replay_destroy", replay.destroy),
                 ("destroy", &destroy),
                 ("handles_destroy", &handles_destroy),
             ],

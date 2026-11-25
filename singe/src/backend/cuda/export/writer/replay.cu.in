@@ -1,0 +1,61 @@
+
+// How many sets of input and output addresses keep a captured graph, and how many addresses a set holds.
+#define SINGE_REPLAY_GRAPHS @graphs@
+#define SINGE_REPLAY_KEY @key_length@
+
+// The graph of a run with the input and output addresses in `key`.
+// The first run with them launches each step, so libraries finish what they set up lazily, the second captures the graph, and later runs replay it; `direct` marks addresses whose run could not be captured.
+// `used` orders the graphs by their last use, and is zero for none.
+struct singe_graph {
+    const void* key[SINGE_REPLAY_KEY];
+    bool warmed;
+    bool direct;
+    unsigned long long used;
+    cudaGraphExec_t exec;
+};
+
+// The stream runs go to, which starts once the caller's stream reaches `entered` and which the caller's stream waits for at `left`, and the graphs kept.
+struct singe_replay {
+    cudaStream_t stream;
+    cudaEvent_t entered;
+    cudaEvent_t left;
+    singe_graph graphs[SINGE_REPLAY_GRAPHS];
+    unsigned long long clock;
+};
+
+static int singe_replay_create(singe_replay* replay) {
+    SINGE_CHECK(cudaStreamCreateWithFlags(&replay->stream, cudaStreamNonBlocking));
+    SINGE_CHECK(cudaEventCreateWithFlags(&replay->entered, cudaEventDisableTiming));
+    SINGE_CHECK(cudaEventCreateWithFlags(&replay->left, cudaEventDisableTiming));
+    return 0;
+}
+
+static void singe_replay_destroy(singe_replay* replay) {
+    if (replay->stream != nullptr) cudaStreamSynchronize(replay->stream);
+    for (singe_graph& graph : replay->graphs) {
+        if (graph.exec != nullptr) cudaGraphExecDestroy(graph.exec);
+    }
+    if (replay->left != nullptr) cudaEventDestroy(replay->left);
+    if (replay->entered != nullptr) cudaEventDestroy(replay->entered);
+    if (replay->stream != nullptr) cudaStreamDestroy(replay->stream);
+}
+
+// The graph kept for the addresses in `key`, which takes the place of the least recently used one when no graph has them.
+static singe_graph* singe_graph_for(singe_replay* replay, const void* const* key) {
+    singe_graph* oldest = &replay->graphs[0];
+    for (singe_graph& graph : replay->graphs) {
+        bool same = graph.used != 0;
+        for (int index = 0; same && index < SINGE_REPLAY_KEY; ++index) same = graph.key[index] == key[index];
+        if (same) {
+            graph.used = ++replay->clock;
+            return &graph;
+        }
+        if (graph.used < oldest->used) oldest = &graph;
+    }
+    // An executable graph still running is freed when it completes.
+    if (oldest->exec != nullptr) cudaGraphExecDestroy(oldest->exec);
+    *oldest = singe_graph{};
+    for (int index = 0; index < SINGE_REPLAY_KEY; ++index) oldest->key[index] = key[index];
+    oldest->used = ++replay->clock;
+    return oldest;
+}

@@ -410,12 +410,7 @@ pub fn generation_loop_source(
             ));
         }
     };
-    let samples = all.iter().any(|(_, step)| {
-        step.program
-            .state
-            .iter()
-            .any(|state| matches!(state.kind, StateKind::Generator { .. }))
-    });
+    let samples = all.iter().any(|(_, step)| step.program.has_generators());
     let tokenizer = if decoding.tokenizer.is_some() {
         format!("{prefix}.tokenizer")
     } else {

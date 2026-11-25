@@ -4,7 +4,7 @@ use crate::{
             program::{ProgramState, ProgramValue, StateKind},
             writer::{
                 CONFIGURATION_REFUSED, CUBLAS_BASE, CUDNN_BASE, CUFFT_BASE, CUTENSOR_BASE,
-                LIBRARY_VERSION, Renderer, fill_template,
+                LIBRARY_VERSION, REPLAY_GRAPHS, Renderer, fill_template,
             },
         },
         kernel_plan::value_type,
@@ -139,6 +139,13 @@ impl Renderer<'_> {
         let inputs = self.value_struct(ValueStruct::Inputs, &self.program.inputs)?;
         let outputs = self.value_struct(ValueStruct::Outputs, &self.program.outputs)?;
         let state = self.state_declarations()?;
+        let run_description = if self.program.is_replayed() {
+            format!(
+                "// Runs every step after the work already on `stream` and before the work enqueued on it later, on a stream of the program's own; the caller keeps its buffers alive until `stream` finishes.\n// The program keeps a CUDA graph for each of the last {REPLAY_GRAPHS} sets of input and output addresses it ran with: the first run with a set launches each step, the second captures the graph, and later runs replay it.\n"
+            )
+        } else {
+            "// Enqueues every step on `stream`; the caller keeps its buffers alive until the stream finishes.\n".to_owned()
+        };
         Ok(fill_template(
             include_str!("program.h.in"),
             &[
@@ -147,6 +154,7 @@ impl Renderer<'_> {
                 ("inputs", &inputs),
                 ("outputs", &outputs),
                 ("state", &state),
+                ("run_description", &run_description),
                 ("CUBLAS_BASE", &CUBLAS_BASE.to_string()),
                 ("CUFFT_BASE", &CUFFT_BASE.to_string()),
                 ("CUDNN_BASE", &CUDNN_BASE.to_string()),

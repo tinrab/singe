@@ -5,14 +5,17 @@ static bool use_graphs = false;
 // A step replayed as a CUDA graph: it runs on the stream the first time, so libraries finish what they set up lazily, is captured the second time, and replays after that.
 // A step that cannot be captured runs on the stream from then on.
 struct StepGraph {
-    int runs = 0;
+    bool warmed = false;
     bool direct = false;
     cudaGraphExec_t exec = nullptr;
 };
 
 template <typename Run>
 static int launch(StepGraph& graph, Run run) {
-    if (!use_graphs || graph.direct || graph.runs++ == 0) return run();
+    if (!use_graphs || graph.direct || !graph.warmed) {
+        graph.warmed = true;
+        return run();
+    }
     if (graph.exec == nullptr) {
         cudaGraph_t captured = nullptr;
         if (cudaStreamBeginCapture(loop_stream, cudaStreamCaptureModeThreadLocal) != cudaSuccess) {
