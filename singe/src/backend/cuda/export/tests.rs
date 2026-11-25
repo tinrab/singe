@@ -114,6 +114,7 @@ fn compile_command(files: &ProgramFiles) -> String {
 }
 
 // A decode step writes its cache on every run, so a program must not copy the cache to do so.
+// An input the graph overwrites whole, and never reads, is still the caller's to pass and receives its final value.
 #[test]
 fn test_programs_write_a_written_input_where_it_is() {
     let Some((architecture, _lock)) = target() else {
@@ -126,15 +127,27 @@ fn test_programs_write_a_written_input_where_it_is() {
     let index = on_device(
         Tensor::from_vec(Device::Cpu, Shape::create([2]).unwrap(), vec![1_i64, 4]).unwrap(),
     );
-    let capture_cache = cache();
+    let count = || on_device(values(&[1], 3));
+    let (capture_cache, capture_count) = (cache(), count());
     let (graph, eager) = Graph::capture(
         [
             ("cache", capture_cache.clone()),
             ("source", source.clone()),
             ("index", index.clone()),
+            ("count", capture_count.clone()),
         ],
         |inputs| {
             inputs[0].index_put_(&[TensorIndex::Indices(inputs[2].clone())], &inputs[1])?;
+            inputs[3].index_put_(
+                &[TensorIndex::Slice {
+                    start: Some(0),
+                    end: Some(1),
+                    step: 1,
+                }],
+                &capture::literal(device, |device| {
+                    Tensor::from_vec(device, Shape::create([1])?, vec![7.0_f32])
+                })?,
+            )?;
             Ok(vec![inputs[0].add_scalar(1.0)?])
         },
     )
@@ -143,28 +156,32 @@ fn test_programs_write_a_written_input_where_it_is() {
         .without_libraries()
         .export(&graph)
         .unwrap();
-    let position = program
+    for name in ["cache", "count"] {
+        let input = program.inputs.iter().find(|input| input.name == name);
+        assert!(input.is_some_and(|input| input.written), "{name}");
+    }
+    let cache_input = program
         .inputs
         .iter()
         .position(|input| input.name == "cache")
         .unwrap();
-    assert!(program.inputs[position].written);
     assert!(
         !program.steps.iter().any(|step| matches!(
             step,
             ProgramStep::Copy { destination, .. }
-                if matches!(program.buffers[destination.buffer.0].kind, BufferKind::Input(_))
+                if program.buffers[destination.buffer.0].kind == BufferKind::Input(cache_input)
         )),
         "{:?}",
         program.steps
     );
     let compiled = compile_program(&program, "written_in_place");
-    let caller_cache = cache();
+    let (caller_cache, caller_count) = (cache(), count());
     let operands = program
         .inputs
         .iter()
         .map(|input| match input.name.as_str() {
             "cache" => caller_cache.clone(),
+            "count" => caller_count.clone(),
             "source" => source.clone(),
             _ => index.clone(),
         })
@@ -173,6 +190,7 @@ fn test_programs_write_a_written_input_where_it_is() {
     let outputs = compiled.instance().unwrap().run(&operands, 2).unwrap();
     assert_close(&outputs[0], &eager[0], 1e-6, "output");
     assert_close(&caller_cache, &capture_cache, 1e-6, "cache");
+    assert_close(&caller_count, &capture_count, 1e-6, "count");
 }
 
 fn library_steps(program: &CudaProgram) -> Vec<&'static str> {

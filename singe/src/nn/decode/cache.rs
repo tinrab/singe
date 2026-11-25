@@ -305,16 +305,11 @@ impl EncoderDecoderCache {
         };
         self.cross_keys.index_put_(&rows, &paged(keys)?)?;
         self.cross_values.index_put_(&rows, &paged(values)?)?;
-        // By index, as the pages are written: a slice that covers every sequence would leave a captured graph never reading the lengths it writes.
-        let literal = |value: i64| {
-            capture::literal(self.source_lengths.device(), |device| {
-                Tensor::from_vec(device, Shape::create([1])?, vec![value])
-            })
-        };
-        self.source_lengths.index_put_(
-            &[TensorIndex::Indices(literal(sequence)?)],
-            &literal(sources)?,
-        )
+        self.source_lengths
+            .narrow(0, sequence, 1)?
+            .assign(&capture::literal(self.source_lengths.device(), |device| {
+                Tensor::from_vec(device, Shape::create([1])?, vec![sources])
+            })?)
     }
 }
 

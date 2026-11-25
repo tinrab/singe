@@ -24,6 +24,7 @@ impl ValueRemap {
 
 impl Graph {
     /// Removes the operations no graph output depends on, with their values.
+    /// An input the graph writes stays, even when nothing reads it, since a run writes its final value back to the caller's tensor.
     ///
     /// Kept operations are renumbered densely in execution order, and kept values in the order their operations produce them.
     ///
@@ -34,6 +35,11 @@ impl Graph {
         let mut live = vec![false; self.operations.len()];
         let mut pending = self.output_values().to_vec();
         pending.extend(self.shape_program.constraints.keys().copied());
+        pending.extend(
+            self.input_values()
+                .filter(|(_, name)| self.input_writes.iter().any(|written| written == name))
+                .map(|(value, _)| value),
+        );
         while let Some(value) = pending.pop() {
             let (operation, _) = self
                 .value_results
