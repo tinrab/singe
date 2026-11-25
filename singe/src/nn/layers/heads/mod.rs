@@ -88,18 +88,16 @@ impl Layer<PoolingInput<'_>> for Pooling {
                     return Err(Error::invalid_argument("last-token pooling input"));
                 }
 
-                // Each sequence's last real token, broadcast over the features by adding zeros of one token's shape, so a program built with a run-time batch follows it.
-                let zeros = hidden.narrow(1, 0, 1)?.cast(DataType::I64)?.mul_scalar(0)?;
-                let last = input
-                    .padding
-                    .cast(DataType::I64)?
-                    .sum(&[1], true)?
-                    .add_scalar(-1)?
-                    .clamp(0.0, f32::MAX)?
-                    .cast(DataType::I64)?
-                    .unsqueeze(-1)?
-                    .add(&zeros)?;
-                hidden.gather(1, &last)?.squeeze(1)?
+                let real = input.padding.cast(DataType::F32)?;
+                let positions = Tensor::range(real.device(), 0, real.dimension(1)?)?
+                    .cast(DataType::F32)?
+                    .unsqueeze(0)?;
+                let last = positions.mul(&real)?.max_reduce(&[1], true)?;
+                let selected = positions
+                    .equal(&last)?
+                    .cast(hidden.data_type())?
+                    .unsqueeze(2)?;
+                hidden.mul(&selected)?.sum(&[1], false)?
             }
         };
         if !self.normalize {

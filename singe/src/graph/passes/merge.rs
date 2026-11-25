@@ -15,7 +15,7 @@ use crate::{
         ir::ValueId,
         node::{Node, NodeRef},
         passes::{
-            decompose::{push, splice_traced_on},
+            decompose::{Placement, push, splice_traced_on},
             remap::{prune_dead_nodes_with_map, remapped_node},
         },
     },
@@ -241,14 +241,19 @@ pub fn merge_sibling_projections(
             };
             let (data_type, layout) = node_metadata(&nodes, product)?;
             let axis = layout.shape().rank() - 1;
+            let placement = Placement {
+                device: node.output_device(),
+                source_location: node.source_location(),
+                contiguous: node.output_layout().is_contiguous(),
+                follows_axes: false,
+            };
             splice_traced_on(
                 &[(data_type, layout, product)],
-                node.output_device(),
-                node.source_location(),
-                node.output_layout().is_contiguous(),
+                &placement,
                 &mut nodes,
                 |inputs| Ok(vec![inputs[0].narrow(axis, first, outputs)?]),
             )?
+            .0
         } else {
             push(&mut nodes, remapped_node(&node, &id_map)?)
         };
@@ -288,7 +293,13 @@ fn merged_matmul(
     let merged = push(nodes, Node::constant_node(weight));
     let left = graph.required_node(group.left)?;
     let transposed = group.transposed;
-    splice_traced_on(
+    let placement = Placement {
+        device: first.output_device(),
+        source_location: first.source_location(),
+        contiguous: false,
+        follows_axes: false,
+    };
+    let (product, _) = splice_traced_on(
         &[
             (
                 left.output_data_type(),
@@ -297,9 +308,7 @@ fn merged_matmul(
             ),
             (data_type, layout, merged),
         ],
-        first.output_device(),
-        first.source_location(),
-        false,
+        &placement,
         nodes,
         |inputs| {
             let right = if transposed {
@@ -309,5 +318,6 @@ fn merged_matmul(
             };
             Ok(vec![inputs[0].matmul(&right)?])
         },
-    )
+    )?;
+    Ok(product)
 }

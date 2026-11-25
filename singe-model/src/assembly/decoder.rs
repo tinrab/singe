@@ -4,13 +4,12 @@
 
 use serde::{Deserialize, Serialize};
 use singe::{
-    DataType, Device, Error as SingeError, Result as SingeResult, Tensor,
-    generation::{DecoderOptions, DraftingModel},
+    DataType, Device, Error as SingeError, Result as SingeResult,
     nn::{
-        Activation, CacheSize, CausalLm, CausalLmParts, DecodeCache, Decoder, DecoderModel,
-        DecodingLayer, Embedding, GatedMlp, GroupedQueryAttention, GroupedQueryLayers,
-        HeadProjection, KvCache, KvCacheSpec, Layer, Linear, ModelState, MultiTokenPrediction,
-        PreNormBlock, RotaryFrequencies, RotaryLayout, RotarySpec,
+        Activation, CacheSize, CausalLm, CausalLmParts, DecodeCache, Decoder, DecodingLayer,
+        Embedding, GatedMlp, GroupedQueryAttention, GroupedQueryLayers, HeadProjection, KvCache,
+        KvCacheSpec, Layer, Linear, MultiTokenPrediction, PreNormBlock, RotaryFrequencies,
+        RotaryLayout, RotarySpec,
     },
     tensor::AttentionOptions,
 };
@@ -353,7 +352,7 @@ pub fn llama_block_rules(from: &str, to: &str) -> Rules {
     )
 }
 
-/// Creates caches for `blocks` blocks of keys and values, for a hand-written [`DecoderModel`].
+/// Creates caches for `blocks` blocks of keys and values, for a hand-written [`DecoderModel`](singe::nn::DecoderModel).
 pub fn kv_caches(
     blocks: usize,
     data_type: DataType,
@@ -364,26 +363,4 @@ pub fn kv_caches(
     (0..blocks)
         .map(|_| KvCache::create(device, data_type, size, spec))
         .collect()
-}
-
-/// Returns each sequence's tokens' final normed states, `[ΣT, W]` in order, from one uncached step of a decoder over every sequence, as an embedding model reads a causal language model.
-pub fn hidden_states<L: DecoderModel + DraftingModel>(
-    layer: &L,
-    sequences: &[&[i64]],
-    state: &ModelState,
-) -> SingeResult<Tensor> {
-    let device = state.device()?;
-    let data_type = state.floating_type()?;
-    let longest = sequences
-        .iter()
-        .map(|tokens| tokens.len())
-        .max()
-        .unwrap_or(1);
-    let capacity = i64::try_from(longest).map_err(|_| SingeError::out_of_range("tokens"))?;
-    let mut pages = DecoderOptions::new(sequences.len().max(1), capacity).page_table()?;
-    let tables = layer.tables(data_type, device, capacity)?;
-    let caches = layer.caches(data_type, device, pages.cache_size()?)?;
-    let step = pages.step(device, sequences)?;
-    let (_, hidden) = layer.forward_rows(&step, &tables, &caches, state)?;
-    Ok(hidden)
 }

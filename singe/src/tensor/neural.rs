@@ -7,7 +7,6 @@ use crate::{
         },
     },
     data_type::DataType,
-    device::Device,
     dispatch::{call, call_one},
     error::{Error, Result},
     graph::{DimensionExpr, capture},
@@ -17,7 +16,6 @@ use crate::{
         spatial::{Padding, Padding2d, Spatial2dI64},
     },
     tensor::Tensor,
-    utility::to_usize,
 };
 
 /// Returns the present tensors among `inputs`, in order.
@@ -35,36 +33,6 @@ pub struct AttentionOptions {
 }
 
 impl Tensor {
-    // The additive mask of attention from `query_len` queries to `key_len` keys on `device`: negative infinity where key `j` is hidden from query `i`, after it under a causal mask or `window` or more positions before it, and zero elsewhere.
-    pub fn attention_mask(
-        device: Device,
-        data_type: DataType,
-        query_len: i64,
-        key_len: i64,
-        causal: bool,
-        window: Option<i64>,
-    ) -> Result<Self> {
-        let shape = Shape::create([query_len, key_len])?;
-        let columns = to_usize(key_len, "attention key length")?;
-        let window = window
-            .map(|window| to_usize(window, "attention window"))
-            .transpose()?;
-        let values = (0..shape.element_count())
-            .map(|index| {
-                let (query, key) = (index / columns.max(1), index % columns.max(1));
-                let hidden =
-                    (causal && key > query) || window.is_some_and(|window| key + window <= query);
-                if hidden { f32::NEG_INFINITY } else { 0.0 }
-            })
-            .collect::<Vec<_>>();
-        let mask = Self::from_vec(device, &shape, values)?;
-        if data_type == DataType::F32 {
-            Ok(mask)
-        } else {
-            mask.cast(data_type)
-        }
-    }
-
     /// Applies rotary position embedding) to the first `2 * cos.shape()[1]` features of a `[batch, heads, sequence, head_dim]` tensor.
     ///
     /// `cos` and `sin` must be rank-2 F32 tensors shaped `[sequence, rotary_dim / 2]`.

@@ -151,6 +151,29 @@ pub struct RotarySpec {
     pub layout: RotaryLayout,
 }
 
+impl RotarySpec {
+    pub fn angles(&self, positions: &Tensor, data_type: DataType) -> Result<RotaryAngles> {
+        if self.head_dim <= 0 || self.head_dim % 2 != 0 {
+            return Err(Error::invalid_argument("rotary head size"));
+        }
+
+        let half = self.head_dim / 2;
+        let inverse = self
+            .frequencies
+            .inverse(self.head_dim, to_usize(half, "rotary pairs")?);
+        let inverse = capture::literal(positions.device(), |device| {
+            Tensor::from_vec(device, Shape::create([1, half])?, inverse.clone())
+        })?;
+        let turned = positions.cast(DataType::F32)?.unsqueeze(1)?.mul(&inverse)?;
+        let (mut cos, mut sin) = (turned.cos()?, turned.sin()?);
+        let scale = self.frequencies.table_scale();
+        if (scale - 1.0).abs() > f32::EPSILON {
+            (cos, sin) = (cos.mul_scalar(scale)?, sin.mul_scalar(scale)?);
+        }
+        RotaryAngles::create(&cos.cast(data_type)?, &sin.cast(data_type)?, self.layout)
+    }
+}
+
 impl RotaryTable {
     // Computes the table for `capacity` positions, in `data_type` on `device`.
     pub fn create(

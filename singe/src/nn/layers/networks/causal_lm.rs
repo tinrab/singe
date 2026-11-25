@@ -6,9 +6,10 @@ use crate::{
     error::{Error, Result},
     generation::DraftingModel,
     nn::{
-        AttentionInput, CacheSize, DecodeCache, DecodeStep, DecoderModel, DecodingLayer, Embedding,
-        GatedMlp, Layer, Linear, ModelState, PositionCache, PreNormBlock, RmsNorm, RotaryAngles,
-        RotarySpec, RotaryTable, SourceCache, SourceCacheSpec, SourcedCache,
+        AttentionInput, CacheSize, DecodeCache, DecodeStep, DecoderModel, DecodingLayer,
+        DenseAttentionInput, Embedding, GatedMlp, Layer, Linear, ModelState, PositionCache,
+        PreNormBlock, RmsNorm, RotaryAngles, RotarySpec, RotaryTable, SourceCache, SourceCacheSpec,
+        SourcedCache,
     },
     tensor::Tensor,
 };
@@ -70,6 +71,15 @@ impl<B: DecodingLayer, N> CausalLm<B, N> {
     pub fn with_draft_layer(mut self, draft: MultiTokenPrediction<B, N>) -> Self {
         self.draft = Some(draft);
         self
+    }
+
+    fn embed_tokens(&self, tokens: &Tensor, state: &ModelState) -> Result<Tensor> {
+        let parts = &self.parts;
+        let hidden = tokens.apply(&parts.embedding, state)?;
+        match parts.embedding_scale {
+            Some(scale) => hidden.mul_scalar(scale),
+            None => Ok(hidden),
+        }
     }
 }
 
@@ -143,12 +153,7 @@ where
 {
     // Embeds the step's tokens, `[T, W]`, scaled if the model scales them.
     pub fn embed(&self, step: &DecodeStep, state: &ModelState) -> Result<Tensor> {
-        let parts = &self.parts;
-        let hidden = step.tokens().apply(&parts.embedding, state)?;
-        match parts.embedding_scale {
-            Some(scale) => hidden.mul_scalar(scale),
-            None => Ok(hidden),
-        }
+        self.embed_tokens(step.tokens(), state)
     }
 
     // Runs the step from its embeddings, `[T, W]`, as `forward` does from its tokens.
@@ -205,6 +210,35 @@ where
         self.draft
             .as_ref()
             .ok_or_else(|| Error::missing_input("a decoder's draft layer"))
+    }
+}
+
+impl<B, N> CausalLm<B, N>
+where
+    B: DecodingLayer + for<'a> Layer<DenseAttentionInput<'a>>,
+    N: Layer,
+{
+    pub fn encode(
+        &self,
+        tokens: &Tensor,
+        key_lengths: &Tensor,
+        state: &ModelState,
+    ) -> Result<Tensor> {
+        let parts = &self.parts;
+        let mut hidden = self.embed_tokens(tokens, state)?;
+        let positions = Tensor::range(tokens.device(), 0, tokens.dimension(1)?)?;
+        let angles = parts.rotary.angles(&positions, hidden.data_type())?;
+        for block in &parts.blocks {
+            hidden = block.forward(
+                &DenseAttentionInput {
+                    hidden: &hidden,
+                    angles: Some(&angles),
+                    key_lengths: Some(key_lengths),
+                },
+                state,
+            )?;
+        }
+        hidden.apply(&parts.norm, state)
     }
 }
 

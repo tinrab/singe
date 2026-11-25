@@ -157,12 +157,7 @@ pub fn decompose(
             // Decomposed, key lengths are the mask that hides each batch's keys past its count.
             let mask = match lengths {
                 Some(lengths) => {
-                    let &[_, _, keys, ..] = key.shape().dimensions() else {
-                        return Err(Error::invalid_argument(
-                            "scaled_dot_product_attention key rank",
-                        ));
-                    };
-                    let hidden = length_mask(lengths, keys, input.data_type())?;
+                    let hidden = length_mask(lengths, key, input.data_type())?;
                     Some(match mask {
                         Some(mask) => mask.add(&hidden)?,
                         None => hidden,
@@ -406,32 +401,47 @@ fn rotary_embedding(input: &Tensor, cos: &Tensor, sin: &Tensor) -> Result<Tensor
     )
 }
 
-// `softmax(q kᵀ · scale + mask) v`; half precision computes in `F32` and rounds once, as PyTorch's attention does, since rounding the scores and weights loses what the exponentials amplify.
 // The additive mask, `[B, 1, 1, S]` of `data_type`, that hides each batch's keys from its count in `lengths` on.
-fn length_mask(lengths: &Tensor, keys: i64, data_type: DataType) -> Result<Tensor> {
-    let &[batch, ..] = lengths.shape().dimensions() else {
-        return Err(Error::invalid_argument("attention key lengths rank"));
+fn length_mask(lengths: &Tensor, key: &Tensor, data_type: DataType) -> Result<Tensor> {
+    let positions = Tensor::range(lengths.device(), 0, key.dimension(2)?)?
+        .cast(lengths.data_type())?
+        .unsqueeze(0)?;
+    let hidden = positions.greater_equal(&lengths.unsqueeze(1)?)?;
+    additive(&hidden, data_type)?.unsqueeze(1)?.unsqueeze(1)
+}
+
+fn placed_mask(
+    query: &Tensor,
+    key: &Tensor,
+    attention: &ScaledDotProductAttentionAttributes,
+    data_type: DataType,
+) -> Result<Option<Tensor>> {
+    let device = query.device();
+    let rows = Tensor::range(device, 0, query.dimension(2)?)?.unsqueeze(1)?;
+    let columns = Tensor::range(device, 0, key.dimension(2)?)?.unsqueeze(0)?;
+    let causal = attention
+        .causal
+        .then(|| columns.greater(&rows))
+        .transpose()?;
+    let window = attention
+        .window
+        .map(|window| columns.add_scalar(window)?.less_equal(&rows))
+        .transpose()?;
+    let hidden = match (causal, window) {
+        (Some(causal), Some(window)) => causal.logical_or(&window)?,
+        (Some(hidden), None) | (None, Some(hidden)) => hidden,
+        (None, None) => return Ok(None),
     };
-    let positions = capture::literal(lengths.device(), |device| {
-        Tensor::from_vec(
-            device,
-            Shape::create([1, keys])?,
-            (0..keys)
-                .map(|key| i32::try_from(key).unwrap_or(i32::MAX))
-                .collect(),
-        )
-    })?;
+    additive(&hidden, data_type).map(Some)
+}
+
+fn additive(hidden: &Tensor, data_type: DataType) -> Result<Tensor> {
     let fill = |value: f64| {
-        capture::literal(lengths.device(), |device| {
+        capture::literal(hidden.device(), |device| {
             Scalar::Float(value).tensor(device, data_type)
         })
     };
-    Tensor::where_select(
-        &positions.greater_equal(&lengths.unsqueeze(1)?)?,
-        &fill(f64::NEG_INFINITY)?,
-        &fill(0.0)?,
-    )?
-    .reshape([batch, 1, 1, keys])
+    Tensor::where_select(hidden, &fill(f64::NEG_INFINITY)?, &fill(0.0)?)
 }
 
 // Attention of `chunk` queries at a time, each query's softmax reading only its own row of scores, so the chunks give the rows the whole would.
@@ -445,26 +455,15 @@ fn chunked_attention(
     attention: &ScaledDotProductAttentionAttributes,
     chunk: i64,
 ) -> Result<Tensor> {
-    let (&[_, _, rows, ..], &[_, _, keys, ..]) =
-        (query.shape().dimensions(), key.shape().dimensions())
-    else {
+    let &[_, _, rows, ..] = query.shape().dimensions() else {
         return Err(Error::invalid_argument("chunked attention operand rank"));
     };
-    let placed = (attention.causal || attention.window.is_some())
-        .then(|| {
-            capture::literal(query.device(), |device| {
-                Tensor::attention_mask(
-                    device,
-                    DataType::F32,
-                    rows,
-                    keys,
-                    attention.causal,
-                    attention.window,
-                )
-            })?
-            .cast(mask.map_or_else(|| query.data_type(), Tensor::data_type))
-        })
-        .transpose()?;
+    let placed = placed_mask(
+        query,
+        key,
+        attention,
+        mask.map_or_else(|| query.data_type(), Tensor::data_type),
+    )?;
     let unplaced = ScaledDotProductAttentionAttributes {
         causal: false,
         window: None,
@@ -509,6 +508,7 @@ fn chunked_attention(
 // The scores one decomposed attention holds at once, past which its queries attend in chunks.
 const CHUNK_SCORES: i64 = 1 << 24;
 
+// `softmax(q kᵀ · scale + mask) v`; half precision computes in `F32` and rounds once, as PyTorch's attention does, since rounding the scores and weights loses what the exponentials amplify.
 fn scaled_dot_product_attention(
     query: &Tensor,
     key: &Tensor,
@@ -582,25 +582,9 @@ fn scaled_dot_product_attention(
             .mul_scalar(Scalar::Float(cap))?;
     }
 
-    let scores = if attention.causal || attention.window.is_some() {
-        let mask = capture::literal(query.device(), |device| {
-            Tensor::attention_mask(
-                device,
-                DataType::F32,
-                problem.query_len,
-                problem.key_len,
-                attention.causal,
-                attention.window,
-            )
-        })?;
-        let mask = if data_type == DataType::F32 {
-            mask
-        } else {
-            mask.cast(data_type)?
-        };
-        scores.add(&mask)?
-    } else {
-        scores
+    let scores = match placed_mask(query, key, attention, data_type)? {
+        Some(placed) => scores.add(&placed)?,
+        None => scores,
     };
     let scores = match mask {
         Some(mask) => scores.add(mask)?,

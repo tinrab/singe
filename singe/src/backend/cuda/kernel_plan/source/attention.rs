@@ -171,7 +171,7 @@ impl KernelPlanner {
     }
 
     // Plans `softmax(q kᵀ · scale) v` as one kernel, or returns `None` for operands it does not take: contiguous `F16` or `BF16` `[B, H, L, D]` queries and `[B, G, S, D]` keys and values with `G` dividing `H`, read in place for grouped-query heads, a head dimension that is a multiple of 16 up to 128, and a target with `sm_80`'s `mma.sync`.
-    // A causal mask hides key `j` from query `i` when `j > i`, as `Tensor::causal_attention_mask` does.
+    // A causal mask hides key `j` from query `i` when `j > i`, as decomposed attention's mask does.
     pub(crate) fn fused_attention(
         &self,
         query: &KernelInput,

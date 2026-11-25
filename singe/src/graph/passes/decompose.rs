@@ -10,10 +10,11 @@ use crate::{
     device::Device,
     error::{Error, Result},
     graph::{
-        Graph,
+        CaptureBindings, CaptureOptions, Graph, InputDimensionGuard,
         ir::ValueId,
         node::{Node, NodeRef},
         passes::remap::remapped_node,
+        shape_program::ShapeProgram,
     },
     layout::Layout,
     shape::Shape,
@@ -79,9 +80,10 @@ fn decompose_once(
         let new_id = if takes_rowwise && takes_rowwise_scaled_matmul(graph, &node)? {
             decomposed = true;
             let attributes = node.attributes();
-            splice_traced(graph, &node, &id_map, &mut nodes, |inputs| {
+            splice_traced(graph, &node, &id_map, &mut nodes, false, |inputs| {
                 decomposition::rowwise_scaled_matmul(&attributes, inputs)
             })?
+            .0
         } else if decomposes(graph, &node, cuda_providers)? {
             decomposed = true;
             if let Some(operation) = node.operation()
@@ -238,11 +240,21 @@ pub fn splice(
     id_map: &HashMap<ValueId, ValueId>,
     nodes: &mut Vec<Node>,
 ) -> Result<ValueId> {
+    Ok(splice_following(graph, node, id_map, nodes, false)?.0)
+}
+
+pub fn splice_following(
+    graph: &Graph,
+    node: &NodeRef<'_>,
+    id_map: &HashMap<ValueId, ValueId>,
+    nodes: &mut Vec<Node>,
+    follows_axes: bool,
+) -> Result<(ValueId, ShapeProgram)> {
     let operation = node
         .operation()
         .ok_or_else(|| Error::missing_node("splice"))?;
     let attributes = node.attributes();
-    splice_traced(graph, node, id_map, nodes, |inputs| {
+    splice_traced(graph, node, id_map, nodes, follows_axes, |inputs| {
         decomposition::decompose(operation, &attributes, inputs)
     })
 }
@@ -253,8 +265,9 @@ fn splice_traced(
     node: &NodeRef<'_>,
     id_map: &HashMap<ValueId, ValueId>,
     nodes: &mut Vec<Node>,
+    follows_axes: bool,
     trace: impl FnOnce(&[&Tensor]) -> Result<Vec<Tensor>>,
-) -> Result<ValueId> {
+) -> Result<(ValueId, ShapeProgram)> {
     let inputs = node
         .inputs()
         .iter()
@@ -267,26 +280,29 @@ fn splice_traced(
             ))
         })
         .collect::<Result<Vec<_>>>()?;
-    splice_traced_on(
-        &inputs,
-        node.output_device(),
-        node.source_location(),
-        node.output_layout().is_contiguous(),
-        nodes,
-        trace,
-    )
+    let placement = Placement {
+        device: node.output_device(),
+        source_location: node.source_location(),
+        contiguous: node.output_layout().is_contiguous(),
+        follows_axes,
+    };
+    splice_traced_on(&inputs, &placement, nodes, trace)
+}
+
+pub struct Placement<'a> {
+    pub device: Device,
+    pub source_location: Option<&'a str>,
+    pub contiguous: bool,
+    pub follows_axes: bool,
 }
 
 // Appends what `trace` records on meta tensors laid out as `inputs`, each the type, layout, and node of an operand, and returns its one result.
-// A `contiguous` result is read where later nodes' metadata places it, which may take a copy.
 pub fn splice_traced_on(
     inputs: &[(DataType, Layout, ValueId)],
-    device: Device,
-    source_location: Option<&str>,
-    contiguous: bool,
+    placement: &Placement<'_>,
     nodes: &mut Vec<Node>,
     trace: impl FnOnce(&[&Tensor]) -> Result<Vec<Tensor>>,
-) -> Result<ValueId> {
+) -> Result<(ValueId, ShapeProgram)> {
     let operands = inputs
         .iter()
         .enumerate()
@@ -294,21 +310,36 @@ pub fn splice_traced_on(
             Ok((format!("input{index}"), meta_operand(*data_type, layout)?))
         })
         .collect::<Result<Vec<_>>>()?;
-    let (traced, _) = Graph::capture(operands, |inputs| {
-        let mut outputs = trace(&inputs.iter().collect::<Vec<_>>())?;
-        // A node has one result; the projections of a multi-result operation are nodes of their own.
-        let output = outputs
-            .pop()
-            .ok_or_else(|| Error::missing_output("splice"))?;
-        // Later nodes read the result where the node's metadata places it.
-        let output = if contiguous && !output.is_contiguous() {
-            output.contiguous()?
-        } else {
-            output
-        };
-        Ok(vec![output])
-    })?;
-    let traced = traced.placed_on(device)?;
+    let mut options = CaptureOptions::new();
+    if placement.follows_axes {
+        for (name, operand) in &operands {
+            for axis in 0..operand.shape().dimensions().len() {
+                options.dimensions.push(InputDimensionGuard::new(
+                    name.clone(),
+                    axis,
+                    format!("{name}.{axis}"),
+                    None,
+                    None,
+                ));
+            }
+        }
+    }
+
+    let (traced, _) =
+        Graph::capture_with_options(operands, CaptureBindings::new(), options, |inputs| {
+            let mut outputs = trace(&inputs.iter().collect::<Vec<_>>())?;
+            // A node has one result; the projections of a multi-result operation are nodes of their own.
+            let output = outputs
+                .pop()
+                .ok_or_else(|| Error::missing_output("splice"))?;
+            let output = if placement.contiguous && !output.is_contiguous() {
+                output.contiguous()?
+            } else {
+                output
+            };
+            Ok(vec![output])
+        })?;
+    let traced = traced.placed_on(placement.device)?;
     let mut local = HashMap::with_capacity(traced.node_count());
     for id in traced.node_ids() {
         let traced_node = traced.required_node(id)?;
@@ -322,7 +353,7 @@ pub fn splice_traced_on(
             let spliced = traced_node.map_inputs(|input| Graph::remapped_node(input, &local))?;
             push(
                 nodes,
-                spliced.with_source_location(source_location.map(ToOwned::to_owned)),
+                spliced.with_source_location(placement.source_location.map(ToOwned::to_owned)),
             )
         };
         local.insert(id, new_id);
@@ -332,7 +363,16 @@ pub fn splice_traced_on(
     let [output] = projections.as_slice() else {
         return Err(Error::missing_output("splice"));
     };
-    Graph::remapped_node(output.node(), &local)
+    let mut shapes = traced.shape_program.clone();
+    shapes.retain(|id| {
+        traced
+            .required_node(id)
+            .is_ok_and(|node| node.input_metadata().is_none())
+    });
+    let shapes = shapes.remap(|id| Graph::remapped_node(id, &local), &|index| {
+        Graph::remapped_node(ValueId::new(index), &local).map(ValueId::index)
+    })?;
+    Ok((Graph::remapped_node(output.node(), &local)?, shapes))
 }
 
 // A meta tensor of `data_type` laid out by `layout`, over storage that spans it.

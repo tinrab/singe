@@ -1,6 +1,6 @@
 //! Rewrites attention so backends run it as matmuls and a softmax, and folds grouped-query attention's repeated keys and values into the rows of those matmuls.
 //!
-//! [`decompose_scaled_dot_product_attention`] replaces each `scaled_dot_product_attention` no fused kernel runs with its decomposition, `softmax(q kᵀ · scale + mask) v` with the causal mask a constant.
+//! [`decompose_scaled_dot_product_attention`] replaces each `scaled_dot_product_attention` no fused kernel runs with its decomposition, `softmax(q kᵀ · scale + mask) v`, whose causal mask counts to the queries' and keys' lengths.
 //!
 //! `repeat_kv(x, g)` copies each of a cache's KV heads `g` times so query head `h` reads KV head `h / g`.
 //! A matmul of queries `[B, H, S, D]` with repeated keys or values instead runs on queries viewed as `[B, H / g, g · S, D]` against the cache itself, so the heads that share a KV head become rows of one matmul and the repeated copy is never made.
@@ -8,6 +8,8 @@
 
 use std::collections::HashMap;
 
+#[cfg(feature = "onnx")]
+use crate::graph::{passes::decompose::splice_following, shape_program::ShapeProgram};
 use crate::{
     backend::{
         registry::{Operation, OperationAttributes, ScaledDotProductAttentionAttributes},
@@ -31,6 +33,8 @@ pub fn decompose_attention(
     let mut id_map = HashMap::with_capacity(graph.node_count());
     let mut nodes = Vec::with_capacity(graph.node_count());
     let mut decomposed = false;
+    let follows_axes = !graph.input_dimension_guards.is_empty();
+    let mut spliced_shapes = ShapeProgram::default();
     for index in 0..graph.node_count() {
         let id = ValueId::new(index);
         let node = graph.required_node(id)?;
@@ -40,7 +44,10 @@ pub fn decompose_attention(
             && decomposes(&attention)
         {
             decomposed = true;
-            splice(graph, &node, &id_map, &mut nodes)?
+            let (new_id, shapes) =
+                splice_following(graph, &node, &id_map, &mut nodes, follows_axes)?;
+            spliced_shapes.extend(shapes);
+            new_id
         } else {
             push(&mut nodes, remapped_node(&node, &id_map)?)
         };
@@ -62,6 +69,7 @@ pub fn decompose_attention(
     decomposed.shape_program = graph.shape_program.remap(mapped, &|index| {
         mapped(ValueId::new(index)).map(ValueId::index)
     })?;
+    decomposed.shape_program.extend(spliced_shapes);
     Ok(decomposed)
 }
 

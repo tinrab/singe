@@ -73,6 +73,13 @@ impl ShapeProgram {
         })
     }
 
+    #[cfg(feature = "onnx")]
+    pub(crate) fn extend(&mut self, other: Self) {
+        self.attributes.extend(other.attributes);
+        self.values.extend(other.values);
+        self.constraints.extend(other.constraints);
+    }
+
     /// Removes the entries whose key fails `keep`.
     pub(crate) fn retain(&mut self, keep: impl Fn(ValueId) -> bool) {
         self.attributes.retain(|id, _| keep(*id));

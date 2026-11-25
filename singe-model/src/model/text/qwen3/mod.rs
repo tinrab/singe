@@ -3,14 +3,12 @@
 mod transformers;
 
 use singe::{
-    DataType, Error as SingeError, Result as SingeResult, Shape, Tensor,
+    Result as SingeResult, Tensor,
     nn::{Layer, Model, ModelState, TokenBatch},
 };
 
 use crate::{
-    assembly::{
-        DecoderConfig, GroupedDecoder, causal, grouped_decoder, hidden_states, llama_rules,
-    },
+    assembly::{DecoderConfig, GroupedDecoder, causal, grouped_decoder, llama_rules},
     error::Result,
     format::Loader,
     head::{Boxed, HeadLoader},
@@ -21,48 +19,18 @@ use crate::{
 
 pub type Qwen3 = Model<GroupedDecoder>;
 
-/// Qwen3 as a text encoder: each token's final normed state, `[B, T, W]`, from causal attention over the tokens up to it, padding rows zero.
+/// Qwen3 as a text encoder: each token's final normed state, `[B, T, W]`, from causal attention over the tokens up to it, in one pass over the padded batch, with padding rows zero.
 #[derive(Debug)]
 pub struct Qwen3Encoder(Qwen3);
 
 impl Layer<TokenBatch> for Qwen3Encoder {
     fn forward(&self, input: &TokenBatch, state: &ModelState) -> SingeResult<Tensor> {
-        let &[_, columns] = input.tokens().shape().dimensions() else {
-            return Err(SingeError::invalid_argument("a token batch"));
-        };
-        let tokens = input.tokens().contiguous()?.to_vec::<i64>()?;
-        let lengths = input.key_lengths()?.cast(DataType::I64)?.to_vec::<i64>()?;
-        let width = usize::try_from(columns).map_err(|_| SingeError::out_of_range("columns"))?;
-        let sequences = lengths
-            .iter()
-            .enumerate()
-            .map(|(row, &length)| {
-                let length =
-                    usize::try_from(length).map_err(|_| SingeError::out_of_range("lengths"))?;
-                Ok(&tokens[row * width..row * width + length])
-            })
-            .collect::<SingeResult<Vec<_>>>()?;
-        let hidden = hidden_states(self.0.layer(), &sequences, state)?;
-        let &[_, features] = hidden.shape().dimensions() else {
-            return Err(SingeError::invalid_argument("a decoder's hidden states"));
-        };
-        // Each sequence's rows, then zeros to the batch's length.
-        let mut start = 0;
-        let mut padded = Vec::with_capacity(sequences.len());
-        for &length in &lengths {
-            let mut parts = vec![hidden.narrow(0, start, length)?];
-            if length < columns {
-                parts.push(Tensor::zeroed_on(
-                    hidden.device(),
-                    hidden.data_type(),
-                    Shape::create([columns - length, features])?,
-                )?);
-            }
-
-            padded.push(Tensor::concat(&parts, 0)?.unsqueeze(0)?);
-            start += length;
-        }
-        Tensor::concat(&padded, 0)
+        let hidden = self
+            .0
+            .layer()
+            .encode(input.tokens(), &input.key_lengths()?, state)?;
+        let real = input.padding().cast(hidden.data_type())?.unsqueeze(2)?;
+        hidden.mul(&real)
     }
 }
 

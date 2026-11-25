@@ -31,8 +31,7 @@ pub use self::{
     decoder::{
         CausalLmSpec, DecoderConfig, DraftLayer, GroupedAttentionSpec, GroupedDecoder, HeadNorms,
         causal, causal_lm, gated_mlp, grouped_attention, grouped_attention_layers, grouped_decoder,
-        hidden_states, kv_caches, llama_block_rules, llama_rules, pre_norm_block,
-        pre_norm_block_with,
+        kv_caches, llama_block_rules, llama_rules, pre_norm_block, pre_norm_block_with,
     },
     encoder_decoder::{
         BartDecoder, BartEncoder, BartStackConfig, bart_stack_rules, embedding_scale,
