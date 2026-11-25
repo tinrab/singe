@@ -13,7 +13,7 @@ use crate::{
         },
     },
     scalar::Scalar,
-    shape::{Shape, normalize_dim_usize},
+    shape::{Shape, normalize_dim_usize, spatial::Padding},
     value::ValueSpec,
 };
 
@@ -375,7 +375,7 @@ impl Exporter<'_> {
     pub(crate) fn pad(
         &mut self,
         op: OperationExport<'_>,
-        padding: &[(i64, i64)],
+        padding: &[Padding],
         value: f32,
     ) -> Result<()> {
         let rank = self
@@ -384,12 +384,12 @@ impl Exporter<'_> {
             .rank();
         let rank = usize::try_from(rank).map_err(|_| unsupported("pad rank"))?;
         let widths = (0..rank)
-            .map(|axis| padding.get(axis).copied().unwrap_or((0, 0)))
+            .map(|axis| padding.get(axis).copied().unwrap_or_default())
             .collect::<Vec<_>>();
         let pads = widths
             .iter()
-            .map(|&(before, _)| before)
-            .chain(widths.iter().map(|&(_, after)| after))
+            .map(|width| width.before)
+            .chain(widths.iter().map(|width| width.after))
             .collect::<Vec<_>>();
         let length = i64::try_from(pads.len()).map_err(|_| unsupported("pad rank"))?;
         let pads = self.integers(vec![length], &pads)?;

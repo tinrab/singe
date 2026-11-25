@@ -13,7 +13,10 @@ use crate::{
     error::Result,
     layout::Layout,
     scalar::Scalar,
-    shape::Shape,
+    shape::{
+        Shape,
+        spatial::{Padding, Padding2d, Spatial2dI64, Spatial3dI64},
+    },
     tensor::Interpolation,
 };
 
@@ -143,7 +146,7 @@ attribute_struct! {
     #[derive(Debug, Clone)]
     pub struct PadAttributes {
         /// Low and high padding per dimension.
-        pub padding: Vec<(i64, i64)>,
+        pub padding: Vec<Padding>,
         /// Fill value.
         pub value: f32,
     }
@@ -205,24 +208,24 @@ attribute_struct! {
         /// Whether the optional bias input is present.
         pub has_bias: bool,
         /// Stride height and width.
-        pub stride: (i64, i64),
-        /// Padding top, bottom, left, and right.
-        pub padding: (i64, i64, i64, i64),
+        pub stride: Spatial2dI64,
+        /// Padding of the height and the width.
+        pub padding: Padding2d,
         /// Dilation height and width.
-        pub dilation: (i64, i64),
+        pub dilation: Spatial2dI64,
         /// Group count.
         pub groups: i64,
     }
 }
 
 attribute_struct! {
-    // Three-dimensional convolution parameters, each tuple in depth, height, and width order, with each axis padded equally on both sides, as PyTorch's `conv3d` takes it.
+    // Three-dimensional convolution parameters, with each axis padded equally on both sides, as PyTorch's `conv3d` takes it.
     #[derive(Debug, Clone, Copy)]
     pub struct Conv3dAttributes {
         pub has_bias: bool,
-        pub stride: (i64, i64, i64),
-        pub padding: (i64, i64, i64),
-        pub dilation: (i64, i64, i64),
+        pub stride: Spatial3dI64,
+        pub padding: Spatial3dI64,
+        pub dilation: Spatial3dI64,
         pub groups: i64,
     }
 }
@@ -233,13 +236,13 @@ attribute_struct! {
     #[derive(Debug, Clone, Copy)]
     pub struct Pool2dAttributes {
         /// Kernel height and width.
-        pub kernel_size: (i64, i64),
+        pub kernel_size: Spatial2dI64,
         /// Stride height and width.
-        pub stride: (i64, i64),
-        /// Padding top, bottom, left, and right.
-        pub padding: (i64, i64, i64, i64),
+        pub stride: Spatial2dI64,
+        /// Padding of the height and the width.
+        pub padding: Padding2d,
         /// Dilation height and width.
-        pub dilation: (i64, i64),
+        pub dilation: Spatial2dI64,
         /// Whether the output shape rounds up.
         pub ceil_mode: bool,
         /// Whether average pooling counts padded elements, or `None` for max pooling.
@@ -415,7 +418,7 @@ attribute_struct! {
     // Output extents of the last two axes, as `Tensor::interpolate` takes them, and how output points blend input points.
     #[derive(Debug, Clone, Copy)]
     pub struct ResizeAttributes {
-        pub size: (i64, i64),
+        pub size: Spatial2dI64,
         pub interpolation: Interpolation,
     }
 }

@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use singe::{
     DataType, Error as SingeError, Result as SingeResult, Shape, Tensor,
     nn::{Activation, LayerNorm, Linear, Mlp, Model, ModelState, StateKey},
+    shape::spatial::Padding,
 };
 
 use crate::{
@@ -123,9 +124,10 @@ impl PriorLayers {
         let prefix = tokens + 1;
         let latent = latent.apply(&self.proj_in, state)?;
         // The condition's and the timestep's tokens take no learned positions.
-        let positions = state
-            .tensor(&self.positions)?
-            .pad(&[(0, 0), (prefix, 0), (0, 0)], 0.0)?;
+        let positions = state.tensor(&self.positions)?.pad(
+            &[Padding::ZERO, Padding::new(prefix, 0), Padding::ZERO],
+            0.0,
+        )?;
         let hidden = Tensor::concat(&[condition, time, latent], 1)?
             .add(&positions)?
             .apply(&self.norm_in, state)?;

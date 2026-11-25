@@ -26,7 +26,8 @@ pub use self::{
     blocks::{EncoderBlock, EncoderDecoderBlock, EncoderDecoderParts, HybridLayer, PreNormBlock},
     convolution::{
         Conv1d, Conv1dConfig, Conv2d, Conv2dConfig, Conv3d, Conv3dConfig, ConvTranspose1d,
-        ConvTranspose2d, ConvTransposeConfig, PatchEmbedding,
+        ConvTranspose1dConfig, ConvTranspose2d, ConvTranspose2dConfig, ConvTransposeConfig,
+        PatchEmbedding,
     },
     embedding::{Embedding, PatchTokens, TokenEmbeddings},
     feed_forward::{DecoderFeedForward, GatedMlp, MixtureOfExperts, Mlp, MoeLayers, MoeRouting},

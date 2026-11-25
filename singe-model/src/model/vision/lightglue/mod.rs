@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use singe::{
     DataType, Device, Error as SingeError, Result as SingeResult, Shape, Tensor,
     nn::{Activation, LayerNorm, Linear, ModelState, RotaryAngles, RotaryLayout},
+    shape::spatial::{Spatial2d, Spatial2dI64},
 };
 
 use crate::{
@@ -272,7 +273,7 @@ impl LightGlueLayers {
     fn positions(
         &self,
         keypoints: &[[f32; 2]],
-        (height, width): (i64, i64),
+        Spatial2d { height, width }: Spatial2dI64,
         device: Device,
         state: &ModelState,
     ) -> SingeResult<(Tensor, Tensor)> {
@@ -296,7 +297,7 @@ impl LightGlueLayers {
     fn side(
         &self,
         points: &Keypoints,
-        image_size: (i64, i64),
+        image_size: Spatial2dI64,
         pixels: &Tensor,
         state: &ModelState,
     ) -> SingeResult<Side> {
@@ -486,8 +487,8 @@ impl MatchingLayers for LightGlueLayers {
         }
 
         let mut sides = [
-            self.side(&found[0], (height, width), pixels, state)?,
-            self.side(&found[1], (height, width), pixels, state)?,
+            self.side(&found[0], Spatial2d::new(height, width), pixels, state)?,
+            self.side(&found[1], Spatial2d::new(height, width), pixels, state)?,
         ];
         let total = keypoints[0].len() + keypoints[1].len();
         let (matches, scores) = self.match_sides(&mut sides, total, state)?;

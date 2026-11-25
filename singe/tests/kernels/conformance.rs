@@ -36,6 +36,7 @@ use singe::{
     error::Result,
     graph::{ComputePrecision, with_convolution_precision},
     scalar::Scalar,
+    shape::spatial::{Padding, Padding2d, Spatial2d, Spatial2dI64, Spatial3d, Spatial3dI64},
     tensor::{InterpolateMode, Interpolation, LossReduction, NormOrder},
 };
 #[cfg(all(feature = "testing", feature = "cuda"))]
@@ -74,7 +75,11 @@ const DATA_TYPES: [DataType; 16] = [
 ];
 
 /// Registry operations the fixture has no cases for, and why.
-const UNCOVERED: [(&str, &str); 15] = [
+const UNCOVERED: &[(&str, &str)] = &[
+    (
+        "resize",
+        "is the operation `interpolate` records; its cases cover it",
+    ),
     (
         "resample_linear",
         "is how `interpolate` resamples an axis in bilinear mode without aligned corners or antialiasing; its cases cover it",
@@ -305,14 +310,28 @@ fn integers(value: &Value) -> Vec<i64> {
         .collect()
 }
 
-fn pair(value: &Value) -> (i64, i64) {
+fn pair(value: &Value) -> Spatial2dI64 {
     let values = integers(value);
-    (values[0], values[1])
+    Spatial2d::new(values[0], values[1])
 }
 
-fn quad(value: &Value) -> (i64, i64, i64, i64) {
+fn triple(value: &Value) -> Spatial3dI64 {
     let values = integers(value);
-    (values[0], values[1], values[2], values[3])
+    Spatial3d::new(values[0], values[1], values[2])
+}
+
+fn padding(value: &Value) -> Padding {
+    let values = integers(value);
+    Padding::new(values[0], values[1])
+}
+
+// Top, bottom, left, and right.
+fn planar_padding(value: &Value) -> Padding2d {
+    let values = integers(value);
+    Padding2d::new(
+        Padding::new(values[0], values[1]),
+        Padding::new(values[2], values[3]),
+    )
 }
 
 fn float(value: &Value) -> f32 {
@@ -394,7 +413,7 @@ fn attributes(value: Option<&Value>) -> OperationAttributes {
                 .as_array()
                 .unwrap()
                 .iter()
-                .map(pair)
+                .map(padding)
                 .collect(),
             value: float(field("value")),
         }),
@@ -424,14 +443,14 @@ fn attributes(value: Option<&Value>) -> OperationAttributes {
         "Conv2d" => Attr::Conv2d(Conv2dAttributes {
             has_bias: flag(field("has_bias")),
             stride: pair(field("stride")),
-            padding: quad(field("padding")),
+            padding: planar_padding(field("padding")),
             dilation: pair(field("dilation")),
             groups: field("groups").as_i64().unwrap(),
         }),
         "Pool2d" => Attr::Pool2d(Pool2dAttributes {
             kernel_size: pair(field("kernel_size")),
             stride: pair(field("stride")),
-            padding: quad(field("padding")),
+            padding: planar_padding(field("padding")),
             dilation: pair(field("dilation")),
             ceil_mode: flag(field("ceil_mode")),
             count_include_pad: field("count_include_pad").as_bool(),
@@ -612,7 +631,7 @@ fn composite(name: &str, arguments: &Value, inputs: &[Tensor]) -> Result<Vec<Ten
             &inputs[1],
             inputs.get(2),
             integer("stride"),
-            pair(&arguments["padding"]),
+            padding(&arguments["padding"]),
             integer("dilation"),
             integer("groups"),
         )?,
@@ -671,71 +690,43 @@ fn composite(name: &str, arguments: &Value, inputs: &[Tensor]) -> Result<Vec<Ten
         )?,
         "instance_norm" => inputs[0].instance_norm(inputs.get(1), inputs.get(2), single("eps"))?,
         "max_pool1d" | "avg_pool1d" => {
-            let padding = integers(&arguments["padding"]);
+            let padding = padding(&arguments["padding"]);
             if name == "max_pool1d" {
-                inputs[0].max_pool1d(
-                    integer("kernel"),
-                    integer("stride"),
-                    (padding[0], padding[1]),
-                    1,
-                    false,
-                )?
+                inputs[0].max_pool1d(integer("kernel"), integer("stride"), padding, 1, false)?
             } else {
-                inputs[0].avg_pool1d(
-                    integer("kernel"),
-                    integer("stride"),
-                    (padding[0], padding[1]),
-                    false,
-                    true,
-                )?
+                inputs[0].avg_pool1d(integer("kernel"), integer("stride"), padding, false, true)?
             }
         }
-        "adaptive_avg_pool2d" => {
-            let size = integers(&arguments["size"]);
-            inputs[0].adaptive_avg_pool2d((size[0], size[1]))?
-        }
-        "adaptive_max_pool2d" => {
-            let size = integers(&arguments["size"]);
-            inputs[0].adaptive_max_pool2d((size[0], size[1]))?
-        }
+        "adaptive_avg_pool2d" => inputs[0].adaptive_avg_pool2d(pair(&arguments["size"]))?,
+        "adaptive_max_pool2d" => inputs[0].adaptive_max_pool2d(pair(&arguments["size"]))?,
         "max_pool3d" | "avg_pool3d" => {
-            let triple = |key: &str| {
-                let values = integers(&arguments[key]);
-                (values[0], values[1], values[2])
-            };
             let ceil = boolean("ceil");
             if name == "max_pool3d" {
                 inputs[0].max_pool3d(
-                    triple("kernel"),
-                    triple("stride"),
-                    triple("padding"),
-                    (1, 1, 1),
+                    triple(&arguments["kernel"]),
+                    triple(&arguments["stride"]),
+                    triple(&arguments["padding"]),
+                    Spatial3d::cube(1),
                     ceil,
                 )?
             } else {
                 inputs[0].avg_pool3d(
-                    triple("kernel"),
-                    triple("stride"),
-                    triple("padding"),
+                    triple(&arguments["kernel"]),
+                    triple(&arguments["stride"]),
+                    triple(&arguments["padding"]),
                     ceil,
                     boolean("include_pad"),
                 )?
             }
         }
-        "conv3d" => {
-            let triple = |key: &str| {
-                let values = integers(&arguments[key]);
-                (values[0], values[1], values[2])
-            };
-            inputs[0].convolution3d(
-                &inputs[1],
-                inputs.get(2),
-                triple("stride"),
-                triple("padding"),
-                triple("dilation"),
-                integer("groups"),
-            )?
-        }
+        "conv3d" => inputs[0].convolution3d(
+            &inputs[1],
+            inputs.get(2),
+            triple(&arguments["stride"]),
+            triple(&arguments["padding"]),
+            triple(&arguments["dilation"]),
+            integer("groups"),
+        )?,
         "conv_transpose2d" => inputs[0].convolution_transpose2d(
             &inputs[1],
             inputs.get(2),
@@ -757,7 +748,6 @@ fn composite(name: &str, arguments: &Value, inputs: &[Tensor]) -> Result<Vec<Ten
         "rfft" => inputs[0].rfft()?,
         "irfft" => inputs[0].irfft(integer("length"))?,
         "interpolate" => {
-            let size = integers(&arguments["size"]);
             let mode = match arguments["mode"].as_str().unwrap() {
                 "nearest" => InterpolateMode::Nearest,
                 "bicubic" => InterpolateMode::Bicubic,
@@ -767,7 +757,7 @@ fn composite(name: &str, arguments: &Value, inputs: &[Tensor]) -> Result<Vec<Ten
             let interpolation = Interpolation::new(mode)
                 .with_align_corners(flag("align_corners"))
                 .with_antialias(flag("antialias"));
-            inputs[0].interpolate((size[0], size[1]), interpolation)?
+            inputs[0].interpolate(pair(&arguments["size"]), interpolation)?
         }
         "cross_entropy" => {
             let reduction = match arguments["reduction"].as_str().unwrap() {

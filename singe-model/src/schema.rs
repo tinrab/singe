@@ -4,10 +4,10 @@ use singe::{
     DataType, Device, Error as SingeError, Result, Shape, Tensor,
     nn::{
         Activation, BatchNorm, Conv1d, Conv1dConfig, Conv2d, Conv2dConfig, Conv3d, Conv3dConfig,
-        ConvTranspose1d, ConvTranspose2d, ConvTransposeConfig, GatedMlp, GroupNorm, LayerNorm,
-        Linear, Mlp, Model, OffsetRmsNorm, Recurrent, RecurrentConfig, RecurrentDirection,
-        RecurrentLayer, RelativeAttention, RelativeAttentionLayers, RmsNorm, StateBuilder,
-        StateKey, StateScope,
+        ConvTranspose1d, ConvTranspose1dConfig, ConvTranspose2d, ConvTranspose2dConfig, GatedMlp,
+        GroupNorm, LayerNorm, Linear, Mlp, Model, OffsetRmsNorm, Recurrent, RecurrentConfig,
+        RecurrentDirection, RecurrentLayer, RelativeAttention, RelativeAttentionLayers, RmsNorm,
+        StateBuilder, StateKey, StateScope,
     },
 };
 
@@ -213,7 +213,7 @@ impl Schema<'_> {
         input: i64,
         out: i64,
         kernel: i64,
-        config: ConvTransposeConfig<1>,
+        config: ConvTranspose1dConfig,
         bias: bool,
     ) -> Result<ConvTranspose1d> {
         let weight = self.parameter(
@@ -231,7 +231,7 @@ impl Schema<'_> {
         input: i64,
         out: i64,
         kernel: i64,
-        config: ConvTransposeConfig<2>,
+        config: ConvTranspose2dConfig,
         bias: bool,
     ) -> Result<ConvTranspose2d> {
         let weight = self.parameter(

@@ -12,7 +12,10 @@ use crate::{
     error::{Error, Result},
     graph::{DimensionExpr, capture},
     scalar::Scalar,
-    shape::Shape,
+    shape::{
+        Shape,
+        spatial::{Padding, Padding2d, Spatial2dI64},
+    },
     tensor::Tensor,
     utility::to_usize,
 };
@@ -203,18 +206,18 @@ impl Tensor {
         &self,
         weight: &Self,
         bias: Option<&Self>,
-        stride: (i64, i64),
-        padding: (i64, i64, i64, i64),
-        dilation: (i64, i64),
+        stride: impl Into<Spatial2dI64>,
+        padding: Padding2d,
+        dilation: impl Into<Spatial2dI64>,
         groups: i64,
     ) -> Result<Self> {
         call_one(
             Operation::Conv2d,
             OperationAttributes::Conv2d(Conv2dAttributes {
                 has_bias: bias.is_some(),
-                stride,
+                stride: stride.into(),
                 padding,
-                dilation,
+                dilation: dilation.into(),
                 groups,
             }),
             &present(&[Some(self), Some(weight), bias]),
@@ -325,20 +328,20 @@ macro_rules! tensor_pool2d_forwarders {
             #[doc = concat!("Applies `", stringify!($method), "`.")]
             pub fn $method(
                 &self,
-                kernel_size: (i64, i64),
-                stride: (i64, i64),
-                padding: (i64, i64, i64, i64),
-                dilation: (i64, i64),
+                kernel_size: impl Into<Spatial2dI64>,
+                stride: impl Into<Spatial2dI64>,
+                padding: Padding2d,
+                dilation: impl Into<Spatial2dI64>,
                 ceil_mode: bool
                 $(, $include_pad: bool)?
             ) -> Result<Self> {
                 call_one(
                     Operation::$operation,
                     OperationAttributes::Pool2d(Pool2dAttributes {
-                        kernel_size,
-                        stride,
+                        kernel_size: kernel_size.into(),
+                        stride: stride.into(),
                         padding,
-                        dilation,
+                        dilation: dilation.into(),
                         ceil_mode,
                         count_include_pad: None $(.or(Some($include_pad)))?,
                     }),
@@ -654,7 +657,7 @@ impl Tensor {
             .one_hot(experts)?
             .sum(&[0], false)?
             .cumsum(0)?
-            .pad(&[(1, 0)], 0.0)?;
+            .pad(&[Padding::new(1, 0)], 0.0)?;
         let projected = self
             .index_select(0, &token)?
             .grouped_matmul(&gate_up.transpose(1, 2)?, &offsets)?;

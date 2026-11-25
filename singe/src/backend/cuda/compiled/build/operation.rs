@@ -2,6 +2,7 @@ use crate::{
     backend::{registry::Operation, spec::ConvolutionWindow},
     error::{Error, Result},
     graph::ir::{Graph, OperationNode, ValueId},
+    shape::spatial::{Padding2d, Spatial2dI64},
 };
 
 #[derive(Clone, Copy)]
@@ -9,9 +10,9 @@ pub struct GraphIrConv2d {
     pub(crate) input: ValueId,
     pub(crate) weight: ValueId,
     pub(crate) bias: Option<ValueId>,
-    pub(crate) stride: (i64, i64),
-    pub(crate) padding: (i64, i64, i64, i64),
-    pub(crate) dilation: (i64, i64),
+    pub(crate) stride: Spatial2dI64,
+    pub(crate) padding: Padding2d,
+    pub(crate) dilation: Spatial2dI64,
     pub(crate) groups: i64,
 }
 

@@ -2,6 +2,7 @@ mod ir;
 mod outputs;
 
 use super::*;
+use crate::shape::spatial::Padding;
 
 fn cpu_tensor<T: TensorDataType>(shape: &Shape, values: Vec<T>) -> Tensor {
     Tensor::from_vec(Device::Cpu, shape, values).unwrap()
@@ -62,7 +63,7 @@ fn test_graph_capture_records_tensor_core_methods() {
             let quantized = inputs[4].quantize(0.5, 1, DataType::I8)?;
             let dequantized = quantized.dequantize(0.5, 1)?;
             let scaled = inputs[4].mul_scalar(2.0)?;
-            let padded = inputs[4].pad(&[(1, 1)], -1.0)?;
+            let padded = inputs[4].pad(&[Padding::symmetric(1)], -1.0)?;
             let clamped = inputs[4].clamp(1.25, 1.75)?;
             Ok(vec![
                 matmul,

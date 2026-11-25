@@ -1,7 +1,8 @@
 // Times single operations eagerly at the shapes the models run them, as part of `just bench`.
 
 use singe::{
-    DataType, Device, Shape, Tensor, backend::cuda::synchronize, testing::maybe_lock_device,
+    DataType, Device, Shape, Tensor, backend::cuda::synchronize, shape::spatial::Padding2d,
+    testing::maybe_lock_device,
 };
 use singe_testing::Benches;
 
@@ -82,7 +83,14 @@ fn convolution(benches: &mut Benches) {
             let bias = random(&[64], data_type);
             time(benches, &name, || {
                 input
-                    .convolution2d(&weight, Some(&bias), (1, 1), (1, 1, 1, 1), (1, 1), 1)
+                    .convolution2d(
+                        &weight,
+                        Some(&bias),
+                        (1, 1),
+                        Padding2d::symmetric(1, 1),
+                        (1, 1),
+                        1,
+                    )
                     .unwrap()
             });
         }

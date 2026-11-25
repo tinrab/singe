@@ -13,6 +13,7 @@ use singe::{
         Activation, Conv2d, GatedMlp, GroupedQueryAttention, Linear, Mlp, ModelState, PreNormBlock,
         RmsNorm, SourcedCausalLm, TensorGroup,
     },
+    shape::spatial::Padding,
     signal::{LogMelOptions, LogMelSpectrogram},
 };
 
@@ -253,7 +254,10 @@ impl Qwen3AsrEncoderLayers {
             .clamp(1.0, window as f32)?
             .cast(DataType::I32)?;
         let hidden = hidden
-            .pad(&[(0, windows * window - rows), (0, 0)], 0.0)?
+            .pad(
+                &[Padding::new(0, windows * window - rows), Padding::ZERO],
+                0.0,
+            )?
             .reshape([windows, window, width])?;
         let rows = self
             .encoder
@@ -381,7 +385,7 @@ impl Qwen3Asr {
         let bucket = self.bucket_samples(self.chunks_of(length));
         let padded = samples
             .cast(DataType::F32)?
-            .pad(&[(0, bucket - length)], 0.0)?;
+            .pad(&[Padding::new(0, bucket - length)], 0.0)?;
         let count = Tensor::from_vec(samples.device(), Shape::create([1])?, vec![length])?;
         let (features, frames) = self.features(&padded, &count)?;
         let (rows, count) = self.encode(&features, &frames)?;

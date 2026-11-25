@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use singe::{
     Result as SingeResult, Tensor,
     nn::{Conv2dConfig, Layer, LayerNorm, Linear, ModelState, PatchEmbedding, PatchTokens},
+    shape::spatial::{Spatial2d, Spatial2dI64},
 };
 
 use crate::{
@@ -34,8 +35,8 @@ pub struct AstConfig {
 
 impl AstConfig {
     /// Returns how many patches fit along frequency and along time.
-    const fn grid(&self) -> (i64, i64) {
-        (
+    const fn grid(&self) -> Spatial2dI64 {
+        Spatial2d::new(
             (self.mels - self.patch_size) / self.frequency_stride + 1,
             (self.frames - self.patch_size) / self.time_stride + 1,
         )
@@ -54,7 +55,7 @@ pub struct AstLayers {
 impl AstLayers {
     pub fn create(schema: &mut Schema<'_>, config: &AstConfig) -> SingeResult<Self> {
         let width = config.encoder.width;
-        let (rows, columns) = config.grid();
+        let grid = config.grid();
         let tokens = {
             let mut embeddings = schema.scope("embeddings");
             let patches = PatchEmbedding::new(embeddings.conv2d(
@@ -63,7 +64,7 @@ impl AstLayers {
                 width,
                 config.patch_size,
                 Conv2dConfig {
-                    stride: (config.frequency_stride, config.time_stride),
+                    stride: Spatial2d::new(config.frequency_stride, config.time_stride),
                     ..Conv2dConfig::default()
                 },
                 true,
@@ -71,7 +72,9 @@ impl AstLayers {
             PatchTokens::new(patches)
                 .with_leading_token(embeddings.parameter("class", [1, 1, width])?)
                 .with_leading_token(embeddings.parameter("distillation", [1, 1, width])?)
-                .with_positions(embeddings.parameter("positions", [1, rows * columns + 2, width])?)
+                .with_positions(
+                    embeddings.parameter("positions", [1, grid.height * grid.width + 2, width])?,
+                )
         };
         Ok(Self {
             tokens,

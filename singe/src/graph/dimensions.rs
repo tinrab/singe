@@ -45,10 +45,6 @@ impl DimensionExpr {
         &self.0
     }
 
-    #[cfg_attr(
-        not(feature = "onnx"),
-        expect(dead_code, reason = "only onnx import and export read shape constants")
-    )]
     pub(crate) fn is_constant(&self) -> bool {
         match self.0.as_ref() {
             DimensionExpression::Constant(_) => true,

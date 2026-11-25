@@ -1,11 +1,24 @@
-use crate::{backend::spec, shape::Shape};
+use crate::{
+    backend::spec,
+    shape::{
+        Shape,
+        spatial::{Padding2d, Spatial2d},
+    },
+};
 
 #[test]
 fn test_conv2d_output_shape_matches_nchw_oihw() {
     let input = Shape::create([2, 4, 7, 9]).unwrap();
     let weight = Shape::create([6, 2, 3, 5]).unwrap();
-    let output =
-        spec::conv2d_output_shape(&input, &weight, (2, 1), (1, 1, 2, 2), (1, 1), 2).unwrap();
+    let output = spec::conv2d_output_shape(
+        &input,
+        &weight,
+        Spatial2d::new(2, 1),
+        Padding2d::symmetric(1, 2),
+        Spatial2d::square(1),
+        2,
+    )
+    .unwrap();
     assert_eq!(output.dimensions(), &[2, 6, 4, 9]);
 }
 
@@ -14,15 +27,29 @@ fn test_pool2d_output_shape_preserves_optional_batch_axis() {
     let batched = Shape::create([2, 4, 7, 9]).unwrap();
     let unbatched = Shape::create([4, 7, 9]).unwrap();
     assert_eq!(
-        spec::pool2d_output_shape(&batched, (3, 3), (2, 2), (1, 1, 1, 1), (1, 1), false)
-            .unwrap()
-            .dimensions(),
+        spec::pool2d_output_shape(
+            &batched,
+            Spatial2d::square(3),
+            Spatial2d::square(2),
+            Padding2d::symmetric(1, 1),
+            Spatial2d::square(1),
+            false
+        )
+        .unwrap()
+        .dimensions(),
         &[2, 4, 4, 5],
     );
     assert_eq!(
-        spec::pool2d_output_shape(&unbatched, (3, 3), (2, 2), (1, 1, 1, 1), (1, 1), false,)
-            .unwrap()
-            .dimensions(),
+        spec::pool2d_output_shape(
+            &unbatched,
+            Spatial2d::square(3),
+            Spatial2d::square(2),
+            Padding2d::symmetric(1, 1),
+            Spatial2d::square(1),
+            false,
+        )
+        .unwrap()
+        .dimensions(),
         &[4, 4, 5],
     );
 }

@@ -1,7 +1,10 @@
 use crate::{
     backend::spec::{validate_non_negative, validate_positive},
     error::{Error, Result},
-    shape::Shape,
+    shape::{
+        Shape,
+        spatial::{Padding2d, Spatial2d, Spatial2dI64},
+    },
     utility::{checked_add_i64, checked_mul_i64, checked_sub_i64},
 };
 
@@ -54,7 +57,6 @@ pub struct Pool2dProblem {
 
 /// Validates pooling options and infers spatial output dimensions.
 ///
-/// Spatial tuples use height then width; padding is top, bottom, left, and right.
 /// Average pooling requires unit dilation.
 /// Each side's padding is at most half the corresponding undilated kernel size.
 /// `diagnostic_prefix` identifies operation-specific errors.
@@ -64,15 +66,15 @@ pub struct Pool2dProblem {
 /// Returns an error if rank is not three or four, average-pooling dilation is not unit, batch or padding is negative, channels, spatial extents, kernel, stride, or dilation are nonpositive, padding is too large, output dimensions are invalid, or shape arithmetic overflows.
 pub fn pool2d_problem(
     input: &Shape,
-    kernel_size: (i64, i64),
-    stride: (i64, i64),
-    padding: (i64, i64, i64, i64),
-    dilation: (i64, i64),
+    kernel_size: Spatial2dI64,
+    stride: Spatial2dI64,
+    padding: Padding2d,
+    dilation: Spatial2dI64,
     ceil_mode: bool,
     reduction: PoolReduction,
     diagnostic_prefix: &'static str,
 ) -> Result<Pool2dProblem> {
-    if reduction == PoolReduction::Average && dilation != (1, 1) {
+    if reduction == PoolReduction::Average && dilation != Spatial2d::square(1) {
         return Err(Error::invalid_argument(format!(
             "{diagnostic_prefix} avg pool dilation"
         )));
@@ -91,10 +93,6 @@ pub fn pool2d_problem(
     let [.., output_height, output_width] = *output_shape.dimensions() else {
         return Err(rank_error());
     };
-    let (kernel_height, kernel_width) = kernel_size;
-    let (stride_height, stride_width) = stride;
-    let (pad_height_start, pad_height_end, pad_width_start, pad_width_end) = padding;
-    let (dilation_height, dilation_width) = dilation;
 
     Ok(Pool2dProblem {
         output_shape,
@@ -105,16 +103,16 @@ pub fn pool2d_problem(
         input_width,
         output_height,
         output_width,
-        kernel_height,
-        kernel_width,
-        stride_height,
-        stride_width,
-        pad_height_start,
-        pad_height_end,
-        pad_width_start,
-        pad_width_end,
-        dilation_height,
-        dilation_width,
+        kernel_height: kernel_size.height,
+        kernel_width: kernel_size.width,
+        stride_height: stride.height,
+        stride_width: stride.width,
+        pad_height_start: padding.height.before,
+        pad_height_end: padding.height.after,
+        pad_width_start: padding.width.before,
+        pad_width_end: padding.width.after,
+        dilation_height: dilation.height,
+        dilation_width: dilation.width,
     })
 }
 
@@ -125,10 +123,10 @@ pub fn pool2d_problem(
 /// Returns an error if input rank is neither three nor four, batch, channel, or spatial geometry is invalid, or output shape arithmetic overflows.
 pub fn pool2d_output_shape(
     input: &Shape,
-    kernel_size: (i64, i64),
-    stride: (i64, i64),
-    padding: (i64, i64, i64, i64),
-    dilation: (i64, i64),
+    kernel_size: Spatial2dI64,
+    stride: Spatial2dI64,
+    padding: Padding2d,
+    dilation: Spatial2dI64,
     ceil_mode: bool,
 ) -> Result<Shape> {
     let input_dimensions = input.dimensions();
@@ -159,20 +157,20 @@ pub fn pool2d_output_shape(
 
     let output_height = pool2d_output_dimension(
         input_height,
-        kernel_size.0,
-        padding.0,
-        padding.1,
-        stride.0,
-        dilation.0,
+        kernel_size.height,
+        padding.height.before,
+        padding.height.after,
+        stride.height,
+        dilation.height,
         ceil_mode,
     )?;
     let output_width = pool2d_output_dimension(
         input_width,
-        kernel_size.1,
-        padding.2,
-        padding.3,
-        stride.1,
-        dilation.1,
+        kernel_size.width,
+        padding.width.before,
+        padding.width.after,
+        stride.width,
+        dilation.width,
         ceil_mode,
     )?;
     let dimensions = batch.map_or_else(
@@ -253,15 +251,25 @@ pub fn validate_pool2d_shape(
     channels: i64,
     input_height: i64,
     input_width: i64,
-    kernel_size: (i64, i64),
-    stride: (i64, i64),
-    padding: (i64, i64, i64, i64),
-    dilation: (i64, i64),
+    kernel_size: Spatial2dI64,
+    stride: Spatial2dI64,
+    padding: Padding2d,
+    dilation: Spatial2dI64,
 ) -> Result<()> {
-    let (kernel_height, kernel_width) = kernel_size;
-    let (stride_height, stride_width) = stride;
-    let (pad_height_start, pad_height_end, pad_width_start, pad_width_end) = padding;
-    let (dilation_height, dilation_width) = dilation;
+    let Spatial2d {
+        height: kernel_height,
+        width: kernel_width,
+    } = kernel_size;
+    let Spatial2d {
+        height: stride_height,
+        width: stride_width,
+    } = stride;
+    let (pad_height_start, pad_height_end) = (padding.height.before, padding.height.after);
+    let (pad_width_start, pad_width_end) = (padding.width.before, padding.width.after);
+    let Spatial2d {
+        height: dilation_height,
+        width: dilation_width,
+    } = dilation;
     validate_non_negative("pool2d batch", batch)?;
     for (name, value) in [
         ("pool2d channels", channels),

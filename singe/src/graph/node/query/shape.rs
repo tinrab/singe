@@ -4,6 +4,7 @@ use crate::{
         ir::{ValueId, operation_attributes},
         node::NodeRef,
     },
+    shape::spatial::Padding,
 };
 
 impl NodeRef<'_> {
@@ -42,4 +43,4 @@ impl NodeRef<'_> {
     }
 }
 
-type PadParameters = (ValueId, Vec<(i64, i64)>, f32);
+type PadParameters = (ValueId, Vec<Padding>, f32);

@@ -7,7 +7,10 @@ use crate::{
         },
     },
     error::{Error, Result},
-    shape::Shape,
+    shape::{
+        Shape,
+        spatial::{Padding, Padding2d, Spatial2d, Spatial2dI64},
+    },
     utility::{checked_add_i64, checked_mul_i64, checked_sub_i64, to_usize},
 };
 
@@ -36,9 +39,9 @@ impl Conv2dParameters {
     pub(crate) fn create(
         input_dimensions: &[i64],
         weight_dimensions: &[i64],
-        stride: (i64, i64),
-        padding: (i64, i64, i64, i64),
-        dilation: (i64, i64),
+        stride: Spatial2dI64,
+        padding: Padding2d,
+        dilation: Spatial2dI64,
         groups: i64,
         diagnostic_prefix: &'static str,
     ) -> Result<Self> {
@@ -71,14 +74,14 @@ impl Conv2dParameters {
             weight_channels,
             kernel_height,
             kernel_width,
-            stride_height: stride.0,
-            stride_width: stride.1,
-            pad_height_start: padding.0,
-            pad_height_end: padding.1,
-            pad_width_start: padding.2,
-            pad_width_end: padding.3,
-            dilation_height: dilation.0,
-            dilation_width: dilation.1,
+            stride_height: stride.height,
+            stride_width: stride.width,
+            pad_height_start: padding.height.before,
+            pad_height_end: padding.height.after,
+            pad_width_start: padding.width.before,
+            pad_width_end: padding.width.after,
+            dilation_height: dilation.height,
+            dilation_width: dilation.width,
             groups,
         };
         parameters.validate(diagnostic_prefix)?;
@@ -181,8 +184,6 @@ pub struct ConvolutionProblem {
 /// Validates grouped two-dimensional convolution parameters and infers its output shape.
 ///
 /// Input shape is `[batch, input_channels, height, width]`; weights are `[output_channels, input_channels / groups, kernel_height, kernel_width]`.
-/// Spatial tuples use height then width.
-/// Padding is top, bottom, left, and right.
 /// `diagnostic_prefix` identifies the operation in errors.
 ///
 /// # Errors
@@ -191,9 +192,9 @@ pub struct ConvolutionProblem {
 pub fn conv2d_problem(
     input_shape: &Shape,
     weight_shape: &Shape,
-    stride: (i64, i64),
-    padding: (i64, i64, i64, i64),
-    dilation: (i64, i64),
+    stride: Spatial2dI64,
+    padding: Padding2d,
+    dilation: Spatial2dI64,
     groups: i64,
     diagnostic_prefix: &'static str,
 ) -> Result<ConvolutionProblem> {
@@ -211,15 +212,10 @@ pub fn conv2d_problem(
     let spatial = conv2d_spatial_extent(
         parameters.input_height,
         parameters.input_width,
-        (parameters.kernel_height, parameters.kernel_width),
-        (parameters.stride_height, parameters.stride_width),
-        (
-            parameters.pad_height_start,
-            parameters.pad_height_end,
-            parameters.pad_width_start,
-            parameters.pad_width_end,
-        ),
-        (parameters.dilation_height, parameters.dilation_width),
+        Spatial2d::new(parameters.kernel_height, parameters.kernel_width),
+        stride,
+        padding,
+        dilation,
         diagnostic_prefix,
     )?;
     let output_shape = Shape::create([
@@ -264,7 +260,6 @@ pub struct Conv2dSpatialExtent {
 /// Computes effective filter sizes and floor-rounded output spatial dimensions.
 ///
 /// For each axis, the effective kernel is `dilation * (kernel - 1) + 1` and the output is `(input + pad_before + pad_after - effective_kernel) / stride + 1`.
-/// Padding is top, bottom, left, and right.
 /// `diagnostic_prefix` identifies the operation in errors.
 ///
 /// This helper assumes validated spatial parameters, including positive strides.
@@ -281,16 +276,26 @@ pub struct Conv2dSpatialExtent {
 pub fn conv2d_spatial_extent(
     input_height: i64,
     input_width: i64,
-    kernel_size: (i64, i64),
-    stride: (i64, i64),
-    padding: (i64, i64, i64, i64),
-    dilation: (i64, i64),
+    kernel_size: Spatial2dI64,
+    stride: Spatial2dI64,
+    padding: Padding2d,
+    dilation: Spatial2dI64,
     diagnostic_prefix: &'static str,
 ) -> Result<Conv2dSpatialExtent> {
-    let (kernel_height, kernel_width) = kernel_size;
-    let (stride_height, stride_width) = stride;
-    let (pad_height_start, pad_height_end, pad_width_start, pad_width_end) = padding;
-    let (dilation_height, dilation_width) = dilation;
+    let Spatial2d {
+        height: kernel_height,
+        width: kernel_width,
+    } = kernel_size;
+    let Spatial2d {
+        height: stride_height,
+        width: stride_width,
+    } = stride;
+    let (pad_height_start, pad_height_end) = (padding.height.before, padding.height.after);
+    let (pad_width_start, pad_width_end) = (padding.width.before, padding.width.after);
+    let Spatial2d {
+        height: dilation_height,
+        width: dilation_width,
+    } = dilation;
     let effective_kernel_height = effective_kernel_dimension(
         kernel_height,
         dilation_height,
@@ -427,9 +432,9 @@ pub fn validate_conv2d_rank(
 pub fn conv2d_output_shape(
     input: &Shape,
     weight: &Shape,
-    stride: (i64, i64),
-    padding: (i64, i64, i64, i64),
-    dilation: (i64, i64),
+    stride: Spatial2dI64,
+    padding: Padding2d,
+    dilation: Spatial2dI64,
     groups: i64,
 ) -> Result<Shape> {
     ConvolutionWindow::conv2d(stride, padding, dilation, groups).output_shape(input, weight)
@@ -439,25 +444,24 @@ pub fn conv2d_output_shape(
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ConvolutionWindow {
     pub stride: Vec<i64>,
-    pub padding: Vec<(i64, i64)>,
+    pub padding: Vec<Padding>,
     pub dilation: Vec<i64>,
     pub groups: i64,
 }
 
 impl ConvolutionWindow {
-    // Padding is ordered as height start, height end, width start, and width end.
     #[cfg(any(test, feature = "onnx", feature = "cuda"))]
     #[must_use]
     pub fn conv2d(
-        stride: (i64, i64),
-        padding: (i64, i64, i64, i64),
-        dilation: (i64, i64),
+        stride: Spatial2dI64,
+        padding: Padding2d,
+        dilation: Spatial2dI64,
         groups: i64,
     ) -> Self {
         Self {
-            stride: vec![stride.0, stride.1],
-            padding: vec![(padding.0, padding.1), (padding.2, padding.3)],
-            dilation: vec![dilation.0, dilation.1],
+            stride: vec![stride.height, stride.width],
+            padding: vec![padding.height, padding.width],
+            dilation: vec![dilation.height, dilation.width],
             groups,
         }
     }
@@ -472,13 +476,13 @@ impl ConvolutionWindow {
             ..
         } = *attributes;
         Self {
-            stride: vec![stride.0, stride.1, stride.2],
+            stride: vec![stride.depth, stride.height, stride.width],
             padding: vec![
-                (padding.0, padding.0),
-                (padding.1, padding.1),
-                (padding.2, padding.2),
+                Padding::symmetric(padding.depth),
+                Padding::symmetric(padding.height),
+                Padding::symmetric(padding.width),
             ],
-            dilation: vec![dilation.0, dilation.1, dilation.2],
+            dilation: vec![dilation.depth, dilation.height, dilation.width],
             groups,
         }
     }
@@ -496,7 +500,11 @@ impl ConvolutionWindow {
         self.stride
             .iter()
             .copied()
-            .chain(self.padding.iter().flat_map(|&pair| <[i64; 2]>::from(pair)))
+            .chain(
+                self.padding
+                    .iter()
+                    .flat_map(|padding| [padding.before, padding.after]),
+            )
             .chain(self.dilation.iter().copied())
             .chain([self.groups])
             .collect()
@@ -565,7 +573,7 @@ impl ConvolutionWindow {
         }
 
         let mut output = vec![batch, output_channels];
-        for (((&stride, &(before, after)), &dilation), (&input, &kernel)) in stride
+        for (((&stride, &Padding { before, after }), &dilation), (&input, &kernel)) in stride
             .iter()
             .zip(padding)
             .zip(dilation)

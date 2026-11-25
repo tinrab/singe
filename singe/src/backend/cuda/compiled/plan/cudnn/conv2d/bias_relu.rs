@@ -27,15 +27,18 @@ use crate::{
     error::{Error, Result},
     graph::ir::{Graph, ValueId},
     layout::Layout,
-    shape::Shape,
+    shape::{
+        Shape,
+        spatial::{Padding2d, Spatial2dI64},
+    },
 };
 
 // The sliding window of a two-dimensional convolution.
 #[derive(Debug, Clone, Copy)]
 pub struct CudnnConv2dGeometry {
-    pub stride: (i64, i64),
-    pub padding: (i64, i64, i64, i64),
-    pub dilation: (i64, i64),
+    pub stride: Spatial2dI64,
+    pub padding: Padding2d,
+    pub dilation: Spatial2dI64,
     pub groups: i64,
 }
 
@@ -131,9 +134,9 @@ pub struct CudnnConv2dBiasReluExecutableRequest<'a> {
     pub(crate) input: ValueId,
     pub(crate) weight: ValueId,
     pub(crate) pattern: CudnnConv2dBiasReluPattern,
-    pub(crate) stride: (i64, i64),
-    pub(crate) padding: (i64, i64, i64, i64),
-    pub(crate) dilation: (i64, i64),
+    pub(crate) stride: Spatial2dI64,
+    pub(crate) padding: Padding2d,
+    pub(crate) dilation: Spatial2dI64,
     pub(crate) groups: i64,
     pub(crate) conv_metadata: &'a CudnnBackendTensorMetadata,
     pub(crate) input_metadata: &'a CudnnBackendTensorMetadata,
@@ -158,14 +161,14 @@ pub fn build_cudnn_conv2d_bias_relu_executable(
     let key = CudnnBackendGraphKey::new(
         CudnnBackendGraphKind::Conv2dBiasRelu,
         vec![
-            request.stride.0,
-            request.stride.1,
-            request.padding.0,
-            request.padding.1,
-            request.padding.2,
-            request.padding.3,
-            request.dilation.0,
-            request.dilation.1,
+            request.stride.height,
+            request.stride.width,
+            request.padding.height.before,
+            request.padding.height.after,
+            request.padding.width.before,
+            request.padding.width.after,
+            request.dilation.height,
+            request.dilation.width,
             request.groups,
         ],
         vec![

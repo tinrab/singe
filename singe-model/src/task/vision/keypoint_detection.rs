@@ -1,7 +1,7 @@
 //! `keypoint-detection`: an image to its keypoints, their scores, and their descriptors, at the image's own pixels, as `transformers`' `post_process_keypoint_detection` gives them; `transformers` has no pipeline for it.
 
 use serde::Serialize;
-use singe::Error as SingeError;
+use singe::{Error as SingeError, shape::spatial::Spatial2d};
 
 use crate::{
     error::Result,
@@ -54,7 +54,7 @@ impl Pipeline for KeypointDetectionPipeline {
             keypoints: keypoints
                 .keypoints
                 .iter()
-                .map(|&point| rescaled_point(point, (height, width), image))
+                .map(|&point| rescaled_point(point, Spatial2d::new(height, width), image))
                 .collect(),
             scores: keypoints.scores,
             descriptors: keypoints.descriptors,

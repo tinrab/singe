@@ -3,19 +3,19 @@ use crate::{
     dispatch::call_one,
     error::Result,
     graph::{DimensionExpr, SymbolicAttributes, capture},
-    shape::Shape,
+    shape::{Shape, spatial::Padding},
     tensor::Tensor,
 };
 
 impl Tensor {
-    /// Pads the tensor with `value` according to per-axis `(before, after)` pairs.
+    /// Pads the tensor with `value` by each leading axis's padding.
     ///
     /// This records a graph operation when called inside graph capture.
     ///
     /// # Errors
     ///
     /// Returns an error if padding is invalid or unsupported by the backend.
-    pub fn pad(&self, padding: &[(i64, i64)], value: f32) -> Result<Self> {
+    pub fn pad(&self, padding: &[Padding], value: f32) -> Result<Self> {
         call_one(
             Operation::Pad,
             OperationAttributes::Pad(PadAttributes {

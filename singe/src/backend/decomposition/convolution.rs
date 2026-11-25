@@ -1,11 +1,12 @@
 use crate::{
     backend::registry::Conv3dAttributes,
     error::{Error, Result},
+    shape::spatial::{Padding, Padding2d},
     tensor::Tensor,
 };
 
 impl Tensor {
-    // Convolves `[N, C, D, H, W]` with `[O, C / groups, KD, KH, KW]` weights as a sum over the kernel's depth taps, each a 2D convolution of every `stride.0`-th depth plane it reads, with the planes as batch entries.
+    // Convolves `[N, C, D, H, W]` with `[O, C / groups, KD, KH, KW]` weights as a sum over the kernel's depth taps, each a 2D convolution of every `stride.depth`-th depth plane it reads, with the planes as batch entries.
     pub fn convolution3d_by_planes(
         &self,
         weight: &Self,
@@ -26,22 +27,26 @@ impl Tensor {
                 "3d convolution needs [N, C, D, H, W] inputs and [O, C / groups, KD, KH, KW] weights",
             ));
         };
-        if weight.shape().rank() != 5 || stride.0 <= 0 || dilation.0 <= 0 {
+        if weight.shape().rank() != 5 || stride.depth <= 0 || dilation.depth <= 0 {
             return Err(Error::invalid_argument("invalid 3d convolution geometry"));
         }
 
-        let padded_depth = depth + 2 * padding.0;
-        let span = dilation.0 * (taps - 1) + 1;
+        let padded_depth = depth + 2 * padding.depth;
+        let span = dilation.depth * (taps - 1) + 1;
         if padded_depth < span {
             return Err(Error::invalid_argument(
                 "3d convolution kernel is deeper than its padded input",
             ));
         }
 
-        let planes = (padded_depth - span) / stride.0 + 1;
-        let input = if padding.0 > 0 {
+        let planes = (padded_depth - span) / stride.depth + 1;
+        let input = if padding.depth > 0 {
             self.pad(
-                &[(0, 0), (0, 0), (padding.0, padding.0), (0, 0), (0, 0)],
+                &[
+                    Padding::ZERO,
+                    Padding::ZERO,
+                    Padding::symmetric(padding.depth),
+                ],
                 0.0,
             )?
         } else {
@@ -50,7 +55,7 @@ impl Tensor {
         let mut sum: Option<Self> = None;
         for tap in 0..taps {
             let rows = input
-                .slice(2, tap * dilation.0, planes, stride.0)?
+                .slice(2, tap * dilation.depth, planes, stride.depth)?
                 .movedim(2, 1)?
                 .reshape([batch * planes, channels, height, width])?;
             // Each tap's kernel is its own contiguous tensor, as cuDNN reads weights.
@@ -58,9 +63,9 @@ impl Tensor {
             let convolved = rows.convolution2d(
                 &kernel,
                 None,
-                (stride.1, stride.2),
-                (padding.1, padding.1, padding.2, padding.2),
-                (dilation.1, dilation.2),
+                stride.planar(),
+                Padding2d::symmetric(padding.height, padding.width),
+                dilation.planar(),
                 groups,
             )?;
             sum = Some(match sum {

@@ -22,6 +22,7 @@ use crate::{
         Graph, GraphCudaOptions, GraphOperationOutput, GraphOperationRequest, GraphPrepareOptions,
     },
     layout::Layout,
+    shape::spatial::Padding2d,
 };
 
 struct ResetCaches(Arc<CudaRuntime>);
@@ -69,7 +70,7 @@ fn test_rejected_cudnn_preparations_are_bounded_after_instances_drop() {
                     &inputs[1],
                     None,
                     (1, 1),
-                    (0, 0, 0, 0),
+                    Padding2d::default(),
                     (1, 1),
                     1,
                 )?])

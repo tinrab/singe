@@ -107,11 +107,11 @@ pub fn resize(context: &InferenceContext<'_>) -> Result<OperationInference> {
     let [.., height, width] = dimensions.as_mut_slice() else {
         return Err(Error::invalid_argument("resize needs two axes"));
     };
-    if resize.size.0 <= 0 || resize.size.1 <= 0 {
+    if resize.size.height <= 0 || resize.size.width <= 0 {
         return Err(Error::invalid_argument("resize needs positive sizes"));
     }
 
-    (*height, *width) = resize.size;
+    (*height, *width) = (resize.size.height, resize.size.width);
     Ok(context.same_type(&Shape::create(dimensions)?))
 }
 

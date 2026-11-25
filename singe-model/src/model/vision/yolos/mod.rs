@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use singe::{
     Error as SingeError, Result as SingeResult, Tensor,
     nn::{Activation, Layer, ModelState, PatchEmbedding, StateKey},
+    shape::spatial::{Spatial2d, Spatial2dI64},
     tensor::InterpolateMode,
 };
 
@@ -24,7 +25,7 @@ pub struct YolosConfig {
     pub encoder: PreNormEncoderConfig,
     pub layers: i64,
     /// The image height and width the positions are learned for.
-    pub image_size: [i64; 2],
+    pub image_size: Spatial2dI64,
     pub patch_size: i64,
     pub channels: i64,
     pub detection_tokens: i64,
@@ -40,22 +41,25 @@ struct YolosTokens {
     detection: StateKey,
     positions: StateKey,
     /// The patch grid the positions are learned for.
-    grid: [i64; 2],
+    grid: Spatial2dI64,
     patch_size: i64,
 }
 
 impl YolosTokens {
     fn create(schema: &mut Schema<'_>, config: &YolosConfig) -> SingeResult<Self> {
         let width = config.encoder.width;
-        let [height, image_width] = config.image_size;
-        let grid = [height / config.patch_size, image_width / config.patch_size];
+        let grid = config.image_size.map(|side| side / config.patch_size);
         Ok(Self {
             patches: patch_embedding(schema, config.channels, width, config.patch_size, true)?,
             class: schema.parameter("class", [1, 1, width])?,
             detection: schema.parameter("detection", [1, config.detection_tokens, width])?,
             positions: schema.parameter(
                 "positions",
-                [1, 1 + grid[0] * grid[1] + config.detection_tokens, width],
+                [
+                    1,
+                    1 + grid.height * grid.width + config.detection_tokens,
+                    width,
+                ],
             )?,
             grid,
             patch_size: config.patch_size,
@@ -90,8 +94,11 @@ impl Layer for YolosTokens {
             return Err(SingeError::invalid_argument("images"));
         }
 
-        let [rows, columns] = self.grid;
-        let size = (
+        let Spatial2d {
+            height: rows,
+            width: columns,
+        } = self.grid;
+        let size = Spatial2d::new(
             input.dimension(2)? / self.patch_size,
             input.dimension(3)? / self.patch_size,
         );
@@ -99,7 +106,7 @@ impl Layer for YolosTokens {
             .narrow(1, 1, count - 1 - detections)?
             .transpose(1, 2)?
             .reshape([1, width, rows, columns])?
-            .interpolate_with(size, InterpolateMode::Bicubic)?
+            .interpolate(size, InterpolateMode::Bicubic)?
             .flatten(2, 3)?
             .transpose(1, 2)?;
         let positions = Tensor::concat(

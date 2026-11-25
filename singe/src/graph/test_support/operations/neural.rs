@@ -1,4 +1,5 @@
 use super::*;
+use crate::shape::spatial::{Padding2d, Spatial2d, Spatial2dI64};
 
 pub fn add_rotary_embedding_operation(
     graph: &mut Graph,
@@ -124,9 +125,9 @@ pub fn add_conv2d_operation(
         input,
         weight,
         bias,
-        (1, 1),
-        (0, 0, 0, 0),
-        (1, 1),
+        Spatial2d::square(1),
+        Padding2d::default(),
+        Spatial2d::square(1),
         1,
         graph_operation_output(output),
     ))
@@ -136,10 +137,10 @@ pub fn add_pool2d_operation(
     graph: &mut Graph,
     operation: Operation,
     input: ValueId,
-    kernel_size: (i64, i64),
-    stride: (i64, i64),
-    padding: (i64, i64, i64, i64),
-    dilation: (i64, i64),
+    kernel_size: Spatial2dI64,
+    stride: Spatial2dI64,
+    padding: Padding2d,
+    dilation: Spatial2dI64,
     ceil_mode: bool,
     count_include_pad: bool,
     output: &Tensor,

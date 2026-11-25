@@ -1,6 +1,9 @@
 //! Reshapes between feature maps `[B, C, H, W]`, their tokens `[B, H · W, C]`, and the windows of a channels-last map `[B, H, W, C]`, which Swin, `Swin2SR`, `SegFormer`, SAM, DETR, and Depth Anything read.
 
-use singe::{Error as SingeError, Result as SingeResult, Tensor, graph::DimensionExpr};
+use singe::{
+    Error as SingeError, Result as SingeResult, Tensor,
+    shape::spatial::{Spatial2d, Spatial2dExpr, Spatial2dI64},
+};
 
 /// Returns a map `[B, C, H, W]` as tokens `[B, H · W, C]`.
 pub fn to_tokens(map: &Tensor) -> SingeResult<Tensor> {
@@ -8,34 +11,32 @@ pub fn to_tokens(map: &Tensor) -> SingeResult<Tensor> {
 }
 
 /// Returns tokens `[B, H · W, C]` as a map `[B, C, H, W]`, whose height and width may follow a program's run-time axes.
-pub fn to_map(
-    tokens: &Tensor,
-    (height, width): (impl Into<DimensionExpr>, impl Into<DimensionExpr>),
-) -> SingeResult<Tensor> {
+pub fn to_map(tokens: &Tensor, size: impl Into<Spatial2dExpr>) -> SingeResult<Tensor> {
     if tokens.shape().dimensions().len() != 3 {
         return Err(SingeError::invalid_argument("tokens"));
     }
 
+    let Spatial2d { height, width } = size.into();
     let channels = tokens.transpose(1, 2)?;
     channels.reshape_with(&[
         channels.dimension(0)?,
         channels.dimension(1)?,
-        height.into(),
-        width.into(),
+        height,
+        width,
     ])
 }
 
-pub fn spatial(map: &Tensor) -> SingeResult<(i64, i64)> {
+pub fn spatial(map: &Tensor) -> SingeResult<Spatial2dI64> {
     let &[_, _, height, width] = map.shape().dimensions() else {
         return Err(SingeError::invalid_argument("feature map"));
     };
-    Ok((height, width))
+    Ok(Spatial2d::new(height, width))
 }
 
 /// Returns a map's height and width as expressions, which follow a program's run-time axes.
-pub fn spatial_dimensions(map: &Tensor) -> SingeResult<(DimensionExpr, DimensionExpr)> {
+pub fn spatial_dimensions(map: &Tensor) -> SingeResult<Spatial2dExpr> {
     spatial(map)?;
-    Ok((map.dimension(2)?, map.dimension(3)?))
+    Ok(Spatial2d::new(map.dimension(2)?, map.dimension(3)?))
 }
 
 /// Returns a map `[B, H, W, C]` as windows of `window × window` points, `[B · windows, window², C]`, row by row.

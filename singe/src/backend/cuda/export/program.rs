@@ -19,6 +19,7 @@ use crate::{
     graph::NumericalPolicy,
     layout::Layout,
     nn::PageLayout,
+    shape::spatial::Padding,
 };
 
 // A library a program may call.
@@ -244,7 +245,7 @@ pub enum LibraryCall {
         activation: Option<Activation>,
         output: BufferView,
         stride: Vec<i64>,
-        padding: Vec<(i64, i64)>,
+        padding: Vec<Padding>,
         dilation: Vec<i64>,
     },
 }

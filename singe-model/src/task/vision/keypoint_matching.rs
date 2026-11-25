@@ -1,7 +1,10 @@
 //! `keypoint-matching`: a pair of images to their matched keypoints, each at its image's whole pixels, with the match's score, best first, as `transformers`' pipeline gives them.
 
 use serde::{Deserialize, Serialize};
-use singe::Error as SingeError;
+use singe::{
+    Error as SingeError,
+    shape::spatial::{Spatial2d, Spatial2dI64},
+};
 
 use crate::{
     error::Result,
@@ -45,8 +48,8 @@ pub struct Match {
     pub score: f32,
 }
 
-/// Returns a keypoint at the pixels of an image of `from` pixels, `(height, width)`, moved to `image`'s.
-fn rescaled(point: [f32; 2], from: (i64, i64), image: &Image) -> Keypoint {
+/// Returns a keypoint at the pixels of an image of `from` pixels, moved to `image`'s.
+fn rescaled(point: [f32; 2], from: Spatial2dI64, image: &Image) -> Keypoint {
     let [x, y] = rescaled_point(point, from, image);
     Keypoint { x, y }
 }
@@ -73,7 +76,7 @@ impl Pipeline for KeypointMatchingPipeline {
         let &[_, _, height, width] = pixels.shape().dimensions() else {
             return Err(SingeError::invalid_argument("images, [B, C, H, W]").into());
         };
-        let size = (height, width);
+        let size = Spatial2d::new(height, width);
         let found = self.model.match_pair(&pixels)?;
         let mut matches = found
             .matches

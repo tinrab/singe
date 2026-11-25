@@ -8,6 +8,7 @@ use singe::{
     DataType, Device, Shape, Tensor,
     backend::cuda::{CudnnFeature, LoweringPolicy, export::CudaExport},
     graph::{Graph, GraphCudaOptions, GraphPrepareOptions},
+    shape::spatial::Padding2d,
     tensor::AttentionOptions,
     testing::{CompiledProgram, maybe_lock_device, program_target},
 };
@@ -44,7 +45,7 @@ fn cudnn_graph(device: Device) -> (Graph, Vec<(&'static str, Tensor)>) {
     ];
     let (graph, _) = Graph::capture(inputs.clone(), |inputs| {
         Ok(vec![
-            inputs[0].convolution2d(&inputs[1], None, (1, 1), (0, 0, 0, 0), (1, 1), 1)?,
+            inputs[0].convolution2d(&inputs[1], None, (1, 1), Padding2d::default(), (1, 1), 1)?,
             inputs[2].matmul(&inputs[3])?,
             inputs[4].attend(
                 &inputs[5],

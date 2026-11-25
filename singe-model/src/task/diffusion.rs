@@ -1,7 +1,11 @@
 use std::marker::PhantomData;
 
 use serde::Deserialize;
-use singe::{DataType, Error as SingeError, Tensor, nn::TokenBatch};
+use singe::{
+    DataType, Error as SingeError, Tensor,
+    nn::TokenBatch,
+    shape::spatial::{Spatial2d, Spatial2dI64},
+};
 
 use crate::{
     error::{Error, Result},
@@ -236,30 +240,30 @@ impl<U> StableDiffusion<U> {
         })
     }
 
-    /// Returns the latents' height and width for images of `height × width`, which `diffusers` refuses unless both are multiples of 8.
+    /// Returns the latents' size for images of `image`, which `diffusers` refuses unless both sides are multiples of 8.
     ///
     /// # Errors
     ///
-    /// Returns an error if `height` or `width` is not a multiple of 8.
-    pub fn latent_size(&self, height: i64, width: i64) -> Result<(i64, i64)> {
-        if height % 8 != 0 || width % 8 != 0 {
+    /// Returns an error if a side of `image` is not a multiple of 8.
+    pub fn latent_size(&self, image: Spatial2dI64) -> Result<Spatial2dI64> {
+        if image.height % 8 != 0 || image.width % 8 != 0 {
             return Err(Error::invalid(
                 "an image size whose sides are not multiples of 8",
             ));
         }
-        Ok((height / self.vae_scale, width / self.vae_scale))
+        Ok(image.map(|side| side / self.vae_scale))
     }
 
-    /// Returns an image in `[-1, 1]`, `[1, 3, H, W]` in the model's type, as `VaeImageProcessor.preprocess` gives it: resized with PIL's Lanczos filter to `size`, `(height, width)`, or without one to its sides floored to multiples of the VAE's scale factor, where it differs.
-    pub fn image_pixels(&self, image: &Image, size: Option<(i64, i64)>) -> Result<Tensor> {
-        let (height, width) = size.unwrap_or_else(|| {
+    /// Returns an image in `[-1, 1]`, `[1, 3, H, W]` in the model's type, as `VaeImageProcessor.preprocess` gives it: resized with PIL's Lanczos filter to `size`, or without one to its sides floored to multiples of the VAE's scale factor, where it differs.
+    pub fn image_pixels(&self, image: &Image, size: Option<Spatial2dI64>) -> Result<Tensor> {
+        let size = size.unwrap_or_else(|| {
             let floored = |length: u32| {
                 let length = i64::from(length);
                 length - length % self.vae_scale
             };
-            (floored(image.height), floored(image.width))
+            Spatial2d::new(floored(image.height), floored(image.width))
         });
-        let (height, width) = (extent(height)?, extent(width)?);
+        let (height, width) = (extent(size.height)?, extent(size.width)?);
         if height == 0 || width == 0 {
             return Err(Error::invalid(
                 "an image smaller than the VAE's scale factor",

@@ -10,6 +10,7 @@ use crate::{
     device::Device,
     error::{Error, Result},
     parallel::{self, GRAIN_SIZE},
+    shape::spatial::{Padding2d, Spatial2d, Spatial2dI64},
     tensor::Tensor,
     utility::to_usize,
 };
@@ -18,9 +19,9 @@ pub fn convolution2d(
     input: &Tensor,
     weight: &Tensor,
     bias: Option<&Tensor>,
-    stride: (i64, i64),
-    padding: (i64, i64, i64, i64),
-    dilation: (i64, i64),
+    stride: Spatial2dI64,
+    padding: Padding2d,
+    dilation: Spatial2dI64,
     groups: i64,
 ) -> Result<Tensor> {
     if input.device() != Device::Cpu
@@ -44,7 +45,7 @@ pub fn convolution2d(
     }
 }
 
-type ConvolutionOptions = ((i64, i64), (i64, i64, i64, i64), (i64, i64), i64);
+type ConvolutionOptions = (Spatial2dI64, Padding2d, Spatial2dI64, i64);
 
 fn convolve<T: NativeFloat>(
     input: &Tensor,
@@ -63,8 +64,8 @@ fn convolve<T: NativeFloat>(
     )?;
     spec::validate_conv2d_bias(&problem, bias.map(Tensor::shape), "cpu conv2d")?;
     let window = Window2d::create(
-        (problem.input_height, problem.input_width),
-        (problem.kernel_height, problem.kernel_width),
+        Spatial2d::new(problem.input_height, problem.input_width),
+        Spatial2d::new(problem.kernel_height, problem.kernel_width),
         stride,
         padding,
         dilation,

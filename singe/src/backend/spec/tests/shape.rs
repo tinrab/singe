@@ -4,7 +4,7 @@ use crate::{
         pad_problem,
     },
     error::Error,
-    shape::Shape,
+    shape::{Shape, spatial::Padding},
 };
 
 #[test]
@@ -75,10 +75,13 @@ fn test_embedding_problem_describes_output_shape() {
 #[test]
 fn test_pad_problem_describes_output_shape_and_normalized_padding() {
     let input = Shape::create([2, 3, 4]).unwrap();
-    let problem = pad_problem(&input, &[(1, 2), (0, 0)], "test pad").unwrap();
+    let problem = pad_problem(&input, &[Padding::new(1, 2), Padding::ZERO], "test pad").unwrap();
 
     assert_eq!(problem.output_shape.dimensions(), &[5, 3, 4]);
-    assert_eq!(problem.padding, vec![(1, 2), (0, 0), (0, 0)]);
+    assert_eq!(
+        problem.padding,
+        vec![Padding::new(1, 2), Padding::ZERO, Padding::ZERO]
+    );
     assert!(problem.has_padding);
 }
 
@@ -87,7 +90,7 @@ fn test_pad_problem_rejects_rank_overflow() {
     let input = Shape::create([2, 3]).unwrap();
 
     assert!(matches!(
-        pad_problem(&input, &[(0, 0), (0, 0), (0, 0)], "test pad"),
+        pad_problem(&input, &[Padding::ZERO, Padding::ZERO, Padding::ZERO], "test pad"),
         Err(Error::LengthMismatch { ref name, expected, actual })
             if name == "test pad rank" && expected == 2 && actual == 3
     ));
@@ -98,14 +101,14 @@ fn test_pad_problem_crops_with_negative_padding_but_not_below_an_empty_axis() {
     let input = Shape::create([2, 3]).unwrap();
 
     assert_eq!(
-        pad_problem(&input, &[(-1, 0)], "test pad")
+        pad_problem(&input, &[Padding::new(-1, 0)], "test pad")
             .unwrap()
             .output_shape
             .dimensions(),
         [1, 3]
     );
     assert!(matches!(
-        pad_problem(&input, &[(-2, -1)], "test pad"),
+        pad_problem(&input, &[Padding::new(-2, -1)], "test pad"),
         Err(Error::InvalidArgument { ref name }) if name == "test pad axis 0"
     ));
 }

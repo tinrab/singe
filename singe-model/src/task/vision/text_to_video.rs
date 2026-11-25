@@ -1,6 +1,7 @@
 //! `text-to-video`: a prompt and a seed to a clip's frames, as `diffusers`' `AnimateDiffPipeline` generates them: a Stable Diffusion `UNet` with a motion adapter denoising every frame's latents together, with classifier-free guidance where its scale exceeds one, and each frame decoded by the VAE.
 
 use serde::Deserialize;
+use singe::shape::spatial::Spatial2d;
 
 use crate::{
     error::Result,
@@ -50,7 +51,8 @@ impl Pipeline for TextToVideoPipeline {
 
     fn run_one(&self, input: &Self::Input, parameters: &Self::Parameters) -> Result<Self::Output> {
         let parts = &self.0;
-        let (height, width) = parts.latent_size(parameters.height, parameters.width)?;
+        let Spatial2d { height, width } =
+            parts.latent_size(Spatial2d::new(parameters.height, parameters.width))?;
         let shape = [
             1,
             parts.latent_channels(),

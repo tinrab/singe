@@ -1,7 +1,7 @@
 //! `video-to-video`: a clip, a prompt, and a seed to a clip redrawn after the prompt, as `diffusers`' `AnimateDiffVideoToVideoPipeline` redraws it: the clip's latents sampled from the VAE, noised to the step `strength` starts from, and denoised from there.
 
 use serde::Deserialize;
-use singe::Tensor;
+use singe::{Tensor, shape::spatial::Spatial2d};
 
 use crate::{
     error::{Error, Result},
@@ -70,7 +70,12 @@ impl VideoToVideoPipeline {
         let pixels = video
             .frames
             .iter()
-            .map(|frame| parts.image_pixels(frame, Some((parameters.height, parameters.width))))
+            .map(|frame| {
+                parts.image_pixels(
+                    frame,
+                    Some(Spatial2d::new(parameters.height, parameters.width)),
+                )
+            })
             .collect::<Result<Vec<_>>>()?;
         let mut sampled = Vec::new();
         for chunk in pixels.chunks(16) {

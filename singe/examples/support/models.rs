@@ -8,6 +8,7 @@ use singe::{
         Activation, BatchNorm, Conv2d, Conv2dConfig, EncoderBlock, Flatten, LayerNorm, Linear,
         Model, Pool2d, Pool2dConfig, Pool2dKind, SelfAttention, Sequential, StateBuilder,
     },
+    shape::spatial::Spatial2d,
 };
 
 pub fn example_model(name: &str, reference: &Value, device: Device) -> Result<Model<Sequential>> {
@@ -85,7 +86,7 @@ pub fn model_from_checkpoint(
                     count_include_pad: true,
                 },
                 Pool2dConfig {
-                    stride: (1, 1),
+                    stride: Spatial2d::square(1),
                     ..Pool2dConfig::new((2, 2))
                 },
             ))

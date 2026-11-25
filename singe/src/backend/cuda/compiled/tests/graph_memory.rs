@@ -11,7 +11,7 @@ use crate::{
     graph::{
         Graph, GraphCudaOptions, GraphOperationOutput, GraphOperationRequest, GraphPrepareOptions,
     },
-    shape::Shape,
+    shape::{Shape, spatial::Padding2d},
     tensor::Tensor,
     testing::{maybe_lock_device, skip_if_stub},
 };
@@ -689,12 +689,19 @@ fn test_convolution_chains_run_channels_last() {
     let first = values(&[8, 3, 3, 3], 2).unwrap();
     let second = values(&[4, 8, 3, 3], 3).unwrap();
     let chain = |inputs: &[Tensor]| -> Result<Vec<Tensor>> {
-        let hidden = inputs[0].convolution2d(&inputs[1], None, (1, 1), (1, 1, 1, 1), (1, 1), 1)?;
+        let hidden = inputs[0].convolution2d(
+            &inputs[1],
+            None,
+            (1, 1),
+            Padding2d::symmetric(1, 1),
+            (1, 1),
+            1,
+        )?;
         Ok(vec![hidden.convolution2d(
             &inputs[2],
             None,
             (1, 1),
-            (0, 0, 0, 0),
+            Padding2d::default(),
             (1, 1),
             1,
         )?])

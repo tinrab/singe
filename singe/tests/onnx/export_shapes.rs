@@ -12,6 +12,7 @@ use singe::{
     dispatch::call_one,
     graph::{CaptureBindings, Graph, GraphInputSpec, GraphPrepareOptions, GraphProgram},
     onnx::{self, Error},
+    shape::spatial::{Padding2d, Spatial2d},
     tensor::InterpolateMode,
     value::ValueSpec,
 };
@@ -153,7 +154,10 @@ fn test_dynamic_shapes_export_with_their_run_time_sizes() {
         let rows = height.clone() * 2;
         let resized = input
             .narrow_with(3, 1_i64, width.clone() - 1)?
-            .interpolate_with((rows.clone(), width.clone()), InterpolateMode::Bicubic)?;
+            .interpolate(
+                Spatial2d::new(rows.clone(), width.clone()),
+                InterpolateMode::Bicubic,
+            )?;
         let columns = Tensor::range(device, 0_i64, width.clone())?
             .cast(DataType::F32)?
             .unsqueeze(0)?
@@ -311,9 +315,9 @@ fn test_bf16_spatial_operators_are_rejected_before_serialization() {
                     Ok(vec![call_one(
                         operation,
                         OperationAttributes::Conv2d(Conv2dAttributes {
-                            stride: (1, 1),
-                            padding: (0, 0, 0, 0),
-                            dilation: (1, 1),
+                            stride: Spatial2d::square(1),
+                            padding: Padding2d::default(),
+                            dilation: Spatial2d::square(1),
                             groups: 1,
                             has_bias: false,
                         }),
@@ -329,10 +333,10 @@ fn test_bf16_spatial_operators_are_rejected_before_serialization() {
                 image,
                 operation,
                 OperationAttributes::Pool2d(Pool2dAttributes {
-                    kernel_size: (2, 2),
-                    stride: (1, 1),
-                    padding: (0, 0, 0, 0),
-                    dilation: (1, 1),
+                    kernel_size: Spatial2d::square(2),
+                    stride: Spatial2d::square(1),
+                    padding: Padding2d::default(),
+                    dilation: Spatial2d::square(1),
                     ceil_mode: false,
                     count_include_pad: (operation == Operation::AvgPool2d).then_some(false),
                 }),

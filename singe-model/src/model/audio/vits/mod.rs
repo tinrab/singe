@@ -9,9 +9,10 @@ use serde::{Deserialize, Serialize};
 use singe::{
     DataType, Error as SingeError, Result as SingeResult, Shape, Tensor,
     nn::{
-        Activation, Conv1d, Conv1dConfig, ConvTranspose1d, ConvTransposeConfig, Embedding,
+        Activation, Conv1d, Conv1dConfig, ConvTranspose1d, ConvTranspose1dConfig, Embedding,
         LayerNorm, Linear, ModelState, StateKey,
     },
+    shape::spatial::Padding,
 };
 
 use crate::{
@@ -176,7 +177,7 @@ impl EncoderLayer {
         let width = config.width;
         let kernel = config.ffn_kernel;
         let feed_forward = Conv1dConfig {
-            padding: ((kernel - 1) / 2, kernel / 2),
+            padding: Padding::new((kernel - 1) / 2, kernel / 2),
             ..Conv1dConfig::default()
         };
         Ok(Self {
@@ -642,10 +643,10 @@ impl HifiGan {
                 channels,
                 channels / 2,
                 kernel,
-                ConvTransposeConfig {
-                    stride: [rate],
-                    padding: [(kernel - rate) / 2],
-                    ..ConvTransposeConfig::default()
+                ConvTranspose1dConfig {
+                    stride: rate,
+                    padding: (kernel - rate) / 2,
+                    ..ConvTranspose1dConfig::default()
                 },
                 true,
             )?);

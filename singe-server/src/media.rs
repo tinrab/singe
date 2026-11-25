@@ -7,6 +7,7 @@ use image::{
     ExtendedColorType, ImageEncoder, ImageFormat, RgbImage,
     codecs::{jpeg::JpegEncoder, png::PngEncoder, webp::WebPEncoder},
 };
+use singe::shape::spatial::{Spatial2d, Spatial2dI64};
 use singe_model::processor::image::Image;
 
 use crate::error::{ApiError, ApiResult};
@@ -216,7 +217,7 @@ pub fn decode_image(bytes: &[u8], max_pixels: u64) -> ApiResult<Image> {
 /// # Errors
 ///
 /// Returns a 400 error if the size is malformed or a side is not a positive multiple of 8.
-pub fn parse_size(size: Option<&str>) -> ApiResult<Option<(i64, i64)>> {
+pub fn parse_size(size: Option<&str>) -> ApiResult<Option<Spatial2dI64>> {
     let Some(size) = size.filter(|size| *size != "auto") else {
         return Ok(None);
     };
@@ -231,7 +232,7 @@ pub fn parse_size(size: Option<&str>) -> ApiResult<Option<(i64, i64)>> {
             "a size whose sides are not positive multiples of 8",
         ));
     }
-    Ok(Some((width, height)))
+    Ok(Some(Spatial2d::new(height, width)))
 }
 
 /// Formats a transcript as one SubRip cue over the whole clip, `duration` seconds long.

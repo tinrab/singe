@@ -15,7 +15,10 @@ use crate::{
         spec::{self, ConvolutionWindow},
     },
     error::{Error, Result},
-    shape::Shape,
+    shape::{
+        Shape,
+        spatial::{Padding2d, Spatial2dI64},
+    },
     tensor::Tensor,
 };
 
@@ -23,9 +26,9 @@ pub fn conv2d(
     input: &Tensor,
     weight: &Tensor,
     bias: Option<&Tensor>,
-    stride: (i64, i64),
-    padding: (i64, i64, i64, i64),
-    dilation: (i64, i64),
+    stride: Spatial2dI64,
+    padding: Padding2d,
+    dilation: Spatial2dI64,
     groups: i64,
 ) -> Result<Tensor> {
     ensure_same_data_type(input, weight)?;

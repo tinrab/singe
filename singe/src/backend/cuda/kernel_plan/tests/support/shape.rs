@@ -1,15 +1,17 @@
+use crate::shape::spatial::Padding;
+
 pub fn expected_pad_f32(
     values: &[f32],
     input_dimensions: &[usize],
-    padding: &[(i64, i64)],
+    padding: &[Padding],
     pad_value: f32,
 ) -> Vec<f32> {
     let output_dimensions = input_dimensions
         .iter()
         .enumerate()
         .map(|(axis, &dimension)| {
-            let (before, after) = padding.get(axis).copied().unwrap_or((0, 0));
-            dimension + usize::try_from(before).unwrap() + usize::try_from(after).unwrap()
+            let padding = padding.get(axis).copied().unwrap_or_default();
+            dimension + usize::try_from(padding.total()).unwrap()
         })
         .collect::<Vec<_>>();
     let output_len = output_dimensions.iter().product::<usize>();
@@ -23,7 +25,7 @@ pub fn expected_pad_f32(
             let coord = output_index / output_strides[axis] % output_dimensions[axis];
             let before = padding
                 .get(axis)
-                .map_or(0usize, |padding| usize::try_from(padding.0).unwrap());
+                .map_or(0usize, |padding| usize::try_from(padding.before).unwrap());
             if coord < before || coord >= before + input_dimensions[axis] {
                 inside = false;
                 break;

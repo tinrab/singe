@@ -7,7 +7,7 @@ use crate::{
     error::{Error, Result},
     graph::capture,
     nn::{Layer, ModelState},
-    shape::Shape,
+    shape::{Shape, spatial::Padding},
     tensor::Tensor,
 };
 
@@ -409,7 +409,7 @@ impl LogMelSpectrogram {
         let half = options.fft / 2;
         let padded = match options.padding {
             FramePadding::Reflect => samples.pad_reflect(1, half, half)?,
-            FramePadding::Zeros => samples.pad(&[(0, 0), (half, half)], 0.0)?,
+            FramePadding::Zeros => samples.pad(&[Padding::ZERO, Padding::symmetric(half)], 0.0)?,
         };
         let log = self.log_power(&padded)?;
         let total = (count + 2 * half - options.fft).div_euclid(options.hop) + 1;
@@ -480,7 +480,10 @@ impl Layer for LogMelSpectrogram {
         };
         let samples = samples.cast(DataType::F32)?;
         let samples = if length < options.samples {
-            samples.pad(&[(0, 0), (0, options.samples - length)], 0.0)?
+            samples.pad(
+                &[Padding::ZERO, Padding::new(0, options.samples - length)],
+                0.0,
+            )?
         } else {
             samples.narrow(1, 0, options.samples)?
         };

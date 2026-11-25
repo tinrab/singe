@@ -1,3 +1,5 @@
+use singe::shape::spatial::Spatial2dI64;
+
 use crate::processor::image::Image;
 
 /// Returns a mask of `width × height` pixels, white where `inside` holds.
@@ -12,12 +14,11 @@ pub fn mask(width: u32, height: u32, inside: impl IntoIterator<Item = bool>) -> 
     )
 }
 
-/// Returns a keypoint `[x, y]` at the pixels of an image of `from` pixels, `(height, width)`, moved to `image`'s, through coordinates relative to each side in `F32`, truncated to whole pixels, as `post_process_keypoint_detection` and `post_process_keypoint_matching` compute them.
+/// Returns a keypoint `[x, y]` at the pixels of an image of `from` pixels, moved to `image`'s, through coordinates relative to each side in `F32`, truncated to whole pixels, as `post_process_keypoint_detection` and `post_process_keypoint_matching` compute them.
 #[must_use]
-pub(crate) fn rescaled_point([x, y]: [f32; 2], from: (i64, i64), image: &Image) -> [i32; 2] {
-    let (height, width) = (from.0 as f32, from.1 as f32);
+pub(crate) fn rescaled_point([x, y]: [f32; 2], from: Spatial2dI64, image: &Image) -> [i32; 2] {
     [
-        (x / width * image.width as f32) as i32,
-        (y / height * image.height as f32) as i32,
+        (x / from.width as f32 * image.width as f32) as i32,
+        (y / from.height as f32 * image.height as f32) as i32,
     ]
 }

@@ -4,6 +4,7 @@ use crate::{
         ir::{ValueId, operation_attributes},
         node::NodeRef,
     },
+    shape::spatial::{Padding2d, Spatial2dI64},
 };
 
 impl NodeRef<'_> {
@@ -223,10 +224,10 @@ type NormalizationParameters = (ValueId, Vec<i64>, Option<ValueId>, Option<Value
 
 type Pool2DParameters = (
     ValueId,
-    (i64, i64),
-    (i64, i64),
-    (i64, i64, i64, i64),
-    (i64, i64),
+    Spatial2dI64,
+    Spatial2dI64,
+    Padding2d,
+    Spatial2dI64,
     bool,
     bool,
     bool,
@@ -236,8 +237,8 @@ type Conv2DParameters = (
     ValueId,
     ValueId,
     Option<ValueId>,
-    (i64, i64),
-    (i64, i64, i64, i64),
-    (i64, i64),
+    Spatial2dI64,
+    Padding2d,
+    Spatial2dI64,
     i64,
 );

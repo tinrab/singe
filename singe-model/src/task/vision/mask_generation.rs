@@ -1,7 +1,11 @@
 //! `mask-generation`: an image to masks of everything in it, as `transformers`' pipeline finds them with SAM: a grid of points, each decoded into candidate masks, kept by their predicted quality and their stability, resized to the image, and deduplicated by their boxes, best first.
 
 use serde::{Deserialize, Serialize};
-use singe::{DataType, Error as SingeError, Shape, Tensor, tensor::InterpolateMode};
+use singe::{
+    DataType, Error as SingeError, Shape, Tensor,
+    shape::spatial::{Spatial2d, Spatial2dI64},
+    tensor::InterpolateMode,
+};
 
 use crate::{
     error::Result,
@@ -112,10 +116,14 @@ fn suppress(boxes: &[[f32; 4]], scores: &[f32], threshold: f32) -> Vec<usize> {
     kept
 }
 
-fn scaled_grid(side: usize, (height, width): (i64, i64), resized: (i64, i64)) -> Vec<[f32; 2]> {
+fn scaled_grid(
+    side: usize,
+    Spatial2d { height, width }: Spatial2dI64,
+    resized: Spatial2dI64,
+) -> Vec<[f32; 2]> {
     let (scale_x, scale_y) = (
-        resized.1 as f64 / width as f64,
-        resized.0 as f64 / height as f64,
+        resized.width as f64 / width as f64,
+        resized.height as f64 / height as f64,
     );
     point_grid(side)
         .into_iter()
@@ -141,8 +149,8 @@ impl MaskGenerationPipeline {
         &self,
         embedding: &Tensor,
         points: &[[f32; 2]],
-        (height, width): (i64, i64),
-        (resized_height, resized_width): (i64, i64),
+        size: Spatial2dI64,
+        resized: Spatial2dI64,
     ) -> Result<(Tensor, Vec<f32>)> {
         let target = self.model.image_size();
         let (low, quality) = self.model.decode(embedding, points)?;
@@ -152,11 +160,11 @@ impl MaskGenerationPipeline {
         // Resized to the padded input, cropped to the resized image, and resized to the image, as `post_process_masks` does.
         let masks = low
             .cast(DataType::F32)?
-            .interpolate((target, target), InterpolateMode::Bilinear)?
-            .narrow(2, 0, resized_height)?
-            .narrow(3, 0, resized_width)?
-            .interpolate((height, width), InterpolateMode::Bilinear)?
-            .reshape([count * candidates, height, width])?;
+            .interpolate(Spatial2d::square(target), InterpolateMode::Bilinear)?
+            .narrow(2, 0, resized.height)?
+            .narrow(3, 0, resized.width)?
+            .interpolate(size, InterpolateMode::Bilinear)?
+            .reshape([count * candidates, size.height, size.width])?;
         Ok((masks, quality.cast(DataType::F32)?.to_vec::<f32>()?))
     }
 }
@@ -177,13 +185,13 @@ impl Pipeline for MaskGenerationPipeline {
     }
 
     fn run_one(&self, image: &Self::Input, parameters: &Self::Parameters) -> Result<Self::Output> {
-        let size = (i64::from(image.height), i64::from(image.width));
+        let size = Spatial2d::new(i64::from(image.height), i64::from(image.width));
         let pixels =
             self.processor
                 .preprocess(image, self.options.device, self.options.data_type)?;
         let embedding = self.model.embed(&pixels)?;
         // The resized image's size, which points scale to and masks are cropped to, as `_normalize_coordinates` rounds it.
-        let resized = Resize::Longest(self.model.image_size()).size(size.0, size.1);
+        let resized = Resize::Longest(self.model.image_size()).size(size);
         let level = |value: f32| -> Result<Tensor> {
             Ok(Tensor::from_vec(
                 self.options.device,

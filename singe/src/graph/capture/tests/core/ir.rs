@@ -1,5 +1,5 @@
 use super::*;
-use crate::graph::ir::Graph;
+use crate::{graph::ir::Graph, shape::spatial::Padding};
 
 macro_rules! find_attribute {
     ($ir:ident, $kind:expr, $accessor:ident) => {
@@ -57,7 +57,7 @@ pub fn assert_numeric_capture_ir(ir: &Graph) {
     let pad = find_attribute!(ir, Operation::Pad, pad);
     assert_eq!(
         pad.map(|attributes| (attributes.padding.clone(), attributes.value)),
-        Some((vec![(1, 1)], -1.0)),
+        Some((vec![Padding::symmetric(1)], -1.0)),
     );
 
     let clamp = find_attribute!(ir, Operation::Clamp, clamp);

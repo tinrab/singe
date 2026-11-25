@@ -1,4 +1,5 @@
 use super::*;
+use crate::shape::spatial::Padding;
 
 #[test]
 fn test_cuda_eager_causal_depthwise_conv1d_matches_the_cpu() {
@@ -20,7 +21,14 @@ fn test_cuda_eager_causal_depthwise_conv1d_matches_the_cpu() {
         let input = Tensor::from_vec(device, shape(&[batch, channels, length]), input.clone())?;
         let weight = Tensor::from_vec(device, shape(&[channels, 1, taps]), weight.clone())?;
         let bias = Tensor::from_vec(device, shape(&[channels]), bias.clone())?;
-        input.convolution1d(&weight, Some(&bias), 1, (taps - 1, 0), 1, channels)
+        input.convolution1d(
+            &weight,
+            Some(&bias),
+            1,
+            Padding::new(taps - 1, 0),
+            1,
+            channels,
+        )
     };
     let expected = convolve(Device::Cpu).unwrap();
     let Some(actual) = skip_if_stub(convolve(Device::Cuda(0))) else {

@@ -1,4 +1,6 @@
-use singe::{DataType, Device, Shape, Tensor, random::Generator, set_num_threads};
+use singe::{
+    DataType, Device, Shape, Tensor, random::Generator, set_num_threads, shape::spatial::Padding2d,
+};
 
 fn random(generator: &Generator, dimensions: &[i64]) -> Tensor {
     Tensor::rand(
@@ -30,13 +32,27 @@ fn results() -> Vec<Vec<f32>> {
         values.softmax(1).unwrap(),
         values.matmul(&transposed).unwrap(),
         image
-            .convolution2d(&filters, Some(&bias), (1, 1), (1, 1, 1, 1), (1, 1), 2)
+            .convolution2d(
+                &filters,
+                Some(&bias),
+                (1, 1),
+                Padding2d::symmetric(1, 1),
+                (1, 1),
+                2,
+            )
             .unwrap(),
         image
-            .max_pool2d((3, 3), (2, 2), (1, 1, 1, 1), (1, 1), false)
+            .max_pool2d((3, 3), (2, 2), Padding2d::symmetric(1, 1), (1, 1), false)
             .unwrap(),
         image
-            .avg_pool2d((3, 3), (2, 2), (1, 1, 1, 1), (1, 1), false, true)
+            .avg_pool2d(
+                (3, 3),
+                (2, 2),
+                Padding2d::symmetric(1, 1),
+                (1, 1),
+                false,
+                true,
+            )
             .unwrap(),
         values
             .layer_norm(&[512], Some(&row), Some(&row), 1e-5)

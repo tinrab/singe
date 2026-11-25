@@ -21,7 +21,10 @@ use crate::{
     device::Device,
     dispatch::call_one,
     layout::Layout,
-    shape::Shape,
+    shape::{
+        Shape,
+        spatial::{Padding, Padding2d, Spatial2d},
+    },
     tensor::Tensor,
     value::ValueSpec,
 };
@@ -912,29 +915,43 @@ fn test_window_reductions_match_the_cpu_pools_and_depthwise_convolutions() {
         // Plain windows, padded and dilated windows, ceil-mode windows that overhang the padding, and a `[C, H, W]` image.
         (
             vec![2_i64, 3, 9, 8],
-            (3, 2),
-            (2, 2),
-            (0, 0, 0, 0),
-            (1, 1),
+            Spatial2d::new(3, 2),
+            Spatial2d::square(2),
+            Padding2d::default(),
+            Spatial2d::square(1),
             false,
         ),
         (
             vec![1, 2, 9, 8],
-            (3, 3),
-            (2, 1),
-            (1, 1, 1, 0),
-            (2, 1),
+            Spatial2d::square(3),
+            Spatial2d::new(2, 1),
+            Padding2d::new(Padding::new(1, 1), Padding::new(1, 0)),
+            Spatial2d::new(2, 1),
             false,
         ),
-        (vec![1, 2, 7, 8], (3, 2), (2, 3), (1, 0, 0, 1), (1, 1), true),
-        (vec![3, 6, 5], (2, 2), (1, 2), (1, 1, 0, 0), (1, 1), true),
+        (
+            vec![1, 2, 7, 8],
+            Spatial2d::new(3, 2),
+            Spatial2d::new(2, 3),
+            Padding2d::new(Padding::new(1, 0), Padding::new(0, 1)),
+            Spatial2d::square(1),
+            true,
+        ),
+        (
+            vec![3, 6, 5],
+            Spatial2d::square(2),
+            Spatial2d::new(1, 2),
+            Padding2d::symmetric(1, 0),
+            Spatial2d::square(1),
+            true,
+        ),
     ];
     for (dimensions, kernel_size, stride, padding, dilation, ceil_mode) in pools {
         let input = sample(&dimensions, 1, DataType::F32)
             .sub_scalar(1.0)
             .unwrap();
         let mut cases = vec![(Operation::MaxPool2d, None)];
-        if dilation == (1, 1) {
+        if dilation == Spatial2d::square(1) {
             cases.push((Operation::AvgPool2d, Some(true)));
             cases.push((Operation::AvgPool2d, Some(false)));
         }
@@ -963,12 +980,20 @@ fn test_window_reductions_match_the_cpu_pools_and_depthwise_convolutions() {
             3_i64,
             1_i64,
             (3_i64, 3_i64),
-            (1_i64, 1_i64),
-            (1, 1, 1, 1),
-            (1_i64, 1_i64),
+            Spatial2d::square(1),
+            Padding2d::symmetric(1, 1),
+            Spatial2d::square(1),
             true,
         ),
-        (2, 2, (2, 3), (2, 1), (0, 1, 2, 0), (2, 1), false),
+        (
+            2,
+            2,
+            (2, 3),
+            Spatial2d::new(2, 1),
+            Padding2d::new(Padding::new(0, 1), Padding::new(2, 0)),
+            Spatial2d::new(2, 1),
+            false,
+        ),
     ];
     for (channels, multiplier, (kernel_height, kernel_width), stride, padding, dilation, biased) in
         convolutions

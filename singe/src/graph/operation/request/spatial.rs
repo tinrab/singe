@@ -4,11 +4,11 @@ use crate::{
         ir::ValueId,
         operation::{GraphOperationInputs, GraphOperationOutput, GraphOperationRequest},
     },
+    shape::spatial::{Padding2d, Spatial2dI64},
 };
 
 impl GraphOperationRequest {
     /// Creates a convolution request with input, filter, and optional bias operands.
-    /// Stride and dilation use height and width order; padding uses height start, height end, width start, and width end order.
     /// The request stores operands and attributes without validating them; graph insertion performs logical inference.
     #[must_use]
     pub fn conv2d(
@@ -16,9 +16,9 @@ impl GraphOperationRequest {
         input: ValueId,
         weight: ValueId,
         bias: Option<ValueId>,
-        stride: (i64, i64),
-        padding: (i64, i64, i64, i64),
-        dilation: (i64, i64),
+        stride: Spatial2dI64,
+        padding: Padding2d,
+        dilation: Spatial2dI64,
         groups: i64,
         output: GraphOperationOutput,
     ) -> Self {
@@ -50,10 +50,10 @@ impl GraphOperationRequest {
         name: Option<String>,
         operation: Operation,
         input: ValueId,
-        kernel_size: (i64, i64),
-        stride: (i64, i64),
-        padding: (i64, i64, i64, i64),
-        dilation: (i64, i64),
+        kernel_size: Spatial2dI64,
+        stride: Spatial2dI64,
+        padding: Padding2d,
+        dilation: Spatial2dI64,
         ceil_mode: bool,
         count_include_pad: bool,
         output: GraphOperationOutput,

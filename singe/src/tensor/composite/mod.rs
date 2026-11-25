@@ -17,7 +17,10 @@ use crate::{
     graph::capture,
     layout::Layout,
     scalar::Scalar,
-    shape::{Shape, normalize_dim_usize},
+    shape::{
+        Shape, normalize_dim_usize,
+        spatial::{Padding, Padding2d},
+    },
     tensor::Tensor,
     utility::{to_i64, to_usize},
 };
@@ -143,7 +146,7 @@ impl Tensor {
         weight: &Self,
         bias: Option<&Self>,
         stride: i64,
-        padding: (i64, i64),
+        padding: Padding,
         dilation: i64,
         groups: i64,
     ) -> Result<Self> {
@@ -152,7 +155,7 @@ impl Tensor {
                 &weight.unsqueeze(2)?,
                 bias,
                 (1, stride),
-                (0, 0, padding.0, padding.1),
+                Padding2d::new(Padding::ZERO, padding),
                 (1, dilation),
                 groups,
             )?

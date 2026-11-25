@@ -173,11 +173,11 @@ pub fn export(
         }
         Task::ImageFeatureExtraction => {
             let model: ImageEncoder = model::load(source, load)?;
-            let [height, width] = image_size(&ImageTransforms::load(source)?)?;
+            let size = image_size(&ImageTransforms::load(source)?)?;
             let images = Tensor::zeroed_on(
                 options.device,
                 options.data_type,
-                Shape::create([1, 3, height, width])?,
+                Shape::create([1, 3, size.height, size.width])?,
             )?;
             let (graph, _) = model.capture_graph("images", images)?;
             runner(&graph, directory, options)?;

@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use singe::{
     Error as SingeError, Result as SingeResult, Tensor,
     nn::{Activation, Conv2d, Conv2dConfig, GroupNorm, Layer, Linear, Mlp, ModelState, Upsample},
+    shape::spatial::{Padding, Padding2d, Spatial2d, Spatial2dI64},
     tensor::InterpolateMode,
 };
 
@@ -130,9 +131,9 @@ pub fn downsample(
     padding: i64,
 ) -> SingeResult<Conv2d> {
     let padding = if padding == 0 {
-        (0, 1, 0, 1)
+        Padding2d::new(Padding::new(0, 1), Padding::new(0, 1))
     } else {
-        (padding, padding, padding, padding)
+        Padding2d::symmetric(padding, padding)
     };
     schema.conv2d(
         name,
@@ -140,7 +141,7 @@ pub fn downsample(
         channels,
         3,
         Conv2dConfig {
-            stride: (2, 2),
+            stride: Spatial2d::square(2),
             padding,
             ..Conv2dConfig::default()
         },
@@ -161,16 +162,15 @@ impl UpsampleBlock {
         })
     }
 
-    /// Upsamples `input` to `height × width`, as `diffusers` does to meet a skip connection the doubled size would miss.
+    /// Upsamples `input` to `size`, as `diffusers` does to meet a skip connection the doubled size would miss.
     pub fn forward_to(
         &self,
         input: &Tensor,
-        height: i64,
-        width: i64,
+        size: Spatial2dI64,
         state: &ModelState,
     ) -> SingeResult<Tensor> {
         input
-            .interpolate((height, width), InterpolateMode::Nearest)?
+            .interpolate(size, InterpolateMode::Nearest)?
             .apply(&self.conv, state)
     }
 }
@@ -555,8 +555,7 @@ impl<A> Unet<A> {
                 let skip = skips
                     .last()
                     .ok_or_else(|| SingeError::missing_input("a skip connection"))?;
-                let (height, width) = spatial(skip)?;
-                hidden = upsample.forward_to(&hidden, height, width, state)?;
+                hidden = upsample.forward_to(&hidden, spatial(skip)?, state)?;
             }
         }
         hidden

@@ -12,16 +12,17 @@ use crate::{
     device::Device,
     error::{Error, Result},
     parallel::{self, GRAIN_SIZE},
+    shape::spatial::{Padding2d, Spatial2d, Spatial2dI64},
     tensor::Tensor,
     utility::to_usize,
 };
 
 pub fn max_pool2d(
     input: &Tensor,
-    kernel_size: (i64, i64),
-    stride: (i64, i64),
-    padding: (i64, i64, i64, i64),
-    dilation: (i64, i64),
+    kernel_size: Spatial2dI64,
+    stride: Spatial2dI64,
+    padding: Padding2d,
+    dilation: Spatial2dI64,
     ceil_mode: bool,
 ) -> Result<Tensor> {
     fn maximum<T: NativeFloat>(taps: &Taps<'_, T>) -> T {
@@ -55,10 +56,10 @@ pub fn max_pool2d(
 
 pub fn avg_pool2d(
     input: &Tensor,
-    kernel_size: (i64, i64),
-    stride: (i64, i64),
-    padding: (i64, i64, i64, i64),
-    dilation: (i64, i64),
+    kernel_size: Spatial2dI64,
+    stride: Spatial2dI64,
+    padding: Padding2d,
+    dilation: Spatial2dI64,
     ceil_mode: bool,
     count_include_pad: bool,
 ) -> Result<Tensor> {
@@ -118,13 +119,7 @@ impl<T: Copy> Taps<'_, T> {
     }
 }
 
-type PoolOptions = (
-    (i64, i64),
-    (i64, i64),
-    (i64, i64, i64, i64),
-    (i64, i64),
-    bool,
-);
+type PoolOptions = (Spatial2dI64, Spatial2dI64, Padding2d, Spatial2dI64, bool);
 
 /// Computes each output element of a pooling over `[N, C, H, W]` or `[C, H, W]` input from its window's taps, splitting output elements across threads.
 fn pool2d<T: NativeFloat>(
@@ -149,7 +144,7 @@ fn pool2d<T: NativeFloat>(
         diagnostic_prefix,
     )?;
     let window = Window2d::create(
-        (problem.input_height, problem.input_width),
+        Spatial2d::new(problem.input_height, problem.input_width),
         kernel_size,
         stride,
         padding,

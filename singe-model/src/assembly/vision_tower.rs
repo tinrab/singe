@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use singe::{
     Result as SingeResult,
     nn::{Conv2dConfig, PatchEmbedding},
+    shape::spatial::Spatial2d,
 };
 
 use crate::{assembly::PreNormEncoderConfig, schema::Schema};
@@ -43,7 +44,7 @@ pub fn patch_embedding(
         width,
         patch,
         Conv2dConfig {
-            stride: (patch, patch),
+            stride: Spatial2d::square(patch),
             ..Conv2dConfig::default()
         },
         bias,

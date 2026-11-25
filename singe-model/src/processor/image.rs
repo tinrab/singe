@@ -8,7 +8,10 @@ use serde::{
     Deserialize, Deserializer, Serialize, Serializer, de::Error as DeError, ser::Error as SerError,
 };
 use serde_json::Value;
-use singe::{DataType, Device, Error as SingeError, Result as SingeResult, Shape, Tensor};
+use singe::{
+    DataType, Device, Error as SingeError, Result as SingeResult, Shape, Tensor,
+    shape::spatial::{self, Spatial2d, Spatial2dI64},
+};
 
 use crate::{
     error::{Error, Result},
@@ -309,26 +312,26 @@ pub enum Resize {
 
 impl Resize {
     #[must_use]
-    pub fn size(self, height: i64, width: i64) -> (i64, i64) {
+    pub fn size(self, image: Spatial2dI64) -> Spatial2dI64 {
+        let Spatial2d { height, width } = image;
         match self {
-            Self::Exact { height, width } => (height, width),
+            Self::Exact { height, width } => Spatial2d::new(height, width),
             Self::ShortestEdge(edge) => {
                 let (short, long) = (height.min(width), height.max(width));
                 let long = (edge as f64 * long as f64 / short as f64) as i64;
                 if height <= width {
-                    (edge, long)
+                    Spatial2d::new(edge, long)
                 } else {
-                    (long, edge)
+                    Spatial2d::new(long, edge)
                 }
             }
             Self::Thumbnail {
                 height: most_height,
                 width: most_width,
-            } => Self::ShortestEdge(most_height.min(most_width)).size(height, width),
+            } => Self::ShortestEdge(most_height.min(most_width)).size(image),
             Self::Longest(edge) => {
                 let scale = edge as f64 / height.max(width) as f64;
-                let side = |side: i64| (side as f64 * scale + 0.5) as i64;
-                (side(height), side(width))
+                image.map(|side| (side as f64 * scale + 0.5) as i64)
             }
             Self::Fitted {
                 height: target_height,
@@ -350,7 +353,7 @@ impl Resize {
                 let multiple = multiple as f64;
                 let constrain =
                     |value: f64| ((value / multiple).round_ties_even() * multiple) as i64;
-                (
+                Spatial2d::new(
                     constrain(scale_height * height as f64),
                     constrain(scale_width * width as f64),
                 )
@@ -383,7 +386,7 @@ impl Resize {
                 } else {
                     (size, scaled(width, height))
                 };
-                (
+                Spatial2d::new(
                     out_height - out_height % multiple,
                     out_width - out_width % multiple,
                 )
@@ -393,7 +396,7 @@ impl Resize {
 
     /// Returns the size Donut's `thumbnail` shrinks an image to so it fits within a [`Resize::Thumbnail`]'s `height × width`: each side capped, then the shorter side scaled by as much as the longer to keep the aspect ratio, truncated.
     /// Returns `None` when the image fits already, or for another variant.
-    fn thumbnail(self, height: i64, width: i64) -> Option<(i64, i64)> {
+    fn thumbnail(self, Spatial2d { height, width }: Spatial2dI64) -> Option<Spatial2dI64> {
         let Self::Thumbnail {
             height: most_height,
             width: most_width,
@@ -412,7 +415,7 @@ impl Resize {
         } else if width > height {
             fitted_height = (height as f64 * fitted_width as f64 / width as f64) as i64;
         }
-        Some((fitted_height, fitted_width))
+        Some(Spatial2d::new(fitted_height, fitted_width))
     }
 }
 
@@ -456,7 +459,7 @@ pub struct ImageTransforms {
     pub resize: Option<Resize>,
     pub resample: Resample,
     /// The center crop's height and width.
-    pub crop: Option<[i64; 2]>,
+    pub crop: Option<Spatial2dI64>,
     /// What pixel values from 0 to 255 are multiplied by, such as `1 / 255`.
     pub rescale: Option<f64>,
     pub pad: Option<Padding>,
@@ -484,7 +487,7 @@ impl ImageTransforms {
         };
         let donut = config.donut_size()?;
         let resize = match donut {
-            Some((height, width)) => config
+            Some(Spatial2d { height, width }) => config
                 .flag("do_resize", true)
                 .then_some(Resize::Thumbnail { height, width }),
             None => config.resize()?,
@@ -564,19 +567,27 @@ impl ImageTransforms {
         let Some(resize) = self.resize else {
             return Ok(Cow::Borrowed(image));
         };
-        let (height, width) = resize.size(i64::from(image.height), i64::from(image.width));
-        let resized = image.resized(extent(height)?, extent(width)?, self.resample);
-        let thumbnail = resize.thumbnail(i64::from(resized.height), i64::from(resized.width));
+        let size = resize.size(Spatial2d::new(
+            i64::from(image.height),
+            i64::from(image.width),
+        ));
+        let resized = image.resized(extent(size.height)?, extent(size.width)?, self.resample);
+        let thumbnail = resize.thumbnail(Spatial2d::new(
+            i64::from(resized.height),
+            i64::from(resized.width),
+        ));
         Ok(Cow::Owned(match thumbnail {
-            Some((height, width)) => {
-                resized.resized(extent(height)?, extent(width)?, self.resample)
-            }
+            Some(size) => resized.resized(extent(size.height)?, extent(size.width)?, self.resample),
             None => resized,
         }))
     }
 }
 
-fn center_crop(tensor: &Tensor, [crop_height, crop_width]: [i64; 2]) -> Result<Tensor> {
+fn center_crop(tensor: &Tensor, crop: Spatial2dI64) -> Result<Tensor> {
+    let Spatial2d {
+        height: crop_height,
+        width: crop_width,
+    } = crop;
     let &[_, _, height, width] = tensor.shape().dimensions() else {
         return Err(SingeError::invalid_argument("an image, [1, 3, H, W]").into());
     };
@@ -611,10 +622,10 @@ fn zero_padded(tensor: &Tensor, padded_height: i64, padded_width: i64) -> Result
 
     Ok(tensor.pad(
         &[
-            (0, 0),
-            (0, 0),
-            (0, padded_height - height),
-            (0, padded_width - width),
+            spatial::Padding::ZERO,
+            spatial::Padding::ZERO,
+            spatial::Padding::new(0, padded_height - height),
+            spatial::Padding::new(0, padded_width - width),
         ],
         0.0,
     )?)
@@ -662,7 +673,7 @@ impl PreprocessorConfig<'_> {
                 },
             },
             None => {
-                let [height, width] = sides(size)
+                let Spatial2d { height, width } = sides(size)
                     .ok_or_else(|| Error::unsupported(format!("an image size of {size}")))?;
                 let keep_aspect_ratio = self.flag("keep_aspect_ratio", false);
                 let multiple = fields["ensure_multiple_of"].as_i64().unwrap_or(1);
@@ -680,9 +691,9 @@ impl PreprocessorConfig<'_> {
         }))
     }
 
-    /// Returns the `(height, width)` a `DonutImageProcessor` config's size names, or `None` for another class.
+    /// Returns the size a `DonutImageProcessor` config names, or `None` for another class.
     /// Donut's processor reads a list size as `[width, height]`, resizes the shorter side, thumbnails, and pads to the size, centered.
-    fn donut_size(&self) -> Result<Option<(i64, i64)>> {
+    fn donut_size(&self) -> Result<Option<Spatial2dI64>> {
         if self.class != "DonutImageProcessor" {
             return Ok(None);
         }
@@ -698,18 +709,18 @@ impl PreprocessorConfig<'_> {
         };
         height
             .zip(width)
-            .map(Some)
+            .map(|(height, width)| Some(Spatial2d::new(height, width)))
             .ok_or_else(|| Error::unsupported(format!("a Donut size of {size}")))
     }
 
-    fn crop(&self) -> Result<Option<[i64; 2]>> {
+    fn crop(&self) -> Result<Option<Spatial2dI64>> {
         if !self.flag("do_center_crop", false) {
             return Ok(None);
         }
 
         // Processors that crop default to 224 pixels square when the config leaves the size out.
         if self.fields["crop_size"].is_null() {
-            return Ok(Some([224, 224]));
+            return Ok(Some(Spatial2d::square(224)));
         }
 
         let size = &self.fields["crop_size"];
@@ -740,14 +751,14 @@ impl PreprocessorConfig<'_> {
         }))
     }
 
-    fn pad(&self, donut: Option<(i64, i64)>) -> Result<Option<Padding>> {
+    fn pad(&self, donut: Option<Spatial2dI64>) -> Result<Option<Padding>> {
         if !self.flag("do_pad", true) {
             return Ok(None);
         }
 
         Ok(match self.class {
             "DonutImageProcessor" => {
-                donut.map(|(height, width)| Padding::Centered { height, width })
+                donut.map(|Spatial2d { height, width }| Padding::Centered { height, width })
             }
             "Swin2SRImageProcessor" => Some(Padding::Symmetric {
                 multiple: self.fields["size_divisor"]
@@ -757,7 +768,7 @@ impl PreprocessorConfig<'_> {
             }),
             "SamImageProcessor" => {
                 let size = &self.fields["pad_size"];
-                let [height, width] = sides(size)
+                let Spatial2d { height, width } = sides(size)
                     .ok_or_else(|| Error::unsupported(format!("a SAM pad size of {size}")))?;
                 Some(Padding::Zeros { height, width })
             }
@@ -766,10 +777,15 @@ impl PreprocessorConfig<'_> {
     }
 }
 
-fn sides(value: &Value) -> Option<[i64; 2]> {
+fn sides(value: &Value) -> Option<Spatial2dI64> {
     value
         .as_i64()
-        .map(|side| [side, side])
-        .or_else(|| Some([value["height"].as_i64()?, value["width"].as_i64()?]))
-        .or_else(|| Some([value[0].as_i64()?, value[1].as_i64()?]))
+        .map(Spatial2d::square)
+        .or_else(|| {
+            Some(Spatial2d::new(
+                value["height"].as_i64()?,
+                value["width"].as_i64()?,
+            ))
+        })
+        .or_else(|| Some(Spatial2d::new(value[0].as_i64()?, value[1].as_i64()?)))
 }

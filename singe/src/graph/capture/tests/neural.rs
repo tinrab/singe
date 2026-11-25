@@ -1,4 +1,5 @@
 use super::*;
+use crate::shape::spatial::{Padding2d, Spatial2d};
 
 #[test]
 fn test_graph_capture_records_tensor_scaled_dot_product_attention() {
@@ -180,11 +181,11 @@ fn test_graph_capture_records_tensor_spatial_neural_ops() {
                 &inputs[1],
                 Some(&inputs[2]),
                 (1, 1),
-                (0, 0, 0, 0),
+                Padding2d::default(),
                 (1, 1),
                 1,
             )?;
-            let pool = inputs[0].max_pool2d((2, 2), (1, 1), (0, 0, 0, 0), (1, 1), false)?;
+            let pool = inputs[0].max_pool2d((2, 2), (1, 1), Padding2d::default(), (1, 1), false)?;
             Ok(vec![conv, pool])
         },
     )
@@ -218,6 +219,6 @@ fn test_graph_capture_records_tensor_spatial_neural_ops() {
                 attributes.count_include_pad,
             )
         }),
-        Some(((2, 2), (1, 1), None)),
+        Some((Spatial2d::square(2), Spatial2d::square(1), None)),
     );
 }

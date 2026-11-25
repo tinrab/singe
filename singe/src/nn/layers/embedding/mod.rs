@@ -7,6 +7,7 @@ use crate::{
     error::{Error, Result},
     graph::capture,
     nn::{Layer, LayerNorm, ModelState, PatchEmbedding, StateKey, TokenBatch},
+    shape::spatial::Spatial2d,
     tensor::{InterpolateMode, Tensor},
 };
 
@@ -217,7 +218,7 @@ fn resized_positions(
     };
     let (rows, columns) = (height / patch, image_width / patch);
     let rank = images.shape().dimensions().len();
-    let size = (
+    let size = Spatial2d::new(
         images.dimension(rank - 2)? / patch,
         images.dimension(rank - 1)? / patch,
     );
@@ -238,7 +239,7 @@ fn resized_positions(
         .reshape([1, side, side, width])?
         .permute(&[0, 3, 1, 2])?
         .cast(DataType::F32)?
-        .interpolate_with(size, InterpolateMode::Bicubic)?
+        .interpolate(size, InterpolateMode::Bicubic)?
         .cast(positions.data_type())?
         .permute(&[0, 2, 3, 1])?
         .flatten(1, 2)?;

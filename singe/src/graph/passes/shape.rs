@@ -2,7 +2,7 @@ use crate::{
     backend::spec as backend_spec,
     error::Result,
     graph::{Graph, ir::ValueId},
-    shape::Shape,
+    shape::{Shape, spatial::Padding},
 };
 
 pub fn infer_value_metadata(graph: &Graph) -> Result<(Graph, Vec<(ValueId, ValueId)>)> {
@@ -40,7 +40,7 @@ pub fn repeat_kv_output_shape_for_input(
 pub fn pad_output_shape_for_input(
     graph: &Graph,
     input: ValueId,
-    padding: &[(i64, i64)],
+    padding: &[Padding],
 ) -> Result<Shape> {
     let input_shape = graph.required_value_shape(input)?;
     Ok(

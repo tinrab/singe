@@ -7,6 +7,7 @@ use singe::{
     Error as SingeError, Result as SingeResult, Tensor,
     graph::{ComputePrecision, with_convolution_precision},
     nn::{Activation, Conv2d, ModelState},
+    shape::spatial::Padding2d,
 };
 
 use crate::{
@@ -112,7 +113,8 @@ impl KeypointLayers for SuperPointLayers {
                     .apply(&block.second, state)?
                     .apply(&Activation::Relu, state)?;
                 if block.pool {
-                    hidden = hidden.max_pool2d((2, 2), (2, 2), (0, 0, 0, 0), (1, 1), false)?;
+                    hidden =
+                        hidden.max_pool2d((2, 2), (2, 2), Padding2d::default(), (1, 1), false)?;
                 }
             }
 

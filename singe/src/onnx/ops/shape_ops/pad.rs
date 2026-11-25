@@ -13,7 +13,7 @@ use crate::{
         },
         utility::{node_label, node_name},
     },
-    shape::Shape,
+    shape::{Shape, spatial::Padding},
 };
 
 pub fn lower_pad(importer: &mut Importer, node: &Node) -> Result<()> {
@@ -37,7 +37,7 @@ pub fn lower_pad(importer: &mut Importer, node: &Node) -> Result<()> {
 
 pub struct PadPlan {
     pub(crate) input: ImportedValue,
-    pub(crate) padding: Vec<(i64, i64)>,
+    pub(crate) padding: Vec<Padding>,
     pub(crate) value: f32,
     pub(crate) shape: Shape,
 }

@@ -5,7 +5,10 @@ use crate::{
     device::Device,
     error::{Error, Result},
     graph::DimensionExpr,
-    shape::Shape,
+    shape::{
+        Shape,
+        spatial::{Spatial2d, Spatial2dExpr},
+    },
     tensor::{Interpolation, Tensor},
     utility::to_i64,
 };
@@ -28,7 +31,7 @@ pub enum SymbolicAttributes {
     },
     // A resize of the last two axes.
     Resize {
-        size: [DimensionExpr; 2],
+        size: Spatial2dExpr,
         interpolation: Interpolation,
     },
     // An `I64` constant counting from `start` up to, but not including, `end`.
@@ -59,7 +62,7 @@ impl SymbolicAttributes {
             | Self::Dimensions(dimensions)
             | Self::Fill { dimensions, .. } => dimensions.iter().collect(),
             Self::Slice { start, length, .. } => vec![start, length],
-            Self::Resize { size, .. } => size.iter().collect(),
+            Self::Resize { size, .. } => vec![&size.height, &size.width],
             Self::Range { start, end } => vec![start, end],
         }
     }
@@ -85,10 +88,10 @@ impl SymbolicAttributes {
                 length: map(length)?,
             },
             Self::Resize {
-                size: [height, width],
+                size,
                 interpolation,
             } => Self::Resize {
-                size: [map(height)?, map(width)?],
+                size: Spatial2d::new(map(&size.height)?, map(&size.width)?),
                 interpolation: *interpolation,
             },
             Self::Range { start, end } => Self::Range {
@@ -180,10 +183,10 @@ impl SymbolicAttributes {
                 }))
             }
             Self::Resize {
-                size: [height, width],
+                size,
                 interpolation,
             } => ResolvedAttributes::Operation(OperationAttributes::Resize(ResizeAttributes {
-                size: (evaluate(height)?, evaluate(width)?),
+                size: Spatial2d::new(evaluate(&size.height)?, evaluate(&size.width)?),
                 interpolation: *interpolation,
             })),
             Self::Range { start, end } => {

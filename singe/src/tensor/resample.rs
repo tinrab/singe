@@ -3,8 +3,11 @@ use crate::{
     data_type::DataType,
     dispatch::call_one,
     error::{Error, Result},
-    graph::{DimensionExpr, SymbolicAttributes, capture},
-    shape::Shape,
+    graph::{SymbolicAttributes, capture},
+    shape::{
+        Shape,
+        spatial::{Padding, Padding2d, Spatial2dExpr, Spatial2dI64, Spatial3dI64},
+    },
     tensor::{Tensor, TensorDataType},
 };
 
@@ -65,7 +68,7 @@ impl Tensor {
         &self,
         kernel_size: i64,
         stride: i64,
-        padding: (i64, i64),
+        padding: Padding,
         dilation: i64,
         ceil_mode: bool,
     ) -> Result<Self> {
@@ -73,7 +76,7 @@ impl Tensor {
             .max_pool2d(
                 (1, kernel_size),
                 (1, stride),
-                (0, 0, padding.0, padding.1),
+                Padding2d::new(Padding::ZERO, padding),
                 (1, dilation),
                 ceil_mode,
             )?
@@ -84,7 +87,7 @@ impl Tensor {
         &self,
         kernel_size: i64,
         stride: i64,
-        padding: (i64, i64),
+        padding: Padding,
         ceil_mode: bool,
         count_include_pad: bool,
     ) -> Result<Self> {
@@ -92,7 +95,7 @@ impl Tensor {
             .avg_pool2d(
                 (1, kernel_size),
                 (1, stride),
-                (0, 0, padding.0, padding.1),
+                Padding2d::new(Padding::ZERO, padding),
                 (1, 1),
                 ceil_mode,
                 count_include_pad,
@@ -106,55 +109,51 @@ impl Tensor {
     }
 
     // Averages the last two axes into `size` windows; a window's mean is the mean along one axis of the means along the other, since every window of a row has the same width.
-    pub fn adaptive_avg_pool2d(&self, size: (i64, i64)) -> Result<Self> {
-        self.adaptive_mean(-2, size.0)?.adaptive_mean(-1, size.1)
-    }
-
-    // Resamples the last two axes to `size`.
-    pub fn interpolate(
-        &self,
-        size: (i64, i64),
-        interpolation: impl Into<Interpolation>,
-    ) -> Result<Self> {
-        call_one(
-            Operation::Resize,
-            OperationAttributes::Resize(ResizeAttributes {
-                size,
-                interpolation: interpolation.into(),
-            }),
-            &[self],
-        )
+    pub fn adaptive_avg_pool2d(&self, size: impl Into<Spatial2dI64>) -> Result<Self> {
+        let size = size.into();
+        self.adaptive_mean(-2, size.height)?
+            .adaptive_mean(-1, size.width)
     }
 
     // Resamples the last two axes to `size`, which may depend on [`Self::dimension`], so a captured program's resize follows its run-time shapes.
-    pub fn interpolate_with(
+    pub fn interpolate(
         &self,
-        size: (DimensionExpr, DimensionExpr),
+        size: impl Into<Spatial2dExpr>,
         interpolation: impl Into<Interpolation>,
     ) -> Result<Self> {
+        let size = size.into();
         let interpolation = interpolation.into();
-        let (height, width) = size;
-        let output = self.interpolate(
-            (
-                capture::evaluate_dimension(&height)?,
-                capture::evaluate_dimension(&width)?,
-            ),
-            interpolation,
-        )?;
-        capture::record_attributes(
-            &output,
-            &SymbolicAttributes::Resize {
-                size: [height, width],
+        let output = call_one(
+            Operation::Resize,
+            OperationAttributes::Resize(ResizeAttributes {
+                size: Spatial2dI64::new(
+                    capture::evaluate_dimension(&size.height)?,
+                    capture::evaluate_dimension(&size.width)?,
+                ),
                 interpolation,
-            },
+            }),
+            &[self],
         )?;
+        if !(size.height.is_constant() && size.width.is_constant()) {
+            capture::record_attributes(
+                &output,
+                &SymbolicAttributes::Resize {
+                    size,
+                    interpolation,
+                },
+            )?;
+        }
         Ok(output)
     }
 
     // The decomposition of `Operation::Resize`, along the height and then the width.
-    pub(crate) fn resampled(&self, size: (i64, i64), interpolation: Interpolation) -> Result<Self> {
-        self.resampled_axis(-2, size.0, interpolation)?
-            .resampled_axis(-1, size.1, interpolation)
+    pub(crate) fn resampled(
+        &self,
+        size: Spatial2dI64,
+        interpolation: Interpolation,
+    ) -> Result<Self> {
+        self.resampled_axis(-2, size.height, interpolation)?
+            .resampled_axis(-1, size.width, interpolation)
     }
 
     // Takes the maximum of the last axis's windows, divided as `adaptive_avg_pool1d` divides them.
@@ -162,35 +161,42 @@ impl Tensor {
         self.adaptive(-1, size, Self::max_reduce)
     }
 
-    pub fn adaptive_max_pool2d(&self, size: (i64, i64)) -> Result<Self> {
-        self.adaptive(-2, size.0, Self::max_reduce)?
-            .adaptive(-1, size.1, Self::max_reduce)
+    pub fn adaptive_max_pool2d(&self, size: impl Into<Spatial2dI64>) -> Result<Self> {
+        let size = size.into();
+        self.adaptive(-2, size.height, Self::max_reduce)?
+            .adaptive(-1, size.width, Self::max_reduce)
     }
 
     // Pools `[N, C, D, H, W]` windows, separably: a box's maximum, and the count of its points inside the padded input, are the products of each axis's, so the depth pools first and the height and width after.
     pub fn max_pool3d(
         &self,
-        kernel_size: (i64, i64, i64),
-        stride: (i64, i64, i64),
-        padding: (i64, i64, i64),
-        dilation: (i64, i64, i64),
+        kernel_size: impl Into<Spatial3dI64>,
+        stride: impl Into<Spatial3dI64>,
+        padding: impl Into<Spatial3dI64>,
+        dilation: impl Into<Spatial3dI64>,
         ceil_mode: bool,
     ) -> Result<Self> {
+        let (kernel_size, stride, padding, dilation) = (
+            kernel_size.into(),
+            stride.into(),
+            padding.into(),
+            dilation.into(),
+        );
         self.pooled_depth(|depth| {
             depth.max_pool1d(
-                kernel_size.0,
-                stride.0,
-                (padding.0, padding.0),
-                dilation.0,
+                kernel_size.depth,
+                stride.depth,
+                Padding::symmetric(padding.depth),
+                dilation.depth,
                 ceil_mode,
             )
         })?
         .pooled_planes(|planes| {
             planes.max_pool2d(
-                (kernel_size.1, kernel_size.2),
-                (stride.1, stride.2),
-                (padding.1, padding.1, padding.2, padding.2),
-                (dilation.1, dilation.2),
+                kernel_size.planar(),
+                stride.planar(),
+                Padding2d::symmetric(padding.height, padding.width),
+                dilation.planar(),
                 ceil_mode,
             )
         })
@@ -198,26 +204,27 @@ impl Tensor {
 
     pub fn avg_pool3d(
         &self,
-        kernel_size: (i64, i64, i64),
-        stride: (i64, i64, i64),
-        padding: (i64, i64, i64),
+        kernel_size: impl Into<Spatial3dI64>,
+        stride: impl Into<Spatial3dI64>,
+        padding: impl Into<Spatial3dI64>,
         ceil_mode: bool,
         count_include_pad: bool,
     ) -> Result<Self> {
+        let (kernel_size, stride, padding) = (kernel_size.into(), stride.into(), padding.into());
         self.pooled_depth(|depth| {
             depth.avg_pool1d(
-                kernel_size.0,
-                stride.0,
-                (padding.0, padding.0),
+                kernel_size.depth,
+                stride.depth,
+                Padding::symmetric(padding.depth),
                 ceil_mode,
                 count_include_pad,
             )
         })?
         .pooled_planes(|planes| {
             planes.avg_pool2d(
-                (kernel_size.1, kernel_size.2),
-                (stride.1, stride.2),
-                (padding.1, padding.1, padding.2, padding.2),
+                kernel_size.planar(),
+                stride.planar(),
+                Padding2d::symmetric(padding.height, padding.width),
                 (1, 1),
                 ceil_mode,
                 count_include_pad,

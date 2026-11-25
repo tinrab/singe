@@ -9,7 +9,7 @@ use crate::{
     graph::{DimensionExpr, capture},
     nn::{Layer, Linear, ModelState, StateKey},
     scalar::Scalar,
-    shape::Shape,
+    shape::{Shape, spatial::Padding},
     tensor::{AttentionOptions, Tensor},
 };
 
@@ -164,7 +164,15 @@ fn attend_local(input: &LocalInput<'_>, window: i64, scale: f64) -> Result<Tenso
     let groups = (steps + group - 1) / group;
     let padded = groups * group;
     let rows = |tensor: &Tensor, before: i64, after: i64| {
-        tensor.pad(&[(0, 0), (0, 0), (before, after), (0, 0)], 0.0)
+        tensor.pad(
+            &[
+                Padding::ZERO,
+                Padding::ZERO,
+                Padding::new(before, after),
+                Padding::ZERO,
+            ],
+            0.0,
+        )
     };
     let content = rows(input.content, 0, padded - steps)?;
     let positional = rows(input.positional, 0, padded - steps)?;
@@ -239,7 +247,16 @@ fn attend_local(input: &LocalInput<'_>, window: i64, scale: f64) -> Result<Tenso
             .narrow(2, first * group, count * group)?
             .matmul(input.positions)?
             .reshape([batch, heads, count, group, 2 * window + 1])?
-            .pad(&[(0, 0), (0, 0), (0, 0), (0, 0), (0, group)], 0.0)?
+            .pad(
+                &[
+                    Padding::ZERO,
+                    Padding::ZERO,
+                    Padding::ZERO,
+                    Padding::ZERO,
+                    Padding::new(0, group),
+                ],
+                0.0,
+            )?
             .contiguous()?
             .reshape([batch, heads, count, group * (2 * group + 1)])?
             .narrow(-1, 0, group * 2 * group)?
@@ -402,8 +419,8 @@ fn rel_shift(scores: &Tensor) -> Result<Tensor> {
     let (outer, last) = extents.split_at(rank - 2);
     let (rows, columns) = (last[0].clone(), last[1].clone());
     let keys = columns.clone() - rows.clone() + 1;
-    let mut padding = vec![(0, 0); rank];
-    padding[rank - 1] = (1, 0);
+    let mut padding = vec![Padding::ZERO; rank];
+    padding[rank - 1] = Padding::new(1, 0);
     let shape = |last: &[DimensionExpr]| outer.iter().chain(last).cloned().collect::<Vec<_>>();
     scores
         .pad(&padding, 0.0)?

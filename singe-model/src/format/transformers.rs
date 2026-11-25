@@ -11,6 +11,7 @@ use singe::{
     Error as SingeError,
     generation::GenerationOptions,
     nn::{Activation, RotaryFrequencies, RotaryLayout, YarnFrequencies},
+    shape::spatial::{Spatial2d, Spatial2dI64},
 };
 
 use crate::{
@@ -65,6 +66,23 @@ pub fn activation_field<'de, D: Deserializer<'de>>(
 ) -> StdResult<Activation, D::Error> {
     let name = String::deserialize(deserializer)?;
     activation(&name).map_err(DeError::custom)
+}
+
+/// Reads a config field that sizes both sides of an image, written as `[height, width]` or as one side of a square, for `#[serde(deserialize_with = …)]`.
+pub fn spatial_field<'de, D: Deserializer<'de>>(
+    deserializer: D,
+) -> StdResult<Spatial2dI64, D::Error> {
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum Sides {
+        Square(i64),
+        Pair([i64; 2]),
+    }
+
+    Ok(match Sides::deserialize(deserializer)? {
+        Sides::Square(side) => Spatial2d::square(side),
+        Sides::Pair([height, width]) => Spatial2d::new(height, width),
+    })
 }
 
 /// The rotary fields of a `config.json`: `rope_parameters`, as `transformers` 5 saves them, or the older `rope_theta` and `rope_scaling`.

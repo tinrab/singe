@@ -18,6 +18,7 @@ use crate::{
     },
     error::Result,
     graph::ir::ValueId,
+    shape::spatial::{Padding2d, Spatial2dI64},
 };
 
 pub fn try_add_cudnn_conv2d_bias_relu_fusion(
@@ -25,9 +26,9 @@ pub fn try_add_cudnn_conv2d_bias_relu_fusion(
     input: ValueId,
     weight: ValueId,
     bias: ValueId,
-    stride: (i64, i64),
-    padding: (i64, i64, i64, i64),
-    dilation: (i64, i64),
+    stride: Spatial2dI64,
+    padding: Padding2d,
+    dilation: Spatial2dI64,
     groups: i64,
     lowering: &mut GraphFusionLowering<'_>,
 ) -> Result<bool> {

@@ -1,4 +1,5 @@
 use super::*;
+use crate::shape::spatial::{Padding, Padding2d};
 
 #[test]
 fn test_cuda_eager_avg_pool2d_f32_materializes_strided_input_and_padding_modes() {
@@ -25,7 +26,7 @@ fn test_cuda_eager_avg_pool2d_f32_materializes_strided_input_and_padding_modes()
             .avg_pool2d(
                 (2, 3),
                 (1, 2),
-                (1, 1, 0, 1),
+                Padding2d::new(Padding::new(1, 1), Padding::new(0, 1)),
                 (1, 1),
                 true,
                 count_include_pad,
@@ -36,7 +37,7 @@ fn test_cuda_eager_avg_pool2d_f32_materializes_strided_input_and_padding_modes()
             .avg_pool2d(
                 (2, 3),
                 (1, 2),
-                (1, 1, 0, 1),
+                Padding2d::new(Padding::new(1, 1), Padding::new(0, 1)),
                 (1, 1),
                 true,
                 count_include_pad,
@@ -65,7 +66,7 @@ fn test_cuda_eager_avg_pool2d_f32_rejects_dilation() {
     };
 
     assert!(matches!(
-        input.avg_pool2d((2, 2), (1, 1), (0, 0, 0, 0), (2, 1), false, false),
+        input.avg_pool2d((2, 2), (1, 1), Padding2d::default(), (2, 1), false, false),
         Err(Error::InvalidArgument { ref name }) if name == "operation pool2d avg pool dilation"
     ));
 }
@@ -82,14 +83,26 @@ fn test_cuda_eager_max_pool2d_f32_materializes_tail_output() {
         .collect::<Vec<_>>();
     let cpu_input = Tensor::from_vec(Device::Cpu, &shape, values.clone()).unwrap();
     let expected = cpu_input
-        .max_pool2d((3, 2), (2, 1), (1, 0, 1, 1), (2, 1), true)
+        .max_pool2d(
+            (3, 2),
+            (2, 1),
+            Padding2d::new(Padding::new(1, 0), Padding::new(1, 1)),
+            (2, 1),
+            true,
+        )
         .unwrap();
     let Some(cuda_input) = skip_if_stub(Tensor::from_vec(Device::Cuda(0), &shape, values)) else {
         return;
     };
 
     let output = cuda_input
-        .max_pool2d((3, 2), (2, 1), (1, 0, 1, 1), (2, 1), true)
+        .max_pool2d(
+            (3, 2),
+            (2, 1),
+            Padding2d::new(Padding::new(1, 0), Padding::new(1, 1)),
+            (2, 1),
+            true,
+        )
         .unwrap();
 
     assert_eq!(output.shape().dimensions(), expected.shape().dimensions());
@@ -110,14 +123,14 @@ fn test_cuda_eager_max_pool2d_f32_preserves_negative_infinity() {
     let values = vec![f32::NEG_INFINITY; 4];
     let cpu_input = Tensor::from_vec(Device::Cpu, &shape, values.clone()).unwrap();
     let expected = cpu_input
-        .max_pool2d((2, 2), (1, 1), (0, 0, 0, 0), (1, 1), true)
+        .max_pool2d((2, 2), (1, 1), Padding2d::default(), (1, 1), true)
         .unwrap();
     let Some(cuda_input) = skip_if_stub(Tensor::from_vec(Device::Cuda(0), &shape, values)) else {
         return;
     };
 
     let output = cuda_input
-        .max_pool2d((2, 2), (1, 1), (0, 0, 0, 0), (1, 1), true)
+        .max_pool2d((2, 2), (1, 1), Padding2d::default(), (1, 1), true)
         .unwrap();
     let actual = output.to_vec::<f32>().unwrap();
     let expected = expected.to_vec::<f32>().unwrap();

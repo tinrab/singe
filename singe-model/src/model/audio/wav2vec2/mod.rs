@@ -9,6 +9,7 @@ use singe::{
         Activation, Conv1d, Conv1dConfig, DenseAttentionInput, EncoderBlock, GroupNorm, Layer,
         LayerNorm, Linear, ModelState,
     },
+    shape::spatial::Padding,
 };
 
 use crate::{
@@ -112,7 +113,7 @@ impl Wav2Vec2Layers {
                 width,
                 config.position_kernel,
                 Conv1dConfig {
-                    padding: (half, after),
+                    padding: Padding::new(half, after),
                     groups: config.position_groups,
                     ..Conv1dConfig::default()
                 },

@@ -3,7 +3,10 @@ use crate::{
     error::{Error, Result},
     layout::Layout,
     parallel,
-    shape::Shape,
+    shape::{
+        Shape,
+        spatial::{Padding2d, Spatial2dI64},
+    },
     storage::cpu::CpuSlice,
     tensor::{Tensor, TensorDataType},
     utility::to_usize,
@@ -94,28 +97,30 @@ pub struct Window2d {
 }
 
 impl Window2d {
-    /// Creates a window from heights and widths, with padding given as top, bottom, left, and right.
+    /// Creates a window from heights and widths.
     ///
     /// # Errors
     ///
     /// Returns an error if a value is negative.
     pub(crate) fn create(
-        input: (i64, i64),
-        kernel: (i64, i64),
-        stride: (i64, i64),
-        padding: (i64, i64, i64, i64),
-        dilation: (i64, i64),
+        input: Spatial2dI64,
+        kernel: Spatial2dI64,
+        stride: Spatial2dI64,
+        padding: Padding2d,
+        dilation: Spatial2dI64,
     ) -> Result<Self> {
-        let pair = |name: &'static str, (height, width): (i64, i64)| -> Result<[usize; 2]> {
-            let convert = |value: i64| to_usize(value, name);
-            Ok([convert(height)?, convert(width)?])
+        let pair = |name: &'static str, values: Spatial2dI64| -> Result<[usize; 2]> {
+            Ok([
+                to_usize(values.height, name)?,
+                to_usize(values.width, name)?,
+            ])
         };
         Ok(Self {
             input: pair("cpu window input size", input)?,
             kernel: pair("cpu window kernel size", kernel)?,
             stride: pair("cpu window stride", stride)?,
-            padding_start: pair("cpu window padding", (padding.0, padding.2))?,
-            padding_end: pair("cpu window padding", (padding.1, padding.3))?,
+            padding_start: pair("cpu window padding", padding.map(|axis| axis.before))?,
+            padding_end: pair("cpu window padding", padding.map(|axis| axis.after))?,
             dilation: pair("cpu window dilation", dilation)?,
         })
     }

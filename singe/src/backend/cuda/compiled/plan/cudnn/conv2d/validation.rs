@@ -9,6 +9,7 @@ use crate::{
     },
     error::{Error, Result},
     graph::ir::{Graph, ValueId},
+    shape::spatial::{Padding2d, Spatial2dI64},
     utility::to_i64,
 };
 
@@ -17,9 +18,9 @@ pub fn validate_cudnn_conv2d_nodes(
     id: ValueId,
     input: ValueId,
     weight: ValueId,
-    stride: (i64, i64),
-    padding: (i64, i64, i64, i64),
-    dilation: (i64, i64),
+    stride: Spatial2dI64,
+    padding: Padding2d,
+    dilation: Spatial2dI64,
     groups: i64,
 ) -> Result<()> {
     let window = ConvolutionWindow::conv2d(stride, padding, dilation, groups);

@@ -42,11 +42,11 @@ use crate::{
         spec::ConvolutionWindow,
     },
     error::Result,
+    shape::spatial::{Padding2d, Spatial2dI64},
 };
 
 /// Builds a cuDNN graph template for convolution, bias addition, and `Relu`.
 /// Convolution uses cross-correlation with height and width strides and dilations.
-/// Padding is ordered as height start, height end, width start, and width end.
 ///
 /// # Errors
 ///
@@ -58,9 +58,9 @@ pub fn build_cudnn_conv2d_bias_relu_template(
     bias: &CudnnBackendTensorMetadata,
     conv_output: &CudnnBackendTensorMetadata,
     output: &CudnnBackendTensorMetadata,
-    stride: (i64, i64),
-    padding: (i64, i64, i64, i64),
-    dilation: (i64, i64),
+    stride: Spatial2dI64,
+    padding: Padding2d,
+    dilation: Spatial2dI64,
 ) -> Result<CudnnBackendGraphTemplate> {
     let input_descriptor = cudnn_backend_tensor(CUDNN_GRAPH_INPUT0_TENSOR_ID, input)?;
     let weight_descriptor = cudnn_backend_tensor(CUDNN_GRAPH_INPUT1_TENSOR_ID, weight)?;
@@ -244,10 +244,17 @@ pub fn build_cudnn_convolution_template(
 }
 
 pub fn cudnn_convolution_geometry(window: &ConvolutionWindow) -> Result<CudnnConvolutionGeometry> {
-    let (before, after): (Vec<_>, Vec<_>) = window.padding.iter().copied().unzip();
     Ok(CudnnConvolutionGeometry::create(
-        before,
-        after,
+        window
+            .padding
+            .iter()
+            .map(|padding| padding.before)
+            .collect::<Vec<_>>(),
+        window
+            .padding
+            .iter()
+            .map(|padding| padding.after)
+            .collect::<Vec<_>>(),
         window.stride.clone(),
         window.dilation.clone(),
     )?)

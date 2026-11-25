@@ -14,7 +14,10 @@ use crate::{
     data_type::DataType,
     device::Device,
     graph::{ComputePrecision, Graph, GraphCudaOptions, with_convolution_precision},
-    shape::Shape,
+    shape::{
+        Shape,
+        spatial::{Padding2d, Spatial3d},
+    },
     tensor::Tensor,
     testing::{maybe_lock_device, skip_if_stub},
 };
@@ -41,7 +44,7 @@ fn convolution_graph(lhs: Tensor, rhs: Tensor) -> Graph {
             &inputs[1],
             None,
             (1, 1),
-            (0, 0, 0, 0),
+            Padding2d::default(),
             (1, 1),
             1,
         )?])
@@ -197,9 +200,9 @@ fn test_cuda_conv3d_runs_one_cudnn_convolution_matching_its_decomposition() {
     let bias = Tensor::randn(device, Shape::create([6]).unwrap(), DataType::F32, None).unwrap();
     let attributes = Conv3dAttributes {
         has_bias: true,
-        stride: (2, 1, 2),
-        padding: (1, 1, 0),
-        dilation: (1, 2, 1),
+        stride: Spatial3d::new(2, 1, 2),
+        padding: Spatial3d::new(1, 1, 0),
+        dilation: Spatial3d::new(1, 2, 1),
         groups: 2,
     };
     let native = conv3d(&input, &weight, Some(&bias), &attributes).unwrap();

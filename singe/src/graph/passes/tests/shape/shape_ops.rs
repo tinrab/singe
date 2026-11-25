@@ -1,6 +1,6 @@
 use super::*;
 
-use crate::graph::node::NodeKind;
+use crate::{graph::node::NodeKind, shape::spatial::Padding};
 
 #[test]
 fn test_infer_value_metadata_pass_infers_concat_shape() {
@@ -99,7 +99,7 @@ fn test_infer_value_metadata_pass_infers_pad_shape() {
     let pad = graph
         .add_named_operation(
             None,
-            NodeKind::pad(input, vec![(1, 0), (1, 1)], -1.0),
+            NodeKind::pad(input, vec![Padding::new(1, 0), Padding::symmetric(1)], -1.0),
             output.data_type(),
             output.shape().clone(),
             output.device(),

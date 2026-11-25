@@ -14,7 +14,7 @@ use crate::{
     error::{Error, Result},
     graph::capture,
     scalar::Scalar,
-    shape::{Shape, normalize_dim_usize},
+    shape::{Shape, normalize_dim_usize, spatial::Padding},
     tensor::Tensor,
     utility::{to_i64, to_usize},
 };
@@ -300,10 +300,10 @@ fn topk_of(input: &Tensor, topk: &TopKAttributes) -> Result<(Tensor, Tensor)> {
 }
 
 // Crops each axis by its negative widths, then concatenates blocks of `value` on each side.
-fn pad_of(input: &Tensor, padding: &[(i64, i64)], value: f32) -> Result<Tensor> {
+fn pad_of(input: &Tensor, padding: &[Padding], value: f32) -> Result<Tensor> {
     let problem = spec::pad_problem(input.shape(), padding, "pad")?;
     let mut output = input.clone();
-    for (axis, &(before, after)) in problem.padding.iter().enumerate() {
+    for (axis, &Padding { before, after }) in problem.padding.iter().enumerate() {
         let dim = i64::try_from(axis).map_err(|_| Error::dimension_out_of_bounds("pad axis"))?;
         let extent = output.shape().dimensions()[axis];
         let (start, end) = ((-before).max(0), (-after).max(0));
@@ -340,7 +340,7 @@ fn pad_of(input: &Tensor, padding: &[(i64, i64)], value: f32) -> Result<Tensor> 
     if !problem
         .padding
         .iter()
-        .any(|&(before, after)| before > 0 || after > 0)
+        .any(|padding| padding.before > 0 || padding.after > 0)
     {
         output = output.copy()?;
     }

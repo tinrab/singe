@@ -7,9 +7,10 @@ use singe::{
     Error as SingeError, Result as SingeResult, Tensor,
     graph::{ComputePrecision, with_convolution_precision},
     nn::{
-        Activation, Conv1d, Conv1dConfig, ConvTranspose1d, ConvTransposeConfig, Layer, ModelState,
-        StateKey,
+        Activation, Conv1d, Conv1dConfig, ConvTranspose1d, ConvTranspose1dConfig, Layer,
+        ModelState, StateKey,
     },
+    shape::spatial::Padding,
 };
 
 use crate::{
@@ -134,7 +135,7 @@ impl Block {
                 2 * stride,
                 Conv1dConfig {
                     stride,
-                    padding: (padding, padding),
+                    padding: Padding::symmetric(padding),
                     ..Conv1dConfig::default()
                 },
                 true,
@@ -149,10 +150,10 @@ impl Block {
             width,
             width / 2,
             2 * stride,
-            ConvTransposeConfig {
-                stride: [stride],
-                padding: [(stride + 1) / 2],
-                ..ConvTransposeConfig::default()
+            ConvTranspose1dConfig {
+                stride,
+                padding: (stride + 1) / 2,
+                ..ConvTranspose1dConfig::default()
             },
             true,
         )?);

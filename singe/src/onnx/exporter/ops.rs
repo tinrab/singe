@@ -23,10 +23,12 @@ use crate::{
             Exporter,
             proto::{dtype, float, integer, integers, scalar_bytes, string, unsupported},
         },
+        utility::onnx_planar_pads,
     },
     scalar::Scalar,
     shape::{
         Shape,
+        spatial::{Spatial2dExpr, Spatial2dI64},
         transform::{normalize_dim_usize, transpose_order},
     },
     tensor::{InterpolateMode, Interpolation},
@@ -130,14 +132,12 @@ impl Exporter<'_> {
                     op.inputs,
                     op.output,
                     vec![
-                        integers("strides", vec![stride.0, stride.1, stride.2]),
+                        integers("strides", stride.into_array().to_vec()),
                         integers(
                             "pads",
-                            vec![
-                                padding.0, padding.1, padding.2, padding.0, padding.1, padding.2,
-                            ],
+                            [padding.into_array(), padding.into_array()].concat(),
                         ),
-                        integers("dilations", vec![dilation.0, dilation.1, dilation.2]),
+                        integers("dilations", dilation.into_array().to_vec()),
                         integer("group", groups),
                     ],
                 );
@@ -255,9 +255,9 @@ impl Exporter<'_> {
                     op.inputs,
                     op.output,
                     vec![
-                        integers("strides", vec![stride.0, stride.1]),
-                        integers("pads", vec![padding.0, padding.2, padding.1, padding.3]),
-                        integers("dilations", vec![dilation.0, dilation.1]),
+                        integers("strides", stride.into_array().to_vec()),
+                        integers("pads", onnx_planar_pads(padding)),
+                        integers("dilations", dilation.into_array().to_vec()),
                         integer("group", groups),
                     ],
                 );
@@ -639,15 +639,15 @@ impl Exporter<'_> {
             ..
         } = op;
         let mut attrs = vec![
-            integers("kernel_shape", vec![kernel_size.0, kernel_size.1]),
-            integers("strides", vec![stride.0, stride.1]),
-            integers("pads", vec![padding.0, padding.2, padding.1, padding.3]),
+            integers("kernel_shape", kernel_size.into_array().to_vec()),
+            integers("strides", stride.into_array().to_vec()),
+            integers("pads", onnx_planar_pads(padding)),
             integer("ceil_mode", i64::from(ceil_mode)),
         ];
         if operation == Operation::MaxPool2d {
-            attrs.push(integers("dilations", vec![dilation.0, dilation.1]));
+            attrs.push(integers("dilations", dilation.into_array().to_vec()));
         } else {
-            if dilation != (1, 1) {
+            if dilation != Spatial2dI64::square(1) {
                 return Err(unsupported("dilated average pooling"));
             }
 
@@ -820,13 +820,10 @@ impl Exporter<'_> {
             antialias,
         } = resize.interpolation;
         let size = match self.source.shape_program().attributes.get(&value) {
-            Some(SymbolicAttributes::Resize { size, .. }) => size.to_vec(),
-            _ => vec![
-                DimensionExpr::constant(resize.size.0),
-                DimensionExpr::constant(resize.size.1),
-            ],
+            Some(SymbolicAttributes::Resize { size, .. }) => size.clone(),
+            _ => Spatial2dExpr::from(resize.size),
         };
-        let sizes = self.shape_vector(&size)?;
+        let sizes = self.shape_vector(&[size.height, size.width])?;
         inputs.extend([String::new(), String::new(), sizes]);
         // Positive axes, which ONNX's reference evaluator resizes correctly where it misplaces negative ones.
         let rank = to_i64(

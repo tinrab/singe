@@ -10,6 +10,7 @@ use singe::{
     DataType, Device, Result, Shape, Tensor,
     graph::{CaptureBindings, DimensionExpr, Graph, GraphInputSpec, GraphPrepareOptions},
     nn::{Layer, Model, ModelProgram, ModelState, StateBuilder},
+    shape::spatial::Spatial2d,
     tensor::InterpolateMode,
     value::ValueSpec,
 };
@@ -56,7 +57,10 @@ impl Layer for SizedModule {
         let rows = height.clone() * 2;
         let resized = input
             .narrow_with(3, 1_i64, width.clone() - 1)?
-            .interpolate_with((rows.clone(), width.clone()), InterpolateMode::Bilinear)?;
+            .interpolate(
+                Spatial2d::new(rows.clone(), width.clone()),
+                InterpolateMode::Bilinear,
+            )?;
         let columns = Tensor::range(device, 0_i64, width.clone())?
             .cast(DataType::F32)?
             .unsqueeze(0)?

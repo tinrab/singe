@@ -10,6 +10,7 @@ use crate::{
     data_type::DataType,
     error::{Error, Result},
     graph::{ComputePrecision, Determinism},
+    shape::spatial::Padding,
     utility::{emit, to_i64},
 };
 
@@ -491,7 +492,7 @@ impl Renderer<'_> {
         operands: (&BufferView, &BufferView, Option<&BufferView>, &BufferView),
         activation: Option<Activation>,
         stride: &[i64],
-        padding: &[(i64, i64)],
+        padding: &[Padding],
         dilation: &[i64],
     ) -> Result<LibraryCode> {
         let (input, weight, bias, output) = operands;
@@ -516,11 +517,10 @@ impl Renderer<'_> {
             Ok((bias, dimensions, strides))
         });
         let bias = bias.transpose()?;
-        let (before, after): (Vec<_>, Vec<_>) = padding.iter().copied().unzip();
         let (stride, before, after, dilation) = (
             integers(stride.iter().copied()),
-            integers(before),
-            integers(after),
+            integers(padding.iter().map(|padding| padding.before)),
+            integers(padding.iter().map(|padding| padding.after)),
             integers(dilation.iter().copied()),
         );
         let (scale, scale_type) = if output.data_type == DataType::F64 {

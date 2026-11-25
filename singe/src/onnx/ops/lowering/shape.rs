@@ -9,7 +9,7 @@ use crate::{
         importer::Importer,
         utility::node_label,
     },
-    shape::{Shape, normalize_dim_usize, transform::normalize_dim},
+    shape::{Shape, normalize_dim_usize, spatial::Padding, transform::normalize_dim},
     tensor::Tensor,
 };
 
@@ -193,7 +193,7 @@ pub fn shape_from_static_dimensions(dimensions: Vec<i64>) -> Result<Shape> {
     }
 }
 
-pub fn onnx_padding(name: &str, rank: i64, pads: &[i64]) -> Result<Vec<(i64, i64)>> {
+pub fn onnx_padding(name: &str, rank: i64, pads: &[i64]) -> Result<Vec<Padding>> {
     let rank = usize::try_from(rank).map_err(|_| Error::UnsupportedShape {
         name: name.into(),
         reason: format!("invalid rank {rank}"),
@@ -221,18 +221,18 @@ pub fn onnx_padding(name: &str, rank: i64, pads: &[i64]) -> Result<Vec<(i64, i64
                     reason: "negative padding is not supported".into(),
                 });
             }
-            Ok((before, after))
+            Ok(Padding::new(before, after))
         })
         .collect()
 }
 
-pub fn padded_shape(name: &str, input: &Shape, padding: &[(i64, i64)]) -> Result<Shape> {
+pub fn padded_shape(name: &str, input: &Shape, padding: &[Padding]) -> Result<Shape> {
     let dimensions = input
         .dimensions()
         .iter()
         .copied()
         .zip(padding.iter().copied())
-        .map(|(dimension, (before, after))| {
+        .map(|(dimension, Padding { before, after })| {
             dimension
                 .checked_add(before)
                 .and_then(|value| value.checked_add(after))

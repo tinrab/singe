@@ -17,6 +17,7 @@ use singe::{
         Flatten, LayerNorm, Linear, LoadPlan, Model, ModelState, Pool2d, Pool2dConfig, Pool2dKind,
         SelfAttention, Sequential, StateBuilder, StateKey, StatePiece, TensorSource,
     },
+    shape::spatial::Spatial2d,
     value::ValueSpec,
 };
 #[cfg(feature = "testing")]
@@ -127,7 +128,7 @@ fn fixture_model(name: &str, reference: &Value) -> Model<Sequential> {
                     count_include_pad: true,
                 },
                 Pool2dConfig {
-                    stride: (1, 1),
+                    stride: Spatial2d::square(1),
                     ..Pool2dConfig::new((2, 2))
                 },
             ))

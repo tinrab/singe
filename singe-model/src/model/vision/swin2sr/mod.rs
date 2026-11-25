@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use singe::{
     Device, Error as SingeError, Result as SingeResult, Shape, Tensor,
     nn::{Activation, Conv2d, Layer, LayerNorm, Linear, Mlp, ModelState, StateKey},
+    shape::spatial::{Spatial2d, Spatial2dI64},
 };
 
 use crate::{
@@ -199,7 +200,7 @@ impl Block {
     fn forward(
         &self,
         hidden: &Tensor,
-        (height, width): (i64, i64),
+        Spatial2d { height, width }: Spatial2dI64,
         geometry: &Windows,
         state: &ModelState,
     ) -> SingeResult<Tensor> {
@@ -278,7 +279,7 @@ impl Stage {
     fn forward(
         &self,
         input: &Tensor,
-        size: (i64, i64),
+        size: Spatial2dI64,
         geometry: &Windows,
         state: &ModelState,
     ) -> SingeResult<Tensor> {
@@ -361,7 +362,7 @@ impl Layer for Swin2SrLayers {
     fn forward(&self, input: &Tensor, state: &ModelState) -> SingeResult<Tensor> {
         let window = self.windows.window;
         let size = spatial(input)?;
-        if size.0 % window != 0 || size.1 % window != 0 {
+        if size.height % window != 0 || size.width % window != 0 {
             return Err(SingeError::invalid_argument(
                 "an image whose sides are not whole windows",
             ));

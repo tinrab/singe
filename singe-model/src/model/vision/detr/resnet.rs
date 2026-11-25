@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use singe::{
     Result as SingeResult, Tensor,
     nn::{Activation, BatchNorm, Conv2d, Layer, ModelState},
+    shape::spatial::Padding2d,
 };
 
 use crate::{
@@ -143,7 +144,7 @@ impl Layer for ResNet {
         let mut hidden = input
             .apply(&self.stem, state)?
             .apply(&Activation::Relu, state)?
-            .max_pool2d((3, 3), (2, 2), (1, 1, 1, 1), (1, 1), false)?;
+            .max_pool2d((3, 3), (2, 2), Padding2d::symmetric(1, 1), (1, 1), false)?;
         for block in self.stages.iter().flatten() {
             hidden = hidden.apply(block, state)?;
         }

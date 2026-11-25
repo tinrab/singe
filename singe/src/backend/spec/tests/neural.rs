@@ -5,7 +5,10 @@ use crate::{
         validate_conv2d_bias,
     },
     error::Error,
-    shape::Shape,
+    shape::{
+        Shape,
+        spatial::{Padding2d, Spatial2d},
+    },
 };
 
 #[test]
@@ -131,9 +134,9 @@ fn test_conv2d_bias_validation_rejects_wrong_channel_count() {
     let problem = conv2d_problem(
         &input,
         &weight,
-        (1, 1),
-        (0, 0, 0, 0),
-        (1, 1),
+        Spatial2d::square(1),
+        Padding2d::default(),
+        Spatial2d::square(1),
         2,
         "test conv2d",
     )
@@ -154,9 +157,9 @@ fn test_conv2d_problem_rejects_wrong_weight_channels() {
         conv2d_problem(
             &input,
             &weight,
-            (1, 1),
-            (0, 0, 0, 0),
-            (1, 1),
+            Spatial2d::square(1),
+            Padding2d::default(),
+            Spatial2d::square(1),
             2,
             "test conv2d",
         ),
@@ -173,9 +176,9 @@ fn test_conv2d_problem_rejects_grouped_channel_mismatch() {
         conv2d_problem(
             &input,
             &weight,
-            (1, 1),
-            (0, 0, 0, 0),
-            (1, 1),
+            Spatial2d::square(1),
+            Padding2d::default(),
+            Spatial2d::square(1),
             2,
             "test conv2d",
         ),
@@ -270,10 +273,10 @@ fn test_pool2d_problem_rejects_avg_pool_dilation() {
     assert!(matches!(
         pool2d_problem(
             &input,
-            (2, 2),
-            (1, 1),
-            (0, 0, 0, 0),
-            (2, 1),
+            Spatial2d::square(2),
+            Spatial2d::square(1),
+            Padding2d::default(),
+            Spatial2d::new(2, 1),
             false,
             PoolReduction::Average,
             "test pool2d",

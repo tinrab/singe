@@ -3,7 +3,10 @@
 use std::fmt::Write;
 
 use serde::{Deserialize, Serialize};
-use singe::{DataType, Device, Error as SingeError, Shape, Tensor};
+use singe::{
+    DataType, Device, Error as SingeError, Shape, Tensor,
+    shape::spatial::{Spatial2d, Spatial2dI64},
+};
 
 use crate::{
     error::{Error, Result},
@@ -26,8 +29,6 @@ const MAX_IMAGE_SIZE: i64 = 4096;
 
 /// The seconds `sample_frames` skips at each end of a long enough clip.
 const SKIPPED_SECONDS: f64 = 1.0;
-
-pub type TileGrid = (i64, i64);
 
 // no-slop-allow: no-vague-type-names -- this is `SmolVLMImageProcessor`, a `transformers` image processor.
 /// How `SmolVLM`'s front end splits images into tiles, samples video frames, normalizes pixels, and expands a prompt's image placeholders into tokens.
@@ -115,9 +116,12 @@ const fn float(value: i64) -> f64 {
 }
 
 /// Returns the size `_resize_output_size_rescale_to_max_len` gives: the longer side becomes `longest`, and the other keeps the aspect ratio, truncated and rounded up to even.
-fn rescaled_to_longest(height: i64, width: i64, longest: i64) -> (i64, i64) {
+fn rescaled_to_longest(size: Spatial2dI64, longest: i64) -> Spatial2dI64 {
+    let Spatial2d {
+        mut height,
+        mut width,
+    } = size;
     let aspect = float(width) / float(height);
-    let (mut height, mut width) = (height, width);
     if width >= height {
         width = longest;
         height = truncated(float(width) / aspect);
@@ -127,13 +131,16 @@ fn rescaled_to_longest(height: i64, width: i64, longest: i64) -> (i64, i64) {
         width = truncated(float(height) * aspect);
         width += width % 2;
     }
-    (height.max(1), width.max(1))
+    Spatial2d::new(height.max(1), width.max(1))
 }
 
 /// Returns the size `_resize_output_size_scale_below_upper_bound` gives: a side above [`MAX_IMAGE_SIZE`] shrinks to it, keeping the aspect ratio.
-fn bounded(height: i64, width: i64) -> (i64, i64) {
+fn bounded(size: Spatial2dI64) -> Spatial2dI64 {
+    let Spatial2d {
+        mut height,
+        mut width,
+    } = size;
     let aspect = float(width) / float(height);
-    let (mut height, mut width) = (height, width);
     if width >= height && width > MAX_IMAGE_SIZE {
         width = MAX_IMAGE_SIZE;
         height = truncated(float(width) / aspect);
@@ -141,19 +148,19 @@ fn bounded(height: i64, width: i64) -> (i64, i64) {
         height = MAX_IMAGE_SIZE;
         width = truncated(float(height) * aspect);
     }
-    (height.max(1), width.max(1))
+    Spatial2d::new(height.max(1), width.max(1))
 }
 
 /// Returns the size `resize_for_vision_encoder` gives: both sides rounded up to whole tiles, the shorter from the aspect ratio after the longer.
-fn whole_tiles(height: i64, width: i64, tile: i64) -> (i64, i64) {
+fn whole_tiles(Spatial2d { height, width }: Spatial2dI64, tile: i64) -> Spatial2dI64 {
     let aspect = float(width) / float(height);
     let up = |side: i64| (side + tile - 1) / tile * tile;
     if width >= height {
         let width = up(width);
-        (up(truncated(float(width) / aspect)), width)
+        Spatial2d::new(up(truncated(float(width) / aspect)), width)
     } else {
         let height = up(height);
-        (height, up(truncated(float(height) * aspect)))
+        Spatial2d::new(height, up(truncated(float(height) * aspect)))
     }
 }
 
@@ -213,44 +220,47 @@ impl SmolVlmProcessor {
     /// Cuts `image` into tiles as `SmolVLMImageProcessor` does.
     ///
     /// Returns the tiles row by row, then the whole image shrunk to one, with the grid of tiles; or the image as one tile and no grid when it fits one or splitting is off.
-    pub fn tiles(&self, image: &Image) -> Result<(Vec<Image>, Option<TileGrid>)> {
-        let (height, width) = (i64::from(image.height), i64::from(image.width));
-        let (height, width) = rescaled_to_longest(height, width, self.longest_edge);
-        let (height, width) = bounded(height, width);
-        let image = self.resized(image, height, width)?;
+    pub fn tiles(&self, image: &Image) -> Result<(Vec<Image>, Option<Spatial2dI64>)> {
+        let size = Spatial2d::new(i64::from(image.height), i64::from(image.width));
+        let size = bounded(rescaled_to_longest(size, self.longest_edge));
+        let image = self.resized(image, size.height, size.width)?;
         let tile = self.tile;
         if !self.splitting {
             return Ok((vec![self.resized(&image, tile, tile)?], None));
         }
 
-        let (height, width) = whole_tiles(height, width, tile);
+        let Spatial2d { height, width } = whole_tiles(size, tile);
         let image = self.resized(&image, height, width)?;
         if height <= tile && width <= tile {
             return Ok((vec![image], None));
         }
 
-        let (rows, columns) = (height / tile, width / tile);
+        let grid = Spatial2d::new(height / tile, width / tile);
         let mut tiles = Vec::new();
-        for row in 0..rows {
-            for column in 0..columns {
+        for row in 0..grid.height {
+            for column in 0..grid.width {
                 tiles.push(crop(&image, row * tile, column * tile, tile)?);
             }
         }
 
         tiles.push(self.resized(&image, tile, tile)?);
-        Ok((tiles, Some((rows, columns))))
+        Ok((tiles, Some(grid)))
     }
 
     /// Returns the text an image's placeholder becomes: each tile's marker and image tokens, row by row, then the whole image's, as `get_image_prompt_string` writes it.
     #[must_use]
-    pub fn image_prompt(&self, grid: Option<TileGrid>) -> String {
+    pub fn image_prompt(&self, grid: Option<Spatial2dI64>) -> String {
         let tokens = self.image_token.repeat(self.image_tokens);
         let whole = format!(
             "{fake}{global}{tokens}{fake}",
             fake = self.fake_image_token,
             global = self.global_image_token,
         );
-        let Some((rows, columns)) = grid else {
+        let Some(Spatial2d {
+            height: rows,
+            width: columns,
+        }) = grid
+        else {
             return whole;
         };
         let mut text = String::new();
@@ -308,12 +318,11 @@ impl SmolVlmProcessor {
             .iter()
             .map(|&index| {
                 let frame = &video.frames[index];
-                let (height, width) = rescaled_to_longest(
-                    i64::from(frame.height),
-                    i64::from(frame.width),
+                let size = rescaled_to_longest(
+                    Spatial2d::new(i64::from(frame.height), i64::from(frame.width)),
                     sampling.edge.min(MAX_IMAGE_SIZE),
                 );
-                let frame = self.resized(frame, height, width)?;
+                let frame = self.resized(frame, size.height, size.width)?;
                 self.resized(&frame, self.tile, self.tile)
             })
             .collect::<Result<Vec<_>>>()?;

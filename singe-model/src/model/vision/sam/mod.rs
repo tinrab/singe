@@ -8,9 +8,10 @@ use serde::{Deserialize, Serialize};
 use singe::{
     Device, Error as SingeError, Result as SingeResult, Shape, Tensor,
     nn::{
-        Activation, Conv2d, Conv2dConfig, ConvTranspose2d, ConvTransposeConfig, LayerNorm, Linear,
-        Mlp, ModelState, PatchEmbedding, StateKey,
+        Activation, Conv2d, Conv2dConfig, ConvTranspose2d, ConvTranspose2dConfig, LayerNorm,
+        Linear, Mlp, ModelState, PatchEmbedding, StateKey,
     },
+    shape::spatial::{Padding, Spatial2d},
 };
 
 use crate::{
@@ -198,10 +199,10 @@ impl VisionBlock {
             let padded_width = (width + window - 1) / window * window;
             let padded = normed.pad(
                 &[
-                    (0, 0),
-                    (0, padded_height - height),
-                    (0, padded_width - width),
-                    (0, 0),
+                    Padding::ZERO,
+                    Padding::new(0, padded_height - height),
+                    Padding::new(0, padded_width - width),
+                    Padding::ZERO,
                 ],
                 0.0,
             )?;
@@ -402,9 +403,9 @@ impl SamLayers {
             config.cross_attention(),
         )?;
         let final_norm = schema.layer_norm("final_norm", embedding, PYTORCH_NORM_EPS)?;
-        let doubling = ConvTransposeConfig {
-            stride: [2, 2],
-            ..ConvTransposeConfig::default()
+        let doubling = ConvTranspose2dConfig {
+            stride: Spatial2d::square(2),
+            ..ConvTranspose2dConfig::default()
         };
         let upscale = [
             schema.conv_transpose2d("upscale.0", embedding, embedding / 4, 2, doubling, true)?,

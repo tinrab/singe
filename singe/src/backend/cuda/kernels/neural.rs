@@ -18,6 +18,7 @@ use crate::{
     },
     data_type::DataType,
     error::{Error, Result},
+    shape::spatial::{Padding, Padding2d, Spatial2dI64},
     tensor::Tensor,
 };
 
@@ -25,9 +26,9 @@ pub fn convolution2d(
     input: &Tensor,
     weight: &Tensor,
     bias: Option<&Tensor>,
-    stride: (i64, i64),
-    padding: (i64, i64, i64, i64),
-    dilation: (i64, i64),
+    stride: Spatial2dI64,
+    padding: Padding2d,
+    dilation: Spatial2dI64,
     groups: i64,
 ) -> Result<Tensor> {
     // Depthwise convolutions, one input channel per group, are generated window reductions.
@@ -64,10 +65,10 @@ pub fn convolution3d(
 
 pub fn max_pool2d(
     input: &Tensor,
-    kernel_size: (i64, i64),
-    stride: (i64, i64),
-    padding: (i64, i64, i64, i64),
-    dilation: (i64, i64),
+    kernel_size: Spatial2dI64,
+    stride: Spatial2dI64,
+    padding: Padding2d,
+    dilation: Spatial2dI64,
     ceil_mode: bool,
 ) -> Result<Tensor> {
     backend_max_pool2d(input, kernel_size, stride, padding, dilation, ceil_mode)
@@ -75,10 +76,10 @@ pub fn max_pool2d(
 
 pub fn avg_pool2d(
     input: &Tensor,
-    kernel_size: (i64, i64),
-    stride: (i64, i64),
-    padding: (i64, i64, i64, i64),
-    dilation: (i64, i64),
+    kernel_size: Spatial2dI64,
+    stride: Spatial2dI64,
+    padding: Padding2d,
+    dilation: Spatial2dI64,
     ceil_mode: bool,
     count_include_pad: bool,
 ) -> Result<Tensor> {
@@ -211,7 +212,17 @@ pub fn scaled_dot_product_attention(
     ensure_cuda_eager_same_device_inputs(query, &inputs[1..])?;
     if let Some((width, padded)) = padded_head(query, key, value) {
         // Zeros past a head leave `q kᵀ` as it is and give zero outputs, so the head pads to the fused kernel's widths, scaled by its own width, and is cut back after.
-        let pad = |tensor: &Tensor| tensor.pad(&[(0, 0), (0, 0), (0, 0), (0, padded - width)], 0.0);
+        let pad = |tensor: &Tensor| {
+            tensor.pad(
+                &[
+                    Padding::ZERO,
+                    Padding::ZERO,
+                    Padding::ZERO,
+                    Padding::new(0, padded - width),
+                ],
+                0.0,
+            )
+        };
         let scale = attention
             .scale
             .unwrap_or_else(|| 1.0 / (width as f32).sqrt());
@@ -343,10 +354,10 @@ fn normalization(
 
 pub fn backend_max_pool2d(
     input: &Tensor,
-    kernel_size: (i64, i64),
-    stride: (i64, i64),
-    padding: (i64, i64, i64, i64),
-    dilation: (i64, i64),
+    kernel_size: Spatial2dI64,
+    stride: Spatial2dI64,
+    padding: Padding2d,
+    dilation: Spatial2dI64,
     ceil_mode: bool,
 ) -> Result<Tensor> {
     backend_pool2d(
@@ -363,10 +374,10 @@ pub fn backend_max_pool2d(
 
 pub fn backend_avg_pool2d(
     input: &Tensor,
-    kernel_size: (i64, i64),
-    stride: (i64, i64),
-    padding: (i64, i64, i64, i64),
-    dilation: (i64, i64),
+    kernel_size: Spatial2dI64,
+    stride: Spatial2dI64,
+    padding: Padding2d,
+    dilation: Spatial2dI64,
     ceil_mode: bool,
     count_include_pad: bool,
 ) -> Result<Tensor> {
@@ -385,10 +396,10 @@ pub fn backend_avg_pool2d(
 fn backend_pool2d(
     operation: Operation,
     input: &Tensor,
-    kernel_size: (i64, i64),
-    stride: (i64, i64),
-    padding: (i64, i64, i64, i64),
-    dilation: (i64, i64),
+    kernel_size: Spatial2dI64,
+    stride: Spatial2dI64,
+    padding: Padding2d,
+    dilation: Spatial2dI64,
     ceil_mode: bool,
     count_include_pad: bool,
 ) -> Result<Tensor> {

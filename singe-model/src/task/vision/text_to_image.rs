@@ -1,6 +1,7 @@
 //! `text-to-image`: a prompt and a seed to an image, as `diffusers`' `StableDiffusionPipeline` generates one: the prompt's text states, latents denoised from the seed's noise under the scheduler, with classifier-free guidance where its scale exceeds one, and decoded by the VAE.
 
 use serde::Deserialize;
+use singe::shape::spatial::Spatial2d;
 
 use crate::{
     error::Result,
@@ -48,7 +49,8 @@ impl Pipeline for TextToImagePipeline {
 
     fn run_one(&self, input: &Self::Input, parameters: &Self::Parameters) -> Result<Self::Output> {
         let parts = &self.0;
-        let (height, width) = parts.latent_size(parameters.height, parameters.width)?;
+        let Spatial2d { height, width } =
+            parts.latent_size(Spatial2d::new(parameters.height, parameters.width))?;
         let shape = [1, parts.unet.in_channels(), height, width];
         let device = parts.options.device;
         let denoising = &parameters.denoising;

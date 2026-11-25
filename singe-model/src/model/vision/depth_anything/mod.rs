@@ -5,8 +5,8 @@ mod transformers;
 use serde::{Deserialize, Serialize};
 use singe::{
     Error as SingeError, Result as SingeResult, Tensor,
-    graph::DimensionExpr,
-    nn::{Activation, Conv2d, ConvTranspose2d, ConvTransposeConfig, Layer, ModelState},
+    nn::{Activation, Conv2d, ConvTranspose2d, ConvTranspose2dConfig, Layer, ModelState},
+    shape::spatial::{Spatial2d, Spatial2dExpr},
     tensor::{InterpolateMode, Interpolation},
 };
 
@@ -62,9 +62,9 @@ impl Reassemble {
                 channels,
                 channels,
                 factor,
-                ConvTransposeConfig {
-                    stride: [factor, factor],
-                    ..ConvTransposeConfig::default()
+                ConvTranspose2dConfig {
+                    stride: Spatial2d::square(factor),
+                    ..ConvTranspose2dConfig::default()
                 },
                 true,
             )?)
@@ -144,7 +144,7 @@ impl Fusion {
         &self,
         hidden: &Tensor,
         skip: Option<&Tensor>,
-        size: Option<(DimensionExpr, DimensionExpr)>,
+        size: Option<Spatial2dExpr>,
         state: &ModelState,
     ) -> SingeResult<Tensor> {
         let mut hidden = hidden.clone();
@@ -159,22 +159,16 @@ impl Fusion {
         }
 
         let hidden = hidden.apply(&self.refine, state)?;
-        let size = if let Some(size) = size {
-            size
-        } else {
-            let (height, width) = spatial_dimensions(&hidden)?;
-            (height * 2, width * 2)
+        let size = match size {
+            Some(size) => size,
+            None => spatial_dimensions(&hidden)?.map(|side| side * 2),
         };
         bilinear(&hidden, size, true)?.apply(&self.projection, state)
     }
 }
 
-fn bilinear(
-    input: &Tensor,
-    size: (DimensionExpr, DimensionExpr),
-    align_corners: bool,
-) -> SingeResult<Tensor> {
-    input.interpolate_with(
+fn bilinear(input: &Tensor, size: Spatial2dExpr, align_corners: bool) -> SingeResult<Tensor> {
+    input.interpolate(
         size,
         Interpolation::new(InterpolateMode::Bilinear).with_align_corners(align_corners),
     )
@@ -247,8 +241,7 @@ impl DepthAnythingLayers {
 
 impl Layer for DepthAnythingLayers {
     fn forward(&self, input: &Tensor, state: &ModelState) -> SingeResult<Tensor> {
-        let (height, width) = spatial_dimensions(input)?;
-        let (rows, columns) = (height / self.patch_size, width / self.patch_size);
+        let grid = spatial_dimensions(input)?.map(|side| side / self.patch_size);
         let features = self.backbone.features(input, &self.stages, state)?;
         let maps = features
             .iter()
@@ -260,7 +253,7 @@ impl Layer for DepthAnythingLayers {
                 }
 
                 let patches = hidden.narrow_with(1, 1_i64, hidden.dimension(1)? - 1)?;
-                to_map(&patches, (rows.clone(), columns.clone()))?
+                to_map(&patches, grid.clone())?
                     .apply(reassemble, state)?
                     .apply(convolution, state)
             })
@@ -284,7 +277,7 @@ impl Layer for DepthAnythingLayers {
         let [first, second, third] = &self.head;
         let depth = bilinear(
             &fused.apply(first, state)?,
-            (rows * self.patch_size, columns * self.patch_size),
+            grid.map(|side| side * self.patch_size),
             true,
         )?
         .apply(second, state)?

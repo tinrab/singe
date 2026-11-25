@@ -2,6 +2,7 @@ use crate::{
     backend::registry::{Conv3dAttributes, Operation, OperationAttributes},
     dispatch::call_one,
     error::{Error, Result},
+    shape::spatial::{Padding, Padding2d, Spatial2d, Spatial2dI64, Spatial3dI64},
     tensor::Tensor,
     utility::to_i64,
 };
@@ -13,16 +14,16 @@ impl Tensor {
         &self,
         weight: &Self,
         bias: Option<&Self>,
-        stride: (i64, i64, i64),
-        padding: (i64, i64, i64),
-        dilation: (i64, i64, i64),
+        stride: impl Into<Spatial3dI64>,
+        padding: impl Into<Spatial3dI64>,
+        dilation: impl Into<Spatial3dI64>,
         groups: i64,
     ) -> Result<Self> {
         let attributes = OperationAttributes::Conv3d(Conv3dAttributes {
             has_bias: bias.is_some(),
-            stride,
-            padding,
-            dilation,
+            stride: stride.into(),
+            padding: padding.into(),
+            dilation: dilation.into(),
             groups,
         });
         match bias {
@@ -36,12 +37,18 @@ impl Tensor {
         &self,
         weight: &Self,
         bias: Option<&Self>,
-        stride: (i64, i64),
-        padding: (i64, i64),
-        output_padding: (i64, i64),
-        dilation: (i64, i64),
+        stride: impl Into<Spatial2dI64>,
+        padding: impl Into<Spatial2dI64>,
+        output_padding: impl Into<Spatial2dI64>,
+        dilation: impl Into<Spatial2dI64>,
         groups: i64,
     ) -> Result<Self> {
+        let (stride, padding, output_padding, dilation) = (
+            stride.into(),
+            padding.into(),
+            output_padding.into(),
+            dilation.into(),
+        );
         if self.shape().rank() != 4 {
             return Err(Error::invalid_argument(
                 "transposed convolution needs [N, C, H, W] input",
@@ -60,10 +67,10 @@ impl Tensor {
         }
 
         // A stride of the kernel's size, with no padding, spreads each input point over its own block of the output: one matmul of the points by the weights, laid out block by block, does it without the zeros.
-        if stride == (kernel_height, kernel_width)
-            && padding == (0, 0)
-            && output_padding == (0, 0)
-            && dilation == (1, 1)
+        if stride == Spatial2d::new(kernel_height, kernel_width)
+            && padding == Spatial2d::square(0)
+            && output_padding == Spatial2d::square(0)
+            && dilation == Spatial2d::square(1)
             && groups == 1
         {
             return self.convolution_transpose2d_by_blocks(
@@ -90,13 +97,27 @@ impl Tensor {
             ])?
             .flip(&[2, 3])?;
         let mut spread = self
-            .with_zeros_between(2, stride.0)?
-            .with_zeros_between(3, stride.1)?;
+            .with_zeros_between(2, stride.height)?
+            .with_zeros_between(3, stride.width)?;
         // Padding beyond the kernel's reach crops the spread input instead.
-        let mut margins = Vec::new();
-        for (axis, kernel, pad, extra, dilation) in [
-            (2, kernel_height, padding.0, output_padding.0, dilation.0),
-            (3, kernel_width, padding.1, output_padding.1, dilation.1),
+        let mut margins = Padding2d::default();
+        for (axis, kernel, pad, extra, dilation, margin) in [
+            (
+                2,
+                kernel_height,
+                padding.height,
+                output_padding.height,
+                dilation.height,
+                &mut margins.height,
+            ),
+            (
+                3,
+                kernel_width,
+                padding.width,
+                output_padding.width,
+                dilation.width,
+                &mut margins.width,
+            ),
         ] {
             let before = dilation * (kernel - 1) - pad;
             let after = before + extra;
@@ -111,16 +132,9 @@ impl Tensor {
                 )?;
             }
 
-            margins.push((before.max(0), after.max(0)));
+            *margin = Padding::new(before.max(0), after.max(0));
         }
-        spread.convolution2d(
-            &flipped,
-            bias,
-            (1, 1),
-            (margins[0].0, margins[0].1, margins[1].0, margins[1].1),
-            dilation,
-            groups,
-        )
+        spread.convolution2d(&flipped, bias, (1, 1), margins, dilation, groups)
     }
 
     pub fn convolution_transpose1d(
@@ -194,8 +208,8 @@ impl Tensor {
         }
 
         let axis = to_i64(dim, "zero insertion dim")?;
-        let mut padding = vec![(0, 0); rank + 1];
-        padding[dim + 1] = (0, stride - 1);
+        let mut padding = vec![Padding::ZERO; rank + 1];
+        padding[dim + 1] = Padding::new(0, stride - 1);
         let mut merged = (0..rank)
             .map(|axis| self.dimension(axis))
             .collect::<Result<Vec<_>>>()?;

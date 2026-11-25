@@ -1,10 +1,14 @@
 //! Reads a `transformers` YOLOS config and imports its checkpoint, which stores the `ViT` encoder under `vit.`.
 
 use serde::Deserialize;
+use singe::shape::spatial::Spatial2dI64;
 
 use crate::{
     error::{Error, Result},
-    format::{Rules, transformers::classifier_config},
+    format::{
+        Rules,
+        transformers::{classifier_config, spatial_field},
+    },
     model::vision::{
         vit::transformers::{VitFields, encoder_rules},
         yolos::YolosConfig,
@@ -16,7 +20,8 @@ use crate::{
 struct Fields {
     #[serde(flatten)]
     vit: VitFields,
-    image_size: [i64; 2],
+    #[serde(deserialize_with = "spatial_field")]
+    image_size: Spatial2dI64,
     num_detection_tokens: i64,
     #[serde(default)]
     use_mid_position_embeddings: bool,

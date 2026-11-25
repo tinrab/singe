@@ -5,6 +5,7 @@ use crate::{
     dispatch::call_one,
     error::{Error, Result},
     nn::{Layer, ModelState, StateKey},
+    shape::spatial::{Padding, Padding2d, Spatial2d, Spatial2dI64, Spatial3dI64},
     tensor::Tensor,
 };
 
@@ -15,11 +16,11 @@ use crate::{
 #[derive(Debug, Clone, Copy)]
 pub struct Conv2dConfig {
     /// Vertical and horizontal stride.
-    pub stride: (i64, i64),
-    /// Padding above, below, left, and right of the input.
-    pub padding: (i64, i64, i64, i64),
+    pub stride: Spatial2dI64,
+    /// Padding of the input's height and width.
+    pub padding: Padding2d,
     /// Vertical and horizontal spacing between filter elements.
-    pub dilation: (i64, i64),
+    pub dilation: Spatial2dI64,
     /// Number of independent channel groups.
     pub groups: i64,
 }
@@ -27,9 +28,9 @@ pub struct Conv2dConfig {
 impl Default for Conv2dConfig {
     fn default() -> Self {
         Self {
-            stride: (1, 1),
-            padding: (0, 0, 0, 0),
-            dilation: (1, 1),
+            stride: Spatial2d::square(1),
+            padding: Padding2d::default(),
+            dilation: Spatial2d::square(1),
             groups: 1,
         }
     }
@@ -86,7 +87,7 @@ impl Layer for Conv2d {
 #[derive(Debug, Clone, Copy)]
 pub struct Conv1dConfig {
     pub stride: i64,
-    pub padding: (i64, i64),
+    pub padding: Padding,
     pub dilation: i64,
     pub groups: i64,
 }
@@ -95,7 +96,7 @@ impl Default for Conv1dConfig {
     fn default() -> Self {
         Self {
             stride: 1,
-            padding: (0, 0),
+            padding: Padding::ZERO,
             dilation: 1,
             groups: 1,
         }
@@ -137,9 +138,9 @@ impl Layer for Conv1d {
             Operation::Conv2d,
             OperationAttributes::Conv2d(Conv2dAttributes {
                 has_bias: bias.is_some(),
-                stride: (1, config.stride),
-                padding: (0, 0, config.padding.0, config.padding.1),
-                dilation: (1, config.dilation),
+                stride: Spatial2d::new(1, config.stride),
+                padding: Padding2d::new(Padding::ZERO, config.padding),
+                dilation: Spatial2d::new(1, config.dilation),
                 groups: config.groups,
             }),
             &inputs,
@@ -176,21 +177,37 @@ impl Layer for PatchEmbedding {
 
 // Transposed convolution options along each spatial axis: stride, padding taken off each side, output padding added after, dilation, and groups, as `torch.nn.ConvTranspose2d` takes them.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ConvTransposeConfig<const N: usize> {
-    pub stride: [i64; N],
-    pub padding: [i64; N],
-    pub output_padding: [i64; N],
-    pub dilation: [i64; N],
+pub struct ConvTransposeConfig<T> {
+    pub stride: T,
+    pub padding: T,
+    pub output_padding: T,
+    pub dilation: T,
     pub groups: i64,
 }
 
-impl<const N: usize> Default for ConvTransposeConfig<N> {
+pub type ConvTranspose1dConfig = ConvTransposeConfig<i64>;
+
+pub type ConvTranspose2dConfig = ConvTransposeConfig<Spatial2dI64>;
+
+impl Default for ConvTranspose1dConfig {
     fn default() -> Self {
         Self {
-            stride: [1; N],
-            padding: [0; N],
-            output_padding: [0; N],
-            dilation: [1; N],
+            stride: 1,
+            padding: 0,
+            output_padding: 0,
+            dilation: 1,
+            groups: 1,
+        }
+    }
+}
+
+impl Default for ConvTranspose2dConfig {
+    fn default() -> Self {
+        Self {
+            stride: Spatial2d::square(1),
+            padding: Spatial2d::square(0),
+            output_padding: Spatial2d::square(0),
+            dilation: Spatial2d::square(1),
             groups: 1,
         }
     }
@@ -201,7 +218,7 @@ impl<const N: usize> Default for ConvTransposeConfig<N> {
 pub struct ConvTranspose1d {
     weight: StateKey,
     bias: Option<StateKey>,
-    config: ConvTransposeConfig<1>,
+    config: ConvTranspose1dConfig,
 }
 
 impl ConvTranspose1d {
@@ -209,7 +226,7 @@ impl ConvTranspose1d {
     pub const fn new(
         weight: StateKey,
         bias: Option<StateKey>,
-        config: ConvTransposeConfig<1>,
+        config: ConvTranspose1dConfig,
     ) -> Self {
         Self {
             weight,
@@ -230,10 +247,10 @@ impl Layer for ConvTranspose1d {
         input.convolution_transpose1d(
             state.tensor(&self.weight)?,
             bias,
-            config.stride[0],
-            config.padding[0],
-            config.output_padding[0],
-            config.dilation[0],
+            config.stride,
+            config.padding,
+            config.output_padding,
+            config.dilation,
             config.groups,
         )
     }
@@ -244,7 +261,7 @@ impl Layer for ConvTranspose1d {
 pub struct ConvTranspose2d {
     weight: StateKey,
     bias: Option<StateKey>,
-    config: ConvTransposeConfig<2>,
+    config: ConvTranspose2dConfig,
 }
 
 impl ConvTranspose2d {
@@ -252,7 +269,7 @@ impl ConvTranspose2d {
     pub const fn new(
         weight: StateKey,
         bias: Option<StateKey>,
-        config: ConvTransposeConfig<2>,
+        config: ConvTranspose2dConfig,
     ) -> Self {
         Self {
             weight,
@@ -270,14 +287,13 @@ impl Layer for ConvTranspose2d {
             .as_ref()
             .map(|key| state.tensor(key))
             .transpose()?;
-        let pair = <(i64, i64)>::from;
         input.convolution_transpose2d(
             state.tensor(&self.weight)?,
             bias,
-            pair(config.stride),
-            pair(config.padding),
-            pair(config.output_padding),
-            pair(config.dilation),
+            config.stride,
+            config.padding,
+            config.output_padding,
+            config.dilation,
             config.groups,
         )
     }
@@ -286,18 +302,18 @@ impl Layer for ConvTranspose2d {
 // Three-dimensional convolution options: stride, padding on both sides, and dilation along depth, height, and width, and groups.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Conv3dConfig {
-    pub stride: (i64, i64, i64),
-    pub padding: (i64, i64, i64),
-    pub dilation: (i64, i64, i64),
+    pub stride: Spatial3dI64,
+    pub padding: Spatial3dI64,
+    pub dilation: Spatial3dI64,
     pub groups: i64,
 }
 
 impl Default for Conv3dConfig {
     fn default() -> Self {
         Self {
-            stride: (1, 1, 1),
-            padding: (0, 0, 0),
-            dilation: (1, 1, 1),
+            stride: Spatial3dI64::cube(1),
+            padding: Spatial3dI64::cube(0),
+            dilation: Spatial3dI64::cube(1),
             groups: 1,
         }
     }

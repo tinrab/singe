@@ -8,6 +8,7 @@ use singe::{
     graph::{Graph, GraphInputSpec, GraphProgram},
     nn::{Layer, Model, ModelState, TokenBatch},
     onnx::{WeightPlacement, export_file},
+    shape::spatial::{Spatial2d, Spatial2dI64},
     value::ValueSpec,
 };
 
@@ -380,7 +381,7 @@ fn image<L: Layer>(
     let spec = input_spec(
         options,
         options.data_type,
-        &[BATCH, 3, size[0], size[1]],
+        &[BATCH, 3, size.height, size.width],
         axes,
     )?;
 
@@ -394,18 +395,18 @@ fn image<L: Layer>(
 }
 
 /// The size a model whose processor keeps each image's aspect ratio builds at, which its `height` and `width` axes vary from: the square of the shorter side it resizes to.
-fn nominal_size(resize: Option<Resize>) -> Result<[i64; 2]> {
+fn nominal_size(resize: Option<Resize>) -> Result<Spatial2dI64> {
     let round = |side: i64, multiple: i64| side / multiple * multiple;
     match resize {
-        Some(Resize::ShortestEdge(side) | Resize::Longest(side)) => Ok([side; 2]),
+        Some(Resize::ShortestEdge(side) | Resize::Longest(side)) => Ok(Spatial2d::square(side)),
         Some(Resize::Bounded {
             shortest, multiple, ..
-        }) => Ok([round(shortest, multiple.max(1)); 2]),
+        }) => Ok(Spatial2d::square(round(shortest, multiple.max(1)))),
         Some(
             Resize::Fitted { height, width, .. }
             | Resize::Thumbnail { height, width }
             | Resize::Exact { height, width },
-        ) => Ok([height, width]),
+        ) => Ok(Spatial2d::new(height, width)),
         None => Err(Error::unsupported(
             "exporting an image model whose processor does not resize",
         )),

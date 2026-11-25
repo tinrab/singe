@@ -14,7 +14,10 @@ use crate::{
             },
         },
     },
-    shape::normalize_dim_usize,
+    shape::{
+        normalize_dim_usize,
+        spatial::{Padding, Padding2d, Spatial2d},
+    },
     utility::to_usize,
 };
 
@@ -74,7 +77,7 @@ pub fn identity_pad_input(
     graph: &Graph,
     node: &NodeRef<'_>,
     input: ValueId,
-    padding: &[(i64, i64)],
+    padding: &[Padding],
 ) -> Result<Option<ValueId>> {
     validate_pad_metadata(graph, node, input, padding)?;
     let padding = graph.node_normalized_padding(input, padding)?;
@@ -90,7 +93,7 @@ fn validate_pad_metadata(
     graph: &Graph,
     node: &NodeRef<'_>,
     input: ValueId,
-    padding: &[(i64, i64)],
+    padding: &[Padding],
 ) -> Result<()> {
     let output_shape = pad_output_shape_for_input(graph, input, padding)?;
     if node.output_shape() != &output_shape {
@@ -213,7 +216,9 @@ pub fn identity_window_input(graph: &Graph, node: &NodeRef<'_>) -> Result<Option
         // Pools accept floating values only, so an integer pool stays for preparation to reject.
         Some(Operation::MaxPool2d | Operation::AvgPool2d) if node.output_data_type().is_float() => {
             attributes.pool2d().is_some_and(|pool| {
-                pool.kernel_size == (1, 1) && pool.stride == (1, 1) && pool.padding == (0, 0, 0, 0)
+                pool.kernel_size == Spatial2d::square(1)
+                    && pool.stride == Spatial2d::square(1)
+                    && pool.padding == Padding2d::default()
             })
         }
         _ => false,

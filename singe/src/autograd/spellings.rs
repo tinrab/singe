@@ -8,6 +8,7 @@ use crate::{
         Pool2dAttributes,
     },
     error::{Error, Result},
+    shape::spatial::{Padding, Padding2d, Spatial2d, Spatial2dI64},
     tensor::Tensor,
     utility::to_i64,
 };
@@ -95,24 +96,36 @@ pub fn batch_norm(inputs: &[Tensor], batch: &BatchNormalizationAttributes) -> Re
     Ok(normed)
 }
 
-// The points of the window tap `(i, j)` of every output point, `[N, C, H, W]` for an output of `H` by `W`.
+// Pads the height and width of an NCHW tensor.
+fn pad_planar(input: &Tensor, padding: Padding2d, value: f32) -> Result<Tensor> {
+    input.pad(
+        &[Padding::ZERO, Padding::ZERO, padding.height, padding.width],
+        value,
+    )
+}
+
+// The points of window tap `tap` of every output point, `[N, C, H, W]` for an output of `H` by `W`.
 fn window_tap(
     padded: &Tensor,
-    tap: (i64, i64),
-    dilation: (i64, i64),
-    stride: (i64, i64),
-    output: (i64, i64),
+    tap: Spatial2dI64,
+    dilation: Spatial2dI64,
+    stride: Spatial2dI64,
+    output: Spatial2dI64,
 ) -> Result<Tensor> {
     padded
-        .slice(2, tap.0 * dilation.0, output.0, stride.0)?
-        .slice(3, tap.1 * dilation.1, output.1, stride.1)
+        .slice(
+            2,
+            tap.height * dilation.height,
+            output.height,
+            stride.height,
+        )?
+        .slice(3, tap.width * dilation.width, output.width, stride.width)
 }
 
 // A convolution as the sum over its weight's taps of a matmul with each group's channels.
 pub fn conv2d(inputs: &[Tensor], conv: &Conv2dAttributes, output: &[i64]) -> Result<Tensor> {
     let (x, weight) = (&inputs[0], &inputs[1]);
-    let (top, bottom, left, right) = conv.padding;
-    let padded = x.pad(&[(0, 0), (0, 0), (top, bottom), (left, right)], 0.0)?;
+    let padded = pad_planar(x, conv.padding, 0.0)?;
     let &[out_channels, group_inputs, kernel_height, kernel_width] = weight.shape().dimensions()
     else {
         return Err(Error::invalid_argument("conv2d needs an OIHW weight"));
@@ -121,11 +134,17 @@ pub fn conv2d(inputs: &[Tensor], conv: &Conv2dAttributes, output: &[i64]) -> Res
     let &[_, _, height, width] = output else {
         return Err(Error::invalid_argument("conv2d needs an NCHW output"));
     };
-    let extents = (height, width);
+    let extents = Spatial2d::new(height, width);
     let mut total: Option<Tensor> = None;
     for i in 0..kernel_height {
         for j in 0..kernel_width {
-            let tap = window_tap(&padded, (i, j), conv.dilation, conv.stride, extents)?;
+            let tap = window_tap(
+                &padded,
+                Spatial2d::new(i, j),
+                conv.dilation,
+                conv.stride,
+                extents,
+            )?;
             let tap_weight = weight
                 .narrow(2, i, 1)?
                 .narrow(3, j, 1)?
@@ -156,20 +175,30 @@ pub fn conv2d(inputs: &[Tensor], conv: &Conv2dAttributes, output: &[i64]) -> Res
 }
 
 // The padding that holds every window of `pool`: its own, and more after the input where ceil mode reaches past it.
-fn pool_padding(
-    input: &[i64],
-    output: &[i64],
-    pool: &Pool2dAttributes,
-) -> ((i64, i64), (i64, i64)) {
-    let (top, bottom, left, right) = pool.padding;
-    let needed = |axis: usize, kernel: i64, dilation: i64, stride: i64, before: i64, after: i64| {
+fn pool_padding(input: &[i64], output: &[i64], pool: &Pool2dAttributes) -> Padding2d {
+    let needed = |axis: usize, kernel: i64, dilation: i64, stride: i64, padding: Padding| {
         let reach = dilation * (kernel - 1) + stride * (output[axis] - 1) + 1;
-        after.max(reach - before - input[axis])
+        Padding::new(
+            padding.before,
+            padding.after.max(reach - padding.before - input[axis]),
+        )
     };
     let (kernel, stride, dilation) = (pool.kernel_size, pool.stride, pool.dilation);
-    (
-        (top, needed(2, kernel.0, dilation.0, stride.0, top, bottom)),
-        (left, needed(3, kernel.1, dilation.1, stride.1, left, right)),
+    Padding2d::new(
+        needed(
+            2,
+            kernel.height,
+            dilation.height,
+            stride.height,
+            pool.padding.height,
+        ),
+        needed(
+            3,
+            kernel.width,
+            dilation.width,
+            stride.width,
+            pool.padding.width,
+        ),
     )
 }
 
@@ -178,14 +207,14 @@ fn pool_taps(padded: &Tensor, pool: &Pool2dAttributes, output: &[i64]) -> Result
         return Err(Error::invalid_argument("pool2d needs an NCHW output"));
     };
     let mut taps = Vec::new();
-    for i in 0..pool.kernel_size.0 {
-        for j in 0..pool.kernel_size.1 {
+    for i in 0..pool.kernel_size.height {
+        for j in 0..pool.kernel_size.width {
             taps.push(window_tap(
                 padded,
-                (i, j),
+                Spatial2d::new(i, j),
                 pool.dilation,
                 pool.stride,
-                (height, width),
+                Spatial2d::new(height, width),
             )?);
         }
     }
@@ -193,8 +222,8 @@ fn pool_taps(padded: &Tensor, pool: &Pool2dAttributes, output: &[i64]) -> Result
 }
 
 pub fn max_pool2d(input: &Tensor, pool: &Pool2dAttributes, output: &[i64]) -> Result<Tensor> {
-    let (rows, columns) = pool_padding(input.shape().dimensions(), output, pool);
-    let padded = input.pad(&[(0, 0), (0, 0), rows, columns], f32::NEG_INFINITY)?;
+    let padding = pool_padding(input.shape().dimensions(), output, pool);
+    let padded = pad_planar(input, padding, f32::NEG_INFINITY)?;
     let mut taps = pool_taps(&padded, pool, output)?.into_iter();
     let first = taps
         .next()
@@ -206,18 +235,17 @@ pub fn max_pool2d(input: &Tensor, pool: &Pool2dAttributes, output: &[i64]) -> Re
 
 // The sum of each window over how many of its points count: those of the input, and of its explicit padding when `count_include_pad` says so, but never of what ceil mode adds.
 pub fn avg_pool2d(input: &Tensor, pool: &Pool2dAttributes, output: &[i64]) -> Result<Tensor> {
-    let (rows, columns) = pool_padding(input.shape().dimensions(), output, pool);
-    let padded = input.pad(&[(0, 0), (0, 0), rows, columns], 0.0)?;
-    let (top, bottom, left, right) = pool.padding;
+    let padding = pool_padding(input.shape().dimensions(), output, pool);
+    let padded = pad_planar(input, padding, 0.0)?;
     let ones = input.detach().ones_like()?;
     let counted = if pool.count_include_pad == Some(true) {
-        ones.pad(&[(0, 0), (0, 0), (top, bottom), (left, right)], 1.0)?
-            .pad(
-                &[(0, 0), (0, 0), (0, rows.1 - bottom), (0, columns.1 - right)],
-                0.0,
-            )?
+        let ceil = Padding2d::new(
+            Padding::new(0, padding.height.after - pool.padding.height.after),
+            Padding::new(0, padding.width.after - pool.padding.width.after),
+        );
+        pad_planar(&pad_planar(&ones, pool.padding, 1.0)?, ceil, 0.0)?
     } else {
-        ones.pad(&[(0, 0), (0, 0), rows, columns], 0.0)?
+        pad_planar(&ones, padding, 0.0)?
     };
     let sum = |taps: Vec<Tensor>| -> Result<Tensor> {
         let mut taps = taps.into_iter();

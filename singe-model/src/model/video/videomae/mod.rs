@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use singe::{
     Error as SingeError, Result as SingeResult, Shape, Tensor,
     nn::{Conv3d, Conv3dConfig, Layer, LayerNorm, Linear, ModelState},
+    shape::spatial::Spatial3d,
 };
 
 use crate::{
@@ -75,7 +76,7 @@ impl VideoMaeClassifierLayers {
             width,
             [config.tubelet, config.patch_size, config.patch_size],
             Conv3dConfig {
-                stride: (config.tubelet, config.patch_size, config.patch_size),
+                stride: Spatial3d::new(config.tubelet, config.patch_size, config.patch_size),
                 ..Conv3dConfig::default()
             },
             true,

@@ -3,7 +3,11 @@
 use std::iter;
 
 use serde::Deserialize;
-use singe::{Error as SingeError, Shape, Tensor, tensor::InterpolateMode};
+use singe::{
+    Error as SingeError, Shape, Tensor,
+    shape::spatial::{Spatial2d, Spatial2dI64},
+    tensor::InterpolateMode,
+};
 
 use crate::{
     error::{Error, Result},
@@ -68,7 +72,7 @@ impl ImageTextToVideoPipeline {
         &self,
         image: &Image,
         parameters: &ImageTextToVideoParameters,
-        (height, width): (i64, i64),
+        Spatial2d { height, width }: Spatial2dI64,
         generator: &mut TorchGenerator,
         copies: usize,
     ) -> Result<Tensor> {
@@ -80,7 +84,7 @@ impl ImageTextToVideoPipeline {
         // The image's latents at the latents' size, scaled, as each frame's condition, and each frame's mask of how much it keeps the image.
         let image = parts
             .sampled_latents(&parts.image_pixels(image, None)?, generator)?
-            .interpolate((height, width), InterpolateMode::Nearest)?
+            .interpolate(Spatial2d::new(height, width), InterpolateMode::Nearest)?
             .mul_scalar(f64::from(parts.scaling))?;
         let &[_, image_channels, ..] = image.shape().dimensions() else {
             return Err(SingeError::invalid_argument("image latents, [1, C, h, w]").into());
@@ -130,7 +134,8 @@ impl Pipeline for ImageTextToVideoPipeline {
 
     fn run_one(&self, input: &Self::Input, parameters: &Self::Parameters) -> Result<Self::Output> {
         let parts = &self.0;
-        let (height, width) = parts.latent_size(parameters.height, parameters.width)?;
+        let Spatial2d { height, width } =
+            parts.latent_size(Spatial2d::new(parameters.height, parameters.width))?;
         let denoising = &parameters.denoising;
         let guidance = denoising.guidance();
         let mut scheduler = Sampler::create(&parts.scheduler, denoising.num_inference_steps)?;
@@ -150,7 +155,7 @@ impl Pipeline for ImageTextToVideoPipeline {
         let condition = self.condition(
             &input.image,
             parameters,
-            (height, width),
+            Spatial2d::new(height, width),
             &mut generator,
             copies,
         )?;

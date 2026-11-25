@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use singe::{
     Result as SingeResult, Shape, Tensor,
     nn::{Activation, Conv2d, Conv2dConfig, Layer, LayerNorm, Linear, Mlp, ModelState, StateKey},
+    shape::spatial::{Padding, Spatial2d, Spatial2dI64},
 };
 
 use crate::{
@@ -173,7 +174,7 @@ impl Swin {
             width,
             config.patch_size,
             Conv2dConfig {
-                stride: (config.patch_size, config.patch_size),
+                stride: Spatial2d::square(config.patch_size),
                 ..Conv2dConfig::default()
             },
             true,
@@ -218,7 +219,7 @@ impl Swin {
         &self,
         block: &Block,
         hidden: &Tensor,
-        (height, width): (i64, i64),
+        Spatial2d { height, width }: Spatial2dI64,
         state: &ModelState,
     ) -> SingeResult<Tensor> {
         let dimensions = hidden.shape().dimensions();
@@ -236,10 +237,10 @@ impl Swin {
             .reshape([batch, height, width, channels])?
             .pad(
                 &[
-                    (0, 0),
-                    (0, padded_height - height),
-                    (0, padded_width - width),
-                    (0, 0),
+                    Padding::ZERO,
+                    Padding::new(0, padded_height - height),
+                    Padding::new(0, padded_width - width),
+                    Padding::ZERO,
                 ],
                 0.0,
             )?;
@@ -307,14 +308,20 @@ impl Layer for Swin {
         let mut hidden = to_tokens(&patches)?.apply(&self.patch_norm, state)?;
         for stage in &self.stages {
             for block in &stage.blocks {
-                hidden = self.block(block, &hidden, (height, width), state)?;
+                hidden = self.block(block, &hidden, Spatial2d::new(height, width), state)?;
             }
             if let Some(merge) = &stage.merge {
                 let dimensions = hidden.shape().dimensions();
                 let (batch, channels) = (dimensions[0], dimensions[2]);
-                let grid = hidden
-                    .reshape([batch, height, width, channels])?
-                    .pad(&[(0, 0), (0, height % 2), (0, width % 2), (0, 0)], 0.0)?;
+                let grid = hidden.reshape([batch, height, width, channels])?.pad(
+                    &[
+                        Padding::ZERO,
+                        Padding::new(0, height % 2),
+                        Padding::new(0, width % 2),
+                        Padding::ZERO,
+                    ],
+                    0.0,
+                )?;
                 let (half_height, half_width) = ((height + 1) / 2, (width + 1) / 2);
                 // Each 2 × 2 square's points in `transformers`' order: top left, bottom left, top right, bottom right.
                 let squares = grid.reshape([batch, half_height, 2, half_width, 2, channels])?;

@@ -7,7 +7,10 @@ use crate::{
     device::Device,
     dispatch::call_one,
     error::Result,
-    shape::Shape,
+    shape::{
+        Shape,
+        spatial::{Padding, Padding2d, Spatial2d},
+    },
     tensor::{AttentionOptions, Tensor},
 };
 
@@ -367,9 +370,14 @@ fn test_attention_gradients_match_finite_differences() {
 #[test]
 fn test_convolution_gradients_match_finite_differences() {
     for (stride, padding, dilation, groups) in [
-        ((1, 1), (0, 0, 0, 0), (1, 1), 1),
-        ((2, 1), (1, 0, 1, 2), (1, 2), 1),
-        ((1, 2), (1, 1, 0, 0), (1, 1), 2),
+        ((1, 1), Padding2d::default(), (1, 1), 1),
+        (
+            (2, 1),
+            Padding2d::new(Padding::new(1, 0), Padding::new(1, 2)),
+            (1, 2),
+            1,
+        ),
+        ((1, 2), Padding2d::symmetric(1, 0), (1, 1), 2),
     ] {
         check_operands(
             &[
@@ -415,10 +423,10 @@ fn test_pooling_gradients_match_finite_differences() {
         call_one(operation, OperationAttributes::Pool2d(attributes), &[input]).unwrap()
     };
     let window = |padding, ceil_mode, count_include_pad| Pool2dAttributes {
-        kernel_size: (2, 3),
-        stride: (2, 2),
+        kernel_size: Spatial2d::new(2, 3),
+        stride: Spatial2d::square(2),
         padding,
-        dilation: (1, 1),
+        dilation: Spatial2d::square(1),
         ceil_mode,
         count_include_pad,
     };
@@ -427,20 +435,20 @@ fn test_pooling_gradients_match_finite_differences() {
         .map(|index| f64::from((index * 17) % 31) / 7.0 - 2.0)
         .collect::<Vec<_>>();
     for attributes in [
-        window((0, 0, 0, 0), false, Some(true)),
-        window((1, 1, 1, 1), false, Some(true)),
-        window((1, 1, 1, 1), false, Some(false)),
-        window((0, 0, 0, 0), true, Some(true)),
-        window((0, 0, 1, 1), true, Some(false)),
+        window(Padding2d::default(), false, Some(true)),
+        window(Padding2d::symmetric(1, 1), false, Some(true)),
+        window(Padding2d::symmetric(1, 1), false, Some(false)),
+        window(Padding2d::default(), true, Some(true)),
+        window(Padding2d::symmetric(0, 1), true, Some(false)),
     ] {
         check_operands(&[(&[1, 2, 3, 5], distinct.clone())], &[0], |inputs| {
             pool(Operation::AvgPool2d, attributes, &inputs[0])
         });
     }
     for attributes in [
-        window((0, 0, 0, 0), false, None),
-        window((1, 1, 1, 1), false, None),
-        window((0, 0, 0, 0), true, None),
+        window(Padding2d::default(), false, None),
+        window(Padding2d::symmetric(1, 1), false, None),
+        window(Padding2d::default(), true, None),
     ] {
         check_operands(&[(&[1, 2, 3, 5], distinct.clone())], &[0], |inputs| {
             pool(Operation::MaxPool2d, attributes, &inputs[0])

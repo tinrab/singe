@@ -1,4 +1,5 @@
 mod metrics;
+pub mod spatial;
 pub(crate) mod transform;
 
 use std::{

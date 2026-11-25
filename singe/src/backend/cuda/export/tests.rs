@@ -28,7 +28,7 @@ use crate::{
     },
     index::TensorIndex,
     random::Generator,
-    shape::Shape,
+    shape::{Shape, spatial::Padding2d},
     tensor::{AttentionOptions, Tensor},
     testing::{CompiledProgram, maybe_lock_device, program_target},
 };
@@ -309,9 +309,9 @@ fn test_generated_convolutions_match_cudnn() {
     };
     let pure = CudaExport::new(architecture).without_libraries();
     for (index, (stride, padding, dilation, groups)) in [
-        ((1, 1), (0, 0, 0, 0), (1, 1), 1),
-        ((2, 1), (1, 1, 2, 2), (1, 2), 1),
-        ((1, 1), (1, 1, 1, 1), (1, 1), 2),
+        ((1, 1), Padding2d::symmetric(0, 0), (1, 1), 1),
+        ((2, 1), Padding2d::symmetric(1, 2), (1, 2), 1),
+        ((1, 1), Padding2d::symmetric(1, 1), (1, 1), 2),
     ]
     .into_iter()
     .enumerate()
@@ -397,7 +397,7 @@ fn test_programs_call_libraries_and_kernels_together() {
                     &inputs[1],
                     Some(&inputs[2]),
                     (1, 1),
-                    (1, 1, 1, 1),
+                    Padding2d::symmetric(1, 1),
                     (1, 1),
                     1,
                 )?;
@@ -405,7 +405,7 @@ fn test_programs_call_libraries_and_kernels_together() {
                     &inputs[3],
                     None,
                     (1, 1),
-                    (0, 0, 0, 0),
+                    Padding2d::default(),
                     (1, 1),
                     1,
                 )?])
@@ -971,7 +971,7 @@ fn test_cudnn_runs_every_convolution_when_allowed() {
                             &inputs[1],
                             bias.then_some(&inputs[2]),
                             (1, 1),
-                            (1, 1, 1, 1),
+                            Padding2d::symmetric(1, 1),
                             (1, 1),
                             groups,
                         )?;

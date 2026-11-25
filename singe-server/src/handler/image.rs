@@ -6,6 +6,7 @@ use axum::{
     extract::{Multipart, State},
 };
 use serde_json::{Map, Value, json};
+use singe::shape::spatial::Spatial2d;
 use singe_model::{
     processor::{base64, image::Image},
     task::{
@@ -52,9 +53,9 @@ pub async fn generate(
     let options = &request.options;
     let (count, output) = check(options)?;
     let mut parameters = denoising(options);
-    if let Some((width, height)) = parse_size(options.size.as_deref())? {
-        parameters.insert("width".to_owned(), json!(width));
-        parameters.insert("height".to_owned(), json!(height));
+    if let Some(size) = parse_size(options.size.as_deref())? {
+        parameters.insert("width".to_owned(), json!(size.width));
+        parameters.insert("height".to_owned(), json!(size.height));
     }
 
     let parameters = task::parameters::<TextToImageParameters>(&Value::Object(parameters))?;
@@ -113,8 +114,8 @@ pub async fn edit(
     let prompt = form.required_text("prompt")?.to_owned();
     let file = form.required_file("image")?.to_vec();
     let image = blocking(move || decode_image(&file, MAX_PIXELS)).await?;
-    if let Some((width, height)) = parse_size(options.size.as_deref())?
-        && (i64::from(image.width), i64::from(image.height)) != (width, height)
+    if let Some(size) = parse_size(options.size.as_deref())?
+        && Spatial2d::new(i64::from(image.height), i64::from(image.width)) != size
     {
         return Err(ApiError::invalid_field(
             "size",

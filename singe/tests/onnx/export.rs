@@ -15,6 +15,7 @@ use singe::{
     onnx::{self, Error},
     random::Generator,
     scalar::Scalar,
+    shape::spatial::{Padding, Spatial3d},
     tensor::{InterpolateMode, Interpolation},
     value::ValueSpec,
 };
@@ -510,7 +511,7 @@ fn test_operations_export_as_onnx_operators_and_roundtrip() {
                     OperationAttributes::Shape(Shape::create([2, 2, 3])?),
                     &[&x[0]],
                 )?,
-                x[0].pad(&[(1, 0), (0, 2)], 0.5)?,
+                x[0].pad(&[Padding::new(1, 0), Padding::new(0, 2)], 0.5)?,
             ])
         }),
         ("scans", vec![a.clone(), whole.clone()], |x| {
@@ -561,9 +562,9 @@ fn test_operations_export_as_onnx_operators_and_roundtrip() {
                     Operation::Conv3d,
                     OperationAttributes::Conv3d(Conv3dAttributes {
                         has_bias: true,
-                        stride: (1, 1, 1),
-                        padding: (1, 0, 1),
-                        dilation: (1, 1, 1),
+                        stride: Spatial3d::cube(1),
+                        padding: Spatial3d::new(1, 0, 1),
+                        dilation: Spatial3d::cube(1),
                         groups: 1,
                     }),
                     &[&x[0], &x[1], &x[2]],

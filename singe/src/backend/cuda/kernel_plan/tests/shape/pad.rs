@@ -1,4 +1,5 @@
 use super::*;
+use crate::shape::spatial::Padding;
 
 #[test]
 fn test_cuda_eager_pad_f32_rank4_matches_expected() {
@@ -10,7 +11,7 @@ fn test_cuda_eager_pad_f32_rank4_matches_expected() {
     let values = (0..129usize)
         .map(|value| (value as f32).mul_add(0.25, -3.0))
         .collect::<Vec<_>>();
-    let padding = [(1_i64, 2_i64), (2_i64, 1_i64)];
+    let padding = [Padding::new(1, 2), Padding::new(2, 1)];
     let expected = expected_pad_f32(&values, &[3, 43], &padding, -9.0);
     let Some(input) = skip_if_stub(Tensor::from_vec(Device::Cuda(0), &shape, values)) else {
         return;
@@ -25,7 +26,7 @@ fn test_cuda_eager_pad_f32_rank4_matches_expected() {
     let rank3_values = (0..66usize)
         .map(|value| (value as f32).mul_add(0.125, -4.0))
         .collect::<Vec<_>>();
-    let rank3_padding = [(0_i64, 1_i64), (1_i64, 0_i64), (2_i64, 3_i64)];
+    let rank3_padding = [Padding::new(0, 1), Padding::new(1, 0), Padding::new(2, 3)];
     let mut rank3_permuted_values = Vec::with_capacity(rank3_values.len());
     for i in 0..11usize {
         for j in 0..2usize {
@@ -62,7 +63,7 @@ fn test_cuda_eager_pad_f32_handles_noop_and_rank5() {
         return;
     };
 
-    let noop = input.pad(&[(0, 0), (0, 0)], 7.0).unwrap();
+    let noop = input.pad(&[Padding::ZERO, Padding::ZERO], 7.0).unwrap();
 
     assert_eq!(noop.shape().dimensions(), &[2_i64, 3]);
     assert_close!(&noop.to_vec::<f32>().unwrap(), &values);
@@ -72,7 +73,16 @@ fn test_cuda_eager_pad_f32_handles_noop_and_rank5() {
     let rank5_input = Tensor::from_vec(Device::Cuda(0), &rank5_shape, rank5_values).unwrap();
 
     let rank5 = rank5_input
-        .pad(&[(1, 0), (0, 0), (0, 0), (0, 0), (0, 0)], -1.0)
+        .pad(
+            &[
+                Padding::new(1, 0),
+                Padding::ZERO,
+                Padding::ZERO,
+                Padding::ZERO,
+                Padding::ZERO,
+            ],
+            -1.0,
+        )
         .unwrap();
     assert_eq!(rank5.shape().dimensions(), &[3_i64, 2, 2, 2, 2]);
     let expected = [-1.0_f32; 16]

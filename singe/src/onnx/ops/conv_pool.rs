@@ -12,9 +12,12 @@ use crate::{
             register_node_outputs,
         },
         shape::{conv_output_shape, pool_output_shape},
-        utility::{node_label, node_name, pair},
+        utility::{node_label, node_name, pair, planar_pads},
     },
-    shape::Shape,
+    shape::{
+        Shape,
+        spatial::{Padding2d, Spatial2dI64, Spatial3dI64},
+    },
     value::ValueSpec,
 };
 
@@ -77,9 +80,9 @@ fn lower_conv3d(importer: &mut Importer, node: &Node) -> Result<()> {
         return Err(refuse("auto_pad is not supported"));
     }
 
-    let triple = |name: &str, default: i64| -> Result<(i64, i64, i64)> {
+    let triple = |name: &str, default: i64| -> Result<Spatial3dI64> {
         match attrs.ints_or(name, &[default; 3])?[..] {
-            [first, second, third] => Ok((first, second, third)),
+            [depth, height, width] => Ok(Spatial3dI64::new(depth, height, width)),
             _ => Err(Error::invalid_attribute(
                 node_label(node),
                 name,
@@ -107,7 +110,7 @@ fn lower_conv3d(importer: &mut Importer, node: &Node) -> Result<()> {
     let attributes = OperationAttributes::Conv3d(Conv3dAttributes {
         has_bias: bias.is_some(),
         stride,
-        padding: (first, second, third),
+        padding: Spatial3dI64::new(first, second, third),
         dilation,
         groups: attrs.int("group", 1)?,
     });
@@ -146,9 +149,9 @@ pub struct Conv2dInput {
     pub(crate) input: ImportedValue,
     pub(crate) weight: ImportedValue,
     pub(crate) bias: Option<ImportedValue>,
-    pub(crate) stride: (i64, i64),
-    pub(crate) padding: (i64, i64, i64, i64),
-    pub(crate) dilation: (i64, i64),
+    pub(crate) stride: Spatial2dI64,
+    pub(crate) padding: Padding2d,
+    pub(crate) dilation: Spatial2dI64,
     pub(crate) groups: i64,
 }
 
@@ -202,9 +205,9 @@ pub fn conv2d_input(importer: &Importer, node: &Node) -> Result<Conv2dInput> {
 }
 
 pub struct Conv2dAttributes {
-    pub(crate) stride: (i64, i64),
-    pub(crate) padding: (i64, i64, i64, i64),
-    pub(crate) dilation: (i64, i64),
+    pub(crate) stride: Spatial2dI64,
+    pub(crate) padding: Padding2d,
+    pub(crate) dilation: Spatial2dI64,
     pub(crate) groups: i64,
 }
 
@@ -231,20 +234,10 @@ pub fn conv2d_attributes(importer: &Importer, node: &Node) -> Result<Conv2dAttri
         }
     }
 
-    let stride = pair(&attrs.ints_or("strides", &[1, 1])?, "strides", node)?;
-    let dilation = pair(&attrs.ints_or("dilations", &[1, 1])?, "dilations", node)?;
-    let pads = attrs.ints_or("pads", &[0, 0, 0, 0])?;
-    if pads.len() != 4 {
-        return Err(Error::invalid_attribute(
-            node_label(node),
-            "pads",
-            "expected four values",
-        ));
-    }
     Ok(Conv2dAttributes {
-        stride,
-        padding: (pads[0], pads[2], pads[1], pads[3]),
-        dilation,
+        stride: pair(&attrs.ints_or("strides", &[1, 1])?, "strides", node)?,
+        padding: planar_pads(&attrs.ints_or("pads", &[0, 0, 0, 0])?, node)?,
+        dilation: pair(&attrs.ints_or("dilations", &[1, 1])?, "dilations", node)?,
         groups: attrs.int("group", 1)?,
     })
 }
@@ -284,7 +277,6 @@ pub fn lower_global_avg_pool(importer: &mut Importer, node: &Node) -> Result<()>
             ),
         });
     };
-    let kernel = (height, width);
     let shape = Shape::create([batch, channels, 1, 1])?;
     let device = importer.options().device;
     let id = importer
@@ -293,10 +285,10 @@ pub fn lower_global_avg_pool(importer: &mut Importer, node: &Node) -> Result<()>
             node_name(node),
             Operation::AvgPool2d,
             input.node,
-            kernel,
-            (1, 1),
-            (0, 0, 0, 0),
-            (1, 1),
+            Spatial2dI64::new(height, width),
+            Spatial2dI64::square(1),
+            Padding2d::default(),
+            Spatial2dI64::square(1),
             false,
             false,
             GraphOperationOutput::new(input.data_type, shape.clone(), device),
@@ -347,10 +339,10 @@ pub fn lower_pool2d(
 }
 
 pub struct Pool2dAttributes {
-    pub(crate) kernel: (i64, i64),
-    pub(crate) stride: (i64, i64),
-    pub(crate) padding: (i64, i64, i64, i64),
-    pub(crate) dilation: (i64, i64),
+    pub(crate) kernel: Spatial2dI64,
+    pub(crate) stride: Spatial2dI64,
+    pub(crate) padding: Padding2d,
+    pub(crate) dilation: Spatial2dI64,
     pub(crate) ceil_mode: bool,
 }
 
@@ -371,21 +363,11 @@ pub fn pool2d_attributes(node: &Node) -> Result<Pool2dAttributes> {
         "kernel_shape",
         node,
     )?;
-    let stride = pair(&attrs.ints_or("strides", &[1, 1])?, "strides", node)?;
-    let dilation = pair(&attrs.ints_or("dilations", &[1, 1])?, "dilations", node)?;
-    let pads = attrs.ints_or("pads", &[0, 0, 0, 0])?;
-    if pads.len() != 4 {
-        return Err(Error::invalid_attribute(
-            node_label(node),
-            "pads",
-            "expected four values",
-        ));
-    }
     Ok(Pool2dAttributes {
         kernel,
-        stride,
-        padding: (pads[0], pads[2], pads[1], pads[3]),
-        dilation,
+        stride: pair(&attrs.ints_or("strides", &[1, 1])?, "strides", node)?,
+        padding: planar_pads(&attrs.ints_or("pads", &[0, 0, 0, 0])?, node)?,
+        dilation: pair(&attrs.ints_or("dilations", &[1, 1])?, "dilations", node)?,
         ceil_mode: attrs.int("ceil_mode", 0)? != 0,
     })
 }

@@ -7,7 +7,7 @@ use crate::{
     graph::capture,
     index::TensorIndex,
     nn::{DecodeStep, InputGroup, SourcePages, TensorGroup, decode::input_group, pages_for},
-    shape::Shape,
+    shape::{Shape, spatial::Padding},
     tensor::Tensor,
 };
 
@@ -300,7 +300,14 @@ impl EncoderDecoderCache {
         )?)];
         let paged = |tensor: &Tensor| {
             tensor
-                .pad(&[(0, blocks * page - sources), (0, 0), (0, 0)], 0.0)?
+                .pad(
+                    &[
+                        Padding::new(0, blocks * page - sources),
+                        Padding::ZERO,
+                        Padding::ZERO,
+                    ],
+                    0.0,
+                )?
                 .reshape([blocks, page, heads, dim])
         };
         self.cross_keys.index_put_(&rows, &paged(keys)?)?;

@@ -9,7 +9,10 @@ use crate::{
         error::{Error, Result},
         options::OnnxOptions,
     },
-    shape::Shape,
+    shape::{
+        Shape,
+        spatial::{Padding2d, Spatial2dI64},
+    },
 };
 
 pub fn concrete_shape(
@@ -105,9 +108,9 @@ pub fn value_tensor_type(value: &ValueInfo) -> Result<&TensorType> {
 pub fn conv_output_shape(
     input: &Shape,
     weight: &Shape,
-    stride: (i64, i64),
-    padding: (i64, i64, i64, i64),
-    dilation: (i64, i64),
+    stride: Spatial2dI64,
+    padding: Padding2d,
+    dilation: Spatial2dI64,
     groups: i64,
 ) -> Result<Shape> {
     spec::conv2d_output_shape(input, weight, stride, padding, dilation, groups).map_err(Into::into)
@@ -115,10 +118,10 @@ pub fn conv_output_shape(
 
 pub fn pool_output_shape(
     input: &Shape,
-    kernel: (i64, i64),
-    stride: (i64, i64),
-    padding: (i64, i64, i64, i64),
-    dilation: (i64, i64),
+    kernel: Spatial2dI64,
+    stride: Spatial2dI64,
+    padding: Padding2d,
+    dilation: Spatial2dI64,
     ceil_mode: bool,
 ) -> Result<Shape> {
     if input.rank() != 4 {

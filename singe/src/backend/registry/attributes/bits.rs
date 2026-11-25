@@ -1,8 +1,15 @@
 use std::hash::{Hash, Hasher};
 
 use crate::{
-    backend::registry::attributes::PackedFormat, data_type::DataType, device::Device,
-    scalar::Scalar, shape::Shape, tensor::Interpolation,
+    backend::registry::attributes::PackedFormat,
+    data_type::DataType,
+    device::Device,
+    scalar::Scalar,
+    shape::{
+        Shape,
+        spatial::{Padding, Spatial2d, Spatial3d},
+    },
+    tensor::Interpolation,
 };
 
 /// Equality and hashing that compare floating values by their bits.
@@ -42,7 +49,8 @@ exact_bit_hash!(
     Device,
     Shape,
     PackedFormat,
-    Interpolation
+    Interpolation,
+    Padding
 );
 
 impl BitHash for f32 {
@@ -136,3 +144,28 @@ macro_rules! tuple_bit_hash {
 }
 
 tuple_bit_hash!((A 0, B 1), (A 0, B 1, C 2), (A 0, B 1, C 2, D 3));
+
+impl<T: BitHash> BitHash for Spatial2d<T> {
+    fn bit_hash<H: Hasher>(&self, state: &mut H) {
+        self.height.bit_hash(state);
+        self.width.bit_hash(state);
+    }
+
+    fn bit_eq(&self, other: &Self) -> bool {
+        self.height.bit_eq(&other.height) && self.width.bit_eq(&other.width)
+    }
+}
+
+impl<T: BitHash> BitHash for Spatial3d<T> {
+    fn bit_hash<H: Hasher>(&self, state: &mut H) {
+        self.depth.bit_hash(state);
+        self.height.bit_hash(state);
+        self.width.bit_hash(state);
+    }
+
+    fn bit_eq(&self, other: &Self) -> bool {
+        self.depth.bit_eq(&other.depth)
+            && self.height.bit_eq(&other.height)
+            && self.width.bit_eq(&other.width)
+    }
+}

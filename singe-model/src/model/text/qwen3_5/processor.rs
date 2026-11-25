@@ -3,6 +3,7 @@
 use serde::{Deserialize, Serialize};
 use singe::{
     Device, Error as SingeError, Shape, Tensor,
+    shape::spatial::{Spatial2d, Spatial2dI64},
     tensor::{InterpolateMode, Interpolation},
 };
 
@@ -39,14 +40,13 @@ impl Qwen35ImageProcessor {
         vision: &Qwen35VisionConfig,
         device: Device,
     ) -> Result<ImagePatches> {
-        let (height, width) = (i64::from(image.height), i64::from(image.width));
-        let (resized_height, resized_width) =
-            smart_resize(height, width, vision.size_factor(), self.bounds);
+        let size = Spatial2d::new(i64::from(image.height), i64::from(image.width));
+        let resized = smart_resize(size, vision.size_factor(), self.bounds);
         let mut pixels = image.to_tensor(device)?;
-        if (resized_height, resized_width) != (height, width) {
+        if resized != size {
             let interpolation = Interpolation::new(InterpolateMode::Bicubic).with_antialias(true);
             pixels = pixels
-                .interpolate((resized_height, resized_width), interpolation)?
+                .interpolate(resized, interpolation)?
                 .clamp(0.0, 255.0)?
                 .round()?;
         }
@@ -55,7 +55,7 @@ impl Qwen35ImageProcessor {
             .mul_scalar(1.0 / 255.0)?
             .contiguous()?
             .to_vec::<f32>()?;
-        self.cut(&pixels, resized_height, resized_width, vision, device)
+        self.cut(&pixels, resized.height, resized.width, vision, device)
     }
 
     /// Cuts an image, `[3, H, W]` channel-major RGB in `[0, 1]` with each side a multiple of the size factor, into normalized patches on `device`, each frame of a patch the image itself, as `transformers`' processor does for a still image.
@@ -118,27 +118,20 @@ impl Qwen35ImageProcessor {
     }
 }
 
-/// Returns the size `transformers`' `smart_resize` gives an image of `height` by `width`: each side a multiple of `factor`, the area within `bounds`, and the aspect ratio kept as closely as that allows.
-fn smart_resize(height: i64, width: i64, factor: i64, bounds: ImageSizeBounds) -> (i64, i64) {
-    let (h, w, f) = (height as f64, width as f64, factor as f64);
-    let mut resized = (
-        ((h / f).round_ties_even() as i64) * factor,
-        ((w / f).round_ties_even() as i64) * factor,
-    );
-    if resized.0 * resized.1 > bounds.max_pixels {
-        let beta = (h * w / bounds.max_pixels as f64).sqrt();
-        resized = (
-            factor.max(((h / beta / f).floor() as i64) * factor),
-            factor.max(((w / beta / f).floor() as i64) * factor),
-        );
-    } else if resized.0 * resized.1 < bounds.min_pixels {
-        let beta = (bounds.min_pixels as f64 / (h * w)).sqrt();
-        resized = (
-            ((h * beta / f).ceil() as i64) * factor,
-            ((w * beta / f).ceil() as i64) * factor,
-        );
+/// Returns the size `transformers`' `smart_resize` gives an image of `size`: each side a multiple of `factor`, the area within `bounds`, and the aspect ratio kept as closely as that allows.
+fn smart_resize(size: Spatial2dI64, factor: i64, bounds: ImageSizeBounds) -> Spatial2dI64 {
+    let (h, w, f) = (size.height as f64, size.width as f64, factor as f64);
+    let area = h * w;
+    let rounded = size.map(|side| ((side as f64 / f).round_ties_even() as i64) * factor);
+    if rounded.height * rounded.width > bounds.max_pixels {
+        let beta = (area / bounds.max_pixels as f64).sqrt();
+        size.map(|side| factor.max(((side as f64 / beta / f).floor() as i64) * factor))
+    } else if rounded.height * rounded.width < bounds.min_pixels {
+        let beta = (bounds.min_pixels as f64 / area).sqrt();
+        size.map(|side| ((side as f64 * beta / f).ceil() as i64) * factor)
+    } else {
+        rounded
     }
-    resized
 }
 
 /// Returns each patch's row and column, in the order that puts each merged block's patches together, as the image front end cuts them.

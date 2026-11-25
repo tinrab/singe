@@ -14,7 +14,7 @@ use crate::{
         },
         utility::{node_label, node_name},
     },
-    shape::{Shape, transform::normalize_dim},
+    shape::{Shape, spatial::Spatial2d, transform::normalize_dim},
     tensor::{InterpolateMode, Interpolation},
 };
 
@@ -61,7 +61,7 @@ pub fn lower_resize(importer: &mut Importer, node: &Node) -> Result<()> {
                 return Err(refuse("resize of axes other than the last two"));
             }
         }
-        [sizes[leading].clone(), sizes[leading + 1].clone()]
+        Spatial2d::new(sizes[leading].clone(), sizes[leading + 1].clone())
     } else {
         let (name, scales) = importer.required_static_input_tensor(node, 2, "scales")?;
         let scales = scales.cast(DataType::F32)?.to_vec::<f32>()?;
@@ -85,15 +85,15 @@ pub fn lower_resize(importer: &mut Importer, node: &Node) -> Result<()> {
                 refuse("resize by a scale that is neither whole nor one over a whole number")
             })
         });
-        [height?, width?]
+        Spatial2d::new(height?, width?)
     };
-    let (height, width) = (
-        importer.evaluate_dimension(&size[0])?,
-        importer.evaluate_dimension(&size[1])?,
+    let evaluated = Spatial2d::new(
+        importer.evaluate_dimension(&size.height)?,
+        importer.evaluate_dimension(&size.width)?,
     );
     let mut dimensions = input.shape.dimensions().to_vec();
-    dimensions[height_axis] = height;
-    dimensions[width_axis] = width;
+    dimensions[height_axis] = evaluated.height;
+    dimensions[width_axis] = evaluated.width;
     let shape = Shape::create(dimensions)?;
     let device = importer.options().device;
     let id = importer.graph().add_named_operation(
@@ -101,7 +101,7 @@ pub fn lower_resize(importer: &mut Importer, node: &Node) -> Result<()> {
         NodeKind::operation_invocation(
             Operation::Resize,
             OperationAttributes::Resize(ResizeAttributes {
-                size: (height, width),
+                size: evaluated,
                 interpolation,
             }),
             vec![input.node],
@@ -110,7 +110,7 @@ pub fn lower_resize(importer: &mut Importer, node: &Node) -> Result<()> {
         shape.clone(),
         device,
     )?;
-    if !size.iter().all(DimensionExpr::is_constant) {
+    if !(size.height.is_constant() && size.width.is_constant()) {
         importer.graph().shape_program.attributes.insert(
             id,
             SymbolicAttributes::Resize {

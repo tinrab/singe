@@ -8,7 +8,10 @@ pub mod onnx;
 pub mod rewrite;
 
 #[cfg(feature = "onnx")]
-use singe::{DataType, Tensor};
+use singe::{
+    DataType, Tensor,
+    shape::spatial::{Spatial2d, Spatial2dI64},
+};
 
 use crate::{
     error::{Error, Result},
@@ -70,11 +73,11 @@ fn matched_lines(comparisons: Vec<Compared>) -> Result<Vec<String>> {
         .collect())
 }
 
-/// Returns the `[height, width]` an image processor gives every image, which an image encoder's program reads.
-fn image_size(processor: &ImageTransforms) -> Result<[i64; 2]> {
+/// Returns the size an image processor gives every image, which an image encoder's program reads.
+fn image_size(processor: &ImageTransforms) -> Result<Spatial2dI64> {
     match (processor.crop, processor.resize) {
         (Some(crop), _) => Ok(crop),
-        (None, Some(Resize::Exact { height, width })) => Ok([height, width]),
+        (None, Some(Resize::Exact { height, width })) => Ok(Spatial2d::new(height, width)),
         _ => Err(Error::unsupported(
             "exporting an image encoder whose processor keeps the aspect ratio",
         )),

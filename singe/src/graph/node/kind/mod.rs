@@ -7,6 +7,7 @@ use crate::{
         SliceAttributes,
     },
     data_type::DataType,
+    shape::spatial::Padding,
 };
 use crate::{
     backend::registry::{Operation, OperationAttributes, TransposeAttributes},
@@ -138,7 +139,7 @@ impl NodeKind {
 
     /// Builds a pad node kind.
     #[cfg(any(test, feature = "onnx"))]
-    pub(crate) fn pad(input: ValueId, padding: Vec<(i64, i64)>, value: f32) -> Self {
+    pub(crate) fn pad(input: ValueId, padding: Vec<Padding>, value: f32) -> Self {
         Self::operation_invocation(
             Operation::Pad,
             OperationAttributes::Pad(PadAttributes { padding, value }),

@@ -5,6 +5,7 @@ use crate::{
     dispatch::call_one,
     error::{Error, Result},
     nn::{Layer, ModelState},
+    shape::spatial::{Padding2d, Spatial2dI64},
     tensor::{InterpolateMode, Tensor},
 };
 
@@ -24,13 +25,13 @@ pub enum Pool2dKind {
 #[derive(Debug, Clone, Copy)]
 pub struct Pool2dConfig {
     /// Window height and width.
-    pub kernel: (i64, i64),
+    pub kernel: Spatial2dI64,
     /// Vertical and horizontal step between windows.
-    pub stride: (i64, i64),
-    /// Padding above, below, left, and right of the input.
-    pub padding: (i64, i64, i64, i64),
+    pub stride: Spatial2dI64,
+    /// Padding of the input's height and width.
+    pub padding: Padding2d,
     /// Vertical and horizontal spacing within the window; average pooling requires unit dilation.
-    pub dilation: (i64, i64),
+    pub dilation: Spatial2dI64,
     /// Whether spatial output inference uses ceiling division before excluding windows starting beyond the input.
     pub ceil_mode: bool,
 }
@@ -40,12 +41,13 @@ impl Pool2dConfig {
     ///
     /// This stores options without validation.
     #[must_use]
-    pub fn new(kernel: (i64, i64)) -> Self {
+    pub fn new(kernel: impl Into<Spatial2dI64>) -> Self {
+        let kernel = kernel.into();
         Self {
             kernel,
             stride: kernel,
-            padding: (0, 0, 0, 0),
-            dilation: (1, 1),
+            padding: Padding2d::default(),
+            dilation: Spatial2dI64::square(1),
             ceil_mode: false,
         }
     }

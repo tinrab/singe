@@ -12,6 +12,7 @@ use singe::{
         Linear, LocalAttention, Mlp, ModelState, RelativeAttention, RelativeAttentionInput,
         TensorSource,
     },
+    shape::spatial::{Padding, Padding2d, Spatial2d},
 };
 
 use crate::{
@@ -71,9 +72,9 @@ impl SubsamplingConfig {
     const fn convolution(&self, groups: i64) -> Conv2dConfig {
         let padding = (self.kernel - 1) / 2;
         Conv2dConfig {
-            stride: (2, 2),
-            padding: (padding, padding, padding, padding),
-            dilation: (1, 1),
+            stride: Spatial2d::square(2),
+            padding: Padding2d::symmetric(padding, padding),
+            dilation: Spatial2d::square(1),
             groups,
         }
     }
@@ -355,7 +356,7 @@ impl ConvolutionModule {
                 width,
                 config.kernel,
                 Conv1dConfig {
-                    padding: (padding, padding),
+                    padding: Padding::symmetric(padding),
                     groups: width,
                     ..Conv1dConfig::default()
                 },

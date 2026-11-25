@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use singe::{
     Error as SingeError, Result as SingeResult, Tensor,
     nn::{Activation, BatchNorm, Conv2d, Conv2dConfig, Layer, LayerNorm, Linear, ModelState},
+    shape::spatial::{Spatial2d, Spatial2dI64},
     tensor::InterpolateMode,
 };
 
@@ -57,7 +58,7 @@ impl ReducedAttention {
                     width,
                     config.reduction,
                     Conv2dConfig {
-                        stride: (config.reduction, config.reduction),
+                        stride: Spatial2d::square(config.reduction),
                         ..Conv2dConfig::default()
                     },
                     true,
@@ -76,7 +77,7 @@ impl ReducedAttention {
     fn forward(
         &self,
         hidden: &Tensor,
-        size: (i64, i64),
+        size: Spatial2dI64,
         state: &ModelState,
     ) -> SingeResult<Tensor> {
         let context = match &self.reduction {
@@ -126,7 +127,7 @@ impl MixFeedForward {
     fn forward(
         &self,
         hidden: &Tensor,
-        size: (i64, i64),
+        size: Spatial2dI64,
         state: &ModelState,
     ) -> SingeResult<Tensor> {
         let inner = hidden.apply(&self.up, state)?;
@@ -166,7 +167,7 @@ impl Block {
     fn forward(
         &self,
         hidden: &Tensor,
-        size: (i64, i64),
+        size: Spatial2dI64,
         state: &ModelState,
     ) -> SingeResult<Tensor> {
         let hidden = self

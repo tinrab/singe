@@ -1,7 +1,7 @@
 use crate::{
     backend::spec::{Extents, dimension_product_usize, validate_rank},
     error::{Error, Result},
-    shape::{Shape, normalize_dim_usize},
+    shape::{Shape, normalize_dim_usize, spatial::Padding},
     utility::{checked_add_i64, checked_mul_i64, to_usize},
 };
 
@@ -11,7 +11,7 @@ pub struct PadProblem {
     /// Input shape with each axis extended by its before and after padding.
     pub output_shape: Shape,
     /// Before and after widths for every input axis, including zero widths for omitted axes.
-    pub padding: Vec<(i64, i64)>,
+    pub padding: Vec<Padding>,
     /// Whether any normalized padding width is nonzero.
     pub has_padding: bool,
 }
@@ -27,7 +27,7 @@ pub struct PadProblem {
 /// Returns an error if padding has more entries than input axes, any width is negative, a padded extent overflows `i64`, or constructing the output shape fails.
 pub fn pad_problem(
     input: &Shape,
-    padding: &[(i64, i64)],
+    padding: &[Padding],
     diagnostic_prefix: &'static str,
 ) -> Result<PadProblem> {
     let input_dimensions = input.dimensions();
@@ -43,7 +43,7 @@ pub fn pad_problem(
     let mut normalized_padding = Vec::with_capacity(input_dimensions.len());
     let mut has_padding = false;
     for (axis, &dimension) in input_dimensions.iter().enumerate() {
-        let (before, after) = padding.get(axis).copied().unwrap_or((0, 0));
+        let Padding { before, after } = padding.get(axis).copied().unwrap_or_default();
         // Negative padding crops, as in PyTorch, but never below an empty axis.
         if dimension + before.min(0) + after.min(0) < 0 {
             return Err(Error::invalid_argument(format!(
@@ -61,7 +61,7 @@ pub fn pad_problem(
             &format!("{diagnostic_prefix} axis {axis} size"),
         )?;
         output_dimensions.push(padded);
-        normalized_padding.push((before, after));
+        normalized_padding.push(Padding::new(before, after));
         has_padding |= before != 0 || after != 0;
     }
 

@@ -1,4 +1,5 @@
 use super::*;
+use crate::shape::spatial::{Padding2d, Spatial2d};
 
 #[test]
 fn test_infer_value_metadata_pass_infers_attention_shape() {
@@ -100,10 +101,10 @@ fn test_infer_value_metadata_pass_infers_pool2d_shape() {
         &mut graph,
         RegistryOperation::MaxPool2d,
         input,
-        (2, 2),
-        (2, 2),
-        (0, 0, 0, 0),
-        (1, 1),
+        Spatial2d::square(2),
+        Spatial2d::square(2),
+        Padding2d::default(),
+        Spatial2d::square(1),
         false,
         false,
         &output,
