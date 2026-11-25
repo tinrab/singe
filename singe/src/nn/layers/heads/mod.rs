@@ -9,12 +9,12 @@ use crate::{
     tensor::Tensor,
 };
 
-// What a pooling head reads: hidden states `[B, T, W]`, and `padding`, `[B, T]` of `Bool`, true where a token is real.
-// Real tokens come first in each row, as `TokenBatch` pads.
+// What a pooling head reads: hidden states `[B, T, W]`, and `mask`, `[B, T]` of `Bool`, true where a token is real.
+// Real tokens come first in each row, as `TokenBatch` holds them.
 #[derive(Debug, Clone, Copy)]
 pub struct PoolingInput<'a> {
     pub hidden: &'a Tensor,
-    pub padding: &'a Tensor,
+    pub mask: &'a Tensor,
 }
 
 // How each sequence's hidden states become one vector, as `sentence-transformers`' pooling modes name them.
@@ -56,7 +56,7 @@ const PADDED_FEATURE: f64 = -1e9;
 impl Layer<PoolingInput<'_>> for Pooling {
     fn forward(&self, input: &PoolingInput<'_>, _state: &ModelState) -> Result<Tensor> {
         let hidden = input.hidden;
-        let weights = input.padding.cast(hidden.data_type())?.unsqueeze(-1)?;
+        let weights = input.mask.cast(hidden.data_type())?.unsqueeze(-1)?;
         let pooled = match self.mode {
             PoolingMode::Cls => hidden.select(1, 0)?,
             PoolingMode::Mean | PoolingMode::MeanSqrtLength => {
@@ -88,7 +88,7 @@ impl Layer<PoolingInput<'_>> for Pooling {
                     return Err(Error::invalid_argument("last-token pooling input"));
                 }
 
-                let real = input.padding.cast(DataType::F32)?;
+                let real = input.mask.cast(DataType::F32)?;
                 let positions = Tensor::range(real.device(), 0, real.dimension(1)?)?
                     .cast(DataType::F32)?
                     .unsqueeze(0)?;

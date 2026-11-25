@@ -284,15 +284,8 @@ fn scores(
         values.resize(length, 0);
         values
     };
-    let mut padding = batch
-        .padding()
-        .to_vec::<bool>()?
-        .into_iter()
-        .map(u8::from)
-        .collect::<Vec<_>>();
-    padding.resize(length, 0);
     let file = |name: &str| input_file(directory, index, name);
-    let inputs = [file("tokens"), file("token_types"), file("padding")];
+    let inputs = [file("tokens"), file("token_types"), file("lengths")];
     write_values(
         &inputs[0],
         &padded(batch.tokens().to_vec::<i64>()?),
@@ -303,7 +296,11 @@ fn scores(
         &padded(batch.token_types().to_vec::<i64>()?),
         i64::to_le_bytes,
     )?;
-    write_values(&inputs[2], &padding, u8::to_le_bytes)?;
+    write_values(
+        &inputs[2],
+        &batch.lengths().to_vec::<i64>()?,
+        i64::to_le_bytes,
+    )?;
 
     let output = file("scores");
     let status = Command::new(runner)

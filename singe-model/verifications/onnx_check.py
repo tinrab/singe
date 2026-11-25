@@ -2,6 +2,7 @@
 
 `python onnx_check.py MODEL SNAPSHOT TASK INPUTS DTYPE` prints a JSON report: whether every output matched, what each comparison found, and the runtime.
 Each input runs alone, then all of them padded into one batch, so neither shape is the one the export was built at.
+Texts run that batch once more padded on the left, compared with the reference's right-padded outputs at the same tokens, since a row's results must not depend on where its padding sits.
 Images of different sizes run only alone when the processor keeps each one's size and pads none, as DPT's does.
 A clip runs alone, its first half alone, and twice in one batch.
 Values at padded tokens are left out, since the two models need not agree there.
@@ -153,10 +154,11 @@ def texts(task, inputs):
     return inputs
 
 
-def encode(tokenizer, items, names, shape=None):
-    """The tokens of `items`, padded to the longest, or to the fixed `shape`'s length."""
+def encode(tokenizer, items, names, shape=None, side="right"):
+    """The tokens of `items`, padded on `side` to the longest, or to the fixed `shape`'s length."""
     pairs = isinstance(items[0], tuple)
     length = {} if shape is None else {"max_length": shape[1]}
+    tokenizer.padding_side = side
     encoded = tokenizer(
         [item[0] for item in items] if pairs else items,
         [item[1] for item in items] if pairs else None,
@@ -200,6 +202,20 @@ def reference_text(snapshot, task, dtype):
         return {name: getattr(out, name).double().numpy() for name in outputs}
 
     return tokenizer, outputs, run
+
+
+def moved(outputs, source, destination):
+    """`outputs` computed on a batch padded as the mask `source` says, with each row's per-token values moved to the real tokens of `destination`."""
+    result = {}
+    for name, values in outputs.items():
+        if values.ndim < 2 or values.shape[:2] != source.shape:
+            result[name] = values
+            continue
+        placed = np.zeros_like(values)
+        for row, (taken, given) in enumerate(zip(source, destination)):
+            placed[row, given.astype(bool)] = values[row, taken.astype(bool)]
+        result[name] = placed
+    return result
 
 
 def compare(name, actual, expected, mask, tolerance):
@@ -261,6 +277,7 @@ def main():
     graph = onnx.load(path, load_external_data=False).graph
     names = [value.name for value in graph.input]
     shape = fixed_shape(graph)
+    left_feeds_of = None
     if task in AUDIO:
         import soundfile
 
@@ -327,16 +344,19 @@ def main():
         def feeds_of(batch):
             return encode(tokenizer, batch, names, shape)
 
+        def left_feeds_of(batch):
+            return encode(tokenizer, batch, names, shape, "left")
+
     if shape is not None:
         batches = [batch for batch in batches if len(batch) == shape[0]]
     matched = exported == outputs
     details = [] if matched else [f"outputs {exported} against {outputs}"]
     diagnosed = False
     mismatch = None
-    for batch in batches:
-        feeds = feeds_of(batch)
+
+    def check(label, feeds, expected, reported):
+        nonlocal diagnosed, mismatch
         actual = run_export(feeds)
-        expected = reference(feeds)
         mask = feeds.get("attention_mask")
         agreed = True
         for name in outputs:
@@ -344,9 +364,8 @@ def main():
                 name, np.asarray(actual[name]), expected[name], mask, tolerance
             )
             agreed &= same
-            if not same or batch is batches[-1]:
-                details.append(f"batch {len(batch)}: {detail}")
-        matched &= agreed
+            if not same or reported:
+                details.append(f"{label}: {detail}")
         if not agreed and not diagnosed:
             details.append(diagnose(path, feeds, tolerance))
             diagnosed = True
@@ -363,6 +382,21 @@ def main():
                     },
                     file,
                 )
+        return agreed
+
+    for batch in batches:
+        feeds = feeds_of(batch)
+        matched &= check(
+            f"batch {len(batch)}", feeds, reference(feeds), batch is batches[-1]
+        )
+    if left_feeds_of is not None and batches:
+        batch = batches[-1]
+        right = feeds_of(batch)
+        left = left_feeds_of(batch)
+        expected = moved(
+            reference(right), right["attention_mask"], left["attention_mask"]
+        )
+        matched &= check(f"left-padded batch {len(batch)}", left, expected, True)
     print(
         json.dumps(
             {

@@ -108,7 +108,7 @@ impl External {
     pub fn tokens(&self, batch: &TokenBatch) -> Result<Tensor> {
         self.run(vec![
             ("input_ids", batch.tokens().clone()),
-            ("attention_mask", batch.padding().cast(DataType::I64)?),
+            ("attention_mask", batch.mask()?.cast(DataType::I64)?),
             ("token_type_ids", batch.token_types().clone()),
         ])
     }

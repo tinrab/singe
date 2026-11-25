@@ -81,7 +81,7 @@ fn rows(hidden: &Tensor, batch: &TokenBatch) -> Result<Vec<Vec<Vec<f32>>>> {
     let width = usize::try_from(width).map_err(|_| SingeError::out_of_range("feature width"))?;
     let length = usize::try_from(length).map_err(|_| SingeError::out_of_range("batch length"))?;
     let values = hidden.cast(DataType::F32)?.to_vec::<f32>()?;
-    let counts = batch.key_lengths()?.cast(DataType::I64)?.to_vec::<i64>()?;
+    let counts = batch.lengths().to_vec::<i64>()?;
     counts
         .iter()
         .enumerate()

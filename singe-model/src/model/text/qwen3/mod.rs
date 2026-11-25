@@ -29,7 +29,7 @@ impl Layer<TokenBatch> for Qwen3Encoder {
             .0
             .layer()
             .encode(input.tokens(), &input.key_lengths()?, state)?;
-        let real = input.padding().cast(hidden.data_type())?.unsqueeze(2)?;
+        let real = input.mask()?.cast(hidden.data_type())?.unsqueeze(2)?;
         hidden.mul(&real)
     }
 }

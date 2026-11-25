@@ -18,7 +18,7 @@ pub use self::{
         SourceCache, SourceCacheSpec, SourcedCache, SourcedCacheSpec, StateCache, StateCacheSpec,
         TensorGroup, caches_from_inputs, named_cache_inputs,
     },
-    encode::TokenBatch,
+    encode::{Placement, TokenBatch},
     layers::*,
     model::{Layer, Model, ModelProgram, Sequential},
     state::{ModelState, StateBuilder, StateKey, StateScope},

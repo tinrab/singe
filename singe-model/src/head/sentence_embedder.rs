@@ -32,7 +32,7 @@ impl SentenceLayers {
         let pooled = self.pooling.forward(
             &PoolingInput {
                 hidden: &hidden,
-                padding: input.padding(),
+                mask: &input.mask()?,
             },
             state,
         )?;

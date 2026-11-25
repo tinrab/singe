@@ -1,7 +1,7 @@
 //! Writes a model as an ONNX file for one task, `model.onnx`, at ONNX's opset 28, with the inputs, outputs, and dynamic axes `optimum-onnx` gives the task, so that code written for `optimum`'s exports runs Singe's. The export holds the model alone; as with `optimum`, the caller copies the tokenizer's or processor's files beside it.
 //! A model builds on [`Device::Meta`] with no example input, so exporting runs no kernel and needs no GPU.
 
-use std::{fs, path::Path};
+use std::{collections::HashSet, fs, path::Path};
 
 use singe::{
     DataType, Device, Error as SingeError, Result as SingeResult, Shape, Tensor,
@@ -109,26 +109,49 @@ pub fn program(
     match task {
         Task::FeatureExtraction => {
             let model: TextEncoder = model::load(source, load)?;
-            text(options, &model, &["last_hidden_state"], forward)
+            text(
+                options,
+                &model,
+                &[("last_hidden_state", Values::PerToken)],
+                forward,
+            )
         }
         Task::TextClassification | Task::TextRanking | Task::ZeroShotClassification => {
             let model: SequenceClassifier = model::load(source, load)?;
-            text(options, model.get_model()?, &["logits"], forward)
+            text(
+                options,
+                model.get_model()?,
+                &[("logits", Values::PerSequence)],
+                forward,
+            )
         }
         Task::TokenClassification => {
             let model: TokenClassifier = model::load(source, load)?;
-            text(options, model.get_model()?, &["logits"], forward)
+            text(
+                options,
+                model.get_model()?,
+                &[("logits", Values::PerToken)],
+                forward,
+            )
         }
         Task::FillMask => {
             let model: MaskedLm = model::load(source, load)?;
-            text(options, model.get_model()?, &["logits"], forward)
+            text(
+                options,
+                model.get_model()?,
+                &[("logits", Values::PerToken)],
+                forward,
+            )
         }
         Task::QuestionAnswering => {
             let model: QuestionAnswerer = model::load(source, load)?;
             text(
                 options,
                 model.get_model()?,
-                &["start_logits", "end_logits"],
+                &[
+                    ("start_logits", Values::PerToken),
+                    ("end_logits", Values::PerToken),
+                ],
                 |layer, batch, state| {
                     let scores = layer.forward(batch, state)?;
                     Ok(vec![scores.select(2, 0)?, scores.select(2, 1)?])
@@ -140,7 +163,10 @@ pub fn program(
             text(
                 options,
                 model.get_model()?,
-                &["token_embeddings", "sentence_embedding"],
+                &[
+                    ("token_embeddings", Values::PerToken),
+                    ("sentence_embedding", Values::PerSequence),
+                ],
                 |layer, batch, state| Ok(layer.embeddings(batch, state)?.to_vec()),
             )
         }
@@ -268,6 +294,12 @@ fn forward<I, L: Layer<I> + ?Sized>(
     Ok(vec![layer.forward(input, state)?])
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Values {
+    PerToken,
+    PerSequence,
+}
+
 /// Builds `model` on metadata over the named `inputs`, with `results` giving its outputs, named `outputs`, from the input tensors.
 fn build<L>(
     model: &Model<L>,
@@ -283,12 +315,15 @@ fn build<L>(
 }
 
 /// A text model over `input_ids`, `attention_mask`, and `token_type_ids`, which it leaves out when the model never reads it, as `optimum` does for `DistilBERT` and `RoBERTa`.
+///
+/// The mask may mark real tokens anywhere in a row: each row's real tokens move to its start before the model runs, and the outputs marked [`Values::PerToken`] move back to the positions the caller sent.
 fn text<L: Layer<TokenBatch>>(
     options: &ExportOptions,
     model: &Model<L>,
-    outputs: &[&str],
+    outputs: &[(&str, Values)],
     results: impl Fn(&L, &TokenBatch, &ModelState) -> SingeResult<Vec<Tensor>>,
 ) -> Result<(GraphProgram, ModelState)> {
+    let output_names = outputs.iter().map(|&(name, _)| name).collect::<Vec<_>>();
     let graph = |names: &[&str]| -> Result<Graph> {
         let inputs = names
             .iter()
@@ -302,15 +337,22 @@ fn text<L: Layer<TokenBatch>>(
                 Ok((name, spec))
             })
             .collect::<Result<Vec<_>>>()?;
-        build(model, inputs, outputs, |layer, tensors, state| {
+        build(model, inputs, &output_names, |layer, tensors, state| {
             let [tokens, mask, types @ ..] = tensors else {
                 return Err(SingeError::missing_input("token batch"));
             };
             // A model that reads no token types gets the ids in their place, which nothing reads.
             let types = types.first().unwrap_or(tokens);
-            let batch =
-                TokenBatch::create(tokens.clone(), types.clone(), mask.cast(DataType::Bool)?)?;
-            results(layer, &batch, state)
+            let (batch, placement) =
+                TokenBatch::from_mask(tokens, types, &mask.cast(DataType::Bool)?)?;
+            results(layer, &batch, state)?
+                .iter()
+                .zip(outputs)
+                .map(|(result, &(_, values))| match values {
+                    Values::PerToken => placement.restore(result),
+                    Values::PerSequence => Ok(result.clone()),
+                })
+                .collect()
         })
     };
     let mut built = graph(&["input_ids", "attention_mask", "token_type_ids"])?;
@@ -350,16 +392,19 @@ fn input_spec(
 
 /// Whether any operation or output of `graph` reads its input `name`.
 fn reads(graph: &Graph, name: &str) -> bool {
+    let mut live = graph
+        .output_values()
+        .iter()
+        .copied()
+        .collect::<HashSet<_>>();
+    for operation in graph.operations().iter().rev() {
+        if operation.result_values().any(|value| live.contains(&value)) {
+            live.extend(operation.inputs().iter().copied());
+        }
+    }
     graph
         .input_values()
-        .filter(|&(_, input)| input == name)
-        .any(|(value, _)| {
-            graph.output_values().contains(&value)
-                || graph
-                    .operations()
-                    .iter()
-                    .any(|operation| operation.inputs().contains(&value))
-        })
+        .any(|(value, input)| input == name && live.contains(&value))
 }
 
 /// An image model over `pixel_values`, `[batch_size, 3, H, W]`, at the size `source`'s processor gives every image.

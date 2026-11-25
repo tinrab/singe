@@ -83,7 +83,7 @@ impl ClipText {
         Pooling::new(PoolingMode::LastToken, false).forward(
             &PoolingInput {
                 hidden: &hidden,
-                padding: input.padding(),
+                mask: &input.mask()?,
             },
             state,
         )
