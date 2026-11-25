@@ -122,10 +122,23 @@ fn gated(attended: Tensor, gate: Option<Tensor>, shape: &[DimensionExpr]) -> Res
     }
 }
 
-impl DecodingLayer for GroupedQueryAttention {
-    type Cache = KvCache;
+impl GroupedQueryAttention {
+    // Decodes as `DecodingLayer::decode` does, adding `bias`, `[H, distances]`, to each score by its query's distance from its key, as T5's relative positions do.
+    pub fn decode_biased(
+        &self,
+        input: &AttentionInput<'_, KvCache>,
+        bias: &Tensor,
+        state: &ModelState,
+    ) -> Result<Tensor> {
+        self.decode_paged(input, Some(bias), state)
+    }
 
-    fn decode(&self, input: &AttentionInput<'_, KvCache>, state: &ModelState) -> Result<Tensor> {
+    fn decode_paged(
+        &self,
+        input: &AttentionInput<'_, KvCache>,
+        bias: Option<&Tensor>,
+        state: &ModelState,
+    ) -> Result<Tensor> {
         let layers = &self.layers;
         let hidden = input.hidden;
         let rotate = |heads: Tensor| match input.angles {
@@ -140,6 +153,7 @@ impl DecodingLayer for GroupedQueryAttention {
             input.cache.keys(),
             input.cache.values(),
             input.step.paging(),
+            bias,
             self.options,
         )?;
         let shape = [
@@ -147,5 +161,13 @@ impl DecodingLayer for GroupedQueryAttention {
             (layers.query.heads() * layers.query.head_dim()).into(),
         ];
         gated(attended.reshape_with(&shape)?, gate, &shape)?.apply(&layers.output, state)
+    }
+}
+
+impl DecodingLayer for GroupedQueryAttention {
+    type Cache = KvCache;
+
+    fn decode(&self, input: &AttentionInput<'_, KvCache>, state: &ModelState) -> Result<Tensor> {
+        self.decode_paged(input, None, state)
     }
 }

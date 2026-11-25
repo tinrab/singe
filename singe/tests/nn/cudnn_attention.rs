@@ -340,6 +340,7 @@ fn paged_graph(inputs: &[(&str, Tensor)], options: AttentionOptions) -> Graph {
                 pages: &inputs[5],
                 last_page_lengths: &inputs[6],
             },
+            None,
             options,
         )?;
         Ok(vec![output, lse])

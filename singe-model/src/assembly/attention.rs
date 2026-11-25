@@ -3,15 +3,14 @@
 use singe::{
     Error as SingeError, Result as SingeResult, Tensor,
     graph::DimensionExpr,
-    nn::{Linear, ModelState},
+    nn::{
+        CrossAttention, GroupedQueryAttention, GroupedQueryLayers, HeadProjection, Linear,
+        ModelState,
+    },
     tensor::AttentionOptions,
 };
 
-use crate::{
-    assembly::{Seq2SeqCache, StepRows},
-    format::Rules,
-    schema::Schema,
-};
+use crate::{format::Rules, schema::Schema};
 
 /// The widths of an attention's projections.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -105,86 +104,49 @@ impl Attention {
         )?;
         merge_heads(&attended)?.apply(&self.output, state)
     }
+}
 
-    /// Returns the keys and values cross-attention reads from an encoder's states, `[F, C]`, `[F, H, D]` each.
-    pub fn project_sources(
-        &self,
-        encoded: &Tensor,
-        state: &ModelState,
-    ) -> SingeResult<(Tensor, Tensor)> {
-        Ok((
-            self.row_heads(encoded, &self.key, state)?,
-            self.row_heads(encoded, &self.value, state)?,
-        ))
-    }
+/// Registers the projections [`Attention::create`] does, as a decoder's causal self-attention over a paged cache, attending under `options`.
+pub fn paged_self_attention(
+    schema: &mut Schema<'_>,
+    spec: AttentionSpec,
+    options: AttentionOptions,
+) -> SingeResult<GroupedQueryAttention> {
+    let Attention {
+        query,
+        key,
+        value,
+        output,
+        heads,
+    } = Attention::create(schema, spec)?;
+    let head = |linear| HeadProjection::new(linear, heads, spec.inner / heads);
+    GroupedQueryAttention::create(
+        GroupedQueryLayers {
+            query: head(query),
+            key: head(key),
+            value: head(value),
+            output,
+        },
+        AttentionOptions {
+            causal: true,
+            ..options
+        },
+    )
+}
 
-    /// Computes self-attention of a decode step's rows, `[T, W]`: writes their keys and values to `cache`, then attends over their sequences' keys with `mask` added to the scores, `[T, H, 1, C]` or broadcast to it.
-    pub fn decode(
-        &self,
-        hidden: &Tensor,
-        rows: &StepRows,
-        cache: &Seq2SeqCache,
-        mask: &Tensor,
-        options: AttentionOptions,
-        state: &ModelState,
-    ) -> SingeResult<Tensor> {
-        cache.write(
-            rows,
-            &self.row_heads(hidden, &self.key, state)?,
-            &self.row_heads(hidden, &self.value, state)?,
-        )?;
-        let (keys, values) = cache.read(rows)?;
-        let attended = self
-            .row_heads(hidden, &self.query, state)?
-            .unsqueeze(2)?
-            .attend(&keys, &values, Some(mask), None, options)?;
-        self.merge_rows(&attended, state)
-    }
-
-    /// Computes cross-attention of a decode step's rows, `[T, W]`, over their sequences' encoder states in `cache`.
-    pub fn attend_sources(
-        &self,
-        hidden: &Tensor,
-        rows: &StepRows,
-        cache: &Seq2SeqCache,
-        options: AttentionOptions,
-        state: &ModelState,
-    ) -> SingeResult<Tensor> {
-        let (keys, values, lengths) = cache.read_sources(rows)?;
-        let attended = self
-            .row_heads(hidden, &self.query, state)?
-            .unsqueeze(2)?
-            .attend_padded(&keys, &values, &lengths, options)?;
-        self.merge_rows(&attended, state)
-    }
-
-    /// Returns `input`'s rows, `[N, C]`, through `linear`, split into heads, `[N, H, D]`.
-    fn row_heads(
-        &self,
-        input: &Tensor,
-        linear: &Linear,
-        state: &ModelState,
-    ) -> SingeResult<Tensor> {
-        let projected = input.apply(linear, state)?;
-        let &[_, inner] = projected.shape().dimensions() else {
-            return Err(SingeError::invalid_argument("attention rows"));
-        };
-        projected.reshape_with(&[
-            projected.dimension(0)?,
-            DimensionExpr::constant(self.heads),
-            DimensionExpr::constant(inner / self.heads),
-        ])
-    }
-
-    /// Returns each row's heads, `[T, H, 1, D]`, joined and through the output projection, `[T, W]`.
-    fn merge_rows(&self, attended: &Tensor, state: &ModelState) -> SingeResult<Tensor> {
-        let &[_, heads, _, dim] = attended.shape().dimensions() else {
-            return Err(SingeError::invalid_argument("attended rows"));
-        };
-        attended
-            .reshape_with(&[attended.dimension(0)?, DimensionExpr::constant(heads * dim)])?
-            .apply(&self.output, state)
-    }
+/// Registers the projections [`Attention::create`] does, as cross-attention over a decoder cache's pages of encoder states.
+pub fn paged_cross_attention(
+    schema: &mut Schema<'_>,
+    spec: AttentionSpec,
+) -> SingeResult<CrossAttention> {
+    let Attention {
+        query,
+        key,
+        value,
+        output,
+        heads,
+    } = Attention::create(schema, spec)?;
+    CrossAttention::create(query, key, value, output, heads, spec.inner)
 }
 
 /// Returns a projection's `[B, L, inner]` split into `heads` heads, `[B, H, L, inner / H]`.

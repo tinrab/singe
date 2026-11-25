@@ -1,17 +1,19 @@
 //! Encoder-decoder generation, as `transformers`' `generate` runs it for T5, BART, `TrOCR`, and Donut: the input encoded once, then each token chosen after the tokens before it, greedily or by beam search, under the snapshot's generation config.
-//! The decoder is a cached decoder, compiled or eager, whose rows each read an encoding written to their cross-attention caches first; beam search runs a row per beam, each step taking its parents' rows.
+//! The decoder is a cached decoder, compiled or eager, whose rows each read an encoding written to their cross-attention caches first; beam search runs a row per beam, each step copying its parents' cached keys and values into their rows' pages.
 
 use std::{collections::HashSet, fmt::Debug, slice, sync::Arc};
 
 use serde::{Deserialize, Serialize};
 use singe::{
-    DataType, Device, Error as SingeError, Result as SingeResult, Shape, Tensor,
+    DataType, Device, Error as SingeError, Result as SingeResult, Tensor,
     generation::{CachedDecoder, Decoder, DecoderOptions, PromptChunks},
-    nn::{CacheSize, DecodeCache, DecodeStep, DecoderModel, Model, ModelState, TokenBatch},
+    nn::{
+        CacheSize, CrossAttention, DecodeCache, DecodeStep, DecoderModel, EncoderDecoderCache,
+        EncoderDecoderCacheSpec, KvCacheSpec, Model, ModelState, TokenBatch,
+    },
 };
 
 use crate::{
-    assembly::{Attention, Seq2SeqCache, Seq2SeqCacheSpec, Seq2SeqTables},
     decoder_cache::{Decoders, bucketed_capacity, cached_decoder},
     error::{Error, Result},
     head::{Boxed, argmax},
@@ -23,6 +25,9 @@ const UNREACHABLE: f32 = -1.0e9;
 
 /// The multiple a kept decoder's encoder states per sequence are rounded up to, so inputs of nearby lengths share one decoder.
 const SOURCE_BUCKET: i64 = 256;
+
+/// The slots of a cross-attention cache page, each of which runs as a sequence of its own.
+const SOURCE_PAGE: i64 = 64;
 
 /// The key of a kept decoder: its rows, its capacity, the encoder states each row reads at most, and whether it compiles.
 type Seq2SeqKey = (usize, i64, i64, bool);
@@ -46,27 +51,16 @@ pub trait Seq2SeqLayers: Debug + Send + Sync {
 /// An encoder-decoder's decoder, as a cached decoder runs it.
 pub trait Seq2SeqDecoding: Debug + Send + Sync {
     /// Returns each block's cross-attention, which reads the encoder's states.
-    fn cross_attentions(&self) -> Vec<&Attention>;
+    fn cross_attentions(&self) -> Vec<&CrossAttention>;
 
-    /// Returns its caches' sizes for sequences of up to `sources` encoder states.
-    fn cache_spec(&self, sources: i64) -> Seq2SeqCacheSpec;
-
-    /// Returns the tables it looks up by position.
-    fn tables(
-        &self,
-        data_type: DataType,
-        device: Device,
-        capacity: i64,
-    ) -> SingeResult<Seq2SeqTables> {
-        Seq2SeqTables::create(data_type, device, capacity, None)
-    }
+    /// Returns the heads of its self-attention's cache and their width.
+    fn cache_spec(&self) -> KvCacheSpec;
 
     /// Runs one step and returns the logits of each sequence's last token, `[S, V]`.
     fn forward(
         &self,
         step: &DecodeStep,
-        tables: &Seq2SeqTables,
-        caches: &[Seq2SeqCache],
+        caches: &[EncoderDecoderCache],
         state: &ModelState,
     ) -> SingeResult<Tensor>;
 }
@@ -84,29 +78,25 @@ impl Seq2SeqDecoder {
         &self,
         encoded: &Tensor,
         sequence: usize,
-        caches: &[Seq2SeqCache],
+        caches: &[EncoderDecoderCache],
         state: &ModelState,
     ) -> SingeResult<()> {
         for (attention, cache) in self.layers.cross_attentions().into_iter().zip(caches) {
-            let (keys, values) = attention.project_sources(encoded, state)?;
-            cache.write_sources(sequence, &keys, &values)?;
+            let (keys, values) = attention.sources(encoded, state)?;
+            cache.write_cross(sequence, &keys, &values)?;
         }
         Ok(())
     }
 }
 
 impl DecoderModel for Seq2SeqDecoder {
-    type Cache = Seq2SeqCache;
+    type Cache = EncoderDecoderCache;
 
-    type Tables = Seq2SeqTables;
+    /// No tables: what a decoder looks up by position, it looks up in its state.
+    type Tables = ();
 
-    fn tables(
-        &self,
-        data_type: DataType,
-        device: Device,
-        capacity: i64,
-    ) -> SingeResult<Seq2SeqTables> {
-        self.layers.tables(data_type, device, capacity)
+    fn tables(&self, _: DataType, _: Device, _: i64) -> SingeResult<()> {
+        Ok(())
     }
 
     fn caches(
@@ -114,23 +104,29 @@ impl DecoderModel for Seq2SeqDecoder {
         data_type: DataType,
         device: Device,
         size: CacheSize,
-    ) -> SingeResult<Vec<Seq2SeqCache>> {
-        let spec = self.layers.cache_spec(self.sources);
+    ) -> SingeResult<Vec<EncoderDecoderCache>> {
+        let KvCacheSpec { kv_heads, head_dim } = self.layers.cache_spec();
+        let spec = EncoderDecoderCacheSpec {
+            heads: kv_heads,
+            head_dim,
+            sources: self.sources,
+            source_page: SOURCE_PAGE,
+        };
         self.layers
             .cross_attentions()
             .iter()
-            .map(|_| Seq2SeqCache::create(device, data_type, size, spec))
+            .map(|_| EncoderDecoderCache::create(device, data_type, size, spec))
             .collect()
     }
 
     fn forward(
         &self,
         step: &DecodeStep,
-        tables: &Seq2SeqTables,
-        caches: &[Seq2SeqCache],
+        (): &(),
+        caches: &[EncoderDecoderCache],
         state: &ModelState,
     ) -> SingeResult<Tensor> {
-        self.layers.forward(step, tables, caches, state)
+        self.layers.forward(step, caches, state)
     }
 }
 
@@ -619,26 +615,6 @@ fn step(decoder: &mut CachedDecoder<Seq2SeqDecoder>, tokens: &[&[i64]]) -> Resul
 
 /// Gives each of the decoder's rows the state of the parent of the running beam it now holds.
 fn reorder(decoder: &CachedDecoder<Seq2SeqDecoder>, running: &[Beam]) -> Result<()> {
-    if running
-        .iter()
-        .enumerate()
-        .all(|(row, beam)| beam.parent == row)
-    {
-        return Ok(());
-    }
-
-    let parents = running
-        .iter()
-        .map(|beam| i64::try_from(beam.parent).map_err(|_| SingeError::out_of_range("beams")))
-        .collect::<SingeResult<Vec<_>>>()?;
-    let count = i64::try_from(parents.len()).map_err(|_| SingeError::out_of_range("beams"))?;
-    let parents = Tensor::from_vec(
-        decoder.model().state().device()?,
-        Shape::create([count])?,
-        parents,
-    )?;
-    for cache in decoder.caches() {
-        cache.reorder(&parents)?;
-    }
-    Ok(())
+    let parents = running.iter().map(|beam| beam.parent).collect::<Vec<_>>();
+    Ok(decoder.reorder(&parents)?)
 }

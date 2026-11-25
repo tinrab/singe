@@ -11,7 +11,7 @@ use singe::{
 };
 
 use crate::{
-    assembly::{BartDecoder, BartStack, BartStackConfig, StackRole},
+    assembly::{BartDecoder, BartEncoder, BartStackConfig},
     error::Result,
     format::{Loader, transformers::seq2seq_generation},
     head::{Boxed, HeadLoader, Seq2SeqDecoding, Seq2SeqInput, Seq2SeqLayers, Seq2SeqLm},
@@ -28,7 +28,7 @@ pub struct BartConfig {
 
 #[derive(Debug, Clone)]
 pub struct BartLayers {
-    encoder: BartStack,
+    encoder: BartEncoder,
     decoder: Arc<dyn Seq2SeqDecoding>,
 }
 
@@ -36,23 +36,21 @@ impl BartLayers {
     pub fn create(schema: &mut Schema<'_>, config: &BartConfig) -> SingeResult<Self> {
         let (vocabulary, width) = (config.decoder.vocab_size, config.decoder.width);
         let tokens = schema.parameter("tokens.weight", [vocabulary, width])?;
+        let head = Linear::new(schema.tie("head.weight", &tokens)?, None);
+        let logits_bias = schema.parameter("logits_bias", [1, vocabulary])?;
         Ok(Self {
-            encoder: BartStack::create(
+            encoder: BartEncoder::create(
                 &mut schema.scope("encoder"),
                 &config.encoder,
-                StackRole::Encoder,
                 Some(&tokens),
             )?,
-            decoder: Arc::new(BartDecoder::new(
-                BartStack::create(
-                    &mut schema.scope("decoder"),
-                    &config.decoder,
-                    StackRole::Decoder,
-                    Some(&tokens),
-                )?,
-                Linear::new(schema.tie("head.weight", &tokens)?, None),
-                Some(schema.parameter("logits_bias", [1, vocabulary])?),
-            )),
+            decoder: Arc::new(BartDecoder::create(
+                &mut schema.scope("decoder"),
+                &config.decoder,
+                Some(&tokens),
+                head,
+                Some(logits_bias),
+            )?),
         })
     }
 }

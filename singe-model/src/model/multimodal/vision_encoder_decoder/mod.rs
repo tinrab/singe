@@ -12,8 +12,8 @@ use singe::{
 
 use crate::{
     assembly::{
-        BartDecoder, BartStack, BartStackConfig, FinalNorm, PreNormEncoder, StackRole, Swin,
-        SwinConfig, VisionTowerConfig, patch_embedding,
+        BartDecoder, BartStackConfig, FinalNorm, PreNormEncoder, Swin, SwinConfig,
+        VisionTowerConfig, patch_embedding,
     },
     error::Result,
     format::{Loader, transformers::seq2seq_generation},
@@ -112,16 +112,13 @@ impl VisionEncoderDecoderLayers {
         let tied = config.tied.then(|| head.weight().clone());
         Ok(Self {
             encoder: ImageEncoder::create(&mut schema.scope("encoder"), &config.encoder)?,
-            decoder: Arc::new(BartDecoder::new(
-                BartStack::create(
-                    &mut schema.scope("decoder"),
-                    decoder,
-                    StackRole::Decoder,
-                    tied.as_ref(),
-                )?,
+            decoder: Arc::new(BartDecoder::create(
+                &mut schema.scope("decoder"),
+                decoder,
+                tied.as_ref(),
                 head,
                 None,
-            )),
+            )?),
         })
     }
 }

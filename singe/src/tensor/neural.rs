@@ -437,14 +437,26 @@ pub struct Paging<'a> {
 impl Tensor {
     // Attends ragged queries `[T, H, D]` over paged key and value caches `[P, S, G, D]` of `P` pages of `S` slots, as FlashInfer batches decode and prefill.
     // Its queries are its last tokens, so a causal mask lets each see the keys up to its own position; a query that sees no key yields zeros.
+    // A `bias`, `[H, distances]` of the query's type, adds to each score the column of its query's position less its key's, as T5's relative positions do: the first column for a key after its query, the last for a distance past it.
     // Also returns each row's base-two log-sum-exp of its scores, `[T, H]` in `F32`, negative infinity for a row that sees no key.
     pub fn paged_attention(
         &self,
         key_cache: &Self,
         value_cache: &Self,
         paging: Paging<'_>,
+        bias: Option<&Self>,
         options: AttentionOptions,
     ) -> Result<(Self, Self)> {
+        let mut inputs = vec![
+            self,
+            key_cache,
+            value_cache,
+            paging.query_offsets,
+            paging.page_offsets,
+            paging.pages,
+            paging.last_page_lengths,
+        ];
+        inputs.extend(bias);
         let mut outputs = call(
             Operation::PagedAttention,
             OperationAttributes::ScaledDotProductAttention(ScaledDotProductAttentionAttributes {
@@ -452,19 +464,11 @@ impl Tensor {
                 causal: options.causal,
                 window: options.window,
                 softcap: options.softcap,
-                masked: false,
+                masked: bias.is_some(),
                 sinks: false,
                 key_lengths: false,
             }),
-            &[
-                self,
-                key_cache,
-                value_cache,
-                paging.query_offsets,
-                paging.page_offsets,
-                paging.pages,
-                paging.last_page_lengths,
-            ],
+            &inputs,
         )?;
         let lse = outputs
             .pop()

@@ -327,6 +327,37 @@ impl PageTable {
         Ok(())
     }
 
+    // Returns the pages to copy so that each sequence holds what `parents[sequence]` holds, as beam search continues each row from its parent's: the parents' pages, and the pages they go to, in order.
+    // A sequence must be as long as its parent; one that is its own parent copies nothing.
+    pub fn parent_pages(&self, parents: &[usize]) -> Result<(Vec<i64>, Vec<i64>)> {
+        if parents.len() != self.sequences.len() {
+            return Err(Error::invalid_argument("one parent per decoder sequence"));
+        }
+
+        let (mut from, mut to) = (Vec::new(), Vec::new());
+        for (sequence, &parent) in parents.iter().enumerate() {
+            if parent == sequence {
+                continue;
+            }
+
+            let (own, theirs) = (
+                &self.sequences[sequence],
+                self.sequences
+                    .get(parent)
+                    .ok_or_else(|| Error::out_of_range("parent sequence"))?,
+            );
+            if own.length != theirs.length {
+                return Err(Error::invalid_argument(
+                    "a decoder sequence as long as its parent",
+                ));
+            }
+
+            from.extend(&theirs.pages);
+            to.extend(&own.pages);
+        }
+        Ok((from, to))
+    }
+
     // Returns the pages no sequence holds.
     #[must_use]
     pub const fn free_pages(&self) -> usize {

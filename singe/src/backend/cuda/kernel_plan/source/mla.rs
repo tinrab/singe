@@ -164,6 +164,7 @@ impl KernelPlanner {
                 value_width: latent,
                 groups: None,
                 indices: 4,
+                bias: None,
                 tokens,
                 heads,
                 page_size,

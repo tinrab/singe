@@ -261,6 +261,7 @@ impl DecodingLayer for EncoderDecoderBlock {
                 step: input.step,
                 keys: input.cache.cross_keys(),
                 values: input.cache.cross_values(),
+                lengths: input.cache.source_lengths(),
             },
             state,
         )?;

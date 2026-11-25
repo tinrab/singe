@@ -527,18 +527,24 @@ fn test_paged_attention_matches_the_cpu_over_ragged_sequences() {
     };
     // Each sequence's queries and keys: one decoding query over a long cache, a prefill of its whole cache, a chunk of a prefill, and a sequence with no keys.
     let sequences: [(i32, i32); 4] = [(1, 150), (70, 70), (20, 90), (3, 0)];
+    let causal = AttentionOptions {
+        causal: true,
+        ..AttentionOptions::default()
+    };
+    // Each option, and whether a bias by distance adds to the scores, shorter than the longest sequence so its last column covers the farthest keys.
     let options = [
-        AttentionOptions::default(),
-        AttentionOptions {
-            causal: true,
-            ..AttentionOptions::default()
-        },
-        AttentionOptions {
-            causal: true,
-            window: Some(16),
-            softcap: Some(30.0),
-            ..AttentionOptions::default()
-        },
+        (AttentionOptions::default(), false),
+        (causal, false),
+        (causal, true),
+        (
+            AttentionOptions {
+                causal: true,
+                window: Some(16),
+                softcap: Some(30.0),
+                ..AttentionOptions::default()
+            },
+            false,
+        ),
     ];
     for (heads, kv_heads, dim, page_size) in [(8, 2, 64, 1), (8, 1, 128, 16), (4, 4, 64, 7)] {
         // Pages are handed out in a shuffled order, so the kernel must follow the page table.
@@ -571,10 +577,12 @@ fn test_paged_attention_matches_the_cpu_over_ragged_sequences() {
             indices(pages),
             indices(last_page_lengths),
         ];
-        for option in options {
+        let bias = values(&[heads, 40], 4);
+        for (option, biased) in options {
             for data_type in [DataType::F16, DataType::Bf16] {
                 let rounded =
                     |tensor: &Tensor| tensor.cast(data_type).unwrap().cast(DataType::F32).unwrap();
+                let expected_bias = rounded(&bias);
                 let expected = rounded(&query)
                     .paged_attention(
                         &rounded(&key_cache),
@@ -585,6 +593,7 @@ fn test_paged_attention_matches_the_cpu_over_ragged_sequences() {
                             pages: &index_tensors[2],
                             last_page_lengths: &index_tensors[3],
                         },
+                        biased.then_some(&expected_bias),
                         option,
                     )
                     .unwrap()
@@ -600,10 +609,11 @@ fn test_paged_attention_matches_the_cpu_over_ragged_sequences() {
                         }
                     })
                 };
-                let (Some(query), Some(key_cache), Some(value_cache)) = (
+                let (Some(query), Some(key_cache), Some(value_cache), Some(bias)) = (
                     device(&query, true),
                     device(&key_cache, true),
                     device(&value_cache, true),
+                    device(&bias, true),
                 ) else {
                     return;
                 };
@@ -621,6 +631,7 @@ fn test_paged_attention_matches_the_cpu_over_ragged_sequences() {
                             pages: &on_device[2],
                             last_page_lengths: &on_device[3],
                         },
+                        biased.then_some(&bias),
                         option,
                     )
                     .unwrap()
@@ -637,7 +648,7 @@ fn test_paged_attention_matches_the_cpu_over_ragged_sequences() {
                 for (index, (actual, expected)) in actual.iter().zip(&expected).enumerate() {
                     assert!(
                         (actual - expected).abs() <= tolerance,
-                        "{data_type:?} heads {heads}/{kv_heads}, dim {dim}, page {page_size}, {option:?}: element {index} is {actual}, not {expected}"
+                        "{data_type:?} heads {heads}/{kv_heads}, dim {dim}, page {page_size}, {option:?}, biased {biased}: element {index} is {actual}, not {expected}"
                     );
                 }
             }

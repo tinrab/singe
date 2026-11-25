@@ -242,13 +242,15 @@ impl KernelPlanner {
             extent(problem.page_size)?,
             extent(problem.sequences)?,
         );
-        if attention.masked || attention.sinks {
+        if attention.sinks {
             return Err(Error::unsupported_operation(
-                "cuda paged attention with a mask or sinks",
+                "cuda paged attention with sinks",
             ));
         }
 
-        if !self.takes_tensor_cores(&[query, key_cache, value_cache])
+        // Only the general kernel adds a bias by distance.
+        if attention.masked
+            || !self.takes_tensor_cores(&[query, key_cache, value_cache])
             || [query_offsets, page_offsets, pages, last_page_lengths]
                 .iter()
                 .any(|input| !input.layout.is_contiguous())
@@ -269,6 +271,7 @@ impl KernelPlanner {
                 value_width: dim,
                 groups: Some(heads / kv_heads),
                 indices: 3,
+                bias: attention.masked.then_some(7),
                 tokens,
                 heads,
                 page_size,

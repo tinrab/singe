@@ -295,6 +295,7 @@ attribute_struct! {
         /// The bound of `softcap · tanh(score / softcap)`, applied to the scaled scores before masking, as Gemma 2 caps its attention logits.
         pub softcap: Option<f32>,
         // Whether a fourth operand, of the query's type and broadcast to the scores' `[B, H, L, S]`, adds to the capped scores before the softmax, hiding keys where it is negative infinity.
+        // Paged attention's is an eighth operand, `[H, distances]`, which adds to each score the column of its query's position less its key's: the first for a key after its query, the last for a distance past it.
         pub masked: bool,
         // Whether a further operand of the query's type holds one logit per query head that joins every row's softmax and weighs no value, as GPT-OSS's attention sinks do.
         pub sinks: bool,

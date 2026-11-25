@@ -313,7 +313,7 @@ macro_rules! backend_kernels {
                     call,
                     Attributes::ScaledDotProductAttention(attention) => *attention
                 );
-                let inputs = (0..7)
+                let inputs = (0..7 + usize::from(attention.masked))
                     .map(|index| call.input(index))
                     .collect::<Result<Vec<_>>>()?;
                 $kernels::paged_attention(&inputs, attention)
@@ -331,7 +331,7 @@ macro_rules! backend_kernels {
                         call,
                         Attributes::ScaledDotProductAttention(attention) => *attention
                     );
-                    let inputs = (0..7)
+                    let inputs = (0..7 + usize::from(attention.masked))
                         .map(|index| call.input(index))
                         .collect::<Result<Vec<_>>>()?;
                     let mut outputs = $kernels::paged_attention(&inputs, attention)?;

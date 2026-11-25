@@ -126,6 +126,7 @@ fn attend(device: Device, data_type: DataType, paging: Paging) -> Result<(Tensor
                 pages: &pages,
                 last_page_lengths: &last,
             },
+            None,
             options(),
         )
         .and_then(read)
@@ -247,6 +248,7 @@ fn test_compiled_graphs_refuse_paging_values_at_run_time() {
                         pages: &inputs[4],
                         last_page_lengths: &inputs[5],
                     },
+                    None,
                     options(),
                 )?
                 .0,

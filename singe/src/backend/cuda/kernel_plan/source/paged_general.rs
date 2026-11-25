@@ -59,6 +59,8 @@ pub struct GeneralPaged<'a> {
     pub groups: Option<usize>,
     // The inputs after the caches: query offsets, page offsets, pages, and last page lengths.
     pub indices: usize,
+    // The input of a bias by distance, `[heads, distances]`, whose column of a query's position less a key's adds to their score: the first for a key after its query, the last for a distance past it.
+    pub bias: Option<usize>,
     pub tokens: usize,
     pub heads: usize,
     pub page_size: usize,
@@ -194,6 +196,21 @@ for (unsigned int part = 0; part < {parts}U; ++part) {{ const unsigned long long
             )
         },
     );
+    let bias = plan
+        .bias
+        .map(|bias| -> Result<String> {
+            let &[_, distances] = inputs[bias].layout.dimensions() else {
+                return Err(Error::invalid_argument("cuda paged attention bias"));
+            };
+            Ok(format!(
+                "const long long distance = position - key;
+const long long column = distance < 0LL ? 0LL : (distance < {distances}LL ? distance : {distances}LL - 1LL);
+scaled += {read};",
+                read = read(bias, &["head", "column"]),
+            ))
+        })
+        .transpose()?
+        .unwrap_or_default();
     let causal = attention.causal;
     let first_key = attention.window.map_or_else(
         || "0LL".to_owned(),
@@ -252,7 +269,8 @@ for (long long base = start + static_cast<long long>(warp) * {groups}LL; base < 
     // The lanes of a group end with its key's whole dot product.
     for (int offset = {lanes} / 2; offset > 0; offset /= 2) score += __shfl_xor_sync(0xffffffffU, score, offset);
     if (live) {{
-        const {accumulator} scaled = {scaled};
+        {accumulator} scaled = {scaled};
+        {bias}
         const {accumulator} next = scaled > largest ? scaled : largest;
         const {accumulator} correction = {exp}(largest - next);
         const {accumulator} weight = {exp}(scaled - next);

@@ -3,14 +3,17 @@
 use serde::{Deserialize, Serialize};
 use singe::{
     Error as SingeError, Result as SingeResult, Shape, Tensor,
-    nn::{Activation, DecodeStep, Embedding, LayerNorm, Linear, Mlp, ModelState, StateKey},
+    nn::{
+        Activation, AttentionInput, CrossAttention, CrossAttentionInput, DecodeStep, DecodingLayer,
+        Embedding, EncoderDecoderCache, GroupedQueryAttention, KvCacheSpec, Layer, LayerNorm,
+        Linear, Mlp, ModelState, StateKey,
+    },
     tensor::AttentionOptions,
 };
 
 use crate::{
     assembly::{
-        Attention, AttentionSpec, Seq2SeqCache, Seq2SeqCacheSpec, Seq2SeqTables, StepRows,
-        attention_rules,
+        Attention, AttentionSpec, attention_rules, paged_cross_attention, paged_self_attention,
     },
     format::{Rules, join},
     head::Seq2SeqDecoding,
@@ -19,12 +22,6 @@ use crate::{
 
 /// The positions BART's learned position table skips before the first, as its padding once took them.
 const POSITION_OFFSET: i64 = 2;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum StackRole {
-    Encoder,
-    Decoder,
-}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BartStackConfig {
@@ -55,42 +52,54 @@ pub fn embedding_scale(scale_embedding: bool, width: i64) -> f64 {
     }
 }
 
+/// A decoder block's attention: causal self-attention over its paged cache, then the norm and cross-attention that read the encoder's states.
 #[derive(Debug, Clone)]
-struct BartBlock {
+struct DecoderAttention {
+    attention: GroupedQueryAttention,
+    cross_norm: LayerNorm,
+    cross: CrossAttention,
+}
+
+impl DecoderAttention {
+    fn create(schema: &mut Schema<'_>, config: &BartStackConfig) -> SingeResult<Self> {
+        let square = AttentionSpec::square(config.width, config.heads);
+        Ok(Self {
+            attention: paged_self_attention(
+                &mut schema.scope("attention"),
+                square,
+                AttentionOptions::default(),
+            )?,
+            cross_norm: schema.layer_norm("cross_attention_norm", config.width, config.eps)?,
+            cross: paged_cross_attention(
+                &mut schema.scope("cross_attention"),
+                AttentionSpec {
+                    context: config.cross_width,
+                    ..square
+                },
+            )?,
+        })
+    }
+}
+
+/// A block whose attention is `A`: an encoder's [`Attention`], or a decoder's [`DecoderAttention`].
+#[derive(Debug, Clone)]
+struct BartBlock<A> {
     attention_norm: LayerNorm,
-    attention: Attention,
-    cross: Option<(LayerNorm, Attention)>,
+    attention: A,
     feed_forward_norm: LayerNorm,
     feed_forward: Mlp,
 }
 
-impl BartBlock {
+impl<A> BartBlock<A> {
     fn create(
         schema: &mut Schema<'_>,
         config: &BartStackConfig,
-        role: StackRole,
+        attention: impl FnOnce(&mut Schema<'_>) -> SingeResult<A>,
     ) -> SingeResult<Self> {
         let (width, eps) = (config.width, config.eps);
-        let cross = match role {
-            StackRole::Encoder => None,
-            StackRole::Decoder => Some((
-                schema.layer_norm("cross_attention_norm", width, eps)?,
-                Attention::create(
-                    &mut schema.scope("cross_attention"),
-                    AttentionSpec {
-                        context: config.cross_width,
-                        ..AttentionSpec::square(width, config.heads)
-                    },
-                )?,
-            )),
-        };
         Ok(Self {
             attention_norm: schema.layer_norm("attention_norm", width, eps)?,
-            attention: Attention::create(
-                &mut schema.scope("attention"),
-                AttentionSpec::square(width, config.heads),
-            )?,
-            cross,
+            attention: attention(schema)?,
             feed_forward_norm: schema.layer_norm("feed_forward_norm", width, eps)?,
             feed_forward: schema.mlp(
                 "feed_forward",
@@ -102,24 +111,24 @@ impl BartBlock {
     }
 }
 
-/// One encoder or decoder stack.
+/// The embeddings, blocks, and final norm of an encoder or decoder stack, whose blocks' attention is `A`.
 #[derive(Debug, Clone)]
-pub struct BartStack {
+struct BartStack<A> {
     tokens: Embedding,
     positions: StateKey,
     embedding_norm: Option<LayerNorm>,
-    blocks: Vec<BartBlock>,
+    blocks: Vec<BartBlock<A>>,
     norm: Option<LayerNorm>,
     config: BartStackConfig,
 }
 
-impl BartStack {
-    /// Registers a stack in `schema`: `tokens.weight`, tied to `tokens` when given, `positions.weight`, `embedding_norm` when the config norms embeddings, `blocks.N` with `attention_norm`, `attention`, a decoder's `cross_attention_norm` and `cross_attention`, `feed_forward_norm`, and `feed_forward`, and a pre-norm stack's `norm`.
-    pub fn create(
+impl<A> BartStack<A> {
+    /// Registers a stack in `schema`: `tokens.weight`, tied to `tokens` when given, `positions.weight`, `embedding_norm` when the config norms embeddings, `blocks.N` with `attention_norm`, what `attention` registers, `feed_forward_norm`, and `feed_forward`, and a pre-norm stack's `norm`.
+    fn create(
         schema: &mut Schema<'_>,
         config: &BartStackConfig,
-        role: StackRole,
         tokens: Option<&StateKey>,
+        attention: impl Fn(&mut Schema<'_>) -> SingeResult<A>,
     ) -> SingeResult<Self> {
         let width = config.width;
         let tokens = match tokens {
@@ -136,7 +145,11 @@ impl BartStack {
             .transpose()?;
         let blocks = (0..config.layers)
             .map(|index| {
-                BartBlock::create(&mut schema.scope(format!("blocks.{index}")), config, role)
+                BartBlock::create(
+                    &mut schema.scope(format!("blocks.{index}")),
+                    config,
+                    &attention,
+                )
             })
             .collect::<SingeResult<Vec<_>>>()?;
         let norm = config
@@ -151,31 +164,6 @@ impl BartStack {
             norm,
             config: config.clone(),
         })
-    }
-
-    /// Runs an encoder over `tokens`, `[1, T]`, returning each token's final state, `[1, T, W]`.
-    pub fn forward(&self, tokens: &Tensor, state: &ModelState) -> SingeResult<Tensor> {
-        let &[_, length] = tokens.shape().dimensions() else {
-            return Err(SingeError::invalid_argument("a stack's tokens"));
-        };
-        let positions = Tensor::from_vec(
-            tokens.device(),
-            Shape::create([length])?,
-            (0..length).collect::<Vec<_>>(),
-        )?;
-        self.run(&self.embed(tokens, &positions, state)?, None, state)
-    }
-
-    /// Runs a decoder over a decode step's tokens, reading and extending `caches`, and returns each row's final state, `[T, W]`.
-    pub fn decode(
-        &self,
-        step: &DecodeStep,
-        rows: &StepRows,
-        caches: &[Seq2SeqCache],
-        state: &ModelState,
-    ) -> SingeResult<Tensor> {
-        let hidden = self.embed(step.tokens(), step.positions(), state)?;
-        self.run(&hidden, Some((rows, caches)), state)
     }
 
     /// Returns each token's embedding, scaled, with its position's added, and normed when the stack norms its embeddings.
@@ -199,70 +187,35 @@ impl BartStack {
         }
     }
 
-    /// Runs the blocks over `hidden`, an encoder's whole input, or a decode step's rows, which read and extend each block's cache.
-    fn run(
+    /// Runs one part of a block on `hidden`: its input normed first when blocks norm before each part, its output added to `hidden`, and the sum normed when blocks norm after each residual.
+    fn part(
         &self,
         hidden: &Tensor,
-        step: Option<(&StepRows, &[Seq2SeqCache])>,
+        norm: &LayerNorm,
+        state: &ModelState,
+        part: impl FnOnce(&Tensor) -> SingeResult<Tensor>,
+    ) -> SingeResult<Tensor> {
+        if self.config.pre_norm {
+            hidden.add(&part(&hidden.apply(norm, state)?)?)
+        } else {
+            hidden.add(&part(hidden)?)?.apply(norm, state)
+        }
+    }
+
+    /// Runs a block's feed-forward part on `hidden`.
+    fn feed_forward(
+        &self,
+        block: &BartBlock<A>,
+        hidden: &Tensor,
         state: &ModelState,
     ) -> SingeResult<Tensor> {
-        // A part's input, normed before it when blocks norm first.
-        let pre_norm = self.config.pre_norm;
-        let input = |hidden: &Tensor, norm: &LayerNorm| {
-            if pre_norm {
-                hidden.apply(norm, state)
-            } else {
-                Ok(hidden.clone())
-            }
-        };
-        // A part's output added to its residual, normed after the sum when blocks norm last.
-        let residual = |hidden: &Tensor, output: &Tensor, norm: &LayerNorm| {
-            let sum = hidden.add(output)?;
-            if pre_norm {
-                Ok(sum)
-            } else {
-                sum.apply(norm, state)
-            }
-        };
-        let mut hidden = hidden.clone();
-        for (index, block) in self.blocks.iter().enumerate() {
-            let cached = step
-                .map(|(rows, caches)| {
-                    caches
-                        .get(index)
-                        .map(|cache| (rows, cache))
-                        .ok_or_else(|| SingeError::missing_input("a decoder block's cache"))
-                })
-                .transpose()?;
-            let normed = input(&hidden, &block.attention_norm)?;
-            let attended = match cached {
-                Some((rows, cache)) => block.attention.decode(
-                    &normed,
-                    rows,
-                    cache,
-                    rows.mask(),
-                    AttentionOptions::default(),
-                    state,
-                )?,
-                None => block.attention.forward(&normed, &normed, &normed, state)?,
-            };
-            hidden = residual(&hidden, &attended, &block.attention_norm)?;
-            if let (Some((norm, attention)), Some((rows, cache))) = (&block.cross, cached) {
-                let normed = input(&hidden, norm)?;
-                let attended = attention.attend_sources(
-                    &normed,
-                    rows,
-                    cache,
-                    AttentionOptions::default(),
-                    state,
-                )?;
-                hidden = residual(&hidden, &attended, norm)?;
-            }
+        self.part(hidden, &block.feed_forward_norm, state, |normed| {
+            normed.apply(&block.feed_forward, state)
+        })
+    }
 
-            let normed = input(&hidden, &block.feed_forward_norm)?;
-            let output = normed.apply(&block.feed_forward, state)?;
-            hidden = residual(&hidden, &output, &block.feed_forward_norm)?;
-        }
+    /// Returns the last block's output, normed when the stack has a norm after it.
+    fn finish(&self, hidden: Tensor, state: &ModelState) -> SingeResult<Tensor> {
         match &self.norm {
             Some(norm) => hidden.apply(norm, state),
             None => Ok(hidden),
@@ -270,54 +223,139 @@ impl BartStack {
     }
 }
 
+/// A BART-family encoder stack.
+#[derive(Debug, Clone)]
+pub struct BartEncoder {
+    stack: BartStack<Attention>,
+}
+
+impl BartEncoder {
+    /// Registers an encoder in `schema`, with the names [`bart_stack_rules`] imports to, and its blocks' `attention`; its tokens are tied to `tokens` when given.
+    pub fn create(
+        schema: &mut Schema<'_>,
+        config: &BartStackConfig,
+        tokens: Option<&StateKey>,
+    ) -> SingeResult<Self> {
+        let square = AttentionSpec::square(config.width, config.heads);
+        Ok(Self {
+            stack: BartStack::create(schema, config, tokens, |schema| {
+                Attention::create(&mut schema.scope("attention"), square)
+            })?,
+        })
+    }
+
+    /// Runs the encoder over `tokens`, `[1, T]`, returning each token's final state, `[1, T, W]`.
+    pub fn forward(&self, tokens: &Tensor, state: &ModelState) -> SingeResult<Tensor> {
+        let &[_, length] = tokens.shape().dimensions() else {
+            return Err(SingeError::invalid_argument("a stack's tokens"));
+        };
+        let positions = Tensor::from_vec(
+            tokens.device(),
+            Shape::create([length])?,
+            (0..length).collect::<Vec<_>>(),
+        )?;
+        let stack = &self.stack;
+        let mut hidden = stack.embed(tokens, &positions, state)?;
+        for block in &stack.blocks {
+            hidden = stack.part(&hidden, &block.attention_norm, state, |normed| {
+                block.attention.forward(normed, normed, normed, state)
+            })?;
+            hidden = stack.feed_forward(block, &hidden, state)?;
+        }
+        stack.finish(hidden, state)
+    }
+}
+
 /// A BART-family decoder with its output: a decoder stack, the head over its last states, and the bias BART adds to the logits, `[1, V]`.
 #[derive(Debug, Clone)]
 pub struct BartDecoder {
-    stack: BartStack,
+    stack: BartStack<DecoderAttention>,
     head: Linear,
     logits_bias: Option<StateKey>,
 }
 
 impl BartDecoder {
-    #[must_use]
-    pub const fn new(stack: BartStack, head: Linear, logits_bias: Option<StateKey>) -> Self {
-        Self {
-            stack,
+    /// Registers a decoder in `schema`, with the names [`bart_stack_rules`] imports to, and its blocks' `attention`, `cross_attention_norm`, and `cross_attention`; its tokens are tied to `tokens` when given.
+    pub fn create(
+        schema: &mut Schema<'_>,
+        config: &BartStackConfig,
+        tokens: Option<&StateKey>,
+        head: Linear,
+        logits_bias: Option<StateKey>,
+    ) -> SingeResult<Self> {
+        Ok(Self {
+            stack: BartStack::create(schema, config, tokens, |schema| {
+                DecoderAttention::create(schema, config)
+            })?,
             head,
             logits_bias,
-        }
+        })
     }
 }
 
 impl Seq2SeqDecoding for BartDecoder {
-    fn cross_attentions(&self) -> Vec<&Attention> {
+    fn cross_attentions(&self) -> Vec<&CrossAttention> {
         self.stack
             .blocks
             .iter()
-            .filter_map(|block| block.cross.as_ref().map(|(_, attention)| attention))
+            .map(|block| &block.attention.cross)
             .collect()
     }
 
-    fn cache_spec(&self, sources: i64) -> Seq2SeqCacheSpec {
+    fn cache_spec(&self) -> KvCacheSpec {
         let config = &self.stack.config;
-        Seq2SeqCacheSpec {
-            heads: config.heads,
+        KvCacheSpec {
+            kv_heads: config.heads,
             head_dim: config.width / config.heads,
-            sources,
         }
     }
 
     fn forward(
         &self,
         step: &DecodeStep,
-        tables: &Seq2SeqTables,
-        caches: &[Seq2SeqCache],
+        caches: &[EncoderDecoderCache],
         state: &ModelState,
     ) -> SingeResult<Tensor> {
-        let rows = StepRows::create(step, tables)?;
-        let logits = self
-            .stack
-            .decode(step, &rows, caches, state)?
+        let stack = &self.stack;
+        if caches.len() != stack.blocks.len() {
+            return Err(SingeError::missing_input("a decoder block's cache"));
+        }
+
+        let mut hidden = stack.embed(step.tokens(), step.positions(), state)?;
+        for (block, cache) in stack.blocks.iter().zip(caches) {
+            let DecoderAttention {
+                attention,
+                cross_norm,
+                cross,
+            } = &block.attention;
+            hidden = stack.part(&hidden, &block.attention_norm, state, |normed| {
+                attention.decode(
+                    &AttentionInput {
+                        hidden: normed,
+                        step,
+                        angles: None,
+                        cache: &cache.self_attention(),
+                    },
+                    state,
+                )
+            })?;
+            hidden = stack.part(&hidden, cross_norm, state, |normed| {
+                cross.forward(
+                    &CrossAttentionInput {
+                        hidden: normed,
+                        step,
+                        keys: cache.cross_keys(),
+                        values: cache.cross_values(),
+                        lengths: cache.source_lengths(),
+                    },
+                    state,
+                )
+            })?;
+            hidden = stack.feed_forward(block, &hidden, state)?;
+        }
+
+        let logits = stack
+            .finish(hidden, state)?
             .index_select(0, step.last_rows())?
             .apply(&self.head, state)?;
         match &self.logits_bias {

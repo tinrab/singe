@@ -369,10 +369,12 @@ pub fn scaled_dot_product_attention_shape(
 // Attends ragged queries `[T, H, D]` over paged key and value caches `[P, S, G, D]`, as FlashInfer batches them.
 // Sequence `b` holds queries `query_offsets[b]..query_offsets[b + 1]` and the keys of pages `pages[page_offsets[b]..page_offsets[b + 1]]`, all full but the last, which holds `last_page_lengths[b]`.
 // Its queries are its last tokens, so a causal mask lets each see the keys up to its own position; a query that sees no key yields zeros.
+// A masked call's eighth input, `[H, distances]`, adds to each score the column of its query's position less its key's: the first for a key after its query, the last for a distance past it.
 pub fn paged_attention(
     inputs: &[&Tensor],
     attention: ScaledDotProductAttentionAttributes,
 ) -> Result<Vec<Tensor>> {
+    let (operands, rest) = inputs.split_at(inputs.len().min(7));
     let &[
         query,
         key_cache,
@@ -381,10 +383,21 @@ pub fn paged_attention(
         page_offsets,
         pages,
         last_page_lengths,
-    ] = inputs
+    ] = operands
     else {
         return Err(Error::missing_input("cpu paged_attention"));
     };
+    let bias = match (rest, attention.masked) {
+        (&[], false) => None,
+        (&[bias], true) => Some(bias),
+        (&[], true) => return Err(Error::missing_input("cpu paged_attention bias")),
+        _ => {
+            return Err(Error::invalid_argument(
+                "cpu paged_attention takes a bias only when masked",
+            ));
+        }
+    };
+
     if let Some(actual) = inputs
         .iter()
         .map(|input| input.device())
@@ -397,18 +410,18 @@ pub fn paged_attention(
     if matches!(data_type, DataType::F16 | DataType::Bf16) {
         let wide = |tensor: &Tensor| tensor.cast(DataType::F32);
         let (query, key_cache, value_cache) = (wide(query)?, wide(key_cache)?, wide(value_cache)?);
-        let mut outputs = paged_attention(
-            &[
-                &query,
-                &key_cache,
-                &value_cache,
-                query_offsets,
-                page_offsets,
-                pages,
-                last_page_lengths,
-            ],
-            attention,
-        )?;
+        let bias = bias.map(wide).transpose()?;
+        let mut wide_inputs = vec![
+            &query,
+            &key_cache,
+            &value_cache,
+            query_offsets,
+            page_offsets,
+            pages,
+            last_page_lengths,
+        ];
+        wide_inputs.extend(&bias);
+        let mut outputs = paged_attention(&wide_inputs, attention)?;
         outputs[0] = outputs[0].cast(data_type)?;
         return Ok(outputs);
     }
@@ -446,9 +459,15 @@ pub fn paged_attention(
         pages,
         last_page_lengths,
     };
+    let operands = PagedOperands {
+        query,
+        key_cache,
+        value_cache,
+        bias,
+    };
     match data_type {
-        DataType::F32 => attend_paged::<f32>(query, key_cache, value_cache, &geometry, attention),
-        DataType::F64 => attend_paged::<f64>(query, key_cache, value_cache, &geometry, attention),
+        DataType::F32 => attend_paged::<f32>(&operands, &geometry, attention),
+        DataType::F64 => attend_paged::<f64>(&operands, &geometry, attention),
         _ => Err(Error::unsupported_data_type("cpu paged_attention")),
     }
 }
@@ -501,13 +520,25 @@ struct PagedGeometry {
     last_page_lengths: Vec<usize>,
 }
 
+#[derive(Debug, Clone, Copy)]
+struct PagedOperands<'a> {
+    query: &'a Tensor,
+    key_cache: &'a Tensor,
+    value_cache: &'a Tensor,
+    bias: Option<&'a Tensor>,
+}
+
 fn attend_paged<T: NativeFloat>(
-    query: &Tensor,
-    key_cache: &Tensor,
-    value_cache: &Tensor,
+    operands: &PagedOperands<'_>,
     geometry: &PagedGeometry,
     attention: ScaledDotProductAttentionAttributes,
 ) -> Result<Vec<Tensor>> {
+    let PagedOperands {
+        query,
+        key_cache,
+        value_cache,
+        bias,
+    } = *operands;
     let PagedGeometry {
         heads,
         kv_heads,
@@ -535,6 +566,19 @@ fn attend_paged<T: NativeFloat>(
     let query_data = logical_values::<T>(&query)?;
     let key_data = logical_values::<T>(&key_cache)?;
     let value_data = logical_values::<T>(&value_cache)?;
+    let bias = bias.map(Tensor::contiguous).transpose()?;
+    let bias = bias
+        .as_ref()
+        .map(|bias| {
+            let &[_, distances] = bias.shape().dimensions() else {
+                return Err(Error::invalid_argument("cpu paged_attention bias"));
+            };
+            Ok((
+                logical_values::<T>(bias)?,
+                to_usize(distances, "cpu paged_attention bias distances")?,
+            ))
+        })
+        .transpose()?;
     let mut output = vec![T::zero(); query_data.len()];
     let mut lse = vec![f32::NEG_INFINITY; query_data.len() / head_dim.max(1)];
     let groups = heads / kv_heads.max(1);
@@ -577,7 +621,11 @@ fn attend_paged<T: NativeFloat>(
                         .zip(&key_data[offset..offset + head_dim])
                         .fold(T::zero(), |sum, (query, key)| query.mul_add(*key, sum))
                         * scale;
-                    softcap.map_or(score, |cap| (score / cap).tanh() * cap)
+                    let capped = softcap.map_or(score, |cap| (score / cap).tanh() * cap);
+                    bias.as_ref().map_or(capped, |(bias, distances)| {
+                        let distance = position.saturating_sub(key).min(distances - 1);
+                        capped + bias[head * distances + distance]
+                    })
                 };
                 let visible = start..end.max(start);
                 if visible.is_empty() {

@@ -262,7 +262,11 @@ impl KernelPlanner {
                 | Operation::PagedAttentionLse,
                 [query, key, value, ..],
             ) => {
-                if !self.takes_tensor_cores(&[query, key, value]) {
+                // A bias by distance runs the general kernel, which takes no parameters.
+                let biased = attributes
+                    .scaled_dot_product_attention()
+                    .is_some_and(|attention| attention.masked);
+                if biased || !self.takes_tensor_cores(&[query, key, value]) {
                     return None;
                 }
 

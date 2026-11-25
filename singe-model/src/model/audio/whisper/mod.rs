@@ -33,8 +33,8 @@ use crate::{
     source::Format,
 };
 
-/// The slots of a cross-attention cache page.
-const SOURCE_PAGE: i64 = 32;
+/// The slots of a cross-attention cache page, each of which runs as a sequence of its own.
+const SOURCE_PAGE: i64 = 128;
 
 /// Whisper's attention projection biases: on queries, values, and outputs, and none on keys.
 const PROJECTION_BIASES: [bool; 4] = [true, false, true, true];
@@ -193,15 +193,7 @@ impl WhisperDecoderLayers {
         let [query, key, value, output] = schema
             .scope("cross_attention")
             .attention_projections(width, PROJECTION_BIASES)?;
-        let cross_attention = CrossAttention::create(
-            query,
-            key,
-            value,
-            output,
-            heads,
-            width,
-            config.source_positions,
-        )?;
+        let cross_attention = CrossAttention::create(query, key, value, output, heads, width)?;
         Ok(EncoderDecoderBlock::new(EncoderDecoderParts {
             self_norm: schema.layer_norm("attention_norm", width, PYTORCH_NORM_EPS)?,
             self_attention,

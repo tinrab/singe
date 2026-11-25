@@ -249,7 +249,7 @@ pub const SCALED_MATMUL_OPERANDS: &[OperandRole] = &[
     OperandRole::Scale,
 ];
 
-/// Paged attention's queries, key and value caches, query offsets, page offsets, pages, and last page lengths.
+/// Paged attention's queries, key and value caches, query offsets, page offsets, pages, and last page lengths, which a bias by distance may follow.
 pub const PAGED_ATTENTION_OPERANDS: &[OperandRole] = &[
     OperandRole::Input,
     OperandRole::Key,

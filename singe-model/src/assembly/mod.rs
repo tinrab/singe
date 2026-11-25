@@ -4,7 +4,6 @@ mod attention;
 mod conformer;
 mod convolution;
 mod decoder;
-mod decoder_step;
 mod encoder_decoder;
 mod expert;
 mod feature_map;
@@ -20,7 +19,10 @@ mod unet;
 mod vision_tower;
 
 pub use self::{
-    attention::{Attention, AttentionSpec, attention_rules, merge_heads, split_heads},
+    attention::{
+        Attention, AttentionSpec, attention_rules, merge_heads, paged_cross_attention,
+        paged_self_attention, split_heads,
+    },
     conformer::{
         ConformerBlock, ConformerConfig, ConformerEncoder, ConformerEncoderConfig, ConvSubsampling,
         ConvolutionModule, SubsamplingConfig, SubsamplingKind, conformer_rules,
@@ -32,9 +34,8 @@ pub use self::{
         hidden_states, kv_caches, llama_block_rules, llama_rules, pre_norm_block,
         pre_norm_block_with,
     },
-    decoder_step::{Seq2SeqCache, Seq2SeqCacheSpec, Seq2SeqTables, StepRows},
     encoder_decoder::{
-        BartDecoder, BartStack, BartStackConfig, StackRole, bart_stack_rules, embedding_scale,
+        BartDecoder, BartEncoder, BartStackConfig, bart_stack_rules, embedding_scale,
     },
     expert::{ExpertRouting, ExpertsConfig, expert_rules, mixture_of_experts},
     feature_map::{merge_windows, partition_windows, spatial, to_map, to_tokens},

@@ -30,6 +30,21 @@ pub trait DecodeCache: TensorGroup {
     fn keep_trail(&self, _row: usize) -> Result<()> {
         Ok(())
     }
+
+    // Copies the pages `from` lists over the pages `to` lists, `[n]` of `I64` each, as beam search gives a row its parent's keys.
+    fn copy_pages(&self, _from: &Tensor, _to: &Tensor) -> Result<()> {
+        Err(Error::unsupported_operation(
+            "copying pages of this decoder cache",
+        ))
+    }
+}
+
+// Copies the pages `from` lists of `cache`, `[P, ...]`, over the pages `to` lists.
+fn copy_pages(cache: &Tensor, from: &Tensor, to: &Tensor) -> Result<()> {
+    cache.index_put_(
+        &[TensorIndex::Indices(to.clone())],
+        &cache.index_select(0, from)?,
+    )
 }
 
 // How much a decoder's caches hold: `pages` pages of `page_size` slots, shared by `sequences` sequences of up to `capacity` tokens each.
@@ -125,6 +140,11 @@ impl DecodeCache for KvCache {
         Self::from_tensors(tensors)
     }
 
+    fn copy_pages(&self, from: &Tensor, to: &Tensor) -> Result<()> {
+        copy_pages(&self.keys, from, to)?;
+        copy_pages(&self.values, from, to)
+    }
+
     fn create(
         device: Device,
         data_type: DataType,
@@ -206,19 +226,21 @@ impl DecodeCache for LatentKvCache {
 pub struct EncoderDecoderCacheSpec {
     pub heads: i64,
     pub head_dim: i64,
-    // How many encoder outputs each sequence's cross-attention reads.
+    // The most encoder outputs a sequence's cross-attention reads.
     pub sources: i64,
     // The slots of a cross-attention page, a power of two, as cuDNN's paged attention takes.
     pub source_page: i64,
 }
 
 input_group! {
-    // One decoder layer's caches in an encoder-decoder: paged self-attention keys and values, `[P, S, H, D]`, and each sequence's cross-attention keys and values over its encoder's `F` outputs, in `k` pages of its own, `[N · k, page, H, D]`, which are written once per sequence and do not change while it decodes.
+    // One decoder layer's caches in an encoder-decoder: paged self-attention keys and values, `[P, S, H, D]`, and each sequence's cross-attention keys and values over its encoder's outputs, in `k` pages of its own, `[N · k, page, H, D]`, with how many outputs each sequence has, `[N]` of `I64`.
+    // The cross-attention caches are written once per sequence and do not change while it decodes.
     pub struct EncoderDecoderCache {
         keys,
         values,
         cross_keys,
         cross_values,
+        source_lengths,
     }
 }
 
@@ -242,7 +264,12 @@ impl EncoderDecoderCache {
         &self.cross_values
     }
 
-    // Writes one sequence's cross-attention keys and values, `[F, H, D]`, as its encoder computed them, to its pages.
+    #[must_use]
+    pub const fn source_lengths(&self) -> &Tensor {
+        &self.source_lengths
+    }
+
+    // Writes one sequence's cross-attention keys and values, `[F, H, D]`, as its encoder computed them, to its pages, and its count of them.
     pub fn write_cross(&self, sequence: usize, keys: &Tensor, values: &Tensor) -> Result<()> {
         let sequence = i64::try_from(sequence).map_err(|_| Error::out_of_range("sequence"))?;
         let &[sources, heads, dim] = keys.shape().dimensions() else {
@@ -250,7 +277,16 @@ impl EncoderDecoderCache {
                 "cross-attention keys and values are [sources, heads, dim]",
             ));
         };
-        let layout = SourcePages::create(&self.cross_keys, sources)?;
+        let &[sequences] = self.source_lengths.shape().dimensions() else {
+            return Err(Error::invalid_argument(
+                "cross-attention source lengths are [sequences]",
+            ));
+        };
+        let layout = SourcePages::create(&self.cross_keys, sequences)?;
+        if !(1..=layout.capacity()).contains(&sources) {
+            return Err(Error::out_of_range("cross-attention sources"));
+        }
+
         let (page, blocks, first) = (layout.page, layout.per_sequence, layout.first(sequence)?);
         let rows = [TensorIndex::Indices(capture::literal(
             self.cross_keys.device(),
@@ -268,7 +304,17 @@ impl EncoderDecoderCache {
                 .reshape([blocks, page, heads, dim])
         };
         self.cross_keys.index_put_(&rows, &paged(keys)?)?;
-        self.cross_values.index_put_(&rows, &paged(values)?)
+        self.cross_values.index_put_(&rows, &paged(values)?)?;
+        // By index, as the pages are written: a slice that covers every sequence would leave a captured graph never reading the lengths it writes.
+        let literal = |value: i64| {
+            capture::literal(self.source_lengths.device(), |device| {
+                Tensor::from_vec(device, Shape::create([1])?, vec![value])
+            })
+        };
+        self.source_lengths.index_put_(
+            &[TensorIndex::Indices(literal(sequence)?)],
+            &literal(sources)?,
+        )
     }
 }
 
@@ -277,6 +323,12 @@ impl DecodeCache for EncoderDecoderCache {
 
     fn rebuilt(&self, tensors: &[Tensor]) -> Result<Self> {
         Self::from_tensors(tensors)
+    }
+
+    // Copies self-attention pages alone: each sequence keeps the cross-attention pages written for it.
+    fn copy_pages(&self, from: &Tensor, to: &Tensor) -> Result<()> {
+        copy_pages(&self.keys, from, to)?;
+        copy_pages(&self.values, from, to)
     }
 
     fn create(
@@ -305,6 +357,11 @@ impl DecodeCache for EncoderDecoderCache {
             values: zeroed(paged)?,
             cross_keys: zeroed(cross)?,
             cross_values: zeroed(cross)?,
+            source_lengths: Tensor::zeroed_on(
+                device,
+                DataType::I64,
+                Shape::create([size.sequences])?,
+            )?,
         })
     }
 }

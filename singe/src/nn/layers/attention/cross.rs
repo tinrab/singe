@@ -10,7 +10,7 @@ use crate::{
 };
 
 // Attention from a decoder's tokens to an encoder's outputs: queries from the decoder, and keys and values the encoder's outputs project to once per sequence, without a mask.
-// It is paged attention without the causal mask, reading each sequence's pages where they are.
+// It is paged attention without the causal mask, reading each sequence's pages where they are, as many of their slots as its encoder gave it.
 #[derive(Debug, Clone)]
 pub struct CrossAttention {
     query: Linear,
@@ -19,50 +19,53 @@ pub struct CrossAttention {
     output: Linear,
     heads: i64,
     head_dim: i64,
-    // How many encoder outputs each sequence's tokens attend to.
-    sources: i64,
+    scale: Option<f32>,
 }
 
-// What cross-attention reads in a decode step: `hidden`, `[T, W]`, the step that says which sequence each token is of, and every sequence's keys and values, `[N · k, page, H, D]`, as `EncoderDecoderCache` pages them.
+// What cross-attention reads in a decode step: `hidden`, `[T, W]`, the step that says which sequence each token is of, and every sequence's keys and values, `[N · k, page, H, D]`, and source counts, `[N]` of `I64`, as `EncoderDecoderCache` holds them.
 #[derive(Debug, Clone, Copy)]
 pub struct CrossAttentionInput<'a> {
     pub hidden: &'a Tensor,
     pub step: &'a DecodeStep,
     pub keys: &'a Tensor,
     pub values: &'a Tensor,
+    pub lengths: &'a Tensor,
 }
 
 impl CrossAttention {
-    // Stores the projections of `heads` heads over a decoder of `width` features, whose tokens attend to `sources` encoder outputs.
+    // Stores the projections of `heads` heads that split `inner` features.
     //
     // # Errors
     //
-    // Returns an error if `heads` is not positive or does not divide a nonzero `width`, or `sources` is not positive.
+    // Returns an error if `heads` is not positive or does not divide a nonzero `inner`.
     pub fn create(
         query: Linear,
         key: Linear,
         value: Linear,
         output: Linear,
         heads: i64,
-        width: i64,
-        sources: i64,
+        inner: i64,
     ) -> Result<Self> {
-        if heads <= 0 || width <= 0 || width % heads != 0 {
+        if heads <= 0 || inner <= 0 || inner % heads != 0 {
             return Err(Error::invalid_argument("attention heads and width"));
         }
 
-        if sources <= 0 {
-            return Err(Error::invalid_argument("cross-attention sources"));
-        }
         Ok(Self {
             query,
             key,
             value,
             output,
             heads,
-            head_dim: width / heads,
-            sources,
+            head_dim: inner / heads,
+            scale: None,
         })
+    }
+
+    // Scales scores by `scale` rather than by the reciprocal square root of the head dimension, as T5's unscaled attention does.
+    #[must_use]
+    pub const fn with_scale(mut self, scale: f32) -> Self {
+        self.scale = Some(scale);
+        self
     }
 
     // Projects one sequence's encoder outputs, `[F, W]`, to the keys and values its tokens attend to, `[F, H, D]`.
@@ -81,42 +84,53 @@ impl CrossAttention {
     }
 }
 
-// The pages each chunk of a sequence's keys holds: a decode step has one query per sequence, so splitting its keys into chunks that run as sequences of their own gives the kernel blocks to spread over, as FlashDecoding does.
-const CHUNK_PAGES: i64 = 4;
-
-impl CrossAttention {
-    // The paging of a cross cache of `[N · k, page, H, D]`, in which each of `N` sequences owns `k` pages, the last of which holds what `sources` leaves, split into chunks of at most `CHUNK_PAGES` pages that each run as a sequence.
-    // Returns the chunks per sequence, and the page offsets, pages, and last page lengths of every chunk of every sequence, chunk-major.
-    fn paging(&self, keys: &Tensor) -> Result<(i64, [Tensor; 3])> {
-        let SourcePages {
-            page,
-            per_sequence: blocks,
-            sequences,
-            last,
-        } = SourcePages::create(keys, self.sources)?;
-        let per_chunk = blocks.min(CHUNK_PAGES);
-        let chunks = pages_for(blocks, per_chunk);
-        let (mut offsets, mut pages, mut lengths) = (vec![0_i64], Vec::new(), Vec::new());
-        for chunk in 0..chunks {
-            let first = chunk * per_chunk;
-            let end = (first + per_chunk).min(blocks);
-            for sequence in 0..sequences {
-                pages.extend(sequence * blocks + first..sequence * blocks + end);
-                offsets.push(i64::try_from(pages.len()).map_err(|_| Error::out_of_range("pages"))?);
-                lengths.push(if end == blocks { last } else { page });
-            }
-        }
-
-        let literal = |values: Vec<i64>| {
-            let length = i64::try_from(values.len()).map_err(|_| Error::out_of_range("pages"))?;
-            capture::literal(keys.device(), |device| {
-                Tensor::from_vec(device, Shape::create([length])?, values)
-            })
+impl Layer<CrossAttentionInput<'_>> for CrossAttention {
+    fn forward(&self, input: &CrossAttentionInput<'_>, state: &ModelState) -> Result<Tensor> {
+        let &[tokens, _] = input.hidden.shape().dimensions() else {
+            return Err(Error::invalid_argument(
+                "cross-attention requires [tokens, width]",
+            ));
         };
-        Ok((
-            chunks,
-            [literal(offsets)?, literal(pages)?, literal(lengths)?],
-        ))
+        let query =
+            input
+                .hidden
+                .apply(&self.query, state)?
+                .reshape([tokens, self.heads, self.head_dim])?;
+        let paging = SourcePaging::create(input, tokens)?;
+        let pages = paging.pages;
+        let (partial, lse) = query
+            .unsqueeze(0)?
+            .expand(Shape::create([pages, tokens, self.heads, self.head_dim])?)?
+            .contiguous()?
+            .reshape([pages * tokens, self.heads, self.head_dim])?
+            .paged_attention(
+                input.keys,
+                input.values,
+                paging.paging(),
+                None,
+                AttentionOptions {
+                    scale: self.scale,
+                    ..AttentionOptions::default()
+                },
+            )?;
+        // Each page's result weighs by its share of the softmax's total, from its base-two log-sum-exp.
+        let lse = lse
+            .reshape([pages, tokens, self.heads, 1])?
+            .add(&paging.empty)?;
+        let weights = lse
+            .sub(&lse.max_reduce(&[0], true)?)?
+            .mul_scalar(LN_2)?
+            .exp()?;
+        let attended = partial
+            .reshape([pages, tokens, self.heads, self.head_dim])?
+            .cast(DataType::F32)?
+            .mul(&weights)?
+            .sum(&[0], false)?
+            .div(&weights.sum(&[0], false)?)?
+            .cast(query.data_type())?;
+        attended
+            .reshape([tokens, self.heads * self.head_dim])?
+            .apply(&self.output, state)
     }
 }
 
@@ -126,35 +140,28 @@ pub fn pages_for(sources: i64, page: i64) -> i64 {
     (sources + page - 1) / page
 }
 
-// How a cross-attention cache, `[N · k, page, H, D]`, pages each of its `N` sequences' encoder outputs: sequence `s` owns the `k` pages from `s · k`, the last of which holds what the others leave.
+// How a cross-attention cache, `[N · k, page, H, D]`, pages each of its `N` sequences' encoder outputs: sequence `s` owns the `k` pages from `s · k`.
 // Both what writes a sequence's sources and what attends to them read the layout from here.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SourcePages {
     pub page: i64,
     pub per_sequence: i64,
     pub sequences: i64,
-    // The rows the last page of a sequence holds.
-    pub last: i64,
 }
 
 impl SourcePages {
-    // The layout of `cache` for sequences of `sources` encoder outputs each.
+    // The layout of `cache` for `sequences` sequences.
     //
     // # Errors
     //
-    // Returns an error if `cache` is not `[pages, page, heads, dim]`, `sources` is not positive, or the pages do not divide into whole sequences.
-    pub fn create(cache: &Tensor, sources: i64) -> Result<Self> {
+    // Returns an error if `cache` is not `[pages, page, heads, dim]`, or its pages do not divide among `sequences` sequences.
+    pub fn create(cache: &Tensor, sequences: i64) -> Result<Self> {
         let &[cache_pages, page, _, _] = cache.shape().dimensions() else {
             return Err(Error::invalid_argument(
                 "cross-attention caches are [pages, page, heads, dim]",
             ));
         };
-        if sources <= 0 || page <= 0 {
-            return Err(Error::invalid_argument("cross-attention sources and pages"));
-        }
-
-        let per_sequence = pages_for(sources, page);
-        if cache_pages % per_sequence != 0 {
+        if sequences <= 0 || page <= 0 || cache_pages <= 0 || cache_pages % sequences != 0 {
             return Err(Error::invalid_argument(
                 "a cross-attention cache holds whole sequences of pages",
             ));
@@ -162,10 +169,15 @@ impl SourcePages {
 
         Ok(Self {
             page,
-            per_sequence,
-            sequences: cache_pages / per_sequence,
-            last: sources - (per_sequence - 1) * page,
+            per_sequence: cache_pages / sequences,
+            sequences,
         })
+    }
+
+    // The most sources a sequence holds.
+    #[must_use]
+    pub const fn capacity(&self) -> i64 {
+        self.per_sequence * self.page
     }
 
     // The first page sequence `sequence` owns.
@@ -182,73 +194,100 @@ impl SourcePages {
     }
 }
 
-impl Layer<CrossAttentionInput<'_>> for CrossAttention {
-    fn forward(&self, input: &CrossAttentionInput<'_>, state: &ModelState) -> Result<Tensor> {
-        let &[tokens, width] = input.hidden.shape().dimensions() else {
+// The amount that sends a page holding none of its sequence's sources far below every other page's log-sum-exp, so its weight is zero.
+const EMPTY_PAGE: f64 = 1.0e30;
+
+// How a decode step attends to a cross cache, `[N · k, page, H, D]`, in which each of `N` sequences owns `k` pages.
+// Each page of each sequence runs as a sequence of its own, page-major, so a step's few queries spread over many blocks, as FlashDecoding splits a row's keys.
+struct SourcePaging {
+    // The pages each sequence owns, `k`.
+    pages: i64,
+    // Each page's queries: the step's, offset by the page's place.
+    query_offsets: Tensor,
+    page_offsets: Tensor,
+    table: Tensor,
+    // Each page's keys: its sequence's sources past the page's first slot, at least one, so every kernel sees a key, and at most a page.
+    last_page_lengths: Tensor,
+    // What each page adds to each of its tokens' log-sum-exps, `[k, T, 1, 1]`: nothing where the page holds sources, and `-EMPTY_PAGE` where it holds none.
+    empty: Tensor,
+}
+
+impl SourcePaging {
+    fn create(input: &CrossAttentionInput<'_>, tokens: i64) -> Result<Self> {
+        let &[sequences] = input.lengths.shape().dimensions() else {
             return Err(Error::invalid_argument(
-                "cross-attention requires [tokens, width]",
+                "cross-attention source lengths are [sequences]",
             ));
         };
-        let query =
-            input
-                .hidden
-                .apply(&self.query, state)?
-                .reshape([tokens, self.heads, self.head_dim])?;
-        let (chunks, [page_offsets, pages, last_page_lengths]) = self.paging(input.keys)?;
-        // Each chunk's queries are the step's, offset by the chunk's place.
-        let offsets = input.step.paging().query_offsets;
-        let &[offset_count, ..] = offsets.shape().dimensions() else {
-            return Err(Error::invalid_argument("cross attention query offsets"));
+        let SourcePages {
+            page,
+            per_sequence: pages,
+            ..
+        } = SourcePages::create(input.keys, sequences)?;
+        let step_offsets = input.step.paging().query_offsets;
+        if step_offsets.shape().dimensions() != [sequences + 1] {
+            return Err(Error::invalid_argument(
+                "cross-attention reads one source length per decoder sequence",
+            ));
+        }
+
+        let literal = |values: Vec<i64>, dimensions: &[i64]| {
+            capture::literal(input.keys.device(), |device| {
+                Tensor::from_vec(device, Shape::create(dimensions.to_vec())?, values)
+            })
         };
-        let sequences = offset_count - 1;
-        let shifts = capture::literal(offsets.device(), |device| {
-            Tensor::from_vec(
-                device,
-                Shape::create([chunks, 1])?,
-                (0..chunks).map(|chunk| chunk * tokens).collect(),
-            )
-        })?;
-        let end = capture::literal(offsets.device(), |device| {
-            Tensor::from_vec(device, Shape::create([1])?, vec![chunks * tokens])
-        })?;
+        let count = pages * sequences;
         let query_offsets = Tensor::concat(
             &[
-                offsets
+                step_offsets
                     .narrow(0, 0, sequences)?
                     .unsqueeze(0)?
-                    .add(&shifts)?
-                    .reshape([chunks * sequences])?,
-                end,
+                    .add(&literal(
+                        (0..pages).map(|index| index * tokens).collect(),
+                        &[pages, 1],
+                    )?)?
+                    .reshape([count])?,
+                literal(vec![pages * tokens], &[1])?,
             ],
             0,
         )?;
-        let copies = usize::try_from(chunks).map_err(|_| Error::out_of_range("chunks"))?;
-        let (partial, lse) = Tensor::concat(&vec![query.clone(); copies], 0)?.paged_attention(
-            input.keys,
-            input.values,
-            Paging {
-                query_offsets: &query_offsets,
-                page_offsets: &page_offsets,
-                pages: &pages,
-                last_page_lengths: &last_page_lengths,
-            },
-            AttentionOptions::default(),
-        )?;
-        // Each chunk's result weighs by its share of the softmax's total, from its base-two log-sum-exp.
-        let lse = lse.reshape([chunks, tokens, self.heads, 1])?;
-        let weights = lse
-            .sub(&lse.max_reduce(&[0], true)?)?
-            .mul_scalar(LN_2)?
-            .exp()?;
-        let attended = partial
-            .reshape([chunks, tokens, self.heads, self.head_dim])?
-            .cast(DataType::F32)?
-            .mul(&weights)?
-            .sum(&[0], false)?
-            .div(&weights.sum(&[0], false)?)?
-            .cast(query.data_type())?;
-        attended
-            .reshape([tokens, width])?
-            .apply(&self.output, state)
+        // Each page's first slot in its sequence, `[k, 1]`.
+        let starts = literal((0..pages).map(|index| index * page).collect(), &[pages, 1])?;
+        let last_page_lengths = input
+            .lengths
+            .unsqueeze(0)?
+            .sub(&starts)?
+            .clamp(1.0, page as f32)?
+            .cast(DataType::I64)?
+            .reshape([count])?;
+        let held = input
+            .lengths
+            .index_select(0, input.step.sequence_ids())?
+            .unsqueeze(0)?
+            .sub(&starts)?
+            .clamp(0.0, 1.0)?
+            .reshape([pages, tokens, 1, 1])?;
+        Ok(Self {
+            pages,
+            query_offsets,
+            page_offsets: literal((0..=count).collect(), &[count + 1])?,
+            table: literal(
+                (0..pages)
+                    .flat_map(|index| (0..sequences).map(move |sequence| sequence * pages + index))
+                    .collect(),
+                &[count],
+            )?,
+            last_page_lengths,
+            empty: held.sub_scalar(1.0)?.mul_scalar(EMPTY_PAGE)?,
+        })
+    }
+
+    fn paging(&self) -> Paging<'_> {
+        Paging {
+            query_offsets: &self.query_offsets,
+            page_offsets: &self.page_offsets,
+            pages: &self.table,
+            last_page_lengths: &self.last_page_lengths,
+        }
     }
 }

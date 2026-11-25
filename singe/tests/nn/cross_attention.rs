@@ -37,6 +37,17 @@ struct Case {
     output: Linear,
 }
 
+// Sequences of `sources`, then fewer, then a single encoder output.
+fn source_counts(sources: i64, sequences: usize) -> Vec<i64> {
+    (0..sequences)
+        .map(|sequence| match sequence {
+            0 => sources,
+            1 => (sources - 3).max(1),
+            _ => 1,
+        })
+        .collect()
+}
+
 fn case(sources: i64, sequences: usize, device: Device, data_type: DataType) -> Case {
     let mut builder = StateBuilder::new();
     let mut linear = |name: &str, seed: f32| {
@@ -49,20 +60,14 @@ fn case(sources: i64, sequences: usize, device: Device, data_type: DataType) -> 
     let key = linear("key", 0.2);
     let value = linear("value", 0.3);
     let output = linear("output", 0.4);
-    let attention = CrossAttention::create(
-        query.clone(),
-        key,
-        value,
-        output.clone(),
-        HEADS,
-        WIDTH,
-        sources,
-    )
-    .unwrap();
+    let attention =
+        CrossAttention::create(query.clone(), key, value, output.clone(), HEADS, WIDTH).unwrap();
     let state = builder.finish().unwrap();
-    let sources = (0..sequences)
-        .map(|sequence| {
-            let encoded = values(&[sources, WIDTH], 1.0 + sequence as f32, device, data_type);
+    let sources = source_counts(sources, sequences)
+        .into_iter()
+        .enumerate()
+        .map(|(sequence, count)| {
+            let encoded = values(&[count, WIDTH], 1.0 + sequence as f32, device, data_type);
             attention.sources(&encoded, &state).unwrap()
         })
         .collect();
@@ -115,7 +120,7 @@ fn dense(case: &Case, hidden: &Tensor, tokens: &[usize]) -> Vec<f32> {
     )
 }
 
-// A batch whose sequences read different numbers of tokens attends through paged cross-attention as each token does densely, for encoder lengths that fill their last page and that do not, in one chunk of pages and in several.
+// A batch whose sequences read different numbers of tokens attends through paged cross-attention as each token does densely, for sequences of different encoder lengths, which fill their last page or do not, in one page and in several.
 fn check(device: Device, data_type: DataType, tolerance: Tolerance) {
     for (sources, page) in [(8, 4), (10, 4), (5, 8), (37, 4), (40, 4)] {
         let tokens = [3_usize, 1, 2];
@@ -158,6 +163,7 @@ fn check(device: Device, data_type: DataType, tolerance: Tolerance) {
                     step: &step,
                     keys: cache.cross_keys(),
                     values: cache.cross_values(),
+                    lengths: cache.source_lengths(),
                 },
                 &case.state,
             )
@@ -191,7 +197,7 @@ fn test_paged_cross_attention_matches_dense_attention_on_cuda() {
         DataType::Bf16,
         Tolerance::absolute(
             0.04,
-            "each chunk of keys rounds its partial result to BF16 before the chunks combine",
+            "each page rounds its partial result to BF16 before the pages combine",
         ),
     );
 }

@@ -4,13 +4,12 @@ use serde::Deserialize;
 use singe::nn::Activation;
 
 use crate::{
-    assembly::StackRole,
     error::{Error, Result},
     format::{
         Rules, join,
         transformers::{activation, default_true},
     },
-    model::text::t5::T5Config,
+    model::text::t5::{StackRole, T5Config},
     source::Source,
 };
 

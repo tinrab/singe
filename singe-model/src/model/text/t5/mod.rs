@@ -7,19 +7,18 @@ use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 use singe::{
-    DataType, Device, Error as SingeError, Result as SingeResult, Shape, Tensor,
+    Device, Error as SingeError, Result as SingeResult, Shape, Tensor,
+    graph::capture,
     nn::{
-        Activation, DecodeStep, Embedding, GatedMlp, Layer, Linear, Mlp, ModelState, RmsNorm,
-        StateKey,
+        Activation, AttentionInput, CrossAttention, CrossAttentionInput, DecodeStep, Embedding,
+        EncoderDecoderCache, GatedMlp, GroupedQueryAttention, KvCacheSpec, Layer, Linear, Mlp,
+        ModelState, RmsNorm, StateKey,
     },
     tensor::AttentionOptions,
 };
 
 use crate::{
-    assembly::{
-        Attention, AttentionSpec, Seq2SeqCache, Seq2SeqCacheSpec, Seq2SeqTables, StackRole,
-        StepRows,
-    },
+    assembly::{Attention, AttentionSpec, paged_cross_attention, paged_self_attention},
     error::Result,
     format::{Loader, transformers::seq2seq_generation},
     head::{Boxed, HeadLoader, Seq2SeqDecoding, Seq2SeqInput, Seq2SeqLayers, Seq2SeqLm},
@@ -46,6 +45,13 @@ pub struct T5Config {
     pub gated: bool,
     /// Whether the output reads the token embedding, after scaling the decoder's final states by `width^-0.5`.
     pub tied: bool,
+}
+
+/// Which of T5's stacks a part belongs to: the encoder, whose position bias looks both ways, or the decoder, whose looks only back.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum StackRole {
+    Encoder,
+    Decoder,
 }
 
 /// Returns the bucket of the relative position `relative`, `key - query`, as `_relative_position_bucket` sorts them.
@@ -94,33 +100,54 @@ impl Layer for FeedForward {
     }
 }
 
+/// The projections of each attention in a block.
+fn attention_spec(config: &T5Config) -> AttentionSpec {
+    AttentionSpec {
+        width: config.width,
+        context: config.width,
+        inner: config.head_dim * config.heads,
+        heads: config.heads,
+        qkv_bias: false,
+        output_bias: false,
+    }
+}
+
+/// A decoder block's attention: causal self-attention over its paged cache, then the norm and cross-attention that read the encoder's states.
 #[derive(Debug, Clone)]
-struct Block {
+struct DecoderAttention {
+    attention: GroupedQueryAttention,
+    cross_norm: RmsNorm,
+    cross: CrossAttention,
+}
+
+impl DecoderAttention {
+    fn create(schema: &mut Schema<'_>, config: &T5Config) -> SingeResult<Self> {
+        let spec = attention_spec(config);
+        Ok(Self {
+            attention: paged_self_attention(&mut schema.scope("attention"), spec, UNSCALED)?,
+            cross_norm: schema.rms_norm("cross_attention_norm", config.width, config.eps)?,
+            cross: paged_cross_attention(&mut schema.scope("cross_attention"), spec)?
+                .with_scale(1.0),
+        })
+    }
+}
+
+/// A block whose attention is `A`: an encoder's [`Attention`], or a decoder's [`DecoderAttention`].
+#[derive(Debug, Clone)]
+struct Block<A> {
     attention_norm: RmsNorm,
-    attention: Attention,
-    cross: Option<(RmsNorm, Attention)>,
+    attention: A,
     feed_forward_norm: RmsNorm,
     feed_forward: FeedForward,
 }
 
-impl Block {
-    fn create(schema: &mut Schema<'_>, config: &T5Config, role: StackRole) -> SingeResult<Self> {
+impl<A> Block<A> {
+    fn create(
+        schema: &mut Schema<'_>,
+        config: &T5Config,
+        attention: impl FnOnce(&mut Schema<'_>) -> SingeResult<A>,
+    ) -> SingeResult<Self> {
         let (width, eps) = (config.width, config.eps);
-        let spec = AttentionSpec {
-            width,
-            context: width,
-            inner: config.head_dim * config.heads,
-            heads: config.heads,
-            qkv_bias: false,
-            output_bias: false,
-        };
-        let cross = match role {
-            StackRole::Encoder => None,
-            StackRole::Decoder => Some((
-                schema.rms_norm("cross_attention_norm", width, eps)?,
-                Attention::create(&mut schema.scope("cross_attention"), spec)?,
-            )),
-        };
         let sizes = [width, config.inner, width];
         let feed_forward = if config.gated {
             FeedForward::Gated(schema.gated_mlp("feed_forward", sizes, config.activation, false)?)
@@ -129,60 +156,94 @@ impl Block {
         };
         Ok(Self {
             attention_norm: schema.rms_norm("attention_norm", width, eps)?,
-            attention: Attention::create(&mut schema.scope("attention"), spec)?,
-            cross,
+            attention: attention(schema)?,
             feed_forward_norm: schema.rms_norm("feed_forward_norm", width, eps)?,
             feed_forward,
         })
     }
 
-    /// Runs the block over `hidden`, an encoder's whole input, or a decode step's rows, which read and extend the block's cache, with `bias` added to its self-attention's scores.
-    fn forward(
-        &self,
-        hidden: &Tensor,
-        bias: &Tensor,
-        cached: Option<(&StepRows, &Seq2SeqCache)>,
-        state: &ModelState,
-    ) -> SingeResult<Tensor> {
-        let normed = hidden.apply(&self.attention_norm, state)?;
-        let attended = match cached {
-            Some((rows, cache)) => self
-                .attention
-                .decode(&normed, rows, cache, bias, UNSCALED, state)?,
-            None => {
-                self.attention
-                    .attend(&normed, &normed, &normed, Some(bias), UNSCALED, state)?
-            }
-        };
-        let mut hidden = hidden.add(&attended)?;
-        if let (Some((norm, attention)), Some((rows, cache))) = (&self.cross, cached) {
-            let normed = hidden.apply(norm, state)?;
-            hidden =
-                hidden.add(&attention.attend_sources(&normed, rows, cache, UNSCALED, state)?)?;
-        }
-
+    /// Returns `hidden` with the feed-forward layer's output on it, normed, added.
+    fn add_feed_forward(&self, hidden: &Tensor, state: &ModelState) -> SingeResult<Tensor> {
         let normed = hidden.apply(&self.feed_forward_norm, state)?;
         hidden.add(&normed.apply(&self.feed_forward, state)?)
     }
 }
 
+impl Block<Attention> {
+    /// Runs an encoder's block over its whole input, `hidden`, with `bias` added to its attention's scores.
+    fn forward(&self, hidden: &Tensor, bias: &Tensor, state: &ModelState) -> SingeResult<Tensor> {
+        let normed = hidden.apply(&self.attention_norm, state)?;
+        let attended =
+            self.attention
+                .attend(&normed, &normed, &normed, Some(bias), UNSCALED, state)?;
+        self.add_feed_forward(&hidden.add(&attended)?, state)
+    }
+}
+
+impl Block<DecoderAttention> {
+    /// Runs a decoder's block over a decode step's rows, `hidden`, which read and extend `cache`, with `bias`, `[heads, distances]`, added to each self-attention score by its query's distance from its key.
+    fn decode(
+        &self,
+        hidden: &Tensor,
+        step: &DecodeStep,
+        bias: &Tensor,
+        cache: &EncoderDecoderCache,
+        state: &ModelState,
+    ) -> SingeResult<Tensor> {
+        let DecoderAttention {
+            attention,
+            cross_norm,
+            cross,
+        } = &self.attention;
+        let attended = attention.decode_biased(
+            &AttentionInput {
+                hidden: &hidden.apply(&self.attention_norm, state)?,
+                step,
+                angles: None,
+                cache: &cache.self_attention(),
+            },
+            bias,
+            state,
+        )?;
+        let hidden = hidden.add(&attended)?;
+        let crossed = cross.forward(
+            &CrossAttentionInput {
+                hidden: &hidden.apply(cross_norm, state)?,
+                step,
+                keys: cache.cross_keys(),
+                values: cache.cross_values(),
+                lengths: cache.source_lengths(),
+            },
+            state,
+        )?;
+        self.add_feed_forward(&hidden.add(&crossed)?, state)
+    }
+}
+
+/// An encoder or decoder stack, whose blocks' attention is `A`.
 #[derive(Debug, Clone)]
-struct Stack {
-    blocks: Vec<Block>,
+struct Stack<A> {
+    blocks: Vec<Block<A>>,
     /// Each relative position bucket's bias for each head, `[buckets, heads]`.
     position_bias: StateKey,
     norm: RmsNorm,
 }
 
-impl Stack {
+impl<A> Stack<A> {
     fn create(
         schema: &mut Schema<'_>,
         config: &T5Config,
         layers: i64,
-        role: StackRole,
+        attention: impl Fn(&mut Schema<'_>) -> SingeResult<A>,
     ) -> SingeResult<Self> {
         let blocks = (0..layers)
-            .map(|index| Block::create(&mut schema.scope(format!("blocks.{index}")), config, role))
+            .map(|index| {
+                Block::create(
+                    &mut schema.scope(format!("blocks.{index}")),
+                    config,
+                    &attention,
+                )
+            })
             .collect::<SingeResult<Vec<_>>>()?;
         Ok(Self {
             blocks,
@@ -190,7 +251,9 @@ impl Stack {
             norm: schema.rms_norm("norm", config.width, config.eps)?,
         })
     }
+}
 
+impl Stack<Attention> {
     /// Returns the bias of an encoder's attention among `length` tokens, `[1, heads, length, length]`.
     fn encoder_bias(
         &self,
@@ -221,29 +284,6 @@ impl Stack {
             .unsqueeze(0)
     }
 
-    /// Returns the bias of a decode step's rows' attention to every position of their sequences, `[T, heads, 1, C]`, with each row's mask added, which hides the positions after the row's own.
-    fn step_bias(
-        &self,
-        rows: &StepRows,
-        tables: &Seq2SeqTables,
-        state: &ModelState,
-    ) -> SingeResult<Tensor> {
-        let buckets = tables.buckets()?.index_select(0, rows.positions())?;
-        let &[count, capacity] = buckets.shape().dimensions() else {
-            return Err(SingeError::invalid_argument("relative position buckets"));
-        };
-        let table = state.tensor(&self.position_bias)?;
-        let &[_, heads] = table.shape().dimensions() else {
-            return Err(SingeError::invalid_argument("a T5 position bias"));
-        };
-        table
-            .index_select(0, &buckets.reshape([count * capacity])?)?
-            .reshape([count, capacity, heads])?
-            .permute(&[0, 2, 1])?
-            .unsqueeze(2)?
-            .add(rows.mask())
-    }
-
     /// Runs the stack as an encoder over `hidden`, its whole input.
     fn forward(
         &self,
@@ -255,9 +295,42 @@ impl Stack {
         let bias = self.encoder_bias(length, config, hidden.device(), state)?;
         let mut hidden = hidden.clone();
         for block in &self.blocks {
-            hidden = block.forward(&hidden, &bias, None, state)?;
+            hidden = block.forward(&hidden, &bias, state)?;
         }
         hidden.apply(&self.norm, state)
+    }
+}
+
+impl Stack<DecoderAttention> {
+    /// Returns each head's bias by a decoder query's distance from its key, `[heads, max_distance + 1]`.
+    /// Every distance from `max_distance` on falls in the last bucket, so longer ones share the last column.
+    fn distance_bias(
+        &self,
+        config: &T5Config,
+        device: Device,
+        state: &ModelState,
+    ) -> SingeResult<Tensor> {
+        let distances = config.max_distance + 1;
+        let buckets = capture::literal(device, |device| {
+            Tensor::from_vec(
+                device,
+                Shape::create([distances])?,
+                (0..distances)
+                    .map(|distance| {
+                        bucket(
+                            -distance,
+                            StackRole::Decoder,
+                            config.buckets,
+                            config.max_distance,
+                        )
+                    })
+                    .collect(),
+            )
+        })?;
+        state
+            .tensor(&self.position_bias)?
+            .index_select(0, &buckets)?
+            .transpose(0, 1)
     }
 }
 
@@ -272,55 +345,43 @@ fn sequence_length(hidden: &Tensor) -> SingeResult<i64> {
 #[derive(Debug, Clone)]
 struct T5Decoder {
     tokens: Embedding,
-    stack: Stack,
+    stack: Stack<DecoderAttention>,
     head: Linear,
     config: T5Config,
 }
 
 impl Seq2SeqDecoding for T5Decoder {
-    fn cross_attentions(&self) -> Vec<&Attention> {
+    fn cross_attentions(&self) -> Vec<&CrossAttention> {
         self.stack
             .blocks
             .iter()
-            .filter_map(|block| block.cross.as_ref().map(|(_, attention)| attention))
+            .map(|block| &block.attention.cross)
             .collect()
     }
 
-    fn cache_spec(&self, sources: i64) -> Seq2SeqCacheSpec {
-        Seq2SeqCacheSpec {
-            heads: self.config.heads,
+    fn cache_spec(&self) -> KvCacheSpec {
+        KvCacheSpec {
+            kv_heads: self.config.heads,
             head_dim: self.config.head_dim,
-            sources,
         }
-    }
-
-    fn tables(
-        &self,
-        data_type: DataType,
-        device: Device,
-        capacity: i64,
-    ) -> SingeResult<Seq2SeqTables> {
-        let (buckets, max_distance) = (self.config.buckets, self.config.max_distance);
-        Seq2SeqTables::create(
-            data_type,
-            device,
-            capacity,
-            Some(&|relative| bucket(relative, StackRole::Decoder, buckets, max_distance)),
-        )
     }
 
     fn forward(
         &self,
         step: &DecodeStep,
-        tables: &Seq2SeqTables,
-        caches: &[Seq2SeqCache],
+        caches: &[EncoderDecoderCache],
         state: &ModelState,
     ) -> SingeResult<Tensor> {
-        let rows = StepRows::create(step, tables)?;
-        let bias = self.stack.step_bias(&rows, tables, state)?;
+        if caches.len() != self.stack.blocks.len() {
+            return Err(SingeError::missing_input("a decoder block's cache"));
+        }
+
+        let bias = self
+            .stack
+            .distance_bias(&self.config, step.tokens().device(), state)?;
         let mut hidden = step.tokens().apply(&self.tokens, state)?;
         for (block, cache) in self.stack.blocks.iter().zip(caches) {
-            hidden = block.forward(&hidden, &bias, Some((&rows, cache)), state)?;
+            hidden = block.decode(&hidden, step, &bias, cache, state)?;
         }
 
         let hidden = hidden
@@ -338,7 +399,7 @@ impl Seq2SeqDecoding for T5Decoder {
 #[derive(Debug, Clone)]
 pub struct T5Layers {
     tokens: Embedding,
-    encoder: Stack,
+    encoder: Stack<Attention>,
     decoder: Arc<dyn Seq2SeqDecoding>,
     config: T5Config,
 }
@@ -357,7 +418,7 @@ impl T5Layers {
                 &mut schema.scope("encoder"),
                 config,
                 config.encoder_layers,
-                StackRole::Encoder,
+                |schema| Attention::create(&mut schema.scope("attention"), attention_spec(config)),
             )?,
             decoder: Arc::new(T5Decoder {
                 tokens: tokens.clone(),
@@ -365,7 +426,7 @@ impl T5Layers {
                     &mut schema.scope("decoder"),
                     config,
                     config.decoder_layers,
-                    StackRole::Decoder,
+                    |schema| DecoderAttention::create(schema, config),
                 )?,
                 head,
                 config: config.clone(),

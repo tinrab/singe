@@ -12,8 +12,8 @@ use crate::{
     },
     graph::{Graph, GraphExecutor, GraphPrepareOptions, SharedBuffers},
     nn::{
-        DecodeStep, DecoderModel, Model, ModelState, PageLayout, PageTable, TensorGroup,
-        caches_from_inputs, named_cache_inputs,
+        DecodeCache, DecodeStep, DecoderModel, Model, ModelState, PageLayout, PageTable,
+        TensorGroup, caches_from_inputs, named_cache_inputs,
     },
     random::Generator,
     shape::Shape,
@@ -428,6 +428,23 @@ impl<L: DecoderModel> CachedDecoder<L> {
         self.compiled
             .iter()
             .flat_map(|(steps, _)| steps.executors())
+    }
+
+    // Gives each sequence the cached keys of `parents[sequence]`, as beam search continues each row from its parent's; a sequence must be as long as its parent.
+    pub fn reorder(&self, parents: &[usize]) -> Result<()> {
+        let (from, to) = self.pages.parent_pages(parents)?;
+        if from.is_empty() {
+            return Ok(());
+        }
+
+        let count = i64::try_from(from.len()).map_err(|_| Error::out_of_range("pages"))?;
+        let indices =
+            |pages: Vec<i64>| Tensor::from_vec(self.device, Shape::create([count])?, pages);
+        let (from, to) = (indices(from)?, indices(to)?);
+        for cache in &self.caches {
+            cache.copy_pages(&from, &to)?;
+        }
+        Ok(())
     }
 
     // Returns each block's cache, which a model may write outside a step, such as an encoder-decoder's cross-attention keys and values.

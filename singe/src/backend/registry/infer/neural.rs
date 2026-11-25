@@ -311,9 +311,15 @@ pub fn paged_attention_lse(context: &InferenceContext<'_>) -> Result<OperationIn
 
 fn paged_attention_shapes(context: &InferenceContext<'_>) -> Result<(Shape, Shape)> {
     let attention = context.attributes(OperationAttributes::scaled_dot_product_attention)?;
-    if attention.masked || attention.sinks || attention.key_lengths {
+    if attention.sinks || attention.key_lengths {
         return Err(Error::unsupported_operation(
-            "paged attention with a mask, sinks, or key lengths",
+            "paged attention with sinks or key lengths",
+        ));
+    }
+
+    if attention.masked != (context.inputs.len() == 8) {
+        return Err(Error::invalid_argument(
+            "paged attention takes a bias by distance exactly when it is masked",
         ));
     }
 
@@ -336,6 +342,24 @@ fn paged_attention_shapes(context: &InferenceContext<'_>) -> Result<(Shape, Shap
                 "operation paged attention cache",
                 query,
                 cache,
+            ));
+        }
+    }
+
+    if attention.masked {
+        let bias = context.input(7)?;
+        if bias.data_type() != query {
+            return Err(Error::data_type_mismatch(
+                "operation paged attention bias",
+                query,
+                bias.data_type(),
+            ));
+        }
+
+        if !matches!(bias.shape().dimensions(), &[heads, distances] if heads == problem.heads && distances > 0)
+        {
+            return Err(Error::invalid_argument(
+                "operation paged attention bias is [heads, distances]",
             ));
         }
     }
